@@ -10,6 +10,19 @@ This document is executable: `TestContracteAPIDocumentat`
 (`internal/web/contract_test.go`) fails if a registered `/api/*` route is not
 documented here.
 
+## Team Collaboration
+
+`POST /api/v2/team/run` accepts `{task,lang?}` (`en` by default, or `ca`).
+It uses the selected session and active model, with four sequential, tool-free
+roles: coordinator, researcher, builder and reviewer. Roles receive prior
+deliverables, not hidden reasoning. This initial implementation cannot browse,
+read files, execute code or create plots. It shares the session busy guard.
+The response is SSE: `event: team`, JSON `{type,agent?,to?,output?}`.
+Types: `started`, `working`, `completed`, `handoff`, `done`, `failed`, `cancelled`.
+Only `completed` and `done` include deliverables. Closing/aborting the HTTP
+request cancels work; there is a ten-minute timeout. Tasks are limited to 16 KB
+and request bodies to 64 KB. Runs are not persisted or resumable yet.
+
 ## Language
 
 | Route | Method | Request and response |

@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
@@ -11,7 +11,7 @@
     "backend": "node build-backend.js",
     "dist": "node build-backend.js && electron-builder",
     "dist-linux": "node build-backend.js linux && electron-builder --linux AppImage",
-    "dist-win": "node build-backend.js windows && electron-builder --win portable"
+    "dist-win": "node build-backend.js windows && electron-builder --win nsis portable --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.1",
@@ -20,6 +20,12 @@
   "build": {
     "appId": "xyz.solanes.gregal",
     "productName": "Gregal",
+    "publish": {
+      "provider": "github",
+      "owner": "alsolanes",
+      "repo": "gregal",
+      "releaseType": "draft"
+    },
     "files": [
       "main.js",
       "server-manager.js",
@@ -45,10 +51,20 @@
     },
     "win": {
       "target": [
+        "nsis",
         "portable"
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": true
+    },
+    "nsis": {
+      "artifactName": "Gregal-Setup-${version}-${arch}.${ext}",
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "portable": {
+      "artifactName": "Gregal-Portable-${version}-${arch}.${ext}"
     }
   },
   "allowScripts": {

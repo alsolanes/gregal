@@ -32,9 +32,36 @@ Linux/Windows CI runs; local Windows tests do not prove Linux runtime behavior.
 ## Source Versus Binaries
 
 A source publication is separate from desktop, Android and extension releases.
-Do not attach debug-signed APKs or unvalidated Electron packages. Configure
-independent publisher IDs, signing credentials and update endpoints outside the
-public source; test those release workflows on their supported platforms.
+Do not attach debug-signed APKs or unvalidated Electron packages. Keep signing
+credentials outside the public source. The Windows desktop update destination
+is explicitly configured in `desktop/package.json`; forks must change its
+public GitHub owner/repository before distributing their own installers.
+
+## Windows Releases and Updates
+
+Build locally with `npm ci` and `npm run dist-win` inside `desktop`.
+The NSIS installer supports automatic updates from published GitHub Releases.
+The portable EXE does not auto-update: replace it manually. The standalone
+backend also does not use the desktop updater; its `update` command requires
+a source checkout and Go, rather than downloading a release binary.
+
+The `Windows Release` workflow runs when a matching `v<desktop-version>` tag
+is pushed. It tests the source, builds the installer and portable, and creates
+a **draft** release with `latest.yml`, blockmap, standalone backend and
+`SHA256SUMS.txt`. The job uses GitHub's ephemeral token, never a bundled token.
+Version values in `main.go`, `desktop/package.json` and its lockfile must agree.
+
+Review and test the draft installer, then publish the release from GitHub.
+Drafts are invisible to the updater. Keep the installer and update metadata
+from the same build, and never replace the assets of a published version.
+Installed desktop applications check at launch, download a newer published
+version and offer a restart. Updating the desktop also updates its bundled
+backend; a separately hosted backend is managed independently.
+
+These initial Windows packages are unsigned. Windows may show SmartScreen
+warnings. GitHub HTTPS and update checksums are not publisher authentication;
+configure code signing in CI before requiring signed enterprise distribution.
+macOS, Linux, Android and VS Code release/update publishing remain separate.
 
 ## Final Verification
 

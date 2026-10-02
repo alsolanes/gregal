@@ -1,0 +1,72 @@
+name: Windows Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Validate version and tag
+        shell: pwsh
+        run: |
+          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF -ne "refs/tags/v$version") {
+            throw 'Release must run on the matching version tag; choose that tag for manual dispatch.'
+          }
+      - run: node scripts/audit-public.cjs
+      - run: go test ./...
+      - run: go vet ./...
+      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
+      - run: npm ci
+        working-directory: desktop
+      - run: node node_modules/electron/install.js
+        working-directory: desktop
+      - run: npm audit --audit-level=high
+        working-directory: desktop
+      - name: Build installer, portable and update metadata
+        run: npm run dist-win -- --config.directories.output=../output/release
+        working-directory: desktop
+      - name: Include standalone backend and checksums
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath desktop/backend/gregal.exe -Destination output/release/gregal-windows-amd64.exe
+          $assets = Get-ChildItem output/release -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml' }
+          $lines = $assets | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }
+          $lines | Set-Content output/release/SHA256SUMS.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            output/release/*.exe
+            output/release/latest.yml
+            output/release/*.blockmap
+            output/release/SHA256SUMS.txt
+      - name: Create draft GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; do not replace published update assets.' }
+          gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --verify-tag --draft --title "Gregal $env:GITHUB_REF_NAME" --generate-notes
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create release' }
+          $assets = Get-ChildItem output/release -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -in 'latest.yml', 'SHA256SUMS.txt' }
+          gh release upload "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" @($assets.FullName)
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload release assets' }

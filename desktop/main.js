@@ -479,7 +479,7 @@ async function createWindow() {
 // ha versió nova i avisa. Sense el paquet, l'app funciona igual: no és
 // una dependència dura per a `npm start`.
 function setupUpdater(win) {
-    if (!app.isPackaged || process.env.GREGAL_NO_UPDATE) return;
+    if (!app.isPackaged || process.env.GREGAL_NO_UPDATE || process.env.PORTABLE_EXECUTABLE_FILE) return;
     // Portable builds have no updater manifest; users replace the EXE.
     if (!fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) return;
     let updater;

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="/app/icon.png">
+<link rel="stylesheet" href="/app/team.css">
 <title data-i18n="ui.title">Gregal - Coding Agent</title>
 <style>
 /* GENERAT des d'internal/tema (go test ./internal/web -run TestCSSAlDia -update).
@@ -1295,6 +1296,7 @@ body.sense-inspector #inspector { display:none; }
     <button class="nav-item side-view" data-view="activitat"><span class="nav-icon">≡</span><span data-i18n="nav.activity">Activitat</span></button>
     <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
     <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
+    <button class="nav-item side-view" data-view="team"><span class="nav-icon">◇</span><span id="teamNav">Team</span></button>
   </details>
   <details class="side-fold tools">
     <summary data-i18n="nav.tools">Eines</summary>
@@ -1571,6 +1573,12 @@ body.sense-inspector #inspector { display:none; }
           <iframe id="browserFrame" title="Vista web" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
         </div>
       </section>
+      <section class="workspace-page" id="teamPage" hidden>
+        <header class="page-head"><h1 id="teamTitle">Team</h1><span id="teamStatus" role="status">Idle</span></header>
+        <form id="teamForm"><label id="teamTaskLabel" for="teamTask">Task</label><textarea id="teamTask" rows="2" maxlength="16000" required></textarea><div class="team-actions"><span id="teamModel"></span><button class="primary" id="teamStart" type="submit">Start</button><button class="ghost" id="teamStop" type="button" disabled>Stop</button></div></form>
+        <div class="team-layout"><div class="team-floor"><canvas id="teamCanvas" aria-hidden="true"></canvas><div id="teamAgents" role="group" aria-label="Agents"></div></div><aside class="team-detail"><h2 id="teamSelected">Coordinator</h2><div id="teamAgentStatus">Idle</div><pre id="teamOutput"></pre></aside></div>
+        <h2 id="teamActivityTitle">Activity</h2><ol id="teamActivity" aria-live="polite"></ol>
+      </section>
       <section class="workspace-page" id="grafsPage" hidden tabindex="-1">
         <div class="flow-layout">
           <aside class="flow-side">
@@ -1730,7 +1738,7 @@ const sendLabel = () => sending && !input.value.trim() ? ICONA_ATURA : ICONA_ENV
 const mobile = matchMedia('(max-width:760px)');
 const escapeHTML = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function setView(view) {
-  currentView = ['agent','objectius','programat','mcp','activitat','github','office','canvis','fitxers','terminal','navegador','grafs'].includes(view) ? view : 'agent';
+  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','terminal','navegador','grafs'].includes(view) ? view : 'agent';
   const agent = currentView === 'agent';
   hero.hidden = !agent; main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
@@ -1744,9 +1752,10 @@ function setView(view) {
   $('terminalPage').hidden = currentView !== 'terminal';
   $('navegadorPage').hidden = currentView !== 'navegador';
   $('grafsPage').hidden = currentView !== 'grafs';
+  $('teamPage').hidden = currentView !== 'team';
   // A Grafs l'espai és el producte: el llenç necessita amplada i
   // l'inspector de sessió no diu res que ajudi a dibuixar un graf.
-  $('inspector').hidden = currentView === 'grafs';
+  $('inspector').hidden = currentView === 'grafs' || currentView === 'team';
   document.body.classList.toggle('sense-inspector', !inspectorObert());
   const P = window.gregalPanels;
   if (P) {
@@ -3322,6 +3331,7 @@ refresh();
 </script>
 <script type="module">
   import '/app/runs.js';
+  import '/app/team.js';
   import { boot } from '/app/panels.js';
   boot();
 </script>

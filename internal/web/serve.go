@@ -389,6 +389,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/v2/runs/{id}/cancel", h.route((*Server).handleV2RunCancel))
 	handle("/api/chat", h.route((*Server).handleChat))
 	handle("/api/parallel", h.route((*Server).handleParallel))
+	handle("/api/v2/team/run", h.route((*Server).handleTeamRun))
 	handle("/api/agent", h.route((*Server).handleAgent))
 	handle("/api/approve", h.route((*Server).handleApprove))
 	handle("/api/question", h.route((*Server).handleQuestion))
