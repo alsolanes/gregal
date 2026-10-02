@@ -41,6 +41,16 @@ test('audit utilities retain credential checks', () => {
   assert.equal(scan({ LICENSE: 'sk-' + 'synthetic'.repeat(4) }).status, 1);
 });
 
+test('Telegram credentials with short bot identifiers are rejected without disclosure', () => {
+  for (const id of ['123', '1234567', '1234567890']) {
+    const credential = id + ':' + 'synthetic_'.repeat(4) + '-';
+    const result = scan({ 'config.yaml': 'telegram:\n  token: ' + credential });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /config.yaml: Telegram credential/);
+    assert.ok(!result.stderr.includes(credential));
+  }
+});
+
 test('configured markers detect private values without printing them', () => {
   const marker = 'private-fixture-42';
   const result = scan({ 'notes.md': 'reviewed by ' + marker }, { GREGAL_PRIVATE_MARKERS: JSON.stringify([marker]) });

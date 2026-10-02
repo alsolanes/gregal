@@ -5,7 +5,7 @@ const findings = [];
 const rules = [
   ['private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['provider credential', /\b(?:sk-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{20,})\b/],
-  ['Telegram credential', /\b\d{8,}:[A-Za-z0-9_-]{30,}\b/],
+  ['Telegram credential', /\b\d+:[A-Za-z0-9_-]{20,}(?![A-Za-z0-9_-])/],
   ['personal email', /[A-Za-z0-9._%+-]+@(?:gmail\.com|outlook\.com|hotmail\.com|yahoo\.com)/i],
 ];
 const markers = JSON.parse(process.env.GREGAL_PRIVATE_MARKERS || '[]');
