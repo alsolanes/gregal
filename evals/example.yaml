@@ -1,0 +1,14 @@
+# Configure an endpoint and model that you control before running evaluations.
+lang: en
+providers:
+  local:
+    base_url: http://localhost:8089/v1
+    api_key: ${GREGAL_EVAL_API_KEY}
+roles:
+  chat: {provider: local, model: your-model, max_tokens: 4096}
+  code: {provider: local, model: your-model, max_tokens: 8192}
+  reviewer: {provider: local, model: your-model, max_tokens: 4096}
+  think: {provider: local, model: your-model, max_tokens: 8192}
+verify: {mode: "off"}
+agent: {max_steps: 40}
+mode: code

@@ -1,0 +1,51 @@
+# Copy to a private deployment config; replace the endpoint and model names.
+lang: en
+mode: chat
+system: >-
+  You are a deployment assistant. Reply in English unless the user asks for
+  Catalan. Distinguish facts from assumptions. Use approved sources for
+  document questions and cite retrieved sources. Do not invent evidence.
+providers:
+  deployment:
+    base_url: http://127.0.0.1:8089/v1
+    api_key: ${GREGAL_MODEL_API_KEY}
+roles:
+  chat: {provider: deployment, model: replace-with-model, max_tokens: 4096}
+  code: {provider: deployment, model: replace-with-model, max_tokens: 8192}
+  reviewer: {provider: deployment, model: replace-with-model, max_tokens: 4096}
+  think: {provider: deployment, model: replace-with-model, max_tokens: 8192}
+verify: {mode: manual}
+router: {mode: off}
+agent: {max_steps: 40, approval_timeout_s: 1800}
+permissions:
+  tools:
+    write: ask
+    edit: ask
+    patch: ask
+    bash: ask
+    bash_background: ask
+    delegate: ask
+    browser: ask
+    office_open: deny
+  bash_allow: []
+  bash_deny: []
+# Native users can be added to a private config; set GREGAL_DATA_DIR to the
+# service data directory before setting passwords with `gregal --config
+# /private/gregal.yaml --passwd <user>`. For user login, leave
+# GREGAL_API_TOKEN unset so there is no shared admin credential.
+# users:
+#   analyst:
+#     roots: [/srv/gregal/workspaces/analyst]
+#     home: /srv/gregal/workspaces/analyst
+#
+# Register approved RAG connectors with the server-side MCP configuration:
+# mcp:
+#   approved_docs:
+#     command: python
+#     args: [/opt/connectors/approved-docs.py]
+#     env: {DOCUMENT_INDEX: /srv/approved-docs/index}
+# permissions:
+#   tools:
+#     mcp_approved_docs_search: ask  # replace with the connector's tool name
+# In the current backend, MCP is disabled in chat/inspect; use code mode with
+# explicit per-tool permissions for connector calls and analysis that writes plots.

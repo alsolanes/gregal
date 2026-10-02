@@ -1,0 +1,13 @@
+{
+  "extension.displayName": "Gregal",
+  "extension.description": "Agent local de Gregal a l’editor. Pregunta sobre el teu codi.",
+  "command.ask.title": "Gregal: pregunta sobre la selecció o el fitxer",
+  "command.explain.title": "Gregal: explica la selecció",
+  "command.cancel.title": "Gregal: cancel·la el torn actual",
+  "command.rewind.title": "Gregal: desfés els canvis de l’agent",
+  "command.github.title": "Gregal: consulta issues i pull requests de GitHub",
+  "configuration.title": "Gregal",
+  "configuration.baseUrl.description": "Adreça base del servidor Gregal (sense /api).",
+  "configuration.token.description": "Token Bearer d’un servidor configurat amb GREGAL_API_TOKEN; deixa’l buit per a l’ús local sense autenticació.",
+  "configuration.session.description": "Identificador de sessió enviat a cada petició (lletres, dígits, _ o -)."
+}

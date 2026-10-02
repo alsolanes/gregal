@@ -1,0 +1,13 @@
+{
+  "extension.displayName": "Gregal",
+  "extension.description": "Local Gregal agent in your editor. Ask questions about your code.",
+  "command.ask.title": "Gregal: Ask about the selection or file",
+  "command.explain.title": "Gregal: Explain the selection",
+  "command.cancel.title": "Gregal: Cancel the current run",
+  "command.rewind.title": "Gregal: Undo the agent's changes",
+  "command.github.title": "Gregal: Browse GitHub issues and pull requests",
+  "configuration.title": "Gregal",
+  "configuration.baseUrl.description": "Base URL of the Gregal server (without /api).",
+  "configuration.token.description": "Bearer token for a server configured with GREGAL_API_TOKEN; leave empty for local unauthenticated use.",
+  "configuration.session.description": "Session ID sent with each request (letters, digits, _ or -)."
+}

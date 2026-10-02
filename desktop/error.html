@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gregal - Server offline</title>
+<style>
+  :root {
+    --bg: #171A19;
+    --surface: #1E2321;
+    --surface-hi: #29302D;
+    --text: #ECF0EA;
+    --escuma: #9FE0C4;
+    --escuma-clara: #BCEBD4;
+    --abisme: #101312;
+    --line: rgba(159,224,196,.16);
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px system-ui, -apple-system, sans-serif;
+    display: flex;
+    height: 100vh;
+    margin: 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .card {
+    text-align: center;
+    max-width: 440px;
+    padding: 36px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 24px 70px rgba(0,0,0,.45);
+  }
+  .mark {
+    font-size: 54px;
+    color: var(--escuma);
+    line-height: 1;
+    margin-bottom: 8px;
+    user-select: none;
+  }
+  h2 {
+    margin: 12px 0;
+    color: #F4F4EF;
+    font-size: 20px;
+  }
+  p {
+    color: #94A3B8;
+    line-height: 1.5;
+    margin: 12px 0 20px;
+  }
+  code {
+    background: var(--abisme);
+    padding: 2px 8px;
+    border-radius: 6px;
+    color: var(--escuma);
+    font-family: ui-monospace, monospace;
+    font-size: 14px;
+  }
+  button {
+    background: var(--escuma);
+    color: var(--bg);
+    border: 0;
+    border-radius: 8px;
+    padding: 10px 28px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background .15s ease;
+  }
+  button:hover {
+    background: var(--escuma-clara);
+  }
+  button:disabled {
+    opacity: .5;
+    cursor: wait;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="mark">≋</div>
+  <h2 id="errTitle">Could not start Gregal</h2>
+  <p id="errDesc">The app could not start the local backend. Try again or launch with
+  <code>GREGAL_URL</code> to connect to an existing server.</p>
+  <button id="retryBtn" onclick="doRetry()">Try again</button>
+</div>
+<script>
+  const isEn = new URLSearchParams(location.search).get('lang') !== 'ca';
+  document.documentElement.lang = isEn ? 'en' : 'ca';
+  if (!isEn) {
+    document.title = 'Gregal - Sense servidor';
+    document.getElementById('errTitle').textContent = "No s'ha pogut iniciar Gregal";
+    document.getElementById('errDesc').innerHTML = "L'app no ha pogut arrencar el backend local. Torna-ho a provar o inicia-la amb <code>GREGAL_URL</code> per connectar-te a un servidor existent.";
+    document.getElementById('retryBtn').textContent = 'Torna-ho a provar';
+  }
+  async function doRetry() {
+    const btn = document.getElementById('retryBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = isEn ? 'Connecting…' : 'Connectant…';
+    }
+    try {
+      if (window.gregalDesktop && window.gregalDesktop.retryBackend) {
+        const res = await window.gregalDesktop.retryBackend();
+        if (res && res.ok) return;
+      }
+    } catch (e) {}
+    location.reload();
+  }
+</script>
+</body>
+</html>

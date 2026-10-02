@@ -1,0 +1,5 @@
+python3 - "$1" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert "barcelona" in d.get("answer", "").lower(), d.get("answer")
+PYEOF

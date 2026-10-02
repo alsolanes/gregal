@@ -1,0 +1,64 @@
+# CI del Gregal (D2): build + qualitat + tests. Sense secrets: no corre evals en viu.
+name: ci
+on: [push, pull_request]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: 'go.mod'}
+      - run: gofmt -l . | grep . && exit 1 || true
+      - run: go vet ./...
+      - run: go test ./... -count=1 -timeout 300s
+      - name: contracte API documentat
+        run: go test ./internal/web/ -run TestContracteAPIDocumentat -count=1
+      - name: build de release multiplataforma
+        env:
+          RELEASE_VERSION: ci-${{ github.sha }}
+        run: ./build.sh "$RELEASE_VERSION"
+      - name: comprova els checksums del build de release
+        working-directory: dist
+        run: sha256sum --check SHA256SUMS
+  go-race:
+    # El detector de races de Go necessita CGO i el toolchain Linux amd64.
+    # Es manté separat del job normal perquè no canviï el comportament de les
+    # comprovacions de release ni bloquegi altres plataformes.
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: {go-version-file: 'go.mod'}
+      - name: comprova races de la suite Go
+        run: go test -race ./... -count=1 -timeout 600s
+  desktop:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: identitat visual i proves web (identitat, markdown, mòduls ES, adaptador de runs)
+        run: node --experimental-vm-modules --test internal/web/identitat.test.js internal/web/md.test.js internal/web/moduls.test.js internal/web/runs.test.js
+      - run: npm test
+        working-directory: desktop
+  vscode:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: npm ci --ignore-scripts && npm run compile && npm test
+        working-directory: vscode-gregal
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: rm -f local.properties && ./gradlew testDebugUnitTest assembleDebug
+        working-directory: android

@@ -1,0 +1,5 @@
+:root { --fons:#faf6ef; --tinta:#2b2118; --accent:#9a6b12; }
+body { background:var(--fons); color:var(--tinta); font-family:system-ui,sans-serif; margin:0; }
+header, footer { background:var(--accent); color:var(--fons); padding:1rem 2rem; }
+main { max-width:60rem; margin:0 auto; padding:2rem; }
+@media (max-width:700px) { main { padding:1rem; } }

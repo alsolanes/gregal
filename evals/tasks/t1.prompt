@@ -1,0 +1,1 @@
+A calc.py la funció mean() calcula malament la mitjana (comprova-ho amb pytest). Corregeix-la i verifica amb pytest que tots els tests passen.

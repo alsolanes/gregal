@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rutes que el FileProvider pot compartir. Només la caché: l'APK baixat
+     viu allà i res més de l'app s'exposa a qui rebi l'URI. -->
+<paths>
+    <cache-path name="updates" path="." />
+</paths>

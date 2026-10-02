@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gregal</title>
+<script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+<style>
+  /* Llenguatge de disseny de l'Office (Fluent): Segoe UI, reixa de 4 px,
+     marges de 20 px, blau d'acció, grisos neutres. Els colors de fons i
+     de text els posa el tema de l'Office (officeTheme) en arrencar; per
+     defecte, clar, que és com la gent té el Word. Res de neons ni de
+     marca cridanera: el panell ha de semblar una part del programa. */
+  :root {
+    --bg: #ffffff; --bg2: #f5f5f5; --bg3: #ebebeb;
+    --text: #242424; --text2: #616161; --text3: #8a8a8a;
+    --line: #e0e0e0; --line2: #c7c7c7;
+    --accent: #0f6cbd; --accent-h: #115ea3; --accent-p: #0c3b5e; --on-accent: #ffffff;
+    --ok: #0e700e; --warn: #8a5a00; --warn-bg: #fff8e7; --bad: #b10e1c;
+    --radius: 4px;
+  }
+  :root[data-theme="dark"] {
+    --bg: #292929; --bg2: #333333; --bg3: #3d3d3d;
+    --text: #ffffff; --text2: #d6d6d6; --text3: #adadad;
+    --line: #4a4a4a; --line2: #5c5c5c;
+    --accent: #479ef5; --accent-h: #62abf5; --accent-p: #2886de; --on-accent: #000000;
+    --ok: #54b054; --warn: #f2c661; --warn-bg: #3a3320; --bad: #f1707b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font: 14px/20px "Segoe UI", "Segoe UI Web (West European)", -apple-system, system-ui, sans-serif;
+    background: var(--bg); color: var(--text);
+    display: flex; flex-direction: column;
+  }
+  header {
+    padding: 12px 20px 8px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  header h1 { font-size: 14px; font-weight: 600; margin: 0; letter-spacing: 0; }
+  header h1 small { font-weight: 400; color: var(--text3); margin-left: 6px; }
+  #estat { font-size: 12px; line-height: 16px; color: var(--text2); display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #estat::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text3); flex: none; }
+  #estat.ok::before { background: var(--ok); }
+  #estat.mal::before { background: var(--bad); }
+  #estat.feina::before { background: var(--accent); animation: puls 1s infinite alternate; }
+  @keyframes puls { from { opacity: .3 } to { opacity: 1 } }
+
+  .modeBar { padding: 8px 20px; border-bottom: 1px solid var(--line); background: var(--bg2); font-size: 12px; line-height: 16px; color: var(--text2); }
+  .commuta { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .commuta input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .commuta .pista { width: 32px; height: 18px; border-radius: 9px; background: var(--line2); position: relative; flex: none; transition: background .15s; }
+  .commuta .pista::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg); transition: left .15s; }
+  .commuta input:checked + .pista { background: var(--accent); }
+  .commuta input:checked + .pista::after { left: 16px; }
+  .commuta input:focus-visible + .pista { outline: 2px solid var(--accent); outline-offset: 2px; }
+  body.consulta .modeBar { color: var(--text); font-weight: 600; }
+  body.consulta .soEdicio { display: none !important; }
+  main { flex: 1; overflow: auto; padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 12px; }
+  section { display: flex; flex-direction: column; gap: 8px; }
+  h2 { font-size: 12px; line-height: 16px; font-weight: 600; color: var(--text2); margin: 0; }
+
+  /* Accions ràpides sobre la selecció: el que la gent fa al Word. */
+  .xips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .xips[hidden] { display: none; }
+  .xip {
+    font: inherit; font-size: 12px; line-height: 16px;
+    padding: 4px 10px; border-radius: 12px; cursor: pointer;
+    background: var(--bg2); color: var(--text); border: 1px solid var(--line);
+  }
+  .xip:hover { background: var(--bg3); border-color: var(--line2); }
+  .xip:disabled { opacity: .5; cursor: default; }
+
+  textarea, input, select {
+    width: 100%; font: inherit; color: var(--text);
+    background: var(--bg); border: 1px solid var(--line2); border-radius: var(--radius);
+    padding: 6px 8px; outline: none;
+  }
+  textarea:focus, input:focus, select:focus { border-color: var(--accent); box-shadow: inset 0 -1px 0 var(--accent); }
+  textarea { min-height: 72px; resize: vertical; }
+  .fila { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .fila.dreta { justify-content: flex-end; }
+  .sep { flex: 1; }
+
+  button.boto {
+    font: inherit; font-weight: 600; padding: 5px 12px; min-height: 32px;
+    border-radius: var(--radius); cursor: pointer;
+    background: var(--bg); color: var(--text); border: 1px solid var(--line2);
+  }
+  button.boto:hover { background: var(--bg2); }
+  button.boto.primari { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  button.boto.primari:hover { background: var(--accent-h); }
+  button.boto.primari:active { background: var(--accent-p); }
+  button.boto.subtil { border-color: transparent; font-weight: 400; color: var(--accent); padding-left: 6px; padding-right: 6px; }
+  button.boto.subtil:hover { background: var(--bg2); }
+  button:disabled { opacity: .45; cursor: default; }
+
+  #resposta {
+    flex: 1; min-height: 140px; overflow: auto;
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 10px 12px; background: var(--bg);
+    font-size: 14px; line-height: 20px;
+  }
+  #resposta:empty::before { content: attr(data-buit); color: var(--text3); }
+  #resposta h1, #resposta h2, #resposta h3 { font-size: 15px; line-height: 20px; margin: 8px 0 4px; font-weight: 600; }
+  #resposta h1 { font-size: 17px; }
+  #resposta p { margin: 0 0 8px; }
+  #resposta ul, #resposta ol { margin: 0 0 8px; padding-left: 22px; }
+  #resposta li { margin: 2px 0; }
+  #resposta code { font-family: Consolas, "Cascadia Mono", monospace; font-size: 12.5px; background: var(--bg2); padding: 0 3px; border-radius: 3px; }
+  #resposta pre { background: var(--bg2); padding: 8px; border-radius: var(--radius); overflow: auto; }
+  #resposta table { border-collapse: collapse; margin: 4px 0 8px; }
+  #resposta td, #resposta th { border: 1px solid var(--line); padding: 3px 8px; font-size: 13px; }
+  #resposta th { background: var(--bg2); font-weight: 600; }
+
+  #preg {
+    border: 1px solid var(--warn); border-left-width: 4px; border-radius: var(--radius);
+    padding: 8px 12px; background: var(--warn-bg); display: flex; flex-direction: column; gap: 6px;
+  }
+  #preg[hidden] { display: none; }
+  #preg b { font-weight: 600; }
+  #pregCos { font-size: 12.5px; color: var(--text2); white-space: pre-wrap; max-height: 120px; overflow: auto; }
+
+  details { font-size: 12px; color: var(--text2); border-top: 1px solid var(--line); padding-top: 8px; }
+  summary { cursor: pointer; font-weight: 600; list-style: none; }
+  summary::before { content: "›"; display: inline-block; width: 12px; transition: transform .1s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  details label { display: block; margin-top: 8px; margin-bottom: 2px; }
+  .opcions { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--text2); }
+  .opcions label { display: flex; align-items: center; gap: 4px; }
+  .opcions input { width: auto; margin: 0; }
+  .nota { font-size: 12px; line-height: 16px; color: var(--text3); }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Gregal <small id="host"></small></h1>
+    <div id="estat">iniciant…</div>
+  </header>
+  <div class="modeBar">
+    <label class="commuta" title="En mode consulta l'agent només respon al panell: no insereix ni substitueix res al document. Pensat per a documents on hi ha més gent treballant alhora.">
+      <input type="checkbox" id="nomesConsulta" />
+      <span class="pista"></span>
+      <span>Només consulta: no toca el document</span>
+    </label>
+  </div>
+  <main>
+    <section>
+      <h2>Amb la selecció</h2>
+      <div class="xips" id="xipsConsulta" hidden>
+        <button class="xip" data-ordre="Resumeix el text en un paràgraf breu (o en 3 punts si és llarg).">Resumeix</button>
+        <button class="xip" data-ordre="Explica què diu el text amb paraules planes, com a qui no és del tema.">Explica</button>
+        <button class="xip" data-ordre="Revisa el text i llista els problemes que hi trobis (claredat, errors, incoherències, coses que falten), citant el fragment de cadascun. No el reescriguis.">Revisa</button>
+        <button class="xip" data-ordre="Extreu els punts clau, les dades i les decisions del text en una llista.">Punts clau</button>
+        <button class="xip" data-ordre="Proposa 3-5 preguntes que un lector crític faria sobre aquest text.">Preguntes</button>
+        <button class="xip" data-ordre="Tradueix el text a l'anglès (mostra'l només al panell).">→ Anglès</button>
+        <button class="xip" data-ordre="Comprova les afirmacions verificables del text amb cerca web i digues quines quadren, quines no i quines no has pogut comprovar, amb la font.">Verifica</button>
+      </div>
+      <div class="xips" id="xips">
+        <button class="xip" data-ordre="Reescriu el text perquè quedi més clar i fluid, conservant el sentit, la llengua i la llargada aproximada.">Reescriu</button>
+        <button class="xip" data-ordre="Corregeix l'ortografia, la gramàtica i la puntuació. Canvia només el que calgui.">Corregeix</button>
+        <button class="xip" data-ordre="Resumeix el text en un paràgraf breu (o en 3 punts si és llarg).">Resumeix</button>
+        <button class="xip" data-ordre="Fes el text més concís: elimina redundàncies sense perdre informació.">Escurça</button>
+        <button class="xip" data-ordre="Amplia el text amb més detall i exemples, mantenint el to.">Amplia</button>
+        <button class="xip" data-ordre="Reescriu el text amb un to més formal i professional.">Més formal</button>
+        <button class="xip" data-ordre="Tradueix el text a l'anglès.">→ Anglès</button>
+        <button class="xip" data-ordre="Tradueix el text al català.">→ Català</button>
+        <button class="xip" data-ordre="Converteix el text en una llista de punts clars.">En punts</button>
+      </div>
+      <p class="nota" id="notaSel">Selecciona text al document i tria una acció, o escriu la teva petició a sota.</p>
+    </section>
+
+    <section>
+      <h2>Petició</h2>
+      <textarea id="prompt" placeholder="p. ex. Redacta una introducció de dos paràgrafs sobre…"></textarea>
+      <div class="opcions">
+        <label><input type="checkbox" id="ambSel" checked /> Inclou la selecció</label>
+        <label class="soEdicio"><input type="checkbox" id="nomesText" checked /> Només el text resultant</label>
+      </div>
+      <div class="fila">
+        <button id="bEnvia" class="boto primari">Genera</button>
+        <button id="bAtura" class="boto" disabled>Atura</button>
+        <span class="sep"></span>
+        <button id="bNeteja" class="boto subtil" title="Buida la petició i la resposta">Neteja</button>
+      </div>
+    </section>
+
+    <div id="preg" hidden>
+      <b id="pregTitol">Pregunta</b>
+      <div id="pregCos"></div>
+      <div class="fila" id="pregBtns"></div>
+    </div>
+
+    <section style="flex:1; min-height: 160px;">
+      <h2>Resultat</h2>
+      <div id="resposta" aria-live="polite" data-buit="Aquí veuràs el resultat. Podràs substituir la selecció o inserir-lo al cursor."></div>
+      <div class="fila dreta">
+        <button id="bCopia" class="boto subtil" disabled>Copia</button>
+        <button id="bInsereix" class="boto soEdicio" disabled title="Insereix el resultat al cursor">Insereix</button>
+        <button id="bSubstitueix" class="boto primari soEdicio" disabled title="Substitueix el text seleccionat pel resultat">Substitueix la selecció</button>
+      </div>
+    </section>
+
+    <details>
+      <summary>Connexió</summary>
+      <label for="srv">Servidor del gregal</label>
+      <input id="srv" value="http://127.0.0.1:8097" />
+      <label for="tok">Token (si el servidor en demana)</label>
+      <input id="tok" type="password" placeholder="(opcional)" />
+      <div class="fila" style="margin-top:8px"><button id="bProva" class="boto">Comprova</button></div>
+    </details>
+  </main>
+  <script src="./taskpane.js"></script>
+</body>
+</html>

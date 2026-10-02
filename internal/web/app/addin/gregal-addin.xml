@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Complement del Gregal per a Word/Excel/PowerPoint (Office.js).
+     Sideload local: vegeu docs/addin.md. El panell es serveix des del
+     propi gregal (localhost per HTTP està permès en sideload).
+     Si el backend escolta en un altre port, edita SourceLocation o
+     canvia la URL dins del panell (s'hi pot canviar i es recorda). -->
+<OfficeApp
+  xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:type="TaskPaneApp">
+  <Id>64C79419-6A50-4552-BF4F-075D1C5F849D</Id>
+  <Version>1.0.0</Version>
+  <ProviderName>Gregal</ProviderName>
+  <DefaultLocale>es-ES</DefaultLocale>
+  <DisplayName DefaultValue="Gregal Agent" />
+  <Description DefaultValue="Demana coses a l'agent del Gregal i insereix la resposta al document. Cal el gregal en marxa en local." />
+  <IconUrl DefaultValue="http://127.0.0.1:8097/app/addin/icon.png" />
+  <HighResolutionIconUrl DefaultValue="http://127.0.0.1:8097/app/addin/icon.png" />
+  <SupportUrl DefaultValue="http://127.0.0.1:8097/" />
+  <AppDomains>
+    <AppDomain>http://127.0.0.1:8097</AppDomain>
+    <AppDomain>http://localhost:8097</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document" />
+    <Host Name="Workbook" />
+    <Host Name="Presentation" />
+  </Hosts>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="http://127.0.0.1:8097/app/addin/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+</OfficeApp>

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Gregal
+Comment=Agent local de programació
+Exec=/opt/Gregal/Gregal.AppImage --no-sandbox %U
+Icon=gregal
+Terminal=false
+Type=Application
+Categories=Development;IDE;
+StartupWMClass=Gregal

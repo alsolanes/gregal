@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ventet monocrom per a icones temàtiques (API 33+): el sistema n'extreu
+  l'alfa. Espiral + ulls plens + boca; sense ratlles perquè a petit no embrutin. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group
+        android:pivotX="80"
+        android:pivotY="80"
+        android:scaleX="0.55"
+        android:scaleY="0.55"
+        android:translateX="-26"
+        android:translateY="-26">
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="8"
+            android:strokeLineCap="round"
+            android:pathData="M80,80 m0,-12 a12,12 0 1,1 -12,12 a20,20 0 1,0 20,-20 a30,30 0 1,1 -30,30 a42,42 0 1,0 42,-42" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M63,72 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M85,72 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
+        <path
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5"
+            android:strokeLineCap="round"
+            android:pathData="M70,92 Q80,100 90,92" />
+    </group>
+</vector>

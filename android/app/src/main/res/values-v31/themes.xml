@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash amb identitat Gregal (API 31+; en versions anteriors s'ignora). -->
+<resources>
+    <style name="Theme.Gregal" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#101418</item>
+        <item name="android:windowSplashScreenBackground">#0C2229</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_gregal</item>
+    </style>
+</resources>

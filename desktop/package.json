@@ -1,0 +1,60 @@
+{
+  "name": "gregal-desktop",
+  "productName": "Gregal",
+  "version": "1.6.1",
+  "description": "Gregal desktop application with an integrated local backend.",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "npm run backend && electron .",
+    "test": "node --test *.test.js",
+    "backend": "node build-backend.js",
+    "dist": "node build-backend.js && electron-builder",
+    "dist-linux": "node build-backend.js linux && electron-builder --linux AppImage",
+    "dist-win": "node build-backend.js windows && electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "xyz.solanes.gregal",
+    "productName": "Gregal",
+    "files": [
+      "main.js",
+      "server-manager.js",
+      "preload.js",
+      "window-state.js",
+      "preferences.js",
+      "navigation.js",
+      "error.html",
+      "build/icon512.png"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend"
+      }
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "icon": "build/icon512.png",
+      "category": "Development"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
+    }
+  },
+  "allowScripts": {
+    "electron@44.5.1": true
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.0"
+  }
+}

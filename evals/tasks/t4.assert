@@ -1,0 +1,6 @@
+python3 - "$2" <<'PYEOF'
+import sys
+got = open("nombres.txt", "rb").read().rstrip(b"\n")
+want = open(sys.argv[1], "rb").read().rstrip(b"\n")
+assert got == want, (got, want)
+PYEOF

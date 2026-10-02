@@ -1,0 +1,1 @@
+Mou la funció slugify de util.py a un mòdul nou helpers.py i actualitza els imports: app.py l'ha d'importar de helpers, no de util. No canviïs el comportament. Verifica amb pytest que tot passa.

@@ -1,0 +1,7 @@
+python3 - "$1" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+assert d.get("answer", "").strip() == "3", d.get("answer")
+writes = [t for t in (d.get("tools_used") or []) if t in ("write", "edit", "patch")]
+assert not writes, writes
+PYEOF

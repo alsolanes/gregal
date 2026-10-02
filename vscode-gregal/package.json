@@ -1,0 +1,80 @@
+{
+  "name": "gregal",
+  "displayName": "%extension.displayName%",
+  "description": "%extension.description%",
+  "version": "0.3.1",
+  "publisher": "solanes",
+  "license": "MIT",
+  "l10n": "./l10n",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:gregal.ask",
+    "onCommand:gregal.explain",
+    "onCommand:gregal.cancel",
+    "onCommand:gregal.rewind",
+    "onCommand:gregal.github"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gregal.ask",
+        "title": "%command.ask.title%"
+      },
+      {
+        "command": "gregal.explain",
+        "title": "%command.explain.title%"
+      },
+      {
+        "command": "gregal.cancel",
+        "title": "%command.cancel.title%"
+      },
+      {
+        "command": "gregal.rewind",
+        "title": "%command.rewind.title%"
+      },
+      {
+        "command": "gregal.github",
+        "title": "%command.github.title%"
+      }
+    ],
+    "configuration": {
+      "title": "%configuration.title%",
+      "properties": {
+        "gregal.baseUrl": {
+          "type": "string",
+          "default": "http://127.0.0.1:8097",
+          "description": "%configuration.baseUrl.description%"
+        },
+        "gregal.token": {
+          "type": "string",
+          "default": "",
+          "description": "%configuration.token.description%"
+        },
+        "gregal.session": {
+          "type": "string",
+          "default": "vscode",
+          "description": "%configuration.session.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --format=cjs",
+    "test": "node --test test/sse.test.ts test/api.test.ts test/l10n.test.ts",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^5.6.0"
+  }
+}

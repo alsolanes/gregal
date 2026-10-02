@@ -1,0 +1,44 @@
+android/app/build
+android/build
+android/.gradle
+config.yaml
+dist/
+/gregal
+local.properties
+vscode-gregal/node_modules/
+vscode-gregal/dist/
+vscode-gregal/*.vsix
+desktop/node_modules/
+desktop/dist/
+desktop/backend/
+evals/results/
+runner/node_modules/
+runner/dist/
+__pycache__/
+
+# binari anterior que deixa `gregal update` en substituir-se
+*.abans
+bench/results/
+
+# binaris de Windows mai al repo (87MB)
+*.exe
+*.exe~
+gregal-next.exe
+
+# Separate project checkout
+quaderna/
+
+# Local data and publication artifacts
+/output/
+/public-release/
+.env
+.env.*
+!.env.example
+.gregal/
+.playwright-cli/
+.hermes/
+*.pem
+*.key
+.venv/
+*.egg-info/
+/.company-chat/

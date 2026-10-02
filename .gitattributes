@@ -1,0 +1,4 @@
+*.golden -text
+*.sh text eol=lf
+# Preserve reviewed vendor artifact bytes across Windows/Linux checkouts.
+/internal/web/app/vendor/*.min.js -text

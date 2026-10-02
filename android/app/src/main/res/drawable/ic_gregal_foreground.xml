@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ventet, mascota del Gregal. Dins el grup: coordenades del mestre SVG
+  (vista 160); el grup les escala al viewport 108 dins la zona segura. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="80"
+        android:pivotY="80"
+        android:scaleX="0.55"
+        android:scaleY="0.55"
+        android:translateX="-26"
+        android:translateY="-26">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M80,80 m0,-12 a12,12 0 1,1 -12,12 a20,20 0 1,0 20,-20 a30,30 0 1,1 -30,30 a42,42 0 1,0 42,-42"
+            android:strokeColor="#7FD4C1"
+            android:strokeLineCap="round"
+            android:strokeWidth="7" />
+        <path
+            android:fillColor="#7FD4C1"
+            android:pathData="M64,72 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        <path
+            android:fillColor="#7FD4C1"
+            android:pathData="M86,72 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        <path
+            android:fillColor="#0C2229"
+            android:pathData="M67.8,72 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+        <path
+            android:fillColor="#0C2229"
+            android:pathData="M89.8,72 a2.2,2.2 0 1,0 4.4,0 a2.2,2.2 0 1,0 -4.4,0" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M70,92 Q80,100 90,92"
+            android:strokeColor="#7FD4C1"
+            android:strokeLineCap="round"
+            android:strokeWidth="4.5" />
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M28,60 h18 M24,80 h22 M28,100 h18"
+            android:strokeColor="#7FD4C1"
+            android:strokeLineCap="round"
+            android:strokeWidth="4"
+            android:strokeAlpha="0.45" />
+    </group>
+</vector>
