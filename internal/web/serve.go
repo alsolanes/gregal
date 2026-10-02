@@ -1128,7 +1128,7 @@ func (s *Server) handleV2RunCreate(w http.ResponseWriter, r *http.Request) {
 	exec := s.turnExecutor(turnOpts{
 		task: strings.TrimSpace(req.Task), imgs: imgs, mode: req.Mode,
 		workspace: ws,
-		emit: func(event string, value any) { s.recordActive(event, value) },
+		emit:      func(event string, value any) { s.recordActive(event, value) },
 	})
 	cursor := uint64(0)
 	if s.hub != nil && s.hub.eventStore != nil {
@@ -1675,7 +1675,7 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 		for rn, r := range s.cfg.Roles {
 			roles[rn] = map[string]any{"provider": r.Provider, "model": r.Model, "long_run": r.LongRunsAllowed()}
 		}
-		writeJSON(w, map[string]any{"providers": out, "roles": roles, "autonomous": s.cfg.AutonomousConfig()})
+		writeJSON(w, map[string]any{"providers": out, "roles": roles, "autonomous": s.cfg.AutonomousConfig(), "catalog": config.Cataleg()})
 		return
 	}
 	var req struct {
@@ -1706,6 +1706,43 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 	name = strings.TrimSpace(name)
 	save := func() error { return s.cfg.Save(s.cfgPath) }
 	switch action {
+	case "preset":
+		preset, ok := config.ProveidorPerNom(name)
+		if !ok || preset.Local || preset.DefaultModel == "" {
+			return "", errors.New("select a hosted provider preset")
+		}
+		if existing, found := s.cfg.Providers[preset.Nom]; found && existing.BaseURL != preset.BaseURL {
+			return "", errors.New("custom endpoint retained; assign its roles manually")
+		}
+		oldProviders, oldRoles := s.cfg.Providers, s.cfg.Roles
+		providers := make(map[string]config.Provider, len(oldProviders)+1)
+		for n, p := range oldProviders {
+			providers[n] = p
+		}
+		if _, found := providers[preset.Nom]; !found {
+			providers[preset.Nom] = config.Provider{BaseURL: preset.BaseURL, APIKey: "${" + preset.EnvVar + "}"}
+		}
+		roles := make(map[string]config.Role, len(oldRoles))
+		for n, r := range oldRoles {
+			r.Provider, r.Model = preset.Nom, preset.DefaultModel
+			r.ContextWindow, r.FallbackProvider, r.FallbackModel, r.Think = 0, "", "", ""
+			roles[n] = r
+		}
+		s.cfg.Providers, s.cfg.Roles = providers, roles
+		if _, found := oldProviders[preset.Nom]; !found {
+			s.cfg.SetRawKey(preset.Nom, "${"+preset.EnvVar+"}")
+		}
+		if err := save(); err != nil {
+			s.cfg.Providers, s.cfg.Roles = oldProviders, oldRoles
+			return "", err
+		}
+		if _, found := oldProviders[preset.Nom]; !found {
+			p := providers[preset.Nom]
+			p.APIKey = os.Getenv(preset.EnvVar)
+			providers[preset.Nom] = p
+			s.cfg.SetRawKey(preset.Nom, "${"+preset.EnvVar+"}")
+		}
+		return "Provider preset selected: " + preset.Etiqueta, nil
 	case "add":
 		if !validProvName(name) {
 			return "", fmt.Errorf("nom invàlid (lletres, digits, - i _)")
@@ -2830,6 +2867,14 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	out := make(chan res, len(provs))
 	for _, pr := range provs {
 		go func(pr prov) {
+			if strings.TrimSpace(pr.key) == "" {
+				for _, preset := range config.Cataleg() {
+					if !preset.Local && strings.TrimSuffix(pr.base, "/") == preset.BaseURL {
+						out <- res{name: pr.name, err: "API key required"}
+						return
+					}
+				}
+			}
 			ids, err := fetchModelIDs(pr.base, pr.key)
 			r := res{name: pr.name, ids: ids}
 			if err != nil {

@@ -19,15 +19,15 @@ go run . init
 
 By default, the config is written to `~/.config/gregal/config.yaml`; on Unix-like systems it is created with mode `0600`. `init` also creates an `AGENTS.md` in the current project directory if one does not already exist. Use `go run . init --config=/path/to/config.yaml` to choose another config path.
 
-Open the config and set the provider URL and model IDs for the `chat`, `think`, `code` and `reviewer` roles. The generated `local` and `local-direct` URLs point to loopback services that Gregal does not start. The generated `cloud` URL (`https://api.example.org/v1`) is a placeholder. Replace the URLs and model names with values supported by your endpoint. You can point all roles at one provider if it supports the required features.
+New configurations include public provider endpoints and start with OpenAI's `gpt-4.1-mini` for all roles. Set `OPENAI_API_KEY` to use that default, or select another [provider preset](provider-presets.md) in the web/desktop provider settings. You can enter its key directly in the preset form and choose **Use for all roles**. Existing configurations are not replaced.
 
-The template reads the cloud key from the `GREGAL_CLOUD_API_KEY` environment variable:
+The template reads keys from provider-specific environment variables:
 
 ```yaml
 providers:
-  cloud:
-    base_url: https://api.example.org/v1 # replace with your endpoint
-    api_key: ${GREGAL_CLOUD_API_KEY}
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
 ```
 
 Set that variable in the environment used to launch Gregal, or use your secret manager. A local endpoint may not require a key. Avoid committing credentials or private configuration.

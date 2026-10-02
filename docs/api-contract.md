@@ -12,6 +12,13 @@ documented here.
 
 ## Team Collaboration
 
+`GET /api/providers` includes a `catalog` of public provider presets with
+`name`, `label`, `url`, `env_var`, `default_model`, `local` and `note`.
+`POST /api/providers` with `{action:"preset",name}` selects that hosted
+provider/model for all role defaults without changing existing custom URLs
+or exposing API keys. Literal keys remain memory-only; environment references
+are persisted. See [provider presets](provider-presets.md).
+
 `POST /api/v2/team/run` accepts `{task,lang?}` (`en` by default, or `ca`).
 It uses the selected session and active model, with four sequential, tool-free
 roles: coordinator, researcher, builder and reviewer. Roles receive prior

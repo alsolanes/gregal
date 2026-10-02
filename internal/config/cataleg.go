@@ -19,17 +19,18 @@ import "strings"
 // ProveidorConegut és una entrada del catàleg.
 type ProveidorConegut struct {
 	// Nom és el que tindrà al config (clau de `providers:`).
-	Nom string
+	Nom string `json:"name"`
 	// Etiqueta és com es diu de cara a la persona.
-	Etiqueta string
+	Etiqueta string `json:"label"`
 	// BaseURL és l'endpoint OpenAI-compatible, ja amb /v1 si en porta.
-	BaseURL string
+	BaseURL string `json:"url"`
 	// EnvVar és la variable d'entorn on la gent sol tenir la clau.
-	EnvVar string
+	EnvVar       string `json:"env_var"`
+	DefaultModel string `json:"default_model"`
 	// Local diu que no necessita clau (corre a la teva màquina).
-	Local bool
+	Local bool `json:"local"`
 	// Nota és una línia d'ajuda (on es treu la clau, què cal tenir viu).
-	Nota string
+	Nota string `json:"note"`
 }
 
 // Cataleg retorna els proveïdors coneguts, primer els locals (no
@@ -42,21 +43,21 @@ func Cataleg() []ProveidorConegut {
 			Nota: "engega el servidor local des de la pestanya Developer"},
 		{Nom: "llamacpp", Etiqueta: "llama.cpp", BaseURL: "http://localhost:8080/v1", Local: true,
 			Nota: "llama-server --port 8080"},
-		{Nom: "openrouter", Etiqueta: "OpenRouter", BaseURL: "https://openrouter.ai/api/v1", EnvVar: "OPENROUTER_API_KEY",
+		{Nom: "openrouter", Etiqueta: "OpenRouter", BaseURL: "https://openrouter.ai/api/v1", EnvVar: "OPENROUTER_API_KEY", DefaultModel: "openai/gpt-4.1-mini",
 			Nota: "clau a openrouter.ai/keys"},
-		{Nom: "openai", Etiqueta: "OpenAI", BaseURL: "https://api.openai.com/v1", EnvVar: "OPENAI_API_KEY",
+		{Nom: "openai", Etiqueta: "OpenAI", BaseURL: "https://api.openai.com/v1", EnvVar: "OPENAI_API_KEY", DefaultModel: "gpt-4.1-mini",
 			Nota: "clau a platform.openai.com/api-keys"},
-		{Nom: "groq", Etiqueta: "Groq", BaseURL: "https://api.groq.com/openai/v1", EnvVar: "GROQ_API_KEY",
+		{Nom: "groq", Etiqueta: "Groq", BaseURL: "https://api.groq.com/openai/v1", EnvVar: "GROQ_API_KEY", DefaultModel: "openai/gpt-oss-120b",
 			Nota: "clau a console.groq.com/keys"},
-		{Nom: "deepseek", Etiqueta: "DeepSeek", BaseURL: "https://api.deepseek.com/v1", EnvVar: "DEEPSEEK_API_KEY",
+		{Nom: "deepseek", Etiqueta: "DeepSeek", BaseURL: "https://api.deepseek.com", EnvVar: "DEEPSEEK_API_KEY", DefaultModel: "deepseek-flash",
 			Nota: "clau a platform.deepseek.com"},
-		{Nom: "mistral", Etiqueta: "Mistral", BaseURL: "https://api.mistral.ai/v1", EnvVar: "MISTRAL_API_KEY",
+		{Nom: "mistral", Etiqueta: "Mistral", BaseURL: "https://api.mistral.ai/v1", EnvVar: "MISTRAL_API_KEY", DefaultModel: "mistral-small-latest",
 			Nota: "clau a console.mistral.ai"},
-		{Nom: "together", Etiqueta: "Together AI", BaseURL: "https://api.together.xyz/v1", EnvVar: "TOGETHER_API_KEY",
+		{Nom: "together", Etiqueta: "Together AI", BaseURL: "https://api.together.xyz/v1", EnvVar: "TOGETHER_API_KEY", DefaultModel: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
 			Nota: "clau a api.together.ai/settings/api-keys"},
-		{Nom: "cerebras", Etiqueta: "Cerebras", BaseURL: "https://api.cerebras.ai/v1", EnvVar: "CEREBRAS_API_KEY",
+		{Nom: "cerebras", Etiqueta: "Cerebras", BaseURL: "https://api.cerebras.ai/v1", EnvVar: "CEREBRAS_API_KEY", DefaultModel: "gpt-oss-120b",
 			Nota: "clau a cloud.cerebras.ai"},
-		{Nom: "zen", Etiqueta: "OpenCode Zen", BaseURL: "https://opencode.ai/zen/go/v1", EnvVar: "ZEN_API_KEY",
+		{Nom: "zen", Etiqueta: "OpenCode Go", BaseURL: "https://opencode.ai/zen/go/v1", EnvVar: "ZEN_API_KEY", DefaultModel: "glm-5.3-flash",
 			Nota: "el pla Go d'opencode.ai"},
 	}
 }

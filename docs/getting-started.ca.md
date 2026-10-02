@@ -19,15 +19,15 @@ go run . init
 
 Per defecte, el fitxer es desa a `~/.config/gregal/config.yaml`; en sistemes Unix es crea amb permisos `0600`. `init` també crea `AGENTS.md` al directori del projecte actual si encara no existeix. Pots triar una altra ruta amb `go run . init --config=/path/to/config.yaml`.
 
-Obre el fitxer i configura l'URL del proveïdor i els identificadors dels models dels rols `chat`, `think`, `code` i `reviewer`. Les URL `local` i `local-direct` apunten a serveis de loopback que Gregal no engega. L'URL `cloud` generada (`https://api.example.org/v1`) és un marcador d'exemple. Substitueix les URL i els noms de model pels que admeti el teu endpoint. Pots assignar tots els rols a un mateix proveïdor si ofereix les funcions necessàries.
+Les configuracions noves inclouen endpoints públics i comencen amb `gpt-4.1-mini` d'OpenAI per a tots els rols. Defineix `OPENAI_API_KEY` o tria un altre [preset de proveïdor](provider-presets.md) als ajustos web/escriptori. Pots introduir la clau al formulari del preset i triar **Utilitza per a tots els rols**. Les configuracions existents no se substitueixen.
 
-La plantilla llegeix la clau del núvol de la variable d'entorn `GREGAL_CLOUD_API_KEY`:
+La plantilla llegeix les claus de variables d'entorn específiques de cada proveïdor:
 
 ```yaml
 providers:
-  cloud:
-    base_url: https://api.example.org/v1 # substitueix-ho pel teu endpoint
-    api_key: ${GREGAL_CLOUD_API_KEY}
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
 ```
 
 Defineix aquesta variable a l'entorn des d'on iniciaràs Gregal, o fes servir el teu gestor de secrets. Un endpoint local pot no necessitar clau. No desis credencials ni configuració privada al repositori.

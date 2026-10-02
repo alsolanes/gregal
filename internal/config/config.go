@@ -361,47 +361,68 @@ func (c *Config) CockpitOn() bool {
 
 const defaultYAML = `# Gregal configuration. Choose any OpenAI-compatible provider and model.
 lang: en
-# Cada feina (chat, think, code, reviewer) apunta a un provider + model.
-# L'api_key accepta variables d'entorn: ${GREGAL_CLOUD_API_KEY}.
+# Public provider presets. Supply only your own API key, then select a provider.
+# Keys are read from environment variables; no credentials are bundled.
 
 providers:
-  local:
-    base_url: http://localhost:8089/v1
+  ollama:
+    base_url: http://localhost:11434/v1
     api_key: ""
-  local-direct:
-    base_url: http://127.0.0.1:5800/v1
+  lmstudio:
+    base_url: http://localhost:1234/v1
     api_key: ""
-  cloud:
-    base_url: https://api.example.org/v1
-    api_key: ${GREGAL_CLOUD_API_KEY}
-    # Opcional: només activa-ho si aquest endpoint admet prompt_cache_key.
-    # prompt_cache_key: gregal-cloud
-    # prompt_cache_retention: 24h
+  llamacpp:
+    base_url: http://localhost:8080/v1
+    api_key: ""
+  openai:
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+  openrouter:
+    base_url: https://openrouter.ai/api/v1
+    api_key: ${OPENROUTER_API_KEY}
+  groq:
+    base_url: https://api.groq.com/openai/v1
+    api_key: ${GROQ_API_KEY}
+  deepseek:
+    base_url: https://api.deepseek.com
+    api_key: ${DEEPSEEK_API_KEY}
+  mistral:
+    base_url: https://api.mistral.ai/v1
+    api_key: ${MISTRAL_API_KEY}
+  together:
+    base_url: https://api.together.xyz/v1
+    api_key: ${TOGETHER_API_KEY}
+  cerebras:
+    base_url: https://api.cerebras.ai/v1
+    api_key: ${CEREBRAS_API_KEY}
+  zen:
+    base_url: https://opencode.ai/zen/go/v1
+    api_key: ${ZEN_API_KEY}
 
 # context_window: 0 = la que declari el model a GET /models (es detecta a
 # l'arrencada i s'aprèn dels errors de context). Posa un nombre fix només si
 # el proveïdor no ho diu i te la saps.
 roles:
   chat:
-    provider: local
-    model: ornith-1.5-35b
+    provider: openai
+    model: gpt-4.1-mini
     temperature: 0.7
     max_tokens: 1024
   think:
-    provider: local
-    model: qwen3.6-35b
+    provider: openai
+    model: gpt-4.1-mini
     temperature: 0.6
     max_tokens: 8192
   code:
-    provider: local-direct
-    model: Nex-2.5-mini
+    provider: openai
+    model: gpt-4.1-mini
     temperature: 0.4
     max_tokens: 8192
     context_window: 0
     long_run: true
   reviewer:
-    provider: cloud
-    model: deepseek-v4-flash
+    provider: openai
+    model: gpt-4.1-mini
     temperature: 0.2
     max_tokens: 1024
 

@@ -557,6 +557,9 @@ canvas.pptx-canvas { width:100%; height:auto; background:#fff; border-radius:8px
   color:var(--accent-hi); font-size:var(--t1); }
 #prov .prow button { flex:none; }
 #prov .frm { display:flex; align-items:center; flex-wrap:wrap; gap:7px; margin-top:10px; }
+#prov .frm select, #prov .frm input { max-width:100%; min-width:0; box-sizing:border-box; }
+#providerPreset { flex:1 1 220px; }
+#presetAPIKey { flex:1 1 180px; }
 #prov input, #prov select { min-height:33px; color:var(--text); background:var(--surface);
   border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
 #prov button:not(.primary):not(.danger):not(.icon-btn) { padding:5px 9px; font-size:var(--t2);
@@ -3241,33 +3244,53 @@ document.addEventListener('keydown',e=>{
   }
 });
 async function toggleProv(force) {
+  const en=document.documentElement.lang!=='ca';
   const box=$('prov'); if(box.style.display==='block'&&!force){box.style.display='none';return;}
   const data=await api('/api/providers').then(r=>r.json());
   // Els models de cada provider, per triar-los en comptes d'escriure'ls.
   // Si un provider no respon, el formulari ho diu i deixa escriure a mà.
   const mdata=await api('/api/models').then(r=>r.json()).catch(()=>({models:{},errors:{}}));
-  box.innerHTML='<div class="prov-head"><span>Providers i rols</span><span class="spacer"></span><button class="icon-btn" id="provClose" aria-label="Tanca providers">×</button></div>';
+  box.innerHTML='<div class="prov-head"><span>'+(en?'Providers and roles':'Providers i rols')+'</span><span class="spacer"></span><button class="icon-btn" id="provClose" aria-label="'+(en?'Close providers':'Tanca providers')+'">×</button></div>';
   $('provClose').onclick=()=>{box.style.display='none';input.focus();};
+  const presetForm=document.createElement('div');presetForm.className='frm';
+  const presetSelect=document.createElement('select');presetSelect.id='providerPreset';presetSelect.setAttribute('aria-label',document.documentElement.lang==='ca'?'Proveidor':'Provider');
+  (data.catalog||[]).filter(p=>!p.local&&p.default_model).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.label+' / '+p.default_model;presetSelect.append(o);});
+  const customPreset=document.createElement('option');customPreset.value='__custom';customPreset.textContent=en?'Custom endpoint':'Endpoint personalitzat';presetSelect.append(customPreset);
+  const activePreset=(data.roles?.[state.role]||data.roles?.chat)?.provider;
+  if([...presetSelect.options].some(o=>o.value===activePreset))presetSelect.value=activePreset;
+  const presetKey=document.createElement('input');presetKey.id='presetAPIKey';presetKey.type='password';presetKey.autocomplete='new-password';presetKey.placeholder=en?'API key or ${VARIABLE}':'API key o ${VARIABLE}';presetKey.setAttribute('aria-label','API key');
+  const presetButton=document.createElement('button');presetButton.className='primary';presetButton.textContent=document.documentElement.lang==='ca'?'Utilitza per a tots els rols':'Use for all roles';
+  presetButton.onclick=async()=>{presetButton.disabled=true;try{
+    const response=await api('/api/providers',{method:'POST',body:JSON.stringify({action:'preset',name:presetSelect.value})});
+    if(!response.ok)throw new Error(await response.text());
+    sys((await response.json()).msg);
+    if(presetKey.value.trim())sys(await pact('key',{name:presetSelect.value,key:presetKey.value.trim()}));
+    presetKey.value='';await toggleProv(true);await refresh();
+  }catch(error){sys(error.message||String(error));}finally{presetButton.disabled=false;}};
+  presetForm.append(presetSelect,presetKey,presetButton);box.append(presetForm);
   (data.providers||[]).forEach(p=>{
     const row=document.createElement('div');row.className='prow';
-    row.innerHTML='<b>'+escapeHTML(p.name)+'</b><span class="url">'+escapeHTML(p.url)+'</span><span>clau: '+escapeHTML(p.key)+'</span>'+((p.used_by||[]).length?'<span class="used">'+escapeHTML(p.used_by.join(', '))+'</span>':'');
-    const tb=document.createElement('button');tb.textContent='Prova';tb.onclick=async()=>{const msg=await pact('test',{name:p.name});sys(msg);activityItem('provider',p.name,msg,msg.startsWith('error')?'bad':'ok');};
-    const kb=document.createElement('button');kb.textContent='Clau';kb.onclick=()=>{
+    const keyLabel=en&&p.key==='(buida)'?'(empty)':en&&p.key==='sí (oculta)'?'(hidden)':p.key;
+    row.innerHTML='<b>'+escapeHTML(p.name)+'</b><span class="url">'+escapeHTML(p.url)+'</span><span>'+(en?'key: ':'clau: ')+escapeHTML(keyLabel)+'</span>'+((p.used_by||[]).length?'<span class="used">'+escapeHTML(p.used_by.join(', '))+'</span>':'');
+    const tb=document.createElement('button');tb.textContent=en?'Test':'Prova';tb.onclick=async()=>{const msg=await pact('test',{name:p.name});sys(msg);activityItem('provider',p.name,msg,msg.startsWith('error')?'bad':'ok');};
+    const kb=document.createElement('button');kb.textContent=en?'API key':'Clau';kb.onclick=()=>{
       if(row.nextElementSibling && row.nextElementSibling.classList.contains('prov-key-editor')) return;
       const ed=document.createElement('div'); ed.className='frm prov-key-editor';
-      ed.innerHTML='<input type="password" autocomplete="new-password" placeholder="API key o ${NOM_VARIABLE}" size="30">'
-        +'<button class="primary">Desa</button><button>Cancel·la</button>'
-        +'<span class="faint">Deixa-ho buit per esborrar-la.</span>';
+      ed.innerHTML='<input type="password" autocomplete="new-password" placeholder="'+(en?'API key or ${VARIABLE}':'API key o ${NOM_VARIABLE}')+'" size="30">'
+        +'<button class="primary">'+(en?'Save':'Desa')+'</button><button>'+(en?'Cancel':'Cancel·la')+'</button>'
+        +'<span class="faint">'+(en?'Leave empty to clear.':'Deixa-ho buit per esborrar-la.')+'</span>';
       const ki=ed.querySelector('input'), save=ed.querySelector('.primary'), cancel=ed.querySelector('button:not(.primary)');
       cancel.onclick=()=>ed.remove();
       save.onclick=async()=>{save.disabled=true;sys(await pact('key',{name:p.name,key:ki.value.trim()}));ed.remove();toggleProv(true);refresh();};
       row.after(ed); ki.focus();
     };
-    const rb=document.createElement('button');rb.textContent='Esborra';rb.className='danger';rb.onclick=async()=>{if(confirm('Esborrar '+p.name+'?')){sys(await pact('rm',{name:p.name}));toggleProv(true);}};
+    const rb=document.createElement('button');rb.textContent=en?'Delete':'Esborra';rb.className='danger';rb.onclick=async()=>{if(confirm((en?'Delete ':'Esborrar ')+p.name+'?')){sys(await pact('rm',{name:p.name}));toggleProv(true);}};
     row.append(tb,kb,rb);box.appendChild(row);
   });
-  const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" placeholder="nom" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" placeholder="clau o ${VAR}" size="18">';
-  const ab=document.createElement('button');ab.textContent='Afegeix provider';ab.className='primary';ab.onclick=async()=>{sys(await pact('add',{name:$('pn').value.trim(),url:$('pu').value.trim(),key:$('pk').value.trim()}));toggleProv(true);refresh();};f.appendChild(ab);box.appendChild(f);
+  const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" placeholder="nom" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" type="password" autocomplete="new-password" placeholder="clau o ${VAR}" size="18">';
+  const ab=document.createElement('button');ab.textContent=en?'Add provider':'Afegeix provider';ab.className='primary';ab.onclick=async()=>{sys(await pact('add',{name:$('pn').value.trim(),url:$('pu').value.trim(),key:$('pk').value.trim()}));toggleProv(true);refresh();};f.appendChild(ab);box.appendChild(f);
+  f.hidden=true;
+  presetSelect.onchange=()=>{const custom=presetSelect.value==='__custom';f.hidden=!custom;presetKey.hidden=custom;presetButton.hidden=custom;if(custom)$('pn').focus();};
   const r2=document.createElement('div');r2.className='frm';const rs=document.createElement('select'),ps=document.createElement('select');
   Object.keys(data.roles||{}).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r+' · '+data.roles[r].provider+'/'+data.roles[r].model;rs.appendChild(o);});
   (data.providers||[]).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name;ps.appendChild(o);});
