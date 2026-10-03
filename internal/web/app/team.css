@@ -2,25 +2,42 @@
 #teamPage[hidden] { display:none; }
 #teamPage h1 { font-size:22px; }
 #teamPage h2 { font-size:15px; margin:12px 0; }
-#teamForm { display:grid; gap:8px; margin-bottom:16px; }
-#teamTask { width:100%; resize:vertical; min-height:70px; box-sizing:border-box; background:var(--panel); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:10px; font:inherit; }
+#teamExamples { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+#teamExamples button { padding:7px 10px; border:1px solid var(--line-hi); border-radius:4px; background:var(--panel); color:var(--ink); cursor:pointer; font:inherit; font-size:12px; }
+#teamExamples button:last-child { color:var(--accent); margin-left:auto; }
+#teamProgress { padding:10px 0; font-size:13px; color:var(--ink); min-height:20px; }
+#teamForm { display:grid; gap:6px; margin-bottom:10px; }
+#teamTask { width:100%; resize:vertical; min-height:48px; box-sizing:border-box; background:var(--panel); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:8px; font:inherit; }
 .team-actions { display:flex; align-items:center; gap:8px; }
 #teamModel { margin-right:auto; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
-.team-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(220px,30%); border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-.team-floor { position:relative; min-width:0; align-self:start; aspect-ratio:800/540; background:#172524; }
-#teamCanvas { display:block; width:100%; height:100%; }
-#teamAgents { position:absolute; inset:0; }
-#teamAgents button { position:absolute; width:31%; min-height:45px; transform:translate(-50%,-50%); border:1px solid #556965; border-radius:6px; background:#f5f7f6; color:#172524; font-size:12px; padding:5px 2px; line-height:1.3; }
-#teamAgents button[aria-pressed=true] { outline:2px solid #52c6aa; outline-offset:2px; }
-#teamAgents button[data-state=working] { border-color:#eeae5b; background:#fff1d9; }
-#teamAgents button[data-state=working] small { animation:team-working 1.5s ease-in-out infinite; }
-@keyframes team-working { 50% { opacity:0.45; } }
-@media(prefers-reduced-motion:reduce) { #teamAgents button[data-state=working] small { animation:none; } }
-#teamAgents button[data-state=completed] { border-color:#52c6aa; background:#d9f2e8; }
-#teamAgents small { display:block; font-size:10px; }
-.team-detail { border-left:1px solid var(--line); padding:0 14px; min-width:0; max-height:540px; overflow:auto; }
-#teamOutput { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.6 var(--sans, sans-serif); }
+.team-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(235px,27%); border-top:1px solid var(--line); border-bottom:1px solid var(--line); align-items:start; }
+.team-floor { position:relative; min-width:0; align-self:start; aspect-ratio:1024/540; background:#dae8df; overflow:hidden; }
+#teamCanvas { display:block; width:100%; height:100%; image-rendering:pixelated; }
+#teamCanvas { cursor:pointer; }
+.team-detail { border-left:1px solid var(--line); padding:2px 14px 12px; min-width:0; max-height:min(64vw,896px); overflow:auto; }
+.team-detail > h2:first-child { margin-top:9px; color:var(--muted); text-transform:uppercase; font:600 10px/1.4 var(--mono,monospace); letter-spacing:0; }
+#teamAgents { display:grid; gap:2px; }
+#teamAgents button { display:grid; grid-template-columns:40px minmax(0,1fr); grid-template-rows:auto auto; align-items:center; column-gap:8px; width:100%; min-height:48px; padding:4px 7px; border:0; border-left:2px solid transparent; border-radius:3px; background:transparent; color:var(--text); text-align:left; cursor:pointer; }
+#teamAgents button:hover { background:var(--surface); }
+#teamAgents button[aria-pressed=true] { border-left-color:var(--accent); background:var(--surface); }
+#teamAgents button .team-agent-copy { color:var(--role-color); }
+#teamAgents button[aria-pressed=true] { border-left-color:var(--role-color); }
+#teamAgents button[data-state=working] { box-shadow:inset -3px 0 var(--role-color); }
+.team-agent-avatar { grid-column:1; grid-row:1/3; justify-self:center; width:32px; height:42px; object-fit:contain; image-rendering:pixelated; }
+.team-agent-copy { grid-column:2; grid-row:1; font-size:12px; font-weight:570; }
+#teamAgents small { grid-column:2; grid-row:2; color:var(--muted); font-size:10px; }
+.team-agent-detail { border-top:1px solid var(--line); margin-top:10px; padding-top:3px; }
+.team-agent-detail h2 { color:var(--ink); }
+#teamOutput { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.6 var(--sans,sans-serif); }
 #teamAgentStatus,#teamStatus { color:var(--muted); font-size:12px; }
 #teamActivity { margin:0; padding:0; list-style:none; font-size:12px; max-height:170px; overflow:auto; }
 #teamActivity li { padding:7px 0; border-bottom:1px solid var(--line); color:var(--muted); }
-@media(max-width:760px) { #teamPage { padding:12px; } .team-layout { grid-template-columns:1fr; } .team-detail { border-left:0; border-top:1px solid var(--line); min-height:120px; max-height:320px; } }
+@media(max-width:760px) {
+  #teamPage { padding:12px; }
+  .team-floor { aspect-ratio:auto; width:100%; height:300px; min-height:0; }
+  .team-layout { grid-template-columns:minmax(0,1fr); }
+  .team-detail { border-left:0; border-top:1px solid var(--line); max-height:none; display:grid; grid-template-columns:1fr 1fr; gap:0 12px; }
+  .team-detail > h2:first-child { grid-column:1/-1; }
+  #teamAgents { grid-column:1/-1; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .team-agent-detail { grid-column:1/-1; }
+}

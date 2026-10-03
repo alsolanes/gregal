@@ -560,6 +560,7 @@ canvas.pptx-canvas { width:100%; height:auto; background:#fff; border-radius:8px
 #prov .frm select, #prov .frm input { max-width:100%; min-width:0; box-sizing:border-box; }
 #providerPreset { flex:1 1 220px; }
 #presetAPIKey { flex:1 1 180px; }
+#providerPresetHint { flex:1 0 100%; margin:0 0 2px; color:var(--muted); font-size:var(--t1); }
 #prov input, #prov select { min-height:33px; color:var(--text); background:var(--surface);
   border:1px solid var(--line); border-radius:6px; padding:6px 8px; }
 #prov button:not(.primary):not(.danger):not(.icon-btn) { padding:5px 9px; font-size:var(--t2);
@@ -652,7 +653,9 @@ canvas.pptx-canvas { width:100%; height:auto; background:#fff; border-radius:8px
 /* Una targeta per crida d'eina, que evoluciona: en curs → feta o fallada. */
 .tool summary { display:flex; align-items:center; gap:7px; }
 .tspin { flex:none; width:12px; color:var(--faint); }
-.tool.pending .tspin { color:var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+.tool.pending .tspin { color:var(--amber); }
+body.working .tool.pending .tspin { animation:pulse 1.1s ease-in-out infinite; }
+body:not(.working) .spin { animation:none; }
 .tool.done .tspin { color:var(--green); }
 .tool.failed { border-left-color:var(--red); }
 .tool.failed .tspin { color:var(--red); }
@@ -1369,6 +1372,7 @@ body.sense-inspector #inspector { display:none; }
     <div class="top-meta">
       <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox">model <b id="model">…</b> <span class="mp-caret">▾</span></button>
       <button class="icon-btn" id="inspToggle" data-i18n-title="ui.toggleInspector" title="Toggle inspector" data-i18n-aria="ui.toggleInspector" aria-label="Toggle inspector" aria-pressed="false">▥</button>
+      <button class="icon-btn" id="previewToggle" title="Preview" aria-label="Preview" aria-pressed="false">▣</button>
       <div id="moreWrap">
         <button class="icon-btn" id="moreBtn" data-i18n-title="ui.moreActions" title="More actions" data-i18n-aria="ui.moreActions" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <div id="moreMenu" role="menu" hidden>
@@ -1579,7 +1583,8 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="teamPage" hidden>
         <header class="page-head"><h1 id="teamTitle">Team</h1><span id="teamStatus" role="status">Idle</span></header>
         <form id="teamForm"><label id="teamTaskLabel" for="teamTask">Task</label><textarea id="teamTask" rows="2" maxlength="16000" required></textarea><div class="team-actions"><span id="teamModel"></span><button class="primary" id="teamStart" type="submit">Start</button><button class="ghost" id="teamStop" type="button" disabled>Stop</button></div></form>
-        <div class="team-layout"><div class="team-floor"><canvas id="teamCanvas" aria-hidden="true"></canvas><div id="teamAgents" role="group" aria-label="Agents"></div></div><aside class="team-detail"><h2 id="teamSelected">Coordinator</h2><div id="teamAgentStatus">Idle</div><pre id="teamOutput"></pre></aside></div>
+        <div id="teamExamples"></div><div id="teamProgress" role="status"></div>
+        <div class="team-layout"><div class="team-floor"><canvas id="teamCanvas" aria-hidden="true"></canvas></div><aside class="team-detail"><h2 id="teamAgentsLabel">Agents</h2><div id="teamAgents" role="group" aria-label="Agents"></div><div class="team-agent-detail"><h2 id="teamSelected">Coordinator</h2><div id="teamAgentStatus">Idle</div><pre id="teamOutput"></pre></div></aside></div>
         <h2 id="teamActivityTitle">Activity</h2><ol id="teamActivity" aria-live="polite"></ol>
       </section>
       <section class="workspace-page" id="grafsPage" hidden tabindex="-1">
@@ -1703,6 +1708,7 @@ body.sense-inspector #inspector { display:none; }
     </aside>
   </div>
 </div>
+<script type="module" src="/app/preview.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
 <script src="/app/shell-icons.js"></script>
@@ -1713,6 +1719,8 @@ let state = {}, agentMode = false, goalMode = false, sending = false;
 // Una tirada pertany a la seva pestanya. La UI pot mostrar una altra sessió
 // mentre el worker i el registre d'esdeveniments continuen al servidor.
 const runningAgentSessions = new Set();
+const stoppedVisualSessions = new Set();
+const runVisualTokens = new Map();
 const runEventHandlers = new Map();
 const pendingInteractions = new Map();
 window.gregalPendingInteractions = pendingInteractions;
@@ -2090,7 +2098,7 @@ function updateInspector(r) {
   $('branchSide').textContent = r.branch || '—';
   $('modelSide').textContent = r.provider + '/' + r.model;
   $('reviewerState').textContent = r.verify || 'off';
-  const working = sending || !!r.agent_busy;
+  const working = visualWorking(r);
   $('runState').textContent = gregalT(working ? 'estat.treballant' : ((r.mode === 'code' || r.mode === 'autonomous') ? 'estat.pot' : 'estat.lectura'));
   $('statusMini').classList.toggle('busy', working);
   $('runStatePage').textContent = $('runState').textContent;
@@ -2100,6 +2108,28 @@ function updateInspector(r) {
   // mesurador. Regla: es mou només mentre hi ha feina.
   document.body.classList.toggle('working', working);
   updateCtxGauge(r);
+}
+function visualWorking(r) {
+  return !stoppedVisualSessions.has(window.gregalSession || 'default') && (sending || !!r.agent_busy);
+}
+function stopToolAnimation(card) {
+  if (!card || !card.classList.contains('pending')) return;
+  card.classList.remove('pending');
+  card.classList.add('interrupted');
+  const mark = card.querySelector('.tspin');
+  if (mark) { mark.textContent = '■'; mark.title = gregalT('ui.aturat'); }
+  const out = card.querySelector('.out');
+  if (out && !out.textContent.trim()) out.textContent = document.documentElement.lang === 'ca' ? 'No s’ha rebut el resultat de l’eina.' : 'No tool result was received.';
+}
+function stopRunVisuals(session) {
+  stoppedVisualSessions.add(session);
+  if (session !== (window.gregalSession || 'default')) return;
+  document.querySelectorAll('#main .tool.pending').forEach(stopToolAnimation);
+  document.body.classList.remove('working');
+  clearInterval(turnTick); turnTick = null; turnT0 = 0; turnNote = '';
+  pintaTurnBar();
+  updateInspector(state);
+  for (const id of ['statusDot','statusMini','statusPage']) $(id)?.classList.remove('busy');
 }
 // updateCtxGauge pinta el context ocupat com al TUI: barra + llindars 50/80%.
 // Sense context_window (rol que no el declara) no s'inventa res: s'amaga.
@@ -2158,6 +2188,7 @@ function buidaCua() {
 function setSending(active, quiet = false) {
   const abans = sending;
   sending = active;
+  if (active && !abans) stoppedVisualSessions.delete(window.gregalSession || 'default');
   if (active && !abans) {
     turnT0 = Date.now();
     turnTick = setInterval(pintaTurnBar, 1000);
@@ -2178,13 +2209,13 @@ function setSending(active, quiet = false) {
   btn.innerHTML = sendLabel();
   btn.title = active ? 'Envia un missatge a la cua; amb el camp buit, atura el torn' : 'Envia';
   btn.classList.toggle('stop', active);
-  $('statusDot').classList.toggle('busy', active || !!state.agent_busy);
+  $('statusDot').classList.toggle('busy', visualWorking(state));
   updateInspector(state);
 }
 function onSessionSwitch(id, st) {
   // Canviar de pestanya canvia només el compositor visible; no cancel·la cap
   // execució. L'estat del servidor cobreix també tirades d'altres finestres.
-  setSending(runningAgentSessions.has(id) || !!(st && st.agent_busy), true);
+  setSending(!stoppedVisualSessions.has(id) && (runningAgentSessions.has(id) || !!(st && st.agent_busy)), true);
   if (st) {
     const pending = pendingInteractions.get(id);
     if (pending && st.agent_busy && runEventHandlers.has(id)) {
@@ -2198,6 +2229,7 @@ function onSessionSwitch(id, st) {
 // El lector SSE viu mentre dura el torn per poder-lo avortar amb ■ o Esc.
 let currentReader = null, currentAbort = null;
 function stopTurn() {
+  stopRunVisuals(window.gregalSession || 'default');
   const control = window.gregalRunControls?.get(window.gregalSession || 'default');
   if (!control) {
     try { if (currentAbort) currentAbort.abort(); } catch (e) {}
@@ -2223,6 +2255,7 @@ async function refresh() {
   const r = await api('/api/state', {headers:{'X-Gregal-Session':session}}).then(r => r.json());
   if (session !== (window.gregalSession || 'default')) return r;
   state = r;
+  if (!r.agent_busy && !runningAgentSessions.has(session)) stoppedVisualSessions.delete(session);
   // L'idioma, abans de pintar res: si el config diu anglès i ho dèiem al
   // final, tot el que aquesta passada pinta amb gregalT sortia en l'idioma
   // vell. Els data-i18n es refeien després, però el que no en porta —el
@@ -2234,7 +2267,7 @@ async function refresh() {
   $('branch').textContent = r.branch || 'workspace';
   $('project').textContent = r.project || 'projecte'; $('project').title = r.cwd || '';
   $('sideProject').textContent = r.project || 'Projecte actual';
-  $('statusDot').classList.toggle('busy', !!r.agent_busy || sending);
+  $('statusDot').classList.toggle('busy', visualWorking(r));
   $('hmode').textContent = r.mode; $('hrole').textContent = r.model || r.current_role;
   agentMode = r.mode === 'code' || r.mode === 'autonomous'; goalMode = r.mode === 'goal';
   paintMode(r.mode);
@@ -2660,9 +2693,11 @@ function showGateBtns(){
 async function doAgent(task) {
   if (sending) return;
   const runSession = window.gregalSession || 'default';
+  const visualToken = {};
   const text = (task === undefined ? input.value : task).trim(); if (!text) return;
   const imgs = (agentMode || goalMode) ? pendingImgs.slice(0, 3) : [];
   pendingImgs = []; renderImgs();
+  runVisualTokens.set(runSession, visualToken);
   runningAgentSessions.add(runSession);
   setSending(true);
   if (task === undefined) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; }
@@ -2685,6 +2720,12 @@ async function doAgent(task) {
   const stepLine=()=> 'pas ' + steps + (tools ? ' · ' + tools + ' eines' : '');
   try {
     const onRunEvent = async(ev,d)=>{
+      if (runVisualTokens.get(runSession) !== visualToken) return;
+      if (stoppedVisualSessions.has(runSession) && ev !== 'done' && ev !== 'error') return;
+      if (ev === 'done' || ev === 'error') {
+        stopRunVisuals(runSession);
+        pendents.splice(0).forEach(stopToolAnimation);
+      }
       if (runSession !== (window.gregalSession || 'default')) {
         if (ev === 'approve_request' || ev === 'question_request') {
           pendingInteractions.set(runSession, {event: ev, value: d});
@@ -2712,6 +2753,8 @@ async function doAgent(task) {
         // que no digués ja la pestanya d'Activitat.
         pendents.push(toolCard(d.name, d.args));
       } else if(ev==='tool_result'){
+        const previewMatch=String(d.output||'').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
+        if(previewMatch&&window.gregalPreview)window.gregalPreview.offer(previewMatch[0]);
         activityItem('eina',d.name,'Completada · ' + stepLine(),'ok');
         if (d.name === 'todowrite' || d.name === 'todoread') { pendents.shift()?.remove(); todoCard(d.output); }
         else toolCardDone(pendents.shift(), d.name, d.output);
@@ -2816,10 +2859,17 @@ async function doAgent(task) {
     if (msg.includes('gated')) showGateBtns();
   }
   finally {
-    runningAgentSessions.delete(runSession);
-    runEventHandlers.delete(runSession);
-    pendingInteractions.delete(runSession);
-    if (runSession === (window.gregalSession || 'default')) {
+    const ownsVisuals = runVisualTokens.get(runSession) === visualToken;
+    if (ownsVisuals) stopRunVisuals(runSession);
+    pendents.splice(0).forEach(stopToolAnimation);
+    paintLiveNow();
+    if (ownsVisuals) {
+      runVisualTokens.delete(runSession);
+      runningAgentSessions.delete(runSession);
+      runEventHandlers.delete(runSession);
+      pendingInteractions.delete(runSession);
+    }
+    if (ownsVisuals && runSession === (window.gregalSession || 'default')) {
       setSending(false); refresh(); input.focus();
     }
     window.gregalPanels?.sessions.render();
@@ -3252,14 +3302,14 @@ async function toggleProv(force) {
   const mdata=await api('/api/models').then(r=>r.json()).catch(()=>({models:{},errors:{}}));
   box.innerHTML='<div class="prov-head"><span>'+(en?'Providers and roles':'Providers i rols')+'</span><span class="spacer"></span><button class="icon-btn" id="provClose" aria-label="'+(en?'Close providers':'Tanca providers')+'">×</button></div>';
   $('provClose').onclick=()=>{box.style.display='none';input.focus();};
-  const presetForm=document.createElement('div');presetForm.className='frm';
+  const presetForm=document.createElement('div');presetForm.className='frm preset-form';
+  const presetHint=document.createElement('span');presetHint.id='providerPresetHint';presetHint.textContent=en?'Choose a provider to see its recommended model. Nothing changes until you apply it.':'Tria un proveïdor per veure el model recomanat. No es canvia res fins que l\'apliquis.';
   const presetSelect=document.createElement('select');presetSelect.id='providerPreset';presetSelect.setAttribute('aria-label',document.documentElement.lang==='ca'?'Proveidor':'Provider');
-  (data.catalog||[]).filter(p=>!p.local&&p.default_model).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.label+' / '+p.default_model;presetSelect.append(o);});
+  const choosePreset=document.createElement('option');choosePreset.value='';choosePreset.disabled=true;choosePreset.selected=true;choosePreset.textContent=en?'Choose a provider…':'Tria un proveïdor…';presetSelect.append(choosePreset);
+  (data.catalog||[]).filter(p=>!p.local&&p.default_model).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.label+' · '+p.default_model;presetSelect.append(o);});
   const customPreset=document.createElement('option');customPreset.value='__custom';customPreset.textContent=en?'Custom endpoint':'Endpoint personalitzat';presetSelect.append(customPreset);
-  const activePreset=(data.roles?.[state.role]||data.roles?.chat)?.provider;
-  if([...presetSelect.options].some(o=>o.value===activePreset))presetSelect.value=activePreset;
   const presetKey=document.createElement('input');presetKey.id='presetAPIKey';presetKey.type='password';presetKey.autocomplete='new-password';presetKey.placeholder=en?'API key or ${VARIABLE}':'API key o ${VARIABLE}';presetKey.setAttribute('aria-label','API key');
-  const presetButton=document.createElement('button');presetButton.className='primary';presetButton.textContent=document.documentElement.lang==='ca'?'Utilitza per a tots els rols':'Use for all roles';
+  const presetButton=document.createElement('button');presetButton.className='primary';presetButton.disabled=true;presetButton.textContent=document.documentElement.lang==='ca'?'Utilitza per a tots els rols':'Use for all roles';
   presetButton.onclick=async()=>{presetButton.disabled=true;try{
     const response=await api('/api/providers',{method:'POST',body:JSON.stringify({action:'preset',name:presetSelect.value})});
     if(!response.ok)throw new Error(await response.text());
@@ -3267,7 +3317,7 @@ async function toggleProv(force) {
     if(presetKey.value.trim())sys(await pact('key',{name:presetSelect.value,key:presetKey.value.trim()}));
     presetKey.value='';await toggleProv(true);await refresh();
   }catch(error){sys(error.message||String(error));}finally{presetButton.disabled=false;}};
-  presetForm.append(presetSelect,presetKey,presetButton);box.append(presetForm);
+  presetForm.append(presetHint,presetSelect,presetKey,presetButton);box.append(presetForm);
   (data.providers||[]).forEach(p=>{
     const row=document.createElement('div');row.className='prow';
     const keyLabel=en&&p.key==='(buida)'?'(empty)':en&&p.key==='sí (oculta)'?'(hidden)':p.key;
@@ -3290,7 +3340,7 @@ async function toggleProv(force) {
   const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" placeholder="nom" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" type="password" autocomplete="new-password" placeholder="clau o ${VAR}" size="18">';
   const ab=document.createElement('button');ab.textContent=en?'Add provider':'Afegeix provider';ab.className='primary';ab.onclick=async()=>{sys(await pact('add',{name:$('pn').value.trim(),url:$('pu').value.trim(),key:$('pk').value.trim()}));toggleProv(true);refresh();};f.appendChild(ab);box.appendChild(f);
   f.hidden=true;
-  presetSelect.onchange=()=>{const custom=presetSelect.value==='__custom';f.hidden=!custom;presetKey.hidden=custom;presetButton.hidden=custom;if(custom)$('pn').focus();};
+  presetSelect.onchange=()=>{const custom=presetSelect.value==='__custom';f.hidden=!custom;presetKey.hidden=custom;presetButton.hidden=custom;presetButton.disabled=!custom&&!presetSelect.value;if(custom)$('pn').focus();};
   const r2=document.createElement('div');r2.className='frm';const rs=document.createElement('select'),ps=document.createElement('select');
   Object.keys(data.roles||{}).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r+' · '+data.roles[r].provider+'/'+data.roles[r].model;rs.appendChild(o);});
   (data.providers||[]).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name;ps.appendChild(o);});

@@ -20,15 +20,25 @@ or exposing API keys. Literal keys remain memory-only; environment references
 are persisted. See [provider presets](provider-presets.md).
 
 `POST /api/v2/team/run` accepts `{task,lang?}` (`en` by default, or `ca`).
-It uses the selected session and active model, with four sequential, tool-free
-roles: coordinator, researcher, builder and reviewer. Roles receive prior
-deliverables, not hidden reasoning. This initial implementation cannot browse,
+It uses the selected session and active model, with four tool-free roles.
+The coordinator plans first; researcher analysis and an independent builder
+draft run in parallel from that plan. The reviewer receives both deliverables
+in deterministic order. A structured rejection can request one builder revision
+and one final review, never an unbounded debate. Roles share public
+deliverables, not hidden reasoning. This implementation cannot browse,
 read files, execute code or create plots. It shares the session busy guard.
-The response is SSE: `event: team`, JSON `{type,agent?,to?,output?}`.
-Types: `started`, `working`, `completed`, `handoff`, `done`, `failed`, `cancelled`.
+The response is SSE: `event: team`, JSON
+`{type,agent?,to?,output?,activity?,message?,model?}`. Before the first response,
+`model` names the configured model; completed events identify the model used,
+including fallback routing. This is not an intelligence score.
+Types: `started`, `working`, `completed`, `handoff`, `discussion`, `done`, `failed`, `cancelled`.
 Only `completed` and `done` include deliverables. Closing/aborting the HTTP
 request cancels work; there is a ten-minute timeout. Tasks are limited to 16 KB
 and request bodies to 64 KB. Runs are not persisted or resumable yet.
+
+The browser's local demo uses scripted events, including simulated tools and
+delegated characters. It makes no model or web-search requests. Real Team runs
+do not yet connect to the main agent's tool or delegation loop.
 
 ## Language
 
