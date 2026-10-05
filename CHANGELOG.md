@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Entrada simplificada amb «Fer una tasca» i «Conversar», modes especials
+  desplegables i selecció de rols dins de les opcions avançades.
 - Detecció de models limitada al rol actiu per evitar esperes de proveïdors aliens.
 - Control explícit de l'esforç de raonament i compatibilitat amb els passos
   mecànics de GLM-5.3, que no permet desactivar el raonament.

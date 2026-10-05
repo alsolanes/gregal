@@ -32,6 +32,7 @@ function loadSessions() {
     },
   };
   const sandbox = {
+    T(key) { return key; },
     window,
     localStorage: {
       getItem(key) { return stored.has(key) ? stored.get(key) : null; },

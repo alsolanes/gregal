@@ -518,7 +518,7 @@ export const term = {
 // ---------------------------------------------------------------- composer
 
 const COMMANDS = [
-  { cmd: '/mode', desc: 'code · chat · goal · autonomous', run: () => G().setMode(G().nextMode()) },
+  { cmd: '/mode', desc: T('keys.modeCycle'), run: () => G().setMode(G().nextMode()) },
   { cmd: '/model', desc: 'tria proveïdor i model', run: () => models.open() },
   { cmd: '/canvis', desc: 'revisa el diff del workspace', run: () => G().setView('canvis') },
   { cmd: '/fitxers', desc: 'arbre del projecte', run: () => G().setView('fitxers') },
@@ -538,7 +538,7 @@ const COMMANDS = [
 // /api/model valida abans de fixar l'override. Abans a la web
 // només es podia escriure el nom a mà als proveïdors.
 export const models = {
-  box: null, data: null, all: [], filtered: [], idx: 0, busy: false, activeTab: 'models',
+  box: null, data: null, all: [], filtered: [], idx: 0, busy: false,
   recentKey: 'gregal_recent_models',
   recents() {
     try {
@@ -564,51 +564,30 @@ export const models = {
     this.box.id = 'mpick';
     this.box.hidden = true;
     this.box.innerHTML =
-      '<div class="mp-tabs">' +
-        '<button class="mp-tab active" data-tab="models">Models</button>' +
-        '<button class="mp-tab" data-tab="roles">Qui respon</button>' +
-      '</div>' +
       '<div class="mp-tab-page" data-page="models">' +
         '<div class="mp-subhead">' +
-          '<span>Rol actiu: <b class="mp-role">carregant…</b></span>' +
-          '<button class="mp-link-btn" type="button">Canvia rol ↗</button>' +
+          '<span>' + T('models.taskModel') + '</span>' +
         '</div>' +
         '<div class="mp-search-wrap">' +
           '<span class="mp-search-icon">🔍</span>' +
-          '<input class="mp-search" placeholder="Filtra… (proveïdor/model)" aria-label="Filtra models" autocomplete="off">' +
+          '<input class="mp-search" placeholder="' + T('models.filterPlaceholder') + '" aria-label="' + T('models.filterLabel') + '" autocomplete="off">' +
         '</div>' +
         '<div class="mp-list" role="listbox"></div>' +
       '</div>' +
-      '<div class="mp-tab-page" data-page="roles" hidden>' +
-        '<div class="mp-subhead"><span>Com tria Gregal el model segons la tasca</span></div>' +
-        '<div class="mp-rols"></div>' +
-      '</div>' +
+      '<details class="mp-advanced-roles">' +
+        '<summary>' + T('models.advancedRoles') + '</summary>' +
+        '<div class="mp-advanced-body">' +
+          '<div class="mp-subhead"><span>' + T('models.rolesHelp') + '</span></div>' +
+          '<div class="mp-rols"></div>' +
+        '</div>' +
+      '</details>' +
       '<div class="mp-foot"></div>';
     document.body.appendChild(this.box);
-
-    const tabs = this.box.querySelectorAll('.mp-tab');
-    tabs.forEach(t => t.addEventListener('click', () => this.switchTab(t.dataset.tab)));
-
-    const switchLink = this.box.querySelector('.mp-link-btn');
-    if (switchLink) switchLink.addEventListener('click', () => this.switchTab('roles'));
 
     const s = this.box.querySelector('.mp-search');
     s.addEventListener('input', () => { this.idx = 0; this.draw(); });
     s.addEventListener('keydown', e => this.key(e));
     return this.box;
-  },
-  switchTab(tab) {
-    this.activeTab = tab;
-    this.box.querySelectorAll('.mp-tab').forEach(t => {
-      t.classList.toggle('active', t.dataset.tab === tab);
-    });
-    this.box.querySelectorAll('.mp-tab-page').forEach(p => {
-      p.hidden = p.dataset.page !== tab;
-    });
-    if (tab === 'models') {
-      const s = this.box.querySelector('.mp-search');
-      if (s) s.focus();
-    }
   },
   place() {
     const pill = $('modelPill');
@@ -620,11 +599,9 @@ export const models = {
   },
   async open() {
     this.ensure();
-    this.switchTab('models');
     this.place();
     this.box.hidden = false;
-    this.box.querySelector('.mp-role').textContent = 'carregant…';
-    this.box.querySelector('.mp-list').innerHTML = '<div class="mp-empty">Preguntant als proveïdors…</div>';
+    this.box.querySelector('.mp-list').innerHTML = '<div class="mp-empty">' + T('models.fetching') + '</div>';
     this.box.querySelector('.mp-foot').textContent = '';
     const s = this.box.querySelector('.mp-search'); s.value = ''; s.focus();
     try {
@@ -644,9 +621,6 @@ export const models = {
       const ar = a.recent < 0 ? Infinity : a.recent, br = b.recent < 0 ? Infinity : b.recent;
       return ar - br || a.prov.localeCompare(b.prov) || a.id.localeCompare(b.id);
     });
-    const rolText = (this.NOMS[this.data.role] || this.data.role || 'automàtic');
-    this.box.querySelector('.mp-role').textContent = rolText;
-
     // Proveïdors desconnectats en un acordió plegat discret per no carregar el menú:
     const errs = Object.entries(this.data.errors || {});
     let footHTML = '';
@@ -682,7 +656,10 @@ export const models = {
 
   // NOMS tradueix el rol del config a què vol dir per a qui el fa servir.
   // «think» o «reviewer» són noms nostres, no del qui mira la pantalla.
-  NOMS: { chat: 'per parlar', think: 'per pensar', code: 'per programar', reviewer: 'per revisar' },
+  nomRole(role) {
+    const claus = { chat: 'models.role.chat', think: 'models.role.think', code: 'models.role.code', reviewer: 'models.role.reviewer' };
+    return T(claus[role] || role || 'models.automatic');
+  },
 
   async dibuixaRols() {
     const caixa = this.box.querySelector('.mp-rols');
@@ -694,13 +671,13 @@ export const models = {
     const fila = (val, titol, sub, marcat) =>
       '<button class="mp-rol' + (marcat ? ' on' : '') + '" data-rol="' + esc(val) + '">' +
       '<b>' + esc(titol) + '</b><span>' + esc(sub) + '</span></button>';
-    let html = fila('auto', 'Automàtic',
-      'Es tria sol segons la feina' + (!fixat && st.current_role ? ' · ara: ' + (this.NOMS[st.current_role] || st.current_role) : ''),
+    let html = fila('auto', T('models.automatic'),
+      T('models.roleAutomaticHelp') + (!fixat && st.current_role ? ' · ' + T('models.currentRole') + ': ' + this.nomRole(st.current_role) : ''),
       !fixat);
     (st.role || []).forEach(n => {
       const r = rols[n] || {};
-      const model = r.model ? r.provider + '/' + r.model : 'sense model configurat';
-      html += fila(n, this.NOMS[n] || n, model, fixat && n === st.current_role);
+      const model = r.model ? r.provider + '/' + r.model : T('models.noModelConfigured');
+      html += fila(n, this.nomRole(n), model, fixat && n === st.current_role);
     });
     caixa.innerHTML = html;
     caixa.querySelectorAll('[data-rol]').forEach(b => b.onclick = async () => {
@@ -726,10 +703,10 @@ export const models = {
     if (!this.filtered.length) {
       const errs = Object.keys(this.data?.errors || {});
       const empty = this.all.length
-        ? 'Cap model casa amb el filtre.'
+        ? T('models.noMatch')
         : errs.length
-          ? 'Ara no hi ha models disponibles. Revisa l’estat dels proveïdors a continuació.'
-          : 'Cap proveïdor ha llistat models. Comprova la configuració dels proveïdors.';
+          ? T('models.noneAvailable')
+          : T('models.noneListed');
       list.innerHTML = '<div class="mp-empty">' + esc(empty) + '</div>';
       return;
     }
@@ -742,7 +719,7 @@ export const models = {
       '</div>';
     const recent = this.filtered.filter(m => m.recent >= 0);
     if (recent.length) {
-      html += '<div class="mp-prov">Recents</div>';
+      html += '<div class="mp-prov">' + T('models.recent') + '</div>';
       recent.forEach(m => html += itemHTML(m, this.filtered.indexOf(m)));
     }
     const rest = this.filtered.filter(m => m.recent < 0);
@@ -769,15 +746,15 @@ export const models = {
     if (!m || this.busy) return;
     this.busy = true;
     const foot = this.box.querySelector('.mp-foot');
-    foot.innerHTML = '<div class="mp-subhead">validant ' + esc(m.sel) + '…</div>';
+    foot.innerHTML = '<div class="mp-subhead">' + T('models.validating') + esc(m.sel) + '…</div>';
     try {
       // G().api posa el token Bearer si n'hi ha; el servidor valida que el
       // proveïdor anunciï el model abans de fixar res.
       const res = await G().api('/api/model', { method: 'POST', body: JSON.stringify({ model: m.sel }) });
       if (!res.ok) { foot.innerHTML = '<div class="mp-err">' + esc(await res.text()) + '</div>'; return; }
       this.remember(m.sel);
-      G().sys('model → ' + m.sel);
-      G().activityItem('model', m.sel, 'rol ' + (this.data.role || ''), 'ok');
+      G().sys(T('models.changed') + m.sel);
+      G().activityItem('model', m.sel, T('models.roleActivity') + (this.data.role || ''), 'ok');
       this.close();
       G().refresh();
     } catch (e) {
