@@ -26,6 +26,8 @@ jobs:
       - run: node scripts/verify-vendor.cjs
       - run: go test ./...
       - run: go vet ./...
+      - run: npm ci
+        working-directory: desktop
       - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
   vscode:
     runs-on: ubuntu-latest
