@@ -70,6 +70,12 @@ type Store struct {
 	seq   int64
 }
 
+type processGroup interface {
+	start(*exec.Cmd) error
+	kill(*exec.Cmd)
+	close()
+}
+
 // New crea un magatzem buit.
 func New() *Store { return &Store{procs: map[string]*Proc{}} }
 
@@ -97,16 +103,29 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 	name, args := shell.Argv(shell.NormalitzaPathsWindows(cmd))
 	c := exec.Command(name, args...)
 	c.Dir = dir
-	setGroup(c)
+	group, err := newProcessGroup(c)
+	if err != nil {
+		return nil, err
+	}
 	stdout, err := c.StdoutPipe()
 	if err != nil {
+		group.close()
 		return nil, err
 	}
 	stderr, err := c.StderrPipe()
 	if err != nil {
+		_ = stdout.Close()
+		group.close()
 		return nil, err
 	}
 	if err := c.Start(); err != nil {
+		group.close()
+		return nil, err
+	}
+	if err := group.start(c); err != nil {
+		group.kill(c)
+		_ = c.Wait()
+		group.close()
 		return nil, err
 	}
 	id := "p" + strconv.FormatInt(atomic.AddInt64(&s.seq, 1), 10)
@@ -114,7 +133,7 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 		ID: id, Cmd: cmd, Dir: dir, Session: session,
 		Started: time.Now(), Running: true, done: make(chan struct{}),
 	}
-	p.cancel = func() { killGroup(c) }
+	p.cancel = func() { group.kill(c) }
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); p.pump("out", stdout) }()
@@ -137,6 +156,7 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 		p.Ended = time.Now()
 		p.Exit = &code
 		p.mu.Unlock()
+		group.close()
 		close(p.done)
 	}()
 	s.mu.Lock()
