@@ -2409,7 +2409,7 @@ function paintMode(mode) {
     const special = mode === 'goal' || mode === 'autonomous';
     advanced.dataset.active = String(special);
     const label = $('advancedModeSummary');
-    if (label) label.textContent = gregalT('mode.advanced') + (special ? ' · ' + gregalT(mode === 'goal' ? 'mode.goalActive' : 'mode.autonomousActive') : '');
+    if (label) label.textContent = gregalT(special ? (mode === 'goal' ? 'mode.objectiu' : 'mode.autonom') : 'mode.advanced');
   }
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
