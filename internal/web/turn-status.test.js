@@ -5,12 +5,18 @@ const test = require('node:test');
 const vm = require('node:vm');
 
 function extractFunction(source, name, nextName) {
+  source = source.replace(/\r\n/g, '\n');
   const start = source.indexOf(`function ${name}(`);
   assert.notEqual(start, -1, `${name} exists in the inline app script`);
   const end = source.indexOf(`\n}\nfunction ${nextName}(`, start);
   assert.notEqual(end, -1, `${name} ends before ${nextName}`);
   return source.slice(start, end + 2);
 }
+
+test('inline function extraction accepts Windows and Unix line endings', () => {
+  const source = 'function first() {\n  return 1;\n}\nfunction second() {}';
+  assert.equal(extractFunction(source, 'first', 'second'), extractFunction(source.replace(/\n/g, '\r\n'), 'first', 'second'));
+});
 
 function makeElement() {
   const classes = new Set();
