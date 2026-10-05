@@ -196,6 +196,53 @@ func TestEventsInteractiusConservenPayloadSegur(t *testing.T) {
 	}
 }
 
+func TestCheckpointDurableReprodueixPayloadEstructurat(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := hubTestServer(t)
+	s.Hub()
+	s.mu.Lock()
+	s.active = &activeAgent{ID: 12}
+	s.mu.Unlock()
+
+	longOutput := strings.Repeat("x", 1200)
+	checkpoint := map[string]any{
+		"number": 3,
+		"checks": []map[string]any{
+			{"command": "go test ./...", "code": 0, "output": longOutput},
+			{"command": "go vet ./...", "code": 1, "output": "vet: issue"},
+		},
+		"review": "CAL REVISAR: revisar error",
+		"secret": "no-desar",
+	}
+	s.recordActive("autonomous_checkpoint", checkpoint)
+
+	w := httptest.NewRecorder()
+	s.handleEvents(w, httptest.NewRequest(http.MethodGet, "/api/v2/events?after=0&limit=10", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("events replay: %d %s", w.Code, w.Body.String())
+	}
+	var got struct {
+		Events []struct {
+			Kind    string          `json:"kind"`
+			Text    string          `json:"text"`
+			Payload json.RawMessage `json:"payload"`
+		} `json:"events"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	want := `{"checks":[{"code":0,"command":"go test ./...","output":"` + longOutput + `"},{"code":1,"command":"go vet ./...","output":"vet: issue"}],"number":3,"review":"CAL REVISAR: revisar error"}`
+	if len(got.Events) != 1 || got.Events[0].Kind != "autonomous_checkpoint" {
+		t.Fatalf("checkpoint absent del replay: %+v", got.Events)
+	}
+	if string(got.Events[0].Payload) != want {
+		t.Fatalf("payload de checkpoint perdut o alterat:\n got %s\nwant %s", got.Events[0].Payload, want)
+	}
+	if len([]rune(got.Events[0].Text)) > 901 {
+		t.Fatalf("el text resum no s'ha retallat: %d runes", len([]rune(got.Events[0].Text)))
+	}
+}
+
 // La capçalera i el query param trien sessió; ids invàlids cauen a default.
 func TestSessionID(t *testing.T) {
 	r := httptest.NewRequest("GET", "/api/state", nil)

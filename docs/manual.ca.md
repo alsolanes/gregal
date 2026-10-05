@@ -77,6 +77,18 @@ siguin de loopback si no s'ha configurat un token o autenticació d'usuari. El
 servidor no ofereix TLS; configura HTTPS abans de fer-lo accessible fora
 d'una màquina local de confiança.
 
+## Taller 2D
+
+La vista **Taller 2D** de la barra lateral representa les sessions obertes
+com estacions de treball. Cada estació mostra el projecte i si la sessió
+treballa, està en repòs o espera una resposta. Clica una estació per obrir
+la seva conversa; **Qui em necessita?** obre la primera amb una interacció
+pendent coneguda pel navegador actual.
+
+Les estacions reutilitzen les sessions existents. Les alertes depenen de
+les preguntes i aprovacions rebudes en aquest client; no són un registre
+global de totes les interaccions obertes des d'altres navegadors.
+
 ## Dades i execució d'eines
 
 Els prompts, el context de conversa i el codi o els fitxers inclosos en una

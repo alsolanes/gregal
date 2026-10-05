@@ -47,6 +47,13 @@ func TestIndexHasUsableVisualShell(t *testing.T) {
 		`function runGoal`,
 		`function loadGoals`,
 		`.goal-row button.primary`,
+		`id="workshopPage"`,
+		`id="workshopRoot"`,
+		`data-workshop-root`,
+		`data-workshop-stage`,
+		`data-workshop-queue`,
+		`data-view="workshop"`,
+		`/app/workshop.css`,
 	} {
 		if !strings.Contains(html, want) {
 			t.Errorf("falta element UX %s", want)

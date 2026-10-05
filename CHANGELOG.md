@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Taller 2D de sessions amb cua d'atenció per a aprovacions i preguntes.
+- Cerca de converses pel títol, el nom, el projecte i la carpeta de treball.
+- Estat visible dels torns mentre treballen, esperen una resposta o acaben.
+- Resum de fitxers modificats i comprovacions observades, amb checkpoints
+  recuperables després d'una reconnexió.
+
 ## v1.7.4 — 2026-10-04 — Recuperació dels límits de resposta
 
 - Conserva les opcions de raonament i de model alternatiu en canviar de model.

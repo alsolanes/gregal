@@ -50,13 +50,13 @@ func TestGuardDinsIFora(t *testing.T) {
 func TestGuardPrefixEnganys(t *testing.T) {
 	base := t.TempDir()
 	userb := filepath.Join(base, "userb")
-	trampa := filepath.Join(base, "carla2")
+	trampa := filepath.Join(base, "userb2")
 	if err := os.MkdirAll(trampa, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	u := &User{Name: "userb", Roots: []string{userb}}
 	if err := u.Allow(filepath.Join(trampa, "fitxer.txt")); err == nil {
-		t.Fatal("carla2 no és dins userb i hauria de quedar fora")
+		t.Fatal("userb2 no és dins userb i hauria de quedar fora")
 	}
 }
 

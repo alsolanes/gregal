@@ -124,3 +124,106 @@ test("adapter pinta les eines amb el payload durable (nom, args, sortida)", asyn
     ["blocked", { reason: "no" }],
   ]);
 });
+
+test("resum només mostra escriptures reeixides, comprovacions i diffs observats", async () => {
+  let markup = "", view = "";
+  const buttons = [{ onclick: null }];
+  const root = { querySelector: () => ({ querySelectorAll: () => buttons }) };
+  const window = {
+    gregalSession: "default",
+    gregalT: key => ({ "run.summary.completed": "Completada", "run.summary.interrupted": "Interrompuda", "run.summary.cancelled": "Cancel·lada", "run.summary.files": "Fitxers", "run.summary.checks": "Comprovacions", "run.summary.ok": "Correcte", "run.summary.failed": "Fallida", "run.summary.checkpoints": "Checkpoints", "run.summary.review": "Revisió", "run.summary.changes": "Revisa canvis", "run.summary.title": "Resum" }[key] || key),
+    gregal: { add: (_kind, _who, html) => { markup = html; return root; }, setView: name => { view = name; } },
+  };
+  const { createSummary } = await module(window);
+  const summary = createSummary();
+  summary.record("tool_call", { name: "edit", args: JSON.stringify({ path: "src/<main>.go" }) });
+  summary.record("tool_result", { name: "edit", output: "edit aplicat a src/<main>.go" });
+  summary.record("tool_call", { name: "write", args: JSON.stringify({ path: "bad.go" }) });
+  summary.record("tool_result", { name: "write", output: "ERROR: permís denegat" });
+  summary.record("autonomous_checkpoint", { number: 2, checks: [{ command: "go test ./...", code: 0 }, { command: "go vet ./...", code: 1 }], review: "CAL REVISAR: revisar error" });
+  summary.render();
+  assert.match(markup, /src\/&lt;main&gt;\.go/);
+  assert.doesNotMatch(markup, /bad\.go/);
+  assert.ok(markup.includes("go test ./..."));
+  assert.match(markup, /is-ok/);
+  assert.match(markup, /is-failed/);
+  assert.match(markup, /CAL REVISAR/);
+  buttons[0].onclick();
+  assert.equal(view, "canvis");
+});
+
+test("resum buit no s'insereix i no es pinta dins d'una altra sessió", async () => {
+  let adds = 0;
+  const window = { gregalSession: "a", gregal: { add: () => { adds++; } } };
+  const { createSummary } = await module(window);
+  const empty = createSummary();
+  assert.equal(empty.render(), null);
+  const stale = createSummary();
+  stale.record("tool_call", { name: "write", args: '{"path":"a.txt"}' });
+  stale.record("tool_result", { name: "write", output: "escrit a.txt (1 bytes)" });
+  window.gregalSession = "b";
+  assert.equal(stale.render(), null);
+  assert.equal(adds, 0);
+});
+
+test("checkpoint durable conserva dades, distingeix codi desconegut i deduplica replay", async () => {
+  const seen = [];
+  const { durableToAgent, createSummary } = await module({
+    gregalSession: "default",
+    gregalT: key => ({ "run.summary.checks": "Comprovacions", "run.summary.ok": "Correcte", "run.summary.failed": "Fallida", "run.summary.unknown": "Desconegut", "run.summary.checkpoints": "Checkpoints", "run.summary.review": "Revisió", "run.summary.title": "Resum" }[key] || key),
+    gregal: { add: (_kind, _who, html) => { seen.push(html); return null; } },
+  });
+  const event = { id: 42, kind: "autonomous_checkpoint", text: "resum antic", payload: JSON.stringify({ number: 3, checks: [
+    { command: "go test ./...", code: 0, output: "ok" },
+    { command: "missing code", output: "no exit status" },
+    { command: "null code", code: null },
+    { command: "invalid code", code: "0" },
+  ], review: "APROVAT" }) };
+  assert.equal(durableToAgent(event, (kind, data) => seen.push([kind, data])), false);
+  const [kind, payload] = seen[0];
+  assert.equal(kind, "autonomous_checkpoint");
+  assert.equal(payload.number, 3);
+  assert.equal(payload.checks[0].output, "ok");
+  assert.equal(payload.review, "APROVAT");
+  assert.equal(payload._eventId, 42);
+
+  const summary = createSummary();
+  summary.record(kind, payload);
+  summary.record(kind, payload);
+  summary.render();
+  const markup = seen[1];
+  assert.equal((markup.match(/run-summary-checkpoints/g) || []).length, 0);
+  assert.match(markup, /Checkpoints[\s\S]*?>1</);
+  assert.equal((markup.match(/Desconegut/g) || []).length, 3);
+  assert.match(markup, /is-ok/);
+  assert.equal((markup.match(/is-failed/g) || []).length, 0);
+});
+
+test("checkpoint només usa text antic quan conté JSON complet", async () => {
+  const { durableToAgent } = await module();
+  const seen = [];
+  durableToAgent({ id: 1, kind: "autonomous_checkpoint", text: '{"number":2,"checks":[],"review":"OK"}' }, (k, d) => seen.push([k, d]));
+  assert.equal(durableToAgent({ id: 2, kind: "autonomous_checkpoint", text: "resum truncat..." }, (k, d) => seen.push([k, d])), false);
+  assert.equal(seen[0][1].number, 2);
+  assert.equal(seen.length, 1);
+  assert.deepEqual(JSON.parse(JSON.stringify(seen[0][1].checks)), []);
+});
+test("resum indica els estats d'interrupció i cancel·lació", async () => {
+  const markup = [];
+  const window = {
+    gregalSession: "default",
+    gregalT: key => ({ "run.summary.interrupted": "Interrompuda", "run.summary.cancelled": "Cancel·lada", "run.summary.checkpoints": "Punts" }[key] || key),
+    gregal: { add: (_kind, _who, html) => { markup.push(html); return null; } },
+  };
+  const { createSummary } = await module(window);
+  const interrupted = createSummary();
+  interrupted.record("autonomous_checkpoint", { number: 1, checks: [{ command: "go test ./...", code: 2 }] });
+  interrupted.record("error", { message: "fallada" });
+  interrupted.render();
+  const cancelled = createSummary();
+  cancelled.record("autonomous_checkpoint", { number: 2, checks: [{ command: "go test ./...", code: 0 }] });
+  cancelled.record("status", { message: "torn cancel·lat" });
+  cancelled.render();
+  assert.match(markup[0], /Interrompuda/);
+  assert.match(markup[1], /Cancel·lada/);
+});

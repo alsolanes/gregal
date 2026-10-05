@@ -48,6 +48,15 @@ function titolVisible(c) {
   }).format(d);
 }
 
+// Cerca local als camps que ja proporciona /api/sessions, inclosa la ruta
+// completa per distingir projectes amb noms de carpeta iguals.
+export function matchesConversation(c, query) {
+  const q = String(query == null ? '' : query).trim().toLowerCase();
+  if (!q) return true;
+  if (!c || typeof c !== 'object') return false;
+  return [c.title, c.name, c.project, c.workspace]
+    .some(value => typeof value === 'string' && value.toLowerCase().includes(q));
+}
 export const convs = {
   items: [],
   expandedProjects: new Set(),
@@ -96,7 +105,7 @@ export const convs = {
       return;
     }
     const q = this.filtre;
-    const llista = q ? this.items.filter(c => (c.title || c.name || '').toLowerCase().includes(q)) : this.items;
+    const llista = q ? this.items.filter(c => matchesConversation(c, q)) : this.items;
     if (!llista.length) {
       box.innerHTML = '<div class="conv-empty">' +
         esc(q ? (gregalT('conv.empty.search') || 'Cap conversa amb aquest text.') : (gregalT('conv.empty.none') || 'Encara no hi ha converses. La d’ara es desa sola.')) + '</div>';

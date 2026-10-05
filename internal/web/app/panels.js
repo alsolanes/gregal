@@ -13,6 +13,7 @@ import { prefs } from './prefs.js';
 import { attach } from './attach.js';
 import { aplica as aplicaIdioma, t as T, defineixPerDefecte } from './i18n.js';
 import { flows } from './flows.js';
+import { workshop } from './workshop.js';
 
 const G = () => window.gregal;
 const $ = id => document.getElementById(id);
@@ -878,6 +879,7 @@ export function boot() {
   aplicaIdioma();
   composer.init();
   sessions.init();
+  workshop.init();
   const runBtn = $('procRun'), cmdIn = $('procCmd');
   if (runBtn) runBtn.onclick = () => { term.run(cmdIn.value); cmdIn.value = ''; };
   if (cmdIn) cmdIn.onkeydown = e => { if (e.key === 'Enter') { term.run(cmdIn.value); cmdIn.value = ''; } };
@@ -940,7 +942,7 @@ export function boot() {
   convs.init();
   prefs.init();
   attach.init();
-  window.gregalPanels = { sessions, changes, files, browser, term, composer, hud, workspaces, models, office, convs, prefs, attach, flows };
+  window.gregalPanels = { sessions, changes, files, browser, term, composer, hud, workspaces, models, office, convs, prefs, attach, flows, workshop };
   // Les pestanyes alienes no s'actualitzaven mentre treballaven (render només
   // a boot i a done). Polling lleuger: si alguna sessió està busy, repinta.
   // Fora de línia el sondeig s'espaia (un cop cada 15 s) i, quan torna,
@@ -951,6 +953,7 @@ export function boot() {
     try {
       const hadError = !!sessions._error;
       const list = await sessions.list();
+      if (G()?.viewActual() === 'workshop') await workshop.update(list);
       if (list.some(s => s.busy) || sessions._error || hadError) await sessions.render(list);
     } catch (e) {}
   }, 5000);
