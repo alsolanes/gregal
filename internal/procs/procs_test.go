@@ -1,6 +1,7 @@
 package procs
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -74,6 +75,30 @@ func TestKill(t *testing.T) {
 	}
 	if s.Kill("no-existeix") {
 		t.Fatal("un id inventat no s'ha de poder matar")
+	}
+}
+
+func TestStartCtxCanceledKillsProcess(t *testing.T) {
+	s := New()
+	ctx, cancel := context.WithCancel(context.Background())
+	p, err := s.StartCtx(ctx, "sess", t.TempDir(), "sleep 30")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	if !p.Wait(3 * time.Second) {
+		t.Fatal("el procés hauria d'haver acabat en cancel·lar el context")
+	}
+	if p.IsRunning() {
+		t.Fatal("el procés encara corre després de cancel·lar el context")
+	}
+}
+
+func TestStartCtxRebutjaContextCancelLat(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := New().StartCtx(ctx, "sess", t.TempDir(), "sleep 30"); err != context.Canceled {
+		t.Fatalf("error=%v; es volia context.Canceled", err)
 	}
 }
 

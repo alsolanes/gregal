@@ -218,7 +218,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		case agent.OrdreAprova:
 			c := pas.Call
 			emetCrida(c.ID, c.Function.Name, c.Function.Arguments)
-			ok, caducada := s.waitApproval(runCtx, emit, c.ID, c.Function.Name, c.Function.Arguments, agent.Sig(c.Function.Name, c.Function.Arguments))
+			ok, caducada := s.waitApproval(runCtx, emit, c.ID, c.Function.Name, c.Function.Arguments, agent.Sig(c.Function.Name, c.Function.Arguments), mode != agent.ModeAutonomous)
 			if runCtx.Err() != nil {
 				continue
 			}

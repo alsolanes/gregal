@@ -158,7 +158,7 @@ func TestEventsInteractiusConservenPayloadSegur(t *testing.T) {
 	s.mu.Unlock()
 	s.recordActive("approve_request", map[string]any{
 		"key": "7", "call_id": "call-1", "name": "shell", "args": "ls",
-		"secret": "no-desar",
+		"auto_approve_allowed": false, "secret": "no-desar",
 	})
 	s.recordActive("question_request", map[string]any{
 		"key": "q2", "call_id": "call-2", "query": "Què faig?",
@@ -181,10 +181,13 @@ func TestEventsInteractiusConservenPayloadSegur(t *testing.T) {
 			t.Fatalf("s'ha persistit un camp no autoritzat: %s", e.Payload)
 		}
 		if e.Kind == "approve_request" {
-			for _, key := range []string{"key", "call_id", "name", "args"} {
+			for _, key := range []string{"key", "call_id", "name", "args", "auto_approve_allowed"} {
 				if _, ok := payload[key]; !ok {
 					t.Fatalf("approve sense %s: %s", key, e.Payload)
 				}
+			}
+			if payload["auto_approve_allowed"] != false {
+				t.Fatalf("l'autorització d'autoaprovació s'ha de conservar exacta: %s", e.Payload)
 			}
 		} else if e.Kind == "question_request" {
 			for _, key := range []string{"key", "call_id", "query", "options"} {

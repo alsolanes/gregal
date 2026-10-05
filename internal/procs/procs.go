@@ -8,6 +8,7 @@ package procs
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -69,6 +70,12 @@ type Store struct {
 	seq   int64
 }
 
+type processGroup interface {
+	start(*exec.Cmd) error
+	kill(*exec.Cmd)
+	close()
+}
+
 // New crea un magatzem buit.
 func New() *Store { return &Store{procs: map[string]*Proc{}} }
 
@@ -77,8 +84,18 @@ const MaxProcs = 40
 
 // Start engega `sh -c cmd` a dir i retorna el procés.
 func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
+	return s.StartCtx(context.Background(), session, dir, cmd)
+}
+
+// StartCtx engega `sh -c cmd` a dir i mata el procés i el seu grup quan ctx
+// es cancel·la. És útil per a processos que pertanyen a un torn; Start els
+// continua deixant vius fins que els aturi l'usuari o tanqui la sessió.
+func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, error) {
 	if cmd == "" {
 		return nil, errors.New("cal una ordre")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	// L'intèrpret el tria internal/shell (sh, el sh del Git a Windows, o cmd):
 	// amb "sh" a pèl el portable de Windows no podia engegar cap procés.
@@ -86,16 +103,29 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 	name, args := shell.Argv(shell.NormalitzaPathsWindows(cmd))
 	c := exec.Command(name, args...)
 	c.Dir = dir
-	setGroup(c)
+	group, err := newProcessGroup(c)
+	if err != nil {
+		return nil, err
+	}
 	stdout, err := c.StdoutPipe()
 	if err != nil {
+		group.close()
 		return nil, err
 	}
 	stderr, err := c.StderrPipe()
 	if err != nil {
+		_ = stdout.Close()
+		group.close()
 		return nil, err
 	}
 	if err := c.Start(); err != nil {
+		group.close()
+		return nil, err
+	}
+	if err := group.start(c); err != nil {
+		group.kill(c)
+		_ = c.Wait()
+		group.close()
 		return nil, err
 	}
 	id := "p" + strconv.FormatInt(atomic.AddInt64(&s.seq, 1), 10)
@@ -103,7 +133,7 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 		ID: id, Cmd: cmd, Dir: dir, Session: session,
 		Started: time.Now(), Running: true, done: make(chan struct{}),
 	}
-	p.cancel = func() { killGroup(c) }
+	p.cancel = func() { group.kill(c) }
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); p.pump("out", stdout) }()
@@ -126,6 +156,7 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 		p.Ended = time.Now()
 		p.Exit = &code
 		p.mu.Unlock()
+		group.close()
 		close(p.done)
 	}()
 	s.mu.Lock()
@@ -133,6 +164,15 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 	s.order = append(s.order, id)
 	s.evictLocked()
 	s.mu.Unlock()
+	if ctx.Done() != nil {
+		go func() {
+			select {
+			case <-ctx.Done():
+				p.Kill()
+			case <-p.done:
+			}
+		}()
+	}
 	return p, nil
 }
 
@@ -205,7 +245,9 @@ func (p *Proc) Wait(d time.Duration) bool {
 
 // Kill mata el procés.
 func (p *Proc) Kill() {
-	if p.cancel != nil {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Running && p.cancel != nil {
 		p.cancel()
 	}
 }

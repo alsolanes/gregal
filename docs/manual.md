@@ -105,6 +105,22 @@ permissions and confirmation prompts are application controls, not an
 operating-system sandbox. Review proposed changes and commands. For untrusted
 code, use a disposable checkout or operating-system-level isolation.
 
+By default, autonomous mode allows file writes inside the selected project.
+Actions that require approval still wait for a person, even when the session's
+permissive setting is enabled. Explicit tool permissions in the config take
+precedence. A non-interactive run denies actions that still require approval.
+
+Delegated agents use the active workspace and session, inherit configured
+restrictions, and stop when the parent run is canceled. Background commands
+started by agent tools belong to the run and stop when it ends or is canceled;
+manually started terminal processes remain independent.
+
+Approving a shell command or explicitly allowing a tool grants real access
+with the backend user's privileges. Project-local write permissions do not
+restrict shell commands, network access, or file reads to that project. Do not
+run untrusted repositories or unattended tasks with broad allow overrides on
+a machine containing sensitive data; use an isolated environment instead.
+
 ## References
 
 - [Getting Started](getting-started.md)

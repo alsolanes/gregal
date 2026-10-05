@@ -7,15 +7,20 @@ import (
 	"syscall"
 )
 
-// setGroup posa el procés en un grup propi: `sh -c "npm run dev"` crea
+type unixProcessGroup struct{}
+
+// newProcessGroup posa el procés en un grup propi: `sh -c "npm run dev"` crea
 // fills, i matar només la shell deixaria els nets vius (i els pipes
 // oberts, amb la sortida penjada per sempre).
-func setGroup(c *exec.Cmd) {
+func newProcessGroup(c *exec.Cmd) (processGroup, error) {
 	c.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	return &unixProcessGroup{}, nil
 }
 
-// killGroup mata tot el grup del procés.
-func killGroup(c *exec.Cmd) {
+func (*unixProcessGroup) start(*exec.Cmd) error { return nil }
+
+// kill mata tot el grup del procés.
+func (*unixProcessGroup) kill(c *exec.Cmd) {
 	if c.Process == nil {
 		return
 	}
@@ -23,3 +28,5 @@ func killGroup(c *exec.Cmd) {
 		_ = c.Process.Kill()
 	}
 }
+
+func (*unixProcessGroup) close() {}

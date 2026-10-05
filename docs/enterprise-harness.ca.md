@@ -129,6 +129,11 @@ d'accés a la recuperació i les cites corresponen al servidor o al connector.
 Un prompt no és un control d'accés. Reviseu executables, arguments, secrets i
 accés a xarxa dels connectors, que s'executen al servidor.
 
+Per defecte, el mode autònom permet escriure dins del projecte; les accions
+marcades `ask` continuen requerint aprovació interactiva, encara que la sessió
+sigui permissiva. Els permisos explícits de les eines tenen prioritat; les
+execucions sense interfície deneguen les accions `ask` pendents.
+
 ## Compatibilitat del backend
 
 Un client Python pot consumir aquest servei Go amb l'SDK HTTP. Cal preservar el contracte
