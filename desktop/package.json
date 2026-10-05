@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.7.7",
+  "version": "1.7.8",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
@@ -19,6 +19,9 @@
     "electron-builder": "^26.15.3"
   },
   "build": {
+    "directories": {
+      "output": "../dist"
+    },
     "appId": "xyz.solanes.gregal",
     "productName": "Gregal",
     "publish": {
