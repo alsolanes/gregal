@@ -14,6 +14,12 @@
 #model { overflow:hidden; text-overflow:ellipsis; font-weight:550; }
 #modelPill > .ui-icon { width:15px; height:15px; color:var(--accent); }
 .mp-caret { margin-left:3px; }
+.mp-advanced-roles { border-top:1px solid var(--line); padding-top:7px; }
+.mp-advanced-roles > summary { color:var(--faint); cursor:pointer; font-size:var(--t1); padding:5px 2px; }
+.mp-advanced-roles > summary:hover { color:var(--ink); }
+.mp-advanced-body { display:flex; flex-direction:column; gap:8px; padding-top:7px; }
+.pf-select { min-width:170px; max-width:45%; padding:7px 30px 7px 10px; border:1px solid var(--line-hi); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+.pf-select:focus { outline:2px solid var(--accent); outline-offset:1px; }
 .tide { opacity:.35; }
 #moreMenu, #mpick, .perm-menu { border-radius:14px; box-shadow:0 16px 40px var(--ombra); }
 #sessionTabs { background:var(--sidebar); border-bottom:1px solid var(--line); gap:5px; }
@@ -82,9 +88,10 @@
 #box:focus-within { border-color:var(--accent); box-shadow:0 6px 24px var(--ombra),0 0 0 2px var(--accent-soft); }
 #in { min-height:42px; padding:0; }
 .composer-row { margin-top:12px; gap:9px; }
-.mode-switch { padding:3px; background:var(--bg); border-color:var(--line); }
+.mode-switch { padding:3px; background:var(--bg); border-color:var(--line); border-radius:14px; }
 .mode-switch button { padding:5px 11px; }
-.perm-btn { width:32px; height:32px; border-radius:9px; }
+.mode-primary button { border-radius:8px; }
+.perm-btn { width:auto; min-height:32px; border-radius:9px; }
 #send { display:grid; place-items:center; width:36px; height:36px; color:var(--bg); }
 #hint { margin-top:10px; font-size:var(--t1); opacity:.7; }
 #turnTimer { border:0; padding:4px 0; background:transparent; }
@@ -147,6 +154,7 @@
 }
 @media (max-width:480px) {
   .composer-row { flex-wrap:wrap; }
-  .mode-switch { flex-basis:100%; display:flex; }
-  .mode-switch button { flex:1; }
+  .mode-switch { flex-basis:100%; display:flex; max-width:100%; }
+  .mode-primary { flex:1; }
+  .mode-primary button { flex:1; min-width:0; }
 }

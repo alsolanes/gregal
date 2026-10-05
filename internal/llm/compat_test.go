@@ -92,3 +92,80 @@ func TestCampsOpcionalsAltre400(t *testing.T) {
 		t.Fatal("un 400 de context no apaga cap camp")
 	}
 }
+
+func TestThinkReasoningEffortAndGLMForcedThinking(t *testing.T) {
+	var requests []map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		var body map[string]any
+		_ = json.Unmarshal(b, &body)
+		requests = append(requests, body)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"content":"ok"}}]}`))
+	}))
+	defer srv.Close()
+
+	c := New()
+	msg := []Message{{Role: "user", Content: "x"}}
+	for _, mode := range []string{"low", "medium", "high", "max"} {
+		if _, err := c.Chat(WithThink(context.Background(), mode), srv.URL, "", "m", msg, 0, 16); err != nil {
+			t.Fatal(err)
+		}
+		if got := requests[len(requests)-1]["reasoning_effort"]; got != mode {
+			t.Fatalf("think:%s -> reasoning_effort=%v", mode, got)
+		}
+	}
+	for _, mode := range []string{"", "default", "auto"} {
+		ctx := context.Background()
+		if mode != "" {
+			ctx = WithThink(ctx, mode)
+		}
+		if _, err := c.Chat(ctx, srv.URL, "", "m", msg, 0, 16); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := requests[len(requests)-1]["reasoning_effort"]; ok {
+			t.Fatalf("think:%s ha d'ometre reasoning_effort: %v", mode, requests[len(requests)-1])
+		}
+	}
+
+	// The same explicit effort is sent through the streaming-with-tools path.
+	if _, _, err := c.ChatStreamWithTools(WithThink(context.Background(), "low"), srv.URL, "", "m", msg, 0, 16, nil, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := requests[len(requests)-1]["reasoning_effort"]; got != "low" {
+		t.Fatalf("stream+tools reasoning_effort=%v", got)
+	}
+
+	// GLM receives its lowest supported effort on the first request and none
+	// of the explicit disable-thinking fields.
+	for _, model := range []string{"glm-5.3", "zai/glm-5.3-flash", "provider/glm-5.3-flashx"} {
+		for _, mode := range []string{"no", "none"} {
+			if _, err := c.Chat(WithThink(context.Background(), mode), srv.URL, "", model, msg, 0, 16); err != nil {
+				t.Fatal(err)
+			}
+			got := requests[len(requests)-1]
+			if got["reasoning_effort"] != "low" {
+				t.Fatalf("%s should translate think:%s to low: %v", model, mode, got)
+			}
+			if _, ok := got["enable_thinking"]; ok {
+				t.Fatalf("%s must omit enable_thinking on first attempt: %v", model, got)
+			}
+			if _, ok := got["chat_template_kwargs"]; ok {
+				t.Fatalf("%s must omit chat_template_kwargs on first attempt: %v", model, got)
+			}
+		}
+	}
+
+	// Ordinary models retain the old no behavior and unrelated model names
+	// are not treated as GLM forced-thinking variants.
+	if _, err := c.Chat(WithThink(context.Background(), "no"), srv.URL, "", "glm-5.3-custom", msg, 0, 16); err != nil {
+		t.Fatal(err)
+	}
+	got := requests[len(requests)-1]
+	if got["reasoning_effort"] != "none" || got["enable_thinking"] != false {
+		t.Fatalf("ordinary model no behavior changed: %v", got)
+	}
+	if kw, ok := got["chat_template_kwargs"].(map[string]any); !ok || kw["enable_thinking"] != false {
+		t.Fatalf("ordinary model should retain template disable: %v", got)
+	}
+}

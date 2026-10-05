@@ -53,7 +53,8 @@ type Role struct {
 	// de codi fa moltes peticions per tasca, i el pensament compta dins del
 	// mateix temps: mesurat amb Halogen, cada pas amb raonament OF gastava
 	// 2-3x més temps i tokens, i els passos llargs arribaven a 8 minuts
-	// de pensament abans d'escriure res. «no» envia enable_thinking: false.
+	// de pensament abans d'escriure res. «no» desactiva el raonament i low,
+	// medium, high i max fixen la intensitat en proveïdors compatibles.
 	// «auto» raona on aporta (planificar, decidir després de llegir, un
 	// vermell) i no als passos mecànics (després d'una edició aplicada o
 	// d'un verd, l'ampliació i la síntesi): agent.ThinkPerPas.

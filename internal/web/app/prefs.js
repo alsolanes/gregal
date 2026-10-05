@@ -119,6 +119,15 @@ export const prefs = {
       o.valors.map(([v, txt]) => '<button class="' + (v === ara ? 'on' : '') + '" data-v="' + v + '">' + T(txt) + '</button>').join('') +
       '</div></div>';
   },
+  select(k) {
+    const o = OPCIONS[k];
+    const ara = llegeix(k);
+    return '<div class="pf-row"><div class="pf-lab"><b>' + T(o.titol) + '</b>' +
+      (o.ajuda ? '<span>' + T(o.ajuda) + '</span>' : '') + '</div>' +
+      '<select class="pf-select" data-k="' + k + '" aria-label="' + T(o.titol) + '">' +
+      o.valors.map(([v, txt]) => '<option value="' + v + '"' + (v === ara ? ' selected' : '') + '>' + T(txt) + '</option>').join('') +
+      '</select></div>';
+  },
   pinta() {
     const cos = $('prefsBody');
     if (!cos) return;
@@ -131,7 +140,7 @@ export const prefs = {
       '</div>';
     cos.innerHTML =
       '<h3 class="pf-sec">' + T('prefs.appearance') + '</h3>' +
-      this.segment('tema') + this.segment('densitat') + this.segment('mida') +
+      this.select('tema') + this.segment('densitat') + this.segment('mida') +
       fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
       '<h3 class="pf-sec">' + T('prefs.conversation') + '</h3>' +
       fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
@@ -151,17 +160,26 @@ export const prefs = {
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
       seg.querySelectorAll('button').forEach(b => {
-        b.onclick = () => {
+        b.onclick = async () => {
           const k = seg.dataset.k, v = b.dataset.v;
           seg.querySelectorAll('button').forEach(x => x.classList.remove('on'));
           b.classList.add('on');
           if (OPCIONS[k]) { desa(k, v); aplica(k); if (k === 'tema') pintaBarraTitol(); return; }
           if (k === 'vista' && window.gregalSetView) window.gregalSetView(v);
-          if (k === 'perm' && window.gregalSetPerm) window.gregalSetPerm(v);
+          if (k === 'perm' && window.gregalSetPerm) {
+            await window.gregalSetPerm(v);
+            this.pinta();
+          }
           if (k === 'idioma') this.posaIdioma(v);
           return;
         };
       });
+    });
+    cos.querySelectorAll('.pf-select').forEach(sel => {
+      sel.onchange = () => {
+        const k = sel.dataset.k, v = sel.value;
+        if (OPCIONS[k]) { desa(k, v); aplica(k); if (k === 'tema') pintaBarraTitol(); }
+      };
     });
     const v = $('prefsVerify');
     if (v) v.onchange = () => this.posaVerify(v.checked);

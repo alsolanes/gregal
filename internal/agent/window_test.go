@@ -2,8 +2,10 @@ package agent
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"gregal/internal/config"
@@ -55,6 +57,77 @@ func TestDetectWindowsDesDelProveidor(t *testing.T) {
 	LearnWindow(srv.URL+"/v1", "mut", 4096)
 	if n, src := WindowSource(cfg, cfg.Roles["chat"]); n != 4096 || src != "model" {
 		t.Errorf("après: %d %s", n, src)
+	}
+}
+
+func TestDetectRoleWindowsNomésConsultaRolActiuIFallback(t *testing.T) {
+	ResetWindows()
+	t.Cleanup(ResetWindows)
+	var activeCalls, fallbackCalls, unrelatedCalls atomic.Int32
+	server := func(calls *atomic.Int32, window int) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"model","context_length":` + fmt.Sprint(window) + `}]}`))
+		}))
+	}
+	active := server(&activeCalls, 65536)
+	fallback := server(&fallbackCalls, 32768)
+	unrelated := server(&unrelatedCalls, 131072)
+	defer active.Close()
+	defer fallback.Close()
+	defer unrelated.Close()
+	cfg := &config.Config{
+		Providers: map[string]config.Provider{
+			"active": {BaseURL: active.URL}, "fallback": {BaseURL: fallback.URL}, "other": {BaseURL: unrelated.URL},
+		},
+		Roles: map[string]config.Role{"other-role": {Provider: "other", Model: "model"}},
+	}
+	role := config.Role{Provider: "active", Model: "model", FallbackProvider: "fallback", FallbackModel: "model"}
+	DetectRoleWindows(context.Background(), cfg, role)
+	if activeCalls.Load() != 1 || fallbackCalls.Load() != 1 || unrelatedCalls.Load() != 0 {
+		t.Fatalf("requests active/fallback/unrelated = %d/%d/%d, volia 1/1/0", activeCalls.Load(), fallbackCalls.Load(), unrelatedCalls.Load())
+	}
+	if n, ok := KnownWindow(active.URL, "model"); !ok || n != 65536 {
+		t.Fatalf("finestra activa = %d, %v", n, ok)
+	}
+	if n, ok := KnownWindow(fallback.URL, "model"); !ok || n != 32768 {
+		t.Fatalf("finestra fallback = %d, %v", n, ok)
+	}
+}
+
+func TestDetectRoleWindowsOmetProviderActiuJaConegutPeroDetectaFallback(t *testing.T) {
+	ResetWindows()
+	t.Cleanup(ResetWindows)
+	var activeCalls, fallbackCalls atomic.Int32
+	newServer := func(calls *atomic.Int32) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"model","context_length":32768}]}`))
+		}))
+	}
+	active, fallback := newServer(&activeCalls), newServer(&fallbackCalls)
+	defer active.Close()
+	defer fallback.Close()
+	LearnWindow(active.URL, "model", 65536)
+	cfg := &config.Config{Providers: map[string]config.Provider{"a": {BaseURL: active.URL}, "b": {BaseURL: fallback.URL}}}
+	DetectRoleWindows(context.Background(), cfg, config.Role{Provider: "a", Model: "model", FallbackProvider: "b", FallbackModel: "model"})
+	if activeCalls.Load() != 0 || fallbackCalls.Load() != 1 {
+		t.Fatalf("requests active/fallback = %d/%d, volia 0/1", activeCalls.Load(), fallbackCalls.Load())
+	}
+}
+
+func TestDetectRoleWindowsOmetFinestraExplicita(t *testing.T) {
+	ResetWindows()
+	t.Cleanup(ResetWindows)
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
+	defer srv.Close()
+	cfg := &config.Config{Providers: map[string]config.Provider{"p": {BaseURL: srv.URL}}}
+	DetectRoleWindows(context.Background(), cfg, config.Role{Provider: "p", Model: "m", FallbackProvider: "p", FallbackModel: "f", ContextWindow: 16384})
+	if calls.Load() != 0 {
+		t.Fatalf("s'han fet %d consultes amb la finestra explícita", calls.Load())
 	}
 }
 

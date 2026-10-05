@@ -77,6 +77,12 @@ siguin de loopback si no s'ha configurat un token o autenticació d'usuari. El
 servidor no ofereix TLS; configura HTTPS abans de fer-lo accessible fora
 d'una màquina local de confiança.
 
+Al compositor, tria **Fer una tasca** per treballar amb eines o **Conversar**
+per parlar sense modificar fitxers. Els modes d'objectiu i autònom són dins
+del desplegable de modes avançats. Els permisos es mostren al costat: canviar
+de mode no els amplia. La selecció manual del rol és una opció avançada del
+selector de models; Gregal pot triar-lo automàticament segons la feina.
+
 ## Taller 2D
 
 La vista **Taller 2D** de la barra lateral representa les sessions obertes

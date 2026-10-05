@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.7.5 — 2026-10-05 — Modes simplificats i continuïtat de sessions
+
+- El desplegable de modes avançats conserva l’obertura escollida per l’usuari
+  durant els refrescos d’estat.
+- Entrada simplificada amb «Fer una tasca» i «Conversar», modes especials
+  desplegables i selecció de rols dins de les opcions avançades.
+- Detecció de models limitada al rol actiu per evitar esperes de proveïdors aliens.
+- Control explícit de l'esforç de raonament i compatibilitat amb els passos
+  mecànics de GLM-5.3, que no permet desactivar el raonament.
 - Taller 2D de sessions amb cua d'atenció per a aprovacions i preguntes.
 - Cerca de converses pel títol, el nom, el projecte i la carpeta de treball.
 - Estat visible dels torns mentre treballen, esperen una resposta o acaben.

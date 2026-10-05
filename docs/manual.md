@@ -74,6 +74,12 @@ listeners unless a token or user authentication is configured. The server
 does not provide TLS; configure HTTPS before making it reachable outside a
 trusted local machine.
 
+In the composer, choose **Do a task** to work with tools or **Chat** to talk
+without modifying files. Goal and autonomous modes are available through
+the advanced modes disclosure. Permissions remain visible beside the mode
+selector; changing modes does not expand them. Manual role selection is an
+advanced model picker option; Gregal can select the role for the task.
+
 ## 2D Workshop
 
 The sidebar's **2D workshop** view represents open sessions as workstations.

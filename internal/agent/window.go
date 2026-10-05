@@ -75,6 +75,34 @@ func DetectWindows(ctx context.Context, cfg *config.Config) {
 			}
 		}
 	}
+	detectWindowBases(ctx, bases)
+}
+
+// DetectRoleWindows detecta les finestres que pot fer servir aquest torn:
+// el model actiu i el fallback. No espera per providers d'altres rols, i no
+// fa cap consulta si el config ja fixa la finestra o els models ja són coneguts.
+// La detecció global continua disponible per a la inicialització del TUI.
+func DetectRoleWindows(ctx context.Context, cfg *config.Config, role config.Role) {
+	if cfg == nil || role.ContextWindow > 0 {
+		return
+	}
+	bases := map[string]string{}
+	add := func(providerName, model string) {
+		p, ok := cfg.Providers[providerName]
+		if !ok || strings.TrimSpace(p.BaseURL) == "" || strings.TrimSpace(model) == "" {
+			return
+		}
+		base := strings.TrimRight(p.BaseURL, "/")
+		if _, known := KnownWindow(base, model); !known {
+			bases[base] = p.APIKey
+		}
+	}
+	add(role.Provider, role.Model)
+	add(role.FallbackProvider, role.FallbackModel)
+	detectWindowBases(ctx, bases)
+}
+
+func detectWindowBases(ctx context.Context, bases map[string]string) {
 	var wg sync.WaitGroup
 	for base, key := range bases {
 		windowMu.Lock()

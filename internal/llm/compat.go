@@ -34,6 +34,14 @@ var campsOpcionals = []string{campStreamOptions, campEnableThinking, campTemplat
 
 // postCompat és postRetry amb els camps opcionals negociats (vegeu dalt).
 func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req chatRequest) (*http.Response, error) {
+	// GLM-5.3 only accepts enabled reasoning. `none` is rejected by the
+	// provider, so translate an explicit request to disable thinking into its
+	// lowest supported effort before negotiating optional fields.
+	if glmForcesReasoning(req.Model) && req.ReasoningEffort == "none" {
+		req.ReasoningEffort = "low"
+		req.EnableThinking = nil
+		req.ChatTemplateKwargs = nil
+	}
 	base := normBase(baseURL)
 	for _, camp := range campsOpcionals {
 		if c.campOff(base, camp) {
@@ -60,6 +68,19 @@ func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req cha
 		}
 	}
 	return c.postRetry(ctx, baseURL, apiKey, req)
+}
+
+func glmForcesReasoning(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndexByte(model, '/'); i >= 0 {
+		model = model[i+1:]
+	}
+	switch model {
+	case "glm-5.3", "glm-5.3-flash", "glm-5.3-flashx":
+		return true
+	default:
+		return false
+	}
 }
 
 // campsRebutjats diu quins camps opcionals de la petició ha rebutjat el
@@ -133,12 +154,18 @@ func (c *Client) setCampOff(base, camp string) {
 	c.campsOff[base+"|"+camp] = true
 }
 
-// reasoningEffort és l'ordre de no pensar per a les API que segueixen
-// OpenAI (zen l'accepta; «none» hi va passar el raonament d'uns 2.000-
-// 10.000 caràcters a 362).
+// reasoningEffort tradueix think a la intensitat de raonament OpenAI.
 func (c *Client) reasoningEffort(ctx context.Context) string {
-	if v, ok := ctx.Value(thinkKey{}).(string); ok && v == "no" {
-		return "none"
+	v, ok := ctx.Value(thinkKey{}).(string)
+	if !ok {
+		return ""
 	}
-	return ""
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "no", "none":
+		return "none"
+	case "low", "medium", "high", "max":
+		return strings.ToLower(strings.TrimSpace(v))
+	default: // Buit, auto i valors antics/desconeguts: comportament del model.
+		return ""
+	}
 }

@@ -719,12 +719,26 @@ body:not(.working) .spin { animation:none; }
    rodant no ensenya on ets ni què més hi ha. Cada mode té el seu color:
    canviar de mode canvia què pot tocar l'agent, i això s'ha de veure
    d'una ullada des de qualsevol punt de la pantalla. */
-.mode-switch { display:flex; align-items:center; flex:none; padding:2px;
+.mode-switch { display:flex; align-items:center; gap:6px; flex:none; padding:2px;
   border:1px solid var(--line); border-radius:8px; background:var(--raised); }
 .mode-switch button { padding:4px 10px; border:0; border-radius:6px; background:transparent;
   color:var(--muted); font-size:var(--t1); line-height:1.5; cursor:pointer; }
 .mode-switch button:hover { color:var(--ink); }
 .mode-switch button[aria-checked="true"] { color:var(--bg); font-weight:600; }
+.mode-primary { display:flex; align-items:center; gap:2px; }
+.mode-primary button { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:5px 10px; text-align:left; }
+.mode-primary button span { font-size:10px; line-height:1.25; font-weight:400; color:var(--faint); }
+.mode-primary button[aria-checked="true"] span { color:color-mix(in srgb, var(--bg) 76%, transparent); }
+.mode-advanced { position:relative; flex:none; }
+.mode-advanced summary { cursor:pointer; list-style:none; white-space:nowrap; max-width:155px; overflow:hidden; text-overflow:ellipsis; padding:5px 8px; border-radius:6px;
+  color:var(--muted); font-size:var(--t1); }
+.mode-advanced summary::-webkit-details-marker { display:none; }
+.mode-advanced summary::after { content:' ▾'; }
+.mode-advanced[open] summary, .mode-advanced[data-active="true"] summary { color:var(--lila); }
+.mode-advanced-menu { position:absolute; left:0; bottom:calc(100% + 8px); z-index:40; min-width:210px; padding:5px;
+  border:1px solid var(--line-hi); border-radius:9px; background:var(--surface); box-shadow:0 14px 34px var(--ombra); }
+.mode-advanced-menu button { display:flex; flex-direction:column; align-items:flex-start; width:100%; padding:7px 9px; text-align:left; }
+.mode-advanced-menu button span { color:var(--faint); font-size:var(--t1); font-weight:400; }
 .mode-switch button[data-mode="autonomous"] { color:var(--onada); }
 .mode-switch button[data-mode="autonomous"][aria-checked="true"] { color:var(--bg); background:var(--onada); }
 #modeCode[aria-checked="true"] { background:var(--accent); }
@@ -732,8 +746,8 @@ body:not(.working) .spin { animation:none; }
 #modeGoal[aria-checked="true"] { background:var(--lila); }
 /* Permisos: icona amb el detall a sobre, no un botó de text a la barra de
    dalt. El cadenat obert avisa tot sol que l'agent tira sense demanar. */
-.perm-btn { position:relative; display:flex; align-items:center; justify-content:center;
-  width:29px; height:29px; flex:none; padding:0; border:1px solid var(--line);
+.perm-btn { position:relative; display:flex; align-items:center; justify-content:center; gap:6px;
+  min-height:29px; flex:none; padding:0 9px; border:1px solid var(--line);
   border-radius:7px; background:transparent; color:var(--muted); cursor:pointer; }
 .perm-btn:hover { color:var(--ink); border-color:var(--line-hi); background:var(--hover); }
 .perm-btn.obert { color:var(--amber); border-color:var(--amber-soft); background:var(--amber-soft); }
@@ -1360,7 +1374,7 @@ body.sense-inspector #inspector { display:none; }
       <tr><td>Enter</td><td data-i18n="keys.enter">Envia (■ atura el torn)</td></tr>
       <tr><td>Esc</td><td data-i18n="keys.esc">Atura el torn en curs</td></tr>
       <tr><td>↑ / ↓</td><td data-i18n="keys.hist">Recupera el que has escrit abans</td></tr>
-      <tr><td>Tab</td><td>Commuta mode codi · xat · objectiu</td></tr>
+      <tr><td>Tab</td><td data-i18n="keys.modeCycle">Switch between code/task and chat/conversation</td></tr>
       <tr><td>Ctrl+K</td><td>Posa el focus al camp</td></tr>
       <tr><td>Ctrl+T</td><td>Sessió nova (pestanya en paral·lel)</td></tr>
       <tr><td>Ctrl+D</td><td>Vista Canvis</td></tr>
@@ -1680,13 +1694,20 @@ body.sense-inspector #inspector { display:none; }
         <div id="box">
           <textarea id="in" rows="1" data-i18n-aria="ui.message" aria-label="Message for Gregal" data-i18n-ph="composer.ph" placeholder="Describe the change you want…"></textarea>
           <div class="composer-row">
-            <div class="mode-switch" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab" data-i18n-title="ui.workMode" title="Work mode">
-              <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n="mode.codi">Codi</button>
-              <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n="mode.xat">Xat</button>
-              <button id="modeGoal" data-mode="goal" role="radio" aria-checked="false" data-i18n="mode.objectiu">Objectiu</button>
-              <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false" data-i18n="mode.autonom">Autònom</button>
+            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
+              <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
+                <button id="modeCode" data-mode="code" role="radio" aria-checked="true"><b data-i18n="mode.simpleCode">Code/task</b><span data-i18n="mode.simpleCodeHelp">Make changes to project files</span></button>
+                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false"><b data-i18n="mode.simpleChat">Chat/conversation</b><span data-i18n="mode.simpleChatHelp">Ask questions and discuss</span></button>
+              </div>
+              <details id="advancedModes" class="mode-advanced">
+                <summary id="advancedModeSummary" data-i18n="mode.advanced">Advanced modes</summary>
+                <div class="mode-advanced-menu" role="radiogroup" aria-label="Advanced modes">
+                  <button id="modeGoal" data-mode="goal" role="radio" aria-checked="false"><b data-i18n="mode.objectiu">Goal</b><span data-i18n="mode.goalHelp">Goal mode asks questions to shape a persistent objective</span></button>
+                  <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false"><b data-i18n="mode.autonom">Autonomous</b><span data-i18n="mode.autonomousHelp">Works through milestones and keeps verifying</span></button>
+                </div>
+              </details>
             </div>
-            <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"></button>
+            <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
             <span class="composer-meta" data-i18n="composer.hint">@fitxer adjunta context · Maj+Enter nova línia</span>
             <span class="spacer"></span>
             <input type="file" id="imgPick" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
@@ -1741,6 +1762,7 @@ body.sense-inspector #inspector { display:none; }
   </div>
 </div>
 <script type="module" src="/app/preview.js"></script>
+<script src="/app/mode-cycle.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
 <script src="/app/shell-icons.js"></script>
@@ -1773,7 +1795,8 @@ const MODE_PLACE = { code:'composer.ph', chat:'composer.ph.chat', goal:'composer
 // un mòdul i per tant no pot importar. panels.js el posa en arrencar; fins
 // llavors, la clau tal qual (dura mil·lisegons i no es veu).
 const gregalT = k => (window.gregalT ? window.gregalT(k) : '');
-const nextMode = () => MODES[(MODES.indexOf(state.mode || 'code') + 1) % MODES.length];
+const SIMPLE_MODES = ['code', 'chat'];
+const nextMode = () => window.gregalModeCycle.next(state.mode || 'code', SIMPLE_MODES);
 // Icones del botó d'enviar: fletxa amunt per enviar, quadrat per aturar.
 // Amb textContent el botó perdia l'SVG i tornava a un caràcter solt.
 const ICONA_ENVIA = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
@@ -2359,7 +2382,10 @@ function paintPerm() {
   if (!pb) return;
   const p = PERMS.find(x => x[0] === permMode) || PERMS[0];
   const obert = permMode !== 'manual';
-  pb.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
+  const icon = pb.querySelector('.perm-icon');
+  if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
+  const label = $('permLabel');
+  if (label) label.textContent = gregalT(p[1]);
   pb.classList.toggle('obert', obert);
   // El detall al hover, que és on el vas a buscar quan dubtes.
   pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]);
@@ -2378,6 +2404,13 @@ function paintMode(mode) {
   document.querySelectorAll('.mode-switch button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.mode === mode));
   });
+  const advanced = $('advancedModes');
+  if (advanced) {
+    const special = mode === 'goal' || mode === 'autonomous';
+    advanced.dataset.active = String(special);
+    const label = $('advancedModeSummary');
+    if (label) label.textContent = gregalT('mode.advanced') + (special ? ' · ' + gregalT(mode === 'goal' ? 'mode.goalActive' : 'mode.autonomousActive') : '');
+  }
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
 // d'un botó que anava rodant entre tres estats sense dir quins eren.
@@ -2429,7 +2462,13 @@ async function setPermMode(next, confirmed = false) {
   paintPerm(); await refresh(); return true;
 }
 async function setMode(next) {
-  await api('/api/mode', {method:'POST', body:JSON.stringify({mode:next})});
+  try {
+    const response = await api('/api/mode', {method:'POST', body:JSON.stringify({mode:next})});
+    if (!response.ok) throw new Error(await response.text());
+  } catch (e) {
+    activityItem('mode', 'Error', String(e.message || e), 'err');
+    return false;
+  }
   const detall = {code:'Eines activades amb permisos', chat:'Només lectura',
                   goal:'Concreta l\'objectiu amb preguntes',
                   autonomous:'Treballa per fites, verifica i continua'}[next] || '';

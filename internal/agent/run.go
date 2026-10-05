@@ -168,7 +168,7 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 	})
 	// Finestra del model: la que declara el proveïdor si el rol no en fixa.
 	dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
-	DetectWindows(dctx, cfg)
+	DetectRoleWindows(dctx, cfg, r)
 	dcancel()
 
 	// El bucle: el motor decideix, aquí només es fa la feina. Abans això
