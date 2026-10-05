@@ -2319,7 +2319,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	// i el headless: conduirTorn (motor_web.go) només en fa l'E/S.
 	// Finestra del model segons el proveïdor (cache de deu minuts).
 	dctx, dcancel := context.WithTimeout(runCtx, 5*time.Second)
-	agent.DetectWindows(dctx, s.cfg)
+	agent.DetectRoleWindows(dctx, s.cfg, role)
 	dcancel()
 	lastReply, hist, err := s.conduirTorn(runCtx, task, mode, roleName, p, role, maxSteps, ws, pol, emit)
 	if err != nil {
