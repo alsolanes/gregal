@@ -66,7 +66,8 @@ type RunResult struct {
 }
 
 // RunNonInteractive executa una tasca sense TUI: loop model→eines fins a
-// resposta final o límit. ask→ autoApprove? executa : denega (segur per defecte).
+// resposta final o límit. Ask es denega sense UI, tret que ho permeti el
+// config; autoApprove no salta aprovacions en mode autònom.
 func RunNonInteractive(ctx context.Context, client *llm.Client, cfg *config.Config, task, mode string, maxSteps int, autoApprove bool) (RunResult, error) {
 	return RunNonInteractiveIn(ctx, client, cfg, task, mode, maxSteps, autoApprove, "")
 }
@@ -256,7 +257,11 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 		case OrdreAprova:
 			// Sense terminal no hi ha ningú a qui preguntar: es denega i
 			// es diu per què, que és el que el model ha de saber.
-			torn.RepAprovacio(false, "EINA DENEGADA (cal --auto-approve)")
+			motiu := "EINA DENEGADA (cal --auto-approve)"
+			if mode == ModeAutonomous {
+				motiu = "EINA DENEGADA: el mode autònom necessita aprovació interactiva per a aquesta acció."
+			}
+			torn.RepAprovacio(false, motiu)
 			if onStep != nil {
 				onStep(p.Passos, []string{"denegada: " + p.Call.Function.Name})
 			}

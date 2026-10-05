@@ -32,6 +32,27 @@ func TestSigEstable(t *testing.T) {
 	}
 }
 
+func TestReadOnlyDoesNotInheritMutationGrants(t *testing.T) {
+	p := &Policy{Tools: map[string]string{"bash": "allow", "browser": "allow"}, BashAllow: []string{"python"}}
+	for _, mode := range []string{ModeInspect, ModeChat, ModeGoal} {
+		for _, call := range []struct{ name, args string }{
+			{"office_edit", `{}`},
+			{"office_create", `{}`},
+			{"bash_kill", `{}`},
+			{"bash", `{"command":"python -c 'print(1)'"}`},
+			{"browser", `{"action":"click"}`},
+			{"browser", `{"action":"eval"}`},
+		} {
+			if d, _ := p.Decide(mode, call.name, call.args); d != "deny" {
+				t.Fatalf("%s %s: got %s", mode, call.name, d)
+			}
+		}
+		if d, _ := p.Decide(mode, "bash", `{"command":"git status"}`); d != "allow" {
+			t.Fatalf("%s: safe read blocked", mode)
+		}
+	}
+}
+
 func TestRememberAmbits(t *testing.T) {
 	r := NewRemember()
 	if r.Allowed("web", "write\x00main.go") {
@@ -118,11 +139,20 @@ func TestDecideProjecte(t *testing.T) {
 	if d, _ := p.Decide(ModeCode, "write", w); d != "allow" {
 		t.Errorf("code+write dins projecte = %q, volia allow", d)
 	}
+	if d, _ := p.Decide(ModeAutonomous, "write", w); d != "allow" {
+		t.Errorf("autonomous+write dins projecte = %q, volia allow", d)
+	}
 	if d, _ := p.Decide(ModeCode, "edit", `{"path":"sub/f.go","old_string":"a","new_string":"b"}`); d != "allow" {
 		t.Errorf("code+edit dins projecte = %q, volia allow", d)
 	}
+	if d, _ := p.Decide(ModeAutonomous, "patch", `{"path":"sub/f.go","edits":[]}`); d != "allow" {
+		t.Errorf("autonomous+patch dins projecte = %q, volia allow", d)
+	}
 	if d, _ := p.Decide(ModeCode, "write", `{"path":"/etc/hosts","content":"x"}`); d != "ask" {
 		t.Errorf("fora del projecte continua demanant: %q", d)
+	}
+	if d, _ := p.Decide(ModeAutonomous, "write", `{"path":"/etc/hosts","content":"x"}`); d != "ask" {
+		t.Errorf("autonomous fora del projecte continua demanant: %q", d)
 	}
 	if d, _ := p.Decide(ModeChat, "write", w); d != "deny" {
 		t.Errorf("xat continua sent només lectura: %q", d)
@@ -146,5 +176,8 @@ func TestDecideProjecte(t *testing.T) {
 	override := &Policy{ProjectDir: "/tmp/gregal-proj-test", Tools: map[string]string{"write": "ask"}}
 	if d, _ := override.Decide(ModeCode, "write", w); d != "ask" {
 		t.Errorf("l'override explícit del config guanya a l'automatisme: %q", d)
+	}
+	if d, _ := override.Decide(ModeAutonomous, "write", w); d != "ask" {
+		t.Errorf("l'override explícit del config guanya també en autònom: %q", d)
 	}
 }

@@ -2359,8 +2359,8 @@ async function refresh() {
   // ha de tornar a demanar /api/state.
   return r;
 }
-// Modes de permís estil Claude: Manual (demana tot) · Accepta edicions
-// (tira sol amb fitxers) · Auto (aprova preguntes de permís, deny bloqueja).
+// Modes de permís: Manual (demana) · Accepta edicions (tira sol amb fitxers)
+// · Auto (aprova «ask» si el mode de treball ho permet).
 // Manual/Accepta viuen al servidor (permissive); Auto hi afegeix auto-aprova
 // al client. Es recorda per sessió del navegador.
 let permMode = 'manual';
@@ -2448,13 +2448,15 @@ document.addEventListener('click', e => {
 });
 async function setPermMode(next, confirmed = false) {
   const on = next !== 'manual';
-  if (on && !state.permissive && !confirmed && !confirm('Mode ' + next + ': l’agent executarà sense demanar (els deny continuen bloquejant). Només aquesta sessió. Continua?')) return false;
+  const autonomyNote = state.mode === 'autonomous' ? ' Les accions que requereixen aprovació en mode autònom continuaran esperant confirmació.' : '';
+  if (on && !state.permissive && !confirmed && !confirm('Mode ' + next + ': l’agent executarà sense demanar (els deny continuen bloquejant).' + autonomyNote + ' Només aquesta sessió. Continua?')) return false;
   try {
     const r = await api('/api/permissive', {method:'POST', body:JSON.stringify({on})});
     if (!r.ok) throw new Error(await r.text());
     permMode = next;
     try { localStorage.setItem('gregal_perm', permMode); } catch (e) {}
-    activityItem('permissiu', 'Mode ' + permMode, permMode === 'manual' ? 'torna a demanar' : 'l’agent tira sense demanar', permMode === 'manual' ? 'warn' : 'ok');
+    const detail = permMode === 'manual' ? 'torna a demanar' : state.mode === 'autonomous' ? 'les accions que requereixen aprovació encara esperen confirmació' : 'l’agent tira sense demanar';
+    activityItem('permissiu', 'Mode ' + permMode, detail, permMode === 'manual' ? 'warn' : 'ok');
   } catch (e) {
     activityItem('permissiu', 'Error', String(e.message || e), 'err');
     return false;
@@ -2892,7 +2894,8 @@ async function doAgent(task) {
         activityItem('permís',d.name,'Esperant confirmació','warn');
         notify('Gregal · confirma l’eina', d.name);
         approvals++;
-        const offerAuto = !offeredAuto && permMode === 'manual' && (text.length >= 300 || approvals >= 3);
+        const autoAllowed = d.auto_approve_allowed === true;
+        const offerAuto = autoAllowed && !offeredAuto && permMode === 'manual' && (text.length >= 300 || approvals >= 3);
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
         api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
@@ -3185,7 +3188,7 @@ function approveArgsHTML(args) {
 }
 function askApprove(d, offerAuto = false) {
   // Mode Auto: aprova sol (deny del servidor continua bloquejant).
-  if (typeof permMode !== 'undefined' && permMode === 'auto') {
+  if (d.auto_approve_allowed === true && typeof permMode !== 'undefined' && permMode === 'auto') {
     activityItem('permís', d.name, 'Auto-permès', 'ok');
     return Promise.resolve(true);
   }

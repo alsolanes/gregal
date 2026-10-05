@@ -8,10 +8,10 @@ import (
 	"gregal/internal/tools"
 )
 
-// toolPath extreu la ruta objectiu de write/edit/read ("" si no n'hi ha).
+// toolPath extreu la ruta objectiu de les eines de fitxers ("" si no n'hi ha).
 func toolPath(name, argsJSON string) string {
 	switch name {
-	case "write", "edit", "read":
+	case "write", "edit", "patch", "read":
 	default:
 		return ""
 	}

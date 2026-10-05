@@ -109,6 +109,23 @@ l'aplicació, no un sandbox del sistema operatiu. Revisa els canvis i les
 ordres proposats. Per executar codi no fiable, fes servir un checkout
 temporal o l'aïllament del sistema operatiu.
 
+Per defecte, el mode autònom permet escriure fitxers dins del projecte
+seleccionat. Les accions que requereixen aprovació continuen esperant una
+persona, encara que la sessió estigui en mode permissiu. Els permisos explícits
+de les eines a la configuració tenen prioritat. En una execució sense
+interfície, les accions que encara requereixen aprovació es deneguen.
+
+Els subagents utilitzen el projecte i la sessio actius, hereten les restriccions
+configurades i s'aturen quan es cancella el torn pare. Les ordres de segon pla
+iniciades per eines de l'agent pertanyen al torn i s'aturen quan acaba o es
+cancella; els processos iniciats manualment al terminal son independents.
+
+Aprovar una ordre shell o permetre explicitament una eina dona acces real amb
+els privilegis de l'usuari del backend. Els permisos d'escriptura dins del
+projecte no limiten les ordres shell, la xarxa ni les lectures a aquest projecte.
+No executis repositoris no fiables ni tasques desateses amb permisos amplis en
+una maquina amb dades sensibles; utilitza un entorn aillat.
+
 ## Referències
 
 - [Primers passos](getting-started.ca.md)

@@ -1331,7 +1331,7 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 	var allowed []string
 	switch event {
 	case "approve_request":
-		allowed = []string{"key", "call_id", "name", "args", "timeout_s"}
+		allowed = []string{"key", "call_id", "name", "args", "timeout_s", "auto_approve_allowed"}
 	case "question_request":
 		allowed = []string{"key", "call_id", "query", "options", "timeout_s"}
 	case "tool_call":
@@ -2524,7 +2524,7 @@ func (s *Server) esperaResposta() (<-chan time.Time, func(), int) {
 // no respon a temps es denega PERÒ s'emet approve_timeout perquè la UI ho
 // mostri ("no has respost", no "ho has denegat"). Aturar el torn també la
 // talla: abans el torn cancel·lat quedava penjat fins al límit.
-func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, name, args, sig string) (bool, bool) {
+func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, name, args, sig string, autoApproveAllowed bool) (bool, bool) {
 	s.mu.Lock()
 	s.apSeq++
 	key := fmt.Sprintf("%d", s.apSeq)
@@ -2533,9 +2533,9 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 	s.mu.Unlock()
 	limit, para, segons := s.esperaResposta()
 	defer para()
-	// timeout_s en text: recordActive llegeix aquests events com a
-	// map[string]string, i un número el faria fallar en silenci.
-	emit("approve_request", map[string]string{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": strconv.Itoa(segons)})
+	// timeout_s és text pel contracte existent; auto_approve_allowed és booleà perquè
+	// el client només aprovi automàticament quan el servidor ho autoritza.
+	emit("approve_request", map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": strconv.Itoa(segons), "auto_approve_allowed": autoApproveAllowed})
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.approvals, key)

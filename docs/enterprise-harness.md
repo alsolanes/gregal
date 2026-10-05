@@ -129,6 +129,11 @@ authorization and citations belong in the server or connector. A prompt does
 not enforce access control. Review connector executables, arguments, secrets
 and network access as server-side code.
 
+Autonomous mode permits project-local writes by default, while actions marked
+`ask` still require an interactive approval, regardless of the session's
+permissive setting. Explicit tool permissions take precedence; headless runs
+deny unresolved `ask` actions.
+
 ## Backend Compatibility
 
 A Python client can use this Go service through the HTTP SDK. Implementations must preserve the documented

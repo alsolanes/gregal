@@ -157,7 +157,7 @@ type Policy struct {
 	BashAllow []string
 	BashDeny  []string
 	// ProjectDir habilita el pas automàtic d'escriptures (write/edit) en
-	// mode code quan la ruta queda dins. Buit = comportament clàssic (ask).
+	// mode code o autònom quan la ruta queda dins. Buit = ask.
 	ProjectDir string
 }
 
@@ -257,6 +257,18 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 // lectura: primer es concreta l'objectiu, després s'executa en mode code.
 // mode "code" = política normal.
 func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
+	if mode == ModeInspect || mode == ModeChat || mode == ModeGoal {
+		switch name {
+		case "office_edit", "office_create", "bash_kill":
+			return "deny", "read-only mode: cannot modify documents or stop processes"
+		}
+	}
+	if (mode == ModeInspect || mode == ModeChat || mode == ModeGoal) && (name == "bash" || name == "browser") {
+		// Read-only modes cannot inherit broader shell or browser grants.
+		if d, reason := DefaultPolicy().For(name, argsJSON); d != "allow" {
+			return "deny", "read-only mode: " + reason
+		}
+	}
 	// Consulta és l'alternativa sense popups: permet totes les eines natives
 	// de lectura i només shell classificat com a lectura. Qualsevol altra cosa
 	// es denega explícitament (mai es converteix en una aprovació).
@@ -309,16 +321,15 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
-	// Mode code: escriure dins del projecte és la feina de l'agent i passa
-	// sol (hi ha snapshot + git per desfer). Un override explícit del config
-	// (allow/ask/deny) sempre guanya a l'automatisme. Fora del projecte,
-	// bash no segur i MCP continuen demanant permís com sempre.
+	// En code i autònom, escriure dins del projecte passa sol. Un override
+	// explícit del config sempre preval; tota altra acció «ask» continua
+	// requerint aprovació, també en mode autònom.
 	if (mode == ModeCode || mode == ModeAutonomous) && (name == "write" || name == "edit" || name == "patch") {
 		if p != nil {
 			if d, ok := p.Tools[name]; ok {
 				switch d {
 				case "allow", "ask", "deny":
-					return autopromou(mode, d), "permissions del config"
+					return d, "permissions del config"
 				}
 			}
 			if InsideProject(p.ProjectDir, toolPath(name, argsJSON)) {
@@ -327,21 +338,7 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 		}
 	}
 	d, reason := p.For(name, argsJSON)
-	return autopromou(mode, d), reason
-}
-
-// autopromou deixa treballar sol el mode autònom: cap diàleg d'aprovació no
-// es pot quedar esperant, perquè no hi ha ningú mirant. Només promou el
-// «ask» tou (una escriptura, una instal·lació, un reinici, un esborrat amb
-// abast) cap a «allow». Un «deny» no es toca mai: ni el del config, ni el
-// de la llista dura del classificador (sudo, mkfs, dd if=, shutdown,
-// rm -rf /, curl, wget, ssh, chmod 777), ni el d'una altra porta de mode.
-// El motiu passa tal qual: quan és un deny ha de dir per què.
-func autopromou(mode, decisió string) string {
-	if mode == ModeAutonomous && decisió == "ask" {
-		return "allow"
-	}
-	return decisió
+	return d, reason
 }
 
 // Exec executa una eina amb l'etiqueta de sessió per defecte (TUI,
@@ -486,7 +483,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		p, err := Procs().Start(session, procDirOr(dir), a.Command)
+		p, err := Procs().StartCtx(ctx, session, procDirOr(dir), a.Command)
 		if err != nil {
 			return "", nil, err
 		}
@@ -687,7 +684,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		}
 		return LlegeixSkill(dir, a.Nom)
 	case "delegate":
-		out, err := delegateExec(argsJSON)
+		out, err := delegateExec(withDelegateScope(ctx, session, dir), argsJSON)
 		return out, nil, err
 	default:
 		if fn, ok := extraExec[name]; ok {

@@ -31,10 +31,61 @@ func delegateToolSpec() llm.ToolSpec {
 // delegateRunner fa la feina real d'un subagent. Es configura a l'arrencada
 // (mateix provider/model del rol code); nil = no disponible.
 var delegateRunner func(ctx context.Context, prompt string) (string, error)
+var delegateRunnerMu sync.RWMutex
+
+type delegateScopeKey struct{}
+
+type delegateScope struct {
+	session string
+	dir     string
+}
+
+func withDelegateScope(ctx context.Context, session, dir string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, delegateScopeKey{}, delegateScope{session: session, dir: dir})
+}
+
+func delegateScopeFromContext(ctx context.Context) delegateScope {
+	if ctx == nil {
+		return delegateScope{}
+	}
+	scope, _ := ctx.Value(delegateScopeKey{}).(delegateScope)
+	return scope
+}
 
 // SetDelegateRunner configura (o neteja amb nil) el runner de subagents.
 func SetDelegateRunner(fn func(ctx context.Context, prompt string) (string, error)) {
+	delegateRunnerMu.Lock()
+	defer delegateRunnerMu.Unlock()
 	delegateRunner = fn
+}
+
+func currentDelegateRunner() func(ctx context.Context, prompt string) (string, error) {
+	delegateRunnerMu.RLock()
+	defer delegateRunnerMu.RUnlock()
+	return delegateRunner
+}
+
+func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
+	dst := config.PermissionsCfg{
+		Tools:     make(map[string]string, len(src.Tools)),
+		BashAllow: append([]string(nil), src.BashAllow...),
+		BashDeny:  append([]string(nil), src.BashDeny...),
+	}
+	for name, decision := range src.Tools {
+		dst.Tools[name] = decision
+	}
+	return dst
+}
+
+func delegatePolicy(permissions config.PermissionsCfg) *Policy {
+	return &Policy{
+		Tools:     permissions.Tools,
+		BashAllow: permissions.BashAllow,
+		BashDeny:  permissions.BashDeny,
+	}
 }
 
 // MaxDelegateTasks topa els subagents per crida (cada un fa els seus passos:
@@ -46,27 +97,50 @@ const MaxDelegateTasks = 4
 // (12 passos, eines natives sense delegate ni MCP, ask→deny): no escriuen,
 // no demanen res, només tornen text.
 func SetupDelegate(cfg *config.Config, client *llm.Client) {
+	if cfg == nil || client == nil {
+		SetDelegateRunner(nil)
+		return
+	}
 	r, ok := cfg.Roles["code"]
 	if !ok {
+		SetDelegateRunner(nil)
 		return
 	}
 	p, ok := cfg.Providers[r.Provider]
 	if !ok {
+		SetDelegateRunner(nil)
 		return
 	}
-	cwd, _ := os.Getwd()
-	sys := PromptFor(cfg.SystemPrompt(), ModeInspect)
-	if info := ContextProjecte(cwd); info != "" {
-		sys += "\n\n" + info
-	}
+	primary := cfg.PrimTarget(p, r)
+	fallback := cfg.FallbackTarget(r)
+	budget := Budget(cfg, r)
+	baseSystem := cfg.SystemPrompt()
+	permissions := copyDelegatePermissions(cfg.Permissions)
 	SetDelegateRunner(func(ctx context.Context, prompt string) (string, error) {
-		pol := &Policy{}
+		scope := delegateScopeFromContext(ctx)
+		workspace := scope.dir
+		if workspace == "" {
+			var err error
+			workspace, err = os.Getwd()
+			if err != nil {
+				return "", fmt.Errorf("no s'ha pogut resoldre el directori de treball: %w", err)
+			}
+		}
+		session := scope.session
+		if session == "" {
+			session = procSession
+		}
+		sys := PromptFor(baseSystem, ModeInspect)
+		if info := ContextProjecte(workspace); info != "" {
+			sys += "\n\n" + info
+		}
+		pol := delegatePolicy(permissions)
 		hist := []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: prompt}}
 		for step := 1; step <= 12; step++ {
-			if room := MakeRoom(ctx, client, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), "", hist, Budget(cfg, r)); room.Changed() {
+			if room := MakeRoom(ctx, client, primary, fallback, "", hist, budget); room.Changed() {
 				hist = room.Hist
 			}
-			content, calls, _, err := client.ChatWithToolsFO(ctx, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, Specs(), nil)
+			content, calls, _, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, r.Temperature, r.MaxTokens, Specs(), nil)
 			if err != nil {
 				return "", fmt.Errorf("pas %d: %w", step, err)
 			}
@@ -80,7 +154,7 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 			}
 			plans := PlanCalls(pol, ModeInspect, nil, calls)
 			res := RunCalls(calls, func(i int) bool { return plans[i].Fixed != "" || plans[i].Ask }, func(_ int, c llm.ToolCall) resultat {
-				o, oi, err := Exec(c.Function.Name, c.Function.Arguments)
+				o, oi, err := ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
 				if err != nil {
 					return resultat{out: "ERROR: " + err.Error()}
 				}
@@ -99,7 +173,13 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 }
 
 // delegateExec valida, llança en paral·lel i fusiona els resums.
-func delegateExec(argsJSON string) (string, error) {
+func delegateExec(ctx context.Context, argsJSON string) (string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	var a struct {
 		Tasks []struct {
 			Prompt string `json:"prompt"`
@@ -122,7 +202,8 @@ func delegateExec(argsJSON string) (string, error) {
 			return "", fmt.Errorf("tasca %d massa llarga (màx 2000 caràcters)", i+1)
 		}
 	}
-	if delegateRunner == nil {
+	runner := currentDelegateRunner()
+	if runner == nil {
 		return "", fmt.Errorf("subagents no disponibles en aquest loop")
 	}
 	outs := make([]string, len(a.Tasks))
@@ -131,9 +212,9 @@ func delegateExec(argsJSON string) (string, error) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
+			ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
 			defer cancel()
-			out, err := delegateRunner(ctx, t.Prompt)
+			out, err := runner(ctx, t.Prompt)
 			if err != nil {
 				outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(err.Error()))
 				return
@@ -145,5 +226,8 @@ func delegateExec(argsJSON string) (string, error) {
 		}()
 	}
 	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	return strings.Join(outs, "\n\n"), nil
 }

@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -124,6 +125,37 @@ func TestMotorAutoAprovaSaltaElPermis(t *testing.T) {
 	tn.RepPas("", []llm.ToolCall{cridaProva("1", "write", `{"path":"/fora/x.go","content":"hola"}`)}, nil)
 	if p := tn.Seguent(); p.Ordre != OrdreExecuta {
 		t.Fatalf("amb auto-aprovació no s'ha de demanar res: %v", p.Ordre)
+	}
+}
+
+func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
+	tools.TodoClear()
+	project := t.TempDir()
+	tn := NouTorn(OpcionsTorn{
+		Pol:        &Policy{ProjectDir: project},
+		Mode:       ModeAutonomous,
+		MaxSteps:   10,
+		Hist:       []llm.Message{{Role: "user", Content: "x"}},
+		AutoAprova: func() bool { return true },
+	})
+	tn.Seguent()
+	tn.RepPas("", []llm.ToolCall{cridaProva("outside", "write", `{"path":"../outside.txt","content":"x"}`)}, nil)
+	if p := tn.Seguent(); p.Ordre != OrdreAprova {
+		t.Fatalf("autònom amb auto-aprovació ha de demanar permís fora del projecte: %v", p.Ordre)
+	}
+
+	tn = NouTorn(OpcionsTorn{
+		Pol:        &Policy{ProjectDir: project},
+		Mode:       ModeAutonomous,
+		MaxSteps:   10,
+		Hist:       []llm.Message{{Role: "user", Content: "x"}},
+		AutoAprova: func() bool { return true },
+	})
+	tn.Seguent()
+	args := `{"path":` + quoteJSON(filepath.Join(project, "main.go")) + `,"content":"x"}`
+	tn.RepPas("", []llm.ToolCall{cridaProva("inside", "write", args)}, nil)
+	if p := tn.Seguent(); p.Ordre != OrdreExecuta {
+		t.Fatalf("autònom conserva l'escriptura dins del projecte: %v", p.Ordre)
 	}
 }
 

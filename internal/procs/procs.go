@@ -8,6 +8,7 @@ package procs
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -77,8 +78,18 @@ const MaxProcs = 40
 
 // Start engega `sh -c cmd` a dir i retorna el procés.
 func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
+	return s.StartCtx(context.Background(), session, dir, cmd)
+}
+
+// StartCtx engega `sh -c cmd` a dir i mata el procés i el seu grup quan ctx
+// es cancel·la. És útil per a processos que pertanyen a un torn; Start els
+// continua deixant vius fins que els aturi l'usuari o tanqui la sessió.
+func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, error) {
 	if cmd == "" {
 		return nil, errors.New("cal una ordre")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	// L'intèrpret el tria internal/shell (sh, el sh del Git a Windows, o cmd):
 	// amb "sh" a pèl el portable de Windows no podia engegar cap procés.
@@ -133,6 +144,15 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 	s.order = append(s.order, id)
 	s.evictLocked()
 	s.mu.Unlock()
+	if ctx.Done() != nil {
+		go func() {
+			select {
+			case <-ctx.Done():
+				p.Kill()
+			case <-p.done:
+			}
+		}()
+	}
 	return p, nil
 }
 
@@ -205,7 +225,9 @@ func (p *Proc) Wait(d time.Duration) bool {
 
 // Kill mata el procés.
 func (p *Proc) Kill() {
-	if p.cancel != nil {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.Running && p.cancel != nil {
 		p.cancel()
 	}
 }

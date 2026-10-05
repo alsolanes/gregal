@@ -13,21 +13,21 @@ import (
 func TestAprovacioLimitDelConfig(t *testing.T) {
 	s := goalTestServer(t)
 	s.cfg.Agent.ApprovalTimeoutS = 1
-	var enviat map[string]string
+	var enviat map[string]any
 	emit := func(ev string, v any) {
 		if ev == "approve_request" {
-			enviat, _ = v.(map[string]string)
+			enviat, _ = v.(map[string]any)
 		}
 	}
 	t0 := time.Now()
-	ok, caducada := s.waitApproval(context.Background(), emit, "c1", "edit", "{}", "sig")
+	ok, caducada := s.waitApproval(context.Background(), emit, "c1", "edit", "{}", "sig", false)
 	if ok || !caducada {
 		t.Fatalf("sense resposta en 1 s ha de caducar: ok=%v caducada=%v", ok, caducada)
 	}
 	if d := time.Since(t0); d > 3*time.Second {
 		t.Fatalf("ha esperat %s amb un límit d'1 s", d)
 	}
-	if enviat["timeout_s"] != "1" {
+	if enviat["timeout_s"] != "1" || enviat["auto_approve_allowed"] != false {
 		t.Fatalf("la UI ha de rebre el límit real: %v", enviat)
 	}
 }
@@ -35,23 +35,23 @@ func TestAprovacioLimitDelConfig(t *testing.T) {
 func TestAprovacioSenseLimitIAturada(t *testing.T) {
 	s := goalTestServer(t)
 	s.cfg.Agent.ApprovalTimeoutS = -1
-	var enviat map[string]string
+	var enviat map[string]any
 	emit := func(ev string, v any) {
 		if ev == "approve_request" {
-			enviat, _ = v.(map[string]string)
+			enviat, _ = v.(map[string]any)
 		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() { time.Sleep(200 * time.Millisecond); cancel() }()
 	t0 := time.Now()
-	ok, caducada := s.waitApproval(ctx, emit, "c1", "edit", "{}", "sig")
+	ok, caducada := s.waitApproval(ctx, emit, "c1", "edit", "{}", "sig", true)
 	if ok || caducada {
 		t.Fatalf("aturar el torn no és ni permís ni caducitat: ok=%v caducada=%v", ok, caducada)
 	}
 	if d := time.Since(t0); d > 2*time.Second {
 		t.Fatalf("la cancel·lació havia de tallar l'espera, ha trigat %s", d)
 	}
-	if enviat["timeout_s"] != "0" {
+	if enviat["timeout_s"] != "0" || enviat["auto_approve_allowed"] != true {
 		t.Fatalf("sense límit, la UI rep 0: %v", enviat)
 	}
 	s.mu.Lock()

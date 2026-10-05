@@ -152,8 +152,8 @@ type OpcionsTorn struct {
 	Rol       func() (provider, model string)
 	// Recordat diu si l'usuari ja ha aprovat aquesta crida per la sessió.
 	Recordat func(name, argsJSON string) bool
-	// AutoAprova salta el permís (mode permissiu del TUI, --auto-approve
-	// del headless). Un deny continua bloquejant.
+	// AutoAprova salta asks en modes interactius. El mode autònom els manté
+	// pendents d'una confirmació interactiva fins i tot amb mode permissiu.
 	AutoAprova func() bool
 	// Todos és la checklist del client quan no és la global del procés:
 	// a la web cada pestanya té la seva, i amb la global dues sessions es
@@ -330,7 +330,7 @@ func (t *Torn) Seguent() Pas {
 	if len(t.pendents) > 0 {
 		t.actual, t.pendents = t.pendents[0], t.pendents[1:]
 		t.teActual = true
-		if t.o.AutoAprova != nil && t.o.AutoAprova() {
+		if !t.autonom() && t.o.AutoAprova != nil && t.o.AutoAprova() {
 			// Aprovació automàtica: no es molesta ningú, però la crida
 			// passa pel mateix camí (i pel mateix comptador).
 			t.teActual = false
