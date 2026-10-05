@@ -947,6 +947,8 @@ body.view-normal .msg.t .out { display:none; }
 .pf-lab b { display:block; color:var(--ink); font-size:var(--t3); font-weight:540; }
 .pf-lab span { display:block; margin-top:2px; color:var(--muted); font-size:var(--t1); line-height:1.45; }
 .pf-seg { flex:none; display:flex; padding:2px; border:1px solid var(--line-hi); border-radius:7px; background:var(--bg); }
+.pf-row:has(.pf-seg[data-k="tema"]) { display:block; }
+.pf-seg[data-k="tema"] { flex-wrap:wrap; margin-top:8px; }
 .pf-seg button { padding:4px 10px; border:0; border-radius:5px; background:transparent;
   color:var(--muted); font-size:var(--t2); cursor:pointer; white-space:nowrap; }
 .pf-seg button:hover { color:var(--ink); }
@@ -954,6 +956,20 @@ body.view-normal .msg.t .out { display:none; }
 .pf-open { flex:none; padding:5px 12px; border:1px solid var(--line-hi); border-radius:7px;
   background:transparent; color:var(--text); font-size:var(--t2); cursor:pointer; }
 .pf-open:hover { color:var(--ink); border-color:var(--accent); }
+.pf-update { padding:10px 0 2px; }
+.pf-update-row { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.pf-update-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:7px; }
+.pf-update-primary { border-color:var(--accent); background:var(--accent-soft); }
+.pf-update-message { margin-top:8px; color:var(--muted); font-size:var(--t2); line-height:1.45; }
+.pf-update-progress-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+.pf-update-progress { flex:1; width:100%; height:7px; accent-color:var(--accent); }
+.pf-update-percent { color:var(--muted); font:var(--t1) var(--mono); }
+.pf-update-error-detail { margin-top:4px; color:var(--red); font-size:var(--t1); overflow-wrap:anywhere; }
+.pf-update-help { margin-top:4px; color:var(--muted); font-size:var(--t1); line-height:1.45; }
+.icon-btn.has-update { position:relative; }
+.icon-btn.has-update::after { content:""; position:absolute; top:3px; right:3px; width:7px; height:7px;
+  border:1px solid var(--surface); border-radius:50%; background:var(--amber); box-shadow:0 0 0 2px var(--surface); }
+@media (max-width:520px) { .pf-update-row { align-items:flex-start; flex-direction:column; } .pf-update-actions { justify-content:flex-start; } }
 /* Menú del clip i selector de carpeta/projecte (app/attach.js). */
 #attachMenu, #attachPick { position:fixed; z-index:62; background:var(--panel);
   border:1px solid var(--line-hi); border-radius:12px; box-shadow:0 20px 48px var(--ombra); padding:7px; }
@@ -1583,7 +1599,7 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="teamPage" hidden>
         <header class="page-head"><h1 id="teamTitle">Team</h1><span id="teamStatus" role="status">Idle</span></header>
         <form id="teamForm"><label id="teamTaskLabel" for="teamTask">Task</label><textarea id="teamTask" rows="2" maxlength="16000" required></textarea><div class="team-actions"><span id="teamModel"></span><button class="primary" id="teamStart" type="submit">Start</button><button class="ghost" id="teamStop" type="button" disabled>Stop</button></div></form>
-        <div id="teamExamples"></div><div id="teamProgress" role="status"></div>
+        <div id="teamExamples"></div><div class="team-progress-row"><div id="teamProgress" role="status"></div><button class="ghost" id="teamNeedsMe" type="button" disabled>Ningú espera</button></div>
         <div class="team-layout"><div class="team-floor"><canvas id="teamCanvas" aria-hidden="true"></canvas></div><aside class="team-detail"><h2 id="teamAgentsLabel">Agents</h2><div id="teamAgents" role="group" aria-label="Agents"></div><div class="team-agent-detail"><h2 id="teamSelected">Coordinator</h2><div id="teamAgentStatus">Idle</div><pre id="teamOutput"></pre></div></aside></div>
         <h2 id="teamActivityTitle">Activity</h2><ol id="teamActivity" aria-live="polite"></ol>
       </section>

@@ -469,7 +469,7 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 		return "", emptyReplyErr(ch.FinishReason, len([]rune(ch.Message.ReasoningContent+ch.Message.Reasoning+ch.Message.Thought+ch.Message.Thinking)), maxTokens)
 	}
 	if ch.FinishReason == "length" {
-		return "", &LengthError{MaxTokens: maxTokens, Partial: true}
+		return "", &LengthError{MaxTokens: maxTokens}
 	}
 	return ch.Message.Content, nil
 }
@@ -484,6 +484,9 @@ func (c *Client) ChatWithTools(ctx context.Context, baseURL, apiKey, model strin
 		text, calls, err = c.chatWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs)
 		return err
 	})
+	if err != nil {
+		text, calls = "", nil
+	}
 	return text, calls, err
 }
 
@@ -545,7 +548,9 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 		return "", nil, emptyReplyErr(out.Choices[0].FinishReason, len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens)
 	}
 	if out.Choices[0].FinishReason == "length" {
-		return "", nil, &LengthError{MaxTokens: maxTokens, Partial: true}
+		// The whole response is still private to this call. Discard text and
+		// tool calls from a truncated attempt so it can be retried safely.
+		return "", nil, &LengthError{MaxTokens: maxTokens}
 	}
 	return senseThink(m.Content), m.ToolCalls, nil
 }
@@ -644,7 +649,7 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 		return "", emptyReplyErr(finish, reasoned, maxTokens)
 	}
 	if finish == "length" {
-		return "", lengthTallat(reasoned, maxTokens, len([]rune(strings.TrimSpace(text))))
+		return "", lengthTallat(reasoned, maxTokens, len([]rune(text)))
 	}
 	return text, nil
 }
@@ -687,11 +692,32 @@ func toolsWire(specs []ToolSpec) []any {
 func (c *Client) ChatStreamWithTools(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string)) (string, []ToolCall, error) {
 	var text string
 	var calls []ToolCall
+	buffer := recoverTruncation(ctx)
+	var reasoned strings.Builder
 	err := retryFit(ctx, maxTokens, func(budget int) error {
 		var err error
-		text, calls, err = c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs, onToken, onReason)
+		if buffer {
+			reasoned.Reset()
+		}
+		tokenFn, reasonFn := onToken, onReason
+		if buffer {
+			tokenFn = nil
+			reasonFn = func(s string) { reasoned.WriteString(s) }
+		}
+		text, calls, err = c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs, tokenFn, reasonFn)
 		return err
 	})
+	if err == nil && buffer {
+		if onToken != nil && text != "" {
+			onToken(text)
+		}
+		if onReason != nil && reasoned.Len() > 0 {
+			onReason(reasoned.String())
+		}
+	}
+	if err != nil {
+		text, calls = "", nil
+	}
 	return text, calls, err
 }
 
@@ -751,6 +777,12 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 		if text != "" && onToken != nil {
 			onToken(text)
+		}
+		if onReason != nil {
+			reason := m.ReasoningContent + m.Reasoning + m.Thought + m.Thinking
+			if reason != "" {
+				onReason(reason)
+			}
 		}
 		return text, calls, nil
 	}
@@ -837,7 +869,14 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		return "", nil, emptyReplyErr(finish, reasoned, maxTokens)
 	}
 	if finish == "length" {
-		return "", nil, &LengthError{Reasoned: reasoned, MaxTokens: maxTokens, Partial: true}
+		// Text callbacks have already escaped in the ordinary streaming mode.
+		// The opt-in recovery mode buffers them, so the discarded attempt is
+		// safe to retry even when it included partial answer text.
+		visible := len([]rune(text))
+		if onToken == nil {
+			visible = 0
+		}
+		return "", nil, lengthTallat(reasoned, maxTokens, visible)
 	}
 	return text, calls, nil
 }

@@ -221,7 +221,8 @@ func (s *Server) roleRefFor(name string) (config.Provider, config.Role) {
 	if ov, ok := s.modelOverride[name]; ok && s.unavailableModels[name] != ov {
 		if p, m, ok := splitModel(ov); ok {
 			if prov, ok := s.cfg.Providers[p]; ok {
-				return prov, config.Role{Provider: p, Model: m, LongRun: r.LongRun, Temperature: r.Temperature, MaxTokens: r.MaxTokens, ContextWindow: r.ContextWindow}
+				r.Provider, r.Model = p, m
+				return prov, r
 			}
 		}
 		if p, ok := s.cfg.Providers[r.Provider]; ok {

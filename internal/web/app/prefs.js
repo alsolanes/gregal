@@ -7,6 +7,7 @@
 // T i posaLang porten àlies perquè aquí ja hi ha una `aplica` (d'aparença)
 // i la `t` es fa servir de variable de bucle en uns quants map.
 import { t as T, idioma, posa as posaLang, IDIOMES } from './i18n.js';
+import { desktopUpdates } from './desktop-updates.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -91,6 +92,7 @@ export const prefs = {
     if (tanca) tanca.onclick = () => this.tanca();
     const modal = $('prefsModal');
     if (modal) modal.onclick = e => { if (e.target.id === 'prefsModal') this.tanca(); };
+    desktopUpdates.init();
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && modal && modal.classList.contains('on')) { e.stopPropagation(); this.tanca(); }
       if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); this.obre(); }
@@ -144,7 +146,8 @@ export const prefs = {
         '<label class="pf-check"><input type="checkbox" id="prefsVerify"' + (this.verifyAuto() ? ' checked' : '') + '><span></span></label>') +
       '<h3 class="pf-sec">' + T('prefs.providers') + '</h3>' +
       fila('prefs.providers.row', 'prefs.providers.help',
-        '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>');
+        '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
+      desktopUpdates.section();
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
       seg.querySelectorAll('button').forEach(b => {
@@ -164,6 +167,7 @@ export const prefs = {
     if (v) v.onchange = () => this.posaVerify(v.checked);
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
+    desktopUpdates.bind(cos);
   },
 
   // L'idioma va al servidor abans que a la pantalla: si el servidor no el

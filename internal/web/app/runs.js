@@ -185,19 +185,36 @@ export async function run(task, images, mode, onEvent) {
   const id = out && out.run && out.run.id;
   if (!id) throw new Error('resposta v2 sense id d’execució');
   const cursor = Math.max(0, Number(out.cursor) || 0);
+  // The event and terminal run_failed records can wrap the same error in
+  // different presentation text. Compare their underlying message per run.
+  const seenErrors = new Set();
+  const receive = (event, data) => {
+    if (event === 'error') {
+      const message = String(data && data.message || 'error');
+      const key = message.trim()
+        .replace(/^⚠️\s*/u, '')
+        .replace(/^torn fallit:\s*/iu, '')
+        .replace(/^agent\s*:\s*error:\s*/iu, '')
+        .replace(/^agent\s+error:\s*/iu, '')
+        .trim();
+      if (seenErrors.has(key)) return;
+      seenErrors.add(key);
+    }
+    onEvent(event, data);
+  };
   const ctrl = new AbortController();
   const controls = window.gregalRunControls || (window.gregalRunControls = new Map());
   controls.set(session, { id, cancel: () => sendCancel(id, session), abort: () => ctrl.abort() });
   try {
     if (caps.event_stream) {
-      try { await consumeStream(id, session, cursor, ctrl, onEvent); }
+      try { await consumeStream(id, session, cursor, ctrl, receive); }
       catch (e) {
         if (ctrl.signal.aborted) return true;
         if (!e.routeUnavailable) throw e;
-        await consumePolling(id, session, cursor, ctrl, onEvent);
+        await consumePolling(id, session, cursor, ctrl, receive);
       }
     } else {
-      await consumePolling(id, session, cursor, ctrl, onEvent);
+      await consumePolling(id, session, cursor, ctrl, receive);
     }
     return true;
   } catch (e) {

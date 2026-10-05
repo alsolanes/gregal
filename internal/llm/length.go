@@ -37,6 +37,21 @@ type LengthError struct {
 // interfície, així que l'agent no ha de repetir el pas automàticament.
 type StreamInterruptedError struct{}
 
+type recoverTruncationKey struct{}
+
+// WithRecoverTruncation opts a streamed agent turn into buffering its output
+// until finish_reason is known. Truncated output can then be discarded and
+// retried without duplicating text already shown to the user. Ordinary chat
+// streaming remains live unless this option is set.
+func WithRecoverTruncation(ctx context.Context) context.Context {
+	return context.WithValue(ctx, recoverTruncationKey{}, true)
+}
+
+func recoverTruncation(ctx context.Context) bool {
+	v, _ := ctx.Value(recoverTruncationKey{}).(bool)
+	return v
+}
+
 func (*StreamInterruptedError) Error() string {
 	return "el stream del model s'ha interromput abans del senyal final; la resposta pot estar incompleta"
 }

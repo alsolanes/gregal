@@ -31,11 +31,12 @@ handling.
 
 ## Build Packages
 
-Build the Windows portable executable from Windows:
+Build the Windows installer and portable executable from Windows:
 
 ```sh
 npm ci
 npm run dist-win
+npm run verify-release
 ```
 
 Build the Linux AppImage:
@@ -48,3 +49,22 @@ npm run dist-linux
 The Linux package and runtime should be tested on a Linux host before
 distribution. Desktop packaging does not by itself validate signing, updates,
 or release readiness.
+
+## Updates
+
+Install the Windows app with `Gregal-Setup-<version>-x64.exe` for updates
+inside the app. Open **Preferences → App updates** to check, download a new
+version, and restart to install it. Checking also runs at launch. Downloads
+and installation require an explicit action; closing the app does not
+silently install an update. Save your work before restarting.
+
+The portable app offers **Open downloads** instead. Close it and replace the
+portable executable with the new version from the official release page.
+Its updater never installs an NSIS package over the portable app.
+
+Update discovery requires a published GitHub release in `alsolanes/gregal`.
+Keep the installer, its `.blockmap`, and `latest.yml` from the same build.
+`npm run verify-release` checks the version, installer filename, download size,
+and SHA512 checksum before distribution. A draft release is not visible to
+installed apps. The bundled backend updates with the desktop application;
+an external server is managed independently.

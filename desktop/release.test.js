@@ -11,8 +11,7 @@ test('Windows release includes an update-capable installer and distinct portable
   assert.equal(pkg.build.publish.owner, 'alsolanes');
   assert.equal(pkg.build.publish.repo, 'gregal');
   assert.equal(pkg.build.publish.releaseType, 'draft');
-  const main = fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8');
-  assert.match(main, /process\.env\.PORTABLE_EXECUTABLE_FILE/);
+  assert.ok(pkg.build.files.includes('updater.js'), 'the update controller must ship with the app');
 });
 
 test('desktop, lockfile and backend version agree', () => {

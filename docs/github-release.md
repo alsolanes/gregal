@@ -54,8 +54,16 @@ Version values in `main.go`, `desktop/package.json` and its lockfile must agree.
 Review and test the draft installer, then publish the release from GitHub.
 Drafts are invisible to the updater. Keep the installer and update metadata
 from the same build, and never replace the assets of a published version.
-Installed desktop applications check at launch, download a newer published
-version and offer a restart. Updating the desktop also updates its bundled
+Run `node desktop/verify-release.js output/release` before uploading: it
+validates that the update metadata points to the matching NSIS installer and
+that its size and SHA512 checksum match. Preserve `latest.yml` and the
+installer blockmap when cleaning build outputs.
+
+Installed desktop applications check at launch and show the result in
+**Preferences → App updates**. Users can check again, explicitly download a
+newer published version, then restart to install. Downloaded updates are not
+installed automatically on ordinary app exit. The portable opens the official
+download page so users can replace its executable. Updating the desktop also updates its bundled
 backend; a separately hosted backend is managed independently.
 
 These initial Windows packages are unsigned. Windows may show SmartScreen

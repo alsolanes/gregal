@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -11,6 +12,27 @@ import (
 	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
+
+const legacyAgentMaxTokens = 1024
+const agentOutputBudget = 8192
+
+// maxTokensPerTorn evita que una configuració antiga amb el rol chat a
+// 1024 tokens talli les respostes d'un torn d'agent. Només promociona el
+// valor heretat exacte; qualsevol altre límit configurat explícitament es
+// conserva. El màxim és un quart de la finestra per deixar espai al prompt.
+func maxTokensPerTorn(mode string, role config.Role, window int) int {
+	if mode == agent.ModeChat || role.MaxTokens != legacyAgentMaxTokens {
+		return role.MaxTokens
+	}
+	ceiling := window / 4
+	if ceiling <= role.MaxTokens {
+		return role.MaxTokens
+	}
+	if ceiling < agentOutputBudget {
+		return ceiling
+	}
+	return agentOutputBudget
+}
 
 // conduirTorn fa córrer el torn d'agent de la web sobre el motor compartit
 // (agent.Torn), com el TUI, Telegram i el headless.
@@ -32,6 +54,15 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	sys := s.sysPromptAmb(mode, workspace)
 	convo := append([]llm.Message(nil), s.convo...)
 	s.mu.Unlock()
+	window := agent.Window(s.cfg, role)
+	originalMaxTokens := role.MaxTokens
+	role.MaxTokens = maxTokensPerTorn(mode, role, window)
+	if role.MaxTokens != originalMaxTokens {
+		emit("status", map[string]string{"message": fmt.Sprintf("Pressupost de sortida de l'agent ampliat a %d tokens (el límit antic de 1024 era insuficient).", role.MaxTokens)})
+	}
+	if mode != agent.ModeChat {
+		runCtx = llm.WithRecoverTruncation(runCtx)
+	}
 
 	// think: no del rol (fins ara la web l'ignorava) i comptador de tokens
 	// reals: el topall de cost autònom en depèn.

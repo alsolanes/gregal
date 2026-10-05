@@ -10,7 +10,12 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     preferenceKeys: preferences.keys,
     apiToken: connection.token,
     savePreference: (key, value) => ipcRenderer.send('gregal:preference-save', key, value),
-    version: process.env.GREGAL_DESKTOP_VERSION || "",
+    // La versió d'Electron queda exposada només mitjançant IPC de confiança.
+    getUpdateStatus: () => ipcRenderer.invoke('gregal:update-status'),
+    checkForUpdates: () => ipcRenderer.invoke('gregal:update-check'),
+    downloadUpdate: () => ipcRenderer.invoke('gregal:update-download'),
+    installUpdate: () => ipcRenderer.invoke('gregal:update-install'),
+    openUpdatePage: () => ipcRenderer.invoke('gregal:update-page'),
     // La finestra no té barra de títol del sistema: la capçalera de la
     // pàgina fa de barra (arrossegable) i deixa lloc als botons natius.
     frameless: true,
@@ -28,7 +33,11 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     // Estat de l'actualització automàtica (si n'hi ha).
     // Amb removeListener: cada reload acumulava handlers i un Ctrl+T obria
     // dues sessions. Ara es desregistra l'anterior abans de posar-ne un de nou.
-    onUpdate: cb => { ipcRenderer.removeAllListeners("gregal:update"); ipcRenderer.on("gregal:update", (_e, data) => cb(data)); },
+    onUpdate: cb => {
+        const listener = (_e, data) => cb(data);
+        ipcRenderer.on('gregal:update', listener);
+        return () => ipcRenderer.removeListener('gregal:update', listener);
+    },
     // Dreceres del menú que la pàgina ha d'atendre.
     onCommand: cb => { ipcRenderer.removeAllListeners("gregal:command"); ipcRenderer.on("gregal:command", (_e, name) => cb(name)); },
 });

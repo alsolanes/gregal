@@ -46,6 +46,8 @@ jobs:
       - name: Include standalone backend and checksums
         shell: pwsh
         run: |
+          node desktop/verify-release.js output/release
+          if ($LASTEXITCODE -ne 0) { throw 'Update metadata verification failed' }
           Copy-Item -LiteralPath desktop/backend/gregal.exe -Destination output/release/gregal-windows-amd64.exe
           $assets = Get-ChildItem output/release -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml' }
           $lines = $assets | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }

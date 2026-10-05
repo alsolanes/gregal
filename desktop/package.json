@@ -1,13 +1,14 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.7.2",
+  "version": "1.7.4",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
   "scripts": {
     "start": "npm run backend && electron .",
     "test": "node --test *.test.js",
+    "verify-release": "node verify-release.js",
     "backend": "node build-backend.js",
     "dist": "node build-backend.js && electron-builder",
     "dist-linux": "node build-backend.js linux && electron-builder --linux AppImage",
@@ -33,6 +34,7 @@
       "window-state.js",
       "preferences.js",
       "navigation.js",
+      "updater.js",
       "error.html",
       "build/icon512.png"
     ],

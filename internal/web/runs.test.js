@@ -5,9 +5,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
 
-async function module() {
+async function module(window = {}) {
   const source = fs.readFileSync(path.join(__dirname, "app", "runs.js"), "utf8");
-  const context = vm.createContext({ window: {} });
+  const context = vm.createContext({ window, AbortController, TextDecoder, setTimeout });
   const m = new vm.SourceTextModule(source, { context, identifier: "runs.js" });
   await m.link(() => { throw new Error("runs.js no té imports"); });
   await m.evaluate();
@@ -34,6 +34,73 @@ test("adapter conserva approve/question i tradueix text/terminal", async () => {
   assert.deepEqual(seen.slice(0, 4).map(x => x[0]), ["approve_request", "question_request", "token", "assistant"]);
   assert.equal(parseFrame('id: 4\nevent: text\ndata: {"run_id":7,"text":"ok"}\n\n').data.run_id, 7);
   assert.throws(() => durableToAgent({ kind: "approve_request", text: "només el nom" }, () => {}), /sense dades estructurades/);
+});
+
+test("run deduplica errors embolcallats per run, preserva run_failed sol i finalitza polling", async () => {
+  let runID = 0, pollPage = 0;
+  const delivered = [];
+  const pages = [
+    { next: 1, events: [{ run_id: 1, kind: "error", text: "⚠️ agent error: detail" }] },
+    { next: 2, events: [{ run_id: 1, kind: "run_failed", text: "torn fallit: detail" }] },
+    // Identical underlying failure in another run must still be shown.
+    { next: 1, events: [{ run_id: 2, kind: "run_failed", text: "torn fallit: detail" }] },
+  ];
+  const json = value => ({ ok: true, json: async () => value, text: async () => "" });
+  const window = {
+    gregalSession: "default",
+    gregal: { api: async url => {
+      if (url === "/api/health") return json({ capabilities: {
+        runs: true, durable_events: true, events: true, interactive_events: true,
+      } });
+      if (url === "/api/v2/runs") return json({ run: { id: ++runID }, cursor: 0 });
+      if (url.startsWith("/api/v2/events?")) return json(pages[pollPage++]);
+      throw new Error("unexpected API route: " + url);
+    } },
+  };
+  const { run } = await module(window);
+  await run("first", [], "", (kind, data) => delivered.push([1, kind, data.message]));
+  await run("second", [], "", (kind, data) => delivered.push([2, kind, data.message]));
+  assert.deepEqual(delivered, [
+    [1, "error", "⚠️ agent error: detail"],
+    [2, "error", "torn fallit: detail"],
+  ]);
+  assert.equal(pollPage, 3, "suppressed duplicate run_failed still terminates polling");
+});
+
+test("l'error de l'SSE i el run_failed del fallback comparteixen dedup per run", async () => {
+  let pollPage = 0;
+  const delivered = [];
+  const json = value => ({ ok: true, json: async () => value, text: async () => "" });
+  const unavailable = () => Object.assign(new Error("stream route unavailable"), { routeUnavailable: true });
+  const window = {
+    gregalSession: "default",
+    gregal: { api: async url => {
+      if (url === "/api/health") return json({ capabilities: {
+        runs: true, durable_events: true, event_stream: true, interactive_events: true,
+      } });
+      if (url === "/api/v2/runs") return json({ run: { id: 8 }, cursor: 0 });
+      if (url.startsWith("/api/v2/events/stream?")) {
+        let sent = false;
+        return { ok: true, body: { getReader: () => ({
+          read: async () => {
+            if (!sent) {
+              sent = true;
+              return { done: false, value: new TextEncoder().encode('event: error\ndata: {"run_id":8,"kind":"error","text":"⚠️ agent error: detail"}\n\n') };
+            }
+            throw unavailable();
+          }, cancel: async () => {},
+        }) } };
+      }
+      if (url.startsWith("/api/v2/events?")) return json(pollPage++ === 0
+        ? { next: 1, events: [{ run_id: 8, kind: "run_failed", text: "torn fallit: detail" }] }
+        : { next: 2, events: [{ run_id: 8, kind: "run_failed", text: "torn fallit: detail" }] });
+      throw new Error("unexpected API route: " + url);
+    } },
+  };
+  const { run } = await module(window);
+  await run("task", [], "", (kind, data) => delivered.push([kind, data.message]));
+  assert.deepEqual(delivered, [["error", "⚠️ agent error: detail"]]);
+  assert.equal(pollPage, 1, "the terminal run_failed is consumed despite duplicate display suppression");
 });
 
 test("v2 exigeix interaccions estructurades abans d'activar-se", async () => {

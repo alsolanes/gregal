@@ -148,6 +148,23 @@ func TestRoleRefRespectaOverrideDelRolRutejat(t *testing.T) {
 	}
 }
 
+func TestRoleOverridePreservesReasoningAndFallback(t *testing.T) {
+	s := goalTestServer(t)
+	s.cfg.Providers["p2"] = config.Provider{BaseURL: "http://p2/v1"}
+	original := s.cfg.Roles["code"]
+	original.Think = "no"
+	original.FallbackProvider, original.FallbackModel = "backup", "backup-model"
+	original.MaxTokens = 8192
+	s.cfg.Roles["code"] = original
+	s.modelOverride["code"] = "p2/model-code"
+	_, got := s.roleRefFor("code")
+	want := original
+	want.Provider, want.Model = "p2", "model-code"
+	if got != want || s.cfg.Roles["code"] != original {
+		t.Fatalf("override lost role settings or mutated config: got=%+v want=%+v", got, want)
+	}
+}
+
 func TestModelsExposeFallbackWhenStoredOverrideIsUnavailable(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	llm := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

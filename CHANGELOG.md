@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.7.4 — 2026-10-04 — Recuperació dels límits de resposta
+
+- Conserva les opcions de raonament i de model alternatiu en canviar de model.
+- Corregeix el tractament dels torns truncats i la duplicació d'errors de l'agent.
+
+## v1.7.3 — 2026-10-04 — Taller mediterrani i actualitzacions
+
+- Oficina 2D mediterrània integrada a l'Equip, amb panell d'agents sense
+  solapaments, contrast millorat i focus del teclat conservat.
+- Actualitzacions de l'app accessibles des de Preferències, amb comprovació,
+  descàrrega, progrés i instal·lació en reiniciar per decisió de l'usuari.
+- Accés a les descàrregues oficials per als executables portables.
+
+
 ## v1.6.1 — 2026-09-30 — Windows, continuïtat i acabats visuals
 
 - App portable de Windows x64 amb el backend local integrat.

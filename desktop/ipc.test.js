@@ -21,7 +21,7 @@ test('native IPC and credentials reject foreign pages and subframes', async () =
     process: { env: { GREGAL_TOKEN: 'bridge-test-token' }, platform: process.platform },
     __dirname, URL, console, setTimeout, clearTimeout,
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testWire = wireIPC;', context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testWire = wireIPC; this.testSetUpdater = value => { updateController = value; };', context);
   const frame = { url: 'http://127.0.0.1:8097/' };
   const webContents = { mainFrame: frame };
   context.testWire(() => ({ webContents }));
@@ -45,4 +45,26 @@ test('native IPC and credentials reject foreign pages and subframes', async () =
   assert.equal(await handlers.get('gregal:notify')(trusted, { title: 'Test', body: 'Test' }), false);
   assert.equal(await handlers.get('gregal:choose-folder')(trusted), null);
   assert.equal(dialogCalls, 1);
+  frame.url = 'http://127.0.0.1:8097/';
+  const updateCalls = [];
+  context.testSetUpdater({
+    getStatus: () => { updateCalls.push('status'); return { state: 'idle' }; },
+    check: () => { updateCalls.push('check'); return 'check'; },
+    download: () => { updateCalls.push('download'); return 'download'; },
+    install: () => { updateCalls.push('install'); return 'install'; },
+    openPage: () => { updateCalls.push('page'); return 'page'; },
+  });
+  const updateChannels = ['gregal:update-status', 'gregal:update-check', 'gregal:update-download', 'gregal:update-install', 'gregal:update-page'];
+  for (const channel of updateChannels) assert.notEqual(await handlers.get(channel)(trusted), null);
+  assert.deepEqual(updateCalls, ['status', 'check', 'download', 'install', 'page']);
+  updateCalls.length = 0;
+  for (const channel of updateChannels) {
+    assert.equal(await handlers.get(channel)({ sender: {}, senderFrame: frame }), null);
+    assert.equal(await handlers.get(channel)({ sender: webContents, senderFrame: { url: frame.url } }), null);
+  }
+  frame.url = 'https://untrusted.example.org/';
+  for (const channel of ['gregal:update-status', 'gregal:update-check', 'gregal:update-download', 'gregal:update-install', 'gregal:update-page']) {
+    assert.equal(await handlers.get(channel)(trusted), null);
+  }
+  assert.deepEqual(updateCalls, []);
 });

@@ -1,12 +1,18 @@
+import { attentionQueue, nextAttention, progressSummary, replaceAgentButtons } from './team-status.js';
 const $ = id => document.getElementById(id);
 const roles = ['coordinator', 'researcher', 'builder', 'reviewer'];
 const baseRoles = [...roles];
 const roleColors = ['#a35c21','#167e88','#7756ab','#377a45'];
 const roleColor = role => roleColors[baseRoles.indexOf(metadata[role]?.parent || role)] || '#48676b';
 const metadata = {}, bubbles = {}, actions = {};
+// needsYou: l'agent espera una decisió (torn pendent, error o aturada).
+// És la cua d'atenció del taller: la idea ve d'agent-office (beacon vermell +
+// tecla N), adaptada a Gregal —aquí la balisa és un rombe de terracota
+// mediterrani i l'estat surt dels esdeveniments reals de l'equip.
+const needsYou = role => ['waiting', 'failed', 'cancelled'].includes(states[role]);
 const words = {
-  en: { title:'Team', task:'Task', start:'Start', stop:'Stop', idle:'Idle', working:'Working', completed:'Completed', cancelled:'Stopped', failed:'Run failed. Check the model connection and retry.', done:'Complete', started:'Started', handoff:'Handoff', activity:'Activity', agents:'Agents', coordinator:'Coordinator', researcher:'Researcher', builder:'Builder', reviewer:'Reviewer', waiting:'Waiting', empty:'No deliverable yet', interrupted:'Connection interrupted. Retry the task.', textOnly:'Text only', model:'Active model', select:'Select an agent' },
-  ca: { title:'Equip', task:'Tasca', start:'Inicia', stop:'Atura', idle:'Inactiu', working:'Treballant', completed:'Completat', cancelled:'Aturat', failed:'Ha fallat. Comprova la connexió del model i torna-ho a provar.', done:'Completat', started:'Iniciat', handoff:'Traspàs', activity:'Activitat', agents:'Agents', coordinator:'Coordinador', researcher:'Investigador', builder:'Constructor', reviewer:'Revisor', waiting:'En espera', empty:'Encara no hi ha cap resultat', interrupted:'Connexió interrompuda. Torna a iniciar la tasca.', textOnly:'Només text', model:'Model actiu', select:'Tria un agent' },
+  en: { title:'Team', task:'Task', start:'Start', stop:'Stop', idle:'Idle', working:'Working', completed:'Completed', cancelled:'Stopped', failed:'Run failed. Check the model connection and retry.', done:'Complete', started:'Started', handoff:'Handoff', activity:'Activity', agents:'Agents', coordinator:'Coordinator', researcher:'Researcher', builder:'Builder', reviewer:'Reviewer', waiting:'Waiting', empty:'No deliverable yet', interrupted:'Connection interrupted. Retry the task.', textOnly:'Text only', model:'Active model', select:'Select an agent', whoNeedsMe:'Who needs me?', nobodyWaiting:'Nobody waiting', needsHint:'Go to the next agent awaiting a decision (N)', awaiting:'awaiting a decision' },
+  ca: { title:'Equip', task:'Tasca', start:'Inicia', stop:'Atura', idle:'Inactiu', working:'Treballant', completed:'Completat', cancelled:'Aturat', failed:'Ha fallat. Comprova la connexió del model i torna-ho a provar.', done:'Completat', started:'Iniciat', handoff:'Traspàs', activity:'Activitat', agents:'Agents', coordinator:'Coordinador', researcher:'Investigador', builder:'Constructor', reviewer:'Revisor', waiting:'En espera', empty:'Encara no hi ha cap resultat', interrupted:'Connexió interrompuda. Torna a iniciar la tasca.', textOnly:'Només text', model:'Model actiu', select:'Tria un agent', whoNeedsMe:'Qui em necessita?', nobodyWaiting:'Ningú espera', needsHint:'Ves al següent agent pendent de decisió (N)', awaiting:'pendents de decisió' },
 };
 const lang = () => document.documentElement.lang === 'ca' ? 'ca' : 'en';
 const t = key => words[lang()][key] || key;
@@ -20,7 +26,10 @@ let outputs = {}, activity = [], handoffWalk = null, demo = false, demoTimer = n
 const descriptions = {en:['Plans the task','Analyzes the information','Creates the deliverable','Checks and refines'],ca:['Planifica la tasca','Analitza la informació','Crea el resultat','Comprova i millora']};
 const examples = {en:[['Compare options','Compare PostgreSQL and SQLite for an internal chat with 50 users. Include a recommendation and risks.'],['Analyze data','Analyze these monthly ticket counts: January 120, February 180, March 150. Calculate changes and propose a chart specification.'],['Draft a plan','Create a practical onboarding plan for a new employee, with tasks, owners and acceptance criteria.']],ca:[['Compara opcions','Compara PostgreSQL i SQLite per a un xat intern amb 50 usuaris. Inclou una recomanació i riscos.'],['Analitza dades','Analitza aquests recomptes mensuals de tiquets: gener 120, febrer 180, març 150. Calcula els canvis i proposa una especificació de gràfic.'],['Prepara un pla',"Crea un pla pràctic d’acollida per a una persona nova, amb tasques, responsables i criteris d’acceptació."]]};
 const sceneHeight = 540;
-const homes = [[165,210],[840,210],[165,465],[840,465]];
+// Each home is the floor-contact point at the agent's feet. Keep every
+// default agent on the terracotta floor; the previous top row used y=210,
+// which placed it visibly on the plaster wall.
+const homes = [[145,420],[390,420],[635,420],[880,420]];
 const spritePaths = roles.map(role=>`/app/assets/pixel-office/${role}.png`);
 const canvas = $('teamCanvas'), ctx = canvas.getContext('2d');
 const office = new Image(), agents = spritePaths.map(src=>{const image=new Image();image.src=src;image.onload=()=>draw();return image;});
@@ -39,8 +48,14 @@ function render() {
   $('teamStart').disabled = !!controller; $('teamStop').disabled = !controller;
   $('teamTask').disabled = !!controller;
   $('teamStatus').textContent = `${demo ? (lang()==='ca'?'Demo local · ':'Local demo · ') : ''}${t(overall)}`;
-  const active=roles.filter(role=>states[role]==='working');
-  $('teamProgress').textContent = active.length ? `${lang()==='ca'?'Actius':'Active'}: ${active.map(name).join(' + ')} · ${roles.filter(role=>states[role]==='completed').length}/${roles.length}` : `${roles.filter(role=>states[role]==='completed').length}/${roles.length} · ${t(overall)}`;
+  $('teamProgress').textContent = `${progressSummary(roles, states, lang())} · ${t(overall)}`;
+  const queue = attentionQueue(roles, states);
+  const needsBtn = $('teamNeedsMe');
+  if (needsBtn) {
+    needsBtn.textContent = queue.length ? `${t('whoNeedsMe')} · ${queue.length}` : t('nobodyWaiting');
+    needsBtn.title = t('needsHint');
+    needsBtn.disabled = !queue.length;
+  }
   const sampleButtons=examples[lang()].map(([label,task])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=!!controller;b.onclick=()=>{$('teamTask').value=task;$('teamTask').focus();};return b;});
   const preview=document.createElement('button');preview.type='button';preview.textContent=lang()==='ca'?'▶ Demo sense API':'▶ Demo without API';preview.disabled=!!controller;preview.onclick=startDemo;
   $('teamExamples').replaceChildren(...sampleButtons,preview);
@@ -51,15 +66,20 @@ function render() {
   $('teamActivityTitle').textContent = t('activity');
   $('teamAgentsLabel').textContent = t('agents');
   $('teamAgents').setAttribute('aria-label', t('select'));
-  $('teamAgents').replaceChildren(...roles.map((role, i) => {
+  const agentList = $('teamAgents');
+  const focusedRole = agentList.contains(document.activeElement) ? document.activeElement.dataset.teamRole : null;
+  const agentButtons = roles.map((role, i) => {
     const b = document.createElement('button'); b.type = 'button';
+    b.dataset.teamRole = role;
     b.setAttribute('aria-pressed', String(role === selected)); b.dataset.state = states[role];
+    if (needsYou(role)) b.dataset.needsYou = 'true';
     b.style.setProperty('--role-color',roleColor(role));
     const avatar = document.createElement('img'); avatar.src=agents[i].src; avatar.alt=''; avatar.className='team-agent-avatar';
     const copy = document.createElement('span'); copy.className='team-agent-copy'; copy.textContent=name(role);
     const status = document.createElement('small'); status.textContent=`${t(states[role])} · ${actionLabel(role)}${metadata[role]?.parent?' · '+name(metadata[role].parent):''}${metadata[role]?.model?' · '+metadata[role].model:''}`;
     b.append(avatar,copy,status); b.onclick=()=>{selected=role;render();}; return b;
-  }));
+  });
+  replaceAgentButtons(agentList, agentButtons, focusedRole);
   $('teamActivity').replaceChildren(...activity.slice().reverse().map(e => {
     const li=document.createElement('li');li.textContent=`${e.time}  ${t(e.type)}${e.agent?' / '+name(e.agent):''}${e.to?' → '+name(e.to):''}${e.message?' · '+e.message:''}`;return li;
   }));
@@ -79,19 +99,28 @@ function position(i,now){
   }
   const stationary={x:home[0],y:home[1],moving:false};
   if(reducedMotion.matches||states[role]==='working'||states[role]==='waiting')return stationary;
-  const phase=(now/1000+i*4.7)%24,coffee=[460+(i%3)*50,350+(i%2)*20];
-  if(phase<3)return along([home,[512,home[1]],coffee],phase/3);
+  // Keep idle agents on their own part of the floor: a shared central
+  // coffee point made several sprites stack on top of each other.
+  const phase=(now/1000+i*4.7)%24,coffee=[home[0]+(i%2?70:-70),home[1]];
+  if(phase<3)return along([home,coffee],phase/3);
   if(phase<7)return {x:coffee[0],y:coffee[1],moving:false};
-  if(phase<10)return along([coffee,[512,home[1]],home],(phase-7)/3);
+  if(phase<10)return along([coffee,home],(phase-7)/3);
   return stationary;
 }
 function drawAgent(i,now){
   const sprite=agents[i],p=position(i,now),scale=i<4?3.2:2.5,sw=sprite.naturalWidth,sh=sprite.naturalHeight;
   const w=sw*scale,h=sh*scale,bob=p.moving?Math.abs(Math.sin(now/105+i))*4:Math.sin(now/260+i)*1;
-  const left=p.x-w/2,top=p.y-h+bob-(roles[i]==='builder'&&states[roles[i]]==='working'?28:0);
+  const roleState=states[roles[i]];
+  // Qui acaba rep un bot discret amb resplendor de sol: la nostra manera de
+  // celebrar-ho, sense copiar els salts d'agent-office. Quiet amb moviment reduït.
+  const finishBounce=roleState==='completed'&&!reducedMotion.matches?-Math.abs(Math.sin(now/430+i*1.7))*6:0;
+  const left=p.x-w/2,top=p.y-h+bob+finishBounce-(roles[i]==='builder'&&roleState==='working'?28:0);
   if(!sprite.complete||!sprite.naturalWidth)return;
-  if(states[roles[i]]==='working'){
+  if(roleState==='working'){
     ctx.fillStyle='rgba(255,190,92,.34)';ctx.beginPath();ctx.ellipse(p.x,p.y-4,27,13,0,0,Math.PI*2);ctx.fill();
+  }
+  if(roleState==='completed'){
+    ctx.fillStyle='rgba(244,205,123,.5)';ctx.beginPath();ctx.ellipse(p.x,p.y-4,24,11,0,0,Math.PI*2);ctx.fill();
   }
   ctx.imageSmoothingEnabled=false;
   ctx.drawImage(sprite,left,top,w,h);
@@ -110,6 +139,15 @@ function drawAgent(i,now){
   ctx.font='14px sans-serif';const bw=Math.min(210,Math.max(...lines.map(line=>ctx.measureText(line.trim()).width))+22),bh=lines.length*21+12;
   const bx=Math.max(6,Math.min(1018-bw,p.x-bw/2)),by=p.y-h-bh-12;
   ctx.fillStyle=actions[roles[i]]==='discussion'?'#fff0d9':'#ffffff';ctx.fillRect(bx,by,bw,bh);ctx.strokeStyle=roleColor(roles[i]);ctx.lineWidth=2;ctx.strokeRect(bx,by,bw,bh);ctx.fillStyle=roleColor(roles[i]);ctx.fillRect(bx,by,4,bh);ctx.beginPath();ctx.moveTo(p.x-5,by+bh);ctx.lineTo(p.x,by+bh+8);ctx.lineTo(p.x+5,by+bh);ctx.fill();ctx.fillStyle='#203e35';lines.forEach((line,j)=>ctx.fillText(line.trim(),bx+bw/2,by+23+j*21));
+  // Balisa d'atenció: rombe de terracota amb «!» sobre la bafarada quan
+  // l'agent espera una decisió. Polsa suaument, o resta fix amb moviment reduït.
+  if(needsYou(roles[i])){
+    const pulse=reducedMotion.matches?0:Math.sin(now/300+i)*0.14;
+    const s=12*(1+pulse),cx=bx+bw/2,cy=Math.max(16,by-20);
+    ctx.save();ctx.beginPath();ctx.moveTo(cx,cy-s);ctx.lineTo(cx+s,cy);ctx.lineTo(cx,cy+s);ctx.lineTo(cx-s,cy);ctx.closePath();
+    ctx.fillStyle='#b3542e';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#fffaf0';ctx.stroke();
+    ctx.fillStyle='#fffaf0';ctx.font='700 15px sans-serif';ctx.textAlign='center';ctx.fillText('!',cx,cy+5.5);ctx.restore();
+  }
 }
 function drawRoleProp(role,p,now){
   const wave=reducedMotion.matches?0:Math.sin(now/210);
@@ -139,18 +177,57 @@ function drawRoleProp(role,p,now){
   }
 }
 function background(now=0){
-  ctx.fillStyle='#dae8df';ctx.fillRect(0,0,1024,540);
-  ctx.fillStyle='#cadbd3';for(let y=0;y<540;y+=36)for(let x=0;x<1024;x+=36)if((x/36+y/36)%2===0)ctx.fillRect(x,y,36,36);
-  ctx.fillStyle='#edf4ef';ctx.fillRect(0,0,1024,72);ctx.fillStyle='#748f87';ctx.fillRect(0,70,1024,7);
+  const style=getComputedStyle($('teamPage'));
+  const color=(key,fallback)=>style.getPropertyValue(key).trim()||fallback;
+  const wall=color('--team-wall','#e8d7bd');
+  ctx.fillStyle=wall;ctx.fillRect(0,0,1024,540);
+  // Sun-warmed lime plaster with a quiet hand-finished texture.
+  ctx.fillStyle='rgba(255,250,231,.18)';
+  for(let y=14;y<340;y+=38)for(let x=(y%3)*17+12;x<1010;x+=73)ctx.fillRect(x,y,2,2);
+  ctx.fillStyle=color('--team-window','#9b704d');ctx.fillRect(0,0,1024,12);
+  ctx.fillStyle=color('--team-terracotta','#ad6448');ctx.fillRect(0,337,1024,5);
+
+  // Three deep-set arched openings frame a calm strip of Mediterranean sea.
+  const arch=(cx,top,width,height)=>{
+    const x=cx-width/2,r=width/2,bottom=top+height;
+    const shape=()=>{ctx.beginPath();ctx.moveTo(x,bottom);ctx.lineTo(x,top+r);ctx.quadraticCurveTo(x,top,cx,top);ctx.quadraticCurveTo(x+width,top,x+width,top+r);ctx.lineTo(x+width,bottom);ctx.closePath();};
+    ctx.save();shape();ctx.fillStyle=color('--team-window','#9b704d');ctx.fill();
+    const inset=9,ix=x+inset,iw=width-inset*2,ir=iw/2,itop=top+inset,ibottom=bottom-inset;
+    ctx.beginPath();ctx.moveTo(ix,ibottom);ctx.lineTo(ix,itop+ir);ctx.quadraticCurveTo(ix,itop,cx,itop);ctx.quadraticCurveTo(ix+iw,itop,ix+iw,itop+ir);ctx.lineTo(ix+iw,ibottom);ctx.closePath();ctx.clip();
+    const sky=ctx.createLinearGradient(0,itop,0,ibottom);sky.addColorStop(0,color('--team-sky','#b9d9d5'));sky.addColorStop(.58,color('--team-sky','#b9d9d5'));sky.addColorStop(.59,color('--team-sea-light','#74b5aa'));sky.addColorStop(1,color('--team-sea-dark','#397d7e'));
+    ctx.fillStyle=sky;ctx.fillRect(ix,itop,iw,ibottom-itop);
+    ctx.fillStyle=color('--team-sun','#f4cd7b');ctx.beginPath();ctx.arc(cx+width*.23,itop+height*.3,11,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle=color('--team-sage','#829883');ctx.beginPath();ctx.moveTo(ix,top+height*.63);ctx.quadraticCurveTo(cx-width*.23,top+height*.48,cx,top+height*.64);ctx.quadraticCurveTo(cx+width*.25,top+height*.55,ix+iw,top+height*.65);ctx.lineTo(ix+iw,ibottom);ctx.lineTo(ix,ibottom);ctx.fill();
+    ctx.strokeStyle='rgba(246,239,213,.48)';ctx.lineWidth=2;
+    for(let wave=0;wave<3;wave++){const yy=top+height*(.72+wave*.07);ctx.beginPath();ctx.moveTo(ix+8,yy);ctx.quadraticCurveTo(cx,yy-4,ix+iw-8,yy);ctx.stroke();}
+    ctx.restore();
+    ctx.strokeStyle=color('--team-plaster','#f4ead7');ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(cx,top+15);ctx.lineTo(cx,bottom-4);ctx.moveTo(x+7,top+height*.64);ctx.lineTo(x+width-7,top+height*.64);ctx.stroke();
+    ctx.fillStyle=color('--team-window','#9b704d');ctx.fillRect(x-5,bottom-1,width+10,8);
+  };
+  arch(512,19,142,156);
+  arch(318,39,104,125);arch(706,39,104,125);
+
+  // Terracotta floor, scored into broad handmade tiles with a perspective fan.
+  ctx.fillStyle=color('--team-floor','#bd7658');ctx.fillRect(0,342,1024,198);
+  ctx.fillStyle='rgba(255,232,197,.12)';ctx.fillRect(0,342,1024,5);
+  ctx.strokeStyle=color('--team-floor-line','rgba(111,58,43,.24)');ctx.lineWidth=1;
+  for(let y=362;y<540;y+=29){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(1024,y);ctx.stroke();}
+  for(let x=-400;x<1500;x+=128){ctx.beginPath();ctx.moveTo(512+(x-512)*.22,342);ctx.lineTo(x,540);ctx.stroke();}
   ctx.imageSmoothingEnabled=false;
   const tile=(sx,sy,sw,sh,x,y,scale=3)=>{if(office.naturalWidth)ctx.drawImage(office,sx,sy,sw,sh,x,y,sw*scale,sh*scale);};
-  tile(180,126,28,34,460,8,1.7);tile(168,64,16,20,45,14,2.5);tile(168,64,16,20,940,14,2.5);
+  // The old sprite sheet's tiny wall decorations sat across the arches; the
+  // arches now provide the room's windows while the desks remain sprite based.
   const colors=['#d18a50','#489fa6','#8374b3','#65965c'];
-  homes.slice(0,4).forEach(([x,y],i)=>{ctx.fillStyle=colors[i];ctx.fillRect(x-100,y-145,200,5);tile(84,46,26,16,x-50,y-128,4);tile(232,104,24,28,x+20,y-138,2);});
+  homes.slice(0,4).forEach(([x,y],i)=>{ctx.fillStyle=colors[i];ctx.fillRect(x-100,y-65,200,5);tile(84,46,26,16,x-50,y-48,4);tile(232,104,24,28,x+20,y-58,2);});
   roles.forEach((role,i)=>{if(states[role]!=='working'||role==='builder')return;const [x,y]=homes[i],kind=actions[role];if(kind==='web'){
-    ctx.fillStyle='#526b71';ctx.fillRect(x+42,y-134,114,79);ctx.fillStyle='#f4faf8';ctx.fillRect(x+46,y-130,106,69);ctx.fillStyle='#dce9e5';ctx.fillRect(x+49,y-126,100,14);ctx.textAlign='left';ctx.font='10px sans-serif';ctx.fillStyle='#25483e';ctx.fillText('Search · DEMO',x+52,y-115);ctx.fillStyle='#698baf';ctx.fillRect(x+52,y-104,85,3);ctx.fillRect(x+52,y-87,73,3);ctx.fillStyle='#b1c2b9';ctx.fillRect(x+52,y-98,92,2);ctx.fillRect(x+52,y-81,89,2);return;
-  }if(role==='researcher'||role==='coordinator'||role==='reviewer')return;ctx.fillStyle='#102921';ctx.fillRect(x+48,y-133,68,46);ctx.textAlign='left';ctx.font='9px monospace';ctx.fillStyle='#83ff94';['> '+(kind||'draft'),'... context','... evidence','... response'].forEach((line,j)=>ctx.fillText(line.slice(0,12),x+51,y-122+j*10));});
-  tile(120,64,32,18,455,385,3);ctx.fillStyle='#345b50';ctx.font='16px sans-serif';ctx.textAlign='center';ctx.fillText(lang()==='ca'?'Punt de trobada':'Meeting point',512,477);
+    ctx.fillStyle='#526b71';ctx.fillRect(x+42,y-61,114,79);ctx.fillStyle='#f4faf8';ctx.fillRect(x+46,y-57,106,69);ctx.fillStyle='#dce9e5';ctx.fillRect(x+49,y-53,100,14);ctx.textAlign='left';ctx.font='10px sans-serif';ctx.fillStyle='#25483e';ctx.fillText('Search · DEMO',x+52,y-42);ctx.fillStyle='#698baf';ctx.fillRect(x+52,y-31,85,3);ctx.fillRect(x+52,y-14,73,3);ctx.fillStyle='#b1c2b9';ctx.fillRect(x+52,y-25,92,2);ctx.fillRect(x+52,y-8,89,2);return;
+  }if(role==='researcher'||role==='coordinator'||role==='reviewer')return;ctx.fillStyle='#102921';ctx.fillRect(x+48,y-63,68,46);ctx.textAlign='left';ctx.font='9px monospace';ctx.fillStyle='#83ff94';['> '+(kind||'draft'),'... context','... evidence','... response'].forEach((line,j)=>ctx.fillText(line.slice(0,12),x+51,y-52+j*10));});
+  tile(120,64,32,18,455,400,3);
+  const meetingLabel=lang()==='ca'?'Punt de trobada':'Meeting point';
+  ctx.font='600 16px sans-serif';ctx.textAlign='center';
+  const meetingWidth=ctx.measureText(meetingLabel).width+22;
+  ctx.fillStyle='#fffaf0';ctx.fillRect(512-meetingWidth/2,486,meetingWidth,27);
+  ctx.fillStyle='#29463d';ctx.fillText(meetingLabel,512,505);
 }
 function drawFrame(now){
   raf=0;if(!visible||document.hidden)return;
@@ -177,7 +254,7 @@ function draw(){
   }
 }
 function receive(e){
-  if(e.type==='spawn'&&e.agent&&!roles.includes(e.agent)&&roles.includes(e.parent)&&roles.length<8){roles.push(e.agent);const i=roles.length-5;homes.push([390+(i%2)*235,230+Math.floor(i/2)*210]);agents.push(agents[roles.indexOf(e.parent)%4]);states[e.agent]='waiting';metadata[e.agent]={parent:e.parent,name:e.name||e.agent,model:e.model};}
+  if(e.type==='spawn'&&e.agent&&!roles.includes(e.agent)&&roles.includes(e.parent)&&roles.length<8){roles.push(e.agent);const i=roles.length-5;homes.push([205+(i%3)*305,420]);agents.push(agents[roles.indexOf(e.parent)%4]);states[e.agent]='waiting';metadata[e.agent]={parent:e.parent,name:e.name||e.agent,model:e.model};}
   if(e.agent&&!roles.includes(e.agent))return;
   if(e.agent){if(e.activity&&['working','discussion','spawn'].includes(e.type))actions[e.agent]=e.activity;if(e.message)bubbles[e.agent]=e.message;if(e.model)metadata[e.agent]={...metadata[e.agent],model:e.model};}
   if(e.type==='working'){states[e.agent]='working';overall='working';selected=e.agent;}
@@ -246,8 +323,32 @@ function startDemo(){
   const next=()=>{const [at,event]=events[index++];receive(event);previous=at;if(index<events.length)demoTimer=setTimeout(next,events[index][0]-previous);else{controller=null;demoTimer=null;render();}};render();next();
 }
 $('teamStop').onclick=()=>{if(demo&&controller){clearTimeout(demoTimer);demoTimer=null;controller.abort();controller=null;receive({type:'cancelled'});}else controller?.abort();};
+// Accés directe: el botó «Qui em necessita?» salta al següent agent pendent
+// de decisió (cua tancada), l'obre al panell lateral i hi posa el focus.
+// És l'equivalent a la tecla N d'agent-office, amb l'estil propi de Gregal.
+function goToAgent(role){
+  selected=role;render();
+  const btn=$('teamAgents').querySelector(`[data-team-role="${CSS.escape(role)}"]`);
+  btn?.focus({preventScroll:false});
+  if(window.innerWidth<760)$('teamSelected').scrollIntoView({block:'nearest',behavior:reducedMotion.matches?'auto':'smooth'});
+}
+function goToNextAttention(){
+  const next=nextAttention(roles,states,selected);
+  if(next)goToAgent(next);
+}
+$('teamNeedsMe').onclick=goToNextAttention;
+document.addEventListener('keydown',event=>{
+  if(event.ctrlKey||event.metaKey||event.altKey)return;
+  if(event.key!=='n'&&event.key!=='N')return;
+  if($('teamPage').hidden)return;
+  const target=event.target;
+  if(target instanceof HTMLElement&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)))return;
+  event.preventDefault();goToNextAttention();
+});
 window.addEventListener('pagehide',()=>{clearTimeout(demoTimer);controller?.abort();});
-canvas.addEventListener('click',event=>{const box=canvas.getBoundingClientRect(),x=(event.clientX-box.left)*1024/box.width,y=(event.clientY-box.top)*sceneHeight/box.height;const i=roles.findIndex((role,index)=>{const p=position(index,performance.now());return Math.abs(x-p.x)<45&&y>p.y-100&&y<p.y+45;});if(i>=0){selected=roles[i];render();}});
+// Clicar el personatge obre la seva conversa, activitat i resultat al panell
+// lateral (en mòbil, el detall puja a la vista).
+canvas.addEventListener('click',event=>{const box=canvas.getBoundingClientRect(),x=(event.clientX-box.left)*1024/box.width,y=(event.clientY-box.top)*sceneHeight/box.height;const i=roles.findIndex((role,index)=>{const p=position(index,performance.now());return Math.abs(x-p.x)<45&&y>p.y-100&&y<p.y+45;});if(i>=0)goToAgent(roles[i]);});
 document.addEventListener('gregal:idioma',render);
 new ResizeObserver(draw).observe(canvas);
 const pageObserver=new IntersectionObserver(entries=>{

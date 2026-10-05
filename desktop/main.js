@@ -30,6 +30,7 @@ const { startServer } = require("./server-manager");
 const { loadState, saveState } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, localServiceURL, trustedPage } = require('./navigation');
+const { createUpdater } = require('./updater');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
 if (!externalURL(BASE)) throw new Error('GREGAL_URL must be an HTTP(S) URL without embedded credentials');
@@ -44,6 +45,8 @@ let backend = null;
 let managedPortChosen = false;
 let expectedInstanceID = null;
 let ignoreDescriptorOnce = false;
+let updateController = null;
+let updateCheckStarted = false;
 
 function serviceDescriptorPath() {
     const dir = process.env.GREGAL_DATA_DIR || path.join(app.getPath("home"), ".local", "share", "gregal");
@@ -283,6 +286,12 @@ function wireIPC(getWin) {
         new Notification({ title: title || "Gregal", body: body || "" }).show();
         return true;
     });
+    const updateAction = (name, action) => ipcMain.handle(name, event => trusted(event) ? action() : null);
+    updateAction('gregal:update-status', () => updateController?.getStatus() || null);
+    updateAction('gregal:update-check', () => updateController?.check() || null);
+    updateAction('gregal:update-download', () => updateController?.download() || null);
+    updateAction('gregal:update-install', () => updateController?.install() || null);
+    updateAction('gregal:update-page', () => updateController?.openPage() || null);
 }
 
 async function createWindow() {
@@ -479,31 +488,29 @@ async function createWindow() {
 // ha versió nova i avisa. Sense el paquet, l'app funciona igual: no és
 // una dependència dura per a `npm start`.
 function setupUpdater(win) {
-    if (!app.isPackaged || process.env.GREGAL_NO_UPDATE || process.env.PORTABLE_EXECUTABLE_FILE) return;
-    // Portable builds have no updater manifest; users replace the EXE.
-    if (!fs.existsSync(path.join(process.resourcesPath, 'app-update.yml'))) return;
-    let updater;
-    try {
-        updater = require("electron-updater").autoUpdater;
-    } catch (error) {
-        return;
-    }
-    updater.autoDownload = true;
-    const isEn = idiomaApp() === "en";
-    updater.on("update-downloaded", info => {
-        win.webContents.send("gregal:update", { state: "ready", version: info?.version || "" });
-        dialog.showMessageBox(win, {
-            type: "info",
-            message: (isEn ? "A new version of Gregal is available" : "Hi ha una versió nova del Gregal") + (info?.version ? " (" + info.version + ")" : ""),
-            detail: isEn ? "It will be installed when restarting the application." : "S'instal·larà en reiniciar l'aplicació.",
-            buttons: isEn ? ["Restart now", "Later"] : ["Reinicia ara", "Més tard"],
-            defaultId: 0,
-        }).then(res => {
-            if (res.response === 0) updater.quitAndInstall();
-        });
+    if (!updateController) updateController = createUpdater({
+        app, platform: process.platform, env: process.env, resourcesPath: process.resourcesPath,
+        openExternal: url => shell.openExternal(url),
+        stopBackend: async () => {
+            if (!MANAGED || !backend || backend.killed) return;
+            const child = backend;
+            await new Promise(resolve => {
+                const timer = setTimeout(() => { child.kill(); resolve(); }, 2500);
+                child.once('exit', () => { clearTimeout(timer); resolve(); });
+                child.kill('SIGTERM');
+            });
+            if (backend === child) backend = null;
+        },
     });
-    updater.on("error", error => console.error("[gregal] update: " + error.message));
-    updater.checkForUpdates().catch(() => {});
+    const unsubscribe = updateController.onStatus(status => {
+        if (!win.isDestroyed()) win.webContents.send('gregal:update', status);
+    });
+    win.once('closed', unsubscribe);
+    win.webContents.once('did-finish-load', () => {
+        if (updateCheckStarted) return;
+        updateCheckStarted = true;
+        void updateController.check();
+    });
 }
 
 app.whenReady().then(createWindow);

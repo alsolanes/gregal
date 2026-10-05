@@ -209,6 +209,56 @@ func TestLengthTallatMarcaSegonsTextVisible(t *testing.T) {
 	}
 }
 
+func TestChatWithToolsRetriesTruncatedToolCall(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id, arguments, finish := "ok", `{"x":1}`, "tool_calls"
+		if calls.Add(1) == 1 {
+			id, arguments, finish = "bad", `{"x":`, "length"
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{
+			"message": map[string]any{"tool_calls": []any{map[string]any{
+				"id": id, "type": "function", "function": map[string]string{"name": "run", "arguments": arguments},
+			}}}, "finish_reason": finish,
+		}}})
+	}))
+	defer srv.Close()
+
+	_, got, err := New().ChatWithTools(context.Background(), srv.URL, "", "m", nil, 0, 512, nil)
+	if err != nil || len(got) != 1 || got[0].ID != "ok" {
+		t.Fatalf("calls=%+v err=%v", got, err)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected one bounded recovery retry, got %d calls", calls.Load())
+	}
+}
+
+func TestOptInStreamRecoveryDoesNotDuplicatePartialText(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		if attempts.Add(1) == 1 {
+			fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"partial"}}]}`+"\n\n")
+			fmt.Fprint(w, `data: {"choices":[{"delta":{},"finish_reason":"length"}]}`+"\n\n")
+		} else {
+			fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"complete"}}]}`+"\n\n")
+			fmt.Fprint(w, `data: {"choices":[{"delta":{},"finish_reason":"stop"}]}`+"\n\n")
+		}
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	var emitted strings.Builder
+	out, _, err := New().ChatStreamWithTools(WithRecoverTruncation(context.Background()), srv.URL, "", "m", nil, 0, 512, nil,
+		func(s string) { emitted.WriteString(s) }, nil)
+	if err != nil || out != "complete" || emitted.String() != "complete" {
+		t.Fatalf("out=%q emitted=%q err=%v", out, emitted.String(), err)
+	}
+	if attempts.Load() != 2 {
+		t.Fatalf("expected one recovery retry, got %d calls", attempts.Load())
+	}
+}
+
 // L'escalada recupera al tercer intent: el raonament és no-determinista i
 // amb un sol doblatge un segon pensament llarg tornava a tallar.
 func TestRetryLengthRecuperaAlTercerIntent(t *testing.T) {
@@ -302,7 +352,8 @@ func TestRetryLengthSaltaACobrirElPensament(t *testing.T) {
 // El suggeriment creix amb el raonament observat: 6145 caràcters de
 // pensament (el cas real) demanen 8192, no un genèric «puja-ho».
 
-func TestSuggeritSegonsRaonament(t *testing.T) {	casos := map[int]int{
+func TestSuggeritSegonsRaonament(t *testing.T) {
+	casos := map[int]int{
 		0:     4096,
 		8:     4096,
 		6145:  8192,
