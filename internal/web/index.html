@@ -2407,7 +2407,6 @@ function paintMode(mode) {
   const advanced = $('advancedModes');
   if (advanced) {
     const special = mode === 'goal' || mode === 'autonomous';
-    advanced.open = special;
     advanced.dataset.active = String(special);
     const label = $('advancedModeSummary');
     if (label) label.textContent = gregalT('mode.advanced') + (special ? ' · ' + gregalT(mode === 'goal' ? 'mode.goalActive' : 'mode.autonomousActive') : '');

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.7.5 — 2026-10-05 — Modes simplificats i continuïtat de sessions
+
+- El desplegable de modes avançats conserva l’obertura escollida per l’usuari
+  durant els refrescos d’estat.
 - Entrada simplificada amb «Fer una tasca» i «Conversar», modes especials
   desplegables i selecció de rols dins de les opcions avançades.
 - Detecció de models limitada al rol actiu per evitar esperes de proveïdors aliens.
