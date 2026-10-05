@@ -3502,6 +3502,7 @@ if (window.gregalDesktop && window.gregalDesktop.frameless) {
   if (window.gregalDesktop.platform === 'darwin') document.body.classList.add('mac');
 }
 window.gregal = {
+  configureProviders: () => toggleProv(true),
   api, refresh, marcaOffline, sys, activityItem, setView, setMode, nextMode, md, add, onSessionSwitch,
   isBusy: () => sending || !!state.agent_busy,
   newChat: novaConversa,

@@ -128,6 +128,19 @@ una maquina amb dades sensibles; utilitza un entorn aillat.
 
 ## Referències
 
+### Prototips Web
+
+A Equip, tria Crea una web, adapta la tasca, configura un model i inicia
+l'equip. Els rols col.laboren amb text i codi, sense eines externes. Selecciona
+el constructor o el revisor per obrir un HTML complet al panell lateral o
+descarregar-lo com `website.html`. Els documents parcials no ofereixen preview.
+La demo local es una simulacio i no utilitza cap provider.
+
+La preview executa l'HTML en un iframe sense acces al mateix origen, amb CSP
+que restringeix recursos externs, fetch i formularis. No es un sandbox complet
+ni un desplegament. Revisa el codi abans d'obrir l'HTML descarregat fora de la
+preview o publicar-lo.
+
 - [Primers passos](getting-started.ca.md)
 - [Contracte de l'API HTTP](api-contract.md)
 - [Notes de compatibilitat](compatibility.md)

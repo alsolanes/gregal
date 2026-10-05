@@ -112,3 +112,7 @@
 @media(prefers-reduced-motion:reduce) {
   #teamPage *, #teamPage *::before, #teamPage *::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
 }
+#teamArtifactTools { display:flex; flex-wrap:wrap; gap:8px; margin:8px 0; }
+#teamArtifactTools:empty { display:none; }
+#teamArtifactTools button { padding:7px 10px; border:1px solid var(--line-hi); border-radius:4px; background:var(--panel); color:var(--ink); font:inherit; cursor:pointer; }
+#teamArtifactTools button:hover { border-color:var(--accent); color:var(--accent); }
