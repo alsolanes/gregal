@@ -33,9 +33,9 @@ jobs:
       - run: node scripts/audit-public.cjs
       - run: go test ./...
       - run: go vet ./...
-      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
       - run: npm ci
         working-directory: desktop
+      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
       - run: node node_modules/electron/install.js
         working-directory: desktop
       - run: npm audit --audit-level=high
