@@ -74,6 +74,18 @@ listeners unless a token or user authentication is configured. The server
 does not provide TLS; configure HTTPS before making it reachable outside a
 trusted local machine.
 
+## 2D Workshop
+
+The sidebar's **2D workshop** view represents open sessions as workstations.
+Each station shows its project and whether the session is working, idle,
+or waiting for a response. Select a station to open its conversation;
+**Who needs me?** opens the first session with a pending interaction known
+to the current browser.
+
+Stations reuse existing sessions. Attention alerts depend on questions and
+approvals received by this client; they are not a global record of pending
+interactions from other browsers.
+
 ## Data and Tool Execution
 
 Prompts, conversation context, and any code or files included in a model

@@ -1324,9 +1324,9 @@ func (s *Server) flushTokensLocked() {
 }
 
 // interactiveEventPayload conserva només el contracte necessari per reprendre
-// una aprovació o una pregunta des d'un client que s'ha reconnectat. No desa
-// camps arbitraris del valor SSE, que podrien contenir metadades o secrets no
-// necessaris per pintar la interacció.
+// una aprovació, una pregunta o pintar un checkpoint des d'un client que s'ha
+// reconnectat. No desa camps arbitraris del valor SSE, que podrien contenir
+// metadades o secrets no necessaris per pintar la interacció.
 func interactiveEventPayload(event string, value any) json.RawMessage {
 	var allowed []string
 	switch event {
@@ -1342,6 +1342,8 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 		allowed = []string{"text"}
 	case "blocked":
 		allowed = []string{"id", "reason"}
+	case "autonomous_checkpoint":
+		allowed = []string{"number", "checks", "review"}
 	default:
 		return nil
 	}

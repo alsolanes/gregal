@@ -12,6 +12,8 @@ func TestShellAssetsHaveBrowserUsableContentTypes(t *testing.T) {
 	mux := s.Hub().mux()
 	for _, asset := range []struct{ path, contentType string }{
 		{"/app/polish.css", "text/css"},
+		{"/app/workshop.css", "text/css"},
+		{"/app/workshop.js", "text/javascript"},
 		{"/app/shell-icons.js", "text/javascript"},
 		{"/app/desktop-prefs.js", "text/javascript"},
 		{"/app/desktop-updates.js", "text/javascript"},

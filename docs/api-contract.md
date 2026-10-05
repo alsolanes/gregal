@@ -161,6 +161,13 @@ The approval payload contains only `{key,call_id,name,args}`; the question
 payload contains `{key,call_id,query,options}`. Older events have only `text`
 and no `payload`.
 
+Autonomous runs also emit `autonomous_checkpoint` with a structured durable
+`payload`: `{number, checks:[{command,code,output?}], review}`. The same data
+is available through event polling and SSE replay, even when the event's
+display `text` is shortened. A zero `code` means the check passed; a missing
+or invalid code does not establish a result. Older events may contain only
+JSON in `text`; clients should ignore checkpoint details they cannot parse.
+
 ## Shared Run Queue
 
 All turns (web, delegated TUI and API v2) use the same service queue. A session

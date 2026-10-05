@@ -1,0 +1,563 @@
+/* El taller és una sala viva, però la feina continua sent fàcil de llegir. */
+.workshop-root,
+.workshop {
+  --workshop-mint: var(--accent);
+  --workshop-wood: color-mix(in srgb, #9b704d 27%, var(--surface));
+  --workshop-wood-hi: color-mix(in srgb, #bb8b61 36%, var(--surface));
+  --workshop-clay: color-mix(in srgb, #b76148 68%, var(--accent));
+  --workshop-floor: color-mix(in srgb, var(--workshop-wood) 42%, var(--bg));
+  --workshop-card: color-mix(in srgb, var(--surface) 92%, var(--accent));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 275px);
+  grid-template-areas: "head head" "error error" "stage queue";
+  align-items: start;
+  gap: 18px;
+  width: min(1360px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+  color: var(--text);
+}
+
+#workshopPage.workspace-page { padding: clamp(16px, 2vw, 24px); }
+
+.workshop-root *,
+.workshop * { box-sizing: border-box; }
+
+.workshop-header {
+  grid-area: head;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 2px 2px 0;
+}
+
+.workshop-error { grid-area: error; }
+
+.workshop-header h1,
+.workshop-header h2,
+.workshop-title {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(20px, 2.2vw, 27px);
+  font-weight: 620;
+  letter-spacing: -.035em;
+  line-height: 1.2;
+}
+
+.workshop-header p,
+.workshop-subtitle {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: var(--t2, 12.5px);
+  line-height: 1.5;
+}
+
+.workshop-summary,
+.workshop-needs {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.workshop-summary > *,
+.workshop-needs {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--surface);
+  font-size: var(--t1, 11.5px);
+  font-weight: 560;
+  white-space: nowrap;
+}
+
+.workshop-needs {
+  border-color: color-mix(in srgb, var(--amber) 48%, var(--line));
+  color: var(--ink);
+  background: color-mix(in srgb, var(--amber-soft) 72%, var(--surface));
+}
+
+.workshop-stage {
+  grid-area: stage;
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 220px));
+  justify-content: center;
+  align-content: start;
+  align-items: stretch;
+  gap: clamp(14px, 2vw, 24px);
+  min-width: 0;
+  min-height: 520px;
+  overflow: hidden;
+  padding: clamp(22px, 3vw, 38px);
+  padding-top: 220px;
+  border: 1px solid var(--line-hi);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, transparent 0 180px, color-mix(in srgb, var(--workshop-floor) 92%, transparent) 180px 100%),
+    radial-gradient(ellipse at 54% 86%, color-mix(in srgb, var(--workshop-wood) 34%, transparent), transparent 56%),
+    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 80%, var(--surface)), var(--workshop-card) 58%, color-mix(in srgb, var(--workshop-clay) 10%, var(--surface)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent), 0 12px 30px var(--ombra);
+}
+
+.workshop-stage::before {
+  position: absolute;
+  z-index: -1;
+  inset: auto 0 0;
+  height: calc(100% - 180px);
+  border-top: 1px solid color-mix(in srgb, var(--workshop-wood) 58%, transparent);
+  background: repeating-linear-gradient(0deg, transparent 0 28px, color-mix(in srgb, var(--workshop-wood) 12%, transparent) 29px 30px);
+  content: "";
+  pointer-events: none;
+}
+
+/* Una finestra d'arc, mar i sol, construïda amb CSS perquè s'adapti al tema. */
+.workshop-window,
+.workshop-view {
+  position: absolute;
+  z-index: 0;
+  top: 24px;
+  right: clamp(24px, 7vw, 82px);
+  width: clamp(132px, 20vw, 230px);
+  height: clamp(118px, 16vw, 174px);
+  overflow: hidden;
+  border: 9px solid var(--workshop-wood-hi);
+  border-bottom-width: 12px;
+  border-radius: 100px 100px 9px 9px;
+  background:
+    radial-gradient(circle at 71% 29%, color-mix(in srgb, var(--amber) 76%, #fff2bd) 0 8%, transparent 8.5%),
+    linear-gradient(180deg, color-mix(in srgb, var(--onada) 14%, #9ad9d6) 0 44%, color-mix(in srgb, var(--onada) 48%, #4b9d9a) 44% 72%, color-mix(in srgb, var(--accent) 58%, #317977) 72% 100%);
+  box-shadow: 0 6px 18px var(--ombra), inset 0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent);
+  pointer-events: none;
+}
+
+.workshop-window[aria-hidden="true"],
+.workshop-view[aria-hidden="true"] { user-select: none; }
+
+.workshop-window::before,
+.workshop-view::before {
+  position: absolute;
+  right: -8%;
+  bottom: 19%;
+  left: -8%;
+  height: 34%;
+  border-radius: 50% 50% 0 0 / 42% 42% 0 0;
+  background: color-mix(in srgb, var(--workshop-mint) 24%, #e4cf9f);
+  content: "";
+}
+
+.workshop-window::after,
+.workshop-view::after {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 47%, var(--workshop-wood-hi) 48% 52%, transparent 53%),
+    linear-gradient(180deg, transparent 48%, var(--workshop-wood-hi) 49% 53%, transparent 54%);
+  content: "";
+}
+
+.workshop-station {
+  --station-state: var(--muted);
+  --person-hair: color-mix(in srgb, #4a3027 72%, var(--ink));
+  --person-face: color-mix(in srgb, #e3b391 72%, var(--surface));
+  --person-neck: color-mix(in srgb, #d69d79 70%, var(--surface));
+  --person-shirt: color-mix(in srgb, var(--accent) 75%, var(--surface));
+  --person-ink: color-mix(in srgb, #3e2d29 76%, var(--ink));
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: 116px auto auto auto;
+  justify-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px 12px 10px;
+  border: 1px solid color-mix(in srgb, var(--workshop-wood-hi) 62%, var(--line));
+  border-radius: 18px 18px 12px 12px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--workshop-card) 91%, transparent);
+  box-shadow: 0 8px 18px var(--ombra), inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent);
+  text-align: center;
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
+}
+
+.workshop-station[data-state="busy"] { --station-state: var(--accent); }
+.workshop-station[data-state="waiting"] { --station-state: var(--amber); }
+.workshop-station[data-state="error"] { --station-state: var(--red); }
+.workshop-station[data-state="idle"] { --station-state: var(--green); }
+
+/* Paletes petites i fixes: cada estació té una persona amb roba pròpia. */
+.workshop-station:nth-child(4n + 2) { --person-hair:#594337; --person-shirt:#c96b4f; --person-face:#d7a17f; --person-neck:#c38a6b; }
+.workshop-station:nth-child(4n + 3) { --person-hair:#342a27; --person-shirt:#5c9d91; --person-face:#9b654b; --person-neck:#83513c; }
+.workshop-station:nth-child(4n + 4) { --person-hair:#77533d; --person-shirt:#c19a52; --person-face:#e7c3a5; --person-neck:#d1a17e; }
+.workshop-station:nth-child(4n + 5) { --person-hair:#463442; --person-shirt:#7088ad; --person-face:#c98f6d; --person-neck:#b5765b; }
+
+.workshop-station:hover,
+.workshop-station.is-selected {
+  transform: translateY(-3px);
+  border-color: var(--station-state);
+  box-shadow: 0 12px 25px var(--ombra), 0 0 0 2px color-mix(in srgb, var(--station-state) 20%, transparent);
+}
+
+.workshop-station:focus-visible,
+.workshop-queue button:focus-visible,
+.workshop-root button:focus-visible,
+.workshop-root a:focus-visible,
+.workshop-root [tabindex]:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 3px;
+}
+
+.workshop-station > * { min-width: 0; }
+.workshop-station h2,
+.workshop-station h3,
+.workshop-station .workshop-name {
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--t3, 14px);
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-station .workshop-name { grid-row: 2; }
+.workshop-station .workshop-status { grid-row: 3; }
+.workshop-station .workshop-details { grid-row: 4; }
+
+.workshop-figure {
+  display: grid;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  justify-items: center;
+  min-height: 0;
+  z-index: 0;
+}
+
+.workshop-person {
+  position: relative;
+  display: block;
+  align-self: end;
+  justify-self: center;
+  width: min(84px, 72%);
+  height: 108px;
+  overflow: visible;
+  filter: drop-shadow(0 5px 3px color-mix(in srgb, var(--ink) 12%, transparent));
+  transform-origin: 50% 100%;
+}
+
+.person-hair { fill: var(--person-hair); stroke: var(--person-ink); stroke-width: 1.1; stroke-linejoin: round; }
+.person-face { fill: var(--person-face); stroke: var(--person-ink); stroke-width: 1.1; }
+.person-eyes { fill: var(--person-ink); stroke: none; }
+.person-smile { fill: none; stroke: var(--person-ink); stroke-width: .9; stroke-linecap: round; }
+.person-neck { fill: var(--person-neck); stroke: var(--person-ink); stroke-width: .8; }
+.person-shirt { fill: var(--person-shirt); stroke: var(--person-ink); stroke-width: 1.2; stroke-linejoin: round; }
+.person-arm { fill: none; stroke: var(--person-face); stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
+.person-dots { fill: none; stroke: var(--person-ink); stroke-width: 1.8; stroke-linecap: round; }
+.workshop-station[data-state="busy"] .workshop-person { animation: workshop-bob 2.8s ease-in-out infinite; }
+.workshop-station[data-state="waiting"] { --person-shirt: color-mix(in srgb, var(--amber) 58%, var(--surface)); }
+.workshop-station[data-state="error"] { --person-shirt: color-mix(in srgb, var(--red) 44%, var(--surface)); }
+
+.workshop-desk {
+  grid-column: 1;
+  grid-row: 1;
+  z-index: 1;
+  align-self: end;
+  position: relative;
+  width: 100%;
+  min-height: 34px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--workshop-wood-hi) 70%, var(--line));
+  border-radius: 7px 7px 10px 10px;
+  color: var(--muted);
+  background: linear-gradient(180deg, var(--workshop-wood-hi) 0 35%, var(--workshop-wood) 36% 100%);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--workshop-wood) 85%, var(--ink));
+  font-size: var(--t1, 11.5px);
+  line-height: 1.45;
+}
+
+.workshop-screen {
+  position: absolute;
+  bottom: calc(100% + 5px);
+  left: 50%;
+  width: 46px;
+  height: 29px;
+  transform: translateX(-50%);
+  border: 4px solid color-mix(in srgb, var(--workshop-wood) 75%, #342e29);
+  border-bottom-width: 6px;
+  border-radius: 5px 5px 3px 3px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 80%, var(--surface-hi)), var(--surface));
+  box-shadow: 0 2px 5px var(--ombra), inset 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.workshop-screen::after {
+  position: absolute;
+  inset: 6px 5px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--onada) 42%, transparent);
+  content: "";
+}
+
+.workshop-details {
+  display: -webkit-box;
+  width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t1, 11.5px);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.workshop-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--station-state);
+  font-size: var(--t1, 11.5px);
+  font-weight: 580;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workshop-status::before {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
+  content: "";
+}
+
+.workshop-station[data-state="busy"] .workshop-status::before { animation: workshop-pulse 1.7s ease-out infinite; }
+.workshop-station[data-state="waiting"] .workshop-status::before { animation: workshop-pulse 2.3s ease-out infinite; }
+
+.workshop-queue {
+  grid-area: queue;
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-height: min(70vh, 760px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 8px 24px var(--ombra);
+  scrollbar-color: var(--line-hi) transparent;
+}
+
+.workshop-queue h2,
+.workshop-queue h3,
+.workshop-queue-title {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  margin: -16px -16px 2px;
+  padding: 15px 16px 12px;
+  border-bottom: 1px solid var(--line);
+  border-radius: 17px 17px 0 0;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: var(--t3, 14px);
+  font-weight: 630;
+}
+
+.workshop-queue .workshop-needs {
+  position: sticky;
+  top: -16px;
+  z-index: 1;
+  justify-content: space-between;
+  margin: -16px -16px 2px;
+  padding: 15px 16px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 17px 17px 0 0;
+  color: var(--ink);
+  background: var(--surface);
+  font-size: var(--t3, 14px);
+}
+
+.workshop-queue .workshop-needs::after {
+  display: inline-grid;
+  min-width: 22px;
+  height: 22px;
+  place-items: center;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  background: var(--bg);
+  content: attr(data-count);
+  font-size: var(--t1, 11.5px);
+}
+
+.workshop-queue-list { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.workshop-queue-marker { flex: none; color: var(--amber); font-size: 12px; line-height: 1.5; }
+.workshop-queue-label { min-width: 0; overflow-wrap: anywhere; }
+.workshop-queue-empty { color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.5; }
+
+.workshop-queue > *,
+.workshop-attention,
+.workshop-queue-item {
+  min-width: 0;
+}
+
+.workshop-attention,
+.workshop-queue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--bg);
+  font-size: var(--t2, 12.5px);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.workshop-queue-item::before {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 8px 1px 0;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 3px var(--amber-soft);
+  content: "";
+}
+
+.workshop-queue-item::before { display: none; }
+
+.workshop-attention[data-state="waiting"],
+.workshop-queue-item[data-state="waiting"] {
+  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
+  background: color-mix(in srgb, var(--amber-soft) 55%, var(--surface));
+}
+
+.workshop-attention[data-state="error"],
+.workshop-queue-item[data-state="error"] {
+  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
+  background: color-mix(in srgb, var(--red-soft) 62%, var(--surface));
+}
+
+.workshop-queue button:not(.workshop-queue-item),
+.workshop-root button:not(.workshop-station):not(.workshop-queue-item):not(.workshop-attention) {
+  min-height: 32px;
+  border: 1px solid var(--line-hi);
+  border-radius: 8px;
+  color: var(--text);
+  background: var(--surface-hi);
+  font: inherit;
+  cursor: pointer;
+}
+
+.workshop-queue button:not(.workshop-queue-item):hover,
+.workshop-root button:not(.workshop-station):not(.workshop-queue-item):not(.workshop-attention):hover { border-color: var(--accent); color: var(--ink); }
+.workshop-header .workshop-attention {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--line-hi);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--accent-soft);
+  font: inherit;
+  font-weight: 590;
+  cursor: pointer;
+}
+.workshop-header .workshop-attention:disabled { opacity: .68; cursor: default; }
+.workshop-header .workshop-error {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line));
+  border-radius: 9px;
+  background: var(--red-soft);
+  line-height: 1.45;
+}
+.workshop-queue .workshop-summary { margin: 0 0 5px; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.4; }
+.workshop-error { color: var(--red); }
+.workshop-empty { color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.55; }
+
+@keyframes workshop-bob {
+  0%, 100% { transform: translateY(0) rotate(-1deg); }
+  50% { transform: translateY(-4px) rotate(1deg); }
+}
+
+@keyframes workshop-pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 28%, transparent); }
+  100% { box-shadow: 0 0 0 7px transparent; }
+}
+
+@media (max-width: 980px) {
+  .workshop-root,
+  .workshop {
+    grid-template-columns: minmax(0, 1fr) 235px;
+    gap: 13px;
+    padding: 18px;
+  }
+  .workshop-stage { min-height: 480px; padding: 220px 18px 24px; }
+  .workshop-station { grid-template-rows: 108px auto auto auto; }
+  .workshop-person { width: min(86px, 75%); height: 108px; }
+}
+
+@media (max-width: 720px) {
+  .workshop-root,
+  .workshop {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "head" "error" "queue" "stage";
+    gap: 12px;
+    padding: 14px;
+  }
+  .workshop-header { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .workshop-summary,
+  .workshop-needs { justify-content: flex-start; }
+  .workshop-stage { min-height: 350px; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 220px)); gap: 12px; padding: 185px 14px 23px; }
+  .workshop-window,
+  .workshop-view { top: 17px; right: 50%; width: 158px; height: 138px; transform: translateX(50%); }
+  .workshop-station { grid-template-rows: 96px auto auto auto; padding: 9px 8px; }
+  .workshop-person { width: min(74px, 76%); height: 96px; }
+  .workshop-queue { position: static; max-height: none; }
+}
+
+@media (max-width: 390px) {
+  .workshop-root,
+  .workshop { padding: 10px; }
+  .workshop-stage { gap: 8px; padding-right: 10px; padding-left: 10px; }
+  .workshop-station { padding-right: 6px; padding-left: 6px; }
+  .workshop-station h2,
+  .workshop-station h3,
+  .workshop-station .workshop-name { font-size: var(--t2, 12.5px); }
+}
+
+@media (max-width: 480px) {
+  .workshop-stage { grid-template-columns: minmax(0, 220px); }
+  .workshop-station { width: 100%; justify-self: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workshop-root *,
+  .workshop * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

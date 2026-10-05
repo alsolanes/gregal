@@ -1298,6 +1298,7 @@ body.sense-inspector #inspector { display:none; }
 
 </style>
 <link rel="stylesheet" href="/app/polish.css">
+<link rel="stylesheet" href="/app/workshop.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
 <aside id="side">
@@ -1328,6 +1329,7 @@ body.sense-inspector #inspector { display:none; }
     <button class="nav-item side-view" data-view="fitxers"><span class="nav-icon">▤</span><span data-i18n="nav.files">Fitxers</span></button>
     <button class="nav-item side-view" data-view="terminal"><span class="nav-icon">▷</span><span data-i18n="nav.terminal">Terminal</span></button>
     <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Grafs</span></button>
+    <button class="nav-item side-view" data-view="workshop"><span class="nav-icon">▦</span><span data-i18n="nav.workshop">Taller 2D</span></button>
     <button class="nav-item side-view" data-view="navegador"><span class="nav-icon">◎</span><span>Navegador</span></button>
   </details>
   <div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true">⌃</button></div>
@@ -1652,6 +1654,20 @@ body.sense-inspector #inspector { display:none; }
           <option value="!last.error"></option>
         </datalist>
       </section>
+      <section class="workspace-page" id="workshopPage" hidden tabindex="-1">
+        <div id="workshopRoot" class="workshop-root" data-workshop-root>
+          <header class="workshop-header">
+            <div>
+              <div class="page-kicker" data-i18n="workshop.title">Taller 2D</div>
+              <h1 class="page-title" data-i18n="workshop.stage">Taller de sessions</h1>
+            </div>
+            <div class="workshop-error" data-workshop-error role="status" hidden></div>
+            <button class="primary workshop-attention" type="button" data-workshop-find data-i18n="workshop.find">Qui em necessita?</button>
+          </header>
+          <div class="workshop-stage" data-workshop-stage></div>
+          <div class="workshop-queue" data-workshop-queue></div>
+        </div>
+      </section>
       <footer id="composer">
         <button id="toBottom" hidden data-i18n-aria="btn.toBottom" data-i18n-title="btn.toBottom" aria-label="Ves al final de la conversa" title="Ves al final">↓ <span data-i18n="btn.toBottom">Al final</span></button>
         <!-- Damunt del camp: quant fa que dura el torn i què hi ha encuat.
@@ -1738,6 +1754,7 @@ const runningAgentSessions = new Set();
 const stoppedVisualSessions = new Set();
 const runVisualTokens = new Map();
 const runEventHandlers = new Map();
+const activeTurnSummaryCancel = new Map();
 const pendingInteractions = new Map();
 window.gregalPendingInteractions = pendingInteractions;
 let currentView = 'agent';
@@ -1765,7 +1782,8 @@ const sendLabel = () => sending && !input.value.trim() ? ICONA_ATURA : ICONA_ENV
 const mobile = matchMedia('(max-width:760px)');
 const escapeHTML = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function setView(view) {
-  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','terminal','navegador','grafs'].includes(view) ? view : 'agent';
+  const previousView = currentView;
+  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const agent = currentView === 'agent';
   hero.hidden = !agent; main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
@@ -1780,17 +1798,21 @@ function setView(view) {
   $('navegadorPage').hidden = currentView !== 'navegador';
   $('grafsPage').hidden = currentView !== 'grafs';
   $('teamPage').hidden = currentView !== 'team';
+  $('workshopPage').hidden = currentView !== 'workshop';
   // A Grafs l'espai és el producte: el llenç necessita amplada i
   // l'inspector de sessió no diu res que ajudi a dibuixar un graf.
-  $('inspector').hidden = currentView === 'grafs' || currentView === 'team';
+  $('inspector').hidden = currentView === 'grafs' || currentView === 'team' || currentView === 'workshop';
   document.body.classList.toggle('sense-inspector', !inspectorObert());
   const P = window.gregalPanels;
   if (P) {
+    if (previousView === 'workshop' && currentView !== 'workshop') P.workshop?.hide();
+    if (currentView === 'workshop' && previousView !== 'workshop') P.workshop?.show();
     if (currentView === 'canvis') P.changes.load();
     if (currentView === 'fitxers') P.files.load();
     if (currentView === 'terminal') P.term.load();
     if (currentView === 'grafs') { P.flows.load(); $('grafsPage').focus(); }
   }
+  if (currentView === 'workshop') $('workshopPage').focus();
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'mcp') loadMcpPage();
   document.querySelectorAll('[data-view]').forEach(b => {
@@ -2114,11 +2136,15 @@ function updateInspector(r) {
   $('branchSide').textContent = r.branch || '—';
   $('modelSide').textContent = r.provider + '/' + r.model;
   $('reviewerState').textContent = r.verify || 'off';
-  const working = visualWorking(r);
-  $('runState').textContent = gregalT(working ? 'estat.treballant' : ((r.mode === 'code' || r.mode === 'autonomous') ? 'estat.pot' : 'estat.lectura'));
-  $('statusMini').classList.toggle('busy', working);
+  const active = visualWorking(r);
+  const completed = !active && turnPhase === 'completed' && Date.now() < turnCompletedUntil;
+  const waiting = active && turnPhase === 'waiting';
+  const working = active && !waiting;
+  $('runState').textContent = gregalT(waiting ? 'estat.esperant' : completed ? 'estat.completat' : working ? 'estat.treballant' : ((r.mode === 'code' || r.mode === 'autonomous') ? 'estat.pot' : 'estat.lectura'));
+  $('runState').setAttribute('aria-live', waiting || completed ? 'assertive' : 'off');
+  $('statusMini').classList.toggle('busy', working || waiting);
   $('runStatePage').textContent = $('runState').textContent;
-  $('statusPage').classList.toggle('busy', working);
+  $('statusPage').classList.toggle('busy', working || waiting);
   // Una sola classe governa les tres animacions de la marea (docs/identitat.md):
   // l'onada a la capçalera, la cresta sobre "Agent treballant" i el batec del
   // mesurador. Regla: es mou només mentre hi ha feina.
@@ -2167,6 +2193,7 @@ function updateCtxGauge(r) {
 // això, i poder escriure el següent sense esperar-te. Abans, escriure amb
 // un torn en marxa et deixava bloquejat mirant «espero el meu torn».
 let turnT0 = 0, turnTick = null, turnNote = '';
+let turnPhase = 'idle', turnCompletedUntil = 0;
 const cua = [];
 
 function durada(ms) {
@@ -2176,8 +2203,13 @@ function durada(ms) {
 function pintaTurnBar() {
   const bar = $('turnBar'), t = $('turnTimer');
   if (!bar) return;
-  t.innerHTML = turnT0 ? '<span class="spin">◌</span> ' + gregalT('ui.turn.treballant') + ' · <b>' + durada(Date.now() - turnT0) + '</b>' + (turnNote ? ' · <span class="turn-note">' + escapeHTML(turnNote) + '</span>' : '') : '';
-  const totBuit = !turnT0 && !cua.length && !todoActual.length;
+  const visiblePhase = turnT0 ? turnPhase : (turnPhase === 'completed' && Date.now() < turnCompletedUntil ? 'completed' : 'idle');
+  const phaseLabel = visiblePhase === 'waiting' ? gregalT('estat.esperant') : visiblePhase === 'completed' ? gregalT('estat.completat') : visiblePhase === 'reconnecting' ? gregalT('estat.reconnectant') : gregalT('ui.turn.treballant');
+  const activeAction = turnNote ? ' · <span class="turn-note">' + escapeHTML(turnNote) + '</span>' : '';
+  t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + activeAction;
+  t.dataset.phase = visiblePhase;
+  t.setAttribute('aria-live', 'off');
+  const totBuit = visiblePhase === 'idle' && !cua.length && !todoActual.length;
   const llista = $('queueList');
   llista.innerHTML = cua.map((txt, i) =>
     '<div class="q-item"><b>' + gregalT('ui.cua.etiqueta') + '</b><span title="' + escapeHTML(txt) + '">' + escapeHTML(txt) + '</span>' +
@@ -2207,10 +2239,13 @@ function setSending(active, quiet = false) {
   if (active && !abans) stoppedVisualSessions.delete(window.gregalSession || 'default');
   if (active && !abans) {
     turnT0 = Date.now();
+    turnPhase = 'working'; turnCompletedUntil = 0;
     turnTick = setInterval(pintaTurnBar, 1000);
   } else if (!active && abans) {
     const ms = turnT0 ? Date.now() - turnT0 : 0;
     clearInterval(turnTick); turnTick = null; turnT0 = 0; turnNote = '';
+    if (turnPhase !== 'completed') turnPhase = 'idle';
+    else { turnCompletedUntil = Date.now() + 3500; setTimeout(() => { if (!turnT0 && Date.now() >= turnCompletedUntil) { turnPhase = 'idle'; pintaTurnBar(); updateInspector(state); } }, 3600); }
     if (!quiet) {
       if (ms > 4000) sys(gregalT('ui.trigat').replace('{n}', durada(ms)));
       todoAlTranscript();
@@ -2245,6 +2280,7 @@ function onSessionSwitch(id, st) {
 // El lector SSE viu mentre dura el torn per poder-lo avortar amb ■ o Esc.
 let currentReader = null, currentAbort = null;
 function stopTurn() {
+  activeTurnSummaryCancel.get(window.gregalSession || 'default')?.();
   stopRunVisuals(window.gregalSession || 'default');
   const control = window.gregalRunControls?.get(window.gregalSession || 'default');
   if (!control) {
@@ -2553,7 +2589,7 @@ async function api(url, opts, authRetried = false) {
   }
   return r;
 }
-async function stream(url, payload, onEvent) {
+async function stream(url, payload, onEvent, onLegacyEvent) {
   // La cua v2 és durable, però només s'usa quan el servidor anuncia events
   // d'interacció estructurats; així approve/question continuen tenint key i
   // opcions. Amb servidors actuals cau al lector SSE legacy sense duplicar el
@@ -2595,7 +2631,7 @@ async function stream(url, payload, onEvent) {
           const frame = buf.slice(0,i); buf = buf.slice(i+2); let data = '', ev = '';
           frame.split('\n').forEach(l => { if (l.startsWith('event:')) ev=l.slice(6).trim(); else if (l.startsWith('data:')) data+=l.slice(5).trim(); });
           if (ev && data) {
-            try { onEvent(ev, JSON.parse(data)); }
+            try { const parsed = JSON.parse(data); if (onLegacyEvent) onLegacyEvent(ev, parsed); onEvent(ev, parsed); }
             catch (e) { activityItem('error', 'Event malformat', String(e && e.message || e), 'bad'); }
           }
         }
@@ -2713,6 +2749,8 @@ async function doAgent(task) {
   const text = (task === undefined ? input.value : task).trim(); if (!text) return;
   const imgs = (agentMode || goalMode) ? pendingImgs.slice(0, 3) : [];
   pendingImgs = []; renderImgs();
+  let legacySummary = null, legacySummaryActive = false, legacySummaryDone = false, legacySummaryOutcome = 'interrupted';
+  activeTurnSummaryCancel.set(runSession, () => { legacySummaryOutcome = 'cancelled'; });
   runVisualTokens.set(runSession, visualToken);
   runningAgentSessions.add(runSession);
   setSending(true);
@@ -2757,11 +2795,11 @@ async function doAgent(task) {
         return;
       }
       if(ev==='status' && d.message){ turnNote = d.message; pintaTurnBar(); }
-      else if(ev==='token'){acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} paintLive();}
-      else if(ev==='assistant' && d.text.trim()){turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
+      else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} paintLive();}
+      else if(ev==='assistant' && d.text.trim()){turnPhase='working';turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
       else if(ev==='goal')goalCard(d);
       else if(ev==='tool_call'){
-        turnNote=''; paintLiveNow(); live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla
+        turnPhase='working'; turnNote=d.name || ''; pintaTurnBar(); paintLiveNow(); live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla
         activityItem('eina',d.name,stepLine() + ' · ' + d.args.slice(0,110),'warn');
         // Una sola targeta per crida, que evoluciona quan arriba el
         // resultat. Abans n'hi havia dues (la crida i el «Fet ·») i la
@@ -2769,6 +2807,7 @@ async function doAgent(task) {
         // que no digués ja la pestanya d'Activitat.
         pendents.push(toolCard(d.name, d.args));
       } else if(ev==='tool_result'){
+        turnPhase='working'; turnNote=''; pintaTurnBar();
         const previewMatch=String(d.output||'').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
         if(previewMatch&&window.gregalPreview)window.gregalPreview.offer(previewMatch[0]);
         activityItem('eina',d.name,'Completada · ' + stepLine(),'ok');
@@ -2806,6 +2845,7 @@ async function doAgent(task) {
         toolCardDone(pendents.shift(), d.name || 'eina', 'EINA BLOQUEJADA: '+(d.reason||''));
         notify('Gregal · eina bloquejada', d.reason || d.name);
       } else if(ev==='approve_request'){
+        turnPhase='waiting'; turnNote=d.name || ''; pintaTurnBar(); updateInspector(state);
         // La targeta de permís tanca la bombolla viva: si no, els tokens
         // del pas següent i la resposta final hi anaven a parar, per sobre
         // de les targetes, i a baix només quedava «Ha trigat…».
@@ -2817,24 +2857,28 @@ async function doAgent(task) {
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
         api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
+        turnPhase='working'; turnNote=''; pintaTurnBar(); updateInspector(state);
       } else if(ev==='question_request'){
-        turnNote=''; paintLiveNow(); live=null; acc=''; // com al permís
+        turnPhase='waiting'; turnNote=(d.query || '').slice(0, 90); pintaTurnBar(); updateInspector(state);
+        paintLiveNow(); live=null; acc=''; // com al permís
         activityItem('pregunta',(d.query || '').slice(0, 60),'Esperant la teva tria','warn');
         notify('Gregal · l’agent et pregunta', d.query || '');
         const ans=await askQuestion(d);
         api('/api/question',{method:'POST',body:JSON.stringify({key:d.key,answer:ans}),headers:{'X-Gregal-Session':runSession}});
+        turnPhase='working'; turnNote=''; pintaTurnBar(); updateInspector(state);
       } else if(ev==='steps_exhausted'){
         // Una feina tallada a mig fer no pot semblar una feina acabada.
         sys(gregalT('ui.passos').replace('{n}', d.max));
         activityItem('agent',gregalT('act.passos'),gregalT('act.passos.sub').replace('{n}', d.max),'warn');
       } else if(ev==='autonomous_checkpoint'){
         const checks = Array.isArray(d.checks) ? d.checks : [];
-        const failed = checks.some(c => Number(c.code) !== 0);
+        const failed = checks.some(c => c && Number.isFinite(c.code) && c.code !== 0);
+        const unknown = checks.some(c => !c || !Number.isFinite(c.code));
         const detail = checks.length
-          ? checks.map(c => (Number(c.code) === 0 ? '✓ ' : '✗ ') + String(c.command || '')).join(' · ')
+          ? checks.map(c => (!c || !Number.isFinite(c.code) ? '? ' : c.code === 0 ? '✓ ' : '✗ ') + String(c && c.command || '') + (!c || !Number.isFinite(c.code) ? ' (' + gregalT('run.summary.unknown') + ')' : '')).join(' · ')
           : 'sense comprovacions declarades';
         const review = d.review ? ' · ' + d.review : '';
-        activityItem('autònom', 'Checkpoint #' + (d.number || '?'), detail + review, failed ? 'bad' : 'ok');
+        activityItem('autònom', 'Checkpoint #' + (d.number || '?'), detail + review, failed ? 'bad' : unknown ? 'warn' : 'ok');
         sys('Autònom · checkpoint #' + (d.number || '?') + (d.review ? ' · ' + d.review : ''));
       } else if(ev==='tool_text'){
         // El model ha escrit la crida al text. No s'executa, i cal dir-ho:
@@ -2853,16 +2897,23 @@ async function doAgent(task) {
  else if(ev==='fallback'){activityItem('model',gregalT('act.primari'),'via '+d.model,'warn');add('t','','<div class="tool">↪ Primari caigut · respon '+escapeHTML(d.model)+'</div>');}
  else if(ev==='verify')verdict(d);
  else if(ev==='done'){
+   turnPhase='completed'; turnCompletedUntil=Date.now()+3500; turnNote=''; pintaTurnBar(); updateInspector(state);
    if(d.reply.trim() && d.reply.trim()!==lastAssistantText){ if(!settleLive(md(d.reply))) add('a','',md(d.reply)); }
    else if(live){ live=null; acc=''; }
    activityItem('agent', gregalT(goalMode ? 'act.objectiu.fet' : 'act.tasca.fet'), stepLine(),'ok');
+   if (legacySummaryActive) { legacySummary?.render?.({status:'completed'}); legacySummaryDone = true; legacySummaryOutcome = 'completed'; }
    if(window.gregalPanels){window.gregalPanels.changes.load();window.gregalPanels.sessions.render(); if(window.gregalPanels.office) window.gregalPanels.office.refresh();}
    notify('Gregal', goalMode ? 'Objectiu proposat' : 'Tasca completada (' + stepLine() + ')');
  }
-      else if(ev==='error'){sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||'Agent interromput');}
+      else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||'Agent interromput');}
     };
     runEventHandlers.set(runSession, onRunEvent);
-    await stream('/api/agent',{task:text,images:imgs},onRunEvent);
+    await stream('/api/agent',{task:text,images:imgs},onRunEvent,(ev,d)=>{
+      if (!legacySummary) legacySummary = window.gregalRuns?.createSummary?.();
+      legacySummaryActive = true;
+      legacySummary?.record?.(ev,d);
+      if(ev==='status'&&/cancel·lat|cancelled/i.test(String(d?.message||'')))legacySummaryOutcome='cancelled';
+    });
   } catch(e) {
     if (runSession !== (window.gregalSession || 'default')) {
       notify('Gregal · error', e && e.message || String(e));
@@ -2870,11 +2921,14 @@ async function doAgent(task) {
     }
     const msg = (e && e.message) ? e.message : String(e);
     sys(gregalT('ui.agent.error') + msg);
+    if (legacySummaryActive) { legacySummary?.render?.({status:'interrupted'}); legacySummaryDone = true; }
     activityItem('error','Connexió fallida',msg,'bad');
     notify('Gregal · connexió fallida', msg);
     if (msg.includes('gated')) showGateBtns();
   }
   finally {
+    if (legacySummaryActive && !legacySummaryDone && runSession === (window.gregalSession || 'default')) legacySummary?.render?.({status:legacySummaryOutcome});
+    activeTurnSummaryCancel.delete(runSession);
     const ownsVisuals = runVisualTokens.get(runSession) === visualToken;
     if (ownsVisuals) stopRunVisuals(runSession);
     pendents.splice(0).forEach(stopToolAnimation);
