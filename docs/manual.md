@@ -123,6 +123,19 @@ a machine containing sensitive data; use an isolated environment instead.
 
 ## References
 
+### Website Prototypes
+
+In Team, choose Create a website, adapt the task, configure an active model,
+then start the team. Roles collaborate on text and code without tool access.
+Select the builder or reviewer to open a complete HTML deliverable in the side
+preview or download it as `website.html`. Partial documents are not offered
+as previews. The local demo is scripted and does not use a provider.
+
+The HTML preview runs in a sandboxed frame without same-origin access, with
+external resources, fetch requests and form submissions restricted by CSP.
+It is not a full browser sandbox or a deployment. Review generated code before
+opening downloaded HTML outside the preview or publishing it.
+
 - [Getting Started](getting-started.md)
 - [HTTP API contract](api-contract.md)
 - [Compatibility notes](compatibility.md)

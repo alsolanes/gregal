@@ -1,4 +1,5 @@
 import { attentionQueue, nextAttention, progressSummary, replaceAgentButtons } from './team-status.js';
+import { htmlArtifact } from './web-artifact.js';
 const $ = id => document.getElementById(id);
 const roles = ['coordinator', 'researcher', 'builder', 'reviewer'];
 const baseRoles = [...roles];
@@ -57,12 +58,26 @@ function render() {
     needsBtn.disabled = !queue.length;
   }
   const sampleButtons=examples[lang()].map(([label,task])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=!!controller;b.onclick=()=>{$('teamTask').value=task;$('teamTask').focus();};return b;});
+  const website=document.createElement('button');website.type='button';website.textContent=lang()==='ca'?'Crea una web':'Create a website';website.disabled=!!controller;website.onclick=()=>{$('teamTask').value=lang()==='ca'?"Crea una web interactiva per a un festival de musica fictici, amb programa, filtres per dia i una llista de favorits. Entrega un document HTML complet dins d'un bloc ```html, amb CSS i JavaScript inline. Sense dependencies, recursos externs, xarxa ni formularis que enviin dades. El revisor ha de conservar el document HTML complet en el resultat final. No afirmis haver executat proves.":"Create an interactive website for a fictional music festival, with a schedule, day filters and a favorites list. Deliver a complete HTML document in a ```html block, with inline CSS and JavaScript. No dependencies, external resources, network requests or forms that submit data. The reviewer must preserve the complete HTML document in the final deliverable. Do not claim to have executed tests.";$('teamTask').focus();};
+  sampleButtons.unshift(website);
   const preview=document.createElement('button');preview.type='button';preview.textContent=lang()==='ca'?'▶ Demo sense API':'▶ Demo without API';preview.disabled=!!controller;preview.onclick=startDemo;
   $('teamExamples').replaceChildren(...sampleButtons,preview);
   $('teamModel').textContent = demo ? (lang()==='ca'?'Demo local · resultats de mostra':'Local demo · sample results') : `${t('textOnly')} / ${lastModel || t('model')}`;
+  let configure=$('teamConfigure');
+  if(!configure){configure=document.createElement('button');configure.id='teamConfigure';configure.type='button';configure.onclick=()=>window.gregal.configureProviders();$('teamModel').after(configure);}
+  configure.textContent=lang()==='ca'?'Configura el model':'Configure model';configure.disabled=!!controller;
   $('teamSelected').textContent = name(selected);
   $('teamAgentStatus').textContent = `${actionLabel(selected)}${metadata[selected]?.model?' · '+metadata[selected].model:''}${metadata[selected]?.parent?' · '+name(metadata[selected].parent):''}`;
   $('teamOutput').textContent = outputs[selected] || t('empty');
+  let artifactTools=$('teamArtifactTools');
+  if(!artifactTools){artifactTools=document.createElement('div');artifactTools.id='teamArtifactTools';$('teamOutput').before(artifactTools);}
+  const html=!demo&&htmlArtifact(outputs[selected]);
+  artifactTools.replaceChildren();
+  if(html){
+    const open=document.createElement('button');open.type='button';open.textContent=lang()==='ca'?'Obre la web':'Open website';open.onclick=()=>window.gregalPreview?.openHTML(html);
+    const download=document.createElement('button');download.type='button';download.textContent=lang()==='ca'?'Descarrega HTML':'Download HTML';download.onclick=()=>{const url=URL.createObjectURL(new Blob([html],{type:'text/html'}));const a=document.createElement('a');a.href=url;a.download='website.html';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    artifactTools.append(open,download);
+  }
   $('teamActivityTitle').textContent = t('activity');
   $('teamAgentsLabel').textContent = t('agents');
   $('teamAgents').setAttribute('aria-label', t('select'));
@@ -265,6 +280,7 @@ function receive(e){
     handoffWalk={agent:e.agent,start:performance.now(),path:[from,[512,from[1]],[512,to[1]],to]};
   }
   if(['done','failed','cancelled'].includes(e.type)){
+    if(e.type==='done'&&e.output)outputs.reviewer=e.output;
     overall=e.type;
     for(const role of roles)if(states[role]==='working'||states[role]==='waiting')states[role]=e.type==='done'?'completed':'cancelled';
     if(e.type==='done')selected='reviewer';
@@ -283,7 +299,7 @@ $('teamForm').onsubmit=async event=>{
   let reader;
   try{
     const response=await window.gregal.api('/api/v2/team/run',{method:'POST',signal:current.signal,body:JSON.stringify({task,lang:lang()})});
-    if(!response.ok||!response.body)throw new Error('request failed');
+    if(!response.ok||!response.body){if(response.status===400)window.gregal.configureProviders();throw new Error('request failed');}
     reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
     while(true){const chunk=await reader.read();if(chunk.done)break;
       buffer+=decoder.decode(chunk.value,{stream:true});let end;
