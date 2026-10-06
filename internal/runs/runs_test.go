@@ -188,8 +188,10 @@ func TestWorkspaceCompartitEsSerialitza(t *testing.T) {
 		return nil
 	}
 	wg.Add(2)
-	a, _, _ := q.Submit(exec, Run{Session: "s1", Workspace: WorkspaceKey(`C:\proj`)})
-	b, _, _ := q.Submit(exec, Run{Session: "s2", Workspace: WorkspaceKey("c:/proj/")})
+	// Use native paths: Windows-style casing and separators are distinct on Unix.
+	workspace := t.TempDir()
+	a, _, _ := q.Submit(exec, Run{Session: "s1", Workspace: WorkspaceKey(workspace)})
+	b, _, _ := q.Submit(exec, Run{Session: "s2", Workspace: WorkspaceKey(workspace + string(filepath.Separator))})
 	close(allibera)
 	wg.Wait()
 	waitDone(t, q, a.ID)
