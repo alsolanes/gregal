@@ -9,21 +9,21 @@
   --team-floor-line: color-mix(in srgb, #743f31 24%, transparent);
   --team-sky:#b9d9d5; --team-sun:#f4cd7b; --team-sea-light:#74b5aa; --team-sea-dark:#397d7e;
   overflow:auto;
-  padding:clamp(14px,2vw,26px);
-  background:
-    radial-gradient(ellipse at 14% 2%, color-mix(in srgb, #ddad6d 12%, transparent), transparent 32%),
-    var(--bg);
+  padding:16px 20px;
+  background:var(--bg);
 }
 #teamPage[hidden] { display:none; }
-#teamPage h1 { color:var(--ink); font-size:clamp(23px,3vw,30px); letter-spacing:-.035em; }
+#teamPage .page-head { display:flex; align-items:center; gap:12px; margin:0 0 12px; }
+#teamPage h1 { color:var(--ink); font-size:24px; letter-spacing:0; margin:0; }
+#teamPage #teamStatus { margin-left:auto; padding:4px 8px; border:1px solid var(--line); border-radius:4px; }
 #teamPage h2 { color:var(--ink); font-size:15px; margin:12px 0; }
 #teamExamples { display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 12px; }
 #teamExamples button {
   min-height:34px; padding:7px 12px; border:1px solid color-mix(in srgb, var(--team-terracotta) 32%, var(--line));
-  border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px;
+  border-radius:4px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px;
   transition:transform .16s ease, border-color .16s ease, background-color .16s ease;
 }
-#teamExamples button:hover { transform:translateY(-1px); border-color:var(--team-terracotta); background:var(--team-plaster); }
+#teamExamples button:hover { border-color:var(--accent); background:var(--hover); }
 #teamExamples button:last-child { color:var(--ink); margin-left:auto; }
 #teamExamples button:focus-visible, #teamForm button:focus-visible, #teamAgents button:focus-visible, #teamNeedsMe:focus-visible {
   outline:2px solid var(--accent-hi); outline-offset:3px;
@@ -37,24 +37,28 @@
   border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
 #teamNeedsMe:hover:not(:disabled) { border-color:#b3542e; background:var(--team-plaster); transform:translateY(-1px); }
 #teamNeedsMe:disabled { opacity:.55; cursor:default; }
-#teamForm { display:grid; gap:7px; margin-bottom:14px; }
-#teamTask { width:100%; resize:vertical; min-height:58px; box-sizing:border-box; background:var(--surface); color:var(--ink); border:1px solid var(--line-hi); border-radius:10px; padding:10px 12px; font:inherit; }
+#teamForm { display:grid; gap:6px; margin-bottom:8px; }
+#teamTaskLabel { font-size:12px; color:var(--muted); }
+#teamTask { width:100%; resize:vertical; min-height:64px; max-height:180px; box-sizing:border-box; background:var(--surface); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:10px 12px; font:inherit; font-size:14px; line-height:1.5; }
 #teamTask:focus { outline:2px solid var(--accent-hi); outline-offset:2px; }
 .team-actions { display:flex; align-items:center; gap:8px; }
+#teamForm button { min-height:32px; border:1px solid var(--line-hi); border-radius:4px; padding:6px 11px; background:var(--surface); color:var(--ink); font:inherit; font-size:12px; cursor:pointer; }
+#teamForm #teamStart { background:var(--accent); color:var(--bg); border-color:var(--accent); font-weight:600; }
+#teamForm button:disabled { opacity:.45; cursor:default; }
 #teamModel { margin-right:auto; color:var(--muted); font-size:12px; overflow-wrap:anywhere; }
 .team-layout {
   display:grid; grid-template-columns:minmax(0,1fr) minmax(235px,min(27%,360px)); align-items:stretch; gap:0;
-  overflow:hidden; border:1px solid color-mix(in srgb, var(--team-window) 40%, var(--line));
-  border-radius:20px; background:var(--team-plaster); box-shadow:0 12px 36px var(--ombra), inset 0 1px 0 color-mix(in srgb, white 50%, transparent);
+  overflow:hidden; border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  border-radius:0; background:var(--surface);
 }
 .team-layout > * { min-width:0; box-sizing:border-box; }
-.team-floor { position:relative; width:100%; max-width:100%; min-width:0; min-height:0; align-self:start; aspect-ratio:1024/540; overflow:hidden; background:var(--team-wall); }
+.team-floor { position:relative; width:min(100%,850px); max-width:100%; min-width:0; min-height:0; align-self:center; justify-self:center; aspect-ratio:1024/540; overflow:hidden; background:var(--team-wall); }
 #teamCanvas { position:absolute; inset:0; display:block; width:100%; height:100%; max-width:100%; image-rendering:pixelated; cursor:pointer; }
 #teamCanvas:focus-visible { outline:3px solid var(--accent-hi); outline-offset:-4px; }
 .team-detail {
   min-width:0; max-height:min(64vw,896px); overflow:auto; padding:8px 14px 14px;
   border-left:1px solid color-mix(in srgb, var(--team-window) 30%, var(--line));
-  background:color-mix(in srgb, var(--surface) 92%, #efe2cb);
+  background:var(--surface);
 }
 .team-detail > h2:first-child { margin-top:9px; color:var(--muted); text-transform:uppercase; font:600 10px/1.4 var(--mono,monospace); letter-spacing:.08em; }
 #teamAgents { display:grid; gap:3px; }
@@ -64,9 +68,18 @@
   border-radius:9px; background:transparent; color:var(--text); text-align:left; cursor:pointer;
   transition:background-color .14s ease, border-color .14s ease, transform .14s ease;
 }
-#teamAgents button:hover { transform:translateX(2px); background:var(--team-plaster); }
+#teamAgents button:hover { background:var(--hover); }
 #teamAgents button[aria-pressed=true] { border-color:color-mix(in srgb, var(--role-color) 32%, transparent); border-left-color:var(--role-color); background:color-mix(in srgb, var(--role-color) 10%, var(--surface)); }
-#teamAgents button[data-state=working] { box-shadow:inset -3px 0 var(--role-color); }
+#teamAgents button[data-state=working] { border-left-color:var(--role-color); background:color-mix(in srgb,var(--role-color) 15%,var(--panel)); box-shadow:inset -3px 0 var(--role-color); }
+#teamAgents button[data-state=working] small { color:var(--ink); font-weight:600; }
+#teamAgents button[data-state=working] .team-agent-avatar { animation:team-work .6s ease-in-out infinite alternate; }
+@keyframes team-work { from { transform:translateY(0) rotate(-3deg); } to { transform:translateY(-3px) rotate(3deg); } }
+#teamLive { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 0 14px; font-size:12px; }
+#teamLive strong { color:var(--muted); margin-right:6px; font-weight:600; }
+#teamLive[data-active=true] strong { color:var(--ink); }
+#teamLive button { color:var(--ink); background:var(--panel); border:1px solid var(--line-hi); border-left:4px solid var(--role-color); border-radius:4px; padding:7px 10px; font:inherit; cursor:pointer; }
+#teamLive button:hover { border-color:var(--role-color); }
+#teamCurrentTask { color:var(--ink); border-left:3px solid var(--accent); padding-left:10px; font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
 /* L'agent pendent de decisió porta la vora de terracota i una balisa «!»,
    el reflex a la llista del rombe que llueix sobre el personatge. */
 #teamAgents button[data-needs-you] { border-color:color-mix(in srgb, #b3542e 55%, transparent); background:color-mix(in srgb, #b3542e 10%, var(--surface)); }
@@ -116,3 +129,8 @@
 #teamArtifactTools:empty { display:none; }
 #teamArtifactTools button { padding:7px 10px; border:1px solid var(--line-hi); border-radius:4px; background:var(--panel); color:var(--ink); font:inherit; cursor:pointer; }
 #teamArtifactTools button:hover { border-color:var(--accent); color:var(--accent); }
+#teamExamples button, #teamNeedsMe { background:var(--panel); color:var(--ink); border:1px solid var(--line-hi); border-radius:4px; }
+#teamExamples button:hover, #teamNeedsMe:hover:not(:disabled) { background:var(--hover); }
+#teamAgents button[aria-pressed=true] { background:color-mix(in srgb, var(--role-color) 15%, var(--panel)); }
+#teamForm button { background:var(--panel); }
+#teamForm #teamStart { background:var(--accent); }

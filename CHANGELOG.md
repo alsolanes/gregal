@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v1.7.9 - 2026-10-05 - Clearer configuration, agent previews and safer execution
+
+- Simplify provider setup with labeled fields and separate advanced settings.
+- Make working Team agents easier to identify, improve role animations, and stop
+  activity animations when a run stops.
+- Let agents request isolated HTML, Markdown and localhost previews; keep the
+  newest artifact visible and respect the user's dismissal of automatic previews.
+- Share shell permission restrictions between foreground and background tools;
+  hard-denied commands cannot be enabled by a broad allow override.
+- Allow internal task-list bookkeeping without unnecessary approval prompts.
+- Propagate cancellation into headless tool execution and delegated runs; clean
+  up foreground shell descendants on cancellation, timeout and normal exit.
+- Require HTTPS for remote desktop backends and tighten Unix password-file access.
+- Add a functional checklist, coding/budget/cancellation regressions and real-model
+  acceptance evidence. Benchmark observations are task-specific, not a general
+  guarantee of higher speed or equivalent quality than another harness.
+
+
 ## v1.7.5 — 2026-10-05 — Modes simplificats i continuïtat de sessions
 
 - El desplegable de modes avançats conserva l’obertura escollida per l’usuari

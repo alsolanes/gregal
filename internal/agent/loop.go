@@ -19,6 +19,10 @@ import (
 func Specs() []llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return []llm.ToolSpec{
+		{Name: "preview", Description: "Open or update the user's side preview while working. Use html for a complete standalone HTML prototype, markdown for a complex plan or document, or url for a running localhost development server. Call again with updated content after revisions. This displays content only: it does not inspect the rendered page or verify correctness. HTML runs in an isolated frame without network access. Do not include secrets.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
+			}, "required": []string{"kind", "content"}}},
 		{Name: "read", Description: "Llegeix un fitxer del disc. Torna línies numerades. Si necessites diversos fitxers, demana'ls tots en el mateix pas: les lectures van en paral·lel.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path":   str,
@@ -201,12 +205,34 @@ func ToolMsg(c llm.ToolCall, out string, images ...string) llm.Message {
 	return llm.Message{Role: "tool", Content: out, Images: images, ToolCallID: c.ID, Name: c.Function.Name}
 }
 
+// bashPermissionOverride shares explicit shell grants across the synchronous
+// and background aliases. Switching tools must not loosen a shell decision.
+func bashPermissionOverride(p *Policy) string {
+	if p == nil {
+		return ""
+	}
+	decision := ""
+	for _, name := range []string{"bash", "bash_background"} {
+		switch p.Tools[name] {
+		case "deny":
+			return "deny"
+		case "ask":
+			decision = "ask"
+		case "allow":
+			if decision == "" {
+				decision = "allow"
+			}
+		}
+	}
+	return decision
+}
+
 // For aplica overrides del config i després la base.
 func (p *Policy) For(name, argsJSON string) (string, string) {
 	if !tools.EsNativa(name) && !isMCP(name) {
 		return "deny", "eina desconeguda: " + name
 	}
-	if p != nil {
+	if p != nil && name != "bash" && name != "bash_background" {
 		if d, ok := p.Tools[name]; ok {
 			switch d {
 			case "allow", "ask", "deny":
@@ -218,7 +244,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "todoread", "question", "skill":
+	case "read", "grep", "glob", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "todoread", "todowrite", "question", "skill", "preview":
 		return "allow", ""
 	case "bash_output", "bash_kill":
 		// Llegir o aturar un procés que ja s'ha aprovat no torna a preguntar.
@@ -238,14 +264,25 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		var a struct {
 			Command string `json:"command"`
 		}
+		override := bashPermissionOverride(p)
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			if override != "" {
+				return override, "permissions del config"
+			}
 			return "ask", "arguments il·legibles"
 		}
 		var allow, deny []string
 		if p != nil {
 			allow, deny = p.BashAllow, p.BashDeny
 		}
-		return tools.ClassifyWith(a.Command, allow, deny)
+		decision, reason := tools.ClassifyWith(a.Command, allow, deny)
+		if decision == "deny" {
+			return decision, reason
+		}
+		if override != "" {
+			return override, "permissions del config"
+		}
+		return decision, reason
 	default: // write, edit
 		return "ask", "escriptura: confirma"
 	}
@@ -372,6 +409,8 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 	}
 	argsJSON = resolArgs(dir, argsJSON)
 	switch name {
+	case "preview":
+		return previewRequest(argsJSON)
 	case "read":
 		var a struct {
 			Path   string `json:"path"`

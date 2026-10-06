@@ -94,12 +94,17 @@ func TestInitialRoleFollowsMode(t *testing.T) {
 	if got := c.InitialRole(); got != "code" {
 		t.Fatalf("code inicial = %q", got)
 	}
+	c.Mode = "autonomous"
+	if got := c.InitialRole(); got != "code" {
+		t.Fatalf("autonomous initial role = %q, want code", got)
+	}
 	c.Mode = "inspect"
 	if got := c.InitialRole(); got != "think" {
 		t.Fatalf("inspect inicial = %q", got)
 	}
 	delete(c.Roles, "code")
 	delete(c.Roles, "think")
+	c.Mode = "autonomous"
 	if got := c.InitialRole(); got != "chat" {
 		t.Fatalf("fallback inicial = %q", got)
 	}

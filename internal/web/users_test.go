@@ -3,7 +3,9 @@ package web
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -90,6 +92,30 @@ func TestLogoutOblidaToken(t *testing.T) {
 	u.Logout(tok)
 	if _, ok := u.Resolve(tok); ok {
 		t.Fatal("el token sortit encara val")
+	}
+}
+
+func TestSetPasswordTightensExistingFilePermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not enforced on Windows")
+	}
+	u := usuarisProva(t)
+	u.pwPath = filepath.Join(t.TempDir(), "passwords.json")
+	if err := os.WriteFile(u.pwPath, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(u.pwPath, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := u.SetPassword("usera", "new-password"); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Stat(u.pwPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Fatalf("password file mode = %04o, want 0600", got)
 	}
 }
 

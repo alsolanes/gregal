@@ -26,9 +26,12 @@ jobs:
       - run: node scripts/verify-vendor.cjs
       - run: go test ./...
       - run: go vet ./...
+      - name: Race detection on Linux
+        if: runner.os == 'Linux'
+        run: go test -race ./...
       - run: npm ci
         working-directory: desktop
-      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
+      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
   vscode:
     runs-on: ubuntu-latest
     defaults:

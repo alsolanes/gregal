@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"gregal/internal/procs"
 	"gregal/internal/shell"
 )
 
@@ -575,9 +576,9 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 // shellCommand tria l'intèrpret amb internal/shell (sh; a Windows el sh del
 // Git si hi és, si no cmd). Un sol criteri per a l'eina bash i per al
 // terminal de processos llargs: abans cadascun feia la seva.
-func shellCommand(ctx context.Context, cmd string) *exec.Cmd {
+func shellCommand(cmd string) *exec.Cmd {
 	name, args := shell.Argv(shell.NormalitzaPathsWindows(cmd))
-	return exec.CommandContext(ctx, name, args...)
+	return exec.Command(name, args...)
 }
 
 // Bash executa una comanda al directori del procés.
@@ -601,12 +602,12 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	c := shellCommand(ctx, cmd)
+	c := shellCommand(cmd)
 	c.Dir = dir
 	var out bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &out
-	err := c.Run()
+	err := procs.Run(ctx, c)
 	text := truncate(out.String(), MaxOutputChars)
 	if ctx.Err() == context.Canceled {
 		return text, fmt.Errorf("aturada per l'usuari")

@@ -8,11 +8,8 @@ export function progressSummary(roles, states, language = 'en') {
   return parts.join(' · ');
 }
 
-// attentionQueue: agents que demanen una ullada (idees d'agent-office, adaptades).
-// A Gregal l'equip no interromp per preguntar a l'usuari: l'atenció vol dir
-// «pendent de decisió» — en espera de torn, amb error o aturat. Treballant,
-// completat i inactiu no hi entren.
-const ATTENTION_STATES = new Set(['waiting', 'failed', 'cancelled']);
+// Waiting for a teammate does not require a user decision.
+const ATTENTION_STATES = new Set(['failed', 'cancelled']);
 
 export function attentionQueue(roles, states) {
   return roles.filter(role => ATTENTION_STATES.has(states[role]));

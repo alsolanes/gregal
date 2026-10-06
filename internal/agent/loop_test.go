@@ -106,8 +106,8 @@ func TestDeny(t *testing.T) {
 }
 
 func TestSpecsAndPolicy(t *testing.T) {
-	if len(Specs()) != 24 {
-		t.Fatalf("specs=%d (han de ser 24)", len(Specs()))
+	if len(Specs()) != 25 {
+		t.Fatalf("specs=%d (han de ser 25)", len(Specs()))
 	}
 	if d, _ := PolicyFor("read", `{}`); d != "allow" {
 		t.Fatalf("read=%s", d)

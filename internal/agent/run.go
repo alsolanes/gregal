@@ -246,7 +246,7 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 
 		case OrdreExecuta:
 			outs := RunCalls(p.Calls, nil, func(_ int, c llm.ToolCall) Execucio {
-				o, imgs, err := ExecIn("", dir, c.Function.Name, c.Function.Arguments)
+				o, imgs, err := ExecCtx(ctx, "", dir, c.Function.Name, c.Function.Arguments)
 				if err != nil {
 					o = "ERROR: " + err.Error()
 				}

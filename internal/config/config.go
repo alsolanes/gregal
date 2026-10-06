@@ -752,7 +752,7 @@ func (c *Config) InitialRole() string {
 	}
 	preferred := []string{"chat"}
 	switch c.Mode {
-	case "code":
+	case "code", "autonomous":
 		preferred = []string{"code", "chat", "think"}
 	case "inspect":
 		preferred = []string{"think", "chat", "code"}

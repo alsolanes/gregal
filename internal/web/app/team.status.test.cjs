@@ -23,14 +23,14 @@ test('attention queue lists agents awaiting a decision and cycles through them',
 
   assert.deepEqual(
     attentionQueue(roles, { coordinator: 'working', researcher: 'waiting', builder: 'failed', reviewer: 'completed' }),
-    ['researcher', 'builder'],
+    ['builder'],
   );
   assert.deepEqual(
     attentionQueue(roles, { coordinator: 'working', researcher: 'completed', builder: 'completed', reviewer: 'idle' }),
     [],
   );
   const states = { coordinator: 'cancelled', researcher: 'waiting', builder: 'working', reviewer: 'waiting' };
-  assert.equal(nextAttention(roles, states, 'researcher'), 'reviewer');
+  assert.equal(nextAttention(roles, states, 'researcher'), 'coordinator');
   assert.equal(nextAttention(roles, states, 'reviewer'), 'coordinator');
   assert.equal(nextAttention(roles, states, 'builder'), 'coordinator');
   assert.equal(nextAttention(roles, { coordinator: 'working', researcher: 'completed', builder: 'idle', reviewer: 'idle' }, 'coordinator'), null);
