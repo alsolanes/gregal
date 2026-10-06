@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 // MaxTokensCap sostre del reintent automàtic per length: el pressupost no
@@ -32,9 +33,8 @@ type LengthError struct {
 	Partial   bool // el model havia començat la resposta, però l'ha tallada
 }
 
-// StreamInterruptedError indica que el provider ha tancat el stream abans
-// d'enviar cap senyal final. El text parcial ja es pot haver ensenyat a la
-// interfície, així que l'agent no ha de repetir el pas automàticament.
+// StreamInterruptedError reports a stream closed before its final signal.
+// Partial output may already be visible; only buffered calls can safely retry.
 type StreamInterruptedError struct{}
 
 type recoverTruncationKey struct{}
@@ -54,6 +54,36 @@ func recoverTruncation(ctx context.Context) bool {
 
 func (*StreamInterruptedError) Error() string {
 	return "el stream del model s'ha interromput abans del senyal final; la resposta pot estar incompleta"
+}
+
+// Retry only uncommitted model output; never replay already executed tools or
+// live callbacks. Keep the existing prompt and token budget unchanged.
+func retryInterruptedStream(ctx context.Context, buffered bool, do func() error) error {
+	const attempts = 3
+	for attempt := 1; ; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := do()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		var interrupted *StreamInterruptedError
+		if !buffered || !errors.As(err, &interrupted) || attempt >= attempts {
+			return err
+		}
+		wait := backoffFor(attempt, nil)
+		if hook := retryHookFrom(ctx); hook != nil {
+			hook(attempt, attempts, wait, err)
+		}
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (e *LengthError) Error() string {

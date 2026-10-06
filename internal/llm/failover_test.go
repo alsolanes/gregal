@@ -24,6 +24,9 @@ func TestIsRetryable(t *testing.T) {
 		err  error
 		want bool
 	}{
+		{context.Canceled, false},
+		{context.DeadlineExceeded, false},
+		{fmt.Errorf("provider: %w", context.DeadlineExceeded), false},
 		{fmt.Errorf(`provider http://x: HTTP 500: ups`), true},
 		{fmt.Errorf(`provider http://x: HTTP 429: lent`), true},
 		{fmt.Errorf(`provider http://x: HTTP 502: gateway`), true},

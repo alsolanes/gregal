@@ -695,17 +695,19 @@ func (c *Client) ChatStreamWithTools(ctx context.Context, baseURL, apiKey, model
 	buffer := recoverTruncation(ctx)
 	var reasoned strings.Builder
 	err := retryFit(ctx, maxTokens, func(budget int) error {
-		var err error
-		if buffer {
-			reasoned.Reset()
-		}
-		tokenFn, reasonFn := onToken, onReason
-		if buffer {
-			tokenFn = nil
-			reasonFn = func(s string) { reasoned.WriteString(s) }
-		}
-		text, calls, err = c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs, tokenFn, reasonFn)
-		return err
+		return retryInterruptedStream(ctx, buffer, func() error {
+			var err error
+			if buffer {
+				reasoned.Reset()
+			}
+			tokenFn, reasonFn := onToken, onReason
+			if buffer {
+				tokenFn = nil
+				reasonFn = func(s string) { reasoned.WriteString(s) }
+			}
+			text, calls, err = c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, budget, specs, tokenFn, reasonFn)
+			return err
+		})
 	})
 	if err == nil && buffer {
 		if onToken != nil && text != "" {
@@ -846,6 +848,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 	}
 	if !sawDone && finish == "" {
+		if err := ctx.Err(); err != nil {
+			return "", nil, err
+		}
 		return "", nil, &StreamInterruptedError{}
 	}
 	calls := make([]ToolCall, 0, len(order))
