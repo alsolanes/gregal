@@ -92,3 +92,26 @@ func TestInterruptedStreamRecoveryDoesNotRetryOtherErrors(t *testing.T) {
 		t.Fatalf("attempts=%d err=%v", attempts, err)
 	}
 }
+
+func TestLiveStreamCancellationDoesNotRetryOrFailOver(t *testing.T) {
+	var attempts atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, `data: {"choices":[{"delta":{"content":"visible partial"}}]}`+"\n\n")
+		w.(http.Flusher).Flush()
+		<-r.Context().Done()
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var emitted strings.Builder
+	target := Target{BaseURL: srv.URL, Model: "m"}
+	out, calls, fallback, err := New().ChatStreamWithToolsFO(ctx, target, &target, nil, 0, 512, nil, func(s string) {
+		emitted.WriteString(s)
+		cancel()
+	}, nil, nil)
+	if !errors.Is(err, context.Canceled) || IsRetryable(err) || fallback || attempts.Load() != 1 || emitted.String() != "visible partial" || out != "" || len(calls) != 0 {
+		t.Fatalf("err=%v retryable=%v fallback=%v attempts=%d emitted=%q", err, IsRetryable(err), fallback, attempts.Load(), emitted.String())
+	}
+}

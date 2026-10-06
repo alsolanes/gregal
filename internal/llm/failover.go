@@ -18,7 +18,7 @@ type Target struct {
 // 429 i 5xx. Els 400/401/403/404 són errors de configuració: reintentar
 // amb un altre provider els amagaria, així que fallen directe.
 func IsRetryable(err error) bool {
-	if err == nil {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
 	var lengthErr *LengthError
