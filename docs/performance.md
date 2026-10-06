@@ -75,3 +75,42 @@ Gregal's existing `--eval` runner records correctness, elapsed time, steps,
 tokens and tools; see [evaluation instructions](../evals/README.md).
 `GREGAL_PERFIL=1` adds per-model-call timings to headless runs. Live model runs
 consume the configured provider's quota; the startup benchmark above does not.
+
+### Local CLI Observations (2026-10-05)
+
+Both executables were run against the same configured local OpenAI-compatible
+model through a loopback validation proxy. The proxy fixed temperature to zero,
+the output cap to 4096 tokens and thinking to disabled for both clients. Routing
+and fallback were disabled. OpenCode was version 1.2.27; Gregal used the 1.7.9
+release candidate. Process startup is included for both executables; compilation,
+model discovery and the independent post-run test invocation are excluded.
+
+Each trial used a new disposable Go module, identical prompt and initial files.
+Run order alternated Gregal/OpenCode, OpenCode/Gregal, Gregal/OpenCode. Each task
+was repeated three times per client. Acceptance tests were restored from the
+immutable original fixture and independently executed after each run, preventing
+a changed test from making an incorrect implementation pass. All twelve runs
+passed without an execution error.
+
+| Task | Gregal Median | OpenCode Median | Median Model Requests | Median Input Tokens |
+| --- | --- | --- | --- | --- |
+| Repair a function returning the wrong constant | 9.01 s | 19.59 s | 4 / 7 | 21,482 / 44,494 |
+| Implement total, average and bounds with edge cases | 13.84 s | 22.14 s | 4 / 7 | 23,120 / 45,660 |
+
+Request/token columns list Gregal first, OpenCode second. The proxy counted
+actual upstream requests and provider-reported usage, not an estimate from final
+conversation length. Both configurations approved fixture edits and the test
+command, without blanket auto-approval. All observed writes occurred inside the
+disposable workspaces; neither client was OS-sandboxed. Permission semantics
+between the clients are not identical, and these tasks do not test permission
+parity. Neither client used delegation or external research.
+The first OpenCode constant-repair trial made eight requests; the other trials
+made seven. Gregal made four in every trial.
+
+These are small functional smoke tasks, not a general quality benchmark. Provider
+cache state and other server load were not controlled, and cold versus warm
+inference was not independently measured. Three trials are insufficient for a
+statistical performance guarantee. The observations favor Gregal on these two
+tasks only; they do not establish parity on large repositories, long reasoning,
+tool integrations, UI workflows or complex parallel work. An earlier in-process
+Gregal comparison excluded its CLI startup and is not used in this table.

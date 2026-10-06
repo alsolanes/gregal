@@ -336,6 +336,9 @@ func (u *Users) SetPassword(name, pw string) error {
 	if err := os.WriteFile(u.pwPath, append(raw, '\n'), 0o600); err != nil {
 		return err
 	}
+	if err := os.Chmod(u.pwPath, 0o600); err != nil {
+		return err
+	}
 	u.mu.Lock()
 	d := u.defs[name]
 	d.Password = m[name]

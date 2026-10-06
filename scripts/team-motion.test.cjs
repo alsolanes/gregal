@@ -31,9 +31,30 @@ test('every character keeps finite coordinates throughout the idle cycle', () =>
 test('coffee pause has explicit coordinates and does not move', () => {
   const context = fixture();
   const point = context.position(0, 5000);
-  assert.equal(point.x, 460);
-  assert.equal(point.y, 350);
+  assert.equal(point.x, context.homes[0][0]-70);
+  assert.equal(point.y, context.homes[0][1]);
   assert.equal(point.moving, false);
+});
+
+test('terminal frames freeze the clock and do not schedule another animation', () => {
+  const frame=source.slice(source.indexOf('function drawFrame('),source.indexOf('function draw(){'));
+  let scheduled=0, drawnTime;
+  const context=vm.createContext({raf:0,visible:true,document:{hidden:false},reducedMotion:{matches:false},lastFrame:0,stoppedAt:1234,
+    canvas:{getBoundingClientRect:()=>({width:1024,height:540}),width:1024,height:540},devicePixelRatio:1,sceneHeight:540,
+    ctx:{setTransform(){},clearRect(){}},background:time=>{drawnTime=time;},handoffWalk:null,roles:[],
+    requestAnimationFrame:()=>{scheduled++;return 1;}});
+  vm.runInContext(frame,context);
+  context.drawFrame(2000);
+  assert.equal(drawnTime,1234);
+  assert.equal(scheduled,0);
+  context.stoppedAt=null;
+  context.drawFrame(2100);
+  assert.equal(drawnTime,2100);
+  assert.equal(scheduled,1);
+  scheduled=0;
+  context.reducedMotion.matches=true;
+  context.drawFrame(2200);
+  assert.equal(scheduled,0,'reduced motion must not schedule continuous frames');
 });
 
 test('working, waiting and reduced-motion characters stay at their desks', () => {

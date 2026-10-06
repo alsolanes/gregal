@@ -29,11 +29,12 @@ const path = require("path");
 const { startServer } = require("./server-manager");
 const { loadState, saveState } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
-const { sameOrigin, externalURL, localServiceURL, trustedPage } = require('./navigation');
+const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
 const { createUpdater } = require('./updater');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
-if (!externalURL(BASE)) throw new Error('GREGAL_URL must be an HTTP(S) URL without embedded credentials');
+const baseError = backendURLError(BASE);
+if (baseError) throw new Error(baseError);
 const MANAGED = !process.env.GREGAL_URL;
 let PORT = Number(new URL(BASE).port || 8097);
 // El backend gestionat només escolta a loopback: no necessita token i així no

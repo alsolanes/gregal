@@ -79,6 +79,41 @@ type processGroup interface {
 // New crea un magatzem buit.
 func New() *Store { return &Store{procs: map[string]*Proc{}} }
 
+// Run executes a foreground command and kills its whole process group when
+// the context ends. It shares the same platform-specific group setup as
+// background processes without adding the command to a Store.
+func Run(ctx context.Context, c *exec.Cmd) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	group, err := newProcessGroup(c)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		group.kill(c)
+		group.close()
+	}()
+	if err := c.Start(); err != nil {
+		return err
+	}
+	if err := group.start(c); err != nil {
+		group.kill(c)
+		_ = c.Wait()
+		return err
+	}
+	done := make(chan error, 1)
+	go func() { done <- c.Wait() }()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		group.kill(c)
+		<-done
+		return ctx.Err()
+	}
+}
+
 // MaxProcs limita quants processos es recorden alhora.
 const MaxProcs = 40
 

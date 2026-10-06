@@ -567,6 +567,29 @@ canvas.pptx-canvas { width:100%; height:auto; background:#fff; border-radius:8px
   color:var(--text); background:var(--surface-hi); border:1px solid var(--line-hi);
   border-radius:5px; cursor:pointer; }
 #prov button:not(.primary):not(.danger):not(.icon-btn):hover { color:var(--ink); border-color:var(--accent); }
+#prov { width:min(620px,calc(100% - 24px)); padding:20px; border-radius:8px; color:var(--ink); }
+#prov h3 { margin:0 0 12px; font-size:14px; font-weight:600; color:var(--ink); }
+#prov .preset-form { display:grid; grid-template-columns:1fr 1fr auto; align-items:end; gap:12px; }
+#prov #providerPresetHint { grid-column:1 / -1; color:var(--ink); font-size:14px; }
+#prov .prov-field { display:flex; flex-direction:column; gap:6px; flex:1 1 150px; min-width:0; font-size:12px; color:var(--muted); }
+#prov .prov-field input,#prov .prov-field select { flex:none; height:38px; width:100%; color:var(--ink); background:var(--bg); font-size:14px; }
+#prov .prov-field[hidden],#prov .frm[hidden] { display:none; }
+#prov .primary { min-height:36px; padding:7px 14px; border-radius:6px; }
+#prov .prov-feedback { grid-column:1 / -1; font-size:12px; color:var(--muted); }
+#prov .prov-connections { margin-top:22px; }
+#prov .prov-identity { flex:1; min-width:0; display:flex; flex-direction:column; gap:4px; }
+#prov .prov-key-state { color:var(--muted); font-size:12px; }
+#prov .prow { gap:8px; padding:12px 0; }
+#prov .prov-advanced { margin-top:20px; border-top:1px solid var(--line); }
+#prov .prov-advanced summary { cursor:pointer; padding:16px 0; font-size:14px; color:var(--ink); }
+#prov .prov-group { padding:14px 0; border-top:1px solid var(--line); }
+#prov .prov-group .faint { flex-basis:100%; font-size:12px; }
+@media(max-width:600px) {
+  #prov { position:fixed; top:70px; right:12px; z-index:80; padding:16px; max-height:calc(100dvh - 86px); }
+  #prov .preset-form { grid-template-columns:1fr; }
+  #prov .prow { flex-wrap:wrap; }
+  #prov .prov-identity { flex-basis:100%; }
+}
 
 /* Benvinguda */
 #hero { flex:1; min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center;
@@ -2788,6 +2811,7 @@ async function doAgent(task) {
   const runSession = window.gregalSession || 'default';
   const visualToken = {};
   const text = (task === undefined ? input.value : task).trim(); if (!text) return;
+  window.gregalPreview?.begin();
   const imgs = (agentMode || goalMode) ? pendingImgs.slice(0, 3) : [];
   pendingImgs = []; renderImgs();
   let legacySummary = null, legacySummaryActive = false, legacySummaryDone = false, legacySummaryOutcome = 'interrupted';
@@ -2849,6 +2873,7 @@ async function doAgent(task) {
         pendents.push(toolCard(d.name, d.args));
       } else if(ev==='tool_result'){
         turnPhase='working'; turnNote=''; pintaTurnBar();
+        if(d.name==='preview'&&window.gregalPreview){try{window.gregalPreview.request(JSON.parse(d.output),true);}catch{}}
         const previewMatch=String(d.output||'').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
         if(previewMatch&&window.gregalPreview)window.gregalPreview.offer(previewMatch[0]);
         activityItem('eina',d.name,'Completada · ' + stepLine(),'ok');
@@ -3411,30 +3436,36 @@ async function toggleProv(force) {
   const data=await api('/api/providers').then(r=>r.json());
   // Els models de cada provider, per triar-los en comptes d'escriure'ls.
   // Si un provider no respon, el formulari ho diu i deixa escriure a mà.
-  const mdata=await api('/api/models').then(r=>r.json()).catch(()=>({models:{},errors:{}}));
-  box.innerHTML='<div class="prov-head"><span>'+(en?'Providers and roles':'Providers i rols')+'</span><span class="spacer"></span><button class="icon-btn" id="provClose" aria-label="'+(en?'Close providers':'Tanca providers')+'">×</button></div>';
+  let mdata={models:{},errors:{}};
+  box.innerHTML='<div class="prov-head"><span>'+(en?'Models & connections':'Models i connexions')+'</span><span class="spacer"></span><button class="icon-btn" id="provClose" aria-label="'+(en?'Close providers':'Tanca proveïdors')+'">×</button></div>';
   $('provClose').onclick=()=>{box.style.display='none';input.focus();};
   const presetForm=document.createElement('div');presetForm.className='frm preset-form';
-  const presetHint=document.createElement('span');presetHint.id='providerPresetHint';presetHint.textContent=en?'Choose a provider to see its recommended model. Nothing changes until you apply it.':'Tria un proveïdor per veure el model recomanat. No es canvia res fins que l\'apliquis.';
+  const presetHint=document.createElement('h3');presetHint.id='providerPresetHint';presetHint.textContent=en?'Add a connection':'Afegeix una connexió';
   const presetSelect=document.createElement('select');presetSelect.id='providerPreset';presetSelect.setAttribute('aria-label',document.documentElement.lang==='ca'?'Proveidor':'Provider');
   const choosePreset=document.createElement('option');choosePreset.value='';choosePreset.disabled=true;choosePreset.selected=true;choosePreset.textContent=en?'Choose a provider…':'Tria un proveïdor…';presetSelect.append(choosePreset);
-  (data.catalog||[]).filter(p=>!p.local&&p.default_model).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.label+' · '+p.default_model;presetSelect.append(o);});
+  (data.catalog||[]).filter(p=>!p.local&&p.default_model).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.label;presetSelect.append(o);});
   const customPreset=document.createElement('option');customPreset.value='__custom';customPreset.textContent=en?'Custom endpoint':'Endpoint personalitzat';presetSelect.append(customPreset);
   const presetKey=document.createElement('input');presetKey.id='presetAPIKey';presetKey.type='password';presetKey.autocomplete='new-password';presetKey.placeholder=en?'API key or ${VARIABLE}':'API key o ${VARIABLE}';presetKey.setAttribute('aria-label','API key');
-  const presetButton=document.createElement('button');presetButton.className='primary';presetButton.disabled=true;presetButton.textContent=document.documentElement.lang==='ca'?'Utilitza per a tots els rols':'Use for all roles';
+  const presetButton=document.createElement('button');presetButton.className='primary';presetButton.disabled=true;presetButton.textContent=en?'Connect':'Connecta';
+  const field=(caption,control)=>{const label=document.createElement('label');label.className='prov-field';const text=document.createElement('span');text.textContent=caption;label.append(text,control);return label;};
+  const recommended=document.createElement('div');recommended.className='prov-feedback';recommended.setAttribute('role','status');
   presetButton.onclick=async()=>{presetButton.disabled=true;try{
     const response=await api('/api/providers',{method:'POST',body:JSON.stringify({action:'preset',name:presetSelect.value})});
     if(!response.ok)throw new Error(await response.text());
     sys((await response.json()).msg);
-    if(presetKey.value.trim())sys(await pact('key',{name:presetSelect.value,key:presetKey.value.trim()}));
+    if(presetKey.value.trim()){const result=await pact('key',{name:presetSelect.value,key:presetKey.value.trim()});if(result.startsWith('error:'))throw new Error(result);sys(result);}
     presetKey.value='';await toggleProv(true);await refresh();
-  }catch(error){sys(error.message||String(error));}finally{presetButton.disabled=false;}};
-  presetForm.append(presetHint,presetSelect,presetKey,presetButton);box.append(presetForm);
+  }catch(error){recommended.textContent=error.message||String(error);recommended.setAttribute('role','alert');}finally{presetButton.disabled=false;}};
+  const keyField=field(en?'API key':'Clau API',presetKey);
+  presetForm.append(presetHint,field(en?'Provider':'Proveïdor',presetSelect),keyField,presetButton,recommended);box.append(presetForm);
+  const connections=document.createElement('section');connections.className='prov-connections';
+  const connectionsTitle=document.createElement('h3');connectionsTitle.textContent=en?'Your connections':'Les teves connexions';connections.append(connectionsTitle);box.append(connections);
   (data.providers||[]).forEach(p=>{
     const row=document.createElement('div');row.className='prow';
-    const keyLabel=en&&p.key==='(buida)'?'(empty)':en&&p.key==='sí (oculta)'?'(hidden)':p.key;
-    row.innerHTML='<b>'+escapeHTML(p.name)+'</b><span class="url">'+escapeHTML(p.url)+'</span><span>'+(en?'key: ':'clau: ')+escapeHTML(keyLabel)+'</span>'+((p.used_by||[]).length?'<span class="used">'+escapeHTML(p.used_by.join(', '))+'</span>':'');
-    const tb=document.createElement('button');tb.textContent=en?'Test':'Prova';tb.onclick=async()=>{const msg=await pact('test',{name:p.name});sys(msg);activityItem('provider',p.name,msg,msg.startsWith('error')?'bad':'ok');};
+    row.innerHTML='<div class="prov-identity"><b>'+escapeHTML(p.name)+'</b><span class="url">'+escapeHTML(p.url)+'</span><span class="prov-key-state">'+(p.key==='(buida)'?(en?'No API key':'Sense clau API'):(en?'API key configured':'Clau API configurada'))+'</span></div>';
+    const assigned=Object.values(data.roles||{}).filter(r=>r.provider===p.name);
+    if(assigned.length){const models=document.createElement('span');models.className='prov-key-state';models.textContent=Array.from(new Set(assigned.map(r=>r.model))).join(', ');row.querySelector('.prov-identity').append(models);}
+    const tb=document.createElement('button');tb.textContent=en?'Test':'Prova';tb.onclick=async()=>{tb.disabled=true;try{const msg=await pact('test',{name:p.name});recommended.textContent=msg;sys(msg);activityItem('provider',p.name,msg,msg.startsWith('error')?'bad':'ok');}finally{tb.disabled=false;}};
     const kb=document.createElement('button');kb.textContent=en?'API key':'Clau';kb.onclick=()=>{
       if(row.nextElementSibling && row.nextElementSibling.classList.contains('prov-key-editor')) return;
       const ed=document.createElement('div'); ed.className='frm prov-key-editor';
@@ -3443,53 +3474,61 @@ async function toggleProv(force) {
         +'<span class="faint">'+(en?'Leave empty to clear.':'Deixa-ho buit per esborrar-la.')+'</span>';
       const ki=ed.querySelector('input'), save=ed.querySelector('.primary'), cancel=ed.querySelector('button:not(.primary)');
       cancel.onclick=()=>ed.remove();
-      save.onclick=async()=>{save.disabled=true;sys(await pact('key',{name:p.name,key:ki.value.trim()}));ed.remove();toggleProv(true);refresh();};
+      save.onclick=async()=>{save.disabled=true;const msg=await pact('key',{name:p.name,key:ki.value.trim()});if(msg.startsWith('error:')){recommended.textContent=msg;save.disabled=false;return;}sys(msg);ed.remove();toggleProv(true);refresh();};
       row.after(ed); ki.focus();
     };
     const rb=document.createElement('button');rb.textContent=en?'Delete':'Esborra';rb.className='danger';rb.onclick=async()=>{if(confirm((en?'Delete ':'Esborrar ')+p.name+'?')){sys(await pact('rm',{name:p.name}));toggleProv(true);}};
-    row.append(tb,kb,rb);box.appendChild(row);
+    row.append(tb,kb,rb);connections.appendChild(row);
   });
   const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" placeholder="nom" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" type="password" autocomplete="new-password" placeholder="clau o ${VAR}" size="18">';
   const ab=document.createElement('button');ab.textContent=en?'Add provider':'Afegeix provider';ab.className='primary';ab.onclick=async()=>{sys(await pact('add',{name:$('pn').value.trim(),url:$('pu').value.trim(),key:$('pk').value.trim()}));toggleProv(true);refresh();};f.appendChild(ab);box.appendChild(f);
   f.hidden=true;
-  presetSelect.onchange=()=>{const custom=presetSelect.value==='__custom';f.hidden=!custom;presetKey.hidden=custom;presetButton.hidden=custom;presetButton.disabled=!custom&&!presetSelect.value;if(custom)$('pn').focus();};
+  $('pn').placeholder=en?'Connection name':'Nom de la connexió';$('pn').setAttribute('aria-label',$('pn').placeholder);
+  $('pu').setAttribute('aria-label',en?'API endpoint':'Endpoint API');$('pk').placeholder=en?'API key or ${VARIABLE}':'Clau API o ${VARIABLE}';$('pk').setAttribute('aria-label',en?'API key':'Clau API');
+  presetSelect.onchange=()=>{const custom=presetSelect.value==='__custom';f.hidden=!custom;keyField.hidden=custom;presetButton.hidden=custom;presetButton.disabled=!custom&&!presetSelect.value;const preset=(data.catalog||[]).find(p=>p.name===presetSelect.value);recommended.textContent=preset?(en?'Model: ':'Model: ')+preset.default_model:'';if(custom)$('pn').focus();};
+  const advanced=document.createElement('details');advanced.className='prov-advanced';const summary=document.createElement('summary');summary.textContent=en?'Advanced settings':'Configuració avançada';advanced.append(summary);box.append(advanced);
+  const group=(title,node)=>{const section=document.createElement('section');section.className='prov-group';const heading=document.createElement('h3');heading.textContent=title;section.append(heading,node);advanced.append(section);};
   const r2=document.createElement('div');r2.className='frm';const rs=document.createElement('select'),ps=document.createElement('select');
-  Object.keys(data.roles||{}).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r+' · '+data.roles[r].provider+'/'+data.roles[r].model;rs.appendChild(o);});
+  Object.keys(data.roles||{}).forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;rs.appendChild(o);});
   (data.providers||[]).forEach(p=>{const o=document.createElement('option');o.value=p.name;o.textContent=p.name;ps.appendChild(o);});
   // El model es tria d'una llista (el que el provider anuncia ara), no
   // s'escriu: «altre…» deixa el camp de text per als casos que no hi surten.
-  const mi=document.createElement('input');mi.placeholder='model (escriu-lo)';mi.size=18;mi.hidden=true;
+  const mi=document.createElement('input');mi.placeholder=en?'Model ID':'Identificador del model';mi.size=18;mi.hidden=true;
   const ms=document.createElement('select');ms.setAttribute('aria-label','model');
   const mnote=document.createElement('span');mnote.className='faint';
   const fillModels=(pre)=>{
     const prov=ps.value; const list=(mdata.models||{})[prov]||[]; const err=(mdata.errors||{})[prov];
     ms.innerHTML='';
     list.forEach(m=>{const o=document.createElement('option');o.value=m;o.textContent=m;ms.appendChild(o);});
-    const alt=document.createElement('option');alt.value='__altre';alt.textContent=list.length?'altre…':'escriu el model…';ms.appendChild(alt);
-    if(pre&&list.includes(pre))ms.value=pre;else if(!list.length)ms.value='__altre';
-    mnote.textContent=err?('el provider no respon: '+err):(list.length?'':'no anuncia models');
+    const alt=document.createElement('option');alt.value='__altre';alt.textContent=en?'Custom model…':'Model personalitzat…';ms.appendChild(alt);
+    if(pre&&list.includes(pre))ms.value=pre;else if(pre||!list.length)ms.value='__altre';
+    mnote.textContent=err?(en?'Models unavailable. Enter a model ID.':'Models no disponibles. Introdueix un identificador.'):(list.length?'':(en?'Enter a model ID.':'Introdueix un identificador.'));
     mi.hidden=ms.value!=='__altre'; mi.value=mi.hidden?ms.value:(pre&&!list.includes(pre)?pre:'');
   };
   ms.onchange=()=>{mi.hidden=ms.value!=='__altre';mi.value=mi.hidden?ms.value:'';if(!mi.hidden)mi.focus();};
   ps.onchange=()=>fillModels();
   const llLabel=document.createElement('label');llLabel.style.cssText='display:flex;align-items:center;gap:6px';
   const llCheck=document.createElement('input');llCheck.type='checkbox';llCheck.style.width='auto';
-  const llText=document.createElement('span');llText.textContent='Apte per tirades llargues';
+  const llText=document.createElement('span');llText.textContent=en?'Suitable for long tasks':'Apte per a tasques llargues';
   llLabel.append(llCheck,llText);
   rs.onchange=()=>{const r=(data.roles||{})[rs.value];if(r){ps.value=r.provider;fillModels(r.model);llCheck.checked=!!r.long_run;}};
+  let modelsRequested=false;
+  advanced.addEventListener('toggle',async()=>{if(!advanced.open||modelsRequested)return;modelsRequested=true;mdata=await api('/api/models').then(r=>r.json()).catch(()=>({models:{},errors:{}}));if(box.contains(advanced))fillModels(mi.value);});
   setTimeout(()=>{if(mi.parentNode&&!ms.parentNode){mi.before(ms,mnote);}rs.onchange();},0);
-  const sb=document.createElement('button');sb.textContent='Assigna rol';sb.onclick=async()=>{sys(await pact('rol',{role:rs.value,provider:ps.value,model:mi.value.trim()}));toggleProv(true);refresh();};
+  const sb=document.createElement('button');sb.textContent=en?'Save model':'Desa el model';sb.onclick=async()=>{sys(await pact('rol',{role:rs.value,provider:ps.value,model:mi.value.trim()}));toggleProv(true);refresh();};
   const lb=document.createElement('button');lb.textContent='Desa capacitat';lb.title='Declara si aquest rol/model pot fer tasques llargues en mode autònom';lb.onclick=async()=>{sys(await pact('long_run',{role:rs.value,long_run:llCheck.checked}));toggleProv(true);refresh();};
-  r2.append(rs,ps,mi,llLabel,sb,lb);box.appendChild(r2);
+  lb.textContent=en?'Save capability':'Desa la capacitat';
+  r2.append(field(en?'Role':'Rol',rs),field(en?'Provider':'Proveïdor',ps),mi,llLabel,sb,lb);group(en?'Models by role':'Models per rol',r2);
   const limits=document.createElement('div');limits.className='frm';
   const minutes=document.createElement('input');minutes.type='number';minutes.min='1';minutes.max='10080';minutes.value=String(data.autonomous?.max_minutes||600);minutes.title='Durada màxima en minuts';minutes.setAttribute('aria-label','Durada màxima autònoma en minuts');
   const toolSteps=document.createElement('input');toolSteps.type='number';toolSteps.min='1';toolSteps.max='10000';toolSteps.value=String(data.autonomous?.max_tool_steps||2000);toolSteps.title='Eines màximes per tasca';toolSteps.setAttribute('aria-label','Eines màximes per tasca autònoma');
   const limitsNote=document.createElement('span');limitsNote.className='faint';limitsNote.textContent='minuts · eines';
   const limitsSave=document.createElement('button');limitsSave.textContent='Desa límits autònoms';limitsSave.onclick=async()=>{sys(await pact('autonomous_limits',{max_minutes:Number(minutes.value),max_tool_steps:Number(toolSteps.value)}));toggleProv(true);};
-  limits.append(minutes,toolSteps,limitsNote,limitsSave);box.appendChild(limits);
+  limitsSave.textContent=en?'Save limits':'Desa els límits';
+  limits.append(field(en?'Maximum minutes':'Minuts màxims',minutes),field(en?'Maximum tool calls':'Crides a eines màximes',toolSteps),limitsSave);group(en?'Autonomous limits':'Límits autònoms',limits);
   const rv=document.createElement('div');rv.className='frm';const vl=document.createElement('span');vl.textContent='Revisor';const vs=document.createElement('select');
   ['off','manual','auto','both','strict'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===state.verify)o.selected=true;vs.appendChild(o);});
-  const vb=document.createElement('button');vb.textContent='Desa';vb.onclick=async()=>{const r=await api('/api/verify',{method:'POST',body:JSON.stringify({mode:vs.value})});sys(r.ok?'Revisor → '+vs.value:'Error: '+await r.text());refresh();};rv.append(vl,vs,vb);box.appendChild(rv);
+  const vb=document.createElement('button');vb.textContent=en?'Save':'Desa';vb.onclick=async()=>{const r=await api('/api/verify',{method:'POST',body:JSON.stringify({mode:vs.value})});sys(r.ok?(en?'Reviewer: ':'Revisor: ')+vs.value:'Error: '+await r.text());refresh();};rv.append(field(en?'Review policy':'Política de revisió',vs),vb);group(en?'Review':'Revisió',rv);
   box.style.display='block';
 }
 async function pact(action,extra){const r=await api('/api/providers',{method:'POST',body:JSON.stringify(Object.assign({action},extra))});return r.ok?(await r.json()).msg:('error: '+await r.text());}

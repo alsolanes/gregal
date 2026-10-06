@@ -53,6 +53,46 @@ func TestReadOnlyDoesNotInheritMutationGrants(t *testing.T) {
 	}
 }
 
+func TestBashAliasesShareStrictestExplicitPermission(t *testing.T) {
+	cases := []struct {
+		name     string
+		settings map[string]string
+		args     string
+		want     string
+	}{
+		{"bash ask reaches background", map[string]string{"bash": "ask"}, `{"command":"go test ./..."}`, "ask"},
+		{"bash deny reaches background", map[string]string{"bash": "deny"}, `{"command":"go test ./..."}`, "deny"},
+		{"background ask reaches bash", map[string]string{"bash_background": "ask"}, `{"command":"go test ./..."}`, "ask"},
+		{"background deny reaches bash", map[string]string{"bash_background": "deny"}, `{"command":"go test ./..."}`, "deny"},
+		{"ask wins over allow", map[string]string{"bash": "allow", "bash_background": "ask"}, `{"command":"go test ./..."}`, "ask"},
+		{"deny wins over allow", map[string]string{"bash": "allow", "bash_background": "deny"}, `{"command":"go test ./..."}`, "deny"},
+		{"allow cannot relax hard deny", map[string]string{"bash": "allow", "bash_background": "allow"}, `{"command":"sudo rm -rf /tmp/x"}`, "deny"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Policy{Tools: tc.settings}
+			for _, mode := range []string{ModeCode, ModeAutonomous} {
+				for _, tool := range []string{"bash", "bash_background"} {
+					if got, _ := p.Decide(mode, tool, tc.args); got != tc.want {
+						t.Errorf("%s %s = %s; want %s", mode, tool, got, tc.want)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestTodoBookkeepingAllowedInAllModes(t *testing.T) {
+	p := DefaultPolicy()
+	for _, mode := range []string{ModeCode, ModeAutonomous, ModeChat, ModeInspect, ModeGoal} {
+		for _, tool := range []string{"todoread", "todowrite"} {
+			if got, _ := p.Decide(mode, tool, `{}`); got != "allow" {
+				t.Errorf("%s %s = %s; want allow", mode, tool, got)
+			}
+		}
+	}
+}
+
 func TestRememberAmbits(t *testing.T) {
 	r := NewRemember()
 	if r.Allowed("web", "write\x00main.go") {

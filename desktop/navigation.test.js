@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { pathToFileURL } = require('node:url');
-const { sameOrigin, externalURL, localServiceURL, trustedPage } = require('./navigation');
+const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
 const fs = require('node:fs');
 const vm = require('node:vm');
 
@@ -10,7 +10,13 @@ test('navigation checks origins rather than URL prefixes', () => {
   assert.equal(sameOrigin(base + '/session', base), true);
   for (const url of ['https://chat.example.org.evil.test', 'https://chat.example.org@evil.test', 'https://chat.example.org:8443', 'javascript:alert(1)', 'file:///tmp/test']) assert.equal(sameOrigin(url, base), false);
   assert.equal(externalURL('https://example.org/docs'), true);
+  assert.equal(externalURL('http://example.org/docs'), true);
   for (const url of ['javascript:alert(1)', 'file:///tmp/test', 'https://user:secret@example.org', 'not a URL']) assert.equal(externalURL(url), false);
+  assert.equal(backendURLError('https://example.org'), '');
+  for (const url of ['http://localhost:8097', 'http://127.0.0.1:8097', 'http://127.255.0.1:8097', 'http://[::1]:8097']) assert.equal(backendURLError(url), '');
+  assert.match(backendURLError('http://example.org'), /must use HTTPS for non-loopback servers/);
+  assert.match(backendURLError('http://192.0.2.10'), /must use HTTPS for non-loopback servers/);
+  assert.match(backendURLError('https://user:secret@example.org'), /embedded credentials/);
 });
 
 test('managed descriptors stay on loopback and IPC trusts only application pages', () => {
