@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.7.9",
+  "version": "1.7.10",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",

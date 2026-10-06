@@ -16,6 +16,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
+	"gregal/internal/llm"
 )
 
 // La web ara condueix el motor compartit. El motor resol les crides d'un
@@ -166,5 +167,55 @@ func TestConduirTornEscalaPressupostIRetiraFragmentTallat(t *testing.T) {
 	}
 	if len(budgets) != 2 || budgets[0] != 8192 || budgets[1] != 16384 {
 		t.Fatalf("provider max_tokens=%v, wanted [8192 16384]", budgets)
+	}
+}
+
+func TestConduirTornRecoversInterruptedStepWithoutReplayingTools(t *testing.T) {
+	var attempts atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []llm.Message `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		attempt := attempts.Add(1)
+		if attempt == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"choices":[{"message":{"tool_calls":[{"id":"read1","type":"function","function":{"name":"glob","arguments":"{\"pattern\":\"*.go\"}"}}]},"finish_reason":"tool_calls"}]}`)
+			return
+		}
+		results := 0
+		for _, msg := range req.Messages {
+			if msg.Role == "tool" && msg.ToolCallID == "read1" {
+				results++
+			}
+		}
+		if results != 1 {
+			t.Errorf("previous tool result missing or duplicated: %d", results)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		if attempt == 2 {
+			fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"discard\"}}]}\n\n")
+			return
+		}
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"recovered\"},\"finish_reason\":\"stop\"}]}\n\n")
+	}))
+	defer provider.Close()
+	s := goalTestServer(t)
+	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: provider.URL}}
+	role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
+	var text strings.Builder
+	toolResults := 0
+	reply, _, err := s.conduirTorn(context.Background(), "inspect", agent.ModeCode, "code", s.cfg.Providers["p"], role, 3, t.TempDir(), nil, func(kind string, data any) {
+		if kind == "token" {
+			text.WriteString(data.(map[string]string)["text"])
+		}
+		if kind == "tool_result" {
+			toolResults++
+		}
+	})
+	if err != nil || reply != "recovered" || text.String() != "recovered" || toolResults != 1 || attempts.Load() != 3 {
+		t.Fatalf("reply=%q text=%q toolResults=%d attempts=%d err=%v", reply, text.String(), toolResults, attempts.Load(), err)
 	}
 }

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.7.10 - 2026-10-06 - Interrupted agent stream recovery
+
+- Recover interrupted buffered agent streams with up to three attempts at the
+  same model step; discard partial text and tool calls without replaying prior
+  tools. Live chat output is not automatically replayed. Cancellation stops
+  recovery immediately.
+
 ## v1.7.9 - 2026-10-05 - Clearer configuration, agent previews and safer execution
 
 - Simplify provider setup with labeled fields and separate advanced settings.
