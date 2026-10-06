@@ -1,6 +1,10 @@
 /* Gregal's desktop shell: calm surfaces, consistent controls, clear reading. */
 #top { height:60px; min-height:60px; padding:0 22px; gap:14px; background:var(--bg); }
-.breadcrumb { gap:10px; }
+.breadcrumb { flex-direction:column; align-items:flex-start; gap:2px; flex:1; }
+.project-heading { display:flex; align-items:center; gap:10px; min-width:0; max-width:100%; }
+.workspace-location { display:block; width:100%; max-width:100%; padding:0; border:0; border-radius:0; background:none; color:var(--muted); text-align:left; font:11px/1.4 var(--mono); cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workspace-location:hover { color:var(--accent-hi); background:none; }
+.workspace-location:disabled { opacity:1; cursor:default; }
 #project { font-size:var(--t3); font-weight:600; letter-spacing:-.015em; }
 #branch { font:var(--t2)/1.4 inherit; font-family:inherit; }
 .sep { opacity:.45; }
@@ -153,6 +157,13 @@
   .icon-btn, .ghost, #box, #send, .hero-card { transition:none; }
 }
 @media (max-width:480px) {
+  #top { display:grid; grid-template-columns:30px minmax(0,1fr) auto; grid-template-rows:34px 16px; height:68px; min-height:68px; padding:6px 10px; gap:2px 7px; }
+  #top .breadcrumb { display:contents; }
+  #top .project-heading { grid-column:2; grid-row:1; }
+  #top .workspace-location { grid-column:1 / -1; grid-row:2; }
+  #top #menu { grid-column:1; grid-row:1; }
+  #top .top-meta { grid-column:3; grid-row:1; }
+  #top .spacer { display:none; }
   .composer-row { flex-wrap:wrap; }
   .mode-switch { flex-basis:100%; display:flex; max-width:100%; }
   .mode-primary { flex:1; }

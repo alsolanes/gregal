@@ -178,13 +178,14 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		prim, fb := s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role)
 		switch pas.Ordre {
 		case agent.OrdrePasModel:
-			ctx, cancel := context.WithTimeout(runCtx, 240*time.Second)
+			ctx, cancel := torn.ModelContext(runCtx)
 			ctx = llm.WithThink(ctx, agent.ThinkPerPas(role.Think, pas))
 			ctx = llm.WithRetryHook(ctx, func(attempt, total int, wait time.Duration, err error) {
 				emit("status", map[string]string{"message": llm.RetryNote(attempt, total, wait, err)})
 			})
 			content, calls, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, agent.SpecsAll(),
 				func(tok string) { emit("token", map[string]string{"text": tok}) }, nil, onFallback)
+			err = agent.ModelError(ctx, err)
 			cancel()
 			// El text que acompanya crides d'eina és treball, no la resposta:
 			// la UI el plega i hi tanca la bombolla del pas.

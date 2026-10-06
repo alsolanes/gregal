@@ -141,3 +141,13 @@ opening downloaded HTML outside the preview or publishing it.
 - [Compatibility notes](compatibility.md)
 - [Security policy](../SECURITY.md)
 - [Contributing](../CONTRIBUTING.md)
+## Model Request Time Limits
+
+Autonomous model steps default to a 20-minute time limit; interactive steps
+default to four minutes. Set `agent.model_timeout_s` to a value from 1 to 1200
+seconds to override either default, or use `0` for automatic selection.
+Retries share the same step deadline. Cancellation still stops the request.
+Autonomous requests are also bounded by the remaining `max_minutes` budget;
+when that budget expires, pending tools are discarded and a final summary is
+requested separately, with its existing bounded time limit. A timed-out step
+is not automatically replayed.

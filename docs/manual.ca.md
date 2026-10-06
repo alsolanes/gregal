@@ -146,3 +146,13 @@ preview o publicar-lo.
 - [Notes de compatibilitat](compatibility.md)
 - [Política de seguretat](../SECURITY.md)
 - [Com contribuir](../CONTRIBUTING.md)
+## Limits Temporals Del Model
+
+Els passos del model tenen un limit de 20 minuts en Autonomous i de quatre
+minuts en els modes interactius. `agent.model_timeout_s` permet configurar-lo
+entre 1 i 1200 segons; `0` selecciona el valor automatic segons el mode.
+Els reintents comparteixen el mateix termini i la cancel·lacio continua activa.
+Les peticions autonomes tambe respecten el pressupost restant de `max_minutes`.
+Quan s'esgota, es descarten les eines pendents i es demana un resum final per
+separat, amb el seu limit temporal existent. Un pas que excedeix el termini
+no es repeteix automaticament.

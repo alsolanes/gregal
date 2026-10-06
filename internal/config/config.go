@@ -144,12 +144,26 @@ type AutonomousCfg struct {
 
 // AgentCfg controla l'agent loop (/agent).
 type AgentCfg struct {
-	MaxSteps   int           `yaml:"max_steps"`
-	Autonomous AutonomousCfg `yaml:"autonomous"`
+	MaxSteps      int           `yaml:"max_steps"`
+	Autonomous    AutonomousCfg `yaml:"autonomous"`
+	ModelTimeoutS int           `yaml:"model_timeout_s,omitempty"`
 	// ApprovalTimeoutS és quants segons espera la web una aprovació o una
 	// pregunta abans de donar-la per denegada. 0 (sense posar) = 30 minuts;
 	// negatiu = sense límit, fins que l'usuari respon o atura el torn.
 	ApprovalTimeoutS int `yaml:"approval_timeout_s,omitempty"`
+}
+
+// ModelTimeout bounds one model step, including retries. Autonomous generation
+// uses the same twenty-minute ceiling as the HTTP client; interactive modes
+// retain their four-minute default. The overall run budget remains separate.
+func (c *Config) ModelTimeout(mode string) time.Duration {
+	if c != nil && c.Agent.ModelTimeoutS > 0 {
+		return time.Duration(c.Agent.ModelTimeoutS) * time.Second
+	}
+	if mode == "autonomous" {
+		return 20 * time.Minute
+	}
+	return 4 * time.Minute
 }
 
 // ApprovalTimeout és l'espera efectiva d'una aprovació (0 = sense límit).
@@ -442,6 +456,9 @@ budget:
 
 agent:
   max_steps: 10
+  # Per model step: 0 = automatic (240s interactive, 1200s autonomous).
+  # An explicit value must be between 1 and 1200 seconds.
+  model_timeout_s: 0
   # Mode autònom: treballa per fites, verifica i reprèn mentre hi hagi progrés.
   autonomous:
     checkpoint_every: 10
@@ -682,6 +699,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Agent.MaxSteps < 1 || c.Agent.MaxSteps > 200 {
 		return fmt.Errorf("agent.max_steps %d fora de rang (1-200)", c.Agent.MaxSteps)
+	}
+	if c.Agent.ModelTimeoutS < 0 || c.Agent.ModelTimeoutS > 1200 {
+		return fmt.Errorf("agent.model_timeout_s %d outside range (0-1200)", c.Agent.ModelTimeoutS)
 	}
 	a := c.AutonomousConfig()
 	if a.CheckpointEvery < 1 || a.CheckpointEvery > 200 {

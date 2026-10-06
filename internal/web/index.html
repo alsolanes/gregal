@@ -1421,7 +1421,10 @@ body.sense-inspector #inspector { display:none; }
   <header id="top">
     <button class="icon-btn" id="menu" data-i18n-title="ui.toggleSidebar" title="Toggle sidebar" data-i18n-aria="ui.toggleSidebar" aria-label="Toggle sidebar" aria-expanded="true">☰</button>
     <div class="breadcrumb">
+      <div class="project-heading">
       <span id="project">projecte</span><span class="sep">/</span><span id="branch">workspace</span>
+      </div>
+      <button id="activeWorkspace" type="button" class="workspace-location" data-i18n-title="ui.changeWorkspace" data-i18n-aria="ui.changeWorkspace" title="Change working folder" aria-label="Change working folder"><span id="activeWorkspacePath"></span></button>
     </div>
     <span class="spacer"><span class="tide" aria-hidden="true"></span></span>
     <div class="top-meta">
@@ -2364,6 +2367,9 @@ async function refresh() {
   $('endpoint').textContent = fullModel;
   $('branch').textContent = r.branch || 'workspace';
   $('project').textContent = r.project || 'projecte'; $('project').title = r.cwd || '';
+  $('activeWorkspacePath').textContent = r.cwd || '';
+  $('activeWorkspace').title = gregalT('ui.changeWorkspace') + (r.cwd ? ': ' + r.cwd : '');
+  $('activeWorkspace').disabled = !!r.agent_busy;
   $('sideProject').textContent = r.project || 'Projecte actual';
   $('statusDot').classList.toggle('busy', visualWorking(r));
   $('hmode').textContent = r.mode; $('hrole').textContent = r.model || r.current_role;

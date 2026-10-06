@@ -1098,7 +1098,13 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 	}
 	p := m.cfg.Providers[r.Provider]
 	c := m.client
-	ctx, cancel := context.WithTimeout(context.Background(), 240*time.Second)
+	var ctx context.Context
+	var cancel context.CancelFunc
+	if m.torn != nil {
+		ctx, cancel = m.torn.ModelContext(context.Background())
+	} else {
+		ctx, cancel = context.WithTimeout(context.Background(), m.cfg.ModelTimeout(m.mode))
+	}
 	ctx = ambAvisReintent(ctx, s)
 	// think del rol (sense això només el headless el respectava), pas a
 	// pas amb think: auto: m.pasMecanic el posa avanca amb el Pas.
@@ -1108,6 +1114,7 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 		var fb string
 		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsAll(),
 			s.add, s.addThink, func(model string) { fb = model })
+		err = agent.ModelError(ctx, err)
 		s.finish()
 		prompt := 0
 		cached := 0

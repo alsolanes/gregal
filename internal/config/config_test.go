@@ -4,7 +4,29 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
+
+func TestModelTimeoutConfiguration(t *testing.T) {
+	for _, seconds := range []int{-1, 1201} {
+		c, _, err := Load(writeTemp(t, goodYAML))
+		if err != nil {
+			t.Fatal(err)
+		}
+		c.Agent.ModelTimeoutS = seconds
+		if err := c.Validate(); err == nil {
+			t.Fatalf("accepted timeout %d", seconds)
+		}
+	}
+	c := &Config{}
+	if c.ModelTimeout("chat") != 4*time.Minute || c.ModelTimeout("autonomous") != 20*time.Minute {
+		t.Fatal("incorrect automatic timeout")
+	}
+	c.Agent.ModelTimeoutS = 1
+	if c.ModelTimeout("autonomous") != time.Second {
+		t.Fatal("explicit timeout ignored")
+	}
+}
 
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()

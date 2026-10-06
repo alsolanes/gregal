@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -587,5 +588,34 @@ func TestHandleWorkspaces(t *testing.T) {
 	s.handleWorkspaces(w2, httptest.NewRequest("POST", "/api/workspaces", strings.NewReader(`{"path":"/no/existeix/ai"}`)))
 	if w2.Code != http.StatusBadRequest {
 		t.Fatalf("directori inexistent: %d", w2.Code)
+	}
+}
+
+func TestWorkspaceChangeControlsToolDirectory(t *testing.T) {
+	setHomeTest(t, t.TempDir())
+	s := hubTestServer(t)
+	previous, selected := t.TempDir(), t.TempDir()
+	if err := s.setWorkspace(previous); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.setWorkspace(selected); err != nil {
+		t.Fatal(err)
+	}
+	var call llm.ToolCall
+	call.Function.Name = "write"
+	call.Function.Arguments = `{"path":"selected-folder.txt","content":"fixture"}`
+	out, _ := s.execToolCtx(context.Background(), call, s.cwd)
+	if strings.HasPrefix(out, "ERROR:") {
+		t.Fatal(out)
+	}
+	if _, err := os.Stat(filepath.Join(selected, "selected-folder.txt")); err != nil {
+		t.Fatal("tool did not write in selected folder:", err)
+	}
+	if _, err := os.Stat(filepath.Join(previous, "selected-folder.txt")); !os.IsNotExist(err) {
+		t.Fatal("tool wrote in previous folder")
+	}
+	s.agentBusy = true
+	if err := s.setWorkspace(previous); err == nil || s.cwd != selected {
+		t.Fatal("workspace changed while a run was active")
 	}
 }

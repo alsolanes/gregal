@@ -2,6 +2,7 @@ package agent
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -442,6 +443,12 @@ func (t *Torn) RepPas(content string, calls []llm.ToolCall, err error) []Event {
 
 // repError decideix si es reintenta el pas o si el torn es dona per mort.
 func (t *Torn) repError(err error) []Event {
+	var budgetError *autonomousTimeLimitError
+	if t.o.Mode == ModeAutonomous && errors.As(err, &budgetError) {
+		t.sintesiDemanada, t.esgotat = true, true
+		t.perExecutar, t.pendents, t.teActual = nil, nil, false
+		return []Event{avis("autònom: " + budgetError.Error() + ": torn aturat, faig el resum")}
+	}
 	// Topall de recuperacions seguides: si el proveïdor continua dient que
 	// no hi cap per molt que es retalli, és millor morir amb l'error que
 	// fer voltes (la web el tenia a 5; el motor no en tenia cap).

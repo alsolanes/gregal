@@ -193,7 +193,6 @@ async function nouProjecte() {
       // Desa el projecte al registre de workspaces i obre una sessió lligada
       // a la mateixa carpeta. Així el projecte reapareix a la sidebar després
       // de reiniciar el desktop, i la conversa conserva el seu context.
-      await workspaces.set(dir, { quiet: true });
       await sessions.open(dir);
       G().setView('agent');
       G().sys('Projecte creat · ' + dir);
@@ -897,6 +896,8 @@ export function boot() {
   // mires per saber on ets, i on esperes poder canviar-ho.
   const hdrProj = $('project');
   if (hdrProj) { hdrProj.style.cursor = 'pointer'; hdrProj.title = (hdrProj.title || '') + ' · clic per canviar de projecte'; hdrProj.onclick = () => workspaces.pick(); }
+  const workspaceButton = $('activeWorkspace');
+  if (workspaceButton) workspaceButton.onclick = () => workspaces.pick();
   document.addEventListener('keydown', e => {
     if (!(e.ctrlKey || e.metaKey)) return;
     if (e.key === 't') { e.preventDefault(); sessions.open(); }
@@ -967,7 +968,7 @@ export const workspaces = {
     const q = id => ov.querySelector('#' + id);
     let actual = '';
     const tanca = () => ov.remove();
-    const tria = async path => { tanca(); await this.set(path, options); };
+    const tria = async path => { if (await this.set(path, options)) tanca(); };
     ov.querySelector('.x').onclick = tanca;
     q('wsCancel').onclick = tanca;
     ov.addEventListener('click', e => { if (e.target === ov) tanca(); });
@@ -1043,6 +1044,11 @@ export const workspaces = {
   },
   async set(path, options = {}) {
     try {
+      if (options.create) {
+        await sessions.open(path);
+        G().setView('agent');
+        return true;
+      }
       await j('/api/workspaces', { method: 'POST', body: JSON.stringify({ path }) });
       files.cache = null;
       await G().refresh();
@@ -1055,8 +1061,10 @@ export const workspaces = {
       // sola línia «Projecte · …»: el canvi ja es veu a la capçalera.
       const conversa = document.getElementById('main');
       if (!options.quiet && conversa && conversa.classList.contains('on')) G().sys('Projecte · ' + path);
+      return true;
     } catch (e) {
       alert('No s\'ha pogut obrir: ' + e.message);
+      return false;
     }
   },
 };

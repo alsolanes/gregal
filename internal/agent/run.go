@@ -222,12 +222,15 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 		res.Steps = torn.Passos()
 		switch p.Ordre {
 		case OrdrePasModel:
-			pctx := llm.WithThink(ctx, ThinkPerPas(r.Think, p))
+			stepCtx, cancel := torn.ModelContext(ctx)
+			pctx := llm.WithThink(stepCtx, ThinkPerPas(r.Think, p))
 			content, calls, _, err := perfilCrida(pctx, p.Passos, p.Hist, func() (string, []llm.ToolCall, error) {
 				c, cs, _, e := client.ChatWithToolsFO(pctx, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), p.Hist,
 					r.Temperature, r.MaxTokens, SpecsAll(), func(model string) { res.FallbackModel = model })
 				return c, cs, e
 			})
+			err = ModelError(stepCtx, err)
+			cancel()
 			if onStep != nil {
 				noms := make([]string, 0, len(calls))
 				for _, c := range calls {

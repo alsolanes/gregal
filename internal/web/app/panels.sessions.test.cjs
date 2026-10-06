@@ -20,11 +20,14 @@ function loadSessions() {
   const window = {
     addEventListener() {},
     gregal: {
-      async api(url) {
+      async api(url, opts) {
+        (sandbox.requests ||= []).push({ url, opts });
+        if (url === '/api/sessions/open') return { ok: true, async json() { return { id: 'new-project' }; } };
         if (url === '/api/sessions/close' && sandbox.closeFails) throw new Error('backend unavailable');
         return { ok: true, async json() { return { sessions: [] }; }, async text() { return ''; } };
       },
       onSessionSwitch() {},
+      setView() {},
       async refresh() { return { transcript: [] }; },
       add() {}, md() { return ''; }, sys(message) { messages.push(message); },
       viewActual() { return ''; },
@@ -42,13 +45,14 @@ function loadSessions() {
     Event: class Event { constructor(type) { this.type = type; } },
     document: { getElementById(id) { return id === 'in' ? input : id === 'main' ? main : null; } },
     closeFails: false,
+    alert(message) { messages.push(message); },
   };
   let source = fs.readFileSync(path.join(__dirname, 'panels.js'), 'utf8');
   source = source.replace(/^import .*;\s*$/gm, '');
   source = source.replace(/^export (?=(?:const|function)\b)/gm, '');
-  source += '\n;globalThis.__sessions = sessions;';
+  source += '\n;globalThis.__sessions = sessions; globalThis.__workspaces = workspaces; globalThis.__newProject = nouProjecte;';
   vm.runInNewContext(source, sandbox, { filename: 'panels.js' });
-  return { sessions: sandbox.__sessions, input, stored, messages, sandbox };
+  return { sessions: sandbox.__sessions, workspaces: sandbox.__workspaces, newProject: sandbox.__newProject, input, stored, messages, sandbox };
 }
 
 test('session drafts restore per tab, save on edits, and clear after submit', async () => {
@@ -69,6 +73,31 @@ test('session drafts restore per tab, save on edits, and clear after submit', as
   input.value = '';
   input.dispatchEvent(new Event('input'));
   assert.equal(JSON.parse(stored.get('gregal_draft_sessions')).beta, undefined);
+});
+
+test('creating a project opens its folder without changing the previous session', async () => {
+  const { workspaces, sandbox, sessions } = loadSessions();
+  assert.equal(await workspaces.set('C:/fixture/new-project', { create: true }), true);
+  const requests = sandbox.requests;
+  assert.equal(requests.some(r => r.url === '/api/workspaces'), false);
+  assert.equal(JSON.parse(requests.find(r => r.url === '/api/sessions/open').opts.body).cwd, 'C:/fixture/new-project');
+  assert.equal(sessions.current, 'new-project');
+});
+
+test('native Project selection does not mutate the previous session', async () => {
+  const { newProject, sandbox } = loadSessions();
+  sandbox.window.gregalDesktop = { async chooseFolder() { return 'C:/fixture/native-project'; } };
+  await newProject();
+  assert.equal(sandbox.requests.some(r => r.url === '/api/workspaces'), false);
+  assert.equal(JSON.parse(sandbox.requests.find(r => r.url === '/api/sessions/open').opts.body).cwd, 'C:/fixture/native-project');
+});
+
+test('failed project selection reports failure and does not switch sessions', async () => {
+  const { workspaces, sandbox, sessions, messages } = loadSessions();
+  sandbox.window.gregal.api = async () => ({ ok: false, async text() { return 'folder unavailable'; } });
+  assert.equal(await workspaces.set('C:/fixture/missing', { create: true }), false);
+  assert.equal(sessions.current, 'default');
+  assert.match(messages[0], /folder unavailable/);
 });
 
 test('a failed session close leaves the current session open and reports the error', async () => {

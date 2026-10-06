@@ -117,7 +117,12 @@ func (s *Server) setWorkspace(dir string) error {
 	if err := s.user.Allow(abs); err != nil {
 		return err
 	}
+	queued := s.queueHasActiveTurn()
 	s.mu.Lock()
+	if abs != s.cwd && (queued || s.agentBusy || s.planRunning) {
+		s.mu.Unlock()
+		return errors.New("stop the current run before changing its working folder, or open a new project")
+	}
 	s.cwd = abs
 	if s.policy != nil {
 		s.policy.ProjectDir = abs
