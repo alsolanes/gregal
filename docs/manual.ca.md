@@ -156,3 +156,21 @@ Les peticions autonomes tambe respecten el pressupost restant de `max_minutes`.
 Quan s'esgota, es descarten les eines pendents i es demana un resum final per
 separat, amb el seu limit temporal existent. Un pas que excedeix el termini
 no es repeteix automaticament.
+
+## Plots al xat i dashboard
+
+Demana a Gregal un gràfic amb dades del projecte. Els blocs `gregal-plot`
+es mostren com a gràfics de línies, barres o dispersió dins del xat, amb
+les dades consultables i exportació a PNG i JSON. Prem **Guardar plot**
+o **Afegir al dashboard** per conservar-lo.
+
+Obre **Plots i dashboard** a la barra lateral per consultar la biblioteca
+del projecte o el seu dashboard. Pots importar JSON, editar dades i títols,
+afegir notes, canviar l'amplada, ordenar targetes i eliminar plots.
+Els plots es guarden al servidor per usuari i projecte i es conserven en
+reiniciar. Són captures: les dades no s'actualitzen automàticament.
+
+Crea i anomena diversos dashboards amb **Nou dashboard**. El selector
+**Moure al dashboard** assigna cada plot a un tauler. Eliminar un dashboard
+conserva els plots a la biblioteca. Pots cercar per títol, nota o sessió
+d'origen i descarregar tots els taulers i plots amb **Exportar col·lecció JSON**.

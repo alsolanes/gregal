@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.8.1 - 2026-10-07 - Chat plots and project dashboard
+
+- Render inline line, bar and scatter charts from `gregal-plot` data blocks.
+- Save plot snapshots per project and user with their source session.
+- Organize dashboard cards with notes, ordering and compact or wide layouts.
+- Edit titles and data, import JSON and export PNG/JSON.
+- Validate chart data and prevent concurrent edits from silently overwriting changes.
+- Saved plots do not refresh automatically.
+- Create, rename and delete named dashboards; move plots between them without
+  losing their library data. Search plots and export the collection as JSON.
+
 ## v1.7.10 - 2026-10-06 - Interrupted agent stream recovery
 
 - Recover interrupted buffered agent streams with up to three attempts at the

@@ -442,6 +442,7 @@ func (h *Hub) mux() *http.ServeMux {
 	// G3: arbre, fitxers i diffs del workspace.
 	handle("/api/tree", h.route((*Server).handleTree))
 	handle("/api/file", h.route((*Server).handleFile))
+	handle("/api/plots", h.route((*Server).handlePlots))
 	handle("/api/diff", h.route((*Server).handleDiff))
 	handle("/api/diff/discard", h.route((*Server).handleDiffDiscard))
 	// Grafs: procediments desats a .gregal/flows del projecte de la sessió.
@@ -1927,6 +1928,7 @@ func (s *Server) sysPrompt() string { return s.sysPromptAmb(s.mode, s.cwd) }
 func (s *Server) sysPromptAmb(mode, workspace string) string {
 	base := s.cfg.SystemPrompt()
 	prompt := agent.PromptFor(base, mode)
+	prompt += plotPrompt
 	project := filepath.Base(filepath.Clean(workspace))
 	prompt = fmt.Sprintf(`%s
 
