@@ -68,6 +68,7 @@
 
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
+    if (lang === 'gregal-plot') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
     return '<div class="codeblock"><div class="codehead"><span>' + (lang || "codi") +
       '</span><button class="copybtn">copia</button></div><pre><code>' + highlight(cos) + "</code></pre></div>";
   }

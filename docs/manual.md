@@ -151,3 +151,19 @@ Autonomous requests are also bounded by the remaining `max_minutes` budget;
 when that budget expires, pending tools are discarded and a final summary is
 requested separately, with its existing bounded time limit. A timed-out step
 is not automatically replayed.
+
+## Chat plots and dashboard
+
+Ask Gregal for a chart from your project data. Fenced `gregal-plot` blocks
+render inline as line, bar, or scatter charts with a data table and PNG/JSON
+downloads. Use **Save plot** or **Add to dashboard** to keep a snapshot.
+
+Open **Plots & dashboard** in the sidebar to browse the project's library
+or dashboard. Import JSON, edit data and titles, add notes, change card width,
+reorder cards, and delete plots. Libraries persist on the server per user
+and project across restarts. Saved snapshots do not refresh automatically.
+
+Create and name multiple dashboards with **New dashboard**, then use each
+plot's **Move to dashboard** selector to assign it. Deleting a dashboard keeps
+its plots in the library. Search by title, note or source session and use
+**Export collection JSON** to download a copy of all dashboards and plots.

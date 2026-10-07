@@ -258,3 +258,26 @@ separate stop route is needed.
 
 When a graph finishes, its summary is added to the session conversation so it
 can be discussed in a follow-up turn.
+
+## Plot library and project dashboard
+
+`/api/plots` uses the authenticated user and the workspace of `X-Gregal-Session`.
+Libraries are stored on the server, separately for each user and project, and survive restarts.
+
+- GET returns `{revision, plots}`. Each plot has `id`, `spec`, `session` (source), `created`, `dashboard`, `width` (1 or 2), and `note`.
+- POST accepts `{revision, spec, dashboard}` and creates a saved snapshot. A spec contains `title`, `type` (`line`, `bar`, `scatter`), string `labels`, and `series` of `{label, values}`. For scatter, labels contain numeric x coordinates. Values must be finite and match the labels. Limits: 2000 labels, 20 series, 200 plots per library; request bodies at most 1 MiB.
+- PATCH accepts `{revision, id, dashboard, width, note, spec?, direction?, dashboard_only?}`. It updates the card, optionally replaces its data/title, and moves it one position with `direction: -1` or `1`. Set `dashboard_only: true` to skip cards outside the dashboard when reordering. Notes are limited to 4000 bytes.
+- DELETE accepts `{revision, id}` and removes the saved plot.
+
+GET also returns `boards: [{id, name}]`; saved plots have a `board` ID. The
+initial dashboard is `default`; existing libraries migrate to it automatically.
+POST/PATCH plot requests accept `board` (default: `default`). Each saved plot
+can belong to one dashboard at a time.
+POST with `{revision, operation, board?, name?}` manages named dashboards:
+`create_board` needs a name, `rename_board` needs a board ID and name, and
+`delete_board` needs a board ID. The default dashboard cannot be deleted.
+Deleting another dashboard removes its membership but preserves all plots,
+data and notes in the library. Names are limited to 200 bytes and a project
+can have up to 30 dashboards. All operations use the same revision control.
+
+Mutations return the updated library. A stale revision returns 409; reload before retrying. Invalid requests return 400, unknown plot IDs 404, and storage failures 500. Chart options and executable code are not accepted. Snapshots do not refresh automatically.
