@@ -1,6 +1,10 @@
 package agent
 
-import "gregal/internal/goal"
+import (
+	"strings"
+
+	"gregal/internal/goal"
+)
 
 // Modes de treball. "code" executa eines amb la política normal (escriptures
 // dins del projecte passen soles; la resta demana, amb opció de recordar per
@@ -30,6 +34,9 @@ func PromptFor(base, mode string) string {
 		base += "\n\n" + f
 	}
 	base += reglesMode(mode)
+	if !strings.Contains(base, latestRequestRules) {
+		base += "\n\n" + latestRequestRules
+	}
 	// La data va al final per mantenir estable el prefix reutilitzable pel KV
 	// cache dels models locals; només canvia una vegada al dia.
 	if d := DataAra(); d != "" {
@@ -37,6 +44,11 @@ func PromptFor(base, mode string) string {
 	}
 	return base
 }
+
+// latestRequestRules is static and shared by all fronts and modes. A saved
+// conversation is background, not permission to reopen an old task. Keep this
+// out of per-turn messages to preserve the reusable prefix and user history.
+const latestRequestRules = `Prioritza l'últim missatge de l'usuari: l'historial és context, no una ordre pendent. Respon només al que demana ara. Els resums compactats, fins i tot si diuen «continua amb aquest context», són antecedents: no autoritzen reprendre una feina. Només reprèn un tema anterior quan el missatge actual ho demani. Si canvia de tema, cancel·la o corregeix una petició anterior, respecta-ho sense tornar a la feina antiga. Una salutació sola («Ep», «Hola», «Bon dia») exigeix ÚNICAMENT una salutació breu i neutra, com «Hola! Què necessites?»: està prohibit afegir-hi estat de tasques, recordatoris, informes, dubtes o propostes del fil anterior, encara que semblin pendents. Si la salutació inclou una petició, respon a aquesta petició. «segueix» o «fes-ho» sí poden referir-se a l'intercanvi immediatament anterior; si la referència és ambigua, pregunta breument abans d'actuar. No atribueixis a l'usuari propostes que només hagis fet tu.`
 
 // reglesMode és el text específic de cada mode.
 func reglesMode(mode string) string {
