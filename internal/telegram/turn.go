@@ -377,7 +377,9 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	}
 	uso := &llm.UsageMeter{}
 	tctx = llm.WithUsage(tctx, uso)
+	var checklist turnChecklist
 	torn := agent.NouTorn(agent.OpcionsTorn{
+		Todos: checklist.list,
 		Usage: uso,
 		Cfg:   b.cfg, Pol: b.polOf(st), Mode: mode, Tasca: text, MaxSteps: b.cfg.Agent.MaxSteps,
 		Hist:      convo,
@@ -445,7 +447,11 @@ bucle:
 			outs := agent.RunCalls(p.Calls, nil, func(_ int, c llm.ToolCall) agent.Execucio {
 				// Amb el context del torn: /stop atura també l'eina a mitges,
 				// no només la següent crida al model.
-				o, imgs, err := agent.ExecCtx(tctx, "", b.dirOf(st), c.Function.Name, c.Function.Arguments)
+				o, handled, err := checklist.exec(c.Function.Name, c.Function.Arguments)
+				var imgs []string
+				if !handled {
+					o, imgs, err = agent.ExecCtx(tctx, "", b.dirOf(st), c.Function.Name, c.Function.Arguments)
+				}
 				if err != nil {
 					o = "ERROR: " + err.Error()
 				}

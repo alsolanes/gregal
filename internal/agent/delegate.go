@@ -11,6 +11,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 )
 
 // delegateToolSpec és l'eina de subagents paral·lels (estil Task de Claude
@@ -135,6 +136,9 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 			sys += "\n\n" + info
 		}
 		pol := delegatePolicy(permissions)
+		// Cada invocació té el seu checklist. RunCalls serialitza todowrite
+		// respecte als lots de todoread, que només llegeixen aquesta llista.
+		var todos []tools.TodoItem
 		hist := []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: prompt}}
 		for step := 1; step <= 12; step++ {
 			if room := MakeRoom(ctx, client, primary, fallback, "", hist, budget); room.Changed() {
@@ -154,7 +158,23 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 			}
 			plans := PlanCalls(pol, ModeInspect, nil, calls)
 			res := RunCalls(calls, func(i int) bool { return plans[i].Fixed != "" || plans[i].Ask }, func(_ int, c llm.ToolCall) resultat {
-				o, oi, err := ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
+				var o string
+				var oi []string
+				var err error
+				switch c.Function.Name {
+				case "todowrite":
+					var input struct {
+						Items []tools.TodoItem `json:"items"`
+					}
+					if err = json.Unmarshal([]byte(c.Function.Arguments), &input); err == nil {
+						todos = tools.NetejaTodos(input.Items)
+						o = tools.RenderTodos(todos)
+					}
+				case "todoread":
+					o = tools.RenderTodos(todos)
+				default:
+					o, oi, err = ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
+				}
 				if err != nil {
 					return resultat{out: "ERROR: " + err.Error()}
 				}
