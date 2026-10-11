@@ -2,6 +2,7 @@ package tools
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -45,6 +46,17 @@ func NewJournal() *Journal { return &Journal{orig: map[string]*[]byte{}} }
 // Active és el journal global: Write/Edit hi desen l'original.
 var Active = NewJournal()
 
+// readLimited llegeix com a molt max bytes d'un fitxer sense carregar-lo
+// sencer a la RAM (vegeu MaxCaptureBytes).
+func readLimited(path string, max int) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return io.ReadAll(io.LimitReader(f, int64(max)))
+}
+
 // Snap desa l'original una sola vegada (la primera que es toca) i registra
 // l'esdeveniment amb la imatge prèvia (per als checkpoints per pas).
 // S'ha de cridar ABANS de modificar (Write/Edit ja ho fan).
@@ -54,11 +66,15 @@ func (j *Journal) Snap(path string) { j.SnapOp(path, "write") }
 func (j *Journal) SnapOp(path, op string) {
 	j.mu.Lock()
 	defer j.mu.Unlock()
-	raw, err := os.ReadFile(path)
+	// Snapshot limitat: un fitxer gegant (model, vídeo, BD) no pot
+	// ficar-se sencer a la RAM per a l'undo — el rewind no desa fitxers
+	// per damunt del sostre de captura i l'avís queda al mateix event.
 	var before *[]byte
-	if err == nil {
-		cp := append([]byte(nil), raw...)
-		before = &cp
+	if fi, err := os.Stat(path); err == nil && fi.Size() <= MaxCaptureBytes {
+		if raw, err := os.ReadFile(path); err == nil {
+			cp := append([]byte(nil), raw...)
+			before = &cp
+		}
 	}
 	j.events = append(j.events, Event{Seq: len(j.events) + 1, Op: op, Path: path, At: time.Now(), Before: before})
 	if _, ok := j.orig[path]; ok {

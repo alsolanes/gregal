@@ -3,7 +3,6 @@ package tools
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -75,7 +74,9 @@ func GitDiffStructured(dir string) ([]DiffFile, error) {
 // untrackedDiff presenta un fitxer nou com un hunk d'altes.
 func untrackedDiff(dir, rel string) DiffFile {
 	f := DiffFile{Path: rel, Status: "added", Untracked: true}
-	raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+	// Lectura limitada a la font (vegeu MaxCaptureBytes): un fitxer nou
+	// gegant no entra sencer a la RAM per pintar un diff.
+	raw, err := readLimited(filepath.Join(dir, filepath.FromSlash(rel)), MaxCaptureBytes)
 	if err != nil {
 		return f
 	}
@@ -283,7 +284,7 @@ func patchTargetIsLF(dir, patch string) bool {
 	if rel == "" || rel == "/dev/null" {
 		return false
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+	raw, err := readLimited(filepath.Join(dir, filepath.FromSlash(rel)), MaxCaptureBytes)
 	if err != nil {
 		return false
 	}

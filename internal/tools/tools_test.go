@@ -142,6 +142,46 @@ func TestBash(t *testing.T) {
 	}
 }
 
+// Una sortida gegant (centenars de MB) no pot omplir la RAM: el sostre
+// de captura és a la font, i el truncat final de sempre.
+func TestBashSortidaGegantQuedaLimitada(t *testing.T) {
+	out, err := Bash("for i in $(seq 1 20000); do head -c 1024 /dev/zero | tr '\\0' 'x'; done", 60*time.Second)
+	if err != nil {
+		t.Fatalf("bash gegant: %v", err)
+	}
+	// ~20 MB de sortida: capturada com a molt MaxCaptureBytes i retallada
+	// a MaxOutputChars per al model, amb la nota del tall.
+	if len(out) > MaxOutputChars+80 {
+		t.Fatalf("la sortida final ha de ser curta: %d bytes", len(out))
+	}
+	if !strings.Contains(out, "truncat") && !strings.Contains(out, "tallada") {
+		t.Errorf("el tall s'ha de veure a la sortida: %q", out[:80])
+	}
+}
+
+// Un fitxer per damunt del sostre tampoc entra sencer amb read.
+func TestReadFitxerGegantLimitat(t *testing.T) {
+	big := filepath.Join(t.TempDir(), "gran.txt")
+	f, err := os.Create(big)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString(strings.Repeat("a\n", 3<<20)); err != nil { // ~6 MB
+		t.Fatal(err)
+	}
+	f.Close()
+	out, err := Read(big, 1, 0)
+	if err != nil {
+		t.Fatalf("read gegant: %v", err)
+	}
+	if len(out) > MaxOutputChars+120 {
+		t.Fatalf("la lectura final ha de ser curta: %d bytes", len(out))
+	}
+	if !strings.Contains(out, "només els primers") {
+		t.Errorf("l'avís de fitxer gran ha de sortir: %q", out[:80])
+	}
+}
+
 // Cadena sencera: ls amb ruta Windows ha de funcionar (només Windows
 // amb sh; la resta ho salta).
 func TestBashRutaWindowsFunciona(t *testing.T) {
