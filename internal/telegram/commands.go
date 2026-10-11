@@ -64,7 +64,7 @@ func (b *Bot) help(st *chatState) string {
 		"/model [name] — " + b.tr("tria el model en viu (es desa per xat+rol)", "choose a live model (saved per chat and role)"),
 		"/goal [llista|executa [id]|mostra [id]|esborra &lt;id&gt;] — " + b.tr("objectius", "manage goals"),
 		"/retry — " + b.tr("reintenta l'última petició", "retry the last request") + " · /resum — " + b.tr("resumeix el xat", "summarize the chat"),
-		"/status — " + b.tr("estat", "status") + " · /stop — " + b.tr("atura", "stop") + " · /ara <code>&lt;task&gt;</code> — " + b.tr("talla la feina anterior i fes això", "cancel the previous work and do this"),
+		"/status — " + b.tr("estat", "status") + " · /eines — " + b.tr("traça d'eines del darrer torn", "tool trace of the last turn") + " · /stop — " + b.tr("atura", "stop") + " · /ara <code>&lt;task&gt;</code> — " + b.tr("talla la feina anterior i fes això", "cancel the previous work and do this"),
 		"/verify — " + b.tr("revisor", "reviewer") + " · /perms — " + b.tr("permisos", "permissions"),
 		"/rewind — " + b.tr("desfés els canvis de fitxers de la sessió", "undo this session's file changes"),
 		"/rewind N — " + b.tr("torna al checkpoint N", "restore checkpoint N") + " · /plan <code>&lt;task&gt;</code> — " + b.tr("explora sense actuar i proposa un pla", "inspect without making changes and propose a plan"),
@@ -162,6 +162,25 @@ func (b *Bot) command(ctx context.Context, m *Message, st *chatState, text strin
 
 	case "/status", "/estat":
 		b.status(ctx, chatID, st)
+
+	case "/eines", "/tools":
+		st.mu.Lock()
+		trace := append([]string(nil), st.lastTrace...)
+		st.mu.Unlock()
+		if len(trace) == 0 {
+			b.send(ctx, chatID, b.tr("encara no hi ha traça: envia una feina i aquí sortirà tot el que ha fet servir l'agent", "no trace yet: send a task and everything the agent used will appear here"))
+			return
+		}
+		body := esc(strings.Join(trace, "\n"))
+		if len([]rune(body)) > 3900 {
+			// La traça sencera no cap en un missatge: va en fitxer.
+			if err := b.api.SendDocument(ctx, chatID, "eines.md", []byte(strings.Join(trace, "\n")),
+				"🔧 "+b.tr("Traça completa (", "Full trace (")+itoa(len(trace))+" "+b.tr("línies)", "lines)")+")"); err != nil {
+				b.logf("sendDocument (eines): %v", err)
+			}
+			return
+		}
+		b.send(ctx, chatID, "🔧 "+b.tr("traça del darrer torn · "+itoa(len(trace))+" línies", "last turn trace · "+itoa(len(trace))+" lines")+"\n"+body)
 
 	case "/stop", "/atura":
 		b.stop(ctx, chatID, st)

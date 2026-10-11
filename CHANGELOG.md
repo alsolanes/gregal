@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Telegram: hide the live tool-activity message by default. Tool calls,
+  failures and retries accumulate in a silent per-turn trace; the chat only
+  shows the typing indicator, the answer, and the one-line summary. The new
+  /eines (alias /tools) command prints the full trace of the last turn (sent
+  as a file when it does not fit one message). The summary line now shows a
+  ✗ count when tools failed and mentions /eines whenever tools ran.
 - Telegram: the bot no longer asks for permission dialogs (Permet/Sempre/Denega)
   on every «ask» tool call in autonomous mode. Who enters autonomous mode is
   already gated by `mayRunUnattended`, and hard denials (sudo, `rm -rf /`,

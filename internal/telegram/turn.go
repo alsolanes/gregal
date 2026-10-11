@@ -217,25 +217,6 @@ func (b *Bot) finishAnswer(ctx context.Context, chatID int64, id int, buf *strin
 	return len([]rune(buf.String())) > 3900
 }
 
-// addActivity manté un missatge amb les eines que s'han fet servir.
-func (b *Bot) addActivity(ctx context.Context, chatID int64, id *int, buf *strings.Builder, line string) {
-	buf.WriteString(line + "\n")
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	if len(lines) > 12 {
-		lines = append([]string{"…"}, lines[len(lines)-12:]...)
-	}
-	text := "🏃 " + b.tr("activitat", "activity") + "\n" + esc(strings.Join(lines, "\n"))
-	if *id == 0 {
-		if m, err := b.api.SendMessage(ctx, chatID, text, nil); err == nil {
-			*id = m.MessageID
-		}
-		return
-	}
-	if err := b.api.EditMessageText(ctx, chatID, *id, text, nil); err != nil {
-		b.logf("editMessageText (activitat): %v", err)
-	}
-}
-
 // truncateFromStart retalla pel començament (els missatges llargs de Telegram).
 func truncateFromStart(s string, max int) string {
 	if len(s) <= max {
@@ -353,17 +334,27 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		sys += "\n\n" + info
 	}
 
-	var answerID, activityID int
-	var answer, activity strings.Builder
+	var answerID int
+	var answer strings.Builder
 	var lastReply string
 	var turnErr error
-	toolCount := 0
-	activitat := func(line string) { b.addActivity(tctx, chatID, &activityID, &activity, line) }
+	toolCount, failCount := 0, 0
+	// La traça d'eines s'acumula en silenci — amagada per defecte, es
+	// consulta amb /eines — i el xat només veu el «typing», la resposta
+	// i el resum final d'una línia. Cada torn comença amb la traça neta.
+	st.mu.Lock()
+	st.lastTrace = nil
+	st.mu.Unlock()
+	traca := func(line string) {
+		st.mu.Lock()
+		st.lastTrace = append(st.lastTrace, line)
+		st.mu.Unlock()
+	}
 
-	// Els reintents del client es veuen a l'activitat: abans l'espera era
-	// muda i semblava que el bot s'havia penjat.
+	// Els reintents del client queden a la traça (/eines): el xat no
+	// s'omple de soroll però res no es perd.
 	tctx = llm.WithRetryHook(tctx, func(attempt, total int, wait time.Duration, err error) {
-		activitat("↻ " + llm.RetryNote(attempt, total, wait, err))
+		traca("↻ " + llm.RetryNote(attempt, total, wait, err))
 	})
 
 	// El motor decideix; aquí només es fa la feina (cridar el model,
@@ -404,10 +395,11 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 			switch e.Tipus {
 			case agent.EvCrida:
 				toolCount++
-				activitat(toolLineNom(e.Eina, e.EinaArgs))
+				traca(toolLineNom(e.Eina, e.EinaArgs))
 			case agent.EvResultat:
 				if e.Fallada {
-					activitat("✗ " + e.Eina + " · " + truncate(primeraLinia(b.eventMessage(e)), 70))
+					failCount++
+					traca("✗ " + e.Eina + " · " + truncate(primeraLinia(b.eventMessage(e)), 70))
 				}
 			case agent.EvResposta:
 				lastReply = e.Text
@@ -416,7 +408,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 				b.send(ctx, chatID, "⚠️ "+truncate(b.eventMessage(e), 300))
 			case agent.EvAvis, agent.EvNota:
 				if t := b.eventMessage(e); strings.TrimSpace(t) != "" {
-					activitat("· " + truncate(t, 120))
+					traca("· " + truncate(t, 120))
 				}
 			}
 		}
@@ -528,8 +520,15 @@ bucle:
 		}
 	}
 	if toolCount > 0 || answer.Len() > 0 {
-		b.send(ctx, chatID, fmt.Sprintf("— %s · "+b.tr("sessió", "session")+" <code>%s</code> · <code>%s</code> · %d "+b.tr("pas(sos)", "step(s)")+" · %d "+b.tr("eina(es)", "tool(s)"),
-			esc(b.modeBadge(mode)), esc(name), esc(shortModel(b.currentRef(chatID, role))), steps, toolCount))
+		suma := fmt.Sprintf("— %s · "+b.tr("sessió", "session")+" <code>%s</code> · <code>%s</code> · %d "+b.tr("pas(sos)", "step(s)")+" · %d "+b.tr("eina(es)", "tool(s)"),
+			esc(b.modeBadge(mode)), esc(name), esc(shortModel(b.currentRef(chatID, role))), steps, toolCount)
+		if failCount > 0 {
+			suma += fmt.Sprintf(" · ✗ %d", failCount)
+		}
+		if toolCount > 0 {
+			suma += " · /eines"
+		}
+		b.send(ctx, chatID, suma)
 	}
 	if ctx.Err() != nil {
 		return runs.ErrCancelled

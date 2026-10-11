@@ -53,6 +53,9 @@ type chatState struct {
 	runID       int64
 	pendingRuns []int64
 	created     time.Time
+	// lastTrace és la traça d'eines del darrer torn, amagada per defecte:
+	// /eines la publica sencera.
+	lastTrace []string
 }
 
 // Bot és el bot de Telegram de Gregal.
