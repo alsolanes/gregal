@@ -548,6 +548,32 @@ func TestAprovacioDenegadaNoEscriu(t *testing.T) {
 	}
 }
 
+func TestAutonomNoDemanaPermis(t *testing.T) {
+	tg := newFakeTG(t)
+	work := t.TempDir()
+	target := filepath.Join(work, "auto.txt")
+	llm := newFakeLLM(t,
+		replyToolCall("write", fmt.Sprintf(`{"path":%q,"content":"auto"}`, target)),
+		replyText("fet"),
+	)
+	// write:ask força el camí de permís; en mode autònom el bot ho
+	// executa sense el diàleg Permet/Sempre/Denega.
+	bot, _, _ := testBot(t, tg, llm, map[string]string{"write": "ask"})
+	st := bot.state(1234567)
+	st.mu.Lock()
+	st.mode = agent.ModeAutonomous
+	st.mu.Unlock()
+
+	bot.handleMessage(context.Background(), msg(1234567, "escriu el fitxer"))
+
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("en mode autònom s'hauria d'escriure sense demanar: %v", err)
+	}
+	if m, ok := tg.findKB("Permís"); ok {
+		t.Fatalf("no hauria d'haver diàleg de permís: %+v", m)
+	}
+}
+
 func TestNomesLAmoPotAprovar(t *testing.T) {
 	tg := newFakeTG(t)
 	work := t.TempDir()

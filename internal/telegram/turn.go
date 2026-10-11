@@ -393,6 +393,11 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		Recordat: func(name, args string) bool {
 			return b.remembers.Allowed(tgScope(chatID), agent.Sig(name, args))
 		},
+		// En mode autònom el bot no demana permís: qui hi entra ja ha
+		// estat filtrat per mayRunUnattended i els «deny» de la política
+		// (sudo, rm -rf /, curl|sh) es mantenen. En mode code el diàleg
+		// Permet/Sempre/Denega funciona exactament igual que abans.
+		AutoAprova: func() bool { return mode == agent.ModeAutonomous },
 	})
 	pinta := func(evs []agent.Event) {
 		for _, e := range evs {

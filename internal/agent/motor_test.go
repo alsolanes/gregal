@@ -128,7 +128,7 @@ func TestMotorAutoAprovaSaltaElPermis(t *testing.T) {
 	}
 }
 
-func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
+func TestMotorAutonomAmbAutoAprovaExecuta(t *testing.T) {
 	tools.TodoClear()
 	project := t.TempDir()
 	tn := NouTorn(OpcionsTorn{
@@ -140,8 +140,8 @@ func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
 	})
 	tn.Seguent()
 	tn.RepPas("", []llm.ToolCall{cridaProva("outside", "write", `{"path":"../outside.txt","content":"x"}`)}, nil)
-	if p := tn.Seguent(); p.Ordre != OrdreAprova {
-		t.Fatalf("autònom amb auto-aprovació ha de demanar permís fora del projecte: %v", p.Ordre)
+	if p := tn.Seguent(); p.Ordre != OrdreExecuta {
+		t.Fatalf("autònom amb auto-aprovació ha d'executar fora del projecte: %v", p.Ordre)
 	}
 
 	tn = NouTorn(OpcionsTorn{
@@ -156,6 +156,24 @@ func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
 	tn.RepPas("", []llm.ToolCall{cridaProva("inside", "write", args)}, nil)
 	if p := tn.Seguent(); p.Ordre != OrdreExecuta {
 		t.Fatalf("autònom conserva l'escriptura dins del projecte: %v", p.Ordre)
+	}
+}
+
+func TestMotorAutonomSenseAutoAprovaDemana(t *testing.T) {
+	tools.TodoClear()
+	project := t.TempDir()
+	// Sense AutoAprova (nil): els ask segueixen esperant confirmació,
+	// també en mode autònom — és el frontend qui decideix.
+	tn := NouTorn(OpcionsTorn{
+		Pol:      &Policy{ProjectDir: project},
+		Mode:     ModeAutonomous,
+		MaxSteps: 10,
+		Hist:     []llm.Message{{Role: "user", Content: "x"}},
+	})
+	tn.Seguent()
+	tn.RepPas("", []llm.ToolCall{cridaProva("1", "write", `{"path":"../outside.txt","content":"x"}`)}, nil)
+	if p := tn.Seguent(); p.Ordre != OrdreAprova {
+		t.Fatalf("sense AutoAprova s'ha de demanar permís: %v", p.Ordre)
 	}
 }
 

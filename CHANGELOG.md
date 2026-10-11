@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Telegram: the bot no longer asks for permission dialogs (Permet/Sempre/Denega)
+  on every «ask» tool call in autonomous mode. Who enters autonomous mode is
+  already gated by `mayRunUnattended`, and hard denials (sudo, `rm -rf /`,
+  download→execute) still block before any approval. Mode `code` keeps the
+  interactive approval dialog exactly as before. `AutoAprova` is now decided
+  by each frontend; the motor no longer special-cases autonomous mode.
+
 ## v1.8.1 - 2026-10-07 - Chat plots and project dashboard
 
 - Render inline line, bar and scatter charts from `gregal-plot` data blocks.
