@@ -122,8 +122,13 @@ func (b *Bot) roleRefFor(chatID int64, name string) (config.Provider, config.Rol
 	}
 	if p, m, ok := splitRef(ov); ok {
 		if prov, ok := b.cfg.Providers[p]; ok {
-			return prov, config.Role{Provider: p, Model: m, Temperature: r.Temperature,
-				MaxTokens: r.MaxTokens, ContextWindow: r.ContextWindow}
+			// L'override només canvia provider+model: la resta de
+			// paràmetres del rol (fallback, think, max_tokens, finestra)
+			// són del rol, no del model. Perdre'ls aquí deixava el pin
+			// sense fallback a Ornith i sense think: no — un 400 del
+			// cloud matava el torn sense cap xarxa de seguretat.
+			r.Provider, r.Model = p, m
+			return prov, r
 		}
 	}
 	// Override antic (només model): mateix provider, model nou.

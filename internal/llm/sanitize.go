@@ -12,11 +12,27 @@ import "strings"
 // mor una i altra vegada a cada missatge del usuari: la sessió queda
 // enverinada per sempre.
 //
-// La reparació és conservadora: l'assistant penjant es converteix en un
-// missatge de text pla (el seu contingut més una nota del que demanava),
-// de manera que la conversa és sintàcticament vàlida sense perdre el
-// context del que s'havia intentat fer.
+// També retalla els raonaments antics: només el de l'últim missatge
+// d'assistant pot ser exigit de tornada (zen thinking); els anteriors
+// només inflen el context.
 func SanitizeHist(msgs []Message) []Message {
+	// Raonaments antics fora: només el de l'últim assistant es manté.
+	últim := -1
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role == "assistant" {
+			últim = i
+			break
+		}
+	}
+	if últim >= 0 {
+		netos := append([]Message{}, msgs...)
+		for i := range netos {
+			if netos[i].Role == "assistant" && i != últim {
+				netos[i].Reasoning = ""
+			}
+		}
+		msgs = netos
+	}
 	// Primera passada: quins tool_call_id no tenen resposta.
 	pend := map[string]bool{}
 	for _, m := range msgs {
@@ -72,8 +88,6 @@ func SanitizeHist(msgs []Message) []Message {
 	}
 	return res
 }
-
-// tePendent diu si alguna crida de l'assistant encara no té resposta.
 func tePendent(m Message, pend map[string]bool) bool {
 	for _, c := range m.ToolCalls {
 		if pend[c.ID] {

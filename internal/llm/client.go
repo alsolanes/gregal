@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -25,6 +27,11 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"-"`
+	// Reasoning és el raonament que el proveïdor ha exigit tornar (zen
+	// amb deepseek en thinking: «The reasoning_content in the thinking
+	// mode must be passed back to the API»). Es manté fora del contingut
+	// visible: només viatja pel wire quan el proveïdor el va demanar.
+	Reasoning string `json:"reasoning_content,omitempty"`
 }
 
 // MarshalJSON manté el format string clàssic sense imatges (cap canvi
@@ -223,11 +230,36 @@ type Client struct {
 	// proveïdor no en declara cap.
 	usageMu   sync.Mutex
 	lastUsage Usage
+	// raonamentMu protegeix lastReasoning: el raonament de la darrera
+	// resposta. Zen/deepseek l'exigeixen de tornada al següent pas; el
+	// client el desa aquí perquè el motor el pengi al missatge
+	// d'assistant (OpcionsTorn.Raonament).
+	raonamentMu   sync.Mutex
+	lastReasoning string
 	// campsOff: «endpoint|camp» dels camps opcionals que un proveïdor ha
 	// rebutjat (compat.go). També sota usageMu.
 	campsOff map[string]bool
 	cacheMu  sync.RWMutex
 	cache    map[string]promptCacheConfig
+}
+
+// LastReasoning torna el raonament de la darrera resposta (buit si no n'hi
+// havia). El motor el posa al missatge d'assistant per als proveïdors que
+// l'exigeixen de tornada (zen thinking).
+func (c *Client) LastReasoning() string {
+	if c == nil {
+		return ""
+	}
+	c.raonamentMu.Lock()
+	defer c.raonamentMu.Unlock()
+	return c.lastReasoning
+}
+
+// setReasoning desa el raonament d'una resposta (buit el neteja).
+func (c *Client) setReasoning(r string) {
+	c.raonamentMu.Lock()
+	c.lastReasoning = r
+	c.raonamentMu.Unlock()
 }
 
 type promptCacheConfig struct {
@@ -358,7 +390,51 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 	if strings.Contains(baseURL, "opencode.ai") {
 		req.Header.Set("x-opencode-session", c.sessionID())
 	}
-	return c.hc.Do(req)
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	// Dump de peticions fallides: sense el cos sencer és impossible saber
+	// QUÈ rebutja exactament l'endpoint (el 400 de zen arriba buit,
+	// {"model":"..."}). Escriu només en error ≥400; capçaleres mai.
+	if resp.StatusCode >= 400 {
+		dumpFailedRequest(baseURL, body, resp)
+	}
+	return resp, nil
+}
+
+// dumpFailedRequest desa la petició i la resposta d'una crida fallida per
+// poder reproduir-la exactament. Cap clau ni capçalera: només el cos JSON.
+// Mida limitada (els històrics poden ser de MB) i neteja per edat.
+func dumpFailedRequest(baseURL string, reqBody []byte, resp *http.Response) {
+	dir := filepath.Join(os.Getenv("HOME"), ".local", "share", "gregal", "req-dumps")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return
+	}
+	// Neteja: només els últims 20 dumps.
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 20 {
+		for _, e := range entries[:len(entries)-20] {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	resp.Body = io.NopCloser(bytes.NewReader(respBody))
+	stamp := time.Now().Format("20060102-150405")
+	name := fmt.Sprintf("%s-%d.json", stamp, resp.StatusCode)
+	d := struct {
+		URL      string          `json:"url"`
+		Status   int             `json:"status"`
+		Request  json.RawMessage `json:"request"`
+		Response string          `json:"response"`
+	}{baseURL, resp.StatusCode, json.RawMessage(reqBody), string(respBody)}
+	b, err := json.MarshalIndent(d, "", " ")
+	if err != nil {
+		return
+	}
+	if len(b) > 4<<20 { // sostre: no omplim el disc amb històrics gegants
+		b = append([]byte("// TRUNCATED\n"), b[:4<<20]...)
+	}
+	_ = os.WriteFile(filepath.Join(dir, name), b, 0o600)
 }
 
 // marshalChatRequest és el wire específic del provider. No usa directament
@@ -552,6 +628,9 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 		// tool calls from a truncated attempt so it can be retried safely.
 		return "", nil, &LengthError{MaxTokens: maxTokens}
 	}
+	// El raonament el desa el client: el motor el tornarà a penjar al
+	// missatge d'assistant per als proveïdors que l'exigeixen (zen).
+	c.setReasoning(m.ReasoningContent + m.Reasoning + m.Thought + m.Thinking)
 	return senseThink(m.Content), m.ToolCalls, nil
 }
 
@@ -789,6 +868,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		return text, calls, nil
 	}
 	var full strings.Builder
+	// raonament acumulat del stream: el client el desa perquè el motor el
+	// pengi al missatge d'assistant (zen l'exigeix de tornada).
+	var raon strings.Builder
 	reasoned, finish := 0, ""
 	sawDone := false
 	// Acumulació per índex: l'ordre d'arribada no és l'ordre de les crides.
@@ -815,6 +897,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
 						reasoned += len([]rune(r))
+						raon.WriteString(r)
 						if onReason != nil {
 							onReason(r)
 						}
@@ -883,6 +966,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 		return "", nil, lengthTallat(reasoned, maxTokens, visible)
 	}
+	// El raonament del pas queda al client perquè el motor el pengi al
+	// missatge d'assistant (zen l'exigeix de tornada).
+	c.setReasoning(raon.String())
 	return text, calls, nil
 }
 

@@ -167,6 +167,12 @@ type OpcionsTorn struct {
 	// error de context, perquè el client l'apliqui al seu rol (la web la
 	// desa al config de la sessió). Opcional.
 	AprenFinestra func(finestra int)
+	// Raonament torna el raonament del darrer pas del model. Zen (deepseek
+	// en thinking) l'exigeix de tornada: «The reasoning_content in the
+	// thinking mode must be passed back to the API». El client el desa a
+	// cada resposta; sense això, el missatge d'assistant es reconstrueix
+	// sense ell i la petició següent mor amb 400. Opcional.
+	Raonament func() string
 	// Usage és el comptador de tokens reals que el client posa al context
 	// de les crides (llm.WithUsage): el topall de cost autònom el fa servir
 	// en comptes de l'estimació. Opcional.
@@ -442,7 +448,16 @@ func (t *Torn) RepPas(content string, calls []llm.ToolCall, err error) []Event {
 	t.serverRetries = 0
 	t.recuperacions = 0
 	t.mecanic = false // fins que RepExecucions digui el contrari
-	t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
+	msg := llm.Message{Role: "assistant", Content: content, ToolCalls: calls}
+	// El raonament del pas: zen/deepseek l'exigeix de tornada quan el
+	// model pensa. El client l'ha capturat del pas; sense ell, la crida
+	// següent amb aquest assistant a dins mor amb 400.
+	if t.o.Raonament != nil {
+		if r := t.o.Raonament(); r != "" {
+			msg.Reasoning = r
+		}
+	}
+	t.Hist = append(t.Hist, msg)
 	if len(calls) == 0 {
 		return t.repFinal(content)
 	}
@@ -464,6 +479,19 @@ func (t *Torn) repError(err error) []Event {
 		if evs, fet := t.retallaPerContext(actual); fet {
 			t.recuperacions++
 			// El pas no s'ha arribat a fer: no compta.
+			if t.passos > 0 {
+				t.passos--
+			}
+			return evs
+		}
+	}
+	// 400 amb cos buit d'un endpoint que normalment explica (zen torna
+	// {"model":"..."} quan l'upstream s'ofega): amb un històric gran és
+	// context excedit encara que no ho digui. Es retalla i es torna a
+	// provar; si no és això, la segona fallada ja dirà el motiu.
+	if llm.Buit400(err) && t.recuperacions < 2 && llm.EstimateTokens(t.histAmbSys()) > 24_000 {
+		if evs, fet := t.retallaPerContext(0); fet {
+			t.recuperacions++
 			if t.passos > 0 {
 				t.passos--
 			}
