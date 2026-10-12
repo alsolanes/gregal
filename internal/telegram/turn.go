@@ -423,11 +423,24 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		b.send(ctx, chatID, b.tr("↪ Primari caigut · respon el fallback ", "↪ Primary failed · using fallback ")+esc(model))
 	}
 
+	// Heartbeat: un torn llarg amb les eines amagades sembla penjat
+	// (el cas real: una hora de «escrivint…» competint amb un altre treball
+	// pel mateix motor). Aquest avís diu que viu i quant porta.
+	inici := time.Now()
+	ultimAvís := time.Now()
+	const periode = 5 * time.Minute
+
 bucle:
 	for {
 		if tctx.Err() != nil {
 			pinta(torn.Cancella())
 			break
+		}
+		if time.Since(ultimAvís) >= periode {
+			ultimAvís = time.Now()
+			b.send(ctx, chatID, fmt.Sprintf("⏱️ "+b.tr("encara treballant: %d passos · %s · /stop per aturar",
+				"still working: %d steps · %s · /stop to cancel"),
+				torn.Passos(), time.Since(inici).Round(time.Second)))
 		}
 		p := torn.Seguent()
 		pr, r := rolActual()
