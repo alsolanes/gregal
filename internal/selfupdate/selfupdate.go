@@ -82,7 +82,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if err != nil {
 		return res, err
 	}
-	if strings.TrimSpace(brut) != "" && !o.Forca && !o.NomesComprova {
+	if strings.TrimSpace(brut) != "" && !o.NomesComprova {
 		return res, fmt.Errorf("hi ha canvis sense cometre a %s\n%s\nComete'ls o desa'ls (git stash) abans d'actualitzar", repo, indent(truncateLines(brut, 8)))
 	}
 
@@ -102,7 +102,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if local == remot {
 		res.AlDia = true
 		o.Sortida("✅ ja estàs al dia (" + short(local) + ", " + res.VersioAbans + ")")
-		if !o.Forca {
+		if o.NomesComprova || !o.Forca {
 			return res, nil
 		}
 		o.Sortida("↻ -forca: recompilo igualment")

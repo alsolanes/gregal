@@ -122,21 +122,35 @@ func (b *Bot) roleRefFor(chatID int64, name string) (config.Provider, config.Rol
 	}
 	if p, m, ok := splitRef(ov); ok {
 		if prov, ok := b.cfg.Providers[p]; ok {
-			// L'override només canvia provider+model: la resta de
-			// paràmetres del rol (fallback, think, max_tokens, finestra)
-			// són del rol, no del model. Perdre'ls aquí deixava el pin
-			// sense fallback a Ornith i sense think: no — un 400 del
-			// cloud matava el torn sense cap xarxa de seguretat.
-			r.Provider, r.Model = p, m
+			// Override model identity, keeping think/fallback/output settings.
+			// Context belongs to the selected model, not the previous one.
+			r = b.modelRole(r, p, m)
 			return prov, r
 		}
 	}
 	// Override antic (només model): mateix provider, model nou.
 	if prov, ok := b.cfg.Providers[r.Provider]; ok {
-		r.Model = ov
+		r = b.modelRole(r, r.Provider, ov)
 		return prov, r
 	}
 	return b.cfg.Providers[r.Provider], r
+}
+
+// modelRole preserves role behavior, but a context window belongs to a model.
+func (b *Bot) modelRole(r config.Role, provider, model string) config.Role {
+	if provider == r.Provider && model == r.Model {
+		return r
+	}
+	r.Provider, r.Model = provider, model
+	r.ContextWindow = 0 // let Window use the selected model's learned metadata
+	for _, configured := range b.cfg.Roles {
+		if configured.Provider == provider && configured.Model == model && configured.ContextWindow > 0 {
+			if r.ContextWindow == 0 || configured.ContextWindow < r.ContextWindow {
+				r.ContextWindow = configured.ContextWindow
+			}
+		}
+	}
+	return r
 }
 
 func splitRef(ov string) (string, string, bool) {

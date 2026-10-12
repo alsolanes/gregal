@@ -244,6 +244,9 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", b.tr("token rebutjat per Telegram", "Telegram rejected the bot token"), err)
 	}
+	probeCtx, stopProbe := context.WithTimeout(ctx, 4*time.Second)
+	agent.DetectWindows(probeCtx, b.cfg)
+	stopProbe()
 	b.logf("bot @%s (%d) en marxa · projecte %s · grups: %v", me.Username, me.ID, b.cwd, b.allowGroups)
 	b.meUser = me.Username
 

@@ -200,6 +200,10 @@ func newFakeLLM(t *testing.T, replies ...string) *fakeLLM {
 	t.Helper()
 	f := &fakeLLM{replies: replies}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			fmt.Fprint(w, `{"data":[]}`) // metadata probes are not model generations
+			return
+		}
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
 		defer f.mu.Unlock()

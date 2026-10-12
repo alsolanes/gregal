@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Updater: check-only remains read-only with force enabled; force rebuild
+  no longer bypasses the dirty-tree guard.
+- Telegram: learn provider context windows at startup and avoid inheriting a
+  different model's context window when selecting an override. Keep role
+  think/fallback settings and honor the explicit same-model configured cap.
+- Router: a default unpinned chat role can escalate heavy coding tasks.
+
 - Reliability: reject destructive self-service systemctl commands before
   permission overrides and before foreground/background shell execution.
   Parse compound commands and static shell wrappers; this is a command guard,
