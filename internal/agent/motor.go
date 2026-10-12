@@ -285,16 +285,21 @@ func (t *Torn) EsperaUsuari() bool { return t.pregunta != nil || t.teActual }
 // autonom diu si el torn corre en mode autònom.
 func (t *Torn) autonom() bool { return t.o.Mode == ModeAutonomous }
 
-// histAmbSys posa el system prompt al davant.
+// histAmbSys posa el system prompt al davant i garanteix que l'històric
+// sigui enviable: si el torn ha quedat amb crides d'eina sense resposta
+// (pregunta ajornada, cancel·lació a mig pas), els proveïdors estrictes
+// responen 400 a cada intent posterior. SanitizeHist aplan aquelles
+// crides abans que surtin pel cable.
 func (t *Torn) histAmbSys() []llm.Message {
 	sys := ""
 	if t.o.SysPrompt != nil {
 		sys = t.o.SysPrompt()
 	}
+	base := llm.SanitizeHist(t.Hist)
 	if sys == "" {
-		return append([]llm.Message{}, t.Hist...)
+		return append([]llm.Message{}, base...)
 	}
-	return append([]llm.Message{{Role: "system", Content: sys}}, t.Hist...)
+	return append([]llm.Message{{Role: "system", Content: sys}}, base...)
 }
 
 // Seguent diu què cal fer ara. No té efectes secundaris més enllà de

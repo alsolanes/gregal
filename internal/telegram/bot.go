@@ -308,7 +308,10 @@ func (b *Bot) state(chatID int64) *chatState {
 			st.mode = agent.ModeCode
 		}
 		if s, err := session.Load(b.sessionsDir, st.name); err == nil {
-			st.convo = s.Convo
+			// Saneja en carregar: una sessió desada a mig torn (OOM,
+			// cancel·lació) duu tool_calls sense resposta, i enviar-la
+			// així fa que proveïdors estrictes responguin 400 per sempre.
+			st.convo = llm.SanitizeHist(s.Convo)
 			if s.Role != "" {
 				st.role = s.Role
 			}

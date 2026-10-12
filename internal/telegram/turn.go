@@ -280,7 +280,10 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.TascaAmbMapa(st.mode, b.dirOf(st), text, st.convo), Images: images})
 	mode, role := st.mode, st.role
 	pinned := st.rolePinned
-	convo := append([]llm.Message{}, st.convo...)
+	// Sanejada a la font: una crida d'eina sense resposta (torn mort per
+	// OOM o cancel·lat) fa que l'endpoint respongui 400 a CADA missatge
+	// posterior — així es trenca el cicle.
+	convo := llm.SanitizeHist(append([]llm.Message{}, st.convo...))
 	st.mu.Unlock()
 	// Cortesia pura ("hola"): resposta directa sense model ni eines.
 	if reply, ok := agent.SmallTalk(text); ok && len(images) == 0 {
