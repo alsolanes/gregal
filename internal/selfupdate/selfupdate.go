@@ -263,6 +263,24 @@ func campos(u string) string { return strings.TrimSuffix(u, ".service") }
 
 // reinicia reinicia un servei i comprova que quedi actiu.
 func reinicia(ctx context.Context, unitat string) error {
+	cgroup, _ := os.ReadFile("/proc/self/cgroup")
+	return reiniciaEn(ctx, unitat, string(cgroup))
+}
+
+func reiniciaEn(ctx context.Context, unitat, cgroup string) error {
+	// Match whole cgroup components, not a substring of another unit.
+	wanted := strings.TrimSuffix(unitat, ".service") + ".service"
+	for _, line := range strings.Split(cgroup, "\n") {
+		fields := strings.SplitN(line, ":", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		for _, component := range strings.Split(fields[2], "/") {
+			if component == wanted {
+				return fmt.Errorf("no reinicio la pròpia unitat %s: el binari està instal·lat, però cal un reinici extern quan el torn acabi", wanted)
+			}
+		}
+	}
 	if out, err := exec.CommandContext(ctx, "systemctl", "--user", "restart", unitat).CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}

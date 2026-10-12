@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Reliability: reject destructive self-service systemctl commands before
+  permission overrides and before foreground/background shell execution.
+  Parse compound commands and static shell wrappers; this is a command guard,
+  not a sandbox for arbitrary scripts. The built-in updater also refuses to
+  restart its own cgroup unit and requires an external restart.
+- Telegram: release and persist short no-model turns, retain the motor's
+  compacted history and tool transcript, honor configured model-step timeouts,
+  and run the heartbeat independently of blocked model/tool calls.
+- Telegram: make sanitized-empty responses visible, deduplicate terminal
+  errors and preserve their full diagnostics in the local log.
+- Add deterministic reliability regressions and an opt-in real-Qwen Telegram
+  driver test with isolated sessions and a local delivery sink.
+
 - Telegram: hide the live tool-activity message by default. Tool calls,
   failures and retries accumulate in a silent per-turn trace; the chat only
   shows the typing indicator, the answer, and the one-line summary. The new

@@ -60,14 +60,15 @@ type chatState struct {
 
 // Bot és el bot de Telegram de Gregal.
 type Bot struct {
-	cfg     *config.Config
-	cfgPath string
-	cwd     string
-	api     *API
-	client  *llm.Client
-	policy  *agent.Policy
-	queue   *runs.Queue
-	logf    Logf
+	cfg               *config.Config
+	cfgPath           string
+	cwd               string
+	api               *API
+	client            *llm.Client
+	heartbeatInterval time.Duration // zero selects the production 5-minute interval
+	policy            *agent.Policy
+	queue             *runs.Queue
+	logf              Logf
 	// Ritme d\'edicio del missatge de resposta (vegeu limitador d\'edicions).
 	editMu   sync.Mutex
 	lastEdit map[int64]time.Time

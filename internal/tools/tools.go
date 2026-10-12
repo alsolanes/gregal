@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"gregal/internal/procs"
+	"gregal/internal/serviceguard"
 	"gregal/internal/shell"
 )
 
@@ -576,6 +577,9 @@ func Classify(cmd string) (string, string) {
 
 // ClassifyWith afegeix prefixos allow i subcadenes deny del config.
 func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return "deny", err.Error()
+	}
 	lower := strings.ToLower(strings.TrimSpace(cmd))
 	// `rm -rf /` (l'arrel, sola o amb més trossos) no té marxa enrere: es
 	// denega. `rm -rf /tmp/x` o `rm -rf ./build` són esborrats acotats i
@@ -676,6 +680,9 @@ func (w *limitedWriter) String() string {
 // res —el procés seguia i el TUI esperava igual— i Ctrl+C tancava el
 // programa sencer perquè no hi havia cap cancel·lació a què agafar-se.
 func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (string, error) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return "", err
+	}
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}

@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gregal/internal/serviceguard"
 	"gregal/internal/shell"
 )
 
@@ -126,6 +127,9 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 // es cancel·la. És útil per a processos que pertanyen a un torn; Start els
 // continua deixant vius fins que els aturi l'usuari o tanqui la sessió.
 func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, error) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return nil, err
+	}
 	if cmd == "" {
 		return nil, errors.New("cal una ordre")
 	}
