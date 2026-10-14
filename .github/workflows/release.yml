@@ -1,4 +1,8 @@
-name: Windows Release
+# The only release pipeline (see docs/release.md). Pushing a vX.Y.Z tag
+# builds every asset and creates ONE draft release with the notes from
+# CHANGELOG.md; you review it and publish. The Android APK is attached
+# locally afterwards with `node scripts/release.cjs apk X.Y.Z`.
+name: Release
 on:
   push:
     tags: ['v*']
@@ -9,10 +13,31 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Versions, changelog and tag agree
+        id: v
+        run: |
+          node scripts/release.cjs check
+          version=$(node -p "require('./desktop/package.json').version")
+          if [ "$GITHUB_REF" != "refs/tags/v$version" ]; then
+            echo "Release must run on the tag v$version (got $GITHUB_REF)" >&2
+            exit 1
+          fi
+          node scripts/release.cjs notes "$version" > /dev/null
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - run: node scripts/audit-public.cjs
+
   windows:
+    needs: verify
     runs-on: windows-latest
-    permissions:
-      contents: write
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
@@ -23,14 +48,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: Validate version and tag
-        shell: pwsh
-        run: |
-          $version = (Get-Content desktop/package.json | ConvertFrom-Json).version
-          if ($env:GITHUB_REF -ne "refs/tags/v$version") {
-            throw 'Release must run on the matching version tag; choose that tag for manual dispatch.'
-          }
-      - run: node scripts/audit-public.cjs
       - run: go test ./...
       - run: go vet ./...
       - run: npm ci
@@ -43,32 +60,55 @@ jobs:
       - name: Build installer, portable and update metadata
         run: npm run dist-win -- --config.directories.output=../output/release
         working-directory: desktop
-      - name: Include standalone backend and checksums
-        shell: pwsh
-        run: |
-          node desktop/verify-release.js output/release
-          if ($LASTEXITCODE -ne 0) { throw 'Update metadata verification failed' }
-          Copy-Item -LiteralPath desktop/backend/gregal.exe -Destination output/release/gregal-windows-amd64.exe
-          $assets = Get-ChildItem output/release -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -eq 'latest.yml' }
-          $lines = $assets | ForEach-Object { "$((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant())  $($_.Name)" }
-          $lines | Set-Content output/release/SHA256SUMS.txt -Encoding ascii
+      - name: Verify update metadata
+        run: node desktop/verify-release.js output/release
       - uses: actions/upload-artifact@v4
         with:
-          name: windows-release
+          name: windows
           path: |
             output/release/*.exe
             output/release/latest.yml
             output/release/*.blockmap
-            output/release/SHA256SUMS.txt
-      - name: Create draft GitHub release
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
+
+  cli:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: sh ./build.sh "v${{ needs.verify.outputs.version }}"
+      - run: sha256sum --check SHA256SUMS
+        working-directory: dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli
+          path: dist/gregal-*
+
+  release:
+    needs: [verify, windows, cli]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: One checksum file for every asset
+        working-directory: assets
+        run: sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Create the draft release
         run: |
-          gh release view "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" *> $null
-          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; do not replace published update assets.' }
-          gh release create "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" --verify-tag --draft --title "Gregal $env:GITHUB_REF_NAME" --generate-notes
-          if ($LASTEXITCODE -ne 0) { throw 'Could not create release' }
-          $assets = Get-ChildItem output/release -File | Where-Object { $_.Extension -in '.exe', '.blockmap' -or $_.Name -in 'latest.yml', 'SHA256SUMS.txt' }
-          gh release upload "$env:GITHUB_REF_NAME" --repo "$env:GITHUB_REPOSITORY" @($assets.FullName)
-          if ($LASTEXITCODE -ne 0) { throw 'Could not upload release assets' }
+          if gh release view "v$VERSION" > /dev/null 2>&1; then
+            echo "Release v$VERSION already exists; published update assets are never replaced." >&2
+            exit 1
+          fi
+          node scripts/release.cjs notes "$VERSION" > notes.md
+          gh release create "v$VERSION" assets/* --verify-tag --draft \
+            --title "$(node scripts/release.cjs title "$VERSION")" --notes-file notes.md
