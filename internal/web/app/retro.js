@@ -17,6 +17,7 @@ const AVATARS = ['coordinator', 'researcher', 'builder', 'reviewer'];
 // Especialistes (no han fet la feina; la revisen des del seu angle): icona
 // pròpia en lloc del personatge pixelat.
 const SPECIALIST_ICONS = {
+  design: '<path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.8 1.5-1.6 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.4 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>',
   product: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   code: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/>',
   security: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
@@ -229,10 +230,12 @@ export async function open(opts) {
     st.latest = data.latest || {};
     st.key = data.key || '';
     st.cursor = Number(data.cursor) || 0;
-    st.channel = data.channel || null;
+    // Un canal sense missatges és una generació en curs (o tallada): es
+    // tracta com «encara no fet» i start() s'hi enganxa.
+    st.channel = data.channel && data.channel.messages && data.channel.messages.length ? data.channel : null;
     render();
     startLive();
-    if (!st.channel && o.autostart && st.key && !st.latest.running) start();
+    if (!st.channel && st.key && !st.latest.running && (o.autostart || data.channel)) start();
   } catch (e) { renderEmpty(T('retro.failed') + e.message); }
 }
 
@@ -242,19 +245,59 @@ export function close() {
   stopLive();
 }
 
-async function start() {
-  if (st.busy) return;
+// start genera (o s'enganxa a) el resum d'obertura del canal obert. Una
+// petició penjada ja no bloqueja res: cada canal porta la seva, la resposta
+// d'un canal que ja no és l'obert s'ignora i, si la petició es perd, es
+// recupera el canal del servidor (que el pot tenir fet).
+async function start(quick) {
+  const key = st.key;
+  if (!key || (st.busy && st.startKey === key && !quick)) return;
   st.busy = true;
-  renderLoading(T('retro.starting'));
+  st.startKey = key;
+  const t0 = Date.now();
+  renderStarting(t0);
+  const tick = setInterval(() => { if (st.startKey === key && !st.channel) renderStarting(t0); else clearInterval(tick); }, 1000);
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), 150000);
+  let out = null, err = null;
   try {
-    const body = channelRef(st.key);
+    const body = channelRef(key);
     if (retroPersonaPref()) body.persona = retroPersonaPref();
-    const out = await call('/api/retro/start', body);
+    if (quick) body.quick = true;
+    const r = await G().api('/api/retro/start', { method: 'POST', body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal });
+    const text = await r.text();
+    out = text ? JSON.parse(text) : {};
+    if (!r.ok) throw new Error((out && out.error) || ('HTTP ' + r.status));
+  } catch (e) { err = e; }
+  clearTimeout(timeout);
+  clearInterval(tick);
+  if (st.startKey !== key) return; // l'usuari ja mira un altre canal
+  st.busy = false;
+  st.startKey = '';
+  if (!err && out && out.channel) {
     st.channel = out.channel;
     st.key = out.channel.key;
-  } catch (e) { st.busy = false; renderEmpty(T('retro.failed') + e.message); return; }
-  st.busy = false;
-  render();
+    render();
+    return;
+  }
+  // Rescat: potser el servidor l'ha acabat igualment.
+  try {
+    const d = await call('/api/retro?key=' + encodeURIComponent(key));
+    if (d.channel && d.channel.messages && d.channel.messages.length) { st.channel = d.channel; render(); return; }
+  } catch (e) {}
+  renderEmpty(T('retro.failed') + (err ? (err.name === 'AbortError' ? T('retro.timeout') : err.message) : ''));
+}
+
+// «Els agents s'estan preparant…» amb el temps que porta i, passats 20 s,
+// l'opció de no esperar el model.
+function renderStarting(t0) {
+  const s = Math.round((Date.now() - t0) / 1000);
+  renderLoading(T('retro.starting') + (s >= 3 ? ' · ' + s + 's' : ''));
+  if (s < 20) return;
+  const box = st.dialog && st.dialog.querySelector('.retro-main .retro-empty');
+  if (!box || box.querySelector('.retro-quick')) return;
+  box.appendChild(el('p', 'retro-slow', T('retro.slow')));
+  box.appendChild(btn('retro-primary retro-quick', '', T('retro.quick'), () => start(true)));
 }
 
 async function react(id, emoji) {
@@ -503,7 +546,11 @@ function onEvent(e) {
   }
   if (!st.channel) {
     // El canal s'ha obert des d'una altra finestra: el recarreguem sencer.
-    if (e.kind === 'retro_message' && !st.busy) call('/api/retro?key=' + encodeURIComponent(p.key)).then(d => { if (d.channel && !st.channel) { st.channel = d.channel; render(); } }).catch(() => {});
+    // També quan s'està esperant el resum d'obertura: si la resposta HTTP es
+    // perd, els missatges arriben igualment per aquí.
+    if (e.kind === 'retro_message') call('/api/retro?key=' + encodeURIComponent(p.key)).then(d => {
+      if (d.channel && d.channel.messages && d.channel.messages.length && !st.channel) { st.channel = d.channel; if (st.startKey === d.channel.key) { st.busy = false; st.startKey = ''; } render(); }
+    }).catch(() => {});
     return;
   }
   if (e.kind === 'retro_message' && p.message) st.typing.delete(p.message.author);

@@ -144,6 +144,8 @@ func (f *retroFake) handler(t *testing.T) http.HandlerFunc {
 			content = `{"replies":[{"agent":"builder","text":"touché — the evidence only shows I wrote parser.go, no tests.","receipts":["e6"],"concede":true,"fix_suggestion":"Add unit tests for the parser helper and run go test ./..."}]}`
 		case strings.Contains(sys, "reacted 👎"):
 			content = `{"replies":[{"agent":"builder","text":"Fair, noted.","preference_note":"Prefer adding tests together with new helpers"}]}`
+		case strings.Contains(sys, "without addressing anyone"):
+			content = `{"replies":[{"agent":"design","text":"From the UI side, nothing visual changed in this run.","receipts":["e3"]},{"agent":"coordinator","text":"I edited calc.go; see the receipt.","receipts":["e3"]}]}`
 		case strings.Contains(sys, "Only these agents may reply: coordinator."):
 		case strings.Contains(sys, "#retro channel replying"):
 			content = `{"replies":[{"agent":"builder","text":"touché, I have no test receipts.","receipts":[],"concede":false,"fix_suggestion":"Write parser tests"}]}`
@@ -271,12 +273,13 @@ func TestRetroMessageMentionsAndConcede(t *testing.T) {
 	if strings.Join(out.Mentions, ",") != "builder" {
 		t.Fatalf("mentions=%v", out.Mentions)
 	}
-	// Without mentions the coordinator answers.
+	// Without mentions the model chooses who answers (here design and the
+	// coordinator), instead of always the coordinator.
 	rec = retroPost(t, s, "/api/retro/message", `{"text":"so what changed?"}`)
 	out.Replies = nil
 	_ = json.Unmarshal(rec.Body.Bytes(), &out)
-	if len(out.Replies) != 1 || out.Replies[0].Author != "coordinator" || out.Replies[0].FixSuggestion != "" || out.Replies[0].Concede {
-		t.Fatalf("default responder: %s", rec.Body.String())
+	if len(out.Replies) != 2 || out.Replies[0].Author != "design" || out.Replies[1].Author != "coordinator" || out.Replies[0].Concede {
+		t.Fatalf("auto responders: %s", rec.Body.String())
 	}
 }
 

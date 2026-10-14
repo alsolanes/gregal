@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- #retro is fast and never hangs: the agents chat without reasoning (with
+  a model that always reasons, the opening went from minutes to ~5 s), the
+  opening has a 75 s limit and replies 60 s, after which the summary from
+  the evidence is shown. The dialog shows the elapsed time and, after 20 s,
+  a "Show a quick summary" button; a pending request no longer blocks other
+  retros, a second click waits for the first generation, and a lost reply
+  is recovered from the server.
+- #retro specialists by area: Design (looks, UI/UX, accessibility), Code
+  (best practices), Product and Security, and the coordinator also answers
+  feasibility and who would take something. Without an @mention the model
+  picks the 1-3 agents that fit the question (before, keyword matching
+  sent most questions to the coordinator).
+
 ## v1.9.1 - 2026-10-14 - Talk to the agent while it works, parallel sessions and Azure
 
 - Azure OpenAI and Microsoft Foundry: API keys go in the `api-key` header

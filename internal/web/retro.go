@@ -768,17 +768,28 @@ type retroReplyMode string
 
 const (
 	retroModeMessage retroReplyMode = "message"
+	// retroModeAuto: missatge sense mencions; el model tria qui contesta.
+	retroModeAuto retroReplyMode = "auto"
 	retroModeDoubt   retroReplyMode = "doubt"
 	retroModeDislike retroReplyMode = "dislike"
 )
 
 func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string, thread string, focus *retroMessage, userText string) (string, string) {
+	hints := retroTopicHints(userText, c)
 	var task string
 	switch mode {
 	case retroModeDoubt:
 		task = "The user reacted 🤔 (doubt) to the agent message quoted under FOCUS. The author replies: justify the claim citing receipts, or, if the EVIDENCE does not back it, concede: start the text with \"touché\", set \"concede\": true and give a concrete, actionable fix in \"fix_suggestion\" (one imperative sentence)."
 	case retroModeDislike:
 		task = "The user reacted 👎 to the agent message quoted under FOCUS. The author acknowledges briefly, without arguing, and writes a short general team preference for the future in \"preference_note\" starting with \"Prefer\" (max 160 characters, no secrets, no file contents)."
+	case retroModeAuto:
+		task = "The user wrote the message under USER MESSAGE without addressing anyone. Choose who replies: only the 1-3 agents whose expertise fits the message best " +
+			"(design for looks, layout and UI/UX; code for implementation and best practices; product for whether it does what was asked; security for risks). " +
+			"The coordinator replies only about the work it did, feasibility, who would do something and next steps, or when no specialist fits. Each chosen agent replies once, from its own angle. " +
+			"If the user challenges a claim, check it against the EVIDENCE: defend it with receipts, or concede (start with \"touché\", set \"concede\": true and give a concrete fix in \"fix_suggestion\")."
+		if len(hints) > 0 {
+			task += " The message seems to be about: " + strings.Join(hints, ", ") + "."
+		}
 	default:
 		task = "The user wrote the message under USER MESSAGE. Reply as each of these agents: " + strings.Join(responders, ", ") + ". " +
 			"If the user challenges a claim, check it against the EVIDENCE. If the evidence supports it, defend it citing receipts. " +
@@ -786,7 +797,7 @@ func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string,
 	}
 	sys := "You play the AI agents in a #retro channel replying to the user.\n" + retroRules + "\n" + retroSpecialistRules + "\n" + retroPersonaDirective(c.Persona) + task + "\n" +
 		`OUTPUT: only one JSON object, no code fences: {"replies":[{"agent":"<agent id>","text":"...","receipts":["e2"],"concede":false,"fix_suggestion":"","preference_note":""}]}` + "\n" +
-		"Only these agents may reply: " + strings.Join(responders, ", ") + ".\n" +
+		"Only these agents may reply: " + strings.Join(responders, ", ") + ". At most 3 replies.\n" +
 		config.LanguageDirective(c.Lang)
 	var ub strings.Builder
 	ub.WriteString("TASK: " + c.Title + "\n\n" + renderRetroEvidence(retroPack{Agents: c.Agents, Evidence: c.Evidence}))
@@ -834,6 +845,9 @@ func retroValidateReplies(js string, c *retroChannel, responders []string) ([]re
 		}
 		m.Note = retroClip(strings.Join(strings.Fields(r.Note), " "), 200)
 		out = append(out, m)
+		if len(out) == 3 && len(responders) > 3 {
+			break // mode automàtic: com a molt tres veus per missatge
+		}
 	}
 	if len(out) == 0 {
 		return nil, fmt.Errorf(`"replies" has no valid entry (agent must be one of: %s)`, strings.Join(responders, ", "))
@@ -851,20 +865,29 @@ func (s *Server) retroReply(ctx context.Context, key string, mode retroReplyMode
 	if focusID != "" {
 		focus = c.message(focusID)
 	}
-	s.retroTyping(key, responders, true)
+	typing := responders
+	if mode == retroModeAuto {
+		typing = []string{"coordinator"} // no se sap qui contestarà: «l'equip escriu»
+	}
+	s.retroTyping(key, typing, true)
 	sys, user := retroReplyPrompt(c, mode, responders, thread, focus, userText)
 	var replies []retroMessage
+	// Conversa informal: sense raonament (molt més ràpid amb models que
+	// sempre pensen) i amb temps màxim.
+	ctx, cancel := context.WithTimeout(ctx, retroReplyBudget)
+	defer cancel()
+	ctx = llm.WithThink(ctx, "no")
 	js, _, err := s.retroAsk(ctx, sys, user, func(js string) error {
 		var verr error
 		replies, verr = retroValidateReplies(js, c, responders)
 		return verr
 	})
-	s.retroTyping(key, responders, false)
+	s.retroTyping(key, typing, false)
 	if err != nil {
 		log.Printf("retro reply degraded: %s", redactError(err))
 		replies = nil
 		diag := retroDiagnose(c, err)
-		for _, id := range responders {
+		for _, id := range typing {
 			text := "No model is answering right now, so I can only go by the evidence."
 			if c.Lang == "ca" {
 				text = "Ara mateix no respon cap model, així que només puc parlar de l'evidència."
@@ -1013,6 +1036,8 @@ type retroReq struct {
 	Emoji      string `json:"emoji"`
 	Action     string `json:"action"`
 	Persona    string `json:"persona"`
+	// Quick: no esperar el model; el resum automàtic a partir de l'evidència.
+	Quick bool `json:"quick"`
 }
 
 func retroDecode(w http.ResponseWriter, r *http.Request) (retroReq, bool) {
@@ -1157,6 +1182,21 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		pack := buildRetroPack(evs, runID, diff, cwd)
 		ch = &retroChannel{Key: "run-" + strconv.Itoa(runID), RunID: runID, Source: "run", Title: s.retroRunTitle(runID, last), Agents: retroWithSpecialists(pack.Agents, s.cfg.Lang()), Evidence: retroCleanEvidence(pack.Evidence)}
 	}
+	// Ja s'està generant (un altre clic, una altra finestra): s'espera
+	// aquella generació en comptes de fer una segona crida al model. Amb
+	// quick, s'atura i queda el resum automàtic.
+	if job := retroJobFor(ch.Key); job != nil {
+		if req.Quick {
+			job.cancel()
+		}
+		select {
+		case <-job.done:
+		case <-r.Context().Done():
+			return
+		}
+		writeJSON(w, map[string]any{"channel": s.retroGet(ch.Key), "cursor": s.retroCursor()})
+		return
+	}
 	old := s.retroGet(ch.Key)
 	if old != nil && len(old.Messages) > 0 && !req.Regenerate {
 		// Canviar el to d'un canal ja obert no torna a cridar el model:
@@ -1186,19 +1226,37 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 	for _, a := range ch.Agents {
 		ids = append(ids, a.ID)
 	}
+	// La generació no depèn de la connexió del client (tancar el diàleg no
+	// l'ha de perdre: en tornar-lo a obrir hi és) i té un temps màxim: vist
+	// el 2026-10-14, amb un model que sempre raona el diàleg es quedava
+	// minuts a «Els agents s'estan preparant». El retro és una conversa
+	// informal: sense raonament va molt més ràpid.
+	gctx, cancel := context.WithTimeout(context.Background(), retroStandupBudget)
+	job := retroBeginJob(ch.Key, cancel)
+	defer retroEndJob(ch.Key, job)
+	gctx = llm.WithThink(gctx, "no")
 	s.retroTyping(ch.Key, ids, true)
 	sys, user := retroStandupPrompt(ch)
 	var msgs []retroMessage
 	var reacts map[int][]retroReaction
-	_, model, err := s.retroAsk(r.Context(), sys, user, func(js string) error {
-		var verr error
-		msgs, reacts, verr = retroValidateStandup(js, ch)
-		return verr
-	})
+	var model string
+	var err error
+	if req.Quick {
+		err = errRetroQuick
+	} else {
+		_, model, err = s.retroAsk(gctx, sys, user, func(js string) error {
+			var verr error
+			msgs, reacts, verr = retroValidateStandup(js, ch)
+			return verr
+		})
+	}
+	cancel()
 	s.retroTyping(ch.Key, ids, false)
 	degraded := false
 	if err != nil {
-		log.Printf("retro stand-up degraded: %s", redactError(err))
+		if !errors.Is(err, errRetroQuick) {
+			log.Printf("retro stand-up degraded: %s", redactError(err))
+		}
 		msgs, reacts, degraded = retroFallbackStandup(ch, err), nil, true
 	}
 	var published []retroMessage
@@ -1260,7 +1318,11 @@ func (s *Server) handleRetroMessage(w http.ResponseWriter, r *http.Request) {
 			c = nc
 		}
 	}
-	responders := retroRespondersFor(text, c)
+	responders, auto := retroRespondersFor(text, c)
+	mode := retroModeMessage
+	if auto {
+		mode = retroModeAuto
+	}
 	var userMsg retroMessage
 	if _, err := s.retroUpdate(key, func(ch *retroChannel) error {
 		if p := retroPersonaNorm(req.Persona); p != "" {
@@ -1276,7 +1338,7 @@ func (s *Server) handleRetroMessage(w http.ResponseWriter, r *http.Request) {
 	if thread == "" {
 		thread = userMsg.ID
 	}
-	replies, err := s.retroReply(r.Context(), key, retroModeMessage, responders, thread, "", text)
+	replies, err := s.retroReply(r.Context(), key, mode, responders, thread, "", text)
 	if err != nil {
 		retroError(w, http.StatusInternalServerError, err.Error())
 		return
