@@ -244,6 +244,8 @@ type Client struct {
 	// campsOff: «endpoint|camp» dels camps opcionals que un proveïdor ha
 	// rebutjat (compat.go). També sota usageMu.
 	campsOff map[string]bool
+	// effortFixes: valor de reasoning_effort que admet cada endpoint|model (compat.go).
+	effortFixes map[string]string
 	cacheMu  sync.RWMutex
 	cache    map[string]promptCacheConfig
 	// raonaments recorda el reasoning_content de les crides d'eina per id
@@ -361,7 +363,7 @@ func cacheKey(baseURL, model string) string {
 }
 
 func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatRequest) (*http.Response, error) {
-	url := strings.TrimSuffix(baseURL, "/") + "/chat/completions"
+	url := endpointURL(baseURL, "/chat/completions")
 	if cache := c.promptCache(baseURL, reqBody.Model); cache.key != "" {
 		reqBody.PromptCacheKey = cache.key
 		reqBody.PromptCacheRetention = cache.retention
@@ -376,9 +378,7 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	if apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+apiKey)
-	}
+	setAuth(req, baseURL, apiKey) // Bearer, o api-key a Azure (azure.go)
 	// opencode.ai/zen/go encamina per sessió: sense aquesta capçalera respon
 	// "MissingSessionID". Hermes fa el mateix amb totes les seves crides.
 	if strings.Contains(baseURL, "opencode.ai") {

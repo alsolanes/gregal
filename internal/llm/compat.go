@@ -5,6 +5,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -45,11 +46,11 @@ func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req cha
 	base := normBase(baseURL)
 	req = c.aplicaAjustos(base, req)
 	for _, camp := range campsOpcionals {
-		if c.campOff(base, camp) {
+		if c.campOff(campKey(base, req.Model, camp), camp) {
 			req = senseCamp(req, camp)
 		}
 	}
-	for intent := 0; intent < len(campsOpcionals)+len(ajustosModel)+1; intent++ {
+	for intent := 0; intent < len(campsOpcionals)+len(ajustosModel)+3; intent++ {
 		resp, err := c.postRetry(ctx, baseURL, apiKey, req)
 		if err != nil || (resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity) {
 			return resp, err
@@ -64,6 +65,13 @@ func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req cha
 			c.setCampOff(base+"|"+req.Model, ajust)
 			continue
 		}
+		// reasoning_effort amb un valor que el model no admet: el més proper
+		// dels que diu que admet (o «none» si el conflicte és amb les eines).
+		if nou, fix, ok := ajustaEsforc(string(raw), req); ok {
+			req = nou
+			c.setEffortFix(base+"|"+req.Model, fix)
+			continue
+		}
 		rebutjats := campsRebutjats(string(raw), req)
 		if len(rebutjats) == 0 {
 			// Un 400 d'una altra mena (context massa llarg, model
@@ -73,7 +81,7 @@ func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req cha
 		}
 		for _, camp := range rebutjats {
 			req = senseCamp(req, camp)
-			c.setCampOff(base, camp)
+			c.setCampOff(campKey(base, req.Model, camp), camp)
 		}
 	}
 	return c.postRetry(ctx, baseURL, apiKey, req)
@@ -226,5 +234,114 @@ func (c *Client) aplicaAjustos(base string, req chatRequest) chatRequest {
 			req = ambAjust(req, a)
 		}
 	}
+	return ambEsforc(req, c.effortFix(base+"|"+req.Model))
+}
+
+// campKey: reasoning_effort depèn del model (a Foundry, la mateixa URL
+// serveix models que l'admeten i models que no); els altres camps opcionals
+// depenen del servidor.
+func campKey(base, model, camp string) string {
+	if camp == campReasoningEffort {
+		return base + "|" + model
+	}
+	return base
+}
+
+// Esforç de raonament per model (Azure OpenAI, documentació 2026-10-14):
+// none (gpt-5.1 i posteriors), minimal (només el gpt-5 original), low,
+// medium, high, xhigh (gpt-5.4+ i codex-max), max (GPT-6/5.6, només a
+// Responses). o1-mini no l'admet. I els gpt-5.6 a Chat Completions no
+// combinen raonament i eines: amb tools, només «none» (ni tan sols val no
+// enviar-lo, perquè per defecte és medium).
+var nivellsEsforc = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"}
+
+const esforcEinesNone = "tools:none"
+
+var reValorsAdmesos = regexp.MustCompile(`'([a-z]+)'`)
+
+// ajustaEsforc interpreta un 400 sobre reasoning_effort. Torna la petició
+// corregida i l'ajust a recordar: un valor, o esforcEinesNone.
+func ajustaEsforc(body string, req chatRequest) (chatRequest, string, bool) {
+	b := strings.ToLower(body)
+	if !strings.Contains(b, "reasoning_effort") {
+		return req, "", false
+	}
+	// «Function tools with reasoning_effort are not supported for gpt-5.6…
+	// set reasoning_effort to 'none'.»
+	if len(req.Tools) > 0 && strings.Contains(b, "tools") && strings.Contains(b, "'none'") && req.ReasoningEffort != "none" {
+		return ambEsforc(req, esforcEinesNone), esforcEinesNone, true
+	}
+	// «Unsupported value: 'reasoning_effort' does not support 'max' with
+	// this model. Supported values are: 'low', 'medium', and 'high'.»
+	i := strings.Index(b, "supported values")
+	if req.ReasoningEffort == "" || i < 0 {
+		return req, "", false
+	}
+	var admesos []string
+	for _, m := range reValorsAdmesos.FindAllStringSubmatch(b[i:], -1) {
+		if posEsforc(m[1]) >= 0 {
+			admesos = append(admesos, m[1])
+		}
+	}
+	tria := esforcMesProper(req.ReasoningEffort, admesos)
+	if tria == "" || tria == req.ReasoningEffort {
+		return req, "", false
+	}
+	req.ReasoningEffort = tria
+	return req, tria, true
+}
+
+func posEsforc(v string) int {
+	for i, n := range nivellsEsforc {
+		if n == v {
+			return i
+		}
+	}
+	return -1
+}
+
+// esforcMesProper tria l'admès més proper al demanat; en cas d'empat, el
+// més alt (qui demana raonament el vol, més que no pas menys).
+func esforcMesProper(volgut string, admesos []string) string {
+	p := posEsforc(volgut)
+	millor, dist := "", 1<<30
+	for _, a := range admesos {
+		d := posEsforc(a) - p
+		if d < 0 {
+			d = -d
+		}
+		if d < dist || (d == dist && posEsforc(a) > posEsforc(millor)) {
+			millor, dist = a, d
+		}
+	}
+	return millor
+}
+
+// ambEsforc aplica un ajust d'esforç ja conegut a la petició.
+func ambEsforc(req chatRequest, fix string) chatRequest {
+	switch {
+	case fix == "":
+	case fix == esforcEinesNone:
+		if len(req.Tools) > 0 {
+			req.ReasoningEffort = "none"
+		}
+	case req.ReasoningEffort != "":
+		req.ReasoningEffort = fix
+	}
 	return req
+}
+
+func (c *Client) effortFix(key string) string {
+	c.usageMu.Lock()
+	defer c.usageMu.Unlock()
+	return c.effortFixes[key]
+}
+
+func (c *Client) setEffortFix(key, fix string) {
+	c.usageMu.Lock()
+	defer c.usageMu.Unlock()
+	if c.effortFixes == nil {
+		c.effortFixes = map[string]string{}
+	}
+	c.effortFixes[key] = fix
 }

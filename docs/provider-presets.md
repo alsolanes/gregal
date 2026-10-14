@@ -52,3 +52,63 @@ Defaults were checked against official documentation on 2026-10-02:
 [Together AI](https://www.together.ai/blog/qwen-3-coder),
 [Cerebras](https://inference-docs.cerebras.ai/api-reference/models/public-models),
 [OpenCode Go](https://dev.opencode.ai/docs/go/).
+
+## Azure OpenAI and Microsoft Foundry
+
+Use the **v1 endpoint** and put the *deployment* name in `model`:
+
+```yaml
+providers:
+  azure:
+    base_url: https://YOUR-RESOURCE.openai.azure.com/openai/v1   # or https://YOUR-RESOURCE.services.ai.azure.com/openai/v1
+    api_key: ${AZURE_OPENAI_API_KEY}
+  # Same resource through the Responses API: needed to keep reasoning with
+  # tools on GPT-5.6 (see below) and to use reasoning `max`.
+  azure-responses:
+    type: openai-responses
+    base_url: https://YOUR-RESOURCE.openai.azure.com/openai/v1
+    api_key: ${AZURE_OPENAI_API_KEY}
+  # Foundry Model Inference API (non-OpenAI models such as DeepSeek, Llama, Mistral…)
+  foundry:
+    base_url: https://YOUR-RESOURCE.services.ai.azure.com/models
+    api_key: ${AZURE_AI_API_KEY}
+roles:
+  code:
+    provider: azure
+    model: my-gpt-5-deployment   # deployment name, not the model family
+    think: medium                # sent as reasoning_effort
+```
+
+Classic deployment URLs also work, with the query kept at the end:
+`https://YOUR-RESOURCE.openai.azure.com/openai/deployments/DEPLOYMENT?api-version=2025-04-01-preview`.
+
+What Gregal handles on its own for these endpoints:
+
+- **Authentication**: an API key is sent in the `api-key` header, as the
+  Azure REST API expects. A Microsoft Entra ID token (a JWT, starting with
+  `eyJ`) is sent as `Authorization: Bearer`.
+- **Foundry Model Inference** (`…services.ai.azure.com/models`,
+  `*.models.ai.azure.com`, `*.inference.ai.azure.com`): requests carry
+  `extra-parameters: pass-through`, so `reasoning_effort` reaches models
+  that support it instead of being rejected by the API.
+- **`max_tokens`**: reasoning models only accept `max_completion_tokens`;
+  after the first `400` Gregal resends with it and remembers it for that
+  model. The same happens with a non-default `temperature`.
+- **`reasoning_effort`** (from the role's `think`: `no` → `none`, `low`,
+  `medium`, `high`, `max`) depends on the model: `none` exists from
+  gpt-5.1, `minimal` only on the original gpt-5, `xhigh` on gpt-5.4+ and
+  codex-max, `max` only on GPT-6/5.6 through the Responses API, and o1-mini
+  takes none at all. If a model rejects the value, Gregal reads the
+  supported values from the error, uses the nearest one (`max` → `high`) and
+  remembers it; if the model does not know the parameter, it is dropped for
+  that model only (other models on the same endpoint keep it).
+- **GPT-5.6 on Chat Completions cannot reason and call tools in the same
+  request** (it fails even without `reasoning_effort`, because its default is
+  `medium`). Gregal then sends `reasoning_effort: none` whenever tools are
+  present, so the agent keeps working without reasoning. To keep reasoning
+  with tools, point the role at the `openai-responses` provider above.
+
+Checked against Microsoft's documentation on 2026-10-14:
+[v1 API](https://learn.microsoft.com/en-us/azure/foundry/openai/api-version-lifecycle),
+[reasoning models](https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/reasoning),
+[Model Inference API](https://learn.microsoft.com/en-us/rest/api/microsoft-foundry/modelinference/).

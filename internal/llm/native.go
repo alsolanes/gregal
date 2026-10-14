@@ -32,7 +32,7 @@ type peticioNativa func(off map[string]bool) (body []byte, presents []string, er
 // negociació dels camps opcionals. Torna la resposta tal com arriba (2xx o
 // un 4xx definitiu amb el cos intacte).
 func (c *Client) postNatiu(ctx context.Context, baseURL, model, path string, malformed bool, camps []campNatiu, headers func(*http.Request), build peticioNativa) (*http.Response, error) {
-	url := strings.TrimSuffix(strings.TrimSpace(baseURL), "/") + path
+	url := endpointURL(baseURL, path)
 	clau := normBase(baseURL) + "#" + strings.TrimSpace(model)
 	off := map[string]bool{}
 	for _, cp := range camps {

@@ -294,9 +294,7 @@ func respFinish(o respObject, calls int) string {
 func (c *Client) responsesChat(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, stream bool, onToken, onReason func(string)) (string, []ToolCall, error) {
 	c.clearUsage()
 	headers := func(req *http.Request) {
-		if k := strings.TrimSpace(apiKey); k != "" {
-			req.Header.Set("Authorization", "Bearer "+k)
-		}
+		setAuth(req, baseURL, apiKey) // Bearer, o api-key a Azure (azure.go)
 		if stream {
 			req.Header.Set("Accept", "text/event-stream")
 		}

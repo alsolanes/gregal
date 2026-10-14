@@ -87,9 +87,7 @@ func setModelsAuth(req *http.Request, base, key string) {
 		}
 		return
 	}
-	if key != "" {
-		req.Header.Set("Authorization", "Bearer "+key)
-	}
+	setAuth(req, base, key)
 }
 
 // Memòria de blocs natius d'anada i tornada.

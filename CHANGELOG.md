@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Azure OpenAI and Microsoft Foundry: API keys go in the `api-key` header
+  (Entra ID tokens as Bearer), classic `?api-version=` URLs work, and the
+  Foundry Model Inference endpoint gets `extra-parameters: pass-through`.
+  `reasoning_effort` is negotiated per model: an unsupported value falls
+  back to the nearest supported one, GPT-5.6 with tools gets `none`, and a
+  model that does not know the parameter only drops it for itself. See
+  docs/provider-presets.md.
+
 - One release pipeline. `node scripts/release.cjs bump X.Y.Z --title ...`
   sets every version and turns the Unreleased notes into the release
   section; Quality CI fails if versions or the changelog drift; pushing the
