@@ -523,7 +523,8 @@ type retroReplyDraft struct {
 func retroStandupPrompt(c *retroChannel) (string, string) {
 	sys := "You write the opening stand-up of a #retro channel where the AI agents that just finished a task debrief informally.\n" +
 		retroRules + "\n" + retroPersonaDirective(c.Persona) +
-		"Each agent listed in AGENTS posts 1-3 messages about what it did, what went well and what is uncertain. " +
+		"Each agent that did the work posts 1-3 messages about what it did, what went well and what is uncertain. " +
+		retroSpecialistRules + " In this stand-up each specialist posts at most ONE short message, and only if the evidence gives it something concrete (a risk, a gap or a good practice worth noting); otherwise it stays silent.\n" +
 		"Agents may react to each other's messages with one of: " + strings.Join(retroEmojis, " ") +
 		" (for example the reviewer reacts 🤔 to a claim without receipts or with failed checks; the coordinator reacts 🎉 when tests passed).\n" +
 		`OUTPUT: only one JSON object, no code fences: {"messages":[{"agent":"<agent id>","text":"...","receipts":["e1"]}],"reactions":[{"agent":"<agent id>","message":<0-based index into messages>,"emoji":"🤔"}]}` + "\n" +
@@ -564,7 +565,11 @@ func retroValidateStandup(js string, c *retroChannel) ([]retroMessage, map[int][
 	var msgs []retroMessage
 	for i, m := range d.Messages {
 		text := strings.TrimSpace(m.Text)
-		if c.agent(m.Agent) == nil || text == "" || per[m.Agent] >= 3 || len(msgs) >= 14 {
+		limit := 3
+		if retroIsSpecialist(c.agent(m.Agent)) {
+			limit = 1
+		}
+		if c.agent(m.Agent) == nil || text == "" || per[m.Agent] >= limit || len(msgs) >= 14 {
 			continue
 		}
 		per[m.Agent]++
@@ -697,6 +702,9 @@ func retroDiagnose(c *retroChannel, modelErr error) string {
 func retroFallbackStandup(c *retroChannel, modelErr error) []retroMessage {
 	var out []retroMessage
 	for _, a := range c.Agents {
+		if retroIsSpecialist(&a) {
+			continue
+		}
 		var titles, ids []string
 		for _, e := range c.Evidence {
 			if e.Agent == a.ID && len(ids) < 4 {
@@ -776,7 +784,7 @@ func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string,
 			"If the user challenges a claim, check it against the EVIDENCE. If the evidence supports it, defend it citing receipts. " +
 			"If the evidence does NOT support it (or contradicts it), the agent MUST concede: start the text with \"touché\", set \"concede\": true and give a concrete, actionable fix in \"fix_suggestion\" (one imperative sentence: what to change or which check to run). Otherwise leave \"fix_suggestion\" empty."
 	}
-	sys := "You play the AI agents in a #retro channel replying to the user.\n" + retroRules + "\n" + retroPersonaDirective(c.Persona) + task + "\n" +
+	sys := "You play the AI agents in a #retro channel replying to the user.\n" + retroRules + "\n" + retroSpecialistRules + "\n" + retroPersonaDirective(c.Persona) + task + "\n" +
 		`OUTPUT: only one JSON object, no code fences: {"replies":[{"agent":"<agent id>","text":"...","receipts":["e2"],"concede":false,"fix_suggestion":"","preference_note":""}]}` + "\n" +
 		"Only these agents may reply: " + strings.Join(responders, ", ") + ".\n" +
 		config.LanguageDirective(c.Lang)
@@ -1115,7 +1123,7 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		pack := buildRetroTeamPack(team)
-		ch = &retroChannel{Key: retroTeamKey(team), Source: "team", Title: retroClip(team.Task, 120), Agents: pack.Agents, Evidence: retroCleanEvidence(pack.Evidence)}
+		ch = &retroChannel{Key: retroTeamKey(team), Source: "team", Title: retroClip(team.Task, 120), Agents: retroWithSpecialists(pack.Agents, s.cfg.Lang()), Evidence: retroCleanEvidence(pack.Evidence)}
 	} else {
 		evs := s.retroSessionEvents()
 		last, finished, _ := retroRuns(evs)
@@ -1147,7 +1155,7 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		}
 		diff, _ := tools.GitDiffStructured(cwd)
 		pack := buildRetroPack(evs, runID, diff, cwd)
-		ch = &retroChannel{Key: "run-" + strconv.Itoa(runID), RunID: runID, Source: "run", Title: s.retroRunTitle(runID, last), Agents: pack.Agents, Evidence: retroCleanEvidence(pack.Evidence)}
+		ch = &retroChannel{Key: "run-" + strconv.Itoa(runID), RunID: runID, Source: "run", Title: s.retroRunTitle(runID, last), Agents: retroWithSpecialists(pack.Agents, s.cfg.Lang()), Evidence: retroCleanEvidence(pack.Evidence)}
 	}
 	old := s.retroGet(ch.Key)
 	if old != nil && len(old.Messages) > 0 && !req.Regenerate {
@@ -1243,13 +1251,16 @@ func (s *Server) handleRetroMessage(w http.ResponseWriter, r *http.Request) {
 			thread = root.Thread
 		}
 	}
-	responders := parseRetroMentions(text, c.Agents)
-	if len(responders) == 0 {
-		responders = []string{"coordinator"}
-		if c.agent("coordinator") == nil && len(c.Agents) > 0 {
-			responders = []string{c.Agents[0].ID}
+	// Canals d'abans dels especialistes: s'hi afegeixen en parlar-hi.
+	if len(retroWithSpecialists(c.Agents, c.Lang)) != len(c.Agents) {
+		if nc, err := s.retroUpdate(key, func(ch *retroChannel) error {
+			ch.Agents = retroWithSpecialists(ch.Agents, ch.Lang)
+			return nil
+		}); err == nil && nc != nil {
+			c = nc
 		}
 	}
+	responders := retroRespondersFor(text, c)
 	var userMsg retroMessage
 	if _, err := s.retroUpdate(key, func(ch *retroChannel) error {
 		if p := retroPersonaNorm(req.Persona); p != "" {

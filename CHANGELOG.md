@@ -8,6 +8,11 @@
   you have not discussed yet, a clearer button on every finished turn, and a
   new Android screen to read the agents' write-up, ask or challenge them
   (@name) and react with emojis.
+- #retro specialists: Product, Code and Security join every channel. They
+  did not do the work; they review it from their angle with the same
+  evidence and receipts, speak at most once in the opening stand-up (only
+  when the evidence gives them something concrete), and answer questions on
+  their topic even without an @mention. `@all` / `@tots` asks everyone.
 - Redaction tests build their fake keys at runtime, so GitHub secret
   scanning no longer reports them as leaks.
 

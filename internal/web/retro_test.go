@@ -353,7 +353,14 @@ func TestRetroDegradesAfterRepairRetry(t *testing.T) {
 	fake := &retroFake{garbage: true}
 	s := retroTestServer(t, fake)
 	c := retroChannelFrom(t, retroPost(t, s, "/api/retro/start", `{}`))
-	if !c.Degraded || len(c.Messages) != len(c.Agents) || fake.calls.Load() != 2 {
+	// Els especialistes no parlen al resum automàtic: no tenen evidència pròpia.
+	doers := 0
+	for i := range c.Agents {
+		if !retroIsSpecialist(&c.Agents[i]) {
+			doers++
+		}
+	}
+	if !c.Degraded || len(c.Messages) != doers || fake.calls.Load() != 2 {
 		t.Fatalf("degraded=%v msgs=%d calls=%d", c.Degraded, len(c.Messages), fake.calls.Load())
 	}
 	for _, m := range c.Messages {

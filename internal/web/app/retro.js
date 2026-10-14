@@ -14,6 +14,13 @@ const T = (key, vars) => {
 };
 const EMOJIS = ['👍', '🎉', '🔥', '🤔', '👀', '✅', '👎', '😂', '🙏'];
 const AVATARS = ['coordinator', 'researcher', 'builder', 'reviewer'];
+// Especialistes (no han fet la feina; la revisen des del seu angle): icona
+// pròpia en lloc del personatge pixelat.
+const SPECIALIST_ICONS = {
+  product: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  code: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/>',
+  security: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+};
 
 const st = {
   dialog: null, channel: null, latest: null, key: '', cursor: 0,
@@ -56,7 +63,10 @@ function avatar(id) {
   const box = el('span', 'retro-avatar');
   box.setAttribute('aria-hidden', 'true');
   const a = agentOf(id);
-  if (a) {
+  if (a && SPECIALIST_ICONS[a.avatar]) {
+    box.classList.add('is-spec', 'spec-' + a.avatar);
+    box.innerHTML = '<svg viewBox="0 0 24 24" width="62%" height="62%" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + SPECIALIST_ICONS[a.avatar] + '</svg>';
+  } else if (a) {
     const img = el('img');
     img.src = '/app/assets/pixel-office/' + (AVATARS.includes(a.avatar) ? a.avatar : 'builder') + '.png';
     img.alt = '';

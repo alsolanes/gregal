@@ -28,6 +28,9 @@
   background:var(--surface-hi); border:1px solid var(--line); overflow:hidden; font-weight:700; color:var(--ink); }
 .retro-avatar img { height:80%; width:auto; image-rendering:pixelated; }
 .retro-avatar.is-user { background:var(--accent-soft); color:var(--ink); }
+.retro-avatar.spec-product { background:var(--amber-soft); color:var(--amber); }
+.retro-avatar.spec-code { background:var(--ok-soft); color:var(--green); }
+.retro-avatar.spec-security { background:var(--red-soft); color:var(--red); }
 .retro-avatar.is-system { background:transparent; color:var(--muted); }
 .retro-group-body { flex:1; min-width:0; }
 .retro-meta { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
