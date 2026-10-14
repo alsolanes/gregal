@@ -1,11 +1,11 @@
 // Package runs implementa la cua d'execucions compartida del servei.
 //
 // Regles: una conversa té com a màxim un torn executant-se i els missatges
-// addicionals entren en una cua visible. Les converses interactives corren
-// en paral·lel encara que comparteixin directori (com els altres agents de
-// codi: obrir una segona sessió no ha d'esperar la primera). Només el
-// treball desatès (jobs, grafs) se serialitza per directori, perquè ningú
-// el mira i dos jobs no s'han de trepitjar.
+// addicionals entren en una cua visible. Per directori hi ha un bloqueig de
+// lectura/escriptura: les converses interactives el comparteixen (corren en
+// paral·lel encara que treballin al mateix projecte, com els altres agents
+// de codi) i el treball desatès (jobs, grafs) el pren en exclusiva, perquè
+// ningú el mira i no ha de trepitjar ni ser trepitjat.
 // La prioritat separa el treball interactiu del desatès sense deixar aquest
 // esperant indefinidament.
 //
@@ -97,7 +97,7 @@ type Queue struct {
 	pend    map[string][]*slot // sessió → pendents
 	running map[string]*slot   // sessió → torn en execució (el worker el desencua)
 	worker  map[string]bool    // sessió → worker viu
-	ws      map[string]chan struct{}
+	ws      map[string]*sync.RWMutex
 }
 
 // New crea la cua buida.
@@ -107,7 +107,7 @@ func New() *Queue {
 		pend:    map[string][]*slot{},
 		running: map[string]*slot{},
 		worker:  map[string]bool{},
-		ws:      map[string]chan struct{}{},
+		ws:      map[string]*sync.RWMutex{},
 	}
 }
 
@@ -183,7 +183,7 @@ func (q *Queue) Submit(exec Executor, r Run) (run Run, existing bool, err error)
 }
 
 // work és el bucle d'una sessió: desencua per prioritat i ordre d'arribada,
-// espera el token del workspace i executa un torn a la vegada.
+// pren el bloqueig del directori (lockWorkspace) i executa un torn a la vegada.
 func (q *Queue) work(sess string) {
 	for {
 		q.mu.Lock()
@@ -197,23 +197,20 @@ func (q *Queue) work(sess string) {
 		q.mu.Unlock()
 
 		ws := sl.run.Workspace
-		held := false
-		// Demanat el 2026-10-14: dues sessions al mateix projecte han de
-		// poder treballar alhora; abans la segona quedava «queued» sense
-		// explicació i semblava penjada.
-		if sl.run.Priority < PriorityBackground {
-			ws = ""
-		}
+		var unlock func()
 		if ws != "" {
-			select {
-			case <-sl.ctx.Done():
+			// Demanat el 2026-10-14: dues sessions al mateix projecte han de
+			// poder treballar alhora (abans la segona quedava «queued» i
+			// semblava penjada). Només el desatès el pren en exclusiva.
+			var ok bool
+			unlock, ok = q.lockWorkspace(sl.ctx, ws, sl.run.Priority < PriorityBackground)
+			if !ok {
 				q.finish(sl, Cancelled, "")
 				q.clearRunning(sess)
 				continue
-			case <-q.token(ws):
-				held = true
 			}
 		}
+		held := unlock != nil
 
 		// Cancel·lat mentre esperava el workspace? L'estat es comprova i es
 		// fixa dins el mateix bloqueig per no ficar-ne un de ja tancat.
@@ -221,7 +218,7 @@ func (q *Queue) work(sess string) {
 		if !sl.run.State.Active() {
 			q.mu.Unlock()
 			if held {
-				q.release(ws)
+				unlock()
 			}
 			q.clearRunning(sess)
 			continue
@@ -250,7 +247,7 @@ func (q *Queue) work(sess string) {
 		}
 		q.clearRunning(sess)
 		if held {
-			q.release(ws)
+			unlock()
 		}
 	}
 }
@@ -390,26 +387,35 @@ func (q *Queue) ListSession(sess string) []Run {
 	return out
 }
 
-// token retorna el canal-token d'un workspace, creant-lo si cal. Un sol
-// valor dins un canal bufferitzat fa de verrelligam; els receptors
-// bloquejats surten en FIFO, així que ningú morí de fam.
-func (q *Queue) token(ws string) <-chan struct{} {
+// lockWorkspace pren el bloqueig del directori: compartit per al treball
+// interactiu, exclusiu per al desatès. Si el torn es cancel·la mentre
+// espera, el bloqueig que arribi més tard s'allibera tot sol.
+func (q *Queue) lockWorkspace(ctx context.Context, ws string, shared bool) (func(), bool) {
 	q.mu.Lock()
-	defer q.mu.Unlock()
-	ch, ok := q.ws[ws]
+	l, ok := q.ws[ws]
 	if !ok {
-		ch = make(chan struct{}, 1)
-		ch <- struct{}{}
-		q.ws[ws] = ch
+		l = &sync.RWMutex{}
+		q.ws[ws] = l
 	}
-	return ch
-}
-
-func (q *Queue) release(ws string) {
-	q.mu.Lock()
-	ch := q.ws[ws]
 	q.mu.Unlock()
-	if ch != nil {
-		ch <- struct{}{}
+	unlock := l.Unlock
+	if shared {
+		unlock = l.RUnlock
+	}
+	got := make(chan struct{})
+	go func() {
+		if shared {
+			l.RLock()
+		} else {
+			l.Lock()
+		}
+		close(got)
+	}()
+	select {
+	case <-got:
+		return unlock, true
+	case <-ctx.Done():
+		go func() { <-got; unlock() }()
+		return nil, false
 	}
 }

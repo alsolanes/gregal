@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Several requests at once: sessions on the same project now work in
+  parallel instead of the second one waiting as "queued" (only unattended
+  jobs and graphs still take the folder exclusively).
+- Talk to the agent while it works, like other coding agents: Enter sends
+  the message into the running turn (it is read at the next safe point and
+  the agent adjusts), Ctrl/⌘+Enter interrupts the current model call and
+  redoes it with the message, Alt+Enter keeps the old "queue for after".
+  On Android, Send tells it now and a long press interrupts. Messages that
+  arrive too late are sent as a new message, never lost.
+- Stopping a turn now closes it in the conversation, so the next question
+  is answered on its own instead of resuming the stopped task.
+
 ## v1.9.0 - 2026-10-14 - Work groups, #retro everywhere and Android 0.9.8
 
 - #retro is easier to reach: its own sidebar entry with a dot for turns

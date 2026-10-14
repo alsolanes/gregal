@@ -212,7 +212,7 @@ fun summarizeTool(name: String, args: String, lang: String = "ca"): ToolSum {
 
 // --- Model del treball d'un torn ---
 
-enum class StepKind { Tool, Think, Note, Blocked, Review, Delegate, Info, Warn }
+enum class StepKind { Tool, Think, Note, Blocked, Review, Delegate, Info, Warn, User }
 enum class StepState { Running, Ok, Failed }
 
 data class WorkStep(
