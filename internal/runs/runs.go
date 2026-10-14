@@ -1,8 +1,11 @@
 // Package runs implementa la cua d'execucions compartida del servei.
 //
-// Regles del pla (secció 5): una conversa té com a màxim un torn
-// executant-se; els missatges addicionals entren en una cua visible; dos
-// torns capaços d'escriure que comparteixen directori s'executen en sèrie.
+// Regles: una conversa té com a màxim un torn executant-se i els missatges
+// addicionals entren en una cua visible. Les converses interactives corren
+// en paral·lel encara que comparteixin directori (com els altres agents de
+// codi: obrir una segona sessió no ha d'esperar la primera). Només el
+// treball desatès (jobs, grafs) se serialitza per directori, perquè ningú
+// el mira i dos jobs no s'han de trepitjar.
 // La prioritat separa el treball interactiu del desatès sense deixar aquest
 // esperant indefinidament.
 //
@@ -195,6 +198,12 @@ func (q *Queue) work(sess string) {
 
 		ws := sl.run.Workspace
 		held := false
+		// Demanat el 2026-10-14: dues sessions al mateix projecte han de
+		// poder treballar alhora; abans la segona quedava «queued» sense
+		// explicació i semblava penjada.
+		if sl.run.Priority < PriorityBackground {
+			ws = ""
+		}
 		if ws != "" {
 			select {
 			case <-sl.ctx.Done():
