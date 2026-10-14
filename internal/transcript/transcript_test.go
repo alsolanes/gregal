@@ -25,7 +25,7 @@ func conversa() []llm.Message {
 		{Role: "system", Content: "SYSTEM PROMPT SECRET"},
 		{Role: "user", Content: "Fix the <b>bug</b> in main.go\n\n" + mapa},
 		{Role: "assistant", Content: "Let me look.", ToolCalls: []llm.ToolCall{call("c1", "read", `{"path":"main.go"}`), call("c2", "todowrite", `{"todos":[]}`)}},
-		{Role: "tool", ToolCallID: "c1", Content: "package main\n// key sk-proj-abcdefghijklmnopqrstuvwxyz0123\n"},
+		{Role: "tool", ToolCallID: "c1", Content: "package main\n// key " + fake("sk-proj-", "abcdefghijklmnopqrstuvwxyz0123") + "\n"},
 		{Role: "tool", ToolCallID: "c2", Content: "ok"},
 		{Role: "user", Content: agent.GuiaEinaText},
 		{Role: "assistant", ToolCalls: []llm.ToolCall{call("c3", "bash", `{"command":"go test ./..."}`)}},
@@ -88,7 +88,7 @@ func TestMarkdownRender(t *testing.T) {
 		}
 	}
 	// Sense redact, el contingut va tal qual.
-	if !strings.Contains(out, "sk-proj-abcdefghijklmnopqrstuvwxyz0123") {
+	if !strings.Contains(out, fake("sk-proj-", "abcdefghijklmnopqrstuvwxyz0123")) {
 		t.Error("sense redact no s'ha de tocar res")
 	}
 	// Una tanca de codi dins d'un resultat no pot trencar el bloc.

@@ -9,16 +9,16 @@ import (
 
 func TestRedactPatronsDeClaus(t *testing.T) {
 	cases := map[string]string{
-		"openai":      "key sk-proj-abcdefghijklmnopqrstuvwxyz0123 end",
-		"openai-curt": "key sk-abcdefghij0123456789ABCD end",
-		"anthropic":   "key sk-ant-api03-AbCdEfGhIj_KlMnOp-1234 end",
-		"ghp":         "key ghp_abcdefghijklmnopqrstuvwxyz0123456789 end",
-		"gho":         "key gho_abcdefghijklmnopqrstuvwxyz0123456789 end",
-		"github_pat":  "key github_pat_11ABCDEFG0123456789_abcdefghijklmnop end",
-		"slack":       "key xoxb-1234567890-abcdefghij end",
-		"slack-p":     "key xoxp-1234567890-abcdefghij end",
-		"aws":         "key AKIAIOSFODNN7EXAMPLE end",
-		"google":      "key AIzaSyA-1234567890abcdefghijklmnopqrstu end",
+		"openai":      "key " + fake("sk-proj-", "abcdefghijklmnopqrstuvwxyz0123") + " end",
+		"openai-curt": "key " + fake("sk-", "abcdefghij0123456789ABCD") + " end",
+		"anthropic":   "key " + fake("sk-ant-api03-", "AbCdEfGhIj_KlMnOp-1234") + " end",
+		"ghp":         "key " + fake("ghp_", "abcdefghijklmnopqrstuvwxyz0123456789") + " end",
+		"gho":         "key " + fake("gho_", "abcdefghijklmnopqrstuvwxyz0123456789") + " end",
+		"github_pat":  "key " + fake("github_pat_", "11ABCDEFG0123456789_abcdefghijklmnop") + " end",
+		"slack":       "key " + fake("xoxb-", "1234567890-abcdefghij") + " end",
+		"slack-p":     "key " + fake("xoxp-", "1234567890-abcdefghij") + " end",
+		"aws":         "key " + fake("AKIA", "IOSFODNN7EXAMPLE") + " end",
+		"google":      "key " + fake("AIza", "SyA-1234567890abcdefghijklmnopqrstu") + " end",
 		"jwt":         "key eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U end",
 	}
 	for name, in := range cases {
@@ -154,3 +154,8 @@ func TestRedactSenseFalsosPositius(t *testing.T) {
 		}
 	}
 }
+
+// fake munta claus de prova inventades en dos trossos: el test fa el
+// mateix, però el text literal no té la forma d'una clau real i els
+// escàners de secrets (GitHub) no l'avisen com a filtrada.
+func fake(prefix, rest string) string { return prefix + rest }
