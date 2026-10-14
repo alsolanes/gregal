@@ -1,6 +1,7 @@
 # Provider Presets
 
-New configurations include public OpenAI-compatible endpoints. No API keys,
+New configurations include public OpenAI-compatible endpoints and two native
+protocol presets (Anthropic Messages and OpenAI Responses). No API keys,
 private endpoints or account-specific configuration are bundled. Existing
 configurations are never overwritten on startup or update.
 
@@ -20,10 +21,17 @@ per-session model choices remain independent of global role defaults.
 | Together AI | `https://api.together.xyz/v1` | `Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8` | `TOGETHER_API_KEY` |
 | Cerebras | `https://api.cerebras.ai/v1` | `gpt-oss-120b` | `CEREBRAS_API_KEY` |
 | OpenCode Go | `https://opencode.ai/zen/go/v1` | `glm-5.3-flash` | `ZEN_API_KEY` |
+| Anthropic (`type: anthropic`) | `https://api.anthropic.com/v1` | `claude-opus-5-5` | `ANTHROPIC_API_KEY` |
+| OpenAI Responses (`type: openai-responses`) | `https://api.openai.com/v1` | `gpt-4.1-mini` | `OPENAI_API_KEY` |
 
 The historical provider name `zen` is retained for OpenCode Go compatibility.
 Go subscription and pay-as-you-go Zen are not interchangeable endpoints.
-These presets use Chat Completions, not Responses-only or Anthropic-only models.
+All presets except Anthropic and OpenAI Responses use Chat Completions. The
+two native presets set `type` on the provider so the client speaks the
+Anthropic Messages API or the OpenAI Responses API (see the
+[manual](manual.md#native-provider-protocols)). The `openai` and
+`openai-responses` presets share a base URL; the provider used by the roles
+decides which protocol that URL uses.
 Model availability depends on the account, credits, region and provider policy.
 Defaults are editable; they are not a guarantee of future model availability.
 

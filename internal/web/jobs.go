@@ -9,12 +9,14 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/config"
 	"gregal/internal/jobs"
 	"gregal/internal/runs"
 )
 
-// jobSystem obliga format butlletí markdown en execucions desateses.
-const jobSystem = "Ets el redactor d'un butlletí. Treballes en mode consulta: només lectura (cerca web, lectura de pàgines i del projecte). No modifiquis res ni executis accions destructives. Genera la resposta en markdown ben estructurat: titular, data, resum, punts clau amb enllaços a les fonts i, si escau, taula comparativa. Resposta només amb el butlletí, sense preàmbuls."
+// jobSystem obliga format butlletí markdown en execucions desateses. La
+// llengua la fixa la directiva d'idioma que tanca la consigna (executeJob).
+const jobSystem = "You are the writer of a bulletin. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Produce the answer as well-structured markdown: headline, date, summary, key points with links to the sources and, if relevant, a comparison table. Reply with the bulletin only, no preamble."
 
 // jobLoop revisa cada 30 s si toca executar algun job.
 func (s *Server) jobLoop(ctx context.Context) {
@@ -172,10 +174,11 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	defer cancel()
 	// Loop no té system prompt: la consigna va davant la tasca, amb la
 	// memòria del projecte si n'hi ha.
-	brief := jobSystem + "\n\nTasca:\n" + job.Prompt
+	brief := jobSystem + "\n\nTask:\n" + job.Prompt
 	if info := agent.ContextProjecte(s.cwd); info != "" {
 		brief += "\n\n" + info
 	}
+	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
 	out, runErr := s.runReadOnlyLoop(jobCtx, brief, s.cfg.Agent.MaxSteps)
 	end := time.Now()
 	run := jobs.Run{

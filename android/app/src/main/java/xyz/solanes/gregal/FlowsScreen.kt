@@ -11,10 +11,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -57,6 +58,8 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val answer by vm.flowAnswer.collectAsState()
     var input by remember { mutableStateOf("") }
     var confirma by remember { mutableStateOf<String?>(null) }
+    val loading by vm.loading.collectAsState()
+    val carregant = "flows" in loading
 
     LaunchedEffect(Unit) { vm.loadFlows() }
 
@@ -66,24 +69,27 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             topBar = {
                 TopAppBar(
                     navigationIcon = {
-                        if (flow == null) IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
-                        else IconButton(onClick = { vm.closeFlow() }) { Icon(Icons.Default.ArrowBack, tr(lang, "app.flow.back"), tint = Ink) }
+                        if (flow == null) IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
+                        else IconButton(onClick = { vm.closeFlow() }) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.flow.back"), tint = Ink) }
                     },
                     title = { Text(flow?.name ?: tr(lang, "graphs.title"), color = Ink) },
                     actions = {
                         val f = flow
                         if (f != null && !running) IconButton(onClick = { confirma = f.name }) {
-                            Icon(Icons.Default.Delete, tr(lang, "btn.delete"), tint = Ink)
+                            Icon(Icons.Rounded.Delete, tr(lang, "btn.delete"), tint = Ink)
                         }
+                        if (f == null) RefreshAction(lang, carregant) { vm.loadFlows() }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
             },
+            snackbarHost = { NoticeHost(vm) },
         ) { pad ->
             val f = flow
             if (f == null) {
-                LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp)) {
-                    if (flows.isEmpty()) item {
-                        EmptyBoard("◈", tr(lang, "graphs.title"), tr(lang, "graphs.lead"))
+                LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadFlows() }.padding(12.dp)) {
+                    if (flows.isEmpty() && carregant) item { LoadingBoard(lang) }
+                    else if (flows.isEmpty()) item {
+                        EmptyBoard(Icons.Rounded.AccountTree, tr(lang, "graphs.title"), tr(lang, "graphs.lead"))
                     }
                     items(flows, key = { it.slug.ifBlank { it.name } }) { fl ->
                         Card(
@@ -126,7 +132,8 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Spacer(Modifier.height(8.dp))
                         Button(onClick = { vm.runFlow(f.name, input) },
                             enabled = !running, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Default.PlayArrow, null)
+                            // Decorativa: el botó ja diu «Executa».
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = null)
                             Spacer(Modifier.width(6.dp))
                             Text(tr(lang, "btn.run"))
                         }

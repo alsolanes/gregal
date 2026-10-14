@@ -243,9 +243,14 @@ func (m *Model) flowTick() (tea.Model, tea.Cmd) {
 	if last, ok := res.Last(); ok && strings.TrimSpace(last.Output) != "" && last.Err == "" {
 		m.push(assistantLine(last.Output))
 	}
-	// A la conversa perquè hi puguis preguntar tot seguit.
+	// A la conversa perquè hi puguis preguntar tot seguit, en la llengua
+	// de la sessió (el model la llegeix com a petició de l'usuari).
+	peticio := "Run the flow \"" + fr.nom + "\"."
+	if m.cfg.Lang() == "ca" {
+		peticio = "Executa el graf «" + fr.nom + "»."
+	}
 	m.convo = append(m.convo,
-		llm.Message{Role: "user", Content: "Executa el graf «" + fr.nom + "»."},
+		llm.Message{Role: "user", Content: peticio},
 		llm.Message{Role: "assistant", Content: resumFlow(res)})
 	m.refresh()
 	return *m, nil

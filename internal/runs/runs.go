@@ -108,6 +108,16 @@ func New() *Queue {
 	}
 }
 
+// SeedIDs fa que els ids nous comencin després de `min` (el més alt que ja
+// existeix al registre d'events persistent). No fa baixar mai el comptador.
+func (q *Queue) SeedIDs(min int64) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if min > q.nextID {
+		q.nextID = min
+	}
+}
+
 // WorkspaceKey normalitza un directori per agrupar torns del mateix
 // workspace. A Windows el sistema de fitxers no distingeix majúscules, i
 // C:\a\app amb barra final és el mateix directori que C:\a\app\.

@@ -64,21 +64,21 @@ func AutonomousReview(ctx context.Context, client *llm.Client, cfg *config.Confi
 	if !ok {
 		return verify.Verdict{}, "", fmt.Errorf("revisor: provider desconegut: %s", r.Provider)
 	}
-	return verify.Run(ctx, client, p, r, transcript, diff)
+	return verify.Run(ctx, client, p, r, transcript, diff, cfg.Lang())
 }
 
 // RenderCheckpoint converteix les dades del checkpoint en una nota curta que
 // es pot afegir a l'historial sense omplir-lo amb sortides senceres.
 func RenderCheckpoint(checks []AutonomousCheck, verdict string) string {
 	var b strings.Builder
-	b.WriteString("CHECKPOINT AUTÒNOM:\n")
+	b.WriteString("AUTONOMOUS CHECKPOINT:\n")
 	if len(checks) == 0 {
-		b.WriteString("- cap comprovació configurada\n")
+		b.WriteString("- no checks configured\n")
 	}
 	for _, c := range checks {
-		status := "PASSA"
+		status := "PASS"
 		if c.Code != 0 {
-			status = fmt.Sprintf("FALLA (codi %d)", c.Code)
+			status = fmt.Sprintf("FAIL (exit code %d)", c.Code)
 		}
 		fmt.Fprintf(&b, "- %s: %s", c.Command, status)
 		if strings.TrimSpace(c.Output) != "" {
@@ -87,9 +87,9 @@ func RenderCheckpoint(checks []AutonomousCheck, verdict string) string {
 		b.WriteByte('\n')
 	}
 	if verdict != "" {
-		b.WriteString("- revisió: " + verdict + "\n")
+		b.WriteString("- review: " + verdict + "\n")
 	}
-	b.WriteString("Continua amb la següent fita; si una comprovació falla, arregla-la abans de donar la tasca per acabada.")
+	b.WriteString("Continue with the next milestone; if a check fails, fix it before considering the task done.")
 	return b.String()
 }
 
@@ -101,7 +101,7 @@ func AutonomousDiff(dir string) string {
 		return d
 	}
 	r := []rune(d)
-	return string(r[:12000]) + "\n…(diff retallat al checkpoint)"
+	return string(r[:12000]) + "\n…(diff truncated at the checkpoint)"
 }
 
 // AutonomousTranscript retorna només els missatges textuals recents, sense

@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/agent"
@@ -55,10 +57,12 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	convo := append([]llm.Message(nil), s.convo...)
 	s.mu.Unlock()
 	window := agent.Window(s.cfg, role)
+	generation, _ := runCtx.Value(workshopRunKey{}).(uint64)
 	originalMaxTokens := role.MaxTokens
 	role.MaxTokens = maxTokensPerTorn(mode, role, window)
 	if role.MaxTokens != originalMaxTokens {
-		emit("status", map[string]string{"message": fmt.Sprintf("Pressupost de sortida de l'agent ampliat a %d tokens (el límit antic de 1024 era insuficient).", role.MaxTokens)})
+		emit("status", map[string]string{"message": fmt.Sprintf(s.tr("Pressupost de sortida de l'agent ampliat a %d tokens (el límit antic de 1024 era insuficient).",
+			"Agent output budget raised to %d tokens (the old 1024 limit was too low)."), role.MaxTokens)})
 	}
 	if mode != agent.ModeChat {
 		runCtx = llm.WithRecoverTruncation(runCtx)
@@ -69,9 +73,64 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	runCtx = llm.WithThink(runCtx, role.Think)
 	uso := &llm.UsageMeter{}
 	runCtx = llm.WithUsage(runCtx, uso)
+	// Bind children to this session's model/config, not the last Server
+	// that installed the process-global delegate runner.
+	s.mu.Lock()
+	delegateCfg := *s.cfg
+	delegateCfg.Roles = maps.Clone(s.cfg.Roles)
+	delegateCfg.Providers = maps.Clone(s.cfg.Providers)
+	delegateCfg.Roles["code"] = role
+	runCtx = agent.WithDelegateRunner(runCtx, &delegateCfg, s.client)
+	if s.activity != nil && generation == s.workshopSeq {
+		s.activity.Model = role.Model
+	}
+	s.mu.Unlock()
+	var delegateEmitMu sync.Mutex
+	runCtx = agent.WithDelegateHook(runCtx, func(event agent.DelegateEvent) {
+		delegateEmitMu.Lock()
+		defer delegateEmitMu.Unlock()
+		s.noteDelegate(generation, event)
+		emit("delegate", event)
+	})
 
+	// Subagents en mode code fora d'un worktree: cada canvi passa pel
+	// mateix approve_request que el pare (recordat i permissiu inclosos).
+	runCtx = agent.WithDelegateApprover(runCtx, func(ctx context.Context, call llm.ToolCall, reason string) bool {
+		sig := agent.Sig(call.Function.Name, call.Function.Arguments)
+		if s.permissiveNow() || s.remembers.Allowed(webRememberScope, sig) {
+			return true
+		}
+		if s.autoReviewNow() && mode != agent.ModeAutonomous {
+			d := agent.Review(ctx, s.client, s.cfg, agent.ReviewRequest{Task: task, Mode: mode, Dir: workspace, Call: call, Reason: reason})
+			delegateEmitMu.Lock()
+			emit("review", map[string]string{"id": call.ID, "name": call.Function.Name, "decision": d.Decision, "reason": d.Reason})
+			delegateEmitMu.Unlock()
+			switch d.Decision {
+			case agent.ReviewAllow:
+				return true
+			case agent.ReviewDeny:
+				return false
+			}
+		}
+		ok, _ := s.waitApproval(ctx, func(ev string, v any) {
+			delegateEmitMu.Lock()
+			defer delegateEmitMu.Unlock()
+			emit(ev, v)
+		}, call.ID, call.Function.Name, call.Function.Arguments, sig, mode != agent.ModeAutonomous)
+		return ok
+	})
+
+	runCtx = agent.WithHookScope(runCtx, s.id, workspace)
+	// Investigador d'inici de torn (agent/scout.go): un fill real de només
+	// lectura investiga abans del primer pas i el seu resum entra a la
+	// tasca. Si falla, el torn continua igual.
+	if agent.ScoutWanted(s.cfg, mode, task) {
+		convo = s.runScout(runCtx, generation, task, workspace, convo, maxSteps, uso, role.Provider, emit)
+	}
 	torn := agent.NouTorn(agent.OpcionsTorn{
 		Cfg: s.cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: uso,
+		Ctx: runCtx, Sessio: s.id, Workspace: workspace,
+
 		Hist:      convo,
 		SysPrompt: func() string { return sys },
 		Finestra: func() (int, int) {
@@ -82,6 +141,11 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			return s.remembers.Allowed(webRememberScope, agent.Sig(name, args))
 		},
 		AutoAprova: s.permissiveNow,
+		// Mode auto-review: el revisor decideix abans de molestar ningú.
+		Revisor: agent.NewReviewer(s.client, s.cfg, s.autoReviewNow),
+		// Apostes laterals (agent.bets: side) i crític del contracte autònom.
+		Aposta:     agent.ApostaLateral(s.client, s.cfg, workspace),
+		CriticaPla: agent.CriticaPlaHook(s.client, s.cfg, workspace),
 		// La checklist és de la sessió (execTool intercepta todowrite), no
 		// la global del procés: amb dues pestanyes es trepitjaven.
 		Todos: func() []tools.TodoItem {
@@ -104,7 +168,14 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	histAmbSys := func() []llm.Message {
 		return append([]llm.Message{{Role: "system", Content: sys}}, torn.Hist...)
 	}
-	onFallback := func(model string) { emit("fallback", map[string]string{"model": model}) }
+	onFallback := func(model string) {
+		s.mu.Lock()
+		if s.activity != nil && generation == s.workshopSeq {
+			s.activity.Model = model
+		}
+		s.mu.Unlock()
+		emit("fallback", map[string]string{"model": model})
+	}
 
 	// La UI aparella cada targeta d'eina amb el seu resultat per l'ordre
 	// d'arribada (tool_call empeny, tool_result/blocked treu). El motor
@@ -123,6 +194,23 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	}
 	pinta := func(evs []agent.Event) {
 		for _, e := range evs {
+			// Aposta resolta: xip a la fila de l'eina (index.html, ev bet).
+			if e.Aposta != nil {
+				emit("bet", betPayload(e.ID, *e.Aposta))
+				continue
+			}
+			// Decisió del revisor automàtic: la targeta de l'eina surt abans
+			// i la decisió hi queda com una fila compacta (event review).
+			if e.Revisio != nil {
+				if c, ok := anunciades[e.ID]; ok {
+					emetCrida(e.ID, c.nom, c.args)
+				}
+				emit("review", map[string]string{"id": e.ID, "name": e.Eina, "decision": e.Revisio.Decision, "reason": e.Revisio.Reason})
+				if e.Revisio.Decision == agent.ReviewDeny {
+					emit("blocked", map[string]string{"id": e.ID, "reason": agent.ReviewNote(*e.Revisio)})
+				}
+				continue
+			}
 			switch e.Tipus {
 			case agent.EvCrida:
 				anunciades[e.ID] = crida{e.Eina, e.EinaArgs}
@@ -131,7 +219,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 				// repetida, ajornada, pregunta malformada): els de les
 				// execucions ja els emet aquest conductor amb la sortida.
 				c, ok := anunciades[e.ID]
-				if e.ID == "" || !ok {
+				if e.ID == "" || !ok || e.Executada {
 					continue
 				}
 				emetCrida(e.ID, c.nom, c.args)
@@ -167,34 +255,72 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		}
 	}
 
+	// Senyal de vida del torn (event `progress`): fase, estat i comptadors
+	// de la crida al model en curs.
+	progres := nouProgresTorn(emit)
+
 	avisatEsgotat := false
+	// La traça viva és la que llegeix /btw mentre el torn corre.
+	defer s.clearLiveTrace()
 	for {
+		s.setLiveTrace(torn.Hist)
 		if runCtx.Err() != nil {
 			torn.Cancella()
-			emit("error", map[string]string{"message": "torn aturat per l'usuari"})
+			emit("error", map[string]string{"message": s.tr("torn aturat per l'usuari", "Turn stopped by the user")})
 			return "", histAmbSys(), runCtx.Err()
 		}
 		pas := torn.Seguent()
+		pinta(pas.Events)
+		state, tool := "thinking", ""
+		switch pas.Ordre {
+		case agent.OrdreExecuta:
+			state = "tools"
+			names := make([]string, 0, len(pas.Calls))
+			for _, call := range pas.Calls {
+				names = append(names, call.Function.Name)
+			}
+			tool = strings.Join(names, ", ")
+		case agent.OrdreAprova, agent.OrdrePregunta:
+			state, tool = "waiting", pas.Call.Function.Name
+		case agent.OrdreCompacta:
+			state = "compacting"
+		case agent.OrdreCheckpoint, agent.OrdreSintesi:
+			state = "reviewing"
+		}
+		s.updateWorkshop(generation, state, pas.Passos, pas.Limit, tool, "")
+		s.noteUsage(generation, uso, role.Provider)
 		prim, fb := s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role)
 		switch pas.Ordre {
 		case agent.OrdrePasModel:
 			ctx, cancel := torn.ModelContext(runCtx)
 			ctx = llm.WithThink(ctx, agent.ThinkPerPas(role.Think, pas))
 			ctx = llm.WithRetryHook(ctx, func(attempt, total int, wait time.Duration, err error) {
+				s.updateWorkshop(generation, "thinking", pas.Passos, pas.Limit, "", llm.RetryNote(attempt, total, wait, err))
 				emit("status", map[string]string{"message": llm.RetryNote(attempt, total, wait, err)})
+				progres.esperaModel()
 			})
+			// Cada delta (raonament inclòs, i també en mode recuperació, on
+			// el text no surt fins al final) alimenta l'event progress.
+			progres.iniciModel()
+			ctx = llm.WithStreamProgress(ctx, progres.delta)
+			// El reasoning_content de les crides d'eina torna al proveïdor
+			// dins del torn (llm/reasoning.go).
+			raonament := &llm.ReasoningCapture{}
+			ctx = llm.WithReasoningCapture(ctx, raonament)
 			content, calls, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, agent.SpecsAll(),
 				func(tok string) { emit("token", map[string]string{"text": tok}) }, nil, onFallback)
 			err = agent.ModelError(ctx, err)
 			cancel()
+			progres.fiModel()
 			// El text que acompanya crides d'eina és treball, no la resposta:
 			// la UI el plega i hi tanca la bombolla del pas.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {
 				emit("thinking", map[string]string{"text": content})
 			}
-			pinta(torn.RepPas(content, calls, err))
+			pinta(torn.RepPasRaonat(content, raonament.Text(), calls, err))
 
 		case agent.OrdreCompacta:
+			progres.faseNova(faseCompacta, nil)
 			ctx, cancel := context.WithTimeout(runCtx, 240*time.Second)
 			room := agent.MakeRoom(ctx, s.client, prim, fb, sys, torn.Hist, pas.Budget)
 			cancel()
@@ -204,15 +330,40 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			pinta(torn.RepCompactacio(room))
 
 		case agent.OrdreExecuta:
+			noms := make([]string, 0, len(pas.Calls))
 			for _, c := range pas.Calls {
 				emetCrida(c.ID, c.Function.Name, c.Function.Arguments)
+				noms = append(noms, c.Function.Name)
+			}
+			progres.faseNova(faseEines, noms)
+			laneInfo := classifyCalls(pas.Calls)
+			lane, ho := s.beginLane(generation, pas.Passos, laneInfo, "")
+			if ho != nil {
+				emit("handoff", handoffPayload(*ho))
+			}
+			if lane.Seq > 0 {
+				emit("lane", lanePayload(lane))
 			}
 			outs := agent.RunCalls(pas.Calls, nil, func(_ int, c llm.ToolCall) agent.Execucio {
 				out, imgs := s.execToolCtx(runCtx, c, workspace)
 				return agent.Execucio{Call: c, Sortida: out, Imatges: imgs}
 			})
+			// El torn ha mort mentre corrien les eines: els outs són soroll
+			// ("ERROR: context canceled"), no troballes. Ni a l'historial ni
+			// a l'SSE; la capçalera del bucle avorta net. Les targetes
+			// penjades les recull stopToolAnimation en tancar visuals.
+			if runCtx.Err() != nil {
+				continue
+			}
 			for _, o := range outs {
-				emit("tool_result", map[string]string{"id": o.Call.ID, "name": o.Call.Function.Name, "output": o.Sortida})
+				ev := map[string]string{"id": o.Call.ID, "name": o.Call.Function.Name, "output": o.Sortida}
+				if img := toolResultImage(o.Call.Function.Name, o.Imatges); img != "" {
+					ev["image"] = img
+				}
+				emit("tool_result", ev)
+			}
+			if done, ok := s.endLane(generation, lane.Seq, laneResult(laneInfo, outs)); ok {
+				emit("lane", lanePayload(done))
 			}
 			pinta(torn.RepExecucions(outs))
 
@@ -227,11 +378,11 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			case ok:
 				pinta(torn.RepAprovacio(true))
 			case caducada:
-				emit("blocked", map[string]string{"id": c.ID, "reason": "sense resposta a temps (denegat)"})
-				pinta(torn.RepAprovacio(false, "EINA DENEGADA per temps esgotat (sense resposta a temps). L'usuari NO ha premut Denega: torna a proposar l'acció si cal."))
+				emit("blocked", map[string]string{"id": c.ID, "reason": s.tr("sense resposta a temps (denegat)", "no answer in time (denied)")})
+				pinta(torn.RepAprovacio(false, "TOOL DENIED because the approval timed out (no answer in time). The user did NOT press Deny: propose the action again if it is still needed."))
 			default:
-				emit("blocked", map[string]string{"id": c.ID, "reason": "denegat per l'usuari"})
-				pinta(torn.RepAprovacio(false, "EINA DENEGADA per l'usuari."))
+				emit("blocked", map[string]string{"id": c.ID, "reason": s.tr("denegat per l'usuari", "denied by the user")})
+				pinta(torn.RepAprovacio(false, "TOOL DENIED by the user."))
 			}
 
 		case agent.OrdrePregunta:
@@ -256,11 +407,20 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			pinta(torn.RepPregunta(ans))
 
 		case agent.OrdreAmplia:
+			// Decidir si val la pena continuar és una revisió del progrés.
+			progres.faseNova(faseRevisio, nil)
 			ctx, cancel := context.WithTimeout(runCtx, agent.TimeoutDecisio)
 			ctx = llm.WithThink(ctx, agent.ThinkPerPas(role.Think, pas))
 			resp, _, err := s.client.ChatFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, onFallback)
 			cancel()
-			pinta(torn.RepAmpliacio(resp, err))
+			evs := torn.RepAmpliacio(resp, err)
+			// FINAL amb el resum ja escrit: el resum és la resposta (no hi
+			// haurà OrdreSintesi). L'avís va abans, com a la síntesi.
+			if torn.Acabat() && torn.Esgotat() && !avisatEsgotat {
+				avisatEsgotat = true
+				emit("steps_exhausted", map[string]any{"max": maxSteps})
+			}
+			pinta(evs)
 
 		case agent.OrdreSintesi:
 			// Dir-ho abans de la síntesi: el que ve és un resum del que s'ha
@@ -269,6 +429,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 				avisatEsgotat = true
 				emit("steps_exhausted", map[string]any{"max": maxSteps})
 			}
+			progres.faseNova(faseRevisio, nil)
 			ctx, cancel := context.WithTimeout(runCtx, agent.TimeoutDecisio)
 			ctx = llm.WithThink(ctx, agent.ThinkPerPas(role.Think, pas))
 			final, _, err := s.client.ChatFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, onFallback)
@@ -276,8 +437,26 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			pinta(torn.RepSintesi(final, err))
 
 		case agent.OrdreCheckpoint:
+			progres.faseNova(faseRevisio, nil)
+			rev, ho := s.beginLane(generation, pas.Passos, laneInfo{Role: roleReviewer, Kind: "review"}, "")
+			if ho != nil {
+				emit("handoff", handoffPayload(*ho))
+			}
+			if rev.Seq > 0 {
+				emit("lane", lanePayload(rev))
+			}
 			nota, veredicte := s.checkpointAutonom(runCtx, torn, emit, workspace)
-			pinta(torn.RepCheckpoint(nota, veredicte))
+			revResult := "ok"
+			if veredicte != "" && !strings.HasPrefix(veredicte, "APROVAT") {
+				revResult = "fail"
+			}
+			if done, ok := s.endLane(generation, rev.Seq, revResult); ok {
+				emit("lane", lanePayload(done))
+			}
+			// La línia d'estat del checkpoint ja l'ha emesa checkpointAutonom
+			// (traduïda i només si hi ha res a dir): el motor la repetiria en
+			// català ("autònom · checkpoint N", "✓ APROVAT").
+			pinta(senseAvisosCheckpoint(torn.RepCheckpoint(nota, veredicte), veredicte))
 
 		case agent.OrdreError:
 			emit("error", map[string]string{"message": pas.Text})
@@ -288,9 +467,13 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			if reply == "" {
 				// La síntesi ha fallat o ha sortit buida: mai un torn en
 				// blanc, que l'app no tindria res a ensenyar.
-				reply = "He acabat els passos disponibles, però el model no ha pogut generar la síntesi final. Pots obrir Activitat per veure què s'ha executat."
+				reply = s.tr("He acabat els passos disponibles, però el model no ha pogut generar la síntesi final. Pots obrir Activitat per veure què s'ha executat.",
+					"I used up the available steps, but the model could not write the final summary. Open Activity to see what was run.")
 				emit("assistant", map[string]string{"text": reply})
 			}
+			// Proposta de notes duradores en segon pla: mai no retarda el
+			// done ni s'escriu sola (vegeu memory_extras.go).
+			s.queueMemorySuggestion(mode, workspace, torn.Execucions(), torn.Esgotat() || torn.Fallit(), histAmbSys())
 			return reply, histAmbSys(), nil
 		}
 	}
@@ -322,6 +505,94 @@ func (s *Server) checkpointAutonom(runCtx context.Context, torn *agent.Torn, emi
 			veredicte = "CAL REVISAR: " + v.Summary
 		}
 	}
+	// checks sempre és una llista (buida si no n'hi ha de configurades): els
+	// clients la recorren i un null els obligava a un cas especial.
+	if checks == nil {
+		checks = []agent.AutonomousCheck{}
+	}
 	emit("autonomous_checkpoint", map[string]any{"number": num, "checks": checks, "review": veredicte})
+	if msg := s.resumCheckpoint(num, checks, veredicte); msg != "" {
+		emit("status", map[string]string{"message": msg})
+	}
 	return agent.RenderCheckpoint(checks, veredicte), veredicte
+}
+
+// resumCheckpoint és la línia d'estat d'un checkpoint autònom, en l'idioma
+// de la sessió. Buida quan no hi ha res a dir (cap comprovació configurada
+// i cap revisió en aquest checkpoint): abans sortia igualment un
+// "autònom · checkpoint 1" que no aportava res.
+func (s *Server) resumCheckpoint(num int, checks []agent.AutonomousCheck, veredicte string) string {
+	var parts []string
+	if len(checks) > 0 {
+		var fallen []string
+		for _, c := range checks {
+			if c.Code != 0 {
+				fallen = append(fallen, c.Command)
+			}
+		}
+		part := fmt.Sprintf(s.tr("%d/%d comprovacions superades", "%d/%d checks passed"), len(checks)-len(fallen), len(checks))
+		if len(fallen) > 0 {
+			part += fmt.Sprintf(s.tr(" (fallen: %s)", " (failing: %s)"), strings.Join(fallen, ", "))
+		}
+		parts = append(parts, part)
+	}
+	switch {
+	case veredicte == "":
+	case strings.HasPrefix(veredicte, "APROVAT"):
+		parts = append(parts, s.tr("revisió aprovada", "review approved"))
+	case strings.HasPrefix(veredicte, "CAL REVISAR:"):
+		resum := retallaRunes(strings.TrimSpace(strings.TrimPrefix(veredicte, "CAL REVISAR:")), 400)
+		parts = append(parts, s.tr("la revisió demana canvis: ", "review asks for changes: ")+resum)
+	case strings.HasPrefix(veredicte, "error: "):
+		resum := retallaRunes(strings.TrimPrefix(veredicte, "error: "), 400)
+		parts = append(parts, s.tr("la revisió ha fallat: ", "review failed: ")+resum)
+	default:
+		parts = append(parts, retallaRunes(veredicte, 400))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return fmt.Sprintf(s.tr("Checkpoint autònom %d: ", "Autonomous checkpoint %d: "), num) + strings.Join(parts, "; ")
+}
+
+// senseAvisosCheckpoint treu dels events de RepCheckpoint la nota
+// "autònom · checkpoint N" i la del veredicte: la web ja n'ha emès el resum
+// (resumCheckpoint). La resta d'events, si n'hi hagués, passen.
+func senseAvisosCheckpoint(evs []agent.Event, veredicte string) []agent.Event {
+	out := evs[:0:0]
+	for _, e := range evs {
+		if e.Clau == "app.checkpoint" {
+			continue
+		}
+		if veredicte != "" && e.Clau == "" && (e.Text == "✓ "+veredicte || e.Text == "⚠ "+veredicte) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
+func retallaRunes(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
+}
+
+// maxToolResultImage topa la imatge que viatja a la targeta de l'eina (data
+// URL): una captura del navegador en JPEG en fa uns centenars de kB.
+const maxToolResultImage = 1500 << 10
+
+// toolResultImage és la imatge que la targeta de l'eina pot ensenyar: la
+// captura de browser screenshot. Les altres eines (read_image) ja mostren
+// una imatge que l'usuari té.
+func toolResultImage(name string, imgs []string) string {
+	if name != "browser" || len(imgs) == 0 {
+		return ""
+	}
+	img := imgs[0]
+	if len(img) > maxToolResultImage || !strings.HasPrefix(img, "data:image/") {
+		return ""
+	}
+	return img
 }

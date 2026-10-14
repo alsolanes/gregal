@@ -13,6 +13,7 @@ import (
 	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/sandbox"
 	"gregal/internal/tools"
 )
 
@@ -112,6 +113,22 @@ func doctor(cfg *config.Config, path string) int {
 			detall += text("doctor.no_response", strings.Join(koE, ", "))
 		}
 		ok(text("doctor.web"), detall)
+	}
+
+	// Sandbox de les ordres de shell: què s'aplica de debò en aquesta màquina.
+	switch sb := sandbox.Current(); {
+	case sb.Mode == sandbox.ModeOff:
+		ok(text("doctor.sandbox"), text("doctor.sandbox_off"))
+	case sb.Refuses:
+		no(text("doctor.sandbox"), sb.Warning)
+	case !sb.Active:
+		no(text("doctor.sandbox"), sb.Warning)
+	default:
+		detall := text("doctor.sandbox_active", sb.Mode, sb.Backend, sb.Network, sb.Guarantee)
+		if sb.Warning != "" {
+			detall += " (" + sb.Warning + ")"
+		}
+		ok(text("doctor.sandbox"), detall)
 	}
 
 	ok(text("doctor.binary"), "gregal "+version)

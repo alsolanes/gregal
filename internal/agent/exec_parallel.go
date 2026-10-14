@@ -16,6 +16,7 @@ var readOnlyParallel = map[string]bool{
 	"read":        true,
 	"grep":        true,
 	"glob":        true,
+	"symbols":     true,
 	"todoread":    true,
 	"web_search":  true,
 	"web_fetch":   true,
@@ -23,6 +24,9 @@ var readOnlyParallel = map[string]bool{
 	"office_read": true,
 	"gh_issue":    true,
 	"gh_pr":       true,
+	// knowledge_search només llegeix l'índex (si n'ha de fer un de nou, el
+	// bloqueig per col·lecció evita feina doble).
+	"knowledge_search": true,
 }
 
 // allReadOnlyCalls diu si TOTES les crides del bloc són read-only (i n'hi ha

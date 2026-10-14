@@ -8,11 +8,10 @@ import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /** Paleta Gregal. Els noms en anglès es queden (els call sites no canvien),
- *  però els valors són els de `docs/identitat.md`: abans aquest fitxer
- *  portava la paleta vella (#101418/#0C2229) i l'app semblava una altra.
+ *  però els valors són els de `docs/identitat.md` ("Paleta" / "Paleta clara").
  *
- *  Els hex són els mateixos que `internal/tui/theme.go` i `:root` de la web;
- *  si un canvia, han de canviar tots tres (hi ha un test a cada front). */
+ *  La font de veritat és `internal/tema/tema.go` (`Fosc()`/`Clar()`), d'on
+ *  surten la web i el TUI; si canvia, aquest fitxer i `PaletaTest` també. */
 data class GregalPalette(
     val sea: Color,
     val seaClara: Color,
@@ -31,10 +30,13 @@ data class GregalPalette(
     val red: Color,
     val lila: Color,
     val lilaFons: Color,
-    /** Les línies fines: escuma al 10% (fosc) / escumaClar al 14% (clar). */
+    /** Les línies fines: gris fred al 10/20% (fosc) / navy al 14/28% (clar);
+     *  no l'accent, que ha de ser escàs. */
     val line: Color,
     val lineHi: Color,
     val abyss: Color,
+    /** Text i icones damunt l'accent (`sea`): fosc al tema fosc, blanc al clar. */
+    val onSea: Color,
 ) {
     // Àlies històrics: noms que ja feia servir tota la UI.
     val pillDark: Color get() = surface
@@ -43,62 +45,66 @@ data class GregalPalette(
 }
 
 val DarkPal = GregalPalette(
-    sea = Color(0xFF7FD4C1),
-    seaClara = Color(0xFFA3E4D6),
-    sand = Color(0xFFF2E7C9),
-    onada = Color(0xFF6CB4C7),
-    algua = Color(0xFF1E3A44),
-    deepTop = Color(0xFF0F172A),
-    deepBottom = Color(0xFF0B1220),
-    surface = Color(0xFF111C2F),
-    surfaceHi = Color(0xFF1A2740),
-    ink = Color(0xFFF1F5F9),
-    text = Color(0xFFE2E8F0),
-    muted = Color(0xFF94A3B8),
-    faint = Color(0xFF475569),
-    green = Color(0xFF4ADE80),
-    red = Color(0xFFF97066),
-    lila = Color(0xFFC4B5FD),
-    lilaFons = Color(0xFF2A2440),
-    line = Color(0x1A7FD4C1),   // escuma 10%
-    lineHi = Color(0x337FD4C1), // escuma 20%
-    abyss = Color(0xFF0B1220),
+    sea = Color(0xFF8193FF),        // escuma: blau Gregal
+    seaClara = Color(0xFFA3B0FF),   // escumaClara
+    sand = Color(0xFFF5C451),       // arena (avís)
+    onada = Color(0xFF5CE1D6),      // aqua juganer
+    algua = Color(0xFF2C3240),
+    deepTop = Color(0xFF13151B),    // fons
+    deepBottom = Color(0xFF0E1015), // abisme: sidebar/panells
+    surface = Color(0xFF1A1D25),    // night
+    surfaceHi = Color(0xFF242833),  // superficieAlta
+    ink = Color(0xFFF3F5FA),
+    text = Color(0xFFE4E7EF),
+    muted = Color(0xFFA3AABA),
+    faint = Color(0xFF8890A2),
+    green = Color(0xFF6EDB95),
+    red = Color(0xFFFF8A85),
+    lila = Color(0xFFC4A8FF),
+    lilaFons = Color(0xFF2A2245),
+    line = Color(0x1AC9D1E6),       // gris fred #C9D1E6 al 10%
+    lineHi = Color(0x33C9D1E6),     // gris fred al 20%
+    abyss = Color(0xFF0E1015),
+    onSea = Color(0xFF13151B),      // sobre l'accent: text fosc (fons)
 )
 
 val LightPal = GregalPalette(
-    sea = Color(0xFF0E8C74),
-    seaClara = Color(0xFF0A6F5C),
-    sand = Color(0xFF9A6B12),
-    onada = Color(0xFF0E7490),
-    algua = Color(0xFF7C8B95),
-    deepTop = Color(0xFFF5F7F8),
-    deepBottom = Color(0xFFEBEFF1),
+    sea = Color(0xFF4F5BE8),
+    seaClara = Color(0xFF3D47C7),
+    sand = Color(0xFF9A5B00),
+    onada = Color(0xFF0A776F),
+    algua = Color(0xFFD5DAE4),
+    deepTop = Color(0xFFF6F7FA),
+    deepBottom = Color(0xFFEEF0F5),
     surface = Color(0xFFFFFFFF),
-    surfaceHi = Color(0xFFE2E9EC),
-    ink = Color(0xFF0B1220),
-    text = Color(0xFF1E293B),
-    muted = Color(0xFF52616B),
-    faint = Color(0xFF7C8B95),
-    green = Color(0xFF15803D),
-    red = Color(0xFFDC2626),
-    lila = Color(0xFF6D28D9),
-    lilaFons = Color(0xFFEDE9FE),
-    line = Color(0x240E8C74),   // escumaClar 14%
-    lineHi = Color(0x470E8C74), // escumaClar 28%
-    abyss = Color(0xFF0B1220),
+    surfaceHi = Color(0xFFE5E8F0),
+    ink = Color(0xFF0E1220),
+    text = Color(0xFF1F2433),
+    muted = Color(0xFF545D71),
+    faint = Color(0xFF5F6879),
+    green = Color(0xFF187A41),
+    red = Color(0xFFC92A35),
+    lila = Color(0xFF7444D6),
+    lilaFons = Color(0xFFEEE8FD),
+    line = Color(0x241E2A4A),       // navy #1E2A4A al 14%
+    lineHi = Color(0x471E2A4A),     // navy al 28%
+    abyss = Color(0xFFEEF0F5),
+    onSea = Color(0xFFFFFFFF),      // sobre l'accent: blanc
 )
 
 val LocalPal = compositionLocalOf { DarkPal }
 
 /** Schemes Material derivats de la paleta (per als components M3). */
 fun GregalPalette.scheme() = if (this == DarkPal) darkColorScheme(
-    primary = sea, onPrimary = abyss, secondary = sand,
+    primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
+    tertiary = lila, outline = Color(0xFF626B80), outlineVariant = algua, // outline = boxIdle (3:1)
     background = deepTop, surface = surface, surfaceVariant = surfaceHi,
-    onBackground = ink, onSurface = ink, error = red,
+    onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
 ) else lightColorScheme(
-    primary = sea, onPrimary = Color.White, secondary = sand,
+    primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
+    tertiary = lila, outline = Color(0xFF7E879B), outlineVariant = algua, // outline = boxIdle (3:1)
     background = deepTop, surface = surface, surfaceVariant = surfaceHi,
-    onBackground = ink, onSurface = ink, error = red,
+    onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
 )
 
 /** Tria la paleta: 'clar', 'fosc' o 'sistema' (defecte, com la web). */
@@ -134,3 +140,4 @@ val PillDark @Composable @ReadOnlyComposable get() = LocalPal.current.surface
 val BubbleDark @Composable @ReadOnlyComposable get() = LocalPal.current.surface
 val CodeDark @Composable @ReadOnlyComposable get() = LocalPal.current.surfaceHi
 val Abyss @Composable @ReadOnlyComposable get() = LocalPal.current.abyss
+val OnSea @Composable @ReadOnlyComposable get() = LocalPal.current.onSea

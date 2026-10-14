@@ -37,7 +37,7 @@ func TestPlanSysPromptEsReadOnlyIMemoria(t *testing.T) {
 	}
 	m.cwd = dir
 	p := m.planSysPrompt()
-	for _, want := range []string{"mode PLA", "NO cridis mai write", "Regla d'or.", dir} {
+	for _, want := range []string{"PLAN MODE", "NEVER call write", "Regla d'or.", dir, "LANGUAGE: Respon sempre"} {
 		if !strings.Contains(p, want) {
 			t.Fatalf("planSysPrompt sense %q:\n%s", want, p)
 		}

@@ -28,9 +28,17 @@ func getPostEditHook() string {
 // runPostEditHook executa el hook amb el fitxer tocat. Torna "" si no hi ha
 // hook o no diu res. Un hook que falla no fa fallar l'eina: s'anota i prou
 // (l'agent decideix si cal reaccionar).
-func runPostEditHook(path string) string {
+func runPostEditHook(ctx context.Context, path string) string {
 	cmd := getPostEditHook()
 	if cmd == "" {
+		return ""
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	// Torn mort: no s'engega res (abans el hook corria 30 s incancel·lable
+	// en cada escriptura d'un torn que ja s'havia aturat).
+	if err := ctx.Err(); err != nil {
 		return ""
 	}
 	var fileArg string
@@ -40,7 +48,9 @@ func runPostEditHook(path string) string {
 		fileArg = `"` + strings.ReplaceAll(path, `"`, `\"`) + `"`
 	}
 	shellCmd := strings.ReplaceAll(cmd, "{file}", fileArg)
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// El timeout penja del torn: Esc talla el hook en comptes d'esperar
+	// els 30 s propis.
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	prog, args := shell.Argv(shellCmd)
 	c := exec.CommandContext(ctx, prog, args...)
@@ -51,6 +61,12 @@ func runPostEditHook(path string) string {
 		return "[hook] temps exhaurit (30s)"
 	}
 	if err != nil {
+		// Torn cancel·lat a mitja execució: silenci, no soroll. La
+		// cancel·lació ja es reporta pel seu camí (A5: sense resultats
+		// falsos a l'historial).
+		if ctx.Err() != nil {
+			return ""
+		}
 		if out == "" {
 			out = strings.TrimSpace(err.Error())
 		}
@@ -82,12 +98,12 @@ func truncateHook(s string) string {
 //
 // La sintaxi va davant del hook a posta: si el fitxer ha quedat trencat,
 // això és el que el model ha de llegir primer.
-func apendixEdicio(path string) string {
+func apendixEdicio(ctx context.Context, path string) string {
 	var parts []string
 	if d := Diagnostica(path); d != "" {
 		parts = append(parts, d)
 	}
-	if h := runPostEditHook(path); h != "" {
+	if h := runPostEditHook(ctx, path); h != "" {
 		parts = append(parts, h)
 	}
 	if len(parts) == 0 {

@@ -41,7 +41,7 @@ func TestIndexHasUsableVisualShell(t *testing.T) {
 		`id="planBtn"`,
 		`function doPlan`,
 		`function planCard`,
-		`◇ PLA`,
+		`◇ ' + escapeHTML(gregalT('ui.planLabel'))`,
 		`const MODES = ['code', 'chat', 'goal']`,
 		`function goalCard`,
 		`function runGoal`,

@@ -54,7 +54,7 @@ func (c *Client) ChatWithToolsFO(ctx context.Context, prim Target, fb *Target, m
 	}
 	content2, calls2, err2 := c.ChatWithTools(ctx, fb.BaseURL, fb.APIKey, fb.Model, msgs, temp, maxTokens, specs)
 	if err2 != nil {
-		return "", nil, false, fmt.Errorf("primari: %v; fallback %s: %v", err, fb.Model, err2)
+		return "", nil, false, fmt.Errorf("primari: %v; fallback %s: %w", err, fb.Model, err2)
 	}
 	if notify != nil {
 		notify(fb.Model)
@@ -80,7 +80,7 @@ func (c *Client) ChatStreamWithToolsFO(ctx context.Context, prim Target, fb *Tar
 	}
 	content2, calls2, err2 := c.ChatStreamWithTools(ctx, fb.BaseURL, fb.APIKey, fb.Model, msgs, temp, maxTokens, specs, onToken, onReason)
 	if err2 != nil {
-		return "", nil, false, fmt.Errorf("primari: %v; fallback %s: %v", err, fb.Model, err2)
+		return "", nil, false, fmt.Errorf("primari: %v; fallback %s: %w", err, fb.Model, err2)
 	}
 	if notify != nil {
 		notify(fb.Model)
@@ -96,7 +96,7 @@ func (c *Client) ChatFO(ctx context.Context, prim Target, fb *Target, msgs []Mes
 	}
 	out2, err2 := c.Chat(ctx, fb.BaseURL, fb.APIKey, fb.Model, msgs, temp, maxTokens)
 	if err2 != nil {
-		return "", false, fmt.Errorf("primari: %v; fallback %s: %v", err, fb.Model, err2)
+		return "", false, fmt.Errorf("primari: %v; fallback %s: %w", err, fb.Model, err2)
 	}
 	if notify != nil {
 		notify(fb.Model)

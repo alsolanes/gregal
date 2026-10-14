@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -30,6 +31,7 @@ import (
 	"gregal/internal/llm"
 	"gregal/internal/mcp"
 	"gregal/internal/runs"
+	"gregal/internal/sandbox"
 	"gregal/internal/session"
 	"gregal/internal/tools"
 	"gregal/internal/verify"
@@ -49,6 +51,10 @@ type activeAgent struct {
 	Mode      string      `json:"mode"`
 	Project   string      `json:"project"`
 	Events    []liveEvent `json:"events"`
+	// Progress és l'últim event `progress` del torn (fase, estat,
+	// comptadors). No entra a Events: es renova cada pocs segons i
+	// n'expulsaria les entrades útils. Es reemplaça sencer, mai es muta.
+	Progress map[string]string `json:"progress,omitempty"`
 }
 
 type Server struct {
@@ -78,6 +84,7 @@ type Server struct {
 	gated         bool    // strict: CAL REVISAR pendent d'aprovar (C2b)
 	streak        int     // CAL REVISAR seguits (escalat C2)
 	sessCost      float64 // USD acumulats de la sessió (pressupost C2)
+	sessCostKnown bool    // cert si algun torn ha tingut preu (0 inclòs)
 	budgetWarned  bool
 	mode          string
 	modelOverride map[string]string // rol → "provider/model"
@@ -88,13 +95,15 @@ type Server struct {
 	modelCheckedAt    map[string]time.Time
 	lastGoalID        string // últim objectiu creat o executat
 
-	agentBusy bool
-	active    *activeAgent
-	activeSeq int
-	tokenBuf  string
-	tokenAt   time.Time
-	approvals map[string]approvalReq
-	apSeq     int
+	agentBusy   bool
+	activity    *workshopActivity
+	workshopSeq uint64
+	active      *activeAgent
+	activeSeq   int
+	tokenBuf    string
+	tokenAt     time.Time
+	approvals   map[string]approvalReq
+	apSeq       int
 	// questions pendents de resposta triable (eina question): clau → canal
 	// amb l'opció triada (label) o text lliure amb prefix "text:".
 	questions map[string]questionReq
@@ -105,6 +114,10 @@ type Server struct {
 	// continua bloquejant). Només sessió: es perd en reiniciar.
 	// Es llegeix/escriu amb s.mu.
 	permissive bool
+	// autoReview: mode de permís auto-review (un model revisor decideix les
+	// crides que demanen permís; agent/autoreview.go). Exclusiu amb
+	// permissive. Arrenca amb permissions.mode del config. Amb s.mu.
+	autoReview bool
 	// jobs programa butlletins i recerques desateses (nil = desactivats).
 	jobs *jobs.Store
 	mcp  *mcp.Manager
@@ -133,6 +146,10 @@ type Server struct {
 	// runCancel és el mecanisme legacy de cancel·lació, encara usat pel
 	// bucle de mode goal, que no passa per la cua.
 	runCancel context.CancelFunc
+	// teamCancel atura el torn d'equip en curs de la sessió. Propi, no
+	// compartit amb runCancel: així aturar l'agent no mata l'equip per
+	// accident ni a l'inrevés, però stopRun els talla tots dos.
+	teamCancel context.CancelFunc
 
 	// Token buit = sense auth (ús local). Amb token, /api/* exigeix
 	// Authorization: Bearer *** per exposar-ho a la LAN/mòbil).
@@ -166,6 +183,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	cfg.ConfigureClient(cl)
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
+	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	agent.SetupDelegate(cfg, cl)
 	s := &Server{
@@ -180,6 +198,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 		cwd:               cwd,
 		role:              cfg.InitialRole(),
 		mode:              cfg.Mode,
+		autoReview:        cfg.Permissions.AutoReview(),
 		modelOverride:     map[string]string{},
 		unavailableModels: map[string]string{},
 		modelCheckedAt:    map[string]time.Time{},
@@ -278,7 +297,7 @@ func (h *Hub) Handler() http.Handler {
 func (s *Server) HandlerWithIdentity(auth func(*http.Request) (*User, error)) http.Handler {
 	mux := s.Hub().mux()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != mcp.OAuthCallbackPath {
 			u, err := auth(r)
 			if err != nil || u == nil || u.Name == "" {
 				http.Error(w, "authentication required", http.StatusUnauthorized)
@@ -403,6 +422,12 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/model", h.route((*Server).handleModel))
 	handle("/api/sessions", h.global((*Server).handleSessions))
 	handle("/api/sessions/pin", h.global((*Server).handlePinSession))
+	// Exportar i compartir converses (export.go, share.go).
+	handle("/api/sessions/{name}/export", h.global((*Server).handleExportSaved))
+	handle("/api/export", h.route((*Server).handleExportCurrent))
+	handle("/api/shares", h.route((*Server).handleShares))
+	handle("/api/shares/{id}", h.route((*Server).handleShareDelete))
+	handle("GET /share/{id}", handleSharePage)
 	handle("/api/save", h.route((*Server).handleSave))
 	handle("/api/new", h.route((*Server).handleNew))
 	handle("/api/verify-approve", h.route((*Server).handleVerifyApprove))
@@ -418,13 +443,29 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/rewind", h.route((*Server).handleRewind))
 	handle("/api/rewind-to", h.route((*Server).handleRewindTo))
 	handle("/api/checkpoints", h.route((*Server).handleCheckpoints))
+	// Worktrees per sessió, commit i PR (gitflow.go).
+	handle("/api/worktrees", h.route((*Server).handleWorktrees))
+	handle("/api/worktrees/apply", h.route((*Server).handleWorktreeApply))
+	handle("/api/git/commit", h.route((*Server).handleGitCommit))
+	handle("/api/git/pr", h.route((*Server).handleGitPR))
+	handle("/api/git/suggest", h.route((*Server).handleGitSuggest))
 	handle("/api/plan", h.route((*Server).handlePlan))
+	registerCapsRoutes(h, handle) // calibració i best-of (caps.go)
+	// Coneixement: col·leccions, fonts, notes, cerca i memòries (knowledge_api.go).
+	registerKnowledgeRoutes(h, handle)
 	handle("/api/jobs", h.global(adminOnly((*Server).handleJobs)))
 	handle("/api/jobs/save", h.global(adminOnly((*Server).handleJobSave)))
 	handle("/api/jobs/delete", h.global(adminOnly((*Server).handleJobDelete)))
 	handle("/api/jobs/run", h.global(adminOnly((*Server).handleJobRun)))
 	handle("/api/jobs/runs", h.global(adminOnly((*Server).handleJobRuns)))
 	handle("/api/mcp", h.global((*Server).handleMCP))
+	// Connectors: OAuth, afegir i treure servidors (mcp_web.go). El callback
+	// no porta token (ve del servidor d'autorització): l'autentica el state.
+	handle("/api/mcp/connect", h.global(adminOnly((*Server).handleMCPConnect)))
+	handle("/api/mcp/disconnect", h.global(adminOnly((*Server).handleMCPDisconnect)))
+	handle("/api/mcp/servers", h.global(adminOnly((*Server).handleMCPServers)))
+	handle("/api/mcp/prompt", h.global((*Server).handleMCPPrompt))
+	handle(mcp.OAuthCallbackPath, h.global((*Server).handleMCPOAuthCallback))
 	// G1: sessions vives i cancel·lació del torn.
 	handle("/api/sessions/live", h.handleLiveSessions)
 	handle("/api/sessions/open", h.handleOpenSession)
@@ -443,6 +484,15 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/tree", h.route((*Server).handleTree))
 	handle("/api/file", h.route((*Server).handleFile))
 	handle("/api/plots", h.route((*Server).handlePlots))
+	// #retro: canal de debrief per torn acabat (retro.go).
+	handle("/api/retro", h.route((*Server).handleRetro))
+	handle("/api/retro/start", h.route((*Server).handleRetroStart))
+	handle("/api/retro/message", h.route((*Server).handleRetroMessage))
+	handle("/api/retro/react", h.route((*Server).handleRetroReact))
+	handle("/api/retro/fix", h.route((*Server).handleRetroFix))
+	// Repetició de torns a la sala i Gregal Wrapped (replay.go, stats.go).
+	handle("/api/replay", h.route((*Server).handleReplay))
+	handle("/api/stats", h.route((*Server).handleStats))
 	handle("/api/diff", h.route((*Server).handleDiff))
 	handle("/api/diff/discard", h.route((*Server).handleDiffDiscard))
 	// Grafs: procediments desats a .gregal/flows del projecte de la sessió.
@@ -456,6 +506,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/exec/output", h.route((*Server).handleExecOutput))
 	handle("/api/exec/stream", h.route((*Server).handleExecStream))
 	handle("/api/exec/kill", h.route((*Server).handleExecKill))
+	// Subagents definits, /btw, /recap i memòria automàtica (extras.go).
+	h.extraRoutes(handle)
 	return mux
 }
 
@@ -489,7 +541,7 @@ func (s *Server) handleGitHub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	args, _ := json.Marshal(map[string]any{"action": req.Action, "number": req.Number, "query": req.Query, "repo": req.Repo})
-	out, err := tools.GitHub(tool, string(args))
+	out, err := tools.GitHubCtx(r.Context(), tool, string(args))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -520,7 +572,7 @@ func userFrom(r *http.Request) *User {
 func (s *Server) requireUser(next http.Handler) http.Handler {
 	senseAuth := strings.TrimSpace(s.Token) == "" && (s.users == nil || !s.users.Actiu())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" {
+		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" || r.URL.Path == mcp.OAuthCallbackPath {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -728,6 +780,8 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"verify":     s.cfg.Verify.Mode,
 		"agent_busy": queued || s.agentBusy || s.planRunning, "cwd": cwd, "project": filepath.Base(cwd),
 		"permissive": s.permissive, // handleState ja té s.mu; no usar permissiveNow() aquí (deadlock)
+		"auto_review": s.autoReview,
+		"sandbox":     sandbox.Current(),
 		// Estimació del context ocupat, per al mesurador de la UI (J4). El TUI
 		// ho compta al client; la web no tenia res i pintava un percentatge
 		// que no existia. context_window 0 = el rol no el declara.
@@ -744,7 +798,16 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 	// Git pot haver d'esperar un procés o un disc ocupat. No mantenim el
 	// mutex de la sessió mentre el consultem: l'agent ha de poder emetre
 	// events i rebre cancel·lacions fins i tot durant aquesta lectura.
-	out["branch"] = tools.GitBranch(cwd)
+	branch := tools.GitBranch(cwd)
+	out["branch"] = branch
+	// Perquè la UI digui clarament on treballa: si és un repo git (una
+	// branca buida pot ser HEAD separat) i si és un worktree aïllat de
+	// gregal, amb el repo d'on surt.
+	out["git"] = branch != "" || tools.InGitRepo(cwd)
+	if wt := tools.WorktreeNameOf(cwd); wt != "" {
+		out["worktree"] = wt
+		out["worktree_repo"] = tools.WorktreeRepoOf(cwd)
+	}
 	writeJSON(w, out)
 }
 
@@ -1236,6 +1299,10 @@ func (s *Server) recordActive(event string, value any) {
 		s.mu.Unlock()
 		return
 	}
+	if event == "progress" {
+		s.recordProgress(value)
+		return
+	}
 	b, _ := json.Marshal(value)
 	var data map[string]string
 	_ = json.Unmarshal(b, &data)
@@ -1244,12 +1311,17 @@ func (s *Server) recordActive(event string, value any) {
 	switch event {
 	case "thinking":
 		text = "💭 " + data["text"]
+	case "delegate":
+		kind = "delegate"
+		text = data["status"] + ": " + data["task"]
 	case "tool_call":
 		text = "🔧 " + data["name"]
 	case "tool_result":
 		text = "↳ " + data["name"] + ": " + data["output"]
 	case "blocked":
 		text = "⛔️ " + data["reason"]
+	case "review":
+		text = "reviewer " + data["decision"] + ": " + data["name"] + " - " + data["reason"]
 	case "verify":
 		text = "✅ " + data["verdict"] + " " + data["detail"]
 	case "assistant":
@@ -1289,9 +1361,13 @@ func (s *Server) recordActive(event string, value any) {
 		return
 	}
 	s.flushTokensLocked()
-	s.active.Events = append(s.active.Events, liveEvent{Kind: kind, Text: text})
-	if len(s.active.Events) > 80 {
-		s.active.Events = s.active.Events[len(s.active.Events)-80:]
+	// Els carrils i relleus de la sala són per a la sala i la repetició:
+	// a la llista d'activitat de /api/active serien soroll.
+	if event != "lane" && event != "handoff" {
+		s.active.Events = append(s.active.Events, liveEvent{Kind: kind, Text: text})
+		if len(s.active.Events) > 80 {
+			s.active.Events = s.active.Events[len(s.active.Events)-80:]
+		}
 	}
 	// Escrivim dins el mateix bloqueig de sessió perquè l'event queda lligat
 	// al run que encara és visible a /api/active.
@@ -1301,12 +1377,41 @@ func (s *Server) recordActive(event string, value any) {
 	// bombolla de cada pas. /api/active continua veient "activity".
 	durable := kind
 	switch event {
-	case "thinking", "tool_call", "tool_result", "blocked":
+	case "thinking", "tool_call", "tool_result", "blocked", "review":
 		durable = event
 	}
 	s.hub.appendEvent(events.Event{
 		SessionID: s.id, User: s.usuari(), RunID: runID, Kind: durable, Text: text,
 		Payload: interactiveEventPayload(event, value),
+	})
+}
+
+// recordProgress grava l'event `progress` (senyal de vida del torn) al
+// registre durable amb el payload estructurat, perquè /api/v2/events i el
+// seu stream el lliurin. No s'afegeix a la llista d'activitat de
+// /api/active (80 entrades): allà només queda l'últim, a Progress. El volum
+// és baix per construcció: canvis de fase i, durant una crida al model, com
+// a molt una actualització cada intervalProgres (progres.go).
+func (s *Server) recordProgress(value any) {
+	payload := interactiveEventPayload("progress", value)
+	if payload == nil {
+		return
+	}
+	var snap map[string]string
+	if err := json.Unmarshal(payload, &snap); err != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active == nil {
+		return
+	}
+	s.active.Progress = snap
+	// El text en viu pendent va abans: el registre conserva l'ordre real.
+	s.flushTokensLocked()
+	s.hub.appendEvent(events.Event{
+		SessionID: s.id, User: s.usuari(), RunID: s.active.ID,
+		Kind: "progress", Text: textProgres(snap), Payload: payload,
 	})
 }
 
@@ -1343,8 +1448,26 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 		allowed = []string{"text"}
 	case "blocked":
 		allowed = []string{"id", "reason"}
+	case "review":
+		allowed = []string{"id", "name", "decision", "reason"}
+	case "bet": // apostes de confiança (caps.go)
+		allowed = []string{"id", "p", "passed", "command", "source"}
 	case "autonomous_checkpoint":
 		allowed = []string{"number", "checks", "review"}
+	case "progress":
+		allowed = []string{"phase", "state", "reasoning", "text", "tool", "tools", "since"}
+	case "delegate":
+		allowed = []string{"id", "task", "agent", "status", "model", "step", "max_steps", "tool", "message", "output", "up_tokens", "down_tokens", "calls", "usage_known", "started_at", "updated_at"}
+	case "lane": // carrils de rol de la sala d'agents (workshop_roles.go)
+		allowed = []string{"seq", "step", "role", "kind", "target", "n", "tools", "files", "command", "result", "done", "agent", "started_at", "duration_ms"}
+	case "handoff":
+		allowed = []string{"seq", "step", "from", "to", "kind", "n", "target", "files", "at"}
+	case "retro_message": // #retro (retro.go)
+		allowed = []string{"key", "message"}
+	case "retro_reaction":
+		allowed = []string{"key", "message_id", "emoji", "by", "action", "reactions"}
+	case "retro_typing":
+		allowed = []string{"key", "agents", "typing"}
 	default:
 		return nil
 	}
@@ -1390,7 +1513,8 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Via ràpida també en mode objectiu: un "hola" no necessita el model.
-	if reply, ok := agent.SmallTalk(req.Message); ok {
+	// Un «ok» a mitja conversa és una resposta, no cortesia (SmallTalkFor).
+	if reply, ok := s.smallTalk(req.Message); ok {
 		task := strings.TrimSpace(req.Message)
 		s.mu.Lock()
 		s.convo = append(s.convo, llm.Message{Role: "user", Content: task})
@@ -1425,7 +1549,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	if selection, unavailable := s.refreshModelAvailability(roleName); unavailable {
 		fallback := s.cfg.Roles[roleName]
-		emit("status", map[string]string{"message": fmt.Sprintf("Model %s no està disponible; faré servir %s/%s.", selection, fallback.Provider, fallback.Model)})
+		emit("status", map[string]string{"message": fmt.Sprintf(s.tr("Model %s no està disponible; faré servir %s/%s.", "Model %s is unavailable; using %s/%s instead."), selection, fallback.Provider, fallback.Model)})
 	}
 	s.mu.Lock()
 	pComp, roleComp := s.roleRefFor(roleName)
@@ -1663,7 +1787,8 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 		type prov struct {
 			Name   string   `json:"name"`
 			URL    string   `json:"url"`
-			Key    string   `json:"key"` // emmascarada: (buida) | ${VAR} | sí (oculta)
+			Type   string   `json:"type,omitempty"` // protocol: buit (chat completions) | anthropic | openai-responses
+			Key    string   `json:"key"`            // emmascarada: (buida) | ${VAR} | sí (oculta)
 			UsedBy []string `json:"used_by"`
 		}
 		usedBy := map[string][]string{}
@@ -1672,7 +1797,7 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 		}
 		var out []prov
 		for n, p := range s.cfg.Providers {
-			out = append(out, prov{Name: n, URL: p.BaseURL, Key: p.MaskedKey(), UsedBy: usedBy[n]})
+			out = append(out, prov{Name: n, URL: p.BaseURL, Type: p.Type, Key: p.MaskedKey(), UsedBy: usedBy[n]})
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 		roles := map[string]map[string]any{}
@@ -1724,7 +1849,7 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 			providers[n] = p
 		}
 		if _, found := providers[preset.Nom]; !found {
-			providers[preset.Nom] = config.Provider{BaseURL: preset.BaseURL, APIKey: "${" + preset.EnvVar + "}"}
+			providers[preset.Nom] = config.Provider{Type: preset.Type, BaseURL: preset.BaseURL, APIKey: "${" + preset.EnvVar + "}"}
 		}
 		roles := make(map[string]config.Role, len(oldRoles))
 		for n, r := range oldRoles {
@@ -1749,14 +1874,14 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		return "Provider preset selected: " + preset.Etiqueta, nil
 	case "add":
 		if !validProvName(name) {
-			return "", fmt.Errorf("nom invàlid (lletres, digits, - i _)")
+			return "", errors.New(s.tr("nom invàlid (lletres, digits, - i _)", "invalid name (letters, digits, - and _)"))
 		}
 		url = strings.TrimSuffix(strings.TrimSpace(url), "/")
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return "", fmt.Errorf("url ha de començar per http:// o https://")
+			return "", errors.New(s.tr("url ha de començar per http:// o https://", "the URL must start with http:// or https://"))
 		}
 		if _, ok := s.cfg.Providers[name]; ok {
-			return "", errors.New("ja existeix: " + name)
+			return "", errors.New(s.tr("ja existeix: ", "already exists: ") + name)
 		}
 		if s.cfg.Providers == nil {
 			s.cfg.Providers = map[string]config.Provider{}
@@ -1766,7 +1891,7 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		if err := save(); err != nil {
 			return "", err
 		}
-		msg := "provider " + name + " desat"
+		msg := s.tr("provider "+name+" desat", "Provider "+name+" saved")
 		if ids, err := fetchModelIDs(url, os.ExpandEnv(strings.TrimSpace(key))); err == nil && len(ids) > 0 {
 			msg += " — models: " + shortIDs(ids)
 		}
@@ -1774,11 +1899,11 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 	case "url":
 		p, ok := s.cfg.Providers[name]
 		if !ok {
-			return "", errors.New("no existeix: " + name)
+			return "", errors.New(s.tr("no existeix: ", "does not exist: ") + name)
 		}
 		url = strings.TrimSuffix(strings.TrimSpace(url), "/")
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
-			return "", errors.New("url ha de començar per http:// o https://")
+			return "", errors.New(s.tr("url ha de començar per http:// o https://", "the URL must start with http:// or https://"))
 		}
 		p.BaseURL = url
 		s.cfg.Providers[name] = p
@@ -1788,25 +1913,25 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		return name + " → " + url, nil
 	case "rm":
 		if _, ok := s.cfg.Providers[name]; !ok {
-			return "", errors.New("no existeix: " + name)
+			return "", errors.New(s.tr("no existeix: ", "does not exist: ") + name)
 		}
 		for rn, r := range s.cfg.Roles {
 			if r.Provider == name {
-				return "", errors.New("en ús pel rol " + rn)
+				return "", errors.New(s.tr("en ús pel rol ", "in use by role ") + rn)
 			}
 		}
 		delete(s.cfg.Providers, name)
 		if err := save(); err != nil {
 			return "", err
 		}
-		return "provider " + name + " esborrat", nil
+		return s.tr("provider "+name+" esborrat", "Provider "+name+" deleted"), nil
 	case "rol":
 		r, ok := s.cfg.Roles[role]
 		if !ok {
-			return "", errors.New("rol desconegut: " + role)
+			return "", errors.New(s.tr("rol desconegut: ", "unknown role: ") + role)
 		}
 		if _, ok := s.cfg.Providers[provider]; !ok {
-			return "", errors.New("provider desconegut: " + provider)
+			return "", errors.New(s.tr("provider desconegut: ", "unknown provider: ") + provider)
 		}
 		r.Provider = provider
 		if strings.TrimSpace(model) != "" {
@@ -1820,18 +1945,18 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 				}
 			}
 			if !found {
-				return "", fmt.Errorf("%s no té el model %s — disponibles: %s", provider, r.Model, shortIDs(ids))
+				return "", fmt.Errorf(s.tr("%s no té el model %s — disponibles: %s", "%s does not offer model %s — available: %s"), provider, r.Model, shortIDs(ids))
 			}
 		}
 		s.cfg.Roles[role] = r
 		if err := save(); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("rol %s → %s/%s", role, provider, r.Model), nil
+		return fmt.Sprintf(s.tr("rol %s → %s/%s", "Role %s → %s/%s"), role, provider, r.Model), nil
 	case "long_run":
 		r, ok := s.cfg.Roles[role]
 		if !ok {
-			return "", errors.New("rol desconegut: " + role)
+			return "", errors.New(s.tr("rol desconegut: ", "unknown role: ") + role)
 		}
 		r.LongRun = &longRun
 		s.cfg.Roles[role] = r
@@ -1839,26 +1964,26 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 			return "", err
 		}
 		if longRun {
-			return "tirades llargues activades per al rol " + role, nil
+			return s.tr("tirades llargues activades per al rol ", "Long runs enabled for role ") + role, nil
 		}
-		return "tirades llargues desactivades per al rol " + role, nil
+		return s.tr("tirades llargues desactivades per al rol ", "Long runs disabled for role ") + role, nil
 	case "autonomous_limits":
 		if maxMinutes < 1 || maxMinutes > 10080 {
-			return "", errors.New("durada invàlida (1–10080 minuts)")
+			return "", errors.New(s.tr("durada invàlida (1–10080 minuts)", "invalid duration (1–10080 minutes)"))
 		}
 		if maxToolSteps < 1 || maxToolSteps > 10000 {
-			return "", errors.New("nombre d'eines invàlid (1–10000)")
+			return "", errors.New(s.tr("nombre d'eines invàlid (1–10000)", "invalid tool-call count (1–10000)"))
 		}
 		s.cfg.Agent.Autonomous.MaxMinutes = maxMinutes
 		s.cfg.Agent.Autonomous.MaxToolSteps = maxToolSteps
 		if err := save(); err != nil {
 			return "", err
 		}
-		return fmt.Sprintf("mode autònom: %d minuts / %d eines", maxMinutes, maxToolSteps), nil
+		return fmt.Sprintf(s.tr("mode autònom: %d minuts / %d eines", "Autonomous mode: %d minutes / %d tool calls"), maxMinutes, maxToolSteps), nil
 	case "key":
 		p, ok := s.cfg.Providers[name]
 		if !ok {
-			return "", errors.New("no existeix: " + name)
+			return "", errors.New(s.tr("no existeix: ", "does not exist: ") + name)
 		}
 		raw := strings.TrimSpace(key)
 		if raw == "-" {
@@ -1871,20 +1996,20 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 			if err := save(); err != nil {
 				return "", err
 			}
-			return "clau de " + name + " desada", nil
+			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
 		}
 		if err := save(); err != nil {
 			return "", err
 		}
-		return "clau activa només en memòria (no desada al disc)", nil
+		return s.tr("clau activa només en memòria (no desada al disc)", "API key active in memory only (not saved to disk)"), nil
 	case "test":
 		p, ok := s.cfg.Providers[name]
 		if !ok {
-			return "", errors.New("no existeix: " + name)
+			return "", errors.New(s.tr("no existeix: ", "does not exist: ") + name)
 		}
-		return testProviderURL(p.BaseURL, p.APIKey)
+		return s.testProviderURL(p.BaseURL, p.APIKey)
 	default:
-		return "", fmt.Errorf("acció desconeguda")
+		return "", errors.New(s.tr("acció desconeguda", "unknown action"))
 	}
 }
 
@@ -1896,15 +2021,15 @@ func fetchModelIDs(base, key string) ([]string, error) {
 func shortIDs(ids []string) string { return llm.ShortIDs(ids) }
 
 // testProviderURL fa GET <base>/models i resumeix (sense exposar la clau).
-func testProviderURL(base, key string) (string, error) {
+func (s *Server) testProviderURL(base, key string) (string, error) {
 	ids, err := fetchModelIDs(base, key)
 	if err != nil {
 		return "", err
 	}
 	if len(ids) == 0 {
-		return "respon (sense llista de models)", nil
+		return s.tr("respon (sense llista de models)", "responds (no model list)"), nil
 	}
-	return fmt.Sprintf("respon (%d models): %s", len(ids), shortIDs(ids)), nil
+	return fmt.Sprintf(s.tr("respon (%d models): %s", "responds (%d models): %s"), len(ids), shortIDs(ids)), nil
 }
 
 func validProvName(n string) bool {
@@ -1928,29 +2053,26 @@ func (s *Server) sysPrompt() string { return s.sysPromptAmb(s.mode, s.cwd) }
 func (s *Server) sysPromptAmb(mode, workspace string) string {
 	base := s.cfg.SystemPrompt()
 	prompt := agent.PromptFor(base, mode)
-	prompt += plotPrompt
 	project := filepath.Base(filepath.Clean(workspace))
-	prompt = fmt.Sprintf(`%s
+	fets := fmt.Sprintf(`WORKSPACE FACTS (authoritative, do not infer them):
+- Working directory: %q
+- Current project: %q
+- You have no implicit list of files, folders or other projects.
+- Work INSIDE the working directory (glob/read/grep with relative paths or
+  paths under it): do not go to Downloads, Documents, Desktop or other
+  folders unless the user explicitly asks.
 
-FETS DE L'ENTORN (autoritatius, no els dedueixis):
-- Directori de treball: %q
-- Projecte actual: %q
-- No tens cap llista implícita de fitxers, carpetes ni altres projectes.
-- Treballa DINS del Directori de treball (glob/read/grep amb rutes
-  relatives o d'aquest directori): no vagis a Downloads, Documents,
-  Escriptori ni altres carpetes tret que l'usuari ho demani explícitament.
-
-No inventis noms de projectes, fitxers, resultats ni contingut. Si t'han de
-preguntar què hi ha al projecte, primer comprova-ho amb les eines disponibles
-(glob/read/grep) i cita què has comprovat. En mode xat, si no pots inspeccionar
-el disc, digues explícitament que no ho pots saber en lloc d'inventar-t'ho.`, prompt, workspace, project)
-	if info := agent.ContextProjecte(workspace); info != "" {
-		prompt += "\n\n" + info
-	}
+Do not invent project names, files, results or content. If you are asked
+what is in the project, check it first with the available tools
+(glob/read/grep) and cite what you checked. In chat mode, if you cannot
+inspect the disk, say explicitly that you cannot know instead of making it up.`, workspace, project)
+	resum := ""
 	if r := strings.TrimSpace(s.compacted); r != "" {
-		prompt += "\n\n[Resum de la conversa anterior — continua amb aquest context]\n" + r
+		resum = "[Summary of the earlier conversation — continue with this context]\n" + r
 	}
-	return prompt
+	// Fets, memòria del projecte i resum van abans de la directiva
+	// d'idioma, que ha de tancar el prompt (agent.AmbContext).
+	return agent.AmbContext(prompt, strings.TrimPrefix(plotPrompt, "\n\n"), fets, agent.ContextProjecteSessio(workspace, s.id), resum)
 }
 
 // compactaSiCal resumeix la conversa quan l'estimació passa del llindar de
@@ -1975,9 +2097,9 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	defer cancel()
 	font := append([]llm.Message(nil), convo...)
 	if strings.TrimSpace(previ) != "" {
-		font = append([]llm.Message{{Role: "user", Content: "Resum del context de les tasques anteriors:\n" + previ}}, font...)
+		font = append([]llm.Message{{Role: "user", Content: "Summary of the context of earlier tasks:\n" + previ}}, font...)
 	}
-	resum, err := agent.Summarize(cctx, s.client, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), font)
+	resum, err := agent.Summarize(cctx, s.client, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), font, s.cfg.Lang())
 	if err != nil {
 		return
 	}
@@ -1996,7 +2118,7 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	// El resum nou ja incorpora l'anterior. Substituir-lo manté el prompt
 	// acotat al llarg de centenars de tasques i en reprendre sessions.
 	if r := []rune(resum); len(r) > 12000 {
-		resum = "[part més antiga del resum retallada]\n" + string(r[len(r)-12000:])
+		resum = "[oldest part of the summary truncated]\n" + string(r[len(r)-12000:])
 	}
 	s.compacted = resum
 }
@@ -2040,13 +2162,28 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 	return out
 }
 
+// resumeTranscript és la conversa desada tal com la veuen els clients en
+// reprendre-la: el mateix format de missatge (Android el llegeix cru), però
+// sense el mapa del projecte enganxat a les tasques, que és per al model i
+// a la bombolla sortia com si l'hagués escrit la persona.
+func resumeTranscript(convo []llm.Message) []llm.Message {
+	out := make([]llm.Message, len(convo))
+	for i, m := range convo {
+		if m.Role == "user" {
+			m.Content = agent.SenseMapa(m.Content)
+		}
+		out[i] = m
+	}
+	return out
+}
+
 func (s *Server) emitVerify(emit func(string, any), workspace string) string {
 	emit("verify_start", map[string]string{})
 	r := s.cfg.Roles["reviewer"]
 	p := s.cfg.Providers[r.Provider]
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
 	defer cancel()
-	v, raw, err := verify.Run(ctx, s.client, p, r, s.transcriptTail(6), tools.GitDiff(workspace))
+	v, raw, err := verify.Run(ctx, s.client, p, r, s.transcriptTail(6), tools.GitDiff(workspace), s.cfg.Lang())
 	if err != nil {
 		emit("verify", map[string]string{"verdict": "error", "detail": err.Error()})
 		return "error"
@@ -2102,7 +2239,7 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	// Cortesia pura ("hola") es respon sense worker ni model: no ocupa el
 	// torn, no fa 409 i no crema passos. L'add-in també hi passa.
-	if reply, ok := agent.SmallTalk(req.Task); ok && len(imgs) == 0 {
+	if reply, ok := s.smallTalk(req.Task); ok && len(imgs) == 0 {
 		task := strings.TrimSpace(req.Task)
 		s.mu.Lock()
 		s.convo = append(s.convo, llm.Message{Role: "user", Content: task})
@@ -2180,7 +2317,7 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 		// Cortesia pura ("hola"): resposta local, sense model ni eines. A la
 		// via SSE antiga es resol abans d'encuar; aquí el torn ja és a la cua
 		// i simplement no gasta passos ni crides.
-		if reply, ok := agent.SmallTalk(o.task); ok && len(o.imgs) == 0 {
+		if reply, ok := s.smallTalk(o.task); ok && len(o.imgs) == 0 {
 			s.mu.Lock()
 			s.convo = append(s.convo, llm.Message{Role: "user", Content: o.task})
 			s.convo = append(s.convo, llm.Message{Role: "assistant", Content: reply})
@@ -2218,7 +2355,7 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 				// Un pànic al torn (eina, provider, JSON) no tomba el servidor
 				// ni deixa el worker encallat: s'emet error i queda failed.
 				if rec := recover(); rec != nil {
-					o.emit("error", map[string]string{"message": fmt.Sprintf("torn interromput: %v", rec)})
+					o.emit("error", map[string]string{"message": fmt.Sprintf(s.tr("torn interromput: %v", "turn interrupted: %v"), rec)})
 					o.emit("done", map[string]string{"reply": "El torn s'ha interromput per un error intern. Pots tornar-ho a provar."})
 					execErr = fmt.Errorf("torn interromput: %v", rec)
 				}
@@ -2249,7 +2386,22 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 // rawEmit per als events que no han de quedar gravats. Torna l'última
 // resposta i l'error que marca l'execució com a fallida a la cua (error del
 // proveïdor a mig torn, cancel·lació).
-func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, reqMode, workspace string, emit, rawEmit func(string, any)) (string, error) {
+func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, reqMode, workspace string, emit, rawEmit func(string, any)) (reply string, runErr error) {
+	generation := s.beginWorkshop(task, "", 0)
+	runCtx = context.WithValue(runCtx, workshopRunKey{}, generation)
+	turnStarted := logTurnStarted(s.id, reqMode, task)
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			s.finishWorkshop(generation, fmt.Errorf("turn interrupted: %v", recovered))
+			panic(recovered)
+		}
+		err := runErr
+		if runCtx.Err() != nil {
+			err = runCtx.Err()
+		}
+		s.finishWorkshop(generation, err)
+		log.Printf("turn %s session=%s after %s", turnOutcome(err), s.id, time.Since(turnStarted).Round(time.Second))
+	}()
 	s.mu.Lock()
 	roleName := s.role
 	pinned := s.rolePinned
@@ -2269,7 +2421,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		pol = &cp
 	}
 	s.mu.Unlock()
-	if reqMode == agent.ModeChat || reqMode == agent.ModeInspect || reqMode == agent.ModeAutonomous {
+	if reqMode == agent.ModeChat || reqMode == agent.ModeInspect || reqMode == agent.ModeAutonomous || reqMode == agent.ModeDebug {
 		mode = reqMode
 	}
 	roleWhy := ""
@@ -2283,13 +2435,14 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	}
 	if selection, unavailable := s.refreshModelAvailability(roleName); unavailable {
 		fallback := s.cfg.Roles[roleName]
-		emit("status", map[string]string{"message": fmt.Sprintf("Model %s no està disponible; faré servir %s/%s.", selection, fallback.Provider, fallback.Model)})
+		emit("status", map[string]string{"message": fmt.Sprintf(s.tr("Model %s no està disponible; faré servir %s/%s.", "Model %s is unavailable; using %s/%s instead."), selection, fallback.Provider, fallback.Model)})
 	}
 	s.mu.Lock()
 	pComp, roleComp := s.roleRefFor(roleName)
 	s.mu.Unlock()
 	if mode == agent.ModeAutonomous && !roleComp.LongRunsAllowed() {
-		msg := fmt.Sprintf("el model %s/%s no està habilitat per a tirades llargues; activa «long_run» al perfil del rol", roleComp.Provider, roleComp.Model)
+		msg := fmt.Sprintf(s.tr("el model %s/%s no està habilitat per a tirades llargues; activa «long_run» al perfil del rol",
+			"model %s/%s is not enabled for long runs; enable “long_run” in the role profile"), roleComp.Provider, roleComp.Model)
 		emit("error", map[string]string{"message": msg})
 		return "", errors.New(msg)
 	}
@@ -2297,8 +2450,19 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	// Mapa del projecte (fitxers, git, fitxers que la tasca anomena): el
 	// model no ha de gastar les primeres voltes a orientar-se. Fora del
 	// mutex: executa git, i la UI consulta la sessió cada cinc segons.
+	// Els mapes dels torns anteriors ja no són veritat (el disc i git han
+	// canviat) i cada un pesava milers de tokens: només el porta el missatge
+	// més nou. Per això el mapa es calcula sense els antics (sempre fresc).
+	// Foto git d'inici de torn (després de compactar: la llargada de la
+	// conversa ha de ser la que quedarà). Vegeu agent/gitcheckpoint.go.
 	s.mu.Lock()
-	cwdMapa, convoMapa := ws, append([]llm.Message(nil), s.convo...)
+	convoAbans := len(s.convo)
+	s.mu.Unlock()
+	if err := agent.CheckpointTorn(s.id, ws, mode, convoAbans); err != nil {
+		log.Printf("checkpoint git session=%s: %v", s.id, err)
+	}
+	s.mu.Lock()
+	cwdMapa, convoMapa := ws, agent.SenseMapesAntics(s.convo)
 	s.mu.Unlock()
 	mapa := agent.MapaProjecte(cwdMapa, task, convoMapa)
 	if mode == agent.ModeChat {
@@ -2310,6 +2474,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	content := s.expandMentions(task, ws)
 	if mapa != "" {
 		content += "\n\n" + mapa
+		s.convo = agent.SenseMapesAntics(s.convo)
 	}
 	s.convo = append(s.convo, llm.Message{Role: "user", Content: content, Images: imgs})
 	// La tasca apareix a Converses de seguida, fins i tot si dura hores o
@@ -2339,7 +2504,22 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	s.autosave()
 	verdict := ""
 	if s.autoVerify() {
+		// A la sala, la verificació és feina del revisor.
+		rev, ho := s.beginLane(generation, 0, laneInfo{Role: roleReviewer, Kind: "verify"}, "")
+		if ho != nil {
+			emit("handoff", handoffPayload(*ho))
+		}
+		if rev.Seq > 0 {
+			emit("lane", lanePayload(rev))
+		}
 		verdict = s.emitVerify(emit, ws)
+		revResult := "ok"
+		if !strings.HasPrefix(verdict, "APROVAT") {
+			revResult = "fail"
+		}
+		if done, ok := s.endLane(generation, rev.Seq, revResult); ok {
+			emit("lane", lanePayload(done))
+		}
 	}
 	s.mu.Lock()
 	tools.Active.MarkConvoFor(s.id, len(s.convo))
@@ -2353,13 +2533,15 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 // sola vegada en superar budget.session_usd. Sense preu al config no hi ha
 // res a sumar (mai s'inventa).
 func (s *Server) trackTurnCost(emit func(string, any), hist []llm.Message, roleName string, role config.Role) {
-	_, _, usd, ok := agent.HistCost(hist, role.Provider, role.Model)
-	if !ok || usd <= 0 {
+	up, down, usd, ok := agent.HistCost(hist, role.Provider, role.Model)
+	s.recordUsage(role, up, down, usd, ok)
+	if !ok {
 		return
 	}
 	limit := s.cfg.Budget.SessionUSD
 	s.mu.Lock()
 	s.sessCost += usd
+	s.sessCostKnown = true
 	total, warned := s.sessCost, s.budgetWarned
 	if limit > 0 && total >= limit {
 		s.budgetWarned = true
@@ -2368,7 +2550,8 @@ func (s *Server) trackTurnCost(emit func(string, any), hist []llm.Message, roleN
 	if limit > 0 && total >= limit && !warned {
 		emit("budget", map[string]string{
 			"total": agent.FmtCost(total), "limit": agent.FmtCost(limit),
-			"message": "Pressupost de sessió superat (" + agent.FmtCost(total) + " ≥ " + agent.FmtCost(limit) + "). La feina continua: és un avís, no un bloqueig.",
+			"message": s.tr("Pressupost de sessió superat ("+agent.FmtCost(total)+" ≥ "+agent.FmtCost(limit)+"). La feina continua: és un avís, no un bloqueig.",
+				"Session budget exceeded ("+agent.FmtCost(total)+" ≥ "+agent.FmtCost(limit)+"). Work continues: this is a warning, not a block."),
 		})
 	}
 }
@@ -2397,11 +2580,13 @@ func (s *Server) trackVerdict(emit func(string, any), verdict, roleName string) 
 	s.mu.Unlock()
 	if s.cfg.Verify.Mode == "strict" && strings.HasPrefix(verdict, "CAL REVISAR") {
 		emit("gated", map[string]string{
-			"message": "Revisor insatisfet: el pròxim torn d'agent queda bloquejat fins que l'aprovis."})
+			"message": s.tr("Revisor insatisfet: el pròxim torn d'agent queda bloquejat fins que l'aprovis.",
+				"Reviewer not satisfied: the next agent turn is blocked until you approve it.")})
 	}
 	if ok {
 		emit("escalate", map[string]string{"from": roleName, "to": target,
-			"message": "Revisor insatisfet repetidament: el pròxim torn usa el rol " + target + "."})
+			"message": s.tr("Revisor insatisfet repetidament: el pròxim torn usa el rol "+target+".",
+				"Reviewer repeatedly not satisfied: the next turn uses the "+target+" role.")})
 	}
 }
 
@@ -2426,13 +2611,13 @@ func (s *Server) handleVerifyApprove(w http.ResponseWriter, r *http.Request) {
 	s.gated = false
 	s.mu.Unlock()
 	if !was {
-		writeJSON(w, map[string]string{"unlocked": "false", "note": "no hi havia cap bloqueig"})
+		writeJSON(w, map[string]string{"unlocked": "false", "note": s.tr("no hi havia cap bloqueig", "there was no block")})
 		return
 	}
 	if req.Approve {
-		writeJSON(w, map[string]string{"unlocked": "true", "note": "revisió aprovada: pots continuar"})
+		writeJSON(w, map[string]string{"unlocked": "true", "note": s.tr("revisió aprovada: pots continuar", "review approved: you can continue")})
 	} else {
-		writeJSON(w, map[string]string{"unlocked": "true", "note": "bloqueig aixecat sense aprovar: revisa-ho tu"})
+		writeJSON(w, map[string]string{"unlocked": "true", "note": s.tr("bloqueig aixecat sense aprovar: revisa-ho tu", "block lifted without approval: review it yourself")})
 	}
 }
 
@@ -2479,6 +2664,9 @@ func (s *Server) execTool(c llm.ToolCall) (string, []string) {
 // atura també l'eina a mitges (un go test de dos minuts), no només la
 // crida següent al model.
 func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace string) (string, []string) {
+	if err := ctx.Err(); err != nil {
+		return "ERROR: " + err.Error(), nil
+	}
 	// La checklist és de la SESSIÓ, no del procés. El magatzem de tools és
 	// un de sol i amb dues pestanyes es trepitjaven: la que començava un
 	// torn esborrava la llista de la que estava treballant, i un todoread
@@ -2496,6 +2684,12 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 		s.todo = nets
 		s.mu.Unlock()
 		return tools.RenderTodos(nets), nil
+	case "dashboard_save":
+		out, err := s.dashboardSave(c.Function.Arguments)
+		if err != nil {
+			return "ERROR: " + err.Error(), nil
+		}
+		return out, nil
 	case "todoread":
 		s.mu.Lock()
 		llista := append([]tools.TodoItem(nil), s.todo...)
@@ -2506,9 +2700,19 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 	// Terminal d'aquesta pestanya i es maten quan es tanca.
 	out, imgs, err := agent.ExecCtx(ctx, s.id, workspace, c.Function.Name, c.Function.Arguments)
 	if err != nil {
-		return "ERROR: " + err.Error(), nil
+		// El que la comanda havia escrit abans del timeout també hi va.
+		return agent.ErrorAmbSortida(err, out), nil
 	}
 	return out, imgs
+}
+
+// smallTalk és la via ràpida de cortesia amb la llengua de la sessió i
+// sabent si ja hi ha conversa (un «ok» a mitja conversa és una resposta).
+func (s *Server) smallTalk(text string) (string, bool) {
+	s.mu.Lock()
+	lang, enConversa := s.cfg.Lang(), agent.TeConversa(s.convo)
+	s.mu.Unlock()
+	return agent.SmallTalkFor(text, lang, enConversa)
 }
 
 // esperaResposta és el temporitzador d'una aprovació o pregunta: el canal
@@ -2535,9 +2739,10 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 	s.mu.Unlock()
 	limit, para, segons := s.esperaResposta()
 	defer para()
-	// timeout_s és text pel contracte existent; auto_approve_allowed és booleà perquè
-	// el client només aprovi automàticament quan el servidor ho autoritza.
-	emit("approve_request", map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": strconv.Itoa(segons), "auto_approve_allowed": autoApproveAllowed})
+	// timeout_s és el nombre de segons (0 = sense límit); auto_approve_allowed
+	// és booleà perquè el client només aprovi automàticament quan el
+	// servidor ho autoritza.
+	emit("approve_request", map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": segons, "auto_approve_allowed": autoApproveAllowed})
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.approvals, key)
@@ -2604,7 +2809,7 @@ func (s *Server) waitQuestion(ctx context.Context, emit func(string, any), id, q
 	}
 	limit, para, segons := s.esperaResposta()
 	defer para()
-	emit("question_request", map[string]any{"key": key, "call_id": id, "query": query, "options": labels, "timeout_s": strconv.Itoa(segons)})
+	emit("question_request", map[string]any{"key": key, "call_id": id, "query": query, "options": labels, "timeout_s": segons})
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.questions, key)
@@ -2653,25 +2858,39 @@ func (s *Server) permissiveNow() bool {
 	return s.permissive
 }
 
-// handlePermissive: GET → {on}; POST {on} → activa/desactiva el mode
-// permissiu (l'agent tira sense demanar; deny continua bloquejant).
-// Només sessió: es perd en reiniciar el servidor.
+// autoReviewNow llegeix el mode auto-review (amb mutex).
+func (s *Server) autoReviewNow() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.autoReview
+}
+
+// handlePermissive: GET → {on, review}; POST {on} → activa/desactiva el
+// mode permissiu (l'agent tira sense demanar; deny continua bloquejant);
+// POST {review: true} → mode auto-review (el revisor decideix; exclusiu amb
+// permissiu). Només sessió: es perd en reiniciar el servidor.
 func (s *Server) handlePermissive(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		writeJSON(w, map[string]bool{"on": s.permissiveNow()})
+		s.mu.Lock()
+		on, review := s.permissive, s.autoReview
+		s.mu.Unlock()
+		writeJSON(w, map[string]bool{"on": on, "review": review})
 		return
 	}
 	var req struct {
-		On bool `json:"on"`
+		On     bool `json:"on"`
+		Review bool `json:"review"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "petició il·legible", 400)
 		return
 	}
 	s.mu.Lock()
-	s.permissive = req.On
+	s.autoReview = req.Review
+	s.permissive = req.On && !req.Review
+	on := s.permissive
 	s.mu.Unlock()
-	writeJSON(w, map[string]bool{"on": req.On})
+	writeJSON(w, map[string]bool{"on": on, "review": req.Review})
 }
 
 // --- controls ---
@@ -2685,7 +2904,7 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !agent.ValidMode(req.Mode) {
-		http.Error(w, "mode invàlid (code|inspect|chat|goal|autonomous)", 400)
+		http.Error(w, "mode invàlid (code|inspect|chat|goal|autonomous|debug)", 400)
 		return
 	}
 	s.mu.Lock()
@@ -2698,6 +2917,16 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, map[string]string{"mode": req.Mode})
+}
+
+// tr tria el text que la UI mostrarà tal qual segons l'idioma configurat
+// (lang: ca|en), com fa el bot de Telegram. Sense config, anglès: és el
+// valor per defecte de Lang().
+func (s *Server) tr(ca, en string) string {
+	if s != nil && s.cfg != nil && s.cfg.Lang() == "ca" {
+		return ca
+	}
+	return en
 }
 
 // handleLang canvia l'idioma. És d'aplicació, no de sessió: decideix en
@@ -3130,7 +3359,12 @@ func (s *Server) handleRewind(w http.ResponseWriter, r *http.Request) {
 	}
 	// G2: amb diverses sessions vives el journal és compartit; desfem
 	// només els fitxers del workspace d'aquesta sessió.
-	out, err := tools.Active.RewindFiltered(0, s.rewindFilter())
+	// Als repos git també torna el workspace a la foto d'abans de la sessió
+	// (desfà el que ha fet bash); fora de git és el journal de sempre.
+	s.mu.Lock()
+	ws := s.cwd
+	s.mu.Unlock()
+	out, err := tools.GitCPs.RewindAll(s.id, ws, s.rewindFilter())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -3155,15 +3389,25 @@ func (s *Server) handleCheckpoints(w http.ResponseWriter, r *http.Request) {
 		Op   string `json:"op"`
 		Path string `json:"path"`
 		At   string `json:"at"`
+		// Git: número de la foto git (op "snapshot"); es rebobina amb
+		// /api/rewind-to {"git": N}. Kind: turn | step.
+		Git  int    `json:"git,omitempty"`
+		Kind string `json:"kind,omitempty"`
+		when time.Time
 	}
 	cps := tools.Active.Checkpoints()
-	out := make([]view, 0, len(cps))
+	gits := tools.GitCPs.List(s.id)
+	out := make([]view, 0, len(cps)+len(gits))
 	for _, e := range cps {
 		if f := s.rewindFilter(); f != nil && !f(e.Path) {
 			continue
 		}
-		out = append(out, view{Seq: e.Seq, Op: e.Op, Path: e.Path, At: e.At.Format("15:04:05")})
+		out = append(out, view{Seq: e.Seq, Op: e.Op, Path: e.Path, At: e.At.Format("15:04:05"), when: e.At})
 	}
+	for _, g := range gits {
+		out = append(out, view{Seq: g.Seq, Op: "snapshot", Path: g.Label, At: g.At.Format("15:04:05"), Git: g.N, Kind: g.Kind, when: g.At})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].when.Before(out[j].when) })
 	writeJSON(w, out)
 }
 
@@ -3175,9 +3419,28 @@ func (s *Server) handleRewindTo(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Seq *int `json:"seq"`
+		Git *int `json:"git"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Seq == nil {
-		http.Error(w, "cal {\"seq\": N} (vegeu /api/checkpoints)", 400)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || (req.Seq == nil && req.Git == nil) {
+		http.Error(w, "cal {\"seq\": N} o {\"git\": N} (vegeu /api/checkpoints)", 400)
+		return
+	}
+	if req.Git != nil {
+		// Foto git: journal fins al seu Seq + working tree sencer (bash inclòs).
+		out, convoLen, err := tools.GitCPs.RewindTo(s.id, *req.Git, s.rewindFilter())
+		if err != nil {
+			http.Error(w, err.Error(), 400)
+			return
+		}
+		if convoLen >= 0 {
+			s.mu.Lock()
+			s.convo = truncConvoWeb(s.convo, convoLen)
+			s.mu.Unlock()
+		}
+		if strings.TrimSpace(out) == "" {
+			out = "res a desfer"
+		}
+		writeJSON(w, map[string]string{"summary": out})
 		return
 	}
 	out, err := tools.Active.RewindFiltered(*req.Seq, s.rewindFilter())
@@ -3196,6 +3459,7 @@ func (s *Server) resetSessionCounters() {
 	s.gated = false
 	s.streak = 0
 	s.sessCost = 0
+	s.sessCostKnown = false
 	s.budgetWarned = false
 }
 
@@ -3337,7 +3601,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		"name":       sess.Name,
 		"workspace":  activeWs,
 		"compacted":  sess.Compacted,
-		"transcript": sess.Convo,
+		"transcript": resumeTranscript(sess.Convo),
 	})
 }
 
@@ -3363,11 +3627,7 @@ func (s *Server) queueHasActiveTurn() bool {
 
 // SetupMCP arrenca els servidors MCP del config (com el TUI/headless).
 func SetupMCP(cfg *config.Config) {
-	out := map[string]mcp.Server{}
-	for name, sv := range cfg.MCP {
-		out[name] = mcp.Server{Command: sv.Command, Args: sv.Args, Env: sv.Env}
-	}
-	manager := mcp.Setup(out)
+	manager := mcp.Setup(mcp.FromConfig(cfg.MCP))
 	mcpMu.Lock()
 	activeMCP = manager
 	mcpMu.Unlock()
@@ -3392,15 +3652,49 @@ func (s *Server) handleMCP(w http.ResponseWriter, r *http.Request) {
 		m = currentMCP()
 	}
 	if m == nil {
-		writeJSON(w, map[string]any{"summary": "inactiu", "servers": []any{}, "tools": []any{}})
+		writeJSON(w, map[string]any{"summary": s.tr("inactiu", "inactive"), "servers": []any{}, "tools": []any{}})
 		return
 	}
-	tools := make([]string, 0, len(m.Tools))
-	for _, tool := range m.Tools {
+	snapshot := m.ToolsSnapshot()
+	tools := make([]string, 0, len(snapshot))
+	for _, tool := range snapshot {
 		tools = append(tools, tool.Spec.Name)
 	}
+
 	sort.Strings(tools)
-	writeJSON(w, map[string]any{"summary": m.Summary(), "servers": m.Status(), "tools": tools})
+	status := m.Status()
+	writeJSON(w, map[string]any{"summary": s.mcpSummary(m, status, len(tools)), "servers": status, "tools": tools, "prompts": mcpPromptRows(m)})
+}
+
+// mcpSummary és el Summary del gestor (en català, el que mostra el TUI)
+// en l'idioma de la UI, comptat a partir del mateix estat que s'envia.
+func (s *Server) mcpSummary(m *mcp.Manager, status []map[string]any, tools int) string {
+	if s.tr("ca", "en") == "ca" {
+		return m.Summary()
+	}
+	connected, failed := 0, 0
+	for _, row := range status {
+		switch row["status"] {
+		case "connected":
+			connected++
+		case "error":
+			failed++
+		}
+	}
+	if connected == 0 && failed == 0 {
+		return "inactive"
+	}
+	count := func(n int, one, many string) string {
+		if n == 1 {
+			return "1 " + one
+		}
+		return strconv.Itoa(n) + " " + many
+	}
+	out := count(connected, "server", "servers") + ", " + count(tools, "tool", "tools")
+	if failed > 0 {
+		out += " (" + count(failed, "error", "errors") + ")"
+	}
+	return out
 }
 
 // Open obre l'URL al navegador (Linux: xdg-open).

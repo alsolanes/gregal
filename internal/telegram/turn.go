@@ -295,14 +295,19 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 			break
 		}
 	}
+	// Un «ok» a mitja conversa és una resposta, no cortesia (SmallTalkFor).
+	teConversa := agent.TeConversa(st.convo)
 	// Mapa del projecte amb la tasca (fitxers, git, fitxers anomenats).
-	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.TascaAmbMapa(st.mode, b.dirOf(st), text, st.convo), Images: images})
+	// Només el missatge més nou el porta (els antics ja no són veritat).
+	agent.CheckpointTorn("", b.dirOf(st), st.mode, len(st.convo))
+	hist := agent.SenseMapesAntics(st.convo)
+	st.convo = append(hist, llm.Message{Role: "user", Content: agent.TascaAmbMapa(st.mode, b.dirOf(st), text, hist), Images: images})
 	mode, role := st.mode, st.role
 	pinned := st.rolePinned
 	convo := append([]llm.Message{}, st.convo...)
 	st.mu.Unlock()
 	// Cortesia pura ("hola"): resposta directa sense model ni eines.
-	if reply, ok := agent.SmallTalk(text); ok && len(images) == 0 {
+	if reply, ok := agent.SmallTalkFor(text, b.cfg.Lang(), teConversa); ok && len(images) == 0 {
 		b.send(ctx, chatID, reply)
 		st.mu.Lock()
 		st.convo = append(st.convo, llm.Message{Role: "assistant", Content: reply})
@@ -348,10 +353,8 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	}()
 	defer close(done)
 
-	sys := agent.PromptFor(b.cfg.SystemPrompt(), mode)
-	if info := agent.ContextProjecte(b.dirOf(st)); info != "" {
-		sys += "\n\n" + info
-	}
+	// La directiva d'idioma ha de quedar l'última (AmbContext).
+	sys := agent.AmbContext(agent.PromptFor(b.cfg.SystemPrompt(), mode), agent.ContextProjecte(b.dirOf(st)))
 
 	var answerID, activityID int
 	var answer, activity strings.Builder
@@ -377,6 +380,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	}
 	uso := &llm.UsageMeter{}
 	tctx = llm.WithUsage(tctx, uso)
+	tctx = agent.WithHookScope(tctx, tgScope(chatID), b.dirOf(st))
 	torn := agent.NouTorn(agent.OpcionsTorn{
 		Usage: uso,
 		Cfg:   b.cfg, Pol: b.polOf(st), Mode: mode, Tasca: text, MaxSteps: b.cfg.Agent.MaxSteps,
@@ -391,6 +395,9 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		Recordat: func(name, args string) bool {
 			return b.remembers.Allowed(tgScope(chatID), agent.Sig(name, args))
 		},
+		Ctx: tctx, Sessio: tgScope(chatID), Workspace: b.dirOf(st),
+		// permissions.mode: auto-review → el revisor decideix abans dels botons.
+		Revisor: revisorBot(b.client, b.cfg),
 	})
 	pinta := func(evs []agent.Event) {
 		for _, e := range evs {
@@ -425,6 +432,7 @@ bucle:
 			break
 		}
 		p := torn.Seguent()
+		pinta(p.Events)
 		pr, r := rolActual()
 		switch p.Ordre {
 		case agent.OrdrePasModel:
@@ -456,11 +464,11 @@ bucle:
 		case agent.OrdreAprova:
 			c := p.Call
 			ok := b.askApproval(tctx, chatID, c.Function.Name, c.Function.Arguments, agent.Sig(c.Function.Name, c.Function.Arguments))
-			pinta(torn.RepAprovacio(ok, "EINA DENEGADA per l'usuari."))
+			pinta(torn.RepAprovacio(ok, "TOOL DENIED by the user."))
 
 		case agent.OrdrePregunta:
 			// Sense selector al xat: el model la formula com a text.
-			pinta(torn.RepPregunta("PREGUNTA SENSE UI: no hi ha interfície per triar opcions aquí. Formula la pregunta en text a la resposta final i continua amb el teu millor criteri."))
+			pinta(torn.RepPregunta(agent.PreguntaSenseUI))
 
 		case agent.OrdreAmplia:
 			actx, cancelA := context.WithTimeout(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), agent.TimeoutDecisio)
@@ -561,4 +569,12 @@ func truncConvoTG(convo []llm.Message, n int) []llm.Message {
 		return convo
 	}
 	return convo[:n]
+}
+
+// revisorBot és el revisor automàtic del bot (nil si el config no el demana).
+func revisorBot(client *llm.Client, cfg *config.Config) agent.ReviewFunc {
+	if cfg == nil || !cfg.Permissions.AutoReview() {
+		return nil
+	}
+	return agent.NewReviewer(client, cfg, nil)
 }

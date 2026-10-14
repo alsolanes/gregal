@@ -25,21 +25,29 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CompareArrows
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.ForkRight
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Lightbulb
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.TaskAlt
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CompareArrows
+import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.ForkRight
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Button
@@ -82,6 +90,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -98,9 +108,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.animation.core.MutableTransitionState
@@ -118,6 +128,9 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 
 /** Identitat Gregal: mar fosc, verd marí (Sea) i sorra (Sand). Mai clons. */
 // Paleta: ara a Theme.kt (LocalPal; getters Sea/Ink/… temàtics).
@@ -141,27 +154,37 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     var ambToken by remember { mutableStateOf(prefs.token.isNotBlank()) }
     val notice by vm.notice.collectAsState()
     GregalBg {
-        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
-            Text("≋", fontSize = 48.sp, color = Sea)
-            Text("Gregal", style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold, color = Ink)
-            Text(tr(lang, "app.pair.subtitle"), color = Sand)
-            Spacer(Modifier.height(20.dp))
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 28.dp, vertical = 36.dp),
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Spacer(Modifier.height(32.dp))
+            GregalMark(64.dp, alive = true)
+            Spacer(Modifier.height(14.dp))
+            Text("Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
+            Text(tr(lang, "app.pair.subtitle"), color = Muted, style = MaterialTheme.typography.bodyLarge)
+            Spacer(Modifier.height(28.dp))
+            val field = RoundedCornerShape(14.dp)
             OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
+                leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
+                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
+                leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
                 modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
             OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
+                leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
                 modifier = Modifier.fillMaxWidth(), singleLine = true,
                 visualTransformation = PasswordVisualTransformation())
-            Spacer(Modifier.height(16.dp))
-            Button(onClick = { vm.entra(host, port, usuari, contrasenya) },
-                modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.login")) }
+            Spacer(Modifier.height(18.dp))
+            Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
             TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
                 Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
                     color = Muted, fontSize = 13.sp)
@@ -191,8 +214,9 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             if (notice.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 ConnectionNotice(notice, lang, onRetry = {
-                    prefs.save(host, port, token)
-                    vm.setConn(Conn(host, port, token))
+                    // Reintentar no ha d'esborrar l'usuari desat.
+                    prefs.save(host, port, token, prefs.usuari)
+                    vm.setConn(Conn(host, port, token, prefs.usuari))
                     vm.connect { vm.go(Screen.Chat) }
                 })
             }
@@ -243,6 +267,12 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val question by vm.question.collectAsState()
     val showRewind by vm.showRewind.collectAsState()
     val checkpoints by vm.checkpoints.collectAsState()
+    val live by vm.live.collectAsState()
+    val activity by vm.activity.collectAsState()
+    val planFirst by vm.planFirst.collectAsState()
+    var showPlus by remember { mutableStateOf(false) }
+    var showPerm by remember { mutableStateOf(false) }
+    var confirmNew by remember { mutableStateOf(false) }
     val pickImgs = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         uris.take(3).forEach { vm.addImage(it) }
     }
@@ -261,15 +291,23 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
 
     //Segueix el final només si l'usuari ja era a baix: pujar a rellegir
     // no ha de ser interromput per cada lot de streaming.
+    // Deixa de seguir el final només quan la persona arrossega cap amunt; hi
+    // torna quan arriba a baix. (Abans el primer layout ja l'apagava.)
     LaunchedEffect(listState) {
-        snapshotFlow {
-            val info = listState.layoutInfo
-            info.visibleItemsInfo.lastOrNull()?.index to info.totalItemsCount
-        }.collect { (last, total) ->
-            follow = total == 0 || (last != null && last >= total - 1)
+        listState.interactionSource.interactions.collect { i ->
+            if (i is androidx.compose.foundation.interaction.DragInteraction.Start) follow = false
         }
     }
-    LaunchedEffect(msgs.size) { if (follow && msgs.isNotEmpty()) listState.animateScrollToItem(msgs.size - 1) }
+    LaunchedEffect(listState) {
+        // Si el contingut creix (targeta que s'obre, text en viu), es queda a baix.
+        snapshotFlow { listState.canScrollForward }.collect { more ->
+            if (!more) follow = true
+            else if (follow && !listState.isScrollInProgress) {
+                val n = listState.layoutInfo.totalItemsCount
+                if (n > 0) listState.scrollToItem(n - 1)
+            }
+        }
+    }
     LaunchedEffect(notice) { if (notice.isNotEmpty()) { snack.showSnackbar(notice); vm.clearNotice() } }
     LaunchedEffect(showModelMenu) { if (showModelMenu) vm.loadModels() }
 
@@ -278,38 +316,38 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         topBar = {
             TopAppBar(
                 navigationIcon = {
-                    IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
+                    IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
                 },
                 title = {
                     // Estil ChatGPT: el títol és el model, centrat, i prou.
                     // El projecte és al capdamunt del calaix.
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         TextButton(onClick = { showModelMenu = true }) {
-                            Text(
-                                (st.model.ifEmpty { st.currentRole.ifEmpty { "Gregal" } }) + " ▾",
-                                color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        st.model.ifEmpty { st.currentRole.ifEmpty { "Gregal" } },
+                                        color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = Muted, modifier = Modifier.size(18.dp))
+                                }
+                                if (st.project.isNotBlank()) {
+                                    Text(
+                                        st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
+                                        color = Faint, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
-                        ModelMenu(
-                            vm, st, showModelMenu, { showModelMenu = false },
-                            onPlan = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                vm.requestPlan(consumeInput())
-                            },
-                            onParallel = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                vm.parallel(consumeInput())
-                            },
-                            potEines = !busy && input.isNotBlank(),
-                        )
+                        ModelMenu(vm, st, showModelMenu, { showModelMenu = false })
                     }
                 },
                 actions = {
                     // Una sola acció, com ChatGPT: conversa nova. Desfés i
                     // GitHub són al calaix; pla i comparació al desplegable.
-                    IconButton(onClick = { vm.newSession(); vm.go(Screen.Chat) }) {
-                        Icon(Icons.Default.Add, tr(lang, "nav.new"), tint = Ink, modifier = Modifier.size(24.dp))
+                    IconButton(onClick = { if (busy) confirmNew = true else { vm.newSession(); vm.go(Screen.Chat) } }) {
+                        Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Ink, modifier = Modifier.size(24.dp))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -348,7 +386,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         vm.runPlan()
                                     }) {
-                                        Icon(Icons.Default.PlayArrow, tr(lang, "app.chat.execute"))
+                                        Icon(Icons.Rounded.PlayArrow, tr(lang, "app.chat.execute"))
                                         Spacer(Modifier.width(4.dp))
                                         Text(tr(lang, "app.chat.execute"))
                                     }
@@ -368,9 +406,33 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Text("🖼×${pendingImgs.size}", color = Sea, fontSize = 14.sp)
                         Spacer(Modifier.width(8.dp))
                         pendingImgs.forEachIndexed { i, _ ->
-                            TextButton(onClick = { vm.removeImage(i) }) {
+                            TextButton(onClick = { vm.removeImage(i) }, modifier = Modifier.semantics {
+                                contentDescription = tr(lang, "btn.delete") + " ${i + 1}"
+                            }) {
                                 Text("✕${i + 1}", color = Muted, fontSize = 13.sp)
                             }
+                        }
+                    }
+                }
+                // Xips del que no és el normal: mode especial i permisos oberts.
+                val special = st.mode in setOf("goal", "autonomous", "debug", "inspect")
+                if (special || st.permissive || st.autoReview) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (special) {
+                            ComposerChip(
+                                "◆ " + tr(lang, "app.mode." + st.mode), Lila, null,
+                                onClick = { showPlus = true },
+                                onClose = { vm.setMode("code") },
+                            )
+                        }
+                        if (st.permissive || st.autoReview) {
+                            ComposerChip(
+                                tr(lang, if (st.autoReview) "app.perm.review" else "app.perm.auto"), Sand,
+                                { PermIcon(true, Sand) }, onClick = { showPerm = true }, onClose = null,
+                            )
                         }
                     }
                 }
@@ -383,26 +445,28 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 )
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-                        .shadow(2.dp, RoundedCornerShape(24.dp)),
+                        .shadow(if (composerFocused) 6.dp else 2.dp, RoundedCornerShape(24.dp)),
                     shape = RoundedCornerShape(24.dp), color = PillDark,
                     border = BorderStroke(
                         1.dp,
-                        if (composerFocused) Sea.copy(alpha = 0.55f) else Color.Transparent,
+                        if (composerFocused) Sea.copy(alpha = 0.55f) else Line,
                     ),
                 ) {
                     Column(
-                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp),
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp),
                     ) {
                         BasicTextField(
                             value = input,
                             onValueChange = { setInput(it) },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 10.dp)
                                 .onFocusChanged { composerFocused = it.isFocused },
                             textStyle = MaterialTheme.typography.bodyLarge.copy(color = Ink),
-                            maxLines = 4,
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(Sea),
+                            maxLines = 6,
                             decorationBox = { inner ->
                                 if (input.isEmpty()) Text(composerHint(st.mode, lang), color = Muted,
-                                    style = MaterialTheme.typography.bodyLarge)
+                                    style = MaterialTheme.typography.bodyLarge, maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis)
                                 inner()
                             },
                         )
@@ -410,30 +474,48 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            // Estil ChatGPT: adjuntar a l'esquerra, veu i
-                            // enviar a la dreta. El mode ja el diu el
-                            // placeholder, i el mesurador viu a fora.
-                            IconButton(
-                                onClick = { pickImgs.launch("image/*") },
-                                enabled = !sending && pendingImgs.size < 3,
-                                modifier = Modifier.size(40.dp),
-                            ) {
-                                Icon(Icons.Default.Add,
-                                    tr(lang, "app.chat.addImage") + if (pendingImgs.isNotEmpty()) " (${pendingImgs.size}/3)" else "",
-                                    tint = if (!sending && pendingImgs.size < 3) Muted else Faint,
-                                    modifier = Modifier.size(22.dp))
+                            Box {
+                                IconButton(onClick = { showPlus = true }, modifier = Modifier.size(44.dp)) {
+                                    Icon(Icons.Rounded.Add, tr(lang, "app.mode.more"), tint = Muted, modifier = Modifier.size(23.dp))
+                                }
+                                ComposerPlusMenu(
+                                    expanded = showPlus, onClose = { showPlus = false }, lang = lang, st = st,
+                                    canUseInput = !busy && input.isNotBlank(), canAttach = !sending && pendingImgs.size < 3,
+                                    onAttach = { pickImgs.launch("image/*") },
+                                    onPlanOnce = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.requestPlan(consumeInput()) },
+                                    onCompare = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.parallel(consumeInput()) },
+                                    onMode = { vm.setMode(it) },
+                                    onPerm = { showPerm = true },
+                                )
+                            }
+                            Spacer(Modifier.width(2.dp))
+                            AskActToggle(
+                                act = st.mode != "chat", enabled = !sending, lang = lang,
+                                onChange = { act ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    vm.setMode(if (act) "code" else "chat")
+                                },
+                            )
+                            if (st.mode == "code") {
+                                Spacer(Modifier.width(4.dp))
+                                PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) }
                             }
                             Spacer(Modifier.weight(1f))
-                        if (voiceOk) {
-                            IconButton(
-                                onClick = {
+                            SendStopButton(
+                                busy = busy, canSend = !sending && input.isNotBlank(), voice = voiceOk, lang = lang,
+                                onSend = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    follow = true; vm.submit(consumeInput())
+                                },
+                                onStop = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    vm.cancelCurrent()
+                                },
+                                onVoice = {
                                     try {
                                         voice.launch(
                                             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                                                putExtra(
-                                                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
-                                                )
+                                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                                                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (lang == "en") "en-US" else "ca-ES")
                                                 putExtra(RecognizerIntent.EXTRA_PROMPT, tr(lang, "app.chat.voicePrompt"))
                                             },
@@ -442,32 +524,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         vm.notify(tr(lang, "app.chat.voiceUnavailable"))
                                     }
                                 },
-                                modifier = Modifier.size(44.dp),
-                            ) {
-                                Icon(Icons.Default.Mic, tr(lang, "app.chat.dictate"), tint = Muted,
-                                    modifier = Modifier.size(22.dp))
-                            }
+                            )
                         }
-                        IconButton(
-                            onClick = {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                follow = true; vm.send(consumeInput())
-                            },
-                            // Si només hi ha un agent extern ocupat, encara deixem
-                            // enviar: ViewModel posa el text a la cua i no es perd.
-                            enabled = !sending && input.isNotBlank(),
-                            modifier = Modifier.size(44.dp),
-                        ) {
-                            Surface(color = if (!sending && input.isNotBlank()) Sea else CodeDark,
-                                shape = CircleShape, modifier = Modifier.size(34.dp)) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.Send, tr(lang, "app.chat.send"), tint = if (!sending && input.isNotBlank()) Abyss else Muted,
-                                        modifier = Modifier.size(17.dp))
-                                }
-                            }
-                        }
-                        } // fi fila d'accions
-                    } // fi columna del composer
+                    }
                 }
             }
         },
@@ -480,57 +539,71 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Text("≋", fontSize = 44.sp, color = Sea)
-                Spacer(Modifier.height(10.dp))
-                Text(tr(lang, "app.chat.empty"), fontSize = 26.sp, color = Ink,
+                GregalMark(76.dp, alive = true)
+                Spacer(Modifier.height(18.dp))
+                Text(tr(lang, "app.chat.empty"), style = MaterialTheme.typography.headlineMedium, color = Ink,
                     textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 24.dp))
+                if (st.project.isNotBlank()) {
+                    Spacer(Modifier.height(14.dp))
+                    ProjectPill(st.project, st.branch)
+                }
             }
         } else {
             Box(Modifier.fillMaxSize().padding(pad)) {
                 val rows = remember(msgs, lang) { chatRows(msgs, lang) }
+                // L'última fila («end») és a rows.size (+1 si hi ha text en viu):
+                // es pot demanar abans del primer layout, a diferència de layoutInfo.
+                val endIndex = rows.size + if (live.isNotEmpty()) 1 else 0
+                LaunchedEffect(endIndex, live.length / 80, msgs.lastOrNull()?.work?.steps?.size) {
+                    if (follow) listState.scrollToItem(endIndex)
+                }
                 LazyColumn(
                     Modifier.fillMaxSize().padding(horizontal = 12.dp),
                     state = listState,
                 ) {
-                    items(rows.size) { ri ->
+                    items(
+                        count = rows.size,
+                        key = { ri -> when (val r = rows[ri]) { is UiRow.Day -> "d:" + r.label + ri; is UiRow.Msg -> r.msg.id } },
+                        contentType = { ri -> when (val r = rows[ri]) { is UiRow.Day -> 0; is UiRow.Msg -> r.msg.kind.hashCode() } },
+                    ) { ri ->
                         when (val r = rows[ri]) {
                             is UiRow.Day -> DayDivider(r.label)
                             is UiRow.Msg -> {
                                 val m = r.msg
                                 val index = r.index
-                                if (m.kind == "activity") {
-                                    // Una sola targeta per tram consecutiu: no enterra la resposta
-                                    // final amb crides d'eines, verificacions o reasoning.
-                                    if (index == 0 || msgs[index - 1].kind != "activity") {
-                                        ActivityCluster(msgs.drop(index).takeWhile { it.kind == "activity" }, lang)
+                                when {
+                                    m.kind == "work" && m.work != null -> WorkGroupCard(
+                                        m.work, if (m.work.running) activity else null,
+                                        if (m.work.running) statusLine else "", lang,
+                                    )
+                                    m.kind == "activity" -> {
+                                        // Avisos sense torn (cua, comparació…): una targeta per tram.
+                                        if (index == 0 || msgs[index - 1].kind != "activity") {
+                                            val run = remember(msgs, index) { msgs.drop(index).takeWhile { it.kind == "activity" } }
+                                            ActivityCluster(run, lang)
+                                        }
                                     }
-                                } else {
-                                    MsgRow(m, index, lang) { vm.notify(tr(lang, "app.chat.copied")) }
+                                    else -> MsgRow(m, index, lang) { vm.notify(tr(lang, "app.chat.copied")) }
                                 }
                             }
                         }
                     }
-                    if (busy) item {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp)) {
-                            WorkingStrip(turnT0, lang)
-                            if (statusLine.isNotEmpty()) {
-                                Spacer(Modifier.height(3.dp))
-                                Text(statusLine, color = Sand, fontSize = 12.sp, maxLines = 2)
-                            }
-                        }
-                    }
+                    if (live.isNotEmpty()) item(key = "live", contentType = "live") { LiveAnswer(live, lang) }
+                    item(key = "end", contentType = "end") { Spacer(Modifier.height(8.dp)) }
                 }
                 if (!follow && msgs.isNotEmpty()) {
-                    FilledTonalButton(
+                    Surface(
                         onClick = {
                             follow = true
-                            scope.launch { listState.animateScrollToItem(msgs.size - 1) }
+                            scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) }
                         },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp),
+                        shape = CircleShape, color = Superficie, shadowElevation = 4.dp,
+                        border = BorderStroke(1.dp, Line),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).size(44.dp),
                     ) {
-                        Icon(Icons.Default.KeyboardArrowDown, tr(lang, "app.chat.scrollBottom"))
-                        Spacer(Modifier.width(4.dp))
-                        Text(tr(lang, "btn.toBottom"))
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.KeyboardArrowDown, tr(lang, "app.chat.scrollBottom"), tint = Ink)
+                        }
                     }
                 }
             }
@@ -559,24 +632,23 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                 }
             },
+            // Tres botons apilats a tota l'amplada: amb el text en català no
+            // hi cabien en una fila i «Denega» quedava sol a sota.
             confirmButton = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = {
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                        vm.answerApprove(true, remember = true)
-                    }) { Text(tr(lang, "nav.new"), color = Sea) }
-                    Spacer(Modifier.width(4.dp))
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         vm.answerApprove(true)
-                    }) { Text(tr(lang, "btn.allow")) }
+                    }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(tr(lang, "btn.allow")) }
+                    FilledTonalButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        vm.answerApprove(true, remember = true)
+                    }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(tr(lang, "app.approve.always")) }
+                    OutlinedButton(onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        vm.answerApprove(false)
+                    }, modifier = Modifier.fillMaxWidth().height(48.dp)) { Text(tr(lang, "btn.deny"), color = Red) }
                 }
-            },
-            dismissButton = {
-                OutlinedButton(onClick = {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    vm.answerApprove(false)
-                }) { Text(tr(lang, "btn.deny")) }
             },
         )
     }
@@ -586,7 +658,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     question?.let { q ->
         var free by remember(q.key) { mutableStateOf("") }
         AlertDialog(
-            onDismissRequest = { vm.answerQuestion(q.key, "") },
+            onDismissRequest = {},
             title = { Text(tr(lang, "app.chat.questionTitle")) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -630,6 +702,24 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             },
         )
+    }
+
+    if (confirmNew) {
+        AlertDialog(
+            onDismissRequest = { confirmNew = false },
+            text = { Text(tr(lang, "app.chat.newConfirm"), color = Ink) },
+            confirmButton = {
+                Button(onClick = { confirmNew = false; vm.newSession(); vm.go(Screen.Chat) }) {
+                    Text(tr(lang, "app.chat.newConfirmOk"))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmNew = false }) { Text(tr(lang, "btn.close")) } },
+        )
+    }
+
+    if (showPerm) {
+        PermissionDialog(st, lang, onPick = { on, review -> vm.setPermissive(on, review); showPerm = false },
+            onClose = { showPerm = false })
     }
 
     if (showRewind) {
@@ -687,7 +777,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     OutlinedTextField(ghNumber, { ghNumber = it }, label = { Text(tr(lang, "app.chat.githubNumber")) }, singleLine = true)
                     OutlinedTextField(ghQuery, { ghQuery = it }, label = { Text(tr(lang, "app.chat.githubSearch")) }, singleLine = true)
                     OutlinedTextField(ghRepo, { ghRepo = it }, label = { Text(tr(lang, "app.chat.githubRepo")) }, singleLine = true)
-                    if (gh.error.isNotBlank()) Text("⚠️ ${gh.error}", color = Color(0xFFFFB4AB), fontSize = 12.sp)
+                    if (gh.error.isNotBlank()) Text("⚠️ ${gh.error}", color = Red, fontSize = 12.sp)
                     if (gh.output.isNotBlank()) Text(gh.output.take(5000), color = Ink, fontSize = 11.sp,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                 }
@@ -706,9 +796,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
 /** Avís de xarxa comprensible: sense stack traces ni IPs gegants al xat. */
 @Composable
 fun ConnectionNotice(text: String, lang: String, onRetry: () -> Unit) {
-    Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFF42252A), modifier = Modifier.fillMaxWidth()) {
+    Surface(shape = RoundedCornerShape(16.dp), color = Red.copy(alpha = 0.14f), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("!", color = Color(0xFFFFB4AB), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("!", color = Red, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Spacer(Modifier.width(8.dp))
             Text(text, color = Ink, modifier = Modifier.weight(1f), fontSize = 14.sp)
             TextButton(onClick = onRetry) { Text(tr(lang, "app.chat.retry"), color = Sea) }
@@ -759,7 +849,10 @@ fun chatRows(msgs: List<ChatMsg>, lang: String = "ca"): List<UiRow> {
     val out = mutableListOf<UiRow>()
     msgs.forEachIndexed { i, m ->
         val k = dayKey(m.at)
-        if (k >= 0 && (i == 0 || dayKey(msgs[i - 1].at) != k)) {
+        // Els missatges recuperats del servidor no porten hora (-1): no
+        // posem cap divisor entre ells i el primer missatge amb hora.
+        val prev = if (i > 0) dayKey(msgs[i - 1].at) else -2
+        if (k >= 0 && (i == 0 || (prev >= 0 && prev != k))) {
             val label = dayLabel(m.at, lang = lang)
             if (label.isNotEmpty()) out += UiRow.Day(label)
         }
@@ -842,7 +935,7 @@ fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
                     fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = { clipboard.setText(AnnotatedString(code)) }) {
-                    Icon(Icons.Default.ContentCopy, tr(uiLang, "app.code.copy"), tint = Muted, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Rounded.ContentCopy, tr(uiLang, "app.code.copy"), tint = Muted, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(tr(uiLang, "app.code.copy"), color = Muted, fontSize = 12.sp)
                 }
@@ -933,7 +1026,39 @@ fun ActivityCluster(steps: List<ChatMsg>, lang: String = "ca") {
 
 /** Estat buit amb marca marina (sessions, objectius). */
 @Composable
-fun EmptyBoard(mark: String, title: String, subtitle: String) {
+fun EmptyBoard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 56.dp, horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        TintedIcon(icon, Sea)
+        Spacer(Modifier.height(16.dp))
+        Text(title, color = Ink, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        if (subtitle.isNotBlank()) {
+            Text(subtitle, color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+/** Píndola del projecte (carpeta · branca): que sempre quedi clar on treballa. */
+@Composable
+fun ProjectPill(project: String, branch: String) {
+    Surface(shape = RoundedCornerShape(50), color = CodeDark) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.FolderOpen, null, tint = Sand, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(project, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            if (branch.isNotBlank()) {
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Rounded.ForkRight, null, tint = Muted, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(2.dp))
+                Text(branch, color = Muted, fontSize = 12.5.sp, maxLines = 1)
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyBoardText(mark: String, title: String, subtitle: String) {
     Column(Modifier.fillMaxWidth().padding(vertical = 48.dp, horizontal = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally) {
         Text(mark, fontSize = 44.sp, color = Sea.copy(alpha = 0.7f))
@@ -1070,26 +1195,12 @@ fun ModelMenu(
             Text(provMsg.take(80), Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
                 fontSize = 11.sp, color = Sea)
         }
-        Text(tr(lang, "app.menu.mode"), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
-        listOf(
-            "code" to tr(lang, "app.chat.modeCode"),
-            "inspect" to tr(lang, "app.chat.modeInspect"),
-            "chat" to tr(lang, "app.chat.modeChat"),
-            "goal" to tr(lang, "app.chat.modeGoal"),
-        ).forEach { (v, l) ->
-            DropdownMenuItem(
-                text = { Text(l) },
-                trailingIcon = { if (st.mode == v) Icon(Icons.Default.Check, null, tint = Sea) },
-                onClick = { vm.setMode(v); onClose() },
-            )
-        }
         Text(tr(lang, "app.menu.role"), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
         st.roles.forEach { r ->
             DropdownMenuItem(
                 text = { Text(roleLabel(r, lang)) },
-                trailingIcon = { if (st.currentRole == r) Icon(Icons.Default.Check, null, tint = Sea) },
+                trailingIcon = { if (st.currentRole == r) Icon(Icons.Rounded.Check, null, tint = Sea) },
                 onClick = { vm.setRole(r); onClose() },
             )
         }
@@ -1102,7 +1213,7 @@ fun ModelMenu(
         ids.take(15).forEach { id ->
             DropdownMenuItem(
                 text = { Text(id.take(34), fontSize = 14.sp) },
-                trailingIcon = { if (id == st.model) Icon(Icons.Default.Check, null, tint = Sea) },
+                trailingIcon = { if (id == st.model) Icon(Icons.Rounded.Check, null, tint = Sea) },
                 onClick = { vm.setModel("${st.provider}/$id"); onClose() },
             )
         }
@@ -1152,11 +1263,18 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val active by vm.active.collectAsState()
     var filtre by remember { mutableStateOf("") }
     var confirma by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(Unit) {
-        vm.loadSessions()
-        while (true) {
-            delay(3000)
-            vm.loadActive()
+    val loading by vm.loading.collectAsState()
+    val carregant = "sessions" in loading
+    LaunchedEffect(Unit) { vm.loadSessions() }
+    // L'agent actiu es refresca cada 3 s, però només amb la pantalla visible
+    // (RESUMED): en segon pla abans seguia trucant el servidor sense fi.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                delay(3000)
+                vm.loadActive()
+            }
         }
     }
     // Cerca per títol o nom + seccions per data (com convs.js de la web).
@@ -1172,24 +1290,29 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "nav.convs"), color = Ink) }, actions = {
+            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "nav.convs"), color = Ink) }, actions = {
+                RefreshAction(lang, carregant) { vm.loadSessions() }
                 IconButton(onClick = { vm.newSession(); vm.go(Screen.Chat) }) {
-                    Icon(Icons.Default.Add, tr(lang, "nav.new"), tint = Ink)
+                    Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Ink)
                 }
             }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
+            snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp)) {
+            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadSessions() }.padding(12.dp)) {
                 active?.let { run ->
                     item { ActiveAgentCard(run, lang) }
                     item { Spacer(Modifier.height(12.dp)) }
                 }
                 if (sessions.isNotEmpty()) item {
                     OutlinedTextField(filtre, { filtre = it }, Modifier.fillMaxWidth(),
-                        label = { Text(tr(lang, "app.sess.search")) }, singleLine = true)
+                        placeholder = { Text(tr(lang, "app.sess.search")) }, singleLine = true,
+                        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
+                        shape = RoundedCornerShape(50))
                     Spacer(Modifier.height(4.dp))
                 }
-                if (llista.isEmpty() && active == null) item {
-                    EmptyBoard("≋", tr(lang, "app.sess.empty"), "")
+                if (sessions.isEmpty() && active == null && carregant) item { LoadingBoard(lang) }
+                else if (llista.isEmpty() && active == null) item {
+                    EmptyBoard(Icons.Rounded.Forum, tr(lang, "app.sess.empty"), "")
                 }
                 grups.forEach { (g, items) ->
                     item {
@@ -1206,7 +1329,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 Surface(shape = RoundedCornerShape(12.dp), color = CodeDark,
                                     modifier = Modifier.size(40.dp)) {
                                     Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Default.ChatBubbleOutline, null, tint = Sea,
+                                        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = Sea,
                                             modifier = Modifier.size(20.dp))
                                     }
                                 }
@@ -1220,7 +1343,7 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         style = MaterialTheme.typography.bodySmall, color = Muted)
                                 }
                                 IconButton(onClick = { confirma = s.name }) {
-                                    Icon(Icons.Default.Delete, tr(lang, "app.sess.delete"), tint = Muted)
+                                    Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Muted)
                                 }
                             }
                         }
@@ -1280,8 +1403,13 @@ fun ActiveAgentCard(run: ActiveAgent, lang: String = "ca") {
                 if (run.events.isEmpty()) {
                     Text(tr(lang, "app.sess.noActivity"), color = Muted, fontSize = 13.sp)
                 } else {
-                    run.events.forEach { event ->
-                        Text(renderMd(event.text.take(500), CodeDark), color = if (event.kind == "error") MaterialTheme.colorScheme.error else Ink,
+                    val codeBg = CodeDark
+                    // Es repinta cada 3 s amb el sondeig: el markdown, només si canvia.
+                    val rendered = remember(run.events, codeBg) {
+                        run.events.map { renderMd(it.text.take(500), codeBg) }
+                    }
+                    run.events.forEachIndexed { i, event ->
+                        Text(rendered[i], color = if (event.kind == "error") MaterialTheme.colorScheme.error else Ink,
                             fontSize = 13.sp, modifier = Modifier.padding(vertical = 3.dp))
                     }
                 }
@@ -1299,16 +1427,21 @@ fun GoalsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val lang by vm.idioma.collectAsState()
     val goals by vm.goals.collectAsState()
     val haptic = LocalHapticFeedback.current
+    val loading by vm.loading.collectAsState()
+    val carregant = "goals" in loading
     LaunchedEffect(Unit) { vm.loadGoals() }
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.goals.title"), color = Ink) },
+            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.goals.title"), color = Ink) },
+                actions = { RefreshAction(lang, carregant) { vm.loadGoals() } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
+            snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp)) {
-                if (goals.isEmpty()) item {
-                    EmptyBoard("≋", tr(lang, "app.goals.empty"), tr(lang, "app.goals.emptyHelp"))
+            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadGoals() }.padding(12.dp)) {
+                if (goals.isEmpty() && carregant) item { LoadingBoard(lang) }
+                else if (goals.isEmpty()) item {
+                    EmptyBoard(Icons.Rounded.Flag, tr(lang, "app.goals.empty"), tr(lang, "app.goals.emptyHelp"))
                 }
                 items(goals) { g ->
                     Card(
@@ -1319,7 +1452,7 @@ fun GoalsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Surface(shape = RoundedCornerShape(12.dp), color = CodeDark,
                                 modifier = Modifier.size(38.dp)) {
                                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Icon(Icons.Default.TaskAlt, null, tint = Sea,
+                                    Icon(Icons.Rounded.TaskAlt, null, tint = Sea,
                                         modifier = Modifier.size(20.dp))
                                 }
                             }
@@ -1356,20 +1489,20 @@ fun GoalsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     vm.runGoal(g.id)
                                 }) {
-                                    Icon(Icons.Default.PlayArrow, tr(lang, "app.goals.run"))
+                                    Icon(Icons.Rounded.PlayArrow, null)
                                     Spacer(Modifier.width(4.dp))
                                     Text(tr(lang, "app.goals.run"))
                                 }
                                 var menu by remember { mutableStateOf(false) }
                                 Box {
                                     IconButton(onClick = { menu = true }) {
-                                        Icon(Icons.Default.MoreVert, tr(lang, "app.goals.more"), tint = Muted)
+                                        Icon(Icons.Rounded.MoreVert, tr(lang, "app.goals.more"), tint = Muted)
                                     }
                                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                         DropdownMenuItem(
                                             text = { Text(tr(lang, "btn.delete"), color = Ink) },
                                             leadingIcon = {
-                                                Icon(Icons.Default.Delete, null, tint = Muted)
+                                                Icon(Icons.Rounded.Delete, null, tint = Muted)
                                             },
                                             onClick = { menu = false; vm.deleteGoal(g.id) },
                                         )
@@ -1422,7 +1555,7 @@ fun UpdateAvis(vm: GregalViewModel) {
     if (!obert || info == null) return
     AlertDialog(
         onDismissRequest = { vm.descartaAvis() },
-        title = { Text("≋ Gregal ${info.latestVersion}", color = Ink) },
+        title = { Text("Gregal ${info.latestVersion}", color = Ink) },
         text = {
             Column {
                 Text(tr(lang, "app.update.currentVersion", info.currentVersion), color = Muted, fontSize = 13.sp)

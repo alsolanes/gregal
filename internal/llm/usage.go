@@ -49,6 +49,7 @@ func (m *UsageMeter) Add(u Usage) {
 	}
 	m.total.TotalTokens += tot
 	m.total.PromptTokensDetails.CachedTokens += u.PromptTokensDetails.CachedTokens
+	m.total.CacheWriteTokens += u.CacheWriteTokens
 }
 
 // Total torna la suma, quantes crides hi ha hagut i quantes han declarat

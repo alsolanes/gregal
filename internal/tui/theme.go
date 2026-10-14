@@ -12,9 +12,9 @@ import (
 	"gregal/internal/tema"
 )
 
-// Identitat Gregal — "la marea": mar de nit, escuma i arena.
+// Identitat Gregal — "el gregal": pissarra freda i el blau del vent.
 // Fosc per defecte, pensat per terminals dark. Cap color genèric:
-// el primari és escuma (#9FE0C4) i l'accent és arena (#DEC899).
+// el primari és escuma (#8193FF, el blau del gregal) i l'avís és arena (#F5C451).
 
 // Els colors no porten valor a la declaració: amb un valor aquí es
 // congelen en carregar-se el paquet i el tema ja no es pot canviar. Els
@@ -406,8 +406,21 @@ func humanArgs(name, args string, max int) string {
 		if d := str("dir"); d != "" {
 			out += " a " + d
 		}
-	case "web_search":
+	case "symbols":
 		out = "«" + str("query") + "»"
+		if k := str("kind"); k != "" {
+			out += " " + k
+		}
+		if f := str("file"); f != "" {
+			out += " (" + f + ")"
+		}
+	case "web_search", "knowledge_search":
+		out = "«" + str("query") + "»"
+	case "knowledge_note":
+		out = str("title")
+		if out == "" {
+			out = str("collection")
+		}
 	case "web_fetch":
 		out = str("url")
 		if f := str("find"); f != "" {
@@ -462,7 +475,7 @@ func resultatPlegat(name string, failed bool) bool {
 		return false
 	}
 	switch name {
-	case "read", "grep", "glob", "web_search", "web_fetch", "browser", "office_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "browser", "office_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate", "knowledge_search":
 		return true
 	}
 	return false
@@ -481,15 +494,15 @@ func resumResultat(name, output string) string {
 			return "1 línia"
 		}
 		return fmt.Sprintf("%d línies", max(n-1, 0))
-	case "grep", "glob":
-		if strings.HasPrefix(out, "sense ") || strings.HasPrefix(out, "cap ") {
+	case "grep", "glob", "symbols":
+		if strings.HasPrefix(out, "sense ") || strings.HasPrefix(out, "no symbols") || strings.HasPrefix(out, "cap ") {
 			return out
 		}
 		if n == 1 {
 			return "1 resultat"
 		}
 		return fmt.Sprintf("%d resultats", n)
-	case "web_search":
+	case "web_search", "knowledge_search":
 		return firstLineOf(out)
 	case "web_fetch", "browser":
 		// La primera línia és el títol; la segona, url i paraules.
@@ -708,9 +721,11 @@ var ajudaGrups = []struct {
 		{"help.parallel.cmd", "help.parallel"},
 		{"help.rewind.cmd", "help.rewind"},
 		{"help.checkpoints.cmd", "help.checkpoints"},
+		{"help.worktree.cmd", "help.worktree"},
 		{"help.diff.cmd", "help.diff"},
 		{"help.graf.cmd", "help.graf"},
 		{"help.compact.cmd", "help.compact"},
+		{"help.export.cmd", "help.export"},
 		{"help.verify.cmd", "help.verify"},
 	}},
 	{"ajuda.xat", [][2]string{

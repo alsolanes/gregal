@@ -20,7 +20,7 @@
   },
   "build": {
     "directories": {
-      "output": "../dist"
+      "output": "./dist"
     },
     "appId": "xyz.solanes.gregal",
     "productName": "Gregal",
@@ -33,7 +33,13 @@
     "files": [
       "main.js",
       "server-manager.js",
+      "browser-bridge.js",
       "preload.js",
+      "mascot-window.js",
+      "mascot-preload.js",
+      "mascot.html",
+      "mascot-view.js",
+      "mascot.css",
       "window-state.js",
       "preferences.js",
       "navigation.js",

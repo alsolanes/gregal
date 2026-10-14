@@ -5,12 +5,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * Ancoratge de la paleta: els hex han de ser els mateixos que `:root` de la
- * web (`internal/web/index.html`) i `internal/tui/theme.go`. Aquest fitxer és
- * el que hauria d'haver impedit que l'Android es quedés amb la paleta vella
- * (#101418/#0C2229) mentre la web i el TUI ja anaven amb la identitat.
+ * Ancoratge de la paleta: els hex han de ser els mateixos que
+ * `internal/tema/tema.go` (`Fosc()`/`Clar()`), d'on surten la web i el TUI, i
+ * que `docs/identitat.md` ("Paleta" i "Paleta clara").
  *
- * Si un d'aquests tests peta, el que està malament és el Kotlin: la web mana.
+ * Si un d'aquests tests peta, el que està malament és el Kotlin: tema.go mana.
  */
 class PaletaTest {
 
@@ -21,51 +20,56 @@ class PaletaTest {
 
     @Test
     fun foscTeElsHexosDeLaWeb() {
-        assertEquals("#0F172A", hex(DarkPal.deepTop))     // --bg
-        assertEquals("#0B1220", hex(DarkPal.deepBottom))  // --sidebar/--panel
-        assertEquals("#111C2F", hex(DarkPal.surface))     // --surface
-        assertEquals("#1A2740", hex(DarkPal.surfaceHi))   // --surface-hi
-        assertEquals("#F1F5F9", hex(DarkPal.ink))         // --ink
-        assertEquals("#E2E8F0", hex(DarkPal.text))        // --text
-        assertEquals("#94A3B8", hex(DarkPal.muted))       // --muted
-        assertEquals("#475569", hex(DarkPal.faint))       // --faint
-        assertEquals("#7FD4C1", hex(DarkPal.sea))         // --accent (escuma)
-        assertEquals("#A3E4D6", hex(DarkPal.seaClara))    // --accent-hi
-        assertEquals("#F2E7C9", hex(DarkPal.sand))        // --amber (arena)
-        assertEquals("#6CB4C7", hex(DarkPal.onada))       // --onada
-        assertEquals("#4ADE80", hex(DarkPal.green))       // --green
-        assertEquals("#F97066", hex(DarkPal.red))         // --red
-        assertEquals("#C4B5FD", hex(DarkPal.lila))        // --lila
-        assertEquals("#2A2440", hex(DarkPal.lilaFons))    // --lila-fons
-        assertEquals("#1E3A44", hex(DarkPal.algua))       // docs: línies/algua
+        assertEquals("#13151B", hex(DarkPal.deepTop))     // --bg (fons)
+        assertEquals("#0E1015", hex(DarkPal.deepBottom))  // --sidebar/--panel (abisme)
+        assertEquals("#1A1D25", hex(DarkPal.surface))     // --surface (night)
+        assertEquals("#242833", hex(DarkPal.surfaceHi))   // --surface-hi
+        assertEquals("#F3F5FA", hex(DarkPal.ink))         // --ink
+        assertEquals("#E4E7EF", hex(DarkPal.text))        // --text
+        assertEquals("#A3AABA", hex(DarkPal.muted))       // --muted (slate)
+        assertEquals("#8890A2", hex(DarkPal.faint))       // --faint
+        assertEquals("#8193FF", hex(DarkPal.sea))         // --accent (escuma)
+        assertEquals("#A3B0FF", hex(DarkPal.seaClara))    // --accent-hi
+        assertEquals("#F5C451", hex(DarkPal.sand))        // --amber (arena)
+        assertEquals("#5CE1D6", hex(DarkPal.onada))       // --onada
+        assertEquals("#6EDB95", hex(DarkPal.green))       // --green
+        assertEquals("#FF8A85", hex(DarkPal.red))         // --red
+        assertEquals("#C4A8FF", hex(DarkPal.lila))        // --lila
+        assertEquals("#2A2245", hex(DarkPal.lilaFons))    // --lila-fons
+        assertEquals("#2C3240", hex(DarkPal.algua))       // docs: línies/algua
+        assertEquals("#13151B", hex(DarkPal.onSea))       // text sobre l'accent: fons
     }
 
     @Test
     fun clarTeElsHexosDeLaWeb() {
-        assertEquals("#F5F7F8", hex(LightPal.deepTop))    // --bg
-        assertEquals("#EBEFF1", hex(LightPal.deepBottom)) // --sidebar/--panel
+        assertEquals("#F6F7FA", hex(LightPal.deepTop))    // --bg
+        assertEquals("#EEF0F5", hex(LightPal.deepBottom)) // --sidebar/--panel
         assertEquals("#FFFFFF", hex(LightPal.surface))    // --surface
-        assertEquals("#E2E9EC", hex(LightPal.surfaceHi))  // --surface-hi
-        assertEquals("#0B1220", hex(LightPal.ink))        // --ink
-        assertEquals("#1E293B", hex(LightPal.text))       // --text
-        assertEquals("#52616B", hex(LightPal.muted))      // --muted
-        assertEquals("#7C8B95", hex(LightPal.faint))      // --faint
-        assertEquals("#0E8C74", hex(LightPal.sea))        // --accent
-        assertEquals("#0A6F5C", hex(LightPal.seaClara))   // --accent-hi
-        assertEquals("#9A6B12", hex(LightPal.sand))       // --amber
-        assertEquals("#0E7490", hex(LightPal.onada))      // --onada
-        assertEquals("#15803D", hex(LightPal.green))      // --green
-        assertEquals("#DC2626", hex(LightPal.red))        // --red
-        assertEquals("#6D28D9", hex(LightPal.lila))       // --lila
-        assertEquals("#EDE9FE", hex(LightPal.lilaFons))   // --lila-fons
+        assertEquals("#E5E8F0", hex(LightPal.surfaceHi))  // --surface-hi
+        assertEquals("#0E1220", hex(LightPal.ink))        // --ink
+        assertEquals("#1F2433", hex(LightPal.text))       // --text
+        assertEquals("#545D71", hex(LightPal.muted))      // --muted
+        assertEquals("#5F6879", hex(LightPal.faint))      // --faint
+        assertEquals("#4F5BE8", hex(LightPal.sea))        // --accent
+        assertEquals("#3D47C7", hex(LightPal.seaClara))   // --accent-hi
+        assertEquals("#9A5B00", hex(LightPal.sand))       // --amber
+        assertEquals("#0A776F", hex(LightPal.onada))      // --onada
+        assertEquals("#187A41", hex(LightPal.green))      // --green
+        assertEquals("#C92A35", hex(LightPal.red))        // --red
+        assertEquals("#7444D6", hex(LightPal.lila))       // --lila
+        assertEquals("#EEE8FD", hex(LightPal.lilaFons))   // --lila-fons
+        assertEquals("#D5DAE4", hex(LightPal.algua))      // docs: alguaClar
+        assertEquals("#FFFFFF", hex(LightPal.onSea))      // text sobre l'accent: blanc
     }
 
     @Test
-    fun liniesSonEscumaAlDeuIPerCent() {
-        // --line: rgba(127,212,193,.10) / .20 al fosc
+    fun liniesSonGrisFredINoAccent() {
+        // --line: rgba(201,209,230,.10) / .20 al fosc
+        assertEquals("#C9D1E6", hex(DarkPal.line))
         assertEquals(0x1A, alfa(DarkPal.line))
         assertEquals(0x33, alfa(DarkPal.lineHi))
-        // --line: rgba(14,140,116,.14) / .28 al clar
+        // --line: rgba(30,42,74,.14) / .28 al clar
+        assertEquals("#1E2A4A", hex(LightPal.line))
         assertEquals(0x24, alfa(LightPal.line))
         assertEquals(0x47, alfa(LightPal.lineHi))
     }

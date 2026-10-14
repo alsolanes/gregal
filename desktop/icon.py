@@ -1,4 +1,5 @@
 """Genera Ventet des de la mateixa geometria vectorial per al web i l'app."""
+# Colors: escuma (#8193FF) per al cos i fons (#13151B) per als ulls, de docs/identitat.md.
 from pathlib import Path
 from PIL import Image, ImageDraw
 import math
@@ -18,9 +19,9 @@ def generate():
     path = f'M{START[0]} {START[1]}' + ''.join('C' + ' '.join(f'{x} {y}' for x, y in curve) for curve in CURVES) + 'Z'
     eyes = [(675, 530, 29, 53), (792, 518, 27, 51)]
     svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Ventet, mascota de Gregal">\n'
-    svg += f'<path fill="#7FD4C1" d="{path}"/>\n'
+    svg += f'<path fill="#8193FF" d="{path}"/>\n'
     for x, y, rx, ry in eyes:
-        svg += f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" transform="rotate(18 {x} {y})" fill="#0B1220"/>\n'
+        svg += f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" transform="rotate(18 {x} {y})" fill="#13151B"/>\n'
     (ROOT.parent / 'internal/web/app/ventet.svg').write_text(svg + '</svg>\n', encoding='utf-8')
     image = Image.new('RGBA', (1024, 1024))
     draw = ImageDraw.Draw(image)
@@ -32,7 +33,7 @@ def generate():
             u = 1 - t
             points.append(tuple(u**3*p0[k] + 3*u*u*t*p1[k] + 3*u*t*t*p2[k] + t**3*p3[k] for k in (0, 1)))
         p0 = p3
-    draw.polygon(points, fill='#7FD4C1')
+    draw.polygon(points, fill='#8193FF')
     angle = math.radians(18)
     for x, y, rx, ry in eyes:
         polygon = []
@@ -40,7 +41,7 @@ def generate():
             t = i * math.tau / 80
             dx, dy = rx * math.cos(t), ry * math.sin(t)
             polygon.append((x + dx*math.cos(angle)-dy*math.sin(angle), y + dx*math.sin(angle)+dy*math.cos(angle)))
-        draw.polygon(polygon, fill='#0B1220')
+        draw.polygon(polygon, fill='#13151B')
     for pixels in (512, 256, 128):
         image.resize((pixels, pixels), Image.Resampling.LANCZOS).save(ROOT / f'build/icon{pixels}.png')
     for target in ('internal/web/app/icon.png', 'internal/web/favicon.png'):

@@ -17,9 +17,12 @@ func TestModelContextBudgets(t *testing.T) {
 		timeout    int
 		want       time.Duration
 	}{
-		{"interactive", ModeChat, 0, 4 * time.Minute},
-		{"autonomous", ModeAutonomous, 0, 20 * time.Minute},
-		{"explicit", ModeAutonomous, 30, 30 * time.Second},
+		// The context deadline is the hard ceiling; the configured limit
+		// (4 min / 20 min / model_timeout_s) is an inactivity limit tested
+		// in model_idle_test.go.
+		{"interactive", ModeChat, 0, 30 * time.Minute},
+		{"autonomous", ModeAutonomous, 0, 60 * time.Minute},
+		{"explicit", ModeChat, 30, 30 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			turn := NouTorn(OpcionsTorn{Mode: tc.mode, Cfg: &config.Config{Agent: config.AgentCfg{ModelTimeoutS: tc.timeout}}})

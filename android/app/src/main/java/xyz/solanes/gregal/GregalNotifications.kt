@@ -9,6 +9,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.pm.ServiceInfo
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.IBinder
@@ -24,9 +25,41 @@ object AppVisibility {
  */
 class GregalWorkService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        GregalNotifications.ensureChannel(this)
-        startForeground(GregalNotifications.WORK_ID, GregalNotifications.working(this))
+        // startForeground ha d'anar primer i sempre: cada startForegroundService
+        // ho exigeix, fins i tot si mentrestant ja ens han demanat parar.
+        try {
+            GregalNotifications.ensureChannel(this)
+            val n = GregalNotifications.working(this)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(GregalNotifications.WORK_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(GregalNotifications.WORK_ID, n)
+            }
+        } catch (_: Exception) {
+            GregalNotifications.serviceGone()
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        if (!GregalNotifications.serviceForegrounded()) {
+            // La feina ja havia acabat abans que arribéssim: parem ara, ja
+            // complert el contracte de startForeground.
+            stopWork()
+        }
         return START_NOT_STICKY
+    }
+
+    private fun stopWork() {
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Exception) {
+        }
+        GregalNotifications.serviceGone()
+        stopSelf()
+    }
+
+    override fun onDestroy() {
+        GregalNotifications.serviceGone()
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -50,15 +83,64 @@ object GregalNotifications {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    // Estat del servei de feina. Les crides arriben del fil principal, però el
+    // servei també hi escriu: tot plegat sota el mateix lock.
+    private val lock = Any()
+    private var wantRunning = false
+    private var state = 0           // 0 aturat, 1 arrencant, 2 en primer pla
+    private var startingSince = 0L
+
+    /**
+     * Cridat des de onStartCommand: marca el servei en primer pla i torna si
+     * encara cal (si no, el servei para tot sol just després de startForeground).
+     */
+    internal fun serviceForegrounded(): Boolean = synchronized(lock) {
+        state = 2
+        wantRunning
+    }
+
+    internal fun serviceGone() = synchronized(lock) { state = 0 }
+
     fun workStarted(context: Context) {
-        ensureChannel(context)
-        val intent = Intent(context, GregalWorkService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
-        else context.startService(intent)
+        val start = synchronized(lock) {
+            wantRunning = true
+            // Si una arrencada s'ha perdut (el sistema no ha cridat mai
+            // onStartCommand), no ens quedem encallats en «arrencant».
+            val stale = state == 1 && System.currentTimeMillis() - startingSince > 15_000
+            if (state == 0 || stale) {
+                state = 1
+                startingSince = System.currentTimeMillis()
+                true
+            } else false
+        }
+        if (!start) return
+        try {
+            ensureChannel(context)
+            val intent = Intent(context, GregalWorkService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
+            else context.startService(intent)
+        } catch (_: Exception) {
+            // API 31+: ForegroundServiceStartNotAllowedException si l'app és en
+            // segon pla. Sense servei la resposta segueix arribant; només perdem
+            // la prioritat del procés. Mai una caiguda.
+            synchronized(lock) { state = 0 }
+        }
     }
 
     fun workFinished(context: Context, hasAnswer: Boolean, userText: String = "", answer: String = "") {
-        context.stopService(Intent(context, GregalWorkService::class.java))
+        val stopNow = synchronized(lock) {
+            wantRunning = false
+            // Si encara arrenca, no fem stopService (abans de startForeground
+            // seria ForegroundServiceDidNotStartInTimeException): el servei ho
+            // veurà a onStartCommand i pararà ell mateix.
+            if (state == 2) { state = 0; true } else false
+        }
+        if (stopNow) {
+            try {
+                context.stopService(Intent(context, GregalWorkService::class.java))
+            } catch (_: Exception) {
+            }
+        }
         if (!hasAnswer || AppVisibility.foreground || !canNotify(context)) return
         ensureChannel(context)
         val b = Notification.Builder(context, CHANNEL_ID)
@@ -84,7 +166,11 @@ object GregalNotifications {
             b.setLargeIcon(Icon.createWithResource(context, R.mipmap.ic_gregal))
         } catch (_: Exception) {
         }
-        context.getSystemService(NotificationManager::class.java).notify(READY_ID, b.build())
+        try {
+            context.getSystemService(NotificationManager::class.java).notify(READY_ID, b.build())
+        } catch (_: Exception) {
+            // Permís revocat entre la comprovació i l'avís: no és motiu per caure.
+        }
     }
 
     internal fun working(context: Context): Notification = Notification.Builder(context, CHANNEL_ID)

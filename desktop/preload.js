@@ -38,6 +38,29 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
         ipcRenderer.on('gregal:update', listener);
         return () => ipcRenderer.removeListener('gregal:update', listener);
     },
+    // Navegador de l'agent (browser-bridge.js): el procés principal demana
+    // mostrar el panell ('show') i diu qui mana ('active'/'released'); la
+    // pàgina torna l'id del webview quan és a punt.
+    onAgentBrowser: cb => {
+        const listener = (_e, state) => cb(String(state));
+        ipcRenderer.on('gregal:agent-browser', listener);
+        return () => ipcRenderer.removeListener('gregal:agent-browser', listener);
+    },
+    agentBrowserReady: id => ipcRenderer.send('gregal:agent-browser-ready', Number(id)),
+    // Mascota flotant (mascot-window.js): la pàgina n'envia l'ànim i una
+    // etiqueta traduïda; el procés principal valida i la reenvia.
+    mascotWindow: true,
+    mascotState: (mood, label) => ipcRenderer.send('gregal:mascot-state', String(mood), String(label || '').slice(0, 200)),
+    // La mascota s'ha amagat des d'ella mateixa (o una altra preferència ha
+    // canviat al procés principal): la pàgina actualitza el seu mirall.
+    onPreferenceChanged: cb => {
+        const listener = (_e, key, value) => cb(String(key), value == null ? null : String(value));
+        ipcRenderer.on('gregal:preference-changed', listener);
+        return () => ipcRenderer.removeListener('gregal:preference-changed', listener);
+    },
+    // Obre la carpeta del projecte de la sessió a l'explorador del sistema.
+    // Només s'envia l'id de sessió: la ruta la resol el procés principal.
+    openWorkspaceFolder: session => ipcRenderer.invoke('gregal:open-workspace', String(session || 'default').slice(0, 64)),
     // Dreceres del menú que la pàgina ha d'atendre.
     onCommand: cb => { ipcRenderer.removeAllListeners("gregal:command"); ipcRenderer.on("gregal:command", (_e, name) => cb(name)); },
 });

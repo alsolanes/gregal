@@ -38,7 +38,9 @@ const (
 )
 
 // Parse extreu un objectiu del bloc ```goal de la resposta de l'agent.
-// Torna ok=false si no hi ha bloc o si és buit.
+// Torna ok=false si no hi ha bloc o si és buit. El títol surt de la clau
+// `task` (la del prompt actual) o `tasca` (objectius escrits abans que el
+// prompt passés a l'anglès).
 func Parse(reply, cwd string) (Goal, bool) {
 	cos, ok := blocGoal(reply)
 	if !ok {
@@ -50,7 +52,7 @@ func Parse(reply, cwd string) (Goal, bool) {
 		if !trobat {
 			continue
 		}
-		if strings.EqualFold(strings.TrimSpace(k), "tasca") {
+		if clau := strings.TrimSpace(k); strings.EqualFold(clau, "task") || strings.EqualFold(clau, "tasca") {
 			titol = strings.TrimSpace(v)
 			break
 		}
@@ -220,33 +222,35 @@ func escriure(dir string, llista []Goal) error {
 	return os.WriteFile(Path(dir), b, 0o600)
 }
 
-// Prompt és el system prompt afegit en mode objectiu.
+// Prompt és el system prompt afegit en mode objectiu. Les claus del bloc
+// són en anglès (task, context, criteria, steps, risks); Parse accepta
+// també les antigues en català.
 func Prompt() string {
-	return "\nMode objectiu: NO EXECUTIS RES. Ajuda a concretar què vol fer l'usuari abans de treballar-hi.\n" +
-		"1. Si la petició és ambigua o falta informació (abast, criteri d'èxit, què NO tocar), pregunta amb l'eina question (2-4 opcions curtes + text lliure): surt seleccionable i pots continuar en el mateix torn. PROHIBIT l'interrogatori en text pla (llistes numerades): una pregunta per torn amb l'eina. No inventis res.\n" +
-		"2. Pots llegir i explorar el projecte (read, grep, glob) per preguntar amb coneixement de causa; no escriguis ni modifiquis cap fitxer.\n" +
-		"3. Quan tinguis prou context, respon amb un bloc exactament així:\n" +
+	return "\nGOAL MODE: DO NOT EXECUTE ANYTHING. Help the user pin down what they want before any work starts.\n" +
+		"1. If the request is ambiguous or information is missing (scope, success criteria, what must NOT be touched), ask with the question tool (2-4 short options + free text): it is shown as a selectable choice and you can continue in the same turn. No plain-text interrogations (numbered lists of questions): one question per turn, with the tool. Do not invent anything.\n" +
+		"2. You may read and explore the project (read, grep, glob) to ask informed questions; do not write or modify any file.\n" +
+		"3. When you have enough context, reply with a block exactly like this:\n" +
 		"```goal\n" +
-		"tasca: <una frase>\n" +
-		"context: <per què i amb què>\n" +
-		"criteris:\n- <com se sabrà que està bé>\n" +
-		"passos:\n- <passos previstos>\n" +
-		"riscos:\n- <què pot fallar>\n" +
+		"task: <one sentence>\n" +
+		"context: <why, and with what>\n" +
+		"criteria:\n- <how we will know it is done right>\n" +
+		"steps:\n- <planned steps>\n" +
+		"risks:\n- <what could go wrong>\n" +
 		"```\n" +
-		"4. Després del bloc, pregunta si el vols executar i recorda que pot editar-se.\n" +
-		"Acaba cada resposta o bé amb una pregunta (eina question) o bé amb el bloc ```goal: mai amb text pla que no demani ni tanqui res."
+		"4. After the block, ask whether to execute it and mention that it can be edited.\n" +
+		"End every reply either with a question (question tool) or with the ```goal block, never with plain text that neither asks nor closes anything."
 }
 
 // Task converteix un objectiu en la tasca que s'envia a l'agent en executar-lo.
 func Task(g Goal) string {
 	var b strings.Builder
-	b.WriteString("Executa aquest objectiu complet:\n\n")
+	b.WriteString("Carry out this goal completely:\n\n")
 	b.WriteString(g.Body)
-	b.WriteString("\n\nProjecte: " + g.Project)
+	b.WriteString("\n\nProject: " + g.Project)
 	if g.CWD != "" {
 		b.WriteString(" (" + g.CWD + ")")
 	}
-	b.WriteString("\nFes els canvis necessaris, verifica'ls i resumeix què has fet i com ho has comprovat.")
+	b.WriteString("\nMake the necessary changes, verify them, and summarize what you did and how you checked it.")
 	return b.String()
 }
 

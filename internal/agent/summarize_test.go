@@ -35,7 +35,7 @@ func TestSummarizeJerarquicNoDescartaElMig(t *testing.T) {
 		bodies = append(bodies, body)
 		mu.Unlock()
 		resp := "PART"
-		if strings.Contains(body, "Resums parcials") {
+		if strings.Contains(body, "Partial summaries") {
 			resp = "FINAL"
 		}
 		fmt.Fprintf(w, `{"choices":[{"message":{"content":%q}}]}`, resp)
@@ -58,7 +58,7 @@ func TestSummarizeJerarquicNoDescartaElMig(t *testing.T) {
 		convo = append(convo, llm.Message{Role: role, Content: c})
 	}
 
-	out, err := Summarize(context.Background(), llm.New(), llm.Target{BaseURL: srv.URL, Model: "m"}, nil, convo)
+	out, err := Summarize(context.Background(), llm.New(), llm.Target{BaseURL: srv.URL, Model: "m"}, nil, convo, "en")
 	if err != nil {
 		t.Fatal(err)
 	}

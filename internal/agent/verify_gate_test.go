@@ -86,7 +86,7 @@ func TestVerifyEnvTeGo(t *testing.T) {
 
 func TestBuildTascaReparacioConteTot(t *testing.T) {
 	tasca := buildTascaReparacio("fes X", "go test ./...", 1, "FAIL: tot malament", "deia que anava bé")
-	for _, peça := range []string{"fes X", "go test ./...", "1", "FAIL: tot malament", "deia que anava bé", "No afirmis"} {
+	for _, peça := range []string{"fes X", "go test ./...", "1", "FAIL: tot malament", "deia que anava bé", "Do not claim it works", "all rounds"} {
 		if !strings.Contains(tasca, peça) {
 			t.Fatalf("a la tasca hi falta %q", peça)
 		}

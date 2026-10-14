@@ -11,7 +11,7 @@ import { office } from './office.js';
 import { convs } from './convs.js';
 import { prefs } from './prefs.js';
 import { attach } from './attach.js';
-import { aplica as aplicaIdioma, t as T, defineixPerDefecte } from './i18n.js';
+import { aplica as aplicaIdioma, t as T, defineixPerDefecte, idioma } from './i18n.js';
 import { flows } from './flows.js';
 import { workshop } from './workshop.js';
 
@@ -32,6 +32,7 @@ export const sessions = {
   current: 'default',
   _error: '',
   _lastList: [],
+  _lastOkAt: 0,
   _drafts: null,
   _draftKey: 'gregal_draft_sessions',
   drafts() {
@@ -70,16 +71,21 @@ export const sessions = {
     const save = () => this.saveDraft();
     window.addEventListener('pagehide', save);
     window.addEventListener('beforeunload', save);
+    // El primer refresh() de la pàgina surt abans que això i demana la
+    // sessió 'default'; si la desada és una altra, la resposta es descarta
+    // i la capçalera es quedava sense projecte ni carpeta. La demanem ara.
+    if (this.current !== 'default') { try { G()?.refresh?.()?.catch?.(() => {}); } catch (e) {} }
     await this.render();
   },
   async list() {
     try {
       const list = (await j('/api/sessions/live')).sessions || [];
       this._lastList = list;
+      this._lastOkAt = Date.now();
       this._error = '';
       return list;
     } catch (e) {
-      this._error = 'No s’han pogut carregar les sessions: ' + String(e.message || e);
+      this._error = T('sessions.loadFailed') + String(e.message || e);
       return this._lastList;
     }
   },
@@ -95,17 +101,21 @@ export const sessions = {
     const pending = window.gregalPendingInteractions;
     // El projecte hi ha de ser: la pestanya principal en duu el nom, i sense
     // ell canviar de carpeta no la repintava (deia l'antic).
-    const firma = list.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (pending?.has(s.id) ? 1 : 0) + ':' + (s.title || '') + ':' + (s.project || '')).join('|') + '#' + this.current + '#' + this._error;
+    const firma = list.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (pending?.has(s.id) ? 1 : 0) + ':' + (s.title || '') + ':' + (s.project || '') + ':' + (s.worktree || '')).join('|') + '#' + this.current + '#' + this._error;
     if (firma === this._firma) return;
     this._firma = firma;
     bar.innerHTML = '';
     list.forEach(s => {
       const tab = document.createElement('button');
       tab.className = 'session-tab' + (s.id === this.current ? ' active' : '') + (s.busy ? ' busy' : '') + (pending?.has(s.id) ? ' needs-input' : '');
-      tab.title = s.cwd + (pending?.has(s.id) ? ' · cal respondre' : s.busy ? ' · treballant' : '');
-      const name = s.title || (s.id === 'default' ? s.project || 'principal' : s.id);
-      tab.innerHTML = '<span class="dot"></span><span class="nm">' + esc(name) + '</span>' +
-        (s.id === 'default' || s.busy ? '' : '<span class="x" title="Tanca">×</span>');
+      const name = s.title || (s.id === 'default' ? s.project || T('sessions.main') : s.id);
+      // El tooltip diu on treballa: nom, ruta sencera i, si n'és, el worktree.
+      tab.title = name + '\n' + (s.cwd || '') + (s.worktree ? '\n' + T('sessions.worktreeBadge') + s.worktree : '') +
+        (pending?.has(s.id) ? T('sessions.needsInput') : s.busy ? T('sessions.working') : '');
+      // Sessió dins d'un git worktree aïllat: la pestanya ho diu.
+      const wt = s.worktree ? '<span class="wt-badge" title="' + esc(T('sessions.worktreeBadge') + s.worktree) + '">⎇ ' + esc(s.worktree) + '</span>' : '';
+      tab.innerHTML = '<span class="dot"></span><span class="nm">' + esc(name) + '</span>' + wt +
+        (s.id === 'default' || s.busy ? '' : '<span class="x" title="' + esc(T('btn.close')) + '">×</span>');
       tab.onclick = e => {
         if (e.target.classList.contains('x')) { this.close(s.id); return; }
         this.switchTo(s.id);
@@ -123,9 +133,29 @@ export const sessions = {
     const plus = document.createElement('button');
     plus.className = 'session-tab new';
     plus.textContent = '＋';
-    plus.title = 'Sessió nova (Ctrl+T): una altra conversa, en paral·lel';
+    plus.title = T('sessions.newTitle');
     plus.onclick = () => this.open();
     bar.appendChild(plus);
+    const iso = document.createElement('button');
+    iso.className = 'session-tab new worktree';
+    iso.textContent = '⎇＋';
+    iso.title = T('sessions.newWorktree');
+    iso.setAttribute('aria-label', T('sessions.newWorktree'));
+    iso.onclick = () => this.openWorktree();
+    bar.appendChild(iso);
+  },
+  // Sessió aïllada: worktree nou (branca gregal/<nom>) i una pestanya que hi
+  // treballa. El repo principal no es toca fins a «Porta al repo principal».
+  async openWorktree() {
+    const suggested = 's-' + new Date().toISOString().slice(5, 16).replace(/[-T:]/g, '');
+    const name = prompt(T('sessions.worktreeName'), suggested);
+    if (name == null) return;
+    try {
+      const r = await j('/api/worktrees', { method: 'POST', body: JSON.stringify({ name: name.trim() }) });
+      if (r.session && r.session.id) await this.switchTo(r.session.id);
+    } catch (e) {
+      this.setError(T('sessions.worktreeFailed') + String(e.message || e));
+    }
   },
   async open(cwd) {
     const r = await j('/api/sessions/open', { method: 'POST', body: JSON.stringify({ cwd: cwd || '' }) });
@@ -154,7 +184,7 @@ export const sessions = {
       if (m.role === 'user') G().add('u', '', G().md(m.content));
       else if (m.role === 'assistant' && (m.content || '').trim()) G().add('a', '', G().md(m.content));
     });
-    G().sys('Sessió · ' + id + (trans.length ? ' · ' + trans.length + ' missatges' : ''));
+    G().sys(T('sessions.opened') + id + (trans.length ? ' · ' + trans.length + ' ' + T('sessions.messages') : ''));
     // La barra de pestanyes i els panells, després i sense esperar-los: el
     // que volies era canviar de conversa, no mirar el diff.
     this.render();
@@ -167,8 +197,8 @@ export const sessions = {
     try {
       await j('/api/sessions/close', { method: 'POST', body: JSON.stringify({ id }) });
     } catch (e) {
-      this.setError('No s’ha pogut tancar la sessió: ' + String(e.message || e));
-      G().sys('No s’ha pogut tancar la sessió ' + id + ': ' + String(e.message || e));
+      this.setError(T('sessions.closeFailed') + String(e.message || e));
+      G().sys(T('sessions.closeFailedWithID') + id + ': ' + String(e.message || e));
       return;
     }
     if (this.current === id) {
@@ -195,9 +225,9 @@ async function nouProjecte() {
       // de reiniciar el desktop, i la conversa conserva el seu context.
       await sessions.open(dir);
       G().setView('agent');
-      G().sys('Projecte creat · ' + dir);
+      G().sys(T('sessions.projectCreated') + dir);
     }
-    catch (e) { G().sys('No s’ha pogut crear el projecte: ' + e.message); }
+    catch (e) { G().sys(T('sessions.projectCreateFailed') + e.message); }
     return;
   }
   await workspaces.pick({ create: true });
@@ -213,7 +243,7 @@ export const changes = {
     try {
       this.data = await j('/api/diff');
     } catch (e) {
-      box.innerHTML = '<div class="activity-empty">No s\'ha pogut llegir el diff: ' + esc(e.message) + '</div>';
+      box.innerHTML = '<div class="activity-empty">' + esc(T('changes.loadFailed')) + esc(e.message) + '</div>';
       return;
     }
     this.render();
@@ -227,11 +257,11 @@ export const changes = {
     if (!Array.isArray(d.files)) d.files = [];
     if (sum) {
       sum.textContent = d.files.length
-        ? d.files.length + ' fitxer(s) · +' + d.added + ' −' + d.removed + (d.branch ? ' · ' + d.branch : '')
-        : 'Sense canvis al working tree.';
+        ? d.files.length + ' ' + T('changes.fileCount') + ' · +' + d.added + ' −' + d.removed + (d.branch ? ' · ' + d.branch : '')
+        : T('changes.noChanges');
     }
     if (!d.files.length) {
-      box.innerHTML = '<div class="activity-empty">Res per revisar. Quan l\'agent toqui fitxers, els canvis apareixeran aquí.</div>';
+      box.innerHTML = '<div class="activity-empty">' + esc(T('changes.empty')) + '</div>';
       return;
     }
     box.innerHTML = '';
@@ -241,31 +271,31 @@ export const changes = {
     const wrap = document.createElement('details');
     wrap.className = 'diff-file';
     wrap.open = f.hunks && f.hunks.length <= 3;
-    const badge = { added: 'nou', deleted: 'esborrat', renamed: 'mogut' }[f.status] || 'modificat';
+    const badge = esc(T({ added: 'changes.added', deleted: 'changes.deleted', renamed: 'changes.renamed' }[f.status] || 'changes.modified'));
     const head = document.createElement('summary');
     head.innerHTML = '<span class="dfname">' + esc(f.path) + '</span>' +
       '<span class="dfbadge ' + esc(f.status) + '">' + badge + '</span>' +
       '<span class="dfstat"><b class="add">+' + f.added + '</b> <b class="del">−' + f.removed + '</b></span>';
     const kill = document.createElement('button');
     kill.className = 'ghost tiny';
-    kill.textContent = 'Descarta el fitxer';
+    kill.textContent = T('changes.discardFile');
     kill.onclick = async e => {
       e.preventDefault(); e.stopPropagation();
-      if (!confirm('Descartar tots els canvis de ' + f.path + '?')) return;
+      if (!confirm(T('changes.confirmDiscard') + f.path + '?')) return;
       await this.discard({ path: f.path });
     };
     head.appendChild(kill);
     const open = document.createElement('button');
     open.className = 'ghost tiny diff-open';
-    open.textContent = 'Obre';
-    open.title = 'Obre el fitxer a la subfinestra lateral';
+    open.textContent = T('changes.openFile');
+    open.title = T('changes.openFileTitle');
     open.onclick = e => { e.preventDefault(); e.stopPropagation(); files.view(f.path); };
     head.appendChild(open);
     wrap.appendChild(head);
     if (f.binary) {
       const b = document.createElement('div');
       b.className = 'activity-empty';
-      b.textContent = 'Fitxer binari: no es pot mostrar el diff.';
+      b.textContent = T('changes.binary');
       wrap.appendChild(b);
       return wrap;
     }
@@ -280,13 +310,13 @@ export const changes = {
     bar.innerHTML = '<code>' + esc(h.header) + '</code>';
     const drop = document.createElement('button');
     drop.className = 'ghost tiny';
-    drop.textContent = 'Descarta';
-    drop.title = 'Torna aquest bloc a com estava';
+    drop.textContent = T('changes.discardHunk');
+    drop.title = T('changes.restoreHunkTitle');
     drop.onclick = () => this.discard({ path: f.path, hunk: i });
     const keep = document.createElement('button');
     keep.className = 'ghost tiny ok';
-    keep.textContent = 'Accepta';
-    keep.title = 'Deixa el canvi tal com està i marca el bloc com a revisat';
+    keep.textContent = T('changes.acceptHunk');
+    keep.title = T('changes.acceptHunkTitle');
     keep.onclick = () => { box.classList.add('accepted'); keep.disabled = true; };
     bar.append(keep, drop);
     box.appendChild(bar);
@@ -303,11 +333,12 @@ export const changes = {
   },
   async discard(payload) {
     try {
-      const r = await j('/api/diff/discard', { method: 'POST', body: JSON.stringify(payload) });
-      G().activityItem('canvis', 'Descartat', r.summary || payload.path, 'ok');
+      await j('/api/diff/discard', { method: 'POST', body: JSON.stringify(payload) });
+      // El resum del servidor és en català; el detall es compon aquí.
+      G().activityItem('canvis', T('changes.discarded'), payload.path + (payload.hunk != null ? ' (hunk ' + (payload.hunk + 1) + ')' : ''), 'ok');
     } catch (e) {
-      G().activityItem('canvis', 'No s\'ha pogut descartar', String(e.message || e), 'bad');
-      alert('No s\'ha pogut descartar: ' + e.message);
+      G().activityItem('canvis', T('changes.discardFailed').replace(/:\s*$/, ''), String(e.message || e), 'bad');
+      alert(T('changes.discardFailed') + e.message);
     }
     await this.load();
     files.load();
@@ -369,14 +400,14 @@ export const files = {
     if (office && office.openTextFile) { await office.openTextFile(path); return; }
     const pane = $('fileView');
     if (!pane) return;
-    pane.innerHTML = '<div class="activity-empty">carregant ' + esc(path) + '…</div>';
+    pane.innerHTML = '<div class="activity-empty">' + esc(T('files.loading')) + esc(path) + '…</div>';
     try {
       const r = await j('/api/file?path=' + encodeURIComponent(path));
-      if (r.binary) { pane.innerHTML = '<div class="activity-empty">Fitxer binari (' + r.size + " bytes).</div>"; return; }
-      if (r.too_big) { pane.innerHTML = '<div class="activity-empty">Massa gran per mostrar (' + r.size + ' bytes).</div>'; return; }
+      if (r.binary) { pane.innerHTML = '<div class="activity-empty">' + esc(T('files.binary')) + r.size + esc(T('files.bytes')) + '</div>'; return; }
+      if (r.too_big) { pane.innerHTML = '<div class="activity-empty">' + esc(T('files.tooLarge')) + r.size + esc(T('files.bytes')) + '</div>'; return; }
       const lines = String(r.content).split('\n');
       pane.innerHTML = '<div class="fv-head"><b>' + esc(path) + '</b>' +
-        '<button class="ghost tiny" id="fvMention">Posa-ho al missatge</button></div>' +
+        '<button class="ghost tiny" id="fvMention">' + esc(T('files.addToMessage')) + '</button></div>' +
         '<div class="fv-body">' + lines.map((l, i) =>
           '<div class="fl"><span class="ln">' + (i + 1) + '</span><span class="tx">' + esc(l) + '</span></div>').join('') + '</div>';
       $('fvMention').onclick = () => G().mention(path);
@@ -420,7 +451,7 @@ export const browser = {
     };
     const navigate = () => {
       const v = normalitza(url.value);
-      if (!v) { G().sys('Adreça web no vàlida.'); return; }
+      if (!v) { G().sys(T('browser.invalidAddress')); return; }
       url.value = v;
       $('browserEmpty').hidden = true;
       if (desktop) view.loadURL(v); else frame.src = v;
@@ -432,12 +463,12 @@ export const browser = {
     $('browserReload').onclick = () => desktop ? view.reload() : (frame.src = frame.src);
     $('browserAttach').onclick = () => {
       const v = normalitza(url.value); if (!v) return;
-      G().setComposer('Revisa aquesta pàgina web: ' + v);
+      G().setComposer(T('browser.reviewPrompt') + v);
     };
     if (desktop) {
       view.addEventListener('did-navigate', e => { url.value = e.url; });
       view.addEventListener('did-navigate-in-page', e => { url.value = e.url; });
-      view.addEventListener('did-fail-load', e => { if (e.errorCode !== -3) G().sys('Navegador: ' + e.errorDescription); });
+      view.addEventListener('did-fail-load', e => { if (e.errorCode !== -3) G().sys(T('nav.browser') + ': ' + e.errorDescription); });
     }
   },
 };
@@ -455,23 +486,23 @@ export const term = {
     } catch (e) { this.procs = []; }
     box.innerHTML = '';
     if (!this.procs.length) {
-      box.innerHTML = '<div class="activity-empty">Cap procés. Engega\'n un a dalt: els llargs (servidor, build, tests) viuen aquí i no bloquegen el torn.</div>';
+      box.innerHTML = '<div class="activity-empty">' + esc(T('terminal.empty')) + '</div>';
       return;
     }
     this.procs.forEach(p => {
       const row = document.createElement('div');
       row.className = 'proc-row' + (p.running ? ' running' : '');
       row.innerHTML = '<span class="dot"></span><code>' + esc(p.cmd) + '</code>' +
-        '<span class="pstate">' + (p.running ? 'en marxa' : 'codi ' + (p.exit == null ? '?' : p.exit)) + '</span>';
+        '<span class="pstate">' + esc(p.running ? T('terminal.running') : T('terminal.exitCode') + (p.exit == null ? '?' : p.exit)) + '</span>';
       const open = document.createElement('button');
       open.className = 'ghost tiny';
-      open.textContent = 'Sortida';
+      open.textContent = T('terminal.output');
       open.onclick = () => this.watch(p.id);
       row.appendChild(open);
       if (p.running) {
         const kill = document.createElement('button');
         kill.className = 'ghost tiny';
-        kill.textContent = 'Atura';
+        kill.textContent = T('terminal.stop');
         kill.onclick = async () => { await j('/api/exec/kill', { method: 'POST', body: JSON.stringify({ id: p.id }) }); this.load(); };
         row.appendChild(kill);
       }
@@ -482,11 +513,11 @@ export const term = {
     if (!cmd.trim()) return;
     try {
       const r = await j('/api/exec', { method: 'POST', body: JSON.stringify({ cmd }) });
-      G().activityItem('procés', cmd.slice(0, 60), 'engegat', 'warn');
+      G().activityItem('procés', cmd.slice(0, 60), T('terminal.started'), 'warn');
       await this.load();
       this.watch(r.id);
     } catch (e) {
-      $('procOut').textContent = 'No s\'ha pogut engegar: ' + e.message;
+      $('procOut').textContent = T('terminal.startFailed') + e.message;
     }
   },
   timer: null,
@@ -516,23 +547,63 @@ export const term = {
 
 // ---------------------------------------------------------------- composer
 
+// Cada ordre té el nom català de sempre i un d'anglès: a la llista surt el
+// de l'idioma de la UI, però s'accepten tots dos. La descripció és una clau
+// perquè la llista es construeix en carregar el mòdul, abans de l'idioma.
 const COMMANDS = [
-  { cmd: '/mode', desc: T('keys.modeCycle'), run: () => G().setMode(G().nextMode()) },
-  { cmd: '/model', desc: 'tria proveïdor i model', run: () => models.open() },
-  { cmd: '/canvis', desc: 'revisa el diff del workspace', run: () => G().setView('canvis') },
-  { cmd: '/fitxers', desc: 'arbre del projecte', run: () => G().setView('fitxers') },
-  { cmd: '/terminal', desc: 'processos en segon pla', run: () => G().setView('terminal') },
-  { cmd: '/nova', desc: 'sessió nova en paral·lel', run: () => sessions.open() },
-  { cmd: '/atura', desc: 'atura el torn en curs', run: () => j('/api/agent/cancel', { method: 'POST', body: '{}' }) },
-  { cmd: '/desfes', desc: 'desfés els canvis de la sessió', run: () => $('rewindBtn').click() },
-  { cmd: '/compara', desc: 'pregunta a diversos models alhora', run: () => $('parallelBtn').click() },
-  { cmd: '/pla', desc: 'explora i proposa un pla', run: () => $('planBtn').click() },
-  { cmd: '/objectius', desc: 'objectius del projecte', run: () => G().setView('objectius') },
-  { cmd: '/activitat', desc: 'registre d\'aquesta sessió', run: () => G().setView('activitat') },
-  { cmd: '/permissiu', desc: 'l\'agent tira sense demanar', run: () => $('permBtn').click() },
+  { cmd: '/mode', en: '/mode', desc: 'keys.modeCycle', run: () => G().setMode(G().nextMode()) },
+  { cmd: '/model', en: '/model', desc: 'cmd.model', run: () => models.open() },
+  { cmd: '/canvis', en: '/changes', desc: 'cmd.changes', run: () => G().setView('canvis') },
+  { cmd: '/fitxers', en: '/files', desc: 'cmd.files', run: () => G().setView('fitxers') },
+  { cmd: '/coneixement', en: '/knowledge', desc: 'cmd.knowledge', run: () => G().setView('knowledge') },
+  { cmd: '/terminal', en: '/terminal', desc: 'cmd.terminal', run: () => G().setView('terminal') },
+  { cmd: '/nova', en: '/new', desc: 'cmd.newSession', run: () => sessions.open() },
+  { cmd: '/atura', en: '/stop', desc: 'cmd.stop', run: () => j('/api/agent/cancel', { method: 'POST', body: '{}' }) },
+  { cmd: '/desfes', en: '/undo', desc: 'cmd.undo', run: () => $('rewindBtn').click() },
+  { cmd: '/compara', en: '/compare', desc: 'cmd.compare', run: () => $('parallelBtn').click() },
+  { cmd: '/pla', en: '/plan', desc: 'cmd.plan', run: () => $('planBtn').click() },
+  // /debug <tasca>: mode depuració per a aquest torn (app/caps.js l'intercepta en enviar).
+  { cmd: '/debug', en: '/debug', desc: 'cmd.debug', run: () => { const i = $('in'); i.value = '/debug ' + i.value.trimStart(); } },
+  { cmd: '/objectiu', en: '/goal', desc: 'cmd.goalMode', run: () => G().setMode('goal') },
+  { cmd: '/autonom', en: '/auto', desc: 'cmd.autoMode', run: () => G().setMode('autonomous') },
+  { cmd: '/objectius', en: '/goals', desc: 'cmd.goals', run: () => G().setView('objectius') },
+  { cmd: '/activitat', en: '/activity', desc: 'cmd.activity', run: () => G().setView('activitat') },
+  { cmd: '/permissiu', en: '/permissive', desc: 'cmd.permissive', run: () => $('permBtn').click() },
 ];
 
+// mcpPrompts: els prompts MCP per a la paleta (memòria de 30 s).
+let mcpPromptCache = { at: 0, list: [] };
+async function mcpPrompts() {
+  if (Date.now() - mcpPromptCache.at < 30000) return mcpPromptCache.list;
+  try {
+    const d = await j('/api/mcp');
+    mcpPromptCache = { at: Date.now(), list: Array.isArray(d.prompts) ? d.prompts : [] };
+  } catch (e) { mcpPromptCache = { at: Date.now(), list: [] }; }
+  return mcpPromptCache.list;
+}
+
+// runMcpPrompt demana els arguments, expandeix el prompt al servidor i el
+// deixa al compositor.
+async function runMcpPrompt(p) {
+  const args = {};
+  for (const a of (p.arguments || [])) {
+    const name = String(a).replace(/\*$/, '');
+    const v = window.prompt(p.command + ' · ' + name + (String(a).endsWith('*') ? ' *' : ''), '');
+    if (v === null) return;
+    if (v.trim()) args[name] = v.trim();
+  }
+  try {
+    const d = await j('/api/mcp/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: p.command, args }) });
+
+    const input = $('in');
+    input.value = d.text || '';
+    input.dispatchEvent(new Event('input'));
+    input.focus();
+  } catch (e) { window.alert(e.message || String(e)); }
+}
+
 // models: selector de proveïdor i model per al rol actiu, com el /model del
+
 // TUI. /api/models llista el que cada proveïdor anuncia ara mateix i
 // /api/model valida abans de fixar l'override. Abans a la web
 // només es podia escriure el nom a mà als proveïdors.
@@ -624,16 +695,16 @@ export const models = {
     const errs = Object.entries(this.data.errors || {});
     let footHTML = '';
     if (this.data.selected_available === false) {
-      const selected = this.data.selected_override || 'el model seleccionat';
+      const selected = this.data.selected_override || T('models.selectedFallback');
       const fallback = this.data.fallback;
-      footHTML += '<div class="mp-err">El model seleccionat «' + esc(selected) + '» no està disponible.' +
-        (fallback ? ' S’utilitza «' + esc(fallback) + '» temporalment.' : ' No hi ha cap model alternatiu configurat.') +
+      footHTML += '<div class="mp-err">' + esc(T('models.selectedUnavailable')) + esc(selected) + esc(T('models.selectedUnavailableSuffix')) +
+        (fallback ? esc(T('models.usingTemporarily')) + esc(fallback) + esc(T('models.usingTemporarilySuffix')) : esc(T('models.noAlternative'))) +
         '</div>';
     }
     if (errs.length) {
       const summaryText = errs.length === 1
-        ? '1 proveïdor desconnectat (' + esc(errs[0][0]) + ')'
-        : errs.length + ' proveïdors desconnectats (' + errs.map(e => esc(e[0])).join(', ') + ')';
+        ? esc(T('models.providerOfflineOne')) + esc(errs[0][0]) + ')'
+        : errs.length + esc(T('models.providerOfflineMany')) + errs.map(e => esc(e[0])).join(', ') + ')';
       footHTML +=
         '<details class="mp-offline">' +
           '<summary class="mp-offline-sum">' +
@@ -787,7 +858,14 @@ export const composer = {
     if (!t) { this.hide(); return; }
     if (t.sign === '/') {
       this.kind = '/';
-      this.items = COMMANDS.filter(c => c.cmd.startsWith('/' + t.word)).slice(0, 8);
+      const ca = idioma() === 'ca';
+      this.items = COMMANDS.filter(c => c.cmd.startsWith('/' + t.word) || c.en.startsWith('/' + t.word)).slice(0, 8)
+        .map(c => ({ cmd: ca ? c.cmd : c.en, desc: T(c.desc), run: c.run }));
+      // Prompts dels servidors MCP (/mcp__servidor__prompt): s'expandeixen
+      // al compositor perquè la persona els revisi abans d'enviar.
+      const prompts = (await mcpPrompts()).filter(p => p.command.startsWith('/' + t.word));
+      this.items = this.items.concat(prompts.slice(0, Math.max(0, 8 - this.items.length))
+        .map(p => ({ cmd: p.command, desc: p.description || T('cmd.mcpPrompt'), run: () => runMcpPrompt(p) })));
     } else {
       this.kind = '@';
       const all = await files.paths();
@@ -821,8 +899,7 @@ export const composer = {
     if (this.kind === '/') {
       input.value = input.value.slice(0, t.start) + input.value.slice(input.selectionStart);
       this.hide();
-      const cmd = COMMANDS.find(c => c.cmd === it.cmd);
-      if (cmd) cmd.run();
+      if (it.run) it.run();
       input.focus();
       return;
     }
@@ -874,7 +951,8 @@ export function boot() {
     const compact = !side.classList.contains('compact');
     side.classList.toggle('compact', compact);
     sideCompactBtn.textContent = compact ? '›' : '‹';
-    sideCompactBtn.title = compact ? 'Amplia la barra lateral' : 'Compacta la barra lateral';
+    sideCompactBtn.dataset.i18nTitle = compact ? 'ui.sidebarExpand' : 'ui.sidebarCompact';
+    sideCompactBtn.title = T(sideCompactBtn.dataset.i18nTitle);
     sideCompactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
     try { localStorage.setItem('gregal_side_compact', compact ? '1' : '0'); } catch (e) {}
   };
@@ -892,10 +970,8 @@ export function boot() {
     convToggle.setAttribute('aria-expanded', hidden ? 'false' : 'true');
     convToggle.textContent = hidden ? '⌄' : '⌃';
   };
-  // El nom del projecte a la capçalera també obre el selector: és on
-  // mires per saber on ets, i on esperes poder canviar-ho.
-  const hdrProj = $('project');
-  if (hdrProj) { hdrProj.style.cursor = 'pointer'; hdrProj.title = (hdrProj.title || '') + ' · clic per canviar de projecte'; hdrProj.onclick = () => workspaces.pick(); }
+  // El nom del projecte a la capçalera és dins del xip de la carpeta
+  // (app/folder.js), que ja obre el selector.
   const workspaceButton = $('activeWorkspace');
   if (workspaceButton) workspaceButton.onclick = () => workspaces.pick();
   document.addEventListener('keydown', e => {
@@ -925,18 +1001,28 @@ export function boot() {
   // a boot i a done). Polling lleuger: si alguna sessió està busy, repinta.
   // Fora de línia el sondeig s'espaia (un cop cada 15 s) i, quan torna,
   // repinta tot: és api() qui marca l'estat, aquí només es respecta.
-  let ticsOffline = 0;
+  let nextSessionPoll = 0, pollingSessions = false;
   setInterval(async () => {
-    if (window.gregalOffline && (++ticsOffline % 3) !== 0) return;
+    if (document.hidden || pollingSessions || Date.now() < nextSessionPoll) return;
+    pollingSessions = true;
+    const delay = window.gregalOffline ? 15000 : G()?.viewActual() === 'workshop' ? 1500 : 5000;
+    nextSessionPoll = Date.now() + delay;
     try {
-      const hadError = !!sessions._error;
       const list = await sessions.list();
       if (G()?.viewActual() === 'workshop') await workshop.update(list);
-      if (list.some(s => s.busy) || sessions._error || hadError) await sessions.render(list);
-    } catch (e) {}
-  }, 5000);
+      await sessions.render(list);
+    } catch (e) {} finally { pollingSessions = false; }
+  }, 1000);
   const retry = document.getElementById('offlineRetry');
   if (retry) retry.onclick = () => { G().refresh(); };
+  // El que es pinta des d'aquí no porta data-i18n: en canviar d'idioma es
+  // torna a pintar el que es veu, i el selector de models es refà en obrir-lo.
+  document.addEventListener('gregal:idioma', () => {
+    if (sessions._lastList.length) { sessions._firma = null; sessions.render(sessions._lastList); }
+    if (changes.data) changes.render();
+    if (G()?.viewActual?.() === 'terminal') term.load();
+    if (models.box && models.box.hidden) { models.box.remove(); models.box = null; }
+  });
 }
 
 // ------------------------------------------------------------- workspaces
@@ -955,20 +1041,22 @@ export const workspaces = {
     ov.className = 'ws-overlay';
     ov.innerHTML =
       '<div class="ws-box" role="dialog" aria-modal="true" aria-labelledby="wsTitle">' +
-      '<h3 id="wsTitle">' + esc(options.create ? 'Nou projecte' : (t('ws.titol') || 'Projecte d’aquesta sessió')) + '<button class="x" aria-label="Tanca">×</button></h3>' +
-      '<div class="ws-sec">' + esc(t('ws.recents') || 'Recents') + '</div><div class="ws-list" id="wsRecents"><div class="ws-item"><span>' + esc(t('ws.carregant') || 'Carregant…') + '</span></div></div>' +
-      '<div class="ws-sec">' + esc(t('ws.navega') || 'Navega') + '</div>' +
-      '<div class="ws-path"><input id="wsPath" spellcheck="false" placeholder="' + esc(t('ws.ruta') || 'Ruta de la carpeta (Enter per anar-hi)') + '"/>' +
-      (window.gregalDesktop && window.gregalDesktop.chooseFolder ? '<button class="ws-btn" id="wsNatiu">' + esc(t('ws.dialeg') || 'Diàleg del sistema…') + '</button>' : '') + '</div>' +
+      '<h3 id="wsTitle">' + esc(options.title || (options.create ? (t('ws.nouProjecte') || 'New project') : (t('ws.titol') || 'Project for this session'))) + '<button class="x" aria-label="' + esc(t('btn.close') || 'Close') + '">×</button></h3>' +
+      '<div class="ws-sec">' + esc(t('ws.recents') || 'Recent') + '</div><div class="ws-list" id="wsRecents"><div class="ws-item"><span>' + esc(t('ui.loading') || 'Loading…') + '</span></div></div>' +
+      '<div class="ws-sec">' + esc(t('ws.navega') || 'Browse') + '</div>' +
+      '<div class="ws-path"><input id="wsPath" spellcheck="false" placeholder="' + esc(t('ws.ruta') || 'Folder path (Enter to go)') + '"/>' +
+      (window.gregalDesktop && window.gregalDesktop.chooseFolder ? '<button class="ws-btn" id="wsNatiu">' + esc(t('ws.dialeg') || 'System dialog…') + '</button>' : '') + '</div>' +
       '<div class="ws-crumbs" id="wsCrumbs"></div><div class="ws-dirs" id="wsDirs"></div>' +
       '<div class="ws-foot"><span class="info" id="wsInfo"></span>' +
-      '<button class="ws-btn" id="wsCancel">' + esc(t('ws.cancella') || 'Cancel·la') + '</button>' +
-      '<button class="ws-btn primari" id="wsTria">' + esc(options.create ? 'Crea projecte' : (t('ws.tria') || 'Tria aquesta carpeta')) + '</button></div></div>';
+      '<button class="ws-btn" id="wsCancel">' + esc(t('ws.cancella') || 'Cancel') + '</button>' +
+      '<button class="ws-btn primari" id="wsTria">' + esc(options.chooseLabel || (options.create ? (t('ws.creaProjecte') || 'Create project') : (t('ws.tria') || 'Choose this folder'))) + '</button></div></div>';
     document.body.appendChild(ov);
     const q = id => ov.querySelector('#' + id);
     let actual = '';
     const tanca = () => ov.remove();
-    const tria = async path => { if (await this.set(path, options)) tanca(); };
+    // onChoose: qui obre el selector només vol la carpeta (p. ex. una font
+    // de coneixement) i no canviar el projecte de la sessió.
+    const tria = async path => { if (await (options.onChoose ? options.onChoose(path) : this.set(path, options))) tanca(); };
     ov.querySelector('.x').onclick = tanca;
     q('wsCancel').onclick = tanca;
     ov.addEventListener('click', e => { if (e.target === ov) tanca(); });
@@ -986,8 +1074,8 @@ export const workspaces = {
     const rl = q('wsRecents');
     rl.innerHTML = recents.length ? recents.slice(0, 8).map(w =>
       '<div class="ws-item' + (w.path === current ? ' cur' : '') + '" data-p="' + esc(w.path) + '"><b>' + esc(w.name || w.path) + '</b><span>' + esc(w.path) + '</span>' +
-      (w.path === current ? '<span class="git">' + esc(t('ws.actual') || 'actual') + '</span>' : '') + '</div>').join('')
-      : '<div class="ws-item"><span>' + esc(t('ws.capRecent') || 'Cap projecte recent.') + '</span></div>';
+      (w.path === current ? '<span class="git">' + esc(t('ws.actual') || 'current') + '</span>' : '') + '</div>').join('')
+      : '<div class="ws-item"><span>' + esc(t('ws.capRecent') || 'No recent projects.') + '</span></div>';
     rl.querySelectorAll('.ws-item[data-p]').forEach(el => { el.onclick = () => tria(el.dataset.p); });
 
     // Navegador
@@ -1003,12 +1091,12 @@ export const workspaces = {
       if (meu !== torn) return;
       actual = d.path;
       if (!(inicial && escrit)) q('wsPath').value = d.path;
-      q('wsInfo').textContent = (d.git ? '⎇ ' : '') + d.path + (d.hidden ? ' · ' + d.hidden + ' ' + (t('ws.amagades') || 'amagades') : '');
+      q('wsInfo').textContent = (d.git ? '⎇ ' : '') + d.path + (d.hidden ? ' · ' + d.hidden + ' ' + (t('ws.amagades') || 'hidden') : '');
       q('wsInfo').title = q('wsInfo').textContent;
       const parts = [];
-      if (d.roots && d.roots.length > 1) parts.push('<button data-p="' + esc(d.roots[0]) + '" title="' + esc(d.roots.join(' · ')) + '">' + esc(t('ws.unitats') || 'Unitats') + '</button>');
+      if (d.roots && d.roots.length > 1) parts.push('<button data-p="' + esc(d.roots[0]) + '" title="' + esc(d.roots.join(' · ')) + '">' + esc(t('ws.unitats') || 'Drives') + '</button>');
       if (d.home) parts.push('<button data-p="' + esc(d.home) + '">~</button>');
-      if (d.parent) parts.push('<button data-p="' + esc(d.parent) + '">↑ ' + esc(t('ws.amunt') || 'amunt') + '</button>');
+      if (d.parent) parts.push('<button data-p="' + esc(d.parent) + '">↑ ' + esc(t('ws.amunt') || 'up') + '</button>');
       // Engrunes: cada tros de la ruta és clicable.
       const sep = d.path.includes('\\') ? '\\' : '/';
       const trossos = d.path.split(/[\\/]+/).filter(Boolean);
@@ -1025,7 +1113,7 @@ export const workspaces = {
       }
       const llista = (d.dirs || []).map(e =>
         '<button class="ws-dir" data-p="' + esc(e.path) + '" title="' + esc(e.path) + '">📁 <span>' + esc(e.name) + '</span>' + (e.git ? '<span class="git">git</span>' : '') + '</button>').join('');
-      q('wsDirs').innerHTML = llista || '<div class="ws-dir" style="color:var(--faint)">' + esc(t('ws.buida') || 'Sense subcarpetes.') + '</div>';
+      q('wsDirs').innerHTML = llista || '<div class="ws-dir" style="color:var(--faint)">' + esc(t('ws.buida') || 'No subfolders.') + '</div>';
       q('wsDirs').querySelectorAll('.ws-dir[data-p]').forEach(b => {
         b.onclick = () => navega(b.dataset.p);
         b.ondblclick = () => tria(b.dataset.p);
@@ -1060,10 +1148,10 @@ export const workspaces = {
       // Amb la conversa buida, l'avís deixava la pantalla inicial com una
       // sola línia «Projecte · …»: el canvi ja es veu a la capçalera.
       const conversa = document.getElementById('main');
-      if (!options.quiet && conversa && conversa.classList.contains('on')) G().sys('Projecte · ' + path);
+      if (!options.quiet && conversa && conversa.classList.contains('on')) G().sys(T('ui.project') + ' · ' + path);
       return true;
     } catch (e) {
-      alert('No s\'ha pogut obrir: ' + e.message);
+      alert(T('conv.open.error') + e.message);
       return false;
     }
   },

@@ -50,7 +50,7 @@ func TodosDelPla(pla string) []tools.TodoItem {
 		}
 		darrer = n
 		titol := strings.TrimSpace(strings.Trim(strings.ReplaceAll(m[2], "**", ""), "*_ "))
-		if strings.HasPrefix(strings.ToUpper(titol), "VERIFICACIÓ") || titol == "" || seen[titol] {
+		if up := strings.ToUpper(titol); strings.HasPrefix(up, "VERIFICACIÓ") || strings.HasPrefix(up, "VERIFICATION") || titol == "" || seen[titol] {
 			continue
 		}
 		seen[titol] = true
@@ -89,11 +89,11 @@ func RecordatoriTodos(items []tools.TodoItem, n int) string {
 			break
 		}
 	}
-	msg := fmt.Sprintf("\n\n[checklist %d/%d sense actualitzar des de fa %d eines", done, total, n)
+	msg := fmt.Sprintf("\n\n[checklist %d/%d not updated for %d tool calls", done, total, n)
 	if actual != "" {
-		msg += fmt.Sprintf("; pas en marxa: «%s»", truncaRunes(actual, 60))
+		msg += fmt.Sprintf("; step in progress: \"%s\"", truncaRunes(actual, 60))
 	}
-	return msg + ". Si l'has acabat, crida todowrite marcant-lo done i el següent working; si no, continua.]"
+	return msg + ". If you finished it, call todowrite marking it done and the next one working; otherwise, carry on.]"
 }
 
 func truncaRunes(s string, n int) string {

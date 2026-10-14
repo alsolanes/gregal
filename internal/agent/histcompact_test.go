@@ -38,7 +38,7 @@ func TestPruneToolOutputsNomesLesVelles(t *testing.T) {
 		if tools <= KeepRecentToolOutputs && !llarg {
 			t.Fatalf("resultat recent %d retallat", tools)
 		}
-		if tools > KeepRecentToolOutputs && (llarg || !strings.Contains(out[i].Content, "retallada")) {
+		if tools > KeepRecentToolOutputs && (llarg || !strings.Contains(out[i].Content, "truncated")) {
 			t.Fatalf("resultat vell %d no retallat: %d", tools, len(out[i].Content))
 		}
 	}
@@ -163,5 +163,22 @@ func TestPlanCallsOrdreIDoom(t *testing.T) {
 	p3 := PlanCalls(pol, ModeInspect, nil, calls[1:2])
 	if !strings.HasPrefix(p3[0].Fixed, "EINA BLOQUEJADA") {
 		t.Fatalf("inspect: %+v", p3)
+	}
+}
+
+func TestPruneDelegateNoteIsNotRecallable(t *testing.T) {
+	hist := []llm.Message{
+		{Role: "tool", Name: "delegate", Content: strings.Repeat("resum ", 2000)},
+		{Role: "tool", Name: "read", Content: strings.Repeat("codi ", 2000)},
+	}
+	pruned, n := pruneToolOutputs(hist, 0)
+	if n != 2 {
+		t.Fatalf("pruned=%d, want both old outputs", n)
+	}
+	if !strings.HasSuffix(pruned[0].Content, notaRetallFill) || strings.Contains(pruned[0].Content, "torna a cridar") {
+		t.Fatalf("delegate prune must not promise recall: %q", pruned[0].Content[len(pruned[0].Content)-120:])
+	}
+	if !strings.HasSuffix(pruned[1].Content, notaRetall) {
+		t.Fatalf("ordinary tools keep the recall note: %q", pruned[1].Content[len(pruned[1].Content)-120:])
 	}
 }

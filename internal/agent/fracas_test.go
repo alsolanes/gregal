@@ -63,11 +63,11 @@ func TestFracasGuiaAlTercer(t *testing.T) {
 		tn.RepPas("", pasBash(nom), nil)
 		evs := finsAExecuta(t, tn, []Execucio{bashFallit(nom)})
 		hist := strings.Join(histTexts(tn), "\n")
-		if i < 2 && strings.Contains(hist, "COMPROVACIÓ VERMELLA") {
+		if i < 2 && strings.Contains(hist, "REPEATED FAILING CHECK") {
 			t.Fatalf("amb %s encara no hi ha guia", nom)
 		}
 		if i == 2 {
-			if !strings.Contains(hist, "COMPROVACIÓ VERMELLA REPETIDA") {
+			if !strings.Contains(hist, "REPEATED FAILING CHECK") {
 				t.Fatal("al tercer fracàs la guia hi ha de ser a l'historial")
 			}
 			if !hiHaAvis(evs, "3 comprovacions vermelles seguides") {
@@ -100,7 +100,7 @@ func TestFracasVerdTornaAZero(t *testing.T) {
 	tn.RepPas("", pasBash("epsilon"), nil)
 	finsAExecuta(t, tn, []Execucio{bashFallit("epsilon")})
 
-	if strings.Contains(strings.Join(histTexts(tn), "\n"), "COMPROVACIÓ VERMELLA") {
+	if strings.Contains(strings.Join(histTexts(tn), "\n"), "REPEATED FAILING CHECK") {
 		t.Fatal("amb el verd al mig no hi ha d'haver guia")
 	}
 }
@@ -123,7 +123,7 @@ func TestEdicionsNoTrenquenLaRatxa(t *testing.T) {
 		tn.RepPas("", pasBash(nom), nil)
 		finsAExecuta(t, tn, []Execucio{bashFallit(nom)})
 	}
-	if !strings.Contains(strings.Join(histTexts(tn), "\n"), "COMPROVACIÓ VERMELLA") {
+	if !strings.Contains(strings.Join(histTexts(tn), "\n"), "REPEATED FAILING CHECK") {
 		t.Fatal("els vermells amb edicions al mig segueixen sent una ratxa")
 	}
 }
@@ -149,10 +149,10 @@ func TestRatxaVermellaBloquejaAmpliacio(t *testing.T) {
 	if p.Ordre != OrdreSintesi {
 		t.Fatalf("amb la suite vermella no es demana ampliació: %d", p.Ordre)
 	}
-	if !strings.Contains(histUltim(p), "pressupost") {
+	if !strings.Contains(histUltim(p), "budget") {
 		t.Fatalf("la síntesi d'una ratxa és la llarga (estat del verd i del vermell):\n%s", histUltim(p))
 	}
-	if !strings.Contains(histUltim(p), "comprovacions vermelles") {
+	if !strings.Contains(histUltim(p), "failing checks in a row") {
 		t.Fatalf("i ha de dir quantes comprovacions porten caigudes:\n%s", histUltim(p))
 	}
 }
@@ -186,7 +186,7 @@ func TestAmpliacioInteractivaTopall(t *testing.T) {
 		if p.Ordre != OrdreSintesi {
 			t.Fatalf("més enllà del topall interactiu toca síntesi, no %d", p.Ordre)
 		}
-		if !strings.Contains(histUltim(p), "pressupost") {
+		if !strings.Contains(histUltim(p), "budget") {
 			t.Fatalf("la síntesi del topall ha de ser la llarga:\n%s", histUltim(p))
 		}
 		return
@@ -236,7 +236,7 @@ func TestExploracioNoEsRatxa(t *testing.T) {
 		grep := Execucio{Call: cridaProva("g-"+nom, "bash", `{"command":"grep -rn `+nom+` internal/"}`), Sortida: "ERROR: exit: exit status 1\n"}
 		finsAExecuta(t, tn, []Execucio{grep})
 	}
-	if strings.Contains(strings.Join(histTexts(tn), "\n"), "COMPROVACIÓ VERMELLA") {
+	if strings.Contains(strings.Join(histTexts(tn), "\n"), "REPEATED FAILING CHECK") {
 		t.Fatal("un grep buit no és una comprovació vermella")
 	}
 
@@ -249,7 +249,7 @@ func TestExploracioNoEsRatxa(t *testing.T) {
 		sed := Execucio{Call: cridaProva("s-"+nom, "bash", `{"command":"sed -i 's/a/b/' `+nom+`.go"}`), Sortida: "fet"}
 		finsAExecuta(t, tn, []Execucio{sed})
 	}
-	if !strings.Contains(strings.Join(histTexts(tn), "\n"), "COMPROVACIÓ VERMELLA") {
+	if !strings.Contains(strings.Join(histTexts(tn), "\n"), "REPEATED FAILING CHECK") {
 		t.Fatal("un sed verd entre tests vermells no és un test verd")
 	}
 }
@@ -304,7 +304,7 @@ func TestRatxaLlargaForcaSintesi(t *testing.T) {
 	if p.Ordre != OrdreSintesi || !tn.Esgotat() {
 		t.Fatalf("a la novena vermella seguida, síntesi forçada: %v %v", p.Ordre, tn.Esgotat())
 	}
-	if !strings.Contains(histUltim(p), "comprovacions vermelles") {
+	if !strings.Contains(histUltim(p), "failing checks in a row") {
 		t.Fatalf("i és la síntesi llarga:\n%s", histUltim(p))
 	}
 }
@@ -333,4 +333,46 @@ func hiHaAvis(evs []Event, text string) bool {
 		}
 	}
 	return false
+}
+
+// La pregunta d'ampliació ara demana CONTINUE (en anglès); CONTINUA, la
+// d'abans, continua valent, i la paraula que mana és l'última.
+func TestParseAmpliacioAngles(t *testing.T) {
+	casos := []struct {
+		resp string
+		n    int
+		ok   bool
+	}{
+		{"CONTINUE 5", 5, true},
+		{"CONTINUE", ChunkAmpliacio, true},
+		{"The checklist is at 9/11, so CONTINUE 10.", 10, true},
+		{"I could say FINAL, but there is work left: CONTINUE 3", 3, true},
+		{"No need to CONTINUE, the task is done. FINAL", 0, false},
+		{"CONTINUA 4", 4, true},
+		{"continued work is done. FINAL", 0, false},
+	}
+	for _, c := range casos {
+		n, ok := ParseAmpliacio(c.resp)
+		if n != c.n || ok != c.ok {
+			t.Errorf("ParseAmpliacio(%q) = %d,%v; volia %d,%v", c.resp, n, ok, c.n, c.ok)
+		}
+	}
+	if !strings.Contains(PreguntaAmpliacio, "CONTINUE <n>") {
+		t.Errorf("la pregunta ha de demanar CONTINUE: %s", PreguntaAmpliacio)
+	}
+}
+
+// Les tasques en anglès també són de reparació (si no, un vermell final no
+// guiava el model a arreglar-lo), i les preguntes no.
+func TestTascaDeReparacioAngles(t *testing.T) {
+	for _, s := range []string{"Fix the failing tests", "Please add a --verbose flag", "Make the tests pass", "Implement the parser", "Repair the build"} {
+		if !TascaDeReparacio(s) {
+			t.Errorf("%q hauria de ser reparació", s)
+		}
+	}
+	for _, s := range []string{"Why does this test fail?", "Explain the router"} {
+		if TascaDeReparacio(s) {
+			t.Errorf("%q no és reparació", s)
+		}
+	}
 }

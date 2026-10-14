@@ -12,10 +12,21 @@ import (
 // TUI i el bucle del headless.
 
 // GuiaErrorServidor és el que rep el model quan la crida ha petat amb un
-// error de servidor i encara queden reintents.
+// error de servidor i encara queden reintents. tascaDe reconeix el prefix
+// (PrefixErrorServidor, i el català d'abans) per no prendre-la per la
+// consigna de l'usuari.
 func GuiaErrorServidor(err error) string {
-	return fmt.Sprintf("La crida al model ha fallat amb error del servidor (%v). Torna a intentar l'últim pas; si la crida d'eina era molt llarga, parteix-la en trossos més petits.", err)
+	return fmt.Sprintf(PrefixErrorServidor+" with a server error (%v). Retry the last step; if the tool call was very long, split it into smaller pieces.", err)
 }
+
+// PrefixErrorServidor encapçala GuiaErrorServidor.
+const PrefixErrorServidor = "The model call failed"
+
+// PreguntaSenseUI és el resultat d'una crida question on no hi ha cap
+// interfície per triar opcions (headless, Telegram, loop de proves). Abans
+// deia «continua amb el teu millor criteri» i el model, davant d'una tasca
+// impossible, feia canvis que ningú no havia demanat.
+const PreguntaSenseUI = "QUESTION NOT DELIVERED: this is a non-interactive run and nobody can answer it. Do not make changes the user did not explicitly request. If you cannot continue without this decision, stop now and put the question in your final answer; otherwise continue only with the requested work."
 
 // IndexPregunta retorna l'índex de la primera crida que és una pregunta
 // a l'usuari (-1 si no n'hi ha cap). Els models li diuen de maneres
@@ -56,7 +67,7 @@ func (t *Torn) todoLlista() []tools.TodoItem {
 
 // RecordatoriLectures va enganxat a una lectura quan el model n'ha fet
 // dues de soles en passos seguits.
-const RecordatoriLectures = "\n\n[recordatori] Si has de llegir o cercar més coses, demana-les totes en un sol pas: s'executen en paral·lel i cada pas és una espera sencera del model."
+const RecordatoriLectures = "\n\n[reminder] If you need to read or search more things, request them all in a single step: they run in parallel, and every step is a full wait for the model."
 
 // recordatoriLectures compta els passos seguits amb una sola lectura i,
 // al segon, torna el recordatori (dos cops per torn com a molt). Al banc
@@ -153,14 +164,28 @@ func (t *Torn) RepSintesi(content string, err error) []Event {
 	}
 	t.acabat = true
 	net, hiEra := SenseEinaText(strings.TrimSpace(content))
+	// La síntesi va sense tools: si el model hi escriu una crida en DSML,
+	// això no és una resposta (abans arribava tal qual a l'usuari).
+	if n, dsml := llm.SenseCridesText(net); dsml {
+		net, hiEra = n, true
+	}
 	var evs []Event
 	if hiEra {
 		evs = append(evs, nota(AvisEinaText))
+	}
+	// Només una crida i res més: un altre intent dient-li que ara no hi ha
+	// eines (finalPrompt hi afegeix sintesiSenseEines).
+	if net == "" && hiEra && !t.sintesiEinaReintent {
+		t.sintesiEinaReintent = true
+		t.acabat = false
+		t.sintesiDemanada = true
+		return evs
 	}
 	if net == "" {
 		return append(evs, notaClau("app.tornBuit", t.passos, t.Limit()))
 	}
 	t.resposta = net
 	t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: net})
+	evs = append(evs, t.avisDebugRestant()...)
 	return append(evs, Event{Tipus: EvResposta, Text: net})
 }

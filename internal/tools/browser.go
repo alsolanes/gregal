@@ -19,8 +19,15 @@ package tools
 //
 // Una sola finestra i una sola pestanya activa per procés: prou per a un
 // agent que fa una cosa darrere l'altra, i sense el pes de gestionar
-// pestanyes. La finestra és visible per defecte (l'usuari veu què passa);
-// GREGAL_BROWSER_HEADLESS=1 l'amaga.
+// pestanyes.
+//
+// On viu el navegador ho diu browser.mode (browser_mode.go): a l'app
+// d'escriptori, el panell de navegador de la mateixa app (pont CDP
+// d'Electron, browser_app.go); a la resta, Chrome sense finestra
+// (headless); amb `window`, la finestra visible de sempre (per iniciar
+// sessió a mà). GREGAL_BROWSER_HEADLESS=1 força headless. Totes les
+// accions parlen CDP per un cdpTransport: websocket al Chrome engegat o
+// HTTP al pont de l'app; les ordres són les mateixes.
 
 import (
 	"context"
@@ -38,8 +45,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"golang.org/x/net/websocket"
 )
 
 // BrowserTimeout és el màxim per acció (navegar, avaluar).
@@ -47,30 +52,23 @@ const BrowserTimeout = 30 * time.Second
 
 // Browser és la connexió viva amb el navegador (una per procés).
 type Browser struct {
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	port    int
-	ws      *websocket.Conn
-	nextID  int
-	pending map[int]chan cdpMsg
-	pageWS  string
-	dead    chan struct{}
+	mu   sync.Mutex
+	cmd  *exec.Cmd
+	port int
+	// t és el canal CDP (websocket al Chrome o pont de l'app).
+	t cdpTransport
+	// want és el mode demanat quan es va obrir (per saber si cal reobrir
+	// si canvia el config); mode és el que ha quedat de debò.
+	want, mode string
+	// note s'afegeix un sol cop a la sortida de la propera acció (p. ex.
+	// «el pont de l'app no hi és: headless»).
+	note string
 	// refs són els elements de l'última lectura ([n] → selector únic).
 	refs map[int]string
 	// launched diu si el procés l'hem engegat nosaltres (i el matarem).
 	launched bool
 	// actx: context del pas en marxa; call el consulta per tallar-se.
 	actx context.Context
-}
-
-type cdpMsg struct {
-	ID     int             `json:"id"`
-	Method string          `json:"method,omitempty"`
-	Params json.RawMessage `json:"params,omitempty"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *struct {
-		Message string `json:"message"`
-	} `json:"error,omitempty"`
 }
 
 var (
@@ -142,53 +140,115 @@ func freePort() (int, error) {
 	return l.Addr().(*net.TCPAddr).Port, nil
 }
 
-// GetBrowser torna el navegador viu, engegant-lo si cal.
+// GetBrowser torna el navegador viu, engegant-lo si cal. Si el mode
+// efectiu ha canviat (config recarregat), tanca l'anterior i n'obre un altre.
 func GetBrowser() (*Browser, error) {
 	browserMu.Lock()
 	defer browserMu.Unlock()
-	if browserInst != nil && browserInst.alive() {
+	want := EffectiveBrowserMode()
+	if browserInst != nil && browserInst.alive() && browserInst.want == want {
 		return browserInst, nil
 	}
-	b := &Browser{pending: map[int]chan cdpMsg{}, refs: map[int]string{}}
+	if browserInst != nil {
+		browserInst.closeIntern()
+		browserInst = nil
+	}
+	b, err := openBrowser(want)
+	if err != nil {
+		return nil, err
+	}
+	b.want = want
+	browserInst = b
+	return b, nil
+}
+
+// openBrowser obre el navegador del mode demanat. GREGAL_BROWSER_CDP (o
+// browserAttach als tests) mana sobre tot: és un CDP ja en marxa.
+func openBrowser(want string) (*Browser, error) {
 	attach := browserAttach
 	if attach == "" {
 		attach = strings.TrimSpace(os.Getenv("GREGAL_BROWSER_CDP"))
 	}
 	if attach != "" {
-		host, portS, err := net.SplitHostPort(attach)
-		if err != nil {
-			return nil, fmt.Errorf("browser: GREGAL_BROWSER_CDP ha de ser host:port: %v", err)
-		}
-		fmt.Sscanf(portS, "%d", &b.port)
-		_ = host
-	} else {
-		exe := BrowserExecutable()
-		if exe == "" {
-			return nil, fmt.Errorf("browser: no trobo Chrome ni Edge (defineix GREGAL_BROWSER amb la ruta de l'executable)")
-		}
-		port, err := freePort()
-		if err != nil {
-			return nil, err
-		}
-		b.port = port
-		args := []string{
-			fmt.Sprintf("--remote-debugging-port=%d", port),
-			"--user-data-dir=" + browserProfileDir(),
-			"--no-first-run", "--no-default-browser-check", "--disable-sync",
-			"--disable-background-networking", "--disable-features=Translate,MediaRouter",
-			"--window-size=1280,900", "--remote-allow-origins=*",
-		}
-		if os.Getenv("GREGAL_BROWSER_HEADLESS") == "1" {
-			args = append(args, "--headless=new")
-		}
-		args = append(args, "about:blank")
-		b.cmd = exec.Command(exe, args...)
-		b.cmd.Stdout, b.cmd.Stderr = io.Discard, io.Discard
-		if err := b.cmd.Start(); err != nil {
-			return nil, fmt.Errorf("browser: no s'ha pogut engegar %s: %v", filepath.Base(exe), err)
-		}
-		b.launched = true
+		return attachCDP(attach)
 	}
+	note := ""
+	switch want {
+	case BrowserModeApp:
+		bridge := browserAppBridge()
+		if bridge == "" {
+			note = "browser.mode is app but no desktop app browser bridge is available; using headless Chrome instead."
+			break
+		}
+		b, err := openAppBrowser(bridge)
+		if err == nil {
+			return b, nil
+		}
+		note = fmt.Sprintf("the desktop app browser is not available (%v); using headless Chrome instead.", err)
+	case BrowserModeWindow:
+		return launchChrome(false)
+	}
+	b, err := launchChrome(true)
+	if err != nil {
+		if note != "" {
+			return nil, fmt.Errorf("%v (%s)", err, note)
+		}
+		return nil, err
+	}
+	b.note = note
+	return b, nil
+}
+
+// attachCDP es connecta a un Chrome amb depuració que ja corre.
+func attachCDP(attach string) (*Browser, error) {
+	b := &Browser{refs: map[int]string{}, mode: "attach"}
+	_, portS, err := net.SplitHostPort(attach)
+	if err != nil {
+		return nil, fmt.Errorf("browser: GREGAL_BROWSER_CDP ha de ser host:port: %v", err)
+	}
+	fmt.Sscanf(portS, "%d", &b.port)
+	if err := b.esperaCDP(); err != nil {
+		return nil, err
+	}
+	if err := b.connectaPagina(); err != nil {
+		b.closeIntern()
+		return nil, err
+	}
+	return b, nil
+}
+
+// launchChrome engega el Chrome/Edge de la màquina amb el perfil del
+// gregal; headless sense finestra. És variable perquè els tests de mode
+// el substitueixin (cap test engega un navegador de debò).
+var launchChrome = func(headless bool) (*Browser, error) {
+	b := &Browser{refs: map[int]string{}, mode: BrowserModeWindow}
+	exe := BrowserExecutable()
+	if exe == "" {
+		return nil, fmt.Errorf("browser: no trobo Chrome ni Edge (defineix GREGAL_BROWSER amb la ruta de l'executable)")
+	}
+	port, err := freePort()
+	if err != nil {
+		return nil, err
+	}
+	b.port = port
+	args := []string{
+		fmt.Sprintf("--remote-debugging-port=%d", port),
+		"--user-data-dir=" + browserProfileDir(),
+		"--no-first-run", "--no-default-browser-check", "--disable-sync",
+		"--disable-background-networking", "--disable-features=Translate,MediaRouter",
+		"--window-size=1280,900", "--remote-allow-origins=*",
+	}
+	if headless {
+		args = append(args, "--headless=new")
+		b.mode = BrowserModeHeadless
+	}
+	args = append(args, "about:blank")
+	b.cmd = exec.Command(exe, args...)
+	b.cmd.Stdout, b.cmd.Stderr = io.Discard, io.Discard
+	if err := b.cmd.Start(); err != nil {
+		return nil, fmt.Errorf("browser: no s'ha pogut engegar %s: %v", filepath.Base(exe), err)
+	}
+	b.launched = true
 	if err := b.esperaCDP(); err != nil {
 		b.closeIntern()
 		return nil, err
@@ -197,21 +257,15 @@ func GetBrowser() (*Browser, error) {
 		b.closeIntern()
 		return nil, err
 	}
-	browserInst = b
 	return b, nil
 }
 
 func (b *Browser) alive() bool {
-	if b == nil || b.ws == nil {
-		return false
-	}
-	select {
-	case <-b.dead:
-		return false
-	default:
-		return true
-	}
+	return b != nil && b.t != nil && b.t.Alive()
 }
+
+// Mode és on corre el navegador: app, headless, window o attach.
+func (b *Browser) Mode() string { return b.mode }
 
 func (b *Browser) httpBase() string { return fmt.Sprintf("http://127.0.0.1:%d", b.port) }
 
@@ -269,14 +323,11 @@ func (b *Browser) connectaPagina() error {
 	if ws == "" {
 		return fmt.Errorf("browser: cap pestanya amb depuració")
 	}
-	conn, err := websocket.Dial(ws, "", b.httpBase())
+	t, err := dialWSTransport(ws, b.httpBase())
 	if err != nil {
-		return fmt.Errorf("browser: websocket: %v", err)
+		return err
 	}
-	b.ws = conn
-	b.pageWS = ws
-	b.dead = make(chan struct{})
-	go b.llegeix()
+	b.t = t
 	if _, err := b.call("Page.enable", nil); err != nil {
 		return err
 	}
@@ -284,62 +335,18 @@ func (b *Browser) connectaPagina() error {
 	return nil
 }
 
-// llegeix reparteix les respostes per id; els esdeveniments s'ignoren.
-func (b *Browser) llegeix() {
-	defer close(b.dead)
-	for {
-		var raw []byte
-		if err := websocket.Message.Receive(b.ws, &raw); err != nil {
-			b.mu.Lock()
-			for id, ch := range b.pending {
-				close(ch)
-				delete(b.pending, id)
-			}
-			b.mu.Unlock()
-			return
-		}
-		var m cdpMsg
-		if json.Unmarshal(raw, &m) != nil || m.ID == 0 {
-			continue
-		}
-		b.mu.Lock()
-		ch, ok := b.pending[m.ID]
-		if ok {
-			delete(b.pending, m.ID)
-		}
-		b.mu.Unlock()
-		if ok {
-			ch <- m
-		}
-	}
-}
-
 // call envia una ordre CDP i n'espera el resultat. El temps d'espera és el
 // mínim entre BrowserTimeout i el deadline del context (cancel·lació amb
 // /stop o topall del pas): una ordre que no arriba a resposta mai ha de
 // deixar el pas viu més enllà del qui l'ha cridat.
 func (b *Browser) callCtx(ctx context.Context, method string, params any) (json.RawMessage, error) {
-	b.mu.Lock()
-	b.nextID++
-	id := b.nextID
-	ch := make(chan cdpMsg, 1)
-	b.pending[id] = ch
-	b.mu.Unlock()
-	req := map[string]any{"id": id, "method": method}
-	if params != nil {
-		req["params"] = params
-	}
-	raw, _ := json.Marshal(req)
-	if err := websocket.Message.Send(b.ws, string(raw)); err != nil {
-		b.mu.Lock()
-		delete(b.pending, id)
-		b.mu.Unlock()
-		return nil, fmt.Errorf("browser: envia %s: %v", method, err)
-	}
 	espera := BrowserTimeout
 	b.mu.Lock()
-	actx := b.actx
+	actx, t := b.actx, b.t
 	b.mu.Unlock()
+	if t == nil {
+		return nil, fmt.Errorf("browser: connexió tancada")
+	}
 	if actx != nil {
 		ctx = actx
 	}
@@ -348,31 +355,16 @@ func (b *Browser) callCtx(ctx context.Context, method string, params any) (json.
 			espera = fins
 		}
 	}
-	timer := time.NewTimer(espera)
-	defer timer.Stop()
-	select {
-	case m, ok := <-ch:
-		b.mu.Lock()
-		delete(b.pending, id)
-		b.mu.Unlock()
-		if !ok {
-			return nil, fmt.Errorf("browser: connexió tancada")
+	cctx, cancel := context.WithTimeout(ctx, espera)
+	defer cancel()
+	res, err := t.Call(cctx, method, params)
+	if err != nil && cctx.Err() != nil {
+		if ctx.Err() != nil {
+			return nil, fmt.Errorf("browser: %s aturat: %v", method, ctx.Err())
 		}
-		if m.Error != nil {
-			return nil, fmt.Errorf("browser: %s: %s", method, m.Error.Message)
-		}
-		return m.Result, nil
-	case <-timer.C:
-		b.mu.Lock()
-		delete(b.pending, id)
-		b.mu.Unlock()
 		return nil, fmt.Errorf("browser: %s sense resposta en %s", method, espera.Round(time.Second))
-	case <-ctx.Done():
-		b.mu.Lock()
-		delete(b.pending, id)
-		b.mu.Unlock()
-		return nil, fmt.Errorf("browser: %s aturat: %v", method, ctx.Err())
 	}
+	return res, err
 }
 
 // call és callCtx amb el context de fons (els usos interns del navegador).
@@ -442,8 +434,8 @@ func (b *Browser) Close() {
 // deadlock (Lock dues vegades al mateix mutex) i qualsevol fallada
 // d'arrencada del navegador penjava el pas per sempre.
 func (b *Browser) closeIntern() {
-	if b.ws != nil {
-		b.ws.Close()
+	if b.t != nil {
+		b.t.Close()
 	}
 	if b.launched && b.cmd != nil && b.cmd.Process != nil {
 		_ = b.cmd.Process.Kill()
@@ -833,6 +825,26 @@ func BrowserAction(ctx context.Context, action string, args map[string]any) (str
 		b.actx = nil
 		b.mu.Unlock()
 	}()
+	out, imgs, err := browserDo(b, action, str, num, boolean)
+	if err == nil {
+		if n := b.takeNote(); n != "" {
+			out = "Note: " + n + "\n\n" + out
+		}
+	}
+	return out, imgs, err
+}
+
+// takeNote torna la nota pendent (un sol cop).
+func (b *Browser) takeNote() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	n := b.note
+	b.note = ""
+	return n
+}
+
+// browserDo executa una acció sobre el navegador ja obert.
+func browserDo(b *Browser, action string, str func(string) string, num func(string) int, boolean func(string) bool) (string, []string, error) {
 	switch action {
 	case "open", "goto", "navigate":
 		if err := b.Navigate(str("url")); err != nil {

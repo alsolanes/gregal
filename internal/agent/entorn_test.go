@@ -22,7 +22,7 @@ func TestFetsEntornAvisaQuanLEinaNoEsAlPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := descriuEina(einaTrobada{Nom: "einafalsa", Ruta: exe})
-	if !strings.Contains(got, "NO és al PATH") || !strings.Contains(got, filepath.ToSlash(exe)) {
+	if !strings.Contains(got, "NOT on PATH") || !strings.Contains(got, filepath.ToSlash(exe)) {
 		t.Errorf("ha de dir que no és al PATH i on és:\n%s", got)
 	}
 	// Amb %q les contrabarres es doblaven i el que llegia el model era
@@ -30,7 +30,7 @@ func TestFetsEntornAvisaQuanLEinaNoEsAlPath(t *testing.T) {
 	if strings.Contains(got, `\\`) {
 		t.Errorf("contrabarres doblades al prompt:\n%s", got)
 	}
-	if got := descriuEina(einaTrobada{Nom: "git", Ruta: "/usr/bin/git", AlPath: true}); !strings.Contains(got, "al PATH") || strings.Contains(got, "NO") {
+	if got := descriuEina(einaTrobada{Nom: "git", Ruta: "/usr/bin/git", AlPath: true}); !strings.Contains(got, "on PATH") || strings.Contains(got, "NOT") {
 		t.Errorf("una eina al PATH no ha de fer soroll:\n%s", got)
 	}
 }
@@ -64,10 +64,10 @@ func TestResolCandidatEntraAlsDirectorisContenidors(t *testing.T) {
 // cmd que fallaven.
 func TestFetsEntornDiuSistemaIShell(t *testing.T) {
 	f := FetsEntorn()
-	if !strings.Contains(f, "SISTEMA: "+runtime.GOOS) {
+	if !strings.Contains(f, "SYSTEM: "+runtime.GOOS) {
 		t.Errorf("falta el sistema:\n%s", f)
 	}
-	if runtime.GOOS == "windows" && !strings.Contains(f, "no cmd ni PowerShell") {
+	if runtime.GOOS == "windows" && !strings.Contains(f, "not cmd or PowerShell") {
 		t.Errorf("a Windows cal dir amb què s'executen les ordres:\n%s", f)
 	}
 }

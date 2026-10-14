@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Only UI preferences travel across backend origins; credentials stay there.
-const keys = new Set(['gregal_tema', 'gregal_densitat', 'gregal_mida', 'gregal_idioma', 'gregal_side', 'gregal_side_compact', 'gregal_inspector', 'gregal_view', 'gregal_todo_obert', 'gregal_recent_models']);
+const keys = new Set(['gregal_tema', 'gregal_densitat', 'gregal_mida', 'gregal_idioma', 'gregal_side', 'gregal_side_compact', 'gregal_inspector', 'gregal_view', 'gregal_todo_obert', 'gregal_recent_models', 'gregal_fun_mascot', 'gregal_desktop_mascot']);
 function allowed(key) { return keys.has(key); }
 function loadPreferences(dir) {
     try {

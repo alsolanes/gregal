@@ -1,0 +1,22 @@
+/* Capacitats d'agent (app/caps.js): xip d'aposta, crític del pla, best-of. */
+.bet-chip { display:inline-block; margin-left:8px; padding:0 6px; border-radius:9px; font-size:11px; line-height:17px;
+  border:1px solid var(--line); color:var(--muted, inherit); white-space:nowrap; vertical-align:middle; }
+.bet-chip.bet-ok { border-color:color-mix(in srgb, var(--green, #3a9) 55%, transparent); }
+.bet-chip.bet-bad { border-color:color-mix(in srgb, var(--red, #c55) 55%, transparent); }
+.plan-critic { margin:8px 0 4px; padding:6px 10px; border:1px solid var(--line); border-radius:8px; font-size:13px; }
+.plan-critic summary { cursor:pointer; font-weight:600; }
+.plan-critic ul { margin:6px 0 2px 18px; padding:0; }
+.plan-critic li { margin:3px 0; }
+.plan-critic-ok { opacity:.75; }
+.critic-kind { text-transform:uppercase; font-size:10px; letter-spacing:.04em; margin-right:4px; }
+.critic-missing { color:var(--amber, #c90); }
+.critic-risky { color:var(--red, #c55); }
+.critic-assumption { color:var(--lila); }
+.bestof .bo-table { width:100%; border-collapse:collapse; font-size:13px; margin:6px 0; }
+.bestof .bo-table th, .bestof .bo-table td { text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+.bestof .bo-rec { background:color-mix(in srgb, var(--green, #3a9) 10%, transparent); }
+.bestof .bo-badge { font-size:10px; padding:0 5px; border-radius:8px; border:1px solid var(--line-hi, var(--line)); }
+.bestof .bo-ok { color:var(--green, #3a9); }
+.bestof .bo-bad { color:var(--red, #c55); }
+.bestof .bo-detail { margin:4px 0; font-size:13px; }
+.bestof .bo-msg { margin-top:6px; white-space:pre-wrap; }

@@ -109,3 +109,34 @@ func TestRouteComptar(t *testing.T) {
 		t.Fatalf("comptar no edita: r=%q why=%q", r, why)
 	}
 }
+
+// L'anglès és l'idioma per defecte: una petició de canvi acabada en «?»
+// no pot baixar al rol barat de xat, i una pregunta de veritat sí.
+func TestRouteAngles(t *testing.T) {
+	c := routerCfg()
+	for _, task := range []string{
+		"Can you fix the failing tests?",
+		"Could you add a --verbose flag?",
+		"Can you make the tests pass?",
+		"Please update the README?",
+	} {
+		if r, why := c.Route(task, false, "code"); r != "code" {
+			t.Errorf("%q: una edició no baixa a chat: r=%q why=%q", task, r, why)
+		}
+	}
+	for _, task := range []string{
+		"What does the prefix option do?",
+		"how many .py files are there",
+		"explain the router",
+		"Where is the address parsed?",
+	} {
+		if r, why := c.Route(task, false, "code"); r != "chat" || why == "" {
+			t.Errorf("%q: és una pregunta: r=%q why=%q", task, r, why)
+		}
+	}
+	c.Router.StrongRole = "fort"
+	c.Roles["fort"] = Role{Provider: "p", Model: "molt-fort"}
+	if r, _ := c.Route("Rewrite the whole project to use modules", false, "code"); r != "fort" {
+		t.Errorf("feina pesada en anglès: r=%q", r)
+	}
+}

@@ -44,7 +44,7 @@ func projecteProva(t *testing.T, git bool) string {
 func TestMapaProjecteLlistaIAdjunta(t *testing.T) {
 	dir := projecteProva(t, true)
 	c := MapaProjecte(dir, "Llegeix TASK.md i fes el que diu.", nil)
-	for _, vol := range []string{MarcaContext, "main.go", "pkg/util.go", "Estat de git", "--- TASK.md", "Fes que Suma sumi."} {
+	for _, vol := range []string{MarcaContext, "main.go", "pkg/util.go", "Git status", "--- TASK.md", "Fes que Suma sumi."} {
 		if !strings.Contains(c, vol) {
 			t.Fatalf("hi falta %q:\n%s", vol, c)
 		}
@@ -119,5 +119,22 @@ func TestAnomenatParaulaSencera(t *testing.T) {
 		if got := anomenat(c.tasca, c.f); got != c.vol {
 			t.Errorf("anomenat(%q, %q) = %v", c.tasca, c.f, got)
 		}
+	}
+}
+
+// Les sessions desades abans que el mapa passés a l'anglès porten la marca
+// catalana: s'ha de continuar traient per pintar i reconeixent com a dita.
+func TestMarcaAnticaDelMapa(t *testing.T) {
+	vell := "Arregla-ho\n\n" + MarcaContextCA + " abcd1234] Directori de treball: /tmp/x.\nFitxers (1):\na.go\n"
+	if got := SenseMapa(vell); got != "Arregla-ho" {
+		t.Errorf("SenseMapa amb la marca antiga = %q", got)
+	}
+	nou := "Fix it\n\n" + MarcaContext + " abcd1234] Working directory: /tmp/x.\n"
+	if got := SenseMapa(nou); got != "Fix it" {
+		t.Errorf("SenseMapa amb la marca nova = %q", got)
+	}
+	hist := []llm.Message{{Role: "user", Content: vell}}
+	if !jaHiEs(hist, "abcd1234") {
+		t.Error("jaHiEs ha de reconèixer la marca antiga")
 	}
 }

@@ -148,7 +148,54 @@ func Budget(cfg *config.Config, r config.Role) int {
 	return PromptBudget(Window(cfg, r), r.MaxTokens)
 }
 
-// WindowSource és Window dient d'on surt: "config", "model" o "defecte".
+// finestresConegudes són finestres de context de famílies de models que els
+// proveïdors no declaren a /models (OpenAI, opencode zen…). Sense això tot
+// queia al defecte de 32K i una tasca llarga es compactava a ~18K tokens
+// amb models de 128K o més. Els valors són conservadors (el mínim de la
+// família, arrodonit avall): sobreestimar fa que el proveïdor rebutgi el
+// prompt, i llavors el motor aprèn la mida real de l'error
+// (ParseContextExceeded → LearnWindow). Només s'apliquen a proveïdors
+// remots: un servidor local té la finestra que se li ha configurat. L'ordre
+// importa (el patró més específic primer); context_window al rol mana sempre.
+var finestresConegudes = []struct {
+	patro  string
+	tokens int
+}{
+	{"claude", 200000},
+	{"gemini-1.5", 1000000},
+	{"gemini-2", 1000000},
+	{"gemini-3", 1000000},
+	{"gpt-4.1", 1000000},
+	{"gpt-4o", 128000},
+	{"gpt-5", 272000},
+	{"deepseek-v3.1", 128000},
+	{"deepseek-v3.2", 128000},
+	{"deepseek-v4", 128000},
+	{"deepseek-chat", 128000},
+	{"deepseek-reasoner", 128000},
+	{"deepseek", 64000},
+	{"kimi-k2", 128000},
+	{"glm-4.5", 128000},
+	{"glm-4.6", 128000},
+	{"qwen3-coder", 128000},
+}
+
+// finestraConeguda busca el model a finestresConegudes (0 si no hi és).
+func finestraConeguda(model string) int {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(m, "/"); i >= 0 {
+		m = m[i+1:] // «openrouter/anthropic/claude-…» → «claude-…»
+	}
+	for _, f := range finestresConegudes {
+		if strings.Contains(m, f.patro) {
+			return f.tokens
+		}
+	}
+	return 0
+}
+
+// WindowSource és Window dient d'on surt: "config", "model", "coneguda"
+// (taula finestresConegudes) o "defecte".
 func WindowSource(cfg *config.Config, r config.Role) (int, string) {
 	if r.ContextWindow > 0 {
 		return r.ContextWindow, "config"
@@ -164,6 +211,9 @@ func WindowSource(cfg *config.Config, r config.Role) (int, string) {
 	}
 	if esLocal(base, r.Provider) {
 		return 8192, "defecte"
+	}
+	if n := finestraConeguda(r.Model); n > 0 {
+		return n, "coneguda"
 	}
 	return DefaultWindow, "defecte"
 }

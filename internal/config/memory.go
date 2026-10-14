@@ -43,7 +43,7 @@ func LoadUserMemory() string {
 		return ""
 	}
 	if len([]rune(text)) > MaxUserMemoryChars {
-		text = string([]rune(text)[:MaxUserMemoryChars]) + "\n…(retallat)"
+		text = string([]rune(text)[:MaxUserMemoryChars]) + "\n…(truncated)"
 	}
 	return text
 }
@@ -51,7 +51,7 @@ func LoadUserMemory() string {
 // userMemoryBlock el compon SystemPrompt (buit si no hi ha memòria).
 func userMemoryBlock() string {
 	if m := LoadUserMemory(); m != "" {
-		return "\n\nMEMÒRIA D'USUARI (fets estables entre sessions, prioritat alta):\n" + m
+		return "\n\nUSER MEMORY (stable facts across sessions, high priority):\n" + m
 	}
 	return ""
 }

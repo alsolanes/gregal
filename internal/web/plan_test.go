@@ -41,7 +41,7 @@ func TestHandlePlanMetode(t *testing.T) {
 }
 
 func TestPlanSystemEsReadOnly(t *testing.T) {
-	for _, want := range []string{"mode PLA", "NO cridis mai write", "VERIFICACIÓ", "sense preàmbuls"} {
+	for _, want := range []string{"PLAN MODE", "NEVER call write", "VERIFICATION", "no preamble"} {
 		if !strings.Contains(planSystem, want) {
 			t.Fatalf("planSystem sense %q", want)
 		}

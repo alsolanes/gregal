@@ -36,18 +36,18 @@ func LoadProjectMemory(cwd string) string {
 		}
 		text = capRunes(text, budget)
 		budget -= len([]rune(text))
-		parts = append(parts, "MEMÒRIA DEL PROJECTE ("+name+", autoritativa per a "+dir+"):\n"+text)
+		parts = append(parts, "PROJECT MEMORY ("+name+", authoritative for "+dir+"):\n"+text)
 		break
 	}
 	if notes := config.LoadProjectNotes(dir); notes != "" && budget > 200 {
-		parts = append(parts, "NOTES DEL PROJECTE (.gregal/memory.md):\n"+capRunes(notes, budget))
+		parts = append(parts, "PROJECT NOTES (.gregal/memory.md):\n"+capRunes(notes, budget))
 	}
 	return strings.Join(parts, "\n\n")
 }
 
 func capRunes(text string, budget int) string {
 	if r := []rune(text); len(r) > budget {
-		return string(r[:budget]) + "\n…(retallat)"
+		return string(r[:budget]) + "\n…(truncated)"
 	}
 	return text
 }

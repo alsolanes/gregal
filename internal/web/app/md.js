@@ -66,11 +66,18 @@
     });
   }
 
+  // label: el text de la UI si la pàgina ja té l'idioma (window.gregalT);
+  // als tests de node, el d'anglès per defecte.
+  function label(key, fallback) {
+    const t = root.gregalT;
+    return esc((typeof t === "function" && t(key)) || fallback);
+  }
+
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
     if (lang === 'gregal-plot') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
-    return '<div class="codeblock"><div class="codehead"><span>' + (lang || "codi") +
-      '</span><button class="copybtn">copia</button></div><pre><code>' + highlight(cos) + "</code></pre></div>";
+    return '<div class="codeblock"><div class="codehead"><span>' + (lang || label("md.code", "code")) +
+      '</span><button class="copybtn" data-i18n="md.copy">' + label("md.copy", "Copy") + '</button></div><pre><code>' + highlight(cos) + "</code></pre></div>";
   }
 
   function table(rows) {

@@ -42,10 +42,10 @@ func TestAgentWebRatxaVermellaNoAmplia(t *testing.T) {
 				ultim = fmt.Sprint(req.Messages[len(req.Messages)-1].Content)
 			}
 			switch {
-			case strings.Contains(ultim, "pressupost"):
+			case strings.Contains(ultim, "budget"):
 				llargues.Add(1)
 				w.Write([]byte(`{"choices":[{"message":{"content":"SINTESI-LLARGA"}}]}`))
-			case strings.Contains(ultim, "Les accions ja han acabat"):
+			case strings.Contains(ultim, "The actions are over"):
 				w.Write([]byte(`{"choices":[{"message":{"content":"SINTESI-CURTA"}}]}`))
 			default:
 				preguntes.Add(1)

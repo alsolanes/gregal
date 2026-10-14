@@ -28,8 +28,9 @@ func TestEinaSkill(t *testing.T) {
 		t.Fatalf("el cos ha de sortir sencer: %q", out)
 	}
 
-	// Una integrada, sense projecte que la tapi.
-	if out, _, err := ExecIn("", dir, "skill", `{"nom":"sessions"}`); err != nil || !strings.Contains(out, "sessio-") {
+	// Una integrada, sense projecte que la tapi. El paràmetre es diu name
+	// (nom és el d'abans i encara val).
+	if out, _, err := ExecIn("", dir, "skill", `{"name":"sessions"}`); err != nil || !strings.Contains(out, "sessio-") {
 		t.Fatalf("la integrada de sessions ha de sortir: %v %q", err, out)
 	}
 

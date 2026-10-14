@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/session"
@@ -341,6 +342,42 @@ func TestObrirLlistarTancarSessions(t *testing.T) {
 	h.handleCloseSession(w4, httptest.NewRequest("POST", "/api/sessions/close", strings.NewReader(`{"id":"default"}`)))
 	if w4.Code != 400 {
 		t.Fatalf("la default no s'ha de poder tancar: %d", w4.Code)
+	}
+}
+
+// El live exposa el cost acumulat de sessió: xifra quan hi ha preu,
+// marca honesta quan no n'hi ha.
+func TestLiveSessionsExposeSessionCost(t *testing.T) {
+	h := hubTestServer(t).Hub()
+	s := h.Session("costada")
+	agent.SetPrices(map[string]agent.Price{"m": {In: 1e6, Out: 1e6}})
+	defer agent.SetPrices(map[string]agent.Price{})
+	emit, _ := collectEmits()
+	hist := []llm.Message{{Role: "user", Content: "hola"}, {Role: "assistant", Content: "adeu"}}
+	s.trackTurnCost(emit, hist, "code", config.Role{Provider: "p", Model: "m"})
+	w := httptest.NewRecorder()
+	h.handleLiveSessions(w, httptest.NewRequest("GET", "/api/sessions/live", nil))
+	var live struct {
+		Sessions []map[string]any `json:"sessions"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &live); err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range live.Sessions {
+		known, _ := item["sess_cost_known"].(bool)
+		cost, _ := item["sess_cost_usd"].(float64)
+		if item["id"] == "costada" {
+			found = true
+			if !known || cost <= 0 {
+				t.Fatalf("priced session must report its cost: %v", item)
+			}
+		} else if known || cost != 0 {
+			t.Fatalf("untouched session must stay silent: %v", item)
+		}
+	}
+	if !found {
+		t.Fatal("priced session missing from live sessions")
 	}
 }
 

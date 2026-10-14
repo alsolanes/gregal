@@ -34,6 +34,8 @@ func TestV2RegistreDurableConservaLesEines(t *testing.T) {
 
 	s := goalTestServer(t)
 	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
+	// El proveïdor fals té un guió de dues respostes: sense investigador.
+	s.cfg.Agent.Scout = "off"
 	// El registre és del paquet (hi ha events de proves anteriors): només
 	// mirem el que ve després d'ara.
 	base := s.Hub().eventStore.Cursor()

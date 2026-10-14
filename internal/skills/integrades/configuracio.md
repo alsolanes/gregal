@@ -1,60 +1,59 @@
 ---
-nom: configuracio
-descripcio: el config.yaml del gregal (rols, proveïdors, permisos, verificació, pressupost de passos) i on van les claus d'API
+name: configuracio
+description: Gregal's config.yaml (roles, providers, permissions, verification, step budget) and where the API keys live
 ---
 
-## Els dos fitxers
+## The two files
 
-- `~/.config/gregal/config.yaml` — tot menys els secrets. Es pot
-  ensenyar i versionar.
-- `~/.config/gregal/auth.yaml` — les claus d'API, a part. No l'obris per
-  ensenyar-ne el contingut i no copiïs mai una clau a la conversa.
+- `~/.config/gregal/config.yaml` — everything except secrets. Safe to
+  show and to keep under version control.
+- `~/.config/gregal/auth.yaml` — the API keys, kept separate. Do not open
+  it to show its contents and never copy a key into the conversation.
 
-`gregal --config <ruta>` en fa servir un altre. `gregal --check-config`
-el valida i surt; `gregal --doctor` mira també si els proveïdors
-responen.
+`gregal --config <path>` uses a different config. `gregal --check-config`
+validates it and exits; `gregal --doctor` also checks that the providers
+respond.
 
-## Les claus que hi ha
+## The keys
 
-- `providers:` — un per endpoint, amb `base_url` i `api_key`. L'api_key
-  admet `${VARIABLE}` per llegir-la de l'entorn.
-- `roles:` — quina feina fa quin model. Els rols que han d'existir són
-  `chat`, `think`, `code` i `reviewer`; cadascun té `provider`, `model`,
-  `temperature`, `max_tokens` i, opcionalment, `context_window` (0 = la
-  que declari el proveïdor).
-- `mode:` — el mode d'arrencada (`code`, `chat`, `inspect`, `goal`,
-  `autonomous`). Vegeu la skill `modes`.
-- `permissions:` — `tools:` amb `allow`, `ask` o `deny` per eina, més
-  `bash_allow` i `bash_deny` per acotar la shell. Les eines que no hi
-  són segueixen el criteri per defecte: llegir va sol, escriure i la
-  shell pregunten.
-- `verify:` — `mode: off|manual|auto|both|strict`: si un revisor repassa
-  la feina en acabar el torn.
-- `agent.max_steps` — el pressupost de passos d'un torn. Quan s'esgota,
-  es pregunta si val la pena continuar. Els torns que es queden a mitges
-  amb «s'han acabat els N passos» normalment volen dir que aquest nombre
-  és massa baix per a la feina que es demana.
+- `providers:` — one per endpoint, with `base_url` and `api_key`.
+  `api_key` accepts `${VARIABLE}` to read it from the environment.
+- `roles:` — which model does which job. The required roles are `chat`,
+  `think`, `code` and `reviewer`; each has `provider`, `model`,
+  `temperature`, `max_tokens` and, optionally, `context_window` (0 = the
+  one the provider declares).
+- `mode:` — the startup mode (`code`, `chat`, `inspect`, `goal`,
+  `autonomous`). See the `modes` skill.
+- `permissions:` — `tools:` with `allow`, `ask` or `deny` per tool, plus
+  `bash_allow` and `bash_deny` to restrict the shell. Tools not listed
+  follow the default: reading runs freely, writing and the shell ask.
+- `verify:` — `mode: off|manual|auto|both|strict`: whether a reviewer
+  checks the work at the end of the turn.
+- `agent.max_steps` — the step budget for a turn. When it runs out, the
+  user is asked whether it is worth continuing. Turns that stop halfway
+  with "the N available steps are used up" (Catalan: «s'han acabat els N
+  passos») usually mean this number is too low for the task.
 - `agent.autonomous` — `checkpoint_every`, `review_every`, `max_minutes`
-  del mode autònom.
-- `router:` — tria automàtica de rol segons la tasca (`mode: auto|off`).
-- `hooks:` — `post_edit` corre una ordre amb `{file}` després de cada
-  escriptura amb èxit (per exemple `gofmt -w {file}`), i `diag` tria si
-  es fa comprovació de sintaxi.
-- `system:` — el prompt d'identitat. Buit = el del gregal.
-- `theme:` (`fosc`|`clar`), `lang:` (`ca`|`en`), `mouse:` (`on`|`off`),
-  `animacions:` (`on`|`off`, per defecte quietes) i `cockpit:`
-  (`on`|`off`, la columna de la dreta del TUI).
-- `mcp:` — servidors MCP; les seves eines surten amb el prefix `mcp_`.
-- `telegram:` — token i usuaris autoritzats del bot.
-- `cost:` — preus per milió de tokens, per calcular el cost de la sessió.
+  for autonomous mode.
+- `router:` — automatic role selection by task (`mode: auto|off`).
+- `hooks:` — `post_edit` runs a command with `{file}` after every
+  successful write (e.g. `gofmt -w {file}`); `diag` controls whether
+  syntax checking runs.
+- `system:` — the identity prompt. Empty = Gregal's default.
+- `theme:` (`fosc`|`clar`), `lang:` (`en`, the default, | `ca` for
+  Catalan), `mouse:` (`on`|`off`), `animacions:` (`on`|`off`, off by
+  default) and `cockpit:` (`on`|`off`, the TUI's right-hand column).
+- `mcp:` — MCP servers; their tools appear with the `mcp_` prefix.
+- `telegram:` — the bot token and authorized users.
+- `cost:` — prices per million tokens, used to compute the session cost.
 
-## Canviar-ho sense editar el YAML
+## Changing it without editing the YAML
 
-Al TUI, `/settings` (o Ctrl+,) ho concentra tot: mode, rol, model, clau
-d'API, tema, revisor, permisos i proveïdors. També hi ha `/permissions`,
-`/model`, `/role`, `/reviewer`, `/provider`, `/key`, `/theme` i `/mouse`.
-Tot el que es tria des d'allà es desa al config.
+In the TUI, `/settings` (or Ctrl+,) covers everything: mode, role, model,
+API key, theme, reviewer, permissions and providers. There are also
+`/permissions`, `/model`, `/role`, `/reviewer`, `/provider`, `/key`,
+`/theme` and `/mouse`. Everything chosen there is saved to the config.
 
-Si t'han demanat un canvi de configuració, la manera neta és dir-los
-quina ordre del TUI ho fa. Editar el YAML amb `edit` també val, però
-llavors cal reiniciar el gregal perquè el llegeixi.
+When asked for a configuration change, the clean way is to tell the user
+which TUI command does it. Editing the YAML with `edit` also works, but
+Gregal must then be restarted to read it.

@@ -5,6 +5,7 @@
   "version": "0.3.1",
   "publisher": "solanes",
   "license": "MIT",
+  "icon": "media/icon.png",
   "l10n": "./l10n",
   "engines": {
     "vscode": "^1.85.0"

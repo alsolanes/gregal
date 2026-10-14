@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"gregal/internal/config"
+	"gregal/internal/knowledge"
 	"gregal/internal/skills"
 )
 
@@ -50,12 +51,22 @@ func LlegeixSkill(cwd, nom string) (string, []string, error) {
 // (AGENTS.md i les notes) i l'índex de skills. Va en una sola funció
 // perquè els sis llocs que componen un prompt de sistema no se n'hagin de
 // recordar per separat; abans cadascun cridava LoadProjectMemory i prou.
-func ContextProjecte(cwd string) string {
-	parts := make([]string, 0, 2)
+func ContextProjecte(cwd string) string { return ContextProjecteSessio(cwd, "") }
+
+// ContextProjecteSessio és ContextProjecte sabent també la sessió: així
+// el prompt inclou les col·leccions de coneixement d'aquesta conversa.
+func ContextProjecteSessio(cwd, session string) string {
+	parts := make([]string, 0, 4)
 	if mem := LoadProjectMemory(cwd); mem != "" {
 		parts = append(parts, mem)
 	}
 	if idx := IndexSkills(cwd); idx != "" {
+		parts = append(parts, idx)
+	}
+	if idx := IndexSubagents(cwd); idx != "" {
+		parts = append(parts, idx)
+	}
+	if idx := knowledge.PromptIndex(knowledge.Where{Project: strings.TrimSpace(cwd), Session: session}); idx != "" {
 		parts = append(parts, idx)
 	}
 	return strings.Join(parts, "\n\n")

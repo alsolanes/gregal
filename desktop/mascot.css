@@ -1,0 +1,118 @@
+/* Penell flotant: mateix dibuix, angles i animacions que el de la barra
+   lateral (internal/web/app/fun.css; els angles els comprova
+   mascot-window.test.js). Fons transparent; tot el penell s'arrossega
+   (pointer events a mascot-view.js) i el disc del mig és el botó. Colors de docs/identitat.md
+   segons el tema del sistema. Amb «reduir moviment» queda quiet i només
+   canvia el color. */
+:root {
+  --panel:#1A1D25; --line-hi:rgba(201,209,230,.20); --ink:#F3F5FA; --muted:#A3AABA;
+  --accent:#8193FF; --amber:#F5C451; --green:#6EDB95; --red:#FF8A85; --onada:#5CE1D6; --ombra:rgba(0,0,0,.45);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --panel:#FFFFFF; --line-hi:rgba(30,42,74,.28); --ink:#0E1220; --muted:#545D71;
+    --accent:#4F5BE8; --amber:#9A5B00; --green:#187A41; --red:#C92A35; --onada:#0A776F; --ombra:rgba(14,18,32,.25);
+  }
+}
+html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:transparent; user-select:none; }
+.mascot-stage { position:relative; box-sizing:border-box; width:100vw; height:100vh; display:grid; place-items:center; cursor:grab; touch-action:none; }
+.mascot-stage.dragging, .mascot-stage.dragging .mascot-btn { cursor:grabbing; }
+.mascot-btn { width:96px; height:96px; padding:0; display:grid; place-items:center; border-radius:50%;
+  border:1px solid var(--line-hi); background:var(--panel); box-shadow:0 6px 18px var(--ombra); cursor:pointer; transition:border-color .2s; }
+.mascot-btn:hover { border-color:var(--accent); }
+.mascot-btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+/* Controls que surten en passar-hi per sobre (o amb el focus dins). */
+.mascot-ctrls { position:absolute; top:2px; right:2px; display:flex; gap:2px; opacity:0; pointer-events:none; transition:opacity .15s; }
+.mascot-stage:hover .mascot-ctrls, .mascot-stage:focus-within .mascot-ctrls { opacity:1; pointer-events:auto; }
+.mascot-stage.dragging .mascot-ctrls { opacity:0; pointer-events:none; }
+.m-ctl { width:20px; height:20px; padding:0; display:grid; place-items:center; border-radius:50%; border:1px solid var(--line-hi);
+  background:var(--panel); color:var(--muted); box-shadow:0 2px 6px var(--ombra); cursor:pointer; }
+.m-ctl:hover { color:var(--ink); border-color:var(--accent); }
+.m-ctl:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.m-ctl svg { width:12px; height:12px; stroke:currentColor; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; fill:none; }
+/* Plegat: un puntet de 32 px (la brúixola en petit) que es desplega en clicar. */
+[data-collapsed="1"] .mascot-btn { width:32px; height:32px; box-shadow:0 2px 8px var(--ombra); }
+[data-collapsed="1"] .mascot-svg { width:24px; height:24px; }
+[data-collapsed="1"] .mascot-ctrls, [data-collapsed="1"] .v-letter, [data-collapsed="1"] .v-streaks { display:none; }
+.mascot-svg { width:76px; height:76px; overflow:visible; }
+[data-mood="waiting"] .mascot-btn { border-color:var(--amber); }
+[data-mood="error"] .mascot-btn { border-color:var(--red); }
+[data-mood="idle"], [data-mood="done"] { --vane:45deg; }
+[data-mood="working"] { --vane:70deg; }
+[data-mood="waiting"] { --vane:135deg; }
+[data-mood="error"] { --vane:236deg; }
+.v-post { stroke:var(--muted); stroke-width:2.4; stroke-linecap:round; fill:none; }
+.v-cross { stroke:var(--muted); stroke-width:1.5; stroke-linecap:round; fill:none; opacity:.7; }
+.v-base, .v-hub { fill:var(--muted); }
+.v-letter { fill:var(--muted); opacity:.85; font:700 8px/1 system-ui, sans-serif; text-anchor:middle; dominant-baseline:central; }
+.v-arrow { transform-box:view-box; transform-origin:32px 20px; transform:rotate(var(--vane, 45deg)); }
+.v-shaft { stroke:var(--accent); stroke-width:2.4; stroke-linecap:round; fill:none; }
+.v-curl { stroke:var(--accent); stroke-width:1.6; stroke-linecap:round; fill:none; }
+.v-head, .v-tail { fill:var(--accent); }
+.v-ring { fill:none; stroke:var(--green); stroke-width:1.5; opacity:0; transform-box:view-box; transform-origin:32px 4px; }
+.v-spark { stroke:var(--green); stroke-width:1.4; stroke-linecap:round; fill:none; opacity:0; }
+.v-streaks path { stroke:var(--onada); stroke-width:1.5; stroke-linecap:round; fill:none; opacity:0; }
+[data-mood="working"] .v-streaks path { opacity:.55; }
+[data-mood="waiting"] .v-head { fill:var(--amber); }
+[data-mood="done"] .v-ring { opacity:.9; }
+[data-mood="done"] .v-spark { opacity:1; }
+[data-mood="error"] .v-arrow { filter:saturate(.6); }
+[data-mood="error"] .v-head, [data-mood="error"] .v-tail { fill:var(--red); }
+[data-mood="error"] .v-shaft, [data-mood="error"] .v-curl { stroke:var(--red); }
+[data-mood="error"] .v-stand { opacity:.75; }
+@media (prefers-reduced-motion: no-preference) {
+  [data-mood="idle"] .v-arrow { animation:v-sway 7s ease-in-out infinite; }
+  [data-mood="working"] .v-arrow { animation:v-gust 5.2s infinite; }
+  [data-mood="working"] .v-streaks path { animation:v-drift 1.7s linear infinite; }
+  [data-mood="working"] .v-streaks path:nth-child(2) { animation-delay:-.6s; animation-duration:2.1s; }
+  [data-mood="working"] .v-streaks path:nth-child(3) { animation-delay:-1.1s; animation-duration:1.9s; }
+  [data-mood="waiting"] .v-arrow { animation:v-point 2.6s ease-in-out infinite; }
+  [data-mood="waiting"] .v-head { animation:v-blink 1.3s ease-in-out infinite; }
+  [data-mood="done"] .v-arrow { animation:v-settle 1.6s both; }
+  [data-mood="done"] .v-ring { animation:v-ring 1.2s ease-out 1s both; }
+  [data-mood="done"] .v-spark { animation:v-spark 1.4s ease-out 1s both; }
+  [data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out infinite; }
+}
+/* Repòs: al NE, amb un balanceig curt de tant en tant. */
+@keyframes v-sway {
+  0%, 30%, 64%, 100% { transform:rotate(45deg); }
+  40% { transform:rotate(49deg); }
+  52% { transform:rotate(41.5deg); }
+}
+/* Ràfegues: girs irregulars amb una volta sencera; 405° = 45°, i el bucle no salta. */
+@keyframes v-gust {
+  0% { transform:rotate(45deg); animation-timing-function:cubic-bezier(.3, 0, .2, 1); }
+  10% { transform:rotate(94deg); animation-timing-function:ease-in-out; }
+  19% { transform:rotate(62deg); animation-timing-function:cubic-bezier(.55, 0, .15, 1); }
+  40% { transform:rotate(432deg); animation-timing-function:ease-out; }
+  49% { transform:rotate(396deg); animation-timing-function:ease-in-out; }
+  58% { transform:rotate(418deg); animation-timing-function:cubic-bezier(.6, 0, .25, 1); }
+  74% { transform:rotate(322deg); animation-timing-function:ease-in-out; }
+  87% { transform:rotate(376deg); animation-timing-function:ease-in-out; }
+  100% { transform:rotate(405deg); }
+}
+@keyframes v-drift {
+  0% { transform:translateX(-10px); opacity:0; }
+  30%, 60% { opacity:.6; }
+  100% { transform:translateX(14px); opacity:0; }
+}
+/* Espera: apunta cap al camp de text (SE) i la punta parpelleja en ambre. */
+@keyframes v-point { 0%, 100% { transform:rotate(135deg); } 50% { transform:rotate(139deg); } }
+@keyframes v-blink { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+/* Fet: gira, se'n passa una mica i s'atura just al NE. */
+@keyframes v-settle {
+  0% { transform:rotate(200deg); animation-timing-function:cubic-bezier(.3, 0, .3, 1); }
+  48% { transform:rotate(28deg); animation-timing-function:ease-in-out; }
+  68% { transform:rotate(54deg); animation-timing-function:ease-in-out; }
+  85% { transform:rotate(42deg); animation-timing-function:ease-in-out; }
+  100% { transform:rotate(45deg); }
+}
+@keyframes v-ring { 0% { transform:scale(.4); opacity:.95; } 100% { transform:scale(2.1); opacity:0; } }
+@keyframes v-spark { 0% { opacity:0; } 25% { opacity:1; } 100% { opacity:0; } }
+/* Error: encallat a un angle estrany, amb una tremolor rovellada. */
+@keyframes v-wobble {
+  0%, 100% { transform:rotate(236deg); }
+  12% { transform:rotate(240deg); }
+  22% { transform:rotate(233deg); }
+  30%, 70% { transform:rotate(236deg); }
+}

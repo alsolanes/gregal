@@ -60,79 +60,89 @@ type Tema struct {
 	// que es tolera (ve de docs/identitat.md).
 	BoxIdle string
 
+	// Vora és el to de les línies fines (--line, --line-hi) al web. Buit
+	// vol dir l'escuma, com sempre; els temes de casa hi posen un gris
+	// fred perquè l'accent no s'escampi per totes les vores.
+	Vora string
+
 	Sintaxi Sintaxi
 }
 
-// Fosc és el tema de casa: grafit neutre amb l'escuma del Gregal.
+// Fosc és el tema de casa: pissarra freda gairebé neutra (un punt de blau,
+// com el cel quan bufa el gregal) i un sol accent, el blau del vent, que
+// només surt on hi ha acció: botons, focus, navegació activa i enllaços.
+// L'aigua (onada) és el toc juganer i surt poc: mascota, celebracions,
+// reaccions. L'elevació es fa amb superfícies més clares, no amb ombres.
 func Fosc() Tema {
 	return Tema{
 		Nom:            "fosc",
-		Fons:           "#171A19",
-		Abisme:         "#101312",
-		Night:          "#1E2321",
-		SuperficieAlta: "#29302D",
-		Ink:            "#F4F4EF",
-		Text:           "#ECF0EA",
-		Slate:          "#AEB9B1",
-		Faint:          "#87978B",
-		Escuma:         "#9FE0C4",
-		EscumaClara:    "#BCEBD4",
-		Arena:          "#DEC899",
-		Onada:          "#8FB9A5",
-		Algua:          "#264237",
-		Lila:           "#C7B6D9",
-		LilaFons:       "#30283A",
-		Green:          "#7DE2A5",
-		Red:            "#EF8D82",
-		BoxIdle:        "#3C5750",
+		Fons:           "#13151B",
+		Abisme:         "#0E1015",
+		Night:          "#1A1D25",
+		SuperficieAlta: "#242833",
+		Ink:            "#F3F5FA",
+		Text:           "#E4E7EF",
+		Slate:          "#A3AABA",
+		Faint:          "#8890A2",
+		Escuma:         "#8193FF",
+		EscumaClara:    "#A3B0FF",
+		Arena:          "#F5C451",
+		Onada:          "#5CE1D6",
+		Algua:          "#2C3240",
+		Lila:           "#C4A8FF",
+		LilaFons:       "#2A2245",
+		Green:          "#6EDB95",
+		Red:            "#FF8A85",
+		BoxIdle:        "#626B80",
+		Vora:           "#C9D1E6",
 		Sintaxi: Sintaxi{
-			Paraula:   "#C7B6D9", // lila
-			Cadena:    "#9FE0C4", // escuma
-			Numero:    "#DEC899", // arena
-			Comentari: "#87978B",
-			Funcio:    "#8FB9A5", // onada
-			Tipus:     "#BCEBD4", // escuma clara
-			Operador:  "#AEB9B1", // slate
-			Nom:       "#ECF0EA", // text
+			Paraula:   "#C4A8FF", // lila
+			Cadena:    "#6EDB95", // green
+			Numero:    "#F5C451", // arena
+			Comentari: "#7D869A",
+			Funcio:    "#A3B0FF", // escuma clara
+			Tipus:     "#5CE1D6", // onada
+			Operador:  "#A3AABA", // slate
+			Nom:       "#E4E7EF", // text
 		},
 	}
 }
 
-// Clar és el mateix mar de dia. Els accents s'enfosqueixen: l'escuma i
-// l'arena del fosc no passen AA sobre blanc.
+// Clar és el mateix cel de dia. Els accents s'enfosqueixen fins que el
+// text blanc s'hi llegeix a sobre (≥4,5:1) i ells es llegeixen sobre blanc.
 func Clar() Tema {
 	return Tema{
 		Nom:            "clar",
 		Clar:           true,
-		Fons:           "#F5F7F8",
-		Abisme:         "#EBEFF1",
+		Fons:           "#F6F7FA",
+		Abisme:         "#EEF0F5",
 		Night:          "#FFFFFF",
-		SuperficieAlta: "#E2E9EC",
-		Ink:            "#0B1220",
-		Text:           "#1E293B",
-		Slate:          "#52616B",
-		// Faint puja de #7C8B95 a #5F6E78: el de abans donava 3,2:1 sobre
-		// el panell clar i no passava AA per a text petit.
-		Faint:       "#5F6E78",
-		Escuma:      "#0E8C74",
-		EscumaClara: "#0A6F5C",
-		Arena:       "#9A6B12",
-		Onada:       "#0E7490",
-		Algua:       "#CBD5DC",
-		Lila:        "#6D28D9",
-		LilaFons:    "#EDE9FE",
-		Green:       "#15803D",
-		Red:         "#DC2626",
-		BoxIdle:     "#7C8B95",
+		SuperficieAlta: "#E5E8F0",
+		Ink:            "#0E1220",
+		Text:           "#1F2433",
+		Slate:          "#545D71",
+		// Faint passa AA (≥4,5:1) fins i tot sobre la superfície alta.
+		Faint:       "#5F6879",
+		Escuma:      "#4F5BE8",
+		EscumaClara: "#3D47C7",
+		Arena:       "#9A5B00",
+		Onada:       "#0A776F",
+		Algua:       "#D5DAE4",
+		Lila:        "#7444D6",
+		LilaFons:    "#EEE8FD",
+		Green:       "#187A41",
+		Red:         "#C92A35",
+		BoxIdle:     "#7E879B",
+		Vora:        "#1E2A4A",
 		Sintaxi: Sintaxi{
-			Paraula:   "#6D28D9", // lila clar
-			Cadena:    "#0A6F5C", // escuma clara (fosca, sobre blanc)
-			Numero:    "#9A6B12", // arena clar
-			Comentari: "#6B7A85",
-			Funcio:    "#0E7490", // onada clar
-			Tipus:     "#0E8C74", // escuma clar
-			Operador:  "#52616B", // slate clar
-			Nom:       "#1E293B", // text clar
+			Paraula:   "#7444D6", // lila clar
+			Cadena:    "#187A41", // green clar
+			Numero:    "#9A5B00", // arena clar
+			Comentari: "#5F6879", // faint clar
+			Funcio:    "#3D47C7", // escuma clara
+			Tipus:     "#0A776F", // onada clar
+			Operador:  "#545D71", // slate clar
+			Nom:       "#1F2433", // text clar
 		},
 	}
 }
@@ -365,9 +375,9 @@ func Grok() Tema {
 func Descripcio(nom string) string {
 	switch nom {
 	case "fosc":
-		return "fosc  (la marea: nit, escuma i arena)"
+		return "fosc  (el gregal: pissarra freda i blau de vent)"
 	case "clar":
-		return "clar  (dia d'estiu: claror mediterrània)"
+		return "clar  (cel de gregal: claror freda i blau)"
 	case "gpt":
 		return "gpt  (blanc i verd, aire ChatGPT)"
 	case "claude":

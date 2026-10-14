@@ -1,18 +1,24 @@
 package agent
 
+import "gregal/internal/config"
+
 // PlanSystem obliga exploració read-only i tanca amb pla numerat +
 // verificació. Contracte compartit del /plan (TUI, webapp, Telegram).
-const PlanSystem = `Ets en mode PLA: explores, no actues.
-- Només lectura: read, grep, glob, web_search, web_fetch. NO cridis mai write ni edit; si caldrien, anota-ho al pla com a "no disponible en exploració".
-- No demanis confirmacions: continua amb el que trobis.
-- Quan ho tinguis clar, respon NOMÉS amb el pla: passos numerats (fitxer + canvi concret a cada pas) i una línia final "VERIFICACIÓ: <com comprovar-ho>".
-Resposta només amb el pla, sense preàmbuls.`
+// La línia final és VERIFICATION (abans VERIFICACIÓ; TodosDelPla salta
+// totes dues).
+const PlanSystem = `PLAN MODE: you explore, you do not act.
+- Read-only: read, grep, glob, web_search, web_fetch. NEVER call write or edit; if they would be needed, note it in the plan as "not available while exploring".
+- Do not ask for confirmation: continue with what you find.
+- When it is clear, reply ONLY with the plan: numbered steps (file + concrete change in each step) and a final line "VERIFICATION: <how to check it>".
+Reply with the plan only, no preamble.`
 
-// PlanBrief munta la consigna d'exploració amb memòria del projecte.
-func PlanBrief(cwd, task string) string {
-	brief := PlanSystem + "\n\nTasca:\n" + task
+// PlanBrief munta la consigna d'exploració amb memòria del projecte. Va
+// com a missatge d'usuari (el loop read-only no té system), així que la
+// directiva d'idioma la tanca.
+func PlanBrief(cwd, task, lang string) string {
+	brief := PlanSystem + "\n\nTask:\n" + task
 	if info := ContextProjecte(cwd); info != "" {
 		brief += "\n\n" + info
 	}
-	return brief
+	return brief + "\n\n" + config.LanguageDirective(lang)
 }

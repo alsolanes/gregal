@@ -182,7 +182,8 @@ func (b *Bot) command(ctx context.Context, m *Message, st *chatState, text strin
 			b.send(ctx, chatID, "↩️ "+b.tr("Punt de control ", "Checkpoint ")+esc(arg)+":\n"+esc(out))
 			return
 		}
-		out, err := tools.Active.Rewind()
+		// Als repos git també desfà el que ha fet bash (foto d'inici de sessió).
+		out, err := tools.GitCPs.RewindAll("", b.dirOf(st), nil)
 		if err != nil {
 			b.send(ctx, chatID, "⚠️ "+b.tr("No s'ha pogut desfer: ", "Could not undo changes: ")+esc(err.Error()))
 			return
@@ -265,7 +266,7 @@ func (b *Bot) verify(ctx context.Context, chatID int64, st *chatState) {
 	_ = b.api.SendChatAction(ctx, chatID, "typing")
 	vctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
-	v, raw, err := verify.Run(vctx, b.client, p, r, tail.String(), tools.GitDiff(b.dirOf(st)))
+	v, raw, err := verify.Run(vctx, b.client, p, r, tail.String(), tools.GitDiff(b.dirOf(st)), b.cfg.Lang())
 	if err != nil {
 		b.send(ctx, chatID, "⚠️ "+b.tr("revisor: ", "reviewer: ")+esc(err.Error()))
 		return

@@ -33,7 +33,7 @@ test("adapter conserva approve/question i tradueix text/terminal", async () => {
   assert.equal(durableToAgent({ kind: "run_completed", text: "fet" }, (k, d) => seen.push([k, d])), true);
   assert.deepEqual(seen.slice(0, 4).map(x => x[0]), ["approve_request", "question_request", "token", "assistant"]);
   assert.equal(parseFrame('id: 4\nevent: text\ndata: {"run_id":7,"text":"ok"}\n\n').data.run_id, 7);
-  assert.throws(() => durableToAgent({ kind: "approve_request", text: "només el nom" }, () => {}), /sense dades estructurades/);
+  assert.throws(() => durableToAgent({ kind: "approve_request", text: "només el nom" }, () => {}), /no structured data/);
 });
 
 test("run deduplica errors embolcallats per run, preserva run_failed sol i finalitza polling", async () => {

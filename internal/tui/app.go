@@ -303,6 +303,9 @@ type Model struct {
 	// d'edició ni a cap desfer. Es pinta com a rodonetes.
 	keyBuf      string
 	permissive  bool // mode permissiu: les ask s'aproven soles (deny continua bloquejant)
+	// autoReview: mode auto-review; un model revisor decideix les ask
+	// (agent/autoreview.go). Exclusiu amb permissive.
+	autoReview bool
 	journalBase int  // Seq del journal a l'inici del torn: verificar només si ha fet coses reals
 
 	stream      *streamer
@@ -339,6 +342,9 @@ type Model struct {
 	// queued són missatges escrits mentre l'agent treballa: s'envien en
 	// acabar el torn (estil Claude) en comptes de perdre's.
 	queued []string
+	// memNotes són les notes del projecte proposades en acabar l'últim torn
+	// de codi (pendents de /keep).
+	memNotes []string
 	// lastPrompt és l'últim text enviat (per /retry quan el model torna
 	// buit o l'usuari vol reintentar sense reescriure).
 	lastPrompt string
@@ -482,13 +488,14 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 		policy:      &agent.Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: cwd},
 		remembers:   agent.NewRemember(),
 		histEntries: session.LoadHistory(), histIdx: -1,
-		mouseOn: cfg.MouseOn()} // el programa arrenca amb WithMouseCellMotion
+		mouseOn: cfg.MouseOn(), autoReview: cfg.Permissions.AutoReview()} // el programa arrenca amb WithMouseCellMotion
 	m.reducedMotion = strings.TrimSpace(os.Getenv("GREGAL_REDUCED_MOTION")) != ""
 	m.animacions = cfg.AnimacionsOn() && !m.reducedMotion
 	m.cockpit = cfg.CockpitOn()
 	m.asciiMode = strings.TrimSpace(os.Getenv("GREGAL_ASCII")) != ""
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
+	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	agent.SetupDelegate(cfg, c)
 	m.refreshGitBranch()
@@ -504,11 +511,7 @@ func initialRole(cfg *config.Config) string {
 
 // toMCPServers adapta el config al paquet mcp.
 func toMCPServers(cfg *config.Config) map[string]mcp.Server {
-	out := map[string]mcp.Server{}
-	for name, s := range cfg.MCP {
-		out[name] = mcp.Server{Command: s.Command, Args: s.Args, Env: s.Env}
-	}
-	return out
+	return mcp.FromConfig(cfg.MCP)
 }
 
 // Init anima el cursor (i apaga el ratolí si el config el vol desactivat;
@@ -578,6 +581,12 @@ func (m *Model) pushServiceEvent(e serviceclient.Event) {
 		m.push(dimStyle.Render("✓ " + T("est.serveiAcabat")))
 	case "error":
 		m.push(warnStyle.Render(text))
+	case "progress":
+		// Senyal de vida (fase del torn, cada pocs segons): a la barra
+		// d'estat, no com a línia del transcript.
+		if m.serviceTurn && text != "" {
+			m.status = "servei · " + text
+		}
 	default:
 		// activity, tool_call, tool_result, status, route, budget,
 		// run_queued/started/completed...: activitat, no transcript.
@@ -613,6 +622,10 @@ type cmdHint struct {
 func ordres() []cmdHint {
 	return []cmdHint{
 		{"agent", T("cmd.agent")},
+		{"agents", T("cmd.agents")},
+		{"btw", T("cmd.btw")},
+		{"recap", T("cmd.recap")},
+		{"keep", T("cmd.keep")},
 		{"bash", T("cmd.bash")},
 		{"cancel", T("cmd.cancel")},
 		{"clear", T("cmd.clear")},
@@ -626,6 +639,7 @@ func ordres() []cmdHint {
 		{"mode", T("cmd.mode")},
 		{"model", T("cmd.model")},
 		{"permissions", T("cmd.permissions")},
+		{"autoreview", T("cmd.autoreview")},
 		{"plan", T("cmd.plan")},
 		{"provider", T("cmd.provider")},
 		{"queue", T("cmd.queue")},
@@ -636,14 +650,17 @@ func ordres() []cmdHint {
 		{"quit", T("cmd.quit")},
 		{"read", T("cmd.read")},
 		{"checkpoints", T("cmd.checkpoints")},
+		{"worktree", T("cmd.worktree")},
 		{"diff", T("cmd.diff")},
 		{"compact", T("cmd.compact")},
+		{"export", T("cmd.export")},
 		{"connect", T("cmd.connect")},
 		{"parallel", T("cmd.parallel")},
 		{"attach", T("cmd.attach")},
 		{"permissiu", T("cmd.permissiu")},
 		{"remember", T("cmd.remember")},
 		{"recall", T("cmd.recall")},
+		{"knowledge", T("cmd.knowledge")},
 		{"retry", T("cmd.retry")},
 		{"forget", T("cmd.forget")},
 		{"nota", T("cmd.nota")},
@@ -703,6 +720,15 @@ func filterUserCommands(prefix, cwd string, out []cmdHint) []cmdHint {
 			if !dup {
 				out = append(out, cmdHint{name: c.Name, desc: c.Desc + " (" + c.Source + ")"})
 			}
+		}
+	}
+	// Prompts dels servidors MCP connectats (/mcp__servidor__prompt).
+	for _, p := range mcp.Current().Prompts() {
+		if len(out) >= maxSugg {
+			break
+		}
+		if strings.HasPrefix(p.Command(), prefix) {
+			out = append(out, cmdHint{name: p.Command(), desc: p.Description + " (mcp)"})
 		}
 	}
 	return out
@@ -1051,10 +1077,11 @@ func (m Model) sendVerify() (tea.Cmd, context.CancelFunc) {
 	}
 	transcript := m.transcriptTail(6)
 	diff := tools.GitDiff(m.cwd)
+	lang := m.cfg.Lang()
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	return func() tea.Msg {
 		defer cancel()
-		v, raw, err := verify.Run(ctx, m.client, p, r, transcript, diff)
+		v, raw, err := verify.Run(ctx, m.client, p, r, transcript, diff, lang)
 		return verifyDoneMsg{verdict: v, raw: raw, err: err}
 	}, cancel
 }
@@ -1194,6 +1221,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case asideMsg:
+		return m.onAside(msg)
 	case tea.MouseMsg:
 		// Clic esquerre a una fila numerada de /sessions la reprèn.
 		// La resta (roda, moviment) cau al tractament comú de sota.
@@ -1586,6 +1615,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return m, nil
 				}
 				m.recordHist(text)
+				// /btw no s'encua: es respon al marge mentre el torn segueix.
+				if text == "/btw" || strings.HasPrefix(text, "/btw ") {
+					return m.btwCmd(strings.TrimPrefix(text, "/btw"))
+				}
 				if m.serviceClient != nil {
 					return m.submitServiceTurn(text)
 				}
@@ -1611,6 +1644,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case flowTickMsg:
 		return m.flowTick()
+	case mcpAuthMsg:
+		return m.onMCPAuth(msg)
+	case mcpPromptMsg:
+		return m.onMCPPrompt(msg)
 	case serviceStatusMsg:
 		if msg.err != nil {
 			m.serviceClient = nil
@@ -1960,6 +1997,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.pinta(m.torn.RepAmpliacio(msg.resp, msg.err))
 		return m.avanca()
 
+	case reviewMsg:
+		return m.aplicaRevisio(msg)
+
 	case agentExecMsg:
 		m.cancel = nil
 		if m.cancelRequested {
@@ -2053,9 +2093,13 @@ func (m *Model) startAgent(task string) (tea.Model, tea.Cmd) {
 		m.showTodos = true
 	}
 	m.journalBase = tools.Active.Seq() // verificar només si el torn fa coses reals
+	// Foto git d'inici de torn: /rewind gN hi torna (bash inclòs).
+	agent.CheckpointTorn("", m.cwd, m.mode, len(m.convo))
 	// El model rep el mapa del projecte amb la tasca; a la pantalla surt
 	// només el que ha escrit la persona.
-	m.convo = append(m.convo, llm.Message{Role: "user", Content: agent.TascaAmbMapa(m.mode, m.cwd, task, m.convo)})
+	// Només el missatge més nou porta mapa (els antics ja no són veritat).
+	hist := agent.SenseMapesAntics(m.convo)
+	m.convo = append(hist, llm.Message{Role: "user", Content: agent.TascaAmbMapa(m.mode, m.cwd, task, hist)})
 	m.agentRole = ""
 	if !m.rolePinned {
 		hasImages := false
@@ -2283,14 +2327,13 @@ func parseRange(s string) (int, int, bool) {
 // sysPrompt afegeix les regles del mode (xat: només lectura; objectiu: preguntes)
 // més la memòria del projecte (AGENTS.md) si n'hi ha.
 func (m Model) sysPrompt() string {
-	p := agent.PromptFor(m.cfg.SystemPrompt(), m.mode)
-	if info := agent.ContextProjecte(m.cwd); info != "" {
-		p += "\n\n" + info
-	}
+	// Memòria, skills i resum van abans de la directiva d'idioma, que ha
+	// de tancar el prompt (AmbContext).
+	resum := ""
 	if m.compacted != "" {
-		p += "\n\n[Resum de la conversa anterior — continua amb aquest context]\n" + m.compacted
+		resum = "[Summary of the earlier conversation — continue with this context]\n" + m.compacted
 	}
-	return p
+	return agent.AmbContext(agent.PromptFor(m.cfg.SystemPrompt(), m.mode), agent.ContextProjecte(m.cwd), resum)
 }
 
 // answerPending resol una confirmació [s/n].
@@ -2616,7 +2659,8 @@ func (m Model) submitText(text string) (tea.Model, tea.Cmd) {
 	m.lastPrompt = text
 	// Cortesia pura ("hola") es respon en local, sense model ni eines:
 	// abans cremava un torn d'agent sencer explorant el repo.
-	if reply, ok := agent.SmallTalk(text); ok {
+	// Un «ok» a mitja conversa és una resposta, no cortesia: va al model.
+	if reply, ok := agent.SmallTalkFor(text, m.cfg.Lang(), agent.TeConversa(m.convo)); ok {
 		m.push(userLine(text))
 		m.convo = append(m.convo, llm.Message{Role: "user", Content: text})
 		m.convo = append(m.convo, llm.Message{Role: "assistant", Content: reply})
@@ -2908,7 +2952,8 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		arg := strings.TrimSpace(strings.TrimPrefix(text, "/rewind"))
 		if arg == "" {
 			files := tools.Active.Files()
-			if len(files) == 0 {
+			_, teFoto := tools.GitCPs.Baseline("", m.cwd)
+			if len(files) == 0 && !teFoto {
 				m.push(systemLine(T("app.resADesfer")))
 				return m, nil
 			}
@@ -2916,7 +2961,8 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.pending = &pendingOp{
 				desc: fmt.Sprintf(T("app.desferAvis"), len(files)),
 				run: func(ctx context.Context) (string, error) {
-					out, err := tools.Active.Rewind()
+					// Als repos git torna també a la foto d'abans de la sessió.
+					out, err := tools.GitCPs.RewindAll("", m.cwd, nil)
 					if err == nil {
 						m.convo = truncConvo(m.convo, tools.Active.ConvoLenAt(0))
 					}
@@ -2924,6 +2970,27 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 				},
 			}
 			m.push(systemLine(T("app.desfaras") + strings.Join(files, ", ")))
+			return m, nil
+		}
+		// /rewind gN → torna a la foto git N (bash inclòs).
+		if strings.HasPrefix(arg, "g") {
+			var n int
+			if _, err := fmt.Sscanf(arg[1:], "%d", &n); err != nil {
+				m.push(systemLine(T("app.usRewind")))
+				return m, nil
+			}
+			m.confirmIdx = 0
+			m.pending = &pendingOp{
+				desc: fmt.Sprintf(T("app.tornarCheckpoint"), n),
+				run: func(ctx context.Context) (string, error) {
+					out, convoLen, err := tools.GitCPs.RewindTo("", n, nil)
+					if err == nil && convoLen >= 0 {
+						m.convo = truncConvo(m.convo, convoLen)
+					}
+					return out, err
+				},
+			}
+			m.push(systemLine(fmt.Sprintf(T("app.tornarasCheckpoint"), n)))
 			return m, nil
 		}
 		// /rewind N → torna al checkpoint N (vegeu /checkpoints).
@@ -2960,12 +3027,23 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.push(indentTool(capText(gd, 2000)))
 		}
 		return m, nil
+	case "/export":
+		return m.exportCmd(parts[1:])
 	case "/compact":
 		if len(m.convo) == 0 {
 			m.push(systemLine("res a compactar: conversa buida"))
 			return m, nil
 		}
 		return m.maybeCompactCmd(true)
+	case "/agents":
+		m.push(systemLine(m.agentsList()))
+		return m, nil
+	case "/btw":
+		return m.btwCmd(strings.TrimPrefix(text, "/btw"))
+	case "/recap":
+		return m.recapCmd(strings.TrimPrefix(text, "/recap"))
+	case "/keep":
+		return m.keepCmd(strings.TrimPrefix(text, "/keep"))
 	case "/remember":
 		if err := config.Remember(strings.TrimSpace(strings.TrimPrefix(text, "/remember"))); err != nil {
 			m.push(systemLine("⚠ " + err.Error()))
@@ -2973,6 +3051,8 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		}
 		m.push(systemLine(T("app.apuntat")))
 		return m, nil
+	case "/knowledge":
+		return m.knowledgeCmd(strings.TrimPrefix(text, "/knowledge"))
 	case "/recall":
 		lines := config.Recall(strings.TrimSpace(strings.TrimPrefix(text, "/recall")))
 		if len(lines) == 0 {
@@ -3134,33 +3214,29 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		m.convo = append(m.convo, llm.Message{Role: "user", Content: caption, Images: []string{u}})
 		m.push(systemLine("▣ imatge adjunta (" + fields[0] + ")"))
 		return m, nil
+	case "/worktree", "/worktrees":
+		return m.worktreeCommand(strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(text, "/worktrees"), "/worktree")))
 	case "/checkpoints":
 		cps := tools.Active.Checkpoints()
-		if len(cps) == 0 {
+		gits := tools.GitCPs.List("")
+		if len(cps) == 0 && len(gits) == 0 {
 			m.push(systemLine(T("app.capCheckpoint")))
 			return m, nil
 		}
 		var b strings.Builder
-		b.WriteString(fmt.Sprintf("checkpoints (%d):\n", len(cps)))
+		b.WriteString(fmt.Sprintf("checkpoints (%d):\n", len(cps)+len(gits)))
 		for _, e := range cps {
 			fmt.Fprintf(&b, "  %d · %s %s\n", e.Seq, e.Op, e.Path)
+		}
+		for _, g := range gits {
+			fmt.Fprintf(&b, "  g%d · git %s · %s\n", g.N, g.Label, g.At.Format("15:04:05"))
 		}
 		b.WriteString(T("app.rewindPista"))
 		m.push(systemLine(b.String()))
 		return m, nil
 	case "/mcp":
-		if m.mcp == nil || m.mcp.Summary() == "inactiu" {
-			m.push(systemLine(T("app.mcpInactiu")))
-			return m, nil
-		}
-		m.push(systemLine("mcp: " + m.mcp.Summary()))
-		for _, t := range m.mcp.Tools {
-			m.push(dimStyle.Render("  " + t.Spec.Name + " — " + shortArgs(t.Spec.Description, 100)))
-		}
-		for srv, msg := range m.mcp.Errors {
-			m.push(badStyle.Render("  ✗ " + srv + ": " + msg))
-		}
-		return m, nil
+		// Estat, prompts i «/mcp connect <servidor>» (OAuth): mcp_tui.go.
+		return m.mcpCommand(parts[1:])
 	case "/connect":
 		m.push(systemLine("connectant amb el servei compartit…"))
 		return m, func() tea.Msg {
@@ -3231,6 +3307,26 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 	case "/provider":
 		m.push(m.providerCmd(strings.TrimSpace(strings.TrimPrefix(text, "/provider"))))
 		return m, nil
+	case "/autoreview":
+		arg := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(text, "/autoreview")))
+		switch arg {
+		case "on", "sí", "si", "s":
+			m.autoReview = true
+		case "off", "no", "n":
+			m.autoReview = false
+		case "":
+			m.autoReview = !m.autoReview
+		default:
+			m.push(systemLine(T("app.usAutoreview")))
+			return m, nil
+		}
+		if m.autoReview {
+			m.permissive = false
+			m.push(warnStyle.Render(T("app.autoreviewOn")))
+		} else {
+			m.push(systemLine(T("app.autoreviewOff")))
+		}
+		return m, nil
 	case "/permissiu":
 		arg := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(text, "/permissiu")))
 		switch arg {
@@ -3245,6 +3341,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if m.permissive {
+			m.autoReview = false
 			m.push(warnStyle.Render(T("app.permissiuActiu")) + dimStyle.Render(T("app.denyBloqueja")))
 		} else {
 			m.push(systemLine(T("app.permissiuOff")))
@@ -3482,6 +3579,11 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		// Ordres personalitzades (~/.config/gregal/commands/*.md,
 		// <projecte>/.gregal/commands/*.md): s'expandeixen i entren com
 		// a text d'usuari normal (l'historial ja duu la línia /nom).
+		// Prompts dels servidors MCP: /mcp__servidor__prompt args.
+		if m.isMCPPrompt(text) {
+			m.push(dimStyle.Render("⟳ " + parts[0] + " (mcp)"))
+			return m, expandMCPPromptCmd(m.mcp, text)
+		}
 		if c, args, ok := usercmd.Resolve(m.cwd, text); ok {
 			m.push(dimStyle.Render("⟳ /" + c.Name + " (" + c.Source + ")"))
 			return m.submitText(usercmd.Expand(c, args))
@@ -3545,6 +3647,8 @@ func (m Model) inputBox() string {
 		c, badge, nom = lilaFons, composerGoal, T("composer.objectiu")
 	case agent.ModeAutonomous:
 		c, badge, nom = teal, composerAuto, T("composer.autonomous")
+	case agent.ModeDebug:
+		c, badge, nom = amber, composerCode, T("composer.debug")
 	}
 	r := m.rolAgent()
 	esquerra := badge.Render("● "+nom) + dimStyle.Render(" · "+r.Provider+"/"+r.Model)

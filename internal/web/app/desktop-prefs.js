@@ -27,5 +27,13 @@
       originalClear.call(this);
       if (this === localStorage) for (const key of keys) bridge.savePreference(key, null);
     };
+    // The main process changed a preference on its own (e.g. the floating
+    // weathervane was hidden from its window): mirror it without echoing.
+    if (typeof bridge.onPreferenceChanged === 'function') bridge.onPreferenceChanged((key, value) => {
+      if (!keys.has(key)) return;
+      if (value === null) originalRemove.call(localStorage, key);
+      else originalSet.call(localStorage, key, value);
+      document.dispatchEvent(new CustomEvent('gregal:fun-prefs'));
+    });
   } catch (_) { /* Browser storage unavailable: retain the normal UI defaults. */ }
 })();

@@ -374,3 +374,16 @@ func TestSubmitNormalitzaWorkspaceAbansDeSerialitzar(t *testing.T) {
 	waitDone(t, q, first.ID)
 	waitDone(t, q, second.ID)
 }
+
+func TestSeedIDsContinuesAfterStoredRuns(t *testing.T) {
+	q := New()
+	q.SeedIDs(41)
+	q.SeedIDs(5) // mai no fa baixar el comptador
+	run, _, err := q.Submit(func(ctx context.Context, r Run) error { return nil }, Run{Session: "s"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if run.ID != 42 {
+		t.Fatalf("run.ID = %d, want 42", run.ID)
+	}
+}

@@ -1,10 +1,12 @@
-import { attentionQueue, nextAttention, progressSummary, replaceAgentButtons } from './team-status.js';
+import { attentionQueue, checkFlow, layoutFlow, nextAttention, progressSummary, readJSON, replaceAgentButtons, teamFlowTopology, writeJSON } from './team-status.js';
+import { buildFlowGraph, updateFlowGraph } from './team-flow-graph.js';
 import { htmlArtifact } from './web-artifact.js';
 const $ = id => document.getElementById(id);
 const roles = ['coordinator', 'researcher', 'builder', 'reviewer'];
 const baseRoles = [...roles];
 const roleColors = ['#a35c21','#167e88','#7756ab','#377a45'];
-const roleColor = role => roleColors[baseRoles.indexOf(metadata[role]?.parent || role)] || '#48676b';
+const flowRoleOf = {};
+const roleColor = role => roleColors[baseRoles.indexOf(flowRoleOf[role] || metadata[role]?.parent || role)] || '#48676b';
 const metadata = {}, bubbles = {}, actions = {};
 // needsYou: l'agent espera una decisió (torn pendent, error o aturada).
 // És la cua d'atenció del taller: la idea ve d'agent-office (beacon vermell +
@@ -12,18 +14,18 @@ const metadata = {}, bubbles = {}, actions = {};
 // mediterrani i l'estat surt dels esdeveniments reals de l'equip.
 const needsYou = role => ['failed', 'cancelled'].includes(states[role]);
 const words = {
-  en: { title:'Team', task:'Task', start:'Start', stop:'Stop', idle:'Idle', working:'Working', completed:'Completed', cancelled:'Stopped', failed:'Run failed. Check the model connection and retry.', done:'Complete', started:'Started', handoff:'Handoff', activity:'Activity', agents:'Agents', coordinator:'Coordinator', researcher:'Researcher', builder:'Builder', reviewer:'Reviewer', waiting:'Waiting', empty:'No deliverable yet', interrupted:'Connection interrupted. Retry the task.', textOnly:'Text only', model:'Active model', select:'Select an agent', whoNeedsMe:'Who needs me?', nobodyWaiting:'Nobody waiting', needsHint:'Go to the next agent awaiting a decision (N)', awaiting:'awaiting a decision' },
-  ca: { title:'Equip', task:'Tasca', start:'Inicia', stop:'Atura', idle:'Inactiu', working:'Treballant', completed:'Completat', cancelled:'Aturat', failed:'Ha fallat. Comprova la connexió del model i torna-ho a provar.', done:'Completat', started:'Iniciat', handoff:'Traspàs', activity:'Activitat', agents:'Agents', coordinator:'Coordinador', researcher:'Investigador', builder:'Constructor', reviewer:'Revisor', waiting:'En espera', empty:'Encara no hi ha cap resultat', interrupted:'Connexió interrompuda. Torna a iniciar la tasca.', textOnly:'Només text', model:'Model actiu', select:'Tria un agent', whoNeedsMe:'Qui em necessita?', nobodyWaiting:'Ningú espera', needsHint:'Ves al següent agent pendent de decisió (N)', awaiting:'pendents de decisió' },
+  en: { title:'Team', task:'Task', start:'Start', stop:'Stop', idle:'Idle', working:'Working', completed:'Completed', cancelled:'Stopped', failed:'Run failed. Check the model connection and retry.', done:'Complete', started:'Started', handoff:'Handoff', activity:'Activity', agents:'Agents', coordinator:'Coordinator', researcher:'Researcher', builder:'Builder', reviewer:'Reviewer', waiting:'Waiting', empty:'No deliverable yet', interrupted:'Connection interrupted. Retry the task.', textOnly:'Text only', model:'Active model', select:'Select an agent', whoNeedsMe:'Who needs me?', nobodyWaiting:'Nobody waiting', needsHint:'Go to the next agent awaiting a decision (N)', awaiting:'awaiting a decision',flow:'Flow',flowEdit:'Edit flow',flowCloseEditor:'Close editor',flowTitle:'Flow editor',flowName:'Name',flowSaved:'Saved',flowRun:'Run this flow',flowSave:'Save',flowDelete:'Delete',flowNew:'New',flowExport:'Export',flowImport:'Import',flowAdd:'Add',flowMaxRounds:'Max revision rounds',flowLabel:'Label',flowRole:'Role',flowMode:'Mode',flowInstruction:'Instruction',flowEdges:'Links',flowFrom:'From',flowTo:'To',flowKind:'Kind',flowData:'deliverable',flowRevision:'revision',flowOutput:'Final answer from',flowRemoveNode:'Remove agent',flowRemoveEdge:'Remove link',flowNeedName:'Name the flow before saving.',flowNodes:'Nodes',flowInstructionHint:'Empty = classic default for this role.',flowBadFile:'Invalid flow file.',tool:'Tool',approval:'Approval',withTools:'With tools',useTools:'Roles use tools',useToolsHint:'Researcher reads, reviewer runs read-only checks, builder edits with your permission policy.',approveAsk:'wants to run',allow:'Allow',deny:'Deny',allowed:'Allowed',denied:'Denied',definedAgents:'Defined agents',definedNone:'No subagents defined yet. Add Markdown files to .gregal/agents/ (project) or ~/.config/gregal/agents/ (user).',flowAgent:'Subagent',flowAgentNone:'(none)',readOnly:'read-only',canWrite:'can write' },
+  ca: { title:'Equip', task:'Tasca', start:'Inicia', stop:'Atura', idle:'Inactiu', working:'Treballant', completed:'Completat', cancelled:'Aturat', failed:'Ha fallat. Comprova la connexió del model i torna-ho a provar.', done:'Completat', started:'Iniciat', handoff:'Traspàs', activity:'Activitat', agents:'Agents', coordinator:'Coordinador', researcher:'Investigador', builder:'Constructor', reviewer:'Revisor', waiting:'En espera', empty:'Encara no hi ha cap resultat', interrupted:'Connexió interrompuda. Torna a iniciar la tasca.', textOnly:'Només text', model:'Model actiu', select:'Tria un agent', whoNeedsMe:'Qui em necessita?', nobodyWaiting:'Ningú espera', needsHint:'Ves al següent agent pendent de decisió (N)', awaiting:'pendents de decisió',flow:'Flux',flowEdit:'Edita el flux',flowCloseEditor:'Tanca l’editor',flowTitle:'Editor del flux',flowName:'Nom',flowSaved:'Desats',flowRun:'Executa el flux',flowSave:'Desa',flowDelete:'Esborra',flowNew:'Nou',flowExport:'Exporta',flowImport:'Importa',flowAdd:'Afegeix',flowMaxRounds:'Rondes màx. de revisió',flowLabel:'Etiqueta',flowRole:'Rol',flowMode:'Mode',flowInstruction:'Instrucció',flowEdges:'Enllaços',flowFrom:'De',flowTo:'A',flowKind:'Tipus',flowData:'lliurament',flowRevision:'revisió',flowOutput:'Resposta final de',flowRemoveNode:'Treu l’agent',flowRemoveEdge:'Treu l’enllaç',flowNeedName:'Posa un nom al flux per desar-lo.',flowNodes:'Nodes',flowInstructionHint:'Buit = valor clàssic del rol.',flowBadFile:'Fitxer de flux invàlid.',tool:'Eina',approval:'Aprovació',withTools:'Amb eines',useTools:'Els rols fan servir eines',useToolsHint:'L’investigador llegeix, el revisor fa comprovacions de només lectura i el constructor edita amb la teva política de permisos.',approveAsk:'vol executar',allow:'Permet',deny:'Denega',allowed:'Permès',denied:'Denegat',definedAgents:'Agents definits',definedNone:'Encara no hi ha cap subagent definit. Afegeix fitxers Markdown a .gregal/agents/ (projecte) o ~/.config/gregal/agents/ (usuari).',flowAgent:'Subagent',flowAgentNone:'(cap)',readOnly:'només lectura',canWrite:'pot escriure' },
 };
 const lang = () => document.documentElement.lang === 'ca' ? 'ca' : 'en';
 const t = key => words[lang()][key] || key;
 const name = role => metadata[role]?.name || t(role);
 const actionLabels = {en:{plan:'Planning',analyze:'Analyzing evidence',draft:'Writing a draft',review:'Checking the result',coding:'Writing code · demo',web:'Searching the web · demo',revision:'Applying feedback',discussion:'Review feedback',coffee:'Coffee break',chat:'Taking a break',delegated:'Delegated task',waiting:'Waiting for inputs'},ca:{plan:'Planificant',analyze:'Analitzant evidències',draft:'Redactant un esborrany',review:'Comprovant el resultat',coding:'Escrivint codi · demo',web:'Cercant al web · demo',revision:'Aplicant correccions',discussion:'Feedback de revisió',coffee:'Pausa per fer cafè',chat:'Fent una pausa',delegated:'Tasca delegada',waiting:'Esperant resultats'}};
 const actionLabel = role => actionLabels[lang()][actions[role]] || t(states[role]);
-function resetTeam(){roles.splice(0,roles.length,...baseRoles);selected=roles[0];homes.splice(4);agents.splice(4);for(const map of [metadata,bubbles,actions])for(const key of Object.keys(map))delete map[key];}
+function resetTeam(){roles.splice(0,roles.length,...baseRoles);selected=roles[0];homes.splice(0,homes.length,...baseHomes.map(h=>[...h]));agents.splice(0,agents.length,...defaultAgents);for(const key of Object.keys(flowRoleOf))delete flowRoleOf[key];for(const map of [metadata,bubbles,actions])for(const key of Object.keys(map))delete map[key];lastHandoff=null;if(flowTimer){clearTimeout(flowTimer);flowTimer=0;}}
 let selected = roles[0], controller = null, overall = 'idle', lastModel = '';
 let states = Object.fromEntries(roles.map(role => [role, 'idle']));
-let outputs = {}, activity = [], handoffWalk = null, demo = false, demoTimer = null;
+let outputs = {}, activity = [], handoffWalk = null, demo = false, demoTimer = null, lastHandoff = null, flowTimer = 0, runSpec = null, editorOpen = false, flowDraft = null, editorLang = '';
 const descriptions = {en:['Plans the task','Analyzes the information','Creates the deliverable','Checks and refines'],ca:['Planifica la tasca','Analitza la informació','Crea el resultat','Comprova i millora']};
 const examples = {en:[['Compare options','Compare PostgreSQL and SQLite for an internal chat with 50 users. Include a recommendation and risks.'],['Analyze data','Analyze these monthly ticket counts: January 120, February 180, March 150. Calculate changes and propose a chart specification.'],['Draft a plan','Create a practical onboarding plan for a new employee, with tasks, owners and acceptance criteria.']],ca:[['Compara opcions','Compara PostgreSQL i SQLite per a un xat intern amb 50 usuaris. Inclou una recomanació i riscos.'],['Analitza dades','Analitza aquests recomptes mensuals de tiquets: gener 120, febrer 180, març 150. Calcula els canvis i proposa una especificació de gràfic.'],['Prepara un pla',"Crea un pla pràctic d’acollida per a una persona nova, amb tasques, responsables i criteris d’acceptació."]]};
 const sceneHeight = 540;
@@ -34,6 +36,7 @@ const homes = [[145,455],[390,455],[635,455],[880,455]];
 const spritePaths = roles.map(role=>`/app/assets/pixel-office/${role}.png`);
 const canvas = $('teamCanvas'), ctx = canvas.getContext('2d');
 const office = new Image(), agents = spritePaths.map(src=>{const image=new Image();image.src=src;image.onload=()=>draw();return image;});
+const defaultAgents = [...agents];
 office.src = '/app/assets/pixel-office/furniture.png';
 office.onload = () => draw();
 const newspaper = new Image();
@@ -44,7 +47,7 @@ let stoppedAt = null;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 function render() {
-  $('teamTitle').textContent = $('teamNav').textContent = t('title');
+  $('teamTitle').textContent = t('title'); if ($('teamNav')) $('teamNav').textContent = t('title');
   $('teamTaskLabel').textContent = t('task');
   $('teamStart').textContent = t('start'); $('teamStop').textContent = t('stop');
   $('teamStart').disabled = !!controller; $('teamStop').disabled = !controller;
@@ -65,12 +68,20 @@ function render() {
     needsBtn.title = t('needsHint');
     needsBtn.disabled = !queue.length;
   }
+  renderFlow();
   const sampleButtons=examples[lang()].map(([label,task])=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.disabled=!!controller;b.onclick=()=>{$('teamTask').value=task;$('teamTask').focus();};return b;});
   const website=document.createElement('button');website.type='button';website.textContent=lang()==='ca'?'Crea una web':'Create a website';website.disabled=!!controller;website.onclick=()=>{$('teamTask').value=lang()==='ca'?"Crea una web interactiva per a un festival de musica fictici, amb programa, filtres per dia i una llista de favorits. Entrega un document HTML complet dins d'un bloc ```html, amb CSS i JavaScript inline. Sense dependencies, recursos externs, xarxa ni formularis que enviin dades. El revisor ha de conservar el document HTML complet en el resultat final. No afirmis haver executat proves.":"Create an interactive website for a fictional music festival, with a schedule, day filters and a favorites list. Deliver a complete HTML document in a ```html block, with inline CSS and JavaScript. No dependencies, external resources, network requests or forms that submit data. The reviewer must preserve the complete HTML document in the final deliverable. Do not claim to have executed tests.";$('teamTask').focus();};
   sampleButtons.unshift(website);
   const preview=document.createElement('button');preview.type='button';preview.textContent=lang()==='ca'?'▶ Demo sense API':'▶ Demo without API';preview.disabled=!!controller;preview.onclick=startDemo;
   $('teamExamples').replaceChildren(...sampleButtons,preview);
-  $('teamModel').textContent = demo ? (lang()==='ca'?'Demo local · resultats de mostra':'Local demo · sample results') : `${t('textOnly')} / ${lastModel || t('model')}`;
+  let flowToggle=$('teamFlowEdit');
+  if(!flowToggle){flowToggle=document.createElement('button');flowToggle.id='teamFlowEdit';flowToggle.type='button';flowToggle.className='ghost';flowToggle.onclick=()=>toggleFlowEditor();$('teamExamples').append(flowToggle);}
+  flowToggle.textContent=editorOpen?t('flowCloseEditor'):t('flowEdit');
+  flowToggle.setAttribute('aria-expanded',String(editorOpen));
+  if(editorOpen&&editorLang&&editorLang!==document.documentElement.lang)buildFlowEditor();
+  paintTeamModel();
+
+  renderToolsToggle();renderDefinedAgents();
   let configure=$('teamConfigure');
   if(!configure){configure=document.createElement('button');configure.id='teamConfigure';configure.type='button';configure.onclick=()=>window.gregal.configureProviders();$('teamModel').after(configure);}
   configure.textContent=lang()==='ca'?'Configura el model':'Configure model';configure.disabled=!!controller;
@@ -297,6 +308,8 @@ function receive(e){
   if(e.type==='spawn'&&e.agent&&!roles.includes(e.agent)&&roles.includes(e.parent)&&roles.length<8){roles.push(e.agent);const i=roles.length-5;homes.push([145+i*245,245]);agents.push(agents[roles.indexOf(e.parent)%4]);states[e.agent]='waiting';metadata[e.agent]={parent:e.parent,name:e.name||e.agent,model:e.model};}
   if(e.agent&&!roles.includes(e.agent))return;
   if(e.agent){if(e.activity&&['working','discussion','spawn'].includes(e.type))actions[e.agent]=e.activity;if(e.message)bubbles[e.agent]=e.message;if(e.model)metadata[e.agent]={...metadata[e.agent],model:e.model};}
+  if(e.type==='tool'&&e.agent){bubbles[e.agent]=`${e.activity||t('tool')}${e.message?' '+e.message:''}`;}
+  if(e.type==='approval'&&e.agent){lastApprovalAgent=e.agent;bubbles[e.agent]=`${t('approval')}: ${e.activity||''}`;}
   if(e.type==='working'){stoppedAt=null;states[e.agent]='working';overall='working';selected=e.agent;}
   if(e.type==='completed'){
     states[e.agent]='completed';outputs[e.agent]=e.output||'';delete bubbles[e.agent];delete actions[e.agent];
@@ -306,12 +319,15 @@ function receive(e){
   if(e.type==='handoff'&&roles.includes(e.to)){
     const from=homes[roles.indexOf(e.agent)],to=homes[roles.indexOf(e.to)];
     handoffWalk={agent:e.agent,start:performance.now(),path:[from,[512,from[1]],[512,to[1]],to]};
+    lastHandoff={from:e.agent,to:e.to,at:performance.now()};
+    if(flowTimer)clearTimeout(flowTimer);
+    flowTimer=setTimeout(()=>{lastHandoff=null;flowTimer=0;render();},4000);
   }
   if(['done','failed','cancelled'].includes(e.type)){
     if(e.type==='done'&&e.output){outputs.reviewer=e.output;const html=!demo&&htmlArtifact(e.output);if(html)window.gregalPreview?.request({kind:'html',content:html,title:name('reviewer')},true);}
     overall=e.type;
-    stoppedAt=performance.now();handoffWalk=null;
-    for(const role of roles)if(states[role]==='working'||states[role]==='waiting')states[role]=e.type==='done'?'completed':'cancelled';
+    stoppedAt=performance.now();handoffWalk=null;lastHandoff=null;if(flowTimer){clearTimeout(flowTimer);flowTimer=0;}
+    for(const role of roles)if(states[role]==='working'||states[role]==='waiting')states[role]=e.type==='done'?'completed':e.type==='failed'?'failed':'cancelled';
     if(e.type==='done')selected='reviewer';
     for(const role of roles){delete bubbles[role];delete actions[role];}
   }
@@ -319,26 +335,44 @@ function receive(e){
   if(activity.length>40)activity.shift();render();
 }
 
-$('teamForm').onsubmit=async event=>{
-  event.preventDefault();if(controller)return;
+$('teamForm').onsubmit=async event=>{event.preventDefault();startRun(null);};
+async function startRun(flow){
+  if(controller)return;
   const task=$('teamTask').value.trim();if(!task)return;
+  if(flow){
+    const problem=checkFlow(flow,lang());
+    if(problem){$('teamStatus').textContent=problem;overall='failed';render();return;}
+  }
   demo=false;controller=new AbortController();const current=controller;
   window.gregalPreview?.begin();
-  resetTeam();outputs={};activity=[];handoffWalk=null;stoppedAt=null;overall='started';
+  resetTeam();setupFlowRoles(flow);runSpec=flow||null;
+  outputs={};activity=[];handoffWalk=null;stoppedAt=null;overall='started';
   states=Object.fromEntries(roles.map(role=>[role,'waiting']));lastModel=window.gregal.state?.model||'';render();
   let reader;
   try{
-    const response=await window.gregal.api('/api/v2/team/run',{method:'POST',signal:current.signal,body:JSON.stringify({task,lang:lang()})});
-    if(!response.ok||!response.body){if(response.status===400)window.gregal.configureProviders();throw new Error('request failed');}
+    const payload={task,lang:lang(),tools:useTools()};
+    if(flow)payload.flow=flow;
+    const response=await window.gregal.api('/api/v2/team/run',{method:'POST',signal:current.signal,body:JSON.stringify(payload)});
+    if(!response.ok||!response.body){
+      if(response.status===400){
+        if(flow){
+          let msg='';
+          try{msg=await response.text();}catch{}
+          $('teamStatus').textContent=(msg||'').trim()||t('failed');
+        }
+        else window.gregal.configureProviders();
+      }
+      throw new Error('request failed');
+    }
     reader=response.body.getReader();const decoder=new TextDecoder();let buffer='';
     while(true){const chunk=await reader.read();if(chunk.done)break;
       buffer+=decoder.decode(chunk.value,{stream:true});let end;
-      while((end=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);if(frame.startsWith('event: team\n')){const data=frame.split('\n').find(line=>line.startsWith('data: '));if(data)receive(JSON.parse(data.slice(6)));}}
+      while((end=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);if(frame.startsWith('event: team\n')){const data=frame.split('\n').find(line=>line.startsWith('data: '));if(data)receive(JSON.parse(data.slice(6)));}else if(frame.startsWith('event: approve_request\n')||frame.startsWith('event: approve_timeout\n')){const data=frame.split('\n').find(line=>line.startsWith('data: '));if(data)teamApproval(frame.startsWith('event: approve_request')?'request':'timeout',JSON.parse(data.slice(6)));}}
       if(buffer.length>1000000)throw new Error('oversized event');
     }
     if(!['done','failed','cancelled'].includes(overall))receive({type:'failed'});
   }catch(error){receive({type:current.signal.aborted?'cancelled':'failed'});}
-  finally{if(reader){try{await reader.cancel();}catch{}reader.releaseLock();}controller=null;render();}
+  finally{if(reader){try{await reader.cancel();}catch{}reader.releaseLock();}controller=null;clearTeamApprovals();render();}
 };
 function startDemo(){
   if(controller)return;resetTeam();demo=true;controller=new AbortController();outputs={};activity=[];handoffWalk=null;stoppedAt=null;overall='started';lastModel='';states=Object.fromEntries(roles.map(role=>[role,'waiting']));
@@ -382,6 +416,356 @@ function goToNextAttention(){
   const next=nextAttention(roles,states,selected);
   if(next)goToAgent(next);
 }
+// setupFlowRoles prepara personatges, posicions i colors per a un flux
+// propi (o neteja per al predeterminat). Els sprites es reutilitzen per rol.
+const baseHomes = [[145,455],[390,455],[635,455],[880,455]];
+function setupFlowRoles(flow){
+  for(const key of Object.keys(flowRoleOf))delete flowRoleOf[key];
+  if(!flow)return;
+  roles.splice(0,roles.length,...flow.nodes.map(n=>n.id));
+  homes.splice(0,homes.length,...flow.nodes.map((n,i)=>i<baseHomes.length?[...baseHomes[i]]:[145+(i-4)*245,245]));
+  agents.splice(0,agents.length,...flow.nodes.map(n=>agents[baseRoles.indexOf(n.role)]||agents[0]));
+  flow.nodes.forEach(n=>{
+    if(baseRoles.includes(n.role))flowRoleOf[n.id]=n.role;
+    metadata[n.id]={name:(n.label||'').trim()||t(n.role),model:''};
+  });
+}
+// Editor de fluxos: l'esborrany viu a flowDraft (persistit), la
+// previsualització al graf, i l'execució passa per startRun(). Els inputs
+// escriuen a l'esborrany amb 'change' (mai rebuild en render: el focus es
+// conserva). Només els canvis estructurals reconstrueixen les llistes.
+const FLOW_STORE_KEY = 'gregalTeamFlowsV1';
+const FLOW_DRAFT_KEY = 'gregalTeamDraftV1';
+const flowLS = ()=>{try{return window.localStorage;}catch{return null;}};
+const flowCopy = spec=>JSON.parse(JSON.stringify(spec));
+function defaultDraft(){
+  const topo=teamFlowTopology();
+  return {name:'',output:'reviewer',max_rounds:1,
+    nodes:topo.nodes.map(id=>({id,role:id,label:'',mode:id==='reviewer'?'review':'task',instruction:''})),
+    edges:topo.edges.map(e=>({from:e.from,to:e.to,kind:e.kind==='revision'?'revision':'data'}))};
+}
+function loadFlows(){const all=readJSON(flowLS(),FLOW_STORE_KEY);return all&&typeof all==='object'?all:{};}
+function persistFlows(all){writeJSON(flowLS(),FLOW_STORE_KEY,all||{});}
+function persistDraft(){if(flowDraft)writeJSON(flowLS(),FLOW_DRAFT_KEY,flowDraft);}
+function loadDraft(){
+  const saved=readJSON(flowLS(),FLOW_DRAFT_KEY);
+  if(saved&&Array.isArray(saved.nodes)&&saved.nodes.length)return saved;
+  return defaultDraft();
+}
+const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function flowRoleOptions(selected){
+  return baseRoles.map(r=>`<option value="${r}"${r===selected?' selected':''}>${escHtml(t(r))}</option>`).join('');
+}
+function flowNodeIds(){
+  return (flowDraft?.nodes||[]).map(n=>n.id);
+}
+function flowIdOptions(selected){
+  return flowNodeIds().map(id=>`<option value="${escHtml(id)}"${id===selected?' selected':''}>${escHtml(id)}</option>`).join('');
+}
+function toggleFlowEditor(force){
+  editorOpen=force!=null?force:!editorOpen;
+  let panel=$('teamFlowEditor');
+  if(editorOpen){
+    if(!flowDraft)flowDraft=loadDraft();
+    if(panel)panel.remove();
+    buildFlowEditor();
+  }else if(panel){panel.remove();}
+  persistDraft();
+  render();
+}
+function flowError(msg){
+  const box=$('flowError');
+  if(!box)return;
+  box.textContent=msg||'';
+  box.hidden=!msg;
+}
+function buildFlowEditor(){
+  const old=$('teamFlowEditor');
+  if(old)old.remove();
+  const panel=document.createElement('section');
+  panel.id='teamFlowEditor';
+  panel.innerHTML=`
+    <h2 id="teamFlowEditTitle"></h2>
+    <div class="flow-row">
+      <label class="flow-field"><span data-flow-text="flowName"></span><input id="flowName" maxlength="80"></label>
+      <div class="flow-buttons">
+        <button type="button" class="ghost" data-flow-act="new"></button>
+        <button type="button" class="ghost" data-flow-act="save"></button>
+        <button type="button" class="ghost" data-flow-act="delete"></button>
+        <button type="button" class="primary" data-flow-act="run"></button>
+        <button type="button" class="ghost" data-flow-act="export"></button>
+        <button type="button" class="ghost" data-flow-act="import"></button>
+        <input type="file" id="flowImportFile" accept="application/json,.json" hidden>
+      </div>
+    </div>
+    <div id="flowSavedList" class="flow-saved-list"></div>
+    <div id="flowError" role="alert" hidden></div>
+    <h3 data-flow-text="flowNodes"></h3>
+    <div id="flowNodeList"></div>
+    <div class="flow-row">
+      <label class="flow-field"><span data-flow-text="flowRole"></span><select id="flowAddRole"></select></label>
+      <button type="button" class="ghost" data-flow-act="add-node"></button>
+    </div>
+    <h3 data-flow-text="flowEdges"></h3>
+    <div id="flowEdgeList"></div>
+    <div class="flow-row">
+      <label class="flow-field"><span data-flow-text="flowFrom"></span><select id="flowAddFrom"></select></label>
+      <label class="flow-field"><span data-flow-text="flowKind"></span><select id="flowAddKind"></select></label>
+      <label class="flow-field"><span data-flow-text="flowTo"></span><select id="flowAddTo"></select></label>
+      <button type="button" class="ghost" data-flow-act="add-edge"></button>
+    </div>
+    <div class="flow-row">
+      <label class="flow-field"><span data-flow-text="flowOutput"></span><select id="flowOutput"></select></label>
+      <label class="flow-field"><span data-flow-text="flowMaxRounds"></span><input id="flowRounds" type="number" min="0" max="10"></label>
+    </div>`;
+  panel.querySelector('[data-flow-act="new"]').textContent=t('flowNew');
+  panel.querySelector('[data-flow-act="save"]').textContent=t('flowSave');
+  panel.querySelector('[data-flow-act="delete"]').textContent=t('flowDelete');
+  panel.querySelector('[data-flow-act="run"]').textContent=t('flowRun');
+  panel.querySelector('[data-flow-act="export"]').textContent=t('flowExport');
+  panel.querySelector('[data-flow-act="import"]').textContent=t('flowImport');
+  panel.querySelector('[data-flow-act="add-node"]').textContent=t('flowAdd');
+  panel.querySelector('[data-flow-act="add-edge"]').textContent=t('flowAdd');
+  panel.querySelectorAll('[data-flow-text]').forEach(el=>{el.textContent=t(el.dataset.flowText);});
+  panel.querySelector('#teamFlowEditTitle').textContent=t('flowTitle');
+  panel.querySelector('#flowAddRole').innerHTML=flowRoleOptions('builder');
+  panel.querySelector('#flowAddKind').innerHTML=`<option value="data">${t('flowData')}</option><option value="revision">${t('flowRevision')}</option>`;
+  panel.querySelector('#flowName').value=flowDraft.name||'';
+  panel.querySelector('#flowRounds').value=flowDraft.max_rounds ?? 1;
+  panel.addEventListener('click',onFlowEditorClick);
+  panel.addEventListener('change',onFlowEditorChange);
+  panel.querySelector('#flowImportFile').onchange=e=>{
+    const f=e.target.files&&e.target.files[0];
+    if(f)importFlowFile(f);
+    e.target.value='';
+  };
+  document.querySelector('.team-layout').before(panel);
+  refreshFlowStructure();
+  refreshFlowSaved();
+  editorLang=document.documentElement.lang;
+}
+function refreshFlowSaved(){
+  const list=$('flowSavedList');
+  if(!list)return;
+  const all=loadFlows();
+  const names=Object.keys(all).sort();
+  list.replaceChildren();
+  if(!names.length)return;
+  const head=document.createElement('span');
+  head.className='flow-saved-head';head.textContent=t('flowSaved');list.append(head);
+  for(const name of names){
+    const load=document.createElement('button');
+    load.type='button';load.className='ghost';load.textContent=name;
+    load.onclick=()=>{flowDraft=flowCopy(all[name]);flowDraft.name=name;$('flowName').value=name;persistDraft();buildFlowEditor();render();};
+    const del=document.createElement('button');
+    del.type='button';del.className='ghost';del.textContent='×';del.setAttribute('aria-label',`${t('flowDelete')}: ${name}`);
+    del.onclick=()=>{const rest=loadFlows();delete rest[name];persistFlows(rest);refreshFlowSaved();};
+    list.append(load,del);
+  }
+}
+function refreshFlowStructure(){
+  const nodeList=$('flowNodeList'),edgeList=$('flowEdgeList');
+  if(!nodeList||!flowDraft)return;
+  nodeList.replaceChildren(...flowDraft.nodes.map(buildFlowNodeCard));
+  edgeList.replaceChildren(...(flowDraft.edges||[]).map((e,i)=>buildFlowEdgeRow(e,i)));
+  const from=$('flowAddFrom'),to=$('flowAddTo'),out=$('flowOutput');
+  if(from)from.innerHTML=flowIdOptions(flowDraft.nodes[0]?.id);
+  if(to)to.innerHTML=flowIdOptions(flowDraft.nodes[1]?.id||flowDraft.nodes[0]?.id);
+  if(out){out.innerHTML=flowIdOptions(flowDraft.output);if(!flowNodeIds().includes(flowDraft.output))out.value='';}
+}
+function buildFlowNodeCard(n){
+  const card=document.createElement('div');
+  card.className='flow-node-card';card.dataset.flowNodeCard=n.id;
+  const head=document.createElement('div');head.className='flow-node-head';
+  const title=document.createElement('strong');title.textContent=n.id;
+  const del=document.createElement('button');
+  del.type='button';del.className='ghost';del.textContent='×';del.setAttribute('aria-label',`${t('flowRemoveNode')}: ${n.id}`);
+  del.onclick=()=>{
+    flowDraft.nodes=flowDraft.nodes.filter(x=>x.id!==n.id);
+    flowDraft.edges=(flowDraft.edges||[]).filter(e=>e.from!==n.id&&e.to!==n.id);
+    if(flowDraft.output===n.id)flowDraft.output=flowDraft.nodes[0]?.id||'';
+    persistDraft();refreshFlowStructure();render();
+  };
+  head.append(title,del);
+  const grid=document.createElement('div');grid.className='flow-grid';
+  const field=(labelKey,input)=>{
+    const lab=document.createElement('label');lab.className='flow-field';
+    const span=document.createElement('span');span.textContent=t(labelKey);lab.append(span,input);return lab;
+  };
+  const labelInput=document.createElement('input');labelInput.value=n.label||'';labelInput.maxLength=40;
+  labelInput.onchange=()=>{n.label=labelInput.value;persistDraft();render();};
+  const roleSelect=document.createElement('select');
+  roleSelect.innerHTML=flowRoleOptions(n.role);
+  roleSelect.onchange=()=>{n.role=roleSelect.value;persistDraft();render();};
+  const modeSelect=document.createElement('select');
+  modeSelect.innerHTML=`<option value="task"${n.mode!=='review'?' selected':''}>task</option><option value="review"${n.mode==='review'?' selected':''}>review</option>`;
+  modeSelect.onchange=()=>{n.mode=modeSelect.value;persistDraft();render();};
+  const instruction=document.createElement('textarea');instruction.rows=2;instruction.value=n.instruction||'';
+  instruction.placeholder=t('flowInstructionHint');
+  instruction.onchange=()=>{n.instruction=instruction.value;persistDraft();render();};
+  const agentSelect=document.createElement('select');
+  agentSelect.replaceChildren();const none=document.createElement('option');none.value='';none.textContent=t('flowAgentNone');agentSelect.append(none);
+  const agentNames=(definedAgents||[]).map(a=>a.name);if(n.agent&&!agentNames.includes(n.agent))agentNames.push(n.agent);
+  for(const nm of agentNames){const o=document.createElement('option');o.value=nm;o.textContent=nm;if(nm===n.agent)o.selected=true;agentSelect.append(o);}
+  agentSelect.onchange=()=>{if(agentSelect.value)n.agent=agentSelect.value;else delete n.agent;persistDraft();render();};
+  grid.append(field('flowLabel',labelInput),field('flowRole',roleSelect),field('flowMode',modeSelect),field('flowAgent',agentSelect),field('flowInstruction',instruction));
+  card.append(head,grid);
+  return card;
+}
+function buildFlowEdgeRow(e,i){
+  const row=document.createElement('div');
+  row.className='flow-edge-row';
+  const mkSel=(keys,current)=>{
+    const sel=document.createElement('select');
+    for(const key of keys){
+      const opt=document.createElement('option');opt.value=key;opt.textContent=key;
+      if(key===current)opt.selected=true;
+      sel.append(opt);
+    }
+    return sel;
+  };
+  const from=mkSel(flowNodeIds(),e.from),kind=mkSel(['data','revision'],e.kind),to=mkSel(flowNodeIds(),e.to);
+  from.setAttribute('aria-label',t('flowFrom'));kind.setAttribute('aria-label',t('flowKind'));to.setAttribute('aria-label',t('flowTo'));
+  from.onchange=()=>{e.from=from.value;persistDraft();render();};
+  kind.onchange=()=>{e.kind=kind.value;persistDraft();render();};
+  to.onchange=()=>{e.to=to.value;persistDraft();render();};
+  const del=document.createElement('button');
+  del.type='button';del.className='ghost';del.textContent='×';del.setAttribute('aria-label',t('flowRemoveEdge'));
+  del.onclick=()=>{flowDraft.edges.splice(i,1);persistDraft();refreshFlowStructure();render();};
+  row.append(from,kind,to,del);
+  return row;
+}
+function onFlowEditorClick(ev){
+  const btn=ev.target?.closest?.('[data-flow-act]');
+  if(!btn||!flowDraft)return;
+  const act=btn.dataset.flowAct;
+  if(act==='new'){flowDraft=defaultDraft();persistDraft();buildFlowEditor();render();}
+  else if(act==='save'){
+    const name=($('flowName').value||'').trim();
+    if(!name){flowError(t('flowNeedName'));return;}
+    flowDraft.name=name;
+    const all=loadFlows();all[name]=flowCopy(flowDraft);persistFlows(all);
+    flowError('');refreshFlowSaved();render();
+  }
+  else if(act==='delete'){
+    const name=($('flowName').value||'').trim();
+    if(!name)return;
+    const all=loadFlows();delete all[name];persistFlows(all);
+    $('flowName').value='';flowDraft.name='';persistDraft();refreshFlowSaved();render();
+  }
+  else if(act==='run'){
+    if(controller)return;
+    flowDraft.name=($('flowName').value||'').trim();
+    flowDraft.max_rounds=Math.max(0,parseInt($('flowRounds').value,10)||0);
+    persistDraft();
+    startRun(flowCopy(flowDraft));
+  }
+  else if(act==='export'){
+    const blob=new Blob([JSON.stringify(flowDraft,null,2)],{type:'application/json'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download=`${(flowDraft.name||'flow').replace(/[^\w-]+/g,'-')}.json`;
+    document.body.append(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }
+  else if(act==='import'){$('flowImportFile').click();}
+  else if(act==='add-node'){
+    const role=$('flowAddRole').value;
+    let id=role,k=2;
+    const taken=new Set(flowNodeIds());
+    while(taken.has(id))id=`${role}-${k++}`;
+    flowDraft.nodes.push({id,role,label:'',mode:'task',instruction:''});
+    if(!flowDraft.output)flowDraft.output=id;
+    persistDraft();refreshFlowStructure();render();
+  }
+  else if(act==='add-edge'){
+    const from=$('flowAddFrom').value,to=$('flowAddTo').value,kind=$('flowAddKind').value;
+    if(!from||!to)return;
+    flowDraft.edges=flowDraft.edges||[];
+    flowDraft.edges.push({from,to,kind});
+    persistDraft();refreshFlowStructure();render();
+  }
+}
+function onFlowEditorChange(ev){
+  if(!flowDraft)return;
+  const el=ev.target;
+  if(el.id==='flowName'){flowDraft.name=el.value;persistDraft();return;}
+  if(el.id==='flowRounds'){flowDraft.max_rounds=Math.max(0,parseInt(el.value,10)||0);persistDraft();return;}
+  if(el.id==='flowOutput'){flowDraft.output=el.value;persistDraft();render();return;}
+}
+function importFlowFile(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const spec=JSON.parse(reader.result);
+      if(!spec||!Array.isArray(spec.nodes)||!spec.nodes.length)throw new Error('shape');
+      const problem=checkFlow(spec,lang());
+      flowDraft={
+        name:typeof spec.name==='string'?spec.name.slice(0,80):'',
+        output:typeof spec.output==='string'?spec.output:'',
+        max_rounds:Number.isInteger(spec.max_rounds)&&spec.max_rounds>=0?spec.max_rounds:1,
+        nodes:spec.nodes.map(n=>({id:String(n.id),role:String(n.role||'builder'),label:typeof n.label==='string'?n.label.slice(0,40):'',mode:n.mode==='review'?'review':'task',instruction:typeof n.instruction==='string'?n.instruction:''})),
+        edges:(Array.isArray(spec.edges)?spec.edges:[]).map(e=>({from:String(e.from),to:String(e.to),kind:e.kind==='revision'?'revision':'data'})),
+      };
+      if(problem)flowError(problem);else flowError('');
+      persistDraft();buildFlowEditor();render();
+    }catch{flowError(t('flowBadFile'));}
+  };
+  reader.readAsText(file);
+}
+// Graf del pipeline: qui passa la tasca a qui, amb l'estat en viu.
+// Pinta el flux actiu (tirada en curs, esborrany de l'editor o
+// predeterminat) i es reconstrueix si canvia la topologia.
+function activeFlowSpec(){
+  if(runSpec)return runSpec;
+  if(editorOpen&&flowDraft)return flowDraft;
+  return null;
+}
+function activeFlowNodes(){
+  const spec=activeFlowSpec();
+  if(!spec)return teamFlowTopology().nodes.map(id=>({id,role:id,label:'',mode:id==='reviewer'?'review':'task'}));
+  return spec.nodes;
+}
+function activeFlowEdges(){
+  const spec=activeFlowSpec();
+  const raw=spec?spec.edges:teamFlowTopology().edges.map(e=>({from:e.from,to:e.to,kind:e.kind==='revision'?'revision':'data'}));
+  return (raw||[]).filter(e=>e&&(e.kind==='data'||e.kind==='revision')).map(e=>({from:e.from,to:e.to,kind:e.kind}));
+}
+function flowDisplayName(node){
+  const full=((node.label||'').trim())||name(node.id);
+  return full.length>20?full.slice(0,19)+'…':full;
+}
+function flowFullName(node){
+  return ((node.label||'').trim())||name(node.id);
+}
+function buildFlowSvg(nodes,edges){
+  const svg=buildFlowGraph(nodes,edges,id=>goToAgent(id));
+  svg.id='teamFlow';
+  return svg;
+}
+function updateFlowSvg(svg,nodes){
+  const byId={};nodes.forEach(n=>byId[n.id]=n);
+  const liveEdge=lastHandoff&&performance.now()-lastHandoff.at<4000?`${lastHandoff.from}>${lastHandoff.to}`:null;
+  updateFlowGraph(svg,nodes,{states,selected,liveEdge,
+    shortName:id=>byId[id]?flowDisplayName(byId[id]):id,
+    fullName:id=>byId[id]?flowFullName(byId[id]):id,
+    stateName:st=>t(st),
+    groupName:t('flow')});
+}
+function renderFlow(){
+  let wrap=$('teamFlowWrap');
+  if(!wrap){
+    wrap=document.createElement('div');wrap.id='teamFlowWrap';
+    const title=document.createElement('h2');title.id='teamFlowTitle';wrap.append(title);
+    document.querySelector('.team-layout').before(wrap);
+    wrap._topoSig=null;
+  }
+  $('teamFlowTitle').textContent=t('flow');
+  const nodes=activeFlowNodes(),edges=activeFlowEdges();
+  const sig=JSON.stringify([nodes.map(n=>n.id),edges]);
+  let svg=$('teamFlow');
+  if(!svg||wrap._topoSig!==sig){if(svg)svg.remove();svg=buildFlowSvg(nodes,edges);wrap.append(svg);wrap._topoSig=sig;}
+  updateFlowSvg(svg,nodes);
+}
 $('teamNeedsMe').onclick=goToNextAttention;
 document.addEventListener('keydown',event=>{
   if(event.ctrlKey||event.metaKey||event.altKey)return;
@@ -405,3 +789,76 @@ pageObserver.observe($('teamPage'));
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&raf){cancelAnimationFrame(raf);raf=0;}else if(visible)draw();});
 reducedMotion.addEventListener?.('change',draw);
 render();
+
+// Rols amb eines: opció recordada al navegador (per defecte activada). Les
+// accions que demanen permís arriben com a approve_request dins del mateix
+// stream i es resolen aquí, sense sortir de la pàgina de l'equip. Són `var`
+// perquè render() es pot cridar abans que el mòdul arribi fins aquí.
+var TOOLS_KEY='gregalTeamToolsV1';
+var lastApprovalAgent='';
+var definedAgents=[],definedLoadedAt=0,definedLoading=false;
+function useTools(){try{return window.localStorage.getItem(TOOLS_KEY||'gregalTeamToolsV1')!=='off';}catch{return true;}}
+function renderToolsToggle(){
+  let label=$('teamToolsToggle');
+  if(!label){
+    label=document.createElement('label');label.id='teamToolsToggle';label.className='team-tools-toggle';
+    const box=document.createElement('input');box.type='checkbox';box.id='teamToolsBox';
+    box.onchange=()=>{try{window.localStorage.setItem(TOOLS_KEY||'gregalTeamToolsV1',box.checked?'on':'off');}catch{}render();};
+    label.append(box,document.createElement('span'));
+    $('teamModel').before(label);
+  }
+  const box=$('teamToolsBox');box.checked=useTools();box.disabled=!!controller;
+  label.querySelector('span').textContent=t('useTools');label.title=t('useToolsHint');
+}
+function approvalsBox(){
+  let box=$('teamApprovals');
+  if(!box){box=document.createElement('div');box.id='teamApprovals';box.setAttribute('aria-live','assertive');document.querySelector('.team-layout').before(box);}
+  return box;
+}
+function clearTeamApprovals(){const box=$('teamApprovals');if(box)box.replaceChildren();}
+function teamApproval(kind,d){
+  const box=approvalsBox();
+  if(kind==='timeout'){box.querySelectorAll('[data-call]').forEach(card=>{if(card.dataset.call===String(d.call_id||''))card.remove();});return;}
+  const card=document.createElement('div');card.className='team-approval';card.dataset.call=String(d.call_id||'');card.setAttribute('role','alertdialog');
+  const who=lastApprovalAgent?name(lastApprovalAgent):'';
+  const head=document.createElement('strong');head.textContent=`${who} ${t('approveAsk')} ${d.name||''}`.trim();
+  const args=document.createElement('pre');args.textContent=String(d.args||'').slice(0,1200);
+  const row=document.createElement('div');row.className='team-approval-row';
+  const finish=async ok=>{row.textContent=ok?t('allowed'):t('denied');card.dataset.done='true';
+    try{await window.gregal.api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok})});}catch{}
+    setTimeout(()=>card.remove(),2500);};
+  const yes=document.createElement('button');yes.type='button';yes.className='primary';yes.textContent=t('allow');yes.onclick=()=>finish(true);
+  const no=document.createElement('button');no.type='button';no.className='danger';no.textContent=t('deny');no.onclick=()=>finish(false);
+  row.append(yes,no);card.append(head,args,row);box.append(card);
+  requestAnimationFrame(()=>yes.focus());
+}
+async function loadDefinedAgents(){
+  if(definedLoading||!window.gregal?.api)return;definedLoading=true;
+  try{const r=await window.gregal.api('/api/agents/defined');if(r.ok){const j=await r.json();definedAgents=Array.isArray(j.agents)?j.agents:[];}}catch{}
+  definedLoadedAt=Date.now();definedLoading=false;renderDefinedAgents();
+  if(editorOpen&&!controller)refreshFlowStructure();
+}
+function renderDefinedAgents(){
+  if(Date.now()-(definedLoadedAt||0)>30000&&!definedLoading){loadDefinedAgents();}
+  const anchor=$('teamActivity');if(!anchor)return;
+  let wrap=$('teamDefinedAgents');
+  if(!wrap){wrap=document.createElement('section');wrap.id='teamDefinedAgents';wrap.className='team-defined';const h=document.createElement('h2');wrap.append(h,document.createElement('ul'));anchor.after(wrap);}
+  wrap.querySelector('h2').textContent=t('definedAgents');
+  const list=wrap.querySelector('ul');list.replaceChildren();
+  const all=definedAgents||[];
+  if(!all.length){const li=document.createElement('li');li.className='faint';li.textContent=t('definedNone');list.append(li);return;}
+  for(const a of all){
+    const li=document.createElement('li');const b=document.createElement('b');b.textContent=a.name;
+    const meta=document.createElement('small');meta.textContent=` · ${a.mode==='code'?t('canWrite'):t('readOnly')}${a.model?' · '+a.model:''}${a.tools&&a.tools.length?' · '+a.tools.join(', '):''} · ${a.source||''}`;
+    const desc=document.createElement('div');desc.textContent=a.description||'';
+    li.append(b,meta,desc);list.append(li);
+  }
+}
+
+// El model que farà la feina: el de l'última execució o, si encara no n'hi ha
+// hagut cap, el de la sessió (arriba amb l'estat, després de carregar).
+function paintTeamModel(){
+  const el=$('teamModel'); if(!el) return;
+  el.textContent = demo ? (lang()==='ca'?'Demo local · resultats de mostra':'Local demo · sample results') : `${lastModel || window.gregal?.state?.model || t('model')} · ${useTools()?t('withTools'):t('textOnly')}`;
+}
+document.addEventListener('gregal:state', paintTeamModel);

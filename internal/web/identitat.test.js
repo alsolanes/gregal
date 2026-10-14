@@ -54,10 +54,13 @@ test("els tokens del :root valen el que diu docs/identitat.md", () => {
   }
 });
 
-test("les línies fines són escuma translúcida, no un blau d'una altra app", () => {
+// Les línies fines són un gris fred translúcid, no l'accent: si l'accent
+// pinta totes les vores, deixa d'assenyalar res.
+test("les línies fines són gris fred translúcid, no l'accent", () => {
   const r = root();
-  assert.equal(r["--line"], "rgba(159,224,196,.10)");
-  assert.equal(r["--line-hi"], "rgba(159,224,196,.20)");
+  assert.equal(r["--line"], "rgba(201,209,230,.10)");
+  assert.equal(r["--line-hi"], "rgba(201,209,230,.20)");
+  assert.ok(!r["--line"].startsWith("rgba(129,147,255"), "les línies no han de ser l'accent");
 });
 
 test("cap color escrit a mà fora dels blocs de tokens", () => {
@@ -242,14 +245,10 @@ test("els colors d'arrencada de l'escriptori surten dels tokens", () => {
 });
 
 // Contrast de la paleta, mesurat i clavat aquí perquè no pugui empitjorar
-// sense que ningú se n'assabenti. Mesurat amb el DOM real de la pàgina en
-// tots dos temes: 25-26 elements de text queden per sota del 4.5 que demana
-// la WCAG per a text petit, i tots són --faint, que és el token que existeix
-// per apagar. Això no és un error: és una tria de disseny que viu a
-// docs/identitat.md, i canviar-la és decisió de qui mana la identitat.
-//
-// El que sí que és un error és que --muted o --text baixin fins on és
-// --faint, o que --faint caigui encara més. Els números són els d'avui.
+// sense que ningú se n'assabenti. Amb la paleta del gregal (2026) fins i tot
+// --faint passa el 4.5 de la WCAG per a text petit sobre --bg i --surface,
+// en tots dos temes. Els números són els d'avui: si algú els baixa, que
+// sigui una decisió de docs/identitat.md i no un descuit.
 test("el contrast de la paleta no empitjora", () => {
   const lum = (hex) => {
     const n = parseInt(hex.slice(1), 16);
@@ -269,8 +268,8 @@ test("el contrast de la paleta no empitjora", () => {
   };
   // [tema, tokens, mínims mesurats avui]
   const casos = [
-    ["fosc", bloc(/:root\s*\{([^}]*)\}/), { "--faint": 2.2, "--muted": 6.5, "--text": 13.5 }],
-    ["clar", bloc(/:root\[data-theme="light"\]\s*\{([^}]*)\}/), { "--faint": 3.2, "--muted": 5.9, "--text": 13.5 }],
+    ["fosc", bloc(/:root\s*\{([^}]*)\}/), { "--faint": 5.2, "--muted": 7.2, "--text": 13.5 }],
+    ["clar", bloc(/:root\[data-theme="light"\]\s*\{([^}]*)\}/), { "--faint": 4.9, "--muted": 6.1, "--text": 14 }],
   ];
   for (const [tema, t, minims] of casos) {
     for (const [fg, min] of Object.entries(minims)) {

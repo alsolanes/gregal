@@ -17,6 +17,12 @@ var GHRunner = runGH
 // No accepta ordres arbitràries: cada acció es tradueix a arguments tancats de
 // gh, evitant que l'agent converteixi aquesta eina en un segon bash.
 func GitHub(tool, argsJSON string) (string, error) {
+	return GitHubCtx(context.Background(), tool, argsJSON)
+}
+
+// GitHubCtx és GitHub amb el context del torn: Esc talla el procés gh en
+// comptes d'esperar el seu timeout propi.
+func GitHubCtx(ctx context.Context, tool, argsJSON string) (string, error) {
 	var a struct {
 		Action string `json:"action"`
 		Number int    `json:"number"`
@@ -81,7 +87,10 @@ func GitHub(tool, argsJSON string) (string, error) {
 	if a.Repo != "" {
 		args = append(args, "--repo", a.Repo)
 	}
-	out, err := GHRunner(context.Background(), args...)
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	out, err := GHRunner(ctx, args...)
 	if err != nil {
 		return "", fmt.Errorf("gh: %w", err)
 	}

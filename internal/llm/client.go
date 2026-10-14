@@ -25,6 +25,13 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"-"`
+	// ReasoningContent és el raonament que el proveïdor ha tornat amb
+	// aquesta crida d'eina (reasoning_content). Els models de raonament que
+	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
+	// crides (vegeu reasoning.go). Només surt pel cable cap al proveïdor; la
+	// persistència (MarshalJSON) no el desa. Buit = el proveïdor no en fa
+	// servir i el camp no s'envia mai.
+	ReasoningContent string `json:"reasoning_content,omitempty"`
 }
 
 // MarshalJSON manté el format string clàssic sense imatges (cap canvi
@@ -44,6 +51,10 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 	w := wire(m)
 	if sanitize {
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
+	} else {
+		// El raonament és d'aquesta cadena de crides: no es desa a les
+		// converses ni es reenvia en torns posteriors.
+		w.ReasoningContent = ""
 	}
 	if len(m.Images) == 0 {
 		return json.Marshal(w)
@@ -172,6 +183,10 @@ type Usage struct {
 	PromptTokensDetails struct {
 		CachedTokens int `json:"cached_tokens"`
 	} `json:"prompt_tokens_details"`
+	// CacheWriteTokens són els tokens d'entrada escrits a la cache del
+	// proveïdor (Anthropic: cache_creation_input_tokens). Ja compten dins de
+	// PromptTokens; no surt pel cable OpenAI.
+	CacheWriteTokens int `json:"-"`
 }
 
 // Buida diu si el proveïdor no ha declarat consum en aquesta resposta.
@@ -228,6 +243,13 @@ type Client struct {
 	campsOff map[string]bool
 	cacheMu  sync.RWMutex
 	cache    map[string]promptCacheConfig
+	// raonaments recorda el reasoning_content de les crides d'eina per id
+	// (reasoning.go), perquè qualsevol bucle que reenviï l'historial el
+	// torni al proveïdor encara que no l'hagi desat al missatge.
+	raonaments raonamentCache
+	// natius guarda els blocs de pensament (Anthropic) i els items de
+	// raonament (Responses) que s'han de tornar intactes (provider_type.go).
+	natius blocsNatius
 }
 
 type promptCacheConfig struct {
@@ -341,6 +363,7 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 		reqBody.PromptCacheKey = cache.key
 		reqBody.PromptCacheRetention = cache.retention
 	}
+	reqBody.Messages = c.raonaments.omple(reqBody.Messages)
 	body, err := marshalChatRequest(reqBody)
 	if err != nil {
 		return nil, err
@@ -365,8 +388,9 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 // json.Marshal(chatRequest), perquè això passaria per Message.MarshalJSON i
 // faria que la sanitització d'arguments afectés també la persistència.
 func marshalChatRequest(req chatRequest) ([]byte, error) {
-	messages := make([]json.RawMessage, len(req.Messages))
-	for i, msg := range req.Messages {
+	msgs := normalitzaOrdreEines(req.Messages)
+	messages := make([]json.RawMessage, len(msgs))
+	for i, msg := range msgs {
 		raw, err := marshalMessage(msg, true)
 		if err != nil {
 			return nil, err
@@ -428,6 +452,9 @@ func (c *Client) Chat(ctx context.Context, baseURL, apiKey, model string, msgs [
 }
 
 func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int) (string, error) {
+	if text, _, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, nil, false, nil, nil); ok {
+		return text, err
+	}
 	c.clearUsage()
 	resp, err := c.postCompat(ctx, baseURL, apiKey, chatRequest{
 		Model: model, Messages: msgs,
@@ -491,6 +518,9 @@ func (c *Client) ChatWithTools(ctx context.Context, baseURL, apiKey, model strin
 }
 
 func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec) (string, []ToolCall, error) {
+	if text, calls, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, false, nil, nil); ok {
+		return text, calls, err
+	}
 	c.clearUsage()
 	var tos []any
 	for _, s := range specs {
@@ -552,6 +582,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 		// tool calls from a truncated attempt so it can be retried safely.
 		return "", nil, &LengthError{MaxTokens: maxTokens}
 	}
+	c.noteReasoning(ctx, m.ToolCalls, m.ReasoningContent)
 	return senseThink(m.Content), m.ToolCalls, nil
 }
 
@@ -569,6 +600,9 @@ func (c *Client) ChatStream(ctx context.Context, baseURL, apiKey, model string, 
 }
 
 func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, onToken, onReason func(string)) (string, error) {
+	if text, _, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, nil, true, onToken, onReason); ok {
+		return text, err
+	}
 	c.clearUsage()
 	resp, err := c.postStream(ctx, baseURL, apiKey, chatRequest{
 		Model: model, Messages: msgs,
@@ -585,6 +619,7 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 	}
 	rec := c.usageCall(ctx)
 	defer rec.done()
+	prog := nouProgres(ctx)
 	var full strings.Builder
 	reasoned, finish := 0, ""
 	sawDone := false
@@ -593,6 +628,7 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
 			payload := strings.TrimPrefix(t, "data: ")
+			prog.tros()
 			if payload == "[DONE]" {
 				sawDone = true
 				break
@@ -603,12 +639,14 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {
 						full.WriteString(d)
+						prog.delta(ProgressText, d)
 						if onToken != nil {
 							onToken(d)
 						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
 						reasoned += len([]rune(r))
+						prog.delta(ProgressReasoning, r)
 						if onReason != nil {
 							onReason(r)
 						}
@@ -724,6 +762,9 @@ func (c *Client) ChatStreamWithTools(ctx context.Context, baseURL, apiKey, model
 }
 
 func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string)) (string, []ToolCall, error) {
+	if text, calls, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, true, onToken, onReason); ok {
+		return text, calls, err
+	}
 	c.clearUsage()
 	resp, err := c.postStream(ctx, baseURL, apiKey, chatRequest{
 		Model: model, Messages: msgs,
@@ -740,6 +781,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 	}
 	rec := c.usageCall(ctx)
 	defer rec.done()
+	prog := nouProgres(ctx)
 	// Alguns proxies ignoren stream:true i tornen el JSON sencer d'una vegada
 	// (i els fakes dels tests també). Es llegeix com a resposta normal: el
 	// text arriba a onToken d'un sol cop i les tool_calls ja vénen muntades.
@@ -760,7 +802,12 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 		rec.see(out.Usage)
 		m := out.Choices[0].Message
+		// Tot arriba d'un cop: un sol avís per tipus, amb el total.
+		prog.tros()
+		prog.delta(ProgressReasoning, m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)
+		prog.delta(ProgressText, m.Content)
 		for i := range m.ToolCalls {
+			prog.delta(ProgressTool, m.ToolCalls[i].Function.Arguments)
 			if m.ToolCalls[i].Type == "" {
 				m.ToolCalls[i].Type = "function"
 			}
@@ -786,9 +833,12 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 				onReason(reason)
 			}
 		}
+		c.noteReasoning(ctx, calls, m.ReasoningContent)
 		return text, calls, nil
 	}
 	var full strings.Builder
+	// roundTrip és només el reasoning_content (el camp que cal tornar).
+	var roundTrip strings.Builder
 	reasoned, finish := 0, ""
 	sawDone := false
 	// Acumulació per índex: l'ordre d'arribada no és l'ordre de les crides.
@@ -799,6 +849,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
 			payload := strings.TrimPrefix(t, "data: ")
+			prog.tros()
 			if payload == "[DONE]" {
 				sawDone = true
 				break
@@ -809,17 +860,21 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {
 						full.WriteString(d)
+						prog.delta(ProgressText, d)
 						if onToken != nil {
 							onToken(d)
 						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
 						reasoned += len([]rune(r))
+						prog.delta(ProgressReasoning, r)
 						if onReason != nil {
 							onReason(r)
 						}
 					}
+					roundTrip.WriteString(ch.Delta.ReasoningContent)
 					for _, tc := range ch.Delta.ToolCalls {
+						prog.delta(ProgressTool, tc.Function.Arguments)
 						cur, ok := byIndex[tc.Index]
 						if !ok {
 							cur = &ToolCall{Type: "function"}
@@ -883,6 +938,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 		return "", nil, lengthTallat(reasoned, maxTokens, visible)
 	}
+	c.noteReasoning(ctx, calls, roundTrip.String())
 	return text, calls, nil
 }
 
@@ -906,8 +962,11 @@ func truncate(s string, n int) string {
 }
 
 // EstimateTokens aproxima tokens (caràcters/4 + 8 per missatge). És una
-// estimació (~), no un recompte del tokenizer. Cada imatge compta com a
-// 1000 tokens (conservador, estil OpenAI vision de baixa resolució).
+// estimació (~), no un recompte del tokenizer. Les imatges per URL que no
+// coneixem compten 1000 tokens (conservador, estil OpenAI vision de baixa
+// resolució); els data URLs es calculen per mida (bytes/750), perquè una
+// captura de 8 MB no costa 1000 tokens sinó deu vegades més, i
+// infraestimar-les retardava la compactació fins a rebentar la finestra.
 // MARGE: l'error típic és ±30%. No feu servir aquest nombre per retallar al
 // límit de la finestra: CompactThreshold (agent/compact.go, 0.75) deixa un
 // 25% de coixí precisament per aquest error.
@@ -916,13 +975,29 @@ func EstimateTokens(msgs []Message) int {
 	for _, m := range msgs {
 		n += len([]rune(m.Role)) / 4
 		n += len([]rune(m.Content)) / 4
-		n += 1000 * len(m.Images)
+		for _, img := range m.Images {
+			n += imageTokens(img)
+		}
 		for _, c := range m.ToolCalls {
 			n += len([]rune(c.Function.Arguments)) / 4
 		}
+		n += len([]rune(m.ReasoningContent)) / 4
 		n += 8
 	}
 	return n
+}
+
+// imageTokens estima una imatge: sòl de 1000 (baixa resolució) o mida
+// real per a data URLs (base64 → bytes → ~750 bytes per token).
+func imageTokens(img string) int {
+	const perToken = 750
+	const terra = 1000
+	if i := strings.Index(img, ";base64,"); i >= 0 {
+		if by := (len(img) - i - len(";base64,")) * 3 / 4; by/perToken > terra {
+			return by / perToken
+		}
+	}
+	return terra
 }
 
 // FmtCount humanitza: 999 → "999", 1500 → "1.5k".

@@ -282,7 +282,7 @@ export const office = {
     await this.ensureLib('xlsx', ['xlsx.mini.min.js']);
     const buf = await this.docBytes();
     const wb = window.XLSX.read(buf, { type: 'array' });
-    if (!wb.SheetNames.length) throw new Error('sense fulls');
+    if (!wb.SheetNames.length) throw new Error(T('office.noSheets'));
     const d = this.doc;
     if (!d.sheet || !wb.SheetNames.includes(d.sheet)) d.sheet = wb.SheetNames[0];
     const ws = wb.Sheets[d.sheet];
@@ -308,10 +308,10 @@ export const office = {
     });
     html += '</tbody></table></div>';
     const avisos = [];
-    if (rows.length > MAXFILA) avisos.push(rows.length + ' files (en mostro ' + MAXFILA + ')');
-    if (rows.some(r => r.length > MAXCOL)) avisos.push('més de ' + MAXCOL + ' columnes');
-    if (avisos.length) html += '<p class="off-open">… ' + avisos.join(' · ') + '. L\'agent llegeix el full sencer.</p>';
-    box.innerHTML = rows.length ? html : '<p class="off-open">(full buit)</p>';
+    if (rows.length > MAXFILA) avisos.push(T('office.rowsShown').replace('{n}', rows.length).replace('{max}', MAXFILA));
+    if (rows.some(r => r.length > MAXCOL)) avisos.push(T('office.colsOver').replace('{max}', MAXCOL));
+    if (avisos.length) html += '<p class="off-open">… ' + esc(avisos.join(' · ')) + '. ' + esc(T('office.agentReadsAll')) + '</p>';
+    box.innerHTML = rows.length ? html : '<p class="off-open">' + esc(T('office.emptySheet')) + '</p>';
 
     // Les pestanyes viuen fora de la zona que fa scroll: sempre a la vista,
     // com a l'Excel. Surten encara que n'hi hagi una de sola: saber com es
@@ -337,17 +337,17 @@ export const office = {
   async renderPptx(box) {
     await this.ensureLib('pptx', ['jszip.min.js', 'chart.umd.min.js', 'PptxViewJS.min.js']);
     if (!window.PptxViewJS || typeof window.PptxViewJS.PPTXViewer !== 'function') {
-      throw new Error('visor pptx no disponible');
+      throw new Error(T('office.pptxUnavailable'));
     }
     const buf = await this.docBytes();
-    box.innerHTML = '<div class="pptx-nav"><button data-prev aria-label="Diapo anterior">‹</button>' +
-      '<span data-count></span><button data-next aria-label="Diapo següent">›</button></div>' +
+    box.innerHTML = '<div class="pptx-nav"><button data-prev data-i18n-aria="office.prevSlide" aria-label="' + esc(T('office.prevSlide')) + '">‹</button>' +
+      '<span data-count></span><button data-next data-i18n-aria="office.nextSlide" aria-label="' + esc(T('office.nextSlide')) + '">›</button></div>' +
       '<canvas class="pptx-canvas" width="960" height="540"></canvas>';
     const canvas = box.querySelector('canvas'), count = box.querySelector('[data-count]');
     const v = new window.PptxViewJS.PPTXViewer({ canvas });
     await v.loadFile(buf);
     const total = v.getSlideCount();
-    if (!total) throw new Error('sense diapos');
+    if (!total) throw new Error(T('office.noSlides'));
     const show = async idx => {
       await v.render(canvas, { slideIndex: idx });
       count.textContent = (v.getCurrentSlideIndex() + 1) + ' / ' + total;

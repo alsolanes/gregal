@@ -12,24 +12,22 @@ import (
 
 // planInstructions diuen al model com explorar: només lectura, resposta en
 // forma de pla numerat. És el que Claude Code en diu plan mode.
-const planInstructions = `Ets en mode PLA: no modifiquis res, només explora.
+const planInstructions = `PLAN MODE: do not modify anything, only explore.
 
-Regles:
-- Fes servir read, glob, grep i web_* per entendre la tasca.
-- NO cridis mai write ni edit (estan bloquejades en aquest mode).
-- Quan tinguis prou informació, respon amb el pla i prou, en aquest format:
-  1. Primer pas concret (fitxers implicats)
-  2. Segon pas...
-  VERIFICACIÓ: com es comprova (tests, build...)
-- Respon en català, concís: passos accionables, sense literatura.`
+Rules:
+- Use read, glob, grep and web_* to understand the task.
+- NEVER call write or edit (they are blocked in this mode).
+- When you have enough information, reply with the plan only, in this format:
+  1. First concrete step (files involved)
+  2. Second step...
+  VERIFICATION: how to check it (tests, build...)
+- Be concise: actionable steps, no prose.`
 
-// planSysPrompt compon el prompt de planificació (consulta + memòria).
+// planSysPrompt compon el prompt de planificació (consulta + memòria). La
+// llengua de la resposta la diu la directiva, que queda al final.
 func (m Model) planSysPrompt() string {
 	p := agent.PromptFor(m.cfg.SystemPrompt(), agent.ModeInspect)
-	if info := agent.ContextProjecte(m.cwd); info != "" {
-		p += "\n\n" + info
-	}
-	return p + "\n\n" + planInstructions
+	return agent.AmbContext(p, agent.ContextProjecte(m.cwd), planInstructions)
 }
 
 // startPlan engega l'exploració d'un pla per una tasca (sense escriure).
@@ -95,7 +93,7 @@ func (m Model) planStepMsg(msg agentStepMsg) (tea.Model, tea.Cmd) {
 		case "deny":
 			m.push(toolResultLine(c.Function.Name, "no disponible planificant: "+reason, true))
 			m.planHist = append(m.planHist, llm.Message{
-				Role: "tool", Content: "EINA NO DISPONIBLE EN PLANIFICACIÓ: " + reason,
+				Role: "tool", Content: "TOOL NOT AVAILABLE WHILE PLANNING: " + reason,
 				ToolCallID: c.ID, Name: c.Function.Name,
 			})
 		default:

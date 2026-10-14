@@ -1,8 +1,10 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -75,6 +77,13 @@ type Pas struct {
 	// sol ser obvi (córrer el test, respondre). Amb think: auto, el client
 	// hi apaga el raonament (ThinkPerPas).
 	Mecanic bool
+	// Revisio és la decisió del revisor automàtic (mode auto-review) sobre
+	// Call (OrdreAprova: ha dit «ask») o sobre Calls[0] (OrdreExecuta: l'ha
+	// aprovada). Nil = cap revisió.
+	Revisio *ReviewDecision
+	// Events s'han de pintar abans de complir l'ordre (p. ex. una crida que
+	// el revisor ha denegat). Ja són aplicats a l'historial.
+	Events []Event
 }
 
 // TipusEvent diu com s'ha de pintar un event.
@@ -110,11 +119,20 @@ type Event struct {
 	Eina     string
 	EinaArgs string
 	Fallada  bool
-	// ID és l'id de la crida (EvCrida, i EvResultat quan el resultat surt
-	// del motor sense execució: bloquejada, repetida, ajornada). La web
-	// aparella cada targeta d'eina amb el seu resultat per l'ordre
-	// d'arribada, i amb l'id pot emetre la crida just abans del resultat.
+	// ID és l'id de la crida (EvCrida i EvResultat). La web aparella cada
+	// targeta d'eina amb el seu resultat per l'ordre d'arribada, i amb l'id
+	// pot emetre la crida just abans del resultat; el headless hi aparella
+	// el trace.
 	ID string
+	// Executada: el resultat és d'una execució real (RepExecucions), que el
+	// conductor ja té i pot haver pintat pel seu compte (la web emet el
+	// tool_result en executar). Fals = el motor l'ha resolt sense executar
+	// (bloquejada, repetida, ajornada).
+	Executada bool
+	// Revisio és la decisió del revisor automàtic que acompanya l'event.
+	Revisio *ReviewDecision
+	// Aposta és la predicció resolta d'una comprovació (bets.go).
+	Aposta *Aposta
 }
 
 func nota(text string) Event  { return Event{Tipus: EvNota, Text: text} }
@@ -156,6 +174,11 @@ type OpcionsTorn struct {
 	// AutoAprova salta asks en modes interactius. El mode autònom els manté
 	// pendents d'una confirmació interactiva fins i tot amb mode permissiu.
 	AutoAprova func() bool
+	// Revisor decideix les crides que demanen permís en mode auto-review
+	// (autoreview.go). Una decisió buida o «ask» les torna a la persona;
+	// «deny» les bloqueja amb el motiu per al model. No s'aplica en mode
+	// autònom, que continua demanant confirmació interactiva.
+	Revisor ReviewFunc
 	// Todos és la checklist del client quan no és la global del procés:
 	// a la web cada pestanya té la seva, i amb la global dues sessions es
 	// trepitjaven. Nil = la global.
@@ -168,6 +191,21 @@ type OpcionsTorn struct {
 	// de les crides (llm.WithUsage): el topall de cost autònom el fa servir
 	// en comptes de l'estimació. Opcional.
 	Usage *llm.UsageMeter
+	// SenseAmpliacions fa de MaxSteps un topall dur: en arribar-hi no es
+	// demana «CONTINUA/FINAL», es fa la síntesi. El headless l'activa quan
+	// l'usuari passa --max-steps explícitament (un límit és un límit).
+	SenseAmpliacions bool
+	// Ctx, Sessio i Workspace són per als hooks del cicle de vida
+	// (lifecycle.go): hi pengen (cancel·lar el torn els mata) i els reben
+	// com a GREGAL_SESSION/GREGAL_WORKSPACE. Opcionals.
+	Ctx       context.Context
+	Sessio    string
+	Workspace string
+	// Aposta i CriticaPla són ganxos opcionals (motor_caps.go): la
+	// predicció lateral d'una comprovació sense «bet» i el crític del
+	// contracte de fites del mode autònom.
+	Aposta     ApostaFunc
+	CriticaPla CriticaPlaFunc
 }
 
 // Torn és l'estat d'un torn d'agent.
@@ -195,13 +233,16 @@ type Torn struct {
 	doom       DoomTracker
 	doomStalls int
 
-	serverRetries  int
-	textRetries    int
-	todosRetries   int
-	verifRetries   int
-	compactatAlPas int
-	execsSenseTodo int
-	ultSortida     string
+	serverRetries int
+	// reasoningRetries: el 400 «reasoning_content must be passed back»
+	// s'ha reintentat (una vegada com a molt).
+	reasoningRetries int
+	textRetries      int
+	todosRetries     int
+	verifRetries     int
+	compactatAlPas   int
+	execsSenseTodo   int
+	ultSortida       string
 	// lecturesSoles: passos seguits amb una sola lectura (recordatori de
 	// demanar-les juntes); avisosLectures: quants cops s'ha recordat.
 	lecturesSoles  int
@@ -213,9 +254,17 @@ type Torn struct {
 
 	perExecutar []llm.ToolCall
 	pendents    []llm.ToolCall
+	// motius: per què cada crida pendent demana permís (per al revisor).
+	motius map[string]string
 	actual      llm.ToolCall
 	teActual    bool
 	pregunta    *llm.ToolCall
+	// guies són els avisos per al model (missatges d'usuari) que han sorgit
+	// mentre el lot d'eines encara no estava complet. Un missatge d'usuari
+	// entre els tool results d'un mateix assistant trenca el protocol i els
+	// proveïdors estrictes responen 400: s'afegeixen quan totes les crides
+	// del lot ja tenen resultat (buidaGuies a Seguent).
+	guies []string
 
 	autoInici          time.Time
 	autoCheckpoint     int
@@ -231,6 +280,9 @@ type Torn struct {
 	esgotat bool
 	// sintesiReintent: la síntesi ja s'ha reintentat un cop per context.
 	sintesiReintent bool
+	// sintesiEinaReintent: la síntesi ha tornat només una crida d'eina i
+	// s'ha tornat a demanar dient que no n'hi ha (una vegada).
+	sintesiEinaReintent bool
 	// recuperacions de context seguides: el topall evita un bucle si el
 	// proveïdor continua dient que no hi cap per molt que es retalli.
 	recuperacions int
@@ -240,6 +292,14 @@ type Torn struct {
 	fallit   bool
 	motiu    string
 	resposta string
+
+	// Hooks del cicle de vida (lifecycle_motor.go).
+	hooksIniciats bool
+	hookBloqueig  string
+	stopContinues int
+
+	// caps: debug gate, apostes i crític del pla (motor_caps.go).
+	caps capsTorn
 }
 
 // NouTorn arrenca un torn.
@@ -254,6 +314,9 @@ func NouTorn(o OpcionsTorn) *Torn {
 	}
 	return t
 }
+
+// Tasca és la tasca del torn (el revisor automàtic la llegeix).
+func (t *Torn) Tasca() string { return t.o.Tasca }
 
 // Passos i Limit són per a la línia d'estat.
 func (t *Torn) Passos() int { return t.passos }
@@ -310,6 +373,11 @@ func (t *Torn) Seguent() Pas {
 			}
 		}
 	}
+	if !t.hooksIniciats && !t.acabat {
+		t.hooksIniciats = true
+		t.hooksInici()
+		t.capsInici()
+	}
 	if t.acabat {
 		if t.fallit {
 			return Pas{Ordre: OrdreError, Text: t.motiu, Passos: t.passos, Limit: t.Limit()}
@@ -324,10 +392,6 @@ func (t *Torn) Seguent() Pas {
 		t.perExecutar = nil
 		return t.pas(Pas{Ordre: OrdreExecuta, Calls: calls})
 	}
-	if t.checkpointPendent {
-		t.checkpointPendent = false
-		return t.pas(Pas{Ordre: OrdreCheckpoint})
-	}
 	if len(t.pendents) > 0 {
 		t.actual, t.pendents = t.pendents[0], t.pendents[1:]
 		t.teActual = true
@@ -337,7 +401,17 @@ func (t *Torn) Seguent() Pas {
 			t.teActual = false
 			return t.pas(Pas{Ordre: OrdreExecuta, Calls: []llm.ToolCall{t.actual}})
 		}
+		if !t.autonom() && t.o.Revisor != nil {
+			return t.revisa()
+		}
 		return t.pas(Pas{Ordre: OrdreAprova, Call: t.actual})
+	}
+	// A partir d'aquí totes les crides del lot tenen resultat: ja es poden
+	// afegir els avisos i el checkpoint (tots dos són missatges d'usuari).
+	t.buidaGuies()
+	if t.checkpointPendent {
+		t.checkpointPendent = false
+		return t.pas(Pas{Ordre: OrdreCheckpoint})
 	}
 	// Fer lloc també abans d'ampliar o sintetitzar: una tasca llarga pot
 	// haver cabut a cada pas i, tot i així, desbordar el context al resum.
@@ -361,7 +435,7 @@ func (t *Torn) Seguent() Pas {
 	// checkpoint amb l'usuari que abans ningú feia mai.
 	if t.passos >= t.Limit() {
 		if t.potAmpliar() {
-			return t.pas(Pas{Ordre: OrdreAmplia, Hist: append(t.histAmbSys(), llm.Message{Role: "user", Content: t.preguntaAmplia()})})
+			return t.pas(Pas{Ordre: OrdreAmplia, Hist: append(t.histAmbSys(), llm.Message{Role: "user", Content: t.ambIdioma(t.preguntaAmplia())})})
 		}
 		t.sintesiDemanada = true
 		t.esgotat = true
@@ -369,6 +443,46 @@ func (t *Torn) Seguent() Pas {
 	}
 	t.passos++
 	return t.pas(Pas{Ordre: OrdrePasModel, Hist: t.histAmbSys(), Mecanic: t.mecanic})
+}
+
+// revisa passa la crida en curs pel revisor automàtic (mode auto-review).
+func (t *Torn) revisa() Pas {
+	c := t.actual
+	ctx := t.o.Ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dir := t.o.Workspace
+	if dir == "" && t.o.Pol != nil {
+		dir = t.o.Pol.ProjectDir
+	}
+	d := t.o.Revisor(ctx, ReviewRequest{
+		Task: t.o.Tasca, Mode: t.o.Mode, Dir: dir, Call: c,
+		Reason: t.motius[c.ID], Recent: t.Hist,
+	})
+	delete(t.motius, c.ID)
+	if ctx.Err() != nil {
+		// Torn cancel·lat mentre es revisava: que el conductor ho vegi.
+		return t.pas(Pas{Ordre: OrdreAprova, Call: c})
+	}
+	switch d.Decision {
+	case ReviewAllow:
+		t.teActual = false
+		ev := Event{Tipus: EvNota, Text: ReviewNote(d), Eina: c.Function.Name, ID: c.ID, Revisio: &d}
+		return t.pas(Pas{Ordre: OrdreExecuta, Calls: []llm.ToolCall{c}, Revisio: &d, Events: []Event{ev}})
+	case ReviewDeny:
+		t.teActual = false
+		t.Hist = append(t.Hist, ToolMsg(c, ReviewDeniedText(d)))
+		t.mecanic = false
+		ev := Event{Tipus: EvResultat, Eina: c.Function.Name, Text: "bloquejada: " + ReviewNote(d), Fallada: true, ID: c.ID, Revisio: &d}
+		seg := t.Seguent()
+		seg.Events = append([]Event{ev}, seg.Events...)
+		return seg
+	case ReviewAsk:
+		ev := Event{Tipus: EvNota, Text: ReviewNote(d), Eina: c.Function.Name, ID: c.ID, Revisio: &d}
+		return t.pas(Pas{Ordre: OrdreAprova, Call: c, Revisio: &d, Events: []Event{ev}})
+	}
+	return t.pas(Pas{Ordre: OrdreAprova, Call: c})
 }
 
 // pas omple els camps comuns.
@@ -379,8 +493,28 @@ func (t *Torn) pas(p Pas) Pas {
 
 // finalPrompt tria la síntesi (FinalPromptPer).
 func (t *Torn) finalPrompt() string {
-	return FinalPromptPer(t.passos, t.ampliacions, t.ratxa)
+	p := FinalPromptPer(t.passos, t.ampliacions, t.ratxa)
+	if t.sintesiEinaReintent {
+		p += "\n\n" + sintesiSenseEines
+	}
+	return t.ambIdioma(p)
 }
+
+// ambIdioma repeteix la directiva d'idioma de la sessió al final d'un
+// prompt que va just abans de la resposta (síntesi, ampliació): és l'últim
+// que llegeix el model, i sense això un model ràpid podia respondre en la
+// llengua dels fitxers o de les eines.
+func (t *Torn) ambIdioma(p string) string {
+	lang := "en"
+	if t.o.Cfg != nil {
+		lang = t.o.Cfg.Lang()
+	}
+	return p + "\n\n" + config.LanguageDirective(lang)
+}
+
+// sintesiSenseEines s'afegeix a la síntesi quan el primer intent ha estat
+// una crida d'eina en comptes d'una resposta.
+const sintesiSenseEines = "Tools are disabled now. Do not write any tool call (no tool_call, DSML or function markup): answer in plain text with what you did, what you verified and what is still left."
 
 // potAmpliar diu si val la pena demanar més pressupost: queden
 // ampliacions, no s'està encallat repetint, i (si ja n'ha demanat) ha
@@ -389,6 +523,9 @@ func (t *Torn) finalPrompt() string {
 // una tasca trivial) va viure d'ampliacions concedides a un model que
 // només «avançava» tornant a correr la mateixa suite vermella.
 func (t *Torn) potAmpliar() bool {
+	if t.o.SenseAmpliacions {
+		return false
+	}
 	max := MaxAmpliacions
 	if t.autonom() && t.o.Cfg != nil {
 		a := t.o.Cfg.AutonomousConfig()
@@ -413,9 +550,46 @@ func (t *Torn) potAmpliar() bool {
 // Cancella tanca el torn per voluntat de l'usuari.
 func (t *Torn) Cancella() []Event {
 	t.acabat = true
+	if t.pregunta != nil {
+		t.Hist = append(t.Hist, ToolMsg(*t.pregunta, NotExecutedResult))
+	}
 	t.pregunta = nil
-	t.perExecutar, t.pendents, t.teActual = nil, nil, false
+	t.descartaPendents()
 	return []Event{notaClau("est.agentCancel")}
+}
+
+// NotExecutedResult és el tool result de les crides que el torn ja no
+// executarà (cancel·lat, topall, ratxa). Sense resultat, l'assistant amb
+// tool_calls quedaria orfe i el proveïdor rebutjaria l'historial sencer.
+const NotExecutedResult = "NOT EXECUTED: the turn stopped before this call ran."
+
+// descartaPendents tanca les crides que ja no s'executaran amb un resultat
+// explícit i les treu de la cua.
+func (t *Torn) descartaPendents() {
+	for _, c := range t.perExecutar {
+		t.Hist = append(t.Hist, ToolMsg(c, NotExecutedResult))
+	}
+	if t.teActual {
+		t.Hist = append(t.Hist, ToolMsg(t.actual, NotExecutedResult))
+	}
+	for _, c := range t.pendents {
+		t.Hist = append(t.Hist, ToolMsg(c, NotExecutedResult))
+	}
+	t.perExecutar, t.pendents, t.teActual = nil, nil, false
+}
+
+// loteComplet diu si totes les crides de l'últim assistant ja tenen
+// resultat (cap per executar, cap esperant aprovació ni resposta).
+func (t *Torn) loteComplet() bool {
+	return len(t.perExecutar) == 0 && len(t.pendents) == 0 && !t.teActual && t.pregunta == nil
+}
+
+// buidaGuies afegeix a l'historial els avisos ajornats (vegeu guies).
+func (t *Torn) buidaGuies() {
+	for _, g := range t.guies {
+		t.Hist = append(t.Hist, llm.Message{Role: "user", Content: g})
+	}
+	t.guies = nil
 }
 
 // mor tanca el torn amb un error.
@@ -428,13 +602,26 @@ func (t *Torn) mor(text string) []Event {
 // RepPas alimenta el motor amb la resposta del model a OrdrePasModel (o
 // a OrdreSintesi: allà no hi ha eines i el text és la resposta final).
 func (t *Torn) RepPas(content string, calls []llm.ToolCall, err error) []Event {
+	return t.RepPasRaonat(content, "", calls, err)
+}
+
+// RepPasRaonat és RepPas amb el reasoning_content que ha tornat el
+// proveïdor (llm.ReasoningCapture). Es desa al missatge assistant només si
+// porta crides d'eina: és el que els models de raonament exigeixen de
+// tornada dins de la cadena de crides (vegeu llm/reasoning.go).
+func (t *Torn) RepPasRaonat(content, reasoning string, calls []llm.ToolCall, err error) []Event {
 	if err != nil {
 		return t.repError(err)
 	}
 	t.serverRetries = 0
+	t.reasoningRetries = 0
 	t.recuperacions = 0
 	t.mecanic = false // fins que RepExecucions digui el contrari
-	t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
+	msg := llm.Message{Role: "assistant", Content: content, ToolCalls: calls}
+	if len(calls) > 0 {
+		msg.ReasoningContent = reasoning
+	}
+	t.Hist = append(t.Hist, msg)
 	if len(calls) == 0 {
 		return t.repFinal(content)
 	}
@@ -462,9 +649,22 @@ func (t *Torn) repError(err error) []Event {
 			return evs
 		}
 	}
-	// Error de servidor a mig torn: es reintenta amb guia (sovint la
-	// crida era degenerada) abans de donar la feina per perduda.
-	if llm.IsRetryable(err) && t.serverRetries < 2 {
+	// Un upstream estricte ha rebutjat l'historial per un reasoning_content
+	// que no hi era. El mateix historial sol passar al reintent (l'encaminador
+	// tria un altre upstream): una vegada, sense guia i sense gastar pas.
+	if llm.IsReasoningRoundTripError(err) && t.reasoningRetries < 1 {
+		t.reasoningRetries++
+		if t.passos > 0 {
+			t.passos--
+		}
+		return []Event{notaClau("app.serverReintentCurt")}
+	}
+	// Error de servidor a mig torn (un 5xx: la petició ha arribat al
+	// proveïdor): es reintenta amb guia (sovint la crida era degenerada)
+	// abans de donar la feina per perduda. Els errors de xarxa no: el client
+	// ja ha fet els seus reintents, i guiar el model per una petició que no
+	// li ha arribat no té sentit.
+	if llm.IsServerError(err) && t.serverRetries < 2 {
 		t.serverRetries++
 		t.Hist = append(t.Hist, llm.Message{Role: "user", Content: GuiaErrorServidor(err)})
 		if t.passos > 0 {
@@ -568,6 +768,19 @@ func (t *Torn) repFinal(content string) []Event {
 		t.Hist = append(t.Hist, llm.Message{Role: "user", Content: GuiaVerificacioFallida})
 		return append(evs, notaClau("app.verifReintent"))
 	}
+	// Mode debug: la instrumentació GREGAL-DEBUG s'ha de treure abans de
+	// tancar (motor_caps.go).
+	if evsDebug, segueix := t.debugGate(); segueix {
+		return append(evs, evsDebug...)
+	} else {
+		evs = append(evs, evsDebug...)
+	}
+	// Hook stop: pot demanar que l'agent continuï abans de tancar.
+	if evsStop, segueix := t.hookStop(final); segueix {
+		return append(evs, evsStop...)
+	} else {
+		evs = append(evs, evsStop...)
+	}
 	t.acabat = true
 	t.resposta = final
 	return append(evs, Event{Tipus: EvResposta, Text: final})
@@ -587,6 +800,9 @@ func (t *Torn) repCrides(calls []llm.ToolCall) []Event {
 	for i, c := range calls {
 		evs = append(evs, Event{Tipus: EvCrida, Eina: c.Function.Name, EinaArgs: c.Function.Arguments, ID: c.ID})
 		pl := plans[i]
+		if pl.Fixed == "" {
+			evs = append(evs, t.hookPreTool(c, &pl)...)
+		}
 		if pl.Fixed != "" {
 			vista := "bloquejada: " + pl.Reason
 			if pl.Reason == "repetida" {
@@ -600,11 +816,29 @@ func (t *Torn) repCrides(calls []llm.ToolCall) []Event {
 			t.Hist = append(t.Hist, ToolMsg(c, pl.Fixed))
 			continue
 		}
-		if pl.Ask && !(t.o.Recordat != nil && t.o.Recordat(c.Function.Name, c.Function.Arguments)) {
+		// Aposta de confiança (motor_caps.go): abans de saber si demana permís.
+		t.preparaAposta(c)
+		if pl.Ask && (pl.ForceAsk || !(t.o.Recordat != nil && t.o.Recordat(c.Function.Name, c.Function.Arguments))) {
 			t.pendents = append(t.pendents, c)
+			if t.motius == nil {
+				t.motius = map[string]string{}
+			}
+			t.motius[c.ID] = pl.Reason
 			continue
 		}
 		executables = append(executables, c)
+	}
+	// Topall per pas: la resta queda ajornada amb el seu tool_result, com
+	// la pregunta fa amb les altres crides. Cap crida no queda sense
+	// resposta i el model sap que ha de repartir la feina.
+	if len(executables) > MaxCridesPerPas {
+		for _, c := range executables[MaxCridesPerPas:] {
+			evs = append(evs, Event{Tipus: EvCrida, Eina: c.Function.Name, EinaArgs: c.Function.Arguments, ID: c.ID})
+			text := fmt.Sprintf("DEFERRED: too many calls in one step (maximum %d executable calls). Not executed; propose it again in the next step and split the work.", MaxCridesPerPas)
+			t.Hist = append(t.Hist, ToolMsg(c, text))
+			evs = append(evs, Event{Tipus: EvResultat, Eina: c.Function.Name, Text: text, Fallada: true, ID: c.ID})
+		}
+		executables = executables[:MaxCridesPerPas]
 	}
 	if len(executables) > 0 || len(t.pendents) > 0 {
 		t.doomStalls = 0
@@ -628,7 +862,7 @@ func (t *Torn) repPregunta(calls []llm.ToolCall, qi int) []Event {
 	evs = append(evs, Event{Tipus: EvCrida, Eina: qc.Function.Name, EinaArgs: qc.Function.Arguments, ID: qc.ID})
 	if err := ValidaPregunta(qc.Function.Arguments); err != nil {
 		evs = append(evs, Event{Tipus: EvResultat, Eina: qc.Function.Name, Text: "pregunta malformada: " + err.Error(), Fallada: true, ID: qc.ID})
-		t.Hist = append(t.Hist, ToolMsg(qc, "PREGUNTA MALFORMADA: "+err.Error()+". Reformula-la amb query + 1-4 opcions."))
+		t.Hist = append(t.Hist, ToolMsg(qc, "MALFORMED QUESTION: "+err.Error()+". Ask again with a query and 1-4 options."))
 	} else {
 		q := qc
 		t.pregunta = &q
@@ -639,7 +873,7 @@ func (t *Torn) repPregunta(calls []llm.ToolCall, qi int) []Event {
 		}
 		evs = append(evs, Event{Tipus: EvCrida, Eina: c.Function.Name, EinaArgs: c.Function.Arguments, ID: c.ID})
 		evs = append(evs, Event{Tipus: EvResultat, Eina: c.Function.Name, Text: "ajornada: primer la pregunta", Fallada: true, ID: c.ID})
-		t.Hist = append(t.Hist, ToolMsg(c, "AJORNADA: l'usuari està responent una pregunta. No s'ha executat; torna a demanar-la després si cal."))
+		t.Hist = append(t.Hist, ToolMsg(c, "DEFERRED: the user is answering a question. Not executed; request it again afterwards if it is still needed."))
 	}
 	return evs
 }
@@ -670,7 +904,7 @@ func (t *Torn) RepAprovacio(permes bool, motiu ...string) []Event {
 		t.perExecutar = []llm.ToolCall{c}
 		return nil
 	}
-	text := "EINA REBUTJADA per l'usuari"
+	text := "TOOL REJECTED by the user."
 	if len(motiu) > 0 && strings.TrimSpace(motiu[0]) != "" {
 		text = motiu[0]
 	}
@@ -714,15 +948,17 @@ func (t *Torn) RepExecucions(res []Execucio) []Event {
 		t.Hist = append(t.Hist, ToolMsg(r.Call, sortida, r.Imatges...))
 		evs = append(evs, Event{
 			Tipus: EvResultat, Eina: r.Call.Function.Name, Text: r.Sortida,
-			Fallada: strings.HasPrefix(r.Sortida, "ERROR:"),
+			Fallada: strings.HasPrefix(r.Sortida, "ERROR:"), ID: r.Call.ID, Executada: true,
 		})
 		if r.Diff != "" {
 			evs = append(evs, Event{Tipus: EvDiff, Text: r.Diff})
 		}
-		// La mateixa sortida tres cops seguits no és progrés encara que
-		// l'eina corri.
-		if t.doom.NoteOut(r.Sortida) {
-			t.Hist = append(t.Hist, llm.Message{Role: "user", Content: DoomGuide})
+		// La mateixa crida amb la mateixa sortida tres cops seguits no és
+		// progrés encara que l'eina corri. La guia s'ajorna fins que el lot
+		// sencer té resultat (guies): enmig dels tool results trencava el
+		// protocol i el proveïdor tornava 400.
+		if t.doom.NoteOutCall(DoomSig(r.Call.Function.Name, r.Call.Function.Arguments), r.Sortida) {
+			t.guies = append(t.guies, DoomGuide)
 			evs = append(evs, Event{Tipus: EvResultat, Eina: r.Call.Function.Name, Text: DoomGuide, Fallada: true})
 		}
 		// Comprovacions (bash) que fallen seguides: el bucle del
@@ -740,7 +976,11 @@ func (t *Torn) RepExecucions(res []Execucio) []Event {
 		if t.ratxa.Nota(r.Call, r.Sortida) {
 			guiaRatxa = true
 		}
+		if ev, ok := t.resolAposta(r); ok {
+			evs = append(evs, ev)
+		}
 	}
+	evs = append(evs, t.criticaContracte(res)...)
 	if guiaRatxa {
 		// Tres guies ignorades (nou vermelles seguides) en interactiu: prou.
 		// Bloquejar l'ampliació no basta si el vermell no és de l'agent (un
@@ -751,13 +991,18 @@ func (t *Torn) RepExecucions(res []Execucio) []Event {
 		if !t.autonom() && t.ratxa.N >= 9 {
 			t.sintesiDemanada = true
 			t.esgotat = true
-			t.perExecutar, t.pendents, t.teActual = nil, nil, false
+			t.descartaPendents()
 			evs = append(evs, avisClau("app.ratxaVermella", t.ratxa.N))
 		} else {
-			t.Hist = append(t.Hist, llm.Message{Role: "user", Content: GuiaFracasRepetit})
+			t.guies = append(t.guies, GuiaFracasRepetit)
 			// A la pantalla, un avís curt: la guia és per al model.
 			evs = append(evs, avisClau("app.ratxaVermella", t.ratxa.N))
 		}
+	}
+	// Lot complet (cap crida esperant aprovació): els avisos ja poden anar a
+	// l'historial. Si en queden, esperen a Seguent.
+	if t.loteComplet() {
+		t.buidaGuies()
 	}
 	// Topall autònom (temps, eines, cost): prou feina, però amb resum. Abans
 	// el torn s'aturava en sec i el client es quedava sense resposta; la
@@ -765,7 +1010,7 @@ func (t *Torn) RepExecucions(res []Execucio) []Event {
 	if motiu := t.topall(); motiu != "" {
 		t.sintesiDemanada = true
 		t.esgotat = true
-		t.perExecutar, t.pendents, t.teActual = nil, nil, false
+		t.descartaPendents()
 		return append(evs, avis("autònom: "+motiu+": torn aturat, faig el resum"))
 	}
 	if t.autonom() && t.execs >= t.autoNextCheckpoint {
@@ -903,10 +1148,65 @@ func (t *Torn) RepAmpliacio(resp string, err error) []Event {
 		}
 		return []Event{notaClau("app.ampliaPerChecklist", motiu, fets, total, ChunkAmpliacio, t.Limit())}
 	}
-	// FINAL, buit o error: síntesi com sempre.
+	// FINAL amb el resum ja escrit: és la resposta. Demanar-ne una altra
+	// amb la síntesi era una crida de més per tornar a escriure el mateix.
+	if err == nil {
+		if resum, ok := resumDeFinal(resp); ok {
+			t.acabat = true
+			t.esgotat = true
+			t.resposta = resum
+			t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: resum})
+			return []Event{avisClau("app.passosEsgotats", t.Limit()), {Tipus: EvResposta, Text: resum}}
+		}
+	}
+	// FINAL sol, buit o error: síntesi com sempre.
 	t.sintesiDemanada = true
 	t.esgotat = true
 	return []Event{avisClau("app.passosEsgotats", t.Limit())}
+}
+
+// resumMinim és la mida a partir de la qual el text que acompanya un FINAL
+// es pren per resposta (per sota sol ser «FINAL, ja està fet»).
+const resumMinim = 80
+
+// resumDeFinal extreu el resum d'una resposta «FINAL» a la pregunta
+// d'ampliació: la marca ha d'anar a la primera o a l'última línia (o
+// encapçalar el text) i el que queda ha de ser una resposta de debò, sense
+// crides d'eina escrites al text.
+func resumDeFinal(resp string) (string, bool) {
+	text := strings.TrimSpace(resp)
+	if text == "" {
+		return "", false
+	}
+	esMarca := func(l string) bool {
+		l = strings.Trim(strings.TrimSpace(l), "*#_`«»\"'.:!-— ")
+		return strings.EqualFold(l, "FINAL")
+	}
+	lines := strings.Split(text, "\n")
+	switch {
+	case esMarca(lines[0]):
+		text = strings.Join(lines[1:], "\n")
+	case esMarca(lines[len(lines)-1]):
+		text = strings.Join(lines[:len(lines)-1], "\n")
+	default:
+		up := strings.ToUpper(text)
+		if !strings.HasPrefix(up, "FINAL") || len(text) == len("FINAL") {
+			return "", false
+		}
+		next := text[len("FINAL")]
+		if next != ' ' && next != '.' && next != ':' && next != ',' && next != '-' {
+			return "", false
+		}
+		text = strings.TrimLeft(text[len("FINAL"):], " .:,-—")
+	}
+	text = strings.TrimSpace(text)
+	if len([]rune(text)) < resumMinim {
+		return "", false
+	}
+	if _, hiEra := SenseEinaText(text); hiEra {
+		return "", false
+	}
+	return text, true
 }
 
 // retallaText deixa el text en una línia de n runes com a molt.

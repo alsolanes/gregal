@@ -1,4 +1,7 @@
-// Package team coordinates bounded, tool-free collaboration between agents.
+// Package team coordinates bounded collaboration between agents. The
+// package only routes public deliverables between roles; whether a role can
+// use tools (read files, run checks, edit) is up to the Runner, which learns
+// which seat it is serving from NodeFrom(ctx).
 package team
 
 import (
@@ -22,6 +25,23 @@ type Event struct {
 }
 
 type Runner func(context.Context, string, string) (string, error)
+
+type nodeKey struct{}
+
+// WithNode marks ctx with the flow seat a runner call serves.
+func WithNode(ctx context.Context, node FlowNode) context.Context {
+	return context.WithValue(ctx, nodeKey{}, node)
+}
+
+// NodeFrom returns the flow seat of a runner call. The classic pipeline
+// (Run) sets ID and Role to the role name.
+func NodeFrom(ctx context.Context) (FlowNode, bool) {
+	if ctx == nil {
+		return FlowNode{}, false
+	}
+	node, ok := ctx.Value(nodeKey{}).(FlowNode)
+	return node, ok
+}
 
 var Roles = []string{"coordinator", "researcher", "builder", "reviewer"}
 
@@ -70,8 +90,8 @@ func Run(ctx context.Context, task string, runner Runner, emit func(Event)) (str
 		role        string
 		instruction string
 	}{
-		{"researcher", "Analyze the provided information. Distinguish evidence, assumptions and missing information. Do not claim to browse or inspect files."},
-		{"builder", "Produce the requested deliverable using the plan. Do not claim to execute code or tools."},
+		{"researcher", "Analyze the provided information. Distinguish evidence, assumptions and missing information. Never claim to have browsed or inspected anything you did not actually inspect."},
+		{"builder", "Produce the requested deliverable using the plan. Never claim to have run code or tools you did not actually run."},
 	} {
 		branch := branch
 		prompt := withDeliverables(task, []roleDeliverable{{role: "coordinator", output: plan}})
@@ -135,7 +155,7 @@ func Run(ctx context.Context, task string, runner Runner, emit func(Event)) (str
 		{role: "builder", output: draft},
 		{role: "reviewer", output: "Feedback:\n" + firstReview.feedback + "\n\nSuggested deliverable:\n" + firstReview.deliverable},
 	})
-	revisedDraft, err := callRunner(ctx, runner, "builder", "Revise the draft using the reviewer's feedback. Do not claim to execute code or tools.", revisionPrompt)
+	revisedDraft, err := callRunner(ctx, runner, "builder", "Revise the draft using the reviewer's feedback. Never claim to have run code or tools you did not actually run.", revisionPrompt)
 	if err != nil {
 		return "", err
 	}
@@ -189,6 +209,9 @@ func callRunner(ctx context.Context, runner Runner, role, instruction, prompt st
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
+	if _, ok := NodeFrom(ctx); !ok {
+		ctx = WithNode(ctx, FlowNode{ID: role, Role: role})
+	}
 	out, err := runner(ctx, role, instruction+"\n\n"+prompt)
 	if err != nil {
 		return "", err
@@ -208,7 +231,7 @@ func callRunner(ctx context.Context, runner Runner, role, instruction, prompt st
 }
 
 func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt string, final bool) (*parsedReview, error) {
-	instruction := `Review the task and deliverable against the plan and acceptance criteria. Return exactly one JSON object with all three fields: {"approved": boolean, "feedback": string, "deliverable": string}. If approved is false, feedback must give actionable revision guidance. deliverable must contain the corrected final deliverable. Do not claim to execute code or tools.`
+	instruction := `Review the task and deliverable against the plan and acceptance criteria. Return exactly one JSON object with all three fields: {"approved": boolean, "feedback": string, "deliverable": string}. If approved is false, feedback must give actionable revision guidance. deliverable must contain the corrected final deliverable. Never claim to have run checks you did not actually run.`
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}

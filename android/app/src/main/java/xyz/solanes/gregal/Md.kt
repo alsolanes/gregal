@@ -157,7 +157,12 @@ fun parseInline(s: String): List<Seg> {
             val end = s.indexOf("**", i + 2)
             if (end > i + 2) {
                 flush()
-                out += Seg.Bold(s.substring(i + 2, end))
+                val inner = s.substring(i + 2, end)
+                // Els models escriuen sovint **`nom()`**: és codi, no negreta
+                // amb accents greus literals.
+                out += if (inner.length > 2 && inner.startsWith('`') && inner.endsWith('`') && inner.count { it == '`' } == 2)
+                    Seg.Code(inner.substring(1, inner.length - 1))
+                else Seg.Bold(inner.replace("`", ""))
                 i = end + 2
                 continue
             }
@@ -241,7 +246,7 @@ fun groupRich(segs: List<Seg>): List<Rich> {
 
 /** Render d'una llista de segments (nucli compartit). El color d'enllaç
  *  entra per paràmetre: la funció és pura (no composable) i Sea és temàtic. */
-fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: Color = Color(0xFF0E8C74)): AnnotatedString {
+fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: Color = LightPal.sea): AnnotatedString {
     return buildAnnotatedString {
         for (seg in segs) {
             when (seg) {

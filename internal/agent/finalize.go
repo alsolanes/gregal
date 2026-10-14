@@ -14,7 +14,14 @@ import (
 
 // FinalPrompt demana la síntesi final sense eines quan s'esgota el
 // pressupost de passos (estil opencode: resumeix + què falta, no buit).
-const FinalPrompt = "Les accions ja han acabat. Dona ara una resposta final clara per a l'usuari amb el que has trobat o fet. Si no has pogut acabar-ho tot, resumeix què has fet i què falta per fer. No facis servir eines ni expliquis el teu raonament intern."
+// Com totes les guies, és en anglès; la llengua de la resposta la fixa la
+// directiva LANGUAGE que tanca el system prompt (config.LanguageDirective),
+// i aquí només s'hi remet.
+const FinalPrompt = "The actions are over. Now give the user a clear final answer with what you found or did. If you could not finish everything, summarize what you did and what is still left to do. Do not use tools and do not explain your internal reasoning. " + RecordaLlengua
+
+// RecordaLlengua tanca les consignes de síntesi: remet a la directiva
+// d'idioma del system prompt, que és la que sap la llengua de la sessió.
+const RecordaLlengua = "Write it in the language required by the LANGUAGE rule at the end of the system prompt."
 
 // FinalPromptLlarg és la síntesi quan el torn s'ha fet sospitosament llarg:
 // ampliacions gastades o ratxa de comprovacions vermelles. Aquí no basta un
@@ -23,17 +30,17 @@ const FinalPrompt = "Les accions ja han acabat. Dona ara una resposta final clar
 // amagar el fracàs preexistent (que no és culpa del torn, però sí cal
 // explicar-lo).
 func FinalPromptLlarg(passos, fracasos int) string {
-	p := fmt.Sprintf("Les accions s'aturen aquí: aquesta tasca ja ha consumit molt de pressupost (%d passos", passos)
+	p := fmt.Sprintf("The actions stop here: this task has already used a lot of budget (%d steps", passos)
 	if fracasos > 0 {
-		p += fmt.Sprintf(", %d comprovacions vermelles seguides", fracasos)
+		p += fmt.Sprintf(", %d failing checks in a row", fracasos)
 	}
-	p += `) i en comptes de continuar a cegues cal que responguis a l'usuari, sense eines.
-Escriu la síntesi final amb això, per aquest ordre:
-1. Què has canviat exactament (fitxers, una línia per fitxer).
-2. Què està verificat i funciona (quina comprovació ha passat).
-3. Què queda vermell: l'error exacte, copiat de la sortida, i si és preexistent (falla igual amb els teus canvis apartats) o teu.
-4. El següent pas concret si l'usuari vol continuar.
-No prometis feina que no has fet ni amaguis fracassos: l'usuari veurà la teva resposta i decidirà si continua.`
+	p += `), so instead of continuing blindly you must answer the user now, without tools.
+Write the final summary with these points, in this order:
+1. What exactly you changed (files, one line per file).
+2. What is verified and works (which check passed).
+3. What is still failing: the exact error, copied from the output, and whether it is pre-existing (it also fails without your changes) or yours.
+4. The concrete next step if the user wants to continue.
+Do not promise work you have not done and do not hide failures: the user will read your answer and decide whether to continue. ` + RecordaLlengua
 	return p
 }
 
@@ -44,7 +51,9 @@ No prometis feina que no has fet ni amaguis fracassos: l'usuari veurà la teva r
 // preexistent). La guia es repeteix cada tres fracassos: si amb això el
 // model no canvia d'estratègia, potAmpliar bloqueja l'ampliació i el torn
 // tanca amb síntesi honesta.
-const GuiaFracasRepetit = "COMPROVACIÓ VERMELLA REPETIDA: ja has executat una comprovació que ha fallat 3 cops en aquest torn sense que n'hi hagi passat cap. Abans de tornar-hi, fes això, per ordre:\n1. Rellegeix la sortida de l'error SENCERA, des de la primera línia: els errors de compilació i de vet surten ABANS del resum de tests, i la dada clau sol ser la primera línia, no l'última.\n2. Comprova si el fracàs és preexistent: aparta els teus canvis (git stash), reprodueix la comprovació, i retorna'ls (git stash pop). Si falla igual, NO és teu: no pots arreglar-lo des d'aquesta tasca.\n3. Si és teu, canvia d'estratègia: llegeix el fitxer i línia exactes de l'error en comptes de fer retocs a l'atzar. Si és preexistent, digue-ho a l'usuari (quina comprovació, quin error, i que ja fallava abans) i tanca el torn.\nRepetir la mateixa comprovació esperant un resultat diferent no és progrés."
+// Per saber si és preexistent ja no es proposa git stash: amb feina de
+// l'usuari sense desar, apartar-la i tornar-la és perillós.
+const GuiaFracasRepetit = "REPEATED FAILING CHECK: a check has failed 3 times in this turn and none has passed. Before running it again, do this, in order:\n1. Re-read the WHOLE error output, from the first line: compile and vet errors appear BEFORE the test summary, and the key line is usually the first one, not the last.\n2. Check whether the failure is pre-existing: review your own changes with `git diff`, or run the same check in a clean copy of HEAD (`git worktree add`). Never use `git stash`, `git checkout` or `git reset` on the user's files. If it also fails without your changes, it is NOT yours and you cannot fix it from this task.\n3. If it is yours, change strategy: read the exact file and line of the error instead of making random tweaks. If it is pre-existing, tell the user (which check, which error, and that it was already failing) and end the turn.\nRunning the same check again and expecting a different result is not progress."
 
 // DoomTracker detecta el "doom loop" d'opencode: la mateixa eina amb els
 // mateixos arguments 3 vegades seguides = el model està encallat. En ese
@@ -53,8 +62,9 @@ const GuiaFracasRepetit = "COMPROVACIÓ VERMELLA REPETIDA: ja has executat una c
 // plantilla 4 seguides, encara que el cos variï.
 //
 // NoteOut fa el complement amb RESULTATS: la mateixa sortida exacta 3 cops
-// seguits (típic: rellegir el mateix amb bash_output) és repetició encara
-// que la crida variï una mica. L'alternança A-B-A-B en canvi NO és doom
+// seguits és repetició encara que la crida variï una mica, excepte si la
+// feina de fons encara corre (EN MARXA: esperar és legítim). L'alternança
+// A-B-A-B en canvi NO és doom
 // (decisió provada a TestDoomAlternatNoDispara): eines diferents poden ser
 // progrés, i el cas patològic queda acotat per MaxSteps + ampliacions.
 type DoomTracker struct {
@@ -64,6 +74,10 @@ type DoomTracker struct {
 	normCount int
 	ultOut    string
 	outCount  int
+	// ultOutSig és la signatura normalitzada de la crida que ha donat
+	// ultOut (NoteOutCall): la sortida només compta com a repetida si la
+	// crida també es repeteix.
+	ultOutSig string
 }
 
 // normDoomLen és el tros comparat en mode difús: la plantilla de la
@@ -74,6 +88,12 @@ var reDigitsDoom = regexp.MustCompile(`[0-9]+`)
 
 // normSig normalitza una signatura: dígits → # i tall a la plantilla.
 func normSig(sig string) string {
+	// Reading numbered files or successive offsets is ordinary progress.
+	// Keep the complete arguments here; exact repeats still trip Note.
+	if strings.HasPrefix(sig, "read\x00") || strings.HasPrefix(sig, "mcp_") {
+		// MCP: les consultes difereixen sovint al final (group_by, filtres).
+		return sig
+	}
 	s := reDigitsDoom.ReplaceAllString(sig, "#")
 	if r := []rune(s); len(r) > normDoomLen {
 		return string(r[:normDoomLen])
@@ -82,6 +102,13 @@ func normSig(sig string) string {
 }
 
 func (d *DoomTracker) Note(sig string) bool {
+	// Esperar un procés de fons és el patró oficial (bash_background +
+	// polls de bash_output amb els mateixos arguments): comptar-lo com a
+	// repetició trencaria les comandes llargues a la tercera lectura. El
+	// que sí es caça és rellegir una feina ACABADA (vegeu NoteOut).
+	if strings.HasPrefix(sig, "bash_output\x00") {
+		return false
+	}
 	if sig == d.lastSig {
 		d.count++
 	} else {
@@ -101,23 +128,57 @@ func (d *DoomTracker) Note(sig string) bool {
 // seguits (buits o no) són repetició. Torna true quan cal guiar.
 // Les sortides buides o "sense sortida" no compten: moltes eines
 // legítimes no tornen res i castigar-les trencaria fluxos normals.
+// Tampoc compta llegir una feina EN MARXA: el procés encara corre i la
+// dada pot arribar al poll següent. Rellegir-la un cop ACABADA, en canvi,
+// sí que és donar voltes (3 cops = guia).
 func (d *DoomTracker) NoteOut(out string) bool {
+	return d.NoteOutCall("", out)
+}
+
+// NoteOutCall és NoteOut sabent quina crida ha donat la sortida (DoomSig).
+// Tres cerques DIFERENTS que tornen «sense coincidències» no són un bucle,
+// són una cerca que avança: abans disparaven la guia. Ara la sortida
+// idèntica només compta si la crida (normalitzada, normSig) també és la
+// mateixa, i les sortides sense contingut (cap coincidència, cap
+// resultat) no compten mai. Amb sig buit, es compara només la sortida.
+func (d *DoomTracker) NoteOutCall(sig, out string) bool {
 	t := strings.TrimSpace(out)
-	if t == "" || t == "(sense sortida)" {
-		d.ultOut, d.outCount = "", 0
+	if t == "" || sortidaSenseContingut(t) || procesEnMarxa(t) {
+		d.ultOut, d.outCount, d.ultOutSig = "", 0, ""
 		return false
 	}
-	if t == d.ultOut {
+	ns := ""
+	if sig != "" {
+		ns = normSig(sig)
+	}
+	if t == d.ultOut && ns == d.ultOutSig {
 		d.outCount++
 	} else {
-		d.ultOut = t
+		d.ultOut, d.ultOutSig = t, ns
 		d.outCount = 1
 	}
 	return d.outCount >= 3
 }
 
+// sortidaSenseContingut reconeix els resultats «buits» de les eines (en
+// català i en anglès, perquè els textos de les eines es poden traduir).
+func sortidaSenseContingut(t string) bool {
+	switch strings.ToLower(strings.Trim(t, "()[]. ")) {
+	case "sense sortida", "sense coincidències", "sense coincidencies", "sense resultats",
+		"no output", "no matches", "no matches found", "no results", "no results found":
+		return true
+	}
+	return false
+}
+
+// procesEnMarxa: llegir una feina de fons que encara corre és esperar, no
+// repetir (Proc.Describe: «[id] EN MARXA · …»).
+func procesEnMarxa(t string) bool {
+	return strings.Contains(t, "] EN MARXA ·") || strings.Contains(t, "] RUNNING ·")
+}
+
 // DoomGuide és el que rep el model quan cau al forat.
-const DoomGuide = "EINA REPETIDA: ja has cridat aquesta eina 3-4 vegades igual o gairebé igual (només canvien números) sense avançar. Canvia d'estratègia (llegeix un altre fitxer, afina el patró, o resumeix el que tens) en comptes de repetir-la."
+const DoomGuide = "REPEATED TOOL CALL: you have called this tool 3-4 times with the same or nearly the same arguments (only numbers change) without making progress. Change strategy (read a different file, refine the pattern, or summarize what you have) instead of repeating it."
 
 // Ampliació de pressupost decidida pel model.
 //
@@ -163,15 +224,16 @@ const (
 	TimeoutDecisio = 180 * time.Second
 )
 
-// PreguntaAmpliacio demana CONTINUA <n> o FINAL (%d = topall del tros).
-const PreguntaAmpliacio = "Has exhaurit el tros de passos actual. Mira l'estat (checklist i últims resultats). Si la tasca no està acabada i estàs avançant, respon EXACTAMENT «CONTINUA <n>» amb n entre 1 i %d (passos extra que demanes): la feina s'ha d'acabar, no importa quants passos calguin mentre avancis. Respon EXACTAMENT «FINAL» només si la tasca ja està feta o estàs encallat repetint el mateix sense progrés; a la següent resposta faràs la síntesi final sense eines."
+// PreguntaAmpliacio demana CONTINUE <n> o FINAL (%d = topall del tros).
+// ParseAmpliacio accepta també CONTINUA (el prompt d'abans).
+const PreguntaAmpliacio = "You have used up the current chunk of steps. Look at the state (checklist and latest results). If the task is not finished and you are making progress, reply EXACTLY \"CONTINUE <n>\" with n between 1 and %d (the extra steps you need). Reply EXACTLY \"FINAL\" only if the task is done or you are stuck repeating the same thing without progress; in your next reply you will write the final summary without tools."
 
 // PreguntaAmbEstat és la pregunta amb el checklist actual adjunt (si n'hi
 // ha): el model decideix amb dades, no a cegues.
 func PreguntaAmbEstat() string {
 	p := fmt.Sprintf(PreguntaAmpliacio, ChunkAmpliacio)
 	if _, total := tools.TodoStats(); total > 0 {
-		p += "\nChecklist actual:\n" + tools.TodoRender()
+		p += "\nCurrent checklist:\n" + tools.TodoRender()
 	}
 	return p
 }
@@ -180,21 +242,20 @@ func PreguntaAmbEstat() string {
 func PreguntaAmbLlista(llista []tools.TodoItem) string {
 	p := fmt.Sprintf(PreguntaAmpliacio, ChunkAmpliacio)
 	if _, total := tools.StatsTodos(llista); total > 0 {
-		p += "\nChecklist actual:\n" + tools.RenderTodos(llista)
+		p += "\nCurrent checklist:\n" + tools.RenderTodos(llista)
 	}
 	return p
 }
 
-// ParseAmpliacio llegeix la resposta: CONTINUA <n> (n=Chunk si no en diu)
-// o res (FINAL, buit, xerrameca) = tancar.
-// o res (FINAL, buit, xerrameca) = tancar.
+// ParseAmpliacio llegeix la resposta: CONTINUE <n> o CONTINUA <n> (n=Chunk
+// si no en diu) o res (FINAL, buit, xerrameca) = tancar.
 func ParseAmpliacio(resp string) (int, bool) {
 	// La decisió es busca dins del text, no al principi: un model pensador
 	// hi posa una frase abans («La checklist és a 9/11, així que CONTINUA
 	// 10») i abans això comptava com a FINAL. Si hi ha les dues paraules,
-	// mana l'última: és la conclusió.
+	// mana l'última: és la conclusió. CONTINUE i CONTINUA fan 8 lletres.
 	up := strings.ToUpper(resp)
-	iCont := ultimaParaula(up, "CONTINUA")
+	iCont := max(ultimaParaula(up, "CONTINUA"), ultimaParaula(up, "CONTINUE"))
 	iFinal := ultimaParaula(up, "FINAL")
 	if iCont < 0 || iFinal > iCont {
 		return 0, false
@@ -230,7 +291,7 @@ func ultimaParaula(s, mot string) int {
 // GuiaTodosPendents és el que rep el model quan tanca el torn amb passos
 // pendents al checklist: anuncia què farà i s'atura sense cridar res. No
 // es pot donar per acabada: continua amb el següent pas pendent.
-const GuiaTodosPendents = "Tens passos pendents al checklist (todowrite) i has tancat el torn sense fer-los: no donis la feina per acabada i no preguntis si has de continuar. Actualitza el checklist i continua executant el següent pas pendent amb eines, sense tornar a anunciar el pla."
+const GuiaTodosPendents = "Your checklist (todowrite) still has pending steps and you ended the turn without doing them: do not present the work as finished and do not ask whether to continue. Update the checklist and carry on with the next pending step using tools, without announcing the plan again."
 
 // GuiaVerificacioFallida és el que rep el model quan tanca el torn (sense
 // eines) just després que l'última eina executada hagi fallat: en comptes
@@ -240,7 +301,7 @@ const GuiaTodosPendents = "Tens passos pendents al checklist (todowrite) i has t
 // La sortida del preexistent hi és per la tirada del 2026-09-28: un vermell
 // que ja era allà abans de tocar res no es pot arreglar des de la tasca, i
 // exigir-ho és demanar-li un bucle infinit.
-const GuiaVerificacioFallida = "L'última eina executada ha FALLAT (mira la seva sortida) i has tancat el torn sense arreglar-ho: no afirmis que funciona. Continua amb eines fins que la comprovació passi de debò, o explica exactament quin error queda i què caldria per resoldre'l. Si el fracàs és preexistent (es reprodueix igual amb els teus canvis apartats: git stash → reprodueix → git stash pop), digue-ho explícitament i tanca: aquell vermell no és teu."
+const GuiaVerificacioFallida = "The last tool you ran FAILED (see its output) and you ended the turn without fixing it: do not claim it works. Keep using tools until the check really passes, or explain exactly which error remains and what it would take to fix it. If the failure is pre-existing (it also fails without your changes: check with `git diff` or in a clean `git worktree` of HEAD, never with `git stash`), say so explicitly and stop: that failure is not yours."
 
 // SemblaFracas diu si la sortida d'una eina sembla un fracàs (test en
 // vermell, error d'execució). Són marques estretes a posta: un grep que
@@ -338,9 +399,11 @@ func EsComprovacio(cmd string) bool {
 // són perquè la tasca trivial «revisa i afegeix X» va arribar a
 // considerar-se no-reparació i el model es quedava amb la suite vermella
 // sense guia: afegir una cosa és reparar-la si has de verificar-la.
+// Els verbs anglesos (l'idioma per defecte) hi són pels mateixos motius.
 func TascaDeReparacio(tasca string) bool {
 	t := strings.ToLower(tasca)
-	for _, v := range []string{"arregla", "fes que", "aconsegueix que", "fix", "repara", "soluciona", "fes passar", "afegeix", "canvia", "implementa"} {
+	for _, v := range []string{"arregla", "fes que", "aconsegueix que", "fix", "repara", "soluciona", "fes passar", "afegeix", "canvia", "implementa",
+		"repair", "solve", "make it ", "make the ", "make sure", "make all", "get the tests", "add ", "change ", "implement", "update "} {
 		if strings.Contains(t, v) {
 			return true
 		}

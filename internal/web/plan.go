@@ -43,7 +43,7 @@ func (s *Server) runReadOnlyLoop(ctx context.Context, brief string, maxSteps int
 
 // planBrief munta la consigna d'exploració amb memòria del projecte.
 func (s *Server) planBrief(task string) string {
-	return agent.PlanBrief(s.cwd, task)
+	return agent.PlanBrief(s.cwd, task, s.cfg.Lang())
 }
 
 // handlePlan explora en read-only i torna el pla (sense actuar).
@@ -88,5 +88,10 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "exploració buida", 502)
 		return
 	}
-	writeJSON(w, map[string]string{"plan": plan})
+	out := map[string]any{"plan": plan}
+	// Crític del pla (plan.critic, per defecte on): problemes, no un pla nou.
+	if c := s.planCritic(ctx, strings.TrimSpace(req.Task), plan); c != nil {
+		out["critic"] = c
+	}
+	writeJSON(w, out)
 }

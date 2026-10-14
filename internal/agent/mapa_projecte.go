@@ -5,15 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
 	"gregal/internal/llm"
+	"gregal/internal/repomap"
 )
 
 // Context del projecte al començament del torn.
@@ -31,7 +32,11 @@ import (
 // es repeteix en una sessió llarga si no ha canviat (MarcaContext).
 
 // MarcaContext encapçala el bloc: serveix per no tornar-lo a posar igual.
-const MarcaContext = "[mapa del projecte"
+const MarcaContext = "[project map"
+
+// MarcaContextCA és la marca d'abans que el bloc passés a l'anglès: les
+// sessions desades la porten i SenseMapa/jaHiEs l'han de continuar veient.
+const MarcaContextCA = "[mapa del projecte"
 
 const (
 	maxFitxersLlista = 150
@@ -59,32 +64,80 @@ func MapaProjecte(dir, tasca string, hist []llm.Message) string {
 	}
 	var cos strings.Builder
 	cos.WriteString(resumFitxers(fitxers))
+	estat := ""
 	if git {
-		if e := estatGit(dir); e != "" {
-			cos.WriteString("\nEstat de git:\n" + e)
+		if estat = estatGit(dir); estat != "" {
+			cos.WriteString("\nGit status:\n" + estat)
 		}
 	}
+	// L'empremta és la del llistat i l'estat de git, no la dels símbols:
+	// els símbols depenen de la tasca i, si hi entressin, el mapa es
+	// repetiria a cada torn.
 	empremta := empremtaDe(cos.String())
 	adjunts := adjuntsAnomenats(dir, tasca, fitxers)
+	simbols := seccioSimbols(dir, tasca, fitxers, estat)
 	// Si l'historial ja porta aquest mateix llistat i la tasca no anomena
 	// cap fitxer nou, no cal repetir-lo: en una sessió de vint torns serien
 	// milers de tokens iguals.
 	if adjunts == "" && jaHiEs(hist, empremta) {
+		// Si la tasca anomena literalment un símbol («arregla MapaProjecte»),
+		// els símbols rellevants sí que hi van, sense tornar a posar la
+		// llista. La marca porta « symbols» perquè jaHiEs no el prengui pel
+		// llistat sencer (si una compactació se l'endu, ha de tornar).
+		if simbols.Strong {
+			return fmt.Sprintf("%s %s symbols] Working directory: %s. The file list given earlier is unchanged.\n%s",
+				MarcaContext, empremta, filepath.ToSlash(dir), simbols.Text)
+		}
 		return ""
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "%s %s] Directori de treball: %s. Llistat pres en començar el torn: fes-lo servir en comptes de ls/find/pwd, i torna a mirar el disc si l'has canviat.\n",
+	fmt.Fprintf(&b, "%s %s] Working directory: %s. File list taken at the start of the turn: use it instead of ls/find/pwd, and look at the disk again if you changed it.\n",
 		MarcaContext, empremta, filepath.ToSlash(dir))
 	b.WriteString(cos.String())
+	if simbols.Text != "" {
+		b.WriteString("\n" + simbols.Text)
+	}
 	b.WriteString(adjunts)
 	return b.String()
+}
+
+// TokensMapaSimbols és el pressupost de la secció de símbols del mapa.
+// GREGAL_REPOMAP_TOKENS el canvia (0 l'apaga).
+func TokensMapaSimbols() int {
+	if v := strings.TrimSpace(os.Getenv("GREGAL_REPOMAP_TOKENS")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+	}
+	return repomap.DefaultTokens
+}
+
+// seccioSimbols és el mapa de símbols ordenat per la tasca (repomap). Va
+// dins del mateix bloc marcat, i per això SenseMapa també el treu. Amb un
+// repositori enorme o un disc lent l'índex es talla als 300 ms i la secció
+// surt amb el que hi ha; sense codi, no surt.
+func seccioSimbols(dir, tasca string, fitxers []string, estat string) repomap.Ranked {
+	tokens := TokensMapaSimbols()
+	if tokens <= 0 {
+		return repomap.Ranked{}
+	}
+	tocats := repomap.ModifiedFromPorcelain(estat)
+	pri := make([]string, 0, len(tocats))
+	for p := range tocats {
+		if !strings.HasSuffix(p, "/") {
+			pri = append(pri, p)
+		}
+	}
+	sort.Strings(pri)
+	snap := repomap.Build(dir, fitxers, repomap.Options{Priority: pri})
+	return repomap.Rank(snap, tasca, repomap.RankOptions{Tokens: tokens, Modified: tocats})
 }
 
 // TascaAmbMapa és el que criden els clients en començar un torn: el mapa
 // només als modes que treballen amb el projecte (el xat conversa).
 func TascaAmbMapa(mode, dir, tasca string, hist []llm.Message) string {
 	switch mode {
-	case ModeCode, ModeAutonomous, ModeInspect, ModeGoal, "":
+	case ModeCode, ModeAutonomous, ModeDebug, ModeInspect, ModeGoal, "":
 		return AmbMapaProjecte(dir, tasca, hist)
 	}
 	return tasca
@@ -92,8 +145,10 @@ func TascaAmbMapa(mode, dir, tasca string, hist []llm.Message) string {
 
 // SenseMapa treu el bloc del mapa d'un missatge, per pintar-lo o titular-lo.
 func SenseMapa(s string) string {
-	if i := strings.Index(s, "\n\n"+MarcaContext); i >= 0 {
-		return s[:i]
+	for _, marca := range []string{MarcaContext, MarcaContextCA} {
+		if i := strings.Index(s, "\n\n"+marca); i >= 0 {
+			return s[:i]
+		}
 	}
 	return s
 }
@@ -109,44 +164,9 @@ func AmbMapaProjecte(dir, tasca string, hist []llm.Message) string {
 // llistaFitxers torna els fitxers del projecte (camins relatius, barres
 // normals) i si és un repositori git. Amb git mana el que git veu (sense
 // els ignorats); sense, un recorregut que salta el que no és del projecte.
+// Viu a repomap perquè l'índex de símbols segueixi les mateixes regles.
 func llistaFitxers(dir string) ([]string, bool) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", "ls-files", "--cached", "--others", "--exclude-standard")
-	cmd.Dir = dir
-	if out, err := cmd.Output(); err == nil {
-		var fs []string
-		for _, l := range strings.Split(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n") {
-			if l = strings.TrimSpace(l); l != "" {
-				fs = append(fs, l)
-			}
-		}
-		sort.Strings(fs)
-		return fs, true
-	}
-	var out []string
-	salta := map[string]bool{".git": true, "node_modules": true, "vendor": true, "__pycache__": true,
-		"dist": true, "build": true, "target": true, ".venv": true, "venv": true, ".idea": true, ".vscode": true}
-	_ = filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if p != dir && (salta[d.Name()] || strings.HasPrefix(d.Name(), ".")) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if len(out) >= 5000 {
-			return filepath.SkipAll
-		}
-		if rel, err := filepath.Rel(dir, p); err == nil {
-			out = append(out, filepath.ToSlash(rel))
-		}
-		return nil
-	})
-	sort.Strings(out)
-	return out, false
+	return repomap.ListFiles(dir)
 }
 
 // resumFitxers és la llista sencera si és curta; si no, els fitxers de
@@ -154,7 +174,7 @@ func llistaFitxers(dir string) ([]string, bool) {
 func resumFitxers(fitxers []string) string {
 	var b strings.Builder
 	if len(fitxers) <= maxFitxersLlista {
-		fmt.Fprintf(&b, "Fitxers (%d):\n", len(fitxers))
+		fmt.Fprintf(&b, "Files (%d):\n", len(fitxers))
 		for _, f := range fitxers {
 			b.WriteString(f + "\n")
 		}
@@ -174,13 +194,13 @@ func resumFitxers(fitxers []string) string {
 		noms = append(noms, c)
 	}
 	sort.Strings(noms)
-	fmt.Fprintf(&b, "Fitxers (%d, massa per llistar-los tots; fes servir glob/grep per entrar a les carpetes):\n", len(fitxers))
+	fmt.Fprintf(&b, "Files (%d, too many to list them all; use glob/grep to look inside the folders):\n", len(fitxers))
 	for _, c := range noms {
 		fmt.Fprintf(&b, "%s/ (%d)\n", c, carpetes[c])
 	}
 	for i, f := range arrel {
 		if i >= maxFitxersLlista {
-			fmt.Fprintf(&b, "… i %d fitxers més a l'arrel\n", len(arrel)-i)
+			fmt.Fprintf(&b, "… and %d more files in the root\n", len(arrel)-i)
 			break
 		}
 		b.WriteString(f + "\n")
@@ -200,11 +220,11 @@ func estatGit(dir string) string {
 	}
 	linies := strings.Split(strings.TrimRight(strings.ReplaceAll(string(out), "\r\n", "\n"), "\n"), "\n")
 	if len(linies) == 1 {
-		return linies[0] + " (net, sense canvis)\n"
+		return linies[0] + " (clean, no changes)\n"
 	}
 	if len(linies) > maxEstatGit+1 {
 		n := len(linies) - (maxEstatGit + 1)
-		linies = append(linies[:maxEstatGit+1], fmt.Sprintf("… i %d canvis més", n))
+		linies = append(linies[:maxEstatGit+1], fmt.Sprintf("… and %d more changes", n))
 	}
 	return strings.Join(linies, "\n") + "\n"
 }
@@ -228,11 +248,11 @@ func adjuntsAnomenats(dir, tasca string, fitxers []string) string {
 		}
 		total += len(dades)
 		n++
-		fmt.Fprintf(&b, "\n--- %s (contingut en començar el torn; no cal tornar-lo a llegir si no l'has canviat) ---\n%s", f, dades)
+		fmt.Fprintf(&b, "\n--- %s (contents at the start of the turn; no need to read it again unless you changed it) ---\n%s", f, dades)
 		if !strings.HasSuffix(string(dades), "\n") {
 			b.WriteString("\n")
 		}
-		b.WriteString("--- fi de " + f + " ---\n")
+		b.WriteString("--- end of " + f + " ---\n")
 	}
 	return b.String()
 }
@@ -285,8 +305,9 @@ func empremtaDe(s string) string {
 // jaHiEs diu si l'historial ja porta un context amb aquesta empremta.
 func jaHiEs(hist []llm.Message, empremta string) bool {
 	marca := MarcaContext + " " + empremta + "]"
+	marcaCA := MarcaContextCA + " " + empremta + "]"
 	for i := len(hist) - 1; i >= 0; i-- {
-		if hist[i].Role == "user" && strings.Contains(hist[i].Content, marca) {
+		if hist[i].Role == "user" && (strings.Contains(hist[i].Content, marca) || strings.Contains(hist[i].Content, marcaCA)) {
 			return true
 		}
 	}

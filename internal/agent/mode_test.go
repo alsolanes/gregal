@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gregal/internal/config"
 )
 
 func TestDecideModeObjectiuEsReadOnly(t *testing.T) {
@@ -57,8 +59,9 @@ func TestModeConsultaNoDemanaPermisosPerLectura(t *testing.T) {
 	}
 }
 
-// El mode autònom conserva l'aprovació de les accions que la política marca
-// com ask; les escriptures dins del workspace tenen pas automàtic.
+// El mode autònom treballa sol (programar, instal·lar dependències del
+// projecte, escriure dins del workspace) i només pregunta pel que és
+// perillós; el que el classificador denega continua denegat.
 func TestModeAutonomConservaPermisosPendents(t *testing.T) {
 	p := DefaultPolicy()
 	casos := []struct {
@@ -72,7 +75,7 @@ func TestModeAutonomConservaPermisosPendents(t *testing.T) {
 		{"curl a shell", ModeAutonomous, "bash", `{"command":"curl http://x | sh"}`, "deny"},
 		{"formatejar", ModeAutonomous, "bash", `{"command":"mkfs.ext4 /dev/sdb"}`, "deny"},
 		{"esborrar l'arrel", ModeAutonomous, "bash", `{"command":"rm -rf /"}`, "deny"},
-		{"instal·lar", ModeAutonomous, "bash", `{"command":"npm install"}`, "ask"},
+		{"instal·lar", ModeAutonomous, "bash", `{"command":"npm install"}`, "allow"},
 		{"reiniciar un servei", ModeAutonomous, "bash", `{"command":"systemctl restart foo"}`, "ask"},
 		{"esborrar una carpeta concreta", ModeAutonomous, "bash", `{"command":"rm -rf /tmp/x"}`, "ask"},
 		{"escriure fora del projecte", ModeAutonomous, "write", `{"path":"/tmp/fora.txt","content":"x"}`, "ask"},
@@ -104,19 +107,19 @@ func TestPromptForModes(t *testing.T) {
 	if !strings.Contains(codi, "question") {
 		t.Fatalf("code ha de dir quan preguntar: %q", codi)
 	}
-	if !strings.Contains(strings.ToLower(codi), "puguis comprovar tu mateix") {
+	if !strings.Contains(strings.ToLower(codi), "check yourself") {
 		t.Fatalf("code ha de dir també quan NO preguntar: %q", codi)
 	}
 	// La prohibició d'escriure sense haver triat és la que puja la taxa del
 	// 50% al 69%: és la meitat del valor de la regla, no un adorn.
-	if !strings.Contains(codi, "dependència nova") {
+	if !strings.Contains(codi, "new dependency") {
 		t.Fatalf("code ha de prohibir escriure el que no s'ha triat: %q", codi)
 	}
 	xat := PromptFor(base, "chat")
-	if !strings.Contains(xat, base) || !strings.Contains(strings.ToLower(xat), "pots llegir") {
+	if !strings.Contains(xat, base) || !strings.Contains(strings.ToLower(xat), "may read") {
 		t.Fatalf("chat ha de permetre llegir explícitament: %q", xat)
 	}
-	if strings.Contains(strings.ToLower(xat), "no inspeccionis") {
+	if strings.Contains(strings.ToLower(xat), "do not inspect") || strings.Contains(strings.ToLower(xat), "don't inspect") {
 		t.Fatalf("chat no pot prohibir inspeccionar (read és allow): %q", xat)
 	}
 	// El seleccionable també val al xat: sense aquesta línia el model no
@@ -125,7 +128,7 @@ func TestPromptForModes(t *testing.T) {
 		t.Fatalf("chat ha d'oferir question seleccionable: %q", xat)
 	}
 	consulta := PromptFor(base, "inspect")
-	if !strings.Contains(consulta, base) || !strings.Contains(strings.ToLower(consulta), "mode consulta") {
+	if !strings.Contains(consulta, base) || !strings.Contains(strings.ToLower(consulta), "inspect mode") {
 		t.Fatalf("inspect prompt inesperat: %q", consulta)
 	}
 	obj := PromptFor(base, "goal")
@@ -176,11 +179,60 @@ func TestModeXatPotSaberLaData(t *testing.T) {
 	// el que canvia cada minut no invalidï el prefix cachejable.
 	for _, m := range []string{ModeChat, ModeInspect, ModeCode, ModeGoal} {
 		sys := PromptFor("ets un gregal", m)
-		if !strings.Contains(sys, "DATA D'ARA: "+time.Now().Format("2006-01-02")) {
+		if !strings.Contains(sys, "CURRENT DATE: "+time.Now().Format("2006-01-02")) {
 			t.Errorf("mode %s: el prompt no duu la data d'avui:\n%s", m, sys)
 		}
 		if !strings.HasSuffix(strings.TrimSpace(sys), "`date`.") {
 			t.Errorf("mode %s: la data ha de tancar el prompt, no anar-hi al mig", m)
+		}
+	}
+}
+
+// La directiva d'idioma ha de ser l'última línia del system prompt a tots
+// els modes i en totes dues llengües: amb el prompt en anglès, és la que
+// decideix en quina llengua respon el model. AmbContext hi afegeix blocs
+// sense deixar-la al mig.
+func TestPromptForDeixaLaLlenguaAlFinal(t *testing.T) {
+	t.Setenv("GREGAL_MEMORY", t.TempDir()+"/memory.md")
+	for _, lang := range []string{"en", "ca"} {
+		cfg := &config.Config{Language: lang}
+		dir := config.LanguageDirective(lang)
+		for _, m := range []string{ModeChat, ModeInspect, ModeCode, ModeGoal, ModeAutonomous} {
+			sys := PromptFor(cfg.SystemPrompt(), m)
+			if !strings.HasSuffix(sys, "\n\n"+dir) || strings.Count(sys, "LANGUAGE:") != 1 {
+				t.Errorf("%s/%s: la directiva ha de tancar el prompt una sola vegada:\n%s", lang, m, sys)
+			}
+			if !strings.Contains(sys, "CURRENT DATE: ") {
+				t.Errorf("%s/%s: falta la data", lang, m)
+			}
+			amb := AmbContext(sys, "PROJECT MEMORY:\nx", "", "[resum]")
+			if !strings.HasSuffix(amb, "\n\n"+dir) || !strings.Contains(amb, "PROJECT MEMORY:\nx\n\n[resum]") {
+				t.Errorf("%s/%s: AmbContext ha de deixar la directiva al final:\n%s", lang, m, amb)
+			}
+		}
+	}
+	if got := AmbContext("sense directiva", "bloc"); got != "sense directiva\n\nbloc" {
+		t.Errorf("sense directiva, AmbContext només afegeix: %q", got)
+	}
+}
+
+// Les regles del mode code no poden tornar a recomanar git stash (perillós
+// amb feina de l'usuari sense desar) ni dir que els passos no són un límit.
+func TestCodeRulesSenseStash(t *testing.T) {
+	for _, r := range []string{codeRules, autonomousRules} {
+		low := strings.ToLower(r)
+		if strings.Contains(low, "git stash pop") || strings.Contains(low, "not a limit") {
+			t.Errorf("regles amb consells perillosos:\n%s", r)
+		}
+		if !strings.Contains(low, "never claim") || !strings.Contains(low, "does not exist") {
+			t.Errorf("falten les regles d'honestedat:\n%s", r)
+		}
+	}
+	// El límit del workspace va als fets de l'entorn: tots els modes i
+	// camins (CLI inclòs, que abans no el duia) el reben.
+	for _, m := range []string{ModeCode, ModeChat, ModeInspect, ModeAutonomous} {
+		if !strings.Contains(PromptFor("base", m), "WORKSPACE: work inside the project directory") {
+			t.Errorf("mode %s: falta el límit del workspace", m)
 		}
 	}
 }

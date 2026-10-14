@@ -26,9 +26,7 @@ func ProbeModels(base, key string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(key) != "" {
-		req.Header.Set("Authorization", "Bearer "+key)
-	}
+	setModelsAuth(req, base, key)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, netAmable(url, err)
@@ -98,9 +96,7 @@ func ProbeModelWindows(base, key string) (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(key) != "" {
-		req.Header.Set("Authorization", "Bearer "+key)
-	}
+	setModelsAuth(req, base, key)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, netAmable(url, err)

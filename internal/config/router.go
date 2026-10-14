@@ -44,6 +44,10 @@ func (c *Config) EscalateTarget(streak int, pinned bool, current string) (string
 }
 
 // routeQuestion: la tasca sembla una pregunta (resposta curta, sense edits).
+// Una petició de canvi acabada en «?» («Can you fix the failing tests?»)
+// no és una pregunta: els verbs de canvi, en català i en anglès, manen
+// sobre l'interrogant. Els anglesos es miren com a paraula sencera perquè
+// «fix» no caci «prefix» ni «add» caci «address».
 func routeQuestion(task string) bool {
 	t := strings.ToLower(strings.TrimSpace(task))
 	if len([]rune(t)) > 300 {
@@ -54,11 +58,36 @@ func routeQuestion(task string) bool {
 			return false
 		}
 	}
+	if teParaula(t, verbsCanviEN) || strings.Contains(t, "make the ") || strings.Contains(t, "make it ") || strings.Contains(t, "make sure") {
+		return false
+	}
 	if strings.HasSuffix(t, "?") {
 		return true
 	}
-	for _, q := range []string{"què ", "que ", "com ", "on ", "per què", "perque ", "explica", "resumeix", "què fa", "busca ", "troba ", "quin ", "quins ", "quina ", "quant ", "quants ", "quantes ", "compta ", "llista "} {
+	for _, q := range []string{"què ", "que ", "com ", "on ", "per què", "perque ", "explica", "resumeix", "què fa", "busca ", "troba ", "quin ", "quins ", "quina ", "quant ", "quants ", "quantes ", "compta ", "llista ",
+		"what ", "what's ", "how ", "where ", "why ", "which ", "who ", "when ", "explain", "summarize", "summarise", "describe", "find ", "search ", "count ", "list ", "show me", "tell me"} {
 		if strings.HasPrefix(t, q) {
+			return true
+		}
+	}
+	return false
+}
+
+// verbsCanviEN són els verbs anglesos que demanen tocar el codi.
+var verbsCanviEN = map[string]bool{
+	"fix": true, "fixing": true, "repair": true, "implement": true, "implementing": true,
+	"add": true, "adding": true, "create": true, "change": true, "modify": true,
+	"update": true, "edit": true, "write": true, "rewrite": true, "refactor": true,
+	"refactoring": true, "migrate": true, "rename": true, "remove": true, "delete": true,
+	"replace": true, "build": true, "debug": true, "resolve": true, "solve": true,
+}
+
+// teParaula diu si alguna paraula de t (lletres i dígits) és a set.
+func teParaula(t string, set map[string]bool) bool {
+	for _, w := range strings.FieldsFunc(t, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '_')
+	}) {
+		if set[w] {
 			return true
 		}
 	}
@@ -71,7 +100,8 @@ func routeHeavy(task string) bool {
 	if len([]rune(t)) > 500 {
 		return true
 	}
-	for _, w := range []string{"refactor", "migra", "reescriu", "tots els", "tot el projecte", "tota la", "multi-fitxer"} {
+	for _, w := range []string{"refactor", "migra", "reescriu", "tots els", "tot el projecte", "tota la", "multi-fitxer",
+		"rewrite", "all files", "every file", "whole project", "entire project", "whole codebase", "entire codebase", "multi-file"} {
 		if strings.Contains(t, w) {
 			return true
 		}

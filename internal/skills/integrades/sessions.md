@@ -1,74 +1,77 @@
 ---
-nom: sessions
-descripcio: on es desen les converses, com llistar-les, reprendre-les, esborrar-les o buscar-hi dins
+name: sessions
+description: Where conversations are saved and how to list, resume, delete or search inside them
 ---
 
-Cada conversa es desa en un JSON. No hi ha base de dades: són fitxers, i
-els pots llegir i esborrar amb les eines normals.
+Each conversation is saved as a JSON file. There is no database: they
+are files, and you can read and delete them with the normal tools.
 
-## On són
+## Where they are
 
 `~/.local/share/gregal/sessions/` (Windows:
-`C:/Users/<tu>/.local/share/gregal/sessions/`), o dins de
-`$GREGAL_DATA_DIR/sessions` si la variable hi és.
+`C:/Users/<you>/.local/share/gregal/sessions/`), or
+`$GREGAL_DATA_DIR/sessions` if that variable is set.
 
-Cada fitxer es diu `sessio-AAAAMMDD-HHMMSS-mmm.json`. Al mateix
-directori hi ha `events.jsonl`, que no és cap sessió.
+Each file is named `sessio-AAAAMMDD-HHMMSS-mmm.json` (`AAAAMMDD` is
+YYYYMMDD). The same directory holds `events.jsonl`, which is not a
+session.
 
-## Què hi ha a dins
+## What is inside
 
 ```json
 {
   "name": "sessio-20260921-145033-171",
-  "title": "primer missatge de la conversa, retallat",
+  "title": "first message of the conversation, truncated",
   "saved_at": "2026-09-21T14:50:33Z",
   "role": "chat",
-  "workspace": "/ruta/del/projecte",
+  "workspace": "/path/to/project",
   "pinned": false,
-  "compacted": "resum de la part compactada, si n'hi ha",
+  "compacted": "summary of the compacted part, if any",
   "convo": [{"role": "user", "content": "..."}],
   "activity": [{"name": "bash", "args": "...", "output": "...", "failed": false}]
 }
 ```
 
-`convo` són els missatges de la persona i les teves respostes. Les
-crides d'eina i les seves sortides senceres NO hi són: el que en queda
-és el resum d'`activity`. Per això el comptador de missatges d'una
-sessió llarga és més baix del que sembla mirant la pantalla.
+`convo` holds the user's messages and your replies. Tool calls and their
+full outputs are NOT there: only the `activity` summary remains. That is
+why the message count of a long session is lower than the screen
+suggests.
 
-La conversa es desa en acabar cada torn, i també en sortir amb `/quit` o
-Ctrl+C. Si el procés mor de cop, es conserva fins a l'últim torn acabat.
+The conversation is saved at the end of every turn, and also on exit
+with `/quit` or Ctrl+C. If the process dies abruptly, everything up to
+the last finished turn is kept.
 
-## Ordres del TUI
+## TUI commands
 
-- `/sessions` — selector amb fletxes, amb l'última conversa ja triada.
-- `/resume <nom o N>` — reprèn una conversa.
-- `/save [nom]` — desa la d'ara amb un nom.
-- `/pin` — fixa o desfixa la conversa actual.
-- `/clear` — neteja la conversa de la pantalla.
+- `/sessions` — arrow-key picker, with the latest conversation
+  preselected.
+- `/resume <name or N>` — resume a conversation.
+- `/save [name]` — save the current one under a name.
+- `/pin` — pin or unpin the current conversation.
+- `/clear` — clear the conversation from the screen.
 
-## El que NO té ordre pròpia
+## What has NO dedicated command
 
-Esborrar, reanomenar o buscar dins de les converses. Fes-ho amb les
-eines, que per això són fitxers:
+Deleting, renaming or searching inside conversations. Do it with the
+tools; that is why they are files:
 
 ```bash
-# les deu més recents, amb data i mida
+# the ten most recent, with date and size
 ls -lt ~/.local/share/gregal/sessions/sessio-*.json | head
 
-# què hi diu una
+# what one contains
 cat ~/.local/share/gregal/sessions/sessio-20260921-145033-171.json
 
-# buscar-hi dins (títol i contingut)
-grep -l "plataformes" ~/.local/share/gregal/sessions/*.json
+# search inside them (title and content)
+grep -l "platforms" ~/.local/share/gregal/sessions/*.json
 
-# esborrar-ne una de concreta
+# delete a specific one
 rm ~/.local/share/gregal/sessions/sessio-20260918-191945-786.json
 
-# esborrar les de fa més de trenta dies
+# delete those older than thirty days
 find ~/.local/share/gregal/sessions -name 'sessio-*.json' -mtime +30 -delete
 ```
 
-Abans d'esborrar res: ensenya què esborraràs i espera que t'ho confirmin.
-Una conversa esborrada no es recupera, i les que tenen `"pinned": true`
-són les que algú ha volgut guardar expressament.
+Before deleting anything: show what you will delete and wait for
+confirmation. A deleted conversation cannot be recovered, and those with
+`"pinned": true` are ones someone deliberately chose to keep.

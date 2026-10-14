@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -39,5 +40,18 @@ func TestGitHubValidaAccionsIDades(t *testing.T) {
 		if _, err := GitHub(tc.tool, tc.args); err == nil {
 			t.Fatalf("hauria de fallar: %s %s", tc.tool, tc.args)
 		}
+	}
+}
+
+func TestGitHubCtxCancelatNoExecutaRes(t *testing.T) {
+	old := GHRunner
+	defer func() { GHRunner = old }()
+	called := false
+	GHRunner = func(ctx context.Context, args ...string) (string, error) { called = true; return "ok", nil }
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := GitHubCtx(ctx, "gh_issue", `{"action":"view","number":42,"repo":"acme/gregal"}`)
+	if !errors.Is(err, context.Canceled) || called {
+		t.Fatalf("torn aturat no ha d'executar gh: err=%v called=%v", err, called)
 	}
 }

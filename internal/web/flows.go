@@ -158,7 +158,7 @@ func (s *Server) handleFlowRun(w http.ResponseWriter, r *http.Request) {
 // recordFlowRun deixa a la conversa un resum del que ha fet el graf.
 func (s *Server) recordFlowRun(f *flow.Flow, res flow.RunResult, quan time.Time) {
 	var b strings.Builder
-	b.WriteString("S'ha executat el graf «" + f.Name + "»:\n\n")
+	b.WriteString(s.tr("S'ha executat el graf «"+f.Name+"»:\n\n", "Ran the flow \""+f.Name+"\":\n\n"))
 	for _, st := range res.Steps {
 		estat := "ok"
 		if st.Err != "" {
@@ -167,15 +167,15 @@ func (s *Server) recordFlowRun(f *flow.Flow, res flow.RunResult, quan time.Time)
 		b.WriteString("- " + etiquetaPas(st) + " (" + estat + ")\n")
 	}
 	if res.Stopped != "" {
-		b.WriteString("\nAturat: " + res.Stopped + "\n")
+		b.WriteString(s.tr("\nAturat: ", "\nStopped: ") + res.Stopped + "\n")
 	}
 	if last, ok := res.Last(); ok && strings.TrimSpace(last.Output) != "" {
-		b.WriteString("\nÚltima sortida:\n" + retalla(last.Output, 4000))
+		b.WriteString(s.tr("\nÚltima sortida:\n", "\nLast output:\n") + retalla(last.Output, 4000))
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.convo = append(s.convo,
-		llm.Message{Role: "user", Content: "Executa el graf «" + f.Name + "»."},
+		llm.Message{Role: "user", Content: s.tr("Executa el graf «"+f.Name+"».", "Run the flow \""+f.Name+"\".")},
 		llm.Message{Role: "assistant", Content: b.String()})
 	s.autosaveLocked()
 }
