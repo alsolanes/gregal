@@ -34,6 +34,10 @@ func gitTestServer(t *testing.T) (*Server, string) {
 	dir := t.TempDir()
 	gitW(t, dir, "init", "-q", "-b", "main")
 	gitW(t, dir, "config", "core.autocrlf", "false")
+	// Identitat al repo de prova: el commit el fa el servidor, no el helper,
+	// i a la CI no hi ha cap identitat global.
+	gitW(t, dir, "config", "user.name", "Gregal Test")
+	gitW(t, dir, "config", "user.email", "test@example.com")
 	if err := os.WriteFile(filepath.Join(dir, "a.txt"), []byte("a0\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -28,6 +28,10 @@ func tempRepo(t *testing.T) string {
 	dir := t.TempDir()
 	gitT(t, dir, "init", "-q", "-b", "main")
 	gitT(t, dir, "config", "core.autocrlf", "false")
+	// Identitat al repo de prova: el codi provat (git_commit) crida git pel
+	// seu compte i a la CI no hi ha cap identitat global.
+	gitT(t, dir, "config", "user.name", "Gregal Test")
+	gitT(t, dir, "config", "user.email", "test@example.com")
 	writeTmp(t, filepath.Join(dir, "a.txt"), "a0\n")
 	writeTmp(t, filepath.Join(dir, "gone.txt"), "keep me\n")
 	writeTmp(t, filepath.Join(dir, ".gitignore"), "*.log\n")
