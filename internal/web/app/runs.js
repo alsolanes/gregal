@@ -244,6 +244,14 @@ export function durableToAgent(e, onEvent) {
   }
   else if (e.kind === 'thinking') onEvent('thinking', { text: fields(e).text || e.text || '' });
   else if (e.kind === 'progress') onEvent('progress', fields(e));
+  // Missatges escrits mentre el torn treballava (POST /api/steer).
+  else if (e.kind === 'steer') onEvent('steer', { text: e.text || '' });
+  else if (e.kind === 'steer_restart') onEvent('steer_restart', {});
+  else if (e.kind === 'steer_unread') {
+    let texts = [];
+    try { texts = JSON.parse(e.text || '{}').texts || []; } catch (x) {}
+    onEvent('steer_unread', { texts });
+  }
   else if (e.kind === 'blocked') onEvent('blocked', { reason: fields(e).reason || e.text || '' });
   else if (e.kind === 'review') onEvent('review', fields(e));
   else if (e.kind === 'bet') onEvent('bet', fields(e));

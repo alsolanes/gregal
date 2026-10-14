@@ -19,7 +19,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -243,6 +245,7 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
     val color = when {
         s.state == StepState.Running -> Sea
         s.state == StepState.Failed -> Red
+        s.kind == StepKind.User -> Sand
         s.kind == StepKind.Warn -> Sand
         s.kind == StepKind.Think || s.kind == StepKind.Note -> Lila
         s.kind == StepKind.Delegate -> Onada
@@ -391,13 +394,18 @@ fun PermIcon(open: Boolean, color: Color) =
  * Un sol botó a la dreta: atura si treballa, envia si hi ha text, dicta si
  * està buit. Canvia de forma amb una animació curta.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SendStopButton(busy: Boolean, canSend: Boolean, voice: Boolean, lang: String,
-                   onSend: () -> Unit, onStop: () -> Unit, onVoice: () -> Unit) {
+                   onSend: () -> Unit, onStop: () -> Unit, onVoice: () -> Unit, onInterrupt: (() -> Unit)? = null) {
     val mode = when { busy && !canSend -> 2; canSend -> 1; voice -> 0; else -> 1 }
-    IconButton(
-        onClick = { when (mode) { 2 -> onStop(); 1 -> if (canSend) onSend(); else -> onVoice() } },
-        modifier = Modifier.size(48.dp),
+    Box(
+        Modifier.size(48.dp).clip(CircleShape).combinedClickable(
+            onClick = { when (mode) { 2 -> onStop(); 1 -> if (canSend) onSend(); else -> onVoice() } },
+            // Mentre treballa: mantenir premut interromp i li diu ara.
+            onLongClick = if (busy && canSend && onInterrupt != null) onInterrupt else null,
+        ).semantics { contentDescription = tr(lang, if (mode == 2) "app.chat.stop" else "app.chat.send") },
+        contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(targetState = mode, transitionSpec = {
             (fadeIn(tween(140)) + androidx.compose.animation.scaleIn(initialScale = 0.7f)) togetherWith
@@ -410,9 +418,9 @@ fun SendStopButton(busy: Boolean, canSend: Boolean, voice: Boolean, lang: String
                         Icon(Icons.Rounded.Stop, tr(lang, "app.chat.stop"), tint = Superficie, modifier = Modifier.size(18.dp))
                     }
                 }
-                else -> Surface(color = if (canSend) Sea else CodeDark, shape = CircleShape, modifier = Modifier.size(36.dp)) {
+                else -> Surface(color = if (canSend) (if (busy) Sand else Sea) else CodeDark, shape = CircleShape, modifier = Modifier.size(36.dp)) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Send, tr(lang, "app.chat.send"), tint = if (canSend) OnSea else Muted, modifier = Modifier.size(17.dp))
+                        Icon(Icons.Rounded.Send, null, tint = if (canSend) OnSea else Muted, modifier = Modifier.size(17.dp))
                     }
                 }
             }

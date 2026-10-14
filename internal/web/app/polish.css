@@ -514,3 +514,17 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .tool-open-dashboard { flex:none; margin-left:auto; padding:3px 10px; border:1px solid var(--accent); border-radius:99px;
   background:var(--accent-soft); color:var(--ink); font:inherit; font-size:var(--t1); font-weight:600; cursor:pointer; }
 .tool-open-dashboard:hover { background:var(--accent); color:var(--bg); }
+
+/* Missatges escrits mentre el torn treballa (steerNow a index.html). */
+.msg.u.steer { margin:8px 0 8px auto; max-width:min(560px, 92%); }
+.msg.u.steer .body { border:1px dashed var(--accent); background:var(--accent-soft); }
+.msg.u.steer.steer-interrupt .body { border-color:var(--amber); background:var(--amber-soft); }
+.msg.u.steer.steer-ok .body { border-style:solid; }
+.msg.u.steer.steer-failed .body { border-color:var(--red); background:var(--red-soft); }
+.steer-head { display:flex; gap:8px; align-items:baseline; margin-bottom:2px; font-size:var(--t1); }
+.steer-tag { font-weight:600; color:var(--accent-hi); }
+.steer-interrupt .steer-tag { color:var(--amber); }
+.steer-state { color:var(--muted); }
+.steer-ok .steer-state { color:var(--green); }
+.turn-hint { margin-left:10px; color:var(--faint); font-size:var(--t1); white-space:nowrap; }
+@media (max-width:760px) { .turn-hint { display:none; } }

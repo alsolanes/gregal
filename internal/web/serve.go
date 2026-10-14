@@ -95,7 +95,9 @@ type Server struct {
 	modelCheckedAt    map[string]time.Time
 	lastGoalID        string // últim objectiu creat o executat
 
-	agentBusy   bool
+	agentBusy bool
+	// steer: missatges escrits mentre el torn treballa (steer.go).
+	steer       steerBox
 	activity    *workshopActivity
 	workshopSeq uint64
 	active      *activeAgent
@@ -405,6 +407,7 @@ func (h *Hub) mux() *http.ServeMux {
 	// Cua d'execucions compartida (v2): encuar, consultar i cancel·lar
 	// torns identificats. El TUI delegat i el web passen pel mateix lloc.
 	handle("/api/v2/runs", h.route((*Server).handleV2Runs))
+	handle("/api/steer", h.route((*Server).handleSteer))
 	handle("/api/v2/runs/{id}", h.route((*Server).handleV2Run))
 	handle("/api/v2/runs/{id}/cancel", h.route((*Server).handleV2RunCancel))
 	handle("/api/chat", h.route((*Server).handleChat))
@@ -779,7 +782,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"model": role.Model, "provider": pName(p, role),
 		"verify":     s.cfg.Verify.Mode,
 		"agent_busy": queued || s.agentBusy || s.planRunning, "cwd": cwd, "project": filepath.Base(cwd),
-		"permissive": s.permissive, // handleState ja té s.mu; no usar permissiveNow() aquí (deadlock)
+		"permissive":  s.permissive, // handleState ja té s.mu; no usar permissiveNow() aquí (deadlock)
 		"auto_review": s.autoReview,
 		"sandbox":     sandbox.Current(),
 		// Estimació del context ocupat, per al mesurador de la UI (J4). El TUI
@@ -2338,6 +2341,9 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 		s.mu.Unlock()
 		// Vista /api/active i busy de sessió: mateix contracte que abans de
 		// la cua, però ara el fixa el worker i no el handler HTTP.
+		// Bústia dels missatges escrits mentre treballa (steer.go): oberta
+		// tot el torn, també durant el scout, abans del bucle principal.
+		endSteer := s.steerBegin()
 		s.mu.Lock()
 		s.agentBusy = true
 		s.todo = nil
@@ -2364,6 +2370,11 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 			// interessa l'error, que marca l'execució com a fallida.
 			_, execErr = s.runTurn(ctx, o.task, o.imgs, o.mode, ws, o.emit, o.rawEmit)
 		}()
+		// Els que no han arribat a entrar (el torn ha acabat o fallat abans)
+		// tornen al client perquè els enviï com a missatge nou.
+		if left := endSteer(); len(left) > 0 && o.emit != nil {
+			o.emit("steer_unread", map[string]any{"texts": left})
+		}
 		s.mu.Lock()
 		if s.active != nil && s.active.ID == int(run.ID) {
 			s.flushTokensLocked()
@@ -2490,6 +2501,19 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	dcancel()
 	lastReply, hist, err := s.conduirTorn(runCtx, task, mode, roleName, p, role, maxSteps, ws, pol, emit)
 	if err != nil {
+		// Sense rastre, la petició aturada quedava oberta a la conversa i
+		// el torn següent la continuava (vist el 2026-10-14: «quant fa
+		// 3+3?» responia «sis» i seguia explicant els fitxers del torn
+		// aturat). Una nota de l'assistent la tanca.
+		note := "[This request did not finish: it failed with an error. Do not resume it unless the user asks again.]"
+		if runCtx.Err() != nil {
+			note = "[Stopped by the user before finishing. Do not continue this request unless the user asks for it again.]"
+		}
+		s.mu.Lock()
+		if n := len(s.convo); n > 0 && s.convo[n-1].Role == "user" {
+			s.convo = append(s.convo, llm.Message{Role: "assistant", Content: note})
+		}
+		s.mu.Unlock()
 		return "", err
 	}
 	s.mu.Lock()

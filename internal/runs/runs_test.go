@@ -190,8 +190,8 @@ func TestWorkspaceCompartitEsSerialitza(t *testing.T) {
 	wg.Add(2)
 	// Use native paths: Windows-style casing and separators are distinct on Unix.
 	workspace := t.TempDir()
-	a, _, _ := q.Submit(exec, Run{Session: "s1", Workspace: WorkspaceKey(workspace)})
-	b, _, _ := q.Submit(exec, Run{Session: "s2", Workspace: WorkspaceKey(workspace + string(filepath.Separator))})
+	a, _, _ := q.Submit(exec, Run{Session: "s1", Workspace: WorkspaceKey(workspace), Priority: PriorityBackground})
+	b, _, _ := q.Submit(exec, Run{Session: "s2", Workspace: WorkspaceKey(workspace + string(filepath.Separator)), Priority: PriorityBackground})
 	close(allibera)
 	wg.Wait()
 	waitDone(t, q, a.ID)
@@ -345,7 +345,7 @@ func TestSubmitNormalitzaWorkspaceAbansDeSerialitzar(t *testing.T) {
 		close(started)
 		<-release
 		return nil
-	}, Run{Session: "s1", Workspace: primeraPath})
+	}, Run{Session: "s1", Workspace: primeraPath, Priority: PriorityBackground})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -357,7 +357,7 @@ func TestSubmitNormalitzaWorkspaceAbansDeSerialitzar(t *testing.T) {
 	second, _, err := q.Submit(func(ctx context.Context, r Run) error {
 		secondStarted <- struct{}{}
 		return nil
-	}, Run{Session: "s2", Workspace: segonaPath})
+	}, Run{Session: "s2", Workspace: segonaPath, Priority: PriorityBackground})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,4 +386,30 @@ func TestSeedIDsContinuesAfterStoredRuns(t *testing.T) {
 	if run.ID != 42 {
 		t.Fatalf("run.ID = %d, want 42", run.ID)
 	}
+}
+
+// Dues sessions interactives al mateix projecte treballen alhora: la
+// segona no espera que acabi la primera.
+func TestInteractiveSessionsShareWorkspaceInParallel(t *testing.T) {
+	q := New()
+	ws := WorkspaceKey(t.TempDir())
+	both := make(chan struct{}, 2)
+	release := make(chan struct{})
+	exec := func(ctx context.Context, r Run) error {
+		both <- struct{}{}
+		<-release
+		return nil
+	}
+	a, _, _ := q.Submit(exec, Run{Session: "s1", Workspace: ws})
+	b, _, _ := q.Submit(exec, Run{Session: "s2", Workspace: ws})
+	for i := 0; i < 2; i++ {
+		select {
+		case <-both:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the second interactive session waited for the first one")
+		}
+	}
+	close(release)
+	waitDone(t, q, a.ID)
+	waitDone(t, q, b.ID)
 }

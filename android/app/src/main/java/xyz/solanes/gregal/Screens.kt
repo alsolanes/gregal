@@ -436,6 +436,10 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                     }
                 }
+                if (busy && input.isNotBlank()) {
+                    Text(tr(lang, "app.steer.hint"), color = Faint, fontSize = 11.5.sp,
+                        modifier = Modifier.padding(start = 26.dp, bottom = 2.dp))
+                }
                 // Mesurador de context fora de la pastilla (estil ChatGPT: el
                 // composer només té controls). S'amaga sol si no hi ha res
                 // gastat o el rol no declara finestra.
@@ -506,6 +510,10 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 onSend = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     follow = true; vm.submit(consumeInput())
+                                },
+                                onInterrupt = {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    follow = true; vm.submit(consumeInput(), interrupt = true)
                                 },
                                 onStop = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
