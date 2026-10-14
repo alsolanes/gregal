@@ -231,6 +231,8 @@ data class WorkGroup(
     val started: Long = 0L,
     val ended: Long = 0L,
     val failed: Boolean = false,
+    /** Id del torn al servidor (v2): obre el #retro d'aquest torn. */
+    val runId: Long = 0L,
 ) {
     val running: Boolean get() = ended == 0L
     val toolCount: Int get() = steps.count { it.kind == StepKind.Tool }

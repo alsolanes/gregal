@@ -20,7 +20,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro }
 
 data class Conn(val host: String, val port: String, val token: String, val user: String = "") {
     fun api() = GregalApi(baseUrlOf(host, port), token)
@@ -522,6 +522,93 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         runTurn(t, imgs, forceAgent)
     }
 
+    // --- #retro ---
+
+    private val _retro = MutableStateFlow<RetroChannel?>(null)
+    val retro: StateFlow<RetroChannel?> = _retro
+    /** "" en repòs; "loading" | "starting" | "replying"; o un avís per mostrar. */
+    private val _retroState = MutableStateFlow("")
+    val retroState: StateFlow<String> = _retroState
+    private val _retroEmojis = MutableStateFlow(RETRO_DEFAULT_EMOJIS)
+    val retroEmojis: StateFlow<List<String>> = _retroEmojis
+    private var retroKey = ""
+
+    /** Obre el #retro d'un torn (0 = l'últim acabat) i, si encara no té xat, l'engega. */
+    fun openRetro(runId: Long = 0L) {
+        _screen.value = Screen.Retro
+        if (_retroState.value in setOf("loading", "starting", "replying")) return
+        _retroState.value = "loading"
+        viewModelScope.launch {
+            try {
+                val api = _conn.value.api()
+                val info = withContext(Dispatchers.IO) { api.getRetro(runId = runId) }
+                _retroEmojis.value = info.emojis
+                retroKey = info.key
+                if (info.channel != null && info.channel.messages.isNotEmpty()) {
+                    _retro.value = info.channel
+                    _retroState.value = ""
+                    return@launch
+                }
+                val run = if (runId > 0) runId else info.latestRun
+                when {
+                    run <= 0L && info.key.isBlank() -> { _retro.value = null; _retroState.value = appText("app.retro.none") }
+                    run == info.latestRun && info.latestRunning -> { _retro.value = null; _retroState.value = appText("app.retro.running") }
+                    else -> {
+                        _retroState.value = "starting"
+                        val ch = withContext(Dispatchers.IO) { api.startRetro(info.key, run) }
+                        _retro.value = ch
+                        if (ch != null) retroKey = ch.key
+                        _retroState.value = ""
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _retroState.value = requestMessage(e)
+            }
+        }
+    }
+
+    /** Pregunta o rebat als agents; @nom adreça el missatge a un de concret. */
+    fun sendRetro(text: String, thread: String = "") {
+        val t = text.trim()
+        val ch = _retro.value ?: return
+        if (t.isEmpty() || _retroState.value == "replying") return
+        // Es veu a l'instant; la resposta del servidor porta el canal sencer.
+        _retro.value = ch.copy(messages = ch.messages + RetroMsg("local-${nextMsgId()}", thread, "user", t))
+        _retroState.value = "replying"
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroMessage(ch.key.ifBlank { retroKey }, t, thread) }
+                if (out != null) _retro.value = out
+                _retroState.value = ""
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _retroState.value = requestMessage(e)
+            }
+        }
+    }
+
+    fun reactRetro(messageId: String, emoji: String) {
+        val ch = _retro.value ?: return
+        val m = ch.messages.firstOrNull { it.id == messageId } ?: return
+        val had = m.reactions.any { it.emoji == emoji && it.mine }
+        // Optimista: la reacció canvia al moment.
+        val reactions = if (had) m.reactions.map { if (it.emoji == emoji) it.copy(by = it.by - "user") else it }.filter { it.by.isNotEmpty() }
+            else if (m.reactions.any { it.emoji == emoji }) m.reactions.map { if (it.emoji == emoji) it.copy(by = it.by + "user") else it }
+            else m.reactions + RetroReaction(emoji, listOf("user"))
+        _retro.value = ch.copy(messages = ch.messages.map { if (it.id == messageId) it.copy(reactions = reactions) else it })
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroReact(ch.key, messageId, emoji, !had) }
+                if (out != null) _retro.value = out
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) { }
+        }
+    }
+
     /** Modes que van a l'agent (la web: code|autonomous|debug, més inspect i goal). */
     private fun isAgentMode(m: String) = m in setOf("code", "inspect", "goal", "autonomous", "debug")
 
@@ -990,6 +1077,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun followRun(api: GregalApi, runId: Long): Boolean {
         val run = RunV2(id = runId)
         activeRunId = run.id
+        updateWork { it.copy(runId = runId) }
         var final = ""
         var runError = ""
         var errors = 0

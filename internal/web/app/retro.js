@@ -553,6 +553,7 @@ function retroButton(stamp) {
     ev.preventDefault();
     ev.stopPropagation();
     const run = b.dataset.runId;
+    if (run && +run >= latestRun) markSeen();
     open(run ? { runId: run, autostart: true } : { autostart: true });
   });
   return b;
@@ -563,8 +564,29 @@ async function stampLatest(node) {
   try {
     const d = await call('/api/retro');
     latestRun = (d.latest && d.latest.run_id) || latestRun;
-    if (latestRun && node.dataset.retroOpen) node.dataset.runId = String(latestRun);
+    if (latestRun && node && node.dataset.retroOpen) node.dataset.runId = String(latestRun);
+    paintNav();
   } catch (e) {}
+}
+
+// Entrada de primer nivell a la barra lateral: el #retro és la manera
+// d'entendre què ha fet cada agent, no pot quedar amagat dins d'Agents.
+// Un punt avisa quan hi ha un torn acabat que encara no has comentat.
+function seenRun() { try { return +localStorage.getItem('gregal_retro_seen') || 0; } catch (e) { return 0; } }
+function markSeen() { try { if (latestRun) localStorage.setItem('gregal_retro_seen', String(latestRun)); } catch (e) {} paintNav(); }
+let nav = null;
+function paintNav() {
+  if (!nav) return;
+  nav.querySelector('.retro-nav-dot').hidden = !(latestRun && latestRun > seenRun());
+}
+function mountNav() {
+  const side = document.querySelector('#side .side-main');
+  if (!side || document.getElementById('retroNav')) return;
+  nav = btn('nav-item', T('retro.navHelp'), '', () => { markSeen(); open(latestRun ? { runId: String(latestRun), autostart: true } : { autostart: false }); });
+  nav.id = 'retroNav';
+  nav.append(el('span', 'retro-nav-label', T('retro.button')), el('span', 'retro-nav-dot'));
+  nav.querySelector('.retro-nav-dot').hidden = true;
+  side.appendChild(nav);
 }
 
 function decorate(root) {
@@ -594,6 +616,8 @@ function decorate(root) {
 }
 
 function boot() {
+  mountNav();
+  stampLatest(null);
   decorate(document);
   const main = document.getElementById('main');
   if (main) {
@@ -604,6 +628,7 @@ function boot() {
   document.addEventListener('gregal:idioma', () => {
     document.querySelectorAll('[data-retro-open]').forEach(b => { b.title = T('retro.open'); b.setAttribute('aria-label', T('retro.open')); b.querySelector('.retro-open-label').textContent = T('retro.button'); });
     document.querySelectorAll('[data-retro-tab]').forEach(b => { b.textContent = T('retro.button'); });
+    if (nav) { nav.title = T('retro.navHelp'); nav.setAttribute('aria-label', T('retro.navHelp')); nav.querySelector('.retro-nav-label').textContent = T('retro.button'); }
     if (st.dialog) { st.dialog.remove(); st.dialog = null; if (st.open) open({ key: st.channel ? st.channel.key : st.key }); }
   });
   setInterval(paintTyping, 5000);

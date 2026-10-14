@@ -65,6 +65,35 @@ class GregalApi(val base: String, val token: String) {
         return text
     }
 
+    // --- #retro (xat amb els agents sobre un torn acabat) ---
+
+    fun getRetro(key: String = "", runId: Long = 0L): RetroInfo {
+        val q = when {
+            key.isNotBlank() -> "?key=" + URLEncoder.encode(key, "UTF-8")
+            runId > 0 -> "?run_id=$runId"
+            else -> ""
+        }
+        return parseRetroInfo(read(conn("/api/retro$q", "GET")))
+    }
+
+    fun startRetro(key: String, runId: Long): RetroChannel? {
+        val p = JSONObject()
+        if (key.isNotBlank()) p.put("key", key)
+        if (runId > 0) p.put("run_id", runId)
+        return parseRetroChannelResponse(read(conn("/api/retro/start", "POST", p.toString())))
+    }
+
+    fun retroMessage(key: String, text: String, thread: String = ""): RetroChannel? {
+        val p = JSONObject().put("key", key).put("text", text)
+        if (thread.isNotBlank()) p.put("thread_id", thread)
+        return parseRetroChannelResponse(read(conn("/api/retro/message", "POST", p.toString())))
+    }
+
+    fun retroReact(key: String, messageId: String, emoji: String, add: Boolean): RetroChannel? {
+        val p = JSONObject().put("key", key).put("message_id", messageId).put("emoji", emoji).put("action", if (add) "add" else "remove")
+        return parseRetroChannelResponse(read(conn("/api/retro/react", "POST", p.toString())))
+    }
+
     /** Descobreix capacitats abans d'usar la cua v2. */
     fun health(): ServiceHealth {
         val o = JSONObject(read(conn("/api/health", "GET")))

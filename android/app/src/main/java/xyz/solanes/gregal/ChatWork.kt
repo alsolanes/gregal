@@ -127,7 +127,7 @@ private fun SweepLine(colors: List<Color>) {
  * («Ha treballat 32s · 5 eines») que es desplega en una línia de temps.
  */
 @Composable
-fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String) {
+fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String, onRetro: (() -> Unit)? = null) {
     val running = work.running
     var open by remember { mutableStateOf(false) }
     // Un torn que falla s'obre sol: el que interessa és veure on.
@@ -199,6 +199,19 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                     if (sub.isNotBlank()) {
                         Text(sub, color = if (stalled) Sand else Faint, fontSize = 12.sp, maxLines = 1,
                             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 1.dp))
+                    }
+                }
+                // El #retro d'aquest torn: el xat amb els agents sobre què han fet.
+                if (!running && onRetro != null) {
+                    Surface(
+                        shape = RoundedCornerShape(50), color = Sea.copy(alpha = 0.13f),
+                        modifier = Modifier.padding(end = 4.dp).clip(RoundedCornerShape(50)).clickable(onClick = onRetro),
+                    ) {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("#", color = Sea, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Spacer(Modifier.width(3.dp))
+                            Text(tr(lang, "app.retro.open"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                        }
                     }
                 }
                 if (work.steps.isNotEmpty()) {

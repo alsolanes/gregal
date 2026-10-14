@@ -3,6 +3,18 @@ package xyz.solanes.gregal
 /** Claus només-mòbil (aparellament, cua, avisos...). Manual: la web no les té.
  *  Paritat ca/en a mà, com exigeix la identitat. */
 val STR_APP_CA: Map<String, String> = mapOf(
+    "app.retro.title" to "Retro",
+    "app.retro.you" to "Tu",
+    "app.retro.placeholder" to "Pregunta o rebat a l'equip… (@nom)",
+    "app.retro.starting" to "L'equip prepara el resum del torn…",
+    "app.retro.none" to "Encara no hi ha cap torn acabat en aquesta conversa.",
+    "app.retro.running" to "El torn encara corre: obre el #retro quan acabi.",
+    "app.retro.lead" to "Els agents expliquen què han fet. Els rebuts (e1, e2…) són els events reals que ho proven. Pregunta, rebat o reacciona.",
+    "app.retro.degraded" to "Cap model ha respost: resum automàtic a partir de l'evidència.",
+    "app.retro.conceded" to "ho reconeix",
+    "app.retro.react" to "Reacciona",
+    "app.retro.typing" to "L'equip escriu…",
+    "app.retro.open" to "Retro",
     "app.nav.chat" to "Xat",
     "app.work.starting" to "Començant…",
     "app.work.thinking" to "Pensant…",
@@ -396,6 +408,18 @@ val STR_APP_CA: Map<String, String> = mapOf(
 )
 
 val STR_APP_EN: Map<String, String> = mapOf(
+    "app.retro.title" to "Retro",
+    "app.retro.you" to "You",
+    "app.retro.placeholder" to "Ask or challenge the team… (@name)",
+    "app.retro.starting" to "The team is writing up the turn…",
+    "app.retro.none" to "There is no finished turn in this conversation yet.",
+    "app.retro.running" to "The turn is still running: open the #retro when it finishes.",
+    "app.retro.lead" to "The agents explain what they did. Receipts (e1, e2…) are the real events that back it up. Ask, challenge or react.",
+    "app.retro.degraded" to "No model answered: automatic summary from the evidence.",
+    "app.retro.conceded" to "concedes",
+    "app.retro.react" to "React",
+    "app.retro.typing" to "The team is typing…",
+    "app.retro.open" to "Retro",
     "app.nav.chat" to "Chat",
     "app.work.starting" to "Starting…",
     "app.work.thinking" to "Thinking…",

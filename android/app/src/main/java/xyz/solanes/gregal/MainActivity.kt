@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Schedule
@@ -227,6 +228,14 @@ class MainActivity : ComponentActivity() {
                                         selected = screen == Screen.Sessions,
                                         onClick = { nav(Screen.Sessions); vm.loadSessions() },
                                     )
+                                    // El #retro: el xat amb els agents sobre què han fet.
+                                    NavigationDrawerItem(
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "app.retro.title")) },
+                                        icon = { Icon(Icons.Rounded.Tag, null) },
+                                        selected = screen == Screen.Retro,
+                                        onClick = { scope.launch { drawer.close() }; vm.openRetro() },
+                                    )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
                                         label = { Text(tr(lang, "nav.goals")) },
@@ -301,6 +310,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Pairing -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                 }
                             }

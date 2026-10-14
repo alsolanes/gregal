@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.9.0 - 2026-10-14 - Work groups, #retro everywhere and Android 0.9.8
+
+- #retro is easier to reach: its own sidebar entry with a dot for turns
+  you have not discussed yet, a clearer button on every finished turn, and a
+  new Android screen to read the agents' write-up, ask or challenge them
+  (@name) and react with emojis.
+- Redaction tests build their fake keys at runtime, so GitHub secret
+  scanning no longer reports them as leaks.
+
 - Android 0.9.8, aligned with the desktop. Each turn's tools, reasoning and
   narration fold into one live "work" card (what it is doing now, elapsed
   time, a timeline of steps with summaries such as "Read src/app.py ·

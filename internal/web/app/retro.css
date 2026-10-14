@@ -95,9 +95,19 @@
 .retro-notice[hidden] { display:none; }
 .retro-link { border:0; background:transparent; color:var(--accent-hi); font:inherit; font-weight:600; cursor:pointer; text-decoration:underline; }
 /* Botó d'entrada al resum del torn i a la targeta «Tasca completada». */
-.retro-open { display:inline-flex; align-items:center; gap:3px; margin-left:8px; min-height:24px; padding:0 9px; border:1px solid var(--line-hi);
-  border-radius:99px; background:var(--surface); color:var(--muted); font:inherit; font-size:var(--t1); cursor:pointer; vertical-align:middle; }
+.retro-open { display:inline-flex; align-items:center; gap:3px; margin-left:8px; min-height:24px; padding:0 10px; border:1px solid transparent;
+  border-radius:99px; background:var(--accent-soft); color:var(--accent-hi); font:inherit; font-size:var(--t1); font-weight:600; cursor:pointer; vertical-align:middle; }
 .retro-open:hover { color:var(--ink); border-color:var(--accent); }
+/* Entrada de la barra lateral (retro.js): mateix aspecte que la resta. */
+#retroNav { display:flex; align-items:center; gap:10px; width:100%; margin:1px 0; border:0;
+  background:transparent; color:var(--muted); text-align:left; cursor:pointer; font:inherit; font-size:var(--t3); }
+#retroNav::before { content:'#'; flex:none; width:17px; margin:0 .5px; text-align:center; font-weight:700; font-size:16px; line-height:17px; }
+#retroNav:hover { background:var(--hover); color:var(--ink); }
+#retroNav .retro-nav-label { flex:1; }
+#retroNav .retro-nav-dot { width:8px; height:8px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+#side.compact #retroNav { width:44px; justify-content:center; padding:9px 0; font-size:0; }
+#side.compact #retroNav::before { font-size:16px; }
+#side.compact #retroNav .retro-nav-dot { position:absolute; margin:-14px 0 0 18px; }
 .retro-open-hash { font-weight:700; color:var(--accent); }
 .run-summary-actions .retro-open { margin-left:6px; }
 @media (max-width:760px) {

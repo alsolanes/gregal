@@ -575,6 +575,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     m.kind == "work" && m.work != null -> WorkGroupCard(
                                         m.work, if (m.work.running) activity else null,
                                         if (m.work.running) statusLine else "", lang,
+                                        onRetro = if (m.work.runId > 0) ({ vm.openRetro(m.work.runId) }) else null,
                                     )
                                     m.kind == "activity" -> {
                                         // Avisos sense torn (cua, comparació…): una targeta per tram.

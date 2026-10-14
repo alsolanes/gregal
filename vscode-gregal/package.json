@@ -2,7 +2,7 @@
   "name": "gregal",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "publisher": "solanes",
   "license": "MIT",
   "icon": "media/icon.png",
