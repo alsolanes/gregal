@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -117,7 +118,7 @@ func TestTeamHungBranchesReportFailedNotStopped(t *testing.T) {
 	teamRunTimeout = 300 * time.Millisecond
 	defer func() { teamRunTimeout = oldTimeout }()
 	prevLog := log.Default().Writer()
-	var logBuf bytes.Buffer
+	var logBuf lockedBuffer
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(prevLog)
 
@@ -171,7 +172,7 @@ func TestTeamHungBranchesReportFailedNotStopped(t *testing.T) {
 // on es pot diagnosticar una fallada que la UI amaga per seguretat.
 func TestTeamRoleErrorLoggedSanitized(t *testing.T) {
 	prevLog := log.Default().Writer()
-	var logBuf bytes.Buffer
+	var logBuf lockedBuffer
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(prevLog)
 
@@ -206,7 +207,7 @@ func TestTeamRoleErrorLoggedSanitized(t *testing.T) {
 // el terminal ho ha de dir sanejat.
 func TestTeamReviewerLateErrorReportsFailed(t *testing.T) {
 	prevLog := log.Default().Writer()
-	var logBuf bytes.Buffer
+	var logBuf lockedBuffer
 	log.SetOutput(&logBuf)
 	defer log.SetOutput(prevLog)
 
@@ -398,4 +399,24 @@ func TestTeamRunPublishesRoomBay(t *testing.T) {
 	if snap.Agents[0].Output == "" {
 		t.Fatal("room agents must retain deliverables")
 	}
+}
+
+// lockedBuffer recull el log dels tests de l'equip. Les branques que han
+// fet timeout encara poden escriure-hi un instant després que el handler
+// torni; bytes.Buffer sol no és segur entre goroutines (go test -race).
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
 }
