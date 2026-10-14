@@ -5,36 +5,41 @@ import (
 	"testing"
 )
 
-func TestRetroRespondersForTopicsMentionsAndAll(t *testing.T) {
+func TestRetroRespondersForMentionsAllAndAuto(t *testing.T) {
 	c := &retroChannel{Lang: "ca", Agents: retroWithSpecialists([]retroAgent{
 		{ID: "coordinator", Name: "Coordinator"}, {ID: "researcher", Name: "Researcher"},
 	}, "ca")}
-	cases := map[string][]string{
-		"què has fet exactament?":             {"coordinator"},
-		"és segur guardar el token aquí?":     {"coordinator", "security"},
-		"why didn't you run the tests?":       {"coordinator", "code"},
-		"fa el que t'he demanat? i és segur?": {"coordinator", "product", "security"},
-		"@seguretat mira-ho tu":               {"security"},
-		"@researcher què vas trobar?":         {"researcher"},
-		"@tots què en penseu?":                {"coordinator", "researcher", "product", "code", "security"},
+	all := []string{"coordinator", "researcher", "design", "product", "code", "security"}
+	cases := map[string]struct {
+		ids  []string
+		auto bool
+	}{
+		"a nivell estètic estaria bé alguna millora visual?": {all, true},
+		"@seguretat mira-ho tu":                               {[]string{"security"}, false},
+		"@disseny i @codi, què en penseu?":                    {[]string{"design", "code"}, false},
+		"@tots què en penseu?":                                {all, false},
 	}
 	for text, want := range cases {
-		if got := retroRespondersFor(text, c); !reflect.DeepEqual(got, want) {
-			t.Errorf("%q: got %v, want %v", text, got, want)
+		ids, auto := retroRespondersFor(text, c)
+		if !reflect.DeepEqual(ids, want.ids) || auto != want.auto {
+			t.Errorf("%q: got %v auto=%v, want %v auto=%v", text, ids, auto, want.ids, want.auto)
 		}
+	}
+	if h := retroTopicHints("a nivell estètic estaria bé alguna millora visual?", c); !reflect.DeepEqual(h, []string{"design"}) {
+		t.Errorf("design hint expected, got %v", h)
 	}
 }
 
 func TestRetroSpecialistsAddedOnceAndLocalized(t *testing.T) {
 	a := retroWithSpecialists([]retroAgent{{ID: "coordinator"}}, "en")
 	a = retroWithSpecialists(a, "en")
-	if len(a) != 4 {
-		t.Fatalf("got %d agents, want 4 (no duplicates)", len(a))
+	if len(a) != 5 {
+		t.Fatalf("got %d agents, want 5 (no duplicates)", len(a))
 	}
-	if a[3].Name != "Security" || !retroIsSpecialist(&a[3]) || retroIsSpecialist(&a[0]) {
+	if a[1].Name != "Design" || a[4].Name != "Security" || !retroIsSpecialist(&a[4]) || retroIsSpecialist(&a[0]) {
 		t.Fatalf("unexpected specialists: %+v", a)
 	}
-	if retroSpecialists("ca")[0].Name != "Funcionalitat" {
+	if retroSpecialists("ca")[0].Name != "Disseny" {
 		t.Fatal("Catalan names expected")
 	}
 }
@@ -66,5 +71,19 @@ func TestRetroFallbackSkipsSpecialists(t *testing.T) {
 		if m.Author != "coordinator" {
 			t.Fatalf("fallback made %s speak without evidence", m.Author)
 		}
+	}
+}
+
+// «Resum ràpid»: no espera el model, dona el resum automàtic de l'evidència.
+func TestRetroQuickStartSkipsTheModel(t *testing.T) {
+	fake := &retroFake{}
+	s := retroTestServer(t, fake)
+	before := fake.calls.Load()
+	c := retroChannelFrom(t, retroPost(t, s, "/api/retro/start", `{"quick":true}`))
+	if fake.calls.Load() != before {
+		t.Fatalf("quick start must not call the model (%d calls)", fake.calls.Load()-before)
+	}
+	if !c.Degraded || len(c.Messages) == 0 {
+		t.Fatalf("quick start returns the automatic summary: degraded=%v msgs=%d", c.Degraded, len(c.Messages))
 	}
 }

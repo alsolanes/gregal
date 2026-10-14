@@ -38,6 +38,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.RateReview
@@ -89,6 +90,7 @@ private fun who(ch: RetroChannel?, id: String, lang: String): Who {
         "builder" -> Who(name, Green, Icons.Rounded.Build)
         "reviewer" -> Who(name, Lila, Icons.Rounded.RateReview)
         // Especialistes: revisen des del seu angle (funcionalitat, codi, seguretat).
+        "design" -> Who(name, Lila, Icons.Rounded.Palette)
         "product" -> Who(name, Sand, Icons.Rounded.Lightbulb)
         "code" -> Who(name, Green, Icons.Rounded.Code)
         "security" -> Who(name, Red, Icons.Rounded.Shield)
