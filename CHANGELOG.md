@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.9.2 - 2026-10-14 - Fast #retro with specialists by area
+
 - #retro is fast and never hangs: the agents chat without reasoning (with
   a model that always reasons, the opening went from minutes to ~5 s), the
   opening has a 75 s limit and replies 60 s, after which the summary from
