@@ -28,7 +28,9 @@ func TestWorktreeCreateListDiffApplyRemove(t *testing.T) {
 	if WorktreeNameOf(filepath.Join(wt.Path, "sub")) != "feat-x" {
 		t.Fatal("WorktreeNameOf")
 	}
-	if got, want := filepath.Clean(WorktreeRepoOf(filepath.Join(wt.Path, "sub"))), filepath.Clean(dir); !strings.EqualFold(filepath.ToSlash(got), filepath.ToSlash(want)) {
+	// samePath: a la CI de Windows el TempDir surt amb el nom curt 8.3
+	// (RUNNER~1) i git torna el llarg (runneradmin); és el mateix directori.
+	if got, want := WorktreeRepoOf(filepath.Join(wt.Path, "sub")), dir; !samePath(got, want) {
 		t.Fatalf("WorktreeRepoOf = %q, vull %q", got, want)
 	}
 	if WorktreeRepoOf(dir) != "" || !InGitRepo(wt.Path) || InGitRepo(t.TempDir()) {
@@ -142,5 +144,15 @@ func TestSnapshotWithWorktreePresent(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".gregal", "worktrees", "w", "a.txt")); err != nil {
 		t.Fatal("restaurar no pot tocar el worktree")
+	}
+}
+
+func TestSamePathResolvesShortAndLinkedNames(t *testing.T) {
+	dir := t.TempDir()
+	if !samePath(dir, dir+string(filepath.Separator)) || !samePath(strings.ToUpper(dir), dir) {
+		t.Fatal("same directory written differently must match")
+	}
+	if samePath(dir, t.TempDir()) {
+		t.Fatal("different directories must not match")
 	}
 }

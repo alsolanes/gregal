@@ -460,7 +460,15 @@ func (st *GitCheckpointStore) Forget(owner string) {
 }
 
 func samePath(a, b string) bool {
-	return strings.EqualFold(filepath.Clean(a), filepath.Clean(b))
+	if strings.EqualFold(filepath.Clean(a), filepath.Clean(b)) {
+		return true
+	}
+	// El mateix directori escrit diferent: noms curts 8.3 de Windows
+	// (RUNNER~1 vs runneradmin, que és el que torna git) o enllaços
+	// simbòlics. EvalSymlinks els resol tots dos al nom real.
+	ra, ea := filepath.EvalSymlinks(a)
+	rb, eb := filepath.EvalSymlinks(b)
+	return ea == nil && eb == nil && strings.EqualFold(filepath.Clean(ra), filepath.Clean(rb))
 }
 
 // Restore torna els fitxers del workspace a la foto n i oblida les fotos
