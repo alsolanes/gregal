@@ -16,7 +16,7 @@ import (
 // ordenats. Serveix per provar/comprovar un provider sense xat.
 // (Abans hi havia 3 còpies: web, telegram, tui — ara una de sola.)
 func ProbeModels(base, key string) ([]string, error) {
-	url := strings.TrimSuffix(strings.TrimSpace(base), "/") + "/models"
+	url := endpointURL(base, "/models")
 	// 4s, no 10: llistar models és un GET a un endpoint que ha de ser
 	// instantani. Amb 10s, un provider apagat que no rebutja sinó que
 	// s'empassa la connexió feia esperar deu segons tota la llista.
@@ -89,7 +89,7 @@ func netAmable(url string, err error) error {
 // n_ctx / meta.n_ctx_train (llama.cpp), max_input_tokens. Els que no en
 // diuen res (OpenAI, opencode zen) simplement no surten al mapa.
 func ProbeModelWindows(base, key string) (map[string]int, error) {
-	url := strings.TrimSuffix(strings.TrimSpace(base), "/") + "/models"
+	url := endpointURL(base, "/models")
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

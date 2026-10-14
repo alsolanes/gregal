@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Azure OpenAI and Microsoft Foundry: API keys go in the `api-key` header
+  (Entra ID tokens as Bearer), classic `?api-version=` URLs work, and the
+  Foundry Model Inference endpoint gets `extra-parameters: pass-through`.
+  `reasoning_effort` is negotiated per model: an unsupported value falls
+  back to the nearest supported one, GPT-5.6 with tools gets `none`, and a
+  model that does not know the parameter only drops it for itself. See
+  docs/provider-presets.md.
+
 - Azure OpenAI and OpenAI reasoning models (o-series, gpt-5…) work: when a
   model rejects `max_tokens` (HTTP 400 "use max_completion_tokens instead")
   or a non-default temperature, Gregal resends with `max_completion_tokens`
