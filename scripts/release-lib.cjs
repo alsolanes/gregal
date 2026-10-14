@@ -116,7 +116,8 @@ function releaseNotes(changelog, version) {
     `- **Gregal-Setup-${version}-x64.exe**: Windows installer with automatic updates.`,
     `- **Gregal-Portable-${version}-x64.exe**: portable Windows app.`,
     '- **gregal-<os>-<arch>**: standalone backend/CLI for Linux, macOS and Windows (amd64 and arm64).',
-    '- **SHA256SUMS.txt**: checksums for every file above. Installer updates use the included latest.yml and blockmap.',
+    '- **Gregal-Android-<version>.apk**: Android app (debug-signed, install manually).',
+    '- **SHA256SUMS.txt**: checksums for the CI-built files. Installer updates use the included latest.yml and blockmap.',
     '',
     'Windows packages are unsigned.',
   ].join('\n').replace(/^\n+/, '');

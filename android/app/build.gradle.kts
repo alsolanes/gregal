@@ -11,8 +11,8 @@ android {
         applicationId = "xyz.solanes.gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = 37
-        versionName = "0.9.8"
+        versionCode = 38
+        versionName = "0.9.9"
     }
 
     buildTypes {
