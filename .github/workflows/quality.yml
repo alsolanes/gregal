@@ -78,6 +78,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
+      # Els runners Linux de GitHub ja porten l'SDK d'Android (ANDROID_HOME);
+      # l'acció setup-android fallava instal·lant el paquet obsolet «tools».
       - run: ./gradlew testDebugUnitTest assembleDebug
         working-directory: android
