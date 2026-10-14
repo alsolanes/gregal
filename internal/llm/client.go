@@ -135,15 +135,18 @@ type ToolSpec struct {
 }
 
 type chatRequest struct {
-	Model                string    `json:"model"`
-	Messages             []Message `json:"messages"`
-	Temperature          float64   `json:"temperature,omitempty"`
-	MaxTokens            int       `json:"max_tokens,omitempty"`
-	Stream               bool      `json:"stream"`
-	Tools                []any     `json:"tools,omitempty"`
-	PromptCacheKey       string    `json:"prompt_cache_key,omitempty"`
-	PromptCacheRetention string    `json:"prompt_cache_retention,omitempty"`
-	EnableThinking       *bool     `json:"enable_thinking,omitempty"`
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Temperature float64   `json:"temperature,omitempty"`
+	MaxTokens   int       `json:"max_tokens,omitempty"`
+	// MaxCompletionTokens substitueix max_tokens als models que el rebutgen
+	// (OpenAI/Azure de raonament: o-series, gpt-5…). El posa postCompat.
+	MaxCompletionTokens  int    `json:"max_completion_tokens,omitempty"`
+	Stream               bool   `json:"stream"`
+	Tools                []any  `json:"tools,omitempty"`
+	PromptCacheKey       string `json:"prompt_cache_key,omitempty"`
+	PromptCacheRetention string `json:"prompt_cache_retention,omitempty"`
+	EnableThinking       *bool  `json:"enable_thinking,omitempty"`
 	// ChatTemplateKwargs va on el passador local espera l'ordre de pensar:
 	// el prompt-injector escriu chat_template_kwargs.enable_thinking i amb
 	// setdefault respecta el que porti el client. El camp del nivell de dalt
@@ -402,6 +405,7 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 		Messages             []json.RawMessage `json:"messages"`
 		Temperature          float64           `json:"temperature,omitempty"`
 		MaxTokens            int               `json:"max_tokens,omitempty"`
+		MaxCompletionTokens  int               `json:"max_completion_tokens,omitempty"`
 		Stream               bool              `json:"stream"`
 		Tools                []any             `json:"tools,omitempty"`
 		PromptCacheKey       string            `json:"prompt_cache_key,omitempty"`
@@ -416,7 +420,7 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 	}
 	return json.Marshal(requestWire{
 		Model: req.Model, Messages: messages, Temperature: req.Temperature,
-		MaxTokens: req.MaxTokens, Stream: req.Stream, Tools: req.Tools,
+		MaxTokens: req.MaxTokens, MaxCompletionTokens: req.MaxCompletionTokens, Stream: req.Stream, Tools: req.Tools,
 		PromptCacheKey: req.PromptCacheKey, PromptCacheRetention: req.PromptCacheRetention,
 		StreamOptions:  req.StreamOptions,
 		EnableThinking: req.EnableThinking, ChatTemplateKwargs: req.ChatTemplateKwargs,

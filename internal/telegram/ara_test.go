@@ -38,7 +38,10 @@ func TestAraTallaCuaITornEnMarxa(t *testing.T) {
 	if n := b.queue.CancelSession(sess); n != 3 {
 		t.Fatalf("CancelSession hauria de tocar 3, ha tocat %d", n)
 	}
-	close(release)
+	// release només es tanca en acabar: si es tanqués aquí, el select del
+	// torn veuria ctx.Done i release alhora i en triaria un a l'atzar (el
+	// torn podia acabar «completed» i el test fallava de tant en tant).
+	defer close(release)
 	for _, id := range []int64{first.ID, second.ID, third.ID} {
 		if got := waitTelegramRun(t, b.queue, id); got.State != runs.Cancelled {
 			t.Fatalf("torn %d estat: %s", id, got.State)

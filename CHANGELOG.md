@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Azure OpenAI and OpenAI reasoning models (o-series, gpt-5…) work: when a
+  model rejects `max_tokens` (HTTP 400 "use max_completion_tokens instead")
+  or a non-default temperature, Gregal resends with `max_completion_tokens`
+  or the default temperature and remembers it for that model.
 - Several requests at once: sessions on the same project now work in
   parallel instead of the second one waiting as "queued" (only unattended
   jobs and graphs still take the folder exclusively).
@@ -13,6 +17,14 @@
   arrive too late are sent as a new message, never lost.
 - Stopping a turn now closes it in the conversation, so the next question
   is answered on its own instead of resuming the stopped task.
+- One release pipeline. `node scripts/release.cjs bump X.Y.Z --title ...`
+  sets every version and turns the Unreleased notes into the release
+  section; Quality CI fails if versions or the changelog drift; pushing the
+  tag builds the Windows installers and the CLI for Linux, macOS and Windows
+  (amd64/arm64) and creates one draft release with notes from the
+  changelog and a single SHA256SUMS.txt. `build.sh` now writes the same
+  asset names, the Android app is tested in GitHub CI, and the unused Gitea
+  workflow is gone. See docs/release.md.
 
 ## v1.9.0 - 2026-10-14 - Work groups, #retro everywhere and Android 0.9.8
 

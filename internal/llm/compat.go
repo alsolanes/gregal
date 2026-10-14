@@ -43,18 +43,27 @@ func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req cha
 		req.ChatTemplateKwargs = nil
 	}
 	base := normBase(baseURL)
+	req = c.aplicaAjustos(base, req)
 	for _, camp := range campsOpcionals {
 		if c.campOff(base, camp) {
 			req = senseCamp(req, camp)
 		}
 	}
-	for intent := 0; intent < len(campsOpcionals)+1; intent++ {
+	for intent := 0; intent < len(campsOpcionals)+len(ajustosModel)+1; intent++ {
 		resp, err := c.postRetry(ctx, baseURL, apiKey, req)
 		if err != nil || (resp.StatusCode != http.StatusBadRequest && resp.StatusCode != http.StatusUnprocessableEntity) {
 			return resp, err
 		}
 		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 		resp.Body.Close()
+		// Paràmetres que el model no admet però que tenen equivalent (va
+		// abans dels camps opcionals: «unsupported parameter: max_tokens»
+		// també semblaria un camp desconegut i se'n traurien uns altres).
+		if nou, ajust := ajustaParametres(string(raw), req); ajust != "" {
+			req = nou
+			c.setCampOff(base+"|"+req.Model, ajust)
+			continue
+		}
 		rebutjats := campsRebutjats(string(raw), req)
 		if len(rebutjats) == 0 {
 			// Un 400 d'una altra mena (context massa llarg, model
@@ -168,4 +177,54 @@ func (c *Client) reasoningEffort(ctx context.Context) string {
 	default: // Buit, auto i valors antics/desconeguts: comportament del model.
 		return ""
 	}
+}
+
+// Ajustos per model: paràmetres estàndard que alguns models rebutgen i que
+// tenen una alternativa. Vist el 2026-10-14 amb Azure OpenAI: «Unsupported
+// parameter: 'max_tokens' is not supported with this model. Use
+// 'max_completion_tokens' instead.» Els models de raonament d'OpenAI/Azure
+// (o-series, gpt-5…) tampoc no accepten una temperatura que no sigui la de
+// per defecte. Es descobreix amb el primer 400 i es recorda per a aquell
+// endpoint i model la resta del procés.
+const (
+	ajustMaxCompletion = "max_completion_tokens"
+	ajustSenseTemp     = "no_temperature"
+)
+
+var ajustosModel = []string{ajustMaxCompletion, ajustSenseTemp}
+
+// ajustaParametres torna la petició corregida i quin ajust ha calgut, o ""
+// si el 400 no és d'aquesta mena (o la petició ja estava ajustada).
+func ajustaParametres(body string, req chatRequest) (chatRequest, string) {
+	b := strings.ToLower(body)
+	if req.MaxTokens > 0 && strings.Contains(b, "max_tokens") && strings.Contains(b, "max_completion_tokens") {
+		return ambAjust(req, ajustMaxCompletion), ajustMaxCompletion
+	}
+	if req.Temperature != 0 && strings.Contains(b, "temperature") &&
+		(strings.Contains(b, "unsupported") || strings.Contains(b, "not support") || strings.Contains(b, "only the default")) {
+		return ambAjust(req, ajustSenseTemp), ajustSenseTemp
+	}
+	return req, ""
+}
+
+func ambAjust(req chatRequest, ajust string) chatRequest {
+	switch ajust {
+	case ajustMaxCompletion:
+		if req.MaxTokens > 0 {
+			req.MaxCompletionTokens, req.MaxTokens = req.MaxTokens, 0
+		}
+	case ajustSenseTemp:
+		req.Temperature = 0 // omitempty: el model fa servir la seva
+	}
+	return req
+}
+
+// aplicaAjustos aplica els ajustos ja descoberts per a aquest endpoint i model.
+func (c *Client) aplicaAjustos(base string, req chatRequest) chatRequest {
+	for _, a := range ajustosModel {
+		if c.campOff(base+"|"+req.Model, a) {
+			req = ambAjust(req, a)
+		}
+	}
+	return req
 }
