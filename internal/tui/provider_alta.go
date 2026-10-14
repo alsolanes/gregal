@@ -22,7 +22,7 @@ func providerAddMenu(m *Model) *menuState {
 	for _, pc := range config.Cataleg() {
 		text := fmt.Sprintf("%-14s %s", pc.Etiqueta, pc.BaseURL)
 		switch {
-		case teProveidorAmbURL(m, pc.BaseURL):
+		case teProveidorAmbURL(m, pc.BaseURL, pc.Type):
 			text += "  ← ja el tens"
 		case pc.Local:
 			text += "  (local, sense clau)"
@@ -46,9 +46,9 @@ func providerAddMenu(m *Model) *menuState {
 
 // teProveidorAmbURL diu si ja hi ha un endpoint configurat amb aquesta URL
 // (el nom pot ser un altre: el config d'exemple en diu «cloud»).
-func teProveidorAmbURL(m *Model, url string) bool {
+func teProveidorAmbURL(m *Model, url, tipus string) bool {
 	for _, p := range m.cfg.Providers {
-		if strings.TrimSuffix(p.BaseURL, "/") == strings.TrimSuffix(url, "/") {
+		if strings.TrimSuffix(p.BaseURL, "/") == strings.TrimSuffix(url, "/") && strings.EqualFold(strings.TrimSpace(p.Type), tipus) {
 			return true
 		}
 	}
@@ -59,7 +59,7 @@ func teProveidorAmbURL(m *Model, url string) bool {
 // demanar la clau si en cal, o triar model si ja respon.
 func (m *Model) altaProveidor(pc config.ProveidorConegut) (string, *menuState) {
 	nom := m.cfg.NomLliure(pc.Nom)
-	p := config.Provider{BaseURL: pc.BaseURL}
+	p := config.Provider{BaseURL: pc.BaseURL, Type: pc.Type}
 	raw := ""
 	// Si la variable d'entorn habitual ja hi és, s'hi apunta en comptes
 	// de copiar-ne el valor: el config queda net i la clau segueix sent

@@ -1,0 +1,20 @@
+/* Diàlegs de commit, PR i worktree (gitflow.js) i marca de worktree a les pestanyes. */
+.gitflow-dialog { box-sizing:border-box; width:min(720px,94vw); max-height:88vh; overflow:auto; position:fixed; inset:0; margin:auto;
+  background:var(--bg,#202126); color:var(--text,#eee); border:1px solid var(--line-hi,#7776); border-radius:14px; padding:20px 22px;
+  box-shadow:0 24px 64px var(--ombra,#0008); }
+.gitflow-dialog::backdrop { background:color-mix(in srgb, var(--bg,#000) 55%, transparent); }
+.gitflow-dialog h2 { margin:0 0 6px; font-size:17px; }
+.gitflow-hint { margin:0 0 14px; opacity:.75; font-size:13px; }
+.gitflow-body { display:flex; flex-direction:column; gap:12px; }
+.gitflow-field { display:flex; flex-direction:column; gap:5px; font-size:13px; }
+.gitflow-input, .gitflow-text { box-sizing:border-box; width:100%; font:inherit; color:inherit; background:transparent;
+  border:1px solid var(--line-hi,#7776); border-radius:8px; padding:8px 10px; }
+.gitflow-text { font-family:var(--mono, ui-monospace, monospace); font-size:13px; resize:vertical; }
+.gitflow-check { display:flex; align-items:center; gap:8px; font-size:13px; }
+.gitflow-diff { max-height:46vh; overflow:auto; margin:0; padding:10px; font:12px/1.45 var(--mono, ui-monospace, monospace);
+  border:1px solid var(--line-hi,#7776); border-radius:8px; white-space:pre; }
+.gitflow-status { min-height:1.2em; margin:10px 0 0; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; }
+.gitflow-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; flex-wrap:wrap; }
+.session-tab .wt-badge { margin-left:6px; padding:0 6px; border-radius:6px; font-size:10.5px; line-height:16px;
+  border:1px solid var(--line-hi,#7776); opacity:.85; white-space:nowrap; }
+.session-tab.new.worktree { font-size:12px; }

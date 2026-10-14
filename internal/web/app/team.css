@@ -37,6 +37,52 @@
   border-radius:999px; background:var(--surface); color:var(--text); cursor:pointer; font:inherit; font-size:12px; }
 #teamNeedsMe:hover:not(:disabled) { border-color:#b3542e; background:var(--team-plaster); transform:translateY(-1px); }
 #teamNeedsMe:disabled { opacity:.55; cursor:default; }
+/* Graf del pipeline: nodes clicables amb l'estat en viu i fletxes que
+   s'il·luminen en cada traspàs. L'animació la neutralitza el bloc
+   prefers-reduced-motion de #teamPage. */
+#teamFlowWrap { margin:2px 0 12px; }
+#teamFlow { display:block; width:100%; height:auto; }
+.team-flow-node { cursor:pointer; }
+.team-flow-node rect { fill:var(--surface); stroke:var(--line-hi); stroke-width:1.5; }
+.team-flow-node text { fill:var(--ink); font-size:15px; font-weight:600; }
+.team-flow-node:focus-visible { outline:2px solid var(--accent-hi); outline-offset:3px; }
+.team-flow-node.is-selected rect { stroke:var(--accent); stroke-width:2.5; }
+.team-flow-node.is-working rect { stroke:#f3a64a; stroke-width:2.5; }
+.team-flow-node.is-done rect { stroke:var(--green); }
+.team-flow-node.is-bad rect { stroke:var(--red); }
+.flow-dot { fill:var(--faint); }
+.flow-dot.dot-working { fill:#f3a64a; }
+.flow-dot.dot-completed { fill:var(--green); }
+.flow-dot.dot-failed, .flow-dot.dot-cancelled { fill:var(--red); }
+#teamFlow path[data-flow-edge] { fill:none; stroke:var(--faint); stroke-width:1.5; }
+#teamFlow path[data-flow-edge].is-revision { stroke-dasharray:5 4; }
+#teamFlow path[data-flow-edge].flow-live { stroke:var(--accent); stroke-width:2.5; stroke-dasharray:7 5; animation:flow-dash 1s linear infinite; }
+@keyframes flow-dash { to { stroke-dashoffset:-12; } }
+/* Editor de fluxos: panell de formulari sota el graf. Els inputs escriuen
+   a l'esborrany sense reconstruir (conserven el focus); només els canvis
+   estructurals refan les llistes. */
+#teamFlowEditor { margin:2px 0 12px; padding:14px 16px; border:1px solid color-mix(in srgb, var(--team-window) 40%, var(--line)); border-radius:20px; background:var(--team-plaster); box-shadow:0 12px 36px var(--ombra); }
+#teamFlowEditor[hidden] { display:none; }
+#teamFlowEditor h2 { margin:0 0 8px; }
+#teamFlowEditor h3 { margin:14px 0 6px; color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+#teamFlowEditor input, #teamFlowEditor select, #teamFlowEditor textarea { min-height:33px; padding:6px 8px; color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:6px; font:13px var(--mono,monospace); }
+#teamFlowEditor input:focus, #teamFlowEditor select:focus, #teamFlowEditor textarea:focus { outline:none; border-color:var(--accent); }
+#teamFlowEditor textarea { width:100%; resize:vertical; font-family:inherit; }
+.flow-row { display:flex; flex-wrap:wrap; align-items:flex-end; gap:8px; margin:8px 0; }
+.flow-field { display:grid; gap:3px; font-size:12px; color:var(--muted); }
+.flow-buttons { display:flex; flex-wrap:wrap; gap:8px; }
+#flowError { margin:8px 0; padding:9px 12px; border:1px solid color-mix(in srgb, var(--red) 35%, var(--line)); border-radius:10px; background:var(--red-soft); color:var(--red); line-height:1.45; }
+#flowError[hidden] { display:none; }
+.flow-saved-list { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:8px 0; }
+.flow-saved-head { color:var(--muted); font-size:12px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+#flowNodeList { display:grid; gap:8px; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); }
+.flow-node-card { padding:10px 12px; border:1px solid color-mix(in srgb, var(--team-window) 40%, var(--line)); border-radius:14px; background:var(--surface); }
+.flow-node-head { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px; }
+.flow-node-head strong { color:var(--ink); font-family:var(--mono,monospace); font-size:13px; overflow-wrap:anywhere; }
+.flow-grid { display:grid; gap:6px; }
+#flowEdgeList { display:grid; gap:6px; }
+.flow-edge-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+@media(max-width:760px) { #teamFlowEditor { border-radius:15px; padding:12px; } }
 #teamForm { display:grid; gap:6px; margin-bottom:8px; }
 #teamTaskLabel { font-size:12px; color:var(--muted); }
 #teamTask { width:100%; resize:vertical; min-height:64px; max-height:180px; box-sizing:border-box; background:var(--surface); color:var(--ink); border:1px solid var(--line-hi); border-radius:6px; padding:10px 12px; font:inherit; font-size:14px; line-height:1.5; }
@@ -134,3 +180,14 @@
 #teamAgents button[aria-pressed=true] { background:color-mix(in srgb, var(--role-color) 15%, var(--panel)); }
 #teamForm button { background:var(--panel); }
 #teamForm #teamStart { background:var(--accent); }
+
+/* Rols amb eines: interruptor, aprovacions dins de la pàgina i agents definits. */
+.team-tools-toggle { display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); margin-right:8px; }
+#teamApprovals { display:flex; flex-direction:column; gap:8px; margin:8px 0; }
+#teamApprovals:empty { display:none; }
+.team-approval { border:1px solid var(--amber, #c98a2b); border-radius:8px; padding:10px 12px; background:var(--panel); }
+.team-approval pre { margin:6px 0; max-height:140px; overflow:auto; font-size:11px; white-space:pre-wrap; word-break:break-word; }
+.team-approval-row { display:flex; gap:8px; }
+.team-defined ul { list-style:none; margin:0; padding:0; font-size:12px; }
+.team-defined li { padding:6px 0; border-bottom:1px solid var(--line, rgba(127,127,127,.2)); }
+.team-defined li small { color:var(--muted); }

@@ -64,14 +64,21 @@ func TestPromptInclouContextActualISenseInvencions(t *testing.T) {
 	s.cwd = "/projectes/reals/tui-agent"
 	p := s.sysPrompt()
 	for _, want := range []string{
-		"Directori de treball: \"/projectes/reals/tui-agent\"",
-		"Projecte actual: \"tui-agent\"",
-		"No inventis noms de projectes",
-		"No tens cap llista implícita de fitxers",
+		"Working directory: \"/projectes/reals/tui-agent\"",
+		"Current project: \"tui-agent\"",
+		"Do not invent project names",
+		"You have no implicit list of files",
 	} {
 		if !strings.Contains(p, want) {
 			t.Fatalf("prompt no conté %q:\n%s", want, p)
 		}
+	}
+	// Els fets del workspace i el resum van abans: la directiva d'idioma
+	// tanca el prompt també a la web.
+	s.compacted = "resum previ"
+	p = s.sysPrompt()
+	if !strings.HasSuffix(p, "\n\n"+config.LanguageDirective(s.cfg.Lang())) || !strings.Contains(p, "resum previ") {
+		t.Fatalf("la directiva d'idioma ha de tancar el prompt web:\n%s", p)
 	}
 }
 

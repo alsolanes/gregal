@@ -197,3 +197,320 @@
 }
 .composer-row .perm-btn { width:36px; height:36px; min-height:36px; padding:0; border-radius:8px; }
 #permLabel { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+
+/* ------------------------------------------------------------------
+   Pro pass: one control language, one page chrome, a calmer transcript.
+   Only theme variables, so every palette (light, dark, branded) follows.
+   ------------------------------------------------------------------ */
+
+/* Buttons: primary text uses the page background, which contrasts with
+   the accent in every theme (white on mint was unreadable in dark). */
+button.primary { color:var(--bg); border-radius:8px; padding:7px 14px; font-weight:600;
+  transition:background .15s ease, box-shadow .15s ease; }
+button.primary:not(:disabled):hover { background:var(--accent-hi); }
+button.primary:disabled { opacity:.5; }
+button.danger { border-radius:8px; padding:6px 12px; transition:background .15s ease; }
+button.danger:not(:disabled):hover { background:var(--red-soft); }
+.workspace-page .ghost:not(.icon-btn), #prefsModal .ghost:not(.icon-btn) {
+  min-height:32px; padding:6px 12px; border-color:var(--line-hi); border-radius:8px;
+  background:var(--surface); color:var(--text); }
+.workspace-page .ghost:not(.icon-btn):not(:disabled):hover, #prefsModal .ghost:not(.icon-btn):not(:disabled):hover {
+  border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+
+/* Form fields: readable sans by default; monospace only where the value is code. */
+.page-card input, .page-card select,
+.workspace-page input:not([type=checkbox]):not([type=radio]), .workspace-page select, .workspace-page textarea {
+  min-height:34px; padding:7px 10px; border-radius:8px; font:var(--t3)/1.4 inherit; font-family:inherit; }
+.workspace-page textarea { line-height:1.5; resize:vertical; }
+#procCmd, #browserUrl, #ghRepo, #ghNumber, .workspace-page input.mono { font-family:var(--mono); font-size:var(--t2); }
+.workspace-page select { padding-right:28px; cursor:pointer; }
+.workspace-page input[type=checkbox], #prefsModal input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); vertical-align:-2px; cursor:pointer; }
+.workspace-page label:has(> input[type=checkbox]) { display:inline-flex; align-items:center; gap:7px; color:var(--text); font-size:var(--t2); cursor:pointer; }
+
+/* Page chrome: every workspace page gets the same title scale and rhythm,
+   whether it uses the kicker template or the compact .page-head. */
+.page-kicker { font:600 var(--t1)/1.4 inherit; font-family:inherit; letter-spacing:.08em; color:var(--accent); }
+.page-title, .page-head > h1, .page-head > div > h1 {
+  margin-top:8px; color:var(--ink); font-size:clamp(24px,2.3vw,30px); font-weight:600;
+  letter-spacing:-.025em; line-height:1.2; }
+.page-copy { font-size:var(--t3); line-height:1.6; }
+.page-grid { margin-top:24px; }
+.page-card { border-radius:12px; padding:18px; background:var(--surface); }
+.page-card h2 { font-size:var(--t3); font-weight:600; }
+.page-head { display:flex; flex-wrap:wrap; align-items:center; gap:10px 8px; margin:0 0 22px; }
+.page-head > h1 { flex:1 0 100%; margin:0; }
+.page-head > .page-copy { flex:1 1 320px; max-width:none; margin:0; }
+.page-head > div:first-child { flex:1 1 auto; min-width:0; }
+.page-head > div:first-child .page-copy { margin-top:6px; }
+.activity-empty { color:var(--faint); font-size:var(--t2); line-height:1.55; }
+
+/* Changes / files / terminal: content in quiet cards instead of floating text. */
+#changesBody:not(:empty) { margin-top:4px; }
+.files-grid { gap:16px; }
+#treeBody { min-height:240px; max-height:68vh; overflow:auto; padding:6px; border:1px solid var(--line);
+  border-radius:12px; background:var(--surface); }
+#fileView { min-height:240px; border-radius:12px; background:var(--surface); }
+#fileView > .activity-empty { display:grid; place-items:center; min-height:240px; padding:24px; }
+#terminalPage .frm { display:flex; align-items:center; padding:10px; border:1px solid var(--line);
+  border-radius:12px; background:var(--surface); }
+#procList:has(> .activity-empty), #procList:empty { margin-top:14px !important; }
+.proc-row { border-radius:10px; background:var(--surface); }
+
+/* Browser page: same header as the rest, toolbar and shell as one unit. */
+.browser-page { padding:38px clamp(20px,5vw,64px) 24px; }
+.browser-toolbar { padding:6px; border-radius:12px; background:var(--surface); }
+.browser-shell { border-radius:12px; }
+
+/* Sidebar entry injected by plots.js: same look as the other views. */
+#plotsOpen { display:flex; align-items:center; gap:10px; width:100%; margin:1px 0; border:0;
+  background:transparent; color:var(--muted); text-align:left; cursor:pointer; font:inherit; font-size:var(--t3); }
+#plotsOpen::before { content:''; flex:none; width:17px; height:17px; margin:0 .5px; background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20V4 M4 20h16 M8 16v-5 M12 16V8 M16 16v-3 M20 16V6'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20V4 M4 20h16 M8 16v-5 M12 16V8 M16 16v-3 M20 16V6'/%3E%3C/svg%3E") center/contain no-repeat; }
+#plotsOpen:hover { background:var(--hover); color:var(--ink); }
+#side.compact #plotsOpen { width:44px; justify-content:center; padding:9px 0; font-size:0; }
+
+/* Transcript rhythm: narration and tool calls of one step read as a group;
+   the gap between turns stays generous. */
+.body > :last-child { margin-bottom:0; }
+.msg.a.working .msg-acts { display:none; }
+.msg.a.working .body { color:var(--muted); }
+.msg.t + .msg.t { margin-top:-18px; }
+.msg.a.working + .msg.t, .msg.t + .msg.a.working { margin-top:-12px; }
+.tool { padding:8px 12px; border-left-width:1px; border-color:var(--line); background:transparent; }
+.tool:hover { background:var(--hover); }
+.tool summary { gap:8px; min-height:22px; }
+.tool b { font-weight:600; color:var(--ink); }
+.targs { font:var(--t2)/1.4 var(--mono); }
+.tool.failed { border-color:var(--red-soft); border-left:2px solid var(--red); }
+.tool .out { font-size:var(--t2); }
+
+/* Approvals: loud while waiting, a single quiet line once answered. */
+.approve { border-radius:12px; padding:14px 16px; background:var(--surface); border-color:var(--amber); }
+.approve > b { display:block; margin-bottom:2px; color:var(--ink); }
+.approve .args { border-radius:8px; }
+.approve .row { margin-top:4px; }
+.approve .row button { min-width:84px; }
+.approve .count { font-size:var(--t1); }
+.approve:not(:has(button)) { display:flex; align-items:center; gap:10px; padding:7px 12px; border-color:var(--line);
+  border-radius:10px; background:transparent; color:var(--muted); font-size:var(--t2); }
+.approve:not(:has(button)) > b { margin:0; font-weight:500; color:var(--muted); }
+.approve:not(:has(button)) .args, .approve:not(:has(button)) p { display:none; }
+.approve:not(:has(button)) .row { margin:0 0 0 auto; color:var(--muted); font-weight:600; }
+.msg.a:has(> .msg-inner .approve:not(:has(button))) .msg-acts,
+.msg.a:has(.approve) .msg-acts { display:none; }
+.page-card .ghost:not(.icon-btn) { background:transparent; }
+
+/* Pipeline graph (Team page and workshop bays): theme-aware arrows. */
+.flow-graph .flow-arrow { fill:var(--faint); }
+.flow-graph .flow-arrow-live { fill:var(--accent); }
+.flow-graph path[data-flow-edge].is-revision { stroke:var(--faint); opacity:.8; }
+#teamPage .page-head > h1 { flex:0 1 auto; }
+#teamPage #teamStatus { border-radius:99px; padding:3px 10px; font-size:var(--t1); color:var(--muted); }
+
+/* Pages focused programmatically on view change (tabindex=-1) must not
+   draw a focus ring around the whole page. */
+.workspace-page[tabindex="-1"]:focus, .workspace-page[tabindex="-1"]:focus-visible { outline:none; }
+
+/* Workshop coordinator card: the label sits over the text column so the
+   desk monitor has room above the desk instead of covering the label. */
+.workshop-station .coordinator-label { grid-column:3; grid-row:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.workshop-station .coordinator-avatar, .workshop-station .coordinator-desk { grid-row:1 / 5; }
+
+/* Graphs: long saved-flow paths wrap instead of running under the canvas. */
+#flowList, #flowList * { overflow-wrap:anywhere; }
+.flow-side .page-head > h1 { font-size:20px; }
+
+/* Empty states read as hints, not headlines. */
+.goal-empty { color:var(--faint); font-size:var(--t2); font-weight:400; line-height:1.55; }
+#goalsPage .goal-empty { font-size:var(--t3); color:var(--muted); }
+
+/* Composer: a compact segmented control sized to its labels. */
+.composer-row .mode-switch { flex:0 1 auto; padding:3px; gap:2px; }
+.composer-row .mode-primary { flex:0 0 auto; }
+.composer-row .mode-primary button { flex:0 0 auto; min-width:74px; height:30px; padding:0 14px; }
+.composer-row .mode-advanced { flex:0 0 auto; }
+.composer-row .mode-advanced summary { height:30px; padding:0 12px; border-radius:99px; color:var(--muted); }
+.composer-row .mode-advanced summary:hover { color:var(--ink); background:var(--hover); }
+.composer-row .perm-btn { width:32px; height:32px; min-height:32px; }
+#hint { display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; }
+.ctx-gauge { width:44px; height:4px; margin:0 6px 0 10px; }
+@media (max-width:600px) {
+  .composer-row .mode-switch { flex:1 0 100%; }
+  .composer-row .mode-primary { flex:2; }
+  .composer-row .mode-primary button { flex:1; min-width:0; }
+  .composer-row .mode-advanced { flex:1; }
+}
+
+/* Shortcuts: keys as chips, one calm list. */
+#keysModal .card { min-width:min(440px,92vw); padding:20px 22px; border-radius:14px; }
+#keysModal table { width:100%; border-collapse:collapse; }
+#keysModal td { padding:7px 0; border-bottom:1px solid var(--line); color:var(--text); font-size:var(--t2); }
+#keysModal tr:last-child td { border-bottom:0; }
+#keysModal td:first-child { width:110px; white-space:nowrap; }
+#keysModal td:first-child { font:600 var(--t1)/1 var(--mono); color:var(--ink); }
+#keysModal td:first-child::first-line { letter-spacing:.02em; }
+
+/* Server-rendered code blocks wrapped by code-blocks.js. */
+.codeblock > pre.codeblock { margin:0; border:0; border-radius:0; }
+.codehead .copybtn { padding:3px 8px; border-radius:6px; font:500 var(--t1)/1 inherit; font-family:inherit; }
+.codehead .copybtn:hover { background:var(--hover); }
+
+/* Tool rows: plain-language summary, qualifier in a quiet chip. */
+.tool summary > b { flex:none; }
+.tmeta { flex:none; padding:1px 7px; border:1px solid var(--line); border-radius:99px; color:var(--faint);
+  font-size:var(--t1); white-space:nowrap; }
+.approve.resolved.is-allowed .row { color:var(--green); }
+.approve.resolved.is-denied .row { color:var(--red); }
+.approve.resolved.is-denied { border-color:var(--red-soft); }
+.tool.interrupted .tspin { color:var(--faint); }
+
+/* Work group: one turn's intermediate work (narration, tool calls,
+   thinking, answered approvals) folded under a single disclosure; the
+   final answer stays below it. */
+.work-group { border:1px solid var(--line); border-radius:12px; background:transparent; }
+.work-group > summary { display:flex; align-items:center; gap:8px; min-height:38px; padding:8px 14px;
+  list-style:none; cursor:pointer; color:var(--muted); font-size:var(--t2); border-radius:12px; user-select:none; }
+.work-group > summary::-webkit-details-marker { display:none; }
+.work-group > summary::before { content:'›'; display:inline-block; width:10px; color:var(--faint); transition:transform .15s ease; }
+.work-group[open] > summary::before { transform:rotate(90deg); }
+.work-group > summary:hover { background:var(--hover); color:var(--ink); }
+.work-group[open] > summary { border-bottom:1px solid var(--line); border-radius:12px 12px 0 0; }
+.wg-label { color:var(--text); font-weight:500; }
+.wg-meta { color:var(--faint); }
+.wg-meta:not(:empty)::before { content:'·'; margin-right:8px; }
+.wg-dot { width:7px; height:7px; flex:none; border-radius:50%; background:var(--green); }
+.work-group.running .wg-dot { background:var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+.work-group.failed { border-color:var(--red-soft); }
+.work-group.failed .wg-dot { background:var(--red); }
+.wg-body { display:flex; flex-direction:column; gap:8px; padding:10px 12px 12px; }
+.wg-body > .msg { width:100%; margin:0; }
+.wg-body > .msg.t + .msg.t, .wg-body > .msg.a.working + .msg.t, .wg-body > .msg.t + .msg.a.working { margin-top:-2px; }
+.wg-body > .msg.a .body { font-size:var(--t3); line-height:1.6; }
+.wg-body > .msg.a .msg-acts { display:none; }
+body.view-summary .work-group { display:none; }
+@media (prefers-reduced-motion:reduce) { .work-group.running .wg-dot { animation:none; } .work-group > summary::before { transition:none; } }
+
+/* Simplified sidebar: four daily destinations, the rest folded in "More". */
+.side-main { display:flex; flex-direction:column; margin:4px 10px 6px; }
+.side-main > .nav-item { width:100%; margin:1px 0; }
+.nav-item { position:relative; }
+.nav-badge { margin-left:auto; min-width:18px; padding:0 6px; border-radius:99px; background:var(--surface-hi);
+  color:var(--muted); font-size:var(--t1); line-height:18px; text-align:center; }
+.nav-badge.busy { background:var(--amber-soft); color:var(--amber); }
+#side.compact .nav-badge { position:absolute; top:4px; right:4px; min-width:8px; height:8px; padding:0; font-size:0; }
+#sideMore > summary { cursor:pointer; }
+
+/* Agents: one page, two tabs (live room / team run). */
+.agents-head { display:flex; align-items:center; flex-wrap:wrap; gap:10px 16px; }
+.agents-head .page-title { margin:0; }
+.agents-tabs { display:inline-flex; gap:2px; padding:3px; border:1px solid var(--line); border-radius:99px; background:var(--bg); }
+.agents-tab { min-height:30px; padding:0 14px; border:0; border-radius:99px; background:transparent; color:var(--muted);
+  font:inherit; font-size:var(--t2); cursor:pointer; }
+.agents-tab:hover { color:var(--ink); background:var(--hover); }
+.agents-tab.active { background:var(--accent); color:var(--bg); font-weight:600; }
+#teamPage .page-head.agents-head > h1 { flex:0 1 auto; }
+#teamPage .page-head.agents-head #teamStatus { margin-left:auto; }
+/* The live room already shows team runs as bays: the team tab keeps the
+   controls, flow and per-agent output, without a second 2D office. */
+#teamPage .team-floor { display:none; }
+#teamPage .team-layout { grid-template-columns:minmax(0,1fr); }
+#teamPage .team-detail { border-left:0; display:grid; grid-template-columns:minmax(200px,260px) minmax(0,1fr);
+  grid-template-rows:auto 1fr; column-gap:20px; max-height:none; padding:12px 16px 16px; }
+#teamPage .team-detail > h2:first-child { grid-column:1; grid-row:1; }
+#teamPage #teamAgents { grid-column:1; grid-row:2; align-content:start; }
+#teamPage .team-agent-detail { grid-column:2; grid-row:1 / 3; min-width:0; }
+@media (max-width:760px) {
+  #teamPage .team-detail { grid-template-columns:minmax(0,1fr); }
+  #teamPage .team-agent-detail { grid-column:1; grid-row:auto; }
+}
+
+/* First page: what is pending in this project, then where to continue. */
+.home-context { display:flex; flex-direction:column; gap:14px; margin-top:22px; }
+.home-pills { display:flex; flex-wrap:wrap; gap:8px; }
+.home-pill { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:0 13px; border:1px solid var(--line-hi);
+  border-radius:99px; background:var(--surface); color:var(--text); font:inherit; font-size:var(--t2); cursor:pointer;
+  transition:border-color .15s ease, background .15s ease; }
+.home-pill:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+.home-pill-dot { width:7px; height:7px; border-radius:50%; background:var(--faint); }
+.home-pill-dot.changes { background:var(--accent); }
+.home-pill-dot.busy { background:var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+.home-pill-dot.goals { background:var(--lila); }
+.home-recent { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.home-recent-head { padding:9px 14px; color:var(--faint); font-size:var(--t1); font-weight:600; letter-spacing:.04em;
+  border-bottom:1px solid var(--line); }
+.home-recent-row { display:flex; align-items:center; gap:12px; width:100%; padding:10px 14px; border:0; border-top:1px solid var(--line);
+  background:transparent; color:var(--text); font:inherit; font-size:var(--t3); text-align:left; cursor:pointer; }
+.home-recent-head + .home-recent-row { border-top:0; }
+.home-recent-row:hover { background:var(--hover); color:var(--ink); }
+.home-recent-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.home-recent-w { flex:none; color:var(--faint); font-size:var(--t1); }
+#hero #chips[hidden] { display:none; }
+@media (prefers-reduced-motion:reduce) { .home-pill-dot.busy { animation:none; } }
+
+/* Live "what is it doing now" line in the running work group. */
+.wg-now { margin-left:auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted);
+  font-size:var(--t1); font-variant-numeric:tabular-nums; }
+.work-group:not(.running) .wg-now { display:none; }
+.work-group.stalled { border-color:var(--amber-soft); }
+.work-group.stalled .wg-now { color:var(--amber); }
+#turnTimer .turn-note { font-variant-numeric:tabular-nums; }
+.tool.checkpoint { display:flex; align-items:center; gap:8px; border-style:dashed; color:var(--muted); }
+.tool.checkpoint b { font-weight:600; }
+/* Same chrome on both Agents tabs, so switching does not move the title. */
+body #workshopPage.workspace-page, body #teamPage.workspace-page { padding:28px clamp(20px,3vw,40px) 32px; }
+body #workshopPage .workshop-header, body #teamPage .page-head.agents-head { min-height:40px; margin:0 0 18px; }
+body .agents-head h1.page-title { margin:0; font-size:clamp(22px,2.2vw,28px); font-weight:600; letter-spacing:-.025em; line-height:1.2; }
+
+/* Agents room adapts to the space it really has (sidebar and inspector
+   included), not to the window: the attention list moves under the room
+   when it would squeeze it, and a narrow bay drops the desk drawing before
+   it truncates the coordinator's name and state. */
+body #workshopPage { container-type:inline-size; container-name:agents; }
+@container agents (max-width: 920px) {
+  body .workshop-root { grid-template-columns:minmax(0,1fr); grid-template-areas:"head" "error" "stage" "queue"; }
+}
+body .workshop-bay { container-type:inline-size; container-name:bay; }
+@container bay (max-width: 560px) {
+  body .bay-heading { grid-template-columns:minmax(0,1fr); min-height:0; }
+  body .bay-heading .signal-route { display:none; }
+  body .workshop-station { grid-template-columns:46px minmax(0,1fr); }
+  body .workshop-station .coordinator-desk { display:none; }
+  body .workshop-station .coordinator-label, body .workshop-station .workshop-name,
+  body .workshop-station .workshop-status, body .workshop-station .workshop-details { grid-column:2; }
+}
+
+/* Composer v3: Ask | Act, a "Plan first" switch and the permission lock.
+   Special modes (goal, autonomous, debug) show as a chip you can leave. */
+.composer-row .mode-primary button { min-width:64px; }
+.composer-row .mode-primary button b { font-weight:600; }
+.plan-toggle { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px 0 8px; border:1px solid var(--line-hi);
+  border-radius:99px; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); cursor:pointer;
+  transition:border-color .15s ease, background .15s ease, color .15s ease; }
+.plan-toggle:hover { color:var(--ink); border-color:var(--accent); }
+.plan-toggle-dot { position:relative; width:26px; height:15px; border-radius:99px; background:var(--surface-hi); transition:background .15s ease; }
+.plan-toggle-dot::after { content:''; position:absolute; top:2px; left:2px; width:11px; height:11px; border-radius:50%;
+  background:var(--muted); transition:transform .15s ease, background .15s ease; }
+.plan-toggle[aria-checked="true"] { color:var(--ink); border-color:var(--accent); background:var(--accent-soft); }
+.plan-toggle[aria-checked="true"] .plan-toggle-dot { background:var(--accent); }
+.plan-toggle[aria-checked="true"] .plan-toggle-dot::after { transform:translateX(11px); background:var(--bg); }
+.mode-chip { display:inline-flex; align-items:center; gap:4px; height:30px; padding:0 4px 0 11px; border-radius:99px;
+  background:var(--accent); color:var(--bg); font-size:var(--t2); font-weight:600; white-space:nowrap; }
+.mode-chip[data-mode="goal"] { background:var(--lila); }
+.mode-chip[data-mode="autonomous"] { background:var(--onada); }
+.mode-chip button { width:22px; height:22px; border:0; border-radius:50%; background:transparent; color:inherit; font:inherit; cursor:pointer; }
+.mode-chip button:hover { background:color-mix(in srgb, var(--bg) 22%, transparent); }
+@media (prefers-reduced-motion:reduce) { .plan-toggle, .plan-toggle-dot, .plan-toggle-dot::after { transition:none; } }
+@media (max-width:380px) { .plan-toggle > span:last-child { display:none; } .plan-toggle { padding:0 8px; } }
+
+/* Dashboards at the top level: count of charts saved by the agent, a short
+   pulse when new ones arrive, and an "Open dashboard" button on the tool row. */
+.side-main #plotsOpen { margin:1px 0; }
+#plotsOpen .plots-nav-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#plotsOpen .plots-new { background:var(--accent); color:var(--bg); font-weight:600; }
+#plotsOpen.plots-pulse { animation:plots-pulse 1.2s ease-out 2; }
+@keyframes plots-pulse { 0% { box-shadow:0 0 0 0 var(--accent-soft-hi); } 100% { box-shadow:0 0 0 10px transparent; } }
+@media (prefers-reduced-motion:reduce) { #plotsOpen.plots-pulse { animation:none; } }
+.tool-open-dashboard { flex:none; margin-left:auto; padding:3px 10px; border:1px solid var(--accent); border-radius:99px;
+  background:var(--accent-soft); color:var(--ink); font:inherit; font-size:var(--t1); font-weight:600; cursor:pointer; }
+.tool-open-dashboard:hover { background:var(--accent); color:var(--bg); }

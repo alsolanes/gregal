@@ -242,7 +242,11 @@ func xlsxSheets(z *zip.ReadCloser) []xlsxSheet {
 }
 
 // OfficeReadXlsx torna fulls + files (capats).
-func officeReadXlsx(z *zip.ReadCloser) string {
+func officeReadXlsx(z *zip.ReadCloser) string { return officeReadXlsxLim(z, 4, 60, 20) }
+
+// officeReadXlsxLim és el lector amb topalls: l'eina office_read en vol
+// pocs (context del model); la indexació de coneixement, tots.
+func officeReadXlsxLim(z *zip.ReadCloser, maxSheets, maxRows, maxCols int) string {
 	shared := xlsxStrings(z)
 	sheets := xlsxSheets(z)
 	if len(sheets) == 0 {
@@ -250,8 +254,8 @@ func officeReadXlsx(z *zip.ReadCloser) string {
 	}
 	var b strings.Builder
 	ns := len(sheets)
-	if ns > 4 {
-		sheets = sheets[:4]
+	if ns > maxSheets {
+		sheets = sheets[:maxSheets]
 	}
 	for _, sh := range sheets {
 		raw, err := zipPart(z, sh.File)
@@ -270,8 +274,8 @@ func officeReadXlsx(z *zip.ReadCloser) string {
 			for len(row) > 0 && row[len(row)-1] == "" {
 				row = row[:len(row)-1]
 			}
-			if len(row) > 20 {
-				row = append(row[:20], "…")
+			if len(row) > maxCols {
+				row = append(row[:maxCols], "…")
 			}
 			b.WriteString(strings.Join(row, " | ") + "\n")
 			row = nil
@@ -315,14 +319,14 @@ func officeReadXlsx(z *zip.ReadCloser) string {
 			case xml.EndElement:
 				switch t.Name.Local {
 				case "row":
-					if nrows < 60 {
+					if nrows < maxRows {
 						for len(row) > 0 && row[len(row)-1] == "" {
 							row = row[:len(row)-1]
 						}
 						if len(row) > 0 {
 							r := row
-							if len(r) > 20 {
-								r = append(append([]string{}, r[:20]...), "…")
+							if len(r) > maxCols {
+								r = append(append([]string{}, r[:maxCols]...), "…")
 							}
 							b.WriteString(strings.Join(r, " | ") + "\n")
 						}
@@ -372,12 +376,12 @@ func officeReadXlsx(z *zip.ReadCloser) string {
 				_ = inRow
 			}
 		}
-		if nrows >= 60 {
-			b.WriteString("… (full retallat a 60 files)\n")
+		if nrows >= maxRows {
+			fmt.Fprintf(&b, "… (full retallat a %d files)\n", maxRows)
 		}
 	}
-	if ns > 4 {
-		fmt.Fprintf(&b, "… (%d fulls més)\n", ns-4)
+	if ns > maxSheets {
+		fmt.Fprintf(&b, "… (%d fulls més)\n", ns-maxSheets)
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -654,7 +658,9 @@ func OfficeXlsxSet(path, sheet, cell, value string) (string, error) {
 
 // ---------- docx/pptx: lectura ----------
 
-func officeReadDocx(z *zip.ReadCloser) string {
+func officeReadDocx(z *zip.ReadCloser) string { return officeReadDocxLim(z, 200) }
+
+func officeReadDocxLim(z *zip.ReadCloser, maxPar int) string {
 	raw, err := zipPart(z, "word/document.xml")
 	if err != nil {
 		return "docx il·legible: " + err.Error()
@@ -679,7 +685,7 @@ func officeReadDocx(z *zip.ReadCloser) string {
 	}
 	for {
 		t, err := dec.RawToken()
-		if err != nil || npar >= 200 {
+		if err != nil || npar >= maxPar {
 			break
 		}
 		switch t := t.(type) {
@@ -724,8 +730,8 @@ func officeReadDocx(z *zip.ReadCloser) string {
 		}
 	}
 	flush()
-	if npar >= 200 {
-		b.WriteString("… (retallat a 200 paràgrafs)\n")
+	if npar >= maxPar {
+		fmt.Fprintf(&b, "… (retallat a %d paràgrafs)\n", maxPar)
 	}
 	return strings.TrimSpace(b.String())
 }

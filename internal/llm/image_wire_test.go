@@ -32,3 +32,16 @@ func TestMessageImageWire(t *testing.T) {
 		t.Fatal("la imatge ha de sumar tokens")
 	}
 }
+
+func TestEstimateTokensEscalaAmbLaMidaDeLaImatge(t *testing.T) {
+	if got := imageTokens("https://example.com/foto.jpg"); got != 1000 {
+		t.Fatalf("URL sense mida: sòl 1000, got %d", got)
+	}
+	if got := imageTokens("data:image/png;base64,AAA"); got != 1000 {
+		t.Fatalf("miniatura: sòl 1000, got %d", got)
+	}
+	gran := "data:image/png;base64," + strings.Repeat("QUJD", 2_000_000) // ~6 MB
+	if got := imageTokens(gran); got < 5000 {
+		t.Fatalf("captura gran infraestimada: got %d", got)
+	}
+}

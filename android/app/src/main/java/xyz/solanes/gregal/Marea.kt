@@ -215,31 +215,37 @@ fun TideGaugeBar(used: Int, window: Int, cells: Int = 8, modifier: Modifier = Mo
     // Sense finestra no s'inventa cap percentatge, i sense res consumit no
     // s'ensenya res: una filera de punts buida semblava una línia perduda.
     if (window <= 0 || used <= 0) return
-    var frame by remember { mutableIntStateOf(0) }
-    LaunchedEffect(Unit) {
-        while (true) { delay(120); frame++ }
-    }
     val pct = contextPct(used, window)
-    val run = remember(pct, frame) { tideGauge(pct, cells, frame) }
+    if (pct < 1) return
+    // Només batega quan ja és un avís (≥ 80%); per sota, estàtic: abans
+    // recomponia cada 120 ms per sempre amb qualsevol consum.
+    val pulse = pct >= 80
+    var frame by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pulse) {
+        if (!pulse) { frame = 0; return@LaunchedEffect }
+        while (true) { delay(500); frame++ }
+    }
     val col = when {
         pct >= 80 -> Red
         pct >= 50 -> Sand
         else -> Sea
     }
+    // Una barra fina amb el percentatge: la filera de glifs semblava un
+    // error de renderitzat amb poc consum.
+    val alpha = if (pulse && frame % 2 == 1) 0.55f else 1f
+    val track = Line
+    val fill by androidx.compose.animation.core.animateFloatAsState(pct / 100f, label = "context")
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            run, color = col, fontFamily = FontFamily.Monospace, fontSize = 11.sp,
-            maxLines = 1, softWrap = false,
-        )
-        // El número només quan ja és un avís: si no, els glifs ja són la
-        // informació i el «43%» només era la mateixa dada dues vegades.
-        if (pct >= 80) {
-            Spacer(Modifier.width(5.dp))
-            Text(
-                "$pct%", color = col, fontFamily = FontFamily.Monospace, fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-            )
+        androidx.compose.foundation.Canvas(Modifier.width((cells * 7).dp).height(4.dp)) {
+            val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2, size.height / 2)
+            drawRoundRect(track, cornerRadius = r)
+            drawRoundRect(col.copy(alpha = alpha), size = size.copy(width = size.width * fill.coerceIn(0.03f, 1f)), cornerRadius = r)
         }
+        Spacer(Modifier.width(6.dp))
+        Text(
+            "$pct%", color = if (pct >= 50) col else Faint, fontSize = 10.sp,
+            fontWeight = if (pct >= 80) FontWeight.Bold else FontWeight.Medium,
+        )
     }
 }
 

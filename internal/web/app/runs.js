@@ -94,8 +94,8 @@ export function createSummary() {
   return { record, render };
 }
 
-function T(key) {
-  try { return window.gregalT?.(key) || key; } catch (e) { return key; }
+function T(key, fallback) {
+  try { return window.gregalT?.(key) || fallback || key; } catch (e) { return fallback || key; }
 }
 
 let healthPromise = null;
@@ -215,7 +215,7 @@ export function durableToAgent(e, onEvent) {
   if (e.kind === 'approve_request' || e.kind === 'question_request') {
     const payload = structuredPayload(e);
     if (!payload || !payload.key) {
-      const err = new Error('servidor v2 sense dades estructurades per interactuar');
+      const err = new Error(T('run.err.payload', 'The server sent no structured data for this interaction'));
       err.code = 'INTERACTION_PAYLOAD_MISSING';
       throw err;
     }
@@ -225,10 +225,10 @@ export function durableToAgent(e, onEvent) {
   if (e.kind === 'text') onEvent('assistant', { text: e.text || '' });
   else if (e.kind === 'token') onEvent('token', { text: e.text || '' });
   else if (e.kind === 'done') onEvent('done', { reply: e.text || '' });
-  else if (e.kind === 'error') onEvent('error', { message: e.text || 'error' });
+  else if (e.kind === 'error') onEvent('error', { message: e.text || 'Error' });
   else if (e.kind === 'verify') onEvent('verify', { verdict: e.text || '' });
-  else if (e.kind === 'tool_call') onEvent('tool_call', { name: fields(e).name || e.text || 'eina', args: fields(e).args || '' });
-  else if (e.kind === 'tool_result') onEvent('tool_result', { name: fields(e).name || e.text || 'eina', output: fields(e).output || '' });
+  else if (e.kind === 'tool_call') onEvent('tool_call', { name: fields(e).name || e.text || T('actk.tool', 'tool'), args: fields(e).args || '' });
+  else if (e.kind === 'tool_result') onEvent('tool_result', { name: fields(e).name || e.text || T('actk.tool', 'tool'), output: fields(e).output || '' });
   else if (e.kind === 'autonomous_checkpoint') {
     const payload = checkpointFields(e);
     const validNumber = typeof payload.number === 'number' && Number.isFinite(payload.number);
@@ -243,16 +243,20 @@ export function durableToAgent(e, onEvent) {
     });
   }
   else if (e.kind === 'thinking') onEvent('thinking', { text: fields(e).text || e.text || '' });
+  else if (e.kind === 'progress') onEvent('progress', fields(e));
   else if (e.kind === 'blocked') onEvent('blocked', { reason: fields(e).reason || e.text || '' });
-  else if (e.kind === 'run_failed') onEvent('error', { message: e.text || 'el torn ha fallat' });
-  else if (e.kind === 'run_cancelled') onEvent('status', { message: 'torn cancel·lat' });
+  else if (e.kind === 'review') onEvent('review', fields(e));
+  else if (e.kind === 'bet') onEvent('bet', fields(e));
+  else if (e.kind === 'run_failed') onEvent('error', { message: e.text || T('run.failed', 'The turn failed') });
+  // El resum reconeix «cancel·lat» i «cancelled»: totes dues traduccions hi casen.
+  else if (e.kind === 'run_cancelled') onEvent('status', { message: T('run.summary.cancelled', 'Turn cancelled') });
   return e.kind === 'run_completed' || e.kind === 'run_failed' || e.kind === 'run_cancelled';
 }
 
 async function consumeStream(id, session, after, ctrl, onEvent) {
   const r = await G().api('/api/v2/events/stream?after=' + after + '&limit=100', { signal: ctrl.signal, headers: sessionHeaders(session) });
   if (!r.ok) throw errorFor(r, await r.text());
-  if (!r.body || !r.body.getReader) throw new Error('stream v2 no disponible');
+  if (!r.body || !r.body.getReader) throw new Error(T('run.err.stream', 'Event stream unavailable'));
   const rd = r.body.getReader(), dec = new TextDecoder();
   let buf = '', finished = false;
   for (;;) {
@@ -305,7 +309,7 @@ export async function run(task, images, mode, onEvent) {
   }
   const out = await r.json();
   const id = out && out.run && out.run.id;
-  if (!id) throw new Error('resposta v2 sense id d’execució');
+  if (!id) throw new Error(T('run.err.noId', 'Server response without a run ID'));
   const cursor = Math.max(0, Number(out.cursor) || 0);
   const summary = createSummary();
   // The event and terminal run_failed records can wrap the same error in

@@ -23,14 +23,21 @@ import (
 // MaxParallelTools és el màxim d'eines de lectura alhora dins d'un pas.
 const MaxParallelTools = 6
 
+// MaxCridesPerPas topa les crides EXECUTABLES d'un pas (després de
+// política i repeticions). Sense cap, un pas amb 10 bash o 15 accions
+// browser bloqueja el torn 20+ min sense consumir "passos" ni tocar cap
+// deadline: ModelContext només cobreix la crida al model. La resta queda
+// ajornada amb el seu tool_result i el model la torna a proposar.
+const MaxCridesPerPas = 8
+
 // ParallelSafe diu si una eina es pot executar alhora amb d'altres del
 // mateix pas: no escriu al disc ni engega processos. bash no hi és encara
 // que sigui de lectura (ClassifyWith) perquè un `go test` i un `go build`
 // alhora es trepitgen la cache.
 func ParallelSafe(name string) bool {
 	switch name {
-	case "read", "grep", "glob", "web_search", "web_fetch", "gh_issue", "gh_pr",
-		"office_read", "read_image", "todoread", "bash_output", "delegate":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "gh_issue", "gh_pr",
+		"office_read", "read_image", "todoread", "bash_output", "delegate", "knowledge_search":
 		return true
 	}
 	return false

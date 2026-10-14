@@ -29,3 +29,20 @@ func TestTopallCostAmbUsageReal(t *testing.T) {
 		t.Fatalf("amb el consum real ($0.52) ha de saltar: %q", m)
 	}
 }
+
+// Un topall de cost sense preu no pot callar: atura dient què falta.
+func TestTopallCostSensePreuAturaEnVegadaDeCallar(t *testing.T) {
+	SetPrices(nil)
+	defer SetPrices(nil)
+	cfg := &config.Config{Agent: config.AgentCfg{Autonomous: config.AutonomousCfg{MaxCostUSD: 0.5}}}
+	m := TopallAutonom(cfg, EstatAutonom{Provider: "p", Model: "desconegut"})
+	if !strings.Contains(m, "sense preu") || !strings.Contains(m, "cost:") {
+		t.Fatalf("ha d'aturar amb el motiu, no continuar: %q", m)
+	}
+	// Amb preu 0 (model gratuït declarat) el topall no salta.
+	SetPrices(map[string]Price{"local": {In: 0, Out: 0}})
+	m = TopallAutonom(cfg, EstatAutonom{Provider: "p", Model: "local"})
+	if m != "" {
+		t.Fatalf("model gratuït amb preu 0 no ha d'aturar: %q", m)
+	}
+}

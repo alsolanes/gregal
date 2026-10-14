@@ -2,6 +2,7 @@ package agent
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -105,7 +106,7 @@ func TestMotorDenegarRespónAlModel(t *testing.T) {
 	tn.Seguent()
 	tn.RepAprovacio(false)
 	darrer := tn.Hist[len(tn.Hist)-1]
-	if darrer.Role != "tool" || !strings.Contains(darrer.Content, "REBUTJADA") {
+	if darrer.Role != "tool" || !strings.Contains(darrer.Content, "REJECTED") {
 		t.Fatalf("cap crida pot quedar sense tool_result: %+v", darrer)
 	}
 	if p := tn.Seguent(); p.Ordre != OrdrePasModel {
@@ -315,7 +316,7 @@ func TestMotorPreguntaBloquejaIAjornaLaResta(t *testing.T) {
 	// La lectura del mateix pas queda ajornada, amb el seu tool_result.
 	trobat := false
 	for _, m := range tn.Hist {
-		if m.Role == "tool" && m.ToolCallID == "2" && strings.Contains(m.Content, "AJORNADA") {
+		if m.Role == "tool" && m.ToolCallID == "2" && strings.Contains(m.Content, "DEFERRED") {
 			trobat = true
 		}
 	}
@@ -325,6 +326,33 @@ func TestMotorPreguntaBloquejaIAjornaLaResta(t *testing.T) {
 	tn.RepPregunta("L'usuari ha triat: a")
 	if p := tn.Seguent(); p.Ordre != OrdrePasModel {
 		t.Fatalf("un cop responem, continua: %v", p.Ordre)
+	}
+}
+
+func TestMotorTopallCridesPerPasAjornaLaResta(t *testing.T) {
+	tools.TodoClear()
+	tn := tornProva(ModeCode, 30)
+	tn.Seguent()
+	calls := make([]llm.ToolCall, 0, MaxCridesPerPas+2)
+	for i := 0; i < MaxCridesPerPas+2; i++ {
+		calls = append(calls, cridaProva(fmt.Sprintf("%d", i+1), "read", fmt.Sprintf(`{"path":"f%d.go"}`, i+1)))
+	}
+	tn.RepPas("", calls, nil)
+	p := tn.Seguent()
+	if p.Ordre != OrdreExecuta {
+		t.Fatalf("ha d'executar: %v", p.Ordre)
+	}
+	if len(p.Calls) != MaxCridesPerPas {
+		t.Fatalf("executables=%d, topall=%d", len(p.Calls), MaxCridesPerPas)
+	}
+	ajornades := 0
+	for _, m := range tn.Hist {
+		if m.Role == "tool" && strings.Contains(m.Content, "DEFERRED: too many calls") {
+			ajornades++
+		}
+	}
+	if ajornades != 2 {
+		t.Fatalf("ajornades=%d, esperava 2 amb el seu tool_result", ajornades)
 	}
 }
 

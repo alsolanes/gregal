@@ -8,6 +8,8 @@
 // i la `t` es fa servir de variable de bucle en uns quants map.
 import { t as T, idioma, posa as posaLang, IDIOMES } from './i18n.js';
 import { desktopUpdates } from './desktop-updates.js';
+import { shares } from './export.js';
+import { funPrefs } from './fun-prefs.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -147,7 +149,7 @@ export const prefs = {
         [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
       '<h3 class="pf-sec">' + T('prefs.agent') + '</h3>' +
       fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
-        [['manual', 'prefs.perms.manual'], ['accept', 'prefs.perms.accept'], ['auto', 'prefs.perms.auto']])) +
+        [['manual', 'prefs.perms.manual'], ['accept', 'prefs.perms.accept'], ['auto', 'prefs.perms.auto'], ['review', 'prefs.perms.review']])) +
       // El revisor passava el model per sobre de CADA resposta i no hi
       // havia manera d'apagar-lo des de la finestra: només editant el
       // config a mà o des del TUI. Aquí és on el busques.
@@ -156,6 +158,8 @@ export const prefs = {
       '<h3 class="pf-sec">' + T('prefs.providers') + '</h3>' +
       fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
+      funPrefs.section() +
+      shares.section() +
       desktopUpdates.section();
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
@@ -186,6 +190,8 @@ export const prefs = {
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     desktopUpdates.bind(cos);
+    shares.bind(cos);
+    funPrefs.bind(cos);
   },
 
   // L'idioma va al servidor abans que a la pantalla: si el servidor no el

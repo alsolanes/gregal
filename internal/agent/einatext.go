@@ -44,4 +44,4 @@ const AvisEinaText = "El model ha intentat cridar una eina escrivint-la al text 
 // GuiaEinaText és el que se li diu al MODEL quan passa: no s'ha executat
 // res, però en comptes de tancar el torn se li demana que refaci la crida
 // amb tool_calls estructurats (acotat: vegeu textRetries als fronts).
-const GuiaEinaText = "La teva crida d'eina escrita al text NO s'ha executat: les eines només funcionen via tool_calls estructurats. Torna a fer la mateixa crida amb tool_calls, sense escriure-la al text."
+const GuiaEinaText = "Your tool call written as text was NOT executed: tools only work through structured tool_calls. Make the same call again with tool_calls, without writing it in the text."

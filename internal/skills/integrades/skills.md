@@ -1,54 +1,54 @@
 ---
-nom: skills
-descripcio: com funcionen les skills i com se n'escriu una de nova per a un projecte o per a tu
+name: skills
+description: How skills work and how to write a new one for a project or for yourself
 ---
 
-Una skill és un document que només entra al teu context quan el demanes.
-Al prompt hi tens l'índex (nom i una línia); el cos arriba quan crides
-l'eina `skill` amb el nom.
+A skill is a document that enters your context only when you ask for it.
+Your prompt holds the index (name and one line); the body arrives when
+you call the `skill` tool with the name.
 
-Serveix per al coneixement que és massa llarg per portar sempre i massa
-concret per deduir-lo: com es desplega aquest projecte, quines
-convencions té l'equip, com es fa una operació que no té ordre pròpia.
+Use skills for knowledge too long to carry all the time and too specific
+to deduce: how this project is deployed, the team's conventions, how to
+do an operation that has no dedicated command.
 
-## D'on surten
+## Where they come from
 
-1. Les integrades, dins del binari: expliquen el gregal a si mateix.
-2. `~/.config/gregal/skills/*.md` — les d'aquesta persona, a totes les
-   feines.
-3. `.gregal/skills/*.md` a l'arrel del projecte — les d'aquest
-   projecte, i van amb el repositori.
+1. Built-in, inside the binary: they explain Gregal to itself.
+2. `~/.config/gregal/skills/*.md` — this person's skills, for every
+   project.
+3. `.gregal/skills/*.md` at the project root — this project's skills,
+   shipped with the repository.
 
-Si dues es diuen igual, mana la de més avall de la llista: un projecte
-pot corregir el que el gregal creu saber.
+If two share a name, the one lower in the list wins: a project can
+correct what Gregal thinks it knows.
 
-## El format
+## The format
 
 ```markdown
 ---
-nom: desplegament
-descripcio: com es desplega aquest servei a producció i qui ho ha d'aprovar
+name: deployment
+description: how this service is deployed to production and who must approve it
 ---
 
-El cos, en Markdown. Tan llarg com calgui: només es llegeix quan algú
-el demana.
+The body, in Markdown. As long as needed: it is only read when someone
+asks for it.
 ```
 
-Les dues claus de la capçalera són obligatòries. Un fitxer sense
-capçalera s'ignora, perquè no posem qualsevol README a l'índex del
-prompt.
+Both header keys are required (`nom:` and `descripcio:` are also
+accepted). A file without a header is ignored, so that random READMEs do
+not end up in the prompt index.
 
-La descripció és el que decideix si la skill s'obre o no: ha de dir en
-quins casos serveix, no què conté. «com es desplega a producció i qui ho
-ha d'aprovar» és útil; «notes de desplegament» no.
+The description decides whether the skill gets opened: it must say when
+the skill is useful, not what it contains. "how to deploy to production
+and who must approve it" is useful; "deployment notes" is not.
 
-## Escriure'n una
+## Writing one
 
-Quan et demanin que recordis com es fa alguna cosa d'aquest projecte,
-proposa una skill: `.gregal/skills/<nom>.md`, amb la capçalera i el que
-s'ha après. La pots crear amb `write` com qualsevol altre fitxer. La
-propera sessió ja la tindrà a l'índex.
+When asked to remember how something is done in this project, propose a
+skill: `.gregal/skills/<name>.md`, with the header and what was learned.
+Create it with `write` like any other file. The next session will
+already have it in the index.
 
-Per a un fet curt (una preferència, una decisió) no cal una skill:
-`/nota` ho desa a `.gregal/memory.md` i això sí que entra sempre al
+For a short fact (a preference, a decision) a skill is not needed:
+`/nota` saves it to `.gregal/memory.md`, which always goes into the
 prompt.

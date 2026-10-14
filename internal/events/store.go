@@ -38,6 +38,7 @@ type Store struct {
 	path    string
 	next    uint64
 	offsets map[uint64]int64 // posició just després de cada event
+	maxRun  int              // run_id més alt escrit (per no reutilitzar-ne després d'un reinici)
 }
 
 // Open obre (o crea) un magatzem i recupera l'últim cursor escrit.
@@ -94,6 +95,9 @@ func (s *Store) scan() error {
 		if e.ID > s.next {
 			s.next = e.ID
 		}
+		if e.RunID > s.maxRun {
+			s.maxRun = e.RunID
+		}
 		s.offsets[e.ID] = offset + int64(len(line)+1)
 		offset += int64(len(line) + 1)
 	}
@@ -136,7 +140,20 @@ func (s *Store) Append(e Event) (Event, error) {
 		return Event{}, closeErr
 	}
 	s.offsets[e.ID] = start + int64(len(b)+1)
+	if e.RunID > s.maxRun {
+		s.maxRun = e.RunID
+	}
 	return e, nil
+}
+
+// MaxRunID és el run_id més alt que hi ha al registre. La cua de torns
+// arrenca a 1 a cada procés; sense això, després d'un reinici un torn nou
+// reutilitzava l'id d'un d'antic i els clients que segueixen el registre
+// (Android, la web en reconnectar) hi barrejaven els events vells.
+func (s *Store) MaxRunID() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxRun
 }
 
 // Cursor és l'últim identificador escrit. Un client pot començar a

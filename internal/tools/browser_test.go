@@ -57,37 +57,44 @@ func newFakeCDP(t *testing.T) *fakeCDP {
 			if json.Unmarshal(raw, &req) != nil {
 				continue
 			}
-			f.mu.Lock()
-			f.calls = append(f.calls, req.Method)
-			f.mu.Unlock()
-			resp := map[string]any{"id": req.ID, "result": map[string]any{}}
-			switch req.Method {
-			case "Page.navigate":
-				f.mu.Lock()
-				f.url, _ = req.Params["url"].(string)
-				f.mu.Unlock()
-			case "Runtime.evaluate":
-				expr, _ := req.Params["expression"].(string)
-				resp["result"] = map[string]any{"result": map[string]any{"value": f.avalua(expr)}}
-			case "Page.captureScreenshot":
-				resp["result"] = map[string]any{"data": "/9j/4AAQSkZJRg=="}
-			case "Input.insertText":
-				f.mu.Lock()
-				f.escrit, _ = req.Params["text"].(string)
-				f.mu.Unlock()
-			case "Input.dispatchMouseEvent":
-				if tp, _ := req.Params["type"].(string); tp == "mouseReleased" {
-					f.mu.Lock()
-					f.clics = append(f.clics, "mouse")
-					f.mu.Unlock()
-				}
-			}
+			resp := map[string]any{"id": req.ID, "result": f.respon(req.Method, req.Params)}
 			out, _ := json.Marshal(resp)
 			websocket.Message.Send(ws, string(out))
 		}
 	}))
 	f.srv = httptest.NewServer(mux)
 	return f
+}
+
+// respon és el resultat CDP d'una ordre sobre la pàgina falsa (el comparteixen
+// el websocket de Chrome i el pont HTTP de l'app).
+func (f *fakeCDP) respon(method string, params map[string]any) any {
+	f.mu.Lock()
+	f.calls = append(f.calls, method)
+	f.mu.Unlock()
+	result := any(map[string]any{})
+	switch method {
+	case "Page.navigate":
+		f.mu.Lock()
+		f.url, _ = params["url"].(string)
+		f.mu.Unlock()
+	case "Runtime.evaluate":
+		expr, _ := params["expression"].(string)
+		result = map[string]any{"result": map[string]any{"value": f.avalua(expr)}}
+	case "Page.captureScreenshot":
+		result = map[string]any{"data": "/9j/4AAQSkZJRg=="}
+	case "Input.insertText":
+		f.mu.Lock()
+		f.escrit, _ = params["text"].(string)
+		f.mu.Unlock()
+	case "Input.dispatchMouseEvent":
+		if tp, _ := params["type"].(string); tp == "mouseReleased" {
+			f.mu.Lock()
+			f.clics = append(f.clics, "mouse")
+			f.mu.Unlock()
+		}
+	}
+	return result
 }
 
 // avalua respon les expressions JavaScript conegudes amb l'estat fals.

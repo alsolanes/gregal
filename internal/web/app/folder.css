@@ -1,0 +1,82 @@
+/* On treballa la sessió (app/folder.js): xip de la carpeta a la capçalera,
+   «Treballant a…» a l'inici i «a <carpeta>» al peu del compositor. Només
+   variables del tema. */
+.folder-ico { width:14px; height:14px; flex:none; fill:none; stroke:currentColor; stroke-width:1.4; stroke-linejoin:round; }
+
+/* Capçalera: [carpeta nom | ▾] / branca  ⎇ worktree */
+/* La carpeta, la branca i el worktree necessiten més lloc que l'espai buit del mig. */
+#top .breadcrumb { flex:3 1 0%; }
+.folder-chip { flex:none; display:inline-flex; align-items:stretch; min-width:0; max-width:100%; border:1px solid var(--line-hi);
+  border-radius:8px; background:var(--surface); overflow:hidden; }
+.folder-chip:hover, .folder-chip:focus-within { border-color:var(--accent); }
+.folder-chip-main { display:inline-flex; align-items:center; gap:6px; min-width:0; padding:3px 8px 3px 7px; border:0; border-radius:0;
+  background:none; color:var(--ink); cursor:pointer; }
+.folder-chip-main .folder-ico { color:var(--accent-hi); }
+.folder-chip-main:hover { background:var(--hover); }
+.folder-chip-main:disabled { cursor:default; opacity:1; }
+.folder-chip-main:focus-visible, .folder-chip-caret:focus-visible { outline:2px solid var(--accent-hi); outline-offset:-2px; }
+.folder-chip #project { cursor:inherit; }
+.folder-chip-caret { padding:0 7px; border:0; border-left:1px solid var(--line-hi); border-radius:0; background:none; color:var(--muted);
+  font-size:10px; cursor:pointer; }
+.folder-chip-caret:hover, .folder-chip-caret[aria-expanded="true"] { color:var(--ink); background:var(--hover); }
+.hdr-worktree { flex:0 1 auto; min-width:0; margin-left:6px; padding:0 7px; border:1px solid var(--amber); border-radius:6px; color:var(--amber);
+  font-size:var(--t1); line-height:18px; white-space:nowrap; max-width:280px; overflow:hidden; text-overflow:ellipsis; }
+
+/* Menú de la carpeta */
+.folder-menu { position:fixed; z-index:80; min-width:220px; max-width:min(440px, calc(100vw - 16px)); display:grid; gap:2px; padding:6px;
+  border:1px solid var(--line-hi); border-radius:10px; background:var(--panel); box-shadow:0 12px 32px var(--ombra); }
+.folder-menu-path { display:flex; align-items:center; gap:6px; padding:4px 8px 7px; margin-bottom:2px; border-bottom:1px solid var(--line);
+  color:var(--muted); font:var(--t1)/1.4 var(--mono); }
+.folder-menu > * { min-width:0; }
+.folder-menu-path { align-items:flex-start; }
+.folder-menu-path .folder-ico { margin-top:2px; }
+.folder-menu-path span { min-width:0; overflow-wrap:anywhere; }
+.folder-menu-item { padding:7px 10px; border:0; border-radius:6px; background:none; color:var(--text); text-align:left; cursor:pointer; }
+.folder-menu-item:hover, .folder-menu-item:focus-visible { background:var(--hover); color:var(--ink); outline:none; }
+.folder-menu-item:disabled { opacity:.5; cursor:default; }
+.folder-flash { position:fixed; z-index:90; left:50%; top:62px; transform:translateX(-50%); padding:6px 12px; border-radius:8px;
+  border:1px solid var(--line-hi); background:var(--panel); color:var(--ink); font-size:var(--t1); box-shadow:0 8px 24px var(--ombra); }
+.folder-flash[hidden] { display:none; }
+
+/* Inici: «Treballant a <carpeta>» */
+.hero-folder { margin-bottom:14px; }
+.hero-folder[hidden] { display:none; }
+.hf-row { display:flex; align-items:center; flex-wrap:wrap; gap:6px 8px; color:var(--muted); font-size:var(--t2); }
+.hf-row .folder-ico { width:16px; height:16px; color:var(--accent-hi); }
+.hf-label { color:var(--muted); }
+.hf-name { color:var(--ink); font-weight:600; }
+.hf-badge { padding:1px 8px; border:1px solid var(--line-hi); border-radius:99px; color:var(--muted); font-size:var(--t1); white-space:nowrap; }
+.hf-badge.muted { color:var(--faint); border-style:dashed; }
+.hf-badge.wt { color:var(--amber); border-color:var(--amber); }
+.hf-path { margin:4px 0 0 24px; color:var(--faint); font:var(--t1)/1.5 var(--mono); overflow-wrap:anywhere; user-select:text; }
+.hf-actions { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0 24px; }
+.hf-act { padding:4px 10px; border:1px solid var(--line-hi); border-radius:99px; background:var(--surface); color:var(--text);
+  font-size:var(--t1); cursor:pointer; }
+.hf-act:hover { border-color:var(--accent); color:var(--ink); }
+.hf-act:focus-visible { outline:2px solid var(--accent-hi); outline-offset:2px; }
+.hf-act:disabled { opacity:.5; cursor:default; }
+
+/* Peu del compositor: «· a <carpeta>», discret. */
+.hint-folder { display:inline-flex; align-items:center; gap:4px; max-width:260px; padding:0 2px; border:0; background:none;
+  color:inherit; font:inherit; cursor:pointer; }
+.hint-folder[hidden] { display:none; }
+.hint-folder > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.hint-folder .folder-ico { width:12px; height:12px; }
+.hint-folder b { color:var(--muted); font-weight:600; }
+.hint-folder:hover b, .hint-folder:hover { color:var(--accent-hi); }
+.hint-folder:focus-visible { outline:2px solid var(--accent-hi); outline-offset:2px; border-radius:4px; }
+.hint-folder-sep { margin-right:2px; }
+
+@media (max-width:760px) {
+  .hdr-worktree { display:none; }
+}
+/* Mòbil: el xip queda en icona + nom; la ruta sencera, al menú ▾. */
+@media (max-width:480px) {
+  #top { grid-template-rows:34px; height:54px; min-height:54px; }
+  #top .workspace-location { display:none; }
+  .folder-chip { flex:0 1 auto; }
+  .folder-chip-main { padding:3px 8px; }
+  /* Sense ▾: tocar el xip ja obre el menú (canviar, copiar…). */
+  .folder-chip-caret { display:none; }
+  .hf-path, .hf-actions { margin-left:0; }
+}

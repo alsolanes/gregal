@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ca">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -133,81 +133,83 @@
 </style>
 </head>
 <body>
+  <!-- Els textos són en anglès per defecte; taskpane.js els passa a la
+       llengua de Gregal (data-k, data-k-title, data-k-ph, data-k-ordre). -->
   <header>
     <h1>Gregal <small id="host"></small></h1>
-    <div id="estat">iniciant…</div>
+    <div id="estat" data-k="st.starting">starting…</div>
   </header>
   <div class="modeBar">
-    <label class="commuta" title="En mode consulta l'agent només respon al panell: no insereix ni substitueix res al document. Pensat per a documents on hi ha més gent treballant alhora.">
+    <label class="commuta" data-k-title="consulta.help" title="In read-only mode the agent only answers in the panel: it never inserts or replaces anything in the document. Meant for documents several people are editing at once.">
       <input type="checkbox" id="nomesConsulta" />
       <span class="pista"></span>
-      <span>Només consulta: no toca el document</span>
+      <span data-k="consulta.label">Read-only: never touches the document</span>
     </label>
   </div>
   <main>
     <section>
-      <h2>Amb la selecció</h2>
+      <h2 data-k="h.selection">With the selection</h2>
       <div class="xips" id="xipsConsulta" hidden>
-        <button class="xip" data-ordre="Resumeix el text en un paràgraf breu (o en 3 punts si és llarg).">Resumeix</button>
-        <button class="xip" data-ordre="Explica què diu el text amb paraules planes, com a qui no és del tema.">Explica</button>
-        <button class="xip" data-ordre="Revisa el text i llista els problemes que hi trobis (claredat, errors, incoherències, coses que falten), citant el fragment de cadascun. No el reescriguis.">Revisa</button>
-        <button class="xip" data-ordre="Extreu els punts clau, les dades i les decisions del text en una llista.">Punts clau</button>
-        <button class="xip" data-ordre="Proposa 3-5 preguntes que un lector crític faria sobre aquest text.">Preguntes</button>
-        <button class="xip" data-ordre="Tradueix el text a l'anglès (mostra'l només al panell).">→ Anglès</button>
-        <button class="xip" data-ordre="Comprova les afirmacions verificables del text amb cerca web i digues quines quadren, quines no i quines no has pogut comprovar, amb la font.">Verifica</button>
+        <button class="xip" data-k="xip.summarize" data-k-ordre="ord.summarize" data-ordre="Summarize the text in a short paragraph (or 3 bullet points if it is long).">Summarize</button>
+        <button class="xip" data-k="xip.explain" data-k-ordre="ord.explain" data-ordre="Explain what the text says in plain words, as if to someone outside the field.">Explain</button>
+        <button class="xip" data-k="xip.review" data-k-ordre="ord.review" data-ordre="Review the text and list the problems you find (clarity, errors, inconsistencies, missing points), quoting the passage for each one. Do not rewrite it.">Review</button>
+        <button class="xip" data-k="xip.keyPoints" data-k-ordre="ord.keyPoints" data-ordre="Extract the key points, figures and decisions from the text as a list.">Key points</button>
+        <button class="xip" data-k="xip.questions" data-k-ordre="ord.questions" data-ordre="Suggest 3–5 questions a critical reader would ask about this text.">Questions</button>
+        <button class="xip" data-k="xip.toEnglish" data-k-ordre="ord.toEnglishPanel" data-ordre="Translate the text into English (show it only in the panel).">→ English</button>
+        <button class="xip" data-k="xip.verify" data-k-ordre="ord.verify" data-ordre="Check the verifiable claims in the text with a web search and say which hold up, which do not and which you could not verify, citing the source.">Fact-check</button>
       </div>
       <div class="xips" id="xips">
-        <button class="xip" data-ordre="Reescriu el text perquè quedi més clar i fluid, conservant el sentit, la llengua i la llargada aproximada.">Reescriu</button>
-        <button class="xip" data-ordre="Corregeix l'ortografia, la gramàtica i la puntuació. Canvia només el que calgui.">Corregeix</button>
-        <button class="xip" data-ordre="Resumeix el text en un paràgraf breu (o en 3 punts si és llarg).">Resumeix</button>
-        <button class="xip" data-ordre="Fes el text més concís: elimina redundàncies sense perdre informació.">Escurça</button>
-        <button class="xip" data-ordre="Amplia el text amb més detall i exemples, mantenint el to.">Amplia</button>
-        <button class="xip" data-ordre="Reescriu el text amb un to més formal i professional.">Més formal</button>
-        <button class="xip" data-ordre="Tradueix el text a l'anglès.">→ Anglès</button>
-        <button class="xip" data-ordre="Tradueix el text al català.">→ Català</button>
-        <button class="xip" data-ordre="Converteix el text en una llista de punts clars.">En punts</button>
+        <button class="xip" data-k="xip.rewrite" data-k-ordre="ord.rewrite" data-ordre="Rewrite the text so it reads more clearly and smoothly, keeping its meaning, language and approximate length.">Rewrite</button>
+        <button class="xip" data-k="xip.proofread" data-k-ordre="ord.proofread" data-ordre="Fix spelling, grammar and punctuation. Change only what is needed.">Proofread</button>
+        <button class="xip" data-k="xip.summarize" data-k-ordre="ord.summarize" data-ordre="Summarize the text in a short paragraph (or 3 bullet points if it is long).">Summarize</button>
+        <button class="xip" data-k="xip.shorten" data-k-ordre="ord.shorten" data-ordre="Make the text more concise: remove redundancy without losing information.">Shorten</button>
+        <button class="xip" data-k="xip.expand" data-k-ordre="ord.expand" data-ordre="Expand the text with more detail and examples, keeping the tone.">Expand</button>
+        <button class="xip" data-k="xip.formal" data-k-ordre="ord.formal" data-ordre="Rewrite the text in a more formal, professional tone.">More formal</button>
+        <button class="xip" data-k="xip.toEnglish" data-k-ordre="ord.toEnglish" data-ordre="Translate the text into English.">→ English</button>
+        <button class="xip" data-k="xip.toCatalan" data-k-ordre="ord.toCatalan" data-ordre="Translate the text into Catalan.">→ Catalan</button>
+        <button class="xip" data-k="xip.bullets" data-k-ordre="ord.bullets" data-ordre="Turn the text into a clear bulleted list.">As bullets</button>
       </div>
-      <p class="nota" id="notaSel">Selecciona text al document i tria una acció, o escriu la teva petició a sota.</p>
+      <p class="nota" id="notaSel" data-k="sel.none">Select text in the document and choose an action, or type your request below.</p>
     </section>
 
     <section>
-      <h2>Petició</h2>
-      <textarea id="prompt" placeholder="p. ex. Redacta una introducció de dos paràgrafs sobre…"></textarea>
+      <h2 data-k="h.request">Request</h2>
+      <textarea id="prompt" data-k-ph="request.ph" placeholder="e.g. Draft a two-paragraph introduction about…"></textarea>
       <div class="opcions">
-        <label><input type="checkbox" id="ambSel" checked /> Inclou la selecció</label>
-        <label class="soEdicio"><input type="checkbox" id="nomesText" checked /> Només el text resultant</label>
+        <label><input type="checkbox" id="ambSel" checked /> <span data-k="opt.includeSel">Include the selection</span></label>
+        <label class="soEdicio"><input type="checkbox" id="nomesText" checked /> <span data-k="opt.textOnly">Result text only</span></label>
       </div>
       <div class="fila">
-        <button id="bEnvia" class="boto primari">Genera</button>
-        <button id="bAtura" class="boto" disabled>Atura</button>
+        <button id="bEnvia" class="boto primari" data-k="btn.generate">Generate</button>
+        <button id="bAtura" class="boto" disabled data-k="btn.stop">Stop</button>
         <span class="sep"></span>
-        <button id="bNeteja" class="boto subtil" title="Buida la petició i la resposta">Neteja</button>
+        <button id="bNeteja" class="boto subtil" data-k-title="btn.clearTitle" title="Clear the request and the result" data-k="btn.clear">Clear</button>
       </div>
     </section>
 
     <div id="preg" hidden>
-      <b id="pregTitol">Pregunta</b>
+      <b id="pregTitol" data-k="q.title">Question</b>
       <div id="pregCos"></div>
       <div class="fila" id="pregBtns"></div>
     </div>
 
     <section style="flex:1; min-height: 160px;">
-      <h2>Resultat</h2>
-      <div id="resposta" aria-live="polite" data-buit="Aquí veuràs el resultat. Podràs substituir la selecció o inserir-lo al cursor."></div>
+      <h2 data-k="h.result">Result</h2>
+      <div id="resposta" aria-live="polite" data-buit="The result appears here. You can replace the selection or insert it at the cursor."></div>
       <div class="fila dreta">
-        <button id="bCopia" class="boto subtil" disabled>Copia</button>
-        <button id="bInsereix" class="boto soEdicio" disabled title="Insereix el resultat al cursor">Insereix</button>
-        <button id="bSubstitueix" class="boto primari soEdicio" disabled title="Substitueix el text seleccionat pel resultat">Substitueix la selecció</button>
+        <button id="bCopia" class="boto subtil" disabled data-k="btn.copy">Copy</button>
+        <button id="bInsereix" class="boto soEdicio" disabled data-k-title="btn.insertTitle" title="Insert the result at the cursor" data-k="btn.insert">Insert</button>
+        <button id="bSubstitueix" class="boto primari soEdicio" disabled data-k-title="btn.replaceTitle" title="Replace the selected text with the result" data-k="btn.replace">Replace selection</button>
       </div>
     </section>
 
     <details>
-      <summary>Connexió</summary>
-      <label for="srv">Servidor del gregal</label>
+      <summary data-k="conn.title">Connection</summary>
+      <label for="srv" data-k="conn.server">Gregal server</label>
       <input id="srv" value="http://127.0.0.1:8097" />
-      <label for="tok">Token (si el servidor en demana)</label>
-      <input id="tok" type="password" placeholder="(opcional)" />
-      <div class="fila" style="margin-top:8px"><button id="bProva" class="boto">Comprova</button></div>
+      <label for="tok" data-k="conn.token">Token (if the server requires one)</label>
+      <input id="tok" type="password" data-k-ph="conn.optional" placeholder="(optional)" />
+      <div class="fila" style="margin-top:8px"><button id="bProva" class="boto" data-k="conn.test">Test connection</button></div>
     </details>
   </main>
   <script src="./taskpane.js"></script>

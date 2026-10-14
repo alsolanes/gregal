@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.8.1",
+  "version": "1.9.0",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
@@ -20,7 +20,7 @@
   },
   "build": {
     "directories": {
-      "output": "../dist"
+      "output": "./dist"
     },
     "appId": "xyz.solanes.gregal",
     "productName": "Gregal",
@@ -33,7 +33,13 @@
     "files": [
       "main.js",
       "server-manager.js",
+      "browser-bridge.js",
       "preload.js",
+      "mascot-window.js",
+      "mascot-preload.js",
+      "mascot.html",
+      "mascot-view.js",
+      "mascot.css",
       "window-state.js",
       "preferences.js",
       "navigation.js",

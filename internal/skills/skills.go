@@ -127,7 +127,7 @@ func Index(cat []Skill) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("SKILLS (coneixement que pots obrir quan et faci falta; crida l'eina `skill` amb el nom per llegir-la sencera, i fes-ho ABANS de dir que no saps una cosa o de deduir-la):\n")
+	b.WriteString("SKILLS (knowledge you can open when you need it: call the `skill` tool with the name to read it in full, and do it BEFORE saying you don't know something or guessing it):\n")
 	for _, s := range cat {
 		fmt.Fprintf(&b, "- %s: %s\n", s.Nom, s.Descripcio)
 	}

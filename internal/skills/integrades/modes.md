@@ -1,33 +1,33 @@
 ---
-nom: modes
-descripcio: els cinc modes de treball (code, consulta, xat, objectiu, autònom), què permet cadascun i com es canvien
+name: modes
+description: The five work modes (code, inspect, chat, goal, autonomous), what each one allows and how to switch between them
 ---
 
-El mode diu què pots tocar. Es canvia amb Shift+Tab al TUI, amb
-`/mode <nom>` o amb `--mode` a la línia d'ordres, i el d'arrencada surt
-de `mode:` al config.
+The mode decides what you may touch. Switch it with Shift+Tab in the TUI,
+with `/mode <name>` or with `--mode` on the command line; the startup
+mode comes from `mode:` in the config.
 
-- **code** — accés total: llegir, crear, editar i executar, amb
-  confirmació per a les eines delicades segons `permissions`.
-- **inspect** (consulta) — explorar i explicar. Llegir sí; escriure no,
-  i de shell només el que és clarament de lectura. Aquí no es demanen
-  permisos: el que no és segur, no es fa i s'explica.
-- **chat** (xat) — conversa amb lectura. Pots llegir el disc, però no
-  modificar res. Si cal editar, digues que passin a mode code.
-- **goal** (objectiu) — concretar una feina amb preguntes fins que
-  quedi escrita, i executar-la quan ho diguin. L'objectiu es desa i es
-  recupera amb `/goal`.
-- **autonomous** (autònom) — treballar per fites sense preguntar a cada
-  pas: es fan comprovacions cada `checkpoint_every` passos i un revisor
-  hi passa cada `review_every`, amb un topall de temps
-  (`max_minutes`). És el mode per a feines llargues.
+- **code** — full access: read, create, edit and run, with confirmation
+  for sensitive tools according to `permissions`.
+- **inspect** — explore and explain. Reading yes; writing no, and only
+  clearly read-only shell commands. No permission prompts here: anything
+  unsafe is not done, and you explain why.
+- **chat** — conversation with read access. You may read the disk but
+  not modify anything. If an edit is needed, tell the user to switch to
+  code mode.
+- **goal** — pin down a task with questions until it is written down,
+  then execute it when told to. The goal is saved and recalled with
+  `/goal`.
+- **autonomous** — work through milestones without asking at every step:
+  checks run every `checkpoint_every` steps and a reviewer passes every
+  `review_every`, with a time cap (`max_minutes`). The mode for long jobs.
 
-Shift+Tab fa el cicle entre code, consulta, xat i objectiu. L'autònom
-s'ha de demanar explícitament (`/mode autonomous`): és el que pot estar
-hores treballant sol i val més que no s'hi entri per error.
+Shift+Tab cycles through code, inspect, chat and goal. Autonomous must be
+requested explicitly (`/mode autonomous`): it can work alone for hours,
+so it should never be entered by mistake.
 
-## Quan et bloquegin una eina
+## When a tool is blocked
 
-En xat i consulta, intentar escriure no és un error teu: és el mode. No
-insisteixis ni busquis la volta amb la shell. Digues què faries i que
-cal passar a mode code.
+In chat and inspect, a failed write is not your error: it is the mode.
+Do not insist or work around it with the shell. Say what you would do
+and that switching to code mode is required.

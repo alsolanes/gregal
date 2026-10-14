@@ -87,7 +87,7 @@ func TestSummarizeAmbServidor(t *testing.T) {
 			Arguments string `json:"arguments"`
 		}{Name: "write", Arguments: `{"path":"a"}`}}}},
 	}
-	out, err := Summarize(context.Background(), c, llm.Target{BaseURL: srv.URL, Model: "m"}, nil, convo)
+	out, err := Summarize(context.Background(), c, llm.Target{BaseURL: srv.URL, Model: "m"}, nil, convo, "ca")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,6 +97,10 @@ func TestSummarizeAmbServidor(t *testing.T) {
 	if !strings.Contains(gotBody, "fes X") || !strings.Contains(gotBody, "write") {
 		t.Fatalf("el prompt ha de dur conversa + eines: %.120s", gotBody)
 	}
+	// El resum s'escriu en la llengua de la sessió (aquí, ca).
+	if !strings.Contains(gotBody, "Respon sempre a l'usuari en català") {
+		t.Fatalf("el resum ha de demanar la llengua de la sessió: %.400s", gotBody)
+	}
 }
 
 func TestSummarizeBuitÉsError(t *testing.T) {
@@ -105,7 +109,7 @@ func TestSummarizeBuitÉsError(t *testing.T) {
 	}))
 	defer srv.Close()
 	_, err := Summarize(context.Background(), llm.New(), llm.Target{BaseURL: srv.URL, Model: "m"}, nil,
-		[]llm.Message{{Role: "user", Content: "hola"}})
+		[]llm.Message{{Role: "user", Content: "hola"}}, "en")
 	if err == nil {
 		t.Fatal("resum buit ha de fallar")
 	}

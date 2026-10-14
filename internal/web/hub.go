@@ -19,6 +19,7 @@ import (
 	"gregal/internal/llm"
 	"gregal/internal/runs"
 	"gregal/internal/session"
+	"gregal/internal/tools"
 )
 
 // Hub multiplexa sessions vives. Fins a la 1.1 el servidor tenia UNA
@@ -54,6 +55,9 @@ func (s *Server) Hub() *Hub {
 	// encara que el client canviï de pestanya. Si el disc no és escrivible,
 	// la resta del servei continua funcionant i l'API ho tracta com a buida.
 	h.eventStore, _ = events.Open(filepath.Join(session.DefaultDir(), "events.jsonl"))
+	if h.eventStore != nil {
+		h.queue.SeedIDs(int64(h.eventStore.MaxRunID()))
+	}
 	s.id = DefaultSession
 	s.createdAt = time.Now()
 	s.hub = h
@@ -70,6 +74,9 @@ func (h *Hub) Queue() *runs.Queue {
 	defer h.mu.Unlock()
 	if h.queue == nil {
 		h.queue = runs.New()
+		if h.eventStore != nil {
+			h.queue.SeedIDs(int64(h.eventStore.MaxRunID()))
+		}
 	}
 	return h.queue
 }
@@ -198,6 +205,7 @@ func (h *Hub) clone(id string) *Server {
 		createdAt:         time.Now(),
 		role:              cfg.InitialRole(),
 		mode:              cfg.Mode,
+		autoReview:        cfg.Permissions.AutoReview(),
 		modelOverride:     map[string]string{},
 		unavailableModels: map[string]string{},
 		modelCheckedAt:    map[string]time.Time{},
@@ -274,12 +282,17 @@ func (h *Hub) listFor(user *User) []map[string]any {
 		s.mu.Lock()
 		item := map[string]any{
 			"id": id, "title": s.title, "msgs": len(s.convo),
-			"busy": queued || s.agentBusy || s.planRunning, "mode": s.mode,
+			"busy": queued || s.agentBusy || s.planRunning || s.flowRunning, "mode": s.mode,
 			"role": s.role, "cwd": s.cwd, "project": projectName(s.cwd),
-			"created_at": s.createdAt.UTC().Format(time.RFC3339),
+			"worktree":      tools.WorktreeNameOf(s.cwd),
+			"created_at":    s.createdAt.UTC().Format(time.RFC3339),
+			"sess_cost_usd": s.sessCost, "sess_cost_known": s.sessCostKnown,
 		}
 		if s.title == "" {
 			item["title"] = firstUserLine(s.convo)
+		}
+		if activity := s.workshopSnapshotLocked(); activity != nil {
+			item["activity"] = activity
 		}
 		s.mu.Unlock()
 		out = append(out, item)
@@ -440,9 +453,17 @@ func (s *Server) stopRun() bool {
 	s.mu.Lock()
 	c := s.runCancel
 	s.runCancel = nil
+	tc := s.teamCancel
+	s.teamCancel = nil
 	s.mu.Unlock()
 	if c != nil {
 		c()
+		stopped = true
+	}
+	// El torn d'equip té tall propi perquè la seva cancel·lació no depèn
+	// del fetch que el va engegar (una altra pestanya el pot aturar).
+	if tc != nil {
+		tc()
 		stopped = true
 	}
 	return stopped

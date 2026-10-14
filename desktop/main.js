@@ -1,6 +1,6 @@
 // Finestra nativa del Gregal. En local gestiona el backend automàticament;
 // GREGAL_URL continua permetent connectar-se a un servidor extern.
-const { app, BrowserWindow, Menu, Notification, dialog, ipcMain, nativeTheme, shell } = require("electron");
+const { app, BrowserWindow, Menu, Notification, dialog, ipcMain, nativeTheme, screen, shell, session, webContents: electronWebContents } = require("electron");
 
 // TITLEBAR_H ha de casar amb l'alçada de #sessionTabs a index.html: és
 // aquella fila la que fa de barra de títol.
@@ -11,8 +11,8 @@ const TITLEBAR_H = 38;
 // sistema, que és el que el gregal segueix si no tries res: néixer sempre
 // fosc feia un flaix negre a qui va en clar.
 const TEMA = {
-    fosc: { bg: "#171A19", barra: "#101312", glif: "#F4F4EF" },
-    clar: { bg: "#F5F7F8", barra: "#EBEFF1", glif: "#0B1220" },
+    fosc: { bg: "#13151B", barra: "#0E1015", glif: "#F3F5FA" },
+    clar: { bg: "#F6F7FA", barra: "#EEF0F5", glif: "#0E1220" },
 };
 function temaInicial() {
     try {
@@ -31,6 +31,8 @@ const { loadState, saveState } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
 const { createUpdater } = require('./updater');
+const { createBrowserBridge, validGuest, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
+const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
 const baseError = backendURLError(BASE);
@@ -48,6 +50,53 @@ let expectedInstanceID = null;
 let ignoreDescriptorOnce = false;
 let updateController = null;
 let updateCheckStarted = false;
+// Pont del navegador de l'agent (browser-bridge.js): només amb backend
+// gestionat, que és l'únic a qui podem passar el token per l'entorn.
+let browserBridge = null;
+let mainWin = null;
+// Mascota flotant (mascot-window.js): només amb la preferència activada.
+let mascot = null;
+
+function focusMain() {
+    const win = mainWin;
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+}
+
+function mascotController() {
+    if (!mascot) mascot = createMascotWindow({
+        BrowserWindow, screen,
+        dir: app.getPath('userData'),
+        htmlPath: path.join(__dirname, 'mascot.html'),
+        preloadPath: path.join(__dirname, 'mascot-preload.js'),
+        onActivate: focusMain,
+        lang: idiomaApp,
+    });
+    return mascot;
+}
+
+function notifyAgentBrowser(state) {
+    const win = mainWin;
+    if (win && !win.isDestroyed()) win.webContents.send('gregal:agent-browser', state);
+}
+
+async function browserBridgeEnv() {
+    if (!MANAGED) return {};
+    try {
+        if (!browserBridge) {
+            browserBridge = createBrowserBridge({ notify: notifyAgentBrowser, blockedOrigin: () => BASE });
+            await browserBridge.start();
+        }
+        return { GREGAL_APP_BROWSER: browserBridge.envValue() };
+    } catch (error) {
+        // Sense pont el backend fa servir Chrome headless: no és fatal.
+        console.error("[gregal] pont del navegador: " + error.message);
+        browserBridge = null;
+        return {};
+    }
+}
 
 function serviceDescriptorPath() {
     const dir = process.env.GREGAL_DATA_DIR || path.join(app.getPath("home"), ".local", "share", "gregal");
@@ -178,6 +227,10 @@ async function ensureServer() {
     }
     if (!MANAGED) return false;
     try {
+        let backendLog = null;
+        try {
+            backendLog = path.join(app.getPath("userData"), "gregal-backend.log");
+        } catch (e) { /* sense userData no hi ha fitxer, però l'app arrenca */ }
         const started = startServer({
             resourcesPath: process.resourcesPath,
             appDir: __dirname,
@@ -186,6 +239,8 @@ async function ensureServer() {
             token: TOKEN,
             config: process.env.GREGAL_CONFIG,
             dir: process.env.GREGAL_DIR || app.getPath("home"),
+            logFile: backendLog,
+            env: await browserBridgeEnv(),
             onLog: line => console.log("[gregal] " + line.trimEnd()),
             onExit: (code, logs) => {
                 backendEarlyExit = code;
@@ -212,6 +267,25 @@ async function ensureServer() {
     }
 }
 
+// Directori de treball d'una sessió segons el backend: només una carpeta
+// absoluta que existeixi. Si el backend no respon, res.
+async function workspaceOf(sessionId) {
+    try {
+        const headers = { 'X-Gregal-Session': sessionId };
+        if (TOKEN) headers.Authorization = 'Bearer ' + TOKEN;
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 5000);
+        let r;
+        try { r = await fetch(BASE + '/api/state', { headers, signal: ctrl.signal }); } finally { clearTimeout(timer); }
+        if (!r.ok) return '';
+        const cwd = (await r.json()).cwd;
+        if (typeof cwd !== 'string' || !cwd || !path.isAbsolute(cwd)) return '';
+        return require('fs').statSync(cwd).isDirectory() ? cwd : '';
+    } catch (_) {
+        return '';
+    }
+}
+
 // --- IPC: el que la pàgina pot demanar a l'escriptori (via preload) ---
 function wireIPC(getWin) {
     const prefDir = app.getPath('userData');
@@ -223,11 +297,70 @@ function wireIPC(getWin) {
     ipcMain.on('gregal:connection', event => {
         event.returnValue = trusted(event) ? { token: TOKEN } : { token: '' };
     });
+    // La pàgina avisa que el webview de l'agent és a punt. Només s'accepta
+    // un guest webview d'aquesta finestra i de la partició pròpia.
+    ipcMain.on('gregal:agent-browser-ready', (event, id) => {
+        if (!trusted(event) || !browserBridge || !Number.isInteger(id)) return;
+        let guest = null;
+        try { guest = electronWebContents.fromId(id); } catch (e) { return; }
+        if (!validGuest(guest, getWin()?.webContents, session.fromPartition(AGENT_BROWSER_PARTITION))) return;
+        browserBridge.setTarget(guest);
+    });
     ipcMain.on('gregal:preference-save', (event, key, value) => {
         if (!trusted(event) || !allowed(key) || (value !== null && (typeof value !== 'string' || value.length > 4096))) return;
         if (value === null) delete preferences[key];
         else preferences[key] = value;
         try { savePreferences(prefDir, preferences); } catch (error) { console.error('[gregal] preferències: ' + error.message); }
+        // Apagar la preferència tanca la finestra; encendre-la l'obre.
+        if (key === MASCOT_PREF) mascotController().setEnabled(value === '1');
+    });
+    // Ànim de la mascota: només de la pàgina de confiança. El controlador
+    // el guarda i el reenvia si la finestra flotant és oberta.
+    ipcMain.on('gregal:mascot-state', (event, mood, label) => {
+        if (!trusted(event) || typeof mood !== 'string') return;
+        mascotController().setState(mood, label);
+    });
+    // Clic a la mascota: només de la seva pròpia finestra.
+    ipcMain.on('gregal:mascot-activate', event => {
+        if (!mascot || !mascot.isSender(event)) return;
+        mascot.activate();
+    });
+    // Arrossegar, plegar i enganxar a un racó: també només de la seva
+    // finestra; mascot-window.js valida els desplaçaments i limita la
+    // posició a l'àrea útil de la pantalla.
+    ipcMain.on('gregal:mascot-drag', (event, phase, dx, dy) => {
+        if (!mascot || !mascot.isSender(event) || typeof phase !== 'string') return;
+        mascot.drag(phase, dx, dy);
+    });
+    ipcMain.on('gregal:mascot-collapse', (event, on) => {
+        if (!mascot || !mascot.isSender(event) || typeof on !== 'boolean') return;
+        mascot.setCollapsed(on);
+    });
+    ipcMain.on('gregal:mascot-snap', event => {
+        if (!mascot || !mascot.isSender(event)) return;
+        mascot.snap();
+    });
+    // Amagar-la des d'ella mateixa apaga la preferència (es torna a
+    // encendre a Preferències) i avisa la pàgina perquè el commutador no
+    // quedi encès.
+    ipcMain.on('gregal:mascot-hide', event => {
+        if (!mascot || !mascot.isSender(event)) return;
+        preferences[MASCOT_PREF] = '0';
+        try { savePreferences(prefDir, preferences); } catch (error) { console.error('[gregal] preferències: ' + error.message); }
+        mascot.hide();
+        const win = getWin();
+        if (win && !win.isDestroyed()) win.webContents.send('gregal:preference-changed', MASCOT_PREF, '0');
+    });
+    // Obrir la carpeta del projecte a l'explorador del sistema. La pàgina
+    // només diu de quina sessió és; la ruta la demanem nosaltres al backend
+    // (/api/state amb el token), així no es pot obrir cap altra carpeta.
+    ipcMain.handle('gregal:open-workspace', async (event, sessionId) => {
+        if (!trusted(event)) return false;
+        const id = typeof sessionId === 'string' && /^[A-Za-z0-9._-]{1,64}$/.test(sessionId) ? sessionId : 'default';
+        const cwd = await workspaceOf(id);
+        if (!cwd) return false;
+        const err = await shell.openPath(cwd);
+        return !err;
     });
     ipcMain.handle("gregal:choose-folder", async event => {
         if (!trusted(event)) return null;
@@ -327,6 +460,8 @@ async function createWindow() {
             webviewTag: true,
         },
     });
+    mainWin = win;
+    win.once('closed', () => { if (mainWin === win) mainWin = null; browserBridge?.clearTarget(); mascot?.close(); });
     wireIPC(() => win);
     win.webContents.on('will-attach-webview', (event, preferences, params) => {
         if (params.src && !externalURL(params.src) && params.src !== 'about:blank') {
@@ -354,7 +489,11 @@ async function createWindow() {
     win.on("move", remember);
     win.on("close", () => saveState(app.getPath("userData"), win.getNormalBounds()));
     // Evita el flaix blanc mentre el backend local arrenca.
-    win.once("ready-to-show", () => win.show());
+    win.once("ready-to-show", () => {
+        win.show();
+        // Mascota flotant: apagada si no s'ha activat mai a Preferències.
+        if (loadPreferences(app.getPath('userData'))[MASCOT_PREF] === '1') mascotController().setEnabled(true);
+    });
     // Els enllaços externs, al navegador de debò.
     win.webContents.setWindowOpenHandler(({ url }) => {
         if (externalURL(url) && !sameOrigin(url, BASE)) shell.openExternal(url).catch(() => {});
@@ -519,6 +658,7 @@ app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });
 app.on("before-quit", () => {
+    browserBridge?.close();
     if (backend && !backend.killed) backend.kill("SIGTERM");
 });
 app.on("activate", () => {

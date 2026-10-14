@@ -1,0 +1,108 @@
+package xyz.solanes.gregal
+
+/*
+ * #retro: el xat tipus Slack/Teams amb els agents d'un torn acabat (la web:
+ * internal/web/app/retro.js; el servidor: internal/web/retro.go). Cada agent
+ * explica què ha fet amb «rebuts» (e1, e2…) que apunten als events reals, i
+ * se'ls pot preguntar o rebatre. Aquí hi ha el model i el parser (purs, amb
+ * MiniJson perquè els tests de JVM no tenen org.json).
+ */
+
+data class RetroAgent(val id: String, val name: String, val avatar: String, val model: String = "")
+
+data class RetroReaction(val emoji: String, val by: List<String>) {
+    val mine: Boolean get() = "user" in by
+}
+
+data class RetroMsg(
+    val id: String,
+    val thread: String,
+    val author: String,
+    val text: String,
+    val receipts: List<String> = emptyList(),
+    val reactions: List<RetroReaction> = emptyList(),
+    val concede: Boolean = false,
+    val fix: String = "",
+    val at: String = "",
+)
+
+data class RetroChannel(
+    val key: String,
+    val title: String,
+    val degraded: Boolean,
+    val agents: List<RetroAgent>,
+    val messages: List<RetroMsg>,
+) {
+    fun agent(id: String): RetroAgent? = agents.firstOrNull { it.id == id }
+}
+
+/** Resposta de GET /api/retro: el canal (si ja existeix) i l'últim torn. */
+data class RetroInfo(
+    val channel: RetroChannel?,
+    val key: String,
+    val latestRun: Long,
+    val latestRunning: Boolean,
+    val emojis: List<String>,
+)
+
+val RETRO_DEFAULT_EMOJIS = listOf("👍", "🎉", "🔥", "🤔", "👀", "✅", "👎", "😂", "🙏")
+
+@Suppress("UNCHECKED_CAST")
+fun parseRetroChannel(o: Map<String, Any?>?): RetroChannel? {
+    if (o == null) return null
+    fun s(m: Map<String, Any?>, k: String) = m[k] as? String ?: ""
+    val agents = (o["agents"] as? List<*>).orEmpty().mapNotNull { a ->
+        (a as? Map<String, Any?>)?.let { RetroAgent(s(it, "id"), s(it, "name"), s(it, "avatar"), s(it, "model")) }
+    }
+    val msgs = (o["messages"] as? List<*>).orEmpty().mapNotNull { x ->
+        val m = x as? Map<String, Any?> ?: return@mapNotNull null
+        RetroMsg(
+            id = s(m, "id"), thread = s(m, "thread_id"), author = s(m, "author"), text = s(m, "text"),
+            receipts = (m["receipts"] as? List<*>).orEmpty().mapNotNull { it as? String },
+            reactions = (m["reactions"] as? List<*>).orEmpty().mapNotNull { r ->
+                (r as? Map<String, Any?>)?.let { RetroReaction(s(it, "emoji"), (it["by"] as? List<*>).orEmpty().mapNotNull { b -> b as? String }) }
+            }.filter { it.by.isNotEmpty() },
+            concede = m["concede"] == true,
+            fix = s(m, "fix_suggestion"),
+            at = s(m, "at"),
+        )
+    }
+    return RetroChannel(s(o, "key"), s(o, "title"), o["degraded"] == true, agents, msgs)
+}
+
+@Suppress("UNCHECKED_CAST")
+fun parseRetroInfo(json: String): RetroInfo {
+    val o = MiniJson.obj(json) ?: return RetroInfo(null, "", 0, false, RETRO_DEFAULT_EMOJIS)
+    val latest = o["latest"] as? Map<String, Any?> ?: emptyMap()
+    return RetroInfo(
+        channel = parseRetroChannel(o["channel"] as? Map<String, Any?>),
+        key = o["key"] as? String ?: "",
+        latestRun = (latest["run_id"] as? Double)?.toLong() ?: 0L,
+        latestRunning = latest["running"] == true,
+        emojis = (o["emojis"] as? List<*>)?.mapNotNull { it as? String }?.takeIf { it.isNotEmpty() } ?: RETRO_DEFAULT_EMOJIS,
+    )
+}
+
+/** Canal dins d'una resposta de start/message/react ({"channel": …}). */
+@Suppress("UNCHECKED_CAST")
+fun parseRetroChannelResponse(json: String): RetroChannel? =
+    parseRetroChannel(MiniJson.obj(json)?.get("channel") as? Map<String, Any?>)
+
+/** Missatges en ordre de lectura: cada fil just sota el missatge que respon. */
+fun retroOrdered(msgs: List<RetroMsg>): List<Pair<RetroMsg, Boolean>> {
+    val byThread = msgs.filter { it.thread.isNotEmpty() }.groupBy { it.thread }
+    val ids = msgs.map { it.id }.toSet()
+    val out = mutableListOf<Pair<RetroMsg, Boolean>>()
+    for (m in msgs) {
+        if (m.thread.isNotEmpty() && m.thread in ids) continue
+        out += m to false
+        byThread[m.id]?.forEach { out += it to true }
+    }
+    return out
+}
+
+/** Hora curta d'un RFC3339 ("2026-10-14T10:37:12Z" → "10:37", en hora local). */
+fun retroClock(at: String): String = try {
+    val t = java.time.OffsetDateTime.parse(at).atZoneSameInstant(java.time.ZoneId.systemDefault())
+    "%02d:%02d".format(t.hour, t.minute)
+} catch (_: Exception) { "" }

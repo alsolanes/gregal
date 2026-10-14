@@ -17,6 +17,22 @@ func TestDoomExacteATres(t *testing.T) {
 	}
 }
 
+func TestDoomReadsAllowNumberedFilesAndPagination(t *testing.T) {
+	for _, arg := range []string{`{"path":"logs/%d.txt"}`, `{"path":"large.txt","offset":%d,"limit":100}`} {
+		var d DoomTracker
+		for i := 1; i <= 12; i++ {
+			if d.Note(DoomSig("read", fmt.Sprintf(arg, i))) {
+				t.Fatalf("distinct read %d incorrectly blocked", i)
+			}
+		}
+	}
+	var d DoomTracker
+	sig := DoomSig("read", `{"path":"same.txt"}`)
+	if d.Note(sig) || d.Note(sig) || !d.Note(sig) {
+		t.Fatal("identical reads must still trigger loop detection")
+	}
+}
+
 // Variant amb comptador (repro8 → repro11, cossos diferents): doom a la 4a.
 func TestDoomDifusComptador(t *testing.T) {
 	var d DoomTracker
@@ -119,6 +135,32 @@ func TestDoomSortidaNovaTrencaRatxa(t *testing.T) {
 	}
 	if !d.NoteOut("B") {
 		t.Fatal("3 cops de B sí")
+	}
+}
+
+// Esperar una feina de fons no és encallar-se: polls idèntics de
+// bash_output no compten ni per signatura ni mentre la feina corre.
+// Rellegir-la un cop acabada, sí.
+func TestDoomPollingEnMarxaNoDispara(t *testing.T) {
+	var d DoomTracker
+	sig := DoomSig("bash_output", `{"id":"job1"}`)
+	for i := 0; i < 6; i++ {
+		if d.Note(sig) {
+			t.Fatalf("el poll %d d'una feina no és repetició", i+1)
+		}
+	}
+	running := "[job1] EN MARXA · sleep 20 · 3 línies\ncompilant…\n"
+	for i := 0; i < 4; i++ {
+		if d.NoteOut(running) {
+			t.Fatalf("llegir feina en marxa %d cops no és repetició", i+1)
+		}
+	}
+	done := "[job1] ACABAT (codi 0) · sleep 20 · 3 línies\nfet\n"
+	if d.NoteOut(done) || d.NoteOut(done) {
+		t.Fatal("les 2 primeres lectures d'acabat passen")
+	}
+	if !d.NoteOut(done) {
+		t.Fatal("rellegir 3 cops una feina acabada sí és repetició")
 	}
 }
 

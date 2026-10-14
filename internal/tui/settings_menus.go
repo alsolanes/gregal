@@ -156,7 +156,7 @@ func mcpMenu(m *Model) *menuState {
 		}
 	}
 	var items []menuItem
-	for _, t := range m.mcp.Tools {
+	for _, t := range m.mcp.ToolsSnapshot() {
 		desc := t.Spec.Description
 		if len(desc) > 50 {
 			desc = desc[:47] + "…"
@@ -176,7 +176,7 @@ func mcpMenu(m *Model) *menuState {
 			if name == "noop" {
 				return "", nil
 			}
-			for _, t := range m.mcp.Tools {
+			for _, t := range m.mcp.ToolsSnapshot() {
 				if t.Spec.Name == name {
 					return systemLine(fmt.Sprintf("eina mcp: %s\n%s", t.Spec.Name, t.Spec.Description)), nil
 				}
@@ -316,6 +316,7 @@ func permissionsMenu(m *Model) *menuState {
 			m.policy = &agent.Policy{Tools: m.cfg.Permissions.Tools, BashAllow: m.cfg.Permissions.BashAllow, BashDeny: m.cfg.Permissions.BashDeny}
 			agent.SetPostEditHook(m.cfg.Hooks.PostEdit)
 			agent.SetDiagMode(m.cfg.Hooks.Diag)
+			agent.SetLifecycleHooks(m.cfg.Hooks)
 			return okStyle.Render("✓ "+tool+" → "+decision) + dimStyle.Render(" (desat)"), refresca(m)
 		}}
 	}}

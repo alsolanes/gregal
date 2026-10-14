@@ -13,9 +13,16 @@ func TestAutonomNoPromouAccionsPendents(t *testing.T) {
 		{"mcp_srv_eina", `{}`},
 		{"browser", `{"action":"click","selector":"#submit"}`},
 	}
+	// En autònom, instal·lar dependències del projecte i clicar al navegador
+	// és feina normal i passa sol; la resta continua esperant la persona.
+	treballNormal := map[string]bool{`{"command":"npm install"}`: true, `{"action":"click","selector":"#submit"}`: true}
 	for _, c := range casos {
-		if d, _ := p.Decide(ModeAutonomous, c.eina, c.args); d != "ask" {
-			t.Errorf("autònom %s=%s, volia ask", c.eina, d)
+		want := "ask"
+		if treballNormal[c.args] {
+			want = "allow"
+		}
+		if d, _ := p.Decide(ModeAutonomous, c.eina, c.args); d != want {
+			t.Errorf("autònom %s=%s, volia %s", c.eina, d, want)
 		}
 		if d, _ := p.Decide(ModeCode, c.eina, c.args); d != "ask" {
 			t.Errorf("code %s=%s, volia ask", c.eina, d)

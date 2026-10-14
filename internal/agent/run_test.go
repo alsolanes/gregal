@@ -52,6 +52,64 @@ func testCfg(url string) *config.Config {
 	}
 }
 
+// A long run must retain tool/result pairs and keep advancing after one
+// recoverable tool failure, without replaying successful calls.
+func TestLongRunRecoversToolFailure(t *testing.T) {
+	const reads = 45
+	dir := t.TempDir()
+	for i := 1; i <= reads; i++ {
+		if i == 23 {
+			continue // One missing file gives the model an explicit tool error.
+		}
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%d.txt", i)), []byte(fmt.Sprintf("file %d data", i)), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	step := 0
+	sawFailure := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		var req struct {
+			Messages []llm.Message `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			http.Error(w, "invalid request", 400)
+			return
+		}
+		if step > 0 {
+			last := req.Messages[len(req.Messages)-1]
+			if last.Role != "tool" || last.ToolCallID != fmt.Sprintf("c%d", step) {
+				t.Errorf("step %d lost latest tool result: %+v", step, last)
+			}
+			if step == 23 {
+				sawFailure = strings.HasPrefix(last.Content, "ERROR:")
+			}
+		}
+		step++
+		if step > reads {
+			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"completed"},"finish_reason":"stop"}]}`)
+			return
+		}
+		args, _ := json.Marshal(map[string]string{"path": fmt.Sprintf("%d.txt", step)})
+		wireArgs, _ := json.Marshal(string(args))
+		fmt.Fprintf(w, `{"choices":[{"message":{"role":"assistant","tool_calls":[{"id":"c%d","type":"function","function":{"name":"read","arguments":%s}}]},"finish_reason":"tool_calls"}]}`, step, wireArgs)
+	}))
+	defer srv.Close()
+	res, err := RunNonInteractiveIn(context.Background(), llm.New(), testCfg(srv.URL), "read the files", "code", reads+5, false, dir)
+	if err != nil || res.Answer != "completed" || res.Steps != reads+1 || len(res.Trace) != reads || !sawFailure {
+		t.Fatalf("steps=%d tools=%d answer=%q recovered=%v err=%v", res.Steps, len(res.Trace), res.Answer, sawFailure, err)
+	}
+	for i, trace := range res.Trace {
+		if trace.Step != i+1 || trace.Failed != (i == 22) {
+			t.Fatalf("unexpected or replayed trace %d: %+v", i, trace)
+		}
+	}
+}
+
 func TestRunNonInteractive(t *testing.T) {
 	dir := t.TempDir()
 	f := filepath.Join(dir, "d.txt")
@@ -119,7 +177,7 @@ func TestRunNonInteractiveTextCallRetry(t *testing.T) {
 		// de 4 KB i una lectura sola no hi arribava.
 		raw, _ := io.ReadAll(r.Body)
 		body.Write(raw)
-		if strings.Contains(body.String(), "NO s'ha executat") {
+		if strings.Contains(body.String(), "was NOT executed") {
 			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"recuperat"},"finish_reason":"stop"}]}`)
 			return
 		}

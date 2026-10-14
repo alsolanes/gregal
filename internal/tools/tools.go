@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"gregal/internal/procs"
-	"gregal/internal/shell"
+	"gregal/internal/sandbox"
 )
 
 // Límits de seguretat per defecte.
@@ -573,14 +573,6 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	return composta(cmd, extraAllow)
 }
 
-// shellCommand tria l'intèrpret amb internal/shell (sh; a Windows el sh del
-// Git si hi és, si no cmd). Un sol criteri per a l'eina bash i per al
-// terminal de processos llargs: abans cadascun feia la seva.
-func shellCommand(cmd string) *exec.Cmd {
-	name, args := shell.Argv(shell.NormalitzaPathsWindows(cmd))
-	return exec.Command(name, args...)
-}
-
 // Bash executa una comanda al directori del procés.
 func Bash(cmd string, timeout time.Duration) (string, error) { return BashIn("", cmd, timeout) }
 
@@ -602,13 +594,25 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	c := shellCommand(cmd)
-	c.Dir = dir
+	// El sandbox (internal/sandbox, opt-in) embolica l'ordre; en mode
+	// strict sense backend la refusa.
+	plan, err := sandbox.Command(dir, cmd)
+	if err != nil {
+		return "", err
+	}
+	c := exec.Command(plan.Name, plan.Args...)
+	c.Dir = plan.Dir
 	var out bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &out
-	err := procs.Run(ctx, c)
+	err = procs.Run(ctx, c)
+	if ctx.Err() != nil {
+		plan.Cleanup()
+	}
 	text := truncate(out.String(), MaxOutputChars)
+	if plan.Warning != "" {
+		text = "[" + plan.Warning + "]\n" + text
+	}
 	if ctx.Err() == context.Canceled {
 		return text, fmt.Errorf("aturada per l'usuari")
 	}

@@ -25,6 +25,13 @@ $env:GREGAL_CONFIG = "$HOME\gregal\config.yaml"
 npm start
 ```
 
+With a managed backend, the agent's `browser` tool drives an "Agent browser"
+pane inside the app instead of opening an external Chrome window
+(`browser-bridge.js`: loopback-only HTTP, random port and token passed to the
+backend as `GREGAL_APP_BROWSER`). With `GREGAL_URL` there is no bridge and the
+backend uses headless Chrome. See "Agent browser" in the
+[manual](../docs/manual.md).
+
 Keep configuration files and credentials private. See the
 [Getting Started guide](../docs/getting-started.md) for provider setup and data
 handling.
@@ -68,3 +75,8 @@ Keep the installer, its `.blockmap`, and `latest.yml` from the same build.
 and SHA512 checksum before distribution. A draft release is not visible to
 installed apps. The bundled backend updates with the desktop application;
 an external server is managed independently.
+
+Backend log: the app appends the managed backend's output to
+`gregal-backend.log` in its data folder (`%APPDATA%/Gregal` on Windows,
+rotated to `.old` past 2 MB). When a run stops unexpectedly, that file —
+not the UI — holds the real provider error (credentials redacted).

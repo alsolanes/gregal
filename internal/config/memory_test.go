@@ -46,7 +46,7 @@ func TestForgetEsborra(t *testing.T) {
 func TestSystemPromptInclouMemoria(t *testing.T) {
 	memTmp(t)
 	c := &Config{}
-	if strings.Contains(c.SystemPrompt(), "MEMÒRIA D'USUARI") {
+	if strings.Contains(c.SystemPrompt(), "USER MEMORY") {
 		t.Fatal("sense memòria no hi ha bloc")
 	}
 	Remember("fato estable")

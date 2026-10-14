@@ -121,6 +121,8 @@ func (m *Model) nouTorn(task string) *agent.Torn {
 			return m.remembers.Allowed("tui", agent.Sig(name, args))
 		},
 		AutoAprova: func() bool { return m.permissive },
+		Sessio:     "tui",
+		Workspace:  m.cwd,
 	})
 }
 
@@ -130,6 +132,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	p := m.torn.Seguent()
+	m.pinta(p.Events)
 	switch p.Ordre {
 	case agent.OrdrePasModel:
 		m.busy = true
@@ -195,6 +198,24 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 		if m.permissive {
 			return m.answerPending("s")
 		}
+		if m.autoReview && m.mode != agent.ModeAutonomous {
+			// Mode auto-review: el revisor decideix fora del bucle de la
+			// UI (una crida al model pot trigar segons); Esc el cancel·la.
+			m.busy = true
+			m.status = T("est.revisant")
+			ctx, cancel := context.WithCancel(context.Background())
+			m.cancel = cancel
+			m.cancelRequested = false
+			client, cfg := m.client, m.cfg
+			req := agent.ReviewRequest{Task: m.torn.Tasca(), Mode: m.mode, Dir: m.cwd, Call: call, Recent: m.torn.Hist}
+			// El diàleg no es mostra mentre el revisor decideix.
+			op := m.pending
+			m.pending = nil
+			return m, func() tea.Msg {
+				defer cancel()
+				return reviewMsg{call: call, op: op, d: agent.Review(ctx, client, cfg, req)}
+			}
+		}
 		return m, nil
 
 	case agent.OrdrePregunta:
@@ -237,7 +258,13 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	default: // OrdreAcaba, OrdreError, OrdreRes
+		// Un hook user_prompt que bloqueja no passa per cap event: el
+		// motiu només arriba amb l'ordre.
+		if p.Ordre == agent.OrdreError && m.torn.HookBloqueig() != "" {
+			m.push(badStyle.Render("✗ " + m.torn.HookBloqueig()))
+		}
 		return m.tancaTorn()
+
 	}
 }
 
@@ -289,7 +316,12 @@ func (m Model) tancaTorn() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	m.status = T("barra.llest")
-	return m.maybeCompactCmd(false)
+	memCmd := m.memoryCmd()
+	nm, cmd := m.maybeCompactCmd(false)
+	if memCmd != nil {
+		return nm, tea.Batch(cmd, memCmd)
+	}
+	return nm, cmd
 }
 
 // cancellaTorn atura el torn en marxa (Esc, Ctrl+C).
@@ -440,4 +472,42 @@ func (m *Model) esborraLinia(i int) {
 		}
 	}
 	m.refresh()
+}
+
+// reviewMsg és la decisió del revisor automàtic sobre l'aprovació en curs.
+type reviewMsg struct {
+	call llm.ToolCall
+	op   *pendingOp
+	d    agent.ReviewDecision
+}
+
+// aplicaRevisio aplica la decisió del revisor: allow executa, deny bloqueja
+// amb el motiu per al model, ask deixa el diàleg de confirmació com sempre.
+func (m Model) aplicaRevisio(msg reviewMsg) (tea.Model, tea.Cmd) {
+	if m.torn == nil || !m.torn.EsperaUsuari() || m.pending != nil {
+		return m, nil
+	}
+	m.cancel = nil
+	if m.cancelRequested {
+		return m.cancellaTorn()
+	}
+	nota := agent.ReviewNote(msg.d)
+	switch msg.d.Decision {
+	case agent.ReviewAllow:
+		m.push(workRail(dimStyle.Render("✓ " + nota)))
+		m.pinta(m.torn.RepAprovacio(true))
+		return m.avanca()
+	case agent.ReviewDeny:
+		m.push(workRail(warnStyle.Render("✗ " + nota)))
+		m.pinta(m.torn.RepAprovacio(false, agent.ReviewDeniedText(msg.d)))
+		return m.avanca()
+	}
+	m.busy = false
+	m.pending = msg.op
+	m.confirmIdx = 0
+	m.status = T("est.confirmaLlarg")
+	if nota != "" {
+		m.push(workRail(warnStyle.Render("? " + nota)))
+	}
+	return m, nil
 }

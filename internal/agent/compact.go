@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -111,7 +112,13 @@ func TrimKeep(convo []llm.Message, keep int) []llm.Message {
 // combinen els resums parcials (reduce). Abans, quan hi havia més de 25
 // missatges, es descartava el mig («missatges intermedis omesos») i les
 // decisions que hi vivien es perdien abans de resumir.
-func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, convo []llm.Message) (string, error) {
+//
+// lang és la llengua de la sessió (cfg.Lang(), o config.LangOfPrompt del
+// system prompt): el resum torna al model i a vegades a la pantalla, i un
+// resum en una altra llengua feia canviar la de les respostes.
+func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, convo []llm.Message, lang string) (string, error) {
+	// Hook pre_compact: abans de perdre el detall (lifecycle.go).
+	hookPreCompact(ctx, len(convo), llm.EstimateTokens(convo))
 	text := convoText(convo)
 	// Mida de bloc: l'objectiu, eixamplat si cal perquè el nombre de crides
 	// no esclati en una conversa enorme.
@@ -127,18 +134,19 @@ func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm
 		parts = parts[:len(parts)-1]
 		parts[len(parts)-1] += last
 	}
+	instr := instrResum(summarizeInstr, lang, "Conversation")
 	if len(parts) == 1 {
-		return summarizeText(ctx, client, prim, fb, summarizeInstr, parts[0])
+		return summarizeText(ctx, client, prim, fb, instr, parts[0])
 	}
 	resums := make([]string, 0, len(parts))
 	nOK := 0
 	for i, p := range parts {
-		capçalera := fmt.Sprintf("(part %d de %d)\n", i+1, len(parts))
-		s, err := summarizeText(ctx, client, prim, fb, summarizeInstr, capçalera+p)
+		capçalera := fmt.Sprintf("(part %d of %d)\n", i+1, len(parts))
+		s, err := summarizeText(ctx, client, prim, fb, instr, capçalera+p)
 		if err != nil {
 			// Una part que falla no ha de fer perdre la resta: es marca i
 			// es continua; el resum combinat encara serveix.
-			resums = append(resums, fmt.Sprintf("(part %d no resumida: %v)", i+1, err))
+			resums = append(resums, fmt.Sprintf("(part %d not summarized: %v)", i+1, err))
 			continue
 		}
 		nOK++
@@ -148,7 +156,7 @@ func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm
 		return "", fmt.Errorf("resum: cap bloc s'ha pogut resumir")
 	}
 	cos := capRunes(strings.Join(resums, "\n---\n"), 16000)
-	return summarizeText(ctx, client, prim, fb, combineInstr, cos)
+	return summarizeText(ctx, client, prim, fb, instrResum(combineInstr, lang, "Partial summaries"), cos)
 }
 
 const (
@@ -160,10 +168,16 @@ const (
 	summarizeMaxTokens  = 1024
 )
 
-const summarizeInstr = "Resumeix aquesta conversa de treball amb un agent de programació. Vull un resum DENS i curt (màxim 30 línies) que permeti continuar exactament on érem sense rellegir res. Inclou, si hi són:\n" +
-	"- Objectiu actual i estat (què falta).\n- Decisions preses i per què.\n- Fitxers tocats/creats i què canvia a cadascun.\n- Errors trobats i com s'han resolt.\n- Noms, rutes i comandes exactes rellevants.\nNo afegeixis cap valoració ni preguntes. Respon NOMÉS amb el resum.\n\nConversa:\n"
+const summarizeInstr = "Summarize this working conversation with a coding agent. I want a DENSE, short summary (at most 30 lines) that lets us continue exactly where we were without rereading anything. Include, when present:\n" +
+	"- Current goal and status (what is left).\n- Decisions made and why.\n- Files touched/created and what changes in each.\n- Errors found and how they were solved.\n- Exact relevant names, paths and commands.\nDo not add any assessment or questions. Reply ONLY with the summary."
 
-const combineInstr = "Combina aquests resums parcials d'una mateixa conversa de treball en un de sol, DENS i curt (màxim 30 línies), sense perdre cap decisió, fitxer, error ni comanda exacta. No repeteixis seccions ni afegeixis valoracions. Respon NOMÉS amb el resum combinat.\n\nResums parcials:\n"
+const combineInstr = "Combine these partial summaries of the same working conversation into a single DENSE, short summary (at most 30 lines), without losing any decision, file, error or exact command. Do not repeat sections or add assessments. Reply ONLY with the combined summary."
+
+// instrResum tanca una consigna de resum amb la directiva d'idioma i la
+// capçalera del text que ve a continuació.
+func instrResum(base, lang, capçalera string) string {
+	return base + "\n" + config.LanguageDirective(lang) + "\n\n" + capçalera + ":\n"
+}
 
 // convoText renderitza la conversa a text pla amb capçalera de rol i les
 // eines, retallant cada missatge per no menjar-se el context del resumidor.
@@ -176,10 +190,10 @@ func convoText(msgs []llm.Message) string {
 			for _, tc := range m.ToolCalls {
 				tcs = append(tcs, tc.Function.Name+" "+tc.Function.Arguments)
 			}
-			text += "\n[eines: " + strings.Join(tcs, " · ") + "]"
+			text += "\n[tools: " + strings.Join(tcs, " · ") + "]"
 		}
 		if r := []rune(text); len(r) > 2000 {
-			text = string(r[:2000]) + "…(truncat)"
+			text = string(r[:2000]) + "…(truncated)"
 		}
 		b.WriteString("\n[" + m.Role + "]\n" + text + "\n")
 	}

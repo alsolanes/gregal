@@ -52,7 +52,7 @@ func TestLoadProjectMemory(t *testing.T) {
 	dir4 := t.TempDir()
 	writeMem(t, dir4, "AGENTS.md", strings.Repeat("regla ", 2000))
 	got4 := LoadProjectMemory(dir4)
-	if len([]rune(got4)) > MaxMemoryChars+200 || !strings.Contains(got4, "retallat") {
+	if len([]rune(got4)) > MaxMemoryChars+200 || !strings.Contains(got4, "truncated") {
 		t.Fatalf("hauria de retallar: %d runes", len([]rune(got4)))
 	}
 }
@@ -63,7 +63,7 @@ func TestLoadProjectMemoryAmbNotes(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := LoadProjectMemory(dir)
-	if !strings.Contains(got, "NOTES DEL PROJECTE") || !strings.Contains(got, "PROVA456") {
+	if !strings.Contains(got, "PROJECT NOTES") || !strings.Contains(got, "PROVA456") {
 		t.Fatalf("falta el bloc de notes: %q", got)
 	}
 }

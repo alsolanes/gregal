@@ -1,10 +1,13 @@
 package tools
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestWebFetchTextNet(t *testing.T) {
@@ -156,5 +159,24 @@ func TestIntersticialsIDeteccio(t *testing.T) {
 	good := "<html><head><title>Article bo</title></head><body><p>" + strings.Repeat("text llegible ", 400) + "</p></body></html>"
 	if !archiveBodyOK(good) {
 		t.Fatal("una còpia bona hauria de passar")
+	}
+}
+
+func TestWebSearchCtxCancelatNoToccaLaXarxa(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	t0 := time.Now()
+	_, err := WebSearchCtx(ctx, "prova", 8)
+	if !errors.Is(err, context.Canceled) || time.Since(t0) > 5*time.Second {
+		t.Fatalf("torn aturat ha de tallar la cerca: err=%v", err)
+	}
+}
+
+func TestWebFetchCtxCancelatTornaSenseDescarregar(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := WebFetchOpts_Ctx(ctx, "http://127.0.0.1:1/", WebFetchOpts{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("torn aturat ha de tallar el fetch: err=%v", err)
 	}
 }

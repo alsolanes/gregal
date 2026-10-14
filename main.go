@@ -23,16 +23,18 @@ import (
 	"gregal/internal/evals"
 	"gregal/internal/llm"
 	"gregal/internal/mcp"
+	"gregal/internal/sandbox"
 	"gregal/internal/selfupdate"
 	"gregal/internal/service"
 	"gregal/internal/session"
 	"gregal/internal/telegram"
+	"gregal/internal/tools"
 	"gregal/internal/tui"
 	"gregal/internal/web"
 )
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
-var version = "v1.8.1"
+var version = "v1.9.0"
 
 // repoDir l'omple la compilacio (-ldflags "-X main.repoDir=..."): aixi el
 // binari recorda d'on va sortir i `gregal update` el sap trobar encara que
@@ -40,6 +42,11 @@ var version = "v1.8.1"
 var repoDir string
 
 func main() {
+	// Procés auxiliar del sandbox Landlock (internal/sandbox): aplica les
+	// regles i fa exec de l'ordre. Va primer de tot i no carrega res més.
+	if len(os.Args) > 1 && os.Args[1] == sandbox.HelperArg {
+		os.Exit(sandbox.RunHelper(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "update" {
 		runUpdate(os.Args[2:])
 		return
@@ -56,8 +63,16 @@ func main() {
 		runConfig(os.Args[2:])
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "memory" {
+		runMemory(os.Args[2:])
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "advise" {
 		runAdvise(os.Args[2:])
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "mcp" {
+		runMCP(os.Args[2:])
 		return
 	}
 
@@ -67,22 +82,26 @@ func main() {
 	cfgPath := flag.String("config", "", "configuration path (default ~/.config/gregal/config.yaml)")
 	promptFlag := flag.String("p", "", "noninteractive mode: execute a task and exit")
 	outputFlag := flag.String("output", "text", "output format for -p: text|json")
-	approveFlag := flag.Bool("auto-approve", false, "with -p: approve ask-policy tools without prompting")
-	stepsFlag := flag.Int("max-steps", 0, "with -p: step limit (0 = configuration)")
+	approveFlag := flag.Bool("auto-approve", false, "with -p: approve ask-policy tools without prompting (not with --mode autonomous)")
+	stepsFlag := flag.Int("max-steps", 0, "with -p: hard step limit, 1-200 (0 = configuration limit, which may be extended)")
 	modeFlag := flag.String("mode", "", "with -p: code|inspect|chat|goal|autonomous (empty = configuration)")
-	verifyFlag := flag.String("verify", "", "with -p: verification command; retry the agent on failure up to --verify-rounds")
+	verifyFlag := flag.String("verify", "", "with -p: verification command; retry the agent on failure up to --verify-rounds (exit code 3 if it still fails)")
 	verifyRoundsFlag := flag.Int("verify-rounds", 2, "with -p and --verify: maximum repair rounds (1-3)")
 	serveFlag := flag.Bool("serve", false, "start the local web interface (chat and agent)")
 	portFlag := flag.String("port", "8097", "with --serve: listen port")
 	addrFlag := flag.String("addr", "", "with --serve: listen address (default 127.0.0.1; authentication required outside loopback)")
 	tokenFlag := flag.String("token", "", "with --serve: API token (default $GREGAL_API_TOKEN)")
 	openFlag := flag.Bool("open", false, "with --serve: open the browser")
+	logFlag := flag.String("log-file", "", "with --serve: append the server log to this file too (or $GREGAL_LOG_FILE)")
 	passwdFlag := flag.String("passwd", "", "change a configured user's password, read from stdin")
 	tgFlag := flag.Bool("telegram", false, "start the Telegram bot")
 	dirFlag := flag.String("dir", "", "agent workspace (default current directory)")
 	evalFlag := flag.String("eval", "", "run evaluations from a directory; exit with code 1 if a task fails")
 	evalTasks := flag.String("tasks", "", "with --eval: comma-separated task names (default all)")
 	evalBaseline := flag.Bool("eval-baseline", false, "with --eval: save verdicts as baseline.json")
+	bestOfFlag := flag.Int("best-of", 0, "with -p: try the task N ways (2-4) in separate git worktrees, verify and score each, and print a comparison; apply one with gregal worktree apply")
+	bestOfModels := flag.String("best-of-models", "", "with --best-of: comma-separated role names or provider/model per attempt (default: the code role)")
+	worktreeFlag := flag.String("worktree", "", "with -p or the TUI: work in an isolated git worktree .gregal/worktrees/<name> on branch gregal/<name> (created from HEAD if needed)")
 	flag.Parse()
 
 	if *verFlag {
@@ -107,6 +126,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Checkpoints git (refs amagats): valen per a tots els fronts.
+	tools.ConfigureGitCheckpoints(cfg.Git.CheckpointsOn(), cfg.Git.CheckpointKeep)
+
 	if *checkFlag {
 		fmt.Printf("OK  %s\n", cliText(cliLanguage(cfg), "config.valid", path, cfg.RoleNames()))
 		return
@@ -117,8 +139,28 @@ func main() {
 	}
 
 	if *promptFlag != "" {
-		runHeadless(cfg, *promptFlag, *outputFlag, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *verifyRoundsFlag)
-		return
+		lang := cliLanguage(cfg)
+		// Tot el que és d'ús es valida abans de gastar cap crida al model.
+		if err := validaHeadless(cfg, *outputFlag, *modeFlag, *approveFlag, *stepsFlag, lang); err != nil {
+			fmt.Fprintln(os.Stderr, "gregal:", err)
+			os.Exit(2)
+		}
+		// --dir també val amb -p (abans només amb --serve i --telegram: el
+		// torn treballava al directori des d'on s'havia llançat).
+		if d := strings.TrimSpace(*dirFlag); d != "" {
+			if err := os.Chdir(d); err != nil {
+				fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.dir_failed", err))
+				os.Exit(2)
+			}
+		}
+		if err := entraWorktree(*worktreeFlag); err != nil {
+			fmt.Fprintln(os.Stderr, "gregal: --worktree:", err)
+			os.Exit(2)
+		}
+		if *bestOfFlag != 0 {
+			os.Exit(runBestOfHeadless(cfg, *promptFlag, *outputFlag, *bestOfFlag, *bestOfModels, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag))
+		}
+		os.Exit(runHeadless(cfg, *promptFlag, *outputFlag, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *verifyRoundsFlag))
 	}
 
 	if *evalFlag != "" {
@@ -172,6 +214,16 @@ func main() {
 		}
 		defer lease.Release()
 		web.SetupMCP(cfg)
+		logPath := strings.TrimSpace(*logFlag)
+		if logPath == "" {
+			logPath = strings.TrimSpace(os.Getenv("GREGAL_LOG_FILE"))
+		}
+		cleanupLog, err := web.SetupServerLog(logPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gregal serve: log:", err)
+			os.Exit(1)
+		}
+		defer cleanupLog()
 		addr := adrecaEscolta(*addrFlag, *portFlag)
 		host, _, _ := net.SplitHostPort(addr)
 		tok := strings.TrimSpace(*tokenFlag)
@@ -210,6 +262,10 @@ func main() {
 		return
 	}
 
+	if err := entraWorktree(*worktreeFlag); err != nil {
+		fmt.Fprintln(os.Stderr, "gregal: --worktree:", err)
+		os.Exit(2)
+	}
 	client := llm.New()
 	cfg.ConfigureClient(client)
 	m := tui.New(cfg, path, client, version)
@@ -301,6 +357,7 @@ func runEvals(cfg *config.Config, dir, tasks string, maxSteps int, desaBaseline 
 	}
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
+	agent.SetLifecycleHooks(cfg.Hooks)
 	client := llm.New()
 	cfg.ConfigureClient(client)
 	agent.SetupDelegate(cfg, client)
@@ -334,54 +391,115 @@ func runEvals(cfg *config.Config, dir, tasks string, maxSteps int, desaBaseline 
 	return 0
 }
 
+// Codis de sortida del mode -p.
+const (
+	exitOK           = 0
+	exitError        = 1 // el torn ha fallat (proveïdor, config, cancel·lació)
+	exitUsage        = 2 // flags invàlids
+	exitVerifyFailed = 3 // --verify no ha passat després de totes les rondes
+)
+
+// validaHeadless comprova els flags de -p abans de fer cap crida (abans un
+// --output mal escrit es descobria després del torn sencer, ja pagat, i un
+// --mode mal escrit es convertia en code sense dir res).
+func validaHeadless(cfg *config.Config, output, mode string, autoApprove bool, maxSteps int, lang string) error {
+	if output != "text" && output != "json" {
+		return fmt.Errorf("%s", cliText(lang, "headless.bad_output", output))
+	}
+	if mode != "" && !agent.ValidMode(mode) {
+		return fmt.Errorf("%s", cliText(lang, "headless.bad_mode", mode))
+	}
+	if maxSteps < 0 || maxSteps > 200 {
+		return fmt.Errorf("%s", cliText(lang, "headless.bad_max_steps", maxSteps))
+	}
+	efectiu := mode
+	if efectiu == "" && cfg != nil {
+		efectiu = cfg.Mode
+	}
+	// El mode autònom no salta mai les aprovacions (és el seu contracte de
+	// seguretat) i sense terminal ningú no les pot donar: amb --auto-approve
+	// el torn es passava els passos denegat. Millor dir-ho ara.
+	if efectiu == agent.ModeAutonomous && autoApprove {
+		return fmt.Errorf("%s", cliText(lang, "headless.autonomous_auto_approve"))
+	}
+	return nil
+}
+
+// headlessJSON és la sortida de --output json: el resultat i, si el torn
+// ha fallat, l'error (abans, en fallar, stdout quedava buit).
+type headlessJSON struct {
+	agent.RunResult
+	Error string `json:"error,omitempty"`
+}
+
 // Amb verifyCmd no buit, el torn no es dona per bo fins que la comanda
-// passa (gate mecànic: fins a verifyRounds rondes de reparació).
-func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxSteps int, mode, verifyCmd string, verifyRounds int) {
+// passa (gate mecànic: fins a verifyRounds rondes de reparació). Torna el
+// codi de sortida.
+func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxSteps int, mode, verifyCmd string, verifyRounds int) int {
+	lang := cliLanguage(cfg)
 	if mode == "" {
 		mode = cfg.Mode
 	}
+	// --max-steps explícit és un topall dur; el del config conserva les
+	// ampliacions del motor.
+	hard := maxSteps > 0
 	if maxSteps == 0 {
 		maxSteps = cfg.Agent.MaxSteps
 	}
 	mcp.Setup(toMCPServers(cfg))
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
+	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	cli := llm.New()
 	cfg.ConfigureClient(cli)
 	agent.SetupDelegate(cfg, cli)
 	cwd, _ := os.Getwd()
-	res, err := agent.RunAmbVerificacio(context.Background(), cli, cfg, task, mode, maxSteps, autoApprove,
-		func(step int, tools []string) {
+	res, err := agent.RunAmbVerificacio(context.Background(), cli, cfg, agent.RunOpts{
+		Task: task, Mode: mode, MaxSteps: maxSteps, HardStepLimit: hard, AutoApprove: autoApprove, Dir: cwd,
+		OnStep: func(step int, tools []string) {
 			if len(tools) == 0 {
-				fmt.Fprintf(os.Stderr, "pas %d: responent…\n", step)
+				fmt.Fprintln(os.Stderr, cliText(lang, "headless.step_answering", step))
 			} else {
-				fmt.Fprintf(os.Stderr, "pas %d: %s\n", step, strings.Join(tools, ", "))
+				fmt.Fprintln(os.Stderr, cliText(lang, "headless.step_tools", step, strings.Join(tools, ", ")))
 			}
-		}, cwd, verifyCmd, verifyRounds)
+		},
+	}, verifyCmd, verifyRounds)
+	if res.Tools == nil {
+		res.Tools = []string{}
+	}
 	if res.RouteWhy != "" {
 		fmt.Fprintf(os.Stderr, "🔀 %s (%s → %s)\n", res.RouteWhy, res.RoutedFrom, res.RoutedTo)
 	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gregal:", err)
-		os.Exit(1)
+		if output == "json" {
+			raw, _ := json.MarshalIndent(headlessJSON{RunResult: res, Error: err.Error()}, "", "  ")
+			fmt.Println(string(raw))
+		}
+		return exitError
+	}
+	code := exitOK
+	if res.Verified != nil && !*res.Verified {
+		code = exitVerifyFailed
+		fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.verify_failed", res.VerifyRounds, verifyCmd))
+	}
+	if res.Exhausted {
+		fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.exhausted"))
 	}
 	if output == "json" {
-		raw, _ := json.MarshalIndent(res, "", "  ")
+		raw, _ := json.MarshalIndent(headlessJSON{RunResult: res}, "", "  ")
 		fmt.Println(string(raw))
-		return
-	}
-	if output != "text" {
-		fmt.Fprintln(os.Stderr, "gregal: output ha de ser text|json")
-		os.Exit(2)
+		return code
 	}
 	fmt.Println(res.Answer)
 	if res.FallbackModel != "" {
-		fmt.Fprintf(os.Stderr, "↪ primari caigut: ha respost el fallback %s\n", res.FallbackModel)
+		fmt.Fprintln(os.Stderr, cliText(lang, "headless.fallback", res.FallbackModel))
 	}
 	if res.CostUSD != nil {
-		fmt.Fprintf(os.Stderr, "cost estimat: ~%s (%d↑ %d↓)\n", agent.FmtCost(*res.CostUSD), res.UpTokens, res.DownTokens)
+		fmt.Fprintln(os.Stderr, cliText(lang, "headless.cost", agent.FmtCost(*res.CostUSD), res.UpTokens, res.DownTokens))
 	}
+	return code
 }
 func runCompletion(args []string) {
 	if len(args) != 1 {
@@ -436,11 +554,7 @@ esac`
 
 // toMCPServers adapta el config al paquet mcp (compartit TUI/headless).
 func toMCPServers(cfg *config.Config) map[string]mcp.Server {
-	out := map[string]mcp.Server{}
-	for name, s := range cfg.MCP {
-		out[name] = mcp.Server{Command: s.Command, Args: s.Args, Env: s.Env}
-	}
-	return out
+	return mcp.FromConfig(cfg.MCP)
 }
 
 // runInit implementa `gregal init [--force] [--config=RUTA]`.

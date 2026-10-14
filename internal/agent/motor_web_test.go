@@ -75,10 +75,10 @@ func TestMotorRecordatoriLecturesJuntes(t *testing.T) {
 		tn.Seguent()
 		return tn.Hist[len(tn.Hist)-1].Content
 	}
-	if strings.Contains(llegeix("alpha"), "[recordatori]") {
+	if strings.Contains(llegeix("alpha"), "[reminder]") {
 		t.Fatal("una lectura sola encara no és un patró")
 	}
-	if !strings.Contains(llegeix("beta"), "[recordatori]") {
+	if !strings.Contains(llegeix("beta"), "[reminder]") {
 		t.Fatal("a la segona lectura sola seguida, recordatori")
 	}
 	for _, n := range []string{"gamma", "delta", "epsilon", "zeta"} {
@@ -86,10 +86,10 @@ func TestMotorRecordatoriLecturesJuntes(t *testing.T) {
 	}
 	n := 0
 	for _, m := range tn.Hist {
-		if m.Role == "user" && strings.Contains(m.Content, "[recordatori]") {
+		if m.Role == "user" && strings.Contains(m.Content, "[reminder]") {
 			t.Fatal("el recordatori va al resultat de l'eina, mai com a missatge d'usuari")
 		}
-		if m.Role == "tool" && strings.Contains(m.Content, "demana-les totes en un sol pas") {
+		if m.Role == "tool" && strings.Contains(m.Content, "request them all in a single step") {
 			n++
 		}
 	}

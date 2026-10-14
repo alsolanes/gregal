@@ -1,11 +1,13 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestPostEditHookAnota(t *testing.T) {
@@ -62,4 +64,18 @@ func quoteJSON(s string) string {
 		panic(err)
 	}
 	return string(b)
+}
+
+func TestPostEditHookCancelatNoSExecuta(t *testing.T) {
+	SetPostEditHook("sleep 5")
+	defer SetPostEditHook("")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	t0 := time.Now()
+	if out := runPostEditHook(ctx, "fitxer.txt"); out != "" {
+		t.Fatalf("torn mort no ha de córrer el hook: %q", out)
+	}
+	if time.Since(t0) > 4*time.Second {
+		t.Fatal("el hook cancel·lat ha trigat massa: s'hauria de saltar")
+	}
 }

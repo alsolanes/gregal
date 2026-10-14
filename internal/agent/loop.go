@@ -9,8 +9,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	"gregal/internal/knowledge"
 	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
@@ -23,44 +25,58 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
 			}, "required": []string{"kind", "content"}}},
-		{Name: "read", Description: "Llegeix un fitxer del disc. Torna línies numerades. Si necessites diversos fitxers, demana'ls tots en el mateix pas: les lectures van en paral·lel.",
+		{Name: "dashboard_save", Description: "Save charts to a named dashboard INSIDE the Gregal app (its Plots & dashboard section). Use this when the user asks for a dashboard or saved charts in the app: no HTML needed. Each plot uses the gregal-plot JSON shape {title, type: line|bar|scatter, labels: [strings], series: [{label, values: [numbers]}]}. Creates the dashboard if it does not exist; replace=true clears its previous charts first. Only available in the web/desktop app.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"dashboard": str,
+				"plots": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
+					"title": str, "type": map[string]any{"type": "string", "enum": []string{"line", "bar", "scatter"}},
+					"labels": map[string]any{"type": "array", "items": str},
+					"series": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
+						"label": str, "values": map[string]any{"type": "array", "items": map[string]any{"type": "number"}},
+					}}},
+				}, "required": []string{"title", "type", "labels", "series"}}},
+				"replace": map[string]any{"type": "boolean"},
+			}, "required": []string{"dashboard", "plots"}}},
+		{Name: "read", Description: "Read a file from disk. Returns numbered lines. If you need several files, request them all in the same step: reads run in parallel.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path":   str,
 				"offset": map[string]any{"type": "integer"},
 				"limit":  map[string]any{"type": "integer"},
 			}, "required": []string{"path"}}},
-		{Name: "bash", Description: "Executa una comanda shell amb timeout de 2 minuts. Torna la sortida. Compilar i passar els tests d'un paquet hi caben. El que és llarg de mena —engegar un servidor, la suite sencera— NO ho facis aquí: es talla a mitges. Fes servir bash_background.",
+		{Name: "bash", Description: "Run a shell command with a 2-minute timeout and return its output. Building and running one package's tests fits. Do NOT use it for anything long by nature (starting a server, the whole test suite): it gets cut off halfway. Use bash_background for that.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"command": str,
+				"bet":     betParam,
 			}, "required": []string{"command"}}},
-		{Name: "write", Description: "Escriu un fitxer sencer amb el contingut donat: per a fitxers NOUS. Per canviar un fitxer que ja existeix, edit o patch: reescriure'l sencer és lent (el model torna a escriure cada línia) i hi pots perdre codi que no has llegit.",
+		{Name: "write", Description: "Write a whole file with the given content: for NEW files. To change an existing file use edit or patch: rewriting it whole is slow (every line is written again) and you can lose code you have not read.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "content": str,
 			}, "required": []string{"path", "content"}}},
-		{Name: "edit", Description: "Substitueix UN bloc exacte (ha de ser únic) dins d'un fitxer. Si has de fer diversos canvis al mateix fitxer, fes servir patch: amb edits solts, si un falla el fitxer queda a mig canviar.",
+		{Name: "edit", Description: "Replace ONE exact block (it must be unique) in a file. For several changes to the same file use patch: with separate edits, if one fails the file is left half-changed.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "old_string": str, "new_string": str,
 			}, "required": []string{"path", "old_string", "new_string"}}},
-		{Name: "grep", Description: "Cerca un text literal en fitxers sota un directori. Omet .git i binaris.",
+		{Name: "grep", Description: "Search for a literal text in the files under a directory. Skips .git and binaries.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"pattern": str, "dir": str, "include": str,
 			}, "required": []string{"pattern"}}},
-		{Name: "glob", Description: "Llista fitxers que casen amb un pattern (estil *.go, dir/*.txt).",
+		{Name: "glob", Description: "List the files matching a pattern (e.g. *.go, dir/*.txt).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"pattern": str, "dir": str,
 			}, "required": []string{"pattern"}}},
-		{Name: "web_search", Description: "Cerca a la web (diversos motors alhora, sense cap servei local). Torna títol+URL+resum per resultat; després obre els útils amb web_fetch. Diverses cerques o pàgines en un mateix pas van en paral·lel.",
+		symbolsToolSpec(),
+		{Name: "web_search", Description: "Search the web (several engines at once, no local service needed). Returns title+URL+snippet per result; then open the useful ones with web_fetch. Several searches or pages in the same step run in parallel.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str, "count": map[string]any{"type": "integer"},
 			}, "required": []string{"query"}}},
-		{Name: "web_fetch", Description: "Llegeix una pàgina http(s) i en torna el contingut principal en markdown (sense menús, anuncis ni imatges), amb títol, data i URL. Opcions: find=text per veure només els paràgrafs que el contenen (pàgines llargues), max_chars per ampliar el retall (fins a 30000), raw=true per la pàgina sencera en text pla. Hosts locals bloquejats.",
+		{Name: "web_fetch", Description: "Read an http(s) page and return its main content as markdown (no menus, ads or images), with title, date and URL. Options: find=text to see only the paragraphs that contain it (long pages), max_chars to enlarge the excerpt (up to 30000), raw=true for the whole page as plain text. Prefer one read with a sufficient max_chars over repeated narrow find calls on the same URL, and reuse what you already fetched. Local hosts are blocked.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"url":       str,
 				"find":      str,
 				"max_chars": map[string]any{"type": "integer"},
 				"raw":       map[string]any{"type": "boolean"},
 			}, "required": []string{"url"}}},
-		{Name: "patch", Description: "Aplica diverses edicions a un fitxer de cop (atòmic: tot o res). Cada edició és old→new (bloc únic) o after_line+new (inserció).",
+		{Name: "patch", Description: "Apply several edits to one file at once (atomic: all or nothing). Each edit is old→new (unique block) or after_line+new (insertion).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str,
 				"edits": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
@@ -69,66 +85,77 @@ func Specs() []llm.ToolSpec {
 					"after_line": map[string]any{"type": "integer"},
 				}}},
 			}, "required": []string{"path", "edits"}}},
-		{Name: "read_image", Description: "Llegeix una imatge del disc (png/jpg/webp/gif, màxim 8MB) i l'adjunta al missatge perquè el model la vegi.",
+		{Name: "read_image", Description: "Read an image from disk (png/jpg/webp/gif, max 8MB) and attach it to the message so the model can see it.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str,
 			}, "required": []string{"path"}}},
-		{Name: "gh_issue", Description: "Consulta issues de GitHub amb la CLI gh (només lectura): action=list|view, number opcional, repo opcional (owner/name), query opcional.",
+		{Name: "gh_issue", Description: "Query GitHub issues with the gh CLI (read-only): action=list|view, optional number, optional repo (owner/name), optional query.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"action": map[string]any{"type": "string", "enum": []string{"list", "view"}},
 				"number": map[string]any{"type": "integer"},
 				"query":  str, "repo": str,
 			}, "required": []string{"action"}}},
-		{Name: "gh_pr", Description: "Consulta pull requests de GitHub amb la CLI gh (només lectura): action=list|view|diff|checks, number obligatori excepte list, repo opcional.",
+		{Name: "gh_pr", Description: "Query GitHub pull requests with the gh CLI (read-only): action=list|view|diff|checks, number required except for list, optional repo.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"action": map[string]any{"type": "string", "enum": []string{"list", "view", "diff", "checks"}},
 				"number": map[string]any{"type": "integer"},
 				"query":  str, "repo": str,
 			}, "required": []string{"action"}}},
-		{Name: "office_read", Description: "Llegeix Word/Excel/PowerPoint (.docx/.xlsx/.pptx) i en torna el text o les dades (retallat). Formats antics .doc/.xls/.ppt NO suportats.",
+		{Name: "git_commit", Description: "Commit changes in the workspace's git repository (needs the user's approval). By default it commits only the files you changed in this session (shell changes included); pass paths to choose files, or all=true for every change in the workspace. Other files the user has staged are left out. Write a concise message: a summary line, a blank line, then details if useful.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"message": str,
+				"paths":   map[string]any{"type": "array", "items": str},
+				"all":     map[string]any{"type": "boolean"},
+			}, "required": []string{"message"}}},
+		{Name: "gh_pr_create", Description: "Open a GitHub pull request with the gh CLI from the current branch (needs the user's approval). Commit first with git_commit. On the default branch it first creates a new branch (branch, or gregal/<title>) so the PR never comes from the default branch; then it pushes (never forced) and creates the PR. base defaults to the repository's default branch.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"title": str, "body": str, "base": str, "branch": str,
+				"draft": map[string]any{"type": "boolean"},
+			}, "required": []string{"title"}}},
+		{Name: "office_read", Description: "Read Word/Excel/PowerPoint (.docx/.xlsx/.pptx) and return the text or data (truncated). The old .doc/.xls/.ppt formats are NOT supported.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str,
 			}, "required": []string{"path"}}},
-		{Name: "office_open", Description: "Obre un document amb el programa associat del sistema (Word/Excel/PowerPoint). No bloqueja: torna de seguida. Mentre el document sigui obert no s'hi pot escriure amb office_edit (fitxer bloquejat): avisa l'usuari que el tanqui per continuar editant.",
+		{Name: "office_open", Description: "Open a document with the system's associated program (Word/Excel/PowerPoint). It does not block: it returns immediately. While the document is open it cannot be written with office_edit (file locked): ask the user to close it to keep editing.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str,
 			}, "required": []string{"path"}}},
-		{Name: "bash_background", Description: "Engega una comanda llarga en segon pla (servidor, build, suite de tests) i torna un id. No espera: llegeix-ne la sortida amb bash_output i atura-la amb bash_kill. Fes-la servir quan la comanda pugui passar dels 2 minuts del bash normal.",
+		{Name: "bash_background", Description: "Start a long command in the background (server, build, test suite) and return an id. It does not wait: read its output with bash_output and stop it with bash_kill. Use it when a command may take longer than the 2 minutes of plain bash.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"command": str,
 			}, "required": []string{"command"}}},
-		{Name: "bash_output", Description: "Llegeix la sortida nova d'un procés de segon pla (id de bash_background). Torna també si ja ha acabat i amb quin codi.",
+		{Name: "bash_output", Description: "Read the new output of a background process (id from bash_background). Also says whether it has finished and with which exit code.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"id": str, "lines": map[string]any{"type": "integer"},
 			}, "required": []string{"id"}}},
-		{Name: "bash_kill", Description: "Atura un procés de segon pla pel seu id. Sense id, llista els processos vius.",
+		{Name: "bash_kill", Description: "Stop a background process by its id. Without an id, list the running processes.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"id": str,
 			}}},
-		{Name: "office_edit", Description: "Edita office (journal: /rewind ho desfà). op=replace substitueix text en docx/pptx (find, replace; text PLA, conserva el format del primer fragment). op=append afegeix paràgrafs al final d'un docx (o a l'última diapositiva d'un pptx) amb content: s'entén # títol, ## subtítol, - llista, **negreta**, *cursiva*. op=set_cell posa value a una cel·la xlsx (sheet, cell com B2). op=set_range omple un bloc xlsx des de cell (cantonada superior esquerra) amb content: una línia per fila, cel·les separades per |.",
+		{Name: "office_edit", Description: "Edit office files (journaled: /rewind undoes it). op=replace replaces text in docx/pptx (find, replace; PLAIN text, keeps the formatting of the first fragment). op=append adds paragraphs at the end of a docx (or to the last slide of a pptx) from content: understands # title, ## subtitle, - list, **bold**, *italic*. op=set_cell puts value into an xlsx cell (sheet, cell such as B2). op=set_range fills an xlsx block starting at cell (top-left corner) from content: one line per row, cells separated by |.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path":  str,
 				"op":    map[string]any{"type": "string", "enum": []string{"set_cell", "set_range", "replace", "append"}},
 				"sheet": str, "cell": str, "value": str, "find": str, "replace": str, "content": str,
 			}, "required": []string{"path", "op"}}},
-		{Name: "office_create", Description: "Crea un document office nou (.docx/.xlsx/.pptx) amb un títol i contingut inicial (text amb salts de línia; en xlsx cada línia és una fila i les cel·les se separen amb |). Escriu TEXT PLA: res de markdown. S'entén # títol, ## subtítol, - llista, **negreta**, *cursiva* i taules | a | b | (es converteixen a format de debò); la resta de marques es netegen. Si el fitxer ja existeix, falla.",
+		{Name: "office_create", Description: "Create a new office document (.docx/.xlsx/.pptx) with a title and initial content (text with line breaks; in xlsx each line is a row and cells are separated by |). Write PLAIN TEXT, not markdown: only # title, ## subtitle, - list, **bold**, *italic* and | a | b | tables are understood (they become real formatting); any other markup is stripped. Fails if the file already exists.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "title": str, "content": str,
 			}, "required": []string{"path"}}},
-		{Name: "question", Description: "Pregunta a l'usuari quan necessites una decisió per continuar (màxim 4 opcions curtes + text lliure permès). Fes-la servir en comptes d'endevinar requisits ambigus.",
+		{Name: "question", Description: "Ask the user when you need a decision to continue (at most 4 short options; free text is also allowed). Use it instead of guessing ambiguous requirements.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str,
 				"options": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
 					"label": str, "description": str,
 				}, "required": []string{"label"}}},
 			}, "required": []string{"query", "options"}}},
-		{Name: "todowrite", Description: "Publica la llista de passos de la tasca (màxim 20) perquè la UI mostri el progrés amb checks. Marca un sol pas com a working i la resta pending/done. Estats EXACTES: pending, working, done (res més).",
+		{Name: "todowrite", Description: "Publish the task's list of steps (at most 20) so the UI shows progress with checks. Optional: only for multi-part tasks. Mark exactly one step as working and the rest pending/done. EXACT statuses: pending, working, done (nothing else).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"items": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
 					"title": str, "status": map[string]any{"type": "string", "enum": []string{"pending", "working", "done"}},
 				}, "required": []string{"title", "status"}}},
 			}, "required": []string{"items"}}},
-		{Name: "browser", Description: "Navegador real (Chrome/Edge de la màquina, perfil propi del gregal, finestra visible) per a pàgines amb JavaScript, apps locals (localhost) i llocs amb sessió iniciada. action=open (url) carrega i llegeix; read torna la pàgina en markdown + elements interactius numerats [n]; click (target: [n], selector CSS o text visible); type (target, text, enter=true per enviar); press (key: Enter|Tab|Escape|ArrowDown…); screenshot adjunta una captura; back; eval (js) executa JavaScript; close. Per a pàgines estàtiques web_fetch és més ràpid.",
+		{Name: "browser", Description: "Real browser for pages with JavaScript, local apps (localhost) and sites with a logged-in session. action=open (url) loads and reads; read returns the page as markdown + numbered interactive elements [n]; click (target: [n], CSS selector or visible text); type (target, text, enter=true to submit); press (key: Enter|Tab|Escape|ArrowDown…); screenshot attaches a capture; back; eval (js) runs JavaScript; close. In the desktop app it drives the app's built-in browser pane, which the user watches live; elsewhere it is headless Chrome/Edge with gregal's own profile (browser.mode: window shows a visible window). For static pages web_fetch is faster.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"action":    map[string]any{"type": "string", "enum": []string{"open", "read", "click", "type", "press", "screenshot", "back", "eval", "close"}},
 				"url":       str,
@@ -141,12 +168,20 @@ func Specs() []llm.ToolSpec {
 				"raw":       map[string]any{"type": "boolean"},
 				"max_chars": map[string]any{"type": "integer"},
 			}, "required": []string{"action"}}},
-		{Name: "todoread", Description: "Llegeix la llista de passos publicada (checks de progrés).",
+		{Name: "todoread", Description: "Read the published list of steps (progress checks).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{}}},
-		{Name: "skill", Description: "Obre una skill pel nom i en torna el contingut sencer. Les skills són coneixement del gregal mateix (sessions, configuració, modes) i del projecte. L'índex amb els noms i de què va cadascuna és al teu prompt: obre la que toqui ABANS de dir que no saps una cosa o de deduir-la.",
+		{Name: "skill", Description: "Open a skill by name and return its full content. Skills are knowledge about gregal itself (sessions, configuration, modes) and about the project. The index with the names and what each one covers is in your prompt: open the relevant one BEFORE saying you don't know something or guessing it.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"nom": str,
-			}, "required": []string{"nom"}}},
+				"name": str,
+			}, "required": []string{"name"}}},
+		{Name: "knowledge_search", Description: "Search the user's knowledge collections (documents indexed from folders: markdown, text, code, PDF, Word, Excel, PowerPoint, HTML, plus saved notes) by keywords. Returns the best passages with their source path and location (page, sheet, slide, heading or lines). Use it when a question may be answered by the collections listed in your prompt, before answering from memory, and cite the sources you rely on as path · location. collection (name or id) narrows the search; k is the number of passages (default 6, max 20). If nothing relevant comes back, retry once with the exact terms the documents would use.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"query": str, "collection": str, "k": map[string]any{"type": "integer"},
+			}, "required": []string{"query"}}},
+		{Name: "knowledge_note", Description: "Save a short note (a fact, decision or summary worth finding again) to a knowledge collection, so knowledge_search finds it later. collection is a name or id; without it the note goes to this session's notes. Keep notes factual and self-contained. Needs the user's approval, except for project or session collections in autonomous mode.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"text": str, "title": str, "collection": str,
+			}, "required": []string{"text"}}},
 	}
 }
 
@@ -174,24 +209,63 @@ func DefaultPolicy() *Policy { return &Policy{} }
 // isMCP diu si és una eina d'un servidor MCP (prefix mcp_).
 func isMCP(name string) bool { return tools.EsMCP(name) }
 
-// extraSpecs i extraExec són eines externes (MCP) registrades a l'arrencada.
-var extraSpecs []llm.ToolSpec
-var extraExec = map[string]func(argsJSON string) (string, error){}
+// extraSpecs i extraExec són eines externes (MCP) registrades a l'arrencada
+// o en (re)connectar un servidor des de la pàgina de connectors.
+var (
+	extraMu    sync.RWMutex
+	extraSpecs []llm.ToolSpec
+	extraExec  = map[string]func(ctx context.Context, argsJSON string) (string, error){}
+)
 
-// RegisterExtra registra una eina externa (idempotent per nom).
+// RegisterExtra registra una eina externa. Amb un nom ja registrat
+// n'actualitza l'spec i la funció (un servidor reconnectat).
 func RegisterExtra(spec llm.ToolSpec, fn func(argsJSON string) (string, error)) {
-	for _, s := range extraSpecs {
+	RegisterExtraCtx(spec, func(_ context.Context, argsJSON string) (string, error) { return fn(argsJSON) })
+}
+
+// RegisterExtraCtx és RegisterExtra amb el context del torn: Esc talla la
+// crida (una eina MCP remota que no respon).
+func RegisterExtraCtx(spec llm.ToolSpec, fn func(ctx context.Context, argsJSON string) (string, error)) {
+	extraMu.Lock()
+	defer extraMu.Unlock()
+	extraExec[spec.Name] = fn
+	for i, s := range extraSpecs {
 		if s.Name == spec.Name {
+			extraSpecs[i] = spec
 			return
 		}
 	}
 	extraSpecs = append(extraSpecs, spec)
-	extraExec[spec.Name] = fn
+}
+
+// UnregisterExtra treu les eines externes que compleixen drop (un
+// servidor MCP esborrat o que ja no les ofereix).
+func UnregisterExtra(drop func(name string) bool) {
+	extraMu.Lock()
+	defer extraMu.Unlock()
+	kept := extraSpecs[:0]
+	for _, s := range extraSpecs {
+		if drop(s.Name) {
+			delete(extraExec, s.Name)
+			continue
+		}
+		kept = append(kept, s)
+	}
+	extraSpecs = kept
+}
+
+func extraFn(name string) (func(ctx context.Context, argsJSON string) (string, error), bool) {
+	extraMu.RLock()
+	defer extraMu.RUnlock()
+	fn, ok := extraExec[name]
+	return fn, ok
 }
 
 // SpecsAll retorna les natives + delegate + les externes registrades.
 func SpecsAll() []llm.ToolSpec {
 	all := append(append([]llm.ToolSpec{}, Specs()...), delegateToolSpec())
+	extraMu.RLock()
+	defer extraMu.RUnlock()
 	return append(all, extraSpecs...)
 }
 
@@ -241,11 +315,17 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		}
 	}
 	if isMCP(name) {
+		if IsReadOnlyMCP(name) {
+			return "allow", "" // servidor MCP marcat readonly
+		}
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "todoread", "todowrite", "question", "skill", "preview":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
+	case "knowledge_note":
+		// Escriu a una base de coneixement que dura més que el torn.
+		return "ask", "knowledge: confirm saving a note"
 	case "bash_output", "bash_kill":
 		// Llegir o aturar un procés que ja s'ha aprovat no torna a preguntar.
 		return "allow", ""
@@ -283,6 +363,10 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 			return override, "permissions del config"
 		}
 		return decision, reason
+	case "git_commit", "gh_pr_create":
+		// Commits i PRs queden a la història i al remot: sempre es pregunta
+		// (llevat d'un permissions.tools explícit, que ja s'ha mirat a dalt).
+		return "ask", "git: confirma (" + name + ")"
 	default: // write, edit
 		return "ask", "escriptura: confirma"
 	}
@@ -298,6 +382,10 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 		switch name {
 		case "office_edit", "office_create", "bash_kill":
 			return "deny", "read-only mode: cannot modify documents or stop processes"
+		case "git_commit", "gh_pr_create":
+			return "deny", "read-only mode: cannot commit or open pull requests"
+		case "knowledge_note":
+			return "deny", "read-only mode: cannot save knowledge notes (search is allowed)"
 		}
 	}
 	if (mode == ModeInspect || mode == ModeChat || mode == ModeGoal) && (name == "bash" || name == "browser") {
@@ -327,7 +415,7 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 			}
 			return "deny", "mode consulta: comanda no és lectura segura (" + reason + ")"
 		default:
-			if isMCP(name) {
+			if isMCP(name) && !IsReadOnlyMCP(name) {
 				return "deny", "mode consulta: MCP desactivat"
 			}
 		}
@@ -353,15 +441,22 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 			}
 			return "allow", ""
 		default:
-			if isMCP(name) {
+			if isMCP(name) && !IsReadOnlyMCP(name) {
 				return "deny", què + ": només lectura (MCP desactivat)"
 			}
+		}
+	}
+	// Autònom: treballa sol i només pregunta pel que és perillós
+	// (autonomous_policy.go).
+	if mode == ModeAutonomous {
+		if d, reason, ok := p.decideAutonomous(name, argsJSON); ok {
+			return d, reason
 		}
 	}
 	// En code i autònom, escriure dins del projecte passa sol. Un override
 	// explícit del config sempre preval; tota altra acció «ask» continua
 	// requerint aprovació, també en mode autònom.
-	if (mode == ModeCode || mode == ModeAutonomous) && (name == "write" || name == "edit" || name == "patch") {
+	if (mode == ModeCode || mode == ModeAutonomous || mode == ModeDebug) && (name == "write" || name == "edit" || name == "patch") {
 		if p != nil {
 			if d, ok := p.Tools[name]; ok {
 				switch d {
@@ -399,11 +494,16 @@ func ExecIn(session, dir, name, argsJSON string) (out string, images []string, e
 	return ExecCtx(context.Background(), session, dir, name, argsJSON)
 }
 
-// ExecCtx és ExecIn amb el context del torn. Cancel·lar-lo atura les
-// eines que poden trigar (bash i el navegador); la resta són prou
-// ràpides perquè no calgui. És el que fa que Esc talli de debò una
-// comanda llarga en comptes de deixar-la corrent en segon pla.
-func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out string, images []string, err error) {
+// execCtxEina és el cos d'ExecCtx (lifecycle.go), sense els hooks
+// post_tool: executa l'eina amb el context del torn.
+func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out string, images []string, err error) {
+	if err := ctx.Err(); err != nil {
+		return "", nil, err
+	}
+	// Foto git abans d'una ordre de shell que pot escriure (gitcheckpoint.go):
+	// el propietari és el de MarkConvoFor ("" al TUI i al Telegram).
+	checkpointAbansDe(session, dir, name, argsJSON)
+	owner := session
 	if session == "" {
 		session = procSession
 	}
@@ -411,6 +511,8 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 	switch name {
 	case "preview":
 		return previewRequest(argsJSON)
+	case "dashboard_save":
+		return "", nil, fmt.Errorf("dashboard_save is only available in the Gregal web/desktop app; show the charts as gregal-plot blocks instead")
 	case "read":
 		var a struct {
 			Path   string `json:"path"`
@@ -585,7 +687,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendixEdicio(a.Path), nil, nil
+		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendixEdicio(ctx, a.Path), nil, nil
 	case "edit":
 		var a struct {
 			Path string `json:"path"`
@@ -598,7 +700,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err := tools.Edit(a.Path, a.Old, a.New); err != nil {
 			return "", nil, err
 		}
-		return "edit aplicat a " + a.Path + apendixEdicio(a.Path), nil, nil
+		return "edit aplicat a " + a.Path + apendixEdicio(ctx, a.Path), nil, nil
 	case "patch":
 		var pa struct {
 			Path  string `json:"path"`
@@ -618,7 +720,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err := tools.Patch(pa.Path, ops); err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + apendixEdicio(pa.Path), nil, nil
+		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + apendixEdicio(ctx, pa.Path), nil, nil
 	case "grep":
 		var a struct {
 			Pattern string `json:"pattern"`
@@ -640,6 +742,9 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		}
 		out, err := tools.Glob(a.Pattern, a.Dir, 100)
 		return out, nil, err
+	case "symbols":
+		out, err := symbolsTool(dir, argsJSON)
+		return out, nil, err
 	case "web_search":
 		var a struct {
 			Query string `json:"query"`
@@ -648,7 +753,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		out, err := tools.WebSearch(a.Query, a.Count)
+		out, err := tools.WebSearchCtx(ctx, a.Query, a.Count)
 		return out, nil, err
 	case "web_fetch":
 		var a struct {
@@ -660,10 +765,16 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		out, err := tools.WebFetchOpts_(a.URL, tools.WebFetchOpts{MaxChars: a.MaxChars, Find: a.Find, Raw: a.Raw})
+		out, err := tools.WebFetchOpts_Ctx(ctx, a.URL, tools.WebFetchOpts{MaxChars: a.MaxChars, Find: a.Find, Raw: a.Raw})
 		return out, nil, err
 	case "gh_issue", "gh_pr":
-		out, err := tools.GitHub(name, argsJSON)
+		out, err := tools.GitHubCtx(ctx, name, argsJSON)
+		return out, nil, err
+	case "git_commit":
+		out, err := tools.GitCommitTool(owner, procDirOr(dir), argsJSON)
+		return out, nil, err
+	case "gh_pr_create":
+		out, err := tools.GHPRCreateTool(ctx, procDirOr(dir), argsJSON)
 		return out, nil, err
 	case "browser":
 		var ba map[string]any
@@ -695,7 +806,7 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		}
 		_ = q
 		_ = opts
-		return "PREGUNTA SENSE UI: no hi ha interfície per triar opcions aquí. Formula la pregunta en text a la resposta final i continua amb el teu millor criteri.", nil, nil
+		return PreguntaSenseUI, nil, nil
 	case "todowrite":
 		var tw struct {
 			Items []struct {
@@ -715,19 +826,29 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 	case "todoread":
 		return tools.TodoRender(), nil, nil
 	case "skill":
+		// El paràmetre es diu `name`; `nom` era el d'abans i encara arriba
+		// de models i sessions que el van aprendre.
 		var a struct {
-			Nom string `json:"nom"`
+			Name string `json:"name"`
+			Nom  string `json:"nom"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		return LlegeixSkill(dir, a.Nom)
+		return LlegeixSkill(dir, firstOf(a.Name, a.Nom))
+	case "knowledge_search":
+		out, err := knowledge.SearchTool(ctx, knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
+		return out, nil, err
+	case "knowledge_note":
+		out, err := knowledge.NoteTool(knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
+		return out, nil, err
 	case "delegate":
 		out, err := delegateExec(withDelegateScope(ctx, session, dir), argsJSON)
 		return out, nil, err
 	default:
-		if fn, ok := extraExec[name]; ok {
-			out, err := fn(argsJSON)
+		if fn, ok := extraFn(name); ok {
+			out, err := fn(ctx, argsJSON)
+
 			return out, nil, err
 		}
 		return "", nil, fmt.Errorf("eina desconeguda: %s", name)

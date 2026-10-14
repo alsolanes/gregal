@@ -1,7 +1,6 @@
 package xyz.solanes.gregal
 
 import android.provider.OpenableColumns
-import android.util.Base64
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -18,8 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -107,15 +107,21 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                 notice = tr(lang, "app.off.fileTypeError", name)
                 return@rememberLauncherForActivityResult
             }
-            val bytes = ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: run { notice = tr(lang, "app.off.fileReadError"); return@rememberLauncherForActivityResult }
-            if (bytes.size > 25 * 1024 * 1024) {
-                notice = tr(lang, "app.off.fileTooLarge", 25, bytes.size / 1024 / 1024)
-                return@rememberLauncherForActivityResult
+            // Mida primer i lectura + base64 a IO: abans es llegia tot al fil
+            // principal i un fitxer gran penjava (o tombava) l'app.
+            scope.launch {
+                when (val r = readUriBase64(ctx, uri, 25L * 1024 * 1024)) {
+                    is UriRead.Ok -> {
+                        notice = ""
+                        vista = true
+                        vm.officeUpload(name, r.base64)
+                    }
+                    is UriRead.TooLarge -> notice = tr(lang, "app.off.fileTooLarge", 25,
+                        if (r.size > 0) r.size / 1024 / 1024 else 25)
+                    UriRead.Unreadable -> notice = tr(lang, "app.off.fileReadError")
+                    is UriRead.Failed -> notice = tr(lang, "app.off.fileOpenError", r.message)
+                }
             }
-            notice = ""
-            vista = true
-            vm.officeUpload(name, Base64.encodeToString(bytes, Base64.NO_WRAP))
         } catch (e: Exception) {
             notice = tr(lang, "app.off.fileOpenError", e.message.orEmpty())
         }
@@ -133,19 +139,20 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) } },
+                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } },
                     title = { Text(tr(lang, "app.off.title"), color = Ink) },
                     actions = {
                         if (doc.id.isNotBlank()) IconButton(onClick = { vm.officeClear(); notice = "" }) {
-                            Icon(Icons.Default.Refresh, tr(lang, "app.off.closeDoc"), tint = Ink)
+                            Icon(Icons.Rounded.Close, tr(lang, "app.off.closeDoc"), tint = Ink)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
             },
+            snackbarHost = { NoticeHost(vm) },
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad).padding(12.dp).verticalScroll(rememberScrollState())) {
                 if (doc.id.isBlank()) {
-                    EmptyBoard("❏", tr(lang, "app.off.empty"), tr(lang, "app.off.emptyHelp"))
+                    EmptyBoard(Icons.Rounded.Description, tr(lang, "app.off.empty"), tr(lang, "app.off.emptyHelp"))
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = { pick.launch("*/*") }, modifier = Modifier.fillMaxWidth()) {
                         Text(tr(lang, "app.off.pick"))

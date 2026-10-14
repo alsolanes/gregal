@@ -1,6 +1,9 @@
 python3 - "$2" <<'PYEOF'
 import sys
-got = open("nombres.txt", "rb").read().rstrip(b"\n")
-want = open(sys.argv[1], "rb").read().rstrip(b"\n")
+# CRLF/LF neutral: on Windows the fixture is checked out with CRLF
+# (core.autocrlf) while the agent writes LF; only the content matters.
+norm = lambda b: b.replace(b"\r\n", b"\n").rstrip(b"\n")
+got = norm(open("nombres.txt", "rb").read())
+want = norm(open(sys.argv[1], "rb").read())
 assert got == want, (got, want)
 PYEOF

@@ -2,6 +2,189 @@
 
 ## Unreleased
 
+## v1.9.0 - 2026-10-14 - Work groups, #retro everywhere and Android 0.9.8
+
+- #retro is easier to reach: its own sidebar entry with a dot for turns
+  you have not discussed yet, a clearer button on every finished turn, and a
+  new Android screen to read the agents' write-up, ask or challenge them
+  (@name) and react with emojis.
+- #retro specialists: Product, Code and Security join every channel. They
+  did not do the work; they review it from their angle with the same
+  evidence and receipts, speak at most once in the opening stand-up (only
+  when the evidence gives them something concrete), and answer questions on
+  their topic even without an @mention. `@all` / `@tots` asks everyone.
+- Redaction tests build their fake keys at runtime, so GitHub secret
+  scanning no longer reports them as leaks.
+
+- Android 0.9.8, aligned with the desktop. Each turn's tools, reasoning and
+  narration fold into one live "work" card (what it is doing now, elapsed
+  time, a timeline of steps with summaries such as "Read src/app.py ·
+  lines 10–40"); the final answer stays outside. Live text streams outside
+  the list (no more O(n²) copies), events are handled in order on one thread,
+  short network drops no longer fail a turn, and model errors read in plain
+  words. Composer with Ask/Act, Plan first, a send/stop/dictate button and a
+  "+" menu for goal, autonomous and debug modes and the permission lock.
+  Fixed: the "always allow" button was labelled "New session"; streamed
+  chunks and subagent lanes showed up as raw rows; autonomous/debug turns ran
+  as chat; the conversation is restored on open; notices show on every
+  screen; safer foreground-service start/stop, rotation and file reads.
+- Android visual identity aligned with the desktop: new launcher, monochrome
+  and notification icons from the Gregal wind-gust mark; the mark (floating,
+  blinking) on the sign-in and empty chat screens; rounded icon set; tighter
+  typography; project and branch under the model title and as a pill; tinted
+  empty states; drawer with a clear New session button. Pull to refresh on
+  every list (no new dependency), automatic reconnect at startup, and
+  reopening the app re-attaches to a turn that is still running.
+- Server: run ids no longer restart at 1 after a restart (the queue continues
+  from the highest id in the persistent event log), so clients following the
+  log can't mix a new turn with an old one.
+- Working folder always visible: a folder chip in the header (name, full
+  path on hover and underneath; click to change, ▾ for Change folder / Open
+  in Explorer or Finder (desktop) / Copy path), "Working in <folder>" with
+  branch, git and worktree status on the home page, a discreet "in <folder>"
+  under the composer, and full paths in session tab tooltips. `/api/state`
+  adds `git`, `worktree` and `worktree_repo`.
+- Floating weathervane (desktop): drag it from anywhere (a short click still
+  opens the app), minimize it to a compass dot, snap it to a corner or hide
+  it from hover controls; position and folded state are remembered and kept
+  on screen when displays change. The sidebar vane gets a Hide action.
+
+- Agent browser: `browser.mode` (`auto` | `app` | `headless` | `window`). In
+  the desktop app the agent drives an "Agent browser" pane next to the
+  conversation through a loopback, token-protected CDP bridge instead of
+  opening an external Chrome window; elsewhere it runs headless by default.
+  Browser screenshots show in the web tool card.
+- Composer: Ask | Act (Tab switches), a "Plan first" switch that proposes a
+  plan and waits for approval before acting, and the permission lock. Goal,
+  autonomous and debug modes move to `/goal`, `/auto`, `/debug` and the ⋯
+  menu, shown as a chip you can leave.
+- New default palette (dark and light): cool slate neutrals, one periwinkle
+  accent used sparingly, aqua for playful touches; WCAG AA text contrast
+  throughout (`docs/identitat.md`).
+- #retro: a Slack-style debrief channel per finished turn. Agents explain
+  what they did with links to real evidence (diff hunks, commands, tests),
+  react with emoji and answer @mention challenges; 🤔 asks for a
+  justification, 👎 records a preference, "Fix it" starts a follow-up turn.
+  Personas and an optional Slack/Teams webhook.
+- Git: per-step checkpoints on hidden refs (rewind now also undoes shell
+  changes), isolated worktree sessions, `git_commit` and `gh_pr_create`
+  tools with Commit/PR dialogs, and a reusable PR review GitHub Action.
+- Lifecycle hooks (`session_start`, `user_prompt`, `pre_tool`, `post_tool`,
+  `stop`, `pre_compact`); remote MCP over Streamable HTTP/SSE with OAuth,
+  resources and prompts; `gregal mcp serve` exposes Gregal to other clients.
+- User-defined subagents (`.gregal/agents/*.md`); team roles can use tools;
+  `/btw` side questions and `/recap`; suggested project notes and a memory
+  tidy, never written without approval.
+- Native Anthropic Messages and OpenAI Responses providers; a symbol map of
+  the repository in the turn context plus a `symbols` tool; Markdown/HTML
+  transcript export with secret redaction and revocable share links.
+- Debug mode, "Try N ways" (best-of-N in worktrees), a plan critic and
+  calibrated confidence bets before checks.
+- Room replay with clip export, weekly "Wrapped" stats, the Gregal
+  weathervane (opt-in), voice input and image paste in the composer.
+- Opt-in shell sandbox (`sandbox.mode: workspace|strict`, `network`,
+  `allow_write`, `backend`): bubblewrap or Landlock on Linux, sandbox-exec on
+  macOS, Docker on request (the only option on Windows). Without a backend,
+  `workspace` warns once and runs unsandboxed and `strict` refuses shell
+  commands. Status in `gregal --doctor`, `/api/state.sandbox` and the web
+  permission menu.
+- Auto-review permission mode (`permissions.mode: auto-review`, web menu,
+  `/autoreview` in the TUI): a reviewer model allows, denies or hands back
+  each call that needs approval; hard-denied calls never reach it, and
+  timeouts or malformed replies fall back to the human prompt.
+- Simpler navigation: the sidebar keeps four daily destinations (the
+  project chat, Changes with a file count, Files, Agents); Goals, Terminal,
+  Browser, GitHub, Office, Plots, Graphs, Scheduled and Connectors fold
+  under "More". Activity stays in the inspector. "Agents" merges the 2D
+  workshop and Team into one page with Live / Team run tabs; the Team tab
+  drops its duplicate 2D office.
+- 2D room: name, state and step sit on a readable plate in front of each
+  desk instead of tiny overlapping text over the monitor; a coordinator
+  working alone is centred; delegates sit behind their desks; the room and
+  the coordinator card adapt to the space actually available.
+- First page shows what is pending in the project (uncommitted changes,
+  agents working, open goals) and its three most recent conversations;
+  the generic starter suggestions only appear in a project with no history.
+- Liveness: the running work group and the turn bar say what the agent is
+  doing now and for how long (waiting for the model, thinking with a live
+  character count, writing, running a tool, waiting for approval, reviewing);
+  the server emits `progress` events for model, tools, review and compaction
+  phases, and a model that sends nothing for 90 s is flagged as such.
+  Autonomous checkpoints with nothing to report no longer print a line.
+- Web transcript: each turn's intermediate work (narration, tool calls,
+  thinking, answered approvals) folds into one "Worked for … · N tools"
+  group that stays open while running and collapses when done, leaving the
+  final answer below; tool rows read as plain actions ("Read src/app.py ·
+  lines 10–40", "Edit a.py +3 −1") instead of raw JSON; resolved approvals
+  shrink to one line; finished answers keep the code-block Copy button;
+  resumed conversations no longer show the internal project map in the
+  user's message and restore tool calls when the session stored them.
+- Web UI consistency: one button/field/page-header style across every
+  workspace page, compact composer mode switch, theme-aware Team graph
+  arrows with a revision edge that no longer crosses nodes, and no
+  untranslated Catalan left in the English UI or the Office add-in.
+- English model-facing prompts (rules, tool descriptions, nudges, final
+  synthesis, compaction, reviewer) with a language directive placed last,
+  so answers follow `lang` (English runs answered in Catalan about half
+  the time before).
+- Agent loop: loop-guard nudges no longer break the tool-call protocol
+  (HTTP 400); DeepSeek `reasoning_content` is sent back; unreachable
+  providers fail in about a second instead of ~96 s; "ok" confirmations
+  reach the model; only the newest message carries the project map;
+  known-model context windows when the provider reports none.
+- Headless (`-p`): `--dir` is honoured, in-project writes work without
+  `--auto-approve` in code mode, explicit `--max-steps` is a hard cap with
+  `exhausted` in JSON, a failed `--verify` exits 3, invalid flags fail
+  before any paid call, JSON errors go to stdout, the trace pairs results
+  by call ID, and interactive-only tools are not offered.
+- Workshop fusion: team pipeline runs publish as live bays in the single
+  2D room (states, agents, per-bay flow graph, detail, queue, stop),
+  sharing one graph module with the Team page; team stops have their own
+  slot and `/api/agent/cancel` stops both run kinds; failure messages in
+  the room never carry provider URLs.
+- Team flow editor: the fixed pipeline is now data (validated server-side),
+  with a visual editor (nodes, links, instructions, rounds, save/export/import)
+  and live graph preview; custom flows run through the same SSE vocabulary.
+- Team pipeline graph: the fixed order (plan, parallel pair, review,
+  revision back to builder) drawn live with per-agent states, clickable
+  nodes and handoff highlights; topology pinned by contract test.
+- Desktop app writes the managed backend log to `gregal-backend.log`
+  (rotated past 2 MB) so stopped runs can be diagnosed after the fact.
+- Server log: turn and team lifecycle lines on the terminal (outcome and
+  elapsed, credentials redacted), optionally appended to a file with
+  `--log-file` (or `GREGAL_LOG_FILE`). Team timeouts report as failures
+  instead of "Stopped", team runs no longer hijack the agent stop slot,
+  and role errors are logged sanitized (the only place a hidden provider
+  failure can be diagnosed).
+- Show real model consumption in the 2D workshop: per-turn and per-child
+  tokens (never estimated — bare call counts when the provider declares
+  nothing), turn cost only with a configured price, and an inspection-only
+  step timeline per bay.
+- Let each busy workshop bay stop its own turn in place, and count sessions
+  waiting for a response in the browser tab title.
+- Harden long runs: cancelled tools leave no fake results in history;
+  global cap of 8 live subagents per process (4 per call kept); background
+  polls never trip loop detection while the job runs; child summaries capped
+  with an explicit mark and a non-recallable prune note; at most 8 executable
+  calls per step (rest deferred with its tool result); cost caps stop loudly
+  instead of silently when the model has no price; web/fetch/GitHub tools
+  honor turn cancellation; post-edit hooks die with the turn.
+- Estimate image tokens by data size instead of a flat 1000.
+- Connect the 2D workshop to real coordinator and delegated-agent activity:
+  task/model/tool/step states, retained results and failures, accessible child
+  details, and responsive animation that respects reduced motion.
+- Encourage automatic delegation of independent investigations; support an
+  optional `delegate` model role and cap web turns at four concurrent children.
+  Keep worker configuration session-scoped, propagate cancellation, and contain
+  child failures without losing sibling results.
+- Keep numbered-file reads and paginated reads from triggering fuzzy loop
+  detection; identical repeated reads are still blocked.
+- Preserve cancellation and timeout errors from fallback models so long runs
+  stop without additional retries. Stop headless runs between steps and prevent
+  queued tools from starting after cancellation.
+- Honor Retry-After seconds and HTTP dates on 429/503 responses, capped at
+  30 seconds; allow retry backoff with jitter disabled.
+
 ## v1.8.1 - 2026-10-07 - Chat plots and project dashboard
 
 - Render inline line, bar and scatter charts from `gregal-plot` data blocks.

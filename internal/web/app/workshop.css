@@ -1,563 +1,243 @@
-/* El taller és una sala viva, però la feina continua sent fàcil de llegir. */
 .workshop-root,
 .workshop {
-  --workshop-mint: var(--accent);
-  --workshop-wood: color-mix(in srgb, #9b704d 27%, var(--surface));
-  --workshop-wood-hi: color-mix(in srgb, #bb8b61 36%, var(--surface));
-  --workshop-clay: color-mix(in srgb, #b76148 68%, var(--accent));
-  --workshop-floor: color-mix(in srgb, var(--workshop-wood) 42%, var(--bg));
-  --workshop-card: color-mix(in srgb, var(--surface) 92%, var(--accent));
+  --ws-mint: var(--accent, #8193FF);
+  --ws-sea: color-mix(in srgb, var(--onada, #5CE1D6) 70%, #A3B0FF);
+  --ws-wood: color-mix(in srgb, #9a6a49 35%, var(--surface, #f8f7f2));
+  --ws-floor: color-mix(in srgb, var(--bg, #eeeae1) 84%, #C9D1E6);
+  --ws-wall: color-mix(in srgb, var(--surface, #faf8f2) 70%, #DDE2EE);
+  --ws-line: color-mix(in srgb, var(--line, #ccc) 77%, transparent);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, 275px);
-  grid-template-areas: "head head" "error error" "stage queue";
+  grid-template-columns: minmax(0, 1fr) minmax(246px, 300px);
+  grid-template-areas: "head head" "error error" "room room" "stage queue";
   align-items: start;
   gap: 18px;
-  width: min(1360px, 100%);
+  width: min(1540px, 100%);
   margin: 0 auto;
-  padding: 16px;
+  padding: clamp(14px, 2vw, 24px);
   color: var(--text);
 }
+#workshopPage.workspace-page { padding: clamp(12px, 2vw, 24px); }
+.workshop-root *, .workshop * { box-sizing: border-box; }
 
-#workshopPage.workspace-page { padding: clamp(16px, 2vw, 24px); }
+.workshop-header { grid-area: head; display: flex; align-items: center; justify-content: space-between; gap: 18px; min-width: 0; }
+.workshop-header h1, .workshop-header h2, .workshop-title { margin: 2px 0 0; color: var(--ink); font-size: clamp(21px, 2.3vw, 30px); font-weight: 650; letter-spacing: -.04em; line-height: 1.2; }
+.workshop-header p, .workshop-subtitle { margin: 5px 0 0; color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.5; }
+.workshop-error { grid-area: error; color: var(--red); }
+.workshop-header .workshop-error { flex: 1 0 100%; margin: 0; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line)); border-radius: 10px; background: var(--red-soft); line-height: 1.45; }
+.workshop-header .workshop-attention { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 8px 13px; border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line)); border-radius: 11px; color: var(--ink); background: var(--accent-soft); font: inherit; font-weight: 620; cursor: pointer; box-shadow: 0 2px 0 color-mix(in srgb, var(--accent) 15%, transparent); }
+.workshop-header .workshop-attention:disabled { opacity: .6; cursor: default; box-shadow: none; }
 
-.workshop-root *,
-.workshop * { box-sizing: border-box; }
+.workshop-stage { grid-area: stage; position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 18px; min-width: 0; min-height: 520px; overflow: hidden; padding: clamp(18px, 2vw, 28px); border: 1px solid color-mix(in srgb, var(--ws-mint) 29%, var(--line)); border-radius: 25px; background: var(--ws-floor); box-shadow: 0 12px 30px var(--ombra), inset 0 1px 0 color-mix(in srgb, white 50%, transparent); }
+.workshop-stage::before { position: absolute; z-index: -2; inset: 0 0 auto; height: 190px; background: linear-gradient(180deg, color-mix(in srgb, var(--ws-wall) 95%, white) 0%, color-mix(in srgb, var(--ws-wall) 86%, transparent) 100%); content: ""; }
+.workshop-stage::after { position: absolute; z-index: -2; inset: 190px 0 0; background: repeating-linear-gradient(0deg, transparent 0 31px, color-mix(in srgb, #9a795d 11%, transparent) 32px 33px), radial-gradient(ellipse at 48% 100%, color-mix(in srgb, var(--ws-mint) 12%, transparent), transparent 60%); content: ""; pointer-events: none; }
+/* Live canvas portrait of the current session: last in DOM (so polls never
+   disturb it) but first on screen. The DOM bays below stay the accessible
+   layer; the canvas is aria-hidden. */
+.workshop-scene { order: -1; display: block; width: 100%; height: auto; aspect-ratio: 960 / 400; border: 1px solid color-mix(in srgb, var(--ws-wood) 55%, var(--line)); border-radius: 16px; background: var(--ws-wall); cursor: pointer; }
+.workshop-scene[hidden] { display: none; }
+.workshop-window { position: absolute; z-index: -1; top: 22px; right: clamp(30px, 8vw, 110px); width: clamp(135px, 20vw, 225px); height: 150px; overflow: hidden; border: 9px solid color-mix(in srgb, #a77852 58%, var(--surface)); border-bottom-width: 13px; border-radius: 100px 100px 10px 10px; background: radial-gradient(circle at 70% 28%, #f7d780 0 7%, transparent 7.5%), linear-gradient(180deg, #b6d9d4 0 44%, #81b9b1 45% 65%, #57948d 66% 100%); box-shadow: 0 8px 18px var(--ombra), inset 0 0 0 1px #ffffff70; pointer-events: none; }
+.workshop-window::before { position: absolute; right: -10%; bottom: 18%; left: -10%; height: 33%; border-radius: 50% 50% 0 0 / 50% 50% 0 0; background: #d2d6b4; content: ""; }
+.workshop-window::after { position: absolute; inset: 0; background: linear-gradient(90deg, transparent 47%, #a77852 48% 52%, transparent 53%), linear-gradient(180deg, transparent 48%, #a77852 49% 53%, transparent 54%); content: ""; }
 
-.workshop-header {
-  grid-area: head;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  min-width: 0;
-  padding: 2px 2px 0;
-}
-
-.workshop-error { grid-area: error; }
-
-.workshop-header h1,
-.workshop-header h2,
-.workshop-title {
-  margin: 0;
-  color: var(--ink);
-  font-size: clamp(20px, 2.2vw, 27px);
-  font-weight: 620;
-  letter-spacing: -.035em;
-  line-height: 1.2;
-}
-
-.workshop-header p,
-.workshop-subtitle {
-  margin: 5px 0 0;
-  color: var(--muted);
-  font-size: var(--t2, 12.5px);
-  line-height: 1.5;
-}
-
-.workshop-summary,
-.workshop-needs {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-width: 0;
-}
-
-.workshop-summary > *,
-.workshop-needs {
-  min-height: 32px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--surface);
-  font-size: var(--t1, 11.5px);
-  font-weight: 560;
-  white-space: nowrap;
-}
-
-.workshop-needs {
-  border-color: color-mix(in srgb, var(--amber) 48%, var(--line));
-  color: var(--ink);
-  background: color-mix(in srgb, var(--amber-soft) 72%, var(--surface));
-}
-
-.workshop-stage {
-  grid-area: stage;
-  position: relative;
-  isolation: isolate;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 220px));
-  justify-content: center;
-  align-content: start;
-  align-items: stretch;
-  gap: clamp(14px, 2vw, 24px);
-  min-width: 0;
-  min-height: 520px;
-  overflow: hidden;
-  padding: clamp(22px, 3vw, 38px);
-  padding-top: 220px;
-  border: 1px solid var(--line-hi);
-  border-radius: 24px;
-  background:
-    linear-gradient(180deg, transparent 0 180px, color-mix(in srgb, var(--workshop-floor) 92%, transparent) 180px 100%),
-    radial-gradient(ellipse at 54% 86%, color-mix(in srgb, var(--workshop-wood) 34%, transparent), transparent 56%),
-    linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 80%, var(--surface)), var(--workshop-card) 58%, color-mix(in srgb, var(--workshop-clay) 10%, var(--surface)));
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent), 0 12px 30px var(--ombra);
-}
-
-.workshop-stage::before {
-  position: absolute;
-  z-index: -1;
-  inset: auto 0 0;
-  height: calc(100% - 180px);
-  border-top: 1px solid color-mix(in srgb, var(--workshop-wood) 58%, transparent);
-  background: repeating-linear-gradient(0deg, transparent 0 28px, color-mix(in srgb, var(--workshop-wood) 12%, transparent) 29px 30px);
-  content: "";
-  pointer-events: none;
-}
-
-/* Una finestra d'arc, mar i sol, construïda amb CSS perquè s'adapti al tema. */
-.workshop-window,
-.workshop-view {
-  position: absolute;
-  z-index: 0;
-  top: 24px;
-  right: clamp(24px, 7vw, 82px);
-  width: clamp(132px, 20vw, 230px);
-  height: clamp(118px, 16vw, 174px);
-  overflow: hidden;
-  border: 9px solid var(--workshop-wood-hi);
-  border-bottom-width: 12px;
-  border-radius: 100px 100px 9px 9px;
-  background:
-    radial-gradient(circle at 71% 29%, color-mix(in srgb, var(--amber) 76%, #fff2bd) 0 8%, transparent 8.5%),
-    linear-gradient(180deg, color-mix(in srgb, var(--onada) 14%, #9ad9d6) 0 44%, color-mix(in srgb, var(--onada) 48%, #4b9d9a) 44% 72%, color-mix(in srgb, var(--accent) 58%, #317977) 72% 100%);
-  box-shadow: 0 6px 18px var(--ombra), inset 0 0 0 1px color-mix(in srgb, var(--ink) 9%, transparent);
-  pointer-events: none;
-}
-
-.workshop-window[aria-hidden="true"],
-.workshop-view[aria-hidden="true"] { user-select: none; }
-
-.workshop-window::before,
-.workshop-view::before {
-  position: absolute;
-  right: -8%;
-  bottom: 19%;
-  left: -8%;
-  height: 34%;
-  border-radius: 50% 50% 0 0 / 42% 42% 0 0;
-  background: color-mix(in srgb, var(--workshop-mint) 24%, #e4cf9f);
-  content: "";
-}
-
-.workshop-window::after,
-.workshop-view::after {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(90deg, transparent 47%, var(--workshop-wood-hi) 48% 52%, transparent 53%),
-    linear-gradient(180deg, transparent 48%, var(--workshop-wood-hi) 49% 53%, transparent 54%);
-  content: "";
-}
-
-.workshop-station {
-  --station-state: var(--muted);
-  --person-hair: color-mix(in srgb, #4a3027 72%, var(--ink));
-  --person-face: color-mix(in srgb, #e3b391 72%, var(--surface));
-  --person-neck: color-mix(in srgb, #d69d79 70%, var(--surface));
-  --person-shirt: color-mix(in srgb, var(--accent) 75%, var(--surface));
-  --person-ink: color-mix(in srgb, #3e2d29 76%, var(--ink));
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-rows: 116px auto auto auto;
-  justify-items: center;
-  gap: 4px;
-  min-width: 0;
-  padding: 12px 12px 10px;
-  border: 1px solid color-mix(in srgb, var(--workshop-wood-hi) 62%, var(--line));
-  border-radius: 18px 18px 12px 12px;
-  color: var(--text);
-  background: color-mix(in srgb, var(--workshop-card) 91%, transparent);
-  box-shadow: 0 8px 18px var(--ombra), inset 0 1px 0 color-mix(in srgb, var(--ink) 5%, transparent);
-  text-align: center;
-  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
-}
-
-.workshop-station[data-state="busy"] { --station-state: var(--accent); }
+.workshop-bay { position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 14px; border: 1px solid color-mix(in srgb, var(--ws-mint) 20%, var(--line)); border-radius: 20px; background: color-mix(in srgb, var(--surface) 79%, transparent); box-shadow: 0 5px 16px color-mix(in srgb, var(--ink) 8%, transparent), inset 0 1px 0 #fff8; animation: bay-enter .35s cubic-bezier(.2,.8,.2,1) both; animation-delay: calc(var(--bay-index, 0) * 40ms); }
+.bay-heading { position: relative; display: grid; grid-template-columns: minmax(165px, 1fr) 56px minmax(95px, .65fr); align-items: center; gap: 9px; min-height: 116px; }
+.workshop-station { --station-state: var(--muted); --person-hair:#49392f; --person-fringe:#594234; --person-face:#e3b391; --person-neck:#d69d79; --person-shirt:color-mix(in srgb, var(--accent) 66%, white); --person-ink:#392e2a; position: relative; display: grid; grid-template-columns: 46px 66px minmax(0, 1fr); grid-template-rows: auto 25px 24px auto; align-items: center; gap: 1px 8px; min-width: 0; min-height: 106px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--ws-wood) 72%, var(--line)); border-radius: 16px 16px 11px 11px; color: var(--text); background: linear-gradient(155deg, color-mix(in srgb, var(--surface) 94%, white), color-mix(in srgb, var(--ws-wood) 15%, var(--surface))); box-shadow: 0 6px 12px color-mix(in srgb, var(--ink) 9%, transparent), inset 0 1px 0 white; text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.workshop-station[data-state="thinking"], .workshop-station[data-state="tools"], .workshop-station[data-state="compacting"], .workshop-station[data-state="reviewing"] { --station-state: var(--accent); }
 .workshop-station[data-state="waiting"] { --station-state: var(--amber); }
-.workshop-station[data-state="error"] { --station-state: var(--red); }
-.workshop-station[data-state="idle"] { --station-state: var(--green); }
+.workshop-station[data-state="failed"] { --station-state: var(--red); }
+.workshop-station[data-state="completed"] { --station-state: var(--green); }
+.workshop-station:hover, .workshop-station.is-selected { transform: translateY(-2px); border-color: var(--station-state); box-shadow: 0 9px 18px color-mix(in srgb, var(--ink) 13%, transparent), 0 0 0 2px color-mix(in srgb, var(--station-state) 20%, transparent); }
+.coordinator-label { grid-column: 1 / -1; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+.coordinator-avatar { grid-column: 1; grid-row: 2 / 4; display: grid; place-items: end center; height: 58px; overflow: hidden; }
+.workshop-person { display: block; width: 47px; height: 58px; overflow: visible; filter: drop-shadow(0 2px 1px #0002); transform-origin: 50% 100%; }
+.workshop-station[data-state="thinking"] .workshop-person, .workshop-station[data-state="tools"] .workshop-person, .workshop-station[data-state="compacting"] .workshop-person, .workshop-station[data-state="reviewing"] .workshop-person, .child-agent[data-state="working"] .workshop-person { animation: person-work 1.5s ease-in-out infinite; }
+.person-hair { fill: var(--person-hair); stroke: var(--person-ink); stroke-width: 1; }
+.person-fringe { fill: var(--person-fringe, var(--person-hair)); }
+.person-face { fill: var(--person-face); stroke: var(--person-ink); stroke-width: 1; }
+.person-eyes { fill: var(--person-ink); }
+.person-smile { fill: none; stroke: var(--person-ink); stroke-width: 1; stroke-linecap: round; }
+.person-neck { fill: var(--person-neck); }
+.person-shirt { fill: var(--person-shirt); stroke: var(--person-ink); stroke-width: 1; stroke-linejoin: round; }
+.person-arm { fill: none; stroke: var(--person-face); stroke-width: 4; stroke-linecap: round; stroke-dasharray: 7 3; }
+.workshop-station[data-state="thinking"] .person-arm, .workshop-station[data-state="tools"] .person-arm, .workshop-station[data-state="compacting"] .person-arm, .workshop-station[data-state="reviewing"] .person-arm, .child-agent[data-state="working"] .person-arm { animation: typing 1.05s steps(2,end) infinite; }
+.coordinator-desk { grid-column: 2; grid-row: 2 / 4; position: relative; align-self: end; height: 41px; margin-bottom: 3px; border: 1px solid #87604480; border-radius: 7px 7px 9px 9px; background: linear-gradient(180deg, #c59a6c 0 22%, #a6774d 23% 100%); box-shadow: 0 3px 0 #704b37; }
+.coordinator-desk::before { position: absolute; left: 11px; bottom: calc(100% + 4px); width: 43px; height: 29px; border: 4px solid #74543b; border-bottom-width: 6px; border-radius: 5px; background: linear-gradient(145deg, #b7dbcf, #607b70); box-shadow: inset 0 0 9px #84bea277; content: ""; }
+.workshop-name { grid-column: 3; grid-row: 2; overflow: hidden; color: var(--ink); font-size: var(--t3, 14px); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.workshop-status { grid-column: 3; grid-row: 3; display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; color: var(--station-state); font-size: var(--t1, 11.5px); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.workshop-status::before { width: 7px; height: 7px; flex: none; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent); content: ""; }
+.workshop-details { grid-column: 3; grid-row: 4; display: -webkit-box; max-height: 32px; overflow: hidden; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.35; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.bay-meta { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.4; }
+.bay-meta > span { max-width: 100%; overflow-wrap: anywhere; }
+.bay-model::before { content: "◈ "; color: var(--ws-mint); }
+.bay-step { padding: 4px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); }
+.bay-usage { padding: 4px 7px; border: 1px solid color-mix(in srgb, var(--ws-mint) 40%, var(--line)); border-radius: 7px; background: color-mix(in srgb, var(--ws-mint) 12%, var(--surface)); color: var(--text); font-variant-numeric: tabular-nums; }
+.bay-usage[hidden] { display: none; }
+.bay-stop { min-height: 30px; padding: 5px 12px; border: 1px solid color-mix(in srgb, var(--red) 45%, var(--line)); border-radius: 999px; background: var(--surface); color: var(--red); font: inherit; font-size: var(--t1, 11.5px); font-weight: 650; cursor: pointer; }
+.bay-stop:hover:not(:disabled) { background: var(--red-soft); }
+.bay-stop:disabled { opacity: .55; cursor: default; }
+.bay-stop[hidden] { display: none; }
+.bay-history { margin-top: 10px; padding: 10px 12px; border: 1px dashed color-mix(in srgb, var(--ws-wood) 55%, var(--line)); border-radius: 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); }
+.bay-history[hidden] { display: none; }
+.history-heading { margin: 0 0 6px; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.history-list { display: flex; flex-direction: column; gap: 3px; max-height: 148px; margin: 0; padding: 0; overflow: auto; list-style: none; }
+.history-item { display: flex; align-items: baseline; gap: 7px; min-width: 0; color: var(--text); font-size: var(--t1, 11.5px); line-height: 1.45; }
+.history-step { flex: none; min-width: 30px; color: var(--ws-mint); font-family: var(--mono, monospace); font-weight: 700; }
+.history-what { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.history-time { flex: none; color: var(--faint, var(--muted)); font-family: var(--mono, monospace); font-size: var(--t1, 11.5px); }
+.signal-route { position: relative; height: 2px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ws-mint) 60%, transparent) 0 4px, transparent 4px 8px); }
+.signal-route::after { position: absolute; top: -3px; left: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 13%, transparent); content: ""; animation: courier 2.2s ease-in-out infinite; }
+.workshop-bay[data-state="idle"] .signal-route::after, .workshop-bay[data-state="waiting"] .signal-route::after, .workshop-bay[data-state="completed"] .signal-route::after, .workshop-bay[data-state="failed"] .signal-route::after, .workshop-bay[data-state="cancelled"] .signal-route::after { display: none; }
+.child-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 2px; border-top: 1px solid var(--ws-line); }
+.child-heading h3 { margin: 9px 0 0; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 750; letter-spacing: .1em; text-transform: uppercase; }
+.child-count { margin-top: 8px; color: var(--muted); font-size: var(--t1, 11.5px); }
+.child-agents { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(205px, 100%), 1fr)); gap: 10px; min-width: 0; }
+.child-agent { --person-hair:#46342d; --person-fringe:#573b31; --person-face:#d8a27f; --person-neck:#c48a6e; --person-shirt:#bc765d; --person-ink:#382a27; position: relative; display: grid; grid-template-columns: 48px 62px minmax(0, 1fr); grid-template-rows: 64px; align-items: center; gap: 0 7px; min-width: 0; min-height: 80px; padding: 7px 9px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--ws-wood) 64%, var(--line)); border-radius: 12px; color: var(--text); background: color-mix(in srgb, var(--surface) 92%, transparent); text-align: left; cursor: pointer; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease; }
+.child-agent:nth-child(4n + 2) { --person-hair:#342a27; --person-fringe:#45332d; --person-shirt:#598b81; --person-face:#a16d55; --person-neck:#87553f; }
+.child-agent:nth-child(4n + 3) { --person-hair:#75543c; --person-fringe:#876244; --person-shirt:#c39a50; --person-face:#e5bea0; --person-neck:#d1a17e; }
+.child-agent:nth-child(4n + 4) { --person-hair:#433647; --person-fringe:#59445c; --person-shirt:#7289ab; --person-face:#cd9272; --person-neck:#b87b61; }
+.child-agent[data-state="completed"] { --person-shirt: color-mix(in srgb, var(--green) 56%, white); }
+.child-agent[data-state="failed"] { --person-shirt: color-mix(in srgb, var(--red) 48%, white); border-color: color-mix(in srgb, var(--red) 45%, var(--line)); }
+.child-agent:hover, .child-agent:focus-visible { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 5px 13px var(--ombra); }
+.child-portrait { grid-column: 1; grid-row: 1; display: grid; align-items: end; justify-items: center; height: 64px; overflow: hidden; }
+.child-portrait .workshop-person { width: 44px; height: 57px; }
+.child-desk { grid-column: 2; grid-row: 1; position: relative; align-self: end; height: 25px; margin-bottom: 7px; border-radius: 5px 5px 7px 7px; background: linear-gradient(#c59a6c 0 25%, #a6774d 26%); box-shadow: 0 3px 0 #704b37; }
+.child-monitor { position: absolute; bottom: calc(100% + 3px); left: 50%; width: 35px; height: 23px; transform: translateX(-50%); border: 4px solid #74543b; border-bottom-width: 5px; border-radius: 4px; background: linear-gradient(140deg, #c0dace, #678d83); box-shadow: inset 0 0 7px #94d2bb88; }
+.child-monitor::after { position: absolute; inset: 5px 4px; border-top: 1px solid #5cb49b; border-bottom: 1px solid #86c9ad; content: ""; }
+.child-keyboard { position: absolute; bottom: 3px; left: 50%; width: 19px; height: 3px; transform: translateX(-50%); border-radius: 4px; background: #75533d; }
+.child-info { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.child-task { display: -webkit-box; max-height: 34px; overflow: hidden; color: var(--ink); font-size: var(--t2, 12.5px); font-weight: 620; line-height: 1.3; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.child-state { color: var(--accent); font-size: var(--t1, 11.5px); font-weight: 700; }
+.child-agent[data-state="completed"] .child-state { color: var(--green); }
+.child-agent[data-state="failed"] .child-state { color: var(--red); }
+.child-facts { display: block; max-height: 31px; overflow: hidden; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.3; text-overflow: ellipsis; }
+.courier-link { position: absolute; z-index: 2; top: -7px; left: 50%; width: 1px; height: 13px; border-left: 1px dashed color-mix(in srgb, var(--accent) 48%, transparent); }
+.courier-link::after { position: absolute; top: 2px; left: -3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); content: ""; animation: packet-drop 1.8s ease-in infinite; animation-delay: calc(var(--agent-index, 0) * 130ms); }
+.child-agent[data-state="completed"] .courier-link, .child-agent[data-state="failed"] .courier-link, .child-agent[data-state="cancelled"] .courier-link, .child-agent[data-state="idle"] .courier-link { display: none; }
+.no-children { margin: 0; padding: 6px 2px 2px; color: var(--muted); font-size: var(--t2, 12.5px); }
+.workshop-empty-state { display: grid; justify-items: center; align-content: center; min-height: 270px; margin: auto; padding: 30px; text-align: center; }
+.empty-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line)); border-radius: 18px; color: var(--accent); background: var(--surface); font-size: 27px; box-shadow: 0 6px 14px var(--ombra); }
+.workshop-empty-state h2 { margin: 16px 0 5px; color: var(--ink); font-size: 18px; }
+.workshop-empty-state p { max-width: 320px; margin: 0; color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.55; }
 
-/* Paletes petites i fixes: cada estació té una persona amb roba pròpia. */
-.workshop-station:nth-child(4n + 2) { --person-hair:#594337; --person-shirt:#c96b4f; --person-face:#d7a17f; --person-neck:#c38a6b; }
-.workshop-station:nth-child(4n + 3) { --person-hair:#342a27; --person-shirt:#5c9d91; --person-face:#9b654b; --person-neck:#83513c; }
-.workshop-station:nth-child(4n + 4) { --person-hair:#77533d; --person-shirt:#c19a52; --person-face:#e7c3a5; --person-neck:#d1a17e; }
-.workshop-station:nth-child(4n + 5) { --person-hair:#463442; --person-shirt:#7088ad; --person-face:#c98f6d; --person-neck:#b5765b; }
-
-.workshop-station:hover,
-.workshop-station.is-selected {
-  transform: translateY(-3px);
-  border-color: var(--station-state);
-  box-shadow: 0 12px 25px var(--ombra), 0 0 0 2px color-mix(in srgb, var(--station-state) 20%, transparent);
-}
-
-.workshop-station:focus-visible,
-.workshop-queue button:focus-visible,
-.workshop-root button:focus-visible,
-.workshop-root a:focus-visible,
-.workshop-root [tabindex]:focus-visible {
-  outline: 2px solid var(--accent-hi);
-  outline-offset: 3px;
-}
-
-.workshop-station > * { min-width: 0; }
-.workshop-station h2,
-.workshop-station h3,
-.workshop-station .workshop-name {
-  width: 100%;
-  margin: 0;
-  overflow: hidden;
-  color: var(--ink);
-  font-size: var(--t3, 14px);
-  font-weight: 620;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workshop-station .workshop-name { grid-row: 2; }
-.workshop-station .workshop-status { grid-row: 3; }
-.workshop-station .workshop-details { grid-row: 4; }
-
-.workshop-figure {
-  display: grid;
-  grid-column: 1;
-  grid-row: 1;
-  align-self: stretch;
-  justify-items: center;
-  min-height: 0;
-  z-index: 0;
-}
-
-.workshop-person {
-  position: relative;
-  display: block;
-  align-self: end;
-  justify-self: center;
-  width: min(84px, 72%);
-  height: 108px;
-  overflow: visible;
-  filter: drop-shadow(0 5px 3px color-mix(in srgb, var(--ink) 12%, transparent));
-  transform-origin: 50% 100%;
-}
-
-.person-hair { fill: var(--person-hair); stroke: var(--person-ink); stroke-width: 1.1; stroke-linejoin: round; }
-.person-face { fill: var(--person-face); stroke: var(--person-ink); stroke-width: 1.1; }
-.person-eyes { fill: var(--person-ink); stroke: none; }
-.person-smile { fill: none; stroke: var(--person-ink); stroke-width: .9; stroke-linecap: round; }
-.person-neck { fill: var(--person-neck); stroke: var(--person-ink); stroke-width: .8; }
-.person-shirt { fill: var(--person-shirt); stroke: var(--person-ink); stroke-width: 1.2; stroke-linejoin: round; }
-.person-arm { fill: none; stroke: var(--person-face); stroke-width: 4.2; stroke-linecap: round; stroke-linejoin: round; }
-.person-dots { fill: none; stroke: var(--person-ink); stroke-width: 1.8; stroke-linecap: round; }
-.workshop-station[data-state="busy"] .workshop-person { animation: workshop-bob 2.8s ease-in-out infinite; }
-.workshop-station[data-state="waiting"] { --person-shirt: color-mix(in srgb, var(--amber) 58%, var(--surface)); }
-.workshop-station[data-state="error"] { --person-shirt: color-mix(in srgb, var(--red) 44%, var(--surface)); }
-
-.workshop-desk {
-  grid-column: 1;
-  grid-row: 1;
-  z-index: 1;
-  align-self: end;
-  position: relative;
-  width: 100%;
-  min-height: 34px;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--workshop-wood-hi) 70%, var(--line));
-  border-radius: 7px 7px 10px 10px;
-  color: var(--muted);
-  background: linear-gradient(180deg, var(--workshop-wood-hi) 0 35%, var(--workshop-wood) 36% 100%);
-  box-shadow: 0 4px 0 color-mix(in srgb, var(--workshop-wood) 85%, var(--ink));
-  font-size: var(--t1, 11.5px);
-  line-height: 1.45;
-}
-
-.workshop-screen {
-  position: absolute;
-  bottom: calc(100% + 5px);
-  left: 50%;
-  width: 46px;
-  height: 29px;
-  transform: translateX(-50%);
-  border: 4px solid color-mix(in srgb, var(--workshop-wood) 75%, #342e29);
-  border-bottom-width: 6px;
-  border-radius: 5px 5px 3px 3px;
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-soft) 80%, var(--surface-hi)), var(--surface));
-  box-shadow: 0 2px 5px var(--ombra), inset 0 0 10px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
-.workshop-screen::after {
-  position: absolute;
-  inset: 6px 5px;
-  border-top: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--onada) 42%, transparent);
-  content: "";
-}
-
-.workshop-details {
-  display: -webkit-box;
-  width: 100%;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: var(--t1, 11.5px);
-  line-height: 1.35;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.workshop-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  overflow: hidden;
-  color: var(--station-state);
-  font-size: var(--t1, 11.5px);
-  font-weight: 580;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.workshop-status::before {
-  width: 7px;
-  height: 7px;
-  flex: none;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 14%, transparent);
-  content: "";
-}
-
-.workshop-station[data-state="busy"] .workshop-status::before { animation: workshop-pulse 1.7s ease-out infinite; }
-.workshop-station[data-state="waiting"] .workshop-status::before { animation: workshop-pulse 2.3s ease-out infinite; }
-
-.workshop-queue {
-  grid-area: queue;
-  position: sticky;
-  top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-  max-height: min(70vh, 760px);
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 17px;
-  color: var(--text);
-  background: var(--surface);
-  box-shadow: 0 8px 24px var(--ombra);
-  scrollbar-color: var(--line-hi) transparent;
-}
-
-.workshop-queue h2,
-.workshop-queue h3,
-.workshop-queue-title {
-  position: sticky;
-  top: -16px;
-  z-index: 1;
-  margin: -16px -16px 2px;
-  padding: 15px 16px 12px;
-  border-bottom: 1px solid var(--line);
-  border-radius: 17px 17px 0 0;
-  color: var(--ink);
-  background: var(--surface);
-  font-size: var(--t3, 14px);
-  font-weight: 630;
-}
-
-.workshop-queue .workshop-needs {
-  position: sticky;
-  top: -16px;
-  z-index: 1;
-  justify-content: space-between;
-  margin: -16px -16px 2px;
-  padding: 15px 16px 12px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 17px 17px 0 0;
-  color: var(--ink);
-  background: var(--surface);
-  font-size: var(--t3, 14px);
-}
-
-.workshop-queue .workshop-needs::after {
-  display: inline-grid;
-  min-width: 22px;
-  height: 22px;
-  place-items: center;
-  padding: 0 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--muted);
-  background: var(--bg);
-  content: attr(data-count);
-  font-size: var(--t1, 11.5px);
-}
-
-.workshop-queue-list { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
-.workshop-queue-marker { flex: none; color: var(--amber); font-size: 12px; line-height: 1.5; }
-.workshop-queue-label { min-width: 0; overflow-wrap: anywhere; }
+.workshop-queue { grid-area: queue; position: sticky; top: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: min(78vh, 850px); overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 18px; color: var(--text); background: var(--surface); box-shadow: 0 8px 24px var(--ombra); scrollbar-color: var(--line-hi) transparent; }
+.workshop-queue .workshop-needs { position: sticky; top: -16px; z-index: 2; display: flex; align-items: center; justify-content: space-between; margin: -16px -16px 2px; padding: 15px 16px 12px; border-bottom: 1px solid var(--line); border-radius: 18px 18px 0 0; color: var(--ink); background: var(--surface); font-size: var(--t3, 14px); }
+.workshop-queue .workshop-needs::after { display: grid; min-width: 22px; height: 22px; place-items: center; padding: 0 6px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: var(--bg); content: attr(data-count); font-size: var(--t1, 11.5px); }
+.workshop-summary { margin: 0 0 4px; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.5; }
+.workshop-queue-list { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .workshop-queue-empty { color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.5; }
+.workshop-queue-divider { margin: 6px 0 0; color: var(--red); font-size: var(--t1, 11.5px); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.workshop-queue-item.is-failed { border-color: color-mix(in srgb, var(--red) 55%, var(--line)); background: color-mix(in srgb, var(--red-soft) 60%, var(--surface)); }
+.workshop-queue-item.is-failed .queue-signal { color: var(--red); }
+.workshop-queue-item { display: flex; align-items: flex-start; gap: 9px; width: 100%; min-width: 0; padding: 10px; border: 1px solid color-mix(in srgb, var(--amber) 43%, var(--line)); border-radius: 11px; color: var(--text); background: color-mix(in srgb, var(--amber-soft) 55%, var(--surface)); font: inherit; font-size: var(--t2, 12.5px); line-height: 1.45; text-align: left; cursor: pointer; }
+.queue-signal { color: var(--amber); }
+.workshop-queue-label { min-width: 0; overflow-wrap: anywhere; }
+.workshop-detail { position: relative; margin-top: 6px; padding: 14px; border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line)); border-radius: 14px; background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+.workshop-detail[hidden] { display: none; }
+.workshop-detail-title { margin: 0 34px 8px 0; color: var(--ink); font-size: var(--t3, 14px); line-height: 1.35; overflow-wrap: anywhere; }
+.workshop-detail-close { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); cursor: pointer; }
+.detail-state { margin: 0 0 9px; color: var(--accent); font-size: var(--t2, 12.5px); font-weight: 650; }
+.detail-facts { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 0 0 12px; font-size: var(--t1, 11.5px); }
+.detail-facts dt { margin-top: 7px; color: var(--muted); font-weight: 650; }
+.detail-facts dd { margin: 0; color: var(--text); overflow-wrap: anywhere; white-space: pre-wrap; line-height: 1.4; }
+.detail-facts .detail-text.detail-clamp { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 4; }
+.detail-more { margin-top: 4px; padding: 3px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: var(--t1, 11.5px); cursor: pointer; }
+.detail-more:hover { color: var(--ink); border-color: var(--line-hi); }
+.detail-more[hidden] { display: none; }
+.detail-open-parent { width: 100%; min-height: 34px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: 9px; color: var(--ink); background: var(--accent-soft); font: inherit; font-size: var(--t2, 12.5px); font-weight: 650; cursor: pointer; }
+/* Pipeline graph inside team bays: same node vocabulary as the Team page,
+   so one room replaces two 2D views. All colors are global theme vars. */
+.bay-graph { margin: 10px 0 4px; }
+.bay-graph[hidden] { display: none; }
+.bay-graph svg { display: block; width: 100%; height: auto; }
+.bay-graph .team-flow-node { cursor: pointer; }
+.bay-graph .team-flow-node rect { fill: var(--surface); stroke: var(--line-hi); stroke-width: 1.5; }
+.bay-graph .team-flow-node text { fill: var(--ink); font-size: 15px; font-weight: 600; }
+.bay-graph .team-flow-node:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 3px; }
+.bay-graph .team-flow-node.is-selected rect { stroke: var(--accent); stroke-width: 2.5; }
+.bay-graph .team-flow-node.is-working rect { stroke: #f3a64a; stroke-width: 2.5; }
+.bay-graph .team-flow-node.is-done rect { stroke: var(--green); }
+.bay-graph .team-flow-node.is-bad rect { stroke: var(--red); }
+.bay-graph .flow-dot { fill: var(--faint); }
+.bay-graph .flow-dot.dot-working { fill: #f3a64a; }
+.bay-graph .flow-dot.dot-completed { fill: var(--green); }
+.bay-graph .flow-dot.dot-failed, .bay-graph .flow-dot.dot-cancelled { fill: var(--red); }
+.bay-graph path[data-flow-edge] { fill: none; stroke: var(--faint); stroke-width: 1.5; }
+.bay-graph path[data-flow-edge].is-revision { stroke-dasharray: 5 4; }
+.bay-graph path[data-flow-edge].flow-live { stroke: var(--accent); stroke-width: 2.5; stroke-dasharray: 7 5; animation: flow-dash 1s linear infinite; }
+@keyframes flow-dash { to { stroke-dashoffset: -12; } }
+.workshop-root button:focus-visible, .workshop-root [tabindex]:focus-visible { outline: 2px solid var(--accent-hi); outline-offset: 3px; }
 
-.workshop-queue > *,
-.workshop-attention,
-.workshop-queue-item {
-  min-width: 0;
-}
+@keyframes person-work { 0%,100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-2px) rotate(1deg); } }
+@keyframes typing { 0%,100% { stroke-dashoffset: 0; } 50% { stroke-dashoffset: 10; } }
+@keyframes courier { 0% { left: 0; opacity: .4; } 45% { opacity: 1; } 100% { left: calc(100% - 8px); opacity: .4; } }
+@keyframes packet-drop { 0% { top: 1px; opacity: 0; } 25% { opacity: 1; } 100% { top: 11px; opacity: .2; } }
+@keyframes bay-enter { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-.workshop-attention,
-.workshop-queue-item {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  border-radius: 11px;
-  color: var(--text);
-  background: var(--bg);
-  font-size: var(--t2, 12.5px);
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
+.workshop-root[aria-hidden="true"] *, .workshop[aria-hidden="true"] * { animation-play-state: paused !important; }
+/* Role room: canvas + role legend + step strip + role detail. Role
+   identity colours match the canvas; everything else is theme chrome. */
+.workshop-room { --role-coordinator: #c98a3c; --role-researcher: #4f8fa0; --role-builder: #b5674c; --role-tester: #5f9a5c; --role-reviewer: #8a6ab0; grid-area: room; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.workshop-room[hidden] { display: none; }
+/* The room above already paints the office: no second window in the stage. */
+.workshop-room ~ .workshop-stage .workshop-window { display: none; }
+.workshop-room .workshop-scene { order: 0; }
+.room-legend { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-legend[hidden], .room-strip[hidden] { display: none; }
+.room-role { --role: var(--role-coordinator); display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 5px 11px 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--text); background: var(--surface); font: inherit; font-size: var(--t2, 12.5px); cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease, background .15s ease; }
+.room-role[data-role="researcher"], .room-step[data-role="researcher"], .room-detail[data-role="researcher"] { --role: var(--role-researcher); }
+.room-role[data-role="builder"], .room-step[data-role="builder"], .room-detail[data-role="builder"] { --role: var(--role-builder); }
+.room-role[data-role="tester"], .room-step[data-role="tester"], .room-detail[data-role="tester"] { --role: var(--role-tester); }
+.room-role[data-role="reviewer"], .room-step[data-role="reviewer"], .room-detail[data-role="reviewer"] { --role: var(--role-reviewer); }
+.room-role:hover, .room-role[aria-pressed="true"] { border-color: var(--role); box-shadow: 0 0 0 2px color-mix(in srgb, var(--role) 22%, transparent); }
+.room-role[aria-pressed="true"] { background: color-mix(in srgb, var(--role) 12%, var(--surface)); }
+.room-role-dot { width: 10px; height: 10px; flex: none; border-radius: 50%; background: var(--role); }
+.room-role[data-state="idle"] .room-role-dot { background: color-mix(in srgb, var(--role) 35%, var(--line)); }
+.room-role[data-state="active"] .room-role-dot { box-shadow: 0 0 0 4px color-mix(in srgb, var(--role) 25%, transparent); animation: room-pulse 1.6s ease-in-out infinite; }
+.room-role-name { font-weight: 650; color: var(--ink); }
+.room-role-state { color: var(--muted); font-size: var(--t1, 11.5px); }
+.room-role[data-state="active"] .room-role-state { color: var(--accent); font-weight: 650; }
+.room-role[data-state="failed"] .room-role-state { color: var(--red); }
+.room-strip { display: flex; align-items: stretch; gap: 3px; min-height: 22px; padding: 5px; overflow-x: auto; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); scrollbar-width: thin; }
+.room-step { --role: var(--role-coordinator); position: relative; flex: 1 1 0; min-width: 14px; max-width: 120px; height: 14px; padding: 0; border: 0; border-radius: 4px; background: color-mix(in srgb, var(--role) 78%, var(--surface)); cursor: pointer; transition: transform .12s ease, box-shadow .12s ease; }
+.room-step:hover { transform: translateY(-1px); box-shadow: 0 2px 6px var(--ombra); }
+.room-step[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--role); }
+.room-step[data-live="true"] { background: repeating-linear-gradient(-45deg, var(--role) 0 5px, color-mix(in srgb, var(--role) 55%, var(--surface)) 5px 10px); background-size: 14px 14px; animation: room-stripe 1s linear infinite; }
+.room-step[data-result="fail"]::after { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border: 2px solid var(--surface); border-radius: 50%; background: var(--red); content: ""; }
+.room-step[data-result="ok"][data-role="tester"]::after { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border: 2px solid var(--surface); border-radius: 50%; background: var(--green); content: ""; }
+.room-strip-empty { align-self: center; padding: 0 6px; color: var(--muted); font-size: var(--t1, 11.5px); }
+.room-detail { --role: var(--role-coordinator); position: relative; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--role) 40%, var(--line)); border-left: 4px solid var(--role); border-radius: 14px; background: var(--surface); box-shadow: 0 6px 18px var(--ombra); }
+.room-detail[hidden] { display: none; }
+.room-detail-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 12px; padding-right: 36px; }
+.room-detail-title { margin: 0; color: var(--ink); font-size: var(--t3, 14px); }
+.room-detail-facts { margin: 0; color: var(--muted); font-size: var(--t1, 11.5px); font-variant-numeric: tabular-nums; }
+.room-detail-close { position: absolute; top: 9px; right: 10px; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 8px; color: var(--text); background: var(--surface); font-size: 16px; line-height: 1; cursor: pointer; }
+.room-detail-empty { margin: 10px 0 0; color: var(--muted); font-size: var(--t2, 12.5px); }
+.room-section { margin: 12px 0 6px; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.room-actions, .room-commands { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.room-action { display: flex; align-items: baseline; gap: 8px; padding: 4px 6px; border-radius: 7px; font-size: var(--t2, 12.5px); cursor: pointer; }
+.room-action:hover, .room-action.is-selected { background: color-mix(in srgb, var(--role) 12%, transparent); }
+.room-action-step { flex: none; min-width: 26px; color: var(--role); font-family: var(--mono, monospace); font-size: var(--t1, 11.5px); font-weight: 700; }
+.room-action-text { flex: 1 1 auto; min-width: 0; color: var(--text); overflow-wrap: anywhere; }
+.room-action-meta { flex: none; color: var(--muted); font-family: var(--mono, monospace); font-size: var(--t1, 11.5px); }
+.room-action[data-result="fail"] .room-action-meta { color: var(--red); }
+.room-action[data-result="ok"] .room-action-meta { color: var(--green); }
+.room-files { display: flex; flex-wrap: wrap; gap: 6px; }
+.room-file, .room-changes { max-width: 100%; padding: 4px 9px; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; color: var(--ink); background: var(--bg); font: inherit; font-family: var(--mono, monospace); font-size: var(--t1, 11.5px); text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.room-file:hover { border-color: var(--role); }
+.room-changes { font-family: inherit; font-weight: 650; color: var(--accent); background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.room-command { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.room-command code { min-width: 0; color: var(--ink); font-size: var(--t1, 11.5px); overflow-wrap: anywhere; }
+.room-command-meta { margin-left: auto; color: var(--muted); font-size: var(--t1, 11.5px); }
+.room-command[data-result="ok"] .room-command-meta { color: var(--green); }
+.room-command[data-result="fail"] .room-command-meta { color: var(--red); }
+.room-child { margin-top: 10px; padding: 10px 12px; border: 1px dashed color-mix(in srgb, var(--role) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--role) 6%, var(--surface)); }
+.room-child h4 { margin: 0 0 6px; color: var(--ink); font-size: var(--t2, 12.5px); }
+.room-label { display: block; margin-top: 6px; color: var(--muted); font-size: var(--t1, 11.5px); font-weight: 650; }
+.room-child p { margin: 2px 0 0; max-height: 9.5em; overflow: auto; color: var(--text); font-size: var(--t2, 12.5px); line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+@keyframes room-pulse { 0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--role) 25%, transparent); } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--role) 12%, transparent); } }
+@keyframes room-stripe { to { background-position: 14px 0; } }
 
-.workshop-queue-item::before {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  margin: 0 8px 1px 0;
-  border-radius: 50%;
-  background: var(--amber);
-  box-shadow: 0 0 0 3px var(--amber-soft);
-  content: "";
-}
-
-.workshop-queue-item::before { display: none; }
-
-.workshop-attention[data-state="waiting"],
-.workshop-queue-item[data-state="waiting"] {
-  border-color: color-mix(in srgb, var(--amber) 40%, var(--line));
-  background: color-mix(in srgb, var(--amber-soft) 55%, var(--surface));
-}
-
-.workshop-attention[data-state="error"],
-.workshop-queue-item[data-state="error"] {
-  border-color: color-mix(in srgb, var(--red) 40%, var(--line));
-  background: color-mix(in srgb, var(--red-soft) 62%, var(--surface));
-}
-
-.workshop-queue button:not(.workshop-queue-item),
-.workshop-root button:not(.workshop-station):not(.workshop-queue-item):not(.workshop-attention) {
-  min-height: 32px;
-  border: 1px solid var(--line-hi);
-  border-radius: 8px;
-  color: var(--text);
-  background: var(--surface-hi);
-  font: inherit;
-  cursor: pointer;
-}
-
-.workshop-queue button:not(.workshop-queue-item):hover,
-.workshop-root button:not(.workshop-station):not(.workshop-queue-item):not(.workshop-attention):hover { border-color: var(--accent); color: var(--ink); }
-.workshop-header .workshop-attention {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 36px;
-  padding: 7px 12px;
-  border: 1px solid var(--line-hi);
-  border-radius: 10px;
-  color: var(--ink);
-  background: var(--accent-soft);
-  font: inherit;
-  font-weight: 590;
-  cursor: pointer;
-}
-.workshop-header .workshop-attention:disabled { opacity: .68; cursor: default; }
-.workshop-header .workshop-error {
-  flex: 1 0 100%;
-  margin: 0;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--red) 35%, var(--line));
-  border-radius: 9px;
-  background: var(--red-soft);
-  line-height: 1.45;
-}
-.workshop-queue .workshop-summary { margin: 0 0 5px; color: var(--muted); font-size: var(--t1, 11.5px); line-height: 1.4; }
-.workshop-error { color: var(--red); }
-.workshop-empty { color: var(--muted); font-size: var(--t2, 12.5px); line-height: 1.55; }
-
-@keyframes workshop-bob {
-  0%, 100% { transform: translateY(0) rotate(-1deg); }
-  50% { transform: translateY(-4px) rotate(1deg); }
-}
-
-@keyframes workshop-pulse {
-  0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 28%, transparent); }
-  100% { box-shadow: 0 0 0 7px transparent; }
-}
-
-@media (max-width: 980px) {
-  .workshop-root,
-  .workshop {
-    grid-template-columns: minmax(0, 1fr) 235px;
-    gap: 13px;
-    padding: 18px;
-  }
-  .workshop-stage { min-height: 480px; padding: 220px 18px 24px; }
-  .workshop-station { grid-template-rows: 108px auto auto auto; }
-  .workshop-person { width: min(86px, 75%); height: 108px; }
-}
-
-@media (max-width: 720px) {
-  .workshop-root,
-  .workshop {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "head" "error" "queue" "stage";
-    gap: 12px;
-    padding: 14px;
-  }
-  .workshop-header { align-items: flex-start; flex-direction: column; gap: 10px; }
-  .workshop-summary,
-  .workshop-needs { justify-content: flex-start; }
-  .workshop-stage { min-height: 350px; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 220px)); gap: 12px; padding: 185px 14px 23px; }
-  .workshop-window,
-  .workshop-view { top: 17px; right: 50%; width: 158px; height: 138px; transform: translateX(50%); }
-  .workshop-station { grid-template-rows: 96px auto auto auto; padding: 9px 8px; }
-  .workshop-person { width: min(74px, 76%); height: 96px; }
-  .workshop-queue { position: static; max-height: none; }
-}
-
-@media (max-width: 390px) {
-  .workshop-root,
-  .workshop { padding: 10px; }
-  .workshop-stage { gap: 8px; padding-right: 10px; padding-left: 10px; }
-  .workshop-station { padding-right: 6px; padding-left: 6px; }
-  .workshop-station h2,
-  .workshop-station h3,
-  .workshop-station .workshop-name { font-size: var(--t2, 12.5px); }
-}
-
-@media (max-width: 480px) {
-  .workshop-stage { grid-template-columns: minmax(0, 220px); }
-  .workshop-station { width: 100%; justify-self: center; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .workshop-root *,
-  .workshop * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
-}
+@media (prefers-reduced-motion: reduce) { .workshop-root *, .workshop * { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
+@media (max-width: 1050px) { .workshop-root, .workshop { grid-template-columns: minmax(0, 1fr) 250px; gap: 13px; } .bay-heading { grid-template-columns: minmax(150px, 1fr) 40px minmax(82px, .55fr); } }
+@media (max-width: 760px) { .workshop-root, .workshop { grid-template-columns: minmax(0, 1fr); grid-template-areas: "head" "error" "room" "stage" "queue"; gap: 12px; padding: 12px; } .workshop-header { align-items: flex-start; flex-direction: column; gap: 11px; } .workshop-stage { min-height: 350px; padding: 16px; } .workshop-window { top: 16px; right: 22px; width: 140px; height: 112px; } .workshop-queue { position: static; max-height: none; } }
+@media (max-width: 480px) { .workshop-stage { padding: 12px; } .workshop-bay { padding: 10px; } .bay-heading { grid-template-columns: minmax(145px, 1fr) 25px minmax(68px, .5fr); gap: 5px; min-height: 104px; } .workshop-station { grid-template-columns: 35px 47px minmax(0, 1fr); gap: 1px 5px; padding: 8px; } .coordinator-avatar { height: 52px; } .coordinator-desk { height: 34px; } .coordinator-desk::before { left: 6px; width: 34px; height: 24px; } .workshop-person { width: 40px; height: 52px; } .child-agents { grid-template-columns: minmax(0, 1fr); } .child-agent { grid-template-columns: 45px 55px minmax(0, 1fr); } }

@@ -22,6 +22,17 @@ func TestParseRevisions(t *testing.T) {
 	}
 }
 
+// El prompt actual demana la línia en anglès; la catalana d'abans continua
+// valent (revisors antics, logs reprocessats).
+func TestParseVerdictAngles(t *testing.T) {
+	if v := ParseVerdict("VERDICT: APPROVED\nLooks good."); !v.Approved {
+		t.Fatal("VERDICT: APPROVED ha de ser aprovat")
+	}
+	if v := ParseVerdict("VERDICT: NEEDS REVISION\n- bug on line 3"); v.Approved {
+		t.Fatal("VERDICT: NEEDS REVISION ha de demanar revisió")
+	}
+}
+
 func TestParseStrictWithoutVerdict(t *testing.T) {
 	v := ParseVerdict("Em sembla bé en general.")
 	if v.Approved {
@@ -30,11 +41,18 @@ func TestParseStrictWithoutVerdict(t *testing.T) {
 }
 
 func TestBuildPromptHasRubric(t *testing.T) {
-	p := BuildPrompt("user: fes X\nassistant: fet", "diff --git ...")
-	for _, want := range []string{"VEREDICTE", "RÚBRICA", "INTERCANVI", "DIFF"} {
+	p := BuildPrompt("user: fes X\nassistant: fet", "diff --git ...", "en")
+	for _, want := range []string{"VERDICT: APPROVED", "RUBRIC", "EXCHANGE", "DIFF", "LANGUAGE: Always reply to the user in English"} {
 		if !strings.Contains(p, want) {
 			t.Fatalf("prompt sense %q", want)
 		}
+	}
+	// Ja no força el català: la llengua dels motius és la de la sessió.
+	if strings.Contains(p, "català") {
+		t.Fatal("el prompt en anglès no ha de demanar català")
+	}
+	if ca := BuildPrompt("x", "", "ca"); !strings.Contains(ca, "Respon sempre a l'usuari en català") {
+		t.Fatalf("amb lang ca els motius han de ser en català:\n%s", ca)
 	}
 }
 
@@ -77,8 +95,8 @@ func TestDidRealWork(t *testing.T) {
 }
 
 func TestBuildPromptAntiSoroll(t *testing.T) {
-	p := BuildPrompt("usuari: hola", "")
-	if !strings.Contains(p, "ANTI-SOROLL") {
+	p := BuildPrompt("usuari: hola", "", "en")
+	if !strings.Contains(p, "ANTI-NOISE") {
 		t.Fatal("el prompt ha de prohibir CAL REVISAR sense feina")
 	}
 }

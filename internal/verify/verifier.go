@@ -20,51 +20,54 @@ type Verdict struct {
 }
 
 // BuildPrompt construeix el prompt del revisor amb rúbrica tancada.
-// Exigeix un veredicte en primera línia per poder-lo parsejar.
-func BuildPrompt(transcript, diff string) string {
+// Exigeix un veredicte en primera línia per poder-lo parsejar. El prompt
+// és en anglès i la línia del veredicte també (VERDICT: APPROVED / NEEDS
+// REVISION); els motius surten en la llengua de la sessió (lang).
+func BuildPrompt(transcript, diff, lang string) string {
 	var b strings.Builder
-	b.WriteString(`Ets el revisor sènior de codi del projecte. Revisa l'intercanvi i el diff.
-Respon en català, curt i directe. Primera línia OBLIGATÒRIA, exacta:
-  VEREDICTE: APROVAT
-o bé
-  VEREDICTE: CAL REVISAR
-Després: 3-8 bullets amb el motiu (bugs, scope, tests, seguretat, sobreenginyeria).
-Si no hi ha res a objectar, aprova sense palla.
-REGLA ANTI-SOROLL: si el DIFF diu cap canvi i no consta cap eina
-executada, el veredicte és APROVAT amb UNA sola línia de resum,
-sense bullets. Mai diguis CAL REVISAR i alhora que no hi ha res
-a validar: si no hi ha res a validar, és APROVAT.
+	b.WriteString(`You are the project's senior code reviewer. Review the exchange and the diff.
+Be short and direct. The FIRST line is MANDATORY and must be exactly one of:
+  VERDICT: APPROVED
+  VERDICT: NEEDS REVISION
+Then 3-8 bullets with the reasons (bugs, scope, tests, security, over-engineering).
+If there is nothing to object to, approve without filler.
+ANTI-NOISE RULE: if the DIFF shows no changes and no tool was run, the
+verdict is APPROVED with ONE summary line and no bullets. Never say
+NEEDS REVISION while also saying there is nothing to validate: if there
+is nothing to validate, it is APPROVED.
 
-RÚBRICA (per ordre):
-1. Correctesa: fa el que es demana? Casos límit?
-2. Scope: toca només el que toca? Sense refactors oportunistes?
-3. Tests: hi ha evidència de verificació (comanda + resultat)?
-4. Seguretat: secrets, injeccions, permisos, esborrats?
-5. Simplicitat: solució nativa/simple abans que custom?
+RUBRIC (in order):
+1. Correctness: does it do what was asked? Edge cases?
+2. Scope: does it touch only what it should? No opportunistic refactors?
+3. Tests: is there evidence of verification (command + result)?
+4. Security: secrets, injections, permissions, deletions?
+5. Simplicity: a native/simple solution before a custom one?
 
-INTERCANVI:
 `)
+	b.WriteString(config.LanguageDirective(lang) + " Keep the VERDICT line exactly as written above.\n\nEXCHANGE:\n")
 	b.WriteString(transcript)
 	if strings.TrimSpace(diff) != "" {
 		b.WriteString("\n\nDIFF:\n")
 		b.WriteString(diff)
 	} else {
-		b.WriteString("\n\nDIFF: (cap canvi de fitxers en aquest torn)")
+		b.WriteString("\n\nDIFF: (no file changes in this turn)")
 	}
 	return b.String()
 }
 
-// ParseVerdict extreu el veredicte de la resposta del revisor.
+// ParseVerdict extreu el veredicte de la resposta del revisor. Accepta la
+// línia en anglès (la del prompt actual) i la catalana d'abans; el revisor
+// que no la traduïa bé tampoc no ha de quedar sense veredicte.
 func ParseVerdict(text string) Verdict {
 	up := strings.ToUpper(text)
-	if strings.Contains(up, "VEREDICTE: CAL REVISAR") {
+	if strings.Contains(up, "VERDICT: NEEDS REVISION") || strings.Contains(up, "VEREDICTE: CAL REVISAR") {
 		return Verdict{Approved: false, Summary: firstLines(text, 6)}
 	}
-	if strings.Contains(up, "VEREDICTE: APROVAT") {
+	if strings.Contains(up, "VERDICT: APPROVED") || strings.Contains(up, "VEREDICTE: APROVAT") {
 		return Verdict{Approved: true, Summary: firstLines(text, 3)}
 	}
 	// Sense veredicte explícit = no aprovat (estricte per defecte).
-	return Verdict{Approved: false, Summary: "revisor sense veredicte explícit:\n" + firstLines(text, 6)}
+	return Verdict{Approved: false, Summary: "reviewer gave no explicit verdict:\n" + firstLines(text, 6)}
 }
 
 func firstLines(s string, n int) string {
@@ -122,9 +125,10 @@ func DidRealWork(journalBase, journalNow int, diff string) bool {
 }
 
 // Run envia la transcripció al model revisor i retorna veredicte + text cru.
-func Run(ctx context.Context, c *llm.Client, p config.Provider, r config.Role, transcript, diff string) (Verdict, string, error) {
+// lang és la llengua de la sessió (cfg.Lang()): la dels motius.
+func Run(ctx context.Context, c *llm.Client, p config.Provider, r config.Role, transcript, diff, lang string) (Verdict, string, error) {
 	raw, err := c.Chat(ctx, p.BaseURL, p.APIKey, r.Model,
-		[]llm.Message{{Role: "user", Content: BuildPrompt(transcript, diff)}},
+		[]llm.Message{{Role: "user", Content: BuildPrompt(transcript, diff, lang)}},
 		r.Temperature, r.MaxTokens)
 	if err != nil {
 		return Verdict{}, "", fmt.Errorf("revisor: %w", err)

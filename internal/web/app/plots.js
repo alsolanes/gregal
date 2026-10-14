@@ -8,6 +8,8 @@ const words = {
 };
 const t = key => (words[idioma()] || words.en)[key];
 Object.assign(words.en, { newBoard: 'New dashboard', renameBoard: 'Rename dashboard', deleteBoard: 'Delete dashboard', boardName: 'Dashboard name', search: 'Search plots', exportAll: 'Export collection JSON', moveBoard: 'Move to dashboard', deleteBoardConfirm: 'Delete dashboard? Plots stay in the library.' });
+Object.assign(words.en, { demo: 'Try the demo data: build a sales dashboard' });
+Object.assign(words.ca, { demo: 'Prova les dades de demo: construeix un dashboard de vendes' });
 Object.assign(words.ca, { newBoard: 'Nou dashboard', renameBoard: 'Canviar nom del dashboard', deleteBoard: 'Eliminar dashboard', boardName: 'Nom del dashboard', search: 'Cercar plots', exportAll: 'Exportar col·lecció JSON', moveBoard: 'Moure al dashboard', deleteBoardConfirm: 'Eliminar dashboard? Els plots es conserven a la biblioteca.' });
 const context = () => ({ session: window.gregalSession || 'default', cwd: window.gregalCwd || '' });
 const same = ctx => ctx.session === context().session && ctx.cwd === context().cwd;
@@ -88,14 +90,15 @@ function card(spec, ctx, saved, mutate, boards = []) {
   node.append(actions); requestAnimationFrame(() => draw(canvas, spec).catch(e => report(canvas, e))); return node;
 }
 
-function openLibrary() {
+function openLibrary(boardName) {
+  clearNew();
   const ctx = context(); const dialog = modal(t('open')); dialog.append(el('p', 'plot-source', `${ctx.cwd} · ${t('snapshot')}`));
   const toolbar = el('div', 'plot-toolbar'); const grid = el('div', 'plot-grid'); let lib; let view = 'library'; let version = 0; let selectedBoard = 'default';
   const chooser = el('select', 'plot-board-select'); chooser.setAttribute('aria-label', t('dashboard'));
   const search = el('input', 'plot-search'); search.type = 'search'; search.placeholder = t('search'); search.setAttribute('aria-label', t('search'));
   chooser.addEventListener('change', () => { selectedBoard = chooser.value; view = 'dashboard'; if (lib) render(); });
   search.addEventListener('input', () => { if (lib) render(); });
-  async function load() { const v = ++version; const value = await api(ctx); if (!dialog.isConnected || v !== version) return; lib = value; render(); }
+  async function load() { const v = ++version; const value = await api(ctx); if (!dialog.isConnected || v !== version) return; lib = value; if (typeof boardName === 'string' && boardName) { const b = (lib.boards || []).find(x => x.name.toLowerCase() === boardName.toLowerCase()); if (b) { selectedBoard = b.id; view = 'dashboard'; } boardName = ''; } render(); }
   async function mutate(method, plot) {
     if (!same(ctx)) throw Error('Project or session changed; reopen the dashboard.');
     const body = { revision: lib.revision, id: plot.id };
@@ -122,6 +125,7 @@ function openLibrary() {
     const query = search.value.trim().toLocaleLowerCase();
     const plots = lib.plots.filter(p => (view === 'library' || (p.dashboard && p.board === selectedBoard)) && `${p.spec.title} ${p.note || ''} ${p.session}`.toLocaleLowerCase().includes(query));
     if (!plots.length) grid.append(el('p', '', t('empty')));
+    if (!lib.plots.length && window.gregalDemoDashboard) grid.append(button('demo', async () => { dialog.close(); await window.gregalDemoDashboard(); }));
     for (const plot of plots) grid.append(card(core.validate(plot.spec), ctx, plot, mutate, lib.boards));
   }
   for (const key of ['library', 'dashboard']) { const b = button(key, () => { view = key; if (lib) render(); }); b.dataset.plotView = key; toolbar.append(b); }
@@ -147,7 +151,21 @@ function scan() {
 }
 const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(scan); } });
 observer.observe(document.getElementById('main') || document.body, {childList: true, subtree: true, characterData: true});
-const open = button('open', openLibrary); open.id = 'plotsOpen'; open.className = 'nav-item';
-document.querySelector('#side details')?.append(open);
-document.addEventListener('gregal:idioma', () => { open.textContent = t('open'); });
+// Entrada de primer nivell a la barra lateral, amb un comptador dels gràfics
+// que l'agent hi ha desat i encara no has mirat.
+const open = el('button', 'nav-item'); open.type = 'button'; open.id = 'plotsOpen';
+const openLabel = el('span', 'plots-nav-label', t('open'));
+const openBadge = el('span', 'nav-badge plots-new'); openBadge.hidden = true;
+open.append(openLabel, openBadge);
+open.addEventListener('click', () => openLibrary());
+(document.querySelector('#side .side-main') || document.querySelector('#side details'))?.append(open);
+document.addEventListener('gregal:idioma', () => { openLabel.textContent = t('open'); });
+function newCount() { try { return +localStorage.getItem('gregal_plots_new') || 0; } catch { return 0; } }
+function paintNew() { const n = newCount(); openBadge.hidden = !n; openBadge.textContent = n > 99 ? '99+' : String(n); }
+function clearNew() { try { localStorage.removeItem('gregal_plots_new'); } catch {} paintNew(); }
+window.gregalPlots = {
+  open: openLibrary,
+  bump(n) { try { localStorage.setItem('gregal_plots_new', String(newCount() + Math.max(1, +n || 1))); } catch {} paintNew(); open.classList.remove('plots-pulse'); void open.offsetWidth; open.classList.add('plots-pulse'); },
+};
+paintNew();
 scan();

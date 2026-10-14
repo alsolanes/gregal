@@ -30,6 +30,8 @@ func (m Model) statsBlock() string {
 			proven = "fixada al config"
 		case "model":
 			proven = "declarada pel model"
+		case "coneguda":
+			proven = "taula de models coneguts"
 		default:
 			proven = "per defecte: el proveïdor no la declara ⚠"
 		}

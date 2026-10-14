@@ -23,32 +23,42 @@ const verifyTimeout = 120 * time.Second
 // La sortida del verify es retalla perquè càpiga al context del reintent.
 const verifSortidaMax = 4000
 
-// RunAmbVerificacio és RunNonInteractiveEx + gate mecànic: en acabar el
-// torn, executa verifyCmd al workdir i, si falla, rellança l'agent amb la
-// sortida del verify com a guia (fins a rounds vegades). No confia que el
-// model s'autoverifiqui: mesurat en local, el model tanca el torn net sense
-// haver executat la comprovació (T5: verify.py ignorat i "tot fet"
-// igualment). Amb verifyCmd buit es comporta exactament com
-// RunNonInteractiveEx (una ronda, sense verificar).
-func RunAmbVerificacio(ctx context.Context, client *llm.Client, cfg *config.Config, task, mode string, maxSteps int, autoApprove bool, onStep func(step int, tools []string), workdir, verifyCmd string, rounds int) (RunResult, error) {
+// RunAmbVerificacio és RunNonInteractiveOpts + gate mecànic: en acabar el
+// torn, executa verifyCmd al workspace (o.Dir) i, si falla, rellança
+// l'agent amb la sortida del verify com a guia (fins a rounds vegades). No
+// confia que el model s'autoverifiqui: mesurat en local, el model tanca el
+// torn net sense haver executat la comprovació (T5: verify.py ignorat i
+// "tot fet" igualment). Amb verifyCmd buit es comporta exactament com
+// RunNonInteractiveOpts (una ronda, sense verificar).
+//
+// El resultat suma totes les rondes (passos, eines, trace, tokens, cost):
+// abans només en quedava l'última i la resposta podia atribuir a «ja hi
+// era» el que l'agent havia arreglat a la ronda anterior. Amb verifyCmd,
+// Verified surt sempre (true o false): qui crida decideix el codi de
+// sortida (el CLI torna 3 si la verificació no passa).
+func RunAmbVerificacio(ctx context.Context, client *llm.Client, cfg *config.Config, o RunOpts, verifyCmd string, rounds int) (RunResult, error) {
+	task := o.Task
 	tasca := task
-	var res RunResult
-	var err error
+	verificar := strings.TrimSpace(verifyCmd) != ""
+	onStep := o.OnStep
+	var acum RunResult
+	acum.Tools = []string{}
 	if rounds < 1 {
 		rounds = 1
 	}
 	if rounds > MaxVerifyRounds {
 		rounds = MaxVerifyRounds
 	}
-	totUp, totDown, totCached, totCalls := 0, 0, 0, 0
 	// El cost se suma ronda a ronda; si alguna no en té (sense preu), no se'n
 	// mostra cap abans que un de parcial.
 	totCost, senseCost := 0.0, false
 	for r := 1; ; r++ {
-		var envolta func(step int, tools []string)
-		if onStep != nil {
+		ro := o
+		ro.Task = tasca
+		// El prefix de ronda només té sentit amb --verify.
+		if onStep != nil && verificar {
 			ronda := r
-			envolta = func(step int, tools []string) {
+			ro.OnStep = func(step int, tools []string) {
 				marcats := make([]string, len(tools))
 				for i, t := range tools {
 					marcats[i] = fmt.Sprintf("[v%d] %s", ronda, t)
@@ -56,43 +66,72 @@ func RunAmbVerificacio(ctx context.Context, client *llm.Client, cfg *config.Conf
 				onStep(step, marcats)
 			}
 		}
-		res, err = RunNonInteractiveEx(ctx, client, cfg, tasca, mode, maxSteps, autoApprove, envolta)
-		if err != nil {
-			return res, err
-		}
-		totUp += res.UpTokens
-		totDown += res.DownTokens
-		totCached += res.CachedTokens
-		totCalls += res.LLMCalls
-		res.UpTokens, res.DownTokens = totUp, totDown
-		res.CachedTokens, res.LLMCalls = totCached, totCalls
+		res, err := RunNonInteractiveOpts(ctx, client, cfg, ro)
+		acum = sumaRonda(acum, res, r, verificar)
 		if res.CostUSD == nil {
 			senseCost = true
 		}
 		if senseCost {
-			res.CostUSD = nil
+			acum.CostUSD = nil
 		} else {
 			totCost += *res.CostUSD
 			v := totCost
-			res.CostUSD = &v
+			acum.CostUSD = &v
 		}
-		if strings.TrimSpace(verifyCmd) == "" {
-			return res, nil
+		if err != nil {
+			return acum, err
 		}
-		codi, sortida := execVerificacio(ctx, workdir, verifyCmd)
-		res.VerifSortida = sortida
-		if codi == 0 {
-			res.Verified = true
-			return res, nil
+		if !verificar {
+			return acum, nil
+		}
+		acum.VerifyRounds = r
+		codi, sortida := execVerificacio(ctx, o.Dir, verifyCmd)
+		acum.VerifSortida = sortida
+		ok := codi == 0
+		acum.Verified = &ok
+		if ok {
+			return acum, nil
 		}
 		if onStep != nil {
-			onStep(0, []string{fmt.Sprintf("[v%d] verificacio-KO (codi %d)", r, codi)})
+			onStep(0, []string{fmt.Sprintf("[v%d] verification failed (exit %d)", r, codi)})
 		}
 		if r >= rounds {
-			return res, nil
+			return acum, nil
 		}
 		tasca = buildTascaReparacio(task, verifyCmd, codi, sortida, res.Answer)
 	}
+}
+
+// sumaRonda afegeix una ronda al resultat acumulat. La resposta, el model
+// de fallback i l'encaminament són els de l'última ronda; la resta se suma.
+func sumaRonda(acum, res RunResult, ronda int, marcaRonda bool) RunResult {
+	if res.Answer != "" || ronda == 1 {
+		acum.Answer = res.Answer
+	}
+	acum.Steps += res.Steps
+	acum.Tools = append(acum.Tools, res.Tools...)
+	for _, tc := range res.Trace {
+		if marcaRonda {
+			tc.Round = ronda
+		}
+		acum.Trace = append(acum.Trace, tc)
+	}
+	acum.UpTokens += res.UpTokens
+	acum.DownTokens += res.DownTokens
+	acum.CachedTokens += res.CachedTokens
+	acum.LLMCalls += res.LLMCalls
+	switch {
+	case acum.TokensSource == "" || acum.TokensSource == res.TokensSource:
+		acum.TokensSource = res.TokensSource
+	default:
+		acum.TokensSource = "mixed"
+	}
+	if res.FallbackModel != "" {
+		acum.FallbackModel = res.FallbackModel
+	}
+	acum.RoutedFrom, acum.RoutedTo, acum.RouteWhy = res.RoutedFrom, res.RoutedTo, res.RouteWhy
+	acum.Exhausted = res.Exhausted
+	return acum
 }
 
 // execVerificacio executa cmd amb el shell del sistema al workdir (buit = directori actual)
@@ -179,11 +218,11 @@ func verifyEnv() []string {
 // l'evidència del verify i la prohibició d'afirmar èxit sense verd.
 func buildTascaReparacio(original, cmd string, codi int, sortida, respostaPrevia string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "Tasca original: %s\n\n", original)
-	fmt.Fprintf(&b, "La verificació externa «%s» ha FALLAT (codi %d):\n%s\n\n", cmd, codi, sortida)
+	fmt.Fprintf(&b, "Original task: %s\n\n", original)
+	fmt.Fprintf(&b, "The external verification `%s` FAILED (exit code %d):\n%s\n\n", cmd, codi, sortida)
 	if strings.TrimSpace(respostaPrevia) != "" {
-		fmt.Fprintf(&b, "La teva resposta anterior deia:\n%s\n\n", respostaPrevia)
+		fmt.Fprintf(&b, "Your previous answer said:\n%s\n\n", respostaPrevia)
 	}
-	b.WriteString("No afirmis que funciona: arregla-ho amb eines i executa tu mateix la comanda de verificació fins que passi. Si creus que és la verificació la que és incorrecta (i no el teu codi), explica exactament per què amb evidència del fitxer; no la toquis per fer-la passar.")
+	b.WriteString("The changes from the previous round are already on disk. Do not claim it works: fix it with tools and run the verification command yourself until it passes. If you believe the verification itself is wrong (not your code), explain exactly why with evidence from the files; do not change it to make it pass. In your final answer, list every change you made in all rounds.")
 	return b.String()
 }

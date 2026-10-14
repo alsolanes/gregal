@@ -1,0 +1,148 @@
+name: gregal review
+description: >-
+  Review a pull request with gregal in read-only inspect mode
+  (`gregal -p --mode inspect --output json`) and post the result as a PR
+  review comment with gh. Builds gregal from the source this action lives in.
+  See docs/github-action.md for the required secrets and permissions.
+
+inputs:
+  config:
+    description: >-
+      Contents of a gregal config.yaml (usually from a secret such as
+      secrets.GREGAL_CONFIG). Provider keys can stay as ${VAR} references and be
+      supplied through the step's env. Either this or config-path is required.
+    required: false
+    default: ""
+  config-path:
+    description: Path (in the checked-out repository) to a gregal config.yaml without secrets.
+    required: false
+    default: ""
+  pr-number:
+    description: Pull request number. Defaults to the PR of the triggering event.
+    required: false
+    default: ""
+  github-token:
+    description: Token for gh (needs pull-requests write and contents read).
+    required: false
+    default: ${{ github.token }}
+  max-steps:
+    description: Hard step limit for the review run (1-200).
+    required: false
+    default: "30"
+  max-diff-bytes:
+    description: The diff is truncated to this many bytes before it is sent to the model.
+    required: false
+    default: "90000"
+  instructions:
+    description: Extra review instructions appended to the prompt.
+    required: false
+    default: ""
+  post-comment:
+    description: Post the review as a PR comment ("true") or only expose it as an output ("false").
+    required: false
+    default: "true"
+  fail-on-error:
+    description: Fail the step if gregal fails ("true"). By default a failed review only logs a warning.
+    required: false
+    default: "false"
+
+outputs:
+  review-file:
+    description: Path of the Markdown review written by the action.
+    value: ${{ steps.review.outputs.review-file }}
+  exit-code:
+    description: Exit code of gregal.
+    value: ${{ steps.review.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/../../../go.mod
+        cache: false
+
+    - name: Build gregal
+      shell: bash
+      working-directory: ${{ github.action_path }}/../../..
+      run: |
+        set -euo pipefail
+        mkdir -p "$RUNNER_TEMP/gregal-review"
+        CGO_ENABLED=0 go build -trimpath -o "$RUNNER_TEMP/gregal-review/gregal" .
+        "$RUNNER_TEMP/gregal-review/gregal" -version
+
+    - name: Review the pull request
+      id: review
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_CONFIG_PATH: ${{ inputs.config-path }}
+        INPUT_PR: ${{ inputs.pr-number || github.event.pull_request.number }}
+        INPUT_MAX_STEPS: ${{ inputs.max-steps }}
+        INPUT_MAX_DIFF: ${{ inputs.max-diff-bytes }}
+        INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
+        INPUT_POST: ${{ inputs.post-comment }}
+        INPUT_FAIL: ${{ inputs.fail-on-error }}
+      run: |
+        set -uo pipefail
+        work="$RUNNER_TEMP/gregal-review"
+        bin="$work/gregal"
+        # gregal's state stays inside the runner's temp directory.
+        export GREGAL_DATA_DIR="$work/data" GREGAL_AUTH="$work/auth.yaml" GREGAL_MEMORY="$work/memory.md"
+        mkdir -p "$GREGAL_DATA_DIR"
+        if [ -z "${INPUT_PR}" ]; then
+          echo "::error::no pull request number (set pr-number or run on pull_request)"; exit 1
+        fi
+        cfg="$work/config.yaml"
+        if [ -n "${INPUT_CONFIG}" ]; then
+          umask 077; printf '%s\n' "${INPUT_CONFIG}" > "$cfg"
+        elif [ -n "${INPUT_CONFIG_PATH}" ]; then
+          cp "${INPUT_CONFIG_PATH}" "$cfg"
+        else
+          echo "::error::set the config input (secret) or config-path"; exit 1
+        fi
+        gh pr diff "${INPUT_PR}" > "$work/pr.diff" || { echo "::error::gh pr diff failed"; exit 1; }
+        size=$(wc -c < "$work/pr.diff")
+        note=""
+        if [ "$size" -gt "${INPUT_MAX_DIFF}" ]; then
+          head -c "${INPUT_MAX_DIFF}" "$work/pr.diff" > "$work/pr.cut" && mv "$work/pr.cut" "$work/pr.diff"
+          note="(The diff was truncated to ${INPUT_MAX_DIFF} of ${size} bytes.)"
+        fi
+        prompt="You are reviewing pull request #${INPUT_PR} of this repository (the working directory is checked out at the PR head).
+        Review the diff below. Read surrounding code when you need context. Report concrete problems only:
+        bugs, regressions, security issues, missing error handling, missing or wrong tests, and unclear behaviour changes.
+        For each finding give the file and line, why it is a problem, and a suggested fix. Do not repeat the diff.
+        If you find nothing important, say so briefly. Answer in Markdown. ${note}
+        ${INPUT_INSTRUCTIONS}
+
+        \`\`\`diff
+        $(cat "$work/pr.diff")
+        \`\`\`"
+        "$bin" -config "$cfg" -p "$prompt" --mode inspect --output json --max-steps "${INPUT_MAX_STEPS}" > "$work/out.json" 2> "$work/stderr.log"
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        review="$work/review.md"
+        answer=$(jq -r '.answer // ""' "$work/out.json" 2>/dev/null || true)
+        err=$(jq -r '.error // ""' "$work/out.json" 2>/dev/null || true)
+        if [ "$code" -ne 0 ] || [ -z "$answer" ]; then
+          echo "::warning::gregal exited with $code: ${err:-see the step log}"
+          tail -n 40 "$work/stderr.log" || true
+          if [ "${INPUT_FAIL}" = "true" ]; then exit "${code:-1}"; fi
+          exit 0
+        fi
+        {
+          echo "### gregal review"
+          echo
+          printf '%s\n' "$answer"
+          echo
+          echo "<sub>Generated by gregal in read-only inspect mode. Steps: $(jq -r '.steps' "$work/out.json"), tools: $(jq -r '.tools_used | join(", ")' "$work/out.json").</sub>"
+        } > "$review"
+        echo "review-file=$review" >> "$GITHUB_OUTPUT"
+        if [ "${INPUT_POST}" = "true" ]; then
+          gh pr review "${INPUT_PR}" --comment --body-file "$review" || {
+            echo "::warning::could not post the review (does the token have pull-requests: write?)"
+            if [ "${INPUT_FAIL}" = "true" ]; then exit 1; fi
+          }
+        fi

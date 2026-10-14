@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -103,11 +104,11 @@ func TestApendixEdicio(t *testing.T) {
 	SetPostEditHook("")
 	t.Cleanup(func() { SetPostEditHook("") })
 	bo := escriu(t, "bo.json", `{"a":1}`)
-	if a := apendixEdicio(bo); a != "" {
+	if a := apendixEdicio(context.Background(), bo); a != "" {
 		t.Fatalf("amb tot bé i sense hook no ha de dir res: %q", a)
 	}
 	mal := escriu(t, "mal.json", `{"a":}`)
-	a := apendixEdicio(mal)
+	a := apendixEdicio(context.Background(), mal)
 	if !strings.HasPrefix(a, "\n[sintaxi] ") {
 		t.Fatalf("l'apèndix ha de començar amb la sintaxi: %q", a)
 	}

@@ -12,9 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -61,10 +63,11 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             containerColor = Color.Transparent,
             topBar = {
                 TopAppBar(
-                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(idioma, "app.nav.menu"), tint = Ink) } },
+                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(idioma, "app.nav.menu"), tint = Ink) } },
                     title = { Text(t("prefs.title"), color = Ink) },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
             },
+            snackbarHost = { NoticeHost(vm) },
         ) { pad ->
             Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState())) {
                 Text(t("prefs.appearance"), color = Ink, fontSize = 16.sp)
@@ -72,9 +75,9 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 Text(t("prefs.theme"), color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(4.dp))
                 listOf("sistema" to "prefs.theme.system", "fosc" to "prefs.theme.dark", "clar" to "prefs.theme.light").forEach { (v, k) ->
-                    Row(Modifier.fillMaxWidth().selectable(v == tema) { vm.setTema(v) }.padding(vertical = 8.dp),
+                    Row(Modifier.fillMaxWidth().selectable(v == tema, role = Role.RadioButton) { vm.setTema(v) }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = v == tema, onClick = { vm.setTema(v) })
+                        RadioButton(selected = v == tema, onClick = null, modifier = Modifier.padding(12.dp))
                         Text(t(k), color = Ink, fontSize = 15.sp)
                     }
                 }
@@ -83,18 +86,18 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 Text(t("prefs.lang"), color = Ink, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
                 listOf("ca" to "Català", "en" to "English").forEach { (v, nom) ->
-                    Row(Modifier.fillMaxWidth().selectable(v == idioma) { vm.setIdioma(v) }.padding(vertical = 8.dp),
+                    Row(Modifier.fillMaxWidth().selectable(v == idioma, role = Role.RadioButton) { vm.setIdioma(v) }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = v == idioma, onClick = { vm.setIdioma(v) })
+                        RadioButton(selected = v == idioma, onClick = null, modifier = Modifier.padding(12.dp))
                         Text(nom, color = Ink, fontSize = 15.sp)
                     }
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(t("prefs.verify"), color = Ink, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
-                Row(Modifier.fillMaxWidth().selectable(st.verify == "auto") { vm.setVerify(st.verify != "auto") }.padding(vertical = 8.dp),
+                Row(Modifier.fillMaxWidth().toggleable(st.verify == "auto", role = Role.Checkbox) { vm.setVerify(it) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = st.verify == "auto", onCheckedChange = { vm.setVerify(it) })
+                    Checkbox(checked = st.verify == "auto", onCheckedChange = null, modifier = Modifier.padding(12.dp))
                     Text(t("prefs.verify.help"), color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
                 }
 

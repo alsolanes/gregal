@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strings"
 
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -41,7 +42,18 @@ const (
 // errResACompactar: la capçalera només té la tasca; no hi ha passos a resumir.
 var errResACompactar = errors.New("res a resumir")
 
-const notaRetall = "\n…[sortida antiga retallada per fer lloc al context: torna a cridar l'eina si la necessites sencera]"
+const notaRetall = "\n…[old output truncated to make room in the context: call the tool again if you need it in full]"
+
+// notaRetallFill és la poda per a resums de subagents: re-delegar executa
+// una altra cerca, no la mateixa, així que "torna a cridar" seria mentida.
+const notaRetallFill = "\n…[subagent summary truncated to make room in the context: it cannot be fetched again; continue with the summary]"
+
+// Les notes d'abans (en català) encara són a sessions desades: una sortida
+// que ja en porta una no es torna a retallar.
+const (
+	notaRetallCA     = "\n…[sortida antiga retallada per fer lloc al context: torna a cridar l'eina si la necessites sencera]"
+	notaRetallFillCA = "\n…[resum de subagent retallat per fer lloc al context: no es pot reobtenir; continua amb el resum]"
+)
 
 // PruneToolOutputs retalla les sortides d'eina velles. Torna l'historial
 // nou (còpia) i quants missatges ha retallat.
@@ -109,12 +121,17 @@ func pruneToolOutputs(hist []llm.Message, keepRecent int) ([]llm.Message, int) {
 			out[i].Images = nil
 			pruned++
 		}
-		if strings.HasSuffix(out[i].Content, notaRetall) {
+		if c := out[i].Content; strings.HasSuffix(c, notaRetall) || strings.HasSuffix(c, notaRetallFill) ||
+			strings.HasSuffix(c, notaRetallCA) || strings.HasSuffix(c, notaRetallFillCA) {
 			continue
+		}
+		nota := notaRetall
+		if out[i].Name == "delegate" {
+			nota = notaRetallFill
 		}
 		if r := []rune(out[i].Content); len(r) > OldToolOutputMax {
 			mida := len(out[i].Content)
-			out[i].Content = string(r[:OldToolOutputMax]) + fmt.Sprintf(" (%d caràcters en total)", mida) + notaRetall
+			out[i].Content = string(r[:OldToolOutputMax]) + fmt.Sprintf(" (%d characters in total)", mida) + nota
 			pruned++
 		}
 	}
@@ -144,6 +161,8 @@ func SafeCut(hist []llm.Message, keep int) int {
 // tascaDe troba l'última consigna real de l'usuari al tros que es
 // resumeix (no les guies internes), per repetir-la literal sota el resum:
 // el resum pot parafrasejar-la i el model ha de tenir la petició exacta.
+// Les guies i capçaleres es reconeixen en anglès i en el català d'abans
+// (sessions desades abans que els prompts passessin a l'anglès).
 func tascaDe(cap []llm.Message) string {
 	for i := len(cap) - 1; i >= 0; i-- {
 		m := cap[i]
@@ -151,7 +170,9 @@ func tascaDe(cap []llm.Message) string {
 			continue
 		}
 		c := strings.TrimSpace(m.Content)
-		if c == "" || c == GuiaTodosPendents || c == GuiaEinaText || strings.HasPrefix(c, "La crida al model ha fallat") || strings.HasPrefix(c, "[Resum") {
+		if c == "" || c == GuiaTodosPendents || c == GuiaEinaText ||
+			strings.HasPrefix(c, PrefixErrorServidor) || strings.HasPrefix(c, "La crida al model ha fallat") ||
+			strings.HasPrefix(c, "[Summary") || strings.HasPrefix(c, "[Resum") {
 			continue
 		}
 		return c
@@ -161,8 +182,9 @@ func tascaDe(cap []llm.Message) string {
 
 // CompactHist resumeix tot menys els últims keep missatges i torna
 // «(system) + resum + tasca + cua». Si el resum falla, torna l'error i
-// l'historial intacte: qui crida decideix el retall de recanvi.
-func CompactHist(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, hist []llm.Message, keep int) ([]llm.Message, error) {
+// l'historial intacte: qui crida decideix el retall de recanvi. lang és la
+// llengua del resum (la de la sessió).
+func CompactHist(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, hist []llm.Message, keep int, lang string) ([]llm.Message, error) {
 	cut := SafeCut(hist, keep)
 	inici := 0
 	if len(hist) > 0 && hist[0].Role == "system" {
@@ -172,15 +194,15 @@ func CompactHist(ctx context.Context, client *llm.Client, prim llm.Target, fb *l
 		return hist, errResACompactar
 	}
 	capçalera := hist[inici:cut]
-	resum, err := Summarize(ctx, client, prim, fb, capçalera)
+	resum, err := Summarize(ctx, client, prim, fb, capçalera, lang)
 	if err != nil {
 		return hist, err
 	}
 	var b strings.Builder
-	b.WriteString("[Resum del que s'ha fet fins ara en aquest torn — continua des d'aquí, sense repetir feina feta]\n")
+	b.WriteString("[Summary of the work done so far in this turn — continue from here without repeating finished work]\n")
 	b.WriteString(resum)
 	if t := tascaDe(capçalera); t != "" {
-		b.WriteString("\n\nTasca original de l'usuari:\n" + capRunes(t, 1500))
+		b.WriteString("\n\nOriginal user task:\n" + capRunes(t, 1500))
 	}
 	out := make([]llm.Message, 0, len(hist)-cut+2)
 	out = append(out, hist[:inici]...)
@@ -202,7 +224,7 @@ func TrimKeepSafe(hist []llm.Message, keep int) []llm.Message {
 	out := make([]llm.Message, 0, len(hist)-cut+inici+1)
 	out = append(out, hist[:inici]...)
 	if t := tascaDe(hist[inici:cut]); t != "" && !teUser(hist[cut:]) {
-		out = append(out, llm.Message{Role: "user", Content: "[Tasca en curs — els passos anteriors s'han retallat per context]\n" + capRunes(t, 1500)})
+		out = append(out, llm.Message{Role: "user", Content: "[Task in progress — earlier steps were trimmed to fit the context]\n" + capRunes(t, 1500)})
 	}
 	return append(out, hist[cut:]...)
 }
@@ -287,9 +309,14 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 			return res
 		}
 	}
-	// 3. Resum dels passos anteriors amb el model.
+	// 3. Resum dels passos anteriors amb el model, en la llengua de la
+	// directiva que tanca el system prompt (sigui a sys o dins de hist).
 	if client != nil && len(res.Hist) > KeepRecentOnCompact+1 {
-		if h, err := CompactHist(ctx, client, prim, fb, res.Hist, KeepRecentOnCompact); err == nil {
+		lang := config.LangOfPrompt(sys)
+		if sys == "" && len(res.Hist) > 0 && res.Hist[0].Role == "system" {
+			lang = config.LangOfPrompt(res.Hist[0].Content)
+		}
+		if h, err := CompactHist(ctx, client, prim, fb, res.Hist, KeepRecentOnCompact, lang); err == nil {
 			res.Hist, res.Summarized = h, true
 			if !fits(res.Hist) {
 				var n int
@@ -322,6 +349,9 @@ type CallPlan struct {
 	Fixed  string // si no és buit, és la resposta i no s'executa
 	Ask    bool   // cal permís de l'usuari (o --auto-approve)
 	Reason string
+	// ForceAsk: un hook pre_tool ha demanat confirmació; una aprovació
+	// recordada de la sessió no la salta.
+	ForceAsk bool
 }
 
 // PlanCalls aplica, en ordre i d'una sola manera per a tots els bucles, la

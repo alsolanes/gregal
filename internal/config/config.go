@@ -2,8 +2,10 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -11,11 +13,15 @@ import (
 	"gopkg.in/yaml.v3"
 	"gregal/internal/llm"
 	"gregal/internal/tema"
+	"gregal/internal/sandbox"
 	"gregal/internal/tools"
 )
 
 // Provider és un backend OpenAI-compatible (llama.cpp local, proxy, cloud...).
 type Provider struct {
+	// Type és el protocol: buit/openai (chat completions), anthropic
+	// (Messages API) o openai-responses (Responses API). provider_type.go.
+	Type    string `yaml:"type,omitempty"`
 	BaseURL string `yaml:"base_url"`
 	APIKey  string `yaml:"api_key"`
 	// PromptCacheKey és opcional: els providers OpenAI-compatible que ho
@@ -103,6 +109,7 @@ func (c *Config) ConfigureClient(client *llm.Client) {
 	if c == nil || client == nil {
 		return
 	}
+	c.RegisterProviderTypes()
 	for name, p := range c.Providers {
 		if strings.TrimSpace(p.PromptCacheKey) == "" {
 			continue
@@ -151,6 +158,44 @@ type AgentCfg struct {
 	// pregunta abans de donar-la per denegada. 0 (sense posar) = 30 minuts;
 	// negatiu = sense límit, fins que l'usuari respon o atura el torn.
 	ApprovalTimeoutS int `yaml:"approval_timeout_s,omitempty"`
+	// Bets: apostes de confiança abans de les comprovacions (on, per
+	// defecte: dins de la crida; side: també crida lateral al rol chat si
+	// el model no n'ha donat; off: res).
+	Bets string `yaml:"bets,omitempty"`
+	// Scout: auto (per defecte) fa que els torns de code/autonomous/debug
+	// que demanen investigar comencin amb un subagent investigador de
+	// només lectura; off ho desactiva.
+	Scout string `yaml:"scout,omitempty"`
+}
+
+// ScoutOn diu si l'investigador d'inici de torn és actiu (per defecte, sí).
+func (c *Config) ScoutOn() bool {
+	if c == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Agent.Scout)) {
+	case "off", "false", "no", "never":
+		return false
+	}
+	return true
+}
+
+// PlanCfg controla el flux de pla. Critic: on (per defecte) | off — el
+// crític (rol reviewer) revisa el pla abans d'executar-lo.
+type PlanCfg struct {
+	Critic string `yaml:"critic,omitempty"`
+}
+
+// PlanCriticOn diu si el crític del pla és actiu (per defecte, sí).
+func (c *Config) PlanCriticOn() bool {
+	if c == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Plan.Critic)) {
+	case "off", "false", "no":
+		return false
+	}
+	return true
 }
 
 // ModelTimeout bounds one model step, including retries. Autonomous generation
@@ -216,12 +261,56 @@ type CostPrice struct {
 // Exemples: "gofmt -w {file}", "ruff check {file}".
 // Buit = desactivat. És config teva i de confiança: no hi posis res que no
 // executaries tu mateix al terminal.
+// GitCfg governa els checkpoints amb git (fotos del working tree en refs
+// amagats refs/gregal/checkpoints/*: /rewind desfà també el que fa bash).
+// checkpoints: on (per defecte) | off. checkpoint_keep: quants refs es
+// guarden per repo (per defecte 50).
+type GitCfg struct {
+	Checkpoints    string `yaml:"checkpoints,omitempty"`
+	CheckpointKeep int    `yaml:"checkpoint_keep,omitempty"`
+}
+
+// CheckpointsOn diu si s'han de fer fotos git (buit = sí).
+func (g GitCfg) CheckpointsOn() bool {
+	return strings.ToLower(strings.TrimSpace(g.Checkpoints)) != "off"
+}
+
 type HooksCfg struct {
 	PostEdit string `yaml:"post_edit"`
 	// Diag és la comprovació després d'editar: "full" (defecte: sintaxi
 	// en procés + go vet / py_compile / node --check / bash -n si són al
 	// PATH) o "syntax" (només la sintaxi en procés, com abans).
 	Diag string `yaml:"diag"`
+	// Hooks del cicle de vida (vegeu agent/lifecycle.go): cada event és
+	// una llista de comandes que reben un JSON per stdin. Buit = res.
+	SessionStart []HookCmd `yaml:"session_start,omitempty"`
+	UserPrompt   []HookCmd `yaml:"user_prompt,omitempty"`
+	PreTool      []HookCmd `yaml:"pre_tool,omitempty"`
+	PostTool     []HookCmd `yaml:"post_tool,omitempty"`
+	Stop         []HookCmd `yaml:"stop,omitempty"`
+	PreCompact   []HookCmd `yaml:"pre_compact,omitempty"`
+	// StopMaxContinues és quantes vegades per torn un hook stop pot
+	// demanar que l'agent continuï (0 = 3).
+	StopMaxContinues int `yaml:"stop_max_continues,omitempty"`
+}
+
+// HookCmd és una comanda d'un event del cicle de vida. Matcher és una
+// expressió regular (ancorada) sobre el nom de l'eina; només compta a
+// pre_tool i post_tool, i buida vol dir totes. TimeoutS 0 = 10 s.
+type HookCmd struct {
+	Command  string `yaml:"command"`
+	Matcher  string `yaml:"matcher,omitempty"`
+	TimeoutS int    `yaml:"timeout_s,omitempty"`
+}
+
+// HookEvents retorna els events del cicle de vida amb les seves comandes
+// (per validar i per mostrar-los).
+func (h HooksCfg) HookEvents() map[string][]HookCmd {
+	return map[string][]HookCmd{
+		"session_start": h.SessionStart, "user_prompt": h.UserPrompt,
+		"pre_tool": h.PreTool, "post_tool": h.PostTool,
+		"stop": h.Stop, "pre_compact": h.PreCompact,
+	}
 }
 
 // PermissionsCfg controla permisos d'eines (allow|ask|deny).
@@ -229,13 +318,61 @@ type PermissionsCfg struct {
 	Tools     map[string]string `yaml:"tools"`
 	BashAllow []string          `yaml:"bash_allow"`
 	BashDeny  []string          `yaml:"bash_deny"`
+	// Mode és el mode de permís inicial: "" o manual (es pregunta) o
+	// auto-review (un model revisor decideix les accions que demanen
+	// permís; vegeu agent/autoreview.go).
+	Mode string `yaml:"mode,omitempty"`
+	// ReviewTimeoutS és el temps màxim del revisor (per defecte 30 s). En
+	// esgotar-se, la decisió torna a la persona.
+	ReviewTimeoutS int `yaml:"review_timeout_s,omitempty"`
 }
 
-// MCPServerCfg és un servidor MCP (transport stdio).
+// Modes de permís del config.
+const (
+	PermModeManual     = "manual"
+	PermModeAutoReview = "auto-review"
+)
+
+// AutoReview diu si el config arrenca amb el revisor automàtic.
+func (p PermissionsCfg) AutoReview() bool {
+	return strings.EqualFold(strings.TrimSpace(p.Mode), PermModeAutoReview)
+}
+
+// ReviewTimeout és el temps màxim d'una revisió.
+func (p PermissionsCfg) ReviewTimeout() time.Duration {
+	if p.ReviewTimeoutS > 0 {
+		return time.Duration(p.ReviewTimeoutS) * time.Second
+	}
+	return 30 * time.Second
+}
+
+// MCPServerCfg és un servidor MCP: local per stdio (command) o remot per
+// HTTP (url; Streamable HTTP amb SSE antic de reserva).
 type MCPServerCfg struct {
-	Command string            `yaml:"command"`
-	Args    []string          `yaml:"args"`
-	Env     map[string]string `yaml:"env"`
+	Command string            `yaml:"command,omitempty"`
+	Args    []string          `yaml:"args,omitempty"`
+	Env     map[string]string `yaml:"env,omitempty"`
+	// URL d'un servidor remot. Transport: "" (stdio amb command; http
+	// amb url, i sse si el servidor és dels antics), "stdio", "http" o
+	// "sse". Headers admet ${VAR}, que s'expandeix en connectar.
+	URL       string            `yaml:"url,omitempty"`
+	Transport string            `yaml:"transport,omitempty"`
+	Headers   map[string]string `yaml:"headers,omitempty"`
+	// OAuth és opcional: sense client_id es fa registre dinàmic si el
+	// servidor d'autorització l'ofereix.
+	OAuth *MCPOAuthCfg `yaml:"oauth,omitempty"`
+	// ReadOnly declara que les eines del servidor només llegeixen: la
+	// política les deixa passar sense demanar permís (també als modes de
+	// només lectura). Un permissions.tools explícit continua manant. La
+	// base de dades de demostració (`gregal mcp demo`) el porta posat.
+	ReadOnly bool `yaml:"readonly,omitempty"`
+}
+
+// MCPOAuthCfg fixa el client OAuth d'un servidor MCP remot.
+type MCPOAuthCfg struct {
+	ClientID     string   `yaml:"client_id,omitempty"`
+	ClientSecret string   `yaml:"client_secret,omitempty"`
+	Scopes       []string `yaml:"scopes,omitempty"`
 }
 
 // Config és l'arrel del config.yaml.
@@ -244,12 +381,18 @@ type Config struct {
 	Roles       map[string]Role      `yaml:"roles"`
 	Verify      VerifyCfg            `yaml:"verify"`
 	Agent       AgentCfg             `yaml:"agent"`
+	Plan        PlanCfg              `yaml:"plan,omitempty"`
 	Router      RouterCfg            `yaml:"router"`
 	Budget      BudgetCfg            `yaml:"budget"`
 	Cost        map[string]CostPrice `yaml:"cost"`
 	Hooks       HooksCfg             `yaml:"hooks"`
+	Git         GitCfg               `yaml:"git"`
 	System      string               `yaml:"system"`
 	Permissions PermissionsCfg       `yaml:"permissions"`
+	// Sandbox confina les ordres de shell a nivell de sistema (opt-in).
+	Sandbox sandbox.Config `yaml:"sandbox,omitempty"`
+	// Browser diu on corre el navegador de l'eina browser.
+	Browser BrowserCfg `yaml:"browser,omitempty"`
 	Mode        string               `yaml:"mode"`
 	// Language és l'idioma de la interfície i de les respostes: ca o en.
 	// Buit = en. Els comentaris i els tests del codi continuen en català;
@@ -280,6 +423,9 @@ type Config struct {
 	// (nom → contrasenya i carpetes permeses). Sense secció `users:` tot
 	// queda com abans: només el token únic de sempre.
 	Users map[string]UserCfg `yaml:"users"`
+	// Knowledge: limits de les col·leccions de coneixement i embeddings
+	// opcionals (knowledge.go).
+	Knowledge KnowledgeCfg `yaml:"knowledge,omitempty"`
 
 	// rawKeys conserva les api_key TAL COM al fitxer (sense expandir ${VAR}),
 	// perquè Save no congeli secrets ni variables d'entorn al disc.
@@ -312,6 +458,14 @@ type UserCfg struct {
 
 // TelegramCfg configura el bot de Telegram.
 //
+// BrowserCfg configura l'eina browser. mode: auto (per defecte: el panell
+// de l'app d'escriptori si n'hi ha, si no headless), app, headless o window
+// (finestra visible, per iniciar sessió a mà). GREGAL_BROWSER_HEADLESS=1
+// força headless.
+type BrowserCfg struct {
+	Mode string `yaml:"mode,omitempty"`
+}
+
 // El token s'escriu al config (0600) o s'hi posa ${GREGAL_TELEGRAM_TOKEN}.
 // allowed_users és la llista d'usuaris que poden fer servir el bot i aprovar
 // eines; allow_groups permet fer-lo servir en grups on el bot sigui present.
@@ -322,13 +476,53 @@ type TelegramCfg struct {
 }
 
 // defaultSystem és la identitat del gregal quan el config no en defineix.
-const defaultSystem = `Ets el gregal, un agent de codi que viu en un TUI. Parles SEMPRE en català (informal i directe, sense palla). Respostes curtes: primer la solució, després l'explicació mínima. Quan faràs servir eines, avisa en una línia què faràs.`
+// No diu on viu (TUI, web, Telegram, headless): el mateix text va a totes
+// les interfícies.
+const defaultSystem = `Ets el gregal, un agent de codi que treballa al projecte de l'usuari amb eines. Parles SEMPRE en català (informal i directe, sense palla). Respostes curtes: primer la solució, després l'explicació mínima. Quan faràs servir eines, avisa en una línia què faràs.`
 
 // defaultSystemEN és el mateix amb l'anglès com a llengua de resposta. Es
 // tria amb `lang: en`. No és una traducció automàtica del de dalt: el
 // prompt és el que decideix com respon el model i val més tenir-lo escrit
 // a mà en cada llengua que passar-lo per una plantilla.
-const defaultSystemEN = `You are gregal, a coding agent living in a TUI. You ALWAYS speak English (informal and direct, no filler). Short answers: the solution first, then the minimum explanation. When you are about to use tools, say in one line what you will do.`
+const defaultSystemEN = `You are gregal, a coding agent that works in the user's project through tools. You ALWAYS speak English (informal and direct, no filler). Short answers: the solution first, then the minimum explanation. When you are about to use tools, say in one line what you will do.`
+
+// LanguageDirective és l'última línia del system prompt a tots els camins
+// (TUI, web, headless, Telegram, subagents). La resta del prompt és en
+// anglès per a totes dues llengües; aquesta línia és la que fixa en quina
+// respon el model. Va al final perquè els models petits («flash») fan més
+// cas del que llegeixen just abans de la conversa, i un AGENTS.md, un
+// resum o la sortida d'una eina en una altra llengua els feia canviar.
+func LanguageDirective(lang string) string {
+	if lang == "ca" {
+		return "LANGUAGE: Respon sempre a l'usuari en català, encara que els fitxers, la sortida de les eines o els missatges anteriors siguin en una altra llengua."
+	}
+	return "LANGUAGE: Always reply to the user in English, even if files, tool output or earlier messages are in another language."
+}
+
+// SplitLanguageDirective separa la directiva d'idioma del final d'un
+// prompt (la que hi posa SystemPrompt). Si no n'hi ha, torna el prompt
+// sencer i "". Serveix per afegir blocs al prompt sense deixar-la al mig.
+func SplitLanguageDirective(prompt string) (body, directive string) {
+	for _, l := range LangsSuportats {
+		d := LanguageDirective(l)
+		if strings.HasSuffix(prompt, d) {
+			return strings.TrimRight(strings.TrimSuffix(prompt, d), "\n"), d
+		}
+	}
+	return prompt, ""
+}
+
+// LangOfPrompt diu la llengua de la directiva que tanca el prompt ("" si
+// no en té). La compactació la fa servir per escriure el resum en la
+// llengua de la sessió sense haver de rebre el config.
+func LangOfPrompt(prompt string) string {
+	for _, l := range LangsSuportats {
+		if strings.HasSuffix(strings.TrimRight(prompt, "\n "), LanguageDirective(l)) {
+			return l
+		}
+	}
+	return ""
+}
 
 // LangsSuportats són els idiomes de la interfície i de les respostes.
 var LangsSuportats = []string{"ca", "en"}
@@ -390,6 +584,15 @@ providers:
     base_url: http://localhost:8080/v1
     api_key: ""
   openai:
+    base_url: https://api.openai.com/v1
+    api_key: ${OPENAI_API_KEY}
+  # Native protocols (type): Anthropic Messages API and OpenAI Responses API.
+  anthropic:
+    type: anthropic
+    base_url: https://api.anthropic.com/v1
+    api_key: ${ANTHROPIC_API_KEY}
+  openai-responses:
+    type: openai-responses
     base_url: https://api.openai.com/v1
     api_key: ${OPENAI_API_KEY}
   openrouter:
@@ -456,7 +659,9 @@ budget:
 
 agent:
   max_steps: 10
-  # Per model step: 0 = automatic (240s interactive, 1200s autonomous).
+  # Model inactivity limit per step: the step only fails when the provider
+  # sends nothing for this long (0 = automatic: 240s interactive, 1200s
+  # autonomous). A step that keeps streaming is never cut before 30 min (60 autonomous).
   # An explicit value must be between 1 and 1200 seconds.
   model_timeout_s: 0
   # Mode autònom: treballa per fites, verifica i reprèn mentre hi hagi progrés.
@@ -475,6 +680,16 @@ agent:
 # Exemples: "gofmt -w {file}" · "ruff check --fix {file}" · "" = desactivat.
 hooks:
   post_edit: ""
+  # Lifecycle hooks: each command gets a JSON payload on stdin and runs in
+  # the workspace (env GREGAL_EVENT, GREGAL_SESSION, GREGAL_WORKSPACE).
+  # Exit 2 blocks (stderr = reason); stdout may be JSON
+  # {"decision":"allow|deny|ask","reason":"...","continue":true,"context":"..."}.
+  # Events: session_start, user_prompt, pre_tool, post_tool, stop, pre_compact.
+  #pre_tool:
+  #  - command: ./scripts/guard.sh
+  #    matcher: "bash|write|edit"
+  #    timeout_s: 10
+  #stop_max_continues: 3
 
 # cost: USD per milió de tokens (in/out) per model cloud. Sense entrada =
 # sense cost (locals sempre $0 implícit: no cal llistar-los). Exemple amb
@@ -492,6 +707,24 @@ permissions:
   tools: {write: ask, edit: ask}
   bash_allow: []
   bash_deny: []
+  # mode: manual (default) or auto-review: a fast reviewer model (role
+  # reviewer, else chat) decides actions that need approval; it can allow,
+  # deny or hand the decision back to you. Denied tools are never reviewed.
+  #mode: auto-review
+  #review_timeout_s: 30
+
+# sandbox: OS-level confinement for the bash/bash_background tools (opt-in).
+# mode: off (default) | workspace (writes only in the workspace, temp and
+# allow_write; warns and runs unsandboxed if no backend) | strict (refuses
+# shell commands when no backend is available). backend: auto (Linux bwrap,
+# then Landlock; macOS sandbox-exec) | bwrap | landlock | sandbox-exec |
+# docker (the only option on Windows; image is the container image).
+#sandbox:
+#  mode: workspace
+#  network: "on"
+#  allow_write: []
+#  backend: auto
+#  image: alpine:3.20
 
 # mode: code (accés total amb confirmacions) o chat (només lectura).
 mode: code
@@ -514,6 +747,12 @@ mode: code
 #  recordatoris:
 #    command: /usr/bin/python3
 #    args: [/path/to/mcp-server.py]
+#  remot:
+#    url: https://mcp.example.com/mcp   # Streamable HTTP (legacy SSE fallback)
+#    headers: {X-Team: ${TEAM_ID}}
+#    # OAuth 2.1 is automatic when the server asks for it (Connectors page,
+#    # or /mcp connect remot in the TUI).
+
 `
 
 // DefaultPath retorna ~/.config/gregal/config.yaml.
@@ -587,6 +826,10 @@ func Load(path string) (*Config, string, error) {
 	if err := c.Validate(); err != nil {
 		return nil, path, err
 	}
+	c.RegisterProviderTypes()
+	sandbox.Configure(c.Sandbox)
+	tools.SetBrowserMode(c.Browser.Mode)
+	c.applyKnowledge()
 	return &c, path, nil
 }
 
@@ -623,6 +866,7 @@ func (c *Config) Save(path string) error {
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		return err
 	}
+	c.RegisterProviderTypes()
 	// El config pot portar secrets: força 0600 encara que el
 	// fitxer ja existís amb permisos més oberts.
 	return os.Chmod(path, 0o600)
@@ -638,6 +882,12 @@ func (c *Config) SetRawKey(name, key string) {
 
 // Validate comprova rols obligatoris, providers i mode de verificació.
 func (c *Config) Validate() error {
+	if err := c.ValidaTipusProviders(); err != nil {
+		return err
+	}
+	if err := c.validateKnowledge(); err != nil {
+		return err
+	}
 	for _, need := range []string{"chat", "code", "reviewer"} {
 		r, ok := c.Roles[need]
 		if !ok {
@@ -652,6 +902,14 @@ func (c *Config) Validate() error {
 		if r.ContextWindow < 0 {
 			return fmt.Errorf("el rol %q té context_window negatiu", need)
 		}
+	}
+	if c.Git.CheckpointKeep < 0 || c.Git.CheckpointKeep > 1000 {
+		return fmt.Errorf("git.checkpoint_keep %d fora de rang (0-1000)", c.Git.CheckpointKeep)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Git.Checkpoints)) {
+	case "", "on", "off":
+	default:
+		return fmt.Errorf("git.checkpoints ha de ser on o off (rebut %q)", c.Git.Checkpoints)
 	}
 	switch c.Verify.Mode {
 	case "off", "manual", "auto", "both", "strict":
@@ -693,9 +951,19 @@ func (c *Config) Validate() error {
 		c.Mode = "code"
 	}
 	switch c.Mode {
-	case "code", "chat", "inspect", "goal", "autonomous":
+	case "code", "chat", "inspect", "goal", "autonomous", "debug":
 	default:
-		return fmt.Errorf("mode %q invàlid (code|inspect|chat|goal|autonomous)", c.Mode)
+		return fmt.Errorf("mode %q invàlid (code|inspect|chat|goal|autonomous|debug)", c.Mode)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Agent.Bets)) {
+	case "", "on", "off", "side":
+	default:
+		return fmt.Errorf("agent.bets %q invàlid (on|off|side)", c.Agent.Bets)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Plan.Critic)) {
+	case "", "on", "off":
+	default:
+		return fmt.Errorf("plan.critic %q invàlid (on|off)", c.Plan.Critic)
 	}
 	if c.Agent.MaxSteps < 1 || c.Agent.MaxSteps > 200 {
 		return fmt.Errorf("agent.max_steps %d fora de rang (1-200)", c.Agent.MaxSteps)
@@ -719,6 +987,20 @@ func (c *Config) Validate() error {
 	if a.MaxCostUSD < 0 {
 		return fmt.Errorf("agent.autonomous.max_cost_usd %v invàlid (>=0)", a.MaxCostUSD)
 	}
+	switch strings.ToLower(strings.TrimSpace(c.Permissions.Mode)) {
+	case "", PermModeManual, PermModeAutoReview:
+	default:
+		return fmt.Errorf("permissions.mode=%q invalid (manual|auto-review)", c.Permissions.Mode)
+	}
+	if c.Permissions.ReviewTimeoutS < 0 || c.Permissions.ReviewTimeoutS > 600 {
+		return fmt.Errorf("permissions.review_timeout_s %d outside range (0-600)", c.Permissions.ReviewTimeoutS)
+	}
+	if !tools.ValidBrowserMode(c.Browser.Mode) {
+		return fmt.Errorf("browser.mode %q invalid (%s)", c.Browser.Mode, strings.Join(tools.BrowserModes, "|"))
+	}
+	if err := c.Sandbox.Validate(); err != nil {
+		return err
+	}
 	for name, d := range c.Permissions.Tools {
 		// El registre canònic és tools.Noms(): abans aquí hi havia una
 		// còpia curta, i posar-hi office_edit o bash_background feia
@@ -734,14 +1016,59 @@ func (c *Config) Validate() error {
 		}
 	}
 	for name, s := range c.MCP {
-		if strings.TrimSpace(s.Command) == "" {
-			return fmt.Errorf("mcp.%s: falta command", name)
+		if err := ValidaMCP(name, s); err != nil {
+			return err
 		}
+	}
+	for ev, cmds := range c.Hooks.HookEvents() {
+		for i, h := range cmds {
+			if strings.TrimSpace(h.Command) == "" {
+				return fmt.Errorf("hooks.%s[%d]: falta command", ev, i)
+			}
+			if h.TimeoutS < 0 || h.TimeoutS > 600 {
+				return fmt.Errorf("hooks.%s[%d].timeout_s %d fora de rang (0-600)", ev, i, h.TimeoutS)
+			}
+			if h.Matcher != "" {
+				if _, err := regexp.Compile(h.Matcher); err != nil {
+					return fmt.Errorf("hooks.%s[%d].matcher: %v", ev, i, err)
+				}
+			}
+		}
+	}
+	if c.Hooks.StopMaxContinues < 0 || c.Hooks.StopMaxContinues > 50 {
+		return fmt.Errorf("hooks.stop_max_continues %d fora de rang (0-50)", c.Hooks.StopMaxContinues)
 	}
 	return nil
 }
 
-// SystemPrompt retorna el prompt d'identitat (custom o per defecte).
+// ValidaMCP comprova un servidor MCP (també el fa servir la web abans
+// d'afegir-ne un des de la pàgina de connectors).
+func ValidaMCP(name string, s MCPServerCfg) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("mcp: falta el nom")
+	}
+	switch s.Transport {
+	case "", "stdio", "http", "sse":
+	default:
+		return fmt.Errorf("mcp.%s.transport %q invàlid (stdio|http|sse)", name, s.Transport)
+	}
+	remot := strings.TrimSpace(s.URL) != ""
+	if s.Transport == "http" || s.Transport == "sse" || (s.Transport == "" && remot) {
+		u, err := url.Parse(strings.TrimSpace(s.URL))
+		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			return fmt.Errorf("mcp.%s: url invàlida (cal http:// o https://)", name)
+		}
+		return nil
+	}
+	if strings.TrimSpace(s.Command) == "" {
+		return fmt.Errorf("mcp.%s: falta command (o url)", name)
+	}
+	return nil
+}
+
+// SystemPrompt retorna el prompt d'identitat (custom o per defecte) amb la
+// memòria d'usuari i, al final, la directiva d'idioma. agent.PromptFor la
+// torna a deixar al final després d'afegir-hi els fets i les regles.
 func (c *Config) SystemPrompt() string {
 	base := defaultSystem
 	if c.Lang() == "en" {
@@ -750,7 +1077,7 @@ func (c *Config) SystemPrompt() string {
 	if strings.TrimSpace(c.System) != "" {
 		base = c.System
 	}
-	return base + userMemoryBlock()
+	return base + userMemoryBlock() + "\n\n" + LanguageDirective(c.Lang())
 }
 
 // RoleNames retorna els noms de rol ordenats, per --check-config.
@@ -772,7 +1099,7 @@ func (c *Config) InitialRole() string {
 	}
 	preferred := []string{"chat"}
 	switch c.Mode {
-	case "code", "autonomous":
+	case "code", "autonomous", "debug":
 		preferred = []string{"code", "chat", "think"}
 	case "inspect":
 		preferred = []string{"think", "chat", "code"}

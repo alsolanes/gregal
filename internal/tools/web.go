@@ -147,6 +147,15 @@ var nomesSearXNG = false
 // WebSearch cerca en paral·lel a tots els motors disponibles i fusiona.
 // Torna títol+url+resum per resultat.
 func WebSearch(query string, count int) (string, error) {
+	return WebSearchCtx(context.Background(), query, count)
+}
+
+// WebSearchCtx és WebSearch amb el context del torn: els motors ja
+// l'accepten, així que Esc els talla sense esperar els seus timeouts.
+func WebSearchCtx(ctx context.Context, query string, count int) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return "", fmt.Errorf("web_search: query buida")
@@ -162,7 +171,7 @@ func WebSearch(query string, count int) (string, error) {
 	if len(engines) == 0 {
 		return "", fmt.Errorf("web_search: cap motor de cerca disponible")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), SearchEngineTimeout+2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, SearchEngineTimeout+2*time.Second)
 	defer cancel()
 	type res struct {
 		name string
@@ -555,6 +564,30 @@ func WebFetch(rawURL string, maxChars int) (string, error) {
 // WebFetchOpts_ és WebFetch amb opcions: cadena de recuperació directe →
 // (render local ‖ còpia arxivada, en paral·lel) → archive.today. Cada via
 // que no és en viu porta etiqueta de procedència.
+// WebFetchOpts_Ctx afegeix el context del torn: si Esc arriba a mitja
+// descàrrega, el torn avorta de seguida (la descàrrega de fons mor amb el
+// seu timeout propi; el canal amb buffer evita que deixi goroutines
+// clavades). Best-effort honest: la pila de fetch encara no porta ctx.
+func WebFetchOpts_Ctx(ctx context.Context, rawURL string, o WebFetchOpts) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	type res struct {
+		out string
+		err error
+	}
+	ch := make(chan res, 1)
+	go func() {
+		out, err := WebFetchOpts_(rawURL, o)
+		ch <- res{out, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.out, r.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
 func WebFetchOpts_(rawURL string, o WebFetchOpts) (string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	u, err := url.Parse(rawURL)

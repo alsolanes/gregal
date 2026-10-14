@@ -29,7 +29,7 @@ func rgb(hex string) (int, int, int) {
 }
 
 // vel és un color de la paleta amb transparència, en el format curt que
-// fa servir el CSS del web: rgba(127,212,193,.10).
+// fa servir el CSS del web: rgba(201,209,230,.10).
 func vel(hex string, alfa string) string {
 	r, g, b := rgb(hex)
 	return fmt.Sprintf("rgba(%d,%d,%d,%s)", r, g, b, alfa)
@@ -43,6 +43,15 @@ func tint(t Tema) string {
 		return t.Ink
 	}
 	return "#FFFFFF"
+}
+
+// vora és el to de les línies fines: el Vora del tema, o l'escuma si no
+// en porta (els temes inspirats tenen les vores del color de la marca).
+func vora(t Tema) string {
+	if t.Vora != "" {
+		return t.Vora
+	}
+	return t.Escuma
 }
 
 // CSSColors són els tokens de color d'un tema, en l'ordre en què
@@ -60,8 +69,8 @@ func CSSColors(t Tema) []string {
 		"--panel:" + t.Abisme,
 		"--surface:" + t.Night,
 		"--surface-hi:" + t.SuperficieAlta,
-		"--line:" + vel(t.Escuma, lineA),
-		"--line-hi:" + vel(t.Escuma, lineB),
+		"--line:" + vel(vora(t), lineA),
+		"--line-hi:" + vel(vora(t), lineB),
 		"--ink:" + t.Ink,
 		"--text:" + t.Text,
 		"--muted:" + t.Slate,
@@ -87,7 +96,7 @@ func CSSColors(t Tema) []string {
 		// Colors del codi: els mateixos que pinta chroma al TUI, perquè
 		// el CSS en pugui fer servir algun (vores, fons dels blocs).
 		"--codi-fons:" + t.Abisme,
-		"--codi-vora:" + vel(t.Escuma, lineB),
+		"--codi-vora:" + vel(vora(t), lineB),
 	}
 }
 

@@ -110,9 +110,10 @@ func TestGateStrict(t *testing.T) {
 	if s.gated {
 		t.Fatal("la porta ha de quedar oberta")
 	}
-	// Sense bloqueig, avisa honestament.
+	// Sense bloqueig, avisa honestament (en l'idioma del config: per
+	// defecte, anglès).
 	rec = postJSON(t, s.handleVerifyApprove, `{"approve":true}`)
-	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "cap bloqueig") {
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), "no block") {
 		t.Fatalf("sense gate: %d %q", rec.Code, rec.Body.String())
 	}
 }

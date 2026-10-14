@@ -26,7 +26,7 @@ func (m Model) compactCmd() (tea.Cmd, context.CancelFunc) {
 	convo := append([]llm.Message(nil), m.convo...)
 	if m.compacted != "" {
 		convo = append([]llm.Message{{Role: "user",
-			Content: "[Resum de la conversa anterior]\n" + m.compacted}}, convo...)
+			Content: "[Summary of the earlier conversation]\n" + m.compacted}}, convo...)
 	}
 	before := len(m.convo)
 	c := m.client
@@ -34,7 +34,7 @@ func (m Model) compactCmd() (tea.Cmd, context.CancelFunc) {
 	return func() tea.Msg {
 		defer cancel()
 		out, err := agent.Summarize(ctx, c,
-			m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), convo)
+			m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), convo, m.cfg.Lang())
 		return compactDoneMsg{summary: out, before: before, err: err}
 	}, cancel
 }

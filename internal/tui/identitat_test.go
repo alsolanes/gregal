@@ -74,7 +74,7 @@ func TestIdentitatCapColorFantasma(t *testing.T) {
 		coneguts[hex] = true
 	}
 	// boxIdle és algua aclarida i el document el tolera explícitament.
-	coneguts["#3C5750"] = true
+	coneguts["#626B80"] = true
 
 	_, this, _, _ := runtime.Caller(0)
 	// TOT el paquet, no només theme.go: els colors fantasma que hi havia

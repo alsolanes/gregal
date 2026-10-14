@@ -161,8 +161,16 @@ func TestV2RunCicleDeVida(t *testing.T) {
 			t.Fatalf("manca l'event %s al registre (hi ha: %v)", kind, keys(kinds))
 		}
 	}
-	if kinds["run_queued"][0].RunID != int(out.Run.ID) {
-		t.Fatalf("run_id de l'event %d, volia %d", kinds["run_queued"][0].RunID, out.Run.ID)
+	// El registre és compartit: cal trobar el run_queued d'aquest torn, i
+	// només un (els ids no es reutilitzen encara que hi hagi torns antics).
+	n := 0
+	for _, e := range kinds["run_queued"] {
+		if e.RunID == int(out.Run.ID) {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("hi ha %d events run_queued amb run_id %d, n'hi hauria d'haver 1", n, out.Run.ID)
 	}
 }
 

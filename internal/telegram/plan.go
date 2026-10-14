@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -60,12 +61,16 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 	defer close(done)
 
 	b.send(ctx, chatID, "🔍 "+b.tr("Explorant (sense actuar)…", "Inspecting (read-only)…"))
+	// La directiva d'idioma tanca l'últim missatge de sistema.
+	llengua := config.LanguageDirective(b.cfg.Lang())
 	hist := []llm.Message{
 		{Role: "system", Content: agent.PlanSystem},
 		{Role: "user", Content: arg},
 	}
 	if info := agent.ContextProjecte(b.dirOf(st)); info != "" {
-		hist = append(hist, llm.Message{Role: "system", Content: info})
+		hist = append(hist, llm.Message{Role: "system", Content: info + "\n\n" + llengua})
+	} else {
+		hist[0].Content += "\n\n" + llengua
 	}
 	var plan string
 	for step := 1; step <= b.cfg.Agent.MaxSteps; step++ {
@@ -101,7 +106,7 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 				}
 				out = o
 			default:
-				out = "EINA NO DISPONIBLE (exploració read-only): " + reason
+				out = "TOOL NOT AVAILABLE (read-only exploration): " + reason
 			}
 			hist = append(hist, agent.ToolMsg(c, out, outImgs...))
 		}

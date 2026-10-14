@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -20,10 +21,10 @@ func delegateToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return llm.ToolSpec{
 		Name:        "delegate",
-		Description: "Llança 1-4 subagents en paral·lel per explorar (lectura: read, grep, glob, web_*). Cadascun torna un resum. Útil per investigar diverses pistes alhora.",
+		Description: "Launch 1-4 read-only subagents in parallel (read, grep, glob, web_*). Use it only for two or more independent, non-trivial investigations; never for trivial, dependent or duplicate tasks. Each one returns a summary: use it and do not redo the work. Optional `agent` picks a user-defined subagent (see SUBAGENTS in the system prompt) with its own tools, model and mode. Limits: 4 per call and 8 alive per process; the rest wait.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
 			"tasks": map[string]any{"type": "array", "items": map[string]any{"type": "object",
-				"properties": map[string]any{"prompt": str}, "required": []string{"prompt"}}},
+				"properties": map[string]any{"prompt": str, "agent": str}, "required": []string{"prompt"}}},
 		}, "required": []string{"tasks"}},
 	}
 }
@@ -38,6 +39,13 @@ type delegateScopeKey struct{}
 type delegateScope struct {
 	session string
 	dir     string
+}
+
+type delegateRunnerContextKey struct{}
+
+type delegateRunnerContext struct {
+	run       func(context.Context, string) (string, error)
+	semaphore chan struct{}
 }
 
 func withDelegateScope(ctx context.Context, session, dir string) context.Context {
@@ -68,6 +76,17 @@ func currentDelegateRunner() func(ctx context.Context, prompt string) (string, e
 	return delegateRunner
 }
 
+// WithDelegateRunner returns a context that uses a runner built from cfg and
+// client for delegate calls in that turn. An explicitly configured delegate
+// role is validated and reported when invoked; otherwise the code role is used.
+func WithDelegateRunner(ctx context.Context, cfg *config.Config, client *llm.Client) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	runner := buildDelegateRunner(cfg, client)
+	return context.WithValue(ctx, delegateRunnerContextKey{}, delegateRunnerContext{run: runner, semaphore: make(chan struct{}, MaxDelegateTasks)})
+}
+
 func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
 	dst := config.PermissionsCfg{
 		Tools:     make(map[string]string, len(src.Tools)),
@@ -92,31 +111,71 @@ func delegatePolicy(permissions config.PermissionsCfg) *Policy {
 // 4 ja són prou context de tornada).
 const MaxDelegateTasks = 4
 
+// maxResumFill topa el que cada fill torna al pare: 4 resums llargs
+// entrarien sencers a l'historial a cada pas següent i la poda els
+// retallaria dient "torna a cridar l'eina", quan re-delegar executa una
+// altra cerca, no la mateixa. El text sencer no es re-obté enlloc: la
+// marca ho diu perquè el pare treballi amb el resum.
+const maxResumFill = 6000
+
+func retallaResum(out string) string {
+	r := []rune(strings.TrimSpace(out))
+	if len(r) <= maxResumFill {
+		return string(r)
+	}
+	return string(r[:maxResumFill]) + fmt.Sprintf("…[resum del subagent retallat a %d de %d caràcters: és tot el que ha tornat; continua amb aquest resum]", maxResumFill, len(r))
+}
+
+// MaxDelegateLiveTotal topa els subagents vius de tot el procés. El semàfor
+// per torn (WithDelegateRunner) només existeix a la web; el TUI, Telegram i
+// el headless fan servir el runner global sense cap. Sense aquest sostre,
+// N crides delegate d'un mateix pas (delegate és ParallelSafe) engegaven
+// N×4 fills sense límit. Els fills no deleguen, així que no hi ha
+// reentrància: qui espera un slot no en té cap de retingut.
+const MaxDelegateLiveTotal = 8
+
+var delegateGlobalLive = make(chan struct{}, MaxDelegateLiveTotal)
+
 // SetupDelegate configura el runner amb el rol code del config (mateix
 // provider/model que l'agent pare). Els subagents exploren en mode inspect
 // (12 passos, eines natives sense delegate ni MCP, ask→deny): no escriuen,
 // no demanen res, només tornen text.
 func SetupDelegate(cfg *config.Config, client *llm.Client) {
+	SetDelegateRunner(buildDelegateRunner(cfg, client))
+}
+
+func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Context, string) (string, error) {
 	if cfg == nil || client == nil {
-		SetDelegateRunner(nil)
-		return
+		return nil
 	}
-	r, ok := cfg.Roles["code"]
+	r, ok := cfg.Roles["delegate"]
+	roleName := "delegate"
 	if !ok {
-		SetDelegateRunner(nil)
-		return
+		r, ok = cfg.Roles["code"]
+		roleName = "code"
+	}
+	if !ok {
+		return func(context.Context, string) (string, error) {
+			return "", fmt.Errorf("rol %q no configurat per als subagents", roleName)
+		}
 	}
 	p, ok := cfg.Providers[r.Provider]
 	if !ok {
-		SetDelegateRunner(nil)
-		return
+		return func(context.Context, string) (string, error) {
+			return "", fmt.Errorf("provider %q del rol %q no configurat", r.Provider, roleName)
+		}
+	}
+	if strings.TrimSpace(r.Model) == "" {
+		return func(context.Context, string) (string, error) {
+			return "", fmt.Errorf("model del rol %q buit", roleName)
+		}
 	}
 	primary := cfg.PrimTarget(p, r)
 	fallback := cfg.FallbackTarget(r)
 	budget := Budget(cfg, r)
 	baseSystem := cfg.SystemPrompt()
 	permissions := copyDelegatePermissions(cfg.Permissions)
-	SetDelegateRunner(func(ctx context.Context, prompt string) (string, error) {
+	return func(ctx context.Context, prompt string) (string, error) {
 		scope := delegateScopeFromContext(ctx)
 		workspace := scope.dir
 		if workspace == "" {
@@ -130,22 +189,81 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 		if session == "" {
 			session = procSession
 		}
-		sys := PromptFor(baseSystem, ModeInspect)
-		if info := ContextProjecte(workspace); info != "" {
-			sys += "\n\n" + info
+		// delegateExec already attached a chained meter; direct runners
+		// (global, tests) get one so usage events are never blind.
+		if llm.UsageFrom(ctx) == nil {
+			ctx = llm.WithUsage(ctx, &llm.UsageMeter{})
 		}
+		// Subagent definit per l'usuari: el seu model, les seves eines, el
+		// seu mode i els seus passos. Sense definició, el fill genèric de
+		// lectura de sempre (12 passos, mode inspect, totes les natives).
+		def := SubagentFromContext(ctx)
+		mode, maxSteps, extra := ModeInspect, 12, ""
+		rr, primary, fallback, budget := r, primary, fallback, budget
+		if def != nil {
+			mode, maxSteps = def.Mode, def.MaxSteps
+			extra = "SUBAGENT " + def.Name + ": " + def.Description
+			if def.Prompt != "" {
+				extra += "\n\n" + def.Prompt
+			}
+			dr, err := SubagentRole(cfg, r, def)
+			if err != nil {
+				return "", err
+			}
+			dp, ok := cfg.Providers[dr.Provider]
+			if !ok {
+				return "", fmt.Errorf("subagent %q: provider %q is not configured", def.Name, dr.Provider)
+			}
+			rr, primary, fallback, budget = dr, cfg.PrimTarget(dp, dr), cfg.FallbackTarget(dr), Budget(cfg, dr)
+		}
+		writable := mode == ModeCode
+		isolated := writable && IsolatedWorktree(workspace)
+		approver := delegateApproverFrom(ctx)
+		if writable {
+			if isolated {
+				extra += "\n\nYou work in an isolated git worktree: you may edit files there; the user reviews the changes before applying them."
+			} else if approver != nil {
+				extra += "\n\nEvery change you make (writes, edits, non-read-only commands) needs the user's approval. A denial means: do not retry it, report it."
+			} else {
+				extra += "\n\nNobody can approve changes right now: you are read-only. Describe the changes you would make instead of attempting them."
+			}
+		}
+		specs := filterSpecs(Specs(), func(name string) bool { return subagentAllowed(def, name) })
+		// El context del projecte va abans de la directiva d'idioma, que
+		// tanca el prompt també als subagents.
+		promptMode := ModeInspect
+		if writable {
+			promptMode = ModeCode
+		}
+		sys := AmbContext(PromptFor(baseSystem, promptMode), ContextProjecte(workspace), extra)
 		pol := delegatePolicy(permissions)
+		if isolated {
+			pol.ProjectDir = workspace
+		}
 		hist := []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: prompt}}
-		for step := 1; step <= 12; step++ {
+		ctx = llm.WithThink(ctx, rr.Think)
+		for step := 1; step <= maxSteps; step++ {
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
+			setDelegateModel(ctx, primary.Model)
+			emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: primary.Model, Message: fmt.Sprintf("step %d", step)})
 			if room := MakeRoom(ctx, client, primary, fallback, "", hist, budget); room.Changed() {
 				hist = room.Hist
 			}
-			content, calls, _, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, r.Temperature, r.MaxTokens, Specs(), nil)
+			model := primary.Model
+			content, calls, usedFallback, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, rr.Temperature, rr.MaxTokens, specs, nil)
+			if usedFallback && fallback != nil {
+				model = fallback.Model
+			}
+			setDelegateModel(ctx, model)
+			emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Message: "model response received"})
 			if err != nil {
 				return "", fmt.Errorf("pas %d: %w", step, err)
 			}
 			hist = append(hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
 			if len(calls) == 0 {
+				setDelegateModel(ctx, model)
 				return content, nil
 			}
 			type resultat struct {
@@ -153,23 +271,82 @@ func SetupDelegate(cfg *config.Config, client *llm.Client) {
 				imgs []string
 			}
 			plans := PlanCalls(pol, ModeInspect, nil, calls)
+			if writable {
+				// Mode code: la política normal; el que no passa sol es
+				// demana a qui aprova (o es denega sense ningú).
+				plans = PlanCalls(pol, ModeCode, nil, calls)
+			}
+			for i, c := range calls {
+				switch c.Function.Name {
+				case "todowrite", "question", "preview":
+					plans[i] = CallPlan{Fixed: "TOOL NOT AVAILABLE (read-only subagent): this tool changes the parent's state", Reason: "eina d'estat global desactivada per a subagents"}
+				default:
+					if !subagentAllowed(def, c.Function.Name) {
+						plans[i] = CallPlan{Fixed: "TOOL NOT AVAILABLE: not in this subagent's tools", Reason: "not in this subagent's tools: " + c.Function.Name}
+					}
+				}
+				// Fora d'un worktree, tota acció que no sigui lectura passa
+				// per l'usuari encara que la política la deixés passar sola.
+				if writable && !isolated && plans[i].Fixed == "" && !plans[i].Ask {
+					if d, _ := pol.Decide(ModeInspect, c.Function.Name, c.Function.Arguments); d != "allow" {
+						plans[i] = CallPlan{Ask: true, Reason: "subagent change outside an isolated worktree"}
+					}
+				}
+				if writable && plans[i].Ask {
+					if approver == nil {
+						plans[i] = CallPlan{Fixed: "TOOL DENIED: read-only subagent (no isolated worktree and nobody to approve)", Reason: "read-only subagent: no isolated worktree and nobody to approve"}
+					} else if blocked, why := PreToolHook(ctx, session, workspace, c.Function.Name, c.Function.Arguments); blocked {
+						plans[i] = CallPlan{Fixed: "BLOCKED by pre_tool hook: " + why, Reason: "blocked by pre_tool hook: " + why}
+					} else if approver(ctx, c, plans[i].Reason) {
+						plans[i] = CallPlan{}
+						continue
+					} else {
+						plans[i] = CallPlan{Fixed: "TOOL DENIED by the user", Reason: "denied by the user"}
+					}
+				}
+				// Hooks pre_tool: també manen dins dels subagents.
+				if plans[i].Fixed == "" && !plans[i].Ask {
+					if blocked, why := PreToolHook(ctx, session, workspace, c.Function.Name, c.Function.Arguments); blocked {
+						plans[i] = CallPlan{Fixed: "BLOCKED by pre_tool hook: " + why, Reason: "blocked by pre_tool hook: " + why}
+					}
+				}
+			}
 			res := RunCalls(calls, func(i int) bool { return plans[i].Fixed != "" || plans[i].Ask }, func(_ int, c llm.ToolCall) resultat {
+				emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Tool: c.Function.Name, Message: "tool started"})
 				o, oi, err := ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
 				if err != nil {
 					return resultat{out: "ERROR: " + err.Error()}
 				}
 				return resultat{out: o, imgs: oi}
 			})
+			// Fill mort mentre corrien les eines: no s'afegeix soroll a
+			// l'historial; l'error del context mana (cancel·lat o temps).
+			if err := ctx.Err(); err != nil {
+				return "", err
+			}
 			for i, c := range calls {
 				if plans[i].Fixed != "" || plans[i].Ask {
-					hist = append(hist, ToolMsg(c, "EINA NO DISPONIBLE (subagent read-only): "+plans[i].Reason))
+					prefix := "TOOL NOT AVAILABLE (read-only subagent): "
+					if writable {
+						prefix = "TOOL NOT RUN: "
+					}
+					hist = append(hist, ToolMsg(c, prefix+plans[i].Reason))
+					emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Tool: c.Function.Name, Message: plans[i].Reason})
 					continue
 				}
 				hist = append(hist, ToolMsg(c, res[i].out, res[i].imgs...))
+				emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Tool: c.Function.Name, Output: delegatePreview(res[i].out)})
 			}
 		}
-		return "", fmt.Errorf("límit de 12 passos exhaurit")
-	})
+		return "", fmt.Errorf("límit de %d passos exhaurit", maxSteps)
+	}
+}
+
+func delegateTerminalStatus(err, parentErr error) string {
+	if errors.Is(err, context.Canceled) || errors.Is(parentErr, context.Canceled) {
+		return DelegateCancelled
+	}
+	return DelegateFailed
 }
 
 // delegateExec valida, llança en paral·lel i fusiona els resums.
@@ -183,6 +360,7 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 	var a struct {
 		Tasks []struct {
 			Prompt string `json:"prompt"`
+			Agent  string `json:"agent"`
 		} `json:"tasks"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
@@ -202,32 +380,116 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 			return "", fmt.Errorf("tasca %d massa llarga (màx 2000 caràcters)", i+1)
 		}
 	}
+	// Subagents definits per l'usuari: un nom desconegut és un error que
+	// el model pot corregir (es diuen els que hi ha), no un fill genèric.
+	defs := make([]*SubagentDef, len(a.Tasks))
+	var catalog []SubagentDef
+	for i, t := range a.Tasks {
+		name := strings.TrimSpace(t.Agent)
+		if name == "" {
+			continue
+		}
+		if catalog == nil {
+			catalog = LoadSubagents(delegateWorkspace(ctx))
+		}
+		def, ok := FindSubagent(catalog, name)
+		if !ok {
+			if len(catalog) == 0 {
+				return "", fmt.Errorf("tasca %d: no hi ha cap subagent definit (.gregal/agents/*.md)", i+1)
+			}
+			return "", fmt.Errorf("tasca %d: subagent %q desconegut; els definits: %s", i+1, name, strings.Join(SubagentNames(catalog), ", "))
+		}
+		defs[i] = &def
+	}
 	runner := currentDelegateRunner()
+	var semaphore chan struct{}
+	if scoped, ok := ctx.Value(delegateRunnerContextKey{}).(delegateRunnerContext); ok {
+		runner = scoped.run
+		semaphore = scoped.semaphore
+	}
 	if runner == nil {
 		return "", fmt.Errorf("subagents no disponibles en aquest loop")
 	}
 	outs := make([]string, len(a.Tasks))
 	var wg sync.WaitGroup
 	for i, t := range a.Tasks {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ctx, cancel := context.WithTimeout(ctx, 8*time.Minute)
-			defer cancel()
-			out, err := runner(ctx, t.Prompt)
-			if err != nil {
+		id := nextDelegateID()
+		started := time.Now()
+		childCtx, cancel := context.WithTimeout(ctx, 8*time.Minute)
+		childCtx = withDelegateIdentity(childCtx, id, t.Prompt, started)
+		childCtx = withSubagentDef(childCtx, defs[i])
+		// Each child gets its own meter, chained to the parent's: the room
+		// shows child-only totals while the parent turn still sums everything.
+		childCtx = llm.WithUsage(childCtx, &llm.UsageMeter{})
+		if semaphore != nil {
+			if err := childCtx.Err(); err != nil {
+				emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(err, ctx.Err()), Message: err.Error(), MaxSteps: 12})
+				cancel()
 				outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(err.Error()))
+				continue
+			}
+			select {
+			case semaphore <- struct{}{}:
+				if err := childCtx.Err(); err != nil {
+					<-semaphore
+					emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(err, ctx.Err()), Message: err.Error(), MaxSteps: 12})
+					cancel()
+					outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(err.Error()))
+					continue
+				}
+			case <-childCtx.Done():
+				emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(childCtx.Err(), ctx.Err()), Message: childCtx.Err().Error(), MaxSteps: 12})
+				cancel()
+				outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(childCtx.Err().Error()))
+				continue
+			}
+		}
+		// Sostre global de fills vius, també fora de la web (allà no hi ha
+		// semàfor per torn). Sense reentrància no hi ha interbloqueig.
+		select {
+		case delegateGlobalLive <- struct{}{}:
+		case <-childCtx.Done():
+			emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(childCtx.Err(), ctx.Err()), Message: childCtx.Err().Error(), MaxSteps: 12})
+			cancel()
+			outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(childCtx.Err().Error()))
+			continue
+		}
+		emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateWorking, Message: "started", MaxSteps: 12})
+		wg.Add(1)
+		go func(index int, prompt string, childCtx context.Context, cancel context.CancelFunc) {
+			defer wg.Done()
+			defer cancel()
+			defer func() { <-delegateGlobalLive }()
+			if semaphore != nil {
+				defer func() { <-semaphore }()
+			}
+			out, err := runDelegateSafely(runner, childCtx, prompt)
+			if err != nil {
+				status := delegateTerminalStatus(err, ctx.Err())
+				emitDelegateEvent(childCtx, DelegateEvent{Status: status, Message: err.Error(), Output: ""})
+				outs[index] = fmt.Sprintf("== subagent %d: ERROR: %s", index+1, strings.TrimSpace(err.Error()))
 				return
 			}
 			if strings.TrimSpace(out) == "" {
 				out = "(sense resposta)"
 			}
-			outs[i] = fmt.Sprintf("== subagent %d:\n%s", i+1, strings.TrimSpace(out))
-		}()
+			emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateCompleted, Message: "completed", Output: delegatePreview(out)})
+			outs[index] = fmt.Sprintf("== subagent %d:\n%s", index+1, retallaResum(out))
+		}(i, t.Prompt, childCtx, cancel)
 	}
 	wg.Wait()
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 	return strings.Join(outs, "\n\n"), nil
+}
+
+func runDelegateSafely(runner func(context.Context, string) (string, error), ctx context.Context, prompt string) (out string, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			out = ""
+			err = fmt.Errorf("subagent panic: %v", recovered)
+		}
+	}()
+	return runner(ctx, prompt)
 }

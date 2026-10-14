@@ -47,8 +47,19 @@ func TopallAutonom(cfg *config.Config, e EstatAutonom) string {
 		return fmt.Sprintf("límit de temps (%d min)", a.MaxMinutes)
 	}
 	if a.MaxCostUSD > 0 {
-		if cost, known := e.cost(); known && cost >= a.MaxCostUSD {
-			return fmt.Sprintf("límit de cost (%s)", FmtCost(cost))
+		if cost, known := e.cost(); known {
+			if cost >= a.MaxCostUSD {
+				return fmt.Sprintf("límit de cost (%s)", FmtCost(cost))
+			}
+		} else {
+			// Un topall que no es pot mesurar no és un topall: aturar amb
+			// el motiu, no continuar cremant en silenci. Els models
+			// gratuïts (locals) es declaren amb preu 0 a cost:.
+			model := e.Model
+			if model == "" {
+				model = "model actiu"
+			}
+			return fmt.Sprintf("cost sense preu per a %s: el límit de %s no es pot mesurar (declara el preu a cost:, 0 si és gratuït)", model, FmtCost(a.MaxCostUSD))
 		}
 	}
 	return ""

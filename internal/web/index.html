@@ -10,17 +10,17 @@
 /* GENERAT des d'internal/tema (go test ./internal/web -run TestCSSAlDia -update).
    No l'editis a mà: canvia la paleta a internal/tema/tema.go. */
 :root {
-  --bg:#171A19; --sidebar:#101312; --panel:#101312;
-  --surface:#1E2321; --surface-hi:#29302D; --line:rgba(159,224,196,.10);
-  --line-hi:rgba(159,224,196,.20); --ink:#F4F4EF; --text:#ECF0EA;
-  --muted:#AEB9B1; --faint:#87978B; --accent:#9FE0C4;
-  --accent-hi:#BCEBD4; --green:#7DE2A5; --amber:#DEC899;
-  --red:#EF8D82; --onada:#8FB9A5; --lila:#C7B6D9;
-  --lila-fons:#30283A; --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
-  --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(159,224,196,.10);
-  --accent-soft-hi:rgba(159,224,196,.20); --ok-soft:rgba(125,226,165,.12); --ombra:rgba(0,0,0,.45);
-  --amber-soft:rgba(222,200,153,.14); --red-soft:rgba(239,141,130,.12); --codi-fons:#101312;
-  --codi-vora:rgba(159,224,196,.20);
+  --bg:#13151B; --sidebar:#0E1015; --panel:#0E1015;
+  --surface:#1A1D25; --surface-hi:#242833; --line:rgba(201,209,230,.10);
+  --line-hi:rgba(201,209,230,.20); --ink:#F3F5FA; --text:#E4E7EF;
+  --muted:#A3AABA; --faint:#8890A2; --accent:#8193FF;
+  --accent-hi:#A3B0FF; --green:#6EDB95; --amber:#F5C451;
+  --red:#FF8A85; --onada:#5CE1D6; --lila:#C4A8FF;
+  --lila-fons:#2A2245; --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
+  --raised:rgba(255,255,255,.02); --edge:rgba(255,255,255,.12); --accent-soft:rgba(129,147,255,.10);
+  --accent-soft-hi:rgba(129,147,255,.20); --ok-soft:rgba(110,219,149,.12); --ombra:rgba(0,0,0,.45);
+  --amber-soft:rgba(245,196,81,.14); --red-soft:rgba(255,138,133,.12); --codi-fons:#0E1015;
+  --codi-vora:rgba(201,209,230,.20);
   --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
   /* Escala tipogràfica: cinc mides i prou, res per sota d'11.5px.
      --fs és la del cos i la mou Preferències; la resta hi van lligades. */
@@ -29,17 +29,17 @@
   --fs:14px; --gap:20px; --pad:24px;
 }
 :root[data-theme="light"] {
-  --bg:#F5F7F8; --sidebar:#EBEFF1; --panel:#EBEFF1;
-  --surface:#FFFFFF; --surface-hi:#E2E9EC; --line:rgba(14,140,116,.14);
-  --line-hi:rgba(14,140,116,.28); --ink:#0B1220; --text:#1E293B;
-  --muted:#52616B; --faint:#5F6E78; --accent:#0E8C74;
-  --accent-hi:#0A6F5C; --green:#15803D; --amber:#9A6B12;
-  --red:#DC2626; --onada:#0E7490; --lila:#6D28D9;
-  --lila-fons:#EDE9FE; --hover:rgba(11,18,32,.05); --hover-alt:rgba(11,18,32,.08);
-  --raised:rgba(11,18,32,.02); --edge:rgba(11,18,32,.12); --accent-soft:rgba(14,140,116,.10);
-  --accent-soft-hi:rgba(14,140,116,.20); --ok-soft:rgba(21,128,61,.12); --ombra:rgba(11,18,32,.16);
-  --amber-soft:rgba(154,107,18,.14); --red-soft:rgba(220,38,38,.12); --codi-fons:#EBEFF1;
-  --codi-vora:rgba(14,140,116,.28);
+  --bg:#F6F7FA; --sidebar:#EEF0F5; --panel:#EEF0F5;
+  --surface:#FFFFFF; --surface-hi:#E5E8F0; --line:rgba(30,42,74,.14);
+  --line-hi:rgba(30,42,74,.28); --ink:#0E1220; --text:#1F2433;
+  --muted:#545D71; --faint:#5F6879; --accent:#4F5BE8;
+  --accent-hi:#3D47C7; --green:#187A41; --amber:#9A5B00;
+  --red:#C92A35; --onada:#0A776F; --lila:#7444D6;
+  --lila-fons:#EEE8FD; --hover:rgba(14,18,32,.05); --hover-alt:rgba(14,18,32,.08);
+  --raised:rgba(14,18,32,.02); --edge:rgba(14,18,32,.12); --accent-soft:rgba(79,91,232,.10);
+  --accent-soft-hi:rgba(79,91,232,.20); --ok-soft:rgba(24,122,65,.12); --ombra:rgba(14,18,32,.16);
+  --amber-soft:rgba(154,91,0,.14); --red-soft:rgba(201,42,53,.12); --codi-fons:#EEF0F5;
+  --codi-vora:rgba(30,42,74,.28);
 }
 :root[data-theme="gpt"] {
   --bg:#FFFFFF; --sidebar:#F9F9F9; --panel:#F9F9F9;
@@ -119,6 +119,7 @@
   --amber-soft:rgba(217,164,65,.14); --red-soft:rgba(249,112,102,.12); --codi-fons:#0D0D0F;
   --codi-vora:rgba(245,245,245,.20);
 }
+
 
 
 
@@ -684,6 +685,8 @@ body:not(.working) .spin { animation:none; }
 .tool.failed .tspin { color:var(--red); }
 .targs { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--faint); }
 .tool .out:empty { display:none; }
+.tool .out .tool-shot { display:block; max-width:100%; max-height:200px; margin-top:8px; border:1px solid var(--line); border-radius:6px; cursor:zoom-in; }
+.tool .out .tool-shot.gran { max-height:none; cursor:zoom-out; }
 .tool[open] .out { margin-top:7px; padding-top:7px; border-top:1px solid var(--line); }
 /* Accions del missatge: apareixen en passar-hi per sobre. */
 .msg-acts { display:flex; gap:4px; margin-top:5px; opacity:0; transition:opacity .12s; }
@@ -784,6 +787,9 @@ body:not(.working) .spin { animation:none; }
 .perm-menu button.on { background:var(--accent-soft); color:var(--ink); }
 .perm-menu b { display:block; font-weight:600; }
 .perm-menu span { color:var(--muted); font-size:var(--t1); }
+.perm-menu .perm-sandbox { margin-top:4px; padding:6px 9px 2px; border-top:1px solid var(--line); color:var(--muted); font-size:var(--t1); }
+.review-row { font-size:var(--t1); color:var(--muted); padding:2px 0 4px; }
+.review-row b { font-weight:600; color:var(--ink); }
 #send { width:32px; height:32px; flex:none; padding:0; border:0; border-radius:50%;
   background:var(--accent); color:white; cursor:pointer; font-size:var(--t4); line-height:1; }
 #send:hover { background:var(--accent-hi); }
@@ -873,7 +879,7 @@ body:not(.working) .spin { animation:none; }
 .goal-row button { border:1px solid var(--line-hi); background:var(--surface-hi); color:var(--text);
   border-radius:5px; padding:5px 10px; font-size:var(--t2); cursor:pointer; }
 .goal-row button:hover { border-color:var(--accent); color:var(--ink); }
-.goal-row button.primary { border:0; background:var(--accent); color:#fff; font-weight:590; }
+.goal-row button.primary { border:0; background:var(--accent); color:var(--bg); font-weight:590; }
 .goal-item { display:flex; flex-direction:column; border-bottom:1px solid var(--line); border-radius:6px; transition:background .12s ease; margin-bottom:2px; }
 .goal-item:hover { background:var(--hover); }
 .goal-item.open { background:var(--surface); }
@@ -904,7 +910,7 @@ body:not(.working) .spin { animation:none; }
 .goal-detail-body { color:var(--text); font:var(--t2)/1.55 var(--mono); white-space:pre-wrap; max-height:340px; overflow-y:auto; padding:10px; background:var(--surface); border:1px solid var(--line); border-radius:8px; margin-bottom:12px; }
 .goal-detail-foot { display:flex; align-items:center; gap:8px; }
 
-button.primary { border:0; background:var(--accent); color:white; border-radius:5px;
+button.primary { border:0; background:var(--accent); color:var(--bg); border-radius:5px;
   padding:6px 10px; font-weight:590; cursor:pointer; }
 button.danger { border:1px solid var(--red); background:transparent;
   color:var(--red); border-radius:5px; padding:5px 9px; cursor:pointer; }
@@ -1336,7 +1342,14 @@ body.sense-inspector #inspector { display:none; }
 </style>
 <link rel="stylesheet" href="/app/polish.css">
 <link rel="stylesheet" href="/app/plots.css">
+<link rel="stylesheet" href="/app/gitflow.css">
+<link rel="stylesheet" href="/app/retro.css">
 <link rel="stylesheet" href="/app/workshop.css">
+<link rel="stylesheet" href="/app/export.css">
+<link rel="stylesheet" href="/app/fun.css">
+<link rel="stylesheet" href="/app/caps.css">
+<link rel="stylesheet" href="/app/knowledge.css">
+<link rel="stylesheet" href="/app/folder.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
 <aside id="side">
@@ -1347,28 +1360,28 @@ body.sense-inspector #inspector { display:none; }
     <button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar">×</button>
   </div>
   <div class="side-quick">
-    <button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">Nova sessió</span></button>
+    <button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">New session</span></button>
     <button id="newproject" class="side-quick-btn" data-i18n-title="ui.newProjectHelp" title="Create a project and associate a folder"><span>▰</span> <span data-i18n="ui.project">Project</span></button>
   </div>
-  <details class="side-fold" open>
-    <summary data-i18n="nav.workspace">Workspace</summary>
-    <button class="nav-item active side-view" data-view="agent"><span class="nav-icon">›_</span><span id="sideProject" data-i18n="nav.project">Projecte actual</span></button>
-    <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Objectius</span></button>
-    <button class="nav-item side-view" data-view="activitat"><span class="nav-icon">≡</span><span data-i18n="nav.activity">Activitat</span></button>
+  <!-- Primer nivell: el que es fa servir cada dia. La resta viu plegat a
+       «Més»: res no s'ha tret, només s'ha apartat del camí. -->
+  <nav class="side-fold side-main" data-i18n-aria="nav.workspace" aria-label="Workspace">
+    <button class="nav-item active side-view" data-view="agent"><span class="nav-icon">›_</span><span id="sideProject" data-i18n="nav.project">Current project</span></button>
+    <button class="nav-item side-view" data-view="canvis"><span class="nav-icon">±</span><span data-i18n="nav.changes">Changes</span><span class="nav-badge" id="navChangesBadge" hidden></span></button>
+    <button class="nav-item side-view" data-view="fitxers"><span class="nav-icon">▤</span><span data-i18n="nav.files">Files</span></button>
+    <button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
+    <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
+  </nav>
+  <details class="side-fold tools" id="sideMore">
+    <summary data-i18n="nav.more">More</summary>
+    <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
+    <button class="nav-item side-view" data-view="terminal"><span class="nav-icon">▷</span><span data-i18n="nav.terminal">Terminal</span></button>
+    <button class="nav-item side-view" data-view="navegador"><span class="nav-icon">◎</span><span data-i18n="nav.browser">Browser</span></button>
     <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
     <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
-    <button class="nav-item side-view" data-view="team"><span class="nav-icon">◇</span><span id="teamNav">Team</span></button>
-  </details>
-  <details class="side-fold tools">
-    <summary data-i18n="nav.tools">Eines</summary>
+    <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Graphs</span></button>
     <button class="nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button>
     <button class="nav-item side-view" data-view="mcp"><span class="nav-icon">@</span><span data-i18n="ui.connectors">Connectors / MCP</span></button>
-    <button class="nav-item side-view" data-view="canvis"><span class="nav-icon">±</span><span data-i18n="nav.changes">Canvis</span></button>
-    <button class="nav-item side-view" data-view="fitxers"><span class="nav-icon">▤</span><span data-i18n="nav.files">Fitxers</span></button>
-    <button class="nav-item side-view" data-view="terminal"><span class="nav-icon">▷</span><span data-i18n="nav.terminal">Terminal</span></button>
-    <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Grafs</span></button>
-    <button class="nav-item side-view" data-view="workshop"><span class="nav-icon">▦</span><span data-i18n="nav.workshop">Taller 2D</span></button>
-    <button class="nav-item side-view" data-view="navegador"><span class="nav-icon">◎</span><span>Navegador</span></button>
   </details>
   <div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true">⌃</button></div>
   <div class="conv-search"><input id="convSearch" data-i18n-ph="nav.search" placeholder="Search…" data-i18n-aria="ui.searchConversations" aria-label="Search conversations" autocomplete="off"></div>
@@ -1378,35 +1391,35 @@ body.sense-inspector #inspector { display:none; }
       <button class="icon-btn" id="keysBtn" data-i18n-title="ui.shortcuts" title="Keyboard shortcuts" data-i18n-aria="ui.shortcuts" aria-label="Keyboard shortcuts">?</button>
       <button class="icon-btn" id="prefsBtn" data-i18n-title="prefs.title" title="Preferences" data-i18n-aria="prefs.title" aria-label="Preferences">⚙</button>
     </div>
-    <div class="endpoint-row"><span id="statusDot" aria-live="polite"></span><span id="endpoint">carregant…</span></div>
+    <div class="endpoint-row"><span id="statusDot" aria-live="polite"></span><span id="endpoint">…</span></div>
   </div>
 </aside>
 <div id="sideShade" aria-hidden="true"></div>
 <div id="prefsModal" role="dialog" aria-modal="true" data-i18n-aria="prefs.title" aria-label="Preferences">
   <div class="card">
     <header class="pf-head">
-      <h2 data-i18n="prefs.title">Preferències</h2>
+      <h2 data-i18n="prefs.title">Preferences</h2>
       <button class="icon-btn" id="prefsClose" data-i18n-aria="ui.close" aria-label="Close">×</button>
     </header>
     <div id="prefsBody"></div>
   </div>
 </div>
-<div id="keysModal" role="dialog" aria-modal="true" aria-label="Dreceres de teclat">
+<div id="keysModal" role="dialog" aria-modal="true" data-i18n-aria="ui.shortcuts" aria-label="Keyboard shortcuts">
   <div class="card">
-    <h2 style="margin:0 0 8px" data-i18n="keys.title">Dreceres</h2>
+    <h2 style="margin:0 0 8px" data-i18n="keys.title">Shortcuts</h2>
     <table>
-      <tr><td>Enter</td><td data-i18n="keys.enter">Envia (■ atura el torn)</td></tr>
-      <tr><td>Esc</td><td data-i18n="keys.esc">Atura el torn en curs</td></tr>
-      <tr><td>↑ / ↓</td><td data-i18n="keys.hist">Recupera el que has escrit abans</td></tr>
+      <tr><td>Enter</td><td data-i18n="keys.enter">Send (■ stops the turn)</td></tr>
+      <tr><td>Esc</td><td data-i18n="keys.esc">Stop the running turn</td></tr>
+      <tr><td>↑ / ↓</td><td data-i18n="keys.hist">Recall what you typed before</td></tr>
       <tr><td>Tab</td><td data-i18n="keys.modeCycle">Switch between code/task and chat/conversation</td></tr>
-      <tr><td>Ctrl+K</td><td>Posa el focus al camp</td></tr>
-      <tr><td>Ctrl+T</td><td>Sessió nova (pestanya en paral·lel)</td></tr>
-      <tr><td>Ctrl+D</td><td>Vista Canvis</td></tr>
-      <tr><td>Ctrl+E</td><td>Vista Fitxers</td></tr>
-      <tr><td>Ctrl+G</td><td>Vista Grafs</td></tr>
-      <tr><td>@ / /</td><td>Menciona fitxers · ordres del composer</td></tr>
+      <tr><td>Ctrl+K</td><td data-i18n="keys.focus">Focus the message field</td></tr>
+      <tr><td>Ctrl+T</td><td data-i18n="keys.newSession">New session (parallel tab)</td></tr>
+      <tr><td>Ctrl+D</td><td data-i18n="keys.changes">Changes view</td></tr>
+      <tr><td>Ctrl+E</td><td data-i18n="keys.filesView">Files view</td></tr>
+      <tr><td>Ctrl+G</td><td data-i18n="keys.graphsView">Graphs view</td></tr>
+      <tr><td>@ / /</td><td data-i18n="keys.filesCommands">Mention files · composer commands</td></tr>
     </table>
-    <div style="margin-top:10px;text-align:right"><button class="primary" id="keysClose" data-i18n="btn.tanca">Tanca</button></div>
+    <div style="margin-top:10px;text-align:right"><button class="primary" id="keysClose" data-i18n="btn.tanca">Close</button></div>
   </div>
 </div>
 <div id="wrap">
@@ -1416,14 +1429,16 @@ body.sense-inspector #inspector { display:none; }
   <div id="sessionTabs" data-i18n-aria="ui.openSessions" aria-label="Open sessions"></div>
   <div id="offlineBar" role="status" hidden>
     <span class="dot"></span>
-    <span data-i18n="ui.offline">Sense connexió amb el backend del gregal · reintentant…</span>
-    <button class="ghost" id="offlineRetry" data-i18n="ui.offline.retry">Torna-ho a provar</button>
+    <span data-i18n="ui.offline">No connection to the Gregal backend · retrying…</span>
+    <button class="ghost" id="offlineRetry" data-i18n="ui.offline.retry">Try again</button>
   </div>
   <header id="top">
     <button class="icon-btn" id="menu" data-i18n-title="ui.toggleSidebar" title="Toggle sidebar" data-i18n-aria="ui.toggleSidebar" aria-label="Toggle sidebar" aria-expanded="true">☰</button>
     <div class="breadcrumb">
       <div class="project-heading">
-      <span id="project">projecte</span><span class="sep">/</span><span id="branch">workspace</span>
+      <!-- Xip de la carpeta de treball (app/folder.js): clic = canviar de
+           carpeta; ▾ = menú (canviar, obrir a l'explorador, copiar ruta). -->
+      <span class="folder-chip" id="folderChip"><button id="folderChipBtn" type="button" class="folder-chip-main" data-i18n-aria="ui.changeWorkspace" aria-label="Change working folder"><svg class="folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.25c0-.83.67-1.5 1.5-1.5h3l1.5 1.75h5c.83 0 1.5.67 1.5 1.5v6.25c0 .83-.67 1.5-1.5 1.5H3.25c-.83 0-1.5-.67-1.5-1.5z"/></svg><span id="project">project</span></button><button id="folderChipMenu" type="button" class="folder-chip-caret" data-i18n-title="folder.actions" data-i18n-aria="folder.actions" title="Folder actions" aria-label="Folder actions" aria-haspopup="menu" aria-expanded="false">▾</button></span><span class="sep">/</span><span id="branch">workspace</span><span id="hdrWorktree" class="wt-badge hdr-worktree" hidden></span>
       </div>
       <button id="activeWorkspace" type="button" class="workspace-location" data-i18n-title="ui.changeWorkspace" data-i18n-aria="ui.changeWorkspace" title="Change working folder" aria-label="Change working folder"><span id="activeWorkspacePath"></span></button>
     </div>
@@ -1435,10 +1450,15 @@ body.sense-inspector #inspector { display:none; }
       <div id="moreWrap">
         <button class="icon-btn" id="moreBtn" data-i18n-title="ui.moreActions" title="More actions" data-i18n-aria="ui.moreActions" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <div id="moreMenu" role="menu" hidden>
-          <button class="ghost" id="planBtn" title="Explora sense actuar i proposa un pla (cal escriure la tasca al camp)">◇ Pla</button>
-          <button class="ghost" id="parallelBtn" title="Consulta diversos models en paral·lel (cal escriure la pregunta)">⇄ Compara</button>
-          <button class="ghost" id="rewindBtn" title="Desfés els canvis de fitxers fets per l'agent en aquesta sessió">↩ Desfés</button>
-          <button class="ghost" id="viewBtn" title="Vista del transcript: Normal · Detallada · Resum">👁 Normal</button>
+          <button class="ghost" data-special-mode="goal">◆ <span data-i18n="menu.goalMode">Goal mode</span></button>
+          <button class="ghost" data-special-mode="autonomous">≋ <span data-i18n="menu.autoMode">Autonomous mode</span></button>
+          <button class="ghost" data-special-mode="debug">⌕ <span data-i18n="menu.debugMode">Debug mode</span></button>
+          <button class="ghost" id="planBtn" data-i18n-title="menu.planTitle" title="Explore without acting and propose a plan (enter a task in the field first)">◇ <span data-i18n="menu.plan">Plan</span></button>
+          <button class="ghost" id="bestofBtn" data-i18n-title="menu.bestofTitle" title="Run the task several ways in separate git worktrees, verify and compare them, then apply the best">⑂ <span data-i18n="menu.bestof">Try N ways</span></button>
+          <button class="ghost" id="parallelBtn" data-i18n-title="menu.compareTitle" title="Ask several models in parallel (enter a question first)">⇄ <span data-i18n="menu.compare">Compare</span></button>
+          <button class="ghost" id="rewindBtn" data-i18n-title="menu.rewindTitle" title="Undo file changes made by the agent in this session">↩ <span data-i18n="menu.rewind">Undo</span></button>
+          <button class="ghost" id="viewBtn" data-i18n-title="menu.transcriptTitle" title="Transcript view: Normal · Verbose · Summary">👁 Normal</button>
+          <button class="ghost" id="exportBtn" data-i18n-title="menu.exportTitle" title="Export this conversation (Markdown or HTML) or create a read-only share link" aria-haspopup="menu">⤓ <span data-i18n="menu.export">Export</span></button>
         </div>
       </div>
     </div>
@@ -1448,23 +1468,24 @@ body.sense-inspector #inspector { display:none; }
       <div id="prov"></div>
       <section id="hero">
         <div class="hero-inner">
-          <div class="hero-kicker" data-i18n="hero.kicker">PROJECTE ACTIU</div>
-          <h1 id="heroTitle" data-i18n="hero.title">Què vols fer?</h1>
-          <p data-i18n="hero.lead">Demana un canvi o tria un punt de partida. Gregal revisarà el projecte i verificarà el resultat.</p>
+          <div id="heroFolder" class="hero-folder" hidden></div>
+          <h1 id="heroTitle" data-i18n="hero.title">What do you want to do?</h1>
+          <p data-i18n="hero.lead">Ask for a change or choose a starting point. Gregal will inspect the project and verify the result.</p>
+          <div id="homeContext" class="home-context" hidden></div>
           <div id="chips"></div>
         </div>
       </section>
       <main id="main" aria-live="polite"></main>
       <section class="workspace-page" id="objectiusPage" hidden>
         <div class="page-inner">
-          <div class="page-kicker" data-i18n="pg.goals.kicker">Treball persistent</div>
-          <h1 class="page-title" data-i18n="nav.goals">Objectius</h1>
+          <div class="page-kicker" data-i18n="pg.goals.kicker">Work that persists</div>
+          <h1 class="page-title" data-i18n="nav.goals">Goals</h1>
           <div class="page-grid">
-            <article class="page-card"><h2 data-i18n="pg.goals.active">Objectius actius</h2><div id="goalsPage"></div></article>
+            <article class="page-card"><h2 data-i18n="pg.goals.active">Active goals</h2><div id="goalsPage"></div></article>
             <article class="page-card" id="goalDetailCard">
               <div id="goalDetailDefault">
-                <h2 data-i18n="pg.goals.how">Com funciona</h2>
-                <p class="page-copy" data-i18n="pg.goals.how.body">Canvia al mode Objectiu, descriu el resultat que vols i respon les preguntes de concreció. Clica sobre qualsevol objectiu de la llista per veure'n el pla detallat i executar-lo.</p>
+                <h2 data-i18n="pg.goals.how">How it works</h2>
+                <p class="page-copy" data-i18n="pg.goals.how.body">Switch to Goal mode, describe the outcome you want and answer its clarifying questions. Select a goal to review its plan and run it.</p>
               </div>
               <div id="goalDetailActive" hidden>
                 <div class="goal-detail-head">
@@ -1473,8 +1494,8 @@ body.sense-inspector #inspector { display:none; }
                 </div>
                 <div id="goalDetailBody" class="goal-detail-body"></div>
                 <div class="goal-detail-foot">
-                  <button id="goalDetailRun" class="primary">▶ Executa l’objectiu</button>
-                  <button id="goalDetailDel" class="danger">Esborra</button>
+                  <button id="goalDetailRun" class="primary">▶ <span data-i18n="goal.run">Run goal</span></button>
+                  <button id="goalDetailDel" class="danger" data-i18n="goal.delete">Delete</button>
                 </div>
               </div>
             </article>
@@ -1493,7 +1514,7 @@ body.sense-inspector #inspector { display:none; }
               <input id="jobTime" data-i18n-ph="jobs.time" data-i18n-aria="jobs.time" placeholder="Time (HH:MM)" aria-label="Time (HH:MM)" value="09:00">
               <input id="jobInterval" type="number" min="0.1" step="0.1" data-i18n-ph="jobs.intervalHours" data-i18n-aria="jobs.intervalHours" placeholder="Interval in hours" aria-label="Interval in hours">
               <textarea id="jobPrompt" rows="3" data-i18n-ph="jobs.prompt" data-i18n-aria="jobs.prompt" placeholder="What should Gregal do?" aria-label="What should Gregal do?" style="grid-column:1/-1"></textarea>
-              <div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label><input id="jobEnabled" type="checkbox" checked> <span data-i18n="jobs.enabled">enabled</span></label><label><input id="jobNotify" type="checkbox"> <span data-i18n="jobs.notify">notify</span></label><span class="spacer"></span><button id="jobSave" class="primary" data-i18n="jobs.save">Save task</button><button id="jobReset" class="ghost" data-i18n="jobs.reset">Clear</button></div>
+              <div style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><label><input id="jobEnabled" type="checkbox" checked> <span data-i18n="jobs.enabled">Enabled</span></label><label><input id="jobNotify" type="checkbox"> <span data-i18n="jobs.notify">Notify</span></label><span class="spacer"></span><button id="jobSave" class="primary" data-i18n="jobs.save">Save task</button><button id="jobReset" class="ghost" data-i18n="jobs.reset">Clear</button></div>
             </div>
             <div id="jobNotice" class="activity-empty" hidden role="status" aria-live="polite"></div>
             <div id="jobsPage"><div class="activity-empty" data-i18n="jobs.loading">Loading tasks...</div></div>
@@ -1510,28 +1531,28 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page" id="activitatPage" hidden>
         <div class="page-inner">
-          <div class="page-kicker" data-i18n="pg.activity.kicker">Traça de la sessió</div>
-          <h1 class="page-title" data-i18n="nav.activity">Activitat</h1>
-          <p class="page-copy" data-i18n="pg.activity.lead">Eines, permisos, revisions i canvis de model, en ordre cronològic.</p>
-          <div class="page-grid"><article class="page-card"><h2 data-i18n="pg.activity.last">Darrera activitat</h2><div id="activityPage"><div class="activity-empty" data-i18n="activitat.buida">Encara no hi ha activitat en aquesta sessió.</div></div></article>
-          <article class="page-card"><h2 data-i18n="pg.activity.state">Estat actual</h2><div class="status-line"><span class="status-mini" id="statusPage"></span><span id="runStatePage">A punt</span></div></article></div>
+          <div class="page-kicker" data-i18n="pg.activity.kicker">Session trace</div>
+          <h1 class="page-title" data-i18n="nav.activity">Activity</h1>
+          <p class="page-copy" data-i18n="pg.activity.lead">Tools, permissions, reviews and model changes, in order.</p>
+          <div class="page-grid"><article class="page-card"><h2 data-i18n="pg.activity.last">Latest activity</h2><div id="activityPage"><div class="activity-empty" data-i18n="activitat.buida">No activity in this session yet.</div></div></article>
+          <article class="page-card"><h2 data-i18n="pg.activity.state">Current state</h2><div class="status-line"><span class="status-mini" id="statusPage"></span><span id="runStatePage">Ready</span></div></article></div>
         </div>
       </section>
       <section class="workspace-page" id="githubPage" hidden>
         <div class="page-inner">
-          <div class="page-kicker" data-i18n="pg.github.kicker">Integració read-only</div>
+          <div class="page-kicker" data-i18n="pg.github.kicker">Read-only integration</div>
           <h1 class="page-title">GitHub</h1>
-          <p class="page-copy" data-i18n-html="gh.lead">Consulta issues, pull requests, diffs i checks sense exposar una shell arbitrària. Cal tenir la CLI <code>gh</code> autenticada.</p>
+          <p class="page-copy" data-i18n-html="gh.lead">Read issues, pull requests, diffs and checks without exposing an arbitrary shell. Needs the <code>gh</code> CLI signed in.</p>
           <article class="page-card" style="margin-top:28px">
             <div class="frm" style="display:flex;flex-wrap:wrap;gap:8px">
-              <select id="ghTool" aria-label="Tipus GitHub"><option value="gh_issue">Issue</option><option value="gh_pr">Pull request</option></select>
-              <select id="ghAction" aria-label="Acció GitHub"></select>
-              <input id="ghNumber" type="number" min="1" placeholder="# (opcional)" style="width:125px">
-              <input id="ghQuery" placeholder="cerca opcional" style="min-width:180px;flex:1">
-              <input id="ghRepo" placeholder="owner/repo (opcional)" style="min-width:180px;flex:1">
-              <button class="primary" id="ghRun" data-i18n="pg.github.run">Consulta</button>
+              <select id="ghTool" data-i18n-aria="gh.type" aria-label="GitHub type"><option value="gh_issue">Issue</option><option value="gh_pr">Pull request</option></select>
+              <select id="ghAction" data-i18n-aria="gh.action" aria-label="GitHub action"></select>
+              <input id="ghNumber" type="number" min="1" data-i18n-ph="gh.numberPlaceholder" placeholder="# (optional)" style="width:125px">
+              <input id="ghQuery" data-i18n-ph="gh.queryPlaceholder" placeholder="Search (optional)" style="min-width:180px;flex:1">
+              <input id="ghRepo" data-i18n-ph="gh.repoPlaceholder" placeholder="owner/repo (optional)" style="min-width:180px;flex:1">
+              <button class="primary" id="ghRun" data-i18n="pg.github.run">Query</button>
             </div>
-            <pre id="ghOutput" data-i18n="gh.buit" style="margin-top:14px;min-height:150px;max-height:430px;overflow:auto;white-space:pre-wrap;color:var(--text);font:var(--t2)/1.55 var(--mono)">Tria una consulta.</pre>
+            <pre id="ghOutput" data-i18n="gh.buit" style="margin-top:14px;min-height:150px;max-height:430px;overflow:auto;white-space:pre-wrap;color:var(--text);font:var(--t2)/1.55 var(--mono)">Pick a query.</pre>
           </article>
         </div>
       </section>
@@ -1539,15 +1560,15 @@ body.sense-inspector #inspector { display:none; }
         <div class="page-inner">
           <div class="page-kicker">Word · Excel · PowerPoint</div>
           <h1 class="page-title" data-i18n="nav.office">Office</h1>
-          <p class="page-copy" data-i18n="office.lead">Deixa caure un document i demana-li coses a l'agent: resumir, corregir, traduir, posar valors. El document es queda en una subfinestra lateral mentre parleu i es rellegeix quan l'agent el toca. També el pots baixar.</p>
+          <p class="page-copy" data-i18n="office.lead">Drop a document and ask the agent for things: summarise, correct, translate, fill in values. The document stays in a side pane while you talk and is re-read whenever the agent touches it. You can download it too.</p>
           <input type="file" id="offPick" accept=".docx,.xlsx,.pptx" hidden>
           <div class="off-drop" id="offDrop" role="button" tabindex="0" data-i18n-aria="office.upload" aria-label="Upload a document">
             <div class="off-drop-ico">≋</div>
-            <div class="off-drop-title" data-i18n="office.drop">Deixa caure un .docx, .xlsx o .pptx aquí</div>
+            <div class="off-drop-title" data-i18n="office.drop">Drop a .docx, .xlsx or .pptx here</div>
             <div class="off-drop-sub" data-i18n="office.pickHint">or click to select a file · up to 25 MB</div>
           </div>
           <div id="offMsg" class="off-msg"></div>
-          <h2 class="off-h2" data-i18n="pg.office.recent">Documents d'aquesta sessió</h2>
+          <h2 class="off-h2" data-i18n="pg.office.recent">Documents in this session</h2>
           <div id="offRecent"></div>
         </div>
       </section>
@@ -1557,10 +1578,10 @@ body.sense-inspector #inspector { display:none; }
           <div class="doc-title"><b id="docName">document</b><span id="docKind" class="doc-kind"></span></div>
           <div class="doc-actions">
             <button class="ghost" id="docOpenOffice" data-i18n-title="nav.office" title="Office">Office</button>
-            <button class="ghost" id="docOpenApp" data-i18n-title="office.obre.t" data-i18n="office.obre" title="Obre amb el Word/Excel/PowerPoint (només app d'escriptori)">Obre</button>
+            <button class="ghost" id="docOpenApp" data-i18n-title="office.obre.t" data-i18n="office.obre" title="Open in Word/Excel/PowerPoint (desktop app only)">Open</button>
             <button class="ghost" id="docVista" data-i18n-title="office.toggleView" title="Toggle preview and text">Text</button>
             <button class="ghost" id="docDl" data-i18n-title="pg.office.download" title="Download" data-i18n="pg.office.download">Download</button>
-            <button class="ghost" id="docChatSession" title="Obre o crea una sessió de xat dedicada per a aquest document" data-i18n-title="pg.office.chat" data-i18n="pg.office.chat">💬 Xat</button>
+            <button class="ghost" id="docChatSession" title="Document chat" data-i18n-title="pg.office.chat" data-i18n="pg.office.chat">Document chat</button>
             <button class="icon-btn" id="docMin" data-i18n-aria="pg.office.min" aria-label="Minimize document" data-i18n-title="pg.office.min" title="Minimize">−</button>
             <button class="icon-btn" id="docClose" data-i18n-aria="office.close" aria-label="Close document" data-i18n-title="office.close" title="Close document">×</button>
           </div>
@@ -1578,7 +1599,7 @@ body.sense-inspector #inspector { display:none; }
           <div id="docQuick" class="doc-quick"></div>
           <div class="doc-ask-row">
             <input id="docAsk" data-i18n-ph="office.askPlaceholder" placeholder="Ask about this document…" data-i18n-aria="office.askLabel" aria-label="Document request">
-            <button class="primary" id="docAskBtn" data-i18n="pg.office.ask">Demana</button>
+            <button class="primary" id="docAskBtn" data-i18n="pg.office.ask">Ask</button>
           </div>
           <div id="docMsg" class="doc-msg"></div>
         </div>
@@ -1586,9 +1607,12 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="canvisPage" hidden>
         <div class="page-inner">
           <header class="page-head">
-            <h1 data-i18n="nav.changes">Canvis</h1>
-            <p class="page-copy" id="changesSummary">Carregant…</p>
-            <button class="ghost" id="changesRefresh" data-i18n="pg.changes.refresh">Actualitza</button>
+            <h1 data-i18n="nav.changes">Changes</h1>
+            <p class="page-copy" id="changesSummary" data-i18n="ui.loading">Loading…</p>
+            <button class="ghost" id="changesRefresh" data-i18n="pg.changes.refresh">Refresh</button>
+            <button class="ghost" id="changesCommit" data-i18n="git.commitBtn">Commit…</button>
+            <button class="ghost" id="changesPR" data-i18n="git.prBtn">Create PR…</button>
+            <button class="ghost" id="changesWorktree" data-i18n="git.wtApplyBtn" hidden>Bring to main repo…</button>
           </header>
           <div id="changesBody"></div>
         </div>
@@ -1596,26 +1620,30 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="fitxersPage" hidden>
         <div class="page-inner">
           <header class="page-head">
-            <h1 data-i18n="nav.files">Fitxers</h1>
-            <p class="page-copy" data-i18n="pg.files.lead">Clic per obrir · doble clic per posar-lo al missatge</p>
-            <button class="ghost" id="wsBtn" title="Canvia el projecte d'aquesta sessió"data-i18n="pg.files.project">Projecte…</button>
-            <button class="ghost" id="treeRefresh" data-i18n="pg.changes.refresh">Actualitza</button>
+            <h1 data-i18n="nav.files">Files</h1>
+            <p class="page-copy" data-i18n="pg.files.lead">Click to open · double click to add it to the message</p>
+            <button class="ghost" id="wsBtn" data-i18n-title="pg.files.projectTitle" title="Change this session’s project" data-i18n="pg.files.project">Project…</button>
+            <button class="ghost" id="treeRefresh" data-i18n="pg.changes.refresh">Refresh</button>
           </header>
           <div class="files-grid">
             <div id="treeBody"></div>
-            <div id="fileView"><div class="activity-empty" data-i18n="fitxers.buit">Tria un fitxer de l'arbre.</div></div>
+            <div id="fileView"><div class="activity-empty" data-i18n="fitxers.buit">Pick a file from the tree.</div></div>
           </div>
         </div>
+      </section>
+      <!-- Coneixement: col·leccions i memòries (app/knowledge.js la pinta). -->
+      <section class="workspace-page" id="knowledgePage" hidden>
+        <div class="page-inner" id="knowledgeRoot"></div>
       </section>
       <section class="workspace-page" id="terminalPage" hidden>
         <div class="page-inner">
           <header class="page-head">
             <h1 data-i18n="nav.terminal">Terminal</h1>
-            <p class="page-copy" data-i18n="pg.term.lead">Processos llargs: build, servidor, suite de tests. No bloquegen el torn.</p>
+            <p class="page-copy" data-i18n="pg.term.lead">Long jobs: build, server, full test suite. They do not block the turn.</p>
           </header>
           <div class="frm" style="gap:8px">
             <input id="procCmd" placeholder="npm run dev" style="flex:1;min-width:200px">
-            <button class="primary" id="procRun" data-i18n="pg.term.run">Engega</button>
+            <button class="primary" id="procRun" data-i18n="pg.term.run">Start</button>
           </div>
           <div id="procList" style="margin-top:12px"></div>
           <div id="procOut"></div>
@@ -1623,26 +1651,26 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page browser-page" id="navegadorPage" hidden>
         <header class="page-head">
-          <div><h1>Navegador</h1><p class="page-copy">Obre una pàgina, inspecciona-la i passa l’URL al xat.</p></div>
+          <div><h1 data-i18n="browser.title">Browser</h1><p class="page-copy" data-i18n="browser.lead">Open a page, inspect it and pass the URL to the chat.</p></div>
         </header>
         <div class="browser-toolbar">
-          <button class="icon-btn" id="browserBack" title="Enrere" aria-label="Enrere">←</button>
-          <button class="icon-btn" id="browserForward" title="Endavant" aria-label="Endavant">→</button>
-          <button class="icon-btn" id="browserReload" title="Actualitza" aria-label="Actualitza">↻</button>
-          <input id="browserUrl" class="browser-url" placeholder="https://exemple.com" aria-label="Adreça web">
-          <button class="primary" id="browserGo">Vés</button>
-          <button class="ghost" id="browserAttach">Afegeix al xat</button>
+          <button class="icon-btn" id="browserBack" data-i18n-title="browser.back" title="Back" data-i18n-aria="browser.back" aria-label="Back">←</button>
+          <button class="icon-btn" id="browserForward" data-i18n-title="browser.forward" title="Forward" data-i18n-aria="browser.forward" aria-label="Forward">→</button>
+          <button class="icon-btn" id="browserReload" data-i18n-title="browser.reload" title="Reload" data-i18n-aria="browser.reload" aria-label="Reload">↻</button>
+          <input id="browserUrl" class="browser-url" placeholder="https://example.com" data-i18n-aria="browser.address" aria-label="Web address">
+          <button class="primary" id="browserGo" data-i18n="browser.go">Go</button>
+          <button class="ghost" id="browserAttach" data-i18n="browser.attach">Add to chat</button>
         </div>
         <div class="browser-shell">
-          <div class="browser-empty" id="browserEmpty">Escriu una adreça i prem «Vés».</div>
+          <div class="browser-empty" id="browserEmpty" data-i18n="browser.empty">Enter an address and press Go.</div>
           <webview id="browserView" partition="persist:gregal-browser" allowpopups></webview>
-          <iframe id="browserFrame" title="Vista web" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
+          <iframe id="browserFrame" data-i18n-title="browser.preview" title="Web view" sandbox="allow-forms allow-modals allow-popups allow-presentation allow-same-origin allow-scripts"></iframe>
         </div>
       </section>
       <section class="workspace-page" id="teamPage" hidden>
-        <header class="page-head"><h1 id="teamTitle">Team</h1><span id="teamStatus" role="status">Idle</span></header>
+        <header class="page-head agents-head"><h1 class="page-title" data-i18n="nav.agents">Agents</h1><div class="agents-tabs" role="tablist" data-i18n-aria="nav.agents" aria-label="Agents"><button type="button" role="tab" class="agents-tab" data-view="workshop" data-i18n="agents.live">Live</button><button type="button" role="tab" class="agents-tab" data-view="team" data-i18n="agents.team">Team run</button></div><span id="teamTitle" hidden>Team</span><span id="teamStatus" role="status">Idle</span></header>
         <form id="teamForm"><label id="teamTaskLabel" for="teamTask">Task</label><textarea id="teamTask" rows="2" maxlength="16000" required></textarea><div class="team-actions"><span id="teamModel"></span><button class="primary" id="teamStart" type="submit">Start</button><button class="ghost" id="teamStop" type="button" disabled>Stop</button></div></form>
-        <div id="teamExamples"></div><div class="team-progress-row"><div id="teamProgress" role="status"></div><button class="ghost" id="teamNeedsMe" type="button" disabled>Ningú espera</button></div>
+        <div id="teamExamples"></div><div class="team-progress-row"><div id="teamProgress" role="status"></div><button class="ghost" id="teamNeedsMe" type="button" disabled>Nobody waiting</button></div>
         <div class="team-layout"><div class="team-floor"><canvas id="teamCanvas" aria-hidden="true"></canvas></div><aside class="team-detail"><h2 id="teamAgentsLabel">Agents</h2><div id="teamAgents" role="group" aria-label="Agents"></div><div class="team-agent-detail"><h2 id="teamSelected">Coordinator</h2><div id="teamAgentStatus">Idle</div><pre id="teamOutput"></pre></div></aside></div>
         <h2 id="teamActivityTitle">Activity</h2><ol id="teamActivity" aria-live="polite"></ol>
       </section>
@@ -1650,37 +1678,35 @@ body.sense-inspector #inspector { display:none; }
         <div class="flow-layout">
           <aside class="flow-side">
             <header class="page-head" style="margin-bottom:10px">
-              <h1 style="font-size:var(--t4)" data-i18n="nav.graphs">Grafs</h1>
-              <p class="page-copy" data-i18n="graphs.lead">Un procediment dibuixat. Es desa al projecte i viatja amb el repositori.</p>
+              <h1 data-i18n="nav.graphs">Graphs</h1>
+              <p class="page-copy" data-i18n="graphs.lead">A procedure, drawn. It is saved in the project and travels with the repository.</p>
             </header>
             <div class="flow-afegeix">
-              <button data-afegeix="agent" title="Un pas que fa l'agent">◆ Agent</button>
-              <button data-afegeix="tool" title="Una eina sola, sense model pel mig">▸ Eina</button>
-              <button data-afegeix="note" title="Text fix que passa al pas següent">· Nota</button>
+              <button data-afegeix="agent" data-i18n-title="graphs.addAgentTitle" title="A step performed by the agent">◆ <span data-i18n="graphs.agent">Agent</span></button>
+              <button data-afegeix="tool" data-i18n-title="graphs.addToolTitle" title="A single tool, no model in between">▸ <span data-i18n="graphs.tool">Tool</span></button>
+              <button data-afegeix="note" data-i18n-title="graphs.addNoteTitle" title="Fixed text passed to the next step">· <span data-i18n="graphs.note">Note</span></button>
             </div>
-            <div class="nav-label" style="margin-top:14px">Desats</div>
+            <div class="nav-label" style="margin-top:14px" data-i18n="graphs.savedList">Saved</div>
             <div id="flowList"></div>
           </aside>
           <div class="flow-centre">
             <div class="flow-barra">
-              <input id="flowNom" placeholder="Nom del graf" aria-label="Nom del graf">
-              <input id="flowDesc" placeholder="Per a què serveix" aria-label="Descripció">
+              <input id="flowNom" data-i18n-ph="graphs.name.ph" placeholder="Graph name" data-i18n-aria="graphs.name.ph" aria-label="Graph name">
+              <input id="flowDesc" data-i18n-ph="graphs.desc.ph" placeholder="What it is for" data-i18n-aria="graphs.desc.aria" aria-label="Description">
               <span id="flowEstat" class="flow-estat"></span>
-              <label class="flow-check" title="Un graf corre sol i no hi ha ningú per contestar el diàleg de permisos. Les eines denegades continuen bloquejades.">
-                <input type="checkbox" id="flowAuto"> <span data-i18n="graphs.auto">sense demanar permís</span>
+              <label class="flow-check" data-i18n-title="graphs.auto.help" title="A graph runs on its own and nobody is there to answer the permission dialog. Denied tools stay blocked.">
+                <input type="checkbox" id="flowAuto"> <span data-i18n="graphs.auto">without asking permission</span>
               </label>
-              <button id="flowNou">Nou</button>
-              <button id="flowEsborra">Esborra</button>
-              <button id="flowDesa">Desa</button>
-              <button class="primary" id="flowExecuta">Executa</button>
+              <button id="flowNou" data-i18n="graphs.new">New</button>
+              <button id="flowEsborra" data-i18n="graphs.delete">Delete</button>
+              <button id="flowDesa" data-i18n="graphs.save">Save</button>
+              <button class="primary" id="flowExecuta" data-i18n="graphs.run">Run</button>
             </div>
             <div class="flow-cos">
             <div class="flow-llenc-marc">
               <div id="flowCanvas">
                 <svg id="flowEdges" aria-hidden="true"></svg>
-                <p id="flowBuit" class="page-copy" data-i18n="graphs.empty">Comença amb un pas d'<b>Agent</b> o d'<b>Eina</b> de l'esquerra.<br>
-                  Arrossega des del punt de sota d'un pas fins a un altre per connectar-los,
-                  i clica la fletxa per dir quan s'agafa.</p>
+                <p id="flowBuit" class="page-copy" data-i18n="graphs.empty">Start with an Agent or Tool step from the left. Drag from the dot under a step to another one to connect them, and click the arrow to say when it is taken.</p>
               </div>
             </div>
             <aside class="flow-insp" id="flowInsp" hidden></aside>
@@ -1698,19 +1724,22 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="workshopPage" hidden tabindex="-1">
         <div id="workshopRoot" class="workshop-root" data-workshop-root>
           <header class="workshop-header">
-            <div>
-              <div class="page-kicker" data-i18n="workshop.title">Taller 2D</div>
-              <h1 class="page-title" data-i18n="workshop.stage">Taller de sessions</h1>
+            <div class="agents-head">
+              <h1 class="page-title" data-i18n="nav.agents">Agents</h1>
+              <div class="agents-tabs" role="tablist" data-i18n-aria="nav.agents" aria-label="Agents">
+                <button type="button" role="tab" class="agents-tab" data-view="workshop" data-i18n="agents.live">Live</button>
+                <button type="button" role="tab" class="agents-tab" data-view="team" data-i18n="agents.team">Team run</button>
+              </div>
             </div>
             <div class="workshop-error" data-workshop-error role="status" hidden></div>
-            <button class="primary workshop-attention" type="button" data-workshop-find data-i18n="workshop.find">Qui em necessita?</button>
+            <button class="primary workshop-attention" type="button" data-workshop-find data-i18n="workshop.find">Who needs me?</button>
           </header>
           <div class="workshop-stage" data-workshop-stage></div>
           <div class="workshop-queue" data-workshop-queue></div>
         </div>
       </section>
       <footer id="composer">
-        <button id="toBottom" hidden data-i18n-aria="btn.toBottom" data-i18n-title="btn.toBottom" aria-label="Ves al final de la conversa" title="Ves al final">↓ <span data-i18n="btn.toBottom">Al final</span></button>
+        <button id="toBottom" hidden data-i18n-aria="btn.toBottom" data-i18n-title="btn.toBottom" aria-label="Go to the end" title="Go to the end">↓ <span data-i18n="btn.toBottom">Go to the end</span></button>
         <!-- Damunt del camp: quant fa que dura el torn i què hi ha encuat.
              Les dues coses només surten quan hi ha alguna cosa a dir. -->
         <div id="turnBar" hidden>
@@ -1723,19 +1752,17 @@ body.sense-inspector #inspector { display:none; }
           <div class="composer-row">
             <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
               <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
-                <button id="modeCode" data-mode="code" role="radio" aria-checked="true"><b data-i18n="mode.simpleCode">Code/task</b><span data-i18n="mode.simpleCodeHelp">Make changes to project files</span></button>
-                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false"><b data-i18n="mode.simpleChat">Chat/conversation</b><span data-i18n="mode.simpleChatHelp">Ask questions and discuss</span></button>
+                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and investigates without changing files"><b data-i18n="mode.ask">Ask</b></button>
+                <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
               </div>
-              <details id="advancedModes" class="mode-advanced">
-                <summary id="advancedModeSummary" data-i18n="mode.advanced">Advanced modes</summary>
-                <div class="mode-advanced-menu" role="radiogroup" aria-label="Advanced modes">
-                  <button id="modeGoal" data-mode="goal" role="radio" aria-checked="false"><b data-i18n="mode.objectiu">Goal</b><span data-i18n="mode.goalHelp">Goal mode asks questions to shape a persistent objective</span></button>
-                  <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false"><b data-i18n="mode.autonom">Autonomous</b><span data-i18n="mode.autonomousHelp">Works through milestones and keeps verifying</span></button>
-                </div>
-              </details>
             </div>
+            <!-- Objectiu, Autònom i Debug no ocupen el composer: s'hi entra amb
+                 /goal, /auto, /debug o el menú ⋯, i aquí només en queda una
+                 etiqueta per saber-ho i sortir-ne. -->
+            <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
+            <button type="button" id="planFirst" class="plan-toggle" role="switch" aria-checked="false" data-i18n-title="mode.planFirstHelp" title="Propose a plan and wait for your approval before acting"><span class="plan-toggle-dot" aria-hidden="true"></span><span data-i18n="mode.planFirst">Plan first</span></button>
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
-            <span class="composer-meta" data-i18n="composer.hint">@fitxer adjunta context · Maj+Enter nova línia</span>
+            <span class="composer-meta" data-i18n="composer.hint">@file adds context · Shift+Enter for a new line</span>
             <span class="spacer"></span>
             <input type="file" id="imgPick" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
             <!-- Icones dibuixades, no emoji: l'emoji canvia de forma i de
@@ -1754,45 +1781,50 @@ body.sense-inspector #inspector { display:none; }
         </div>
         <!-- El mode ja el diu el commutador de dalt amb el seu color: aquí
              només el que no es veu enlloc més. -->
-        <div id="hint"><span id="hrole" hidden></span><b>/</b> <span data-i18n="ui.commands">commands</span> · <b>@</b> <span data-i18n="ui.files">files</span><span id="hmode" hidden></span><span id="ctxGauge" class="ctx-gauge" role="progressbar" data-i18n-aria="ui.contextUsed" aria-label="Context used" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span><span id="hudCost" class="hud-cost"></span></div>
+        <div id="hint"><span id="hrole" hidden></span><b>/</b> <span data-i18n="ui.commands">commands</span> · <b>@</b> <span data-i18n="ui.files">files</span><span id="hmode" hidden></span><span id="ctxGauge" class="ctx-gauge" role="progressbar" data-i18n-aria="ui.contextUsed" aria-label="Context used" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span><span id="hudCost" class="hud-cost"></span><button type="button" id="hintFolder" class="hint-folder" hidden></button></div>
       </footer>
     </section>
-    <aside id="inspector" aria-label="Inspector de sessió">
-      <div class="inspector-head"><span>Inspector</span><div class="inspector-tabs" role="tablist" aria-label="Vistes ràpides">
-        <button type="button" data-inspector="agent" class="active" title="Context de la sessió">⌂</button>
-        <button type="button" data-inspector="fitxers" title="Fitxers">▤</button>
-        <button type="button" data-inspector="canvis" title="Git i canvis">⑂</button>
-        <button type="button" data-inspector="navegador" title="Navegador">◎</button>
+    <aside id="inspector" data-i18n-aria="inspector.label" aria-label="Session inspector">
+      <div class="inspector-head"><span data-i18n="inspector.title">Inspector</span><div class="inspector-tabs" role="tablist" data-i18n-aria="inspector.quickViews" aria-label="Quick views">
+        <button type="button" data-inspector="agent" class="active" data-i18n-title="inspector.context" title="Session context">⌂</button>
+        <button type="button" data-inspector="fitxers" data-i18n-title="nav.files" title="Files">▤</button>
+        <button type="button" data-inspector="canvis" data-i18n-title="inspector.git" title="Git and changes">⑂</button>
+        <button type="button" data-inspector="navegador" data-i18n-title="nav.browser" title="Browser">◎</button>
       </div></div>
       <section class="inspect-section">
-        <div class="inspect-title">Sessió</div>
+        <div class="inspect-title" data-i18n="inspector.session">Session</div>
         <dl>
-          <div class="fact"><dt>Workspace</dt><dd id="workspacePath">…</dd></div>
-          <div class="fact"><dt>Branca</dt><dd id="branchSide">—</dd></div>
-          <div class="fact"><dt>Model</dt><dd id="modelSide">…</dd></div>
-          <div class="fact"><dt>Revisor</dt><dd id="reviewerState">…</dd></div>
+          <div class="fact"><dt data-i18n="inspector.workspace">Workspace</dt><dd id="workspacePath">…</dd></div>
+          <div class="fact"><dt data-i18n="inspector.branch">Branch</dt><dd id="branchSide">—</dd></div>
+          <div class="fact"><dt data-i18n="inspector.model">Model</dt><dd id="modelSide">…</dd></div>
+          <div class="fact"><dt data-i18n="inspector.reviewer">Reviewer</dt><dd id="reviewerState">…</dd></div>
         </dl>
       </section>
       <section class="inspect-section">
-        <div class="inspect-title">Execució</div>
-        <div class="status-line"><span class="status-mini" id="statusMini"></span><span id="runState">A punt</span></div>
+        <div class="inspect-title" data-i18n="inspector.execution">Execution</div>
+        <div class="status-line"><span class="status-mini" id="statusMini"></span><span id="runState">Ready</span></div>
       </section>
       <section class="inspect-section">
-        <div class="inspect-title">Objectius</div>
+        <div class="inspect-title" data-i18n="inspector.goals">Goals</div>
         <div id="goals"></div>
       </section>
       <section class="inspect-section">
-        <div class="inspect-title">Activitat</div>
-        <div id="activity"><div class="activity-empty">Les lectures, edicions i ordres apareixeran aquí durant l'execució.</div></div>
+        <div class="inspect-title" data-i18n="inspector.activity">Activity</div>
+        <div id="activity"><div class="activity-empty" data-i18n="inspector.activityHint">Reads, edits and commands will appear here while the agent is working.</div></div>
       </section>
     </aside>
   </div>
 </div>
 <script type="module" src="/app/preview.js"></script>
+<script type="module" src="/app/agent-browser.js"></script>
 <script src="/app/mode-cycle.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
 <script src="/app/shell-icons.js"></script>
+<script src="/app/tool-summary.js"></script>
+<script src="/app/connectors.js"></script>
+<script src="/app/knowledge.js"></script>
+
 <script>
 const $ = id => document.getElementById(id);
 const main = $('main'), hero = $('hero'), input = $('in');
@@ -1806,6 +1838,15 @@ const runEventHandlers = new Map();
 const activeTurnSummaryCancel = new Map();
 const pendingInteractions = new Map();
 window.gregalPendingInteractions = pendingInteractions;
+// El títol compta qui espera resposta, com a agent-office: sense mirar la
+// pestanya ja se sap si cal tornar. Sense estat previ: es deriva del títol
+// actual traient un prefix "(N)" antic, així sobreviu al canvi d'idioma.
+function paintPendingTitle() {
+  const clean = document.title.replace(/^\(\d+\) /, '');
+  const n = pendingInteractions.size;
+  const want = n > 0 ? '(' + n + ') ' + clean : clean;
+  if (document.title !== want) document.title = want;
+}
 let currentView = 'agent';
 // Mantén la llista base estable per als clients antics; el mode autònom
 // s'afegeix al cicle de la UI sense trencar els integradors que llegeixen la
@@ -1815,9 +1856,9 @@ MODES.push('autonomous');
 // Funció, no taula: una taula es congela en carregar el mòdul, quan
 // gregalT encara no existeix, i tampoc seguiria un canvi d'idioma. És
 // exactament el que ja va passar amb la paleta d'ordres del TUI.
-const modeBadge = m => ({code:'◆ ' + gregalT('mode.codi'), chat:'◇ ' + gregalT('mode.xat'), goal:'◆ ' + gregalT('mode.objectiu'), autonomous:'≋ ' + gregalT('mode.autonom')})[m];
+const modeBadge = m => ({code:'◆ ' + gregalT('mode.codi'), chat:'◇ ' + gregalT('mode.xat'), goal:'◆ ' + gregalT('mode.objectiu'), autonomous:'≋ ' + gregalT('mode.autonom'), debug:'⌕ ' + gregalT('mode.debug')})[m];
 // El text del camp depèn del mode; les claus es tradueixen a i18n.js.
-const MODE_PLACE = { code:'composer.ph', chat:'composer.ph.chat', goal:'composer.ph.goal', autonomous:'composer.ph' };
+const MODE_PLACE = { code:'composer.ph', chat:'composer.ph.chat', goal:'composer.ph.goal', autonomous:'composer.ph', debug:'composer.ph.debug' };
 // gregalT és el pont cap a i18n.js per al codi d'aquesta pàgina, que no és
 // un mòdul i per tant no pot importar. panels.js el posa en arrencar; fins
 // llavors, la clau tal qual (dura mil·lisegons i no es veu).
@@ -1833,7 +1874,7 @@ const mobile = matchMedia('(max-width:760px)');
 const escapeHTML = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function setView(view) {
   const previousView = currentView;
-  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
+  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const agent = currentView === 'agent';
   hero.hidden = !agent; main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
@@ -1844,6 +1885,7 @@ function setView(view) {
   $('officePage').hidden = currentView !== 'office';
   $('canvisPage').hidden = currentView !== 'canvis';
   $('fitxersPage').hidden = currentView !== 'fitxers';
+  $('knowledgePage').hidden = currentView !== 'knowledge';
   $('terminalPage').hidden = currentView !== 'terminal';
   $('navegadorPage').hidden = currentView !== 'navegador';
   $('grafsPage').hidden = currentView !== 'grafs';
@@ -1865,12 +1907,17 @@ function setView(view) {
   if (currentView === 'workshop') $('workshopPage').focus();
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'mcp') loadMcpPage();
+  if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
   document.querySelectorAll('[data-view]').forEach(b => {
-    const active = b.dataset.view === currentView;
+    // «Agents» agrupa dues vistes (sala en directe i equip): el botó de la
+    // barra queda marcat a totes dues.
+    const active = b.dataset.view === currentView || (b.dataset.also || '').split(' ').includes(currentView);
     b.classList.toggle('active', active);
+    if (b.getAttribute('role') === 'tab') { b.setAttribute('aria-selected', String(active)); return; }
     if (active) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
   document.querySelectorAll('[data-inspector]').forEach(b => b.classList.toggle('active', b.dataset.inspector === currentView));
+  if (document.querySelector('#sideMore .nav-item.active')) $('sideMore').open = true;
   if (mobile.matches) setSide(false);
 }
 async function loadJobsPage() {
@@ -1927,12 +1974,19 @@ async function jobAction(path, body) {
 }
 async function loadMcpPage() {
   const box = $('mcpPageBody'); if (!box) return;
+  // Connectar (OAuth), afegir i treure servidors: app/connectors.js.
+  if (typeof window !== 'undefined' && window.gregalConnectors) return window.gregalConnectors.load(box, { api, T: gregalT, esc: escapeHTML });
+
   try {
     const r = await api('/api/mcp'); if (!r.ok) throw new Error(await r.text());
     const d = await r.json();
-    const servers = (d.servers || []).map(s => '<div class="status-line" style="padding:10px 0;border-bottom:1px solid var(--line)"><b>' + escapeHTML(s.name) + '</b><span class="spacer"></span><span class="' + (s.status === 'connected' ? 'ok' : 'bad') + '">' + escapeHTML(s.status) + '</span>' + (s.error ? '<small style="display:block;color:var(--red)">' + escapeHTML(s.error) + '</small>' : '') + '</div>').join('');
+    // L'estat (connected/error) és un codi del servidor; el resum «inactiu»
+    // també, i surt en l'idioma de la UI. La resta del resum ja ve traduït.
+    const statusLabel = st => (st === 'connected' || st === 'error') ? gregalT('mcp.status.' + st) : st;
+    const servers = (d.servers || []).map(s => '<div class="status-line" style="padding:10px 0;border-bottom:1px solid var(--line)"><b>' + escapeHTML(s.name) + '</b><span class="spacer"></span><span class="' + (s.status === 'connected' ? 'ok' : 'bad') + '">' + escapeHTML(statusLabel(s.status)) + '</span>' + (s.error ? '<small style="display:block;color:var(--red)">' + escapeHTML(s.error) + '</small>' : '') + '</div>').join('');
     const tools = (d.tools || []).map(escapeHTML).join(' · ');
-    box.innerHTML = '<div class="status-line"><b>' + escapeHTML(d.summary || gregalT('mcp.inactive')) + '</b></div>' + (servers || '<div class="activity-empty">' + escapeHTML(gregalT('mcp.empty')) + '</div>') + (tools ? '<p class="page-copy" style="margin-top:12px"><b>' + escapeHTML(gregalT('mcp.tools')) + '</b> ' + tools + '</p>' : '');
+    const summary = !d.summary || d.summary === 'inactiu' || d.summary === 'inactive' ? gregalT('mcp.inactive') : d.summary;
+    box.innerHTML = '<div class="status-line"><b>' + escapeHTML(summary) + '</b></div>' + (servers || '<div class="activity-empty">' + escapeHTML(gregalT('mcp.empty')) + '</div>') + (tools ? '<p class="page-copy" style="margin-top:12px"><b>' + escapeHTML(gregalT('mcp.tools')) + '</b> ' + tools + '</p>' : '');
   } catch (e) { box.innerHTML = '<div class="activity-empty">' + escapeHTML(gregalT('mcp.loadFailed')) + escapeHTML(e.message || e) + '</div>'; }
 }
 function setSide(open) {
@@ -1999,9 +2053,28 @@ SUGG.forEach(clau => {
   // El prompt també segueix la llengua: és el que hauria escrit l'usuari,
   // i enviar-lo en català des d'una interfície en anglès fa que l'agent
   // respongui en català a algú que no l'ha triat.
-  b.onclick = () => { input.value = gregalT(clau + '.p'); (agentMode||goalMode) ? doAgent() : doChat(); };
+  b.onclick = () => { input.value = gregalT(clau + '.p'); sendByMode(); };
   $('chips').appendChild(b);
 });
+// Dades de demo: connecta la base de dades de demostració (si cal) i
+// demana el dashboard de vendes. També la fa servir el buit de Plots.
+window.gregalDemoDashboard = async () => {
+  try {
+    await window.gregalConnectors.ensureDemo(api);
+  } catch (e) {
+    sys(gregalT('mcp.loadFailed') + (e.message || e));
+    return;
+  }
+  setView('agent');
+  input.value = gregalT('sugg.demo.p');
+  sendByMode();
+};
+{
+  const b = document.createElement('button'); b.className = 'hero-card'; b.style.gridColumn = '1 / -1';
+  b.innerHTML = '<b data-i18n="sugg.demo.t"></b><small data-i18n="sugg.demo.d"></small>';
+  b.onclick = () => { b.disabled = true; window.gregalDemoDashboard().finally(() => { b.disabled = false; }); };
+  $('chips').appendChild(b);
+}
 // md renderitza el markdown del model amb /app/md.js (títols, llistes,
 // cites, taules, enllaços, èmfasi, codi). El d'abans només feia codi,
 // negreta i salts de línia i les respostes sortien amb els "##" en cru. Si
@@ -2044,8 +2117,8 @@ main.addEventListener('click', e => {
   if (!e.target.classList.contains('copybtn')) return;
   const code = e.target.closest('.codeblock').querySelector('code').innerText;
   navigator.clipboard.writeText(code);
-  e.target.textContent = 'copiat';
-  setTimeout(() => e.target.textContent = 'copia', 1300);
+  e.target.textContent = gregalT('md.copied');
+  setTimeout(() => e.target.textContent = gregalT('md.copy'), 1300);
 });
 function showMain() { hero.style.display = 'none'; main.classList.add('on'); }
 function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 140; }
@@ -2085,16 +2158,96 @@ function add(cls, who, html) {
   // Accions al passar-hi per sobre, com a ChatGPT i Claude: copiar sempre,
   // i tornar-ho a demanar a la resposta (reenvia el que vas escriure tu).
   const acts = c => '<div class="msg-acts">' + c + '</div>';
-  const copiar = '<button class="msg-act" data-act="copy" title="Copia el text" aria-label="Copia el text">' + ICONA.copia + '</button>';
+  // data-i18n-title/aria: aplica() els torna a traduir si es canvia
+  // d'idioma amb la conversa ja pintada.
+  const copyLabel = escapeHTML(gregalT('btn.copy')), retryLabel = escapeHTML(gregalT('btn.retry'));
+  const copiar = '<button class="msg-act" data-act="copy" data-i18n-title="btn.copy" data-i18n-aria="btn.copy" title="' + copyLabel + '" aria-label="' + copyLabel + '">' + ICONA.copia + '</button>';
   if (cls === 'u') d.innerHTML = '<div class="msg-inner"><div class="body">' + html + '</div>' + acts(copiar) + '</div>';
   else if (cls === 'a') d.innerHTML = '<div class="msg-inner"><span class="agent-glyph">≋</span><div class="body">' + html + '</div>' +
-    acts(copiar + '<button class="msg-act" data-act="retry" title="Torna a demanar-ho" aria-label="Torna a demanar-ho">' + ICONA.reintenta + '</button>') + '</div>';
+    acts(copiar + '<button class="msg-act" data-act="retry" data-i18n-title="btn.retry" data-i18n-aria="btn.retry" title="' + retryLabel + '" aria-label="' + retryLabel + '">' + ICONA.reintenta + '</button>') + '</div>';
   else d.innerHTML = '<div class="body">' + html + '</div>';
-  main.appendChild(d);
+  (cls === 't' && workGroupBody() || main).appendChild(d);
   if (stick) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; });
   return d;
 }
 function sys(t) { return add('sys', '', escapeHTML(t)); }
+
+// Grup de feina d'un torn: la narració entre passos, les crides d'eina, el
+// pensament i els permisos ja resolts van plegats en un sol desplegable, i
+// a sota només queda la resposta final. Obert mentre treballa (es veu el
+// progrés), plegat en acabar; si falla, es queda obert per veure on.
+let turnGroup = null;
+// Si la conversa s'ha repintat (canvi de sessió), el grup ja no és a la
+// pàgina: el que arribi va directe a #main en comptes de perdre's.
+function workGroupBody() { return turnGroup && turnGroup.isConnected ? turnGroup.querySelector('.wg-body') : null; }
+function beginWorkGroup() {
+  if (turnGroup) endWorkGroup({});
+  showMain();
+  const g = document.createElement('details');
+  g.className = 'msg work-group running';
+  g.open = true;
+  g.innerHTML = '<summary><span class="wg-dot" aria-hidden="true"></span><span class="wg-label"></span><span class="wg-meta"></span></summary><div class="wg-body"></div>';
+  main.appendChild(g);
+  turnGroup = g;
+  paintWorkGroup(g, { running: true });
+  return g;
+}
+// Mou un missatge ja pintat (narració, targeta de permís) dins el grup.
+function intoWorkGroup(el) {
+  const body = workGroupBody();
+  if (body && el && el.parentNode !== body) body.appendChild(el);
+}
+function paintWorkGroup(g, o) {
+  if (!g) return;
+  g.dataset.wg = JSON.stringify(o);
+  const tools = +o.tools || 0;
+  const label = o.running ? gregalT('work.running')
+    : o.ms > 0 ? gregalT(o.failed ? 'work.stopped' : 'work.done').replace('{t}', durada(o.ms))
+    : gregalT('work.steps');
+  g.querySelector('.wg-label').textContent = label;
+  g.querySelector('.wg-meta').textContent = tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '';
+}
+document.addEventListener('gregal:idioma', () => {
+  document.querySelectorAll('#main .work-group').forEach(g => { try { paintWorkGroup(g, JSON.parse(g.dataset.wg || '{}')); } catch (e) {} });
+});
+// Què fa el torn ara mateix i des de quan. És el que respon «està penjat o
+// treballa?»: cada esdeveniment el posa al dia (model, eines, permís,
+// revisió) i, si el servidor envia «progress», també sap si del model ja
+// arriben dades o encara no n'ha arribat cap.
+let turnActivity = null;
+function setActivity(key, text, since) {
+  if (!key) { turnActivity = null; paintActivity(); return; }
+  if (turnActivity && turnActivity.key === key && !since) { turnActivity.text = text; paintActivity(); return; }
+  turnActivity = { key, text, since: since || Date.now(), progress: turnActivity ? turnActivity.progress : false };
+  paintActivity();
+}
+function activityLine() {
+  if (!turnActivity) return '';
+  const ms = Math.max(0, Date.now() - turnActivity.since);
+  let line = turnActivity.text + (ms >= 5000 ? ' · ' + durada(ms) : '');
+  // Només amb «progress» del servidor sabem del cert que no arriba res.
+  if (turnActivity.key === 'model' && turnActivity.progress && ms >= 90000) line += ' — ' + gregalT('act.now.stalled');
+  return line;
+}
+function paintActivity() {
+  const g = turnGroup && turnGroup.isConnected ? turnGroup : null;
+  if (!g || !g.classList.contains('running')) return;
+  let now = g.querySelector('.wg-now');
+  if (!now) { now = document.createElement('span'); now.className = 'wg-now'; g.querySelector('summary').appendChild(now); }
+  now.textContent = activityLine();
+  g.classList.toggle('stalled', !!(turnActivity && turnActivity.key === 'model' && turnActivity.progress && Date.now() - turnActivity.since >= 90000));
+}
+function fmtChars(n) { n = +n || 0; return n >= 1000 ? (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k' : String(n); }
+function endWorkGroup(o = {}) {
+  const g = turnGroup;
+  turnGroup = null;
+  if (!g) return;
+  if (!g.querySelector('.wg-body').children.length) { g.remove(); return; }
+  g.classList.remove('running');
+  g.classList.toggle('failed', !!o.failed);
+  g.open = !!o.failed;
+  paintWorkGroup(g, o);
+}
 
 // Accions dels missatges, per delegació (els missatges es creen sense
 // parar). «Torna-ho a provar» reenvia l'últim missatge teu tal qual.
@@ -2139,20 +2292,44 @@ $('toBottom').onclick = () => main.scrollTo({ top: main.scrollHeight, behavior: 
 // toolCard pinta una crida d'eina en curs. Torna el node perquè
 // toolCardDone hi enganxi el resultat: una sola targeta per crida, plegada,
 // com fan ChatGPT i Claude amb les seves eines.
+// La capçalera diu què fa l'eina en llenguatge pla («Read src/app.py ·
+// lines 10–40», app/tool-summary.js); el JSON cru queda al title.
+function toolSummaryHTML(name, args) {
+  const raw = String(args || '');
+  const s = window.gregalToolSummary
+    ? window.gregalToolSummary.summarize(name, raw, document.documentElement.lang)
+    : { label: name, target: raw.slice(0, 160), meta: '' };
+  return '<b title="' + escapeHTML(name) + '">' + escapeHTML(s.label) + '</b>' +
+    '<span class="targs" title="' + escapeHTML(raw.slice(0, 2000)) + '">' + escapeHTML(s.target) + '</span>' +
+    (s.meta ? '<span class="tmeta">' + escapeHTML(s.meta) + '</span>' : '');
+}
 function toolCard(name, args) {
   const el = add('t', '',
     '<details class="tool pending"><summary><span class="tspin">◍</span>' +
-    '<b>' + escapeHTML(name) + '</b><span class="targs">' + escapeHTML(String(args || '').slice(0, 160)) + '</span></summary>' +
+    toolSummaryHTML(name, args) + '</summary>' +
     '<div class="out"></div></details>');
   return el.querySelector('details');
 }
 
-function toolCardDone(card, name, output) {
+// toolShotOK accepta només captures en data URL (browser screenshot): mai
+// una adreça externa que la pàgina carregaria sola.
+const toolShotOK = src => typeof src === 'string' && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(src);
+function toolShot(out, image) {
+  if (!out || !toolShotOK(image)) return;
+  const img = document.createElement('img');
+  img.className = 'tool-shot';
+  img.alt = gregalT('ui.toolScreenshot');
+  img.src = image;
+  img.onclick = () => img.classList.toggle('gran');
+  out.appendChild(img);
+}
+function toolCardDone(card, name, output, image) {
   const txt = String(output == null ? '' : output);
-  const failed = /^ERROR:|^EINA BLOQUEJADA/.test(txt);
+  const failed = /^ERROR:|^EINA BLOQUEJADA|^TOOL BLOCKED/.test(txt);
   if (!card) { // resultat sense crida (no hauria de passar): targeta sencera
-    add('t', '', '<details class="tool ' + (failed ? 'failed' : 'done') + '"><summary><span class="tspin">' +
+    const solt = add('t', '', '<details class="tool ' + (failed ? 'failed' : 'done') + '"><summary><span class="tspin">' +
       (failed ? '✗' : '✓') + '</span><b>' + escapeHTML(name) + '</b></summary><div class="out">' + md(txt.slice(0, 3000)) + '</div></details>');
+    toolShot(solt && solt.querySelector('.out'), image);
     return;
   }
   card.classList.remove('pending');
@@ -2160,15 +2337,37 @@ function toolCardDone(card, name, output) {
   const mark = card.querySelector('.tspin');
   if (mark) mark.textContent = failed ? '✗' : '✓';
   const out = card.querySelector('.out');
-  if (out) out.innerHTML = md(txt.slice(0, 3000)) || '<span class="faint">(sense sortida)</span>';
+  if (out) out.innerHTML = md(txt.slice(0, 3000)) || '<span class="faint">' + escapeHTML(gregalT('ui.noOutput')) + '</span>';
+  toolShot(out, image);
+  if (toolShotOK(image)) card.open = true; // la captura és el resultat: es veu
   if (failed) card.open = true; // els errors no s'amaguen
+  // Gràfics desats al dashboard de l'app: comptador a la barra lateral i un
+  // botó per obrir aquell tauler.
+  if (!failed && name === 'dashboard_save' && window.gregalPlots) {
+    const m = /dashboard "([^"]+)"/.exec(txt), n = /(\d+) chart/.exec(txt);
+    window.gregalPlots.bump(n ? +n[1] : 1);
+    const go = document.createElement('button');
+    go.type = 'button'; go.className = 'tool-open-dashboard';
+    go.textContent = gregalT('plots.openDashboard') + (m ? ' · ' + m[1] : '');
+    go.onclick = e => { e.preventDefault(); e.stopPropagation(); window.gregalPlots.open(m ? m[1] : ''); };
+    card.querySelector('summary')?.appendChild(go);
+  }
 }
+// Els tipus d'activitat són noms interns en català (alguns ja en anglès);
+// a la pantalla surten en l'idioma de la UI.
+const ACT_KINDS = {
+  cua: 'actk.queue', permissiu: 'actk.permissions', xat: 'actk.chat', revisor: 'actk.reviewer',
+  'paral·lel': 'actk.parallel', 'revisió': 'actk.review', eina: 'actk.tool', 'permís': 'actk.permission',
+  pregunta: 'actk.question', 'autònom': 'actk.autonomous', pla: 'actk.plan', objectiu: 'actk.goal',
+  canvis: 'actk.changes', 'procés': 'actk.process', conversa: 'actk.conversation',
+};
 function activityItem(kind, title, detail, status) {
   const box = $('activity');
   const empty = box.querySelector('.activity-empty'); if (empty) empty.remove();
   const d = document.createElement('div'); d.className = 'activity-item ' + (status || '');
   d.innerHTML = '<span class="activity-dot"></span><div class="activity-name"></div><div class="activity-detail"></div>';
-  d.querySelector('.activity-name').textContent = (kind ? kind + ' · ' : '') + title;
+  const kindLabel = ACT_KINDS[kind] ? (gregalT(ACT_KINDS[kind]) || kind) : kind;
+  d.querySelector('.activity-name').textContent = (kindLabel ? kindLabel + ' · ' : '') + title;
   d.querySelector('.activity-detail').textContent = detail || '';
   box.prepend(d);
   while (box.children.length > 14) box.lastElementChild.remove();
@@ -2190,7 +2389,7 @@ function updateInspector(r) {
   const completed = !active && turnPhase === 'completed' && Date.now() < turnCompletedUntil;
   const waiting = active && turnPhase === 'waiting';
   const working = active && !waiting;
-  $('runState').textContent = gregalT(waiting ? 'estat.esperant' : completed ? 'estat.completat' : working ? 'estat.treballant' : ((r.mode === 'code' || r.mode === 'autonomous') ? 'estat.pot' : 'estat.lectura'));
+  $('runState').textContent = gregalT(waiting ? 'estat.esperant' : completed ? 'estat.completat' : working ? 'estat.treballant' : ((r.mode === 'code' || r.mode === 'autonomous' || r.mode === 'debug') ? 'estat.pot' : 'estat.lectura'));
   $('runState').setAttribute('aria-live', waiting || completed ? 'assertive' : 'off');
   $('statusMini').classList.toggle('busy', working || waiting);
   $('runStatePage').textContent = $('runState').textContent;
@@ -2255,7 +2454,11 @@ function pintaTurnBar() {
   if (!bar) return;
   const visiblePhase = turnT0 ? turnPhase : (turnPhase === 'completed' && Date.now() < turnCompletedUntil ? 'completed' : 'idle');
   const phaseLabel = visiblePhase === 'waiting' ? gregalT('estat.esperant') : visiblePhase === 'completed' ? gregalT('estat.completat') : visiblePhase === 'reconnecting' ? gregalT('estat.reconnectant') : gregalT('ui.turn.treballant');
-  const activeAction = turnNote ? ' · <span class="turn-note">' + escapeHTML(turnNote) + '</span>' : '';
+  // typeof: els tests carreguen aquesta funció sola, sense la resta.
+  const live = typeof turnActivity !== 'undefined' && turnActivity;
+  const nowText = turnT0 && live ? activityLine() : turnNote;
+  const activeAction = nowText ? ' · <span class="turn-note">' + escapeHTML(nowText) + '</span>' : '';
+  if (typeof paintActivity === 'function') paintActivity();
   t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + activeAction;
   t.dataset.phase = visiblePhase;
   t.setAttribute('aria-live', 'off');
@@ -2308,7 +2511,7 @@ function setSending(active, quiet = false) {
   // però no es podia prémer i /atura no alliberava sending. Ara ■ atura.
   btn.disabled = false;
   btn.innerHTML = sendLabel();
-  btn.title = active ? 'Envia un missatge a la cua; amb el camp buit, atura el torn' : 'Envia';
+  btn.title = active ? gregalT('ui.sendQueue') : gregalT('ui.send');
   btn.classList.toggle('stop', active);
   $('statusDot').classList.toggle('busy', visualWorking(state));
   updateInspector(state);
@@ -2321,9 +2524,11 @@ function onSessionSwitch(id, st) {
     const pending = pendingInteractions.get(id);
     if (pending && st.agent_busy && runEventHandlers.has(id)) {
       pendingInteractions.delete(id);
+      paintPendingTitle();
       runEventHandlers.get(id)(pending.event, pending.value);
     } else if (!st.agent_busy) {
       pendingInteractions.delete(id);
+      paintPendingTitle();
     }
   }
 }
@@ -2348,7 +2553,7 @@ function stopTurn() {
   // que vols és que tot seguit s'engegui el següent missatge de la cua.
   const encuats = cua.length;
   cua.length = 0;
-  sys(gregalT('ui.aturat') + (encuats ? ' També he tret ' + encuats + ' missatge' + (encuats > 1 ? 's' : '') + ' de la cua.' : ''));
+  sys(gregalT('ui.aturat') + (encuats ? gregalT(encuats > 1 ? 'ui.cua.tretMolts' : 'ui.cua.tretUn').replace('{n}', encuats) : ''));
   activityItem('agent', gregalT('act.aturat'), gregalT('act.aturat.sub'), 'warn');
   setSending(false);
 }
@@ -2357,6 +2562,9 @@ async function refresh() {
   const r = await api('/api/state', {headers:{'X-Gregal-Session':session}}).then(r => r.json());
   if (session !== (window.gregalSession || 'default')) return r;
   state = r;
+  // Els mòduls que pinten dades de l'estat (p. ex. el model a Team run)
+  // s'actualitzen quan arriba, no només en carregar.
+  document.dispatchEvent(new CustomEvent('gregal:state', { detail: r }));
   if (!r.agent_busy && !runningAgentSessions.has(session)) stoppedVisualSessions.delete(session);
   // L'idioma, abans de pintar res: si el config diu anglès i ho dèiem al
   // final, tot el que aquesta passada pinta amb gregalT sortia en l'idioma
@@ -2364,22 +2572,25 @@ async function refresh() {
   // títol de la benvinguda— es quedava en català per sempre.
   if (window.gregalLang) window.gregalLang(r.lang);
   const fullModel = r.provider + '/' + r.model;
-  $('model').textContent = r.model; $('modelPill').title = 'Tria model · ' + fullModel;
+  $('model').textContent = r.model; $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + fullModel;
   $('endpoint').textContent = fullModel;
   $('branch').textContent = r.branch || 'workspace';
-  $('project').textContent = r.project || 'projecte'; $('project').title = r.cwd || '';
+  $('project').textContent = r.project || gregalT('ui.project'); $('project').title = r.cwd || '';
   $('activeWorkspacePath').textContent = r.cwd || '';
   $('activeWorkspace').title = gregalT('ui.changeWorkspace') + (r.cwd ? ': ' + r.cwd : '');
   $('activeWorkspace').disabled = !!r.agent_busy;
-  $('sideProject').textContent = r.project || 'Projecte actual';
+  $('sideProject').textContent = r.project || gregalT('nav.project');
   $('statusDot').classList.toggle('busy', visualWorking(r));
   $('hmode').textContent = r.mode; $('hrole').textContent = r.model || r.current_role;
-  agentMode = r.mode === 'code' || r.mode === 'autonomous'; goalMode = r.mode === 'goal';
+  agentMode = r.mode === 'code' || r.mode === 'autonomous' || r.mode === 'debug'; goalMode = r.mode === 'goal';
   paintMode(r.mode);
   $('send').innerHTML = sendLabel();
   input.placeholder = gregalT(MODE_PLACE[r.mode] || MODE_PLACE.chat);
   // Qui respon viu a la píndola del model (app/panels.js): és la mateixa
   // pregunta i ara té un sol lloc.
+  // El mode auto-review viu al servidor (pot venir de permissions.mode).
+  if (r.auto_review === true && permMode !== 'review') permMode = 'review';
+  else if (r.auto_review === false && permMode === 'review') permMode = 'manual';
   paintPerm();
   updateInspector(r); loadGoals();
   // La llista de converses viu a app/convs.js; es refresca sola en acabar
@@ -2401,7 +2612,15 @@ const PERMS = [
   ['manual', 'prefs.perms.manual', 'ui.permManualHelp'],
   ['accept', 'prefs.perms.accept', 'ui.permAcceptHelp'],
   ['auto', 'prefs.perms.auto', 'ui.permAutoHelp'],
+  ['review', 'prefs.perms.review', 'ui.permReviewHelp'],
 ];
+// sandboxText resumeix /api/state.sandbox per al menú de permisos.
+function sandboxText(sb) {
+  if (!sb || sb.mode === 'off' || !sb.mode) return gregalT('sandbox.off');
+  if (sb.refuses) return gregalT('sandbox.refuses');
+  if (!sb.active) return gregalT('sandbox.unsandboxed');
+  return gregalT('sandbox.on').replace('{mode}', sb.mode).replace('{backend}', sb.backend).replace('{net}', sb.network_isolated && sb.network === 'off' ? 'off' : 'on');
+}
 // Cadenat tancat i obert: la icona sola ja diu si l'agent demana permís.
 const ICONA_PANY = {
   tancat: '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="7" rx="1.5"/><path d="M5.5 7V4.8a2.5 2.5 0 0 1 5 0V7"/></svg>',
@@ -2424,6 +2643,16 @@ function paintPerm() {
 document.addEventListener('gregal:idioma', () => {
   setSideCompact(sideCompacta());
   paintPerm();
+  paintView();
+  // aplica() posa el text per defecte als data-i18n; el que depèn de
+  // l'estat es torna a pintar a sobre.
+  if (state && state.provider) {
+    $('sideProject').textContent = state.project || gregalT('nav.project');
+    $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + state.provider + '/' + state.model;
+    updateInspector(state);
+  }
+  pintaTodo();
+  loadGoals();
   if ($('permMenu') && !$('permMenu').hidden) togglePermMenu(true);
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'mcp') loadMcpPage();
@@ -2431,16 +2660,21 @@ document.addEventListener('gregal:idioma', () => {
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el
 // pintaven tres.
 function paintMode(mode) {
+  // Ask/Act només queden marcats en els seus modes; Objectiu, Autònom i
+  // Debug es mostren amb l'etiqueta i cap dels dos marcat.
   document.querySelectorAll('.mode-switch button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.mode === mode));
   });
-  const advanced = $('advancedModes');
-  if (advanced) {
-    const special = mode === 'goal' || mode === 'autonomous';
-    advanced.dataset.active = String(special);
-    const label = $('advancedModeSummary');
-    if (label) label.textContent = gregalT(special ? (mode === 'goal' ? 'mode.objectiu' : 'mode.autonom') : 'mode.advanced');
+  const chip = $('modeChip');
+  if (chip) {
+    const special = mode === 'goal' || mode === 'autonomous' || mode === 'debug';
+    chip.hidden = !special;
+    chip.dataset.mode = special ? mode : '';
+    const label = $('modeChipLabel');
+    if (label && special) label.textContent = gregalT(mode === 'goal' ? 'mode.objectiu' : mode === 'debug' ? 'mode.debug' : 'mode.autonom');
   }
+  const plan = $('planFirst');
+  if (plan) plan.hidden = mode === 'chat' || mode === 'goal';
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
 // d'un botó que anava rodant entre tres estats sense dir quins eren.
@@ -2464,7 +2698,9 @@ function togglePermMenu(obre) {
   }
   menu.innerHTML = PERMS.map(([v, nom, ajuda]) =>
     '<button role="menuitemradio" aria-checked="' + (v === permMode) + '" class="' + (v === permMode ? 'on' : '') +
-    '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('');
+    '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('') +
+    '<div class="perm-sandbox faint" title="' + escapeHTML((state.sandbox && (state.sandbox.warning || state.sandbox.guarantee)) || '') + '">' +
+    escapeHTML(sandboxText(state.sandbox)) + '</div>';
   menu.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
     togglePermMenu(false);
     setPermMode(b.dataset.p);
@@ -2478,20 +2714,33 @@ document.addEventListener('click', e => {
 });
 async function setPermMode(next, confirmed = false) {
   const on = next !== 'manual';
-  const autonomyNote = state.mode === 'autonomous' ? ' Les accions que requereixen aprovació en mode autònom continuaran esperant confirmació.' : '';
-  if (on && !state.permissive && !confirmed && !confirm('Mode ' + next + ': l’agent executarà sense demanar (els deny continuen bloquejant).' + autonomyNote + ' Només aquesta sessió. Continua?')) return false;
+  const autonomyNote = state.mode === 'autonomous' ? gregalT('perm.autonomyNote') : '';
+  const permName = mode => gregalT((PERMS.find(x => x[0] === mode) || PERMS[0])[1]);
+  const review = next === 'review';
+  if (review && !state.auto_review && !confirmed && !confirm(gregalT('perm.confirmReview'))) return false;
+  if (on && !review && !state.permissive && !confirmed && !confirm(gregalT('perm.confirm').replace('{mode}', permName(next)).replace('{note}', autonomyNote))) return false;
   try {
-    const r = await api('/api/permissive', {method:'POST', body:JSON.stringify({on})});
+    const r = await api('/api/permissive', {method:'POST', body:JSON.stringify({on: on && !review, review})});
     if (!r.ok) throw new Error(await r.text());
     permMode = next;
     try { localStorage.setItem('gregal_perm', permMode); } catch (e) {}
-    const detail = permMode === 'manual' ? 'torna a demanar' : state.mode === 'autonomous' ? 'les accions que requereixen aprovació encara esperen confirmació' : 'l’agent tira sense demanar';
-    activityItem('permissiu', 'Mode ' + permMode, detail, permMode === 'manual' ? 'warn' : 'ok');
+    const detail = gregalT(permMode === 'manual' ? 'perm.detail.manual' : state.mode === 'autonomous' ? 'perm.detail.autonomous' : permMode === 'review' ? 'perm.detail.review' : 'perm.detail.auto');
+    activityItem('permissiu', permName(permMode), detail, permMode === 'manual' ? 'warn' : 'ok');
   } catch (e) {
     activityItem('permissiu', 'Error', String(e.message || e), 'err');
     return false;
   }
   paintPerm(); await refresh(); return true;
+}
+// «Plan first»: en Act, el missatge primer proposa un pla (doPlan) i no
+// s'executa res fins que l'aproves des de la targeta del pla.
+let planFirst = false;
+try { planFirst = localStorage.getItem('gregal_plan_first') === '1'; } catch (e) {}
+function paintPlanFirst() { const b = $('planFirst'); if (b) b.setAttribute('aria-checked', String(planFirst)); }
+function sendByMode() {
+  if (!(agentMode || goalMode)) return doChat();
+  if (planFirst && state.mode === 'code') return doPlan();
+  return doAgent();
 }
 async function setMode(next) {
   try {
@@ -2501,35 +2750,48 @@ async function setMode(next) {
     activityItem('mode', 'Error', String(e.message || e), 'err');
     return false;
   }
-  const detall = {code:'Eines activades amb permisos', chat:'Només lectura',
-                  goal:'Concreta l\'objectiu amb preguntes',
-                  autonomous:'Treballa per fites, verifica i continua'}[next] || '';
+  const detall = ['code', 'chat', 'goal', 'autonomous', 'debug'].includes(next) ? gregalT('mode.detail.' + next) : '';
   activityItem('mode', modeBadge(next) || next, detall, 'ok');
   await refresh();
 }
 document.querySelectorAll('.mode-switch button').forEach(b => {
   b.onclick = () => { if (b.getAttribute('aria-checked') !== 'true') setMode(b.dataset.mode); };
 });
+$('planFirst').onclick = () => {
+  planFirst = !planFirst;
+  try { localStorage.setItem('gregal_plan_first', planFirst ? '1' : '0'); } catch (e) {}
+  paintPlanFirst();
+};
+$('modeChipExit').onclick = () => setMode('code');
+document.querySelectorAll('[data-special-mode]').forEach(b => { b.onclick = () => setMode(b.dataset.specialMode); });
+paintPlanFirst();
 $('planBtn').onclick = () => doPlan();
 $('parallelBtn').onclick = () => doParallel();
 $('rewindBtn').onclick = async () => {
-  if (!confirm('Desfés els canvis de fitxers fets per l\u2019agent en aquesta sessió? Restaura el contingut d\u2019abans de la sessió (no usa git).')) return;
+  if (!confirm(gregalT('rewind.confirm'))) return;
   try {
     const r = await api('/api/rewind', {method:'POST', body:'{}'}).then(r => r.json());
-    activityItem('rewind', gregalT('act.desfets'), r.summary || gregalT('act.resadesfer'), 'ok');
+    activityItem('rewind', gregalT('act.desfets'), rewindSummary(r.summary), 'ok');
   } catch (e) {
-    activityItem('rewind', 'No s\u2019ha pogut desfer', String(e.message || e), 'err');
+    activityItem('rewind', gregalT('rewind.failed'), String(e.message || e), 'err');
   }
   await refresh();
 };
+// rewindSummary: el resum ve del journal compartit (internal/tools), que el
+// redacta en català perquè també el llegeixen el TUI i Telegram.
+function rewindSummary(s) {
+  const txt = String(s || '').trim();
+  if (!txt || txt === 'res a desfer') return gregalT('act.resadesfer');
+  return txt.replace(/(^|· )restaurats: /g, '$1' + gregalT('rewind.restored')).replace(/(^|· )esborrats: /g, '$1' + gregalT('rewind.deleted'));
+}
 $('menu').onclick = () => setSide($('side').classList.contains('closed'));
 $('permBtn').onclick = e => { e.stopPropagation(); togglePermMenu(); };
 // Vista del transcript: Normal (eines plegades) · Detallada (tot) · Resum (només respostes).
 let viewMode = 'normal';
 try { viewMode = localStorage.getItem('gregal_view') || 'normal'; } catch (e) {}
 function paintView() {
-  const labels = {normal:'👁 Normal', verbose:'👁 Detallada', summary:'👁 Resum'};
-  $('viewBtn').textContent = labels[viewMode] || labels.normal;
+  const labels = {normal:'menu.transcript', verbose:'prefs.detail.verbose', summary:'prefs.detail.summary'};
+  $('viewBtn').textContent = '👁 ' + (gregalT(labels[viewMode] || labels.normal) || 'Normal');
   document.body.classList.remove('view-normal', 'view-verbose', 'view-summary');
   document.body.classList.add('view-' + viewMode);
 }
@@ -2559,7 +2821,7 @@ async function novaConversa() {
   await api('/api/new', {method:'POST', body:'{}'});
   main.innerHTML = ''; main.classList.remove('on'); hero.style.display = 'flex'; input.value = '';
   input.dispatchEvent(new Event('input'));
-  $('activity').innerHTML = '<div class="activity-empty">Les lectures, edicions i ordres apareixeran aquí durant l’execució.</div>';
+  $('activity').innerHTML = '<div class="activity-empty" data-i18n="inspector.activityHint">' + escapeHTML(gregalT('inspector.activityHint')) + '</div>';
   // La conversa que acabem de tancar ja té títol: refresquem la llista.
   if (window.gregalPanels && window.gregalPanels.convs) window.gregalPanels.convs.load();
   if (mobile.matches) setSide(false); refresh(); input.focus();
@@ -2571,31 +2833,32 @@ window.toggleProv = toggleProv;
 window.gregalSetView = v => { viewMode = v; try { localStorage.setItem('gregal_view', v); } catch (e) {} paintView(); };
 window.gregalSetPerm = v => setPermMode(v);
 const GH_ACTIONS = {
-  gh_issue: [['list','Llista issues'],['view','Veure issue']],
-  gh_pr: [['list','Llista PRs'],['view','Veure PR'],['diff','Veure diff'],['checks','Veure checks']]
+  gh_issue: [['list','gh.listIssues'],['view','gh.viewIssue']],
+  gh_pr: [['list','gh.listPRs'],['view','gh.viewPR'],['diff','gh.viewDiff'],['checks','gh.viewChecks']]
 };
 function refreshGitHubActions() {
   const tool = $('ghTool').value, select = $('ghAction');
   select.innerHTML = '';
-  (GH_ACTIONS[tool] || []).forEach(([value, label]) => {
-    const o = document.createElement('option'); o.value = value; o.textContent = label; select.appendChild(o);
+  // data-i18n: aplica() les torna a traduir quan es canvia d'idioma.
+  (GH_ACTIONS[tool] || []).forEach(([value, key]) => {
+    const o = document.createElement('option'); o.value = value; o.dataset.i18n = key; o.textContent = gregalT(key) || value; select.appendChild(o);
   });
   $('ghNumber').disabled = select.value === 'list';
 }
 async function runGitHub() {
   const tool = $('ghTool').value, action = $('ghAction').value;
   const output = $('ghOutput');
-  output.textContent = 'Consultant GitHub…'; $('ghRun').disabled = true;
+  output.textContent = gregalT('gh.loading'); $('ghRun').disabled = true;
   try {
     const r = await api('/api/github', {method:'POST', body:JSON.stringify({
       tool, action, number:Number($('ghNumber').value || 0), query:$('ghQuery').value.trim(), repo:$('ghRepo').value.trim()
     })});
     const body = await r.text();
     if (!r.ok) throw new Error(body);
-    const data = JSON.parse(body); output.textContent = data.output || '(sense resultats)';
-    activityItem('github', tool + ' · ' + action, 'Consulta completada', 'ok');
+    const data = JSON.parse(body); output.textContent = data.output || gregalT('gh.noResults');
+    activityItem('github', tool + ' · ' + action, gregalT('gh.done'), 'ok');
   } catch (e) {
-    output.textContent = 'Error: ' + e; activityItem('github', 'Consulta fallida', String(e), 'bad');
+    output.textContent = 'Error: ' + e; activityItem('github', gregalT('gh.failed'), String(e), 'bad');
   } finally { $('ghRun').disabled = false; }
 }
 $('ghTool').onchange = refreshGitHubActions;
@@ -2683,7 +2946,7 @@ async function stream(url, payload, onEvent, onLegacyEvent) {
         clearInterval(watchdog);
         try { ctrl.abort(); } catch (e) {}
         try { if (currentReader) currentReader.cancel(); } catch (e) {}
-        finish(() => reject(new Error('connexió aturada: sense dades del servidor en 180s (torna a demanar)')));
+        finish(() => reject(new Error(gregalT('ui.streamStalled'))));
       }
     }, 5000);
     api(url, {method:'POST', body:JSON.stringify(payload), signal:ctrl.signal}).then(resp => {
@@ -2703,7 +2966,7 @@ async function stream(url, payload, onEvent, onLegacyEvent) {
           frame.split('\n').forEach(l => { if (l.startsWith('event:')) ev=l.slice(6).trim(); else if (l.startsWith('data:')) data+=l.slice(5).trim(); });
           if (ev && data) {
             try { const parsed = JSON.parse(data); if (onLegacyEvent) onLegacyEvent(ev, parsed); onEvent(ev, parsed); }
-            catch (e) { activityItem('error', 'Event malformat', String(e && e.message || e), 'bad'); }
+            catch (e) { activityItem('error', gregalT('ui.eventMalformed'), String(e && e.message || e), 'bad'); }
           }
         }
         pump();
@@ -2727,7 +2990,7 @@ function notify(title, body) {
 async function doChat() {
   if (sending) return; const text=input.value.trim(); if (!text) return;
   setSending(true); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text));
-  const box=add('a','', '<span class="spin">Analitzant…</span>'); let acc='', paintTimer=null, lastPaintAt=0;
+  const box=add('a','', '<span class="spin">' + escapeHTML(gregalT('ui.analyzing')) + '</span>'); let acc='', paintTimer=null, lastPaintAt=0;
   activityItem('xat',gregalT('act.consulta'),text.slice(0,70),'warn');
   const paint=()=>{ if(paintTimer)return; paintTimer=setTimeout(()=>{paintTimer=null;box.querySelector('.body').innerHTML=md(acc);lastPaintAt=Date.now();if(nearBottom())main.scrollTop=main.scrollHeight;},Math.max(0,120-(Date.now()-lastPaintAt))); };
   try {
@@ -2736,7 +2999,7 @@ async function doChat() {
       else if(ev==='done'){if(paintTimer){clearTimeout(paintTimer);paintTimer=null;}acc=d.reply;box.querySelector('.body').innerHTML=md(d.reply);mdBo(d.reply,box);activityItem('xat',gregalT('act.resposta'),'', 'ok');}
       else if(ev==='verify_start')activityItem('revisor',gregalT('act.revisant.resp'),'', 'warn');
       else if(ev==='verify')verdict(d);
-      else if(ev==='error'){box.querySelector('.body').innerHTML='<span style="color:var(--red)">Error: '+escapeHTML(d.message)+'</span>';activityItem('error','La consulta ha fallat',d.message,'bad');}
+      else if(ev==='error'){box.querySelector('.body').innerHTML='<span style="color:var(--red)">Error: '+escapeHTML(d.message)+'</span>';activityItem('error',gregalT('ui.chatFailed'),d.message,'bad');}
     });
   } catch(e) { const msg=(e&&e.message)?e.message:String(e); box.querySelector('.body').textContent='Error: '+msg; activityItem('error',gregalT('act.connexio'),msg,'bad'); notify('Gregal · error', msg); }
   finally { setSending(false); refresh(); input.focus(); }
@@ -2745,7 +3008,7 @@ async function doParallel() {
   if (sending) return;
   const text = input.value.trim(); if (!text) { sys(gregalT('ui.compara.buit')); return; }
   setSending(true); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text));
-  activityItem('paral·lel','Comparació iniciada',text.slice(0,70),'warn'); refresh();
+  activityItem('paral·lel',gregalT('ui.comparisonStarted'),text.slice(0,70),'warn'); refresh();
   try {
     const r = await api('/api/parallel',{method:'POST',body:JSON.stringify({message:text})});
     if (!r.ok) throw new Error(await r.text());
@@ -2753,11 +3016,11 @@ async function doParallel() {
     (d.results || []).forEach(x => {
       const label = '◆ ' + x.role + ' · ' + x.provider + '/' + x.model;
       if (x.error) add('t','', '<div class="tool blocked"><b>'+escapeHTML(label)+'</b><br>'+escapeHTML(x.error)+'</div>');
-      else add('a','', '<div class="goal-head"><b>'+escapeHTML(label)+'</b></div>'+md(x.reply || '(sense resposta)'));
-      activityItem('model',x.role,x.error || 'Resposta rebuda',x.error ? 'bad' : 'ok');
+      else add('a','', '<div class="goal-head"><b>'+escapeHTML(label)+'</b></div>'+md(x.reply || gregalT('ui.noReply')));
+      activityItem('model',x.role,x.error || gregalT('ui.replyReceived'),x.error ? 'bad' : 'ok');
     });
-    activityItem('paral·lel','Comparació completada',(d.results || []).length+' models','ok');
-  } catch(e) { sys(gregalT('ui.compara.error') + e); activityItem('error','Comparació fallida',String(e),'bad'); }
+    activityItem('paral·lel',gregalT('ui.comparisonCompleted'),(d.results || []).length+' models','ok');
+  } catch(e) { sys(gregalT('ui.compara.error') + e); activityItem('error',gregalT('ui.comparisonFailed'),String(e),'bad'); }
   finally { setSending(false); refresh(); input.focus(); }
 }
 let pendingImgs = []; // data URLs (màxim 3, 8MB/cadascuna)
@@ -2777,7 +3040,7 @@ function renderImgs() {
     im.src = u; im.style.cssText = 'max-height:56px;border-radius:8px;border:1px solid var(--line)';
     t.appendChild(im);
     const x = document.createElement('button');
-    x.textContent = '×'; x.className = 'icon-btn'; x.setAttribute('aria-label', 'Treu la imatge');
+    x.textContent = '×'; x.className = 'icon-btn'; x.setAttribute('aria-label', gregalT('ui.imageRemove')); x.title = gregalT('ui.imageRemove');
     x.style.cssText = 'position:absolute;top:-8px;right:-8px';
     x.onclick = () => { pendingImgs.splice(i, 1); renderImgs(); };
     t.appendChild(x); chip.appendChild(t);
@@ -2805,13 +3068,13 @@ function showGateBtns(){
       const r = await api('/api/verify-approve', {method:'POST', body:JSON.stringify({approve})});
       const j = await r.json();
       sys(gregalT('ui.revisio.prefix') + (j.note || gregalT('ui.revisio.lliure')));
-      activityItem('revisió', approve ? 'Aprovada' : 'Aixecada', j.note || '', approve ? 'ok' : 'warn');
+      activityItem('revisió', gregalT(approve ? 'review.approvedAct' : 'review.liftedAct'), j.note || '', approve ? 'ok' : 'warn');
       $('gateBtn')?.remove(); $('gateBtn2')?.remove();
     };
     document.querySelector('.composer-row').appendChild(b);
   };
-  mk('gateBtn', 'Aprova la revisió i continua', true);
-  mk('gateBtn2', 'Aixeca sense aprovar', false);
+  mk('gateBtn', gregalT('review.approveContinue'), true);
+  mk('gateBtn2', gregalT('review.liftWithout'), false);
 }
 async function doAgent(task) {
   if (sending) return;
@@ -2828,6 +3091,10 @@ async function doAgent(task) {
   setSending(true);
   if (task === undefined) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; }
   add('u','',md(text));
+  const turnStart = Date.now();
+  const workGroup = beginWorkGroup();
+  const closeWorkGroup = failed => { setActivity(null); if (turnGroup === workGroup) endWorkGroup({ ms: Date.now() - turnStart, tools, failed }); };
+  setActivity('model', gregalT('act.now.model'));
   activityItem('agent', gregalT(goalMode ? 'act.objectiu.fent' : 'act.tasca.fent'), text.slice(0,70),'warn'); refresh();
   let lastAssistantText='';
   // Text en directe (H0): els tokens d'un pas van a una bombolla viva; quan
@@ -2836,14 +3103,14 @@ async function doAgent(task) {
   // bombolla: el pas següent n'obre una de nova.
   let live=null, acc='', steps=0, tools=0, approvals=0, offeredAuto=false, livePaintTimer=null, lastLivePaint=0;
   // Crides d'eina esperant el seu resultat, en ordre d'arribada.
-  const pendents=[];
+  const pendents=[]; let lastDoneCard=null;
   const paintLiveNow=()=>{if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;}if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}};
   const paintLive=()=>{if(!live)live=add('a','','');if(livePaintTimer)return;livePaintTimer=setTimeout(()=>{livePaintTimer=null;if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}},Math.max(0,120-(Date.now()-lastLivePaint)));};
   const settleLive=(html)=>!!settleLiveEl(html);
   // settleLiveEl tanca la bombolla en viu i la torna, perque mdBo hi
   // pugui escriure el markdown bo a sobre.
   const settleLiveEl=(html)=>{ if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;}if(!live) return null; const el=live; el.querySelector('.body').innerHTML=html; live=null; acc=''; return el; };
-  const stepLine=()=> 'pas ' + steps + (tools ? ' · ' + tools + ' eines' : '');
+  const stepLine=()=> gregalT('ui.step').replace('{n}', steps) + (tools ? ' · ' + (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '');
   try {
     const onRunEvent = async(ev,d)=>{
       if (runVisualTokens.get(runSession) !== visualToken) return;
@@ -2851,27 +3118,33 @@ async function doAgent(task) {
       if (ev === 'done' || ev === 'error') {
         stopRunVisuals(runSession);
         pendents.splice(0).forEach(stopToolAnimation);
+        closeWorkGroup(ev === 'error');
       }
       if (runSession !== (window.gregalSession || 'default')) {
         if (ev === 'approve_request' || ev === 'question_request') {
           pendingInteractions.set(runSession, {event: ev, value: d});
+          paintPendingTitle();
           window.gregalPanels?.sessions.render();
-          notify('Gregal · cal respondre', d.name || d.query || runSession);
+          notify(gregalT('notify.needsAnswer'), d.name || d.query || runSession);
         }
         if (ev === 'approve_timeout' || ev === 'question_timeout' || ev === 'done' || ev === 'error') {
           pendingInteractions.delete(runSession);
+          paintPendingTitle();
           window.gregalPanels?.sessions.render();
         }
-        if (ev === 'done') notify('Gregal', 'Tasca acabada a la sessió ' + runSession);
-        if (ev === 'error') notify('Gregal · error', d.message || 'Tasca interrompuda');
+        if (ev === 'done') notify('Gregal', gregalT('notify.sessionDone').replace('{id}', runSession));
+        if (ev === 'error') notify('Gregal · error', d.message || gregalT('notify.taskInterrupted'));
         return;
       }
       if(ev==='status' && d.message){ turnNote = d.message; pintaTurnBar(); }
-      else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} paintLive();}
+      else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} if(!turnActivity||turnActivity.key!=='writing') setActivity('writing', gregalT('act.now.writing')); paintLive();}
       else if(ev==='assistant' && d.text.trim()){turnPhase='working';turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
       else if(ev==='goal')goalCard(d);
       else if(ev==='tool_call'){
-        turnPhase='working'; turnNote=d.name || ''; pintaTurnBar(); paintLiveNow(); live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla
+        turnPhase='working'; turnNote=d.name || ''; pintaTurnBar(); paintLiveNow(); if(live){ live.classList.add('working'); intoWorkGroup(live); } live=null; acc=''; steps++; tools++; // el text de treball d'aquest pas ja és a la seva bombolla
+        paintWorkGroup(turnGroup === workGroup ? workGroup : null, { running: true, tools });
+        { const sm = window.gregalToolSummary ? window.gregalToolSummary.summarize(d.name, d.args, document.documentElement.lang) : { label: d.name, target: '' };
+          setActivity('tool:' + pendents.length, (sm.label + ' ' + (sm.target || '')).trim().slice(0, 90)); }
         activityItem('eina',d.name,stepLine() + ' · ' + d.args.slice(0,110),'warn');
         // Una sola targeta per crida, que evoluciona quan arriba el
         // resultat. Abans n'hi havia dues (la crida i el «Fet ·») i la
@@ -2883,62 +3156,101 @@ async function doAgent(task) {
         if(d.name==='preview'&&window.gregalPreview){try{window.gregalPreview.request(JSON.parse(d.output),true);}catch{}}
         const previewMatch=String(d.output||'').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
         if(previewMatch&&window.gregalPreview)window.gregalPreview.offer(previewMatch[0]);
-        activityItem('eina',d.name,'Completada · ' + stepLine(),'ok');
+        activityItem('eina',d.name,gregalT('act.toolDone') + stepLine(),'ok');
         if (d.name === 'todowrite' || d.name === 'todoread') { pendents.shift()?.remove(); todoCard(d.output); }
-        else toolCardDone(pendents.shift(), d.name, d.output);
+        else { lastDoneCard = pendents.shift(); toolCardDone(lastDoneCard, d.name, d.output, d.image); }
+        if (!pendents.length) setActivity('model', gregalT('act.now.model'));
+      } else if(ev==='bet'){
+        // Aposta de confiança resolta: xip a la fila de l'eina (app/caps.js).
+        window.gregalCaps?.betChip(lastDoneCard, d);
+      } else if(ev==='progress'){
+        // Senyal de vida del servidor: fase actual i, per al model, si ja
+        // n'arriben dades (raonament, text o una crida d'eina en construcció).
+        const since = Date.parse(d.since || '') || Date.now();
+        const same = k => turnActivity && turnActivity.key === k ? 0 : since;
+        if (d.phase === 'model') {
+          if (d.state !== 'receiving') setActivity('model', gregalT('act.now.model'), same('model'));
+          else if (+d.tool > 0) setActivity('model-tool', gregalT('act.now.toolcall'), same('model-tool'));
+          else if (+d.text > 0) setActivity('writing', gregalT('act.now.writing'), same('writing'));
+          else setActivity('thinking', gregalT('act.now.thinking') + (+d.reasoning > 0 ? ' · ' + fmtChars(d.reasoning) : ''), same('thinking'));
+        } else if (d.phase === 'tools') {
+          // tool_call ja ha posat una descripció millor («Write notes/a.md»).
+          if (!(turnActivity && String(turnActivity.key).startsWith('tool:'))) setActivity('tools', gregalT('act.now.tools').replace('{tools}', (d.tools || '').split(',').join(', ')), since);
+        }
+        else if (d.phase === 'review') setActivity('review', gregalT('act.now.review'), since);
+        else if (d.phase === 'compact') setActivity('compact', gregalT('act.now.compact'), since);
+        if (turnActivity) turnActivity.progress = true;
+        pintaTurnBar();
       } else if(ev==='thinking' && d.text.trim()){
         // El text de treball que acompanya una crida ja s'ha vist créixer a la
         // bombolla viva: no es repeteix plegat; la bombolla queda apagada per
         // dir que no és la resposta final. Només si no s'ha vist, targeta.
         // paintLiveNow: el pintat diferit (120ms) no s'executa un cop tancada
         // la bombolla, i en perdia la cua.
-        if(live && acc.trim()===d.text.trim()){ paintLiveNow(); live.classList.add('working'); live=null; acc=''; }
-        else add('t','', '<details class="tool"><summary>Pensant…</summary><div class="out">'+md(d.text.slice(0,2000))+'</div></details>');
+        if(live && acc.trim()===d.text.trim()){ paintLiveNow(); live.classList.add('working'); intoWorkGroup(live); live=null; acc=''; }
+        else add('t','', '<details class="tool"><summary>'+escapeHTML(gregalT('ui.thinking'))+'</summary><div class="out">'+md(d.text.slice(0,2000))+'</div></details>');
       } else if(ev==='budget'){
         sys(gregalT('ui.pressupost') + d.message);
         if(window.gregalPanels) window.gregalPanels.hud.set(d.total||'');
-        activityItem('cost',d.total,'límit '+d.limit,'warn');
+        activityItem('cost',d.total,gregalT('act.limit')+d.limit,'warn');
       } else if(ev==='gated'){
         sys(gregalT('ui.revisio.bloqueja').replace('{n}', d.message));
         activityItem('revisió',gregalT('act.calrevisar'),gregalT('act.calrevisar.sub'),'bad');
-        notify('Gregal · cal revisar', d.message || 'El revisor ha bloquejat el torn');
+        notify(gregalT('notify.needsReview'), d.message || gregalT('notify.reviewerBlocked'));
         showGateBtns();
       } else if(ev==='escalate'){
         sys(gregalT('ui.escalat') + d.message);
-        activityItem('model',d.from+' → '+d.to,'escalat automàtic','warn'); refresh();
+        activityItem('model',d.from+' → '+d.to,gregalT('act.autoEscalated'),'warn'); refresh();
       } else if(ev==='approve_timeout'){
         sys(gregalT('ui.permis.timeout').replace('{n}', d.name));
-        activityItem('permís',d.name,'Temps esgotat · denegat','bad');
-        notify('Gregal · permís denegat', d.name + ': sense resposta a temps');
+        activityItem('permís',d.name,gregalT('act.timeoutDenied'),'bad');
+        notify(gregalT('notify.permDenied'), d.name + gregalT('notify.noAnswerInTime'));
+      } else if(ev==='review'){
+        // Decisió del revisor automàtic (mode auto-review): fila compacta a
+        // la feina i entrada d'activitat. Un «ask» es pinta a la targeta de
+        // permís que arriba just després (askApprove).
+        REVIEWS[d.id] = d;
+        const rkey = d.decision === 'allow' ? 'review.allowed' : d.decision === 'deny' ? 'review.denied' : 'review.asked';
+        activityItem('revisor', d.name || '', gregalT(rkey) + ': ' + (d.reason || ''), d.decision === 'allow' ? 'ok' : d.decision === 'deny' ? 'bad' : 'warn');
+        if (d.decision === 'allow') {
+          const row = add('t', '', '<div class="review-row review-allow"><b>' + escapeHTML(gregalT(rkey)) + ':</b> ' + escapeHTML(d.reason || '') + '</div>');
+          if (row) intoWorkGroup(row);
+        }
       } else if(ev==='blocked'){
         // La crida bloquejada (denegada, caducada o prohibida) tanca la seva
         // targeta: sense això quedava a la cua de pendents, cada resultat
         // posterior tancava la targeta d'abans i l'última girava per sempre.
         activityItem('eina',gregalT('act.bloquejada'),d.reason,'bad');
-        toolCardDone(pendents.shift(), d.name || 'eina', 'EINA BLOQUEJADA: '+(d.reason||''));
-        notify('Gregal · eina bloquejada', d.reason || d.name);
+        toolCardDone(pendents.shift(), d.name || gregalT('actk.tool'), gregalT('ui.toolBlocked')+(d.reason||''));
+        notify(gregalT('notify.toolBlocked'), d.reason || d.name);
       } else if(ev==='approve_request'){
         turnPhase='waiting'; turnNote=d.name || ''; pintaTurnBar(); updateInspector(state);
         // La targeta de permís tanca la bombolla viva: si no, els tokens
         // del pas següent i la resposta final hi anaven a parar, per sobre
         // de les targetes, i a baix només quedava «Ha trigat…».
-        turnNote=''; paintLiveNow(); live=null; acc='';
-        activityItem('permís',d.name,'Esperant confirmació','warn');
-        notify('Gregal · confirma l’eina', d.name);
+        turnNote=''; paintLiveNow(); if(live){ live.classList.add('working'); intoWorkGroup(live); } live=null; acc='';
+        if (turnGroup) turnGroup.open = true;
+        activityItem('permís',d.name,gregalT('act.awaitingApproval'),'warn');
+        setActivity('approval', gregalT('act.now.approval'));
+        notify(gregalT('notify.confirmTool'), d.name);
         approvals++;
         const autoAllowed = d.auto_approve_allowed === true;
         const offerAuto = autoAllowed && !offeredAuto && permMode === 'manual' && (text.length >= 300 || approvals >= 3);
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
         api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
+        setActivity(ok ? 'tool:approved' : 'model', ok ? gregalT('act.now.tools').replace('{tools}', d.name || '') : gregalT('act.now.model'));
         turnPhase='working'; turnNote=''; pintaTurnBar(); updateInspector(state);
       } else if(ev==='question_request'){
         turnPhase='waiting'; turnNote=(d.query || '').slice(0, 90); pintaTurnBar(); updateInspector(state);
-        paintLiveNow(); live=null; acc=''; // com al permís
-        activityItem('pregunta',(d.query || '').slice(0, 60),'Esperant la teva tria','warn');
-        notify('Gregal · l’agent et pregunta', d.query || '');
+        paintLiveNow(); if(live){ live.classList.add('working'); intoWorkGroup(live); } live=null; acc=''; // com al permís
+        if (turnGroup) turnGroup.open = true;
+        activityItem('pregunta',(d.query || '').slice(0, 60),gregalT('act.awaitingChoice'),'warn');
+        setActivity('answer', gregalT('act.now.answer'));
+        notify(gregalT('notify.question'), d.query || '');
         const ans=await askQuestion(d);
         api('/api/question',{method:'POST',body:JSON.stringify({key:d.key,answer:ans}),headers:{'X-Gregal-Session':runSession}});
+        setActivity('model', gregalT('act.now.model'));
         turnPhase='working'; turnNote=''; pintaTurnBar(); updateInspector(state);
       } else if(ev==='steps_exhausted'){
         // Una feina tallada a mig fer no pot semblar una feina acabada.
@@ -2950,10 +3262,19 @@ async function doAgent(task) {
         const unknown = checks.some(c => !c || !Number.isFinite(c.code));
         const detail = checks.length
           ? checks.map(c => (!c || !Number.isFinite(c.code) ? '? ' : c.code === 0 ? '✓ ' : '✗ ') + String(c && c.command || '') + (!c || !Number.isFinite(c.code) ? ' (' + gregalT('run.summary.unknown') + ')' : '')).join(' · ')
-          : 'sense comprovacions declarades';
+          : gregalT('act.noChecks');
         const review = d.review ? ' · ' + d.review : '';
         activityItem('autònom', 'Checkpoint #' + (d.number || '?'), detail + review, failed ? 'bad' : unknown ? 'warn' : 'ok');
-        sys('Autònom · checkpoint #' + (d.number || '?') + (d.review ? ' · ' + d.review : ''));
+        // Un checkpoint sense comprovacions ni revisió no diu res a la
+        // persona: abans sortia «checkpoint #1» sol i semblava que s'aturava.
+        const rv = String(d.review || '').trim();
+        if (checks.length || rv) {
+          const verdictTxt = /^(APROVAT|APPROVED)/i.test(rv) ? gregalT('ckpt.approved') : /REVISAR|REVISION/i.test(rv) ? gregalT('ckpt.revise') : rv;
+          const bits = checks.map(c => (!c || !Number.isFinite(c.code) ? '? ' : c.code === 0 ? '✓ ' : '✗ ') + String(c && c.command || ''));
+          if (verdictTxt) bits.push(verdictTxt);
+          add('t', '', '<div class="tool checkpoint' + (failed ? ' failed' : '') + '"><b>' + escapeHTML(gregalT('ckpt.title').replace('{n}', d.number || '?')) + '</b> <span class="targs">' + escapeHTML(bits.join(' · ')) + '</span></div>');
+        }
+        setActivity('model', gregalT('act.now.model'));
       } else if(ev==='tool_text'){
         // El model ha escrit la crida al text. No s'executa, i cal dir-ho:
         // sense avís, el torn sembla que s'ha acabat bé i no ha fet res.
@@ -2968,7 +3289,7 @@ async function doAgent(task) {
         sys(gregalT('ui.pregunta.timeout'));
         activityItem('pregunta',gregalT('act.temps'),gregalT('act.temps.sub'),'warn');
       } else if(ev==='verify_start')activityItem('revisor',gregalT('act.revisant.canvis'),'', 'warn');
- else if(ev==='fallback'){activityItem('model',gregalT('act.primari'),'via '+d.model,'warn');add('t','','<div class="tool">↪ Primari caigut · respon '+escapeHTML(d.model)+'</div>');}
+ else if(ev==='fallback'){activityItem('model',gregalT('act.primari'),'via '+d.model,'warn');add('t','','<div class="tool">↪ '+escapeHTML(gregalT('ui.primaryFailed'))+escapeHTML(d.model)+'</div>');}
  else if(ev==='verify')verdict(d);
  else if(ev==='done'){
    turnPhase='completed'; turnCompletedUntil=Date.now()+3500; turnNote=''; pintaTurnBar(); updateInspector(state);
@@ -2977,9 +3298,9 @@ async function doAgent(task) {
    activityItem('agent', gregalT(goalMode ? 'act.objectiu.fet' : 'act.tasca.fet'), stepLine(),'ok');
    if (legacySummaryActive) { legacySummary?.render?.({status:'completed'}); legacySummaryDone = true; legacySummaryOutcome = 'completed'; }
    if(window.gregalPanels){window.gregalPanels.changes.load();window.gregalPanels.sessions.render(); if(window.gregalPanels.office) window.gregalPanels.office.refresh();}
-   notify('Gregal', goalMode ? 'Objectiu proposat' : 'Tasca completada (' + stepLine() + ')');
+   notify('Gregal', goalMode ? gregalT('goal.proposed') : gregalT('act.tasca.fet') + ' (' + stepLine() + ')');
  }
-      else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||'Agent interromput');}
+      else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||gregalT('act.interromput'));}
     };
     runEventHandlers.set(runSession, onRunEvent);
     await stream('/api/agent',{task:text,images:imgs},onRunEvent,(ev,d)=>{
@@ -2996,8 +3317,9 @@ async function doAgent(task) {
     const msg = (e && e.message) ? e.message : String(e);
     sys(gregalT('ui.agent.error') + msg);
     if (legacySummaryActive) { legacySummary?.render?.({status:'interrupted'}); legacySummaryDone = true; }
-    activityItem('error','Connexió fallida',msg,'bad');
-    notify('Gregal · connexió fallida', msg);
+    activityItem('error',gregalT('act.connexio'),msg,'bad');
+    notify(gregalT('notify.connectionFailed'), msg);
+    closeWorkGroup(true);
     if (msg.includes('gated')) showGateBtns();
   }
   finally {
@@ -3007,11 +3329,13 @@ async function doAgent(task) {
     if (ownsVisuals) stopRunVisuals(runSession);
     pendents.splice(0).forEach(stopToolAnimation);
     paintLiveNow();
+    closeWorkGroup(false);
     if (ownsVisuals) {
       runVisualTokens.delete(runSession);
       runningAgentSessions.delete(runSession);
       runEventHandlers.delete(runSession);
       pendingInteractions.delete(runSession);
+      paintPendingTitle();
     }
     if (ownsVisuals && runSession === (window.gregalSession || 'default')) {
       setSending(false); refresh(); input.focus();
@@ -3024,46 +3348,52 @@ async function doPlan() {
   if (sending) return;
   const text = input.value.trim(); if (!text) { sys(gregalT('ui.pla.buit')); return; }
   setSending(true); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text));
-  const box=add('a','', '<span class="spin">Explorant (sense actuar)…</span>');
-  activityItem('pla','Exploració iniciada',text.slice(0,70),'warn'); refresh();
+  const box=add('a','', '<span class="spin">' + escapeHTML(gregalT('ui.exploring')) + '</span>');
+  // Explorar pot trigar un minut: el temps diu que no està penjat.
+  const planT0 = Date.now(), planTick = setInterval(() => { const sp = box.querySelector('.spin'); if (sp) sp.textContent = gregalT('ui.exploring') + ' · ' + durada(Date.now() - planT0); else clearInterval(planTick); }, 1000);
+  activityItem('pla',gregalT('ui.planStarted'),text.slice(0,70),'warn'); refresh();
   try {
     const r = await api('/api/plan',{method:'POST',body:JSON.stringify({task:text})});
-    if (!r.ok) { box.querySelector('.body').textContent='Pla · error: '+await r.text(); activityItem('pla','Exploració fallida',String(r.status),'bad'); return; }
+    if (!r.ok) { box.querySelector('.body').textContent=gregalT('ui.planError')+await r.text(); activityItem('pla',gregalT('ui.planFailed'),String(r.status),'bad'); return; }
     const d = await r.json();
     box.remove();
-    planCard(d.plan);
-    activityItem('pla','Pla proposat','','ok');
-  } catch(e) { box.querySelector('.body').textContent='Pla · error: '+e; activityItem('error',gregalT('act.connexio'),String(e),'bad'); }
-  finally { setSending(false); refresh(); input.focus(); }
+    planCard(d.plan, d.critic);
+    activityItem('pla',gregalT('ui.planProposed'),'','ok');
+  } catch(e) { box.querySelector('.body').textContent=gregalT('ui.planError')+e; activityItem('error',gregalT('act.connexio'),String(e),'bad'); }
+  finally { clearInterval(planTick); setSending(false); refresh(); input.focus(); }
 }
-function planCard(plan) {
-  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◇ PLA</b>'
-    + '<span>exploració read-only · res modificat</span></div>'
+function planCard(plan, critic) {
+  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◇ ' + escapeHTML(gregalT('ui.planLabel')) + '</b>'
+    + '<span>' + escapeHTML(gregalT('ui.planReadOnly')) + '</span></div>'
     + '<div class="body">'+md(plan)+'</div>'
-    + '<div class="goal-row"><button class="primary" data-run>▶ Executa el pla</button>'
-    + '<button data-del>Descarta</button></div></div>');
+    + (window.gregalCaps ? window.gregalCaps.criticHTML(critic) : '')
+    + '<div class="goal-row"><button class="primary" data-run>▶ ' + escapeHTML(gregalT('ui.runPlan')) + '</button>'
+    + '<button data-del>' + escapeHTML(gregalT('ui.discardPlan')) + '</button></div></div>');
   box.querySelector('[data-run]').onclick = async () => {
-    box.querySelector('.goal-row').textContent = 'Pla en execució…';
-    await setMode('code');
-    await doAgent('Executa aquest pla pas a pas:\n' + plan);
+    box.querySelector('.goal-row').textContent = gregalT('ui.planRunning');
+    // En autònom el pla es revisa una vegada amb la crítica abans d'executar.
+    const auto = state.mode === 'autonomous';
+    if (!auto) await setMode('code');
+    const concerns = window.gregalCaps ? window.gregalCaps.criticPrompt(critic, auto) : '';
+    await doAgent(gregalT('ui.runPlanPrompt') + '\n' + plan + concerns);
   };
   box.querySelector('[data-del]').onclick = () => {
-    box.querySelector('.goal-row').textContent = 'Pla descartat';
+    box.querySelector('.goal-row').textContent = gregalT('ui.planDiscarded');
   };
   return box;
 }
 // --- objectius ---
 function goalCard(g) {
-  activityItem('objectiu', g.title || 'Objectiu', g.id + ' · ' + (g.status||''), 'ok');
-  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◆ OBJECTIU</b>'
+  activityItem('objectiu', g.title || gregalT('mode.objectiu'), g.id + ' · ' + (g.status||''), 'ok');
+  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◆ ' + escapeHTML(gregalT('ui.goalLabel')) + '</b>'
     + '<span>'+escapeHTML(g.id||'')+' · '+escapeHTML(g.project||'')+' · '+escapeHTML(g.status||'')+'</span></div>'
     + '<div class="body">'+md(g.body||'')+'</div>'
-    + '<div class="goal-row"><button class="primary" data-run>▶ Executa l’objectiu</button>'
-    + '<button data-del>Esborra</button></div></div>');
+    + '<div class="goal-row"><button class="primary" data-run>▶ ' + escapeHTML(gregalT('ui.runGoal')) + '</button>'
+    + '<button data-del>' + escapeHTML(gregalT('ui.deleteGoal')) + '</button></div></div>');
   box.querySelector('[data-run]').onclick = () => runGoal(g.id);
   box.querySelector('[data-del]').onclick = async () => {
     await api('/api/goal',{method:'POST',body:JSON.stringify({action:'delete',id:g.id})});
-    box.querySelector('.goal-row').textContent = 'Objectiu esborrat';
+    box.querySelector('.goal-row').textContent = gregalT('ui.goalDeleted');
     loadGoals();
   };
   loadGoals();
@@ -3083,10 +3413,10 @@ function selectGoalDetail(g) {
   $('goalDetailTitle').textContent = g.title || g.id;
   const badge = $('goalDetailBadge');
   if (badge) {
-    badge.textContent = g.status === 'fet' ? 'Completat' : 'Pendent';
+    badge.textContent = gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending');
     badge.className = 'goal-badge' + (g.status === 'fet' ? ' fet' : '');
   }
-  $('goalDetailBody').textContent = g.body || g.title || 'Sense descripció detallada.';
+  $('goalDetailBody').textContent = g.body || g.title || gregalT('goal.noDetails');
   const runBtn = $('goalDetailRun');
   if (runBtn) runBtn.onclick = () => runGoal(g.id);
   const delBtn = $('goalDetailDel');
@@ -3102,7 +3432,7 @@ async function runGoal(id) {
   const d = await r.json();
   setView('agent');
   await setMode('code');
-  activityItem('objectiu','Executant', d.title || d.id, 'warn');
+  activityItem('objectiu',gregalT('goal.running'), d.title || d.id, 'warn');
   await doAgent(d.task);
 }
 async function loadGoals() {
@@ -3126,26 +3456,26 @@ async function loadGoals() {
     const head = document.createElement('div');
     head.className = 'goal-item-header';
     head.innerHTML =
-      '<span class="goal-status" title="' + (g.status === 'fet' ? 'Completat' : 'Pendent') + '">' +
+      '<span class="goal-status" title="' + escapeHTML(gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending')) + '">' +
         (g.status === 'fet' ? '✓' : '○') +
       '</span>' +
       '<span class="goal-title">' + escapeHTML(g.title) + '</span>' +
       '<span class="goal-expand-icon">›</span>' +
-      '<button class="icon-btn goal-quick-run" title="Executa l’objectiu">▶</button>' +
-      '<button class="icon-btn goal-quick-del" title="Esborra l’objectiu">×</button>';
+      '<button class="icon-btn goal-quick-run" title="' + escapeHTML(gregalT('goal.runTitle')) + '" aria-label="' + escapeHTML(gregalT('goal.runTitle')) + '">▶</button>' +
+      '<button class="icon-btn goal-quick-del" title="' + escapeHTML(gregalT('goal.deleteTitle')) + '" aria-label="' + escapeHTML(gregalT('goal.deleteTitle')) + '">×</button>';
 
     const detail = document.createElement('div');
     detail.className = 'goal-detail';
     detail.hidden = true;
     detail.innerHTML =
       '<div class="goal-meta-row">' +
-        '<span class="goal-badge ' + (g.status === 'fet' ? 'fet' : '') + '">' + (g.status === 'fet' ? 'Completat' : 'Pendent') + '</span>' +
+        '<span class="goal-badge ' + (g.status === 'fet' ? 'fet' : '') + '">' + escapeHTML(gregalT(g.status === 'fet' ? 'goal.completed' : 'goal.pending')) + '</span>' +
         (g.project ? '<span class="goal-project">📁 ' + escapeHTML(g.project) + '</span>' : '') +
       '</div>' +
       '<div class="goal-body-text">' + escapeHTML(g.body || g.title) + '</div>' +
       '<div class="goal-actions">' +
-        '<button class="primary goal-run-btn"><span>▶</span> Executa l’objectiu</button>' +
-        '<button class="ghost goal-del-btn"><span>×</span> Esborra</button>' +
+        '<button class="primary goal-run-btn"><span>▶</span> ' + escapeHTML(gregalT('goal.run')) + '</button>' +
+        '<button class="ghost goal-del-btn"><span>×</span> ' + escapeHTML(gregalT('goal.delete')) + '</button>' +
       '</div>';
 
     head.onclick = (e) => {
@@ -3218,17 +3548,27 @@ function approveArgsHTML(args) {
   });
   return parts.join('\n');
 }
+// REVIEWS guarda la decisió del revisor per id de crida: la targeta de permís
+// hi mostra el motiu quan el revisor ha preferit preguntar.
+const REVIEWS = {};
+function reviewRowHTML(d) {
+  const rv = d && (REVIEWS[d.call_id] || REVIEWS[d.id]);
+  if (!rv || rv.decision !== 'ask') return '';
+  return '<div class="review-row review-ask"><b>' + escapeHTML(gregalT('review.asked')) + ':</b> ' + escapeHTML(rv.reason || '') + '</div>';
+}
 function askApprove(d, offerAuto = false) {
   // Mode Auto: aprova sol (deny del servidor continua bloquejant).
   if (d.auto_approve_allowed === true && typeof permMode !== 'undefined' && permMode === 'auto') {
-    activityItem('permís', d.name, 'Auto-permès', 'ok');
+    activityItem('permís', d.name, gregalT('approve.auto'), 'ok');
     return Promise.resolve(true);
   }
   return new Promise(res=>{
-    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="Confirma l’eina '+escapeHTML(d.name)+'"><b>Confirma · '+escapeHTML(d.name)+'</b><div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>Aquesta tasca sembla llarga. Vols que continuï sense demanar més permisos en aquesta sessió? Les eines denegades seguiran bloquejades.</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">Permet</button>'+(offerAuto?'<button class="primary auto-approve">Continua sense més permisos</button>':'')+'<button class="danger">Denega</button></div></div>');
+    const L = k => escapeHTML(gregalT(k));
+    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">'+L('approve.allow')+'</button>'+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger">'+L('approve.deny')+'</button></div></div>');
+    intoWorkGroup(box); if (turnGroup) turnGroup.open = true;
     const yes=box.querySelector('.row .primary'), no=box.querySelector('.row .danger'); let settled=false;
-    const tick = compteEnrere(box.querySelector('.count'), d, 'denegat automàtic', () => finish(false));
-    const finish=ok=>{if(settled)return;settled=true;clearInterval(tick);box.querySelector('.row').textContent=ok?'Permès':'Denegat';box.querySelector('.count')?.remove();activityItem('permís',d.name,ok?'Permès':'Denegat',ok?'ok':'bad');res(ok);};
+    const tick = compteEnrere(box.querySelector('.count'), d, gregalT('approve.timeout'), () => finish(false));
+    const finish=ok=>{if(settled)return;settled=true;clearInterval(tick);const verdict=gregalT(ok?'approve.allowed':'approve.denied');box.querySelector('.row').textContent=verdict;box.querySelector('.count')?.remove();box.querySelector('.approve')?.classList.add('resolved',ok?'is-allowed':'is-denied');activityItem('permís',d.name,verdict,ok?'ok':'bad');res(ok);};
     yes.onclick=()=>finish(true); no.onclick=()=>finish(false);
     const auto=box.querySelector('.auto-approve');
     if(auto) auto.onclick=async()=>{ auto.disabled=true; const changed=await setPermMode('auto', true); if(changed) finish(true); else auto.disabled=false; };
@@ -3244,7 +3584,7 @@ function compteEnrere(el, d, sufix, onFi) {
   let left = (d && d.timeout_s !== undefined && d.timeout_s !== '') ? parseInt(d.timeout_s, 10) : 120;
   if (!Number.isFinite(left)) left = 120;
   const fmt = s => s > 90 ? Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s' : s + 's';
-  if (left <= 0) { if (el) el.textContent = 'sense límit: espera la teva resposta'; return null; }
+  if (left <= 0) { if (el) el.textContent = gregalT('approve.noLimit'); return null; }
   if (el) el.textContent = fmt(left) + ' → ' + sufix;
   const tick = setInterval(() => {
     left--;
@@ -3258,20 +3598,21 @@ function compteEnrere(el, d, sufix, onFi) {
 function askQuestion(d) {
   return new Promise(res=>{
     const opts = (d.options || []).slice(0, 4);
-    let html = '<div class="qcard" role="dialog" aria-modal="true" aria-label="Pregunta de l’agent"><b class="q">? ' + escapeHTML(d.query) + '</b>';
+    let html = '<div class="qcard" role="dialog" aria-modal="true" aria-label="' + escapeHTML(gregalT('question.dialog')) + '"><b class="q">? ' + escapeHTML(d.query) + '</b>';
     opts.forEach((o, i) => {
       html += '<button class="qopt" data-i="' + i + '"><span class="n">' + (i + 1) + '</span><span><b>' + escapeHTML(o.label) + '</b>' +
         (o.description ? ' <small>' + escapeHTML(o.description) + '</small>' : '') + '</span></button>';
     });
-    html += '<div class="qfree"><input placeholder="o escriu text lliure…" aria-label="Resposta lliure"><button>Envia</button></div><div class="qcount faint"></div></div>';
+    html += '<div class="qfree"><input placeholder="' + escapeHTML(gregalT('question.freePlaceholder')) + '" aria-label="' + escapeHTML(gregalT('question.freeLabel')) + '"><button>' + escapeHTML(gregalT('question.send')) + '</button></div><div class="qcount faint"></div></div>';
     const box = add('a', '', html);
+    intoWorkGroup(box); if (turnGroup) turnGroup.open = true;
     let settled = false;
-    const tick = compteEnrere(box.querySelector('.qcount'), d, 'l’agent continua sol', () => finish(''));
+    const tick = compteEnrere(box.querySelector('.qcount'), d, gregalT('question.agentContinues'), () => finish(''));
     const finish = ans => {
       if (settled) return; settled = true; clearInterval(tick);
-      box.querySelector('.qcard').innerHTML = '<b>Resposta:</b> ' + escapeHTML(ans || '(sense resposta)');
-      activityItem('pregunta', (d.query || '').slice(0, 60), ans || 'sense resposta', ans ? 'ok' : 'warn');
-      notify('Gregal · has respost', ans || 'sense resposta');
+      box.querySelector('.qcard').innerHTML = '<b>' + escapeHTML(gregalT('question.answer')) + '</b> ' + escapeHTML(ans || gregalT('question.noAnswer'));
+      activityItem('pregunta', (d.query || '').slice(0, 60), ans || gregalT('ui.answerEmpty'), ans ? 'ok' : 'warn');
+      notify(gregalT('notify.answered'), ans || gregalT('ui.answerEmpty'));
       res(ans);
     };
     box.querySelectorAll('.qopt').forEach(b => b.onclick = () => finish(opts[+b.dataset.i].label));
@@ -3311,10 +3652,10 @@ function pintaTodo() {
   box.innerHTML =
     '<button class="todo-cap" id="todoCap" aria-expanded="' + todoObert + '">' +
     '<span class="todo-fletxa">' + (todoObert ? '▾' : '▸') + '</span>' +
-    '<b>Tasca</b><span class="todo-comptador">' + fetes + '/' + todoActual.length + '</span>' +
+    '<b>' + escapeHTML(gregalT('todo.title')) + '</b><span class="todo-comptador">' + fetes + '/' + todoActual.length + '</span>' +
     // Plegat ensenya el pas en curs: és l'única línia que vols veure
     // mentre treballa, i evita haver-lo d'obrir cada dos per tres.
-    (todoObert ? '' : '<span class="todo-ara">' + escapeHTML(encurs ? encurs.text : (fetes === todoActual.length ? 'tot fet' : '')) + '</span>') +
+    (todoObert ? '' : '<span class="todo-ara">' + escapeHTML(encurs ? encurs.text : (fetes === todoActual.length ? gregalT('todo.allDone') : '')) + '</span>') +
     '</button>' +
     (todoObert ? '<div class="todo-llista">' + todoActual.map(t => {
       const cls = t.marca === '✓' ? 'done' : (t.marca === '◌' ? 'working' : '');
@@ -3331,7 +3672,7 @@ function pintaTodo() {
 // i s'hi pot tornar; el desplegable és per al que passa ara.
 function todoAlTranscript() {
   if (!todoActual.length) return;
-  const html = '<div class="todo"><b>✓ Tasca</b>' + todoActual.map(t => {
+  const html = '<div class="todo"><b>✓ ' + escapeHTML(gregalT('todo.title')) + '</b>' + todoActual.map(t => {
     const cls = t.marca === '✓' ? 'done' : (t.marca === '◌' ? 'working' : '');
     return '<div class="trow ' + cls + '"><span class="tmark ' + cls + '">' + t.marca + '</span><span>' + escapeHTML(t.text) + '</span></div>';
   }).join('') + '</div>';
@@ -3341,10 +3682,10 @@ function todoAlTranscript() {
 }
 function verdict(d) {
   const ok=/APROVAT/.test(d.verdict);
-  add('a','', '<div class="verdict '+(ok?'ok':'no')+'">'+(ok?'Aprovat pel revisor':'Cal revisar')+(d.detail?'<div class="body">'+md(d.detail.slice(0,1800))+'</div>':'')+'</div>');
-  activityItem('revisor',ok?'Canvis aprovats':'Cal revisar',d.detail||'',ok?'ok':'bad');
+  add('a','', '<div class="verdict '+(ok?'ok':'no')+'">'+escapeHTML(gregalT(ok?'verdict.approved':'verdict.review'))+(d.detail?'<div class="body">'+md(d.detail.slice(0,1800))+'</div>':'')+'</div>');
+  activityItem('revisor',gregalT(ok?'review.approved':'verdict.review'),d.detail||'',ok?'ok':'bad');
 }
-$('send').onclick=()=>{ if (sending) { const txt=input.value.trim(); if(txt){histApunta(txt);encua(txt);input.value=''; input.dispatchEvent(new Event('input'));input.style.height='auto';$('send').innerHTML=sendLabel();}else stopTurn(); return; } (agentMode||goalMode)?doAgent():doChat(); };
+$('send').onclick=()=>{ if (sending) { const txt=input.value.trim(); if(txt){histApunta(txt);encua(txt);input.value=''; input.dispatchEvent(new Event('input'));input.style.height='auto';$('send').innerHTML=sendLabel();}else stopTurn(); return; } sendByMode(); };
 // Historial d'entrada del composer.
 //
 // El TUI el té des de sempre; la finestra no en tenia gens, i per repetir
@@ -3419,7 +3760,7 @@ input.addEventListener('keydown',e=>{
     const txt = input.value.trim();
     histApunta(txt);
     if (sending && txt) { encua(txt); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; return; }
-    (agentMode||goalMode)?doAgent():doChat();
+    sendByMode();
   }
   if(e.key==='Escape'&&sending){e.preventDefault();stopTurn();}
 });
@@ -3487,7 +3828,7 @@ async function toggleProv(force) {
     const rb=document.createElement('button');rb.textContent=en?'Delete':'Esborra';rb.className='danger';rb.onclick=async()=>{if(confirm((en?'Delete ':'Esborrar ')+p.name+'?')){sys(await pact('rm',{name:p.name}));toggleProv(true);}};
     row.append(tb,kb,rb);connections.appendChild(row);
   });
-  const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" placeholder="nom" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" type="password" autocomplete="new-password" placeholder="clau o ${VAR}" size="18">';
+  const f=document.createElement('div');f.className='frm';f.innerHTML='<input id="pn" size="10"><input id="pu" placeholder="http://host:port/v1" size="26" style="flex:1"><input id="pk" type="password" autocomplete="new-password" size="18">';
   const ab=document.createElement('button');ab.textContent=en?'Add provider':'Afegeix provider';ab.className='primary';ab.onclick=async()=>{sys(await pact('add',{name:$('pn').value.trim(),url:$('pu').value.trim(),key:$('pk').value.trim()}));toggleProv(true);refresh();};f.appendChild(ab);box.appendChild(f);
   f.hidden=true;
   $('pn').placeholder=en?'Connection name':'Nom de la connexió';$('pn').setAttribute('aria-label',$('pn').placeholder);
@@ -3523,17 +3864,16 @@ async function toggleProv(force) {
   advanced.addEventListener('toggle',async()=>{if(!advanced.open||modelsRequested)return;modelsRequested=true;mdata=await api('/api/models').then(r=>r.json()).catch(()=>({models:{},errors:{}}));if(box.contains(advanced))fillModels(mi.value);});
   setTimeout(()=>{if(mi.parentNode&&!ms.parentNode){mi.before(ms,mnote);}rs.onchange();},0);
   const sb=document.createElement('button');sb.textContent=en?'Save model':'Desa el model';sb.onclick=async()=>{sys(await pact('rol',{role:rs.value,provider:ps.value,model:mi.value.trim()}));toggleProv(true);refresh();};
-  const lb=document.createElement('button');lb.textContent='Desa capacitat';lb.title='Declara si aquest rol/model pot fer tasques llargues en mode autònom';lb.onclick=async()=>{sys(await pact('long_run',{role:rs.value,long_run:llCheck.checked}));toggleProv(true);refresh();};
+  const lb=document.createElement('button');lb.title=en?'Declare whether this role/model can run long tasks in autonomous mode':'Declara si aquest rol/model pot fer tasques llargues en mode autònom';lb.onclick=async()=>{sys(await pact('long_run',{role:rs.value,long_run:llCheck.checked}));toggleProv(true);refresh();};
   lb.textContent=en?'Save capability':'Desa la capacitat';
   r2.append(field(en?'Role':'Rol',rs),field(en?'Provider':'Proveïdor',ps),mi,llLabel,sb,lb);group(en?'Models by role':'Models per rol',r2);
   const limits=document.createElement('div');limits.className='frm';
-  const minutes=document.createElement('input');minutes.type='number';minutes.min='1';minutes.max='10080';minutes.value=String(data.autonomous?.max_minutes||600);minutes.title='Durada màxima en minuts';minutes.setAttribute('aria-label','Durada màxima autònoma en minuts');
-  const toolSteps=document.createElement('input');toolSteps.type='number';toolSteps.min='1';toolSteps.max='10000';toolSteps.value=String(data.autonomous?.max_tool_steps||2000);toolSteps.title='Eines màximes per tasca';toolSteps.setAttribute('aria-label','Eines màximes per tasca autònoma');
-  const limitsNote=document.createElement('span');limitsNote.className='faint';limitsNote.textContent='minuts · eines';
-  const limitsSave=document.createElement('button');limitsSave.textContent='Desa límits autònoms';limitsSave.onclick=async()=>{sys(await pact('autonomous_limits',{max_minutes:Number(minutes.value),max_tool_steps:Number(toolSteps.value)}));toggleProv(true);};
+  const minutes=document.createElement('input');minutes.type='number';minutes.min='1';minutes.max='10080';minutes.value=String(data.autonomous?.max_minutes||600);minutes.title=en?'Maximum duration in minutes':'Durada màxima en minuts';minutes.setAttribute('aria-label',en?'Maximum autonomous duration in minutes':'Durada màxima autònoma en minuts');
+  const toolSteps=document.createElement('input');toolSteps.type='number';toolSteps.min='1';toolSteps.max='10000';toolSteps.value=String(data.autonomous?.max_tool_steps||2000);toolSteps.title=en?'Maximum tool calls per task':'Eines màximes per tasca';toolSteps.setAttribute('aria-label',en?'Maximum tool calls per autonomous task':'Eines màximes per tasca autònoma');
+  const limitsSave=document.createElement('button');limitsSave.onclick=async()=>{sys(await pact('autonomous_limits',{max_minutes:Number(minutes.value),max_tool_steps:Number(toolSteps.value)}));toggleProv(true);};
   limitsSave.textContent=en?'Save limits':'Desa els límits';
   limits.append(field(en?'Maximum minutes':'Minuts màxims',minutes),field(en?'Maximum tool calls':'Crides a eines màximes',toolSteps),limitsSave);group(en?'Autonomous limits':'Límits autònoms',limits);
-  const rv=document.createElement('div');rv.className='frm';const vl=document.createElement('span');vl.textContent='Revisor';const vs=document.createElement('select');
+  const rv=document.createElement('div');rv.className='frm';const vs=document.createElement('select');
   ['off','manual','auto','both','strict'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;if(v===state.verify)o.selected=true;vs.appendChild(o);});
   const vb=document.createElement('button');vb.textContent=en?'Save':'Desa';vb.onclick=async()=>{const r=await api('/api/verify',{method:'POST',body:JSON.stringify({mode:vs.value})});sys(r.ok?(en?'Reviewer: ':'Revisor: ')+vs.value:'Error: '+await r.text());refresh();};rv.append(field(en?'Review policy':'Política de revisió',vs),vb);group(en?'Review':'Revisió',rv);
   box.style.display='block';
@@ -3550,6 +3890,7 @@ if (window.gregalDesktop && window.gregalDesktop.frameless) {
 window.gregal = {
   configureProviders: () => toggleProv(true),
   api, refresh, marcaOffline, sys, activityItem, setView, setMode, nextMode, md, add, onSessionSwitch,
+  toolCard, toolCardDone, beginWorkGroup, endWorkGroup, intoWorkGroup,
   isBusy: () => sending || !!state.agent_busy,
   newChat: novaConversa,
   // Quina vista es mira ara: perquè els panells cars (diff, arbre) només
@@ -3568,5 +3909,14 @@ refresh();
   boot();
 </script>
 <script type="module" src="/app/plots.js"></script>
+<script type="module" src="/app/gitflow.js"></script>
+<div id="retroMount"></div>
+<script type="module" src="/app/retro.js"></script>
+<script src="/app/code-blocks.js"></script>
+<script src="/app/home.js"></script>
+<script src="/app/folder.js"></script>
+<script src="/app/extras.js"></script>
+<script type="module" src="/app/fun.js"></script>
+<script src="/app/caps.js"></script>
 </body>
 </html>

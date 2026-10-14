@@ -96,7 +96,23 @@ var smallTalkReplies = map[smallKind]map[string]string{
 
 // SmallTalk diu si el text és pura cortesia i, si ho és, amb què respondre.
 // Normalitza (minúscules, espais, signes): "  Hola! " també és un hola.
+// Respon en la llengua de la frase i suposa que la conversa comença: els
+// fronts han de fer servir SmallTalkFor.
 func SmallTalk(text string) (string, bool) {
+	return SmallTalkFor(text, "", false)
+}
+
+// SmallTalkFor és SmallTalk sabent la llengua de la sessió (cfg.Lang(); buit
+// = la de la frase) i si ja hi ha conversa.
+//
+// A mitja conversa, un «ok» / «d'acord» / «perfect» no és cortesia: és la
+// resposta a una pregunta de l'agent («Ho aplico?»). Contestar-hi amb
+// «Perfecte, digues-m'hi» sense passar pel model es menjava la
+// confirmació i no es feia res. Els assentiments només fan via ràpida si
+// encara no hi ha conversa; salutacions, gràcies i comiats sí, sempre.
+// La resposta va en la llengua de la sessió: «ok» no és català, i un usuari
+// amb lang: en rebia «Perfecte, digues-m'hi».
+func SmallTalkFor(text, lang string, enConversa bool) (string, bool) {
 	norm := strings.ToLower(strings.TrimSpace(text))
 	norm = strings.Trim(norm, "?!.,;¡¿·…\"'()")
 	norm = strings.Join(strings.Fields(norm), " ")
@@ -107,5 +123,12 @@ func SmallTalk(text string) (string, bool) {
 	if !ok {
 		return "", false
 	}
-	return smallTalkReplies[hit.kind][hit.lang], true
+	if enConversa && hit.kind == kindAck {
+		return "", false
+	}
+	l := hit.lang
+	if _, ok := smallTalkReplies[hit.kind][lang]; ok {
+		l = lang
+	}
+	return smallTalkReplies[hit.kind][l], true
 }

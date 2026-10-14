@@ -4,6 +4,8 @@
 // debò vols adjuntar a un agent de codi: imatges, un fitxer, i sobretot una
 // carpeta com a context — que és com li dius «treballa amb aquest tros del
 // projecte» sense haver d'enumerar-li els fitxers un per un.
+import { t as T } from './i18n.js';
+
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
 const esc = s => String(s == null ? '' : s)
@@ -29,11 +31,14 @@ export const attach = {
     this.box = document.createElement('div');
     this.box.id = 'attachMenu';
     this.box.hidden = true;
+    // data-i18n: el menú es crea un cop i aplica() el retradueix.
+    const opcio = (a, icona, clau) => '<button data-a="' + a + '"><b>' + icona + ' <span data-i18n="' + clau + '">' + esc(T(clau)) + '</span></b>' +
+      '<span data-i18n="' + clau + 'Hint">' + esc(T(clau + 'Hint')) + '</span></button>';
     this.box.innerHTML =
-      '<button data-a="img"><b>🖼️ Imatges…</b><span>Fins a 3, per mirar-les o analitzar-les</span></button>' +
-      '<button data-a="folder"><b>📁 Carpeta del projecte…</b><span>Li passa l’arbre de fitxers d’una subcarpeta</span></button>' +
-      '<button data-a="extfolder"><b>🌐 Carpeta externa com a context…</b><span>Tria qualsevol carpeta del disc per donar context</span></button>' +
-      '<button data-a="workspace"><b>⚡ Canvia de projecte…</b><span>Obre una altra carpeta de treball</span></button>';
+      opcio('img', '🖼️', 'attach.images') +
+      opcio('folder', '📁', 'attach.projectFolder') +
+      opcio('extfolder', '🌐', 'attach.externalFolder') +
+      opcio('workspace', '⚡', 'attach.changeProject');
     document.body.appendChild(this.box);
     this.box.querySelectorAll('button').forEach(b => {
       b.onclick = () => {
@@ -65,7 +70,7 @@ export const attach = {
   // llegeix el que li calgui sense que li ho hàgim d'encolomar tot.
   async triaCarpeta() {
     let arbre;
-    try { arbre = await j('/api/tree?depth=3'); } catch (e) { G().sys('No s’ha pogut llegir l’arbre: ' + e.message); return; }
+    try { arbre = await j('/api/tree?depth=3'); } catch (e) { G().sys(T('attach.readTreeFailed') + e.message); return; }
     const dirs = [];
     const walk = (ns, prof) => ns.forEach(n => {
       if (!n.dir) return;
@@ -73,8 +78,8 @@ export const attach = {
       walk(n.children || [], prof + 1);
     });
     walk(arbre.entries || [], 0);
-    if (!dirs.length) { G().sys('Aquest projecte no té subcarpetes.'); return; }
-    this.llista('Quina carpeta?', dirs.map(d => ({
+    if (!dirs.length) { G().sys(T('attach.noSubfolders')); return; }
+    this.llista(T('attach.chooseFolder'), dirs.map(d => ({
       val: d.path, txt: '　'.repeat(d.prof) + d.path.split('/').pop(), sub: d.path,
     })), p => this.posaCarpeta(p));
   },
@@ -86,7 +91,7 @@ export const attach = {
       await this.posaCarpeta(dir);
       return;
     }
-    const ruta = prompt('Ruta absoluta o amb ~ de la carpeta que vols passar com a context:');
+    const ruta = prompt(T('attach.folderPrompt'));
     if (ruta && ruta.trim()) {
       await this.posaCarpeta(ruta.trim());
     }
@@ -101,16 +106,16 @@ export const attach = {
       if (n.dir) walk(n.children || [], sagnat + '  ');
     });
     walk(t.entries || [], '  ');
-    if (!linies.length) { G().sys('La carpeta ' + path + ' és buida.'); return; }
+    if (!linies.length) { G().sys(T('attach.folderEmptyPrefix') + path + T('attach.folderEmptySuffix')); return; }
     // Un topall honest: si és enorme, es diu que s'ha retallat.
     let cos = linies.slice(0, 200).join('\n');
-    if (linies.length > 200) cos += '\n  … i ' + (linies.length - 200) + ' més';
+    if (linies.length > 200) cos += '\n  ' + T('attach.truncatedMore').replace('{n}', linies.length - 200);
     const input = $('in');
     const prefix = input.value.trim() ? input.value.replace(/\s*$/, '\n\n') : '';
-    input.value = prefix + 'Context — carpeta `' + path + '` (' + linies.length + ' entrades):\n```\n' + cos + '\n```\n';
+    input.value = prefix + T('attach.contextPrefix') + path + T('attach.contextMiddle') + linies.length + T('attach.entries') + '):\n```\n' + cos + '\n```\n';
     input.dispatchEvent(new Event('input'));
     input.focus();
-    G().activityItem('context', path, linies.length + ' entrades', 'ok');
+    G().activityItem('context', path, linies.length + T('attach.entries'), 'ok');
   },
 
   // triaProjecte canvia el directori de treball de la sessió. A l'escriptori
@@ -125,15 +130,15 @@ export const attach = {
     let w;
     try { w = await j('/api/workspaces'); } catch (e) { G().sys(e.message); return; }
     const llista = (w.workspaces || []).map(x => ({ val: x.path, txt: x.name || x.path, sub: x.path }));
-    if (!llista.length) { G().sys('Cap projecte recent. A l’escriptori pots obrir-ne un amb el diàleg natiu.'); return; }
-    this.llista('Quin projecte?', llista, p => this.canviaProjecte(p));
+    if (!llista.length) { G().sys(T('attach.projectRecentNone')); return; }
+    this.llista(T('attach.chooseProject'), llista, p => this.canviaProjecte(p));
   },
 
   async canviaProjecte(path) {
     try {
       const r = await G().api('/api/workspaces', { method: 'POST', body: JSON.stringify({ path }) });
-      if (!r.ok) { G().sys('No s’ha pogut canviar: ' + await r.text()); return; }
-      G().sys('Projecte → ' + path);
+      if (!r.ok) { G().sys(T('attach.changeFailed') + await r.text()); return; }
+      G().sys(T('attach.projectChanged') + path);
       G().refresh();
       const P = window.gregalPanels;
       if (P) { P.files.load && P.files.load(); P.changes.load && P.changes.load(); }
@@ -146,7 +151,7 @@ export const attach = {
     if (!box) {
       box = document.createElement('div');
       box.id = 'attachPick';
-      box.innerHTML = '<div class="ap-head"></div><input class="ap-q" placeholder="Filtra…"><div class="ap-list"></div>';
+      box.innerHTML = '<div class="ap-head"></div><input class="ap-q" data-i18n-ph="attach.filter" placeholder="' + esc(T('attach.filter')) + '"><div class="ap-list"></div>';
       document.body.appendChild(box);
       box.addEventListener('click', e => e.stopPropagation());
       document.addEventListener('click', () => { box.hidden = true; });
@@ -160,7 +165,7 @@ export const attach = {
       const vis = f ? items.filter(i => i.sub.toLowerCase().includes(f)) : items;
       llista.innerHTML = vis.length
         ? vis.map(i => '<button data-v="' + esc(i.val) + '" title="' + esc(i.sub) + '">' + esc(i.txt) + '</button>').join('')
-        : '<div class="ap-buit">Res que hi casi.</div>';
+        : '<div class="ap-buit">' + esc(T('attach.noMatch')) + '</div>';
       llista.querySelectorAll('button').forEach(b => {
         b.onclick = () => { box.hidden = true; tria(b.dataset.v); };
       });

@@ -17,13 +17,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -82,24 +83,29 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     var editing by remember { mutableStateOf<JobItem?>(null) }
     var viewing by remember { mutableStateOf<RunItem?>(null) }
+    val loading by vm.loading.collectAsState()
+    val carregant = "jobs" in loading || "runs" in loading
     LaunchedEffect(Unit) { vm.loadJobs(); vm.loadRuns() }
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Default.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.jobs.title"), color = Ink) },
+            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.jobs.title"), color = Ink) },
+                actions = { RefreshAction(lang, carregant) { vm.loadJobs(); vm.loadRuns() } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
+            snackbarHost = { NoticeHost(vm) },
             floatingActionButton = {
                 FloatingActionButton(onClick = {
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     editing = JobItem()
-                }, containerColor = Sea, contentColor = Color(0xFF0C2229)) {
-                    Icon(Icons.Default.Add, tr(lang, "app.jobs.add"))
+                }, containerColor = Sea, contentColor = OnSea) {
+                    Icon(Icons.Rounded.Add, tr(lang, "app.jobs.add"))
                 }
             },
         ) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad).padding(12.dp)) {
-                if (jobs.isEmpty() && runs.isEmpty()) item {
-                    EmptyBoard("📰", tr(lang, "app.jobs.empty"), tr(lang, "app.jobs.emptyHelp"))
+            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadJobs(); vm.loadRuns() }.padding(12.dp)) {
+                if (jobs.isEmpty() && runs.isEmpty() && carregant) item { LoadingBoard(lang) }
+                else if (jobs.isEmpty() && runs.isEmpty()) item {
+                    EmptyBoard(Icons.Rounded.Schedule, tr(lang, "app.jobs.empty"), tr(lang, "app.jobs.emptyHelp"))
                 }
                 if (jobs.isNotEmpty()) item {
                     Text(tr(lang, "app.jobs.scheduled"), color = Muted, fontSize = 13.sp,
@@ -138,7 +144,7 @@ fun JobCard(j: JobItem, vm: GregalViewModel, onEdit: (JobItem) -> Unit, lang: St
             Surface(shape = RoundedCornerShape(12.dp), color = CodeDark,
                 modifier = Modifier.size(38.dp)) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.DateRange, null, tint = Sea,
+                    Icon(Icons.Rounded.DateRange, null, tint = Sea,
                         modifier = Modifier.size(20.dp))
                 }
             }
@@ -156,24 +162,24 @@ fun JobCard(j: JobItem, vm: GregalViewModel, onEdit: (JobItem) -> Unit, lang: St
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         vm.runJobNow(j.id)
                     }) {
-                        Icon(Icons.Default.PlayArrow, tr(lang, "app.jobs.runNow"))
+                        Icon(Icons.Rounded.PlayArrow, tr(lang, "app.jobs.runNow"))
                         Spacer(Modifier.width(4.dp))
                         Text(tr(lang, "app.jobs.runNow"))
                     }
                     var menu by remember { mutableStateOf(false) }
                     Box {
                         IconButton(onClick = { menu = true }) {
-                            Icon(Icons.Default.MoreVert, tr(lang, "app.jobs.more"), tint = Muted)
+                            Icon(Icons.Rounded.MoreVert, tr(lang, "app.jobs.more"), tint = Muted)
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             DropdownMenuItem(
                                 text = { Text(tr(lang, "app.jobs.edit"), color = Ink) },
-                                leadingIcon = { Icon(Icons.Default.Edit, null, tint = Muted) },
+                                leadingIcon = { Icon(Icons.Rounded.Edit, null, tint = Muted) },
                                 onClick = { menu = false; onEdit(j) },
                             )
                             DropdownMenuItem(
                                 text = { Text(tr(lang, "btn.delete"), color = Ink) },
-                                leadingIcon = { Icon(Icons.Default.Delete, null, tint = Muted) },
+                                leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = Muted) },
                                 onClick = { menu = false; vm.deleteJob(j.id) },
                             )
                         }
@@ -215,7 +221,7 @@ fun RunCard(r: RunItem, onOpen: () -> Unit, lang: String = "ca") {
             Surface(shape = RoundedCornerShape(8.dp), color = CodeDark) {
                 Text(
                     tr(lang, if (r.status == "ok") "app.jobs.done" else "app.jobs.error"),
-                    color = if (r.status == "ok") Sea else Color(0xFFE08A8A),
+                    color = if (r.status == "ok") Green else Red,
                     fontSize = 10.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                 )

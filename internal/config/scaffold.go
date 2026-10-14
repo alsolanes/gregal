@@ -28,17 +28,17 @@ const AgentsTemplate = `# AGENTS.md — gregal
 
 Coding agent (Go + Bubble Tea). Read this before making changes.
 
-## Comandes
+## Commands
 
-- 'go build -o gregal .' — compila
-- 'go test ./...' — tests (han de passar abans de commit)
-- './gregal --check-config' — valida el config
+- 'go build -o gregal .' — build
+- 'go test ./...' — tests (must pass before committing)
+- './gregal --check-config' — validate the config
 
-## Convencions
+## Conventions
 
 - Reply in the user's chosen language (English by default; Catalan supported).
-- Eines amb confirmació: escriure demana 's/n'; la denylist dura bloqueja sola.
-- '/verify' crida el model reviewer amb el diff inclòs; sense veredicte
-  explícit no hi ha aprovació.
-- No commitegis 'config.yaml' (porta claus) ni binaris.
+- Tools that write ask for confirmation; the hard denylist blocks on its own.
+- '/verify' calls the reviewer model with the diff included; without an
+  explicit verdict there is no approval.
+- Do not commit 'config.yaml' (it holds keys) or binaries.
 `

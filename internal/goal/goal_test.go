@@ -50,6 +50,18 @@ func TestParseTrobaElBloc(t *testing.T) {
 	}
 }
 
+// El prompt ara demana les claus en anglès (task: ...); els objectius
+// desats abans fan servir tasca: i han de continuar sortint amb títol.
+func TestParseClauAnglesa(t *testing.T) {
+	g, ok := Parse("```goal\ncontext: x\ntask: Add scrolling to the TUI\ncriteria:\n- wheel works\n```", "/tmp/p")
+	if !ok || g.Title != "Add scrolling to the TUI" {
+		t.Fatalf("title=%q ok=%v", g.Title, ok)
+	}
+	if !strings.Contains(Prompt(), "task: <one sentence>") {
+		t.Fatalf("el prompt ha de demanar la clau task:\n%s", Prompt())
+	}
+}
+
 func TestParseSenseBloc(t *testing.T) {
 	if _, ok := Parse("Segur que vols això? Quantes carpetes vols cobrir?", "/tmp/p"); ok {
 		t.Fatal("no esperava cap objectiu")
@@ -159,7 +171,7 @@ func TestPromptDemanaPreguntes(t *testing.T) {
 	if !strings.Contains(p, "```goal") {
 		t.Fatalf("el prompt ha d'explicar el format del bloc:\n%s", p)
 	}
-	if !strings.Contains(strings.ToLower(p), "pregunt") {
+	if !strings.Contains(strings.ToLower(p), "ask") {
 		t.Fatalf("el prompt ha de dir que faci preguntes:\n%s", p)
 	}
 	// Les preguntes han de sortir seleccionables (eina question), no en
@@ -170,7 +182,7 @@ func TestPromptDemanaPreguntes(t *testing.T) {
 	}
 	// I no pot tancar el torn amb text que no porta enlloc: o pregunta
 	// (question) o tanca amb el bloc.
-	if !strings.Contains(p, "mai amb text pla") {
+	if !strings.Contains(p, "never with plain text") {
 		t.Fatalf("el prompt ha de prohibir el final en text pla:\n%s", p)
 	}
 }

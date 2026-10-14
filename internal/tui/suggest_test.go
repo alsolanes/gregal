@@ -6,7 +6,7 @@ import (
 
 func TestFilterCommands(t *testing.T) {
 	got := filterCommands("/a")
-	if len(got) != 2 || got[0].name != "agent" || got[1].name != "attach" {
+	if len(got) != 4 || got[0].name != "agent" || got[1].name != "agents" || got[2].name != "autoreview" || got[3].name != "attach" {
 		t.Fatalf("got=%v", got)
 	}
 	if got := filterCommands("/"); len(got) != 5 {

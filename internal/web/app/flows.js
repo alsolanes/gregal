@@ -10,6 +10,8 @@
 // tenim: un pas d'agent. El graf és per a l'ordre i el rastre, no per a
 // programar-hi.
 
+import { t as T } from './i18n.js';
+
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
 const esc = s => String(s == null ? '' : s)
@@ -25,10 +27,11 @@ const AMPLE = 210, ALT = 74;          // mida d'un pas al llenç
 const EINES = ['bash', 'read', 'write', 'edit', 'grep', 'glob', 'ls', 'web_search', 'web_fetch'];
 
 // Cada mena té color propi: es distingeixen d'un cop d'ull sense llegir.
+// El nom és una clau: es tradueix en pintar, no en carregar el mòdul.
 const MENES = {
-  agent: { nom: 'Agent', color: 'var(--accent)', fons: 'var(--accent-soft)', icona: '◆' },
-  tool:  { nom: 'Eina',  color: 'var(--onada)',  fons: 'var(--surface-hi)',  icona: '▸' },
-  note:  { nom: 'Nota',  color: 'var(--lila)',   fons: 'var(--lila-fons)',   icona: '·' },
+  agent: { nom: 'graphs.agent', color: 'var(--accent)', fons: 'var(--accent-soft)', icona: '◆' },
+  tool:  { nom: 'graphs.tool',  color: 'var(--onada)',  fons: 'var(--surface-hi)',  icona: '▸' },
+  note:  { nom: 'graphs.note',  color: 'var(--lila)',   fons: 'var(--lila-fons)',   icona: '·' },
 };
 
 // puntCorba torna el punt de la corba cúbica en t (0..1).
@@ -73,6 +76,15 @@ export const flows = {
     window.addEventListener('beforeunload', e => {
       if (this.brut) { e.preventDefault(); e.returnValue = ''; }
     });
+    // Tot el text del llenç i de l'inspector es construeix aquí: en canviar
+    // d'idioma es torna a pintar (aplica() ja ha posat «Executa» al botó).
+    document.addEventListener('gregal:idioma', () => {
+      if (!this.flow) return;
+      this.pinta();
+      $('flowExecuta').textContent = T(this.corrent ? 'graphs.stop' : 'graphs.run');
+      if (this.brut) $('flowEstat').textContent = T('graphs.unsaved');
+      this.llista();
+    });
     this.nou();
   },
 
@@ -89,14 +101,14 @@ export const flows = {
       const d = await j('/api/flows');
       const ll = d.flows || [];
       if (!ll.length) {
-        cont.innerHTML = '<p class="page-copy" style="padding:8px 2px">Encara no n\'hi ha cap. Els que facis es desaran a <code>' + esc(d.dir) + '</code> i viatjaran amb el repositori.</p>';
+        cont.innerHTML = '<p class="page-copy" style="padding:8px 2px">' + esc(T('graphs.noSaved')) + '<code>' + esc(d.dir) + '</code>' + esc(T('graphs.noSavedSuffix')) + '</p>';
         return;
       }
       cont.innerHTML = ll.map(f => `
         <button class="flow-item${f.name === this.nomDesat ? ' on' : ''}" data-obre="${esc(f.name)}">
           <b>${esc(f.name)}</b>
           <span>${esc(f.desc || '')}</span>
-          <em>${f.steps} pas${f.steps === 1 ? '' : 'sos'}</em>
+          <em>${f.steps} ${esc(T(f.steps === 1 ? 'graphs.steps.one' : 'graphs.steps.many'))}</em>
         </button>`).join('');
       cont.querySelectorAll('[data-obre]').forEach(b => b.onclick = () => this.obre(b.dataset.obre));
     } catch (e) {
@@ -130,12 +142,12 @@ export const flows = {
   },
 
   confirmaPerdre() {
-    if (this.corrent && !confirm('Hi ha un graf executant-se. L\'aturo?')) return false;
+    if (this.corrent && !confirm(T('graphs.stopConfirm'))) return false;
     if (this.corrent) this.corrent.abort();
-    return !this.brut || confirm('Hi ha canvis sense desar al graf. Els vols perdre?');
+    return !this.brut || confirm(T('graphs.discardConfirm'));
   },
 
-  marca() { this.brut = true; $('flowEstat').textContent = 'sense desar'; },
+  marca() { this.brut = true; $('flowEstat').textContent = T('graphs.unsaved'); },
 
   diu(text, mal) {
     const el = $('flowEstat');
@@ -157,7 +169,7 @@ export const flows = {
     // d'apilar al mateix punt.
     const ult = this.flow.nodes[this.flow.nodes.length - 1];
     const node = {
-      id: this.idLliure(kind === 'tool' ? 'eina' : kind === 'note' ? 'nota' : 'pas'),
+      id: this.idLliure(T(kind === 'tool' ? 'graphs.id.tool' : kind === 'note' ? 'graphs.id.note' : 'graphs.id.step')),
       kind, title: '', x: ult ? ult.x : 60, y: ult ? ult.y + ALT + 56 : 40,
     };
     if (kind === 'tool') { node.tool = 'bash'; node.args = '{"command":""}'; }
@@ -194,7 +206,7 @@ export const flows = {
     $('flowDesc').value = this.flow.desc || '';
     $('flowEsborra').disabled = !this.nomDesat;
     $('flowExecuta').disabled = !this.nomDesat || this.brut;
-    $('flowExecuta').title = this.brut ? 'Desa els canvis abans d\'executar' : 'Executa el graf';
+    $('flowExecuta').title = T(this.brut ? 'graphs.runUnsavedTitle' : 'graphs.runTitle');
     this.pintaLlenc();
     this.pintaInspector();
   },
@@ -221,15 +233,15 @@ export const flows = {
       el.dataset.id = n.id;
       el.innerHTML = `
         <div class="fn-cap">
-          <span class="fn-mena">${m.icona} ${m.nom}</span>
-          ${n.id === arrencada ? '<span class="fn-tag">inici</span>' : ''}
-          ${est === 'run' ? '<span class="fn-tag viu">executant…</span>' : ''}
-          ${est === 'ok' ? '<span class="fn-tag ok">fet</span>' : ''}
-          ${est === 'err' ? '<span class="fn-tag mal">error</span>' : ''}
+          <span class="fn-mena">${m.icona} ${esc(T(m.nom))}</span>
+          ${n.id === arrencada ? '<span class="fn-tag">' + esc(T('graphs.start')) + '</span>' : ''}
+          ${est === 'run' ? '<span class="fn-tag viu">' + esc(T('graphs.running')) + '</span>' : ''}
+          ${est === 'ok' ? '<span class="fn-tag ok">' + esc(T('graphs.done')) + '</span>' : ''}
+          ${est === 'err' ? '<span class="fn-tag mal">' + esc(T('graphs.error')) + '</span>' : ''}
         </div>
         <div class="fn-nom">${esc(n.title || n.id)}</div>
         <div class="fn-sub">${esc(this.resum(n))}</div>
-        <button class="fn-port" title="Arrossega d'aquí a un altre pas per connectar-los" aria-label="Connecta"></button>`;
+        <button class="fn-port" title="${esc(T('graphs.connectHint'))}" aria-label="${esc(T('graphs.connect'))}"></button>`;
       c.appendChild(el);
       this.arrossega(el, n);
     }
@@ -239,7 +251,7 @@ export const flows = {
   resum(n) {
     if (n.kind === 'tool') return (n.tool || '?') + ' ' + (n.args || '');
     if (n.kind === 'note') return n.text || '';
-    return n.task || 'sense instruccions';
+    return n.task || T('graphs.noInstructions');
   },
 
   // arrencada és el pas sense cap fletxa d'entrada: el mateix criteri que
@@ -283,7 +295,7 @@ export const flows = {
       const germans = this.flow.edges.filter(x => x.from === e.from);
       const ordre = germans.indexOf(e);
       const [mx, my] = puntCorba(x1, y1, x1, y1 + d, x2, y2 - d, x2, y2, 0.26 + 0.2 * ordre);
-      const txt = e.when ? e.when : 'sempre';
+      const txt = e.when ? e.when : T('graphs.always');
       html += `<g class="flow-cond${sel ? ' sel' : ''}" data-edge="${i}" transform="translate(${mx},${my})">
         <rect x="${-(txt.length * 3.6 + 10)}" y="-10" width="${txt.length * 7.2 + 20}" height="20" rx="10"></rect>
         <text text-anchor="middle" dy="4">${esc(txt)}</text>
@@ -381,49 +393,43 @@ export const flows = {
     const area = (et, id, valor, pista, files) =>
       `<label class="fi-camp"><span>${et}</span><textarea id="${id}" rows="${files || 5}" placeholder="${esc(pista || '')}">${esc(valor || '')}</textarea></label>`;
 
-    let cos = camp('Identificador', 'fiId', n.id, 'lletres, xifres, - i _') +
-      camp('Títol', 'fiTitol', n.title, 'el que es llegeix al pas');
+    let cos = camp(esc(T('graphs.idLabel')), 'fiId', n.id, T('graphs.idPlaceholder')) +
+      camp(esc(T('graphs.titleLabel')), 'fiTitol', n.title, T('graphs.titlePlaceholder'));
     if (n.kind === 'agent') {
-      cos += area('Què ha de fer', 'fiTask', n.task, 'Fes servir {{id_del_pas}} per agafar el que ha sortit abans') +
-        `<label class="fi-camp"><span>Mode</span><select id="fiMode">
-          <option value=""${!n.mode ? ' selected' : ''}>el de la sessió</option>
-          <option value="code"${n.mode === 'code' ? ' selected' : ''}>codi (pot tocar fitxers)</option>
-          <option value="chat"${n.mode === 'chat' ? ' selected' : ''}>xat (només respon)</option>
+      cos += area(esc(T('graphs.taskLabel')), 'fiTask', n.task, T('graphs.taskPlaceholder')) +
+        `<label class="fi-camp"><span>${esc(T('graphs.modeLabel'))}</span><select id="fiMode">
+          <option value=""${!n.mode ? ' selected' : ''}>${esc(T('graphs.sessionMode'))}</option>
+          <option value="code"${n.mode === 'code' ? ' selected' : ''}>${esc(T('graphs.codeMode'))}</option>
+          <option value="chat"${n.mode === 'chat' ? ' selected' : ''}>${esc(T('graphs.chatMode'))}</option>
         </select></label>` +
-        camp('Passos màxims', 'fiMax', n.max_steps || '', '0 = el de la configuració');
+        camp(esc(T('graphs.maxStepsLabel')), 'fiMax', n.max_steps || '', T('graphs.maxStepsPlaceholder'));
     } else if (n.kind === 'tool') {
-      cos += `<label class="fi-camp"><span>Eina</span><input id="fiTool" value="${esc(n.tool || '')}" list="flowEines"></label>` +
-        area('Arguments (JSON)', 'fiArgs', n.args, '{"command":"go test ./..."}', 4);
+      cos += `<label class="fi-camp"><span>${esc(T('graphs.toolLabel'))}</span><input id="fiTool" value="${esc(n.tool || '')}" list="flowEines"></label>` +
+        area(esc(T('graphs.argsLabel')), 'fiArgs', n.args, '{"command":"go test ./..."}', 4);
     } else {
-      cos += area('Text', 'fiText', n.text, 'una nota que es passa tal qual al pas següent', 4);
+      cos += area(esc(T('graphs.noteTextLabel')), 'fiText', n.text, T('graphs.noteTextPlaceholder'), 4);
     }
-    cos += camp('Desa el resultat a', 'fiOut', n.out, 'per defecte, l\'identificador');
+    cos += camp(esc(T('graphs.outputLabel')), 'fiOut', n.out, T('graphs.outputPlaceholder'));
 
-    box.innerHTML = `<div class="fi-cap">${MENES[n.kind].icona} ${MENES[n.kind].nom}
-      <button class="fi-esborra" id="fiEsborra">Esborra el pas</button><button class="fi-tanca" id="fiTanca" aria-label="Tanca l'inspector">×</button></div>${cos}${this.sortidaDe(n.id)}`;
+    const mena = MENES[n.kind] || MENES.note;
+    box.innerHTML = `<div class="fi-cap">${mena.icona} ${esc(T(mena.nom))}
+      <button class="fi-esborra" id="fiEsborra">${esc(T('graphs.deleteStep'))}</button><button class="fi-tanca" id="fiTanca" aria-label="${esc(T('graphs.closeInspector'))}">×</button></div>${cos}${this.sortidaDe(n.id)}`;
     this.lligaInspector();
   },
 
   inspFletxa() {
     const e = this.flow.edges[this.selEdge];
-    return `<div class="fi-cap">Fletxa: ${esc(e.from)} → ${esc(e.to)}
-        <button class="fi-esborra" id="fiEsborraFletxa">Treu la fletxa</button><button class="fi-tanca" id="fiTancaF" aria-label="Tanca l'inspector">×</button></div>
-      <label class="fi-camp"><span>Quan s'agafa</span>
-        <input id="fiWhen" value="${esc(e.when || '')}" placeholder="buit = sempre" list="flowConds"></label>
-      <p class="page-copy" style="margin-top:4px">
-        <code>clau</code> si té valor · <code>!clau</code> si no en té ·
-        <code>clau == "x"</code> · <code>clau != "x"</code> · <code>clau conté "x"</code>.<br>
-        Les claus són els identificadors dels passos, més <code>last</code> i
-        <code>&lt;id&gt;.error</code>.<br><br>
-        Si un pas <b>falla</b>, només se segueixen les fletxes que tinguin una
-        condició escrita. Si no n'hi ha cap, el graf s'atura i diu on.
-      </p>`;
+    return `<div class="fi-cap">${esc(T('graphs.edgeLabel'))} ${esc(e.from)} → ${esc(e.to)}
+        <button class="fi-esborra" id="fiEsborraFletxa">${esc(T('graphs.deleteEdge'))}</button><button class="fi-tanca" id="fiTancaF" aria-label="${esc(T('graphs.closeInspector'))}">×</button></div>
+      <label class="fi-camp"><span>${esc(T('graphs.whenLabel'))}</span>
+        <input id="fiWhen" value="${esc(e.when || '')}" placeholder="${esc(T('graphs.whenPlaceholder'))}" list="flowConds"></label>
+      <p class="page-copy" style="margin-top:4px">${T('graphs.edgeHelp')}</p>`;
   },
 
   sortidaDe(id) {
     const out = this.execucio && this.execucio.sortides[id];
     if (!out) return '';
-    return `<div class="fi-sortida"><span>Última sortida</span><pre>${esc(out)}</pre></div>`;
+    return `<div class="fi-sortida"><span>${esc(T('graphs.lastOutput'))}</span><pre>${esc(out)}</pre></div>`;
   },
 
   lligaInspector() {
@@ -444,11 +450,11 @@ export const flows = {
     if (idIn) idIn.onchange = () => {
       const nou = idIn.value.trim();
       if (!nou || nou === n.id) { idIn.value = n.id; return; }
-      if (this.flow.nodes.some(x => x.id === nou)) { this.diu('Ja hi ha un pas amb l\'id «' + nou + '»', true); idIn.value = n.id; return; }
+      if (this.flow.nodes.some(x => x.id === nou)) { this.diu(T('graphs.duplicateId').replace('{id}', nou), true); idIn.value = n.id; return; }
       this.flow.edges.forEach(e => { if (e.from === n.id) e.from = nou; if (e.to === n.id) e.to = nou; });
       const vell = n.id;
       n.id = nou; this.sel = nou;
-      this.diu('L\'id ha canviat: repassa els {{' + vell + '}} de les instruccions');
+      this.diu(T('graphs.idChanged').replace('{old}', vell));
       this.marca(); this.pinta();
     };
     set('fiTitol', v => { n.title = v; this.pintaLlenc(); });
@@ -469,7 +475,7 @@ export const flows = {
   // ------------------------------------------------------------- disc
 
   async desa() {
-    if (!(this.flow.name || '').trim()) { this.diu('Posa-li un nom al graf', true); $('flowNom').focus(); return; }
+    if (!(this.flow.name || '').trim()) { this.diu(T('graphs.nameRequired'), true); $('flowNom').focus(); return; }
     try {
       const d = await j('/api/flows/save', {
         method: 'POST',
@@ -477,7 +483,7 @@ export const flows = {
       });
       this.nomDesat = this.flow.name;
       this.brut = false;
-      this.diu('desat a ' + d.path.split(/[\\/]/).slice(-2).join('/'));
+      this.diu(T('graphs.savedTo') + d.path.split(/[\\/]/).slice(-2).join('/'));
       this.pinta();
       await this.llista();
     } catch (e) {
@@ -492,7 +498,7 @@ export const flows = {
   },
 
   async esborra() {
-    if (!confirm('Esborro el graf «' + this.nomDesat + '»?')) return;
+    if (!confirm(T('graphs.deleteConfirm').replace('{name}', this.nomDesat))) return;
     try {
       await j('/api/flows/delete', { method: 'POST', body: JSON.stringify({ name: this.nomDesat }) });
       this.nou(); this.llista();
@@ -505,12 +511,12 @@ export const flows = {
     // Mentre corre, el mateix botó atura: un botó per a un estat.
     if (this.corrent) { this.corrent.abort(); return; }
     const auto = $('flowAuto').checked;
-    if (auto && !confirm('El graf s\'executarà sense demanar permís a cada eina (les denegades continuen bloquejades). Endavant?')) return;
+    if (auto && !confirm(T('graphs.autoConfirm'))) return;
 
     const ctrl = new AbortController();
     this.corrent = ctrl;
     this.execucio = { estats: {}, sortides: {} };
-    $('flowExecuta').textContent = 'Atura';
+    $('flowExecuta').textContent = T('graphs.stop');
     $('flowExecuta').disabled = false;
     $('flowRegistre').hidden = false;
     $('flowRegistre').innerHTML = '';
@@ -531,17 +537,17 @@ export const flows = {
     try {
       await this.sse(url, ctrl.signal, (ev, d) => {
         if (ev === 'start') {
-          anota('Executant <b>' + esc(d.flow) + '</b> · ' + d.steps + ' passos' + (d.auto ? ' · sense demanar permís' : ''));
+          anota(esc(T('graphs.runStarted')) + '<b>' + esc(d.flow) + '</b> · ' + d.steps + esc(T('graphs.stepCount')) + (d.auto ? ' · ' + esc(T('graphs.autoMode')) : ''));
         } else if (ev === 'step') {
           this.execucio.estats[d.node] = d.error ? 'err' : 'ok';
           this.execucio.sortides[d.node] = d.error ? d.error : d.output;
           anota('<b>' + esc(d.title || d.node) + '</b> · ' + (d.ms / 1000).toFixed(1) + 's' +
-            (d.error ? ' · <span class="mal">' + esc(d.error) + '</span>' : ' · fet'), d.error ? 'mal' : 'ok');
+            (d.error ? ' · <span class="mal">' + esc(d.error) + '</span>' : ' · ' + esc(T('graphs.stepDone'))), d.error ? 'mal' : 'ok');
           this.pintaLlenc(); this.pintaInspector();
         } else if (ev === 'done') {
-          if (d.stopped) anota('Aturat: ' + esc(d.stopped), 'mal');
-          else if (d.error) anota('Error: ' + esc(d.error), 'mal');
-          else anota('Fet: ' + d.steps + ' passos.', 'ok');
+          if (d.stopped) anota(esc(T('graphs.stopped')) + esc(d.stopped), 'mal');
+          else if (d.error) anota(esc(T('graphs.errorPrefix')) + esc(d.error), 'mal');
+          else anota(esc(T('graphs.finished')) + d.steps + esc(T('graphs.stepCount')) + '.', 'ok');
           if (d.answer) anota('<pre>' + esc(d.answer.slice(0, 4000)) + '</pre>');
           // El servidor ho deixa a la conversa perquè el model ho tingui al
           // torn següent; posa-ho també a la pantalla, que si no la conversa
@@ -550,7 +556,7 @@ export const flows = {
         }
       });
     } catch (e) {
-      if (e.name !== 'AbortError') anota('Error: ' + esc(e.message), 'mal');
+      if (e.name !== 'AbortError') anota(esc(T('graphs.errorPrefix')) + esc(e.message), 'mal');
     } finally {
       // Els que quedaven marcats «executant» no s'han arribat a fer: si es
       // queden encesos, el llenç menteix sobre què ha passat.
@@ -558,7 +564,7 @@ export const flows = {
         if (this.execucio.estats[k] === 'run') delete this.execucio.estats[k];
       }
       this.corrent = null;
-      $('flowExecuta').textContent = 'Executa';
+      $('flowExecuta').textContent = T('graphs.run');
       this.pinta();
     }
   },
@@ -566,9 +572,9 @@ export const flows = {
   aLaConversa(d) {
     const linies = this.flow.nodes
       .filter(n => this.execucio.estats[n.id])
-      .map(n => '- ' + (n.title || n.id) + ' — ' + (this.execucio.estats[n.id] === 'err' ? 'error' : 'fet'));
-    let txt = '**Graf «' + this.flow.name + '»**\n\n' + linies.join('\n');
-    if (d.stopped) txt += '\n\nAturat: ' + d.stopped;
+      .map(n => '- ' + (n.title || n.id) + ' — ' + T(this.execucio.estats[n.id] === 'err' ? 'graphs.summaryError' : 'graphs.summaryDone'));
+    let txt = '**' + T('graphs.summaryTitle').replace('{name}', this.flow.name) + '**\n\n' + linies.join('\n');
+    if (d.stopped) txt += '\n\n' + T('graphs.stopped') + d.stopped;
     if (d.answer) txt += '\n\n' + d.answer;
     try { G().add('a', '', G().md(txt)); } catch (e) {}
   },

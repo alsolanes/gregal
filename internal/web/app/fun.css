@@ -1,0 +1,202 @@
+/* Extres: repetició, Wrapped, penell, veu i imatges. Només variables del
+   tema; tot moviment s'apaga amb prefers-reduced-motion. */
+
+/* --- botons d'obrir la repetició --- */
+.replay-open { display:inline-flex; align-items:center; gap:4px; min-height:24px; padding:0 9px; border:1px solid var(--line-hi);
+  border-radius:99px; background:var(--surface); color:var(--muted); font:inherit; font-size:var(--t1); cursor:pointer; vertical-align:middle; }
+.replay-open:hover { color:var(--ink); border-color:var(--accent); }
+.replay-open:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.replay-open-icon { color:var(--accent); font-size:10px; }
+.replay-group { margin-left:8px; }
+.work-group > summary .replay-group { margin-left:auto; }
+.work-group > summary .replay-group + .retro-open, .work-group > summary .retro-open + .replay-group { margin-left:6px; }
+.replay-live { margin-left:auto; margin-right:8px; min-height:30px; }
+
+/* --- diàleg de repetició --- */
+.replay-dialog, .wrapped-dialog { box-sizing:border-box; width:min(1040px, 96vw); max-height:92vh; padding:0; margin:auto; position:fixed; inset:0;
+  display:flex; flex-direction:column; overflow:hidden; color:var(--text); background:var(--bg);
+  border:1px solid var(--line-hi); border-radius:16px; box-shadow:0 24px 64px var(--ombra); }
+.replay-dialog:not([open]), .wrapped-dialog:not([open]) { display:none; }
+.replay-dialog::backdrop, .wrapped-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, transparent); }
+.replay-head, .wrapped-head { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:1px solid var(--line); background:var(--surface); flex-wrap:wrap; }
+.replay-head h2, .wrapped-head h2 { margin:0; font-size:17px; color:var(--ink); }
+.replay-run { margin-left:auto; max-width:min(420px, 60vw); background:var(--panel); color:var(--text); border:1px solid var(--line-hi); border-radius:8px; padding:4px 8px; font:inherit; }
+.replay-run[hidden] { display:none; }
+.replay-icon, .wrapped-icon { margin-left:4px; width:30px; height:30px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--muted); cursor:pointer; font:inherit; }
+.replay-icon:hover, .wrapped-icon:hover { background:var(--hover); color:var(--ink); }
+.replay-stage { position:relative; padding:12px 16px 0; }
+.replay-scene { display:block; width:100%; aspect-ratio:960 / 400; border-radius:12px; border:1px solid var(--line); background:var(--surface); }
+.replay-scene[hidden] { display:none; }
+.replay-caption { margin:8px 0 0; min-height:1.4em; color:var(--muted); font-size:var(--t2); }
+.replay-empty { padding:48px 16px; text-align:center; color:var(--muted); }
+.replay-empty[hidden] { display:none; }
+.replay-controls { display:flex; align-items:center; gap:10px; padding:10px 16px 14px; flex-wrap:wrap; }
+.replay-play { min-width:44px; }
+.replay-scrub { flex:1; min-width:160px; accent-color:var(--accent); }
+.replay-speeds { display:inline-flex; border:1px solid var(--line-hi); border-radius:8px; overflow:hidden; }
+.replay-speed { border:0; background:transparent; color:var(--muted); padding:4px 10px; font:inherit; cursor:pointer; }
+.replay-speed + .replay-speed { border-left:1px solid var(--line); }
+.replay-speed.on { background:var(--accent-soft); color:var(--ink); font-weight:600; }
+.replay-speed:focus-visible, .replay-clip:focus-visible, .replay-play:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.replay-time { font-family:var(--mono); color:var(--muted); font-size:var(--t1); min-width:9ch; }
+.replay-clip { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--text); padding:4px 10px; font:inherit; cursor:pointer; }
+.replay-clip[hidden] { display:none; }
+.replay-status { flex-basis:100%; color:var(--faint); font-size:var(--t1); min-height:1.2em; }
+
+/* --- Wrapped: vista completa --- */
+.wrapped-titles { display:flex; flex-direction:column; gap:2px; margin-right:auto; }
+.wrapped-sub { color:var(--muted); font-size:var(--t1); }
+.wrapped-range { display:inline-flex; border:1px solid var(--line-hi); border-radius:8px; overflow:hidden; }
+.wrapped-range button { border:0; background:transparent; color:var(--muted); padding:4px 12px; font:inherit; cursor:pointer; }
+.wrapped-range button + button { border-left:1px solid var(--line); }
+.wrapped-range button.on { background:var(--accent-soft); color:var(--ink); font-weight:600; }
+.wrapped-png { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--text); padding:4px 10px; font:inherit; cursor:pointer; }
+.wrapped-body { overflow-y:auto; padding:14px 18px 18px; display:grid; gap:16px; }
+.wrapped-highlights { margin:0; padding-left:18px; display:grid; gap:4px; color:var(--ink); }
+.wrapped-tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(140px, 42%), 1fr)); gap:10px; }
+.wrapped-tile { display:flex; flex-direction:column; gap:4px; padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); min-width:0; }
+.wrapped-num { font-size:22px; font-weight:700; color:var(--ink); overflow-wrap:anywhere; }
+.wrapped-lab { color:var(--muted); font-size:var(--t1); }
+.wrapped-section h3 { margin:0 0 8px; font-size:var(--t3); color:var(--ink); }
+.wrapped-bars { list-style:none; margin:0; padding:0; display:flex; align-items:flex-end; gap:4px; height:120px; }
+.wrapped-bar { flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; height:100%; min-width:0; }
+.wrapped-bar-fill { width:100%; max-width:36px; min-height:2px; border-radius:4px 4px 0 0; background:var(--accent); }
+.wrapped-bar-day { color:var(--faint); font-size:10px; white-space:nowrap; }
+.wrapped-kinds { list-style:none; margin:0; padding:0; display:grid; gap:6px; }
+.wrapped-kind { display:grid; grid-template-columns:110px 1fr 48px; align-items:center; gap:8px; font-size:var(--t2); }
+.wrapped-kind-bar { height:8px; border-radius:99px; background:var(--surface-hi); overflow:hidden; }
+.wrapped-kind-fill { display:block; height:100%; border-radius:99px; background:var(--accent); }
+.wrapped-kind-n { text-align:right; color:var(--muted); font-family:var(--mono); }
+.wrapped-muted, .wrapped-note { color:var(--muted); margin:0; font-size:var(--t2); }
+.wrapped-note { font-size:var(--t1); color:var(--faint); }
+.wrapped-stubborn { margin:0; }
+.wrapped-stubborn code { font-family:var(--mono); background:var(--codi-fons); border:1px solid var(--codi-vora); border-radius:6px; padding:1px 6px; }
+
+/* --- Wrapped: targeta de la pàgina d'inici --- */
+.wrapped-card { margin:12px auto 0; max-width:var(--doc-w, 760px); padding:14px 16px; border:1px solid var(--line-hi); border-radius:14px;
+  background:linear-gradient(135deg, var(--accent-soft), var(--surface)); text-align:left; }
+.wrapped-card[hidden] { display:none; }
+.wrapped-card-title { margin:0 0 6px; font-size:var(--t3); color:var(--ink); }
+.wrapped-card-list { margin:0 0 10px; padding-left:18px; color:var(--text); display:grid; gap:2px; }
+.wrapped-card-acts { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* --- penell (internament «mascota») ---
+   La fletxa gira sobre el pivot (32,20) del viewBox; l'angle és el rumb
+   (0° = N, 45° = NE) i surt de --vane segons l'ànim. Dos tons: --accent per a
+   la fletxa i --muted per al pal; --onada per a les ràfegues. Amb «reduir
+   moviment» queda quiet a l'angle de cada ànim i només canvia el color.
+   Mateixos angles i animacions a desktop/mascot.css. */
+.mascot-wrap { position:relative; }
+.mascot-wrap[hidden] { display:none; }
+#side.compact .mascot-wrap { display:none; }
+.mascot-btn { display:flex; align-items:center; gap:8px; width:100%; padding:2px 6px; border:1px solid transparent; border-radius:10px;
+  background:transparent; color:var(--muted); font:inherit; font-size:var(--t1); cursor:pointer; text-align:left; }
+.mascot-btn:hover { background:var(--hover); color:var(--ink); }
+.mascot-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+.mascot-svg { width:44px; height:44px; flex:none; overflow:visible; }
+.mascot-btn[data-mood="idle"], .mascot-btn[data-mood="done"] { --vane:45deg; }
+.mascot-btn[data-mood="working"] { --vane:70deg; }
+.mascot-btn[data-mood="waiting"] { --vane:135deg; }
+.mascot-btn[data-mood="error"] { --vane:236deg; }
+.v-post { stroke:var(--muted); stroke-width:2.4; stroke-linecap:round; fill:none; }
+.v-cross { stroke:var(--muted); stroke-width:1.5; stroke-linecap:round; fill:none; opacity:.7; }
+.v-base, .v-hub { fill:var(--muted); }
+.v-letter { fill:var(--muted); opacity:.85; font:700 8px/1 system-ui, sans-serif; text-anchor:middle; dominant-baseline:central; }
+.v-arrow { transform-box:view-box; transform-origin:32px 20px; transform:rotate(var(--vane, 45deg)); }
+.v-shaft { stroke:var(--accent); stroke-width:2.4; stroke-linecap:round; fill:none; }
+.v-curl { stroke:var(--accent); stroke-width:1.6; stroke-linecap:round; fill:none; }
+.v-head, .v-tail { fill:var(--accent); }
+.v-ring { fill:none; stroke:var(--green); stroke-width:1.5; opacity:0; transform-box:view-box; transform-origin:32px 4px; }
+.v-spark { stroke:var(--green); stroke-width:1.4; stroke-linecap:round; fill:none; opacity:0; }
+.v-streaks path { stroke:var(--onada); stroke-width:1.5; stroke-linecap:round; fill:none; opacity:0; }
+.mascot-btn[data-mood="working"] .v-streaks path { opacity:.55; }
+.mascot-btn[data-mood="waiting"] .v-head { fill:var(--amber); }
+.mascot-btn[data-mood="done"] .v-ring { opacity:.9; }
+.mascot-btn[data-mood="done"] .v-spark { opacity:1; }
+.mascot-btn[data-mood="error"] .v-arrow { filter:saturate(.6); }
+.mascot-btn[data-mood="error"] .v-head, .mascot-btn[data-mood="error"] .v-tail { fill:var(--red); }
+.mascot-btn[data-mood="error"] .v-shaft, .mascot-btn[data-mood="error"] .v-curl { stroke:var(--red); }
+.mascot-btn[data-mood="error"] .v-stand { opacity:.75; }
+@media (prefers-reduced-motion: no-preference) {
+  .mascot-btn[data-mood="idle"] .v-arrow { animation:v-sway 7s ease-in-out infinite; }
+  .mascot-btn[data-mood="working"] .v-arrow { animation:v-gust 5.2s infinite; }
+  .mascot-btn[data-mood="working"] .v-streaks path { animation:v-drift 1.7s linear infinite; }
+  .mascot-btn[data-mood="working"] .v-streaks path:nth-child(2) { animation-delay:-.6s; animation-duration:2.1s; }
+  .mascot-btn[data-mood="working"] .v-streaks path:nth-child(3) { animation-delay:-1.1s; animation-duration:1.9s; }
+  .mascot-btn[data-mood="waiting"] .v-arrow { animation:v-point 2.6s ease-in-out infinite; }
+  .mascot-btn[data-mood="waiting"] .v-head { animation:v-blink 1.3s ease-in-out infinite; }
+  .mascot-btn[data-mood="done"] .v-arrow { animation:v-settle 1.6s both; }
+  .mascot-btn[data-mood="done"] .v-ring { animation:v-ring 1.2s ease-out 1s both; }
+  .mascot-btn[data-mood="done"] .v-spark { animation:v-spark 1.4s ease-out 1s both; }
+  .mascot-btn[data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out infinite; }
+}
+/* Repòs: al NE, amb un balanceig curt de tant en tant. */
+@keyframes v-sway {
+  0%, 30%, 64%, 100% { transform:rotate(45deg); }
+  40% { transform:rotate(49deg); }
+  52% { transform:rotate(41.5deg); }
+}
+/* Ràfegues: girs irregulars amb una volta sencera; 405° = 45°, i el bucle no salta. */
+@keyframes v-gust {
+  0% { transform:rotate(45deg); animation-timing-function:cubic-bezier(.3, 0, .2, 1); }
+  10% { transform:rotate(94deg); animation-timing-function:ease-in-out; }
+  19% { transform:rotate(62deg); animation-timing-function:cubic-bezier(.55, 0, .15, 1); }
+  40% { transform:rotate(432deg); animation-timing-function:ease-out; }
+  49% { transform:rotate(396deg); animation-timing-function:ease-in-out; }
+  58% { transform:rotate(418deg); animation-timing-function:cubic-bezier(.6, 0, .25, 1); }
+  74% { transform:rotate(322deg); animation-timing-function:ease-in-out; }
+  87% { transform:rotate(376deg); animation-timing-function:ease-in-out; }
+  100% { transform:rotate(405deg); }
+}
+@keyframes v-drift {
+  0% { transform:translateX(-10px); opacity:0; }
+  30%, 60% { opacity:.6; }
+  100% { transform:translateX(14px); opacity:0; }
+}
+/* Espera: apunta cap al camp de text (SE) i la punta parpelleja en ambre. */
+@keyframes v-point { 0%, 100% { transform:rotate(135deg); } 50% { transform:rotate(139deg); } }
+@keyframes v-blink { 0%, 100% { opacity:1; } 50% { opacity:.35; } }
+/* Fet: gira, se'n passa una mica i s'atura just al NE. */
+@keyframes v-settle {
+  0% { transform:rotate(200deg); animation-timing-function:cubic-bezier(.3, 0, .3, 1); }
+  48% { transform:rotate(28deg); animation-timing-function:ease-in-out; }
+  68% { transform:rotate(54deg); animation-timing-function:ease-in-out; }
+  85% { transform:rotate(42deg); animation-timing-function:ease-in-out; }
+  100% { transform:rotate(45deg); }
+}
+@keyframes v-ring { 0% { transform:scale(.4); opacity:.95; } 100% { transform:scale(2.1); opacity:0; } }
+@keyframes v-spark { 0% { opacity:0; } 25% { opacity:1; } 100% { opacity:0; } }
+/* Error: encallat a un angle estrany, amb una tremolor rovellada. */
+@keyframes v-wobble {
+  0%, 100% { transform:rotate(236deg); }
+  12% { transform:rotate(240deg); }
+  22% { transform:rotate(233deg); }
+  30%, 70% { transform:rotate(236deg); }
+}
+.mascot-pop { position:absolute; left:0; bottom:calc(100% + 8px); z-index:45; width:min(300px, 80vw); display:grid; gap:8px; padding:10px;
+  background:var(--panel); border:1px solid var(--line-hi); border-radius:12px; box-shadow:0 12px 32px var(--ombra); }
+.mascot-pop[hidden] { display:none; }
+.mascot-pop-lab { font-weight:600; color:var(--ink); font-size:var(--t2); }
+.mascot-pop textarea { resize:vertical; min-height:44px; background:var(--surface); color:var(--text); border:1px solid var(--line-hi); border-radius:8px; padding:6px 8px; font:inherit; }
+.mascot-pop-acts { display:flex; align-items:center; gap:8px; }
+.mascot-pop-hint { flex:1; color:var(--faint); font-size:var(--t1); }
+.mascot-pop-hide { padding:3px 8px; font-size:var(--t1); color:var(--muted); }
+
+/* --- composer: micròfon i deixar anar imatges --- */
+.mic-btn[hidden] { display:none; }
+.mic-btn.is-listening { color:var(--red); background:var(--red-soft); }
+@media (prefers-reduced-motion: no-preference) {
+  .mic-btn.is-listening { animation:mic-pulse 1.2s ease-in-out infinite; }
+}
+@keyframes mic-pulse { 0%, 100% { box-shadow:0 0 0 0 var(--red-soft); } 50% { box-shadow:0 0 0 5px var(--red-soft); } }
+#composer.drop-over #box { outline:2px dashed var(--accent); outline-offset:3px; border-radius:14px; }
+
+@media (max-width: 640px) {
+  .replay-dialog, .wrapped-dialog { width:100vw; max-height:100vh; border-radius:0; }
+  .wrapped-kind { grid-template-columns:80px 1fr 40px; }
+}
+
+/* --- #retro: selector de to a la capçalera --- */
+.retro-persona { background:var(--panel); color:var(--text); border:1px solid var(--line-hi); border-radius:8px; padding:3px 6px; font:inherit; font-size:var(--t1); }
+.retro-persona[hidden] { display:none; }
+.retro-persona:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }

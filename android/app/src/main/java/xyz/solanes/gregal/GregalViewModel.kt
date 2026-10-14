@@ -3,7 +3,10 @@ package xyz.solanes.gregal
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +20,7 @@ import org.json.JSONObject
 import java.util.UUID
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro }
 
 data class Conn(val host: String, val port: String, val token: String, val user: String = "") {
     fun api() = GregalApi(baseUrlOf(host, port), token)
@@ -56,6 +59,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _question = MutableStateFlow<QuestionReq?>(null)
     val question: StateFlow<QuestionReq?> = _question
+
+    // Càrregues de llistes en curs ("sessions", "goals", "jobs", "runs",
+    // "flows"): les pantalles no ensenyen el tauler buit mentre arriben.
+    private val _loading = MutableStateFlow<Set<String>>(emptySet())
+    val loading: StateFlow<Set<String>> = _loading
+    private inline fun <T> loadingOf(key: String, block: () -> T): T {
+        _loading.value = _loading.value + key
+        try { return block() } finally { _loading.value = _loading.value - key }
+    }
 
     private val _sessions = MutableStateFlow<List<SessionInfo>>(emptyList())
     val sessions: StateFlow<List<SessionInfo>> = _sessions
@@ -249,6 +261,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _idioma = MutableStateFlow("en")
     val idioma: StateFlow<String> = _idioma
 
+    /**
+     * L'arrencada (reconnexió automàtica + comprovar actualitzacions) ja s'ha
+     * fet amb aquest ViewModel: girar la pantalla recrea l'activitat però no
+     * l'ha de repetir (ni treure't al Pairing si la reconnexió fallés).
+     */
+    var startupDone = false
+
     /** Enllaça el magatzem de prefs (tema/idioma/esborrany desats). */
     fun attachPrefs(p: Prefs) {
         prefsStore = p
@@ -278,8 +297,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _github = MutableStateFlow(GithubResult())
     val github: StateFlow<GithubResult> = _github
 
-    // Una sola tasca pendent: si el servidor respon 409, no fem perdre el text.
-    private var queuedTask: String? = null
     private val _queued = MutableStateFlow(false)
     val queued: StateFlow<Boolean> = _queued
 
@@ -288,8 +305,6 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val tokenLock = Any()
     private val tokenBuffer = StringBuilder()
     private var tokenFlush: Job? = null
-    // El torn ha pintat text per tokens: l'event final el substitueix.
-    private var streamedTurn = false
 
     fun go(s: Screen) { _screen.value = s }
 
@@ -341,27 +356,98 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun notify(t: String) { _notice.value = t }
     fun clearNotice() { _notice.value = "" }
 
-    /** Prova la connexió i carrega l'estat. */
-    fun connect(onOk: () -> Unit = {}) {
+    /**
+     * Si en obrir l'app aquesta sessió ja té un torn corrent (l'havies
+     * començat abans o des de l'escriptori), el torna a mostrar en viu.
+     */
+    private fun attachToRunning() {
+        if (!_v2Runs.value || _sending.value) return
         viewModelScope.launch {
+            val api = _conn.value.api()
+            val act = try { withContext(Dispatchers.IO) { api.getActive() } } catch (_: Exception) { null } ?: return@launch
+            if (_sending.value || act.id <= 0) return@launch
+            val lastUser = _msgs.value.lastOrNull { it.role == "user" }?.text?.trim()
+            if (act.task.isNotBlank() && lastUser != act.task.trim()) push(ChatMsg("user", act.task))
+            val started = try { java.time.Instant.parse(act.startedAt).toEpochMilli() } catch (_: Exception) { System.currentTimeMillis() }
+            _sending.value = true
+            _turnStart.value = started
+            turnErrorShown = false
+            answerId = 0L
+            beginTurn()
+            updateWork { it.copy(started = started) }
+            var ok = false
             try {
-                val api = _conn.value.api()
-                // Health és només descoberta: un servidor antic pot no tenir
-                // l'endpoint i això no ha d'impedir connectar per la via v1.
-                val health = withContext(Dispatchers.IO) {
-                    try { api.health() } catch (_: Exception) { null }
+                // Posa't al dia: només els events posteriors a l'últim
+                // run_queued d'aquest id (registres antics reutilitzaven ids).
+                val id = act.id.toLong()
+                val mine = mutableListOf<DurableEvent>()
+                var cur = 0L
+                while (true) {
+                    val page = withContext(Dispatchers.IO) { api.getEvents(cur, 500, sessioApp) }
+                    for (e in page.events) if (e.runId == id) {
+                        if (e.kind == "run_queued") mine.clear()
+                        mine += e
+                    }
+                    if (page.next <= cur || page.events.size < 500) { cur = maxOf(cur, page.next); break }
+                    cur = page.next
                 }
-                _v2Runs.value = health?.supportsV2Interactive() == true
-                val st = withContext(Dispatchers.IO) { api.getState() }
-                _state.value = st
-                _connected.value = true
-                clearNotice()
-                onOk()
+                if (cur > eventCursor) eventCursor = cur
+                mine.filter { it.kind !in setOf("run_completed", "run_failed", "run_cancelled") }.forEach { receiveDurable(it) }
+                ok = followRun(api, id)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _connected.value = false
-                notify(connectionMessage(e))
+                showError(requestMessage(e))
+            }
+            endTurn(!ok)
+            _sending.value = false
+            _turnStart.value = 0L
+            _statusLine.value = ""
+            refresh()
+        }
+    }
+
+    /** Prova la connexió i carrega l'estat; `retries` per a l'arrencada (servidor que encara s'engega). */
+    fun connect(retries: Int = 0, onOk: () -> Unit = {}) {
+        viewModelScope.launch {
+            var left = retries
+            while (true) {
+                try {
+                    connectOnce()
+                    onOk()
+                    return@launch
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    val offline = (e.message ?: "").let { it.contains("failed to connect", true) || it.contains("timed out", true) || it.contains("refused", true) }
+                    if (left-- > 0 && offline) {
+                        notify(appText("app.work.reconnecting"))
+                        delay(2500)
+                        continue
+                    }
+                    _connected.value = false
+                    notify(connectionMessage(e))
+                    return@launch
+                }
             }
         }
+    }
+
+    private suspend fun connectOnce() {
+        val api = _conn.value.api()
+        // Health és només descoberta: un servidor antic pot no tenir
+        // l'endpoint i això no ha d'impedir connectar per la via v1.
+        val health = withContext(Dispatchers.IO) {
+            try { api.health() } catch (_: Exception) { null }
+        }
+        _v2Runs.value = health?.supportsV2Interactive() == true
+        val st = withContext(Dispatchers.IO) { api.getState() }
+        _state.value = st
+        // Obrir l'app ha de mostrar la conversa on eres, no un xat buit.
+        if (_msgs.value.isEmpty() && st.transcript.isNotEmpty()) _msgs.value = st.transcript
+        _connected.value = true
+        clearNotice()
+        attachToRunning()
     }
 
     fun refresh() {
@@ -380,17 +466,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Afegeix una imatge (SAF Uri) com a data URL, màxim 3 i 8MB. */
     fun addImage(uri: Uri) {
         if (_pendingImgs.value.size >= 3) { notify(appText("app.status.imageLimit")); return }
-        try {
-            val cr = appContext.contentResolver
-            val mime = cr.getType(uri) ?: ""
-            if (!mime.startsWith("image/")) { notify(appText("app.status.imageType")); return }
-            cr.openInputStream(uri)?.use { ins ->
-                val raw = ins.readBytes()
-                if (raw.size > 8 * 1024 * 1024) { notify(appText("app.status.imageLarge")); return }
-                val b64 = Base64.encodeToString(raw, Base64.NO_WRAP)
-                _pendingImgs.value = _pendingImgs.value + "data:$mime;base64,$b64"
-            } ?: notify(appText("app.status.imageRead"))
-        } catch (e: Exception) { notify(appText("app.status.imageError", e.message.orEmpty())) }
+        val mime = try { appContext.contentResolver.getType(uri) ?: "" } catch (_: Exception) { "" }
+        if (!mime.startsWith("image/")) { notify(appText("app.status.imageType")); return }
+        // Mida primer, lectura i base64 a IO: una foto gran no ha de penjar la UI.
+        viewModelScope.launch {
+            when (val r = readUriBase64(appContext, uri, 8L * 1024 * 1024)) {
+                is UriRead.Ok ->
+                    if (_pendingImgs.value.size >= 3) notify(appText("app.status.imageLimit"))
+                    else _pendingImgs.value = _pendingImgs.value + "data:$mime;base64,${r.base64}"
+                is UriRead.TooLarge -> notify(appText("app.status.imageLarge"))
+                UriRead.Unreadable -> notify(appText("app.status.imageRead"))
+                is UriRead.Failed -> notify(appText("app.status.imageError", r.message))
+            }
+        }
     }
 
     fun removeImage(i: Int) {
@@ -401,7 +489,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun answerQuestion(key: String, answer: String) {
         val q = _question.value ?: return
         _question.value = null
-        push(ChatMsg("assistant", appText("app.chat.questionAnswer", answer.ifBlank { appText("app.chat.questionEmpty") }), "activity"))
+        val label = appText("app.chat.questionAnswer", answer.ifBlank { appText("app.chat.questionEmpty") })
+        if (workId != 0L) step(StepKind.Info, label) else push(ChatMsg("assistant", label, "activity"))
+        setActivity("model", appText("app.work.thinking"))
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { _conn.value.api().answerQuestion(key, answer) }
@@ -425,44 +515,155 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             queueAfterBusy(t)
             return
         }
+        val imgs = _pendingImgs.value.take(3)
+        _pendingImgs.value = emptyList()
+        push(ChatMsg("user", t))
+        if (imgs.isNotEmpty()) push(ChatMsg("user", "🖼️×${imgs.size}"))
+        runTurn(t, imgs, forceAgent)
+    }
+
+    // --- #retro ---
+
+    private val _retro = MutableStateFlow<RetroChannel?>(null)
+    val retro: StateFlow<RetroChannel?> = _retro
+    /** "" en repòs; "loading" | "starting" | "replying"; o un avís per mostrar. */
+    private val _retroState = MutableStateFlow("")
+    val retroState: StateFlow<String> = _retroState
+    private val _retroEmojis = MutableStateFlow(RETRO_DEFAULT_EMOJIS)
+    val retroEmojis: StateFlow<List<String>> = _retroEmojis
+    private var retroKey = ""
+
+    /** Obre el #retro d'un torn (0 = l'últim acabat) i, si encara no té xat, l'engega. */
+    fun openRetro(runId: Long = 0L) {
+        _screen.value = Screen.Retro
+        if (_retroState.value in setOf("loading", "starting", "replying")) return
+        _retroState.value = "loading"
+        viewModelScope.launch {
+            try {
+                val api = _conn.value.api()
+                val info = withContext(Dispatchers.IO) { api.getRetro(runId = runId) }
+                _retroEmojis.value = info.emojis
+                retroKey = info.key
+                if (info.channel != null && info.channel.messages.isNotEmpty()) {
+                    _retro.value = info.channel
+                    _retroState.value = ""
+                    return@launch
+                }
+                val run = if (runId > 0) runId else info.latestRun
+                when {
+                    run <= 0L && info.key.isBlank() -> { _retro.value = null; _retroState.value = appText("app.retro.none") }
+                    run == info.latestRun && info.latestRunning -> { _retro.value = null; _retroState.value = appText("app.retro.running") }
+                    else -> {
+                        _retroState.value = "starting"
+                        val ch = withContext(Dispatchers.IO) { api.startRetro(info.key, run) }
+                        _retro.value = ch
+                        if (ch != null) retroKey = ch.key
+                        _retroState.value = ""
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _retroState.value = requestMessage(e)
+            }
+        }
+    }
+
+    /** Pregunta o rebat als agents; @nom adreça el missatge a un de concret. */
+    fun sendRetro(text: String, thread: String = "") {
+        val t = text.trim()
+        val ch = _retro.value ?: return
+        if (t.isEmpty() || _retroState.value == "replying") return
+        // Es veu a l'instant; la resposta del servidor porta el canal sencer.
+        _retro.value = ch.copy(messages = ch.messages + RetroMsg("local-${nextMsgId()}", thread, "user", t))
+        _retroState.value = "replying"
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroMessage(ch.key.ifBlank { retroKey }, t, thread) }
+                if (out != null) _retro.value = out
+                _retroState.value = ""
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _retroState.value = requestMessage(e)
+            }
+        }
+    }
+
+    fun reactRetro(messageId: String, emoji: String) {
+        val ch = _retro.value ?: return
+        val m = ch.messages.firstOrNull { it.id == messageId } ?: return
+        val had = m.reactions.any { it.emoji == emoji && it.mine }
+        // Optimista: la reacció canvia al moment.
+        val reactions = if (had) m.reactions.map { if (it.emoji == emoji) it.copy(by = it.by - "user") else it }.filter { it.by.isNotEmpty() }
+            else if (m.reactions.any { it.emoji == emoji }) m.reactions.map { if (it.emoji == emoji) it.copy(by = it.by + "user") else it }
+            else m.reactions + RetroReaction(emoji, listOf("user"))
+        _retro.value = ch.copy(messages = ch.messages.map { if (it.id == messageId) it.copy(reactions = reactions) else it })
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroReact(ch.key, messageId, emoji, !had) }
+                if (out != null) _retro.value = out
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Modes que van a l'agent (la web: code|autonomous|debug, més inspect i goal). */
+    private fun isAgentMode(m: String) = m in setOf("code", "inspect", "goal", "autonomous", "debug")
+
+    /**
+     * Un torn sencer: obre el treball plegable, consumeix els events en ordre
+     * (un sol fil, el principal) i el tanca. Els events no es llancen en
+     * corrutines soltes: abans el torn es donava per acabat abans de pintar
+     * la resposta final.
+     */
+    private fun runTurn(t: String, imgs: List<String>, forceAgent: Boolean = false) {
         _sending.value = true
-        streamedTurn = false
         _turnStart.value = System.currentTimeMillis()
         _statusLine.value = ""
-        push(ChatMsg("user", t))
-        val agentMode = forceAgent || _state.value.mode == "code" || _state.value.mode == "inspect" || _state.value.mode == "goal"
-        val path = if (agentMode) "/api/agent" else "/api/chat"
-        val key = if (agentMode) "task" else "message"
-        val imgs = if (agentMode) _pendingImgs.value.take(3) else emptyList()
-        if (imgs.isNotEmpty()) push(ChatMsg("user", "🖼️×${imgs.size}"))
-        _pendingImgs.value = emptyList()
+        val agentMode = forceAgent || isAgentMode(_state.value.mode)
+        turnErrorShown = false
+        answerId = 0L
+        beginTurn()
         viewModelScope.launch {
             var answered = false
+            var failed = false
             try {
                 GregalNotifications.workStarted(appContext)
                 if (_v2Runs.value) {
-                    val mode = if (agentMode) _state.value.mode else "chat"
-                    answered = runV2Turn(t, mode, imgs)
+                    val mode = if (agentMode) _state.value.mode.takeIf { isAgentMode(it) } ?: "code" else "chat"
+                    answered = runV2Turn(t, mode, if (agentMode) imgs else emptyList())
+                    failed = !answered
                 } else {
-                    withContext(Dispatchers.IO) {
-                        val payload = JSONObject().put(key, t)
-                        if (imgs.isNotEmpty()) payload.put("images", JSONArray(imgs))
-                        _conn.value.api().stream(path, payload) { ev ->
-                            receiveSse(ev)
+                    val path = if (agentMode) "/api/agent" else "/api/chat"
+                    val payload = JSONObject().put(if (agentMode) "task" else "message", t)
+                    if (agentMode && imgs.isNotEmpty()) payload.put("images", JSONArray(imgs))
+                    val api = _conn.value.api()
+                    // El fil de xarxa només encua; el principal pinta en ordre.
+                    coroutineScope {
+                        val ch = Channel<SseEvent>(Channel.UNLIMITED)
+                        launch(Dispatchers.IO) {
+                            try { api.stream(path, payload) { ch.trySend(it) } } finally { ch.close() }
                         }
+                        for (ev in ch) onSse(ev)
                     }
-                    flushTokens()
-                    answered = true
+                    answered = !turnErrorShown
+                    failed = turnErrorShown
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                failed = true
                 if ((e.message ?: "").contains("409")) {
                     // Ja hi ha una bombolla d'usuari: guarda-la per reintentar,
                     // no la facis perdre ni hi afegeixis un error tècnic.
                     queueAfterBusy(t, alreadyShown = true)
-                } else {
+                } else if (!turnErrorShown) {
                     push(ChatMsg("assistant", requestMessage(e), "error"))
                 }
             }
+            endTurn(failed)
             GregalNotifications.workFinished(appContext, answered, t, lastAssistantText())
             _sending.value = false
             _turnStart.value = 0L
@@ -579,25 +780,99 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Rep SSE des del fil de xarxa; només muta la UI al main thread. */
-    private fun receiveSse(ev: SseEvent) {
-        if (ev.name == "token") {
-            val text = try { JSONObject(ev.data).optString("text") } catch (_: Exception) { "" }
-            if (text.isEmpty()) return
-            synchronized(tokenLock) {
-                tokenBuffer.append(text)
-                if (tokenFlush?.isActive != true) {
-                    tokenFlush = viewModelScope.launch {
-                        delay(50)
-                        flushTokens()
-                    }
+    // --- Torn en curs: treball plegable, text en viu, activitat ---
+
+    /** Text que el model escriu ara (fora de _msgs: no copia la llista a cada token). */
+    private val _live = MutableStateFlow("")
+    val live: StateFlow<String> = _live
+    /** Què fa l'agent ara mateix, i des de quan (capçalera del treball). */
+    private val _activity = MutableStateFlow<Activity?>(null)
+    val activity: StateFlow<Activity?> = _activity
+    private var workId = 0L          // ChatMsg "work" del torn en curs
+    private var answerId = 0L        // resposta pintada aquest torn (pot ser narració)
+    private var turnErrorShown = false
+
+    private fun beginTurn() {
+        synchronized(tokenLock) { tokenBuffer.clear() }
+        _live.value = ""
+        val now = System.currentTimeMillis()
+        val m = ChatMsg("assistant", "", "work", at = now, work = WorkGroup(started = now))
+        workId = m.id
+        _msgs.value = _msgs.value + m
+        setActivity("start", appText("app.work.starting"))
+    }
+
+    private fun updateWork(f: (WorkGroup) -> WorkGroup) {
+        val id = workId
+        if (id == 0L) return
+        val cur = _msgs.value
+        val i = cur.indexOfLast { it.id == id }
+        if (i < 0) return
+        val w = cur[i].work ?: return
+        val nw = f(w)
+        if (nw !== w) _msgs.value = cur.toMutableList().also { it[i] = cur[i].copy(work = nw) }
+    }
+
+    private fun step(kind: StepKind, label: String, target: String = "", meta: String = "",
+                     detail: String = "", state: StepState = StepState.Ok) {
+        updateWork { it.add(WorkStep("s${nextMsgId()}", kind, label, target, meta, detail, state)) }
+    }
+
+    private fun setActivity(key: String, text: String) {
+        val a = _activity.value
+        _activity.value = if (a != null && a.key == key) a.copy(text = text)
+            else Activity(key, text, System.currentTimeMillis())
+    }
+
+    /** La narració escrita abans d'una eina és part del treball, no la resposta. */
+    private fun narrationToWork() {
+        flushTokens()
+        val live = _live.value.trim()
+        _live.value = ""
+        if (live.isNotEmpty()) step(StepKind.Note, oneLine(live, 140), detail = live)
+        val aid = answerId
+        if (aid != 0L) {
+            answerId = 0L
+            val cur = _msgs.value
+            val i = cur.indexOfLast { it.id == aid }
+            if (i >= 0) {
+                val t = cur[i].text
+                _msgs.value = cur.filterIndexed { k, _ -> k != i }
+                step(StepKind.Note, oneLine(t, 140), detail = t)
+            }
+        }
+    }
+
+    private fun endTurn(failed: Boolean) {
+        flushTokens()
+        val live = _live.value.trim()
+        _live.value = ""
+        if (live.isNotEmpty()) push(ChatMsg("assistant", live))
+        val id = workId
+        workId = 0L
+        if (id != 0L) {
+            val cur = _msgs.value
+            val i = cur.indexOfLast { it.id == id }
+            if (i >= 0) {
+                val w = cur[i].work
+                _msgs.value = if (w == null || w.steps.isEmpty()) cur.filterIndexed { k, _ -> k != i }
+                else cur.toMutableList().also { it[i] = cur[i].copy(work = w.close(System.currentTimeMillis(), failed)) }
+            }
+        }
+        _activity.value = null
+    }
+
+    private fun appendLive(tok: String) {
+        if (tok.isEmpty()) return
+        synchronized(tokenLock) {
+            tokenBuffer.append(tok)
+            if (tokenFlush?.isActive != true) {
+                // ~16 fps: prou fluid i sense refer el markdown a cada token.
+                tokenFlush = viewModelScope.launch {
+                    delay(60)
+                    flushTokens()
                 }
             }
-            return
-        }
-        viewModelScope.launch {
-            flushTokens()
-            handleSse(ev)
         }
     }
 
@@ -607,118 +882,136 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             tokenBuffer.clear()
             out
         }
-        if (text.isNotEmpty()) appendAssistant(text)
+        if (text.isNotEmpty()) {
+            _live.value = _live.value + text
+            if (_activity.value?.key != "write") setActivity("write", appText("app.work.writing"))
+        }
     }
 
-    private fun handleSse(ev: SseEvent) {
+    private fun onSse(ev: SseEvent) {
         val o = try { JSONObject(ev.data) } catch (_: Exception) { JSONObject() }
-        when (ev.name) {
-            "token" -> appendAssistant(o.optString("text"))
-            // El servidor emet el text per tokens I el final sencer: si el
-            // torn ja ha streamejat, el final substitueix (no duplica).
-            "assistant" -> {
-                val text = o.optString("text")
-                if (text.isNotBlank()) {
-                    val cur = _msgs.value
-                    val last = cur.lastOrNull()
-                    if (streamedTurn && last != null && last.role == "assistant" && last.kind == "text") {
-                        _msgs.value = cur.dropLast(1) + last.copy(text = text)
-                    } else {
-                        push(ChatMsg("assistant", text))
-                    }
+        onEvent(ev.name, o)
+    }
+
+    private fun showError(raw: String) {
+        if (turnErrorShown) return
+        turnErrorShown = true
+        push(ChatMsg("assistant", friendlyError(raw.removePrefix("⚠️").trim()
+            .ifEmpty { appText("app.status.requestFailed") }, _idioma.value), "error"))
+    }
+
+    /**
+     * Un sol renderer per a la via SSE i la durable. Els events que no
+     * coneix s'ignoren: abans sortien com a files de JSON cru.
+     */
+    private fun onEvent(kind: String, o: JSONObject, text: String = "") {
+        val lang = _idioma.value
+        fun f(k: String) = o.optString(k)
+        if (kind != "token") flushTokens()
+        when (kind) {
+            "token" -> appendLive(f("text").ifEmpty { text })
+            "assistant", "text" -> {
+                val t = f("text").ifEmpty { text }
+                _live.value = ""
+                if (t.isNotBlank()) {
+                    val m = ChatMsg("assistant", t)
+                    answerId = m.id
+                    push(m)
                 }
-                streamedTurn = false
             }
-            // El raonament d'un pas amb eines ja ha sortit per tokens: la
-            // bombolla d'activitat el representa, no cal el text duplicat.
             "thinking", "thought", "reasoning" -> {
-                dropStreamedDraft()
-                push(ChatMsg("assistant",
-                    "💭 ${o.optString("text").ifEmpty { o.optString("content") }}", "activity"))
+                narrationToWork()
+                val t = f("text").ifEmpty { f("content") }.ifEmpty { text.removePrefix("💭").trim() }
+                // Si el raonament és el mateix text que la narració, no el repeteixis.
+                val dup = msgs.value.lastOrNull { it.id == workId }?.work?.steps?.lastOrNull()
+                    ?.let { it.kind == StepKind.Note && it.detail.trim() == t.trim() } == true
+                if (t.isNotBlank() && !dup) step(StepKind.Think, appText("app.work.thought"), oneLine(t, 140), detail = t)
             }
             "tool_call" -> {
-                dropStreamedDraft()
-                push(ChatMsg("assistant",
-                    "🔧 ${o.optString("name")} ${o.optString("args").take(120)}", "activity"))
+                narrationToWork()
+                val name = f("name").ifEmpty { text.removePrefix("🔧").trim() }
+                val args = o.opt("args")?.toString().orEmpty()
+                val sum = summarizeTool(name, args, lang)
+                val id = f("id").ifEmpty { "c${nextMsgId()}" }
+                updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name)) }
+                setActivity("tool:$id", sum.label + if (sum.target.isNotEmpty()) " · " + oneLine(sum.target, 48) else "")
             }
-            "tool_result" -> push(ChatMsg("assistant",
-                "↳ ${o.optString("name")}: ${o.optString("output").take(300)}", "activity"))
-            "blocked" -> push(ChatMsg("assistant",
-                "⛔️ ${o.optString("reason")}", "activity"))
-            "approve_request" -> _approve.value = ApproveReq(
-                o.optString("key"), o.optString("call_id"),
-                o.optString("name"), o.optString("args"))
-            "verify" -> push(ChatMsg("assistant",
-                "✅ ${o.optString("verdict")}\n${o.optString("detail").take(500)}", "activity"))
-            "goal" -> push(ChatMsg("assistant",
-                "◆ ${o.optString("title")} (${o.optString("id")})", "goal"))
-            "fallback" -> push(ChatMsg("assistant",
-                appText("app.chat.fallback", o.optString("model")), "activity"))
-            "error" -> push(ChatMsg("assistant", "⚠️ ${o.optString("message")}", "error"))
-            "done" -> { streamedTurn = false }
-            // --- Esdeveniments que el mòbil ignorava i que la web ja pinta.
-            // Sense això, una feina aturada (passos esgotats, compactació,
-            // pressupost) semblava una feina acabada.
-            "status" -> _statusLine.value = o.optString("message")
-            "compact" -> {
-                _statusLine.value = appText("app.chat.compactedStatus", o.optInt("abans"), o.optInt("despres"))
-                push(ChatMsg("assistant", appText("app.chat.compacted"), "activity"))
+            "tool_result" -> {
+                val out = f("output").ifEmpty { text.substringAfter(": ", "") }
+                updateWork { it.finishTool(f("id"), f("name"), out, toolOutputFailed(out)) }
+                setActivity("model", appText("app.work.thinking"))
             }
-            "budget" -> {
-                _statusLine.value = o.optString("message")
-                push(ChatMsg("assistant", "⚠️ ${o.optString("message")}", "error"))
+            "blocked" -> {
+                val r = f("reason").ifEmpty { text.removePrefix("⛔️").trim() }
+                updateWork { it.finishTool(f("id"), "", r, true) }
+                step(StepKind.Blocked, appText("app.work.blocked"), oneLine(r, 140), detail = r, state = StepState.Failed)
             }
-            "verify_start" -> _statusLine.value = appText("app.chat.verifyStart", o.optString("cmd"))
-            "steps_exhausted" -> {
-                _statusLine.value = ""
-                push(ChatMsg("assistant",
-                    appText("app.chat.stepsExhausted", o.optInt("max")), "error"))
+            "review" -> {
+                val d = f("decision")
+                step(StepKind.Review, appText("app.work.review"), listOf(d, f("name")).filter { it.isNotEmpty() }.joinToString(" · "),
+                    "", f("reason"), if (d == "deny" || d == "block" || d == "reject") StepState.Failed else StepState.Ok)
             }
-            "tool_text" -> push(ChatMsg("assistant",
-                o.optString("message").ifBlank { appText("app.chat.toolTextFallback") },
-                "activity"))
-            "escalate" -> push(ChatMsg("assistant",
-                "◆ ${o.optString("message").ifBlank { o.optString("reason") }}", "activity"))
-            "gated" -> push(ChatMsg("assistant",
-                "🔒 ${o.optString("message").ifBlank { o.optString("reason") }}", "activity"))
-            "question_request" -> _question.value = QuestionReq(
-                o.optString("key"), o.optString("call_id"),
-                o.optString("query"), parseQuestionOptions(o.optJSONArray("options")),
-            )
-            "question_timeout" -> {
-                _question.value = null
-                push(ChatMsg("assistant",
-                    appText("app.chat.questionTimeout"), "activity"))
+            "delegate" -> {
+                val st = f("status").lowercase()
+                val state = when {
+                    "fail" in st || "error" in st -> StepState.Failed
+                    st in setOf("done", "completed", "ok", "finished", "success") -> StepState.Ok
+                    else -> StepState.Running
+                }
+                val agent = f("agent").ifEmpty { "subagent" }
+                val meta = if (o.optInt("max_steps") > 0) "${o.optInt("step")}/${o.optInt("max_steps")}" else f("tool")
+                val task = f("task").lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+                updateWork { it.upsert(WorkStep("d" + f("id").ifEmpty { agent }, StepKind.Delegate,
+                    appText("app.work.subagent", agent), oneLine(task, 110), meta,
+                    f("output").ifEmpty { f("message") }.take(4000), state)) }
+                if (state == StepState.Running) setActivity("delegate:$agent", appText("app.work.subagent", agent) + "…")
             }
-            "approve_timeout" -> {
-                _approve.value = null
-                push(ChatMsg("assistant",
-                    appText("app.chat.approvalTimeoutDenied"), "activity"))
+            "progress" -> {
+                val p = mutableMapOf<String, String>()
+                o.keys().forEach { k -> p[k] = o.optString(k) }
+                val (k, t) = progressLine(p, lang)
+                // Mentre corre una eina concreta, la seva línia és més útil.
+                if (!(k.startsWith("tools") && _activity.value?.key?.startsWith("tool:") == true)) setActivity(k, t)
             }
+            "status", "route" -> f("message").ifEmpty { text }.takeIf { it.isNotBlank() }?.let { _statusLine.value = it }
+            "fallback" -> step(StepKind.Warn, appText("app.chat.fallback", f("model")))
+            "verify_start" -> setActivity("verify", appText("app.chat.verifyStart", f("cmd")))
+            "verify" -> {
+                val v = f("verdict").ifEmpty { text.removePrefix("✅").trim() }
+                step(StepKind.Review, appText("app.work.verify"), oneLine(v, 120), detail = f("detail"),
+                    state = if (v.contains("fail", true)) StepState.Failed else StepState.Ok)
+            }
+            "compact" -> step(StepKind.Info, appText("app.chat.compacted"))
+            "budget" -> step(StepKind.Warn, f("message").ifEmpty { text })
+            "steps_exhausted" -> push(ChatMsg("assistant", appText("app.chat.stepsExhausted", o.optInt("max")), "error"))
+            "tool_text" -> step(StepKind.Info, f("message").ifBlank { appText("app.chat.toolTextFallback") })
+            "escalate", "gated" -> step(StepKind.Info, oneLine(f("message").ifBlank { f("reason") }.ifBlank { text }, 140))
+            "autonomous_checkpoint" -> {
+                val checks = o.optJSONArray("checks")?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+                step(StepKind.Info, appText("app.work.checkpoint", o.optInt("number")),
+                    oneLine(checks.joinToString(" · "), 120), detail = f("review"))
+            }
+            "bet" -> step(StepKind.Info, appText("app.work.bet"), oneLine(f("command"), 100),
+                f("p").takeIf { it.isNotEmpty() }?.let { "p=$it" }.orEmpty(),
+                state = if (o.has("passed") && !o.optBoolean("passed")) StepState.Failed else StepState.Ok)
+            "goal" -> push(ChatMsg("assistant", "◆ ${f("title")} (${f("id")})", "goal"))
+            "approve_request" -> {
+                _approve.value = ApproveReq(f("key"), f("call_id"), f("name"), o.opt("args")?.toString().orEmpty())
+                setActivity("approve", appText("app.work.waitApprove"))
+            }
+            "question_request" -> {
+                _question.value = QuestionReq(f("key"), f("call_id"), f("query"), parseQuestionOptions(o.optJSONArray("options")))
+                setActivity("question", appText("app.work.waitAnswer"))
+            }
+            "question_timeout" -> { _question.value = null; step(StepKind.Warn, appText("app.chat.questionTimeout")) }
+            "approve_timeout" -> { _approve.value = null; step(StepKind.Warn, appText("app.chat.approvalTimeoutDenied")) }
+            "error" -> showError(f("message").ifEmpty { text })
+            "run_failed" -> showError(text.ifEmpty { f("error") })
+            "run_queued" -> setActivity("queued", appText("app.chat.runQueued"))
+            "run_started" -> setActivity("start", appText("app.work.starting"))
+            "run_cancelled" -> step(StepKind.Warn, appText("app.chat.cancelled"))
+            else -> {} // done, run_completed, usage, lane, handoff…: res a pintar
         }
-    }
-
-    private fun appendAssistant(tok: String) {
-        if (tok.isEmpty()) return
-        streamedTurn = true
-        val cur = _msgs.value
-        val last = cur.lastOrNull()
-        _msgs.value = if (last != null && last.role == "assistant" && last.kind == "text") {
-            cur.dropLast(1) + last.copy(text = last.text + tok)
-        } else {
-            cur + ChatMsg("assistant", tok)
-        }
-    }
-
-    /** Treu l'esborrany streamejat del torn (el representa l'activitat). */
-    private fun dropStreamedDraft() {
-        if (!streamedTurn) return
-        val cur = _msgs.value
-        val last = cur.lastOrNull()
-        if (last != null && last.role == "assistant" && last.kind == "text") {
-            _msgs.value = cur.dropLast(1)
-        }
-        streamedTurn = false
     }
 
     private fun push(m: ChatMsg) {
@@ -726,9 +1019,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _msgs.value = _msgs.value + stamped
     }
 
-    /** Guarda un sol missatge i el reintenta quan l'agent acaba. */
+    // Cua de missatges escrits mentre un altre client ocupa l'agent (via
+    // antiga): no se'n perd cap i hi ha un sol vigilant.
+    private val queuedTasks = ArrayDeque<String>()
+    private var waiter: Job? = null
+
     private fun queueAfterBusy(text: String, alreadyShown: Boolean = false) {
-        queuedTask = text
+        queuedTasks.addLast(text)
         _queued.value = true
         if (!alreadyShown) push(ChatMsg("user", text))
         push(ChatMsg("assistant", appText("app.chat.queuedNotice"), "activity"))
@@ -737,94 +1034,99 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Espera que l'agent quedi lliure (sondeja l'estat cada 3 s). */
     fun waitUntilFree() {
-        viewModelScope.launch {
-            repeat(40) {
+        if (waiter?.isActive == true) return
+        waiter = viewModelScope.launch {
+            repeat(100) {
                 delay(3000)
                 try {
                     _state.value = withContext(Dispatchers.IO) { _conn.value.api().getState() }
                 } catch (_: Exception) { }
-                if (!_state.value.agentBusy) {
-                    val pending = queuedTask
-                    queuedTask = null
-                    _queued.value = false
-                    if (pending != null) {
-                        push(ChatMsg("assistant", appText("app.chat.continueQueued"), "activity"))
-                        // Evita una segona bombolla: l'original ja és al xat.
-                        sendQueued(pending)
-                    } else {
-                        push(ChatMsg("assistant", appText("app.chat.free"), "activity"))
-                    }
-                    return@launch
+                if (!_state.value.agentBusy && !_sending.value) {
+                    val pending = queuedTasks.removeFirstOrNull()
+                    _queued.value = queuedTasks.isNotEmpty()
+                    if (pending == null) return@launch
+                    push(ChatMsg("assistant", appText("app.chat.continueQueued"), "activity"))
+                    runTurn(pending, emptyList())
+                    if (queuedTasks.isEmpty()) return@launch
                 }
             }
-            notify(appText("app.chat.busyTimeout"))
-        }
-    }
-
-    private fun sendQueued(text: String) {
-        if (_sending.value) return
-        _sending.value = true
-        val agentMode = _state.value.mode == "code" || _state.value.mode == "inspect" || _state.value.mode == "goal"
-        val path = if (agentMode) "/api/agent" else "/api/chat"
-        val key = if (agentMode) "task" else "message"
-        viewModelScope.launch {
-            var answered = false
-            try {
-                GregalNotifications.workStarted(appContext)
-                if (_v2Runs.value) {
-                    answered = runV2Turn(text, _state.value.mode, emptyList())
-                } else {
-                    withContext(Dispatchers.IO) {
-                        val payload = JSONObject().put(key, text)
-                        _conn.value.api().stream(path, payload) { receiveSse(it) }
-                    }
-                    flushTokens()
-                    answered = true
-                }
-            } catch (e: Exception) {
-                push(ChatMsg("assistant", requestMessage(e), "error"))
-            }
-            GregalNotifications.workFinished(appContext, answered, text, lastAssistantText())
-            _sending.value = false
-            refresh()
+            if (queuedTasks.isNotEmpty()) notify(appText("app.chat.busyTimeout"))
         }
     }
 
     /**
-     * Submit + consum d'events durables. El cursor es conserva entre torns i
-     * reconnects dins del ViewModel; així una desconnexió no duplica text.
+     * Submit + consum d'events durables. Un sol GET per volta; el torn acaba
+     * amb l'event terminal del registre (i, si cal, confirmant /runs/{id}).
+     * Els talls de xarxa curts no fan fallar el torn: es reintenta amb espera.
      */
     private suspend fun runV2Turn(text: String, mode: String, images: List<String>): Boolean {
         val api = _conn.value.api()
         val run = withContext(Dispatchers.IO) {
             api.submitRun(text, mode, images, UUID.randomUUID().toString())
         }
-        if (run.id <= 0L) throw ApiException("El servidor no ha tornat cap execució")
+        if (run.id <= 0L) throw ApiException("no run returned by the server")
+        // El registre és de tota la sessió: el que hi havia abans no és d'aquest torn.
+        if (run.cursor > eventCursor) eventCursor = run.cursor
+        return followRun(api, run.id)
+    }
+
+    /**
+     * Segueix un torn pel registre durable fins que acaba. Serveix per als
+     * torns nous i per enganxar-se a un que ja corria en obrir l'app.
+     */
+    private suspend fun followRun(api: GregalApi, runId: Long): Boolean {
+        val run = RunV2(id = runId)
         activeRunId = run.id
-        var current = run
+        updateWork { it.copy(runId = runId) }
+        var final = ""
+        var runError = ""
+        var errors = 0
+        var lastCheck = System.currentTimeMillis()
         try {
-            while (current.state !in setOf("completed", "failed", "cancelled")) {
-                val page = withContext(Dispatchers.IO) {
-                    api.getEvents(eventCursor, 100, sessioApp)
+            while (final.isEmpty()) {
+                val page = try {
+                    withContext(Dispatchers.IO) { api.getEvents(eventCursor, 200, sessioApp) }.also { errors = 0 }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (++errors > 30) throw e
+                    setActivity("net", appText("app.work.reconnecting"))
+                    delay(minOf(5000L, 400L * errors))
+                    continue
                 }
                 if (page.next > eventCursor) eventCursor = page.next
-                page.events.filter { it.runId == run.id }.forEach { receiveDurable(it) }
-                current = withContext(Dispatchers.IO) { api.getRun(run.id) }
-                if (current.state !in setOf("completed", "failed", "cancelled")) delay(500)
+                for (ev in page.events) {
+                    if (ev.runId != run.id) continue
+                    receiveDurable(ev)
+                    when (ev.kind) {
+                        "run_completed" -> final = "completed"
+                        "run_failed" -> { final = "failed"; runError = ev.text }
+                        "run_cancelled" -> final = "cancelled"
+                    }
+                }
+                if (final.isNotEmpty()) break
+                val now = System.currentTimeMillis()
+                if (page.events.isEmpty() && now - lastCheck > 4000) {
+                    lastCheck = now
+                    val cur = try {
+                        withContext(Dispatchers.IO) { api.getRun(run.id) }
+                    } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                    if (cur != null && cur.state in setOf("completed", "failed", "cancelled")) {
+                        // Buida el que s'hagi escrit just abans de tancar.
+                        val tail = withContext(Dispatchers.IO) { api.getEvents(eventCursor, 200, sessioApp) }
+                        if (tail.next > eventCursor) eventCursor = tail.next
+                        tail.events.filter { it.runId == run.id }.forEach { receiveDurable(it) }
+                        final = cur.state
+                        runError = cur.error
+                    }
+                }
+                if (final.isEmpty()) delay(if (page.events.size >= 200) 0L else if (page.events.isEmpty()) 450L else 150L)
             }
-            // Consumeix l'última tanda escrita abans que l'estat es tanqui.
-            val page = withContext(Dispatchers.IO) { api.getEvents(eventCursor, 100, sessioApp) }
-            if (page.next > eventCursor) eventCursor = page.next
-            page.events.filter { it.runId == run.id }.forEach { receiveDurable(it) }
-            if (current.state == "failed") {
-                throw ApiException(current.error.ifBlank { "El torn ha fallat" })
+            return when (final) {
+                "failed" -> { showError(runError.ifBlank { appText("app.chat.turnFailed") }); false }
+                "cancelled" -> false
+                else -> true
             }
-            if (current.state == "cancelled") {
-                push(ChatMsg("assistant", appText("app.chat.cancelled"), "activity"))
-                return false
-            }
-            flushTokens()
-            return true
         } finally {
             activeRunId = null
         }
@@ -832,46 +1134,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Traducció del registre durable al mateix renderer de la via SSE. */
     private fun receiveDurable(ev: DurableEvent) {
-        viewModelScope.launch {
-            when (ev.kind) {
-                "text", "assistant" -> if (ev.text.isNotBlank()) push(ChatMsg("assistant", ev.text))
-                "done" -> _statusLine.value = ""
-                "approve_request" -> {
-                    val o = durablePayload(ev)
-                    if (o != null) {
-                        _approve.value = ApproveReq(
-                            o.optString("key"), o.optString("call_id"),
-                            o.optString("name"), o.optString("args"),
-                        )
-                    } else {
-                        push(ChatMsg("assistant", appText("app.chat.approvalNoPayload"), "error"))
-                    }
-                }
-                "question_request" -> {
-                    val o = durablePayload(ev)
-                    if (o != null) {
-                        _question.value = QuestionReq(
-                            o.optString("key"), o.optString("call_id"),
-                            o.optString("query"), parseQuestionOptions(o.optJSONArray("options")),
-                        )
-                    } else {
-                        push(ChatMsg("assistant", appText("app.chat.questionNoPayload"), "error"))
-                    }
-                }
-                "question_timeout" -> {
-                    _question.value = null
-                    push(ChatMsg("assistant", appText("app.chat.questionTimeout"), "activity"))
-                }
-                "approve_timeout" -> {
-                    _approve.value = null
-                    push(ChatMsg("assistant", appText("app.chat.approvalTimeout"), "activity"))
-                }
-                "error", "run_failed" -> push(ChatMsg("assistant", "⚠️ ${ev.text}", "error"))
-                "run_queued" -> _statusLine.value = appText("app.chat.runQueued")
-                "run_started" -> _statusLine.value = appText("app.chat.runStarted")
-                "run_completed" -> _statusLine.value = ""
-                "run_cancelled" -> push(ChatMsg("assistant", "⛔️ ${ev.text}", "activity"))
-                else -> if (ev.text.isNotBlank()) push(ChatMsg("assistant", ev.text, "activity"))
+        when (ev.kind) {
+            "approve_request", "question_request" -> {
+                val o = durablePayload(ev)
+                if (o != null) onEvent(ev.kind, o)
+                else push(ChatMsg("assistant", appText(if (ev.kind == "approve_request") "app.chat.approvalNoPayload" else "app.chat.questionNoPayload"), "error"))
+            }
+            else -> {
+                val o = if (ev.payload.isNotBlank()) try { JSONObject(ev.payload) } catch (_: Exception) { JSONObject() } else JSONObject()
+                onEvent(ev.kind, o, ev.text)
             }
         }
     }
@@ -891,6 +1162,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Atura el torn actual; usa l'ID v2 quan està disponible. */
     fun cancelCurrent() {
+        setActivity("cancel", appText("app.work.stopping"))
         viewModelScope.launch {
             try {
                 val id = activeRunId
@@ -914,22 +1186,27 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         else -> appText("app.status.connectionFailed")
     }
 
-    private fun requestMessage(e: Exception): String = when {
-        (e.message ?: "").contains("401") -> appText("app.status.requestBadToken")
-        (e.message ?: "").contains("failed to connect", true) ->
-            appText("app.status.requestConnection")
-        else -> appText("app.status.requestFailed")
+    private fun requestMessage(e: Exception): String {
+        val m = e.message.orEmpty()
+        return when {
+            m.contains("401") -> appText("app.status.requestBadToken")
+            m.contains("failed to connect", true) || m.contains("unreachable", true) -> appText("app.status.requestConnection")
+            m.isNotBlank() -> friendlyError(m, _idioma.value)
+            else -> appText("app.status.requestFailed")
+        }
     }
 
     fun answerApprove(ok: Boolean, remember: Boolean = false) {
         val a = _approve.value ?: return
         _approve.value = null
-        push(ChatMsg("assistant",
-            when {
-                ok && remember -> appText("app.chat.approvalAllowedAlways", a.name)
-                ok -> appText("app.chat.approvalAllowed", a.name)
-                else -> appText("app.chat.approvalDenied", a.name)
-            }, "activity"))
+        val label = when {
+            ok && remember -> appText("app.chat.approvalAllowedAlways", a.name)
+            ok -> appText("app.chat.approvalAllowed", a.name)
+            else -> appText("app.chat.approvalDenied", a.name)
+        }
+        if (workId != 0L) step(StepKind.Info, label, state = if (ok) StepState.Ok else StepState.Failed)
+        else push(ChatMsg("assistant", label, "activity"))
+        setActivity("model", appText("app.work.thinking"))
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
@@ -948,8 +1225,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val api = _conn.value.api()
-                val (sessions, active) = withContext(Dispatchers.IO) {
-                    api.getSessions() to api.getActive()
+                val (sessions, active) = loadingOf("sessions") {
+                    withContext(Dispatchers.IO) { api.getSessions() to api.getActive() }
                 }
                 _sessions.value = sessions
                 _active.value = active
@@ -1054,7 +1331,27 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // --- controls: rol, mode, model ---
 
     fun setRole(role: String) = simplePost("/api/role", JSONObject().put("role", role))
-    fun setMode(mode: String) = simplePost("/api/mode", JSONObject().put("mode", mode))
+    fun setMode(mode: String) {
+        // Optimista: el composer canvia a l'instant; refresh() ho confirma.
+        _state.value = _state.value.copy(mode = mode)
+        simplePost("/api/mode", JSONObject().put("mode", mode))
+    }
+
+    /** «Primer el pla» (com la web): a Actua, l'enviament demana un pla abans. */
+    private val _planFirst = MutableStateFlow(false)
+    val planFirst: StateFlow<Boolean> = _planFirst
+    fun setPlanFirst(on: Boolean) { _planFirst.value = on }
+
+    /** Bloqueig de permisos: manual, sense preguntar o revisor automàtic. */
+    fun setPermissive(on: Boolean, review: Boolean) {
+        _state.value = _state.value.copy(permissive = on && !review, autoReview = review)
+        simplePost("/api/permissive", JSONObject().put("on", on).put("review", review))
+    }
+
+    /** Envia segons el composer: amb «primer el pla» a Actua, primer el pla. */
+    fun submit(text: String) {
+        if (_planFirst.value && _state.value.mode == "code") requestPlan(text) else send(text)
+    }
     /** Revisor automàtic on/off (la web: auto/manual; aquí interruptor). */
     fun setVerify(auto: Boolean) = simplePost("/api/verify", JSONObject().put("mode", if (auto) "auto" else "manual"))
 
@@ -1086,7 +1383,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun loadFlows() {
         viewModelScope.launch {
             try {
-                _flows.value = withContext(Dispatchers.IO) { _conn.value.api().getFlows() }
+                _flows.value = loadingOf("flows") { withContext(Dispatchers.IO) { _conn.value.api().getFlows() } }
             } catch (e: Exception) {
                 notify(appText("app.status.flows", e.message.orEmpty()))
             }
@@ -1241,7 +1538,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun loadGoals() {
         viewModelScope.launch {
             try {
-                _goals.value = withContext(Dispatchers.IO) { _conn.value.api().getGoals() }
+                _goals.value = loadingOf("goals") { withContext(Dispatchers.IO) { _conn.value.api().getGoals() } }
             } catch (e: Exception) { notify(appText("app.status.goals", e.message.orEmpty())) }
         }
     }
@@ -1276,7 +1573,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun loadJobs() {
         viewModelScope.launch {
             try {
-                _jobs.value = withContext(Dispatchers.IO) { _conn.value.api().getJobs() }
+                _jobs.value = loadingOf("jobs") { withContext(Dispatchers.IO) { _conn.value.api().getJobs() } }
             } catch (e: Exception) { notify(appText("app.status.jobs", e.message.orEmpty())) }
         }
     }
@@ -1313,7 +1610,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun loadRuns(jobId: String = "") {
         viewModelScope.launch {
             try {
-                _runs.value = withContext(Dispatchers.IO) { _conn.value.api().getRuns(jobId) }
+                _runs.value = loadingOf("runs") { withContext(Dispatchers.IO) { _conn.value.api().getRuns(jobId) } }
             } catch (e: Exception) { notify(appText("app.status.runs", e.message.orEmpty())) }
         }
     }

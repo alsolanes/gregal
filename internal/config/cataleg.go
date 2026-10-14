@@ -12,9 +12,10 @@ import "strings"
 // «OpenRouter» ja porta la URL bona i el nom de la variable d'entorn
 // habitual; només falta enganxar la clau.
 //
-// Tots són endpoints OpenAI-compatibles: és l'únic protocol que parla el
-// client (internal/llm). Si te'n falta un, `/provider add` a mà continua
-// existint.
+// Gairebé tots són endpoints OpenAI-compatibles (chat completions); els que
+// porten Type parlen un protocol natiu del client (internal/llm:
+// anthropic, openai-responses). Si te'n falta un, `/provider add` a mà
+// continua existint.
 
 // ProveidorConegut és una entrada del catàleg.
 type ProveidorConegut struct {
@@ -31,6 +32,8 @@ type ProveidorConegut struct {
 	Local bool `json:"local"`
 	// Nota és una línia d'ajuda (on es treu la clau, què cal tenir viu).
 	Nota string `json:"note"`
+	// Type és el protocol (providers.<nom>.type); buit = chat completions.
+	Type string `json:"type,omitempty"`
 }
 
 // Cataleg retorna els proveïdors coneguts, primer els locals (no
@@ -47,6 +50,10 @@ func Cataleg() []ProveidorConegut {
 			Nota: "clau a openrouter.ai/keys"},
 		{Nom: "openai", Etiqueta: "OpenAI", BaseURL: "https://api.openai.com/v1", EnvVar: "OPENAI_API_KEY", DefaultModel: "gpt-4.1-mini",
 			Nota: "clau a platform.openai.com/api-keys"},
+		{Nom: "anthropic", Etiqueta: "Anthropic", BaseURL: "https://api.anthropic.com/v1", EnvVar: "ANTHROPIC_API_KEY", DefaultModel: "claude-opus-5-5", Type: "anthropic",
+			Nota: "clau a console.anthropic.com (API Messages nativa)"},
+		{Nom: "openai-responses", Etiqueta: "OpenAI (Responses)", BaseURL: "https://api.openai.com/v1", EnvVar: "OPENAI_API_KEY", DefaultModel: "gpt-4.1-mini", Type: "openai-responses",
+			Nota: "API Responses nativa d'OpenAI (raonament d'anada i tornada)"},
 		{Nom: "groq", Etiqueta: "Groq", BaseURL: "https://api.groq.com/openai/v1", EnvVar: "GROQ_API_KEY", DefaultModel: "openai/gpt-oss-120b",
 			Nota: "clau a console.groq.com/keys"},
 		{Nom: "deepseek", Etiqueta: "DeepSeek", BaseURL: "https://api.deepseek.com", EnvVar: "DEEPSEEK_API_KEY", DefaultModel: "deepseek-flash",

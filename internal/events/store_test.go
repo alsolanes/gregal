@@ -118,3 +118,26 @@ func TestStoreRefusaPayloadInvalid(t *testing.T) {
 		t.Fatalf("el cursor no s'hauria d'haver consumit: %+v %v", got, err)
 	}
 }
+
+func TestMaxRunIDSurvivesReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []int{1, 7, 3} {
+		if _, err := s.Append(Event{RunID: id, Kind: "run_queued"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := s.MaxRunID(); got != 7 {
+		t.Fatalf("MaxRunID = %d, want 7", got)
+	}
+	s2, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s2.MaxRunID(); got != 7 {
+		t.Fatalf("after reopen MaxRunID = %d, want 7", got)
+	}
+}

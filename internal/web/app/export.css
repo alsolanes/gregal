@@ -1,0 +1,16 @@
+/* Exportar i compartir (app/export.js). Només tokens: cap color escrit a mà. */
+.export-menu { position:fixed; z-index:60; background:var(--panel); border:1px solid var(--line-hi);
+  border-radius:9px; box-shadow:0 18px 48px rgba(0,0,0,.5); padding:6px; display:flex;
+  flex-direction:column; gap:2px; min-width:220px; }
+.export-menu .ghost { text-align:left; padding:8px 10px; }
+.export-h { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; padding:4px 10px 2px; }
+.export-opt { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); padding:4px 10px; cursor:pointer; }
+.export-sep { height:1px; background:var(--line); margin:4px 2px; }
+.conv-exp { flex:none; border:0; background:transparent; color:var(--faint); cursor:pointer; opacity:0; padding:0 2px; }
+.conv:hover .conv-exp, .conv.current .conv-exp { opacity:1; }
+.conv-exp:hover { color:var(--accent-hi); }
+.shares-list { display:flex; flex-direction:column; gap:6px; padding:4px 0 10px; color:var(--muted); font-size:12px; }
+.share-row { display:flex; align-items:center; gap:8px; padding:6px 8px; border:1px solid var(--line); border-radius:7px; }
+.share-t { flex:1; min-width:0; display:flex; flex-direction:column; }
+.share-t b { color:var(--text); font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.share-revoke:hover { color:var(--red); }

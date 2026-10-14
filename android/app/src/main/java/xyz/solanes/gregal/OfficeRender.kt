@@ -135,7 +135,7 @@ fun OfficeRender(vm: GregalViewModel, doc: OfficeDoc, modifier: Modifier = Modif
                 else -> "pptx"
             }
             withContext(Dispatchers.Main) {
-                w.loadDataWithBaseURL(base, renderShell(base, "#ffffff", "#111111", "#0E8C74", lang),
+                w.loadDataWithBaseURL(base, renderShell(base, "#ffffff", "#111111", "#4F5BE8", lang),
                     "text/html", "utf-8", null)
             }
             val bytes = withContext(Dispatchers.IO) { vm.officeDownloadBytes() }

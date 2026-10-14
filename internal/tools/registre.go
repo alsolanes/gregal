@@ -20,13 +20,14 @@ import "strings"
 // shell, la web i les auxiliars.
 func Noms() []string {
 	return []string{
-		"read", "grep", "glob", "read_image",
+		"read", "grep", "glob", "symbols", "read_image",
 		"write", "edit", "patch",
 		"bash", "bash_background", "bash_output", "bash_kill",
 		"web_search", "web_fetch", "browser",
-		"office_read", "office_open", "office_edit", "office_create", "preview",
-		"gh_issue", "gh_pr",
+		"office_read", "office_open", "office_edit", "office_create", "preview", "dashboard_save",
+		"gh_issue", "gh_pr", "git_commit", "gh_pr_create",
 		"delegate", "question", "todowrite", "todoread", "skill",
+		"knowledge_search", "knowledge_note",
 	}
 }
 

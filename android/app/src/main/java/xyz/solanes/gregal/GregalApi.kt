@@ -60,9 +60,38 @@ class GregalApi(val base: String, val token: String) {
         val code = c.responseCode
         val stream = if (code in 200..299) c.inputStream else (c.errorStream ?: c.inputStream)
         val text = stream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
-        if (code == 401) throw ApiException("El servidor demana token (401). Revisa el token.")
+        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
         if (code !in 200..299) throw ApiException("HTTP $code: ${text.take(200)}")
         return text
+    }
+
+    // --- #retro (xat amb els agents sobre un torn acabat) ---
+
+    fun getRetro(key: String = "", runId: Long = 0L): RetroInfo {
+        val q = when {
+            key.isNotBlank() -> "?key=" + URLEncoder.encode(key, "UTF-8")
+            runId > 0 -> "?run_id=$runId"
+            else -> ""
+        }
+        return parseRetroInfo(read(conn("/api/retro$q", "GET")))
+    }
+
+    fun startRetro(key: String, runId: Long): RetroChannel? {
+        val p = JSONObject()
+        if (key.isNotBlank()) p.put("key", key)
+        if (runId > 0) p.put("run_id", runId)
+        return parseRetroChannelResponse(read(conn("/api/retro/start", "POST", p.toString())))
+    }
+
+    fun retroMessage(key: String, text: String, thread: String = ""): RetroChannel? {
+        val p = JSONObject().put("key", key).put("text", text)
+        if (thread.isNotBlank()) p.put("thread_id", thread)
+        return parseRetroChannelResponse(read(conn("/api/retro/message", "POST", p.toString())))
+    }
+
+    fun retroReact(key: String, messageId: String, emoji: String, add: Boolean): RetroChannel? {
+        val p = JSONObject().put("key", key).put("message_id", messageId).put("emoji", emoji).put("action", if (add) "add" else "remove")
+        return parseRetroChannelResponse(read(conn("/api/retro/react", "POST", p.toString())))
     }
 
     /** Descobreix capacitats abans d'usar la cua v2. */
@@ -92,6 +121,16 @@ class GregalApi(val base: String, val token: String) {
             branch = o.optString("branch"),
             usedTokens = o.optInt("used_tokens"),
             contextWindow = o.optInt("context_window"),
+            permissive = o.optBoolean("permissive"),
+            autoReview = o.optBoolean("auto_review"),
+            transcript = o.optJSONArray("transcript")?.let { a ->
+                (0 until a.length()).mapNotNull { i ->
+                    val m = a.optJSONObject(i) ?: return@mapNotNull null
+                    val role = m.optString("role")
+                    val text = m.optString("content")
+                    if ((role == "user" || role == "assistant") && text.isNotBlank()) ChatMsg(role, text) else null
+                }
+            } ?: emptyList(),
         )
     }
 
@@ -158,7 +197,7 @@ class GregalApi(val base: String, val token: String) {
                 .put("query", query).put("repo", repo))
             GithubResult(output = o.optString("output"))
         } catch (e: Exception) {
-            GithubResult(error = e.message ?: "error GitHub")
+            GithubResult(error = e.message ?: "GitHub request failed")
         }
     }
 
@@ -167,9 +206,9 @@ class GregalApi(val base: String, val token: String) {
         return try {
             val o = post("/api/office/upload", JSONObject().put("name", name).put("data", dataB64))
             OfficeDoc(id = o.optString("id"), name = o.optString("name"),
-                kind = o.optString("kind"), text = "", result = "pujat ${o.optInt("size")} bytes")
+                kind = o.optString("kind"), text = "", result = "uploaded ${o.optInt("size")} bytes")
         } catch (e: Exception) {
-            OfficeDoc(error = e.message ?: "error pujant")
+            OfficeDoc(error = e.message ?: "upload failed")
         }
     }
 
@@ -180,7 +219,7 @@ class GregalApi(val base: String, val token: String) {
             OfficeDoc(id = id, name = o.optString("name"), kind = o.optString("kind"),
                 text = o.optString("text"))
         } catch (e: Exception) {
-            OfficeDoc(id = id, error = e.message ?: "error llegint")
+            OfficeDoc(id = id, error = e.message ?: "read failed")
         }
     }
 
@@ -191,7 +230,7 @@ class GregalApi(val base: String, val token: String) {
             val o = post("/api/office/edit", JSONObject(officeEditPayload(id, op, sheet, cell, value, find, replace)))
             OfficeDoc(id = id, text = o.optString("text"), result = o.optString("result"))
         } catch (e: Exception) {
-            OfficeDoc(id = id, error = e.message ?: "error editant")
+            OfficeDoc(id = id, error = e.message ?: "edit failed")
         }
     }
 
@@ -199,8 +238,8 @@ class GregalApi(val base: String, val token: String) {
     fun officeDownload(id: String): ByteArray {
         val c = conn("/api/office/download?id=" + id, "GET")
         val code = c.responseCode
-        if (code == 401) throw ApiException("El servidor demana token (401). Revisa el token.")
-        if (code !in 200..299) throw ApiException("HTTP $code baixant el document")
+        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
+        if (code !in 200..299) throw ApiException("HTTP $code downloading document")
         return c.inputStream.use { it.readBytes() }
     }
 
@@ -208,8 +247,8 @@ class GregalApi(val base: String, val token: String) {
     fun getProviders(): List<ProviderInfo> {
         val c = conn("/api/providers", "GET")
         val code = c.responseCode
-        if (code == 401) throw ApiException("El servidor demana token (401). Revisa el token.")
-        if (code !in 200..299) throw ApiException("HTTP $code llistant proveïdors")
+        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
+        if (code !in 200..299) throw ApiException("HTTP $code listing providers")
         return parseProviders(read(c))
     }
 
@@ -261,7 +300,7 @@ class GregalApi(val base: String, val token: String) {
         if (images.isNotEmpty()) payload.put("images", JSONArray(images))
         if (idempotencyKey.isNotBlank()) payload.put("idempotency_key", idempotencyKey)
         val root = post("/api/v2/runs", payload)
-        return parseRun(root.optJSONObject("run") ?: root)
+        return parseRun(root.optJSONObject("run") ?: root).copy(cursor = root.optLong("cursor"))
     }
 
     /** Llegeix events persistents posteriors al cursor, filtrats per sessió. */
@@ -275,10 +314,18 @@ class GregalApi(val base: String, val token: String) {
             DurableEvent(
                 id = e.optLong("id"), sessionId = e.optString("session_id"),
                 runId = e.optLong("run_id"), kind = e.optString("kind"),
-                text = e.optString("text"), payload = structuredInteractivePayload(e.toString()),
+                text = e.optString("text"),
+                payload = structuredInteractivePayload(e.toString()).ifEmpty { rawPayload(e) },
             )
         }
         return EventsPage(events, root.optLong("cursor", after), root.optLong("next", after))
+    }
+
+    /** Payload estructurat de qualsevol event (eines, progrés, subagents). */
+    private fun rawPayload(e: JSONObject): String = when (val p = e.opt("payload")) {
+        is JSONObject -> p.toString()
+        is String -> p.takeIf { it.trimStart().startsWith("{") }.orEmpty()
+        else -> ""
     }
 
     /** Consulta l'estat d'un torn concret. */
@@ -435,7 +482,7 @@ class GregalApi(val base: String, val token: String) {
 
     private fun streamRead(c: java.net.HttpURLConnection, onEvent: (SseEvent) -> Unit) {
         val code = c.responseCode
-        if (code == 401) throw ApiException("El servidor demana token (401). Revisa el token.")
+        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
         if (code !in 200..299) {
             val t = try {
                 c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() } ?: ""

@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"gregal/internal/shell"
+	"gregal/internal/sandbox"
 )
 
 // MaxLines és el búfer circular de sortida per procés.
@@ -135,9 +135,13 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 	// L'intèrpret el tria internal/shell (sh, el sh del Git a Windows, o cmd):
 	// amb "sh" a pèl el portable de Windows no podia engegar cap procés.
 	// Les rutes Windows es tradueixen com a l'eina bash.
-	name, args := shell.Argv(shell.NormalitzaPathsWindows(cmd))
-	c := exec.Command(name, args...)
-	c.Dir = dir
+	// El sandbox (opt-in) embolica l'ordre com a l'eina bash.
+	plan, err := sandbox.Command(dir, cmd)
+	if err != nil {
+		return nil, err
+	}
+	c := exec.Command(plan.Name, plan.Args...)
+	c.Dir = plan.Dir
 	group, err := newProcessGroup(c)
 	if err != nil {
 		return nil, err
@@ -168,7 +172,10 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 		ID: id, Cmd: cmd, Dir: dir, Session: session,
 		Started: time.Now(), Running: true, done: make(chan struct{}),
 	}
-	p.cancel = func() { group.kill(c) }
+	p.cancel = func() { group.kill(c); plan.Cleanup() }
+	if plan.Warning != "" {
+		p.add("err", "["+plan.Warning+"]")
+	}
 	var wg sync.WaitGroup
 	wg.Add(2)
 	go func() { defer wg.Done(); p.pump("out", stdout) }()

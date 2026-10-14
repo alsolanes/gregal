@@ -27,7 +27,8 @@ func TestAprovacioLimitDelConfig(t *testing.T) {
 	if d := time.Since(t0); d > 3*time.Second {
 		t.Fatalf("ha esperat %s amb un límit d'1 s", d)
 	}
-	if enviat["timeout_s"] != "1" || enviat["auto_approve_allowed"] != false {
+	// timeout_s és numèric (segons; 0 = sense límit), com documenta el contracte.
+	if enviat["timeout_s"] != 1 || enviat["auto_approve_allowed"] != false {
 		t.Fatalf("la UI ha de rebre el límit real: %v", enviat)
 	}
 }
@@ -51,7 +52,7 @@ func TestAprovacioSenseLimitIAturada(t *testing.T) {
 	if d := time.Since(t0); d > 2*time.Second {
 		t.Fatalf("la cancel·lació havia de tallar l'espera, ha trigat %s", d)
 	}
-	if enviat["timeout_s"] != "0" || enviat["auto_approve_allowed"] != true {
+	if enviat["timeout_s"] != 0 || enviat["auto_approve_allowed"] != true {
 		t.Fatalf("sense límit, la UI rep 0: %v", enviat)
 	}
 	s.mu.Lock()

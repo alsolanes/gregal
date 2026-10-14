@@ -99,8 +99,8 @@ func TestDelegateSenseRecursio(t *testing.T) {
 			t.Fatal("Specs() no pot incloure delegate (recursió)")
 		}
 	}
-	if len(Specs()) != 25 {
-		t.Fatalf("natives=%d, han de ser 25", len(Specs()))
+	if len(Specs()) != 31 {
+		t.Fatalf("natives=%d, han de ser 31", len(Specs()))
 	}
 	trobat := false
 	for _, s := range SpecsAll() {
@@ -217,7 +217,7 @@ func TestDelegateUsesCallingWorkspaceAndConfigDeny(t *testing.T) {
 		if !strings.Contains(first, marker) || strings.Contains(first, "WORKSPACE_ONE_ONLY") && marker == "WORKSPACE_TWO_ONLY" {
 			t.Fatalf("system prompt did not use current workspace %q: %s", marker, first)
 		}
-		if !strings.Contains(second, "EINA NO DISPONIBLE") || !strings.Contains(second, "permissions del config") || !strings.Contains(second, marker) {
+		if !strings.Contains(second, "TOOL NOT AVAILABLE") || !strings.Contains(second, "permissions del config") || !strings.Contains(second, marker) {
 			t.Fatalf("child did not retain workspace context/configured read denial: %s", second)
 		}
 	}

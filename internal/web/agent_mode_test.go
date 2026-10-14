@@ -52,7 +52,7 @@ func TestAgentModePerTornNomesRestringeix(t *testing.T) {
 	if !strings.Contains(body, "EINA BLOQUEJADA") && !strings.Contains(body, "blocked") {
 		t.Fatalf("en mode consulta el write s'havia de bloquejar:\n%s", body)
 	}
-	if len(sistemes) == 0 || !strings.Contains(sistemes[0], "Mode xat") {
+	if len(sistemes) == 0 || !strings.Contains(sistemes[0], "CHAT MODE") {
 		t.Fatalf("el system prompt havia de ser el de xat: %.200q", sistemes)
 	}
 	if s.mode != "code" {
@@ -64,7 +64,7 @@ func TestAgentModePerTornNomesRestringeix(t *testing.T) {
 	s.mode = "chat"
 	rec = httptest.NewRecorder()
 	s.handleAgent(rec, httptest.NewRequest(http.MethodPost, "/api/agent", strings.NewReader(`{"task":"una altra cosa","mode":"code"}`)))
-	if len(sistemes) == 0 || !strings.Contains(sistemes[0], "Mode xat") {
+	if len(sistemes) == 0 || !strings.Contains(sistemes[0], "CHAT MODE") {
 		t.Fatalf("mode:code no pot ampliar una sessió de xat: %.200q", sistemes)
 	}
 }

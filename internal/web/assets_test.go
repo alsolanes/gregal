@@ -14,9 +14,11 @@ func TestShellAssetsHaveBrowserUsableContentTypes(t *testing.T) {
 		{"/app/polish.css", "text/css"},
 		{"/app/workshop.css", "text/css"},
 		{"/app/workshop.js", "text/javascript"},
+		{"/app/workshop-scene.js", "text/javascript"},
 		{"/app/shell-icons.js", "text/javascript"},
 		{"/app/desktop-prefs.js", "text/javascript"},
 		{"/app/desktop-updates.js", "text/javascript"},
+		{"/app/agent-browser.js", "text/javascript"},
 	} {
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, asset.path, nil))

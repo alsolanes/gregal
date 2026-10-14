@@ -1,4 +1,4 @@
-﻿# Gregal Visual Identity: The Tide
+﻿# Gregal Visual Identity: The Northeast Wind
 
 This document is the source of truth for the shared palette. `internal/tui/theme.go`,
 `internal/web/index.html` (`:root`) and `android/.../Screens.kt` derive their
@@ -12,62 +12,71 @@ follow the system theme unless the user chooses one.
 
 The first column contains the token names used by the interfaces and, where
 applicable, identifiers from `theme.go`. Hex values are uppercase; tests
-compare them case-insensitively.
+compare them case-insensitively. The names are historical (the palette used
+to be sea foam and sand); the roles are what matter.
+
+**Principles.** Near-neutral cool grays (a hint of blue, like the sky when the
+northeast wind clears it) carry 90% of the screen. One confident accent, the
+*Gregal blue*, appears only where there is something to do: primary buttons,
+focus rings, the active navigation item and links. Semantic colors (success,
+warning, danger, info) are reserved for state. The playful aqua (`onada`) is
+the rare fun touch: mascot, celebrations, retro reactions, autonomous mode.
+In the dark theme elevation is expressed with lighter surfaces
+(`abisme` < `fons` < `night` < `superficieAlta`), not heavy shadows. Body
+text is at least 4.5:1 (WCAG 2.2 AA) and APCA Lc ≥ 90; even `faint` passes
+4.5:1 on every surface; borders that matter (`boxIdle`) reach 3:1.
 
 | name | hex | role |
 |---|---|---|
-| `escuma` | `#9FE0C4` | **primary**: brand, actions, cursor |
-| `escumaClara` | `#BCEBD4` | primary hover and animation highlight |
-| `arena` | `#DEC899` | **accent**: warnings and CODE mode |
-| `onada` | `#8FB9A5` | secondary: project, roles, INSPECT mode and diff hunks |
-| `algua` | `#264237` | subdued wave lines, rails and borders |
-| `fons` | `#171A19` | main background |
-| `abisme` | `#101312` | deeper background: sidebar, panels and code blocks |
-| `night` | `#1E2321` | surfaces: cards, inputs and menus |
-| `superficieAlta` | `#29302D` | hovered or selected surface |
-| `text` | `#ECF0EA` | primary text, including assistant responses |
-| `ink` | `#F4F4EF` | strong text: headings and brand name |
-| `slate` | `#AEB9B1` | muted text: metadata and descriptions |
-| `faint` | `#87978B` | subdued text: keyboard hints and version |
-| `green` | `#7DE2A5` | success, additions and completed tools |
-| `red` | `#EF8D82` | errors, deletions and denied actions |
-| `lila` | `#C7B6D9` | GOAL mode text |
-| `lilaFons` | `#30283A` | GOAL mode badge background |
+| `escuma` | `#8193FF` | **primary accent** (Gregal blue): buttons, focus, active nav, links |
+| `escumaClara` | `#A3B0FF` | primary hover and animation highlight |
+| `arena` | `#F5C451` | **warning**, CODE mode |
+| `onada` | `#5CE1D6` | **playful secondary** (aqua): weathervane gusts, celebrations, autonomous mode, diff hunks |
+| `algua` | `#2C3240` | subdued lines, rails and decorative borders |
+| `fons` | `#13151B` | main background |
+| `abisme` | `#0E1015` | deeper background: sidebar, panels and code blocks |
+| `night` | `#1A1D25` | raised surfaces: cards, inputs and menus |
+| `superficieAlta` | `#242833` | hovered or selected surface (highest elevation) |
+| `text` | `#E4E7EF` | primary text, including assistant responses |
+| `ink` | `#F3F5FA` | strong text: headings and brand name |
+| `slate` | `#A3AABA` | muted text: metadata and descriptions |
+| `faint` | `#8890A2` | subdued text: keyboard hints and version (still ≥4.5:1) |
+| `green` | `#6EDB95` | success, additions and completed tools |
+| `red` | `#FF8A85` | danger: errors, deletions and denied actions |
+| `lila` | `#C4A8FF` | **info**: GOAL mode text |
+| `lilaFons` | `#2A2245` | GOAL mode badge background |
 
-Web hairlines (`--line`, `--line-hi`) use `escuma` at 10% and 20% opacity:
-`rgba(159,224,196,.10)` and `rgba(159,224,196,.20)`. Text contrast is not
-uniformly WCAG AA: `faint` is intentionally subdued, and the automated
-contrast test tracks minimum ratios for `--faint`, `--muted` and `--text`.
+Web hairlines (`--line`, `--line-hi`, `--codi-vora`) are a cool gray
+(`#C9D1E6`) at 10% and 20% opacity, not the accent: the accent stays scarce.
+On the accent, text is `fons` (dark on the light blue, 6.6:1).
 
 ## Paleta clara (Light Palette)
 
-The same palette in a light theme. Token roles remain the same. Accent colors
-are darker because the dark-theme values do not provide enough contrast on
-white backgrounds.
+The same palette in a light theme. Token roles remain the same. Accents are
+darker so they read on white and white text reads on them (all ≥4.5:1).
 
 | name | hex | role |
 |---|---|---|
-| `escumaClar` | `#0E8C74` | **primary** on light backgrounds |
-| `escumaClaraClar` | `#0A6F5C` | primary hover |
-| `arenaClar` | `#9A6B12` | **accent**: warnings and CODE mode |
-| `onadaClar` | `#0E7490` | secondary |
-| `fonsClar` | `#F5F7F8` | main background |
-| `abismeClar` | `#EBEFF1` | sidebar and panels |
+| `escumaClar` | `#4F5BE8` | **primary accent** on light backgrounds |
+| `escumaClaraClar` | `#3D47C7` | primary hover |
+| `arenaClar` | `#9A5B00` | **warning**, CODE mode |
+| `onadaClar` | `#0A776F` | playful secondary (deep aqua) |
+| `fonsClar` | `#F6F7FA` | main background |
+| `abismeClar` | `#EEF0F5` | sidebar and panels |
 | `nightClar` | `#FFFFFF` | surfaces: cards and inputs |
-| `superficieAltaClar` | `#E2E9EC` | hovered surface |
-| `textClar` | `#1E293B` | primary text |
-| `inkClar` | `#0B1220` | strong text |
-| `slateClar` | `#52616B` | muted text |
-| `faintClar` | `#5F6E78` | subdued text (replaces `#7C8B95`, which measured 3.2:1 on `abismeClar`) |
-| `alguaClar` | `#CBD5DC` | hairlines, rails and borders |
-| `greenClar` | `#15803D` | success and additions |
-| `redClar` | `#DC2626` | errors and deletions |
-| `lilaClar` | `#6D28D9` | GOAL mode text |
-| `lilaFonsClar` | `#EDE9FE` | GOAL mode background |
+| `superficieAltaClar` | `#E5E8F0` | hovered surface |
+| `textClar` | `#1F2433` | primary text |
+| `inkClar` | `#0E1220` | strong text |
+| `slateClar` | `#545D71` | muted text |
+| `faintClar` | `#5F6879` | subdued text (≥4.5:1 even on `superficieAltaClar`) |
+| `alguaClar` | `#D5DAE4` | hairlines, rails and borders |
+| `greenClar` | `#187A41` | success and additions |
+| `redClar` | `#C92A35` | danger: errors and deletions |
+| `lilaClar` | `#7444D6` | info: GOAL mode text |
+| `lilaFonsClar` | `#EEE8FD` | GOAL mode background |
 
-The light theme's hairlines use `escumaClar` at 14% and 28% opacity. Contrast
-ratios are tracked by the automated test; the subdued `faint` token is not
-intended for small text that must meet WCAG AA.
+The light theme's hairlines use a deep navy (`#1E2A4A`) at 14% and 28%
+opacity. On the accent, text is white or `fonsClar` (5.3:1 / 4.9:1).
 
 ## Temes inspirats
 
@@ -98,14 +107,14 @@ chroma i el de glamour.
 
 | categoria | fosc | clar | ve de |
 |---|---|---|---|
-| paraula clau | `#C7B6D9` | `#6D28D9` | `lila` |
-| cadena | `#9FE0C4` | `#0A6F5C` | `escuma` |
-| número | `#DEC899` | `#9A6B12` | `arena` |
-| comentari | `#87978B` | `#6B7A85` | entre `slate` i `faint` |
-| funció | `#8FB9A5` | `#0E7490` | `onada` |
-| tipus | `#BCEBD4` | `#0E8C74` | `escumaClara` |
-| operador | `#AEB9B1` | `#52616B` | `slate` |
-| nom | `#ECF0EA` | `#1E293B` | `text` |
+| paraula clau | `#C4A8FF` | `#7444D6` | `lila` |
+| cadena | `#6EDB95` | `#187A41` | `green` |
+| número | `#F5C451` | `#9A5B00` | `arena` |
+| comentari | `#7D869A` | `#5F6879` | entre `slate` i `faint` (clar: `faint`) |
+| funció | `#A3B0FF` | `#3D47C7` | `escumaClara` |
+| tipus | `#5CE1D6` | `#0A776F` | `onada` |
+| operador | `#A3AABA` | `#545D71` | `slate` |
+| nom | `#E4E7EF` | `#1F2433` | `text` |
 
 ## Insígnies de mode
 
@@ -123,8 +132,9 @@ llevat d'OBJECTIU.
 ## Correspondència per front
 
 **TUI** (`theme.go`): els noms de la taula són els identificadors. `boxIdle`
-(`#3C5750`) és la vora del composer en repòs i és `algua` aclarida; s'hi
-tolera com a únic to derivat.
+(`#626B80`, clar `#7E879B`) és la vora del composer en repòs: un gris entre
+`algua` i `faint` que arriba a 3:1 sobre el fons; s'hi tolera com a únic to
+derivat.
 
 **Web i escriptori** (`index.html :root`):
 
@@ -134,7 +144,7 @@ tolera com a únic to derivat.
 | `--sidebar`, `--panel` | `abisme` |
 | `--surface` | `night` |
 | `--surface-hi` | `superficieAlta` |
-| `--line` / `--line-hi` | `escuma` al 10% / 20% |
+| `--line` / `--line-hi` | gris fred (`Vora`) al 10% / 20% (clar: 14% / 28%) |
 | `--ink` | `ink` |
 | `--text` | `text` |
 | `--muted` | `slate` |

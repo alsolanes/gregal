@@ -19,7 +19,7 @@ test("llistes numerades i nivells per sagnat", () => {
 
 test("bloc de codi intacte, amb capçalera i botó de copiar", () => {
   const h = render("abans\n\n```go\nfmt.Println(\"# no és un títol\")\n- ni una llista\n```\n\ndesprés");
-  assert.match(h, /<div class="codeblock"><div class="codehead"><span>go<\/span><button class="copybtn">copia<\/button><\/div><pre><code>/);
+  assert.match(h, /<div class="codeblock"><div class="codehead"><span>go<\/span><button class="copybtn" data-i18n="md.copy">Copy<\/button><\/div><pre><code>/);
   // El contingut porta ressaltat de sintaxi, però el text ha de ser
   // exactament el codi: dins del bloc no s'hi busquen títols («#») ni
   // llistes («- »).

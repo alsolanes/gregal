@@ -15,19 +15,32 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.ForkRight
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.Code
+import androidx.compose.material.icons.rounded.AccountTree
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.ForkRight
+import androidx.compose.material.icons.rounded.List
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +50,13 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -101,34 +116,53 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // El tema real es pinta al setContent; aquí `fons` (#0F172A) per al
-        // flaix inicial — abans era el fons pre-identitat (#101418).
-        window.statusBarColor = Color(0xFF0F172A).toArgb()
-        window.navigationBarColor = Color(0xFF0F172A).toArgb()
-        @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = 0
-        val prefs = Prefs(this)
-        vm.attachPrefs(prefs)
+        // El tema real es pinta al setContent; aquí `fons` (#13151B) per al
+        // flaix inicial.
+        window.statusBarColor = DarkPal.deepTop.toArgb()
+        window.navigationBarColor = DarkPal.deepTop.toArgb()
+        // Context d'aplicació: el ViewModel sobreviu a l'activitat (girar).
+        val prefs = Prefs(applicationContext)
         creaCanalActualitzacions(this)
-        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+        if (savedInstanceState == null && Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        if (prefs.host.isNotBlank()) {
-            vm.setConn(Conn(prefs.host, prefs.port, prefs.token, prefs.usuari))
-            vm.connect { vm.go(Screen.Chat) }
+        // Només la primera vegada per a aquest ViewModel: en girar la pantalla
+        // l'activitat es recrea però l'estat (connexió, xat) segueix viu.
+        if (!vm.startupDone) {
+            vm.startupDone = true
+            vm.attachPrefs(prefs)
+            if (prefs.host.isNotBlank()) {
+                vm.setConn(Conn(prefs.host, prefs.port, prefs.token, prefs.usuari))
+                vm.connect(retries = 8) { vm.go(Screen.Chat) }
+            }
+            // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
+            // i no l'has silenciada, surt la targeta; si no, no diu res.
+            vm.checkUpdate(silent = true)
         }
-        // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
-        // i no l'has silenciada, surt la targeta; si no, no diu res.
-        vm.checkUpdate(silent = true)
         setContent {
             val tema by vm.tema.collectAsState()
             val foscSistema = isSystemInDarkTheme()
             val pal = paletteFor(tema, foscSistema)
             val scheme = pal.scheme()
-            window.statusBarColor = pal.deepTop.toArgb()
-            window.navigationBarColor = pal.deepTop.toArgb()
+            val dark = when (tema) {
+                "clar" -> false
+                "fosc" -> true
+                else -> foscSistema
+            }
+            val view = LocalView.current
+            // Colors de barra i icones fora de la composició, i icones fosques
+            // sobre el tema clar (abans quedaven blanques sobre blanc).
+            SideEffect {
+                window.statusBarColor = pal.deepTop.toArgb()
+                window.navigationBarColor = pal.deepTop.toArgb()
+                WindowCompat.getInsetsController(window, view).apply {
+                    isAppearanceLightStatusBars = !dark
+                    isAppearanceLightNavigationBars = !dark
+                }
+            }
             CompositionLocalProvider(LocalPal provides pal) {
-            MaterialTheme(colorScheme = scheme) {
+            MaterialTheme(colorScheme = scheme, typography = gregalTypography()) {
                 val screen by vm.screen.collectAsState()
                 val connected by vm.connected.collectAsState()
                 val conn by vm.conn.collectAsState()
@@ -149,79 +183,116 @@ class MainActivity : ComponentActivity() {
                     ModalNavigationDrawer(
                         drawerState = drawer,
                         drawerContent = {
-                            ModalDrawerSheet {
+                            val drawerColors = androidx.compose.material3.NavigationDrawerItemDefaults.colors(
+                                selectedContainerColor = Sea.copy(alpha = 0.14f),
+                                selectedIconColor = Sea, selectedTextColor = Ink,
+                                unselectedIconColor = Muted, unselectedTextColor = Tinta,
+                            )
+                            ModalDrawerSheet(drawerContainerColor = Superficie) {
                                 Column(Modifier.padding(16.dp)) {
-                                    Text("≋ Gregal", fontSize = 22.sp,
-                                        fontWeight = FontWeight.Bold, color = Ink)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        GregalMark(30.dp)
+                                        Spacer(Modifier.width(10.dp))
+                                        Text("Gregal", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink)
+                                    }
+                                    Spacer(Modifier.height(6.dp))
                                     // El projecte viu aquí des que el títol de
                                     // dalt és només el model (estil ChatGPT).
-                                    Text("▣ " + st.project.ifEmpty { tr(lang, "app.nav.project") },
-                                        fontSize = 14.sp, color = Sand,
-                                        fontWeight = FontWeight.SemiBold)
-                                    Text("${conn.host}:${conn.port}",
-                                        fontSize = 12.sp, color = Muted)
-                                    TideLine(width = 26, working = false,
-                                        modifier = Modifier.padding(top = 2.dp))
-                                    Spacer(Modifier.height(12.dp))
-                                    NavigationDrawerItem(
-                                        label = { Text(tr(lang, "nav.new")) },
-                                        icon = { Icon(Icons.Default.Add, null) },
-                                        selected = screen == Screen.Chat,
+                                    ProjectPill(st.project.ifEmpty { tr(lang, "app.nav.project") }, st.branch)
+                                    Text("${conn.host}:${conn.port}", fontSize = 12.sp, color = Faint,
+                                        modifier = Modifier.padding(start = 4.dp, top = 6.dp))
+                                    Spacer(Modifier.height(14.dp))
+                                    // Conversa nova com a acció principal (no com un
+                                    // element «seleccionat» de la llista).
+                                    androidx.compose.material3.OutlinedButton(
                                         onClick = { vm.newSession(); nav(Screen.Chat) },
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.5f)),
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                    ) {
+                                        Icon(Icons.Rounded.Add, null, tint = Sea, modifier = Modifier.size(20.dp))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(tr(lang, "nav.new"), color = Sea, fontWeight = FontWeight.SemiBold)
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    NavigationDrawerItem(
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "app.nav.chat")) },
+                                        icon = { Icon(Icons.Rounded.ChatBubbleOutline, null) },
+                                        selected = screen == Screen.Chat,
+                                        onClick = { nav(Screen.Chat) },
                                     )
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "nav.convs")) },
-                                        icon = { Icon(Icons.Default.List, null) },
+                                        icon = { Icon(Icons.Rounded.Forum, null) },
                                         selected = screen == Screen.Sessions,
                                         onClick = { nav(Screen.Sessions); vm.loadSessions() },
                                     )
+                                    // El #retro: el xat amb els agents sobre què han fet.
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "app.retro.title")) },
+                                        icon = { Icon(Icons.Rounded.Tag, null) },
+                                        selected = screen == Screen.Retro,
+                                        onClick = { scope.launch { drawer.close() }; vm.openRetro() },
+                                    )
+                                    NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "nav.goals")) },
-                                        icon = { Icon(Icons.Default.Star, null) },
+                                        icon = { Icon(Icons.Rounded.Flag, null) },
                                         selected = screen == Screen.Goals,
                                         onClick = { nav(Screen.Goals); vm.loadGoals() },
                                     )
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "nav.activity")) },
-                                        icon = { Icon(Icons.Default.DateRange, null) },
+                                        icon = { Icon(Icons.Rounded.Schedule, null) },
                                         selected = screen == Screen.Jobs,
                                         onClick = { nav(Screen.Jobs); vm.loadJobs(); vm.loadRuns() },
                                     )
+                                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 12.dp), color = Line)
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "nav.office")) },
-                                        icon = { Icon(Icons.Default.Description, null) },
+                                        icon = { Icon(Icons.Rounded.Description, null) },
                                         selected = screen == Screen.Office,
                                         onClick = { nav(Screen.Office) },
                                     )
                                     // GitHub surt de la barra de dalt i viu aquí.
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "app.nav.github")) },
-                                        icon = { Icon(Icons.Default.ForkRight, null) },
+                                        icon = { Icon(Icons.Rounded.Code, null) },
                                         selected = false,
                                         onClick = { scope.launch { drawer.close() }; vm.obreGithub() },
                                     )
                                     // I desfés, que abans era l'única icona de dalt.
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "app.nav.undoTurn")) },
-                                        icon = { Icon(Icons.AutoMirrored.Filled.Undo, null) },
+                                        icon = { Icon(Icons.AutoMirrored.Rounded.Undo, null) },
                                         selected = false,
                                         onClick = { scope.launch { drawer.close() }; vm.openRewind() },
                                     )
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "graphs.title")) },
-                                        icon = { Icon(Icons.Default.Share, null) },
+                                        icon = { Icon(Icons.Rounded.AccountTree, null) },
                                         selected = screen == Screen.Flows,
                                         onClick = { nav(Screen.Flows); vm.loadFlows() },
                                     )
+                                    androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 12.dp), color = Line)
                                     NavigationDrawerItem(
+                                        colors = drawerColors,
                                         label = { Text(tr(lang, "prefs.title")) },
-                                        icon = { Icon(Icons.Default.Settings, null) },
+                                        icon = { Icon(Icons.Rounded.Settings, null) },
                                         selected = screen == Screen.Prefs,
                                         onClick = { nav(Screen.Prefs) },
                                     )
                                     NavigationDrawerItem(
-                                        label = { Text(tr(lang, "btn.disconnect")) },
-                                        icon = { Icon(Icons.Default.Refresh, null) },
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "btn.disconnect"), color = Muted) },
+                                        icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = Muted) },
                                         selected = false,
                                         onClick = { scope.launch { drawer.close() }; vm.disconnect() },
                                     )
@@ -239,6 +310,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Pairing -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                 }
                             }

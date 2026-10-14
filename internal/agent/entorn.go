@@ -118,20 +118,23 @@ func resolCandidat(nom, cand string) string {
 // buida si no hi ha res a dir.
 func FetsEntorn() string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "SISTEMA: %s/%s", runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(&b, "SYSTEM: %s/%s", runtime.GOOS, runtime.GOARCH)
 	if sh := shellPerDefecte(); sh != "" {
-		b.WriteString(" · les ordres de bash s'executen amb " + sh)
+		b.WriteString(" · bash commands run with " + sh)
 	}
 	// Des d'on corren: sense dir-ho, el model posava «cd <camí absolut> &&»
 	// davant de cada ordre (i un `cd /$(pwd)` fallit gastava un pas sencer
 	// al banc A/B). Cada ordre és un procés nou: un cd no dura.
-	b.WriteString(" · cada ordre de bash comença al directori del projecte: no cal fer cd, i un cd no es manté a l'ordre següent")
+	b.WriteString(" · every bash command starts in the project directory: no need to cd, and a cd does not carry over to the next command")
 	b.WriteString("\n")
+	// El límit del workspace val per a tots els camins (abans només el
+	// duia la web): sense, el model llistava la carpeta pare o el home.
+	b.WriteString("WORKSPACE: work inside the project directory; do not list or read parent, home or system folders (Downloads, Documents, Desktop...) unless the user asks.\n")
 	eines := Eines()
 	if len(eines) == 0 {
 		return b.String()
 	}
-	b.WriteString("EINES DEL SISTEMA (comprovades en arrencar; no en dedueixis cap més):\n")
+	b.WriteString("SYSTEM TOOLS (checked at startup; do not assume any others):\n")
 	for _, e := range eines {
 		b.WriteString(descriuEina(e) + "\n")
 	}
@@ -142,12 +145,12 @@ func FetsEntorn() string {
 // però `nom` sol falla, que és el cas que fa perdre els passos.
 func descriuEina(e einaTrobada) string {
 	if e.AlPath {
-		return "- " + e.Nom + ": al PATH"
+		return "- " + e.Nom + ": on PATH"
 	}
 	// Barres normals, no %q: a Windows el %q doblava les contrabarres i el
 	// que llegia el model era «C:\\Program Files\\Go\\bin». Les ordres van
 	// a bash, que entén les barres normals.
-	return fmt.Sprintf("- %s: hi és a %s però NO és al PATH — afegeix-l'hi tu a l'ordre (export PATH=\"%s:$PATH\") en comptes de buscar-lo",
+	return fmt.Sprintf("- %s: installed at %s but NOT on PATH; add it in the command yourself (export PATH=\"%s:$PATH\") instead of searching for it",
 		e.Nom, filepath.ToSlash(e.Ruta), filepath.ToSlash(filepath.Dir(e.Ruta)))
 }
 
@@ -159,13 +162,10 @@ func shellPerDefecte() string {
 		return "sh"
 	}
 	if _, err := exec.LookPath("bash"); err == nil {
-		return "bash (Git Bash), no cmd ni PowerShell"
+		return "bash (Git Bash), not cmd or PowerShell"
 	}
 	return ""
 }
-
-// dies són els noms catalans, en l'ordre de time.Weekday (diumenge = 0).
-var dies = [7]string{"diumenge", "dilluns", "dimarts", "dimecres", "dijous", "divendres", "dissabte"}
 
 // DataAra diu quin dia és. NO l'hora, i és a posta.
 //
@@ -178,6 +178,6 @@ var dies = [7]string{"diumenge", "dilluns", "dimarts", "dimecres", "dijous", "di
 // lectura segura.
 func DataAra() string {
 	now := time.Now()
-	return fmt.Sprintf("DATA D'ARA: %s (%s). Si et cal l'hora exacta, crida bash amb `date`.",
-		now.Format("2006-01-02"), dies[now.Weekday()])
+	return fmt.Sprintf("CURRENT DATE: %s (%s). If you need the exact time, call bash with `date`.",
+		now.Format("2006-01-02"), now.Weekday())
 }

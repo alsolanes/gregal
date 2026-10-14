@@ -130,5 +130,10 @@ func DoomSig(name, argsJSON string) string {
 	case "read":
 		return name + "\x00" + str("path") + "\x00" + strings.TrimSpace(argsJSON)
 	}
+	if isMCP(name) {
+		// Sig agrupa les eines MCP pel nom (per als permisos); aquí, tres
+		// consultes diferents seguides a la mateixa eina no són un bucle.
+		return name + "\x00" + capRunes(strings.TrimSpace(argsJSON), 2000)
+	}
 	return Sig(name, argsJSON)
 }

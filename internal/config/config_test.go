@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"gregal/internal/tools"
 )
 
 func TestModelTimeoutConfiguration(t *testing.T) {
@@ -299,5 +301,29 @@ func TestRawKeyPersisteix(t *testing.T) {
 	cfg3, _, _ := Load(path)
 	if cfg3.Providers["p1"].APIKey != "sk-persist-1" {
 		t.Fatalf("el literal hauria de quedar fora del disc: %q", cfg3.Providers["p1"].APIKey)
+	}
+}
+
+func TestBrowserModeConfig(t *testing.T) {
+	t.Cleanup(func() { tools.SetBrowserMode("auto") })
+	c, _, err := Load(writeTemp(t, goodYAML+"browser: {mode: window}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Browser.Mode != "window" {
+		t.Fatalf("browser.mode=%q", c.Browser.Mode)
+	}
+	t.Setenv("GREGAL_BROWSER_HEADLESS", "")
+	if m := tools.EffectiveBrowserMode(); m != tools.BrowserModeWindow {
+		t.Fatalf("Load must install the browser mode, got %q", m)
+	}
+	if _, _, err := Load(writeTemp(t, goodYAML+"browser: {mode: visible}\n")); err == nil {
+		t.Fatal("invalid browser.mode must fail")
+	}
+	for _, m := range []string{"", "auto", "app", "headless", "window"} {
+		c.Browser.Mode = m
+		if err := c.Validate(); err != nil {
+			t.Fatalf("%q: %v", m, err)
+		}
 	}
 }

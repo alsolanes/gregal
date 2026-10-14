@@ -166,6 +166,7 @@ func policyFrom(cfg *config.Config, cwd string) *agent.Policy {
 	p.BashDeny = cfg.Permissions.BashDeny
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
+	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	return p
 }

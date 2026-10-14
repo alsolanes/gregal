@@ -2,8 +2,20 @@ package xyz.solanes.gregal
 
 /** Model de dades de l'API de `gregal serve` (rutes /api/...). */
 
-data class ChatMsg(val role: String, val text: String, val kind: String = "text", val at: Long = 0L)
-// kind: text | activity | error | goal — at: ms d'època (0 = sense segell)
+data class ChatMsg(
+    val role: String,
+    val text: String,
+    val kind: String = "text",
+    val at: Long = 0L,
+    /** Només kind == "work": el treball plegable del torn (Work.kt). */
+    val work: WorkGroup? = null,
+    /** Identitat estable per a les claus de la llista (no canvia en editar-lo). */
+    val id: Long = nextMsgId(),
+)
+// kind: text | activity | error | goal | work — at: ms d'època (0 = sense segell)
+
+private val msgSeq = java.util.concurrent.atomic.AtomicLong(1)
+fun nextMsgId(): Long = msgSeq.getAndIncrement()
 
 data class ParallelResult(
     val role: String,
@@ -149,6 +161,11 @@ data class ServerState(
     // declara i el mesurador s'amaga, com a la web i al TUI.
     val usedTokens: Int = 0,
     val contextWindow: Int = 0,
+    /** Bloqueig de permisos de la web: true = l'agent no demana permís. */
+    val permissive: Boolean = false,
+    val autoReview: Boolean = false,
+    /** Darrers missatges de la conversa (user/assistant), per reprendre-la. */
+    val transcript: List<ChatMsg> = emptyList(),
 ) {
     /** Percentatge de context ocupat (0 si el rol no declara finestra). */
     val ctxPct: Int get() = contextPct(usedTokens, contextWindow)
@@ -384,6 +401,8 @@ data class RunV2(
     val session: String = "",
     val workspace: String = "",
     val error: String = "",
+    /** Cursor del registre en el moment d'encuar (només submitRun). */
+    val cursor: Long = 0L,
 )
 
 data class DurableEvent(

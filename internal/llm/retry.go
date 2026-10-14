@@ -20,8 +20,8 @@ import (
 // (1, 2, 4, 8, 16, 20 → uns cinquanta segons en total). Abans eren tres
 // intents amb mig segon: bé per a un tall de xarxa, inútil amb un model
 // que arrenca sota demanda i torna 502 durant un minut (vist en viu amb
-// localhost). Un 429 amb Retry-After s'espera el que digui el
-// servidor (fins a 30 s). Qui crida pot saber que s'està reintentant amb
+// localhost). Un 429/503 amb Retry-After s'espera el que digui el
+// servidor (segons o data HTTP, fins a 30 s). Qui crida pot saber que s'està reintentant amb
 // WithRetryHook: el TUI i la finestra ho diuen a la barra en comptes de
 // quedar-se muts.
 const RetryAttempts = 6
@@ -56,13 +56,21 @@ func retryHookFrom(ctx context.Context) RetryHook {
 
 // backoffFor calcula l'espera abans de l'intent següent.
 func backoffFor(attempt int, resp *http.Response) time.Duration {
-	if resp != nil && resp.StatusCode == 429 {
-		if ra := resp.Header.Get("Retry-After"); ra != "" {
+	if resp != nil && (resp.StatusCode == 429 || resp.StatusCode == 503) {
+		if ra := strings.TrimSpace(resp.Header.Get("Retry-After")); ra != "" {
 			if s, err := strconv.Atoi(ra); err == nil && s > 0 {
 				if s > 30 {
 					s = 30
 				}
 				return time.Duration(s) * time.Second
+			}
+			if date, err := http.ParseTime(ra); err == nil {
+				if wait := time.Until(date); wait > 0 {
+					if wait > 30*time.Second {
+						wait = 30 * time.Second
+					}
+					return wait
+				}
 			}
 		}
 	}
@@ -70,21 +78,44 @@ func backoffFor(attempt int, resp *http.Response) time.Duration {
 	if b > RetryMax {
 		b = RetryMax
 	}
-	return b + time.Duration(rand.Int63n(int64(RetryJitter)))
+	if RetryJitter > 0 {
+		b += time.Duration(rand.Int63n(int64(RetryJitter)))
+	}
+	return b
 }
 
 // postRetry fa POST amb reintents. Torna la resposta amb 2xx o amb un 4xx
 // definitiu (el caller n'extreu l'error); els 429/5xx esgotats tornen error.
 func (c *Client) postRetry(ctx context.Context, baseURL, apiKey string, reqBody chatRequest) (*http.Response, error) {
+	return c.postRetryWith(ctx, baseURL, hasMalformedToolArguments(reqBody.Messages), func() (*http.Response, error) {
+		return c.post(ctx, baseURL, apiKey, reqBody)
+	})
+}
+
+// postRetryWith és el bucle de reintents comú a tots els protocols (chat
+// completions, Anthropic Messages, OpenAI Responses): do fa una sola petició
+// HTTP. malformed diu si l'historial porta arguments d'eina invàlids (vegeu
+// isPermanentProviderError).
+func (c *Client) postRetryWith(ctx context.Context, baseURL string, malformed bool, do func() (*http.Response, error)) (*http.Response, error) {
 	var last error
 	hook := retryHookFrom(ctx)
 	for attempt := 1; attempt <= RetryAttempts; attempt++ {
-		resp, err := c.post(ctx, baseURL, apiKey, reqBody)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		resp, err := do()
 		var failed *http.Response
 		if err != nil {
 			last = fmt.Errorf("provider %s: %w", baseURL, err)
 			if ctx.Err() != nil {
 				return nil, last
+			}
+			// DNS, connexió refusada o TLS: configuració, no un tall
+			// transitori. Es diu de seguida (vegeu transport.go); una
+			// connexió refusada té un sol reintent curt, per a un servidor
+			// local que just s'està engegant.
+			if hint := permanentTransportHint(err); hint != "" && attempt > refusedRetries(err) {
+				return nil, &PermanentTransportError{Err: fmt.Errorf("provider %s: %w (%s)", baseURL, err, hint)}
 			}
 		} else if resp.StatusCode == 429 || resp.StatusCode >= 500 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
@@ -93,13 +124,16 @@ func (c *Client) postRetry(ctx context.Context, baseURL, apiKey string, reqBody 
 			last = fmt.Errorf("provider %s: HTTP %d: %s%s", baseURL, resp.StatusCode, truncate(string(raw), 2000), zenHint(baseURL, resp.StatusCode, string(raw)))
 			// Un error de parseig dels arguments és determinista: repetir exactament
 			// el mateix historial només allarga el torn i pot arribar a dos minuts.
-			if isPermanentProviderError(string(raw)) && hasMalformedToolArguments(reqBody.Messages) {
+			if isPermanentProviderError(string(raw)) && malformed {
 				return nil, last
 			}
 		} else {
 			return resp, nil
 		}
 		if attempt < RetryAttempts {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			backoff := backoffFor(attempt, failed)
 			if hook != nil {
 				hook(attempt, RetryAttempts, backoff, last)
