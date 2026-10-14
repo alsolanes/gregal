@@ -2460,6 +2460,8 @@ function pintaTurnBar() {
   const activeAction = nowText ? ' · <span class="turn-note">' + escapeHTML(nowText) + '</span>' : '';
   if (typeof paintActivity === 'function') paintActivity();
   t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + activeAction;
+  // Mentre treballa, com dir-li alguna cosa sense esperar (steerNow).
+  if (visiblePhase === 'working' && typeof gregalT === 'function') t.innerHTML += ' <span class="turn-hint">' + escapeHTML(gregalT('steer.hint')) + '</span>';
   t.dataset.phase = visiblePhase;
   t.setAttribute('aria-live', 'off');
   const totBuit = visiblePhase === 'idle' && !cua.length && !todoActual.length;
@@ -2469,6 +2471,44 @@ function pintaTurnBar() {
     '<button data-q="' + i + '" aria-label="' + gregalT('ui.cua.treu') + '" title="' + gregalT('ui.cua.treu') + '">×</button></div>').join('');
   llista.querySelectorAll('[data-q]').forEach(b => b.onclick = () => { cua.splice(+b.dataset.q, 1); pintaTurnBar(); });
   bar.hidden = totBuit;
+}
+// Dir-li ara (POST /api/steer): el torn el llegeix al següent punt segur i
+// continua tenint-lo en compte; amb interrupt, talla la crida al model en
+// curs. Si ja no hi ha torn (acabava just ara), passa a la cua.
+async function steerNow(text, interrupt) {
+  const row = steerRow(text, interrupt);
+  try {
+    const r = await api('/api/steer', { method: 'POST', body: JSON.stringify({ text, interrupt: !!interrupt }) });
+    if (r.status === 409) { row.remove(); encua(text); return; }
+    if (!r.ok) throw new Error(await r.text());
+    activityItem('steer', gregalT(interrupt ? 'steer.interrupted' : 'steer.sent'), text.slice(0, 70), 'warn');
+  } catch (e) {
+    row.classList.add('steer-failed');
+    row.querySelector('.steer-state').textContent = gregalT('steer.failed');
+  }
+}
+// La fila del missatge dins el treball del torn (o al final, si no n'hi ha).
+function steerRow(text, interrupt) {
+  const row = document.createElement('div');
+  row.className = 'msg u steer' + (interrupt ? ' steer-interrupt' : '');
+  row.dataset.steer = text;
+  row.innerHTML = '<div class="body"><div class="steer-head"><span class="steer-tag">' + escapeHTML(gregalT(interrupt ? 'steer.tagInterrupt' : 'steer.tag')) +
+    '</span><span class="steer-state">' + escapeHTML(gregalT('steer.pending')) + '</span></div>' + md(text) + '</div>';
+  const body = turnGroup && turnGroup.isConnected ? turnGroup.querySelector('.wg-body') : null;
+  (body || main).appendChild(row);
+  if (turnGroup && turnGroup.isConnected) turnGroup.open = true;
+  row.scrollIntoView({ block: 'end' });
+  return row;
+}
+function steerDelivered(text) {
+  // Si no hi és, l'ha enviat un altre client (el mòbil): es pinta igual.
+  const row = [...document.querySelectorAll('.msg.steer:not(.steer-ok)')].find(r => r.dataset.steer === text) || steerRow(text, false);
+  row.classList.add('steer-ok');
+  row.querySelector('.steer-state').textContent = gregalT('steer.read');
+}
+function steerUndelivered(text) {
+  const row = [...document.querySelectorAll('.msg.steer:not(.steer-ok)')].find(r => r.dataset.steer === text);
+  if (row) row.remove();
 }
 function encua(text) {
   cua.push(text);
@@ -3137,6 +3177,12 @@ async function doAgent(task) {
         return;
       }
       if(ev==='status' && d.message){ turnNote = d.message; pintaTurnBar(); }
+      // El torn ha llegit un missatge escrit mentre treballava.
+      else if(ev==='steer'){ steerDelivered(d.text); setActivity('model', gregalT('steer.applying')); }
+      // Una crida al model tallada per «interromp»: el text a mig escriure ja no val.
+      else if(ev==='steer_restart'){ if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;} if(live){live.remove();live=null;} acc=''; setActivity('model', gregalT('steer.applying')); }
+      // No han arribat a entrar (el torn ha acabat abans): es tornen a la cua.
+      else if(ev==='steer_unread'){ (d.texts||[]).forEach(t => { steerUndelivered(t); encua(t); }); }
       else if(ev==='token'){turnPhase='working';acc+=d.text; if(turnNote){turnNote=''; pintaTurnBar();} if(!turnActivity||turnActivity.key!=='writing') setActivity('writing', gregalT('act.now.writing')); paintLive();}
       else if(ev==='assistant' && d.text.trim()){turnPhase='working';turnNote=''; lastAssistantText=d.text.trim(); const bombolla=settleLiveEl(md(d.text)) || add('a','',md(d.text)); mdBo(d.text,bombolla);}
       else if(ev==='goal')goalCard(d);
@@ -3685,7 +3731,7 @@ function verdict(d) {
   add('a','', '<div class="verdict '+(ok?'ok':'no')+'">'+escapeHTML(gregalT(ok?'verdict.approved':'verdict.review'))+(d.detail?'<div class="body">'+md(d.detail.slice(0,1800))+'</div>':'')+'</div>');
   activityItem('revisor',gregalT(ok?'review.approved':'verdict.review'),d.detail||'',ok?'ok':'bad');
 }
-$('send').onclick=()=>{ if (sending) { const txt=input.value.trim(); if(txt){histApunta(txt);encua(txt);input.value=''; input.dispatchEvent(new Event('input'));input.style.height='auto';$('send').innerHTML=sendLabel();}else stopTurn(); return; } sendByMode(); };
+$('send').onclick=()=>{ if (sending) { const txt=input.value.trim(); if(txt){histApunta(txt);steerNow(txt,false);input.value=''; input.dispatchEvent(new Event('input'));input.style.height='auto';$('send').innerHTML=sendLabel();}else stopTurn(); return; } sendByMode(); };
 // Historial d'entrada del composer.
 //
 // El TUI el té des de sempre; la finestra no en tenia gens, i per repetir
@@ -3759,7 +3805,12 @@ input.addEventListener('keydown',e=>{
     // seguir pensant mentre l'agent treballa.
     const txt = input.value.trim();
     histApunta(txt);
-    if (sending && txt) { encua(txt); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; return; }
+    // Amb un torn en marxa: Enter li diu ara, Ctrl/⌘+Enter l'interromp i
+    // li diu, Alt+Enter ho deixa a la cua per després (com abans).
+    if (sending && txt) {
+      if (e.altKey) encua(txt); else steerNow(txt, e.ctrlKey || e.metaKey);
+      input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; return;
+    }
     sendByMode();
   }
   if(e.key==='Escape'&&sending){e.preventDefault();stopTurn();}

@@ -65,6 +65,14 @@ class GregalApi(val base: String, val token: String) {
         return text
     }
 
+    /** Missatge per al torn en curs. false si ja no n'hi ha cap (409). */
+    fun steer(text: String, interrupt: Boolean): Boolean {
+        val c = conn("/api/steer", "POST", JSONObject().put("text", text).put("interrupt", interrupt).toString())
+        if (c.responseCode == 409) return false
+        read(c)
+        return true
+    }
+
     // --- #retro (xat amb els agents sobre un torn acabat) ---
 
     fun getRetro(key: String = "", runId: Long = 0L): RetroInfo {

@@ -669,6 +669,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             _turnStart.value = 0L
             _statusLine.value = ""
             refresh()
+            // Missatges que no van arribar a entrar al torn: ara com a missatge nou.
+            if (afterTurn.isNotEmpty()) {
+                val next = afterTurn.joinToString("\n\n")
+                afterTurn.clear()
+                send(next)
+            }
         }
     }
 
@@ -1010,6 +1016,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "run_queued" -> setActivity("queued", appText("app.chat.runQueued"))
             "run_started" -> setActivity("start", appText("app.work.starting"))
             "run_cancelled" -> step(StepKind.Warn, appText("app.chat.cancelled"))
+            // Missatges escrits mentre treballava (POST /api/steer).
+            "steer" -> { steerDelivered(f("text").ifEmpty { text }); setActivity("model", appText("app.steer.applying")) }
+            "steer_restart" -> { synchronized(tokenLock) { tokenBuffer.clear() }; _live.value = "" }
+            "steer_unread" -> {
+                val raw = text.ifEmpty { o.toString() }
+                val arr = try { JSONObject(raw).optJSONArray("texts") } catch (_: Exception) { null } ?: o.optJSONArray("texts")
+                if (arr != null) for (i in 0 until arr.length()) afterTurn += arr.optString(i)
+            }
             else -> {} // done, run_completed, usage, lane, handoff…: res a pintar
         }
     }
@@ -1348,9 +1362,50 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         simplePost("/api/permissive", JSONObject().put("on", on).put("review", review))
     }
 
-    /** Envia segons el composer: amb «primer el pla» a Actua, primer el pla. */
-    fun submit(text: String) {
-        if (_planFirst.value && _state.value.mode == "code") requestPlan(text) else send(text)
+    /** Envia segons el composer: amb «primer el pla» a Actua, primer el pla.
+     *  Si l'agent ja treballa, el missatge li arriba ara (steer). */
+    fun submit(text: String, interrupt: Boolean = false) {
+        when {
+            _sending.value && workId != 0L -> steer(text, interrupt)
+            _planFirst.value && _state.value.mode == "code" -> requestPlan(text)
+            else -> send(text)
+        }
+    }
+
+    /**
+     * Missatge per al torn en curs (com els altres agents de codi): entra al
+     * següent punt segur i el model el té en compte; amb interrupt, talla la
+     * crida al model que estigui fent. Si el torn acabava just ara, s'envia
+     * com un missatge nou en acabar.
+     */
+    fun steer(text: String, interrupt: Boolean = false) {
+        val t = text.trim()
+        if (t.isEmpty()) return
+        updateWork { it.add(WorkStep("u${nextMsgId()}", StepKind.User,
+            appText(if (interrupt) "app.steer.tagInterrupt" else "app.steer.tag"), oneLine(t, 200),
+            appText("app.steer.pending"), t, StepState.Running)) }
+        setActivity("steer", appText("app.steer.applying"))
+        viewModelScope.launch {
+            val ok = try {
+                withContext(Dispatchers.IO) { _conn.value.api().steer(t, interrupt) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notify(requestMessage(e)); null
+            }
+            if (ok == false) afterTurn += t
+        }
+    }
+
+    /** Missatges que el torn ja no ha pogut llegir: s'envien en acabar. */
+    private val afterTurn = mutableListOf<String>()
+
+    private fun steerDelivered(text: String) {
+        updateWork { w ->
+            val i = w.steps.indexOfLast { it.kind == StepKind.User && it.state == StepState.Running && it.detail == text }
+            if (i < 0) w.add(WorkStep("u${nextMsgId()}", StepKind.User, appText("app.steer.tag"), oneLine(text, 200), appText("app.steer.read"), text, StepState.Ok))
+            else w.copy(steps = w.steps.toMutableList().also { it[i] = it[i].copy(state = StepState.Ok, meta = appText("app.steer.read")) })
+        }
     }
     /** Revisor automàtic on/off (la web: auto/manual; aquí interruptor). */
     fun setVerify(auto: Boolean) = simplePost("/api/verify", JSONObject().put("mode", if (auto) "auto" else "manual"))

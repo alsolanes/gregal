@@ -3,6 +3,12 @@ package xyz.solanes.gregal
 /** Claus només-mòbil (aparellament, cua, avisos...). Manual: la web no les té.
  *  Paritat ca/en a mà, com exigeix la identitat. */
 val STR_APP_CA: Map<String, String> = mapOf(
+    "app.steer.tag" to "Tu, mentre treballava",
+    "app.steer.tagInterrupt" to "Tu · interromput",
+    "app.steer.pending" to "esperant que ho llegeixi",
+    "app.steer.read" to "llegit ✓",
+    "app.steer.applying" to "Tenint en compte el teu missatge…",
+    "app.steer.hint" to "Envia: digues-li ara · Mantén premut: interromp i digues-li",
     "app.retro.title" to "Retro",
     "app.retro.you" to "Tu",
     "app.retro.placeholder" to "Pregunta o rebat a l'equip… (@nom)",
@@ -408,6 +414,12 @@ val STR_APP_CA: Map<String, String> = mapOf(
 )
 
 val STR_APP_EN: Map<String, String> = mapOf(
+    "app.steer.tag" to "You, while it worked",
+    "app.steer.tagInterrupt" to "You · interrupted",
+    "app.steer.pending" to "waiting for it to read",
+    "app.steer.read" to "read ✓",
+    "app.steer.applying" to "Taking your message into account…",
+    "app.steer.hint" to "Send: tell it now · Long-press: interrupt and tell it",
     "app.retro.title" to "Retro",
     "app.retro.you" to "You",
     "app.retro.placeholder" to "Ask or challenge the team… (@name)",

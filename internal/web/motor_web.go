@@ -262,12 +262,19 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	avisatEsgotat := false
 	// La traça viva és la que llegeix /btw mentre el torn corre.
 	defer s.clearLiveTrace()
+	// Els missatges escrits mentre el torn treballa (steer.go) arriben per
+	// la bústia que obre el torn sencer (turnExecutor): aquí es lliuren.
 	for {
 		s.setLiveTrace(torn.Hist)
 		if runCtx.Err() != nil {
 			torn.Cancella()
 			emit("error", map[string]string{"message": s.tr("torn aturat per l'usuari", "Turn stopped by the user")})
 			return "", histAmbSys(), runCtx.Err()
+		}
+		for _, m := range s.drainSteer() {
+			if torn.Interjeccio(m) {
+				emit("steer", map[string]string{"text": m})
+			}
 		}
 		pas := torn.Seguent()
 		pinta(pas.Events)
@@ -307,8 +314,20 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			// dins del torn (llm/reasoning.go).
 			raonament := &llm.ReasoningCapture{}
 			ctx = llm.WithReasoningCapture(ctx, raonament)
+			// Un missatge amb «interromp» talla aquesta crida (i només
+			// aquesta): el pas es refà amb el missatge ja a l'historial.
+			ctx, tallaPas := context.WithCancel(ctx)
+			fiCrida := s.steerModelCall(tallaPas)
 			content, calls, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, agent.SpecsAll(),
 				func(tok string) { emit("token", map[string]string{"text": tok}) }, nil, onFallback)
+			interromput := fiCrida()
+			tallaPas()
+			if interromput && runCtx.Err() == nil {
+				cancel()
+				progres.fiModel()
+				emit("steer_restart", map[string]string{})
+				continue
+			}
 			err = agent.ModelError(ctx, err)
 			cancel()
 			progres.fiModel()

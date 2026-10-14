@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Azure OpenAI and OpenAI reasoning models (o-series, gpt-5…) work: when a
+  model rejects `max_tokens` (HTTP 400 "use max_completion_tokens instead")
+  or a non-default temperature, Gregal resends with `max_completion_tokens`
+  or the default temperature and remembers it for that model.
+- Several requests at once: sessions on the same project now work in
+  parallel instead of the second one waiting as "queued" (only unattended
+  jobs and graphs still take the folder exclusively).
+- Talk to the agent while it works, like other coding agents: Enter sends
+  the message into the running turn (it is read at the next safe point and
+  the agent adjusts), Ctrl/⌘+Enter interrupts the current model call and
+  redoes it with the message, Alt+Enter keeps the old "queue for after".
+  On Android, Send tells it now and a long press interrupts. Messages that
+  arrive too late are sent as a new message, never lost.
+- Stopping a turn now closes it in the conversation, so the next question
+  is answered on its own instead of resuming the stopped task.
 - One release pipeline. `node scripts/release.cjs bump X.Y.Z --title ...`
   sets every version and turns the Unreleased notes into the release
   section; Quality CI fails if versions or the changelog drift; pushing the
