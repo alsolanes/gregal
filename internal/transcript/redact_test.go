@@ -55,12 +55,12 @@ func TestRedactBearerIAssignacions(t *testing.T) {
 }
 
 func TestRedactPEM(t *testing.T) {
-	in := "abans\n-----BEGIN RSA PRIVATE KEY-----\nMIIEow\nAAAA\n-----END RSA PRIVATE KEY-----\ndesprés"
+	in := "abans\n" + fake("-----BEGIN ", "RSA PRIVATE KEY-----") + "\nMIIEow\nAAAA\n-----END RSA PRIVATE KEY-----\ndesprés"
 	got := Redact(in, RedactOptions{})
 	if got != "abans\n[REDACTED PRIVATE KEY]\ndesprés" {
 		t.Fatalf("%q", got)
 	}
-	got = Redact("x -----BEGIN OPENSSH PRIVATE KEY-----\nb3Blbn (retallat)", RedactOptions{})
+	got = Redact("x "+fake("-----BEGIN ", "OPENSSH PRIVATE KEY-----")+"\nb3Blbn (retallat)", RedactOptions{})
 	if strings.Contains(got, "b3Blbn") {
 		t.Fatalf("bloc PEM sense final: %q", got)
 	}

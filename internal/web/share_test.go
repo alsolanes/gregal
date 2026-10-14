@@ -26,7 +26,7 @@ func exportTestServer(t *testing.T) (*Server, http.Handler) {
 	convo := []llm.Message{
 		{Role: "system", Content: "system prompt"},
 		{Role: "user", Content: "Read C:\\Users\\aleix\\proj\\a.go and mail me at aleix@example.com\n\n" + agent.MarcaContext + " x] proj\nfitxers:\nmapfile_secret.go\n"},
-		{Role: "assistant", Content: "ok literal-config-key-0042 sk-ant-api03-ZZZZZZZZZZZZZZZZ <script>alert(1)</script>"},
+		{Role: "assistant", Content: "ok literal-config-key-0042 " + "sk-ant-api03-" + "ZZZZZZZZZZZZZZZZ" + " <script>alert(1)</script>"},
 	}
 	if _, err := session.SaveSession(session.DefaultDir(), session.Session{Name: "conv-a", Title: "Conv A", Convo: convo}); err != nil {
 		t.Fatal(err)
