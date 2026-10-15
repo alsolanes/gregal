@@ -542,3 +542,45 @@ func TestOAuthLoopbackDelTUI(t *testing.T) {
 		t.Fatalf("%+v", st)
 	}
 }
+
+// TestNewManagerConnectaEnSegonPla: NewManager no toca la xarxa i cada
+// ConnectServer porta les eines del seu servidor encara que un altre
+// segueixi penjat (és el que fa el TUI en arrencar).
+func TestNewManagerConnectaEnSegonPla(t *testing.T) {
+	f := newFakeRemote(t)
+	penjat := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done() // no respon mai
+	}))
+	defer penjat.Close()
+	start := time.Now()
+	m := NewManager(map[string]Server{"docs": {URL: f.url()}, "penjat": {URL: penjat.URL + "/mcp"}},
+		Options{Store: NewTokenStore(filepath.Join(t.TempDir(), "s.json")), NoRegister: true})
+	defer m.Close()
+	if time.Since(start) > time.Second {
+		t.Fatal("NewManager no ha d'esperar cap servidor")
+	}
+	if got := m.Connecting(); len(got) != 2 {
+		t.Fatalf("connecting=%v", got)
+	}
+	if s := m.Summary(); !strings.Contains(s, "2 connectant") {
+		t.Fatalf("summary=%q", s)
+	}
+	for _, row := range m.Status() {
+		if row["status"] != StatusConnecting {
+			t.Fatalf("status=%v", row)
+		}
+	}
+	if err := m.ConnectServer("docs"); err != nil {
+		t.Fatal(err)
+	}
+	if got := m.Connecting(); len(got) != 1 || got[0] != "penjat" {
+		t.Fatalf("connecting=%v", got)
+	}
+	if len(m.ToolsSnapshot()) == 0 {
+		t.Fatal("les eines de docs han d'aparèixer sense esperar penjat")
+	}
+	m.Remove("penjat")
+	if got := m.Connecting(); len(got) != 0 {
+		t.Fatalf("connecting després de Remove=%v", got)
+	}
+}

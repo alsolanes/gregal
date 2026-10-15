@@ -485,7 +485,9 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 	}
 	role := initialRole(cfg)
 	m := Model{cfg: cfg, cfgPath: cfgPath, client: c, version: v, cwd: cwd, input: ti, role: role, status: T("barra.llest"), mode: cfg.Mode,
-		mcp:         mcp.Setup(toMCPServers(cfg)),
+		// Sense connectar: Init ho fa en segon pla perquè un servidor MCP
+		// lent o penjat no deixi el TUI en blanc fins a 30 s.
+		mcp:         mcp.NewManager(toMCPServers(cfg), mcp.Options{}),
 		policy:      &agent.Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: cwd},
 		remembers:   agent.NewRemember(),
 		histEntries: session.LoadHistory(), histIdx: -1,
@@ -518,10 +520,12 @@ func toMCPServers(cfg *config.Config) map[string]mcp.Server {
 // Init anima el cursor (i apaga el ratolí si el config el vol desactivat;
 // el programa arrenca amb captura activada).
 func (m Model) Init() tea.Cmd {
-	if m.mouseOn {
-		return tea.Batch(textarea.Blink, tickIdle(), m.detectWindowsCmd())
+	cmds := []tea.Cmd{textarea.Blink, tickIdle(), m.detectWindowsCmd()}
+	if !m.mouseOn {
+		cmds = append(cmds, tea.DisableMouse)
 	}
-	return tea.Batch(textarea.Blink, tickIdle(), tea.DisableMouse, m.detectWindowsCmd())
+	cmds = append(cmds, mcpSetupCmds(m.mcp)...)
+	return tea.Batch(cmds...)
 }
 
 func tick() tea.Cmd {
@@ -1661,6 +1665,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.flowTick()
 	case mcpAuthMsg:
 		return m.onMCPAuth(msg)
+	case mcpReadyMsg:
+		return m.onMCPReady(msg)
 	case mcpPromptMsg:
 		return m.onMCPPrompt(msg)
 	case serviceStatusMsg:
@@ -3880,13 +3886,18 @@ func (m Model) View() string {
 		estat = "◈ " + m.status
 		estatStyle = warnStyle
 	}
-	estat = mascota + " " + estat
+	estat = estatStyle.Render(mascota + " " + estat)
+	if n := len(m.mcp.Connecting()); n > 0 {
+		// Les eines d'aquests servidors encara no hi són: un torn ara no
+		// les veurà. Ho diu la barra fins que acaben.
+		estat = dimStyle.Render(fmt.Sprintf(T("mcp.connectant"), n)) + "  " + estat
+	}
 	// Quadrat ple = cada eina delicada demana permís; buit = permissiu.
 	permisos := dimStyle.Render("■")
 	if m.permissive {
 		permisos = warnStyle.Render("□")
 	}
-	rightBar := estatStyle.Render(estat) + "  " + permisos
+	rightBar := estat + "  " + permisos
 	if !m.vp.AtBottom() {
 		rightBar = projectStyle.Render(fmt.Sprintf("↕ %d%%", int(m.vp.ScrollPercent()*100))) + "  " + rightBar
 	}

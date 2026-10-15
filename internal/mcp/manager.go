@@ -22,7 +22,13 @@ const (
 	StatusConnected = "connected"
 	StatusError     = "error"
 	StatusNeedsAuth = "needs_auth"
+	// StatusConnecting: el primer intent de connexió encara no ha acabat
+	// (només amb NewManager + ConnectServer; Setup espera).
+	StatusConnecting = "connecting"
 )
+
+// SetupTimeout és el temps màxim del primer intent de connexió d'un servidor.
+const SetupTimeout = 30 * time.Second
 
 // Manager arrenca N servidors i registra les seves tools a l'agent. Es pot
 // tocar en calent (afegir, treure, reconnectar, autoritzar) des de la
@@ -39,6 +45,11 @@ type Manager struct {
 	prompts  map[string][]Prompt
 	toolsBy  map[string][]Tool
 	pending  map[string]*pendingAuth
+	// connecting són els servidors del primer intent encara en marxa.
+	connecting map[string]bool
+	// refreshMu serialitza refreshTools: dues connexions que acaben alhora
+	// no poden entrellaçar el registre de l'agent i perdre eines.
+	refreshMu sync.Mutex
 
 	store    *TokenStore
 	hc       HTTPDoer
@@ -82,12 +93,32 @@ func Setup(servers map[string]Server) *Manager {
 	return SetupWith(servers, Options{})
 }
 
-// SetupWith és Setup amb opcions.
+// SetupWith és Setup amb opcions. Espera (com a molt SetupTimeout per
+// servidor, en paral·lel) que tots els servidors acabin el primer intent.
 func SetupWith(servers map[string]Server, o Options) *Manager {
+	m := NewManager(servers, o)
+	// En paral·lel: un servidor remot lent no ha de retardar els altres.
+	var wg sync.WaitGroup
+	for _, name := range m.Connecting() {
+		wg.Add(1)
+		go func(name string) {
+			defer wg.Done()
+			_ = m.ConnectServer(name)
+		}(name)
+	}
+	wg.Wait()
+	m.refreshTools()
+	return m
+}
+
+// NewManager crea el gestor sense connectar res: tots els servidors queden
+// «connecting» fins que se'ls crida ConnectServer. És per al TUI, que ha
+// de pintar de seguida i connectar en segon pla.
+func NewManager(servers map[string]Server, o Options) *Manager {
 	m := &Manager{
 		servers: map[string]Server{}, clients: map[string]*Client{}, Errors: map[string]string{},
 		needAuth: map[string]bool{}, prompts: map[string][]Prompt{}, pending: map[string]*pendingAuth{},
-		toolsBy: map[string][]Tool{},
+		toolsBy: map[string][]Tool{}, connecting: map[string]bool{},
 		store:   o.Store, hc: o.HTTP, register: !o.NoRegister,
 	}
 	if m.store == nil {
@@ -98,24 +129,41 @@ func SetupWith(servers map[string]Server, o Options) *Manager {
 	}
 	for name, srv := range servers {
 		m.servers[name] = srv
+		m.connecting[name] = true
 	}
-	// En paral·lel: un servidor remot lent no ha de retardar els altres.
-	var wg sync.WaitGroup
-	for name := range servers {
-		wg.Add(1)
-		go func(name string) {
-			defer wg.Done()
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			m.connect(ctx, name)
-		}(name)
-	}
-	wg.Wait()
-	m.refreshTools()
 	if m.register {
 		current.Store(m)
 	}
 	return m
+}
+
+// ConnectServer fa el primer intent de connexió d'un servidor (com a molt
+// SetupTimeout), en registra les eines i el treu de «connecting». Segur
+// des de diverses goroutines.
+func (m *Manager) ConnectServer(name string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), SetupTimeout)
+	defer cancel()
+	err := m.connect(ctx, name)
+	m.mu.Lock()
+	delete(m.connecting, name)
+	m.mu.Unlock()
+	m.refreshTools()
+	return err
+}
+
+// Connecting torna (ordenats) els servidors amb el primer intent en marxa.
+func (m *Manager) Connecting() []string {
+	if m == nil {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]string, 0, len(m.connecting))
+	for n := range m.connecting {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func (m *Manager) dialOpts(name string, srv Server) DialOpts {
@@ -157,6 +205,13 @@ func (m *Manager) connect(ctx context.Context, name string) error {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, still := m.servers[name]; !still {
+		// Tret (Remove) mentre es connectava: no deixis un client orfe.
+		if c != nil {
+			c.Close()
+		}
+		return fmt.Errorf("mcp: server %q removed", name)
+	}
 	if err != nil {
 		delete(m.prompts, name)
 		delete(m.toolsBy, name)
@@ -179,6 +234,8 @@ func (m *Manager) connect(ctx context.Context, name string) error {
 
 // refreshTools refà la llista d'eines i el registre de l'agent.
 func (m *Manager) refreshTools() {
+	m.refreshMu.Lock()
+	defer m.refreshMu.Unlock()
 	m.mu.Lock()
 	names := make([]string, 0, len(m.clients))
 	resources := false
@@ -327,6 +384,8 @@ func (m *Manager) Status() []map[string]any {
 		case m.clients[name] != nil:
 			row["status"] = StatusConnected
 			row["resources"] = m.clients[name].Caps.Resources
+		case m.connecting[name]:
+			row["status"] = StatusConnecting
 		case m.needAuth[name]:
 			row["status"] = StatusNeedsAuth
 		default:
@@ -361,12 +420,15 @@ func (m *Manager) Summary() string {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if len(m.clients) == 0 && len(m.Errors) == 0 {
+	if len(m.clients) == 0 && len(m.Errors) == 0 && len(m.connecting) == 0 {
 		return "inactiu"
 	}
 	s := fmt.Sprintf("%d servidor(s), %d eina(es)", len(m.clients), len(m.Tools))
 	if len(m.Errors) > 0 {
 		s += fmt.Sprintf(" (%d error(s))", len(m.Errors))
+	}
+	if len(m.connecting) > 0 {
+		s += fmt.Sprintf(" · %d connectant", len(m.connecting))
 	}
 	return s
 }
@@ -500,6 +562,7 @@ func (m *Manager) Remove(name string) {
 	delete(m.needAuth, name)
 	delete(m.prompts, name)
 	delete(m.toolsBy, name)
+	delete(m.connecting, name)
 	m.mu.Unlock()
 
 	if c != nil {
