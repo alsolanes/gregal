@@ -19,7 +19,7 @@ func reviewMenu(files []tools.DiffFile) *menuState {
 		if f.Binary {
 			key := fmt.Sprintf("%d:-1", fi)
 			refs[key] = ref{file: f}
-			items = append(items, menuItem{text: fmt.Sprintf("%s · binari", f.Path), val: key})
+			items = append(items, menuItem{text: fmt.Sprintf(T("review.binari"), f.Path), val: key})
 			continue
 		}
 		for hi, h := range f.Hunks {
@@ -31,16 +31,16 @@ func reviewMenu(files []tools.DiffFile) *menuState {
 	if len(items) == 0 {
 		return nil
 	}
-	return &menuState{title: "revisió de canvis", items: items, run: func(m *Model, val string) (string, *menuState) {
+	return &menuState{title: T("review.titol"), items: items, run: func(m *Model, val string) (string, *menuState) {
 		r := refs[val]
 		return "", reviewHunkMenu(r.file, r.hunk)
 	}}
 }
 
 func reviewHunkMenu(file tools.DiffFile, h tools.DiffHunk) *menuState {
-	items := []menuItem{{text: "mostra el hunk", val: "show"}, {text: "conserva el canvi", val: "keep"}}
+	items := []menuItem{{text: T("review.mostra"), val: "show"}, {text: T("review.conserva"), val: "keep"}}
 	if !file.Binary && !file.Untracked && strings.TrimSpace(h.Patch) != "" {
-		items = append(items, menuItem{text: "descarta el hunk…", val: "discard"})
+		items = append(items, menuItem{text: T("review.descarta"), val: "discard"})
 	}
 	title := fmt.Sprintf("%s · +%d −%d", file.Path, h.Added, h.Removed)
 	return &menuState{title: title, items: items, run: func(m *Model, action string) (string, *menuState) {
@@ -49,15 +49,15 @@ func reviewHunkMenu(file tools.DiffFile, h tools.DiffHunk) *menuState {
 			m.push(reviewHunkBlock(file.Path, h))
 			return "", reviewHunkMenu(file, h)
 		case "keep":
-			m.push(okStyle.Render("✓ conservat · " + file.Path))
+			m.push(okStyle.Render("✓ " + T("review.conservat") + file.Path))
 			return "", nil
 		case "discard":
 			patch, cwd := h.Patch, m.cwd
-			m.pending = &pendingOp{desc: fmt.Sprintf("descartar hunk de %s (+%d −%d)", file.Path, h.Added, h.Removed), run: func(ctx context.Context) (string, error) {
+			m.pending = &pendingOp{desc: fmt.Sprintf(T("review.descartar"), file.Path, h.Added, h.Removed), run: func(ctx context.Context) (string, error) {
 				if err := tools.GitApplyReverse(cwd, patch); err != nil {
 					return "", err
 				}
-				return "hunk descartat", nil
+				return T("review.descartat"), nil
 			}}
 			return "", nil
 		}

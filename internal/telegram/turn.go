@@ -553,13 +553,15 @@ func (b *Bot) modeBadge(mode string) string {
 	case agent.ModeGoal:
 		return "◆ " + b.tr("objectiu", "goal")
 	case agent.ModeInspect:
-		return "◉ " + b.tr("consulta", "inspect")
+		return "◇ " + b.tr("pregunta · eines", "ask · tools")
 	case agent.ModeChat:
-		return "◇ " + b.tr("xat", "chat")
+		return "◇ " + b.tr("pregunta", "ask")
 	case agent.ModeAutonomous:
-		return "≋ " + b.tr("autònom", "autonomous")
+		return "◆ " + b.tr("autònom", "autonomous")
+	case agent.ModeDebug:
+		return "◆ " + b.tr("depuració", "debug")
 	default:
-		return "◆ " + b.tr("codi", "code")
+		return "◆ " + b.tr("actua", "act")
 	}
 }
 

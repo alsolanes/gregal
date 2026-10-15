@@ -285,7 +285,7 @@ func TestTelegramEnglishDefault(t *testing.T) {
 	if strings.Contains(help, "agent de codi") {
 		t.Errorf("English help contains Catalan: %s", help)
 	}
-	if got := bot.modeBadge("autonomous"); got != "≋ autonomous" {
+	if got := bot.modeBadge("autonomous"); got != "◆ autonomous" {
 		t.Errorf("English mode badge = %q", got)
 	}
 	if got := bot.permsText(); !strings.Contains(got, "Permissions") || !strings.Contains(got, "without prompting") {
@@ -323,7 +323,7 @@ func TestTelegramEnglishDefault(t *testing.T) {
 		t.Errorf("English permission denial = %q", callbackText)
 	}
 	bot.cfg.Language = "ca"
-	if got := bot.modeBadge("autonomous"); got != "≋ autònom" {
+	if got := bot.modeBadge("autonomous"); got != "◆ autònom" {
 		t.Errorf("Catalan mode badge = %q", got)
 	}
 	if got := bot.botMenu(); got[1].Description != "sessió nova" {

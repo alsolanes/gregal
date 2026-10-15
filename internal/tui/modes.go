@@ -11,6 +11,11 @@ import (
 // amb /mode autonomous perquè no aparegui per accident en una sessió normal.
 var ordreModes = []string{agent.ModeCode, agent.ModeInspect, agent.ModeChat, agent.ModeGoal}
 
+// modeFromWord tradueix el nom que escriu la persona (/mode ask, /mode
+// actua…) a l'id intern: el mateix criteri a totes les interfícies
+// (agent.ModeFromWord). Torna "" si no el coneix.
+func modeFromWord(w string) string { return agent.ModeFromWord(w) }
+
 // cycleMode passa al mode següent del cicle i el desa.
 func (m *Model) cycleMode() string {
 	seguent := ordreModes[0]

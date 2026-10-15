@@ -191,7 +191,7 @@ func TestLaBarraDiuElContextEnPercentatge(t *testing.T) {
 func TestLaBarraTeQuatreSegments(t *testing.T) {
 	for _, ample := range []int{80, 100, 132, 170} {
 		linia := stripANSI(ultimaLinia(modelDeBarra(t, ample).View()))
-		for _, vol := range []string{"CODE", "ctx ", "llest", "■"} {
+		for _, vol := range []string{"ACTUA", "ctx ", "llest", "■"} {
 			if !strings.Contains(linia, vol) {
 				t.Errorf("a %d columnes falta %q:\n%s", ample, vol, linia)
 			}
@@ -263,7 +263,7 @@ func TestLaCarpetaNoMenjaElContext(t *testing.T) {
 		if !strings.Contains(linia, "ctx ") {
 			t.Errorf("a %d columnes el context ha desaparegut:\n%s", ample, linia)
 		}
-		if !strings.Contains(linia, "CODE") {
+		if !strings.Contains(linia, "ACTUA") {
 			t.Errorf("a %d columnes falta el mode:\n%s", ample, linia)
 		}
 	}

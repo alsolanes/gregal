@@ -23,11 +23,11 @@ func providerAddMenu(m *Model) *menuState {
 		text := fmt.Sprintf("%-14s %s", pc.Etiqueta, pc.BaseURL)
 		switch {
 		case teProveidorAmbURL(m, pc.BaseURL, pc.Type):
-			text += "  ← ja el tens"
+			text += "  ← " + T("alta.jaElTens")
 		case pc.Local:
-			text += "  (local, sense clau)"
+			text += "  " + T("alta.local")
 		case os.Getenv(pc.EnvVar) != "":
-			text += "  ($" + pc.EnvVar + " definida)"
+			text += "  " + fmt.Sprintf(T("alta.envDefinida"), pc.EnvVar)
 		}
 		items = append(items, menuItem{text: text, val: pc.Nom})
 	}
@@ -77,7 +77,7 @@ func (m *Model) altaProveidor(pc config.ProveidorConegut) (string, *menuState) {
 		delete(m.cfg.Providers, nom)
 		return systemLine(T("prov.noDesat") + err.Error()), nil
 	}
-	capsalera := okStyle.Render("✓ "+pc.Etiqueta+" donat d'alta com a "+nom) + dimStyle.Render("  "+pc.BaseURL)
+	capsalera := okStyle.Render("✓ "+fmt.Sprintf(T("alta.donatAlta"), pc.Etiqueta, nom)) + dimStyle.Render("  "+pc.BaseURL)
 	if pc.Nota != "" {
 		capsalera += "\n" + faintStyle.Render("  "+pc.Nota)
 	}
@@ -85,11 +85,11 @@ func (m *Model) altaProveidor(pc config.ProveidorConegut) (string, *menuState) {
 	// demana aquí mateix en comptes de deixar-ho per a un altre dia.
 	if !pc.Local && strings.TrimSpace(p.APIKey) == "" {
 		m.pendingKeyFor = nom
-		return capsalera + "\n" + systemLine("escriu la clau de "+nom+T("prov.senseHistorial")), nil
+		return capsalera + "\n" + systemLine(fmt.Sprintf(T("alta.escriuClau"), nom)+T("prov.senseHistorial")), nil
 	}
 	ids, err := fetchModelIDs(p.BaseURL, p.APIKey)
 	if err != nil || len(ids) == 0 {
-		return capsalera + "\n" + systemLine(nom+" encara no llista models: "+errText(err)), nil
+		return capsalera + "\n" + systemLine(nom+T("alta.encaraNoLlista")+errText(err)), nil
 	}
 	m.push(capsalera)
 	return "", modelsDelProveidor(m, nom, ids)
@@ -105,7 +105,7 @@ func modelsDelProveidor(m *Model, nom string, ids []string) *menuState {
 	for _, id := range ids {
 		text := id
 		if cur.Provider == nom && cur.Model == id {
-			text += " ← actual"
+			text += " ← " + T("set.actual")
 		}
 		items = append(items, menuItem{text: text, val: id})
 	}
@@ -120,6 +120,6 @@ func modelsDelProveidor(m *Model, nom string, ids []string) *menuState {
 			m.cfg.Roles[m.role] = old
 			return systemLine(T("prov.noDesat") + err.Error()), nil
 		}
-		return msg + dimStyle.Render(" (desat)"), nil
+		return msg + dimStyle.Render(T("set.desat")), nil
 	}}
 }

@@ -120,14 +120,14 @@ func (m Model) timelineBox(width int) string {
 			failed++
 		}
 	}
-	head := fmt.Sprintf("≋ activitat  %d/%d", done, len(m.timeline))
+	head := fmt.Sprintf("≋ "+T("timeline.activitat"), done, len(m.timeline))
 	if failed > 0 {
-		head += fmt.Sprintf(" · %d errors", failed)
+		head += fmt.Sprintf(T("timeline.errors"), failed)
 	}
 	b.WriteString(headStyle.Render(head) + "\n")
-	b.WriteString(faintStyle.Render("↑↓ navega · Enter desplega · Esc tanca") + "\n")
+	b.WriteString(faintStyle.Render(T("timeline.pistes")) + "\n")
 	if len(m.timeline) == 0 {
-		b.WriteString(dimStyle.Render("  Encara no hi ha eines en aquest torn."))
+		b.WriteString(dimStyle.Render("  " + T("timeline.capEina")))
 	} else {
 		start := max(0, m.timelineSel-4)
 		end := min(len(m.timeline), start+7)
@@ -156,10 +156,10 @@ func (m Model) timelineBox(width int) string {
 			if e.expanded {
 				out := strings.TrimSpace(e.output)
 				if out == "" && !e.done {
-					out = "en curs…"
+					out = T("timeline.enCurs")
 				}
 				if out == "" {
-					out = "sense sortida"
+					out = T("timeline.senseSortida")
 				}
 				out = capText(out, 1600)
 				for _, line := range strings.Split(out, "\n") {
@@ -181,13 +181,13 @@ func (m Model) queueBox(width int) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(headStyle.Render(fmt.Sprintf("↳ després  %d", len(m.queued))) + "\n")
+	b.WriteString(headStyle.Render(fmt.Sprintf("↳ "+T("timeline.despres")+"  %d", len(m.queued))) + "\n")
 	start := max(0, len(m.queued)-3)
 	for i := start; i < len(m.queued); i++ {
 		text := timelineOneLine(m.queued[i], max(18, width-12))
 		b.WriteString(fmt.Sprintf("  %d · %s\n", i+1, text))
 	}
-	b.WriteString(faintStyle.Render("s’enviarà quan acabi el torn actual"))
+	b.WriteString(faintStyle.Render(T("timeline.enviara")))
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(voraApagada).Padding(0, 1).Width(max(width-2, 10)).
 		Render(strings.TrimRight(b.String(), "\n"))
@@ -244,9 +244,9 @@ func (m Model) cockpitDades() cockpitDades {
 func (m Model) cockpitBox(width int) string {
 	var b strings.Builder
 	done, total := tools.TodoStats()
-	b.WriteString(headStyle.Render(fmt.Sprintf("✓ tasca  %d/%d", done, total)) + "\n")
+	b.WriteString(headStyle.Render(fmt.Sprintf("✓ "+T("timeline.tasca")+"  %d/%d", done, total)) + "\n")
 	if total == 0 {
-		b.WriteString(dimStyle.Render("  Cap pas estructurat encara.") + "\n")
+		b.WriteString(dimStyle.Render("  "+T("timeline.capPas")) + "\n")
 	} else {
 		for _, it := range tools.TodoList() {
 			b.WriteString("  " + todoFila(it) + "\n")
@@ -254,10 +254,10 @@ func (m Model) cockpitBox(width int) string {
 	}
 	d := m.cockpitDades()
 	if len(d.fitxers) > 0 {
-		b.WriteString(projectStyle.Render(fmt.Sprintf("▣ canvis  %d", len(d.fitxers))) + "\n")
+		b.WriteString(projectStyle.Render(fmt.Sprintf("▣ "+T("timeline.canvis")+"  %d", len(d.fitxers))) + "\n")
 		for i, f := range d.fitxers {
 			if i == 3 {
-				b.WriteString(dimStyle.Render(fmt.Sprintf("  … i %d més", len(d.fitxers)-3)) + "\n")
+				b.WriteString(dimStyle.Render(fmt.Sprintf("  "+T("timeline.iMes"), len(d.fitxers)-3)) + "\n")
 				break
 			}
 			b.WriteString("  " + m.rutaCurta(f, max(18, width-10)) + "\n")
@@ -265,19 +265,19 @@ func (m Model) cockpitBox(width int) string {
 	}
 	switch {
 	case d.validacio == "pendent":
-		b.WriteString(dimStyle.Render("◇ validació  pendent") + "\n")
+		b.WriteString(dimStyle.Render("◇ "+T("timeline.validacio")+"  "+T("timeline.pendent")) + "\n")
 	case d.fallada:
-		b.WriteString(badStyle.Render("✗ validació  "+d.validacio) + "\n")
+		b.WriteString(badStyle.Render("✗ "+T("timeline.validacio")+"  "+d.validacio) + "\n")
 	default:
-		b.WriteString(okStyle.Render("✓ validació  "+d.validacio) + "\n")
+		b.WriteString(okStyle.Render("✓ "+T("timeline.validacio")+"  "+d.validacio) + "\n")
 	}
 	if len(m.queued) > 0 {
-		b.WriteString(warnStyle.Render(fmt.Sprintf("↳ després  %d %s", len(m.queued), plural(len(m.queued), "instrucció", "instruccions"))) + "\n")
+		b.WriteString(warnStyle.Render(fmt.Sprintf("↳ "+T("timeline.despres")+"  %d %s", len(m.queued), plural(len(m.queued), T("timeline.instruccio"), T("timeline.instruccions")))) + "\n")
 	}
 	// El revisor automàtic: abans era una insignia a la barra d'estat, que
 	// ja anava plena. Aquí diu el mode i prou.
 	if m.autoVerify() {
-		b.WriteString(okStyle.Render("◇ revisor  "+m.cfg.Verify.Mode) + "\n")
+		b.WriteString(okStyle.Render("◇ "+T("timeline.revisor")+"  "+m.cfg.Verify.Mode) + "\n")
 	}
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
 		BorderForeground(green).Padding(0, 1).Width(max(width-2, 10)).
@@ -307,9 +307,9 @@ func (m Model) cockpitColumna(ample, alt int) string {
 	var files []string
 
 	done, total := tools.TodoStats()
-	files = append(files, titol(fmt.Sprintf("tasca  %d/%d", done, total)))
+	files = append(files, titol(fmt.Sprintf(T("timeline.tasca")+"  %d/%d", done, total)))
 	if total == 0 {
-		files = append(files, dimStyle.Render("cap pas encara"))
+		files = append(files, dimStyle.Render(T("timeline.capPasCurt")))
 	} else {
 		for _, it := range tools.TodoList() {
 			it.Title = timelineOneLine(it.Title, w-2)
@@ -318,17 +318,17 @@ func (m Model) cockpitColumna(ample, alt int) string {
 	}
 
 	d := m.cockpitDades()
-	files = append(files, "", titol(fmt.Sprintf("canvis  %d", len(d.fitxers))))
+	files = append(files, "", titol(fmt.Sprintf(T("timeline.canvis")+"  %d", len(d.fitxers))))
 	for i, f := range d.fitxers {
 		if i == 5 {
-			files = append(files, dimStyle.Render(fmt.Sprintf("… i %d més", len(d.fitxers)-5)))
+			files = append(files, dimStyle.Render(fmt.Sprintf(T("timeline.iMes"), len(d.fitxers)-5)))
 			break
 		}
 		files = append(files, m.rutaCurta(f, w))
 	}
 
 	if len(m.queued) > 0 {
-		files = append(files, "", titol(fmt.Sprintf("cua  %d", len(m.queued))))
+		files = append(files, "", titol(fmt.Sprintf(T("timeline.cua")+"  %d", len(m.queued))))
 		for i := max(0, len(m.queued)-3); i < len(m.queued); i++ {
 			files = append(files, dimStyle.Render(timelineOneLine(m.queued[i], w)))
 		}
@@ -352,13 +352,13 @@ func (m Model) cockpitColumna(ample, alt int) string {
 		}
 		files = append(files, st.Render(fmt.Sprintf("%d%%", pct))+"  "+tideGauge(pct, min(16, w-6), frame))
 	} else {
-		files = append(files, dimStyle.Render("finestra desconeguda"))
+		files = append(files, dimStyle.Render(T("timeline.finestraDesc")))
 	}
 
-	files = append(files, "", titol("validació"))
+	files = append(files, "", titol(T("timeline.validacio")))
 	switch {
 	case d.validacio == "pendent":
-		files = append(files, dimStyle.Render("pendent"))
+		files = append(files, dimStyle.Render(T("timeline.pendent")))
 	case d.fallada:
 		files = append(files, badStyle.Render("✗ "+d.validacio))
 	default:
@@ -366,7 +366,7 @@ func (m Model) cockpitColumna(ample, alt int) string {
 	}
 
 	if m.autoVerify() {
-		files = append(files, "", titol("revisor"), okStyle.Render(m.cfg.Verify.Mode))
+		files = append(files, "", titol(T("timeline.revisor")), okStyle.Render(m.cfg.Verify.Mode))
 	}
 
 	if len(files) > alt {
@@ -407,21 +407,23 @@ func (m Model) runSummaryLine() string {
 			}
 		}
 	}
-	parts := []string{fmt.Sprintf("%d %s", done, plural(done, "eina", "eines"))}
+	// Mateix peu que la web i l'Android: «Ha treballat 32s · 5 eines».
+	cap := T("resum.torn")
+	if !m.turnStart.IsZero() {
+		cap = fmt.Sprintf(T("resum.treballat"), elapsedShort(time.Since(m.turnStart)))
+	}
+	parts := []string{cap, fmt.Sprintf("%d %s", done, plural(done, T("resum.eina"), T("resum.eines")))}
 	if len(files) > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", len(files), plural(len(files), "fitxer", "fitxers")))
+		parts = append(parts, fmt.Sprintf("%d %s", len(files), plural(len(files), T("resum.fitxer"), T("resum.fitxers"))))
 	}
 	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", failed, plural(failed, "error", "errors")))
-	}
-	if !m.turnStart.IsZero() {
-		parts = append(parts, elapsedShort(time.Since(m.turnStart)))
+		parts = append(parts, fmt.Sprintf("%d %s", failed, plural(failed, T("resum.error"), T("resum.errors"))))
 	}
 	r := m.roleRef()
 	if usd, ok := agent.CostUSD(r.Provider, r.Model, m.tokUp, m.tokDown); ok {
 		parts = append(parts, agent.FmtCost(usd))
 	}
-	return "resum del torn · " + strings.Join(parts, " · ")
+	return strings.Join(parts, " · ")
 }
 
 // rutaCurta és una ruta per al cockpit: relativa al projecte i, si encara

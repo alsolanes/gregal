@@ -246,6 +246,10 @@ func modeBadge(mode string) string {
 	if mode == "autonomous" {
 		return modeAutoStyle.Render(T("mode.autonomous.badge"))
 	}
+	if mode == "debug" {
+		// Mateix to que Actua, com al composer: depurar també toca fitxers.
+		return modeCodeStyle.Render(T("mode.debug.badge"))
+	}
 	return modeCodeStyle.Render(T("mode.code.badge"))
 }
 
@@ -381,7 +385,7 @@ func humanArgs(name, args string, max int) string {
 		out = str("path")
 		if name == "read" {
 			if o, ok := v["offset"].(float64); ok && o > 0 {
-				out += fmt.Sprintf(" des de la línia %d", int(o))
+				out += fmt.Sprintf(T("eina.desDeLinia"), int(o))
 			}
 		}
 	case "office_edit":
@@ -396,7 +400,7 @@ func humanArgs(name, args string, max int) string {
 	case "grep":
 		out = "«" + str("pattern") + "»"
 		if d := str("dir"); d != "" {
-			out += " a " + d
+			out += T("eina.a") + d
 		}
 		if inc := str("include"); inc != "" {
 			out += " (" + inc + ")"
@@ -404,7 +408,7 @@ func humanArgs(name, args string, max int) string {
 	case "glob":
 		out = str("pattern")
 		if d := str("dir"); d != "" {
-			out += " a " + d
+			out += T("eina.a") + d
 		}
 	case "symbols":
 		out = "«" + str("query") + "»"
@@ -424,7 +428,7 @@ func humanArgs(name, args string, max int) string {
 	case "web_fetch":
 		out = str("url")
 		if f := str("find"); f != "" {
-			out += " · cerca «" + f + "»"
+			out += T("eina.cerca") + f + "»"
 		}
 	case "browser":
 		out = str("action")
@@ -442,7 +446,7 @@ func humanArgs(name, args string, max int) string {
 					fets++
 				}
 			}
-			out = fmt.Sprintf("%d/%d passos", fets, len(items))
+			out = fmt.Sprintf(T("eina.passos"), fets, len(items))
 		}
 	case "question":
 		out = str("query")
@@ -491,17 +495,17 @@ func resumResultat(name, output string) string {
 	switch name {
 	case "read":
 		if n-1 == 1 {
-			return "1 línia"
+			return T("eina.unaLinia")
 		}
-		return fmt.Sprintf("%d línies", max(n-1, 0))
+		return fmt.Sprintf(T("eina.linies"), max(n-1, 0))
 	case "grep", "glob", "symbols":
 		if strings.HasPrefix(out, "sense ") || strings.HasPrefix(out, "no symbols") || strings.HasPrefix(out, "cap ") {
 			return out
 		}
 		if n == 1 {
-			return "1 resultat"
+			return T("eina.unResultat")
 		}
-		return fmt.Sprintf("%d resultats", n)
+		return fmt.Sprintf(T("eina.resultats"), n)
 	case "web_search", "knowledge_search":
 		return firstLineOf(out)
 	case "web_fetch", "browser":
@@ -513,7 +517,7 @@ func resumResultat(name, output string) string {
 		}
 		return strings.TrimSpace(t)
 	case "delegate":
-		return fmt.Sprintf("%d línies de resum", n)
+		return fmt.Sprintf(T("eina.liniesResum"), n)
 	}
 	return firstLineOf(out)
 }
@@ -581,7 +585,7 @@ func toolResultCos(name, output string, failed bool) string {
 	if len(files) > maxFilesSortida {
 		resta := len(files) - maxFilesSortida
 		body = strings.Join(files[:maxFilesSortida], "\n")
-		return indentTool(body) + "\n" + workRail(faintStyle.Render(fmt.Sprintf("  … %d %s (Ctrl+L)", resta, plural(resta, "fila més", "files més"))))
+		return indentTool(body) + "\n" + workRail(faintStyle.Render(fmt.Sprintf("  … %d %s (Ctrl+L)", resta, plural(resta, T("eina.filaMes"), T("eina.filesMes")))))
 	}
 	return indentTool(body)
 }
@@ -644,7 +648,7 @@ func diffCos(path, old, new string, maxLines int) string {
 	for i, o := range ops {
 		switch o.kind {
 		case 't':
-			b.WriteString(faintStyle.Render("  … (retallat)") + "\n")
+			b.WriteString(faintStyle.Render("  "+T("eina.retallat")) + "\n")
 		case ' ':
 			// Context sense marge propi: el │ xocava amb el rail de feina,
 			// i dues columnes de línies verticals seguides no diuen res.
@@ -753,6 +757,7 @@ var ajudaGrups = []struct {
 		{"mode.inspect.badge", "mode.inspect.desc"},
 		{"mode.goal.badge", "mode.goal.desc"},
 		{"mode.autonomous.badge", "mode.autonomous.desc"},
+		{"mode.debug.badge", "mode.debug.desc"},
 	}},
 	{"ajuda.tecles", [][2]string{
 		{"help.shifttab.cmd", "help.shifttab"},

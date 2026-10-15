@@ -77,28 +77,32 @@ func roleMenu(m *Model) *menuState {
 	if len(items) == 0 {
 		items = append(items, menuItem{text: T("pick.capRol"), val: "noop"})
 	}
-	return &menuState{title: "rol actiu", items: items, run: func(m *Model, val string) (string, *menuState) {
+	return &menuState{title: T("pick.rolActiuTitol"), items: items, run: func(m *Model, val string) (string, *menuState) {
 		if val == "noop" {
 			return systemLine(T("pick.capRol")), nil
 		}
 		r := m.cfg.Roles[val]
 		m.role = val
-		m.status = "llest"
-		return systemLine(fmt.Sprintf("rol actiu: %s (%s/%s)", val, r.Provider, r.Model)), nil
+		m.status = T("barra.llest")
+		return systemLine(fmt.Sprintf(T("pick.rolActiu"), val, r.Provider, r.Model)), nil
 	}}
 }
 
-// modeMenu tria els modes habituals amb fletxes (i desa). El mode autònom és
-// explícit amb /mode autonomous per evitar activar una execució llarga per
-// error des del selector ràpid.
+// modeMenu tria el mode amb fletxes (i desa): els mateixos que la web, amb
+// els especials al final. Triar-lo només canvia el mode; l'autònom no
+// arrenca res fins al següent missatge.
 func modeMenu() *menuState {
 	// Cada fila diu què fa el mode: és aquí on s'expliquen, no a la
 	// benvinguda.
 	return &menuState{title: "mode", items: []menuItem{
+		// Pregunta i la seva variant amb eines van juntes; els ids interns
+		// (chat/inspect/code) no canvien.
 		{text: T("mode.code.badge") + "  " + T("mode.code.desc"), val: "code"},
-		{text: T("mode.inspect.badge") + "  " + T("mode.inspect.desc"), val: "inspect"},
 		{text: T("mode.chat.badge") + "  " + T("mode.chat.desc"), val: "chat"},
+		{text: T("mode.inspect.badge") + "  " + T("mode.inspect.desc"), val: "inspect"},
 		{text: T("mode.goal.badge") + "  " + T("mode.goal.desc"), val: "goal"},
+		{text: T("mode.debug.badge") + "  " + T("mode.debug.desc"), val: "debug"},
+		{text: T("mode.autonomous.badge") + "  " + T("mode.autonomous.desc"), val: "autonomous"},
 	}, run: func(m *Model, val string) (string, *menuState) {
 		m.setMode(val)
 		return "", nil
@@ -122,9 +126,9 @@ func modelMenu(m *Model) *menuState {
 		ids, err := fetchModelIDs(p.BaseURL, p.APIKey)
 		if err != nil || len(ids) == 0 {
 			if kp := m.keyPromptIfMissing(prov); kp != "" {
-				return systemLine(prov+" no llista models (clau buida o url caiguda)") + "\n" + kp, nil
+				return systemLine(prov+T("pick.noLlistaClau")) + "\n" + kp, nil
 			}
-			return systemLine(prov + " no llista models (escriu: /model " + prov + "/nom)"), nil
+			return systemLine(prov + fmt.Sprintf(T("pick.noLlistaEscriu"), prov)), nil
 		}
 		// Un sol cami: triar model aqui desa, com /provider rol. Abans
 		// aquest menu nomes canviava el rol per a la sessio mentre que

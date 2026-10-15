@@ -28,8 +28,8 @@
       'st.stopped': 'stopped', 'st.connError': 'connection error', 'st.selectFirst': 'select some text first',
       'st.requestFirst': 'type a request first', 'st.copied': 'copied', 'st.copyFailed': 'could not copy',
       'st.replaced': 'selection replaced', 'st.inserted': 'inserted into the document', 'st.insertFailed': 'could not insert: ',
-      'consulta.help': 'In read-only mode the agent only answers in the panel: it never inserts or replaces anything in the document. Meant for documents several people are editing at once.',
-      'consulta.label': 'Read-only: never touches the document',
+      'consulta.help': 'In Ask mode the agent only answers in the panel: it never inserts or replaces anything in the document. Meant for documents several people are editing at once. Off = Act: it can write into the document.',
+      'consulta.label': 'Ask only: never touches the document',
       'h.selection': 'With the selection', 'h.request': 'Request', 'h.result': 'Result',
       'xip.summarize': 'Summarize', 'xip.explain': 'Explain', 'xip.review': 'Review', 'xip.keyPoints': 'Key points',
       'xip.questions': 'Questions', 'xip.toEnglish': '→ English', 'xip.verify': 'Fact-check', 'xip.rewrite': 'Rewrite',
@@ -51,7 +51,7 @@
       'ord.toCatalan': 'Translate the text into Catalan.',
       'ord.bullets': 'Turn the text into a clear bulleted list.',
       'sel.none': 'Select text in the document and choose an action, or type your request below.',
-      'sel.consulta': 'Read-only mode: the agent answers here and does not change the document. Select text to ask about it.',
+      'sel.consulta': 'Ask mode: the agent answers here and does not change the document. Select text to ask about it.',
       'sel.prefix': 'Selection: ', 'sel.chars': ' chars',
       'request.ph': 'e.g. Draft a two-paragraph introduction about…',
       'opt.includeSel': 'Include the selection', 'opt.textOnly': 'Result text only',
@@ -61,7 +61,7 @@
       'q.title': 'Question', 'q.freeText': 'Answer with the request text', 'q.permission': 'The agent asks for permission: ',
       'q.tool': 'tool', 'q.allow': 'Allow', 'q.deny': 'Deny',
       'empty.edit': 'The result appears here. You can replace the selection or insert it at the cursor.',
-      'empty.consulta': 'The answer appears here. In read-only mode nothing is inserted into the document.',
+      'empty.consulta': 'The answer appears here. In Ask mode nothing is inserted into the document.',
       'conn.title': 'Connection', 'conn.server': 'Gregal server', 'conn.token': 'Token (if the server requires one)',
       'conn.optional': '(optional)', 'conn.test': 'Test connection',
       'task.extra': 'Additional instructions: ', 'task.source': 'Source text (selection in {host}):',
@@ -76,8 +76,8 @@
       'st.stopped': 'aturat', 'st.connError': 'error de connexió', 'st.selectFirst': 'selecciona text primer',
       'st.requestFirst': 'escriu una petició primer', 'st.copied': 'copiat', 'st.copyFailed': 'no s’ha pogut copiar',
       'st.replaced': 'selecció substituïda', 'st.inserted': 'inserit al document', 'st.insertFailed': 'no s’ha pogut inserir: ',
-      'consulta.help': 'En mode consulta l’agent només respon al panell: no insereix ni substitueix res al document. Pensat per a documents on hi ha més gent treballant alhora.',
-      'consulta.label': 'Només consulta: no toca el document',
+      'consulta.help': 'En mode Pregunta l’agent només respon al panell: no insereix ni substitueix res al document. Pensat per a documents on hi ha més gent treballant alhora. Desactivat = Actua: pot escriure al document.',
+      'consulta.label': 'Només Pregunta: no toca el document',
       'h.selection': 'Amb la selecció', 'h.request': 'Petició', 'h.result': 'Resultat',
       'xip.summarize': 'Resumeix', 'xip.explain': 'Explica', 'xip.review': 'Revisa', 'xip.keyPoints': 'Punts clau',
       'xip.questions': 'Preguntes', 'xip.toEnglish': '→ Anglès', 'xip.verify': 'Verifica', 'xip.rewrite': 'Reescriu',
@@ -99,7 +99,7 @@
       'ord.toCatalan': 'Tradueix el text al català.',
       'ord.bullets': 'Converteix el text en una llista de punts clars.',
       'sel.none': 'Selecciona text al document i tria una acció, o escriu la teva petició a sota.',
-      'sel.consulta': 'Mode consulta: l’agent respon aquí i no modifica el document. Selecciona text per preguntar-hi.',
+      'sel.consulta': 'Mode Pregunta: l’agent respon aquí i no modifica el document. Selecciona text per preguntar-hi.',
       'sel.prefix': 'Selecció: ', 'sel.chars': ' car.',
       'request.ph': 'p. ex. Redacta una introducció de dos paràgrafs sobre…',
       'opt.includeSel': 'Inclou la selecció', 'opt.textOnly': 'Només el text resultant',
@@ -109,7 +109,7 @@
       'q.title': 'Pregunta', 'q.freeText': 'Responc amb el text de la petició', 'q.permission': 'L’agent demana permís: ',
       'q.tool': 'eina', 'q.allow': 'Permet', 'q.deny': 'Denega',
       'empty.edit': 'Aquí veuràs el resultat. Podràs substituir la selecció o inserir-lo al cursor.',
-      'empty.consulta': 'Aquí veuràs la resposta. En mode consulta no s’insereix res al document.',
+      'empty.consulta': 'Aquí veuràs la resposta. En mode Pregunta no s’insereix res al document.',
       'conn.title': 'Connexió', 'conn.server': 'Servidor del gregal', 'conn.token': 'Token (si el servidor en demana)',
       'conn.optional': '(opcional)', 'conn.test': 'Comprova',
       'task.extra': 'Instruccions addicionals: ', 'task.source': 'Text de partida (selecció al {host}):',
@@ -142,7 +142,7 @@
   }
   aplicaIdioma();
 
-  // ---- mode consulta: l'agent respon, mai toca el document ----
+  // ---- mode Pregunta (Ask; intern: «consulta»): l'agent respon, mai toca el document ----
   // Per a documents compartits on hi ha més gent editant alhora: cap
   // inserció ni substitució des del panell, i el torn va al servidor en
   // mode xat (només lectura) encara que la sessió estigui en code.

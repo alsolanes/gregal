@@ -77,7 +77,7 @@ func (m *Model) flowCommand(arg string) (tea.Model, tea.Cmd) {
 func flowMenu(llista []flow.Resum) *menuState {
 	items := make([]menuItem, 0, len(llista))
 	for _, f := range llista {
-		txt := fmt.Sprintf("%s — %d passos", f.Nom, f.Passos)
+		txt := fmt.Sprintf(T("flow.passos"), f.Nom, f.Passos)
 		if f.Desc != "" {
 			txt += " · " + f.Desc
 		}
@@ -113,7 +113,7 @@ func dibuixaFlow(f *flow.Flow) string {
 			if e.From != n.ID {
 				continue
 			}
-			cond := "sempre"
+			cond := T("flow.sempre")
 			if e.When != "" {
 				cond = e.When
 			}
@@ -175,7 +175,7 @@ func (m *Model) startFlow(nom string) (tea.Model, tea.Cmd) {
 	fr := &flowRun{nom: f.Name}
 	m.flow = fr
 	m.busy = true
-	m.status = "graf: " + f.Name
+	m.status = T("flow.graf") + f.Name
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.flowCancel = cancel
@@ -229,12 +229,12 @@ func (m *Model) flowTick() (tea.Model, tea.Cmd) {
 	m.flow = nil
 	m.flowCancel = nil
 	m.busy = false
-	m.status = "llest"
+	m.status = T("barra.llest")
 	switch {
 	case res.Stopped != "":
 		m.push(warnStyle.Render(T("flow.aturat") + res.Stopped))
 	case err != nil:
-		m.push(badStyle.Render("graf: " + err.Error()))
+		m.push(badStyle.Render(T("flow.graf") + err.Error()))
 	default:
 		m.push(systemLine(fmt.Sprintf(T("flow.fet"), fr.nom, len(res.Steps))))
 	}

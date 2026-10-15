@@ -33,7 +33,7 @@ func TestViewHasVisualProjectAndModeShell(t *testing.T) {
 	// El mode a la barra i al peu del composer, el projecte i la branca a
 	// la capçalera, el model al peu, i l'ajuda a ? (les pistes han sortit de
 	// la barra).
-	for _, want := range []string{"CODE", "projecte-espectacular", "main", "model-prova", "? ajuda"} {
+	for _, want := range []string{"ACTUA", "projecte-espectacular", "main", "model-prova", "? ajuda"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("la shell visual no mostra %q:\n%s", want, view)
 		}

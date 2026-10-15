@@ -25,7 +25,7 @@ func providersBlock(cfg *config.Config) string {
 	}
 	for _, n := range names {
 		p := cfg.Providers[n]
-		line := "  " + cmdStyle.Render(n) + dimStyle.Render("  "+p.BaseURL+"  clau: "+p.MaskedKey())
+		line := "  " + cmdStyle.Render(n) + dimStyle.Render("  "+p.BaseURL+"  "+T("set.clauCurt")+": "+p.MaskedKey())
 		if ub, ok := usedBy[n]; ok {
 			sort.Strings(ub)
 			line += faintStyle.Render("  ← " + strings.Join(ub, ", "))
@@ -76,7 +76,7 @@ func (m *Model) providerCmd(arg string) string {
 		if e := save(); e != "" {
 			return e
 		}
-		msg := okStyle.Render("✓ provider "+nom+" desat") + dimStyle.Render(" ("+url+")")
+		msg := okStyle.Render("✓ "+fmt.Sprintf(T("prov.desat"), nom)) + dimStyle.Render(" ("+url+")")
 		if ids, err := fetchModelIDs(url, p.APIKey); err == nil && len(ids) > 0 {
 			msg += dimStyle.Render(" — models: "+shortIDs(ids)) + "\n" +
 				systemLine(T("prov.assigna")+nom+" <model>")
@@ -90,7 +90,7 @@ func (m *Model) providerCmd(arg string) string {
 		}
 		p, ok := m.cfg.Providers[f[1]]
 		if !ok {
-			return systemLine("no existeix: " + f[1])
+			return systemLine(T("prov.noExisteix") + f[1])
 		}
 		url := strings.TrimSuffix(strings.TrimSpace(f[2]), "/")
 		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
@@ -101,14 +101,14 @@ func (m *Model) providerCmd(arg string) string {
 		if e := save(); e != "" {
 			return e
 		}
-		return okStyle.Render("✓ "+f[1]+" → "+url) + dimStyle.Render(" — comprova amb /provider test "+f[1])
+		return okStyle.Render("✓ "+f[1]+" → "+url) + dimStyle.Render(T("prov.comprova")+f[1])
 	case "rm":
 		if len(f) < 2 {
 			return systemLine(T("prov.usRm"))
 		}
 		nom := f[1]
 		if _, ok := m.cfg.Providers[nom]; !ok {
-			return systemLine("no existeix: " + nom)
+			return systemLine(T("prov.noExisteix") + nom)
 		}
 		for rn, r := range m.cfg.Roles {
 			if r.Provider == nom {
@@ -119,7 +119,7 @@ func (m *Model) providerCmd(arg string) string {
 		if e := save(); e != "" {
 			return e
 		}
-		return okStyle.Render("✓ provider " + nom + " esborrat")
+		return okStyle.Render("✓ " + fmt.Sprintf(T("set.provEsborrat"), nom))
 	case "rol":
 		if len(f) < 3 {
 			return systemLine(T("prov.usRol"))
@@ -127,10 +127,10 @@ func (m *Model) providerCmd(arg string) string {
 		rol, prov := f[1], f[2]
 		r, ok := m.cfg.Roles[rol]
 		if !ok {
-			return systemLine("rol desconegut: " + rol)
+			return systemLine(T("prov.rolDesconegut") + rol)
 		}
 		if _, ok := m.cfg.Providers[prov]; !ok {
-			return systemLine("provider desconegut: " + prov + T("prov.creaAmb"))
+			return systemLine(T("prov.desconegut") + prov + T("prov.creaAmb"))
 		}
 		r.Provider = prov
 		if len(f) >= 4 {
@@ -140,28 +140,28 @@ func (m *Model) providerCmd(arg string) string {
 			if real, ok := matchModelFold(ids, r.Model); ok {
 				r.Model = real
 			} else {
-				return warnStyle.Render("⚠ "+prov+" no té el model "+r.Model) + dimStyle.Render(" — disponibles: "+shortIDs(ids)) + "\n" +
-					systemLine("tria'n un: /provider rol "+rol+" "+prov+" <model>")
+				return warnStyle.Render("⚠ "+prov+T("prov.noTeModel")+r.Model) + dimStyle.Render(T("prov.disponibles")+shortIDs(ids)) + "\n" +
+					systemLine(T("prov.trian")+rol+" "+prov+" <model>")
 			}
 		}
 		m.cfg.Roles[rol] = r
 		if e := save(); e != "" {
 			return e
 		}
-		return okStyle.Render(fmt.Sprintf("✓ rol %s → %s/%s", rol, prov, r.Model))
+		return okStyle.Render(fmt.Sprintf("✓ "+T("prov.rolFletxa"), rol, prov, r.Model))
 	case "key":
 		if len(f) < 2 {
 			return systemLine(T("prov.usKey"))
 		}
 		nom := f[1]
 		if _, ok := m.cfg.Providers[nom]; !ok {
-			return systemLine("no existeix: " + nom)
+			return systemLine(T("prov.noExisteix") + nom)
 		}
 		if len(f) < 3 {
 			// Sense clau a la línia: la següent entrada es menja
 			// com a secret (sense eco ni historial).
 			m.pendingKeyFor = nom
-			return systemLine("escriu la clau de " + nom + T("prov.senseHistorial"))
+			return systemLine(fmt.Sprintf(T("alta.escriuClau"), nom) + T("prov.senseHistorial"))
 		}
 		return m.applyProviderKey(nom, f[2])
 	case "test":
@@ -179,7 +179,7 @@ func (m *Model) providerCmd(arg string) string {
 func (m *Model) applyProviderKey(nom, raw string) string {
 	p, ok := m.cfg.Providers[nom]
 	if !ok {
-		return systemLine("no existeix: " + nom)
+		return systemLine(T("prov.noExisteix") + nom)
 	}
 	if raw == "-" {
 		raw = ""
@@ -197,19 +197,19 @@ func (m *Model) applyProviderKey(nom, raw string) string {
 		if e := save(); e != "" {
 			return e
 		}
-		return okStyle.Render("✓ clau de " + nom + " desada")
+		return okStyle.Render("✓ " + fmt.Sprintf(T("prov.clauDesada"), nom))
 	}
 	// Secret literal: va al magatzem de claus (~/.config/gregal/auth.yaml,
 	// 0600), mai al config.yaml. Abans només vivia en memòria i, sense
 	// cap ${VAR} definida, cada arrencada te la tornava a demanar.
 	m.cfg.SetRawKey(nom, "")
 	if err := config.SaveKey(nom, p.APIKey); err != nil {
-		return systemLine("clau no desada: " + err.Error())
+		return systemLine(T("prov.clauNoDesada") + err.Error())
 	}
 	if e := save(); e != "" {
 		return e
 	}
-	return okStyle.Render("✓ clau de "+nom+" desada") + dimStyle.Render(" (a "+config.AuthPath()+", només per a tu)")
+	return okStyle.Render("✓ "+fmt.Sprintf(T("prov.clauDesada"), nom)) + dimStyle.Render(fmt.Sprintf(T("prov.nomesPerTu"), config.AuthPath()))
 }
 
 // keyPromptIfMissing: en triar un provider sense clau, prepara la
@@ -217,7 +217,7 @@ func (m *Model) applyProviderKey(nom, raw string) string {
 func (m *Model) keyPromptIfMissing(prov string) string {
 	if p, ok := m.cfg.Providers[prov]; ok && strings.TrimSpace(p.APIKey) == "" {
 		m.pendingKeyFor = prov
-		return warnStyle.Render("⚠ "+prov+" va sense clau api") + dimStyle.Render(" — escriu-la ara (no quedarà a l'historial) o /provider test "+prov)
+		return warnStyle.Render("⚠ "+prov+T("prov.senseClauApi")) + dimStyle.Render(T("prov.escriula")+prov)
 	}
 	return ""
 }
@@ -261,16 +261,16 @@ func shortIDs(ids []string) string {
 func testProvider(cfg *config.Config, nom string) string {
 	p, ok := cfg.Providers[nom]
 	if !ok {
-		return systemLine("no existeix: " + nom)
+		return systemLine(T("prov.noExisteix") + nom)
 	}
 	ids, err := fetchModelIDs(p.BaseURL, p.APIKey)
 	if err != nil {
-		return badStyle.Render("✗ "+nom+": no llista models") + dimStyle.Render(" ("+err.Error()+")")
+		return badStyle.Render("✗ "+nom+T("prov.noLlista")) + dimStyle.Render(" ("+err.Error()+")")
 	}
 	if len(ids) == 0 {
-		return okStyle.Render("✓ "+nom+" respon") + dimStyle.Render(T("prov.senseModels"))
+		return okStyle.Render("✓ "+nom+T("prov.respon")) + dimStyle.Render(T("prov.senseModels"))
 	}
-	return okStyle.Render(fmt.Sprintf("✓ %s respon (%d models)", nom, len(ids))) + dimStyle.Render(" — "+shortIDs(ids))
+	return okStyle.Render(fmt.Sprintf("✓ "+T("prov.responN"), nom, len(ids))) + dimStyle.Render(" — "+shortIDs(ids))
 }
 
 func validProvName(n string) bool {

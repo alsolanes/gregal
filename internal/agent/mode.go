@@ -28,6 +28,28 @@ func ValidMode(m string) bool {
 	return m == ModeCode || m == ModeChat || m == ModeInspect || m == ModeGoal || m == ModeAutonomous || m == ModeDebug
 }
 
+// ModeFromWord tradueix el nom que veu la persona al mode intern. Els dos
+// modes principals es diuen Ask/Act (Pregunta/Actua) a totes les
+// interfícies; els ids interns (chat/code…) es mantenen perquè els fan
+// servir el config, l'API i les sessions desades. Torna "" si no el coneix.
+func ModeFromWord(w string) string {
+	switch strings.ToLower(strings.TrimSpace(w)) {
+	case ModeChat, "ask", "pregunta", "xat":
+		return ModeChat
+	case ModeCode, "act", "actua", "codi":
+		return ModeCode
+	case ModeInspect, "consulta":
+		return ModeInspect
+	case ModeGoal, "objectiu":
+		return ModeGoal
+	case ModeAutonomous, "autonom", "autònom":
+		return ModeAutonomous
+	case ModeDebug, "depuracio", "depuració":
+		return ModeDebug
+	}
+	return ""
+}
+
 // PromptFor afegeix al prompt base els fets de l'entorn i les regles del
 // mode. Els fets van aquí, i no als set llocs que criden PromptFor, perquè
 // n'hi hauria hagut prou que un s'oblidés: el TUI, la finestra, el

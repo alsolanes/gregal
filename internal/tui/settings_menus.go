@@ -21,17 +21,17 @@ func settingsMenu(m *Model) *menuState {
 		maskedKey = p.MaskedKey()
 	}
 	if maskedKey == "" {
-		maskedKey = "sense clau"
+		maskedKey = T("set.senseClau")
 	}
 	items := []menuItem{
-		{text: fmt.Sprintf("mode        %s", m.mode), val: "mode"},
-		{text: fmt.Sprintf("rol         %s  (%s/%s)", m.role, r.Provider, r.Model), val: "role"},
-		{text: fmt.Sprintf("model       %s/%s", r.Provider, r.Model), val: "model"},
-		{text: fmt.Sprintf("clau d'API  %s (%s)", r.Provider, maskedKey), val: "apikey"},
-		{text: fmt.Sprintf("tema        %s", m.cfg.Tema()), val: "theme"},
-		{text: fmt.Sprintf("revisor     %s  (%s/%s)", m.cfg.Verify.Mode, reviewer.Provider, reviewer.Model), val: "reviewer"},
+		{text: fmt.Sprintf(T("set.mode"), m.mode), val: "mode"},
+		{text: fmt.Sprintf(T("set.rol"), m.role, r.Provider, r.Model), val: "role"},
+		{text: fmt.Sprintf(T("set.model"), r.Provider, r.Model), val: "model"},
+		{text: fmt.Sprintf(T("set.clau"), r.Provider, maskedKey), val: "apikey"},
+		{text: fmt.Sprintf(T("set.tema"), m.cfg.Tema()), val: "theme"},
+		{text: fmt.Sprintf(T("set.revisor"), m.cfg.Verify.Mode, reviewer.Provider, reviewer.Model), val: "reviewer"},
 		{text: T("menu.set.perms"), val: "permissions"},
-		{text: fmt.Sprintf("providers   %d endpoints configurats", len(m.cfg.Providers)), val: "providers"},
+		{text: fmt.Sprintf(T("set.providers"), len(m.cfg.Providers)), val: "providers"},
 		{text: T("menu.set.connectors"), val: "connectors"},
 		{text: T("menu.set.parallel"), val: "parallel"},
 		{text: T("menu.set.sessions"), val: "sessions"},
@@ -84,8 +84,8 @@ func providerKeyMenu(m *Model) *menuState {
 	sort.Strings(names)
 	if len(names) == 0 {
 		return &menuState{
-			title: "claus d'API",
-			items: []menuItem{{text: "cap provider configurat (/provider add <nom> <url>)", val: "noop"}},
+			title: T("set.clausTitol"),
+			items: []menuItem{{text: T("prov.capConfigurat"), val: "noop"}},
 			run:   func(*Model, string) (string, *menuState) { return "", nil },
 		}
 	}
@@ -95,23 +95,23 @@ func providerKeyMenu(m *Model) *menuState {
 		p := m.cfg.Providers[name]
 		masked := p.MaskedKey()
 		if masked == "" {
-			masked = "sense clau"
+			masked = T("set.senseClau")
 		}
-		text := fmt.Sprintf("%-12s · clau %s", name, masked)
+		text := fmt.Sprintf("%-12s · "+T("set.clauCurt")+" %s", name, masked)
 		if name == curProv {
-			text += " ← actual"
+			text += " ← " + T("set.actual")
 		}
 		items = append(items, menuItem{text: text, val: name})
 	}
 	return &menuState{
-		title: "clau d'API · tria provider",
+		title: T("set.clauTria"),
 		items: items,
 		run: func(m *Model, name string) (string, *menuState) {
 			if name == "noop" {
 				return "", nil
 			}
 			m.pendingKeyFor = name
-			return systemLine("escriu la clau de " + name + T("prov.senseHistorial")), nil
+			return systemLine(fmt.Sprintf(T("alta.escriuClau"), name) + T("prov.senseHistorial")), nil
 		},
 	}
 }
@@ -124,19 +124,19 @@ func themeMenu(m *Model) *menuState {
 	for _, nom := range config.TemesSuportats {
 		text := tema.Descripcio(nom)
 		if nom == cur {
-			text += " ← actual"
+			text += " ← " + T("set.actual")
 		}
 		items = append(items, menuItem{text: text, val: nom})
 	}
 	return &menuState{
-		title: "tema de color",
+		title: T("set.temaTitol"),
 		items: items,
 		run: func(m *Model, val string) (string, *menuState) {
 			m.cfg.Theme = val
 			SetTema(val)
-			msg := okStyle.Render("✓ tema → "+val) + dimStyle.Render(" (desat)")
+			msg := okStyle.Render("✓ "+T("set.temaCurt")+" → "+val) + dimStyle.Render(T("set.desat"))
 			if err := m.cfg.Save(m.cfgPath); err != nil {
-				msg += dimStyle.Render(" (error en desar: " + err.Error() + ")")
+				msg += dimStyle.Render(T("set.errorDesar") + err.Error() + ")")
 			}
 			m.refresh()
 			return msg, nil
@@ -167,7 +167,7 @@ func mcpMenu(m *Model) *menuState {
 		})
 	}
 	if len(items) == 0 {
-		items = append(items, menuItem{text: "connectat però sense eines registrades", val: "noop"})
+		items = append(items, menuItem{text: T("set.mcpSenseEines"), val: "noop"})
 	}
 	return &menuState{
 		title: "connectors mcp · " + m.mcp.Summary(),
@@ -178,7 +178,7 @@ func mcpMenu(m *Model) *menuState {
 			}
 			for _, t := range m.mcp.ToolsSnapshot() {
 				if t.Spec.Name == name {
-					return systemLine(fmt.Sprintf("eina mcp: %s\n%s", t.Spec.Name, t.Spec.Description)), nil
+					return systemLine(fmt.Sprintf(T("set.einaMcp")+"\n%s", t.Spec.Name, t.Spec.Description)), nil
 				}
 			}
 			return "", nil
@@ -200,7 +200,7 @@ func providerSettingsMenu(m *Model) *menuState {
 	items = append(items, menuItem{text: T("menu.provAfegeix"), val: "+"})
 	for _, name := range names {
 		p := m.cfg.Providers[name]
-		items = append(items, menuItem{text: fmt.Sprintf("%s — %s · clau %s", name, p.BaseURL, p.MaskedKey()), val: name})
+		items = append(items, menuItem{text: fmt.Sprintf("%s — %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, p.MaskedKey()), val: name})
 	}
 	items = append(items, menuItem{text: T("menu.ajudaProv"), val: "help"})
 	return &menuState{title: "providers", items: items, run: func(m *Model, val string) (string, *menuState) {
@@ -217,13 +217,13 @@ func providerSettingsMenu(m *Model) *menuState {
 func providerDetailMenu(m *Model, name string) *menuState {
 	p, ok := m.cfg.Providers[name]
 	if !ok {
-		return &menuState{title: "provider", items: []menuItem{{text: "provider no trobat", val: "noop"}}, run: func(*Model, string) (string, *menuState) { return "", nil }}
+		return &menuState{title: "provider", items: []menuItem{{text: T("set.provNoTrobat"), val: "noop"}}, run: func(*Model, string) (string, *menuState) { return "", nil }}
 	}
 	items := []menuItem{
 		{text: T("menu.prov.test"), val: "test"},
 		{text: T("menu.prov.assign"), val: "model"},
 		{text: T("prov.canviarClau"), val: "key"},
-		{text: "veure detalls", val: "details"},
+		{text: T("set.veureDetalls"), val: "details"},
 		{text: T("prov.esborrar"), val: "rm"},
 	}
 	return &menuState{title: T("menu.providerPrefix") + name, items: items, run: func(m *Model, action string) (string, *menuState) {
@@ -231,10 +231,10 @@ func providerDetailMenu(m *Model, name string) *menuState {
 		case "test":
 			return testProvider(m.cfg, name), nil
 		case "details":
-			return systemLine(fmt.Sprintf("%s · %s · clau %s", name, p.BaseURL, p.MaskedKey())), nil
+			return systemLine(fmt.Sprintf("%s · %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, p.MaskedKey())), nil
 		case "key":
 			m.pendingKeyFor = name
-			return systemLine("escriu la clau de " + name + T("prov.senseHistorial")), nil
+			return systemLine(fmt.Sprintf(T("alta.escriuClau"), name) + T("prov.senseHistorial")), nil
 		case "rm":
 			for rn, r := range m.cfg.Roles {
 				if r.Provider == name {
@@ -245,11 +245,11 @@ func providerDetailMenu(m *Model, name string) *menuState {
 			if err := m.cfg.Save(m.cfgPath); err != nil {
 				return systemLine(T("prov.noDesat") + err.Error()), nil
 			}
-			return okStyle.Render("✓ provider " + name + " esborrat"), nil
+			return okStyle.Render(fmt.Sprintf(T("set.provEsborrat"), name)), nil
 		case "model":
 			ids, err := fetchModelIDs(p.BaseURL, p.APIKey)
 			if err != nil || len(ids) == 0 {
-				return systemLine(name + " no llista models: " + errText(err)), nil
+				return systemLine(name + T("set.noLlista") + errText(err)), nil
 			}
 			return "", modelsDelProveidor(m, name, ids)
 		default:
@@ -264,9 +264,9 @@ func nativeTools() []string { return tools.Configurables() }
 
 // permissionsMenu permet configurar allow/ask/deny sense YAML.
 func permissionsMenu(m *Model) *menuState {
-	permLabel := "mode permissiu: desactivat"
+	permLabel := T("set.permissiuOff")
 	if m.permissive {
-		permLabel = "mode permissiu: ACTIU (omet preguntes)"
+		permLabel = T("set.permissiuOn")
 	}
 	items := make([]menuItem, 0, len(nativeTools())+1)
 	items = append(items, menuItem{text: permLabel, val: "permissive_toggle"})
@@ -283,7 +283,7 @@ func permissionsMenu(m *Model) *menuState {
 		nou.idx, nou.top, nou.back, nou.filtre = pm.idx, pm.top, pm.back, pm.filtre
 		return nou
 	}
-	pm = &menuState{title: "permisos d'eines", items: items, run: func(m *Model, tool string) (string, *menuState) {
+	pm = &menuState{title: T("set.permisosTitol"), items: items, run: func(m *Model, tool string) (string, *menuState) {
 		if tool == "permissive_toggle" {
 			m.permissive = !m.permissive
 			if m.permissive {
@@ -299,7 +299,7 @@ func permissionsMenu(m *Model) *menuState {
 			}
 			choices = append(choices, menuItem{text: text, val: d})
 		}
-		return "", &menuState{title: "permís: " + tool, items: choices, run: func(m *Model, decision string) (string, *menuState) {
+		return "", &menuState{title: T("set.permisTitol") + tool, items: choices, run: func(m *Model, decision string) (string, *menuState) {
 			if m.cfg.Permissions.Tools == nil {
 				m.cfg.Permissions.Tools = map[string]string{}
 			}
@@ -317,7 +317,7 @@ func permissionsMenu(m *Model) *menuState {
 			agent.SetPostEditHook(m.cfg.Hooks.PostEdit)
 			agent.SetDiagMode(m.cfg.Hooks.Diag)
 			agent.SetLifecycleHooks(m.cfg.Hooks)
-			return okStyle.Render("✓ "+tool+" → "+decision) + dimStyle.Render(" (desat)"), refresca(m)
+			return okStyle.Render("✓ "+tool+" → "+decision) + dimStyle.Render(T("set.desat")), refresca(m)
 		}}
 	}}
 	return pm
@@ -328,13 +328,13 @@ func reviewerMenu(m *Model) *menuState {
 	r := m.cfg.Roles["reviewer"]
 	items := []menuItem{{text: fmt.Sprintf("model — %s/%s", r.Provider, r.Model), val: "model"}}
 	for _, mode := range []string{"off", "manual", "auto", "both", "strict"} {
-		text := "mode — " + mode
+		text := T("set.modeCurt") + " — " + mode
 		if m.cfg.Verify.Mode == mode {
-			text += " ← actual"
+			text += " ← " + T("set.actual")
 		}
 		items = append(items, menuItem{text: text, val: mode})
 	}
-	return &menuState{title: "revisor", items: items, run: func(m *Model, val string) (string, *menuState) {
+	return &menuState{title: T("timeline.revisor"), items: items, run: func(m *Model, val string) (string, *menuState) {
 		if val == "model" {
 			return "", reviewerProviderMenu(m)
 		}
@@ -342,9 +342,9 @@ func reviewerMenu(m *Model) *menuState {
 		m.cfg.Verify.Mode = val
 		if err := m.cfg.Save(m.cfgPath); err != nil {
 			m.cfg.Verify.Mode = old
-			return systemLine("revisor no desat: " + err.Error()), nil
+			return systemLine(T("set.revisorNoDesat") + err.Error()), nil
 		}
-		return okStyle.Render("✓ revisor: "+val) + dimStyle.Render(" (desat)"), nil
+		return okStyle.Render("✓ "+T("timeline.revisor")+": "+val) + dimStyle.Render(T("set.desat")), nil
 	}}
 }
 
@@ -363,27 +363,27 @@ func reviewerProviderMenu(m *Model) *menuState {
 		p := m.cfg.Providers[provider]
 		ids, err := fetchModelIDs(p.BaseURL, p.APIKey)
 		if err != nil || len(ids) == 0 {
-			return systemLine(provider + " no llista models: " + errText(err)), nil
+			return systemLine(provider + T("set.noLlista") + errText(err)), nil
 		}
 		modelItems := make([]menuItem, 0, len(ids))
 		cur := m.cfg.Roles["reviewer"]
 		for _, id := range ids {
 			text := id
 			if cur.Provider == provider && cur.Model == id {
-				text += " ← actual"
+				text += " ← " + T("set.actual")
 			}
 			modelItems = append(modelItems, menuItem{text: text, val: id})
 		}
-		return "", &menuState{title: "model del revisor", items: modelItems, run: func(m *Model, model string) (string, *menuState) {
+		return "", &menuState{title: T("set.modelRevisor"), items: modelItems, run: func(m *Model, model string) (string, *menuState) {
 			old := m.cfg.Roles["reviewer"]
 			next := old
 			next.Provider, next.Model = provider, model
 			m.cfg.Roles["reviewer"] = next
 			if err := m.cfg.Save(m.cfgPath); err != nil {
 				m.cfg.Roles["reviewer"] = old
-				return systemLine("revisor no desat: " + err.Error()), nil
+				return systemLine(T("set.revisorNoDesat") + err.Error()), nil
 			}
-			return okStyle.Render("✓ revisor → "+provider+"/"+model) + dimStyle.Render(" (desat)"), nil
+			return okStyle.Render("✓ "+T("timeline.revisor")+" → "+provider+"/"+model) + dimStyle.Render(T("set.desat")), nil
 		}}
 	}}
 }
