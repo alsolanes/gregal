@@ -249,8 +249,30 @@ func TestModeMenuInclouObjectiu(t *testing.T) {
 	for _, it := range menu.items {
 		vals = append(vals, it.val)
 	}
-	if len(vals) != 4 || vals[0] != "code" || vals[1] != "inspect" || vals[2] != "chat" || vals[3] != "goal" {
+	if len(vals) != 4 || vals[0] != "code" || vals[1] != "chat" || vals[2] != "inspect" || vals[3] != "goal" {
 		t.Fatalf("modeMenu=%v", vals)
+	}
+}
+
+// Els noms visibles (Ask/Act, Pregunta/Actua) valen a /mode i els ids
+// interns de sempre també.
+func TestModeFromWordAcceptaNomsNousIAntics(t *testing.T) {
+	casos := map[string]string{
+		"ask": "chat", "Pregunta": "chat", "chat": "chat",
+		"act": "code", "ACTUA": "code", "code": "code",
+		"inspect": "inspect", "goal": "goal", "objectiu": "goal",
+		"autonomous": "autonomous", "autònom": "autonomous",
+		"debug": "debug", "depuració": "debug", "res": "",
+	}
+	for in, want := range casos {
+		if got := modeFromWord(in); got != want {
+			t.Errorf("modeFromWord(%q)=%q, vull %q", in, got, want)
+		}
+	}
+	m := goalTestModel(t)
+	mod, _ := m.runCommand("/mode ask")
+	if m = asModel(t, mod); m.mode != "chat" {
+		t.Fatalf("/mode ask ha deixat el mode a %q", m.mode)
 	}
 }
 

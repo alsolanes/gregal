@@ -153,17 +153,51 @@ derivat.
 | `--amber` | `arena` |
 | `--green` / `--red` | `green` / `red` |
 
-La marca (`.brand-mark`) és `≋` en `fons` sobre `escuma`, sense degradat: el
-degradat blau-lila d'abans era d'una altra app.
+La marca (`.brand-mark`) és la ratxa de vent (vegeu «Marca»), `/app/icon.png`.
 
-**Android** (`Screens.kt`): `Sea`=`escuma`, `Sand`=`arena`, `DeepTop`=`fons`,
-`DeepBottom`=`abisme`, `Ink`=`text`, `Muted`=`slate`. Els noms en anglès es
-poden quedar; els valors no.
+**Android** (`Theme.kt`): `Sea`=`escuma`, `SeaClara`=`escumaClara`,
+`Sand`=`arena`, `Onada`=`onada`, `Lila`=`lila`, `DeepTop`=`fons`,
+`DeepBottom`=`abisme`, `Superficie`=`night`, `CodeDark`=`superficieAlta`,
+`Ink`=`ink`, `Tinta`=`text`, `Muted`=`slate`, `Faint`=`faint`. Els noms en
+anglès es poden quedar; els valors no (`PaletaTest` ho comprova).
+
+**Complement d'Office** (`internal/web/app/addin/taskpane.html`): els mateixos
+tokens, clar per defecte i fosc quan Office és fosc; la marca a la capçalera.
 
 **VS Code**: l'extensió no té UI pròpia i hereta el tema de l'editor. Només
-porta la marca a la icona i la descripció del `package.json`.
+porta la marca a la icona i la descripció del `package.json`; a la sortida de
+text fa servir el glif `≋`.
 
 **Telegram**: text pla. La identitat és el to i el vocabulari de glifs.
+
+## Marca
+
+- **Gràfica: la ratxa de vent amb dos ulls** (Ventet, `internal/web/app/ventet.svg`,
+  vista 1024): `escuma` amb un degradat suau cap a `escumaClara` i els ulls en
+  `fons`. És la icona de l'escriptori, la web (favicon i `.brand-mark`), VS
+  Code, el complement d'Office i el llançador d'Android (aquí sobre un fons
+  `abisme`→`superficieAlta`). Allà on es pugui pintar una imatge, és aquesta.
+- **Text: `≋`** on només hi ha text monoespaiat (TUI, Telegram, CLI, la
+  sortida de VS Code), i la mascota de text del TUI `‹••›` (la mateixa ratxa
+  amb ulls).
+- El penell flotant de l'escriptori és la mascota (apagada per defecte), no la
+  marca.
+
+## Vocabulari de modes
+
+El mateix a totes les interfícies (els ids interns no canvien: config, API i
+sessions desades en depenen; `agent.ModeFromWord` accepta tots els noms):
+
+| es veu | català | id intern | glif |
+|---|---|---|---|
+| Ask | Pregunta | `chat` (i `inspect`, «pregunta · eines») | `◇` |
+| Act | Actua | `code` | `◆` |
+| Goal | Objectiu | `goal` | `◆` |
+| Autonomous | Autònom | `autonomous` | `◆` |
+| Debug | Depuració | `debug` | `◆` |
+
+Ask/Act són els dos modes principals (interruptor a la web i al mòbil, primera
+fila del teclat de Telegram); els altres tres són modes especials.
 
 ## Vocabulari de glifs
 

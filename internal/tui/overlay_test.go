@@ -80,7 +80,7 @@ func TestInterrogantObreITancaLAjuda(t *testing.T) {
 	if !m.ajuda || len(m.lines) != abans {
 		t.Fatalf("? ha d'obrir l'ajuda sense tocar la conversa (ajuda=%v, files %d→%d)", m.ajuda, abans, len(m.lines))
 	}
-	if v := stripANSI(m.View()); !strings.Contains(v, "Shift+Tab") || !strings.Contains(v, "CONSULTA") {
+	if v := stripANSI(m.View()); !strings.Contains(v, "Shift+Tab") || !strings.Contains(v, "PREGUNTA · eines") {
 		t.Fatalf("l'ajuda ha de dir les tecles i els modes:\n%s", v)
 	}
 	mod, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})

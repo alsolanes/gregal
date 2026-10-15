@@ -95,9 +95,11 @@ func modeMenu() *menuState {
 	// Cada fila diu què fa el mode: és aquí on s'expliquen, no a la
 	// benvinguda.
 	return &menuState{title: "mode", items: []menuItem{
+		// Pregunta i la seva variant amb eines van juntes; els ids interns
+		// (chat/inspect/code) no canvien.
 		{text: T("mode.code.badge") + "  " + T("mode.code.desc"), val: "code"},
-		{text: T("mode.inspect.badge") + "  " + T("mode.inspect.desc"), val: "inspect"},
 		{text: T("mode.chat.badge") + "  " + T("mode.chat.desc"), val: "chat"},
+		{text: T("mode.inspect.badge") + "  " + T("mode.inspect.desc"), val: "inspect"},
 		{text: T("mode.goal.badge") + "  " + T("mode.goal.desc"), val: "goal"},
 	}, run: func(m *Model, val string) (string, *menuState) {
 		m.setMode(val)

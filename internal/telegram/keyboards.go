@@ -97,13 +97,19 @@ func (b *Bot) modeKB(current string) Keyboard {
 		}
 		return ""
 	}
-	return Keyboard{{
-		{Text: mark(agent.ModeCode) + "◆ " + b.tr("Codi", "Code"), Data: "mode:" + agent.ModeCode},
-		{Text: mark(agent.ModeInspect) + "◉ " + b.tr("Consulta", "Inspect"), Data: "mode:" + agent.ModeInspect},
-		{Text: mark(agent.ModeChat) + "◇ " + b.tr("Xat", "Chat"), Data: "mode:" + agent.ModeChat},
-		{Text: mark(agent.ModeGoal) + "◆ " + b.tr("Objectiu", "Goal"), Data: "mode:" + agent.ModeGoal},
-		{Text: mark(agent.ModeAutonomous) + "≋ " + b.tr("Autònom", "Autonomous"), Data: "mode:" + agent.ModeAutonomous},
-	}}
+	// Com a la web i a l'app: Pregunta/Actua a la primera fila; els modes
+	// especials a la segona (◇ no canvia res, ◆ fa canvis).
+	return Keyboard{
+		{
+			{Text: mark(agent.ModeChat) + "◇ " + b.tr("Pregunta", "Ask"), Data: "mode:" + agent.ModeChat},
+			{Text: mark(agent.ModeCode) + "◆ " + b.tr("Actua", "Act"), Data: "mode:" + agent.ModeCode},
+		},
+		{
+			{Text: mark(agent.ModeGoal) + "◆ " + b.tr("Objectiu", "Goal"), Data: "mode:" + agent.ModeGoal},
+			{Text: mark(agent.ModeAutonomous) + "◆ " + b.tr("Autònom", "Autonomous"), Data: "mode:" + agent.ModeAutonomous},
+			{Text: mark(agent.ModeDebug) + "◆ " + b.tr("Depuració", "Debug"), Data: "mode:" + agent.ModeDebug},
+		},
+	}
 }
 
 // roleKB tria el rol actiu (el model que respon).

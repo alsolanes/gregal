@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Same mode vocabulary everywhere: the terminal (TUI) and Telegram now say
+  Ask/Act (Pregunta/Actua) like the web and the app, with Goal, Autonomous
+  and Debug as special modes. `/mode` accepts the visible names in both
+  languages (`act`, `ask`, `actua`, `pregunta`, `depuracio`…) as well as the
+  old ids. The Telegram mode keyboard has Ask/Act on the first row.
+- Office add-in re-themed with Gregal's light/dark palette (dark follows
+  Office), the wind-gust mark in the header and new icons.
+- The desktop "could not start" page uses the gust mark and the palette
+  tokens.
+- `docs/identitat.md` documents the brand (gust graphic, `≋` on text
+  surfaces) and the mode vocabulary per surface.
+
 ## v1.9.2 - 2026-10-14 - Fast #retro with specialists by area
 
 - #retro is fast and never hangs: the agents chat without reasoning (with

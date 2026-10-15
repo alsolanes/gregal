@@ -2936,11 +2936,12 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.menu = modeMenu()
 			return m, nil
 		}
-		if !agent.ValidMode(arg) {
+		mode := modeFromWord(arg)
+		if mode == "" {
 			m.push(systemLine(T("app.usMode")))
 			return m, nil
 		}
-		m.setMode(arg)
+		m.setMode(mode)
 		return m, nil
 	case "/goal":
 		return m.goalCommand(strings.TrimSpace(strings.TrimPrefix(text, "/goal")))

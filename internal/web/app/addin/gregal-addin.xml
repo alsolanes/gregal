@@ -14,7 +14,7 @@
   <DefaultLocale>es-ES</DefaultLocale>
   <DisplayName DefaultValue="Gregal Agent" />
   <Description DefaultValue="Demana coses a l'agent del Gregal i insereix la resposta al document. Cal el gregal en marxa en local." />
-  <IconUrl DefaultValue="http://127.0.0.1:8097/app/addin/icon.png" />
+  <IconUrl DefaultValue="http://127.0.0.1:8097/app/addin/icon-32.png" />
   <HighResolutionIconUrl DefaultValue="http://127.0.0.1:8097/app/addin/icon.png" />
   <SupportUrl DefaultValue="http://127.0.0.1:8097/" />
   <AppDomains>

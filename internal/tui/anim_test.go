@@ -310,7 +310,7 @@ func TestBenvingudaCurtaISenseCaixa(t *testing.T) {
 			t.Fatalf("la benvinguda no diu %q:\n%s", want, got)
 		}
 	}
-	for _, no := range []string{"╭", "│", "CONSULTA", "OBJECTIU"} {
+	for _, no := range []string{"╭", "│", "PREGUNTA", "OBJECTIU"} {
 		if strings.Contains(got, no) {
 			t.Fatalf("la benvinguda no porta %q (ni caixa ni llista de modes):\n%s", no, got)
 		}
@@ -321,7 +321,7 @@ func TestBenvingudaCurtaISenseCaixa(t *testing.T) {
 		modes = append(modes, it.text)
 	}
 	tot := strings.Join(modes, "\n")
-	for _, want := range []string{"CODE", "CONSULTA", "OBJECTIU", "llegeix", "explora"} {
+	for _, want := range []string{"ACTUA", "PREGUNTA", "PREGUNTA · eines", "OBJECTIU", "fa canvis", "investiga"} {
 		if !strings.Contains(tot, want) {
 			t.Fatalf("el selector de mode ha d'explicar %q:\n%s", want, tot)
 		}

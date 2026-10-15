@@ -59,7 +59,7 @@ func (b *Bot) help(st *chatState) string {
 		b.tr("/use &lt;n|nom&gt; — continua una sessió (aquí o al TUI)", "/use &lt;n|name&gt; — resume a session (here or in the TUI)"),
 		b.tr("/rename &lt;nom&gt; — canvia el nom · /del &lt;n|nom&gt; — esborra", "/rename &lt;name&gt; — rename · /del &lt;n|name&gt; — delete"),
 		b.tr("/clear — buida la conversa · /export — descarrega-la (.md)", "/clear — clear the conversation · /export — download it (.md)"),
-		"/mode [code|inspect|chat|goal|autonomous] — " + b.tr("canvia de mode", "change mode"),
+		"/mode [" + b.tr("actua|pregunta|objectiu|autonom|depuracio", "act|ask|goal|autonomous|debug") + "] — " + b.tr("canvia de mode", "change mode"),
 		"/role [chat|think|code] — " + b.tr("quin model respon", "choose the responding model role"),
 		"/model [name] — " + b.tr("tria el model en viu (es desa per xat+rol)", "choose a live model (saved per chat and role)"),
 		"/goal [llista|executa [id]|mostra [id]|esborra &lt;id&gt;] — " + b.tr("objectius", "manage goals"),
@@ -279,18 +279,21 @@ func (b *Bot) verify(ctx context.Context, chatID int64, st *chatState) {
 }
 
 // modeHint explica què fa cada mode.
+// Les mateixes descripcions que la web i l'app (Ask/Act i modes especials).
 func (b *Bot) modeHint(mode string) string {
 	switch mode {
 	case agent.ModeGoal:
-		return b.tr("concreta l'objectiu amb preguntes; no escriu res", "clarify the goal with questions; makes no changes")
+		return b.tr("fa preguntes per definir un objectiu persistent", "asks questions to shape a persistent goal")
 	case agent.ModeInspect:
-		return b.tr("consulta automàtica: lectura segura, sense popups", "automatic inspection: safe reads, no prompts")
+		return b.tr("respon llegint el projecte, sense canviar fitxers", "answers by reading the project, without changing files")
 	case agent.ModeChat:
-		return b.tr("conversa sense inspeccionar el disc", "chat without inspecting files")
+		return b.tr("respon i investiga sense canviar fitxers", "answers and investigates without changing files")
 	case agent.ModeAutonomous:
-		return b.tr("tasca llarga per fites, checkpoints i verificacions", "long-running work with milestones, checkpoints, and verification")
+		return b.tr("treballa sol dins la carpeta; només pregunta pel que és perillós", "works alone inside the folder; only asks about dangerous actions")
+	case agent.ModeDebug:
+		return b.tr("hipòtesis, evidència i després l'arranjament", "hypotheses, evidence, then the fix")
 	default:
-		return b.tr("eines amb permisos", "tools with permission checks")
+		return b.tr("fa canvis, executa ordres i verifica", "makes changes, runs commands and verifies")
 	}
 }
 
@@ -325,13 +328,14 @@ func (b *Bot) modelLine(chatID int64, st *chatState) string {
 // així que només el pot activar qui té dret a treballar desatès (vegeu
 // mayRunUnattended). Els botons ja passen per canApprove; el text no, i
 // abans qualsevol usuari autoritzat hi podia entrar escrivint l'ordre.
-func (b *Bot) setMode(ctx context.Context, chatID int64, st *chatState, mode, chatType string, userID int64) {
-	if !agent.ValidMode(mode) {
-		b.send(ctx, chatID, b.tr("mode invàlid: ", "invalid mode: ")+esc(mode)+" (code|inspect|chat|goal|autonomous)")
+func (b *Bot) setMode(ctx context.Context, chatID int64, st *chatState, word, chatType string, userID int64) {
+	mode := agent.ModeFromWord(word)
+	if mode == "" {
+		b.send(ctx, chatID, b.tr("mode invàlid: ", "invalid mode: ")+esc(word)+b.tr(" (actua|pregunta|objectiu|autonom|depuracio)", " (act|ask|goal|autonomous|debug)"))
 		return
 	}
 	if mode == agent.ModeAutonomous && !b.mayRunUnattended(userID) {
-		b.send(ctx, chatID, b.tr("el mode autònom només el pot activar l'amo: fa anar les eines sense demanar permís.\nPots fer servir /mode code, /mode consulta o /mode objectiu.", "only the owner can enable autonomous mode because it runs tools without asking for permission.\nUse /mode code, /mode inspect, or /mode goal instead."))
+		b.send(ctx, chatID, b.tr("el mode autònom només el pot activar l'amo: fa anar les eines sense demanar permís.\nPots fer servir /mode actua, /mode pregunta o /mode objectiu.", "only the owner can enable autonomous mode because it runs tools without asking for permission.\nUse /mode act, /mode ask, or /mode goal instead."))
 		return
 	}
 	st.mu.Lock()

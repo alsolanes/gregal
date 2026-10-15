@@ -8,7 +8,9 @@
     --bg: #13151B;
     --surface: #1A1D25;
     --surface-hi: #242833;
+    --ink: #F3F5FA;
     --text: #E4E7EF;
+    --muted: #A3AABA;
     --escuma: #8193FF;
     --escuma-clara: #A3B0FF;
     --abisme: #0E1015;
@@ -17,7 +19,7 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font: 16px system-ui, -apple-system, sans-serif;
+    font: 16px system-ui, -apple-system, "Segoe UI", sans-serif;
     display: flex;
     height: 100vh;
     margin: 0;
@@ -34,19 +36,21 @@
     box-shadow: 0 24px 70px rgba(0,0,0,.45);
   }
   .mark {
-    font-size: 54px;
-    color: var(--escuma);
-    line-height: 1;
-    margin-bottom: 8px;
+    display: block;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 8px;
     user-select: none;
   }
+  .mark .gust { fill: var(--escuma); }
+  .mark .eye { fill: var(--bg); }
   h2 {
     margin: 12px 0;
-    color: #F3F5FA;
+    color: var(--ink);
     font-size: 20px;
   }
   p {
-    color: #A3AABA;
+    color: var(--muted);
     line-height: 1.5;
     margin: 12px 0 20px;
   }
@@ -55,7 +59,7 @@
     padding: 2px 8px;
     border-radius: 6px;
     color: var(--escuma);
-    font-family: ui-monospace, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size: 14px;
   }
   button {
@@ -69,6 +73,10 @@
     cursor: pointer;
     transition: background .15s ease;
   }
+  button:focus-visible {
+    outline: 2px solid var(--escuma-clara);
+    outline-offset: 2px;
+  }
   button:hover {
     background: var(--escuma-clara);
   }
@@ -80,7 +88,11 @@
 </head>
 <body>
 <div class="card">
-  <div class="mark">≋</div>
+  <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+    <path class="gust" d="M810 100C950 360 900 640 640 795C470 900 240 915 70 880C300 870 490 795 565 705C460 765 340 800 225 810C490 665 535 575 225 510C510 425 770 340 810 100Z"/>
+    <ellipse cx="675" cy="530" rx="29" ry="53" transform="rotate(18 675 530)" class="eye"/>
+    <ellipse cx="792" cy="518" rx="27" ry="51" transform="rotate(18 792 518)" class="eye"/>
+  </svg>
   <h2 id="errTitle">Could not start Gregal</h2>
   <p id="errDesc">The app could not start the local backend. Try again or launch with
   <code>GREGAL_URL</code> to connect to an existing server.</p>

@@ -246,6 +246,10 @@ func modeBadge(mode string) string {
 	if mode == "autonomous" {
 		return modeAutoStyle.Render(T("mode.autonomous.badge"))
 	}
+	if mode == "debug" {
+		// Mateix to que Actua, com al composer: depurar també toca fitxers.
+		return modeCodeStyle.Render(T("mode.debug.badge"))
+	}
 	return modeCodeStyle.Render(T("mode.code.badge"))
 }
 
@@ -753,6 +757,7 @@ var ajudaGrups = []struct {
 		{"mode.inspect.badge", "mode.inspect.desc"},
 		{"mode.goal.badge", "mode.goal.desc"},
 		{"mode.autonomous.badge", "mode.autonomous.desc"},
+		{"mode.debug.badge", "mode.debug.desc"},
 	}},
 	{"ajuda.tecles", [][2]string{
 		{"help.shifttab.cmd", "help.shifttab"},

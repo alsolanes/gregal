@@ -74,11 +74,12 @@ func TestModePerBoto(t *testing.T) {
 	if !ok {
 		t.Fatalf("sense teclat de mode: %+v", tg.all())
 	}
-	if len(m.KB) != 1 || len(m.KB[0]) != 5 {
-		t.Fatalf("hauria de tenir 5 botons (codi, consulta, xat, objectiu i autònom): %+v", m.KB)
+	// Com a la web i a l'app: Pregunta/Actua a dalt, els modes especials a sota.
+	if len(m.KB) != 2 || len(m.KB[0]) != 2 || len(m.KB[1]) != 3 {
+		t.Fatalf("hauria de tenir Pregunta/Actua i tres modes especials: %+v", m.KB)
 	}
-	if m.KB[0][4].Data != "mode:autonomous" {
-		t.Fatalf("l'últim botó ha de ser el mode autònom: %+v", m.KB[0])
+	if m.KB[0][0].Data != "mode:chat" || m.KB[0][1].Data != "mode:code" || m.KB[1][1].Data != "mode:autonomous" {
+		t.Fatalf("ordre dels botons inesperat: %+v", m.KB)
 	}
 
 	bot.handleCallback(context.Background(), cb(1234567, 1234567, "mode:goal"))
@@ -439,4 +440,21 @@ func TestMissatgeEditatEsProcessa(t *testing.T) {
 	}
 	cancel()
 	<-done
+}
+
+// /mode accepta els noms que veu la persona (Pregunta/Actua…) a més dels ids.
+func TestModeAcceptsVisibleNames(t *testing.T) {
+	tg := newFakeTG(t)
+	llm := newFakeLLM(t, replyText("x"))
+	bot, _, _ := testBot(t, tg, llm, nil)
+	for word, want := range map[string]string{"pregunta": "chat", "act": "code", "objectiu": "goal", "code": "code"} {
+		bot.handleMessage(context.Background(), msg(1234567, "/mode "+word))
+		st := bot.state(1234567)
+		st.mu.Lock()
+		got := st.mode
+		st.mu.Unlock()
+		if got != want {
+			t.Fatalf("/mode %s → %q, want %q", word, got, want)
+		}
+	}
 }

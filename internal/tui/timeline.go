@@ -407,21 +407,23 @@ func (m Model) runSummaryLine() string {
 			}
 		}
 	}
-	parts := []string{fmt.Sprintf("%d %s", done, plural(done, "eina", "eines"))}
+	// Mateix peu que la web i l'Android: «Ha treballat 32s · 5 eines».
+	cap := T("resum.torn")
+	if !m.turnStart.IsZero() {
+		cap = fmt.Sprintf(T("resum.treballat"), elapsedShort(time.Since(m.turnStart)))
+	}
+	parts := []string{cap, fmt.Sprintf("%d %s", done, plural(done, T("resum.eina"), T("resum.eines")))}
 	if len(files) > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", len(files), plural(len(files), "fitxer", "fitxers")))
+		parts = append(parts, fmt.Sprintf("%d %s", len(files), plural(len(files), T("resum.fitxer"), T("resum.fitxers"))))
 	}
 	if failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", failed, plural(failed, "error", "errors")))
-	}
-	if !m.turnStart.IsZero() {
-		parts = append(parts, elapsedShort(time.Since(m.turnStart)))
+		parts = append(parts, fmt.Sprintf("%d %s", failed, plural(failed, T("resum.error"), T("resum.errors"))))
 	}
 	r := m.roleRef()
 	if usd, ok := agent.CostUSD(r.Provider, r.Model, m.tokUp, m.tokDown); ok {
 		parts = append(parts, agent.FmtCost(usd))
 	}
-	return "resum del torn · " + strings.Join(parts, " · ")
+	return strings.Join(parts, " · ")
 }
 
 // rutaCurta és una ruta per al cockpit: relativa al projecte i, si encara

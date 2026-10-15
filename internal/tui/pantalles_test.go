@@ -75,7 +75,7 @@ func omplePantallaTorn(t *testing.T, m *Model) {
 	m.push(assistantMD("He afegit el camp `Timeout` a `Config`. Ara toca propagar-lo:\n\n1. `internal/llm/client.go`: llegir `cfg.Timeout`\n2. Tests a `config_test.go`\n\n```go\nfunc New(timeout time.Duration) *Client {\n\treturn &Client{hc: &http.Client{Timeout: timeout}}\n}\n```\n\n**Nota**: el valor per defecte segueix sent 180 s.", m.vp.Width))
 	// El resum, fix: runSummaryLine mira el rellotge i «42s» podria ser
 	// «43s» en una màquina lenta.
-	m.push(faintStyle.Render("resum del torn · 6 eines · 1 fitxer · 1 error · 42s"))
+	m.push(faintStyle.Render("Ha treballat 42s · 6 eines · 1 fitxer · 1 error"))
 	m.status = "llest"
 	m.refresh()
 	m.vp.GotoBottom()
