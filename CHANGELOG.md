@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- #retro team review: when the retro opens, reviewers who did not do the
+  work look at it in parallel with the summary, each from its own angle:
+  Design (only when something visible changed), Code, QA (new: bugs, edge
+  cases, missing tests), Product and Security. Each posts a verdict and up to
+  three findings with severity, receipts and a fix that **Fix it** starts as
+  a run; they appear as they finish. A "Team review" bar counts the findings
+  and filters them by severity. Same on Android, which also gets **Fix it**.
+- The coordinator's opening in #retro explains how the work was implemented
+  (approach and key files).
+- #retro judged a turn against the wrong task when another conversation was
+  loaded: the task is now saved with the turn. `@all` gets a reply from every
+  agent again (it was capped at three).
+
 ## v1.9.3 - 2026-10-15 - Aligned surfaces
 
 - Same mode vocabulary everywhere: the terminal (TUI) and Telegram now say

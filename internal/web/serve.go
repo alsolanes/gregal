@@ -2316,7 +2316,10 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 		if o.onStart != nil {
 			o.onStart()
 		}
-		s.appendRunEvent(run, "run_started", "torn iniciat")
+		// La tasca va al payload: el #retro hi llegeix de què anava el torn
+		// (la conversa carregada pot ser una altra).
+		payload, _ := json.Marshal(map[string]string{"task": retroClip(strings.Join(strings.Fields(agent.SenseMapa(o.task)), " "), 300)})
+		_ = s.Hub().appendEvent(events.Event{SessionID: s.id, User: s.usuari(), RunID: int(run.ID), Kind: "run_started", Text: "torn iniciat", Payload: payload})
 		// Cortesia pura ("hola"): resposta local, sense model ni eines. A la
 		// via SSE antiga es resol abans d'encuar; aquí el torn ja és a la cua
 		// i simplement no gasta passos ni crides.

@@ -24,7 +24,26 @@ data class RetroMsg(
     val concede: Boolean = false,
     val fix: String = "",
     val at: String = "",
-)
+    /** Revisió de l'equip: finding (amb severity high|medium|low i title) o verdict. */
+    val kind: String = "",
+    val severity: String = "",
+    val title: String = "",
+    val fixRun: Long = 0,
+) {
+    val isFinding: Boolean get() = kind == "finding"
+    val sev: String get() = if (severity in RETRO_SEVERITIES) severity else "low"
+}
+
+val RETRO_SEVERITIES = listOf("high", "medium", "low")
+
+/** Troballes del canal principal per gravetat (la barra de revisió). */
+fun retroFindingCounts(msgs: List<RetroMsg>): Map<String, Int> =
+    msgs.filter { it.isFinding && it.thread.isEmpty() }.groupingBy { it.sev }.eachCount()
+
+/** Missatges amb el filtre de la barra: "" tots, "all" les troballes, o una gravetat. */
+fun retroFilter(msgs: List<RetroMsg>, filter: String): List<RetroMsg> =
+    if (filter.isEmpty()) msgs
+    else msgs.filter { it.isFinding && it.thread.isEmpty() && (filter == "all" || it.sev == filter) }
 
 data class RetroChannel(
     val key: String,
@@ -65,6 +84,10 @@ fun parseRetroChannel(o: Map<String, Any?>?): RetroChannel? {
             concede = m["concede"] == true,
             fix = s(m, "fix_suggestion"),
             at = s(m, "at"),
+            kind = s(m, "kind"),
+            severity = s(m, "severity"),
+            title = s(m, "title"),
+            fixRun = (m["fix_run"] as? Double)?.toLong() ?: 0L,
         )
     }
     return RetroChannel(s(o, "key"), s(o, "title"), o["degraded"] == true, agents, msgs)

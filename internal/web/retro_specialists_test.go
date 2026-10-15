@@ -9,15 +9,15 @@ func TestRetroRespondersForMentionsAllAndAuto(t *testing.T) {
 	c := &retroChannel{Lang: "ca", Agents: retroWithSpecialists([]retroAgent{
 		{ID: "coordinator", Name: "Coordinator"}, {ID: "researcher", Name: "Researcher"},
 	}, "ca")}
-	all := []string{"coordinator", "researcher", "design", "product", "code", "security"}
+	all := []string{"coordinator", "researcher", "design", "qa", "product", "code", "security"}
 	cases := map[string]struct {
 		ids  []string
 		auto bool
 	}{
 		"a nivell estètic estaria bé alguna millora visual?": {all, true},
-		"@seguretat mira-ho tu":                               {[]string{"security"}, false},
-		"@disseny i @codi, què en penseu?":                    {[]string{"design", "code"}, false},
-		"@tots què en penseu?":                                {all, false},
+		"@seguretat mira-ho tu":                              {[]string{"security"}, false},
+		"@disseny i @codi, què en penseu?":                   {[]string{"design", "code"}, false},
+		"@tots què en penseu?":                               {all, false},
 	}
 	for text, want := range cases {
 		ids, auto := retroRespondersFor(text, c)
@@ -33,10 +33,10 @@ func TestRetroRespondersForMentionsAllAndAuto(t *testing.T) {
 func TestRetroSpecialistsAddedOnceAndLocalized(t *testing.T) {
 	a := retroWithSpecialists([]retroAgent{{ID: "coordinator"}}, "en")
 	a = retroWithSpecialists(a, "en")
-	if len(a) != 5 {
-		t.Fatalf("got %d agents, want 5 (no duplicates)", len(a))
+	if len(a) != 6 {
+		t.Fatalf("got %d agents, want 6 (no duplicates)", len(a))
 	}
-	if a[1].Name != "Design" || a[4].Name != "Security" || !retroIsSpecialist(&a[4]) || retroIsSpecialist(&a[0]) {
+	if a[1].Name != "Design" || a[2].Name != "QA" || a[5].Name != "Security" || !retroIsSpecialist(&a[5]) || retroIsSpecialist(&a[0]) {
 		t.Fatalf("unexpected specialists: %+v", a)
 	}
 	if retroSpecialists("ca")[0].Name != "Disseny" {
@@ -44,7 +44,8 @@ func TestRetroSpecialistsAddedOnceAndLocalized(t *testing.T) {
 	}
 }
 
-func TestRetroStandupSpecialistSpeaksAtMostOnce(t *testing.T) {
+// Els especialistes no parlen al resum: publiquen la seva revisió a part.
+func TestRetroStandupLeavesSpecialistsToTheReview(t *testing.T) {
 	c := &retroChannel{Agents: retroWithSpecialists([]retroAgent{{ID: "coordinator", Name: "Coordinator"}}, "en"),
 		Evidence: []retroEvidence{{ID: "e1", Agent: "coordinator", Title: "read a.go"}}}
 	js := `{"messages":[{"agent":"coordinator","text":"read a.go","receipts":["e1"]},
@@ -60,8 +61,8 @@ func TestRetroStandupSpecialistSpeaksAtMostOnce(t *testing.T) {
 			n++
 		}
 	}
-	if n != 1 {
-		t.Fatalf("security spoke %d times, want 1", n)
+	if n != 0 {
+		t.Fatalf("security spoke %d times in the stand-up, want 0", n)
 	}
 }
 
