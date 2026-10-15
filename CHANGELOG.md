@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.9.3 - 2026-10-15 - Aligned surfaces
+
 - Same mode vocabulary everywhere: the terminal (TUI) and Telegram now say
   Ask/Act (Pregunta/Actua) like the web and the app, with Goal, Autonomous
   and Debug as special modes. `/mode` accepts the visible names in both
