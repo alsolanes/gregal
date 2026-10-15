@@ -446,11 +446,14 @@ func (c *Client) sessionID() string {
 // Si el torn queda buit per length, ho torna a provar una vegada amb el
 // doble de pressupost (retryLength) abans de donar l'error per bo.
 func (c *Client) Chat(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int) (string, error) {
-	var out string
-	err := retryFit(ctx, maxTokens, func(budget int) error {
-		var err error
-		out, err = c.chatInner(ctx, baseURL, apiKey, model, msgs, temp, budget)
-		return err
+	out, _, err := continuaTallat(ctx, msgs, maxTokens, nil, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+		var out string
+		err := retryFit(ctx, maxTokens, func(budget int) error {
+			var err error
+			out, err = c.chatInner(ctx, baseURL, apiKey, model, msgs, temp, budget)
+			return err
+		})
+		return out, nil, err
 	})
 	return out, err
 }
@@ -500,7 +503,7 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 		return "", emptyReplyErr(ch.FinishReason, len([]rune(ch.Message.ReasoningContent+ch.Message.Reasoning+ch.Message.Thought+ch.Message.Thinking)), maxTokens)
 	}
 	if ch.FinishReason == "length" {
-		return "", &LengthError{MaxTokens: maxTokens}
+		return "", (&LengthError{MaxTokens: maxTokens}).amb(ch.Message.Content, nil)
 	}
 	return ch.Message.Content, nil
 }
@@ -508,6 +511,12 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 // ChatWithTools crida amb specs d'eines i retorna contingut + tool_calls.
 // Amb el mateix reintent per length que Chat.
 func (c *Client) ChatWithTools(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec) (string, []ToolCall, error) {
+	return continuaTallat(ctx, msgs, maxTokens, nil, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+		return c.chatWithToolsOnce(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs)
+	})
+}
+
+func (c *Client) chatWithToolsOnce(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec) (string, []ToolCall, error) {
 	var text string
 	var calls []ToolCall
 	err := retryFit(ctx, maxTokens, func(budget int) error {
@@ -582,9 +591,10 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 		return "", nil, emptyReplyErr(out.Choices[0].FinishReason, len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens)
 	}
 	if out.Choices[0].FinishReason == "length" {
-		// The whole response is still private to this call. Discard text and
-		// tool calls from a truncated attempt so it can be retried safely.
-		return "", nil, &LengthError{MaxTokens: maxTokens}
+		// The whole response is still private to this call. It travels in
+		// the error so continuaTallat can keep the text and decide what to
+		// do with possibly incomplete tool calls.
+		return "", nil, (&LengthError{MaxTokens: maxTokens}).amb(senseThink(m.Content), m.ToolCalls)
 	}
 	c.noteReasoning(ctx, m.ToolCalls, m.ReasoningContent)
 	return senseThink(m.Content), m.ToolCalls, nil
@@ -594,11 +604,14 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 // raonament a onReason) i retorna el text sencer. Amb el mateix reintent
 // per length que Chat (només si no s'ha emès ni una lletra).
 func (c *Client) ChatStream(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, onToken, onReason func(string)) (string, error) {
-	var out string
-	err := retryFit(ctx, maxTokens, func(budget int) error {
-		var err error
-		out, err = c.chatStreamInner(ctx, baseURL, apiKey, model, msgs, temp, budget, onToken, onReason)
-		return err
+	out, _, err := continuaTallat(ctx, msgs, maxTokens, onToken, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+		var out string
+		err := retryFit(ctx, maxTokens, func(budget int) error {
+			var err error
+			out, err = c.chatStreamInner(ctx, baseURL, apiKey, model, msgs, temp, budget, onToken, onReason)
+			return err
+		})
+		return out, nil, err
 	})
 	return out, err
 }
@@ -691,7 +704,11 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 		return "", emptyReplyErr(finish, reasoned, maxTokens)
 	}
 	if finish == "length" {
-		return "", lengthTallat(reasoned, maxTokens, len([]rune(text)))
+		visible := len([]rune(text))
+		if onToken == nil {
+			visible = 0
+		}
+		return "", lengthTallat(reasoned, maxTokens, visible).amb(text, nil)
 	}
 	return text, nil
 }
@@ -732,6 +749,12 @@ func toolsWire(specs []ToolSpec) []any {
 // anava sense `tools` per poder fer streaming, i DeepSeek escrivia la crida
 // en DSML com a text.
 func (c *Client) ChatStreamWithTools(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string)) (string, []ToolCall, error) {
+	return continuaTallat(ctx, msgs, maxTokens, onToken, func(msgs []Message, maxTokens int) (string, []ToolCall, error) {
+		return c.chatStreamWithToolsOnce(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, onToken, onReason)
+	})
+}
+
+func (c *Client) chatStreamWithToolsOnce(ctx context.Context, baseURL, apiKey, model string, msgs []Message, temp float64, maxTokens int, specs []ToolSpec, onToken, onReason func(string)) (string, []ToolCall, error) {
 	var text string
 	var calls []ToolCall
 	buffer := recoverTruncation(ctx)
@@ -826,7 +849,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		if out.Choices[0].FinishReason == "length" {
 			// El retorn és abans de cridar onToken: la resposta no s'ha
 			// ensenyat, així que un tall aquí encara es pot reintentar.
-			return "", nil, lengthTallat(len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens, 0)
+			return "", nil, lengthTallat(len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens, 0).amb(text, calls)
 		}
 		if text != "" && onToken != nil {
 			onToken(text)
@@ -940,7 +963,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		if onToken == nil {
 			visible = 0
 		}
-		return "", nil, lengthTallat(reasoned, maxTokens, visible)
+		return "", nil, lengthTallat(reasoned, maxTokens, visible).amb(text, calls)
 	}
 	c.noteReasoning(ctx, calls, roundTrip.String())
 	return text, calls, nil

@@ -121,7 +121,10 @@ func TestMaxTokensPerTorn(t *testing.T) {
 	}
 }
 
-func TestConduirTornEscalaPressupostIRetiraFragmentTallat(t *testing.T) {
+// Un torn tallat per max_tokens amb text no es llença ni es regenera: el
+// fragment es conserva (i s'emet) i es demana una continuació amb el mateix
+// pressupost. El que es veu és el que es desa.
+func TestConduirTornConservaFragmentTallatIContinua(t *testing.T) {
 	var budgets []int
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var req struct {
@@ -159,14 +162,14 @@ func TestConduirTornEscalaPressupostIRetiraFragmentTallat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("conduirTorn: %v", err)
 	}
-	if reply != "complet" || strings.Join(tokens, "") != "complet" {
-		t.Fatalf("reply=%q emitted=%q, wanted only recovered answer", reply, strings.Join(tokens, ""))
+	if reply != "incompletcomplet" || strings.Join(tokens, "") != "incompletcomplet" {
+		t.Fatalf("reply=%q emitted=%q, wanted the kept fragment plus its continuation", reply, strings.Join(tokens, ""))
 	}
 	if len(errorsSeen) != 0 {
 		t.Fatalf("unexpected errors: %v", errorsSeen)
 	}
-	if len(budgets) != 2 || budgets[0] != 8192 || budgets[1] != 16384 {
-		t.Fatalf("provider max_tokens=%v, wanted [8192 16384]", budgets)
+	if len(budgets) != 2 || budgets[0] != 8192 || budgets[1] != 8192 {
+		t.Fatalf("provider max_tokens=%v, wanted [8192 8192]", budgets)
 	}
 }
 

@@ -763,6 +763,7 @@ var ajudaGrups = []struct {
 		{"help.shifttab.cmd", "help.shifttab"},
 		{"help.ctrlt.cmd", "help.ctrlt"},
 		{"help.ctrll.cmd", "help.ctrll"},
+		{"help.select.cmd", "help.select"},
 		{"help.bang.cmd", "help.bang"},
 		{"help.queue.cmd", "help.queue"},
 		{"help.answer.cmd", "help.answer"},

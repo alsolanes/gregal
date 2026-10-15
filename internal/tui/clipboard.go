@@ -10,10 +10,14 @@ import (
 	"time"
 )
 
-// copyToClipboard prova wl-copy → xclip → xsel → OSC52 (/dev/tty).
-// Torna com ho ha fet ("wl-copy", "xclip", "xsel", "OSC52") o error honest
-// (p. ex. instal·la wl-clipboard o xclip).
+// copyToClipboard prova el porta-retalls natiu (Windows, macOS) i després
+// wl-copy → xclip → xsel → OSC52 (/dev/tty).
+// Torna com ho ha fet ("Windows", "wl-copy", "xclip", "xsel", "OSC52") o
+// error honest (p. ex. instal·la wl-clipboard o xclip).
 func copyToClipboard(text string) (string, error) {
+	if how, err := copiaNatiu(text); err == nil {
+		return how, nil
+	}
 	run := func(name string, args ...string) error {
 		// Cada backend necessita el seu context. Si, per exemple, wl-copy
 		// es queda penjat fins al timeout, reutilitzar aquell context faria

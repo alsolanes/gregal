@@ -494,7 +494,7 @@ func (c *Client) acabaNatiu(res resultatNatiu, maxTokens int, liveText bool) (st
 		if liveText {
 			visible = len([]rune(res.text))
 		}
-		return "", nil, lengthTallat(res.reasoned, maxTokens, visible)
+		return "", nil, lengthTallat(res.reasoned, maxTokens, visible).amb(res.text, res.calls)
 	}
 	c.natius.desa(res.calls, res.text, res.blocs)
 	return res.text, res.calls, nil

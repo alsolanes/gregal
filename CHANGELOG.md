@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- A reply cut off by the output token limit is no longer lost, on every
+  surface (terminal, `-p`, web, Telegram). The partial text is kept and
+  Gregal asks the model to continue, up to three times. A tool call whose
+  arguments were cut off is never run: it is requested again with twice the
+  `max_tokens` and a hint to split the work into smaller calls. Each step
+  shows in the status line, and if the limit is still hit the reply ends
+  with a note instead of disappearing.
+- Terminal (TUI): with the mouse on, dragging over the conversation selects
+  text with a visible highlight and copies it on release, and the wheel
+  still scrolls. Shift+drag still uses the terminal's own selection. `/copy`
+  and the selection now use the native clipboard on Windows and macOS.
 - #retro team review: when the retro opens, reviewers who did not do the
   work look at it in parallel with the summary, each from its own angle:
   Design (only when something visible changed), Code, QA (new: bugs, edge
