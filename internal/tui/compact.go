@@ -57,9 +57,9 @@ func (m Model) maybeCompactCmd(force bool) (tea.Model, tea.Cmd) {
 	if !force && !agent.NeedsCompact(llm.EstimateTokens(hist), budget) {
 		return m, nil
 	}
-	m.push(dimStyle.Render(T("compact.fent") + fmt.Sprint(len(m.convo)) + " missatges)…"))
+	m.push(dimStyle.Render(T("compact.fent") + fmt.Sprint(len(m.convo)) + T("compact.missatges")))
 	m.busy = true
-	m.status = "compactant…"
+	m.status = T("compact.estat")
 	cmd, cancel := m.compactCmd()
 	m.cancel = cancel
 	m.cancelRequested = false
@@ -83,12 +83,12 @@ func (m Model) handleCompactDone(msg compactDoneMsg) (tea.Model, tea.Cmd) {
 	m.cancel = nil
 	if m.cancelRequested {
 		m.cancelRequested = false
-		m.status = "llest"
+		m.status = T("barra.llest")
 		m.push(systemLine(T("compact.cancel")))
 		return m, nil
 	}
 	if msg.err != nil {
-		m.status = "llest"
+		m.status = T("barra.llest")
 		// Si el resum falla (p.ex. timeout en model local), retallem igualment
 		// per evitar bloquejar la conversa per excés de context.
 		kept := agent.TrimKeep(m.convo, 4)
@@ -109,7 +109,7 @@ func (m Model) handleCompactDone(msg compactDoneMsg) (tea.Model, tea.Cmd) {
 	// compactar seguia en vermell (>=80%) per sempre encara que la
 	// conversa real s'havia reduït. Es recomputa amb el que queda.
 	m.recalcCtx()
-	m.status = "llest"
+	m.status = T("barra.llest")
 	// La compactació també ha de ser visual. Abans només retallava m.convo:
 	// el viewport conservava milers de línies antigues i semblava que /compact
 	// no hagués fet res. Repintem el resum i els quatre missatges recents, que

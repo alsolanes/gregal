@@ -61,7 +61,7 @@ func goalCard(g goal.Goal, width int) string {
 	for _, linia := range strings.Split(g.Body, "\n") {
 		cos += "  " + linia + "\n"
 	}
-	titol := goalTitleStyle.Render("◆ OBJECTIU") +
+	titol := goalTitleStyle.Render("◆ "+T("mode.goal.badge")) +
 		dimStyle.Render("  "+g.ID+" · "+g.Project+" · "+g.Status)
 	return goalBoxStyle.Width(max(width-2, 20)).Render(titol + "\n" + cos +
 		dimStyle.Render(T("goal.pista")))
@@ -80,7 +80,7 @@ func (m *Model) executaGoal(g goal.Goal) (tea.Model, tea.Cmd) {
 	if err := goal.Save(m.goalDir(), g); err != nil {
 		m.push(systemLine(T("goal.noMarcat") + err.Error()))
 	}
-	m.push(okStyle.Render("◆ executant l'objectiu "+g.ID) + dimStyle.Render(" — "+g.Title))
+	m.push(okStyle.Render("◆ "+T("goal.executant")+g.ID) + dimStyle.Render(" — "+g.Title))
 	return m.startAgent(goal.Task(g))
 }
 
@@ -152,7 +152,7 @@ func (m *Model) goalList() (tea.Model, tea.Cmd) {
 		m.push(systemLine(T("goal.capEncara")))
 		return m, nil
 	}
-	m.push(systemStyle.Render("◆ objectius de "+m.projectName()) + dimStyle.Render("  (/goal executa <id>)"))
+	m.push(systemStyle.Render("◆ "+T("goal.objectiusDe")+m.projectName()) + dimStyle.Render("  (/goal executa <id>)"))
 	for _, g := range llista {
 		m.push("  " + goal.Resum(g) + dimStyle.Render("  "+g.Created.Local().Format("02/01 15:04")))
 	}
@@ -193,7 +193,7 @@ func (m *Model) goalDelete(id string) (tea.Model, tea.Cmd) {
 	if m.lastGoalID == g.ID {
 		m.lastGoalID = ""
 	}
-	m.push(okStyle.Render("✓ objectiu esborrat") + dimStyle.Render(" · "+g.ID+" "+g.Title))
+	m.push(okStyle.Render("✓ "+T("goal.esborrat")) + dimStyle.Render(" · "+g.ID+" "+g.Title))
 	return m, nil
 }
 
@@ -215,7 +215,7 @@ func goalMenu(m *Model) *menuState {
 		menuItem{text: T("goal.llista"), val: "llista"},
 		menuItem{text: T("goal.esborraUltim"), val: "esborra"},
 	)
-	return &menuState{title: "objectiu", items: items, run: func(m *Model, val string) (string, *menuState) {
+	return &menuState{title: T("goal.objectiu"), items: items, run: func(m *Model, val string) (string, *menuState) {
 		if val == "llista" {
 			return "", goalListMenu(m)
 		}
@@ -246,7 +246,7 @@ func goalListMenu(m *Model) *menuState {
 	llista, err := goal.List(m.goalDir(), m.projectName())
 	if err != nil || len(llista) == 0 {
 		return &menuState{
-			title: "objectius (" + m.projectName() + ")",
+			title: T("goal.objectius") + " (" + m.projectName() + ")",
 			items: []menuItem{{text: T("goal.capEncara"), val: "noop"}},
 			run:   func(*Model, string) (string, *menuState) { return "", nil },
 		}
@@ -261,7 +261,7 @@ func goalListMenu(m *Model) *menuState {
 		items = append(items, menuItem{text: text, val: g.ID})
 	}
 	return &menuState{
-		title: "objectius · " + m.projectName(),
+		title: T("goal.objectius") + " · " + m.projectName(),
 		items: items,
 		run: func(m *Model, id string) (string, *menuState) {
 			if id == "noop" {
@@ -281,12 +281,12 @@ func goalListMenu(m *Model) *menuState {
 // (fletxes + Enter): executar-lo, veure'l, editar-lo al composer, llistar o
 // esborrar. Esc tanca sense fer res.
 func goalActionMenu(g goal.Goal) *menuState {
-	return &menuState{title: "objectiu · " + g.ID, items: []menuItem{
-		{text: "▶ Executa'l (passa a code)", val: "executa"},
-		{text: "👁 Mostra el pla complet", val: "mostra"},
-		{text: "✎ Edita'l al composer", val: "edita"},
-		{text: "☰ Llista els del projecte", val: "llista"},
-		{text: "🗑 Esborra'l", val: "esborra"},
+	return &menuState{title: T("goal.objectiu") + " · " + g.ID, items: []menuItem{
+		{text: "▶ " + T("goal.accExecuta"), val: "executa"},
+		{text: "👁 " + T("goal.accMostra"), val: "mostra"},
+		{text: "✎ " + T("goal.accEdita"), val: "edita"},
+		{text: "☰ " + T("goal.accLlista"), val: "llista"},
+		{text: "🗑 " + T("goal.accEsborra"), val: "esborra"},
 	}, run: func(m *Model, val string) (string, *menuState) {
 		switch val {
 		case "executa":
@@ -307,7 +307,7 @@ func goalActionMenu(g goal.Goal) *menuState {
 			// desarà com a objectiu nou (l'antic es pot esborrar).
 			m.input.SetValue(g.Body)
 			m.fitInput()
-			return systemLine("edita el text i prem enter"), nil
+			return systemLine(T("goal.editaText")), nil
 		case "llista":
 			return "", goalListMenu(m)
 		case "esborra":

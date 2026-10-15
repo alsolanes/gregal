@@ -249,7 +249,7 @@ func TestModeMenuInclouObjectiu(t *testing.T) {
 	for _, it := range menu.items {
 		vals = append(vals, it.val)
 	}
-	if len(vals) != 4 || vals[0] != "code" || vals[1] != "chat" || vals[2] != "inspect" || vals[3] != "goal" {
+	if strings.Join(vals, ",") != "code,chat,inspect,goal,debug,autonomous" {
 		t.Fatalf("modeMenu=%v", vals)
 	}
 }

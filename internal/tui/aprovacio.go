@@ -2,9 +2,9 @@ package tui
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -53,7 +53,7 @@ func retallaLinies(s string, n int) string {
 	if len(ls) <= n {
 		return strings.Join(ls, "\n")
 	}
-	return strings.Join(append(ls[:n], dimStyle.Render("… i "+strconv.Itoa(len(ls)-n)+" línies més")), "\n")
+	return strings.Join(append(ls[:n], dimStyle.Render(fmt.Sprintf(T("aprova.liniesMes"), len(ls)-n))), "\n")
 }
 
 // previewCanvi pinta el canvi que s'està aprovant, sense tocar res del
@@ -86,7 +86,7 @@ func previewCanvi(dir, name, argsJSON string) string {
 			return diffBlock(a.Path, "", a.Content, 40)
 		}
 		if string(vell) == a.Content {
-			return dimStyle.Render("(el contingut no canvia)")
+			return dimStyle.Render(T("aprova.senseCanvi"))
 		}
 		return diffBlock(a.Path, string(vell), a.Content, 40)
 	case "edit":

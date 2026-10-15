@@ -7,6 +7,10 @@
   and Debug as special modes. `/mode` accepts the visible names in both
   languages (`act`, `ask`, `actua`, `pregunta`, `depuracio`…) as well as the
   old ids. The Telegram mode keyboard has Ask/Act on the first row.
+- The terminal (TUI) is fully in English when the language is English: the
+  session status screen, the activity timeline, tool summaries, approvals,
+  provider setup, review and settings menus no longer show Catalan. The
+  mode picker now also lists Debug and Autonomous, like the web.
 - Office add-in re-themed with Gregal's light/dark palette (dark follows
   Office), the wind-gust mark in the header and new icons.
 - The desktop "could not start" page uses the gust mark and the palette

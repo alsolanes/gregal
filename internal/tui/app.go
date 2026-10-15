@@ -301,12 +301,12 @@ type Model struct {
 	// keyBuf és la clau que s'està escrivint. No passa pel textarea:
 	// així no apareix mai en clar a la pantalla, ni queda al buffer
 	// d'edició ni a cap desfer. Es pinta com a rodonetes.
-	keyBuf      string
-	permissive  bool // mode permissiu: les ask s'aproven soles (deny continua bloquejant)
+	keyBuf     string
+	permissive bool // mode permissiu: les ask s'aproven soles (deny continua bloquejant)
 	// autoReview: mode auto-review; un model revisor decideix les ask
 	// (agent/autoreview.go). Exclusiu amb permissive.
-	autoReview bool
-	journalBase int  // Seq del journal a l'inici del torn: verificar només si ha fet coses reals
+	autoReview  bool
+	journalBase int // Seq del journal a l'inici del torn: verificar només si ha fet coses reals
 
 	stream      *streamer
 	streamLine  int
@@ -585,12 +585,12 @@ func (m *Model) pushServiceEvent(e serviceclient.Event) {
 		// Senyal de vida (fase del torn, cada pocs segons): a la barra
 		// d'estat, no com a línia del transcript.
 		if m.serviceTurn && text != "" {
-			m.status = "servei · " + text
+			m.status = T("app.servei") + " · " + text
 		}
 	default:
 		// activity, tool_call, tool_result, status, route, budget,
 		// run_queued/started/completed...: activitat, no transcript.
-		m.push(dimStyle.Render("servei · " + text))
+		m.push(dimStyle.Render(T("app.servei") + " · " + text))
 	}
 }
 
@@ -929,7 +929,7 @@ func capText(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "\n…(truncat)"
+	return s[:n] + "\n" + T("app.truncat")
 }
 
 func shortArgs(args string, n int) string {
@@ -1031,9 +1031,9 @@ func (m Model) startParallel(prompt string) (tea.Model, tea.Cmd) {
 	m.convo = append(m.convo, llm.Message{Role: "user", Content: prompt})
 	hist := append([]llm.Message{{Role: "system", Content: m.sysPrompt()}}, m.convo...)
 	m.push(userLine("⇄ " + prompt))
-	m.push(dimStyle.Render("consultant " + strings.Join(names, " · ") + T("app.enParallel")))
+	m.push(dimStyle.Render(T("app.consultant") + strings.Join(names, " · ") + T("app.enParallel")))
 	m.busy = true
-	m.status = fmt.Sprintf("comparant %d models…", len(names))
+	m.status = fmt.Sprintf(T("app.comparant"), len(names))
 	m.promptEst = llm.EstimateTokens(hist)
 	cfg, client := m.cfg, m.client
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -1051,7 +1051,7 @@ func (m Model) startParallel(prompt string) (tea.Model, tea.Cmd) {
 				p, ok := cfg.Providers[r.Provider]
 				results[i] = parallelResult{role: name, provider: r.Provider, model: r.Model}
 				if !ok {
-					results[i].err = fmt.Errorf("provider desconegut: %s", r.Provider)
+					results[i].err = errors.New(T("prov.desconegut") + r.Provider)
 					return
 				}
 				answer, _, err := client.ChatFO(ctx, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), hist,
@@ -1072,7 +1072,7 @@ func (m Model) sendVerify() (tea.Cmd, context.CancelFunc) {
 	// no bloquegem el TUI amb una crida condemnada a fallar.
 	if p.APIKey == "" && !strings.Contains(p.BaseURL, "localhost") && !strings.Contains(p.BaseURL, "127.0.0.1") {
 		return func() tea.Msg {
-			return verifyDoneMsg{verdict: verify.Verdict{Approved: true, Summary: "verificació omesa (reviewer remot sense clau)"}, raw: ""}
+			return verifyDoneMsg{verdict: verify.Verdict{Approved: true, Summary: T("app.verifOmesa")}, raw: ""}
 		}, func() {}
 	}
 	transcript := m.transcriptTail(6)
@@ -1379,7 +1379,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// cap més.
 			if m.flow != nil && m.flowCancel != nil {
 				m.flowCancel()
-				m.push(systemLine("graf: aturant… (s'acaba el pas en marxa)"))
+				m.push(systemLine(T("app.grafAturant")))
 				return m, nil
 			}
 			if m.busy && m.cancel != nil {
@@ -1654,7 +1654,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.serviceStatus = "desconnectat"
 			m.serviceTurn = false
 			m.serviceRunID = 0
-			m.push(systemLine("servei: " + msg.err.Error()))
+			m.push(systemLine(T("app.servei") + ": " + msg.err.Error()))
 			return m, nil
 		}
 		m.serviceClient = msg.client
@@ -1665,7 +1665,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.serviceStream = msg.health.Capabilities["event_stream"]
 		m.serviceTurn = false
 		m.serviceRunID = 0
-		m.push(systemLine("servei compartit connectat: " + msg.health.InstanceID))
+		m.push(systemLine(T("app.serveiConnectat") + msg.health.InstanceID))
 		return m, m.serviceEventsCmd()
 	case serviceEventsMsg:
 		if msg.generation != m.serviceGeneration {
@@ -1704,7 +1704,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// no corre enlloc i l'usuari pot reenviar o /connect.
 			m.serviceTurn = false
 			m.status = T("barra.llest")
-			m.push(warnStyle.Render("servei: " + msg.err.Error()))
+			m.push(warnStyle.Render(T("app.servei") + ": " + msg.err.Error()))
 			return m, nil
 		}
 		m.serviceRunID = msg.run.ID
@@ -1714,9 +1714,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.serviceEventsCmd()
 	case serviceCancelMsg:
 		if msg.err != nil {
-			m.push(systemLine("servei: " + msg.err.Error()))
+			m.push(systemLine(T("app.servei") + ": " + msg.err.Error()))
 		} else {
-			m.push(systemLine("torn del servei aturat"))
+			m.push(systemLine(T("app.serveiAturat")))
 		}
 		return m, nil
 	case streamTickMsg:
@@ -1795,7 +1795,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.torn != nil && len(m.torn.Hist) > agent.KeepRecentOnCompact+1 {
 					abans, ara := m.torn.Retalla()
 					m.lines[m.streamLine] = systemLine(fmt.Sprintf(
-						"error: s'ha excedit el context; historial retallat %d → %d missatges — torna-ho a provar o /compact.",
+						T("app.contextExcedit"),
 						abans, ara))
 					m.refresh()
 					m.status = T("barra.llest")
@@ -2038,13 +2038,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.tokUp += llm.EstimateTokens([]llm.Message{{Role: "user", Content: m.transcriptTail(6) + tools.GitDiff(m.cwd)}})
 		m.tokDown += llm.EstimateTokens([]llm.Message{{Role: "assistant", Content: msg.raw}})
 		if msg.err != nil {
-			m.push(systemLine("revisor: error: " + msg.err.Error()))
+			m.push(systemLine(T("timeline.revisor") + ": error: " + msg.err.Error()))
 			return m, nil
 		}
 		if msg.verdict.Approved {
-			m.push(okStyle.Render("✓ VEREDICTE: APROVAT"))
+			m.push(okStyle.Render("✓ " + T("app.veredicteOk")))
 		} else {
-			m.push(badStyle.Render("✗ VEREDICTE: CAL REVISAR"))
+			m.push(badStyle.Render("✗ " + T("app.veredicteKo")))
 		}
 		m.push(systemStyle.Render(msg.verdict.Summary))
 		return m, nil
@@ -2144,7 +2144,7 @@ func (m Model) finishWrite() (tea.Model, tea.Cmd) {
 	m.writing = false
 	if len(m.writeBuf) == 0 {
 		m.status = T("barra.llest")
-		m.push(systemLine("res a escriure"))
+		m.push(systemLine(T("app.resAEscriure")))
 		return m, nil
 	}
 	content := strings.Join(m.writeBuf, "\n") + "\n"
@@ -2156,7 +2156,7 @@ func (m Model) finishWrite() (tea.Model, tea.Cmd) {
 	m.push(dimStyle.Render(capText(preview, 1500)))
 	m.confirmIdx = 0
 	m.pending = &pendingOp{
-		desc: fmt.Sprintf("escrit %s", path),
+		desc: fmt.Sprintf(T("app.escrit"), path),
 		run: func(ctx context.Context) (string, error) {
 			n, err := tools.Write(path, []byte(content))
 			if err != nil {
@@ -2382,7 +2382,7 @@ func (m Model) answerPending(a string) (tea.Model, tea.Cmd) {
 		m.push(systemLine(T("est.cancellat")))
 		return m, nil
 	default:
-		m.push(systemLine("respon s, n o r"))
+		m.push(systemLine(T("app.responSNR")))
 		return m, nil
 	}
 }
@@ -2455,11 +2455,11 @@ func (m *Model) resumeSessionDir(dir, name string) {
 			var info os.FileInfo
 			info, err = os.Stat(restoredWorkspace)
 			if err == nil && !info.IsDir() {
-				err = fmt.Errorf("no és una carpeta")
+				err = errors.New(T("app.noCarpeta"))
 			}
 		}
 		if err != nil {
-			m.push(systemLine("resume: workspace no disponible: " + s.Workspace))
+			m.push(systemLine(T("app.workspaceNoDisp") + s.Workspace))
 			return
 		}
 	}
@@ -2483,7 +2483,7 @@ func (m *Model) resumeSessionDir(dir, name string) {
 	m.timelineSel = max(0, len(m.timeline)-1)
 	m.lines = nil
 	m.vp.SetContent("")
-	m.push(systemLine(fmt.Sprintf("reprenent %s (%d missatges, rol %s)", s.Name, len(m.convo), m.role)))
+	m.push(systemLine(fmt.Sprintf(T("app.reprenent"), s.Name, len(m.convo), m.role)))
 	if workspaceNotice != "" {
 		m.push(systemLine(workspaceNotice))
 	}
@@ -2526,7 +2526,7 @@ func sessioText(in session.Info) string {
 	if r := []rune(titol); len(r) > 40 {
 		titol = strings.TrimSpace(string(r[:39])) + "…"
 	}
-	return fmt.Sprintf("%s (%s, %d missatges, %s)", titol, in.Name, in.Msgs, in.SavedAt.Format("02-01 15:04"))
+	return fmt.Sprintf(T("app.sessioText"), titol, in.Name, in.Msgs, in.SavedAt.Format("02-01 15:04"))
 }
 
 // llistaSessions pinta les desades numerades (1 = la més recent): una
@@ -2548,7 +2548,7 @@ func llistaSessions(dir string) string {
 			titol = strings.TrimSpace(string(r[:39])) + "…"
 		}
 		fmt.Fprintf(&b, "\n  %d · %s  %s", i+1, titol,
-			dimStyle.Render(fmt.Sprintf("(%s · %d missatges · %s)", in.Name, in.Msgs, in.SavedAt.Format("02-01 15:04"))))
+			dimStyle.Render(fmt.Sprintf(T("app.sessioFila"), in.Name, in.Msgs, in.SavedAt.Format("02-01 15:04"))))
 	}
 	return b.String()
 }
@@ -2774,13 +2774,13 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		return m.retryLast()
 	case "/cancel":
 		if m.serviceClient == nil {
-			m.push(systemLine("no hi ha cap servei compartit connectat"))
+			m.push(systemLine(T("app.capServei")))
 			return m, nil
 		}
 		c := m.serviceClient
 		sessionID := m.serviceSession
 		runID := m.serviceRunID
-		m.push(systemLine("aturant el torn del servei…"))
+		m.push(systemLine(T("app.serveiAturant")))
 		return m, func() tea.Msg {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -2863,7 +2863,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		for n, r := range m.cfg.Roles {
 			names = append(names, fmt.Sprintf("%s→%s/%s", n, r.Provider, r.Model))
 		}
-		m.push(systemLine("rols: " + strings.Join(names, " · ")))
+		m.push(systemLine(T("app.rols") + strings.Join(names, " · ")))
 		return m, nil
 	case "/role":
 		if len(parts) < 2 {
@@ -2873,13 +2873,13 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		name := parts[1]
 		r, ok := m.cfg.Roles[name]
 		if !ok || name == "reviewer" {
-			m.push(systemLine("rol desconegut (tria: chat, think, code)"))
+			m.push(systemLine(T("app.rolDesconegut")))
 			return m, nil
 		}
 		m.role = name
 		m.rolePinned = true
 		m.status = T("barra.llest")
-		m.push(systemLine(fmt.Sprintf("rol actiu: %s (%s/%s)", name, r.Provider, r.Model)))
+		m.push(systemLine(fmt.Sprintf(T("pick.rolActiu"), name, r.Provider, r.Model)))
 		// La finestra és del model del rol: refresca-la (throttled) perquè la
 		// barra i la compactació no quedin amb la del rol anterior.
 		return m, m.detectWindowsCmd()
@@ -2902,7 +2902,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			prov, model = arg, m.roleRef().Model
 		}
 		if _, ok := m.cfg.Providers[prov]; !ok {
-			m.push(systemLine("provider desconegut: " + prov))
+			m.push(systemLine(T("prov.desconegut") + prov))
 			return m, nil
 		}
 		if strings.TrimSpace(model) == "" {
@@ -2925,7 +2925,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 				m.cfg.Roles[m.role] = r
 				m.push(systemLine(fmt.Sprintf(T("app.majuscules"), model, real)))
 			} else if !ok {
-				m.push(warnStyle.Render("⚠ "+prov+" no llista "+model) + dimStyle.Render(" — disponibles: "+shortIDs(ids)))
+				m.push(warnStyle.Render("⚠ "+fmt.Sprintf(T("app.noLlista"), prov, model)) + dimStyle.Render(T("prov.disponibles")+shortIDs(ids)))
 			}
 		}
 		// El model nou pot tenir una finestra diferent: refresca-la.
@@ -3032,7 +3032,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		return m.exportCmd(parts[1:])
 	case "/compact":
 		if len(m.convo) == 0 {
-			m.push(systemLine("res a compactar: conversa buida"))
+			m.push(systemLine(T("app.resACompactar")))
 			return m, nil
 		}
 		return m.maybeCompactCmd(true)
@@ -3072,14 +3072,14 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.push(systemLine(T("app.capResultat")))
 			return m, nil
 		}
-		m.push(systemLine(fmt.Sprintf("oblidades %d entrades", n)))
+		m.push(systemLine(fmt.Sprintf(T("app.oblidadesEntrades"), n)))
 		return m, nil
 	case "/nota":
 		if err := config.Note(m.cwd, strings.TrimSpace(strings.TrimPrefix(text, "/nota"))); err != nil {
 			m.push(systemLine("⚠ " + err.Error()))
 			return m, nil
 		}
-		m.push(systemLine("nota desada al projecte"))
+		m.push(systemLine(T("app.notaDesada")))
 		return m, nil
 	case "/notes":
 		lines := config.Notes(m.cwd, strings.TrimSpace(strings.TrimPrefix(text, "/notes")))
@@ -3099,7 +3099,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.push(systemLine(T("app.capNota")))
 			return m, nil
 		}
-		m.push(systemLine(fmt.Sprintf("oblidades %d notes", n)))
+		m.push(systemLine(fmt.Sprintf(T("app.oblidadesNotes"), n)))
 		return m, nil
 	case "/theme":
 		arg := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(text, "/theme")))
@@ -3157,7 +3157,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		if err := m.cfg.Save(m.cfgPath); err != nil {
 			m.push(systemLine(estat + T("app.noDesat") + err.Error() + ")"))
 		} else {
-			m.push(systemLine(estat + " (desat)"))
+			m.push(systemLine(estat + T("set.desat")))
 		}
 		if m.mouseOn {
 			return m, tea.EnableMouseCellMotion
@@ -3213,7 +3213,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.convo = append(m.convo, llm.Message{Role: "user", Content: caption, Images: []string{u}})
-		m.push(systemLine("▣ imatge adjunta (" + fields[0] + ")"))
+		m.push(systemLine("▣ " + fmt.Sprintf(T("app.imatgeAdjunta"), fields[0])))
 		return m, nil
 	case "/worktree", "/worktrees":
 		return m.worktreeCommand(strings.TrimSpace(strings.TrimPrefix(strings.TrimPrefix(text, "/worktrees"), "/worktree")))
@@ -3239,14 +3239,14 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		// Estat, prompts i «/mcp connect <servidor>» (OAuth): mcp_tui.go.
 		return m.mcpCommand(parts[1:])
 	case "/connect":
-		m.push(systemLine("connectant amb el servei compartit…"))
+		m.push(systemLine(T("app.connectant")))
 		return m, func() tea.Msg {
 			c, health, err := serviceclient.Discover(context.Background())
 			return serviceStatusMsg{client: c, health: health, err: err}
 		}
 	case "/pin":
 		if len(m.convo) == 0 {
-			m.push(systemLine("res a fixar encara"))
+			m.push(systemLine(T("app.resAFixar")))
 			return m, nil
 		}
 		cwd := m.cwd
@@ -3268,11 +3268,11 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.sessionFile = strings.TrimSuffix(filepath.Base(path), ".json")
-		estat := "desfixada"
+		estat := T("app.convDesfixada")
 		if m.pinned {
-			estat = "fixada"
+			estat = T("app.convFixada")
 		}
-		m.push(systemLine("conversa " + estat))
+		m.push(systemLine(estat))
 		return m, nil
 	case "/permissions":
 		if len(parts) == 1 {
@@ -3373,7 +3373,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.push(systemLine("read: " + err.Error()))
 			return m, nil
 		}
-		m.push(systemLine("llegit " + parts[1]))
+		m.push(systemLine(T("app.llegit") + parts[1]))
 		m.push(capText(out, 4000))
 		return m, nil
 	case "/bash":
@@ -3390,7 +3390,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		}
 		switch class, reason := tools.Classify(cmd); class {
 		case "deny":
-			m.push(badStyle.Render("✗ bloquejat: " + reason))
+			m.push(badStyle.Render("✗ " + T("app.bloquejat") + reason))
 			return m, nil
 		case "allow":
 			m.push(dimStyle.Render("$ " + cmd))
@@ -3409,7 +3409,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 				},
 			}
 			m.status = T("est.confirmaCurt")
-			m.push(warnStyle.Render("$ " + cmd + " — fora de la llista segura. confirma amb s/n"))
+			m.push(warnStyle.Render("$ " + cmd + T("app.foraLlista")))
 			return m, nil
 		}
 	case "/edit":
@@ -3441,7 +3441,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		m.editPath = path
 		m.editStart, m.editEnd = start, end
 		m.editBuf = nil
-		m.status = fmt.Sprintf("editant %s %d-%d — /end per acabar", parts[1], start, end)
+		m.status = fmt.Sprintf(T("app.editantEstat"), parts[1], start, end)
 		m.push(systemLine(fmt.Sprintf(T("app.editantActual"), parts[1], start, end)))
 		m.push(dimStyle.Render(capText(blockLines(string(raw), start, end), 1500)))
 		m.push(systemLine(T("app.escriuReempl")))
@@ -3458,8 +3458,8 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		m.writing = true
 		m.writePath = workspacePath(m.cwd, parts[1])
 		m.writeBuf = nil
-		m.status = "escrivint " + parts[1] + " — /end per acabar"
-		m.push(systemLine("escrivint " + parts[1] + T("app.finsEnd")))
+		m.status = fmt.Sprintf(T("app.escrivintEstat"), parts[1])
+		m.push(systemLine(T("app.escrivint") + parts[1] + T("app.finsEnd")))
 		return m, nil
 	case "/verify":
 		if len(parts) >= 3 && parts[1] == "mode" {
@@ -3469,7 +3469,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 				if err := m.cfg.Save(m.cfgPath); err != nil {
 					m.push(systemLine("verify.mode: " + parts[2] + T("app.noDesat") + err.Error() + ")"))
 				} else {
-					m.push(systemLine("verify.mode: " + parts[2] + " (desat)"))
+					m.push(systemLine("verify.mode: " + parts[2] + T("set.desat")))
 				}
 			default:
 				m.push(systemLine(T("app.usVerify")))
@@ -3499,7 +3499,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 				if mode == "on" {
 					clau = "app.verifyActivada"
 				}
-				m.push(systemLine(T(clau) + " (verify.mode=" + m.cfg.Verify.Mode + ", desat)"))
+				m.push(systemLine(T(clau) + fmt.Sprintf(T("app.verifyModeDesat"), m.cfg.Verify.Mode)))
 			}
 			return m, nil
 		}
@@ -3508,7 +3508,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if len(m.convo) == 0 {
-			m.push(systemLine("res a verificar encara"))
+			m.push(systemLine(T("app.resAVerificar")))
 			return m, nil
 		}
 		m.busy = true
@@ -3520,7 +3520,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 	case "/save":
 		name := strings.TrimSpace(strings.TrimPrefix(text, "/save"))
 		if len(m.convo) == 0 {
-			m.push(systemLine("res a desar"))
+			m.push(systemLine(T("app.resADesar")))
 			return m, nil
 		}
 		cwd, _ := os.Getwd()
@@ -3543,7 +3543,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.sessionFile = strings.TrimSuffix(filepath.Base(path), ".json")
-		m.push(okStyle.Render("✓ desat: " + path))
+		m.push(okStyle.Render("✓ " + T("app.desatA") + path))
 		return m, nil
 	case "/sessions":
 		// Un selector amb fletxes, amb l'última sessió ja triada: nou de
@@ -3574,7 +3574,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		m.sessionFile = ""
 		m.pinned = false
 		m.vp.SetContent("")
-		m.push(systemLine("conversa netejada"))
+		m.push(systemLine(T("app.convNeta")))
 		return m, nil
 	default:
 		// Ordres personalitzades (~/.config/gregal/commands/*.md,
@@ -3589,7 +3589,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			m.push(dimStyle.Render("⟳ /" + c.Name + " (" + c.Source + ")"))
 			return m.submitText(usercmd.Expand(c, args))
 		}
-		m.push(warnStyle.Render("ordre desconeguda: " + parts[0]))
+		m.push(warnStyle.Render(T("app.ordreDesconeguda") + parts[0]))
 		return m, nil
 	}
 }
@@ -3598,7 +3598,7 @@ func (m Model) handleKeyCommand(arg string) (tea.Model, tea.Cmd) {
 	fields := strings.Fields(arg)
 	if len(fields) == 0 {
 		if len(m.cfg.Providers) == 0 {
-			m.push(systemLine("cap provider configurat (/provider add <nom> <url>)"))
+			m.push(systemLine(T("prov.capConfigurat")))
 			return m, nil
 		}
 		m.menu = providerKeyMenu(&m)
@@ -3609,7 +3609,7 @@ func (m Model) handleKeyCommand(arg string) (tea.Model, tea.Cmd) {
 		// Si és un provider conegut, demana la clau de forma segura
 		if _, ok := m.cfg.Providers[nom]; ok {
 			m.pendingKeyFor = nom
-			m.push(systemLine("escriu la clau de " + nom + T("prov.senseHistorial")))
+			m.push(systemLine(fmt.Sprintf(T("alta.escriuClau"), nom) + T("prov.senseHistorial")))
 			return m, nil
 		}
 		// Si no és un provider conegut, pot ser directament una clau per al provider actiu
@@ -3618,12 +3618,12 @@ func (m Model) handleKeyCommand(arg string) (tea.Model, tea.Cmd) {
 			m.push(m.applyProviderKey(curProv, nom))
 			return m, nil
 		}
-		m.push(systemLine("provider desconegut: " + nom))
+		m.push(systemLine(T("prov.desconegut") + nom))
 		return m, nil
 	}
 	// /key <provider> <clau>
 	if _, ok := m.cfg.Providers[nom]; !ok {
-		m.push(systemLine("provider desconegut: " + nom))
+		m.push(systemLine(T("prov.desconegut") + nom))
 		return m, nil
 	}
 	m.push(m.applyProviderKey(nom, fields[1]))
@@ -3672,8 +3672,8 @@ func (m Model) inputBox() string {
 		// què fa, quant fa que hi és i com aturar-ho.
 		c = amber
 		what := strings.TrimSpace(m.status)
-		if what == "" || what == "llest" {
-			what = "treballant…"
+		if what == "" || what == T("barra.llest") {
+			what = T("app.treballant")
 		}
 		esquerra = spinnerStyle.Render(spinnerFrames[m.visualFrame()%len(spinnerFrames)]) + " " + spinnerStyle.Render(what)
 		dreta = ""
@@ -3821,7 +3821,7 @@ func (m Model) dirSegment(disponible int) (string, string) {
 // View pinta capçalera, historial, entrada i barra d'estat.
 func (m Model) View() string {
 	if !m.ready {
-		return "carregant gregal…"
+		return T("app.carregant")
 	}
 	suggHL := dimStyle
 	// Quatre segments i prou: mode, context, estat i permisos. Els

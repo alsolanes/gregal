@@ -136,7 +136,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 	switch p.Ordre {
 	case agent.OrdrePasModel:
 		m.busy = true
-		m.status = fmt.Sprintf("agent pas %d/%d…", p.Passos, p.Limit)
+		m.status = fmt.Sprintf(T("motor.pas"), p.Passos, p.Limit)
 		hist := p.Hist
 		m.promptEst = llm.EstimateTokens(hist)
 		s := nouStreamer()
@@ -163,7 +163,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 
 	case agent.OrdreExecuta:
 		m.busy = true
-		m.status = fmt.Sprintf("agent pas %d: executant %d…", p.Passos, len(p.Calls))
+		m.status = fmt.Sprintf(T("motor.executant"), p.Passos, len(p.Calls))
 		// Amb cancel actiu, Esc i Ctrl+C aturen l'eina en marxa.
 		ctx, cancel := context.WithCancel(context.Background())
 		m.cancel = cancel
@@ -251,7 +251,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 
 	case agent.OrdreCheckpoint:
 		m.busy = true
-		m.status = "autònom: verificant…"
+		m.status = T("motor.autonomVerifica")
 		cmd, cancel := m.autonomousCheckpointCmd()
 		m.cancel = cancel
 		m.cancelRequested = false
@@ -378,7 +378,7 @@ func (m Model) passPla(msg agentStepMsg) (tea.Model, tea.Cmd) {
 		m.planning = false
 		m.busy = false
 		m.status = "error"
-		m.push(systemLine("agent: error: " + msg.err.Error()))
+		m.push(systemLine(T("motor.error") + msg.err.Error()))
 		return m, nil
 	}
 	m.comptaTokens(msg.promptTokens, msg.cachedTokens, msg.content, msg.calls)

@@ -13,36 +13,36 @@ func (m Model) statsBlock() string {
 	conversation := llm.EstimateTokens(m.convo)
 	working := llm.EstimateTokens(m.histAgent())
 	compact := llm.EstimateTokens([]llm.Message{{Role: "system", Content: m.compacted}})
-	route := "automàtica"
+	route := T("stats.rutaAuto")
 	if m.rolePinned {
-		route = "fixada per l’usuari"
+		route = T("stats.rutaFixada")
 	}
 	if m.agentRole != "" && m.agentRole != m.role {
-		route = "escalada a " + m.agentRole
+		route = T("stats.rutaEscalada") + m.agentRole
 	}
 	var b strings.Builder
-	b.WriteString(headStyle.Render("≋ estat de la sessió") + "\n")
-	b.WriteString(fmt.Sprintf("  model       %s/%s · ruta %s\n", r.Provider, r.Model, route))
+	b.WriteString(headStyle.Render("≋ "+T("stats.titol")) + "\n")
+	b.WriteString(fmt.Sprintf(T("stats.model")+"\n", r.Provider, r.Model, route))
 	if w, src := agent.WindowSource(m.cfg, r); w > 0 {
 		var proven string
 		switch src {
 		case "config":
-			proven = "fixada al config"
+			proven = T("stats.fontConfig")
 		case "model":
-			proven = "declarada pel model"
+			proven = T("stats.fontModel")
 		case "coneguda":
-			proven = "taula de models coneguts"
+			proven = T("stats.fontConeguda")
 		default:
-			proven = "per defecte: el proveïdor no la declara ⚠"
+			proven = T("stats.fontDefecte")
 		}
-		b.WriteString(fmt.Sprintf("  finestra    %s tokens (%s) · prompt útil %s\n",
+		b.WriteString(fmt.Sprintf(T("stats.finestra")+"\n",
 			llm.FmtCount(w), proven, llm.FmtCount(agent.Budget(m.cfg, r))))
 	}
 	// El prompt actual és el que la barra resumeix en percentatge; aquí
 	// surt en tokens, al costat del que s'ha acumulat en tota la sessió.
-	b.WriteString(fmt.Sprintf("  context     prompt actual %s · %s acumulat · conversa %s · torn %s · resum %s\n",
+	b.WriteString(fmt.Sprintf(T("stats.context")+"\n",
 		llm.FmtCount(m.promptEst), llm.FmtCount(m.usedTokens), llm.FmtCount(conversation), llm.FmtCount(working), llm.FmtCount(compact)))
-	b.WriteString(fmt.Sprintf("  trànsit     ↑%s · ↓%s", llm.FmtCount(m.tokUp), llm.FmtCount(m.tokDown)))
+	b.WriteString(fmt.Sprintf(T("stats.transit"), llm.FmtCount(m.tokUp), llm.FmtCount(m.tokDown)))
 	if m.tokCached > 0 {
 		b.WriteString(" · cache " + llm.FmtCount(m.tokCached))
 	}
@@ -58,7 +58,7 @@ func (m Model) statsBlock() string {
 			failed++
 		}
 	}
-	b.WriteString(fmt.Sprintf("\n  activitat   %d eines · %d errors", done, failed))
+	b.WriteString(fmt.Sprintf("\n"+T("stats.activitat"), done, failed))
 	return b.String()
 }
 

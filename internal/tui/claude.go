@@ -78,13 +78,13 @@ func (m *Model) answerQuestion(idx int, free string) (tea.Model, tea.Cmd) {
 	var answer string
 	if strings.TrimSpace(free) != "" {
 		answer = "Resposta lliure de l'usuari: " + strings.TrimSpace(free)
-		m.push(okStyle.Render("✓ has respost (text): " + strings.TrimSpace(free)))
+		m.push(okStyle.Render("✓ " + T("claude.hasRespost") + strings.TrimSpace(free)))
 	} else if idx >= 0 && idx < len(q.options) {
 		answer = "L'usuari ha triat: " + q.options[idx].Label
 		if d := strings.TrimSpace(q.options[idx].Description); d != "" {
 			answer += " (" + d + ")"
 		}
-		m.push(okStyle.Render("✓ has triat: " + q.options[idx].Label))
+		m.push(okStyle.Render("✓ " + T("claude.hasTriat") + q.options[idx].Label))
 	} else {
 		answer = "L'usuari no ha respost (Esc). Continua amb el teu millor criteri sense tornar a preguntar el mateix."
 		m.push(systemLine(T("q.senseResposta")))
@@ -113,7 +113,7 @@ func todosBox(width int) string {
 		return faintStyle.Render(T("todos.buit"))
 	}
 	var b strings.Builder
-	b.WriteString(headStyle.Render(fmt.Sprintf("✓ tasca %d/%d", done, total)) + "\n")
+	b.WriteString(headStyle.Render(fmt.Sprintf("✓ "+T("timeline.tasca")+" %d/%d", done, total)) + "\n")
 	for _, it := range tools.TodoList() {
 		mark := dimStyle.Render("☐")
 		row := it.Title
@@ -145,7 +145,7 @@ func thinkingBox(think string, width int) string {
 		return ""
 	}
 	count := len([]rune(t))
-	head := warnStyle.Render(fmt.Sprintf("◌ raonant (%s caràcters)", llm.FmtCount(count)))
+	head := warnStyle.Render(fmt.Sprintf("◌ "+T("claude.raonant"), llm.FmtCount(count)))
 	availWidth := max(width-6, 20)
 	tail := tailRunes(t, availWidth*2)
 	lines := strings.Split(tail, "\n")
@@ -236,7 +236,7 @@ func (m Model) drainQueue() (tea.Model, tea.Cmd) {
 	}
 	text := m.queued[0]
 	m.queued = m.queued[1:]
-	m.push(systemLine("reprenent missatge encuat" + (map[bool]string{true: "", false: fmt.Sprintf(T("cua.mesEnCua"), len(m.queued))}[len(m.queued) == 0])))
+	m.push(systemLine(T("cua.reprenent") + (map[bool]string{true: "", false: fmt.Sprintf(T("cua.mesEnCua"), len(m.queued))}[len(m.queued) == 0])))
 	// Sense recordHist: l'Enter ja l'ha enregistrat en encuar-lo. Tornar-lo
 	// a desar aquí duplicava entrades no consecutives ([A,B] → [A,B,A]) i
 	// la ↑ passava per repetits: semblava que saltava o anava de dos en dos.

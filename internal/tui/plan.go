@@ -57,13 +57,13 @@ func (m Model) dispatchPlanStep() (tea.Model, tea.Cmd) {
 	if m.planSteps >= m.cfg.Agent.MaxSteps {
 		m.planning = false
 		m.busy = false
-		m.status = "llest"
+		m.status = T("barra.llest")
 		m.push(warnStyle.Render(fmt.Sprintf(T("plan.limit"), m.cfg.Agent.MaxSteps)))
 		return m, nil
 	}
 	m.planSteps++
 	m.busy = true
-	m.status = fmt.Sprintf("planificant %d/%d…", m.planSteps, m.cfg.Agent.MaxSteps)
+	m.status = fmt.Sprintf(T("plan.planificant"), m.planSteps, m.cfg.Agent.MaxSteps)
 	hist := append([]llm.Message{{Role: "system", Content: m.planSysPrompt()}}, m.planHist...)
 	m.promptEst = llm.EstimateTokens(hist)
 	// El pla també ensenya el text en directe (H0), com l'agent.
@@ -91,7 +91,7 @@ func (m Model) planStepMsg(msg agentStepMsg) (tea.Model, tea.Cmd) {
 		dec, reason := m.policy.Decide(agent.ModeInspect, c.Function.Name, c.Function.Arguments)
 		switch dec {
 		case "deny":
-			m.push(toolResultLine(c.Function.Name, "no disponible planificant: "+reason, true))
+			m.push(toolResultLine(c.Function.Name, T("plan.noDisponible")+reason, true))
 			m.planHist = append(m.planHist, llm.Message{
 				Role: "tool", Content: "TOOL NOT AVAILABLE WHILE PLANNING: " + reason,
 				ToolCallID: c.ID, Name: c.Function.Name,
@@ -102,7 +102,7 @@ func (m Model) planStepMsg(msg agentStepMsg) (tea.Model, tea.Cmd) {
 	}
 	if len(execs) > 0 {
 		m.busy = true
-		m.status = fmt.Sprintf("planificant %d: explorant…", m.planSteps)
+		m.status = fmt.Sprintf(T("plan.explorant"), m.planSteps)
 		return m, func() tea.Msg {
 			res := agent.RunCalls(execs, nil, func(_ int, c llm.ToolCall) toolRes {
 				out, imgs, err := agent.ExecIn("", m.cwd, c.Function.Name, c.Function.Arguments)
@@ -123,12 +123,12 @@ func (m Model) finishPlan(reply string) tea.Model {
 	m.busy = false
 	m.planHist = append(m.planHist, llm.Message{Role: "assistant", Content: reply})
 	if strings.TrimSpace(reply) == "" {
-		m.status = "llest"
+		m.status = T("barra.llest")
 		m.push(systemLine(T("plan.buit")))
 		return m
 	}
 	m.pendingPlan = reply
-	m.status = "pla llest [e]xecuta [d]escarta"
+	m.status = T("plan.llest")
 	m.push(planCard(reply, m.vp.Width))
 	return m
 }
@@ -141,8 +141,8 @@ func planCard(reply string, width int) string {
 	for _, linia := range strings.Split(strings.TrimSpace(reply), "\n") {
 		cos += "  " + linia + "\n"
 	}
-	titol := goalTitleStyle.Render("◇ PLA") +
-		dimStyle.Render("  revisa'l abans d'executar")
+	titol := goalTitleStyle.Render("◇ "+T("plan.titol")) +
+		dimStyle.Render("  "+T("plan.revisa"))
 	return goalBoxStyle.Width(max(width-2, 20)).Render(titol + "\n" + cos +
 		dimStyle.Render(T("plan.opcions")))
 }
@@ -153,7 +153,7 @@ func (m *Model) answerPlan(k string) (tea.Model, tea.Cmd) {
 	case "e":
 		pla := m.pendingPlan
 		m.pendingPlan = ""
-		m.push(okStyle.Render("◇ executant el pla"))
+		m.push(okStyle.Render("◇ " + T("plan.executant")))
 		// Els passos numerats del pla passen al checklist abans de
 		// començar: el cockpit els mostra des del primer segon i el model
 		// només els ha d'anar marcant.
@@ -165,8 +165,8 @@ func (m *Model) answerPlan(k string) (tea.Model, tea.Cmd) {
 		return m.startAgent(consigna + ":\n\n" + pla)
 	default:
 		m.pendingPlan = ""
-		m.status = "llest"
-		m.push(systemLine("pla descartat"))
+		m.status = T("barra.llest")
+		m.push(systemLine(T("plan.descartat")))
 		mm := *m
 		return mm, nil
 	}
