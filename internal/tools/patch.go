@@ -17,29 +17,44 @@ type PatchOp struct {
 // Patch aplica totes les edicions de cop o cap: primer valida (cada Old
 // únic, cada AfterLine dins de rang), després escriu una sola vegada amb
 // un sol snapshot al journal. L'ordre importa: s'apliquen en seqüència.
+// Cada Old passa per la mateixa cascada que Edit (fuzzy.go).
 func Patch(path string, ops []PatchOp) error {
+	_, err := pedaça(path, ops, nil)
+	return err
+}
+
+// pedaça és el cos de Patch; seg com a edita.
+func pedaça(path string, ops []PatchOp, seg *Seguiment) (string, error) {
 	if len(ops) == 0 {
-		return fmt.Errorf("patch: cap edició")
+		return "", fmt.Errorf("patch: cap edició")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return "", err
 	}
-	cur := string(raw)
 	// Mateixa història que a Edit: un fitxer amb \r\n i un bloc escrit amb
 	// \n no casen mai. Aquí feia més mal encara, perquè patch aplica
 	// diverses edicions seguides i n'hi ha prou que en falli una perquè no
 	// se'n faci cap. Es treballa en pla i es torna a desar com era.
-	crlf := strings.Contains(cur, "\r\n")
-	if crlf {
-		cur = senseCR(cur)
+	orig := senseCR(string(raw))
+	crlf := strings.Contains(string(raw), "\r\n")
+	alDia, perque := true, ""
+	if seg != nil {
+		alDia, perque = seg.alDia(path, raw)
 	}
+	cur := orig
+	var notes []string
 	for i, op := range ops {
 		op.Old, op.New = senseCR(op.Old), senseCR(op.New)
 		if op.AfterLine > 0 {
+			// Inserir per número de línia en un fitxer que el model no té
+			// al dia és inserir a cegues.
+			if !alDia {
+				return "", fmt.Errorf("patch: edició %d: %s %s; after_line compta línies d'una versió que no és l'actual. Llegeix-lo amb read i torna-ho a provar", i+1, path, perque)
+			}
 			lines := strings.Split(cur, "\n")
 			if op.AfterLine > len(lines) {
-				return fmt.Errorf("patch: edició %d: línia %d fora de rang (%d línies)", i+1, op.AfterLine, len(lines))
+				return "", fmt.Errorf("patch: edició %d: línia %d fora de rang (%d línies)", i+1, op.AfterLine, len(lines))
 			}
 			ins := strings.Split(op.New, "\n")
 			lines = append(lines[:op.AfterLine], append(ins, lines[op.AfterLine:]...)...)
@@ -47,19 +62,34 @@ func Patch(path string, ops []PatchOp) error {
 			continue
 		}
 		if strings.TrimSpace(op.Old) == "" {
-			return fmt.Errorf("patch: edició %d: old buit (fes servir after_line per inserir)", i+1)
+			return "", fmt.Errorf("patch: edició %d: old buit (fes servir after_line per inserir)", i+1)
 		}
-		if n := strings.Count(cur, op.Old); n != 1 {
-			if n == 0 {
-				return fmt.Errorf("patch: edició %d: bloc no trobat a %s: %s", i+1, path, perQueNoHiEs(cur, op.Old))
+		nou, nivell, err := substitueix(cur, op.Old, op.New)
+		if err != nil {
+			return "", fmt.Errorf("patch: edició %d: %w", i+1, errEdicio(path, cur, op.Old, err))
+		}
+		if nivell != nivExacte {
+			if !alDia {
+				return "", fmt.Errorf("patch: edició %d: %w", i+1, errNoAlDia(path, perque, nivell))
 			}
-			return fmt.Errorf("patch: edició %d: bloc ambigu a %s (%d ocurrències): posa-hi més context perquè n'hi hagi una de sola", i+1, path, n)
+			notes = append(notes, fmt.Sprintf("edició %d: «%s»", i+1, nivell))
 		}
-		cur = strings.Replace(cur, op.Old, op.New, 1)
+		cur = nou
 	}
+	desat := cur
 	if crlf {
-		cur = strings.ReplaceAll(cur, "\n", "\r\n")
+		desat = strings.ReplaceAll(cur, "\n", "\r\n")
 	}
 	Active.SnapOp(path, "patch")
-	return os.WriteFile(path, []byte(cur), 0o644)
+	if err := os.WriteFile(path, []byte(desat), 0o644); err != nil {
+		return "", err
+	}
+	if seg != nil {
+		seg.conegut(path, []byte(desat))
+	}
+	var nota string
+	if len(notes) > 0 {
+		nota = "\n(s'ha aplicat amb coincidència aproximada — " + strings.Join(notes, ", ") + "; revisa el diff)"
+	}
+	return nota + resumCanvi(orig, cur), nil
 }

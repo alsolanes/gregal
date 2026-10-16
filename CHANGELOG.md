@@ -23,6 +23,30 @@
 - Plan explorations get at least 25 steps (review requests read many
   files). The config template now sets `agent.max_steps: 40`, matching the
   built-in default, instead of 10.
+- `edit` and `patch` tolerate the ways models usually miscopy a block.
+  When the block is not in the file exactly, they try, in order: ignoring
+  trailing spaces, relative indentation (spaces where the file has tabs, or
+  the block copied one level up or down; the new text gets the file's
+  indentation), trimmed lines, Unicode quotes, dashes and odd spaces, and
+  finally the first and last lines with a similar middle. They also accept
+  a block copied from `read` with its `12|` line numbers. The match must be
+  unique and not much larger than the block. A non-exact match says which
+  level it used. When nothing matches, the error shows the most similar
+  fragment with line numbers and a similarity percentage.
+- A non-exact edit is only applied to a file the agent has up to date: read,
+  written or edited by it in this conversation, and unchanged since. If the
+  user or another agent changed the file, the agent is asked to read it
+  again. A block that is in the file exactly and only once is always
+  applied.
+- `edit` and `patch` return the diff of the change with numbered context, so
+  the agent does not have to read the file again. Reading a range that was
+  read a few tool calls ago and has not changed returns "sense canvis"
+  instead of the whole text; asking again returns it in full.
+- Long command output keeps the start and the end (60/40) instead of only
+  the start, so compiler and test errors at the end are no longer lost. The
+  full output is saved to `.gregal/out/` (git-ignored, cleaned after a day)
+  and the agent is told where to read it. `read` of a large file now stops
+  at a whole line and says which `offset` to continue from.
 
 ## v1.9.4 - 2026-10-16 - Team review, no lost replies and a faster terminal
 
