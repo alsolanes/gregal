@@ -56,6 +56,7 @@ func (s *Server) renderExport(format string, meta transcript.Meta, convo []llm.M
 		return transcript.Markdown(meta, convo, opt), "text/markdown; charset=utf-8", "md", true
 	case "html":
 		opt.RenderMarkdown = exportMarkdownHTML
+		opt.Brand = transcript.ActiveBrand()
 		return transcript.HTML(meta, convo, opt), "text/html; charset=utf-8", "html", true
 	}
 	return "", "", "", false

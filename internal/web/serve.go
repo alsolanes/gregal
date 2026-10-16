@@ -427,6 +427,11 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/goal", h.route((*Server).handleGoal))
 	handle("/api/verify", h.route((*Server).handleVerify))
 	handle("/api/lang", h.global((*Server).handleLang))
+	// Brandings: paquets de colors, tipus de lletra i logo (internal/brand).
+	handle("/api/brands", h.global((*Server).handleBrands))
+	handle("/api/brands/preview", h.global((*Server).handleBrandPreview))
+	handle("/api/brands/active", h.global((*Server).handleBrandActive))
+	handle("/api/brands/", h.global((*Server).handleBrandItem))
 	handle("/api/role", h.route((*Server).handleRole))
 	handle("/api/model", h.route((*Server).handleModel))
 	handle("/api/sessions", h.global((*Server).handleSessions))

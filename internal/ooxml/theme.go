@@ -3,6 +3,7 @@ package ooxml
 import (
 	"sort"
 	"strings"
+	"sync"
 )
 
 // Theme és una paleta i una parella de tipus de lletra coherents per a
@@ -19,6 +20,65 @@ type Theme struct {
 	Light       string // fons clar suau (capçaleres de taula, caixes)
 	Text        string // text de cos
 	Muted       string // text secundari
+	// Logo és la imatge del branding (PNG o JPEG; buit = cap). Va a la
+	// capçalera dels docx i a la cantonada de les diapositives.
+	Logo    []byte
+	LogoExt string // "png" o "jpeg"
+}
+
+// extraThemes són els temes dels paquets de branding (internal/brand).
+// defaultTheme és el que fa servir una especificació buida: el branding
+// actiu, si n'hi ha.
+var (
+	extraMu      sync.RWMutex
+	extraThemes  = map[string]Theme{}
+	defaultTheme string
+)
+
+// RegisterTheme afegeix o substitueix un tema extra (pel nom, en minúscula).
+func RegisterTheme(t Theme) {
+	extraMu.Lock()
+	defer extraMu.Unlock()
+	extraThemes[strings.ToLower(t.Name)] = t
+}
+
+// UnregisterTheme esborra un tema extra.
+func UnregisterTheme(name string) {
+	extraMu.Lock()
+	defer extraMu.Unlock()
+	delete(extraThemes, strings.ToLower(name))
+	if strings.EqualFold(defaultTheme, name) {
+		defaultTheme = ""
+	}
+}
+
+// SetDefaultTheme fixa el tema d'una especificació buida ("" = default).
+func SetDefaultTheme(name string) {
+	extraMu.Lock()
+	defer extraMu.Unlock()
+	defaultTheme = strings.ToLower(strings.TrimSpace(name))
+}
+
+// DefaultThemeName és el tema que rep una especificació buida.
+func DefaultThemeName() string {
+	extraMu.RLock()
+	defer extraMu.RUnlock()
+	if defaultTheme != "" {
+		if _, ok := extraThemes[defaultTheme]; ok {
+			return defaultTheme
+		}
+	}
+	return "default"
+}
+
+func lookupTheme(name string) (Theme, bool) {
+	if t, ok := themes[name]; ok {
+		return t, true
+	}
+	extraMu.RLock()
+	defer extraMu.RUnlock()
+	t, ok := extraThemes[name]
+	return t, ok
 }
 
 var themes = map[string]Theme{
@@ -40,6 +100,11 @@ func ThemeNames() []string {
 	for k := range themes {
 		out = append(out, k)
 	}
+	extraMu.RLock()
+	for k := range extraThemes {
+		out = append(out, k)
+	}
+	extraMu.RUnlock()
 	sort.Strings(out)
 	return out
 }
@@ -49,9 +114,13 @@ func ThemeNames() []string {
 // «font=Arial» / «heading_font=Cambria».
 func GetTheme(spec string) Theme {
 	name, rest, _ := strings.Cut(strings.TrimSpace(spec), ":")
-	t, ok := themes[strings.ToLower(strings.TrimSpace(name))]
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" || key == "brand" {
+		key = DefaultThemeName()
+	}
+	t, ok := lookupTheme(key)
 	if !ok {
-		t = themes["default"]
+		t, _ = lookupTheme(DefaultThemeName())
 		if strings.Contains(name, "=") {
 			rest = name
 		}

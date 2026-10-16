@@ -10,6 +10,7 @@ import { t as T, idioma, posa as posaLang, IDIOMES } from './i18n.js';
 import { desktopUpdates } from './desktop-updates.js';
 import { shares } from './export.js';
 import { funPrefs } from './fun-prefs.js';
+import { brands } from './brands.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -48,6 +49,11 @@ function aplica(k) {
   const o = OPCIONS[k];
   const v = llegeix(k);
   const arrel = document.documentElement;
+  // Amb un branding actiu, el tema és el seu (és de tot el servidor).
+  if (k === 'tema') {
+    const b = brands.active();
+    if (b) { arrel.setAttribute('data-theme', b.theme); return; }
+  }
   if (v === o.defecte) {
     if (k === 'tema') {
       // Seguir el sistema: mirem la preferència del SO i l'escoltem.
@@ -81,11 +87,16 @@ function pintaBarraTitol() {
 export const prefs = {
   init() {
     Object.keys(OPCIONS).forEach(aplica);
+    brands.applyCached();
     pintaBarraTitol();
+    brands.init().then(pintaBarraTitol);
+    // Quan es treu el branding, torna el tema que hi hagués triat.
+    document.addEventListener('gregal:brand', () => { aplica('tema'); pintaBarraTitol(); });
+    document.addEventListener('gregal:titlebar', pintaBarraTitol);
     // Si segueixes el sistema i el sistema canvia, la finestra el segueix.
     if (window.matchMedia) {
       const mq = window.matchMedia('(prefers-color-scheme: dark)');
-      const seguir = () => { if (llegeix('tema') === 'sistema') { aplica('tema'); pintaBarraTitol(); } };
+      const seguir = () => { if (llegeix('tema') === 'sistema' && !brands.active()) { aplica('tema'); pintaBarraTitol(); } };
       mq.addEventListener ? mq.addEventListener('change', seguir) : mq.addListener(seguir);
     }
     const btn = $('prefsBtn');
@@ -123,12 +134,20 @@ export const prefs = {
   },
   select(k) {
     const o = OPCIONS[k];
-    const ara = llegeix(k);
+    const actiu = k === 'tema' ? brands.active() : null;
+    const ara = actiu ? 'brand:' + actiu.id : llegeix(k);
+    // Els brandings instal·lats també són temes: surten al final de la llista.
+    const extres = k === 'tema' && brands.list().length
+      ? '<optgroup label="' + T('brands.title') + '">' + brands.list().map(b => {
+        const v = 'brand:' + b.id;
+        return '<option value="' + v + '"' + (v === ara ? ' selected' : '') + '>' + b.name.replace(/[&<>"]/g, '') + '</option>';
+      }).join('') + '</optgroup>'
+      : '';
     return '<div class="pf-row"><div class="pf-lab"><b>' + T(o.titol) + '</b>' +
       (o.ajuda ? '<span>' + T(o.ajuda) + '</span>' : '') + '</div>' +
       '<select class="pf-select" data-k="' + k + '" aria-label="' + T(o.titol) + '">' +
       o.valors.map(([v, txt]) => '<option value="' + v + '"' + (v === ara ? ' selected' : '') + '>' + T(txt) + '</option>').join('') +
-      '</select></div>';
+      extres + '</select></div>';
   },
   pinta() {
     const cos = $('prefsBody');
@@ -144,6 +163,7 @@ export const prefs = {
       '<h3 class="pf-sec">' + T('prefs.appearance') + '</h3>' +
       this.select('tema') + this.segment('densitat') + this.segment('mida') +
       fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
+      brands.section() +
       '<h3 class="pf-sec">' + T('prefs.conversation') + '</h3>' +
       fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
         [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
@@ -180,9 +200,21 @@ export const prefs = {
       });
     });
     cos.querySelectorAll('.pf-select').forEach(sel => {
-      sel.onchange = () => {
+      sel.onchange = async () => {
         const k = sel.dataset.k, v = sel.value;
-        if (OPCIONS[k]) { desa(k, v); aplica(k); if (k === 'tema') pintaBarraTitol(); }
+        if (!OPCIONS[k]) return;
+        try {
+          if (k === 'tema' && v.startsWith('brand:')) {
+            await brands.activate(v.slice(6));
+          } else {
+            if (k === 'tema' && brands.active()) await brands.activate('');
+            desa(k, v);
+            aplica(k);
+          }
+        } catch (e) {
+          alert(e.message);
+        }
+        if (k === 'tema') { pintaBarraTitol(); this.pinta(); }
       };
     });
     const v = $('prefsVerify');
@@ -192,6 +224,13 @@ export const prefs = {
     desktopUpdates.bind(cos);
     shares.bind(cos);
     funPrefs.bind(cos);
+    // Repintar conserva el desplaçament: la secció de brandings és llarga.
+    brands.bind(cos, () => {
+      const card = cos.closest('.card') || cos;
+      const top = card.scrollTop;
+      this.pinta();
+      card.scrollTop = top;
+    });
   },
 
   // L'idioma va al servidor abans que a la pantalla: si el servidor no el

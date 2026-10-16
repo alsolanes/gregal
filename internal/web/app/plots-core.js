@@ -11,9 +11,12 @@
     if (spec.type === 'scatter' && spec.labels.some(x => { try { return typeof JSON.parse(x) !== 'number' || !Number.isFinite(JSON.parse(x)); } catch { return true; } })) throw Error('Scatter labels must be numeric x coordinates.');
     return { title: spec.title, type: spec.type, labels: [...spec.labels], series: spec.series.map(s => ({ label: s.label, values: [...s.values] })) };
   }
-  function config(input, color = '#888') {
+  // palette: els colors de les sèries. Un branding en pot portar de propis
+  // (--chart-1… al seu bloc :root); si no, els de sempre.
+  const DEFAULT_COLORS = ['#5185ee', '#e89839', '#4bab88', '#c068cc', '#df6475', '#36a9c3'];
+  function config(input, color = '#888', palette) {
     const spec = validate(input);
-    const colors = ['#5185ee', '#e89839', '#4bab88', '#c068cc', '#df6475', '#36a9c3'];
+    const colors = Array.isArray(palette) && palette.length ? palette : DEFAULT_COLORS;
     return { type: spec.type, data: { labels: spec.labels, datasets: spec.series.map((s, i) => ({ label: s.label, data: spec.type === 'scatter' ? s.values.map((y, j) => ({x: Number(spec.labels[j]), y})) : s.values, borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length], borderWidth: 2, pointRadius: spec.labels.length > 100 ? 0 : 3 })) }, options: { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { labels: { color } } }, scales: { x: { ticks: { color } }, y: { ticks: { color } } } } };
   }
   root.gregalPlotsCore = { validate, config };

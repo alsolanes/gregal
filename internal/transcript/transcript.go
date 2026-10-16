@@ -80,6 +80,41 @@ type Options struct {
 	RenderMarkdown func(string) string
 	// Now és la data de l'exportació (tests); zero = ara.
 	Now time.Time
+	// Brand és la identitat del document HTML (el branding actiu). nil =
+	// l'estil de sempre.
+	Brand *Brand
+}
+
+// Brand és el que un branding canvia d'una exportació HTML: el logo (data
+// URL, que la CSP del document ja admet), el nom, el color d'accent i les
+// lletres. Els valors ja venen validats (internal/brand).
+type Brand struct {
+	Name        string
+	Logo        string
+	Accent      string
+	Font        string
+	HeadingFont string
+}
+
+// css són les regles que el branding afegeix al full del document.
+func (br *Brand) css() string {
+	if br == nil {
+		return ""
+	}
+	var b strings.Builder
+	if br.Accent != "" {
+		b.WriteString(":root{--accent:" + br.Accent + "}")
+	}
+	if br.Font != "" {
+		b.WriteString("body{font-family:" + br.Font + "}")
+	}
+	if br.HeadingFont != "" {
+		b.WriteString("h1,h2,h3{font-family:" + br.HeadingFont + "}")
+	}
+	if br.Logo != "" {
+		b.WriteString(".brand-logo{display:block;height:36px;max-width:220px;object-fit:contain;margin:0 0 14px}")
+	}
+	return b.String()
 }
 
 const (
@@ -375,8 +410,17 @@ func HTML(meta Meta, convo []llm.Message, o Options) string {
 	b.WriteString("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n")
 	b.WriteString("<meta http-equiv=\"Content-Security-Policy\" content=\"" + HTMLCSP + "\">\n")
 	b.WriteString("<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<meta name=\"robots\" content=\"noindex\">\n")
-	b.WriteString("<title>" + esc(oneLine(titleOf(meta))) + "</title>\n<style>" + htmlCSS + "</style>\n</head>\n<body>\n<main>\n")
-	b.WriteString("<h1>" + esc(oneLine(titleOf(meta))) + "</h1>\n<div class=\"meta\">Exported from Gregal · " + esc(stamp(o)))
+	b.WriteString("<title>" + esc(oneLine(titleOf(meta))) + "</title>\n<style>" + htmlCSS + o.Brand.css() + "</style>\n</head>\n<body>\n<main>\n")
+	from := "Exported from Gregal"
+	if o.Brand != nil {
+		if strings.HasPrefix(o.Brand.Logo, "data:image/") {
+			b.WriteString("<img class=\"brand-logo\" src=\"" + esc(o.Brand.Logo) + "\" alt=\"" + esc(o.Brand.Name) + "\">\n")
+		}
+		if o.Brand.Name != "" {
+			from = esc(o.Brand.Name) + " · exported from Gregal"
+		}
+	}
+	b.WriteString("<h1>" + esc(oneLine(titleOf(meta))) + "</h1>\n<div class=\"meta\">" + from + " · " + esc(stamp(o)))
 	if meta.Workspace != "" {
 		b.WriteString(" · " + esc(oneLine(meta.Workspace)))
 	}
