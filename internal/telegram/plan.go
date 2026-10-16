@@ -16,6 +16,14 @@ func (b *Bot) planKB() Keyboard {
 	return Keyboard{{{Text: "▶ " + b.tr("Executa", "Run"), Data: "plan:run"}, {Text: b.tr("Descarta", "Discard"), Data: "plan:drop"}}}
 }
 
+// planKBParcial afegeix «Continua explorant» a un pla parcial.
+func (b *Bot) planKBParcial() Keyboard {
+	return Keyboard{
+		{{Text: "↻ " + b.tr("Continua explorant", "Continue exploring"), Data: "plan:more"}},
+		{{Text: "▶ " + b.tr("Executa igualment", "Run anyway"), Data: "plan:run"}, {Text: b.tr("Descarta", "Discard"), Data: "plan:drop"}},
+	}
+}
+
 // planCommand explora en read-only i presenta el pla amb botons.
 // /plan <tasca> — mateix contracte que el TUI i la webapp.
 func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg string) {
@@ -23,6 +31,39 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 		b.send(ctx, chatID, b.tr("ús: /plan &lt;tasca&gt; (explora sense actuar i proposa un pla)", "usage: /plan &lt;task&gt; (inspect without making changes and propose a plan)"))
 		return
 	}
+	// La directiva d'idioma tanca l'últim missatge de sistema.
+	llengua := config.LanguageDirective(b.cfg.Lang())
+	hist := []llm.Message{
+		{Role: "system", Content: agent.PlanSystem},
+		{Role: "user", Content: arg},
+	}
+	if info := agent.ContextProjecte(b.dirOf(st)); info != "" {
+		hist = append(hist, llm.Message{Role: "system", Content: info + "\n\n" + llengua})
+	} else {
+		hist[0].Content += "\n\n" + llengua
+	}
+	b.planExplora(ctx, chatID, st, hist, "🔍 "+b.tr("Explorant (sense actuar)…", "Inspecting (read-only)…"))
+}
+
+// planContinue reprèn l'última exploració parcial amb pressupost nou i la
+// conversa intacta (botó «Continua explorant»).
+func (b *Bot) planContinue(ctx context.Context, chatID int64, st *chatState) {
+	b.mu.Lock()
+	hist := b.planHists[chatID]
+	b.mu.Unlock()
+	if len(hist) == 0 {
+		b.send(ctx, chatID, b.tr("⚠️ No hi ha cap exploració per continuar (fes /plan &lt;tasca&gt;)", "⚠️ Nothing to continue (use /plan &lt;task&gt;)"))
+		return
+	}
+	hist = agent.AfegeixUsuari(append([]llm.Message(nil), hist...), agent.PromptContinuaExploracio)
+	b.planExplora(ctx, chatID, st, hist, "🔍 "+b.tr("Continuo l’exploració on s’havia quedat…", "Continuing the exploration where it stopped…"))
+}
+
+// planExplora fa el bucle d'exploració read-only a partir de hist. Mai no
+// acaba sense res per pressupost: avisa el model abans del final i, en
+// arribar-hi (o si el model cau a mig camí), demana la millor resposta
+// sense eines i la presenta com a PLA PARCIAL amb «Continua explorant».
+func (b *Bot) planExplora(ctx context.Context, chatID int64, st *chatState, hist []llm.Message, intro string) {
 	st.mu.Lock()
 	if st.busy {
 		st.mu.Unlock()
@@ -60,21 +101,14 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 	}()
 	defer close(done)
 
-	b.send(ctx, chatID, "🔍 "+b.tr("Explorant (sense actuar)…", "Inspecting (read-only)…"))
-	// La directiva d'idioma tanca l'últim missatge de sistema.
-	llengua := config.LanguageDirective(b.cfg.Lang())
-	hist := []llm.Message{
-		{Role: "system", Content: agent.PlanSystem},
-		{Role: "user", Content: arg},
-	}
-	if info := agent.ContextProjecte(b.dirOf(st)); info != "" {
-		hist = append(hist, llm.Message{Role: "system", Content: info + "\n\n" + llengua})
-	} else {
-		hist[0].Content += "\n\n" + llengua
-	}
+	b.send(ctx, chatID, intro)
+	limit := agent.PassosPla(b.cfg.Agent.MaxSteps)
 	var plan string
-	for step := 1; step <= b.cfg.Agent.MaxSteps; step++ {
+	acabat := false
+	motiu := agent.MotiuPassos
+	for step := 1; step <= limit; step++ {
 		p, r := b.roleRefFor(chatID, st.role)
+		hist = agent.AmbAvisPassos(hist, step, limit)
 		cctx, cancelStep := context.WithTimeout(tctx, 180*time.Second)
 		content, calls, _, err := b.client.ChatWithToolsFO(cctx, b.cfg.PrimTarget(p, r), b.cfg.FallbackTarget(r), hist,
 			r.Temperature, r.MaxTokens, agent.Specs(),
@@ -84,13 +118,19 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 		cancelStep()
 		if err != nil {
 			b.send(ctx, chatID, "⚠️ "+b.tr("Error del model: ", "Model error: ")+truncate(err.Error(), 300))
-			return
+			// Sense res explorat (o aturat amb /stop): no hi ha feina a salvar.
+			if step == 1 || tctx.Err() != nil {
+				return
+			}
+			motiu = err.Error()
+			break
 		}
 		hist = append(hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
 		if strings.TrimSpace(content) != "" {
 			plan = content
 		}
 		if len(calls) == 0 {
+			acabat = true
 			break
 		}
 		for _, c := range calls {
@@ -111,6 +151,32 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 			hist = append(hist, agent.ToolMsg(c, out, outImgs...))
 		}
 	}
+	if !acabat {
+		// Pressupost exhaurit (o model caigut): crida final sense eines.
+		if motiu == agent.MotiuPassos {
+			b.send(ctx, chatID, "⏳ "+b.tr("S’han acabat els passos d’exploració: demano el millor pla amb el que s’ha vist…", "Exploration steps used up: asking for the best plan from what was seen…"))
+		}
+		p, r := b.roleRefFor(chatID, st.role)
+		fh := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: agent.PromptFinalExploracio(b.cfg.Lang())})
+		fctx, cancelF := context.WithTimeout(tctx, agent.TimeoutDecisio)
+		out, _, ferr := b.client.ChatFO(fctx, b.cfg.PrimTarget(p, r), b.cfg.FallbackTarget(r), fh, r.Temperature, r.MaxTokens, nil)
+		cancelF()
+		plan = agent.NetejaFinal(out)
+		if ferr != nil || plan == "" {
+			m := motiu
+			if ferr != nil {
+				m += "; " + ferr.Error()
+			}
+			plan = agent.ResumDeFeina(hist, m, b.cfg.Lang())
+		}
+		hist = append(hist, llm.Message{Role: "assistant", Content: plan})
+	}
+	b.mu.Lock()
+	if b.planHists == nil {
+		b.planHists = map[int64][]llm.Message{}
+	}
+	b.planHists[chatID] = hist
+	b.mu.Unlock()
 	if strings.TrimSpace(plan) == "" {
 		b.send(ctx, chatID, "⚠️ "+b.tr("Exploració buida: torna-ho a provar", "No plan was produced; try again"))
 		return
@@ -121,6 +187,14 @@ func (b *Bot) planCommand(ctx context.Context, chatID int64, st *chatState, arg 
 	}
 	b.pendingPlans[chatID] = plan
 	b.mu.Unlock()
+	if !acabat {
+		nota := b.tr("s’han acabat els passos abans d’acabar d’explorar", "the steps ran out before the exploration finished")
+		if motiu != agent.MotiuPassos {
+			nota = b.tr("l’exploració s’ha aturat abans d’hora", "the exploration stopped early")
+		}
+		b.sendKB(ctx, chatID, "◇ <b>"+b.tr("PLA PARCIAL", "PARTIAL PLAN")+"</b> ("+nota+")\n"+esc(plan), b.planKBParcial())
+		return
+	}
 	b.sendKB(ctx, chatID, "◇ <b>"+b.tr("PLA", "PLAN")+"</b> ("+b.tr("exploració read-only · res modificat", "read-only inspection · no changes made")+")\n"+esc(plan), b.planKB())
 }
 

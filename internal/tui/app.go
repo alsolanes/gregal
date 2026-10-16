@@ -392,6 +392,12 @@ type Model struct {
 	planRetries int           // reintents d'error de servidor del pla
 	planHist    []llm.Message // historial de l'exploració
 	pendingPlan string        // pla pendent d'aprovar ([e]/[d])
+	// planFinal: s'ha demanat la resposta final sense eines (pressupost
+	// exhaurit o error); planParcial: el pla pendent és aquesta resposta i
+	// es pot continuar ([c]); planMotiu: per què (agent.MotiuPassos o error).
+	planFinal   bool
+	planParcial bool
+	planMotiu   string
 
 	policy    *agent.Policy
 	remembers *agent.Remember
@@ -1328,6 +1334,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch msg.String() {
 			case "e":
 				return m.answerPlan("e")
+			case "c":
+				if m.planParcial {
+					return m.continuePlan()
+				}
 			case "d", "esc":
 				return m.answerPlan("d")
 			}
@@ -1982,6 +1992,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.streamShown = ""
 		if m.cancelRequested {
 			return m.cancellaTorn()
+		}
+		if m.planning {
+			return m.passPlaFinal(msg), nil
 		}
 		if m.torn == nil || m.torn.Acabat() {
 			// Un missatge endarrerit d'un torn ja tancat no el pot

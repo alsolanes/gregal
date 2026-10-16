@@ -89,6 +89,9 @@ type Bot struct {
 	apSeq     int
 	// pendingPlans guarda el pla proposat per xat (/plan → Executa/Descarta).
 	pendingPlans map[int64]string
+	// planHists és l'última exploració de pla per xat, per poder-la
+	// continuar quan ha acabat parcial (botó plan:more).
+	planHists map[int64][]llm.Message
 
 	meOnce sync.Once
 	meUser string

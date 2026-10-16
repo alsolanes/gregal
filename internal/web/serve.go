@@ -127,6 +127,10 @@ type Server struct {
 	jobRunning bool
 	// planRunning marca una exploració /api/plan en curs (el worker és únic).
 	planRunning bool
+	// planHist i planTask són l'última exploració de pla, per poder-la
+	// continuar quan ha acabat parcial (/api/plan {"continue": true}).
+	planHist []llm.Message
+	planTask string
 	// flowRunning marca un graf en execució: comparteix treballador amb
 	// l'agent i amb els jobs perquè tots tres escriuen al mateix disc.
 	flowRunning bool

@@ -375,6 +375,12 @@ func (m Model) passPla(msg agentStepMsg) (tea.Model, tea.Cmd) {
 			m.push(dimStyle.Render("↻ " + T("app.serverReintentCurt")))
 			return m.dispatchPlanStep()
 		}
+		// Amb exploració feta, l'error no la llença: resposta final sense
+		// eines amb el que hi ha (plan.go).
+		if m.planSteps > 1 && !m.planFinal {
+			m.push(warnStyle.Render("⚠ " + T("motor.error") + msg.err.Error()))
+			return m.dispatchPlanFinal(msg.err.Error())
+		}
 		m.planning = false
 		m.busy = false
 		m.status = "error"

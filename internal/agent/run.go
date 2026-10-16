@@ -78,6 +78,9 @@ type RunResult struct {
 	// La resposta és un resum del que s'ha fet, no necessàriament feina
 	// acabada (com l'event steps_exhausted de la web).
 	Exhausted bool `json:"exhausted"`
+	// Interrupted és l'error que ha tallat el torn quan ja hi havia feina
+	// feta: Answer és la síntesi parcial del que s'ha fet, no un buit.
+	Interrupted string `json:"interrupted,omitempty"`
 }
 
 // RunOpts són les opcions d'una execució no interactiva.
@@ -533,6 +536,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			hist = torn.Hist
 			res.Answer = torn.Resposta()
 			res.Exhausted = torn.Esgotat()
+			res.Interrupted = torn.Interromput()
 			finish()
 			return res, nil
 		}

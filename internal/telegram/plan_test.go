@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gregal/internal/agent"
 )
 
 func TestPlanSenseTasca(t *testing.T) {
@@ -131,5 +133,48 @@ func TestRewindAmbNumero(t *testing.T) {
 	bot.handleMessage(context.Background(), msg(1234567, "/rewind 99"))
 	if !lastSentContains(tg, "inexistent") {
 		t.Fatalf("seq fora de rang cal error: %v", sentTexts(tg))
+	}
+}
+
+// Un model que no para mai d'explorar: el /plan acaba amb PLA PARCIAL i el
+// botó «Continua explorant», no amb «Exploració buida» ni un error.
+func TestPlanTossutDonaPlaParcialIContinua(t *testing.T) {
+	tg := newFakeTG(t)
+	llm := newFakeLLM(t, replyToolCall("read", `{"path":"no-existeix.txt"}`))
+	bot, _, _ := testBot(t, tg, llm, map[string]string{})
+	bot.cfg.Agent.MaxSteps = 3
+	bot.handleMessage(context.Background(), msg(1234567, "/plan revisa a fons el projecte"))
+	var card string
+	var kb Keyboard
+	for _, s := range tg.sent {
+		if strings.Contains(s.Text, "PLA PARCIAL") {
+			card, kb = s.Text, s.KB
+		}
+	}
+	if card == "" {
+		t.Fatalf("sense targeta PLA PARCIAL: %v", sentTexts(tg))
+	}
+	if !hasButton(kb, "plan:more") || !hasButton(kb, "plan:run") {
+		t.Fatalf("la targeta parcial ha d'oferir continuar: %+v", kb)
+	}
+	llm.mu.Lock()
+	calls, last := llm.calls, llm.bodies[len(llm.bodies)-1]
+	llm.mu.Unlock()
+	if calls != agent.PassosMinimsPla+1 {
+		t.Fatalf("crides=%d: %d passos + 1 final", calls, agent.PassosMinimsPla)
+	}
+	if strings.Contains(last, `"tools"`) {
+		t.Fatal("la crida final ha d'anar sense eines")
+	}
+
+	bot.planContinue(context.Background(), 1234567, bot.state(1234567))
+	llm.mu.Lock()
+	calls, last = llm.calls, llm.bodies[len(llm.bodies)-2]
+	llm.mu.Unlock()
+	if calls != 2*(agent.PassosMinimsPla+1) {
+		t.Fatalf("continuar dona pressupost nou: crides=%d", calls)
+	}
+	if !strings.Contains(last, "Continue the exploration") || !strings.Contains(last, "revisa a fons el projecte") {
+		t.Fatal("continuar ha de reprendre la mateixa conversa")
 	}
 }

@@ -255,10 +255,10 @@ type Torn struct {
 	perExecutar []llm.ToolCall
 	pendents    []llm.ToolCall
 	// motius: per què cada crida pendent demana permís (per al revisor).
-	motius map[string]string
-	actual      llm.ToolCall
-	teActual    bool
-	pregunta    *llm.ToolCall
+	motius   map[string]string
+	actual   llm.ToolCall
+	teActual bool
+	pregunta *llm.ToolCall
 	// guies són els avisos per al model (missatges d'usuari) que han sorgit
 	// mentre el lot d'eines encara no estava complet. Un missatge d'usuari
 	// entre els tool results d'un mateix assistant trenca el protocol i els
@@ -280,6 +280,13 @@ type Torn struct {
 	esgotat bool
 	// sintesiReintent: la síntesi ja s'ha reintentat un cop per context.
 	sintesiReintent bool
+	// interromput és l'error que ha tallat el torn a mig camí (timeout,
+	// proveïdor caigut, context que no hi cap) quan ja s'havia fet feina:
+	// en comptes de morir, el torn tanca amb síntesi i ho diu. "" = no.
+	interromput string
+	// avisPassosAl és el límit per al qual ja s'ha avisat el model que
+	// li queden pocs passos (AvisPassosRestants), per no repetir-ho.
+	avisPassosAl int
 	// sintesiEinaReintent: la síntesi ha tornat només una crida d'eina i
 	// s'ha tornat a demanar dient que no n'hi ha (una vegada).
 	sintesiEinaReintent bool
@@ -330,6 +337,10 @@ func (t *Torn) Acabat() bool { return t.acabat }
 
 // Fallit diu si el torn s'ha mort (error) en comptes d'acabar.
 func (t *Torn) Fallit() bool { return t.fallit }
+
+// Interromput és l'error que ha tallat el torn quan ja hi havia feina
+// feta ("" si no n'hi ha hagut): la resposta és una síntesi parcial.
+func (t *Torn) Interromput() string { return t.interromput }
 
 // Esgotat diu si la síntesi final l'ha forçada el motor en comptes de
 // ser la resposta del model (pressupost exhaurit, encallat, topall).
@@ -441,6 +452,12 @@ func (t *Torn) Seguent() Pas {
 		t.esgotat = true
 		return t.pas(Pas{Ordre: OrdreSintesi, Hist: append(t.histAmbSys(), llm.Message{Role: "user", Content: t.finalPrompt()})})
 	}
+	// Últims passos de l'últim tros: el model ho sap i pot tancar amb
+	// resposta pròpia en comptes de topar amb el límit a mitja lectura.
+	if t.passos > 0 && t.Limit()-t.passos == PassosAvis && t.avisPassosAl != t.Limit() && t.ultimTros() {
+		t.avisPassosAl = t.Limit()
+		t.Hist = AfegeixUsuari(t.Hist, AvisPassosRestants(PassosAvis))
+	}
 	t.passos++
 	return t.pas(Pas{Ordre: OrdrePasModel, Hist: t.histAmbSys(), Mecanic: t.mecanic})
 }
@@ -526,16 +543,7 @@ func (t *Torn) potAmpliar() bool {
 	if t.o.SenseAmpliacions {
 		return false
 	}
-	max := MaxAmpliacions
-	if t.autonom() && t.o.Cfg != nil {
-		a := t.o.Cfg.AutonomousConfig()
-		max = (a.MaxToolSteps + ChunkAmpliacio - 1) / ChunkAmpliacio
-	} else if !t.autonom() {
-		// Interactiu: hi ha una persona mirant la pantalla, i el
-		// contracte és parlar-hi cada tres trossos, no dotze.
-		max = MaxAmpliacionsInteractiu
-	}
-	if t.ampliacions >= max || t.doomStalls >= 2 {
+	if t.ampliacions >= t.maxAmpliacions() || t.doomStalls >= 2 {
 		return false
 	}
 	if t.ratxa.BloquejaAmpliacio(t.autonom()) {
@@ -545,6 +553,33 @@ func (t *Torn) potAmpliar() bool {
 		return false
 	}
 	return true
+}
+
+// maxAmpliacions és el topall d'ampliacions del torn segons el mode.
+func (t *Torn) maxAmpliacions() int {
+	if t.autonom() && t.o.Cfg != nil {
+		a := t.o.Cfg.AutonomousConfig()
+		return (a.MaxToolSteps + ChunkAmpliacio - 1) / ChunkAmpliacio
+	} else if !t.autonom() {
+		// Interactiu: hi ha una persona mirant la pantalla, i el
+		// contracte és parlar-hi cada tres trossos, no dotze.
+		return MaxAmpliacionsInteractiu
+	}
+	return MaxAmpliacions
+}
+
+// ultimTros diu si el tros de passos en curs és l'últim: en acabar-se no
+// hi haurà ampliació possible (topall dur o ampliacions gastades).
+func (t *Torn) ultimTros() bool {
+	return t.o.SenseAmpliacions || t.ampliacions >= t.maxAmpliacions()
+}
+
+// lang és la llengua de la sessió ("en" sense config).
+func (t *Torn) lang() string {
+	if t.o.Cfg != nil {
+		return t.o.Cfg.Lang()
+	}
+	return "en"
 }
 
 // Cancella tanca el torn per voluntat de l'usuari.
@@ -672,7 +707,33 @@ func (t *Torn) repError(err error) []Event {
 		}
 		return []Event{notaClau("app.serverReintentCurt")}
 	}
+	// Error que ja no es reintenta, però amb feina feta: no es llença.
+	// Una crida final sense eines resumeix el que hi ha (si el proveïdor
+	// tampoc respon, RepSintesi en fa el resum mecànic). Cancel·lar no
+	// entra aquí: és l'usuari qui ha dit prou.
+	if t.execs > 0 && t.interromput == "" && !t.cancellat(err) {
+		t.interromput = err.Error()
+		t.sintesiDemanada = true
+		t.descartaPendents()
+		return []Event{avis("agent: error: " + err.Error() + " — " + t.textInterromput())}
+	}
 	return t.mor("agent: error: " + err.Error())
+}
+
+// cancellat diu si l'error ve d'una cancel·lació de l'usuari (o del torn).
+func (t *Torn) cancellat(err error) bool {
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+	return t.o.Ctx != nil && errors.Is(t.o.Ctx.Err(), context.Canceled)
+}
+
+// textInterromput és la nota que acompanya la síntesi després d'un error.
+func (t *Torn) textInterromput() string {
+	if t.lang() == "ca" {
+		return "resumeixo la feina feta fins ara"
+	}
+	return "summarising the work done so far"
 }
 
 // retallaPerContext fa lloc a l'historial quan el proveïdor diu que el

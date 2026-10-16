@@ -658,7 +658,10 @@ budget:
   session_usd: 0
 
 agent:
-  max_steps: 10
+  # Steps per chunk. Interactive turns may extend it while there is progress;
+  # Plan explorations use at least 25. Running out never loses the work: the
+  # agent is warned 2 steps before and then answers without tools.
+  max_steps: 40
   # Model inactivity limit per step: the step only fails when the provider
   # sends nothing for this long (0 = automatic: 240s interactive, 1200s
   # autonomous). A step that keeps streaming is never cut before 30 min (60 autonomous).
