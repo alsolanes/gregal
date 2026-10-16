@@ -115,7 +115,7 @@ func CriticaPla(ctx context.Context, client *llm.Client, cfg *config.Config, tas
 	if strings.TrimSpace(dir) != "" {
 		mapa = MapaProjecte(dir, task, nil)
 	}
-	cctx, cancel := context.WithTimeout(ctx, 90*time.Second)
+	cctx, cancel := context.WithTimeout(llm.WithSideCall(ctx), 90*time.Second)
 	defer cancel()
 	out, _, err := client.ChatFO(cctx, cfg.PrimTarget(p, r), cfg.FallbackTarget(r),
 		[]llm.Message{{Role: "user", Content: BuildCriticPrompt(task, plan, mapa, cfg.Lang())}}, r.Temperature, r.MaxTokens, nil)

@@ -67,11 +67,11 @@ func DetectWindows(ctx context.Context, cfg *config.Config) {
 	if cfg == nil {
 		return
 	}
-	bases := map[string]string{} // base → clau
+	bases := map[string]*baseProbe{}
 	for _, r := range cfg.Roles {
-		for _, pn := range []string{r.Provider, r.FallbackProvider} {
-			if p, ok := cfg.Providers[pn]; ok && strings.TrimSpace(p.BaseURL) != "" {
-				bases[strings.TrimRight(p.BaseURL, "/")] = p.APIKey
+		for _, pm := range [][2]string{{r.Provider, r.Model}, {r.FallbackProvider, r.FallbackModel}} {
+			if p, ok := cfg.Providers[pm[0]]; ok && strings.TrimSpace(p.BaseURL) != "" {
+				afegeixBase(bases, p, pm[1])
 			}
 		}
 	}
@@ -86,15 +86,14 @@ func DetectRoleWindows(ctx context.Context, cfg *config.Config, role config.Role
 	if cfg == nil || role.ContextWindow > 0 {
 		return
 	}
-	bases := map[string]string{}
+	bases := map[string]*baseProbe{}
 	add := func(providerName, model string) {
 		p, ok := cfg.Providers[providerName]
 		if !ok || strings.TrimSpace(p.BaseURL) == "" || strings.TrimSpace(model) == "" {
 			return
 		}
-		base := strings.TrimRight(p.BaseURL, "/")
-		if _, known := KnownWindow(base, model); !known {
-			bases[base] = p.APIKey
+		if _, known := KnownWindow(strings.TrimRight(p.BaseURL, "/"), model); !known {
+			afegeixBase(bases, p, model)
 		}
 	}
 	add(role.Provider, role.Model)
@@ -102,9 +101,41 @@ func DetectRoleWindows(ctx context.Context, cfg *config.Config, role config.Role
 	detectWindowBases(ctx, bases)
 }
 
-func detectWindowBases(ctx context.Context, bases map[string]string) {
+// baseProbe és el que cal per sondejar un endpoint: la clau i els models
+// dels rols (per a la finestra real dels servidors locals).
+type baseProbe struct {
+	key    string
+	models []string
+}
+
+func afegeixBase(bases map[string]*baseProbe, p config.Provider, model string) {
+	base := strings.TrimRight(p.BaseURL, "/")
+	b, ok := bases[base]
+	if !ok {
+		b = &baseProbe{key: p.APIKey}
+		bases[base] = b
+	}
+	if m := strings.TrimSpace(model); m != "" {
+		b.models = append(b.models, m)
+	}
+}
+
+// esServidorLocal diu si cal preguntar la finestra al servidor local
+// (/props, /api/ps, /api/v0/models): els tipus locals declarats o una
+// adreça local.
+func esServidorLocal(base string) bool {
+	switch llm.ProviderTypeFor(base) {
+	case llm.ProviderOllama, llm.ProviderLlamaCpp:
+		return true
+	case llm.ProviderAnthropic, llm.ProviderOpenAIResponses:
+		return false
+	}
+	return esLocal(base, "")
+}
+
+func detectWindowBases(ctx context.Context, bases map[string]*baseProbe) {
 	var wg sync.WaitGroup
-	for base, key := range bases {
+	for base, bp := range bases {
 		windowMu.Lock()
 		if t, ok := windowProbe[base]; ok && time.Since(t) < 10*time.Minute {
 			windowMu.Unlock()
@@ -113,18 +144,29 @@ func detectWindowBases(ctx context.Context, bases map[string]string) {
 		windowProbe[base] = time.Now()
 		windowMu.Unlock()
 		wg.Add(1)
-		go func(base, key string) {
+		go func(base string, bp *baseProbe) {
 			defer wg.Done()
-			ws, err := llm.ProbeModelWindows(base, key)
-			if err != nil {
+			if ws, err := llm.ProbeModelWindows(base, bp.key); err == nil {
+				windowMu.Lock()
+				for id, n := range ws {
+					windowCache[windowKey(base, id)] = n
+				}
+				windowMu.Unlock()
+			}
+			if !esServidorLocal(base) {
 				return
 			}
-			windowMu.Lock()
-			for id, n := range ws {
-				windowCache[windowKey(base, id)] = n
+			// Un servidor local té la finestra que se li ha configurat, que
+			// no és la d'entrenament que declara /v1/models (llama.cpp hi
+			// posa n_ctx_train): sense això, la compactació arribava tard i
+			// el servidor truncava (Ollama) o desplaçava el context en silenci.
+			srv := llm.ProbeLocalServer(ctx, base, bp.key)
+			for _, m := range bp.models {
+				if n, ok := llm.LocalWindow(ctx, srv, base, bp.key, m); ok {
+					LearnWindow(base, m, n)
+				}
 			}
-			windowMu.Unlock()
-		}(base, key)
+		}(base, bp)
 	}
 	done := make(chan struct{})
 	go func() { wg.Wait(); close(done) }()

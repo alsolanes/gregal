@@ -157,6 +157,9 @@ type chatRequest struct {
 	// ReasoningEffort és l'ordre de no pensar de les API que segueixen
 	// OpenAI (opencode zen): vegeu compat.go.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// CachePrompt i IDSlot només van a llama-server (llamacpp.go).
+	CachePrompt *bool `json:"cache_prompt,omitempty"`
+	IDSlot      *int  `json:"id_slot,omitempty"`
 }
 
 type chatResponse struct {
@@ -172,7 +175,9 @@ type chatResponse struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage Usage `json:"usage"`
-	Error *struct {
+	// Timings és el rendiment de llama-server (cache_n, prompt_n…).
+	Timings *llamaTimings `json:"timings"`
+	Error   *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
@@ -225,6 +230,8 @@ type streamEvent struct {
 	} `json:"choices"`
 	// Alguns proveïdors envien el consum a l'últim event (choices buides).
 	Usage Usage `json:"usage"`
+	// llama-server posa timings a l'últim event.
+	Timings *llamaTimings `json:"timings"`
 }
 
 // Client és un client HTTP minimalista OpenAI-compatible (/chat/completions).
@@ -255,6 +262,9 @@ type Client struct {
 	// natius guarda els blocs de pensament (Anthropic) i els items de
 	// raonament (Responses) que s'han de tornar intactes (provider_type.go).
 	natius blocsNatius
+	// lastTimings és el rendiment de l'última crida a un servidor local
+	// (llamacpp.go, ollama.go). Sota usageMu.
+	lastTimings *LocalTimings
 }
 
 type promptCacheConfig struct {
@@ -276,6 +286,7 @@ func (c *Client) LastUsage() (Usage, bool) {
 func (c *Client) clearUsage() {
 	c.usageMu.Lock()
 	c.lastUsage = Usage{}
+	c.lastTimings = nil
 	c.usageMu.Unlock()
 }
 
@@ -417,6 +428,8 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 		EnableThinking     *bool          `json:"enable_thinking,omitempty"`
 		ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 		ReasoningEffort    string         `json:"reasoning_effort,omitempty"`
+		CachePrompt        *bool          `json:"cache_prompt,omitempty"`
+		IDSlot             *int           `json:"id_slot,omitempty"`
 	}
 	return json.Marshal(requestWire{
 		Model: req.Model, Messages: messages, Temperature: req.Temperature,
@@ -425,6 +438,7 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 		StreamOptions:  req.StreamOptions,
 		EnableThinking: req.EnableThinking, ChatTemplateKwargs: req.ChatTemplateKwargs,
 		ReasoningEffort: req.ReasoningEffort,
+		CachePrompt:     req.CachePrompt, IDSlot: req.IDSlot,
 	})
 }
 
@@ -487,6 +501,7 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return "", fmt.Errorf("resposta no JSON: %w", err)
 	}
+	rec.timings(out.Timings)
 	rec.see(out.Usage)
 	if out.Error != nil {
 		return "", fmt.Errorf("provider: %s", out.Error.Message)
@@ -566,6 +581,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return "", nil, fmt.Errorf("resposta no JSON: %w", err)
 	}
+	rec.timings(out.Timings)
 	rec.see(out.Usage)
 	if out.Error != nil {
 		return "", nil, fmt.Errorf("provider: %s", out.Error.Message)
@@ -652,6 +668,7 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 			}
 			var ev streamEvent
 			if jerr := json.Unmarshal([]byte(payload), &ev); jerr == nil {
+				rec.timings(ev.Timings)
 				rec.see(ev.Usage)
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {
@@ -827,6 +844,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		if len(out.Choices) == 0 {
 			return "", nil, fmt.Errorf("provider: sense choices a la resposta")
 		}
+		rec.timings(out.Timings)
 		rec.see(out.Usage)
 		m := out.Choices[0].Message
 		// Tot arriba d'un cop: un sol avís per tipus, amb el total.
@@ -883,6 +901,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 			}
 			var ev streamEvent
 			if jerr := json.Unmarshal([]byte(payload), &ev); jerr == nil {
+				rec.timings(ev.Timings)
 				rec.see(ev.Usage)
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {

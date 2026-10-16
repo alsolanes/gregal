@@ -29,12 +29,39 @@ const (
 	campEnableThinking  = "enable_thinking"
 	campTemplateKwargs  = "chat_template_kwargs"
 	campReasoningEffort = "reasoning_effort"
+	// cache_prompt i id_slot només van a llama-server (llamacpp.go), però
+	// un proxy estricte al davant els podria rebutjar.
+	campCachePrompt = "cache_prompt"
+	campIDSlot      = "id_slot"
 )
 
-var campsOpcionals = []string{campStreamOptions, campEnableThinking, campTemplateKwargs, campReasoningEffort}
+var campsOpcionals = []string{campStreamOptions, campEnableThinking, campTemplateKwargs, campReasoningEffort, campCachePrompt, campIDSlot}
 
 // postCompat és postRetry amb els camps opcionals negociats (vegeu dalt).
+// A llama-server hi afegeix cache_prompt i id_slot; el slot s'allibera quan
+// es tanca el cos de la resposta.
 func (c *Client) postCompat(ctx context.Context, baseURL, apiKey string, req chatRequest) (*http.Response, error) {
+	allibera := c.llamaExtras(ctx, baseURL, apiKey, &req)
+	resp, err := c.postCompatNeg(ctx, baseURL, apiKey, req)
+	if err != nil || resp == nil || resp.Body == nil {
+		allibera()
+		return resp, err
+	}
+	resp.Body = &cosAllibera{ReadCloser: resp.Body, allibera: allibera}
+	return resp, nil
+}
+
+type cosAllibera struct {
+	io.ReadCloser
+	allibera func()
+}
+
+func (b *cosAllibera) Close() error {
+	b.allibera()
+	return b.ReadCloser.Close()
+}
+
+func (c *Client) postCompatNeg(ctx context.Context, baseURL, apiKey string, req chatRequest) (*http.Response, error) {
 	// GLM-5.3 only accepts enabled reasoning. `none` is rejected by the
 	// provider, so translate an explicit request to disable thinking into its
 	// lowest supported effort before negotiating optional fields.
@@ -135,6 +162,12 @@ func campsPresents(req chatRequest) []string {
 	if req.ReasoningEffort != "" {
 		out = append(out, campReasoningEffort)
 	}
+	if req.CachePrompt != nil {
+		out = append(out, campCachePrompt)
+	}
+	if req.IDSlot != nil {
+		out = append(out, campIDSlot)
+	}
 	return out
 }
 
@@ -148,6 +181,10 @@ func senseCamp(req chatRequest, camp string) chatRequest {
 		req.ChatTemplateKwargs = nil
 	case campReasoningEffort:
 		req.ReasoningEffort = ""
+	case campCachePrompt:
+		req.CachePrompt = nil
+	case campIDSlot:
+		req.IDSlot = nil
 	}
 	return req
 }

@@ -94,6 +94,8 @@ type usageCall struct {
 	c    *Client
 	m    *UsageMeter
 	last Usage
+	// t són els timings del servidor local (llama.cpp, Ollama), si n'hi ha.
+	t *LocalTimings
 }
 
 func (c *Client) usageCall(ctx context.Context) *usageCall {
@@ -101,11 +103,31 @@ func (c *Client) usageCall(ctx context.Context) *usageCall {
 }
 
 func (r *usageCall) see(u Usage) {
+	u = ambTimings(u, r.t)
 	if u.Buida() {
 		return
 	}
 	r.last = u
 	r.c.setUsage(u)
+}
+
+// timings recull els timings de llama-server: el cache_n passa a
+// cached_tokens de l'usage (el d'abans o el que vingui després).
+func (r *usageCall) timings(t *llamaTimings) {
+	if t == nil {
+		return
+	}
+	lt := t.local()
+	r.local(&lt)
+}
+
+func (r *usageCall) local(t *LocalTimings) {
+	r.t = t
+	r.c.setTimings(t)
+	if u := ambTimings(r.last, t); !u.Buida() {
+		r.last = u
+		r.c.setUsage(u)
+	}
 }
 
 func (r *usageCall) done() {
