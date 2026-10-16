@@ -179,7 +179,12 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 		brief += "\n\n" + info
 	}
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
-	out, runErr := s.runReadOnlyLoop(jobCtx, brief, s.cfg.Agent.MaxSteps)
+	res, runErr := s.runReadOnlyLoop(jobCtx, brief, s.cfg.Agent.MaxSteps)
+	out := res.text
+	if res.parcial {
+		// Un job desatès no pot continuar sol: el butlletí diu que és parcial.
+		out = "[partial: " + res.motiu + "]\n\n" + out
+	}
 	end := time.Now()
 	run := jobs.Run{
 		JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: end,

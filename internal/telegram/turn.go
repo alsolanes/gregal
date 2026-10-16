@@ -98,7 +98,7 @@ func (b *Bot) eventMessage(e agent.Event) string {
 		case "app.checkpoint":
 			return fmt.Sprintf("autonomous · checkpoint %d", e.Args...)
 		case "app.passosEsgotats":
-			return fmt.Sprintf("all %d available steps used: next is a summary, not completed work", e.Args...)
+			return fmt.Sprintf("all %d available steps used: next is a summary, not completed work (say \"continue\" to carry on)", e.Args...)
 		case "app.senseAccionsNoves":
 			return "the model proposed no new actions (tools were repeated); closing the task…"
 		case "app.ratxaVermella":

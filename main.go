@@ -503,6 +503,12 @@ func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxS
 	if res.Exhausted {
 		fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.exhausted"))
 	}
+	// Torn tallat per un error amb feina feta: la resposta parcial surt
+	// igualment (no es perd), però el codi de sortida diu que ha fallat.
+	if res.Interrupted != "" {
+		fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.interrupted", res.Interrupted))
+		code = exitError
+	}
 	if output == "json" {
 		raw, _ := json.MarshalIndent(headlessJSON{RunResult: res}, "", "  ")
 		fmt.Println(string(raw))

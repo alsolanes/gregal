@@ -312,6 +312,8 @@ func (b *Bot) handleCallback(ctx context.Context, c *CallbackQuery) {
 		b.goalRun(ctx, chatID, st, strings.TrimPrefix(data, "goal:run:"))
 	case data == "plan:run":
 		b.planRun(ctx, chatID, st)
+	case data == "plan:more":
+		b.planContinue(ctx, chatID, st)
 	case data == "plan:drop":
 		b.planDrop(ctx, chatID)
 	default:

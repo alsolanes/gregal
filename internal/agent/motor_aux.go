@@ -159,8 +159,16 @@ func (t *Torn) RepSintesi(content string, err error) []Event {
 				return evs
 			}
 		}
+		// Ni la síntesi no surt (proveïdor caigut, temps): el resum mecànic
+		// de l'historial. La feina feta no es perd mai per un error final.
 		t.acabat = true
-		return []Event{errEv("agent: error: " + err.Error())}
+		if t.execs == 0 {
+			return []Event{errEv("agent: error: " + err.Error())}
+		}
+		if t.interromput == "" {
+			t.interromput = err.Error()
+		}
+		return t.resumMecanic("agent: error: " + err.Error())
 	}
 	t.acabat = true
 	net, hiEra := SenseEinaText(strings.TrimSpace(content))
@@ -182,10 +190,29 @@ func (t *Torn) RepSintesi(content string, err error) []Event {
 		return evs
 	}
 	if net == "" {
+		if t.execs > 0 {
+			return append(evs, t.resumMecanic("")...)
+		}
 		return append(evs, notaClau("app.tornBuit", t.passos, t.Limit()))
 	}
 	t.resposta = net
 	t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: net})
 	evs = append(evs, t.avisDebugRestant()...)
 	return append(evs, Event{Tipus: EvResposta, Text: net})
+}
+
+// resumMecanic tanca el torn amb ResumDeFeina quan el model no ha pogut
+// escriure la síntesi: què s'ha consultat i l'últim que havia dit.
+func (t *Torn) resumMecanic(avisText string) []Event {
+	motiu := t.interromput
+	if motiu == "" && t.esgotat {
+		motiu = MotiuPassos
+	}
+	t.resposta = ResumDeFeina(t.Hist, motiu, t.lang())
+	t.Hist = append(t.Hist, llm.Message{Role: "assistant", Content: t.resposta})
+	var evs []Event
+	if avisText != "" {
+		evs = append(evs, avis(avisText))
+	}
+	return append(evs, Event{Tipus: EvResposta, Text: t.resposta})
 }

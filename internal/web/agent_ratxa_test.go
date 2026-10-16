@@ -42,11 +42,15 @@ func TestAgentWebRatxaVermellaNoAmplia(t *testing.T) {
 				ultim = fmt.Sprint(req.Messages[len(req.Messages)-1].Content)
 			}
 			switch {
-			case strings.Contains(ultim, "budget"):
+			case strings.Contains(ultim, "used a lot of budget"):
 				llargues.Add(1)
 				w.Write([]byte(`{"choices":[{"message":{"content":"SINTESI-LLARGA"}}]}`))
 			case strings.Contains(ultim, "The actions are over"):
 				w.Write([]byte(`{"choices":[{"message":{"content":"SINTESI-CURTA"}}]}`))
+			case strings.Contains(ultim, "tools are now disabled"):
+				// Tancament del scout quan esgota els seus passos (no és
+				// la pregunta d'ampliació del coordinador).
+				w.Write([]byte(`{"choices":[{"message":{"content":"BRIEF-PARCIAL"}}]}`))
 			default:
 				preguntes.Add(1)
 				w.Write([]byte(`{"choices":[{"message":{"content":"CONTINUA 20"}}]}`))

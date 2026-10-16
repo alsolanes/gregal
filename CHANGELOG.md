@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Running out of steps no longer throws the work away, on any surface (TUI,
+  web/desktop, `-p`, Telegram) or mode (Plan, Ask/Act, Goal, Autonomous,
+  Debug, subagents, #retro reviewers). A Plan request like "do a deep review
+  of the project" used to end with only `Plan · error: límit de 10 passos
+  exhaurit`. Now the agent is warned two steps before the limit. When it
+  reaches the limit, it makes one last call with tools disabled and gives
+  its best plan or findings and the next steps from what it has gathered.
+  The answer is marked **partial**: a **PARTIAL PLAN** card with
+  **Continue exploring** on the web and Telegram, and `[c]ontinue` in the
+  terminal. Continuing resumes with a fresh budget and the conversation
+  intact. Subagents and the scout return their partial answer marked
+  `[PARTIAL…]` instead of an error.
+- The same applies when a turn is cut short after it has already done work:
+  a model timeout, a provider that stops answering, or a context that no
+  longer fits. The turn ends with a summary instead of a bare error. If even
+  that call fails, Gregal lists what was looked at and the model's last
+  words. `-p` prints the partial answer, reports the error on stderr and
+  still exits non-zero.
+- Plan explorations get at least 25 steps (review requests read many
+  files). The config template now sets `agent.max_steps: 40`, matching the
+  built-in default, instead of 10.
+
 ## v1.9.4 - 2026-10-16 - Team review, no lost replies and a faster terminal
 
 - A reply cut off by the output token limit is no longer lost, on every

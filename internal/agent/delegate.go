@@ -242,8 +242,36 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 		}
 		hist := []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: prompt}}
 		ctx = llm.WithThink(ctx, rr.Think)
+		// tanca és la sortida sense passos (o amb el model caigut a mig
+		// camí): una crida final sense eines amb el que el fill ha reunit,
+		// marcada com a parcial perquè el pare no la prengui per completa.
+		// Abans tornava «límit de N passos exhaurit» i el pare perdia tota
+		// la feina del fill.
+		tanca := func(motiu string) (string, error) {
+			emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: maxSteps, MaxSteps: maxSteps, Model: primary.Model, Message: "wrap-up: " + motiu})
+			fctx := ctx
+			if ctx.Err() != nil {
+				var cancel context.CancelFunc
+				fctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), TimeoutDecisio)
+				defer cancel()
+			}
+			fh := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: PromptFinalExploracio(cfg.Lang())})
+			out, _, ferr := client.ChatFO(fctx, primary, fallback, fh, rr.Temperature, rr.MaxTokens, nil)
+			out = NetejaFinal(out)
+			if ferr != nil || out == "" {
+				m := motiu
+				if ferr != nil {
+					m += "; " + ferr.Error()
+				}
+				out = ResumDeFeina(hist, m, cfg.Lang())
+			}
+			return MarcaParcialSubagent(motiu, maxSteps) + "\n\n" + out, nil
+		}
 		for step := 1; step <= maxSteps; step++ {
 			if err := ctx.Err(); err != nil {
+				if step > 1 && !errors.Is(err, context.Canceled) {
+					return tanca(err.Error())
+				}
 				return "", err
 			}
 			setDelegateModel(ctx, primary.Model)
@@ -252,6 +280,7 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 				hist = room.Hist
 			}
 			model := primary.Model
+			hist = AmbAvisPassos(hist, step, maxSteps)
 			content, calls, usedFallback, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, rr.Temperature, rr.MaxTokens, specs, nil)
 			if usedFallback && fallback != nil {
 				model = fallback.Model
@@ -259,6 +288,9 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			setDelegateModel(ctx, model)
 			emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Message: "model response received"})
 			if err != nil {
+				if step > 1 && !errors.Is(ctx.Err(), context.Canceled) {
+					return tanca(fmt.Sprintf("pas %d: %v", step, err))
+				}
 				return "", fmt.Errorf("pas %d: %w", step, err)
 			}
 			hist = append(hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
@@ -320,9 +352,12 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 				return resultat{out: o, imgs: oi}
 			})
 			// Fill mort mentre corrien les eines: no s'afegeix soroll a
-			// l'historial; l'error del context mana (cancel·lat o temps).
+			// l'historial. Cancel·lat mana; si és el temps, es resumeix.
 			if err := ctx.Err(); err != nil {
-				return "", err
+				if errors.Is(err, context.Canceled) {
+					return "", err
+				}
+				return tanca(err.Error())
 			}
 			for i, c := range calls {
 				if plans[i].Fixed != "" || plans[i].Ask {
@@ -338,8 +373,17 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 				emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Tool: c.Function.Name, Output: delegatePreview(res[i].out)})
 			}
 		}
-		return "", fmt.Errorf("límit de %d passos exhaurit", maxSteps)
+		return tanca(MotiuPassos)
 	}
+}
+
+// MarcaParcialSubagent encapçala la resposta d'un subagent que s'ha quedat
+// sense passos (o temps): el pare ha de saber que no és la feina completa.
+func MarcaParcialSubagent(motiu string, maxSteps int) string {
+	if motiu == MotiuPassos {
+		return fmt.Sprintf("[PARTIAL: the subagent used its %d steps before finishing; this is its best answer from what it gathered]", maxSteps)
+	}
+	return "[PARTIAL: the subagent stopped early (" + motiu + "); this is its best answer from what it gathered]"
 }
 
 func delegateTerminalStatus(err, parentErr error) string {

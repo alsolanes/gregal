@@ -6,6 +6,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -869,32 +870,75 @@ type Stepper func(ctx context.Context, hist []llm.Message) (string, []llm.ToolCa
 
 // Loop orquestra passos fins a resposta final (per tests i headless;
 // el TUI fa servir les peces per separat per poder demanar confirmacions).
+//
+// Mai acaba buit per pressupost (vegeu pressupost.go): dos passos abans del
+// límit avisa el model, i en arribar-hi fa una última crida sense eines
+// demanant la millor resposta amb el que té. La resposta torna sense error
+// i amb Parcial = true; Continua la reprèn amb pressupost nou.
 type Loop struct {
 	MaxSteps int
 	Step     Stepper
 	RunTool  func(ctx context.Context, name, argsJSON string) (string, []string, error)
 	Decide   func(name, argsJSON string) (string, string)
-	// Finalize, si no és nil, genera la síntesi final sense eines quan
-	// s'esgota el pressupost (estil opencode). Sense, es retorna l'error
-	// clàssic de límit exhaurit.
+	// Finalize genera la resposta final SENSE eines quan s'esgota el
+	// pressupost (o el model falla a mig torn). Sense, es fa servir Step i
+	// les crides que torni es descarten: cap eina no s'executa a la síntesi.
 	Finalize func(ctx context.Context, hist []llm.Message) (string, error)
+	// FinalPrompt és la consigna de la crida final ("" =
+	// PromptFinalExploracio en la llengua Lang).
+	FinalPrompt string
+	Lang        string
+
+	// Sortides de l'última Run/Continua.
+	// Parcial diu que la resposta és la síntesi forçada (pressupost o
+	// error), no una resposta que el model hagi donat per acabada.
+	Parcial bool
+	// Motiu és per què és parcial: "steps" o el text de l'error.
+	Motiu string
+	// Hist és l'historial sencer, amb la resposta final (per continuar).
+	Hist []llm.Message
 }
+
+// MotiuPassos és el Motiu d'una resposta parcial per pressupost exhaurit.
+const MotiuPassos = "steps"
 
 // Run executa el loop sencer. Les ask es tracten com allow (headless).
 func (l *Loop) Run(ctx context.Context, task string) (string, []llm.Message, error) {
+	return l.corre(ctx, []llm.Message{{Role: "user", Content: task}})
+}
+
+// Continua reprèn una exploració anterior (l.Hist, o hist si se'n dona)
+// amb pressupost nou i la conversa intacta.
+func (l *Loop) Continua(ctx context.Context, hist []llm.Message) (string, []llm.Message, error) {
+	if hist == nil {
+		hist = l.Hist
+	}
+	h := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: PromptContinuaExploracio})
+	return l.corre(ctx, h)
+}
+
+func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Message, error) {
 	max := l.MaxSteps
 	if max <= 0 {
 		max = 10
 	}
+	l.Parcial, l.Motiu, l.Hist = false, "", nil
 	doom := &DoomTracker{}
-	hist := []llm.Message{{Role: "user", Content: task}}
 	for i := 0; i < max; i++ {
+		hist = AmbAvisPassos(hist, i+1, max)
 		content, calls, err := l.Step(ctx, hist)
 		if err != nil {
-			return "", hist, err
+			// Cancel·lat per l'usuari, o sense res fet encara: no hi ha
+			// feina a salvar i l'error és la resposta honesta.
+			if errors.Is(ctx.Err(), context.Canceled) || i == 0 {
+				l.Hist = hist
+				return "", hist, err
+			}
+			return l.tanca(ctx, hist, err.Error())
 		}
 		hist = append(hist, llm.Message{Role: "assistant", Content: content, ToolCalls: calls})
 		if len(calls) == 0 {
+			l.Hist = hist
 			return content, hist, nil
 		}
 		// Primer es decideix (permís i repetició, en ordre); després les
@@ -933,13 +977,45 @@ func (l *Loop) Run(ctx context.Context, task string) (string, []llm.Message, err
 			})
 		}
 	}
-	if l.Finalize != nil {
-		final, ferr := l.Finalize(ctx, append(hist, llm.Message{Role: "user", Content: FinalPrompt}))
-		if ferr == nil && strings.TrimSpace(final) != "" {
-			return strings.TrimSpace(final), hist, nil
-		}
+	return l.tanca(ctx, hist, MotiuPassos)
+}
+
+// tanca fa la crida final sense eines i torna la resposta parcial. Si la
+// crida falla o surt buida, el resum mecànic (ResumDeFeina): mai un error
+// per haver treballat.
+func (l *Loop) tanca(ctx context.Context, hist []llm.Message, motiu string) (string, []llm.Message, error) {
+	l.Parcial, l.Motiu = true, motiu
+	prompt := l.FinalPrompt
+	if prompt == "" {
+		prompt = PromptFinalExploracio(l.Lang)
 	}
-	return "", hist, fmt.Errorf("límit de %d passos exhaurit", max)
+	fh := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: prompt})
+	// Si el que ha vençut és el temps del torn, la síntesi té el seu.
+	fctx := ctx
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		fctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), TimeoutDecisio)
+		defer cancel()
+	}
+	var final string
+	var ferr error
+	if l.Finalize != nil {
+		final, ferr = l.Finalize(fctx, fh)
+	} else {
+		// Les crides que torni el pas es descarten: no s'executen.
+		final, _, ferr = l.Step(fctx, fh)
+	}
+	final = NetejaFinal(final)
+	if ferr != nil || final == "" {
+		m := motiu
+		if ferr != nil {
+			m += "; " + ferr.Error()
+		}
+		final = ResumDeFeina(hist, m, l.Lang)
+	}
+	hist = append(hist, llm.Message{Role: "assistant", Content: final})
+	l.Hist = hist
+	return final, hist, nil
 }
 
 // resolArgs resol les rutes relatives dels arguments d'una eina contra el

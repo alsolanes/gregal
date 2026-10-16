@@ -874,6 +874,7 @@ body:not(.working) .spin { animation:none; }
 .goal-head { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
 .goal-head b { color:var(--accent-hi); font:11px var(--mono); letter-spacing:.06em; }
 .goal-head span { color:var(--faint); font:10px var(--mono); }
+.goal-partial { color:var(--amber); background:var(--amber-soft); border-radius:6px; padding:6px 8px; font:11px/1.45 var(--mono); margin:0 0 8px; }
 .goal .body { color:var(--text); font:var(--t2)/1.55 var(--mono); white-space:pre-wrap; }
 .goal-row { display:flex; align-items:center; gap:8px; margin-top:10px; }
 .goal-row button { border:1px solid var(--line-hi); background:var(--surface-hi); color:var(--text);
@@ -3390,31 +3391,44 @@ async function doAgent(task) {
   }
 }
 // --- pla ---
-async function doPlan() {
+async function doPlan(cont) {
   if (sending) return;
-  const text = input.value.trim(); if (!text) { sys(gregalT('ui.pla.buit')); return; }
-  setSending(true); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text));
+  const text = cont ? '' : input.value.trim(); if (!cont && !text) { sys(gregalT('ui.pla.buit')); return; }
+  setSending(true);
+  if (!cont) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text)); }
   const box=add('a','', '<span class="spin">' + escapeHTML(gregalT('ui.exploring')) + '</span>');
   // Explorar pot trigar un minut: el temps diu que no està penjat.
   const planT0 = Date.now(), planTick = setInterval(() => { const sp = box.querySelector('.spin'); if (sp) sp.textContent = gregalT('ui.exploring') + ' · ' + durada(Date.now() - planT0); else clearInterval(planTick); }, 1000);
   activityItem('pla',gregalT('ui.planStarted'),text.slice(0,70),'warn'); refresh();
   try {
-    const r = await api('/api/plan',{method:'POST',body:JSON.stringify({task:text})});
+    const r = await api('/api/plan',{method:'POST',body:JSON.stringify(cont ? {continue:true} : {task:text})});
     if (!r.ok) { box.querySelector('.body').textContent=gregalT('ui.planError')+await r.text(); activityItem('pla',gregalT('ui.planFailed'),String(r.status),'bad'); return; }
     const d = await r.json();
     box.remove();
-    planCard(d.plan, d.critic);
-    activityItem('pla',gregalT('ui.planProposed'),'','ok');
+    planCard(d.plan, d.critic, d.partial ? d : null);
+    activityItem('pla',gregalT(d.partial ? 'ui.planPartialAct' : 'ui.planProposed'),'',d.partial ? 'warn' : 'ok');
   } catch(e) { box.querySelector('.body').textContent=gregalT('ui.planError')+e; activityItem('error',gregalT('act.connexio'),String(e),'bad'); }
   finally { clearInterval(planTick); setSending(false); refresh(); input.focus(); }
 }
-function planCard(plan, critic) {
-  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◇ ' + escapeHTML(gregalT('ui.planLabel')) + '</b>'
+function planCard(plan, critic, partial) {
+  // Parcial: el pressupost de passos (o el model) s'ha acabat abans del pla.
+  // Es diu clarament i es pot continuar amb la conversa intacta.
+  const partialNote = partial
+    ? '<div class="goal-partial">⚠ ' + escapeHTML(partial.partial_reason === 'steps'
+        ? gregalT('ui.planPartialSteps').replace('{n}', partial.max_steps || '')
+        : gregalT('ui.planPartialError') + (partial.partial_reason || '')) + '</div>'
+    : '';
+  const box = add('a','', '<div class="goal"><div class="goal-head"><b>◇ ' + escapeHTML(gregalT('ui.planLabel')) + (partial ? ' · ' + escapeHTML(gregalT('ui.planPartialTag')) : '') + '</b>'
     + '<span>' + escapeHTML(gregalT('ui.planReadOnly')) + '</span></div>'
+    + partialNote
     + '<div class="body">'+md(plan)+'</div>'
     + (window.gregalCaps ? window.gregalCaps.criticHTML(critic) : '')
-    + '<div class="goal-row"><button class="primary" data-run>▶ ' + escapeHTML(gregalT('ui.runPlan')) + '</button>'
+    + '<div class="goal-row">'
+    + (partial ? '<button class="primary" data-cont>↻ ' + escapeHTML(gregalT('ui.continuePlan')) + '</button>' : '')
+    + '<button' + (partial ? '' : ' class="primary"') + ' data-run>▶ ' + escapeHTML(gregalT('ui.runPlan')) + '</button>'
     + '<button data-del>' + escapeHTML(gregalT('ui.discardPlan')) + '</button></div></div>');
+  const cont = box.querySelector('[data-cont]');
+  if (cont) cont.onclick = () => { box.querySelector('.goal-row').textContent = gregalT('ui.planContinuing'); doPlan(true); };
   box.querySelector('[data-run]').onclick = async () => {
     box.querySelector('.goal-row').textContent = gregalT('ui.planRunning');
     // En autònom el pla es revisa una vegada amb la crítica abans d'executar.

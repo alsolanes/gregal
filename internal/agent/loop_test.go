@@ -73,8 +73,10 @@ func TestMaxSteps(t *testing.T) {
 		RunTool: func(ctx context.Context, n, a string) (string, []string, error) { return "x", nil, nil },
 		Decide:  allowAll,
 	}
-	if _, _, err := l.Run(context.Background(), "bucle"); err == nil {
-		t.Fatal("esperava error de límit de passos")
+	// Esgotar els passos ja no és un error: resposta parcial (pressupost.go).
+	final, _, err := l.Run(context.Background(), "bucle")
+	if err != nil || final == "" || !l.Parcial || l.Motiu != MotiuPassos {
+		t.Fatalf("esperava resposta parcial: final=%q err=%v parcial=%v", final, err, l.Parcial)
 	}
 }
 
