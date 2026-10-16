@@ -62,8 +62,12 @@ function person() {
 }
 
 const LIVE = new Set(['thinking', 'tools', 'compacting', 'reviewing', 'working']);
-const STATE_KEY = { waiting: 'waiting', thinking: 'thinking', tools: 'tools', compacting: 'compacting', reviewing: 'reviewing', completed: 'completed', failed: 'failed', cancelled: 'cancelled', working: 'working', idle: 'idle' };
-const CHILD_KEY = { working: 'working', completed: 'completed', failed: 'failed', cancelled: 'cancelled', idle: 'idle' };
+const STATE_KEY = { waiting: 'waiting', thinking: 'thinking', tools: 'tools', compacting: 'compacting', reviewing: 'reviewing', completed: 'completed', failed: 'failed', cancelled: 'cancelled', working: 'working', queued: 'queued', idle: 'idle' };
+const CHILD_KEY = { working: 'working', queued: 'queued', completed: 'completed', failed: 'failed', cancelled: 'cancelled', idle: 'idle' };
+// Counted nouns: "1 session", "3 sessions" (the bare key is the plural).
+const countOf = (n, key) => `${n} ${T(n === 1 ? key + 'One' : key)}`;
+// Accessible names stay short: a delegated prompt can run to 2000 chars.
+const clip = (text, max) => { const v = String(text || '').replace(/\s+/g, ' ').trim(); return v.length > max ? v.slice(0, max - 1) + '…' : v; };
 const clean = (value, fallback = '') => typeof value === 'string' ? value : fallback;
 const num = value => Number.isFinite(value) ? value : 0;
 const keyState = state => T('workshop.' + (STATE_KEY[state] || 'idle'));
@@ -180,8 +184,12 @@ export const workshop = {
       this._room = make('section', 'workshop-room');
       this._room.setAttribute('aria-label', T('workshop.room'));
       this._legend = make('div', 'room-legend'); this._legend.setAttribute('role', 'group'); this._legend.setAttribute('aria-label', T('workshop.roles'));
-      this._strip = make('div', 'room-strip'); this._strip.setAttribute('role', 'list'); this._strip.setAttribute('aria-label', T('workshop.timeline'));
-      this._roleDetail = make('section', 'room-detail'); this._roleDetail.hidden = true; this._roleDetail.setAttribute('aria-live', 'polite');
+      // A group of toggle buttons: role=list/listitem on the buttons hid
+      // their button semantics (and aria-pressed) from screen readers.
+      this._strip = make('div', 'room-strip'); this._strip.setAttribute('role', 'group'); this._strip.setAttribute('aria-label', T('workshop.timeline'));
+      // Opened by the user, re-rendered on every poll: no live region, or a
+      // screen reader re-reads the whole panel each 1.5 s.
+      this._roleDetail = make('section', 'room-detail'); this._roleDetail.hidden = true;
       this._room.append(this._sceneCanvas, this._legend, this._strip, this._roleDetail);
       // Full width above the bays and the attention list: the room is the
       // hero of the page, and at this size its labels stay legible.
@@ -327,7 +335,7 @@ export const workshop = {
     if (sig === this._signature) return; this._signature = sig;
     const waiting = this._list.filter(s => pending.has(s.id));
     const counts = this._list.reduce((acc, s) => { const state = this._sessionState(s); if (LIVE.has(state) || (state === 'waiting' && s.busy)) acc.active++; if (state === 'completed') acc.done++; if (state === 'failed') acc.failed++; return acc; }, { active: 0, done: 0, failed: 0 });
-    this._summary.textContent = `${this._list.length} ${T('workshop.sessions')} · ${counts.active} ${T('workshop.active')} · ${counts.done} ${T('workshop.done')}${counts.failed ? ` · ${counts.failed} ${T('workshop.failures')}` : ''}${this._costSuffix()}${this._freshSuffix()}`;
+    this._summary.textContent = `${countOf(this._list.length, 'workshop.sessions')} · ${counts.active} ${T('workshop.active')} · ${counts.done} ${T('workshop.done')}${counts.failed ? ` · ${counts.failed} ${T('workshop.failures')}` : ''}${this._costSuffix()}${this._freshSuffix()}`;
     this._queueHeading.textContent = T('workshop.needs'); this._queueHeading.dataset.count = String(waiting.length);
     this._queueHeading.setAttribute('aria-label', T('workshop.needs') + ': ' + waiting.length); this._queueHeading.setAttribute('aria-live', 'polite');
     this._find.disabled = waiting.length === 0; this._find.textContent = T('workshop.find'); this._find.setAttribute('aria-label', waiting.length ? `${T('workshop.find')} (${waiting.length})` : T('workshop.attention'));
@@ -352,7 +360,7 @@ export const workshop = {
     if (this._room) this._room.hidden = !hero;
     if (this._scene) {
       const labels = {};
-      for (const key of ['thinking', 'tools', 'reviewing', 'compacting', 'working', 'completed', 'failed', 'cancelled', 'waiting', 'idle']) labels[key] = T('workshop.' + key);
+      for (const key of ['thinking', 'tools', 'reviewing', 'compacting', 'working', 'completed', 'failed', 'cancelled', 'waiting', 'queued', 'idle']) labels[key] = T('workshop.' + key);
       labels.step = T('workshop.stepShort'); labels.delivered = T('workshop.deliveredN');
       this._scene.update(hero, hero ? { waiting: pendingIds().has(hero.id), labels, T } : undefined);
       if (hero && this._selectedRole) this._scene.select('role:' + this._selectedRole);
@@ -398,7 +406,8 @@ export const workshop = {
     const bayStop = make('button', 'bay-stop', T('workshop.stop')); bayStop.type = 'button'; bayStop.hidden = true; bayStop.dataset.workshopStop = '';
     bayMeta.append(bayUsage, bayAge, bayStop);
     bayHead.append(coordinator, pulse, bayMeta);
-    const teamHeading = make('div', 'child-heading'); teamHeading.append(make('h3', '', T('workshop.childAgents')), make('span', 'child-count'));
+    const parallel = make('span', 'child-parallel'); parallel.hidden = true;
+    const teamHeading = make('div', 'child-heading'); teamHeading.append(make('h3', '', T('workshop.childAgents')), make('span', 'child-count'), parallel);
     const graph = make('section', 'bay-graph'); graph.hidden = true;
     const children = make('div', 'child-agents');
     const empty = make('p', 'no-children', T('workshop.noChildren'));
@@ -407,7 +416,7 @@ export const workshop = {
     const historyList = make('ol', 'history-list');
     history.append(historyHeading, historyList);
     bay.append(bayHead, teamHeading, graph, children, empty, history);
-    bay._coordinator = coordinator; bay._bayModel = bayMeta.children[0]; bay._bayStep = bayMeta.children[1]; bay._bayUsage = bayUsage; bay._bayAge = bayAge; bay._stop = bayStop; bay._graph = graph; bay._graphSvg = null; bay._graphSig = ''; bay._children = children; bay._noChildren = empty; bay._history = history; bay._historyList = historyList; bay._historySig = ''; bay._agentNodes = new Map();
+    bay._coordinator = coordinator; bay._bayModel = bayMeta.children[0]; bay._bayStep = bayMeta.children[1]; bay._bayUsage = bayUsage; bay._bayAge = bayAge; bay._stop = bayStop; bay._graph = graph; bay._graphSvg = null; bay._graphSig = ''; bay._children = children; bay._noChildren = empty; bay._history = history; bay._historyList = historyList; bay._historySig = ''; bay._agentNodes = new Map(); bay._parallel = parallel; bay._childHeading = teamHeading.children[0];
     return bay;
   },
 
@@ -437,20 +446,35 @@ export const workshop = {
     const valid = new Set(activity.agents.map(a => a.id));
     for (const [id, node] of bay._agentNodes) if (!valid.has(id)) { detach(node); bay._agentNodes.delete(id); }
     const desiredAgents = [];
+    // Each child carries a bar on the turn's time axis: children that work
+    // at once overlap, which is what "parallel" looks like at a glance.
+    const R = RA(); const now = Date.now();
+    const spans = R && typeof R.spans === 'function' ? R.spans(activity.agents, activity.started_at, now) : {};
     activity.agents.forEach((agent, index) => {
       let node = bay._agentNodes.get(agent.id); if (!node) { node = this._createAgent(session.id, agent); bay._agentNodes.set(agent.id, node); }
-      this._updateAgent(node, session.id, agent, index); desiredAgents.push(node);
+      this._updateAgent(node, session.id, agent, index, spans[agent.id]); desiredAgents.push(node);
     });
     reconcile(bay._children, desiredAgents);
-    const working = activity.agents.filter(a => a.status === 'working').length;
+    const stats = R && typeof R.parallelStats === 'function' ? R.parallelStats(activity.agents, now)
+      : { working: activity.agents.filter(a => a.status === 'working').length, queued: 0, peak: 0 };
     const done = activity.agents.filter(a => a.status === 'completed').length;
     const failed = activity.agents.filter(a => a.status === 'failed').length;
-    const countParts = [`${activity.agents.length} ${T('workshop.agents')}`];
-    if (working) countParts.push(`${working} ${T('workshop.active')}`);
+    const countParts = [countOf(activity.agents.length, 'workshop.agents')];
+    if (stats.working) countParts.push(`${stats.working} ${T('workshop.active')}`);
+    if (stats.queued) countParts.push(`${stats.queued} ${T('workshop.queuedN')}`);
     if (done) countParts.push(`${done} ${T('workshop.done')}`);
     if (failed) countParts.push(`${failed} ${T('workshop.failures')}`);
     if (session.agents_evicted > 0) countParts.push(T('workshop.older').replace('{n}', String(session.agents_evicted)));
     bay.children[1].children[1].textContent = countParts.join(' · ');
+    // The parallel badge: "3 at once" while they work, "peak 3 at once"
+    // afterwards, so a finished fan-out still reads as one.
+    const live = stats.working > 1;
+    const showPeak = !live && stats.peak > 1;
+    bay._parallel.hidden = !(live || showPeak);
+    bay._parallel.dataset.live = live ? 'true' : 'false';
+    bay._parallel.textContent = live ? T('workshop.atOnce').replace('{n}', String(stats.working)) : showPeak ? T('workshop.peakAtOnce').replace('{n}', String(stats.peak)) : '';
+    // Static labels follow a language switch too (they were set once).
+    bay._childHeading.textContent = T('workshop.childAgents'); bay._noChildren.textContent = T('workshop.noChildren');
     bay._noChildren.hidden = activity.agents.length > 0;
     this._updateHistory(bay, activity.history, session.history_trimmed);
     this._updateGraph(bay, session);
@@ -483,7 +507,7 @@ export const workshop = {
   _updateHistory(bay, history, trimmed) {
     bay._history.hidden = !history.length;
     bay._history.querySelector('.history-heading').textContent = T('workshop.history') + (trimmed > 0 ? ` · ${T('workshop.older').replace('{n}', String(trimmed))}` : '');
-    const sig = JSON.stringify(history);
+    const sig = JSON.stringify([history, T('workshop.thinking')]);
     if (sig === bay._historySig) return;
     bay._historySig = sig;
     const top = bay._historyList.scrollTop || 0;
@@ -492,7 +516,8 @@ export const workshop = {
       // Step budgets don't exist for every run kind (team pipelines have
       // none): a zero step shows no marker instead of a bogus "#0".
       if (entry.step > 0) item.append(make('span', 'history-step', `#${entry.step}`));
-      const what = make('span', 'history-what', keyState(entry.state) + (entry.tool ? ` · ${entry.tool}` : '') + (entry.message ? ` — ${entry.message}` : ''));
+      const R = RA(); const tools = entry.tool && R && typeof R.toolList === 'function' ? R.toolList(entry.tool) : entry.tool;
+      const what = make('span', 'history-what', keyState(entry.state) + (tools ? ` · ${tools}` : '') + (entry.message ? ` — ${entry.message}` : ''));
       item.append(what);
       const date = entry.at ? new Date(entry.at) : null;
       if (date && !Number.isNaN(date.getTime())) item.append(make('time', 'history-time', date.toLocaleTimeString()));
@@ -507,19 +532,28 @@ export const workshop = {
     const desk = make('span', 'child-desk'); desk.append(make('span', 'child-monitor'), make('span', 'child-keyboard'));
     const info = make('span', 'child-info'); info.append(make('span', 'child-task'), make('span', 'child-state'), make('span', 'child-facts'));
     const link = make('span', 'courier-link'); link.setAttribute('aria-hidden', 'true');
-    button.append(portrait, desk, info, link); return button;
+    const span = make('span', 'child-span'); span.setAttribute('aria-hidden', 'true'); span.appendChild(make('span', 'child-span-bar'));
+    button.append(portrait, desk, info, link, span); return button;
   },
 
-  _updateAgent(node, sessionId, agent, index) {
+  _updateAgent(node, sessionId, agent, index, span) {
     const state = CHILD_KEY[agent.status] || 'idle'; node.dataset.state = state; node.dataset.workshopSession = sessionId; node.dataset.workshopAgent = agent.id;
     node.style.setProperty('--agent-index', String(index));
     // A user-defined subagent shows its name: it says more than the prompt.
     const title = agent.agent ? `${agent.agent} · ${agent.task || agent.id}` : (agent.task || agent.id);
-    node.setAttribute('aria-label', `${T('workshop.agentDetails')}: ${title}, ${keyState(state)}`);
+    node.setAttribute('aria-label', `${T('workshop.agentDetails')}: ${clip(title, 140)}, ${keyState(state)}`);
+    node.title = clip(title, 400);
     node.children[2].children[0].textContent = title;
     node.children[2].children[1].textContent = keyState(state);
-    const facts = [agent.model, agent.tool, agent.step != null ? `${T('workshop.step')} ${agent.step}${agent.max_steps != null ? ` / ${agent.max_steps} ${T('workshop.budget')}` : ''}` : '', usageText({ up: agent.up_tokens, down: agent.down_tokens, calls: agent.calls, known: agent.usage_known })].filter(Boolean);
+    // A failed child says why on its card; the detail panel has the rest.
+    const why = state === 'failed' && agent.message ? clip(agent.message, 120) : '';
+    const facts = [why, agent.model, state === 'working' ? agent.tool : '', agent.step != null ? `${T('workshop.step')} ${agent.step}${agent.max_steps != null ? ` / ${agent.max_steps} ${T('workshop.budget')}` : ''}` : '', usageText({ up: agent.up_tokens, down: agent.down_tokens, calls: agent.calls, known: agent.usage_known })].filter(Boolean);
     node.children[2].children[2].textContent = facts.join(' · ');
+    const bar = node.children[4] && node.children[4].children[0];
+    if (bar && bar.style) {
+      node.children[4].hidden = !span;
+      if (span) { bar.style.left = span.left + '%'; bar.style.width = span.width + '%'; }
+    }
   },
 
   // Role view of the hero session: legend, step strip and role detail.
@@ -546,7 +580,6 @@ export const workshop = {
     const items = R.timeline(act).map(seg => {
       const lane = act.lanes.find(l => l.seq === seg.seq);
       const b = make('button', 'room-step'); b.type = 'button'; b.dataset.roomLane = String(seg.seq); b.dataset.role = seg.role;
-      b.setAttribute('role', 'listitem');
       if (seg.result) b.dataset.result = seg.result;
       if (!seg.done) b.dataset.live = 'true';
       const text = `${T('workshop.role.' + seg.role)} · ${R.laneText(lane, T)}${seg.duration_ms ? ' · ' + R.fmtDuration(seg.duration_ms) : ''}`;

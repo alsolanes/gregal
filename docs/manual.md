@@ -175,6 +175,22 @@ exploration. If the scout fails or is stopped, the turn continues normally.
 Its tokens count in the turn. Disable it with `agent.scout: off`
 (default `auto`).
 
+**Parallel subagents.** When the task names several independent areas (a
+list such as "(1) … (2) …", numbered or bulleted lines, paths in different
+folders, or a question about "the TUI, the web server and the Telegram bot"),
+the scout splits: one researcher per area, up to 3, all working at the same
+time, and their briefs reach the coordinator grouped by area. The coordinator
+is also told to send independent investigations to `delegate` in a single
+call, so they run together. At most 4 subagents run at once per turn (8 per
+process); the rest show as **Queued** until a slot frees. When subagents use
+a local server (Ollama, llama.cpp, LM Studio or any localhost URL) they run
+one at a time, because one slot would only queue them inside the server.
+`agent.parallel_subagents: N` overrides the limit. In the room, children
+working together sit side by side in the back row with a "3 at once" pill;
+in the bay each child card has a bar on the turn's time axis (bars that
+overlap ran together), and the heading keeps "up to N at once" after they
+finish.
+
 Team runs (Team view) also appear in the workshop as live bays: coordinator,
 agents with task and result, flow graph, detail, queue and stop are shared;
 it is a single 2D room. The separate Team view continues to offer its

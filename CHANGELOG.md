@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+- Subagents work in parallel, and the Agents view shows it. A task that
+  names several independent areas (a "(1) … (2) …" list, numbered or
+  bulleted lines, paths in different folders, or "the TUI, the web server
+  and the Telegram bot") now starts with one researcher per area, up to 3 at
+  the same time, instead of a single scout; the coordinator gets their briefs
+  grouped by area. The coordinator prompt and the `delegate` tool now ask to
+  send independent investigations together in one call. Limits: 4 subagents
+  at once per turn and 8 per process; children over the limit show as
+  **Queued** instead of being invisible, and their 8-minute clock starts
+  when they begin working. Subagents on a local server (Ollama, llama.cpp,
+  LM Studio, localhost) run one at a time; `agent.parallel_subagents` sets
+  the limit by hand. The live room seats parallel researchers side by side
+  with a "3 at once" pill; each child card has a bar on the turn's time axis
+  so overlapping work is visible, and the heading keeps "up to N at once"
+  after they finish.
+- Agents view fixes: the room no longer collapses into a narrow strip when
+  the content area is under ~920px wide (the layout dropped the room's grid
+  area); child cards show their area or task instead of the scout's whole
+  instructions, the reason a child failed, and the current tool only while
+  it works; counts use singular forms ("1 child agent"); the turn history
+  collapses repeated tools ("grep ×3"); static labels follow a language
+  switch; the step strip keeps its button semantics for screen readers and
+  the role panel no longer re-announces itself on every poll; the canvas
+  repaints at 15 fps when nothing is moving.
+
 - Autonomous mode never asks for permission: it decides and does everything
   on its own, including what used to wait for a person (writing outside the
   folder, destructive git, global installs, MCP services, commits and pull

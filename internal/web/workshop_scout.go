@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 
 	"gregal/internal/agent"
 	"gregal/internal/llm"
@@ -12,8 +13,13 @@ import (
 // relleu cap al coordinador amb el resum. Torna la conversa amb el resum
 // injectat a la tasca, o la mateixa si no n'hi ha.
 func (s *Server) runScout(ctx context.Context, generation uint64, task, workspace string, convo []llm.Message, maxSteps int, uso *llm.UsageMeter, provider string, emit func(string, any)) []llm.Message {
-	emit("status", map[string]string{"message": s.tr("Un subagent investigador revisa la tasca abans que el coordinador comenci…",
-		"A researcher subagent is investigating the task before the coordinator starts…")})
+	if n := len(agent.ScoutFocuses(task)); n > 1 && agent.ParallelSubagents(s.cfg) > 1 {
+		emit("status", map[string]string{"message": s.tr(fmt.Sprintf("%d subagents investigadors revisen la tasca en paral·lel, un per àrea…", n),
+			fmt.Sprintf("%d researcher subagents are investigating the task in parallel, one per area…", n))})
+	} else {
+		emit("status", map[string]string{"message": s.tr("Un subagent investigador revisa la tasca abans que el coordinador comenci…",
+			"A researcher subagent is investigating the task before the coordinator starts…")})
+	}
 	id := agent.NewDelegateID()
 	s.updateWorkshop(generation, "tools", 0, maxSteps, "scout", "")
 	lane, ho := s.beginLane(generation, 0, laneInfo{Role: roleResearcher, Kind: "scout", Tools: []string{"delegate"}}, id)
@@ -23,7 +29,7 @@ func (s *Server) runScout(ctx context.Context, generation uint64, task, workspac
 	if lane.Seq > 0 {
 		emit("lane", lanePayload(lane))
 	}
-	res := agent.RunScout(ctx, agent.ScoutOptions{ID: id, Cfg: s.cfg, Task: task, Workspace: workspace, Session: s.id})
+	res := agent.RunScouts(ctx, agent.ScoutOptions{ID: id, Cfg: s.cfg, Task: task, Workspace: workspace, Session: s.id})
 	// Els tokens del scout van a l'investigador abans que el torn canviï de mans.
 	s.noteUsage(generation, uso, provider)
 	result := "ok"

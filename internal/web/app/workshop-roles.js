@@ -126,8 +126,9 @@
     if (states[role] !== 'active') return null;
     if (a.state === 'waiting') return { icon: 'wait', tone: 'wait', text: tr(T, 'workshop.bubble.waiting', 'Waiting for you') };
     if (role === 'researcher') {
-      const scout = a.agents.find(x => isResearcherAgent(x) && x.status === 'working');
-      if (scout) return scoutBubble(scout, T);
+      const scouts = a.agents.filter(x => isResearcherAgent(x) && x.status === 'working');
+      if (scouts.length > 1) return { icon: 'read', tone: 'live', text: tr(T, 'workshop.bubble.parallelN', '{n} researching in parallel').replace('{n}', String(scouts.length)) };
+      if (scouts.length) return scoutBubble(scouts[0], T);
     }
     if (last && last.done && last.result && (role === 'tester' || last.result === 'fail')) {
       if (role === 'tester') return last.result === 'ok'
@@ -215,10 +216,76 @@
     return a.lanes.map(l => ({ seq: l.seq, step: l.step, role: l.role, kind: l.kind, result: l.result, done: l.done, files: l.files.length, duration_ms: l.duration_ms }));
   }
 
-  // extraAgents: fills reals que no són l'investigador (seuen a part).
+  // extraAgents: fills reals que seuen a part. Un sol investigador és
+  // l'investigador de la taula; quan n'hi ha diversos (scouts paral·lels,
+  // un per àrea) seuen tots a la fila del fons, cadascun amb la seva
+  // bombolla: si no, tres fills alhora es veien com un de sol.
   function extraAgents(activity) {
     const a = norm(activity);
-    return a.agents.filter(x => !isResearcherAgent(x));
+    const many = a.agents.filter(isResearcherAgent).length > 1;
+    return a.agents.filter(x => many || !isResearcherAgent(x));
+  }
+
+  const LIVE_CHILD = new Set(['working', 'queued']);
+  const time = v => { const t = Date.parse(str(v)); return Number.isFinite(t) ? t : NaN; };
+  // childEnd: un fill viu acaba «ara»; un d'acabat, a l'última notícia.
+  const childEnd = (x, now) => (LIVE_CHILD.has(str(x.status)) ? now : time(x.updated_at));
+
+  // parallelStats: quants fills treballen ara, quants fan cua i el màxim
+  // que han treballat alhora en aquest torn (a partir dels intervals
+  // inici → última notícia). Fa visible el paral·lelisme encara que els
+  // fills ja hagin acabat.
+  function parallelStats(agents, now) {
+    const list = (Array.isArray(agents) ? agents : []).filter(x => x && typeof x === 'object');
+    const at = Number.isFinite(now) ? now : Date.now();
+    const points = [];
+    for (const x of list) {
+      if (str(x.status) === 'queued') continue;
+      const s = time(x.started_at), e = childEnd(x, at);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) continue;
+      points.push([s, 1], [Math.max(s, e), -1]);
+    }
+    // A la mateixa hora, primer les sortides: un fill que acaba quan un
+    // altre comença no compta com a paral·lel.
+    points.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+    let cur = 0, peak = 0;
+    for (const [, d] of points) { cur += d; if (cur > peak) peak = cur; }
+    return {
+      working: list.filter(x => str(x.status) === 'working').length,
+      queued: list.filter(x => str(x.status) === 'queued').length,
+      peak,
+    };
+  }
+
+  // spans: on cau cada fill a la línia de temps del torn (percentatges),
+  // per dibuixar barres que se solapen quan treballen alhora.
+  function spans(agents, startedAt, now) {
+    const list = (Array.isArray(agents) ? agents : []).filter(x => x && typeof x.id === 'string');
+    const at = Number.isFinite(now) ? now : Date.now();
+    let t0 = time(startedAt);
+    const starts = list.map(x => time(x.started_at)).filter(Number.isFinite);
+    if (!Number.isFinite(t0) || (starts.length && Math.min(...starts) < t0)) t0 = starts.length ? Math.min(...starts) : at;
+    let t1 = t0;
+    for (const x of list) { const e = childEnd(x, at); if (Number.isFinite(e) && e > t1) t1 = e; }
+    const total = Math.max(1, t1 - t0);
+    const out = {};
+    for (const x of list) {
+      const s = time(x.started_at), e = childEnd(x, at);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) continue;
+      const left = Math.max(0, Math.min(100, ((s - t0) / total) * 100));
+      const width = Math.max(1.5, Math.min(100 - left, ((Math.max(s, e) - s) / total) * 100));
+      out[x.id] = { left: Math.round(left * 10) / 10, width: Math.round(width * 10) / 10 };
+    }
+    return out;
+  }
+
+  // toolList: «read, read, read, grep» → «read ×3 · grep». L'historial
+  // del torn guarda les eines d'un pas separades per comes.
+  function toolList(text) {
+    const names = str(text).split(',').map(s => s.trim()).filter(Boolean);
+    const counts = new Map();
+    for (const n of names) counts.set(n, (counts.get(n) || 0) + 1);
+    return Array.from(counts, ([n, c]) => (c > 1 ? `${n} ×${c}` : n)).join(' · ');
   }
 
   // diff: què ha canviat entre dues lectures (per animar només el nou):
@@ -243,7 +310,7 @@
     return Math.floor(v / 60000) + 'm ' + String(Math.round((v % 60000) / 1000)).padStart(2, '0') + 's';
   }
 
-  const api = { ROLES, normalize, shortPath, currentRole, roleStates, bubble, laneText, laneIcon, handoffLabel, roleSummary, timeline, extraAgents, isResearcherAgent, diff, fmtDuration };
+  const api = { ROLES, normalize, shortPath, currentRole, roleStates, bubble, laneText, laneIcon, handoffLabel, roleSummary, timeline, extraAgents, isResearcherAgent, diff, fmtDuration, parallelStats, spans, toolList };
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.gregalWorkshopRoles = api;
 })(typeof window !== 'undefined' ? window : null);

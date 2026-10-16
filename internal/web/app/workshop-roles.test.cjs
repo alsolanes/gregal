@@ -137,3 +137,46 @@ test('room layout keeps five role desks in front and children in a bounded back 
   assert.ok(many.extras.every(e => e.y < layout.roles[0].y - 60), 'children sit behind the role row');
   assert.ok(many.extras.every(e => e.x >= 150 && e.x <= 810));
 });
+
+test('parallel stats count children that worked at the same time', () => {
+  const t = s => new Date(Date.UTC(2026, 9, 16, 10, 0, s)).toISOString();
+  const now = Date.parse(t(60));
+  // Three children overlapping between 0:10 and 0:20, one alone later.
+  const agents = [
+    { id: 'a', status: 'completed', started_at: t(0), updated_at: t(20) },
+    { id: 'b', status: 'completed', started_at: t(5), updated_at: t(25) },
+    { id: 'c', status: 'working', started_at: t(10), updated_at: t(30) },
+    { id: 'd', status: 'queued', started_at: t(12), updated_at: t(12) },
+  ];
+  assert.deepEqual(R.parallelStats(agents, now), { working: 1, queued: 1, peak: 3 });
+  // Back to back is not parallel: one ends exactly when the next starts.
+  const relay = [
+    { id: 'a', status: 'completed', started_at: t(0), updated_at: t(10) },
+    { id: 'b', status: 'completed', started_at: t(10), updated_at: t(20) },
+  ];
+  assert.equal(R.parallelStats(relay, now).peak, 1);
+  assert.deepEqual(R.parallelStats(null, now), { working: 0, queued: 0, peak: 0 });
+  // Spans put each child on the turn's time axis; overlapping bars overlap.
+  const s = R.spans(agents.slice(0, 2), t(0), now);
+  assert.deepEqual(s.a, { left: 0, width: 80 });
+  assert.deepEqual(s.b, { left: 20, width: 80 });
+});
+
+test('several researchers sit apart so parallel scouts are all visible', () => {
+  const one = R.normalize({ state: 'tools', agents: [{ id: 's1', agent: 'scout', status: 'working' }, { id: 'd', agent: '', status: 'working' }] });
+  assert.deepEqual(R.extraAgents(one).map(a => a.id), ['d']);
+  const many = R.normalize({ state: 'tools', role: 'researcher', agents: [
+    { id: 's1', agent: 'scout', task: 'internal/team', status: 'working', tool: 'read' },
+    { id: 's2', agent: 'scout', task: 'internal/web', status: 'working', tool: 'grep' },
+    { id: 's3', agent: 'scout', task: 'internal/agent', status: 'completed' },
+  ] });
+  assert.deepEqual(R.extraAgents(many).map(a => a.id), ['s1', 's2', 's3']);
+  assert.equal(R.roleStates(many).researcher, 'active');
+  assert.equal(R.bubble(many, 'researcher').text, '2 researching in parallel');
+});
+
+test('tool lists collapse repeats', () => {
+  assert.equal(R.toolList('read, read, read, grep'), 'read ×3 · grep');
+  assert.equal(R.toolList('scout'), 'scout');
+  assert.equal(R.toolList(''), '');
+});

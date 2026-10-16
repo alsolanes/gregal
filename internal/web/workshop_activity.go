@@ -165,7 +165,7 @@ func (s *Server) noteDelegate(generation uint64, event agent.DelegateEvent) {
 	}
 	if len(a.Agents) >= maxWorkshopAgents {
 		for i, old := range a.Agents {
-			if old.Status != agent.DelegateWorking {
+			if old.Status != agent.DelegateWorking && old.Status != agent.DelegateQueued {
 				a.Agents = append(a.Agents[:i], a.Agents[i+1:]...)
 				a.Evicted++
 				break
@@ -296,7 +296,7 @@ func (s *Server) finishWorkshop(generation uint64, err error) {
 		a.Role = roleCoordinator
 	}
 	for i := range a.Agents {
-		if a.Agents[i].Status == agent.DelegateWorking {
+		if s := a.Agents[i].Status; s == agent.DelegateWorking || s == agent.DelegateQueued {
 			a.Agents[i].Status = "cancelled"
 			a.Agents[i].Tool = ""
 			a.Agents[i].UpdatedAt = a.UpdatedAt

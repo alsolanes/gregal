@@ -113,6 +113,22 @@
 .courier-link { position: absolute; z-index: 2; top: -7px; left: 50%; width: 1px; height: 13px; border-left: 1px dashed color-mix(in srgb, var(--accent) 48%, transparent); }
 .courier-link::after { position: absolute; top: 2px; left: -3px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); content: ""; animation: packet-drop 1.8s ease-in infinite; animation-delay: calc(var(--agent-index, 0) * 130ms); }
 .child-agent[data-state="completed"] .courier-link, .child-agent[data-state="failed"] .courier-link, .child-agent[data-state="cancelled"] .courier-link, .child-agent[data-state="idle"] .courier-link { display: none; }
+/* Parallel children: a badge in the heading ("3 at once") and, on each
+   card, a bar on the turn's time axis. Bars that overlap worked together. */
+.child-heading .child-count { margin-left: auto; }
+.child-parallel { margin-top: 8px; padding: 2px 9px; border-radius: 999px; color: var(--accent); background: var(--accent-soft); font-size: var(--t1, 11.5px); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.child-parallel[data-live="true"] { color: var(--bg); background: var(--accent); animation: room-pulse-badge 1.6s ease-in-out infinite; }
+.child-parallel[hidden] { display: none; }
+.child-span { position: absolute; right: 9px; bottom: 4px; left: 9px; height: 3px; border-radius: 3px; background: color-mix(in srgb, var(--line) 70%, transparent); pointer-events: none; }
+.child-span[hidden] { display: none; }
+.child-span-bar { position: absolute; top: 0; bottom: 0; min-width: 4px; border-radius: 3px; background: var(--muted); }
+.child-agent[data-state="working"] .child-span-bar { background: var(--accent); }
+.child-agent[data-state="completed"] .child-span-bar { background: var(--green); }
+.child-agent[data-state="failed"] .child-span-bar { background: var(--red); }
+.child-agent[data-state="queued"] { border-style: dashed; }
+.child-agent[data-state="queued"] .child-state { color: var(--amber); }
+.child-agent[data-state="queued"] .child-portrait, .child-agent[data-state="queued"] .child-desk { opacity: .5; }
+@keyframes room-pulse-badge { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 10%, transparent); } }
 .no-children { margin: 0; padding: 6px 2px 2px; color: var(--muted); font-size: var(--t2, 12.5px); }
 .workshop-empty-state { display: grid; justify-items: center; align-content: center; min-height: 270px; margin: auto; padding: 30px; text-align: center; }
 .empty-mark { display: grid; width: 54px; height: 54px; place-items: center; border: 1px solid color-mix(in srgb, var(--accent) 26%, var(--line)); border-radius: 18px; color: var(--accent); background: var(--surface); font-size: 27px; box-shadow: 0 6px 14px var(--ombra); }

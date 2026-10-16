@@ -21,7 +21,7 @@ func delegateToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return llm.ToolSpec{
 		Name:        "delegate",
-		Description: "Launch 1-4 read-only subagents in parallel (read, grep, glob, web_*). Use it only for two or more independent, non-trivial investigations; never for trivial, dependent or duplicate tasks. Each one returns a summary: use it and do not redo the work. Optional `agent` picks a user-defined subagent (see SUBAGENTS in the system prompt) with its own tools, model and mode. Limits: 4 per call and 8 alive per process; the rest wait.",
+		Description: "Run 1-4 read-only subagents AT THE SAME TIME (read, grep, glob, web_*). When the work splits into independent parts (mapping several areas or modules, reviewing several files, web/docs research next to reading the code), put them all in ONE call: they run in parallel and each returns a summary. Make every task self-contained (paths, question, what to return). Not for a single lookup, a step that needs another's result, or work you are doing yourself. Use the summaries; do not redo the work. Optional `agent` picks a user-defined subagent (see SUBAGENTS in the system prompt) with its own tools, model and mode. Limits: 4 per call and 8 alive per process; the rest wait in a queue.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
 			"tasks": map[string]any{"type": "array", "items": map[string]any{"type": "object",
 				"properties": map[string]any{"prompt": str, "agent": str}, "required": []string{"prompt"}}},
@@ -84,7 +84,7 @@ func WithDelegateRunner(ctx context.Context, cfg *config.Config, client *llm.Cli
 		ctx = context.Background()
 	}
 	runner := buildDelegateRunner(cfg, client)
-	return context.WithValue(ctx, delegateRunnerContextKey{}, delegateRunnerContext{run: runner, semaphore: make(chan struct{}, MaxDelegateTasks)})
+	return context.WithValue(ctx, delegateRunnerContextKey{}, delegateRunnerContext{run: runner, semaphore: make(chan struct{}, ParallelSubagents(cfg))})
 }
 
 func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
@@ -143,6 +143,7 @@ var delegateGlobalLive = make(chan struct{}, MaxDelegateLiveTotal)
 func SetupDelegate(cfg *config.Config, client *llm.Client) {
 	SetupSmallRole(cfg)
 	SetDelegateRunner(buildDelegateRunner(cfg, client))
+	delegateParallelDefault.Store(int32(ParallelSubagents(cfg)))
 }
 
 func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Context, string) (string, error) {
@@ -455,59 +456,61 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 	if runner == nil {
 		return "", fmt.Errorf("subagents no disponibles en aquest loop")
 	}
+	// Sense semàfor de torn (TUI, headless, Telegram) el sostre és per
+	// crida: el mateix que a la web (ParallelSubagents, 1 en local).
+	if semaphore == nil {
+		n := int(delegateParallelDefault.Load())
+		if n <= 0 {
+			n = MaxDelegateTasks
+		}
+		semaphore = make(chan struct{}, n)
+	}
 	outs := make([]string, len(a.Tasks))
 	var wg sync.WaitGroup
+	// Tots els fills surten alhora: els que caben prenen el lloc aquí, en
+	// l'ordre de la crida; els altres surten «en cua» a la sala i l'esperen
+	// dins de la seva goroutine (abans, els de després del sostre ni tan
+	// sols apareixien fins que un altre acabava). L'ordre de presa és
+	// sempre semàfor del torn i després el global; els fills no deleguen,
+	// així que no hi ha interbloqueig.
 	for i, t := range a.Tasks {
 		id := nextDelegateID()
 		started := time.Now()
-		childCtx, cancel := context.WithTimeout(ctx, 8*time.Minute)
-		childCtx = withDelegateIdentity(childCtx, id, t.Prompt, started)
-		childCtx = withSubagentDef(childCtx, defs[i])
+		baseCtx := withDelegateIdentity(ctx, id, t.Prompt, started)
+		baseCtx = withSubagentDef(baseCtx, defs[i])
 		// Each child gets its own meter, chained to the parent's: the room
 		// shows child-only totals while the parent turn still sums everything.
-		childCtx = llm.WithUsage(childCtx, &llm.UsageMeter{})
-		if semaphore != nil {
-			if err := childCtx.Err(); err != nil {
-				emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(err, ctx.Err()), Message: err.Error(), MaxSteps: 12})
-				cancel()
-				outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(err.Error()))
-				continue
-			}
-			select {
-			case semaphore <- struct{}{}:
-				if err := childCtx.Err(); err != nil {
-					<-semaphore
-					emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(err, ctx.Err()), Message: err.Error(), MaxSteps: 12})
-					cancel()
-					outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(err.Error()))
-					continue
-				}
-			case <-childCtx.Done():
-				emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(childCtx.Err(), ctx.Err()), Message: childCtx.Err().Error(), MaxSteps: 12})
-				cancel()
-				outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(childCtx.Err().Error()))
-				continue
-			}
+		baseCtx = llm.WithUsage(baseCtx, &llm.UsageMeter{})
+		fail := func(index int, baseCtx context.Context, err error) {
+			emitDelegateEvent(baseCtx, DelegateEvent{Status: delegateTerminalStatus(err, ctx.Err()), Message: err.Error(), MaxSteps: 12})
+			outs[index] = fmt.Sprintf("== subagent %d: ERROR: %s", index+1, strings.TrimSpace(err.Error()))
 		}
-		// Sostre global de fills vius, també fora de la web (allà no hi ha
-		// semàfor per torn). Sense reentrància no hi ha interbloqueig.
-		select {
-		case delegateGlobalLive <- struct{}{}:
-		case <-childCtx.Done():
-			emitDelegateEvent(childCtx, DelegateEvent{Status: delegateTerminalStatus(childCtx.Err(), ctx.Err()), Message: childCtx.Err().Error(), MaxSteps: 12})
-			cancel()
-			outs[i] = fmt.Sprintf("== subagent %d: ERROR: %s", i+1, strings.TrimSpace(childCtx.Err().Error()))
+		if err := baseCtx.Err(); err != nil {
+			fail(i, baseCtx, err)
 			continue
 		}
-		emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateWorking, Message: "started", MaxSteps: 12})
+		gotTurn := tryAcquire(semaphore)
+		gotGlobal := gotTurn && tryAcquire(delegateGlobalLive)
+		if !gotGlobal {
+			emitDelegateEvent(baseCtx, DelegateEvent{Status: DelegateQueued, Message: queuedMessage, MaxSteps: 12})
+		}
 		wg.Add(1)
-		go func(index int, prompt string, childCtx context.Context, cancel context.CancelFunc) {
+		go func(index int, prompt string, baseCtx context.Context) {
 			defer wg.Done()
-			defer cancel()
-			defer func() { <-delegateGlobalLive }()
-			if semaphore != nil {
-				defer func() { <-semaphore }()
+			if !gotTurn && !waitSlot(baseCtx, semaphore) {
+				fail(index, baseCtx, baseCtx.Err())
+				return
 			}
+			defer func() { <-semaphore }()
+			if !gotGlobal && !waitSlot(baseCtx, delegateGlobalLive) {
+				fail(index, baseCtx, baseCtx.Err())
+				return
+			}
+			defer func() { <-delegateGlobalLive }()
+			// El rellotge del fill comença quan treballa, no mentre fa cua.
+			childCtx, cancel := context.WithTimeout(baseCtx, 8*time.Minute)
+			defer cancel()
+			emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateWorking, Message: "started", MaxSteps: 12})
 			out, err := runDelegateSafely(runner, childCtx, prompt)
 			if err != nil {
 				status := delegateTerminalStatus(err, ctx.Err())
@@ -520,7 +523,7 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 			}
 			emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateCompleted, Message: "completed", Output: delegatePreview(out)})
 			outs[index] = fmt.Sprintf("== subagent %d:\n%s", index+1, retallaResum(out))
-		}(i, t.Prompt, childCtx, cancel)
+		}(i, t.Prompt, baseCtx)
 	}
 	wg.Wait()
 	if err := ctx.Err(); err != nil {

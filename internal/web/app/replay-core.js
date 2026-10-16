@@ -114,7 +114,7 @@
             outcome = TERMINAL[e.kind]; state = outcome; tool = '';
             // Un fill que encara «treballa» quan el torn ja s'ha tancat no va
             // acabar mai: a la repetició es veu cancel·lat, no etern.
-            for (const [id, a] of agents) if (a.status === 'working') agents.set(id, { ...a, status: outcome === 'completed' ? 'completed' : 'cancelled', tool: '' });
+            for (const [id, a] of agents) if (a.status === 'working' || a.status === 'queued') agents.set(id, { ...a, status: outcome === 'completed' ? 'completed' : 'cancelled', tool: '' });
             for (const [seq, l] of lanes) if (!l.done) lanes.set(seq, { ...l, done: true });
           } else continue;
       }

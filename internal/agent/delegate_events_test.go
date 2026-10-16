@@ -25,6 +25,9 @@ func TestDelegateEventsConcurrentLifecycleAndOrder(t *testing.T) {
 	}))
 	defer server.Close()
 	cfg := testCfg(server.URL)
+	// httptest listens on 127.0.0.1, which counts as a one-slot local
+	// server; this test is about children running together.
+	cfg.Agent.ParallelSubagents = 4
 	ctx := WithDelegateHook(context.Background(), func(event DelegateEvent) {
 		mu.Lock()
 		events = append(events, event)
