@@ -322,8 +322,11 @@ connectors can also make network requests.
 
 File and shell tools run on the host in the selected project. By default
 (`sandbox.mode: off`) the only protections are application controls: the
-shell-command classifier, the hard-deny rules (for example `sudo`, `curl`,
-writes to system paths) and the confirmation prompts. They catch common
+shell-command classifier, the hard-deny rules (for example `sudo`, `curl` to another machine,
+writes to system paths) and the confirmation prompts. Hard-deny rules match
+the program a command runs, not words in its arguments (`grep -rn curl .` is
+fine); `curl`/`wget` to `localhost`, `127.x` or `[::1]` ask like any other
+command, unless they go through a proxy or are piped into a shell. They catch common
 mistakes, but they are pattern checks, not isolation: a command that is
 approved, or that the classifier considers safe, runs with your user's full
 permissions. Review proposed changes and commands. For untrusted code, use a

@@ -146,7 +146,7 @@ func TestCorpusEdicionsFallides(t *testing.T) {
 			if err := os.WriteFile(p, []byte(c.fitxer), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			nota, err := edita(p, c.old, c.new, nil)
+			nota, err := edita(p, c.old, c.new, false, nil)
 			raw, _ := os.ReadFile(p)
 			if c.vol == "" {
 				if err == nil {
@@ -176,7 +176,7 @@ func TestCorpusEdicionsFallides(t *testing.T) {
 // Una coincidència exacta no porta cap avís de nivell, però sí el diff.
 func TestEditExacteSenseNotaDeNivellAmbDiff(t *testing.T) {
 	p := fitxer(t, "a\nb\nc\nd\ne\n")
-	nota, err := edita(p, "c", "C", nil)
+	nota, err := edita(p, "c", "C", false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -54,9 +54,10 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "content": str,
 			}, "required": []string{"path", "content"}}},
-		{Name: "edit", Description: "Replace ONE exact block (it must be unique) in a file. For several changes to the same file use patch: with separate edits, if one fails the file is left half-changed.",
+		{Name: "edit", Description: "Replace ONE exact block (it must be unique) in a file. For several changes to the same file use patch: with separate edits, if one fails the file is left half-changed. replace_all=true replaces every occurrence instead (renaming an identifier, a repeated literal).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "old_string": str, "new_string": str,
+				"replace_all": map[string]any{"type": "boolean"},
 			}, "required": []string{"path", "old_string", "new_string"}}},
 		{Name: "grep", Description: "Search for a literal text in the files under a directory. Skips .git and binaries.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -765,11 +766,16 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			Path string `json:"path"`
 			Old  string `json:"old_string"`
 			New  string `json:"new_string"`
+			All  bool   `json:"replace_all"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		nota, err := seg.Edit(a.Path, a.Old, a.New)
+		edit := seg.Edit
+		if a.All {
+			edit = seg.EditAll
+		}
+		nota, err := edit(a.Path, a.Old, a.New)
 		if err != nil {
 			return "", nil, err
 		}

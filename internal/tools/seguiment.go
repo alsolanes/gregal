@@ -194,7 +194,15 @@ func (s *Seguiment) Read(path string, offset, limit int) (string, error) {
 func (s *Seguiment) Edit(path, old, new string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return edita(path, old, new, s)
+	return edita(path, old, new, false, s)
+}
+
+// EditAll és Edit amb replace_all: substitueix totes les aparicions
+// exactes d'old (reanomenar un identificador, un literal repetit).
+func (s *Seguiment) EditAll(path, old, new string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return edita(path, old, new, true, s)
 }
 
 // Patch és tools.Patch amb la guarda de lectura i el resum del canvi.

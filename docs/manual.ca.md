@@ -337,8 +337,11 @@ web i els connectors MCP configurats també poden fer peticions de xarxa.
 Les eines de fitxers i de shell s'executen a la màquina host dins del projecte
 seleccionat. Per defecte (`sandbox.mode: off`) les úniques proteccions són
 controls de l'aplicació: el classificador d'ordres de shell, les regles dures
-(per exemple `sudo`, `curl`, escriure a camins del sistema) i les
-confirmacions. Aturen errors habituals, però són comprovacions de patrons, no
+(per exemple `sudo`, `curl` cap a una altra màquina, escriure a camins del
+sistema) i les confirmacions. Les regles dures miren el programa que executa
+l'ordre, no les paraules dels arguments (`grep -rn curl .` es pot fer);
+`curl`/`wget` cap a `localhost`, `127.x` o `[::1]` demanen permís com
+qualsevol altra ordre, tret que passin per un proxy o vagin a una shell. Aturen errors habituals, però són comprovacions de patrons, no
 aïllament: una ordre aprovada, o que el classificador considera segura,
 s'executa amb tots els permisos del teu usuari. Revisa els canvis i les ordres
 proposats. Per executar codi no fiable, fes servir un checkout temporal, un

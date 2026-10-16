@@ -115,8 +115,26 @@ func Write(path string, content []byte) (int, error) {
 // la guarda de lectura: és la de les proves i dels camins sense model. El
 // loop fa servir Seguiment.Edit.
 func Edit(path, old, new string) error {
-	_, err := edita(path, old, new, nil)
+	_, err := edita(path, old, new, false, nil)
 	return err
+}
+
+// substitueixTotes és replace_all: totes les aparicions exactes d'old (els
+// finals de línia no compten). Sense cap aparició exacta torna "" i edita
+// prova la via d'un sol bloc, amb la cascada aproximada.
+func substitueixTotes(text, old, new string) (string, string) {
+	if strings.Contains(text, old) {
+		return strings.ReplaceAll(text, old, new), nivExacte
+	}
+	pla, oldPla := senseCR(text), senseCR(old)
+	if !strings.Contains(pla, oldPla) {
+		return "", ""
+	}
+	nou := strings.ReplaceAll(pla, oldPla, senseCR(new))
+	if strings.Contains(text, "\r\n") {
+		nou = strings.ReplaceAll(nou, "\n", "\r\n")
+	}
+	return nou, nivExacte
 }
 
 // editaText aplica old→new sobre el contingut d'un fitxer i torna el
@@ -140,18 +158,30 @@ func editaText(text, old, new string) (string, string, error) {
 
 // edita és el cos d'Edit. Amb seg != nil (i el seu mutex agafat) aplica la
 // guarda de lectura, actualitza què coneix el model i torna el resum.
-func edita(path, old, new string, seg *Seguiment) (string, error) {
+func edita(path, old, new string, totes bool, seg *Seguiment) (string, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 	text := string(raw)
-	if old == new {
-		return "", fmt.Errorf("old i new són iguals: no hi ha res a canviar")
+	// old buit no és «old igual a new»: és un argument que no ha arribat
+	// (el model l'ha anomenat d'una altra manera) o una creació mal
+	// adreçada. «Són iguals» feia que el model repetís la mateixa crida.
+	if old == "" {
+		return "", fmt.Errorf("old_string és buit: posa-hi el bloc exacte que vols substituir (per crear un fitxer o reescriure'l sencer, fes servir write)")
 	}
-	nou, nivell, err := editaText(text, old, new)
-	if err != nil {
-		return "", errEdicio(path, text, old, err)
+	if old == new {
+		return "", fmt.Errorf("old_string i new_string són iguals: no hi ha res a canviar")
+	}
+	var nou, nivell string
+	if totes {
+		nou, nivell = substitueixTotes(text, old, new)
+	}
+	if nou == "" {
+		nou, nivell, err = editaText(text, old, new)
+		if err != nil {
+			return "", errEdicio(path, text, old, err)
+		}
 	}
 	if seg != nil && nivell != nivExacte {
 		if ok, perque := seg.alDia(path, raw); !ok {
@@ -626,18 +656,15 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 			return "deny", "patró bloquejat: rm -rf /"
 		}
 	}
-	// La llista dura té dues famílies: PATRONS prohibits (subcadenes que mai
-	// no s'executen, perquè fan mal directament: sudo, mkfs, curl…) i CAMINS
-	// crítics (on no s'hi escriu ni s'hi esborra — vegeu caminsCritics). Cap
-	// mode ni cap override del config les relaxa.
-	deny := append([]string{
-		"sudo", "mkfs", "dd if=", "shutdown", "reboot",
-		":(){", "/dev/sd", "curl", "wget", "ssh ", "chmod 777", "mkswap",
-		// Windows perilloses (també bloquegen al TUI/serve de Windows)
-		"format ", "del /f", "del /s", "rmdir /s", "rd /s", "remove-item",
-		"diskpart", "cipher /w", "takeown", "icacls ",
-	}, extraDeny...)
-	for _, d := range deny {
+	// La llista dura té dues famílies: ORDRES prohibides (programes que mai
+	// no s'executen, perquè fan mal directament: sudo, mkfs, curl…; vegeu
+	// ordreDenegada) i CAMINS crítics (on no s'hi escriu ni s'hi esborra —
+	// vegeu caminsCritics). Cap mode ni cap override del config les relaxa.
+	// Els patrons «deny» del config continuen sent subcadenes.
+	if d := ordreDenegada(strings.TrimSpace(cmd)); d != "" {
+		return "deny", "patró bloquejat: " + d
+	}
+	for _, d := range extraDeny {
 		if strings.Contains(lower, strings.ToLower(d)) {
 			return "deny", "patró bloquejat: " + d
 		}

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -72,6 +73,7 @@ func MapaProjecte(dir, tasca string, hist []llm.Message) string {
 			cos.WriteString("\nGit status:\n" + estat)
 		}
 	}
+	cos.WriteString(fetsProjecte(dir, fitxers, git))
 	// L'empremta és la del llistat i l'estat de git, no la dels símbols:
 	// els símbols depenen de la tasca i, si hi entressin, el mapa es
 	// repetiria a cada torn.
@@ -447,4 +449,57 @@ func deltaMapa(vell, nou string) string {
 		b.WriteString("Git status: no longer available\n")
 	}
 	return b.String()
+}
+
+// fetsProjecte són dues coses del projecte que el model no veu i que, al
+// banc, li feien perdre passos:
+//
+//   - Sense git (o sense el binari), `git status` i `git diff` fallen. El
+//     model els corria per comprovar els canvis i rebia «not a git
+//     repository» o el codi 129, i ho tornava a provar d'una altra manera.
+//   - Fitxers amb finals de línia CRLF (un checkout de Windows amb
+//     core.autocrlf). `gofmt -l` els llista tots, i el model, creient que
+//     era culpa seva, gastava dos o tres passos mirant diffs de format: a t6
+//     del banc, en 2 de 4 tirades, 11-14 crides en lloc de 5.
+func fetsProjecte(dir string, fitxers []string, git bool) string {
+	var b strings.Builder
+	if !git {
+		b.WriteString("Not a git repository (or git is unavailable): git status, diff and log fail here, so do not run them.\n")
+	}
+	if fitxersCRLF(dir, fitxers) {
+		b.WriteString("Line endings: the text files use CRLF (Windows checkout). gofmt -l, prettier --check and similar tools list them only because of the CRLF; that is not caused by your edits and needs no fixing. Edits keep each file's line endings.\n")
+	}
+	return b.String()
+}
+
+// fitxersCRLF mira el començament de fins a 12 fitxers de codi o text i diu
+// si la majoria tenen CRLF.
+func fitxersCRLF(dir string, fitxers []string) bool {
+	mirats, crlf := 0, 0
+	for _, f := range fitxers {
+		if mirats >= 12 {
+			break
+		}
+		switch strings.ToLower(filepath.Ext(f)) {
+		case ".go", ".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".cs", ".c", ".h", ".cpp",
+			".rs", ".rb", ".php", ".md", ".html", ".css", ".json", ".yaml", ".yml", ".txt", ".sh", ".kt", ".swift":
+		default:
+			continue
+		}
+		fh, err := os.Open(filepath.Join(dir, f))
+		if err != nil {
+			continue
+		}
+		buf := make([]byte, 4096)
+		n, _ := fh.Read(buf)
+		fh.Close()
+		if !bytes.Contains(buf[:n], []byte("\n")) {
+			continue
+		}
+		mirats++
+		if bytes.Contains(buf[:n], []byte("\r\n")) {
+			crlf++
+		}
+	}
+	return mirats > 0 && crlf*2 > mirats
 }
