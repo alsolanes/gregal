@@ -85,6 +85,7 @@ func ordreDenegada(cmd string) string {
 		}
 		return ""
 	}
+	vars := variablesAssignades(paraules)
 	xarxaLocal, shell := false, false
 	for i, p := range paraules {
 		if !p.ordre {
@@ -102,7 +103,7 @@ func ordreDenegada(cmd string) string {
 			if d.arg != "" && !conteArg(args, d.arg) {
 				continue
 			}
-			if (prog == "curl" || prog == "wget") && !strings.Contains(lower, "proxy") && nomesLocal(prog, args) {
+			if (prog == "curl" || prog == "wget") && !strings.Contains(lower, "proxy") && nomesLocal(prog, expandeixVars(args, vars)) {
 				xarxaLocal = true
 				continue
 			}
@@ -115,6 +116,51 @@ func ordreDenegada(cmd string) string {
 		return "curl | sh"
 	}
 	return ""
+}
+
+// variablesAssignades són les assignacions que fan d'etapa sencera
+// (`B=http://127.0.0.1:8080; curl $B/x`), que és com el model escriu un
+// bucle de proves contra el seu servidor. Una assignació que fa de prefix
+// d'una ordre (`B=x curl $B`) no compta: la shell expandeix $B abans.
+func variablesAssignades(paraules []paraulaOrdre) map[string]string {
+	vars := map[string]string{}
+	for i, p := range paraules {
+		if !p.ordre || !esAssignacio(strings.ToLower(p.text)) {
+			continue
+		}
+		if i+1 < len(paraules) && paraules[i+1].etapa == p.etapa {
+			continue
+		}
+		nom, valor, _ := strings.Cut(p.text, "=")
+		vars[nom] = valor
+	}
+	return vars
+}
+
+// expandeixVars substitueix $NOM i ${NOM} per les variables conegudes. Les
+// que no ho són es queden tal qual (i llavors no semblen una adreça local).
+func expandeixVars(args []paraulaOrdre, vars map[string]string) []paraulaOrdre {
+	if len(vars) == 0 {
+		return args
+	}
+	out := make([]paraulaOrdre, len(args))
+	for i, a := range args {
+		out[i] = a
+		for nom, valor := range vars {
+			out[i].text = strings.ReplaceAll(out[i].text, "${"+nom+"}", valor)
+			if j := strings.Index(out[i].text, "$"+nom); j >= 0 {
+				fi := j + 1 + len(nom)
+				if fi == len(out[i].text) || !esCaracterNom(out[i].text[fi]) {
+					out[i].text = out[i].text[:j] + valor + out[i].text[fi:]
+				}
+			}
+		}
+	}
+	return out
+}
+
+func esCaracterNom(c byte) bool {
+	return c == '_' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9'
 }
 
 // nomPrograma és el nom d'un camí d'executable: /usr/bin/curl, curl.exe i
@@ -194,7 +240,11 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 		switch {
 		case prefixosOrdre[lw] || prefixosOrdre[nom]:
 			prefix = true
-		case (esOrdre || prefix) && (nom == "eval" || nom == "source" || nom == "."):
+		case (esOrdre || prefix) && (nom == "eval" || nom == "source" || nom == "." || nom == "alias"):
+			codiEnCadena = true
+		case ordre && !esAssignacio(lw) && !nomNet(w):
+			// Una ordre que la shell encara ha de transformar ($X, ${IFS},
+			// {a,b}, comodins, ~): no se sap quin programa serà.
 			codiEnCadena = true
 		case interprets[progEtap] && !esOrdre && strings.HasPrefix(lw, "-") && strings.ContainsAny(lw, "ce"):
 			// bash -c, python -c, node -e, perl -e, pwsh -command, cmd /c…
@@ -218,6 +268,12 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 	for i := 0; i < len(r); i++ {
 		c := r[i]
 		switch {
+		case c == '\\' && i+1 < len(r) && (r[i+1] == '\n' || r[i+1] == '\r'):
+			// Continuació de línia: la shell l'esborra (cu\⏎rl és curl).
+			i++
+			if r[i] == '\r' && i+1 < len(r) && r[i+1] == '\n' {
+				i++
+			}
 		case c == '\\' && i+1 < len(r):
 			i++
 			cur.WriteRune(r[i])
@@ -249,6 +305,19 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 			i = j
 		case c == ' ' || c == '\t':
 			tanca()
+		case c == '$' && i+1 < len(r) && r[i+1] == '{':
+			// ${NOM} és part de la paraula, no un bloc { }.
+			j := i + 2
+			for j < len(r) && r[j] != '}' {
+				j++
+			}
+			dins := string(r[i:min(j+1, len(r))])
+			if strings.Contains(dins, "$(") || strings.Contains(dins, "`") {
+				return nil, true // ${A:-$(ordre)} executa l'ordre
+			}
+			cur.WriteString(dins)
+			enCurs = true
+			i = j
 		case c == '$' && i+1 < len(r) && r[i+1] == '(':
 			i++
 			novaEtapa()
@@ -261,6 +330,17 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 	}
 	tanca()
 	return paraules, codiEnCadena
+}
+
+// nomNet: un nom o camí d'executable tal qual, sense res que la shell hagi
+// d'expandir.
+func nomNet(w string) bool {
+	for _, c := range w {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune(`._-+/\:@%`, c)) {
+			return false
+		}
+	}
+	return true
 }
 
 func esAssignacio(w string) bool {

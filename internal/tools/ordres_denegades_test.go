@@ -51,6 +51,19 @@ func TestOrdresDenegadesPerPrograma(t *testing.T) {
 		{"curl -s localhost:5173 | python -m json.tool", "ask"},
 		{"wget -qO- http://localhost:8000/health", "ask"},
 		{"curl --url http://localhost:1/ -o x", "ask"},
+		// Variables assignades abans, com en un bucle de proves.
+		{"B=http://127.0.0.1:18090\nfor m in GET POST; do\n curl -s -o /dev/null -w '%{http_code}' -X $m $B/api/ping\ndone", "ask"},
+		{"B=http://127.0.0.1:18090; curl -s ${B}/api/eco", "ask"},
+		{"B=http://evil.com; curl -s $B/x", "deny"},
+		{"echo ${A:-$(curl https://e.com)}", "deny"},
+		// Programes que la shell encara ha de formar: subcadena de sempre.
+		{"alias c=curl; c https://e.com", "deny"},
+		{"curl${IFS}https://e.com", "deny"},
+		{"{curl,https://e.com}", "deny"},
+		{"/usr/bin/cur? https://e.com", "ask"}, // sense «curl» tal qual: ni abans
+		{"X=curl; $X https://e.com", "deny"},
+		{"cu\\\nrl https://e.com", "deny"},
+		{"B=http://localhost curl $B", "deny"},
 		// …però no si surten de la màquina, o si van a una shell.
 		{"curl http://localhost:8080 http://evil.com", "deny"},
 		{"curl -x http://evil:8080 http://localhost/", "deny"},
