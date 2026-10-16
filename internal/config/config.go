@@ -440,6 +440,11 @@ type Config struct {
 	// fosc i prou: en un terminal de fons clar, els grisos apagats de la
 	// paleta fosca no es llegeixen.
 	Theme string `yaml:"theme"`
+	// Brand és el paquet de branding actiu (id d'un paquet instal·lat a
+	// <dades>/brands). Buit = cap: l'app fa servir Theme i els documents,
+	// els temes de sempre. Quan n'hi ha un, mana a tot arreu: web,
+	// escriptori, TUI i documents generats.
+	Brand string `yaml:"brand,omitempty"`
 	// Mouse és el ratolí del TUI: on (roda per desplaçar; bloqueja la
 	// selecció nativa) o off (selecció nativa; sense roda). Buit = on.
 	// Es commuta en calent amb /mouse i es desa.
@@ -566,8 +571,12 @@ var LangsSuportats = []string{"ca", "en"}
 
 var TemesSuportats = tema.Noms()
 
-// Tema torna el tema efectiu del TUI (per defecte, fosc).
+// Tema torna el tema efectiu del TUI (per defecte, fosc). Amb un branding
+// actiu i registrat, és el del branding.
 func (c *Config) Tema() string {
+	if b := strings.TrimSpace(c.Brand); b != "" && tema.Existeix(tema.PrefixBrand+b) {
+		return tema.PrefixBrand + b
+	}
 	for _, t := range TemesSuportats {
 		if c.Theme == t {
 			return t

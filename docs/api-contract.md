@@ -129,6 +129,11 @@ otherwise) and `after` has no more lines than the current notes.
 | Route | Method | Request and response |
 |---|---|---|
 | `/api/lang` | POST | `{lang}` (`ca` or `en`): sets the UI and agent-response language. Stored in config; application-wide, not per session. |
+| `/api/brands` | GET/POST | GET → `{active, brands:[{id, name, version, author?, mode, theme, colors, fonts, logo?, swatches, css}]}`. `theme` is the `data-theme` value (`brand-<id>`) and `css` its `:root` block. POST takes a branding file as the body (`gregal-brand/1` JSON) and installs it or replaces the one with the same id → same as GET plus `installed`. Application-wide; with several users only the administrator can install. |
+| `/api/brands/preview` | POST | Validates a branding file without installing it → `{brand, status, installed_version?}`, where `status` is `new`, `update`, `same` or `older` compared with the installed one. Invalid file → 400 `{error}`. |
+| `/api/brands/active` | POST | `{id}` (`""` = none): the branding used by the app on every surface and by generated documents (docx, pptx, xlsx) that do not ask for another theme. Stored in config as `brand`. Administrator only with several users. |
+| `/api/brands/{id}` | DELETE | Uninstalls a branding; if it was active, no branding stays active. |
+| `/api/brands/{id}/file` | GET | Downloads the branding file (`<id>.gregal-brand.json`) to share it. |
 
 ## Sessions
 

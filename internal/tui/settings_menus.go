@@ -3,8 +3,10 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"gregal/internal/agent"
+	"gregal/internal/brand"
 	"gregal/internal/config"
 	"gregal/internal/tema"
 	"gregal/internal/tools"
@@ -116,6 +118,27 @@ func providerKeyMenu(m *Model) *menuState {
 	}
 }
 
+// applyTheme posa un tema o un branding (val = "brand-<id>") i en torna el
+// nom per als missatges. Un tema de casa treu el branding actiu: tots dos
+// manen sobre el mateix (els colors) i el darrer que tries guanya. Desar el
+// config és cosa de qui crida.
+func (m *Model) applyTheme(val string) string {
+	if id, ok := strings.CutPrefix(val, tema.PrefixBrand); ok {
+		m.cfg.Brand = id
+		brand.Activate(id)
+		SetTema(val)
+		if p, err := brand.Get(id); err == nil {
+			return p.Name
+		}
+		return id
+	}
+	m.cfg.Brand = ""
+	brand.Activate("")
+	m.cfg.Theme = val
+	SetTema(val)
+	return val
+}
+
 // themeMenu permet canviar de tema amb reflex instantani. Els temes
 // surten del registre (primer els de casa, després els inspirats).
 func themeMenu(m *Model) *menuState {
@@ -128,13 +151,22 @@ func themeMenu(m *Model) *menuState {
 		}
 		items = append(items, menuItem{text: text, val: nom})
 	}
+	// Els brandings instal·lats (la pantalla de Brandings del web en
+	// instal·la i en crea) també són temes; triar-ne un l'activa per a tota
+	// l'app i per als documents.
+	for _, p := range brand.List() {
+		text := "◆ " + p.Name + "  (branding v" + p.Version + ")"
+		if brand.ThemeName(p.ID) == cur {
+			text += " ← " + T("set.actual")
+		}
+		items = append(items, menuItem{text: text, val: brand.ThemeName(p.ID)})
+	}
 	return &menuState{
 		title: T("set.temaTitol"),
 		items: items,
 		run: func(m *Model, val string) (string, *menuState) {
-			m.cfg.Theme = val
-			SetTema(val)
-			msg := okStyle.Render("✓ "+T("set.temaCurt")+" → "+val) + dimStyle.Render(T("set.desat"))
+			name := m.applyTheme(val)
+			msg := okStyle.Render("✓ "+T("set.temaCurt")+" → "+name) + dimStyle.Render(T("set.desat"))
 			if err := m.cfg.Save(m.cfgPath); err != nil {
 				msg += dimStyle.Render(T("set.errorDesar") + err.Error() + ")")
 			}

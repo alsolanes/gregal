@@ -33,6 +33,18 @@ function report(node, error) {
   let status = parent.querySelector('.plot-error'); if (!status) { status = el('p', 'plot-error'); status.setAttribute('role', 'alert'); parent.append(status); }
   status.textContent = error.message;
 }
+// chartPalette llegeix els colors de gràfic del branding actiu (--chart-N).
+function chartPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  const out = [];
+  for (let i = 1; i <= 8; i++) {
+    const v = cs.getPropertyValue('--chart-' + i).trim();
+    if (!v) break;
+    out.push(v);
+  }
+  return out;
+}
+
 async function api(ctx, method = 'GET', body) {
   const r = await window.gregal.api('/api/plots', { method, headers: { 'X-Gregal-Session': ctx.session }, ...(body ? { body: JSON.stringify(body) } : {}) });
   if (!r.ok) throw Error((await r.text()).trim() || `HTTP ${r.status}`);
@@ -47,7 +59,7 @@ function modal(title) {
 }
 async function draw(canvas, spec) {
   await ensureCharts(); if (!canvas.isConnected) return;
-  charts.set(canvas, new window.Chart(canvas, core.config(spec, getComputedStyle(canvas).color)));
+  charts.set(canvas, new window.Chart(canvas, core.config(spec, getComputedStyle(canvas).color, chartPalette())));
 }
 function prune() { for (const [canvas, chart] of charts) if (!canvas.isConnected) { chart.destroy(); charts.delete(canvas); } }
 async function save(spec, ctx, dashboard, board = 'default') {

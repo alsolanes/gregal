@@ -21,6 +21,8 @@ import (
 	"strconv"
 	"strings"
 
+	"gregal/internal/ooxml"
+
 	"github.com/xuri/excelize/v2"
 )
 
@@ -124,6 +126,14 @@ func paletteFor(theme string) palette {
 	case "mono":
 		p.header, p.band = "333333", "F2F2F2"
 		p.chart = []string{"333333", "0070C0", "7F7F7F", "A5A5A5", "111111"}
+	case "default":
+	default:
+		// Buit o un tema de branding: els colors del tema d'ooxml (el
+		// branding actiu, si n'hi ha; si no, el default de sempre).
+		if t := ooxml.GetTheme(theme); t.Name != "default" {
+			p.header, p.band, p.total = t.Primary, t.Light, t.Dark
+			p.chart = []string{t.Primary, t.Accent, t.Accent2, t.Muted, t.Dark}
+		}
 	}
 	return p
 }

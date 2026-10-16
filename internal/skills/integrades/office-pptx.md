@@ -27,9 +27,11 @@ description: Professional PowerPoint decks: layouts, design rules, templates and
 - `image`: `image` on the left, `body` on the right.
 - `title_only`, `blank`.
 
-Themes: `default` (navy/teal), `modern` (charcoal/coral), `nature` (greens),
-`elegant` (burgundy/gold, serif titles), `mono`. Override colours with
-`"theme": "default:primary=0B5394,accent=E69138"`.
+Leave `theme` out unless the user asks for a look: without it the deck uses
+the user's active branding (colours, fonts, logo on every slide) or the
+default. Themes: `default` (navy/teal), `modern` (charcoal/coral), `nature`
+(greens), `elegant` (burgundy/gold, serif titles), `mono`. Override colours
+with `"theme": "default:primary=0B5394,accent=E69138"`.
 
 ## Design rules
 

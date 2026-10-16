@@ -137,11 +137,19 @@ func NewDocx(o DocxOptions) *Docx {
 	if header == "" {
 		header = o.Title
 	}
-	if !o.NoHeader && header != "" {
+	logo := headerLogo(pk, o.Theme)
+	if !o.NoHeader && (header != "" || logo != "") {
 		pk.SetOverride("word/header1.xml", ctHeader)
 		id := pk.AddRel("word/document.xml", RelHeader, "word/header1.xml")
+		para := `<w:p><w:pPr><w:pStyle w:val="Header"/><w:jc w:val="right"/></w:pPr><w:r><w:t xml:space="preserve">` + Esc(header) + `</w:t></w:r></w:p>`
+		if logo != "" {
+			// Logo a l'esquerra i el títol a la dreta, amb un tabulador al
+			// marge dret (amplada útil de la pàgina).
+			para = fmt.Sprintf(`<w:p><w:pPr><w:pStyle w:val="Header"/><w:tabs><w:tab w:val="right" w:pos="%d"/></w:tabs></w:pPr>%s<w:r><w:tab/><w:t xml:space="preserve">%s</w:t></w:r></w:p>`,
+				w-1304*2, logo, Esc(header))
+		}
 		pk.Put("word/header1.xml", []byte(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>`+"\n"+
-			`<w:hdr xmlns:w="`+nsW+`" xmlns:r="`+nsR+`"><w:p><w:pPr><w:pStyle w:val="Header"/><w:jc w:val="right"/></w:pPr><w:r><w:t xml:space="preserve">`+Esc(header)+`</w:t></w:r></w:p></w:hdr>`))
+			`<w:hdr xmlns:w="`+nsW+`" xmlns:r="`+nsR+`" xmlns:wp="`+nsWP+`" xmlns:a="`+nsA+`" xmlns:pic="`+nsPic+`">`+para+`</w:hdr>`))
 		refs += `<w:headerReference w:type="default" r:id="` + id + `"/>`
 	}
 	if o.PageNumbers {
@@ -837,6 +845,37 @@ func (d *Docx) table(b Block) *Node {
 }
 
 // ---------- imatges ----------
+
+// logoHeightEMU és l'alçada del logo de marca: 0,9 cm a la capçalera del
+// docx i a la cantonada de les diapositives.
+const logoHeightEMU = 324000
+
+// logoSize és la mida del logo del tema a una alçada fixa (sense
+// deformar). ok=false si no n'hi ha o no es pot llegir.
+func logoSize(t Theme, height int64) (cx, cy int64, ok bool) {
+	if len(t.Logo) == 0 {
+		return 0, 0, false
+	}
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(t.Logo))
+	if err != nil || cfg.Width == 0 || cfg.Height == 0 {
+		return 0, 0, false
+	}
+	return height * int64(cfg.Width) / int64(cfg.Height), height, true
+}
+
+// headerLogo desa el logo del tema com a imatge de la capçalera i en torna
+// el run (buit si el tema no en porta).
+func headerLogo(pk *Package, t Theme) string {
+	cx, cy, ok := logoSize(t, logoHeightEMU)
+	if !ok {
+		return ""
+	}
+	part := "word/media/brand-logo." + t.LogoExt
+	pk.Put(part, t.Logo)
+	rid := pk.AddRel("word/header1.xml", RelImage, part)
+	return fmt.Sprintf(`<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="%d" cy="%d"/><wp:docPr id="9001" name="Logo"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="9001" name="Logo"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="%s"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="%d" cy="%d"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`,
+		cx, cy, rid, cx, cy)
+}
 
 func (d *Docx) imagePara(src, alt string) (*Node, error) {
 	path := src

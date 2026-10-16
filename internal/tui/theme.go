@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 
+	"gregal/internal/brand"
 	"gregal/internal/tema"
 )
 
@@ -125,6 +126,14 @@ func SetTema(nom string) {
 // paquet les fa servir pel nom.
 func aplicaTema(nom string) {
 	temaActiu = tema.Per(nom)
+	// Amb un branding, la marca de la capçalera és el seu nom. Es llegeix
+	// aquí, un cop, i no des de View (que no ha de tocar el disc).
+	logoText = "‹••› GREGAL"
+	if id, ok := strings.CutPrefix(temaActiu.Nom, tema.PrefixBrand); ok {
+		if p, err := brand.Get(id); err == nil {
+			logoText = "◆ " + strings.ToUpper(p.Name)
+		}
+	}
 	t := temaActiu
 	clar := t.Clar
 	col := func(hex string) lipgloss.Color { return lipgloss.Color(hex) }
@@ -202,9 +211,12 @@ func aplicaTema(nom string) {
 	menuHL = lipgloss.NewStyle().Foreground(ink).Background(teal).Bold(true)
 }
 
+// logoText és el text de la marca (el nom del branding actiu, si n'hi ha).
+var logoText = "‹••› GREGAL"
+
 // Logo és la marca de l'app.
 func Logo() string {
-	return logoStyle.Render("‹••› GREGAL")
+	return logoStyle.Render(logoText)
 }
 
 // waveCrest és l'única onada de la línia d'horitzó: cim al mig, vessants
