@@ -13,7 +13,7 @@ const PALETTE = {
   active: '#df9b43', done: '#4b9772', failed: '#b84d3b', canceled: '#847f75',
 };
 const ACTIVE = new Set(['thinking', 'tools', 'reviewing', 'compacting', 'working']);
-const DEFAULT_LABELS = { thinking: 'THINKING', tools: 'USING A TOOL', reviewing: 'REVIEWING', compacting: 'SUMMARIZING', working: 'WORKING', completed: 'DONE', failed: 'FAILED', cancelled: 'CANCELLED', waiting: 'WAITING', idle: 'IDLE' };
+const DEFAULT_LABELS = { thinking: 'THINKING', tools: 'USING A TOOL', reviewing: 'REVIEWING', compacting: 'SUMMARIZING', working: 'WORKING', completed: 'DONE', failed: 'FAILED', cancelled: 'CANCELLED', waiting: 'WAITING', queued: 'QUEUED', idle: 'IDLE' };
 const safe = value => typeof value === 'string' ? value : '';
 const finite = value => Number.isFinite(value) ? value : null;
 
@@ -104,7 +104,7 @@ export function createWorkshopScene(canvas, onSelectAgent) {
 
   const now = () => typeof performance !== 'undefined' ? performance.now() : Date.now();
   const stopFrame = () => { if (raf) cancelAnimationFrame(raf); raf = 0; };
-  const childStatus = a => ['working', 'completed', 'failed', 'cancelled'].includes(a.status) ? a.status : 'idle';
+  const childStatus = a => ['working', 'queued', 'completed', 'failed', 'cancelled'].includes(a.status) ? a.status : 'idle';
   const hasMotion = at => {
     if (!shown || document.hidden || motion.matches || !session) return false;
     if (roleMode() && rolesApi()) return roomHasMotion(at);
@@ -547,15 +547,21 @@ export function createWorkshopScene(canvas, onSelectAgent) {
     if (walking) { const p = (at - visual.walkStart) / 1800; const e = p * p * (3 - 2 * p); x = 940 + (spot.x - 940) * e; }
     const selected = selectedId === agent.id;
     if (selected) { ctx.strokeStyle = '#f2bd61'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(spot.x, spot.y + 2, 58, 9, 0, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.save(); if (!active) ctx.globalAlpha = .75;
+    ctx.save(); if (!active) ctx.globalAlpha = state === 'queued' ? .45 : .75;
     drawPixelPerson(images[1 + (i % 3)], x, foot, 1.7, at, active, walking);
     ctx.restore();
     drawDesk(spot.x, spot.y, 90, spot.scale, active);
-    const color = state === 'failed' ? PALETTE.failed : state === 'completed' ? PALETTE.done : active ? PALETTE.active : PALETTE.canceled;
-    drawPlate(spot.x, spot.y + 6, 128, agent.agent || agent.task || agent.id, '', color, true);
+    const color = state === 'failed' ? PALETTE.failed : state === 'completed' ? PALETTE.done : active ? PALETTE.active : state === 'queued' ? '#b97f2e' : PALETTE.canceled;
+    // Parallel researchers all share one name ("scout"): their area (the
+    // task label) is what tells them apart.
+    const R = rolesApi();
+    const name = agent.agent && !(R && R.isResearcherAgent(agent)) ? agent.agent : (agent.task || agent.agent || agent.id);
+    drawPlate(spot.x, spot.y + 6, 128, name, '', color, true);
     if (active && agent.tool) {
       const kind = /web|browser/.test(agent.tool) ? 'web' : /edit|write|patch/.test(agent.tool) ? 'edit' : /bash/.test(agent.tool) ? 'run' : 'read';
       drawBubble(spot.x, foot - 52, { icon: kind, tone: 'live', text: agent.tool }, at, null);
+    } else if (state === 'queued') {
+      drawBubble(spot.x, foot - 52, { icon: 'wait', tone: 'wait', text: stateLabel(session, 'queued') }, at, null);
     }
     if (state === 'completed' && visual.deliveryStart != null && !visual.delivered) {
       const p = Math.max(0, Math.min(1, (at - visual.deliveryStart) / 1800)); const e = p * p * (3 - 2 * p);
@@ -647,7 +653,17 @@ export function createWorkshopScene(canvas, onSelectAgent) {
     // Back row first (further away), then the role desks in front.
     if (extra.length) {
       ctx.save(); ctx.font = '700 11px system-ui, sans-serif'; ctx.fillStyle = '#8b6b4f'; ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText(tr('workshop.childAgents', 'Child agents').toUpperCase(), 20, 172); ctx.restore();
+      const label = tr('workshop.childAgents', 'Child agents').toUpperCase();
+      ctx.fillText(label, 20, 172);
+      // A pill that says it out loud when children work at the same time.
+      const together = session.agents.filter(a => a.status === 'working').length;
+      if (together > 1) {
+        const text = tr('workshop.atOnce', '{n} at once').replace('{n}', String(together)).toUpperCase();
+        const lx = 20 + ctx.measureText(label).width + 10, w = ctx.measureText(text).width + 16;
+        rounded(ctx, lx, 160, w, 17, 8.5, PALETTE.active, null);
+        ctx.fillStyle = '#fffaf0'; ctx.fillText(text, lx + 8, 172);
+      }
+      ctx.restore();
       extra.forEach((agent, i) => drawExtra(agent, layout.extras[i], i, at));
       if (layout.hidden > 0) { rounded(ctx, 880, 196, 56, 22, 7, '#fff9ec', '#c9aa7d'); ctx.fillStyle = PALETTE.ink; ctx.font = '700 11px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(`+${layout.hidden}`, 908, 207); }
     }
@@ -724,8 +740,21 @@ export function createWorkshopScene(canvas, onSelectAgent) {
   function frame(at) {
     raf = 0;
     if (!shown || document.hidden || destroyed) return;
-    if (at - lastFrame < 33) { raf = requestAnimationFrame(frame); return; }
+    // 30 fps while something travels (envelopes, walks, deliveries); the
+    // idle bob of a live turn is fine at 15 fps and halves the repaints of
+    // a room that can stay open for a whole long task.
+    if (at - lastFrame < (fastMotion(at) ? 33 : 66)) { raf = requestAnimationFrame(frame); return; }
     lastFrame = at; paint(at);
+  }
+  function fastMotion(at) {
+    if (flights.length) return true;
+    for (const actor of actors.values()) if (actor.start) return true;
+    for (const start of pops.values()) if (at - start < POP_MS) return true;
+    for (const v of agentVisuals.values()) {
+      if (v.walkStart != null && at - v.walkStart < 2200) return true;
+      if (v.deliveryStart != null && !v.delivered) return true;
+    }
+    return false;
   }
   function schedule() { if (!raf && !motion.matches && shown && !document.hidden) raf = requestAnimationFrame(frame); }
 

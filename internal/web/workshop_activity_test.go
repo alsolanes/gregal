@@ -252,6 +252,9 @@ func TestWorkshopActivityTracksDelegatesThroughLiveSessionsHTTP(t *testing.T) {
 	server.cfg.Roles["code"] = config.Role{Provider: "p", Model: "parent-model", ContextWindow: 32768, MaxTokens: 1024}
 	server.cfg.Roles["delegate"] = config.Role{Provider: "p", Model: "child-model", ContextWindow: 32768, MaxTokens: 1024}
 	server.cfg.Permissions.Tools = map[string]string{"delegate": "allow", "read": "allow"}
+	// The fixture listens on 127.0.0.1, which counts as a one-slot local
+	// server; this test needs both children alive at once.
+	server.cfg.Agent.ParallelSubagents = 2
 	workspace := t.TempDir()
 	if err := os.WriteFile(filepath.Join(workspace, "workshop-fixture.txt"), []byte("child-read-marker\n"), 0600); err != nil {
 		t.Fatal(err)

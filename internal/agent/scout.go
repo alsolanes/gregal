@@ -3,8 +3,10 @@ package agent
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/config"
@@ -77,10 +79,19 @@ func scoutTaskNeedsResearch(task string) bool {
 }
 
 // ScoutPrompt és l'encàrrec que rep el subagent investigador.
-func ScoutPrompt(task string) string {
+func ScoutPrompt(task string) string { return ScoutFocusPrompt(task, "") }
+
+// ScoutFocusPrompt és l'encàrrec d'un dels investigadors paral·lels: la
+// tasca sencera (per context) i l'única àrea que li toca.
+func ScoutFocusPrompt(task, focus string) string {
 	r := []rune(strings.TrimSpace(task))
 	if len(r) > scoutMaxTask {
 		r = append(r[:scoutMaxTask], '…')
+	}
+	if f := strings.TrimSpace(focus); f != "" {
+		return "You are one of several researchers working in parallel on the same task; each covers one area. YOUR AREA: " + f + "\n" +
+			"Investigate only your area: the relevant files, the current behaviour, constraints (tests, conventions, dependencies) and risks. Do not change anything and do not cover the other areas. " +
+			"Return a concise brief (at most ~15 lines): file paths (with line numbers where useful), what exists today, what has to change and any risk. No preamble.\n\nFULL TASK (for context):\n" + string(r)
 	}
 	return "Investigate what the coordinator needs to do this task: the relevant files, the current behaviour, constraints (tests, conventions, dependencies) and facts from the web only if the task really needs them. Do not change anything. " +
 		"Return a concise brief (at most ~25 lines): file paths (with line numbers where useful), what exists today, what has to change and any risk. No preamble.\n\nTASK:\n" + string(r)
@@ -93,6 +104,9 @@ type ScoutResult struct {
 	Agent string
 	Brief string
 	Err   error
+	// IDs són tots els fills quan la investigació s'ha partit per àrees
+	// (RunScouts); ID n'és el primer.
+	IDs []string
 }
 
 // ScoutOptions: el directori i la sessió on treballa el fill. ID és
@@ -103,6 +117,9 @@ type ScoutOptions struct {
 	Task      string
 	Workspace string
 	Session   string
+	// Focus és l'àrea d'aquest investigador quan n'hi ha diversos en
+	// paral·lel (ScoutFocuses); buit = tota la tasca.
+	Focus string
 }
 
 // scoutDef tria la definició del scout: un subagent «researcher» de només
@@ -145,7 +162,15 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 	if name, _, _, ok := SmallRole(o.Cfg); ok {
 		def.Role = name
 	}
-	prompt := ScoutPrompt(o.Task)
+	prompt := ScoutFocusPrompt(o.Task, o.Focus)
+	// El que la sala ensenya: l'àrea (o la tasca), no l'encàrrec sencer.
+	label := strings.TrimSpace(o.Focus)
+	if label == "" {
+		label = strings.TrimSpace(o.Task)
+	}
+	if r := []rune(label); len(r) > 300 {
+		label = string(r[:300]) + "…"
+	}
 	id := o.ID
 	if id == "" {
 		id = nextDelegateID()
@@ -153,7 +178,7 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 	res := ScoutResult{ID: id, Agent: def.Name}
 	childCtx, cancel := context.WithTimeout(withDelegateScope(ctx, o.Session, o.Workspace), scoutTimeout)
 	defer cancel()
-	childCtx = withDelegateIdentity(childCtx, id, prompt, time.Now())
+	childCtx = withDelegateIdentity(childCtx, id, label, time.Now())
 	childCtx = withSubagentDef(childCtx, def)
 	childCtx = llm.WithUsage(childCtx, &llm.UsageMeter{})
 	fail := func(err error) ScoutResult {
@@ -161,20 +186,16 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 		res.Err = err
 		return res
 	}
-	if semaphore != nil {
-		select {
-		case semaphore <- struct{}{}:
-			defer func() { <-semaphore }()
-		case <-childCtx.Done():
-			return fail(childCtx.Err())
-		}
-	}
-	select {
-	case delegateGlobalLive <- struct{}{}:
-		defer func() { <-delegateGlobalLive }()
-	case <-childCtx.Done():
+	if !acquireSlot(childCtx, semaphore, def.MaxSteps) {
 		return fail(childCtx.Err())
 	}
+	if semaphore != nil {
+		defer func() { <-semaphore }()
+	}
+	if !acquireSlot(childCtx, delegateGlobalLive, def.MaxSteps) {
+		return fail(childCtx.Err())
+	}
+	defer func() { <-delegateGlobalLive }()
 	emitDelegateEvent(childCtx, DelegateEvent{Status: DelegateWorking, Message: "started", MaxSteps: def.MaxSteps})
 	out, err := runDelegateSafely(runner, childCtx, prompt)
 	if err != nil {
@@ -188,13 +209,68 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 	return res
 }
 
+// RunScouts és la investigació d'inici de torn: si la tasca es parteix en
+// àrees independents (ScoutFocuses) i els subagents poden córrer alhora
+// (ParallelSubagents > 1), un investigador per àrea, tots en paral·lel, i
+// els resums s'ajunten per àrea. Si no, un sol RunScout com sempre. Brief
+// buit només quan cap àrea ha tornat res.
+func RunScouts(ctx context.Context, o ScoutOptions) ScoutResult {
+	focuses := ScoutFocuses(o.Task)
+	if len(focuses) < 2 || ParallelSubagents(o.Cfg) < 2 {
+		r := RunScout(ctx, o)
+		r.IDs = []string{r.ID}
+		return r
+	}
+	results := make([]ScoutResult, len(focuses))
+	var wg sync.WaitGroup
+	for i, f := range focuses {
+		oi := o
+		oi.Focus = f
+		oi.ID = ""
+		if i == 0 {
+			oi.ID = o.ID
+		}
+		if oi.ID == "" {
+			oi.ID = nextDelegateID()
+		}
+		results[i].ID = oi.ID
+		wg.Add(1)
+		go func(i int, oi ScoutOptions) {
+			defer wg.Done()
+			results[i] = RunScout(ctx, oi)
+		}(i, oi)
+	}
+	wg.Wait()
+	out := ScoutResult{ID: results[0].ID, Agent: results[0].Agent}
+	var parts []string
+	var errs []string
+	for i, r := range results {
+		out.IDs = append(out.IDs, r.ID)
+		if r.Brief != "" {
+			parts = append(parts, fmt.Sprintf("AREA %d: %s\n%s", i+1, focuses[i], r.Brief))
+			continue
+		}
+		if r.Err != nil {
+			errs = append(errs, fmt.Sprintf("area %d: %v", i+1, r.Err))
+			parts = append(parts, fmt.Sprintf("AREA %d: %s\n(no brief: the researcher could not finish; investigate this area yourself)", i+1, focuses[i]))
+		}
+	}
+	if len(errs) == len(results) {
+		out.Err = errors.New(strings.Join(errs, "; "))
+		return out
+	}
+	out.Brief = strings.Join(parts, "\n\n")
+	return out
+}
+
 // NewDelegateID dona un id de fill nou (el mateix format que delegate).
 func NewDelegateID() string { return nextDelegateID() }
 
 // ScoutNote és el text que rep el coordinador amb el resum.
 func ScoutNote(brief string) string {
-	return "RESEARCHER BRIEF — a read-only researcher subagent already investigated this task before you started. " +
-		"Use it as your starting point: do not repeat its exploration; read a file again only when you need its exact current lines to edit it.\n" +
+	return "RESEARCHER BRIEF — read-only researcher subagents already investigated this task before you started (one per AREA when the brief is split). " +
+		"Use it as your starting point: do not repeat its exploration; read a file again only when you need its exact current lines to edit it. " +
+		"If several independent questions are still open, send them to parallel subagents in ONE `delegate` call instead of reading everything yourself one by one.\n" +
 		strings.TrimSpace(brief)
 }
 

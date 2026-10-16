@@ -36,6 +36,9 @@ type DelegateEvent struct {
 }
 
 const (
+	// DelegateQueued: launched but waiting for a free slot (per-turn or
+	// process cap, or a single-slot local server). Not working yet.
+	DelegateQueued    = "queued"
 	DelegateWorking   = "working"
 	DelegateCompleted = "completed"
 	DelegateFailed    = "failed"

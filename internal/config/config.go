@@ -12,8 +12,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"gregal/internal/llm"
-	"gregal/internal/tema"
 	"gregal/internal/sandbox"
+	"gregal/internal/tema"
 	"gregal/internal/tools"
 )
 
@@ -203,6 +203,11 @@ type AgentCfg struct {
 	// que demanen investigar comencin amb un subagent investigador de
 	// només lectura; off ho desactiva.
 	Scout string `yaml:"scout,omitempty"`
+	// ParallelSubagents topa quants subagents (delegate i scouts) corren
+	// alhora en un torn. 0 = automàtic: 4 amb proveïdors remots, 1 quan
+	// els subagents van a un servidor local (un sol slot: en paral·lel
+	// només farien cua dins del servidor).
+	ParallelSubagents int `yaml:"parallel_subagents,omitempty"`
 }
 
 // ScoutOn diu si l'investigador d'inici de torn és actiu (per defecte, sí).
@@ -430,7 +435,7 @@ type Config struct {
 	Sandbox sandbox.Config `yaml:"sandbox,omitempty"`
 	// Browser diu on corre el navegador de l'eina browser.
 	Browser BrowserCfg `yaml:"browser,omitempty"`
-	Mode        string               `yaml:"mode"`
+	Mode    string     `yaml:"mode"`
 	// Language és l'idioma de la interfície i de les respostes: ca o en.
 	// Buit = en. Els comentaris i els tests del codi continuen en català;
 	// això només és el que llegeix qui fa servir el programa.

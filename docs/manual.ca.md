@@ -187,6 +187,22 @@ el coordinador no repeteixi l'exploració. Si falla o s'atura, el torn continua
 igual. Els seus tokens compten en el torn. Es desactiva amb `agent.scout: off`
 (per defecte `auto`).
 
+**Subagents en paral·lel.** Quan la tasca anomena diverses àrees
+independents (una llista «(1) … (2) …», línies numerades o amb guions, camins
+de carpetes diferents, o una pregunta sobre «la TUI, el servidor web i el bot
+de Telegram»), l'investigador es parteix: un per àrea, fins a 3, tots alhora,
+i els seus resums arriben al coordinador agrupats per àrea. També es demana
+al coordinador que enviï les investigacions independents a `delegate` en una
+sola crida, perquè corrin juntes. Com a màxim corren 4 subagents alhora per
+torn (8 per procés); la resta surten **En cua** fins que hi ha lloc. Quan els
+subagents van a un servidor local (Ollama, llama.cpp, LM Studio o qualsevol
+URL de localhost) corren d'un en un, perquè amb un sol slot només farien cua
+dins del servidor. `agent.parallel_subagents: N` canvia el límit. A la sala,
+els fills que treballen junts seuen l'un al costat de l'altre a la fila del
+fons amb una etiqueta «3 alhora»; a la badia, cada fill té una barra sobre
+l'eix de temps del torn (les barres que se solapen han treballat juntes), i
+la capçalera conserva «fins a N alhora» quan acaben.
+
 Els equips (vista Team) també apareixen al Taller com a badies en directe:
 coordinador, agents amb tasca i resultat, graf del flux, detall, cua i Atura
 compartits; és una sola sala 2D. La vista Team conserva el seu circuit separat

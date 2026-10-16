@@ -468,7 +468,9 @@ body .agents-head h1.page-title { margin:0; font-size:clamp(22px,2.2vw,28px); fo
    it truncates the coordinator's name and state. */
 body #workshopPage { container-type:inline-size; container-name:agents; }
 @container agents (max-width: 920px) {
-  body .workshop-root { grid-template-columns:minmax(0,1fr); grid-template-areas:"head" "error" "stage" "queue"; }
+  /* "room" must stay in the template: a grid-area with no named cell
+     makes implicit tracks, and the stage collapsed to a sliver. */
+  body .workshop-root { grid-template-columns:minmax(0,1fr); grid-template-areas:"head" "error" "room" "stage" "queue"; }
 }
 body .workshop-bay { container-type:inline-size; container-name:bay; }
 @container bay (max-width: 560px) {

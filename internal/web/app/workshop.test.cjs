@@ -512,3 +512,52 @@ test('role room: legend, clickable step strip and role detail with files', async
   detail.querySelector('.room-detail-close').click();
   assert.equal(detail.hidden, true);
 });
+
+test('parallel children: badge, time bars, queued state and failure reason', async () => {
+  const t = s => new Date(Date.now() - (60 - s) * 1000).toISOString();
+  const agents = [
+    { id: 'c1', agent: 'scout', task: 'internal/team', status: 'working', started_at: t(0), updated_at: t(50), tool: 'read' },
+    { id: 'c2', agent: 'scout', task: 'internal/web/app/workshop.js', status: 'working', started_at: t(2), updated_at: t(50), tool: 'grep' },
+    { id: 'c3', task: 'web research', status: 'queued', started_at: t(3), updated_at: t(3) },
+    { id: 'c4', task: 'x'.repeat(600), status: 'failed', message: 'provider 429: rate limited', started_at: t(1), updated_at: t(9) },
+  ];
+  const sessions = [{ id: 'default', title: 'Main', busy: true, activity: { state: 'tools', started_at: t(0), agents } }];
+  const { workshop, root, window } = loadWorkshop({ sessions });
+  window.gregalWorkshopRoles = require('./workshop-roles.js');
+  workshop.init();
+  await workshop.show();
+  const bay = root.querySelector('.workshop-bay');
+  const badge = bay.querySelector('.child-parallel');
+  assert.equal(badge.hidden, false);
+  assert.equal(badge.dataset.live, 'true');
+  assert.equal(badge.textContent, 'workshop.atOnce'.replace('{n}', '2'));
+  assert.match(bay.querySelector('.child-count').textContent, /1 workshop\.queuedN/);
+  const cards = bay.querySelector('.child-agents').children;
+  assert.deepEqual(cards.map(c => c.dataset.state), ['working', 'working', 'queued', 'failed']);
+  // Every card has a bar on the turn's time axis.
+  assert.ok(cards.every(c => c.querySelector('.child-span').hidden === false));
+  assert.equal(cards[0].querySelector('.child-span-bar').style.left, '0%');
+  // The failed card says why; long tasks keep a short accessible name.
+  assert.match(cards[3].querySelector('.child-facts').textContent, /rate limited/);
+  assert.ok(cards[3].attributes['aria-label'].length < 220);
+  // After the fan-out ends the badge keeps the peak.
+  const done = agents.map(a => ({ ...a, status: 'completed', updated_at: t(55) }));
+  workshop.update([{ id: 'default', title: 'Main', busy: false, activity: { state: 'completed', started_at: t(0), agents: done } }]);
+  assert.equal(badge.dataset.live, 'false');
+  assert.equal(badge.textContent, 'workshop.peakAtOnce');
+});
+
+test('counts use singular forms and the step strip keeps button semantics', async () => {
+  const sessions = [{ id: 'default', title: 'Main', busy: true, activity: { state: 'tools', agents: [{ id: 'c1', task: 'one', status: 'working' }],
+    lanes: [{ seq: 1, step: 1, role: 'researcher', kind: 'read', target: 'a.go', done: true, result: 'ok' }] } }];
+  const { workshop, root, window } = loadWorkshop({ sessions, withScene: true });
+  window.gregalWorkshopRoles = require('./workshop-roles.js');
+  workshop.init();
+  await workshop.show();
+  assert.match(root.querySelector('.workshop-summary').textContent, /^1 workshop\.sessionsOne/);
+  assert.match(root.querySelector('.child-count').textContent, /^1 workshop\.agentsOne/);
+  const strip = root.querySelector('.room-strip');
+  assert.equal(strip.attributes.role, 'group');
+  assert.ok(strip.children.every(b => b.tagName === 'BUTTON' && !b.attributes.role));
+  assert.equal(root.querySelector('.room-detail').attributes['aria-live'], undefined);
+});
