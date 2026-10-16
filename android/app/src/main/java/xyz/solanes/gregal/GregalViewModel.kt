@@ -590,6 +590,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** «Arregla-ho»: l'arranjament d'una troballa passa a ser un torn. */
+    fun fixRetro(messageId: String) {
+        val ch = _retro.value ?: return
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroFix(ch.key.ifBlank { retroKey }, messageId) }
+                if (out != null) _retro.value = out
+                val run = out?.messages?.firstOrNull { it.id == messageId }?.fixRun ?: 0L
+                notify(appText("app.retro.fixStarted").replace("{n}", run.toString()))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                notify(requestMessage(e))
+            }
+        }
+    }
+
     fun reactRetro(messageId: String, emoji: String) {
         val ch = _retro.value ?: return
         val m = ch.messages.firstOrNull { it.id == messageId } ?: return

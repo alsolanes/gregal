@@ -344,7 +344,7 @@ func buildRetroPack(evs []events.Event, runID int, diff []tools.DiffFile, cwd st
 				mark = "✓"
 			}
 			reviewer = append(reviewer, retroEvidence{Agent: "coordinator", Kind: "bet",
-				Title: "bet " + str("p") + "% " + mark + " " + retroClip(str("command"), 70),
+				Title:  "bet " + str("p") + "% " + mark + " " + retroClip(str("command"), 70),
 				Detail: "predicted " + str("p") + "% that `" + str("command") + "` passes; it " + map[bool]string{true: "passed", false: "failed"}[ok], OK: boolPtr(ok)})
 		case "blocked":
 			tail = append(tail, retroEvidence{Agent: "coordinator", Kind: "blocked", Title: "blocked: " + retroClip(str("reason"), 80), Detail: e.Text, OK: boolPtr(false)})
@@ -465,7 +465,11 @@ func buildRetroTeamPack(a *workshopActivity) retroPack {
 }
 
 // renderRetroEvidence és el paquet tal com el veu el model.
-func renderRetroEvidence(p retroPack) string {
+func renderRetroEvidence(p retroPack) string { return renderRetroEvidenceN(p, 500) }
+
+// renderRetroEvidenceN deixa passar fins a max caràcters de cada detall (els
+// revisors necessiten veure més diff que el resum).
+func renderRetroEvidenceN(p retroPack, max int) string {
 	var sb strings.Builder
 	sb.WriteString("AGENTS:\n")
 	for _, a := range p.Agents {
@@ -485,7 +489,7 @@ func renderRetroEvidence(p retroPack) string {
 		}
 		fmt.Fprintf(&sb, "%s by %s · %s%s: %s\n", e.ID, e.Agent, e.Kind, status, e.Title)
 		if d := strings.TrimSpace(e.Detail); d != "" {
-			sb.WriteString("    " + strings.ReplaceAll(retroClip(d, 500), "\n", "\n    ") + "\n")
+			sb.WriteString("    " + strings.ReplaceAll(retroClip(d, max), "\n", "\n    ") + "\n")
 		}
 	}
 	return sb.String()

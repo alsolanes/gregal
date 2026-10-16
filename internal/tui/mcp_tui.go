@@ -74,6 +74,50 @@ func (m Model) mcpCommand(args []string) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// mcpReadyMsg arriba quan el primer intent de connexió d'un servidor MCP
+// (fet en segon pla des d'Init) acaba, bé o malament.
+type mcpReadyMsg struct {
+	server string
+	err    error
+}
+
+// mcpSetupCmds connecta cada servidor en una ordre pròpia: el TUI pinta
+// de seguida i les eines de cada servidor apareixen quan aquell acaba,
+// sense esperar el més lent.
+func mcpSetupCmds(mgr *mcp.Manager) []tea.Cmd {
+	var cmds []tea.Cmd
+	for _, name := range mgr.Connecting() {
+		name := name
+		cmds = append(cmds, func() tea.Msg {
+			return mcpReadyMsg{server: name, err: mgr.ConnectServer(name)}
+		})
+	}
+	return cmds
+}
+
+// onMCPReady avisa dels servidors que no han pogut connectar en arrencar
+// (abans només ho deia /mcp); els connectats no fan soroll: la barra
+// deixa de dir «connectant».
+func (m Model) onMCPReady(msg mcpReadyMsg) (tea.Model, tea.Cmd) {
+	if msg.err != nil && m.mcp != nil {
+		if rows := m.mcp.Status(); statusOf(rows, msg.server) == mcp.StatusNeedsAuth {
+			m.push(dimStyle.Render("mcp: " + msg.server + " needs authorization → /mcp connect " + msg.server))
+		} else {
+			m.push(badStyle.Render("✗ mcp " + msg.server + ": " + msg.err.Error()))
+		}
+	}
+	return m, nil
+}
+
+func statusOf(rows []map[string]any, name string) any {
+	for _, r := range rows {
+		if r["name"] == name {
+			return r["status"]
+		}
+	}
+	return nil
+}
+
 // mcpConnectCmd connecta un servidor. Si demana OAuth, obre el loopback,
 // torna primer l'URL (es pinta) i després espera el callback.
 func mcpConnectCmd(mgr *mcp.Manager, name string) tea.Cmd {

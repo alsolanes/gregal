@@ -21,12 +21,14 @@ const SPECIALIST_ICONS = {
   product: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
   code: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5M13.5 4l-3 16"/>',
   security: '<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  qa: '<path d="M9 9V7a3 3 0 0 1 6 0v2"/><rect x="7" y="9" width="10" height="11" rx="5"/><path d="M12 13v7M3 13h4M17 13h4M4 19l3-2M20 19l-3-2M4 8l3 2M20 8l-3 2"/>',
 };
 
 const st = {
   dialog: null, channel: null, latest: null, key: '', cursor: 0,
   thread: '', typing: new Map(), open: false, abort: null, busy: false,
   expanded: new Set(), pickerFor: null, notice: '',
+  filter: '', // barra de revisió: '' | all | high | medium | low
 };
 
 function el(tag, cls, text) {
@@ -418,8 +420,10 @@ function render() {
   const stick = mainList.scrollHeight - mainList.scrollTop - mainList.clientHeight < 80;
   mainList.innerHTML = '';
   if (st.channel.degraded) mainList.appendChild(el('div', 'retro-banner', T('retro.degraded')));
+  const bar = renderReviewBar();
+  if (bar) mainList.appendChild(bar);
   const counts = core.replyCounts(st.channel.messages);
-  for (const g of core.groupMessages(st.channel.messages)) mainList.appendChild(renderGroup(g.author, g.items, counts, false));
+  for (const g of core.groupMessages(core.filterFindings(st.channel.messages, st.filter))) mainList.appendChild(renderGroup(g.author, g.items, counts, false));
   if (stick) mainList.scrollTop = mainList.scrollHeight;
   const aside = d.querySelector('.retro-thread');
   aside.hidden = !st.thread;
@@ -434,6 +438,43 @@ function render() {
   paintTyping();
 }
 
+// Especialistes que encara revisen (els que «escriuen» sense haver publicat).
+function pendingReviewers() {
+  const now = Date.now();
+  return (st.channel.agents || []).filter(a => SPECIALIST_ICONS[a.avatar] && (st.typing.get(a.id) || 0) > now);
+}
+
+// Barra de la revisió de l'equip: troballes per gravetat (fan de filtre) i
+// qui encara revisa.
+function renderReviewBar() {
+  const n = core.findingCounts(st.channel.messages);
+  const pending = pendingReviewers();
+  if (!n.total && !pending.length) { st.filter = ''; return null; }
+  const bar = el('div', 'retro-reviewbar');
+  bar.setAttribute('role', 'toolbar');
+  bar.setAttribute('aria-label', T('retro.review'));
+  bar.appendChild(el('span', 'retro-reviewbar-label', T('retro.review')));
+  const chip = (key, label, count) => {
+    const on = st.filter === key;
+    const b = btn('retro-sevchip' + (key !== 'all' ? ' sev-' + key : '') + (on ? ' is-on' : ''), '', '', () => { st.filter = on ? '' : key; render(); });
+    b.setAttribute('aria-pressed', String(on));
+    if (key !== 'all') b.appendChild(el('span', 'retro-sevdot'));
+    b.append(el('span', '', label), el('span', 'retro-count', String(count)));
+    return b;
+  };
+  if (n.total) {
+    bar.appendChild(chip('all', T('retro.findings'), n.total));
+    for (const sev of core.SEVERITIES) if (n[sev]) bar.appendChild(chip(sev, T('retro.sev.' + sev), n[sev]));
+  }
+  if (pending.length) {
+    const p = el('span', 'retro-reviewing');
+    p.appendChild(el('span', 'retro-spinner is-small'));
+    p.appendChild(el('span', '', T(pending.length === 1 ? 'retro.reviewingOne' : 'retro.reviewingMany', { a: core.typingNames(pending.map(a => a.name), T('retro.and')) })));
+    bar.appendChild(p);
+  }
+  return bar;
+}
+
 function renderGroup(author, items, counts, inThread) {
   const g = el('div', 'retro-group' + (author === 'user' ? ' is-user' : '') + (author === 'system' ? ' is-system' : ''));
   g.appendChild(avatar(author));
@@ -441,7 +482,8 @@ function renderGroup(author, items, counts, inThread) {
   const meta = el('div', 'retro-meta');
   meta.appendChild(el('b', 'retro-name', nameOf(author)));
   const a = agentOf(author);
-  if (a && a.role) meta.appendChild(el('span', 'retro-role', a.role));
+  // Especialistes: només el seu angle, traduït (el rol és per al model).
+  if (a && a.role) meta.appendChild(el('span', 'retro-role', SPECIALIST_ICONS[a.avatar] ? T('retro.angle.' + a.avatar) : a.role));
   const t = el('time', 'retro-time', clock(items[0].at));
   t.dateTime = items[0].at;
   meta.appendChild(t);
@@ -452,9 +494,17 @@ function renderGroup(author, items, counts, inThread) {
 }
 
 function renderMessage(m, counts, inThread) {
-  const box = el('div', 'retro-msg' + (m.concede ? ' is-concede' : ''));
+  const sev = core.SEVERITIES.includes(m.severity) ? m.severity : 'low';
+  const box = el('div', 'retro-msg' + (m.concede ? ' is-concede' : '') +
+    (m.kind === 'finding' ? ' is-finding sev-' + sev : '') + (m.kind === 'verdict' ? ' is-verdict' : ''));
   box.dataset.id = m.id;
   box.tabIndex = -1;
+  if (m.kind === 'finding') {
+    const head = el('div', 'retro-finding-head');
+    head.appendChild(el('span', 'retro-sev', T('retro.sev.' + sev)));
+    if (m.title) head.appendChild(el('b', 'retro-finding-title', m.title));
+    box.appendChild(head);
+  }
   const text = el('div', 'retro-text');
   text.appendChild(richText(m.text));
   box.appendChild(text);
@@ -527,7 +577,8 @@ function paintTyping() {
   if (!st.dialog) return;
   const now = Date.now();
   for (const [id, exp] of st.typing) if (exp < now) st.typing.delete(id);
-  const names = [...st.typing.keys()].map(nameOf);
+  const reviewing = id => { const a = agentOf(id); return !!(a && SPECIALIST_ICONS[a.avatar]) && !!st.channel; };
+  const names = [...st.typing.keys()].filter(id => !reviewing(id)).map(nameOf);
   const text = !names.length ? '' : T(names.length === 1 ? 'retro.typingOne' : 'retro.typingMany', { a: core.typingNames(names, T('retro.and')) });
   st.dialog.querySelectorAll('.retro-typing').forEach(t => { t.textContent = text; t.classList.toggle('on', !!text); });
 }
@@ -541,7 +592,7 @@ function onEvent(e) {
   if (!p.key || (p.key !== st.key && !(st.channel && p.key === st.channel.key))) return;
   if (e.kind === 'retro_typing') {
     (p.agents || []).forEach(id => { if (p.typing) st.typing.set(id, Date.now() + 120000); else st.typing.delete(id); });
-    paintTyping();
+    if (st.channel) render(); else paintTyping();
     return;
   }
   if (!st.channel) {

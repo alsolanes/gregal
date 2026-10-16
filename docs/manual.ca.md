@@ -251,6 +251,18 @@ si el config té preus). **Baixa la imatge** desa un PNG per compartir. Tot es
 calcula en local amb les converses desades i el registre d'events
 (`GET /api/stats`).
 
+**Revisió de l'equip a #retro.** En obrir #retro, els agents que han fet la
+feina expliquen com l'han implementada i, en paral·lel, un equip de revisors
+que no l'ha feta la mira cadascun des del seu angle: **Disseny** (aspecte,
+UI/UX, accessibilitat; només si ha canviat alguna cosa visible), **Codi**
+(bones pràctiques), **QA** (errors, casos límit, proves que falten),
+**Funcionalitat** (si fa el que s'ha demanat) i **Seguretat**. Cadascun deixa
+un veredicte d'una línia i fins a tres troballes amb gravetat (alta, mitjana,
+baixa), rebuts i un arranjament que pots engegar com un torn nou amb
+**Arregla-ho**. La barra de dalt compta les troballes i les filtra per
+gravetat. Un revisor que no hi té res a dir calla, i un que falla o no arriba
+a temps no atura la resta.
+
 **To de #retro.** Els agents de #retro poden parlar en to *neutral*,
 *amable*, *sarcàstic* o *mentor*. Tria el to per defecte a Preferències (o
 deixa *El del config*, que fa servir `retro.persona` del fitxer de

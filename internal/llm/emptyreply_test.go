@@ -37,8 +37,9 @@ func TestStreamSenseRespostaPerTokens(t *testing.T) {
 	}
 }
 
-// Una resposta parcial no es pot presentar com a completa ni repetir-se
-// després d'haver-ne emès els tokens.
+// Una resposta que es talla sempre per max_tokens no es llença: es continua
+// fins al sostre i es lliura el text acumulat amb una nota visible. El que
+// surt per onToken coincideix amb el que es torna (res de duplicat ni perdut).
 func TestStreamTallatPeròAmbText(t *testing.T) {
 	var crides int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -50,26 +51,36 @@ func TestStreamTallatPeròAmbText(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	var tokens strings.Builder
 	out, err := New().ChatStream(context.Background(), srv.URL, "", "m",
-		[]Message{{Role: "user", Content: "hola"}}, 0.7, 1024, nil, nil)
-	if out != "" || err == nil || !strings.Contains(err.Error(), "resposta s'ha tallat") {
+		[]Message{{Role: "user", Content: "hola"}}, 0.7, 1024, func(s string) { tokens.WriteString(s) }, nil)
+	if err != nil || !strings.HasPrefix(out, strings.Repeat("a mitges", MaxContinuacions+1)) || !strings.Contains(out, "resposta tallada") {
 		t.Fatalf("out=%q err=%v", out, err)
 	}
-	if crides != 1 {
-		t.Fatalf("un stream parcial no s'ha de repetir (tokens duplicats): %d crides", crides)
+	if tokens.String() != out {
+		t.Fatalf("pantalla i retorn han de coincidir:\n tokens=%q\n out=%q", tokens.String(), out)
+	}
+	if crides != MaxContinuacions+1 {
+		t.Fatalf("1 intent + %d continuacions, han estat %d", MaxContinuacions, crides)
 	}
 }
 
-func TestChatNoAcceptaRespostaParcialPerLength(t *testing.T) {
+func TestChatConservaRespostaParcialPerLength(t *testing.T) {
+	var crides int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		crides++
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"a mitges"},"finish_reason":"length"}]}`)
+		if crides == 1 {
+			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"a mitges"},"finish_reason":"length"}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":" i acabat"},"finish_reason":"stop"}]}`)
 	}))
 	defer srv.Close()
 
 	if out, err := New().Chat(context.Background(), srv.URL, "", "m",
-		[]Message{{Role: "user", Content: "hola"}}, 0.7, 512); err == nil || out != "" {
-		t.Fatalf("out=%q err=%v: la resposta parcial ha de quedar marcada", out, err)
+		[]Message{{Role: "user", Content: "hola"}}, 0.7, 512); err != nil || out != "a mitges i acabat" {
+		t.Fatalf("out=%q err=%v: la resposta parcial s'ha de conservar i continuar", out, err)
 	}
 }
 

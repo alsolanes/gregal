@@ -105,7 +105,27 @@
     return n.slice(0, -1).join(', ') + (and || ' and ') + n[n.length - 1];
   }
 
-  const api = { parseMentions, mentionQuery, mentionMatches, insertMention, groupMessages, replyCounts, threadMessages, toggleReaction, applyEvent, typingNames };
+  // Troballes de la revisió de l'equip per gravetat (només el canal principal).
+  const SEVERITIES = ['high', 'medium', 'low'];
+  function findingCounts(messages) {
+    const out = { high: 0, medium: 0, low: 0, total: 0 };
+    for (const m of Array.isArray(messages) ? messages : []) {
+      if (m.kind !== 'finding' || m.thread_id) continue;
+      const sev = SEVERITIES.includes(m.severity) ? m.severity : 'low';
+      out[sev]++; out.total++;
+    }
+    return out;
+  }
+
+  // Missatges a mostrar amb el filtre de la barra de revisió: sense filtre,
+  // tots; amb «all», només les troballes; si no, les d'aquella gravetat.
+  function filterFindings(messages, filter) {
+    const list = Array.isArray(messages) ? messages : [];
+    if (!filter) return list;
+    return list.filter(m => m.kind === 'finding' && !m.thread_id && (filter === 'all' || (SEVERITIES.includes(m.severity) ? m.severity : 'low') === filter));
+  }
+
+  const api = { parseMentions, mentionQuery, mentionMatches, insertMention, groupMessages, replyCounts, threadMessages, toggleReaction, applyEvent, typingNames, findingCounts, filterFindings, SEVERITIES };
   if (typeof module === 'object' && module.exports) module.exports = api;
   if (root) root.gregalRetroCore = api;
 })(typeof window !== 'undefined' ? window : null);

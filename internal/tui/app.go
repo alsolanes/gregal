@@ -289,9 +289,10 @@ type Model struct {
 	compacted string
 
 	role            string
-	mouseOn         bool   // ratolí capturat (roda scroll; desactiu = selecció nativa)
-	rolePinned      bool   // cert si l'usuari ha fixat el rol (/role)
-	agentRole       string // rol rutejat del torn actiu ("" = rol de sessió)
+	mouseOn         bool     // ratolí capturat (roda scroll; desactiu = selecció nativa)
+	sel             seleccio // selecció amb el ratolí dins de la conversa (seleccio.go)
+	rolePinned      bool     // cert si l'usuari ha fixat el rol (/role)
+	agentRole       string   // rol rutejat del torn actiu ("" = rol de sessió)
 	busy            bool
 	status          string
 	ready           bool
@@ -484,7 +485,9 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 	}
 	role := initialRole(cfg)
 	m := Model{cfg: cfg, cfgPath: cfgPath, client: c, version: v, cwd: cwd, input: ti, role: role, status: T("barra.llest"), mode: cfg.Mode,
-		mcp:         mcp.Setup(toMCPServers(cfg)),
+		// Sense connectar: Init ho fa en segon pla perquè un servidor MCP
+		// lent o penjat no deixi el TUI en blanc fins a 30 s.
+		mcp:         mcp.NewManager(toMCPServers(cfg), mcp.Options{}),
 		policy:      &agent.Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: cwd},
 		remembers:   agent.NewRemember(),
 		histEntries: session.LoadHistory(), histIdx: -1,
@@ -517,10 +520,12 @@ func toMCPServers(cfg *config.Config) map[string]mcp.Server {
 // Init anima el cursor (i apaga el ratolí si el config el vol desactivat;
 // el programa arrenca amb captura activada).
 func (m Model) Init() tea.Cmd {
-	if m.mouseOn {
-		return tea.Batch(textarea.Blink, tickIdle(), m.detectWindowsCmd())
+	cmds := []tea.Cmd{textarea.Blink, tickIdle(), m.detectWindowsCmd()}
+	if !m.mouseOn {
+		cmds = append(cmds, tea.DisableMouse)
 	}
-	return tea.Batch(textarea.Blink, tickIdle(), tea.DisableMouse, m.detectWindowsCmd())
+	cmds = append(cmds, mcpSetupCmds(m.mcp)...)
+	return tea.Batch(cmds...)
 }
 
 func tick() tea.Cmd {
@@ -1231,8 +1236,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
+		// Clic i arrossegar sobre la conversa selecciona i copia.
+		if m2, cmd, ok := m.ratoliSeleccio(msg); ok {
+			return m2, cmd
+		}
+	case copiatSelMsg:
+		if msg.err != nil {
+			m.status = "⚠ " + msg.err.Error()
+		} else {
+			m.status = fmt.Sprintf(T("app.copiat"), msg.n, msg.how)
+		}
+		return m, nil
 	case tea.WindowSizeMsg:
 		m.ample, m.alt = msg.Width, msg.Height
+		// L'embolcall canvia amb l'amplada: les files de la selecció ja
+		// no apunten al mateix text.
+		m.sel = seleccio{}
 		vw, vh := m.midaViewport(msg.Width, msg.Height)
 		if !m.ready {
 			m.vp = viewport.New(vw, vh)
@@ -1646,6 +1665,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.flowTick()
 	case mcpAuthMsg:
 		return m.onMCPAuth(msg)
+	case mcpReadyMsg:
+		return m.onMCPReady(msg)
 	case mcpPromptMsg:
 		return m.onMCPPrompt(msg)
 	case serviceStatusMsg:
@@ -3865,13 +3886,18 @@ func (m Model) View() string {
 		estat = "◈ " + m.status
 		estatStyle = warnStyle
 	}
-	estat = mascota + " " + estat
+	estat = estatStyle.Render(mascota + " " + estat)
+	if n := len(m.mcp.Connecting()); n > 0 {
+		// Les eines d'aquests servidors encara no hi són: un torn ara no
+		// les veurà. Ho diu la barra fins que acaben.
+		estat = dimStyle.Render(fmt.Sprintf(T("mcp.connectant"), n)) + "  " + estat
+	}
 	// Quadrat ple = cada eina delicada demana permís; buit = permissiu.
 	permisos := dimStyle.Render("■")
 	if m.permissive {
 		permisos = warnStyle.Render("□")
 	}
-	rightBar := estatStyle.Render(estat) + "  " + permisos
+	rightBar := estat + "  " + permisos
 	if !m.vp.AtBottom() {
 		rightBar = projectStyle.Render(fmt.Sprintf("↕ %d%%", int(m.vp.ScrollPercent()*100))) + "  " + rightBar
 	}
@@ -3901,79 +3927,8 @@ func (m Model) View() string {
 	} else {
 		bar = lipgloss.NewStyle().MaxWidth(m.vp.Width).Render(bar)
 	}
-	sugg := ""
-	if list := m.suggestions(); len(list) > 0 {
-		sel := m.suggIdx
-		if sel < 0 {
-			sel = 0
-		}
-		if sel >= len(list) {
-			sel = len(list) - 1
-		}
-		rows := make([]string, 0, maxSugg)
-		for i, c := range list {
-			row := "  /" + c.name + " — " + c.desc
-			if i == sel {
-				row = suggHL.MaxWidth(m.vp.Width).Render("▸ /" + c.name + " — " + c.desc)
-			} else {
-				row = dimStyle.MaxWidth(m.vp.Width).Render(row)
-			}
-			rows = append(rows, row)
-		}
-		for len(rows) < maxSugg {
-			rows = append(rows, "")
-		}
-		sugg = strings.Join(rows, "\n") + "\n"
-	}
-	// El selector, l'aprovació, la pregunta, la cerca i l'ajuda ja no
-	// s'encabeixen entre la conversa i el composer: se superposen a la
-	// conversa (vegeu overlay.go). El viewport no cedeix cap fila i el text
-	// no salta en obrir-los ni en tancar-los.
-	vp := m.vp
-	todos := ""
-	if m.showTodos && !m.columnaActiva() {
-		todos = m.cockpitBox(m.vp.Width) + "\n"
-	}
-	timeline := ""
-	if m.timelineOpen {
-		timeline = m.timelineBox(m.vp.Width) + "\n"
-	}
-	queue := ""
-	if len(m.queued) > 0 && !m.showTodos {
-		queue = m.queueBox(m.vp.Width) + "\n"
-	}
-	// filesVisuals: files reals que ocupa un bloc ja renderitzat.
-	// Comptar "\n" no n'hi ha prou: els blocs amb Width (confirmació,
-	// pregunta, todos, suggeriments llargs) i el composer s'embolcalla i
-	// ocupen més files visuals de les que diuen els salts. Si el viewport
-	// no cedeix exactament aquestes, el total supera l'alçada del terminal
-	// i el terminal fa scroll: tot el text anterior balla (amaga i mostra
-	// blocs com el veredicte) amb cada tecla.
-	filesVisuals := func(block string) int {
-		if block == "" {
-			return 0
-		}
-		return lipgloss.Height(strings.TrimSuffix(block, "\n"))
-	}
-	ib := m.inputBox()
-	vp.Height -= filesVisuals(sugg) + filesVisuals(todos) + filesVisuals(timeline) + filesVisuals(queue)
-	// El composer creix en escriure (multilínia o línies llargues que
-	// s'embolcalla): el viewport ha de cedir l'excés sobre la base 4 que
-	// ja descompta vpSize, o el total desborda i tot salta.
-	if exc := lipgloss.Height(ib) - 4; exc > 0 {
-		vp.Height -= exc
-	}
-	if vp.Height < 3 {
-		vp.Height = 3
-	}
-	// Encongir el viewport (obrir un popup) no pot moure la lectura. Abans
-	// qualsevol canvi d'alçada forçava GotoBottom, o sigui que amb
-	// l'autocomplete obert era impossible quedar-se amunt: cada tecla et
-	// tornava al final. Només seguim el final si l'usuari ja hi era.
-	if m.vp.AtBottom() {
-		vp.GotoBottom()
-	}
-	conversa := vp.View()
+	vp, sugg, todos, timeline, queue, ib := m.composicio(suggHL)
+	conversa := m.pintaSeleccio(vp.View(), vp.YOffset, vp.Width)
 	if caixa := m.dialegObert(); caixa != "" {
 		conversa = superposa(conversa, caixa, m.vp.Width)
 	}
@@ -4029,4 +3984,85 @@ func (m *Model) treuBenvinguda() {
 	}
 	m.benvingudaN = 0
 	m.refresh()
+}
+
+// composicio calcula els blocs que van entre la conversa i la barra i el
+// viewport tal com es pinta (alçada encongida pels blocs, seguint el final
+// si l'usuari hi era). La selecció amb el ratolí la fa servir per saber
+// quina fila de la conversa hi ha sota el cursor: ha de ser la mateixa
+// que veu l'usuari, no la de m.vp sense encongir.
+func (m Model) composicio(suggHL lipgloss.Style) (vp viewport.Model, sugg, todos, timeline, queue, ib string) {
+	sugg = ""
+	if list := m.suggestions(); len(list) > 0 {
+		sel := m.suggIdx
+		if sel < 0 {
+			sel = 0
+		}
+		if sel >= len(list) {
+			sel = len(list) - 1
+		}
+		rows := make([]string, 0, maxSugg)
+		for i, c := range list {
+			row := "  /" + c.name + " — " + c.desc
+			if i == sel {
+				row = suggHL.MaxWidth(m.vp.Width).Render("▸ /" + c.name + " — " + c.desc)
+			} else {
+				row = dimStyle.MaxWidth(m.vp.Width).Render(row)
+			}
+			rows = append(rows, row)
+		}
+		for len(rows) < maxSugg {
+			rows = append(rows, "")
+		}
+		sugg = strings.Join(rows, "\n") + "\n"
+	}
+	// El selector, l'aprovació, la pregunta, la cerca i l'ajuda ja no
+	// s'encabeixen entre la conversa i el composer: se superposen a la
+	// conversa (vegeu overlay.go). El viewport no cedeix cap fila i el text
+	// no salta en obrir-los ni en tancar-los.
+	vp = m.vp
+	todos = ""
+	if m.showTodos && !m.columnaActiva() {
+		todos = m.cockpitBox(m.vp.Width) + "\n"
+	}
+	timeline = ""
+	if m.timelineOpen {
+		timeline = m.timelineBox(m.vp.Width) + "\n"
+	}
+	queue = ""
+	if len(m.queued) > 0 && !m.showTodos {
+		queue = m.queueBox(m.vp.Width) + "\n"
+	}
+	// filesVisuals: files reals que ocupa un bloc ja renderitzat.
+	// Comptar "\n" no n'hi ha prou: els blocs amb Width (confirmació,
+	// pregunta, todos, suggeriments llargs) i el composer s'embolcalla i
+	// ocupen més files visuals de les que diuen els salts. Si el viewport
+	// no cedeix exactament aquestes, el total supera l'alçada del terminal
+	// i el terminal fa scroll: tot el text anterior balla (amaga i mostra
+	// blocs com el veredicte) amb cada tecla.
+	filesVisuals := func(block string) int {
+		if block == "" {
+			return 0
+		}
+		return lipgloss.Height(strings.TrimSuffix(block, "\n"))
+	}
+	ib = m.inputBox()
+	vp.Height -= filesVisuals(sugg) + filesVisuals(todos) + filesVisuals(timeline) + filesVisuals(queue)
+	// El composer creix en escriure (multilínia o línies llargues que
+	// s'embolcalla): el viewport ha de cedir l'excés sobre la base 4 que
+	// ja descompta vpSize, o el total desborda i tot salta.
+	if exc := lipgloss.Height(ib) - 4; exc > 0 {
+		vp.Height -= exc
+	}
+	if vp.Height < 3 {
+		vp.Height = 3
+	}
+	// Encongir el viewport (obrir un popup) no pot moure la lectura. Abans
+	// qualsevol canvi d'alçada forçava GotoBottom, o sigui que amb
+	// l'autocomplete obert era impossible quedar-se amunt: cada tecla et
+	// tornava al final. Només seguim el final si l'usuari ja hi era.
+	if m.vp.AtBottom() {
+		vp.GotoBottom()
+	}
+	return vp, sugg, todos, timeline, queue, ib
 }

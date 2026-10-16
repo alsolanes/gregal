@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -160,6 +161,10 @@ func isPermanentProviderError(body string) bool {
 // RetryNote és el text curt per a una barra d'estat: «proveïdor HTTP 502 ·
 // reintent 2/6 d'aquí a 4 s».
 func RetryNote(attempt, total int, wait time.Duration, err error) string {
+	var tall *TruncationNotice
+	if errors.As(err, &tall) {
+		return tall.Error()
+	}
 	motiu := "sense resposta"
 	if err != nil {
 		msg := err.Error()

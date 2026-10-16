@@ -34,7 +34,7 @@ import (
 )
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
-var version = "v1.9.3"
+var version = "v1.9.4"
 
 // repoDir l'omple la compilacio (-ldflags "-X main.repoDir=..."): aixi el
 // binari recorda d'on va sortir i `gregal update` el sap trobar encara que
@@ -103,6 +103,15 @@ func main() {
 	bestOfModels := flag.String("best-of-models", "", "with --best-of: comma-separated role names or provider/model per attempt (default: the code role)")
 	worktreeFlag := flag.String("worktree", "", "with -p or the TUI: work in an isolated git worktree .gregal/worktrees/<name> on branch gregal/<name> (created from HEAD if needed)")
 	flag.Parse()
+
+	// Una paraula que no és cap ordre coneguda no obre el TUI: un binari
+	// vell que rebia `gregal mcp demo` (ordre posterior) ignorava els
+	// arguments, obria el TUI, tornava a engegar el connector demo del config
+	// compartit i així indefinidament (milers de processos).
+	if flag.NArg() > 0 {
+		fmt.Fprintf(os.Stderr, "gregal: unknown command %q (see gregal -h)\n", flag.Arg(0))
+		os.Exit(2)
+	}
 
 	if *verFlag {
 		fmt.Println("gregal", version)
@@ -264,6 +273,13 @@ func main() {
 
 	if err := entraWorktree(*worktreeFlag); err != nil {
 		fmt.Fprintln(os.Stderr, "gregal: --worktree:", err)
+		os.Exit(2)
+	}
+	// Un servidor MCP fill mai obre el TUI: si l'ordre no es reconeix i hi
+	// arribem, tornaríem a engegar els connectors del config i, amb ells, a
+	// nosaltres mateixos.
+	if os.Getenv(mcp.ChildEnv) != "" {
+		fmt.Fprintln(os.Stderr, "gregal: started as an MCP server child; refusing to open the TUI")
 		os.Exit(2)
 	}
 	client := llm.New()

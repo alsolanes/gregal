@@ -240,6 +240,17 @@ model and estimated tokens (cost only when the config has prices). **Download
 image** saves a shareable PNG. Everything is computed locally from your saved
 conversations and the event log (`GET /api/stats`).
 
+**#retro team review.** When you open #retro, the agents that did the work
+explain how it was implemented while a team of reviewers who did not do it
+looks at it in parallel, each from its own angle: **Design** (looks, UI/UX,
+accessibility; only when something visible changed), **Code** (best
+practices), **QA** (bugs, edge cases, missing tests), **Product** (does it do
+what was asked) and **Security**. Each one posts a one-line verdict and up to
+three findings with a severity (high, medium, low), receipts and a fix you
+can start as a new run with **Fix it**. The bar at the top counts the
+findings and filters them by severity. A reviewer with nothing to say stays
+silent, and one that fails or runs out of time does not hold up the rest.
+
 **#retro tone.** Agents in #retro can talk as *neutral*, *friendly*,
 *sarcastic* or *mentor*. Pick the default in Preferences (or leave *From
 config*, which uses `retro.persona` in the config file) and change it per

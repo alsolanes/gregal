@@ -251,7 +251,7 @@ func TestOptInStreamRecoveryDoesNotDuplicatePartialText(t *testing.T) {
 	var emitted strings.Builder
 	out, _, err := New().ChatStreamWithTools(WithRecoverTruncation(context.Background()), srv.URL, "", "m", nil, 0, 512, nil,
 		func(s string) { emitted.WriteString(s) }, nil)
-	if err != nil || out != "complete" || emitted.String() != "complete" {
+	if err != nil || out != "partialcomplete" || emitted.String() != "partialcomplete" {
 		t.Fatalf("out=%q emitted=%q err=%v", out, emitted.String(), err)
 	}
 	if attempts.Load() != 2 {

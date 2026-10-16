@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+## v1.9.4 - 2026-10-16 - Team review, no lost replies and a faster terminal
+
+- A reply cut off by the output token limit is no longer lost, on every
+  surface (terminal, `-p`, web, Telegram). The partial text is kept and
+  Gregal asks the model to continue, up to three times. A tool call whose
+  arguments were cut off is never run: it is requested again with twice the
+  `max_tokens` and a hint to split the work into smaller calls. Each step
+  shows in the status line, and if the limit is still hit the reply ends
+  with a note instead of disappearing.
+- Terminal (TUI): with the mouse on, dragging over the conversation selects
+  text with a visible highlight and copies it on release, and the wheel
+  still scrolls. Shift+drag still uses the terminal's own selection. `/copy`
+  and the selection now use the native clipboard on Windows and macOS.
+- Terminal (TUI) opens at once: MCP servers connect in the background, their
+  tools appear as each one connects and the status bar shows how many are
+  still connecting. A slow or hung server no longer delays startup by up to
+  30 seconds.
+- An older `gregal` on PATH that didn't know `gregal mcp demo` opened a
+  terminal UI instead, which started the demo connector again, and so on
+  until memory ran out. Gregal now rejects unknown commands and never opens
+  the terminal UI when it was started as an MCP server.
+- #retro team review: when the retro opens, reviewers who did not do the
+  work look at it in parallel with the summary, each from its own angle:
+  Design (only when something visible changed), Code, QA (new: bugs, edge
+  cases, missing tests), Product and Security. Each posts a verdict and up to
+  three findings with severity, receipts and a fix that **Fix it** starts as
+  a run; they appear as they finish. A "Team review" bar counts the findings
+  and filters them by severity. Same on Android, which also gets **Fix it**.
+- The coordinator's opening in #retro explains how the work was implemented
+  (approach and key files).
+- #retro judged a turn against the wrong task when another conversation was
+  loaded: the task is now saved with the turn. `@all` gets a reply from every
+  agent again (it was capped at three).
+
 ## v1.9.3 - 2026-10-15 - Aligned surfaces
 
 - Same mode vocabulary everywhere: the terminal (TUI) and Telegram now say

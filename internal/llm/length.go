@@ -31,6 +31,12 @@ type LengthError struct {
 	Reasoned  int // caràcters de pensament (>0 si és model de raonament)
 	MaxTokens int
 	Partial   bool // el model havia començat la resposta, però l'ha tallada
+	// Text i Calls són el que el model havia arribat a escriure abans del
+	// tall. No es llencen: continuaTallat els conserva i demana la resta.
+	// Les crides poden tenir els arguments a mitges i no s'executen mai
+	// sense passar per argsComplets.
+	Text  string
+	Calls []ToolCall
 }
 
 // StreamInterruptedError reports a stream closed before its final signal.
@@ -173,7 +179,9 @@ func dobla(budget int) int {
 // no és determinista.
 func escalaLength(ctx context.Context, err error, provat int, do func(budget int) error) error {
 	le, ok := AsLengthError(err)
-	if !ok || le.Partial || provat <= 0 || provat >= MaxTokensCap || ctx.Err() != nil {
+	// Un tall amb feina feta no es regenera sencer amb més pressupost: es
+	// continua (continuaTallat), que conserva el que ja s'ha escrit.
+	if !ok || le.Partial || le.teSortida() || provat <= 0 || provat >= MaxTokensCap || ctx.Err() != nil {
 		return err
 	}
 	pressupost := provat
@@ -196,7 +204,7 @@ func escalaLength(ctx context.Context, err error, provat int, do func(budget int
 		} else {
 			err = err2
 		}
-		if le2, ok := AsLengthError(err); !ok || le2.Partial {
+		if le2, ok := AsLengthError(err); !ok || le2.Partial || le2.teSortida() {
 			return err
 		}
 		if pressupost >= MaxTokensCap {

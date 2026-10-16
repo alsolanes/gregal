@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -35,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AddReaction
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.Build
 import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Lightbulb
@@ -71,6 +73,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -94,6 +97,7 @@ private fun who(ch: RetroChannel?, id: String, lang: String): Who {
         "product" -> Who(name, Sand, Icons.Rounded.Lightbulb)
         "code" -> Who(name, Green, Icons.Rounded.Code)
         "security" -> Who(name, Red, Icons.Rounded.Shield)
+        "qa" -> Who(name, Sea, Icons.Rounded.BugReport)
         else -> Who(name, Sea, Icons.Rounded.AutoAwesome)
     }
 }
@@ -113,7 +117,9 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     var input by remember { mutableStateOf("") }
     val list = rememberLazyListState()
-    val rows = remember(ch) { retroOrdered(ch?.messages.orEmpty()) }
+    var filter by remember { mutableStateOf("") }
+    val counts = remember(ch) { retroFindingCounts(ch?.messages.orEmpty()) }
+    val rows = remember(ch, filter) { retroOrdered(retroFilter(ch?.messages.orEmpty(), filter)) }
     val replying = state == "replying"
     LaunchedEffect(rows.size, replying) { if (rows.isNotEmpty()) list.animateScrollToItem(rows.size + if (replying) 1 else 0) }
 
@@ -137,7 +143,7 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                 actions = {
                     // Qui hi ha al canal: els avatars dels agents.
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(end = 12.dp)) {
-                        ch?.agents.orEmpty().take(4).forEach { a -> Avatar(who(ch, a.id, lang), 26) }
+                        ch?.agents.orEmpty().take(5).forEach { a -> Avatar(who(ch, a.id, lang), 24) }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
@@ -192,11 +198,13 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                             Text(tr(lang, "app.retro.degraded"), color = Sand, fontSize = 12.5.sp,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                         }
+                        if (counts.isNotEmpty()) ReviewBar(counts, filter, lang) { filter = if (filter == it) "" else it }
                     }
                     items(rows, key = { it.first.id }) { (m, inThread) ->
                         val prev = rows.getOrNull(rows.indexOfFirst { it.first.id == m.id } - 1)?.first
                         RetroMessageRow(ch, m, inThread, grouped = prev != null && prev.author == m.author && !inThread,
-                            emojis = emojis, lang = lang, onReact = { e -> haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); vm.reactRetro(m.id, e) })
+                            emojis = emojis, lang = lang, onReact = { e -> haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); vm.reactRetro(m.id, e) },
+                            onFix = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.fixRetro(m.id) })
                     }
                     if (replying) item { Typing(lang) }
                     if (state.isNotBlank() && state !in setOf("loading", "starting", "replying")) item {
@@ -205,6 +213,56 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
+        }
+    }
+}
+
+/** Color de cada gravetat (com la web: vermell, ambre, escuma). */
+@Composable
+private fun sevColor(sev: String): Color = when (sev) {
+    "high" -> Red
+    "medium" -> Sand
+    else -> Sea
+}
+
+/** «Revisió de l'equip»: troballes per gravetat; cada xip filtra. */
+@Composable
+private fun ReviewBar(counts: Map<String, Int>, filter: String, lang: String, onPick: (String) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp), color = PillDark, border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(tr(lang, "app.retro.review").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            Row(
+                Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SevChip(tr(lang, "app.retro.findings"), counts.values.sum(), null, filter == "all") { onPick("all") }
+                RETRO_SEVERITIES.forEach { s ->
+                    val n = counts[s] ?: 0
+                    if (n > 0) SevChip(tr(lang, "app.retro.sev.$s"), n, sevColor(s), filter == s) { onPick(s) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SevChip(label: String, n: Int, color: Color?, on: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(50), color = if (on) Sea.copy(alpha = 0.16f) else CodeDark,
+        border = BorderStroke(1.dp, if (on) Sea.copy(alpha = 0.6f) else Line),
+        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick),
+    ) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (color != null) {
+                Box(Modifier.size(8.dp).background(color, CircleShape))
+                Spacer(Modifier.width(6.dp))
+            }
+            Text(label, color = if (on) Ink else Tinta, fontSize = 13.sp)
+            Spacer(Modifier.width(6.dp))
+            Text(n.toString(), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -220,7 +278,7 @@ private fun Avatar(w: Who, size: Int) {
 @Composable
 private fun RetroMessageRow(
     ch: RetroChannel?, m: RetroMsg, inThread: Boolean, grouped: Boolean,
-    emojis: List<String>, lang: String, onReact: (String) -> Unit,
+    emojis: List<String>, lang: String, onReact: (String) -> Unit, onFix: () -> Unit,
 ) {
     val w = who(ch, m.author, lang)
     var picker by remember { mutableStateOf(false) }
@@ -241,9 +299,11 @@ private fun RetroMessageRow(
                         Text(retroClock(m.at), color = Faint, fontSize = 11.5.sp)
                     }
                 }
-                Text(renderMd(m.text, CodeDark), color = Tinta, fontSize = 15.sp, lineHeight = 22.sp,
+                if (m.isFinding) FindingCard(m, lang, onFix)
+                else Text(renderMd(m.text, CodeDark), color = if (m.kind == "verdict") Muted else Tinta, fontSize = 15.sp, lineHeight = 22.sp,
+                    fontStyle = if (m.kind == "verdict") FontStyle.Italic else FontStyle.Normal,
                     modifier = Modifier.padding(top = 2.dp))
-                if (m.fix.isNotBlank()) {
+                if (m.fix.isNotBlank() && !m.isFinding) {
                     Surface(shape = RoundedCornerShape(10.dp), color = Green.copy(alpha = 0.10f), modifier = Modifier.padding(top = 6.dp)) {
                         Text("💡 " + m.fix, color = Tinta, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
                     }
@@ -282,6 +342,46 @@ private fun RetroMessageRow(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Una troballa: gravetat, títol, text i l'arranjament amb «Arregla-ho». */
+@Composable
+private fun FindingCard(m: RetroMsg, lang: String, onFix: () -> Unit) {
+    val c = sevColor(m.sev)
+    Surface(
+        shape = RoundedCornerShape(12.dp), color = PillDark, border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+    ) {
+        Row(Modifier.height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(c))
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = RoundedCornerShape(50), color = c.copy(alpha = 0.16f)) {
+                        Text(tr(lang, "app.retro.sev.${m.sev}").uppercase(), color = c, fontSize = 10.5.sp, fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp, modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
+                    }
+                    if (m.title.isNotBlank()) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(m.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.5.sp)
+                    }
+                }
+                if (m.text.isNotBlank()) Text(renderMd(m.text, CodeDark), color = Tinta, fontSize = 14.5.sp, lineHeight = 21.sp,
+                    modifier = Modifier.padding(top = 6.dp))
+                if (m.fix.isNotBlank()) {
+                    Box(Modifier.padding(top = 8.dp).fillMaxWidth().height(1.dp).background(Line))
+                    Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(tr(lang, "app.retro.fix").uppercase(), color = c, fontSize = 10.5.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.5.sp)
+                            Text(m.fix, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        if (m.fixRun > 0) Text("#${m.fixRun}", color = Muted, fontSize = 12.sp)
+                        else androidx.compose.material3.FilledTonalButton(onClick = onFix) { Text(tr(lang, "app.retro.fixIt"), fontSize = 13.sp) }
                     }
                 }
             }

@@ -67,7 +67,12 @@ type retroMessage struct {
 	FixSuggestion string          `json:"fix_suggestion,omitempty"`
 	FixRun        int64           `json:"fix_run,omitempty"`
 	Note          string          `json:"note,omitempty"`
-	At            time.Time       `json:"at"`
+	// Revisió dels especialistes: Kind és finding (una troballa, amb
+	// Severity high|medium|low i Title) o verdict (la seva valoració).
+	Kind     string    `json:"kind,omitempty"`
+	Severity string    `json:"severity,omitempty"`
+	Title    string    `json:"title,omitempty"`
+	At       time.Time `json:"at"`
 }
 
 type retroChannel struct {
@@ -370,7 +375,20 @@ func retroTeamKey(a *workshopActivity) string {
 	return "team-" + strconv.FormatInt(a.StartedAt.Unix(), 10)
 }
 
-func (s *Server) retroRunTitle(runID, last int) string {
+func (s *Server) retroRunTitle(evs []events.Event, runID, last int) string {
+	// La tasca desada en engegar el torn mana: la conversa carregada ara
+	// pot ser una altra (vist el 2026-10-15: el retro del torn #5 sortia
+	// amb la tasca d'una altra conversa i els revisors el jutjaven per aquí).
+	for _, e := range evs {
+		if e.RunID == runID && e.Kind == "run_started" && len(e.Payload) > 0 {
+			var p struct {
+				Task string `json:"task"`
+			}
+			if json.Unmarshal(e.Payload, &p) == nil && strings.TrimSpace(p.Task) != "" {
+				return retroClip(p.Task, 120)
+			}
+		}
+	}
 	if runID == last {
 		s.mu.Lock()
 		a := s.activity
@@ -524,12 +542,12 @@ func retroStandupPrompt(c *retroChannel) (string, string) {
 	sys := "You write the opening stand-up of a #retro channel where the AI agents that just finished a task debrief informally.\n" +
 		retroRules + "\n" + retroPersonaDirective(c.Persona) +
 		"Each agent that did the work posts 1-3 messages about what it did, what went well and what is uncertain. " +
-		retroSpecialistRules + " In this stand-up each specialist posts at most ONE short message, and only if the evidence gives it something concrete (a risk, a gap or a good practice worth noting); otherwise it stays silent.\n" +
+		"The coordinator's first message explains how it was implemented: the approach and the key files, so someone new to the project understands it.\n" +
 		"Agents may react to each other's messages with one of: " + strings.Join(retroEmojis, " ") +
 		" (for example the reviewer reacts 🤔 to a claim without receipts or with failed checks; the coordinator reacts 🎉 when tests passed).\n" +
 		`OUTPUT: only one JSON object, no code fences: {"messages":[{"agent":"<agent id>","text":"...","receipts":["e1"]}],"reactions":[{"agent":"<agent id>","message":<0-based index into messages>,"emoji":"🤔"}]}` + "\n" +
 		config.LanguageDirective(c.Lang)
-	user := "TASK: " + c.Title + "\n\n" + renderRetroEvidence(retroPack{Agents: c.Agents, Evidence: c.Evidence})
+	user := "TASK: " + c.Title + "\n\n" + renderRetroEvidence(retroPack{Agents: retroWorkers(c), Evidence: c.Evidence})
 	return sys, user
 }
 
@@ -567,7 +585,7 @@ func retroValidateStandup(js string, c *retroChannel) ([]retroMessage, map[int][
 		text := strings.TrimSpace(m.Text)
 		limit := 3
 		if retroIsSpecialist(c.agent(m.Agent)) {
-			limit = 1
+			limit = 0 // els especialistes publiquen la seva revisió a part
 		}
 		if c.agent(m.Agent) == nil || text == "" || per[m.Agent] >= limit || len(msgs) >= 14 {
 			continue
@@ -747,11 +765,18 @@ func retroRenderChannel(c *retroChannel, thread string) string {
 			lines = append(lines, m)
 		}
 	}
-	if len(lines) > 16 {
-		lines = lines[len(lines)-16:]
+	if len(lines) > 30 {
+		lines = lines[len(lines)-30:]
 	}
 	for _, m := range lines {
-		fmt.Fprintf(&sb, "[%s] %s: %s", m.ID, m.Author, retroClip(m.Text, 400))
+		fmt.Fprintf(&sb, "[%s] %s: ", m.ID, m.Author)
+		switch m.Kind {
+		case retroKindFinding:
+			fmt.Fprintf(&sb, "FINDING (%s) %s — ", m.Severity, m.Title)
+		case retroKindVerdict:
+			sb.WriteString("VERDICT — ")
+		}
+		sb.WriteString(retroClip(m.Text, 400))
 		if len(m.Receipts) > 0 {
 			sb.WriteString(" (receipts: " + strings.Join(m.Receipts, ",") + ")")
 		}
@@ -769,12 +794,16 @@ type retroReplyMode string
 const (
 	retroModeMessage retroReplyMode = "message"
 	// retroModeAuto: missatge sense mencions; el model tria qui contesta.
-	retroModeAuto retroReplyMode = "auto"
+	retroModeAuto    retroReplyMode = "auto"
 	retroModeDoubt   retroReplyMode = "doubt"
 	retroModeDislike retroReplyMode = "dislike"
 )
 
 func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string, thread string, focus *retroMessage, userText string) (string, string) {
+	limit := ""
+	if mode == retroModeAuto {
+		limit = " At most 3 replies."
+	}
 	hints := retroTopicHints(userText, c)
 	var task string
 	switch mode {
@@ -797,7 +826,7 @@ func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string,
 	}
 	sys := "You play the AI agents in a #retro channel replying to the user.\n" + retroRules + "\n" + retroSpecialistRules + "\n" + retroPersonaDirective(c.Persona) + task + "\n" +
 		`OUTPUT: only one JSON object, no code fences: {"replies":[{"agent":"<agent id>","text":"...","receipts":["e2"],"concede":false,"fix_suggestion":"","preference_note":""}]}` + "\n" +
-		"Only these agents may reply: " + strings.Join(responders, ", ") + ". At most 3 replies.\n" +
+		"Only these agents may reply: " + strings.Join(responders, ", ") + "." + limit + "\n" +
 		config.LanguageDirective(c.Lang)
 	var ub strings.Builder
 	ub.WriteString("TASK: " + c.Title + "\n\n" + renderRetroEvidence(retroPack{Agents: c.Agents, Evidence: c.Evidence}))
@@ -814,7 +843,8 @@ func retroReplyPrompt(c *retroChannel, mode retroReplyMode, responders []string,
 	return sys, ub.String()
 }
 
-func retroValidateReplies(js string, c *retroChannel, responders []string) ([]retroMessage, error) {
+// max limita les respostes (0: una per agent); el mode automàtic en vol com a molt tres.
+func retroValidateReplies(js string, c *retroChannel, responders []string, max int) ([]retroMessage, error) {
 	var d retroReplyDraft
 	if js == "" {
 		return nil, errors.New("no JSON object found")
@@ -845,7 +875,7 @@ func retroValidateReplies(js string, c *retroChannel, responders []string) ([]re
 		}
 		m.Note = retroClip(strings.Join(strings.Fields(r.Note), " "), 200)
 		out = append(out, m)
-		if len(out) == 3 && len(responders) > 3 {
+		if max > 0 && len(out) == max {
 			break // mode automàtic: com a molt tres veus per missatge
 		}
 	}
@@ -879,7 +909,11 @@ func (s *Server) retroReply(ctx context.Context, key string, mode retroReplyMode
 	ctx = llm.WithThink(ctx, "no")
 	js, _, err := s.retroAsk(ctx, sys, user, func(js string) error {
 		var verr error
-		replies, verr = retroValidateReplies(js, c, responders)
+		max := 0
+		if mode == retroModeAuto {
+			max = 3
+		}
+		replies, verr = retroValidateReplies(js, c, responders, max)
 		return verr
 	})
 	s.retroTyping(key, typing, false)
@@ -989,7 +1023,11 @@ func retroSummary(c *retroChannel) string {
 		if a := c.agent(m.Author); a != nil {
 			name = a.Name
 		}
-		sb.WriteString("*" + name + "*: " + m.Text + "\n")
+		text := m.Text
+		if m.Kind == retroKindFinding {
+			text = "[" + m.Severity + "] " + m.Title + " — " + text
+		}
+		sb.WriteString("*" + name + "*: " + text + "\n")
 	}
 	return retroClip(sb.String(), 3500)
 }
@@ -1096,7 +1134,7 @@ func (s *Server) handleRetro(w http.ResponseWriter, r *http.Request) {
 	defKey := ""
 	if last > 0 {
 		defKey = "run-" + strconv.Itoa(last)
-		latest["title"] = s.retroRunTitle(last, last)
+		latest["title"] = s.retroRunTitle(evs, last, last)
 	}
 	if team != nil {
 		latest["team"] = retroTeamKey(team)
@@ -1180,7 +1218,7 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		}
 		diff, _ := tools.GitDiffStructured(cwd)
 		pack := buildRetroPack(evs, runID, diff, cwd)
-		ch = &retroChannel{Key: "run-" + strconv.Itoa(runID), RunID: runID, Source: "run", Title: s.retroRunTitle(runID, last), Agents: retroWithSpecialists(pack.Agents, s.cfg.Lang()), Evidence: retroCleanEvidence(pack.Evidence)}
+		ch = &retroChannel{Key: "run-" + strconv.Itoa(runID), RunID: runID, Source: "run", Title: s.retroRunTitle(evs, runID, last), Agents: retroWithSpecialists(pack.Agents, s.cfg.Lang()), Evidence: retroCleanEvidence(pack.Evidence)}
 	}
 	// Ja s'està generant (un altre clic, una altra finestra): s'espera
 	// aquella generació en comptes de fer una segona crida al model. Amb
@@ -1231,11 +1269,44 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 	// el 2026-10-14, amb un model que sempre raona el diàleg es quedava
 	// minuts a «Els agents s'estan preparant». El retro és una conversa
 	// informal: sense raonament va molt més ràpid.
+	//
+	// Les revisions dels especialistes corren en paral·lel amb el resum i
+	// publiquen a mesura que acaben (mai abans que el resum).
 	gctx, cancel := context.WithTimeout(context.Background(), retroStandupBudget)
-	job := retroBeginJob(ch.Key, cancel)
+	rctx, rcancel := retroReviewContext()
+	defer rcancel()
+	job := retroBeginJob(ch.Key, func() { cancel(); rcancel() })
 	defer retroEndJob(ch.Key, job)
 	gctx = llm.WithThink(gctx, "no")
 	s.retroTyping(ch.Key, ids, true)
+	standupDone := make(chan struct{})
+	reviewsDone := make(chan struct{})
+	publish := func(msgs []retroMessage) {
+		var out []retroMessage
+		_, err := s.retroUpdate(ch.Key, func(c *retroChannel) error {
+			now := time.Now().UTC()
+			for i, m := range msgs {
+				m.At = now.Add(time.Duration(i) * time.Millisecond)
+				out = append(out, c.newMessage(m))
+			}
+			return nil
+		})
+		if err != nil {
+			log.Printf("retro publish: %v", err)
+			return
+		}
+		for _, m := range out {
+			s.retroPublish(ch.Key, m)
+		}
+	}
+	if req.Quick {
+		close(reviewsDone)
+	} else {
+		go func() {
+			defer close(reviewsDone)
+			s.retroRunReviews(rctx, ch, standupDone, publish)
+		}()
+	}
 	sys, user := retroStandupPrompt(ch)
 	var msgs []retroMessage
 	var reacts map[int][]retroReaction
@@ -1251,7 +1322,14 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	cancel()
-	s.retroTyping(ch.Key, ids, false)
+	workerIDs := make([]string, 0, len(ids))
+	for _, a := range retroWorkers(ch) {
+		workerIDs = append(workerIDs, a.ID)
+	}
+	if req.Quick {
+		workerIDs = ids
+	}
+	s.retroTyping(ch.Key, workerIDs, false)
 	degraded := false
 	if err != nil {
 		if !errors.Is(err, errRetroQuick) {
@@ -1270,11 +1348,17 @@ func (s *Server) handleRetroStart(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	if uerr != nil {
+		close(standupDone)
 		retroError(w, http.StatusInternalServerError, uerr.Error())
 		return
 	}
 	for _, m := range published {
 		s.retroPublish(ch.Key, m)
+	}
+	close(standupDone)
+	<-reviewsDone
+	if c := s.retroGet(ch.Key); c != nil {
+		final = c
 	}
 	s.retroPostWebhook(final)
 	writeJSON(w, map[string]any{"channel": final, "cursor": s.retroCursor()})

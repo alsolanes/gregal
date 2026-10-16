@@ -55,9 +55,14 @@ func ResolveCommand(command string, args []string) string {
 	return command
 }
 
+// ChildEnv marca els processos engegats com a servidor MCP: gregal no obre
+// el TUI si la porta (evita que un connector «gregal …» s'engegui a si
+// mateix en bucle).
+const ChildEnv = "GREGAL_MCP_CHILD"
+
 func startStdio(name string, srv Server) (*stdioTransport, error) {
 	cmd := exec.Command(ResolveCommand(srv.Command, srv.Args), srv.Args...)
-	cmd.Env = os.Environ()
+	cmd.Env = append(os.Environ(), ChildEnv+"=1")
 	for k, v := range srv.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}

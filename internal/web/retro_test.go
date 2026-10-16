@@ -114,6 +114,8 @@ type retroFake struct {
 	bodies  []string
 	calls   atomic.Int32
 	garbage bool
+	// reviews: els revisors troben coses (si no, diuen que no els aplica).
+	reviews bool
 }
 
 func (f *retroFake) handler(t *testing.T) http.HandlerFunc {
@@ -138,6 +140,14 @@ func (f *retroFake) handler(t *testing.T) http.HandlerFunc {
 		switch {
 		case f.garbage:
 			content = "sorry, I can't produce JSON"
+		case strings.Contains(sys, "fresh pair of eyes") && !f.reviews:
+			content = `{"applies":false,"findings":[]}`
+		case strings.Contains(sys, "fresh pair of eyes") && strings.Contains(sys, "(id qa)"):
+			content = `{"applies":true,"verdict":"The parser has no tests.","findings":[{"severity":"HIGH","title":"Parser helper untested","text":"parser.go was written but no test covers it.","receipts":["e6","e999"],"fix":"Add unit tests for the parser helper"},{"severity":"weird","title":"Vet failure ignored","text":"go vet failed at the checkpoint.","receipts":["e8"]},{"severity":"low","title":"three"},{"severity":"low","title":"four"}]}`
+		case strings.Contains(sys, "fresh pair of eyes") && strings.Contains(sys, "(id code)"):
+			content = `not json at all`
+		case strings.Contains(sys, "fresh pair of eyes"):
+			content = `{"applies":false}`
 		case strings.Contains(sys, "opening stand-up"):
 			content = "```json\n" + `{"messages":[{"agent":"coordinator","text":"I edited calc.go and go test passed.","receipts":["e1","e2","e999"]},{"agent":"builder","text":"I wrote the parser helper, fully tested!","receipts":["e6"]},{"agent":"reviewer","text":"go vet failed at the checkpoint.","receipts":["e8"]},{"agent":"ghost","text":"boo"}],"reactions":[{"agent":"reviewer","message":1,"emoji":"🤔"},{"agent":"builder","message":0,"emoji":"🎉"},{"agent":"coordinator","message":0,"emoji":"💣"}]}` + "\n```"
 		case strings.Contains(sys, "reacted 🤔"):
@@ -160,6 +170,20 @@ func (f *retroFake) handler(t *testing.T) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(out)
 	}
+}
+
+// body torna la primera petició al model que conté want.
+func (f *retroFake) body(t *testing.T, want string) string {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, b := range f.bodies {
+		if strings.Contains(b, want) {
+			return b
+		}
+	}
+	t.Fatalf("no model request contains %q", want)
+	return ""
 }
 
 func retroTestServer(t *testing.T, fake *retroFake) *Server {
@@ -211,9 +235,7 @@ func TestRetroStandupGroundedAndPersisted(t *testing.T) {
 	if !retroHas(c.Messages[1].Reactions, "🤔", "reviewer") || !retroHas(c.Messages[0].Reactions, "🎉", "builder") || len(c.Messages[0].Reactions) != 1 {
 		t.Fatalf("agent reactions: %+v / %+v", c.Messages[0].Reactions, c.Messages[1].Reactions)
 	}
-	fake.mu.Lock()
-	prompt := fake.bodies[0]
-	fake.mu.Unlock()
+	prompt := fake.body(t, "opening stand-up")
 	for _, want := range []string{"STRICT GROUNDING", "go test ./...", "e1 by coordinator", "calc.go", "implement the parser helper", "Always reply to the user in English"} {
 		if !strings.Contains(prompt, want) {
 			t.Errorf("grounding prompt lacks %q", want)
@@ -236,7 +258,9 @@ func TestRetroStandupGroundedAndPersisted(t *testing.T) {
 			}
 		}
 	}
-	if kinds["retro_message"] != 3 || kinds["retro_typing"] != 2 {
+	// typing: tothom en començar, els que han fet la feina en acabar el
+	// resum i cada revisor en acabar la seva revisió.
+	if kinds["retro_message"] != 3 || kinds["retro_typing"] != 2+len(retroReviewers(c)) {
 		t.Fatalf("retro events: %v", kinds)
 	}
 	// Persistence: a fresh server for the same conversation sees the channel.
@@ -363,7 +387,8 @@ func TestRetroDegradesAfterRepairRetry(t *testing.T) {
 			doers++
 		}
 	}
-	if !c.Degraded || len(c.Messages) != doers || fake.calls.Load() != 2 {
+	// Dues crides (amb la de reparació) per al resum i per a cada revisor.
+	if !c.Degraded || len(c.Messages) != doers || fake.calls.Load() != int32(2*(1+len(retroReviewers(c)))) {
 		t.Fatalf("degraded=%v msgs=%d calls=%d", c.Degraded, len(c.Messages), fake.calls.Load())
 	}
 	for _, m := range c.Messages {
@@ -371,10 +396,7 @@ func TestRetroDegradesAfterRepairRetry(t *testing.T) {
 			t.Fatalf("fallback message without receipts: %+v", m)
 		}
 	}
-	fake.mu.Lock()
-	repair := fake.bodies[1]
-	fake.mu.Unlock()
-	if !strings.Contains(repair, "not valid") {
+	if !strings.Contains(fake.body(t, "not valid"), "not valid") {
 		t.Fatal("repair retry must explain the validation error")
 	}
 }

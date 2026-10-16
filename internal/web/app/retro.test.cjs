@@ -63,3 +63,19 @@ test('optimistic reaction toggle and typing names', () => {
   assert.equal(core.typingNames(['Builder']), 'Builder');
   assert.equal(core.typingNames(['A', 'B', 'C'], ' i '), 'A, B i C');
 });
+
+test('team review: findings counted by severity and filtered for the review bar', () => {
+  const msgs = [
+    { id: 'm1', author: 'coordinator', text: 'did it' },
+    { id: 'm2', author: 'qa', kind: 'verdict', text: 'weak tests' },
+    { id: 'm3', author: 'qa', kind: 'finding', severity: 'high', title: 'no tests' },
+    { id: 'm4', author: 'code', kind: 'finding', severity: 'odd', title: 'naming' },
+    { id: 'm5', author: 'code', kind: 'finding', severity: 'medium', title: 'dup' },
+    { id: 'm6', author: 'code', kind: 'finding', severity: 'high', thread_id: 'm5' },
+  ];
+  assert.deepEqual(core.findingCounts(msgs), { high: 1, medium: 1, low: 1, total: 3 });
+  assert.equal(core.filterFindings(msgs, '').length, 6);
+  assert.deepEqual(core.filterFindings(msgs, 'all').map(m => m.id), ['m3', 'm4', 'm5']);
+  assert.deepEqual(core.filterFindings(msgs, 'high').map(m => m.id), ['m3']);
+  assert.deepEqual(core.filterFindings(msgs, 'low').map(m => m.id), ['m4']);
+});

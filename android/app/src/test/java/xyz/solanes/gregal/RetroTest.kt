@@ -40,3 +40,31 @@ class RetroTest {
         assertEquals(RETRO_DEFAULT_EMOJIS, parseRetroInfo("not json").emojis)
     }
 }
+
+class RetroReviewTest {
+    private fun f(id: String, sev: String, thread: String = "") = RetroMsg(id, thread, "qa", "t", kind = "finding", severity = sev)
+
+    @org.junit.Test
+    fun findingsCountedAndFilteredBySeverity() {
+        val msgs = listOf(
+            RetroMsg("m1", "", "coordinator", "did it"),
+            RetroMsg("m2", "", "qa", "weak tests", kind = "verdict"),
+            f("m3", "high"), f("m4", "odd"), f("m5", "medium"), f("m6", "high", thread = "m5"),
+        )
+        org.junit.Assert.assertEquals(mapOf("high" to 1, "low" to 1, "medium" to 1), retroFindingCounts(msgs))
+        org.junit.Assert.assertEquals(6, retroFilter(msgs, "").size)
+        org.junit.Assert.assertEquals(listOf("m3", "m4", "m5"), retroFilter(msgs, "all").map { it.id })
+        org.junit.Assert.assertEquals(listOf("m4"), retroFilter(msgs, "low").map { it.id })
+    }
+
+    @org.junit.Test
+    fun parsesReviewFields() {
+        val ch = parseRetroChannelResponse("""{"channel":{"key":"run-1","title":"t","agents":[],"messages":[
+            {"id":"m1","author":"qa","text":"x","kind":"finding","severity":"high","title":"No tests","fix_suggestion":"Add tests","fix_run":7}]}}""")!!
+        val m = ch.messages[0]
+        org.junit.Assert.assertTrue(m.isFinding)
+        org.junit.Assert.assertEquals("high", m.sev)
+        org.junit.Assert.assertEquals("No tests", m.title)
+        org.junit.Assert.assertEquals(7L, m.fixRun)
+    }
+}
