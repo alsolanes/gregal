@@ -19,7 +19,7 @@ import (
 // comparació. Els worktrees queden vius perquè l'usuari triï (la web els
 // aplica amb /api/bestof/apply; aquí s'imprimeixen les ordres git). Codi 0
 // si almenys un intent ha acabat bé.
-func runBestOfHeadless(cfg *config.Config, task, output string, n int, models string, autoApprove bool, maxSteps int, mode, verifyCmd string) int {
+func runBestOfHeadless(cfg *config.Config, task, output string, n int, models string, autoApprove bool, maxSteps int, mode, verifyCmd string, apply bool) int {
 	if n < agent.BestOfMin || n > agent.BestOfMax {
 		fmt.Fprintf(os.Stderr, "gregal: --best-of must be between %d and %d (got %d)\n", agent.BestOfMin, agent.BestOfMax, n)
 		return exitUsage
@@ -72,6 +72,18 @@ func runBestOfHeadless(cfg *config.Config, task, output string, n int, models st
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gregal:", err)
 		return exitError
+	}
+	if apply {
+		if res.Recommended <= 0 {
+			fmt.Fprintln(os.Stderr, "gregal: no attempt to apply (none finished with changes)")
+			return exitError
+		}
+		msg, _, aerr := agent.BestOfApply(cwd, res.Attempts, res.Recommended, false)
+		if aerr != nil {
+			fmt.Fprintln(os.Stderr, "gregal: apply:", aerr)
+			return exitError
+		}
+		fmt.Fprintln(os.Stderr, msg)
 	}
 	for _, a := range res.Attempts {
 		if a.State == agent.BestOfDone {

@@ -36,6 +36,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 )
 
 const (
@@ -423,6 +424,7 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 		}
 		if h, err := CompactHist(ctx, client, prim, fb, res.Hist, KeepRecentOnCompact, lang); err == nil {
 			res.Hist, res.Summarized = h, true
+			tools.OblidaTotsSeguiments() // les lectures resumides ja no hi són
 			if !fits(res.Hist) {
 				var n int
 				res.Hist, n = PruneToolOutputsUntil(res.Hist, fits)
@@ -438,6 +440,7 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 	if len(res.Hist) > KeepRecentOnCompact+1 && (res.Err != nil || client == nil) {
 		res.Hist = TrimKeepSafe(res.Hist, KeepRecentOnCompact)
 		res.Trimmed = true
+		tools.OblidaTotsSeguiments()
 	}
 	if !fits(res.Hist) {
 		var n int

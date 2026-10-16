@@ -427,3 +427,14 @@ func netejaSortides(base string) {
 		_ = os.Remove(filepath.Join(base, x.nom))
 	}
 }
+
+// OblidaTotsSeguiments esborra el seguiment de totes les sessions. El crida
+// la compactació quan resumeix o retalla l'historial: les lectures que el
+// model «tenia» ja no hi són, i un «sense canvis» el deixaria sense el text.
+// Afecta totes les sessions perquè la compactació no sap de quina és; el
+// pitjor cas és una relectura de més.
+func OblidaTotsSeguiments() {
+	seguimentsMu.Lock()
+	seguiments = map[string]*Seguiment{}
+	seguimentsMu.Unlock()
+}

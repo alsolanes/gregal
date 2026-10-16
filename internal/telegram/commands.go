@@ -533,6 +533,7 @@ func (b *Bot) clearSession(ctx context.Context, chatID int64, st *chatState) {
 	st.mu.Lock()
 	st.convo = nil
 	st.prefix.Reset()
+	tools.OblidaTotsSeguiments()
 	name := st.name
 	role := st.role
 	st.mu.Unlock()

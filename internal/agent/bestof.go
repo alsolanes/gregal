@@ -60,6 +60,12 @@ type BestOfAttempt struct {
 	// Score és la nota del revisor (0-10); nil = sense revisió.
 	Score     *int     `json:"score"`
 	ScoreNote string   `json:"score_note,omitempty"`
+	// Votes: intents (aquest inclòs) que han arribat al mateix pegat.
+	Votes int `json:"votes"`
+	// CrossPassed/CrossTotal: tests escrits pels altres intents que aquest
+	// codi passa (bestof_select.go).
+	CrossPassed int `json:"cross_passed"`
+	CrossTotal  int `json:"cross_total"`
 	CostUSD   *float64 `json:"cost_usd"`
 	Steps     int      `json:"steps"`
 	Seconds   float64  `json:"seconds"`
@@ -291,6 +297,22 @@ func RunBestOf(ctx context.Context, client *llm.Client, cfg *config.Config, o Be
 		}(i)
 	}
 	wg.Wait()
+	// Selecció: vot entre pegats equivalents i proves creuades.
+	patches := map[int]string{}
+	for i, a := range res.Attempts {
+		if a.State == BestOfDone && a.DiffBytes > 0 {
+			if p, _, err := tools.WorktreeDiff(a.Path, a.Worktree); err == nil {
+				patches[i] = p
+			}
+		}
+	}
+	votes := bestOfVotes(patches)
+	pass, total := bestOfCrossTests(ctx, res.Attempts, verifyCmds)
+	for i := range res.Attempts {
+		res.Attempts[i].Votes = votes[i]
+		idx := res.Attempts[i].Index
+		res.Attempts[i].CrossPassed, res.Attempts[i].CrossTotal = pass[idx], total[idx]
+	}
 	res.Recommended = BestOfRecommend(res.Attempts)
 	return res, ctx.Err()
 }
@@ -381,12 +403,24 @@ func BestOfRecommend(list []BestOfAttempt) int {
 		}
 		return c, s
 	}
+	cross := func(a BestOfAttempt) float64 {
+		if a.CrossTotal == 0 {
+			return -1
+		}
+		return float64(a.CrossPassed) / float64(a.CrossTotal)
+	}
 	sort.SliceStable(idx, func(x, y int) bool {
 		a, b := list[idx[x]], list[idx[y]]
 		ca, sa := rank(a)
 		cb, sb := rank(b)
 		if ca != cb {
 			return ca > cb
+		}
+		if xa, xb := cross(a), cross(b); xa != xb {
+			return xa > xb
+		}
+		if a.Votes != b.Votes {
+			return a.Votes > b.Votes
 		}
 		if sa != sb {
 			return sa > sb
@@ -469,8 +503,12 @@ func RenderBestOf(r BestOfResult) string {
 		if a.Index == r.Recommended {
 			mark = "*"
 		}
-		fmt.Fprintf(&b, "%s #%d %-28s %-7s files %-2d +%d -%d  checks %-4s  score %-5s  cost %s  %s\n",
-			mark, a.Index, a.Model, a.State, len(a.Files), a.Added, a.Deleted, checks, score, cost, a.Worktree)
+		cross := "-"
+		if a.CrossTotal > 0 {
+			cross = fmt.Sprintf("%d/%d", a.CrossPassed, a.CrossTotal)
+		}
+		fmt.Fprintf(&b, "%s #%d %-28s %-7s files %-2d +%d -%d  checks %-4s  cross %-5s  votes %d  score %-5s  cost %s  %s\n",
+			mark, a.Index, a.Model, a.State, len(a.Files), a.Added, a.Deleted, checks, cross, a.Votes, score, cost, a.Worktree)
 		if a.Error != "" {
 			fmt.Fprintf(&b, "     error: %s\n", retallaText(a.Error, 160))
 		}

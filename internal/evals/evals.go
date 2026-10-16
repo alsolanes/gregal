@@ -66,16 +66,17 @@ type Result struct {
 	// TokensSource és el de RunResult (api | mixed | estimate).
 	// PromptTokens són els de pujada declarats pel proveïdor (0 si només
 	// hi ha estimació): la base de cache_hit_rate.
-	TokensSource    string `json:"tokens_source,omitempty"`
-	PromptTokens    int    `json:"prompt_tokens"`
-	CachedTokens    int    `json:"cached_tokens"`
-	LLMCalls        int    `json:"llm_calls"`
-	EditCalls       int    `json:"edit_calls"`
-	EditFailed      int    `json:"edit_failed"`
-	ToolCallInvalid int    `json:"tool_call_invalid"`
-	DoomHits        int    `json:"doom_hits"`
-	Compactions     int    `json:"compactions"`
-	Exhausted       bool   `json:"exhausted,omitempty"`
+	TokensSource      string `json:"tokens_source,omitempty"`
+	PromptTokens      int    `json:"prompt_tokens"`
+	CachedTokens      int    `json:"cached_tokens"`
+	LLMCalls          int    `json:"llm_calls"`
+	EditCalls         int    `json:"edit_calls"`
+	EditFailed        int    `json:"edit_failed"`
+	ToolCallInvalid   int    `json:"tool_call_invalid"`
+	ToolCallRecovered int    `json:"tool_call_recovered"`
+	DoomHits          int    `json:"doom_hits"`
+	Compactions       int    `json:"compactions"`
+	Exhausted         bool   `json:"exhausted,omitempty"`
 }
 
 // Load llegeix les tasques de <dir>/tasks (ordenades pel nom).
@@ -283,6 +284,7 @@ func ompleMetriques(r *Result, res agent.RunResult) {
 	r.CachedTokens, r.LLMCalls = res.CachedTokens, res.LLMCalls
 	r.EditCalls, r.EditFailed = res.EditCalls, res.EditFailed
 	r.ToolCallInvalid, r.DoomHits, r.Compactions = res.ToolCallInvalid, res.DoomHits, res.Compactions
+	r.ToolCallRecovered = res.ToolCallRecovered
 	r.Exhausted = res.Exhausted
 }
 

@@ -20,6 +20,65 @@
   to the Generic tool format, and a missing `type: llamacpp`. It also
   suggests `--cache-reuse 256`, `-ctk q8_0 -ctv q8_0` and
   `--spec-type ngram-mod`.
+- **Smarter project map, best-of and Python checks.**
+  - The project map now follows references: files that define what the
+    relevant files use (a type, a function they call) are ranked up with a
+    personalised PageRank over a reference graph, as in Aider's repo map,
+    even when they share no words with the task.
+  - Best-of-N picks its winner the way Agentless and CodeMonkeys do: the tests
+    each attempt wrote are run against the other attempts (cross-tests) and
+    attempts that converge on the same patch get votes. `--best-of-apply`
+    applies the recommended attempt without asking.
+  - After editing Python, type errors from pyright (or mypy) are reported in
+    the same step when either is installed, like an editor's language server.
+- **Better results with local and small models.**
+  - Tool calls that a model writes as text (Hermes/Qwen2.5 `<tool_call>{…}`,
+    Qwen3-Coder `<function=…><parameter=…>`, or a bare JSON call) are now
+    turned into real tool calls instead of being refused and re-asked, which
+    cost a whole extra turn (and prefill) on local servers. Only tools offered
+    in that request are accepted, and the calls go through the same policy and
+    approvals as any other. Malformed arguments are repaired when the schema
+    makes the intent clear (trailing commas, `"20"` for an integer, `"false"`
+    for a boolean, an object passed as a string).
+  - Requests to local servers (llama.cpp, Ollama, LM Studio, vLLM) carry the
+    sampling the model card recommends for each family (Qwen3, Qwen3-Coder,
+    Qwen2.5-Coder, DeepSeek, gpt-oss, GLM, Devstral, Mistral, Gemma, Llama…);
+    a role's own temperature still wins, and a server that rejects the extra
+    fields simply stops receiving them.
+  - Small local models (14B or less, or a window under 32k) get a compact
+    system prompt and only the core tools; set `prompt: full|compact` on a role
+    to override. Chat and inspect modes no longer show write tools at all.
+  - A reply stuck repeating the same paragraph is cut as soon as the loop is
+    detected, instead of running to the token limit.
+  - Code mode now asks to reproduce a bug before fixing it and to re-read the
+    request before answering.
+- **Office documents at the level of the best assistants.** Word, PowerPoint
+  and Excel files are now built with real structure and checked visually:
+  - Editing no longer corrupts real files. `office_edit replace` and
+    `set_cell` used to rewrite the XML with Go's encoder, which broke the
+    namespace prefixes, so Word and Excel could no longer open a document
+    edited by Gregal. Edits now keep every prefix, keep each fragment's
+    formatting, and an edit that would break the package is refused.
+  - Word: markdown becomes Heading styles, real numbered and bullet lists,
+    tables, quotes, code, images, table of contents and page breaks, with a
+    cover, header and page numbers. New edits: insert, delete, comment,
+    tracked changes (only the changed words are marked), accept changes,
+    `{{marker}}` filling; text is also replaced in headers, footers and notes.
+  - PowerPoint: a 16:9 theme with nine layouts, native charts, styled
+    tables, speaker notes and five colour themes; templates (`.potx`) are
+    reused with their layouts; slides can be added, duplicated, moved,
+    deleted and filled shape by shape.
+  - Excel moves to excelize: formulas, number formats, colour roles, frozen
+    headers, tables, conditional formats, validation, comments, charts and a
+    `recalc` that lists every formula error.
+  - Templates: `.dotx`, `.potx` and `.xltx` (and corporate `.docx`/`.pptx`)
+    keep their styles, headers, footers and colours.
+  - New `office_render` tool: renders documents to images with LibreOffice
+    (or Word/PowerPoint on Windows) plus automatic QA (overflow, overlaps,
+    off-slide shapes, leftover sample text, formula errors). The agent renders
+    and fixes before delivering; the web API gains `/api/office/render`.
+  - Built-in skills `office-docx`, `office-pptx` and `office-xlsx` with the
+    formatting and design rules.
 - Running out of steps no longer throws the work away, on any surface (TUI,
   web/desktop, `-p`, Telegram) or mode (Plan, Ask/Act, Goal, Autonomous,
   Debug, subagents, #retro reviewers). A Plan request like "do a deep review

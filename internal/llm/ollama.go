@@ -282,6 +282,7 @@ func (c *Client) ollamaBody(ctx context.Context, baseURL, model string, msgs []M
 		if temp > 0 {
 			opts["temperature"] = temp
 		}
+		ollamaSampling(opts, baseURL, model)
 		if maxTokens > 0 {
 			opts["num_predict"] = maxTokens
 		}
@@ -479,4 +480,34 @@ func ollamaUsage(r *ollamaResp, msgs []Message, specs []ToolSpec) Usage {
 	}
 	u.TotalTokens = u.PromptTokens + u.CompletionTokens
 	return u
+}
+
+// ollamaSampling hi posa el mostreig recomanat per família (perfils.go)
+// quan el servidor és local i el rol no fixa la temperatura.
+func ollamaSampling(opts map[string]any, baseURL, model string) {
+	if !IsLocalBase(baseURL) {
+		return
+	}
+	p := ProfileFor(model)
+	if p.Family == "" {
+		return
+	}
+	if _, ok := opts["temperature"]; !ok && p.Temperature > 0 {
+		opts["temperature"] = p.Temperature
+	}
+	if p.TopP > 0 {
+		opts["top_p"] = p.TopP
+	}
+	if p.TopK > 0 {
+		opts["top_k"] = p.TopK
+	}
+	if p.MinP != nil {
+		opts["min_p"] = *p.MinP
+	}
+	if p.PresencePenalty > 0 {
+		opts["presence_penalty"] = p.PresencePenalty
+	}
+	if p.RepetitionPenalty > 0 {
+		opts["repeat_penalty"] = p.RepetitionPenalty
+	}
 }

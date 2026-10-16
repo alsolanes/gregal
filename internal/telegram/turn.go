@@ -302,7 +302,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	// un delta) i, si la memòria o les skills han canviat, la novetat va
 	// amb la tasca en lloc de canviar el system prompt (PrefixEstable).
 	agent.CheckpointTorn("", b.dirOf(st), st.mode, len(st.convo))
-	sysBase := agent.PromptFor(b.cfg.SystemPrompt(), st.mode)
+	sysBase := agent.PromptForModel(b.cfg.SystemPrompt(), st.mode, b.cfg.CompactCode())
 	sysCtx := agent.ContextProjecte(b.dirOf(st))
 	nota := st.prefix.Novetats(sysBase, sysCtx)
 	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(agent.TascaAmbMapa(st.mode, b.dirOf(st), text, st.convo), nota), Images: images})
@@ -441,7 +441,7 @@ bucle:
 		switch p.Ordre {
 		case agent.OrdrePasModel:
 			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
-				r.Temperature, r.MaxTokens, agent.SpecsAll(), avisaFallback)
+				r.Temperature, r.MaxTokens, agent.SpecsFor(mode, b.cfg.CompactFor(r)), avisaFallback)
 			// El text que acompanya crides d'eina també es publica: és el
 			// model explicant què farà. La resposta final arriba per EvResposta.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {

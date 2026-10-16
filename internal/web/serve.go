@@ -448,6 +448,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/office/edit", h.global((*Server).handleOfficeEdit))
 	handle("/api/office/download", h.global((*Server).handleOfficeDownload))
 	handle("/api/office/open", h.global((*Server).handleOfficeOpen))
+	handle("/api/office/render", h.global((*Server).handleOfficeRender))
 	handle("/api/models", h.route((*Server).handleModels))
 	handle("/api/rewind", h.route((*Server).handleRewind))
 	handle("/api/rewind-to", h.route((*Server).handleRewindTo))
@@ -2079,7 +2080,7 @@ func (s *Server) sysPromptNovetats(mode, workspace string) string {
 // del workspace (base), la dels fitxers del projecte (ctxProj) i com es
 // munta.
 func (s *Server) sysPromptParts(mode, workspace string) (base, ctxProj string, build func(string) string) {
-	prompt := agent.PromptFor(s.cfg.SystemPrompt(), mode)
+	prompt := agent.PromptForModel(s.cfg.SystemPrompt(), mode, s.cfg.CompactCode())
 	project := filepath.Base(filepath.Clean(workspace))
 	fets := fmt.Sprintf(`WORKSPACE FACTS (authoritative, do not infer them):
 - Working directory: %q

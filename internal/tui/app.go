@@ -1155,7 +1155,7 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 	return func() tea.Msg {
 		defer cancel()
 		var fb string
-		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsAll(),
+		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsFor(m.mode, m.cfg.CompactFor(r)),
 			s.add, s.addThink, func(model string) { fb = model })
 		err = agent.ModelError(ctx, err)
 		s.finish()
@@ -2388,7 +2388,7 @@ func (m Model) sysPrompt() string {
 // (base) i la que depèn dels fitxers del projecte (AGENTS.md, memòria,
 // skills).
 func (m Model) sysPromptParts() (base, ctxProj string) {
-	return agent.PromptFor(m.cfg.SystemPrompt(), m.mode), agent.ContextProjecte(m.cwd)
+	return agent.PromptForModel(m.cfg.SystemPrompt(), m.mode, m.cfg.CompactCode()), agent.ContextProjecte(m.cwd)
 }
 
 // answerPending resol una confirmació [s/n].
@@ -3636,6 +3636,7 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		m.convo = nil
 		m.compacted = ""
 		m.prefix.Reset()
+		tools.OblidaTotsSeguiments() // el que el model havia llegit ja no és a la conversa
 		m.sessionFile = ""
 		m.pinned = false
 		m.vp.SetContent("")

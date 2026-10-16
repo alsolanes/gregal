@@ -33,15 +33,16 @@ type Dist struct {
 // mitjana de les taxes de cada execució: una tirada de 2 edicions no pesa
 // com una de 40).
 type Metrics struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CachedTokens     int `json:"cached_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	LLMCalls         int `json:"llm_calls"`
-	EditCalls        int `json:"edit_calls"`
-	EditFailed       int `json:"edit_failed"`
-	ToolCallInvalid  int `json:"tool_call_invalid"`
-	DoomHits         int `json:"doom_hits"`
-	Compactions      int `json:"compactions"`
+	PromptTokens      int `json:"prompt_tokens"`
+	CachedTokens      int `json:"cached_tokens"`
+	CompletionTokens  int `json:"completion_tokens"`
+	LLMCalls          int `json:"llm_calls"`
+	EditCalls         int `json:"edit_calls"`
+	EditFailed        int `json:"edit_failed"`
+	ToolCallInvalid   int `json:"tool_call_invalid"`
+	ToolCallRecovered int `json:"tool_call_recovered"`
+	DoomHits          int `json:"doom_hits"`
+	Compactions       int `json:"compactions"`
 	// CacheHitRate = cached_tokens / prompt_tokens (només tokens declarats
 	// pel proveïdor). EditFailRate = edit_failed / edit_calls. Totes dues
 	// són 0 quan el denominador és 0.
@@ -57,6 +58,7 @@ func (m *Metrics) add(r Result) {
 	m.EditCalls += r.EditCalls
 	m.EditFailed += r.EditFailed
 	m.ToolCallInvalid += r.ToolCallInvalid
+	m.ToolCallRecovered += r.ToolCallRecovered
 	m.DoomHits += r.DoomHits
 	m.Compactions += r.Compactions
 }

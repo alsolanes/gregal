@@ -53,6 +53,7 @@ type File struct {
 	Size    int64
 	ModTime time.Time
 	Symbols []Symbol
+	Refs    []string // identificadors que el fitxer fa servir (graph.go)
 }
 
 // Snapshot és l'estat de l'índex després d'una actualització.
@@ -209,7 +210,7 @@ func Build(dir string, fitxers []string, opt Options) *Snapshot {
 		if info.Size() > 0 && info.Size() <= opt.MaxFileSize {
 			if src, err := os.ReadFile(abs); err == nil {
 				if syms := Extract(rel, src); len(syms) > 0 {
-					e.f = &File{Path: rel, Lang: LangOf(rel), Size: info.Size(), ModTime: info.ModTime(), Symbols: syms}
+					e.f = &File{Path: rel, Lang: LangOf(rel), Size: info.Size(), ModTime: info.ModTime(), Symbols: syms, Refs: extractRefs(src)}
 				}
 			}
 			snap.Parsed++

@@ -59,8 +59,10 @@ func TestRunNonInteractiveMetriquesBanc(t *testing.T) {
 	if res.EditCalls != 2 || res.EditFailed != 1 {
 		t.Fatalf("edicions %d/%d, volia 1 fallada de 2: %+v", res.EditFailed, res.EditCalls, res.Trace)
 	}
-	if res.ToolCallInvalid != 3 {
-		t.Fatalf("tool_call_invalid=%d, volia 3 (eina inexistent, JSON dolent, crida al text)", res.ToolCallInvalid)
+	// La crida escrita al text ara es recupera (llm.RecoverCalls): no és
+	// invàlida, però es compta a part.
+	if res.ToolCallInvalid != 2 || res.ToolCallRecovered != 1 {
+		t.Fatalf("tool_call_invalid=%d (volia 2: eina inexistent, JSON dolent), recovered=%d (volia 1)", res.ToolCallInvalid, res.ToolCallRecovered)
 	}
 	if res.LLMCalls != 3 || res.CachedTokens != 2500 || res.UpTokens != 4100 {
 		t.Fatalf("usage: %+v", res)

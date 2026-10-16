@@ -68,8 +68,11 @@ type RunResult struct {
 	EditCalls       int `json:"edit_calls,omitempty"`
 	EditFailed      int `json:"edit_failed,omitempty"`
 	ToolCallInvalid int `json:"tool_call_invalid,omitempty"`
-	DoomHits        int `json:"doom_hits,omitempty"`
-	Compactions     int `json:"compactions,omitempty"`
+	// ToolCallRecovered: crides que el model ha escrit al text (o en DSML)
+	// i que llm.RecoverCalls ha convertit en crides de debò.
+	ToolCallRecovered int `json:"tool_call_recovered,omitempty"`
+	DoomHits          int `json:"doom_hits,omitempty"`
+	Compactions       int `json:"compactions,omitempty"`
 	// FallbackModel diu quin model ha respost si el primari ha caigut
 	// (buit = primari). Transparència: la resposta no és del model triat.
 	FallbackModel string `json:"fallback_model,omitempty"`
@@ -303,7 +306,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	if o.Approve != nil {
 		note = approvalNote
 	}
-	sys = AmbContext(PromptFor(sys+note, mode), o.System)
+	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
 	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
 	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
@@ -344,7 +347,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		CriticaPla:       CriticaPlaHook(client, cfg, dir),
 	})
 
-	specs := SpecsNoInteractiu()
+	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode())
 	if len(o.Tools) > 0 {
 		keep := map[string]bool{}
 		for _, t := range o.Tools {
@@ -446,6 +449,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			cancel()
 			if err == nil {
 				res.ToolCallInvalid += CridesInvalides(content, calls, specs)
+				res.ToolCallRecovered += CridesRecuperades(calls)
 			}
 			if onStep != nil {
 				noms := make([]string, 0, len(calls))
@@ -591,6 +595,18 @@ func CridesInvalides(content string, calls []llm.ToolCall, specs []llm.ToolSpec)
 	for _, c := range calls {
 		args := strings.TrimSpace(c.Function.Arguments)
 		if !conegudes[c.Function.Name] || (args != "" && !json.Valid([]byte(args))) {
+			n++
+		}
+	}
+	return n
+}
+
+// CridesRecuperades compta les crides que venien escrites al text (ids
+// «txt-N» o «dsml-N» de llm.RecoverCalls).
+func CridesRecuperades(calls []llm.ToolCall) int {
+	n := 0
+	for _, c := range calls {
+		if strings.HasPrefix(c.ID, "txt-") || strings.HasPrefix(c.ID, "dsml-") {
 			n++
 		}
 	}

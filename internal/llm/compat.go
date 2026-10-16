@@ -33,9 +33,10 @@ const (
 	// un proxy estricte al davant els podria rebutjar.
 	campCachePrompt = "cache_prompt"
 	campIDSlot      = "id_slot"
+	campSampling    = "top_k"
 )
 
-var campsOpcionals = []string{campStreamOptions, campEnableThinking, campTemplateKwargs, campReasoningEffort, campCachePrompt, campIDSlot}
+var campsOpcionals = []string{campStreamOptions, campEnableThinking, campTemplateKwargs, campReasoningEffort, campCachePrompt, campIDSlot, campSampling}
 
 // postCompat és postRetry amb els camps opcionals negociats (vegeu dalt).
 // A llama-server hi afegeix cache_prompt i id_slot; el slot s'allibera quan
@@ -72,6 +73,7 @@ func (c *Client) postCompatNeg(ctx context.Context, baseURL, apiKey string, req 
 	}
 	base := normBase(baseURL)
 	req = c.aplicaAjustos(base, req)
+	req = applyProfile(base, req)
 	for _, camp := range campsOpcionals {
 		if c.campOff(campKey(base, req.Model, camp), camp) {
 			req = senseCamp(req, camp)
@@ -135,7 +137,7 @@ func campsRebutjats(body string, req chatRequest) []string {
 	presents := campsPresents(req)
 	var anomenats []string
 	for _, camp := range presents {
-		if strings.Contains(b, camp) || (camp == campStreamOptions && strings.Contains(b, "include_usage")) {
+		if strings.Contains(b, camp) || (camp == campStreamOptions && strings.Contains(b, "include_usage")) || (camp == campSampling && mentionsSampling(b)) {
 			anomenats = append(anomenats, camp)
 		}
 	}
@@ -155,6 +157,9 @@ func campsPresents(req chatRequest) []string {
 	}
 	if req.EnableThinking != nil {
 		out = append(out, campEnableThinking)
+	}
+	if req.TopP != nil || req.TopK != 0 || req.MinP != nil || req.PresencePenalty != nil || req.RepetitionPenalty != nil {
+		out = append(out, campSampling)
 	}
 	if req.ChatTemplateKwargs != nil {
 		out = append(out, campTemplateKwargs)
@@ -185,6 +190,8 @@ func senseCamp(req chatRequest, camp string) chatRequest {
 		req.CachePrompt = nil
 	case campIDSlot:
 		req.IDSlot = nil
+	case campSampling:
+		req.TopP, req.TopK, req.MinP, req.PresencePenalty, req.RepetitionPenalty, req.RepeatPenalty = nil, 0, nil, nil, nil, nil
 	}
 	return req
 }
@@ -381,4 +388,14 @@ func (c *Client) setEffortFix(key, fix string) {
 		c.effortFixes = map[string]string{}
 	}
 	c.effortFixes[key] = fix
+}
+
+// mentionsSampling diu si un error parla d'algun camp de mostreig.
+func mentionsSampling(b string) bool {
+	for _, k := range []string{"top_p", "top_k", "min_p", "presence_penalty", "repetition_penalty", "repeat_penalty"} {
+		if strings.Contains(b, k) {
+			return true
+		}
+	}
+	return false
 }
