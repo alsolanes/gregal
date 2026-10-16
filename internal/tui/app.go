@@ -2138,8 +2138,6 @@ func (m *Model) startAgent(task string) (tea.Model, tea.Cmd) {
 		m.showTodos = true
 	}
 	m.journalBase = tools.Active.Seq() // verificar només si el torn fa coses reals
-	// Foto git d'inici de torn: /rewind gN hi torna (bash inclòs).
-	agent.CheckpointTorn("", m.cwd, m.mode, len(m.convo))
 	// El model rep el mapa del projecte amb la tasca; a la pantalla surt
 	// només el que ha escrit la persona.
 	// Historial on només s'afegeix: els mapes vells no es toquen (el nou és
@@ -2147,7 +2145,10 @@ func (m *Model) startAgent(task string) (tea.Model, tea.Cmd) {
 	// final del missatge nou en lloc de canviar el system prompt.
 	base, ctxProj := m.sysPromptParts()
 	nota := m.prefix.Novetats(base, ctxProj)
-	m.convo = append(m.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(agent.TascaAmbMapa(m.mode, m.cwd, task, m.convo), nota)})
+	// Foto git d'inici de torn (/rewind gN hi torna, bash inclòs), feta
+	// mentre es construeix el mapa.
+	tascaMapa := agent.CheckpointIMapa("", m.cwd, m.mode, len(m.convo), task, m.convo)
+	m.convo = append(m.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(tascaMapa, nota)})
 	m.agentRole = ""
 	if !m.rolePinned {
 		hasImages := false

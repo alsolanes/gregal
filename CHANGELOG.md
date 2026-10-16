@@ -26,6 +26,38 @@
   switch; the step strip keeps its button semantics for screen readers and
   the role panel no longer re-announces itself on every poll; the canvas
   repaints at 15 fps when nothing is moving.
+- Faster turns ([docs/research/speed.md](docs/research/speed.md)). On the
+  bench (8 tasks × 4 runs, deepseek-v4.1-flash through zen, Windows) a
+  headless task takes 12.3 s instead of 16.5 s (median; mean 17.9 s instead
+  of 20.6 s), with the same pass rate. On the web, a task in a small project makes its first tool call
+  about 2-3 s after it starts instead of 18-45 s.
+  - Python output is UTF-8 on Windows (`PYTHONIOENCODING=utf-8`
+    for `bash` and `bash_background`), and output that is not valid UTF-8 is
+    decoded as cp1252 instead of turning into `�`. The model used to see
+    `TOT B�`, distrust it and run the tests again: a whole extra step in 9
+    of 32 runs. `PYTHONUTF8` is not set, so `open()` keeps its usual default.
+  - The turn-start researcher (scout) no longer runs in projects with fewer
+    than 40 files, where the project map already lists every file. There it
+    cost 17-43 s before the first step and saved the coordinator no work.
+    `agent.scout: always` keeps the old behaviour.
+  - The git checkpoint taken before a shell command that may write costs
+    ~400 ms instead of ~700 ms (~180 ms instead of ~310 ms when nothing
+    changed): the repository root and index path are remembered, and old
+    checkpoint refs are only pruned when there are more than
+    `git.checkpoint_keep`.
+  - A remote provider's `/models` probe is remembered for a day in
+    `<data>/windows.json`. Each `gregal -p` no longer waits 0.4-0.7 s for it,
+    and providers that do not report a window (zen, OpenAI) are no longer
+    probed every ten minutes. Local servers are still probed every time.
+  - At the start of a turn the git checkpoint, the project map and the window
+    probe run at the same time (web, terminal, Telegram). Chat turns on the
+    web no longer build a map that is then thrown away.
+  - The web runs the automatic verifier (`verify.mode` auto/both/strict) only
+    after turns that changed something, as the terminal already did. A plain
+    question used to cost one more model call before the turn could end.
+  - `gregal -p --output json` reports `timings` (setup, window probe, map,
+    model, tools, engine, compaction, extension, synthesis and retry waits,
+    in ms), and each `trace` entry has the call's `ms`. Eval logs carry both.
 
 - Autonomous mode never asks for permission: it decides and does everything
   on its own, including what used to wait for a person (writing outside the

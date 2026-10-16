@@ -176,7 +176,10 @@ relleus també funcionen a la **Repetició**.
 
 **Investigador d'inici de torn.** En els modes code, autonomous i debug, un
 torn que demana investigar (no salutacions, confirmacions ni edicions
-mínimes) comença amb un subagent investigador real de només lectura: fins a 8
+mínimes) comença amb un subagent investigador real de només lectura (només en
+projectes de 40 fitxers o més: en un de més petit el mapa del projecte ja en
+dona tots els fitxers i el scout només afegiria una tirada abans del primer pas;
+`agent.scout: always` l'engega igualment): fins a 8
 passos i 4 minuts, amb el model del rol `delegate` si n'hi ha, o el de la
 sessió (o un subagent de només lectura definit per l'usuari amb el nom
 `researcher`). El seu resum, amb camins de fitxer, s'afegeix a la tasca perquè

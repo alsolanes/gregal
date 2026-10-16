@@ -3,6 +3,7 @@ package agent
 import (
 	"encoding/json"
 
+	"gregal/internal/llm"
 	"gregal/internal/tools"
 )
 
@@ -37,4 +38,20 @@ func CheckpointTorn(owner, dir, mode string, convoLen int) error {
 	}
 	_, err := tools.GitCPs.Snapshot(owner, dir, "turn", "before turn", convoLen)
 	return err
+}
+
+// CheckpointIMapa fa la foto d'inici de torn i el mapa del projecte alhora
+// i torna la tasca amb el mapa (TascaAmbMapa). Són independents —la foto
+// treballa amb un índex temporal i no toca el de l'usuari que llegeix el
+// git status del mapa— i en fila sumaven ~0,4 s + 0,1-0,6 s abans del
+// primer pas (al TUI, al fil de la interfície).
+func CheckpointIMapa(owner, dir, mode string, convoLen int, task string, hist []llm.Message) string {
+	fet := make(chan struct{})
+	go func() {
+		defer close(fet)
+		_ = CheckpointTorn(owner, dir, mode, convoLen)
+	}()
+	out := TascaAmbMapa(mode, dir, task, hist)
+	<-fet
+	return out
 }

@@ -57,6 +57,7 @@ func ResetWindows() {
 	windowCache = map[string]int{}
 	windowProbe = map[string]time.Time{}
 	windowMu.Unlock()
+	oblidaWindowDisk()
 }
 
 // DetectWindows consulta /models de cada proveïdor que fa servir algun rol
@@ -136,6 +137,10 @@ func esServidorLocal(base string) bool {
 func detectWindowBases(ctx context.Context, bases map[string]*baseProbe) {
 	var wg sync.WaitGroup
 	for base, bp := range bases {
+		// Un remot ja sondejat avui (window_disk.go) no es torna a esperar.
+		if !esServidorLocal(base) && sondejatRecent(base) {
+			continue
+		}
 		windowMu.Lock()
 		if t, ok := windowProbe[base]; ok && time.Since(t) < 10*time.Minute {
 			windowMu.Unlock()
@@ -152,6 +157,9 @@ func detectWindowBases(ctx context.Context, bases map[string]*baseProbe) {
 					windowCache[windowKey(base, id)] = n
 				}
 				windowMu.Unlock()
+				if !esServidorLocal(base) {
+					recordaSondeig(base, ws)
+				}
 			}
 			if !esServidorLocal(base) {
 				return

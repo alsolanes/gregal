@@ -64,6 +64,10 @@ type GitCheckpointStore struct {
 	Enabled bool
 	Keep    int
 	lastErr error
+	// refs és quants refs de checkpoint té cada repo segons l'últim prune
+	// més els creats després. Si no passen de Keep, el prune no cal
+	// (s'estalvia un for-each-ref a cada foto, ~60 ms a Windows).
+	refs map[string]int
 }
 
 // LastError és l'últim error d'una foto (nil si l'última ha anat bé).
@@ -95,6 +99,7 @@ func NewGitCheckpointStore(j *Journal) *GitCheckpointStore {
 		run:     strconv.FormatInt(time.Now().UnixNano()/int64(time.Millisecond), 36),
 		byOwner: map[string][]GitCheckpoint{},
 		next:    map[string]int{},
+		refs:    map[string]int{},
 		journal: j,
 		Enabled: true,
 		Keep:    DefaultGitCheckpointKeep,
@@ -165,7 +170,10 @@ func gitRepoOf(dir string) (root, prefix string, ok bool) {
 	if dir == "" {
 		dir, _ = os.Getwd()
 	}
-	out, err := gitRun(dir, nil, nil, "rev-parse", "--show-toplevel", "--show-prefix")
+	if r, ok := repoCache.get(dir); ok {
+		return r.root, r.prefix, true
+	}
+	out, err := gitRun(dir, nil, nil, "rev-parse", "--show-toplevel", "--show-prefix", "--git-path", "index")
 	if err != nil {
 		return "", "", false
 	}
@@ -177,7 +185,67 @@ func gitRepoOf(dir string) (root, prefix string, ok bool) {
 	if len(lines) > 1 {
 		prefix = strings.TrimSpace(lines[1])
 	}
+	index := ""
+	if len(lines) > 2 {
+		// --git-path és relatiu al directori on s'ha cridat git (dir).
+		if index = filepath.FromSlash(strings.TrimSpace(lines[2])); index != "" && !filepath.IsAbs(index) {
+			index = filepath.Join(dir, index)
+		}
+	}
+	repoCache.put(dir, repoInfo{root: root, prefix: prefix, index: index})
 	return root, prefix, true
+}
+
+// repoInfo és el que gitRepoOf sap d'un directori: l'arrel, el prefix i
+// on és l'índex. Cada foto en feia dos rev-parse (un procés de git a
+// Windows són ~60 ms); el repo d'un directori no canvia durant una sessió.
+// Només es recorden els positius (un `git init` a mig torn s'ha de veure)
+// i es tornen a validar mirant que l'arrel encara tingui .git.
+type repoInfo struct{ root, prefix, index string }
+
+type repoInfoCache struct {
+	mu sync.Mutex
+	m  map[string]repoInfo
+}
+
+var repoCache = &repoInfoCache{m: map[string]repoInfo{}}
+
+func (c *repoInfoCache) get(dir string) (repoInfo, bool) {
+	c.mu.Lock()
+	r, ok := c.m[dir]
+	c.mu.Unlock()
+	if !ok {
+		return r, false
+	}
+	if _, err := os.Stat(filepath.Join(r.root, ".git")); err != nil {
+		c.mu.Lock()
+		delete(c.m, dir)
+		c.mu.Unlock()
+		return r, false
+	}
+	return r, true
+}
+
+func (c *repoInfoCache) put(dir string, r repoInfo) {
+	c.mu.Lock()
+	c.m[dir] = r
+	c.mu.Unlock()
+}
+
+// indexOf és l'índex real del repo de root (de la cache si se sap).
+func indexOf(root string) (string, error) {
+	if r, ok := repoCache.get(root); ok && r.index != "" {
+		return r.index, nil
+	}
+	gp, err := gitRun(root, nil, nil, "rev-parse", "--git-path", "index")
+	if err != nil {
+		return "", err
+	}
+	src := filepath.FromSlash(strings.TrimSpace(gp))
+	if !filepath.IsAbs(src) {
+		src = filepath.Join(root, src)
+	}
+	return src, nil
 }
 
 // cpPathspec limita la foto al workspace (prefix) i deixa fora els worktrees
@@ -215,11 +283,7 @@ func tempIndex(root string, seed bool) (string, func(), error) {
 	f.Close()
 	cleanup := func() { os.Remove(path); os.Remove(path + ".lock") }
 	if seed {
-		if gp, err := gitRun(root, nil, nil, "rev-parse", "--git-path", "index"); err == nil {
-			src := filepath.FromSlash(strings.TrimSpace(gp))
-			if !filepath.IsAbs(src) {
-				src = filepath.Join(root, src)
-			}
+		if src, err := indexOf(root); err == nil {
 			if raw, err := os.ReadFile(src); err == nil {
 				if err := os.WriteFile(path, raw, 0o600); err != nil {
 					cleanup()
@@ -361,6 +425,11 @@ func (st *GitCheckpointStore) Snapshot(owner, dir, kind, label string, convoLen 
 	if _, err := gitRun(root, nil, nil, "update-ref", ref, commit); err != nil {
 		return nil, st.setErr(err)
 	}
+	st.mu.Lock()
+	if n, ok := st.refs[root]; ok {
+		st.refs[root] = n + 1
+	}
+	st.mu.Unlock()
 	st.setErr(nil)
 	cp := GitCheckpoint{N: n, Seq: seq, ConvoLen: convoLen, Kind: kind, Label: oneLine(label, 160),
 		Commit: commit, Ref: ref, At: time.Now(), Root: root, Prefix: prefix, tree: tree}
@@ -385,11 +454,20 @@ func (st *GitCheckpointStore) prune(root string, keep int) {
 	if keep <= 0 {
 		keep = DefaultGitCheckpointKeep
 	}
+	st.mu.Lock()
+	n, sabut := st.refs[root]
+	st.mu.Unlock()
+	if sabut && n <= keep {
+		return
+	}
 	out, err := gitRun(root, nil, nil, "for-each-ref", "--sort=-creatordate", "--format=%(refname)", "refs/gregal/checkpoints/")
 	if err != nil {
 		return
 	}
 	refs := strings.Fields(out)
+	st.mu.Lock()
+	st.refs[root] = min(len(refs), keep)
+	st.mu.Unlock()
 	if len(refs) <= keep {
 		return
 	}

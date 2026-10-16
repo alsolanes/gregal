@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/config"
@@ -32,6 +33,8 @@ type TraceCall struct {
 	Summary string `json:"summary,omitempty"`
 	// Round és la ronda de --verify (1, 2…); 0 sense --verify.
 	Round int `json:"round,omitempty"`
+	// Ms és el que ha trigat l'execució (0 si no s'ha executat).
+	Ms int64 `json:"ms,omitempty"`
 	// id aparella la crida amb el seu resultat (tool_call id). Per nom
 	// d'eina, una crida denegada es quedava el resultat de la següent.
 	id string
@@ -97,7 +100,43 @@ type RunResult struct {
 	// Interrupted és l'error que ha tallat el torn quan ja hi havia feina
 	// feta: Answer és la síntesi parcial del que s'ha fet, no un buit.
 	Interrupted string `json:"interrupted,omitempty"`
+	// Timings desglossa el temps de paret del run per fases (vegeu
+	// docs/research/speed.md): sense això no se sabia si un torn lent
+	// era el model, les eines o el que el motor fa entre passos.
+	Timings RunTimings `json:"timings"`
 }
+
+// RunTimings és el temps de paret d'un run per fases, en mil·lisegons.
+// Total ≈ Setup + Model + Tools + Engine + Compact + Extend + Synth +
+// Checkpoint (la resta és el bucle mateix, gairebé res).
+type RunTimings struct {
+	Total int64 `json:"total_ms"`
+	// Setup: sondeig de la finestra del model i mapa del projecte, abans
+	// del primer pas. Probe i Map en són les dues parts.
+	Setup int64 `json:"setup_ms"`
+	Probe int64 `json:"probe_ms"`
+	Map   int64 `json:"map_ms"`
+	// Model: les crides dels passos (prefill + generació + xarxa).
+	// ModelMax és la més lenta.
+	Model      int64 `json:"model_ms"`
+	ModelCalls int   `json:"model_calls"`
+	ModelMax   int64 `json:"model_max_ms"`
+	// Tools: execució de les eines (lots en paral·lel compten una vegada).
+	Tools int64 `json:"tools_ms"`
+	// Engine: el motor decidint el pas següent, inclosos els ganxos que hi
+	// corren a dins (revisor, crític del pla, aposta lateral).
+	Engine     int64 `json:"engine_ms"`
+	Compact    int64 `json:"compact_ms,omitempty"`
+	Extend     int64 `json:"extend_ms,omitempty"`
+	Synth      int64 `json:"synth_ms,omitempty"`
+	Checkpoint int64 `json:"checkpoint_ms,omitempty"`
+	// RetryWait és l'espera dels reintents del client (ja inclosa a la
+	// fase que el va patir).
+	RetryWait int64 `json:"retry_wait_ms,omitempty"`
+}
+
+// ms és el temps des de t0 en mil·lisegons.
+func ms(t0 time.Time) int64 { return time.Since(t0).Milliseconds() }
 
 // RunOpts són les opcions d'una execució no interactiva.
 type RunOpts struct {
@@ -268,6 +307,8 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// context (passos, compactació, ampliació, síntesi, revisió) hi sumen.
 	meter := &llm.UsageMeter{}
 	ctx = llm.WithUsage(ctx, meter)
+	tRun := time.Now()
+	tm := &res.Timings
 	autoCfg := cfg.AutonomousConfig()
 	pol := &Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: dir}
 	pol = restrictPolicy(pol, o.Tools)
@@ -276,6 +317,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// finish tanca el resultat: tokens + cost si hi ha preu. Mana l'usage
 	// del proveïdor; l'estimació només queda per quan no n'ha declarat cap.
 	finish := func() {
+		tm.Total = ms(tRun)
 		u, calls, withUsage := meter.Total()
 		res.LLMCalls = calls
 		if withUsage > 0 {
@@ -318,20 +360,26 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	}
 	// Reintents del client visibles com a pas «reintent: …».
 	ctx = llm.WithRetryHook(ctx, func(attempt, total int, wait time.Duration, err error) {
+		tm.RetryWait += wait.Milliseconds()
 		if onStep != nil {
 			onStep(0, []string{"reintent: " + llm.RetryNote(attempt, total, wait, err)})
 		}
 	})
 	// Finestra del model: la que declara el proveïdor si el rol no en fixa.
+	t0 := time.Now()
 	dctx, dcancel := context.WithTimeout(ctx, 5*time.Second)
 	DetectRoleWindows(dctx, cfg, r)
 	dcancel()
+	tm.Probe = ms(t0)
+	t0 = time.Now()
+	tascaMapa := TascaAmbMapa(mode, dir, task, nil)
+	tm.Map = ms(t0)
 
 	// El bucle: el motor decideix, aquí només es fa la feina. Abans això
 	// era una màquina d'estats sencera duplicada de la del TUI.
 	torn := NouTorn(OpcionsTorn{
 		Cfg: cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: meter,
-		Hist:      []llm.Message{{Role: "user", Content: TascaAmbMapa(mode, dir, task, nil)}},
+		Hist:      []llm.Message{{Role: "user", Content: tascaMapa}},
 		SysPrompt: func() string { return sys },
 		Finestra: func() (int, int) {
 			win := Window(cfg, r)
@@ -365,6 +413,9 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			}
 		}
 	}
+	// durades: temps de cada crida executada, per id (RunCalls en pot
+	// córrer unes quantes alhora).
+	var durades sync.Map
 	// finish llegeix l'historial del motor.
 	hist = torn.Hist
 	avisa := func(pas int, evs []Event) {
@@ -401,6 +452,9 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 					if tc.Tool == e.Eina && tc.Summary == "" && !tc.Failed {
 						tc.Failed = e.Fallada || strings.HasPrefix(e.Text, "ERROR:")
 						tc.Summary = retallaText(primeraLiniaNoBuida(e.Missatge()), 140)
+						if d, ok := durades.Load(tc.id); ok {
+							tc.Ms = d.(int64)
+						}
 						if tc.Summary == "" {
 							tc.Summary = "(sense sortida)"
 						}
@@ -415,13 +469,17 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		}
 	}
 
+	tm.Setup = ms(tRun)
 	for {
 		if err := ctx.Err(); err != nil {
 			hist = torn.Hist
 			finish()
 			return res, err
 		}
+		t0 := time.Now()
 		p := torn.Seguent()
+		tm.Engine += ms(t0)
+		t0 = time.Now()
 		hist = torn.Hist
 		res.Steps = torn.Passos()
 		if len(p.Events) > 0 {
@@ -447,6 +505,12 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			})
 			err = ModelError(stepCtx, err)
 			cancel()
+			d := ms(t0)
+			tm.Model += d
+			tm.ModelCalls++
+			if d > tm.ModelMax {
+				tm.ModelMax = d
+			}
 			if err == nil {
 				res.ToolCallInvalid += CridesInvalides(content, calls, specs)
 				res.ToolCallRecovered += CridesRecuperades(calls)
@@ -462,6 +526,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 
 		case OrdreCompacta:
 			room := MakeRoom(ctx, client, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), sys, torn.Hist, p.Budget)
+			tm.Compact += ms(t0)
 			torn.RepCompactacio(room)
 			if room.Changed() {
 				res.Compactions++
@@ -472,12 +537,15 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 
 		case OrdreExecuta:
 			outs := RunCalls(p.Calls, nil, func(_ int, c llm.ToolCall) Execucio {
+				tc := time.Now()
+				defer func() { durades.Store(c.ID, ms(tc)) }()
 				o, imgs, err := ExecCtx(ctx, "", dir, c.Function.Name, c.Function.Arguments)
 				if err != nil {
 					o = ErrorAmbSortida(err, o)
 				}
 				return Execucio{Call: c, Sortida: o, Imatges: imgs}
 			})
+			tm.Tools += ms(t0)
 			// Torn mort mentre corrien les eines: resultats falsos
 			// ("ERROR: context canceled") que embrutarien historial i trace.
 			// La capçalera del bucle avorta net a la iteració següent.
@@ -517,6 +585,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			resp, _, aerr := client.ChatFO(actx, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), p.Hist,
 				r.Temperature, r.MaxTokens, func(model string) { res.FallbackModel = model })
 			cancel()
+			tm.Extend += ms(t0)
 			torn.RepAmpliacio(resp, aerr)
 			if onStep != nil {
 				onStep(p.Passos, []string{"ampliacio"})
@@ -527,6 +596,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			final, _, ferr := client.ChatFO(fctx, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), p.Hist,
 				r.Temperature, r.MaxTokens, func(model string) { res.FallbackModel = model })
 			cancel()
+			tm.Synth += ms(t0)
 			torn.RepSintesi(final, ferr)
 
 		case OrdreCheckpoint:
@@ -550,6 +620,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 					veredicte = "CAL REVISAR: " + v.Summary
 				}
 			}
+			tm.Checkpoint += ms(t0)
 			torn.RepCheckpoint(RenderCheckpoint(checks, veredicte), veredicte)
 			if onStep != nil {
 				tag := fmt.Sprintf("autonom: checkpoint %d", torn.CheckpointNum())

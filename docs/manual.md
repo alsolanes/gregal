@@ -167,7 +167,10 @@ handoffs also work in **Replay**.
 
 **Researcher scout.** In code, autonomous and debug modes, a turn whose task
 needs investigation (not greetings, confirmations or tiny edits) starts with a
-real read-only Researcher subagent: up to 8 steps and 4 minutes, with the
+real read-only Researcher subagent (only in projects of 40 files or more: in a
+smaller one the project map already lists every file, so the scout would only
+add a sub-run before the first step; `agent.scout: always` runs it anyway):
+up to 8 steps and 4 minutes, with the
 `delegate` role's model when configured, otherwise the session's model (or a
 user-defined read-only subagent named `researcher`). Its brief, with file
 paths, is added to the task so the coordinator does not repeat the

@@ -189,6 +189,8 @@ func TestConduirTornRunsScoutAndEmitsLanes(t *testing.T) {
 	defer provider.Close()
 	s := goalTestServer(t)
 	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: provider.URL}}
+	// Un sol fitxer: en mode auto el scout no s'engegaria (projecte petit).
+	s.cfg.Agent.Scout = "always"
 	s.permissive = true
 	role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
 	task := "add a describe() function to stats.py with tests"
