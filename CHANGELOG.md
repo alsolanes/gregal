@@ -10,6 +10,16 @@
   rules in `permissions.tools`. To keep it away from something, set it to
   `deny`. Autonomous is back as a button next to Ask and Act in the web
   composer; it had been tucked away in the ⋯ menu.
+- Brandings: your own colours, fonts and logo for the whole app (web,
+  desktop, terminal) and for the documents Gregal generates
+  ([docs/branding.md](docs/branding.md)). Drop a `.gregal-brand.json` file
+  on Preferences → Brandings to see a card with its colour swatches, fonts,
+  logo and a preview of the app; it is installed only if you accept, and a
+  newer version of an installed branding shows as an update. You can also
+  create one from scratch with colour pickers, font menus and a logo upload,
+  and export it to share. The active branding drives Word headers (logo),
+  PowerPoint masters (logo on every slide), Excel colours, HTML exports and
+  chart colours. It also appears in the terminal's `/theme` menu.
 
 - Local models get first-class providers ([docs/local-models.md](docs/local-models.md)).
   `type: ollama` uses Ollama's native `/api/chat` with a fixed `num_ctx`, so

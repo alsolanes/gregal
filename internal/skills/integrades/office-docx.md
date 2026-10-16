@@ -13,8 +13,9 @@ description: Word documents with real styles, templates, tracked changes and com
   contents, `\pagebreak` → page break.
 - `title` (+ `subtitle`) makes a cover block and the page header; page numbers
   are on by default. `page: letter` for US, `landscape: true` for wide tables.
-- Pick a `theme` that suits the audience (default, modern, nature, elegant,
-  mono).
+- Leave `theme` empty unless the user asks for a particular look: empty uses
+  the user's active branding (colours, fonts and logo in the header) or the
+  default. Otherwise: default, modern, nature, elegant, mono.
 - Do not use `#` for the document title if you passed `title` (it would be
   repeated). Start sections with `##` in that case.
 

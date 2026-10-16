@@ -69,6 +69,7 @@ func exportConversa(convo []llm.Message, cwd string, cfg *config.Config, a expor
 	meta := transcript.Meta{Title: title, Workspace: cwd, SavedAt: now}
 	var body string
 	if a.format == "html" {
+		opt.Brand = transcript.ActiveBrand()
 		body = transcript.HTML(meta, convo, opt)
 	} else {
 		body = transcript.Markdown(meta, convo, opt)

@@ -90,7 +90,26 @@ func lvlStyle(lvl, sz int, color, extra string) string {
 	return fmt.Sprintf(`<a:lvl%dpPr%s><a:defRPr sz="%d"><a:solidFill><a:schemeClr val="%s"/></a:solidFill></a:defRPr></a:lvl%dpPr>`, lvl, extra, sz, color, lvl)
 }
 
-func masterXML(t Theme, layoutRIDs []string) string {
+// masterLogo desa el logo del tema per al màster i en torna la forma: a
+// baix a l'esquerra, a la mateixa alçada que el número de diapositiva, i
+// per tant a totes les diapositives que mostren les formes del màster.
+func masterLogo(pk *Package, master string, t Theme) string {
+	const h = 304800
+	cx, cy, ok := logoSize(t, h)
+	if !ok {
+		return ""
+	}
+	if maxW := int64(contW) / 4; cx > maxW {
+		cy, cx = cy*maxW/cx, maxW
+	}
+	part := "ppt/media/brand-logo." + t.LogoExt
+	pk.Put(part, t.Logo)
+	rid := pk.AddRel(master, RelImage, part)
+	return fmt.Sprintf(`<p:pic><p:nvPicPr><p:cNvPr id="9" name="Logo"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr userDrawn="1"/></p:nvPicPr><p:blipFill><a:blip r:embed="%s"/><a:stretch><a:fillRect/></a:stretch></p:blipFill><p:spPr><a:xfrm><a:off x="%d" y="%d"/><a:ext cx="%d" cy="%d"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`,
+		rid, mX, SlideH-457200, cx, cy)
+}
+
+func masterXML(t Theme, layoutRIDs []string, logo string) string {
 	var ids strings.Builder
 	for i, r := range layoutRIDs {
 		ids.WriteString(fmt.Sprintf(`<p:sldLayoutId id="%d" r:id="%s"/>`, 2147483649+i, r))
@@ -111,6 +130,7 @@ func masterXML(t Theme, layoutRIDs []string) string {
 		phSp(2, "Title Placeholder 1", "title", "", mX, titleY, contW, titleH, `<a:bodyPr vert="horz" lIns="0" tIns="45720" rIns="0" bIns="45720" rtlCol="0" anchor="b"><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:r><a:rPr lang="ca-ES"/><a:t>Títol</a:t></a:r></a:p>`) +
 		phSp(3, "Text Placeholder 2", "body", "1", mX, bodyY, contW, bodyH, `<a:bodyPr vert="horz" lIns="0" tIns="45720" rIns="0" bIns="45720" rtlCol="0"><a:normAutofit/></a:bodyPr><a:lstStyle/><a:p><a:pPr lvl="0"/><a:r><a:rPr lang="ca-ES"/><a:t>Text</a:t></a:r></a:p>`) +
 		phSp(4, "Slide Number Placeholder 3", "sldNum", "12", SlideW-mX-914400, SlideH-457200, 914400, 304800, `<a:bodyPr vert="horz" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"/><a:lstStyle><a:lvl1pPr algn="r"><a:defRPr sz="1100"><a:solidFill><a:schemeClr val="accent4"/></a:solidFill></a:defRPr></a:lvl1pPr></a:lstStyle><a:p><a:fld id="{B6F15528-21DE-4FAA-801E-634DDDAF4B2B}" type="slidenum"><a:rPr lang="ca-ES"/><a:t>‹#›</a:t></a:fld><a:endParaRPr lang="ca-ES"/></a:p>`) +
+		logo +
 		`</p:spTree></p:cSld>` +
 		`<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>` +
 		`<p:sldLayoutIdLst>` + ids.String() + `</p:sldLayoutIdLst>` +
@@ -242,7 +262,7 @@ func NewPptxPackage(t Theme, title string) *Package {
 		rids = append(rids, pk.AddRel(master, RelSlideLayout, lp))
 	}
 	pk.AddRel(master, RelTheme, "ppt/theme/theme1.xml")
-	pk.Put(master, []byte(masterXML(t, rids)))
+	pk.Put(master, []byte(masterXML(t, rids, masterLogo(pk, master, t))))
 	pk.SetOverride(master, ctSlideMaster)
 
 	// Notes.

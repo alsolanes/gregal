@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/png" href="/app/icon.png">
 <link rel="stylesheet" href="/app/team.css">
+<link rel="stylesheet" href="/app/brands.css">
 <title data-i18n="ui.title">Gregal - Coding Agent</title>
 <style>
 /* GENERAT des d'internal/tema (go test ./internal/web -run TestCSSAlDia -update).
@@ -136,7 +137,7 @@
 * { box-sizing:border-box; margin:0; padding:0; }
 html, body { width:100%; height:100%; }
 body { display:flex; overflow:hidden; color:var(--text); background:var(--bg); font-size:var(--fs); line-height:var(--lh);
-  font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-family:var(--font, Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
   font-size:var(--t3); font-feature-settings:"cv01","ss03"; }
 button, textarea, input, select { font:inherit; }
 button { color:inherit; }
@@ -1272,8 +1273,10 @@ button.tiny.ok { color:var(--green); }
 :root[data-size="gran"]   { --fs:17px; }
 :root[data-density="compacta"] { --gap:16px; --pad:18px; }
 :root[data-density="comoda"]   { --gap:32px; --pad:36px; }
-body { font-family:"Segoe UI Variable Text","Segoe UI",Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,sans-serif;
+body { font-family:var(--font, "Segoe UI Variable Text","Segoe UI",Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,sans-serif);
   font-size:var(--fs); }
+/* Un branding pot portar lletra pròpia per als títols (--font-heading). */
+h1, h2, h3, h4 { font-family:var(--font-heading, inherit); }
 /* Barra lateral: la mateixa lletra, una mica més gran, sense majúscules en mono. */
 .nav-item { font-size:var(--t3); padding:8px 10px; }
 .nav-label, .conv-grup, .inspect-title, .inspector-head, .ws-sec { font-family:inherit; font-size:var(--t1);

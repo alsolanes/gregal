@@ -19,6 +19,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 
 	"gregal/internal/agent"
+	"gregal/internal/brand"
 	"gregal/internal/config"
 	"gregal/internal/evals"
 	"gregal/internal/llm"
@@ -139,6 +140,8 @@ func main() {
 
 	// Checkpoints git (refs amagats): valen per a tots els fronts.
 	tools.ConfigureGitCheckpoints(cfg.Git.CheckpointsOn(), cfg.Git.CheckpointKeep)
+	// Paquets de branding: temes de l'app i dels documents, a tots els fronts.
+	brand.Setup(cfg.Brand)
 
 	if *checkFlag {
 		fmt.Printf("OK  %s\n", cliText(cliLanguage(cfg), "config.valid", path, cfg.RoleNames()))

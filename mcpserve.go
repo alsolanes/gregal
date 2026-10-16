@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/brand"
 	"gregal/internal/config"
 	"gregal/internal/demodb"
 	"gregal/internal/llm"
@@ -50,6 +51,7 @@ func runMCP(args []string) {
 	if err != nil {
 		fatalCfg(err, configLanguage(path))
 	}
+	brand.Setup(cfg.Brand)
 	ws := *workspace
 	if ws == "" {
 		ws, _ = os.Getwd()

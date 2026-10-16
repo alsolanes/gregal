@@ -19,11 +19,13 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"gregal/internal/agent"
+	"gregal/internal/brand"
 	serviceclient "gregal/internal/client"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/mcp"
 	"gregal/internal/session"
+	"gregal/internal/tema"
 	"gregal/internal/tools"
 	"gregal/internal/usercmd"
 	"gregal/internal/verify"
@@ -3183,12 +3185,21 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 			}
 		}
 		if nou == "" {
-			m.push(systemLine(T("app.temaNo") + arg + T("app.temaNoms") + strings.Join(config.TemesSuportats, ", ") + ")"))
+			// Un branding instal·lat, pel nom o per l'id («/theme acme»).
+			id := brand.Slug(strings.TrimPrefix(arg, tema.PrefixBrand))
+			if _, err := brand.Get(id); id != "" && err == nil {
+				nou = brand.ThemeName(id)
+			}
+		}
+		if nou == "" {
+			noms := append([]string(nil), config.TemesSuportats...)
+			for _, p := range brand.List() {
+				noms = append(noms, p.ID)
+			}
+			m.push(systemLine(T("app.temaNo") + arg + T("app.temaNoms") + strings.Join(noms, ", ") + ")"))
 			return m, nil
 		}
-		m.cfg.Theme = nou
-		SetTema(nou)
-		missatge := T("app.tema") + nou
+		missatge := T("app.tema") + m.applyTheme(nou)
 		if err := m.cfg.Save(m.cfgPath); err != nil {
 			missatge += T("app.noDesat") + err.Error() + ")"
 		}

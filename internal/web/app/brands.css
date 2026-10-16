@@ -1,0 +1,71 @@
+/* Brandings (app/brands.js): secció de Preferències, targeta de
+   previsualització d'un fitxer arrossegat i editor. Només tokens del
+   tema: els colors d'un paquet surten inline a les mostres. */
+.brand-own { overflow:hidden; text-overflow:ellipsis; }
+.br-wrap { display:flex; flex-direction:column; gap:10px; padding:6px 0 4px; }
+.br-help, .br-empty { color:var(--muted); font-size:var(--t2); }
+.br-card, .br-preview, .br-editor { border:1px solid var(--line-hi); border-radius:10px; padding:10px 12px;
+  background:var(--raised); display:flex; flex-direction:column; gap:8px; }
+.br-card.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent-soft-hi) inset; }
+.br-head { display:flex; align-items:center; gap:10px; }
+.br-logo { width:28px; height:28px; object-fit:contain; border-radius:6px; flex:none; }
+.br-logo.big { width:auto; max-width:140px; height:40px; }
+.br-nologo { display:inline-block; }
+.br-title { display:flex; flex-direction:column; min-width:0; flex:1; }
+.br-title b { color:var(--ink); }
+.br-title span { color:var(--muted); font-size:var(--t1); }
+.br-badge { font-size:var(--t1); font-weight:600; color:var(--accent); background:var(--accent-soft);
+  border:1px solid var(--line-hi); border-radius:999px; padding:1px 8px; }
+.br-sw { display:flex; flex-wrap:wrap; gap:8px; }
+.br-swatch { display:flex; flex-direction:column; align-items:center; gap:3px; width:64px; }
+.br-swatch i { width:40px; height:40px; border-radius:8px; border:1px solid var(--edge); display:block; }
+.br-swatch small { color:var(--muted); font-size:10.5px; text-align:center; line-height:1.25; font-family:var(--mono); }
+.br-fonts { display:flex; flex-direction:column; gap:2px; color:var(--text); font-size:var(--t2); }
+.br-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.br-actions .br-primary { border-color:var(--accent); color:var(--accent); }
+.br-actions .br-danger:hover { border-color:var(--red); color:var(--red); }
+.br-status { color:var(--text); font-size:var(--t2); }
+.br-update .br-status { color:var(--accent); }
+.br-older .br-status, .br-bad span { color:var(--amber); }
+.br-bad b { color:var(--red); }
+.br-activate { display:flex; align-items:center; gap:6px; font-size:var(--t2); color:var(--text); }
+.br-drop { display:flex; flex-direction:column; align-items:center; gap:4px; text-align:center; cursor:pointer;
+  border:1.5px dashed var(--line-hi); border-radius:10px; padding:18px 12px; color:var(--muted); transition:all .14s ease; }
+.br-drop b { color:var(--ink); font-weight:600; }
+.br-drop span { font-size:var(--t1); }
+.br-drop:hover, .br-drop:focus-visible, .br-drop.over { border-color:var(--accent); background:var(--accent-soft); color:var(--text); outline:none; }
+/* Miniatura de l'app amb els colors d'un paquet. */
+.br-mock { display:flex; height:110px; border-radius:8px; overflow:hidden; border:1px solid var(--edge); font-size:12px; }
+.br-mock-side { width:30%; display:flex; flex-direction:column; gap:6px; padding:8px; border-right:1px solid; }
+.br-mock-side img { height:18px; width:auto; max-width:100%; object-fit:contain; align-self:flex-start; }
+.br-mock-side i { width:18px; height:18px; border-radius:5px; display:block; }
+.br-mock-side b { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.br-mock-side span { height:8px; border-radius:4px; opacity:.6; font-size:7px; line-height:8px; padding-left:3px; }
+.br-mock-side span:nth-of-type(n+2) { background:currentColor; opacity:.12; }
+.br-mock-main { flex:1; display:flex; flex-direction:column; justify-content:space-between; padding:10px; }
+.br-mock-msg { border-radius:8px; padding:7px 9px; line-height:1.35; }
+.br-mock-row { display:flex; align-items:center; gap:6px; }
+.br-mock-in { flex:1; height:18px; border-radius:6px; border:1px solid; }
+.br-mock-btn { width:34px; height:18px; border-radius:6px; }
+.br-mock-dot { width:9px; height:9px; border-radius:50%; }
+/* Editor. */
+.br-editor h4 { margin:6px 0 0; font-size:var(--t1); color:var(--accent-hi); font-weight:600; letter-spacing:.04em; text-transform:uppercase; }
+.br-editor input[type="text"], .br-editor select { width:100%; font:inherit; font-size:var(--t2); padding:5px 7px; border-radius:6px;
+  border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); }
+.br-editor label > span { display:block; color:var(--muted); font-size:var(--t1); margin-bottom:2px; }
+.br-grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.br-grid3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+.br-grid3 input[type="text"] { margin-top:4px; }
+.br-cols { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
+.br-col { display:flex; align-items:center; gap:6px; padding:4px; border-radius:7px; border:1px solid var(--line); position:relative; }
+.br-col input[type="color"] { width:30px; height:30px; padding:0; border:0; background:none; cursor:pointer; flex:none; }
+.br-col input[data-empty] { opacity:.35; }
+.br-col > span { margin:0 !important; display:flex !important; flex-direction:column; color:var(--text) !important; font-size:var(--t1); min-width:0; }
+.br-col small { color:var(--muted); font-family:var(--mono); font-size:10.5px; }
+.br-x { position:absolute; top:2px; right:4px; border:0; background:none; color:var(--faint); cursor:pointer; font-size:13px; line-height:1; }
+.br-x:hover { color:var(--red); }
+.br-logo-row { display:flex; align-items:center; flex-wrap:wrap; gap:8px; }
+.br-logo-row small { color:var(--muted); font-size:var(--t1); flex-basis:100%; }
+.br-err { color:var(--red); font-size:var(--t2); min-height:0; }
+.br-err:empty { display:none; }
+@media (max-width:560px) { .br-cols, .br-grid3 { grid-template-columns:1fr 1fr; } }

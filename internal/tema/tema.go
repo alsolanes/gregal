@@ -14,6 +14,8 @@
 // CSS (web i escriptori).
 package tema
 
+import "sync"
+
 // Sintaxi són els colors del codi. Vuit categories i prou: chroma en
 // distingeix desenes, però amb més de vuit colors un bloc de codi deixa
 // de llegir-se i sembla un arbre de Nadal.
@@ -400,8 +402,76 @@ func Tots() []Tema {
 	return []Tema{Fosc(), Clar(), Gpt(), Claude(), Opencode(), Mistral(), Gemini(), Grok()}
 }
 
+// PrefixBrand és el prefix del nom de tema d'un paquet de branding
+// («brand-<id>»): és també el valor de data-theme al web.
+const PrefixBrand = "brand-"
+
+// extres són els temes que no són de casa: els paquets de branding
+// instal·lats (internal/brand els registra en arrencar i en instal·lar-ne).
+var (
+	extresMu sync.RWMutex
+	extres   []Tema
+)
+
+// Registra afegeix (o substitueix, pel nom) un tema extra.
+func Registra(t Tema) {
+	extresMu.Lock()
+	defer extresMu.Unlock()
+	for i := range extres {
+		if extres[i].Nom == t.Nom {
+			extres[i] = t
+			return
+		}
+	}
+	extres = append(extres, t)
+}
+
+// Treu esborra un tema extra pel nom.
+func Treu(nom string) {
+	extresMu.Lock()
+	defer extresMu.Unlock()
+	for i := range extres {
+		if extres[i].Nom == nom {
+			extres = append(extres[:i], extres[i+1:]...)
+			return
+		}
+	}
+}
+
+// Extres són els temes registrats, en ordre d'alta.
+func Extres() []Tema {
+	extresMu.RLock()
+	defer extresMu.RUnlock()
+	return append([]Tema(nil), extres...)
+}
+
+func extra(nom string) (Tema, bool) {
+	extresMu.RLock()
+	defer extresMu.RUnlock()
+	for _, t := range extres {
+		if t.Nom == nom {
+			return t, true
+		}
+	}
+	return Tema{}, false
+}
+
+// Existeix diu si el nom és un tema de casa o un extra registrat.
+func Existeix(nom string) bool {
+	for _, n := range Noms() {
+		if n == nom {
+			return true
+		}
+	}
+	_, ok := extra(nom)
+	return ok
+}
+
 // Per retorna el tema amb aquest nom (fosc si no el coneix).
 func Per(nom string) Tema {
+	if t, ok := extra(nom); ok {
+		return t
+	}
 	switch nom {
 	case "clar", "light":
 		return Clar()

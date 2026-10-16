@@ -20,7 +20,7 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
 ## Creating (`office_create` with `spec`)
 
 ```json
-{"theme":"default","sheets":[{"name":"Model",
+{"sheets":[{"name":"Model",
   "rows":[["Concepte","2025","2026"],["Vendes",1000,"=B2*(1+$B$6)"],["Costos",600,"=B3*1.05"],["Marge","=B2-B3","=C2-C3"],[null],["Creixement",0.1]],
   "number_formats":{"B2:C4":"#,##0 €","B6":"0.0%"},
   "roles":{"B2:B3":"input","B6":"key","A4:C4":"total"},
