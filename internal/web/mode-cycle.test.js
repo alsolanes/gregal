@@ -13,7 +13,7 @@ test('Tab cycles the primary modes and returns from an advanced mode to code', (
   assert.equal(next('autonomous'), 'code');
 });
 
-test('Ask/Act radios and the special-mode chip follow the session mode', () => {
+test('Ask/Act/Autonomous radios and the special-mode chip follow the session mode', () => {
   const source = fs.readFileSync(__dirname + '/index.html', 'utf8');
   const start = source.indexOf('function paintMode(mode)');
   const end = source.indexOf('// El menú de permisos', start);
@@ -21,7 +21,7 @@ test('Ask/Act radios and the special-mode chip follow the session mode', () => {
   const chip = {hidden:true, dataset:{}};
   const label = {textContent:''};
   const plan = {hidden:false};
-  const radios = ['chat','code'].map(mode => ({
+  const radios = ['chat','code','autonomous'].map(mode => ({
     dataset:{mode}, setAttribute(key,value) { this[key] = value; },
   }));
   const context = {document:{querySelectorAll:() => radios},
@@ -30,7 +30,8 @@ test('Ask/Act radios and the special-mode chip follow the session mode', () => {
   vm.runInContext(source.slice(start,end), context);
   for (const mode of ['code','chat','goal','autonomous','debug']) {
     context.paintMode(mode);
-    const special = ['goal','autonomous','debug'].includes(mode);
+    // Autònom té botó propi; el xip és només per a Objectiu i Debug.
+    const special = ['goal','debug'].includes(mode);
     assert.equal(chip.hidden, !special, mode);
     assert.equal(radios.filter(radio => radio['aria-checked'] === 'true').length, special ? 0 : 1, mode);
     assert.equal(plan.hidden, mode === 'chat' || mode === 'goal', mode);

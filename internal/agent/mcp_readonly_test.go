@@ -20,8 +20,8 @@ func TestReadOnlyMCPPolicy(t *testing.T) {
 	if d, _ := p.Decide(ModeChat, "mcp_other_write", `{}`); d != "deny" {
 		t.Errorf("other MCP tool in chat = %s, want deny", d)
 	}
-	if d, _ := p.Decide(ModeAutonomous, "mcp_other_write", `{}`); d != "ask" {
-		t.Errorf("other MCP tool in autonomous = %s, want ask", d)
+	if d, _ := p.Decide(ModeAutonomous, "mcp_other_write", `{}`); d != "allow" {
+		t.Errorf("other MCP tool in autonomous = %s, want allow (autonomous never asks)", d)
 	}
 	// Un permissions.tools explícit continua manant.
 	deny := &Policy{Tools: map[string]string{"mcp_demo_query": "deny"}}

@@ -782,6 +782,9 @@ body:not(.working) .spin { animation:none; }
   padding:5px; border:1px solid var(--line-hi); border-radius:10px; background:var(--surface);
   box-shadow:0 14px 34px var(--ombra); }
 .perm-menu[hidden] { display:none; }
+.perm-autonomous { display:flex; flex-direction:column; gap:3px; padding:8px 9px 9px; margin-bottom:4px;
+  border-bottom:1px solid var(--line); color:var(--onada); font-size:var(--t2); }
+.perm-autonomous span { color:var(--muted); font-size:var(--t1); }
 .perm-menu button { display:block; width:100%; padding:7px 9px; border:0; border-radius:7px;
   background:transparent; color:var(--text); text-align:left; font-size:var(--t2); cursor:pointer; }
 .perm-menu button:hover { background:var(--hover); }
@@ -1758,11 +1761,13 @@ body.sense-inspector #inspector { display:none; }
               <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
                 <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and investigates without changing files"><b data-i18n="mode.ask">Ask</b></button>
                 <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
+                <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false" data-i18n-title="mode.autoHelp" title="Works on its own until done: decides for itself and never asks for permission"><b data-i18n="mode.autonom">Autonomous</b></button>
               </div>
             </div>
-            <!-- Objectiu, Autònom i Debug no ocupen el composer: s'hi entra amb
-                 /goal, /auto, /debug o el menú ⋯, i aquí només en queda una
-                 etiqueta per saber-ho i sortir-ne. -->
+            <!-- Autònom té botó al commutador (es buscava i no es trobava
+                 dins del menú ⋯). Objectiu i Debug no ocupen el composer:
+                 s'hi entra amb /goal, /debug o el menú ⋯, i aquí només en
+                 queda una etiqueta per saber-ho i sortir-ne. -->
             <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
             <button type="button" id="planFirst" class="plan-toggle" role="switch" aria-checked="false" data-i18n-title="mode.planFirstHelp" title="Propose a plan and wait for your approval before acting"><span class="plan-toggle-dot" aria-hidden="true"></span><span data-i18n="mode.planFirst">Plan first</span></button>
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
@@ -2674,15 +2679,19 @@ function paintPerm() {
   const pb = $('permBtn');
   if (!pb) return;
   const p = PERMS.find(x => x[0] === permMode) || PERMS[0];
-  const obert = permMode !== 'manual';
+  // En autònom no es pregunta res, sigui quin sigui el mode de permís: el
+  // candau ho diu en lloc de mostrar una opció que allà no compta.
+  const autonom = state && state.mode === 'autonomous';
+  const obert = autonom || permMode !== 'manual';
   const icon = pb.querySelector('.perm-icon');
   if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
+  const nom = gregalT(autonom ? 'ui.permAutonomousLabel' : p[1]);
   const label = $('permLabel');
-  if (label) label.textContent = gregalT(p[1]);
+  if (label) label.textContent = nom;
   pb.classList.toggle('obert', obert);
   // El detall al hover, que és on el vas a buscar quan dubtes.
-  pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]);
-  pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + gregalT(p[1]));
+  pb.title = autonom ? gregalT('ui.permAutonomous') : gregalT(p[1]) + ' - ' + gregalT(p[2]);
+  pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + nom);
 }
 document.addEventListener('gregal:idioma', () => {
   setSideCompact(sideCompacta());
@@ -2704,14 +2713,15 @@ document.addEventListener('gregal:idioma', () => {
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el
 // pintaven tres.
 function paintMode(mode) {
-  // Ask/Act només queden marcats en els seus modes; Objectiu, Autònom i
-  // Debug es mostren amb l'etiqueta i cap dels dos marcat.
+  // Ask, Act i Autònom tenen botó i queden marcats en el seu mode; Objectiu
+  // i Debug es mostren amb l'etiqueta i cap botó marcat.
   document.querySelectorAll('.mode-switch button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.mode === mode));
   });
   const chip = $('modeChip');
   if (chip) {
-    const special = mode === 'goal' || mode === 'autonomous' || mode === 'debug';
+    // Autònom té botó propi al commutador: el xip només per a Objectiu i Debug.
+    const special = mode === 'goal' || mode === 'debug';
     chip.hidden = !special;
     chip.dataset.mode = special ? mode : '';
     const label = $('modeChipLabel');
@@ -2719,6 +2729,7 @@ function paintMode(mode) {
   }
   const plan = $('planFirst');
   if (plan) plan.hidden = mode === 'chat' || mode === 'goal';
+  if (typeof paintPerm === 'function') paintPerm();
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
 // d'un botó que anava rodant entre tres estats sense dir quins eren.
@@ -2740,7 +2751,11 @@ function togglePermMenu(obre) {
     $('permBtn').setAttribute('aria-expanded', 'false');
     return;
   }
-  menu.innerHTML = PERMS.map(([v, nom, ajuda]) =>
+  // En autònom no es pregunta res: el menú ho diu primer i les opcions
+  // queden per a quan tornis a Pregunta o Actua.
+  const autonom = state.mode === 'autonomous';
+  menu.innerHTML = (autonom ? '<div class="perm-autonomous"><b>' + escapeHTML(gregalT('ui.permAutonomous')) + '</b><span>' + escapeHTML(gregalT('ui.permAutonomousLater')) + '</span></div>' : '') +
+    PERMS.map(([v, nom, ajuda]) =>
     '<button role="menuitemradio" aria-checked="' + (v === permMode) + '" class="' + (v === permMode ? 'on' : '') +
     '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('') +
     '<div class="perm-sandbox faint" title="' + escapeHTML((state.sandbox && (state.sandbox.warning || state.sandbox.guarantee)) || '') + '">' +

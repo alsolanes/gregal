@@ -41,8 +41,8 @@ func TestKnowledgeToolsPolicy(t *testing.T) {
 		{ModeGoal, "knowledge_note", `{"text":"x"}`, "deny"},
 		{ModeAutonomous, "knowledge_note", `{"text":"x"}`, "allow"},
 		{ModeAutonomous, "knowledge_note", `{"text":"x","collection":"Repo docs"}`, "allow"},
-		{ModeAutonomous, "knowledge_note", `{"text":"x","collection":"Shared"}`, "ask"},
-		{ModeAutonomous, "knowledge_note", `{"text":"x","collection":"missing"}`, "ask"},
+		{ModeAutonomous, "knowledge_note", `{"text":"x","collection":"Shared"}`, "allow"},
+		{ModeAutonomous, "knowledge_note", `{"text":"x","collection":"missing"}`, "allow"},
 	}
 	for _, c := range cases {
 		if got, reason := p.Decide(c.mode, c.tool, c.args); got != c.want {

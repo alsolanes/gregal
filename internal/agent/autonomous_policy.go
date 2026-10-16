@@ -22,6 +22,11 @@ import (
 // Demanat el 2026-10-13: «el mode autònom no ha de fer preguntes… si
 // l'únic que fa és programar o buscar webs o llegir fitxers de la carpeta
 // no cal que pregunti».
+//
+// Des del 2026-10-16 el mode autònom ja no pregunta ni pel perillós
+// (Policy.Decide converteix tot «ask» en «allow»): els «ask» d'aquí només
+// queden com a motiu, que el registre d'activitat pot mostrar. Els «deny»
+// continuen manant.
 
 // perillosa: patrons que en mode autònom sempre demanen confirmació.
 var perillosa = regexp.MustCompile(`(?i)` + strings.Join([]string{

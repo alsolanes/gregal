@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Autonomous mode never asks for permission: it decides and does everything
+  on its own, including what used to wait for a person (writing outside the
+  folder, destructive git, global installs, MCP services, commits and pull
+  requests). Only what is forbidden stays blocked: commands the classifier
+  denies (`sudo`, piping downloads into a shell, formatting disks…) and `deny`
+  rules in `permissions.tools`. To keep it away from something, set it to
+  `deny`. Autonomous is back as a button next to Ask and Act in the web
+  composer; it had been tucked away in the ⋯ menu.
 - Brandings: your own colours, fonts and logo for the whole app (web,
   desktop, terminal) and for the documents Gregal generates
   ([docs/branding.md](docs/branding.md)). Drop a `.gregal-brand.json` file
