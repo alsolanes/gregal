@@ -2230,6 +2230,14 @@ func (s *Server) emitVerify(emit func(string, any), workspace string) string {
 	return vs
 }
 
+// feinaDeVeritat diu si un torn ha canviat alguna cosa: escriptures al
+// journal o un diff git diferent del d'abans del torn. Comparar amb el
+// diff d'abans (i no només mirar si n'hi ha) fa que en un repo amb canvis
+// pendents una pregunta no dispari el revisor.
+func feinaDeVeritat(journalAbans, journalAra int, diffAbans, diffAra string) bool {
+	return journalAra > journalAbans || diffAra != diffAbans
+}
+
 // verdictStr resumeix el veredicte per la UI.
 func verdictStr(v verify.Verdict) string {
 	if v.Approved {
@@ -2505,18 +2513,44 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	// conversa ha de ser la que quedarà). Vegeu agent/gitcheckpoint.go.
 	s.mu.Lock()
 	convoAbans := len(s.convo)
-	s.mu.Unlock()
-	if err := agent.CheckpointTorn(s.id, ws, mode, convoAbans); err != nil {
-		log.Printf("checkpoint git session=%s: %v", s.id, err)
-	}
-	s.mu.Lock()
 	cwdMapa, convoMapa := ws, append([]llm.Message(nil), s.convo...)
 	s.mu.Unlock()
-	mapa := agent.MapaProjecte(cwdMapa, task, convoMapa)
-	novetats := s.sysPromptNovetats(mode, ws)
-	if mode == agent.ModeChat {
-		mapa = ""
+	// La foto git, el mapa i el sondeig de la finestra del model no depenen
+	// l'un de l'altre i abans anaven en fila abans del primer pas (foto
+	// ~0,4 s + mapa 0,1-0,6 s + sondeig fins a 5 s). La foto treballa amb
+	// un índex temporal i no toca el de l'usuari que llegeix el git status
+	// del mapa. Finestra del model: cache de deu minuts i, per als remots,
+	// d'un dia al disc (agent/window_disk.go).
+	var prep sync.WaitGroup
+	prep.Add(2)
+	// Verificació automàtica: només si el torn fa feina de debò (com al
+	// TUI). Abans el revisor corria després de cada torn, també dels que
+	// només responien una pregunta: una crida de model de més i el torn no
+	// s'acabava fins que tornava. S'apunta el journal i el diff d'abans.
+	verifica := s.autoVerify()
+	journalAbans, diffAbans := tools.Active.Seq(), ""
+	go func() {
+		defer prep.Done()
+		if verifica {
+			diffAbans = tools.GitDiff(ws)
+		}
+		if err := agent.CheckpointTorn(s.id, ws, mode, convoAbans); err != nil {
+			log.Printf("checkpoint git session=%s: %v", s.id, err)
+		}
+	}()
+	go func() {
+		defer prep.Done()
+		dctx, dcancel := context.WithTimeout(runCtx, 5*time.Second)
+		agent.DetectRoleWindows(dctx, s.cfg, roleComp)
+		dcancel()
+	}()
+	// En mode xat el mapa no s'envia: abans es calculava igualment.
+	mapa := ""
+	if mode != agent.ModeChat {
+		mapa = agent.MapaProjecte(cwdMapa, task, convoMapa)
 	}
+	novetats := s.sysPromptNovetats(mode, ws)
+	prep.Wait()
 	s.mu.Lock()
 	p, role := s.roleRefFor(roleName)
 	maxSteps := s.cfg.Agent.MaxSteps
@@ -2533,10 +2567,6 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 
 	// El bucle viu al motor compartit (agent.Torn), com al TUI, Telegram
 	// i el headless: conduirTorn (motor_web.go) només en fa l'E/S.
-	// Finestra del model segons el proveïdor (cache de deu minuts).
-	dctx, dcancel := context.WithTimeout(runCtx, 5*time.Second)
-	agent.DetectRoleWindows(dctx, s.cfg, role)
-	dcancel()
 	lastReply, hist, err := s.conduirTorn(runCtx, task, mode, roleName, p, role, maxSteps, ws, pol, emit)
 	if err != nil {
 		// Sense rastre, la petició aturada quedava oberta a la conversa i
@@ -2565,7 +2595,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	emit("done", map[string]string{"reply": lastReply})
 	s.autosave()
 	verdict := ""
-	if s.autoVerify() {
+	if verifica && feinaDeVeritat(journalAbans, tools.Active.Seq(), diffAbans, tools.GitDiff(ws)) {
 		// A la sala, la verificació és feina del revisor.
 		rev, ho := s.beginLane(generation, 0, laneInfo{Role: roleReviewer, Kind: "verify"}, "")
 		if ho != nil {
