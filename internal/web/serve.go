@@ -446,6 +446,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/office/edit", h.global((*Server).handleOfficeEdit))
 	handle("/api/office/download", h.global((*Server).handleOfficeDownload))
 	handle("/api/office/open", h.global((*Server).handleOfficeOpen))
+	handle("/api/office/render", h.global((*Server).handleOfficeRender))
 	handle("/api/models", h.route((*Server).handleModels))
 	handle("/api/rewind", h.route((*Server).handleRewind))
 	handle("/api/rewind-to", h.route((*Server).handleRewindTo))

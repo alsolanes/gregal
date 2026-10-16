@@ -154,13 +154,26 @@ func (s *Server) handleOfficeEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID      string `json:"id"`
-		Op      string `json:"op"`
-		Sheet   string `json:"sheet"`
-		Cell    string `json:"cell"`
-		Value   string `json:"value"`
-		Find    string `json:"find"`
-		Replace string `json:"replace"`
+		ID       string            `json:"id"`
+		Op       string            `json:"op"`
+		Sheet    string            `json:"sheet"`
+		Cell     string            `json:"cell"`
+		Value    string            `json:"value"`
+		Find     string            `json:"find"`
+		Replace  string            `json:"replace"`
+		Content  string            `json:"content"`
+		Anchor   string            `json:"anchor"`
+		Position string            `json:"position"`
+		Text     string            `json:"text"`
+		Author   string            `json:"author"`
+		Track    bool              `json:"track"`
+		Slide    int               `json:"slide"`
+		To       int               `json:"to"`
+		Layout   string            `json:"layout"`
+		Spec     string            `json:"spec"`
+		Shapes   map[string]string `json:"shapes"`
+		Cells    map[string]string `json:"cells"`
+		Vars     map[string]string `json:"vars"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "json invàlid", http.StatusBadRequest)
@@ -171,25 +184,18 @@ func (s *Server) handleOfficeEdit(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "document caducat o inexistent (torna'l a pujar)", http.StatusNotFound)
 		return
 	}
-	var out string
-	var err error
-	switch req.Op {
-	case "set_cell":
-		if d.kind != "xlsx" {
-			http.Error(w, "set_cell només en .xlsx", http.StatusBadRequest)
-			return
-		}
-		out, err = tools.OfficeXlsxSet(d.path, req.Sheet, req.Cell, req.Value)
-	case "replace":
-		if d.kind == "xlsx" {
-			http.Error(w, "replace només en .docx/.pptx (per a xlsx usa set_cell)", http.StatusBadRequest)
-			return
-		}
-		out, err = tools.OfficeReplace(d.path, req.Find, req.Replace)
-	default:
-		http.Error(w, "op desconeguda (set_cell|replace)", http.StatusBadRequest)
+	if req.Op == "" {
+		http.Error(w, "falta op", http.StatusBadRequest)
 		return
 	}
+	// Les mateixes operacions que l'eina office_edit (tools.OfficeEdit les
+	// valida segons el tipus de document).
+	out, err := tools.OfficeEdit(tools.EditOpts{
+		Path: d.path, Op: req.Op, Sheet: req.Sheet, Cell: req.Cell, Value: req.Value,
+		Find: req.Find, Replace: req.Replace, Content: req.Content, Anchor: req.Anchor, Position: req.Position,
+		Text: req.Text, Author: req.Author, Track: req.Track, Slide: req.Slide, To: req.To, Layout: req.Layout,
+		Spec: req.Spec, Shapes: req.Shapes, Cells: req.Cells, Vars: req.Vars,
+	})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -200,6 +206,34 @@ func (s *Server) handleOfficeEdit(w http.ResponseWriter, r *http.Request) {
 		text = text[:20000] + "\n… (retallat)"
 	}
 	writeJSON(w, map[string]any{"result": out, "text": text})
+}
+
+// handleOfficeRender renderitza el document (PNG en data URL) i torna la
+// QA automàtica, perquè la UI ensenyi com quedarà de debò.
+func (s *Server) handleOfficeRender(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ID    string `json:"id"`
+		Pages string `json:"pages"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "json invàlid", http.StatusBadRequest)
+		return
+	}
+	d, ok := officeGetFor(req.ID, s.usuari())
+	if !ok {
+		http.Error(w, "document caducat o inexistent (torna'l a pujar)", http.StatusNotFound)
+		return
+	}
+	out, imgs, err := tools.OfficeRender(r.Context(), tools.RenderOpts{Path: d.path, Pages: req.Pages})
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, map[string]any{"report": out, "images": imgs, "engine": tools.OfficeRenderAvailable()})
 }
 
 func (s *Server) handleOfficeOpen(w http.ResponseWriter, r *http.Request) {

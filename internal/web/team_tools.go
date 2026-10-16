@@ -22,11 +22,11 @@ import (
 // el prompt de la definició.
 
 // teamReadTools són les eines de lectura de l'investigador.
-var teamReadTools = []string{"read", "grep", "glob", "read_image", "web_search", "web_fetch", "office_read", "skill", "knowledge_search"}
+var teamReadTools = []string{"read", "grep", "glob", "read_image", "web_search", "web_fetch", "office_read", "office_render", "skill", "knowledge_search"}
 
 // teamCodeTools són les del constructor (les d'escriptura passen per la
 // política de la sessió).
-var teamCodeTools = []string{"read", "grep", "glob", "read_image", "write", "edit", "patch", "bash", "bash_background", "bash_output", "bash_kill", "web_search", "web_fetch", "office_read", "office_edit", "office_create", "skill", "knowledge_search"}
+var teamCodeTools = []string{"read", "grep", "glob", "read_image", "write", "edit", "patch", "bash", "bash_background", "bash_output", "bash_kill", "web_search", "web_fetch", "office_read", "office_render", "office_edit", "office_create", "skill", "knowledge_search"}
 
 // teamSeat és com treballa un seient: sense eines (Tools == nil i !Agentic)
 // o amb el motor en un mode, amb una llista d'eines i un límit de passos.

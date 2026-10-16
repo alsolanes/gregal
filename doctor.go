@@ -101,6 +101,14 @@ func doctor(cfg *config.Config, path string) int {
 		no(text("doctor.browser"), text("doctor.browser_missing"))
 	}
 
+	// Revisió visual de documents d'Office (office_render). No és un
+	// error si falta: només es fan les comprovacions estructurals.
+	if eng := tools.OfficeRenderAvailable(); eng != "" {
+		ok(text("doctor.office"), eng)
+	} else {
+		ok(text("doctor.office"), text("doctor.office_missing"))
+	}
+
 	// Cerca web: quins motors responen (sense cap servei local).
 	wctx, wcancel := context.WithTimeout(context.Background(), 15*time.Second)
 	okE, koE := tools.WebEnginesDisponibles(wctx)

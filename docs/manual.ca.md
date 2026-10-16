@@ -830,6 +830,44 @@ notes velles fora) i n'ensenya el diff abans d'escriure. Des de la línia
 d'ordres: `gregal memory tidy [--dry-run] [--yes] [--dir ruta]` ensenya el
 diff i pregunta abans d'escriure.
 
+## Documents d'Office
+
+Gregal crea, edita i revisa fitxers de Word, PowerPoint i Excel (`.docx`,
+`.pptx`, `.xlsx` i les plantilles `.dotx`, `.potx`, `.xltx`) sense
+necessitar Python ni Office:
+
+- **Word**: el markdown es converteix en estructura de Word de debò (estils
+  de títol, llistes numerades i de pics, taules amb capçalera, cites, codi,
+  enllaços, imatges, índex, salts de pàgina), amb portada, capçalera i
+  números de pàgina. L'edició conserva el format de cada fragment, també a
+  capçaleres, peus, notes i comentaris. Els canvis es poden fer amb
+  **control de canvis** (`track: true`; només es marquen les paraules que
+  canvien) i amb **comentaris**.
+- **PowerPoint**: un tema 16:9 propi amb nou layouts (portada, secció,
+  contingut, dues columnes, comparació, xifra gran, imatge, només títol, en
+  blanc), gràfics natius editables, taules amb estil i notes de l'orador.
+  Cinc temes (`default`, `modern`, `nature`, `elegant`, `mono`) amb colors
+  personalitzables.
+- **Excel** (amb excelize): fórmules en lloc de valors, formats de nombre,
+  colors de rol (entrada, fórmula, enllaç, hipòtesi clau, total), capçaleres
+  fixades, taules, formats condicionals, llistes desplegables, comentaris i
+  gràfics natius. `recalc` llista tots els errors de fórmula.
+- **Plantilles**: un `.dotx`/`.docx` corporatiu conserva estils, capçalera,
+  peu i marges, i els `{{marcadors}}` s'omplen amb `vars`; un `.potx`/`.pptx`
+  aporta els seus layouts i colors (`office_read detail=layout` els llista).
+- **Revisió visual**: `office_render` converteix el document en imatges
+  (LibreOffice, o Word/PowerPoint a Windows) i comprova automàticament text
+  que desborda, solapaments, formes fora de la diapositiva, text de mostra i
+  errors de fórmula. L'agent té l'ordre de renderitzar i corregir abans de
+  lliurar. Sense LibreOffice ni Microsoft Office només es fan les
+  comprovacions estructurals; instal·la
+  [LibreOffice](https://www.libreoffice.org) per a la revisió visual.
+- **Seguretat**: cada escriptura passa pel journal (`/rewind` la desfà) i una
+  edició que deixaria el paquet trencat es rebutja.
+
+Les skills integrades `office-docx`, `office-pptx` i `office-xlsx` porten
+les regles de format i disseny que segueix l'agent.
+
 ## Col·leccions de coneixement
 
 La pàgina **Coneixement** (barra lateral, després de Fitxers) guarda

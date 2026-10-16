@@ -809,6 +809,41 @@ consolidated list (merged duplicates, stale notes dropped) and shows the diff
 before writing. From the command line: `gregal memory tidy [--dry-run]
 [--yes] [--dir path]` shows the diff and asks before writing.
 
+## Office Documents
+
+Gregal creates, edits and reviews Word, PowerPoint and Excel files
+(`.docx`, `.pptx`, `.xlsx` and the templates `.dotx`, `.potx`, `.xltx`)
+without Python or Office installed:
+
+- **Word**: markdown becomes real Word structure (Heading styles, numbered
+  and bullet lists, tables with header rows, quotes, code, links, images,
+  table of contents, page breaks), with a cover, header and page numbers.
+  Editing keeps the formatting of every fragment, also in headers, footers,
+  footnotes and comments. Changes can be **tracked** (`track: true`; only
+  the words that change are marked) and annotated with **comments**.
+- **PowerPoint**: a built-in 16:9 theme with nine layouts (title, section,
+  content, two columns, comparison, big number, picture, title only, blank),
+  native editable charts, styled tables and speaker notes. Five themes
+  (`default`, `modern`, `nature`, `elegant`, `mono`) with colour overrides.
+- **Excel** (through excelize): formulas rather than values, number formats,
+  colour roles (input, formula, link, key assumption, total), frozen headers,
+  tables, conditional formats, drop-down validation, comments and native
+  charts. `recalc` lists every formula error.
+- **Templates**: a corporate `.dotx`/`.docx` keeps its styles, header, footer
+  and margins, and `{{markers}}` are filled from `vars`; a `.potx`/`.pptx`
+  lends its layouts and colours (`office_read detail=layout` lists them).
+- **Visual review**: `office_render` turns the document into images
+  (LibreOffice, or Word/PowerPoint on Windows) and runs automatic checks for
+  overflowing text, overlaps, shapes off the slide, leftover sample text and
+  formula errors. The agent is told to render and fix before delivering.
+  Without LibreOffice or Microsoft Office only the structural checks run;
+  install [LibreOffice](https://www.libreoffice.org) for the visual review.
+- **Safety**: every write goes to the journal (`/rewind` undoes it) and an
+  edit that would leave a package structurally broken is refused.
+
+Built-in skills `office-docx`, `office-pptx` and `office-xlsx` carry the
+formatting and design rules the agent follows.
+
 ## Knowledge Collections
 
 The **Knowledge** page (sidebar, after Files) holds searchable collections of

@@ -21,7 +21,8 @@ var readOnlyParallel = map[string]bool{
 	"web_search":  true,
 	"web_fetch":   true,
 	"read_image":  true,
-	"office_read": true,
+	"office_read":   true,
+	"office_render": true,
 	"gh_issue":    true,
 	"gh_pr":       true,
 	// knowledge_search només llegeix l'índex (si n'ha de fer un de nou, el

@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+- **Office documents at the level of the best assistants.** Word, PowerPoint
+  and Excel files are now built with real structure and checked visually:
+  - Editing no longer corrupts real files. `office_edit replace` and
+    `set_cell` used to rewrite the XML with Go's encoder, which broke the
+    namespace prefixes, so Word and Excel could no longer open a document
+    edited by Gregal. Edits now keep every prefix, keep each fragment's
+    formatting, and an edit that would break the package is refused.
+  - Word: markdown becomes Heading styles, real numbered and bullet lists,
+    tables, quotes, code, images, table of contents and page breaks, with a
+    cover, header and page numbers. New edits: insert, delete, comment,
+    tracked changes (only the changed words are marked), accept changes,
+    `{{marker}}` filling; text is also replaced in headers, footers and notes.
+  - PowerPoint: a 16:9 theme with nine layouts, native charts, styled
+    tables, speaker notes and five colour themes; templates (`.potx`) are
+    reused with their layouts; slides can be added, duplicated, moved,
+    deleted and filled shape by shape.
+  - Excel moves to excelize: formulas, number formats, colour roles, frozen
+    headers, tables, conditional formats, validation, comments, charts and a
+    `recalc` that lists every formula error.
+  - Templates: `.dotx`, `.potx` and `.xltx` (and corporate `.docx`/`.pptx`)
+    keep their styles, headers, footers and colours.
+  - New `office_render` tool: renders documents to images with LibreOffice
+    (or Word/PowerPoint on Windows) plus automatic QA (overflow, overlaps,
+    off-slide shapes, leftover sample text, formula errors). The agent renders
+    and fixes before delivering; the web API gains `/api/office/render`.
+  - Built-in skills `office-docx`, `office-pptx` and `office-xlsx` with the
+    formatting and design rules.
 - Running out of steps no longer throws the work away, on any surface (TUI,
   web/desktop, `-p`, Telegram) or mode (Plan, Ask/Act, Goal, Autonomous,
   Debug, subagents, #retro reviewers). A Plan request like "do a deep review

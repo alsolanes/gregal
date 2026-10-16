@@ -65,6 +65,8 @@ var cliMessages = map[string]cliMessage{
 	"doctor.default_window_hint": {" - the provider does not declare it; set context_window on the role if known", " — el proveïdor no la declara; posa context_window al rol si la saps"},
 	"doctor.browser":             {"browser", "navegador"},
 	"doctor.browser_missing":     {"no Chrome/Edge found: the browser tool will not work (set GREGAL_BROWSER)", "cap Chrome/Edge trobat: l'eina browser no funcionarà (defineix GREGAL_BROWSER)"},
+	"doctor.office":              {"office render", "render d'office"},
+	"doctor.office_missing":      {"no LibreOffice or Microsoft Office: documents get structural checks only (install LibreOffice for the visual review)", "sense LibreOffice ni Microsoft Office: els documents només tenen comprovacions estructurals (instal·la LibreOffice per a la revisió visual)"},
 	"doctor.sandbox":             {"sandbox", "sandbox"},
 	"doctor.sandbox_off":         {"off: shell commands run with your user's permissions (classifier and hard-deny rules only)", "desactivat: les ordres de shell corren amb els permisos del teu usuari (només el classificador i les regles dures)"},
 	"doctor.sandbox_active":      {"%s via %s, network %s: %s", "%s amb %s, xarxa %s: %s"},

@@ -270,8 +270,9 @@ workspace roots.
 | `/api/providers`, `/api/github` | POST | Adds/tests providers; `gh` remains read-only. |
 | `/api/office/upload` | POST | Uploads a docx/xlsx/pptx as base64 → `{id, kind, name, size, path}`; `path` is the disk path for giving the document to the agent with `@path`. |
 | `/api/office/read` | POST | Reads text or data from an uploaded document. |
-| `/api/office/edit` | POST | `set_cell` (xlsx) or `replace` (docx/pptx); records the change in the journal. |
-| `/api/office/download` | POST | Returns the edited file. |
+| `/api/office/edit` | POST | `{id, op, …}` with the same operations as the `office_edit` tool: docx `replace`, `insert`, `append`, `delete`, `comment`, `fill_vars`, `accept_changes` (`track` for tracked changes); pptx `replace`, `add_slide`, `duplicate_slide`, `delete_slide`, `move_slide`, `fill`, `notes`; xlsx `set_cell`, `set_cells`, `set_range`, `format`, `recalc`. An edit that would leave the package structurally broken is refused (400). Records the change in the journal. |
+| `/api/office/download` | GET | `?id=` → returns the edited file. |
+| `/api/office/render` | POST | `{id, pages?}` → `{report, images, engine}`: renders the document with LibreOffice (or Microsoft Office on Windows) to PNG data URLs (a numbered thumbnail grid, or the requested pages at full size) plus automatic QA. Without a render engine, `images` is empty and `report` says so. |
 | `/api/office/open` | POST | `{id}` → opens the document with the server's associated application (local/desktop only). |
 | `/api/jobs/save` | POST | Creates or updates a scheduled job. |
 | `/api/jobs/delete` | POST | Deletes a scheduled job. |

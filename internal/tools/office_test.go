@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gregal/internal/xlsxdoc"
 )
 
 func writeZip(t *testing.T, path string, parts map[string]string) {
@@ -51,18 +53,14 @@ func testDocx(t *testing.T) string {
 func testXlsx(t *testing.T) string {
 	t.Helper()
 	p := filepath.Join(t.TempDir(), "prova.xlsx")
-	writeZip(t, p, map[string]string{
-		"[Content_Types].xml":        ctXML,
-		"_rels/.rels":                relsXML,
-		"xl/workbook.xml":            `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Dades" sheetId="1" r:id="rId1"/><sheet name="Buit" sheetId="2" r:id="rId2"/></sheets></workbook>`,
-		"xl/_rels/workbook.xml.rels": `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Target="worksheets/sheet2.xml"/></Relationships>`,
-		"xl/sharedStrings.xml":       `<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><si><t>Nom</t></si><si><t>Anna</t></si></sst>`,
-		"xl/worksheets/sheet1.xml": `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>` +
-			`<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>` +
-			`<row r="2"><c r="A2"><v>42</v></c><c r="B2"><f>SUM(A2:A2)</f><v>42</v></c></row>` +
-			`</sheetData></worksheet>`,
-		"xl/worksheets/sheet2.xml": `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData></sheetData></worksheet>`,
-	})
+	h := false
+	sp := xlsxdoc.Spec{Sheets: []xlsxdoc.SheetSpec{
+		{Name: "Dades", Header: &h, Rows: [][]any{{"Nom", "Anna"}, {42.0, "=SUM(A2:A2)"}}},
+		{Name: "Buit"},
+	}}
+	if _, err := xlsxdoc.Create(p, "", sp); err != nil {
+		t.Fatal(err)
+	}
 	return p
 }
 
@@ -124,7 +122,7 @@ func TestOfficeReadXlsx(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "[FULL Dades]") || !strings.Contains(out, "Nom | Anna") || !strings.Contains(out, "=SUM(A2:A2)") {
+	if !strings.Contains(out, "== Dades") || !strings.Contains(out, "Nom | Anna") || !strings.Contains(out, "=SUM(A2:A2) → 42") {
 		t.Fatalf("lectura xlsx:\n%s", out)
 	}
 }
