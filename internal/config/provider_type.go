@@ -11,8 +11,9 @@ import (
 // Protocol de cada provider (providers.<nom>.type).
 //
 // Buit (o «openai») és el protocol per defecte, chat completions
-// OpenAI-compatible. «anthropic» parla l'API Messages i «openai-responses»
-// l'API Responses (vegeu internal/llm/provider_type.go). El client tria el
+// OpenAI-compatible. «anthropic» parla l'API Messages, «openai-responses»
+// l'API Responses, «ollama» l'API nativa d'Ollama i «llamacpp» chat
+// completions amb els extres de llama-server (vegeu internal/llm/provider_type.go). El client tria el
 // cable pel base_url, així que dos providers amb el mateix base_url i tipus
 // diferents s'han de desempatar: mana el que fan servir els rols; si els
 // rols en fan servir tots dos, és un error de configuració.
@@ -47,7 +48,7 @@ func (c *Config) tipusPerURL() (map[string]string, error) {
 		}
 		t, ok := llm.NormalizeProviderType(p.Type)
 		if !ok {
-			return nil, fmt.Errorf("provider %q: type %q desconegut (openai, anthropic, openai-responses)", nom, p.Type)
+			return nil, fmt.Errorf("provider %q: type %q desconegut (openai, anthropic, openai-responses, ollama, llamacpp)", nom, p.Type)
 		}
 		perURL[base] = append(perURL[base], cand{nom: nom, tipus: t, usat: usats[nom]})
 	}
@@ -92,5 +93,11 @@ func (c *Config) RegisterProviderTypes() {
 	}
 	for base, t := range m {
 		llm.RegisterProviderType(base, t)
+	}
+	for _, p := range c.Providers {
+		if strings.TrimSpace(p.BaseURL) == "" {
+			continue
+		}
+		llm.RegisterLocalOptions(p.BaseURL, llm.LocalOptions{NumCtx: p.NumCtx, KeepAlive: p.KeepAlive, Slot: p.Slot, SideSlot: p.SideSlot})
 	}
 }

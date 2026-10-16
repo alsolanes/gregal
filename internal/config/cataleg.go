@@ -14,7 +14,7 @@ import "strings"
 //
 // Gairebé tots són endpoints OpenAI-compatibles (chat completions); els que
 // porten Type parlen un protocol natiu del client (internal/llm:
-// anthropic, openai-responses). Si te'n falta un, `/provider add` a mà
+// anthropic, openai-responses, ollama, llamacpp). Si te'n falta un, `/provider add` a mà
 // continua existint.
 
 // ProveidorConegut és una entrada del catàleg.
@@ -40,12 +40,12 @@ type ProveidorConegut struct {
 // demanen clau ni compte) i després els de pagament per ordre d'ús.
 func Cataleg() []ProveidorConegut {
 	return []ProveidorConegut{
-		{Nom: "ollama", Etiqueta: "Ollama", BaseURL: "http://localhost:11434/v1", Local: true,
-			Nota: "cal tenir `ollama serve` en marxa"},
+		{Nom: "ollama", Etiqueta: "Ollama", BaseURL: "http://localhost:11434/v1", Local: true, Type: "ollama",
+			Nota: "cal tenir `ollama serve` en marxa (API nativa: num_ctx i keep_alive fixos)"},
 		{Nom: "lmstudio", Etiqueta: "LM Studio", BaseURL: "http://localhost:1234/v1", Local: true,
 			Nota: "engega el servidor local des de la pestanya Developer"},
-		{Nom: "llamacpp", Etiqueta: "llama.cpp", BaseURL: "http://localhost:8080/v1", Local: true,
-			Nota: "llama-server --port 8080"},
+		{Nom: "llamacpp", Etiqueta: "llama.cpp", BaseURL: "http://localhost:8080/v1", Local: true, Type: "llamacpp",
+			Nota: "llama-server --port 8080 --jinja --cache-reuse 256"},
 		{Nom: "openrouter", Etiqueta: "OpenRouter", BaseURL: "https://openrouter.ai/api/v1", EnvVar: "OPENROUTER_API_KEY", DefaultModel: "openai/gpt-4.1-mini",
 			Nota: "clau a openrouter.ai/keys"},
 		{Nom: "openai", Etiqueta: "OpenAI", BaseURL: "https://api.openai.com/v1", EnvVar: "OPENAI_API_KEY", DefaultModel: "gpt-4.1-mini",

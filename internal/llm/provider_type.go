@@ -30,6 +30,13 @@ const (
 	ProviderAnthropic = "anthropic"
 	// ProviderOpenAIResponses és l'API Responses d'OpenAI (/v1/responses).
 	ProviderOpenAIResponses = "openai-responses"
+	// ProviderOllama és l'API nativa d'Ollama (/api/chat): num_ctx i
+	// keep_alive fixos, que el protocol OpenAI-compatible no pot enviar
+	// (ollama.go).
+	ProviderOllama = "ollama"
+	// ProviderLlamaCpp és llama-server: chat completions amb cache_prompt,
+	// id_slot i timings (llamacpp.go).
+	ProviderLlamaCpp = "llamacpp"
 )
 
 // NormalizeProviderType torna el tipus canònic ("" = chat completions) i
@@ -42,6 +49,10 @@ func NormalizeProviderType(t string) (string, bool) {
 		return ProviderAnthropic, true
 	case ProviderOpenAIResponses, "responses", "openai_responses":
 		return ProviderOpenAIResponses, true
+	case ProviderOllama, "ollama-native":
+		return ProviderOllama, true
+	case ProviderLlamaCpp, "llama.cpp", "llama-cpp", "llama-server", "llama_cpp":
+		return ProviderLlamaCpp, true
 	}
 	return "", false
 }

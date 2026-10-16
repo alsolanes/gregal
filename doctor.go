@@ -94,6 +94,10 @@ func doctor(cfg *config.Config, path string) int {
 		ok(text("doctor.window"), detall)
 	}
 
+	// Servidors locals: num_ctx d'Ollama, context-shift i plantilla de
+	// llama.cpp, i els flags que acceleren el prefill (doctor_local.go).
+	doctorLocal(cfg, lang, ok)
+
 	// Navegador per a l'eina browser (Chrome/Edge de la màquina).
 	if exe := tools.BrowserExecutable(); exe != "" {
 		ok(text("doctor.browser"), exe)

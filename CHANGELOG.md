@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Local models get first-class providers ([docs/local-models.md](docs/local-models.md)).
+  `type: ollama` uses Ollama's native `/api/chat` with a fixed `num_ctx`, so
+  Ollama no longer silently drops the system prompt and tools at its 2-4k
+  default. The value is chosen once per model: the config's `num_ctx`, the
+  context the model is already loaded with, or 32k. It also sends
+  `keep_alive: 30m` and checks `/api/show` for tool support. `type: llamacpp`
+  sends `cache_prompt: true` and pins the session to one `id_slot`, with side
+  calls on another slot. It reads `timings`, so `cache_n` shows up as cached
+  tokens. Context windows for llama.cpp, Ollama and LM Studio now come from
+  what the server allocated (`/props`, `num_ctx`, `/api/v0/models`) rather
+  than the training context. New configs and the provider catalog set these
+  types; existing configs are unchanged.
+- `gregal doctor` checks local servers. It warns about an Ollama provider
+  without `type: ollama` or with less than 16k of context, a model without
+  tool support, llama.cpp `--context-shift`, a chat template that falls back
+  to the Generic tool format, and a missing `type: llamacpp`. It also
+  suggests `--cache-reuse 256`, `-ctk q8_0 -ctv q8_0` and
+  `--spec-type ngram-mod`.
 - Running out of steps no longer throws the work away, on any surface (TUI,
   web/desktop, `-p`, Telegram) or mode (Plan, Ask/Act, Goal, Autonomous,
   Debug, subagents, #retro reviewers). A Plan request like "do a deep review

@@ -66,7 +66,11 @@ func TestDetectRoleWindowsNomésConsultaRolActiuIFallback(t *testing.T) {
 	var activeCalls, fallbackCalls, unrelatedCalls atomic.Int32
 	server := func(calls *atomic.Int32, window int) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls.Add(1)
+			// Només /models: la sonda de servidor local (/props, /api/ps…)
+			// també toca els endpoints locals.
+			if r.URL.Path == "/models" {
+				calls.Add(1)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"data":[{"id":"model","context_length":` + fmt.Sprint(window) + `}]}`))
 		}))
@@ -102,7 +106,11 @@ func TestDetectRoleWindowsOmetProviderActiuJaConegutPeroDetectaFallback(t *testi
 	var activeCalls, fallbackCalls atomic.Int32
 	newServer := func(calls *atomic.Int32) *httptest.Server {
 		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls.Add(1)
+			// Només /models: la sonda de servidor local (/props, /api/ps…)
+			// també toca els endpoints locals.
+			if r.URL.Path == "/models" {
+				calls.Add(1)
+			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"data":[{"id":"model","context_length":32768}]}`))
 		}))
