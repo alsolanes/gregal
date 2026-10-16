@@ -124,7 +124,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	// Investigador d'inici de torn (agent/scout.go): un fill real de només
 	// lectura investiga abans del primer pas i el seu resum entra a la
 	// tasca. Si falla, el torn continua igual.
-	if agent.ScoutWanted(s.cfg, mode, task) {
+	if agent.ScoutWantedIn(s.cfg, mode, task, workspace) {
 		convo = s.runScout(runCtx, generation, task, workspace, convo, maxSteps, uso, role.Provider, emit)
 	}
 	torn := agent.NouTorn(agent.OpcionsTorn{

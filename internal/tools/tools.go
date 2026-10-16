@@ -16,6 +16,7 @@ import (
 
 	"gregal/internal/procs"
 	"gregal/internal/sandbox"
+	"gregal/internal/shell"
 )
 
 // Límits de seguretat per defecte.
@@ -682,6 +683,7 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	}
 	c := exec.Command(plan.Name, plan.Args...)
 	c.Dir = plan.Dir
+	c.Env = shell.ChildEnv()
 	var out bytes.Buffer
 	c.Stdout = &out
 	c.Stderr = &out
@@ -692,7 +694,7 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	// Cap i cua, i la sortida sencera a .gregal/out: els errors de
 	// compilació i de test solen ser al final, i abans només en quedava el
 	// principi.
-	text := retallaCapICua(out.String(), MaxOutputChars, func(full string) string {
+	text := retallaCapICua(shell.DecodeOutput(out.Bytes()), MaxOutputChars, func(full string) string {
 		return desaSortida(dir, "bash", full)
 	})
 	if plan.Warning != "" {

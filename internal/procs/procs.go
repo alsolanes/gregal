@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"gregal/internal/sandbox"
+	"gregal/internal/shell"
 )
 
 // MaxLines és el búfer circular de sortida per procés.
@@ -142,6 +143,7 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 	}
 	c := exec.Command(plan.Name, plan.Args...)
 	c.Dir = plan.Dir
+	c.Env = shell.ChildEnv()
 	group, err := newProcessGroup(c)
 	if err != nil {
 		return nil, err

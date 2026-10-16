@@ -301,11 +301,12 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	// Historial on només s'afegeix: els mapes vells no es toquen (el nou és
 	// un delta) i, si la memòria o les skills han canviat, la novetat va
 	// amb la tasca en lloc de canviar el system prompt (PrefixEstable).
-	agent.CheckpointTorn("", b.dirOf(st), st.mode, len(st.convo))
 	sysBase := agent.PromptForModel(b.cfg.SystemPrompt(), st.mode, b.cfg.CompactCode())
 	sysCtx := agent.ContextProjecte(b.dirOf(st))
 	nota := st.prefix.Novetats(sysBase, sysCtx)
-	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(agent.TascaAmbMapa(st.mode, b.dirOf(st), text, st.convo), nota), Images: images})
+	// Foto git d'inici de torn, feta mentre es construeix el mapa.
+	tascaMapa := agent.CheckpointIMapa("", b.dirOf(st), st.mode, len(st.convo), text, st.convo)
+	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(tascaMapa, nota), Images: images})
 	mode, role := st.mode, st.role
 	pinned := st.rolePinned
 	convo := append([]llm.Message{}, st.convo...)
