@@ -32,6 +32,18 @@ Two suites ship with the repository:
 
 The `bench/` tasks need `python3` (or `python` on Windows; the runner adds a shim) and Go.
 
+## Office tasks
+
+`t10`–`t13` exercise the office tools: a Word report with headings, a list and
+a table (`t10`), a five-slide deck with a native chart (`t11`), a workbook whose
+totals must be formulas (`t12`) and a tracked-changes edit of a contract
+(`t13`, fixture in `tasks/t13/`). Their asserts call `office_check.py`, an
+independent stdlib-only checker: the package must be well-formed (every XML
+part parses, every internal relationship target exists) and meet the task's
+structure (real heading styles and `w:tbl`/`w:numPr`, slide count and a chart
+part, formula count and no error values, `w:ins`/`w:delText` with the expected
+text). It needs `python3`.
+
 ## Repeats
 
 Models are stochastic: a single PASS/FAIL per task cannot separate an improvement from noise. `--repeat N` runs every task N times, each in its own copy (`results/<t>.r1`, `results/<t>.r2`, …, with matching `.log` and `.assert.log`), and adds a per-task table:
@@ -53,7 +65,7 @@ Every run records, from the agent's own counters (`gregal -p … --output json` 
 | `cache_hit_rate` | `cached_tokens / prompt_tokens` |
 | `llm_calls` | model requests, including compaction, extension and synthesis calls |
 | `edit_calls`, `edit_failed`, `edit_fail_rate` | executed `edit`/`patch` calls, those that returned an error, and the ratio |
-| `tool_call_invalid` | calls to tools that were not offered, arguments that are not valid JSON, and tool calls written as text instead of structured calls |
+| `tool_call_invalid` (and `tool_call_recovered`, calls written as text that were recovered) | calls to tools that were not offered, arguments that are not valid JSON, and tool calls written as text instead of structured calls |
 | `doom_hits` | times the repeated-call detector fired |
 | `compactions` | times the history was pruned, summarized or trimmed to fit the window |
 

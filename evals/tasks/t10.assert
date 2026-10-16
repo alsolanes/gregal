@@ -1,0 +1,1 @@
+python3 "$GREGAL_EVAL_DIR/office_check.py" informe.docx --headings 3 --table --list --contains PaaS
