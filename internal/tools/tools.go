@@ -41,22 +41,48 @@ func Read(path string, offset, limit int) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	l, err := llegeix(path, raw, offset, limit)
+	return l.text, err
+}
+
+// lectura és el que surt de llegeix: el text i el rang de línies que hi ha
+// de debò (fi < el demanat si no hi cabia).
+type lectura struct {
+	text    string
+	ini, fi int
+}
+
+// llegeix numera les línies demanades fins a MaxOutputChars. Si no hi
+// caben, talla per una línia sencera i diu amb quin offset continuar: abans
+// tallava a mitja línia amb un «(truncat)» que no deia per on seguir, i el
+// model tornava a llegir el fitxer sencer per trobar-ne el final.
+func llegeix(path string, raw []byte, offset, limit int) (lectura, error) {
 	lines := strings.Split(string(raw), "\n")
 	if offset < 1 {
 		offset = 1
 	}
 	if offset > len(lines) {
-		return "", fmt.Errorf("%s: només té %d línies", path, len(lines))
+		return lectura{}, fmt.Errorf("%s: només té %d línies", path, len(lines))
 	}
 	end := len(lines)
 	if limit > 0 && offset-1+limit < end {
 		end = offset - 1 + limit
 	}
 	var b strings.Builder
+	fi := offset - 1
 	for i := offset - 1; i < end; i++ {
-		fmt.Fprintf(&b, "%d|%s\n", i+1, lines[i])
+		l := fmt.Sprintf("%d|%s\n", i+1, lines[i])
+		if len(l) > MaxOutputChars {
+			l = tallaLinia(l[:MaxOutputChars], false) + "…(línia retallada)\n"
+		}
+		if b.Len()+len(l) > MaxOutputChars && i > offset-1 {
+			fmt.Fprintf(&b, "…(retallat: mostrades les línies %d–%d de %d; continua amb offset=%d)", offset, fi, len(lines), fi+1)
+			return lectura{text: b.String(), ini: offset, fi: fi}, nil
+		}
+		b.WriteString(l)
+		fi = i + 1
 	}
-	return truncate(b.String(), MaxOutputChars), nil
+	return lectura{text: b.String(), ini: offset, fi: fi}, nil
 }
 
 // Write escriu contingut sencer (crea el directori pare). Retorna bytes.
@@ -73,40 +99,94 @@ func Write(path string, content []byte) (int, error) {
 	return len(content), nil
 }
 
-// Edit substitueix un bloc exacte; exigeix UNA sola ocurrència.
+// Edit substitueix un bloc; exigeix que casi en UN sol lloc.
 //
 // Els finals de línia no compten. Un fitxer sortit d'un git amb
 // core.autocrlf a Windows —aquest repositori mateix— té \r\n, i el model
 // escriu el bloc amb \n, que és el que fa tothom. La comparació exacta
 // fallava sempre i el que rebia era «bloc no trobat»: ni una pista, així
 // que el que feia era tornar-hi igual o reescriure el fitxer sencer.
-// Quan cal el segon intent, el fitxer es desa amb els finals de línia que
-// tenia: passar-lo a \n faria un diff de totes les línies.
+// El fitxer es desa amb els finals de línia que tenia: passar-lo a \n
+// faria un diff de totes les línies.
+//
+// Si el bloc no hi és tal qual, prova la cascada de fuzzy.go (espais,
+// sagnat, Unicode, àncores). Aquesta versió no té memòria de sessió ni fa
+// la guarda de lectura: és la de les proves i dels camins sense model. El
+// loop fa servir Seguiment.Edit.
 func Edit(path, old, new string) error {
-	Active.SnapOp(path, "edit")
+	_, err := edita(path, old, new, nil)
+	return err
+}
+
+// editaText aplica old→new sobre el contingut d'un fitxer i torna el
+// contingut nou (amb els finals de línia originals) i el nivell que ha
+// casat.
+func editaText(text, old, new string) (string, string, error) {
+	if n := strings.Count(text, old); old != "" && n > 1 {
+		return "", "", errAmbigu{n: n, nivell: nivExacte}
+	} else if old != "" && n == 1 {
+		return strings.Replace(text, old, new, 1), nivExacte, nil
+	}
+	nou, nivell, err := substitueix(senseCR(text), senseCR(old), senseCR(new))
+	if err != nil {
+		return "", "", err
+	}
+	if strings.Contains(text, "\r\n") {
+		nou = strings.ReplaceAll(nou, "\n", "\r\n")
+	}
+	return nou, nivell, nil
+}
+
+// edita és el cos d'Edit. Amb seg != nil (i el seu mutex agafat) aplica la
+// guarda de lectura, actualitza què coneix el model i torna el resum.
+func edita(path, old, new string, seg *Seguiment) (string, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return "", err
 	}
 	text := string(raw)
-	switch n := strings.Count(text, old); {
-	case n == 1:
-		return os.WriteFile(path, []byte(strings.Replace(text, old, new, 1)), 0o644)
-	case n > 1:
-		return fmt.Errorf("bloc ambigu a %s (%d ocurrències): posa-hi més context perquè n'hi hagi una de sola", path, n)
+	if old == new {
+		return "", fmt.Errorf("old i new són iguals: no hi ha res a canviar")
 	}
-	pla, oldPla, newPla := senseCR(text), senseCR(old), senseCR(new)
-	switch n := strings.Count(pla, oldPla); {
-	case n == 1:
-		nou := strings.Replace(pla, oldPla, newPla, 1)
-		if strings.Contains(text, "\r\n") {
-			nou = strings.ReplaceAll(nou, "\n", "\r\n")
+	nou, nivell, err := editaText(text, old, new)
+	if err != nil {
+		return "", errEdicio(path, text, old, err)
+	}
+	if seg != nil && nivell != nivExacte {
+		if ok, perque := seg.alDia(path, raw); !ok {
+			return "", errNoAlDia(path, perque, nivell)
 		}
-		return os.WriteFile(path, []byte(nou), 0o644)
-	case n > 1:
-		return fmt.Errorf("bloc ambigu a %s (%d ocurrències): posa-hi més context perquè n'hi hagi una de sola", path, n)
 	}
-	return fmt.Errorf("bloc no trobat a %s: %s", path, perQueNoHiEs(pla, oldPla))
+	Active.SnapOp(path, "edit")
+	if err := os.WriteFile(path, []byte(nou), 0o644); err != nil {
+		return "", err
+	}
+	if seg != nil {
+		seg.conegut(path, []byte(nou))
+	}
+	return notaNivell(nivell) + resumCanvi(text, nou), nil
+}
+
+// notaNivell avisa quan no ha casat exacte: el model ha de saber que el
+// bloc que tenia al cap no era ben bé el del fitxer.
+func notaNivell(nivell string) string {
+	if nivell == nivExacte {
+		return ""
+	}
+	return "\n(s'ha aplicat amb coincidència aproximada: nivell «" + nivell + "»; revisa el diff)"
+}
+
+// errEdicio explica per què no s'ha pogut aplicar old.
+func errEdicio(path, text, old string, err error) error {
+	var amb errAmbigu
+	if errors.As(err, &amb) {
+		return fmt.Errorf("%s a %s", amb.Error(), path)
+	}
+	if errors.Is(err, errNoTrobat) {
+		pla, oldPla := senseCR(text), senseCR(old)
+		return fmt.Errorf("bloc no trobat a %s: %s%s", path, perQueNoHiEs(pla, oldPla), fragmentSemblant(pla, oldPla))
+	}
+	return fmt.Errorf("%s: %w", path, err)
 }
 
 // senseCR normalitza els finals de línia per comparar.
@@ -609,7 +689,12 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	if ctx.Err() != nil {
 		plan.Cleanup()
 	}
-	text := truncate(out.String(), MaxOutputChars)
+	// Cap i cua, i la sortida sencera a .gregal/out: els errors de
+	// compilació i de test solen ser al final, i abans només en quedava el
+	// principi.
+	text := retallaCapICua(out.String(), MaxOutputChars, func(full string) string {
+		return desaSortida(dir, "bash", full)
+	})
 	if plan.Warning != "" {
 		text = "[" + plan.Warning + "]\n" + text
 	}

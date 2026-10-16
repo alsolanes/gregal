@@ -509,6 +509,10 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		session = procSession
 	}
 	argsJSON = resolArgs(dir, argsJSON)
+	// Què ha llegit i editat el model (tools/seguiment.go): la guarda de
+	// lectura abans d'editar i el «sense canvis» de les relectures.
+	seg := tools.SeguimentDe(session)
+	seg.NouPas()
 	switch name {
 	case "preview":
 		return previewRequest(argsJSON)
@@ -523,7 +527,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		out, err := tools.Read(a.Path, a.Offset, a.Limit)
+		out, err := seg.Read(a.Path, a.Offset, a.Limit)
 		if err != nil {
 			return "", nil, err
 		}
@@ -688,7 +692,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendixEdicio(ctx, a.Path), nil, nil
+		apendix := apendixEdicio(ctx, a.Path)
+		seg.Coneix(a.Path)
+		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendix, nil, nil
 	case "edit":
 		var a struct {
 			Path string `json:"path"`
@@ -698,10 +704,13 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		if err := tools.Edit(a.Path, a.Old, a.New); err != nil {
+		nota, err := seg.Edit(a.Path, a.Old, a.New)
+		if err != nil {
 			return "", nil, err
 		}
-		return "edit aplicat a " + a.Path + apendixEdicio(ctx, a.Path), nil, nil
+		apendix := apendixEdicio(ctx, a.Path)
+		seg.Coneix(a.Path)
+		return "edit aplicat a " + a.Path + nota + apendix, nil, nil
 	case "patch":
 		var pa struct {
 			Path  string `json:"path"`
@@ -718,10 +727,13 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		for _, e := range pa.Edits {
 			ops = append(ops, tools.PatchOp{Old: e.Old, New: e.New, AfterLine: e.AfterLine})
 		}
-		if err := tools.Patch(pa.Path, ops); err != nil {
+		nota, err := seg.Patch(pa.Path, ops)
+		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + apendixEdicio(ctx, pa.Path), nil, nil
+		apendix := apendixEdicio(ctx, pa.Path)
+		seg.Coneix(pa.Path)
+		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + nota + apendix, nil, nil
 	case "grep":
 		var a struct {
 			Pattern string `json:"pattern"`

@@ -59,9 +59,11 @@ func TestEditFuncionaAmbElBlocEnCRLFIElFitxerEnLF(t *testing.T) {
 func TestElBlocNoTrobatDiuPerQue(t *testing.T) {
 	p := fitxer(t, "package a\n\nfunc F() int {\n\t\treturn 1\n}\n")
 
-	err := Edit(p, "func F() int {\n    return 1\n}", "x")
+	// Un sagnat diferent ja no és un error: la cascada (fuzzy.go) ho
+	// resol. El que encara falla és el text partit en unes altres línies.
+	err := Edit(p, "func F() int {\n\t\treturn\n1\n}", "x")
 	if err == nil || !strings.Contains(err.Error(), "espais o sagnat") {
-		t.Errorf("amb el sagnat canviat ho ha de dir: %v", err)
+		t.Errorf("amb el text partit en altres línies ho ha de dir: %v", err)
 	}
 
 	err = Edit(p, "func F() int {\n\t\treturn 1\n\tfmt.Println(\"res\")\n}", "x")
