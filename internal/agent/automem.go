@@ -70,7 +70,7 @@ func SuggestMemory(ctx context.Context, client *llm.Client, cfg *config.Config, 
 		{Role: "system", Content: suggestSystem},
 		{Role: "user", Content: "EXISTING NOTES:\n" + known + "\n\nWORK SESSION:\n" + digest},
 	}
-	out, err := sideCall(ctx, client, cfg, p, r, msgs)
+	out, err := sideCallLateral(ctx, client, cfg, p, r, msgs)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func TidyMemory(ctx context.Context, client *llm.Client, cfg *config.Config, p c
 		{Role: "system", Content: tidySystem},
 		{Role: "user", Content: strings.Join(lines, "\n")},
 	}
-	out, err := sideCall(ctx, client, cfg, p, r, msgs)
+	out, err := sideCallLateral(ctx, client, cfg, p, r, msgs)
 	if err != nil {
 		return nil, err
 	}

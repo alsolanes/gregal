@@ -73,12 +73,13 @@ func TestPromptInclouContextActualISenseInvencions(t *testing.T) {
 			t.Fatalf("prompt no conté %q:\n%s", want, p)
 		}
 	}
-	// Els fets del workspace i el resum van abans: la directiva d'idioma
-	// tanca el prompt també a la web.
+	// Els fets del workspace van abans: la directiva d'idioma tanca el
+	// prompt també a la web. El resum de compactació ja no hi va (és el
+	// primer missatge de la conversa): el prefix no canvia en compactar.
 	s.compacted = "resum previ"
 	p = s.sysPrompt()
-	if !strings.HasSuffix(p, "\n\n"+config.LanguageDirective(s.cfg.Lang())) || !strings.Contains(p, "resum previ") {
-		t.Fatalf("la directiva d'idioma ha de tancar el prompt web:\n%s", p)
+	if !strings.HasSuffix(p, "\n\n"+config.LanguageDirective(s.cfg.Lang())) || strings.Contains(p, "resum previ") {
+		t.Fatalf("la directiva d'idioma ha de tancar el prompt web, sense el resum:\n%s", p)
 	}
 }
 

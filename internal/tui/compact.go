@@ -23,11 +23,9 @@ type compactDoneMsg struct {
 func (m Model) compactCmd() (tea.Cmd, context.CancelFunc) {
 	r := m.roleRef()
 	p := m.cfg.Providers[r.Provider]
+	// El resum anterior ja és el primer missatge de convo (MissatgeResum):
+	// el nou l'incorpora.
 	convo := append([]llm.Message(nil), m.convo...)
-	if m.compacted != "" {
-		convo = append([]llm.Message{{Role: "user",
-			Content: "[Summary of the earlier conversation]\n" + m.compacted}}, convo...)
-	}
 	before := len(m.convo)
 	c := m.client
 	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
@@ -54,7 +52,7 @@ func (m Model) maybeCompactCmd(force bool) (tea.Model, tea.Cmd) {
 	}
 	budget := agent.Budget(m.cfg, r)
 	hist := append([]llm.Message{{Role: "system", Content: m.sysPrompt()}}, m.convo...)
-	if !force && !agent.NeedsCompact(llm.EstimateTokens(hist), budget) {
+	if !force && !agent.NeedsCompact(agent.EstimaCalibrat(r.Model, hist), budget) {
 		return m, nil
 	}
 	m.push(dimStyle.Render(T("compact.fent") + fmt.Sprint(len(m.convo)) + T("compact.missatges")))
@@ -70,7 +68,7 @@ func (m Model) maybeCompactCmd(force bool) (tea.Model, tea.Cmd) {
 // actualitza usedTokens i promptEst. El % de la barra surt de promptEst
 // (View), no de usedTokens: cal tocar-los tots dos o el mesurador queda
 // ancorat al valor previ a cada compactació. El resum ja viu dins de
-// sysPrompt() (m.compacted): no s'ha de tornar a comptar com a missatge.
+// primer missatge de convo (agent.MissatgeResum): ja hi compta.
 func (m *Model) recalcCtx() {
 	hist := append([]llm.Message{{Role: "system", Content: m.sysPrompt()}}, m.convo...)
 	est := llm.EstimateTokens(hist)
@@ -91,20 +89,25 @@ func (m Model) handleCompactDone(msg compactDoneMsg) (tea.Model, tea.Cmd) {
 		m.status = T("barra.llest")
 		// Si el resum falla (p.ex. timeout en model local), retallem igualment
 		// per evitar bloquejar la conversa per excés de context.
-		kept := agent.TrimKeep(m.convo, 4)
+		kept := agent.CompactaConvo(m.convo, m.compacted, 4)
 		m.convo = kept
+		m.prefix.Reset()
 		// El retall també canvia el context real: sense recalcular, la barra
 		// es quedava amb el % vell (igual que al camí d'èxit).
 		m.recalcCtx()
 		m.push(systemLine(T("compact.fallida") + msg.err.Error()))
 		return m, nil
 	}
-	kept := agent.TrimKeep(m.convo, 4)
-	m.convo = kept
 	// compactCmd ja envia el resum anterior al resumidor. El resultat nou el
 	// substitueix: concatenar-los duplicava context a cada compactació i podia
-	// fer créixer el "resum" indefinidament.
+	// fer créixer el "resum" indefinidament. Va al davant de la cua com a
+	// missatge marcat, i la cua perd els mapes vells (tots de cop: la
+	// compactació ja reescriu el principi de la conversa).
 	m.compacted = msg.summary
+	m.convo = agent.CompactaConvo(m.convo, msg.summary, 4)
+	kept := m.convo
+	// Ara és el moment barat de refer el system prompt amb el context nou.
+	m.prefix.Reset()
 	// La barra ctx es calculava amb usedTokens monòton: després de
 	// compactar seguia en vermell (>=80%) per sempre encara que la
 	// conversa real s'havia reduït. Es recomputa amb el que queda.
@@ -119,6 +122,9 @@ func (m Model) handleCompactDone(msg compactDoneMsg) (tea.Model, tea.Cmd) {
 	m.push(headStyle.Render("≋ " + T("compact.context")))
 	m.push(assistantMD(msg.summary, m.vp.Width))
 	for _, recent := range kept {
+		if agent.EsResum(recent) {
+			continue
+		}
 		switch recent.Role {
 		case "user":
 			m.push(userLine(agent.SenseMapa(recent.Content)))
@@ -129,6 +135,6 @@ func (m Model) handleCompactDone(msg compactDoneMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.push(systemLine(fmt.Sprintf(T("compact.fet"),
-		msg.before, len(kept), len(msg.summary))))
+		msg.before, len(kept)-1, len(msg.summary))))
 	return m, nil
 }

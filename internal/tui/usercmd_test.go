@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"gregal/internal/agent"
 	"gregal/internal/llm"
 	"os"
 	"path/filepath"
@@ -45,7 +46,7 @@ func TestCompactBuit(t *testing.T) {
 	}
 }
 
-// handleCompactDone retalla i desa el resum al system prompt.
+// handleCompactDone retalla i posa el resum al davant de la conversa.
 func TestHandleCompactDone(t *testing.T) {
 	m := planTestModel(t)
 	for i := 0; i < 6; i++ {
@@ -55,19 +56,22 @@ func TestHandleCompactDone(t *testing.T) {
 	}
 	mod, _ := m.Update(compactDoneMsg{summary: "RESUM", before: 6})
 	got := mod.(Model)
-	if len(got.convo) != 4 {
-		t.Fatalf("convo=%d, volia 4", len(got.convo))
+	if len(got.convo) != 5 {
+		t.Fatalf("convo=%d, volia el resum i 4 missatges", len(got.convo))
 	}
 	if got.compacted != "RESUM" {
 		t.Fatalf("compacted=%q", got.compacted)
 	}
-	if !strings.Contains(got.sysPrompt(), "RESUM") {
-		t.Fatal("el resum ha d'anar al system prompt")
+	if !agent.EsResum(got.convo[0]) || !strings.Contains(got.convo[0].Content, "RESUM") {
+		t.Fatal("el resum ha d'anar al davant de la conversa")
+	}
+	if strings.Contains(got.sysPrompt(), "RESUM") {
+		t.Fatal("el resum no ha d'anar al system prompt (prefix estable)")
 	}
 	// El % de la barra surt de promptEst, no de usedTokens: si no es
 	// recalcula, després de compactar el mesurador queda ancorat al valor
 	// previ. I tots dos han de coincidir just després (el resum ja és dins
-	// de sysPrompt: no s'ha de comptar dues vegades).
+	// de convo: no s'ha de comptar dues vegades).
 	if got.promptEst == 0 || got.promptEst != got.usedTokens {
 		t.Fatalf("promptEst=%d usedTokens=%d: cal recalcular-los iguals", got.promptEst, got.usedTokens)
 	}

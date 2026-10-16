@@ -2,25 +2,34 @@ package agent
 
 // Fer lloc a l'historial de l'agent a mig torn, per aquest ordre:
 //
-//  1. Retallar les sortides d'eina VELLES (les que ja no són dels últims
-//     KeepRecentToolOutputs resultats): un `read` de 8000 caràcters del pas
-//     tres no cal sencer al pas vint; en queda el principi i una nota per
-//     tornar-lo a demanar. Això sol és barat, no perd cap decisió i
-//     acostuma a recuperar la meitat del context.
-//  2. Si encara no n'hi ha prou, resumir amb el model tot el que no siguin
-//     els últims passos (Summarize) i continuar amb «resum + cua»: el
-//     model sap què s'ha fet, què s'ha decidit i què falta. És el que fan
-//     opencode i Claude Code; abans aquí es tallava cegament als quatre
-//     últims missatges i el model perdia el fil.
+//  1. Emmascarar les sortides d'eina VELLES (P5): la sortida d'un `read`
+//     del pas tres es canvia per «[output of `read foo.go` cleared …; call
+//     the tool again if you need it]». Es pot recuperar (tornant a cridar
+//     l'eina), no perd cap decisió i acostuma a recuperar la major part del
+//     context. Es fa PER BLOCS i amb histèresi: quan es passa el llindar,
+//     s'emmascara tot fins a les últimes KeepRecentToolOutputs d'un sol
+//     cop, i encara més si cal per baixar a MaskLowWater. Així la caché de
+//     prefix només es trenca de tant en tant, no a cada pas (abans es
+//     retallava a 600 caràcters tot el que no fos dels sis últims i la
+//     frontera es movia a cada pas).
+//  2. Només si emmascarar no basta, resumir amb el model (Summarize) tot
+//     el que no siguin els últims passos i continuar amb «resum + cua»: el
+//     resum és un traspàs (objectiu, fet, pendent, decisions, fitxers,
+//     errors oberts).
 //  3. Si el resum falla (model local penjat, timeout), retall segur: mai
 //     es comença la cua per un missatge tool sense la crida que el demana,
 //     que és un 400 en molts proveïdors.
+//
+// Cap etapa no separa mai una crida d'eina del seu resultat: emmascarar
+// canvia el contingut però deixa els dos missatges, i els talls passen
+// per SafeCut.
 //
 // L'historial pot dur el missatge system al davant (headless, web) o no
 // (TUI, que l'afegeix a cada pas): es conserva on és i no es toca.
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -30,10 +39,25 @@ import (
 )
 
 const (
-	// KeepRecentToolOutputs són els últims resultats d'eina que es
-	// conserven sencers; els anteriors es retallen a OldToolOutputMax.
-	KeepRecentToolOutputs = 6
+	// KeepRecentToolOutputs són els últims resultats d'eina que queden
+	// sencers quan s'emmascara un bloc; els anteriors es canvien per una
+	// nota recuperable (els de delegate, que no es poden recuperar, es
+	// retallen a OldToolOutputMax).
+	KeepRecentToolOutputs = 10
 	OldToolOutputMax      = 600
+	// MinKeepHisteresi és el mínim de resultats recents que es conserven
+	// per baixar fins a MaskLowWater; per cabre a la finestra, si cal, se
+	// n'emmascaren fins a deixar-ne dos. No baixa de 6: `read` pot respondre
+	// «sense canvis» a un rang llegit fa poques crides, i aquella sortida ha
+	// de seguir sencera.
+	MinKeepHisteresi = 6
+	// MaskLowWater és la fracció del llindar de compactació on es vol
+	// deixar l'historial després d'emmascarar: prou lluny perquè el pas
+	// següent no hi torni a arribar i hagi de moure la frontera.
+	MaskLowWater = 0.75
+	// MaskMinChars: una sortida més curta no val la pena emmascarar-la (la
+	// nota ja fa uns 150 caràcters i la caché es trencaria per res).
+	MaskMinChars = 400
 	// KeepRecentOnCompact són els missatges de cua que sobreviuen sencers
 	// a un resum (a més del resum i la tasca).
 	KeepRecentOnCompact = 6
@@ -42,6 +66,8 @@ const (
 // errResACompactar: la capçalera només té la tasca; no hi ha passos a resumir.
 var errResACompactar = errors.New("res a resumir")
 
+// notaRetall és la nota d'abans (cap de 600 caràcters): les sessions
+// desades encara en porten i no es tornen a tocar.
 const notaRetall = "\n…[old output truncated to make room in the context: call the tool again if you need it in full]"
 
 // notaRetallFill és la poda per a resums de subagents: re-delegar executa
@@ -55,19 +81,65 @@ const (
 	notaRetallFillCA = "\n…[resum de subagent retallat per fer lloc al context: no es pot reobtenir; continua amb el resum]"
 )
 
-// PruneToolOutputs retalla les sortides d'eina velles. Torna l'historial
-// nou (còpia) i quants missatges ha retallat.
+// Nota que substitueix una sortida emmascarada.
+const (
+	prefixEmmascarada = "[output of `"
+	sufixEmmascarada  = "call the tool again if you need it]"
+)
+
+func notaEmmascarada(desc string, mida int) string {
+	return fmt.Sprintf("%s%s` cleared to free context (%d characters); %s", prefixEmmascarada, desc, mida, sufixEmmascarada)
+}
+
+// jaPodada diu si una sortida ja porta una nota (emmascarada o retallada).
+func jaPodada(c string) bool {
+	return strings.HasPrefix(c, prefixEmmascarada) && strings.HasSuffix(c, sufixEmmascarada) ||
+		strings.HasSuffix(c, notaRetall) || strings.HasSuffix(c, notaRetallFill) ||
+		strings.HasSuffix(c, notaRetallCA) || strings.HasSuffix(c, notaRetallFillCA)
+}
+
+// descCrida és «read foo.go», «bash go test ./...»: el que cal per saber
+// què es va demanar i tornar-ho a demanar.
+func descCrida(name, args string) string {
+	var v map[string]any
+	if json.Unmarshal([]byte(args), &v) == nil {
+		for _, k := range []string{"path", "file_path", "command", "pattern", "url", "query", "name"} {
+			if s, ok := v[k].(string); ok && strings.TrimSpace(s) != "" {
+				return name + " " + truncaRunes(strings.Join(strings.Fields(s), " "), 80)
+			}
+		}
+	}
+	return name
+}
+
+// PruneToolOutputs emmascara les sortides d'eina velles (totes menys les
+// últimes KeepRecentToolOutputs) d'un sol cop. Torna l'historial nou
+// (còpia) i quantes n'ha tocat.
 func PruneToolOutputs(hist []llm.Message) ([]llm.Message, int) {
 	return pruneToolOutputs(hist, KeepRecentToolOutputs)
 }
 
-// PruneToolOutputsUntil retalla primer les velles i, si fits encara diu
-// que no, va retallant també les recents de la més antiga a la més nova
-// fins a deixar-ne només dues de senceres. Passa quan un sol pas porta
-// quatre lectures grosses: cap és «vella» i tot i així no hi caben.
+// PruneToolOutputsUntil emmascara primer el bloc vell i, si fits encara
+// diu que no, va emmascarant també les recents de la més antiga a la més
+// nova fins a deixar-ne només dues de senceres. Passa quan un sol pas
+// porta quatre lectures grosses: cap és «vella» i tot i així no hi caben.
 func PruneToolOutputsUntil(hist []llm.Message, fits func([]llm.Message) bool) ([]llm.Message, int) {
+	return pruneAmbHisteresi(hist, fits, nil)
+}
+
+// pruneAmbHisteresi és PruneToolOutputsUntil amb una segona meta: un cop
+// es toca l'historial, continua fins que baix (si n'hi ha) també diu que
+// sí, sense deixar menys de MinKeepHisteresi sortides recents per aquesta
+// raó. Així el bloc emmascarat queda prou lluny del llindar.
+func pruneAmbHisteresi(hist []llm.Message, fits, baix func([]llm.Message) bool) ([]llm.Message, int) {
 	out, n := pruneToolOutputs(hist, KeepRecentToolOutputs)
-	for keep := KeepRecentToolOutputs - 1; keep >= 2 && !fits(out); keep-- {
+	ok := func(h []llm.Message, keep int) bool {
+		if !fits(h) {
+			return false
+		}
+		return baix == nil || n == 0 || keep <= MinKeepHisteresi || baix(h)
+	}
+	for keep := KeepRecentToolOutputs - 1; keep >= 2 && !ok(out, keep+1); keep-- {
 		var m int
 		out, m = pruneToolOutputs(out, keep)
 		n += m
@@ -107,6 +179,12 @@ func RecoverContext(hist []llm.Message, system string, window, reportedPrompt in
 
 func pruneToolOutputs(hist []llm.Message, keepRecent int) ([]llm.Message, int) {
 	out := append([]llm.Message(nil), hist...)
+	crides := map[string]llm.ToolCall{}
+	for _, m := range out {
+		for _, c := range m.ToolCalls {
+			crides[c.ID] = c
+		}
+	}
 	recents := 0
 	pruned := 0
 	for i := len(out) - 1; i >= 0; i-- {
@@ -117,21 +195,33 @@ func pruneToolOutputs(hist []llm.Message, keepRecent int) ([]llm.Message, int) {
 		if recents <= keepRecent {
 			continue
 		}
+		tocat := false
 		if len(out[i].Images) > 0 {
 			out[i].Images = nil
-			pruned++
+			tocat = true
 		}
-		if c := out[i].Content; strings.HasSuffix(c, notaRetall) || strings.HasSuffix(c, notaRetallFill) ||
-			strings.HasSuffix(c, notaRetallCA) || strings.HasSuffix(c, notaRetallFillCA) {
-			continue
+		c := out[i].Content
+		switch {
+		case jaPodada(c):
+		case out[i].Name == "delegate":
+			// El resum d'un subagent no es pot tornar a demanar: se'n
+			// queda el principi, com abans.
+			if r := []rune(c); len(r) > OldToolOutputMax {
+				out[i].Content = string(r[:OldToolOutputMax]) + fmt.Sprintf(" (%d characters in total)", len(c)) + notaRetallFill
+				tocat = true
+			}
+		case len([]rune(c)) > MaskMinChars:
+			name, args := out[i].Name, ""
+			if cr, ok := crides[out[i].ToolCallID]; ok {
+				name, args = cr.Function.Name, cr.Function.Arguments
+			}
+			if name == "" {
+				name = "tool"
+			}
+			out[i].Content = notaEmmascarada(descCrida(name, args), len(c))
+			tocat = true
 		}
-		nota := notaRetall
-		if out[i].Name == "delegate" {
-			nota = notaRetallFill
-		}
-		if r := []rune(out[i].Content); len(r) > OldToolOutputMax {
-			mida := len(out[i].Content)
-			out[i].Content = string(r[:OldToolOutputMax]) + fmt.Sprintf(" (%d characters in total)", mida) + nota
+		if tocat {
 			pruned++
 		}
 	}
@@ -172,7 +262,7 @@ func tascaDe(cap []llm.Message) string {
 		c := strings.TrimSpace(m.Content)
 		if c == "" || c == GuiaTodosPendents || c == GuiaEinaText ||
 			strings.HasPrefix(c, PrefixErrorServidor) || strings.HasPrefix(c, "La crida al model ha fallat") ||
-			strings.HasPrefix(c, "[Summary") || strings.HasPrefix(c, "[Resum") {
+			strings.HasPrefix(c, "[Summary") || strings.HasPrefix(c, "[Resum") || strings.HasPrefix(c, MarcaResum) {
 			continue
 		}
 		return c
@@ -199,15 +289,18 @@ func CompactHist(ctx context.Context, client *llm.Client, prim llm.Target, fb *l
 		return hist, err
 	}
 	var b strings.Builder
-	b.WriteString("[Summary of the work done so far in this turn — continue from here without repeating finished work]\n")
+	b.WriteString(MarcaResum + "\n[Handoff note of the work done so far in this turn — continue from here without repeating finished work]\n")
 	b.WriteString(resum)
 	if t := tascaDe(capçalera); t != "" {
-		b.WriteString("\n\nOriginal user task:\n" + capRunes(t, 1500))
+		b.WriteString("\n\nOriginal user task:\n" + capRunes(SenseMapa(t), 1500))
 	}
+	b.WriteString("\n" + MarcaResumFinal)
 	out := make([]llm.Message, 0, len(hist)-cut+2)
 	out = append(out, hist[:inici]...)
 	out = append(out, llm.Message{Role: "user", Content: b.String()})
-	out = append(out, hist[cut:]...)
+	// La cua perd els mapes vells (tots de cop, ara que la compactació ja
+	// reescriu el principi): el torn següent en posarà un de sencer.
+	out = append(out, senseMapesVells(hist[cut:])...)
 	return out, nil
 }
 
@@ -227,6 +320,24 @@ func TrimKeepSafe(hist []llm.Message, keep int) []llm.Message {
 		out = append(out, llm.Message{Role: "user", Content: "[Task in progress — earlier steps were trimmed to fit the context]\n" + capRunes(t, 1500)})
 	}
 	return append(out, hist[cut:]...)
+}
+
+// senseMapesVells treu els mapes del projecte de tots els missatges menys
+// el més nou, si aquest és un mapa sencer (un delta sense el seu mapa base
+// no serveix i també se'n va).
+func senseMapesVells(h []llm.Message) []llm.Message {
+	darrer := -1
+	for i := len(h) - 1; i >= 0; i-- {
+		if h[i].Role == "user" && SenseMapa(h[i].Content) != h[i].Content {
+			darrer = i
+			break
+		}
+	}
+	out := SenseMapesAntics(h)
+	if darrer >= 0 && !strings.Contains(h[darrer].Content, " delta] ") {
+		out[darrer] = h[darrer]
+	}
+	return out
 }
 
 func teUser(h []llm.Message) bool {
@@ -276,13 +387,14 @@ func (r RoomResult) Note() string {
 
 // MakeRoom aplica les tres etapes fins que l'historial cap a la finestra.
 // sys és el system prompt si NO és dins de hist (TUI); buit si ja hi és.
-// client pot ser nil: aleshores no hi ha resum i es passa al retall.
+// client pot ser nil: aleshores no hi ha resum i es passa al retall. La
+// mida es calcula amb el calibratge del model de prim (EstimaCalibrat).
 func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, sys string, hist []llm.Message, window int) RoomResult {
 	est := func(h []llm.Message) int {
 		if sys != "" {
 			h = append([]llm.Message{{Role: "system", Content: sys}}, h...)
 		}
-		return llm.EstimateTokens(h)
+		return EstimaCalibrat(prim.Model, h)
 	}
 	res := RoomResult{Hist: hist}
 	res.Before = est(hist)
@@ -292,25 +404,18 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 	if fits(hist) {
 		return res
 	}
-	// 1. Sortides d'eina velles.
-	res.Hist, res.Pruned = PruneToolOutputs(hist)
-	if fits(res.Hist) {
+	baix := func(h []llm.Message) bool {
+		return float64(est(h)) <= float64(window)*CompactThreshold*MaskLowWater
+	}
+	// 1. Emmascarar per blocs, amb histèresi: és recuperable i barat.
+	res.Hist, res.Pruned = pruneAmbHisteresi(hist, fits, baix)
+	if fits(res.Hist) || client == nil && len(res.Hist) <= KeepRecentOnCompact+1 {
 		res.After = est(res.Hist)
 		return res
 	}
-	// 2. Amb pocs passos (o sense model) no val la pena resumir: es
-	// retallen també les sortides recents, de la més antiga a la més nova.
-	if len(res.Hist) <= 12 || client == nil {
-		var n int
-		res.Hist, n = PruneToolOutputsUntil(res.Hist, fits)
-		res.Pruned += n
-		if fits(res.Hist) || client == nil && len(res.Hist) <= KeepRecentOnCompact+1 {
-			res.After = est(res.Hist)
-			return res
-		}
-	}
-	// 3. Resum dels passos anteriors amb el model, en la llengua de la
-	// directiva que tanca el system prompt (sigui a sys o dins de hist).
+	// 2. Resum dels passos anteriors amb el model (darrer recurs), en la
+	// llengua de la directiva que tanca el system prompt (sigui a sys o
+	// dins de hist).
 	if client != nil && len(res.Hist) > KeepRecentOnCompact+1 {
 		lang := config.LangOfPrompt(sys)
 		if sys == "" && len(res.Hist) > 0 && res.Hist[0].Role == "system" {
@@ -329,7 +434,7 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 			res.Err = err
 		}
 	}
-	// 4. Retall segur de recanvi (només si hi ha passos vells a treure).
+	// 3. Retall segur de recanvi (només si hi ha passos vells a treure).
 	if len(res.Hist) > KeepRecentOnCompact+1 && (res.Err != nil || client == nil) {
 		res.Hist = TrimKeepSafe(res.Hist, KeepRecentOnCompact)
 		res.Trimmed = true

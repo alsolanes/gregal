@@ -94,8 +94,10 @@ func TestSmallTalkWebEnLaLlenguaDeLaSessio(t *testing.T) {
 	}
 }
 
-// Q3: after several turns only the newest user message carries the project
-// map; older ones lose their stale snapshot.
+// Q3 (P2, append-only history): earlier turns are never rewritten — the
+// conversation after turn k is a byte-identical prefix of the one after
+// turn k+1, so a local server keeps its KV cache — and each new turn only
+// carries what changed in the project since the previous map (a delta).
 func TestNomesElMissatgeNouPortaMapa(t *testing.T) {
 	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -109,6 +111,14 @@ func TestNomesElMissatgeNouPortaMapa(t *testing.T) {
 	s := goalTestServer(t)
 	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: provider.URL + "/v1"}}
 	s.cwd = t.TempDir()
+	// Enough files that a delta is shorter than the full list.
+	for i := 0; i < 20; i++ {
+		if err := os.WriteFile(filepath.Join(s.cwd, fmt.Sprintf("seed-%02d.txt", i)), []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var abans []byte
+	var sysAbans string
 	for i := 1; i <= 3; i++ {
 		// The workspace changes between turns, so each turn has a new map.
 		if err := os.WriteFile(filepath.Join(s.cwd, fmt.Sprintf("f%d.txt", i)), []byte("x"), 0o600); err != nil {
@@ -116,6 +126,16 @@ func TestNomesElMissatgeNouPortaMapa(t *testing.T) {
 		}
 		rec := httptest.NewRecorder()
 		s.handleAgent(rec, httptest.NewRequest(http.MethodPost, "/api/agent", strings.NewReader(fmt.Sprintf(`{"task":"look at the project %d","mode":"code"}`, i))))
+		ara, _ := json.Marshal(s.convo)
+		if abans != nil && !strings.HasPrefix(string(ara), strings.TrimSuffix(string(abans), "]")) {
+			t.Fatalf("turn %d rewrote earlier messages:\nbefore %s\nafter  %s", i, abans, ara)
+		}
+		abans = ara
+		sys := s.sysPromptAmb(agent.ModeCode, s.cwd)
+		if sysAbans != "" && sys != sysAbans {
+			t.Fatalf("turn %d changed the system prompt", i)
+		}
+		sysAbans = sys
 	}
 	var users []llm.Message
 	for _, m := range s.convo {
@@ -127,13 +147,13 @@ func TestNomesElMissatgeNouPortaMapa(t *testing.T) {
 		raw, _ := json.Marshal(s.convo)
 		t.Fatalf("expected 3 user messages: %s", raw)
 	}
-	for i, m := range users {
-		has := strings.Contains(m.Content, agent.MarcaContext)
-		if i < 2 && has {
-			t.Fatalf("old message %d still carries a map: %q", i, m.Content)
-		}
-		if i == 2 && (!has || !strings.Contains(m.Content, "f3.txt")) {
-			t.Fatalf("the newest message must carry the current map: %q", m.Content)
+	if !strings.Contains(users[0].Content, agent.MarcaContext) || !strings.Contains(users[0].Content, "f1.txt") {
+		t.Fatalf("the first message must carry the full map: %q", users[0].Content)
+	}
+	for i, m := range users[1:] {
+		nou := fmt.Sprintf("f%d.txt", i+2)
+		if !strings.Contains(m.Content, " delta] ") || !strings.Contains(m.Content, "Added:\n"+nou) || strings.Contains(m.Content, "seed-00.txt") {
+			t.Fatalf("message %d must carry only the delta (%s added): %q", i+1, nou, m.Content)
 		}
 	}
 }

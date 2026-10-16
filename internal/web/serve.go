@@ -67,12 +67,14 @@ type Server struct {
 
 	mu    sync.Mutex
 	convo []llm.Message
-	// compacted és el resum de la conversa ja compactada: viu al system
-	// prompt i la convo només duu el tram recent. El TUI ho feia des del
-	// principi; la finestra no, i era la finestra la que s'hi passa les
-	// hores. Una sessió llarga hi creixia sense límit fins que el model
-	// tallava el context pel seu compte, que és perdre'l sense avisar.
+	// compacted és el resum de la conversa ja compactada: el model el rep
+	// com a primer missatge de convo (agent.MissatgeResum), no al system
+	// prompt, i la convo només duu el tram recent. Aquí es guarda per
+	// desar-lo amb la sessió. Sense compactar, una sessió llarga creixia
+	// sense límit fins que el model tallava el context pel seu compte.
 	compacted string
+	// prefix congela el system prompt de la sessió (agent.PrefixEstable).
+	prefix agent.PrefixEstable
 	// convoFile és el fitxer d'aquesta conversa al magatzem de sessions.
 	// Es fixa al primer desat automàtic i no canvia més: així cada torn
 	// reescriu la mateixa conversa en comptes d'anar deixant còpies, i no
@@ -792,10 +794,9 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		// Estimació del context ocupat, per al mesurador de la UI (J4). El TUI
 		// ho compta al client; la web no tenia res i pintava un percentatge
 		// que no existia. context_window 0 = el rol no el declara.
-		// El resum de compactació viu al system prompt i ocupa context: si
-		// no el comptéssim, el mesurador baixaria a gairebé zero després de
-		// compactar i tornaria a mentir en sentit contrari.
-		"used_tokens":    llm.EstimateTokens(s.convo) + tokensResum(s.compacted),
+		// El resum de compactació és el primer missatge de convo: ja hi
+		// compta.
+		"used_tokens":    llm.EstimateTokens(s.convo),
 		"context_window": agent.Window(s.cfg, role),
 		// Transcript curt perquè canviar de pestanya no perdi l'historial
 		// visible (abans switchTo buidava el fil i només deia "Sessió · id").
@@ -2057,9 +2058,28 @@ func (s *Server) sysPrompt() string { return s.sysPromptAmb(s.mode, s.cwd) }
 // anar més restringit que la sessió: vegeu handleAgent). Rep el workspace
 // efectiu del torn perquè el model vegi el projecte on realment treballa,
 // no el de la sessió quan un client delega des d'un altre directori.
+//
+// El prompt queda congelat a la sessió (s.prefix): el resum de compactació
+// viu a la conversa i els canvis de memòria o skills arriben com a nota
+// amb la tasca següent (sysPromptNovetats), perquè el prefix que reaprofita
+// la caché del model no canviï d'un torn a l'altre.
 func (s *Server) sysPromptAmb(mode, workspace string) string {
-	base := s.cfg.SystemPrompt()
-	prompt := agent.PromptFor(base, mode)
+	base, ctxProj, build := s.sysPromptParts(mode, workspace)
+	return s.prefix.Sys(base, ctxProj, build)
+}
+
+// sysPromptNovetats és la nota per a la tasca nova si la memòria, les
+// skills o el coneixement del projecte han canviat ("" si no).
+func (s *Server) sysPromptNovetats(mode, workspace string) string {
+	base, ctxProj, _ := s.sysPromptParts(mode, workspace)
+	return s.prefix.Novetats(base, ctxProj)
+}
+
+// sysPromptParts separa el system prompt en la part que depèn del mode i
+// del workspace (base), la dels fitxers del projecte (ctxProj) i com es
+// munta.
+func (s *Server) sysPromptParts(mode, workspace string) (base, ctxProj string, build func(string) string) {
+	prompt := agent.PromptFor(s.cfg.SystemPrompt(), mode)
 	project := filepath.Base(filepath.Clean(workspace))
 	fets := fmt.Sprintf(`WORKSPACE FACTS (authoritative, do not infer them):
 - Working directory: %q
@@ -2073,13 +2093,11 @@ Do not invent project names, files, results or content. If you are asked
 what is in the project, check it first with the available tools
 (glob/read/grep) and cite what you checked. In chat mode, if you cannot
 inspect the disk, say explicitly that you cannot know instead of making it up.`, workspace, project)
-	resum := ""
-	if r := strings.TrimSpace(s.compacted); r != "" {
-		resum = "[Summary of the earlier conversation — continue with this context]\n" + r
-	}
-	// Fets, memòria del projecte i resum van abans de la directiva
-	// d'idioma, que ha de tancar el prompt (agent.AmbContext).
-	return agent.AmbContext(prompt, strings.TrimPrefix(plotPrompt, "\n\n"), fets, agent.ContextProjecteSessio(workspace, s.id), resum)
+	plot := strings.TrimPrefix(plotPrompt, "\n\n")
+	// Fets i memòria del projecte van abans de la directiva d'idioma, que
+	// ha de tancar el prompt (agent.AmbContext).
+	build = func(c string) string { return agent.AmbContext(prompt, plot, fets, c) }
+	return prompt + "\x00" + plot + "\x00" + fets, agent.ContextProjecteSessio(workspace, s.id), build
 }
 
 // compactaSiCal resumeix la conversa quan l'estimació passa del llindar de
@@ -2094,18 +2112,16 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	s.mu.Lock()
 	convo := append([]llm.Message(nil), s.convo...)
 	sys := s.sysPrompt()
-	previ := s.compacted
 	s.mu.Unlock()
 	hist := append([]llm.Message{{Role: "system", Content: sys}}, convo...)
-	if !agent.NeedsCompact(llm.EstimateTokens(hist), agent.Budget(s.cfg, role)) {
+	if !agent.NeedsCompact(agent.EstimaCalibrat(role.Model, hist), agent.Budget(s.cfg, role)) {
 		return
 	}
 	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
+	// El resum anterior ja és el primer missatge de convo (MissatgeResum):
+	// el nou l'incorpora.
 	font := append([]llm.Message(nil), convo...)
-	if strings.TrimSpace(previ) != "" {
-		font = append([]llm.Message{{Role: "user", Content: "Summary of the context of earlier tasks:\n" + previ}}, font...)
-	}
 	resum, err := agent.Summarize(cctx, s.client, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), font, s.cfg.Lang())
 	if err != nil {
 		return
@@ -2118,16 +2134,20 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 		return
 	}
 	abans := len(s.convo)
-	s.convo = agent.TrimKeep(s.convo, 4)
-	if emet != nil {
-		emet("compact", map[string]int{"abans": abans, "despres": len(s.convo)})
-	}
 	// El resum nou ja incorpora l'anterior. Substituir-lo manté el prompt
 	// acotat al llarg de centenars de tasques i en reprendre sessions.
 	if r := []rune(resum); len(r) > 12000 {
 		resum = "[oldest part of the summary truncated]\n" + string(r[len(r)-12000:])
 	}
 	s.compacted = resum
+	// Resum al davant com a missatge marcat i la cua sense mapes vells
+	// (tots de cop: la compactació ja reescriu el principi), i el system
+	// es refà amb el context del projecte d'ara.
+	s.convo = agent.CompactaConvo(s.convo, resum, 4)
+	s.prefix.Reset()
+	if emet != nil {
+		emet("compact", map[string]int{"abans": abans, "despres": len(s.convo)})
+	}
 }
 
 func (s *Server) autoVerify() bool {
@@ -2159,7 +2179,7 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 		if m.Role != "user" && m.Role != "assistant" {
 			continue
 		}
-		if strings.TrimSpace(m.Content) == "" {
+		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) {
 			continue
 		}
 		// El mapa del projecte és per al model: a la bombolla, el que va
@@ -2174,12 +2194,16 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 // sense el mapa del projecte enganxat a les tasques, que és per al model i
 // a la bombolla sortia com si l'hagués escrit la persona.
 func resumeTranscript(convo []llm.Message) []llm.Message {
-	out := make([]llm.Message, len(convo))
-	for i, m := range convo {
+	out := make([]llm.Message, 0, len(convo))
+	for _, m := range convo {
+		if agent.EsResum(m) {
+			// El resum de compactació és per al model.
+			continue
+		}
 		if m.Role == "user" {
 			m.Content = agent.SenseMapa(m.Content)
 		}
-		out[i] = m
+		out = append(out, m)
 	}
 	return out
 }
@@ -2468,9 +2492,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	// Mapa del projecte (fitxers, git, fitxers que la tasca anomena): el
 	// model no ha de gastar les primeres voltes a orientar-se. Fora del
 	// mutex: executa git, i la UI consulta la sessió cada cinc segons.
-	// Els mapes dels torns anteriors ja no són veritat (el disc i git han
-	// canviat) i cada un pesava milers de tokens: només el porta el missatge
-	// més nou. Per això el mapa es calcula sense els antics (sempre fresc).
+	// Historial on només s'afegeix: els mapes dels torns anteriors no es
+	// toquen (reescriure'ls invalidava la caché de prefix del model) i el
+	// nou només diu què ha canviat des de l'últim (agent.MapaProjecte).
 	// Foto git d'inici de torn (després de compactar: la llargada de la
 	// conversa ha de ser la que quedarà). Vegeu agent/gitcheckpoint.go.
 	s.mu.Lock()
@@ -2480,9 +2504,10 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		log.Printf("checkpoint git session=%s: %v", s.id, err)
 	}
 	s.mu.Lock()
-	cwdMapa, convoMapa := ws, agent.SenseMapesAntics(s.convo)
+	cwdMapa, convoMapa := ws, append([]llm.Message(nil), s.convo...)
 	s.mu.Unlock()
 	mapa := agent.MapaProjecte(cwdMapa, task, convoMapa)
+	novetats := s.sysPromptNovetats(mode, ws)
 	if mode == agent.ModeChat {
 		mapa = ""
 	}
@@ -2492,8 +2517,8 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	content := s.expandMentions(task, ws)
 	if mapa != "" {
 		content += "\n\n" + mapa
-		s.convo = agent.SenseMapesAntics(s.convo)
 	}
+	content = agent.AmbNovetats(content, novetats)
 	s.convo = append(s.convo, llm.Message{Role: "user", Content: content, Images: imgs})
 	// La tasca apareix a Converses de seguida, fins i tot si dura hores o
 	// l'usuari canvia de pestanya abans de la resposta final.
@@ -3550,6 +3575,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	}
 	s.convo = nil
 	s.compacted = ""
+	s.prefix.Reset()
 	s.convoFile = ""
 	s.pinned = false
 	s.modelOverride = s.defaultModelOverrides()
@@ -3592,9 +3618,12 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.mu.Lock()
-	s.convo = sess.Convo
-	// Restaurem el resum compactat d'aquesta sessió si en tenia
+	// Restaurem el resum compactat d'aquesta sessió si en tenia. Les
+	// sessions d'abans el duien a part (anava al system): ara és el primer
+	// missatge de la conversa. AmbResum és idempotent.
+	s.convo = agent.AmbResum(sess.Convo, sess.Compacted)
 	s.compacted = sess.Compacted
+	s.prefix.Reset()
 	// Reprendre és continuar-la, no clonar-la: els torns següents
 	// reescriuen aquesta mateixa conversa.
 	s.convoFile = sess.Name
@@ -3734,14 +3763,4 @@ func Open(url string) {
 		return
 	}
 	_ = exec.Command("xdg-open", url).Start()
-}
-
-// tokensResum compta el que ocupa el resum de compactació al system prompt.
-// Sense el cas buit, una conversa acabada de començar ja deia 9 tokens: el
-// sobrecost del sobre d'un missatge que no existeix.
-func tokensResum(resum string) int {
-	if strings.TrimSpace(resum) == "" {
-		return 0
-	}
-	return llm.EstimateTokens([]llm.Message{{Role: "system", Content: resum}})
 }

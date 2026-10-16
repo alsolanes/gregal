@@ -39,6 +39,9 @@ type chatState struct {
 	rolePinned bool // cert si l'usuari ha fixat el rol (/role)
 	mode       string
 	convo      []llm.Message
+	// prefix congela el system prompt del xat (agent.PrefixEstable): el
+	// prefix que reaprofita la caché del model no canvia entre torns.
+	prefix agent.PrefixEstable
 	// user és el compte gregal lligat ("" = convidat: projecte global).
 	// dir és la seva carpeta de treball i pol la seva política (ProjectDir
 	// propi: escriure fora de casa demana permís). Es resolen per missatge
@@ -309,7 +312,7 @@ func (b *Bot) state(chatID int64) *chatState {
 			st.mode = agent.ModeCode
 		}
 		if s, err := session.Load(b.sessionsDir, st.name); err == nil {
-			st.convo = s.Convo
+			st.convo = agent.AmbResum(s.Convo, s.Compacted)
 			if s.Role != "" {
 				st.role = s.Role
 			}
