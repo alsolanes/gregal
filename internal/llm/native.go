@@ -131,6 +131,14 @@ func (c *Client) nativeChat(ctx context.Context, baseURL, apiKey, model string, 
 	case ProviderOpenAIResponses:
 		text, calls, err := c.responsesChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, stream, onToken, onReason)
 		return text, calls, true, err
+	case ProviderOllama:
+		text, calls, err := c.ollamaChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, stream, onToken, onReason)
+		if err == nil {
+			// Models que Ollama no sap traduir a tool_calls (plantilla sense
+			// eines): la crida ve dins del text (textcalls.go).
+			text, calls = RecoverCalls(text, calls, specs)
+		}
+		return text, calls, true, err
 	}
 	return "", nil, false, nil
 }

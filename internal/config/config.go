@@ -28,6 +28,15 @@ type Provider struct {
 	// suporten el fan servir per agrupar prefixes iguals. Buit = wire clàssic.
 	PromptCacheKey       string `yaml:"prompt_cache_key"`
 	PromptCacheRetention string `yaml:"prompt_cache_retention"`
+	// Servidors locals (docs/local-models.md). NumCtx és el num_ctx fix
+	// d'Ollama (type: ollama; 0 = el del model carregat o 32k). KeepAlive,
+	// el keep_alive d'Ollama ("" = 30m, "-1" = sempre). Slot i SideSlot són
+	// els id_slot de llama.cpp (type: llamacpp) per a la sessió i per a les
+	// crides laterals (nil = 0 i l'últim slot; -1 = no fixar).
+	NumCtx    int    `yaml:"num_ctx,omitempty"`
+	KeepAlive string `yaml:"keep_alive,omitempty"`
+	Slot      *int   `yaml:"slot,omitempty"`
+	SideSlot  *int   `yaml:"side_slot,omitempty"`
 }
 
 // MaskedKey resumeix la clau sense exposar-la: "(buida)", "${VAR}" o "sí".
@@ -66,6 +75,34 @@ type Role struct {
 	// d'un verd, l'ampliació i la síntesi): agent.ThinkPerPas.
 	// Buit = el que el model tingui per defecte.
 	Think string `yaml:"think,omitempty"`
+	// Prompt tria la mida del prompt i del conjunt d'eines: «compact»
+	// (prompt curt i només les eines bàsiques, per a models locals petits),
+	// «full», o buit = automàtic (compacte per a models locals ≤ 14B o amb
+	// finestra < 32k).
+	Prompt string `yaml:"prompt,omitempty"`
+}
+
+// CompactFor diu si un rol ha de fer servir el prompt i les eines
+// compactes (vegeu Role.Prompt).
+func (c *Config) CompactFor(r Role) bool {
+	switch strings.ToLower(strings.TrimSpace(r.Prompt)) {
+	case "compact":
+		return true
+	case "full":
+		return false
+	}
+	if c == nil {
+		return false
+	}
+	return llm.CompactFor(c.Providers[r.Provider].BaseURL, r.Model, r.ContextWindow)
+}
+
+// CompactCode és CompactFor del rol code (el que fa la feina amb eines).
+func (c *Config) CompactCode() bool {
+	if c == nil {
+		return false
+	}
+	return c.CompactFor(c.Roles["code"])
 }
 
 // LongRunsAllowed opta aquest rol a les tasques llargues. Nil conserva el
@@ -574,13 +611,17 @@ lang: en
 # Keys are read from environment variables; no credentials are bundled.
 
 providers:
+  # Local servers: native Ollama API (fixed num_ctx/keep_alive) and llama.cpp
+  # slots and prompt cache. See docs/local-models.md.
   ollama:
+    type: ollama
     base_url: http://localhost:11434/v1
     api_key: ""
   lmstudio:
     base_url: http://localhost:1234/v1
     api_key: ""
   llamacpp:
+    type: llamacpp
     base_url: http://localhost:8080/v1
     api_key: ""
   openai:

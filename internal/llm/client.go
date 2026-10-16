@@ -157,6 +157,17 @@ type chatRequest struct {
 	// ReasoningEffort és l'ordre de no pensar de les API que segueixen
 	// OpenAI (opencode zen): vegeu compat.go.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// CachePrompt i IDSlot només van a llama-server (llamacpp.go).
+	CachePrompt *bool `json:"cache_prompt,omitempty"`
+	IDSlot      *int  `json:"id_slot,omitempty"`
+	// Mostreig recomanat per família (perfils.go). Només cap a servidors
+	// locals; es negocia com un camp opcional (campSampling).
+	TopP              *float64 `json:"top_p,omitempty"`
+	TopK              int      `json:"top_k,omitempty"`
+	MinP              *float64 `json:"min_p,omitempty"`
+	PresencePenalty   *float64 `json:"presence_penalty,omitempty"`
+	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
+	RepeatPenalty     *float64 `json:"repeat_penalty,omitempty"`
 }
 
 type chatResponse struct {
@@ -172,7 +183,9 @@ type chatResponse struct {
 		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 	Usage Usage `json:"usage"`
-	Error *struct {
+	// Timings és el rendiment de llama-server (cache_n, prompt_n…).
+	Timings *llamaTimings `json:"timings"`
+	Error   *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
@@ -225,6 +238,8 @@ type streamEvent struct {
 	} `json:"choices"`
 	// Alguns proveïdors envien el consum a l'últim event (choices buides).
 	Usage Usage `json:"usage"`
+	// llama-server posa timings a l'últim event.
+	Timings *llamaTimings `json:"timings"`
 }
 
 // Client és un client HTTP minimalista OpenAI-compatible (/chat/completions).
@@ -255,6 +270,9 @@ type Client struct {
 	// natius guarda els blocs de pensament (Anthropic) i els items de
 	// raonament (Responses) que s'han de tornar intactes (provider_type.go).
 	natius blocsNatius
+	// lastTimings és el rendiment de l'última crida a un servidor local
+	// (llamacpp.go, ollama.go). Sota usageMu.
+	lastTimings *LocalTimings
 }
 
 type promptCacheConfig struct {
@@ -276,6 +294,7 @@ func (c *Client) LastUsage() (Usage, bool) {
 func (c *Client) clearUsage() {
 	c.usageMu.Lock()
 	c.lastUsage = Usage{}
+	c.lastTimings = nil
 	c.usageMu.Unlock()
 }
 
@@ -417,6 +436,8 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 		EnableThinking     *bool          `json:"enable_thinking,omitempty"`
 		ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 		ReasoningEffort    string         `json:"reasoning_effort,omitempty"`
+		CachePrompt        *bool          `json:"cache_prompt,omitempty"`
+		IDSlot             *int           `json:"id_slot,omitempty"`
 	}
 	return json.Marshal(requestWire{
 		Model: req.Model, Messages: messages, Temperature: req.Temperature,
@@ -425,6 +446,7 @@ func marshalChatRequest(req chatRequest) ([]byte, error) {
 		StreamOptions:  req.StreamOptions,
 		EnableThinking: req.EnableThinking, ChatTemplateKwargs: req.ChatTemplateKwargs,
 		ReasoningEffort: req.ReasoningEffort,
+		CachePrompt:     req.CachePrompt, IDSlot: req.IDSlot,
 	})
 }
 
@@ -487,6 +509,7 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return "", fmt.Errorf("resposta no JSON: %w", err)
 	}
+	rec.timings(out.Timings)
 	rec.see(out.Usage)
 	if out.Error != nil {
 		return "", fmt.Errorf("provider: %s", out.Error.Message)
@@ -566,6 +589,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 	if err := json.Unmarshal(raw, &out); err != nil {
 		return "", nil, fmt.Errorf("resposta no JSON: %w", err)
 	}
+	rec.timings(out.Timings)
 	rec.see(out.Usage)
 	if out.Error != nil {
 		return "", nil, fmt.Errorf("provider: %s", out.Error.Message)
@@ -581,9 +605,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 	}
 	// Proxy que no tradueix el DSML de DeepSeek o el format <tool_call> de models locals a tool_calls:
 	// la crida ve dins de content. La recuperem en comptes d'ensenyar-la a l'usuari.
-	if len(m.ToolCalls) == 0 && hasDSML(m.Content) {
-		m.Content, m.ToolCalls = parseDSML(m.Content)
-	}
+	m.Content, m.ToolCalls = RecoverCalls(m.Content, m.ToolCalls, specs)
 	// Aquí el contingut buit és normal si el torn és una crida d'eina; el que
 	// no pot ser és acabar sense text ni eines i fer com si res (inclòs
 	// només-espais: vegeu chatInner).
@@ -641,6 +663,8 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 	reasoned, finish := 0, ""
 	sawDone := false
 	br := bufio.NewReader(resp.Body)
+	var guard repGuard
+	repetit := false
 	for {
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
@@ -652,6 +676,7 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 			}
 			var ev streamEvent
 			if jerr := json.Unmarshal([]byte(payload), &ev); jerr == nil {
+				rec.timings(ev.Timings)
 				rec.see(ev.Usage)
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {
@@ -659,6 +684,9 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 						prog.delta(ProgressText, d)
 						if onToken != nil {
 							onToken(d)
+						}
+						if full.Len()-guard.revisat >= repBloc && guard.veu(full.String()) {
+							repetit = true
 						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
@@ -674,14 +702,23 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 				}
 			}
 		}
+		if repetit {
+			break
+		}
 		if rerr != nil {
 			break
 		}
+	}
+	if repetit {
+		finish = "stop"
 	}
 	if !sawDone && finish == "" {
 		return "", &StreamInterruptedError{}
 	}
 	text := full.String()
+	if repetit {
+		text = guard.talla(text)
+	}
 	if strings.Contains(text, "think>") {
 		cl, th := extractThinkTags(text)
 		text = cl
@@ -827,6 +864,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		if len(out.Choices) == 0 {
 			return "", nil, fmt.Errorf("provider: sense choices a la resposta")
 		}
+		rec.timings(out.Timings)
 		rec.see(out.Usage)
 		m := out.Choices[0].Message
 		// Tot arriba d'un cop: un sol avís per tipus, amb el total.
@@ -840,9 +878,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 			}
 		}
 		text, calls := m.Content, m.ToolCalls
-		if len(calls) == 0 && hasDSML(text) {
-			text, calls = parseDSML(text)
-		}
+		text, calls = RecoverCalls(text, calls, specs)
 		if strings.TrimSpace(text) == "" && len(calls) == 0 {
 			return "", nil, emptyReplyErr(out.Choices[0].FinishReason, len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens)
 		}
@@ -872,6 +908,8 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 	byIndex := map[int]*ToolCall{}
 	order := []int{}
 	br := bufio.NewReader(resp.Body)
+	var guard repGuard
+	repetit := false
 	for {
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
@@ -883,6 +921,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 			}
 			var ev streamEvent
 			if jerr := json.Unmarshal([]byte(payload), &ev); jerr == nil {
+				rec.timings(ev.Timings)
 				rec.see(ev.Usage)
 				for _, ch := range ev.Choices {
 					if d := ch.Delta.Content; d != "" {
@@ -890,6 +929,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 						prog.delta(ProgressText, d)
 						if onToken != nil {
 							onToken(d)
+						}
+						if full.Len()-guard.revisat >= repBloc && guard.veu(full.String()) {
+							repetit = true
 						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
@@ -925,9 +967,15 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 				}
 			}
 		}
+		if repetit {
+			break
+		}
 		if rerr != nil {
 			break
 		}
+	}
+	if repetit {
+		finish = "stop"
 	}
 	if !sawDone && finish == "" {
 		if err := ctx.Err(); err != nil {
@@ -940,6 +988,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		calls = append(calls, *byIndex[i])
 	}
 	text := full.String()
+	if repetit {
+		text = guard.talla(text)
+	}
 	if strings.Contains(text, "think>") {
 		cl, th := extractThinkTags(text)
 		text = cl
@@ -949,9 +1000,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 	}
 	// Proxy que no tradueix el DSML: la crida ve dins del text.
-	if len(calls) == 0 && hasDSML(text) {
-		text, calls = parseDSML(text)
-	}
+	text, calls = RecoverCalls(text, calls, specs)
 	if strings.TrimSpace(text) == "" && len(calls) == 0 {
 		return "", nil, emptyReplyErr(finish, reasoned, maxTokens)
 	}

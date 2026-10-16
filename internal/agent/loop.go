@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -113,9 +114,14 @@ func Specs() []llm.ToolSpec {
 				"title": str, "body": str, "base": str, "branch": str,
 				"draft": map[string]any{"type": "boolean"},
 			}, "required": []string{"title"}}},
-		{Name: "office_read", Description: "Read Word/Excel/PowerPoint (.docx/.xlsx/.pptx) and return the text or data (truncated). The old .doc/.xls/.ppt formats are NOT supported.",
+		{Name: "office_read", Description: "Read Word/Excel/PowerPoint files (.docx/.xlsx/.pptx and templates .dotx/.potx/.xltx). docx: paragraphs with styles, lists, tables cell by cell, tracked changes, comments, headers/footers. xlsx: values with formulas (=B2*2 → 20). pptx: text per slide and notes. detail=layout (pptx) lists the layouts and every shape with id, placeholder, position and overflow warnings: use it before filling a template. The old .doc/.xls/.ppt formats are NOT supported.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"path": str,
+				"path":   str,
+				"detail": map[string]any{"type": "string", "enum": []string{"text", "layout", "full"}},
+			}, "required": []string{"path"}}},
+		{Name: "office_render", Description: "Render an office document to images (LibreOffice or Microsoft Office) and run automatic QA (overflowing text, overlaps, shapes off the slide, leftover placeholder text, formula errors, broken structure). Returns a numbered thumbnail grid; pass pages=\"3\" or \"2,5\" to see pages/slides at full size. ALWAYS render after creating or editing a document and fix what you see before delivering it.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"path": str, "pages": str,
 			}, "required": []string{"path"}}},
 		{Name: "office_open", Description: "Open a document with the system's associated program (Word/Excel/PowerPoint). It does not block: it returns immediately. While the document is open it cannot be written with office_edit (file locked): ask the user to close it to keep editing.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -133,15 +139,44 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"id": str,
 			}}},
-		{Name: "office_edit", Description: "Edit office files (journaled: /rewind undoes it). op=replace replaces text in docx/pptx (find, replace; PLAIN text, keeps the formatting of the first fragment). op=append adds paragraphs at the end of a docx (or to the last slide of a pptx) from content: understands # title, ## subtitle, - list, **bold**, *italic*. op=set_cell puts value into an xlsx cell (sheet, cell such as B2). op=set_range fills an xlsx block starting at cell (top-left corner) from content: one line per row, cells separated by |.",
+		{Name: "office_edit", Description: "Edit an existing office file, keeping its formatting (journaled: /rewind undoes it; an edit that would corrupt the file is refused). " +
+			"docx ops: replace (find, replace; regex, ignore_case; also headers/footers/notes), insert (anchor = text of a paragraph, position before|after|start|end, content in markdown: becomes real styles, lists, tables), append (content), delete (anchor, all), comment (anchor, text), fill_vars (vars {{name}}), accept_changes. Add track=true to replace/insert/delete for tracked changes (author). " +
+			"pptx ops: replace, add_slide (spec = one slide JSON or content markdown; layout; to = position), duplicate_slide (slide, to), delete_slide (slide), move_slide (slide, to), fill (slide, shapes {\"title\":\"…\",\"body\":\"- point\",\"body2\":…, or shape name / id=N}), notes (slide, text), fill_vars. " +
+			"xlsx ops: set_cell (sheet, cell, value; \"=…\" is a formula), set_cells (cells {\"B2\":\"10\",\"C2\":\"=B2*2\"}), set_range (cell = top-left, content: one row per line, cells separated by |), format (spec JSON: number_formats, roles input|formula|link|key|total|header, widths, freeze, conditional, charts, merge, comments), recalc (lists formula errors). Slides are 1-based.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"path":  str,
-				"op":    map[string]any{"type": "string", "enum": []string{"set_cell", "set_range", "replace", "append"}},
-				"sheet": str, "cell": str, "value": str, "find": str, "replace": str, "content": str,
+				"path": str,
+				"op": map[string]any{"type": "string", "enum": []string{"replace", "insert", "append", "delete", "comment", "fill_vars", "accept_changes",
+					"add_slide", "duplicate_slide", "delete_slide", "move_slide", "fill", "notes",
+					"set_cell", "set_cells", "set_range", "format", "recalc"}},
+				"find": str, "replace": str, "content": str, "anchor": str, "text": str, "author": str,
+				"position":    map[string]any{"type": "string", "enum": []string{"before", "after", "start", "end"}},
+				"regex":       map[string]any{"type": "boolean"},
+				"ignore_case": map[string]any{"type": "boolean"},
+				"track":       map[string]any{"type": "boolean"},
+				"all":         map[string]any{"type": "boolean"},
+				"slide":       map[string]any{"type": "integer"},
+				"to":          map[string]any{"type": "integer"},
+				"layout":      str,
+				"spec":        map[string]any{"description": "JSON (object or string)"},
+				"shapes":      map[string]any{"type": "object", "additionalProperties": str},
+				"cells":       map[string]any{"type": "object", "additionalProperties": str},
+				"vars":        map[string]any{"type": "object", "additionalProperties": str},
+				"sheet":       str, "cell": str, "value": str,
 			}, "required": []string{"path", "op"}}},
-		{Name: "office_create", Description: "Create a new office document (.docx/.xlsx/.pptx) with a title and initial content (text with line breaks; in xlsx each line is a row and cells are separated by |). Write PLAIN TEXT, not markdown: only # title, ## subtitle, - list, **bold**, *italic* and | a | b | tables are understood (they become real formatting); any other markup is stripped. Fails if the file already exists.",
+		{Name: "office_create", Description: "Create a new, professionally formatted office document. Fails if the file exists unless overwrite=true (use it to regenerate your own draft, never to replace a user file). Load the skill office-docx / office-pptx / office-xlsx first for the rules. " +
+			"docx: content in markdown (headings, lists, numbered lists, tables, quotes, code, links, images ![alt](path), [TOC], \\pagebreak) becomes real Word styles; title/subtitle make a cover; template = a .dotx/.docx whose styles, header, footer and page setup are kept ({{name}} markers are filled from vars, {{content}} marks where content goes). " +
+			"pptx: spec JSON {\"theme\":…,\"slides\":[{\"layout\":\"title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing\",\"title\",\"subtitle\",\"bullets\":[…],\"body\",\"left\",\"right\",\"left_title\",\"right_title\",\"number\",\"caption\",\"image\",\"table\":[[…]],\"chart\":{\"type\":\"column|bar|line|pie|doughnut\",\"categories\":[…],\"series\":[{\"name\",\"values\":[…]}]},\"notes\"}]} or content markdown (one # per slide); template = .potx/.pptx (its layouts are reused; its sample slides are removed unless keep_template_slides). " +
+			"xlsx: spec JSON {\"sheets\":[{\"name\",\"rows\":[[…]] (\"=…\" = formula),\"number_formats\":{\"B2:D9\":\"#,##0 €\"},\"roles\":{\"B2:B5\":\"input\"},\"widths\",\"freeze\",\"table\",\"conditional\",\"charts\",\"comments\",\"validation\"}]} or content rows separated by |. " +
+			"theme: default, modern, nature, elegant, mono (optionally \"default:primary=1F4E79,accent=F18F01,font=Arial\").",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"path": str, "title": str, "content": str,
+				"path": str, "title": str, "subtitle": str, "content": str, "template": str, "theme": str, "author": str,
+				"spec":                 map[string]any{"description": "JSON (object or string)"},
+				"vars":                 map[string]any{"type": "object", "additionalProperties": str},
+				"page":                 map[string]any{"type": "string", "enum": []string{"a4", "letter"}},
+				"landscape":            map[string]any{"type": "boolean"},
+				"page_numbers":         map[string]any{"type": "boolean"},
+				"keep_template_slides": map[string]any{"type": "boolean"},
+				"overwrite":            map[string]any{"type": "boolean"},
 			}, "required": []string{"path"}}},
 		{Name: "question", Description: "Ask the user when you need a decision to continue (at most 4 short options; free text is also allowed). Use it instead of guessing ambiguous requirements.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -322,7 +357,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
 	case "knowledge_note":
 		// Escriu a una base de coneixement que dura més que el torn.
@@ -509,6 +544,10 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		session = procSession
 	}
 	argsJSON = resolArgs(dir, argsJSON)
+	// Què ha llegit i editat el model (tools/seguiment.go): la guarda de
+	// lectura abans d'editar i el «sense canvis» de les relectures.
+	seg := tools.SeguimentDe(session)
+	seg.NouPas()
 	switch name {
 	case "preview":
 		return previewRequest(argsJSON)
@@ -523,26 +562,44 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		out, err := tools.Read(a.Path, a.Offset, a.Limit)
+		out, err := seg.Read(a.Path, a.Offset, a.Limit)
 		if err != nil {
 			return "", nil, err
 		}
 		return "llegit " + a.Path + "\n" + out, nil, nil
 	case "office_read":
 		var oa struct {
-			Path string `json:"path"`
+			Path   string `json:"path"`
+			Detail string `json:"detail"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &oa); err != nil {
 			return "", nil, err
 		}
-		oout, oerr := tools.OfficeRead(oa.Path)
+		oout, oerr := tools.OfficeReadDetail(oa.Path, oa.Detail)
 		if oerr != nil {
 			return "", nil, oerr
 		}
-		if len(oout) > 8000 {
-			oout = oout[:8000] + "\n… (retallat)"
+		limit := 12000
+		if oa.Detail == "full" {
+			limit = 40000
+		}
+		if len(oout) > limit {
+			oout = oout[:limit] + "\n… (retallat; demana detail=full o llegeix per parts)"
 		}
 		return "llegit " + oa.Path + "\n" + oout, nil, nil
+	case "office_render":
+		var orr struct {
+			Path  string `json:"path"`
+			Pages string `json:"pages"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &orr); err != nil {
+			return "", nil, err
+		}
+		out, imgs, err := tools.OfficeRender(ctx, tools.RenderOpts{Path: orr.Path, Pages: orr.Pages})
+		if err != nil {
+			return "", nil, err
+		}
+		return out, imgs, nil
 	case "office_open":
 		var oo struct {
 			Path string `json:"path"`
@@ -557,46 +614,44 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return oout, nil, nil
 	case "office_edit":
 		var oe struct {
-			Path    string `json:"path"`
-			Op      string `json:"op"`
-			Sheet   string `json:"sheet"`
-			Cell    string `json:"cell"`
-			Value   string `json:"value"`
-			Find    string `json:"find"`
-			Replace string `json:"replace"`
-			Content string `json:"content"`
+			Path       string          `json:"path"`
+			Op         string          `json:"op"`
+			Sheet      string          `json:"sheet"`
+			Cell       string          `json:"cell"`
+			Value      json.RawMessage `json:"value"`
+			Find       string          `json:"find"`
+			Replace    string          `json:"replace"`
+			Content    string          `json:"content"`
+			Anchor     string          `json:"anchor"`
+			Position   string          `json:"position"`
+			Text       string          `json:"text"`
+			Author     string          `json:"author"`
+			Regex      bool            `json:"regex"`
+			IgnoreCase bool            `json:"ignore_case"`
+			Track      bool            `json:"track"`
+			All        bool            `json:"all"`
+			Slide      int             `json:"slide"`
+			To         int             `json:"to"`
+			Layout     string          `json:"layout"`
+			Spec       json.RawMessage `json:"spec"`
+			Shapes     map[string]any  `json:"shapes"`
+			Cells      map[string]any  `json:"cells"`
+			Vars       map[string]any  `json:"vars"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &oe); err != nil {
 			return "", nil, err
 		}
-		switch oe.Op {
-		case "set_cell":
-			out, err := tools.OfficeXlsxSet(oe.Path, oe.Sheet, oe.Cell, oe.Value)
-			if err != nil {
-				return "", nil, err
-			}
-			return out, nil, nil
-		case "replace":
-			out, err := tools.OfficeReplace(oe.Path, oe.Find, oe.Replace)
-			if err != nil {
-				return "", nil, err
-			}
-			return out, nil, nil
-		case "append":
-			out, err := tools.OfficeAppend(oe.Path, firstOf(oe.Content, oe.Value, oe.Replace))
-			if err != nil {
-				return "", nil, err
-			}
-			return out, nil, nil
-		case "set_range":
-			out, err := tools.OfficeXlsxSetRange(oe.Path, oe.Sheet, oe.Cell, firstOf(oe.Content, oe.Value))
-			if err != nil {
-				return "", nil, err
-			}
-			return out, nil, nil
-		default:
-			return "", nil, fmt.Errorf("op %q desconeguda (set_cell|set_range|replace|append)", oe.Op)
+		out, err := tools.OfficeEdit(tools.EditOpts{
+			Path: oe.Path, Op: oe.Op, Sheet: oe.Sheet, Cell: oe.Cell, Value: rawText(oe.Value),
+			Find: oe.Find, Replace: oe.Replace, Content: oe.Content, Anchor: oe.Anchor, Position: oe.Position,
+			Text: oe.Text, Author: oe.Author, Regex: oe.Regex, IgnoreCase: oe.IgnoreCase, Track: oe.Track, All: oe.All,
+			Slide: oe.Slide, To: oe.To, Layout: oe.Layout, Spec: rawText(oe.Spec),
+			Shapes: strMap(oe.Shapes), Cells: strMap(oe.Cells), Vars: strMap(oe.Vars),
+		})
+		if err != nil {
+			return "", nil, err
 		}
+		return out, nil, nil
 	case "read_image":
 		var ia struct {
 			Path string `json:"path"`
@@ -688,7 +743,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendixEdicio(ctx, a.Path), nil, nil
+		apendix := apendixEdicio(ctx, a.Path)
+		seg.Coneix(a.Path)
+		return fmt.Sprintf("escrit %s (%d bytes)", a.Path, n) + apendix, nil, nil
 	case "edit":
 		var a struct {
 			Path string `json:"path"`
@@ -698,10 +755,13 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		if err := tools.Edit(a.Path, a.Old, a.New); err != nil {
+		nota, err := seg.Edit(a.Path, a.Old, a.New)
+		if err != nil {
 			return "", nil, err
 		}
-		return "edit aplicat a " + a.Path + apendixEdicio(ctx, a.Path), nil, nil
+		apendix := apendixEdicio(ctx, a.Path)
+		seg.Coneix(a.Path)
+		return "edit aplicat a " + a.Path + nota + apendix, nil, nil
 	case "patch":
 		var pa struct {
 			Path  string `json:"path"`
@@ -718,10 +778,13 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		for _, e := range pa.Edits {
 			ops = append(ops, tools.PatchOp{Old: e.Old, New: e.New, AfterLine: e.AfterLine})
 		}
-		if err := tools.Patch(pa.Path, ops); err != nil {
+		nota, err := seg.Patch(pa.Path, ops)
+		if err != nil {
 			return "", nil, err
 		}
-		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + apendixEdicio(ctx, pa.Path), nil, nil
+		apendix := apendixEdicio(ctx, pa.Path)
+		seg.Coneix(pa.Path)
+		return fmt.Sprintf("patch aplicat a %s (%d edicions)", pa.Path, len(ops)) + nota + apendix, nil, nil
 	case "grep":
 		var a struct {
 			Pattern string `json:"pattern"`
@@ -786,14 +849,34 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return tools.BrowserAction(ctx, action, ba)
 	case "office_create":
 		var oc struct {
-			Path    string `json:"path"`
-			Title   string `json:"title"`
-			Content string `json:"content"`
+			Path               string          `json:"path"`
+			Title              string          `json:"title"`
+			Subtitle           string          `json:"subtitle"`
+			Content            string          `json:"content"`
+			Template           string          `json:"template"`
+			Theme              string          `json:"theme"`
+			Author             string          `json:"author"`
+			Spec               json.RawMessage `json:"spec"`
+			Vars               map[string]any  `json:"vars"`
+			Page               string          `json:"page"`
+			Landscape          bool            `json:"landscape"`
+			PageNumbers        *bool           `json:"page_numbers"`
+			KeepTemplateSlides bool            `json:"keep_template_slides"`
+			Overwrite          bool            `json:"overwrite"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &oc); err != nil {
 			return "", nil, err
 		}
-		out, err := tools.OfficeCreate(oc.Path, oc.Title, oc.Content)
+		tpl := oc.Template
+		if tpl != "" && !filepath.IsAbs(tpl) && dir != "" {
+			tpl = filepath.Join(dir, tpl)
+		}
+		out, err := tools.OfficeCreateOpts(tools.CreateOpts{
+			Path: oc.Path, Title: oc.Title, Subtitle: oc.Subtitle, Content: oc.Content, Template: tpl,
+			Theme: oc.Theme, Author: oc.Author, Spec: rawText(oc.Spec), Vars: strMap(oc.Vars), Page: oc.Page,
+			Landscape: oc.Landscape, NoPageNumbers: oc.PageNumbers != nil && !*oc.PageNumbers,
+			KeepTemplateSlides: oc.KeepTemplateSlides, Overwrite: oc.Overwrite, BaseDir: dir,
+		})
 		if err != nil {
 			return "", nil, err
 		}
@@ -863,6 +946,44 @@ func firstOf(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// rawText accepta un camp JSON que pot ser text o un objecte/llista (els
+// models passen spec de les dues maneres) i el torna com a text.
+func rawText(r json.RawMessage) string {
+	t := strings.TrimSpace(string(r))
+	if t == "" || t == "null" {
+		return ""
+	}
+	if strings.HasPrefix(t, `"`) {
+		var s string
+		if json.Unmarshal(r, &s) == nil {
+			return s
+		}
+	}
+	return t
+}
+
+// strMap converteix valors JSON qualssevol (números, booleans) a text.
+func strMap(m map[string]any) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		switch x := v.(type) {
+		case string:
+			out[k] = x
+		case nil:
+			out[k] = ""
+		case float64:
+			out[k] = strconv.FormatFloat(x, 'f', -1, 64)
+		default:
+			b, _ := json.Marshal(x)
+			out[k] = string(b)
+		}
+	}
+	return out
 }
 
 // Stepper fa un pas del loop: historial → (contingut, tool_calls).

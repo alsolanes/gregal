@@ -39,6 +39,18 @@ Local Ollama (`localhost:11434/v1`), LM Studio (`localhost:1234/v1`) and
 llama.cpp (`localhost:8080/v1`) are also configured. They need a running local
 server and an installed model, rather than a cloud API key.
 
+| Local server | `type` | What Gregal sends | What Gregal probes |
+|---|---|---|---|
+| Ollama | `ollama` | native `/api/chat`, fixed `options.num_ctx`, `keep_alive: 30m` | `/api/show` (tools, context length), `/api/ps` (loaded context) |
+| llama.cpp | `llamacpp` | Chat Completions plus `cache_prompt: true` and a fixed `id_slot` | `/props` (`n_ctx`, `total_slots`, chat template), `timings` on every reply |
+| LM Studio | (none) | Chat Completions | `/api/v0/models` (`max_context_length`, `loaded_context_length`, `state`) |
+
+Existing configurations keep their protocol: an Ollama provider without
+`type: ollama` still uses `/v1`, where Ollama's default `num_ctx` (2-4k)
+silently drops the start of the prompt. `gregal doctor` flags it. The
+options `num_ctx`, `keep_alive`, `slot` and `side_slot`, and the server
+flags worth setting, are in [local-models.md](local-models.md).
+
 Literal API keys entered in the UI are active in memory only. For persistence,
 use an environment variable reference such as `${ZEN_API_KEY}`. Hosted presets
 without keys are not probed for models. No paid inference is performed by setup.

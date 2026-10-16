@@ -48,16 +48,19 @@ const QUICK = {
     ['office.quick.correct', 'office.prompt.docCorrect'],
     ['office.quick.translate', 'office.prompt.docTranslate'],
     ['office.quick.tone', 'office.prompt.docTone'],
+    ['office.quick.review', 'office.prompt.visualReview'],
   ],
   xlsx: [
     ['office.quick.data', 'office.prompt.sheetExplain'],
     ['office.quick.errors', 'office.prompt.sheetErrors'],
     ['office.quick.value', 'office.prompt.sheetValue'],
+    ['office.quick.review', 'office.prompt.visualReview'],
   ],
   pptx: [
     ['office.quick.summarize', 'office.prompt.slidesSummary'],
     ['office.quick.correct', 'office.prompt.slidesCorrect'],
     ['office.quick.notes', 'office.prompt.slidesNotes'],
+    ['office.quick.review', 'office.prompt.visualReview'],
   ],
 };
 

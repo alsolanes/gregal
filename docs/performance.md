@@ -58,6 +58,38 @@ Use a build containing the reasoning compatibility changes for GLM-5.3.
 Compare this profile against the original; lower effort is not a guarantee
 of the same reasoning quality, and a larger cap does not guarantee no retries.
 
+## Measuring harness changes
+
+Changes to the prompt, history, compaction, edit tools or provider handling
+should be measured before and after with the bench suite, repeated:
+
+```sh
+./gregal --config my-bench.yaml --eval bench --repeat 10 --eval-baseline   # before
+./gregal --config my-bench.yaml --eval bench --repeat 10                   # after
+```
+
+`--repeat N` reports, per task, the success rate, `pass@k`, and the median and
+interquartile range of steps, seconds, prompt tokens and model calls. Compare
+medians, not single runs: with N=3 the interquartile range is still wide, and
+10 or more runs per task are needed to detect small differences. Each run also
+records the counters that the proposals in
+`docs/research/harness-techniques.md` target:
+
+| Change | Watch |
+| --- | --- |
+| Stable prefix, append-only history | `cache_hit_rate`, prompt tokens per run |
+| Native local providers | `cache_hit_rate` from turn 2, seconds, success rate |
+| Tolerant edits | `edit_fail_rate`, steps |
+| Block-wise masking, head-and-tail truncation | prompt tokens, `compactions`, success rate on t9 |
+| Model-family profiles, smaller tool sets | `tool_call_invalid`, first-turn prompt tokens |
+
+All counters are summed into `results/summary.json` per task and for the whole
+suite; see [evaluation instructions](../evals/README.md#metrics) for the exact
+definitions. Keep the same provider, model, reasoning and output settings
+between the two runs, and note that provider-side cache state is not
+controlled: alternate the order or discard a warm-up run when comparing
+`cache_hit_rate`.
+
 ## Comparison with OpenCode
 
 OpenCode documents [parallel subagents and specialized exploration agents](https://opencode.ai/docs/agents/).
@@ -72,7 +104,8 @@ rate, model requests, tool requests and tokens. Do not count an incomplete or
 unverified result as a faster success.
 
 Gregal's existing `--eval` runner records correctness, elapsed time, steps,
-tokens and tools; see [evaluation instructions](../evals/README.md).
+tokens, tools, cache, edit and tool-call counters, with `--repeat N` for
+medians and success rates; see [evaluation instructions](../evals/README.md).
 `GREGAL_PERFIL=1` adds per-model-call timings to headless runs. Live model runs
 consume the configured provider's quota; the startup benchmark above does not.
 

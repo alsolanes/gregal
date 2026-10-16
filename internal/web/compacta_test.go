@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 )
@@ -55,14 +56,31 @@ func TestLaFinestraCompactaSolaQuanLaConversaNoHiCap(t *testing.T) {
 	if trucades.Load() < 1 {
 		t.Fatalf("calia demanar un resum al model, i no s'ha fet cap crida")
 	}
-	if len(s.convo) != 4 {
-		t.Errorf("després de compactar han de quedar els 4 darrers missatges, en queden %d", len(s.convo))
+	if len(s.convo) != 5 {
+		t.Errorf("després de compactar han de quedar el resum i els 4 darrers missatges, en queden %d", len(s.convo))
 	}
 	if s.compacted == "" {
 		t.Error("el resum no s'ha desat")
 	}
-	if !strings.Contains(s.sysPrompt(), "Resum dens del que portàvem.") {
-		t.Error("el resum no arriba al system prompt: el torn següent oblidaria tot el que s'ha fet")
+	// El resum va al davant de la conversa com a missatge marcat, no al
+	// system prompt: compactar no ha de canviar el prefix estable.
+	if len(s.convo) == 0 || !agent.EsResum(s.convo[0]) || !strings.Contains(s.convo[0].Content, "Resum dens del que portàvem.") {
+		t.Error("el resum no arriba a la conversa: el torn següent oblidaria tot el que s'ha fet")
+	}
+	if strings.Contains(s.sysPrompt(), "Resum dens del que portàvem.") {
+		t.Error("el resum no ha d'anar al system prompt")
+	}
+	// Una segona compactació no l'acumula: el resum nou substitueix el vell.
+	s.convo = append(s.convo, convoLlarga(40)...)
+	s.compactaSiCal(context.Background(), p, role, nil)
+	n := 0
+	for _, m := range s.convo {
+		if agent.EsResum(m) {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Errorf("hi ha d'haver un sol resum a la conversa, n'hi ha %d", n)
 	}
 }
 
@@ -131,7 +149,7 @@ func TestLaConversaNovaOblidaElResum(t *testing.T) {
 // del missatge. Per a l'agent el torn s'ha acabat, i l'XML anava tal qual
 // a la pantalla: l'usuari llegia markup en comptes de la feina feta.
 func TestLaCridaEscritaAlTextNoArribaALaPantalla(t *testing.T) {
-	cru := `{"choices":[{"message":{"content":"Ara ho escric.\n<tool_call>\n<function=write>\n<parameter=path>\n/tmp/a\n</parameter>\n</function>\n</tool_call>"}}]}`
+	cru := `{"choices":[{"message":{"content":"Ara ho escric.\n<tool_call>\n<function=no_existeix>\n<parameter=path>\n/tmp/a\n</parameter>\n</function>\n</tool_call>"}}]}`
 	prov := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cru))
@@ -147,7 +165,7 @@ func TestLaCridaEscritaAlTextNoArribaALaPantalla(t *testing.T) {
 	// se substitueix per la resposta final; el que no pot portar l'XML és
 	// aquesta, que és la que es desa a la conversa.
 	final := cos[strings.LastIndex(cos, "event: done"):]
-	if strings.Contains(final, "tool_call") || strings.Contains(final, "function=write") {
+	if strings.Contains(final, "tool_call") || strings.Contains(final, "function=no_existeix") {
 		t.Errorf("la resposta final porta l'XML de la crida:\n%s", final)
 	}
 	if !strings.Contains(cos, "tool_text") {

@@ -298,10 +298,14 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	// Un «ok» a mitja conversa és una resposta, no cortesia (SmallTalkFor).
 	teConversa := agent.TeConversa(st.convo)
 	// Mapa del projecte amb la tasca (fitxers, git, fitxers anomenats).
-	// Només el missatge més nou el porta (els antics ja no són veritat).
+	// Historial on només s'afegeix: els mapes vells no es toquen (el nou és
+	// un delta) i, si la memòria o les skills han canviat, la novetat va
+	// amb la tasca en lloc de canviar el system prompt (PrefixEstable).
 	agent.CheckpointTorn("", b.dirOf(st), st.mode, len(st.convo))
-	hist := agent.SenseMapesAntics(st.convo)
-	st.convo = append(hist, llm.Message{Role: "user", Content: agent.TascaAmbMapa(st.mode, b.dirOf(st), text, hist), Images: images})
+	sysBase := agent.PromptForModel(b.cfg.SystemPrompt(), st.mode, b.cfg.CompactCode())
+	sysCtx := agent.ContextProjecte(b.dirOf(st))
+	nota := st.prefix.Novetats(sysBase, sysCtx)
+	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(agent.TascaAmbMapa(st.mode, b.dirOf(st), text, st.convo), nota), Images: images})
 	mode, role := st.mode, st.role
 	pinned := st.rolePinned
 	convo := append([]llm.Message{}, st.convo...)
@@ -354,7 +358,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	defer close(done)
 
 	// La directiva d'idioma ha de quedar l'última (AmbContext).
-	sys := agent.AmbContext(agent.PromptFor(b.cfg.SystemPrompt(), mode), agent.ContextProjecte(b.dirOf(st)))
+	sys := st.prefix.Sys(sysBase, sysCtx, func(c string) string { return agent.AmbContext(sysBase, c) })
 
 	var answerID, activityID int
 	var answer, activity strings.Builder
@@ -437,7 +441,7 @@ bucle:
 		switch p.Ordre {
 		case agent.OrdrePasModel:
 			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
-				r.Temperature, r.MaxTokens, agent.SpecsAll(), avisaFallback)
+				r.Temperature, r.MaxTokens, agent.SpecsForHist(mode, b.cfg.CompactFor(r), p.Hist), avisaFallback)
 			// El text que acompanya crides d'eina també es publica: és el
 			// model explicant què farà. La resposta final arriba per EvResposta.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {

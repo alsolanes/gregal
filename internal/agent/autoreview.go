@@ -101,7 +101,7 @@ func Review(ctx context.Context, client *llm.Client, cfg *config.Config, req Rev
 	if maxTok <= 0 || maxTok > 600 {
 		maxTok = 600
 	}
-	ctx = llm.WithThink(ctx, r.Think)
+	ctx = llm.WithSideCall(llm.WithThink(ctx, r.Think))
 	raw, err := client.Chat(ctx, p.BaseURL, p.APIKey, r.Model, []llm.Message{
 		{Role: "system", Content: reviewerSystem},
 		{Role: "user", Content: ReviewPrompt(req)},

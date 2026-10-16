@@ -94,11 +94,23 @@ func doctor(cfg *config.Config, path string) int {
 		ok(text("doctor.window"), detall)
 	}
 
+	// Servidors locals: num_ctx d'Ollama, context-shift i plantilla de
+	// llama.cpp, i els flags que acceleren el prefill (doctor_local.go).
+	doctorLocal(cfg, lang, ok)
+
 	// Navegador per a l'eina browser (Chrome/Edge de la màquina).
 	if exe := tools.BrowserExecutable(); exe != "" {
 		ok(text("doctor.browser"), exe)
 	} else {
 		no(text("doctor.browser"), text("doctor.browser_missing"))
+	}
+
+	// Revisió visual de documents d'Office (office_render). No és un
+	// error si falta: només es fan les comprovacions estructurals.
+	if eng := tools.OfficeRenderAvailable(); eng != "" {
+		ok(text("doctor.office"), eng)
+	} else {
+		ok(text("doctor.office"), text("doctor.office_missing"))
 	}
 
 	// Cerca web: quins motors responen (sense cap servei local).

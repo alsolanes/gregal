@@ -22,12 +22,13 @@ func histDeProva(passos int) []llm.Message {
 }
 
 func TestPruneToolOutputsNomesLesVelles(t *testing.T) {
-	h := histDeProva(10)
+	h := histDeProva(15)
 	out, n := PruneToolOutputs(h)
-	if n != 10-KeepRecentToolOutputs {
-		t.Fatalf("retallades %d", n)
+	if n != 15-KeepRecentToolOutputs {
+		t.Fatalf("emmascarades %d", n)
 	}
-	// Les últimes sis sencers; les altres curtes amb nota; l'original intacte.
+	// Les últimes sencers; les altres, una nota recuperable que diu què
+	// es va demanar; l'original intacte.
 	tools := 0
 	for i := len(out) - 1; i >= 0; i-- {
 		if out[i].Role != "tool" {
@@ -38,8 +39,11 @@ func TestPruneToolOutputsNomesLesVelles(t *testing.T) {
 		if tools <= KeepRecentToolOutputs && !llarg {
 			t.Fatalf("resultat recent %d retallat", tools)
 		}
-		if tools > KeepRecentToolOutputs && (llarg || !strings.Contains(out[i].Content, "truncated")) {
-			t.Fatalf("resultat vell %d no retallat: %d", tools, len(out[i].Content))
+		if tools > KeepRecentToolOutputs && (llarg || !strings.Contains(out[i].Content, "[output of `read f.go` cleared")) {
+			t.Fatalf("resultat vell %d no emmascarat: %q", tools, out[i].Content)
+		}
+		if out[i].ToolCallID == "" || out[i-1].Role != "assistant" {
+			t.Fatal("emmascarar no pot separar una crida del seu resultat")
 		}
 	}
 	if len(h[2+1].Content) < 2000 {
@@ -178,7 +182,7 @@ func TestPruneDelegateNoteIsNotRecallable(t *testing.T) {
 	if !strings.HasSuffix(pruned[0].Content, notaRetallFill) || strings.Contains(pruned[0].Content, "torna a cridar") {
 		t.Fatalf("delegate prune must not promise recall: %q", pruned[0].Content[len(pruned[0].Content)-120:])
 	}
-	if !strings.HasSuffix(pruned[1].Content, notaRetall) {
-		t.Fatalf("ordinary tools keep the recall note: %q", pruned[1].Content[len(pruned[1].Content)-120:])
+	if !strings.HasPrefix(pruned[1].Content, prefixEmmascarada) || !strings.HasSuffix(pruned[1].Content, sufixEmmascarada) {
+		t.Fatalf("ordinary tools are masked with a recall note: %q", pruned[1].Content)
 	}
 }

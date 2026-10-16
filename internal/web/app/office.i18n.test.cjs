@@ -34,7 +34,7 @@ test('Office controls and action prompts follow the selected language', async ()
     controls.docQuick.children[2].onclick();
     assert.match(controls.docAsk.value, /^Posa el valor ___/);
     assert.match(quickActions('docx')[0][1], /^Resumeix/);
-    assert.equal(controls.docQuick.children.length, 3);
+    assert.equal(controls.docQuick.children.length, 4);
   } finally {
     global.localStorage = previousStorage;
     global.document = previousDocument;

@@ -21,7 +21,9 @@ respond.
 - `roles:` — which model does which job. The required roles are `chat`,
   `think`, `code` and `reviewer`; each has `provider`, `model`,
   `temperature`, `max_tokens` and, optionally, `context_window` (0 = the
-  one the provider declares).
+  one the provider declares) and `prompt: compact|full` (empty = automatic:
+  local models of 14B or less, or with a window under 32k, get a short
+  prompt and only the core tools).
 - `mode:` — the startup mode (`code`, `chat`, `inspect`, `goal`,
   `autonomous`). See the `modes` skill.
 - `permissions:` — `tools:` with `allow`, `ask` or `deny` per tool, plus

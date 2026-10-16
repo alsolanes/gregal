@@ -284,9 +284,13 @@ type Model struct {
 
 	lines []string
 	convo []llm.Message
-	// compacted és el resum de la conversa ja compactada (viu al system
-	// prompt; vegeu /compact). La convo només duu el recent.
+	// compacted és el resum de la conversa ja compactada (vegeu /compact).
+	// El model el rep com a primer missatge de convo (agent.MissatgeResum),
+	// no al system prompt; aquí es guarda per desar-lo i per a /stats.
 	compacted string
+	// prefix congela el system prompt de la sessió (agent.PrefixEstable):
+	// punter perquè les còpies del Model el comparteixin.
+	prefix *agent.PrefixEstable
 
 	role            string
 	mouseOn         bool     // ratolí capturat (roda scroll; desactiu = selecció nativa)
@@ -507,6 +511,7 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
 	agent.SetupDelegate(cfg, c)
+	m.prefix = &agent.PrefixEstable{}
 	m.refreshGitBranch()
 	return m
 }
@@ -1150,7 +1155,7 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 	return func() tea.Msg {
 		defer cancel()
 		var fb string
-		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsAll(),
+		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsForHist(m.mode, m.cfg.CompactFor(r), hist),
 			s.add, s.addThink, func(model string) { fb = model })
 		err = agent.ModelError(ctx, err)
 		s.finish()
@@ -1960,6 +1965,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.comptaTokens(msg.promptTokens, msg.cachedTokens, msg.content, msg.calls)
+		if msg.fb == "" && msg.err == nil {
+			// P14: els tokens reals del prompt calibren l'estimació.
+			m.torn.CalibraPrompt(msg.promptTokens)
+		}
 		if msg.fb != "" {
 			// Aquest avís és dels que no es poden perdre: si respon el model
 			// de reserva vol dir que el que havies triat no ha funcionat, i
@@ -2131,9 +2140,12 @@ func (m *Model) startAgent(task string) (tea.Model, tea.Cmd) {
 	agent.CheckpointTorn("", m.cwd, m.mode, len(m.convo))
 	// El model rep el mapa del projecte amb la tasca; a la pantalla surt
 	// només el que ha escrit la persona.
-	// Només el missatge més nou porta mapa (els antics ja no són veritat).
-	hist := agent.SenseMapesAntics(m.convo)
-	m.convo = append(hist, llm.Message{Role: "user", Content: agent.TascaAmbMapa(m.mode, m.cwd, task, hist)})
+	// Historial on només s'afegeix: els mapes vells no es toquen (el nou és
+	// un delta) i, si la memòria o les skills han canviat, la novetat va al
+	// final del missatge nou en lloc de canviar el system prompt.
+	base, ctxProj := m.sysPromptParts()
+	nota := m.prefix.Novetats(base, ctxProj)
+	m.convo = append(m.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(agent.TascaAmbMapa(m.mode, m.cwd, task, m.convo), nota)})
 	m.agentRole = ""
 	if !m.rolePinned {
 		hasImages := false
@@ -2360,14 +2372,23 @@ func parseRange(s string) (int, int, bool) {
 
 // sysPrompt afegeix les regles del mode (xat: només lectura; objectiu: preguntes)
 // més la memòria del projecte (AGENTS.md) si n'hi ha.
+//
+// El prompt queda congelat a la sessió (m.prefix): el resum de
+// compactació viu a la conversa i els canvis de memòria o skills arriben
+// com a nota amb la tasca següent, perquè el prefix que reaprofita la
+// caché del model no canviï d'un torn a l'altre.
 func (m Model) sysPrompt() string {
-	// Memòria, skills i resum van abans de la directiva d'idioma, que ha
-	// de tancar el prompt (AmbContext).
-	resum := ""
-	if m.compacted != "" {
-		resum = "[Summary of the earlier conversation — continue with this context]\n" + m.compacted
-	}
-	return agent.AmbContext(agent.PromptFor(m.cfg.SystemPrompt(), m.mode), agent.ContextProjecte(m.cwd), resum)
+	base, ctxProj := m.sysPromptParts()
+	// Memòria i skills van abans de la directiva d'idioma, que ha de
+	// tancar el prompt (AmbContext).
+	return m.prefix.Sys(base, ctxProj, func(c string) string { return agent.AmbContext(base, c) })
+}
+
+// sysPromptParts són la part del system que depèn del mode i l'idioma
+// (base) i la que depèn dels fitxers del projecte (AGENTS.md, memòria,
+// skills).
+func (m Model) sysPromptParts() (base, ctxProj string) {
+	return agent.PromptForModel(m.cfg.SystemPrompt(), m.mode, m.cfg.CompactCode()), agent.ContextProjecte(m.cwd)
 }
 
 // answerPending resol una confirmació [s/n].
@@ -2497,10 +2518,13 @@ func (m *Model) resumeSessionDir(dir, name string) {
 			return
 		}
 	}
-	m.convo = dedupConvo(s.Convo)
+	// Les sessions d'abans duien el resum a part (anava al system): ara
+	// és el primer missatge de la conversa. AmbResum és idempotent.
+	m.convo = agent.AmbResum(dedupConvo(s.Convo), s.Compacted)
 	m.sessionFile = s.Name
 	m.pinned = s.Pinned
 	m.compacted = s.Compacted
+	m.prefix.Reset()
 	if restoredWorkspace != "" && filepath.Clean(restoredWorkspace) != filepath.Clean(m.cwd) {
 		antic := m.cwd
 		m.cwd = restoredWorkspace
@@ -2535,6 +2559,11 @@ func (m *Model) resumeSessionDir(dir, name string) {
 		}
 	}
 	for _, msg := range m.convo {
+		if agent.EsResum(msg) {
+			m.push(headStyle.Render("≋ " + T("compact.context")))
+			m.push(assistantMD(m.compacted, m.vp.Width))
+			continue
+		}
 		switch msg.Role {
 		case "user":
 			m.push(userLine(agent.SenseMapa(msg.Content)))
@@ -3605,6 +3634,9 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 	case "/clear":
 		m.lines = nil
 		m.convo = nil
+		m.compacted = ""
+		m.prefix.Reset()
+		tools.OblidaTotsSeguiments() // el que el model havia llegit ja no és a la conversa
 		m.sessionFile = ""
 		m.pinned = false
 		m.vp.SetContent("")

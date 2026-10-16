@@ -254,7 +254,7 @@ func (s *Server) handleGitSuggest(w http.ResponseWriter, r *http.Request) {
 		{Role: "system", Content: "You write concise, accurate git commit messages and pull request descriptions. Never invent changes that are not in the diff."},
 		{Role: "user", Content: instr + "\n\n" + diff},
 	}
-	out, err := s.client.Chat(ctx, p.BaseURL, p.APIKey, role.Model, msgs, 0.2, 800)
+	out, err := s.client.Chat(llm.WithSideCall(ctx), p.BaseURL, p.APIKey, role.Model, msgs, 0.2, 800)
 	if err != nil {
 		http.Error(w, err.Error(), 502)
 		return

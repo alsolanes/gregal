@@ -306,6 +306,7 @@ func (b *Bot) newSession(ctx context.Context, chatID int64, st *chatState, name 
 	st.mu.Lock()
 	st.name = name
 	st.convo = nil
+	st.prefix.Reset()
 	mode := st.mode
 	st.mu.Unlock()
 	b.remembers.Clear(tgScope(chatID))
@@ -531,6 +532,8 @@ func (b *Bot) deleteSession(ctx context.Context, chatID int64, st *chatState, ar
 func (b *Bot) clearSession(ctx context.Context, chatID int64, st *chatState) {
 	st.mu.Lock()
 	st.convo = nil
+	st.prefix.Reset()
+	tools.OblidaTotsSeguiments()
 	name := st.name
 	role := st.role
 	st.mu.Unlock()
@@ -629,7 +632,8 @@ func (b *Bot) useSession(ctx context.Context, chatID int64, st *chatState, arg s
 	b.saveSession(st)
 	st.mu.Lock()
 	st.name = s.Name
-	st.convo = s.Convo
+	st.convo = agent.AmbResum(s.Convo, s.Compacted)
+	st.prefix.Reset()
 	if s.Role != "" {
 		st.role = s.Role
 	}

@@ -2,6 +2,83 @@
 
 ## Unreleased
 
+- Local models get first-class providers ([docs/local-models.md](docs/local-models.md)).
+  `type: ollama` uses Ollama's native `/api/chat` with a fixed `num_ctx`, so
+  Ollama no longer silently drops the system prompt and tools at its 2-4k
+  default. The value is chosen once per model: the config's `num_ctx`, the
+  context the model is already loaded with, or 32k. It also sends
+  `keep_alive: 30m` and checks `/api/show` for tool support. `type: llamacpp`
+  sends `cache_prompt: true` and pins the session to one `id_slot`, with side
+  calls on another slot. It reads `timings`, so `cache_n` shows up as cached
+  tokens. Context windows for llama.cpp, Ollama and LM Studio now come from
+  what the server allocated (`/props`, `num_ctx`, `/api/v0/models`) rather
+  than the training context. New configs and the provider catalog set these
+  types; existing configs are unchanged.
+- `gregal doctor` checks local servers. It warns about an Ollama provider
+  without `type: ollama` or with less than 16k of context, a model without
+  tool support, llama.cpp `--context-shift`, a chat template that falls back
+  to the Generic tool format, and a missing `type: llamacpp`. It also
+  suggests `--cache-reuse 256`, `-ctk q8_0 -ctv q8_0` and
+  `--spec-type ngram-mod`.
+- **Smarter project map, best-of and Python checks.**
+  - The project map now follows references: files that define what the
+    relevant files use (a type, a function they call) are ranked up with a
+    personalised PageRank over a reference graph, as in Aider's repo map,
+    even when they share no words with the task.
+  - Best-of-N picks its winner the way Agentless and CodeMonkeys do: the tests
+    each attempt wrote are run against the other attempts (cross-tests) and
+    attempts that converge on the same patch get votes. `--best-of-apply`
+    applies the recommended attempt without asking.
+  - After editing Python, type errors from pyright (or mypy) are reported in
+    the same step when either is installed, like an editor's language server.
+- **Better results with local and small models.**
+  - Tool calls that a model writes as text (Hermes/Qwen2.5 `<tool_call>{…}`,
+    Qwen3-Coder `<function=…><parameter=…>`, or a bare JSON call) are now
+    turned into real tool calls instead of being refused and re-asked, which
+    cost a whole extra turn (and prefill) on local servers. Only tools offered
+    in that request are accepted, and the calls go through the same policy and
+    approvals as any other. Malformed arguments are repaired when the schema
+    makes the intent clear (trailing commas, `"20"` for an integer, `"false"`
+    for a boolean, an object passed as a string).
+  - Requests to local servers (llama.cpp, Ollama, LM Studio, vLLM) carry the
+    sampling the model card recommends for each family (Qwen3, Qwen3-Coder,
+    Qwen2.5-Coder, DeepSeek, gpt-oss, GLM, Devstral, Mistral, Gemma, Llama…);
+    a role's own temperature still wins, and a server that rejects the extra
+    fields simply stops receiving them.
+  - Small local models (14B or less, or a window under 32k) get a compact
+    system prompt and only the core tools; set `prompt: full|compact` on a role
+    to override. Chat and inspect modes no longer show write tools at all.
+  - A reply stuck repeating the same paragraph is cut as soon as the loop is
+    detected, instead of running to the token limit.
+  - Code mode now asks to reproduce a bug before fixing it and to re-read the
+    request before answering.
+- **Office documents at the level of the best assistants.** Word, PowerPoint
+  and Excel files are now built with real structure and checked visually:
+  - Editing no longer corrupts real files. `office_edit replace` and
+    `set_cell` used to rewrite the XML with Go's encoder, which broke the
+    namespace prefixes, so Word and Excel could no longer open a document
+    edited by Gregal. Edits now keep every prefix, keep each fragment's
+    formatting, and an edit that would break the package is refused.
+  - Word: markdown becomes Heading styles, real numbered and bullet lists,
+    tables, quotes, code, images, table of contents and page breaks, with a
+    cover, header and page numbers. New edits: insert, delete, comment,
+    tracked changes (only the changed words are marked), accept changes,
+    `{{marker}}` filling; text is also replaced in headers, footers and notes.
+  - PowerPoint: a 16:9 theme with nine layouts, native charts, styled
+    tables, speaker notes and five colour themes; templates (`.potx`) are
+    reused with their layouts; slides can be added, duplicated, moved,
+    deleted and filled shape by shape.
+  - Excel moves to excelize: formulas, number formats, colour roles, frozen
+    headers, tables, conditional formats, validation, comments, charts and a
+    `recalc` that lists every formula error.
+  - Templates: `.dotx`, `.potx` and `.xltx` (and corporate `.docx`/`.pptx`)
+    keep their styles, headers, footers and colours.
+  - New `office_render` tool: renders documents to images with LibreOffice
+    (or Word/PowerPoint on Windows) plus automatic QA (overflow, overlaps,
+    off-slide shapes, leftover sample text, formula errors). The agent renders
+    and fixes before delivering; the web API gains `/api/office/render`.
+  - Built-in skills `office-docx`, `office-pptx` and `office-xlsx` with the
+    formatting and design rules.
 - Running out of steps no longer throws the work away, on any surface (TUI,
   web/desktop, `-p`, Telegram) or mode (Plan, Ask/Act, Goal, Autonomous,
   Debug, subagents, #retro reviewers). A Plan request like "do a deep review
@@ -23,6 +100,62 @@
 - Plan explorations get at least 25 steps (review requests read many
   files). The config template now sets `agent.max_steps: 40`, matching the
   built-in default, instead of 10.
+- `edit` and `patch` tolerate the ways models usually miscopy a block.
+  When the block is not in the file exactly, they try, in order: ignoring
+  trailing spaces, relative indentation (spaces where the file has tabs, or
+  the block copied one level up or down; the new text gets the file's
+  indentation), trimmed lines, Unicode quotes, dashes and odd spaces, and
+  finally the first and last lines with a similar middle. They also accept
+  a block copied from `read` with its `12|` line numbers. The match must be
+  unique and not much larger than the block. A non-exact match says which
+  level it used. When nothing matches, the error shows the most similar
+  fragment with line numbers and a similarity percentage.
+- A non-exact edit is only applied to a file the agent has up to date: read,
+  written or edited by it in this conversation, and unchanged since. If the
+  user or another agent changed the file, the agent is asked to read it
+  again. A block that is in the file exactly and only once is always
+  applied.
+- `edit` and `patch` return the diff of the change with numbered context, so
+  the agent does not have to read the file again. Reading a range that was
+  read a few tool calls ago and has not changed returns "sense canvis"
+  instead of the whole text; asking again returns it in full.
+- Long command output keeps the start and the end (60/40) instead of only
+  the start, so compiler and test errors at the end are no longer lost. The
+  full output is saved to `.gregal/out/` (git-ignored, cleaned after a day)
+  and the agent is told where to read it. `read` of a large file now stops
+  at a whole line and says which `offset` to continue from.
+- Local models answer the next message much sooner. Earlier turns are no
+  longer rewritten, so llama.cpp, Ollama and LM Studio can reuse their KV
+  cache instead of processing the whole conversation again on every
+  message (on a laptop that was tens of seconds before the first token).
+  - The project map on a new turn only lists what changed since the
+    previous one (files added or removed, and the new git status). Old
+    maps are removed all at once, only when the conversation is compacted.
+  - The compaction summary now goes in a marked `<compacted-summary>`
+    message at the start of the conversation, not in the system prompt.
+    Saved sessions are converted when they are opened.
+  - The system prompt stays the same for the whole session (TUI, web and
+    Telegram). If `AGENTS.md`, the project notes or the skills change in
+    the middle of a session, the change is added to the next message.
+- Making room in the context is cheaper and does not break the cache at
+  every step. Old tool outputs are replaced in one block (all but the last
+  10) with a note such as "output of `read foo.go` cleared; call the tool
+  again if you need it", and enough are cleared that the next steps do not
+  hit the limit again straight away. The model summary is only used when
+  that is not enough, and it is now a handoff note: goal, done, pending,
+  decisions, files and open errors. A tool call and its result are never
+  separated.
+- Context use is measured more accurately. Gregal compares its estimate
+  with the prompt tokens the provider reports and learns the ratio for each
+  model, including the size of the tool definitions. Compaction uses that
+  estimate, so small local windows are neither overrun nor compacted too
+  early.
+- In long tasks the agent sees the current checklist again every 6 steps
+  and after each compaction, at the end of the context.
+- New optional `small` (or `fast`) role for side tasks. When it is
+  configured, it writes the compaction summaries and the project-note
+  suggestions and runs the pre-turn scout. If it fails, the main model does
+  the work as before.
 
 ## v1.9.4 - 2026-10-16 - Team review, no lost replies and a faster terminal
 

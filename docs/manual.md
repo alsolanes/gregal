@@ -213,6 +213,11 @@ normal tool permissions (`permissions.tools.delegate: deny` disables it).
 The model decides when delegation is worthwhile; parallel work can add model
 usage and is most useful for genuinely independent investigations.
 
+An optional `roles.small` (or `roles.fast`) entry, with the same fields,
+moves the side tasks to a smaller model: compaction summaries, project-note
+suggestions and the pre-turn scout. If the small model fails, the main model
+does the work. Without it, nothing changes.
+
 ## Extras: Room Replay, Wrapped, #retro Tone, Weathervane, Voice and Images
 
 All extras can be switched off in **Preferences → Extras**, and every
@@ -522,7 +527,13 @@ the main working tree as a patch (no commit) and removes the other worktrees;
 **Discard all** removes every attempt. Attempts run non-interactively: actions
 that need approval are allowed only while the session is permissive. Headless:
 `gregal -p "task" --best-of 3 [--best-of-models code,openai/gpt-x] [--verify "go test ./..."]`
-prints the comparison and leaves the worktrees for you to apply or remove.
+prints the comparison and leaves the worktrees for you to apply or remove;
+add `--best-of-apply` to apply the recommended attempt directly. The
+recommendation first prefers passing checks, then **cross-tests** (the tests
+each attempt wrote are run against the other attempts' code, so a fix that
+also passes its rivals' tests wins), then **votes** (attempts that reach the
+same patch reinforce each other), then the score, the smaller diff and the
+lower cost.
 
 **Plan critic.** After **Plan** proposes a plan, the reviewer role checks it
 against the task and the project map and lists missing steps, risky steps and
@@ -808,6 +819,41 @@ Preferences > Project memory lists the notes and "Tidy notes" proposes a
 consolidated list (merged duplicates, stale notes dropped) and shows the diff
 before writing. From the command line: `gregal memory tidy [--dry-run]
 [--yes] [--dir path]` shows the diff and asks before writing.
+
+## Office Documents
+
+Gregal creates, edits and reviews Word, PowerPoint and Excel files
+(`.docx`, `.pptx`, `.xlsx` and the templates `.dotx`, `.potx`, `.xltx`)
+without Python or Office installed:
+
+- **Word**: markdown becomes real Word structure (Heading styles, numbered
+  and bullet lists, tables with header rows, quotes, code, links, images,
+  table of contents, page breaks), with a cover, header and page numbers.
+  Editing keeps the formatting of every fragment, also in headers, footers,
+  footnotes and comments. Changes can be **tracked** (`track: true`; only
+  the words that change are marked) and annotated with **comments**.
+- **PowerPoint**: a built-in 16:9 theme with nine layouts (title, section,
+  content, two columns, comparison, big number, picture, title only, blank),
+  native editable charts, styled tables and speaker notes. Five themes
+  (`default`, `modern`, `nature`, `elegant`, `mono`) with colour overrides.
+- **Excel** (through excelize): formulas rather than values, number formats,
+  colour roles (input, formula, link, key assumption, total), frozen headers,
+  tables, conditional formats, drop-down validation, comments and native
+  charts. `recalc` lists every formula error.
+- **Templates**: a corporate `.dotx`/`.docx` keeps its styles, header, footer
+  and margins, and `{{markers}}` are filled from `vars`; a `.potx`/`.pptx`
+  lends its layouts and colours (`office_read detail=layout` lists them).
+- **Visual review**: `office_render` turns the document into images
+  (LibreOffice, or Word/PowerPoint on Windows) and runs automatic checks for
+  overflowing text, overlaps, shapes off the slide, leftover sample text and
+  formula errors. The agent is told to render and fix before delivering.
+  Without LibreOffice or Microsoft Office only the structural checks run;
+  install [LibreOffice](https://www.libreoffice.org) for the visual review.
+- **Safety**: every write goes to the journal (`/rewind` undoes it) and an
+  edit that would leave a package structurally broken is refused.
+
+Built-in skills `office-docx`, `office-pptx` and `office-xlsx` carry the
+formatting and design rules the agent follows.
 
 ## Knowledge Collections
 

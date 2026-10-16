@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -57,6 +58,21 @@ type RunResult struct {
 	CachedTokens int      `json:"cached_tokens,omitempty"`
 	LLMCalls     int      `json:"llm_calls,omitempty"`
 	CostUSD      *float64 `json:"cost_usd,omitempty"`
+	// Mètriques del banc (P1 de docs/research/harness-techniques.md):
+	// sense elles cap canvi al prompt, a l'edició o a la compactació es
+	// pot validar. EditCalls/EditFailed: edit i patch executats i quants
+	// han tornat error. ToolCallInvalid: crides que el model ha fet
+	// malament (eina inexistent, arguments que no són JSON, crida escrita
+	// al text). DoomHits: cops que ha saltat el detector de repeticions.
+	// Compactions: cops que MakeRoom ha tocat l'historial.
+	EditCalls       int `json:"edit_calls,omitempty"`
+	EditFailed      int `json:"edit_failed,omitempty"`
+	ToolCallInvalid int `json:"tool_call_invalid,omitempty"`
+	// ToolCallRecovered: crides que el model ha escrit al text (o en DSML)
+	// i que llm.RecoverCalls ha convertit en crides de debò.
+	ToolCallRecovered int `json:"tool_call_recovered,omitempty"`
+	DoomHits          int `json:"doom_hits,omitempty"`
+	Compactions       int `json:"compactions,omitempty"`
 	// FallbackModel diu quin model ha respost si el primari ha caigut
 	// (buit = primari). Transparència: la resposta no és del model triat.
 	FallbackModel string `json:"fallback_model,omitempty"`
@@ -290,7 +306,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	if o.Approve != nil {
 		note = approvalNote
 	}
-	sys = AmbContext(PromptFor(sys+note, mode), o.System)
+	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
 	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
 	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
@@ -331,7 +347,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		CriticaPla:       CriticaPlaHook(client, cfg, dir),
 	})
 
-	specs := SpecsNoInteractiu()
+	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode(), OfficeAlHist([]llm.Message{{Role: "user", Content: task}}))
 	if len(o.Tools) > 0 {
 		keep := map[string]bool{}
 		for _, t := range o.Tools {
@@ -363,7 +379,17 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			case EvResultat:
 				// La guia del DoomTracker no és un resultat.
 				if e.ID == "" && e.Text == DoomGuide {
+					res.DoomHits++
 					continue
+				}
+				if e.Clau == "app.repetida" {
+					res.DoomHits++
+				}
+				if e.Executada && (e.Eina == "edit" || e.Eina == "patch") {
+					res.EditCalls++
+					if e.Fallada || strings.HasPrefix(e.Text, "ERROR:") {
+						res.EditFailed++
+					}
 				}
 				// El resultat va a la crida amb el mateix id; sense id (motors
 				// antics), a la primera de la mateixa eina que encara no en té.
@@ -421,6 +447,10 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			})
 			err = ModelError(stepCtx, err)
 			cancel()
+			if err == nil {
+				res.ToolCallInvalid += CridesInvalides(content, calls, specs)
+				res.ToolCallRecovered += CridesRecuperades(calls)
+			}
 			if onStep != nil {
 				noms := make([]string, 0, len(calls))
 				for _, c := range calls {
@@ -433,6 +463,9 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		case OrdreCompacta:
 			room := MakeRoom(ctx, client, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), sys, torn.Hist, p.Budget)
 			torn.RepCompactacio(room)
+			if room.Changed() {
+				res.Compactions++
+			}
 			if onStep != nil && room.Changed() {
 				onStep(p.Passos, []string{"compactacio: " + room.Note()})
 			}
@@ -541,6 +574,43 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			return res, nil
 		}
 	}
+}
+
+// CridesInvalides compta les crides d'un pas que el model ha fet malament:
+// eines que no són a les specs enviades, arguments que no són JSON, i
+// (sense cap crida estructurada) crides escrites al text. És el
+// well-formed rate d'Aider, en negatiu.
+func CridesInvalides(content string, calls []llm.ToolCall, specs []llm.ToolSpec) int {
+	if len(calls) == 0 {
+		if _, hiEra := SenseEinaText(content); hiEra {
+			return 1
+		}
+		return 0
+	}
+	conegudes := make(map[string]bool, len(specs))
+	for _, s := range specs {
+		conegudes[s.Name] = true
+	}
+	n := 0
+	for _, c := range calls {
+		args := strings.TrimSpace(c.Function.Arguments)
+		if !conegudes[c.Function.Name] || (args != "" && !json.Valid([]byte(args))) {
+			n++
+		}
+	}
+	return n
+}
+
+// CridesRecuperades compta les crides que venien escrites al text (ids
+// «txt-N» o «dsml-N» de llm.RecoverCalls).
+func CridesRecuperades(calls []llm.ToolCall) int {
+	n := 0
+	for _, c := range calls {
+		if strings.HasPrefix(c.ID, "txt-") || strings.HasPrefix(c.ID, "dsml-") {
+			n++
+		}
+	}
+	return n
 }
 
 // perfilCrida embolcalla una crida LLM del loop: amb GREGAL_PERFIL=1 pinta a
