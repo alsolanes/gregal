@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.10.0 - 2026-10-16 - Brandings, parallel subagents, faster turns and first-class local models
+
 - Subagents work in parallel, and the Agents view shows it. A task that
   names several independent areas (a "(1) … (2) …" list, numbered or
   bulleted lines, paths in different folders, or "the TUI, the web server
