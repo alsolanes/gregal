@@ -66,7 +66,8 @@ if (cmd === 'check') {
   if (!lib.SEMVER.test(value || '')) fail('usage: release.cjs apk X.Y.Z');
   const a = lib.androidVersion(read(lib.FILES.android));
   const android = path.join(root, 'android');
-  const gradle = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
+  // Ruta absoluta: cmd no sempre busca a la carpeta actual.
+  const gradle = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
   console.log(`building Android ${a.name} (${a.code})…`);
   execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q'], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
   const dir = path.join(root, 'output', 'release-' + value);
