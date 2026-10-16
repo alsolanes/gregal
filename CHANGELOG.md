@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Smarter project map, best-of and Python checks.**
+  - The project map now follows references: files that define what the
+    relevant files use (a type, a function they call) are ranked up with a
+    personalised PageRank over a reference graph, as in Aider's repo map,
+    even when they share no words with the task.
+  - Best-of-N picks its winner the way Agentless and CodeMonkeys do: the tests
+    each attempt wrote are run against the other attempts (cross-tests) and
+    attempts that converge on the same patch get votes. `--best-of-apply`
+    applies the recommended attempt without asking.
+  - After editing Python, type errors from pyright (or mypy) are reported in
+    the same step when either is installed, like an editor's language server.
 - **Better results with local and small models.**
   - Tool calls that a model writes as text (Hermes/Qwen2.5 `<tool_call>{…}`,
     Qwen3-Coder `<function=…><parameter=…>`, or a bare JSON call) are now

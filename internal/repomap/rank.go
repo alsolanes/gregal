@@ -221,6 +221,41 @@ func Rank(snap *Snapshot, tasca string, opt RankOptions) Ranked {
 		}
 		cands = append(cands, c)
 	}
+	// Dependències: PageRank des dels fitxers rellevants (graph.go). Només
+	// suma quan hi ha alguna llavor; sense, l'ordre lèxic ja és el que hi ha.
+	pers := make([]float64, len(cands))
+	llavor := false
+	for i, c := range cands {
+		if c.score > 1.5 { // més que només la recència
+			pers[i] = c.score
+			llavor = true
+		}
+	}
+	if llavor {
+		mencionats := map[string]bool{}
+		for w := range exactes {
+			mencionats[w] = true
+		}
+		for w := range fitxes {
+			mencionats[w] = true
+		}
+		pr := pageRank(snap.Files, pers, mencionats)
+		maxPr := 0.0
+		for i, v := range pr {
+			if pers[i] == 0 && v > maxPr {
+				maxPr = v
+			}
+		}
+		if maxPr > 0 {
+			for i, c := range cands {
+				if pers[i] == 0 && !esTest(c.f.Path) {
+					// Una dependència forta arriba a un rànquing mitjà
+					// (≈ una coincidència de nom), no supera les directes.
+					c.score += 5 * pr[i] / maxPr
+				}
+			}
+		}
+	}
 	sort.SliceStable(cands, func(i, j int) bool {
 		if cands[i].score != cands[j].score {
 			return cands[i].score > cands[j].score

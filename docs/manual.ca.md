@@ -539,7 +539,13 @@ commit) i treu els altres worktrees; **Descarta-ho tot** els treu tots. Els
 intents corren sense interacció: les accions que demanen permís només passen
 si la sessió és permissiva. Headless:
 `gregal -p "tasca" --best-of 3 [--best-of-models code,openai/gpt-x] [--verify "go test ./..."]`
-imprimeix la comparació i deixa els worktrees perquè els apliquis o els treguis.
+imprimeix la comparació i deixa els worktrees perquè els apliquis o els
+treguis; amb `--best-of-apply` aplica directament el recomanat. La
+recomanació prefereix primer les comprovacions en verd, després les **proves
+creuades** (els tests que ha escrit cada intent es passen contra el codi dels
+altres: guanya l'arranjament que també passa els tests dels rivals), després
+els **vots** (intents que arriben al mateix pegat es reforcen), i després la
+nota, el diff més petit i el cost més baix.
 
 **Crític del pla.** Quan **Pla** proposa un pla, el rol reviewer el revisa
 contra la tasca i el mapa del projecte i en llista els passos que falten, els

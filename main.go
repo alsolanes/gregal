@@ -100,6 +100,7 @@ func main() {
 	evalTasks := flag.String("tasks", "", "with --eval: comma-separated task names (default all)")
 	evalBaseline := flag.Bool("eval-baseline", false, "with --eval: save verdicts as baseline.json")
 	bestOfFlag := flag.Int("best-of", 0, "with -p: try the task N ways (2-4) in separate git worktrees, verify and score each, and print a comparison; apply one with gregal worktree apply")
+	bestOfApply := flag.Bool("best-of-apply", false, "with --best-of: apply the recommended attempt to the working tree (no commit) and discard the other worktrees")
 	bestOfModels := flag.String("best-of-models", "", "with --best-of: comma-separated role names or provider/model per attempt (default: the code role)")
 	worktreeFlag := flag.String("worktree", "", "with -p or the TUI: work in an isolated git worktree .gregal/worktrees/<name> on branch gregal/<name> (created from HEAD if needed)")
 	flag.Parse()
@@ -167,7 +168,7 @@ func main() {
 			os.Exit(2)
 		}
 		if *bestOfFlag != 0 {
-			os.Exit(runBestOfHeadless(cfg, *promptFlag, *outputFlag, *bestOfFlag, *bestOfModels, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag))
+			os.Exit(runBestOfHeadless(cfg, *promptFlag, *outputFlag, *bestOfFlag, *bestOfModels, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *bestOfApply))
 		}
 		os.Exit(runHeadless(cfg, *promptFlag, *outputFlag, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *verifyRoundsFlag))
 	}

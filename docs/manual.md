@@ -522,7 +522,13 @@ the main working tree as a patch (no commit) and removes the other worktrees;
 **Discard all** removes every attempt. Attempts run non-interactively: actions
 that need approval are allowed only while the session is permissive. Headless:
 `gregal -p "task" --best-of 3 [--best-of-models code,openai/gpt-x] [--verify "go test ./..."]`
-prints the comparison and leaves the worktrees for you to apply or remove.
+prints the comparison and leaves the worktrees for you to apply or remove;
+add `--best-of-apply` to apply the recommended attempt directly. The
+recommendation first prefers passing checks, then **cross-tests** (the tests
+each attempt wrote are run against the other attempts' code, so a fix that
+also passes its rivals' tests wins), then **votes** (attempts that reach the
+same patch reinforce each other), then the score, the smaller diff and the
+lower cost.
 
 **Plan critic.** After **Plan** proposes a plan, the reviewer role checks it
 against the task and the project map and lists missing steps, risky steps and

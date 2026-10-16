@@ -45,7 +45,10 @@ func diagExterna(path string) string {
 	}
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".py":
-		return diagPythonLint(path)
+		if l := diagPythonLint(path); l != "" {
+			return l
+		}
+		return diagPythonTypes(path)
 	case ".ts", ".tsx", ".mts", ".cts":
 		return diagTypeScript(path)
 	}
