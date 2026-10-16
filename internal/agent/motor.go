@@ -242,7 +242,17 @@ type Torn struct {
 	verifRetries     int
 	compactatAlPas   int
 	execsSenseTodo   int
-	ultSortida       string
+	// Calibratge de tokens (P14): estimació del prompt del pas en curs i
+	// el comptador real abans de demanar-lo.
+	estPas      int
+	usPas       llm.Usage
+	usAmbPas    int
+	calibratPas bool
+	// Recitació del checklist (P18): pas de l'última, i si cal després
+	// d'una compactació.
+	recitatAlPas  int
+	recitaPendent bool
+	ultSortida    string
 	// lecturesSoles: passos seguits amb una sola lectura (recordatori de
 	// demanar-les juntes); avisosLectures: quants cops s'ha recordat.
 	lecturesSoles  int
@@ -428,7 +438,7 @@ func (t *Torn) Seguent() Pas {
 	// haver cabut a cada pas i, tot i així, desbordar el context al resum.
 	if t.o.Finestra != nil && len(t.Hist) > KeepRecentOnCompact+1 && t.compactatAlPas != t.passos+1 {
 		_, budget := t.o.Finestra()
-		if budget > 0 && NeedsCompact(llm.EstimateTokens(t.histAmbSys()), budget) {
+		if budget > 0 && NeedsCompact(t.estima(t.histAmbSys()), budget) {
 			t.compactatAlPas = t.passos + 1
 			return t.pas(Pas{Ordre: OrdreCompacta, Budget: budget, Hist: t.histAmbSys()})
 		}
@@ -459,7 +469,57 @@ func (t *Torn) Seguent() Pas {
 		t.Hist = AfegeixUsuari(t.Hist, AvisPassosRestants(PassosAvis))
 	}
 	t.passos++
-	return t.pas(Pas{Ordre: OrdrePasModel, Hist: t.histAmbSys(), Mecanic: t.mecanic})
+	hist := t.histAmbSys()
+	t.preparaCalibratge(hist)
+	return t.pas(Pas{Ordre: OrdrePasModel, Hist: hist, Mecanic: t.mecanic})
+}
+
+// model és el model del rol de l'agent ("" si el client no ho diu).
+func (t *Torn) model() string {
+	if t.o.Rol == nil {
+		return ""
+	}
+	_, m := t.o.Rol()
+	return m
+}
+
+// estima és la mida d'un historial amb el calibratge del model (P14).
+func (t *Torn) estima(h []llm.Message) int { return EstimaCalibrat(t.model(), h) }
+
+// preparaCalibratge apunta l'estimació del prompt que surt ara i com
+// estava el comptador real, per comparar-los quan torni la resposta.
+func (t *Torn) preparaCalibratge(hist []llm.Message) {
+	t.estPas = llm.EstimateTokens(hist)
+	t.calibratPas = false
+	t.usPas, t.usAmbPas = llm.Usage{}, 0
+	if t.o.Usage != nil {
+		t.usPas, _, t.usAmbPas = t.o.Usage.Total()
+	}
+}
+
+// CalibraPrompt dona al motor els prompt_tokens reals del pas que acaba
+// de tornar, per als clients que no li passen el comptador (TUI). Un pas
+// només calibra una vegada.
+func (t *Torn) CalibraPrompt(promptTokens int) {
+	if t.calibratPas || t.estPas <= 0 || promptTokens <= 0 {
+		return
+	}
+	t.calibratPas = true
+	CalibraTokens(t.model(), t.estPas, promptTokens)
+}
+
+// calibraDelComptador fa el mateix a partir del comptador del torn: si
+// des de preparaCalibratge hi ha exactament una crida amb usage, els
+// tokens de prompt que ha sumat són els d'aquest pas.
+func (t *Torn) calibraDelComptador() {
+	if t.o.Usage == nil || t.calibratPas {
+		return
+	}
+	u, _, amb := t.o.Usage.Total()
+	if amb != t.usAmbPas+1 {
+		return
+	}
+	t.CalibraPrompt(u.PromptTokens - t.usPas.PromptTokens)
 }
 
 // revisa passa la crida en curs pel revisor automàtic (mode auto-review).
@@ -648,6 +708,7 @@ func (t *Torn) RepPasRaonat(content, reasoning string, calls []llm.ToolCall, err
 	if err != nil {
 		return t.repError(err)
 	}
+	t.calibraDelComptador()
 	t.serverRetries = 0
 	t.reasoningRetries = 0
 	t.recuperacions = 0
@@ -770,7 +831,7 @@ func (t *Torn) retallaPerContext(actual int) ([]Event, bool) {
 		if sys != "" {
 			hist = append([]llm.Message{{Role: "system", Content: sys}}, hist...)
 		}
-		return !NeedsCompact(llm.EstimateTokens(hist), finestra)
+		return !NeedsCompact(t.estima(hist), finestra)
 	}
 	podat, retallades := PruneToolOutputsUntil(t.Hist, fits)
 	// La resposta exacta del proveïdor és autoritària: si retallar les
@@ -1002,6 +1063,15 @@ func (t *Torn) RepExecucions(res []Execucio) []Event {
 				t.execsSenseTodo = 0
 			}
 		}
+		// Recitació (P18): el checklist sencer al final del context cada
+		// TodoReciteEvery passos i després de compactar, on el model atén
+		// més (lost-in-the-middle). Va al resultat, mai com a usuari.
+		if i == len(res)-1 && !hiHaTodo && (t.recitaPendent || t.passos-t.recitatAlPas >= TodoReciteEvery) {
+			if n := RecitaTodos(t.todoLlista()); n != "" {
+				sortida += n
+				t.recitatAlPas, t.recitaPendent = t.passos, false
+			}
+		}
 		if i == len(res)-1 {
 			sortida += t.recordatoriLectures(res)
 		}
@@ -1174,6 +1244,9 @@ func (t *Torn) RepCompactacio(room RoomResult) []Event {
 	var evs []Event
 	if room.Hist != nil {
 		t.Hist = room.Hist
+	}
+	if room.Changed() {
+		t.recitaPendent = true
 	}
 	if n := room.Note(); n != "" {
 		evs = append(evs, nota(n))

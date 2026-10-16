@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gregal/internal/config"
@@ -32,6 +33,57 @@ func SideRole(cfg *config.Config) (string, config.Role, bool) {
 		return name, r, true
 	}
 	return "", config.Role{}, false
+}
+
+// SmallRoleNames són els rols, per ordre, que poden fer les tasques
+// laterals (P12): compactar, notes de memòria, l'investigador previ. El
+// model principal pot ser el més lent (un 30B local); un de petit fa el
+// resum en segons i, en local, sense treure el slot de la sessió. Si no
+// n'hi ha cap de configurat, tot continua anant al model de sempre.
+var SmallRoleNames = []string{"small", "fast"}
+
+// SmallRole torna el rol petit configurat (amb el seu provider i model),
+// o ok=false.
+func SmallRole(cfg *config.Config) (string, config.Role, config.Provider, bool) {
+	if cfg == nil {
+		return "", config.Role{}, config.Provider{}, false
+	}
+	for _, name := range SmallRoleNames {
+		r, ok := cfg.Roles[name]
+		if !ok || strings.TrimSpace(r.Model) == "" {
+			continue
+		}
+		if p, ok := cfg.Providers[r.Provider]; ok {
+			return name, r, p, true
+		}
+	}
+	return "", config.Role{}, config.Provider{}, false
+}
+
+// resumidor és el target del rol petit per als resums de compactació
+// (Summarize), registrat per SetupDelegate; nil = el model de qui crida.
+var resumidor atomic.Pointer[llm.Target]
+
+// SetupSmallRole registra el rol petit per a la compactació. Es crida des
+// de SetupDelegate, que totes les superfícies criden en arrencar.
+func SetupSmallRole(cfg *config.Config) {
+	if _, r, p, ok := SmallRole(cfg); ok {
+		t := cfg.PrimTarget(p, r)
+		resumidor.Store(&t)
+		return
+	}
+	resumidor.Store(nil)
+}
+
+// targetsResum tria els targets d'una crida de resum: el rol petit amb el
+// principal de reserva (si el petit falla, el comportament d'abans), o els
+// mateixos que han arribat.
+func targetsResum(prim llm.Target, fb *llm.Target) (llm.Target, *llm.Target) {
+	if t := resumidor.Load(); t != nil && *t != prim {
+		orig := prim
+		return *t, &orig
+	}
+	return prim, fb
 }
 
 // TranscriptDigest posa una conversa (amb crides i resultats d'eines) en
@@ -110,13 +162,33 @@ func sideCall(ctx context.Context, client *llm.Client, cfg *config.Config, p con
 	if client == nil || cfg == nil {
 		return "", errors.New("no model configured")
 	}
+	return sideCallTargets(ctx, client, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), r, msgs)
+}
+
+// sideCallLateral és sideCall per a les tasques laterals que no llegeix
+// ningú en directe (notes de memòria): van al rol petit si n'hi ha, amb
+// el rol rebut com a reserva si el petit falla.
+func sideCallLateral(ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, r config.Role, msgs []llm.Message) (string, error) {
+	if client == nil || cfg == nil {
+		return "", errors.New("no model configured")
+	}
+	if _, sr, sp, ok := SmallRole(cfg); ok {
+		prim := cfg.PrimTarget(sp, sr)
+		if orig := cfg.PrimTarget(p, r); prim != orig {
+			return sideCallTargets(ctx, client, prim, &orig, sr, msgs)
+		}
+	}
+	return sideCall(ctx, client, cfg, p, r, msgs)
+}
+
+func sideCallTargets(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, r config.Role, msgs []llm.Message) (string, error) {
 	ctx, cancel := context.WithTimeout(llm.WithThink(ctx, "no"), 90*time.Second)
 	defer cancel()
 	maxTokens := r.MaxTokens
 	if maxTokens <= 0 || maxTokens > 2048 {
 		maxTokens = 2048
 	}
-	out, _, err := client.ChatFO(ctx, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), msgs, r.Temperature, maxTokens, nil)
+	out, _, err := client.ChatFO(ctx, prim, fb, msgs, r.Temperature, maxTokens, nil)
 	if err != nil {
 		return "", err
 	}

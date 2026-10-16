@@ -141,6 +141,7 @@ var delegateGlobalLive = make(chan struct{}, MaxDelegateLiveTotal)
 // (12 passos, eines natives sense delegate ni MCP, ask→deny): no escriuen,
 // no demanen res, només tornen text.
 func SetupDelegate(cfg *config.Config, client *llm.Client) {
+	SetupSmallRole(cfg)
 	SetDelegateRunner(buildDelegateRunner(cfg, client))
 }
 

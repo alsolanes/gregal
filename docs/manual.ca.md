@@ -222,6 +222,11 @@ respecten els permisos habituals (`permissions.tools.delegate: deny` ho
 desactiva). El model decideix quan delegar: pot afegir consum i és útil sobretot
 quan les investigacions són independents.
 
+Un rol opcional `small` (o `fast`), amb els mateixos camps, passa les tasques
+laterals a un model més petit: els resums de compactació, les propostes de
+notes del projecte i l'investigador previ al torn. Si el model petit falla,
+ho fa el principal. Sense aquest rol, no canvia res.
+
 ## Extres: repetició a la sala, Wrapped, to de #retro, penell, veu i imatges
 
 Tots els extres es poden apagar a **Preferències → Extres**, i tota animació

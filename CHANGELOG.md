@@ -23,6 +23,38 @@
 - Plan explorations get at least 25 steps (review requests read many
   files). The config template now sets `agent.max_steps: 40`, matching the
   built-in default, instead of 10.
+- Local models answer the next message much sooner. Earlier turns are no
+  longer rewritten, so llama.cpp, Ollama and LM Studio can reuse their KV
+  cache instead of processing the whole conversation again on every
+  message (on a laptop that was tens of seconds before the first token).
+  - The project map on a new turn only lists what changed since the
+    previous one (files added or removed, and the new git status). Old
+    maps are removed all at once, only when the conversation is compacted.
+  - The compaction summary now goes in a marked `<compacted-summary>`
+    message at the start of the conversation, not in the system prompt.
+    Saved sessions are converted when they are opened.
+  - The system prompt stays the same for the whole session (TUI, web and
+    Telegram). If `AGENTS.md`, the project notes or the skills change in
+    the middle of a session, the change is added to the next message.
+- Making room in the context is cheaper and does not break the cache at
+  every step. Old tool outputs are replaced in one block (all but the last
+  10) with a note such as "output of `read foo.go` cleared; call the tool
+  again if you need it", and enough are cleared that the next steps do not
+  hit the limit again straight away. The model summary is only used when
+  that is not enough, and it is now a handoff note: goal, done, pending,
+  decisions, files and open errors. A tool call and its result are never
+  separated.
+- Context use is measured more accurately. Gregal compares its estimate
+  with the prompt tokens the provider reports and learns the ratio for each
+  model, including the size of the tool definitions. Compaction uses that
+  estimate, so small local windows are neither overrun nor compacted too
+  early.
+- In long tasks the agent sees the current checklist again every 6 steps
+  and after each compaction, at the end of the context.
+- New optional `small` (or `fast`) role for side tasks. When it is
+  configured, it writes the compaction summaries and the project-note
+  suggestions and runs the pre-turn scout. If it fails, the main model does
+  the work as before.
 
 ## v1.9.4 - 2026-10-16 - Team review, no lost replies and a faster terminal
 

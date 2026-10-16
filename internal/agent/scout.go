@@ -141,6 +141,10 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 		return ScoutResult{Err: errors.New("subagents not available")}
 	}
 	def := scoutDef(o.Workspace)
+	// P12: l'investigador només llegeix i resumeix; si hi ha rol petit, és seu.
+	if name, _, _, ok := SmallRole(o.Cfg); ok {
+		def.Role = name
+	}
 	prompt := ScoutPrompt(o.Task)
 	id := o.ID
 	if id == "" {

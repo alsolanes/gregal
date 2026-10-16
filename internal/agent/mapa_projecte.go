@@ -8,9 +8,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/llm"
@@ -76,19 +78,41 @@ func MapaProjecte(dir, tasca string, hist []llm.Message) string {
 	empremta := empremtaDe(cos.String())
 	adjunts := adjuntsAnomenats(dir, tasca, fitxers)
 	simbols := seccioSimbols(dir, tasca, fitxers, estat)
-	// Si l'historial ja porta aquest mateix llistat i la tasca no anomena
-	// cap fitxer nou, no cal repetir-lo: en una sessió de vint torns serien
-	// milers de tokens iguals.
-	if adjunts == "" && jaHiEs(hist, empremta) {
-		// Si la tasca anomena literalment un símbol («arregla MapaProjecte»),
-		// els símbols rellevants sí que hi van, sense tornar a posar la
-		// llista. La marca porta « symbols» perquè jaHiEs no el prengui pel
-		// llistat sencer (si una compactació se l'endu, ha de tornar).
+	recordaMapa(empremta, cos.String())
+	// Si l'historial ja porta aquest mateix llistat, no cal repetir-lo: en
+	// una sessió de vint torns serien milers de tokens iguals. Si la tasca
+	// anomena literalment un símbol («arregla MapaProjecte») o un fitxer
+	// petit, hi van sense tornar a posar la llista. La marca porta
+	// « symbols» perquè jaHiEs no el prengui pel llistat sencer (si una
+	// compactació se l'endu, ha de tornar).
+	if jaHiEs(hist, empremta) {
+		extra := adjunts
 		if simbols.Strong {
-			return fmt.Sprintf("%s %s symbols] Working directory: %s. The file list given earlier is unchanged.\n%s",
-				MarcaContext, empremta, filepath.ToSlash(dir), simbols.Text)
+			extra = simbols.Text + extra
 		}
-		return ""
+		if extra == "" {
+			return ""
+		}
+		return fmt.Sprintf("%s %s symbols] Working directory: %s. The file list given earlier is unchanged.\n%s",
+			MarcaContext, empremta, filepath.ToSlash(dir), extra)
+	}
+	// Historial on només s'afegeix (historial.go): el mapa vell no es
+	// reescriu, i el nou només diu què ha canviat des d'aquell. Si no tenim
+	// el vell (sessió represa) o el delta no estalvia res, mapa sencer.
+	if prev := ultimaEmpremta(hist); prev != "" {
+		if vell, ok := mapaRecordat(prev); ok {
+			if d := deltaMapa(vell, cos.String()); d != "" && len(d) < cos.Len() {
+				var b strings.Builder
+				fmt.Fprintf(&b, "%s %s delta] Working directory: %s. Changes since the previous project map (the rest of that list still holds):\n",
+					MarcaContext, empremta, filepath.ToSlash(dir))
+				b.WriteString(d)
+				if simbols.Strong {
+					b.WriteString("\n" + simbols.Text)
+				}
+				b.WriteString(adjunts)
+				return b.String()
+			}
+		}
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "%s %s] Working directory: %s. File list taken at the start of the turn: use it instead of ls/find/pwd, and look at the disk again if you changed it.\n",
@@ -143,12 +167,17 @@ func TascaAmbMapa(mode, dir, tasca string, hist []llm.Message) string {
 	return tasca
 }
 
-// SenseMapa treu el bloc del mapa d'un missatge, per pintar-lo o titular-lo.
+// SenseMapa treu el bloc del mapa (i la nota de context que el segueix)
+// d'un missatge, per pintar-lo o titular-lo.
 func SenseMapa(s string) string {
-	for _, marca := range []string{MarcaContext, MarcaContextCA} {
-		if i := strings.Index(s, "\n\n"+marca); i >= 0 {
-			return s[:i]
+	tall := -1
+	for _, marca := range []string{MarcaContext, MarcaContextCA, MarcaNovetatsContext} {
+		if i := strings.Index(s, "\n\n"+marca); i >= 0 && (tall < 0 || i < tall) {
+			tall = i
 		}
+	}
+	if tall >= 0 {
+		return s[:tall]
 	}
 	return s
 }
@@ -302,14 +331,120 @@ func empremtaDe(s string) string {
 	return hex.EncodeToString(h[:4])
 }
 
-// jaHiEs diu si l'historial ja porta un context amb aquesta empremta.
+// jaHiEs diu si l'historial ja porta un context amb aquesta empremta
+// (sencer o delta: tots dos deixen el model amb aquest llistat).
 func jaHiEs(hist []llm.Message, empremta string) bool {
-	marca := MarcaContext + " " + empremta + "]"
-	marcaCA := MarcaContextCA + " " + empremta + "]"
+	var marques []string
+	for _, m := range []string{MarcaContext, MarcaContextCA} {
+		marques = append(marques, m+" "+empremta+"]", m+" "+empremta+" delta]")
+	}
 	for i := len(hist) - 1; i >= 0; i-- {
-		if hist[i].Role == "user" && (strings.Contains(hist[i].Content, marca) || strings.Contains(hist[i].Content, marcaCA)) {
-			return true
+		if hist[i].Role != "user" {
+			continue
+		}
+		for _, m := range marques {
+			if strings.Contains(hist[i].Content, m) {
+				return true
+			}
 		}
 	}
 	return false
+}
+
+var reMarcaMapa = regexp.MustCompile(`\[(?:project map|mapa del projecte) ([0-9a-f]{8})(?: delta)?\]`)
+
+// ultimaEmpremta és l'empremta del llistat més nou que el model ha vist
+// (els « symbols]» no compten: no porten llistat).
+func ultimaEmpremta(hist []llm.Message) string {
+	for i := len(hist) - 1; i >= 0; i-- {
+		if hist[i].Role != "user" {
+			continue
+		}
+		if ms := reMarcaMapa.FindAllStringSubmatch(hist[i].Content, -1); len(ms) > 0 {
+			return ms[len(ms)-1][1]
+		}
+	}
+	return ""
+}
+
+// mapesRecordats guarda el cos de cada mapa enviat (per empremta) per
+// poder calcular el delta del torn següent. Viu en memòria: en reprendre
+// una sessió no hi és, i aleshores va el mapa sencer.
+var mapesRecordats = struct {
+	sync.Mutex
+	m map[string]string
+}{m: map[string]string{}}
+
+const maxMapesRecordats = 64
+
+func recordaMapa(empremta, cos string) {
+	mapesRecordats.Lock()
+	defer mapesRecordats.Unlock()
+	if len(mapesRecordats.m) >= maxMapesRecordats {
+		mapesRecordats.m = map[string]string{}
+	}
+	mapesRecordats.m[empremta] = cos
+}
+
+func mapaRecordat(empremta string) (string, bool) {
+	mapesRecordats.Lock()
+	defer mapesRecordats.Unlock()
+	c, ok := mapesRecordats.m[empremta]
+	return c, ok
+}
+
+const separadorGit = "\nGit status:\n"
+
+// deltaMapa diu què ha canviat entre dos cossos de mapa (resumFitxers +
+// estat de git): fitxers nous i desapareguts, i l'estat de git sencer si
+// ha canviat (és curt i el model el vol tot). "" si no hi ha diferències.
+func deltaMapa(vell, nou string) string {
+	parteix := func(s string) (cap string, linies []string, git string) {
+		if i := strings.Index(s, separadorGit); i >= 0 {
+			s, git = s[:i+1], s[i+len(separadorGit):]
+		}
+		ls := strings.Split(strings.TrimRight(s, "\n"), "\n")
+		if len(ls) > 0 {
+			cap, ls = ls[0], ls[1:]
+		}
+		return cap, ls, git
+	}
+	capV, lsV, gitV := parteix(vell)
+	capN, lsN, gitN := parteix(nou)
+	en := func(ls []string) map[string]bool {
+		m := make(map[string]bool, len(ls))
+		for _, l := range ls {
+			m[l] = true
+		}
+		return m
+	}
+	setV, setN := en(lsV), en(lsN)
+	var nous, fora []string
+	for _, l := range lsN {
+		if !setV[l] {
+			nous = append(nous, l)
+		}
+	}
+	for _, l := range lsV {
+		if !setN[l] {
+			fora = append(fora, l)
+		}
+	}
+	var b strings.Builder
+	if capV != capN {
+		b.WriteString("Now: " + capN + "\n")
+	}
+	if len(nous) > 0 {
+		b.WriteString("Added:\n" + strings.Join(nous, "\n") + "\n")
+	}
+	if len(fora) > 0 {
+		b.WriteString("Removed:\n" + strings.Join(fora, "\n") + "\n")
+	}
+	switch {
+	case gitN != gitV && gitN != "":
+		b.WriteString("Git status now:\n" + gitN)
+	case gitN != gitV:
+		b.WriteString("Git status: no longer available\n")
+	}
+	return b.String()
 }

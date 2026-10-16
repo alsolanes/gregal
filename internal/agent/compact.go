@@ -3,9 +3,11 @@ package agent
 import (
 	"context"
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/config"
@@ -26,6 +28,98 @@ func NeedsCompact(estTokens, window int) bool {
 		window = DefaultWindow
 	}
 	return estTokens > int(float64(window)*CompactThreshold)
+}
+
+// Calibratge del comptatge de tokens (P14). EstimateTokens és
+// caràcters/4, amb un error d'un ±30% segons el tokenitzador i la llengua,
+// i no compta els esquemes de les eines. Amb finestres petites, si
+// s'estima de menys, Ollama trunca el principi en silenci; si s'estima de
+// més, es compacta massa aviat. Cada pas, el proveïdor diu quants tokens
+// tenia el prompt de debò: amb les últimes mostres de cada model s'ajusta
+// real ≈ a·estimat + b (b recull els esquemes de les eines, que no varien
+// dins d'una sessió) i la compactació decideix amb aquest valor.
+
+type mostraTokens struct{ est, real float64 }
+
+var calibratge = struct {
+	sync.Mutex
+	m map[string][]mostraTokens
+}{m: map[string][]mostraTokens{}}
+
+const (
+	maxMostresTokens = 16
+	// Una ràtio fora d'aquest marge no és d'aquest prompt (usage d'una
+	// altra crida, proveïdor que no compta bé): es descarta.
+	minRatioTokens, maxRatioTokens = 0.3, 4.0
+	// Pendent acceptat de l'ajust (tokens reals per token estimat).
+	minPendentTokens, maxPendentTokens = 0.5, 2.5
+)
+
+// CalibraTokens apunta una mostra: l'estimació d'un prompt i els tokens
+// que el proveïdor hi ha comptat (prompt_tokens).
+func CalibraTokens(model string, estimat, real int) {
+	model = strings.TrimSpace(model)
+	if model == "" || estimat < 200 || real <= 0 {
+		return
+	}
+	if r := float64(real) / float64(estimat); r < minRatioTokens || r > maxRatioTokens {
+		return
+	}
+	calibratge.Lock()
+	defer calibratge.Unlock()
+	ms := append(calibratge.m[model], mostraTokens{float64(estimat), float64(real)})
+	if len(ms) > maxMostresTokens {
+		ms = ms[len(ms)-maxMostresTokens:]
+	}
+	calibratge.m[model] = ms
+}
+
+// ajustTokens torna a i b de real ≈ a·est + b per al model (ok=false si
+// encara no hi ha cap mostra).
+func ajustTokens(model string) (a, b float64, ok bool) {
+	calibratge.Lock()
+	ms := append([]mostraTokens(nil), calibratge.m[strings.TrimSpace(model)]...)
+	calibratge.Unlock()
+	if len(ms) == 0 {
+		return 1, 0, false
+	}
+	var sx, sy, sxx, sxy float64
+	for _, m := range ms {
+		sx += m.est
+		sy += m.real
+		sxx += m.est * m.est
+		sxy += m.est * m.real
+	}
+	n := float64(len(ms))
+	ratio := clampF(sy/sx, minPendentTokens, maxPendentTokens)
+	// Amb una sola mostra o prompts gairebé iguals no es pot separar el
+	// pendent de la constant: ràtio simple (inclou els esquemes).
+	den := n*sxx - sx*sx
+	mitjana := sx / n
+	if len(ms) < 2 || den <= 0 || math.Sqrt(den)/n < 0.1*mitjana {
+		return ratio, 0, true
+	}
+	a = (n*sxy - sx*sy) / den
+	b = (sy - a*sx) / n
+	if a < minPendentTokens || a > maxPendentTokens || b < 0 || b > sy/n {
+		return ratio, 0, true
+	}
+	return a, b, true
+}
+
+func clampF(v, lo, hi float64) float64 {
+	return math.Max(lo, math.Min(hi, v))
+}
+
+// EstimaCalibrat és EstimateTokens corregit amb el calibratge del model
+// (igual que EstimateTokens si encara no n'hi ha).
+func EstimaCalibrat(model string, msgs []llm.Message) int {
+	est := llm.EstimateTokens(msgs)
+	a, b, ok := ajustTokens(model)
+	if !ok {
+		return est
+	}
+	return int(a*float64(est) + b)
 }
 
 // WindowOf resol la finestra d'un rol amb el defecte sa.
@@ -168,10 +262,24 @@ const (
 	summarizeMaxTokens  = 1024
 )
 
-const summarizeInstr = "Summarize this working conversation with a coding agent. I want a DENSE, short summary (at most 30 lines) that lets us continue exactly where we were without rereading anything. Include, when present:\n" +
-	"- Current goal and status (what is left).\n- Decisions made and why.\n- Files touched/created and what changes in each.\n- Errors found and how they were solved.\n- Exact relevant names, paths and commands.\nDo not add any assessment or questions. Reply ONLY with the summary."
+// El resum és un traspàs (handoff, com el de Codex): l'escriu qui deixa la
+// feina perquè una altra instància la continuï sense rellegir res. Les
+// seccions fixes fan que el pendent i els errors oberts no es perdin entre
+// la narració, que és el que passava amb un «resum dens» lliure.
+const handoffSeccions = "Use exactly these sections, in this order, and leave out the empty ones:\n" +
+	"GOAL: what the user wants, in their words when possible.\n" +
+	"DONE: what is finished, and how it was checked.\n" +
+	"PENDING: what is left, in order; the next concrete step first.\n" +
+	"DECISIONS: decisions made and why, and constraints the user set.\n" +
+	"FILES: files touched or created and what changed in each (exact paths).\n" +
+	"OPEN ERRORS: errors or failing tests that are still open, with the exact message.\n" +
+	"Keep exact names, paths, commands and identifiers. No assessment and no questions."
 
-const combineInstr = "Combine these partial summaries of the same working conversation into a single DENSE, short summary (at most 30 lines), without losing any decision, file, error or exact command. Do not repeat sections or add assessments. Reply ONLY with the combined summary."
+const summarizeInstr = "Write a handoff note for this working conversation with a coding agent: another instance of the agent will continue the work from your note alone, without rereading anything. Be DENSE and short (at most 40 lines).\n" +
+	handoffSeccions + "\nReply ONLY with the note."
+
+const combineInstr = "Combine these partial handoff notes of the same working conversation into a single DENSE, short handoff note (at most 40 lines), without losing any decision, file, error or exact command; what a later part says is done is no longer pending.\n" +
+	handoffSeccions + "\nReply ONLY with the combined note."
 
 // instrResum tanca una consigna de resum amb la directiva d'idioma i la
 // capçalera del text que ve a continuació.
@@ -229,6 +337,8 @@ func splitText(s string, size int) []string {
 func summarizeText(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, instr, cos string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
+	// P12: si hi ha un rol petit, resumeix ell (i el principal, de reserva).
+	prim, fb = targetsResum(prim, fb)
 	out, _, err := client.ChatFO(cctx, prim, fb,
 		[]llm.Message{{Role: "user", Content: instr + cos}}, 0.3, summarizeMaxTokens, nil)
 	if err != nil {

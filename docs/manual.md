@@ -213,6 +213,11 @@ normal tool permissions (`permissions.tools.delegate: deny` disables it).
 The model decides when delegation is worthwhile; parallel work can add model
 usage and is most useful for genuinely independent investigations.
 
+An optional `roles.small` (or `roles.fast`) entry, with the same fields,
+moves the side tasks to a smaller model: compaction summaries, project-note
+suggestions and the pre-turn scout. If the small model fails, the main model
+does the work. Without it, nothing changes.
+
 ## Extras: Room Replay, Wrapped, #retro Tone, Weathervane, Voice and Images
 
 All extras can be switched off in **Preferences → Extras**, and every

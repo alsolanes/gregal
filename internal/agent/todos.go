@@ -96,6 +96,35 @@ func RecordatoriTodos(items []tools.TodoItem, n int) string {
 	return msg + ". If you finished it, call todowrite marking it done and the next one working; otherwise, carry on.]"
 }
 
+// TodoReciteEvery és cada quants passos es recita el checklist sencer al
+// final del context (P18, com la Focus Chain de Cline i la recitació de
+// Manus): en una tasca llarga el pla queda enterrat al mig, on el model
+// atén menys, i se n'obliden passos.
+const TodoReciteEvery = 6
+
+// RecitaTodos és la recitació del checklist per enganxar al final de
+// l'últim resultat del pas; "" sense checklist o amb tot fet.
+func RecitaTodos(items []tools.TodoItem) string {
+	done, total := tools.StatsTodos(items)
+	if total == 0 || done >= total {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n\n[current checklist %d/%d — keep to it:", done, total)
+	for _, it := range items {
+		marca := "[ ]"
+		switch it.Status {
+		case "done":
+			marca = "[x]"
+		case "working":
+			marca = "[>]"
+		}
+		b.WriteString("\n" + marca + " " + truncaRunes(it.Title, 80))
+	}
+	b.WriteString("]")
+	return b.String()
+}
+
 func truncaRunes(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {
