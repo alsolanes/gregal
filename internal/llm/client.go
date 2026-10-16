@@ -157,6 +157,14 @@ type chatRequest struct {
 	// ReasoningEffort és l'ordre de no pensar de les API que segueixen
 	// OpenAI (opencode zen): vegeu compat.go.
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	// Mostreig recomanat per família (perfils.go). Només cap a servidors
+	// locals; es negocia com un camp opcional (campSampling).
+	TopP              *float64 `json:"top_p,omitempty"`
+	TopK              int      `json:"top_k,omitempty"`
+	MinP              *float64 `json:"min_p,omitempty"`
+	PresencePenalty   *float64 `json:"presence_penalty,omitempty"`
+	RepetitionPenalty *float64 `json:"repetition_penalty,omitempty"`
+	RepeatPenalty     *float64 `json:"repeat_penalty,omitempty"`
 }
 
 type chatResponse struct {
@@ -581,9 +589,7 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 	}
 	// Proxy que no tradueix el DSML de DeepSeek o el format <tool_call> de models locals a tool_calls:
 	// la crida ve dins de content. La recuperem en comptes d'ensenyar-la a l'usuari.
-	if len(m.ToolCalls) == 0 && hasDSML(m.Content) {
-		m.Content, m.ToolCalls = parseDSML(m.Content)
-	}
+	m.Content, m.ToolCalls = RecoverCalls(m.Content, m.ToolCalls, specs)
 	// Aquí el contingut buit és normal si el torn és una crida d'eina; el que
 	// no pot ser és acabar sense text ni eines i fer com si res (inclòs
 	// només-espais: vegeu chatInner).
@@ -641,6 +647,8 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 	reasoned, finish := 0, ""
 	sawDone := false
 	br := bufio.NewReader(resp.Body)
+	var guard repGuard
+	repetit := false
 	for {
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
@@ -660,6 +668,9 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 						if onToken != nil {
 							onToken(d)
 						}
+						if full.Len()-guard.revisat >= repBloc && guard.veu(full.String()) {
+							repetit = true
+						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
 						reasoned += len([]rune(r))
@@ -674,14 +685,23 @@ func (c *Client) chatStreamInner(ctx context.Context, baseURL, apiKey, model str
 				}
 			}
 		}
+		if repetit {
+			break
+		}
 		if rerr != nil {
 			break
 		}
+	}
+	if repetit {
+		finish = "stop"
 	}
 	if !sawDone && finish == "" {
 		return "", &StreamInterruptedError{}
 	}
 	text := full.String()
+	if repetit {
+		text = guard.talla(text)
+	}
 	if strings.Contains(text, "think>") {
 		cl, th := extractThinkTags(text)
 		text = cl
@@ -840,9 +860,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 			}
 		}
 		text, calls := m.Content, m.ToolCalls
-		if len(calls) == 0 && hasDSML(text) {
-			text, calls = parseDSML(text)
-		}
+		text, calls = RecoverCalls(text, calls, specs)
 		if strings.TrimSpace(text) == "" && len(calls) == 0 {
 			return "", nil, emptyReplyErr(out.Choices[0].FinishReason, len([]rune(m.ReasoningContent+m.Reasoning+m.Thought+m.Thinking)), maxTokens)
 		}
@@ -872,6 +890,8 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 	byIndex := map[int]*ToolCall{}
 	order := []int{}
 	br := bufio.NewReader(resp.Body)
+	var guard repGuard
+	repetit := false
 	for {
 		line, rerr := br.ReadString('\n')
 		if t := strings.TrimSpace(line); strings.HasPrefix(t, "data: ") {
@@ -890,6 +910,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 						prog.delta(ProgressText, d)
 						if onToken != nil {
 							onToken(d)
+						}
+						if full.Len()-guard.revisat >= repBloc && guard.veu(full.String()) {
+							repetit = true
 						}
 					}
 					if r := ch.Delta.ReasoningContent + ch.Delta.Reasoning + ch.Delta.Thought + ch.Delta.Thinking; r != "" {
@@ -925,9 +948,15 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 				}
 			}
 		}
+		if repetit {
+			break
+		}
 		if rerr != nil {
 			break
 		}
+	}
+	if repetit {
+		finish = "stop"
 	}
 	if !sawDone && finish == "" {
 		if err := ctx.Err(); err != nil {
@@ -940,6 +969,9 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		calls = append(calls, *byIndex[i])
 	}
 	text := full.String()
+	if repetit {
+		text = guard.talla(text)
+	}
 	if strings.Contains(text, "think>") {
 		cl, th := extractThinkTags(text)
 		text = cl
@@ -949,9 +981,7 @@ func (c *Client) chatStreamWithToolsInner(ctx context.Context, baseURL, apiKey, 
 		}
 	}
 	// Proxy que no tradueix el DSML: la crida ve dins del text.
-	if len(calls) == 0 && hasDSML(text) {
-		text, calls = parseDSML(text)
-	}
+	text, calls = RecoverCalls(text, calls, specs)
 	if strings.TrimSpace(text) == "" && len(calls) == 0 {
 		return "", nil, emptyReplyErr(finish, reasoned, maxTokens)
 	}

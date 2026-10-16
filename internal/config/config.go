@@ -66,6 +66,34 @@ type Role struct {
 	// d'un verd, l'ampliació i la síntesi): agent.ThinkPerPas.
 	// Buit = el que el model tingui per defecte.
 	Think string `yaml:"think,omitempty"`
+	// Prompt tria la mida del prompt i del conjunt d'eines: «compact»
+	// (prompt curt i només les eines bàsiques, per a models locals petits),
+	// «full», o buit = automàtic (compacte per a models locals ≤ 14B o amb
+	// finestra < 32k).
+	Prompt string `yaml:"prompt,omitempty"`
+}
+
+// CompactFor diu si un rol ha de fer servir el prompt i les eines
+// compactes (vegeu Role.Prompt).
+func (c *Config) CompactFor(r Role) bool {
+	switch strings.ToLower(strings.TrimSpace(r.Prompt)) {
+	case "compact":
+		return true
+	case "full":
+		return false
+	}
+	if c == nil {
+		return false
+	}
+	return llm.CompactFor(c.Providers[r.Provider].BaseURL, r.Model, r.ContextWindow)
+}
+
+// CompactCode és CompactFor del rol code (el que fa la feina amb eines).
+func (c *Config) CompactCode() bool {
+	if c == nil {
+		return false
+	}
+	return c.CompactFor(c.Roles["code"])
 }
 
 // LongRunsAllowed opta aquest rol a les tasques llargues. Nil conserva el

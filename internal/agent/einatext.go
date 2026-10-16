@@ -19,10 +19,11 @@ import (
 // cap indici que el que havia passat és que el model havia intentat fer
 // una cosa i no havia pogut.
 //
-// Aquí no s'executa res del que hi digui: ve del model, no de l'usuari, i
-// executar una crida que el nostre propi client no ha reconegut com a tal
-// seria saltar-se la validació i els permisos. Només es treu del text i es
-// diu què ha passat.
+// Les crides en text que es poden interpretar (Hermes, Qwen-XML, JSON pelat)
+// ja les converteix llm.RecoverCalls en crides estructurades, que passen
+// per la política i els permisos com qualsevol altra. El que arriba aquí és
+// el que no s'ha pogut convertir (una eina que no s'ha ofert, markup
+// trencat): no s'executa, es treu del text i es diu què ha passat.
 
 var reEinaText = regexp.MustCompile(`(?is)<tool_call>.*?(</tool_call>|$)|<function\s*=.*?(</function>|$)`)
 

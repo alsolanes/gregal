@@ -163,25 +163,48 @@ func TestRunNonInteractiveCost(t *testing.T) {
 	}
 }
 
-// El model escriu la crida al text en comptes d'estructurada: el loop no
-// pot tornar el markup com a resposta; guia i continua (acotat).
-func TestRunNonInteractiveTextCallRetry(t *testing.T) {
+// El model escriu la crida al text (format Qwen/Hermes) en comptes
+// d'estructurada: llm.RecoverCalls la converteix en una crida normal, que
+// passa per la política com qualsevol altra, i el torn continua.
+func TestRunNonInteractiveTextCallExecuted(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.NotFound(w, r) // sonda GET /models de DetectWindows: no és un pas
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		var body strings.Builder
-		// El cos sencer: amb el mapa del projecte, el primer missatge passa
-		// de 4 KB i una lectura sola no hi arribava.
 		raw, _ := io.ReadAll(r.Body)
-		body.Write(raw)
-		if strings.Contains(body.String(), "was NOT executed") {
-			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"recuperat"},"finish_reason":"stop"}]}`)
+		if strings.Contains(string(raw), `"role":"tool"`) {
+			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"fet"},"finish_reason":"stop"}]}`)
 			return
 		}
 		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"Miro el disc.\n<tool_call><function=glob><parameter=pattern>*</parameter></function></tool_call>"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	res, err := RunNonInteractive(context.Background(), llm.New(), testCfg(srv.URL), "mira", "code", 5, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Answer != "fet" || len(res.Tools) != 1 || res.Tools[0] != "glob" {
+		t.Fatalf("la crida en text s'havia d'executar: %+v", res)
+	}
+}
+
+// Una crida en text a una eina que no s'ha ofert no s'executa: es guia el
+// model perquè la refaci estructurada.
+func TestRunNonInteractiveTextCallRetry(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		raw, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(raw), "was NOT executed") {
+			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"recuperat"},"finish_reason":"stop"}]}`)
+			return
+		}
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"Miro el disc.\n<tool_call><function=no_existeix><parameter=pattern>*</parameter></function></tool_call>"},"finish_reason":"stop"}]}`)
 	}))
 	defer srv.Close()
 	res, err := RunNonInteractive(context.Background(), llm.New(), testCfg(srv.URL), "mira", "code", 5, false)
@@ -193,16 +216,16 @@ func TestRunNonInteractiveTextCallRetry(t *testing.T) {
 	}
 }
 
-// Si el model insisteix escrivint en text, el topall tanca el torn sense
-// penjar-se: la resposta és el text netejat, no un bucle infinit.
+// Si el model insisteix escrivint en text una eina inexistent, el topall
+// tanca el torn sense penjar-se: la resposta és el text netejat.
 func TestRunNonInteractiveTextCallCap(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			http.NotFound(w, r) // sonda GET /models de DetectWindows: no és un pas
+			http.NotFound(w, r)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"<tool_call><function=glob><parameter=pattern>*</parameter></function></tool_call>"},"finish_reason":"stop"}]}`)
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"<tool_call><function=no_existeix><parameter=pattern>*</parameter></function></tool_call>"},"finish_reason":"stop"}]}`)
 	}))
 	defer srv.Close()
 	res, err := RunNonInteractive(context.Background(), llm.New(), testCfg(srv.URL), "mira", "code", 5, false)

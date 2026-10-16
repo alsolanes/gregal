@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Better results with local and small models.**
+  - Tool calls that a model writes as text (Hermes/Qwen2.5 `<tool_call>{…}`,
+    Qwen3-Coder `<function=…><parameter=…>`, or a bare JSON call) are now
+    turned into real tool calls instead of being refused and re-asked, which
+    cost a whole extra turn (and prefill) on local servers. Only tools offered
+    in that request are accepted, and the calls go through the same policy and
+    approvals as any other. Malformed arguments are repaired when the schema
+    makes the intent clear (trailing commas, `"20"` for an integer, `"false"`
+    for a boolean, an object passed as a string).
+  - Requests to local servers (llama.cpp, Ollama, LM Studio, vLLM) carry the
+    sampling the model card recommends for each family (Qwen3, Qwen3-Coder,
+    Qwen2.5-Coder, DeepSeek, gpt-oss, GLM, Devstral, Mistral, Gemma, Llama…);
+    a role's own temperature still wins, and a server that rejects the extra
+    fields simply stops receiving them.
+  - Small local models (14B or less, or a window under 32k) get a compact
+    system prompt and only the core tools; set `prompt: full|compact` on a role
+    to override. Chat and inspect modes no longer show write tools at all.
+  - A reply stuck repeating the same paragraph is cut as soon as the loop is
+    detected, instead of running to the token limit.
+  - Code mode now asks to reproduce a bug before fixing it and to re-read the
+    request before answering.
 - **Office documents at the level of the best assistants.** Word, PowerPoint
   and Excel files are now built with real structure and checked visually:
   - Editing no longer corrupts real files. `office_edit replace` and

@@ -131,7 +131,7 @@ func TestLaConversaNovaOblidaElResum(t *testing.T) {
 // del missatge. Per a l'agent el torn s'ha acabat, i l'XML anava tal qual
 // a la pantalla: l'usuari llegia markup en comptes de la feina feta.
 func TestLaCridaEscritaAlTextNoArribaALaPantalla(t *testing.T) {
-	cru := `{"choices":[{"message":{"content":"Ara ho escric.\n<tool_call>\n<function=write>\n<parameter=path>\n/tmp/a\n</parameter>\n</function>\n</tool_call>"}}]}`
+	cru := `{"choices":[{"message":{"content":"Ara ho escric.\n<tool_call>\n<function=no_existeix>\n<parameter=path>\n/tmp/a\n</parameter>\n</function>\n</tool_call>"}}]}`
 	prov := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write([]byte(cru))
@@ -147,7 +147,7 @@ func TestLaCridaEscritaAlTextNoArribaALaPantalla(t *testing.T) {
 	// se substitueix per la resposta final; el que no pot portar l'XML és
 	// aquesta, que és la que es desa a la conversa.
 	final := cos[strings.LastIndex(cos, "event: done"):]
-	if strings.Contains(final, "tool_call") || strings.Contains(final, "function=write") {
+	if strings.Contains(final, "tool_call") || strings.Contains(final, "function=no_existeix") {
 		t.Errorf("la resposta final porta l'XML de la crida:\n%s", final)
 	}
 	if !strings.Contains(cos, "tool_text") {

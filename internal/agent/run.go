@@ -290,7 +290,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	if o.Approve != nil {
 		note = approvalNote
 	}
-	sys = AmbContext(PromptFor(sys+note, mode), o.System)
+	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
 	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
 	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
@@ -331,7 +331,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		CriticaPla:       CriticaPlaHook(client, cfg, dir),
 	})
 
-	specs := SpecsNoInteractiu()
+	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode())
 	if len(o.Tools) > 0 {
 		keep := map[string]bool{}
 		for _, t := range o.Tools {

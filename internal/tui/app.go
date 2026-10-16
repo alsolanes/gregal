@@ -1150,7 +1150,7 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 	return func() tea.Msg {
 		defer cancel()
 		var fb string
-		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsAll(),
+		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsFor(m.mode, m.cfg.CompactFor(r)),
 			s.add, s.addThink, func(model string) { fb = model })
 		err = agent.ModelError(ctx, err)
 		s.finish()
@@ -2367,7 +2367,7 @@ func (m Model) sysPrompt() string {
 	if m.compacted != "" {
 		resum = "[Summary of the earlier conversation — continue with this context]\n" + m.compacted
 	}
-	return agent.AmbContext(agent.PromptFor(m.cfg.SystemPrompt(), m.mode), agent.ContextProjecte(m.cwd), resum)
+	return agent.AmbContext(agent.PromptForModel(m.cfg.SystemPrompt(), m.mode, m.cfg.CompactCode()), agent.ContextProjecte(m.cwd), resum)
 }
 
 // answerPending resol una confirmació [s/n].

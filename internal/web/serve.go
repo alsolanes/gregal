@@ -2060,7 +2060,7 @@ func (s *Server) sysPrompt() string { return s.sysPromptAmb(s.mode, s.cwd) }
 // no el de la sessió quan un client delega des d'un altre directori.
 func (s *Server) sysPromptAmb(mode, workspace string) string {
 	base := s.cfg.SystemPrompt()
-	prompt := agent.PromptFor(base, mode)
+	prompt := agent.PromptForModel(base, mode, s.cfg.CompactCode())
 	project := filepath.Base(filepath.Clean(workspace))
 	fets := fmt.Sprintf(`WORKSPACE FACTS (authoritative, do not infer them):
 - Working directory: %q

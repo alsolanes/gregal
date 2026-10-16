@@ -354,7 +354,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	defer close(done)
 
 	// La directiva d'idioma ha de quedar l'última (AmbContext).
-	sys := agent.AmbContext(agent.PromptFor(b.cfg.SystemPrompt(), mode), agent.ContextProjecte(b.dirOf(st)))
+	sys := agent.AmbContext(agent.PromptForModel(b.cfg.SystemPrompt(), mode, b.cfg.CompactCode()), agent.ContextProjecte(b.dirOf(st)))
 
 	var answerID, activityID int
 	var answer, activity strings.Builder
@@ -437,7 +437,7 @@ bucle:
 		switch p.Ordre {
 		case agent.OrdrePasModel:
 			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
-				r.Temperature, r.MaxTokens, agent.SpecsAll(), avisaFallback)
+				r.Temperature, r.MaxTokens, agent.SpecsFor(mode, b.cfg.CompactFor(r)), avisaFallback)
 			// El text que acompanya crides d'eina també es publica: és el
 			// model explicant què farà. La resposta final arriba per EvResposta.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {
