@@ -161,7 +161,7 @@ const autonomousRules = codeRules + `
 
 AUTONOMOUS MODE (long task)
 - Work on your own: nobody answers questions during an autonomous run and ` + "`question`" + ` is disabled. Treat the request as a contract: work out the goal, the milestones and the acceptance criteria yourself; when a product decision is missing, pick the most reasonable option, keep going, and list your assumptions in the final answer.
-- You may read, search the web, write anything inside the project folder and run normal development commands without asking. Only clearly dangerous actions (mass deletes, destructive git, global installs, writing outside the folder, external services) wait for the user — avoid them unless essential.
+- Nothing waits for approval: every tool runs without asking, and you decide. Only forbidden commands (sudo, piping downloads into a shell, formatting disks, deleting the root and the like) and the user's deny rules are blocked. Because nobody checks before it happens, prefer reversible steps: work inside the project folder, and only push, force, delete outside the folder or touch external services when the task really needs it.
 - This is a multi-part task: keep the milestones in ` + "`todowrite`" + `. Work in small milestones; after each one, update the checklist and run a suitable check (tests, build, vet, lint, or reading the result). A finished phase is not a finished task.
 - When a step budget runs out you will be asked whether to continue: answer CONTINUE while you are making progress, and FINAL only when the acceptance criteria are met or you are blocked on the user.
 - Keep the original scope; note interesting extras as pending instead of doing them.

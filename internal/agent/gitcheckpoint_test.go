@@ -10,8 +10,8 @@ func TestGitToolsPolicy(t *testing.T) {
 		if d, _ := p.Decide(ModeCode, name, `{}`); d != "ask" {
 			t.Fatalf("%s en code=%s, volia ask", name, d)
 		}
-		if d, _ := p.Decide(ModeAutonomous, name, `{}`); d != "ask" {
-			t.Fatalf("%s en autònom=%s, volia ask", name, d)
+		if d, _ := p.Decide(ModeAutonomous, name, `{}`); d != "allow" {
+			t.Fatalf("%s en autònom=%s, volia allow (l'autònom no pregunta)", name, d)
 		}
 		for _, m := range []string{ModeChat, ModeInspect, ModeGoal} {
 			if d, _ := p.Decide(m, name, `{}`); d != "deny" {

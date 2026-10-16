@@ -72,9 +72,14 @@ func TestBashAliasesShareStrictestExplicitPermission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := &Policy{Tools: tc.settings}
 			for _, mode := range []string{ModeCode, ModeAutonomous} {
+				want := tc.want
+				// L'autònom no pregunta mai: un «ask» hi és un «allow».
+				if mode == ModeAutonomous && want == "ask" {
+					want = "allow"
+				}
 				for _, tool := range []string{"bash", "bash_background"} {
-					if got, _ := p.Decide(mode, tool, tc.args); got != tc.want {
-						t.Errorf("%s %s = %s; want %s", mode, tool, got, tc.want)
+					if got, _ := p.Decide(mode, tool, tc.args); got != want {
+						t.Errorf("%s %s = %s; want %s", mode, tool, got, want)
 					}
 				}
 			}
@@ -191,8 +196,8 @@ func TestDecideProjecte(t *testing.T) {
 	if d, _ := p.Decide(ModeCode, "write", `{"path":"/etc/hosts","content":"x"}`); d != "ask" {
 		t.Errorf("fora del projecte continua demanant: %q", d)
 	}
-	if d, _ := p.Decide(ModeAutonomous, "write", `{"path":"/etc/hosts","content":"x"}`); d != "ask" {
-		t.Errorf("autonomous fora del projecte continua demanant: %q", d)
+	if d, _ := p.Decide(ModeAutonomous, "write", `{"path":"/etc/hosts","content":"x"}`); d != "allow" {
+		t.Errorf("autonomous no pregunta ni fora del projecte: %q", d)
 	}
 	if d, _ := p.Decide(ModeChat, "write", w); d != "deny" {
 		t.Errorf("xat continua sent només lectura: %q", d)
@@ -217,7 +222,7 @@ func TestDecideProjecte(t *testing.T) {
 	if d, _ := override.Decide(ModeCode, "write", w); d != "ask" {
 		t.Errorf("l'override explícit del config guanya a l'automatisme: %q", d)
 	}
-	if d, _ := override.Decide(ModeAutonomous, "write", w); d != "ask" {
-		t.Errorf("l'override explícit del config guanya també en autònom: %q", d)
+	if d, _ := override.Decide(ModeAutonomous, "write", w); d != "allow" {
+		t.Errorf("en autònom un «ask» del config tampoc fa preguntar: %q", d)
 	}
 }

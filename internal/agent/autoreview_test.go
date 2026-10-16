@@ -183,11 +183,11 @@ func TestAutoReviewInactiuIAutonom(t *testing.T) {
 		Hist: []llm.Message{{Role: "user", Content: "x"}}, Revisor: NewReviewer(llm.New(), cfg, nil),
 	})
 	auto.Seguent()
-	// En autònom, el que és normal passa sol; el perillós (git push) espera
-	// la persona i no passa pel revisor.
+	// En autònom no es pregunta mai (tampoc per un git push) i no passa
+	// pel revisor: s'executa.
 	auto.RepPas("", []llm.ToolCall{cridaProva("1", "bash", `{"command":"git push origin main"}`)}, nil)
-	if p := auto.Seguent(); p.Ordre != OrdreAprova {
-		t.Fatalf("autònom continua demanant confirmació: %v", p.Ordre)
+	if p := auto.Seguent(); p.Ordre != OrdreExecuta {
+		t.Fatalf("autònom ha d'executar sense preguntar: %v", p.Ordre)
 	}
 	if atomic.LoadInt32(n) != 0 {
 		t.Fatalf("crides inesperades al revisor: %d", *n)

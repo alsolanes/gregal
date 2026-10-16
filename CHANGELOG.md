@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Autonomous mode never asks for permission: it decides and does everything
+  on its own, including what used to wait for a person (writing outside the
+  folder, destructive git, global installs, MCP services, commits and pull
+  requests). Only what is forbidden stays blocked: commands the classifier
+  denies (`sudo`, piping downloads into a shell, formatting disks…) and `deny`
+  rules in `permissions.tools`. To keep it away from something, set it to
+  `deny`. Autonomous is back as a button next to Ask and Act in the web
+  composer; it had been tucked away in the ⋯ menu.
+
 - Local models get first-class providers ([docs/local-models.md](docs/local-models.md)).
   `type: ollama` uses Ollama's native `/api/chat` with a fixed `num_ctx`, so
   Ollama no longer silently drops the system prompt and tools at its 2-4k

@@ -413,7 +413,21 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 // bash només si és a la llista segura. mode "goal" (objectiu) també és només
 // lectura: primer es concreta l'objectiu, després s'executa en mode code.
 // mode "code" = política normal.
+//
+// En mode autònom no es demana permís mai: tot el que els altres modes
+// preguntarien («ask») passa sol. El que està prohibit continua prohibit:
+// el classificador de shell (sudo, rm -rf /, curl | sh…), les regles «deny»
+// del config i l'eina question. Demanat el 2026-10-16: «si estem en autònom
+// … que decideixi ell les coses i que no demani permisos i ho faci tot».
 func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
+	d, reason := p.decide(mode, name, argsJSON)
+	if mode == ModeAutonomous && d == "ask" {
+		return "allow", reason
+	}
+	return d, reason
+}
+
+func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	if mode == ModeInspect || mode == ModeChat || mode == ModeGoal {
 		switch name {
 		case "office_edit", "office_create", "bash_kill":

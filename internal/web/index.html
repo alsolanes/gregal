@@ -1755,11 +1755,13 @@ body.sense-inspector #inspector { display:none; }
               <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
                 <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and investigates without changing files"><b data-i18n="mode.ask">Ask</b></button>
                 <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
+                <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false" data-i18n-title="mode.autoHelp" title="Works on its own until done: decides for itself and never asks for permission"><b data-i18n="mode.autonom">Autonomous</b></button>
               </div>
             </div>
-            <!-- Objectiu, Autònom i Debug no ocupen el composer: s'hi entra amb
-                 /goal, /auto, /debug o el menú ⋯, i aquí només en queda una
-                 etiqueta per saber-ho i sortir-ne. -->
+            <!-- Autònom té botó al commutador (es buscava i no es trobava
+                 dins del menú ⋯). Objectiu i Debug no ocupen el composer:
+                 s'hi entra amb /goal, /debug o el menú ⋯, i aquí només en
+                 queda una etiqueta per saber-ho i sortir-ne. -->
             <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
             <button type="button" id="planFirst" class="plan-toggle" role="switch" aria-checked="false" data-i18n-title="mode.planFirstHelp" title="Propose a plan and wait for your approval before acting"><span class="plan-toggle-dot" aria-hidden="true"></span><span data-i18n="mode.planFirst">Plan first</span></button>
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
@@ -2701,14 +2703,15 @@ document.addEventListener('gregal:idioma', () => {
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el
 // pintaven tres.
 function paintMode(mode) {
-  // Ask/Act només queden marcats en els seus modes; Objectiu, Autònom i
-  // Debug es mostren amb l'etiqueta i cap dels dos marcat.
+  // Ask, Act i Autònom tenen botó i queden marcats en el seu mode; Objectiu
+  // i Debug es mostren amb l'etiqueta i cap botó marcat.
   document.querySelectorAll('.mode-switch button').forEach(b => {
     b.setAttribute('aria-checked', String(b.dataset.mode === mode));
   });
   const chip = $('modeChip');
   if (chip) {
-    const special = mode === 'goal' || mode === 'autonomous' || mode === 'debug';
+    // Autònom té botó propi al commutador: el xip només per a Objectiu i Debug.
+    const special = mode === 'goal' || mode === 'debug';
     chip.hidden = !special;
     chip.dataset.mode = special ? mode : '';
     const label = $('modeChipLabel');

@@ -416,8 +416,8 @@ exacta: el diff d'una edició o l'ordre d'una crida de shell. Respon `allow`,
 
 El revisor només veu les crides que altrament preguntarien. Les denegades per
 les regles dures, pel classificador o per `permissions.tools: deny` no hi
-arriben mai, i per tant no les pot aprovar. El mode autònom continua
-preguntant a una persona. El revisor també és un model i es pot equivocar o
+arriben mai, i per tant no les pot aprovar. En mode autònom no hi intervé:
+allà no es pregunta res. El revisor també és un model i es pot equivocar o
 ser manipulat pel contingut del context: redueix les preguntes, no és una
 barrera de seguretat. Combina'l amb el sandbox per a la feina desatesa.
 
@@ -426,11 +426,12 @@ execucions no interactives i Telegram), des del menú de permisos de la web
 (**Revisor automàtic**, només aquesta sessió) o amb `/autoreview` a la
 interfície de terminal.
 
-Per defecte, el mode autònom permet escriure fitxers dins del projecte
-seleccionat. Les accions que requereixen aprovació continuen esperant una
-persona, encara que la sessió estigui en mode permissiu. Els permisos explícits
-de les eines a la configuració tenen prioritat. En una execució sense
-interfície, les accions que encara requereixen aprovació es deneguen.
+El mode autònom no demana permís mai: decideix ell i ho fa tot sol. El que
+altres modes preguntarien hi passa sense esperar ningú. Només continua
+bloquejat el que està prohibit: les ordres que el classificador denega (`sudo`,
+descàrregues passades a un shell, formatar discos, esborrar l'arrel…) i les
+regles `deny` de `permissions.tools`. Per impedir alguna cosa en mode autònom,
+posa-la a `deny`; un `ask` del config no hi fa preguntar.
 
 ### Execucions no interactives (`-p`)
 
@@ -444,17 +445,11 @@ interfície, les accions que encara requereixen aprovació es deneguen.
   que ha fet i el que queda, i la sortida JSON porta `"exhausted": true`.
   Sense el flag val `agent.max_steps` del config, i l'agent pot demanar més
   passos mentre avança.
-- El mode autònom treballa sol: llegir, cercar a la web, escriure dins la
-  carpeta del projecte i les ordres normals de desenvolupament (tests, builds,
-  instal·lar dependències del projecte, crear o esborrar fitxers de dins) no
-  pregunten, i `question` queda desactivada (l'agent explica les seves
-  suposicions). Només pregunta pel que és perillós: esborrats massius o fora
-  de la carpeta, git destructiu (`push`, `reset --hard`, `clean`…),
-  instal·lacions globals, aturar processos o serveis, contenidors, registre,
-  escriure fora de la carpeta, serveis MCP, commits i PRs. El que està
-  bloquejat continua bloquejat. En un torn sense interfície no hi ha ningú a
-  qui preguntar i aquestes accions es deneguen; `--mode autonomous` continua
-  sense poder-se combinar amb `--auto-approve`.
+- El mode autònom treballa sol i no pregunta res: tot el que necessita fer
+  ho fa, i `question` queda desactivada (l'agent explica les seves
+  suposicions). Només el que està prohibit (classificador i regles `deny`)
+  continua bloquejat. `--mode autonomous` no necessita `--auto-approve` i no
+  s'hi pot combinar.
 - No s'ofereixen les eines que necessiten una persona (`question`, `preview`,
   `office_open`, `browser`). Si l'agent necessita una decisió, s'atura i la
   pregunta a la resposta final en lloc d'endevinar.
@@ -934,8 +929,8 @@ El prompt de sistema llista les col·leccions activades (nom, abast i
 descripció), perquè l'agent sàpiga quan cercar-hi, i li demana que citi els
 passatges que fa servir. `knowledge_search` es permet a tots els modes.
 `knowledge_note` (l'agent desa una nota) demana permís, es denega als modes
-Xat, Consulta i Objectiu, i en mode Autònom passa sense preguntar només per a
-col·leccions de projecte i de sessió; sense nom de col·lecció va a les
+Xat, Consulta i Objectiu, i en mode Autònom passa sense preguntar (com tota la
+resta); sense nom de col·lecció va a les
 «Session notes» de la sessió.
 
 La pàgina també ensenya les memòries integrades: la **memòria d'usuari**

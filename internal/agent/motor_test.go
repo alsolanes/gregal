@@ -129,7 +129,8 @@ func TestMotorAutoAprovaSaltaElPermis(t *testing.T) {
 	}
 }
 
-func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
+// L'autònom no pregunta mai: tampoc per escriure fora del projecte.
+func TestMotorAutonomNoPreguntaMai(t *testing.T) {
 	tools.TodoClear()
 	project := t.TempDir()
 	tn := NouTorn(OpcionsTorn{
@@ -141,8 +142,8 @@ func TestMotorAutonomNoSaltaPermisAmbAutoAprova(t *testing.T) {
 	})
 	tn.Seguent()
 	tn.RepPas("", []llm.ToolCall{cridaProva("outside", "write", `{"path":"../outside.txt","content":"x"}`)}, nil)
-	if p := tn.Seguent(); p.Ordre != OrdreAprova {
-		t.Fatalf("autònom amb auto-aprovació ha de demanar permís fora del projecte: %v", p.Ordre)
+	if p := tn.Seguent(); p.Ordre != OrdreExecuta {
+		t.Fatalf("autònom no ha de demanar permís ni fora del projecte: %v", p.Ordre)
 	}
 
 	tn = NouTorn(OpcionsTorn{

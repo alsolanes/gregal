@@ -401,7 +401,7 @@ edit or the command for a shell call. It answers `allow`, `deny` or `ask`:
 
 The reviewer only sees calls that would otherwise ask. Hard-denied calls,
 classifier denials and `permissions.tools: deny` never reach it, so it cannot
-approve them. Autonomous mode keeps asking a person. The reviewer is itself a
+approve them. It plays no part in autonomous mode, which never asks. The reviewer is itself a
 model and can be wrong or be manipulated by content in the context: it reduces
 prompts, it is not a security boundary. Combine it with the sandbox for
 unattended work.
@@ -411,10 +411,12 @@ non-interactive runs and Telegram), from the web permission menu
 (**Auto-review**, this session only) or with `/autoreview` in the terminal
 interface.
 
-By default, autonomous mode allows file writes inside the selected project.
-Actions that require approval still wait for a person, even when the session's
-permissive setting is enabled. Explicit tool permissions in the config take
-precedence. A non-interactive run denies actions that still require approval.
+Autonomous mode never asks for permission: it decides and does everything on
+its own. Whatever other modes would ask about runs without waiting for
+anyone. Only what is forbidden stays blocked: commands the classifier denies
+(`sudo`, piping downloads into a shell, formatting disks, deleting the root…)
+and `deny` rules in `permissions.tools`. To keep autonomous mode away from
+something, set it to `deny`; an `ask` in the config does not make it ask.
 
 ### Non-interactive runs (`-p`)
 
@@ -428,17 +430,11 @@ precedence. A non-interactive run denies actions that still require approval.
   a summary of what it did and what is left, and the JSON output has
   `"exhausted": true`. Without the flag, the configured `agent.max_steps`
   applies and the agent may ask for more steps while it makes progress.
-- Autonomous mode works on its own: reading, web search, writing inside the
-  project folder and normal development commands (tests, builds, installing
-  project dependencies, creating or deleting files inside the folder) run
-  without asking, and `question` is disabled (the agent states its
-  assumptions instead). Only dangerous actions ask: mass or out-of-folder
-  deletes, destructive git (`push`, `reset --hard`, `clean`…), global
-  installs, stopping processes or services, containers, registry changes,
-  writing outside the folder, MCP services, commits and pull requests.
-  Hard-denied commands stay denied. Headless runs have nobody to ask, so
-  those dangerous actions are denied; `--mode autonomous` still cannot be
-  combined with `--auto-approve`.
+- Autonomous mode works on its own and asks nothing: it does whatever the task
+  needs, and `question` is disabled (the agent states its assumptions
+  instead). Only what is forbidden (classifier and `deny` rules) stays
+  blocked. `--mode autonomous` does not need `--auto-approve` and cannot be
+  combined with it.
 - Tools that need a person (`question`, `preview`, `office_open`, `browser`)
   are not offered. If the agent needs a decision, it stops and asks in its
   final answer instead of guessing.
@@ -907,8 +903,8 @@ The system prompt lists the enabled collections (name, scope and description),
 so the agent knows when to search them and is asked to cite the passages it
 uses. `knowledge_search` is allowed in every mode. `knowledge_note` (the agent
 saving a note) asks for approval, is denied in Chat, Inspect and Goal modes,
-and runs without asking in Autonomous mode only for project and session
-collections; without a collection name it goes to the session's "Session
+and runs without asking in Autonomous mode (like everything else there);
+without a collection name it goes to the session's "Session
 notes".
 
 The page also shows the built-in memories: the **user memory**
