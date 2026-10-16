@@ -269,3 +269,7 @@ func coerce(v any, typ any) (any, bool) {
 	}
 	return nil, false
 }
+
+// FixJSON és fixJSON per a altres paquets (specs JSON que escriuen els
+// models: blocs de codi, comes finals, text al voltant).
+func FixJSON(s string) string { return fixJSON(s) }

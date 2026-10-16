@@ -1155,7 +1155,7 @@ func (m Model) agentStepCmd(hist []llm.Message, s *streamer) (tea.Cmd, context.C
 	return func() tea.Msg {
 		defer cancel()
 		var fb string
-		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsFor(m.mode, m.cfg.CompactFor(r)),
+		content, calls, _, err := c.ChatStreamWithToolsFO(ctx, m.cfg.PrimTarget(p, r), m.cfg.FallbackTarget(r), hist, r.Temperature, r.MaxTokens, agent.SpecsForHist(m.mode, m.cfg.CompactFor(r), hist),
 			s.add, s.addThink, func(model string) { fb = model })
 		err = agent.ModelError(ctx, err)
 		s.finish()

@@ -441,7 +441,7 @@ bucle:
 		switch p.Ordre {
 		case agent.OrdrePasModel:
 			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
-				r.Temperature, r.MaxTokens, agent.SpecsFor(mode, b.cfg.CompactFor(r)), avisaFallback)
+				r.Temperature, r.MaxTokens, agent.SpecsForHist(mode, b.cfg.CompactFor(r), p.Hist), avisaFallback)
 			// El text que acompanya crides d'eina també es publica: és el
 			// model explicant què farà. La resposta final arriba per EvResposta.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {

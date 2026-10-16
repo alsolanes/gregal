@@ -347,7 +347,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		CriticaPla:       CriticaPlaHook(client, cfg, dir),
 	})
 
-	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode())
+	specs := FilterSpecs(SpecsNoInteractiu(), mode, cfg.CompactCode(), OfficeAlHist([]llm.Message{{Role: "user", Content: task}}))
 	if len(o.Tools) > 0 {
 		keep := map[string]bool{}
 		for _, t := range o.Tools {

@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"gregal/internal/llm"
 	"gregal/internal/officerender"
 	"gregal/internal/ooxml"
 	"gregal/internal/xlsxdoc"
@@ -348,7 +349,11 @@ func createPptx(o CreateOpts) ([]string, error) {
 	if strings.TrimSpace(o.Spec) != "" {
 		spec, err = ooxml.ParseDeckSpec(o.Spec)
 		if err != nil {
-			return nil, fmt.Errorf("spec JSON invàlid: %v", err)
+			if fixed, err2 := ooxml.ParseDeckSpec(llm.FixJSON(o.Spec)); err2 == nil {
+				spec, err = fixed, nil
+			} else {
+				return nil, fmt.Errorf("spec JSON invàlid: %v. Si el JSON et costa, passa content en markdown: una línia «# Títol» per diapositiva i punts amb «- »", err)
+			}
 		}
 	} else if strings.TrimSpace(o.Content) != "" || o.Title != "" {
 		spec = ooxml.DeckFromMarkdown(o.Title, o.Content)
@@ -396,7 +401,11 @@ func createXlsx(o CreateOpts) ([]string, error) {
 	case strings.TrimSpace(o.Spec) != "":
 		sp, err = xlsxdoc.ParseSpec(o.Spec)
 		if err != nil {
-			return nil, fmt.Errorf("spec JSON invàlid: %v", err)
+			if fixed, err2 := xlsxdoc.ParseSpec(llm.FixJSON(o.Spec)); err2 == nil {
+				sp, err = fixed, nil
+			} else {
+				return nil, fmt.Errorf("spec JSON invàlid: %v. Si el JSON et costa, passa content: una fila per línia, cel·les separades per |, fórmules començant per = (p. ex. «Gener | 1000 | 800 | =B2-C2»)", err)
+			}
 		}
 	default:
 		// Text: una fila per línia, cel·les separades per |.

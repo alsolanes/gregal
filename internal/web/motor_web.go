@@ -318,7 +318,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			// aquesta): el pas es refà amb el missatge ja a l'historial.
 			ctx, tallaPas := context.WithCancel(ctx)
 			fiCrida := s.steerModelCall(tallaPas)
-			content, calls, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, agent.SpecsFor(mode, s.cfg.CompactFor(role)),
+			content, calls, _, err := s.client.ChatStreamWithToolsFO(ctx, prim, fb, pas.Hist, role.Temperature, role.MaxTokens, agent.SpecsForHist(mode, s.cfg.CompactFor(role), pas.Hist),
 				func(tok string) { emit("token", map[string]string{"text": tok}) }, nil, onFallback)
 			interromput := fiCrida()
 			tallaPas()

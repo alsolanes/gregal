@@ -3,7 +3,31 @@ package agent
 import (
 	"strings"
 	"testing"
+
+	"gregal/internal/llm"
 )
+
+func TestCompactAddsOfficeToolsOnlyForOfficeTasks(t *testing.T) {
+	code := []llm.Message{{Role: "user", Content: "Create stats.py with a median function"}}
+	office := []llm.Message{{Role: "user", Content: "Crea vendes.pptx amb un gràfic"}}
+	has := func(hist []llm.Message, name string) bool {
+		for _, s := range SpecsForHist(ModeCode, true, hist) {
+			if s.Name == name {
+				return true
+			}
+		}
+		return false
+	}
+	if has(code, "office_create") || has(code, "skill") {
+		t.Fatal("una tasca de codi no ha de veure les eines d'Office en mode compacte")
+	}
+	if !has(office, "office_create") || !has(office, "office_render") || !has(office, "skill") {
+		t.Fatal("una tasca d'Office ha de tenir les eines d'Office")
+	}
+	if !OfficeAlHist([]llm.Message{{Role: "user", Content: "fes un full de càlcul"}}) || OfficeAlHist([]llm.Message{{Role: "user", Content: "refactor the parser"}}) {
+		t.Fatal("detecció d'Office")
+	}
+}
 
 func names(specs []string) map[string]bool {
 	m := map[string]bool{}

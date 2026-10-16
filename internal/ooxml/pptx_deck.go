@@ -30,7 +30,7 @@ type SlideSpec struct {
 	Number     string     `json:"number"`
 	Caption    string     `json:"caption"`
 	Image      string     `json:"image"`
-	Table      [][]string `json:"table"`
+	Table      FlexTable  `json:"table"`
 	Chart      *ChartSpec `json:"chart"`
 	Notes      string     `json:"notes"`
 }
@@ -47,7 +47,7 @@ type ChartSpec struct {
 // ChartSeries és una sèrie de dades.
 type ChartSeries struct {
 	Name   string    `json:"name"`
-	Values []float64 `json:"values"`
+	Values FlexNumbers `json:"values"`
 }
 
 // ParseDeckSpec llegeix l'especificació JSON (o una llista de
@@ -372,7 +372,7 @@ func setGeom(sp *Node, b Box) {
 func (p *Pptx) addVisual(slide string, s SlideSpec, b Box) (string, error) {
 	switch {
 	case s.Table != nil:
-		return "", p.AddTable(slide, s.Table, b)
+		return "", p.AddTable(slide, [][]string(s.Table), b)
 	case s.Chart != nil:
 		return "", p.AddChart(slide, *s.Chart, b)
 	case s.Image != "":

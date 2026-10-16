@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"regexp"
 	"strings"
 
 	"gregal/internal/llm"
@@ -28,15 +29,37 @@ var einesCore = map[string]bool{
 	"question": true,
 }
 
-// FilterSpecs aplica mode i mode compacte a una llista d'eines.
-func FilterSpecs(specs []llm.ToolSpec, mode string, compact bool) []llm.ToolSpec {
+// einesOffice s'afegeixen al conjunt compacte quan la conversa va de
+// documents d'Office (sense elles, un model petit no pot fer la tasca; amb
+// elles sempre a la vista, les fa servir per a tot).
+var einesOffice = map[string]bool{
+	"office_read": true, "office_create": true, "office_edit": true, "office_render": true, "skill": true,
+}
+
+var officeRe = regexp.MustCompile(`(?i)\.(docx|dotx|docm|pptx|potx|pptm|xlsx|xltx|xlsm)\b|\b(word|excel|powerpoint|presentaci[oó]|diapositiv\w*|full de c[aà]lcul|spreadsheet|slides?|deck|workbook|llibre d'excel)\b`)
+
+// OfficeAlHist diu si algun missatge de l'usuari parla de documents
+// d'Office. Un cop surt, la resta de la conversa ho manté (prefix estable).
+func OfficeAlHist(hist []llm.Message) bool {
+	for _, m := range hist {
+		if m.Role == "user" && officeRe.MatchString(m.Content) {
+			return true
+		}
+	}
+	return false
+}
+
+// FilterSpecs aplica mode i mode compacte a una llista d'eines. office
+// afegeix les eines d'Office al conjunt compacte.
+func FilterSpecs(specs []llm.ToolSpec, mode string, compact bool, office ...bool) []llm.ToolSpec {
+	ambOffice := len(office) > 0 && office[0]
 	readOnly := mode == ModeChat || mode == ModeInspect
 	out := make([]llm.ToolSpec, 0, len(specs))
 	for _, s := range specs {
 		if readOnly && einesEscriptura[s.Name] {
 			continue
 		}
-		if compact && !einesCore[s.Name] {
+		if compact && !einesCore[s.Name] && !(ambOffice && einesOffice[s.Name]) {
 			continue
 		}
 		out = append(out, s)
@@ -47,6 +70,11 @@ func FilterSpecs(specs []llm.ToolSpec, mode string, compact bool) []llm.ToolSpec
 // SpecsFor són les eines (natives + delegate + MCP) per a un mode.
 func SpecsFor(mode string, compact bool) []llm.ToolSpec {
 	return FilterSpecs(SpecsAll(), mode, compact)
+}
+
+// SpecsForHist és SpecsFor tenint en compte si la conversa va d'Office.
+func SpecsForHist(mode string, compact bool, hist []llm.Message) []llm.ToolSpec {
+	return FilterSpecs(SpecsAll(), mode, compact, compact && OfficeAlHist(hist))
 }
 
 // compactCodeRules substitueix codeRules per a models locals petits: les
