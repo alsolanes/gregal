@@ -44,6 +44,15 @@ func diagPythonTypes(path string) string {
 	return ""
 }
 
+// nomFitxer és el nom del fitxer d'un camí amb / o \ (pyright escriu el
+// camí del sistema on corre; filepath.Base només coneix el separador local).
+func nomFitxer(p string) string {
+	if i := strings.LastIndexAny(p, `/\`); i >= 0 {
+		return p[i+1:]
+	}
+	return p
+}
+
 // parsePyright extreu els errors del fitxer de la sortida JSON de pyright.
 func parsePyright(raw, base string) string {
 	var out struct {
@@ -61,7 +70,7 @@ func parsePyright(raw, base string) string {
 	}
 	var linies []string
 	for _, d := range out.Diags {
-		if d.Severity != "error" || !strings.EqualFold(filepath.Base(d.File), base) {
+		if d.Severity != "error" || !strings.EqualFold(nomFitxer(d.File), base) {
 			continue
 		}
 		msg := strings.SplitN(d.Message, "\n", 2)[0]
