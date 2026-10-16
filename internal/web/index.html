@@ -781,6 +781,9 @@ body:not(.working) .spin { animation:none; }
   padding:5px; border:1px solid var(--line-hi); border-radius:10px; background:var(--surface);
   box-shadow:0 14px 34px var(--ombra); }
 .perm-menu[hidden] { display:none; }
+.perm-autonomous { display:flex; flex-direction:column; gap:3px; padding:8px 9px 9px; margin-bottom:4px;
+  border-bottom:1px solid var(--line); color:var(--onada); font-size:var(--t2); }
+.perm-autonomous span { color:var(--muted); font-size:var(--t1); }
 .perm-menu button { display:block; width:100%; padding:7px 9px; border:0; border-radius:7px;
   background:transparent; color:var(--text); text-align:left; font-size:var(--t2); cursor:pointer; }
 .perm-menu button:hover { background:var(--hover); }
@@ -2673,15 +2676,19 @@ function paintPerm() {
   const pb = $('permBtn');
   if (!pb) return;
   const p = PERMS.find(x => x[0] === permMode) || PERMS[0];
-  const obert = permMode !== 'manual';
+  // En autònom no es pregunta res, sigui quin sigui el mode de permís: el
+  // candau ho diu en lloc de mostrar una opció que allà no compta.
+  const autonom = state && state.mode === 'autonomous';
+  const obert = autonom || permMode !== 'manual';
   const icon = pb.querySelector('.perm-icon');
   if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
+  const nom = gregalT(autonom ? 'ui.permAutonomousLabel' : p[1]);
   const label = $('permLabel');
-  if (label) label.textContent = gregalT(p[1]);
+  if (label) label.textContent = nom;
   pb.classList.toggle('obert', obert);
   // El detall al hover, que és on el vas a buscar quan dubtes.
-  pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]);
-  pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + gregalT(p[1]));
+  pb.title = autonom ? gregalT('ui.permAutonomous') : gregalT(p[1]) + ' - ' + gregalT(p[2]);
+  pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + nom);
 }
 document.addEventListener('gregal:idioma', () => {
   setSideCompact(sideCompacta());
@@ -2719,6 +2726,7 @@ function paintMode(mode) {
   }
   const plan = $('planFirst');
   if (plan) plan.hidden = mode === 'chat' || mode === 'goal';
+  if (typeof paintPerm === 'function') paintPerm();
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
 // d'un botó que anava rodant entre tres estats sense dir quins eren.
@@ -2740,7 +2748,11 @@ function togglePermMenu(obre) {
     $('permBtn').setAttribute('aria-expanded', 'false');
     return;
   }
-  menu.innerHTML = PERMS.map(([v, nom, ajuda]) =>
+  // En autònom no es pregunta res: el menú ho diu primer i les opcions
+  // queden per a quan tornis a Pregunta o Actua.
+  const autonom = state.mode === 'autonomous';
+  menu.innerHTML = (autonom ? '<div class="perm-autonomous"><b>' + escapeHTML(gregalT('ui.permAutonomous')) + '</b><span>' + escapeHTML(gregalT('ui.permAutonomousLater')) + '</span></div>' : '') +
+    PERMS.map(([v, nom, ajuda]) =>
     '<button role="menuitemradio" aria-checked="' + (v === permMode) + '" class="' + (v === permMode ? 'on' : '') +
     '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('') +
     '<div class="perm-sandbox faint" title="' + escapeHTML((state.sandbox && (state.sandbox.warning || state.sandbox.guarantee)) || '') + '">' +
