@@ -99,6 +99,7 @@ func main() {
 	evalFlag := flag.String("eval", "", "run evaluations from a directory; exit with code 1 if a task fails")
 	evalTasks := flag.String("tasks", "", "with --eval: comma-separated task names (default all)")
 	evalBaseline := flag.Bool("eval-baseline", false, "with --eval: save verdicts as baseline.json")
+	evalRepeat := flag.Int("repeat", 1, "with --eval: run each task N times (success rate, median/IQR, pass@k)")
 	bestOfFlag := flag.Int("best-of", 0, "with -p: try the task N ways (2-4) in separate git worktrees, verify and score each, and print a comparison; apply one with gregal worktree apply")
 	bestOfModels := flag.String("best-of-models", "", "with --best-of: comma-separated role names or provider/model per attempt (default: the code role)")
 	worktreeFlag := flag.String("worktree", "", "with -p or the TUI: work in an isolated git worktree .gregal/worktrees/<name> on branch gregal/<name> (created from HEAD if needed)")
@@ -173,7 +174,7 @@ func main() {
 	}
 
 	if *evalFlag != "" {
-		os.Exit(runEvals(cfg, *evalFlag, *evalTasks, *stepsFlag, *evalBaseline))
+		os.Exit(runEvals(cfg, *evalFlag, *evalTasks, *stepsFlag, *evalRepeat, *evalBaseline))
 	}
 
 	if u := strings.TrimSpace(*passwdFlag); u != "" {
@@ -365,7 +366,7 @@ func telegramLog() io.WriteCloser {
 
 // runHeadless implementa `gregal -p "tasca"` (estil codex exec / vibe -p).
 // runEvals corre el banc d'evals amb el config carregat i pinta la taula.
-func runEvals(cfg *config.Config, dir, tasks string, maxSteps int, desaBaseline bool) int {
+func runEvals(cfg *config.Config, dir, tasks string, maxSteps, repeat int, desaBaseline bool) int {
 	llista, err := evals.Load(dir)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gregal:", err)
@@ -385,7 +386,7 @@ func runEvals(cfg *config.Config, dir, tasks string, maxSteps int, desaBaseline 
 		maxSteps = 25
 	}
 	res, err := evals.Run(context.Background(), cfg, client, dir, llista, evals.Options{
-		MaxSteps: maxSteps, Names: noms,
+		MaxSteps: maxSteps, Names: noms, Repeat: repeat,
 		OnEvent: func(s string) { fmt.Fprintln(os.Stderr, s) },
 	})
 	if err != nil {

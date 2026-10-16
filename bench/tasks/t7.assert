@@ -1,0 +1,8 @@
+# Assert del banc (internal/evals): restaura els tests de la fixture
+# original abans de comprovar; un test retocat no pot fer passar res.
+set -e
+export PYTHONIOENCODING=utf-8
+cp "$GREGAL_EVAL_FIXTURE/verify.py" .
+out=$(python3 verify.py); echo "$out"
+# verify.py imprimeix TOT BÉ o FALLA (t7 surt sempre amb codi 0).
+case "$out" in "TOT B"*) ;; *) exit 1 ;; esac

@@ -7,8 +7,15 @@
 // regressions. Sense això, cada canvi al prompt o al bucle és una aposta.
 //
 // Una tasca és tasks/<t>.prompt (la consigna), opcionalment tasks/<t>/
-// (fixture que es copia a results/<t>), tasks/<t>.assert (script sh que
-// rep el log JSON i l'expected; codi 0 = PASS) i tasks/<t>.expected.
+// o fixtures/<t>/ (fixture que es copia a results/<t>; la segona és la
+// disposició de bench/), tasks/<t>.assert (script sh que rep el log JSON
+// i l'expected; codi 0 = PASS) i tasks/<t>.expected. L'assert també rep
+// GREGAL_EVAL_DIR (l'arrel del banc, per a proves amagades com
+// bench/hidden) i GREGAL_EVAL_FIXTURE (la fixture original, per restaurar
+// els tests abans de comprovar: un test retocat no pot fer passar res).
+//
+// Amb --repeat N cada tasca corre N cops: els models són estocàstics i un
+// sol PASS/FAIL no distingeix una millora del soroll (stats.go).
 package evals
 
 import (
@@ -42,10 +49,12 @@ type Task struct {
 	Expected string // fitxer esperat ("" si no n'hi ha)
 }
 
-// Result és el veredicte d'una tasca amb les mètriques del torn.
+// Result és el veredicte d'una execució d'una tasca amb les mètriques del
+// torn.
 type Result struct {
 	Task    string   `json:"task"`
-	Verdict string   `json:"verdict"` // PASS | FAIL | ERROR | SENSE-ASSERT
+	Run     int      `json:"run,omitempty"` // 1..N amb --repeat
+	Verdict string   `json:"verdict"`       // PASS | FAIL | ERROR | SENSE-ASSERT
 	Detail  string   `json:"detail,omitempty"`
 	Steps   int      `json:"steps"`
 	Tools   []string `json:"tools,omitempty"`
@@ -54,6 +63,19 @@ type Result struct {
 	CostUSD *float64 `json:"cost_usd,omitempty"`
 	Routed  string   `json:"routed,omitempty"`
 	Secs    int      `json:"secs"`
+	// TokensSource és el de RunResult (api | mixed | estimate).
+	// PromptTokens són els de pujada declarats pel proveïdor (0 si només
+	// hi ha estimació): la base de cache_hit_rate.
+	TokensSource    string `json:"tokens_source,omitempty"`
+	PromptTokens    int    `json:"prompt_tokens"`
+	CachedTokens    int    `json:"cached_tokens"`
+	LLMCalls        int    `json:"llm_calls"`
+	EditCalls       int    `json:"edit_calls"`
+	EditFailed      int    `json:"edit_failed"`
+	ToolCallInvalid int    `json:"tool_call_invalid"`
+	DoomHits        int    `json:"doom_hits"`
+	Compactions     int    `json:"compactions"`
+	Exhausted       bool   `json:"exhausted,omitempty"`
 }
 
 // Load llegeix les tasques de <dir>/tasks (ordenades pel nom).
@@ -79,8 +101,11 @@ func Load(dir string) ([]Task, error) {
 			return nil, err
 		}
 		t := Task{Name: name, Prompt: strings.TrimSpace(string(raw))}
-		if st, err := os.Stat(filepath.Join(tdir, name)); err == nil && st.IsDir() {
-			t.Fixture = filepath.Join(tdir, name)
+		for _, fx := range []string{filepath.Join(tdir, name), filepath.Join(dir, "fixtures", name)} {
+			if st, err := os.Stat(fx); err == nil && st.IsDir() {
+				t.Fixture = fx
+				break
+			}
 		}
 		if _, err := os.Stat(filepath.Join(tdir, name+".assert")); err == nil {
 			t.Assert = filepath.Join(tdir, name+".assert")
@@ -106,6 +131,8 @@ type Options struct {
 	OnEvent func(string)
 	// Timeout per tasca (agent + assert).
 	Timeout time.Duration
+	// Repeat és quants cops corre cada tasca (<1 = 1).
+	Repeat int
 }
 
 // Run corre les tasques en còpies sota <dir>/results i torna els
@@ -116,6 +143,9 @@ func Run(ctx context.Context, cfg *config.Config, client *llm.Client, dir string
 	}
 	if o.Timeout <= 0 {
 		o.Timeout = 10 * time.Minute
+	}
+	if o.Repeat < 1 {
+		o.Repeat = 1
 	}
 	say := func(f string, a ...any) {
 		if o.OnEvent != nil {
@@ -148,91 +178,124 @@ func Run(ctx context.Context, cfg *config.Config, client *llm.Client, dir string
 		if len(vol) > 0 && !vol[t.Name] {
 			continue
 		}
-		r := Result{Task: t.Name}
-		work := filepath.Join(out, t.Name)
-		os.RemoveAll(work)
-		if t.Fixture != "" {
-			if err := copiaDir(t.Fixture, work); err != nil {
-				r.Verdict, r.Detail = "ERROR", "fixture: "+err.Error()
-				results = append(results, r)
-				continue
+		for run := 1; run <= o.Repeat; run++ {
+			r, err := corre(ctx, cfg, client, dir, out, origDir, t, run, o, say)
+			if err != nil {
+				return results, err
 			}
-		} else if err := os.MkdirAll(work, 0o755); err != nil {
-			return results, err
-		}
-		say("== %s", t.Name)
-		t0 := time.Now()
-		tctx, cancel := context.WithTimeout(ctx, o.Timeout)
-		// Les eines de l'agent treballen al directori del procés.
-		if err := os.Chdir(work); err != nil {
-			cancel()
-			return results, err
-		}
-		res, err := agent.RunNonInteractiveEx(tctx, client, cfg, t.Prompt, "code", o.MaxSteps, true, func(step int, tools []string) {
-			say("   pas %d: %s", step, strings.Join(tools, ", "))
-		})
-		cancel()
-		os.Chdir(origDir)
-		r.Secs = int(time.Since(t0).Seconds())
-		r.Steps, r.Tools, r.Up, r.Down, r.CostUSD = res.Steps, res.Tools, res.UpTokens, res.DownTokens, res.CostUSD
-		if res.RoutedTo != "" {
-			r.Routed = res.RoutedFrom + "->" + res.RoutedTo
-		}
-		logPath := filepath.Join(out, t.Name+".log")
-		if raw, merr := json.MarshalIndent(res, "", "  "); merr == nil {
-			os.WriteFile(logPath, raw, 0o644)
-		}
-		if err != nil {
-			r.Verdict, r.Detail = "ERROR", truncate(err.Error(), 200)
+			// La fixture és sagrada: si el torn l'ha tocada (una ruta
+			// absoluta, un cd ..), el veredicte no val i cal saber-ho.
+			if t.Fixture != "" {
+				if abans, ara := empremtes[t.Name], empremtaDir(t.Fixture); abans != "" && abans != ara {
+					rel, _ := filepath.Rel(dir, t.Fixture)
+					r.Verdict, r.Detail = "ERROR", "la tasca ha modificat la fixture "+filepath.ToSlash(rel)+" (restaura-la amb git)"
+				}
+			}
 			results = append(results, r)
-			say("   ERROR %s", r.Detail)
-			continue
 		}
-		switch {
-		case t.Assert != "":
-			ok, detall := assert(work, t.Assert, logPath, t.Expected, filepath.Join(out, t.Name+".assert.log"))
-			if ok {
-				r.Verdict = "PASS"
-			} else {
-				r.Verdict, r.Detail = "FAIL", detall
-			}
-		default:
-			r.Verdict = "SENSE-ASSERT"
-		}
-		// La fixture és sagrada: si el torn l'ha tocada (una ruta absoluta,
-		// un cd ..), el veredicte no val i cal saber-ho.
-		if t.Fixture != "" {
-			if abans, ara := empremtes[t.Name], empremtaDir(t.Fixture); abans != "" && abans != ara {
-				r.Verdict, r.Detail = "ERROR", "la tasca ha modificat la fixture tasks/"+t.Name+" (restaura-la amb git)"
-			}
-		}
-		say("   %s (%d passos, %ds)", r.Verdict, r.Steps, r.Secs)
-		results = append(results, r)
 	}
-	if raw, err := json.MarshalIndent(results, "", "  "); err == nil {
+	if raw, err := json.MarshalIndent(Summarize(results, o.Repeat), "", "  "); err == nil {
 		os.WriteFile(filepath.Join(out, "summary.json"), raw, 0o644)
 	}
 	return results, nil
+}
+
+// nomRun és el nom dels fitxers d'una execució: <t> amb una sola, <t>.rN
+// amb --repeat (cada repetició té la seva còpia i el seu log).
+func nomRun(t string, run, repeat int) string {
+	if repeat <= 1 {
+		return t
+	}
+	return fmt.Sprintf("%s.r%d", t, run)
+}
+
+// corre fa una execució d'una tasca en una còpia neta de la fixture. Un
+// error vol dir que el banc no pot continuar (no es pot crear o entrar al
+// directori de treball); el que falla de la tasca va al veredicte.
+func corre(ctx context.Context, cfg *config.Config, client *llm.Client, dir, out, origDir string, t Task, run int, o Options, say func(string, ...any)) (Result, error) {
+	r := Result{Task: t.Name}
+	nom := nomRun(t.Name, run, o.Repeat)
+	if o.Repeat > 1 {
+		r.Run = run
+	}
+	work := filepath.Join(out, nom)
+	os.RemoveAll(work)
+	if t.Fixture != "" {
+		if err := copiaDir(t.Fixture, work); err != nil {
+			r.Verdict, r.Detail = "ERROR", "fixture: "+err.Error()
+			return r, nil
+		}
+	} else if err := os.MkdirAll(work, 0o755); err != nil {
+		return r, err
+	}
+	if o.Repeat > 1 {
+		say("== %s (%d/%d)", t.Name, run, o.Repeat)
+	} else {
+		say("== %s", t.Name)
+	}
+	t0 := time.Now()
+	tctx, cancel := context.WithTimeout(ctx, o.Timeout)
+	defer cancel()
+	// Les eines de l'agent treballen al directori del procés.
+	if err := os.Chdir(work); err != nil {
+		return r, err
+	}
+	res, err := agent.RunNonInteractiveEx(tctx, client, cfg, t.Prompt, "code", o.MaxSteps, true, func(step int, tools []string) {
+		say("   pas %d: %s", step, strings.Join(tools, ", "))
+	})
+	os.Chdir(origDir)
+	r.Secs = int(time.Since(t0).Seconds())
+	ompleMetriques(&r, res)
+	logPath := filepath.Join(out, nom+".log")
+	if raw, merr := json.MarshalIndent(res, "", "  "); merr == nil {
+		os.WriteFile(logPath, raw, 0o644)
+	}
+	if err != nil {
+		r.Verdict, r.Detail = "ERROR", truncate(err.Error(), 200)
+		say("   ERROR %s", r.Detail)
+		return r, nil
+	}
+	switch {
+	case t.Assert != "":
+		ok, detall := assert(work, t.Assert, logPath, t.Expected, filepath.Join(out, nom+".assert.log"), dir, t.Fixture)
+		if ok {
+			r.Verdict = "PASS"
+		} else {
+			r.Verdict, r.Detail = "FAIL", detall
+		}
+	default:
+		r.Verdict = "SENSE-ASSERT"
+	}
+	say("   %s (%d passos, %ds)", r.Verdict, r.Steps, r.Secs)
+	return r, nil
+}
+
+// ompleMetriques copia del RunResult les mètriques que el banc agrega.
+func ompleMetriques(r *Result, res agent.RunResult) {
+	r.Steps, r.Tools, r.Up, r.Down, r.CostUSD = res.Steps, res.Tools, res.UpTokens, res.DownTokens, res.CostUSD
+	if res.RoutedTo != "" {
+		r.Routed = res.RoutedFrom + "->" + res.RoutedTo
+	}
+	r.TokensSource = res.TokensSource
+	if res.TokensSource != "estimate" {
+		r.PromptTokens = res.UpTokens
+	}
+	r.CachedTokens, r.LLMCalls = res.CachedTokens, res.LLMCalls
+	r.EditCalls, r.EditFailed = res.EditCalls, res.EditFailed
+	r.ToolCallInvalid, r.DoomHits, r.Compactions = res.ToolCallInvalid, res.DoomHits, res.Compactions
+	r.Exhausted = res.Exhausted
 }
 
 // assert executa l'script amb sh (Git Bash a Windows) dins del directori
 // de la tasca, amb el log i l'expected com a arguments. A Windows, si no
 // hi ha python3 però sí python, es posa un python3 de recanvi al PATH:
 // els asserts el criden pel nom de sempre.
-func assert(work, script, logPath, expected, outLog string) (bool, string) {
-	// A Windows l'sh és el del Git: barres normals i lletra d'unitat
-	// traduïda (C:/x → /c/x), o no troba els fitxers.
-	posix := func(p string) string {
-		if runtime.GOOS != "windows" || p == "" {
-			return p
-		}
-		return shell.NormalitzaPathsWindows(strings.ReplaceAll(p, "\\", "/"))
-	}
+func assert(work, script, logPath, expected, outLog, evalDir, fixture string) (bool, string) {
 	cmd := fmt.Sprintf("sh %q %q %q", posix(script), posix(logPath), posix(expected))
 	prog, args := shell.Argv(cmd)
 	c := exec.Command(prog, args...)
 	c.Dir = work
-	c.Env = ambPython3(os.Environ())
+	c.Env = append(ambPython3(os.Environ()), "GREGAL_EVAL_DIR="+posix(evalDir), "GREGAL_EVAL_FIXTURE="+posix(fixture))
 	var buf bytes.Buffer
 	c.Stdout, c.Stderr = &buf, &buf
 	err := c.Run()
@@ -241,6 +304,15 @@ func assert(work, script, logPath, expected, outLog string) (bool, string) {
 		return true, ""
 	}
 	return false, truncate(strings.TrimSpace(darreraLinia(buf.String())), 200)
+}
+
+// posix és la ruta tal com la vol l'sh: a Windows el del Git, amb barres
+// normals i lletra d'unitat traduïda (C:/x → /c/x), o no troba els fitxers.
+func posix(p string) string {
+	if runtime.GOOS != "windows" || p == "" {
+		return p
+	}
+	return shell.NormalitzaPathsWindows(strings.ReplaceAll(p, "\\", "/"))
 }
 
 // ambPython3 afegeix un directori amb un `python3` que crida `python`
@@ -336,64 +408,4 @@ func copiaDir(src, dst string) error {
 		_, err = io.Copy(outF, in)
 		return err
 	})
-}
-
-// Baseline és tasca → veredicte de la passada de referència
-// (evals/baseline.json).
-type Baseline map[string]string
-
-// LoadBaseline llegeix <dir>/baseline.json (nil si no hi és).
-func LoadBaseline(dir string) Baseline {
-	raw, err := os.ReadFile(filepath.Join(dir, "baseline.json"))
-	if err != nil {
-		return nil
-	}
-	var b Baseline
-	if json.Unmarshal(raw, &b) != nil {
-		return nil
-	}
-	return b
-}
-
-// SaveBaseline desa els veredictes com a referència nova.
-func SaveBaseline(dir string, results []Result) error {
-	b := Baseline{}
-	for _, r := range results {
-		b[r.Task] = r.Verdict
-	}
-	raw, _ := json.MarshalIndent(b, "", "  ")
-	return os.WriteFile(filepath.Join(dir, "baseline.json"), raw, 0o644)
-}
-
-// Report pinta la taula, el recompte i les diferències amb la referència.
-func Report(w io.Writer, results []Result, base Baseline) (passed, total int, regressions []string) {
-	fmt.Fprintf(w, "%-6s %-12s %6s %8s %5s  %-28s %s\n", "tasca", "veredicte", "passos", "tokens", "s", "eines", "detall")
-	for _, r := range results {
-		eines := strings.Join(r.Tools, ",")
-		if len(eines) > 28 {
-			eines = eines[:27] + "…"
-		}
-		fmt.Fprintf(w, "%-6s %-12s %6d %8d %5d  %-28s %s\n", r.Task, r.Verdict, r.Steps, r.Up+r.Down, r.Secs, eines, r.Detail)
-		total++
-		if r.Verdict == "PASS" {
-			passed++
-		}
-		if base != nil {
-			if was, ok := base[r.Task]; ok && was == "PASS" && r.Verdict != "PASS" {
-				regressions = append(regressions, r.Task)
-			}
-		}
-	}
-	fmt.Fprintf(w, "\n%d/%d PASS", passed, total)
-	if base != nil {
-		if len(regressions) > 0 {
-			fmt.Fprintf(w, " · REGRESSIONS respecte baseline: %s", strings.Join(regressions, ", "))
-		} else {
-			fmt.Fprintf(w, " · sense regressions respecte baseline")
-		}
-	} else {
-		fmt.Fprintf(w, " · sense baseline (desa-la amb --eval-baseline)")
-	}
-	fmt.Fprintln(w)
-	return passed, total, regressions
 }

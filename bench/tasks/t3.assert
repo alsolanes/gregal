@@ -1,0 +1,6 @@
+# Assert del banc (internal/evals): restaura els tests de la fixture
+# original abans de comprovar; un test retocat no pot fer passar res.
+set -e
+export PYTHONIOENCODING=utf-8
+cp "$GREGAL_EVAL_FIXTURE/test_utils.py" .
+python3 test_utils.py

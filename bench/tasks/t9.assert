@@ -1,0 +1,9 @@
+# Assert del banc (internal/evals): restaura els tests de la fixture
+# original abans de comprovar; un test retocat no pot fer passar res.
+set -e
+export PYTHONIOENCODING=utf-8
+cp "$GREGAL_EVAL_FIXTURE/test_informe.py" .
+python3 -m unittest -q test_informe
+# Prova amagada (bench/hidden): formats que el test visible no cobreix,
+# per caçar arreglos fets a mida del test.
+python3 "$GREGAL_EVAL_DIR/hidden/t9_hidden.py"

@@ -1,0 +1,1 @@
+A calc.py, preu_total() torna un total incorrecte; test_calc.py ho reprodueix. Troba la causa, corregeix-la a calc.py (no al test) i verifica-ho executant test_calc.py amb Python.
