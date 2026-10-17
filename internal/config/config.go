@@ -427,6 +427,9 @@ type Config struct {
 	Router      RouterCfg            `yaml:"router"`
 	Budget      BudgetCfg            `yaml:"budget"`
 	Cost        map[string]CostPrice `yaml:"cost"`
+	// ModelsCatalog: "off" desactiva el catàleg de models.dev (finestres,
+	// preus i capacitats dels models remots). Buit o "on" = actiu.
+	ModelsCatalog string `yaml:"models_catalog,omitempty"`
 	Hooks       HooksCfg             `yaml:"hooks"`
 	Git         GitCfg               `yaml:"git"`
 	System      string               `yaml:"system"`

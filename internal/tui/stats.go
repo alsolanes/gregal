@@ -32,6 +32,8 @@ func (m Model) statsBlock() string {
 			proven = T("stats.fontModel")
 		case "coneguda":
 			proven = T("stats.fontConeguda")
+		case "cataleg":
+			proven = T("stats.fontCataleg")
 		default:
 			proven = T("stats.fontDefecte")
 		}

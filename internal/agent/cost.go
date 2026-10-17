@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 
+	"gregal/internal/catalog"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 )
@@ -30,13 +31,52 @@ func SetPrices(p map[string]Price) {
 	}
 }
 
-// SetupPrices carrega la taula del config (agent.SetupPrices a l'arrencada).
+// SetupPrices carrega la taula del config (agent.SetupPrices a l'arrencada)
+// i activa el catàleg de models (internal/catalog). Els models dels rols que
+// el config no té preu el prenen del catàleg, en segon pla perquè la
+// primera baixada no aturi l'arrencada; el preu del config mana sempre.
 func SetupPrices(cfg *config.Config) {
 	p := map[string]Price{}
 	for k, v := range cfg.Cost {
 		p[k] = Price{In: v.In, Out: v.Out}
 	}
 	SetPrices(p)
+	catalog.Configure(CatalegActiu(cfg), "")
+	if CatalegActiu(cfg) {
+		go PreusDelCataleg(cfg)
+	}
+}
+
+// CatalegActiu diu si el config deixa fer servir el catàleg de models.
+func CatalegActiu(cfg *config.Config) bool {
+	return cfg != nil && !strings.EqualFold(strings.TrimSpace(cfg.ModelsCatalog), "off")
+}
+
+// PreusDelCataleg afegeix els preus del catàleg als models dels rols que no
+// en tenen. Només els d'un proveïdor identificat per l'adreça: un model que
+// ofereixen diversos proveïdors no té un preu únic.
+func PreusDelCataleg(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	for _, r := range cfg.Roles {
+		prov, ok := cfg.Providers[r.Provider]
+		if !ok || esLocal(prov.BaseURL, r.Provider) {
+			continue
+		}
+		m, origen, ok := catalog.Lookup(prov.BaseURL, r.Model)
+		if !ok || origen == "" || !m.HasCost {
+			continue
+		}
+		clau := strings.ToLower(r.Provider + "/" + r.Model)
+		costMu.Lock()
+		if _, ja := prices[clau]; !ja {
+			if _, jaModel := prices[strings.ToLower(r.Model)]; !jaModel {
+				prices[clau] = Price{In: m.In, Out: m.Out}
+			}
+		}
+		costMu.Unlock()
+	}
 }
 
 // CostUSD calcula el cost d'una sessió. ok=false si el model no té preu

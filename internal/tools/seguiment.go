@@ -131,6 +131,25 @@ func (s *Seguiment) Coneix(path string) {
 	s.conegut(path, raw)
 }
 
+// GuardaEscriptura és la guarda de write sobre un fitxer que ja existeix
+// (P9, com Claude Code i el FS_STALE_VERSION de DeepSeek Harness): s'ha
+// d'haver llegit (o escrit) en aquesta conversa i no pot haver canviat des
+// d'aleshores. Sense això, un write reescrivia a cegues un fitxer que el
+// model no havia vist, o es menjava el que l'usuari, un formatador o un
+// altre agent hi havia canviat mentrestant. Un fitxer nou passa sempre.
+func (s *Seguiment) GuardaEscriptura(path string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil // no existeix (o no es pot llegir: ho dirà Write)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ok, perque := s.alDia(path, raw); !ok {
+		return fmt.Errorf("%s ja existeix i %s: write el reescriuria sencer sense saber què hi ha. Llegeix-lo amb read i torna-ho a provar, o canvia només el que cal amb edit o patch", path, perque)
+	}
+	return nil
+}
+
 // alDia diu si el model té al dia el contingut raw, i si no, per què.
 func (s *Seguiment) alDia(path string, raw []byte) (bool, string) {
 	st := s.fitxers[clau(path)]

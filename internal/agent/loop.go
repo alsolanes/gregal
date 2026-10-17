@@ -754,6 +754,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
+		if err := seg.GuardaEscriptura(a.Path); err != nil {
+			return "", nil, err
+		}
 		n, err := tools.Write(a.Path, []byte(a.Content))
 		if err != nil {
 			return "", nil, err
