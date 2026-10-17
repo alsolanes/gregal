@@ -82,7 +82,7 @@ func main() {
 	doctorFlag := flag.Bool("doctor", false, "check local configuration, providers and workspace health")
 	cfgPath := flag.String("config", "", "configuration path (default ~/.config/gregal/config.yaml)")
 	promptFlag := flag.String("p", "", "noninteractive mode: execute a task and exit")
-	outputFlag := flag.String("output", "text", "output format for -p: text|json")
+	outputFlag := flag.String("output", "text", "output format for -p: text|json|stream-json (one JSON line per step, tool call and result, then the result)")
 	approveFlag := flag.Bool("auto-approve", false, "with -p: approve ask-policy tools without prompting (not with --mode autonomous)")
 	stepsFlag := flag.Int("max-steps", 0, "with -p: hard step limit, 1-200 (0 = configuration limit, which may be extended)")
 	modeFlag := flag.String("mode", "", "with -p: code|inspect|chat|goal|autonomous (empty = configuration)")
@@ -104,6 +104,11 @@ func main() {
 	bestOfFlag := flag.Int("best-of", 0, "with -p: try the task N ways (2-4) in separate git worktrees, verify and score each, and print a comparison; apply one with gregal worktree apply")
 	bestOfApply := flag.Bool("best-of-apply", false, "with --best-of: apply the recommended attempt to the working tree (no commit) and discard the other worktrees")
 	bestOfModels := flag.String("best-of-models", "", "with --best-of: comma-separated role names or provider/model per attempt (default: the code role)")
+	continueFlag := flag.Bool("c", false, "with -p: continue the most recent saved session of this folder")
+	flag.BoolVar(continueFlag, "continue", false, "with -p: same as -c")
+	resumeFlag := flag.String("resume", "", "with -p: continue the saved session with this name")
+	modelFlag := flag.String("model", "", "with -p: model for this run, as provider/model or a model of the code role's provider")
+	noSessionFlag := flag.Bool("no-session", false, "with -p: do not save this run as a session")
 	worktreeFlag := flag.String("worktree", "", "with -p or the TUI: work in an isolated git worktree .gregal/worktrees/<name> on branch gregal/<name> (created from HEAD if needed)")
 	flag.Parse()
 
@@ -171,10 +176,20 @@ func main() {
 			fmt.Fprintln(os.Stderr, "gregal: --worktree:", err)
 			os.Exit(2)
 		}
-		if *bestOfFlag != 0 {
-			os.Exit(runBestOfHeadless(cfg, *promptFlag, *outputFlag, *bestOfFlag, *bestOfModels, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *bestOfApply))
+		task, err := tascaAmbStdin(*promptFlag, os.Stdin)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "gregal:", err)
+			os.Exit(2)
 		}
-		os.Exit(runHeadless(cfg, *promptFlag, *outputFlag, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *verifyRoundsFlag))
+		if err := aplicaModel(cfg, *modelFlag); err != nil {
+			fmt.Fprintln(os.Stderr, "gregal:", err)
+			os.Exit(2)
+		}
+		if *bestOfFlag != 0 {
+			os.Exit(runBestOfHeadless(cfg, task, *outputFlag, *bestOfFlag, *bestOfModels, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *bestOfApply))
+		}
+		ex := headlessExtra{Desa: !*noSessionFlag, Continua: *continueFlag, Resume: *resumeFlag}
+		os.Exit(runHeadless(cfg, task, *outputFlag, *approveFlag, *stepsFlag, *modeFlag, *verifyFlag, *verifyRoundsFlag, ex))
 	}
 
 	if *evalFlag != "" {
@@ -424,7 +439,7 @@ const (
 // --output mal escrit es descobria després del torn sencer, ja pagat, i un
 // --mode mal escrit es convertia en code sense dir res).
 func validaHeadless(cfg *config.Config, output, mode string, autoApprove bool, maxSteps int, lang string) error {
-	if output != "text" && output != "json" {
+	if output != "text" && output != "json" && output != "stream-json" {
 		return fmt.Errorf("%s", cliText(lang, "headless.bad_output", output))
 	}
 	if mode != "" && !agent.ValidMode(mode) {
@@ -450,14 +465,23 @@ func validaHeadless(cfg *config.Config, output, mode string, autoApprove bool, m
 // ha fallat, l'error (abans, en fallar, stdout quedava buit).
 type headlessJSON struct {
 	agent.RunResult
-	Error string `json:"error,omitempty"`
+	// Session és el nom amb què s'ha desat la tirada (per a --resume).
+	Session string `json:"session,omitempty"`
+	Error   string `json:"error,omitempty"`
 }
 
 // Amb verifyCmd no buit, el torn no es dona per bo fins que la comanda
 // passa (gate mecànic: fins a verifyRounds rondes de reparació). Torna el
 // codi de sortida.
-func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxSteps int, mode, verifyCmd string, verifyRounds int) int {
+func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxSteps int, mode, verifyCmd string, verifyRounds int, ex headlessExtra) int {
 	lang := cliLanguage(cfg)
+	cwd, _ := os.Getwd()
+	sessDir := session.DefaultDir()
+	nomSessio, prior, err := sessioPrevia(sessDir, cwd, ex)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "gregal:", err)
+		return exitUsage
+	}
 	if mode == "" {
 		mode = cfg.Mode
 	}
@@ -475,10 +499,19 @@ func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxS
 	cli := llm.New()
 	cfg.ConfigureClient(cli)
 	agent.SetupDelegate(cfg, cli)
-	cwd, _ := os.Getwd()
+	var stream *emissorJSONL
+	var onEvent func(agent.Event)
+	if output == "stream-json" {
+		stream = &emissorJSONL{w: os.Stdout}
+		onEvent = stream.event
+	}
 	res, err := agent.RunAmbVerificacio(context.Background(), cli, cfg, agent.RunOpts{
-		Task: task, Mode: mode, MaxSteps: maxSteps, HardStepLimit: hard, AutoApprove: autoApprove, Dir: cwd,
+		Task: task, Mode: mode, MaxSteps: maxSteps, HardStepLimit: hard, AutoApprove: autoApprove, Dir: cwd, Prior: prior,
+		OnEvent: onEvent,
 		OnStep: func(step int, tools []string) {
+			if stream != nil {
+				stream.pas(step, tools)
+			}
 			if len(tools) == 0 {
 				fmt.Fprintln(os.Stderr, cliText(lang, "headless.step_answering", step))
 			} else {
@@ -492,11 +525,32 @@ func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxS
 	if res.RouteWhy != "" {
 		fmt.Fprintf(os.Stderr, "🔀 %s (%s → %s)\n", res.RouteWhy, res.RoutedFrom, res.RoutedTo)
 	}
+	// La sessió es desa també si el torn ha fallat a mitges: la feina feta
+	// hi és, i -c la pot reprendre.
+	if ex.Desa {
+		rol := "code"
+		if res.RoutedTo != "" {
+			rol = res.RoutedTo
+		}
+		if nom, errDesa := desaSessioHeadless(sessDir, nomSessio, cwd, rol, res.Convo); errDesa != nil {
+			fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.session_failed", errDesa))
+		} else if nom != "" {
+			nomSessio = nom
+			if output == "text" {
+				fmt.Fprintln(os.Stderr, cliText(lang, "headless.session_saved", nom))
+			}
+		}
+	} else {
+		nomSessio = ""
+	}
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "gregal:", err)
-		if output == "json" {
-			raw, _ := json.MarshalIndent(headlessJSON{RunResult: res, Error: err.Error()}, "", "  ")
+		switch output {
+		case "json":
+			raw, _ := json.MarshalIndent(headlessJSON{RunResult: res, Session: nomSessio, Error: err.Error()}, "", "  ")
 			fmt.Println(string(raw))
+		case "stream-json":
+			stream.resultat(headlessJSON{RunResult: res, Session: nomSessio, Error: err.Error()})
 		}
 		return exitError
 	}
@@ -514,9 +568,13 @@ func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxS
 		fmt.Fprintln(os.Stderr, "gregal:", cliText(lang, "headless.interrupted", res.Interrupted))
 		code = exitError
 	}
-	if output == "json" {
-		raw, _ := json.MarshalIndent(headlessJSON{RunResult: res}, "", "  ")
+	switch output {
+	case "json":
+		raw, _ := json.MarshalIndent(headlessJSON{RunResult: res, Session: nomSessio}, "", "  ")
 		fmt.Println(string(raw))
+		return code
+	case "stream-json":
+		stream.resultat(headlessJSON{RunResult: res, Session: nomSessio})
 		return code
 	}
 	fmt.Println(res.Answer)

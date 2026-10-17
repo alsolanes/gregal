@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"sync"
 	"sync/atomic"
+	"strings"
 	"time"
 
 	"gregal/internal/sandbox"
@@ -390,4 +391,46 @@ func (p *Proc) Describe() string {
 		code = *p.Exit
 	}
 	return fmt.Sprintf("[%s] ACABAT (codi %d) · %s · %d línies", p.ID, code, p.Cmd, p.total)
+}
+
+// WaitFor espera fins que el procés acabi, fins que una línia de la sortida
+// contingui until (si no és buit), fins a d o fins que es cancel·li ctx.
+// Torna per què ha parat: "exited", "matched", "timeout" o "cancelled".
+//
+// Sense això el model esperava un test o un servidor amb `sleep 90` en un
+// pas i bash_output en un altre, i ho repetia: dues voltes de model per
+// cada espera, i una espera massa curta en gastava dues més.
+func (p *Proc) WaitFor(ctx context.Context, d time.Duration, until string) string {
+	limit := time.NewTimer(d)
+	defer limit.Stop()
+	tick := time.NewTicker(150 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		if until != "" && p.conte(until) {
+			return "matched"
+		}
+		select {
+		case <-p.done:
+			if until != "" && p.conte(until) {
+				return "matched"
+			}
+			return "exited"
+		case <-limit.C:
+			return "timeout"
+		case <-ctx.Done():
+			return "cancelled"
+		case <-tick.C:
+		}
+	}
+}
+
+func (p *Proc) conte(s string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, l := range p.lines {
+		if strings.Contains(l.Text, s) {
+			return true
+		}
+	}
+	return false
 }
