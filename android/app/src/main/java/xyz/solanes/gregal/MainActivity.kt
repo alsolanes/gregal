@@ -2,6 +2,7 @@ package xyz.solanes.gregal
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -158,6 +159,9 @@ class MainActivity : ComponentActivity() {
         }
         // Només la primera vegada per a aquest ViewModel: en girar la pantalla
         // l'activitat es recrea però l'estat (connexió, xat) segueix viu.
+        // Notificació d'un job tocada: s'obre aquella execució (abans de
+        // connectar, perquè la primera pantalla ja sigui la d'activitat).
+        if (savedInstanceState == null) openRunFrom(intent)
         if (!vm.startupDone) {
             vm.startupDone = true
             vm.attachPrefs(prefs)
@@ -357,6 +361,18 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        openRunFrom(intent)
+    }
+
+    private fun openRunFrom(intent: Intent?) {
+        intent?.getStringExtra(JobAlarms.EXTRA_RUN)?.takeIf { it.isNotBlank() }?.let {
+            intent.removeExtra(JobAlarms.EXTRA_RUN)
+            vm.openRunFromNotification(it)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         AppVisibility.foreground = true

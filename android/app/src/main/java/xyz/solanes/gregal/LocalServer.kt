@@ -85,6 +85,9 @@ object LocalSpec {
         "GREGAL_AUTH" to paths.authFile,
         "GREGAL_PERSIST_KEYS" to "1",
         "GREGAL_PLATFORM" to "android",
+        // Els jobs els dispara l'alarma del sistema (JobAlarms), no el backend:
+        // així corren també amb l'app tancada i mai dues vegades.
+        "GREGAL_JOBS_SCHEDULER" to "external",
         "TMPDIR" to paths.tmp,
         "TZ" to timeZone,
         "LANG" to if (lang == "ca") "ca_ES.UTF-8" else "en_US.UTF-8",

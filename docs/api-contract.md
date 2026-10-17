@@ -240,7 +240,7 @@ workspace roots.
 | `/api/worktrees` | GET | `{available, main, current, worktrees:[{name,path,branch,head,base,dirty,ahead,main}]}`: gregal worktrees of the session's repository (`current` = the worktree the session runs in, if any). `available:false` outside git. |
 | `/api/providers` | GET | `{providers:[{name,url,type?,key,used_by}], roles}`; `type` is omitted for Chat Completions providers. |
 | `/api/github` | GET | `{available, cwd}`. |
-| `/api/jobs` | GET | Scheduled jobs. |
+| `/api/jobs` | GET | Scheduled jobs; `next_due_at` is the next slot in RFC 3339. |
 | `/api/jobs/runs` | GET | `?id=` returns run history. |
 | `/api/mcp` | GET | `{summary,servers:[{name,status,transport,tools,prompts,resources?,auth?,host?,error?}],tools:[name],prompts:[{command,server,name,description,arguments}]}`: safe diagnostics for MCP connectors; does not expose commands, headers, tokens or environment. `status` is `connected`, `error` or `needs_auth`; `auth` (remote servers only) is `none`, `authorized` or `required`. |
 | `/api/mcp/connect` | POST | Admin. `{name}` → `{status:"connected",servers}` or `{status:"needs_auth",auth_url}`: (re)connects a server; when it asks for OAuth 2.1 the UI opens `auth_url` in the browser (PKCE, dynamic client registration when offered). 502 `{error,servers}` if it cannot connect. |
@@ -281,7 +281,7 @@ workspace roots.
 | `/api/office/open` | POST | `{id}` → opens the document with the server's associated application (local/desktop only). |
 | `/api/jobs/save` | POST | Creates or updates a scheduled job. |
 | `/api/jobs/delete` | POST | Deletes a scheduled job. |
-| `/api/jobs/run` | POST | Runs a job immediately. |
+| `/api/jobs/run` | POST | Runs a job immediately. `scheduled: true` is a slot fired by an external scheduler (`GREGAL_JOBS_SCHEDULER=external`, the Android app): it queues behind an interactive turn and refuses a paused job. |
 
 ### `/api/agent` SSE Events
 

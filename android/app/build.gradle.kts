@@ -26,8 +26,8 @@ android {
         applicationId = "xyz.solanes.gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = 41
-        versionName = "0.10.0"
+        versionCode = 42
+        versionName = "0.11.0"
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)

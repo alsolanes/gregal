@@ -206,7 +206,7 @@ private val mdLinkRe = Regex("\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
  * Títol d'una sola línia sense marques markdown: treu encapçalaments, cites,
  * vinyetes, negretes, codi i enllaços. Per targetes (objectius, sessions).
  */
-fun stripMdForTitle(src: String): String {
+fun stripMdForTitle(src: String, max: Int = 140): String {
     val line = src.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return ""
     var t = line
     t = headingRe.replace(t) { it.groups[2]!!.value }
@@ -214,7 +214,7 @@ fun stripMdForTitle(src: String): String {
     t = bulletRe.replace(t) { it.groups[1]!!.value }
     t = mdLinkRe.replace(t) { it.groups[1]!!.value }
     t = t.replace("**", "").replace("__", "").replace("`", "")
-    return t.trim().take(140)
+    return t.trim().take(max)
 }
 
 /** Agrupa segments en blocs rics per emetre composables. */
