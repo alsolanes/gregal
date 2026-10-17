@@ -44,10 +44,10 @@ type TraceCall struct {
 type RunResult struct {
 	Answer string   `json:"answer"`
 	Steps  int      `json:"steps"`
+	Tools  []string `json:"tools_used"`
 	// Convo és la conversa sencera en acabar (sense el system), per desar
 	// la sessió i continuar-la. No va al JSON: hi va el nom de la sessió.
 	Convo []llm.Message `json:"-"`
-	Tools  []string `json:"tools_used"`
 	// Trace és cada crida amb els seus arguments i com ha anat, retallat.
 	// Només amb els noms (tools_used) una tirada de 18 passos al banc A/B
 	// no deia res de per què havia trigat quatre vegades més que opencode.
