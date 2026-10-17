@@ -231,6 +231,8 @@ data class WorkGroup(
     val started: Long = 0L,
     val ended: Long = 0L,
     val failed: Boolean = false,
+    /** L'has aturat tu: s'acaba sense èxit però no és cap error (sense vermell). */
+    val stopped: Boolean = false,
     /** Id del torn al servidor (v2): obre el #retro d'aquest torn. */
     val runId: Long = 0L,
 ) {
@@ -257,8 +259,8 @@ data class WorkGroup(
     }
 
     /** Tanca el torn: els passos encara oberts queden com a acabats. */
-    fun close(at: Long, failed: Boolean): WorkGroup = copy(
-        ended = at, failed = failed,
+    fun close(at: Long, failed: Boolean, stopped: Boolean = false): WorkGroup = copy(
+        ended = at, failed = failed && !stopped, stopped = stopped,
         steps = steps.map { if (it.state == StepState.Running) it.copy(state = if (failed) StepState.Failed else StepState.Ok) else it },
     )
 }

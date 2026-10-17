@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -132,6 +135,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 
+/** Amplada màxima de lectura del xat (tauleta, horitzontal), com a l'escriptori. */
+val ChatMaxWidth = 760.dp
+
 /** Identitat Gregal: mar fosc, verd marí (Sea) i sorra (Sand). Mai clons. */
 // Paleta: ara a Theme.kt (LocalPal; getters Sea/Ink/… temàtics).
 
@@ -153,6 +159,11 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     // servidor sense comptes (us local) nomes enten aquest cami.
     var ambToken by remember { mutableStateOf(prefs.token.isNotBlank()) }
     val notice by vm.notice.collectAsState()
+    val local by vm.localState.collectAsState()
+    val localOk = remember { vm.localAvailable() }
+    // El remot és l'opció: plegat si l'app pot treballar sola, obert si
+    // l'havies triat abans o si aquesta build no porta el backend.
+    var remot by remember { mutableStateOf(!localOk || prefs.target == Prefs.TARGET_REMOTE) }
     GregalBg {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 28.dp, vertical = 36.dp),
@@ -164,40 +175,82 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             Text("Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
             Text(tr(lang, "app.pair.subtitle"), color = Muted, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(28.dp))
-            val field = RoundedCornerShape(14.dp)
-            OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
-                leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
-                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
-                leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
-                leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = PasswordVisualTransformation())
-            Spacer(Modifier.height(18.dp))
-            Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
-            TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
-                Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
-                    color = Muted, fontSize = 13.sp)
+            if (localOk) {
+                // Aquest dispositiu: el mateix backend que l'escriptori, dins l'app.
+                GlassCard(Modifier.fillMaxWidth(), hi = !remot) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(tr(lang, "app.server.thisDevice"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(tr(lang, "app.server.thisDeviceHelp"), color = Muted, fontSize = 13.sp)
+                        Spacer(Modifier.height(12.dp))
+                        val starting = local is LocalState.Starting
+                        Button(onClick = { vm.useThisDevice() }, enabled = !starting, shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                            Text(tr(lang, if (starting) "app.server.starting" else "app.server.useThisDevice"), fontSize = 16.sp)
+                        }
+                        if (starting) {
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea, trackColor = Line)
+                        }
+                        val failed = local as? LocalState.Failed
+                        if (failed != null) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(tr(lang, "app.local.failed", failed.message), color = Sand, fontSize = 13.sp)
+                            if (failed.log.isNotBlank()) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(failed.log.takeLast(1200), color = Muted, fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                TextButton(onClick = { remot = !remot }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr(lang, if (remot) "app.server.hideRemote" else "app.server.showRemote"),
+                        color = Muted, fontSize = 13.sp)
+                }
             }
-            if (ambToken) {
-                OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.token")) },
+            if (remot) {
+                Text(tr(lang, "app.server.remoteHelp"), color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                val field = RoundedCornerShape(14.dp)
+                OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
+                    leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
                     modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = {
-                    prefs.save(host, port, token, prefs.usuari)
-                    vm.setConn(Conn(host, port, token, prefs.usuari))
-                    vm.connect { vm.go(Screen.Chat) }
-                }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.connect")) }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
+                    leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
+                    leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
+                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation())
+                Spacer(Modifier.height(18.dp))
+                val login: @Composable () -> Unit = { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
+                if (localOk) {
+                    OutlinedButton(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                } else {
+                    Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                }
+                TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
+                        color = Muted, fontSize = 13.sp)
+                }
+                if (ambToken) {
+                    OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.token")) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { vm.connectRemote(host, port, token) },
+                        modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.connect")) }
+                }
             }
             val ctx = LocalContext.current
             val ver = remember {
@@ -214,10 +267,9 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             if (notice.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 ConnectionNotice(notice, lang, onRetry = {
-                    // Reintentar no ha d'esborrar l'usuari desat.
-                    prefs.save(host, port, token, prefs.usuari)
-                    vm.setConn(Conn(host, port, token, prefs.usuari))
-                    vm.connect { vm.go(Screen.Chat) }
+                    // Reintenta allò que s'havia triat: el dispositiu o el remot.
+                    if (prefs.target == Prefs.TARGET_LOCAL && localOk) vm.useThisDevice()
+                    else vm.connectRemote(host, port, token)
                 })
             }
         }
@@ -268,6 +320,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val showRewind by vm.showRewind.collectAsState()
     val checkpoints by vm.checkpoints.collectAsState()
     val live by vm.live.collectAsState()
+    val needsProvider by vm.needsProvider.collectAsState()
     val activity by vm.activity.collectAsState()
     val planFirst by vm.planFirst.collectAsState()
     var showPlus by remember { mutableStateOf(false) }
@@ -321,6 +374,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 title = {
                     // Estil ChatGPT: el títol és el model, centrat, i prou.
                     // El projecte és al capdamunt del calaix.
+                    CappedFontScale(1.3f) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         TextButton(onClick = { showModelMenu = true }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -342,6 +396,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                         ModelMenu(vm, st, showModelMenu, { showModelMenu = false })
                     }
+                    }
                 },
                 actions = {
                     // Una sola acció, com ChatGPT: conversa nova. Desfés i
@@ -355,7 +410,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
-            Column(Modifier.imePadding()) {
+            // Mentre falta el proveïdor no hi ha res a enviar, i amb el
+            // teclat obert el composer tapava «Desa i comença».
+            // A la tauleta, el composer té la mateixa amplada de lectura que el xat.
+            if (!(msgs.isEmpty() && needsProvider)) Column(
+                Modifier.imePadding().fillMaxWidth()
+                    .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = ChatMaxWidth),
+            ) {
                 if (st.agentBusy && !sending) AgentBusyStrip(lang)
                 if (queued) {
                     Surface(
@@ -493,16 +554,18 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 )
                             }
                             Spacer(Modifier.width(2.dp))
-                            AskActToggle(
-                                act = st.mode != "chat", enabled = !sending, lang = lang,
-                                onChange = { act ->
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    vm.setMode(if (act) "code" else "chat")
-                                },
-                            )
+                            CappedFontScale(1.3f) {
+                                AskActToggle(
+                                    act = st.mode != "chat", enabled = !sending, lang = lang,
+                                    onChange = { act ->
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        vm.setMode(if (act) "code" else "chat")
+                                    },
+                                )
+                            }
                             if (st.mode == "code") {
                                 Spacer(Modifier.width(4.dp))
-                                PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) }
+                                CappedFontScale(1.3f) { PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) } }
                             }
                             Spacer(Modifier.weight(1f))
                             SendStopButton(
@@ -539,7 +602,21 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             }
         },
     ) { pad ->
-        if (msgs.isEmpty()) {
+        if (msgs.isEmpty() && needsProvider) {
+            // Primer ús en aquest dispositiu: sense cap clau, el primer torn
+            // acabava en un 401. Abans d'escriure, connecta un proveïdor.
+            Column(
+                Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(8.dp))
+                GregalMark(56.dp, alive = true)
+                Text(tr(lang, "app.setup.welcome"), style = MaterialTheme.typography.headlineSmall, color = Ink,
+                    textAlign = TextAlign.Center)
+                ProviderSetup(vm)
+            }
+        } else if (msgs.isEmpty()) {
             // Estat buit: la salutació i prou. El model es veu a la
             // capçalera, i els xips de suggeriments competien amb el text.
             Column(
@@ -565,8 +642,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 LaunchedEffect(endIndex, live.length / 80, msgs.lastOrNull()?.work?.steps?.size) {
                     if (follow) listState.scrollToItem(endIndex)
                 }
+                // A la tauleta les línies de tota l'amplada no es llegien: com a
+                // l'escriptori, una columna centrada d'amplada de lectura.
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    Modifier.fillMaxHeight().align(Alignment.TopCenter).widthIn(max = ChatMaxWidth)
+                        .fillMaxWidth().padding(horizontal = 12.dp),
                     state = listState,
                 ) {
                     items(
@@ -778,9 +858,15 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         TextButton(onClick = { ghTool = "gh_issue" }) { Text(if (ghTool == "gh_issue") "● Issue" else "Issue", color = Sea) }
                         TextButton(onClick = { ghTool = "gh_pr" }) { Text(if (ghTool == "gh_pr") "● PR" else "PR", color = Sea) }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // FlowRow: amb quatre accions (PR) la quarta no hi cabia i
+                    // quedava una píndola buida i aixafada a la dreta.
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         actions.forEach { (value, label) ->
-                            OutlinedButton(onClick = { ghAction = value }) { Text(if (ghAction == value) "✓ $label" else label) }
+                            OutlinedButton(onClick = { ghAction = value }) { Text(if (ghAction == value) "✓ $label" else label, maxLines = 1) }
                         }
                     }
                     OutlinedTextField(ghNumber, { ghNumber = it }, label = { Text(tr(lang, "app.chat.githubNumber")) }, singleLine = true)
@@ -1186,11 +1272,15 @@ fun ModelMenu(
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         // Punt: verd = clau posada, buit = falta clau.
-                        val dot = if (p.hasKey()) "●" else "○"
-                        Text(dot, color = if (p.hasKey()) Sea else Muted, fontSize = 12.sp)
+                        val ready = p.hasKey() || isLocalUrl(p.url)
+                        val dot = if (ready) "●" else "○"
+                        Text(dot, color = if (ready) Sea else Muted, fontSize = 12.sp)
                         Column {
                             Text(p.name, fontSize = 14.sp)
-                            if (!p.hasKey()) Text(tr(lang, "app.menu.providerMissingKey"),
+                            // Ollama, LM Studio, llama.cpp: no fan servir clau.
+                            if (isLocalUrl(p.url) && !p.hasKey()) Text(tr(lang, "app.menu.providerLocal"),
+                                color = Muted, fontSize = 11.sp)
+                            else if (!p.hasKey()) Text(tr(lang, "app.menu.providerMissingKey"),
                                 color = Sea, fontSize = 11.sp)
                             else if (p.usedBy.isNotBlank()) Text(p.usedBy.take(40),
                                 color = Muted, fontSize = 11.sp)
@@ -1246,7 +1336,7 @@ fun ModelMenu(
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
-                    Text(tr(lang, "app.menu.keyMemory"),
+                    Text(tr(lang, if (vm.conn.collectAsState().value.local) "app.menu.keyDevice" else "app.menu.keyMemory"),
                         color = Muted, fontSize = 11.sp)
                     if (provMsg.isNotBlank()) Text(provMsg.take(120), color = Sea, fontSize = 12.sp)
                 }

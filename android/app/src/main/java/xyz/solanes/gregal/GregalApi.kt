@@ -266,6 +266,13 @@ class GregalApi(val base: String, val token: String) {
         return parseProviders(read(c))
     }
 
+    /** JSON cru de /api/providers (hi ha el catàleg per al primer ús). */
+    fun providersJson(): String = read(conn("/api/providers", "GET"))
+
+    /** Preset: tots els rols passen a aquest proveïdor amb el seu model per defecte. */
+    fun presetProvider(name: String): String =
+        post("/api/providers", JSONObject().put("action", "preset").put("name", name)).optString("msg")
+
     /** Desa la clau d'un proveïdor (servidor: en memòria, o ${VAR} per persistir). */
     fun setProviderKey(name: String, key: String): String {
         val o = post("/api/providers", JSONObject().put("action", "key").put("name", name).put("key", key))

@@ -78,6 +78,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      # L'APK porta el backend Go (mode «aquest dispositiu»): el compila
+      # assembleDebug, amb l'NDK que ja porta el runner.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
       # Els runners Linux de GitHub ja porten l'SDK d'Android (ANDROID_HOME);
       # l'acció setup-android fallava instal·lant el paquet obsolet «tools».
       - run: ./gradlew testDebugUnitTest assembleDebug

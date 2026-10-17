@@ -1,5 +1,7 @@
 package xyz.solanes.gregal
 
+import androidx.compose.foundation.layout.imePadding
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.Column
@@ -69,7 +71,26 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            Column(Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                // On corre Gregal i amb quin model: abans no es veia enlloc
+                // fora del calaix, i la clau només es podia posar des del
+                // desplegable del model.
+                val conn by vm.conn.collectAsState()
+                Text(t("app.prefs.server"), color = Ink, fontSize = 16.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (conn.local) t("app.server.thisDevice") else t("app.prefs.serverRemote", "${conn.host}:${conn.port}"),
+                        color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                    OutlinedButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch")) }
+                }
+                Spacer(Modifier.height(16.dp))
+                Text(t("app.prefs.model"), color = Ink, fontSize = 16.sp)
+                Spacer(Modifier.height(4.dp))
+                Text(st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
+                    color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
+                ProviderSetup(vm, current = st.provider, change = true)
+                Spacer(Modifier.height(20.dp))
                 Text(t("prefs.appearance"), color = Ink, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
                 Text(t("prefs.theme"), color = Muted, fontSize = 13.sp)
@@ -81,7 +102,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Text(t(k), color = Ink, fontSize = 15.sp)
                     }
                 }
-                Text(t("prefs.theme.help"), color = Muted, fontSize = 12.sp)
+                Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.sp)
                 Spacer(Modifier.height(16.dp))
                 Text(t("prefs.lang"), color = Ink, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))

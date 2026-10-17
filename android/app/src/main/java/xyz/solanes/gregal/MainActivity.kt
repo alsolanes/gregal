@@ -11,6 +11,9 @@ import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -104,6 +107,32 @@ class Prefs(val ctx: Context) {
     var appSession: String
         get() = p.getString("appSession", "mobil") ?: "mobil"
         set(v) { p.edit().putString("appSession", v).apply() }
+
+    /**
+     * On corre Gregal: TARGET_LOCAL (el backend dins l'app) o TARGET_REMOTE
+     * (un servidor en un altre ordinador). Sense valor desat: qui ja tenia
+     * un servidor configurat (versions anteriors) continua amb el remot; una
+     * instal·lació nova comença en local.
+     */
+    var target: String
+        get() = p.getString("target", null) ?: if (host.isNotBlank()) TARGET_REMOTE else TARGET_LOCAL
+        set(v) { p.edit().putString("target", v).apply() }
+    /** Port i token del servidor local: es reutilitzen entre arrencades. */
+    var localPort: Int
+        get() = p.getInt("localPort", 0)
+        set(v) { p.edit().putInt("localPort", v).apply() }
+    var localToken: String
+        get() = p.getString("localToken", "") ?: ""
+        set(v) { p.edit().putString("localToken", v).apply() }
+    /** Conversa on era l'app en local, per reprendre-la si el backend es reinicia. */
+    var localSession: String
+        get() = p.getString("localSession", "") ?: ""
+        set(v) { p.edit().putString("localSession", v).apply() }
+
+    companion object {
+        const val TARGET_LOCAL = "local"
+        const val TARGET_REMOTE = "remote"
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -132,10 +161,9 @@ class MainActivity : ComponentActivity() {
         if (!vm.startupDone) {
             vm.startupDone = true
             vm.attachPrefs(prefs)
-            if (prefs.host.isNotBlank()) {
-                vm.setConn(Conn(prefs.host, prefs.port, prefs.token, prefs.usuari))
-                vm.connect(retries = 8) { vm.go(Screen.Chat) }
-            }
+            // Per defecte, Gregal en aquest dispositiu; si havies triat un
+            // servidor remot, aquell.
+            vm.startSaved(prefs)
             // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
             // i no l'has silenciada, surt la targeta; si no, no diu res.
             vm.checkUpdate(silent = true)
@@ -189,7 +217,10 @@ class MainActivity : ComponentActivity() {
                                 unselectedIconColor = Muted, unselectedTextColor = Tinta,
                             )
                             ModalDrawerSheet(drawerContainerColor = Superficie) {
-                                Column(Modifier.padding(16.dp)) {
+                                // Amb text gran les entrades no cabien: el calaix es
+                                // desplaça i les etiquetes no passen d'1,5×.
+                                CappedFontScale(1.5f) {
+                                Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         GregalMark(30.dp)
                                         Spacer(Modifier.width(10.dp))
@@ -199,7 +230,8 @@ class MainActivity : ComponentActivity() {
                                     // El projecte viu aquí des que el títol de
                                     // dalt és només el model (estil ChatGPT).
                                     ProjectPill(st.project.ifEmpty { tr(lang, "app.nav.project") }, st.branch)
-                                    Text("${conn.host}:${conn.port}", fontSize = 12.sp, color = Faint,
+                                    Text(if (conn.local) tr(lang, "app.server.thisDevice") else "${conn.host}:${conn.port}",
+                                        fontSize = 12.sp, color = Faint,
                                         modifier = Modifier.padding(start = 4.dp, top = 6.dp))
                                     Spacer(Modifier.height(14.dp))
                                     // Conversa nova com a acció principal (no com un
@@ -216,14 +248,14 @@ class MainActivity : ComponentActivity() {
                                     Spacer(Modifier.height(10.dp))
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "app.nav.chat")) },
+                                        label = { Text(tr(lang, "app.nav.chat"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.ChatBubbleOutline, null) },
                                         selected = screen == Screen.Chat,
                                         onClick = { nav(Screen.Chat) },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "nav.convs")) },
+                                        label = { Text(tr(lang, "nav.convs"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Forum, null) },
                                         selected = screen == Screen.Sessions,
                                         onClick = { nav(Screen.Sessions); vm.loadSessions() },
@@ -231,21 +263,21 @@ class MainActivity : ComponentActivity() {
                                     // El #retro: el xat amb els agents sobre què han fet.
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "app.retro.title")) },
+                                        label = { Text(tr(lang, "app.retro.title"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Tag, null) },
                                         selected = screen == Screen.Retro,
                                         onClick = { scope.launch { drawer.close() }; vm.openRetro() },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "nav.goals")) },
+                                        label = { Text(tr(lang, "nav.goals"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Flag, null) },
                                         selected = screen == Screen.Goals,
                                         onClick = { nav(Screen.Goals); vm.loadGoals() },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "nav.activity")) },
+                                        label = { Text(tr(lang, "nav.activity"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Schedule, null) },
                                         selected = screen == Screen.Jobs,
                                         onClick = { nav(Screen.Jobs); vm.loadJobs(); vm.loadRuns() },
@@ -253,15 +285,16 @@ class MainActivity : ComponentActivity() {
                                     androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 12.dp), color = Line)
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "nav.office")) },
+                                        label = { Text(tr(lang, "nav.office"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Description, null) },
                                         selected = screen == Screen.Office,
                                         onClick = { nav(Screen.Office) },
                                     )
-                                    // GitHub surt de la barra de dalt i viu aquí.
-                                    NavigationDrawerItem(
+                                    // GitHub surt de la barra de dalt i viu aquí. Al
+                                    // dispositiu no hi ha la CLI gh: només en remot.
+                                    if (!conn.local) NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "app.nav.github")) },
+                                        label = { Text(tr(lang, "app.nav.github"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Code, null) },
                                         selected = false,
                                         onClick = { scope.launch { drawer.close() }; vm.obreGithub() },
@@ -269,14 +302,14 @@ class MainActivity : ComponentActivity() {
                                     // I desfés, que abans era l'única icona de dalt.
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "app.nav.undoTurn")) },
+                                        label = { Text(tr(lang, "app.nav.undoTurn"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.AutoMirrored.Rounded.Undo, null) },
                                         selected = false,
                                         onClick = { scope.launch { drawer.close() }; vm.openRewind() },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "graphs.title")) },
+                                        label = { Text(tr(lang, "graphs.title"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.AccountTree, null) },
                                         selected = screen == Screen.Flows,
                                         onClick = { nav(Screen.Flows); vm.loadFlows() },
@@ -284,18 +317,19 @@ class MainActivity : ComponentActivity() {
                                     androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 8.dp, horizontal = 12.dp), color = Line)
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "prefs.title")) },
+                                        label = { Text(tr(lang, "prefs.title"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.Settings, null) },
                                         selected = screen == Screen.Prefs,
                                         onClick = { nav(Screen.Prefs) },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "btn.disconnect"), color = Muted) },
+                                        label = { Text(tr(lang, "app.server.switch"), color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = Muted) },
                                         selected = false,
-                                        onClick = { scope.launch { drawer.close() }; vm.disconnect() },
+                                        onClick = { scope.launch { drawer.close() }; vm.switchServer() },
                                     )
+                                }
                                 }
                             }
                         },
@@ -330,6 +364,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         AppVisibility.foreground = false
+        vm.onBackgrounded()
         super.onStop()
     }
 }

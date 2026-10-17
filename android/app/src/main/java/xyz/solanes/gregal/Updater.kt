@@ -85,20 +85,47 @@ private fun regexCamp(json: String, clau: String): String? {
         .replace("\\\"", "\"").replace("\\\\", "\\")
 }
 
+/** L'objecte `"apks": { "<abi>": {…}, … }` del manifest (objectes plans, sense niuar). */
+private val APKS_RE = Regex("\"apks\"\\s*:\\s*\\{(?:[^{}]|\\{[^{}]*\\})*\\}")
+
 /**
  * Converteix el manifest en UpdateInfo. Es fa amb regex i no amb `org.json`
  * a posta: als tests de JVM `org.json` és un stub que peta («not mocked»), i
  * aquesta funció ha de ser verificable sense emulador.
+ *
+ * Des de les APK per ABI, el manifest porta `apks` amb un APK per ABI
+ * (`downloadUrl`, `sha256`, `sizeBytes` cadascun). `abis` és l'ordre de
+ * preferència del mòbil (`Build.SUPPORTED_ABIS`): es queda amb el primer que
+ * hi surti. Si no n'hi ha cap (o el manifest és antic), valen els camps de
+ * dalt, que apunten a l'APK universal.
  */
-fun parseUpdateText(json: String): UpdateInfo = UpdateInfo(
-    versionCode = regexCamp(json, "versionCode")?.toIntOrNull() ?: 0,
-    versionName = regexCamp(json, "versionName") ?: "",
-    downloadUrl = regexCamp(json, "downloadUrl") ?: "",
-    changelog = regexCamp(json, "changelog") ?: "",
-    sha256 = regexCamp(json, "sha256"),
-    size = regexCamp(json, "size")?.toLongOrNull(),
-    sizeBytes = regexCamp(json, "sizeBytes")?.toLongOrNull(),
-)
+fun parseUpdateText(json: String, abis: List<String> = emptyList()): UpdateInfo {
+    val apks = APKS_RE.find(json)
+    val arrel = if (apks == null) json else json.removeRange(apks.range)
+    val base = UpdateInfo(
+        versionCode = regexCamp(arrel, "versionCode")?.toIntOrNull() ?: 0,
+        versionName = regexCamp(arrel, "versionName") ?: "",
+        downloadUrl = regexCamp(arrel, "downloadUrl") ?: "",
+        changelog = regexCamp(arrel, "changelog") ?: "",
+        sha256 = regexCamp(arrel, "sha256"),
+        size = regexCamp(arrel, "size")?.toLongOrNull(),
+        sizeBytes = regexCamp(arrel, "sizeBytes")?.toLongOrNull(),
+    )
+    if (apks == null) return base
+    for (abi in abis) {
+        val obj = Regex("\"${Regex.escape(abi)}\"\\s*:\\s*\\{([^{}]*)\\}").find(apks.value) ?: continue
+        val cos = obj.groupValues[1]
+        val url = regexCamp(cos, "downloadUrl")
+        if (url.isNullOrBlank()) continue
+        return base.copy(
+            downloadUrl = url,
+            sha256 = regexCamp(cos, "sha256"),
+            size = regexCamp(cos, "size")?.toLongOrNull(),
+            sizeBytes = regexCamp(cos, "sizeBytes")?.toLongOrNull(),
+        )
+    }
+    return base
+}
 
 /**
  * Només es descarrega del mateix host que el manifest i sempre per https.
@@ -128,6 +155,9 @@ fun manifestPlausible(info: UpdateInfo): Boolean {
 fun avisAmagat(latest: Int, skipped: Int): Boolean = skipped > 0 && latest <= skipped
 
 
+/** ABIs del mòbil per ordre de preferència, per triar l'APK del manifest. */
+fun abisDelMobil(): List<String> = Build.SUPPORTED_ABIS?.toList().orEmpty()
+
 /** Llegeix una URL absoluta sense token (manifest i APK són públics). */
 fun fetchTextAbsolut(url: String, timeoutMs: Int = 10_000): String {
     val c = URL(url).openConnection() as HttpURLConnection
@@ -151,14 +181,14 @@ fun fetchTextAbsolut(url: String, timeoutMs: Int = 10_000): String {
 }
 
 /** Caché del manifest: `{json}\n<epoch_ms>` — sense JSON a mitges. */
-fun llegeixCache(cacheDir: File, nowMs: Long): UpdateInfo? = try {
+fun llegeixCache(cacheDir: File, nowMs: Long, abis: List<String> = emptyList()): UpdateInfo? = try {
     val f = File(cacheDir, CACHE_FILE)
     if (!f.exists()) null
     else if (nowMs - f.lastModified() > CACHE_MAX_AGE_MS) null
     else {
         val cos = f.readText()
         val tall = cos.lastIndexOf('\n')
-        if (tall <= 0) null else parseUpdateText(cos.substring(0, tall))
+        if (tall <= 0) null else parseUpdateText(cos.substring(0, tall), abis)
     }
 } catch (_: Exception) { null }
 

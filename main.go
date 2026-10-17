@@ -95,6 +95,7 @@ func main() {
 	tokenFlag := flag.String("token", "", "with --serve: API token (default $GREGAL_API_TOKEN)")
 	openFlag := flag.Bool("open", false, "with --serve: open the browser")
 	logFlag := flag.String("log-file", "", "with --serve: append the server log to this file too (or $GREGAL_LOG_FILE)")
+	lifelineFlag := flag.Bool("lifeline", false, "with --serve: exit cleanly when stdin closes (for apps that run the server as a child process)")
 	passwdFlag := flag.String("passwd", "", "change a configured user's password, read from stdin")
 	tgFlag := flag.Bool("telegram", false, "start the Telegram bot")
 	dirFlag := flag.String("dir", "", "agent workspace (default current directory)")
@@ -271,6 +272,11 @@ func main() {
 		}
 		srv := web.New(cfg, path)
 		srv.SetToken(tok)
+		// Tenim el lock: cap altre procés pot estar executant els torns
+		// que un servidor anterior va deixar a mitges.
+		if n := srv.CloseOrphanRuns(); n > 0 {
+			fmt.Fprintf(os.Stderr, "gregal serve: %d interrupted run(s) from a previous process marked as failed\n", n)
+		}
 		cleanupDescriptor, err := service.Publish(service.Descriptor{
 			Protocol: web.APIProtocol, Instance: srv.InstanceID(), Address: url,
 			Token: tok, PID: os.Getpid(), StartedAt: time.Now().UTC(),
@@ -280,6 +286,17 @@ func main() {
 			os.Exit(1)
 		}
 		defer cleanupDescriptor()
+		shutdown := newServeShutdown(
+			srv.Stop,
+			func() { time.Sleep(cancelGrace) },
+			cleanupDescriptor,
+			func() { _ = lease.Release() },
+			cleanupLog,
+		)
+		shutdown.watchSignals()
+		if *lifelineFlag {
+			shutdown.watchLifeline(os.Stdin)
+		}
 		if err := srv.Run(addr); err != nil {
 			fmt.Fprintln(os.Stderr, "gregal serve:", err)
 			os.Exit(1)

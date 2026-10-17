@@ -11,10 +11,13 @@
 //   node scripts/release.cjs title 1.9.1
 //       Prints the release title ("Gregal v1.9.1 — <changelog title>").
 //   node scripts/release.cjs apk 1.9.1
-//       Builds the Android APK locally and attaches it to the v1.9.1 release
-//       (the APK is not built in CI: it needs this machine's signing key).
+//       Builds the Android APKs locally (one per ABI plus the universal one)
+//       and attaches them to the v1.9.1 release with the in-app updater's
+//       manifest, gregal-android-version.json (the APKs are not built in
+//       CI: they need this machine's signing key).
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
@@ -72,10 +75,28 @@ if (cmd === 'check') {
   execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q'], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
   const dir = path.join(root, 'output', 'release-' + value);
   fs.mkdirSync(dir, { recursive: true });
-  const apk = path.join(dir, `Gregal-Android-${a.name}.apk`);
-  fs.copyFileSync(path.join(android, 'app/build/outputs/apk/debug/app-debug.apk'), apk);
-  execFileSync('gh', ['release', 'upload', 'v' + value, apk, '--clobber'], { cwd: root, stdio: 'inherit' });
-  console.log('attached ' + path.basename(apk) + ' to v' + value);
+  const built = path.join(android, 'app/build/outputs/apk/debug');
+  const apks = lib.ANDROID_APKS.map(({ abi, from }) => {
+    const name = lib.androidApkName(a.name, abi);
+    const file = path.join(dir, name);
+    fs.copyFileSync(path.join(built, from), file);
+    const buf = fs.readFileSync(file);
+    const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
+    console.log(`  ${name}  ${(buf.length / 1048576).toFixed(1)} MiB`);
+    return { abi, name, file, sha256, sizeBytes: buf.length };
+  });
+  const repo = execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: root, encoding: 'utf8' }).trim();
+  const sec = lib.changelogSection(read(lib.FILES.changelog), value);
+  const manifest = lib.androidManifest({
+    versionName: a.name, versionCode: a.code,
+    changelog: sec ? lib.changelogTitle(sec.heading) : '',
+    baseUrl: `https://github.com/${repo}/releases/download/v${value}/`,
+    apks,
+  });
+  const manifestFile = path.join(dir, 'gregal-android-version.json');
+  fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
+  execFileSync('gh', ['release', 'upload', 'v' + value, ...apks.map(x => x.file), manifestFile, '--clobber'], { cwd: root, stdio: 'inherit' });
+  console.log(`attached ${apks.length} APKs and gregal-android-version.json to v${value}`);
 } else {
   fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z');
 }

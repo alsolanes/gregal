@@ -162,6 +162,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                     when {
                         running -> WaveBars(if (stalled) Sand else Sea)
                         work.failed -> StatusDot(Red, "!")
+                        work.stopped -> StatusDot(Muted, "■")
                         else -> StatusDot(Green, null)
                     }
                 }
@@ -171,7 +172,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                         (activity?.text ?: tr(lang, "app.work.thinking")) +
                             if (total >= 3000) " · " + shortDuration(total) else ""
                     } else {
-                        val parts = mutableListOf(tr(lang, if (work.failed) "app.work.failed" else "app.work.done", shortDuration(total)))
+                        val parts = mutableListOf(tr(lang, if (work.failed || work.stopped) "app.work.failed" else "app.work.done", shortDuration(total)))
                         val tools = work.toolCount
                         if (tools == 1) parts += tr(lang, "app.work.tool1") else if (tools > 1) parts += tr(lang, "app.work.tools", tools)
                         else if (work.steps.size > 1) parts += tr(lang, "app.work.steps", work.steps.size)

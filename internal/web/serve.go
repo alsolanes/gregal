@@ -1094,6 +1094,27 @@ func (s *Server) appendRunEvent(run runs.Run, kind, text string) {
 	})
 }
 
+// CloseOrphanRuns tanca al registre els torns que un procés anterior va
+// deixar a mitges (el van matar abans d'acabar). La cua és en memòria i no
+// els reprendrà mai: sense un run_failed, el client que els seguia (el
+// mòbil, la web en reconnectar) esperava el final per sempre. Només l'ha de
+// cridar qui té el lock del servei, perquè no hi ha cap altre procés viu
+// que pugui estar executant-los.
+func (s *Server) CloseOrphanRuns() int {
+	h := s.Hub()
+	if h.eventStore == nil {
+		return 0
+	}
+	orphans := h.eventStore.Unfinished()
+	for _, e := range orphans {
+		_ = h.appendEvent(events.Event{
+			SessionID: e.SessionID, User: e.User, RunID: e.RunID, Kind: "run_failed",
+			Text: "torn fallit: interrupted, the server restarted before it finished",
+		})
+	}
+	return len(orphans)
+}
+
 // watchRun tanca el cicle de vida al registre: quan la cua acaba el torn hi
 // deixa el resultat. Un torn que mai no arriba a executar-se (cancel·lat en
 // cua) també queda tancat: el watcher no depèn de l'executor.
@@ -2012,6 +2033,20 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 			}
 			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
 		}
+		if persistKeys() {
+			// Com al TUI: el secret va al magatzem de claus (auth.yaml,
+			// 0600), mai al config.yaml. L'app d'Android ho demana perquè
+			// el seu servidor local es reinicia sovint i no té variables
+			// d'entorn on deixar ${VAR}.
+			s.cfg.SetRawKey(name, "")
+			if err := config.SaveKey(name, raw); err != nil {
+				return "", err
+			}
+			if err := save(); err != nil {
+				return "", err
+			}
+			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
+		}
 		if err := save(); err != nil {
 			return "", err
 		}
@@ -2025,6 +2060,14 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 	default:
 		return "", errors.New(s.tr("acció desconeguda", "unknown action"))
 	}
+}
+
+// persistKeys diu si les claus escrites per l'API es desen al magatzem de
+// claus (GREGAL_PERSIST_KEYS=1). Per defecte no: un servidor compartit no
+// ha de deixar a disc el secret que algú hi ha enganxat de passada.
+func persistKeys() bool {
+	v := strings.TrimSpace(os.Getenv("GREGAL_PERSIST_KEYS"))
+	return v == "1" || strings.EqualFold(v, "true")
 }
 
 // fetchModelIDs retorna els IDs de GET <base>/models.
@@ -2176,6 +2219,23 @@ func (s *Server) transcriptTail(n int) string {
 
 // transcriptView retorna els últims n missatges user/assistant no buits per
 // pintar l'historial en canviar de pestanya. Sense tool calls: només text.
+// Notes que tanquen un torn que no ha acabat. Són per al model (que no el
+// reprengui pel seu compte): a la conversa que es pinta no hi han de sortir,
+// i en reprendre-la al mòbil semblava que Gregal les hagués dit.
+const (
+	turnFailedNote  = "[This request did not finish: it failed with an error. Do not resume it unless the user asks again.]"
+	turnStoppedNote = "[Stopped by the user before finishing. Do not continue this request unless the user asks for it again.]"
+)
+
+// esNotaDeTorn diu si el missatge és una d'aquestes notes.
+func esNotaDeTorn(m llm.Message) bool {
+	if m.Role != "assistant" {
+		return false
+	}
+	c := strings.TrimSpace(m.Content)
+	return c == turnFailedNote || c == turnStoppedNote
+}
+
 func transcriptView(convo []llm.Message, n int) []map[string]string {
 	if len(convo) > n {
 		convo = convo[len(convo)-n:]
@@ -2185,7 +2245,7 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 		if m.Role != "user" && m.Role != "assistant" {
 			continue
 		}
-		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) {
+		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) || esNotaDeTorn(m) {
 			continue
 		}
 		// El mapa del projecte és per al model: a la bombolla, el que va
@@ -2202,8 +2262,8 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 func resumeTranscript(convo []llm.Message) []llm.Message {
 	out := make([]llm.Message, 0, len(convo))
 	for _, m := range convo {
-		if agent.EsResum(m) {
-			// El resum de compactació és per al model.
+		if agent.EsResum(m) || esNotaDeTorn(m) {
+			// El resum de compactació i les notes de torn són per al model.
 			continue
 		}
 		if m.Role == "user" {
@@ -2573,9 +2633,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		// el torn següent la continuava (vist el 2026-10-14: «quant fa
 		// 3+3?» responia «sis» i seguia explicant els fitxers del torn
 		// aturat). Una nota de l'assistent la tanca.
-		note := "[This request did not finish: it failed with an error. Do not resume it unless the user asks again.]"
+		note := turnFailedNote
 		if runCtx.Err() != nil {
-			note = "[Stopped by the user before finishing. Do not continue this request unless the user asks for it again.]"
+			note = turnStoppedNote
 		}
 		s.mu.Lock()
 		if n := len(s.convo); n > 0 && s.convo[n-1].Role == "user" {
@@ -3287,6 +3347,23 @@ func modelSelectionAvailable(selection string, models map[string][]string) bool 
 // (DELETE ?name=). El títol i la marca de temps en RFC3339 són el que la
 // UI necessita per fer la llista de l'esquerra estil ChatGPT: agrupada per
 // data i amb un nom que digui de què anava.
+// callerSession és la sessió viva de la petició, sense crear-ne cap; si no
+// n'hi ha, la mateixa s.
+func (s *Server) callerSession(r *http.Request) *Server {
+	h := s.hub
+	if h == nil {
+		return s
+	}
+	key := h.keyFor(userFrom(r), sessionID(r))
+	h.mu.RLock()
+	other := h.sess[key]
+	h.mu.RUnlock()
+	if other == nil {
+		return s
+	}
+	return other
+}
+
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete {
 		name := r.URL.Query().Get("name")
@@ -3311,9 +3388,13 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.mu.Lock()
-	current := s.convoFile
-	s.mu.Unlock()
+	// La ruta és global (la serveix la sessió default), però «current» és
+	// la conversa de qui pregunta: el mòbil, amb la seva pròpia sessió,
+	// veia marcada la de la pestanya principal de l'escriptori.
+	caller := s.callerSession(r)
+	caller.mu.Lock()
+	current := caller.convoFile
+	caller.mu.Unlock()
 	type row struct {
 		Name      string `json:"name"`
 		Title     string `json:"title"`

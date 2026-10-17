@@ -218,3 +218,26 @@ fun Modifier.pullToRefresh(refreshing: Boolean, onRefresh: () -> Unit): Modifier
         )
     }
 }
+
+
+/**
+ * Text gran del sistema dins de controls d'alçada fixa (barra de dalt,
+ * interruptor del composer, calaix): a escala 2.0 el text sortia tallat o
+ * pujava damunt la barra d'estat. Respecta la preferència fins a `max`.
+ */
+@androidx.compose.runtime.Composable
+fun CappedFontScale(max: Float, content: @androidx.compose.runtime.Composable () -> Unit) {
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    val capped = cappedFontScale(d.fontScale, max)
+    if (capped == d.fontScale) {
+        content()
+    } else {
+        androidx.compose.runtime.CompositionLocalProvider(
+            androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density, capped),
+            content = content,
+        )
+    }
+}
+
+/** Escala de lletra efectiva: la del sistema, com a molt `max`. */
+fun cappedFontScale(system: Float, max: Float): Float = if (system > max) max else system

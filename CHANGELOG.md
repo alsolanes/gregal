@@ -2,6 +2,61 @@
 
 ## Unreleased
 
+- The Android download is smaller: each phone now gets an APK with only its
+  own backend (about 27 MB instead of 42 MB), and in-app updates pick the
+  right one for the phone. The universal APK is still attached for anyone
+  who needs it.
+- **Gregal works on the phone without a computer.** The Android app (0.10.0)
+  now carries the same Go backend as the desktop app and runs it on the
+  device by default ("This device"): your conversations, workspace and keys
+  stay on the phone, and turns, retries and partial answers behave as on
+  desktop. Connecting to `gregal --serve` on another computer is still
+  there behind "Switch server", and each server keeps its own
+  conversations. On the phone, tools that need a computer (`bash`,
+  `browser`, `git_commit`, `gh_pr_create`) are denied by default. See
+  `docs/mobile.md`.
+- The app no longer hangs or loses work when Android kills it. The backend
+  stops with the app instead of being left running, starts again when you
+  reopen it, and the app goes back to the conversation you were in. If a
+  turn was cut off, the app says so instead of waiting forever.
+- When the agent needs your approval or an answer while the app is in the
+  background, a notification tells you.
+- Android, first run on the device: a "Connect a model" card asks for a
+  provider and an API key before the first message, instead of the first
+  turn ending in a raw 401. Preferences show which server you are on and let
+  you change the provider or the key.
+- Android polish from a QA pass on an emulator:
+  - Stopping a turn no longer shows a red error.
+  - Approvals show real line breaks.
+  - Conversation times are right ("1 min ago", not "2 h ago").
+  - Resumed conversations no longer show internal notes such as "[This
+    request did not finish…]".
+  - The drawer scrolls and the top bar and composer fit with large system
+    fonts.
+  - On tablets the chat keeps a readable width.
+  - The GitHub dialog shows all four actions, and GitHub is hidden in
+    device mode, where the `gh` CLI does not exist.
+  - Local model servers (Ollama, LM Studio, llama.cpp) no longer say "API
+    key missing".
+  - You get a notification when you leave the app while an approval is
+    pending.
+- The backend on Android uses the phone's time zone (Go always used UTC
+  there), and the greeting no longer promises to run commands on a phone.
+- `gregal --serve --lifeline` exits cleanly when stdin closes, for apps that
+  run the server as a child process. `SIGTERM` now cancels running turns
+  and releases the lock before exiting.
+- When the server starts, turns that a previous process left half done are
+  marked as failed, so clients that follow them stop waiting.
+- The server starts again after a crash even if its old PID now belongs to
+  another program. A stale `service.lock` used to block it until it was
+  deleted by hand.
+- The event log can be read again after an event over 64 KiB. Before, one
+  such event broke every later read.
+- `/api/sessions` marks as `current` the conversation of the session that
+  asks, not the desktop's main tab.
+- `GREGAL_PERSIST_KEYS=1` saves API keys typed in the web UI or the app to
+  the key store (`auth.yaml`), as the TUI already did, instead of keeping
+  them in memory only.
 - **Language servers: the `lsp` tool.** When `gopls`, pyright,
   `typescript-language-server`, `rust-analyzer` or `clangd` is installed,
   the agent can:

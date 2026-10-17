@@ -70,6 +70,7 @@ object GregalNotifications {
     const val CHANNEL_ID = "gregal_answers"
     const val WORK_ID = 431
     private const val READY_ID = 432
+    private const val NEEDS_YOU_ID = 433
 
     private fun text(context: Context, key: String): String = tr(Prefs(context).idioma, key)
 
@@ -170,6 +171,28 @@ object GregalNotifications {
             context.getSystemService(NotificationManager::class.java).notify(READY_ID, b.build())
         } catch (_: Exception) {
             // Permís revocat entre la comprovació i l'avís: no és motiu per caure.
+        }
+    }
+
+    /**
+     * L'agent espera una aprovació o una resposta. Amb l'app en segon pla
+     * (un torn llarg mentre fas una altra cosa) no ho veuries: sense avís,
+     * el torn es quedaria aturat fins que caduqués la pregunta.
+     */
+    fun needsYou(context: Context) {
+        if (AppVisibility.foreground || !canNotify(context)) return
+        ensureChannel(context)
+        val n = Notification.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_gregal)
+            .setContentTitle(text(context, "app.notifications.needsYouTitle"))
+            .setContentText(text(context, "app.notifications.needsYouBody"))
+            .setContentIntent(openApp(context))
+            .setAutoCancel(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .build()
+        try {
+            context.getSystemService(NotificationManager::class.java).notify(NEEDS_YOU_ID, n)
+        } catch (_: Exception) {
         }
     }
 

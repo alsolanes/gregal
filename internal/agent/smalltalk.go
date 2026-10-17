@@ -11,6 +11,7 @@ package agent
 // resumeix el document" NO hi entra (té feina a fer) i va a l'agent.
 
 import (
+	"gregal/internal/config"
 	"strings"
 )
 
@@ -130,5 +131,18 @@ func SmallTalkFor(text, lang string, enConversa bool) (string, bool) {
 	if _, ok := smallTalkReplies[hit.kind][lang]; ok {
 		l = lang
 	}
+	if hit.kind == kindGreet && config.MobileDevice() {
+		if r, ok := smallTalkGreetMobile[l]; ok {
+			return r, true
+		}
+	}
 	return smallTalkReplies[hit.kind][l], true
+}
+
+// smallTalkGreetMobile és la salutació al telèfon, on les ordres de shell
+// estan denegades: prometre «executar ordres» era fals.
+var smallTalkGreetMobile = map[string]string{
+	"ca": "Hola! Sóc el Gregal: puc llegir i escriure documents, buscar a la web i respondre preguntes. Què fem?",
+	"es": "¡Hola! Soy Gregal: puedo leer y escribir documentos, buscar en la web y responder preguntas. ¿Qué hacemos?",
+	"en": "Hi! I'm Gregal: I can read and write documents, search the web and answer questions. What shall we do?",
 }

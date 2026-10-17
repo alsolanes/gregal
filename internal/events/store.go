@@ -39,6 +39,32 @@ type Store struct {
 	next    uint64
 	offsets map[uint64]int64 // posició just després de cada event
 	maxRun  int              // run_id més alt escrit (per no reutilitzar-ne després d'un reinici)
+	// open són els torns que han començat i encara no han tancat, amb
+	// l'últim event de cadascun (sessió i usuari per tancar-los bé).
+	open map[int]Event
+}
+
+// maxLine és la línia més llarga que es llegeix. El bufio.Scanner per
+// defecte talla a 64 KiB i un event amb un payload gran (sortida d'eina)
+// feia fallar totes les lectures posteriors: el client es quedava esperant.
+const maxLine = 16 << 20
+
+// terminal diu si l'event tanca un torn.
+func terminal(kind string) bool {
+	return kind == "run_completed" || kind == "run_failed" || kind == "run_cancelled"
+}
+
+// track apunta l'estat obert/tancat d'un torn. Cal el mutex.
+func (s *Store) track(e Event) {
+	if e.RunID <= 0 {
+		return
+	}
+	switch {
+	case terminal(e.Kind):
+		delete(s.open, e.RunID)
+	case e.Kind == "run_queued" || e.Kind == "run_started":
+		s.open[e.RunID] = e
+	}
 }
 
 // Open obre (o crea) un magatzem i recupera l'últim cursor escrit.
@@ -54,7 +80,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	_ = f.Close()
-	s := &Store{path: path, offsets: make(map[uint64]int64)}
+	s := &Store{path: path, offsets: make(map[uint64]int64), open: make(map[int]Event)}
 	if err := s.scan(); err != nil {
 		return nil, err
 	}
@@ -98,6 +124,7 @@ func (s *Store) scan() error {
 		if e.RunID > s.maxRun {
 			s.maxRun = e.RunID
 		}
+		s.track(e)
 		s.offsets[e.ID] = offset + int64(len(line)+1)
 		offset += int64(len(line) + 1)
 	}
@@ -143,7 +170,24 @@ func (s *Store) Append(e Event) (Event, error) {
 	if e.RunID > s.maxRun {
 		s.maxRun = e.RunID
 	}
+	s.track(e)
 	return e, nil
+}
+
+// Unfinished torna l'últim event de cada torn que va començar i mai no va
+// tancar, en ordre de run_id. Només té sentit en arrencar: la cua de torns
+// viu en memòria, i si el procés anterior va morir (el mòbil el va matar,
+// un tall de corrent) aquests torns ja no acabaran mai. Sense tancar-los, un
+// client que els seguia es quedava esperant el final per sempre.
+func (s *Store) Unfinished() []Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]Event, 0, len(s.open))
+	for _, e := range s.open {
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].RunID < out[j].RunID })
+	return out
 }
 
 // MaxRunID és el run_id més alt que hi ha al registre. La cua de torns
@@ -202,6 +246,7 @@ func (s *Store) after(after uint64, limit int, keep func(Event) bool) ([]Event, 
 	}
 	out := make([]Event, 0, limit)
 	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 0, 64<<10), maxLine)
 	for sc.Scan() {
 		var e Event
 		if err := json.Unmarshal(sc.Bytes(), &e); err != nil {
