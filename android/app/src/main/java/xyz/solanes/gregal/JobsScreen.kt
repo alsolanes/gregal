@@ -89,7 +89,7 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.jobs.title"), color = Ink) },
+            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "nav.activity"), color = Ink) },
                 actions = { RefreshAction(lang, carregant) { vm.loadJobs(); vm.loadRuns() } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
             snackbarHost = { NoticeHost(vm) },

@@ -74,4 +74,14 @@ class WorkTest {
         assertFalse(friendlyError("HTTP 401 from https://opencode.ai/zen/v1", "en").contains("https://"))
         assertEquals("something odd", friendlyError("something odd", "en"))
     }
+
+    @Test
+    fun stoppedTurnIsNotAnError() {
+        val w = WorkGroup(started = 1L).close(10L, failed = true, stopped = true)
+        org.junit.Assert.assertFalse(w.failed)
+        org.junit.Assert.assertTrue(w.stopped)
+        val f = WorkGroup(started = 1L).close(10L, failed = true)
+        org.junit.Assert.assertTrue(f.failed)
+        org.junit.Assert.assertFalse(f.stopped)
+    }
 }

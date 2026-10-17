@@ -80,3 +80,25 @@ func TestSessionsCurrentFollowsCallerSession(t *testing.T) {
 		t.Fatalf("current = %q, want the mobile conversation %q (rows %+v)", cur, want, rows)
 	}
 }
+
+// Les notes que tanquen un torn inacabat són per al model: en reprendre la
+// conversa no han de sortir com si Gregal les hagués dit.
+func TestTranscriptsHideTurnNotes(t *testing.T) {
+	convo := []llm.Message{
+		{Role: "user", Content: "fes-ho"},
+		{Role: "assistant", Content: turnStoppedNote},
+		{Role: "user", Content: "i ara això"},
+		{Role: "assistant", Content: turnFailedNote},
+		{Role: "user", Content: "hola"},
+		{Role: "assistant", Content: "Hola!"},
+	}
+	for _, m := range resumeTranscript(convo) {
+		if esNotaDeTorn(m) {
+			t.Fatalf("resume transcript shows a turn note: %q", m.Content)
+		}
+	}
+	view := transcriptView(convo, 50)
+	if len(view) != 4 || view[3]["content"] != "Hola!" {
+		t.Fatalf("view: %+v", view)
+	}
+}

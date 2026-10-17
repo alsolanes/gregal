@@ -350,6 +350,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         activeRunId = null
     }
 
+    /**
+     * L'app passa a segon pla. Si l'agent ja esperava una aprovació o una
+     * resposta (va arribar amb l'app oberta), ara cal avisar: si no, el torn
+     * es quedava aturat sense que ho sabessis.
+     */
+    fun onBackgrounded() {
+        if (_approve.value != null || _question.value != null) GregalNotifications.needsYou(appContext)
+    }
+
     /** Fes servir Gregal en aquest dispositiu (el mode per defecte). */
     fun useThisDevice(retries: Int = 3) {
         if (!_conn.value.local) resetServerState()
@@ -398,12 +407,62 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Primer cop en local sense cap clau: digues on posar-la. */
+    // --- Primer ús: connectar un proveïdor ---
+
+    private val _needsProvider = MutableStateFlow(false)
+    /** En local i sense cap clau: el xat buit ensenya la configuració del proveïdor. */
+    val needsProvider: StateFlow<Boolean> = _needsProvider
+    private val _catalog = MutableStateFlow<List<CatalogEntry>>(emptyList())
+    val catalog: StateFlow<List<CatalogEntry>> = _catalog
+    private val _providerSetupBusy = MutableStateFlow(false)
+    val providerSetupBusy: StateFlow<Boolean> = _providerSetupBusy
+
+    /** Primer cop en local sense cap clau: el xat demana connectar un proveïdor. */
     private fun hintMissingKey() {
-        if (!_conn.value.local) return
+        if (!_conn.value.local) { _needsProvider.value = false; return }
         viewModelScope.launch {
             val providers = try { withContext(Dispatchers.IO) { _conn.value.api().getProviders() } } catch (_: Exception) { return@launch }
-            if (providers.isNotEmpty() && providers.none { it.hasKey() }) notify(appText("app.local.needKey"))
+            _needsProvider.value = providers.isNotEmpty() && providers.none { it.hasKey() }
+        }
+    }
+
+    fun loadCatalog() {
+        viewModelScope.launch {
+            try {
+                _catalog.value = parseCatalog(withContext(Dispatchers.IO) { _conn.value.api().providersJson() })
+            } catch (e: Exception) {
+                _provMsg.value = appText("app.status.providers", e.message.orEmpty())
+            }
+        }
+    }
+
+    /**
+     * Clau + preset en un pas, com el web: la clau es desa (al dispositiu, al
+     * magatzem de claus) i tots els rols passen al proveïdor triat.
+     */
+    fun connectProvider(name: String, key: String, onOk: () -> Unit = {}) {
+        if (name.isBlank() || key.isBlank() || _providerSetupBusy.value) return
+        _providerSetupBusy.value = true
+        _provMsg.value = ""
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = _conn.value.api()
+                    api.setProviderKey(name, key)
+                    api.presetProvider(name)
+                }
+                _needsProvider.value = false
+                _provMsg.value = appText("app.setup.ready")
+                refresh()
+                loadProviders()
+                onOk()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _provMsg.value = appText("app.menu.providerSaveError", e.message.orEmpty())
+            } finally {
+                _providerSetupBusy.value = false
+            }
         }
     }
 
@@ -913,8 +972,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private var workId = 0L          // ChatMsg "work" del torn en curs
     private var answerId = 0L        // resposta pintada aquest torn (pot ser narració)
     private var turnErrorShown = false
+    /** S'ha premut Atura en aquest torn: els errors que en vinguin no són errors. */
+    @Volatile private var stopRequested = false
 
     private fun beginTurn() {
+        stopRequested = false
         synchronized(tokenLock) { tokenBuffer.clear() }
         _live.value = ""
         val now = System.currentTimeMillis()
@@ -978,7 +1040,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             if (i >= 0) {
                 val w = cur[i].work
                 _msgs.value = if (w == null || w.steps.isEmpty()) cur.filterIndexed { k, _ -> k != i }
-                else cur.toMutableList().also { it[i] = cur[i].copy(work = w.close(System.currentTimeMillis(), failed)) }
+                else cur.toMutableList().also { it[i] = cur[i].copy(work = w.close(System.currentTimeMillis(), failed, stopped = stopRequested)) }
             }
         }
         _activity.value = null
@@ -1129,7 +1191,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             "question_timeout" -> { _question.value = null; step(StepKind.Warn, appText("app.chat.questionTimeout")) }
             "approve_timeout" -> { _approve.value = null; step(StepKind.Warn, appText("app.chat.approvalTimeoutDenied")) }
-            "error" -> showError(f("message").ifEmpty { text })
+            // Aturar és una acció teva, no un error: el «torn aturat per
+            // l'usuari» del servidor sortia en vermell sota «Torn cancel·lat».
+            "error" -> if (!stopRequested) showError(f("message").ifEmpty { text })
             "run_failed" -> showError(text.ifEmpty { f("error") })
             "run_queued" -> setActivity("queued", appText("app.chat.runQueued"))
             "run_started" -> setActivity("start", appText("app.work.starting"))
@@ -1311,6 +1375,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Atura el torn actual; usa l'ID v2 quan està disponible. */
     fun cancelCurrent() {
+        stopRequested = true
         setActivity("cancel", appText("app.work.stopping"))
         viewModelScope.launch {
             try {

@@ -17,6 +17,27 @@
   turn was cut off, the app says so instead of waiting forever.
 - When the agent needs your approval or an answer while the app is in the
   background, a notification tells you.
+- Android, first run on the device: a "Connect a model" card asks for a
+  provider and an API key before the first message, instead of the first
+  turn ending in a raw 401. Preferences show which server you are on and let
+  you change the provider or the key.
+- Android polish from a QA pass on an emulator:
+  - Stopping a turn no longer shows a red error.
+  - Approvals show real line breaks.
+  - Conversation times are right ("1 min ago", not "2 h ago").
+  - Resumed conversations no longer show internal notes such as "[This
+    request did not finish…]".
+  - The drawer scrolls and the top bar and composer fit with large system
+    fonts.
+  - On tablets the chat keeps a readable width.
+  - The GitHub dialog shows all four actions, and GitHub is hidden in
+    device mode, where the `gh` CLI does not exist.
+  - Local model servers (Ollama, LM Studio, llama.cpp) no longer say "API
+    key missing".
+  - You get a notification when you leave the app while an approval is
+    pending.
+- The backend on Android uses the phone's time zone (Go always used UTC
+  there), and the greeting no longer promises to run commands on a phone.
 - `gregal --serve --lifeline` exits cleanly when stdin closes, for apps that
   run the server as a child process. `SIGTERM` now cancels running turns
   and releases the lock before exiting.
