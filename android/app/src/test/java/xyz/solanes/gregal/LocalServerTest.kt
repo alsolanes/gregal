@@ -38,6 +38,8 @@ class LocalServerTest {
         assertEquals(paths.authFile, e["GREGAL_AUTH"])
         assertEquals("1", e["GREGAL_PERSIST_KEYS"])
         assertEquals("android", e["GREGAL_PLATFORM"])
+        // Els jobs els dispara l'alarma del sistema, no el jobLoop del backend.
+        assertEquals("external", e["GREGAL_JOBS_SCHEDULER"])
         assertEquals(paths.tmp, e["TMPDIR"])
         assertEquals("Europe/Madrid", e["TZ"])
         e.values.forEach { assertFalse("outside app storage: $it", it.startsWith("/sdcard")) }

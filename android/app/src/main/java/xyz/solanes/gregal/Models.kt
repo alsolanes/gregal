@@ -278,6 +278,9 @@ data class JobItem(
     val notify: Boolean = true,
     val lastStatus: String = "",
     val nextDue: String = "",
+    /** Última execució i franja següent en RFC 3339 (per a l'alarma d'Android). */
+    val lastAt: String = "",
+    val nextDueAt: String = "",
 )
 
 /** Execució d'un job (output en markdown per al render ric). */

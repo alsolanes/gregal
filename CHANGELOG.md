@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Scheduled jobs run on the phone with the app closed** (Android 0.11.0).
+  A job such as "every day at 8:00, summarise today's tech news" now fires
+  from a system alarm, also after a reboot and while the phone is in Doze;
+  the app starts its backend just for the run and shows the result as a
+  notification that opens the run. Activity has templates for news
+  summaries, a time picker, and a card that says when to allow exact alarms
+  or notifications and when to lift battery restrictions. `/api/jobs` now
+  includes `next_due_at`, and `/api/jobs/run` accepts `scheduled: true` for
+  an external scheduler (`GREGAL_JOBS_SCHEDULER=external`). See
+  `docs/mobile.md`.
 - The Android download is smaller: each phone now gets an APK with only its
   own backend (about 27 MB instead of 42 MB), and in-app updates pick the
   right one for the phone. The universal APK is still attached for anyone
