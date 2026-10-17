@@ -59,7 +59,7 @@ func Specs() []llm.ToolSpec {
 				"path": str, "old_string": str, "new_string": str,
 				"replace_all": map[string]any{"type": "boolean"},
 			}, "required": []string{"path", "old_string", "new_string"}}},
-		{Name: "grep", Description: "Search for a literal text in the files under a directory. Skips .git and binaries.",
+		{Name: "grep", Description: "Search the files under a directory for a text. A line matches if it contains the text literally or, when the pattern looks like a regular expression (RE2: a|b, Decide\\(, ^func, Run.*Ctx), if the regex matches. Returns path:line:text, paths relative to the project. Skips .git and binaries.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"pattern": str, "dir": str, "include": str,
 			}, "required": []string{"pattern"}}},
@@ -834,7 +834,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		out, err := tools.Grep(a.Pattern, a.Dir, a.Include, 50)
-		return out, nil, err
+		return tools.CaminsRelatius(out, dir), nil, err
 	case "glob":
 		var a struct {
 			Pattern string `json:"pattern"`
@@ -844,7 +844,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		out, err := tools.Glob(a.Pattern, a.Dir, 100)
-		return out, nil, err
+		return tools.CaminsRelatius(out, dir), nil, err
 	case "symbols":
 		out, err := symbolsTool(dir, argsJSON)
 		return out, nil, err

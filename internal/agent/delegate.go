@@ -283,7 +283,13 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			}
 			model := primary.Model
 			hist = AmbAvisPassos(hist, step, maxSteps)
+			t0 := time.Now()
 			content, calls, usedFallback, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, rr.Temperature, rr.MaxTokens, specs, nil)
+			if os.Getenv("GREGAL_PERFIL") != "" {
+				// Com perfilCrida (run.go), però per als fills.
+				fmt.Fprintf(os.Stderr, "[perfil] fill %s pas %d: prompt~%dtok resposta~%dc+%deines %.1fs\n",
+					fillID(ctx), step, llm.EstimateTokens(hist), len(content), len(calls), time.Since(t0).Seconds())
+			}
 			if usedFallback && fallback != nil {
 				model = fallback.Model
 			}

@@ -124,12 +124,19 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	// Investigador d'inici de torn (agent/scout.go): un fill real de només
 	// lectura investiga abans del primer pas i el seu resum entra a la
 	// tasca. Si falla, el torn continua igual.
+	respondreAl := 0
 	if agent.ScoutWantedIn(s.cfg, mode, task, workspace) {
-		convo = s.runScout(runCtx, generation, task, workspace, convo, maxSteps, uso, role.Provider, emit)
+		var ambResum bool
+		convo, ambResum = s.runScout(runCtx, generation, mode, task, workspace, convo, maxSteps, uso, role.Provider, emit)
+		// Pregunta amb informe de l'explorador: recordatori de respondre
+		// (agent.ExploreRespondreAl).
+		if ambResum && mode == agent.ModeInspect {
+			respondreAl = agent.ExploreRespondreAl
+		}
 	}
 	torn := agent.NouTorn(agent.OpcionsTorn{
 		Cfg: s.cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: uso,
-		Ctx: runCtx, Sessio: s.id, Workspace: workspace,
+		Ctx: runCtx, Sessio: s.id, Workspace: workspace, RespondreAl: respondreAl,
 
 		Hist:      convo,
 		SysPrompt: func() string { return sys },

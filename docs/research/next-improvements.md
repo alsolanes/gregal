@@ -53,7 +53,7 @@ Impacte: ●●●●● molt alt … ● baix. Esforç: S (≤2 dies), M (≤1 
 | 2 | **Llista dura per programa, no per subcadena**; curl/wget a loopback demanen permís | `Classify`, t6.r1, tasca E | ●●●● | S-M | fet |
 | 3 | **Fets del projecte al mapa**: sense git; finals de línia CRLF | B, t6, t8.r2, `speed.md` | ●●● | S | fet |
 | 4 | **Assert honest de t8** | banc t8 | ●●● (mesura) | S | fet |
-| 5 | Preguntes més barates: un subagent d'exploració que torni un resum (com l'Explore de Claude Code) quan la pregunta toca molts fitxers, o lectures amb pressupost per pas | A, D | ●●●● | M | proposat |
+| 5 | Preguntes més barates: un subagent d'exploració que torni un resum (com l'Explore de Claude Code) quan la pregunta toca molts fitxers, o lectures amb pressupost per pas | A, D | ●●●● | M | fet ([explore.md](explore.md)) |
 | 6 | El coordinador no fa servir `delegate` per si sol amb flash (nota de la sessió d'agents en paral·lel) | `agents-paralel.md` | ●●● | M | proposat |
 | 7 | Respectar «breu»/«curt» a la resposta final (regla de prompt + mesura de llargada) | D | ●● | S | pendent |
 | 8 | Connectar els MCP del headless en segon pla; agrupar `go vet` per paquet | `speed.md` | ●● | S-M | pendent |
@@ -166,9 +166,9 @@ Tasca E (servidor en segon pla + curl), una tirada de cada:
 
 ## 6. Què queda
 
-- **Preguntes en projectes grans** (candidat 5): és el cost més gran que s'ha
-  vist (fins a 440 k tokens d'entrada per una pregunta). Cal un disseny propi:
-  quan s'activa, quin pressupost té el subagent, com es conserven les cites.
+- **Preguntes en projectes grans** (candidat 5): fet després, a
+  [explore.md](explore.md) (explorador en mode inspect i grep que entén
+  regex; de 294 k a 65 k tokens d'entrada per pregunta).
 - **delegate sense que ningú el demani** (candidat 6): un bench de prompt amb
   tasques que tenen dues investigacions independents.
 - Validar els canvis 1-3 amb un model local petit (Qwen3-Coder a Ollama), on
