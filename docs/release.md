@@ -29,16 +29,24 @@ that builds assets lives in `.github/workflows/release.yml`.
    CLI/backend for Linux, macOS and Windows (amd64 and arm64) with
    `build.sh`, writes one `SHA256SUMS.txt`, and creates a **draft** release
    titled and described from the changelog section.
-4. **Attach the Android APK** (built locally because it is signed with this
-   machine's key, so phones can update over the previous version):
+4. **Attach the Android APKs** (built locally because they are signed with
+   this machine's key, so phones can update over the previous version):
 
    ```
    node scripts/release.cjs apk 1.9.1
    ```
 
-   The APK includes the Go backend for the "This device" mode, so this
+   The APKs include the Go backend for the "This device" mode, so this
    machine needs Go and, preferably, an Android NDK in the SDK (with an
    NDK the backend uses the system DNS resolver). See `docs/mobile.md`.
+
+   Gradle builds one APK per ABI plus a universal one, and the command
+   attaches all three with `gregal-android-version.json`, the in-app
+   updater's manifest. Its top-level `downloadUrl`, `sha256` and
+   `sizeBytes` describe the universal APK (older apps read only those), and
+   `apks` has one entry per ABI; the app downloads the first of its
+   `Build.SUPPORTED_ABIS` listed there. All APKs share the `versionCode`
+   and the signing key, so any of them installs over any other.
 
 5. **Review the draft on GitHub and publish it.** The desktop app's
    automatic updates only see published releases.
@@ -50,7 +58,10 @@ that builds assets lives in `.github/workflows/release.yml`.
 | `Gregal-Setup-X.Y.Z-x64.exe` | Windows installer with automatic updates (`latest.yml` + `.blockmap`) |
 | `Gregal-Portable-X.Y.Z-x64.exe` | Portable Windows app |
 | `gregal-<os>-<arch>[.exe]` | Standalone backend/CLI (linux, darwin, windows × amd64, arm64) |
-| `Gregal-Android-A.B.C.apk` | Android app, attached by step 4 |
+| `Gregal-Android-A.B.C-arm64-v8a.apk` | Android app for phones (about 27 MB), attached by step 4 |
+| `Gregal-Android-A.B.C-x86_64.apk` | Android app for x86_64 emulators |
+| `Gregal-Android-A.B.C.apk` | Universal Android app, both backends (about 42 MB) |
+| `gregal-android-version.json` | In-app updater manifest for the APKs above |
 | `SHA256SUMS.txt` | Checksums for every CI-built file |
 
 Windows packages are unsigned.
@@ -70,5 +81,5 @@ All gitignored:
 - `dist/` — output of `./build.sh` (same names as the release assets). It
   is wiped and rebuilt on every run.
 - `desktop/dist/` — local Electron builds (`npm run dist-win`).
-- `output/` — scratch space, e.g. `output/release-X.Y.Z/` for the APK
-  attached in step 4. Nothing here is part of a release by itself.
+- `output/` — scratch space, e.g. `output/release-X.Y.Z/` for the APKs
+  and manifest attached in step 4. Nothing here is part of a release by itself.

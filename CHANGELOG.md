@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- The Android download is smaller: each phone now gets an APK with only its
+  own backend (about 27 MB instead of 42 MB), and in-app updates pick the
+  right one for the phone. The universal APK is still attached for anyone
+  who needs it.
 - **Gregal works on the phone without a computer.** The Android app (0.10.0)
   now carries the same Go backend as the desktop app and runs it on the
   device by default ("This device"): your conversations, workspace and keys

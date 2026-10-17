@@ -86,8 +86,12 @@ server is found changes.
   the system resolver (Private DNS, VPN). Without one it builds with
   `CGO_ENABLED=0`, and `dns_android.go` sends DNS to the servers in
   `GREGAL_DNS`, or 1.1.1.1 and 8.8.8.8.
-- ABIs: `arm64-v8a` (phones) and `x86_64` (emulators). The APK grows from
-  about 15 MB to about 42 MB. Per-ABI APK splits are a follow-up.
+- ABIs: `arm64-v8a` (phones) and `x86_64` (emulators). AGP ABI splits
+  build one APK per ABI, so a phone downloads only its own backend:
+  `app-arm64-v8a-debug.apk` is about 27 MB and `app-x86_64-debug.apk`
+  about 28 MB. `app-universal-debug.apk` carries both (about 42 MB). All
+  share the `versionCode` and the signing key, so they install over each
+  other.
 - `-Pgregal.skipBackend` builds a remote-only APK. The app then hides
   "This device".
 
@@ -189,9 +193,14 @@ on each server, so they are listed and resumed per server.
 
 The backend is inside the APK, so the in-app updater (manifest, download,
 SHA-256 check, installer) updates the app and the backend together, and the
-two never drift. The release flow is unchanged: `node scripts/release.cjs
-apk` builds with `assembleDebug`, which now also needs Go and preferably an
-NDK on the release machine. CI installs Go in the Android job.
+two never drift. `node scripts/release.cjs apk` builds with
+`assembleDebug`, which now also needs Go and preferably an NDK on the
+release machine, and attaches the per-ABI APKs, the universal one and the
+manifest `gregal-android-version.json`. The manifest's `apks` object has
+one entry per ABI (`downloadUrl`, `sha256`, `sizeBytes`), and the app takes
+the first of `Build.SUPPORTED_ABIS` listed there. If none matches, or the
+manifest has no `apks`, it uses the top-level fields, which point to the
+universal APK. CI installs Go in the Android job.
 
 ## 3. Verified
 
@@ -212,11 +221,9 @@ NDK on the release machine. CI installs Go in the Android job.
 
 ## 4. Follow-ups
 
-1. Per-ABI APK splits (or an App Bundle) so each phone downloads
-   only its own backend (about 27 MB instead of 42 MB).
-2. Hide tools whose policy is `deny` from the model's tool list. Today the
+1. Hide tools whose policy is `deny` from the model's tool list. Today the
    model sometimes tries `bash` once and adapts after the denial.
-3. Run scheduled jobs when the app is closed (WorkManager waking the
+2. Run scheduled jobs when the app is closed (WorkManager waking the
    backend).
 4. Keystore-wrapped `auth.yaml`.
 5. Remote workspaces from the phone: delegate a turn's workspace to a
