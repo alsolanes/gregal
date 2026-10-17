@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- An empty reply from the model (a stream the provider closes with nothing,
+  `finish_reason ""`) no longer stops a task halfway with a partial answer.
+  The same request is sent again up to three times (2, 4 and 8 s apart, shown
+  in the status line) before giving up. A model that answers with a tool call
+  where no tools are offered is not retried.
+- Recap and side questions (`/recap`, `/btw`, memory tidy) use the model
+  you are working with, with the chat role as fallback. They used the chat
+  role only, so when the provider stopped serving that model ("Model is
+  unavailable") the recap failed every time. When they fail, the card now
+  says why instead of just "The recap failed".
+
 ## v1.10.1 - 2026-10-17 - Tolerant tool arguments, smarter shell guard and project facts
 
 - Fewer wasted steps from small mismatches

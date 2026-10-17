@@ -523,7 +523,13 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 	// sense cap error. Retallat: si no queda res, és torn buit.
 	ch.Message.Content = senseThink(ch.Message.Content)
 	if strings.TrimSpace(ch.Message.Content) == "" {
-		return "", emptyReplyErr(ch.FinishReason, len([]rune(ch.Message.ReasoningContent+ch.Message.Reasoning+ch.Message.Thought+ch.Message.Thinking)), maxTokens)
+		finish := ch.FinishReason
+		// Una crida d'eina en una via sense eines: no és un tall, i
+		// reintentar-la (reintentaBuida) donaria el mateix.
+		if len(ch.Message.ToolCalls) > 0 {
+			finish = "tool_calls"
+		}
+		return "", emptyReplyErr(finish, len([]rune(ch.Message.ReasoningContent+ch.Message.Reasoning+ch.Message.Thought+ch.Message.Thinking)), maxTokens)
 	}
 	if ch.FinishReason == "length" {
 		return "", (&LengthError{MaxTokens: maxTokens}).amb(ch.Message.Content, nil)
@@ -759,10 +765,24 @@ func emptyReplyErr(finish string, reasoned, maxTokens int) error {
 	if finish == "length" {
 		return &LengthError{Reasoned: reasoned, MaxTokens: maxTokens}
 	}
-	if reasoned > 0 {
-		return fmt.Errorf("el model ha pensat %d caràcters però no ha escrit cap resposta (finish_reason %q)", reasoned, finish)
+	return &EmptyReplyError{Finish: finish, Reasoned: reasoned}
+}
+
+// EmptyReplyError és un torn acabat sense ni una lletra ni cap crida d'eina
+// que no ve del pressupost (aquest és *LengthError). Sol ser un tall del
+// proveïdor (stream que es tanca sense finish_reason) o un model que
+// s'encalla un cop: continuaTallat el torna a demanar (vegeu reintentaBuida)
+// abans de donar el torn per acabat.
+type EmptyReplyError struct {
+	Finish   string
+	Reasoned int
+}
+
+func (e *EmptyReplyError) Error() string {
+	if e.Reasoned > 0 {
+		return fmt.Sprintf("el model ha pensat %d caràcters però no ha escrit cap resposta (finish_reason %q)", e.Reasoned, e.Finish)
 	}
-	return fmt.Errorf("el model ha tornat una resposta buida (finish_reason %q)", finish)
+	return fmt.Sprintf("el model ha tornat una resposta buida (finish_reason %q)", e.Finish)
 }
 
 // toolsWire converteix els specs al format OpenAI de `tools`.

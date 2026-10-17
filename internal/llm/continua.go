@@ -3,8 +3,10 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // MaxContinuacions és el sostre de torns «continua» automàtics quan una
@@ -78,6 +80,7 @@ func promptCridaTallada(tool string) string {
 // recuperació o resposta no-streaming) perquè la pantalla i el retorn
 // coincideixin. Cada pas s'avisa pel RetryHook amb un *TruncationNotice.
 func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, onToken func(string), do func(msgs []Message, budget int) (string, []ToolCall, error)) (string, []ToolCall, error) {
+	do = reintentaBuida(ctx, do)
 	var acc strings.Builder
 	cur, budget := msgs, maxTokens
 	emet := func(s string) {
@@ -157,5 +160,50 @@ func continuaTallat(ctx context.Context, msgs []Message, maxTokens int, onToken 
 			cur = append(cur, Message{Role: "assistant", Content: s})
 		}
 		cur = append(cur, Message{Role: "user", Content: prompt})
+	}
+}
+
+// MaxEmptyRetries és quants cops es torna a demanar una resposta buida
+// (sense text ni crides d'eina, i no per pressupost) abans de rendir-s'hi.
+// EmptyRetryWait és la primera espera; es dobla a cada intent. Variables
+// perquè els tests les escurcin.
+var (
+	MaxEmptyRetries = 3
+	EmptyRetryWait  = 2 * time.Second
+)
+
+// reintentaBuida torna a fer la crida quan el model torna una resposta
+// buida. Abans un sol stream tallat pel proveïdor («finish_reason ""»)
+// acabava el torn a mitja tasca amb una resposta parcial. No es repeteix
+// res que l'usuari hagi vist: una resposta buida no ha emès cap text (el
+// pensament, si n'hi havia, sí que es pot repetir). Cada intent s'avisa
+// pel RetryHook, com la resta de reintents.
+func reintentaBuida(ctx context.Context, do func(msgs []Message, budget int) (string, []ToolCall, error)) func(msgs []Message, budget int) (string, []ToolCall, error) {
+	return func(msgs []Message, budget int) (string, []ToolCall, error) {
+		text, calls, err := do(msgs, budget)
+		wait := EmptyRetryWait
+		for i := 1; i <= MaxEmptyRetries; i++ {
+			var buida *EmptyReplyError
+			if err == nil || !errors.As(err, &buida) || ctx.Err() != nil {
+				break
+			}
+			// El model ha volgut cridar una eina en una crida que no en
+			// porta (síntesi final): tornar-ho a demanar tal qual donaria el
+			// mateix. Només es reintenten els talls (finish "" o stop).
+			if f := strings.ToLower(buida.Finish); f == "tool_calls" || f == "function_call" {
+				break
+			}
+			if hook := retryHookFrom(ctx); hook != nil {
+				hook(i, MaxEmptyRetries+1, wait, err)
+			}
+			select {
+			case <-ctx.Done():
+				return text, calls, err
+			case <-time.After(wait):
+			}
+			wait *= 2
+			text, calls, err = do(msgs, budget)
+		}
+		return text, calls, err
 	}
 }
