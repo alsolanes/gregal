@@ -127,10 +127,10 @@ func (c *Client) nativeChat(ctx context.Context, baseURL, apiKey, model string, 
 	switch ProviderTypeFor(baseURL) {
 	case ProviderAnthropic:
 		text, calls, err := c.anthropicChat(ctx, baseURL, apiKey, model, msgs, maxTokens, specs, stream, onToken, onReason)
-		return text, calls, true, err
+		return text, RepairCalls(calls, specs), true, err
 	case ProviderOpenAIResponses:
 		text, calls, err := c.responsesChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, stream, onToken, onReason)
-		return text, calls, true, err
+		return text, RepairCalls(calls, specs), true, err
 	case ProviderOllama:
 		text, calls, err := c.ollamaChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, stream, onToken, onReason)
 		if err == nil {

@@ -2,6 +2,29 @@
 
 ## Unreleased
 
+- Fewer wasted steps from small mismatches
+  ([docs/research/next-improvements.md](docs/research/next-improvements.md)).
+  On the bench: 24/24 passing (was 20/24), no failed edits (was 2 of 33).
+  - Tool arguments named the way other harnesses name them (`old`/`new` in
+    `edit`, `file_path`, `filePath`, `oldString`, `cmd`…) are mapped to
+    Gregal's names instead of failing, also inside `patch` edits and with
+    Anthropic and OpenAI Responses providers. `edit` gains `replace_all`,
+    and an empty `old_string` now says it is missing.
+  - Hard-deny rules match the program a command runs, not words in its
+    arguments: `git log --format '%h'`, `grep -rn curl .` or `clang-format`
+    are no longer blocked. Code passed as a string (`bash -c`, `python -c`,
+    `eval`, heredocs) is still checked as before. `curl` and `wget` to
+    `localhost`, `127.x` or `[::1]` ask for permission like any other
+    command instead of always being denied, so the agent can test the
+    server it is building. They stay denied for other hosts, with a proxy,
+    or when piped into a shell.
+  - The project map tells the agent when the folder is not a git repository
+    and when files use CRLF line endings, so it stops running `git status`
+    there and stops chasing `gofmt -l` output caused by Windows line
+    endings.
+  - Bench task t8 can pass now: its assert skips the test that needs an
+    external service and checks that the answer reports that it still fails.
+
 ## v1.10.0 - 2026-10-16 - Brandings, parallel subagents, faster turns and first-class local models
 
 - Subagents work in parallel, and the Agents view shows it. A task that

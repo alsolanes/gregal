@@ -204,6 +204,7 @@ func RepairCalls(calls []ToolCall, specs []ToolSpec) []ToolCall {
 		spec, ok := known[calls[i].Function.Name]
 		changed := false
 		if ok {
+			changed = renombraAlies(args, spec.Parameters)
 			props, _ := spec.Parameters["properties"].(map[string]any)
 			for k, v := range args {
 				p, _ := props[k].(map[string]any)
@@ -222,6 +223,83 @@ func RepairCalls(calls []ToolCall, specs []ToolSpec) []ToolCall {
 		}
 	}
 	return calls
+}
+
+// aliesArgs són els noms que els models donen als paràmetres, apresos
+// d'altres arnesos: Claude Code (file_path, old_string), opencode
+// (filePath, oldString), els editors str_replace (old_str), i el patch del
+// mateix Gregal (old/new dins d'edits). Al banc, deepseek-v4.1-flash va
+// cridar edit amb {"old": …, "new": …} i l'eina, que no els veia, va
+// respondre dos cops «són iguals»: tres passos perduts en una tasca de cinc.
+// Les claus es comparen normalitzades (minúscules, sense _ ni -), així que
+// oldString, old_string i OLD-STRING són la mateixa.
+var aliesArgs = map[string][]string{
+	"path":        {"filepath", "file", "filename", "pathtofile", "targetfile", "filetoread", "absolutepath"},
+	"old_string":  {"old", "oldstr", "oldtext", "search", "find", "original"},
+	"new_string":  {"new", "newstr", "newtext", "replace", "replacement"},
+	"old":         {"oldstring", "oldstr", "oldtext", "search", "find", "original"},
+	"new":         {"newstring", "newstr", "newtext", "replace", "replacement"},
+	"content":     {"contents", "text", "filetext", "filecontent", "body", "data"},
+	"command":     {"cmd", "script", "shellcommand"},
+	"replace_all": {"replaceall", "all", "global"},
+}
+
+func normClau(k string) string {
+	return strings.NewReplacer("_", "", "-", "", " ", "").Replace(strings.ToLower(k))
+}
+
+// renombraAlies posa al seu nom les claus que l'esquema no coneix quan
+// corresponen, sense ambigüitat, a un paràmetre que falta. També entra a
+// les llistes d'objectes (les edicions de patch). Una clau que l'esquema ja
+// coneix no es toca mai, i si l'objectiu ja hi és, l'àlies es deixa estar.
+func renombraAlies(args map[string]any, schema map[string]any) bool {
+	props, _ := schema["properties"].(map[string]any)
+	if len(props) == 0 {
+		return false
+	}
+	changed := false
+	for k, v := range args {
+		if _, conegut := props[k]; conegut {
+			continue
+		}
+		nk := normClau(k)
+		desti := ""
+		for p := range props {
+			if _, hiEs := args[p]; hiEs {
+				continue
+			}
+			casa := normClau(p) == nk
+			for _, a := range aliesArgs[p] {
+				casa = casa || a == nk
+			}
+			if casa {
+				if desti != "" { // dos candidats: millor no endevinar
+					desti = ""
+					break
+				}
+				desti = p
+			}
+		}
+		if desti != "" {
+			args[desti] = v
+			delete(args, k)
+			changed = true
+		}
+	}
+	for k, v := range args {
+		p, _ := props[k].(map[string]any)
+		items, _ := p["items"].(map[string]any)
+		llista, _ := v.([]any)
+		if items == nil || llista == nil {
+			continue
+		}
+		for _, el := range llista {
+			if obj, ok := el.(map[string]any); ok && renombraAlies(obj, items) {
+				changed = true
+			}
+		}
+	}
+	return changed
 }
 
 func coerce(v any, typ any) (any, bool) {

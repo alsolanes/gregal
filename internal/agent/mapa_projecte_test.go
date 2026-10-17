@@ -138,3 +138,25 @@ func TestMarcaAnticaDelMapa(t *testing.T) {
 		t.Error("jaHiEs ha de reconèixer la marca antiga")
 	}
 }
+
+// El mapa diu el que fa perdre passos: que no hi ha git, i que els fitxers
+// són CRLF (gofmt -l els llista tots).
+func TestMapaProjecteFetsGitICRLF(t *testing.T) {
+	dir := projecteProva(t, false)
+	c := MapaProjecte(dir, "mira-ho", nil)
+	if !strings.Contains(c, "Not a git repository") || strings.Contains(c, "Line endings") {
+		t.Fatalf("sense git, fitxers LF:\n%s", c)
+	}
+	for _, f := range []string{"main.go", "pkg/util.go", "TASK.md"} {
+		p := filepath.Join(dir, filepath.FromSlash(f))
+		b, _ := os.ReadFile(p)
+		os.WriteFile(p, []byte(strings.ReplaceAll(string(b), "\n", "\r\n")+"x\r\n"), 0o600)
+	}
+	if c = MapaProjecte(dir, "mira-ho", nil); !strings.Contains(c, "Line endings: the text files use CRLF") {
+		t.Fatalf("fitxers CRLF:\n%s", c)
+	}
+	dir = projecteProva(t, true)
+	if c = MapaProjecte(dir, "mira-ho", nil); strings.Contains(c, "Not a git repository") {
+		t.Fatalf("amb git:\n%s", c)
+	}
+}
