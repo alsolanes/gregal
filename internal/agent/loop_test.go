@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"gregal/internal/llm"
+	"gregal/internal/lsp"
 )
 
 func mkCall(id, name, args string) llm.ToolCall {
@@ -108,6 +109,7 @@ func TestDeny(t *testing.T) {
 }
 
 func TestSpecsAndPolicy(t *testing.T) {
+	lsp.Configure(nil, true) // el compte no pot dependre de si hi ha gopls al PATH
 	if len(Specs()) != 32 {
 		t.Fatalf("specs=%d (han de ser 32)", len(Specs()))
 	}
