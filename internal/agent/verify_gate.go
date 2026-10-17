@@ -132,7 +132,43 @@ func sumaRonda(acum, res RunResult, ronda int, marcaRonda bool) RunResult {
 	}
 	acum.RoutedFrom, acum.RoutedTo, acum.RouteWhy = res.RoutedFrom, res.RoutedTo, res.RouteWhy
 	acum.Exhausted = res.Exhausted
+	// Abans es perdien aquí: el -p sortia amb timings a zero, sense les
+	// mètriques del banc i sense interrupted (el codi de sortida no deia
+	// que el torn s'havia tallat).
+	acum.Interrupted = res.Interrupted
+	acum.EditCalls += res.EditCalls
+	acum.EditFailed += res.EditFailed
+	acum.ToolCallInvalid += res.ToolCallInvalid
+	acum.ToolCallRecovered += res.ToolCallRecovered
+	acum.DoomHits += res.DoomHits
+	acum.Compactions += res.Compactions
+	if res.Explorer {
+		acum.Explorer, acum.ExplorerReport, acum.ExplorerError = true, res.ExplorerReport, res.ExplorerError
+	}
+	acum.Timings = sumaTimings(acum.Timings, res.Timings)
 	return acum
+}
+
+// sumaTimings suma les fases de dues rondes; ModelMax és la més lenta.
+func sumaTimings(a, b RunTimings) RunTimings {
+	a.Total += b.Total
+	a.Setup += b.Setup
+	a.Probe += b.Probe
+	a.Map += b.Map
+	a.Explore += b.Explore
+	a.Model += b.Model
+	a.ModelCalls += b.ModelCalls
+	if b.ModelMax > a.ModelMax {
+		a.ModelMax = b.ModelMax
+	}
+	a.Tools += b.Tools
+	a.Engine += b.Engine
+	a.Compact += b.Compact
+	a.Extend += b.Extend
+	a.Synth += b.Synth
+	a.Checkpoint += b.Checkpoint
+	a.RetryWait += b.RetryWait
+	return a
 }
 
 // execVerificacio executa cmd amb el shell del sistema al workdir (buit = directori actual)

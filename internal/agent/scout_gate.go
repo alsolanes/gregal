@@ -18,8 +18,12 @@ const scoutMinFitxers = 40
 
 // ScoutWantedIn és ScoutWanted mirant també el workspace: en mode auto,
 // un projecte petit no comença amb l'investigador. Amb agent.scout:
-// always el scout corre igualment.
+// always el scout corre igualment. En mode inspect decideix ExploreWanted
+// (l'explorador de preguntes, explore.go).
 func ScoutWantedIn(cfg *config.Config, mode, task, workspace string) bool {
+	if mode == ModeInspect {
+		return ExploreWanted(cfg, mode, task, workspace)
+	}
 	if !ScoutWanted(cfg, mode, task) {
 		return false
 	}

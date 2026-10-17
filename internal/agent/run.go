@@ -103,6 +103,14 @@ type RunResult struct {
 	// Interrupted és l'error que ha tallat el torn quan ja hi havia feina
 	// feta: Answer és la síntesi parcial del que s'ha fet, no un buit.
 	Interrupted string `json:"interrupted,omitempty"`
+	// Explorer: la pregunta ha començat amb l'explorador (explore.go).
+	// Els seus tokens ja són a UpTokens/DownTokens/LLMCalls; Timings.Explore
+	// n'és el temps. ExplorerReport és l'informe que ha rebut el
+	// coordinador (per comprovar-ne les cites); ExplorerError, per què no
+	// n'ha tornat cap.
+	Explorer       bool   `json:"explorer,omitempty"`
+	ExplorerReport string `json:"explorer_report,omitempty"`
+	ExplorerError  string `json:"explorer_error,omitempty"`
 	// Timings desglossa el temps de paret del run per fases (vegeu
 	// docs/research/speed.md): sense això no se sabia si un torn lent
 	// era el model, les eines o el que el motor fa entre passos.
@@ -114,11 +122,14 @@ type RunResult struct {
 // Checkpoint (la resta és el bucle mateix, gairebé res).
 type RunTimings struct {
 	Total int64 `json:"total_ms"`
-	// Setup: sondeig de la finestra del model i mapa del projecte, abans
-	// del primer pas. Probe i Map en són les dues parts.
+	// Setup: sondeig de la finestra del model, mapa del projecte i, en una
+	// pregunta, l'explorador, abans del primer pas. Probe, Map i Explore
+	// en són les parts.
 	Setup int64 `json:"setup_ms"`
 	Probe int64 `json:"probe_ms"`
 	Map   int64 `json:"map_ms"`
+	// Explore: l'explorador d'una pregunta (inspect), abans del primer pas.
+	Explore int64 `json:"explore_ms,omitempty"`
 	// Model: les crides dels passos (prefill + generació + xarxa).
 	// ModelMax és la més lenta.
 	Model      int64 `json:"model_ms"`
@@ -381,12 +392,35 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	t0 = time.Now()
 	tascaMapa := TascaAmbMapa(mode, dir, task, o.Prior)
 	tm.Map = ms(t0)
+	histInici := []llm.Message{{Role: "user", Content: tascaMapa}}
+	respondreAl := 0
+	// L'explorador (explore.go): en una pregunta sobre un projecte gran, un
+	// fill de només lectura busca la resposta abans del primer pas i el
+	// coordinador respon a partir del seu informe. Si falla, el torn
+	// continua com sempre.
+	if ExploreWanted(cfg, mode, task, dir) {
+		t0 = time.Now()
+		if onStep != nil {
+			onStep(0, []string{ExploreAgentName})
+		}
+		sr := RunScouts(ctx, ScoutOptions{Cfg: cfg, Task: task, Workspace: dir, Mode: mode,
+			Mapa: strings.TrimSpace(strings.TrimPrefix(tascaMapa, task))})
+		tm.Explore = ms(t0)
+		res.Explorer, res.ExplorerReport = true, sr.Brief
+		if sr.Err != nil && sr.Brief == "" {
+			res.ExplorerError = sr.Err.Error()
+		}
+		histInici = InjectBriefFor(histInici, sr.Brief, mode)
+		if sr.Brief != "" {
+			respondreAl = ExploreRespondreAl
+		}
+	}
 
 	// El bucle: el motor decideix, aquí només es fa la feina. Abans això
 	// era una màquina d'estats sencera duplicada de la del TUI.
 	torn := NouTorn(OpcionsTorn{
 		Cfg: cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: meter,
-		Hist:      append(append([]llm.Message{}, o.Prior...), llm.Message{Role: "user", Content: tascaMapa}),
+		Hist:      append(append([]llm.Message{}, o.Prior...), histInici...),
 		SysPrompt: func() string { return sys },
 		Finestra: func() (int, int) {
 			win := Window(cfg, r)
@@ -396,6 +430,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		AutoAprova:       func() bool { return autoApprove },
 		Revisor:          revisorRun(client, cfg, o.AutoReview),
 		SenseAmpliacions: o.HardStepLimit,
+		RespondreAl:      respondreAl,
 		Ctx:              ctx,
 		Workspace:        dir,
 		Aposta:           ApostaLateral(client, cfg, dir),

@@ -11,9 +11,12 @@ import (
 // runScout fa córrer l'investigador d'inici de torn (agent.RunScout) i en
 // deixa rastre a la sala: un carril de l'investigador mentre treballa i un
 // relleu cap al coordinador amb el resum. Torna la conversa amb el resum
-// injectat a la tasca, o la mateixa si no n'hi ha.
-func (s *Server) runScout(ctx context.Context, generation uint64, task, workspace string, convo []llm.Message, maxSteps int, uso *llm.UsageMeter, provider string, emit func(string, any)) []llm.Message {
-	if n := len(agent.ScoutFocuses(task)); n > 1 && agent.ParallelSubagents(s.cfg) > 1 {
+// injectat a la tasca, o la mateixa si no n'hi ha, i si n'hi ha posat.
+func (s *Server) runScout(ctx context.Context, generation uint64, mode, task, workspace string, convo []llm.Message, maxSteps int, uso *llm.UsageMeter, provider string, emit func(string, any)) ([]llm.Message, bool) {
+	if mode == agent.ModeInspect {
+		emit("status", map[string]string{"message": s.tr("Un subagent explorador busca la resposta al codi abans que el coordinador respongui…",
+			"An explorer subagent is searching the code for the answer before the coordinator replies…")})
+	} else if n := len(agent.ScoutFocuses(task)); n > 1 && agent.ParallelSubagents(s.cfg) > 1 {
 		emit("status", map[string]string{"message": s.tr(fmt.Sprintf("%d subagents investigadors revisen la tasca en paral·lel, un per àrea…", n),
 			fmt.Sprintf("%d researcher subagents are investigating the task in parallel, one per area…", n))})
 	} else {
@@ -29,7 +32,7 @@ func (s *Server) runScout(ctx context.Context, generation uint64, task, workspac
 	if lane.Seq > 0 {
 		emit("lane", lanePayload(lane))
 	}
-	res := agent.RunScouts(ctx, agent.ScoutOptions{ID: id, Cfg: s.cfg, Task: task, Workspace: workspace, Session: s.id})
+	res := agent.RunScouts(ctx, agent.ScoutOptions{ID: id, Cfg: s.cfg, Task: task, Workspace: workspace, Session: s.id, Mode: mode})
 	// Els tokens del scout van a l'investigador abans que el torn canviï de mans.
 	s.noteUsage(generation, uso, provider)
 	result := "ok"
@@ -40,7 +43,7 @@ func (s *Server) runScout(ctx context.Context, generation uint64, task, workspac
 		emit("lane", lanePayload(done))
 	}
 	if ctx.Err() != nil {
-		return convo
+		return convo, false
 	}
 	if res.Brief == "" {
 		if back := s.handoff(generation, roleCoordinator, "report", 0); back != nil {
@@ -51,10 +54,10 @@ func (s *Server) runScout(ctx context.Context, generation uint64, task, workspac
 			msg = redactError(res.Err)
 		}
 		emit("status", map[string]string{"message": s.tr("L'investigador no ha pogut acabar; el coordinador continua sense resum. ", "The researcher could not finish; the coordinator continues without a brief. ") + msg})
-		return convo
+		return convo, false
 	}
 	if back := s.handoff(generation, roleCoordinator, "brief", 0); back != nil {
 		emit("handoff", handoffPayload(*back))
 	}
-	return agent.InjectScoutBrief(convo, res.Brief)
+	return agent.InjectBriefFor(convo, res.Brief, mode), true
 }
