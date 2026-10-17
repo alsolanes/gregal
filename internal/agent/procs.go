@@ -1,9 +1,12 @@
 package agent
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"gregal/internal/procs"
 )
@@ -45,4 +48,32 @@ func procDirOr(dir string) string {
 		return dir
 	}
 	return procDir()
+}
+
+// maxEsperaProces és el màxim que bash_output pot esperar en una crida: el
+// mateix ordre que un test llarg, i prou curt perquè un procés penjat no
+// deixi el torn quiet massa estona.
+const maxEsperaProces = 300
+
+// esperaProces és el wait/until de bash_output. Torna una línia que diu
+// com ha acabat l'espera, perquè el model no torni a esperar a cegues.
+func esperaProces(ctx context.Context, p *procs.Proc, segons float64, until string) string {
+	if segons <= 0 {
+		segons = 60
+	}
+	if segons > maxEsperaProces {
+		segons = maxEsperaProces
+	}
+	t0 := time.Now()
+	motiu := p.WaitFor(ctx, time.Duration(segons*float64(time.Second)), until)
+	fet := time.Since(t0).Round(100 * time.Millisecond)
+	switch motiu {
+	case "matched":
+		return fmt.Sprintf("(waited %s: the output contains %q)\n", fet, until)
+	case "exited":
+		return fmt.Sprintf("(waited %s: the process finished)\n", fet)
+	case "timeout":
+		return fmt.Sprintf("(waited %s: still running; wait again or stop it with bash_kill)\n", fet)
+	}
+	return ""
 }

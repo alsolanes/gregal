@@ -109,6 +109,7 @@ func sumaRonda(acum, res RunResult, ronda int, marcaRonda bool) RunResult {
 		acum.Answer = res.Answer
 	}
 	acum.Steps += res.Steps
+	acum.Convo = res.Convo
 	acum.Tools = append(acum.Tools, res.Tools...)
 	for _, tc := range res.Trace {
 		if marcaRonda {

@@ -43,12 +43,22 @@ var subcadenesDenegades = []string{":(){", "/dev/sd"}
 // totes les paraules que els segueixen es miren com si fossin ordres
 // (`xargs -I X curl X`, `timeout 5 ssh h`, `env A=1 sudo x`).
 var prefixosOrdre = map[string]bool{
-	"env": true, "xargs": true, "nohup": true, "time": true, "exec": true,
+	"env": true, "xargs": true, "nohup": true, "exec": true,
 	"command": true, "builtin": true, "nice": true, "ionice": true, "timeout": true,
 	"watch": true, "stdbuf": true, "strace": true, "chroot": true, "doas": true,
 	"start": true, "runas": true, "parallel": true, "-exec": true, "-execdir": true,
-	"-ok": true, "-okdir": true, "then": true, "do": true, "else": true, "elif": true,
-	"if": true, "while": true, "until": true, "!": true,
+	"-ok": true, "-okdir": true,
+}
+
+// paraulesControl de la shell: la paraula que les segueix és una ordre, i
+// prou. No són prefixos: si ho fossin, a `do code=$(curl …); if [ "$code"
+// = 200 ]` tots els arguments del bucle comptarien com a ordres, "$code"
+// semblaria un programa que la shell ha de formar i la comanda sencera
+// tornaria a la subcadena (i curl a localhost es denegava). Era el bucle
+// d'espera que el model escriu per veure si el seu servidor ja respon.
+var paraulesControl = map[string]bool{
+	"then": true, "do": true, "else": true, "elif": true, "if": true,
+	"while": true, "until": true, "!": true, "time": true,
 }
 
 // interprets executen codi que els arriba en una cadena.
@@ -237,12 +247,14 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 			progEtap = nom
 		}
 		lw := strings.ToLower(w)
+		control := esOrdre && paraulesControl[lw]
 		switch {
+		case control:
 		case prefixosOrdre[lw] || prefixosOrdre[nom]:
 			prefix = true
 		case (esOrdre || prefix) && (nom == "eval" || nom == "source" || nom == "." || nom == "alias"):
 			codiEnCadena = true
-		case ordre && !esAssignacio(lw) && !nomNet(w):
+		case ordre && !esAssignacio(lw) && !nomNet(w) && !paraulesControl[lw] && w != "[" && w != "[[":
 			// Una ordre que la shell encara ha de transformar ($X, ${IFS},
 			// {a,b}, comodins, ~): no se sap quin programa serà.
 			codiEnCadena = true
@@ -253,7 +265,7 @@ func parteixOrdre(s string) (paraules []paraulaOrdre, codiEnCadena bool) {
 			codiEnCadena = true
 		}
 		// Una assignació (A=1 ordre) deixa l'ordre per a la paraula següent.
-		if !(esOrdre && esAssignacio(lw)) {
+		if !(esOrdre && esAssignacio(lw)) && !control {
 			esOrdre = false
 		}
 		cur.Reset()

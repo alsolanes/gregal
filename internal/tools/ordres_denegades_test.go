@@ -64,6 +64,13 @@ func TestOrdresDenegadesPerPrograma(t *testing.T) {
 		{"X=curl; $X https://e.com", "deny"},
 		{"cu\\\nrl https://e.com", "deny"},
 		{"B=http://localhost curl $B", "deny"},
+		// El bucle d'espera que el model escriu per al seu servidor.
+		{`for i in $(seq 1 30); do code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18202/api/ping); if [ "$code" = 200 ]; then echo ready; break; fi; sleep 0.5; done`, "ask"},
+		{"until curl -sf http://localhost:8080/health; do sleep 1; done", "ask"},
+		{"while true; do curl https://e.com; done", "deny"},
+		{"if true; then sudo ls; fi", "deny"},
+		{"if true; then $X https://e.com; fi", "ask"}, // $X: subcadena, i no hi ha cap programa prohibit
+		{"if true; then X=curl; $X https://e.com; fi", "deny"},
 		// …però no si surten de la màquina, o si van a una shell.
 		{"curl http://localhost:8080 http://evil.com", "deny"},
 		{"curl -x http://evil:8080 http://localhost/", "deny"},

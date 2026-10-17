@@ -173,3 +173,154 @@ Tasca E (servidor en segon pla + curl), una tirada de cada:
   tasques que tenen dues investigacions independents.
 - Validar els canvis 1-3 amb un model local petit (Qwen3-Coder a Ollama), on
   els noms d'arguments d'altres arnesos són més freqüents.
+
+## 7. Segona ronda (v1.10.2)
+
+Codi de partida: `8834a64` (Release 1.10.2, amb #34 i #36). Mateix model i
+mateix entorn aïllat. La PR #38 (explorador per a preguntes) encara no és a
+main i no entra en aquestes mesures.
+
+### 7.1 Evidència
+
+- **Banc** (24 tirades, `--repeat 3`): 22/24. Les dues fallades són de t9
+  (test ocult, `"2.000"` com a milers). Cap edició fallida ni cap ordre
+  bloquejada.
+- **t9 amb 8 tirades**: 5/8. El model arregla el cas del test visible i no
+  prova cap altre format.
+- **Tasca E** (aixecar el servidor de t4 en segon pla, esperar que respongui,
+  provar-lo amb curl i aturar-lo), 9 tirades amb main:
+  - **a totes 9** el primer bucle d'espera es denegava. És el que el model
+    escriu sempre: `for i in $(seq 1 30); do code=$(curl … 127.0.0.1 …); if
+    [ "$code" = 200 ] …`.
+  - En 3 de les 9 el model va abandonar la tasca: no va provar res, va
+    deixar el servidor engegat i va escriure «fes-ho en una màquina on curl
+    estigui permès».
+  - En una va reescriure les peticions amb Python.
+  - La causa: després de `do`, el lexer de #34 tractava totes les paraules
+    com a ordres, i `"$code"` feia tornar la comanda a la comprovació per
+    subcadena.
+- **Esperes**: el model espera processos en segon pla amb `sleep 90` o
+  `sleep 120` en un pas i `bash_output` en un altre (tasca real de canviar el
+  port per defecte: 4 passos d'espera de 33).
+- **Tasques reals amb `-p`**: preguntes, resum de commits, canvi del port per
+  defecte a 22 fitxers. Cada `-p` començava de zero:
+  - no hi havia manera de dir «ara fes-ho» sense repetir l'exploració;
+  - no es podia passar res per stdin (`git diff | gregal -p …`);
+  - no es podia triar el model per a una tirada.
+
+### 7.2 Comparació de funcions amb Claude Code, Codex CLI i opencode
+
+| Funció | Claude Code | Codex CLI | opencode | Gregal (abans) |
+| --- | --- | --- | --- | --- |
+| Continuar una tirada headless | `-c`, `--resume` | `exec resume --last` | `run --continue` | ✗ (no es desava) |
+| Entrada per stdin | sí | `-` | sí | ✗ |
+| Model per tirada | `--model` | `-m` | `-m` | ✗ (només config) |
+| Esdeveniments en streaming per a scripts/IDE | `--output-format stream-json` | `--json` | `--format json` | ✗ (un objecte al final) |
+| Esperar un procés de fons | BashOutput + Monitor | `yield_time_ms` | — | ✗ (sleep + lectura) |
+| Checkpoints / rebobinar | `/rewind` | — | `/undo` | ✓ `/rewind`, `/checkpoints` |
+| Hooks | sí | `notify` | plugins | ✓ hooks de cicle de vida |
+| Ordres pròpies (`/`) | sí | prompts | sí | ✓ `usercmd` |
+| Mencions `@fitxer` | sí | sí | sí | ✓ |
+| Sessions: llistar, reprendre, cercar | sí | sí | sí | ✓ TUI/web (`/resume`, `/find`) |
+| Extensió d'IDE | VS Code, JetBrains | VS Code | — | ✓ VS Code |
+| Avís quan acaba un torn | hooks / campana | `notify` | — | ~ només l'app d'escriptori |
+| Resposta en la llengua de l'usuari | sí | sí | sí | ~ la fixa `lang` |
+
+El TUI i la web ja cobreixen gairebé tot el que tenen els altres. On Gregal
+quedava enrere és el mode `-p`, que és el que es fa servir en scripts, CI i
+extensions.
+
+### 7.3 Rànquing
+
+| # | Candidat | Evidència | Impacte | Esforç | Estat |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Bucle d'espera del servidor denegat** (paraules de control al lexer) | tasca E: 9/9 denegats, 3/9 abandonades | ●●●●● | S | fet |
+| 2 | **Sessions del `-p`**: desar, `-c`, `--resume`, `--no-session` | tasques reals | ●●●● | S-M | fet |
+| 3 | **stdin i `--model`** al `-p` | comparació | ●●● | S | fet |
+| 4 | **`--output stream-json`** | comparació | ●●● | S | fet |
+| 5 | **`bash_output` amb `wait`/`until`** | tasca del port, tasca E | ●● | S | fet |
+| 6 | Regla de verificació per a arreglos de parsers (provar altres formats) | t9 | ●● | S | provat, sense efecte: retirat |
+| 7 | Avís al terminal quan acaba un torn llarg (campana / OSC 9) | comparació | ●● | S | pendent |
+| 8 | Respondre en la llengua del missatge (`lang: auto`) | pregunta en català, resposta en anglès | ●● | S | pendent |
+| 9 | `"$(curl …)"` dins de cometes dobles encara torna a la subcadena | tasca E (1 de 6) | ● | M | pendent |
+| 10 | El coordinador no fa servir `delegate` per si sol | ronda 1 | ●●● | M | pendent |
+
+### 7.4 Què s'ha fet
+
+1. **Paraules de control al lexer** (`internal/tools/ordres_denegades.go`).
+   `do`, `then`, `if`, `while`, `until`, `else`, `elif`, `!` i `time` només
+   marquen que la paraula següent és una ordre; ja no converteixen la resta
+   de l'etapa en possibles ordres. `[` i `[[` es tracten com a ordres. Tests
+   amb el bucle exacte del model, `until curl …`, i casos que s'han de
+   continuar denegant (`while true; do curl https://…`, `then sudo …`).
+2. **Sessions del `-p`** (`cli_session.go`, `RunOpts.Prior`,
+   `RunResult.Convo`). Cada tirada es desa a la llista de sessions, la
+   mateixa del TUI i la web. `-c` continua la més recent de la carpeta (de
+   `-p`, TUI o web) i `--resume NOM` una de concreta. El nom surt per stderr
+   i com a `"session"` al JSON. `--no-session` no desa. Les rondes de
+   `--verify` desen la conversa de l'última.
+3. **stdin**: el que arriba per una canonada o per una redirecció s'afegeix a
+   la tasca dins de `<stdin>…</stdin>`, fins a 256 KB (si és més llarg es
+   talla i es diu). Amb `-p -`, la tasca sencera ve de stdin. Un terminal no
+   es llegeix.
+4. **`--model`**: `proveidor/model` (si el prefix és un proveïdor del config)
+   o un model del proveïdor del rol. S'aplica a code, chat i think, que són
+   els que el router pot triar.
+5. **`--output stream-json`** (`cli_stream.go`): línies `step`, `tool_call`
+   (arguments com a objecte), `tool_result` (sortida tallada a 4000
+   caràcters), `warning`, `error`, `diff` i `note`. L'última és `result`, amb
+   el mateix objecte que `--output json`.
+6. **`bash_output wait/until`** (`procs.WaitFor`). Espera fins que el procés
+   acaba, fins que una línia conté `until` o fins a `wait` segons (màxim
+   300). Torna una línia que diu com ha acabat l'espera.
+
+### 7.5 Resultats
+
+Tasca E, mateix prompt:
+
+| | main (9 tirades) | Després (6) |
+| --- | --- | --- |
+| Tirades amb alguna ordre denegada | 9/9 (15 bloquejos) | 1/6 (1) |
+| Tasca abandonada (cap prova, servidor encara engegat) | 3/9 | **0/6** |
+| Endpoints provats (curl, o Python en una) | 6/9 | 6/6, totes amb curl |
+| Passos (mitjana) | 11,0 | 13,3 |
+
+Els passos pugen perquè ara la feina es fa: les tirades d'abans que
+s'acabaven en 6 passos eren les abandonades. L'únic bloqueig que queda és una
+funció de shell amb `"$(curl …)"` dins de cometes dobles (candidat 9); el
+model s'ho va saltar amb crides soltes.
+
+Sessions, stdin i `--model` amb el model real:
+- `git log -5 --format='%h %s' | gregal -p "Summarise these commits in 3
+  short bullets."` va respondre en 1 pas.
+- Una pregunta («on es defineix el port per defecte?») i després `gregal -c
+  -p "canvia'l a 8098 a tot arreu"`. El segon torn va començar per la
+  feina, sense tornar a buscar on era el port, i va acabar canviant 22
+  fitxers.
+- Tests: `cli_session_test.go` (stdin, `--model`, desar i continuar amb `-c`
+  i `--resume` contra un servidor fals, stream-json) i
+  `internal/procs/waitfor_test.go`.
+
+`bash_output wait`: el model l'ha fet servir en 2 de les 6 primeres tirades
+amb el canvi. En general continua esperant dins de `bash` amb un bucle
+(`sleep 0.5` + curl), que no costa passos. L'estalvi es veu en els
+`sleep 90`/`sleep 120` de les esperes llargues de tests.
+
+Regla de verificació per a t9: amb la regla, 6/8; sense, 5/8. En cap de les
+8 tirades el model no va provar cap entrada més, així que la diferència és
+soroll i la regla s'ha retirat.
+
+Banc complet (24 tirades abans i 24 després):
+
+| | main | Després |
+| --- | --- | --- |
+| PASS | 22/24 | 24/24 |
+| Passos per tasca | 4,54 | 4,67 |
+| Segons per tasca (mitjana / mediana) | 19,7 / 17 | 16,7 / 14 |
+| Tokens d'entrada per tasca | 38,1 k | 39,7 k |
+| Edicions fallides | 0 | 0 |
+
+Cap canvi d'aquesta ronda toca les tasques del banc. Les diferències (t9
+1/3 → 3/3, temps) són soroll del model, i les dues passades es van fer amb
+altres feines corrent a la mateixa màquina. El banc confirma que no hi ha
+regressions; la millora es veu a la tasca E.
