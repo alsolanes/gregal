@@ -91,7 +91,9 @@ fun prettyArgs(argsJson: String, lang: String = "ca"): String {
         val m = Regex("^\"([^\"]+)\"\\s*:\\s*(.+)$").find(t2) ?: return@joinToString t2
         var v = m.groups[2]!!.value.trim()
         if (v.startsWith("\"") && v.endsWith("\"") && v.length >= 2) {
-            v = v.substring(1, v.length - 1)
+            // Desfà els escapaments de JSON: el contingut d'un fitxer sortia
+            // amb barres i enes literals a l'aprovació, no amb salts de línia.
+            v = (MiniJson.parse(v) as? String) ?: v.substring(1, v.length - 1)
         }
         "${m.groups[1]!!.value}: $v"
     }.take(800)

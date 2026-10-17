@@ -2219,6 +2219,23 @@ func (s *Server) transcriptTail(n int) string {
 
 // transcriptView retorna els últims n missatges user/assistant no buits per
 // pintar l'historial en canviar de pestanya. Sense tool calls: només text.
+// Notes que tanquen un torn que no ha acabat. Són per al model (que no el
+// reprengui pel seu compte): a la conversa que es pinta no hi han de sortir,
+// i en reprendre-la al mòbil semblava que Gregal les hagués dit.
+const (
+	turnFailedNote  = "[This request did not finish: it failed with an error. Do not resume it unless the user asks again.]"
+	turnStoppedNote = "[Stopped by the user before finishing. Do not continue this request unless the user asks for it again.]"
+)
+
+// esNotaDeTorn diu si el missatge és una d'aquestes notes.
+func esNotaDeTorn(m llm.Message) bool {
+	if m.Role != "assistant" {
+		return false
+	}
+	c := strings.TrimSpace(m.Content)
+	return c == turnFailedNote || c == turnStoppedNote
+}
+
 func transcriptView(convo []llm.Message, n int) []map[string]string {
 	if len(convo) > n {
 		convo = convo[len(convo)-n:]
@@ -2228,7 +2245,7 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 		if m.Role != "user" && m.Role != "assistant" {
 			continue
 		}
-		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) {
+		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) || esNotaDeTorn(m) {
 			continue
 		}
 		// El mapa del projecte és per al model: a la bombolla, el que va
@@ -2245,8 +2262,8 @@ func transcriptView(convo []llm.Message, n int) []map[string]string {
 func resumeTranscript(convo []llm.Message) []llm.Message {
 	out := make([]llm.Message, 0, len(convo))
 	for _, m := range convo {
-		if agent.EsResum(m) {
-			// El resum de compactació és per al model.
+		if agent.EsResum(m) || esNotaDeTorn(m) {
+			// El resum de compactació i les notes de torn són per al model.
 			continue
 		}
 		if m.Role == "user" {
@@ -2616,9 +2633,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		// el torn següent la continuava (vist el 2026-10-14: «quant fa
 		// 3+3?» responia «sis» i seguia explicant els fitxers del torn
 		// aturat). Una nota de l'assistent la tanca.
-		note := "[This request did not finish: it failed with an error. Do not resume it unless the user asks again.]"
+		note := turnFailedNote
 		if runCtx.Err() != nil {
-			note = "[Stopped by the user before finishing. Do not continue this request unless the user asks for it again.]"
+			note = turnStoppedNote
 		}
 		s.mu.Lock()
 		if n := len(s.convo); n > 0 && s.convo[n-1].Role == "user" {

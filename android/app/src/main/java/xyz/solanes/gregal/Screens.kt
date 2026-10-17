@@ -17,6 +17,9 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -131,6 +134,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+
+/** Amplada màxima de lectura del xat (tauleta, horitzontal), com a l'escriptori. */
+val ChatMaxWidth = 760.dp
 
 /** Identitat Gregal: mar fosc, verd marí (Sea) i sorra (Sand). Mai clons. */
 // Paleta: ara a Theme.kt (LocalPal; getters Sea/Ink/… temàtics).
@@ -314,6 +320,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val showRewind by vm.showRewind.collectAsState()
     val checkpoints by vm.checkpoints.collectAsState()
     val live by vm.live.collectAsState()
+    val needsProvider by vm.needsProvider.collectAsState()
     val activity by vm.activity.collectAsState()
     val planFirst by vm.planFirst.collectAsState()
     var showPlus by remember { mutableStateOf(false) }
@@ -367,6 +374,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 title = {
                     // Estil ChatGPT: el títol és el model, centrat, i prou.
                     // El projecte és al capdamunt del calaix.
+                    CappedFontScale(1.3f) {
                     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         TextButton(onClick = { showModelMenu = true }) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -388,6 +396,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                         ModelMenu(vm, st, showModelMenu, { showModelMenu = false })
                     }
+                    }
                 },
                 actions = {
                     // Una sola acció, com ChatGPT: conversa nova. Desfés i
@@ -401,7 +410,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         },
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
-            Column(Modifier.imePadding()) {
+            // Mentre falta el proveïdor no hi ha res a enviar, i amb el
+            // teclat obert el composer tapava «Desa i comença».
+            // A la tauleta, el composer té la mateixa amplada de lectura que el xat.
+            if (!(msgs.isEmpty() && needsProvider)) Column(
+                Modifier.imePadding().fillMaxWidth()
+                    .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = ChatMaxWidth),
+            ) {
                 if (st.agentBusy && !sending) AgentBusyStrip(lang)
                 if (queued) {
                     Surface(
@@ -539,16 +554,18 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 )
                             }
                             Spacer(Modifier.width(2.dp))
-                            AskActToggle(
-                                act = st.mode != "chat", enabled = !sending, lang = lang,
-                                onChange = { act ->
-                                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    vm.setMode(if (act) "code" else "chat")
-                                },
-                            )
+                            CappedFontScale(1.3f) {
+                                AskActToggle(
+                                    act = st.mode != "chat", enabled = !sending, lang = lang,
+                                    onChange = { act ->
+                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                        vm.setMode(if (act) "code" else "chat")
+                                    },
+                                )
+                            }
                             if (st.mode == "code") {
                                 Spacer(Modifier.width(4.dp))
-                                PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) }
+                                CappedFontScale(1.3f) { PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) } }
                             }
                             Spacer(Modifier.weight(1f))
                             SendStopButton(
@@ -585,7 +602,21 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             }
         },
     ) { pad ->
-        if (msgs.isEmpty()) {
+        if (msgs.isEmpty() && needsProvider) {
+            // Primer ús en aquest dispositiu: sense cap clau, el primer torn
+            // acabava en un 401. Abans d'escriure, connecta un proveïdor.
+            Column(
+                Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(8.dp))
+                GregalMark(56.dp, alive = true)
+                Text(tr(lang, "app.setup.welcome"), style = MaterialTheme.typography.headlineSmall, color = Ink,
+                    textAlign = TextAlign.Center)
+                ProviderSetup(vm)
+            }
+        } else if (msgs.isEmpty()) {
             // Estat buit: la salutació i prou. El model es veu a la
             // capçalera, i els xips de suggeriments competien amb el text.
             Column(
@@ -611,8 +642,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 LaunchedEffect(endIndex, live.length / 80, msgs.lastOrNull()?.work?.steps?.size) {
                     if (follow) listState.scrollToItem(endIndex)
                 }
+                // A la tauleta les línies de tota l'amplada no es llegien: com a
+                // l'escriptori, una columna centrada d'amplada de lectura.
                 LazyColumn(
-                    Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    Modifier.fillMaxHeight().align(Alignment.TopCenter).widthIn(max = ChatMaxWidth)
+                        .fillMaxWidth().padding(horizontal = 12.dp),
                     state = listState,
                 ) {
                     items(
@@ -824,9 +858,15 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         TextButton(onClick = { ghTool = "gh_issue" }) { Text(if (ghTool == "gh_issue") "● Issue" else "Issue", color = Sea) }
                         TextButton(onClick = { ghTool = "gh_pr" }) { Text(if (ghTool == "gh_pr") "● PR" else "PR", color = Sea) }
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // FlowRow: amb quatre accions (PR) la quarta no hi cabia i
+                    // quedava una píndola buida i aixafada a la dreta.
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
                         actions.forEach { (value, label) ->
-                            OutlinedButton(onClick = { ghAction = value }) { Text(if (ghAction == value) "✓ $label" else label) }
+                            OutlinedButton(onClick = { ghAction = value }) { Text(if (ghAction == value) "✓ $label" else label, maxLines = 1) }
                         }
                     }
                     OutlinedTextField(ghNumber, { ghNumber = it }, label = { Text(tr(lang, "app.chat.githubNumber")) }, singleLine = true)
@@ -1232,11 +1272,15 @@ fun ModelMenu(
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         // Punt: verd = clau posada, buit = falta clau.
-                        val dot = if (p.hasKey()) "●" else "○"
-                        Text(dot, color = if (p.hasKey()) Sea else Muted, fontSize = 12.sp)
+                        val ready = p.hasKey() || isLocalUrl(p.url)
+                        val dot = if (ready) "●" else "○"
+                        Text(dot, color = if (ready) Sea else Muted, fontSize = 12.sp)
                         Column {
                             Text(p.name, fontSize = 14.sp)
-                            if (!p.hasKey()) Text(tr(lang, "app.menu.providerMissingKey"),
+                            // Ollama, LM Studio, llama.cpp: no fan servir clau.
+                            if (isLocalUrl(p.url) && !p.hasKey()) Text(tr(lang, "app.menu.providerLocal"),
+                                color = Muted, fontSize = 11.sp)
+                            else if (!p.hasKey()) Text(tr(lang, "app.menu.providerMissingKey"),
                                 color = Sea, fontSize = 11.sp)
                             else if (p.usedBy.isNotBlank()) Text(p.usedBy.take(40),
                                 color = Muted, fontSize = 11.sp)
@@ -1292,7 +1336,7 @@ fun ModelMenu(
                         visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                             keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
-                    Text(tr(lang, "app.menu.keyMemory"),
+                    Text(tr(lang, if (vm.conn.collectAsState().value.local) "app.menu.keyDevice" else "app.menu.keyMemory"),
                         color = Muted, fontSize = 11.sp)
                     if (provMsg.isNotBlank()) Text(provMsg.take(120), color = Sea, fontSize = 12.sp)
                 }
