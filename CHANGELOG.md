@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.10.2 - 2026-10-17 - Empty replies are retried and the recap works again
+
 - An empty reply from the model (a stream the provider closes with nothing,
   `finish_reason ""`) no longer stops a task halfway with a partial answer.
   The same request is sent again up to three times (2, 4 and 8 s apart, shown
