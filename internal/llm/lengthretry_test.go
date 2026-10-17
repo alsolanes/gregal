@@ -103,11 +103,19 @@ func TestRetryLengthEscalaTresCopsIDesisteix(t *testing.T) {
 	}
 }
 
-// Buit sense length (finish=stop) no és recuperable: ni un reintent.
+// Buit sense length (finish=stop) no es recupera amb més pressupost: es
+// torna a demanar tal qual (reintentaBuida), sempre amb el mateix max_tokens.
 func TestSenseRetrySiNoEsLength(t *testing.T) {
 	var crides int64
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt64(&crides, 1)
+		var req struct {
+			MaxTokens int `json:"max_tokens"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		if req.MaxTokens != 512 {
+			t.Errorf("una resposta buida no ha de pujar el pressupost: max_tokens=%d", req.MaxTokens)
+		}
 		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":""},"finish_reason":"stop"}]}`)
 	}))
 	defer srv.Close()
@@ -116,8 +124,8 @@ func TestSenseRetrySiNoEsLength(t *testing.T) {
 		[]Message{{Role: "user", Content: "hola"}}, 0.7, 512); err == nil {
 		t.Fatal("hauria de fallar")
 	}
-	if atomic.LoadInt64(&crides) != 1 {
-		t.Fatalf("sense reintent: %d crides", crides)
+	if got := atomic.LoadInt64(&crides); got != int64(MaxEmptyRetries+1) {
+		t.Fatalf("crides=%d, volia %d (1 + reintents de resposta buida)", got, MaxEmptyRetries+1)
 	}
 }
 

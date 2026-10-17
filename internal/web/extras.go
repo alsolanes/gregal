@@ -51,16 +51,30 @@ func (s *Server) liveTrace() []llm.Message {
 	return nil
 }
 
-// sideRoleRef és el rol de les crides al marge (chat, o el que hi hagi),
-// amb el model triat a la sessió si n'hi ha.
+// sideRoleRef és el rol de les crides al marge (/btw, /recap, endreçar la
+// memòria). Primer el de la sessió: és el model amb què l'usuari treballa i
+// que sap que respon. Abans era sempre el rol chat, i amb un model de chat
+// que el proveïdor ja no servia («Model is unavailable») el recap fallava
+// cada cop encara que la sessió anés bé. El rol chat (o el que hi hagi)
+// queda com a reserva si el rol de la sessió no en porta cap.
 func (s *Server) sideRoleRef() (config.Provider, config.Role, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	name, _, ok := agent.SideRole(s.cfg)
-	if !ok {
+	side, _, sideOK := agent.SideRole(s.cfg)
+	if p, r := s.roleRefFor(s.role); s.role != "" && strings.TrimSpace(r.Model) != "" {
+		if _, known := s.cfg.Providers[r.Provider]; known {
+			if sideOK && side != s.role && strings.TrimSpace(r.FallbackModel) == "" {
+				if _, sr := s.roleRefFor(side); sr.Model != "" && (sr.Provider != r.Provider || sr.Model != r.Model) {
+					r.FallbackProvider, r.FallbackModel = sr.Provider, sr.Model
+				}
+			}
+			return p, r, true
+		}
+	}
+	if !sideOK {
 		return config.Provider{}, config.Role{}, false
 	}
-	p, r := s.roleRefFor(name)
+	p, r := s.roleRefFor(side)
 	if _, known := s.cfg.Providers[r.Provider]; !known {
 		return config.Provider{}, config.Role{}, false
 	}
@@ -140,7 +154,7 @@ func (s *Server) handleBtw(w http.ResponseWriter, r *http.Request) {
 	answer, err := agent.AnswerSide(r.Context(), client, cfg, p, role, req.Question, transcript)
 	if err != nil {
 		log.Printf("btw error: %s", redactError(err))
-		http.Error(w, "side question failed", http.StatusBadGateway)
+		http.Error(w, "side question failed: "+redactError(err), http.StatusBadGateway)
 		return
 	}
 	writeJSON(w, map[string]any{"answer": answer, "model": role.Model, "busy": busy})
@@ -271,7 +285,7 @@ func (s *Server) handleRecap(w http.ResponseWriter, r *http.Request) {
 	summary, err := agent.Recap(r.Context(), client, cfg, p, role, activity)
 	if err != nil {
 		log.Printf("recap error: %s", redactError(err))
-		http.Error(w, "recap failed", http.StatusBadGateway)
+		http.Error(w, "recap failed: "+redactError(err), http.StatusBadGateway)
 		return
 	}
 	writeJSON(w, map[string]any{"summary": summary, "empty": false, "source": source, "count": count, "model": role.Model})
