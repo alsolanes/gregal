@@ -187,6 +187,21 @@ el coordinador no repeteixi l'exploració. Si falla o s'atura, el torn continua
 igual. Els seus tokens compten en el torn. Es desactiva amb `agent.scout: off`
 (per defecte `auto`).
 
+**Explorador per a preguntes.** En mode consulta (inspect), la mateixa regla
+fa que una pregunta sobre un projecte de 40 fitxers o més comenci amb un
+**explorador**: un subagent de només lectura amb només `read`, `grep`, `glob`
+i `symbols`, el mapa del projecte i fins a 8 passos, que busca al codi i
+torna la resposta amb cites `camí:línia`. El coordinador respon a partir
+d'aquest informe i només llegeix el que l'informe marca com a no verificat o
+no cobreix. En preguntes sobre el repositori del mateix Gregal ha reduït els
+tokens d'entrada unes tres quartes parts i el temps gairebé a la meitat, amb
+cites com a mínim igual de precises ([docs/research/explore.md](research/explore.md)). Les seves lectures
+queden dins del subagent: la pregunta següent de la mateixa conversa no les
+torna a enviar. Un subagent de només lectura definit per l'usuari amb el nom
+`explorer` el substitueix; `agent.scout: off` també l'apaga. Amb `gregal -p
+--output json`, el resultat porta `explorer`, `explorer_report` i
+`timings.explore_ms`.
+
 **Subagents en paral·lel.** Quan la tasca anomena diverses àrees
 independents (una llista «(1) … (2) …», línies numerades o amb guions, camins
 de carpetes diferents, o una pregunta sobre «la TUI, el servidor web i el bot

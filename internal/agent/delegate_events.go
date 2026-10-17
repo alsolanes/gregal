@@ -78,6 +78,14 @@ func withDelegateIdentity(ctx context.Context, id, task string, started time.Tim
 	})
 }
 
+// fillID és l'id del fill del context ("" fora d'un fill).
+func fillID(ctx context.Context) string {
+	if identity, ok := ctx.Value(delegateIdentityContextKey{}).(*delegateIdentity); ok {
+		return identity.id
+	}
+	return ""
+}
+
 func setDelegateModel(ctx context.Context, model string) {
 	if identity, ok := ctx.Value(delegateIdentityContextKey{}).(*delegateIdentity); ok {
 		identity.mu.Lock()
