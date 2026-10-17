@@ -505,6 +505,21 @@ something, set it to `deny`; an `ask` in the config does not make it ask.
 - `--output json` always prints one JSON object, including `"error"` when the
   run fails. With `--verify`, `"verified"` is always present and the steps,
   tools and trace of every repair round are included.
+- `--output stream-json` prints one JSON line as things happen (`step`,
+  `tool_call`, `tool_result` with the output cut at 4000 characters,
+  `warning`, `error`, `diff`, `note`) and, last, the same object as
+  `--output json` with `"type": "result"`. Progress still goes to stderr.
+- Every run is saved as a session, listed with the TUI and web sessions, and
+  its name is printed on stderr (`"session"` in JSON). `-c` (`--continue`)
+  continues the latest session saved in this folder, from `-p`, the TUI or
+  the web; `--resume <name>` continues a given one. `--no-session` does not
+  save the run.
+- Input piped on stdin is added to the task, up to 256 KB:
+  `git diff | gregal -p "review this diff"`. With `-p -` the whole task is
+  read from stdin.
+- `--model provider/model` (or just a model of the code role's provider) uses
+  that model for the code, chat and think roles of this run without changing
+  the configuration.
 
 Exit codes: `0` success, `1` the run failed (provider, configuration or
 cancellation), `2` invalid flags (checked before any model call), `3` the

@@ -45,6 +45,9 @@ type RunResult struct {
 	Answer string   `json:"answer"`
 	Steps  int      `json:"steps"`
 	Tools  []string `json:"tools_used"`
+	// Convo és la conversa sencera en acabar (sense el system), per desar
+	// la sessió i continuar-la. No va al JSON: hi va el nom de la sessió.
+	Convo []llm.Message `json:"-"`
 	// Trace és cada crida amb els seus arguments i com ha anat, retallat.
 	// Només amb els noms (tools_used) una tirada de 18 passos al banc A/B
 	// no deia res de per què havia trigat quatre vegades més que opencode.
@@ -181,6 +184,9 @@ type RunOpts struct {
 	AutoReview bool
 	// OnEvent rep els events del motor (crides, resultats, avisos).
 	OnEvent func(Event)
+	// Prior és la conversa d'una tirada anterior (sense el system) que
+	// aquesta continua: `gregal -c -p` i `--resume`. Buida = conversa nova.
+	Prior []llm.Message
 }
 
 // approvalNote substitueix headlessNote quan hi ha qui aprova: ningú
@@ -329,6 +335,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// del proveïdor; l'estimació només queda per quan no n'ha declarat cap.
 	finish := func() {
 		tm.Total = ms(tRun)
+		res.Convo = senseSystem(hist)
 		u, calls, withUsage := meter.Total()
 		res.LLMCalls = calls
 		if withUsage > 0 {
@@ -360,7 +367,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		note = approvalNote
 	}
 	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
-	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
+	hist = append(append([]llm.Message{{Role: "system", Content: sys}}, o.Prior...), llm.Message{Role: "user", Content: task})
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
 	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
 		hist = append(hist, llm.Message{Role: "assistant", Content: reply})
@@ -383,7 +390,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	dcancel()
 	tm.Probe = ms(t0)
 	t0 = time.Now()
-	tascaMapa := TascaAmbMapa(mode, dir, task, nil)
+	tascaMapa := TascaAmbMapa(mode, dir, task, o.Prior)
 	tm.Map = ms(t0)
 	histInici := []llm.Message{{Role: "user", Content: tascaMapa}}
 	respondreAl := 0
@@ -413,7 +420,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// era una màquina d'estats sencera duplicada de la del TUI.
 	torn := NouTorn(OpcionsTorn{
 		Cfg: cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: meter,
-		Hist:      histInici,
+		Hist:      append(append([]llm.Message{}, o.Prior...), histInici...),
 		SysPrompt: func() string { return sys },
 		Finestra: func() (int, int) {
 			win := Window(cfg, r)
@@ -741,4 +748,13 @@ func revisorRun(client *llm.Client, cfg *config.Config, forçat bool) ReviewFunc
 		return nil
 	}
 	return NewReviewer(client, cfg, nil)
+}
+
+// senseSystem treu el system del principi: la sessió desa la conversa, i
+// el system es torna a compondre a cada tirada (mode, entorn, data).
+func senseSystem(hist []llm.Message) []llm.Message {
+	if len(hist) > 0 && hist[0].Role == "system" {
+		hist = hist[1:]
+	}
+	return append([]llm.Message(nil), hist...)
 }

@@ -132,9 +132,10 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"command": str,
 			}, "required": []string{"command"}}},
-		{Name: "bash_output", Description: "Read the new output of a background process (id from bash_background). Also says whether it has finished and with which exit code.",
+		{Name: "bash_output", Description: "Read the new output of a background process (id from bash_background). Also says whether it has finished and with which exit code. To wait for it, pass wait=seconds (up to 300): it returns as soon as the process finishes, or as soon as a line contains until (e.g. until=\"Listening on\" for a server), instead of sleeping in bash.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"id": str, "lines": map[string]any{"type": "integer"},
+				"wait": map[string]any{"type": "integer"}, "until": str,
 			}, "required": []string{"id"}}},
 		{Name: "bash_kill", Description: "Stop a background process by its id. Without an id, list the running processes.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -723,8 +724,10 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return "engegat en segon pla amb id " + p.ID + " (" + a.Command + "). Llegeix-ne la sortida amb bash_output.", nil, nil
 	case "bash_output":
 		var a struct {
-			ID    string `json:"id"`
-			Lines int    `json:"lines"`
+			ID    string  `json:"id"`
+			Lines int     `json:"lines"`
+			Wait  float64 `json:"wait"`
+			Until string  `json:"until"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
@@ -737,7 +740,11 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if n <= 0 || n > 400 {
 			n = 120
 		}
-		return p.Describe() + "\n" + p.Tail(n), nil, nil
+		nota := ""
+		if a.Wait > 0 || a.Until != "" {
+			nota = esperaProces(ctx, p, a.Wait, a.Until)
+		}
+		return nota + p.Describe() + "\n" + p.Tail(n), nil, nil
 	case "bash_kill":
 		var a struct {
 			ID string `json:"id"`

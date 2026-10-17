@@ -24,6 +24,28 @@
 - `write` no longer replaces an existing file the agent has not read, or one
   that changed since it read it. The agent has to read the file first, or
   use `edit`. New files are not affected.
+- `gregal -p` works like `claude -p`, `codex exec` and `opencode run` in
+  scripts and CI ([docs/manual.md](docs/manual.md#non-interactive-runs--p)).
+  Details in [docs/research/next-improvements.md](docs/research/next-improvements.md#7-segona-ronda-v1102).
+  - Every run is saved as a session, in the same list as the TUI and web
+    ones. `-c` continues the latest session of the folder, so "now do it"
+    builds on what the previous run found instead of starting over.
+    `--resume <name>` continues a given session, and `--no-session` skips
+    saving.
+  - Piped input is added to the task: `git diff | gregal -p "review this"`.
+    `-p -` reads the whole task from stdin.
+  - `--model provider/model` picks the model for one run.
+  - `--output stream-json` prints one JSON line per step, tool call, result
+    and warning while the run goes, then the final result.
+- The agent can test the server it starts again. Its usual wait loop
+  (`for …; do code=$(curl … http://127.0.0.1:…); if [ "$code" = 200 ] …`)
+  was denied. In 3 of 9 runs the agent then gave up without testing
+  anything and left the server running. Shell keywords such as `do`, `then`
+  and `if` no longer make every following word count as a command.
+- `bash_output` can wait: `wait` (seconds, up to 300) returns when the
+  background process finishes, and `until` returns as soon as a line
+  contains a text such as "Listening on". The agent no longer needs
+  `sleep 90` in one step and a read in the next.
 - Cheaper questions about large projects
   ([docs/research/explore.md](docs/research/explore.md)). On five questions
   about Gregal's own repository (two runs each), input tokens fell from
