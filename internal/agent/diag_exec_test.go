@@ -59,6 +59,12 @@ func TestDiagnosticaPython(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "mal.py")
 	os.WriteFile(p, []byte("def f(:\n    pass\n"), 0o600)
 	d := Diagnostica(p)
+	if d == "" {
+		// La primera arrencada de Python en un runner de Windows fred pot
+		// passar dels 5 s del diagnòstic, que llavors calla (és el que ha
+		// de fer). Amb Python ja calent, el segon intent és el que compta.
+		d = Diagnostica(p)
+	}
 	if !strings.Contains(d, "line 1") || (!strings.Contains(d, "[diagnòstic]") && !strings.Contains(d, "[sintaxi]")) {
 		t.Fatalf("python: %q", d)
 	}
