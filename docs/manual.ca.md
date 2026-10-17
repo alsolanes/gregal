@@ -50,6 +50,25 @@ providers:
 Defineix la variable a l'entorn des d'on iniciaràs Gregal, o fes servir un
 gestor de secrets. No desis credencials ni configuració privada al repositori.
 
+### Catàleg de models
+
+Gregal guarda una còpia del catàleg de [models.dev](https://models.dev)
+(finestra de context, sortida màxima, preus, i si el model admet eines,
+raonament i adjunts) a `<data>/models-catalog.json`. La refresca en segon
+pla un cop al dia; la primera vegada espera com a molt 4 segons.
+
+- **Finestra de context.** Surt, per aquest ordre, del `context_window` del
+  rol, del que declara el proveïdor a `/models`, del catàleg i d'una taula
+  interna. `/stats` diu d'on surt. Els servidors locals sempre fan servir la
+  finestra amb què s'han engegat.
+- **Cost.** Els rols amb un model sense preu a `cost:` prenen el del
+  catàleg, així que el cost estimat surt sense haver de configurar preus.
+- **Correspondència.** El proveïdor es busca per l'adreça base (per exemple,
+  opencode zen → `opencode-go`). Si no en coincideix cap, el model es busca
+  pel nom, amb la finestra més petita de les coincidències i sense preu.
+
+`models_catalog: off` el desactiva: no es fa cap petició a models.dev.
+
 ### Protocols natius de proveïdor
 
 Per defecte tots els proveïdors parlen el protocol Chat Completions
@@ -348,6 +367,13 @@ petició al model s'envien a l'endpoint configurat per al rol. Un proveïdor
 anomenat `local` només és local si el servei s'executa realment a la teva
 màquina; un proxy local pot reenviar les peticions a un altre lloc. La consulta
 web i els connectors MCP configurats també poden fer peticions de xarxa.
+
+`write` només crea fitxers nous o reescriu fitxers que l'agent ha llegit (o
+escrit) en aquesta conversa i que no han canviat des d'aleshores. Per
+substituir un fitxer existent que no ha vist, primer l'ha de llegir, o
+canviar-lo amb `edit` o `patch`. És la mateixa regla que aplica Claude Code,
+i evita que reescriure un fitxer sencer s'emporti els canvis que mentrestant
+hi hagis fet tu, un formatador o un altre agent.
 
 Les eines de fitxers i de shell s'executen a la màquina host dins del projecte
 seleccionat. Per defecte (`sandbox.mode: off`) les úniques proteccions són
@@ -1079,6 +1105,39 @@ amb `regex: true`), `kind` (`func`, `method`, `type`, `struct`, `interface`,
 `class`, `enum`, `trait`, `impl`, `const`, `var`), `file` (un glob com
 `internal/**/*.go`), `exported` i `limit` (50 per defecte, màxim 200), i torna
 `camí:línia tipus nom — signatura`.
+
+### Servidors de llenguatge (eina `lsp`)
+
+Quan hi ha un servidor de llenguatge instal·lat i al `PATH` (`gopls`,
+`pyright-langserver`/`basedpyright-langserver`/`pylsp`,
+`typescript-language-server`, `rust-analyzer`, `clangd`), l'agent té l'eina
+`lsp`. Rep `path`, `line` (comptant des d'1, com la mostra `read`) i
+`symbol` (el nom que hi ha a la línia) o `column`, i una `operation`:
+
+- `definition`: on es defineix el símbol;
+- `references`: tots els llocs on es fa servir, a tot el projecte (fins a
+  80 línies);
+- `hover`: tipus i documentació;
+- `diagnostics`: errors i avisos del fitxer (no cal línia);
+- `rename` amb `new_name`: canvia el nom del símbol a tots els fitxers, sense
+  tocar strings, comentaris ni altres noms iguals. S'escriu com qualsevol
+  edició (es pot desfer i `/rewind` funciona), en mode `code` demana permís
+  com `edit` i en els modes de només lectura està denegat. Es refusen els
+  canvis fora del workspace o en un fitxer que ha canviat mentre es
+  calculava el rename.
+
+Els servidors s'engeguen el primer cop que calen, un per llenguatge i
+workspace, i s'aturen amb la tirada. No es baixa res. Els diagnòstics que
+surten després de cada edició continuen venint de les comprovacions per
+línia d'ordres (`go vet`, `tsc`, pyright/mypy), que no necessiten cap
+servidor engegat. Configuració:
+
+```yaml
+lsp:
+  mode: off            # treu l'eina
+  servers:             # canvia o afegeix un servidor per llenguatge
+    java: {command: [jdtls], extensions: [.java]}
+```
 
 ## Exportar i compartir converses
 

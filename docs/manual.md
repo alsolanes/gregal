@@ -48,6 +48,27 @@ providers:
 Set the variable in the environment used to launch Gregal, or use a secret
 manager. Do not commit credentials or private configuration.
 
+### Model catalog
+
+Gregal keeps a copy of the [models.dev](https://models.dev) catalog (context
+window, maximum output, prices, and whether the model supports tools,
+reasoning and attachments) in `<data>/models-catalog.json`. It refreshes
+the copy in the background once a day; the first run waits up to 4 seconds
+for it.
+
+- **Context window.** It comes, in this order, from the role's
+  `context_window`, what the provider declares in `/models`, the catalog,
+  and a built-in table. `/stats` shows the source. Local servers always use
+  what they were started with.
+- **Cost.** Roles whose model has no price under `cost:` take the catalog's,
+  so the estimated cost shows up without configuring prices.
+- **Matching.** The provider is matched by its base URL (for example
+  opencode zen → `opencode-go`). When no provider matches, the model is
+  looked up by name, using the smallest window among the matches and no
+  price.
+
+Set `models_catalog: off` to disable it: no request goes to models.dev.
+
 ### Native provider protocols
 
 By default every provider speaks the OpenAI-compatible Chat Completions
@@ -333,6 +354,13 @@ request are sent to the endpoint configured for that role. A provider named
 `local` is local only if the service actually runs on your machine; a local
 proxy may forward requests elsewhere. Web retrieval and configured MCP
 connectors can also make network requests.
+
+`write` only creates new files or rewrites files the agent has read (or
+written) in this conversation and that have not changed since. To replace an
+existing file it has not seen, the agent has to read it first, or change it
+with `edit` or `patch`. This is the same rule Claude Code applies, and it
+keeps a whole-file rewrite from wiping changes made meanwhile by you, a
+formatter or another agent.
 
 File and shell tools run on the host in the selected project. By default
 (`sandbox.mode: off`) the only protections are application controls: the
@@ -1047,6 +1075,37 @@ expression with `regex: true`), `kind` (`func`, `method`, `type`, `struct`,
 `interface`, `class`, `enum`, `trait`, `impl`, `const`, `var`), `file` (a glob
 such as `internal/**/*.go`), `exported` and `limit` (default 50, maximum
 200), and returns `path:line kind name — signature`.
+
+### Language servers (`lsp` tool)
+
+When a language server is installed and on `PATH` (`gopls`,
+`pyright-langserver`/`basedpyright-langserver`/`pylsp`,
+`typescript-language-server`, `rust-analyzer`, `clangd`), the agent gets an
+`lsp` tool. It takes `path`, `line` (1-based, as `read` shows it) and
+`symbol` (the name on that line) or `column`, and one `operation`:
+
+- `definition`: where the symbol is defined;
+- `references`: every use across the project (up to 80 lines);
+- `hover`: type and documentation;
+- `diagnostics`: the file's errors and warnings (no line needed);
+- `rename` with `new_name`: renames the symbol in every file, leaving
+  strings, comments and unrelated names with the same text alone. It is
+  written like any edit (undo and `/rewind` work), asks for approval in
+  `code` mode like `edit`, and is denied in read-only modes. Edits outside the
+  workspace, or to a file that changed while the rename was computed, are
+  refused.
+
+Servers start on first use, one per language and workspace, and stop with
+the run. Nothing is downloaded. The diagnostics shown after each edit still
+come from the command-line checks (`go vet`, `tsc`, pyright/mypy), which
+need no running server. Configuration:
+
+```yaml
+lsp:
+  mode: off            # remove the tool
+  servers:             # replace or add a server per language
+    java: {command: [jdtls], extensions: [.java]}
+```
 
 ## Export and Share Conversations
 

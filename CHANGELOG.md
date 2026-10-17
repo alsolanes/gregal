@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **Language servers: the `lsp` tool.** When `gopls`, pyright,
+  `typescript-language-server`, `rust-analyzer` or `clangd` is installed,
+  the agent can:
+  - jump to a symbol's definition;
+  - list every reference across the project;
+  - read the type and docs of a symbol (hover);
+  - get a file's errors and warnings;
+  - rename a symbol in every file in one step, without touching strings,
+    comments or unrelated names with the same text.
+
+  A rename can be undone and asks for approval like any edit. Nothing is
+  downloaded. Set `lsp.mode: off` to remove the tool, or `lsp.servers` to add
+  a server ([docs/manual.md](docs/manual.md#language-servers-lsp-tool)).
+- **Model catalog.** Context windows, prices and capabilities of remote
+  models now come from [models.dev](https://models.dev), cached for a day.
+  Models whose provider does not report a window get the right one: for
+  example, deepseek-v4.1-flash on opencode zen is 1M instead of 128K. The
+  estimated cost shows without setting prices. Set `models_catalog: off` to
+  disable it.
+- `write` no longer replaces an existing file the agent has not read, or one
+  that changed since it read it. The agent has to read the file first, or
+  use `edit`. New files are not affected.
 - `gregal -p` works like `claude -p`, `codex exec` and `opencode run` in
   scripts and CI ([docs/manual.md](docs/manual.md#non-interactive-runs--p)).
   Details in [docs/research/next-improvements.md](docs/research/next-improvements.md#7-segona-ronda-v1102).

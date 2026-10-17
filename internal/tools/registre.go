@@ -20,7 +20,7 @@ import "strings"
 // shell, la web i les auxiliars.
 func Noms() []string {
 	return []string{
-		"read", "grep", "glob", "symbols", "read_image",
+		"read", "grep", "glob", "symbols", "lsp", "read_image",
 		"write", "edit", "patch",
 		"bash", "bash_background", "bash_output", "bash_kill",
 		"web_search", "web_fetch", "browser",

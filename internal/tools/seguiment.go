@@ -131,6 +131,28 @@ func (s *Seguiment) Coneix(path string) {
 	s.conegut(path, raw)
 }
 
+// GuardaEscriptura és la guarda de write sobre un fitxer que ja existeix
+// (P9, com Claude Code i el FS_STALE_VERSION de DeepSeek Harness): s'ha
+// d'haver llegit (o escrit) en aquesta conversa i no pot haver canviat des
+// d'aleshores. Sense això, un write reescrivia a cegues un fitxer que el
+// model no havia vist, o es menjava el que l'usuari, un formatador o un
+// altre agent hi havia canviat mentrestant. Un fitxer nou passa sempre.
+func (s *Seguiment) GuardaEscriptura(path string) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil // no existeix (o no es pot llegir: ho dirà Write)
+	}
+	if vistSencer(path, raw) {
+		return nil
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if ok, perque := s.alDia(path, raw); !ok {
+		return fmt.Errorf("%s ja existeix i %s: write el reescriuria sencer sense saber què hi ha. Llegeix-lo amb read i torna-ho a provar, o canvia només el que cal amb edit o patch", path, perque)
+	}
+	return nil
+}
+
 // alDia diu si el model té al dia el contingut raw, i si no, per què.
 func (s *Seguiment) alDia(path string, raw []byte) (bool, string) {
 	st := s.fitxers[clau(path)]
@@ -445,4 +467,50 @@ func OblidaTotsSeguiments() {
 	seguimentsMu.Lock()
 	seguiments = map[string]*Seguiment{}
 	seguimentsMu.Unlock()
+}
+
+// Reescriu desa el contingut nou d'un fitxer que ha calculat una altra
+// eina (el rename de l'eina lsp) a partir de vell. Si el fitxer ja no és
+// vell (algú l'ha canviat mentrestant), no hi toca. Fa la foto al diari,
+// actualitza què coneix el model i torna el diff, com edit.
+func (s *Seguiment) Reescriu(path, vell, nou string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if string(raw) != vell {
+		return "", fmt.Errorf("%s ha canviat mentre es calculava el canvi: torna-ho a provar", path)
+	}
+	Active.SnapOp(path, "edit")
+	if err := os.WriteFile(path, []byte(nou), 0o644); err != nil {
+		return "", err
+	}
+	s.conegut(path, []byte(nou))
+	return path + ":\n" + resumCanvi(vell, nou), nil
+}
+
+// Fitxers que el mapa del projecte ha adjuntat sencers al missatge (la
+// tasca els anomena). Al banc, t3 diu «implementa utils.py»: el model en
+// tenia el contingut a la tasca, feia write directament, i la guarda el
+// rebutjava perquè no hi havia cap read. Costava dos passos (read i un
+// patch) a 2 de cada 3 tirades. No va per sessió perquè el mapa no en sap
+// res; mana el contingut: si el fitxer ha canviat, ja no compta.
+var vistos sync.Map // camí absolut → sha256
+
+// VistSencer apunta que el model ha rebut el contingut sencer del fitxer.
+func VistSencer(path string, raw []byte) {
+	if abs, err := filepath.Abs(path); err == nil {
+		vistos.Store(abs, sha256.Sum256(raw))
+	}
+}
+
+func vistSencer(path string, raw []byte) bool {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return false
+	}
+	h, ok := vistos.Load(abs)
+	return ok && h.([32]byte) == sha256.Sum256(raw)
 }
