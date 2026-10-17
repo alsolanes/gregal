@@ -28,14 +28,25 @@ type asideMsg struct {
 	err   error
 }
 
-// sideRef és el rol de les crides al marge (chat o el que hi hagi).
+// sideRef és el rol de les crides al marge: primer el rol actiu (el model
+// amb què es treballa i que respon), amb el rol chat de reserva. Abans era
+// sempre chat, i si el proveïdor ja no en servia el model, /recap i /btw
+// fallaven cada cop (com al web: vegeu sideRoleRef).
 func (m Model) sideRef() (config.Provider, config.Role, bool) {
-	_, r, ok := agent.SideRole(m.cfg)
-	if !ok {
+	side, sr, sideOK := agent.SideRole(m.cfg)
+	if r, ok := m.cfg.Roles[m.role]; ok && strings.TrimSpace(r.Model) != "" {
+		if p, known := m.cfg.Providers[r.Provider]; known {
+			if sideOK && side != m.role && strings.TrimSpace(r.FallbackModel) == "" && (sr.Provider != r.Provider || sr.Model != r.Model) {
+				r.FallbackProvider, r.FallbackModel = sr.Provider, sr.Model
+			}
+			return p, r, true
+		}
+	}
+	if !sideOK {
 		return config.Provider{}, config.Role{}, false
 	}
-	p, known := m.cfg.Providers[r.Provider]
-	return p, r, known
+	p, known := m.cfg.Providers[sr.Provider]
+	return p, sr, known
 }
 
 // hist és una còpia de la conversa amb el torn en curs (si n'hi ha).

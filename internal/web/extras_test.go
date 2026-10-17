@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -277,3 +278,49 @@ func TestMemoryTidyShowsDiffAndAppliesWithHash(t *testing.T) {
 }
 
 func timeAfter() <-chan time.Time { return time.After(10 * time.Millisecond) }
+
+// El cas real: el model del rol chat ja no el serveix el proveïdor («Model
+// is unavailable») i la sessió treballa amb un altre. El recap ha d'anar
+// amb el model de la sessió i sortir bé; abans fallava cada cop.
+func TestRecapUsesSessionModelNotDeadChat(t *testing.T) {
+	var models []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Model string `json:"model"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		models = append(models, req.Model)
+		if req.Model == "dead" {
+			w.WriteHeader(400)
+			fmt.Fprint(w, `{"error":{"type":"server_error","message":"Upstream request failed: Model is unavailable."}}`)
+			return
+		}
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"- did things"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	s := goalTestServer(t)
+	useProvider(s, srv.URL)
+	chat := s.cfg.Roles["chat"]
+	chat.Model = "dead"
+	s.cfg.Roles["chat"] = chat
+	code := s.cfg.Roles["code"]
+	code.Model = "alive"
+	s.cfg.Roles["code"] = code
+	s.role = "code"
+	s.convo = []llm.Message{{Role: "user", Content: "a"}, {Role: "assistant", Content: "b"}}
+	w := postJSON(t, s.handleRecap, `{}`)
+	if w.Code != 200 || !strings.Contains(w.Body.String(), "did things") {
+		t.Fatalf("recap: %d %s (models %v)", w.Code, w.Body.String(), models)
+	}
+	if len(models) == 0 || models[0] != "alive" {
+		t.Fatalf("the recap must use the session's model first: %v", models)
+	}
+
+	// Si el de la sessió falla, el motiu arriba a la pantalla.
+	code.Model = "dead"
+	s.cfg.Roles["code"] = code
+	w = postJSON(t, s.handleRecap, `{}`)
+	if w.Code != 502 || !strings.Contains(w.Body.String(), "Model is unavailable") {
+		t.Fatalf("failure should say why: %d %s", w.Code, w.Body.String())
+	}
+}
