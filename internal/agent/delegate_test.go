@@ -16,6 +16,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/lsp"
 )
 
 func stubRunner(t *testing.T, fn func(ctx context.Context, prompt string) (string, error)) {
@@ -94,6 +95,7 @@ func TestDelegateSenseRunner(t *testing.T) {
 // Sense recursió: els subagents reben Specs() (natives) i delegate només
 // existeix a SpecsAll() (loop pare).
 func TestDelegateSenseRecursio(t *testing.T) {
+	lsp.Configure(nil, true) // el compte no pot dependre de si hi ha gopls al PATH
 	for _, s := range Specs() {
 		if s.Name == "delegate" {
 			t.Fatal("Specs() no pot incloure delegate (recursió)")

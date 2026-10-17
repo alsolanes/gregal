@@ -48,6 +48,27 @@ providers:
 Set the variable in the environment used to launch Gregal, or use a secret
 manager. Do not commit credentials or private configuration.
 
+### Model catalog
+
+Gregal keeps a copy of the [models.dev](https://models.dev) catalog (context
+window, maximum output, prices, and whether the model supports tools,
+reasoning and attachments) in `<data>/models-catalog.json`. It refreshes
+the copy in the background once a day; the first run waits up to 4 seconds
+for it.
+
+- **Context window.** It comes, in this order, from the role's
+  `context_window`, what the provider declares in `/models`, the catalog,
+  and a built-in table. `/stats` shows the source. Local servers always use
+  what they were started with.
+- **Cost.** Roles whose model has no price under `cost:` take the catalog's,
+  so the estimated cost shows up without configuring prices.
+- **Matching.** The provider is matched by its base URL (for example
+  opencode zen → `opencode-go`). When no provider matches, the model is
+  looked up by name, using the smallest window among the matches and no
+  price.
+
+Set `models_catalog: off` to disable it: no request goes to models.dev.
+
 ### Native provider protocols
 
 By default every provider speaks the OpenAI-compatible Chat Completions
@@ -177,6 +198,20 @@ paths, is added to the task so the coordinator does not repeat the
 exploration. If the scout fails or is stopped, the turn continues normally.
 Its tokens count in the turn. Disable it with `agent.scout: off`
 (default `auto`).
+
+**Explorer for questions.** In inspect mode the same rule starts a question
+about a project of 40 files or more with an **Explorer** instead: a read-only
+subagent with only `read`, `grep`, `glob` and `symbols`, the project map and
+up to 8 steps, that searches the code and reports the answer with
+`path:line` citations. The coordinator answers from that report and only
+reads what the report marks as unverified or does not cover. On questions
+about Gregal's own repository this cut input tokens by about three quarters
+and time by almost half, with citations at least as accurate
+([docs/research/explore.md](research/explore.md)). Its reads stay inside the
+subagent, so the next question in the same conversation does not resend
+them. A user-defined read-only subagent named `explorer` replaces it;
+`agent.scout: off` disables it too. With `gregal -p --output json`, the
+result has `explorer`, `explorer_report` and `timings.explore_ms`.
 
 **Parallel subagents.** When the task names several independent areas (a
 list such as "(1) … (2) …", numbered or bulleted lines, paths in different
@@ -319,6 +354,13 @@ request are sent to the endpoint configured for that role. A provider named
 `local` is local only if the service actually runs on your machine; a local
 proxy may forward requests elsewhere. Web retrieval and configured MCP
 connectors can also make network requests.
+
+`write` only creates new files or rewrites files the agent has read (or
+written) in this conversation and that have not changed since. To replace an
+existing file it has not seen, the agent has to read it first, or change it
+with `edit` or `patch`. This is the same rule Claude Code applies, and it
+keeps a whole-file rewrite from wiping changes made meanwhile by you, a
+formatter or another agent.
 
 File and shell tools run on the host in the selected project. By default
 (`sandbox.mode: off`) the only protections are application controls: the
@@ -463,6 +505,21 @@ something, set it to `deny`; an `ask` in the config does not make it ask.
 - `--output json` always prints one JSON object, including `"error"` when the
   run fails. With `--verify`, `"verified"` is always present and the steps,
   tools and trace of every repair round are included.
+- `--output stream-json` prints one JSON line as things happen (`step`,
+  `tool_call`, `tool_result` with the output cut at 4000 characters,
+  `warning`, `error`, `diff`, `note`) and, last, the same object as
+  `--output json` with `"type": "result"`. Progress still goes to stderr.
+- Every run is saved as a session, listed with the TUI and web sessions, and
+  its name is printed on stderr (`"session"` in JSON). `-c` (`--continue`)
+  continues the latest session saved in this folder, from `-p`, the TUI or
+  the web; `--resume <name>` continues a given one. `--no-session` does not
+  save the run.
+- Input piped on stdin is added to the task, up to 256 KB:
+  `git diff | gregal -p "review this diff"`. With `-p -` the whole task is
+  read from stdin.
+- `--model provider/model` (or just a model of the code role's provider) uses
+  that model for the code, chat and think roles of this run without changing
+  the configuration.
 
 Exit codes: `0` success, `1` the run failed (provider, configuration or
 cancellation), `2` invalid flags (checked before any model call), `3` the
@@ -1018,6 +1075,37 @@ expression with `regex: true`), `kind` (`func`, `method`, `type`, `struct`,
 `interface`, `class`, `enum`, `trait`, `impl`, `const`, `var`), `file` (a glob
 such as `internal/**/*.go`), `exported` and `limit` (default 50, maximum
 200), and returns `path:line kind name — signature`.
+
+### Language servers (`lsp` tool)
+
+When a language server is installed and on `PATH` (`gopls`,
+`pyright-langserver`/`basedpyright-langserver`/`pylsp`,
+`typescript-language-server`, `rust-analyzer`, `clangd`), the agent gets an
+`lsp` tool. It takes `path`, `line` (1-based, as `read` shows it) and
+`symbol` (the name on that line) or `column`, and one `operation`:
+
+- `definition`: where the symbol is defined;
+- `references`: every use across the project (up to 80 lines);
+- `hover`: type and documentation;
+- `diagnostics`: the file's errors and warnings (no line needed);
+- `rename` with `new_name`: renames the symbol in every file, leaving
+  strings, comments and unrelated names with the same text alone. It is
+  written like any edit (undo and `/rewind` work), asks for approval in
+  `code` mode like `edit`, and is denied in read-only modes. Edits outside the
+  workspace, or to a file that changed while the rename was computed, are
+  refused.
+
+Servers start on first use, one per language and workspace, and stop with
+the run. Nothing is downloaded. The diagnostics shown after each edit still
+come from the command-line checks (`go vet`, `tsc`, pyright/mypy), which
+need no running server. Configuration:
+
+```yaml
+lsp:
+  mode: off            # remove the tool
+  servers:             # replace or add a server per language
+    java: {command: [jdtls], extensions: [.java]}
+```
 
 ## Export and Share Conversations
 

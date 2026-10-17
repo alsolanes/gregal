@@ -195,6 +195,12 @@ type OpcionsTorn struct {
 	// demana «CONTINUA/FINAL», es fa la síntesi. El headless l'activa quan
 	// l'usuari passa --max-steps explícitament (un límit és un límit).
 	SenseAmpliacions bool
+	// RespondreAl: si és més gran que zero, en començar el pas següent a
+	// aquest nombre de passos el model rep un sol cop AvisRespondre. És per
+	// a les preguntes que ja porten l'informe de l'explorador (explore.go):
+	// al banc, el coordinador hi responia en 1-3 passos, però de tant en
+	// tant se n'anava 10 passos darrere d'un detall secundari.
+	RespondreAl int
 	// Ctx, Sessio i Workspace són per als hooks del cicle de vida
 	// (lifecycle.go): hi pengen (cancel·lar el torn els mata) i els reben
 	// com a GREGAL_SESSION/GREGAL_WORKSPACE. Opcionals.
@@ -297,6 +303,8 @@ type Torn struct {
 	// avisPassosAl és el límit per al qual ja s'ha avisat el model que
 	// li queden pocs passos (AvisPassosRestants), per no repetir-ho.
 	avisPassosAl int
+	// avisatRespondre: AvisRespondre ja s'ha donat (OpcionsTorn.RespondreAl).
+	avisatRespondre bool
 	// sintesiEinaReintent: la síntesi ha tornat només una crida d'eina i
 	// s'ha tornat a demanar dient que no n'hi ha (una vegada).
 	sintesiEinaReintent bool
@@ -467,6 +475,10 @@ func (t *Torn) Seguent() Pas {
 	if t.passos > 0 && t.Limit()-t.passos == PassosAvis && t.avisPassosAl != t.Limit() && t.ultimTros() {
 		t.avisPassosAl = t.Limit()
 		t.Hist = AfegeixUsuari(t.Hist, AvisPassosRestants(PassosAvis))
+	}
+	if t.o.RespondreAl > 0 && t.passos == t.o.RespondreAl && !t.avisatRespondre {
+		t.avisatRespondre = true
+		t.Hist = AfegeixUsuari(t.Hist, AvisRespondre)
 	}
 	t.passos++
 	hist := t.histAmbSys()

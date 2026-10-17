@@ -45,6 +45,9 @@ type RunResult struct {
 	Answer string   `json:"answer"`
 	Steps  int      `json:"steps"`
 	Tools  []string `json:"tools_used"`
+	// Convo és la conversa sencera en acabar (sense el system), per desar
+	// la sessió i continuar-la. No va al JSON: hi va el nom de la sessió.
+	Convo []llm.Message `json:"-"`
 	// Trace és cada crida amb els seus arguments i com ha anat, retallat.
 	// Només amb els noms (tools_used) una tirada de 18 passos al banc A/B
 	// no deia res de per què havia trigat quatre vegades més que opencode.
@@ -100,6 +103,14 @@ type RunResult struct {
 	// Interrupted és l'error que ha tallat el torn quan ja hi havia feina
 	// feta: Answer és la síntesi parcial del que s'ha fet, no un buit.
 	Interrupted string `json:"interrupted,omitempty"`
+	// Explorer: la pregunta ha començat amb l'explorador (explore.go).
+	// Els seus tokens ja són a UpTokens/DownTokens/LLMCalls; Timings.Explore
+	// n'és el temps. ExplorerReport és l'informe que ha rebut el
+	// coordinador (per comprovar-ne les cites); ExplorerError, per què no
+	// n'ha tornat cap.
+	Explorer       bool   `json:"explorer,omitempty"`
+	ExplorerReport string `json:"explorer_report,omitempty"`
+	ExplorerError  string `json:"explorer_error,omitempty"`
 	// Timings desglossa el temps de paret del run per fases (vegeu
 	// docs/research/speed.md): sense això no se sabia si un torn lent
 	// era el model, les eines o el que el motor fa entre passos.
@@ -111,11 +122,14 @@ type RunResult struct {
 // Checkpoint (la resta és el bucle mateix, gairebé res).
 type RunTimings struct {
 	Total int64 `json:"total_ms"`
-	// Setup: sondeig de la finestra del model i mapa del projecte, abans
-	// del primer pas. Probe i Map en són les dues parts.
+	// Setup: sondeig de la finestra del model, mapa del projecte i, en una
+	// pregunta, l'explorador, abans del primer pas. Probe, Map i Explore
+	// en són les parts.
 	Setup int64 `json:"setup_ms"`
 	Probe int64 `json:"probe_ms"`
 	Map   int64 `json:"map_ms"`
+	// Explore: l'explorador d'una pregunta (inspect), abans del primer pas.
+	Explore int64 `json:"explore_ms,omitempty"`
 	// Model: les crides dels passos (prefill + generació + xarxa).
 	// ModelMax és la més lenta.
 	Model      int64 `json:"model_ms"`
@@ -170,6 +184,9 @@ type RunOpts struct {
 	AutoReview bool
 	// OnEvent rep els events del motor (crides, resultats, avisos).
 	OnEvent func(Event)
+	// Prior és la conversa d'una tirada anterior (sense el system) que
+	// aquesta continua: `gregal -c -p` i `--resume`. Buida = conversa nova.
+	Prior []llm.Message
 }
 
 // approvalNote substitueix headlessNote quan hi ha qui aprova: ningú
@@ -318,6 +335,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// del proveïdor; l'estimació només queda per quan no n'ha declarat cap.
 	finish := func() {
 		tm.Total = ms(tRun)
+		res.Convo = senseSystem(hist)
 		u, calls, withUsage := meter.Total()
 		res.LLMCalls = calls
 		if withUsage > 0 {
@@ -349,7 +367,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		note = approvalNote
 	}
 	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
-	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
+	hist = append(append([]llm.Message{{Role: "system", Content: sys}}, o.Prior...), llm.Message{Role: "user", Content: task})
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
 	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
 		hist = append(hist, llm.Message{Role: "assistant", Content: reply})
@@ -372,14 +390,37 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	dcancel()
 	tm.Probe = ms(t0)
 	t0 = time.Now()
-	tascaMapa := TascaAmbMapa(mode, dir, task, nil)
+	tascaMapa := TascaAmbMapa(mode, dir, task, o.Prior)
 	tm.Map = ms(t0)
+	histInici := []llm.Message{{Role: "user", Content: tascaMapa}}
+	respondreAl := 0
+	// L'explorador (explore.go): en una pregunta sobre un projecte gran, un
+	// fill de només lectura busca la resposta abans del primer pas i el
+	// coordinador respon a partir del seu informe. Si falla, el torn
+	// continua com sempre.
+	if ExploreWanted(cfg, mode, task, dir) {
+		t0 = time.Now()
+		if onStep != nil {
+			onStep(0, []string{ExploreAgentName})
+		}
+		sr := RunScouts(ctx, ScoutOptions{Cfg: cfg, Task: task, Workspace: dir, Mode: mode,
+			Mapa: strings.TrimSpace(strings.TrimPrefix(tascaMapa, task))})
+		tm.Explore = ms(t0)
+		res.Explorer, res.ExplorerReport = true, sr.Brief
+		if sr.Err != nil && sr.Brief == "" {
+			res.ExplorerError = sr.Err.Error()
+		}
+		histInici = InjectBriefFor(histInici, sr.Brief, mode)
+		if sr.Brief != "" {
+			respondreAl = ExploreRespondreAl
+		}
+	}
 
 	// El bucle: el motor decideix, aquí només es fa la feina. Abans això
 	// era una màquina d'estats sencera duplicada de la del TUI.
 	torn := NouTorn(OpcionsTorn{
 		Cfg: cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: meter,
-		Hist:      []llm.Message{{Role: "user", Content: tascaMapa}},
+		Hist:      append(append([]llm.Message{}, o.Prior...), histInici...),
 		SysPrompt: func() string { return sys },
 		Finestra: func() (int, int) {
 			win := Window(cfg, r)
@@ -389,6 +430,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		AutoAprova:       func() bool { return autoApprove },
 		Revisor:          revisorRun(client, cfg, o.AutoReview),
 		SenseAmpliacions: o.HardStepLimit,
+		RespondreAl:      respondreAl,
 		Ctx:              ctx,
 		Workspace:        dir,
 		Aposta:           ApostaLateral(client, cfg, dir),
@@ -706,4 +748,13 @@ func revisorRun(client *llm.Client, cfg *config.Config, forçat bool) ReviewFunc
 		return nil
 	}
 	return NewReviewer(client, cfg, nil)
+}
+
+// senseSystem treu el system del principi: la sessió desa la conversa, i
+// el system es torna a compondre a cada tirada (mode, entorn, data).
+func senseSystem(hist []llm.Message) []llm.Message {
+	if len(hist) > 0 && hist[0].Role == "system" {
+		hist = hist[1:]
+	}
+	return append([]llm.Message(nil), hist...)
 }

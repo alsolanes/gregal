@@ -22,7 +22,7 @@ import (
 // Specs retorna les eines natives exposades al model.
 func Specs() []llm.ToolSpec {
 	str := map[string]any{"type": "string"}
-	return []llm.ToolSpec{
+	specs := []llm.ToolSpec{
 		{Name: "preview", Description: "Open or update the user's side preview while working. Use html for a complete standalone HTML prototype, markdown for a complex plan or document, or url for a running localhost development server. Call again with updated content after revisions. This displays content only: it does not inspect the rendered page or verify correctness. HTML runs in an isolated frame without network access. Do not include secrets.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
@@ -59,7 +59,7 @@ func Specs() []llm.ToolSpec {
 				"path": str, "old_string": str, "new_string": str,
 				"replace_all": map[string]any{"type": "boolean"},
 			}, "required": []string{"path", "old_string", "new_string"}}},
-		{Name: "grep", Description: "Search for a literal text in the files under a directory. Skips .git and binaries.",
+		{Name: "grep", Description: "Search the files under a directory for a text. A line matches if it contains the text literally or, when the pattern looks like a regular expression (RE2: a|b, Decide\\(, ^func, Run.*Ctx), if the regex matches. Returns path:line:text, paths relative to the project. Skips .git and binaries.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"pattern": str, "dir": str, "include": str,
 			}, "required": []string{"pattern"}}},
@@ -132,9 +132,10 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"command": str,
 			}, "required": []string{"command"}}},
-		{Name: "bash_output", Description: "Read the new output of a background process (id from bash_background). Also says whether it has finished and with which exit code.",
+		{Name: "bash_output", Description: "Read the new output of a background process (id from bash_background). Also says whether it has finished and with which exit code. To wait for it, pass wait=seconds (up to 300): it returns as soon as the process finishes, or as soon as a line contains until (e.g. until=\"Listening on\" for a server), instead of sleeping in bash.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"id": str, "lines": map[string]any{"type": "integer"},
+				"wait": map[string]any{"type": "integer"}, "until": str,
 			}, "required": []string{"id"}}},
 		{Name: "bash_kill", Description: "Stop a background process by its id. Without an id, list the running processes.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -220,6 +221,13 @@ func Specs() []llm.ToolSpec {
 				"text": str, "title": str, "collection": str,
 			}, "required": []string{"text"}}},
 	}
+	// lsp només hi és si hi ha algun servidor de llenguatge instal·lat
+	// (es mira un cop per procés: el conjunt d'eines no canvia a mitja
+	// sessió).
+	if t, ok := lspToolSpec(); ok {
+		specs = append(specs, t)
+	}
+	return specs
 }
 
 // PolicyFor retorna allow|ask|deny amb la política per defecte.
@@ -360,6 +368,11 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 	switch name {
 	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
+	case "lsp":
+		if lspEsRename(argsJSON) {
+			return "ask", "escriptura: confirma (rename a diversos fitxers)"
+		}
+		return "allow", ""
 	case "knowledge_note":
 		// Escriu a una base de coneixement que dura més que el torn.
 		return "ask", "knowledge: confirm saving a note"
@@ -437,6 +450,10 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			return "deny", "read-only mode: cannot commit or open pull requests"
 		case "knowledge_note":
 			return "deny", "read-only mode: cannot save knowledge notes (search is allowed)"
+		case "lsp":
+			if lspEsRename(argsJSON) {
+				return "deny", "read-only mode: cannot rename (definition, references, hover and diagnostics are allowed)"
+			}
 		}
 	}
 	if (mode == ModeInspect || mode == ModeChat || mode == ModeGoal) && (name == "bash" || name == "browser") {
@@ -707,8 +724,10 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return "engegat en segon pla amb id " + p.ID + " (" + a.Command + "). Llegeix-ne la sortida amb bash_output.", nil, nil
 	case "bash_output":
 		var a struct {
-			ID    string `json:"id"`
-			Lines int    `json:"lines"`
+			ID    string  `json:"id"`
+			Lines int     `json:"lines"`
+			Wait  float64 `json:"wait"`
+			Until string  `json:"until"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
@@ -721,7 +740,11 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if n <= 0 || n > 400 {
 			n = 120
 		}
-		return p.Describe() + "\n" + p.Tail(n), nil, nil
+		nota := ""
+		if a.Wait > 0 || a.Until != "" {
+			nota = esperaProces(ctx, p, a.Wait, a.Until)
+		}
+		return nota + p.Describe() + "\n" + p.Tail(n), nil, nil
 	case "bash_kill":
 		var a struct {
 			ID string `json:"id"`
@@ -752,6 +775,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			Content string `json:"content"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			return "", nil, err
+		}
+		if err := seg.GuardaEscriptura(a.Path); err != nil {
 			return "", nil, err
 		}
 		n, err := tools.Write(a.Path, []byte(a.Content))
@@ -815,7 +841,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		out, err := tools.Grep(a.Pattern, a.Dir, a.Include, 50)
-		return out, nil, err
+		return tools.CaminsRelatius(out, dir), nil, err
 	case "glob":
 		var a struct {
 			Pattern string `json:"pattern"`
@@ -825,9 +851,12 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		out, err := tools.Glob(a.Pattern, a.Dir, 100)
-		return out, nil, err
+		return tools.CaminsRelatius(out, dir), nil, err
 	case "symbols":
 		out, err := symbolsTool(dir, argsJSON)
+		return out, nil, err
+	case "lsp":
+		out, err := lspTool(ctx, dir, seg, argsJSON)
 		return out, nil, err
 	case "web_search":
 		var a struct {

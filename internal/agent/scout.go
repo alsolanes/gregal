@@ -120,7 +120,15 @@ type ScoutOptions struct {
 	// Focus és l'àrea d'aquest investigador quan n'hi ha diversos en
 	// paral·lel (ScoutFocuses); buit = tota la tasca.
 	Focus string
+	// Mode és el del torn. En mode inspect el fill és l'explorador
+	// (explore.go): respon la pregunta amb cites en lloc de preparar feina.
+	Mode string
+	// Mapa és el mapa del projecte per a l'explorador; buit = el calcula.
+	Mapa string
 }
+
+// explora diu si aquest fill és l'explorador d'una pregunta.
+func (o ScoutOptions) explora() bool { return o.Mode == ModeInspect }
 
 // scoutDef tria la definició del scout: un subagent «researcher» de només
 // lectura definit per l'usuari si n'hi ha (amb el seu model i prompt);
@@ -158,11 +166,18 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 		return ScoutResult{Err: errors.New("subagents not available")}
 	}
 	def := scoutDef(o.Workspace)
+	prompt := ScoutFocusPrompt(o.Task, o.Focus)
+	if o.explora() {
+		def = exploreDef(o.Workspace)
+		if o.Mapa == "" {
+			o.Mapa = MapaProjecte(o.Workspace, o.Task, nil)
+		}
+		prompt = ExplorePrompt(o.Task, o.Focus, o.Mapa)
+	}
 	// P12: l'investigador només llegeix i resumeix; si hi ha rol petit, és seu.
 	if name, _, _, ok := SmallRole(o.Cfg); ok {
 		def.Role = name
 	}
-	prompt := ScoutFocusPrompt(o.Task, o.Focus)
 	// El que la sala ensenya: l'àrea (o la tasca), no l'encàrrec sencer.
 	label := strings.TrimSpace(o.Focus)
 	if label == "" {
@@ -216,6 +231,9 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 // buit només quan cap àrea ha tornat res.
 func RunScouts(ctx context.Context, o ScoutOptions) ScoutResult {
 	focuses := ScoutFocuses(o.Task)
+	if o.explora() && o.Mapa == "" {
+		o.Mapa = MapaProjecte(o.Workspace, o.Task, nil)
+	}
 	if len(focuses) < 2 || ParallelSubagents(o.Cfg) < 2 {
 		r := RunScout(ctx, o)
 		r.IDs = []string{r.ID}
@@ -279,11 +297,20 @@ func ScoutNote(brief string) string {
 // nou perquè alguns proveïdors no accepten dos torns d'usuari seguits.
 // Sense missatge d'usuari, n'afegeix un.
 func InjectScoutBrief(hist []llm.Message, brief string) []llm.Message {
+	return InjectBriefFor(hist, brief, "")
+}
+
+// InjectBriefFor és InjectScoutBrief segons el mode del torn: en mode
+// inspect el resum és l'informe de l'explorador (ExploreNote).
+func InjectBriefFor(hist []llm.Message, brief, mode string) []llm.Message {
 	if strings.TrimSpace(brief) == "" {
 		return hist
 	}
 	out := append([]llm.Message(nil), hist...)
 	note := ScoutNote(brief)
+	if mode == ModeInspect {
+		note = ExploreNote(brief)
+	}
 	for i := len(out) - 1; i >= 0; i-- {
 		if out[i].Role == "user" {
 			out[i].Content = strings.TrimRight(out[i].Content, "\n") + "\n\n" + note

@@ -57,6 +57,72 @@
 - `GREGAL_PERSIST_KEYS=1` saves API keys typed in the web UI or the app to
   the key store (`auth.yaml`), as the TUI already did, instead of keeping
   them in memory only.
+- **Language servers: the `lsp` tool.** When `gopls`, pyright,
+  `typescript-language-server`, `rust-analyzer` or `clangd` is installed,
+  the agent can:
+  - jump to a symbol's definition;
+  - list every reference across the project;
+  - read the type and docs of a symbol (hover);
+  - get a file's errors and warnings;
+  - rename a symbol in every file in one step, without touching strings,
+    comments or unrelated names with the same text.
+
+  A rename can be undone and asks for approval like any edit. Nothing is
+  downloaded. Set `lsp.mode: off` to remove the tool, or `lsp.servers` to add
+  a server ([docs/manual.md](docs/manual.md#language-servers-lsp-tool)).
+- **Model catalog.** Context windows, prices and capabilities of remote
+  models now come from [models.dev](https://models.dev), cached for a day.
+  Models whose provider does not report a window get the right one: for
+  example, deepseek-v4.1-flash on opencode zen is 1M instead of 128K. The
+  estimated cost shows without setting prices. Set `models_catalog: off` to
+  disable it.
+- `write` no longer replaces an existing file the agent has not read, or one
+  that changed since it read it. The agent has to read the file first, or
+  use `edit`. New files are not affected.
+- `gregal -p` works like `claude -p`, `codex exec` and `opencode run` in
+  scripts and CI ([docs/manual.md](docs/manual.md#non-interactive-runs--p)).
+  Details in [docs/research/next-improvements.md](docs/research/next-improvements.md#7-segona-ronda-v1102).
+  - Every run is saved as a session, in the same list as the TUI and web
+    ones. `-c` continues the latest session of the folder, so "now do it"
+    builds on what the previous run found instead of starting over.
+    `--resume <name>` continues a given session, and `--no-session` skips
+    saving.
+  - Piped input is added to the task: `git diff | gregal -p "review this"`.
+    `-p -` reads the whole task from stdin.
+  - `--model provider/model` picks the model for one run.
+  - `--output stream-json` prints one JSON line per step, tool call, result
+    and warning while the run goes, then the final result.
+- The agent can test the server it starts again. Its usual wait loop
+  (`for …; do code=$(curl … http://127.0.0.1:…); if [ "$code" = 200 ] …`)
+  was denied. In 3 of 9 runs the agent then gave up without testing
+  anything and left the server running. Shell keywords such as `do`, `then`
+  and `if` no longer make every following word count as a command.
+- `bash_output` can wait: `wait` (seconds, up to 300) returns when the
+  background process finishes, and `until` returns as soon as a line
+  contains a text such as "Listening on". The agent no longer needs
+  `sleep 90` in one step and a read in the next.
+- Cheaper questions about large projects
+  ([docs/research/explore.md](docs/research/explore.md)). On five questions
+  about Gregal's own repository (two runs each), input tokens fell from
+  294k to 65k per question, time from 53 s to 29 s and the coordinator's
+  steps from 14 to 2, with citations at least as accurate as before.
+  - In inspect mode, a question about a project of 40 files or more starts
+    with an **explorer**: a read-only subagent with only `read`, `grep`,
+    `glob` and `symbols`, the project map and up to 8 steps, that reports
+    the answer with `path:line` citations. The coordinator answers from the
+    report instead of repeating the search, and after two steps of its own
+    reads it is reminded to answer. Runs in `gregal -p` and the web/desktop
+    app; `agent.scout: off` disables it, and a user-defined `explorer`
+    subagent replaces it.
+  - `grep` also understands the regular expressions models write (`a|b`,
+    `Decide\(`, `^func`), escaped text and gofmt-aligned spaces: before,
+    about a quarter of the searches in those questions found nothing for
+    that reason. `grep` and `glob` paths are relative to the project, and
+    a match in a very long line (minified files) shows the part around the
+    match instead of the whole line.
+  - `gregal -p --output json` reports `timings` again (they were always
+    zero), plus `interrupted`, the bench counters and the new `explorer`,
+    `explorer_report` and `timings.explore_ms`.
 
 ## v1.10.2 - 2026-10-17 - Empty replies are retried and the recap works again
 

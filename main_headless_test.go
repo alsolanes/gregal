@@ -76,10 +76,10 @@ func TestRunHeadlessCodisDeSortida(t *testing.T) {
 	}
 	defer os.Chdir(wd)
 
-	if code := runHeadless(cfgFor(srv.URL), "do the thing", "json", false, 0, "", "exit 3", 1); code != exitVerifyFailed {
+	if code := runHeadless(cfgFor(srv.URL), "do the thing", "json", false, 0, "", "exit 3", 1, headlessExtra{}); code != exitVerifyFailed {
 		t.Fatalf("failed verification exit code = %d, want %d", code, exitVerifyFailed)
 	}
-	if code := runHeadless(cfgFor(srv.URL), "do the thing", "text", false, 2, "", "exit 0", 1); code != exitOK {
+	if code := runHeadless(cfgFor(srv.URL), "do the thing", "text", false, 2, "", "exit 0", 1, headlessExtra{}); code != exitOK {
 		t.Fatalf("passing verification exit code = %d", code)
 	}
 
@@ -87,7 +87,7 @@ func TestRunHeadlessCodisDeSortida(t *testing.T) {
 	r, w, _ := os.Pipe()
 	old := os.Stdout
 	os.Stdout = w
-	code := runHeadless(cfgFor(bad.URL), "do the thing", "json", false, 0, "", "", 1)
+	code := runHeadless(cfgFor(bad.URL), "do the thing", "json", false, 0, "", "", 1, headlessExtra{})
 	w.Close()
 	os.Stdout = old
 	var out strings.Builder

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/catalog"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 )
@@ -261,6 +262,11 @@ func WindowSource(cfg *config.Config, r config.Role) (int, string) {
 	}
 	if esLocal(base, r.Provider) {
 		return 8192, "defecte"
+	}
+	// El catàleg de models.dev (internal/catalog) sap la finestra de molts
+	// models que el proveïdor no declara a /models (zen, OpenAI…).
+	if m, _, ok := catalog.Lookup(base, r.Model); ok && m.Context > 0 {
+		return m.Context, "cataleg"
 	}
 	if n := finestraConeguda(r.Model); n > 0 {
 		return n, "coneguda"

@@ -53,7 +53,7 @@ Impacte: ●●●●● molt alt … ● baix. Esforç: S (≤2 dies), M (≤1 
 | 2 | **Llista dura per programa, no per subcadena**; curl/wget a loopback demanen permís | `Classify`, t6.r1, tasca E | ●●●● | S-M | fet |
 | 3 | **Fets del projecte al mapa**: sense git; finals de línia CRLF | B, t6, t8.r2, `speed.md` | ●●● | S | fet |
 | 4 | **Assert honest de t8** | banc t8 | ●●● (mesura) | S | fet |
-| 5 | Preguntes més barates: un subagent d'exploració que torni un resum (com l'Explore de Claude Code) quan la pregunta toca molts fitxers, o lectures amb pressupost per pas | A, D | ●●●● | M | proposat |
+| 5 | Preguntes més barates: un subagent d'exploració que torni un resum (com l'Explore de Claude Code) quan la pregunta toca molts fitxers, o lectures amb pressupost per pas | A, D | ●●●● | M | fet ([explore.md](explore.md)) |
 | 6 | El coordinador no fa servir `delegate` per si sol amb flash (nota de la sessió d'agents en paral·lel) | `agents-paralel.md` | ●●● | M | proposat |
 | 7 | Respectar «breu»/«curt» a la resposta final (regla de prompt + mesura de llargada) | D | ●● | S | pendent |
 | 8 | Connectar els MCP del headless en segon pla; agrupar `go vet` per paquet | `speed.md` | ●● | S-M | pendent |
@@ -166,10 +166,347 @@ Tasca E (servidor en segon pla + curl), una tirada de cada:
 
 ## 6. Què queda
 
-- **Preguntes en projectes grans** (candidat 5): és el cost més gran que s'ha
-  vist (fins a 440 k tokens d'entrada per una pregunta). Cal un disseny propi:
-  quan s'activa, quin pressupost té el subagent, com es conserven les cites.
+- **Preguntes en projectes grans** (candidat 5): fet després, a
+  [explore.md](explore.md) (explorador en mode inspect i grep que entén
+  regex; de 294 k a 65 k tokens d'entrada per pregunta).
 - **delegate sense que ningú el demani** (candidat 6): un bench de prompt amb
   tasques que tenen dues investigacions independents.
 - Validar els canvis 1-3 amb un model local petit (Qwen3-Coder a Ollama), on
   els noms d'arguments d'altres arnesos són més freqüents.
+
+## 7. Segona ronda (v1.10.2)
+
+Codi de partida: `8834a64` (Release 1.10.2, amb #34 i #36). Mateix model i
+mateix entorn aïllat. La PR #38 (explorador per a preguntes) encara no és a
+main i no entra en aquestes mesures.
+
+### 7.1 Evidència
+
+- **Banc** (24 tirades, `--repeat 3`): 22/24. Les dues fallades són de t9
+  (test ocult, `"2.000"` com a milers). Cap edició fallida ni cap ordre
+  bloquejada.
+- **t9 amb 8 tirades**: 5/8. El model arregla el cas del test visible i no
+  prova cap altre format.
+- **Tasca E** (aixecar el servidor de t4 en segon pla, esperar que respongui,
+  provar-lo amb curl i aturar-lo), 9 tirades amb main:
+  - **a totes 9** el primer bucle d'espera es denegava. És el que el model
+    escriu sempre: `for i in $(seq 1 30); do code=$(curl … 127.0.0.1 …); if
+    [ "$code" = 200 ] …`.
+  - En 3 de les 9 el model va abandonar la tasca: no va provar res, va
+    deixar el servidor engegat i va escriure «fes-ho en una màquina on curl
+    estigui permès».
+  - En una va reescriure les peticions amb Python.
+  - La causa: després de `do`, el lexer de #34 tractava totes les paraules
+    com a ordres, i `"$code"` feia tornar la comanda a la comprovació per
+    subcadena.
+- **Esperes**: el model espera processos en segon pla amb `sleep 90` o
+  `sleep 120` en un pas i `bash_output` en un altre (tasca real de canviar el
+  port per defecte: 4 passos d'espera de 33).
+- **Tasques reals amb `-p`**: preguntes, resum de commits, canvi del port per
+  defecte a 22 fitxers. Cada `-p` començava de zero:
+  - no hi havia manera de dir «ara fes-ho» sense repetir l'exploració;
+  - no es podia passar res per stdin (`git diff | gregal -p …`);
+  - no es podia triar el model per a una tirada.
+
+### 7.2 Comparació de funcions amb Claude Code, Codex CLI i opencode
+
+| Funció | Claude Code | Codex CLI | opencode | Gregal (abans) |
+| --- | --- | --- | --- | --- |
+| Continuar una tirada headless | `-c`, `--resume` | `exec resume --last` | `run --continue` | ✗ (no es desava) |
+| Entrada per stdin | sí | `-` | sí | ✗ |
+| Model per tirada | `--model` | `-m` | `-m` | ✗ (només config) |
+| Esdeveniments en streaming per a scripts/IDE | `--output-format stream-json` | `--json` | `--format json` | ✗ (un objecte al final) |
+| Esperar un procés de fons | BashOutput + Monitor | `yield_time_ms` | — | ✗ (sleep + lectura) |
+| Checkpoints / rebobinar | `/rewind` | — | `/undo` | ✓ `/rewind`, `/checkpoints` |
+| Hooks | sí | `notify` | plugins | ✓ hooks de cicle de vida |
+| Ordres pròpies (`/`) | sí | prompts | sí | ✓ `usercmd` |
+| Mencions `@fitxer` | sí | sí | sí | ✓ |
+| Sessions: llistar, reprendre, cercar | sí | sí | sí | ✓ TUI/web (`/resume`, `/find`) |
+| Extensió d'IDE | VS Code, JetBrains | VS Code | — | ✓ VS Code |
+| Avís quan acaba un torn | hooks / campana | `notify` | — | ~ només l'app d'escriptori |
+| Resposta en la llengua de l'usuari | sí | sí | sí | ~ la fixa `lang` |
+
+El TUI i la web ja cobreixen gairebé tot el que tenen els altres. On Gregal
+quedava enrere és el mode `-p`, que és el que es fa servir en scripts, CI i
+extensions.
+
+### 7.3 Rànquing
+
+| # | Candidat | Evidència | Impacte | Esforç | Estat |
+| --- | --- | --- | --- | --- | --- |
+| 1 | **Bucle d'espera del servidor denegat** (paraules de control al lexer) | tasca E: 9/9 denegats, 3/9 abandonades | ●●●●● | S | fet |
+| 2 | **Sessions del `-p`**: desar, `-c`, `--resume`, `--no-session` | tasques reals | ●●●● | S-M | fet |
+| 3 | **stdin i `--model`** al `-p` | comparació | ●●● | S | fet |
+| 4 | **`--output stream-json`** | comparació | ●●● | S | fet |
+| 5 | **`bash_output` amb `wait`/`until`** | tasca del port, tasca E | ●● | S | fet |
+| 6 | Regla de verificació per a arreglos de parsers (provar altres formats) | t9 | ●● | S | provat, sense efecte: retirat |
+| 7 | Avís al terminal quan acaba un torn llarg (campana / OSC 9) | comparació | ●● | S | pendent |
+| 8 | Respondre en la llengua del missatge (`lang: auto`) | pregunta en català, resposta en anglès | ●● | S | pendent |
+| 9 | `"$(curl …)"` dins de cometes dobles encara torna a la subcadena | tasca E (1 de 6) | ● | M | pendent |
+| 10 | El coordinador no fa servir `delegate` per si sol | ronda 1 | ●●● | M | pendent |
+
+### 7.4 Què s'ha fet
+
+1. **Paraules de control al lexer** (`internal/tools/ordres_denegades.go`).
+   `do`, `then`, `if`, `while`, `until`, `else`, `elif`, `!` i `time` només
+   marquen que la paraula següent és una ordre; ja no converteixen la resta
+   de l'etapa en possibles ordres. `[` i `[[` es tracten com a ordres. Tests
+   amb el bucle exacte del model, `until curl …`, i casos que s'han de
+   continuar denegant (`while true; do curl https://…`, `then sudo …`).
+2. **Sessions del `-p`** (`cli_session.go`, `RunOpts.Prior`,
+   `RunResult.Convo`). Cada tirada es desa a la llista de sessions, la
+   mateixa del TUI i la web. `-c` continua la més recent de la carpeta (de
+   `-p`, TUI o web) i `--resume NOM` una de concreta. El nom surt per stderr
+   i com a `"session"` al JSON. `--no-session` no desa. Les rondes de
+   `--verify` desen la conversa de l'última.
+3. **stdin**: el que arriba per una canonada o per una redirecció s'afegeix a
+   la tasca dins de `<stdin>…</stdin>`, fins a 256 KB (si és més llarg es
+   talla i es diu). Amb `-p -`, la tasca sencera ve de stdin. Un terminal no
+   es llegeix.
+4. **`--model`**: `proveidor/model` (si el prefix és un proveïdor del config)
+   o un model del proveïdor del rol. S'aplica a code, chat i think, que són
+   els que el router pot triar.
+5. **`--output stream-json`** (`cli_stream.go`): línies `step`, `tool_call`
+   (arguments com a objecte), `tool_result` (sortida tallada a 4000
+   caràcters), `warning`, `error`, `diff` i `note`. L'última és `result`, amb
+   el mateix objecte que `--output json`.
+6. **`bash_output wait/until`** (`procs.WaitFor`). Espera fins que el procés
+   acaba, fins que una línia conté `until` o fins a `wait` segons (màxim
+   300). Torna una línia que diu com ha acabat l'espera.
+
+### 7.5 Resultats
+
+Tasca E, mateix prompt:
+
+| | main (9 tirades) | Després (6) |
+| --- | --- | --- |
+| Tirades amb alguna ordre denegada | 9/9 (15 bloquejos) | 1/6 (1) |
+| Tasca abandonada (cap prova, servidor encara engegat) | 3/9 | **0/6** |
+| Endpoints provats (curl, o Python en una) | 6/9 | 6/6, totes amb curl |
+| Passos (mitjana) | 11,0 | 13,3 |
+
+Els passos pugen perquè ara la feina es fa: les tirades d'abans que
+s'acabaven en 6 passos eren les abandonades. L'únic bloqueig que queda és una
+funció de shell amb `"$(curl …)"` dins de cometes dobles (candidat 9); el
+model s'ho va saltar amb crides soltes.
+
+Sessions, stdin i `--model` amb el model real:
+- `git log -5 --format='%h %s' | gregal -p "Summarise these commits in 3
+  short bullets."` va respondre en 1 pas.
+- Una pregunta («on es defineix el port per defecte?») i després `gregal -c
+  -p "canvia'l a 8098 a tot arreu"`. El segon torn va començar per la
+  feina, sense tornar a buscar on era el port, i va acabar canviant 22
+  fitxers.
+- Tests: `cli_session_test.go` (stdin, `--model`, desar i continuar amb `-c`
+  i `--resume` contra un servidor fals, stream-json) i
+  `internal/procs/waitfor_test.go`.
+
+`bash_output wait`: el model l'ha fet servir en 2 de les 6 primeres tirades
+amb el canvi. En general continua esperant dins de `bash` amb un bucle
+(`sleep 0.5` + curl), que no costa passos. L'estalvi es veu en els
+`sleep 90`/`sleep 120` de les esperes llargues de tests.
+
+Regla de verificació per a t9: amb la regla, 6/8; sense, 5/8. En cap de les
+8 tirades el model no va provar cap entrada més, així que la diferència és
+soroll i la regla s'ha retirat.
+
+Banc complet (24 tirades abans i 24 després):
+
+| | main | Després |
+| --- | --- | --- |
+| PASS | 22/24 | 24/24 |
+| Passos per tasca | 4,54 | 4,67 |
+| Segons per tasca (mitjana / mediana) | 19,7 / 17 | 16,7 / 14 |
+| Tokens d'entrada per tasca | 38,1 k | 39,7 k |
+| Edicions fallides | 0 | 0 |
+
+Cap canvi d'aquesta ronda toca les tasques del banc. Les diferències (t9
+1/3 → 3/3, temps) són soroll del model, i les dues passades es van fer amb
+altres feines corrent a la mateixa màquina. El banc confirma que no hi ha
+regressions; la millora es veu a la tasca E.
+
+## 8. Tercera ronda: contrast amb dues revisions externes (v1.10.2)
+
+Dues revisions externes comparaven Gregal amb OpenCode, DeepSeek Harness
+(dsh), ZCode, Aider, Claude Code, Cline, OpenHands, Cursor i altres. La
+primera es va escriure sobre la v1.9.4. Aquí cada punt es contrasta amb
+`origin/main` (v1.10.2) i les PR obertes #38 (explorador) i #39 (sessions
+del `-p`), amb proves al codi. Estat: ✓ fet, ~ parcial, ✗ no hi és.
+
+### 8.1 OpenCode
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Catàleg de models (models.dev) | ✗ → **✓ aquesta PR** | abans: `config/cataleg.go:41` (10 proveïdors, sense preus ni límits), `agent/window.go:210` (taula a mà), preus només de `cost:` | — |
+| Login OAuth sense clau (Copilot, ChatGPT, GitLab Duo) | ✗ | l'OAuth és només de MCP (`internal/mcp/oauth.go`) | login de proveïdor amb device code |
+| Gateway Zen/Go i `/connect` | ✗ | el `/connect` del TUI (`tui/app.go:3316`) connecta al servei local de Gregal | no aplica: és un producte d'opencode |
+| LSP | ~ → **~+ aquesta PR** | diagnòstics per CLI (`agent/diag_exec.go:9-14`, `diag_lang.go`, `diag_pytypes.go`) | servidors persistents per als diagnòstics (opencode els té desactivats per defecte, vegeu 8.5) |
+| Sessions: compartir, revert, fork, fills navegables | ~ | `web/share.go:116`, `/rewind` (`tui/app.go:3018`), targetes dels fills a la sala | fork d'una sessió, refer, obrir un subagent com a sessió |
+| Plugins, hooks, eines pròpies, ordres `/` | ~ | hooks `HooksCfg` (`config.go:328`, pre_tool pot denegar), `internal/usercmd`, subagents d'usuari, skills | eines pròpies sense MCP; plugins dins del procés |
+| Extensió d'IDE amb selecció i `@fitxer#L37-42` | ~ | `vscode-gregal/src/extension.ts:52` (selecció en invocar), `mentionRe` (`tui/app.go:786`, `web/serve.go:1750`) | selecció i pestanya en viu, rangs de línies a les mencions |
+| MCP: OAuth (DCR), remot, `mcp auth/debug` | ~ (quasi ✓) | `mcp/oauth.go:384` (RFC 7591), `transport_http.go:124`, `/mcp connect` al TUI | subordres `gregal mcp list/auth/debug` |
+| Permisos amb glob i per agent | ~ | `PermissionsCfg` (`config.go:359`): allow/ask/deny per eina, `bash_allow` per prefix, `bash_deny` per subcadena | globs (`git *: ask`), permisos per subagent |
+| Temes, tecles, paleta Ctrl+P, política d'empresa, SDK/OpenAPI | ~ | temes (`internal/tema`), Ctrl+K a la web, `docs/api-contract.md` + `contract_test.go` | tecles configurables, paleta al TUI, `.well-known`, OpenAPI, SDK TS |
+
+### 8.2 DeepSeek Harness
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Microkernel de plugins amb recàrrega en calent | ✗ | punts d'extensió solts: `RegisterExtra` (`agent/loop.go:259`), MCP, skills | arquitectura de plugins |
+| Presets (minimal/standard/PTC/creator) | ~ | modes i prompt compacte (`config.go:78`, `llm/perfils.go:108`) | presets amb nom; PTC (un programa que crida eines en una sola volta) |
+| Agent Teams: plantilla persistent, tauler, bústia, subagents continuables | ~ | `team/team.go:57`, `team/flow.go:255`, `delegate.go` | plantilla persistent, tauler compartit, missatges entre agents, continuar un subagent |
+| Mètriques de trajectòria (TTFT, caché, tokens per torn) | ~ | `RunResult` (`agent/run.go:44`), `evals/stats.go`, `/stats` | TTFT; taxa de caché al resultat en viu |
+| FS versionat (llegir abans d'escriure, `FS_STALE_VERSION`) | ~ → **✓ aquesta PR** | `tools/seguiment.go` (guarda per a les edicions aproximades) | abans `write` no comprovava res; ara sí |
+| Compactació (llindar, cua literal, poda cap+cua) | ~ | `compact.go:20` (0,75), `histcompact.go` (emmascarament per blocs), `retallaCapICua` (bash) | cua per percentatge de tokens; resum que reaprofiti la caché |
+| PTY persistents | ✗ | `internal/procs` (canonades); `bash_output wait` a #39 | escriure a stdin d'un procés, ConPTY |
+| Sandbox | ✓ | `sandbox/backends.go` (bwrap, Landlock, Seatbelt, Docker) | — |
+| E2B / sandbox remot | ✗ | — | backend remot |
+| Feines programades | ✓ | `internal/jobs` (daily, interval, manual) | expressions cron |
+| Webhooks | ~ | només de sortida (`web/retro.go:988`) | un webhook d'entrada que llanci un torn |
+| Subagents externs (ACP, Codex, Claude Code) | ✗ | — | adaptadors |
+| SDK | ~ | `client/` (Go), `harness/` (Go), `python/`, `gregal mcp serve`, `--output stream-json` (#39) | SDK TS, protocol JSON-RPC/ACP |
+| `lsp_replace_symbol` | ✗ | `symbols` és de lectura | edició per símbol (el `rename` d'aquesta PR cobreix el cas més comú) |
+| Edicions especulatives en streaming | ✗ | cascada aproximada a `tools/fuzzy.go` | aplicar els canvis mentre arriba el JSON |
+| Cerca semàntica | ~ | `internal/knowledge` (BM25 + embeddings opcionals) | índex automàtic del codi |
+
+### 8.3 ZCode
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Goal amb verificador independent | ~ | autònom: `RunAutonomousChecks` (`autonomous.go:35`), revisor (`verify/verifier.go:129`), `--verify` (`verify_gate.go`) | que el mode goal faci servir aquest bucle fins que el verificador ho confirmi |
+| Entorn tipus IDE (timeline, Cmd+K, terminal, DevTools) | ~ | converses per projecte i data, replay amb timeline, menú `/`, panell de processos | paleta difusa, terminal interactiu |
+| Navegador amb selector d'elements → @context | ~ | eina `browser` (`tools/browser.go:849`), panell d'escriptori per CDP | selector d'elements |
+| Vista prèvia (PDF, HTML, Mermaid, imatges, CSV) | ~ | `preview.js` (html, markdown, url), panell d'Office | PDF i imatges del workspace, Mermaid, CSV |
+| Continuïtat multidispositiu | ~ | Android, Telegram | workspaces remots SSH/Docker, altres bots |
+| Xat lateral, fork, editar un missatge | ~ | `/btw` (TUI, web), reintent, `/rewind` | fork des d'un missatge, editar-lo i tornar-lo a llançar |
+| Memòria, automatitzacions, nivells de raonament, context llarg | ~/✓ | `automem.go`, `internal/jobs`, `Role.Think`, compactació | selector ràpid del raonament, wiki |
+| Importar MCP de Claude Code, Codex i OpenCode | ✗ | — | importador |
+| Avís quan acaba un torn | ~ | web, escriptori, Android | campana/OSC 9 al TUI |
+| Respondre en la llengua de l'usuari | ~ | `LanguageDirective` (`config.go:542`): ca o en | detecció automàtica |
+
+### 8.4 Segona revisió (llista ampliada)
+
+| Punt | Estat | Proves / notes |
+| --- | --- | --- |
+| LSP | **~+ aquesta PR** | vegeu 8.5 |
+| Tree-sitter per al repomap | ✗ | Go amb `go/parser`; la resta amb regex (`repomap/extract_regex.go`). Tree-sitter vol CGO o WASM: trenca la compilació estàtica d'ara |
+| PTY | ✗ | vegeu 8.2 |
+| Plugins externs | ✗ | vegeu 8.2 |
+| Computer use (pantalla) | ✗ | només el navegador (CDP) |
+| SDK multillenguatge | ~ | Go i un Python mínim; no TS |
+| Workspace remot o al núvol | ✗ | tot corre on corre el servidor; Telegram i Android en són el control remot |
+| DAP, veu, notebooks, JetBrains, completat en línia | ✗ | — |
+| Tasques en repòs, workflows dinàmics, plugins d'UI | ✗ | flows estàtics (`team/flow.go`) |
+| Perfils/bundles de config | ✗ | — |
+| ACP | ✗ | — |
+| Mercat MCP | ✗ | MCP sí, sense catàleg |
+
+### 8.5 L'LSP, amb dades
+
+Totes dues revisions el posen primer. Abans de fer-lo s'han mirat les fonts
+d'opencode (`anomalyco/opencode`, branca `dev`, 2026-10-17):
+
+- `packages/web/src/content/docs/lsp.mdx`: l'LSP està **desactivat per
+  defecte** (cal `"lsp": true`). La documentació diu que els servidors es
+  desincronitzen, gasten memòria i alenteixen l'agent, i que sovint és millor
+  que l'agent corri lint o typecheck per línia d'ordres. És el que Gregal ja
+  fa després de cada edició.
+- Entre les eines del nucli (`packages/core/src/tool/plugin/`) no hi ha cap
+  eina `lsp`.
+
+On Gregal sí que tenia un forat és la **navegació semàntica**:
+- quina de diverses funcions amb el mateix nom es crida;
+- on es fa servir de veritat;
+- un rename que no toqui text homònim.
+
+Això és el que s'ha fet (8.6). Els diagnòstics continuen sortint de les
+comprovacions per línia d'ordres, que no necessiten cap servidor engegat.
+
+Prova amb gopls real (instal·lat a una carpeta temporal) sobre aquest
+repositori: reanomenar el mètode `Seguiment.Edit` a `EditBlock`. El nom
+`Edit` també és una funció del paquet.
+
+| | Abans (grep + edit) | Amb `lsp` (demanat al prompt) |
+| --- | --- | --- |
+| Resultat | correcte, build OK | correcte, build OK |
+| Passos / crides | 13 / 15 | 10 / 13 |
+| Crida del rename | — | 1 crida, 13 canvis en 4 fitxers, 25,8 s (càrrega inicial de gopls) |
+| `references` després | — | 1,2 s |
+
+gopls també va canviar «tools.Edit» dins d'un comentari, i el model ho va
+corregir al pas següent. **Sense demanar-ho, deepseek-v4.1-flash no tria
+l'eina**: en la mateixa tasca sense cap indicació va fer servir grep i edit
+(11 passos, també correcte). L'eina hi és i funciona; aconseguir que el model
+la triï sol queda pendent (8.7).
+
+### 8.6 Què s'ha fet en aquesta ronda
+
+1. **Catàleg de models** (`internal/catalog`).
+   - Còpia retallada de `https://models.dev/api.json` (232 proveïdors) a
+     `<data>/models-catalog.json`. Es refresca cada dia en segon pla; la
+     primera vegada s'esperen com a molt 4 s.
+   - El proveïdor es busca per l'adreça base: opencode zen
+     (`opencode.ai/zen/go/v1`) és `opencode-go`. Si no en coincideix cap,
+     el model es busca pel nom, amb la finestra més petita i sense preu.
+   - **Finestres**: el catàleg va després de `/models` i abans de la taula
+     escrita a mà. deepseek-v4.1-flash a zen passa de 128K a 1M.
+   - **Preus**: els rols sense preu al config prenen el del catàleg. El `-p`
+     ara mostra el cost (`~$0.0010` per una pregunta curta).
+   - `models_catalog: off` el desactiva.
+2. **Guarda de `write`** (`Seguiment.GuardaEscriptura`). Un fitxer existent
+   s'ha d'haver llegit o escrit en aquesta conversa, i no pot haver canviat
+   des d'aleshores. És la regla de Claude Code i el `FS_STALE_VERSION` de
+   dsh. Els fitxers nous passen sempre.
+3. **Eina `lsp`** (`internal/lsp`, `agent/lsp_tool.go`).
+   - Operacions: definició, referències, hover, diagnòstics del fitxer i
+     rename.
+   - Servidors: els que hi hagi al `PATH` (gopls, pyright/basedpyright/pylsp,
+     typescript-language-server, rust-analyzer, clangd) o els de
+     `lsp.servers`. No es baixa res.
+   - La posició és `path` + `line` + `symbol`, més fiable que una columna
+     comptada pel model. Les columnes es converteixen a UTF-16.
+   - El rename escriu a través del diari (desfer, `/rewind`), refusa
+     fitxers de fora del workspace o canviats mentrestant, demana permís
+     com `edit` i es denega en els modes de només lectura.
+   - Tests amb un servidor LSP fals (el mateix binari de test) i proves a
+     mà amb gopls real.
+
+### 8.7 Full de ruta
+
+| # | Proposta | Per què | Impacte | Esforç | Fitxers |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Que el model triï `lsp` sol: una línia a les regles quan l'eina hi és, i `references` a l'explorador de #38 | 8.5: l'eina funciona, però flash no la tria | ●●● | S | `agent/mode.go`, `agent/explore.go` |
+| 2 | Goal → bucle fins que el verificador ho confirmi amb proves | ZCode; les peces ja hi són (autònom, `--verify`) | ●●●● | M | `internal/goal`, `agent/autonomous.go`, `verify/` |
+| 3 | Continuar un subagent i obrir-lo com a sessió | dsh, opencode | ●●● | M | `agent/delegate.go`, web i TUI |
+| 4 | PTY (ConPTY a Windows) per als processos interactius | dsh, opencode-pty | ●●● | M-L | `internal/procs` |
+| 5 | Importar MCP de Claude Code, Codex i opencode | ZCode; poca feina i molta menys fricció | ●●● | S | `internal/mcp`, `/mcp import` |
+| 6 | Permisos amb glob i per subagent | opencode | ●●● | S-M | `config` (permisos), `agent/loop.go` |
+| 7 | `@fitxer#L37-42` i la selecció en viu de VS Code | opencode | ●● | S | `tui/app.go`, `web/serve.go`, `vscode-gregal` |
+| 8 | Avís al TUI quan acaba un torn llarg, i `lang: auto` | comparació | ●● | S | `internal/tui`, `config` |
+| 9 | Fork de sessió i editar un missatge anterior | ZCode, opencode | ●● | M | `internal/session`, web i TUI |
+| 10 | Tree-sitter (WASM, sense CGO) per al repomap | Aider | ●● | L | `internal/repomap` |
+| 11 | Login de proveïdors amb subscripció (device code) | opencode | ●● | M | `internal/config/auth.go` |
+| 12 | SDK TypeScript i OpenAPI generat a partir del contracte | opencode, dsh | ●● | M | `docs/api-contract.md`, paquet nou |
+
+No es proposen ara el microkernel de plugins, el computer use, el DAP ni els
+workspaces al núvol. Són grans, i l'evidència d'aquestes rondes no diu que
+siguin el que limita la qualitat avui.
+
+### 8.8 Resultats
+
+Banc complet amb els tres canvis (24 tirades): **23/24**. L'única fallada
+és t9 (test ocult `"2.000"`), la mateixa de sempre. Cap edició fallida per
+culpa dels canvis.
+
+La primera passada va treure a la llum un fals positiu de la guarda de
+`write`. A t3 la tasca anomena `utils.py`, i el mapa del projecte n'adjunta
+el contingut sencer. El model el reescrivia directament, i la guarda el
+rebutjava perquè no hi havia cap `read`: 2 passos de més en 2 de les 3
+tirades (mediana de 3 a 5 passos). Ara un fitxer adjuntat sencer compta com
+a vist mentre no canviï (`tools.VistSencer`). t3 amb 6 tirades: 6/6, mediana
+de 3 passos, cap rebuig.
+
+Prova real del catàleg: amb una carpeta de dades nova, el primer `-p` va
+baixar models.dev (232 proveïdors, 1,2 MB retallat) i va mostrar el cost de
+la tirada (`~$0.0010`), que abans no sortia. `/stats` diu
+«catàleg models.dev» com a origen de la finestra.
