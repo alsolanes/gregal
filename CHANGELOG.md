@@ -12,6 +12,9 @@
   includes `next_due_at`, and `/api/jobs/run` accepts `scheduled: true` for
   an external scheduler (`GREGAL_JOBS_SCHEDULER=external`). See
   `docs/mobile.md`.
+
+## v1.11.0 - 2026-10-17 - Gregal on the phone without a computer, LSP and a live model catalog
+
 - The Android download is smaller: each phone now gets an APK with only its
   own backend (about 27 MB instead of 42 MB), and in-app updates pick the
   right one for the phone. The universal APK is still attached for anyone
