@@ -31,6 +31,18 @@ android {
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
+    // Un APK per ABI (app-<abi>-debug.apk) perquè cada mòbil només baixi el
+    // seu backend, més l'universal (app-universal-debug.apk) per a qui no
+    // sàpiga quin li toca. Tots comparteixen versionCode i signatura: el
+    // d'un ABI s'instal·la damunt de l'universal i a l'inrevés.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include(*backendAbis.keys.toTypedArray())
+            isUniversalApk = true
+        }
+    }
     packaging {
         // Extretes al disc (nativeLibraryDir): és l'únic lloc des d'on el
         // sistema deixa fer exec del backend.

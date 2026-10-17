@@ -155,7 +155,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             val res = withContext(Dispatchers.IO) {
                 // Primer la caché (6 h): no truquem el servidor a cada
                 // arrencada, i si la xarxa falla encara serveix.
-                val cau = llegeixCache(appContext.cacheDir, System.currentTimeMillis())
+                val cau = llegeixCache(appContext.cacheDir, System.currentTimeMillis(), abisDelMobil())
                 if (cau != null && cau.hiHaNova(actual) && isTrustedDownloadUrl(ANDROID_OTA_URL, cau.downloadUrl)) {
                     return@withContext UpdateCheckResult(
                         isAvailable = true, latestVersion = cau.versionName,
@@ -190,7 +190,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     _updateMsg.value = appText("app.update.checkFailed", últimError)
                     return@withContext UpdateCheckResult(currentVersion = versionNameInstalada())
                 }
-                val info = parseUpdateText(cos)
+                val info = parseUpdateText(cos, abisDelMobil())
                 if (!manifestPlausible(info) || !isTrustedDownloadUrl(ANDROID_OTA_URL, info.downloadUrl)) {
                     return@withContext UpdateCheckResult(currentVersion = versionNameInstalada())
                 }

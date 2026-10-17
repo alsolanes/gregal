@@ -116,11 +116,38 @@ function releaseNotes(changelog, version) {
     `- **Gregal-Setup-${version}-x64.exe**: Windows installer with automatic updates.`,
     `- **Gregal-Portable-${version}-x64.exe**: portable Windows app.`,
     '- **gregal-<os>-<arch>**: standalone backend/CLI for Linux, macOS and Windows (amd64 and arm64).',
-    '- **Gregal-Android-<version>.apk**: Android app (debug-signed, install manually).',
+    '- **Gregal-Android-<version>-arm64-v8a.apk**: Android app for phones (debug-signed, install manually). `-x86_64` is for emulators; the plain `Gregal-Android-<version>.apk` works on both but is larger.',
     '- **SHA256SUMS.txt**: checksums for the CI-built files. Installer updates use the included latest.yml and blockmap.',
     '',
     'Windows packages are unsigned.',
   ].join('\n').replace(/^\n+/, '');
 }
 
-module.exports = { FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };
+// The Android APKs attached to a release: AGP's per-ABI splits plus the
+// universal APK. The universal one keeps the old name, so older apps (and
+// people who don't know their phone's ABI) still get a working file.
+const ANDROID_APKS = [
+  { abi: null, from: 'app-universal-debug.apk' },
+  { abi: 'arm64-v8a', from: 'app-arm64-v8a-debug.apk' },
+  { abi: 'x86_64', from: 'app-x86_64-debug.apk' },
+];
+
+function androidApkName(versionName, abi) {
+  return `Gregal-Android-${versionName}${abi ? '-' + abi : ''}.apk`;
+}
+
+// The in-app updater's manifest (gregal-android-version.json). The top-level
+// downloadUrl/sha256/sizeBytes describe the universal APK, which is what
+// apps from before the splits read; "apks" has one entry per ABI and the
+// app picks the first of Build.SUPPORTED_ABIS listed there.
+// apks: [{ abi, name, sha256, sizeBytes }], baseUrl ends with "/".
+function androidManifest({ versionName, versionCode, changelog, baseUrl, apks }) {
+  const entry = a => ({ downloadUrl: baseUrl + a.name, sha256: a.sha256, sizeBytes: a.sizeBytes });
+  const universal = apks.find(a => !a.abi);
+  if (!universal) throw new Error('the universal APK is missing');
+  const perAbi = {};
+  for (const a of apks) if (a.abi) perAbi[a.abi] = entry(a);
+  return { versionCode, versionName, changelog: changelog || '', ...entry(universal), apks: perAbi };
+}
+
+module.exports = { ANDROID_APKS, androidApkName, androidManifest, FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };

@@ -182,6 +182,58 @@ class OtaTest {
         assertEquals(1234L, u.midaDeclarada())
     }
 
+    private val manifestAmbAbis = """
+        {"versionCode":42,"versionName":"0.10.1",
+         "apks":{
+           "arm64-v8a":{"downloadUrl":"https://h.example/Gregal-Android-0.10.1-arm64-v8a.apk","sha256":"${"a".repeat(64)}","sizeBytes":28000000},
+           "x86_64":{"downloadUrl":"https://h.example/Gregal-Android-0.10.1-x86_64.apk","sha256":"${"b".repeat(64)}","sizeBytes":29000000}
+         },
+         "downloadUrl":"https://h.example/Gregal-Android-0.10.1.apk","sha256":"${"c".repeat(64)}","sizeBytes":42000000,
+         "changelog":"x"}
+    """.trimIndent()
+
+    @Test
+    fun triaLApkDeLAbiDelMobil() {
+        // Un mòbil arm64 (amb armeabi de compatibilitat) baixa el seu APK.
+        val arm = parseUpdateText(manifestAmbAbis, listOf("arm64-v8a", "armeabi-v7a", "armeabi"))
+        assertEquals("https://h.example/Gregal-Android-0.10.1-arm64-v8a.apk", arm.downloadUrl)
+        assertEquals("a".repeat(64), arm.sha256)
+        assertEquals(28000000L, arm.midaDeclarada())
+        assertEquals(42, arm.versionCode)
+        assertEquals("x", arm.changelog)
+        // L'emulador, el seu.
+        val x86 = parseUpdateText(manifestAmbAbis, listOf("x86_64", "x86"))
+        assertEquals("https://h.example/Gregal-Android-0.10.1-x86_64.apk", x86.downloadUrl)
+        assertEquals(29000000L, x86.midaDeclarada())
+    }
+
+    @Test
+    fun sensApkPerAquestaAbiBaixaLUniversal() {
+        // ABI que no publiquem, o cap ABI coneguda: l'universal de dalt.
+        for (abis in listOf(listOf("armeabi-v7a"), emptyList())) {
+            val u = parseUpdateText(manifestAmbAbis, abis)
+            assertEquals("https://h.example/Gregal-Android-0.10.1.apk", u.downloadUrl)
+            assertEquals("c".repeat(64), u.sha256)
+            assertEquals(42000000L, u.midaDeclarada())
+        }
+        // Manifest antic (sense `apks`): igual que abans.
+        val vell = parseUpdateText("""{"versionCode":40,"downloadUrl":"https://h.example/a.apk"}""", listOf("arm64-v8a"))
+        assertEquals("https://h.example/a.apk", vell.downloadUrl)
+    }
+
+    @Test
+    fun laCacheTambeTriaPerAbi() {
+        val dir = createTempDir()
+        try {
+            desaCache(dir, manifestAmbAbis, 1000L)
+            java.io.File(dir, "gregal-update.json").setLastModified(System.currentTimeMillis())
+            val c = llegeixCache(dir, System.currentTimeMillis(), listOf("x86_64"))
+            assertEquals("https://h.example/Gregal-Android-0.10.1-x86_64.apk", c?.downloadUrl)
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
     @Test
     fun nomesEsDescarregaDelMateixHost() {
         val manifest = "https://releases.example.org/gregal/dist/gregal-android-version.json"

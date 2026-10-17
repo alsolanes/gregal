@@ -56,3 +56,16 @@ test('release notes come from the changelog section', () => {
   assert.match(notes, /Gregal-Setup-1\.2\.3-x64\.exe/);
   assert.throws(() => lib.releaseNotes(fixture().changelog, '9.9.9'), /no notes/);
 });
+
+test('the Android manifest lists one APK per ABI and keeps the universal one on top', () => {
+  const sha = c => c.repeat(64);
+  const apks = lib.ANDROID_APKS.map(({ abi }, i) => ({ abi, name: lib.androidApkName('0.10.1', abi), sha256: sha('abc'[i]), sizeBytes: 100 + i }));
+  assert.deepEqual(apks.map(a => a.name), ['Gregal-Android-0.10.1.apk', 'Gregal-Android-0.10.1-arm64-v8a.apk', 'Gregal-Android-0.10.1-x86_64.apk']);
+  const m = lib.androidManifest({ versionName: '0.10.1', versionCode: 42, changelog: 'T', baseUrl: 'https://github.com/o/r/releases/download/v1.11.0/', apks });
+  assert.equal(m.versionCode, 42);
+  assert.equal(m.downloadUrl, 'https://github.com/o/r/releases/download/v1.11.0/Gregal-Android-0.10.1.apk');
+  assert.equal(m.sha256, sha('a'));
+  assert.deepEqual(m.apks['arm64-v8a'], { downloadUrl: 'https://github.com/o/r/releases/download/v1.11.0/Gregal-Android-0.10.1-arm64-v8a.apk', sha256: sha('b'), sizeBytes: 101 });
+  assert.equal(m.apks.x86_64.sizeBytes, 102);
+  assert.throws(() => lib.androidManifest({ versionName: '0', versionCode: 1, baseUrl: '', apks: apks.slice(1) }));
+});
