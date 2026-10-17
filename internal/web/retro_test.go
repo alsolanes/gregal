@@ -200,7 +200,24 @@ func retroTestServer(t *testing.T, fake *retroFake) *Server {
 			t.Fatal(err)
 		}
 	}
+	// Les neteges van a la inversa: aquesta corre abans que es tanqui el
+	// proveïdor fals i s'esborri la carpeta temporal. Un torn engegat per
+	// /api/retro/fix encara escrivia a sessions/ quan el test ja havia
+	// acabat, i el RemoveAll fallava («directory not empty») de tant en tant.
+	t.Cleanup(func() { waitRunsSettled(s, 10*time.Second) })
 	return s
+}
+
+// waitRunsSettled espera que tots els torns encuats hagin deixat el seu
+// final al registre (o que passi el temps).
+func waitRunsSettled(s *Server, max time.Duration) {
+	deadline := time.Now().Add(max)
+	for time.Now().Before(deadline) {
+		if st := s.Hub().eventStore; st == nil || len(st.Unfinished()) == 0 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 }
 
 func retroPost(t *testing.T, s *Server, path, body string) *httptest.ResponseRecorder {
