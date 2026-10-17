@@ -22,7 +22,7 @@ import (
 // Specs retorna les eines natives exposades al model.
 func Specs() []llm.ToolSpec {
 	str := map[string]any{"type": "string"}
-	return []llm.ToolSpec{
+	specs := []llm.ToolSpec{
 		{Name: "preview", Description: "Open or update the user's side preview while working. Use html for a complete standalone HTML prototype, markdown for a complex plan or document, or url for a running localhost development server. Call again with updated content after revisions. This displays content only: it does not inspect the rendered page or verify correctness. HTML runs in an isolated frame without network access. Do not include secrets.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
@@ -220,6 +220,13 @@ func Specs() []llm.ToolSpec {
 				"text": str, "title": str, "collection": str,
 			}, "required": []string{"text"}}},
 	}
+	// lsp només hi és si hi ha algun servidor de llenguatge instal·lat
+	// (es mira un cop per procés: el conjunt d'eines no canvia a mitja
+	// sessió).
+	if t, ok := lspToolSpec(); ok {
+		specs = append(specs, t)
+	}
+	return specs
 }
 
 // PolicyFor retorna allow|ask|deny amb la política per defecte.
@@ -360,6 +367,11 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 	switch name {
 	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
+	case "lsp":
+		if lspEsRename(argsJSON) {
+			return "ask", "escriptura: confirma (rename a diversos fitxers)"
+		}
+		return "allow", ""
 	case "knowledge_note":
 		// Escriu a una base de coneixement que dura més que el torn.
 		return "ask", "knowledge: confirm saving a note"
@@ -437,6 +449,10 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			return "deny", "read-only mode: cannot commit or open pull requests"
 		case "knowledge_note":
 			return "deny", "read-only mode: cannot save knowledge notes (search is allowed)"
+		case "lsp":
+			if lspEsRename(argsJSON) {
+				return "deny", "read-only mode: cannot rename (definition, references, hover and diagnostics are allowed)"
+			}
 		}
 	}
 	if (mode == ModeInspect || mode == ModeChat || mode == ModeGoal) && (name == "bash" || name == "browser") {
@@ -831,6 +847,9 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return out, nil, err
 	case "symbols":
 		out, err := symbolsTool(dir, argsJSON)
+		return out, nil, err
+	case "lsp":
+		out, err := lspTool(ctx, dir, seg, argsJSON)
 		return out, nil, err
 	case "web_search":
 		var a struct {

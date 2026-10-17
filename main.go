@@ -23,6 +23,7 @@ import (
 	"gregal/internal/config"
 	"gregal/internal/evals"
 	"gregal/internal/llm"
+	"gregal/internal/lsp"
 	"gregal/internal/mcp"
 	"gregal/internal/sandbox"
 	"gregal/internal/selfupdate"
@@ -472,6 +473,9 @@ func runHeadless(cfg *config.Config, task, output string, autoApprove bool, maxS
 	agent.SetDiagMode(cfg.Hooks.Diag)
 	agent.SetLifecycleHooks(cfg.Hooks)
 	agent.SetupPrices(cfg)
+	// Els servidors de llenguatge que hagi engegat l'eina lsp s'aturen amb
+	// la tirada (shutdown/exit), no queden orfes.
+	defer lsp.Default.Close()
 	cli := llm.New()
 	cfg.ConfigureClient(cli)
 	agent.SetupDelegate(cfg, cli)

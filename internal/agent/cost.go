@@ -42,6 +42,9 @@ func SetupPrices(cfg *config.Config) {
 	}
 	SetPrices(p)
 	catalog.Configure(CatalegActiu(cfg), "")
+	// Tots els fronts criden SetupPrices en arrencar amb el config carregat:
+	// és el lloc on també es configura l'eina lsp.
+	SetupLSP(cfg)
 	if CatalegActiu(cfg) {
 		go PreusDelCataleg(cfg)
 	}

@@ -317,6 +317,22 @@ func (g GitCfg) CheckpointsOn() bool {
 	return strings.ToLower(strings.TrimSpace(g.Checkpoints)) != "off"
 }
 
+// LSPCfg configura l'eina lsp. Mode "off" la treu; per defecte s'ofereix
+// si hi ha algun servidor de llenguatge conegut instal·lat (gopls,
+// pyright-langserver, typescript-language-server, rust-analyzer, clangd).
+// Servers en canvia o n'afegeix un per llenguatge.
+type LSPCfg struct {
+	Mode    string                  `yaml:"mode,omitempty"`
+	Servers map[string]LSPServerCfg `yaml:"servers,omitempty"`
+}
+
+// LSPServerCfg és un servidor de llenguatge del config.
+type LSPServerCfg struct {
+	Command    []string `yaml:"command"`
+	Extensions []string `yaml:"extensions"`
+	LanguageID string   `yaml:"language_id,omitempty"`
+}
+
 type HooksCfg struct {
 	PostEdit string `yaml:"post_edit"`
 	// Diag és la comprovació després d'editar: "full" (defecte: sintaxi
@@ -479,6 +495,9 @@ type Config struct {
 	rawKeys map[string]string `yaml:"-"`
 	// rawToken conserva el token de Telegram tal com és al fitxer (o ${VAR}).
 	rawToken string `yaml:"-"`
+
+	// LSP: servidors de llenguatge per a l'eina lsp.
+	LSP LSPCfg `yaml:"lsp,omitempty"`
 
 	// ModelsCatalog: "off" desactiva el catàleg de models.dev (finestres,
 	// preus i capacitats dels models remots). Buit o "on" = actiu.

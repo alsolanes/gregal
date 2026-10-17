@@ -465,3 +465,25 @@ func OblidaTotsSeguiments() {
 	seguiments = map[string]*Seguiment{}
 	seguimentsMu.Unlock()
 }
+
+// Reescriu desa el contingut nou d'un fitxer que ha calculat una altra
+// eina (el rename de l'eina lsp) a partir de vell. Si el fitxer ja no és
+// vell (algú l'ha canviat mentrestant), no hi toca. Fa la foto al diari,
+// actualitza què coneix el model i torna el diff, com edit.
+func (s *Seguiment) Reescriu(path, vell, nou string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if string(raw) != vell {
+		return "", fmt.Errorf("%s ha canviat mentre es calculava el canvi: torna-ho a provar", path)
+	}
+	Active.SnapOp(path, "edit")
+	if err := os.WriteFile(path, []byte(nou), 0o644); err != nil {
+		return "", err
+	}
+	s.conegut(path, []byte(nou))
+	return path + ":\n" + resumCanvi(vell, nou), nil
+}

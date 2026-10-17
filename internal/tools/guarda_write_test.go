@@ -39,3 +39,21 @@ func TestGuardaEscriptura(t *testing.T) {
 		t.Fatalf("escrit pel model: %v", err)
 	}
 }
+
+// Reescriu (el rename de lsp) no trepitja un fitxer que ha canviat
+// mentrestant i, si escriu, el model el coneix al dia.
+func TestReescriu(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "a.go")
+	os.WriteFile(p, []byte("func Suma() {}\n"), 0o644)
+	s := nouSeguiment()
+	if _, err := s.Reescriu(p, "una altra cosa\n", "x"); err == nil {
+		t.Fatal("ha canviat: no s'hi ha de tocar")
+	}
+	out, err := s.Reescriu(p, "func Suma() {}\n", "func Add() {}\n")
+	if err != nil || !strings.Contains(out, "Add") {
+		t.Fatalf("%q %v", out, err)
+	}
+	if err := s.GuardaEscriptura(p); err != nil {
+		t.Fatalf("després de Reescriu el model el té al dia: %v", err)
+	}
+}
