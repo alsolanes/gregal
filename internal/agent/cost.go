@@ -46,8 +46,29 @@ func SetupPrices(cfg *config.Config) {
 	// és el lloc on també es configura l'eina lsp.
 	SetupLSP(cfg)
 	if CatalegActiu(cfg) {
-		go PreusDelCataleg(cfg)
+		// La còpia dels rols es fa aquí, abans de la goroutine: qui ha
+		// cridat pot continuar tocant el config (els tests de Telegram
+		// hi afegeixen rols) mentre es baixa el catàleg.
+		go preusDelCataleg(rolsAmbPreu(cfg))
 	}
+}
+
+// rolPreu és el que cal d'un rol per buscar-ne el preu al catàleg.
+type rolPreu struct{ provider, base, model string }
+
+func rolsAmbPreu(cfg *config.Config) []rolPreu {
+	if cfg == nil {
+		return nil
+	}
+	var out []rolPreu
+	for _, r := range cfg.Roles {
+		prov, ok := cfg.Providers[r.Provider]
+		if !ok || esLocal(prov.BaseURL, r.Provider) {
+			continue
+		}
+		out = append(out, rolPreu{r.Provider, prov.BaseURL, r.Model})
+	}
+	return out
 }
 
 // CatalegActiu diu si el config deixa fer servir el catàleg de models.
@@ -59,22 +80,19 @@ func CatalegActiu(cfg *config.Config) bool {
 // en tenen. Només els d'un proveïdor identificat per l'adreça: un model que
 // ofereixen diversos proveïdors no té un preu únic.
 func PreusDelCataleg(cfg *config.Config) {
-	if cfg == nil {
-		return
-	}
-	for _, r := range cfg.Roles {
-		prov, ok := cfg.Providers[r.Provider]
-		if !ok || esLocal(prov.BaseURL, r.Provider) {
-			continue
-		}
-		m, origen, ok := catalog.Lookup(prov.BaseURL, r.Model)
+	preusDelCataleg(rolsAmbPreu(cfg))
+}
+
+func preusDelCataleg(rols []rolPreu) {
+	for _, r := range rols {
+		m, origen, ok := catalog.Lookup(r.base, r.model)
 		if !ok || origen == "" || !m.HasCost {
 			continue
 		}
-		clau := strings.ToLower(r.Provider + "/" + r.Model)
+		clau := strings.ToLower(r.provider + "/" + r.model)
 		costMu.Lock()
 		if _, ja := prices[clau]; !ja {
-			if _, jaModel := prices[strings.ToLower(r.Model)]; !jaModel {
+			if _, jaModel := prices[strings.ToLower(r.model)]; !jaModel {
 				prices[clau] = Price{In: m.In, Out: m.Out}
 			}
 		}
