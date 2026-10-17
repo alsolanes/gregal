@@ -478,6 +478,22 @@ posa-la a `deny`; un `ask` del config no hi fa preguntar.
 - `--output json` sempre imprimeix un objecte JSON, amb `"error"` si el torn
   falla. Amb `--verify`, `"verified"` hi és sempre i s'hi inclouen els passos,
   les eines i el trace de totes les rondes de reparació.
+- `--output stream-json` imprimeix una línia JSON a mesura que passen les
+  coses (`step`, `tool_call`, `tool_result` amb la sortida tallada a 4000
+  caràcters, `warning`, `error`, `diff`, `note`) i, al final, el mateix
+  objecte que `--output json` amb `"type": "result"`. El progrés continua
+  anant a stderr.
+- Cada tirada es desa com una sessió, a la mateixa llista que les del TUI i
+  la web, i el nom surt per stderr (`"session"` al JSON). `-c`
+  (`--continue`) continua la sessió més recent desada en aquesta carpeta, ja
+  sigui del `-p`, del TUI o de la web; `--resume <nom>` en continua una de
+  concreta. `--no-session` no desa la tirada.
+- El que arriba per stdin s'afegeix a la tasca, fins a 256 KB:
+  `git diff | gregal -p "revisa aquest diff"`. Amb `-p -` la tasca sencera es
+  llegeix de stdin.
+- `--model proveidor/model` (o només un model del proveïdor del rol code) fa
+  servir aquest model per als rols code, chat i think de la tirada, sense
+  canviar el config.
 
 Codis de sortida: `0` correcte, `1` el torn ha fallat (proveïdor, configuració
 o cancel·lació), `2` flags invàlids (es comproven abans de cap crida al model),
