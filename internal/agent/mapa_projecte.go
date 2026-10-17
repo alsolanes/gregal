@@ -18,6 +18,7 @@ import (
 
 	"gregal/internal/llm"
 	"gregal/internal/repomap"
+	"gregal/internal/tools"
 )
 
 // Context del projecte al començament del torn.
@@ -279,6 +280,9 @@ func adjuntsAnomenats(dir, tasca string, fitxers []string) string {
 		}
 		total += len(dades)
 		n++
+		// El model en té el contingut sencer: write el pot reescriure
+		// sense haver de fer abans un read (tools.GuardaEscriptura).
+		tools.VistSencer(filepath.Join(dir, filepath.FromSlash(f)), dades)
 		fmt.Fprintf(&b, "\n--- %s (contents at the start of the turn; no need to read it again unless you changed it) ---\n%s", f, dades)
 		if !strings.HasSuffix(string(dades), "\n") {
 			b.WriteString("\n")

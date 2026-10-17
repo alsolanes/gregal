@@ -173,3 +173,189 @@ Tasca E (servidor en segon pla + curl), una tirada de cada:
   tasques que tenen dues investigacions independents.
 - Validar els canvis 1-3 amb un model local petit (Qwen3-Coder a Ollama), on
   els noms d'arguments d'altres arnesos són més freqüents.
+
+## 8. Tercera ronda: contrast amb dues revisions externes (v1.10.2)
+
+Dues revisions externes comparaven Gregal amb OpenCode, DeepSeek Harness
+(dsh), ZCode, Aider, Claude Code, Cline, OpenHands, Cursor i altres. La
+primera es va escriure sobre la v1.9.4. Aquí cada punt es contrasta amb
+`origin/main` (v1.10.2) i les PR obertes #38 (explorador) i #39 (sessions
+del `-p`), amb proves al codi. Estat: ✓ fet, ~ parcial, ✗ no hi és.
+
+### 8.1 OpenCode
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Catàleg de models (models.dev) | ✗ → **✓ aquesta PR** | abans: `config/cataleg.go:41` (10 proveïdors, sense preus ni límits), `agent/window.go:210` (taula a mà), preus només de `cost:` | — |
+| Login OAuth sense clau (Copilot, ChatGPT, GitLab Duo) | ✗ | l'OAuth és només de MCP (`internal/mcp/oauth.go`) | login de proveïdor amb device code |
+| Gateway Zen/Go i `/connect` | ✗ | el `/connect` del TUI (`tui/app.go:3316`) connecta al servei local de Gregal | no aplica: és un producte d'opencode |
+| LSP | ~ → **~+ aquesta PR** | diagnòstics per CLI (`agent/diag_exec.go:9-14`, `diag_lang.go`, `diag_pytypes.go`) | servidors persistents per als diagnòstics (opencode els té desactivats per defecte, vegeu 8.5) |
+| Sessions: compartir, revert, fork, fills navegables | ~ | `web/share.go:116`, `/rewind` (`tui/app.go:3018`), targetes dels fills a la sala | fork d'una sessió, refer, obrir un subagent com a sessió |
+| Plugins, hooks, eines pròpies, ordres `/` | ~ | hooks `HooksCfg` (`config.go:328`, pre_tool pot denegar), `internal/usercmd`, subagents d'usuari, skills | eines pròpies sense MCP; plugins dins del procés |
+| Extensió d'IDE amb selecció i `@fitxer#L37-42` | ~ | `vscode-gregal/src/extension.ts:52` (selecció en invocar), `mentionRe` (`tui/app.go:786`, `web/serve.go:1750`) | selecció i pestanya en viu, rangs de línies a les mencions |
+| MCP: OAuth (DCR), remot, `mcp auth/debug` | ~ (quasi ✓) | `mcp/oauth.go:384` (RFC 7591), `transport_http.go:124`, `/mcp connect` al TUI | subordres `gregal mcp list/auth/debug` |
+| Permisos amb glob i per agent | ~ | `PermissionsCfg` (`config.go:359`): allow/ask/deny per eina, `bash_allow` per prefix, `bash_deny` per subcadena | globs (`git *: ask`), permisos per subagent |
+| Temes, tecles, paleta Ctrl+P, política d'empresa, SDK/OpenAPI | ~ | temes (`internal/tema`), Ctrl+K a la web, `docs/api-contract.md` + `contract_test.go` | tecles configurables, paleta al TUI, `.well-known`, OpenAPI, SDK TS |
+
+### 8.2 DeepSeek Harness
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Microkernel de plugins amb recàrrega en calent | ✗ | punts d'extensió solts: `RegisterExtra` (`agent/loop.go:259`), MCP, skills | arquitectura de plugins |
+| Presets (minimal/standard/PTC/creator) | ~ | modes i prompt compacte (`config.go:78`, `llm/perfils.go:108`) | presets amb nom; PTC (un programa que crida eines en una sola volta) |
+| Agent Teams: plantilla persistent, tauler, bústia, subagents continuables | ~ | `team/team.go:57`, `team/flow.go:255`, `delegate.go` | plantilla persistent, tauler compartit, missatges entre agents, continuar un subagent |
+| Mètriques de trajectòria (TTFT, caché, tokens per torn) | ~ | `RunResult` (`agent/run.go:44`), `evals/stats.go`, `/stats` | TTFT; taxa de caché al resultat en viu |
+| FS versionat (llegir abans d'escriure, `FS_STALE_VERSION`) | ~ → **✓ aquesta PR** | `tools/seguiment.go` (guarda per a les edicions aproximades) | abans `write` no comprovava res; ara sí |
+| Compactació (llindar, cua literal, poda cap+cua) | ~ | `compact.go:20` (0,75), `histcompact.go` (emmascarament per blocs), `retallaCapICua` (bash) | cua per percentatge de tokens; resum que reaprofiti la caché |
+| PTY persistents | ✗ | `internal/procs` (canonades); `bash_output wait` a #39 | escriure a stdin d'un procés, ConPTY |
+| Sandbox | ✓ | `sandbox/backends.go` (bwrap, Landlock, Seatbelt, Docker) | — |
+| E2B / sandbox remot | ✗ | — | backend remot |
+| Feines programades | ✓ | `internal/jobs` (daily, interval, manual) | expressions cron |
+| Webhooks | ~ | només de sortida (`web/retro.go:988`) | un webhook d'entrada que llanci un torn |
+| Subagents externs (ACP, Codex, Claude Code) | ✗ | — | adaptadors |
+| SDK | ~ | `client/` (Go), `harness/` (Go), `python/`, `gregal mcp serve`, `--output stream-json` (#39) | SDK TS, protocol JSON-RPC/ACP |
+| `lsp_replace_symbol` | ✗ | `symbols` és de lectura | edició per símbol (el `rename` d'aquesta PR cobreix el cas més comú) |
+| Edicions especulatives en streaming | ✗ | cascada aproximada a `tools/fuzzy.go` | aplicar els canvis mentre arriba el JSON |
+| Cerca semàntica | ~ | `internal/knowledge` (BM25 + embeddings opcionals) | índex automàtic del codi |
+
+### 8.3 ZCode
+
+| Punt | Estat | Proves | Què falta |
+| --- | --- | --- | --- |
+| Goal amb verificador independent | ~ | autònom: `RunAutonomousChecks` (`autonomous.go:35`), revisor (`verify/verifier.go:129`), `--verify` (`verify_gate.go`) | que el mode goal faci servir aquest bucle fins que el verificador ho confirmi |
+| Entorn tipus IDE (timeline, Cmd+K, terminal, DevTools) | ~ | converses per projecte i data, replay amb timeline, menú `/`, panell de processos | paleta difusa, terminal interactiu |
+| Navegador amb selector d'elements → @context | ~ | eina `browser` (`tools/browser.go:849`), panell d'escriptori per CDP | selector d'elements |
+| Vista prèvia (PDF, HTML, Mermaid, imatges, CSV) | ~ | `preview.js` (html, markdown, url), panell d'Office | PDF i imatges del workspace, Mermaid, CSV |
+| Continuïtat multidispositiu | ~ | Android, Telegram | workspaces remots SSH/Docker, altres bots |
+| Xat lateral, fork, editar un missatge | ~ | `/btw` (TUI, web), reintent, `/rewind` | fork des d'un missatge, editar-lo i tornar-lo a llançar |
+| Memòria, automatitzacions, nivells de raonament, context llarg | ~/✓ | `automem.go`, `internal/jobs`, `Role.Think`, compactació | selector ràpid del raonament, wiki |
+| Importar MCP de Claude Code, Codex i OpenCode | ✗ | — | importador |
+| Avís quan acaba un torn | ~ | web, escriptori, Android | campana/OSC 9 al TUI |
+| Respondre en la llengua de l'usuari | ~ | `LanguageDirective` (`config.go:542`): ca o en | detecció automàtica |
+
+### 8.4 Segona revisió (llista ampliada)
+
+| Punt | Estat | Proves / notes |
+| --- | --- | --- |
+| LSP | **~+ aquesta PR** | vegeu 8.5 |
+| Tree-sitter per al repomap | ✗ | Go amb `go/parser`; la resta amb regex (`repomap/extract_regex.go`). Tree-sitter vol CGO o WASM: trenca la compilació estàtica d'ara |
+| PTY | ✗ | vegeu 8.2 |
+| Plugins externs | ✗ | vegeu 8.2 |
+| Computer use (pantalla) | ✗ | només el navegador (CDP) |
+| SDK multillenguatge | ~ | Go i un Python mínim; no TS |
+| Workspace remot o al núvol | ✗ | tot corre on corre el servidor; Telegram i Android en són el control remot |
+| DAP, veu, notebooks, JetBrains, completat en línia | ✗ | — |
+| Tasques en repòs, workflows dinàmics, plugins d'UI | ✗ | flows estàtics (`team/flow.go`) |
+| Perfils/bundles de config | ✗ | — |
+| ACP | ✗ | — |
+| Mercat MCP | ✗ | MCP sí, sense catàleg |
+
+### 8.5 L'LSP, amb dades
+
+Totes dues revisions el posen primer. Abans de fer-lo s'han mirat les fonts
+d'opencode (`anomalyco/opencode`, branca `dev`, 2026-10-17):
+
+- `packages/web/src/content/docs/lsp.mdx`: l'LSP està **desactivat per
+  defecte** (cal `"lsp": true`). La documentació diu que els servidors es
+  desincronitzen, gasten memòria i alenteixen l'agent, i que sovint és millor
+  que l'agent corri lint o typecheck per línia d'ordres. És el que Gregal ja
+  fa després de cada edició.
+- Entre les eines del nucli (`packages/core/src/tool/plugin/`) no hi ha cap
+  eina `lsp`.
+
+On Gregal sí que tenia un forat és la **navegació semàntica**:
+- quina de diverses funcions amb el mateix nom es crida;
+- on es fa servir de veritat;
+- un rename que no toqui text homònim.
+
+Això és el que s'ha fet (8.6). Els diagnòstics continuen sortint de les
+comprovacions per línia d'ordres, que no necessiten cap servidor engegat.
+
+Prova amb gopls real (instal·lat a una carpeta temporal) sobre aquest
+repositori: reanomenar el mètode `Seguiment.Edit` a `EditBlock`. El nom
+`Edit` també és una funció del paquet.
+
+| | Abans (grep + edit) | Amb `lsp` (demanat al prompt) |
+| --- | --- | --- |
+| Resultat | correcte, build OK | correcte, build OK |
+| Passos / crides | 13 / 15 | 10 / 13 |
+| Crida del rename | — | 1 crida, 13 canvis en 4 fitxers, 25,8 s (càrrega inicial de gopls) |
+| `references` després | — | 1,2 s |
+
+gopls també va canviar «tools.Edit» dins d'un comentari, i el model ho va
+corregir al pas següent. **Sense demanar-ho, deepseek-v4.1-flash no tria
+l'eina**: en la mateixa tasca sense cap indicació va fer servir grep i edit
+(11 passos, també correcte). L'eina hi és i funciona; aconseguir que el model
+la triï sol queda pendent (8.7).
+
+### 8.6 Què s'ha fet en aquesta ronda
+
+1. **Catàleg de models** (`internal/catalog`).
+   - Còpia retallada de `https://models.dev/api.json` (232 proveïdors) a
+     `<data>/models-catalog.json`. Es refresca cada dia en segon pla; la
+     primera vegada s'esperen com a molt 4 s.
+   - El proveïdor es busca per l'adreça base: opencode zen
+     (`opencode.ai/zen/go/v1`) és `opencode-go`. Si no en coincideix cap,
+     el model es busca pel nom, amb la finestra més petita i sense preu.
+   - **Finestres**: el catàleg va després de `/models` i abans de la taula
+     escrita a mà. deepseek-v4.1-flash a zen passa de 128K a 1M.
+   - **Preus**: els rols sense preu al config prenen el del catàleg. El `-p`
+     ara mostra el cost (`~$0.0010` per una pregunta curta).
+   - `models_catalog: off` el desactiva.
+2. **Guarda de `write`** (`Seguiment.GuardaEscriptura`). Un fitxer existent
+   s'ha d'haver llegit o escrit en aquesta conversa, i no pot haver canviat
+   des d'aleshores. És la regla de Claude Code i el `FS_STALE_VERSION` de
+   dsh. Els fitxers nous passen sempre.
+3. **Eina `lsp`** (`internal/lsp`, `agent/lsp_tool.go`).
+   - Operacions: definició, referències, hover, diagnòstics del fitxer i
+     rename.
+   - Servidors: els que hi hagi al `PATH` (gopls, pyright/basedpyright/pylsp,
+     typescript-language-server, rust-analyzer, clangd) o els de
+     `lsp.servers`. No es baixa res.
+   - La posició és `path` + `line` + `symbol`, més fiable que una columna
+     comptada pel model. Les columnes es converteixen a UTF-16.
+   - El rename escriu a través del diari (desfer, `/rewind`), refusa
+     fitxers de fora del workspace o canviats mentrestant, demana permís
+     com `edit` i es denega en els modes de només lectura.
+   - Tests amb un servidor LSP fals (el mateix binari de test) i proves a
+     mà amb gopls real.
+
+### 8.7 Full de ruta
+
+| # | Proposta | Per què | Impacte | Esforç | Fitxers |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Que el model triï `lsp` sol: una línia a les regles quan l'eina hi és, i `references` a l'explorador de #38 | 8.5: l'eina funciona, però flash no la tria | ●●● | S | `agent/mode.go`, `agent/explore.go` |
+| 2 | Goal → bucle fins que el verificador ho confirmi amb proves | ZCode; les peces ja hi són (autònom, `--verify`) | ●●●● | M | `internal/goal`, `agent/autonomous.go`, `verify/` |
+| 3 | Continuar un subagent i obrir-lo com a sessió | dsh, opencode | ●●● | M | `agent/delegate.go`, web i TUI |
+| 4 | PTY (ConPTY a Windows) per als processos interactius | dsh, opencode-pty | ●●● | M-L | `internal/procs` |
+| 5 | Importar MCP de Claude Code, Codex i opencode | ZCode; poca feina i molta menys fricció | ●●● | S | `internal/mcp`, `/mcp import` |
+| 6 | Permisos amb glob i per subagent | opencode | ●●● | S-M | `config` (permisos), `agent/loop.go` |
+| 7 | `@fitxer#L37-42` i la selecció en viu de VS Code | opencode | ●● | S | `tui/app.go`, `web/serve.go`, `vscode-gregal` |
+| 8 | Avís al TUI quan acaba un torn llarg, i `lang: auto` | comparació | ●● | S | `internal/tui`, `config` |
+| 9 | Fork de sessió i editar un missatge anterior | ZCode, opencode | ●● | M | `internal/session`, web i TUI |
+| 10 | Tree-sitter (WASM, sense CGO) per al repomap | Aider | ●● | L | `internal/repomap` |
+| 11 | Login de proveïdors amb subscripció (device code) | opencode | ●● | M | `internal/config/auth.go` |
+| 12 | SDK TypeScript i OpenAPI generat a partir del contracte | opencode, dsh | ●● | M | `docs/api-contract.md`, paquet nou |
+
+No es proposen ara el microkernel de plugins, el computer use, el DAP ni els
+workspaces al núvol. Són grans, i l'evidència d'aquestes rondes no diu que
+siguin el que limita la qualitat avui.
+
+### 8.8 Resultats
+
+Banc complet amb els tres canvis (24 tirades): **23/24**. L'única fallada
+és t9 (test ocult `"2.000"`), la mateixa de sempre. Cap edició fallida per
+culpa dels canvis.
+
+La primera passada va treure a la llum un fals positiu de la guarda de
+`write`. A t3 la tasca anomena `utils.py`, i el mapa del projecte n'adjunta
+el contingut sencer. El model el reescrivia directament, i la guarda el
+rebutjava perquè no hi havia cap `read`: 2 passos de més en 2 de les 3
+tirades (mediana de 3 a 5 passos). Ara un fitxer adjuntat sencer compta com
+a vist mentre no canviï (`tools.VistSencer`). t3 amb 6 tirades: 6/6, mediana
+de 3 passos, cap rebuig.
+
+Prova real del catàleg: amb una carpeta de dades nova, el primer `-p` va
+baixar models.dev (232 proveïdors, 1,2 MB retallat) i va mostrar el cost de
+la tirada (`~$0.0010`), que abans no sortia. `/stats` diu
+«catàleg models.dev» com a origen de la finestra.

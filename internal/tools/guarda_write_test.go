@@ -57,3 +57,19 @@ func TestReescriu(t *testing.T) {
 		t.Fatalf("després de Reescriu el model el té al dia: %v", err)
 	}
 }
+
+// Un fitxer que el mapa ha adjuntat sencer compta com a vist mentre no
+// canviï (t3 del banc).
+func TestGuardaEscripturaVistAlMapa(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "utils.py")
+	os.WriteFile(p, []byte("def f():\n    pass\n"), 0o644)
+	VistSencer(p, []byte("def f():\n    pass\n"))
+	s := nouSeguiment()
+	if err := s.GuardaEscriptura(p); err != nil {
+		t.Fatalf("adjuntat pel mapa: %v", err)
+	}
+	os.WriteFile(p, []byte("def g():\n    pass\n"), 0o644)
+	if err := s.GuardaEscriptura(p); err == nil {
+		t.Fatal("ha canviat des que es va adjuntar")
+	}
+}
