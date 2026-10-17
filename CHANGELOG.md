@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.10.1 - 2026-10-17 - Tolerant tool arguments, smarter shell guard and project facts
+
 - Fewer wasted steps from small mismatches
   ([docs/research/next-improvements.md](docs/research/next-improvements.md)).
   On the bench: 24/24 passing (was 20/24), no failed edits (was 2 of 33).

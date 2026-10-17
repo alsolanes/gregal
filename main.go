@@ -35,7 +35,7 @@ import (
 )
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
-var version = "v1.10.0"
+var version = "v1.10.1"
 
 // repoDir l'omple la compilacio (-ldflags "-X main.repoDir=..."): aixi el
 // binari recorda d'on va sortir i `gregal update` el sap trobar encara que
