@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gregal/internal/procs"
 	"gregal/internal/sandbox"
@@ -250,9 +251,10 @@ func escurça(s string, n int) string {
 	return s
 }
 
-// Grep cerca pattern (substring literal) línia a línia sota dir.
-// include filtra per glob de nom de fitxer (p. ex. "*.go"; buit = tot).
-// Omet .git, binaris i dirs pesants. Topall de 50 coincidències.
+// Grep cerca pattern línia a línia sota dir (vegeu coincidencia: text
+// literal i, si en té la forma, també regex). include filtra per glob de
+// nom de fitxer (p. ex. "*.go"; buit = tot). Omet .git, binaris i dirs
+// pesants. Topall de 50 coincidències.
 func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 	if strings.TrimSpace(pattern) == "" {
 		return "", fmt.Errorf("grep: pattern buit")
@@ -263,6 +265,7 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 	if maxMatches <= 0 || maxMatches > 200 {
 		maxMatches = 50
 	}
+	casa := coincidencia(pattern)
 	var out []string
 	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -285,8 +288,9 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 			return nil // il·legible o binari
 		}
 		for i, line := range strings.Split(string(raw), "\n") {
-			if strings.Contains(line, pattern) {
-				out = append(out, fmt.Sprintf("%s:%d:%s", path, i+1, strings.TrimSpace(line)))
+			line = strings.TrimSuffix(line, "\r")
+			if on := casa(line); on >= 0 {
+				out = append(out, fmt.Sprintf("%s:%d:%s", path, i+1, tallLinia(line, on)))
 				if len(out) >= maxMatches {
 					return errStop
 				}
@@ -304,6 +308,178 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 }
 
 var errStop = errors.New("topall")
+
+// regexMeta són els caràcters que delaten una expressió regular. El punt
+// no hi és: «tools.Grep» és text literal molt més sovint que regex.
+const regexMeta = `\^$|()[]*+?{}`
+
+// coincidencia diu on casa una línia amb el pattern de grep (-1 si no hi
+// casa). L'eina cerca
+// text literal, però els models hi escriuen expressions regulars sovint
+// (`a|b`, `Decide\(`, `^func `, `func.*Run`): a les preguntes sobre aquest
+// mateix repositori, 17 de 68 greps tornaven «sense coincidències» per
+// això, i cadascun costava un pas més amb tot l'historial
+// (docs/research/explore.md). Ara una línia casa si:
+//   - conté el text literal;
+//   - el pattern té forma de regex i compila (RE2), o compila prenent els
+//     parèntesis com a text (`\.Decide(`);
+//   - conté el text sense les barres d'escapar (`func \(c \*Client\)`);
+//   - el text té espais i hi és amb qualsevol tira d'espais (gofmt alinea
+//     `ModeCode    = "code"`).
+//
+// Si el pattern sencer no compila i té `|`, cada alternativa es prova per
+// separat de totes aquestes maneres.
+func coincidencia(pattern string) func(string) int {
+	literals := []string{pattern}
+	var rxs []*regexp.Regexp
+	if strings.ContainsAny(pattern, regexMeta) {
+		parts := []string{pattern}
+		if _, err := regexp.Compile(pattern); err != nil && strings.Contains(pattern, "|") {
+			parts = strings.Split(pattern, "|")
+		}
+		for _, p := range parts {
+			if p = strings.TrimSpace(p); p == "" {
+				continue
+			}
+			if rx, err := regexp.Compile(p); err == nil {
+				rxs = append(rxs, rx)
+			} else if rx, err := regexp.Compile(parentesiLiterals(p)); err == nil {
+				rxs = append(rxs, rx)
+			}
+			if l := desescapa(p); l != pattern && strings.TrimSpace(l) != "" {
+				literals = append(literals, l)
+			}
+		}
+	}
+	for _, l := range literals {
+		if camps := strings.Fields(l); len(camps) > 1 {
+			for i, c := range camps {
+				camps[i] = regexp.QuoteMeta(c)
+			}
+			rxs = append(rxs, regexp.MustCompile(strings.Join(camps, `\s+`)))
+		}
+	}
+	return func(line string) int {
+		for _, l := range literals {
+			if i := strings.Index(line, l); i >= 0 {
+				return i
+			}
+		}
+		for _, rx := range rxs {
+			if loc := rx.FindStringIndex(line); loc != nil {
+				return loc[0]
+			}
+		}
+		return -1
+	}
+}
+
+// maxLiniaGrep és el tros de línia que torna grep per coincidència. Un
+// fitxer minificat (internal/web/app/vendor/*.min.js) té línies de fins a
+// 600 k caràcters: una sola coincidència hi posava tot el fitxer al prompt,
+// i a cada pas següent hi tornava a viatjar.
+const maxLiniaGrep = 300
+
+// tallLinia torna la línia sense els espais dels costats o, si és massa
+// llarga, el tros del voltant de la coincidència (on, en bytes) i la mida.
+func tallLinia(line string, on int) string {
+	t := strings.TrimSpace(line)
+	if len(t) <= maxLiniaGrep {
+		return t
+	}
+	ini := on - maxLiniaGrep/3
+	if ini < 0 {
+		ini = 0
+	}
+	fi := ini + maxLiniaGrep
+	if fi > len(line) {
+		fi = len(line)
+	}
+	// Sense partir un caràcter UTF-8.
+	for ini > 0 && !utf8.RuneStart(line[ini]) {
+		ini--
+	}
+	for fi < len(line) && !utf8.RuneStart(line[fi]) {
+		fi++
+	}
+	tros := line[ini:fi]
+	if ini > 0 {
+		tros = "…" + tros
+	}
+	if fi < len(line) {
+		tros += "…"
+	}
+	return fmt.Sprintf("%s [line of %d characters]", strings.TrimSpace(tros), len(line))
+}
+
+// parentesiLiterals escapa els parèntesis que no ho estan: `Decide(` →
+// `Decide\(`.
+func parentesiLiterals(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		if c == '\\' && i+1 < len(p) {
+			b.WriteByte(c)
+			b.WriteByte(p[i+1])
+			i++
+			continue
+		}
+		if c == '(' || c == ')' {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// desescapa treu la barra de davant dels signes (`\(` → `(`, `\.` → `.`);
+// les classes com `\s` o `\w` es queden com són.
+func desescapa(p string) string {
+	var b strings.Builder
+	for i := 0; i < len(p); i++ {
+		c := p[i]
+		if c == '\\' && i+1 < len(p) {
+			n := p[i+1]
+			if !(n >= 'a' && n <= 'z' || n >= 'A' && n <= 'Z' || n >= '0' && n <= '9') {
+				b.WriteByte(n)
+				i++
+				continue
+			}
+		}
+		b.WriteByte(c)
+	}
+	return b.String()
+}
+
+// CaminsRelatius treu el prefix del workspace dels camins al començament
+// de cada línia (sortides de grep i glob) i hi posa barres /. Un camí
+// absolut a Windows són ~50 caràcters per línia que tornen a viatjar a cada
+// pas del torn, i les cites fitxer:línia de la resposta surten com al mapa.
+func CaminsRelatius(out, base string) string {
+	base = strings.TrimSpace(base)
+	if base == "" || out == "" {
+		return out
+	}
+	if abs, err := filepath.Abs(base); err == nil {
+		base = abs
+	}
+	prefix := strings.TrimRight(filepath.Clean(base), `\/`) + string(filepath.Separator)
+	linies := strings.Split(out, "\n")
+	for i, l := range linies {
+		if len(l) <= len(prefix) || !strings.EqualFold(l[:len(prefix)], prefix) {
+			continue
+		}
+		rest := l[len(prefix):]
+		cami, cua := rest, ""
+		// grep: «camí:línia:text». A Windows el camí no porta «:» (ja no
+		// hi ha la lletra d'unitat).
+		if j := strings.Index(rest, ":"); j >= 0 {
+			cami, cua = rest[:j], rest[j:]
+		}
+		linies[i] = filepath.ToSlash(cami) + cua
+	}
+	return strings.Join(linies, "\n")
+}
 
 // Glob llista fitxers sota dir que casen amb pattern. Suporta ** recursiu
 // (p. ex. **/*.go, **/go.mod, internal/**/*.go), com esperen els agents.

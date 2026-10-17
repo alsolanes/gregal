@@ -178,6 +178,20 @@ exploration. If the scout fails or is stopped, the turn continues normally.
 Its tokens count in the turn. Disable it with `agent.scout: off`
 (default `auto`).
 
+**Explorer for questions.** In inspect mode the same rule starts a question
+about a project of 40 files or more with an **Explorer** instead: a read-only
+subagent with only `read`, `grep`, `glob` and `symbols`, the project map and
+up to 8 steps, that searches the code and reports the answer with
+`path:line` citations. The coordinator answers from that report and only
+reads what the report marks as unverified or does not cover. On questions
+about Gregal's own repository this cut input tokens by about three quarters
+and time by almost half, with citations at least as accurate
+([docs/research/explore.md](research/explore.md)). Its reads stay inside the
+subagent, so the next question in the same conversation does not resend
+them. A user-defined read-only subagent named `explorer` replaces it;
+`agent.scout: off` disables it too. With `gregal -p --output json`, the
+result has `explorer`, `explorer_report` and `timings.explore_ms`.
+
 **Parallel subagents.** When the task names several independent areas (a
 list such as "(1) … (2) …", numbered or bulleted lines, paths in different
 folders, or a question about "the TUI, the web server and the Telegram bot"),
