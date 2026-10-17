@@ -141,3 +141,60 @@ func TestMaxRunIDSurvivesReopen(t *testing.T) {
 		t.Fatalf("after reopen MaxRunID = %d, want 7", got)
 	}
 }
+
+func TestUnfinishedSurvivesReopen(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "events.jsonl")
+	s, err := Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range []Event{
+		{SessionID: "mobil", RunID: 1, Kind: "run_queued"},
+		{SessionID: "mobil", RunID: 1, Kind: "run_started"},
+		{SessionID: "mobil", RunID: 1, Kind: "run_completed"},
+		{SessionID: "mobil", RunID: 1, Kind: "recap"}, // després del final no el reobre
+		{SessionID: "mobil", User: "anna", RunID: 2, Kind: "run_queued"},
+		{SessionID: "mobil", RunID: 2, Kind: "tool"},
+		{SessionID: "default", RunID: 3, Kind: "run_queued"},
+		{SessionID: "default", RunID: 3, Kind: "run_cancelled"},
+	} {
+		if _, err := s.Append(e); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := s.Unfinished()
+	if len(got) != 1 || got[0].RunID != 2 || got[0].User != "anna" {
+		t.Fatalf("unfinished: %+v", got)
+	}
+	s, err = Open(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Unfinished(); len(got) != 1 || got[0].RunID != 2 {
+		t.Fatalf("after reopen: %+v", got)
+	}
+	if _, err := s.Append(Event{SessionID: "mobil", RunID: 2, Kind: "run_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Unfinished(); len(got) != 0 {
+		t.Fatalf("closed run still open: %+v", got)
+	}
+}
+
+func TestAfterReadsLongLines(t *testing.T) {
+	s, err := Open(filepath.Join(t.TempDir(), "events.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	big := strings.Repeat("x", 200<<10)
+	if _, err := s.Append(Event{Kind: "tool", Text: big}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Append(Event{Kind: "done", Text: "fi"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.After(0, 10)
+	if err != nil || len(got) != 2 || len(got[0].Text) != len(big) {
+		t.Fatalf("after: %d events, err %v", len(got), err)
+	}
+}

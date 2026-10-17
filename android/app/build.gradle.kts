@@ -1,7 +1,22 @@
+import java.io.File
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
 }
+
+// El backend de Gregal (el mateix servidor Go de l'escriptori) viatja dins
+// l'APK com a libgregal.so per ABI: l'app l'executa com a procés fill, com
+// fa l'Electron amb gregal.exe. Va a jniLibs perquè Android només deixa
+// executar binaris de la carpeta de llibreries natives de l'app.
+// -Pgregal.skipBackend salta la compilació (l'app només podrà fer servir
+// un servidor remot).
+val repoRoot: File = rootDir.parentFile
+val backendOut = layout.buildDirectory.dir("gregal-backend/jniLibs")
+val backendAbis = linkedMapOf(
+    "arm64-v8a" to ("arm64" to "aarch64-linux-android"),
+    "x86_64" to ("amd64" to "x86_64-linux-android"),
+)
 
 android {
     namespace = "xyz.solanes.gregal"
@@ -11,8 +26,15 @@ android {
         applicationId = "xyz.solanes.gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = 40
-        versionName = "0.9.11"
+        versionCode = 41
+        versionName = "0.10.0"
+    }
+
+    sourceSets["main"].jniLibs.srcDir(backendOut)
+    packaging {
+        // Extretes al disc (nativeLibraryDir): és l'únic lloc des d'on el
+        // sistema deixa fer exec del backend.
+        jniLibs.useLegacyPackaging = true
     }
 
     buildTypes {
@@ -37,6 +59,62 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion = "1.5.14"
     }
+}
+
+/** L'NDK més nou de l'SDK (per compilar el backend amb cgo: DNS del sistema). */
+fun ndkHostBin(): File? {
+    val sdk = android.sdkDirectory
+    val ndks = File(sdk, "ndk").listFiles()?.filter { it.isDirectory }?.sortedBy { it.name } ?: return null
+    val ndk = ndks.lastOrNull() ?: return null
+    val os = System.getProperty("os.name").lowercase()
+    val host = when {
+        os.contains("win") -> "windows-x86_64"
+        os.contains("mac") -> "darwin-x86_64"
+        else -> "linux-x86_64"
+    }
+    return File(ndk, "toolchains/llvm/prebuilt/$host/bin").takeIf { it.isDirectory }
+}
+
+val buildGregalBackend by tasks.registering {
+    description = "Cross-compiles the Gregal Go backend for each Android ABI into jniLibs."
+    onlyIf { !project.hasProperty("gregal.skipBackend") }
+    inputs.files(fileTree(repoRoot) {
+        include("*.go", "go.mod", "go.sum", "internal/**", "harness/**")
+        exclude("**/*_test.go", "**/testdata/**")
+    })
+    outputs.dir(backendOut)
+    doLast {
+        val win = System.getProperty("os.name").lowercase().contains("win")
+        val ndkBin = ndkHostBin()
+        if (ndkBin == null) logger.warn("gregal: no Android NDK found, building the backend without cgo (fallback DNS resolver)")
+        for ((abi, target) in backendAbis) {
+            val (goArch, triple) = target
+            val out = backendOut.get().dir(abi).file("libgregal.so").asFile
+            out.parentFile.mkdirs()
+            val cc = ndkBin?.let { File(it, "${triple}26-clang" + if (win) ".cmd" else "") }
+            val pb = ProcessBuilder(
+                "go", "build", "-trimpath", "-buildvcs=false", "-ldflags", "-s -w",
+                "-o", out.absolutePath, ".",
+            ).directory(repoRoot).redirectErrorStream(true)
+            val env = pb.environment()
+            env["GOOS"] = "android"
+            env["GOARCH"] = goArch
+            if (cc != null && cc.exists()) {
+                env["CGO_ENABLED"] = "1"
+                env["CC"] = cc.absolutePath
+            } else {
+                env["CGO_ENABLED"] = "0"
+            }
+            val proc = pb.start()
+            val log = proc.inputStream.bufferedReader().readText()
+            if (proc.waitFor() != 0) throw GradleException("go build for $abi failed:\n$log")
+            logger.lifecycle("gregal: backend $abi -> ${out.length() / 1024 / 1024} MB")
+        }
+    }
+}
+
+tasks.matching { it.name.matches(Regex("merge.*JniLibFolders")) }.configureEach {
+    dependsOn(buildGregalBackend)
 }
 
 dependencies {

@@ -17,7 +17,7 @@ func InitConfig(path string, force bool) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return "", err
 	}
-	if err := os.WriteFile(path, []byte(defaultYAML), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(defaultTemplate()), 0o600); err != nil {
 		return "", err
 	}
 	return path, nil

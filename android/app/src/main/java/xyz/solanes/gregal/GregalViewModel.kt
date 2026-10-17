@@ -22,7 +22,12 @@ import java.util.UUID
 /** Pantalles de l'app. */
 enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro }
 
-data class Conn(val host: String, val port: String, val token: String, val user: String = "") {
+/**
+ * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
+ * backend Go dins l'APK): el port i el token els posa LocalServer.
+ */
+data class Conn(val host: String, val port: String, val token: String, val user: String = "",
+                val local: Boolean = false) {
     fun api() = GregalApi(baseUrlOf(host, port), token)
 }
 
@@ -318,6 +323,90 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _screen.value = Screen.Pairing
     }
 
+    // --- On corre Gregal: aquest dispositiu o un servidor remot ---
+
+    /** Estat del backend local (per a la pantalla de connexió). */
+    val localState: StateFlow<LocalState> = LocalServer.state
+
+    fun localAvailable(): Boolean = LocalServer.available(appContext)
+
+    /**
+     * Canviar de servidor és canviar de món: converses, cursor d'events i
+     * estat són de l'altre. Res del que es veia ha de passar a l'altre.
+     */
+    private fun resetServerState() {
+        _msgs.value = emptyList()
+        _state.value = ServerState()
+        _sessions.value = emptyList()
+        _active.value = null
+        _approve.value = null
+        _question.value = null
+        _goals.value = emptyList()
+        _jobs.value = emptyList()
+        _runs.value = emptyList()
+        _models.value = emptyMap()
+        _retro.value = null
+        eventCursor = 0L
+        activeRunId = null
+    }
+
+    /** Fes servir Gregal en aquest dispositiu (el mode per defecte). */
+    fun useThisDevice(retries: Int = 3) {
+        if (!_conn.value.local) resetServerState()
+        prefsStore?.target = Prefs.TARGET_LOCAL
+        setConn(Conn("127.0.0.1", "", "", local = true))
+        LocalServer.resetCrashes()
+        connect(retries) { go(Screen.Chat) }
+    }
+
+    /** Fes servir un servidor remot; el local s'atura per no gastar bateria. */
+    private fun useRemote(c: Conn) {
+        if (_conn.value.local || _conn.value.host != c.host || _conn.value.port != c.port) resetServerState()
+        prefsStore?.target = Prefs.TARGET_REMOTE
+        setConn(c)
+        viewModelScope.launch { try { LocalServer.stop() } catch (_: Exception) {} }
+    }
+
+    /** Connecta amb el token (servidor sense comptes d'usuari). */
+    fun connectRemote(host: String, port: String, token: String) {
+        val user = prefsStore?.usuari.orEmpty()
+        prefsStore?.save(host, port, token, user)
+        useRemote(Conn(host, port, token, user))
+        connect { go(Screen.Chat) }
+    }
+
+    /** Reprèn la connexió desada en obrir l'app. */
+    fun startSaved(p: Prefs) {
+        when {
+            p.target == Prefs.TARGET_LOCAL && localAvailable() -> useThisDevice(retries = 3)
+            p.host.isNotBlank() -> {
+                setConn(Conn(p.host, p.port, p.token, p.usuari))
+                connect(retries = 8) { go(Screen.Chat) }
+            }
+        }
+    }
+
+    /** Torna a la pantalla de connexió per triar un altre servidor. */
+    fun switchServer() = disconnect()
+
+    /** Engega (o reaprofita) el backend local i hi apunta la connexió. */
+    private suspend fun ensureLocal() {
+        val r = LocalServer.ensure(appContext, _idioma.value)
+        val c = _conn.value
+        if (c.port != r.port.toString() || c.token != r.token) {
+            _conn.value = c.copy(host = "127.0.0.1", port = r.port.toString(), token = r.token)
+        }
+    }
+
+    /** Primer cop en local sense cap clau: digues on posar-la. */
+    private fun hintMissingKey() {
+        if (!_conn.value.local) return
+        viewModelScope.launch {
+            val providers = try { withContext(Dispatchers.IO) { _conn.value.api().getProviders() } } catch (_: Exception) { return@launch }
+            if (providers.isNotEmpty() && providers.none { it.hasKey() }) notify(appText("app.local.needKey"))
+        }
+    }
+
     fun setConn(c: Conn) { _conn.value = c }
 
     /**
@@ -341,7 +430,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _usuari.value = usuari.trim()
                 prefsStore?.save(host, port, tok, usuari)
-                setConn(Conn(host, port, tok, usuari.trim()))
+                useRemote(Conn(host, port, tok, usuari.trim()))
                 connect { go(Screen.Chat) }
             } catch (e: Exception) {
                 val m = e.message ?: ""
@@ -413,11 +502,20 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             var left = retries
             while (true) {
                 try {
+                    if (_conn.value.local) ensureLocal()
                     connectOnce()
                     onOk()
+                    hintMissingKey()
+                    restoreLocalSession()
                     return@launch
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: LocalServerException) {
+                    // El backend del dispositiu no arrenca: ho diu la pantalla
+                    // de connexió amb el log; reintentar no ho arreglarà sol.
+                    _connected.value = false
+                    notify(appText("app.local.failed", e.message.orEmpty()))
+                    return@launch
                 } catch (e: Exception) {
                     val offline = (e.message ?: "").let { it.contains("failed to connect", true) || it.contains("timed out", true) || it.contains("refused", true) }
                     if (left-- > 0 && offline) {
@@ -681,6 +779,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             endTurn(failed)
+            rememberLocalSession()
             GregalNotifications.workFinished(appContext, answered, t, lastAssistantText())
             _sending.value = false
             _turnStart.value = 0L
@@ -1021,10 +1120,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             "approve_request" -> {
                 _approve.value = ApproveReq(f("key"), f("call_id"), f("name"), o.opt("args")?.toString().orEmpty())
                 setActivity("approve", appText("app.work.waitApprove"))
+                GregalNotifications.needsYou(appContext)
             }
             "question_request" -> {
                 _question.value = QuestionReq(f("key"), f("call_id"), f("query"), parseQuestionOptions(o.optJSONArray("options")))
                 setActivity("question", appText("app.work.waitAnswer"))
+                GregalNotifications.needsYou(appContext)
             }
             "question_timeout" -> { _question.value = null; step(StepKind.Warn, appText("app.chat.questionTimeout")) }
             "approve_timeout" -> { _approve.value = null; step(StepKind.Warn, appText("app.chat.approvalTimeoutDenied")) }
@@ -1105,8 +1206,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * Segueix un torn pel registre durable fins que acaba. Serveix per als
      * torns nous i per enganxar-se a un que ja corria en obrir l'app.
      */
-    private suspend fun followRun(api: GregalApi, runId: Long): Boolean {
+    private suspend fun followRun(api0: GregalApi, runId: Long): Boolean {
+        var api = api0
         val run = RunV2(id = runId)
+        var missing = 0
         activeRunId = run.id
         updateWork { it.copy(runId = runId) }
         var final = ""
@@ -1123,6 +1226,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (++errors > 30) throw e
                     setActivity("net", appText("app.work.reconnecting"))
                     delay(minOf(5000L, 400L * errors))
+                    // En local, si el backend ha caigut es torna a engegar
+                    // (potser en un altre port): segueix pel nou.
+                    if (_conn.value.local && errors % 3 == 0) {
+                        try { ensureLocal(); api = _conn.value.api() } catch (_: Exception) {}
+                    }
                     continue
                 }
                 if (page.next > eventCursor) eventCursor = page.next
@@ -1140,8 +1248,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (page.events.isEmpty() && now - lastCheck > 4000) {
                     lastCheck = now
                     val cur = try {
-                        withContext(Dispatchers.IO) { api.getRun(run.id) }
-                    } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                        withContext(Dispatchers.IO) { api.getRun(run.id) }.also { missing = 0 }
+                    } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                        // Un servidor reiniciat ja no coneix el torn i, si és
+                        // antic, tampoc el tanca al registre: sense això
+                        // s'esperava el final per sempre.
+                        if ((e.message ?: "").contains("HTTP 404") && ++missing >= 2) {
+                            final = "failed"
+                            runError = appText("app.chat.runLost")
+                        }
+                        null
+                    }
+                    if (final.isNotEmpty()) break
                     if (cur != null && cur.state in setOf("completed", "failed", "cancelled")) {
                         // Buida el que s'hagi escrit just abans de tancar.
                         val tail = withContext(Dispatchers.IO) { api.getEvents(eventCursor, 200, sessioApp) }
@@ -1274,7 +1392,38 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * En local, recorda en quina conversa érem. Si el sistema mata l'app,
+     * el backend mor amb ella (línia de vida) i el nou arrenca amb una
+     * conversa buida: sense això, reobrir l'app semblava haver-ho perdut tot.
+     */
+    private fun rememberLocalSession() {
+        if (!_conn.value.local) return
+        viewModelScope.launch {
+            val cur = try {
+                withContext(Dispatchers.IO) { _conn.value.api().getSessions() }.firstOrNull { it.current }
+            } catch (_: Exception) { null } ?: return@launch
+            prefsStore.localSession = cur.name
+        }
+    }
+
+    /** Després d'un reinici del backend local, torna a la conversa d'abans. */
+    private fun restoreLocalSession() {
+        if (!_conn.value.local || _msgs.value.isNotEmpty() || _sending.value) return
+        val name = prefsStore.localSession
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            val known = try {
+                withContext(Dispatchers.IO) { _conn.value.api().getSessions() }
+            } catch (_: Exception) { return@launch }
+            if (known.any { it.current && it.name == name }) return@launch
+            if (known.none { it.name == name }) { prefsStore.localSession = ""; return@launch }
+            resumeSession(name)
+        }
+    }
+
     fun resumeSession(name: String) {
+        if (_conn.value.local) prefsStore.localSession = name
         viewModelScope.launch {
             try {
                 val o = withContext(Dispatchers.IO) {
@@ -1305,6 +1454,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { _conn.value.api().post("/api/new", JSONObject()) }
+                if (_conn.value.local) prefsStore.localSession = ""
                 _msgs.value = emptyList()
                 refresh()
                 go(Screen.Chat)

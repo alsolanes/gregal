@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- **Gregal works on the phone without a computer.** The Android app (0.10.0)
+  now carries the same Go backend as the desktop app and runs it on the
+  device by default ("This device"): your conversations, workspace and keys
+  stay on the phone, and turns, retries and partial answers behave as on
+  desktop. Connecting to `gregal --serve` on another computer is still
+  there behind "Switch server", and each server keeps its own
+  conversations. On the phone, tools that need a computer (`bash`,
+  `browser`, `git_commit`, `gh_pr_create`) are denied by default. See
+  `docs/mobile.md`.
+- The app no longer hangs or loses work when Android kills it. The backend
+  stops with the app instead of being left running, starts again when you
+  reopen it, and the app goes back to the conversation you were in. If a
+  turn was cut off, the app says so instead of waiting forever.
+- When the agent needs your approval or an answer while the app is in the
+  background, a notification tells you.
+- `gregal --serve --lifeline` exits cleanly when stdin closes, for apps that
+  run the server as a child process. `SIGTERM` now cancels running turns
+  and releases the lock before exiting.
+- When the server starts, turns that a previous process left half done are
+  marked as failed, so clients that follow them stop waiting.
+- The server starts again after a crash even if its old PID now belongs to
+  another program. A stale `service.lock` used to block it until it was
+  deleted by hand.
+- The event log can be read again after an event over 64 KiB. Before, one
+  such event broke every later read.
+- `/api/sessions` marks as `current` the conversation of the session that
+  asks, not the desktop's main tab.
+- `GREGAL_PERSIST_KEYS=1` saves API keys typed in the web UI or the app to
+  the key store (`auth.yaml`), as the TUI already did, instead of keeping
+  them in memory only.
+
 ## v1.10.2 - 2026-10-17 - Empty replies are retried and the recap works again
 
 - An empty reply from the model (a stream the provider closes with nothing,

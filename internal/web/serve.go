@@ -1094,6 +1094,27 @@ func (s *Server) appendRunEvent(run runs.Run, kind, text string) {
 	})
 }
 
+// CloseOrphanRuns tanca al registre els torns que un procés anterior va
+// deixar a mitges (el van matar abans d'acabar). La cua és en memòria i no
+// els reprendrà mai: sense un run_failed, el client que els seguia (el
+// mòbil, la web en reconnectar) esperava el final per sempre. Només l'ha de
+// cridar qui té el lock del servei, perquè no hi ha cap altre procés viu
+// que pugui estar executant-los.
+func (s *Server) CloseOrphanRuns() int {
+	h := s.Hub()
+	if h.eventStore == nil {
+		return 0
+	}
+	orphans := h.eventStore.Unfinished()
+	for _, e := range orphans {
+		_ = h.appendEvent(events.Event{
+			SessionID: e.SessionID, User: e.User, RunID: e.RunID, Kind: "run_failed",
+			Text: "torn fallit: interrupted, the server restarted before it finished",
+		})
+	}
+	return len(orphans)
+}
+
 // watchRun tanca el cicle de vida al registre: quan la cua acaba el torn hi
 // deixa el resultat. Un torn que mai no arriba a executar-se (cancel·lat en
 // cua) també queda tancat: el watcher no depèn de l'executor.
@@ -2012,6 +2033,20 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 			}
 			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
 		}
+		if persistKeys() {
+			// Com al TUI: el secret va al magatzem de claus (auth.yaml,
+			// 0600), mai al config.yaml. L'app d'Android ho demana perquè
+			// el seu servidor local es reinicia sovint i no té variables
+			// d'entorn on deixar ${VAR}.
+			s.cfg.SetRawKey(name, "")
+			if err := config.SaveKey(name, raw); err != nil {
+				return "", err
+			}
+			if err := save(); err != nil {
+				return "", err
+			}
+			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
+		}
 		if err := save(); err != nil {
 			return "", err
 		}
@@ -2025,6 +2060,14 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 	default:
 		return "", errors.New(s.tr("acció desconeguda", "unknown action"))
 	}
+}
+
+// persistKeys diu si les claus escrites per l'API es desen al magatzem de
+// claus (GREGAL_PERSIST_KEYS=1). Per defecte no: un servidor compartit no
+// ha de deixar a disc el secret que algú hi ha enganxat de passada.
+func persistKeys() bool {
+	v := strings.TrimSpace(os.Getenv("GREGAL_PERSIST_KEYS"))
+	return v == "1" || strings.EqualFold(v, "true")
 }
 
 // fetchModelIDs retorna els IDs de GET <base>/models.
@@ -3287,6 +3330,23 @@ func modelSelectionAvailable(selection string, models map[string][]string) bool 
 // (DELETE ?name=). El títol i la marca de temps en RFC3339 són el que la
 // UI necessita per fer la llista de l'esquerra estil ChatGPT: agrupada per
 // data i amb un nom que digui de què anava.
+// callerSession és la sessió viva de la petició, sense crear-ne cap; si no
+// n'hi ha, la mateixa s.
+func (s *Server) callerSession(r *http.Request) *Server {
+	h := s.hub
+	if h == nil {
+		return s
+	}
+	key := h.keyFor(userFrom(r), sessionID(r))
+	h.mu.RLock()
+	other := h.sess[key]
+	h.mu.RUnlock()
+	if other == nil {
+		return s
+	}
+	return other
+}
+
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodDelete {
 		name := r.URL.Query().Get("name")
@@ -3311,9 +3371,13 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	s.mu.Lock()
-	current := s.convoFile
-	s.mu.Unlock()
+	// La ruta és global (la serveix la sessió default), però «current» és
+	// la conversa de qui pregunta: el mòbil, amb la seva pròpia sessió,
+	// veia marcada la de la pestanya principal de l'escriptori.
+	caller := s.callerSession(r)
+	caller.mu.Lock()
+	current := caller.convoFile
+	caller.mu.Unlock()
 	type row struct {
 		Name      string `json:"name"`
 		Title     string `json:"title"`

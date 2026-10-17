@@ -36,6 +36,10 @@ that builds assets lives in `.github/workflows/release.yml`.
    node scripts/release.cjs apk 1.9.1
    ```
 
+   The APK includes the Go backend for the "This device" mode, so this
+   machine needs Go and, preferably, an Android NDK in the SDK (with an
+   NDK the backend uses the system DNS resolver). See `docs/mobile.md`.
+
 5. **Review the draft on GitHub and publish it.** The desktop app's
    automatic updates only see published releases.
 

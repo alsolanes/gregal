@@ -834,7 +834,7 @@ func Load(path string) (*Config, string, error) {
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return nil, path, err
 		}
-		if err := os.WriteFile(path, []byte(defaultYAML), 0o600); err != nil {
+		if err := os.WriteFile(path, []byte(defaultTemplate()), 0o600); err != nil {
 			return nil, path, err
 		}
 	}

@@ -153,6 +153,11 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     // servidor sense comptes (us local) nomes enten aquest cami.
     var ambToken by remember { mutableStateOf(prefs.token.isNotBlank()) }
     val notice by vm.notice.collectAsState()
+    val local by vm.localState.collectAsState()
+    val localOk = remember { vm.localAvailable() }
+    // El remot és l'opció: plegat si l'app pot treballar sola, obert si
+    // l'havies triat abans o si aquesta build no porta el backend.
+    var remot by remember { mutableStateOf(!localOk || prefs.target == Prefs.TARGET_REMOTE) }
     GregalBg {
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 28.dp, vertical = 36.dp),
@@ -164,40 +169,82 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             Text("Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
             Text(tr(lang, "app.pair.subtitle"), color = Muted, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(28.dp))
-            val field = RoundedCornerShape(14.dp)
-            OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
-                leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
-                leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
-                leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true)
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
-                leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
-                modifier = Modifier.fillMaxWidth(), singleLine = true,
-                visualTransformation = PasswordVisualTransformation())
-            Spacer(Modifier.height(18.dp))
-            Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth().height(52.dp)) { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
-            TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
-                Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
-                    color = Muted, fontSize = 13.sp)
+            if (localOk) {
+                // Aquest dispositiu: el mateix backend que l'escriptori, dins l'app.
+                GlassCard(Modifier.fillMaxWidth(), hi = !remot) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(tr(lang, "app.server.thisDevice"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(4.dp))
+                        Text(tr(lang, "app.server.thisDeviceHelp"), color = Muted, fontSize = 13.sp)
+                        Spacer(Modifier.height(12.dp))
+                        val starting = local is LocalState.Starting
+                        Button(onClick = { vm.useThisDevice() }, enabled = !starting, shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp)) {
+                            Text(tr(lang, if (starting) "app.server.starting" else "app.server.useThisDevice"), fontSize = 16.sp)
+                        }
+                        if (starting) {
+                            Spacer(Modifier.height(8.dp))
+                            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea, trackColor = Line)
+                        }
+                        val failed = local as? LocalState.Failed
+                        if (failed != null) {
+                            Spacer(Modifier.height(10.dp))
+                            Text(tr(lang, "app.local.failed", failed.message), color = Sand, fontSize = 13.sp)
+                            if (failed.log.isNotBlank()) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(failed.log.takeLast(1200), color = Muted, fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                TextButton(onClick = { remot = !remot }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr(lang, if (remot) "app.server.hideRemote" else "app.server.showRemote"),
+                        color = Muted, fontSize = 13.sp)
+                }
             }
-            if (ambToken) {
-                OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.token")) },
+            if (remot) {
+                Text(tr(lang, "app.server.remoteHelp"), color = Muted, fontSize = 13.sp)
+                Spacer(Modifier.height(10.dp))
+                val field = RoundedCornerShape(14.dp)
+                OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
+                    leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
                     modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = {
-                    prefs.save(host, port, token, prefs.usuari)
-                    vm.setConn(Conn(host, port, token, prefs.usuari))
-                    vm.connect { vm.go(Screen.Chat) }
-                }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.connect")) }
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
+                    leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
+                    leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
+                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    visualTransformation = PasswordVisualTransformation())
+                Spacer(Modifier.height(18.dp))
+                val login: @Composable () -> Unit = { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
+                if (localOk) {
+                    OutlinedButton(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                } else {
+                    Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                }
+                TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
+                        color = Muted, fontSize = 13.sp)
+                }
+                if (ambToken) {
+                    OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.token")) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { vm.connectRemote(host, port, token) },
+                        modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.connect")) }
+                }
             }
             val ctx = LocalContext.current
             val ver = remember {
@@ -214,10 +261,9 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             if (notice.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 ConnectionNotice(notice, lang, onRetry = {
-                    // Reintentar no ha d'esborrar l'usuari desat.
-                    prefs.save(host, port, token, prefs.usuari)
-                    vm.setConn(Conn(host, port, token, prefs.usuari))
-                    vm.connect { vm.go(Screen.Chat) }
+                    // Reintenta allò que s'havia triat: el dispositiu o el remot.
+                    if (prefs.target == Prefs.TARGET_LOCAL && localOk) vm.useThisDevice()
+                    else vm.connectRemote(host, port, token)
                 })
             }
         }

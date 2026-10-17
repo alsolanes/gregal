@@ -104,6 +104,32 @@ class Prefs(val ctx: Context) {
     var appSession: String
         get() = p.getString("appSession", "mobil") ?: "mobil"
         set(v) { p.edit().putString("appSession", v).apply() }
+
+    /**
+     * On corre Gregal: TARGET_LOCAL (el backend dins l'app) o TARGET_REMOTE
+     * (un servidor en un altre ordinador). Sense valor desat: qui ja tenia
+     * un servidor configurat (versions anteriors) continua amb el remot; una
+     * instal·lació nova comença en local.
+     */
+    var target: String
+        get() = p.getString("target", null) ?: if (host.isNotBlank()) TARGET_REMOTE else TARGET_LOCAL
+        set(v) { p.edit().putString("target", v).apply() }
+    /** Port i token del servidor local: es reutilitzen entre arrencades. */
+    var localPort: Int
+        get() = p.getInt("localPort", 0)
+        set(v) { p.edit().putInt("localPort", v).apply() }
+    var localToken: String
+        get() = p.getString("localToken", "") ?: ""
+        set(v) { p.edit().putString("localToken", v).apply() }
+    /** Conversa on era l'app en local, per reprendre-la si el backend es reinicia. */
+    var localSession: String
+        get() = p.getString("localSession", "") ?: ""
+        set(v) { p.edit().putString("localSession", v).apply() }
+
+    companion object {
+        const val TARGET_LOCAL = "local"
+        const val TARGET_REMOTE = "remote"
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -132,10 +158,9 @@ class MainActivity : ComponentActivity() {
         if (!vm.startupDone) {
             vm.startupDone = true
             vm.attachPrefs(prefs)
-            if (prefs.host.isNotBlank()) {
-                vm.setConn(Conn(prefs.host, prefs.port, prefs.token, prefs.usuari))
-                vm.connect(retries = 8) { vm.go(Screen.Chat) }
-            }
+            // Per defecte, Gregal en aquest dispositiu; si havies triat un
+            // servidor remot, aquell.
+            vm.startSaved(prefs)
             // Comprovació silenciosa d'actualitzacions a l'arrencada: si n'hi ha
             // i no l'has silenciada, surt la targeta; si no, no diu res.
             vm.checkUpdate(silent = true)
@@ -199,7 +224,8 @@ class MainActivity : ComponentActivity() {
                                     // El projecte viu aquí des que el títol de
                                     // dalt és només el model (estil ChatGPT).
                                     ProjectPill(st.project.ifEmpty { tr(lang, "app.nav.project") }, st.branch)
-                                    Text("${conn.host}:${conn.port}", fontSize = 12.sp, color = Faint,
+                                    Text(if (conn.local) tr(lang, "app.server.thisDevice") else "${conn.host}:${conn.port}",
+                                        fontSize = 12.sp, color = Faint,
                                         modifier = Modifier.padding(start = 4.dp, top = 6.dp))
                                     Spacer(Modifier.height(14.dp))
                                     // Conversa nova com a acció principal (no com un
@@ -291,10 +317,10 @@ class MainActivity : ComponentActivity() {
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
-                                        label = { Text(tr(lang, "btn.disconnect"), color = Muted) },
+                                        label = { Text(tr(lang, "app.server.switch"), color = Muted) },
                                         icon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = Muted) },
                                         selected = false,
-                                        onClick = { scope.launch { drawer.close() }; vm.disconnect() },
+                                        onClick = { scope.launch { drawer.close() }; vm.switchServer() },
                                     )
                                 }
                             }
