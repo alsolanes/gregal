@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.12.0 - 2026-10-18 - Goal loop, MCP import, permission globs
+
 - **The model picks `lsp` on its own.** When a language server is available,
   the mode rules now say when to prefer `lsp` over grep (uses of one symbol,
   definition, type, rename across files), and the read-only explorer
