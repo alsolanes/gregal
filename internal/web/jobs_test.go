@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,5 +131,111 @@ func TestJobRunPassaPerCuaBackgroundIWorkspace(t *testing.T) {
 	case <-q.Done(other.ID):
 	case <-time.After(2 * time.Second):
 		t.Fatal("el torn que esperava el workspace no ha acabat")
+	}
+}
+
+// TestHandleJobsNextDueAt: l'app Android programa l'alarma amb next_due_at,
+// així que ha de ser una hora absoluta (RFC 3339) i només per als jobs que
+// en tenen (manuals i pausats, cap).
+func TestHandleJobsNextDueAt(t *testing.T) {
+	s := goalTestServer(t)
+	var err error
+	s.jobs, err = jobs.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range []jobs.Job{
+		{ID: "a", Name: "Notícies", Prompt: "p", Kind: "daily", Time: "08:00", Enabled: true},
+		{ID: "b", Name: "Manual", Prompt: "p", Kind: "manual", Enabled: true},
+		{ID: "c", Name: "Pausat", Prompt: "p", Kind: "daily", Time: "08:00"},
+	} {
+		if _, err := s.jobs.Save(j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := httptest.NewRecorder()
+	s.handleJobs(rec, httptest.NewRequest(http.MethodGet, "/api/jobs", nil))
+	var out struct {
+		Jobs []struct {
+			ID        string `json:"id"`
+			NextDueAt string `json:"next_due_at"`
+		} `json:"jobs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, j := range out.Jobs {
+		got[j.ID] = j.NextDueAt
+	}
+	at, err := time.Parse(time.RFC3339, got["a"])
+	if err != nil {
+		t.Fatalf("next_due_at del diari: %q (%v)", got["a"], err)
+	}
+	if at.Hour() != 8 || at.Minute() != 0 || time.Since(at) > 25*time.Hour {
+		t.Fatalf("franja inesperada: %v", at)
+	}
+	if got["b"] != "" || got["c"] != "" {
+		t.Fatalf("manual i pausat sense hora: %q %q", got["b"], got["c"])
+	}
+}
+
+// TestJobRunScheduled: la franja que dispara l'alarma d'Android no rebota
+// amb un torn interactiu en marxa (s'encua darrere, com al jobLoop), però
+// un job pausat es refusa de seguida perquè ningú n'esperi el resultat.
+func TestJobRunScheduled(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	var err error
+	s.jobs, err = jobs.New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range []jobs.Job{
+		{ID: "on", Name: "Actiu", Prompt: "p", Kind: "daily", Time: "08:00", Enabled: true},
+		{ID: "off", Name: "Pausat", Prompt: "p", Kind: "daily", Time: "08:00"},
+	} {
+		if _, err := s.jobs.Save(j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.mu.Lock()
+	s.agentBusy = true
+	s.mu.Unlock()
+	if rec := postJSON(t, s.handleJobRun, `{"id":"on"}`); rec.Code != 409 {
+		t.Fatalf("manual amb l'agent ocupat: %d", rec.Code)
+	}
+	if rec := postJSON(t, s.handleJobRun, `{"id":"off","scheduled":true}`); rec.Code != 409 {
+		t.Fatalf("programat i pausat: %d", rec.Code)
+	}
+	if rec := postJSON(t, s.handleJobRun, `{"id":"on","scheduled":true}`); rec.Code != 200 {
+		t.Fatalf("programat amb l'agent ocupat: %d %s", rec.Code, rec.Body.String())
+	}
+	// Sense proveïdor acaba en error, però acaba: queda l'execució.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if list, _ := s.jobs.Runs("on", 1); len(list) == 1 {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("la franja programada no ha deixat cap execució")
+}
+
+func TestExternalJobScheduler(t *testing.T) {
+	t.Setenv("GREGAL_JOBS_SCHEDULER", "external")
+	if !ExternalJobScheduler() {
+		t.Fatal("GREGAL_JOBS_SCHEDULER=external hauria d'aturar el jobLoop")
+	}
+	done := make(chan struct{})
+	go func() { (&Server{}).jobLoop(context.Background()); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("el jobLoop no surt amb el programador extern")
+	}
+	t.Setenv("GREGAL_JOBS_SCHEDULER", "")
+	if ExternalJobScheduler() {
+		t.Fatal("per defecte el programa el mateix backend")
 	}
 }

@@ -365,13 +365,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         prefsStore?.target = Prefs.TARGET_LOCAL
         setConn(Conn("127.0.0.1", "", "", local = true))
         LocalServer.resetCrashes()
-        connect(retries) { go(Screen.Chat) }
+        connect(retries) { go(landing()) }
     }
 
     /** Fes servir un servidor remot; el local s'atura per no gastar bateria. */
     private fun useRemote(c: Conn) {
         if (_conn.value.local || _conn.value.host != c.host || _conn.value.port != c.port) resetServerState()
         prefsStore?.target = Prefs.TARGET_REMOTE
+        // Al servidor remot els jobs els programa ell: res a despertar aquí.
+        JobAlarms.clear(appContext)
         setConn(c)
         viewModelScope.launch { try { LocalServer.stop() } catch (_: Exception) {} }
     }
@@ -390,7 +392,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             p.target == Prefs.TARGET_LOCAL && localAvailable() -> useThisDevice(retries = 3)
             p.host.isNotBlank() -> {
                 setConn(Conn(p.host, p.port, p.token, p.usuari))
-                connect(retries = 8) { go(Screen.Chat) }
+                connect(retries = 8) { go(landing()) }
             }
         }
     }
@@ -564,6 +566,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (_conn.value.local) ensureLocal()
                     connectOnce()
                     onOk()
+                    syncJobAlarms()
                     hintMissingKey()
                     restoreLocalSession()
                     return@launch
@@ -1483,11 +1486,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (_: Exception) { return@launch }
             if (known.any { it.current && it.name == name }) return@launch
             if (known.none { it.name == name }) { prefsStore.localSession = ""; return@launch }
-            resumeSession(name)
+            // La pantalla ja l'ha triada la connexió (pot ser l'execució
+            // d'una notificació de job): només es recupera la conversa.
+            resumeSession(name, navigate = false)
         }
     }
 
-    fun resumeSession(name: String) {
+    fun resumeSession(name: String, navigate: Boolean = true) {
         if (_conn.value.local) prefsStore.localSession = name
         viewModelScope.launch {
             try {
@@ -1510,7 +1515,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     notify(appText("app.status.sessionHidden", serverMsgs))
                 }
                 refresh()
-                go(Screen.Chat)
+                if (navigate) go(Screen.Chat)
             } catch (e: Exception) { notify(appText("app.status.sessionResume", e.message.orEmpty())) }
         }
     }
@@ -1861,9 +1866,38 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _jobs.value = loadingOf("jobs") { withContext(Dispatchers.IO) { _conn.value.api().getJobs() } }
+                if (_conn.value.local) JobAlarms.sync(appContext, _jobs.value)
             } catch (e: Exception) { notify(appText("app.status.jobs", e.message.orEmpty())) }
         }
     }
+
+    /**
+     * En local, l'alarma del sistema és qui dispara els jobs: cada cop que
+     * l'app es connecta posa al dia la programació (i, si se n'ha perdut
+     * alguna franja, l'alarma sona de seguida).
+     */
+    private suspend fun syncJobAlarms() {
+        if (!_conn.value.local) return
+        try {
+            val list = withContext(Dispatchers.IO) { _conn.value.api().getJobs() }
+            JobAlarms.sync(appContext, list)
+        } catch (_: Exception) {
+        }
+    }
+
+    // Execució a obrir (s'ha tocat la notificació d'un job).
+    private val _openRun = MutableStateFlow<String?>(null)
+    val openRun: StateFlow<String?> = _openRun
+
+    fun openRunFromNotification(id: String) {
+        _openRun.value = id
+        if (_connected.value) go(Screen.Jobs)
+    }
+
+    fun openRunShown() { _openRun.value = null }
+
+    /** Després de connectar: la pantalla de la notificació tocada o el xat. */
+    private fun landing(): Screen = if (_openRun.value != null) Screen.Jobs else Screen.Chat
 
     fun saveJob(j: JobItem) {
         viewModelScope.launch {

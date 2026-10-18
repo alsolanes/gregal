@@ -453,6 +453,7 @@ class GregalApi(val base: String, val token: String) {
                 intervalH = j.optDouble("interval_h"), enabled = j.optBoolean("enabled"),
                 notify = j.optBoolean("notify", true), lastStatus = j.optString("last_status"),
                 nextDue = j.optString("next_due"),
+                lastAt = j.optString("last_at"), nextDueAt = j.optString("next_due_at"),
             )
         }
     }
@@ -472,6 +473,17 @@ class GregalApi(val base: String, val token: String) {
 
     fun runJob(id: String) {
         post("/api/jobs/run", JSONObject().put("id", id))
+    }
+
+    /**
+     * Franja programada (l'alarma d'Android): s'encua darrere d'un torn en
+     * marxa. false si ja n'hi ha un altre en marxa o el job està pausat (409).
+     */
+    fun runScheduledJob(id: String): Boolean {
+        val c = conn("/api/jobs/run", "POST", JSONObject().put("id", id).put("scheduled", true).toString())
+        if (c.responseCode == 409) return false
+        read(c)
+        return true
     }
 
     fun getRuns(jobId: String = "", n: Int = 30): List<RunItem> {

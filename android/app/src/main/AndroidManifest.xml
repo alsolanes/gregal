@@ -7,6 +7,15 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <!-- Actualització dins l'app: baixa l'APK del nostre host i l'instal·la. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Jobs programats amb l'app tancada (JobAlarms.kt): alarma exacta que
+         sona també en Doze, reprogramada en reiniciar, i wake lock mentre el
+         job corre. USE_EXACT_ALARM (13+) ve concedit; a 12 i 12L ho és
+         SCHEDULE_EXACT_ALARM. L'app no es distribueix per Google Play. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:label="Gregal"
@@ -19,6 +28,24 @@
             android:name=".GregalWorkService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".JobRunService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <receiver
+            android:name=".JobAlarmReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".JobBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Dona accés de lectura a l'APK baixat quan s'obre l'instal·lador. -->
         <provider

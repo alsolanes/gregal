@@ -61,6 +61,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
 
 /** Etiqueta humana de la programació (pur, testeable). */
 fun kindLabel(kind: String, time: String, intervalH: Double, lang: String = "ca"): String = when (kind) {
@@ -85,7 +93,15 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     var viewing by remember { mutableStateOf<RunItem?>(null) }
     val loading by vm.loading.collectAsState()
     val carregant = "jobs" in loading || "runs" in loading
+    val conn by vm.conn.collectAsState()
+    val openRun by vm.openRun.collectAsState()
     LaunchedEffect(Unit) { vm.loadJobs(); vm.loadRuns() }
+    // Notificació d'un job tocada: obre aquella execució quan arribi la llista.
+    LaunchedEffect(openRun, runs) {
+        val id = openRun ?: return@LaunchedEffect
+        runs.firstOrNull { it.id == id }?.let { viewing = it; vm.openRunShown() }
+    }
+    LaunchedEffect(openRun) { if (openRun != null) vm.loadRuns() }
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
@@ -106,6 +122,12 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 if (jobs.isEmpty() && runs.isEmpty() && carregant) item { LoadingBoard(lang) }
                 else if (jobs.isEmpty() && runs.isEmpty()) item {
                     EmptyBoard(Icons.Rounded.Schedule, tr(lang, "app.jobs.empty"), tr(lang, "app.jobs.emptyHelp"))
+                }
+                if (jobs.isEmpty() && !carregant) item {
+                    TemplatePicker(lang) { editing = it }
+                }
+                if (conn.local && jobs.any { it.enabled && it.kind != "manual" }) item {
+                    BackgroundJobsCard(lang)
                 }
                 if (jobs.isNotEmpty()) item {
                     Text(tr(lang, "app.jobs.scheduled"), color = Muted, fontSize = 13.sp,
@@ -239,6 +261,7 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
     var time by remember { mutableStateOf(base.time.ifEmpty { "08:00" }) }
     var interval by remember { mutableStateOf(if (base.intervalH > 0) trimHours(base.intervalH) else "24") }
     var notify by remember { mutableStateOf(base.notify) }
+    val ctx = LocalContext.current
     val valid = name.isNotBlank() && prompt.isNotBlank() &&
         (kind != "daily" || time.matches(Regex("\\d{1,2}:\\d{2}"))) &&
         (kind != "interval" || interval.toDoubleOrNull()?.let { it > 0 } == true)
@@ -247,6 +270,13 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
         title = { Text(tr(lang, if (base.id.isEmpty()) "app.jobs.newTitle" else "app.jobs.editTitle")) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (base.id.isEmpty()) {
+                    TemplatePicker(lang) { t ->
+                        name = t.name; prompt = t.prompt; kind = t.kind
+                        time = t.time; interval = trimHours(t.intervalH)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
                 OutlinedTextField(name, { name = it }, label = { Text(tr(lang, "app.jobs.name")) },
                     singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
@@ -262,13 +292,22 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
                         OutlinedButton(
                             onClick = { kind = k },
                             modifier = Modifier.weight(1f),
-                        ) { Text(label, color = if (kind == k) Sea else Muted, fontSize = 12.sp) }
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+                        ) { Text(label, color = if (kind == k) Sea else Muted, fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     }
                 }
                 if (kind == "daily") {
                     Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(time, { time = it }, label = { Text(tr(lang, "app.jobs.time")) },
-                        singleLine = true, modifier = Modifier.fillMaxWidth())
+                    // El rellotge del sistema: res d'escriure «08:00» a mà.
+                    OutlinedButton(onClick = {
+                        val (h, m) = parseHm(time)
+                        android.app.TimePickerDialog(ctx, { _, hh, mm -> time = fmtHm(hh, mm) }, h, m,
+                            android.text.format.DateFormat.is24HourFormat(ctx)).show()
+                    }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("${tr(lang, "app.jobs.time")} · $time", color = Ink)
+                    }
                 }
                 if (kind == "interval") {
                     Spacer(Modifier.height(8.dp))
@@ -296,6 +335,81 @@ fun JobEditor(base: JobItem, onDismiss: () -> Unit, onSave: (JobItem) -> Unit, l
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(tr(lang, "btn.close")) } },
     )
+}
+
+/** «HH:MM» → (hora, minut); il·legible → 08:00 (pur, testejable). */
+fun parseHm(time: String): Pair<Int, Int> {
+    val m = Regex("^(\\d{1,2}):(\\d{2})$").find(time.trim()) ?: return 8 to 0
+    val h = m.groupValues[1].toInt()
+    val min = m.groupValues[2].toInt()
+    return if (h in 0..23 && min in 0..59) h to min else 8 to 0
+}
+
+fun fmtHm(h: Int, m: Int): String = "%02d:%02d".format(h, m)
+
+/** Plantilles de job: un toc i ja hi ha nom, ordre i horari. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun TemplatePicker(lang: String, onPick: (JobItem) -> Unit) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(tr(lang, "app.jobs.templates"), color = Muted, fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            jobTemplates(lang).forEach { t ->
+                SuggestionChip(onClick = { onPick(t) }, label = {
+                    Text("${t.name} · ${kindLabel(t.kind, t.time, t.intervalH, lang)}", fontSize = 12.sp)
+                })
+            }
+        }
+    }
+}
+
+/**
+ * Què cal perquè els jobs corrin amb l'app tancada: alarmes exactes,
+ * notificacions i, només si el fabricant atura l'app igualment, treure-li
+ * les restriccions de bateria. Es torna a mirar en tornar de la configuració.
+ */
+@Composable
+fun BackgroundJobsCard(lang: String) {
+    val ctx = LocalContext.current
+    var health by remember { mutableStateOf(JobAlarms.health(ctx)) }
+    // Observador a mà: LifecycleEventEffect (lifecycle-compose 2.8) busca un
+    // LocalLifecycleOwner que el compose-ui d'aquest BOM no proveeix.
+    val owner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(owner) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) health = JobAlarms.health(ctx) }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    fun open(i: android.content.Intent) {
+        try { ctx.startActivity(i) } catch (_: Exception) {
+            try { ctx.startActivity(JobAlarms.appSettings(ctx)) } catch (_: Exception) {}
+        }
+    }
+    @Composable
+    fun line(text: String, button: String?, onClick: () -> Unit = {}) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = if (button != null) Ink else Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+            if (button != null) TextButton(onClick = onClick) { Text(button, color = Sea) }
+        }
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = PillDark),
+    ) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            if (!health.exactAlarms) line(tr(lang, "app.jobs.bg.exact"), tr(lang, "app.jobs.bg.exactBtn")) {
+                open(JobAlarms.exactAlarmSettings(ctx))
+            }
+            if (!health.notifications) line(tr(lang, "app.jobs.bg.notif"), tr(lang, "app.jobs.bg.notifBtn")) {
+                open(JobAlarms.notificationSettings(ctx))
+            }
+            if (health.exactAlarms && health.notifications) line(tr(lang, "app.jobs.bg.ok"), null)
+            if (!health.unrestrictedBattery) line(tr(lang, "app.jobs.bg.battery"), tr(lang, "app.jobs.bg.batteryBtn")) {
+                open(JobAlarms.batterySettings(ctx))
+            }
+        }
+    }
 }
 
 fun trimHours(h: Double): String =

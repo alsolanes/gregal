@@ -176,6 +176,63 @@ it would need the backend to read the key from the app at start-up.
   retries with backoff for about 2.5 minutes before the turn is shown as
   failed.
 
+### Scheduled jobs with the app closed (Android 0.11.0)
+
+The backend only lives while the app process does, so on the phone the
+system is the scheduler (`JobAlarms.kt`):
+
+- **One alarm.** The app reads `/api/jobs`, keeps each active daily or
+  interval job's `next_due_at` (RFC 3339, new in the API) in its prefs and
+  sets one `setExactAndAllowWhileIdle` alarm for the nearest slot. It syncs
+  whenever the job list loads (so after every save, toggle and delete),
+  each time the app connects in local mode, and after every run. A slot in
+  the past (the phone was off at 8:00) fires a couple of seconds later, as
+  the desktop scheduler does.
+- **The backend does not compete.** `LocalServer` starts it with
+  `GREGAL_JOBS_SCHEDULER=external`, which turns off its 30-second
+  `jobLoop`. Every scheduled run on the phone goes through the alarm, so it
+  is never run twice and always ends in a notification.
+- **Running.** The alarm starts `JobRunService`, a `dataSync` foreground
+  service with a partial wake lock that lives only while jobs run. It
+  starts the backend if needed, asks `/api/jobs` what is due (the backend's
+  own `NextDue`, with its one-minute grace), and fires each due job with
+  `POST /api/jobs/run {"id", "scheduled": true}`. `scheduled` queues behind
+  an interactive turn instead of returning 409, and refuses a paused job
+  straight away. The service waits for the job's `last_at` to change (up to
+  25 minutes), posts the result, re-syncs the alarm and, if it started the
+  backend and the app is not on screen, stops the backend again.
+- **Result.** A notification on its own channel ("Scheduled jobs"): the
+  job's name and the bulletin as plain text. On the lock screen it only
+  says "Gregal: job finished". Tapping it opens the app on Activity with
+  that run open, also from a cold start.
+- **Reboot, update, clock.** `JobBootReceiver` re-registers the alarm from
+  the saved slots on `BOOT_COMPLETED` and `MY_PACKAGE_REPLACED`, without
+  starting the backend (Android 15 does not allow a `dataSync` service from
+  boot). A time or time zone change sets a check a few seconds later that
+  re-reads the schedule from the backend.
+- **Doze and battery.** Exact allow-while-idle alarms fire in Doze, and an
+  alarm lets the app start its foreground service from the background
+  (`ALARM_MANAGER_WHILE_IDLE`); a process with a foreground service keeps
+  network access in Doze. The app declares `USE_EXACT_ALARM` (granted on
+  Android 13+) and `SCHEDULE_EXACT_ALARM` for 12 and 12L. Google Play only
+  allows `USE_EXACT_ALARM` for alarm and calendar apps; Gregal is
+  distributed outside Play. If exact alarms are revoked the app falls back
+  to an inexact alarm, and if Android then refuses the service it posts "A
+  job could not start" and the job runs the next time the app opens.
+- **What the user sees.** Activity shows a card while there are scheduled
+  jobs in local mode: a prompt to allow exact alarms or notifications when
+  either is off, otherwise "Jobs run with the app closed". Below it, a
+  hint to remove battery restrictions only if a run ever doesn't arrive
+  (some phone makers kill apps regardless of Doze), with a button to the
+  system dialog. The card re-checks when you come back from settings.
+- **Creating a job.** Three templates (tech news at 8:00, today's
+  headlines at 7:30, watch a topic every 12 h) on the empty Activity
+  screen and at the top of the editor. The time is picked with the system
+  clock dialog.
+
+In remote mode the app clears its alarm: the server schedules its own
+jobs.
+
 ### Remote mode
 
 Unchanged in protocol. The connection screen leads with "This device" and
@@ -218,14 +275,22 @@ universal APK. CI installs Go in the Android job.
     brings the phone's conversation back;
   - a backend killed with `kill -9` mid-turn comes back: the stale lock
     is recovered and the interrupted turn is marked as failed.
+- Scheduled jobs (Android 0.11.0, same emulator), each one a real tech news
+  summary through web search that ended in a notification:
+  - with the app swiped away from recents: the alarm started the app
+    process and the backend, the job ran, and the backend stopped again;
+  - after `adb reboot`: `JobBootReceiver` re-registered the alarm and the
+    job fired on time;
+  - in Doze forced with `adb shell dumpsys deviceidle force-idle` (screen
+    off, battery unplugged): the job fired and reached the web while the
+    device stayed in deep idle;
+  - tapping the notification with the app closed opens that run.
 
 ## 4. Follow-ups
 
 1. Hide tools whose policy is `deny` from the model's tool list. Today the
    model sometimes tries `bash` once and adapts after the denial.
-2. Run scheduled jobs when the app is closed (WorkManager waking the
-   backend).
-4. Keystore-wrapped `auth.yaml`.
-5. Remote workspaces from the phone: delegate a turn's workspace to a
+2. Keystore-wrapped `auth.yaml`.
+3. Remote workspaces from the phone: delegate a turn's workspace to a
    remote server while the conversation stays on the device.
-6. Several saved remote servers (profiles) instead of one.
+4. Several saved remote servers (profiles) instead of one.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -18,8 +19,19 @@ import (
 // llengua la fixa la directiva d'idioma que tanca la consigna (executeJob).
 const jobSystem = "You are the writer of a bulletin. You work in inspect mode: read-only (web search, reading pages and the project). Do not modify anything or run destructive actions. Produce the answer as well-structured markdown: headline, date, summary, key points with links to the sources and, if relevant, a comparison table. Reply with the bulletin only, no preamble."
 
+// ExternalJobScheduler diu si els jobs programats els dispara algú de fora
+// (GREGAL_JOBS_SCHEDULER=external): l'app Android programa una alarma del
+// sistema i crida /api/jobs/run amb scheduled, perquè el backend només viu
+// mentre l'app és viva. Amb dos programadors el mateix job es disputaria.
+func ExternalJobScheduler() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("GREGAL_JOBS_SCHEDULER")), "external")
+}
+
 // jobLoop revisa cada 30 s si toca executar algun job.
 func (s *Server) jobLoop(ctx context.Context) {
+	if ExternalJobScheduler() {
+		return
+	}
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
 	for {
@@ -217,12 +229,16 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	type jobOut struct {
 		jobs.Job
 		NextDue string `json:"next_due,omitempty"`
+		// NextDueAt és la mateixa franja en RFC 3339, per a qui programa
+		// fora del procés (l'app Android desperta el backend amb una alarma).
+		NextDueAt string `json:"next_due_at,omitempty"`
 	}
 	out := make([]jobOut, 0, len(list))
 	for _, j := range list {
 		o := jobOut{Job: j}
 		if nd := jobs.NextDue(j, now); !nd.IsZero() {
 			o.NextDue = nd.Format("02-01 15:04")
+			o.NextDueAt = nd.Format(time.RFC3339)
 		}
 		out = append(out, o)
 	}
@@ -285,20 +301,43 @@ func (s *Server) handleJobDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleJobRun dispara en segon pla i retorna acceptat: l'app fa polling a runs.
+// Amb scheduled=true és la franja programada que dispara un programador
+// extern: com al jobLoop, s'encua darrere d'un torn interactiu en lloc de
+// tornar 409, i un job pausat no corre.
 func (s *Server) handleJobRun(w http.ResponseWriter, r *http.Request) {
 	if s.jobs == nil {
 		http.Error(w, "jobs desactivats", 500)
 		return
 	}
 	var req struct {
-		ID string `json:"id"`
+		ID        string `json:"id"`
+		Scheduled bool   `json:"scheduled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
 		http.Error(w, "id obligatori", 400)
 		return
 	}
+	if req.Scheduled {
+		// Comprovat ara i no dins la goroutine: si no, qui crida esperaria
+		// una execució que mai arribarà.
+		list, err := s.jobs.List()
+		if err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		enabled := false
+		for _, j := range list {
+			if j.ID == req.ID {
+				enabled = j.Enabled
+			}
+		}
+		if !enabled {
+			http.Error(w, "job inexistent o pausat", 409)
+			return
+		}
+	}
 	s.mu.Lock()
-	busy := s.agentBusy || s.jobRunning
+	busy := s.jobRunning || (s.agentBusy && !req.Scheduled)
 	s.mu.Unlock()
 	if busy {
 		http.Error(w, "agent ocupat: torna-ho a provar", 409)
@@ -306,7 +345,7 @@ func (s *Server) handleJobRun(w http.ResponseWriter, r *http.Request) {
 	}
 	go func() {
 		defer func() { _ = recover() }()
-		_, _ = s.runJob(req.ID, true)
+		_, _ = s.runJob(req.ID, !req.Scheduled)
 	}()
 	writeJSON(w, map[string]bool{"accepted": true})
 }
