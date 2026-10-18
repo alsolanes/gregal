@@ -92,6 +92,8 @@ func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
 		Tools:     make(map[string]string, len(src.Tools)),
 		BashAllow: append([]string(nil), src.BashAllow...),
 		BashDeny:  append([]string(nil), src.BashDeny...),
+		Rules:     src.Rules,
+		Subagents: src.Subagents,
 	}
 	for name, decision := range src.Tools {
 		dst.Tools[name] = decision
@@ -99,12 +101,10 @@ func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
 	return dst
 }
 
-func delegatePolicy(permissions config.PermissionsCfg) *Policy {
-	return &Policy{
-		Tools:     permissions.Tools,
-		BashAllow: permissions.BashAllow,
-		BashDeny:  permissions.BashDeny,
-	}
+// delegatePolicy és la política d'un fill; amb nom de subagent, la d'ell
+// (permissions.subagents.<nom>).
+func delegatePolicy(permissions config.PermissionsCfg, subagent string) *Policy {
+	return subagentPolicy(permissions, subagent)
 }
 
 // MaxDelegateTasks topa els subagents per crida (cada un fa els seus passos:
@@ -238,7 +238,11 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			promptMode = ModeCode
 		}
 		sys := AmbContext(PromptFor(baseSystem, promptMode), ContextProjecte(workspace), extra)
-		pol := delegatePolicy(permissions)
+		subName := ""
+		if def != nil {
+			subName = def.Name
+		}
+		pol := delegatePolicy(permissions, subName)
 		if isolated {
 			pol.ProjectDir = workspace
 		}

@@ -327,3 +327,21 @@ func TestBrowserModeConfig(t *testing.T) {
 		}
 	}
 }
+
+func TestValidatePermissionRules(t *testing.T) {
+	var c Config
+	c.Permissions = PermissionsCfg{Rules: PermRules{"bash": {{Pattern: "git *", Decision: "ask"}}}}
+	if err := c.Permissions.validateRules(); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []PermissionsCfg{
+		{Rules: PermRules{"nope": {{Pattern: "x", Decision: "ask"}}}},
+		{Rules: PermRules{"bash": {{Pattern: "x", Decision: "maybe"}}}},
+		{Rules: PermRules{"bash": {{Pattern: " ", Decision: "ask"}}}},
+		{Subagents: map[string]PermOverride{"a": {Tools: map[string]string{"bash": "x"}}}},
+	} {
+		if bad.validateRules() == nil {
+			t.Errorf("accepted %+v", bad)
+		}
+	}
+}

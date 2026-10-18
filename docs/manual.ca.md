@@ -388,6 +388,46 @@ s'executa amb tots els permisos del teu usuari. Revisa els canvis i les ordres
 proposats. Per executar codi no fiable, fes servir un checkout temporal, un
 contenidor o una màquina virtual.
 
+### Regles de permís: globs i per subagent
+
+`permissions.tools` dóna una decisió per eina (`allow`, `ask`, `deny`). Per
+afinar més, una eina també pot dur **patrons**, en línia o a `permissions.rules`:
+
+```yaml
+permissions:
+  tools:
+    bash:                        # un mapa en lloc d'una decisió = patrons
+      "git *": ask               # tota ordre git pregunta...
+      "git status*": allow       # ...menys aquestes (mana l'última)
+      "rm *": deny
+  rules:
+    edit:
+      "docs/**": allow
+      "*.env": deny
+  subagents:                     # el que canvia per a un subagent amb nom
+    explorer:
+      tools: {bash: deny}
+```
+
+- **Què es compara.** `bash`/`bash_background`: l'ordre, etapa per etapa
+  (`&&`, `||`, `;`, `|`). Eines amb `path` (`write`, `edit`, `read`, `lsp`…):
+  el camí relatiu al projecte, amb `/`; un patró sense `/` també coincideix amb
+  el nom del fitxer. `web_fetch`: l'URL. La resta: només hi coincideix `*`.
+- **Globs.** `*` (i `**`) coincideixen amb qualsevol cosa, també `/`; `?` amb
+  un caràcter. Dins d'una eina mana l'**últim** patró que coincideix, en
+  l'ordre del fitxer, i guanya la decisió simple de l'eina; sense coincidència
+  s'aplica la decisió simple i després la de sempre.
+- **Seguretat del shell.** Cap patró no relaxa un bloqueig dur (`sudo`,
+  `rm -rf /`, camins crítics). Un `allow` només es dóna si totes les etapes
+  tenen un patró `allow` i l'ordre no porta `$(...)`, cometes inverses ni
+  redirecció a fitxer: `"git *": allow` no deixa passar `git log > ~/.bashrc`.
+- **Modes.** Els modes de només lectura (xat, inspect, goal) ignoren els
+  patrons. L'autònom no pregunta mai: un patró `ask` passa, un `deny` denega.
+- **Per subagent.** `permissions.subagents.<nom>` accepta `tools` i `rules`, que
+  s'apliquen damunt dels generals en aquell subagent (els definits per
+  l'usuari i `explorer`): un `tools.<eina>` seu substitueix els patrons generals
+  d'aquella eina, i els seus patrons van darrere i manen.
+
 ### Sandbox de shell (opcional)
 
 La secció `sandbox` confina les eines `bash` i `bash_background` (i les
@@ -538,7 +578,23 @@ posa-la a `deny`; un `ask` del config no hi fa preguntar.
 
 Codis de sortida: `0` correcte, `1` el torn ha fallat (proveïdor, configuració
 o cancel·lació), `2` flags invàlids (es comproven abans de cap crida al model),
-`3` la comanda de `--verify` continua fallant després de l'última ronda.
+`3` la comanda de `--verify` continua fallant després de l'última ronda (o, amb
+`--goal`, l'objectiu no s'ha confirmat).
+
+### Objectius en bucle (`--goal`)
+
+`gregal --goal <id|last|"text">` executa un objectiu fins que un verificador
+independent el confirma amb proves, en lloc de creure's el «fet» de l'agent.
+S'executa en mode autònom si no hi poses `--mode`. A cada ronda: l'agent
+treballa; corren les comprovacions (`--verify` o `agent.autonomous.verify`; si
+en falla una, la sortida guia la ronda següent i no es gasta cap verificador);
+un verificador de només lectura (rol `reviewer`) mira els fitxers de debò, amb
+el diff i la sortida davant, i contesta criteri per criteri amb prova. Només es
+dóna per complert amb `VERDICT: MET` i tots els criteris `MET` amb prova.
+S'atura, amb un resum parcial, per `--goal-rounds` (4, màx. 10), `--max-steps`
+(per ronda; total 300), `--goal-minutes` (60), `--goal-cost` o si dues rondes
+seguides deixen el projecte igual. Les fitxes d'objectiu del terminal i la web
+encara llancen un torn normal.
 
 Els subagents utilitzen el projecte i la sessio actius, hereten les restriccions
 configurades i s'aturen quan es cancella el torn pare. Les ordres de segon pla
@@ -747,6 +803,17 @@ mcp:
   - Terminal: `/mcp connect <nom>` pinta l'URL que cal obrir; un servidor
     temporal a `127.0.0.1` rep el callback. `/mcp disconnect <nom>` n'oblida el
     token.
+- **Importar d'altres eines.** `gregal mcp import` (i `/mcp import` al terminal)
+  llegeix els servidors MCP de Claude Code (`.mcp.json`, `~/.claude.json`),
+  Codex (`~/.codex/config.toml`) i opencode (`opencode.json[c]`), ensenya què
+  s'afegiria i no escriu res fins que ho confirmes (`--from`, `--only`,
+  `--dry-run`, `--yes`; al terminal `/mcp import yes [noms]`). Els desactivats,
+  els noms ja existents amb una altra definició i els repetits es salten i es
+  llisten. Els secrets no surten mai: la vista prèvia els mostra com a `***`.
+  Els valors del fitxer d'origen es copien tal qual a `config.yaml` (0600), però
+  les referències continuen sent referències (`bearer_token_env_var` de Codex
+  passa a `Authorization: Bearer ${VAR}`) i el secret OAuth d'opencode no
+  s'importa.
 - Les **eines** surten com a `mcp_<servidor>_<eina>` i per defecte demanen
   confirmació (`permissions.tools` ho canvia). Un servidor marcat
   `readonly: true` declara que les seves eines només llegeixen: s'executen
@@ -1125,6 +1192,10 @@ Quan hi ha un servidor de llenguatge instal·lat i al `PATH` (`gopls`,
   com `edit` i en els modes de només lectura està denegat. Es refusen els
   canvis fora del workspace o en un fitxer que ha canviat mentre es
   calculava el rename.
+
+Quan hi ha un servidor, les regles del mode també diuen al model quan triar
+`lsp` (els usos d'un símbol concret, la definició o el tipus, un rename entre
+fitxers), i l'explorador de només lectura també la té (el rename s'hi denega).
 
 Els servidors s'engeguen el primer cop que calen, un per llenguatge i
 workspace, i s'aturen amb la tirada. No es baixa res. Els diagnòstics que

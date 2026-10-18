@@ -229,7 +229,7 @@ func TestDelegateReadonlyPolicyOverrides(t *testing.T) {
 	pol := delegatePolicy(config.PermissionsCfg{
 		Tools:     map[string]string{"read": "deny", "write": "allow", "browser": "allow", "bash": "allow"},
 		BashAllow: []string{"rm "},
-	})
+	}, "")
 	for _, tc := range []struct {
 		name string
 		args string

@@ -94,6 +94,10 @@ func AmbContext(prompt string, blocs ...string) string {
 
 // reglesMode és el text específic de cada mode.
 func reglesMode(mode string) string {
+	return reglesBase(mode) + lspRule(mode)
+}
+
+func reglesBase(mode string) string {
 	switch mode {
 	case ModeChat:
 		return chatRules

@@ -170,6 +170,7 @@ func policyFrom(cfg *config.Config, cwd string) *agent.Policy {
 	p.Tools = cfg.Permissions.Tools
 	p.BashAllow = cfg.Permissions.BashAllow
 	p.BashDeny = cfg.Permissions.BashDeny
+	p.Rules = cfg.Permissions.Rules
 	agent.SetPostEditHook(cfg.Hooks.PostEdit)
 	agent.SetDiagMode(cfg.Hooks.Diag)
 	agent.SetLifecycleHooks(cfg.Hooks)

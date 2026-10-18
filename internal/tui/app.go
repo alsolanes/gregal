@@ -500,7 +500,7 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 		// Sense connectar: Init ho fa en segon pla perquè un servidor MCP
 		// lent o penjat no deixi el TUI en blanc fins a 30 s.
 		mcp:         mcp.NewManager(toMCPServers(cfg), mcp.Options{}),
-		policy:      &agent.Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: cwd},
+		policy:      agent.PolicyFromConfig(cfg, cwd),
 		remembers:   agent.NewRemember(),
 		histEntries: session.LoadHistory(), histIdx: -1,
 		mouseOn: cfg.MouseOn(), autoReview: cfg.Permissions.AutoReview()} // el programa arrenca amb WithMouseCellMotion
