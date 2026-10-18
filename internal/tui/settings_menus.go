@@ -345,7 +345,11 @@ func permissionsMenu(m *Model) *menuState {
 				}
 				return systemLine(T("set.permisNoDesat") + err.Error()), refresca(m)
 			}
-			m.policy = &agent.Policy{Tools: m.cfg.Permissions.Tools, BashAllow: m.cfg.Permissions.BashAllow, BashDeny: m.cfg.Permissions.BashDeny}
+			dir := ""
+			if m.policy != nil {
+				dir = m.policy.ProjectDir
+			}
+			m.policy = agent.PolicyFromConfig(m.cfg, dir)
 			agent.SetPostEditHook(m.cfg.Hooks.PostEdit)
 			agent.SetDiagMode(m.cfg.Hooks.Diag)
 			agent.SetLifecycleHooks(m.cfg.Hooks)

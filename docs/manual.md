@@ -374,6 +374,58 @@ approved, or that the classifier considers safe, runs with your user's full
 permissions. Review proposed changes and commands. For untrusted code, use a
 disposable checkout, a container or a virtual machine.
 
+### Permission rules: globs and per subagent
+
+`permissions.tools` gives one decision per tool (`allow`, `ask`, `deny`). For
+finer control a tool can also carry **patterns**, written inline or under
+`permissions.rules`:
+
+```yaml
+permissions:
+  tools:
+    read: allow
+    bash:                        # a map instead of a decision = patterns
+      "git *": ask               # every git command asks...
+      "git status*": allow       # ...except these (the last match wins)
+      "npm test*": allow
+      "rm *": deny
+  rules:                         # the same thing, written separately
+    edit:
+      "docs/**": allow
+      "*.env": deny
+  subagents:                     # what changes for one named subagent
+    explorer:
+      tools: {bash: deny}
+    reviewer:
+      rules:
+        edit: {"docs/secret/**": deny}
+```
+
+- **What is matched.** `bash` and `bash_background`: the command, stage by
+  stage (`&&`, `||`, `;`, `|`). Tools with a `path` (`write`, `edit`, `read`,
+  `lsp`…): the path relative to the project, with `/`; a pattern without `/`
+  also matches the file name. `web_fetch`: the URL. Any other tool: only the
+  pattern `*` matches.
+- **Globs.** `*` (and `**`) match any characters, including `/`; `?` matches
+  one character. Within a tool the **last** matching pattern wins, in file
+  order. A pattern rule beats the tool's plain decision; with no match, the
+  plain decision and then the default apply as before.
+- **Shell safety.** A pattern can never relax a hard denial (`sudo`,
+  `rm -rf /`, critical paths) and `allow` is only granted when every stage of
+  the command has an `allow` pattern and the command has no `$(...)`,
+  backticks or file redirection: `"git *": allow` does not let
+  `git log > ~/.bashrc` through. `ask` and `deny` patterns also match the
+  whole command.
+- **Modes.** Read-only modes (chat, inspect, goal) ignore patterns, so a
+  pattern cannot widen them. Autonomous mode keeps its contract: it never
+  asks, so an `ask` pattern passes, while a `deny` pattern still denies.
+- **Per subagent.** `permissions.subagents.<name>` takes the same `tools` and
+  `rules`. They are applied on top of the general ones for that subagent
+  (the user-defined ones and `explorer`): a `tools.<tool>` decision there
+  replaces the general patterns of that tool, and the subagent's own patterns
+  go after the general ones, so they win. Names are validated; a typo in a
+  tool name or a decision fails the config load.
+
 ### Shell sandbox (opt-in)
 
 The `sandbox` section confines the `bash` and `bash_background` tools (and
@@ -523,7 +575,36 @@ something, set it to `deny`; an `ask` in the config does not make it ask.
 
 Exit codes: `0` success, `1` the run failed (provider, configuration or
 cancellation), `2` invalid flags (checked before any model call), `3` the
-`--verify` command still fails after the last round.
+`--verify` command still fails after the last round (or, with `--goal`, the
+goal was not confirmed).
+
+### Goal runs (`--goal`)
+
+`gregal --goal <id|last|"text">` runs a goal until an independent verifier
+confirms it with evidence, instead of trusting the agent's "done". The
+argument is the id of a goal saved with goal mode, `last` (the latest goal of
+this folder) or the goal text. It runs in autonomous mode unless you pass
+`--mode`. Each round:
+
+1. the agent works on the goal (from round 2, on what is still missing);
+2. the checks run in the workspace: `--verify "<command>"` or
+   `agent.autonomous.verify` from the config. If one fails, the round is not
+   met, its output guides the next round and no verifier call is spent;
+3. a read-only verifier (the `reviewer` role, `agent.autonomous.reviewer_role`,
+   or the default role if there is none) looks at the real files with the
+   diff and the check output in front of it and answers criterion by
+   criterion: `[MET] criterion :: evidence`, `[NOT MET]` or `[UNVERIFIED]`.
+
+The goal is met only when the verifier says `VERDICT: MET` and every criterion
+is `MET` with evidence. Anything else (no verdict, a criterion without proof)
+counts as not met. The loop stops, with a partial summary of what is met, what
+is not and why it stopped, on a limit: `--goal-rounds N` (default 4, at most
+10), `--max-steps N` (per round; the total is capped at 300), `--goal-minutes N`
+(default 60), `--goal-cost USD` (needs prices), or when two rounds in a row
+leave the project exactly the same. Progress goes to stderr; `--output json`
+prints the rounds with their verdicts. A met saved goal is marked as done.
+The loop is in the CLI; the terminal and web goal cards still start a normal
+turn.
 
 Delegated agents use the active workspace and session, inherit configured
 restrictions, and stop when the parent run is canceled. Background commands
@@ -731,6 +812,22 @@ mcp:
   - Terminal: `/mcp connect <name>` prints the URL to open; a temporary
     listener on `127.0.0.1` receives the callback. `/mcp disconnect <name>`
     forgets the token.
+- **Import from other tools.** `gregal mcp import` (and `/mcp import` in the
+  terminal) reads the MCP servers already configured in Claude Code
+  (`.mcp.json`, `~/.claude.json`, including this folder's project entry),
+  Codex (`~/.codex/config.toml`, or `$CODEX_HOME`) and opencode
+  (`opencode.json[c]` in the folder and in `~/.config/opencode`), shows what
+  would be added and writes nothing until you confirm. Flags: `--from
+  claude,codex,opencode`, `--only name1,name2`, `--dry-run`, `--yes`; in the
+  terminal `/mcp import` previews and `/mcp import yes [names]` writes and
+  connects. Servers disabled in the source, names that already exist with a
+  different definition and names found twice are skipped and listed. Secrets
+  are never printed: the preview shows environment and header values as
+  `***`, and `--token` style arguments and URL query keys are masked. Values
+  written in the other tool's file are copied as they are into `config.yaml`
+  (0600), but references stay references: Codex's `bearer_token_env_var`
+  becomes `Authorization: Bearer ${VAR}`, and an OAuth client secret from
+  opencode is not imported.
 - **Tools** appear as `mcp_<server>_<tool>` and ask for confirmation by default
   (`permissions.tools` can change that). A server marked `readonly: true`
   declares that its tools only read: they run without a prompt, also in the
@@ -1094,6 +1191,11 @@ When a language server is installed and on `PATH` (`gopls`,
   `code` mode like `edit`, and is denied in read-only modes. Edits outside the
   workspace, or to a file that changed while the rename was computed, are
   refused.
+
+When a server is available the mode rules also tell the model when to pick
+`lsp` (the uses of one specific symbol, its definition or type, a rename
+across files), and the read-only explorer subagent has it too (rename is
+denied there). Without a server the line is not added.
 
 Servers start on first use, one per language and workspace, and stop with
 the run. Nothing is downloaded. The diagnostics shown after each edit still

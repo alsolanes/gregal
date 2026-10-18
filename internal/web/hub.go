@@ -212,10 +212,7 @@ func (h *Hub) clone(id string) *Server {
 		approvals:         map[string]approvalReq{},
 		questions:         map[string]questionReq{},
 		remembers:         agent.NewRemember(),
-		policy: &agent.Policy{
-			Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow,
-			BashDeny: cfg.Permissions.BashDeny, ProjectDir: d.cwd,
-		},
+		policy: agent.PolicyFromConfig(cfg, d.cwd),
 	}
 }
 

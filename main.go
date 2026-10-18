@@ -36,7 +36,7 @@ import (
 )
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
-var version = "v1.11.0"
+var version = "v1.12.0"
 
 // repoDir l'omple la compilacio (-ldflags "-X main.repoDir=..."): aixi el
 // binari recorda d'on va sortir i `gregal update` el sap trobar encara que
@@ -89,6 +89,10 @@ func main() {
 	modeFlag := flag.String("mode", "", "with -p: code|inspect|chat|goal|autonomous (empty = configuration)")
 	verifyFlag := flag.String("verify", "", "with -p: verification command; retry the agent on failure up to --verify-rounds (exit code 3 if it still fails)")
 	verifyRoundsFlag := flag.Int("verify-rounds", 2, "with -p and --verify: maximum repair rounds (1-3)")
+	goalFlag := flag.String("goal", "", "run a goal until an independent verifier confirms it with evidence: the id of a saved goal, \"last\", or the goal text (mode autonomous unless --mode; stops on --goal-rounds/--goal-minutes/--goal-cost/--max-steps; exit 3 if not met)")
+	goalRounds := flag.Int("goal-rounds", 0, "with --goal: maximum rounds (default 4, at most 10)")
+	goalMinutes := flag.Int("goal-minutes", 0, "with --goal: time limit in minutes (default 60)")
+	goalCost := flag.Float64("goal-cost", 0, "with --goal: stop when the estimated cost reaches this many USD (0 = no limit)")
 	serveFlag := flag.Bool("serve", false, "start the local web interface (chat and agent)")
 	portFlag := flag.String("port", "8097", "with --serve: listen port")
 	addrFlag := flag.String("addr", "", "with --serve: listen address (default 127.0.0.1; authentication required outside loopback)")
@@ -157,6 +161,21 @@ func main() {
 
 	if *doctorFlag {
 		os.Exit(doctor(cfg, path))
+	}
+
+	if g := strings.TrimSpace(*goalFlag); g != "" {
+		if d := strings.TrimSpace(*dirFlag); d != "" {
+			if err := os.Chdir(d); err != nil {
+				fmt.Fprintln(os.Stderr, "gregal:", cliText(cliLanguage(cfg), "headless.dir_failed", err))
+				os.Exit(2)
+			}
+		}
+		if err := aplicaModel(cfg, *modelFlag); err != nil {
+			fmt.Fprintln(os.Stderr, "gregal:", err)
+			os.Exit(2)
+		}
+		os.Exit(runGoalHeadless(cfg, path, goalFlags{Spec: g, Output: *outputFlag, Mode: *modeFlag, MaxRounds: *goalRounds,
+			MaxSteps: *stepsFlag, MaxMinutes: *goalMinutes, MaxCostUSD: *goalCost, VerifyCmd: *verifyFlag, AutoApprove: *approveFlag}))
 	}
 
 	if *promptFlag != "" {

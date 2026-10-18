@@ -37,8 +37,12 @@ func runMCP(args []string) {
 		runMCPDemo()
 		return
 	}
+	if len(args) > 0 && args[0] == "import" {
+		runMCPImport(args[1:])
+		return
+	}
 	if len(args) == 0 || args[0] != "serve" {
-		fmt.Fprintln(os.Stderr, "usage: gregal mcp serve [--config path] [--workspace dir] | gregal mcp demo")
+		fmt.Fprintln(os.Stderr, "usage: gregal mcp serve [--config path] [--workspace dir] | gregal mcp demo | gregal mcp import [--from claude,codex,opencode] [--only names] [--yes] [--dry-run]")
 		os.Exit(2)
 	}
 	fs := flag.NewFlagSet("mcp serve", flag.ContinueOnError)

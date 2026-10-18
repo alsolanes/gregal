@@ -199,6 +199,10 @@ func restrictPolicy(pol *Policy, allowed []string) *Policy {
 		return pol
 	}
 	cp := *pol
+	cp.Rules = make(config.PermRules, len(pol.Rules))
+	for k, v := range pol.Rules {
+		cp.Rules[k] = v
+	}
 	cp.Tools = make(map[string]string, len(pol.Tools)+len(tools.Noms()))
 	for k, v := range pol.Tools {
 		cp.Tools[k] = v
@@ -210,6 +214,7 @@ func restrictPolicy(pol *Policy, allowed []string) *Policy {
 	for _, n := range tools.Noms() {
 		if !keep[n] {
 			cp.Tools[n] = "deny"
+			delete(cp.Rules, n)
 		}
 	}
 	return &cp
@@ -327,7 +332,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	tRun := time.Now()
 	tm := &res.Timings
 	autoCfg := cfg.AutonomousConfig()
-	pol := &Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: dir}
+	pol := PolicyFromConfig(cfg, dir)
 	pol = restrictPolicy(pol, o.Tools)
 	var hist []llm.Message
 

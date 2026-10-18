@@ -510,3 +510,83 @@ Prova real del catàleg: amb una carpeta de dades nova, el primer `-p` va
 baixar models.dev (232 proveïdors, 1,2 MB retallat) i va mostrar el cost de
 la tirada (`~$0.0010`), que abans no sortia. `/stats` diu
 «catàleg models.dev» com a origen de la finestra.
+
+### 8.9 Ronda dels ítems 1, 2, 5 i 6 del full de ruta
+
+#### Que el model triï `lsp` sol (ítem 1)
+
+Canvis: una línia a les regles dels modes (code, autònom, depuració, inspect i
+xat) quan hi ha servidor de llenguatge (`lspRule`), i `lsp` a les eines de
+l'explorador (el rename es denega al mode inspect).
+
+Mesura: `gregal -p --mode code --auto-approve --output json --no-session`,
+binari d'abans (v1.11.0) i d'ara, carpeta de dades aïllada, proveïdor zen,
+deepseek-v4.1-flash, gopls al `PATH` als dos, sobre una còpia neta d'aquest
+repositori. Dues tasques de refactor, 5 tirades cadascuna:
+
+- **A**: reanomenar el mètode `Seguiment.GuardaEscriptura` a `GuardWrite` i
+  els seus usos;
+- **B**: reanomenar la funció `InsideProject` a `PathInsideProject`, tests
+  inclosos (`go build ./...` i `go vet` han de passar).
+
+| 10 tirades per variant | Abans | Després |
+| --- | --- | --- |
+| Tirades que fan servir `lsp` | 3 de 10 | **9 de 10** (A 5/5, B 4/5) |
+| Compilen | 10/10 | 10/10 |
+| Passos (mitjana / mediana) | 6,9 / 6,5 | 7,4 / 6,5 |
+| Temps (mitjana / mediana) | 88 s / 40 s | 93 s / 80 s |
+| Cost mitjà | $0,0133 | $0,0152 |
+
+Lectura honesta: la línia fa el que havia de fer, que el model triï l'eina
+(30 % → 90 %), però **en aquestes dues tasques no estalvia passos ni temps**.
+Amb grep + edit en tenen prou en 5-8 passos, i la primera crida a `lsp`
+paga l'engegada de gopls (uns 25 s la primera vegada, de manera que la
+mediana de temps puja). Sense la línia, flash ja triava `lsp` en 3 de 10
+tirades: la descripció de l'eina hi ajudava una mica. Una tirada va ser
+lenta als dos costats (319 s i 270 s) per l'`go build` en fred. Els usos que
+`lsp` s'estalvia es veuran en refactors amb molts usos o noms repetits, no
+en aquests; no s'ha mesurat. A l'explorador (tasca C: cridadors de
+`RunAutonomousChecks`, mode inspect) les 2+2 tirades van trobar els 5 llocs
+amb 1-2 passos del coordinador abans i després (12-14 s després, 23-25 s
+abans); la mostra és massa petita per dir res, i el rastre de l'explorador
+no surt a `tools_used`, així que no se sap si hi ha fet servir `lsp`.
+
+#### Objectiu en bucle fins que un verificador ho confirmi (ítem 2)
+
+`agent.RunGoalLoop` (`agent/goalloop.go`), `verify/goal.go` i
+`gregal --goal <id|last|text>`. Cada ronda: un torn de l'agent; les
+comprovacions (`--verify` o `agent.autonomous.verify`, via
+`RunAutonomousChecks`); si passen, un fill de només lectura amb el rol
+`reviewer` mira els fitxers de debò amb el diff i la sortida a davant i
+contesta criteri per criteri (`[MET] criteri :: prova`). Només és complert
+amb `VERDICT: MET`, cap criteri pendent i una prova per criteri; sense
+veredicte, o un MET sense prova, no compta. Si una comprovació falla no es
+gasta cap crida de verificador: la sortida guia la ronda següent. Límits:
+rondes (4, màx. 10), passos totals (300), minuts (60), cost, i dues rondes
+seguides idèntiques (resum de l'evidència); en parar sense complir, resum
+parcial amb els criteris, el que falta i el motiu. Sortida 3 si no es
+compleix. Tests amb ronda i verificador simulats i amb un proveïdor fals.
+Pendent: les fitxes d'objectiu del TUI i la web encara llancen un torn
+normal, sense bucle (cal orquestrar-ho al servidor amb events per ronda).
+
+#### Importar MCP (ítem 5)
+
+`internal/mcpimport`, `gregal mcp import` i `/mcp import`. Llegeix
+`.mcp.json` i `~/.claude.json` (inclosa l'entrada del projecte), el
+`config.toml` de Codex (lector de TOML mínim, sense dependència nova) i
+l'`opencode.json[c]`. Vista prèvia sense secrets (`***`), res s'escriu sense
+confirmar, i els desactivats, els conflictes de nom i els repetits es llisten
+i se salten. Les referències a variables d'entorn es conserven; el secret
+OAuth d'opencode no s'importa.
+
+#### Permisos amb glob i per subagent (ítem 6)
+
+`config/permrules.go` (format, ordre conservat, validació) i
+`agent/permrules.go` (coincidència). `tools.<eina>` pot ser un mapa de
+patrons o es posen a `permissions.rules`; mana l'últim que coincideix.
+`permissions.subagents.<nom>` canvia `tools` i `rules` per a un subagent.
+Invariants provats: un `allow` no relaxa mai un bloqueig dur, ni els modes de
+només lectura; en shell, `allow` només si totes les etapes el tenen i no hi
+ha substitucions ni redireccions; l'autònom no pregunta mai (un `ask` passa,
+un `deny` denega). Un únic constructor (`PolicyFromConfig`) substitueix els
+sis llocs que muntaven la política a mà.

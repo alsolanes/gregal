@@ -49,6 +49,9 @@ var camiCandidat = regexp.MustCompile(`(?:^|[\s"'=>])((?:[A-Za-z]:[\\/]|/|~|\.\.
 
 func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) {
 	if p != nil && name != "bash" && name != "bash_background" {
+		if d, why, ok := p.ruleDecision(name, argsJSON); ok {
+			return d, why, true
+		}
 		if d, ok := p.Tools[name]; ok && (d == "allow" || d == "ask" || d == "deny") {
 			return d, "permissions del config", true
 		}
@@ -79,6 +82,9 @@ func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) 
 		}
 		// Un permís explícit del config (el més estricte de bash i
 		// bash_background) mana, però mai relaxa un bloqueig dur.
+		if d, why, ok := p.ruleDecision(name, argsJSON); ok {
+			return d, why, true
+		}
 		if override := bashPermissionOverride(p); override != "" {
 			return override, "permissions del config", true
 		}

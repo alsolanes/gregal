@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/config"
 	"gregal/internal/knowledge"
 	"gregal/internal/llm"
 	"gregal/internal/tools"
@@ -240,6 +241,8 @@ type Policy struct {
 	Tools     map[string]string
 	BashAllow []string
 	BashDeny  []string
+	// Rules són les regles amb glob per eina (permrules.go).
+	Rules config.PermRules
 	// ProjectDir habilita el pas automàtic d'escriptures (write/edit) en
 	// mode code o autònom quan la ruta queda dins. Buit = ask.
 	ProjectDir string
@@ -352,6 +355,9 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "deny", "eina desconeguda: " + name
 	}
 	if p != nil && name != "bash" && name != "bash_background" {
+		if d, why, ok := p.ruleDecision(name, argsJSON); ok {
+			return d, why
+		}
 		if d, ok := p.Tools[name]; ok {
 			switch d {
 			case "allow", "ask", "deny":
@@ -408,6 +414,9 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		decision, reason := tools.ClassifyWith(a.Command, allow, deny)
 		if decision == "deny" {
 			return decision, reason
+		}
+		if d, why, ok := p.ruleDecision(name, argsJSON); ok {
+			return d, why
 		}
 		if override != "" {
 			return override, "permissions del config"
@@ -526,6 +535,9 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	// requerint aprovació, també en mode autònom.
 	if (mode == ModeCode || mode == ModeAutonomous || mode == ModeDebug) && (name == "write" || name == "edit" || name == "patch") {
 		if p != nil {
+			if d, why, ok := p.ruleDecision(name, argsJSON); ok {
+				return d, why
+			}
 			if d, ok := p.Tools[name]; ok {
 				switch d {
 				case "allow", "ask", "deny":

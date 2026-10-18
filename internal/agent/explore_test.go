@@ -63,7 +63,7 @@ func TestRunScoutEnModeInspectEsExplorador(t *testing.T) {
 		if def == nil || def.Name != ExploreAgentName || def.Mode != ModeInspect || def.MaxSteps != exploreMaxSteps {
 			t.Errorf("l'explorador ha de ser un fill de lectura de %d passos: %+v", exploreMaxSteps, def)
 		}
-		if def != nil && strings.Join(def.Tools, ",") != "read,grep,glob,symbols" {
+		if def != nil && strings.Join(def.Tools, ",") != "read,grep,glob,symbols,lsp" {
 			t.Errorf("eines de l'explorador: %v", def.Tools)
 		}
 		return "DoomTracker.Note at internal/agent/finalize.go:104", nil
