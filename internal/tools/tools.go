@@ -994,3 +994,24 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "\n…(truncat)"
 }
+
+// ShellStages parteix una comanda pels encadenaments i canonades (`&&`,
+// `||`, `;`, `|`, `&`, salts de línia) i torna les etapes sense buits. La
+// partició no distingeix cometes: parteix de més, que per a qui decideix
+// permisos és el costat segur (cada tros ha de passar per si sol).
+func ShellStages(cmd string) []string {
+	r := strings.NewReplacer("&&", "\x00", "||", "\x00", ";", "\x00", "|", "\x00", "&", "\x00", "\r", "\x00", "\n", "\x00")
+	var out []string
+	for _, s := range strings.Split(r.Replace(cmd), "\x00") {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// HasFileRedirect diu si la comanda redirigeix de o cap a un fitxer (no
+// compten `2>&1` ni `>/dev/null`).
+func HasFileRedirect(cmd string) bool {
+	return strings.ContainsAny(senseRedirSegura(cmd), "<>")
+}

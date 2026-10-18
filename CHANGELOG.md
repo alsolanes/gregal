@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- **The model picks `lsp` on its own.** When a language server is available,
+  the mode rules now say when to prefer `lsp` over grep (uses of one symbol,
+  definition, type, rename across files), and the read-only explorer
+  subagent has the tool too. Measurements in
+  `docs/research/next-improvements.md` section 8.9.
+- **`gregal --goal <id|last|"text">`** runs a goal in rounds until an
+  independent verifier confirms it with evidence (files, diff, check
+  output), or stops on a clear limit (`--goal-rounds`, `--max-steps`,
+  `--goal-minutes`, `--goal-cost`, or no change between rounds) with a
+  partial summary. Reuses `--verify`, the `reviewer` role and autonomous
+  checks. Exit code 3 when the goal is not met.
+- **`gregal mcp import`** and `/mcp import` read the MCP servers already set
+  up in Claude Code, Codex and opencode, show what would be added and write
+  only after you confirm. Secrets are masked in everything it prints.
+- **Permission patterns and per-subagent permissions.** `permissions.tools`
+  entries (or `permissions.rules`) can be maps of globs, such as
+  `bash: {"git *": ask, "git status*": allow}` or `edit: {"*.env": deny}`,
+  and `permissions.subagents.<name>` changes them for one subagent. Hard
+  denials, read-only modes and the rule that autonomous mode never asks are
+  unchanged; an `allow` pattern never lets through a compound or redirecting
+  shell command. See the manual.
+
 ## v1.11.0 - 2026-10-17 - Gregal on the phone without a computer, LSP and a live model catalog
 
 - The Android download is smaller: each phone now gets an APK with only its

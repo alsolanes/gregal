@@ -376,6 +376,10 @@ type PermissionsCfg struct {
 	Tools     map[string]string `yaml:"tools"`
 	BashAllow []string          `yaml:"bash_allow"`
 	BashDeny  []string          `yaml:"bash_deny"`
+	// Rules són patrons glob per eina (bash: «git *»; edit: «docs/**»);
+	// Subagents, el que canvia per a un subagent amb nom. Vegeu permrules.go.
+	Rules     PermRules               `yaml:"rules,omitempty"`
+	Subagents map[string]PermOverride `yaml:"subagents,omitempty"`
 	// Mode és el mode de permís inicial: "" o manual (es pregunta) o
 	// auto-review (un model revisor decideix les accions que demanen
 	// permís; vegeu agent/autoreview.go).
@@ -1095,6 +1099,9 @@ func (c *Config) Validate() error {
 		default:
 			return fmt.Errorf("permissions.tools.%s=%q invàlid (allow|ask|deny)", name, d)
 		}
+	}
+	if err := c.Permissions.validateRules(); err != nil {
+		return err
 	}
 	for name, s := range c.MCP {
 		if err := ValidaMCP(name, s); err != nil {

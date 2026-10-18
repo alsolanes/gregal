@@ -34,6 +34,25 @@ func SetupLSP(cfg *config.Config) {
 	lsp.Configure(custom, strings.EqualFold(strings.TrimSpace(cfg.LSP.Mode), "off"))
 }
 
+// lspRule és la línia de regles que fa que el model triï `lsp` sol. L'eina
+// ja era a la llista, però deepseek-v4.1-flash només la feia servir quan
+// se li demanava (docs/research/next-improvements.md, 8.5): sense una
+// frase que digui QUAN, tria grep. Només hi és si hi ha servidors de
+// llenguatge, per no prometre una eina que no existeix; és constant per
+// procés, i el prefix del prompt continua sent estable.
+func lspRule(mode string) string {
+	if _, ok := lspToolSpec(); !ok {
+		return ""
+	}
+	switch mode {
+	case ModeCode, ModeAutonomous, ModeDebug:
+		return "\nLSP: for the uses of one specific function, method or type, where it is defined, or the type of an expression, call `lsp` (references, definition, hover) instead of grep: it is exact, across the whole project, and one call. To rename a symbol in several files use `lsp` rename, not edit. After editing, `lsp` diagnostics lists the compiler errors of the file."
+	case ModeInspect, ModeChat:
+		return "\nLSP: for the uses of one specific function, method or type, where it is defined, or the type of an expression, call `lsp` (references, definition, hover) instead of grep: it is exact, across the whole project, and one call."
+	}
+	return ""
+}
+
 func lspToolSpec() (llm.ToolSpec, bool) {
 	langs := lsp.Llenguatges()
 	if len(langs) == 0 {

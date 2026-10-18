@@ -3,12 +3,14 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"gregal/internal/mcp"
+	"gregal/internal/mcpimport"
 )
 
 // /mcp al TUI: estat dels servidors i, per als remots, connectar amb OAuth.
@@ -31,6 +33,9 @@ type mcpPromptMsg struct {
 }
 
 func (m Model) mcpCommand(args []string) (tea.Model, tea.Cmd) {
+	if len(args) > 0 && args[0] == "import" {
+		return m.mcpImportCommand(args[1:])
+	}
 	if len(args) >= 2 {
 		sub, name := args[0], args[1]
 		if m.mcp == nil {
@@ -198,4 +203,58 @@ func (m Model) onMCPPrompt(msg mcpPromptMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.submitText(msg.text)
+}
+
+// mcpImportCommand és «/mcp import»: ensenya què s'importaria de Claude
+// Code, Codex i opencode (sense secrets) i, amb «/mcp import yes [noms]»,
+// ho desa al config i connecta els servidors afegits.
+func (m Model) mcpImportCommand(args []string) (tea.Model, tea.Cmd) {
+	home, _ := os.UserHomeDir()
+	cwd, _ := os.Getwd()
+	res := mcpimport.Discover(home, cwd)
+	plan := mcpimport.MakePlan(m.cfg.MCP, res.Found)
+	confirm := len(args) > 0 && strings.EqualFold(args[0], "yes")
+	if !confirm {
+		for _, l := range strings.Split(strings.TrimRight(mcpimport.Report(res, plan), "\n"), "\n") {
+			m.push(dimStyle.Render(l))
+		}
+		if len(plan.Add) == 0 {
+			m.push(systemLine("mcp import: nothing to import"))
+		} else {
+			m.push(systemLine("mcp import: /mcp import yes [names] adds them to the config (env values and headers are copied as they are)"))
+		}
+		return m, nil
+	}
+	if m.cfgPath == "" {
+		m.push(badStyle.Render("mcp import: no config file to write to"))
+		return m, nil
+	}
+	added := mcpimport.Apply(m.cfg, plan, args[1:])
+	if len(added) == 0 {
+		m.push(systemLine("mcp import: nothing added"))
+		return m, nil
+	}
+	if err := m.cfg.Save(m.cfgPath); err != nil {
+		for _, n := range added {
+			delete(m.cfg.MCP, n)
+		}
+		m.push(badStyle.Render("mcp import: not saved: " + err.Error()))
+		return m, nil
+	}
+	m.push(systemLine("mcp import: added " + strings.Join(added, ", ")))
+	if m.mcp == nil {
+		m.push(dimStyle.Render("  they connect the next time Gregal starts"))
+		return m, nil
+	}
+	var cmds []tea.Cmd
+	for _, name := range added {
+		name, srv := name, mcp.ServerFromConfig(m.cfg.MCP[name])
+		mgr := m.mcp
+		cmds = append(cmds, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel()
+			return mcpReadyMsg{server: name, err: mgr.Add(ctx, name, srv)}
+		})
+	}
+	return m, tea.Batch(cmds...)
 }

@@ -199,7 +199,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 		cfgPath:           cfgPath,
 		goalDir:           goalDirFor(cfgPath),
 		client:            cl,
-		policy:            &agent.Policy{Tools: cfg.Permissions.Tools, BashAllow: cfg.Permissions.BashAllow, BashDeny: cfg.Permissions.BashDeny, ProjectDir: cwd},
+		policy:            agent.PolicyFromConfig(cfg, cwd),
 		remembers:         agent.NewRemember(),
 		jobs:              js,
 		mcp:               currentMCP(),

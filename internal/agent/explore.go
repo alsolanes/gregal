@@ -35,7 +35,10 @@ const ExploreAgentName = "explorer"
 const exploreMaxSteps = 8
 
 // exploreTools són les eines de l'explorador: les de cercar i llegir codi.
-var exploreTools = []string{"read", "grep", "glob", "symbols"}
+// lsp hi és perquè «on es fa servir X» és la pregunta típica d'un
+// explorador: references ho respon en una crida, i grep hi barreja
+// comentaris i noms iguals. El rename es denega al mode inspect.
+var exploreTools = []string{"read", "grep", "glob", "symbols", "lsp"}
 
 // ExploreWanted diu si una pregunta en mode inspect comença amb
 // l'explorador: agent.scout actiu, una pregunta que demana mirar el codi
@@ -88,7 +91,7 @@ func ExplorePrompt(task, focus, mapa string) string {
 	}
 	b.WriteString("Find in the code base the answer to the QUESTION below and report it.\n" +
 		"Work in few steps: in every step send ALL the calls you can already think of at once (several greps, then reads of every hit you need). " +
-		"grep takes text or a regex (a|b). Read only the lines you need (offset/limit around the grep hits), not whole files. " +
+		"grep takes text or a regex (a|b); for the uses or the definition of ONE specific function, method or type, `lsp` (references, definition) answers in one call and, unlike grep, ignores comments and unrelated names (if lsp has no server for the file, use grep). Read only the lines you need (offset/limit around the grep hits), not whole files. " +
 		"Stop searching as soon as you can answer. You have at most " + strconv.Itoa(exploreMaxSteps) + " steps.\n" +
 		"Report, with no preamble: the answer, where every claim cites path:line (paths as in the project map, line numbers you saw in read or grep output). " +
 		"Quote identifiers exactly. Mark with UNVERIFIED only what the question needs and you could not check. Keep it under ~40 lines.\n\nQUESTION:\n")
