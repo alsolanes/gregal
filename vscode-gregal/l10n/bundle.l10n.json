@@ -136,5 +136,18 @@
   "Run stopped": "Run stopped",
   "Finish the current operation before starting another.": "Finish the current operation before starting another.",
   "Finish the current operation before undoing changes.": "Finish the current operation before undoing changes.",
-  "Tool blocked": "Tool blocked"
+  "Tool blocked": "Tool blocked",
+  "A local Gregal backend is already responding.": "A local Gregal backend is already responding.",
+  "Automatic backend installation is unavailable for this operating system or processor.": "Automatic backend installation is unavailable for this operating system or processor.",
+  "Could not install or start Gregal locally: {0}": "Could not install or start Gregal locally: {0}",
+  "Could not start Gregal locally: {0}": "Could not start Gregal locally: {0}",
+  "Downloaded {0} MB": "Downloaded {0} MB",
+  "Gregal backend is running locally.": "Gregal backend is running locally.",
+  "Installing the Gregal backend": "Installing the Gregal backend",
+  "No local Gregal backend started by VS Code is running.": "No local Gregal backend started by VS Code is running.",
+  "Stopped the local Gregal backend.": "Stopped the local Gregal backend.",
+  "The backend process started but did not become ready: {0}": "The backend process started but did not become ready: {0}",
+  "The checksum for {0} did not match. The download was discarded.": "The checksum for {0} did not match. The download was discarded.",
+  "The configured Gregal server is remote. Change gregal.baseUrl to a local URL before starting a local backend.": "The configured Gregal server is remote. Change gregal.baseUrl to a local URL before starting a local backend.",
+  "The latest release does not include a valid checksum for {0}.": "The latest release does not include a valid checksum for {0}."
 }

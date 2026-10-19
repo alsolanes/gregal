@@ -136,5 +136,18 @@
   "Run stopped": "Torn aturat",
   "Finish the current operation before starting another.": "Acaba l’operació actual abans de començar-ne una altra.",
   "Finish the current operation before undoing changes.": "Acaba l’operació actual abans de desfer canvis.",
-  "Tool blocked": "Eina bloquejada"
+  "Tool blocked": "Eina bloquejada",
+  "A local Gregal backend is already responding.": "Ja hi ha un backend local de Gregal que respon.",
+  "Automatic backend installation is unavailable for this operating system or processor.": "La instal·lació automàtica del backend no està disponible per a aquest sistema operatiu o processador.",
+  "Could not install or start Gregal locally: {0}": "No s’ha pogut instal·lar o iniciar Gregal localment: {0}",
+  "Could not start Gregal locally: {0}": "No s’ha pogut iniciar Gregal localment: {0}",
+  "Downloaded {0} MB": "Baixats {0} MB",
+  "Gregal backend is running locally.": "El backend de Gregal funciona localment.",
+  "Installing the Gregal backend": "S’està instal·lant el backend de Gregal",
+  "No local Gregal backend started by VS Code is running.": "No hi ha cap backend local de Gregal iniciat per VS Code.",
+  "Stopped the local Gregal backend.": "S’ha aturat el backend local de Gregal.",
+  "The backend process started but did not become ready: {0}": "El procés del backend s’ha iniciat però no està preparat: {0}",
+  "The checksum for {0} did not match. The download was discarded.": "La suma de verificació de {0} no coincideix. S’ha descartat la descàrrega.",
+  "The configured Gregal server is remote. Change gregal.baseUrl to a local URL before starting a local backend.": "El servidor Gregal configurat és remot. Canvia gregal.baseUrl a una URL local abans d’iniciar un backend local.",
+  "The latest release does not include a valid checksum for {0}.": "L’última versió no inclou una suma de verificació vàlida per a {0}."
 }

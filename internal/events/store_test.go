@@ -142,6 +142,41 @@ func TestMaxRunIDSurvivesReopen(t *testing.T) {
 	}
 }
 
+func TestRunEventsStartsAtRunCursorAndPaginates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "events.jsonl")
+	s, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	for i := 0; i < 620; i++ {
+		if _, err := s.Append(Event{RunID: 44, User: "anna", SessionID: "tab-a", Kind: "token", Text: "x"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Append(Event{RunID: 44, User: "anna", SessionID: "tab-a", Kind: "run_completed"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Append(Event{RunID: 45, User: "anna", SessionID: "tab-b", Kind: "run_started"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	s, err = Open(path) // the run cursor index must be rebuilt on restart
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	got, err := s.RunEvents(44, "anna", "tab-a")
+	if err != nil || len(got) != 621 || got[0].ID != 1 || got[len(got)-1].Kind != "run_completed" {
+		t.Fatalf("run events: count=%d err=%v", len(got), err)
+	}
+	if other, err := s.RunEvents(45, "anna", "tab-a"); err != nil || len(other) != 0 {
+		t.Fatalf("other session leaked into run: %+v, %v", other, err)
+	}
+}
+
 func TestUnfinishedSurvivesReopen(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "events.jsonl")
 	s, err := Open(p)

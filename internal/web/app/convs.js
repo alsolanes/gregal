@@ -284,6 +284,7 @@ export const convs = {
       });
       const msgsWord = gregalT('conv.messages') || 'messages';
       G().sys((d.title || name) + ' · ' + d.msgs + ' ' + msgsWord);
+      if (d.recovered) G().sys(gregalT('sessions.recoveredRun'));
       G().activityItem('conversa', d.title || name, d.msgs + ' ' + msgsWord, 'ok');
       G().setView('agent');
       await this.load();

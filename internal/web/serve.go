@@ -80,6 +80,7 @@ type Server struct {
 	// reescriu la mateixa conversa en comptes d'anar deixant còpies, i no
 	// es perd res encara que tanquis l'app sense clicar «Nova sessió».
 	convoFile     string
+	currentRunID  int64
 	pinned        bool
 	role          string
 	rolePinned    bool    // cert si l'usuari ha fixat el rol (router apagat)
@@ -1139,6 +1140,9 @@ func (s *Server) watchRun(run runs.Run) {
 			kind, text = "run_cancelled", "torn cancel·lat"
 		}
 		s.appendRunEvent(fin, kind, text)
+		if kind == "run_failed" || kind == "run_cancelled" {
+			s.recoverLiveSessionRun(run.ID)
+		}
 	}()
 }
 
@@ -2438,9 +2442,12 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 		if o.onStart != nil {
 			o.onStart()
 		}
+		if err := s.persistRunInput(run.ID, o.task, o.imgs); err != nil {
+			return fmt.Errorf("could not save the task before starting it: %w", err)
+		}
 		// La tasca va al payload: el #retro hi llegeix de què anava el torn
 		// (la conversa carregada pot ser una altra).
-		payload, _ := json.Marshal(map[string]string{"task": retroClip(strings.Join(strings.Fields(agent.SenseMapa(o.task)), " "), 300)})
+		payload, _ := json.Marshal(map[string]string{"task": agent.SenseMapa(o.task)})
 		_ = s.Hub().appendEvent(events.Event{SessionID: s.id, User: s.usuari(), RunID: int(run.ID), Kind: "run_started", Text: "torn iniciat", Payload: payload})
 		// Cortesia pura ("hola"): resposta local, sense model ni eines. A la
 		// via SSE antiga es resol abans d'encuar; aquí el torn ja és a la cua
@@ -2451,6 +2458,7 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 			s.convo = append(s.convo, llm.Message{Role: "assistant", Content: reply})
 			tools.Active.MarkConvoFor(s.id, len(s.convo))
 			s.mu.Unlock()
+			s.autosave()
 			s.Hub().appendEvent(events.Event{SessionID: s.id, User: s.usuari(), RunID: int(run.ID), Kind: "text", Text: reply})
 			s.Hub().appendEvent(events.Event{SessionID: s.id, User: s.usuari(), RunID: int(run.ID), Kind: "done", Text: reply})
 			return nil
@@ -2662,6 +2670,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 			s.convo = append(s.convo, llm.Message{Role: "assistant", Content: note})
 		}
 		s.mu.Unlock()
+		s.autosave()
 		return "", err
 	}
 	s.mu.Lock()
@@ -3552,6 +3561,8 @@ func (s *Server) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 	path, err := session.SaveSession(s.sessDir(), session.Session{
 		Name:           req.Name,
+		SessionID:      s.id,
+		LastRunID:      s.currentRunID,
 		Role:           s.role,
 		Pinned:         s.pinned,
 		Workspace:      s.cwd,
@@ -3695,6 +3706,8 @@ func (s *Server) autosaveLocked() {
 	}
 	path, err := session.SaveSession(s.sessDir(), session.Session{
 		Name:           name,
+		SessionID:      s.id,
+		LastRunID:      s.currentRunID,
 		Role:           s.role,
 		Pinned:         s.pinned,
 		Workspace:      s.cwd,
@@ -3736,6 +3749,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 	s.compacted = ""
 	s.prefix.Reset()
 	s.convoFile = ""
+	s.currentRunID = 0
 	s.pinned = false
 	s.modelOverride = s.defaultModelOverrides()
 	s.unavailableModels = map[string]string{}
@@ -3776,6 +3790,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	recovered := s.recoverInterruptedSession(&sess)
 	s.mu.Lock()
 	// Restaurem el resum compactat d'aquesta sessió si en tenia. Les
 	// sessions d'abans el duien a part (anava al system): ara és el primer
@@ -3786,6 +3801,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	// Reprendre és continuar-la, no clonar-la: els torns següents
 	// reescriuen aquesta mateixa conversa.
 	s.convoFile = sess.Name
+	s.currentRunID = sess.LastRunID
 	s.pinned = sess.Pinned
 	s.role = sess.Role
 	if sess.ModelOverrides != nil {
@@ -3821,6 +3837,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 		"workspace":  activeWs,
 		"compacted":  sess.Compacted,
 		"transcript": resumeTranscript(sess.Convo),
+		"recovered":  recovered,
 	})
 }
 

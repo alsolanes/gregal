@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.12.3 - 2026-10-19 - Interrupted turn recovery
+
+- **Interrupted turn recovery:** save the accepted task before model or tool
+  work starts, then restore the durable assistant and tool-event transcript
+  when a backend interruption ends the run. Unfinished tools are marked for
+  review and are never replayed automatically. Long event histories are
+  searched from the run's indexed starting point.
+- **VS Code localization:** keep extension-manifest labels separate from
+  runtime messages so local-backend status and setup are translated correctly
+  in Catalan and English.
+
 ## v1.12.2 - 2026-10-19 - Session continuity and live status
 - **Session continuity and status:** reopening a saved conversation returns to its
   existing live session and restores the earlier transcript, including tool
