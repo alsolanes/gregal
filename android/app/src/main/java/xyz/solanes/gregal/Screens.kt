@@ -614,7 +614,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 GregalMark(56.dp, alive = true)
                 Text(tr(lang, "app.setup.welcome"), style = MaterialTheme.typography.headlineSmall, color = Ink,
                     textAlign = TextAlign.Center)
-                ProviderSetup(vm)
+                ProviderSettingsCta(lang) { vm.go(Screen.Prefs) }
             }
         } else if (msgs.isEmpty()) {
             // Estat buit: la salutació i prou. El model es veu a la
@@ -1239,118 +1239,25 @@ fun ModelMenu(
     val lang by vm.idioma.collectAsState()
     val models by vm.models.collectAsState()
     val providers by vm.providers.collectAsState()
-    val provMsg by vm.provMsg.collectAsState()
-    var keyFor by remember { mutableStateOf<String?>(null) }
-    var keyVal by remember { mutableStateOf("") }
-    LaunchedEffect(expanded) { if (expanded) vm.loadProviders() }
+    LaunchedEffect(expanded) { if (expanded) { vm.loadProviders(); vm.loadModels() } }
     DropdownMenu(expanded = expanded, onDismissRequest = onClose) {
-        // Les dues eines que abans eren icones sempre visibles al composer:
-        // aquí ja hi són quan les busques, i no competeixen amb l'enviar.
-        if (onPlan != null) {
-            DropdownMenuItem(
-                text = { Text(tr(lang, "app.menu.plan"), color = if (potEines) Ink else Muted) },
-                enabled = potEines,
-                onClick = { onPlan(); onClose() },
-            )
-        }
-        if (onParallel != null) {
-            DropdownMenuItem(
-                text = { Text(tr(lang, "app.menu.compare"), color = if (potEines) Ink else Muted) },
-                enabled = potEines,
-                onClick = { onParallel(); onClose() },
-            )
-        }
+        ModelPickerContent(lang, providers, models, st,
+            onSelect = { vm.setModel(it); onClose() },
+            onSettings = { onClose(); vm.go(Screen.Prefs) })
         HorizontalDivider(color = Line)
-        Text(tr(lang, "app.menu.provider"), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
-        if (providers.isEmpty()) {
-            DropdownMenuItem(text = { Text(tr(lang, "app.menu.loading"), color = Muted) }, onClick = { vm.loadProviders() })
+        st.roles.forEach { role ->
+            DropdownMenuItem(text = { Text(roleLabel(role, lang)) },
+                trailingIcon = { if (st.currentRole == role) Icon(Icons.Rounded.Check, null, tint = Sea) },
+                onClick = { vm.setRole(role); onClose() })
         }
-        providers.forEach { p ->
-            DropdownMenuItem(
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // Punt: verd = clau posada, buit = falta clau.
-                        val ready = p.hasKey() || isLocalUrl(p.url)
-                        val dot = if (ready) "●" else "○"
-                        Text(dot, color = if (ready) Sea else Muted, fontSize = 12.sp)
-                        Column {
-                            Text(p.name, fontSize = 14.sp)
-                            // Ollama, LM Studio, llama.cpp: no fan servir clau.
-                            if (isLocalUrl(p.url) && !p.hasKey()) Text(tr(lang, "app.menu.providerLocal"),
-                                color = Muted, fontSize = 11.sp)
-                            else if (!p.hasKey()) Text(tr(lang, "app.menu.providerMissingKey"),
-                                color = Sea, fontSize = 11.sp)
-                            else if (p.usedBy.isNotBlank()) Text(p.usedBy.take(40),
-                                color = Muted, fontSize = 11.sp)
-                        }
-                    }
-                },
-                onClick = { keyVal = ""; keyFor = p.name },
-            )
-        }
-        if (provMsg.isNotBlank()) {
-            Text(provMsg.take(80), Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                fontSize = 11.sp, color = Sea)
-        }
-        Text(tr(lang, "app.menu.role"), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
-        st.roles.forEach { r ->
-            DropdownMenuItem(
-                text = { Text(roleLabel(r, lang)) },
-                trailingIcon = { if (st.currentRole == r) Icon(Icons.Rounded.Check, null, tint = Sea) },
-                onClick = { vm.setRole(r); onClose() },
-            )
-        }
-        Text(tr(lang, "app.menu.model", st.provider), Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            fontSize = 12.sp, color = Muted, fontWeight = FontWeight.Bold)
-        val ids = models[st.provider] ?: models.values.flatten().distinct().take(15)
-        if (ids.isEmpty()) {
-            DropdownMenuItem(text = { Text(tr(lang, "app.menu.loading"), color = Muted) }, onClick = {})
-        }
-        ids.take(15).forEach { id ->
-            DropdownMenuItem(
-                text = { Text(id.take(34), fontSize = 14.sp) },
-                trailingIcon = { if (id == st.model) Icon(Icons.Rounded.Check, null, tint = Sea) },
-                onClick = { vm.setModel("${st.provider}/$id"); onClose() },
-            )
-        }
-        DropdownMenuItem(
-            text = { Text(tr(lang, "app.menu.refresh"), color = Sea) },
-            onClick = { vm.refresh(); vm.loadModels() },
-        )
-    }
-    // Diàleg de clau api: surt en tocar un proveïdor.
-    val kf = keyFor
-    if (kf != null) {
-        AlertDialog(
-            onDismissRequest = { keyFor = null },
-            title = { Text(tr(lang, "app.menu.keyTitle", kf)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text(tr(lang, "app.menu.keyHelp"),
-                        color = Muted, fontSize = 13.sp)
-                    OutlinedTextField(keyVal, { keyVal = it }, label = { Text(tr(lang, "app.menu.keyPlaceholder")) },
-                        singleLine = true,
-                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Password))
-                    Text(tr(lang, if (vm.conn.collectAsState().value.local) "app.menu.keyDevice" else "app.menu.keyMemory"),
-                        color = Muted, fontSize = 11.sp)
-                    if (provMsg.isNotBlank()) Text(provMsg.take(120), color = Sea, fontSize = 12.sp)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { vm.setProviderKey(kf, keyVal) }) { Text(tr(lang, "btn.save")) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { vm.testProvider(kf) }) { Text(tr(lang, "app.menu.test")) }
-                    TextButton(onClick = { keyFor = null }) { Text(tr(lang, "btn.close")) }
-                }
-            },
-        )
+        if (onPlan != null) DropdownMenuItem(
+            text = { Text(tr(lang, "app.menu.plan")) }, enabled = potEines,
+            onClick = { onPlan(); onClose() })
+        if (onParallel != null) DropdownMenuItem(
+            text = { Text(tr(lang, "app.menu.compare")) }, enabled = potEines,
+            onClick = { onParallel(); onClose() })
+        DropdownMenuItem(text = { Text(tr(lang, "app.menu.refresh"), color = Sea) },
+            onClick = { vm.refresh(); vm.loadProviders(); vm.loadModels() })
     }
 }
 

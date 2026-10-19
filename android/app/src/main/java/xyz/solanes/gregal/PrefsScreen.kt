@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val tema by vm.tema.collectAsState()
     val idioma by vm.idioma.collectAsState()
+    val idiomaChoice by vm.idiomaChoice.collectAsState()
     val st by vm.state.collectAsState()
     val updateMsg by vm.updateMsg.collectAsState()
     val info by vm.update.collectAsState()
@@ -106,10 +107,10 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 Text(t("prefs.lang"), color = Ink, fontSize = 16.sp)
                 Spacer(Modifier.height(4.dp))
-                listOf("ca" to "Català", "en" to "English").forEach { (v, nom) ->
-                    Row(Modifier.fillMaxWidth().selectable(v == idioma, role = Role.RadioButton) { vm.setIdioma(v) }.padding(vertical = 8.dp),
+                listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English").forEach { (v, nom) ->
+                    Row(Modifier.fillMaxWidth().selectable(v == idiomaChoice, role = Role.RadioButton) { vm.setIdioma(v) }.padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = v == idioma, onClick = null, modifier = Modifier.padding(12.dp))
+                        RadioButton(selected = v == idiomaChoice, onClick = null, modifier = Modifier.padding(12.dp))
                         Text(nom, color = Ink, fontSize = 15.sp)
                     }
                 }

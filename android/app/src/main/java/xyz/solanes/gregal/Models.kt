@@ -33,8 +33,12 @@ data class OfficeDoc(val id: String = "", val name: String = "", val kind: Strin
 
 /** Proveïdor del servidor: key ve emmascarada ((buida) | ${VAR} | sí). */
 data class ProviderInfo(val name: String = "", val url: String = "",
-                        val key: String = "", val usedBy: String = "") {
-    fun hasKey(): Boolean = key.isNotBlank() && key != "(buida)"
+                        val key: String = "", val usedBy: String = "",
+                        val hasApiKey: Boolean? = null) {
+    // New servers resolve environment references; their boolean is authoritative.
+    // Legacy masked literals are accepted, never unresolved ${VAR} references.
+    fun hasKey(): Boolean = hasApiKey ?: (key.isNotBlank() && key.trim() != "(buida)" &&
+        !key.contains("\${"))
 }
 
 /** Text visible d'un missatge del transcript (/api/resume): content string
@@ -141,7 +145,7 @@ fun parseProviders(json: String): List<ProviderInfo> {
         }
         val m = parseFlat(flat)
         ProviderInfo(m["name"] ?: "", m["url"] ?: "", m["key"] ?: "",
-            m["used_by"] ?: "")
+            m["used_by"] ?: "", m["has_api_key"]?.toBooleanStrictOrNull())
     }
 }
 

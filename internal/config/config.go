@@ -40,6 +40,13 @@ type Provider struct {
 	SideSlot  *int   `yaml:"side_slot,omitempty"`
 }
 
+// HasAPIKey reports an effective, nonblank credential, never an unresolved reference.
+// It says configured, not that the remote provider has authenticated it.
+func (p Provider) HasAPIKey() bool {
+	key := strings.TrimSpace(p.APIKey)
+	return key != "" && !strings.Contains(key, "${")
+}
+
 // MaskedKey resumeix la clau sense exposar-la: "(buida)", "${VAR}" o "sí".
 func (p Provider) MaskedKey() string {
 	switch {

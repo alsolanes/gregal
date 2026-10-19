@@ -1128,8 +1128,18 @@ is not automatically replayed.
 ## Chat plots and dashboard
 
 Ask Gregal for a chart from your project data. Fenced `gregal-plot` blocks
-render inline as line, bar, or scatter charts with a data table and PNG/JSON
+render inline as line, bar, scatter, area, horizontal-bar, pie, doughnut, or
+radar charts with a data table and PNG/JSON
 downloads. Use **Save plot** or **Add to dashboard** to keep a snapshot.
+
+The same data-only chart contract is used by the shared backend, web/desktop,
+and Android. Area charts accept signed values and fill to zero; horizontal
+bars accept signed values and grouped series. Pie and doughnut charts need
+exactly one nonnegative series with at least one positive value. Radar charts
+need 3–32 categories and nonnegative values (all-zero is allowed). Every series
+must contain one finite number per label; the generic limits remain 2000 labels
+and 20 series. Scatter labels are finite numeric x coordinates as strings.
+Charts accept data, not JavaScript, HTML, or executable Chart.js options.
 
 Open **Plots & dashboard** in the sidebar to browse the project's library
 or dashboard. Import JSON, edit data and titles, add notes, change card width,

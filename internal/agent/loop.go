@@ -28,11 +28,11 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
 			}, "required": []string{"kind", "content"}}},
-		{Name: "dashboard_save", Description: "Save charts to a named dashboard INSIDE the Gregal app (its Plots & dashboard section). Use this when the user asks for a dashboard or saved charts in the app: no HTML needed. Each plot uses the gregal-plot JSON shape {title, type: line|bar|scatter, labels: [strings], series: [{label, values: [numbers]}]}. Creates the dashboard if it does not exist; replace=true clears its previous charts first. Only available in the web/desktop app.",
+		{Name: "dashboard_save", Description: "Save charts to a named dashboard INSIDE the Gregal app (its Plots & dashboard section), shared by web, desktop and Android. Use this when the user asks for a dashboard or saved charts in the app: no HTML needed. Each plot uses the data-only gregal-plot JSON shape {title, type: line|bar|scatter|area|horizontal-bar|pie|doughnut|radar, labels: [strings], series: [{label, values: [numbers]}]}; no executable options. Values must be finite and match labels; maximum 2000 labels and 20 series. Scatter labels are numeric x coordinates written as strings. Area has a zero baseline with signed values; horizontal-bar supports signed grouped series. Pie and doughnut require exactly one series with nonnegative values and at least one positive value. Radar requires 3–32 category labels and nonnegative values; all-zero series are allowed. Creates the dashboard if it does not exist; replace=true clears its previous charts first. Available through the Gregal web server, including desktop and Android clients, not the CLI.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"dashboard": str,
 				"plots": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
-					"title": str, "type": map[string]any{"type": "string", "enum": []string{"line", "bar", "scatter"}},
+					"title": str, "type": map[string]any{"type": "string", "enum": []string{"line", "bar", "scatter", "area", "horizontal-bar", "pie", "doughnut", "radar"}},
 					"labels": map[string]any{"type": "array", "items": str},
 					"series": map[string]any{"type": "array", "items": map[string]any{"type": "object", "properties": map[string]any{
 						"label": str, "values": map[string]any{"type": "array", "items": map[string]any{"type": "number"}},
@@ -596,7 +596,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 	case "preview":
 		return previewRequest(argsJSON)
 	case "dashboard_save":
-		return "", nil, fmt.Errorf("dashboard_save is only available in the Gregal web/desktop app; show the charts as gregal-plot blocks instead")
+		return "", nil, fmt.Errorf("dashboard_save requires the Gregal web server (web, desktop or Android), not the CLI; show the charts as gregal-plot blocks instead")
 	case "read":
 		var a struct {
 			Path   string `json:"path"`

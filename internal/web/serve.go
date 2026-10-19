@@ -1857,11 +1857,12 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 	defer s.mu.Unlock()
 	if r.Method == "GET" {
 		type prov struct {
-			Name   string   `json:"name"`
-			URL    string   `json:"url"`
-			Type   string   `json:"type,omitempty"` // protocol: buit (chat completions) | anthropic | openai-responses
-			Key    string   `json:"key"`            // emmascarada: (buida) | ${VAR} | sí (oculta)
-			UsedBy []string `json:"used_by"`
+			Name      string   `json:"name"`
+			URL       string   `json:"url"`
+			Type      string   `json:"type,omitempty"` // protocol: buit (chat completions) | anthropic | openai-responses
+			Key       string   `json:"key"`            // emmascarada: (buida) | ${VAR} | sí (oculta)
+			UsedBy    []string `json:"used_by"`
+			HasAPIKey bool     `json:"has_api_key"`
 		}
 		usedBy := map[string][]string{}
 		for rn, r := range s.cfg.Roles {
@@ -1869,7 +1870,7 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 		}
 		var out []prov
 		for n, p := range s.cfg.Providers {
-			out = append(out, prov{Name: n, URL: p.BaseURL, Type: p.Type, Key: p.MaskedKey(), UsedBy: usedBy[n]})
+			out = append(out, prov{Name: n, URL: p.BaseURL, Type: p.Type, Key: p.MaskedKey(), UsedBy: usedBy[n], HasAPIKey: p.HasAPIKey()})
 		}
 		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 		roles := map[string]map[string]any{}
@@ -3295,12 +3296,17 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		name, base, key string
 	}
 	var provs []prov
+	configuredOnly := r.URL.Query().Get("configured_only") == "1" || strings.EqualFold(r.URL.Query().Get("configured_only"), "true")
 	for n, p := range s.cfg.Providers {
+		if configuredOnly && !p.HasAPIKey() {
+			continue
+		}
 		provs = append(provs, prov{n, p.BaseURL, p.APIKey})
 	}
 	sort.Slice(provs, func(i, j int) bool { return provs[i].name < provs[j].name })
 	ov, hasOv := s.modelOverride[s.role]
 	role := s.role
+	configuredRole, roleConfigured := s.cfg.Roles[role]
 	s.mu.Unlock()
 
 	// Llistat en paral·lel (cada provider té el seu timeout de 10 s).
@@ -3338,8 +3344,8 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	cur := ""
-	if r, ok := s.cfg.Roles[role]; ok {
-		cur = r.Provider + "/" + r.Model
+	if roleConfigured {
+		cur = configuredRole.Provider + "/" + configuredRole.Model
 	}
 	fallback := cur
 	selected := ""
@@ -3347,7 +3353,9 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	if hasOv {
 		selected = ov
 		cur = ov
-		if selectedProvider, _, ok := splitModel(ov); ok && errs[selectedProvider] == "" {
+		selectedProvider, _, validSelection := splitModel(ov)
+		_, providerQueried := models[selectedProvider]
+		if validSelection && providerQueried && errs[selectedProvider] == "" {
 			available := modelSelectionAvailable(ov, models)
 			selectedAvailable = &available
 			s.mu.Lock()

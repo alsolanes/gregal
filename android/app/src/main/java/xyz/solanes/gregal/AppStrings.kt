@@ -3,6 +3,20 @@ package xyz.solanes.gregal
 /** Claus només-mòbil (aparellament, cua, avisos...). Manual: la web no les té.
  *  Paritat ca/en a mà, com exigeix la identitat. */
 val STR_APP_CA: Map<String, String> = mapOf(
+    "app.picker.setupHelp" to "Configura un proveïdor amb clau API a Preferències.",
+    "app.picker.search" to "Cerca models o proveïdors",
+    "app.picker.noModels" to "No hi ha models disponibles. Actualitza o revisa el proveïdor a Preferències.",
+    "app.prefs.languageSystem" to "Sistema",
+    "app.setup.addProvider" to "Afegeix un proveïdor",
+
+    "app.plot.zoomIn" to "Apropa el gràfic",
+    "app.plot.zoomOut" to "Allunya el gràfic",
+    "app.plot.reset" to "Restableix",
+    "app.plot.expand" to "Amplia",
+    "app.plot.help" to "Toca o arrossega per veure valors · Toca la llegenda per ocultar sèries",
+    "app.plot.previous" to "Anterior",
+    "app.plot.next" to "Següent",
+    "app.plot.hidden" to "Totes les sèries estan ocultes. Toca la llegenda per mostrar-les.",
     "app.steer.tag" to "Tu, mentre treballava",
     "app.steer.tagInterrupt" to "Tu · interromput",
     "app.steer.pending" to "esperant que ho llegeixi",
@@ -473,6 +487,20 @@ val STR_APP_CA: Map<String, String> = mapOf(
 )
 
 val STR_APP_EN: Map<String, String> = mapOf(
+    "app.picker.setupHelp" to "Configure a provider with an API key in Settings.",
+    "app.picker.search" to "Search models or providers",
+    "app.picker.noModels" to "No models available. Refresh or check the provider in Settings.",
+    "app.prefs.languageSystem" to "System",
+    "app.setup.addProvider" to "Add provider",
+
+    "app.plot.zoomIn" to "Zoom in chart",
+    "app.plot.zoomOut" to "Zoom out chart",
+    "app.plot.reset" to "Reset",
+    "app.plot.expand" to "Enlarge",
+    "app.plot.help" to "Tap or drag to inspect values · Tap legend to hide series",
+    "app.plot.previous" to "Previous",
+    "app.plot.next" to "Next",
+    "app.plot.hidden" to "All series are hidden. Tap the legend to show them.",
     "app.steer.tag" to "You, while it worked",
     "app.steer.tagInterrupt" to "You · interrupted",
     "app.steer.pending" to "waiting for it to read",

@@ -89,9 +89,16 @@ class Prefs(val ctx: Context) {
     var tema: String
         get() = p.getString("tema", "sistema") ?: "sistema"
         set(v) { p.edit().putString("tema", v).apply() }
+    /** Missing/automatic preference follows only the device's primary locale. */
+    val idiomaChoice: String
+        get() = p.getString("idioma", "system").let { if (it == "ca" || it == "en") it else "system" }
     var idioma: String
-        get() = p.getString("idioma", "en") ?: "en"
-        set(v) { p.edit().putString("idioma", v).apply() }
+        get() = when (idiomaChoice) {
+            "ca" -> "ca"
+            "en" -> "en"
+            else -> if (ctx.resources.configuration.locales[0]?.language == "ca") "ca" else "en"
+        }
+        set(v) { p.edit().putString("idioma", if (v == "ca" || v == "en") v else "system").apply() }
     /** Esborrany del composer: el que havies escrit no es perd. */
     var esborrany: String
         get() = p.getString("esborrany", "") ?: ""
@@ -376,6 +383,12 @@ class MainActivity : ComponentActivity() {
     override fun onStart() {
         super.onStart()
         AppVisibility.foreground = true
+        vm.refreshSystemLanguage()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        vm.refreshSystemLanguage()
     }
 
     override fun onStop() {

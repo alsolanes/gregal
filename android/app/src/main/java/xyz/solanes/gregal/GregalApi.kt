@@ -149,7 +149,7 @@ class GregalApi(val base: String, val token: String) {
     }
 
     fun getModels(): Pair<Map<String, List<String>>, String> {
-        val o = JSONObject(read(conn("/api/models", "GET")))
+        val o = JSONObject(read(conn("/api/models?configured_only=1", "GET")))
         val out = mutableMapOf<String, List<String>>()
         val m = o.optJSONObject("models") ?: JSONObject()
         for (k in m.keys()) out[k] = m.optJSONArray(k)?.toStrList() ?: emptyList()

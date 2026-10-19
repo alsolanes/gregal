@@ -73,14 +73,15 @@ type plotBoard struct {
 
 var plotStoreMu sync.Mutex
 
-const plotPrompt = "\n\nThe web chat supports inline plots. When a user requests a chart, use a fenced gregal-plot block containing JSON: {\"title\":\"Revenue\",\"type\":\"line\",\"labels\":[\"Jan\",\"Feb\"],\"series\":[{\"label\":\"EUR\",\"values\":[10,20]}]}. Types: line, bar, scatter. For scatter, labels are numeric x coordinates written as strings. Each series must have one finite numeric value per label. Maximum 2000 labels and 20 series. Use actual inspected or user-provided data; clearly identify illustrative data. To chart tabular results (for example a query tool returning columns and rows), use the category or date column as labels (as strings, in the order returned) and one numeric column per series; omit rows with null values. Use one gregal-plot block per chart; several charts in one answer are fine. DASHBOARDS: this app has its own dashboards (the Plots & dashboard section). When the user asks for a dashboard, build it IN THE APP: query the data, then call dashboard_save with a clear dashboard name and one chart per insight (and show the charts inline too). Do not write an HTML/JS website for a dashboard unless the user explicitly asks for a standalone web page, file or site. If it is genuinely unclear which one they want (for example they mention publishing, sharing outside the app, or a deliverable file), ask with the question tool: 'In-app dashboard' vs 'Standalone web page'; in autonomous mode default to the in-app dashboard. Only say charts were saved after dashboard_save succeeded."
-
+const plotPrompt = "\n\nThe Gregal web, desktop and Android chat support interactive inline plots. When a user asks to see a chart, render it in the app using a data-only fenced gregal-plot JSON block, not Python, JavaScript or HTML source code. Return source code only if the user explicitly requests code. The JSON shape is: {\"title\":\"Revenue\",\"type\":\"line\",\"labels\":[\"Jan\",\"Feb\"],\"series\":[{\"label\":\"EUR\",\"values\":[10,20]}]}. Types: line, bar, scatter, area, horizontal-bar, pie, doughnut, radar. Area uses a zero baseline and supports signed values; horizontal-bar supports signed, grouped series. Pie and doughnut require exactly one series with nonnegative finite values and at least one positive value. Radar requires 3–32 category labels and nonnegative finite values; all-zero series are allowed. For scatter, labels are numeric x coordinates written as strings. Each series must have one finite numeric value per label. Maximum 2000 labels and 20 series. Use actual inspected or user-provided data; clearly identify illustrative data. To chart tabular results (for example a query tool returning columns and rows), use the category or date column as labels (as strings, in the order returned) and one numeric column per series; omit rows with null values. Use one gregal-plot block per chart; several charts in one answer are fine. DASHBOARDS: this app has its own dashboards (the Plots & dashboard section). When the user asks for a dashboard, build it IN THE APP: query the data, then call dashboard_save with a clear dashboard name and one chart per insight (and show the charts inline too). Do not write an HTML/JS website for a dashboard unless the user explicitly asks for a standalone web page, file or site. If it is genuinely unclear which one they want (for example they mention publishing, sharing outside the app, or a deliverable file), ask with the question tool: 'In-app dashboard' vs 'Standalone web page'; in autonomous mode default to the in-app dashboard. Only say charts were saved after dashboard_save succeeded."
 func validatePlot(p plotSpec) error {
 	if strings.TrimSpace(p.Title) == "" || len(p.Title) > 200 {
 		return fmt.Errorf("title must contain 1–200 bytes")
 	}
-	if p.Type != "line" && p.Type != "bar" && p.Type != "scatter" {
-		return fmt.Errorf("type must be line, bar or scatter")
+	switch p.Type {
+	case "line", "bar", "scatter", "area", "horizontal-bar", "pie", "doughnut", "radar":
+	default:
+		return fmt.Errorf("type must be line, bar, scatter, area, horizontal-bar, pie, doughnut or radar")
 	}
 	if len(p.Labels) == 0 || len(p.Labels) > 2000 || len(p.Series) == 0 || len(p.Series) > 20 {
 		return fmt.Errorf("expected 1–2000 labels and 1–20 series")
@@ -90,14 +91,30 @@ func validatePlot(p plotSpec) error {
 			return fmt.Errorf("label too long")
 		}
 	}
+	circular := p.Type == "pie" || p.Type == "doughnut"
+	if p.Type == "radar" && (len(p.Labels) < 3 || len(p.Labels) > 32) {
+		return fmt.Errorf("radar requires 3–32 category labels")
+	}
+	if circular && len(p.Series) != 1 {
+		return fmt.Errorf("pie and doughnut require exactly one series")
+	}
 	for _, series := range p.Series {
 		if len(series.Label) > 200 || len(series.Values) != len(p.Labels) {
 			return fmt.Errorf("series values must match labels")
 		}
+		positive := false
 		for _, value := range series.Values {
 			if math.IsNaN(value) || math.IsInf(value, 0) {
 				return fmt.Errorf("values must be finite")
 			}
+			if (circular || p.Type == "radar") && value < 0 {
+				return fmt.Errorf("pie, doughnut and radar values must be nonnegative")
+			}
+			positive = positive || value > 0
+		}
+		// Checking positivity avoids overflow/underflow from summing finite slices.
+		if circular && !positive {
+			return fmt.Errorf("pie and doughnut require at least one positive value")
 		}
 	}
 	if p.Type == "scatter" {

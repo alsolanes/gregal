@@ -46,7 +46,7 @@ func TestDashboardSaveCreaIAfegeix(t *testing.T) {
 	if len(lib.Plots) != 2 {
 		t.Fatalf("replace: plots=%d", len(lib.Plots))
 	}
-	if _, err := s.dashboardSave(`{"dashboard":"x","plots":[{"title":"bad","type":"pie","labels":["a"],"series":[{"label":"v","values":[1]}]}]}`); err == nil {
+	if _, err := s.dashboardSave(`{"dashboard":"x","plots":[{"title":"bad","type":"bubble","labels":["a"],"series":[{"label":"v","values":[1]}]}]}`); err == nil {
 		t.Fatal("invalid chart type must be rejected")
 	}
 }

@@ -16,6 +16,10 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -82,6 +86,16 @@ fun isLocalUrl(url: String): Boolean {
     return "://localhost" in u || "://127." in u || "://[::1]" in u || "://0.0.0.0" in u
 }
 
+/** Credential entry is used only by Settings, never the chat model picker. */
+@Composable
+fun ProviderKeyField(lang: String, key: String, onChange: (String) -> Unit) {
+    OutlinedTextField(key, onChange,
+        label = { Text(tr(lang, "app.menu.keyPlaceholder")) }, singleLine = true,
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth())
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ProviderSetup(
@@ -93,12 +107,17 @@ fun ProviderSetup(
 ) {
     val lang by vm.idioma.collectAsState()
     val catalog by vm.catalog.collectAsState()
+    val providers by vm.providers.collectAsState()
+    val conn by vm.conn.collectAsState()
     val busy by vm.providerSetupBusy.collectAsState()
     val msg by vm.provMsg.collectAsState()
-    var chosen by remember { mutableStateOf("") }
-    var key by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { vm.loadCatalog() }
-    val choices = setupChoices(catalog)
+    var chosen by remember(conn) { mutableStateOf("") }
+    var key by remember(conn) { mutableStateOf("") }
+    var expanded by remember(conn) { mutableStateOf(false) }
+    LaunchedEffect(conn) { vm.loadCatalog(); vm.loadProviders() }
+    val choices = (providers.map { p ->
+        catalog.firstOrNull { it.name == p.name } ?: CatalogEntry(p.name, p.name, false, "", "")
+    } + setupChoices(catalog)).distinctBy { it.name }
     // Si ja n'hi ha un (Preferències), aquest surt marcat.
     LaunchedEffect(choices, current) {
         if (chosen.isEmpty() && choices.isNotEmpty()) chosen = choices.firstOrNull { it.name == current }?.name ?: choices.first().name
@@ -107,40 +126,37 @@ fun ProviderSetup(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(tr(lang, if (change) "app.setup.changeTitle" else "app.setup.title"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Text(tr(lang, if (change) "app.prefs.modelHelp" else "app.setup.help"), color = Muted, fontSize = 13.sp)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                choices.forEach { c ->
-                    FilterChip(
-                        selected = c.name == chosen,
-                        onClick = { chosen = c.name },
-                        label = { Text(c.label, maxLines = 1) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Sea.copy(alpha = 0.18f), selectedLabelColor = Ink,
-                        ),
-                    )
+            Box {
+                TextButton(onClick = { expanded = true }) {
+                    Text(choices.firstOrNull { it.name == chosen }?.label ?: tr(lang, "app.setup.addProvider"))
+                }
+                DropdownMenu(expanded, onDismissRequest = { expanded = false }) {
+                    choices.forEach { c ->
+                        DropdownMenuItem(text = { Text(c.label) },
+                            onClick = { chosen = c.name; key = ""; expanded = false })
+                    }
                 }
             }
             val sel = choices.firstOrNull { it.name == chosen }
             val where = sel?.let { keyDomain(it.note) }.orEmpty()
             if (where.isNotEmpty()) Text(tr(lang, "app.setup.where", where), color = Faint, fontSize = 12.sp)
-            OutlinedTextField(
-                key, { key = it.trim() },
-                label = { Text(tr(lang, "app.menu.keyPlaceholder")) },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth(),
-            )
+            ProviderKeyField(lang, key) { key = it.trim() }
             Button(
                 onClick = { vm.connectProvider(chosen, key) { key = ""; onDone() } },
                 enabled = !busy && chosen.isNotEmpty() && key.isNotBlank(),
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(48.dp),
             ) { Text(tr(lang, if (change) "btn.save" else "app.setup.save")) }
+            TextButton(onClick = { vm.testProvider(chosen) }, enabled = !busy && chosen.isNotEmpty()) {
+                Text(tr(lang, "app.menu.test"))
+            }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea, trackColor = Line)
             if (msg.isNotBlank() && !busy) Text(msg, color = Muted, fontSize = 12.sp)
             Spacer(Modifier.height(2.dp))
-            Text(tr(lang, "app.setup.stored"), color = Faint, fontSize = 11.sp)
+            // Mateixa distinció que feia l'antic diàleg de clau del menú de
+            // model: en remot la clau viu a la memòria del servidor fins que
+            // es reiniciï; prometre que "es desa al dispositiu" seria fals.
+            Text(tr(lang, if (conn.local) "app.setup.stored" else "app.menu.keyMemory"), color = Faint, fontSize = 11.sp)
         }
     }
 }

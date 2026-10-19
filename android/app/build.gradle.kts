@@ -23,11 +23,13 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "xyz.solanes.gregal"
+        applicationId = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.plots" else "xyz.solanes.gregal"
+        manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal · proves" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = 42
-        versionName = "0.11.0"
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 43 else 42
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "0.11.0-preview.1" else "0.11.0"
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)

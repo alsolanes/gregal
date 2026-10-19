@@ -265,6 +265,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val tema: StateFlow<String> = _tema
     private val _idioma = MutableStateFlow("en")
     val idioma: StateFlow<String> = _idioma
+    private val _idiomaChoice = MutableStateFlow("system")
+    val idiomaChoice: StateFlow<String> = _idiomaChoice
 
     /**
      * L'arrencada (reconnexió automàtica + comprovar actualitzacions) ja s'ha
@@ -278,6 +280,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         prefsStore = p
         _tema.value = p.tema
         _idioma.value = p.idioma
+        _idiomaChoice.value = p.idiomaChoice
         _usuari.value = p.usuari
         if (p.esborrany.isNotEmpty()) _draft.value = p.esborrany
         // A partir d'aquí totes les peticions van a la sessió del mòbil, no a
@@ -290,12 +293,32 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (::prefsStore.isInitialized) prefsStore.tema = v
     }
 
-    /** Canvia l'idioma de la UI i de l'agent (/api/lang, nivell app). */
+    /** Local UI preference is authoritative, never replaced by server defaults. */
     fun setIdioma(v: String) {
-        _idioma.value = v
-        if (::prefsStore.isInitialized) prefsStore.idioma = v
+        if (!::prefsStore.isInitialized) return
+        prefsStore.idioma = v
+        _idiomaChoice.value = prefsStore.idiomaChoice
+        _idioma.value = prefsStore.idioma
+        syncAgentLanguage()
+    }
+
+    fun refreshSystemLanguage() {
+        if (!::prefsStore.isInitialized || prefsStore.idiomaChoice != "system") return
+        val resolved = prefsStore.idioma
+        if (_idioma.value != resolved) {
+            _idioma.value = resolved
+            syncAgentLanguage()
+        }
+    }
+
+    private fun syncAgentLanguage() {
+        if (!_connected.value) return
+        val c = _conn.value
+        val language = _idioma.value
         viewModelScope.launch {
-            try { withContext(Dispatchers.IO) { _conn.value.api().post("/api/lang", JSONObject().put("lang", v)) } } catch (_: Exception) {}
+            try { withContext(Dispatchers.IO) {
+                if (_conn.value == c) c.api().post("/api/lang", JSONObject().put("lang", language))
+            } } catch (_: Exception) {}
         }
     }
 
@@ -345,6 +368,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _jobs.value = emptyList()
         _runs.value = emptyList()
         _models.value = emptyMap()
+        _providers.value = emptyList()
+        _catalog.value = emptyList()
+        _provMsg.value = ""
+        _needsProvider.value = false
+        _providerSetupBusy.value = false
         _retro.value = null
         eventCursor = 0L
         activeRunId = null
@@ -420,20 +448,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val providerSetupBusy: StateFlow<Boolean> = _providerSetupBusy
 
     /** Primer cop en local sense cap clau: el xat demana connectar un proveïdor. */
-    private fun hintMissingKey() {
-        if (!_conn.value.local) { _needsProvider.value = false; return }
-        viewModelScope.launch {
-            val providers = try { withContext(Dispatchers.IO) { _conn.value.api().getProviders() } } catch (_: Exception) { return@launch }
-            _needsProvider.value = providers.isNotEmpty() && providers.none { it.hasKey() }
-        }
-    }
+    private fun hintMissingKey() { loadProviders() }
 
     fun loadCatalog() {
+        val c = _conn.value
         viewModelScope.launch {
             try {
-                _catalog.value = parseCatalog(withContext(Dispatchers.IO) { _conn.value.api().providersJson() })
+                val entries = parseCatalog(withContext(Dispatchers.IO) { c.api().providersJson() })
+                if (_conn.value == c) _catalog.value = entries
             } catch (e: Exception) {
-                _provMsg.value = appText("app.status.providers", e.message.orEmpty())
+                if (_conn.value == c) _provMsg.value = appText("app.status.providers", e.message.orEmpty())
             }
         }
     }
@@ -444,31 +468,38 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun connectProvider(name: String, key: String, onOk: () -> Unit = {}) {
         if (name.isBlank() || key.isBlank() || _providerSetupBusy.value) return
+        val c = _conn.value
+        val usePreset = _catalog.value.any { it.name == name }
         _providerSetupBusy.value = true
         _provMsg.value = ""
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    val api = _conn.value.api()
+                    if (_conn.value != c) return@withContext
+                    val api = c.api()
                     api.setProviderKey(name, key)
-                    api.presetProvider(name)
+                    if (_conn.value == c && usePreset) api.presetProvider(name)
                 }
-                _needsProvider.value = false
+                if (_conn.value != c) return@launch
                 _provMsg.value = appText("app.setup.ready")
                 refresh()
                 loadProviders()
+                loadModels()
                 onOk()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                _provMsg.value = appText("app.menu.providerSaveError", e.message.orEmpty())
+                if (_conn.value == c) _provMsg.value = appText("app.menu.providerSaveError", e.message.orEmpty())
             } finally {
-                _providerSetupBusy.value = false
+                if (_conn.value == c) _providerSetupBusy.value = false
             }
         }
     }
 
-    fun setConn(c: Conn) { _conn.value = c }
+    fun setConn(c: Conn) {
+        if (_conn.value != c) resetServerState()
+        _conn.value = c
+    }
 
     /**
      * Entra amb usuari i contrasenya (POST /api/login).
@@ -565,6 +596,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     if (_conn.value.local) ensureLocal()
                     connectOnce()
+                    syncAgentLanguage()
                     onOk()
                     syncJobAlarms()
                     hintMissingKey()
@@ -933,34 +965,46 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val provMsg: StateFlow<String> = _provMsg
 
     fun loadProviders() {
+        val c = _conn.value
         viewModelScope.launch {
-            _providers.value = try {
-                withContext(Dispatchers.IO) { _conn.value.api().getProviders() }
+            try {
+                val entries = withContext(Dispatchers.IO) { c.api().getProviders() }
+                if (_conn.value == c) {
+                    _providers.value = entries
+                    _needsProvider.value = entries.none { it.hasKey() }
+                }
             } catch (e: Exception) {
-                _provMsg.value = appText("app.status.providers", e.message.orEmpty())
-                _providers.value
+                if (_conn.value == c) _provMsg.value = appText("app.status.providers", e.message.orEmpty())
             }
         }
     }
 
     fun setProviderKey(name: String, key: String) {
+        val c = _conn.value
         _provMsg.value = appText("app.status.providerSaving")
         viewModelScope.launch {
-            _provMsg.value = try {
-                withContext(Dispatchers.IO) { _conn.value.api().setProviderKey(name, key) }
-                appText("app.menu.keySaved")
-            } catch (e: Exception) { appText("app.menu.providerSaveError", e.message.orEmpty()) }
-            loadProviders()
+            try {
+                withContext(Dispatchers.IO) { if (_conn.value == c) c.api().setProviderKey(name, key) }
+                if (_conn.value != c) return@launch
+                _provMsg.value = appText("app.menu.keySaved")
+                loadProviders()
+                loadModels()
+            } catch (e: Exception) {
+                if (_conn.value == c) _provMsg.value = appText("app.menu.providerSaveError", e.message.orEmpty())
+            }
         }
     }
 
     fun testProvider(name: String) {
+        val c = _conn.value
         _provMsg.value = appText("app.status.providerTesting")
         viewModelScope.launch {
-            _provMsg.value = try {
-                withContext(Dispatchers.IO) { _conn.value.api().testProvider(name) }
-                appText("app.menu.providerTested")
-            } catch (e: Exception) { appText("app.menu.providerTestError", e.message.orEmpty()) }
+            try {
+                withContext(Dispatchers.IO) { if (_conn.value == c) c.api().testProvider(name) }
+                if (_conn.value == c) _provMsg.value = appText("app.menu.providerTested")
+            } catch (e: Exception) {
+                if (_conn.value == c) _provMsg.value = appText("app.menu.providerTestError", e.message.orEmpty())
+            }
         }
     }
 
@@ -1780,11 +1824,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun loadModels() {
+        val c = _conn.value
         viewModelScope.launch {
             try {
-                val (m, _) = withContext(Dispatchers.IO) { _conn.value.api().getModels() }
-                _models.value = m
-            } catch (e: Exception) { notify(appText("app.status.models", e.message.orEmpty())) }
+                val (m, _) = withContext(Dispatchers.IO) { c.api().getModels() }
+                if (_conn.value == c) _models.value = m
+            } catch (e: Exception) {
+                if (_conn.value == c) notify(appText("app.status.models", e.message.orEmpty()))
+            }
         }
     }
 
