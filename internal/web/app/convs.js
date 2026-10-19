@@ -164,11 +164,11 @@ export const convs = {
     const liveById = new Map(this._liveSessions.map(s => [s.id, s]));
     const resumed = resumedSessions();
     const fila = c => {
-      const sessionId = resumed[c.name] || (c.current ? window.gregalSession : '');
+      const sessionId = c.live_session || resumed[c.name] || (c.current ? window.gregalSession : '');
       const live = sessionId ? liveById.get(sessionId) : null;
       const pending = !!(sessionId && window.gregalPendingInteractions?.has(sessionId));
       const status = pending ? '<span class="conv-live-state waiting">' + esc(gregalT('sessions.needsInputLabel') || 'Needs input') + '</span>'
-        : live?.busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
+        : (c.live_busy || live?.busy) ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
       return '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
       esc(titolVisible(c) + ' · ' + c.msgs + ' ' + msgsWord + (c.when ? ' · ' + c.when : '')) + '">' +
       '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + xipProjecte(c) +
@@ -211,18 +211,32 @@ export const convs = {
   },
   async obre(name) {
     try {
+      // Refresh the association at click time. The conversation list may have
+      // been rendered before the agent autosaved the first user message.
+      await this.load();
       const sessions = window.gregalPanels?.sessions;
       const reopened = resumedSessions();
       const previous = Object.prototype.hasOwnProperty.call(reopened, name) ? reopened[name] : '';
-      if (previous && sessions && typeof sessions.list === 'function' && typeof sessions.switchTo === 'function') {
+      if (sessions && typeof sessions.list === 'function' && typeof sessions.switchTo === 'function') {
         const live = await sessions.list();
-        if (live.some(s => s && s.id === previous)) {
-          await sessions.switchTo(previous);
+        // The backend owns this association, so conversations started in a
+        // live tab return to that exact tab even before the user has reopened
+        // them from the saved list once.
+        const linked = this.items.find(item => item.name === name)?.live_session;
+        const linkedSession = linked && live.find(s => s && s.id === linked);
+        const previousSession = previous && live.find(s => s && s.id === previous);
+        const target = linkedSession ? linked
+          : previousSession && (!Object.prototype.hasOwnProperty.call(previousSession, 'conversation') || previousSession.conversation === name) ? previous : '';
+        if (target) {
+          saveResumedSession(name, target);
+          await sessions.switchTo(target);
           G().setView('agent');
           return;
         }
-        delete reopened[name];
-        try { localStorage.setItem(resumedSessionsKey, JSON.stringify(reopened)); } catch (e) {}
+        if (previous) {
+          delete reopened[name];
+          try { localStorage.setItem(resumedSessionsKey, JSON.stringify(reopened)); } catch (e) {}
+        }
       }
       // Reprendre sobre una sessió ocupada canviaria el context del worker.
       if (G().isBusy()) await sessions.open(G().state.cwd);

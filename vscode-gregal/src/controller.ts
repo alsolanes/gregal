@@ -4,6 +4,7 @@ import { runAgent, type RunConnection, type RunRequest } from "./run-client";
 import { ChatSidebar, type ChatAction } from "./sidebar";
 import { editorAttachment, projectSession, MAX_CONTEXT_CHARS, type EditorAttachment } from "./editor-context";
 import { registerEditorFeatures } from "./editor-features";
+import { LocalBackend } from "./local-backend";
 
 let extension: vscode.ExtensionContext;
 let chat: ChatSidebar;
@@ -15,6 +16,7 @@ let displayedRoute = "";
 let active: { abort: AbortController; connection?: RunConnection; finished: Promise<void> } | undefined;
 let exclusiveAction = false;
 const sessions = new Map<string, string>();
+let localBackend: LocalBackend;
 
 function workspaceForEditor(): vscode.WorkspaceFolder | undefined {
     const uri = vscode.window.activeTextEditor?.document.uri;
@@ -207,6 +209,61 @@ async function saveToken(): Promise<void> {
     await refreshConnection();
 }
 
+async function startLocalBackend(executableOverride?: string): Promise<void> {
+    const connection = await connectionConfig();
+    const url = new URL(connection.base);
+    if (!(["127.0.0.1", "localhost", "::1", "[::1]"].includes(url.hostname))) {
+        throw new Error(vscode.l10n.t("The configured Gregal server is remote. Change gregal.baseUrl to a local URL before starting a local backend."));
+    }
+    try {
+        await apiHealth(connection.base, connection.token, connection.session, { timeoutMs: 1000 });
+        await refreshConnection();
+        void vscode.window.showInformationMessage(vscode.l10n.t("A local Gregal backend is already responding."));
+        return;
+    } catch { /* No server is listening yet; start the configured local binary. */ }
+    await localBackend.start(output, executableOverride);
+    // The server may need a moment to initialize its configuration and provider.
+    const deadline = Date.now() + 8000;
+    let lastError: unknown;
+    while (Date.now() < deadline) {
+        try {
+            await apiHealth(connection.base, connection.token, connection.session, { timeoutMs: 1000 });
+            await refreshConnection();
+            void vscode.window.showInformationMessage(vscode.l10n.t("Gregal backend is running locally."));
+            return;
+        } catch (error) {
+            lastError = error;
+            await new Promise(resolve => setTimeout(resolve, 300));
+        }
+    }
+    throw new Error(vscode.l10n.t("The backend process started but did not become ready: {0}", lastError instanceof Error ? lastError.message : String(lastError)));
+}
+
+async function installAndStartLocalBackend(): Promise<void> {
+    let reported = 0;
+    const installed = await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: vscode.l10n.t("Installing the Gregal backend"),
+        cancellable: false,
+    }, async progress => localBackend.install(output, (received, total) => {
+        if (total > 0) {
+            const current = Math.min(100, received / total * 100);
+            progress.report({ increment: Math.max(0, current - reported), message: `${Math.floor(current)}%` });
+            reported = current;
+        }
+        else progress.report({ message: vscode.l10n.t("Downloaded {0} MB", (received / 1_048_576).toFixed(1)) });
+    }));
+    await startLocalBackend(installed);
+}
+
+function stopLocalBackend(): void {
+    if (localBackend.stop()) {
+        void vscode.window.showInformationMessage(vscode.l10n.t("Stopped the local Gregal backend."));
+        void refreshConnection();
+    }
+    else void vscode.window.showInformationMessage(vscode.l10n.t("No local Gregal backend started by VS Code is running."));
+}
+
 async function newChat(): Promise<void> {
     if (active || exclusiveAction) { void vscode.window.showInformationMessage(vscode.l10n.t("Finish the current operation before starting another.")); return; }
     const folder = await chooseWorkspace();
@@ -279,6 +336,7 @@ function action(value: ChatAction): void {
 
 export function activateChat(ctx: vscode.ExtensionContext): void {
     extension = ctx;
+    localBackend = new LocalBackend(ctx.globalStorageUri);
     output = vscode.window.createOutputChannel("Gregal");
     status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 80);
     status.command = "gregal.openChat";
@@ -292,6 +350,19 @@ export function activateChat(ctx: vscode.ExtensionContext): void {
         vscode.commands.registerCommand("gregal.cancel", () => active?.abort.abort()),
         vscode.commands.registerCommand("gregal.newChat", newChat),
         vscode.commands.registerCommand("gregal.setToken", saveToken),
+        vscode.commands.registerCommand("gregal.startLocalBackend", () => startLocalBackend().catch(error => {
+            const message = error instanceof Error ? error.message : String(error);
+            output.appendLine(message);
+            output.show(true);
+            void vscode.window.showErrorMessage(vscode.l10n.t("Could not start Gregal locally: {0}", message));
+        })),
+        vscode.commands.registerCommand("gregal.installAndStartLocalBackend", () => installAndStartLocalBackend().catch(error => {
+            const message = error instanceof Error ? error.message : String(error);
+            output.appendLine(message);
+            output.show(true);
+            void vscode.window.showErrorMessage(vscode.l10n.t("Could not install or start Gregal locally: {0}", message));
+        })),
+        vscode.commands.registerCommand("gregal.stopLocalBackend", stopLocalBackend),
         vscode.commands.registerCommand("gregal.reviewChanges", () => vscode.commands.executeCommand("workbench.view.scm")),
         vscode.workspace.onDidChangeConfiguration(event => { if (event.affectsConfiguration("gregal")) void refreshConnection(); }),
     );
@@ -300,12 +371,14 @@ export function activateChat(ctx: vscode.ExtensionContext): void {
 
 export async function deactivateChat(): Promise<void> {
     const turn = active;
-    if (!turn) return;
-    turn.abort.abort();
-    // Give the exact-run cancellation request time to reach the server.
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    try { await Promise.race([turn.finished, new Promise<void>(resolve => { timeout = setTimeout(resolve, 3000); })]); }
-    finally { if (timeout) clearTimeout(timeout); }
+    if (turn) {
+        turn.abort.abort();
+        // Give the exact-run cancellation request time to reach the server.
+        let timeout: ReturnType<typeof setTimeout> | undefined;
+        try { await Promise.race([turn.finished, new Promise<void>(resolve => { timeout = setTimeout(resolve, 3000); })]); }
+        finally { if (timeout) clearTimeout(timeout); }
+    }
+    localBackend.stop();
 }
 
 export async function withIdleConversation(operation: () => Promise<void>): Promise<void> {

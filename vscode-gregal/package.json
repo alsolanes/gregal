@@ -58,6 +58,18 @@
         "title": "%command.setToken.title%"
       },
       {
+        "command": "gregal.startLocalBackend",
+        "title": "%command.startLocalBackend.title%"
+      },
+      {
+        "command": "gregal.installAndStartLocalBackend",
+        "title": "%command.installAndStartLocalBackend.title%"
+      },
+      {
+        "command": "gregal.stopLocalBackend",
+        "title": "%command.stopLocalBackend.title%"
+      },
+      {
         "command": "gregal.reviewChanges",
         "title": "%command.reviewChanges.title%",
         "icon": "$(source-control)"
@@ -95,6 +107,12 @@
           "description": "%configuration.token.description%",
           "scope": "machine",
           "deprecationMessage": "%configuration.token.deprecation%"
+        },
+        "gregal.executablePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "%configuration.executablePath.description%"
         },
         "gregal.session": {
           "type": "string",

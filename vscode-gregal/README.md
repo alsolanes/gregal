@@ -36,6 +36,16 @@ and configure its token with **Gregal: Set server token securely** when needed.
 The VSIX can also be installed on remote VS Code extension hosts; the backend
 must then be reachable from that host.
 
+Run **Gregal: Install and start local backend** from the Command Palette to
+download the matching release binary, verify its SHA-256 checksum, and launch
+`gregal --serve` on the extension host. To start a manually installed binary,
+use **Gregal: Start local backend**.
+The extension checks whether the configured local server is already responding,
+writes process output to the **Gregal** Output channel, and stops only a process
+it started when the extension host shuts down. Set `gregal.executablePath` if
+the executable is not available as `gregal` on `PATH`. For remote servers,
+start and manage the backend on that machine.
+
 ## Start
 
 1. Start your backend with `gregal --serve`.

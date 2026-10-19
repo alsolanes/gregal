@@ -82,6 +82,92 @@ function renderSessionTranscript(transcript, busy) {
   return { pendingCards, lastAssistantText, steps: toolCount, tools: toolCount, workGroup: activeGroup };
 }
 
+// Quan una sessió encara treballa, la conversa desada només té el missatge
+// de l'usuari. Reconstruïm el tram visible a partir dels events durables del
+// torn perquè canviar de pestanya no faci desaparèixer el progrés.
+function renderActiveRunEvents(events) {
+  const pending = new Map();
+  let grouped = false, activeGroup = null, toolCount = 0, lastAssistantText = '';
+  let tokenText = '';
+  const flushTokens = () => {
+    if (!tokenText) return;
+    const text = tokenText; tokenText = '';
+    const el = G().add('a', '', G().md(text));
+    if (grouped && el) G().intoWorkGroup?.(el);
+    lastAssistantText = text.trim();
+  };
+  const payload = e => {
+    if (!e || !e.payload) return {};
+    if (typeof e.payload === 'object') return e.payload;
+    try { return JSON.parse(e.payload); } catch (x) { return {}; }
+  };
+  (Array.isArray(events) ? events : []).forEach(e => {
+    if (!e || !e.kind) return;
+    if (e.kind === 'progress' || e.kind === 'run_queued' || e.kind === 'run_started') return;
+    const d = payload(e);
+    if (e.kind === 'token') { tokenText += e.text || ''; return; }
+    flushTokens();
+    if (e.kind === 'thinking') {
+      const text = String(d.text || e.text || '').replace(/^💭\s*/, '').trim();
+      if (text) {
+        const row = G().add('t', '', '<details class="tool"><summary>' + esc(T('ui.thinking')) + '</summary><div class="out">' + G().md(text.slice(0, 2000)) + '</div></details>');
+        if (grouped && row) G().intoWorkGroup?.(row);
+      }
+    } else if (e.kind === 'tool_call') {
+      if (!grouped && G().beginWorkGroup) { activeGroup = G().beginWorkGroup(); grouped = true; }
+      const name = String(d.name || e.text || T('actk.tool'));
+      const card = G().toolCard?.(name, d.args || '');
+      if (card) G().intoWorkGroup?.(card);
+      const list = pending.get(name) || []; list.push(card); pending.set(name, list);
+      toolCount++;
+    } else if (e.kind === 'tool_result') {
+      const name = String(d.name || T('actk.tool'));
+      const list = pending.get(name) || [];
+      G().toolCardDone?.(list.shift() || null, name, d.output || e.text || '');
+      if (list.length) pending.set(name, list); else pending.delete(name);
+    } else if (e.kind === 'text') {
+      const text = String(e.text || d.text || '').trim();
+      if (text && text !== lastAssistantText) {
+        const el = G().add('a', '', G().md(text));
+        if (grouped && el) G().intoWorkGroup?.(el);
+        lastAssistantText = text;
+      }
+    } else if (e.kind === 'error' || e.kind === 'blocked' || e.kind === 'review' || e.kind === 'activity') {
+      const text = String(e.text || '').trim();
+      if (text) {
+        const row = G().add('t', '', '<div class="tool">' + esc(text) + '</div>');
+        if (grouped && row) G().intoWorkGroup?.(row);
+      }
+    }
+  });
+  flushTokens();
+  const pendingCards = Array.from(pending.values()).flat().filter(Boolean);
+  return { pendingCards, lastAssistantText, steps: toolCount, tools: toolCount, workGroup: activeGroup };
+}
+
+async function activeRunEvents(id) {
+  const headers = { 'X-Gregal-Session': id };
+  const activeResp = await G().api('/api/active', { headers });
+  if (!activeResp.ok) return null;
+  const active = (await activeResp.json()).active;
+  if (!active || active.task == null) return null;
+  const events = [];
+  let after = 0;
+  // Cada petició té un màxim de 500 events; el cursor permet recuperar una
+  // execució llarga sense truncar el seu inici.
+  for (let page = 0; page < 20; page++) {
+    const resp = await G().api('/api/events?session=' + encodeURIComponent(id) + '&after=' + after + '&limit=500', { headers });
+    if (!resp.ok) return { active, events: [] };
+    const data = await resp.json();
+    const batch = Array.isArray(data.events) ? data.events : [];
+    events.push(...batch.filter(e => Number(e.run_id) === Number(active.id)));
+    const next = Number(data.next) || after;
+    if (!batch.length || next <= after) break;
+    after = next;
+  }
+  return { active, events };
+}
+
 // ---------------------------------------------------------------- sessions
 
 export const sessions = {
@@ -239,7 +325,23 @@ export const sessions = {
     if (this.current !== id) return st;
     G().onSessionSwitch(id, st);
     const trans = (st && st.transcript) || [];
-    const restored = renderSessionTranscript(trans, !!(st && st.agent_busy));
+    let restored = renderSessionTranscript(trans, !!(st && st.agent_busy));
+    if (st && st.agent_busy) {
+      try {
+        const replay = await activeRunEvents(id);
+        if (this.current !== id) return st;
+        if (replay && replay.active) {
+          const runState = renderActiveRunEvents(replay.events);
+          restored = Object.assign(restored, {
+            pendingCards: runState.pendingCards,
+            lastAssistantText: runState.lastAssistantText || restored.lastAssistantText,
+            steps: restored.steps + runState.steps,
+            tools: restored.tools + runState.tools,
+            workGroup: runState.workGroup || restored.workGroup,
+          });
+        }
+      } catch (e) { /* el transcript desat i l'estat ocupat continuen visibles */ }
+    }
     const runHandler = window.gregalRunEventHandlers?.get(id);
     if (runHandler && typeof runHandler.restoreTranscript === 'function') runHandler.restoreTranscript(restored);
     G().sys(T('sessions.opened') + id + (trans.length ? ' · ' + trans.length + ' ' + T('sessions.messages') : ''));

@@ -3408,6 +3408,24 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+	// Link each saved conversation to its live in-memory session. Without
+	// this mapping the sidebar reopened a snapshot in a new, idle tab whenever
+	// the conversation had started running before the user clicked it.
+	liveByConversation := map[string]string{}
+	liveBusyByConversation := map[string]bool{}
+	for _, live := range s.Hub().listFor(userFrom(r)) {
+		name, _ := live["conversation"].(string)
+		id, _ := live["id"].(string)
+		if name == "" || id == "" {
+			continue
+		}
+		busy, _ := live["busy"].(bool)
+		previous := liveByConversation[name]
+		if previous == "" || busy {
+			liveByConversation[name] = id
+			liveBusyByConversation[name] = busy
+		}
+	}
 	// La ruta és global (la serveix la sessió default), però «current» és
 	// la conversa de qui pregunta: el mòbil, amb la seva pròpia sessió,
 	// veia marcada la de la pestanya principal de l'escriptori.
@@ -3416,14 +3434,16 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	current := caller.convoFile
 	caller.mu.Unlock()
 	type row struct {
-		Name      string `json:"name"`
-		Title     string `json:"title"`
-		Msgs      int    `json:"msgs"`
-		When      string `json:"when"`
-		At        string `json:"at"`
-		Workspace string `json:"workspace,omitempty"`
-		Current   bool   `json:"current,omitempty"`
-		Pinned    bool   `json:"pinned,omitempty"`
+		Name        string `json:"name"`
+		Title       string `json:"title"`
+		Msgs        int    `json:"msgs"`
+		When        string `json:"when"`
+		At          string `json:"at"`
+		Workspace   string `json:"workspace,omitempty"`
+		Current     bool   `json:"current,omitempty"`
+		Pinned      bool   `json:"pinned,omitempty"`
+		LiveSession string `json:"live_session,omitempty"`
+		LiveBusy    bool   `json:"live_busy,omitempty"`
 	}
 	out := []row{}
 	for _, in := range infos {
@@ -3432,14 +3452,16 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			title = in.Name
 		}
 		out = append(out, row{
-			Name:      in.Name,
-			Title:     title,
-			Msgs:      in.Msgs,
-			When:      in.SavedAt.Format("02-01 15:04"),
-			At:        in.SavedAt.Format(time.RFC3339),
-			Workspace: in.Workspace,
-			Current:   in.Name == current,
-			Pinned:    in.Pinned,
+			Name:        in.Name,
+			Title:       title,
+			Msgs:        in.Msgs,
+			When:        in.SavedAt.Format("02-01 15:04"),
+			At:          in.SavedAt.Format(time.RFC3339),
+			Workspace:   in.Workspace,
+			Current:     in.Name == current,
+			Pinned:      in.Pinned,
+			LiveSession: liveByConversation[in.Name],
+			LiveBusy:    liveBusyByConversation[in.Name],
 		})
 	}
 	writeJSON(w, out)

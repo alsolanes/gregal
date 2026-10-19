@@ -280,7 +280,8 @@ func (h *Hub) listFor(user *User) []map[string]any {
 		item := map[string]any{
 			"id": id, "title": s.title, "msgs": len(s.convo),
 			"busy": queued || s.agentBusy || s.planRunning || s.flowRunning, "mode": s.mode,
-			"role": s.role, "cwd": s.cwd, "project": projectName(s.cwd),
+			"conversation": s.convoFile,
+			"role":         s.role, "cwd": s.cwd, "project": projectName(s.cwd),
 			"worktree":      tools.WorktreeNameOf(s.cwd),
 			"created_at":    s.createdAt.UTC().Format(time.RFC3339),
 			"sess_cost_usd": s.sessCost, "sess_cost_known": s.sessCostKnown,
