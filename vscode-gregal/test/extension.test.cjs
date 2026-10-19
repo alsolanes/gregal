@@ -149,6 +149,9 @@ test('saved conversation picker restores transcript on the project session', asy
         assert.ok(resumed);
         assert.equal(listed.session, resumed.session);
         assert.deepEqual(resumed.body, { name: 'saved-1' });
+        // The server records /api/resume before its response reaches the webview.
+        // Wait for the transcript messages too, or this assertion races on Linux.
+        await waitFor(() => editor.outgoing.filter(message => message.type === 'message').length === 2);
         const transcript = editor.outgoing.filter(message => message.type === 'message');
         assert.deepEqual(transcript.map(message => [message.role, message.text]), [
             ['user', 'Fix login'], ['assistant', 'I found the issue.'],
