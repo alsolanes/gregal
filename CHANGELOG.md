@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.12.1 - 2026-10-19 - Specialist skills and smarter suggestions
+
 - **Specialist skills:** choose optional skills in Agent settings. Gregal keeps
   short routing descriptions in the prompt and opens the full skill only when
   the task calls for it. After a successful task, it may suggest a reviewable
