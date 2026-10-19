@@ -149,9 +149,11 @@ func TestSeleccioAlliberamentPerdut(t *testing.T) {
 // columna la resta de la fila.
 func TestSeleccioEsPintaRessaltada(t *testing.T) {
 	perfil := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.TrueColor)
 	t.Cleanup(func() { lipgloss.SetColorProfile(perfil) })
 	m := modelAmbText(t, "alfa beta gamma")
+	// New() applies the configured theme and honors NO_COLOR, so force ANSI
+	// styling after model setup to keep this rendering assertion deterministic.
+	lipgloss.SetColorProfile(termenv.TrueColor)
 	y := filaPantalla(t, m, "alfa")
 	m, _ = ratoli(m, 5, y, tea.MouseActionPress, tea.MouseButtonLeft)
 	m, _ = ratoli(m, 8, y, tea.MouseActionMotion, tea.MouseButtonLeft)

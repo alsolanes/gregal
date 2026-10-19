@@ -2,7 +2,7 @@
   "name": "gregal",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "0.3.2",
+  "version": "0.6.0",
   "publisher": "solanes",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -15,11 +15,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:gregal.ask",
-    "onCommand:gregal.explain",
-    "onCommand:gregal.cancel",
-    "onCommand:gregal.rewind",
-    "onCommand:gregal.github"
+    "onView:gregal.chat",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -34,15 +31,54 @@
       },
       {
         "command": "gregal.cancel",
-        "title": "%command.cancel.title%"
+        "title": "%command.cancel.title%",
+        "icon": "$(debug-stop)"
       },
       {
         "command": "gregal.rewind",
-        "title": "%command.rewind.title%"
+        "title": "%command.rewind.title%",
+        "icon": "$(discard)"
       },
       {
         "command": "gregal.github",
         "title": "%command.github.title%"
+      },
+      {
+        "command": "gregal.openChat",
+        "title": "%command.openChat.title%",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "gregal.newChat",
+        "title": "%command.newChat.title%",
+        "icon": "$(add)"
+      },
+      {
+        "command": "gregal.setToken",
+        "title": "%command.setToken.title%"
+      },
+      {
+        "command": "gregal.reviewChanges",
+        "title": "%command.reviewChanges.title%",
+        "icon": "$(source-control)"
+      },
+      {
+        "command": "gregal.acceptSelectedHunk",
+        "title": "%command.acceptSelectedHunk.title%",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gregal.rejectSelectedHunk",
+        "title": "%command.rejectSelectedHunk.title%",
+        "icon": "$(discard)"
+      },
+      {
+        "command": "gregal.fixDiagnostic",
+        "title": "%command.fixDiagnostic.title%"
+      },
+      {
+        "command": "gregal.explainDiagnostic",
+        "title": "%command.explainDiagnostic.title%"
       }
     ],
     "configuration": {
@@ -56,20 +92,98 @@
         "gregal.token": {
           "type": "string",
           "default": "",
-          "description": "%configuration.token.description%"
+          "description": "%configuration.token.description%",
+          "scope": "machine",
+          "deprecationMessage": "%configuration.token.deprecation%"
         },
         "gregal.session": {
           "type": "string",
           "default": "vscode",
           "description": "%configuration.session.description%"
+        },
+        "gregal.inlineCompletions.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "%configuration.inlineCompletions.description%"
         }
       }
-    }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gregal",
+          "title": "Gregal",
+          "icon": "media/activity.svg"
+        }
+      ]
+    },
+    "views": {
+      "gregal": [
+        {
+          "id": "gregal.chat",
+          "name": "%view.chat.name%",
+          "type": "webview",
+          "icon": "media/activity.svg",
+          "contextualTitle": "Gregal"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "gregal.acceptSelectedHunk",
+          "group": "gregal@3",
+          "when": "editorTextFocus && editorHasSelection && isInDiffEditor"
+        },
+        {
+          "command": "gregal.rejectSelectedHunk",
+          "group": "gregal@4",
+          "when": "editorTextFocus && editorHasSelection && isInDiffEditor"
+        },
+        {
+          "command": "gregal.ask",
+          "group": "gregal@1",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "gregal.explain",
+          "group": "gregal@2",
+          "when": "editorHasSelection"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "gregal.newChat",
+          "when": "view == gregal.chat && !gregal.busy",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gregal.cancel",
+          "when": "view == gregal.chat && gregal.busy",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gregal.reviewChanges",
+          "when": "view == gregal.chat",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "gregal.openChat",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g"
+      }
+    ]
   },
   "scripts": {
     "compile": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --platform=node --format=cjs",
-    "test": "node --test test/sse.test.ts test/api.test.ts test/l10n.test.ts",
-    "package": "vsce package --no-dependencies"
+    "test": "node --test test/*.test.ts test/*.test.cjs",
+    "package": "vsce package --no-dependencies",
+    "typecheck": "tsc --noEmit",
+    "vscode:prepublish": "npm run typecheck && npm run compile"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -77,5 +191,20 @@
     "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.28.2",
     "typescript": "^5.6.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "%workspaceTrust.description%"
+    },
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "%virtualWorkspace.description%"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alsolanes/gregal.git",
+    "directory": "vscode-gregal"
   }
 }

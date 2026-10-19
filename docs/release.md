@@ -26,7 +26,8 @@ that builds assets lives in `.github/workflows/release.yml`.
 
    The Release workflow checks that the tag, the versions and the changelog
    agree, builds the Windows installer, portable app and update metadata, the
-   CLI/backend for Linux, macOS and Windows (amd64 and arm64) with
+   CLI/backend for Linux, macOS and Windows (amd64 and arm64), and the VS Code
+   extension package (`gregal-X.Y.Z.vsix`) with
    `build.sh`, writes one `SHA256SUMS.txt`, and creates a **draft** release
    titled and described from the changelog section.
 4. **Attach the Android APKs** (built locally because they are signed with
@@ -58,6 +59,7 @@ that builds assets lives in `.github/workflows/release.yml`.
 | `Gregal-Setup-X.Y.Z-x64.exe` | Windows installer with automatic updates (`latest.yml` + `.blockmap`) |
 | `Gregal-Portable-X.Y.Z-x64.exe` | Portable Windows app |
 | `gregal-<os>-<arch>[.exe]` | Standalone backend/CLI (linux, darwin, windows × amd64, arm64) |
+| `gregal-X.Y.Z.vsix` | VS Code extension; install from Extensions → **…** → **Install from VSIX…** |
 | `Gregal-Android-A.B.C-arm64-v8a.apk` | Android app for phones (about 27 MB), attached by step 4 |
 | `Gregal-Android-A.B.C-x86_64.apk` | Android app for x86_64 emulators |
 | `Gregal-Android-A.B.C.apk` | Universal Android app, both backends (about 42 MB) |

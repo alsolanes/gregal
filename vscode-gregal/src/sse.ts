@@ -59,18 +59,27 @@ export function feedSse(chunk: string, carry: string): { evs: SseEvent[]; rest: 
     const buf = carry + chunk;
     const evs: SseEvent[] = [];
     let start = 0;
-    for (;;) {
-        const end = buf.indexOf("\n\n", start);
-        if (end < 0) break;
-        const block = buf.slice(start, end);
-        start = end + 2;
-        let name = "";
-        const datas: string[] = [];
-        for (const line of block.split("\n")) {
-            if (line.startsWith("event:")) name = line.slice(6).trim();
-            else if (line.startsWith("data:")) datas.push(line.slice(5).trim());
-        }
+    let lineStart = 0;
+    let name = "";
+    let datas: string[] = [];
+    const dispatch = () => {
         if (name) evs.push({ name, data: datas.join("\n") });
+        name = "";
+        datas = [];
+    };
+    for (let i = 0; i < buf.length; i++) {
+        if (buf[i] !== "\n") continue;
+        let line = buf.slice(lineStart, i);
+        if (line.endsWith("\r")) line = line.slice(0, -1);
+        lineStart = i + 1;
+        if (line === "") { dispatch(); start = lineStart; continue; }
+        if (line.startsWith(":")) continue;
+        const colon = line.indexOf(":");
+        const field = colon < 0 ? line : line.slice(0, colon);
+        let value = colon < 0 ? "" : line.slice(colon + 1);
+        if (value.startsWith(" ")) value = value.slice(1);
+        if (field === "event") name = value;
+        else if (field === "data") datas.push(value);
     }
     return { evs, rest: buf.slice(start) };
 }

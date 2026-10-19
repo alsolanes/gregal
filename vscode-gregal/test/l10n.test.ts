@@ -58,6 +58,8 @@ test("manifest and runtime strings have English and Catalan translations", () =>
     assert.deepEqual(Object.keys(runtimeCatalan).sort(), Object.keys(runtimeEnglish).sort());
     const messages = [
         ...runtimeMessages("../src/extension.ts"),
+        ...runtimeMessages("../src/controller.ts"),
+        ...runtimeMessages("../src/sidebar.ts"),
         ...runtimeMessages("../src/sse.ts"),
     ];
     for (const message of messages) {

@@ -164,9 +164,10 @@ anglès es poden quedar; els valors no (`PaletaTest` ho comprova).
 **Complement d'Office** (`internal/web/app/addin/taskpane.html`): els mateixos
 tokens, clar per defecte i fosc quan Office és fosc; la marca a la capçalera.
 
-**VS Code**: l'extensió no té UI pròpia i hereta el tema de l'editor. Només
-porta la marca a la icona i la descripció del `package.json`; a la sortida de
-text fa servir el glif `≋`.
+**VS Code**: el panell lateral hereta colors, tipografia, contrast i focus
+amb els tokens `--vscode-*`. La marca apareix a la capçalera i la barra
+d'activitat; la conversa, les eines i el context són llegibles en clar i fosc.
+La sortida de diagnòstic conserva el glif `≋`.
 
 **Telegram**: text pla. La identitat és el to i el vocabulari de glifs.
 

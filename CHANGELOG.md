@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **VS Code 0.6.0:** add optional inline completions through a dedicated,
+  cancellable, tool-free backend endpoint, plus diagnostic quick fixes to ask
+  Gregal to edit or explain the affected code.
+- **VS Code 0.5.0:** restore saved conversations from the backend with their
+  project context, and review Git changes by staging or discarding selected
+  lines directly in VS Code's diff editor.
+- **VS Code 0.4.0:** add a themed sidebar conversation with explicit editor
+  context, Code/Chat/Inspect modes, live tools and subagents, native decisions,
+  cancellation and Source Control access. Isolate default sessions by project,
+  keep run routing immutable, store tokens in SecretStorage, and harden durable
+  events and legacy streaming. Add strict type checking and client regressions.
 - **Scheduled jobs run on the phone with the app closed** (Android 0.11.0).
   A job such as "every day at 8:00, summarise today's tech news" now fires
   from a system alarm, also after a reboot and while the phone is in Doze;

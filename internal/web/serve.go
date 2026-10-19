@@ -417,6 +417,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/v2/runs/{id}", h.route((*Server).handleV2Run))
 	handle("/api/v2/runs/{id}/cancel", h.route((*Server).handleV2RunCancel))
 	handle("/api/chat", h.route((*Server).handleChat))
+	handle("/api/vscode/completion", h.route((*Server).handleInlineCompletion))
 	handle("/api/parallel", h.route((*Server).handleParallel))
 	handle("/api/v2/team/run", h.route((*Server).handleTeamRun))
 	handle("/api/agent", h.route((*Server).handleAgent))
@@ -847,6 +848,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"durable_events":     s.hub != nil && s.hub.eventError() == nil,
 			"event_stream":       s.hub != nil && s.hub.eventError() == nil,
 			"interactive_events": s.hub != nil && s.hub.eventError() == nil,
+			"inline_completion": true,
 			"jobs":               s.jobs != nil,
 			"mcp":                s.mcp != nil,
 		},

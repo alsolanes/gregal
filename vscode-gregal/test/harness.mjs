@@ -1,78 +1,34 @@
-// Harness: carrega dist/extension.js amb un vscode simulat i executa
-// gregal.ask de punta a punta contra el servidor real.
-// Ús: GREGAL_URL=... GREGAL_TOKEN=... node test/harness.mjs
-import Module from "node:module";
-import fs from "node:fs";
+// Optional live backend smoke check (Node.js 24+).
+// The deterministic bundle/VS Code-host tests live in extension.test.cjs.
+// Run only against a backend/model you intend to use:
+// GREGAL_URL=... GREGAL_TOKEN=... node test/harness.mjs
+import { runAgent } from "../src/run-client.ts";
 
-const URL = process.env.GREGAL_URL || "http://127.0.0.1:8097";
-const TOKEN = process.env.GREGAL_TOKEN || "";
-if (!TOKEN) {
-    console.error("cal GREGAL_TOKEN");
-    process.exit(2);
-}
-
-let output = "";
-const commands = {};
-const fakeVscode = {
-    workspace: {
-        getConfiguration: () => ({
-            get: (k) => (k === "baseUrl" ? URL : k === "token" ? TOKEN : ""),
-        }),
-        asRelativePath: (p) => p,
-    },
-    languages: {
-        getDiagnostics: () => [
-            { message: "b no s'usa (unused)", range: { start: { line: 2 } } },
-        ],
-    },
-    window: {
-        activeTextEditor: {
-            selection: { isEmpty: false },
-            document: {
-                languageId: "go",
-                fileName: "/tmp/prova.go",
-                getText: () => "package main\n\nfunc suma(a, b int) int { return a + b }\n",
-            },
+const controller = new AbortController();
+const timeout = setTimeout(() => controller.abort(), 240_000);
+let reply = "";
+try {
+    await runAgent({
+        base: process.env.GREGAL_URL || "http://127.0.0.1:8097",
+        token: process.env.GREGAL_TOKEN || "",
+        session: "vscode-smoke",
+    }, {
+        task: "Reply with exactly GREGAL-SMOKE-OK. Do not use tools.",
+        mode: "chat",
+    }, {
+        onEvent(kind, data) {
+            if (kind === "token") reply += String(data.text || "");
+            if (kind === "assistant") reply = String(data.text || reply);
+            if (kind === "done") reply = String(data.reply || reply);
         },
-        createOutputChannel: () => ({
-            clear: () => {},
-            append: (t) => {
-                output += t;
-            },
-            appendLine: (t) => {
-                output += t + "\n";
-            },
-            show: () => {},
-        }),
-        showInputBox: async () => "Què fa aquesta funció? Respon amb EXACTE: SUMA-DOS-NOMBRES.",
-        showWarningMessage: async () => "Denega",
-    },
-    commands: {
-        registerCommand: (id, fn) => {
-            commands[id] = fn;
-            return { dispose: () => {} };
-        },
-    },
-};
-
-const origLoad = Module._load;
-Module._load = function (req, ...rest) {
-    if (req === "vscode") return fakeVscode;
-    return origLoad.call(this, req, ...rest);
-};
-
-const ext = (await import("../dist/extension.js")).default ?? (await import("../dist/extension.js"));
-const mod = await import("../dist/extension.js");
-mod.activate({ subscriptions: [] });
-await commands["gregal.ask"]();
-// L'SSE és async via events; espera fins a 4 min que arribi el reply.
-const t0 = Date.now();
-while (!output.includes("SUMA-DOS-NOMBRES") && Date.now() - t0 < 240000) {
-    await new Promise((r) => setTimeout(r, 2000));
+        onApproval: async () => false,
+        onQuestion: async () => "",
+    }, controller.signal);
+    if (!reply.includes("GREGAL-SMOKE-OK")) throw new Error("Smoke check did not receive the expected reply");
+    console.log("Gregal backend smoke check passed");
+} catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+} finally {
+    clearTimeout(timeout);
 }
-fs.writeFileSync("/tmp/vscode-harness-out.txt", output);
-if (!output.includes("SUMA-DOS-NOMBRES")) {
-    console.error("HARNESS FAIL: sense reply; sortida a /tmp/vscode-harness-out.txt");
-    process.exit(1);
-}
-console.log("HARNESS OK: reply del servidor via el bundle real");

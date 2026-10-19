@@ -38,7 +38,7 @@ func TestV2ContractHealthEventsAndInteraction(t *testing.T) {
 		t.Fatalf("health incomplet: %+v", hp)
 	}
 	for _, capability := range []string{
-		"sessions", "runs", "events", "durable_events", "event_stream", "interactive_events",
+		"sessions", "runs", "events", "durable_events", "event_stream", "interactive_events", "inline_completion",
 	} {
 		if !hp.Capabilities[capability] {
 			t.Fatalf("health no anuncia %s: %+v", capability, hp.Capabilities)

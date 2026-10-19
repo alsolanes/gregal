@@ -10,8 +10,11 @@ import {
     cancelRun,
     listCheckpoints,
     listRunEvents,
+    listSavedConversations,
+    inlineCompletion,
     rewindAll,
     rewindTo,
+    resumeConversation,
     submitRun,
 } from "../src/api.ts";
 
@@ -47,6 +50,43 @@ test("GET checkpoints amb Bearer", async () => {
     } finally {
         close();
     }
+});
+
+test("llista i reprèn converses desades amb la sessió de projecte", async () => {
+    const seen: string[] = [];
+    const { base, close } = await srv((req, body) => {
+        seen.push(`${req.method} ${req.url} ${req.headers["x-gregal-session"]}`);
+        if (req.url === "/api/sessions") return { code: 200, json: [{ name: "saved-1", title: "Fix login", msgs: 4, at: "2026-10-19T09:00:00Z" }] };
+        assert.equal(req.url, "/api/resume");
+        assert.deepEqual(JSON.parse(body), { name: "saved-1" });
+        return { code: 200, json: { name: "saved-1", transcript: [{ role: "user", content: "Fix login" }] } };
+    });
+    try {
+        const rows = await listSavedConversations(base, "tok", "vscode-project");
+        assert.equal(rows[0].title, "Fix login");
+        const resumed = await resumeConversation(base, "tok", "vscode-project", rows[0].name);
+        assert.equal(resumed.transcript[0].content, "Fix login");
+        assert.deepEqual(seen, ["GET /api/sessions vscode-project", "POST /api/resume vscode-project"]);
+    } finally { close(); }
+});
+
+test("inline completion sends only bounded cursor context and abort signal", async () => {
+    let body: any;
+    let session = "";
+    const { base, close } = await srv((req, raw) => {
+        body = JSON.parse(raw);
+        session = String(req.headers["x-gregal-session"] || "");
+        return { code: 200, json: { completion: "return value" } };
+    });
+    const abort = new AbortController();
+    try {
+        const result = await inlineCompletion(base, "tok", "vscode-project", {
+            language: "go", prefix: "func f() {", suffix: "}", workspace: "C:/project",
+        }, { signal: abort.signal });
+        assert.equal(result.completion, "return value");
+        assert.deepEqual(body, { language: "go", prefix: "func f() {", suffix: "}", workspace: "C:/project" });
+        assert.equal(session, "vscode-project");
+    } finally { close(); }
 });
 
 test("401 sense token", async () => {
@@ -113,12 +153,13 @@ test("health negocia les capacitats v2 i envia la sessió", async () => {
     let seenSession = "";
     const { base, close } = await srv((req) => {
         seenSession = String(req.headers["x-gregal-session"] || "");
-        return { code: 200, json: { status: "ok", capabilities: { runs: true, durable_events: true, interactive_events: true } } };
+        return { code: 200, json: { status: "ok", protocol: "gregal.v1", instance_id: "test-instance", capabilities: { runs: true, durable_events: true, events: true, event_stream: true, interactive_events: true } } };
     });
     try {
         const health = await apiHealth(base, "tok", "vscode-test");
         assert.equal(health.capabilities?.runs, true);
         assert.equal(health.capabilities?.durable_events, true);
+        assert.equal(health.capabilities?.events, true);
         assert.equal(health.capabilities?.interactive_events, true);
         assert.equal(seenSession, "vscode-test");
     } finally {
@@ -160,4 +201,22 @@ test("ApiError conserva el status per decidir fallback", async () => {
     } finally {
         close();
     }
+});
+
+test("apiGet aborta peticions i limita la mida de resposta", async () => {
+    const s = http.createServer((_req, res) => {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.write('{"large":"');
+        setTimeout(() => res.end("later".repeat(100) + '"}'), 100);
+    });
+    await new Promise<void>((r) => s.listen(0, "127.0.0.1", r));
+    const a = s.address() as AddressInfo;
+    const base = `http://127.0.0.1:${a.port}`;
+    try {
+        await assert.rejects(() => apiGet(base, "", "/", { maxResponseBytes: 32 }), /size limit/i);
+        const controller = new AbortController();
+        const pending = apiGet(base, "", "/", { signal: controller.signal });
+        controller.abort();
+        await assert.rejects(pending, /abort/i);
+    } finally { s.close(); }
 });

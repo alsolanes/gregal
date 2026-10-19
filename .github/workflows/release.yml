@@ -86,8 +86,28 @@ jobs:
           name: cli
           path: dist/gregal-*
 
+  vscode:
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-gregal
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vscode
+          path: vscode-gregal/*.vsix
+
   release:
-    needs: [verify, windows, cli]
+    needs: [verify, windows, cli, vscode]
     runs-on: ubuntu-latest
     permissions:
       contents: write

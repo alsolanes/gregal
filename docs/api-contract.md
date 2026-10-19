@@ -255,6 +255,7 @@ workspace roots.
 | Route | Method | Notes |
 |---|---|---|
 | `/api/chat` | POST **SSE** | `{message}` → `token`, `done`, `verify`, `error`. |
+| `/api/vscode/completion` | POST | `{language,prefix,suffix,workspace}` → `{completion}`. Tool-free, does not read or change conversation history, requires an allowed workspace, limits cursor context to 9,000 characters, output to 128 tokens and each call to 10 seconds; returns 429 when its four-call shared limit is full. |
 | `/api/agent` | POST **SSE** | `{task, images?, mode?}` → see the event table below. `mode: chat|inspect` only restricts the turn (the Office add-in uses `chat` for read-only requests). If the session is already working, the request waits in the shared turn queue with SSE heartbeats; it does not return 409. |
 | `/api/parallel` | POST | `{message}` → `{results:[{role,provider,model,reply?,error?}]}`, up to 4 roles. |
 | `/api/plan` | POST | `{task}` → `{plan, critic?}`: read-only exploration that proposes a plan. With `plan.critic: on` (default) the reviewer role critiques it: `critic: {issues:[{kind: missing\|risky\|assumption, text}], model?, skipped?}` (`skipped` explains why no critique ran, e.g. no reviewer role). |

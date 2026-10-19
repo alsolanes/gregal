@@ -45,6 +45,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci
+      - run: npm run typecheck
       - run: npm run compile
       - run: npm test
       - run: npm audit --audit-level=high
