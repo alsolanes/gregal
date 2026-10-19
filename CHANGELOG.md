@@ -5,6 +5,8 @@
 - **VS Code 0.6.0:** add optional inline completions through a dedicated,
   cancellable, tool-free backend endpoint, plus diagnostic quick fixes to ask
   Gregal to edit or explain the affected code.
+- **Standalone VS Code setup for Windows:** release a single executable that
+  installs the extension and backend without PowerShell, then starts the server.
 - **VS Code 0.5.0:** restore saved conversations from the backend with their
   project context, and review Git changes by staging or discarding selected
   lines directly in VS Code's diff editor.

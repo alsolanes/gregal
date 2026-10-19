@@ -20,8 +20,10 @@ To run the web interface locally, use `go run . --serve` and open the URL printe
 
 ### Quick VS Code install on Windows
 
-Open PowerShell and run this command. It downloads and installs the extension
-and backend from the latest release, then starts the server:
+Download and run `Gregal-VSCode-Setup-x64.exe` from the
+[latest release](https://github.com/alsolanes/gregal/releases). It installs the
+extension and backend, then starts the server in a terminal window. It does
+not require PowerShell. The command-line alternative is:
 
 ```powershell
 irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
@@ -30,8 +32,8 @@ irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vsco
 Leave the terminal open while using VS Code. Configure a model provider before
 the first request. See the
 [VS Code guide](vscode-gregal/README.md) for other operating systems and options.
-This command requires a release that includes the `.vsix` package; upcoming
-Gregal releases will attach it.
+The installer and command require a release that includes the `.vsix` package;
+upcoming Gregal releases will attach it.
 
 ## Contributing
 

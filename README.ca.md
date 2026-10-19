@@ -32,8 +32,10 @@ que mostra el terminal. Per a la resta de clients i l'API HTTP, consulta el
 
 ### Instal·lació ràpida de VS Code a Windows
 
-Obre PowerShell i executa aquesta ordre. Baixa i instal·la l'extensió i el
-backend de la darrera publicació, i després inicia el servidor:
+Descarrega i executa `Gregal-VSCode-Setup-x64.exe` des de la
+[darrera publicació](https://github.com/alsolanes/gregal/releases). Instal·la
+l'extensió i el backend, i inicia el servidor en una finestra de terminal.
+No necessita PowerShell. També pots fer-ho amb una ordre de PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
@@ -42,8 +44,8 @@ irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vsco
 Deixa obert el terminal mentre facis servir VS Code. Configura un proveïdor i
 un model abans de fer la primera petició. Consulta la
 [guia de VS Code](vscode-gregal/README.md) per a altres sistemes i opcions.
-L'ordre requereix una publicació que inclogui el paquet `.vsix`; els propers
-llançaments de Gregal ja l'adjuntaran.
+L'instal·lador i l'ordre requereixen una publicació que inclogui el paquet
+`.vsix`; els propers llançaments de Gregal ja l'adjuntaran.
 
 ## Contribuir
 

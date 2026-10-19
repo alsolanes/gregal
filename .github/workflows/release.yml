@@ -62,6 +62,8 @@ jobs:
         working-directory: desktop
       - name: Verify update metadata
         run: node desktop/verify-release.js output/release
+      - name: Build standalone VS Code installer
+        run: go build -trimpath -buildvcs=false -o output/release/Gregal-VSCode-Setup-x64.exe ./cmd/vscode-installer
       - uses: actions/upload-artifact@v4
         with:
           name: windows
