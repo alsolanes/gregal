@@ -100,6 +100,37 @@ func TestIndex(t *testing.T) {
 	}
 }
 
+func TestCuradesSonOptativesILindexNoInclouElCos(t *testing.T) {
+	original := Habilitades()
+	t.Cleanup(func() { _ = DefineixHabilitades(original) })
+	if got := len(Curades()); got != len(NomsCurades()) {
+		t.Fatalf("hi ha %d definicions i %d ids curats", got, len(NomsCurades()))
+	}
+	cat := Cataleg()
+	idx := Index(cat)
+	for _, s := range Curades() {
+		if !strings.Contains(idx, "- "+s.Nom+": "+s.Descripcio) {
+			t.Errorf("falta la descripció de %s", s.Nom)
+		}
+		if strings.Contains(idx, s.Cos) {
+			t.Errorf("el cos de %s s'ha colat a l'índex", s.Nom)
+		}
+	}
+	if err := DefineixHabilitades([]string{"statistics"}); err != nil {
+		t.Fatal(err)
+	}
+	idx = Index(cat)
+	if !strings.Contains(idx, "- statistics:") || strings.Contains(idx, "- data-science:") {
+		t.Fatalf("el toggle no filtra correctament l'índex:\n%s", idx)
+	}
+	if Habilitada("data-science") || !Habilitada("statistics") {
+		t.Fatal("estat dels toggles incorrecte")
+	}
+	if err := DefineixHabilitades([]string{"inventada"}); err == nil {
+		t.Fatal("s'ha acceptat una skill desconeguda")
+	}
+}
+
 func escriu(t *testing.T, dir, nom, cos string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, nom), []byte(cos), 0o600); err != nil {

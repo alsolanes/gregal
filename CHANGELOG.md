@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Specialist skills:** choose optional skills in Agent settings. Gregal keeps
+  short routing descriptions in the prompt and opens the full skill only when
+  the task calls for it. After a successful task, it may suggest a reviewable
+  project or personal skill when it finds a concrete reusable workflow; it
+  saves nothing without the user's agreement.
 - **VS Code 0.6.0:** add optional inline completions through a dedicated,
   cancellable, tool-free backend endpoint, plus diagnostic quick fixes to ask
   Gregal to edit or explain the affected code.

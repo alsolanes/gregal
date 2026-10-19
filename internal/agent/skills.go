@@ -37,6 +37,9 @@ func IndexSkills(cwd string) string {
 func LlegeixSkill(cwd, nom string) (string, []string, error) {
 	dirs := DirsSkills(cwd)
 	s, ok := skills.Per(nom, dirs...)
+	if ok && !skills.Habilitada(s.Nom) {
+		return "", nil, fmt.Errorf("la skill %q està desactivada als ajustos", s.Nom)
+	}
 	if !ok {
 		disponibles := skills.Noms(dirs...)
 		if len(disponibles) == 0 {

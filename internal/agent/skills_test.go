@@ -5,11 +5,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"gregal/internal/skills"
 )
 
 // L'eina `skill` obre la del projecte i, si el nom no hi és, diu quines
 // hi ha: un nom mal escrit no ha de costar un pas perdut.
 func TestEinaSkill(t *testing.T) {
+	original := skills.Habilitades()
+	t.Cleanup(func() { _ = skills.DefineixHabilitades(original) })
 	dir := t.TempDir()
 	sk := filepath.Join(dir, ".gregal", "skills")
 	if err := os.MkdirAll(sk, 0o755); err != nil {
@@ -37,6 +41,13 @@ func TestEinaSkill(t *testing.T) {
 	_, _, err = ExecIn("", dir, "skill", `{"nom":"desplegamnt"}`)
 	if err == nil || !strings.Contains(err.Error(), "desplegament") {
 		t.Fatalf("un nom que no hi és ha de dir quines hi ha: %v", err)
+	}
+	if err := skills.DefineixHabilitades(nil); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = ExecIn("", dir, "skill", `{"name":"data-science"}`)
+	if err == nil || !strings.Contains(err.Error(), "desactivada") {
+		t.Fatalf("una skill desactivada no s'hauria d'obrir: %v", err)
 	}
 }
 

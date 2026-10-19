@@ -21,18 +21,122 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 )
 
 //go:embed integrades/*.md
 var integrades embed.FS
 
+//go:embed curades/*.md
+var curades embed.FS
+
+var habilitadesMu sync.RWMutex
+var habilitades = map[string]bool{
+	"anti-ai-slop": true, "data-science": true, "statistics": true,
+	"ai-engineering": true, "product-design": true,
+}
+var nomsCurades = []string{"anti-ai-slop", "data-science", "statistics", "ai-engineering", "product-design"}
+
+// PerDefecte són les habilitats especialistes activades en una instal·lació nova.
+func PerDefecte() []string { return append([]string(nil), nomsCurades...) }
+
 // Skill és un document amb nom i una descripció d'una línia.
 type Skill struct {
 	Nom        string
+	Titol      string
 	Descripcio string
 	Cos        string
 	// Font diu d'on surt: "integrada" o la ruta del fitxer.
 	Font string
+}
+
+// Curades són les habilitats especialistes del producte que l'usuari pot
+// activar. El cos només es retorna quan l'eina skill n'obre una.
+func Curades() []Skill {
+	entrades, err := curades.ReadDir("curades")
+	if err != nil {
+		return nil
+	}
+	var out []Skill
+	for _, e := range entrades {
+		raw, err := curades.ReadFile("curades/" + e.Name())
+		if err != nil {
+			continue
+		}
+		if s, ok := Parse(string(raw), "curada"); ok {
+			out = append(out, s)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Nom < out[j].Nom })
+	return out
+}
+
+// NomsCurades retorna els ids que es poden commutar des dels ajustos.
+func NomsCurades() []string { return append([]string(nil), nomsCurades...) }
+
+// Habilitades retorna les skills optatives activades, en ordre estable.
+func Habilitades() []string {
+	habilitadesMu.RLock()
+	defer habilitadesMu.RUnlock()
+	out := make([]string, 0, len(habilitades))
+	for name, on := range habilitades {
+		if on {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// DefineixHabilitades valida i canvia les skills optatives actives.
+func DefineixHabilitades(names []string) error {
+	if err := ValidaHabilitades(names); err != nil {
+		return err
+	}
+	next := make(map[string]bool, len(names))
+	for _, raw := range names {
+		next[Normalitza(raw)] = true
+	}
+	habilitadesMu.Lock()
+	habilitades = next
+	habilitadesMu.Unlock()
+	return nil
+}
+
+// ValidaHabilitades comprova noms sense canviar la selecció activa.
+func ValidaHabilitades(names []string) error {
+	permeses := make(map[string]bool, len(nomsCurades))
+	for _, name := range nomsCurades {
+		permeses[name] = true
+	}
+	for _, raw := range names {
+		name := Normalitza(raw)
+		if !permeses[name] {
+			return fmt.Errorf("no hi ha cap skill optativa que es digui %q", raw)
+		}
+	}
+	return nil
+}
+
+// EsCurada indica si el nom correspon a una habilitat optativa del producte.
+func EsCurada(name string) bool {
+	name = Normalitza(name)
+	for _, candidate := range nomsCurades {
+		if candidate == name {
+			return true
+		}
+	}
+	return false
+}
+
+// Habilitada indica si una skill optativa està activa; les altres sempre ho són.
+func Habilitada(name string) bool {
+	if !EsCurada(name) {
+		return true
+	}
+	habilitadesMu.RLock()
+	defer habilitadesMu.RUnlock()
+	return habilitades[Normalitza(name)]
 }
 
 // Integrades són les skills que van dins del binari.
@@ -86,6 +190,9 @@ func Cataleg(dirs ...string) []Skill {
 	for _, s := range Integrades() {
 		per[s.Nom] = s
 	}
+	for _, s := range Curades() {
+		per[s.Nom] = s
+	}
 	for _, d := range dirs {
 		for _, s := range DeDir(d) {
 			per[s.Nom] = s
@@ -129,6 +236,9 @@ func Index(cat []Skill) string {
 	var b strings.Builder
 	b.WriteString("SKILLS (knowledge you can open when you need it: call the `skill` tool with the name to read it in full, and do it BEFORE saying you don't know something or guessing it):\n")
 	for _, s := range cat {
+		if !Habilitada(s.Nom) {
+			continue
+		}
 		fmt.Fprintf(&b, "- %s: %s\n", s.Nom, s.Descripcio)
 	}
 	return strings.TrimRight(b.String(), "\n")
@@ -163,6 +273,8 @@ func Parse(raw, font string) (Skill, bool) {
 		switch strings.ToLower(strings.TrimSpace(clau)) {
 		case "nom", "name":
 			s.Nom = Normalitza(valor)
+		case "title", "titol", "títol":
+			s.Titol = valor
 		case "descripcio", "descripció", "description":
 			s.Descripcio = valor
 		}

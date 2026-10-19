@@ -17,7 +17,12 @@ import (
 // Com totes les guies, és en anglès; la llengua de la resposta la fixa la
 // directiva LANGUAGE que tanca el system prompt (config.LanguageDirective),
 // i aquí només s'hi remet.
-const FinalPrompt = "The actions are over. Now give the user a clear final answer with what you found or did. If you could not finish everything, summarize what you did and what is still left to do. Do not use tools and do not explain your internal reasoning. " + RecordaLlengua
+const FinalPrompt = "The actions are over. Now give the user a clear final answer with what you found or did. If you could not finish everything, summarize what you did and what is still left to do. Do not use tools and do not explain your internal reasoning. " + SkillSuggestionGuidance + " " + RecordaLlengua
+
+// SkillSuggestionGuidance fa que l'agent ofereixi una skill només quan la
+// tasca completada hagi revelat un procediment reutilitzable i específic.
+// La proposta queda a la resposta perquè la persona la revisi abans de desar.
+const SkillSuggestionGuidance = `After a successfully completed, non-autonomous task, consider whether it revealed a concrete, reusable workflow or decision rule specific to this user's project or repeated work. Suggest at most one skill, and only when it adds knowledge not already covered by the enabled skill index, existing project instructions, or a saved skill. Never turn a one-off request, generic expertise, or sensitive information into a suggestion. Usually make no suggestion. When clearly worthwhile, add a short "Skill suggestion" section with a proposed name, why it is reusable, a compact draft of its trigger and key steps, and whether it belongs to this project or the user's personal skills. Ask whether the user wants it saved. Do not create or save it until the user explicitly agrees.`
 
 // RecordaLlengua tanca les consignes de síntesi: remet a la directiva
 // d'idioma del system prompt, que és la que sap la llengua de la sessió.

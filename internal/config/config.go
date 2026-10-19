@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gregal/internal/llm"
 	"gregal/internal/sandbox"
+	"gregal/internal/skills"
 	"gregal/internal/tema"
 	"gregal/internal/tools"
 )
@@ -493,6 +494,9 @@ type Config struct {
 	// Knowledge: limits de les col·leccions de coneixement i embeddings
 	// opcionals (knowledge.go).
 	Knowledge KnowledgeCfg `yaml:"knowledge,omitempty"`
+	// Skills són habilitats especialistes opcionals; els seus cossos només
+	// entren al prompt quan l'agent n'obre una.
+	Skills SkillsCfg `yaml:"skills,omitempty"`
 
 	// rawKeys conserva les api_key TAL COM al fitxer (sense expandir ${VAR}),
 	// perquè Save no congeli secrets ni variables d'entorn al disc.
@@ -648,6 +652,8 @@ func (c *Config) CockpitOn() bool {
 
 const defaultYAML = `# Gregal configuration. Choose any OpenAI-compatible provider and model.
 lang: en
+skills:
+  enabled: [anti-ai-slop, data-science, statistics, ai-engineering, product-design]
 # Public provider presets. Supply only your own API key, then select a provider.
 # Keys are read from environment variables; no credentials are bundled.
 
@@ -911,6 +917,9 @@ func Load(path string) (*Config, string, error) {
 	if err := c.Validate(); err != nil {
 		return nil, path, err
 	}
+	if err := skills.DefineixHabilitades(c.Skills.Actives()); err != nil {
+		return nil, path, err
+	}
 	c.RegisterProviderTypes()
 	sandbox.Configure(c.Sandbox)
 	tools.SetBrowserMode(c.Browser.Mode)
@@ -972,6 +981,11 @@ func (c *Config) Validate() error {
 	}
 	if err := c.validateKnowledge(); err != nil {
 		return err
+	}
+	for _, name := range c.Skills.Actives() {
+		if !skills.EsCurada(name) {
+			return fmt.Errorf("skills.enabled: unknown specialist skill %q", name)
+		}
 	}
 	for _, need := range []string{"chat", "code", "reviewer"} {
 		r, ok := c.Roles[need]

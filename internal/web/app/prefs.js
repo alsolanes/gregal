@@ -175,6 +175,9 @@ export const prefs = {
       // config a mà o des del TUI. Aquí és on el busques.
       fila('prefs.verify', 'prefs.verify.help',
         '<label class="pf-check"><input type="checkbox" id="prefsVerify"' + (this.verifyAuto() ? ' checked' : '') + '><span></span></label>') +
+      '<h3 class="pf-sec">' + T('prefs.skills') + '</h3>' +
+      '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
+      '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>' +
       '<h3 class="pf-sec">' + T('prefs.providers') + '</h3>' +
       fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
@@ -219,6 +222,7 @@ export const prefs = {
     });
     const v = $('prefsVerify');
     if (v) v.onchange = () => this.posaVerify(v.checked);
+    this.carregaSkills();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     desktopUpdates.bind(cos);
@@ -231,6 +235,48 @@ export const prefs = {
       this.pinta();
       card.scrollTop = top;
     });
+  },
+
+  async carregaSkills() {
+    const box = $('prefsSkills');
+    if (!box) return;
+    const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    try {
+      const response = await G().api('/api/skills');
+      if (!response.ok) throw new Error((await response.text()).trim());
+      const data = await response.json();
+      const list = Array.isArray(data.skills) ? data.skills : [];
+      box.innerHTML = list.map(skill => {
+        const key = 'prefs.skill.' + skill.name;
+        return '<div class="pf-row"><div class="pf-lab"><b>' + esc(T(key + '.title', skill.title || skill.name)) + '</b>' +
+          '<span>' + esc(T(key + '.help', skill.description || '')) + '</span></div>' +
+          '<label class="pf-check"><input type="checkbox" data-skill="' + esc(skill.name) + '" aria-label="' + esc(T(key + '.title', skill.title || skill.name)) + '"' + (skill.enabled ? ' checked' : '') + '><span></span></label></div>';
+      }).join('');
+      box.querySelectorAll('input[data-skill]').forEach(input => {
+        input.onchange = async () => {
+          const controls = [...box.querySelectorAll('input[data-skill]')];
+          controls.forEach(control => { control.disabled = true; });
+          try {
+            const saved = await G().api('/api/skills', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ enabled: controls.filter(control => control.checked).map(control => control.dataset.skill) }),
+            });
+            if (!saved.ok) throw new Error((await saved.text()).trim());
+          } catch (error) {
+            input.checked = !input.checked;
+            const status = document.createElement('div');
+            status.className = 'pf-skills-status error';
+            status.textContent = T('prefs.skills.error') + ' ' + error.message;
+            box.appendChild(status);
+          } finally {
+            controls.forEach(control => { control.disabled = false; });
+          }
+        };
+      });
+    } catch (error) {
+      box.innerHTML = '<div class="pf-skills-status error">' + esc(T('prefs.skills.error')) + ' ' + esc(error.message) + '</div>';
+    }
   },
 
   // L'idioma va al servidor abans que a la pantalla: si el servidor no el

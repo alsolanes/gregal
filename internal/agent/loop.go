@@ -209,7 +209,7 @@ func Specs() []llm.ToolSpec {
 			}, "required": []string{"action"}}},
 		{Name: "todoread", Description: "Read the published list of steps (progress checks).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{}}},
-		{Name: "skill", Description: "Open a skill by name and return its full content. Skills are knowledge about gregal itself (sessions, configuration, modes) and about the project. The index with the names and what each one covers is in your prompt: open the relevant one BEFORE saying you don't know something or guessing it.",
+		{Name: "skill", Description: "Open a skill by name and return its full content. Skills are knowledge about gregal itself, your project, or specialist workflows. Check the short index in your prompt and open a skill only when the task materially benefits from it; do not open unrelated skills. Specialist skills disabled in settings are unavailable. Read a relevant skill before acting when it provides a workflow for the task.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"name": str,
 			}, "required": []string{"name"}}},
