@@ -22,6 +22,8 @@ function loadSessions() {
     gregal: {
       async api(url, opts) {
         (sandbox.requests ||= []).push({ url, opts });
+        if (url === '/api/active') return { ok: true, async json() { return sandbox.activeResponse || { active: null }; } };
+        if (url.startsWith('/api/v2/events?')) return { ok: true, async json() { return sandbox.eventResponse || { events: [], next: 0 }; } };
         if (url === '/api/sessions/open') return { ok: true, async json() { return { id: 'new-project' }; } };
         if (url === '/api/sessions/close' && sandbox.closeFails) throw new Error('backend unavailable');
         return { ok: true, async json() { return { sessions: [] }; }, async text() { return ''; } };
@@ -127,6 +129,24 @@ test('returning to a busy session makes its background work visible', async () =
   await sessions.switchTo('alpha');
 
   assert.ok(messages.includes('sessions.stillWorking'));
+});
+
+test('returning to a busy session replays that run from the durable v2 event log', async () => {
+  const { sessions, messages, sandbox } = loadSessions();
+  sandbox.refreshState = { agent_busy: true, transcript: [{ role: 'user', content: 'important task' }] };
+  sandbox.activeResponse = { active: { id: 7, task: 'important task' } };
+  sandbox.eventResponse = { next: 3, events: [
+    { id: 1, run_id: 7, kind: 'token', text: 'Earlier visible progress' },
+    { id: 2, run_id: 8, kind: 'token', text: 'Another session' },
+    { id: 3, run_id: 7, kind: 'thinking', text: '💭 Checking the project', payload: { text: 'Checking the project' } },
+  ] };
+
+  await sessions.switchTo('alpha');
+
+  assert.ok(sandbox.requests.some(r => r.url.startsWith('/api/v2/events?session=alpha')));
+  assert.ok(messages.some(m => m && m.role === 'a' && m.content === 'Earlier visible progress'));
+  assert.ok(messages.some(m => m && m.role === 't' && /Checking the project/.test(m.content)));
+  assert.ok(!messages.some(m => m && m.role === 'a' && m.content === 'Another session'));
 });
 
 test('switching to a session restores tool calls and their results with the transcript', async () => {

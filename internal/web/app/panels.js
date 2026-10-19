@@ -156,7 +156,7 @@ async function activeRunEvents(id) {
   // Cada petició té un màxim de 500 events; el cursor permet recuperar una
   // execució llarga sense truncar el seu inici.
   for (let page = 0; page < 20; page++) {
-    const resp = await G().api('/api/events?session=' + encodeURIComponent(id) + '&after=' + after + '&limit=500', { headers });
+    const resp = await G().api('/api/v2/events?session=' + encodeURIComponent(id) + '&after=' + after + '&limit=500', { headers });
     if (!resp.ok) return { active, events: [] };
     const data = await resp.json();
     const batch = Array.isArray(data.events) ? data.events : [];
