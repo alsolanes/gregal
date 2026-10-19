@@ -299,12 +299,12 @@ function wireIPC(getWin) {
     });
     // La pàgina avisa que el webview de l'agent és a punt. Només s'accepta
     // un guest webview d'aquesta finestra i de la partició pròpia.
-    ipcMain.on('gregal:agent-browser-ready', (event, id) => {
-        if (!trusted(event) || !browserBridge || !Number.isInteger(id)) return;
+    ipcMain.on('gregal:agent-browser-ready', (event, id, scope = '') => {
+        if (!trusted(event) || !browserBridge || !Number.isInteger(id) || typeof scope !== 'string' || (scope && !/^[a-zA-Z0-9_.-]{1,128}$/.test(scope))) return;
         let guest = null;
         try { guest = electronWebContents.fromId(id); } catch (e) { return; }
         if (!validGuest(guest, getWin()?.webContents, session.fromPartition(AGENT_BROWSER_PARTITION))) return;
-        browserBridge.setTarget(guest);
+        browserBridge.setTarget(guest, scope);
     });
     ipcMain.on('gregal:preference-save', (event, key, value) => {
         if (!trusted(event) || !allowed(key) || (value !== null && (typeof value !== 'string' || value.length > 4096))) return;

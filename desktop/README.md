@@ -80,3 +80,18 @@ Backend log: the app appends the managed backend's output to
 `gregal-backend.log` in its data folder (`%APPDATA%/Gregal` on Windows,
 rotated to `.old` past 2 MB). When a run stops unexpectedly, that file —
 not the UI — holds the real provider error (credentials redacted).
+
+
+## Web views and sessions
+
+Preview keeps page tabs separately for each conversation. Switching conversations
+restores the selected page without reloading its frame, so page input and running
+scripts remain intact. New local website addresses can open in additional tabs;
+use **+** to open another manually. Tab addresses and generated documents survive
+a page reload in the current app window; page form input is preserved while
+switching sessions, rather than across reloads.
+
+The agent browser also keeps an independent page and control connection for each
+live session. A background agent can continue using its own browser without
+bringing another project's page into the selected conversation. Closing or
+releasing one session's browser does not release the others.

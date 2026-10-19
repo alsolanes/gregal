@@ -66,6 +66,11 @@ function createBrowserBridge(options = {}) {
   let target = null;
   let attached = false;
   let waiters = [];
+  const scoped = new Map();
+  function forSession(id) {
+    if (!scoped.has(id)) scoped.set(id, createBrowserBridge({ ...options, notify: state => notify({state, session:id}) }));
+    return scoped.get(id);
+  }
 
   const alive = () => !!target && !(typeof target.isDestroyed === 'function' && target.isDestroyed());
 
@@ -78,7 +83,8 @@ function createBrowserBridge(options = {}) {
 
   // setTarget: el webview de l'agent ja és a punt (main.js n'ha validat
   // l'origen). Un de nou substitueix l'anterior.
-  function setTarget(wc) {
+  function setTarget(wc, session = '') {
+    if (session) { forSession(session).setTarget(wc); return; }
     if (!wc || wc === target) return;
     detach();
     target = wc;
@@ -94,6 +100,7 @@ function createBrowserBridge(options = {}) {
   }
 
   function clearTarget(wc) {
+    for (const child of scoped.values()) child.clearTarget(wc);
     if (wc && wc !== target) return;
     detach();
     target = null;
@@ -159,6 +166,12 @@ function createBrowserBridge(options = {}) {
     let body;
     try { body = await readBody(req); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     const path = String(req.url || '').split('?')[0];
+    const scope = req.headers['x-gregal-session'];
+    if (scope && (typeof scope !== 'string' || !/^[a-zA-Z0-9_.-]{1,128}$/.test(scope))) return send(res,400,{error:'invalid browser session'});
+    return (scope ? forSession(scope).dispatch : dispatch)(path, body, res);
+  }
+
+  async function dispatch(path, body, res) {
     if (path === '/attach') {
       if (!(await waitTarget(attachTimeoutMs))) return send(res, 503, { error: 'the app browser pane is not ready' });
       try { ensureAttached(); } catch (e) { return send(res, 409, { error: 'cannot attach to the app browser: ' + e.message }); }
@@ -208,6 +221,8 @@ function createBrowserBridge(options = {}) {
   }
 
   function close() {
+    for (const child of scoped.values()) child.close();
+    scoped.clear();
     detach();
     target = null;
     for (const w of waiters.splice(0)) w(false);
@@ -216,7 +231,7 @@ function createBrowserBridge(options = {}) {
   }
 
   return {
-    start, close, envValue, handle, setTarget, clearTarget,
+    start, close, envValue, handle, dispatch, setTarget, clearTarget,
     isAttached: () => attached,
     hasTarget: alive,
     get port() { return port; },

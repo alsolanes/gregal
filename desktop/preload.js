@@ -42,11 +42,11 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     // mostrar el panell ('show') i diu qui mana ('active'/'released'); la
     // pàgina torna l'id del webview quan és a punt.
     onAgentBrowser: cb => {
-        const listener = (_e, state) => cb(String(state));
+        const listener = (_e, state) => cb(state && typeof state === 'object' ? state : String(state));
         ipcRenderer.on('gregal:agent-browser', listener);
         return () => ipcRenderer.removeListener('gregal:agent-browser', listener);
     },
-    agentBrowserReady: id => ipcRenderer.send('gregal:agent-browser-ready', Number(id)),
+    agentBrowserReady: (id, session = '') => ipcRenderer.send('gregal:agent-browser-ready', Number(id), String(session)),
     // Mascota flotant (mascot-window.js): la pàgina n'envia l'ànim i una
     // etiqueta traduïda; el procés principal valida i la reenvia.
     mascotWindow: true,

@@ -16,11 +16,10 @@ function commandFromArgs(args) {
 // Resum per torn construït només amb esdeveniments observats. Els paths de
 // write/edit/patch provenen de crides completades; els checks són els que el
 // servidor publica explícitament als checkpoints autònoms.
-export function createSummary() {
+export function createSummary(session = window.gregalSession || 'default') {
   const writes = new Set(), pendingWrites = [];
   const checks = [], checkpoints = [];
   const seenCheckpoints = new Set();
-  const session = window.gregalSession || 'default';
   let status = 'completed', rendered = false;
   function record(ev, data) {
     const d = data || {};
@@ -261,30 +260,37 @@ export function durableToAgent(e, onEvent) {
   return e.kind === 'run_completed' || e.kind === 'run_failed' || e.kind === 'run_cancelled';
 }
 
-async function consumeStream(id, session, after, ctrl, onEvent) {
+async function consumeStream(id, session, after, ctrl, onEvent, onCursor = () => {}) {
   const r = await G().api('/api/v2/events/stream?after=' + after + '&limit=100', { signal: ctrl.signal, headers: sessionHeaders(session) });
   if (!r.ok) throw errorFor(r, await r.text());
   if (!r.body || !r.body.getReader) throw new Error(T('run.err.stream', 'Event stream unavailable'));
   const rd = r.body.getReader(), dec = new TextDecoder();
-  let buf = '', finished = false;
-  for (;;) {
-    const x = await rd.read();
-    if (x.done) break;
-    buf += dec.decode(x.value, { stream: true });
-    let at;
-    while ((at = buf.indexOf('\n\n')) >= 0) {
-      const frame = buf.slice(0, at); buf = buf.slice(at + 2);
-      const parsed = parseFrame(frame);
-      if (!parsed || !parsed.data || Number(parsed.data.run_id) !== Number(id)) continue;
-      if (durableToAgent(parsed.data, onEvent)) finished = true;
+  try {
+    let buf = '', finished = false;
+    for (;;) {
+      const x = await rd.read();
+      if (x.done) break;
+      buf += dec.decode(x.value, { stream: true });
+      let at;
+      while ((at = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, at); buf = buf.slice(at + 2);
+        const parsed = parseFrame(frame);
+        if (!parsed?.data) continue;
+        if (Number(parsed.data.run_id) === Number(id) && durableToAgent(parsed.data, onEvent)) finished = true;
+        const cursor = Number(parsed.data.id);
+        if (Number.isFinite(cursor)) onCursor(cursor);
+      }
+      if (finished) return;
     }
-    if (finished) { try { await rd.cancel(); } catch (e) {} return; }
+    if (!ctrl.signal.aborted) throw new Error('stream v2 tancat abans d’acabar el torn');
+  } finally {
+    try { await rd.cancel?.(); } catch (e) {}
+    rd.releaseLock?.();
   }
-  if (!ctrl.signal.aborted) throw new Error('stream v2 tancat abans d’acabar el torn');
 }
 
-async function consumePolling(id, session, after, ctrl, onEvent) {
-  for (;;) {
+async function consumePolling(id, session, after, ctrl, onEvent, onCursor = () => {}) {
+  while (!ctrl.signal.aborted) {
     const r = await G().api('/api/v2/events?after=' + after + '&limit=100', { signal: ctrl.signal, headers: sessionHeaders(session) });
     if (!r.ok) throw errorFor(r, await r.text());
     const page = await r.json();
@@ -292,8 +298,11 @@ async function consumePolling(id, session, after, ctrl, onEvent) {
     after = Number.isFinite(Number(page.next)) ? Number(page.next) : after;
     for (const e of events) {
       if (Number(e.run_id) !== Number(id)) continue;
-      if (durableToAgent(e, onEvent)) return;
+      const finished = durableToAgent(e, onEvent);
+      onCursor(Number(e.id) || after);
+      if (finished) return;
     }
+    onCursor(after);
     await new Promise(resolve => setTimeout(resolve, events.length ? 80 : 250));
   }
 }
@@ -319,7 +328,18 @@ export async function run(task, images, mode, onEvent) {
   const id = out && out.run && out.run.id;
   if (!id) throw new Error(T('run.err.noId', 'Server response without a run ID'));
   const cursor = Math.max(0, Number(out.cursor) || 0);
-  const summary = createSummary();
+  return follow(id, session, cursor, onEvent, caps);
+}
+
+// Reconnect to an existing run without creating or restarting any work.
+export async function attach(id, after, onEvent, session = window.gregalSession || 'default') {
+  const caps = await capabilities();
+  if (!canUseV2(caps)) return false;
+  return follow(id, session, Math.max(0, Number(after) || 0), onEvent, caps);
+}
+
+async function follow(id, session, cursor, onEvent, caps) {
+  const summary = createSummary(session);
   // The event and terminal run_failed records can wrap the same error in
   // different presentation text. Compare their underlying message per run.
   const seenErrors = new Set();
@@ -342,15 +362,27 @@ export async function run(task, images, mode, onEvent) {
   const controls = window.gregalRunControls || (window.gregalRunControls = new Map());
   controls.set(session, { id, cancel: () => sendCancel(id, session), abort: () => ctrl.abort() });
   try {
-    if (caps.event_stream) {
-      try { await consumeStream(id, session, cursor, ctrl, receive); }
-      catch (e) {
+    let streaming = !!caps.event_stream, retry = 0;
+    const advance = value => { cursor = Math.max(cursor, value); };
+    while (!ctrl.signal.aborted) {
+      try {
+        if (streaming) await consumeStream(id, session, cursor, ctrl, receive, advance);
+        else await consumePolling(id, session, cursor, ctrl, receive, advance);
+        break;
+      } catch (error) {
         if (ctrl.signal.aborted) return true;
-        if (!e.routeUnavailable) throw e;
-        await consumePolling(id, session, cursor, ctrl, receive);
+        if (error.code === 'INTERACTION_PAYLOAD_MISSING' || (error.status >= 400 && error.status < 500 && !error.routeUnavailable)) throw error;
+        // Losing a read connection never cancels or resubmits the run.
+        // Resume polling from the last event delivered to the renderer.
+        streaming = false;
+        if (error.routeUnavailable) continue;
+        receive('status', { message: T('estat.reconnectant', 'Reconnecting') });
+        await new Promise(resolve => {
+          const done = () => { clearTimeout(timer); ctrl.signal.removeEventListener('abort', done); resolve(); };
+          const timer = setTimeout(done, Math.min(5000, 250 * Math.pow(2, retry++)));
+          ctrl.signal.addEventListener('abort', done, { once: true });
+        });
       }
-    } else {
-      await consumePolling(id, session, cursor, ctrl, receive);
     }
     summary.render();
     return true;
@@ -366,4 +398,4 @@ export async function run(task, images, mode, onEvent) {
   }
 }
 
-if (typeof window !== 'undefined') window.gregalRuns = { run, capabilities, canUseV2, createSummary };
+if (typeof window !== 'undefined') window.gregalRuns = { run, attach, capabilities, canUseV2, createSummary };

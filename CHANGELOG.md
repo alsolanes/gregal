@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.12.4 - 2026-10-19 - Session web views and continuity
+
+- **Web views belong to their session:** Preview has page tabs, keeps loaded
+  frames and page input when switching projects, and restores saved tab addresses
+  after a page reload. Background preview requests update their owning session.
+  The desktop agent browser also keeps a separate webview and control channel
+  per session; navigating, releasing or closing one does not affect another.
+
+- **Reliable session navigation:** restore cached conversation nodes and scroll
+  positions immediately, retain background run events, and ignore stale responses
+  during rapid tab changes. Reconnect to existing runs after a page reload or
+  event-stream interruption without submitting or cancelling work. Conversation
+  loading returns the full available transcript and seeks directly to the active
+  run's events, without waiting for Git queries. Fix welcome content intercepting
+  tab clicks and stale working badges in the conversation sidebar.
+
 ## v1.12.3 - 2026-10-19 - Interrupted turn recovery
 
 - **Interrupted turn recovery:** save the accepted task before model or tool

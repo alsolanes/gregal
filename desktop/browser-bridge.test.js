@@ -237,3 +237,20 @@ test('main registers the agent webview only from the trusted page', () => {
   ready(trusted, 7);
   assert.deepEqual(targets, [guests.get(7)]);
 });
+
+
+test('session browser targets receive only their own commands and release independently', async t => {
+  const {bridge,states,port,token}=await startedBridge(t);
+  const alpha=fakeGuest(),beta=fakeGuest();
+  bridge.setTarget(alpha,'alpha');bridge.setTarget(beta,'beta');
+  const scoped=(scope,pathName,body={})=>request(port,{token,pathName,body,headers:{'X-Gregal-Session':scope}});
+  await Promise.all([scoped('alpha','/attach'),scoped('beta','/attach')]);
+  await scoped('alpha','/cdp',{method:'Page.navigate',params:{url:'http://localhost:3000/alpha'}});
+  assert.equal(alpha.debugger.calls.filter(c=>c==='Page.navigate').length,1);
+  assert.equal(beta.debugger.calls.includes('Page.navigate'),false);
+  await scoped('alpha','/release');
+  assert.equal(alpha.debugger.attachedFlag,false);
+  assert.equal(beta.debugger.attachedFlag,true);
+  assert.ok(states.some(s=>s?.state==='show'&&s.session==='alpha'));
+  assert.equal((await scoped('../other','/attach')).status,400);
+});

@@ -341,3 +341,59 @@ func TestParseAppBridge(t *testing.T) {
 		t.Fatal("bridge must have rejected the request")
 	}
 }
+
+func TestBrowserAppScopesKeepSeparateTransports(t *testing.T) {
+	var mu sync.Mutex
+	pages := map[string]string{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scope := r.Header.Get("X-Gregal-Session")
+		if scope != "alpha" && scope != "beta" {
+			t.Errorf("missing scope: %q", scope)
+		}
+		if r.URL.Path == "/cdp" {
+			var req struct {
+				Method string         `json:"method"`
+				Params map[string]any `json:"params"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			if req.Method == "Page.navigate" {
+				mu.Lock()
+				pages[scope], _ = req.Params["url"].(string)
+				mu.Unlock()
+			}
+			w.Write([]byte(`{"result":{}}`))
+			return
+		}
+		w.Write([]byte(`{"ok":true}`))
+	}))
+	t.Cleanup(srv.Close)
+	ambModeNet(t, "app", srv.URL+"/?token=test")
+	alpha, err := GetBrowserFor("alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	beta, err := GetBrowserFor("beta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if alpha == beta {
+		t.Fatal("sessions share their browser")
+	}
+	if _, err = alpha.call("Page.navigate", map[string]any{"url": "http://localhost:3000/alpha"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = beta.call("Page.navigate", map[string]any{"url": "http://localhost:4000/beta"}); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	a, b := pages["alpha"], pages["beta"]
+	mu.Unlock()
+	if a != "http://localhost:3000/alpha" || b != "http://localhost:4000/beta" {
+		t.Fatalf("mixed pages: %q %q", a, b)
+	}
+	CloseBrowserFor("alpha")
+	again, err := GetBrowserFor("beta")
+	if err != nil || again != beta {
+		t.Fatal("closing alpha affected beta")
+	}
+}

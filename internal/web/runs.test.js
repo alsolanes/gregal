@@ -7,7 +7,7 @@ const vm = require("node:vm");
 
 async function module(window = {}) {
   const source = fs.readFileSync(path.join(__dirname, "app", "runs.js"), "utf8");
-  const context = vm.createContext({ window, AbortController, TextDecoder, setTimeout });
+  const context = vm.createContext({ window, AbortController, TextDecoder, setTimeout, clearTimeout });
   const m = new vm.SourceTextModule(source, { context, identifier: "runs.js" });
   await m.link(() => { throw new Error("runs.js no té imports"); });
   await m.evaluate();
@@ -226,4 +226,44 @@ test("resum indica els estats d'interrupció i cancel·lació", async () => {
   cancelled.render();
   assert.match(markup[0], /Interrompuda/);
   assert.match(markup[1], /Cancel·lada/);
+});
+
+
+test('reattaching follows the existing run without submitting or cancelling it', async () => {
+  const requests = [], seen = [];
+  const json = value => ({ ok: true, json: async () => value });
+  const window = { gregalSession: 'other', gregal: { api: async (url, opts) => {
+    requests.push({url, opts});
+    if (url === '/api/health') return json({ capabilities: {runs:true,events:true,durable_events:true,interactive_events:true} });
+    return json({next:12,events:[{id:11,run_id:8,kind:'text',text:'restored answer'},{id:12,run_id:8,kind:'run_completed'}]});
+  } } };
+  const { attach } = await module(window);
+  await attach(8, 10, (kind, data) => seen.push([kind, data]), 'alpha');
+  assert.ok(requests[1].url.includes('after=10'));
+  assert.equal(requests[1].opts.headers['X-Gregal-Session'], 'alpha');
+  assert.equal(requests.some(r => r.opts?.method === 'POST'), false);
+  assert.equal(seen[0][1].text, 'restored answer');
+});
+
+test('a broken event stream continues after its last delivered cursor', async () => {
+  const requests = [], seen = [];
+  const json = value => ({ ok: true, json: async () => value });
+  const window = { gregalSession: 'alpha', gregal: { api: async (url, opts) => {
+    requests.push({url, opts});
+    if (url === '/api/health') return json({ capabilities: {runs:true,event_stream:true,events:true,durable_events:true,interactive_events:true} });
+    if (url.includes('/stream?')) {
+      let first = true;
+      return {ok:true,body:{getReader:()=>({read:async()=>{
+        if (!first) throw new Error('network interrupted');
+        first=false;
+        return {done:false,value:new TextEncoder().encode('event: token\ndata: {"id":41,"run_id":8,"kind":"token","text":"first part"}\n\n')};
+      }})}};
+    }
+    assert.ok(url.includes('after=41'), url);
+    return json({next:42,events:[{id:42,run_id:8,kind:'run_completed'}]});
+  } } };
+  const { attach } = await module(window);
+  await attach(8, 40, (kind,data)=>seen.push([kind,data]), 'alpha');
+  assert.equal(seen.filter(([kind])=>kind==='token').length,1);
+  assert.equal(requests.some(r=>r.opts?.method==='POST'),false);
 });

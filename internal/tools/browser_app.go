@@ -69,6 +69,7 @@ var appBridgeAttachTimeout = 15 * time.Second
 
 // appTransport parla CDP amb el pont HTTP de l'app d'escriptori.
 type appTransport struct {
+	scope  string
 	base   string // http://127.0.0.1:port
 	token  string
 	client *http.Client
@@ -94,12 +95,15 @@ func parseAppBridge(raw string) (base, token string, err error) {
 }
 
 // openAppBrowser es connecta al pont i demana el panell de l'agent.
-func openAppBrowser(raw string) (*Browser, error) {
+func openAppBrowser(raw string, scopes ...string) (*Browser, error) {
 	base, token, err := parseAppBridge(raw)
 	if err != nil {
 		return nil, err
 	}
 	t := &appTransport{base: base, token: token, client: &http.Client{}}
+	if len(scopes) > 0 {
+		t.scope = scopes[0]
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), appBridgeAttachTimeout)
 	defer cancel()
 	if _, err := t.post(ctx, "/attach", map[string]any{}); err != nil {
@@ -123,6 +127,9 @@ func (t *appTransport) post(ctx context.Context, path string, body any) ([]byte,
 	}
 	req.Header.Set("Authorization", "Bearer "+t.token)
 	req.Header.Set("Content-Type", "application/json")
+	if t.scope != "" {
+		req.Header.Set("X-Gregal-Session", t.scope)
+	}
 	resp, err := t.client.Do(req)
 	if err != nil {
 		if ctx.Err() == nil {

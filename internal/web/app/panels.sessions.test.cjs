@@ -178,3 +178,97 @@ test('a busy session can be closed after confirming that its work will stop', as
   assert.equal((sandbox.requests || []).some(r => r.url === '/api/sessions/close'), true);
   assert.equal(sandbox.confirmations.length, 2);
 });
+
+
+test('late responses cannot overwrite a newer A-B-A navigation', async () => {
+  const {sessions,messages,sandbox} = loadSessions();
+  const pending = [];
+  sandbox.window.gregal.refresh = () => new Promise(resolve => pending.push(resolve));
+  const oldA = sessions.switchTo('alpha');
+  const beta = sessions.switchTo('beta');
+  const newA = sessions.switchTo('alpha');
+  pending[2]({transcript:[{role:'assistant',content:'newest alpha'}]});
+  await newA;
+  pending[0]({transcript:[{role:'assistant',content:'stale alpha'}]});
+  pending[1]({transcript:[{role:'assistant',content:'stale beta'}]});
+  await Promise.all([oldA,beta]);
+  assert.equal(sessions.current,'alpha');
+  assert.deepEqual(messages.filter(m=>m?.role==='a').map(m=>m.content),['newest alpha']);
+});
+
+test('cached history and buffered progress restore before a slow state request', async () => {
+  const {sessions,sandbox} = loadSessions();
+  const main = sandbox.document.getElementById('main');
+  let resolveState, flushed = false;
+  sandbox.window.gregal.restoreSessionView = () => {
+    main.innerHTML = 'cached history';
+    return {state:{transcript:[]},nodes:[]};
+  };
+  sandbox.window.gregalRunEventHandlers = new Map([['alpha',{flushPending(){flushed=true;}}]]);
+  sandbox.window.gregal.refresh = () => new Promise(resolve => {resolveState=resolve;});
+  const switching = sessions.switchTo('alpha');
+  assert.equal(main.innerHTML,'cached history');
+  assert.equal(flushed,true);
+  resolveState({agent_busy:true,transcript:[]});
+  await switching;
+  assert.equal(main.innerHTML,'cached history');
+  assert.equal((sandbox.requests||[]).some(r=>r.url.includes('/api/v2/events')),false);
+});
+
+test('clicking the current loaded tab keeps its stream and history intact', async () => {
+  const {sessions,sandbox} = loadSessions();
+  await sessions.switchTo('alpha');
+  sandbox.window.gregal.refresh = () => {throw new Error('unexpected reload');};
+  await sessions.switchTo('alpha');
+  assert.equal(sessions._loadedSession,'alpha');
+});
+
+
+test('a queued or externally changed session is followed without a second run', async () => {
+  const {sessions,sandbox} = loadSessions();
+  sessions.current='alpha';
+  const visits=[];
+  sessions.switchTo=async(id,opts)=>visits.push({id,force:opts.force});
+  await sessions.syncCurrent([{id:'alpha',busy:true,msgs:1}]);
+  assert.deepEqual(visits,[{id:'alpha',force:true}]);
+  sandbox.window.gregalRunEventHandlers=new Map([['alpha',{}]]);
+  await sessions.syncCurrent([{id:'alpha',busy:true,msgs:1}]);
+  assert.equal(visits.length,1,'keep the existing live subscription');
+  sandbox.window.gregalRunEventHandlers.clear();
+  await sessions.syncCurrent([{id:'alpha',busy:false,msgs:2}]);
+  assert.equal(visits.length,2,'fetch a completed turn from another client');
+});
+
+
+test('recovery includes an already-finished run terminal without stale questions', async () => {
+  const {sessions,sandbox} = loadSessions();
+  sandbox.refreshState={agent_busy:true,transcript:[{role:'user',content:'important task'}]};
+  sandbox.activeResponse={active:{id:7,task:'important task'},pending_interactions:['q2']};
+  sandbox.eventResponse={next:103,events:[
+    {id:100,run_id:7,kind:'question_request',payload:{key:'q1',query:'expired'}},
+    {id:101,run_id:7,kind:'question_request',payload:{key:'q2',query:'still pending'}},
+    {id:102,run_id:7,kind:'text',text:'completed while history loaded'},
+    {id:103,run_id:7,kind:'run_completed'},
+  ]};
+  let attached;
+  sandbox.window.gregal.attachActiveRun=(active,restored,after,pending)=>{attached={active,restored,after,pending};};
+  await sessions.switchTo('alpha');
+  assert.equal(attached.after,102,'subscribe before the terminal so recovery cannot wait forever');
+  assert.equal(attached.pending.length,0);
+});
+
+
+test('an attached live run restores only questions the server still accepts', async () => {
+  const {sessions,sandbox} = loadSessions();
+  sandbox.refreshState={agent_busy:true,transcript:[]};
+  sandbox.activeResponse={active:{id:7,task:'important task'},pending_interactions:['q2']};
+  sandbox.eventResponse={next:101,events:[
+    {id:100,run_id:7,kind:'question_request',payload:{key:'q1',query:'expired'}},
+    {id:101,run_id:7,kind:'question_request',payload:{key:'q2',query:'still pending'}},
+  ]};
+  let pending;
+  sandbox.window.gregal.attachActiveRun=(_active,_restored,_after,questions)=>{pending=questions;};
+  await sessions.switchTo('alpha');
+  assert.equal(pending.length,1);
+  assert.equal(pending[0].value.key,'q2');
+});

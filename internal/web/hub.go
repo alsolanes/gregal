@@ -212,7 +212,7 @@ func (h *Hub) clone(id string) *Server {
 		approvals:         map[string]approvalReq{},
 		questions:         map[string]questionReq{},
 		remembers:         agent.NewRemember(),
-		policy: agent.PolicyFromConfig(cfg, d.cwd),
+		policy:            agent.PolicyFromConfig(cfg, d.cwd),
 	}
 }
 
@@ -246,6 +246,7 @@ func (h *Hub) CloseFor(user *User, id string) bool {
 	// Tancar la pestanya s'endú els seus processos de segon pla: si no,
 	// un `npm run dev` quedaria orfe fins a reiniciar el servidor.
 	agent.Procs().KillSession(key)
+	tools.CloseBrowserFor(key)
 	return true
 }
 

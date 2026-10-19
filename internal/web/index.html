@@ -1307,7 +1307,7 @@ h1, h2, h3, h4 { font-family:var(--font-heading, inherit); }
 .tool:hover { background:var(--surface-hi); }
 /* Benvinguda i composer formen una sola unitat de treball. */
 #conversationPane:has(#hero:not([hidden])) { justify-content:center; }
-#conversationPane:has(#hero:not([hidden])) #hero { flex:none; min-height:auto; overflow:visible; }
+#conversationPane:has(#hero:not([hidden])) #hero { flex:1; min-height:0; overflow:auto; }
 #conversationPane:has(#hero:not([hidden])) #composer { padding-top:22px; padding-bottom:18px; }
 #hero { align-items:flex-start; padding:28px 24px 0; }
 .hero-inner { width:min(var(--lectura),100%); position:relative; }
@@ -1892,7 +1892,7 @@ function setView(view) {
   const previousView = currentView;
   currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const agent = currentView === 'agent';
-  hero.hidden = !agent; main.hidden = !agent; $('composer').hidden = !agent;
+  hero.hidden = !agent || main.classList.contains('on'); main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
   $('programatPage').hidden = currentView !== 'programat';
   $('mcpPage').hidden = currentView !== 'mcp';
@@ -2139,7 +2139,7 @@ main.addEventListener('click', e => {
   e.target.textContent = gregalT('md.copied');
   setTimeout(() => e.target.textContent = gregalT('md.copy'), 1300);
 });
-function showMain() { hero.style.display = 'none'; main.classList.add('on'); }
+function showMain() { hero.hidden = true; hero.style.display = 'none'; main.classList.add('on'); }
 function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 140; }
 // Icones dels missatges. Dibuixades, no emoji: l'emoji canvia de forma i
 // de color a cada sistema, i un botó d'acció ha de ser el mateix a tot
@@ -2576,6 +2576,7 @@ function setSending(active, quiet = false) {
   updateInspector(state);
 }
 function resumePendingInteraction(id, st) {
+  if (window.gregalPanels?.sessions.isLoading?.(id)) return;
   const pending = pendingInteractions.get(id);
   const busy = !!(st && st.agent_busy) || runningAgentSessions.has(id);
   if (pending && busy && currentView === 'agent' && runEventHandlers.has(id)) {
@@ -2587,7 +2588,42 @@ function resumePendingInteraction(id, st) {
     paintPendingTitle();
   }
 }
+// Keep the actual nodes: streamed bubbles, expanded work groups and scroll
+// positions belong to their session, including while another tab is visible.
+const sessionViews = new Map();
+function saveSessionView(id) {
+  sessionViews.set(id, { nodes: Array.from(main.childNodes), state, turnGroup, turnActivity,
+    turnNote, turnPhase, turnT0, todo: todoActual, queue: cua.slice(), scrollTop: main.scrollTop });
+}
+function restoreSessionView(id) {
+  const saved = sessionViews.get(id);
+  setSending(false, true);
+  main.replaceChildren(...(saved ? saved.nodes : []));
+  state = saved?.state || {};
+  turnGroup = saved?.turnGroup || null;
+  turnActivity = saved?.turnActivity || null;
+  turnNote = saved?.turnNote || '';
+  turnPhase = saved?.turnPhase || 'idle';
+  todoActual = saved?.todo || [];
+  cua.splice(0, cua.length, ...(saved?.queue || []));
+  if (saved?.nodes.length) showMain();
+  else { hero.style.display = ''; hero.hidden = currentView !== 'agent'; main.classList.remove('on'); }
+  setSending(!stoppedVisualSessions.has(id) && (runningAgentSessions.has(id) || !!state.agent_busy), true);
+  if (sending && saved?.turnT0) turnT0 = saved.turnT0;
+  main.scrollTop = saved?.scrollTop || 0;
+  agentMode = state.mode === 'code' || state.mode === 'autonomous' || state.mode === 'debug';
+  goalMode = state.mode === 'goal';
+  pintaTodo();
+  pintaTurnBar();
+  return saved || null;
+}
+function forgetSessionView(id) {
+  document.dispatchEvent(new CustomEvent('gregal:session-closed', { detail: { id } }));
+  sessionViews.delete(id);
+  if (!runningAgentSessions.has(id)) runEventHandlers.delete(id);
+}
 function onSessionSwitch(id, st) {
+  document.dispatchEvent(new CustomEvent('gregal:session', { detail: { id } }));
   // Canviar de pestanya canvia només el compositor visible; no cancel·la cap
   // execució. L'estat del servidor cobreix també tirades d'altres finestres.
   setSending(!stoppedVisualSessions.has(id) && (runningAgentSessions.has(id) || !!(st && st.agent_busy)), true);
@@ -2618,10 +2654,16 @@ function stopTurn() {
   activityItem('agent', gregalT('act.aturat'), gregalT('act.aturat.sub'), 'warn');
   setSending(false);
 }
-async function refresh() {
+let stateRefreshVersion = 0;
+async function refresh(options = {}) {
+  const version = ++stateRefreshVersion;
   const session = window.gregalSession || 'default';
-  const r = await api('/api/state', {headers:{'X-Gregal-Session':session}}).then(r => r.json());
-  if (session !== (window.gregalSession || 'default')) return r;
+  let r = await api('/api/state' + (options.conversation ? '?conversation=1' : ''), {headers:{'X-Gregal-Session':session}}).then(async r => {
+    if (!r.ok) throw new Error(await r.text() || ('HTTP ' + r.status));
+    return r.json();
+  });
+  if (version !== stateRefreshVersion || session !== (window.gregalSession || 'default')) return r;
+  r = Object.assign({}, state.cwd === r.cwd ? state : {}, r);
   state = r;
   // Els mòduls que pinten dades de l'estat (p. ex. el model a Team run)
   // s'actualitzen quan arriba, no només en carregar.
@@ -2653,10 +2695,10 @@ async function refresh() {
   if (r.auto_review === true && permMode !== 'review') permMode = 'review';
   else if (r.auto_review === false && permMode === 'review') permMode = 'manual';
   paintPerm();
-  updateInspector(r); loadGoals();
+  updateInspector(state); if (!options.conversation) loadGoals();
   // La llista de converses viu a app/convs.js; es refresca sola en acabar
   // cada torn (el servidor desa la conversa i el títol pot haver canviat).
-  if (window.gregalPanels && window.gregalPanels.convs) window.gregalPanels.convs.load();
+  if (!options.conversation && window.gregalPanels?.convs) window.gregalPanels.convs.load();
   // Torna l'estat: qui el necessiti (canviar de pestanya) ja el té i no
   // ha de tornar a demanar /api/state.
   return r;
@@ -2890,7 +2932,7 @@ async function novaConversa() {
     return;
   }
   await api('/api/new', {method:'POST', body:'{}'});
-  main.innerHTML = ''; main.classList.remove('on'); hero.style.display = 'flex'; input.value = '';
+  main.innerHTML = ''; main.classList.remove('on'); hero.hidden = currentView !== 'agent'; hero.style.display = 'flex'; input.value = '';
   input.dispatchEvent(new Event('input'));
   $('activity').innerHTML = '<div class="activity-empty" data-i18n="inspector.activityHint">' + escapeHTML(gregalT('inspector.activityHint')) + '</div>';
   // La conversa que acabem de tancar ja té títol: refresquem la llista.
@@ -2995,6 +3037,7 @@ async function api(url, opts, authRetried = false) {
   return r;
 }
 async function stream(url, payload, onEvent, onLegacyEvent) {
+  const streamSession = window.gregalSession || 'default';
   // La cua v2 és durable, però només s'usa quan el servidor anuncia events
   // d'interacció estructurats; així approve/question continuen tenint key i
   // opcions. Amb servidors actuals cau al lector SSE legacy sense duplicar el
@@ -3020,7 +3063,7 @@ async function stream(url, payload, onEvent, onLegacyEvent) {
         finish(() => reject(new Error(gregalT('ui.streamStalled'))));
       }
     }, 5000);
-    api(url, {method:'POST', body:JSON.stringify(payload), signal:ctrl.signal}).then(resp => {
+    api(url, {method:'POST', body:JSON.stringify(payload), signal:ctrl.signal, headers:{'X-Gregal-Session':streamSession}}).then(resp => {
       if (!resp.ok) {
         clearInterval(watchdog);
         resp.text().then(t => finish(() => reject(new Error(t || ('HTTP ' + resp.status)))));
@@ -3147,12 +3190,12 @@ function showGateBtns(){
   mk('gateBtn', gregalT('review.approveContinue'), true);
   mk('gateBtn2', gregalT('review.liftWithout'), false);
 }
-async function doAgent(task) {
-  if (sending) return;
+async function doAgent(task, resumed) {
+  if (sending && !resumed) return;
   const runSession = window.gregalSession || 'default';
   const visualToken = {};
   const text = (task === undefined ? input.value : task).trim(); if (!text) return;
-  window.gregalPreview?.begin();
+  if (!resumed) window.gregalPreview?.begin(runSession);
   const imgs = (agentMode || goalMode) ? pendingImgs.slice(0, 3) : [];
   pendingImgs = []; renderImgs();
   let legacySummary = null, legacySummaryActive = false, legacySummaryDone = false, legacySummaryOutcome = 'interrupted';
@@ -3161,15 +3204,17 @@ async function doAgent(task) {
   runningAgentSessions.add(runSession);
   setSending(true);
   if (task === undefined) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; }
-  add('u','',md(text));
-  const turnStart = Date.now();
-  let workGroup = beginWorkGroup();
+  if (!resumed) add('u','',md(text));
+  const turnStart = Date.parse(resumed?.active?.started_at || '') || Date.now();
+  let workGroup = resumed?.restored?.workGroup || beginWorkGroup();
   const closeWorkGroup = failed => {
     if (runSession === (window.gregalSession || 'default') && currentView === 'agent') setActivity(null);
     if (turnGroup === workGroup) endWorkGroup({ ms: Date.now() - turnStart, tools, failed });
   };
   setActivity('model', gregalT('act.now.model'));
-  activityItem('agent', gregalT(goalMode ? 'act.objectiu.fent' : 'act.tasca.fent'), text.slice(0,70),'warn'); refresh();
+  if (!resumed) {
+    activityItem('agent', gregalT(goalMode ? 'act.objectiu.fent' : 'act.tasca.fent'), text.slice(0,70),'warn'); refresh();
+  }
   let lastAssistantText='';
   // Text en directe (H0): els tokens d'un pas van a una bombolla viva; quan
   // arriba el text final del pas (assistant/done) es pinta a la mateixa
@@ -3178,6 +3223,8 @@ async function doAgent(task) {
   let live=null, acc='', steps=0, tools=0, approvals=0, offeredAuto=false, livePaintTimer=null, lastLivePaint=0;
   // Crides d'eina esperant el seu resultat, en ordre d'arribada.
   const pendents=[]; let lastDoneCard=null;
+  const deferredEvents = [];
+  let runFinished = false, replayingEvents = false;
   const paintLiveNow=()=>{if(livePaintTimer){clearTimeout(livePaintTimer);livePaintTimer=null;}if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}};
   const paintLive=()=>{if(!live)live=add('a','','');if(livePaintTimer)return;livePaintTimer=setTimeout(()=>{livePaintTimer=null;if(live){live.querySelector('.body').innerHTML=md(acc);lastLivePaint=Date.now();}},Math.max(0,120-(Date.now()-lastLivePaint)));};
   const settleLive=(html)=>!!settleLiveEl(html);
@@ -3187,13 +3234,20 @@ async function doAgent(task) {
   const stepLine=()=> gregalT('ui.step').replace('{n}', steps) + (tools ? ' · ' + (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '');
   try {
     const onRunEvent = async(ev,d)=>{
-      if (runVisualTokens.get(runSession) !== visualToken) return;
-      if (stoppedVisualSessions.has(runSession) && ev !== 'done' && ev !== 'error') return;
-      if (ev === 'done' || ev === 'error') {
-        stopRunVisuals(runSession);
-        pendents.splice(0).forEach(stopToolAnimation);
+      if (runVisualTokens.get(runSession) !== visualToken && !(runFinished && !runVisualTokens.has(runSession))) return;
+      if (!replayingEvents && stoppedVisualSessions.has(runSession) && ev !== 'done' && ev !== 'error') return;
+      if (ev === 'tool_result' && !replayingEvents) {
+        if (d.name === 'preview' && window.gregalPreview) { try { window.gregalPreview.request(JSON.parse(d.output), true, runSession); } catch (e) {} }
+        const previewMatch = String(d.output || '').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
+        if (previewMatch) window.gregalPreview?.offer(previewMatch[0], runSession);
       }
-      if (runSession !== (window.gregalSession || 'default') || currentView !== 'agent') {
+      if (runSession !== (window.gregalSession || 'default') || window.gregalPanels?.sessions.isLoading?.(runSession) || ((ev === 'approve_request' || ev === 'question_request') && currentView !== 'agent')) {
+        if (ev !== 'approve_request' && ev !== 'question_request') {
+          const last = deferredEvents[deferredEvents.length - 1];
+          if (ev === 'token' && last?.[0] === 'token') last[1].text += d.text;
+          else if (ev === 'progress' && last?.[0] === 'progress') last[1] = d;
+          else deferredEvents.push([ev, Object.assign({}, d)]);
+        }
         if (ev === 'approve_request' || ev === 'question_request') {
           pendingInteractions.set(runSession, {event: ev, value: d});
           paintPendingTitle();
@@ -3209,7 +3263,11 @@ async function doAgent(task) {
         if (ev === 'error') notify('Gregal · error', d.message || gregalT('notify.taskInterrupted'));
         return;
       }
-      if (ev === 'done' || ev === 'error') closeWorkGroup(ev === 'error');
+      if (ev === 'done' || ev === 'error') {
+        stopRunVisuals(runSession);
+        pendents.splice(0).forEach(stopToolAnimation);
+        closeWorkGroup(ev === 'error');
+      }
       if(ev==='status' && d.message){ turnNote = d.message; pintaTurnBar(); }
       // El torn ha llegit un missatge escrit mentre treballava.
       else if(ev==='steer'){ steerDelivered(d.text); setActivity('model', gregalT('steer.applying')); }
@@ -3233,9 +3291,6 @@ async function doAgent(task) {
         pendents.push(toolCard(d.name, d.args));
       } else if(ev==='tool_result'){
         turnPhase='working'; turnNote=''; pintaTurnBar();
-        if(d.name==='preview'&&window.gregalPreview){try{window.gregalPreview.request(JSON.parse(d.output),true);}catch{}}
-        const previewMatch=String(d.output||'').match(/https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d+(?:\/[^\s<>"']*)?/);
-        if(previewMatch&&window.gregalPreview)window.gregalPreview.offer(previewMatch[0]);
         activityItem('eina',d.name,gregalT('act.toolDone') + stepLine(),'ok');
         if (d.name === 'todowrite' || d.name === 'todoread') { pendents.shift()?.remove(); todoCard(d.output); }
         else { lastDoneCard = pendents.shift(); toolCardDone(lastDoneCard, d.name, d.output, d.image); }
@@ -3382,9 +3437,20 @@ async function doAgent(task) {
  }
       else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||gregalT('act.interromput'));}
     };
+    onRunEvent.flushPending = () => {
+      const events = deferredEvents.splice(0);
+      replayingEvents = true;
+      try { events.forEach(([event, data]) => onRunEvent(event, data)); }
+      finally { replayingEvents = false; }
+      if (runFinished) {
+        closeWorkGroup(false);
+        if (runEventHandlers.get(runSession) === onRunEvent) runEventHandlers.delete(runSession);
+      }
+    };
+    onRunEvent.hasPending = () => deferredEvents.length > 0;
     onRunEvent.restoreTranscript = snapshot => {
       if (livePaintTimer) { clearTimeout(livePaintTimer); livePaintTimer = null; }
-      live = null; acc = '';
+      live = snapshot?.liveElement || null; acc = snapshot?.liveText || '';
       pendents.splice(0, pendents.length, ...((snapshot && snapshot.pendingCards) || []));
       lastAssistantText = snapshot && snapshot.lastAssistantText || '';
       steps = Number(snapshot && snapshot.steps) || 0;
@@ -3392,7 +3458,13 @@ async function doAgent(task) {
       if (snapshot && snapshot.workGroup) workGroup = snapshot.workGroup;
     };
     runEventHandlers.set(runSession, onRunEvent);
-    await stream('/api/agent',{task:text,images:imgs},onRunEvent,(ev,d)=>{
+    if (resumed) {
+      onRunEvent.restoreTranscript(resumed.restored);
+      if (resumed.active.progress) onRunEvent('progress', resumed.active.progress);
+      (resumed.pending || []).forEach(({event,value}) => onRunEvent(event,value));
+    }
+    if (resumed) await window.gregalRuns.attach(resumed.active.id, resumed.after, onRunEvent, runSession);
+    else await stream('/api/agent',{task:text,images:imgs},onRunEvent,(ev,d)=>{
       if (!legacySummary) legacySummary = window.gregalRuns?.createSummary?.();
       legacySummaryActive = true;
       legacySummary?.record?.(ev,d);
@@ -3416,13 +3488,14 @@ async function doAgent(task) {
     activeTurnSummaryCancel.delete(runSession);
     const ownsVisuals = runVisualTokens.get(runSession) === visualToken;
     if (ownsVisuals) stopRunVisuals(runSession);
-    pendents.splice(0).forEach(stopToolAnimation);
+    if (!deferredEvents.length) pendents.splice(0).forEach(stopToolAnimation);
     paintLiveNow();
     closeWorkGroup(false);
     if (ownsVisuals) {
       runVisualTokens.delete(runSession);
       runningAgentSessions.delete(runSession);
-      runEventHandlers.delete(runSession);
+      runFinished = true;
+      if (!deferredEvents.length) runEventHandlers.delete(runSession);
       pendingInteractions.delete(runSession);
       paintPendingTitle();
     }
@@ -3997,6 +4070,8 @@ if (window.gregalDesktop && window.gregalDesktop.frameless) {
 window.gregal = {
   configureProviders: () => toggleProv(true),
   api, refresh, marcaOffline, sys, activityItem, setView, setMode, nextMode, md, add, onSessionSwitch,
+  saveSessionView, restoreSessionView, forgetSessionView,
+  attachActiveRun: (active, restored, after, pending) => { if (window.gregalRuns?.attach) doAgent(active.task, { active, restored, after, pending }); },
   toolCard, toolCardDone, beginWorkGroup, endWorkGroup, intoWorkGroup,
   isBusy: () => sending || !!state.agent_busy,
   newChat: novaConversa,

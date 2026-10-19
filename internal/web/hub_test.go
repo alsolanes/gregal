@@ -14,6 +14,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
+	"gregal/internal/events"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
@@ -654,5 +655,63 @@ func TestWorkspaceChangeControlsToolDirectory(t *testing.T) {
 	s.agentBusy = true
 	if err := s.setWorkspace(previous); err == nil || s.cwd != selected {
 		t.Fatal("workspace changed while a run was active")
+	}
+}
+
+func TestConversationStateReturnsAllAvailableHistoryWithoutGit(t *testing.T) {
+	s := hubTestServer(t)
+	s.cwd = t.TempDir()
+	for i := 0; i < 80; i++ {
+		s.convo = append(s.convo, llm.Message{Role: "user", Content: fmt.Sprintf("message %d", i)})
+	}
+	rec := httptest.NewRecorder()
+	s.handleState(rec, httptest.NewRequest(http.MethodGet, "/api/state?conversation=1", nil))
+	var got struct {
+		Transcript []struct {
+			Content string `json:"content"`
+		} `json:"transcript"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Transcript) != 80 || got.Transcript[0].Content != "message 0" {
+		t.Fatalf("history truncated: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), `"branch"`) {
+		t.Fatal("conversation request should not run Git queries")
+	}
+}
+
+func TestEventsRunFilterKeepsSessionAndUserIsolation(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := hubTestServer(t)
+	h := s.Hub()
+	for _, ev := range []events.Event{
+		{SessionID: "default", RunID: 1, Kind: "run_started", Text: "old run"},
+		{SessionID: "other", RunID: 2, Kind: "token", Text: "other session"},
+		{SessionID: "default", User: "another-user", RunID: 2, Kind: "token", Text: "private"},
+		{SessionID: "default", RunID: 2, Kind: "token", Text: "current run"},
+	} {
+		if _, err := h.eventStore.Append(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	rec := httptest.NewRecorder()
+	s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/v2/events?run_id=2", nil))
+	var got struct {
+		Events []events.Event `json:"events"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if rec.Code != 200 || len(got.Events) != 1 || got.Events[0].Text != "current run" {
+		t.Fatalf("wrong scope: %s", rec.Body.String())
+	}
+	for _, id := range []string{"0", "-1", "invalid"} {
+		rec = httptest.NewRecorder()
+		s.handleEvents(rec, httptest.NewRequest(http.MethodGet, "/api/v2/events?run_id="+id, nil))
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("invalid run %s: %d", id, rec.Code)
+		}
 	}
 }

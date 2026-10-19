@@ -233,3 +233,39 @@ func TestAfterReadsLongLines(t *testing.T) {
 		t.Fatalf("after: %d events, err %v", len(got), err)
 	}
 }
+
+func TestAfterRunSeeksAndPaginatesWithoutOtherRuns(t *testing.T) {
+	storePath := filepath.Join(t.TempDir(), "events.jsonl")
+	s, err := Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 620; i++ {
+		run := 1
+		if i >= 610 {
+			run = 2
+		}
+		if _, err := s.Append(Event{RunID: run, SessionID: "a", Kind: "token", Text: "progress"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Rebuild the run index just as after a process restart.
+	s, err = Open(storePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.AfterRun(0, 5, 2, "", "a")
+	if err != nil || len(page) != 5 || page[0].ID != 610 {
+		t.Fatalf("first page: %+v %v", page, err)
+	}
+	page, err = s.AfterRun(page[4].ID, 5, 2, "", "a")
+	if err != nil || len(page) != 5 || page[0].ID != 615 {
+		t.Fatalf("next page: %+v %v", page, err)
+	}
+	for _, scope := range []struct{ user, session string }{{"other", "a"}, {"", "b"}} {
+		page, err = s.AfterRun(0, 5, 2, scope.user, scope.session)
+		if err != nil || len(page) != 0 {
+			t.Fatalf("scope leak: %+v %v", page, err)
+		}
+	}
+}
