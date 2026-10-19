@@ -10,6 +10,22 @@ const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const gregalT = k => (typeof window.gregalT === 'function' ? window.gregalT(k) : '');
+const resumedSessionsKey = 'gregal_resumed_conversations';
+
+function resumedSessions() {
+  try {
+    const value = JSON.parse(localStorage.getItem(resumedSessionsKey) || '{}');
+    return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  } catch (e) { return {}; }
+}
+
+function saveResumedSession(name, id) {
+  try {
+    const map = resumedSessions();
+    map[name] = id;
+    localStorage.setItem(resumedSessionsKey, JSON.stringify(map));
+  } catch (e) {}
+}
 
 // grup diu a quin bloc va una conversa segons quan es va tocar per últim
 // cop. Els mateixos trams que fan servir les altres apps: el que importa és
@@ -59,6 +75,8 @@ export function matchesConversation(c, query) {
 }
 export const convs = {
   items: [],
+  _liveSessions: [],
+  _liveSignature: '',
   expandedProjects: new Set(),
   filtre: '',
   loading: false,
@@ -94,6 +112,18 @@ export const convs = {
       this.loading = false;
       this.draw();
     }
+  },
+  updateLiveSessions(list) {
+    this._liveSessions = Array.isArray(list) ? list : [];
+    const signature = this._liveSessions.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (window.gregalPendingInteractions?.has(s.id) ? 1 : 0)).join('|');
+    if (signature !== this._liveSignature) { this._liveSignature = signature; this.draw(); }
+  },
+  forgetSession(id) {
+    const map = resumedSessions();
+    let changed = false;
+    Object.keys(map).forEach(name => { if (map[name] === id) { delete map[name]; changed = true; } });
+    if (changed) { try { localStorage.setItem(resumedSessionsKey, JSON.stringify(map)); } catch (e) {} }
+    this.draw();
   },
   draw() {
     const box = $('convs');
@@ -131,13 +161,21 @@ export const convs = {
     const delAria = gregalT('conv.delete.aria') || 'Delete';
     const pinLabel = gregalT('conv.pin') || 'Pin', unpinLabel = gregalT('conv.unpin') || 'Unpin';
     const expLabel = gregalT('conv.export') || 'Export or share';
-    const fila = c =>
-      '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
+    const liveById = new Map(this._liveSessions.map(s => [s.id, s]));
+    const resumed = resumedSessions();
+    const fila = c => {
+      const sessionId = resumed[c.name] || (c.current ? window.gregalSession : '');
+      const live = sessionId ? liveById.get(sessionId) : null;
+      const pending = !!(sessionId && window.gregalPendingInteractions?.has(sessionId));
+      const status = pending ? '<span class="conv-live-state waiting">' + esc(gregalT('sessions.needsInputLabel') || 'Needs input') + '</span>'
+        : live?.busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
+      return '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
       esc(titolVisible(c) + ' · ' + c.msgs + ' ' + msgsWord + (c.when ? ' · ' + c.when : '')) + '">' +
-      '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + xipProjecte(c) +
+      '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + xipProjecte(c) +
       '<button class="conv-pin' + (c.pinned ? ' pinned' : '') + '" title="' + esc(c.pinned ? unpinLabel : pinLabel) + '" aria-label="' + esc(c.pinned ? unpinLabel : pinLabel) + '">★</button>' +
       '<button class="conv-exp" title="' + esc(expLabel) + '" aria-label="' + esc(expLabel) + '" aria-haspopup="menu">⤓</button>' +
       '<button class="conv-x" title="' + esc(delTitle) + '" aria-label="' + esc(delAria) + '">×</button></div>';
+    };
     let html = '';
     if (pins.length) html += '<div class="conv-grup">' + esc(gregalT('conv.pinned') || 'Pinned') + '</div>' + pins.map(fila).join('');
     [...projectes.entries()].sort((a,b) => a[0].localeCompare(b[0])).forEach(([ws, files]) => {
@@ -173,11 +211,25 @@ export const convs = {
   },
   async obre(name) {
     try {
+      const sessions = window.gregalPanels?.sessions;
+      const reopened = resumedSessions();
+      const previous = Object.prototype.hasOwnProperty.call(reopened, name) ? reopened[name] : '';
+      if (previous && sessions && typeof sessions.list === 'function' && typeof sessions.switchTo === 'function') {
+        const live = await sessions.list();
+        if (live.some(s => s && s.id === previous)) {
+          await sessions.switchTo(previous);
+          G().setView('agent');
+          return;
+        }
+        delete reopened[name];
+        try { localStorage.setItem(resumedSessionsKey, JSON.stringify(reopened)); } catch (e) {}
+      }
       // Reprendre sobre una sessió ocupada canviaria el context del worker.
-      if (G().isBusy()) await window.gregalPanels.sessions.open(G().state.cwd);
+      if (G().isBusy()) await sessions.open(G().state.cwd);
       const r = await G().api('/api/resume', { method: 'POST', body: JSON.stringify({ name }) });
       if (!r.ok) { G().sys((gregalT('conv.open.error') || 'Could not open: ') + await r.text()); return; }
       const d = await r.json();
+      saveResumedSession(name, window.gregalSession || 'default');
       const main = $('main');
       if (main) main.innerHTML = '';
       // Tool calls come back as compact, already finished rows (paired with
@@ -219,6 +271,7 @@ export const convs = {
       const msgsWord = gregalT('conv.messages') || 'messages';
       G().sys((d.title || name) + ' · ' + d.msgs + ' ' + msgsWord);
       G().activityItem('conversa', d.title || name, d.msgs + ' ' + msgsWord, 'ok');
+      G().setView('agent');
       await this.load();
       G().refresh();
     } catch (e) { G().sys(String(e.message || e)); }

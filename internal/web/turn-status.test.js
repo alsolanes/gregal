@@ -98,3 +98,22 @@ test('error return to idle clears the timer text and hides an otherwise empty ba
   assert.equal(elements.get('turnTimer').innerHTML, '');
   assert.equal(elements.get('turnBar').hidden, true);
 });
+
+test('returning to the chat replays an interaction that arrived while another view was open', () => {
+  const source = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
+  const resume = extractFunction(source, 'resumePendingInteraction', 'onSessionSwitch');
+  const seen = [];
+  const pendingInteractions = new Map([['default', { event: 'question_request', value: { query: 'Which option?' } }]]);
+  const runEventHandlers = new Map([['default', (event, value) => seen.push({ event, value })]]);
+  const sandbox = {
+    pendingInteractions, runEventHandlers, runningAgentSessions: new Set(['default']),
+    currentView: 'agent', paintPendingTitle() {},
+  };
+  vm.runInNewContext(`${resume}\nglobalThis.resume = resumePendingInteraction;`, sandbox);
+
+  sandbox.resume('default', { agent_busy: false });
+
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].event, 'question_request');
+  assert.equal(pendingInteractions.has('default'), false);
+});

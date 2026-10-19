@@ -222,6 +222,8 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 .conv:hover { color:var(--ink); background:var(--hover); }
 .conv.current { color:var(--ink); background:var(--accent-soft); box-shadow:inset 2px 0 0 var(--accent); }
 .conv-t { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.conv-live-state { flex:none; color:var(--amber); font-size:10px; white-space:nowrap; }
+.conv-live-state.waiting { font-weight:650; }
 .conv-p { flex:none; max-width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   font-size:var(--t1); color:var(--faint); border:1px solid var(--line); border-radius:4px; padding:0 4px; }
 .conv.current .conv-p { border-color:var(--accent); color:var(--accent); }
@@ -1088,6 +1090,8 @@ body.view-normal .msg.t .out { display:none; }
 .session-tab .dot { width:6px; height:6px; border-radius:50%; background:var(--faint); transition:all .2s ease; }
 .session-tab.active .dot { background:var(--accent); box-shadow:0 0 6px var(--accent); }
 .session-tab.busy .dot { background:var(--amber); animation:pulse 1.2s infinite; }
+.session-tab .session-state { font-size:10px; line-height:1; white-space:nowrap; color:var(--amber); }
+.session-tab .session-state.needs-input { font-weight:650; }
 .session-tab.needs-input { color:var(--amber); border-color:var(--amber); }
 .session-tab.needs-input .dot { background:var(--amber); box-shadow:0 0 0 3px var(--amber-soft); animation:none; }
 .session-tab .x { color:var(--faint); padding:0 2px; border-radius:3px; }
@@ -1846,6 +1850,7 @@ const runningAgentSessions = new Set();
 const stoppedVisualSessions = new Set();
 const runVisualTokens = new Map();
 const runEventHandlers = new Map();
+window.gregalRunEventHandlers = runEventHandlers;
 const activeTurnSummaryCancel = new Map();
 const pendingInteractions = new Map();
 window.gregalPendingInteractions = pendingInteractions;
@@ -1916,6 +1921,9 @@ function setView(view) {
     if (currentView === 'grafs') { P.flows.load(); $('grafsPage').focus(); }
   }
   if (currentView === 'workshop') $('workshopPage').focus();
+  // Les permisos i preguntes també poden arribar mentre l'usuari mira una
+  // altra vista. Torna'ls a obrir quan el fil sigui visible.
+  if (currentView === 'agent') resumePendingInteraction(window.gregalSession || 'default', state);
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
@@ -2567,21 +2575,23 @@ function setSending(active, quiet = false) {
   $('statusDot').classList.toggle('busy', visualWorking(state));
   updateInspector(state);
 }
+function resumePendingInteraction(id, st) {
+  const pending = pendingInteractions.get(id);
+  const busy = !!(st && st.agent_busy) || runningAgentSessions.has(id);
+  if (pending && busy && currentView === 'agent' && runEventHandlers.has(id)) {
+    pendingInteractions.delete(id);
+    paintPendingTitle();
+    runEventHandlers.get(id)(pending.event, pending.value);
+  } else if (st && !busy) {
+    pendingInteractions.delete(id);
+    paintPendingTitle();
+  }
+}
 function onSessionSwitch(id, st) {
   // Canviar de pestanya canvia només el compositor visible; no cancel·la cap
   // execució. L'estat del servidor cobreix també tirades d'altres finestres.
   setSending(!stoppedVisualSessions.has(id) && (runningAgentSessions.has(id) || !!(st && st.agent_busy)), true);
-  if (st) {
-    const pending = pendingInteractions.get(id);
-    if (pending && st.agent_busy && runEventHandlers.has(id)) {
-      pendingInteractions.delete(id);
-      paintPendingTitle();
-      runEventHandlers.get(id)(pending.event, pending.value);
-    } else if (!st.agent_busy) {
-      pendingInteractions.delete(id);
-      paintPendingTitle();
-    }
-  }
+  if (st) resumePendingInteraction(id, st);
 }
 // El lector SSE viu mentre dura el torn per poder-lo avortar amb ■ o Esc.
 let currentReader = null, currentAbort = null;
@@ -3153,8 +3163,11 @@ async function doAgent(task) {
   if (task === undefined) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; }
   add('u','',md(text));
   const turnStart = Date.now();
-  const workGroup = beginWorkGroup();
-  const closeWorkGroup = failed => { setActivity(null); if (turnGroup === workGroup) endWorkGroup({ ms: Date.now() - turnStart, tools, failed }); };
+  let workGroup = beginWorkGroup();
+  const closeWorkGroup = failed => {
+    if (runSession === (window.gregalSession || 'default') && currentView === 'agent') setActivity(null);
+    if (turnGroup === workGroup) endWorkGroup({ ms: Date.now() - turnStart, tools, failed });
+  };
   setActivity('model', gregalT('act.now.model'));
   activityItem('agent', gregalT(goalMode ? 'act.objectiu.fent' : 'act.tasca.fent'), text.slice(0,70),'warn'); refresh();
   let lastAssistantText='';
@@ -3179,9 +3192,8 @@ async function doAgent(task) {
       if (ev === 'done' || ev === 'error') {
         stopRunVisuals(runSession);
         pendents.splice(0).forEach(stopToolAnimation);
-        closeWorkGroup(ev === 'error');
       }
-      if (runSession !== (window.gregalSession || 'default')) {
+      if (runSession !== (window.gregalSession || 'default') || currentView !== 'agent') {
         if (ev === 'approve_request' || ev === 'question_request') {
           pendingInteractions.set(runSession, {event: ev, value: d});
           paintPendingTitle();
@@ -3197,6 +3209,7 @@ async function doAgent(task) {
         if (ev === 'error') notify('Gregal · error', d.message || gregalT('notify.taskInterrupted'));
         return;
       }
+      if (ev === 'done' || ev === 'error') closeWorkGroup(ev === 'error');
       if(ev==='status' && d.message){ turnNote = d.message; pintaTurnBar(); }
       // El torn ha llegit un missatge escrit mentre treballava.
       else if(ev==='steer'){ steerDelivered(d.text); setActivity('model', gregalT('steer.applying')); }
@@ -3368,6 +3381,15 @@ async function doAgent(task) {
    notify('Gregal', goalMode ? gregalT('goal.proposed') : gregalT('act.tasca.fet') + ' (' + stepLine() + ')');
  }
       else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||gregalT('act.interromput'));}
+    };
+    onRunEvent.restoreTranscript = snapshot => {
+      if (livePaintTimer) { clearTimeout(livePaintTimer); livePaintTimer = null; }
+      live = null; acc = '';
+      pendents.splice(0, pendents.length, ...((snapshot && snapshot.pendingCards) || []));
+      lastAssistantText = snapshot && snapshot.lastAssistantText || '';
+      steps = Number(snapshot && snapshot.steps) || 0;
+      tools = Number(snapshot && snapshot.tools) || 0;
+      if (snapshot && snapshot.workGroup) workGroup = snapshot.workGroup;
     };
     runEventHandlers.set(runSession, onRunEvent);
     await stream('/api/agent',{task:text,images:imgs},onRunEvent,(ev,d)=>{

@@ -849,7 +849,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 			"durable_events":     s.hub != nil && s.hub.eventError() == nil,
 			"event_stream":       s.hub != nil && s.hub.eventError() == nil,
 			"interactive_events": s.hub != nil && s.hub.eventError() == nil,
-			"inline_completion": true,
+			"inline_completion":  true,
 			"jobs":               s.jobs != nil,
 			"mcp":                s.mcp != nil,
 		},
@@ -2220,8 +2220,8 @@ func (s *Server) transcriptTail(n int) string {
 	return b.String()
 }
 
-// transcriptView retorna els últims n missatges user/assistant no buits per
-// pintar l'historial en canviar de pestanya. Sense tool calls: només text.
+// transcriptView retorna els últims n missatges de conversa i eines per
+// reconstruir tant el fil com el flux de treball en canviar de pestanya.
 // Notes que tanquen un torn que no ha acabat. Són per al model (que no el
 // reprengui pel seu compte): a la conversa que es pinta no hi han de sortir,
 // i en reprendre-la al mòbil semblava que Gregal les hagués dit.
@@ -2239,21 +2239,38 @@ func esNotaDeTorn(m llm.Message) bool {
 	return c == turnFailedNote || c == turnStoppedNote
 }
 
-func transcriptView(convo []llm.Message, n int) []map[string]string {
+func transcriptView(convo []llm.Message, n int) []map[string]any {
 	if len(convo) > n {
 		convo = convo[len(convo)-n:]
 	}
-	out := make([]map[string]string, 0, len(convo))
+	out := make([]map[string]any, 0, len(convo))
 	for _, m := range convo {
-		if m.Role != "user" && m.Role != "assistant" {
+		if m.Role != "user" && m.Role != "assistant" && m.Role != "tool" {
 			continue
 		}
-		if strings.TrimSpace(m.Content) == "" || agent.EsResum(m) || esNotaDeTorn(m) {
+		if agent.EsResum(m) || esNotaDeTorn(m) {
+			continue
+		}
+		if strings.TrimSpace(m.Content) == "" && len(m.ToolCalls) == 0 {
 			continue
 		}
 		// El mapa del projecte és per al model: a la bombolla, el que va
 		// escriure la persona.
-		out = append(out, map[string]string{"role": m.Role, "content": agent.SenseMapa(m.Content)})
+		content := m.Content
+		if m.Role == "user" {
+			content = agent.SenseMapa(content)
+		}
+		item := map[string]any{"role": m.Role, "content": content}
+		if len(m.ToolCalls) > 0 {
+			item["tool_calls"] = m.ToolCalls
+		}
+		if m.ToolCallID != "" {
+			item["tool_call_id"] = m.ToolCallID
+		}
+		if m.Name != "" {
+			item["name"] = m.Name
+		}
+		out = append(out, item)
 	}
 	return out
 }

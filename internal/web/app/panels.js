@@ -26,6 +26,62 @@ async function j(url, opts) {
   return r.json();
 }
 
+function renderSessionTranscript(transcript, busy) {
+  const cards = new Map();
+  let grouped = false, groupTools = 0, lastAssistantText = '', toolCount = 0, activeGroup = null;
+  const closeGroup = failed => {
+    if (grouped) G().endWorkGroup({ tools: groupTools, failed: !!failed });
+    grouped = false; activeGroup = null;
+    groupTools = 0;
+  };
+  (Array.isArray(transcript) ? transcript : []).forEach(m => {
+    if (!m || typeof m !== 'object') return;
+    if (m.role === 'user') {
+      closeGroup(false);
+      if ((m.content || '').trim()) G().add('u', '', G().md(m.content));
+      return;
+    }
+    if (m.role === 'assistant') {
+      const calls = Array.isArray(m.tool_calls) ? m.tool_calls : [];
+      if (calls.length && !grouped && G().beginWorkGroup) { activeGroup = G().beginWorkGroup(); grouped = true; }
+      if (!calls.length) closeGroup(false);
+      if ((m.content || '').trim()) {
+        lastAssistantText = m.content.trim();
+        const el = G().add('a', '', G().md(m.content));
+        if (calls.length && el) G().intoWorkGroup?.(el);
+      }
+      calls.forEach(call => {
+        const fn = call && call.function || {};
+        const card = G().toolCard?.(fn.name || '', fn.arguments || '');
+        if (card) G().intoWorkGroup?.(card);
+        if (call && call.id) cards.set(call.id, { card, name: fn.name || '' });
+        groupTools++; toolCount++;
+      });
+      return;
+    }
+    if (m.role === 'tool') {
+      const hit = cards.get(m.tool_call_id);
+      if (hit) {
+        G().toolCardDone?.(hit.card, hit.name || m.name || '', m.content || '');
+        cards.delete(m.tool_call_id);
+      } else {
+        G().toolCardDone?.(null, m.name || 'tool', m.content || '');
+      }
+    }
+  });
+  const pendingCards = Array.from(cards.values()).map(hit => hit.card).filter(Boolean);
+  if (busy) {
+    if (!grouped && G().beginWorkGroup) { activeGroup = G().beginWorkGroup(); grouped = true; }
+  } else {
+    pendingCards.forEach(card => {
+      card.classList?.remove('pending'); card.classList?.add('interrupted');
+      const mark = card.querySelector?.('.tspin'); if (mark) mark.textContent = '■';
+    });
+    closeGroup(pendingCards.length > 0);
+  }
+  return { pendingCards, lastAssistantText, steps: toolCount, tools: toolCount, workGroup: activeGroup };
+}
+
 // ---------------------------------------------------------------- sessions
 
 export const sessions = {
@@ -114,8 +170,11 @@ export const sessions = {
         (pending?.has(s.id) ? T('sessions.needsInput') : s.busy ? T('sessions.working') : '');
       // Sessió dins d'un git worktree aïllat: la pestanya ho diu.
       const wt = s.worktree ? '<span class="wt-badge" title="' + esc(T('sessions.worktreeBadge') + s.worktree) + '">⎇ ' + esc(s.worktree) + '</span>' : '';
+      const status = pending?.has(s.id)
+        ? '<span class="session-state needs-input">' + esc(T('sessions.needsInputLabel')) + '</span>'
+        : s.busy ? '<span class="session-state working">' + esc(T('sessions.workingLabel')) + '</span>' : '';
       tab.innerHTML = '<span class="dot"></span><span class="nm">' + esc(name) + '</span>' + wt +
-        (s.id === 'default' || s.busy ? '' : '<span class="x" title="' + esc(T('btn.close')) + '">×</span>');
+        status + (s.id === 'default' ? '' : '<span class="x" title="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '" aria-label="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '">×</span>');
       tab.onclick = e => {
         if (e.target.classList.contains('x')) { this.close(s.id); return; }
         this.switchTo(s.id);
@@ -180,11 +239,14 @@ export const sessions = {
     if (this.current !== id) return st;
     G().onSessionSwitch(id, st);
     const trans = (st && st.transcript) || [];
-    trans.forEach(m => {
-      if (m.role === 'user') G().add('u', '', G().md(m.content));
-      else if (m.role === 'assistant' && (m.content || '').trim()) G().add('a', '', G().md(m.content));
-    });
+    const restored = renderSessionTranscript(trans, !!(st && st.agent_busy));
+    const runHandler = window.gregalRunEventHandlers?.get(id);
+    if (runHandler && typeof runHandler.restoreTranscript === 'function') runHandler.restoreTranscript(restored);
     G().sys(T('sessions.opened') + id + (trans.length ? ' · ' + trans.length + ' ' + T('sessions.messages') : ''));
+    // En tornar d'una altra vista, els esdeveniments en directe no es
+    // reprodueixen al fil. Fer explícit que el servidor encara treballa
+    // evita que una sessió ocupada sembli aturada mentre arriba la resposta.
+    if (st && st.agent_busy) G().sys(T('sessions.stillWorking'));
     // La barra de pestanyes i els panells, després i sense esperar-los: el
     // que volies era canviar de conversa, no mirar el diff.
     this.render();
@@ -194,6 +256,8 @@ export const sessions = {
     return st;
   },
   async close(id) {
+    const session = this._lastList.find(s => s.id === id);
+    if (session && session.busy && !confirm(T('sessions.closeBusyConfirm'))) return;
     try {
       await j('/api/sessions/close', { method: 'POST', body: JSON.stringify({ id }) });
     } catch (e) {
@@ -201,6 +265,7 @@ export const sessions = {
       G().sys(T('sessions.closeFailedWithID') + id + ': ' + String(e.message || e));
       return;
     }
+    convs.forgetSession(id);
     if (this.current === id) {
       await this.switchTo('default');
       delete this.drafts()[id];
@@ -1009,6 +1074,7 @@ export function boot() {
     nextSessionPoll = Date.now() + delay;
     try {
       const list = await sessions.list();
+      convs.updateLiveSessions(list);
       if (G()?.viewActual() === 'workshop') await workshop.update(list);
       await sessions.render(list);
     } catch (e) {} finally { pollingSessions = false; }

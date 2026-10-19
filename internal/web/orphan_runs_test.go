@@ -102,3 +102,27 @@ func TestTranscriptsHideTurnNotes(t *testing.T) {
 		t.Fatalf("view: %+v", view)
 	}
 }
+
+func TestTranscriptViewKeepsToolFlowForSessionRestore(t *testing.T) {
+	call := llm.ToolCall{ID: "call-1", Type: "function"}
+	call.Function.Name = "read"
+	call.Function.Arguments = `{"path":"README.md"}`
+	convo := []llm.Message{
+		{Role: "user", Content: "inspect this project"},
+		{Role: "assistant", ToolCalls: []llm.ToolCall{call}},
+		{Role: "tool", ToolCallID: "call-1", Name: "read", Content: "project notes"},
+		{Role: "assistant", Content: "The project is ready."},
+	}
+
+	view := transcriptView(convo, 50)
+	if len(view) != 4 {
+		t.Fatalf("expected user, tool call, tool result and reply; got %+v", view)
+	}
+	calls, ok := view[1]["tool_calls"].([]llm.ToolCall)
+	if !ok || len(calls) != 1 || calls[0].Function.Name != "read" {
+		t.Fatalf("tool call was not preserved: %+v", view[1])
+	}
+	if view[2]["tool_call_id"] != "call-1" || view[2]["content"] != "project notes" {
+		t.Fatalf("tool result was not preserved: %+v", view[2])
+	}
+}

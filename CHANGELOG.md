@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## v1.12.2 - 2026-10-19 - Session continuity and live status
+- **Session continuity and status:** reopening a saved conversation returns to its
+  existing live session and restores the earlier transcript, including tool
+  activity. The session list shows which work is active or needs input, and
+  closing a busy session clearly confirms that its task will stop. Background
+  agent events and attention requests remain associated with the right session.
 ## v1.12.1 - 2026-10-19 - Specialist skills and smarter suggestions
 
 - **Specialist skills:** choose optional skills in Agent settings. Gregal keeps

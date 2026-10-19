@@ -28,14 +28,18 @@ function loadSessions() {
       },
       onSessionSwitch() {},
       setView() {},
-      async refresh() { return { transcript: [] }; },
-      add() {}, md() { return ''; }, sys(message) { messages.push(message); },
+      async refresh() { return sandbox.refreshState || { transcript: [] }; },
+      add(role, _className, content) { messages.push({ role, content }); return null; }, md(content) { return content; }, sys(message) { messages.push(message); },
+      toolCard(name, args) { const card = { name, args, classList: { remove() {}, add() {} }, querySelector() { return null; } }; messages.push({ role: 'tool-call', name, args }); return card; },
+      toolCardDone(_card, name, output) { messages.push({ role: 'tool-result', name, output }); },
+      intoWorkGroup() {}, beginWorkGroup() { return {}; }, endWorkGroup() {},
       viewActual() { return ''; },
       get state() { return {}; },
     },
   };
   const sandbox = {
     T(key) { return key; },
+    convs: { forgetSession() {} },
     window,
     localStorage: {
       getItem(key) { return stored.has(key) ? stored.get(key) : null; },
@@ -44,6 +48,7 @@ function loadSessions() {
     },
     Event: class Event { constructor(type) { this.type = type; } },
     document: { getElementById(id) { return id === 'in' ? input : id === 'main' ? main : null; } },
+    confirm(message) { (sandbox.confirmations ||= []).push(message); return sandbox.confirmResult !== false; },
     closeFails: false,
     alert(message) { messages.push(message); },
   };
@@ -113,4 +118,43 @@ test('a failed session close leaves the current session open and reports the err
   assert.equal(sessions.current, 'beta');
   assert.equal(input.value, before);
   assert.match(messages.at(-1), /backend unavailable/);
+});
+
+test('returning to a busy session makes its background work visible', async () => {
+  const { sessions, messages, sandbox } = loadSessions();
+  sandbox.refreshState = { agent_busy: true, transcript: [{ role: 'user', content: 'finish the task' }] };
+
+  await sessions.switchTo('alpha');
+
+  assert.ok(messages.includes('sessions.stillWorking'));
+});
+
+test('switching to a session restores tool calls and their results with the transcript', async () => {
+  const { sessions, messages, sandbox } = loadSessions();
+  sandbox.refreshState = { transcript: [
+    { role: 'user', content: 'inspect this project' },
+    { role: 'assistant', content: '', tool_calls: [{ id: 'call-1', function: { name: 'read', arguments: '{"path":"README.md"}' } }] },
+    { role: 'tool', tool_call_id: 'call-1', name: 'read', content: 'project notes' },
+    { role: 'assistant', content: 'The project is ready.' },
+  ] };
+
+  await sessions.switchTo('alpha');
+
+  assert.ok(messages.some(m => m && m.role === 'tool-call' && m.name === 'read'));
+  assert.ok(messages.some(m => m && m.role === 'tool-result' && m.output === 'project notes'));
+  assert.ok(messages.some(m => m && m.role === 'a' && m.content === 'The project is ready.'));
+});
+
+test('a busy session can be closed after confirming that its work will stop', async () => {
+  const { sessions, sandbox } = loadSessions();
+  sessions._lastList = [{ id: 'beta', busy: true }];
+  sandbox.confirmResult = false;
+
+  await sessions.close('beta');
+  assert.equal((sandbox.requests || []).some(r => r.url === '/api/sessions/close'), false);
+
+  sandbox.confirmResult = true;
+  await sessions.close('beta');
+  assert.equal((sandbox.requests || []).some(r => r.url === '/api/sessions/close'), true);
+  assert.equal(sandbox.confirmations.length, 2);
 });
