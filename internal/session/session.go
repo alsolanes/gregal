@@ -17,6 +17,10 @@ import (
 type Session struct {
 	Version int    `json:"version"`
 	Name    string `json:"name"`
+	// SessionID i LastRunID enllacen la conversa amb el registre durable de
+	// torns del servidor web perquè es pugui recuperar després d'un reinici.
+	SessionID string `json:"session_id,omitempty"`
+	LastRunID int64  `json:"last_run_id,omitempty"`
 	// Title és el nom llegible de la conversa, tret del primer missatge.
 	// Name continua sent l'identificador del fitxer: les sessions d'abans
 	// no en tenen i el llistat hi posa el Name.

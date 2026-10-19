@@ -34,11 +34,12 @@ type Event struct {
 }
 
 type Store struct {
-	mu      sync.Mutex
-	path    string
-	next    uint64
-	offsets map[uint64]int64 // posició just després de cada event
-	maxRun  int              // run_id més alt escrit (per no reutilitzar-ne després d'un reinici)
+	mu       sync.Mutex
+	path     string
+	next     uint64
+	offsets  map[uint64]int64 // posició just després de cada event
+	maxRun   int              // run_id més alt escrit (per no reutilitzar-ne després d'un reinici)
+	runFirst map[int]uint64   // primer cursor de cada torn
 	// open són els torns que han començat i encara no han tancat, amb
 	// l'últim event de cadascun (sessió i usuari per tancar-los bé).
 	open map[int]Event
@@ -58,6 +59,9 @@ func terminal(kind string) bool {
 func (s *Store) track(e Event) {
 	if e.RunID <= 0 {
 		return
+	}
+	if _, ok := s.runFirst[e.RunID]; !ok {
+		s.runFirst[e.RunID] = e.ID
 	}
 	switch {
 	case terminal(e.Kind):
@@ -80,7 +84,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	_ = f.Close()
-	s := &Store{path: path, offsets: make(map[uint64]int64), open: make(map[int]Event)}
+	s := &Store{path: path, offsets: make(map[uint64]int64), open: make(map[int]Event), runFirst: make(map[int]uint64)}
 	if err := s.scan(); err != nil {
 		return nil, err
 	}
@@ -223,6 +227,41 @@ func (s *Store) AfterScope(after uint64, limit int, user, sessionID string) ([]E
 	return s.after(after, limit, func(e Event) bool {
 		return e.User == user && (sessionID == "" || e.SessionID == sessionID)
 	})
+}
+
+// RunEvents retorna els events d'un torn des del seu primer cursor. Això
+// permet recuperar una execució antiga sense rellegir tot el registre.
+func (s *Store) RunEvents(runID int, user, sessionID string) ([]Event, error) {
+	if s == nil || runID <= 0 {
+		return nil, nil
+	}
+	s.mu.Lock()
+	first := s.runFirst[runID]
+	s.mu.Unlock()
+	if first == 0 {
+		return nil, nil
+	}
+	var out []Event
+	after := first - 1
+	for {
+		batch, err := s.AfterScope(after, 500, user, sessionID)
+		if err != nil || len(batch) == 0 {
+			return out, err
+		}
+		for _, ev := range batch {
+			if ev.RunID != runID {
+				continue
+			}
+			out = append(out, ev)
+			if terminal(ev.Kind) {
+				return out, nil
+			}
+		}
+		after = batch[len(batch)-1].ID
+		if len(batch) < 500 {
+			return out, nil
+		}
+	}
 }
 
 func (s *Store) after(after uint64, limit int, keep func(Event) bool) ([]Event, error) {
