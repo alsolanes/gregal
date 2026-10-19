@@ -30,6 +30,19 @@ que mostra el terminal. Per a la resta de clients i l'API HTTP, consulta el
 [contracte de l'API](docs/api-contract.md) i les
 [notes de compatibilitat](docs/compatibility.md).
 
+### VS Code a Windows
+
+Instal·la l'extensió des del fitxer `.vsix` de la
+[darrera publicació](https://github.com/alsolanes/gregal/releases) (**Extensions** → **…** → **Install from VSIX…**).
+Per baixar i iniciar el backend amb una sola ordre de PowerShell:
+
+```powershell
+irm https://github.com/alsolanes/gregal/releases/latest/download/gregal-windows-amd64.exe -OutFile "$env:LOCALAPPDATA\gregal.exe"; & "$env:LOCALAPPDATA\gregal.exe" --serve
+```
+
+Configura un proveïdor i un model abans de fer la primera petició. Consulta la
+[guia de VS Code](vscode-gregal/README.md) per a altres sistemes i opcions.
+
 ## Contribuir
 
 Llegeix [CONTRIBUTING.md](CONTRIBUTING.md) per preparar l'entorn de
