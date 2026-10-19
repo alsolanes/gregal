@@ -4,6 +4,13 @@ A coding companion in your sidebar, connected to your own Gregal server.
 Use Code to work on a change, Inspect to explore without editing, or Chat to
 talk through an idea. Follow tools and delegated agents as they work.
 
+On Windows, a single PowerShell command installs both the VS Code extension
+and backend, then starts the backend:
+
+```powershell
+irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
+```
+
 ## Install for a user
 
 1. Download the latest published `gregal-X.Y.Z.vsix` and the Gregal backend

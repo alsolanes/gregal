@@ -18,18 +18,20 @@ Configure a working endpoint and model IDs before the first request, then launch
 
 To run the web interface locally, use `go run . --serve` and open the URL printed in the terminal. For other clients and the HTTP API, see the [API contract](docs/api-contract.md) and [compatibility notes](docs/compatibility.md).
 
-### VS Code on Windows
+### Quick VS Code install on Windows
 
-Install the extension from the `.vsix` file attached to the
-[latest release](https://github.com/alsolanes/gregal/releases) (**Extensions** → **…** → **Install from VSIX…**).
-Download and start the backend with one PowerShell command:
+Open PowerShell and run this command. It downloads and installs the extension
+and backend from the latest release, then starts the server:
 
 ```powershell
-irm https://github.com/alsolanes/gregal/releases/latest/download/gregal-windows-amd64.exe -OutFile "$env:LOCALAPPDATA\gregal.exe"; & "$env:LOCALAPPDATA\gregal.exe" --serve
+irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
 ```
 
-Configure a model provider before the first request. See the
+Leave the terminal open while using VS Code. Configure a model provider before
+the first request. See the
 [VS Code guide](vscode-gregal/README.md) for other operating systems and options.
+This command requires a release that includes the `.vsix` package; upcoming
+Gregal releases will attach it.
 
 ## Contributing
 

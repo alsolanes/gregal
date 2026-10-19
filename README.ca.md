@@ -30,18 +30,20 @@ que mostra el terminal. Per a la resta de clients i l'API HTTP, consulta el
 [contracte de l'API](docs/api-contract.md) i les
 [notes de compatibilitat](docs/compatibility.md).
 
-### VS Code a Windows
+### Instal·lació ràpida de VS Code a Windows
 
-Instal·la l'extensió des del fitxer `.vsix` de la
-[darrera publicació](https://github.com/alsolanes/gregal/releases) (**Extensions** → **…** → **Install from VSIX…**).
-Per baixar i iniciar el backend amb una sola ordre de PowerShell:
+Obre PowerShell i executa aquesta ordre. Baixa i instal·la l'extensió i el
+backend de la darrera publicació, i després inicia el servidor:
 
 ```powershell
-irm https://github.com/alsolanes/gregal/releases/latest/download/gregal-windows-amd64.exe -OutFile "$env:LOCALAPPDATA\gregal.exe"; & "$env:LOCALAPPDATA\gregal.exe" --serve
+irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
 ```
 
-Configura un proveïdor i un model abans de fer la primera petició. Consulta la
+Deixa obert el terminal mentre facis servir VS Code. Configura un proveïdor i
+un model abans de fer la primera petició. Consulta la
 [guia de VS Code](vscode-gregal/README.md) per a altres sistemes i opcions.
+L'ordre requereix una publicació que inclogui el paquet `.vsix`; els propers
+llançaments de Gregal ja l'adjuntaran.
 
 ## Contribuir
 
