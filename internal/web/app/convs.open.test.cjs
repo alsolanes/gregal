@@ -22,18 +22,19 @@ async function loadConvs() {
     },
     sys() {}, activityItem() {}, setView(view) { calls.views.push(view); }, refresh() {},
   };
+  const document = {getElementById() {return null;}};
   const context = vm.createContext({
     window, localStorage: {
       getItem(key) { return stored.get(key) || null; },
       setItem(key, value) { stored.set(key, String(value)); },
     },
-    document: { getElementById() { return null; } },
+    document,
   });
   const source = fs.readFileSync(path.join(__dirname, 'convs.js'), 'utf8');
   const mod = new vm.SourceTextModule(source, { context, identifier: 'convs.js' });
   await mod.link(() => { throw new Error('convs.js no hauria de tenir imports'); });
   await mod.evaluate();
-  return { convs: mod.namespace.convs, calls, window };
+  return { convs: mod.namespace.convs, calls, window, document };
 }
 
 test('reopening a sidebar conversation reuses its tab and returns to the chat', async () => {
@@ -45,4 +46,27 @@ test('reopening a sidebar conversation reuses its tab and returns to the chat', 
   assert.equal(calls.resumes, 1);
   assert.deepEqual(calls.switches, ['resumed-1']);
   assert.deepEqual(calls.views, ['agent', 'agent']);
+});
+
+
+test('a known live conversation opens immediately without listing saved files', async () => {
+  const {convs,calls,window} = await loadConvs();
+  convs.items = [{name:'saved-alpha',live_session:'alpha'}];
+  window.gregalPanels.sessions._lastList = [{id:'alpha',conversation:'saved-alpha'}];
+  convs.load = () => {throw new Error('unnecessary disk/network refresh');};
+  await convs.obre('saved-alpha');
+  assert.deepEqual(calls.switches,['alpha']);
+  assert.equal(calls.resumes,0);
+});
+
+
+test('live session state clears a stale working badge from the saved list', async () => {
+  const {convs,document} = await loadConvs();
+  const box={innerHTML:'',querySelectorAll(){return [];}};
+  document.getElementById=id=>id==='convs'?box:null;
+  convs.items=[{name:'saved-alpha',live_session:'alpha',live_busy:true}];
+  convs.updateLiveSessions([{id:'alpha',busy:false}]);
+  assert.doesNotMatch(box.innerHTML,/conv-live-state busy/);
+  convs.updateLiveSessions([{id:'alpha',busy:true}]);
+  assert.match(box.innerHTML,/conv-live-state busy/);
 });

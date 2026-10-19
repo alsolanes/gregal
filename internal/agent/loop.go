@@ -907,7 +907,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		action, _ := ba["action"].(string)
-		return tools.BrowserAction(ctx, action, ba)
+		return tools.BrowserActionFor(ctx, session, action, ba)
 	case "office_create":
 		var oc struct {
 			Path               string          `json:"path"`

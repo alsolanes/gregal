@@ -107,7 +107,7 @@ test('returning to the chat replays an interaction that arrived while another vi
   const runEventHandlers = new Map([['default', (event, value) => seen.push({ event, value })]]);
   const sandbox = {
     pendingInteractions, runEventHandlers, runningAgentSessions: new Set(['default']),
-    currentView: 'agent', paintPendingTitle() {},
+    window: {}, currentView: 'agent', paintPendingTitle() {},
   };
   vm.runInNewContext(`${resume}\nglobalThis.resume = resumePendingInteraction;`, sandbox);
 

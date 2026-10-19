@@ -88,13 +88,14 @@ function renderSessionTranscript(transcript, busy) {
 function renderActiveRunEvents(events) {
   const pending = new Map();
   let grouped = false, activeGroup = null, toolCount = 0, lastAssistantText = '';
-  let tokenText = '';
+  let tokenText = '', liveElement = null, liveText = '', lastKind = '';
   const flushTokens = () => {
     if (!tokenText) return;
     const text = tokenText; tokenText = '';
     const el = G().add('a', '', G().md(text));
     if (grouped && el) G().intoWorkGroup?.(el);
     lastAssistantText = text.trim();
+    liveElement = el; liveText = text;
   };
   const payload = e => {
     if (!e || !e.payload) return {};
@@ -105,6 +106,7 @@ function renderActiveRunEvents(events) {
     if (!e || !e.kind) return;
     if (e.kind === 'progress' || e.kind === 'run_queued' || e.kind === 'run_started') return;
     const d = payload(e);
+    lastKind = e.kind;
     if (e.kind === 'token') { tokenText += e.text || ''; return; }
     flushTokens();
     if (e.kind === 'thinking') {
@@ -142,30 +144,40 @@ function renderActiveRunEvents(events) {
   });
   flushTokens();
   const pendingCards = Array.from(pending.values()).flat().filter(Boolean);
-  return { pendingCards, lastAssistantText, steps: toolCount, tools: toolCount, workGroup: activeGroup };
+  return { pendingCards, lastAssistantText, steps: toolCount, tools: toolCount, workGroup: activeGroup,
+    liveElement: lastKind === 'token' ? liveElement : null, liveText: lastKind === 'token' ? liveText : '' };
 }
 
 async function activeRunEvents(id) {
   const headers = { 'X-Gregal-Session': id };
   const activeResp = await G().api('/api/active', { headers });
   if (!activeResp.ok) return null;
-  const active = (await activeResp.json()).active;
+  const activeData = await activeResp.json();
+  const active = activeData.active;
+  const pendingKeys = new Set(activeData.pending_interactions || []);
   if (!active || active.task == null) return null;
   const events = [];
   let after = 0;
   // Cada petició té un màxim de 500 events; el cursor permet recuperar una
   // execució llarga sense truncar el seu inici.
-  for (let page = 0; page < 20; page++) {
-    const resp = await G().api('/api/v2/events?session=' + encodeURIComponent(id) + '&after=' + after + '&limit=500', { headers });
-    if (!resp.ok) return { active, events: [] };
+  for (;;) {
+    const resp = await G().api('/api/v2/events?session=' + encodeURIComponent(id) + '&run_id=' + encodeURIComponent(active.id) + '&after=' + after + '&limit=500', { headers });
+    if (!resp.ok) throw new Error(await resp.text());
     const data = await resp.json();
     const batch = Array.isArray(data.events) ? data.events : [];
     events.push(...batch.filter(e => Number(e.run_id) === Number(active.id)));
     const next = Number(data.next) || after;
     if (!batch.length || next <= after) break;
     after = next;
+    if (batch.length < 500) break;
   }
-  return { active, events };
+  const terminal = events.find(e => ['run_completed','run_failed','run_cancelled'].includes(e.kind));
+  const pending = events.filter(e => ['approve_request','question_request'].includes(e.kind)).flatMap(e => {
+    let value = e.payload || {};
+    if (typeof value === 'string') { try { value = JSON.parse(value); } catch (x) { return []; } }
+    return pendingKeys.has(value.key) ? [{ event: e.kind, value }] : [];
+  });
+  return { active, events, next: terminal ? Number(terminal.id) - 1 : after, pending: terminal ? [] : pending };
 }
 
 // ---------------------------------------------------------------- sessions
@@ -213,11 +225,7 @@ export const sessions = {
     const save = () => this.saveDraft();
     window.addEventListener('pagehide', save);
     window.addEventListener('beforeunload', save);
-    // El primer refresh() de la pàgina surt abans que això i demana la
-    // sessió 'default'; si la desada és una altra, la resposta es descarta
-    // i la capçalera es quedava sense projecte ni carpeta. La demanem ara.
-    if (this.current !== 'default') { try { G()?.refresh?.()?.catch?.(() => {}); } catch (e) {} }
-    await this.render();
+    await this.switchTo(this.current);
   },
   async list() {
     try {
@@ -249,6 +257,7 @@ export const sessions = {
     bar.innerHTML = '';
     list.forEach(s => {
       const tab = document.createElement('button');
+      tab.dataset.sessionId = s.id;
       tab.className = 'session-tab' + (s.id === this.current ? ' active' : '') + (s.busy ? ' busy' : '') + (pending?.has(s.id) ? ' needs-input' : '');
       const name = s.title || (s.id === 'default' ? s.project || T('sessions.main') : s.id);
       // El tooltip diu on treballa: nom, ruta sencera i, si n'és, el worktree.
@@ -306,56 +315,98 @@ export const sessions = {
     const r = await j('/api/sessions/open', { method: 'POST', body: JSON.stringify({ cwd: cwd || '' }) });
     await this.switchTo(r.id);
   },
-  // Canviar de pestanya feia CINC peticions en sèrie: sessions vives,
-  // /api/state, /api/state UN ALTRE COP (per al transcript, que ja venia a
-  // la primera), el git diff i l'arbre de fitxers. Amb dues sessions
-  // treballant, el diff i l'arbre triguen —el disc està ocupat— i el canvi
-  // es quedava penjat segons. Ara són dues, i els panells cars només es
-  // carreguen si els estàs mirant.
-  async switchTo(id) {
+  _switchVersion: 0,
+  _loadedSession: '',
+  _loadingSession: '',
+  isLoading(id) { return this._loadingSession === id; },
+  async switchTo(id, options = {}) {
+    if (!options.force && id === this.current && this._loadedSession === id) {
+      G().setView('agent');
+      return G().state;
+    }
+    const version = ++this._switchVersion;
     this.saveDraft();
+    if (this._loadedSession === this.current) G().saveSessionView?.(this.current);
     this.current = id;
     window.gregalSession = id;
+    const saved = G().restoreSessionView?.(id);
+    this._loadedSession = saved ? id : '';
+    this._loadingSession = id;
     this.restoreDraft(id);
-    G().onSessionSwitch(id);
+    G().setView('agent');
+    G().onSessionSwitch(id, saved?.state);
     try { localStorage.setItem('gregal_session', id); } catch (e) {}
+    // Cached nodes are visible before the first network round trip. Each
+    // handler has retained the events received while its tab was hidden.
+    const handler = window.gregalRunEventHandlers?.get(id);
+    if (saved) { this._loadingSession = ''; handler?.flushPending?.(); }
     const main = $('main');
-    if (main) main.innerHTML = '';
-    const st = await G().refresh();
-    if (this.current !== id) return st;
-    G().onSessionSwitch(id, st);
-    const trans = (st && st.transcript) || [];
-    let restored = renderSessionTranscript(trans, !!(st && st.agent_busy));
-    if (st && st.agent_busy) {
-      try {
-        const replay = await activeRunEvents(id);
-        if (this.current !== id) return st;
-        if (replay && replay.active) {
-          const runState = renderActiveRunEvents(replay.events);
-          restored = Object.assign(restored, {
-            pendingCards: runState.pendingCards,
-            lastAssistantText: runState.lastAssistantText || restored.lastAssistantText,
-            steps: restored.steps + runState.steps,
-            tools: restored.tools + runState.tools,
-            workGroup: runState.workGroup || restored.workGroup,
-          });
-        }
-      } catch (e) { /* el transcript desat i l'estat ocupat continuen visibles */ }
+    if (!saved && main) main.innerHTML = '';
+    try {
+      const st = await G().refresh({ conversation: true });
+      if (version !== this._switchVersion) return st;
+      const trans = st?.transcript || [];
+      const unchanged = saved && (handler || (st?.transcript_version
+        ? saved.state?.transcript_version === st.transcript_version
+        : JSON.stringify(saved.state?.transcript) === JSON.stringify(trans)));
+      let restored, replay;
+      if (!unchanged) {
+        this._loadingSession = id;
+        if (main) main.innerHTML = '';
+        restored = renderSessionTranscript(trans, !!st?.agent_busy);
+      }
+      if (st?.agent_busy && !handler) {
+          try {
+            replay = await activeRunEvents(id);
+            if (version !== this._switchVersion) return st;
+            if (replay?.active) {
+              if (unchanged) {
+                if (main) main.innerHTML = '';
+                restored = renderSessionTranscript(trans, true);
+              }
+              const runState = renderActiveRunEvents(replay.events);
+              restored = Object.assign(restored, {
+                pendingCards: runState.pendingCards,
+                liveElement: runState.liveElement, liveText: runState.liveText,
+                lastAssistantText: runState.lastAssistantText || restored.lastAssistantText,
+                steps: restored.steps + runState.steps,
+                tools: restored.tools + runState.tools,
+                workGroup: runState.workGroup || restored.workGroup,
+              });
+            }
+          } catch (e) { /* Keep the transcript visible if event replay fails. */ }
+      }
+      this._loadedSession = id;
+      this._loadingSession = '';
+      const currentHandler = window.gregalRunEventHandlers?.get(id);
+      if (!unchanged && currentHandler?.restoreTranscript) currentHandler.restoreTranscript(restored);
+      currentHandler?.flushPending?.();
+      if (!currentHandler && replay?.active) G().attachActiveRun?.(replay.active, restored, replay.next, replay.pending);
+      G().onSessionSwitch(id, st);
+      if (st?.agent_busy && !handler && !replay?.active) G().sys(T('sessions.stillWorking'));
+      this.render();
+      return st;
+    } catch (e) {
+      if (version === this._switchVersion) {
+        this._loadingSession = '';
+        G().sys(T('conv.open.error') + String(e.message || e));
+      }
     }
-    const runHandler = window.gregalRunEventHandlers?.get(id);
-    if (runHandler && typeof runHandler.restoreTranscript === 'function') runHandler.restoreTranscript(restored);
-    G().sys(T('sessions.opened') + id + (trans.length ? ' · ' + trans.length + ' ' + T('sessions.messages') : ''));
-    // En tornar d'una altra vista, els esdeveniments en directe no es
-    // reprodueixen al fil. Fer explícit que el servidor encara treballa
-    // evita que una sessió ocupada sembli aturada mentre arriba la resposta.
-    if (st && st.agent_busy) G().sys(T('sessions.stillWorking'));
-    // La barra de pestanyes i els panells, després i sense esperar-los: el
-    // que volies era canviar de conversa, no mirar el diff.
-    this.render();
-    const vista = G().state && G().viewActual ? G().viewActual() : '';
-    if (vista === 'canvis') changes.load();
-    if (vista === 'fitxers') files.load();
-    return st;
+  },
+  _observedLive: new Map(),
+  _syncing: false,
+  async syncCurrent(list) {
+    const id = this.current;
+    const live = list.find(item => item.id === id);
+    if (!live) return;
+    const signature = [!!live.busy, live.msgs, live.conversation].join(':');
+    const previous = this._observedLive.get(id);
+    this._observedLive.set(id, signature);
+    if (this._syncing || this.isLoading(id) || window.gregalRunEventHandlers?.has(id)) return;
+    if (!live.busy && (previous === undefined || previous === signature)) return;
+    this._syncing = true;
+    try { await this.switchTo(id, { force: true }); }
+    finally { this._syncing = false; }
   },
   async close(id) {
     const session = this._lastList.find(s => s.id === id);
@@ -368,7 +419,9 @@ export const sessions = {
       return;
     }
     convs.forgetSession(id);
+    G().forgetSessionView?.(id);
     if (this.current === id) {
+      this._loadedSession = '';
       await this.switchTo('default');
       delete this.drafts()[id];
       try { localStorage.setItem(this._draftKey, JSON.stringify(this.drafts())); } catch (e) {}
@@ -1177,6 +1230,7 @@ export function boot() {
     try {
       const list = await sessions.list();
       convs.updateLiveSessions(list);
+      sessions.syncCurrent(list).catch(() => {});
       if (G()?.viewActual() === 'workshop') await workshop.update(list);
       await sessions.render(list);
     } catch (e) {} finally { pollingSessions = false; }

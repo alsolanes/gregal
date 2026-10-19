@@ -17,9 +17,8 @@ package tools
 // botons, camps). click i type accepten aquest número, un selector CSS o
 // un text visible. Res d'imatges tret que demani screenshot.
 //
-// Una sola finestra i una sola pestanya activa per procés: prou per a un
-// agent que fa una cosa darrere l'altra, i sense el pes de gestionar
-// pestanyes.
+// Cada sessió conserva la seva pàgina i el seu canal CDP: els projectes
+// que treballen alhora no comparteixen la pàgina activa.
 //
 // On viu el navegador ho diu browser.mode (browser_mode.go): a l'app
 // d'escriptori, el panell de navegador de la mateixa app (pont CDP
@@ -31,6 +30,7 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -50,7 +50,7 @@ import (
 // BrowserTimeout és el màxim per acció (navegar, avaluar).
 const BrowserTimeout = 30 * time.Second
 
-// Browser és la connexió viva amb el navegador (una per procés).
+// Browser és la connexió viva amb el navegador d’una sessió.
 type Browser struct {
 	mu   sync.Mutex
 	cmd  *exec.Cmd
@@ -72,8 +72,9 @@ type Browser struct {
 }
 
 var (
-	browserMu   sync.Mutex
-	browserInst *Browser
+	browserMu       sync.Mutex
+	browserInst     *Browser
+	browserSessions = map[string]*Browser{}
 	// browserExec i browserAttach permeten als tests apuntar a un servidor
 	// CDP fals en comptes d'engegar un navegador.
 	browserAttach = "" // "host:port" d'un CDP ja en marxa (GREGAL_BROWSER_CDP)
@@ -142,10 +143,29 @@ func freePort() (int, error) {
 
 // GetBrowser torna el navegador viu, engegant-lo si cal. Si el mode
 // efectiu ha canviat (config recarregat), tanca l'anterior i n'obre un altre.
-func GetBrowser() (*Browser, error) {
+func GetBrowser() (*Browser, error) { return GetBrowserFor("") }
+
+func GetBrowserFor(scope string) (*Browser, error) {
 	browserMu.Lock()
 	defer browserMu.Unlock()
 	want := EffectiveBrowserMode()
+	if scope != "" {
+		previous := browserSessions[scope]
+		if previous != nil && previous.alive() && previous.want == want {
+			return previous, nil
+		}
+		if previous != nil {
+			previous.closeIntern()
+			delete(browserSessions, scope)
+		}
+		b, err := openBrowser(want, scope)
+		if err != nil {
+			return nil, err
+		}
+		b.want = want
+		browserSessions[scope] = b
+		return b, nil
+	}
 	if browserInst != nil && browserInst.alive() && browserInst.want == want {
 		return browserInst, nil
 	}
@@ -164,7 +184,7 @@ func GetBrowser() (*Browser, error) {
 
 // openBrowser obre el navegador del mode demanat. GREGAL_BROWSER_CDP (o
 // browserAttach als tests) mana sobre tot: és un CDP ja en marxa.
-func openBrowser(want string) (*Browser, error) {
+func openBrowser(want string, scopes ...string) (*Browser, error) {
 	attach := browserAttach
 	if attach == "" {
 		attach = strings.TrimSpace(os.Getenv("GREGAL_BROWSER_CDP"))
@@ -173,6 +193,10 @@ func openBrowser(want string) (*Browser, error) {
 		return attachCDP(attach)
 	}
 	note := ""
+	launch := launchChrome
+	if len(scopes) > 0 && scopes[0] != "" {
+		launch = func(headless bool) (*Browser, error) { return launchChromeScoped(headless, scopes...) }
+	}
 	switch want {
 	case BrowserModeApp:
 		bridge := browserAppBridge()
@@ -180,15 +204,15 @@ func openBrowser(want string) (*Browser, error) {
 			note = "browser.mode is app but no desktop app browser bridge is available; using headless Chrome instead."
 			break
 		}
-		b, err := openAppBrowser(bridge)
+		b, err := openAppBrowser(bridge, scopes...)
 		if err == nil {
 			return b, nil
 		}
 		note = fmt.Sprintf("the desktop app browser is not available (%v); using headless Chrome instead.", err)
 	case BrowserModeWindow:
-		return launchChrome(false)
+		return launch(false)
 	}
-	b, err := launchChrome(true)
+	b, err := launch(true)
 	if err != nil {
 		if note != "" {
 			return nil, fmt.Errorf("%v (%s)", err, note)
@@ -220,7 +244,9 @@ func attachCDP(attach string) (*Browser, error) {
 // launchChrome engega el Chrome/Edge de la màquina amb el perfil del
 // gregal; headless sense finestra. És variable perquè els tests de mode
 // el substitueixin (cap test engega un navegador de debò).
-var launchChrome = func(headless bool) (*Browser, error) {
+var launchChrome = func(headless bool) (*Browser, error) { return launchChromeScoped(headless) }
+
+func launchChromeScoped(headless bool, scopes ...string) (*Browser, error) {
 	b := &Browser{refs: map[int]string{}, mode: BrowserModeWindow}
 	exe := BrowserExecutable()
 	if exe == "" {
@@ -231,9 +257,14 @@ var launchChrome = func(headless bool) (*Browser, error) {
 		return nil, err
 	}
 	b.port = port
+	profile := browserProfileDir()
+	if len(scopes) > 0 && scopes[0] != "" {
+		digest := sha256.Sum256([]byte(scopes[0]))
+		profile = filepath.Join(profile, "sessions", fmt.Sprintf("%x", digest[:16]))
+	}
 	args := []string{
 		fmt.Sprintf("--remote-debugging-port=%d", port),
-		"--user-data-dir=" + browserProfileDir(),
+		"--user-data-dir=" + profile,
 		"--no-first-run", "--no-default-browser-check", "--disable-sync",
 		"--disable-background-networking", "--disable-features=Translate,MediaRouter",
 		"--window-size=1280,900", "--remote-allow-origins=*",
@@ -426,6 +457,11 @@ func (b *Browser) Close() {
 	if browserInst == b {
 		browserInst = nil
 	}
+	for scope, item := range browserSessions {
+		if item == b {
+			delete(browserSessions, scope)
+		}
+	}
 	browserMu.Unlock()
 }
 
@@ -446,7 +482,26 @@ func (b *Browser) closeIntern() {
 // CloseBrowser tanca el navegador de l'agent si és obert.
 func CloseBrowser() {
 	browserMu.Lock()
-	b := browserInst
+	all := make([]*Browser, 0, len(browserSessions)+1)
+	if browserInst != nil {
+		all = append(all, browserInst)
+	}
+	for _, b := range browserSessions {
+		all = append(all, b)
+	}
+	browserMu.Unlock()
+	for _, b := range all {
+		b.Close()
+	}
+}
+
+// CloseBrowserFor releases only the owning session's browser.
+func CloseBrowserFor(scope string) {
+	browserMu.Lock()
+	b := browserSessions[scope]
+	if scope == "" {
+		b = browserInst
+	}
 	browserMu.Unlock()
 	if b != nil {
 		b.Close()
@@ -778,6 +833,10 @@ func (b *Browser) On() string {
 const BrowserActionTimeout = 60 * time.Second
 
 func BrowserAction(ctx context.Context, action string, args map[string]any) (string, []string, error) {
+	return BrowserActionFor(ctx, "", action, args)
+}
+
+func BrowserActionFor(ctx context.Context, scope, action string, args map[string]any) (string, []string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -802,7 +861,7 @@ func BrowserAction(ctx context.Context, action string, args map[string]any) (str
 	}
 	action = strings.ToLower(strings.TrimSpace(action))
 	if action == "close" {
-		CloseBrowser()
+		CloseBrowserFor(scope)
 		return "navegador tancat", nil, nil
 	}
 	// Topall dur per acció: l'arrencada del navegador (fins a ~15 s) corre
@@ -811,7 +870,7 @@ func BrowserAction(ctx context.Context, action string, args map[string]any) (str
 	actx, cancel := context.WithTimeout(ctx, BrowserActionTimeout)
 	defer cancel()
 	ctx = actx
-	b, err := GetBrowser()
+	b, err := GetBrowserFor(scope)
 	if err != nil {
 		return "", nil, err
 	}

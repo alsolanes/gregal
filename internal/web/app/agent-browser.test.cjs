@@ -13,7 +13,7 @@ function fixture(desktop) {
   class Element {
     constructor(tag, id = '') {
       this.tagName = tag.toUpperCase();
-      this.id = id;
+      this._id = id;
       this.hidden = false;
       this.children = [];
       this.attributes = {};
@@ -22,6 +22,9 @@ function fixture(desktop) {
       this.title = '';
       this.classList = { toggle: (name, on) => { this[name] = on; } };
     }
+    set id(value){if(elements.get(this._id)===this)elements.delete(this._id);this._id=value;if(value)elements.set(value,this);}
+    get id(){return this._id;}
+    remove(){if(elements.get(this.id)===this)elements.delete(this.id);}
     set innerHTML(value) {
       this._html = value;
       for (const [, id] of value.matchAll(/id="([^"]+)"/g)) elements.set(id, new Element('div', id));
@@ -46,7 +49,7 @@ function fixture(desktop) {
   };
   const window = { gregalDesktop: desktop, gregalT: k => 'T:' + k };
   vm.runInNewContext(source, { window, document, console });
-  return { elements, workbench };
+  return { elements, workbench, listeners, window };
 }
 
 test('agent browser stays out of the way outside the desktop app', () => {
@@ -94,4 +97,26 @@ test('tool cards only render screenshot data URLs', () => {
     assert.equal(toolShotOK(bad), false, String(bad));
   }
   assert.match(indexSource, /toolCardDone\(lastDoneCard, d\.name, d\.output, d\.image\)/);
+});
+
+
+test('background browser navigation stays with its owning session', () => {
+  let push;const ready=[];
+  const {elements,listeners}=fixture({onAgentBrowser:cb=>{push=cb;},agentBrowserReady:(id,scope)=>ready.push([id,scope])});
+  listeners.get('gregal:session')({detail:{id:'alpha'}});
+  push({state:'active',session:'alpha'});
+  const alpha=elements.get('agentBrowserView');alpha.getWebContentsId=()=>41;alpha.events['dom-ready']();
+  alpha.events['did-navigate']({url:'http://localhost:3000/alpha'});
+  push({state:'active',session:'beta'});
+  assert.equal(elements.get('agentBrowserView'),alpha);
+  assert.equal(elements.get('agentBrowserUrl').textContent,'http://localhost:3000/alpha');
+  listeners.get('gregal:session')({detail:{id:'beta'}});
+  const beta=elements.get('agentBrowserView');beta.getWebContentsId=()=>42;beta.events['dom-ready']();
+  assert.notEqual(alpha,beta);
+  assert.equal(alpha.hidden,true);
+  assert.deepEqual(ready,[[41,'alpha'],[42,'beta']]);
+  beta.events['did-navigate']({url:'http://localhost:4000/beta'});
+  listeners.get('gregal:session')({detail:{id:'alpha'}});
+  assert.equal(elements.get('agentBrowserView'),alpha);
+  assert.equal(elements.get('agentBrowserUrl').textContent,'http://localhost:3000/alpha');
 });

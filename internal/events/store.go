@@ -229,6 +229,23 @@ func (s *Store) AfterScope(after uint64, limit int, user, sessionID string) ([]E
 	})
 }
 
+// AfterRun seeks to the run's first event before applying the caller's cursor.
+// Session navigation must not rescan every older run to restore live progress.
+func (s *Store) AfterRun(after uint64, limit, runID int, user, sessionID string) ([]Event, error) {
+	s.mu.Lock()
+	first := s.runFirst[runID]
+	s.mu.Unlock()
+	if first == 0 {
+		return nil, nil
+	}
+	if after < first-1 {
+		after = first - 1
+	}
+	return s.after(after, limit, func(e Event) bool {
+		return e.RunID == runID && e.User == user && e.SessionID == sessionID
+	})
+}
+
 // RunEvents retorna els events d'un torn des del seu primer cursor. Això
 // permet recuperar una execució antiga sense rellegir tot el registre.
 func (s *Store) RunEvents(runID int, user, sessionID string) ([]Event, error) {

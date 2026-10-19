@@ -782,6 +782,11 @@ func sseWithHeartbeat(w http.ResponseWriter, ctx context.Context, interval time.
 }
 
 func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
+	conversation := r.URL.Query().Get("conversation") == "1"
+	transcriptLimit := 50
+	if conversation {
+		transcriptLimit = 0
+	}
 	queued := s.queueHasActiveTurn()
 	s.mu.Lock()
 	p, role := s.roleRef()
@@ -809,9 +814,16 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"context_window": agent.Window(s.cfg, role),
 		// Transcript curt perquè canviar de pestanya no perdi l'historial
 		// visible (abans switchTo buidava el fil i només deia "Sessió · id").
-		"transcript": transcriptView(s.convo, 50),
+		"transcript":         transcriptView(s.convo, transcriptLimit),
+		"transcript_version": fmt.Sprintf("%s:%d:%d", s.convoFile, s.currentRunID, len(s.convo)),
 	}
 	s.mu.Unlock()
+	// Opening a conversation must not wait for Git processes or a busy disk.
+	// Ordinary state refreshes still provide workspace metadata.
+	if conversation {
+		writeJSON(w, out)
+		return
+	}
 	// Git pot haver d'esperar un procés o un disc ocupat. No mantenim el
 	// mutex de la sessió mentre el consultem: l'agent ha de poder emetre
 	// events i rebre cancel·lacions fins i tot durant aquesta lectura.
@@ -870,7 +882,14 @@ func (s *Server) handleActive(w http.ResponseWriter, r *http.Request) {
 	}
 	out := *s.active
 	out.Events = append([]liveEvent(nil), s.active.Events...)
-	writeJSON(w, map[string]any{"active": out})
+	pending := make([]string, 0, len(s.approvals)+len(s.questions))
+	for key := range s.approvals {
+		pending = append(pending, key)
+	}
+	for key := range s.questions {
+		pending = append(pending, key)
+	}
+	writeJSON(w, map[string]any{"active": out, "pending_interactions": pending})
 }
 
 // handleEvents retorna events persistents amb un cursor monotònic. El client
@@ -916,7 +935,18 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	if s.hub != nil {
 		scope = s.hub.keyFor(s.user, scope)
 	}
-	got, err := s.hub.eventStore.AfterScope(after, limit, s.usuari(), scope)
+	var got []events.Event
+	var err error
+	if raw := r.URL.Query().Get("run_id"); raw != "" {
+		runID, parseErr := strconv.Atoi(raw)
+		if parseErr != nil || runID <= 0 {
+			http.Error(w, "torn invàlid", http.StatusBadRequest)
+			return
+		}
+		got, err = s.hub.eventStore.AfterRun(after, limit, runID, s.usuari(), scope)
+	} else {
+		got, err = s.hub.eventStore.AfterScope(after, limit, s.usuari(), scope)
+	}
 	if err != nil {
 		http.Error(w, "no es poden llegir els events", http.StatusInternalServerError)
 		return
@@ -2244,7 +2274,7 @@ func esNotaDeTorn(m llm.Message) bool {
 }
 
 func transcriptView(convo []llm.Message, n int) []map[string]any {
-	if len(convo) > n {
+	if n > 0 && len(convo) > n {
 		convo = convo[len(convo)-n:]
 	}
 	out := make([]map[string]any, 0, len(convo))

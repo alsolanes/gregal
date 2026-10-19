@@ -166,9 +166,10 @@ export const convs = {
     const fila = c => {
       const sessionId = c.live_session || resumed[c.name] || (c.current ? window.gregalSession : '');
       const live = sessionId ? liveById.get(sessionId) : null;
+      const busy = live ? !!live.busy : !!c.live_busy;
       const pending = !!(sessionId && window.gregalPendingInteractions?.has(sessionId));
       const status = pending ? '<span class="conv-live-state waiting">' + esc(gregalT('sessions.needsInputLabel') || 'Needs input') + '</span>'
-        : (c.live_busy || live?.busy) ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
+        : busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
       return '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
       esc(titolVisible(c) + ' · ' + c.msgs + ' ' + msgsWord + (c.when ? ' · ' + c.when : '')) + '">' +
       '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + xipProjecte(c) +
@@ -209,16 +210,28 @@ export const convs = {
       await this.load();
     } catch (e) { G().sys((gregalT('conv.pin.error') || 'Could not update the pin: ') + (e.message || e)); }
   },
+  _openVersion: 0,
   async obre(name) {
+    const version = ++this._openVersion;
     try {
+      const tabs = window.gregalPanels?.sessions;
+      const cached = this.items.find(item => item.name === name);
+      const known = cached?.live_session || resumedSessions()[name];
+      const tab = tabs?._lastList?.find(item => item.id === known && (cached?.live_session === known || !Object.prototype.hasOwnProperty.call(item, 'conversation') || item.conversation === name));
+      if (tab) {
+        await tabs.switchTo(tab.id);
+        return;
+      }
       // Refresh the association at click time. The conversation list may have
       // been rendered before the agent autosaved the first user message.
       await this.load();
+      if (version !== this._openVersion) return;
       const sessions = window.gregalPanels?.sessions;
       const reopened = resumedSessions();
       const previous = Object.prototype.hasOwnProperty.call(reopened, name) ? reopened[name] : '';
       if (sessions && typeof sessions.list === 'function' && typeof sessions.switchTo === 'function') {
         const live = await sessions.list();
+        if (version !== this._openVersion) return;
         // The backend owns this association, so conversations started in a
         // live tab return to that exact tab even before the user has reopened
         // them from the saved list once.
@@ -239,10 +252,14 @@ export const convs = {
         }
       }
       // Reprendre sobre una sessió ocupada canviaria el context del worker.
-      if (G().isBusy()) await sessions.open(G().state.cwd);
-      const r = await G().api('/api/resume', { method: 'POST', body: JSON.stringify({ name }) });
+      await sessions.open(G().state.cwd);
+      if (version !== this._openVersion) return;
+      const targetSession = window.gregalSession || 'default';
+      const r = await G().api('/api/resume', { method: 'POST', body: JSON.stringify({ name }), headers: { 'X-Gregal-Session': targetSession } });
+      if (version !== this._openVersion) return;
       if (!r.ok) { G().sys((gregalT('conv.open.error') || 'Could not open: ') + await r.text()); return; }
       const d = await r.json();
+      if (version !== this._openVersion) return;
       saveResumedSession(name, window.gregalSession || 'default');
       const main = $('main');
       if (main) main.innerHTML = '';
