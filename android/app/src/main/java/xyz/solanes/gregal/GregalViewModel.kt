@@ -96,6 +96,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _models = MutableStateFlow<Map<String, List<String>>>(emptyMap())
     val models: StateFlow<Map<String, List<String>>> = _models
 
+    private val _windsModel = MutableStateFlow("")
+    val windsModel: StateFlow<String> = _windsModel
+
     private val _usuari = MutableStateFlow("")
     val usuari: StateFlow<String> = _usuari
 
@@ -1910,10 +1913,28 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val c = _conn.value
         viewModelScope.launch {
             try {
-                val (m, _) = withContext(Dispatchers.IO) { c.api().getModels() }
-                if (_conn.value == c) _models.value = m
+                val (m, _, winds) = withContext(Dispatchers.IO) { c.api().getModels() }
+                if (_conn.value == c) {
+                    _models.value = m
+                    _windsModel.value = winds
+                }
             } catch (e: Exception) {
                 if (_conn.value == c) notify(appText("app.status.models", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** Model per defecte dels vents: el tria l'usuari, el valida el servidor. */
+    fun setWindsModel(model: String) {
+        viewModelScope.launch {
+            try {
+                val selected = withContext(Dispatchers.IO) { _conn.value.api().setWindsModel(model) }
+                val winds = selected.optString("selection")
+                if (winds.isNotBlank()) _windsModel.value = winds
+                loadModels()
+                notify(appText("app.vents.modelSelected", winds.ifBlank { model }))
+            } catch (e: Exception) {
+                notify(appText("app.status.modelChange", e.message.orEmpty()))
             }
         }
     }

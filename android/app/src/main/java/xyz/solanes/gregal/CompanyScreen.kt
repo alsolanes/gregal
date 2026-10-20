@@ -32,6 +32,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -131,6 +132,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                 VentsPillTabs(lang, manage, onManage = { manage = it })
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 12.dp)) {
                     if (manage) {
+                        item { WindsModelRow(vm, lang) }
                         item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
                         if (winds.isEmpty()) item { VentsEmpty(lang, false) }
                         items(winds, key = { it.id }) { w ->
@@ -179,6 +181,80 @@ private fun VentsEmpty(lang: String, conversations: Boolean) {
 private fun SectionHeader(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Faint,
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, bottom = 2.dp))
+}
+
+/** Model per defecte dels vents: fila + diàleg amb el catàleg del servidor. */
+@Composable
+private fun WindsModelRow(vm: GregalViewModel, lang: String) {
+    val windsModel by vm.windsModel.collectAsState()
+    var picker by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.loadModels() }
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Sea.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(20.dp)).clickable(onClick = { picker = true }),
+    ) {
+        Row(
+            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            TintedIcon(Icons.Rounded.AutoAwesome, Sea)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(tr(lang, "app.vents.defaultModel"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text(
+                    windsModel.ifBlank { tr(lang, "app.vents.defaultModelSameAsWork") },
+                    fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+    if (picker) WindsModelDialog(vm, lang) { picker = false }
+}
+
+@Composable
+private fun WindsModelDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit) {
+    val providers by vm.providers.collectAsState()
+    val models by vm.models.collectAsState()
+    var query by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) { vm.loadProviders(); vm.loadModels() }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 8.dp) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(tr(lang, "app.vents.pickWindsModel"), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it }, singleLine = true,
+                    placeholder = { Text(tr(lang, "app.picker.search"), fontSize = 14.sp) },
+                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+                val groups = configuredModelChoices(providers, models, query)
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                    if (groups.isEmpty()) item {
+                        Text(tr(lang, "app.picker.noModels"), Modifier.padding(12.dp), color = Muted)
+                    }
+                    groups.forEach { (provider, choices) ->
+                        item(key = "provider:$provider") {
+                            Text(provider, Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                color = Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                        }
+                        items(choices, key = { it.ref }) { c ->
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                                    .clickable(onClick = { vm.setWindsModel(c.ref); onDismiss() })
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Text(c.model, color = Ink, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** Una conversa de la llista: targeta amb halo, nom i darrer missatge. */
@@ -332,13 +408,15 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
             )
             Surface(
                 shape = CircleShape,
-                color = if (text.isNotBlank() && !busy.contains(wind.id)) accent else accent.copy(alpha = 0.35f),
-                shadowElevation = if (text.isNotBlank()) 8.dp else 0.dp,
+                color = if (text.isNotBlank() && !busy.contains(wind.id)) accent else SuperficieAlta,
+                shadowElevation = if (text.isNotBlank() && !busy.contains(wind.id)) 8.dp else 0.dp,
                 modifier = Modifier.size(50.dp).clip(CircleShape)
                     .clickable(enabled = text.isNotBlank() && !busy.contains(wind.id)) { vm.sendWindMessage(wind.id, text); text = "" },
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"), tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
+                        tint = if (text.isNotBlank() && !busy.contains(wind.id)) Color.White else Muted,
+                        modifier = Modifier.size(22.dp))
                 }
             }
         }
@@ -449,13 +527,15 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             )
             Surface(
                 shape = CircleShape,
-                color = if (text.isNotBlank() && !busy.contains(rot.id)) rotAccent else rotAccent.copy(alpha = 0.35f),
-                shadowElevation = if (text.isNotBlank()) 8.dp else 0.dp,
+                color = if (text.isNotBlank() && !busy.contains(rot.id)) rotAccent else SuperficieAlta,
+                shadowElevation = if (text.isNotBlank() && !busy.contains(rot.id)) 8.dp else 0.dp,
                 modifier = Modifier.size(50.dp).clip(CircleShape)
                     .clickable(enabled = text.isNotBlank() && !busy.contains(rot.id)) { vm.sendRotllanaMessage(rot.id, text); text = "" },
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"), tint = Color.White, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
+                        tint = if (text.isNotBlank() && !busy.contains(rot.id)) Color.White else Muted,
+                        modifier = Modifier.size(22.dp))
                 }
             }
         }

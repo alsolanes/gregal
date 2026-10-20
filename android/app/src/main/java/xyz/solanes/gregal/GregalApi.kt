@@ -148,12 +148,17 @@ class GregalApi(val base: String, val token: String) {
         )
     }
 
-    fun getModels(): Pair<Map<String, List<String>>, String> {
+    fun getModels(): Triple<Map<String, List<String>>, String, String> {
         val o = JSONObject(read(conn("/api/models?configured_only=1", "GET")))
         val out = mutableMapOf<String, List<String>>()
         val m = o.optJSONObject("models") ?: JSONObject()
         for (k in m.keys()) out[k] = m.optJSONArray(k)?.toStrList() ?: emptyList()
-        return out to o.optString("current")
+        return Triple(out, o.optString("current"), o.optString("vents_selected"))
+    }
+
+    /** Model per defecte dels vents (xat, rotllana i cor), sense tocar el de la feina. */
+    fun setWindsModel(model: String): JSONObject {
+        return post("/api/model", JSONObject().put("model", model).put("scope", "vents"))
     }
 
     fun post(path: String, payload: JSONObject): JSONObject {

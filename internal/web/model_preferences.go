@@ -3,10 +3,41 @@ package web
 import (
 	"time"
 
+	"gregal/internal/config"
 	"gregal/internal/session"
 )
 
 const modelAvailabilityCacheTTL = time.Minute
+
+// windsModelScope és la clau del model per defecte dels vents: no és un rol
+// del config (no defineix temperatura ni límits), només una preferència de
+// model que windRoleRef aplica damunt del rol base del servidor.
+const windsModelScope = "vents"
+
+// windRoleRef resol amb quin provider/model parlen els vents: el rol base
+// del servidor, però amb el model per defecte propi si l'usuari n'ha triat
+// un (POST /api/model amb scope "vents"). Un override que ja no existeix al
+// config cau al rol base: el vent mai es queda mut per un model esborrat.
+// Cal cridar-lo amb s.mu agafat, com roleRef().
+func (s *Server) windRoleRef() (config.Provider, config.Role) {
+	p, r := s.roleRef()
+	ov, ok := s.modelOverride[windsModelScope]
+	if !ok || s.unavailableModels[windsModelScope] == ov {
+		return p, r
+	}
+	if pp, m, ok := splitModel(ov); ok {
+		if prov, ok := s.cfg.Providers[pp]; ok {
+			r.Provider, r.Model = pp, m
+			return prov, r
+		}
+		return p, r
+	}
+	if prov, ok := s.cfg.Providers[r.Provider]; ok {
+		r.Model = ov
+		return prov, r
+	}
+	return p, r
+}
 
 func (s *Server) defaultModelOverrides() map[string]string {
 	user := ""

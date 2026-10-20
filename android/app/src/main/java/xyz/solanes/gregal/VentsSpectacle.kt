@@ -120,7 +120,7 @@ fun VentsHero(lang: String, winds: List<Wind>, modeLabel: String) {
             ).padding(16.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                GregalMark(size = 56.dp, alive = true)
+                GregalMark(size = 56.dp, alive = LocalWindMotion.current)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         tr(lang, "app.vents.title"),

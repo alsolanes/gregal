@@ -45,8 +45,12 @@ func windHeartbeatSystem(w companion.Wind, memory string) string {
 }
 
 // windHeartbeatLoop és la via de cerca del cor; els tests la substitueixen.
+// Com la resta de veus del vent, amb el model per defecte dels vents.
 var windHeartbeatLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
-	return s.runReadOnlyLoop(ctx, brief, 8)
+	s.mu.Lock()
+	p, role := s.windRoleRef()
+	s.mu.Unlock()
+	return s.runReadOnlyLoopForRole(ctx, brief, 8, p, role)
 }
 
 // windNextAt extreu el moment que el vent ha programat per tornar a mirar:

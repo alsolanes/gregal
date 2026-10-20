@@ -105,9 +105,13 @@ func (s *Server) handleRotllanes(w http.ResponseWriter, r *http.Request) {
 
 // rotllanaVoiceLoop és la via de cerca del vent que parla a la rotllana; els
 // tests la substitueixen. Per defecte, el loop d'inspecció amb eines web
-// (web_search, web_fetch), igual que el xat directe amb un vent.
+// (web_search, web_fetch), igual que el xat directe amb un vent, amb el
+// model per defecte dels vents (windRoleRef).
 var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (string, error) {
-	res, err := s.runReadOnlyLoop(ctx, brief, 6)
+	s.mu.Lock()
+	p, role := s.windRoleRef()
+	s.mu.Unlock()
+	res, err := s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
 	return res.text, err
 }
 

@@ -270,7 +270,7 @@ workspace roots.
 | `/api/v2/runs` | GET | `{runs:[...]}`: runs in the session, newest first. |
 | `/api/v2/runs/{id}` | GET | `{run}` with state and timestamps; 404 if it does not exist or belongs to another session. |
 | `/api/v2/runs/{id}/cancel` | POST | Cancels the identified turn: a queued run will not execute; a running turn has its context cancelled → `{ok,cancelled}`. Returns 404 outside the session. |
-| `/api/models` | GET | `{models:{provider:[]}, errors:{}, current, role}`. |
+| `/api/models` | GET | `{models:{provider:[]}, errors:{}, current, role, vents_selected}`. `vents_selected` is the winds' own default model (`""` = they use the work one). |
 | `/api/sessions` | GET/DELETE | GET: saved conversations on disk, newest first: `[{name,title,msgs,when,at,current,pinned,workspace}]` (`title` comes from the first message; `at` is RFC3339 for date grouping; `current` marks the conversation currently being written). DELETE `?name=` removes one. Saved automatically after each turn. |
 | `/api/sessions/pin` | POST | `{name,pinned}` updates the navigation pin without cloning the conversation and returns `{name,pinned}`. |
 | `/api/goal` | GET | `{goals:[{id,title,body,status,project}]}`. |
@@ -304,7 +304,7 @@ workspace roots.
 | `/api/verify` | POST | `{mode}`: `off`, `manual`, `auto`, `both` or `strict`. |
 | `/api/verify-approve` | POST | Clears a `strict` review block. |
 | `/api/permissive` | GET/POST | `{on, review}`. `on` lets the agent proceed without asking; `deny` rules still block. `review: true` selects auto-review mode instead (a reviewer model decides calls that need approval; exclusive with `on`). Session only; the initial value of `review` comes from `permissions.mode: auto-review`. |
-| `/api/mode`, `/api/role`, `/api/model` | POST | Changes the active mode, role or model (per session). |
+| `/api/mode`, `/api/role`, `/api/model` | POST | Changes the active mode, role or model (per session). `/api/model` accepts `{model, scope?}`: without scope it changes the work model (persisted per role); with `scope: "vents"` it sets the winds' own default model (xat, rotllana i cor) without touching the work one. The provider must be explicit (`"provider/model"`) for the winds scope. |
 | `/api/save`, `/api/new`, `/api/resume` | POST | Operates on conversations saved to disk. |
 | `/api/rewind`, `/api/rewind-to` | POST | Reverts file changes → `{summary}`. `/api/rewind` undoes the journal and, in git repositories, restores the workspace to the session's first git snapshot (shell changes included). `/api/rewind-to` takes `{seq: N}` (journal checkpoint, as before) or `{git: N}` (git snapshot: journal back to that point, then every file that differs from the snapshot is restored and files created afterwards that are not ignored are deleted; a `turn` snapshot also trims the conversation to that turn). HEAD, the index, branches and the stash are never touched. |
 | `/api/worktrees` | POST/DELETE | POST `{name?, open_session?=true, title?}` creates `<repo>/.gregal/worktrees/<name>` on a new branch `gregal/<name>` from HEAD (files listed in `.worktreeinclude` are copied) and, by default, opens a new session in it → `{worktree, session?:{id,title,cwd,project,worktree}}`. DELETE `?name=&delete_branch=1` runs `git worktree remove` (never forced; 409 if it has uncommitted changes or a live session uses it); the branch is deleted only with `git branch -d`. |

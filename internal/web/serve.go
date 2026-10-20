@@ -3259,6 +3259,7 @@ func (s *Server) handleRole(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleModel(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Model string `json:"model"`
+		Scope string `json:"scope"` // opcional: "vents" = model per defecte dels vents, no el de la feina
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Model) == "" {
 		http.Error(w, "model buit", http.StatusBadRequest)
@@ -3273,6 +3274,18 @@ func (s *Server) handleModel(w http.ResponseWriter, r *http.Request) {
 	role, ok := s.cfg.Roles[roleName]
 	providerName, modelName := role.Provider, raw
 	if p, m, hasProvider := splitModel(raw); hasProvider {
+		providerName, modelName = p, m
+	}
+	if strings.TrimSpace(req.Scope) == windsModelScope {
+		// Els vents tenen model propi, independent del de la feina: com que
+		// "vents" no és un rol del config, el provider ha de venir explícit.
+		roleName = windsModelScope
+		p, m, hasProvider := splitModel(raw)
+		if !hasProvider || strings.TrimSpace(m) == "" {
+			s.mu.Unlock()
+			http.Error(w, "cal provider/model per al model dels vents", http.StatusBadRequest)
+			return
+		}
 		providerName, modelName = p, m
 	}
 	provider, found := s.cfg.Providers[providerName]
@@ -3327,6 +3340,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	}
 	sort.Slice(provs, func(i, j int) bool { return provs[i].name < provs[j].name })
 	ov, hasOv := s.modelOverride[s.role]
+	ventsSel := s.modelOverride[windsModelScope]
 	role := s.role
 	configuredRole, roleConfigured := s.cfg.Roles[role]
 	s.mu.Unlock()
@@ -3415,7 +3429,8 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]any{
 		"models": models, "errors": errs, "current": cur, "role": role,
 		"selected_override": selected, "selected_available": selectedAvailable,
-		"fallback": fallback,
+		"fallback":       fallback,
+		"vents_selected": ventsSel,
 	})
 }
 

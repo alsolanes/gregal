@@ -131,4 +131,16 @@ class VentsExperienceTest {
         ui.onNodeWithText("Xaloc").assertExists().performClick()
         ui.runOnIdle { org.junit.Assert.assertTrue(opened) }
     }
+
+    @Test fun manageTabShowsWindsDefaultModelAndOpensPicker() {
+        val vm = vm()
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
+        } }
+        ui.onNodeWithText(tr("ca", "app.vents.myWinds")).performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).assertExists()
+        ui.onNodeWithText(tr("ca", "app.vents.defaultModelSameAsWork")).assertExists()
+        ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.pickWindsModel")).assertExists()
+    }
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -33,6 +34,13 @@ func (s *Server) runReadOnlyLoop(ctx context.Context, brief string, maxSteps int
 	s.mu.Lock()
 	p, role := s.roleRef()
 	s.mu.Unlock()
+	return s.runReadOnlyLoopForRole(ctx, brief, maxSteps, p, role, prev...)
+}
+
+// runReadOnlyLoopForRole és el mateix loop amb target explícit: els vents
+// (xat, rotllana i cor) hi passen el seu (windRoleRef: rol base + model
+// per defecte propi), la feina hi passa el del rol.
+func (s *Server) runReadOnlyLoopForRole(ctx context.Context, brief string, maxSteps int, p config.Provider, role config.Role, prev ...[]llm.Message) (exploracio, error) {
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
 		Lang:     s.cfg.Lang(),
