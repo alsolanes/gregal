@@ -2276,8 +2276,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Encén el cor d'un vent: un job diari que busca novetats del seu tema
-     *  i només parla si val la pena. L'id és wind-<vent>: el backend el tracta. */
+    /** Encén el cor d'un vent: un job que vigila el seu tema amb cerques web
+     *  i parla només si troba novetats que valguin la pena. El vent es
+     *  reprograma ell sol per quan acabi el proper esdeveniment del seu
+     *  tema (partit, llançament…): el primer cop corre ara i ell decideix
+     *  quan mirar altra vegada. L'id és wind-<vent>: el backend el tracta. */
     fun ensureWindHeartbeat(wind: Wind, on: Boolean) {
         viewModelScope.launch {
             try {
@@ -2291,9 +2294,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             id = jobId,
                             name = appText("app.company.windHeartbeatName", wind.name),
                             prompt = "Cor de " + wind.name + ": vigila el tema «" + wind.role + "» i parla només si trobes novetats que valguin la pena.",
-                            kind = "daily", time = "09:00",
+                            kind = "event", time = "",
                             enabled = true, notify = true,
                         ))
+                        // Primera mirada ara: el mateix vent programa la següent.
+                        api.runJob(jobId)
                     }
                 } else if (!on && existing != null) {
                     withContext(Dispatchers.IO) { api.deleteJob(jobId) }

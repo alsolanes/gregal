@@ -109,7 +109,7 @@ class VentsExperienceTest {
         val profile = WindProfile(wind, "Coneixement real del servidor", "Memòria personal real")
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) {
-                WindProfileContent("ca", wind, profile, false, null, emptyList(), {}, {}, {}, { _, _ -> error("unexpected write") })
+                WindProfileContent(vm(), "ca", wind, profile, false, null, emptyList(), {}, {}, {}, { _, _ -> error("unexpected write") })
             }
         } }
         ui.onNodeWithText(tr("ca", "app.vents.memory")).performClick()

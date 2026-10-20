@@ -25,10 +25,10 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
     val busy by vm.windProfileBusy.collectAsState()
     val error by vm.windProfileError.collectAsState()
     val chats by vm.windChat.collectAsState()
-    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadWindChat(wind.id) }
+    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadWindChat(wind.id); vm.loadJobs() }
     val current = profile?.takeIf { it.wind.id == wind.id }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        WindProfileContent(lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(),
+        WindProfileContent(vm, lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(),
             onDismiss = onDismiss,
             onRetry = { vm.loadWindProfile(wind.id) },
             onEdit = { onDismiss(); vm.showWindCreator(true, current?.wind ?: wind) },
@@ -38,7 +38,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun WindProfileContent(lang: String, wind: Wind, profile: WindProfile?, busy: Boolean, error: String?,
+internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, profile: WindProfile?, busy: Boolean, error: String?,
     messages: List<GregalViewModel.PetMsg>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
     onSaveKnowledge: (String, (Boolean) -> Unit) -> Unit) {
     var tab by remember(wind.id) { mutableStateOf(0) }
@@ -105,6 +105,7 @@ internal fun WindProfileContent(lang: String, wind: Wind, profile: WindProfile?,
                     }
                     2 -> {
                         Text(tr(lang, "app.vents.activityHelp"), color = Muted, fontSize = 13.sp)
+                        heartbeatRow(lang, vm, wind)
                         if (messages.isEmpty()) Text(tr(lang, "app.vents.noActivity"), color = Tinta)
                         messages.forEach { message ->
                             Surface(color = Color(wind.argb).copy(alpha = .08f), shape = MaterialTheme.shapes.medium) {
@@ -126,4 +127,32 @@ internal fun WindProfileContent(lang: String, wind: Wind, profile: WindProfile?,
             onSaveKnowledge("") { success -> saving = false; saveError = !success }
         }) { Text(tr(lang, "app.vents.forgetKnowledge")) } },
         dismissButton = { TextButton(onClick = { confirmForget = false }) { Text(tr(lang, "app.company.windCancel")) } })
+}
+
+/** Interruptor del cor del vent: quan s'encén, el vent vigila el seu tema
+ *  amb cerques web i parla només si troba novetats que valguin la pena;
+ *  es reprograma ell sol per quan acabi el proper esdeveniment del tema
+ *  (p. ex. un partit). */
+@Composable
+private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
+    val jobs by vm.jobs.collectAsState()
+    val job = jobs.firstOrNull { it.id == "wind-" + wind.id }
+    var pending by remember(wind.id) { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(tr(lang, "app.company.windHeartbeat"), color = Ink, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.company.windHeartbeatOn"), color = Muted, fontSize = 13.sp)
+            if (job != null && job.nextDue.isNotBlank() && job.enabled)
+                Text(tr(lang, "app.company.windHeartbeatNext", job.nextDue), color = Muted, fontSize = 12.sp)
+        }
+        Switch(checked = job?.enabled == true, onCheckedChange = { on ->
+            if (!pending) {
+                pending = true
+                vm.ensureWindHeartbeat(wind, on)
+                // Refresca l'estat quan el job s'ha creat/esborrat.
+                vm.loadJobs()
+                pending = false
+            }
+        }, enabled = !pending)
+    }
 }

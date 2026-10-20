@@ -24,6 +24,11 @@ type Job struct {
 	LastAt     *time.Time `json:"last_at,omitempty"`
 	LastStatus string     `json:"last_status,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
+	// NextAt és la franja puntual del kind "event" (el cor del vent): el
+	// moment exacte que el mateix vent s'ha programat per tornar a mirar
+	// (p. ex. just després del partit que vigila). El l'actualitza quan
+	// corre; qui l'encén, l'app o un run manual, el dispara d'immediat.
+	NextAt *time.Time `json:"next_at,omitempty"`
 }
 
 // Run és una execució (la sortida és markdown llest per renderitzar ric).
@@ -99,7 +104,7 @@ func (s *Store) Save(j Job) (Job, error) {
 	}
 	j.Name = trim(j.Name, 80)
 	j.Prompt = trim(j.Prompt, 4000)
-	if j.Kind != "daily" && j.Kind != "interval" {
+	if j.Kind != "daily" && j.Kind != "interval" && j.Kind != "event" {
 		j.Kind = "manual"
 	}
 	if j.ID == "" {
@@ -113,6 +118,9 @@ func (s *Store) Save(j Job) (Job, error) {
 			if j.LastAt == nil {
 				j.LastAt = e.LastAt
 				j.LastStatus = e.LastStatus
+			}
+			if j.NextAt == nil {
+				j.NextAt = e.NextAt
 			}
 			jobs[i] = j
 			found = true
@@ -159,6 +167,30 @@ func (s *Store) MarkRun(id string, at time.Time, status string) error {
 			jobs[i].LastStatus = status
 			break
 		}
+	}
+	return s.persist(jobs)
+}
+
+// SetNextAt reprograma la franja d'un job d'esdeveniment (el cor del vent)
+// sense tocar res més: ni LastAt ni LastStatus ni la programació d'altres
+// jobs. Job desconegut = error, mai crea res.
+func (s *Store) SetNextAt(id string, at time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	jobs, err := s.list()
+	if err != nil {
+		return err
+	}
+	found := false
+	for i, j := range jobs {
+		if j.ID == id {
+			jobs[i].NextAt = &at
+			found = true
+			break
+		}
+	}
+	if !found {
+		return fmt.Errorf("job desconegut: %s", id)
 	}
 	return s.persist(jobs)
 }
@@ -257,6 +289,16 @@ func NextDue(j Job, now time.Time) time.Time {
 			return now // primera execució immediata
 		}
 		return j.LastAt.Add(time.Duration(j.IntervalH * float64(time.Hour)))
+	case "event":
+		// Franja puntual del cor del vent: toca quan arriba next_at i no
+		// torna a tocar fins que el vent la mogui (si ja l'ha coberta, zero).
+		if j.NextAt == nil {
+			return time.Time{}
+		}
+		if j.LastAt != nil && !j.LastAt.Before(*j.NextAt) {
+			return time.Time{}
+		}
+		return *j.NextAt
 	default:
 		return time.Time{}
 	}

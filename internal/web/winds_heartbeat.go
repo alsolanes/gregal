@@ -36,7 +36,7 @@ func WindJobID(windID string) string { return windJobPrefix + windID }
 func windHeartbeatSystem(w companion.Wind, memory string) string {
 	var b strings.Builder
 	b.WriteString(w.Persona)
-	b.WriteString("\n\nYOU ARE ON WATCH. Your job (" + w.Role + ") is to check your topic with web_search and web_fetch. Rules:\n- Search the web for news about your topic. Prefer recent sources (last 24-48h).\n- Speak ONLY if you find something genuinely worth telling the user: real news, a release, a price drop, something actionable for them.\n- If nothing deserves their attention, reply with exactly: (res)\n- Never invent news. Cite source URLs inline like [title](url).\n- Reply in the user's language (Catalan if unsure). 1-4 sentences, no preamble.")
+	b.WriteString("\n\nYOU ARE ON WATCH. Your job (" + w.Role + ") is to check your topic with web_search and web_fetch. Rules:\n- Search the web for news about your topic. Prefer recent sources (last 24-48h).\n- Speak ONLY if you find something genuinely worth telling the user: real news, a release, a price drop, something actionable for them.\n- If nothing deserves their attention, reply with exactly: (res)\n- Never invent news. Cite source URLs inline like [title](url).\n- Reply in the user's language (Catalan if unsure). 1-4 sentences, no preamble.\n- ALWAYS end your reply with a NEXT line: when you should look again. Find the next scheduled event of your topic (match, release, sale…) and set NEXT 30 minutes after it ends; if you cannot find one, 24 hours from now. Format the line exactly as: NEXT: 2026-10-21T19:30:00Z (RFC 3339, UTC).")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
 		b.WriteString(memory)
@@ -49,6 +49,41 @@ var windHeartbeatLoop = func(s *Server, ctx context.Context, brief string) (expl
 	return s.runReadOnlyLoop(ctx, brief, 8)
 }
 
+// windNextAt extreu el moment que el vent ha programat per tornar a mirar:
+// una línia "NEXT: <RFC 3339>" (UTC o amb zona). Sense línia o amb una data
+// il·legible, false — qui crida hi posa el seu propi valor per defecte.
+func windNextAt(reply string) (time.Time, bool) {
+	for _, line := range strings.Split(reply, "\n") {
+		line = strings.TrimSpace(strings.Trim(strings.TrimSpace(line), "`\"' "))
+		if len(line) < 5 || !strings.EqualFold(line[:5], "NEXT:") {
+			continue
+		}
+		rest := strings.TrimSpace(line[5:])
+		// Acceptem també un espai extra i cometes d'eco del model.
+		rest = strings.Trim(rest, "`\"' ")
+		if at, err := time.Parse(time.RFC3339, rest); err == nil {
+			if at.Year() > 2000 {
+				return at, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+// windStripNext treu les línies NEXT del text que entra al xat del vent: la
+// programació no és parla.
+func windStripNext(reply string) string {
+	lines := strings.Split(reply, "\n")
+	out := lines[:0]
+	for _, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "NEXT:") {
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.TrimSpace(strings.Join(out, "\n"))
+}
+
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
 func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued runs.Run, w companion.Wind) (jobs.Run, error) {
 	start := time.Now()
@@ -58,6 +93,16 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
 	res, runErr := windHeartbeatLoop(s, ctx, brief)
 	out := strings.TrimSpace(res.text)
+	// El cor es reprograma: la línia "NEXT: <RFC3339>" del final és el moment
+	// que el mateix vent ha triat per tornar a mirar (p. ex. just després del
+	// partit). Sense línia vàlida, +24 h: mai es queda mut indefinidament.
+	nextAt := time.Now().Add(24 * time.Hour)
+	if at, ok := windNextAt(out); ok {
+		nextAt = at
+	}
+	if s.jobs != nil {
+		_ = s.jobs.SetNextAt(job.ID, nextAt)
+	}
 
 	end := time.Now()
 	run := jobs.Run{
@@ -79,6 +124,8 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 		return run, nil
 	}
 	// Hi ha algo a dir: entra al xat del vent com si hagués parlat ell.
+	// La línia NEXT és programació, no parla: no entra al xat.
+	out = windStripNext(out)
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
 	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: out})
