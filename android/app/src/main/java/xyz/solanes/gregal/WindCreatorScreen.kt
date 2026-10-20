@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -115,9 +116,15 @@ internal fun WindEditor(
             }
             TextButton(onClick = { gallery = false }, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.vents.startFromScratch")) }
             } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                WindFace(size = 60, accent = Color(Wind("", "", color, "").argb), style = windStyleOf(style))
-                Column { Text(tr(lang, "app.vents.makeYours"), color = Ink, fontWeight = FontWeight.SemiBold); Text(tr(lang, "app.vents.detailsHelp"), color = Muted, fontSize = 13.sp) }
+            // Vista prèvia viva: cara gran amb halo que segueix color, forma i nom.
+            Box(Modifier.fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color(Wind("", "", color, "").argb).copy(alpha = 0.20f), Color.Transparent)), RoundedCornerShape(22.dp))
+                .padding(16.dp), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    WindHalo(accent = Color(Wind("", "", color, "").argb), style = windStyleOf(style), size = 84, mood = WindMood.HAPPY)
+                    Text(name.ifBlank { tr(lang, "app.vents.makeYours") }, color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    if (role.isNotBlank()) Text(role, color = Muted, fontSize = 13.sp)
+                }
             }
             TextButton(onClick = { gallery = true }, enabled = !saving) { Text(tr(lang, "app.vents.changePreset")) }
             OutlinedTextField(name, { name = it }, enabled = !saving, label = { Text(tr(lang, "app.company.windName")) }, singleLine = true, modifier = Modifier.fillMaxWidth())

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -104,6 +105,22 @@ fun TypingDots(accent: Color = Sea) {
     }
 }
 
+/** Fons ambient d'un xat: dos respirs del color del vent. Estàtic als tests. */
+@Composable
+fun ChatAmbient(accent: Color) {
+    Box(Modifier.fillMaxSize()) {
+        if (!LocalWindMotion.current) {
+            Box(Modifier.size(280.dp).offset(x = (-90).dp, y = (-60).dp).background(accent.copy(alpha = 0.10f), CircleShape))
+            Box(Modifier.size(340.dp).align(Alignment.BottomEnd).offset(x = 110.dp, y = 120.dp).background(accent.copy(alpha = 0.07f), CircleShape))
+            return@Box
+        }
+        val t = rememberInfiniteTransition(label = "ambient")
+        val dx by t.animateFloat(0f, 36f, infiniteRepeatable(tween(12000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "dx")
+        val dy by t.animateFloat(0f, -28f, infiniteRepeatable(tween(17000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "dy")
+        Box(Modifier.size(280.dp).offset(x = (-90).dp + dx.dp, y = (-60).dp + dy.dp).background(accent.copy(alpha = 0.10f), CircleShape))
+        Box(Modifier.size(340.dp).align(Alignment.BottomEnd).offset(x = (110).dp - dx.dp, y = 120.dp).background(accent.copy(alpha = 0.07f), CircleShape))
+    }
+}
 /** Hero de Vents: marca viva + títol + cares apilades + mode. */
 @Composable
 fun VentsHero(lang: String, winds: List<Wind>, modeLabel: String) {

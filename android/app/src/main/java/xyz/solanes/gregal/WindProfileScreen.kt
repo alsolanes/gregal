@@ -1,8 +1,10 @@
 package xyz.solanes.gregal
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -54,11 +57,23 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             actions = { IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 20.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            val accent = Color(wind.argb)
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.22f), Color.Transparent)))
+                    .padding(bottom = 20.dp, top = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                WindFace(size = 92, accent = Color(wind.argb), style = wind.faceStyle)
-                Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                WindHalo(accent = accent, style = wind.faceStyle, size = 92, mood = WindMood.HAPPY)
+                Text(wind.name,
+                    style = androidx.compose.ui.text.TextStyle(
+                        brush = Brush.linearGradient(listOf(Ink, accent)),
+                        fontWeight = FontWeight.Bold, fontSize = 26.sp),
+                )
                 if (wind.role.isNotBlank()) Text(wind.role, color = Muted, modifier = Modifier.padding(horizontal = 24.dp))
+            }
             }
             TabRow(selectedTabIndex = tab, containerColor = Superficie) {
                 listOf("character", "memory", "activity").forEachIndexed { index, key ->
@@ -74,7 +89,11 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 when (tab) {
                     0 -> {
                         Text(tr(lang, "app.vents.personality"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        SelectionContainer { Text(wind.persona.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Tinta, lineHeight = 23.sp) }
+                        Surface(shape = RoundedCornerShape(16.dp), color = accent.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))) {
+                            SelectionContainer { Text(wind.persona.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Tinta, lineHeight = 23.sp,
+                                modifier = Modifier.padding(14.dp)) }
+                        }
                         OutlinedButton(onClick = onEdit, enabled = profile != null && !busy) { Text(tr(lang, "app.company.windEdit")) }
                     }
                     1 -> if (profile != null) {

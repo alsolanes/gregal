@@ -1,5 +1,9 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -324,7 +328,9 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
     LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(msgs.size - 1) }
 
     val isBusy = busy.contains(wind.id)
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.14f), Superficie)))) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.14f), Superficie)))) {
+        ChatAmbient(accent)
+        Column(Modifier.fillMaxSize()) {
         // Capçalera espectacular: degradat del vent + halo + estat viu.
         Row(
             Modifier.fillMaxWidth()
@@ -371,7 +377,7 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
                     )
                 }
             }
-            items(msgs.size) { idx -> WindBubble(msgs[idx], accent, lang = lang) }
+            items(msgs.size) { idx -> BubbleIn(msgs[idx].text + "#" + idx) { WindBubble(msgs[idx], accent, lang = lang) } }
             if (busy.contains(wind.id)) {
                 item {
                     Row(
@@ -398,6 +404,7 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
                 value = text,
                 onValueChange = { text = it },
                 placeholder = { Text(tr(lang, "app.company.windChatHint", wind.name), fontSize = 14.sp) },
+                leadingIcon = { WindFace(size = 30, mood = if (text.isNotBlank()) WindMood.HAPPY else WindMood.IDLE, accent = accent, style = wind.faceStyle) },
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
                 maxLines = 3,
@@ -420,6 +427,7 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
                 }
             }
         }
+        }
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
 }
@@ -440,7 +448,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
 
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
-    Column(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Sea.copy(alpha = 0.12f), Superficie)))) {
+    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Sea.copy(alpha = 0.12f), Superficie)))) {
+        ChatAmbient(rotAccent)
+        Column(Modifier.fillMaxSize()) {
         Row(
             Modifier.fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(rotAccent.copy(alpha = 0.28f), Sea.copy(alpha = 0.10f))))
@@ -487,10 +497,12 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             items(msgs.size) { idx ->
                 val resolved = resolveWindMessage(msgs[idx], faces)
+                BubbleIn(resolved.message.text + "#" + idx) {
                 WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = resolved.wind,
                     speakerName = resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") },
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } })
+                }
             }
             if (busy.contains(rot.id)) {
                 item {
@@ -517,6 +529,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 value = text,
                 onValueChange = { text = it },
                 placeholder = { Text(tr(lang, "app.company.rotllanaHint"), fontSize = 14.sp) },
+                leadingIcon = { WindFace(size = 30, accent = rotAccent, style = faces.firstOrNull()?.faceStyle ?: WindStyle()) },
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
                 maxLines = 3,
@@ -539,6 +552,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 }
             }
         }
+        }
     }
     if (groupProfile) GroupProfileDialog(vm, lang, rot, winds) { groupProfile = false }
     speakerProfile?.let { WindProfileDialog(vm, lang, it) { speakerProfile = null } }
@@ -548,6 +562,19 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
  * Bombolla d'un vent: ell a l'esquerra amb halo i targeta vorejada del seu
  * color; tu a la dreta amb mar sòlid. El text del vent és markdown.
  */
+@Composable
+private fun BubbleIn(key: String, content: @Composable () -> Unit) {
+    if (!LocalWindMotion.current) {
+        content()
+        return
+    }
+    var shown by remember(key) { mutableStateOf(false) }
+    LaunchedEffect(key) { shown = true }
+    AnimatedVisibility(
+        visible = shown,
+        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(animationSpec = tween(220)) { it / 5 },
+    ) { content() }
+}
 @Composable
 internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
     speakerName: String = "", onSpeakerClick: (() -> Unit)? = null) {
@@ -581,14 +608,17 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 38)
             }
         }
+        // Halo del color del vent darrere la targeta: respira sense ombres.
+        val bubbleShape = RoundedCornerShape(
+            topStart = 4.dp, topEnd = 16.dp,
+            bottomStart = 16.dp, bottomEnd = 16.dp,
+        )
+        Box(Modifier.background(accent.copy(alpha = 0.13f), bubbleShape).padding(3.dp)) {
         Surface(
-            shape = RoundedCornerShape(
-                topStart = 4.dp, topEnd = 16.dp,
-                bottomStart = 16.dp, bottomEnd = 16.dp,
-            ),
+            shape = bubbleShape,
             color = Superficie,
             border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.60f)),
-            shadowElevation = 5.dp,
+            shadowElevation = 0.dp,
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
             val uri = LocalUriHandler.current
@@ -630,6 +660,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                     }
                 }
             }
+        }
         }
     }
 }
