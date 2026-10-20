@@ -145,6 +145,8 @@ private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
             Text(tr(lang, "app.company.windHeartbeatOn"), color = Muted, fontSize = 13.sp)
             if (job != null && job.nextDue.isNotBlank() && job.enabled)
                 Text(tr(lang, "app.company.windHeartbeatNext", job.nextDue), color = Muted, fontSize = 12.sp)
+            if (job != null && job.lastAt.isNotBlank())
+                Text(tr(lang, "app.company.windHeartbeatLast", job.lastAt), color = Muted, fontSize = 12.sp)
         }
         Switch(checked = job?.enabled == true, onCheckedChange = { on ->
             if (!pending) {
