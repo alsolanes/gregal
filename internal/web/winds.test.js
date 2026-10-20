@@ -97,6 +97,24 @@ test('opens group history with structured speaker attribution and preserves fail
   assert.deepEqual(f.requests.find(r=>r.method==='POST').body,{rotllana:'vespre',message:'Una idea'});
 });
 
+test('renders each voice of a multi-voice reply as its own message with the name in the header only',async()=>{
+  const f=await boot(req=>{
+    if(req.url==='/api/winds/rotllana?rotlla=vespre') return {ok:true,json:async()=>({history:[
+      {from:'user',text:'Comenceu'},
+      {from:'assistant',speaker_id:'mestral',speaker_name:'Mestral',text:'Mestral: endavant!'},
+      {from:'assistant',speaker_id:'xaloc',speaker_name:'Xaloc',text:'Xaloc: jo hi sumo una idea.'}
+    ]})};
+  });
+  await byText(f.$('windsConversations'),'button','Vespre').click();
+  const msgs=[...f.$('windChatHistory').querySelectorAll('.winds-message')].filter(m=>!String(m.className||'').includes('winds-message-user'));
+  assert.equal(msgs.length,2,'one message per voice');
+  const texts=[...f.$('windChatHistory').querySelectorAll('.winds-message-text')].map(n=>n.textContent);
+  assert.equal(texts[1],'endavant!','name prefix stripped from mestral text');
+  assert.equal(texts[2],'jo hi sumo una idea.','name prefix stripped from xaloc text');
+  const speakers=[...f.$('windChatHistory').querySelectorAll('.winds-speaker')].map(n=>n.textContent);
+  assert.deepEqual(speakers.slice(1),['Mestral','Xaloc'],'speaker header carries the name');
+});
+
 test('legacy wind histories remain accessible and sending reads persisted history back',async()=>{
   let sent=false;
   const f=await boot(req=>{

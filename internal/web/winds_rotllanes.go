@@ -153,8 +153,10 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 
 	conversation := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "user", Content: msg})
 
-	// System del vent que parla: persona + qui són els altres membres del grup.
-	system := companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory())
+	// System del vent que parla: persona + qui són els altres membres del grup
+	// + el que el vent ja sap (igual que al xat directe: el coneixement no
+	// pot dependre de si parla sol o acompanyat).
+	system := companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID))
 	msgs := []llm.Message{{Role: "system", Content: system}}
 	msgs = append(msgs, conversation...)
 	if len(msgs) > 41 {
@@ -178,16 +180,128 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply := stripQuoteTrim(out)
-	history := append(conversation, llm.Message{Role: "assistant", Content: speakingWind.Name + ": " + reply, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name})
+	// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada veu
+	// queda com un missatge propi amb la seva identitat, en ordre. La
+	// primera veu és la resposta del torn.
+	voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), speakingWind)
+	history := conversation
+	for _, v := range voices {
+		history = append(history, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
+	}
 	if err := saveRotllanaHistory(s, rot.ID, history); err != nil {
 		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 		return
 	}
 	hist.messages = history
+	replyWind, replyText := speakingWind, reply
+	if len(voices) > 0 {
+		replyWind, replyText = voices[0].wind, voices[0].text
+	}
 	writeJSON(w, map[string]any{
-		"reply":   map[string]string{"wind": speakingWind.ID, "text": reply},
+		"reply":   map[string]string{"wind": replyWind.ID, "text": replyText},
 		"history": s.rotllanaHistoryJSON(history),
 	})
+}
+
+// rotllanaVoice és una veu d'una resposta multi-veu: qui parla i el seu text.
+type rotllanaVoice struct {
+	wind companion.Wind
+	text string
+}
+
+// splitRotllanaVoices parteix una resposta multi-veu ("Mestral: …\nMarinada:
+// …") en un missatge per veu. Les línies que arrenquen amb el prefix "Nom: "
+// d'un membre real del grup obren una veu nova; tot el que ve després (fins
+// al següent prefix vàlid) pertany a aquella veu. Si cap línia no porta
+// prefix vàlid, tota la resposta és una sola veu: la del vent del torn.
+func splitRotllanaVoices(reply string, members []companion.Wind, speaking companion.Wind) []rotllanaVoice {
+	if len(members) == 0 {
+		return []rotllanaVoice{{wind: speaking, text: reply}}
+	}
+	speakerOf := func(line string) (companion.Wind, string, bool) {
+		trimmed := strings.TrimSpace(line)
+		if i := strings.Index(trimmed, ":"); i > 0 {
+			if w, ok := memberByPrefix(members, trimmed[:i]); ok {
+				return w, trimmed[i+1:], true
+			}
+		}
+		return companion.Wind{}, "", false
+	}
+	var voices []rotllanaVoice
+	current := companion.Wind{}
+	var buf strings.Builder
+	var preamble strings.Builder
+	flush := func() {
+		if current.ID == "" {
+			return
+		}
+		text := strings.TrimSpace(buf.String())
+		if text == "" {
+			return
+		}
+		voices = append(voices, rotllanaVoice{wind: current, text: text})
+		buf.Reset()
+	}
+	for _, line := range strings.Split(reply, "\n") {
+		if w, rest, ok := speakerOf(line); ok {
+			flush()
+			// El que va abans del primer prefix és del vent del torn.
+			if len(voices) == 0 && current.ID == "" {
+				if pre := strings.TrimSpace(preamble.String()); pre != "" {
+					voices = append(voices, rotllanaVoice{wind: speaking, text: pre})
+					preamble.Reset()
+				}
+			}
+			current = w
+			buf.WriteString(rest)
+			continue
+		}
+		if current.ID != "" {
+			buf.WriteString("\n" + line)
+		} else {
+			preamble.WriteString(line + "\n")
+		}
+	}
+	flush()
+	if len(voices) == 0 {
+		return []rotllanaVoice{{wind: speaking, text: reply}}
+	}
+	return voices
+}
+
+// rotMembersOf llista els vents reals d'una rotllana.
+func (s *Server) rotMembersOf(rot Rotllana) []companion.Wind {
+	members := make([]companion.Wind, 0, len(rot.Members))
+	for _, id := range rot.Members {
+		if w, ok := s.winds.ByID(id); ok {
+			members = append(members, w)
+		}
+	}
+	return members
+}
+
+// memberByPrefix busca un membre pel nom exacte o per un prefix únic a la
+// frontera de paraula ("Marinada" → "Marinada de prova"). Només coincideix si
+// un sol membre encaixa: ambigu o desconegut no és ningú.
+func memberByPrefix(members []companion.Wind, name string) (companion.Wind, bool) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return companion.Wind{}, false
+	}
+	needle := strings.ToLower(name) + " "
+	var found companion.Wind
+	matches := 0
+	for _, w := range members {
+		wn := strings.TrimSpace(w.Name)
+		if strings.EqualFold(wn, name) || strings.HasPrefix(strings.ToLower(wn), needle) {
+			found = w
+			matches++
+		}
+	}
+	if matches != 1 {
+		return companion.Wind{}, false
+	}
+	return found, true
 }
 
 // Keep from/text byte-compatible. New replies persist identity independently

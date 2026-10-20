@@ -127,11 +127,15 @@
       const user = m.from === 'user';
       const w = state.winds.find(w => w.id === m.speaker_id) || (active.members.length === 1 ? roster(active.members)[0] : null);
       const name = user ? 'Tu' : (m.speaker_name || w?.name || (m.from !== 'assistant' ? m.from : 'Vent'));
+      // El text durador porta el prefix "Nom: " per compatibilitat; en pintar
+      // es mostra el nom a la capçalera i el text sense el prefix.
+      let text = m.text || '';
+      if (!user && w && text.startsWith(w.name + ':')) text = text.slice(w.name.length + 1).trimStart();
       const msg = node('article', 'winds-message' + (user ? ' winds-message-user' : ''));
       const avatar = user ? node('span', 'winds-user-avatar', 'Tu') : face(w || { color:'#BCC4D4', style:'pno' });
       avatar.setAttribute('aria-hidden', 'true');
       const content = node('div', 'winds-message-content');
-      content.append(node('strong', 'winds-speaker', name), node('p', 'winds-message-text', m.text || ''));
+      content.append(node('strong', 'winds-speaker', name), node('p', 'winds-message-text', text));
       msg.append(avatar, content); hist.append(msg);
     }
     hist.scrollTop = hist.scrollHeight;
