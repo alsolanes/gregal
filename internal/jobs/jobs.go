@@ -16,7 +16,7 @@ type Job struct {
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	Prompt     string     `json:"prompt"`
-	Kind       string     `json:"kind"` // "daily" | "interval" | "manual"
+	Kind       string     `json:"kind"` // "daily" | "interval" | "event" | "remind" | "manual"
 	Time       string     `json:"time"` // "HH:MM" (daily, hora local)
 	IntervalH  float64    `json:"interval_h"`
 	Enabled    bool       `json:"enabled"`
@@ -104,7 +104,7 @@ func (s *Store) Save(j Job) (Job, error) {
 	}
 	j.Name = trim(j.Name, 80)
 	j.Prompt = trim(j.Prompt, 4000)
-	if j.Kind != "daily" && j.Kind != "interval" && j.Kind != "event" {
+	if j.Kind != "daily" && j.Kind != "interval" && j.Kind != "event" && j.Kind != "remind" {
 		j.Kind = "manual"
 	}
 	if j.ID == "" {
@@ -289,9 +289,10 @@ func NextDue(j Job, now time.Time) time.Time {
 			return now // primera execució immediata
 		}
 		return j.LastAt.Add(time.Duration(j.IntervalH * float64(time.Hour)))
-	case "event":
-		// Franja puntual del cor del vent: toca quan arriba next_at i no
-		// torna a tocar fins que el vent la mogui (si ja l'ha coberta, zero).
+	case "event", "remind":
+		// Franja puntual: el cor del vent (event) o un recordatori d'un vent
+		// (remind, d'una sola execució). Toca quan arriba next_at i no torna
+		// a tocar fins que es mogui o es cobreixi (LastAt >= NextAt).
 		if j.NextAt == nil {
 			return time.Time{}
 		}

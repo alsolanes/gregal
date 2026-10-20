@@ -8,7 +8,6 @@ import (
 	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/jobs"
-	"gregal/internal/llm"
 	"gregal/internal/runs"
 )
 
@@ -91,7 +90,7 @@ func windStripNext(reply string) string {
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
 func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued runs.Run, w companion.Wind) (jobs.Run, error) {
 	start := time.Now()
-	brief := windHeartbeatSystem(w, s.personalMemory())
+	brief := windHeartbeatSystem(w, s.personalMemory()) + windRemindBrief(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID))
 	brief += "\n\nTopic to watch: " + w.Role
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
@@ -130,14 +129,7 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	// Hi ha algo a dir: entra al xat del vent com si hagués parlat ell.
 	// La línia NEXT és programació, no parla: no entra al xat.
 	out = windStripNext(out)
-	hist := windHistory(s, w.ID)
-	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: out})
-	history := append([]llm.Message(nil), hist.messages...)
-	hist.mu.Unlock()
-	_ = saveWindHistory(s, w, history)
-	// I aprèn el que ha explicat.
-	go s.windLearn(w, "heartbeat", out)
+	postWindMessage(s, w, "heartbeat", out)
 
 	run.Status = "ok"
 	// La sortida del job ÉS el missatge del vent: la notificació el porta.

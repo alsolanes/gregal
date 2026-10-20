@@ -18,13 +18,15 @@ class JobScheduleTest {
     private val match = JobItem(id = "wind-xaloc", name = "Cor de Xaloc", kind = "event",
         nextDueAt = "2026-10-18T22:50:00+02:00", lastAt = "2026-10-17T09:01:00+02:00")
     private val manual = JobItem(id = "m", name = "Manual", kind = "manual", nextDueAt = "2026-10-18T05:00:00+02:00")
+    private val remind = JobItem(id = "remind-xaloc-1", name = "Recordatori Xaloc", kind = "remind",
+        nextDueAt = "2026-10-18T07:30:00+02:00")
     private val paused = news.copy(id = "p", enabled = false, nextDueAt = "2026-10-18T06:00:00+02:00")
 
     @Test
     fun slotsOnlyForActiveScheduledJobs() {
-        val s = JobSchedule.slots(listOf(news, manual, paused, watch, match, JobItem(id = "x", kind = "daily", nextDueAt = "")))
-        assertEquals(listOf("watch", "news", "wind-xaloc"), s.map { it.id })
-        assertEquals(at("2026-10-18T08:00:00+02:00"), s[1].dueAt)
+        val s = JobSchedule.slots(listOf(news, manual, paused, watch, match, remind, JobItem(id = "x", kind = "daily", nextDueAt = "")))
+        assertEquals(listOf("watch", "remind-xaloc-1", "news", "wind-xaloc"), s.map { it.id })
+        assertEquals(at("2026-10-18T08:00:00+02:00"), s[2].dueAt)
     }
 
     @Test

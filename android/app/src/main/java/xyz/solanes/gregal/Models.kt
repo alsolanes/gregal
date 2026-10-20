@@ -275,7 +275,7 @@ data class JobItem(
     val id: String = "",
     val name: String = "",
     val prompt: String = "",
-    val kind: String = "manual", // daily | interval | manual
+    val kind: String = "manual", // daily | interval | event | remind | manual
     val time: String = "08:00",
     val intervalH: Double = 24.0,
     val enabled: Boolean = true,

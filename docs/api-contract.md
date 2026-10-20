@@ -160,7 +160,7 @@ their current locations; this change does not migrate chat files.
 | `/api/user/skills` | GET | User's own skills → `{skills:[{nom,titol,descripcio}]}` (index only); `?nom=x` adds `cos`. Requires a logged-in user (400 otherwise). |
 | `/api/user/skills` | POST | Create/update a user skill → `{ok}`. Body: `{nom,titol,descripcio,cos}`. Name is slugified; description is required (falls back to titol). Stored at `users/<name>/skills/`. |
 | `/api/user/skills` | DELETE | Delete a user skill. Body: `{nom}`. |
-| `jobs` (convention) | — | Jobs with id `wind-<windID>` are wind heartbeats: the server builds the prompt (search the wind's topic; speak only if something is worth telling; reply `(res)` to stay silent) and appends the message to the wind's chat (`company-<wind>`). The run output carries `Wind: message` when it speaks. |
+| `jobs` (convention) | — | Jobs with id `wind-<windID>` are wind heartbeats: the server builds the prompt (search the wind's topic; speak only if something is worth telling; reply `(res)` to stay silent) and appends the message to the wind's chat (`company-<wind>`). The run output carries `Wind: message` when it speaks. Jobs with id `remind-<windID>-<stamp>` and kind `remind` are one-shot wind reminders (tool `remind`): at fire time the prompt text enters the wind's chat, the run output carries it (notification), and the job disables itself. |
 
 ## Language
 

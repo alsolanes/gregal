@@ -226,6 +226,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 		instanceID:        newInstanceID(),
 	}
 	s.modelOverride = s.defaultModelOverrides()
+	s.registerRemindTool()
 	return s
 }
 

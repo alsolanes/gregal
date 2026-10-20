@@ -183,7 +183,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// runReadOnlyLoop li dona web_search/web_fetch (mode inspect: cap eina
 	// d'escriptura) i l'obliguem a respondre curt amb Finalize.
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest())
-	brief := system + companion.WindBrainSystem(s.windBrain(wind.ID)) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed."
+	brief := system + companion.WindBrainSystem(s.windBrain(wind.ID)) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
 	out, err := windLoop(s, ctx, brief)
 	if err != nil {
 		http.Error(w, redactError(err), http.StatusBadGateway)

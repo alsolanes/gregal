@@ -61,6 +61,11 @@ func (s *Server) runReadOnlyLoopForRole(ctx context.Context, brief string, maxSt
 			return agent.ExecCtx(agent.WithSkillsDirs(ctx, s.userSkillsDirs()...), s.id, s.cwd, name, argsJSON)
 		},
 		Decide: func(name, argsJSON string) (string, string) {
+			// Els vents poden programar avisos (remind, eina validada); la
+			// resta segueix el permís del mode inspect (només lectura).
+			if name == "remind" {
+				return "allow", "eina del vent"
+			}
 			return s.policy.Decide(agent.ModeInspect, name, argsJSON)
 		},
 	}

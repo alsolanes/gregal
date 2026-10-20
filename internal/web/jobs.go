@@ -184,6 +184,11 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	start := time.Now()
 	jobCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
+	// Els recordatoris (kind remind) els dispara executeWindRemind: el text
+	// entra al xat del vent i s'apaguen (una sola execució).
+	if job.Kind == "remind" {
+		return s.executeWindRemind(job)
+	}
 	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
 	// el seu tema amb cerques web i només parla si troba algo que valgui la
 	// pena. El missatge entra al seu xat (company-<vent>).

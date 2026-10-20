@@ -51,7 +51,7 @@ object JobSchedule {
         if (s.isBlank()) null
         else try { OffsetDateTime.parse(s.trim()).toInstant().toEpochMilli() } catch (_: Exception) { null }
 
-    private fun scheduled(j: JobItem) = j.enabled && (j.kind == "daily" || j.kind == "interval" || j.kind == "event")
+    private fun scheduled(j: JobItem) = j.enabled && (j.kind == "daily" || j.kind == "interval" || j.kind == "event" || j.kind == "remind")
 
     /** Franges dels jobs actius, la més propera primer. */
     fun slots(jobs: List<JobItem>): List<ScheduledSlot> = jobs

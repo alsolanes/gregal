@@ -106,6 +106,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     2 -> {
                         Text(tr(lang, "app.vents.activityHelp"), color = Muted, fontSize = 13.sp)
                         heartbeatRow(lang, vm, wind)
+                        remindersRow(lang, vm, wind)
                         if (messages.isEmpty()) Text(tr(lang, "app.vents.noActivity"), color = Tinta)
                         messages.forEach { message ->
                             Surface(color = Color(wind.argb).copy(alpha = .08f), shape = MaterialTheme.shapes.medium) {
@@ -154,5 +155,26 @@ private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
                 pending = false
             }
         }, enabled = !pending)
+    }
+}
+
+/** Avisos que el vent ha programat: text + quan + cancel·lar. */
+@Composable
+private fun remindersRow(lang: String, vm: GregalViewModel, wind: Wind) {
+    val jobs by vm.jobs.collectAsState()
+    val pending = jobs.filter { it.kind == "remind" && it.enabled && it.id.startsWith("remind-" + wind.id + "-") }
+    if (pending.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(tr(lang, "app.vents.reminders"), color = Ink, fontWeight = FontWeight.SemiBold)
+        pending.forEach { j ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(j.prompt, color = Tinta, fontSize = 14.sp)
+                    val whenDue = j.nextDue.ifBlank { j.nextDueAt }
+                    if (whenDue.isNotBlank()) Text(whenDue, color = Muted, fontSize = 12.sp)
+                }
+                TextButton(onClick = { vm.deleteJob(j.id) }) { Text(tr(lang, "app.company.windCancel")) }
+            }
+        }
     }
 }
