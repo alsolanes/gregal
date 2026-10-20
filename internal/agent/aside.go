@@ -165,6 +165,12 @@ func sideCall(ctx context.Context, client *llm.Client, cfg *config.Config, p con
 	return sideCallTargets(ctx, client, cfg.PrimTarget(p, r), cfg.FallbackTarget(r), r, msgs)
 }
 
+// SideCallLateral és l'export per als paquets de fora (companion): mateixa
+// crida lateral que automem. El nom privat es manté per compatibilitat.
+func SideCallLateral(ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, r config.Role, msgs []llm.Message) (string, error) {
+	return sideCallLateral(ctx, client, cfg, p, r, msgs)
+}
+
 // sideCallLateral és sideCall per a les tasques laterals que no llegeix
 // ningú en directe (notes de memòria): van al rol petit si n'hi ha, amb
 // el rol rebut com a reserva si el petit falla.

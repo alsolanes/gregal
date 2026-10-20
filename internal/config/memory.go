@@ -34,7 +34,12 @@ func UserMemoryPath() string {
 // LoadUserMemory llegeix la memòria ("" si no n'hi ha). Retalla a 2000
 // caràcters: és context de totes les sessions, ha de ser dens.
 func LoadUserMemory() string {
-	raw, err := os.ReadFile(UserMemoryPath())
+	return LoadUserMemoryAt(UserMemoryPath())
+}
+
+// LoadUserMemoryAt reads only the supplied user's memory; never falls back.
+func LoadUserMemoryAt(path string) string {
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		return ""
 	}
@@ -124,21 +129,35 @@ func dropEntries(path, term, usage string) (int, error) {
 
 // Remember afegeix una línia a la memòria d'usuari.
 func Remember(text string) error {
-	return appendEntry(UserMemoryPath(), text, "res a recordar: /remember <text>")
+	return RememberAt(UserMemoryPath(), text)
+}
+
+func RememberAt(path, text string) error {
+	return appendEntry(path, text, "res a recordar: /remember <text>")
 }
 
 // Recall torna les línies d'usuari que contenen el terme (buit = totes).
 func Recall(term string) []string {
-	return filterEntries(readEntries(UserMemoryPath()), term)
+	return RecallAt(UserMemoryPath(), term)
+}
+
+func RecallAt(path, term string) []string {
+	return filterEntries(readEntries(path), term)
 }
 
 // Forget esborra línies d'usuari que contenen el terme i torna quantes.
 func Forget(term string) (int, error) {
-	return dropEntries(UserMemoryPath(), term, "què oblidem? /forget <terme>")
+	return ForgetAt(UserMemoryPath(), term)
 }
 
+func ForgetAt(path, term string) (int, error) {
+	return dropEntries(path, term, "què oblidem? /forget <terme>")
+}
+
+// filterEntries mai torna nil: els endpoints que serialitzen a JSON
+// han d'emetre [] i no null (contracte de la UI Android/web).
 func filterEntries(lines []string, term string) []string {
-	var out []string
+	out := []string{}
 	term = strings.ToLower(strings.TrimSpace(term))
 	for _, l := range lines {
 		l = strings.TrimSpace(l)

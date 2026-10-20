@@ -184,6 +184,14 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	start := time.Now()
 	jobCtx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 	defer cancel()
+	// Els jobs de vent (id wind-<vent>) tenen consigna pròpia: el vent vigila
+	// el seu tema amb cerques web i només parla si troba algo que valgui la
+	// pena. El missatge entra al seu xat (company-<vent>).
+	if id, isWind := windJobID(job.ID); isWind && s.winds != nil {
+		if w, ok := s.winds.ByID(id); ok {
+			return s.executeWindHeartbeat(ctx, job, queued, w)
+		}
+	}
 	// Loop no té system prompt: la consigna va davant la tasca, amb la
 	// memòria del projecte si n'hi ha.
 	brief := jobSystem + "\n\nTask:\n" + job.Prompt

@@ -500,6 +500,9 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			// Proposta de notes duradores en segon pla: mai no retarda el
 			// done ni s'escriu sola (vegeu memory_extras.go).
 			s.queueMemorySuggestion(mode, workspace, torn.Execucions(), torn.Esgotat() || torn.Fallit(), histAmbSys())
+			// Mode company: proposta de fets personals (estil Dot) també
+			// en segon pla; només torns de xat amb substància.
+			s.queueCompanionSuggestion(mode, histAmbSys())
 			return reply, histAmbSys(), nil
 		}
 	}

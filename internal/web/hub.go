@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/companion"
 	"gregal/internal/events"
+	"gregal/internal/identity"
 	"gregal/internal/llm"
 	"gregal/internal/runs"
 	"gregal/internal/session"
@@ -121,25 +123,33 @@ func (h *Hub) resolve(r *http.Request) *Server {
 	return h.SessionFor(userFrom(r), sessionID(r))
 }
 
-// keyFor és la clau interna d'una sessió: `usuari-id`. Sense usuari (mode
-// local, sense autenticació) la clau és l'id pelat, com abans.
+// keyFor és la clau INTERNA d'una sessió. És injectiva per la tupla
+// exacta (principal, id): cap concatenació amb '-' (anna+b-mobil i
+// anna-b+mobil hi col·lisionarien) ni cap "unprefixing" del nom
+// (un id de sessió que comença com el nom d'usuari perdia el tros).
 //
-// L'id que viatja pel fil ja ve prefijat, així que si el client el torna a
-// enviar no el tornem a prefijar: si no, cada volta afegiríem un tros.
+// Els principals compartits (mode local: cap usuari, o Tothom amb token
+// únic) mantenen la clau antiga: l'id pelat, com sempre.
 func (h *Hub) keyFor(user *User, id string) string {
-	if user == nil {
-		if id == "" || !sessIDRe.MatchString(id) {
-			return DefaultSession
-		}
-		return id
-	}
 	if id == "" || !sessIDRe.MatchString(id) {
 		id = DefaultSession
 	}
-	if strings.HasPrefix(id, user.Name+"-") {
-		id = strings.TrimPrefix(id, user.Name+"-")
+	if user == nil || user.Tothom {
+		return id
 	}
-	return user.Name + "-" + id
+	return identity.Key(user.Name) + "-" + id
+}
+
+// wireID és l'id de sessió que viatja al client: el mateix que envia
+// l'usuari, mai la clau interna (que porta el hash del principal).
+// El resultat s'ha de llegir SOTA s.mu o sense cap lock del Server.
+func (s *Server) wireID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.wire != "" {
+		return s.wire
+	}
+	return s.id
 }
 
 // SessionFor retorna la sessió (usuari, id), creant-la si cal.
@@ -158,6 +168,18 @@ func (h *Hub) SessionFor(user *User, id string) *Server {
 	}
 	s = h.clone(key)
 	s.user = user
+	s.wire = id
+	// Estat PER USUARI: vents, rotllanes i objectius propis. Només per als
+	// usuaris de debò d'un servidor multiusuari: el Tothom (token únic,
+	// mode local) i l'admin legacy continuen a l'estat compartit, que és
+	// com ha funcionat sempre. Els stores es canvien aquí, no a clone(),
+	// perquè l'usuari només es coneix un cop feta la sessió.
+	if user != nil && !user.Tothom {
+		dir := userStateDir(h.def.cfgPath, user.Name)
+		s.winds = companion.NewWindStore(dir)
+		s.rotllanes = NewRotllanaStore(dir)
+		s.goalDir = dir
+	}
 	// Each newly created conversation starts with this user's most recent
 	// model choices. Resuming a saved conversation replaces these defaults
 	// with the model choices stored alongside that conversation.
@@ -197,7 +219,9 @@ func (h *Hub) clone(id string) *Server {
 	cfg := d.cfg
 	return &Server{
 		cfg: cfg, cfgPath: d.cfgPath, client: d.client, goalDir: d.goalDir,
-		jobs: d.jobs, mcp: d.mcp, Token: d.Token, cwd: d.cwd, hub: h, id: id,
+		winds:     d.winds,
+		rotllanes: d.rotllanes,
+		jobs:      d.jobs, mcp: d.mcp, Token: d.Token, cwd: d.cwd, hub: h, id: id,
 		instanceID: d.instanceID,
 		// users també es comparteix: una sessió clonada ha de poder
 		// resoldre qui pregunta (/api/me, /api/login des d'una pestanya).
@@ -214,6 +238,22 @@ func (h *Hub) clone(id string) *Server {
 		remembers:         agent.NewRemember(),
 		policy:            agent.PolicyFromConfig(cfg, d.cwd),
 	}
+}
+
+// owns diu si una sessió viva pertany al principal que llista. Cada client
+// veu només les seves pestanyes: l'anònim (TUI) les anònimes, el Tothom
+// (token únic) les obertes pel Tothom, i un usuari autenticat només les seves.
+func (h *Hub) owns(lister, session *User) bool {
+	if lister == nil {
+		return session == nil
+	}
+	if lister.Tothom {
+		return session != nil && session.Tothom
+	}
+	if session == nil || session.Tothom {
+		return false
+	}
+	return lister.Name == session.Name
 }
 
 // Close tanca una sessió viva. La default no es pot tancar (és la que
@@ -269,17 +309,17 @@ func (h *Hub) listFor(user *User) []map[string]any {
 		if s == nil {
 			continue
 		}
-		if user != nil {
-			if !strings.HasPrefix(id, user.Name+"-") {
-				continue
-			}
-		} else if s.user != nil {
+		if !h.owns(user, s.user) {
 			continue
 		}
 		queued := s.queueHasActiveTurn()
 		s.mu.Lock()
+		wire := s.wire
+		if wire == "" {
+			wire = s.id
+		}
 		item := map[string]any{
-			"id": id, "title": s.title, "msgs": len(s.convo),
+			"id": wire, "title": s.title, "msgs": len(s.convo),
 			"busy": queued || s.agentBusy || s.planRunning || s.flowRunning, "mode": s.mode,
 			"conversation": s.convoFile,
 			"role":         s.role, "cwd": s.cwd, "project": projectName(s.cwd),
@@ -397,7 +437,11 @@ func (h *Hub) handleOpenSession(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.mu.Lock()
-	out := map[string]any{"id": s.id, "title": s.title, "cwd": s.cwd, "project": projectName(s.cwd)}
+	wire := s.wire
+	if wire == "" {
+		wire = s.id
+	}
+	out := map[string]any{"id": wire, "title": s.title, "cwd": s.cwd, "project": projectName(s.cwd)}
 	s.mu.Unlock()
 	writeJSON(w, out)
 }

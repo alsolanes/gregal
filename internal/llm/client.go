@@ -25,6 +25,9 @@ type Message struct {
 	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 	ToolCallID string     `json:"tool_call_id,omitempty"`
 	Name       string     `json:"-"`
+	// Speaker metadata belongs to durable companion history, not provider wire.
+	SpeakerID   string `json:"speaker_id,omitempty"`
+	SpeakerName string `json:"speaker_name,omitempty"`
 	// ReasoningContent és el raonament que el proveïdor ha tornat amb
 	// aquesta crida d'eina (reasoning_content). Els models de raonament que
 	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
@@ -50,6 +53,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 	type wire Message
 	w := wire(m)
 	if sanitize {
+		w.SpeakerID, w.SpeakerName = "", ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
 	} else {
 		// El raonament és d'aquesta cadena de crides: no es desa a les
@@ -261,8 +265,8 @@ type Client struct {
 	campsOff map[string]bool
 	// effortFixes: valor de reasoning_effort que admet cada endpoint|model (compat.go).
 	effortFixes map[string]string
-	cacheMu  sync.RWMutex
-	cache    map[string]promptCacheConfig
+	cacheMu     sync.RWMutex
+	cache       map[string]promptCacheConfig
 	// raonaments recorda el reasoning_content de les crides d'eina per id
 	// (reasoning.go), perquè qualsevol bucle que reenviï l'historial el
 	// torni al proveïdor encara que no l'hagi desat al missatge.

@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.rounded.ChatBubbleOutline
+import androidx.compose.material.icons.rounded.Construction
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -60,6 +62,7 @@ import androidx.core.view.WindowCompat
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
@@ -219,6 +222,21 @@ class MainActivity : ComponentActivity() {
                         scope.launch { drawer.close() }
                         vm.go(s)
                     }
+                    // Enrere: primer tanca el calaix si és obert; si no, tira
+                    // enrere de debò (pila de pantalles); només surt de l'app
+                    // des de l'arrel sense pila.
+                    val backDepth by vm.backStack.collectAsState()
+                    val screenState by vm.screen.collectAsState()
+                    val ventsOpen by vm.ventsOpen.collectAsState()
+                    BackHandler(
+                        enabled = drawer.isOpen || (screenState == Screen.Company && ventsOpen != null) || backDepth.isNotEmpty() || screenState != Screen.Company,
+                    ) {
+                        when {
+                            drawer.isOpen -> scope.launch { drawer.close() }
+                            screenState == Screen.Company && ventsOpen != null -> vm.openVentsChat(null)
+                            else -> vm.back()
+                        }
+                    }
                     ModalNavigationDrawer(
                         drawerState = drawer,
                         drawerContent = {
@@ -257,12 +275,28 @@ class MainActivity : ComponentActivity() {
                                         Text(tr(lang, "nav.new"), color = Sea, fontWeight = FontWeight.SemiBold)
                                     }
                                     Spacer(Modifier.height(10.dp))
+                                    // Els vents primer: són la cara de l'app.
+                                    NavigationDrawerItem(
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "nav.company"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                        icon = { DrawerWindIcon(vm) },
+                                        selected = screen == Screen.Company,
+                                        onClick = { nav(Screen.Company) },
+                                    )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
                                         label = { Text(tr(lang, "app.nav.chat"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                                         icon = { Icon(Icons.Rounded.ChatBubbleOutline, null) },
                                         selected = screen == Screen.Chat,
                                         onClick = { nav(Screen.Chat) },
+                                    )
+                                    // Mode feina: projectes i codi, separat dels vents.
+                                    NavigationDrawerItem(
+                                        colors = drawerColors,
+                                        label = { Text(tr(lang, "app.work.title"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                        icon = { Icon(Icons.Rounded.Construction, null) },
+                                        selected = screen == Screen.Work,
+                                        onClick = { nav(Screen.Work) },
                                     )
                                     NavigationDrawerItem(
                                         colors = drawerColors,
@@ -279,6 +313,7 @@ class MainActivity : ComponentActivity() {
                                         selected = screen == Screen.Retro,
                                         onClick = { scope.launch { drawer.close() }; vm.openRetro() },
                                     )
+
                                     NavigationDrawerItem(
                                         colors = drawerColors,
                                         label = { Text(tr(lang, "nav.goals"), maxLines = 1, overflow = TextOverflow.Ellipsis) },
@@ -349,6 +384,8 @@ class MainActivity : ComponentActivity() {
                             AnimatedContent(targetState = screen, label = "pantalla") { s ->
                                 when (s) {
                                     Screen.Chat -> ChatScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Company -> androidx.compose.runtime.key(conn) { CompanyScreen(vm) { scope.launch { drawer.open() } } }
+                                    Screen.Work -> WorkScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Sessions -> SessionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Goals -> GoalsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Jobs -> JobsScreen(vm) { scope.launch { drawer.open() } }
@@ -363,6 +400,12 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 UpdateAvis(vm)
+                // El vent actiu acompanya per totes les pantalles EXCEPTE als
+                // mateixos vents: allà ja hi ets, i el FAB es barrejaria amb
+                // els botons de crear conversa.
+                if (screen != Screen.Company) {
+                    WindFab(vm) { vm.go(Screen.Company) }
+                }
                 }
             }
             }

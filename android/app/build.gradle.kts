@@ -23,13 +23,13 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.plots" else "xyz.solanes.gregal"
-        manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal · proves" else "Gregal"
+        applicationId = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.vents" else "xyz.solanes.gregal"
+        manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 43 else 42
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 57 else 42
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "0.11.0-preview.1" else "0.11.0"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "0.11.0-preview.17" else "0.11.0"
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
@@ -63,6 +63,11 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+    }
+    testOptions {
+        // Robolectric llegeix el manifest i els recursos fusionats: sense
+        // això createComposeRule() no troba cap activity llançable.
+        unitTests.isIncludeAndroidResources = true
     }
     kotlinOptions {
         jvmTarget = "17"
@@ -142,4 +147,8 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.0")
 
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

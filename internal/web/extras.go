@@ -29,6 +29,18 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/memory/suggest", h.route((*Server).handleMemorySuggest))
 	handle("/api/memory/tidy", h.route((*Server).handleMemoryTidy))
 	handle("/api/memory/tidy/apply", h.route((*Server).handleMemoryTidyApply))
+	handle("/api/companion/memory", h.route((*Server).handleCompanionMemory))
+	handle("/api/companion/checkin", h.route((*Server).handleCompanionCheckinPet))
+	handle("/api/companion/pets", h.route((*Server).handleCompanionPets))
+	handle("/api/companion/chat", h.route((*Server).handleCompanionPetChat))
+	handle("/api/winds", h.route((*Server).handleWinds))
+	handle("/api/winds/chat", h.route((*Server).handleWindChat))
+	handle("/api/winds/profile", h.route((*Server).handleWindProfile))
+	handle("/api/winds/memory", h.route((*Server).handleWindMemory))
+	handle("/api/winds/rotllanes", h.route((*Server).handleRotllanes))
+	handle("/api/winds/rotllana", h.route((*Server).handleRotllanaChat))
+	handle("/api/winds/suggest", h.route((*Server).handleWindSuggest))
+	handle("/api/user/skills", h.route((*Server).handleUserSkills))
 }
 
 // ---- traça viva del torn (per a /btw) ----

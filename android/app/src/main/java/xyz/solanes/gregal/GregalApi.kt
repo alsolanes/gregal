@@ -442,6 +442,126 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
+    // ---- Mode company (estil Dot): memòria personal + check-ins ----
+
+    fun getCompany(): CompanyState =
+        CompanyState.parse(read(conn("/api/companion/memory", "GET")))
+
+    fun companyAccept(fact: String): CompanyState {
+        val o = post("/api/companion/memory", JSONObject(CompanionRequests.accept(fact)))
+        fun arr(a: JSONArray?): List<String> =
+            a?.let { (0 until it.length()).map { i -> it.optString(i) } } ?: emptyList()
+        return CompanyState(state = "none", facts = emptyList(), notes = arr(o.optJSONArray("notes")))
+    }
+
+    fun companyDismiss(): CompanyState {
+        post("/api/companion/memory", JSONObject(CompanionRequests.dismiss()))
+        return CompanyState(state = "none", facts = emptyList(), notes = emptyList())
+    }
+
+    fun companyForget(term: String): CompanyState {
+        val o = post("/api/companion/memory", JSONObject(CompanionRequests.forget(term)))
+        fun arr(a: JSONArray?): List<String> =
+            a?.let { (0 until it.length()).map { i -> it.optString(i) } } ?: emptyList()
+        return CompanyState(state = "none", facts = emptyList(), notes = arr(o.optJSONArray("notes")))
+    }
+
+    fun companyCheckin(): CompanyCheckin =
+        CompanyCheckin.parse(post("/api/companion/checkin", JSONObject()).toString())
+
+    fun getPets(): List<Pet> =
+        Pet.parse(read(conn("/api/companion/pets", "GET")))
+
+    fun petCheckin(petId: String): PetCheckin =
+        PetCheckin.parse(post("/api/companion/checkin", JSONObject(PetRequests.checkin(petId))).toString())
+
+    fun petChat(petId: String, message: String): String {
+        val o = post("/api/companion/chat", JSONObject(PetRequests.chat(petId, message)))
+        return o.optString("reply")
+    }
+
+    fun getPetChat(petId: String): List<GregalViewModel.PetMsg> {
+        val o = JSONObject(read(conn("/api/companion/chat?pet=$petId", "GET")))
+        val a = o.optJSONArray("history") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+        }
+    }
+
+    fun getWinds(): List<Wind> =
+        Wind.parse(read(conn("/api/winds", "GET")))
+
+    fun saveWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "") {
+        val payload = JSONObject(WindRequests.save(name, color, role, style, persona))
+        if (id.isNotBlank()) payload.put("id", id)
+        post("/api/winds", payload)
+    }
+
+    fun getWindProfile(id: String): WindProfile = WindProfile.parse(
+        read(conn("/api/winds/profile?wind=${java.net.URLEncoder.encode(id, "UTF-8")}", "GET")))
+
+    fun updateWindKnowledge(id: String, text: String): WindProfile = WindProfile.parse(
+        post("/api/winds/memory", JSONObject().put("wind", id).put("text", text)).toString())
+
+    /** Proposta de persona i cara per a un vent nou (feta amb la IA). */
+    fun suggestWind(name: String, role: String): Pair<String, String> {
+        val o = post("/api/winds/suggest", JSONObject().put("name", name).put("role", role))
+        return Pair(o.optString("persona"), o.optString("style").ifBlank { "pso" })
+    }
+
+    fun getRotllanes(): List<Rotllana> =
+        RotllanaRequests.parse(read(conn("/api/winds/rotllanes", "GET")))
+
+    fun saveRotllana(name: String, members: List<String>, id: String = ""): JSONObject {
+        val payload = JSONObject(RotllanaRequests.save(name, members))
+        if (id.isNotBlank()) payload.put("id", id)
+        return post("/api/winds/rotllanes", payload)
+    }
+
+    fun deleteRotllana(id: String) {
+        read(conn("/api/winds/rotllanes", "DELETE", JSONObject().put("id", id).toString()))
+    }
+
+    /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
+    fun rotllanaChat(rotllanaId: String, message: String, wind: String = ""): Triple<String, String, List<GregalViewModel.PetMsg>> {
+        val o = post("/api/winds/rotllana", JSONObject(RotllanaRequests.chat(rotllanaId, message, wind)))
+        val reply = o.optJSONObject("reply") ?: JSONObject()
+        val a = o.optJSONArray("history") ?: JSONArray()
+        val hist = (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+        }
+        return Triple(reply.optString("wind"), reply.optString("text"), hist)
+    }
+
+    fun getRotllanaChat(rotllanaId: String): List<GregalViewModel.PetMsg> {
+        val o = JSONObject(read(conn("/api/winds/rotllana?rotlla=$rotllanaId", "GET")))
+        val a = o.optJSONArray("history") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+        }
+    }
+
+    fun deleteWind(id: String) {
+        read(conn("/api/winds", "DELETE", JSONObject().put("id", id).toString()))
+    }
+
+    fun windChat(windId: String, message: String): String {
+        val o = post("/api/winds/chat", JSONObject(WindRequests.chat(windId, message)))
+        return o.optString("reply")
+    }
+
+    fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {
+        val o = JSONObject(read(conn("/api/winds/chat?wind=$windId", "GET")))
+        val a = o.optJSONArray("history") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+        }
+    }
+
     fun getJobs(): List<JobItem> {
         val o = JSONObject(read(conn("/api/jobs", "GET")))
         val a = o.optJSONArray("jobs") ?: JSONArray()

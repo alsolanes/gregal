@@ -19,8 +19,14 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
 
+/** ID estable del job diari de check-in del company (backend: jobs.json). */
+const val CompanyJobId = "company-checkin-daily"
+
+/** Prompt del job de check-in: el company resumeix i pregunta, curt. */
+const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
+
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -334,16 +340,59 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val tokenBuffer = StringBuilder()
     private var tokenFlush: Job? = null
 
-    fun go(s: Screen) { _screen.value = s }
+    // --- Pila de navegació: enrere ha de tirar enrere, no matar l'app ---
+
+    /** Pantalles per on has passat (sense l'actual). La primera és l'arrel (Vents). */
+    private val _backStack = MutableStateFlow<List<Screen>>(emptyList())
+    val backStack: StateFlow<List<Screen>> = _backStack
+
+    fun go(s: Screen) {
+        val cur = _screen.value
+        if (s != cur) {
+            _backStack.value = if (cur == Screen.Pairing || s == Screen.Pairing) emptyList() else _backStack.value + cur
+            _screen.value = s
+        }
+    }
+
+    /** Hi ha alguna pantalla a la qual tornar (o no som a l'arrel)? */
+    val canGoBack: Boolean get() = _backStack.value.isNotEmpty() || _screen.value != Screen.Company
+
+    /** Neteja la pila (només per a proves). */
+    fun resetBackStackForTest() { _backStack.value = emptyList() }
+
+    /** Conversa oberta dins els Vents ("wind:<id>" / "rot:<id>"), perquè l'enrere la tanqui. */
+    private val _ventsOpen = MutableStateFlow<String?>(null)
+    val ventsOpen: StateFlow<String?> = _ventsOpen
+    fun openVentsChat(id: String?) { _ventsOpen.value = id }
+
+    /**
+     * Enrere: torna a la pantalla anterior si n'hi ha; si ja ets a l'arrel i no
+     * tens pila, torna a Vents; retorna false només quan ja ets a Vents i no hi
+     * ha on tornar (l'app pot sortir).
+     */
+    fun back(): Boolean {
+        val stack = _backStack.value
+        if (stack.isNotEmpty()) {
+            _screen.value = stack.last()
+            _backStack.value = stack.dropLast(1)
+            return true
+        }
+        if (_screen.value != Screen.Company) {
+            _screen.value = Screen.Company
+            return true
+        }
+        return false
+    }
 
     fun newChat() {
         _msgs.value = emptyList()
-        _screen.value = Screen.Chat
+        go(Screen.Chat)
     }
 
     fun disconnect() {
         _connected.value = false
-        _screen.value = Screen.Pairing
+        resetServerState()
+        go(Screen.Pairing)
     }
 
     // --- On corre Gregal: aquest dispositiu o un servidor remot ---
@@ -357,7 +406,39 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * Canviar de servidor és canviar de món: converses, cursor d'events i
      * estat són de l'altre. Res del que es veia ha de passar a l'altre.
      */
+    // Identifies a connection generation, including switching away and back.
+    private var companionEpoch = 0L
+    // Per conversation: each GET supersedes older GETs; sending invalidates them
+    // before optimistic history is published, even if they arrive after busy clears.
+    private val windHistoryRequests = mutableMapOf<String, Long>()
+    private val rotllanaHistoryRequests = mutableMapOf<String, Long>()
+    private fun isCompanionOrigin(source: Conn, epoch: Long) =
+        _conn.value == source && companionEpoch == epoch
+
     private fun resetServerState() {
+        companionEpoch++
+        windHistoryRequests.clear()
+        rotllanaHistoryRequests.clear()
+        _winds.value = emptyList()
+        _windChat.value = emptyMap()
+        _windBusy.value = emptySet()
+        _rotllanes.value = emptyList()
+        _rotllanaChat.value = emptyMap()
+        _rotllanaBusy.value = emptySet()
+        _activeWind.value = null
+        _ventsOpen.value = null
+        _windCreator.value = false to null
+        profileRequest++
+        _windProfile.value = null
+        _windProfileBusy.value = false
+        _windProfileError.value = null
+        _company.value = CompanyState()
+        _checkin.value = null
+        _pets.value = emptyList()
+        _petCheckins.value = emptyMap()
+        _petChat.value = emptyMap()
+        _petChatBusy.value = emptySet()
+        _backStack.value = emptyList()
         _msgs.value = emptyList()
         _state.value = ServerState()
         _sessions.value = emptyList()
@@ -411,7 +492,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val user = prefsStore?.usuari.orEmpty()
         prefsStore?.save(host, port, token, user)
         useRemote(Conn(host, port, token, user))
-        connect { go(Screen.Chat) }
+        connect { go(Screen.Company) }
     }
 
     /** Reprèn la connexió desada en obrir l'app. */
@@ -523,7 +604,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _usuari.value = usuari.trim()
                 prefsStore?.save(host, port, tok, usuari)
                 useRemote(Conn(host, port, tok, usuari.trim()))
-                connect { go(Screen.Chat) }
+                connect { go(Screen.Company) }
             } catch (e: Exception) {
                 val m = e.message ?: ""
                 notify(if (m.contains("401")) appText("app.status.loginInvalid")
@@ -599,6 +680,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     syncAgentLanguage()
                     onOk()
                     syncJobAlarms()
+                    loadWinds()
+                    loadRotllanes()
                     hintMissingKey()
                     restoreLocalSession()
                     return@launch
@@ -727,7 +810,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Obre el #retro d'un torn (0 = l'últim acabat) i, si encara no té xat, l'engega. */
     fun openRetro(runId: Long = 0L) {
-        _screen.value = Screen.Retro
+        go(Screen.Retro)
         if (_retroState.value in setOf("loading", "starting", "replying")) return
         _retroState.value = "loading"
         viewModelScope.launch {
@@ -1882,6 +1965,474 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ---- Mode company (estil Dot): memòria personal + check-ins ----
+
+    private val _company = MutableStateFlow(CompanyState())
+    val company: StateFlow<CompanyState> = _company
+    private val _checkin = MutableStateFlow<CompanyCheckin?>(null)
+    val checkin: StateFlow<CompanyCheckin?> = _checkin
+
+    fun loadCompany() {
+        viewModelScope.launch {
+            try {
+                _company.value = loadingOf("company") { withContext(Dispatchers.IO) { _conn.value.api().getCompany() } }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun acceptFact(fact: String) {
+        viewModelScope.launch {
+            try {
+                _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyAccept(fact) }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun dismissFacts() {
+        viewModelScope.launch {
+            try {
+                _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyDismiss() }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun forgetCompany(term: String) {
+        viewModelScope.launch {
+            try {
+                _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyForget(term) }
+                notify(appText("app.company.forgotten"))
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    /**
+     * Job diari de revisió del projecte actiu (per defecte 08:00, editable a Feines).
+     * Idempotent: preserva l'horari, l'estat i les notificacions configurades per l'usuari.
+     */
+    fun ensureCheckinJob() {
+        viewModelScope.launch {
+            try {
+                val api = _conn.value.api()
+                val jobs = withContext(Dispatchers.IO) { api.getJobs() }
+                val existing = jobs.firstOrNull { it.id == CompanyJobId }
+                if (existing == null) {
+                    withContext(Dispatchers.IO) {
+                        api.saveJob(JobItem(
+                            id = CompanyJobId,
+                            name = appText("app.company.jobName"),
+                            prompt = COMPANY_CHECKIN_PROMPT,
+                            kind = "daily", time = "08:00",
+                            enabled = true, notify = true,
+                        ))
+                    }
+                } else if (existing.prompt != COMPANY_CHECKIN_PROMPT || existing.name != appText("app.company.jobName")) {
+                    // Actualitza el contingut sense trepitjar l'horari o les opcions de notificació.
+                    withContext(Dispatchers.IO) {
+                        api.saveJob(existing.copy(name = appText("app.company.jobName"), prompt = COMPANY_CHECKIN_PROMPT))
+                    }
+                }
+                if (_conn.value.local) {
+                    val current = withContext(Dispatchers.IO) { api.getJobs() }
+                    JobAlarms.sync(appContext, current)
+                }
+            } catch (e: Exception) { /* el job és optatiu: mai no tomba la pantalla */ }
+        }
+    }
+
+    fun triggerCheckin() {
+        viewModelScope.launch {
+            try {
+                _checkin.value = withContext(Dispatchers.IO) { _conn.value.api().companyCheckin() }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    /** Inicia una tasca real al workspace amb el motor d'agent i les aprovacions habituals. */
+    fun startCompanyWork(request: String, makeChanges: Boolean) {
+        val mode = if (makeChanges) "code" else "inspect"
+        val task = CompanyWorkPrompt.build(request, makeChanges)
+        if (task.isBlank() || _sending.value) return
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = _conn.value.api()
+                    if (makeChanges) {
+                        api.post("/api/permissive", JSONObject().put("on", false).put("review", false))
+                    }
+                    api.post("/api/mode", JSONObject().put("mode", mode))
+                }
+                _state.value = if (makeChanges) {
+                    _state.value.copy(mode = mode, permissive = false, autoReview = false)
+                } else {
+                    _state.value.copy(mode = mode)
+                }
+                go(Screen.Chat)
+                send(task, forceAgent = true)
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    // ---- Mascotes del company ----
+
+    // ---- Vents: companions personals amb nom de vent ----
+    private val _winds = MutableStateFlow<List<Wind>>(emptyList())
+    val winds: StateFlow<List<Wind>> = _winds
+
+    private val _windChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
+    val windChat: StateFlow<Map<String, List<PetMsg>>> = _windChat
+
+    private val _windBusy = MutableStateFlow<Set<String>>(emptySet())
+    val windBusy: StateFlow<Set<String>> = _windBusy
+
+    /** El vent actiu al botó flotant (null = cap). */
+    private val _activeWind = MutableStateFlow<Wind?>(null)
+    val activeWind: StateFlow<Wind?> = _activeWind
+
+    fun loadWinds() {
+        val source = _conn.value
+        val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { source.api().getWinds() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _winds.value = list
+                _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
+                list.forEach { loadWindChat(it.id) }
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
+            }
+        }
+    }
+
+    private val _windProfile = MutableStateFlow<WindProfile?>(null)
+    val windProfile: StateFlow<WindProfile?> = _windProfile
+    private val _windProfileBusy = MutableStateFlow(false)
+    val windProfileBusy: StateFlow<Boolean> = _windProfileBusy
+    private val _windProfileError = MutableStateFlow<String?>(null)
+    val windProfileError: StateFlow<String?> = _windProfileError
+    private var profileRequest = 0L
+
+    fun loadWindProfile(id: String) {
+        val source = _conn.value; val epoch = companionEpoch; val request = ++profileRequest
+        _windProfile.value = null
+        _windProfileBusy.value = true
+        _windProfileError.value = null
+        viewModelScope.launch {
+            try {
+                val profile = withContext(Dispatchers.IO) { source.api().getWindProfile(id) }
+                if (isCompanionOrigin(source, epoch) && request == profileRequest) _windProfile.value = profile
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch) && request == profileRequest)
+                    _windProfileError.value = appText("app.status.company", e.message.orEmpty())
+            } finally {
+                if (isCompanionOrigin(source, epoch) && request == profileRequest) _windProfileBusy.value = false
+            }
+        }
+    }
+
+    fun updateWindKnowledge(id: String, text: String, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { source.api().updateWindKnowledge(id, text) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (_windProfile.value?.wind?.id == id) _windProfile.value = result
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) {
+                    notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+                }
+            }
+        }
+    }
+
+    fun createWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "", onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().saveWind(name, color, role, style, persona, id) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // Read back the exact catalogue before reporting success to the creator.
+                val list = withContext(Dispatchers.IO) { source.api().getWinds() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _winds.value = list
+                _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
+                if (id.isNotBlank() && _windProfile.value?.wind?.id == id) loadWindProfile(id)
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) {
+                    notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+                }
+            }
+        }
+    }
+
+    // Named conversations: one member is an individual thread, 2+ a rotllana.
+    private val _rotllanes = MutableStateFlow<List<Rotllana>>(emptyList())
+    val rotllanes: StateFlow<List<Rotllana>> = _rotllanes
+    private val _rotllanaChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
+    val rotllanaChat: StateFlow<Map<String, List<PetMsg>>> = _rotllanaChat
+    private val _rotllanaBusy = MutableStateFlow<Set<String>>(emptySet())
+    val rotllanaBusy: StateFlow<Set<String>> = _rotllanaBusy
+
+    fun loadRotllanes() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { source.api().getRotllanes() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = list
+                list.forEach { loadRotllanaChat(it.id) }
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun createRotllana(name: String, members: List<String>, onError: () -> Unit = {}, onDone: () -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val result = withContext(Dispatchers.IO) { source.api().saveRotllana(name, members) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val id = result.optJSONObject("rotllana")?.optString("id").orEmpty()
+                val list = withContext(Dispatchers.IO) { source.api().getRotllanes() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = list
+                onDone()
+                if (id.isNotBlank() && list.any { it.id == id }) openVentsChat("rot:" + id)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
+            }
+        }
+    }
+
+    fun editRotllana(rot: Rotllana, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().saveRotllana(rot.name, rot.members, rot.id) }
+                val list = withContext(Dispatchers.IO) { source.api().getRotllanes() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = list
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+            }
+        }
+    }
+
+    fun deleteRotllana(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().deleteRotllana(id) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = _rotllanes.value.filterNot { it.id == id }
+                _rotllanaChat.value = _rotllanaChat.value - id
+                if (_ventsOpen.value == "rot:$id") _ventsOpen.value = null
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun loadRotllanaChat(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        if (_rotllanaBusy.value.contains(id)) return
+        val request = (rotllanaHistoryRequests[id] ?: 0L) + 1
+        rotllanaHistoryRequests[id] = request
+        viewModelScope.launch {
+            try {
+                val msgs = withContext(Dispatchers.IO) { source.api().getRotllanaChat(id) }
+                if (isCompanionOrigin(source, epoch) && request == rotllanaHistoryRequests[id] &&
+                    !_rotllanaBusy.value.contains(id))
+                    _rotllanaChat.value = _rotllanaChat.value + (id to msgs)
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun sendRotllanaMessage(rotllanaId: String, message: String) {
+        if (message.isBlank() || _rotllanaBusy.value.contains(rotllanaId)) return
+        val source = _conn.value; val epoch = companionEpoch
+        rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
+        val before = _rotllanaChat.value[rotllanaId].orEmpty()
+        _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message)))
+        viewModelScope.launch {
+            try {
+                val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val speaker = _winds.value.firstOrNull { it.id == wind }
+                _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
+                    before + PetMsg("user", message) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
+                })
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) {
+                    notify(appText("app.status.company", e.message.orEmpty()))
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to before)
+                }
+            } finally {
+                if (isCompanionOrigin(source, epoch)) _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId
+            }
+        }
+    }
+
+    /** Encén el cor d'un vent: un job diari que busca novetats del seu tema
+     *  i només parla si val la pena. L'id és wind-<vent>: el backend el tracta. */
+    fun ensureWindHeartbeat(wind: Wind, on: Boolean) {
+        viewModelScope.launch {
+            try {
+                val api = _conn.value.api()
+                val jobId = "wind-" + wind.id
+                val jobs = withContext(Dispatchers.IO) { api.getJobs() }
+                val existing = jobs.firstOrNull { it.id == jobId }
+                if (on && existing == null) {
+                    withContext(Dispatchers.IO) {
+                        api.saveJob(JobItem(
+                            id = jobId,
+                            name = appText("app.company.windHeartbeatName", wind.name),
+                            prompt = "Cor de " + wind.name + ": vigila el tema «" + wind.role + "» i parla només si trobes novetats que valguin la pena.",
+                            kind = "daily", time = "09:00",
+                            enabled = true, notify = true,
+                        ))
+                    }
+                } else if (!on && existing != null) {
+                    withContext(Dispatchers.IO) { api.deleteJob(jobId) }
+                }
+                if (_conn.value.local) {
+                    val current = withContext(Dispatchers.IO) { api.getJobs() }
+                    JobAlarms.sync(appContext, current)
+                }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    /** A failed suggestion must also finish the creator's pending state. */
+    fun suggestWind(name: String, role: String, onError: () -> Unit = {}, onDone: (persona: String, style: String) -> Unit) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val (persona, style) = withContext(Dispatchers.IO) { source.api().suggestWind(name, role) }
+                if (isCompanionOrigin(source, epoch)) onDone(persona, style)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
+            }
+        }
+    }
+
+    fun deleteWind(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().deleteWind(id) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (_activeWind.value?.id == id) _activeWind.value = null
+                _windChat.value = _windChat.value - id
+                if (_ventsOpen.value == "wind:$id") _ventsOpen.value = null
+                loadWinds(); loadRotllanes()
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun setActiveWind(w: Wind?) { _activeWind.value = w }
+
+    private val _windCreator = MutableStateFlow<Pair<Boolean, Wind?>>(false to null)
+    val windCreator: StateFlow<Pair<Boolean, Wind?>> = _windCreator
+    fun showWindCreator(show: Boolean, wind: Wind? = null) { _windCreator.value = show to wind }
+
+    fun loadWindChat(windId: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        if (_windBusy.value.contains(windId)) return
+        val request = (windHistoryRequests[windId] ?: 0L) + 1
+        windHistoryRequests[windId] = request
+        viewModelScope.launch {
+            try {
+                val history = withContext(Dispatchers.IO) { source.api().getWindChat(windId) }
+                if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
+                    !_windBusy.value.contains(windId))
+                    _windChat.value = _windChat.value + (windId to history)
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun sendWindMessage(windId: String, text: String) {
+        val msg = text.trim()
+        if (msg.isEmpty() || _windBusy.value.contains(windId)) return
+        val source = _conn.value; val epoch = companionEpoch
+        windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
+        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg)))
+        _windBusy.value = _windBusy.value + windId
+        viewModelScope.launch {
+            try {
+                val reply = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
+                if (isCompanionOrigin(source, epoch))
+                    _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", reply)))
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch))
+                    notify(appText("app.status.company", e.message.orEmpty()))
+            } finally {
+                if (isCompanionOrigin(source, epoch)) _windBusy.value = _windBusy.value - windId
+            }
+        }
+    }
+
+    private val _pets = MutableStateFlow<List<Pet>>(emptyList())
+    val pets: StateFlow<List<Pet>> = _pets
+
+    private val _petCheckins = MutableStateFlow<Map<String, PetCheckin>>(emptyMap())
+    val petCheckins: StateFlow<Map<String, PetCheckin>> = _petCheckins
+
+    fun loadPets() {
+        viewModelScope.launch {
+            try {
+                _pets.value = withContext(Dispatchers.IO) { _conn.value.api().getPets() }
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    // Xat amb mascota: missatges en memòria + enviament
+    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "")
+
+    private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
+    val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat
+
+    private val _petChatBusy = MutableStateFlow<Set<String>>(emptySet())
+    val petChatBusy: StateFlow<Set<String>> = _petChatBusy
+
+    fun loadPetChat(petId: String) {
+        viewModelScope.launch {
+            try {
+                val history = withContext(Dispatchers.IO) { _conn.value.api().getPetChat(petId) }
+                _petChat.value = _petChat.value + (petId to history)
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    fun sendPetMessage(petId: String, text: String) {
+        val msg = text.trim()
+        if (msg.isEmpty()) return
+        viewModelScope.launch {
+            _petChat.value = _petChat.value + (petId to (_petChat.value[petId].orEmpty() + PetMsg("user", msg)))
+            _petChatBusy.value = _petChatBusy.value + petId
+            try {
+                val reply = withContext(Dispatchers.IO) { _conn.value.api().petChat(petId, msg) }
+                _petChat.value = _petChat.value + (petId to (_petChat.value[petId].orEmpty() + PetMsg("pet", reply)))
+            } catch (e: Exception) {
+                _petChat.value = _petChat.value + (petId to (_petChat.value[petId].orEmpty() + PetMsg("pet", appText("app.status.company", e.message.orEmpty()))))
+            } finally {
+                _petChatBusy.value = _petChatBusy.value - petId
+            }
+        }
+    }
+
+    fun triggerPetCheckin(petId: String) {
+        viewModelScope.launch {
+            try {
+                val c = withContext(Dispatchers.IO) { _conn.value.api().petCheckin(petId) }
+                _petCheckins.value = _petCheckins.value + (petId to c)
+            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
     fun runGoal(id: String) {
         viewModelScope.launch {
             try {
@@ -1910,11 +2461,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // --- jobs programats ---
 
     fun loadJobs() {
+        val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
-                _jobs.value = loadingOf("jobs") { withContext(Dispatchers.IO) { _conn.value.api().getJobs() } }
-                if (_conn.value.local) JobAlarms.sync(appContext, _jobs.value)
-            } catch (e: Exception) { notify(appText("app.status.jobs", e.message.orEmpty())) }
+                val jobs = loadingOf("jobs") { withContext(Dispatchers.IO) { source.api().getJobs() } }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _jobs.value = jobs
+                if (source.local) JobAlarms.sync(appContext, jobs)
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
         }
     }
 
@@ -1943,8 +2497,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun openRunShown() { _openRun.value = null }
 
-    /** Després de connectar: la pantalla de la notificació tocada o el xat. */
-    private fun landing(): Screen = if (_openRun.value != null) Screen.Jobs else Screen.Chat
+    /** Després de connectar: la pantalla de la notificació tocada o, per
+     *  defecte, els vents — són la cara de l'app, no un calaix. */
+    private fun landing(): Screen = if (_openRun.value != null) Screen.Jobs else Screen.Company
 
     fun saveJob(j: JobItem) {
         viewModelScope.launch {

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -32,10 +33,47 @@ func IndexSkills(cwd string) string {
 	return skills.Index(skills.Cataleg(DirsSkills(cwd)...))
 }
 
+// DirsSkillsWith és DirsSkills amb directoris extra al davant: primer
+// l'extra (usuari), després la persona, i el projecte mana al final.
+func DirsSkillsWith(extra []string, cwd string) []string {
+	var dirs []string
+	dirs = append(dirs, extra...)
+	dirs = append(dirs, DirsSkills(cwd)...)
+	return dirs
+}
+
+// WithSkillsDirs guarda directoris de skills extra al context, perquè
+// l'eina `skill` i l'índex del prompt els vegin sense tocar signatures.
+type skillsDirsKey struct{}
+
+func WithSkillsDirs(ctx context.Context, dirs ...string) context.Context {
+	if len(dirs) == 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, skillsDirsKey{}, dirs)
+}
+
+// SkillsDirsOf retorna els directoris extra del context (nil si no n'hi ha).
+func SkillsDirsOf(ctx context.Context) []string {
+	if ctx == nil {
+		return nil
+	}
+	if v, ok := ctx.Value(skillsDirsKey{}).([]string); ok {
+		return v
+	}
+	return nil
+}
+
 // LlegeixSkill és el que executa l'eina `skill`. Si el nom no hi és, es
 // diuen els que hi ha: un nom mal escrit no ha de costar un pas perdut.
 func LlegeixSkill(cwd, nom string) (string, []string, error) {
-	dirs := DirsSkills(cwd)
+	return LlegeixSkillDirs(cwd, nom)
+}
+
+// LlegeixSkillDirs és LlegeixSkill amb directoris extra al davant (p. ex.
+// les skills d'un usuari d'un servidor multiusuari).
+func LlegeixSkillDirs(cwd, nom string, extra ...string) (string, []string, error) {
+	dirs := DirsSkillsWith(extra, cwd)
 	s, ok := skills.Per(nom, dirs...)
 	if ok && !skills.Habilitada(s.Nom) {
 		return "", nil, fmt.Errorf("la skill %q està desactivada als ajustos", s.Nom)
@@ -59,11 +97,17 @@ func ContextProjecte(cwd string) string { return ContextProjecteSessio(cwd, "") 
 // ContextProjecteSessio és ContextProjecte sabent també la sessió: així
 // el prompt inclou les col·leccions de coneixement d'aquesta conversa.
 func ContextProjecteSessio(cwd, session string) string {
+	return ContextProjecteExtra(cwd, session)
+}
+
+// ContextProjecteExtra és ContextProjecteSessio amb directoris de skills
+// extra (per usuari d'un servidor): entren a l'índex del prompt.
+func ContextProjecteExtra(cwd, session string, extraDirs ...string) string {
 	parts := make([]string, 0, 4)
 	if mem := LoadProjectMemory(cwd); mem != "" {
 		parts = append(parts, mem)
 	}
-	if idx := IndexSkills(cwd); idx != "" {
+	if idx := skills.Index(skills.Cataleg(DirsSkillsWith(extraDirs, cwd)...)); idx != "" {
 		parts = append(parts, idx)
 	}
 	if idx := IndexSubagents(cwd); idx != "" {

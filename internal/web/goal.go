@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"gregal/internal/goal"
+	"gregal/internal/identity"
 )
 
 // goalDirFor retorna on es desen els objectius (al costat del config).
@@ -21,6 +22,16 @@ func goalDirFor(cfgPath string) string {
 		return filepath.Join(base, "gregal")
 	}
 	return "."
+}
+
+// userStateDir és el directori d'estat personal d'un usuari: vents,
+// rotllanes, objectius. Al costat del config, dins users/.identity-v1/<hash>/. Sense
+// usuari no s'ha de cridar mai: l'estat compartit és goalDirFor(cfgPath).
+func userStateDir(cfgPath, user string) string {
+	// Never claim an old slug automatically: even an ASCII lowercase name
+	// could have belonged to another exact identity. Leave old data intact
+	// for an administrator to verify and migrate explicitly.
+	return filepath.Join(goalDirFor(cfgPath), "users", ".identity-v1", identity.Key(user))
 }
 
 // projectName és el nom del projecte actual.

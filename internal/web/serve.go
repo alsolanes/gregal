@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/events"
 	"gregal/internal/jobs"
@@ -58,12 +59,14 @@ type activeAgent struct {
 }
 
 type Server struct {
-	cfg     *config.Config
-	cfgPath string
-	client  *llm.Client
-	policy  *agent.Policy
-	cwd     string
-	goalDir string
+	cfg       *config.Config
+	cfgPath   string
+	client    *llm.Client
+	winds     *companion.WindStore
+	rotllanes *RotllanaStore
+	policy    *agent.Policy
+	cwd       string
+	goalDir   string
 
 	mu    sync.Mutex
 	convo []llm.Message
@@ -143,9 +146,13 @@ type Server struct {
 
 	// hub, id, title i createdAt identifiquen la sessió dins del Hub
 	// (G1). Amb un sol client i sense id, tot això és la sessió "default"
-	// i el comportament és el de sempre.
+	// i el comportament és el de sempre. `wire` és l'id que el client ha
+	// enviat (pot diferir de `id` quan la clau interna porta el hash
+	// del principal): els endpoints que retornen un id de sessió han
+	// de tornar aquest, no la clau interna.
 	hub       *Hub
 	id        string
+	wire      string
 	title     string
 	createdAt time.Time
 	// activeRun és l'ID del torn en execució a la cua compartida
@@ -199,6 +206,8 @@ func New(cfg *config.Config, cfgPath string) *Server {
 		cfg:               cfg,
 		cfgPath:           cfgPath,
 		goalDir:           goalDirFor(cfgPath),
+		winds:             companion.NewWindStore(goalDirFor(cfgPath)),
+		rotllanes:         NewRotllanaStore(goalDirFor(cfgPath)),
 		client:            cl,
 		policy:            agent.PolicyFromConfig(cfg, cwd),
 		remembers:         agent.NewRemember(),
@@ -632,10 +641,23 @@ func (s *Server) usuari() string {
 	return s.user.Name
 }
 
+// userSkillsDirs són els directoris de skills propis de l'usuari de la
+// sessió: users/<nom>/skills. Sense usuari, cap (les globals ja hi són).
+func (s *Server) userSkillsDirs() []string {
+	if s.user == nil || s.user.Tothom {
+		return nil
+	}
+	dir := userStateDir(s.cfgPath, s.user.Name)
+	return []string{filepath.Join(dir, "skills")}
+}
+
 // sessDir és la carpeta de converses de l'usuari d'aquesta sessió.
+// Els principals compartits (mode local: cap usuari, o Tothom amb token
+// únic) usen la carpeta compartida de sempre, perquè la conversa és la
+// mateixa des de qualsevol client.
 func (s *Server) sessDir() string {
 	name := ""
-	if s.user != nil {
+	if s.user != nil && !s.user.Tothom {
 		name = s.user.Name
 	}
 	return session.DirFor(name)
@@ -2184,7 +2206,7 @@ inspect the disk, say explicitly that you cannot know instead of making it up.`,
 	// Fets i memòria del projecte van abans de la directiva d'idioma, que
 	// ha de tancar el prompt (agent.AmbContext).
 	build = func(c string) string { return agent.AmbContext(prompt, plot, fets, c) }
-	return prompt + "\x00" + plot + "\x00" + fets, agent.ContextProjecteSessio(workspace, s.id), build
+	return prompt + "\x00" + plot + "\x00" + fets, agent.ContextProjecteExtra(workspace, s.id, s.userSkillsDirs()...), build
 }
 
 // compactaSiCal resumeix la conversa quan l'estimació passa del llindar de
@@ -2910,7 +2932,7 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 	}
 	// Amb l'id de la sessió: així els processos de segon pla surten al
 	// Terminal d'aquesta pestanya i es maten quan es tanca.
-	out, imgs, err := agent.ExecCtx(ctx, s.id, workspace, c.Function.Name, c.Function.Arguments)
+	out, imgs, err := agent.ExecCtx(agent.WithSkillsDirs(ctx, s.userSkillsDirs()...), s.id, workspace, c.Function.Name, c.Function.Arguments)
 	if err != nil {
 		// El que la comanda havia escrit abans del timeout també hi va.
 		return agent.ErrorAmbSortida(err, out), nil

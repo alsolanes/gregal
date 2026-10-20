@@ -1014,6 +1014,12 @@ fun BodyText(t: AnnotatedString) {
 /** Bloc de codi amb capçalera de llenguatge i còpia. */
 @Composable
 fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
+    // gregal-plot: el JSON de dades es renderitza com a gràfic natiu interactiu.
+    val plot = remember(lang, code) { parsePlot(lang, code) }
+    if (plot != null) {
+        PlotCard(plot, uiLang)
+        return
+    }
     val clipboard = LocalClipboardManager.current
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),

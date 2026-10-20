@@ -124,6 +124,44 @@ duplicates, drop stale notes, never add) and returns
 `{after,hash}` writes that list only if the file still has `hash` (409
 otherwise) and `after` has no more lines than the current notes.
 
+## Companion (personal memory + check-ins)
+
+These routes use the verified authenticated identity, not a client-supplied
+user name. Personal memory for named users lives at `users/<name>/memory.md`
+beside the config, shared across that user's sessions only. No fallback to or
+migration from another user's/global memory occurs. This applies consistently
+to memory read/accept/forget/extraction, check-ins, pet/wind/group chats and wind
+heartbeats. Legacy no-user and `Tothom` single-token mode keep the global
+`GREGAL_MEMORY`/default memory behavior. Wind profiles/knowledge and catalogs
+remain in their existing authenticated scope. Existing conversations stay in
+their current locations; this change does not migrate chat files.
+
+| Route | Method | Request and response |
+|---|---|---|
+| `/api/companion/memory` | GET | `{state,facts,notes}`: `facts` are the currently proposed personal facts (`state` = `pending`, `ready` or `none`), `notes` is the full user memory (the audit view: "what do you know about me"). |
+| `/api/companion/memory` | POST | `{action:"accept",fact}` appends an accepted fact to the authenticated user's memory (date-prefixed) and removes it from the proposal → `{ok,total,notes}`; a fact not in the current proposal is 404. `{action:"dismiss"}` clears the proposal → `{ok}`. `{action:"forget",term}` deletes that user's notes containing `term` → `{ok,forgotten,notes}`. |
+| `/api/companion/checkin` | POST | Generates a proactive check-in (1-2 sentences) grounded in the user memory and the last session digest → `{checkin,at}`. Read-only side call; nothing is written. With `{pet}` (one of the pet ids below) the check-in is written in that pet's voice and the response adds `pet`. |
+| `/api/companion/pets` | GET | The companion pet catalog → `{pets:[{id,name,role}]}`. Four specialized pets (music, news, code, system); each has its own voice server-side. |
+| `/api/companion/chat` | GET | `?pet=<id>` → `{pet,history:[{from,text}]}`; returns the authenticated user's durable conversation for that pet. |
+| `/api/companion/chat` | POST | Chat with one pet in its voice → `{reply,pet,history:[{from,text}]}`. Body: `{pet,message}`. Histories are separate per pet, persisted in the authenticated user's saved-conversation directory, and the model context is capped at the last 16 turns. The user memory is injected as what the pet knows. The pet has no access to external data and says so instead of inventing. |
+| `/api/winds` | GET | → `{winds:[{id,name,color,role,style}]}`. The wind catalog omits persona; use the authorized profile endpoint to read/edit it. |
+| `/api/winds` | POST | Create/update a wind → `{wind}` (full object, including persona). Body: `{id?,name,color,role,persona?,style?}`. Explicit `id` edits only that existing wind and stays stable on rename; unknown explicit id is 400. Without id, the name slug creates/updates the legacy same-name entry. Blank/omitted persona preserves the existing voice, or fills a default for a new wind. Invalid color falls back to `#FF9F00`. |
+| `/api/winds` | DELETE | Remove a wind. Body: `{id}`. |
+| `/api/winds/chat` | GET | `?wind=<id>` → `{wind,history:[{from,text}]}`; the durable conversation with a wind, persisted as `company-<wind>`. |
+| `/api/winds/chat` | POST | Chat with a wind → `{reply,wind,history}`. Body: `{wind,message}`. Context includes persona, wind knowledge, the authenticated user's memory, active project, up to 5 open goals, last work-session digest, and the previous conversation (last 40 messages, digest capped at 16,000 characters plus an omission marker). The durable history is not truncated. Keeps the existing direct individual conversation; named independent threads use singleton rotllanes. |
+| `/api/winds/profile` | GET | `?wind=<id>` → `{wind:{id,name,color,role,persona,style},knowledge:string,personal_memory:string}`. Full persona and exact knowledge markdown; personal memory is a read-only prompt preview (up to 2,000 characters plus truncation marker). Unknown wind is 400; other methods are 405. |
+| `/api/winds/memory` | POST | `{wind,text}` → the same full profile shape. Replaces all that wind's knowledge markdown atomically; `text:""` clears it. Text is required, must be a string, and is bounded to 24,576 UTF-8 bytes. Unknown wind, missing/null/non-string/oversized text, extra fields or trailing JSON are 400; other methods are 405. Never edits personal memory. |
+| `/api/winds/rotllanes` | GET | → `{rotllanes:[{id,name,members:[windID]}]}`. Group chats: each member sees the whole conversation and answers in turn. Members that no longer exist are dropped from the list. |
+| `/api/winds/rotllanes` | POST | Create/update a rotllana → `{rotllana}`. Body: `{id?,name,members:[windID]}`. Needs a name and ≥1 existing wind: one member is a named independent chat. Without id, always creates a new thread with a generated id (name slug plus random suffix), even after deleting a same-name thread. Explicit id edits an existing thread without changing id/history; unknown explicit id is 400. Existing groups keep their original ids/history without migration. |
+| `/api/winds/rotllanes` | DELETE | Remove a rotllana. Body: `{id}`. |
+| `/api/winds/rotllana` | GET | `?rotlla=<id>` → `{rotllana,history:[{from,text,speaker_id,speaker_name}]}`; the group conversation, persisted as `rotllana-<id>`. New assistant replies persist speaker identity even if a wind is later renamed. Old name-prefixed entries resolve identity only when a unique matching wind exists; unknown/ambiguous speakers and user messages use empty speaker fields. Legacy `from` (`user`/`pet`) and `text` (including the assistant's `Name: ` prefix) remain unchanged. |
+| `/api/winds/rotllana` | POST | Talk to a group → `{reply:{wind,text},history:[{from,text,speaker_id,speaker_name}]}`. Body: `{rotllana,message,wind?}`. Without `wind`, the least-recently-spoken member answers. Uses the authenticated user's personal memory and that thread's conversation, separate from direct wind chat and other named threads. |
+| `/api/winds/suggest` | POST | AI-written persona + face for a new wind → `{persona,style}`. Body: `{name,role}`. Style is 3 letters (eyes/mouth/shape); invalid letters fall to defaults. |
+| `/api/user/skills` | GET | User's own skills → `{skills:[{nom,titol,descripcio}]}` (index only); `?nom=x` adds `cos`. Requires a logged-in user (400 otherwise). |
+| `/api/user/skills` | POST | Create/update a user skill → `{ok}`. Body: `{nom,titol,descripcio,cos}`. Name is slugified; description is required (falls back to titol). Stored at `users/<name>/skills/`. |
+| `/api/user/skills` | DELETE | Delete a user skill. Body: `{nom}`. |
+| `jobs` (convention) | — | Jobs with id `wind-<windID>` are wind heartbeats: the server builds the prompt (search the wind's topic; speak only if something is worth telling; reply `(res)` to stay silent) and appends the message to the wind's chat (`company-<wind>`). The run output carries `Wind: message` when it speaks. |
+
 ## Language
 
 | Route | Method | Request and response |

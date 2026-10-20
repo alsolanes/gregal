@@ -50,7 +50,7 @@ func (s *Server) runReadOnlyLoop(ctx context.Context, brief string, maxSteps int
 			return out, err
 		},
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {
-			return agent.ExecIn(s.id, s.cwd, name, argsJSON)
+			return agent.ExecCtx(agent.WithSkillsDirs(ctx, s.userSkillsDirs()...), s.id, s.cwd, name, argsJSON)
 		},
 		Decide: func(name, argsJSON string) (string, string) {
 			return s.policy.Decide(agent.ModeInspect, name, argsJSON)

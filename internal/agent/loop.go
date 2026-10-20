@@ -980,7 +980,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", nil, err
 		}
-		return LlegeixSkill(dir, firstOf(a.Name, a.Nom))
+		return LlegeixSkillDirs(dir, firstOf(a.Name, a.Nom), SkillsDirsOf(ctx)...)
 	case "knowledge_search":
 		out, err := knowledge.SearchTool(ctx, knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
 		return out, nil, err

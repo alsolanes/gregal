@@ -1388,6 +1388,7 @@ body.sense-inspector #inspector { display:none; }
   <details class="side-fold tools" id="sideMore">
     <summary data-i18n="nav.more">More</summary>
     <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
+          <button class="nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button>
     <button class="nav-item side-view" data-view="terminal"><span class="nav-icon">▷</span><span data-i18n="nav.terminal">Terminal</span></button>
     <button class="nav-item side-view" data-view="navegador"><span class="nav-icon">◎</span><span data-i18n="nav.browser">Browser</span></button>
     <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
@@ -1513,6 +1514,47 @@ body.sense-inspector #inspector { display:none; }
               </div>
             </article>
           </div>
+        </div>
+      </section>
+      <section class="workspace-page" id="ventsPage" hidden>
+        <link rel="stylesheet" href="/app/winds.css">
+        <script defer src="/app/winds.js"></script>
+        <div class="page-inner winds-page">
+          <header class="winds-heading">
+            <div><div class="page-kicker">Un espai per fer companyia</div><h1 class="page-title">Vents</h1><p class="page-copy">Cadascun amb la seva veu. A soles o en rotllana.</p></div>
+            <div class="winds-new-wrap">
+              <button class="ghost winds-primary" type="button" id="windNewBtn" aria-expanded="false" aria-controls="windsNewMenu">＋ Nou</button>
+              <div id="windsNewMenu" class="winds-new-menu" hidden>
+                <button type="button" id="windsCreateWind">Crea un vent<span>Una cara i una veu pròpies</span></button>
+                <button type="button" id="windsCreateChat">Nova conversa<span>Amb un vent o amb una rotllana</span></button>
+              </div>
+            </div>
+          </header>
+          <div id="windsStatus" class="winds-status" role="status" aria-live="polite"></div>
+          <div class="winds-layout">
+            <aside class="winds-sidebar" id="windsListCard" aria-label="Vents i converses">
+              <h2>Els teus vents</h2><div id="windsList" class="winds-list"></div>
+              <h2>Converses</h2><div id="windsConversations" class="winds-list"></div>
+              <button type="button" class="ghost winds-refresh" id="windsRefresh">Actualitza la llista</button>
+            </aside>
+            <div class="winds-main">
+              <div id="windsWelcome" class="winds-welcome"><span class="winds-mark" aria-hidden="true">≋</span><h2>Una mica de bona companyia</h2><p>Tria un vent per reprendre la conversa, o crea un espai nou per parlar-ne plegats.</p></div>
+              <article class="winds-chat" id="windChatCard" hidden>
+                <header class="winds-chat-heading"><div id="windChatFaces" class="winds-face-stack" aria-hidden="true"></div><div><h2 id="windChatTitle"></h2><p id="windChatSubtitle" class="winds-muted"></p></div></header>
+                <div id="windsChatMembers" class="winds-members" aria-label="Perfils dels participants"></div>
+                <div id="windChatHistory" class="winds-history" role="log" aria-label="Missatges" aria-live="polite" tabindex="0"></div>
+                <div id="windsChatStatus" class="winds-status" role="status" aria-live="polite"></div>
+                <form id="windsChatForm" class="winds-composer">
+                  <label class="winds-sr-only" for="windChatInput">Missatge als vents</label>
+                  <textarea id="windChatInput" rows="2" placeholder="Què tens al cap?" required></textarea>
+                  <button class="ghost winds-primary" type="submit" id="windChatSend">Envia</button>
+                </form>
+                <p class="winds-composer-hint">Retorn per enviar · Majúscules + Retorn per fer un salt de línia</p>
+              </article>
+              <aside id="windsProfile" class="winds-profile" aria-label="Perfil del vent" hidden></aside>
+            </div>
+          </div>
+          <dialog id="windsDialog" class="winds-dialog" aria-labelledby="windsDialogTitle"><div id="windsDialogBody"></div></dialog>
         </div>
       </section>
       <section class="workspace-page" id="programatPage" hidden>
@@ -1890,10 +1932,11 @@ const mobile = matchMedia('(max-width:760px)');
 const escapeHTML = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function setView(view) {
   const previousView = currentView;
-  currentView = ['agent','objectius','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
+  currentView = ['agent','objectius','vents','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const agent = currentView === 'agent';
   hero.hidden = !agent || main.classList.contains('on'); main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
+  $('ventsPage').hidden = currentView !== 'vents';
   $('programatPage').hidden = currentView !== 'programat';
   $('mcpPage').hidden = currentView !== 'mcp';
   $('activitatPage').hidden = currentView !== 'activitat';
@@ -1925,6 +1968,7 @@ function setView(view) {
   // altra vista. Torna'ls a obrir quan el fil sigui visible.
   if (currentView === 'agent') resumePendingInteraction(window.gregalSession || 'default', state);
   if (currentView === 'programat') loadJobsPage();
+  if (currentView === 'vents') loadWindsPage();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
   document.querySelectorAll('[data-view]').forEach(b => {
@@ -2762,6 +2806,7 @@ document.addEventListener('gregal:idioma', () => {
   loadGoals();
   if ($('permMenu') && !$('permMenu').hidden) togglePermMenu(true);
   if (currentView === 'programat') loadJobsPage();
+  if (currentView === 'vents') loadWindsPage();
   if (currentView === 'mcp') loadMcpPage();
 });
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el

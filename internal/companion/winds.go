@@ -1,0 +1,222 @@
+package companion
+
+import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+)
+
+// Els companions de Gregal són vents: Tramuntana, Xaloc, Mistral… Com el
+// mateix Gregal. Cada vent té nom, color, persona i (opcionalment) una feina
+// proactiva programada (job) que fa cerques/tasques periòdiques i avisa amb
+// notificació. No hi ha cap "Dot": aquí mana el mestral de ponent.
+
+// Wind és un companion personal, desat en disc.
+type Wind struct {
+	ID      string `json:"id"`      // id estable (slug del nom)
+	Name    string `json:"name"`    // nom de vent: Tramuntana, Xaloc…
+	Color   string `json:"color"`   // hex triat per l'usuari, p.ex. #FF9F00
+	Persona string `json:"persona"` // veu: com parla i què li importa
+	Role    string `json:"role"`    // subtítol curt de la UI: "música", "notícies"…
+	Style   string `json:"style"`   // peces de la cara: ulls/boca/forma (p.ex. "pso")
+}
+
+// WindStore desa els vents al costat del config (winds.json), com els goals.
+type WindStore struct {
+	dir string
+	mu  sync.Mutex
+}
+
+func NewWindStore(dir string) *WindStore { return &WindStore{dir: dir} }
+
+func (ws *WindStore) path() string { return filepath.Join(ws.dir, "winds.json") }
+
+// PathForTest exposa el directori dels vents (per a les proves).
+func (ws *WindStore) PathForTest() string { return ws.dir }
+
+type windDisc struct {
+	Winds []Wind `json:"winds"`
+}
+
+func (ws *WindStore) List() ([]Wind, error) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	raw, err := os.ReadFile(ws.path())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var d windDisc
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return nil, err
+	}
+	return d.Winds, nil
+}
+
+func (ws *WindStore) Save(w Wind) (Wind, error) {
+	if strings.TrimSpace(w.Name) == "" {
+		return Wind{}, fmt.Errorf("el vent necessita un nom")
+	}
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	raw, err := os.ReadFile(ws.path())
+	if err != nil && !os.IsNotExist(err) {
+		return Wind{}, err
+	}
+	var d windDisc
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &d); err != nil {
+			return Wind{}, err
+		}
+	}
+	explicit := w.ID != ""
+	if !explicit {
+		w.ID = slug(strings.TrimSpace(w.Name))
+	}
+	index := -1
+	for i := range d.Winds {
+		if d.Winds[i].ID == w.ID {
+			index = i
+			break
+		}
+	}
+	if explicit && index < 0 {
+		return Wind{}, fmt.Errorf("unknown wind")
+	}
+	if strings.TrimSpace(w.Persona) == "" {
+		if index >= 0 && strings.TrimSpace(d.Winds[index].Persona) != "" {
+			w.Persona = d.Winds[index].Persona
+		} else {
+			w.Persona = DefaultWindPersona(w.Name)
+		}
+	}
+	if !strings.HasPrefix(w.Color, "#") || len(w.Color) != 7 {
+		w.Color = "#FF9F00"
+	}
+	if index >= 0 {
+		d.Winds[index] = w
+	} else {
+		d.Winds = append(d.Winds, w)
+	}
+	if err := os.MkdirAll(ws.dir, 0o755); err != nil {
+		return Wind{}, err
+	}
+	b, _ := json.MarshalIndent(d, "", "  ")
+	return w, os.WriteFile(ws.path(), b, 0o644)
+}
+
+func (ws *WindStore) Delete(id string) error {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	raw, err := os.ReadFile(ws.path())
+	if err != nil {
+		return err
+	}
+	var d windDisc
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return err
+	}
+	out := make([]Wind, 0, len(d.Winds))
+	for _, w := range d.Winds {
+		if w.ID != id {
+			out = append(out, w)
+		}
+	}
+	b, _ := json.MarshalIndent(windDisc{Winds: out}, "", "  ")
+	return os.WriteFile(ws.path(), b, 0o644)
+}
+
+// WindByID cerca un vent per id.
+func (ws *WindStore) ByID(id string) (Wind, bool) {
+	list, err := ws.List()
+	if err != nil {
+		return Wind{}, false
+	}
+	for _, w := range list {
+		if w.ID == id {
+			return w, true
+		}
+	}
+	return Wind{}, false
+}
+
+// SlugWind normalitza un nom (vent o rotllana) per fer-ne id.
+func SlugWind(s string) string { return slug(s) }
+
+// slug normalitza un nom per fer-ne id: minúscules, sense accents ni espais.
+func slug(s string) string {
+	s = strings.ToLower(s)
+	repl := map[rune]rune{'á': 'a', 'à': 'a', 'ä': 'a', 'ç': 'c', 'é': 'e', 'è': 'e', 'í': 'i', 'ï': 'i', 'ó': 'o', 'ò': 'o', 'ú': 'u', 'ü': 'u', 'ñ': 'n'}
+	out := make([]rune, 0, len(s))
+	for _, r := range s {
+		if repl, ok := repl[r]; ok {
+			r = repl
+		}
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			out = append(out, r)
+		} else if len(out) > 0 && out[len(out)-1] != '-' {
+			out = append(out, '-')
+		}
+	}
+	return strings.Trim(string(out), "-")
+}
+
+// DefaultWindPersona és la veu per defecte d'un vent nou: càlida i curta.
+func DefaultWindPersona(name string) string {
+	return "Ets " + name + ", un vent de Gregal: un company petit i càlid. Parles curt (1-4 frases), en català, amb caliu i una punta d'entusiasme de debò — mai farciment. Coneixes la persona (la memòria t'ho diu) i saps què passa al projecte (el context t'ho diu). Si et demanen feina que toca fitxers o execucions, explica què faries i proposa llençar-la amb «Investiga» (només mirar) o «Implementa» (fer-ho, amb aprovació). Mai t'inventis dades."
+}
+
+// WindChatSystem compon el system del xat d'un vent: persona + context real
+// del projecte (objectius pendents, darrera sessió) + memòria d'usuari.
+func WindChatSystem(w Wind, memory, project string, goals []string, lastSessionDigest string) string {
+	var b strings.Builder
+	b.WriteString(w.Persona)
+	b.WriteString("\n\nHOW YOU TALK:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You may be playful, never fake-enthusiastic. Personality over politeness.\n- Never invent facts: what you know is below; anything else, ask or admit it.")
+	b.WriteString("\n\nPROJECT CONTEXT — active project: ")
+	b.WriteString(project)
+	if len(goals) == 0 {
+		b.WriteString("\nOpen goals: (none right now)")
+	} else {
+		b.WriteString("\nOpen goals:")
+		for _, g := range goals {
+			b.WriteString("\n- ")
+			b.WriteString(g)
+		}
+	}
+	d := strings.TrimSpace(lastSessionDigest)
+	if d == "" {
+		d = "(no recent work session)"
+	}
+	b.WriteString("\nLast work session digest:\n")
+	b.WriteString(d)
+	if strings.TrimSpace(memory) == "" {
+		memory = "(still empty: get to know them by asking)"
+	}
+	b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
+	b.WriteString(memory)
+	return b.String()
+}
+
+// RotllanaSystem compon el system d'un vent que parla en una rotllana: la
+// seva persona + qui són els altres membres + què ha dit cadascú.
+func RotllanaSystem(w Wind, roster, memory string) string {
+	var b strings.Builder
+	b.WriteString(w.Persona)
+	b.WriteString("\n\nYOU ARE IN A GROUP CHAT (\"rotllana\") with these members:\n")
+	if strings.TrimSpace(roster) == "" {
+		b.WriteString("(only you right now)")
+	} else {
+		b.WriteString(roster)
+	}
+	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- Never invent facts. If a web search would help and you cannot do it here, say so plainly.")
+	if strings.TrimSpace(memory) != "" {
+		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
+		b.WriteString(memory)
+	}
+	return b.String()
+}

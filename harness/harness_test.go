@@ -180,15 +180,15 @@ func TestSessionIDsAreBoundedAndNamespacedByIdentity(t *testing.T) {
 		}
 		openedIDs[token] = opened.ID
 	}
-	if openedIDs["Bearer a"] != accountA+"-shared" || openedIDs["Bearer b"] != accountB+"-shared" {
-		t.Fatalf("opened IDs were not account scoped: %#v", openedIDs)
-	}
+	// The wire ID is the client's own ID (no account prefix on the wire):
+	// account separation is guaranteed by the server's injective internal
+	// key, asserted below through distinct live sessions per account.
 	hub := runtime.server.Hub()
 	userA := &web.User{Name: accountA, Roots: []string{root}}
 	userB := &web.User{Name: accountB, Roots: []string{root}}
-	sessionA := hub.SessionFor(userA, "shared")
-	sessionB := hub.SessionFor(userB, "shared")
-	if sessionA == sessionB || openedIDs["Bearer a"] == openedIDs["Bearer b"] {
+	sessionA := hub.SessionFor(userA, openedIDs["Bearer a"])
+	sessionB := hub.SessionFor(userB, openedIDs["Bearer b"])
+	if sessionA == sessionB {
 		t.Fatal("same client session ID crossed authenticated account namespaces")
 	}
 	if hub.SessionFor(userA, "shared") != sessionA {

@@ -1,0 +1,119 @@
+/* Vents only. Inherit the host's system-aware palette; color lives in faces. */
+.winds-page { width:min(1280px,100%); }
+.winds-page *, .winds-dialog * { box-sizing:border-box; }
+.winds-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:22px; }
+.winds-heading .page-title { margin-top:6px; }
+.winds-layout { display:grid; grid-template-columns:230px minmax(0,1fr); gap:24px; align-items:start; }
+.winds-sidebar { min-width:0; padding-right:18px; border-right:1px solid var(--line); }
+.winds-sidebar h2 { font-size:12px; font-weight:600; color:var(--muted); margin:8px 0 12px; }
+.winds-sidebar h2:not(:first-child) { margin-top:28px; }
+.winds-list { display:grid; gap:5px; }
+.winds-row { width:100%; display:flex; align-items:center; gap:10px; padding:9px 8px; border:1px solid transparent; border-radius:10px; color:var(--text); background:transparent; text-align:left; cursor:pointer; font:inherit; }
+.winds-row:hover { background:var(--surface); }
+.winds-row[aria-pressed="true"] { background:var(--accent-soft); border-color:var(--line-hi); }
+.winds-row-copy { min-width:0; display:grid; gap:3px; }
+.winds-row-copy strong { font-size:13px; font-weight:600; overflow-wrap:anywhere; }
+.winds-row-copy .winds-muted { font-size:11px; line-height:1.5; }
+.winds-muted, .winds-empty { color:var(--muted); font-size:12px; line-height:1.65; }
+.winds-empty { padding:10px 5px; }
+.winds-refresh { font-size:11px; margin-top:20px; }
+.winds-face { width:42px; height:42px; flex:none; display:inline-block; vertical-align:middle; }
+.winds-face-large { width:84px; height:84px; }
+.winds-face-stack { display:flex; align-items:center; flex:none; }
+.winds-face-stack .winds-face:not(:first-child) { margin-left:-24px; }
+.winds-face-stack .winds-face:nth-child(2) { transform:translateY(3px); }
+.winds-face-stack .winds-face:nth-child(3) { transform:translateY(-3px); }
+.winds-main { min-width:0; display:grid; gap:18px; align-items:start; }
+.winds-welcome { min-height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; border:1px solid var(--line); border-radius:16px; }
+.winds-mark { color:var(--muted); font-size:42px; margin-bottom:18px; }
+.winds-welcome h2 { font-size:20px; color:var(--ink); font-weight:550; }
+.winds-welcome p { margin-top:12px; max-width:340px; color:var(--muted); line-height:1.7; }
+.winds-chat { min-width:0; border:1px solid var(--line); border-radius:14px; padding:20px; background:var(--surface); }
+.winds-chat-heading { display:flex; flex-wrap:wrap; gap:14px; align-items:center; padding-bottom:12px; }
+.winds-chat-heading > div:not(.winds-face-stack) { min-width:0; flex:1; }
+.winds-edit-conversation { margin-left:auto; font-size:11px; }
+.winds-edit-conversation[hidden] { display:none; }
+.winds-chat-heading h2 { font-size:18px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; }
+.winds-chat-heading p { margin-top:3px; }
+.winds-members { display:flex; gap:6px; flex-wrap:wrap; border-bottom:1px solid var(--line); padding:0 0 14px; }
+.winds-profile-button { font-size:11px; }
+.winds-history { min-height:220px; max-height:48vh; overflow:auto; overscroll-behavior:contain; padding:14px 0; scrollbar-gutter:stable; }
+.winds-message { display:flex; align-items:flex-start; gap:9px; margin:10px 0 20px; }
+.winds-message .winds-face, .winds-user-avatar { width:34px; height:34px; flex:none; }
+.winds-message-content { min-width:0; max-width:90%; }
+.winds-speaker { display:block; color:var(--ink); font-size:11px; font-weight:600; margin-bottom:5px; }
+.winds-message-text { font-size:13px; line-height:1.75; white-space:pre-wrap; overflow-wrap:anywhere; margin:0; }
+.winds-message-user { flex-direction:row-reverse; margin-left:12%; }
+.winds-message-user .winds-message-content { padding:10px 14px; background:var(--accent-soft); border:1px solid var(--line); border-radius:13px 2px 13px 13px; }
+.winds-user-avatar { border-radius:50%; background:var(--surface-hi); color:var(--muted); display:grid; place-items:center; font-size:10px; }
+.winds-composer { display:flex; gap:10px; align-items:flex-end; padding-top:10px; border-top:1px solid var(--line); }
+#ventsPage .winds-composer textarea { width:100%; min-width:0; resize:vertical; max-height:200px; font:inherit; font-size:13px; padding:10px 12px; border-radius:10px; background:var(--bg); }
+.winds-composer-hint { color:var(--faint); font-size:10px; line-height:1.5; margin-top:9px; }
+.winds-page .winds-primary { background:var(--accent); color:var(--bg); border:1px solid var(--accent); white-space:nowrap; }
+.winds-page .winds-primary:hover { background:var(--accent-hi); border-color:var(--accent-hi); }
+.winds-status { min-height:0; color:var(--muted); font-size:12px; line-height:1.65; overflow-wrap:anywhere; }
+.winds-status:not(:empty) { margin:10px 0; }
+.winds-status.winds-error { color:var(--red); }
+.winds-new-wrap { position:relative; flex:none; }
+.winds-new-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:20; width:260px; max-width:75vw; padding:6px; background:var(--surface); border:1px solid var(--line-hi); border-radius:12px; box-shadow:0 10px 32px var(--ombra); }
+.winds-new-menu button { display:block; width:100%; border:0; padding:11px 12px; border-radius:7px; color:var(--text); background:transparent; text-align:left; font:inherit; font-size:13px; cursor:pointer; }
+.winds-new-menu button:hover { background:var(--surface-hi); }
+.winds-new-menu span { display:block; margin-top:4px; font-size:11px; color:var(--muted); }
+.winds-dialog { width:min(520px,calc(100vw - 32px)); max-height:85vh; overflow:auto; padding:26px; margin:auto; border:1px solid var(--line-hi); border-radius:16px; color:var(--text); background:var(--surface); box-shadow:0 16px 60px var(--ombra); }
+.winds-dialog::backdrop { background:rgba(0,0,0,.5); }
+.winds-dialog h2 { color:var(--ink); font-size:20px; font-weight:600; margin:0 0 18px; }
+.winds-form-fields { display:grid; gap:14px; }
+.winds-field { display:grid; gap:7px; font-size:12px; color:var(--text); min-width:0; }
+#ventsPage .winds-field input:not([type=checkbox]), #ventsPage .winds-field select, #ventsPage .winds-field textarea { width:100%; min-width:0; padding:9px 10px; font:inherit; line-height:1.6; background:var(--bg); }
+#ventsPage .winds-field input[type=color] { width:68px; height:40px; padding:4px; cursor:pointer; }
+#ventsPage .winds-field textarea { resize:vertical; }
+.winds-face-preview { display:flex; justify-content:center; padding:6px; }
+.winds-gallery-intro { margin:0 0 18px; }
+.winds-preset-gallery { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+.winds-preset { display:flex; flex-direction:column; align-items:center; gap:5px; min-width:0; padding:13px 8px; border:1px solid var(--line); border-radius:14px; background:var(--bg); color:var(--text); cursor:pointer; font:inherit; text-align:center; overflow-wrap:anywhere; }
+.winds-preset:hover, .winds-preset:focus-visible { background:var(--surface-hi); border-color:var(--accent); }
+.winds-preset strong { font-size:13px; font-weight:600; }
+.winds-preset .winds-face-large { width:64px; height:64px; }
+.winds-preset .winds-muted { font-size:11px; }
+.winds-dialog :focus-visible { outline:2px solid var(--accent-hi); outline-offset:3px; }
+.winds-face-choices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.winds-dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:22px; }
+.winds-picker { min-width:0; border:1px solid var(--line-hi); border-radius:10px; padding:10px; }
+.winds-picker legend { color:var(--muted); padding:0 4px; font-size:12px; }
+.winds-member-choice { display:flex; align-items:center; gap:10px; padding:5px; cursor:pointer; font-size:13px; overflow-wrap:anywhere; }
+.winds-member-choice input { width:16px; height:16px; accent-color:var(--accent); }
+.winds-profile { min-width:0; border:1px solid var(--line-hi); border-radius:14px; padding:20px; background:var(--surface); }
+.winds-profile-heading { display:flex; flex-wrap:wrap; align-items:center; gap:12px; }
+.winds-profile-heading h2 { font-size:18px; font-weight:600; color:var(--ink); overflow-wrap:anywhere; }
+.winds-profile-heading .winds-face-large { width:60px; height:60px; }
+.winds-profile-heading button { font-size:11px; margin-left:auto; }
+.winds-profile-section { border-top:1px solid var(--line); margin-top:20px; padding-top:18px; }
+.winds-profile-section h3 { font-size:13px; font-weight:600; margin-bottom:10px; color:var(--ink); }
+.winds-profile-section .winds-field { margin:12px 0; }
+.winds-memory-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:12px; line-height:1.8; margin:10px 0 15px; }
+.winds-sr-only { position:absolute; width:1px; height:1px; padding:0; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
+.winds-page button:disabled { opacity:.55; cursor:wait; }
+#ventsPage :focus-visible { outline:2px solid var(--accent-hi); outline-offset:3px; }
+.winds-welcome[hidden], .winds-chat[hidden], .winds-profile[hidden], .winds-new-menu[hidden] { display:none; }
+@media (min-width:1500px) {
+  .winds-main:has(.winds-profile:not([hidden])) { grid-template-columns:minmax(0,1fr) minmax(260px,.8fr); }
+  .winds-main:has(.winds-profile:not([hidden])) .winds-profile { max-height:76vh; overflow:auto; }
+}
+@media (max-width:1000px) {
+  .winds-layout { grid-template-columns:190px minmax(0,1fr); gap:16px; }
+  .winds-sidebar { padding-right:12px; }
+  .winds-chat { padding:15px; }
+}
+@media (max-width:700px) {
+  .winds-heading { align-items:flex-start; gap:12px; }
+  .winds-layout { grid-template-columns:minmax(0,1fr); gap:20px; }
+  .winds-sidebar { border-right:0; padding-right:0; border-bottom:1px solid var(--line); padding-bottom:16px; }
+  .winds-list { grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); }
+  .winds-history { max-height:50vh; }
+  .winds-welcome { min-height:230px; padding:22px; }
+  .winds-dialog { padding:20px; }
+  .winds-face-choices { gap:6px; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .winds-page *, .winds-page *::before, .winds-page *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+}

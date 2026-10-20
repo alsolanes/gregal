@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"gregal/internal/identity"
 	"gregal/internal/llm"
 )
 
@@ -96,16 +97,14 @@ func DefaultDir() string {
 // només les seves: sense això, dues persones comparteixen llista i es
 // poden reprendre converses l'una de l'altra.
 //
-// Compte: la comprovació de buit va ABANS de slugify, perquè slugify("")
-// torna «sessio» (és el nom que es dona a una conversa sense nom) i la
-// carpeta de qui no té usuari seria «sessions/sessio» en comptes de
-// «sessions».
+// Només el nom buit significa mode local. La identitat autenticada exacta
+// no es normalitza. Els slugs antics no acrediten el propietari (Anna/anna,
+// anna_b/anna-b): queden intactes per a una migració manual verificada.
 func DirFor(user string) string {
-	user = strings.TrimSpace(user)
 	if user == "" {
 		return DefaultDir()
 	}
-	return filepath.Join(DefaultDir(), slugify(user))
+	return filepath.Join(DefaultDir(), ".identity-v1", identity.Key(user))
 }
 
 func baseDataDir() string {
