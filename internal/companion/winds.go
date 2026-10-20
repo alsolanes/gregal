@@ -213,7 +213,7 @@ func RotllanaSystem(w Wind, roster, memory string) string {
 	} else {
 		b.WriteString(roster)
 	}
-	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- Never invent facts. If a web search would help and you cannot do it here, say so plainly.")
+	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- You can search the web (web_search, web_fetch): use it for facts, current events or anything you are not sure about, and cite sources inline like [title](url). Never invent facts.")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
 		b.WriteString(memory)

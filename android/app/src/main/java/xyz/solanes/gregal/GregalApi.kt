@@ -44,7 +44,7 @@ class GregalApi(val base: String, val token: String) {
         val c = URL(base + path).openConnection() as HttpURLConnection
         c.requestMethod = method
         c.connectTimeout = 15_000
-        c.readTimeout = 120_000
+        c.readTimeout = 240_000
         if (token.isNotBlank()) c.setRequestProperty("Authorization", "Bearer $token")
         // Cada dispositiu, la seva conversa.
         if (sessioApp.isNotBlank()) c.setRequestProperty("X-Gregal-Session", sessioApp)

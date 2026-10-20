@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/agent"
 	"gregal/internal/companion"
 
 	"gregal/internal/llm"
@@ -102,6 +103,14 @@ func (s *Server) handleRotllanes(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// rotllanaVoiceLoop és la via de cerca del vent que parla a la rotllana; els
+// tests la substitueixen. Per defecte, el loop d'inspecció amb eines web
+// (web_search, web_fetch), igual que el xat directe amb un vent.
+var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (string, error) {
+	res, err := s.runReadOnlyLoop(ctx, brief, 6)
+	return res.text, err
+}
+
 // handleRotllanaChat és el xat de grup: cada missatge de l'usuari fa parlar
 // un vent del grup (el següent en torn), veient tota la conversa.
 func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
@@ -153,31 +162,41 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 
 	conversation := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "user", Content: msg})
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
 	// System del vent que parla: persona + qui són els altres membres del grup
 	// + el que el vent ja sap (igual que al xat directe: el coneixement no
 	// pot dependre de si parla sol o acompanyat).
 	system := companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID))
-	msgs := []llm.Message{{Role: "system", Content: system}}
-	msgs = append(msgs, conversation...)
-	if len(msgs) > 41 {
-		msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
-	}
-
-	p, role, ok2 := s.sideRoleRef()
-	if !ok2 {
-		http.Error(w, "no side role available", http.StatusServiceUnavailable)
-		return
-	}
-	s.mu.Lock()
-	cfg, client := s.cfg, s.client
-	s.mu.Unlock()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-	defer cancel()
-	out, err := petChatter(ctx, client, cfg, p, role, msgs)
+	transcript := agent.TranscriptDigest(conversation, 16000)
+	// El vent busca al web abans de respondre — és un company de cerques,
+	// també en grup. runReadOnlyLoop li dona web_search/web_fetch (mode
+	// inspect: cap eina d'escriptura) i l'obliguem a respondre curt.
+	brief := system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts."
+	out, err := rotllanaVoiceLoop(s, ctx, brief)
 	if err != nil {
-		http.Error(w, redactError(err), http.StatusBadGateway)
-		return
+		// La cerca web no pot tombar el torn: cau al xat pla (sense eines),
+		// que sempre respon.
+		p, role, ok2 := s.sideRoleRef()
+		if !ok2 {
+			http.Error(w, "no side role available", http.StatusServiceUnavailable)
+			return
+		}
+		s.mu.Lock()
+		cfg, client := s.cfg, s.client
+		s.mu.Unlock()
+		msgs := []llm.Message{{Role: "system", Content: system}}
+		msgs = append(msgs, conversation...)
+		if len(msgs) > 41 {
+			msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
+		}
+		plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
+		if perr != nil {
+			http.Error(w, redactError(perr), http.StatusBadGateway)
+			return
+		}
+		out = plain
 	}
 	reply := stripQuoteTrim(out)
 	// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada veu
