@@ -2286,6 +2286,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
                     before + PetMsg("user", message) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
                 })
+                // El torn pot haver programat avisos (remind): posa al dia
+                // els jobs perquè l'alarma soni encara que tanquis l'app.
+                loadJobs()
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
                     notify(appText("app.status.company", e.message.orEmpty()))
@@ -2392,6 +2395,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val reply = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
                 if (isCompanionOrigin(source, epoch))
                     _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", reply)))
+                // El vent pot haver programat un avís (remind): posa al dia
+                // els jobs perquè l'alarma soni encara que tanquis l'app.
+                if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch))
                     notify(appText("app.status.company", e.message.orEmpty()))
