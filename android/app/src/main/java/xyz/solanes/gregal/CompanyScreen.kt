@@ -3,7 +3,6 @@ package xyz.solanes.gregal
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -325,7 +324,12 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
     var profile by remember(wind.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(msgs.size - 1) }
+    // Baixa sol al final només si ja hi eres: no t'estira mentre llegeixes històric.
+    LaunchedEffect(msgs.size) {
+        if (msgs.isEmpty()) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+        if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+    }
 
     val isBusy = busy.contains(wind.id)
     Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.14f), Superficie)))) {
@@ -444,7 +448,12 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(msgs.size - 1) }
+    // Baixa sol al final només si ja hi eres: no t'estira mentre llegeixes històric.
+    LaunchedEffect(msgs.size) {
+        if (msgs.isEmpty()) return@LaunchedEffect
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+        if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+    }
 
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
@@ -559,8 +568,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
 }
 
 /**
- * Bombolla d'un vent: ell a l'esquerra amb halo i targeta vorejada del seu
- * color; tu a la dreta amb mar sòlid. El text del vent és markdown.
+ * Entrada d'una bombolla nova: només fos (sense lliscar), perquè l'ítem
+ * ocupa l'alçada des del primer fotograma i l'auto-scroll no es desquadra.
  */
 @Composable
 private fun BubbleIn(key: String, content: @Composable () -> Unit) {
@@ -572,7 +581,7 @@ private fun BubbleIn(key: String, content: @Composable () -> Unit) {
     LaunchedEffect(key) { shown = true }
     AnimatedVisibility(
         visible = shown,
-        enter = fadeIn(animationSpec = tween(220)) + slideInVertically(animationSpec = tween(220)) { it / 5 },
+        enter = fadeIn(animationSpec = tween(220)),
     ) { content() }
 }
 @Composable
