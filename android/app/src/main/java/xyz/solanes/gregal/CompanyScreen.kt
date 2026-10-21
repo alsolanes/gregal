@@ -88,6 +88,25 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val busy by vm.windBusy.collectAsState()
     val rBusy by vm.rotllanaBusy.collectAsState()
     val conn by vm.conn.collectAsState()
+    val ventJobs by vm.jobs.collectAsState()
+    // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
+    // diàleg del sistema el permís queda denegat i no sona mai res.
+    val notifCtx = androidx.compose.ui.platform.LocalContext.current
+    var notifAsked by remember { mutableStateOf(false) }
+    val notifLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { vm.loadJobs() }
+    LaunchedEffect(ventJobs) {
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !notifAsked &&
+            ventJobs.any { it.enabled && (it.kind == "event" || it.kind == "remind") } &&
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                notifCtx, android.Manifest.permission.POST_NOTIFICATIONS
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            notifAsked = true
+            notifLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     val open by vm.ventsOpen.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
@@ -326,11 +345,23 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
     var profile by remember(wind.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
-    // Baixa sol al final només si ja hi eres: no t'estira mentre llegeixes històric.
+    // Obre sempre a l'últim: salt instantani en obrir (espera les mesures
+    // de la llista o el salt es perd), i després només baixa sol si ja hi eres.
+    var openedAtEnd by remember(wind.id) { mutableStateOf(false) }
     LaunchedEffect(msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
-        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+        if (!openedAtEnd) {
+            var tries = 0
+            while (listState.layoutInfo.visibleItemsInfo.isEmpty() && tries < 60) {
+                withFrameNanos { }
+                tries++
+            }
+            listState.scrollToItem(msgs.size - 1)
+            openedAtEnd = true
+        } else {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+        }
     }
 
     val isBusy = busy.contains(wind.id)
@@ -450,11 +481,23 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    // Baixa sol al final només si ja hi eres: no t'estira mentre llegeixes històric.
+    // Obre sempre a l'últim: salt instantani en obrir (espera les mesures
+    // de la llista o el salt es perd), i després només baixa sol si ja hi eres.
+    var openedAtEnd by remember(rot.id) { mutableStateOf(false) }
     LaunchedEffect(msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
-        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+        if (!openedAtEnd) {
+            var tries = 0
+            while (listState.layoutInfo.visibleItemsInfo.isEmpty() && tries < 60) {
+                withFrameNanos { }
+                tries++
+            }
+            listState.scrollToItem(msgs.size - 1)
+            openedAtEnd = true
+        } else {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+            if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+        }
     }
 
     val rotBusy = busy.contains(rot.id)

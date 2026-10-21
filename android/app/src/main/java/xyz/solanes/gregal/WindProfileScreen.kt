@@ -187,6 +187,16 @@ private fun bgHealthRow(lang: String, vm: GregalViewModel) {
             }
         }
     }
+    if (!health.unrestrictedBattery) Surface(shape = RoundedCornerShape(14.dp),
+        color = Red.copy(alpha = 0.12f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(lang, "app.vents.batteryNeeded"), color = Ink, fontSize = 13.sp)
+            OutlinedButton(onClick = { ctx.startActivity(JobAlarms.batterySettings(ctx)) }) {
+                Text(tr(lang, "app.vents.batteryAllow"))
+            }
+        }
+    }
     OutlinedButton(onClick = { JobNotifications.test(ctx) }) { Text(tr(lang, "app.vents.testNotif")) }
 }
 
