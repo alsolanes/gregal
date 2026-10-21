@@ -2616,7 +2616,7 @@ func (m Model) submitText(text string) (tea.Model, tea.Cmd) {
 	m.lastPrompt = text
 	// Cortesia pura ("hola") es respon en local, sense model ni eines:
 	// abans cremava un torn d'agent sencer explorant el repo.
-	if reply, ok := agent.SmallTalk(text); ok {
+	if reply, ok := agent.SmallTalk(text, !m.cfg.SalutacioLocal()); ok {
 		m.push(userLine(text))
 		m.convo = append(m.convo, llm.Message{Role: "user", Content: text})
 		m.convo = append(m.convo, llm.Message{Role: "assistant", Content: reply})

@@ -1,5 +1,9 @@
 package agent
 
+import (
+	"strings"
+)
+
 // Via ràpida de cortesia: un "hola" ha de tornar un "hola", no un torn
 // d'agent amb glob/bash que crema passos i diners. Abans, qualsevol text
 // curt passava pel model amb totes les eines i un raonador avorrit es
@@ -9,10 +13,11 @@ package agent
 // (salutació, gràcies, comiat o assentiment curt, ≤28 caràcters, sense
 // salts de línia): cap crida al model, cap eina, zero cost. "hola,
 // resumeix el document" NO hi entra (té feina a fer) i va a l'agent.
-
-import (
-	"strings"
-)
+//
+// Amb la configuració `salutacio: off` (config.SmallTalkOff) les
+// SALUTACIONS planes passen pel model, que saluda de manera natural i pot
+// aprofitar per oferir-se. Gràcies, adéus i assentiments no tenen mai
+// feina a fer i segueixen responent-se en local: no cremen res.
 
 type smallKind int
 
@@ -96,7 +101,8 @@ var smallTalkReplies = map[smallKind]map[string]string{
 
 // SmallTalk diu si el text és pura cortesia i, si ho és, amb què respondre.
 // Normalitza (minúscules, espais, signes): "  Hola! " també és un hola.
-func SmallTalk(text string) (string, bool) {
+// Amb `salutacio: off` les salutacions no hi entren: van al model.
+func SmallTalk(text string, salutsAlModel bool) (string, bool) {
 	norm := strings.ToLower(strings.TrimSpace(text))
 	norm = strings.Trim(norm, "?!.,;¡¿·…\"'()")
 	norm = strings.Join(strings.Fields(norm), " ")
@@ -105,6 +111,9 @@ func SmallTalk(text string) (string, bool) {
 	}
 	hit, ok := smallTalkPhrases[norm]
 	if !ok {
+		return "", false
+	}
+	if salutsAlModel && hit.kind == kindGreet {
 		return "", false
 	}
 	return smallTalkReplies[hit.kind][hit.lang], true

@@ -297,7 +297,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		st.mu.Unlock()
 	}()
 	// Cortesia pura ("hola"): resposta directa sense model ni eines.
-	if reply, ok := agent.SmallTalk(text); ok && len(images) == 0 {
+	if reply, ok := agent.SmallTalk(text, !b.cfg.SalutacioLocal()); ok && len(images) == 0 {
 		b.send(ctx, chatID, reply)
 		st.mu.Lock()
 		st.convo = append(st.convo, llm.Message{Role: "assistant", Content: reply})

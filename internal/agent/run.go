@@ -154,7 +154,7 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 	sys = PromptFor(sys, mode)
 	hist = []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: task}}
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
-	if reply, ok := SmallTalk(task); ok {
+	if reply, ok := SmallTalk(task, !cfg.SalutacioLocal()); ok {
 		hist = append(hist, llm.Message{Role: "assistant", Content: reply})
 		res.Answer = reply
 		res.Steps = 0

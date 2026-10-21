@@ -1390,7 +1390,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Via ràpida també en mode objectiu: un "hola" no necessita el model.
-	if reply, ok := agent.SmallTalk(req.Message); ok {
+	if reply, ok := agent.SmallTalk(req.Message, !s.cfg.SalutacioLocal()); ok {
 		task := strings.TrimSpace(req.Message)
 		s.mu.Lock()
 		s.convo = append(s.convo, llm.Message{Role: "user", Content: task})
@@ -2102,7 +2102,7 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	// Cortesia pura ("hola") es respon sense worker ni model: no ocupa el
 	// torn, no fa 409 i no crema passos. L'add-in també hi passa.
-	if reply, ok := agent.SmallTalk(req.Task); ok && len(imgs) == 0 {
+	if reply, ok := agent.SmallTalk(req.Task, !s.cfg.SalutacioLocal()); ok && len(imgs) == 0 {
 		task := strings.TrimSpace(req.Task)
 		s.mu.Lock()
 		s.convo = append(s.convo, llm.Message{Role: "user", Content: task})
@@ -2180,7 +2180,7 @@ func (s *Server) turnExecutor(o turnOpts) func(ctx context.Context, run runs.Run
 		// Cortesia pura ("hola"): resposta local, sense model ni eines. A la
 		// via SSE antiga es resol abans d'encuar; aquí el torn ja és a la cua
 		// i simplement no gasta passos ni crides.
-		if reply, ok := agent.SmallTalk(o.task); ok && len(o.imgs) == 0 {
+		if reply, ok := agent.SmallTalk(o.task, !s.cfg.SalutacioLocal()); ok && len(o.imgs) == 0 {
 			s.mu.Lock()
 			s.convo = append(s.convo, llm.Message{Role: "user", Content: o.task})
 			s.convo = append(s.convo, llm.Message{Role: "assistant", Content: reply})

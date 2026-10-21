@@ -273,9 +273,15 @@ type Config struct {
 	// Cockpit és la columna de la dreta del TUI (tasca, canvis, cua,
 	// context, validació) quan el terminal fa 120 columnes o més. Buit o
 	// on = hi és; off = amagada. Ctrl+T la commuta i ho desa aquí.
-	Cockpit  string                  `yaml:"cockpit"`
-	MCP      map[string]MCPServerCfg `yaml:"mcp"`
-	Telegram TelegramCfg             `yaml:"telegram"`
+	Cockpit string `yaml:"cockpit"`
+	// Salutacio és la via ràpida de cortesia: amb off, un "hola" no rep la
+	// resposta fixa local sinó que va al model, que saluda naturalment (i
+	// pot fer servir eines). "gràcies", "ok" i "adeu" es continuen
+	// responent en local: no tenen feina a fer i no cremen res.
+	// Buit = on.
+	Salutacio string                  `yaml:"salutacio"`
+	MCP       map[string]MCPServerCfg `yaml:"mcp"`
+	Telegram  TelegramCfg             `yaml:"telegram"`
 	// Users són els comptes que poden entrar al servidor web i a l'app
 	// (nom → contrasenya i carpetes permeses). Sense secció `users:` tot
 	// queda com abans: només el token únic de sempre.
@@ -372,6 +378,14 @@ func (c *Config) AnimacionsOn() bool {
 // Per defecte sí: s'amaga amb Ctrl+T o amb `cockpit: off`.
 func (c *Config) CockpitOn() bool {
 	return c.Cockpit != "off"
+}
+
+// SalutacioLocal diu si les salutacions planes ("hola", "bon dia") es
+// responen en local sense model. Per defecte sí; `salutacio: off` les
+// deixa anar al model. La resta de cortesia (gràcies, ok, adeu) no en
+// depèn mai.
+func (c *Config) SalutacioLocal() bool {
+	return c.Salutacio != "off"
 }
 
 const defaultYAML = `# Gregal configuration. Choose any OpenAI-compatible provider and model.

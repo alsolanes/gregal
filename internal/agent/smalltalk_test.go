@@ -17,7 +17,7 @@ func TestSmallTalkSalutacions(t *testing.T) {
 		"adios": "luego",
 	}
 	for text, want := range casos {
-		reply, ok := SmallTalk(text)
+		reply, ok := SmallTalk(text, false)
 		if !ok {
 			t.Fatalf("%q hauria de ser cortesia", text)
 		}
@@ -39,8 +39,24 @@ func TestSmallTalkNoTocaFeina(t *testing.T) {
 		"hola\nadeu",
 	}
 	for _, text := range feina {
-		if _, ok := SmallTalk(text); ok {
+		if _, ok := SmallTalk(text, false); ok {
 			t.Fatalf("%q té feina: no pot ser cortesia", text)
+		}
+	}
+}
+
+func TestSmallTalkSalutacioOff(t *testing.T) {
+	// Amb `salutacio: off` les salutacions van al model; la resta de
+	// cortesia (gràcies, ok, adeu) continua responent-se en local.
+	for _, text := range []string{"hola", "bon dia", "hello", "buenas"} {
+		if _, ok := SmallTalk(text, true); ok {
+			t.Fatalf("%q amb salutacio off ha d'anar al model", text)
+		}
+	}
+	for text, want := range map[string]string{"gràcies": "De res", "ok": "Perfecte", "adeu": "Fins ara"} {
+		reply, ok := SmallTalk(text, true)
+		if !ok || !strings.Contains(reply, want) {
+			t.Fatalf("%q amb salutacio off: %q,%v (esperava %q)", text, reply, ok, want)
 		}
 	}
 }
