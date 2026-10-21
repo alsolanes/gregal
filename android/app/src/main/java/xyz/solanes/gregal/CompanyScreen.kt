@@ -47,6 +47,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Brush
@@ -356,11 +358,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(wind.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            // Un sol scrollToItem amb ítems sense mesurar infravalora
-            // (verificat: demana el 44 i es queda al 43). Espera el layout,
-            // verifica i torna a acostar fins clavar el final.
-            repeat(80) {
-                kotlinx.coroutines.delay(50)
+            // Entrada instantània: un sol salt (sense animació) posiciona
+            // la primera maqueta al final; l'usuari no veu cap desplaçament.
+            // Amb ítems sense mesurar pot quedar curt: verificació curta
+            // amb salts instantanis (0,8 s màx, sense xarxa animada).
+            try {
+                listState.scrollToItem(msgs.size - 1)
+            } catch (_: Exception) { }
+            repeat(8) {
+                kotlinx.coroutines.delay(100)
                 val li = listState.layoutInfo
                 val darrer = li.visibleItemsInfo.lastOrNull()
                 // L'últim ha d'estar DINS del viewport, no al prefetch:
@@ -377,10 +383,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     // Índex encara fora de la maqueta: el proper intent ho torna a provar.
                 }
             }
-            // Xarxa de seguretat: l'animat mesura pel camí i clava el final.
-            try {
-                listState.animateScrollToItem(msgs.size - 1)
-            } catch (_: Exception) { }
             openedAtEnd = true
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
@@ -423,11 +425,26 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         // Missatges
+        // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
+        // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
+        val scope = rememberCoroutineScope()
+        var lastViewportH by remember(wind.id) { mutableStateOf(0) }
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
+            Modifier.weight(1f).fillMaxWidth().onSizeChanged { size ->
+                val h = size.height
+                if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
+                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                    if (lastVisible == null || lastVisible >= msgs.size - 3) {
+                        scope.launch {
+                            try { listState.scrollToItem(msgs.size - 1) } catch (_: Exception) { }
+                        }
+                    }
+                }
+                lastViewportH = h
+            },
             state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
                 item {
@@ -438,7 +455,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     )
                 }
             }
-            items(msgs.size) { idx -> BubbleIn(msgs[idx].text + "#" + idx) { WindBubble(msgs[idx], accent, lang = lang) } }
+            items(msgs.size) { idx ->
+                // Aire segons bàndol: juntes les del mateix, separades en canviar.
+                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
+                Column(Modifier.padding(top = gap)) {
+                    BubbleIn(msgs[idx].text + "#" + idx) { WindBubble(msgs[idx], accent, lang = lang) }
+                }
+            }
             if (busy.contains(wind.id)) {
                 item {
                     Row(
@@ -516,8 +539,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     LaunchedEffect(rot.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            repeat(80) {
-                kotlinx.coroutines.delay(50)
+            // Entrada instantània: un sol salt (sense animació) posiciona
+            // la primera maqueta al final; verificació curta amb salts
+            // instantanis (0,8 s màx, sense xarxa animada).
+            try {
+                listState.scrollToItem(msgs.size - 1)
+            } catch (_: Exception) { }
+            repeat(8) {
+                kotlinx.coroutines.delay(100)
                 val li = listState.layoutInfo
                 val darrer = li.visibleItemsInfo.lastOrNull()
                 // L'últim ha d'estar DINS del viewport, no al prefetch:
@@ -534,10 +563,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     // Índex encara fora de la maqueta: el proper intent ho torna a provar.
                 }
             }
-            // Xarxa de seguretat: l'animat mesura pel camí i clava el final.
-            try {
-                listState.animateScrollToItem(msgs.size - 1)
-            } catch (_: Exception) { }
             openedAtEnd = true
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
@@ -585,11 +610,26 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             IconButton(onClick = { groupProfile = true }) { Icon(Icons.Rounded.Info, tr(lang, "app.vents.members"), tint = Ink) }
         }
+        // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
+        // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
+        val scope = rememberCoroutineScope()
+        var lastViewportH by remember(rot.id) { mutableStateOf(0) }
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth(),
+            Modifier.weight(1f).fillMaxWidth().onSizeChanged { size ->
+                val h = size.height
+                if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
+                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+                    if (lastVisible == null || lastVisible >= msgs.size - 3) {
+                        scope.launch {
+                            try { listState.scrollToItem(msgs.size - 1) } catch (_: Exception) { }
+                        }
+                    }
+                }
+                lastViewportH = h
+            },
             state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) item {
                 ChatEmptyState(
@@ -606,11 +646,15 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             items(msgs.size) { idx ->
                 val resolved = resolveWindMessage(msgs[idx], faces)
+                // Aire segons bàndol: juntes les del mateix, separades en canviar.
+                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
+                Column(Modifier.padding(top = gap)) {
                 BubbleIn(resolved.message.text + "#" + idx) {
                 WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = resolved.wind,
                     speakerName = resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") },
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } })
+                }
                 }
             }
             if (busy.contains(rot.id)) {
