@@ -124,6 +124,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     }
                     2 -> {
                         Text(tr(lang, "app.vents.activityHelp"), color = Muted, fontSize = 13.sp)
+                        bgHealthRow(lang, vm)
                         heartbeatRow(lang, vm, wind)
                         remindersRow(lang, vm, wind)
                         if (messages.isEmpty()) Text(tr(lang, "app.vents.noActivity"), color = Tinta)
@@ -147,6 +148,37 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             onSaveKnowledge("") { success -> saving = false; saveError = !success }
         }) { Text(tr(lang, "app.vents.forgetKnowledge")) } },
         dismissButton = { TextButton(onClick = { confirmForget = false }) { Text(tr(lang, "app.company.windCancel")) } })
+}
+
+/** Salut del segon pla (mode local): avisa si falta permís d'alarmes
+ *  exactes o de notificacions (llavors els avisos arriben tard o mai),
+ *  i deixa provar el so a l'instant. */
+@Composable
+private fun bgHealthRow(lang: String, vm: GregalViewModel) {
+    val healthState by vm.bgHealth.collectAsState()
+    val health = healthState ?: return
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    if (!health.exactAlarms) Surface(shape = RoundedCornerShape(14.dp),
+        color = Red.copy(alpha = 0.12f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(lang, "app.vents.exactAlarmNeeded"), color = Ink, fontSize = 13.sp)
+            OutlinedButton(onClick = { ctx.startActivity(JobAlarms.exactAlarmSettings(ctx)) }) {
+                Text(tr(lang, "app.vents.exactAlarmAllow"))
+            }
+        }
+    }
+    if (!health.notifications) Surface(shape = RoundedCornerShape(14.dp),
+        color = Red.copy(alpha = 0.12f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Red.copy(alpha = 0.5f))) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(lang, "app.vents.notifNeeded"), color = Ink, fontSize = 13.sp)
+            OutlinedButton(onClick = { ctx.startActivity(JobAlarms.notificationSettings(ctx)) }) {
+                Text(tr(lang, "app.vents.notifAllow"))
+            }
+        }
+    }
+    OutlinedButton(onClick = { JobNotifications.test(ctx) }) { Text(tr(lang, "app.vents.testNotif")) }
 }
 
 /** Interruptor del cor del vent: quan s'encén, el vent vigila el seu tema

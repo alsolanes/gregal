@@ -90,6 +90,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val goals: StateFlow<List<GoalItem>> = _goals
     private val _jobs = MutableStateFlow<List<JobItem>>(emptyList())
     val jobs: StateFlow<List<JobItem>> = _jobs
+    /** Salut del segon pla (mode local): alarmes exactes, notificacions, bateria. */
+    private val _bgHealth = MutableStateFlow<BackgroundHealth?>(null)
+    val bgHealth: StateFlow<BackgroundHealth?> = _bgHealth
     private val _runs = MutableStateFlow<List<RunItem>>(emptyList())
     val runs: StateFlow<List<RunItem>> = _runs
 
@@ -2504,6 +2507,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _jobs.value = jobs
                 if (source.local) JobAlarms.sync(appContext, jobs)
+                _bgHealth.value = if (source.local) JobAlarms.health(appContext) else null
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
         }
     }

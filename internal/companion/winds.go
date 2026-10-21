@@ -176,7 +176,7 @@ func DefaultWindPersona(name string) string {
 func WindChatSystem(w Wind, memory, project string, goals []string, lastSessionDigest string) string {
 	var b strings.Builder
 	b.WriteString(w.Persona)
-	b.WriteString("\n\nHOW YOU TALK:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You may be playful, never fake-enthusiastic. Personality over politeness.\n- Never invent facts: what you know is below; anything else, ask or admit it.")
+	b.WriteString("\n\nHOW YOU TALK:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You may be playful, never fake-enthusiastic. Personality over politeness.\n- Warm and respectful always: no swearing, no rudeness — unless your persona explicitly asks for it.\n- Never invent facts: what you know is below; anything else, ask or admit it.")
 	b.WriteString("\n\nPROJECT CONTEXT — active project: ")
 	b.WriteString(project)
 	if len(goals) == 0 {
@@ -213,7 +213,7 @@ func RotllanaSystem(w Wind, roster, memory string) string {
 	} else {
 		b.WriteString(roster)
 	}
-	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- You can search the web (web_search, web_fetch): use it for facts, current events or anything you are not sure about, and cite sources inline like [title](url). Never invent facts.")
+	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short replies (1-4 sentences), warm, direct, in the user's language (Catalan if unsure).\n- Warm and respectful always: no swearing, no rudeness — unless your persona explicitly asks for it.\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- You can search the web (web_search, web_fetch): use it for facts, current events or anything you are not sure about, and cite sources inline like [title](url). Never invent facts.")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
 		b.WriteString(memory)

@@ -75,6 +75,22 @@ object JobSchedule {
     fun finished(before: JobItem, after: JobItem?): Boolean =
         after != null && after.lastAt.isNotBlank() && after.lastAt != before.lastAt
 
+    /** Decisió del poll d'un tret: què fa amb l'estat fresc del job. */
+    enum class PollDecision { FINISHED, GONE, WAIT }
+
+    /**
+     * L'ordre importa: un avís d'un sol tret s'apaga en executar-se
+     * (enabled=false AMB lastAt nou) i això ÉS èxit, no abandonament.
+     * Només és GONE si s'apaga sense haver-se executat (o s'esborra).
+     */
+    fun pollDecision(before: JobItem, now: JobItem?): PollDecision =
+        when {
+            now == null -> PollDecision.GONE
+            finished(before, now) -> PollDecision.FINISHED
+            !now.enabled -> PollDecision.GONE
+            else -> PollDecision.WAIT
+        }
+
     private fun clean(s: String) = s.replace('\t', ' ').replace('\n', ' ').replace('\r', ' ')
 
     /** Format de les prefs: una franja per línia, «id\tms\tnom». */
@@ -311,9 +327,11 @@ class JobRunService : Service() {
             if (!accepted) accepted = try { api.runScheduledJob(job.id) } catch (_: Exception) { false }
             delay(if (accepted) 3_000 else 15_000)
             val now = try { api.getJobs().firstOrNull { it.id == job.id } } catch (_: Exception) { continue }
-            if (now == null || !now.enabled) return null
-            if (JobSchedule.finished(job, now)) {
-                return try { api.getRuns(job.id, 1).firstOrNull() } catch (_: Exception) { null }
+            when (JobSchedule.pollDecision(job, now)) {
+                JobSchedule.PollDecision.FINISHED ->
+                    return try { api.getRuns(job.id, 1).firstOrNull() } catch (_: Exception) { null }
+                JobSchedule.PollDecision.GONE -> return null
+                JobSchedule.PollDecision.WAIT -> { /* segueix esperant el tret */ }
             }
         }
         return null
@@ -383,6 +401,10 @@ object JobNotifications {
 
     fun failed(ctx: Context, name: String, why: String) =
         post(ctx, BLOCKED_ID, text(ctx, "app.jobs.notif.failed", name.ifEmpty { "Gregal" }), why.take(300), "")
+
+    /** Prova de so: notificació instantània per comprovar permís i canal. */
+    fun test(ctx: Context) =
+        post(ctx, 0x47524547, text(ctx, "app.vents.testNotifTitle"), text(ctx, "app.vents.testNotifBody"), "")
 
     fun blocked(ctx: Context) =
         post(ctx, BLOCKED_ID, text(ctx, "app.jobs.notif.blockedTitle"), text(ctx, "app.jobs.notif.blockedBody"), "")

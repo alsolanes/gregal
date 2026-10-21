@@ -111,4 +111,22 @@ class JobScheduleTest {
         assertEquals(8 to 0, parseHm("abc"))
         assertEquals("07:05", fmtHm(7, 5))
     }
+
+    @Test
+    fun pollDecisionOneShotFiredIsFinished() {
+        // L'avís d'un sol tret s'apaga en executar-se: apagat AMB lastAt nou ÉS èxit.
+        val before = JobItem(id = "remind-xaloc-1", kind = "remind", enabled = true)
+        val fired = before.copy(enabled = false, lastAt = "2026-10-18T07:05:00+02:00")
+        assertEquals(JobSchedule.PollDecision.FINISHED, JobSchedule.pollDecision(before, fired))
+        // Apagat sense executar-se (o esborrat): calla sense notificar.
+        val off = before.copy(enabled = false)
+        assertEquals(JobSchedule.PollDecision.GONE, JobSchedule.pollDecision(before, off))
+        assertEquals(JobSchedule.PollDecision.GONE, JobSchedule.pollDecision(before, null))
+        // Encès sense canvis: segueix esperant.
+        assertEquals(JobSchedule.PollDecision.WAIT, JobSchedule.pollDecision(before, before))
+        // Diari executat (segueix encès, lastAt nou): també és èxit.
+        val daily = before.copy(kind = "daily", enabled = true, lastAt = "")
+        assertEquals(JobSchedule.PollDecision.FINISHED,
+            JobSchedule.pollDecision(daily, daily.copy(lastAt = "2026-10-18T07:05:00+02:00")))
+    }
 }
