@@ -355,6 +355,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     // infravalora; avança per passos fins clavar el final, i després només
     // baixa sol si ja hi eres.
     var openedAtEnd by remember(wind.id) { mutableStateOf(false) }
+    // A partir de quin índex els missatges són "en directe" (animen):
+    // tot l'historial inicial apareix de cop, sense fades.
+    var liveFrom by remember(wind.id) { mutableStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
@@ -375,6 +378,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     darrer.offset + darrer.size <= li.viewportEndOffset
                 ) {
                     openedAtEnd = true
+                    liveFrom = msgs.size
                     return@LaunchedEffect
                 }
                 try {
@@ -384,6 +388,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 }
             }
             openedAtEnd = true
+            liveFrom = msgs.size
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
             if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
@@ -459,7 +464,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
-                    BubbleIn(msgs[idx].text + "#" + idx) { WindBubble(msgs[idx], accent, lang = lang) }
+                    BubbleIn(msgs[idx].text + "#" + idx, animate = idx >= liveFrom) { WindBubble(msgs[idx], accent, lang = lang) }
                 }
             }
             if (busy.contains(wind.id)) {
@@ -536,6 +541,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     // infravalora; espera el layout, verifica i torna a acostar fins
     // clavar el final.
     var openedAtEnd by remember(rot.id) { mutableStateOf(false) }
+    var liveFrom by remember(rot.id) { mutableStateOf(Int.MAX_VALUE) }
     LaunchedEffect(rot.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
@@ -555,6 +561,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     darrer.offset + darrer.size <= li.viewportEndOffset
                 ) {
                     openedAtEnd = true
+                    liveFrom = msgs.size
                     return@LaunchedEffect
                 }
                 try {
@@ -564,6 +571,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 }
             }
             openedAtEnd = true
+            liveFrom = msgs.size
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
             if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
@@ -649,7 +657,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
-                BubbleIn(resolved.message.text + "#" + idx) {
+                BubbleIn(resolved.message.text + "#" + idx, animate = idx >= liveFrom) {
                 WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = resolved.wind,
                     speakerName = resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") },
@@ -737,8 +745,11 @@ internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: S
  * ocupa l'alçada des del primer fotograma i l'auto-scroll no es desquadra.
  */
 @Composable
-private fun BubbleIn(key: String, content: @Composable () -> Unit) {
-    if (!LocalWindMotion.current) {
+private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable () -> Unit) {
+    // Només anima els missatges nous en directe: en obrir el xat tot
+    // apareix de cop (si no, cada bombolla fa fade una per una i es veu
+    // lent i lleig mentre la llista es posiciona).
+    if (!LocalWindMotion.current || !animate) {
         content()
         return
     }
