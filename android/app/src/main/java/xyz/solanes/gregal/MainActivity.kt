@@ -401,9 +401,10 @@ class MainActivity : ComponentActivity() {
                 }
                 UpdateAvis(vm)
                 // El vent actiu acompanya per totes les pantalles EXCEPTE als
-                // mateixos vents: allà ja hi ets, i el FAB es barrejaria amb
-                // els botons de crear conversa.
-                if (screen != Screen.Company) {
+                // mateixos vents i al xat de feina: allà ja hi ets, i el FAB
+                // es barrejaria amb els botons de crear conversa o taparia
+                // el botó d'enviar del composer.
+                if (screen != Screen.Company && screen != Screen.Chat) {
                     WindFab(vm) { vm.go(Screen.Company) }
                 }
                 }
