@@ -83,10 +83,28 @@ class WindHistoryRevisionNewTest {
             val old = server.expect("GET ${endpoint(group)}", history("old snapshot"))
             val get = load(vm, group)
             old.awaitRequest()
+            // El directe primer: el client prova /stream i cau al clàssic
+            // només si falla. El done tanca el torn igual que el POST.
+            val streamBody = if (group)
+                "event: phase\ndata: {\"phase\":\"thinking\"}\n\n" +
+                "event: token\ndata: {\"token\":\"fresh \"}\n\n" +
+                "event: token\ndata: {\"token\":\"reply\"}\n\n" +
+                "event: done\ndata: " +
+                "{\"reply\":{\"wind\":\"tramuntana\",\"text\":\"fresh reply\"}," +
+                "\"history\":[{\"from\":\"user\",\"text\":\"new message\"}," +
+                "{\"from\":\"pet\",\"text\":\"fresh reply\",\"speaker_id\":\"tramuntana\",\"speaker_name\":\"Tramuntana\"}]," +
+                "\"actions\":[]}\n\n"
+            else
+                "event: phase\ndata: {\"phase\":\"thinking\"}\n\n" +
+                "event: token\ndata: {\"token\":\"fresh \"}\n\n" +
+                "event: token\ndata: {\"token\":\"reply\"}\n\n" +
+                "event: done\ndata: " +
+                "{\"reply\":\"fresh reply\",\"wind\":\"same-id\"," +
+                "\"history\":[{\"from\":\"user\",\"text\":\"new message\"},{\"from\":\"pet\",\"text\":\"fresh reply\"}]," +
+                "\"actions\":[]}\n\n"
             val post = server.expect(
-                "POST ${if (group) "/api/winds/rotllana" else "/api/winds/chat"}",
-                if (group) """{"reply":{"wind":"tramuntana","text":"fresh reply"},"history":[{"from":"user","text":"new message"},{"from":"pet","text":"fresh reply","speaker_id":"tramuntana","speaker_name":"Tramuntana"}]}"""
-                else """{"reply":"fresh reply"}""",
+                "POST ${if (group) "/api/winds/rotllana/stream" else "/api/winds/chat/stream"}",
+                streamBody,
             )
             val send = request(vm) {
                 if (group) vm.sendRotllanaMessage("same-id", "new message")

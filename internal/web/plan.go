@@ -41,20 +41,49 @@ func (s *Server) runReadOnlyLoop(ctx context.Context, brief string, maxSteps int
 // (xat, rotllana i cor) hi passen el seu (windRoleRef: rol base + model
 // per defecte propi), la feina hi passa el del rol.
 func (s *Server) runReadOnlyLoopForRole(ctx context.Context, brief string, maxSteps int, p config.Provider, role config.Role, prev ...[]llm.Message) (exploracio, error) {
+	return s.runReadOnlyLoopForRoleStream(ctx, brief, maxSteps, p, role, nil, prev...)
+}
+
+// runReadOnlyLoopForRoleStream és el mateix loop amb emissió en directe:
+// emit rep ("token", fragment) del text que genera el model i ("phase",
+// noms d'eines separats per coma) quan un pas acaba en crides. Els tokens
+// d'un pas que acaba en eines són especulatius (poden ser JSON d'eina):
+// el client els descarta quan arriba la fase. Amb emit == nil les crides
+// són les clàssiques (comportament idèntic al d'abans).
+func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string, maxSteps int, p config.Provider, role config.Role, emit func(kind, text string), prev ...[]llm.Message) (exploracio, error) {
+	stream := emit != nil
+	if emit == nil {
+		emit = func(_, _ string) {}
+	}
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
 		Lang:     s.cfg.Lang(),
 		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
 			cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 			defer cancel()
-			content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
+			if !stream {
+				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
+				return content, calls, err
+			}
+			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), func(tok string) { emit("token", tok) }, nil, nil)
+			if err == nil && len(calls) > 0 {
+				names := make([]string, 0, len(calls))
+				for _, c := range calls {
+					names = append(names, c.Function.Name)
+				}
+				emit("phase", strings.Join(names, ","))
+			}
 			return content, calls, err
 		},
 		// La resposta final va sense eines: cap crida no es pot executar.
 		Finalize: func(ctx context.Context, h []llm.Message) (string, error) {
 			cctx, cancel := context.WithTimeout(ctx, agent.TimeoutDecisio)
 			defer cancel()
-			out, _, err := s.client.ChatFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, nil)
+			if !stream {
+				out, _, err := s.client.ChatFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, nil)
+				return out, err
+			}
+			out, _, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, nil, func(tok string) { emit("token", tok) }, nil, nil)
 			return out, err
 		},
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {

@@ -645,7 +645,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                         }
                     }
                 }
-                for (b in groupRich(splitMd(m.text))) {
+                // En directe el markdown parcial es trencaria: text pla fins al done.
+                if (m.streaming) {
+                    Text(m.text.ifBlank { "…" }, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
+                } else { for (b in groupRich(splitMd(m.text))) {
                     when (b) {
                         is Rich.Inline -> {
                             val rich = renderSegs(b.segs, CodeDark, link = accent)
@@ -669,6 +672,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                         )
                         is Rich.Table -> MdTable(b.headers, b.rows, lang)
                     }
+                }
                 }
             }
         }

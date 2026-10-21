@@ -35,10 +35,12 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/companion/chat", h.route((*Server).handleCompanionPetChat))
 	handle("/api/winds", h.route((*Server).handleWinds))
 	handle("/api/winds/chat", h.route((*Server).handleWindChat))
+	handle("/api/winds/chat/stream", h.route((*Server).handleWindChatStream))
 	handle("/api/winds/profile", h.route((*Server).handleWindProfile))
 	handle("/api/winds/memory", h.route((*Server).handleWindMemory))
 	handle("/api/winds/rotllanes", h.route((*Server).handleRotllanes))
 	handle("/api/winds/rotllana", h.route((*Server).handleRotllanaChat))
+	handle("/api/winds/rotllana/stream", h.route((*Server).handleRotllanaChatStream))
 	handle("/api/winds/suggest", h.route((*Server).handleWindSuggest))
 	handle("/api/user/skills", h.route((*Server).handleUserSkills))
 }

@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"gregal/internal/agent"
 	"gregal/internal/companion"
 
 	"gregal/internal/llm"
@@ -169,15 +168,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	// System del vent que parla: persona + qui són els altres membres del grup
-	// + el que el vent ja sap (igual que al xat directe: el coneixement no
-	// pot dependre de si parla sol o acompanyat).
-	system := companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID))
-	transcript := agent.TranscriptDigest(conversation, 16000)
-	// El vent busca al web abans de respondre — és un company de cerques,
-	// també en grup. runReadOnlyLoop li dona web_search/web_fetch (mode
-	// inspect: cap eina d'escriptura) i l'obliguem a respondre curt.
-	brief := system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts." + windRemindBrief(speakingWind.ID)
+	system, brief := rotllanaChatBrief(s, rot, speakingWind, conversation, msg)
 	turnStart := time.Now()
 	out, err := rotllanaVoiceLoop(s, ctx, brief)
 	if err != nil {

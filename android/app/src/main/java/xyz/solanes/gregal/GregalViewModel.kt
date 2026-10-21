@@ -2283,15 +2283,40 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message)))
         viewModelScope.launch {
             try {
-                val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message) }
-                if (!isCompanionOrigin(source, epoch)) return@launch
-                val speaker = _winds.value.firstOrNull { it.id == wind }
-                _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
-                    before + PetMsg("user", message) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
-                })
+                try {
+                    // Directe primer; el done porta l'historial amb veus.
+                    var buf = ""
+                    val (_, _, hist) = withContext(Dispatchers.IO) {
+                        source.api().rotllanaChatStream(rotllanaId, message) { e ->
+                            if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
+                            when (e) {
+                                is GregalApi.WindStreamEvent.Phase -> {
+                                    buf = ""
+                                    setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
+                                }
+                                is GregalApi.WindStreamEvent.Token -> {
+                                    buf += e.token
+                                    setStreamingBubble(rotllanaId, buf, rotllana = true)
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+                    if (!isCompanionOrigin(source, epoch)) return@launch
+                    dropStreamingBubble(rotllanaId, rotllana = true)
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty { before + PetMsg("pet", "") })
+                } catch (_: Exception) {
+                    dropStreamingBubble(rotllanaId, rotllana = true)
+                    val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message) }
+                    if (!isCompanionOrigin(source, epoch)) return@launch
+                    val speaker = _winds.value.firstOrNull { it.id == wind }
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
+                        before + PetMsg("user", message) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
+                    })
+                }
                 // El torn pot haver programat avisos (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
-                loadJobs()
+                if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
                     notify(appText("app.status.company", e.message.orEmpty()))
@@ -2386,6 +2411,43 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Bombolla de directe: crea o actualitza l'últim missatge en streaming
+     * del torn (fase o text parcial). El done la substitueix per la final.
+     */
+    private fun setStreamingBubble(windId: String, text: String, rotllana: Boolean = false) {
+        val bubble = PetMsg("pet", text, streaming = true)
+        if (rotllana) {
+            val cur = _rotllanaChat.value[windId].orEmpty()
+            _rotllanaChat.value = _rotllanaChat.value + (windId to
+                if (cur.lastOrNull()?.streaming == true) cur.dropLast(1) + bubble else cur + bubble)
+        } else {
+            val cur = _windChat.value[windId].orEmpty()
+            _windChat.value = _windChat.value + (windId to
+                if (cur.lastOrNull()?.streaming == true) cur.dropLast(1) + bubble else cur + bubble)
+        }
+    }
+
+    private fun dropStreamingBubble(windId: String, rotllana: Boolean = false) {
+        if (rotllana) {
+            val cur = _rotllanaChat.value[windId].orEmpty()
+            if (cur.lastOrNull()?.streaming == true)
+                _rotllanaChat.value = _rotllanaChat.value + (windId to cur.dropLast(1))
+        } else {
+            val cur = _windChat.value[windId].orEmpty()
+            if (cur.lastOrNull()?.streaming == true)
+                _windChat.value = _windChat.value + (windId to cur.dropLast(1))
+        }
+    }
+
+    /** Fase del directe en la llengua de l'app. */
+    private fun streamPhaseText(phase: String): String = when (phase) {
+        "searching" -> appText("app.vents.streamSearching")
+        "scheduling" -> appText("app.vents.streamScheduling")
+        "thinking" -> appText("app.vents.streamThinking")
+        else -> appText("app.vents.streamWorking")
+    }
+
     fun sendWindMessage(windId: String, text: String) {
         val msg = text.trim()
         if (msg.isEmpty() || _windBusy.value.contains(windId)) return
@@ -2395,12 +2457,40 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value + windId
         viewModelScope.launch {
             try {
-                val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
-                if (isCompanionOrigin(source, epoch)) {
-                    _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text)))
-                    // Prova visible que el vent ha actuat de debò: només sona
-                    // quan l'eina remind s'ha cridat (mai d'una promesa buida).
-                    if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                try {
+                    // Directe primer: el text creix a la bombolla; si el
+                    // servidor no té /stream (o cau), clàssic de reserva.
+                    var buf = ""
+                    val r = withContext(Dispatchers.IO) {
+                        source.api().windChatStream(windId, msg) { e ->
+                            if (!isCompanionOrigin(source, epoch)) return@windChatStream
+                            when (e) {
+                                is GregalApi.WindStreamEvent.Phase -> {
+                                    buf = ""
+                                    setStreamingBubble(windId, streamPhaseText(e.phase))
+                                }
+                                is GregalApi.WindStreamEvent.Token -> {
+                                    buf += e.token
+                                    setStreamingBubble(windId, buf)
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+                    if (isCompanionOrigin(source, epoch)) {
+                        dropStreamingBubble(windId)
+                        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text)))
+                        // Prova visible que el vent ha actuat de debò: només sona
+                        // quan l'eina remind s'ha cridat (mai d'una promesa buida).
+                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                    }
+                } catch (_: Exception) {
+                    dropStreamingBubble(windId)
+                    val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
+                    if (isCompanionOrigin(source, epoch)) {
+                        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text)))
+                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                    }
                 }
                 // El vent pot haver programat un avís (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
@@ -2429,7 +2519,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // Xat amb mascota: missatges en memòria + enviament
-    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "")
+    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false)
 
     private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat

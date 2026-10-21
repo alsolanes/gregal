@@ -555,11 +555,101 @@ class GregalApi(val base: String, val token: String) {
 
     fun windChat(windId: String, message: String): WindReply {
         val o = post("/api/winds/chat", JSONObject(WindRequests.chat(windId, message)))
+        return windReplyOf(o)
+    }
+
+    /** Resposta d'un torn amb streaming (SSE per POST). */
+    sealed interface WindStreamEvent {
+        data class Phase(val phase: String) : WindStreamEvent
+        data class Token(val token: String) : WindStreamEvent
+        data class DoneWind(val reply: WindReply) : WindStreamEvent
+        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>) : WindStreamEvent
+        data class Error(val message: String) : WindStreamEvent
+    }
+
+    /**
+     * Llegeix un SSE (event:/data: per línies) cridant onEvent a mesura que
+     * arriba. Puro excepte la lectura: parseWindStreamEvent es pot provar sol.
+     */
+    fun streamPost(path: String, payload: JSONObject, onEvent: (WindStreamEvent) -> Unit) {
+        val c = conn(path, "POST", payload.toString())
+        val code = c.responseCode
+        if (code !in 200..299) {
+            val err = try { c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.readText().orEmpty() } catch (_: Exception) { "" }
+            throw ApiException("HTTP $code: ${err.take(200)}")
+        }
+        var ev: String? = null
+        val data = StringBuilder()
+        c.inputStream.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
+            lines.forEach { line ->
+                when {
+                    line.startsWith("event:") -> { ev = line.substringAfter("event:").trim(); data.clear() }
+                    line.startsWith("data:") -> {
+                        if (data.isNotEmpty()) data.append("\n")
+                        data.append(line.substringAfter("data:").trim())
+                    }
+                    line.isBlank() -> {
+                        parseWindStreamEvent(ev, data.toString())?.let { e ->
+                            if (e is WindStreamEvent.Error) throw ApiException(e.message.ifBlank { "stream error" })
+                            onEvent(e)
+                        }
+                        ev = null; data.clear()
+                    }
+                }
+            }
+        }
+    }
+
+    fun parseWindStreamEvent(event: String?, data: String): WindStreamEvent? {
+        if (data.isEmpty()) return null
+        val o = try { JSONObject(data) } catch (_: Exception) { return null }
+        return when (event) {
+            "phase" -> WindStreamEvent.Phase(o.optString("phase", "working"))
+            "token" -> WindStreamEvent.Token(o.optString("token"))
+            "done" -> if (o.has("history") && o.opt("reply") is JSONObject) {
+                val reply = o.optJSONObject("reply") ?: JSONObject()
+                val a = o.optJSONArray("history") ?: JSONArray()
+                val hist = (0 until a.length()).mapNotNull { i ->
+                    val item = a.optJSONObject(i) ?: return@mapNotNull null
+                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+                }
+                WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"), hist)
+            } else {
+                WindStreamEvent.DoneWind(windReplyOf(o))
+            }
+            "error" -> WindStreamEvent.Error(o.optString("error", "error"))
+            else -> null
+        }
+    }
+
+    private fun windReplyOf(o: JSONObject): WindReply {
         val acts = o.optJSONArray("actions")
         val reminds = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
             acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
         }.filter { it.isNotBlank() }
         return WindReply(o.optString("reply"), reminds)
+    }
+
+    /**
+     * Xat amb un vent amb emissió en directe. Torna el Done final; si el
+     * servidor no té /stream (antic) o cau abans del done, llança i el
+     * cridant cau al clàssic.
+     */
+    fun windChatStream(windId: String, message: String, onEvent: (WindStreamEvent) -> Unit): WindReply {
+        var done: WindReply? = null
+        streamPost("/api/winds/chat/stream", JSONObject(WindRequests.chat(windId, message))) { e ->
+            if (e is WindStreamEvent.DoneWind) done = e.reply else onEvent(e)
+        }
+        return done ?: throw ApiException("stream tancat sense done")
+    }
+
+    fun rotllanaChatStream(rotllanaId: String, message: String, wind: String = "", onEvent: (WindStreamEvent) -> Unit): Triple<String, String, List<GregalViewModel.PetMsg>> {
+        var done: WindStreamEvent.DoneRotllana? = null
+        streamPost("/api/winds/rotllana/stream", JSONObject(RotllanaRequests.chat(rotllanaId, message, wind))) { e ->
+            if (e is WindStreamEvent.DoneRotllana) done = e else onEvent(e)
+        }
+        val d = done ?: throw ApiException("stream tancat sense done")
+        return Triple(d.wind, d.text, d.history)
     }
 
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {
