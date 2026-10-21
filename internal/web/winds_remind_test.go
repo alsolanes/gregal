@@ -25,6 +25,49 @@ func remindTestServer(t *testing.T) *Server {
 }
 
 // TestSaveWindReminderValid: el vent desa un avís futur amb el seu text.
+func TestParseRemindAtLenient(t *testing.T) {
+	now := time.Now()
+	cases := []string{
+		now.Add(2 * time.Hour).Format(time.RFC3339),
+		now.Add(2 * time.Hour).Format("2006-01-02 15:04"),
+		now.Add(2 * time.Hour).Format("02/01/2006 15:04"),
+		"+2h",
+		"+30m",
+	}
+	for _, c := range cases {
+		at, err := parseRemindAt(c, now)
+		if err != nil {
+			t.Fatalf("parseRemindAt(%q): %v", c, err)
+		}
+		if at.Before(now.Add(time.Minute)) || at.After(now.Add(30*24*time.Hour)) {
+			t.Fatalf("parseRemindAt(%q) = %v, fora de rang", c, at)
+		}
+	}
+	if _, err := parseRemindAt("demà a les 9", now); err == nil {
+		t.Fatal("havia de rebutjar text lliure")
+	}
+	// Una data explícita del passat es parseja (el rebuig és feina de
+	// saveWindReminder, que mira el rellotge real).
+	if at, err := parseRemindAt(now.Add(-time.Hour).Format(time.RFC3339), now); err != nil || !at.Before(now) {
+		t.Fatalf("parse del passat = %v, %v", at, err)
+	}
+}
+
+func TestRemindActionsSince(t *testing.T) {
+	t0 := time.Now()
+	recordRemindEvent("vent-prova", t0.Add(time.Hour), "Rega les plantes")
+	got := remindActionsSince("vent-prova", t0)
+	if len(got) != 1 || got[0]["at"] == "" || got[0]["text"] != "Rega les plantes" {
+		t.Fatalf("accions = %v", got)
+	}
+	if len(remindActionsSince("un-altre", t0)) != 0 {
+		t.Fatal("no ha de barrejar vents")
+	}
+	if len(remindActionsSince("vent-prova", t0.Add(time.Hour))) != 0 {
+		t.Fatal("no ha de tornar esdeveniments vells")
+	}
+}
+
 func TestSaveWindReminderValid(t *testing.T) {
 	s := remindTestServer(t)
 	at := time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)

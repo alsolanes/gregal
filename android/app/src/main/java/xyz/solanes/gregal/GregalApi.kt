@@ -553,9 +553,13 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds", "DELETE", JSONObject().put("id", id).toString()))
     }
 
-    fun windChat(windId: String, message: String): String {
+    fun windChat(windId: String, message: String): WindReply {
         val o = post("/api/winds/chat", JSONObject(WindRequests.chat(windId, message)))
-        return o.optString("reply")
+        val acts = o.optJSONArray("actions")
+        val reminds = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
+            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
+        }.filter { it.isNotBlank() }
+        return WindReply(o.optString("reply"), reminds)
     }
 
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {

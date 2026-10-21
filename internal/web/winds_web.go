@@ -184,6 +184,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// d'escriptura) i l'obliguem a respondre curt amb Finalize.
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest())
 	brief := system + companion.WindBrainSystem(s.windBrain(wind.ID)) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
+	turnStart := time.Now()
 	out, err := windLoop(s, ctx, brief)
 	if err != nil {
 		http.Error(w, redactError(err), http.StatusBadGateway)
@@ -199,5 +200,5 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	hist.messages = history // failed model/save calls never publish a partial turn
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
 	s.startWindLearn(wind, msg, reply)
-	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "history": petHistoryJSON(history)})
+	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }

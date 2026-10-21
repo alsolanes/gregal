@@ -2392,9 +2392,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value + windId
         viewModelScope.launch {
             try {
-                val reply = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
-                if (isCompanionOrigin(source, epoch))
-                    _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", reply)))
+                val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
+                if (isCompanionOrigin(source, epoch)) {
+                    _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text)))
+                    // Prova visible que el vent ha actuat de debò: només sona
+                    // quan l'eina remind s'ha cridat (mai d'una promesa buida).
+                    if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                }
                 // El vent pot haver programat un avís (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
                 if (isCompanionOrigin(source, epoch)) loadJobs()
