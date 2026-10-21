@@ -393,6 +393,8 @@ object JobNotifications {
 
     /** El butlletí: títol = nom del job, cos = el resum; tocar-lo obre l'execució. */
     fun result(ctx: Context, job: JobItem, run: RunItem) {
+        // El cor calla sovint (sense novetats): un tret silenciós no fa soroll.
+        if (run.status == "ok" && run.output.isBlank()) return
         val ok = run.status == "ok"
         val title = if (ok) stripMdForTitle(job.name) else text(ctx, "app.jobs.notif.failed", stripMdForTitle(job.name))
         val body = if (ok) JobSchedule.excerpt(run.output) else run.error.take(300)

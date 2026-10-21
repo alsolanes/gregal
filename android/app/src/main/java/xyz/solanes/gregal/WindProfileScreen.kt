@@ -35,7 +35,8 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
             onDismiss = onDismiss,
             onRetry = { vm.loadWindProfile(wind.id) },
             onEdit = { onDismiss(); vm.showWindCreator(true, current?.wind ?: wind) },
-            onSaveKnowledge = { text, done -> vm.updateWindKnowledge(wind.id, text, done) })
+            onSaveKnowledge = { text, done -> vm.updateWindKnowledge(wind.id, text, done) },
+            onChat = { onDismiss(); vm.openVentsChat("wind:" + wind.id) })
     }
 }
 
@@ -43,7 +44,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
 @Composable
 internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, profile: WindProfile?, busy: Boolean, error: String?,
     messages: List<GregalViewModel.PetMsg>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
-    onSaveKnowledge: (String, (Boolean) -> Unit) -> Unit) {
+    onSaveKnowledge: (String, (Boolean) -> Unit) -> Unit, onChat: () -> Unit = {}) {
     var tab by remember(wind.id) { mutableStateOf(0) }
     var editing by remember(wind.id) { mutableStateOf(false) }
     var draft by remember(wind.id) { mutableStateOf("") }
@@ -51,6 +52,14 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     var saveError by remember { mutableStateOf(false) }
     var confirmForget by remember { mutableStateOf(false) }
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
+        bottomBar = {
+            Surface(color = Superficie) {
+                Button(onClick = onChat, modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(wind.argb))) {
+                    Text(tr(lang, "app.vents.talkTo"))
+                }
+            }
+        },
         topBar = { TopAppBar(
             title = { Text(wind.name) },
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },

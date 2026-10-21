@@ -86,6 +86,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val chats by vm.windChat.collectAsState()
     val rChats by vm.rotllanaChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
+    val rBusy by vm.rotllanaBusy.collectAsState()
     val conn by vm.conn.collectAsState()
     val open by vm.ventsOpen.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
@@ -152,6 +153,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             ConversationRow(r.name, rChats[r.id].orEmpty().lastOrNull()?.text ?: faces.joinToString(" · ") { it.name },
                                 faces.firstOrNull()?.let { Color(it.argb) } ?: Sea,
                                 faces.firstOrNull()?.faceStyle ?: WindStyle(), faces = faces,
+                                busy = rBusy.contains(r.id),
                                 onClick = { vm.openVentsChat("rot:" + r.id) })
                         }
                     }
