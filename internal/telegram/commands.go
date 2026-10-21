@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,6 +70,7 @@ func (b *Bot) help(st *chatState) string {
 		"/rewind — " + b.tr("desfés els canvis de fitxers de la sessió", "undo this session's file changes"),
 		"/rewind N — " + b.tr("torna al checkpoint N", "restore checkpoint N") + " · /plan <code>&lt;task&gt;</code> — " + b.tr("explora sense actuar i proposa un pla", "inspect without making changes and propose a plan"),
 		"/whoami — " + b.tr("id d'usuari i de xat", "show user and chat IDs"),
+		"/reinicia — " + b.tr("reinicia el servidor (web + bot)", "restart the server (web + bot)"),
 		"",
 		b.tr("Per aprovar eines ({write, edit, bash), fes servir els botons. Només l'amo pot decidir.", "Approve tools ({write, edit, bash}) with the buttons. Only the owner can decide."),
 	}, "\n")
@@ -184,6 +186,9 @@ func (b *Bot) command(ctx context.Context, m *Message, st *chatState, text strin
 
 	case "/stop", "/atura":
 		b.stop(ctx, chatID, st)
+
+	case "/reinicia", "/reiniciar", "/restart":
+		b.reinicia(ctx, chatID)
 
 	case "/ara", "/now":
 		b.nowCommand(ctx, m, chatID, st, arg)
@@ -454,6 +459,21 @@ func (b *Bot) stop(ctx context.Context, chatID int64, st *chatState) {
 		return
 	}
 	b.send(ctx, chatID, b.tr("No hi ha res en marxa.", "Nothing is running."))
+}
+
+// reinicia implementa /reinicia: reinicia el servidor (web + bot).
+// El guard (serviceguard) bloqueja que el bot toqui les seves unitats des
+// de les eines, així que aquí no passa per cap eina: primer respon (send
+// bloqueja fins que Telegram confirma) i després programa el reinici en
+// una unitat transient externa (gregal-reinicia) amb 5 s de marge. La
+// transient viu fora del cgroup del bot i sobreviu al restart.
+func (b *Bot) reinicia(ctx context.Context, chatID int64) {
+	b.send(ctx, chatID, "🔄 "+b.tr("Reiniciant el servidor (web + bot)... torno en uns segons.", "Restarting the server (web + bot)... back in a few seconds."))
+	cmd := exec.Command("systemd-run", "--user", "--unit=gregal-reinicia", "--collect",
+		"/bin/sh", "-c", "sleep 5; systemctl --user restart gregal-web.service gregal-telegram.service")
+	if err := cmd.Run(); err != nil {
+		b.send(ctx, chatID, "⚠️ "+b.tr("No he pogut programar el reinici: ", "Could not schedule the restart: ")+esc(err.Error()))
+	}
 }
 
 // nowCommand implementa /ara (àlies /now): «talla el que estàs fent i fes
