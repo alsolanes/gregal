@@ -125,7 +125,7 @@ class WindHistoryRevisionNewTest {
     }
 
     /** Real concurrent HTTP exchanges; each response is released explicitly. */
-    private class HistoryServer : AutoCloseable {
+    internal class HistoryServer : AutoCloseable {
         private val socket = ServerSocket(0)
         val port: Int get() = socket.localPort
         private val workers = mutableListOf<Thread>()

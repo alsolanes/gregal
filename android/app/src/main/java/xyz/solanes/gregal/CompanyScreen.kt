@@ -339,7 +339,7 @@ private fun ConversationRow(
 
 /** El xat d'un vent a pantalla completa: capçalera amb la cara, bombolles, input. */
 @Composable
-private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit) {
+internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit) {
     val chats by vm.windChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val msgs = chats[wind.id].orEmpty()
@@ -348,18 +348,38 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
     var profile by remember(wind.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
-    // Obre sempre a l'últim: salt instantani en obrir (espera les mesures
-    // de la llista o el salt es perd), i després només baixa sol si ja hi eres.
+    // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
+    // infravalora; avança per passos fins clavar el final, i després només
+    // baixa sol si ja hi eres.
     var openedAtEnd by remember(wind.id) { mutableStateOf(false) }
-    LaunchedEffect(msgs.size) {
+    LaunchedEffect(wind.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            var tries = 0
-            while (listState.layoutInfo.visibleItemsInfo.isEmpty() && tries < 60) {
-                withFrameNanos { }
-                tries++
+            // Un sol scrollToItem amb ítems sense mesurar infravalora
+            // (verificat: demana el 44 i es queda al 43). Espera el layout,
+            // verifica i torna a acostar fins clavar el final.
+            repeat(80) {
+                kotlinx.coroutines.delay(50)
+                val li = listState.layoutInfo
+                val darrer = li.visibleItemsInfo.lastOrNull()
+                // L'últim ha d'estar DINS del viewport, no al prefetch:
+                // offset+size més enllà del final vol dir que encara no es veu.
+                if (darrer != null && darrer.index >= msgs.size - 1 &&
+                    darrer.offset + darrer.size <= li.viewportEndOffset
+                ) {
+                    openedAtEnd = true
+                    return@LaunchedEffect
+                }
+                try {
+                    listState.scrollToItem(msgs.size - 1)
+                } catch (_: Exception) {
+                    // Índex encara fora de la maqueta: el proper intent ho torna a provar.
+                }
             }
-            listState.scrollToItem(msgs.size - 1)
+            // Xarxa de seguretat: l'animat mesura pel camí i clava el final.
+            try {
+                listState.animateScrollToItem(msgs.size - 1)
+            } catch (_: Exception) { }
             openedAtEnd = true
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
@@ -489,18 +509,35 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    // Obre sempre a l'últim: salt instantani en obrir (espera les mesures
-    // de la llista o el salt es perd), i després només baixa sol si ja hi eres.
+    // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
+    // infravalora; espera el layout, verifica i torna a acostar fins
+    // clavar el final.
     var openedAtEnd by remember(rot.id) { mutableStateOf(false) }
-    LaunchedEffect(msgs.size) {
+    LaunchedEffect(rot.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            var tries = 0
-            while (listState.layoutInfo.visibleItemsInfo.isEmpty() && tries < 60) {
-                withFrameNanos { }
-                tries++
+            repeat(80) {
+                kotlinx.coroutines.delay(50)
+                val li = listState.layoutInfo
+                val darrer = li.visibleItemsInfo.lastOrNull()
+                // L'últim ha d'estar DINS del viewport, no al prefetch:
+                // offset+size més enllà del final vol dir que encara no es veu.
+                if (darrer != null && darrer.index >= msgs.size - 1 &&
+                    darrer.offset + darrer.size <= li.viewportEndOffset
+                ) {
+                    openedAtEnd = true
+                    return@LaunchedEffect
+                }
+                try {
+                    listState.scrollToItem(msgs.size - 1)
+                } catch (_: Exception) {
+                    // Índex encara fora de la maqueta: el proper intent ho torna a provar.
+                }
             }
-            listState.scrollToItem(msgs.size - 1)
+            // Xarxa de seguretat: l'animat mesura pel camí i clava el final.
+            try {
+                listState.animateScrollToItem(msgs.size - 1)
+            } catch (_: Exception) { }
             openedAtEnd = true
         } else {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
