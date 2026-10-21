@@ -13,3 +13,9 @@ internal fun resolveWindMessage(message: GregalViewModel.PetMsg, members: List<W
     val text = if (legacy != null && (explicit == null || explicit.id == legacy.id)) message.text.substringAfter(':').trimStart() else message.text
     return ResolvedWindMessage(message.copy(text = text), wind, wind?.name ?: message.speakerName)
 }
+
+/** Clau de ratxa: dos missatges consecutius amb la mateixa clau són del
+ *  mateix parlant i comparteixen cara+nom (només el primer els mostra).
+ *  Pura: testejable. */
+internal fun runKeyOf(r: ResolvedWindMessage): String =
+    (if (r.message.from == "user") "user" else "w") + "|" + (r.wind?.id ?: r.name)

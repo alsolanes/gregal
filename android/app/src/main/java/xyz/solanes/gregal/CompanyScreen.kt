@@ -56,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
 /**
@@ -467,7 +468,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     BubbleIn(msgs[idx].text + "#" + idx, animate = idx >= liveFrom) { WindBubble(msgs[idx], accent, lang = lang) }
                 }
             }
-            if (busy.contains(wind.id)) {
+            // Peu "hi pensa" només si no hi ha bombolla de directe: la
+            // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
+            // dos avisos apilats.
+            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true) {
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -654,18 +658,28 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             items(msgs.size) { idx ->
                 val resolved = resolveWindMessage(msgs[idx], faces)
+                // La cara i el nom només al primer missatge de cada ratxa
+                // del mateix parlant: si no, cada bombolla repetia cara +
+                // insígnia i el xat semblava ple de cercles verds.
+                // (from només diu user/pet i l'historial antic no porta
+                // speakerId: la ratxa va pel parlant ja resolt.)
+                val firstOfRun = idx == 0 || runKeyOf(resolved) != runKeyOf(resolveWindMessage(msgs[idx - 1], faces))
+                val continuation = !firstOfRun && resolved.message.from != "user"
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
+                val gap = if (firstOfRun && idx > 0) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
                 BubbleIn(resolved.message.text + "#" + idx, animate = idx >= liveFrom) {
                 WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
-                    lang = lang, speaker = resolved.wind,
-                    speakerName = resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") },
-                    onSpeakerClick = { resolved.wind?.let { speakerProfile = it } })
+                    lang = lang, speaker = if (firstOfRun) resolved.wind else null,
+                    speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
+                    onSpeakerClick = { resolved.wind?.let { speakerProfile = it } },
+                    indent = if (continuation) 52.dp else 0.dp)
                 }
                 }
             }
-            if (busy.contains(rot.id)) {
+            // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
+            // motiu que al xat directe: evitar l'avís duplicat).
+            if (busy.contains(rot.id) && msgs.lastOrNull()?.streaming != true) {
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -762,10 +776,10 @@ private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable 
 }
 @Composable
 internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
-    speakerName: String = "", onSpeakerClick: (() -> Unit)? = null) {
+    speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp) {
     val mine = m.from == "user"
     Row(
-        Modifier.fillMaxWidth(),
+        Modifier.fillMaxWidth().padding(start = indent),
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
     ) {
         if (mine) {
