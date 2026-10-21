@@ -738,16 +738,16 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 38)
             }
         }
-        // Halo del color del vent darrere la targeta: respira sense ombres.
+        // Bombolla del vent: un sol farciment tenyit del seu color (sense
+        // vora ni halo: la vora fina sobre blanc es perdia i el halo no es
+        // distingia del fons). La cua la marca la cantonada superior.
         val bubbleShape = RoundedCornerShape(
             topStart = 4.dp, topEnd = 16.dp,
             bottomStart = 16.dp, bottomEnd = 16.dp,
         )
-        Box(Modifier.background(accent.copy(alpha = 0.13f), bubbleShape).padding(3.dp)) {
         Surface(
             shape = bubbleShape,
-            color = Superficie,
-            border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.60f)),
+            color = accent.copy(alpha = 0.12f),
             shadowElevation = 0.dp,
             modifier = Modifier.widthIn(max = 300.dp),
         ) {
@@ -764,9 +764,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                         }
                     }
                 }
-                // En directe el markdown parcial es trencaria: text pla fins al done.
+                // En directe el markdown parcial es trencaria: text pla net
+                // (sense marques crues) fins al done.
                 if (m.streaming) {
-                    Text(m.text.ifBlank { "…" }, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
+                    Text(stripMdInline(m.text).ifBlank { "…" }, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
                 } else { for (b in groupRich(splitMd(m.text))) {
                     when (b) {
                         is Rich.Inline -> {
@@ -794,7 +795,6 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 }
                 }
             }
-        }
         }
     }
 }

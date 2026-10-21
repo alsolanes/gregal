@@ -208,13 +208,28 @@ private val mdLinkRe = Regex("\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
  */
 fun stripMdForTitle(src: String, max: Int = 140): String {
     val line = src.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return ""
-    var t = line
-    t = headingRe.replace(t) { it.groups[2]!!.value }
-    t = quoteRe.replace(t) { it.groups[1]!!.value }
-    t = bulletRe.replace(t) { it.groups[1]!!.value }
-    t = mdLinkRe.replace(t) { it.groups[1]!!.value }
-    t = t.replace("**", "").replace("__", "").replace("`", "")
-    return t.trim().take(max)
+    return stripMdInline(line).take(max)
+}
+
+/** Neteja marques markdown d'un text sencer (totes les línies) sense
+ *  retallar-lo: per mostrar el text mentre el vent encara escriu
+ *  (streaming), quan el markdown parcial es veuria amb sintaxi crua.
+ *  Pura: testejable (MdStreamTest). */
+fun stripMdInline(src: String): String {
+    if (src.isEmpty()) return ""
+    // Línies de tanca de bloc de codi (``` o ```py): fora senceres,
+    // que si no hi quedaria l'etiqueta del llenguatge penjada.
+    return src.lineSequence().map { raw ->
+        var t = raw.trim()
+        if (t.startsWith("```")) return@map ""
+        t = headingRe.replace(t) { it.groups[2]!!.value }
+        t = taskRe.replace(t) { it.groups[2]!!.value }
+        t = quoteRe.replace(t) { it.groups[1]!!.value }
+        t = bulletRe.replace(t) { it.groups[1]!!.value }
+        t = mdLinkRe.replace(t) { it.groups[1]!!.value }
+        t = t.replace("**", "").replace("__", "").replace("```", "").replace("`", "")
+        t.trim()
+    }.joinToString("\n").trim()
 }
 
 /** Agrupa segments en blocs rics per emetre composables. */

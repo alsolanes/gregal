@@ -79,7 +79,13 @@ fun WindHalo(
                 }
             }
         } else if (online) {
-            Box(Modifier.align(Alignment.BottomEnd).size(12.dp).background(Green, CircleShape))
+            // Insígnia de presència: punt verd amb anell clar, enganxat a la
+            // vora de la cara (no un segon cercle flotant).
+            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 3.dp).zIndex(1f)) {
+                Surface(shape = CircleShape, color = Superficie, shadowElevation = 2.dp) {
+                    Box(Modifier.padding(2.dp).size(8.dp).background(Green, CircleShape))
+                }
+            }
         }
     }
 }
