@@ -45,6 +45,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -445,6 +448,11 @@ private fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBa
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
                 maxLines = 3,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    autoCorrect = true,
+                    keyboardType = KeyboardType.Text,
+                ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = accent, unfocusedBorderColor = accent.copy(alpha = 0.35f),
                     focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
@@ -587,6 +595,11 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
                 maxLines = 3,
+                keyboardOptions = KeyboardOptions(
+                    capitalization = KeyboardCapitalization.Sentences,
+                    autoCorrect = true,
+                    keyboardType = KeyboardType.Text,
+                ),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = rotAccent, unfocusedBorderColor = rotAccent.copy(alpha = 0.35f),
                     focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
