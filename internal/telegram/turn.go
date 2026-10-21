@@ -567,7 +567,7 @@ bucle:
 func (b *Bot) startTurnHeartbeat(ctx context.Context, chatID int64, steps *atomic.Int64) func() {
 	period := b.heartbeatInterval
 	if period <= 0 {
-		period = 5 * time.Minute
+		period = 90 * time.Second
 	}
 	hctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

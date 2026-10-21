@@ -25,7 +25,7 @@ func (s *Server) runReadOnlyLoop(ctx context.Context, brief string, maxSteps int
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
 		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
-			cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+			cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 			defer cancel()
 			content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
 			return content, calls, err

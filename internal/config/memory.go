@@ -17,7 +17,7 @@ var (
 // L'usuari hi desa fets estables (preferències, context, decisions) amb
 // /remember; el sistema la injecta a cada system prompt. L'agent no hi
 // escriu sol (B1 explícit; res d'inferències silencioses).
-const MaxUserMemoryChars = 2000
+const MaxUserMemoryChars = 8000
 
 // UserMemoryPath retorna el fitxer (GREGAL_MEMORY o ~/.config/gregal/memory.md).
 func UserMemoryPath() string {

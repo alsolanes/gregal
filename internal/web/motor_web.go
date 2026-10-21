@@ -195,7 +195,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			pinta(torn.RepPas(content, calls, err))
 
 		case agent.OrdreCompacta:
-			ctx, cancel := context.WithTimeout(runCtx, 240*time.Second)
+			ctx, cancel := context.WithTimeout(runCtx, 600*time.Second)
 			room := agent.MakeRoom(ctx, s.client, prim, fb, sys, torn.Hist, pas.Budget)
 			cancel()
 			if room.Changed() {
