@@ -244,6 +244,14 @@ fun groupRich(segs: List<Seg>): List<Rich> {
     return out
 }
 
+/** L'accent tal qual sobre bombolla clara no sempre es llegeix (un groc
+ *  pàl·lid sobre blanc és invisible): si és massa lluminós, l'enfosqueix
+ *  perquè l'enllaç arribi a contrast. Pura: testejable sense Robolectric. */
+fun readableLinkOnLight(accent: Color): Color {
+    val lum = 0.2126f * accent.red + 0.7152f * accent.green + 0.0722f * accent.blue
+    return if (lum > 0.45f) accent.copy(red = accent.red * 0.45f, green = accent.green * 0.45f, blue = accent.blue * 0.45f) else accent
+}
+
 /** Render d'una llista de segments (nucli compartit). El color d'enllaç
  *  entra per paràmetre: la funció és pura (no composable) i Sea és temàtic. */
 fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: Color = LightPal.sea): AnnotatedString {

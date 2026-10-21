@@ -430,10 +430,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         ) {
             if (msgs.isEmpty()) {
                 item {
-                    Text(
-                        tr(lang, "app.company.windHello", wind.name),
-                        fontSize = 14.sp, color = Tinta, textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                    ChatEmptyState(
+                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY) },
+                        title = tr(lang, "app.vents.emptyChatTitle"),
+                        hint = tr(lang, "app.company.windHello", wind.name),
                     )
                 }
             }
@@ -563,6 +563,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             WindHalo(
                 accent = rotAccent, style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
                 size = 52, stacked = faces.drop(1),
+                mood = if (rotBusy) WindMood.THINKING else WindMood.HAPPY,
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -591,8 +592,17 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (msgs.isEmpty()) item {
-                Text(tr(lang, "app.vents.threadHello", rot.name), color = Muted, textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().padding(24.dp))
+                ChatEmptyState(
+                    face = {
+                        WindHalo(
+                            size = 88, accent = rotAccent,
+                            style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
+                            stacked = faces.drop(1), mood = WindMood.HAPPY,
+                        )
+                    },
+                    title = tr(lang, "app.vents.emptyThreadTitle"),
+                    hint = tr(lang, "app.vents.threadHello", rot.name),
+                )
             }
             items(msgs.size) { idx ->
                 val resolved = resolveWindMessage(msgs[idx], faces)
@@ -660,6 +670,23 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     }
     if (groupProfile) GroupProfileDialog(vm, lang, rot, winds) { groupProfile = false }
     speakerProfile?.let { WindProfileDialog(vm, lang, it) { speakerProfile = null } }
+}
+
+/**
+ * Xat encara buit: cara gran contenta + títol + pista, en comptes d'una
+ * línia grisa. La cara entra per slot: un vent sol o la pila de la rotllana.
+ */
+@Composable
+internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: String) {
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        BubbleIn("empty-face") { face() }
+        Text(title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center)
+        Text(hint, fontSize = 13.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp))
+    }
 }
 
 /**
@@ -744,7 +771,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 } else { for (b in groupRich(splitMd(m.text))) {
                     when (b) {
                         is Rich.Inline -> {
-                            val rich = renderSegs(b.segs, CodeDark, link = accent)
+                            val rich = renderSegs(b.segs, CodeDark, link = readableLinkOnLight(accent))
                             ClickableText(
                                 rich,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp, color = Tinta),
