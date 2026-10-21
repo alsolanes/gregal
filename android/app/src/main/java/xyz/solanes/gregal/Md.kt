@@ -244,12 +244,17 @@ fun groupRich(segs: List<Seg>): List<Rich> {
     return out
 }
 
-/** L'accent tal qual sobre bombolla clara no sempre es llegeix (un groc
- *  pàl·lid sobre blanc és invisible): si és massa lluminós, l'enfosqueix
- *  perquè l'enllaç arribi a contrast. Pura: testejable sense Robolectric. */
-fun readableLinkOnLight(accent: Color): Color {
+/** L'accent tal qual no sempre es llegeix: en clar, un groc pàl·lid sobre
+ *  blanc és invisible (s'enfosqueix); en fosc, un verd gairebé negre sobre
+ *  bombolla fosca tampoc (s'aclareix cap al blanc). Pura: testejable. */
+fun readableLink(accent: Color, dark: Boolean): Color {
     val lum = 0.2126f * accent.red + 0.7152f * accent.green + 0.0722f * accent.blue
-    return if (lum > 0.45f) accent.copy(red = accent.red * 0.45f, green = accent.green * 0.45f, blue = accent.blue * 0.45f) else accent
+    if (!dark && lum > 0.45f) return accent.copy(red = accent.red * 0.45f, green = accent.green * 0.45f, blue = accent.blue * 0.45f)
+    if (dark && lum < 0.35f) {
+        val k = 0.45f
+        return accent.copy(red = 1 - (1 - accent.red) * k, green = 1 - (1 - accent.green) * k, blue = 1 - (1 - accent.blue) * k)
+    }
+    return accent
 }
 
 /** Render d'una llista de segments (nucli compartit). El color d'enllaç

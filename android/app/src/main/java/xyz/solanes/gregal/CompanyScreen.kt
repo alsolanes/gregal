@@ -41,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -771,7 +772,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 } else { for (b in groupRich(splitMd(m.text))) {
                     when (b) {
                         is Rich.Inline -> {
-                            val rich = renderSegs(b.segs, CodeDark, link = readableLinkOnLight(accent))
+                            val rich = renderSegs(b.segs, CodeDark, link = readableLink(accent, isSystemInDarkTheme()))
                             ClickableText(
                                 rich,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp, color = Tinta),
