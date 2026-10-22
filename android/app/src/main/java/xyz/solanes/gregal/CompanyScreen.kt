@@ -511,7 +511,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     )
                 }
             }
-            items(msgs.size) { idx ->
+            items(msgs.size, key = { idx -> idx }) { idx ->
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
@@ -742,7 +742,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     hint = tr(lang, "app.vents.threadHello", rot.name),
                 )
             }
-            items(msgs.size) { idx ->
+            items(msgs.size, key = { idx -> idx }) { idx ->
                 val resolved = resolveWindMessage(msgs[idx], faces)
                 // La cara i el nom només al primer missatge de cada ratxa
                 // del mateix parlant: si no, cada bombolla repetia cara +
@@ -1035,6 +1035,15 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             ),
         ) {
             val uri = LocalUriHandler.current
+            val dark = isSystemInDarkTheme()
+            // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
+            // no es recalculi a cada recomposició (streaming, scroll, teclat).
+            // El parse viu a més en cau global: en tornar a la pantalla no se'n
+            // refà ni un.
+            val link = remember(accent, dark) { readableLink(accent, dark) }
+            val codeBg = CodeDark
+            val blocks = remember(m.text) { richBlocks(m.text) }
+            val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
             Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (speakerName.isNotBlank()) {
                     Row(Modifier.then(if (speaker != null && onSpeakerClick != null) Modifier.clickable(onClick = onSpeakerClick) else Modifier),
@@ -1050,11 +1059,11 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 // En directe el markdown parcial es trencaria: text pla net
                 // (sense marques crues) fins al done.
                 if (m.streaming) {
-                    Text(stripMdInline(m.text).ifBlank { "…" }, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
-                } else { for (b in groupRich(splitMd(m.text))) {
+                    Text(plain, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
+                } else { for (b in blocks) {
                     when (b) {
                         is Rich.Inline -> {
-                            val rich = renderSegs(b.segs, CodeDark, link = readableLink(accent, isSystemInDarkTheme()))
+                            val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
                             ClickableText(
                                 rich,
                                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp, color = Tinta),
@@ -1063,20 +1072,22 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                                 },
                             )
                         }
-                        is Rich.Code -> Text(
-                            b.code,
-                            fontSize = 12.sp,
-                            fontFamily = FontFamily.Monospace,
-                            color = Ink,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CodeDark, RoundedCornerShape(8.dp))
-                                .padding(8.dp),
-                        )
+                        is Rich.Code -> Row(Modifier.horizontalScroll(rememberScrollState())) {
+                            Text(
+                                b.code,
+                                fontSize = 12.sp,
+                                fontFamily = FontFamily.Monospace,
+                                softWrap = false,
+                                color = Ink,
+                                modifier = Modifier
+                                    .background(CodeDark, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                            )
+                        }
                         is Rich.Table -> MdTable(b.headers, b.rows, lang)
                         is Rich.Image -> MdImage(
                             b.url, b.alt,
-                            readableLink(accent, isSystemInDarkTheme()), lang,
+                            link, lang,
                         )
                     }
                 }

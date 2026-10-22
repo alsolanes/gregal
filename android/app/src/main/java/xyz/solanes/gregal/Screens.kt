@@ -439,7 +439,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 color = Sea, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             if (plan != null) {
                                 Spacer(Modifier.height(6.dp))
-                                Text(renderMd(plan!!.take(1500), CodeDark),
+                                val codeBg = CodeDark
+                                val rendered = remember(plan) { renderMd(plan!!.take(1500), codeBg) }
+                                Text(rendered,
                                     color = Ink, fontSize = 13.sp)
                                 Spacer(Modifier.height(8.dp))
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -984,11 +986,16 @@ fun PulseDot() {
 
 @Composable
 fun AssistantResponse(text: String, lang: String = "ca") {
-    val blocks = remember(text) { groupRich(splitMd(text)) }
+    val codeBg = CodeDark
+    val sea = Sea
+    val blocks = remember(text) { richBlocks(text) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
         blocks.forEach { b ->
             when (b) {
-                is Rich.Inline -> BodyText(renderSegs(b.segs, CodeDark, link = Sea))
+                is Rich.Inline -> {
+                    val rich = remember(b, text) { renderSegs(b.segs, codeBg, link = sea) }
+                    BodyText(rich)
+                }
                 is Rich.Code -> CodeBlock(b.lang, b.code, lang)
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
                 is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
@@ -1072,10 +1079,13 @@ fun MdTable(headers: List<String>, rows: List<List<String>>, lang: String = "ca"
 
 @Composable
 private fun TableRow(cells: List<String>, header: Boolean) {
+    val codeBg = CodeDark
+    val sea = Sea
     Row(Modifier.fillMaxWidth()) {
         cells.forEach { c ->
+            val rich = remember(c) { renderSegs(parseInline(c), codeBg, link = sea) }
             Text(
-                renderSegs(parseInline(c), CodeDark, link = Sea),
+                rich,
                 modifier = Modifier.weight(1f).padding(4.dp),
                 fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
                 color = if (header) Sand else Ink,
@@ -1490,7 +1500,9 @@ fun GoalsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Text(g.id,
                                 style = MaterialTheme.typography.bodySmall, color = Muted)
                             if (g.body.isNotBlank()) {
-                                Text(renderMd(g.body.take(600), CodeDark),
+                                val codeBg = CodeDark
+                                val rendered = remember(g.body) { renderMd(g.body.take(600), codeBg) }
+                                Text(rendered,
                                     color = Ink, fontSize = 13.sp,
                                     modifier = Modifier.padding(top = 6.dp))
                             }

@@ -336,3 +336,20 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
 fun renderMd(src: String, codeBg: Color, activity: Boolean = false): AnnotatedString {
     return renderSegs(splitMd(src), codeBg, activity)
 }
+
+/**
+ * Blocs d'un missatge amb cau global (LRU, 256 entrades): parsejar el mateix
+ * text a cada recomposició (i a cada token del streaming, i en tornar a la
+ * pantalla) era el que feia l'scroll a salts. El parse és determinista, així
+ * que compartir-lo entre bombolles i pantalles és segur. Pura: testejable.
+ */
+private val mdBlocksCache = object : LinkedHashMap<String, List<Rich>>(128, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<Rich>>?): Boolean = size > 256
+}
+
+fun richBlocks(src: String): List<Rich> = synchronized(mdBlocksCache) {
+    mdBlocksCache[src] ?: groupRich(splitMd(src)).also { mdBlocksCache[src] = it }
+}
+
+/** Quantes entrades hi ha a la cau (només tests). */
+internal fun richBlocksCached(): Int = synchronized(mdBlocksCache) { mdBlocksCache.size }
