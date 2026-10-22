@@ -80,18 +80,19 @@ fun WindFace(
             punchScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
         }
     }
-    // Ritme: saltironet content, balanceig en pensar, bressol en parlar.
+    // Ritme: quiets per defecte; només un balanceig suau quan estan
+    // contents o parlen. Res de bots continus.
     val bounceSpeed = when (mood) {
-        WindMood.HAPPY -> 900
-        WindMood.TALKING -> 700
-        else -> 2200
+        WindMood.HAPPY -> 2400
+        WindMood.TALKING -> 2000
+        else -> 0
     }
     val bounceAmp = when (mood) {
-        WindMood.HAPPY -> 0.045f
-        WindMood.TALKING -> 0.030f
-        else -> 0.018f
+        WindMood.HAPPY -> 0.016f
+        WindMood.TALKING -> 0.014f
+        else -> 0f
     }
-    val bounce = if (motion) {
+    val bounce = if (motion && bounceSpeed > 0) {
         val value by rememberInfiniteTransition(label = "wind-bounce").animateFloat(
             initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
             animationSpec = infiniteRepeatable(tween(bounceSpeed, easing = LinearEasing)), label = "bounce")
@@ -146,8 +147,9 @@ fun WindFace(
         value
     } else 0f
     val bobFrac = sin(bounce) * bounceAmp
-    val squashX = if (mood == WindMood.HAPPY) 1f + sin(bounce) * 0.035f else 1f
-    val squashY = if (mood == WindMood.HAPPY) 1f - sin(bounce) * 0.035f else 1f
+    // L'aixafada només és pel petó en prémer, no contínua.
+    val squashX = 1f
+    val squashY = 1f
     Box(Modifier.graphicsLayer {
         translationY = bobFrac * size.dp.toPx()
         scaleX = squashX * punchScale.value
