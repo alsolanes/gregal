@@ -19,14 +19,16 @@ sealed interface Seg {
     data class Block(val lang: String, val t: String) : Seg
     data class Heading(val level: Int, val inner: List<Seg>) : Seg
     data class Link(val label: String, val url: String) : Seg
+    data class Image(val alt: String, val url: String) : Seg
     data class Table(val headers: List<String>, val rows: List<List<String>>) : Seg
 }
 
-/** Bloc ric per emetre composables (text corregut, codi o taula). */
+/** Bloc ric per emetre composables (text corregut, codi, taula o imatge). */
 sealed interface Rich {
     data class Inline(val segs: List<Seg>) : Rich
     data class Code(val lang: String, val code: String) : Rich
     data class Table(val headers: List<String>, val rows: List<List<String>>) : Rich
+    data class Image(val alt: String, val url: String) : Rich
 }
 
 /** Parteix markdown lleuger en segments (tots els detalls, testeable). */
@@ -186,7 +188,8 @@ fun parseInline(s: String): List<Seg> {
                     if (!url.any { it == ' ' || it == '\n' || it == '\t' }) {
                         flush()
                         val label = s.substring(lb + 1, rb).ifEmpty { url }
-                        out += Seg.Link(label, url)
+                        // ![alt](url) és imatge; [txt](url) és enllaç.
+                        out += if (lb == i + 1) Seg.Image(label, url) else Seg.Link(label, url)
                         i = rp + 1
                         continue
                     }
@@ -200,7 +203,7 @@ fun parseInline(s: String): List<Seg> {
     return out
 }
 
-private val mdLinkRe = Regex("\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
+private val mdLinkRe = Regex("!?\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
 
 /**
  * Títol d'una sola línia sense marques markdown: treu encapçalaments, cites,
@@ -247,6 +250,10 @@ fun groupRich(segs: List<Seg>): List<Rich> {
             is Seg.Block -> {
                 flush()
                 out += Rich.Code(seg.lang, seg.t)
+            }
+            is Seg.Image -> {
+                flush()
+                out += Rich.Image(seg.alt, seg.url)
             }
             is Seg.Table -> {
                 flush()
@@ -310,6 +317,9 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     }
                     pop()
                 }
+                // Les imatges són bloc propi (Rich.Image); si n'arriba una
+                // aquí (títol, cel·la), text pla amb l'alt.
+                is Seg.Image -> append(seg.alt)
                 is Seg.Table -> {
                     append("\n")
                     val head = seg.headers.joinToString(" | ")

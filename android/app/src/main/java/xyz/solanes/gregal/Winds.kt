@@ -51,6 +51,21 @@ object WindRequests {
         JSONObject().put("wind", windId).put("message", message).toString()
 }
 
+/** Plantilles de feina (estil Redde): el tema i la manera de ser ja vénen
+ *  fets; l'usuari hi posa el nom i la carona. Textos a AppStrings
+ *  (app.vents.tpl.<id>.*), paritat ca/en. */
+object WindTemplates {
+    data class Template(val id: String, val color: String, val style: String)
+
+    val all = listOf(
+        Template("recerca", "#A8CDE2", "pso"),
+        Template("escriptura", "#E8AEC2", "pto"),
+        Template("codi", "#BFCFA4", "esn"),
+        Template("casa", "#EFC69A", "bsn"),
+        Template("plans", "#EACF87", "msn"),
+    )
+}
+
 /** Noms de vents suggerits al creador, amb color i cara proposades (paleta PICO-8). */
 object WindSuggestions {
     data class Suggestion(val name: String, val color: String, val role: String, val style: String)

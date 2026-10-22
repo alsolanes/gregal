@@ -91,6 +91,28 @@ internal fun WindEditor(
             if (gallery) {
             Text(tr(lang, "app.vents.galleryTitle"), color = Ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
             Text(tr(lang, "app.vents.galleryHelp"), color = Muted, fontSize = 14.sp)
+            // Plantilles per feina: rol+persona fets; només cal nom i carona.
+            Text(tr(lang, "app.vents.tplSection"), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.vents.tplSectionHelp"), color = Muted, fontSize = 13.sp)
+            WindTemplates.all.forEach { tpl ->
+                Surface(shape = RoundedCornerShape(18.dp), color = Color(Wind("", "", tpl.color, "").argb).copy(alpha = .10f),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                        .clickable(enabled = !saving) {
+                            role = tr(lang, "app.vents.tpl.${tpl.id}.role")
+                            persona = tr(lang, "app.vents.tpl.${tpl.id}.persona")
+                            color = tpl.color; style = tpl.style
+                            gallery = false
+                        }) {
+                    Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        WindFace(size = 46, accent = Color(Wind("", "", tpl.color, "").argb), style = windStyleOf(tpl.style))
+                        Column(Modifier.weight(1f)) {
+                            Text(tr(lang, "app.vents.tpl.${tpl.id}.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(tr(lang, "app.vents.tpl.${tpl.id}.desc"), color = Muted, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
             // Two columns keep the gallery legible on small phones; no infinite horizontal guessing.
             WindSuggestions.all.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

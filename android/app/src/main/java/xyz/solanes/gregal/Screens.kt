@@ -991,6 +991,7 @@ fun AssistantResponse(text: String, lang: String = "ca") {
                 is Rich.Inline -> BodyText(renderSegs(b.segs, CodeDark, link = Sea))
                 is Rich.Code -> CodeBlock(b.lang, b.code, lang)
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
             }
         }
     }

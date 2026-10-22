@@ -2274,7 +2274,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun sendRotllanaMessage(rotllanaId: String, message: String) {
+    fun sendRotllanaMessage(rotllanaId: String, message: String, wind: String = "") {
         if (message.isBlank() || _rotllanaBusy.value.contains(rotllanaId)) return
         val source = _conn.value; val epoch = companionEpoch
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
@@ -2287,7 +2287,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     // Directe primer; el done porta l'historial amb veus.
                     var buf = ""
                     val (_, _, hist) = withContext(Dispatchers.IO) {
-                        source.api().rotllanaChatStream(rotllanaId, message) { e ->
+                        source.api().rotllanaChatStream(rotllanaId, message, wind) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
@@ -2307,7 +2307,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty { before + PetMsg("pet", "") })
                 } catch (_: Exception) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
-                    val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message) }
+                    val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message, wind) }
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     val speaker = _winds.value.firstOrNull { it.id == wind }
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {

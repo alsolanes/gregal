@@ -40,6 +40,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -91,6 +93,9 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val haptic = LocalHapticFeedback.current
     var editing by remember { mutableStateOf<JobItem?>(null) }
     var viewing by remember { mutableStateOf<RunItem?>(null) }
+    // Pestanyes estil Redde: els resultats viuen al seu Feed, no barrejats
+    // amb la configuració dels avisos.
+    var tab by remember { mutableStateOf(0) }
     val loading by vm.loading.collectAsState()
     val carregant = "jobs" in loading || "runs" in loading
     val conn by vm.conn.collectAsState()
@@ -118,11 +123,20 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             },
         ) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadJobs(); vm.loadRuns() }.padding(12.dp)) {
+            Column(Modifier.fillMaxSize().padding(pad)) {
+                TabRow(selectedTabIndex = tab, containerColor = Color.Transparent,
+                    contentColor = Ink) {
+                    Tab(selected = tab == 0, onClick = { tab = 0 },
+                        text = { Text(tr(lang, "app.jobs.tabScheduled"), color = Ink) })
+                    Tab(selected = tab == 1, onClick = { tab = 1 },
+                        text = { Text(tr(lang, "app.jobs.tabResults"), color = Ink) })
+                }
+            LazyColumn(Modifier.fillMaxSize().weight(1f).pullToRefresh(carregant) { vm.loadJobs(); vm.loadRuns() }.padding(12.dp)) {
                 if (jobs.isEmpty() && runs.isEmpty() && carregant) item { LoadingBoard(lang) }
                 else if (jobs.isEmpty() && runs.isEmpty()) item {
                     EmptyBoard(Icons.Rounded.Schedule, tr(lang, "app.jobs.empty"), tr(lang, "app.jobs.emptyHelp"))
                 }
+                if (tab == 0) {
                 if (jobs.isEmpty() && !carregant) item {
                     TemplatePicker(lang) { editing = it }
                 }
@@ -134,13 +148,15 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
                 }
                 items(jobs) { j -> JobCard(j, vm, onEdit = { editing = it }, lang = lang) }
-                if (runs.isNotEmpty()) item {
-                    Text(tr(lang, "app.jobs.recentRuns"), color = Muted, fontSize = 13.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp))
+                } else {
+                if (runs.isEmpty() && !carregant) item {
+                    EmptyBoard(Icons.Rounded.Schedule, tr(lang, "app.jobs.tabResults"), tr(lang, "app.jobs.feedEmpty"))
                 }
                 items(runs) { r ->
                     RunCard(r, onOpen = { viewing = r }, lang = lang)
                 }
+                }
+            }
             }
         }
     }

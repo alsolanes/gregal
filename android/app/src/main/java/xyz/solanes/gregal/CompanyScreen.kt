@@ -3,7 +3,15 @@ package xyz.solanes.gregal
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -51,6 +59,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -161,6 +171,36 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                 VentsHero(lang, winds, tr(lang, if (conn.local) "app.vents.localMode" else "app.vents.serverMode", conn.host))
                 VentsPillTabs(lang, manage, onManage = { manage = it })
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 12.dp)) {
+                    // Tira compacta (estil Redde): una filera de cares amb nom,
+                    // que llisca de costat, per obrir el directe sense buscar.
+                    if (!manage && winds.isNotEmpty()) item {
+                        Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            winds.forEach { w ->
+                                Column(
+                                    Modifier.clip(RoundedCornerShape(16.dp))
+                                        .clickable { vm.openVentsChat("wind:" + w.id) }
+                                        .semantics { contentDescription = w.name }
+                                        .padding(4.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    WindHalo(
+                                        accent = Color(w.argb), style = w.faceStyle, size = 52,
+                                        mood = if (busy.contains(w.id)) WindMood.THINKING else WindMood.HAPPY,
+                                    )
+                                    Text(
+                                        w.name, fontSize = 12.sp, color = Ink, maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                                        modifier = Modifier.widthIn(max = 64.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if (manage) {
                         item { WindsModelRow(vm, lang) }
                         item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
@@ -347,8 +387,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val chats by vm.windChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val msgs = chats[wind.id].orEmpty()
-    var text by remember(wind.id) { mutableStateOf("") }
+    var field by remember(wind.id) { mutableStateOf(TextFieldValue("")) }
     val accent = Color(wind.argb)
+    val winds by vm.winds.collectAsState()
+    // Mencions @Nom: el desplegable segueix el cursor; en enviar,
+    // si hi ha @UnAltre, la feina es deriva al seu xat (handoff).
+    val mention = activeMention(field.text, field.selection.start, winds)
+    val canSend = field.text.isNotBlank() && !busy.contains(wind.id)
     var profile by remember(wind.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
@@ -488,14 +533,24 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
         // Input píndola amb el color del vent + enviament amb resplendor.
+        // El desplegable de mencions va just a sobre del camp.
+        mention?.let { q ->
+            MentionSuggestions(lang, q, accent) { w ->
+                val handle = "@" + w.name + " "
+                field = TextFieldValue(
+                    field.text.replaceRange(q.at, field.selection.start, handle),
+                    TextRange(q.at + handle.length),
+                )
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
+                value = field,
+                onValueChange = { field = it },
                 placeholder = { Text(tr(lang, "app.company.windChatHint", wind.name), fontSize = 14.sp) },
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
@@ -512,14 +567,29 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             )
             Surface(
                 shape = CircleShape,
-                color = if (text.isNotBlank() && !busy.contains(wind.id)) accent else SuperficieAlta,
-                shadowElevation = if (text.isNotBlank() && !busy.contains(wind.id)) 8.dp else 0.dp,
+                color = if (canSend) accent else SuperficieAlta,
+                shadowElevation = if (canSend) 8.dp else 0.dp,
                 modifier = Modifier.size(50.dp).clip(CircleShape)
-                    .clickable(enabled = text.isNotBlank() && !busy.contains(wind.id)) { vm.sendWindMessage(wind.id, text); text = "" },
+                    .clickable(enabled = canSend) {
+                        val body = field.text
+                        val target = resolveMention(body, winds)
+                        if (target != null && target.id != wind.id) {
+                            // Handoff: la feina viatja al xat de l'altre vent.
+                            if (busy.contains(target.id)) {
+                                vm.notify(tr(lang, "app.vents.handoffBusy", target.name))
+                            } else {
+                                vm.sendWindMessage(target.id, body)
+                                vm.notify(tr(lang, "app.vents.handoffSent", target.name))
+                                field = TextFieldValue("")
+                            }
+                        } else {
+                            vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
+                        }
+                    },
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
-                        tint = if (text.isNotBlank() && !busy.contains(wind.id)) Color.White else Muted,
+                        tint = if (canSend) Color.White else Muted,
                         modifier = Modifier.size(22.dp))
                 }
             }
@@ -535,11 +605,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val chats by vm.rotllanaChat.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
     val msgs = chats[rot.id].orEmpty()
-    var text by remember(rot.id) { mutableStateOf("") }
+    var field by remember(rot.id) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
     var speakerProfile by remember(rot.id) { mutableStateOf<Wind?>(null) }
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
+    // Mencions @Nom: etiquetar un membre dirigeix el torn (només respon ell).
+    val mention = activeMention(field.text, field.selection.start, faces)
+    val canSend = field.text.isNotBlank() && !busy.contains(rot.id)
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
     // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
     // infravalora; espera el layout, verifica i torna a acostar fins
@@ -695,14 +768,23 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 }
             }
         }
+        mention?.let { q ->
+            MentionSuggestions(lang, q, rotAccent) { w ->
+                val handle = "@" + w.name + " "
+                field = TextFieldValue(
+                    field.text.replaceRange(q.at, field.selection.start, handle),
+                    TextRange(q.at + handle.length),
+                )
+            }
+        }
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
+                value = field,
+                onValueChange = { field = it },
                 placeholder = { Text(tr(lang, "app.company.rotllanaHint"), fontSize = 14.sp) },
                 shape = RoundedCornerShape(26.dp),
                 modifier = Modifier.weight(1f),
@@ -719,14 +801,19 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             )
             Surface(
                 shape = CircleShape,
-                color = if (text.isNotBlank() && !busy.contains(rot.id)) rotAccent else SuperficieAlta,
-                shadowElevation = if (text.isNotBlank() && !busy.contains(rot.id)) 8.dp else 0.dp,
+                color = if (canSend) rotAccent else SuperficieAlta,
+                shadowElevation = if (canSend) 8.dp else 0.dp,
                 modifier = Modifier.size(50.dp).clip(CircleShape)
-                    .clickable(enabled = text.isNotBlank() && !busy.contains(rot.id)) { vm.sendRotllanaMessage(rot.id, text); text = "" },
+                    .clickable(enabled = canSend) {
+                        val body = field.text
+                        // @Nom dirigeix el torn: només respon l'etiquetat.
+                        val target = resolveMention(body, faces)
+                        vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
+                    },
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
-                        tint = if (text.isNotBlank() && !busy.contains(rot.id)) Color.White else Muted,
+                        tint = if (canSend) Color.White else Muted,
                         modifier = Modifier.size(22.dp))
                 }
             }
@@ -735,6 +822,110 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     }
     if (groupProfile) GroupProfileDialog(vm, lang, rot, winds) { groupProfile = false }
     speakerProfile?.let { WindProfileDialog(vm, lang, it) { speakerProfile = null } }
+}
+
+/** Desplegable de @mencions: cares candidates sobre el camp de text.
+ *  Compartit pel xat directe i la rotllana. */
+@Composable
+private fun MentionSuggestions(lang: String, q: MentionQuery, accent: Color, onPick: (Wind) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        q.cands.take(6).forEach { w ->
+            Surface(
+                shape = RoundedCornerShape(999.dp),
+                color = accent.copy(alpha = 0.12f),
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable { onPick(w) }
+                    .semantics { contentDescription = tr(lang, "app.vents.mentionPick", w.name) },
+            ) {
+                Row(
+                    Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    WindFace(size = 22, accent = Color(w.argb), style = w.faceStyle)
+                    Text("@" + w.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+                }
+            }
+        }
+    }
+}
+
+/** Memòria d'imatges del xat (http): evita tornar a baixar en recomposar. */
+private val chatImageCache = object : LinkedHashMap<String, ImageBitmap>(32, 0.75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 20
+}
+
+/** Baixa i redueix una imatge web per al xat (màx 1024px, 8MB). Blocant:
+ *  cridar en IO. Només http(s); tota la resta, null. */
+private fun loadChatBitmap(url: String): ImageBitmap? {
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return null
+    return try {
+        val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+        conn.connectTimeout = 8000
+        conn.readTimeout = 8000
+        conn.instanceFollowRedirects = true
+        conn.connect()
+        if (conn.responseCode !in 200..299) return null
+        if (conn.contentLength > 8 * 1024 * 1024) return null
+        val bytes = conn.inputStream.use { it.readBytes() }
+        if (bytes.size > 8 * 1024 * 1024 || bytes.isEmpty()) return null
+        val probe = android.graphics.BitmapFactory.Options()
+        probe.inJustDecodeBounds = true
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
+        var sample = 1
+        while (maxOf(probe.outWidth, probe.outHeight) / sample > 1024) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options()
+        opts.inSampleSize = sample
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+    } catch (_: Exception) {
+        null
+    }
+}
+
+/** Imatge d'un missatge (estil Redde: el vent t'envia fitxers al xat).
+ *  Placeholder → foto (toc = obre fora). Si falla, enllaç de text. */
+@Composable
+internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
+    val uri = LocalUriHandler.current
+    var bmp by remember(url) { mutableStateOf(chatImageCache[url]) }
+    var failed by remember(url) { mutableStateOf(false) }
+    LaunchedEffect(url) {
+        if (bmp == null && !failed) {
+            val got = withContext(Dispatchers.IO) { loadChatBitmap(url) }
+            if (got != null) {
+                synchronized(chatImageCache) { chatImageCache[url] = got }
+                bmp = got
+            } else failed = true
+        }
+    }
+    when {
+        bmp != null -> Image(
+            bitmap = bmp!!,
+            contentDescription = tr(lang, "app.vents.imageContent", alt.ifBlank { url }),
+            contentScale = ContentScale.FillWidth,
+            modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { try { uri.openUri(url) } catch (_: Exception) { } },
+        )
+        failed -> Text(
+            alt.ifBlank { url }, fontSize = 13.sp, color = link,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                .clickable { try { uri.openUri(url) } catch (_: Exception) { } }
+                .padding(vertical = 2.dp),
+        )
+        else -> Surface(
+            color = CodeDark, shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().height(160.dp),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp, color = link)
+            }
+        }
+    }
 }
 
 /**
@@ -860,6 +1051,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                                 .padding(8.dp),
                         )
                         is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                        is Rich.Image -> MdImage(
+                            b.url, b.alt,
+                            readableLink(accent, isSystemInDarkTheme()), lang,
+                        )
                     }
                 }
                 }

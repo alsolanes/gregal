@@ -113,8 +113,8 @@ class MdTest {
         val link = segs.filterIsInstance<Seg.Link>().firstOrNull()
         assertTrue(link != null && link.label == "la doc" && link.url == "https://example.com/a")
         assertEquals("la doc", stripMdForTitle("[la doc](https://example.com/a)"))
-        val img = splitMd("![logo](https://example.com/l.png)").filterIsInstance<Seg.Link>().firstOrNull()
-        assertTrue(img != null && img.url == "https://example.com/l.png")
+        val img = splitMd("![logo](https://example.com/l.png)").filterIsInstance<Seg.Image>().firstOrNull()
+        assertTrue(img != null && img.alt == "logo" && img.url == "https://example.com/l.png")
     }
 
     @Test
