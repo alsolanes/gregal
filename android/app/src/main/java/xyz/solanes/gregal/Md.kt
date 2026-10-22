@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.sp
 sealed interface Seg {
     data class Text(val t: String) : Seg
     data class Bold(val t: String) : Seg
+    data class Italic(val t: String) : Seg
     data class Code(val t: String) : Seg
     data class Block(val lang: String, val t: String) : Seg
     data class Heading(val level: Int, val inner: List<Seg>) : Seg
@@ -169,6 +170,31 @@ fun parseInline(s: String): List<Seg> {
                 continue
             }
         }
+        if (s[i] == '*' && (i + 1 >= n || s[i + 1] != '*')) {
+            // Cursiva simple *text*: els models l'usen molt per a títols
+            // d'obres. No forma part de **negreta** ni de vinyeta (aquesta
+            // ja s'ha resolt per línia). Cal tanca amb el següent * sol.
+            var end = -1
+            var j = i + 1
+            while (j < n) {
+                val k = s.indexOf('*', j)
+                if (k < 0) break
+                if (k + 1 < n && s[k + 1] == '*') { j = k + 2; continue }
+                end = k
+                break
+            }
+            if (end > i + 1) {
+                val inner = s.substring(i + 1, end)
+                val prevOk = i == 0 || s[i - 1].isWhitespace() || s[i - 1] in "([\"'¿¡:;"
+                val nextOk = end + 1 >= n || s[end + 1].isWhitespace() || s[end + 1] in ".,;:!?)\"'»—–-"
+                if (prevOk && nextOk && inner.isNotBlank() && !inner.startsWith(' ') && !inner.endsWith(' ')) {
+                    flush()
+                    out += Seg.Italic(inner)
+                    i = end + 1
+                    continue
+                }
+            }
+        }
         if (s[i] == '`') {
             val end = s.indexOf('`', i + 1)
             if (end > i + 1) {
@@ -203,11 +229,12 @@ fun parseInline(s: String): List<Seg> {
     return out
 }
 
-private val mdLinkRe = Regex("!?\\[([^\\]]+)\\]\\(([^)\\s]+)\\)")
+private val mdLinkRe = Regex("!?\\[([^\\]]+)\\]\\(([^\\)\\s]+)\\)")
+private val mdEmRe = Regex("\\*([^\\s*][^*]*?)\\*")
 
 /**
  * Títol d'una sola línia sense marques markdown: treu encapçalaments, cites,
- * vinyetes, negretes, codi i enllaços. Per targetes (objectius, sessions).
+ * vinyetes, negretes, cursives, codi i enllaços. Per targetes (objectius, sessions).
  */
 fun stripMdForTitle(src: String, max: Int = 140): String {
     val line = src.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return ""
@@ -231,6 +258,9 @@ fun stripMdInline(src: String): String {
         t = bulletRe.replace(t) { it.groups[1]!!.value }
         t = mdLinkRe.replace(t) { it.groups[1]!!.value }
         t = t.replace("**", "").replace("__", "").replace("```", "").replace("`", "")
+        // Cursiva simple *títol*: després de treure ** (si no, el regex
+        // mossegaria la negreta). L'estel solitari es deixa tal qual.
+        t = mdEmRe.replace(t) { it.groups[1]!!.value }
         t.trim()
     }.joinToString("\n").trim()
 }
@@ -289,6 +319,7 @@ fun renderSegs(segs: List<Seg>, codeBg: Color, activity: Boolean = false, link: 
                     withStyle(SpanStyle(fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)) { append(seg.t) }
                 } else append(seg.t)
                 is Seg.Bold -> withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(seg.t) }
+                is Seg.Italic -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(seg.t) }
                 is Seg.Code -> withStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = codeBg)) {
                     append(seg.t)
                 }

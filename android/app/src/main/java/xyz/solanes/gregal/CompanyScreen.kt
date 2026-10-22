@@ -515,7 +515,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
-                    BubbleIn(msgs[idx].text + "#" + idx, animate = idx >= liveFrom) {
+                    BubbleIn("dm#$idx", animate = idx >= liveFrom) {
                         WindBubble(msgs[idx], accent, lang = lang,
                             onCopy = {
                                 clipboard.setText(AnnotatedString(stripMdInline(msgs[idx].text)))
@@ -754,7 +754,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (firstOfRun && idx > 0) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
-                BubbleIn(resolved.message.text + "#" + idx, animate = idx >= liveFrom) {
+                BubbleIn("rot#$idx", animate = idx >= liveFrom) {
                 WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
                     speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
@@ -966,6 +966,8 @@ internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: S
 /**
  * Entrada d'una bombolla nova: només fos (sense lliscar), perquè l'ítem
  * ocupa l'alçada des del primer fotograma i l'auto-scroll no es desquadra.
+ * La clau és estable per posició (NO pel text): si no, cada token del
+ * streaming la reiniciava i la bombolla parpellejava.
  */
 @Composable
 private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable () -> Unit) {
