@@ -558,7 +558,6 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(wind.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.size(8.dp).background(if (isBusy) Sand else Green, CircleShape))
                     Text(
                         if (isBusy) tr(lang, "app.company.windThinking", wind.name)
                         else wind.role.ifBlank { tr(lang, "app.company.windHello", wind.name) },
@@ -793,7 +792,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Box(Modifier.size(8.dp).background(if (rotBusy) Sand else Green, CircleShape))
                     Text(
                         faces.joinToString(", ") { it.name }, fontSize = 12.sp,
                         color = Ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -1145,8 +1143,9 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             topStart = 6.dp, topEnd = 20.dp,
             bottomStart = 20.dp, bottomEnd = 20.dp,
         )
-        // Pastilla amb el nom a cavall de la vora (com el «Jojo» del dots).
-        Box(Modifier.padding(top = if (speakerName.isNotBlank()) 10.dp else 0.dp)) {
+        // Pastilla amb el nom a cavall de la vora (com el «Jojo» del dots):
+        // marge de sobra perquè no tapi mai la primera línia.
+        Box(Modifier.padding(top = if (speakerName.isNotBlank()) 12.dp else 0.dp)) {
             Surface(
                 shape = bubbleShape,
                 color = Superficie,
@@ -1166,7 +1165,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 val codeBg = CodeDark
                 val blocks = remember(m.text) { richBlocks(m.text) }
                 val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
-                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    Modifier.padding(horizontal = 14.dp)
+                        .padding(top = if (speakerName.isNotBlank()) 14.dp else 10.dp, bottom = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     // En directe el markdown parcial es trencaria: text pla net
                     // (sense marques crues) fins al done.
                     if (m.streaming) {
