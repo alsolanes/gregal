@@ -116,6 +116,20 @@ class VentsExperienceTest {
         ui.onNodeWithText("Sap de: Calçots").assertIsDisplayed()
     }
 
+    @Test fun ventsGridShowsBigMascotsWithStatus() {
+        val winds = listOf(Wind("a", "Marinada", "#EFC69A", "calma"), Wind("b", "Xaloc", "#EFA68F", "música"))
+        var opened: String? = null
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { VentsGrid("ca", winds, setOf("b")) { opened = it.id } }
+        } }
+        ui.onNodeWithText("Marinada").assertIsDisplayed()
+        ui.onNodeWithText("calma").assertIsDisplayed()
+        ui.onNodeWithText("Xaloc").assertIsDisplayed()
+        ui.onNodeWithText(tr("ca", "app.vents.gridThinking")).assertIsDisplayed()
+        ui.onNodeWithContentDescription("Marinada").performClick()
+        ui.runOnIdle { org.junit.Assert.assertEquals("a", opened) }
+    }
+
     @Test fun profileShowsActualKnowledgeAndSeparatePersonalMemory() {
         val wind = Wind("a", "Marinada", "#EFC69A", "calma", persona = "Escolto amb calma.")
         val profile = WindProfile(wind, "Coneixement real del servidor", "Memòria personal real")

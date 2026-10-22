@@ -176,35 +176,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                 VentsHero(lang, winds, tr(lang, if (conn.local) "app.vents.localMode" else "app.vents.serverMode", conn.host))
                 VentsPillTabs(lang, manage, onManage = { manage = it })
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 12.dp)) {
-                    // Tira compacta (estil Redde): una filera de cares amb nom,
-                    // que llisca de costat, per obrir el directe sense buscar.
                     if (!manage && winds.isNotEmpty()) item {
-                        Row(
-                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            winds.forEach { w ->
-                                Column(
-                                    Modifier.clip(RoundedCornerShape(16.dp))
-                                        .clickable { vm.openVentsChat("wind:" + w.id) }
-                                        .semantics { contentDescription = w.name }
-                                        .padding(4.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    WindHalo(
-                                        accent = Color(w.argb), style = w.faceStyle, size = 52,
-                                        mood = if (busy.contains(w.id)) WindMood.THINKING else WindMood.HAPPY,
-                                    )
-                                    Text(
-                                        w.name, fontSize = 12.sp, color = Ink, maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-                                        modifier = Modifier.widthIn(max = 64.dp),
-                                    )
-                                }
-                            }
-                        }
+                        VentsGrid(lang, winds, busy) { vm.openVentsChat("wind:" + it.id) }
                     }
                     if (manage) {
                         item { WindsModelRow(vm, lang) }
@@ -240,6 +213,47 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     }
 }
 
+/** Graella de mascotes (estil Dots): cada vent en gran amb el seu estat. */
+@Composable
+internal fun VentsGrid(lang: String, winds: List<Wind>, busy: Set<String>, onOpen: (Wind) -> Unit) {
+    @OptIn(ExperimentalLayoutApi::class)
+    FlowRow(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        maxItemsInEachRow = 2,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        winds.forEach { w ->
+            val thinking = busy.contains(w.id)
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(24.dp))
+                    .background(if (thinking) Ink.copy(alpha = 0.06f) else Superficie)
+                    .clickable { onOpen(w) }
+                    .semantics { contentDescription = w.name }
+                    .padding(vertical = 16.dp, horizontal = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                WindHalo(
+                    accent = Color(w.argb), style = w.faceStyle, size = 88,
+                    mood = if (thinking) WindMood.THINKING else WindMood.HAPPY,
+                )
+                Text(
+                    w.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                )
+                Text(
+                    if (thinking) tr(lang, "app.vents.gridThinking")
+                    else w.role.ifBlank { tr(lang, "app.vents.gridOnline") },
+                    fontSize = 12.sp, color = Muted, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+                    // Graella de mascotes (estil Dots): cada vent en gran amb el
+                    // seu estat; la reina de l'inici.
 @Composable
 private fun VentsEmpty(lang: String, conversations: Boolean) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 30.dp),
@@ -557,15 +571,16 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 })
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(wind.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(shape = RoundedCornerShape(999.dp), color = Ink) {
                     Text(
                         if (isBusy) tr(lang, "app.company.windThinking", wind.name)
                         else wind.role.ifBlank { tr(lang, "app.company.windHello", wind.name) },
-                        fontSize = 12.sp, color = Ink.copy(alpha = 0.75f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                        color = Superficie, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                     )
-                    if (isBusy) TypingDots(accent)
                 }
+                if (isBusy) TypingDots(accent)
             }
             IconButton(onClick = { profile = true }) {
                 Icon(Icons.Rounded.Info, tr(lang, "app.vents.profile"), tint = Ink, modifier = Modifier.size(20.dp))
@@ -792,11 +807,15 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        faces.joinToString(", ") { it.name }, fontSize = 12.sp,
-                        color = Ink.copy(alpha = 0.75f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
+                    Surface(shape = RoundedCornerShape(999.dp), color = Ink) {
+                        Text(
+                            if (rotBusy) tr(lang, "app.vents.rotThinking")
+                            else tr(lang, "app.vents.rotVoices", faces.size),
+                            color = Superficie, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
+                    }
                     if (rotBusy) TypingDots(rotAccent)
                 }
             }
