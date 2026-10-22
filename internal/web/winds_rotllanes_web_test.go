@@ -18,9 +18,9 @@ func rotllanaWebLoop(t *testing.T, reply string) (captured *string) {
 	t.Helper()
 	captured = new(string)
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (string, error) {
+	rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
 		*captured = brief
-		return reply, nil
+		return exploracio{text: reply}, nil
 	}
 	t.Cleanup(func() { rotllanaVoiceLoop = saved })
 	return captured
@@ -85,7 +85,7 @@ func TestRotllanaWebSearchFallbackToChatter(t *testing.T) {
 	}
 	forceErr := errors.New("search unavailable")
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (string, error) { return "", forceErr }
+	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) { return exploracio{}, forceErr }
 	t.Cleanup(func() { rotllanaVoiceLoop = saved })
 	savedChatter := petChatter
 	calls := 0

@@ -533,15 +533,16 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
-    fun rotllanaChat(rotllanaId: String, message: String, wind: String = ""): Triple<String, String, List<GregalViewModel.PetMsg>> {
-        val o = post("/api/winds/rotllana", JSONObject(RotllanaRequests.chat(rotllanaId, message, wind)))
+    fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
+        val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))
         val reply = o.optJSONObject("reply") ?: JSONObject()
         val a = o.optJSONArray("history") ?: JSONArray()
         val hist = (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
             GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
         }
-        return Triple(reply.optString("wind"), reply.optString("text"), hist)
+        return Triple(reply.optString("wind"), reply.optString("text"),
+            if (o.optBoolean("parcial", false)) markParcial(hist) else hist)
     }
 
     fun getRotllanaChat(rotllanaId: String): List<GregalViewModel.PetMsg> {
@@ -557,8 +558,8 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds", "DELETE", JSONObject().put("id", id).toString()))
     }
 
-    fun windChat(windId: String, message: String): WindReply {
-        val o = post("/api/winds/chat", JSONObject(WindRequests.chat(windId, message)))
+    fun windChat(windId: String, message: String, cont: Boolean = false): WindReply {
+        val o = post("/api/winds/chat", JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message)))
         return windReplyOf(o)
     }
 
@@ -567,7 +568,7 @@ class GregalApi(val base: String, val token: String) {
         data class Phase(val phase: String) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         data class DoneWind(val reply: WindReply) : WindStreamEvent
-        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>) : WindStreamEvent
+        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false) : WindStreamEvent
         data class Error(val message: String) : WindStreamEvent
     }
 
@@ -617,7 +618,9 @@ class GregalApi(val base: String, val token: String) {
                     val item = a.optJSONObject(i) ?: return@mapNotNull null
                     GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
                 }
-                WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"), hist)
+                val parcial = o.optBoolean("parcial", false)
+                WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
+                    if (parcial) markParcial(hist) else hist, parcial)
             } else {
                 WindStreamEvent.DoneWind(windReplyOf(o))
             }
@@ -631,7 +634,14 @@ class GregalApi(val base: String, val token: String) {
         val reminds = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
             acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
         }.filter { it.isNotBlank() }
-        return WindReply(o.optString("reply"), reminds)
+        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false))
+    }
+
+    /** Marca l'última resposta del vent com a parcial (botó «continua»). */
+    private fun markParcial(hist: List<GregalViewModel.PetMsg>): List<GregalViewModel.PetMsg> {
+        val idx = hist.indexOfLast { it.from == "pet" && !it.streaming }
+        if (idx < 0) return hist
+        return hist.toMutableList().also { it[idx] = it[idx].copy(parcial = true) }
     }
 
     /**
@@ -639,17 +649,17 @@ class GregalApi(val base: String, val token: String) {
      * servidor no té /stream (antic) o cau abans del done, llança i el
      * cridant cau al clàssic.
      */
-    fun windChatStream(windId: String, message: String, onEvent: (WindStreamEvent) -> Unit): WindReply {
+    fun windChatStream(windId: String, message: String, cont: Boolean = false, onEvent: (WindStreamEvent) -> Unit): WindReply {
         var done: WindReply? = null
-        streamPost("/api/winds/chat/stream", JSONObject(WindRequests.chat(windId, message))) { e ->
+        streamPost("/api/winds/chat/stream", JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message))) { e ->
             if (e is WindStreamEvent.DoneWind) done = e.reply else onEvent(e)
         }
         return done ?: throw ApiException("stream tancat sense done")
     }
 
-    fun rotllanaChatStream(rotllanaId: String, message: String, wind: String = "", onEvent: (WindStreamEvent) -> Unit): Triple<String, String, List<GregalViewModel.PetMsg>> {
+    fun rotllanaChatStream(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false, onEvent: (WindStreamEvent) -> Unit): Triple<String, String, List<GregalViewModel.PetMsg>> {
         var done: WindStreamEvent.DoneRotllana? = null
-        streamPost("/api/winds/rotllana/stream", JSONObject(RotllanaRequests.chat(rotllanaId, message, wind))) { e ->
+        streamPost("/api/winds/rotllana/stream", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind))) { e ->
             if (e is WindStreamEvent.DoneRotllana) done = e else onEvent(e)
         }
         val d = done ?: throw ApiException("stream tancat sense done")

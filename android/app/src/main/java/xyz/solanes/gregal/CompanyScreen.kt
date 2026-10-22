@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -37,6 +39,8 @@ import androidx.compose.material.icons.rounded.PersonAddAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
@@ -387,6 +391,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val chats by vm.windChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val msgs = chats[wind.id].orEmpty()
+    val clipboard = LocalClipboardManager.current
     var field by remember(wind.id) { mutableStateOf(TextFieldValue("")) }
     val accent = Color(wind.argb)
     val winds by vm.winds.collectAsState()
@@ -510,7 +515,14 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
                 Column(Modifier.padding(top = gap)) {
-                    BubbleIn(msgs[idx].text + "#" + idx, animate = idx >= liveFrom) { WindBubble(msgs[idx], accent, lang = lang) }
+                    BubbleIn(msgs[idx].text + "#" + idx, animate = idx >= liveFrom) {
+                        WindBubble(msgs[idx], accent, lang = lang,
+                            onCopy = {
+                                clipboard.setText(AnnotatedString(stripMdInline(msgs[idx].text)))
+                                scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                            },
+                            onContinue = if (!isBusy) ({ vm.sendWindContinue(wind.id) }) else null)
+                    }
                 }
             }
             // Peu "hi pensa" només si no hi ha bombolla de directe: la
@@ -605,6 +617,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val chats by vm.rotllanaChat.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
     val msgs = chats[rot.id].orEmpty()
+    val clipboard = LocalClipboardManager.current
     var field by remember(rot.id) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
     var speakerProfile by remember(rot.id) { mutableStateOf<Wind?>(null) }
@@ -746,7 +759,12 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
                     speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } },
-                    indent = if (continuation) 52.dp else 0.dp)
+                    indent = if (continuation) 52.dp else 0.dp,
+                    onCopy = {
+                        clipboard.setText(AnnotatedString(stripMdInline(resolved.message.text)))
+                        scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
+                    },
+                    onContinue = if (!busy.contains(rot.id)) ({ vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null)
                 }
                 }
             }
@@ -965,9 +983,11 @@ private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable 
         enter = fadeIn(animationSpec = tween(220)),
     ) { content() }
 }
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
-    speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp) {
+    speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp,
+    onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null) {
     val mine = m.from == "user"
     Row(
         Modifier.fillMaxWidth().padding(start = indent),
@@ -1009,7 +1029,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             shape = bubbleShape,
             color = accent.copy(alpha = 0.12f),
             shadowElevation = 0.dp,
-            modifier = Modifier.widthIn(max = 300.dp),
+            // Prémer llarg copia la resposta en text pla (sense marques).
+            modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                onClick = {}, onLongClick = { onCopy?.invoke() },
+            ),
         ) {
             val uri = LocalUriHandler.current
             Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1057,6 +1080,14 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                         )
                     }
                 }
+                }
+                // Parcial: el vent s'ha quedat a mitges (pressupost exhaurit).
+                // El botó reprèn la resposta pel mateix fil, sense preguntar.
+                if (onContinue != null && m.parcial && !m.streaming) {
+                    TextButton(onClick = onContinue, contentPadding = PaddingValues(0.dp)) {
+                        Text(tr(lang, "app.vents.continue"), color = accent,
+                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
         }

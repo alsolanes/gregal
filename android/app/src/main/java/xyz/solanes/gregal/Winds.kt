@@ -49,6 +49,10 @@ object WindRequests {
 
     fun chat(windId: String, message: String): String =
         JSONObject().put("wind", windId).put("message", message).toString()
+
+    /** Reprèn l'última resposta parcial del vent (sense text nou). */
+    fun chatContinue(windId: String): String =
+        JSONObject().put("wind", windId).put("message", "").put("continue", true).toString()
 }
 
 /** Plantilles de feina (estil Redde): el tema i la manera de ser ja vénen
@@ -96,6 +100,10 @@ object RotllanaRequests {
 
     fun chat(rotllanaId: String, message: String, wind: String = ""): String =
         JSONObject().put("rotllana", rotllanaId).put("message", message).put("wind", wind).toString()
+
+    /** Reprèn l'última resposta parcial de la rotllana (qui parla: wind). */
+    fun chatContinue(rotllanaId: String, wind: String = ""): String =
+        JSONObject().put("rotllana", rotllanaId).put("message", "").put("wind", wind).put("continue", true).toString()
 
     fun parse(raw: String): List<Rotllana> {
         val o = JSONObject(raw)

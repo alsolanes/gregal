@@ -122,13 +122,14 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 
 // windLoop és la via de cerca del vent; els tests la substitueixen. Per
 // defecte, el loop d'inspecció amb eines web (web_search, web_fetch), amb el
-// model per defecte dels vents (windRoleRef).
-var windLoop = func(s *Server, ctx context.Context, brief string) (string, error) {
+// model per defecte dels vents (windRoleRef). Torna l'exploració sencera:
+// el text i si ha quedat parcial (pressupost exhaurit) perquè el client
+// pugui oferir «continua».
+var windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
 	s.mu.Lock()
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	res, err := s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
-	return res.text, err
+	return s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
 }
 
 // handleWindChat és el xat amb un vent: persona + context de projecte.
@@ -152,8 +153,9 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Wind    string `json:"wind"`
-		Message string `json:"message"`
+		Wind     string `json:"wind"`
+		Message  string `json:"message"`
+		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
 	if !decodeSmall(w, r, &req) {
 		return
@@ -164,10 +166,6 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
-	if msg == "" {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
-		return
-	}
 	hist := windHistory(s, wind.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock() // serialize context, model call, persistence and publication
@@ -175,22 +173,41 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	if len(previous) > 40 {
 		previous = previous[len(previous)-40:]
 	}
+	// «Continua» sense historial o sense text nou no té què reprendre.
+	if msg == "" && !(req.Continue && len(previous) > 0) {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	// El vent busca al web abans de respondre: és un company de cerques.
 	// runReadOnlyLoop li dona web_search/web_fetch (mode inspect: cap eina
 	// d'escriptura) i l'obliguem a respondre curt amb Finalize.
-	brief := windChatBrief(s, wind, previous, msg)
 	turnStart := time.Now()
-	out, err := windLoop(s, ctx, brief)
+	isContinue := req.Continue && len(previous) > 0
+	var res exploracio
+	var err error
+	if isContinue {
+		// Reprèn: sense nou missatge d'usuari, el loop afegeix el
+		// PromptContinuaExploracio sobre l'historial (amb la parcial).
+		s.mu.Lock()
+		p, role := s.windRoleRef()
+		s.mu.Unlock()
+		res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, previous)
+	} else {
+		res, err = windLoop(s, ctx, windChatBrief(s, wind, previous, msg))
+	}
 	if err != nil {
 		http.Error(w, redactError(err), http.StatusBadGateway)
 		return
 	}
-	reply := stripQuoteTrim(out)
-	history := append(append([]llm.Message(nil), hist.messages...),
-		llm.Message{Role: "user", Content: msg}, llm.Message{Role: "assistant", Content: reply})
+	reply := stripQuoteTrim(res.text)
+	history := append([]llm.Message(nil), hist.messages...)
+	if !isContinue {
+		history = append(history, llm.Message{Role: "user", Content: msg})
+	}
+	history = append(history, llm.Message{Role: "assistant", Content: reply})
 	if err := saveWindHistory(s, wind, history); err != nil {
 		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 		return
@@ -198,5 +215,5 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	hist.messages = history // failed model/save calls never publish a partial turn
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
 	s.startWindLearn(wind, msg, reply)
-	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
+	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }

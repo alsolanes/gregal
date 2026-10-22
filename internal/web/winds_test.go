@@ -89,9 +89,9 @@ func TestWindChatGroundedInProjectContext(t *testing.T) {
 
 	var gotBrief string
 	saved := windLoop
-	windLoop = func(sv *Server, ctx context.Context, brief string) (string, error) {
+	windLoop = func(sv *Server, ctx context.Context, brief string) (exploracio, error) {
 		gotBrief = brief
-		return "buf, quin dia!", nil
+		return exploracio{text: "buf, quin dia!"}, nil
 	}
 	t.Cleanup(func() { windLoop = saved })
 

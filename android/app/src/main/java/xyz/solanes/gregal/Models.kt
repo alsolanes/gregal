@@ -270,8 +270,10 @@ data class GoalItem(val id: String, val title: String, val body: String, val sta
 fun goalStatusLabel(status: String, lang: String = "ca"): String =
     tr(lang, if (status == "fet") "app.goals.completed" else "app.goals.pending")
 
-/** Resposta d'un torn de xat amb un vent: text + avisos reals programats. */
-data class WindReply(val text: String, val reminds: List<String> = emptyList())
+/** Resposta d'un torn de xat amb un vent: text + avisos reals programats.
+ *  parcial = el backend s'ha quedat sense pressupost: el client ofereix
+ *  «continua» per reprendre la resposta pel mateix fil. */
+data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false)
 
 /** Job programat del servidor (butlletins desatesos). */
 data class JobItem(

@@ -25,21 +25,19 @@ import (
 // text per a l'usuari).
 
 // windLoopStream és la via de cerca amb emissió; els tests la substitueixen.
-var windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (string, error) {
+var windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
 	s.mu.Lock()
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	res, err := s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
-	return res.text, err
+	return s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
 }
 
 // rotllanaVoiceLoopStream és la via de cerca en grup amb emissió.
-var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (string, error) {
+var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
 	s.mu.Lock()
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	res, err := s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
-	return res.text, err
+	return s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
 }
 
 // streamPhase tradueix els noms d'eines d'un pas a fase per al client.
@@ -76,8 +74,9 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Wind    string `json:"wind"`
-		Message string `json:"message"`
+		Wind     string `json:"wind"`
+		Message  string `json:"message"`
+		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
 	if !decodeSmall(w, r, &req) {
 		return
@@ -88,10 +87,6 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
-	if msg == "" {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
-		return
-	}
 	hist := windHistory(s, wind.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock()
@@ -99,35 +94,59 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	if len(previous) > 40 {
 		previous = previous[len(previous)-40:]
 	}
+	if msg == "" && !(req.Continue && len(previous) > 0) {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
-	brief := windChatBrief(s, wind, previous, msg)
 	turnStart := time.Now()
-	out, err := windLoopStream(s, ctx, brief, func(kind, text string) {
-		switch kind {
-		case "token":
-			emit("token", map[string]string{"token": text})
-		case "phase":
-			emit("phase", map[string]string{"phase": streamPhase(text)})
-		}
-	})
+	isContinue := req.Continue && len(previous) > 0
+	var res exploracio
+	var err error
+	if isContinue {
+		s.mu.Lock()
+		p, role := s.windRoleRef()
+		s.mu.Unlock()
+		res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, func(kind, text string) {
+			switch kind {
+			case "token":
+				emit("token", map[string]string{"token": text})
+			case "phase":
+				emit("phase", map[string]string{"phase": streamPhase(text)})
+			}
+		}, previous)
+	} else {
+		brief := windChatBrief(s, wind, previous, msg)
+		res, err = windLoopStream(s, ctx, brief, func(kind, text string) {
+			switch kind {
+			case "token":
+				emit("token", map[string]string{"token": text})
+			case "phase":
+				emit("phase", map[string]string{"phase": streamPhase(text)})
+			}
+		})
+	}
 	if err != nil {
 		emit("error", map[string]string{"error": redactError(err)})
 		return
 	}
-	reply := stripQuoteTrim(out)
-	history := append(append([]llm.Message(nil), hist.messages...),
-		llm.Message{Role: "user", Content: msg}, llm.Message{Role: "assistant", Content: reply})
+	reply := stripQuoteTrim(res.text)
+	history := append([]llm.Message(nil), hist.messages...)
+	if !isContinue {
+		history = append(history, llm.Message{Role: "user", Content: msg})
+	}
+	history = append(history, llm.Message{Role: "assistant", Content: reply})
 	if err := saveWindHistory(s, wind, history); err != nil {
 		emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 		return
 	}
 	hist.messages = history
 	s.startWindLearn(wind, msg, reply)
-	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
+	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }
 
 // handleRotllanaChatStream és el torn en grup amb emissió en directe.
@@ -140,6 +159,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		Rotllana string `json:"rotllana"`
 		Message  string `json:"message"`
 		Wind     string `json:"wind"`
+		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
 	if !decodeSmall(w, r, &req) {
 		return
@@ -150,19 +170,23 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
-	if msg == "" {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
-		return
-	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock()
+	isContinue := req.Continue && len(hist.messages) > 0
+	if msg == "" && !isContinue {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
 	speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	conversation := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "user", Content: msg})
+	conversation := append([]llm.Message(nil), hist.messages...)
+	if !isContinue {
+		conversation = append(conversation, llm.Message{Role: "user", Content: msg})
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
@@ -171,14 +195,31 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	emit("phase", map[string]string{"phase": "thinking"})
 	system, brief := rotllanaChatBrief(s, rot, speakingWind, conversation, msg)
 	turnStart := time.Now()
-	out, err := rotllanaVoiceLoopStream(s, ctx, brief, func(kind, text string) {
+	emitTokens := func(kind, text string) {
 		switch kind {
 		case "token":
 			emit("token", map[string]string{"token": text})
 		case "phase":
 			emit("phase", map[string]string{"phase": streamPhase(text)})
 		}
-	})
+	}
+	parcial := false
+	var res exploracio
+	if isContinue {
+		s.mu.Lock()
+		p, role := s.windRoleRef()
+		s.mu.Unlock()
+		res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, emitTokens, conversation)
+		if err == nil {
+			parcial = res.parcial
+		}
+	} else {
+		res, err = rotllanaVoiceLoopStream(s, ctx, brief, emitTokens)
+		if err == nil {
+			parcial = res.parcial
+		}
+	}
+	out := res.text
 	if err != nil {
 		// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
 		p, role, ok2 := s.sideRoleRef()
@@ -218,6 +259,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	}
 	emit("done", map[string]any{
 		"reply":   map[string]string{"wind": replyWind.ID, "text": replyText},
+		"parcial": parcial,
 		"history": s.rotllanaHistoryJSON(history),
 		"actions": remindActionsSince(speakingWind.ID, turnStart),
 	})

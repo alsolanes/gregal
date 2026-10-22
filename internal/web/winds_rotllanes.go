@@ -106,12 +106,11 @@ func (s *Server) handleRotllanes(w http.ResponseWriter, r *http.Request) {
 // tests la substitueixen. Per defecte, el loop d'inspecció amb eines web
 // (web_search, web_fetch), igual que el xat directe amb un vent, amb el
 // model per defecte dels vents (windRoleRef).
-var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (string, error) {
+var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
 	s.mu.Lock()
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	res, err := s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
-	return res.text, err
+	return s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
 }
 
 // handleRotllanaChat és el xat de grup: cada missatge de l'usuari fa parlar
@@ -138,7 +137,8 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Rotllana string `json:"rotllana"`
 		Message  string `json:"message"`
-		Wind     string `json:"wind"` // opcional: quin vent parla (si buit, el del torn)
+		Wind     string `json:"wind"`     // opcional: quin vent parla (si buit, el del torn)
+		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
 	if !decodeSmall(w, r, &req) {
 		return
@@ -149,13 +149,16 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
-	if msg == "" {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
-		return
-	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock() // choose the speaker and commit under the same turn lock
+	// «Continua» reprèn l'última resposta: sense historial o sense qui
+	// parla no té què reprendre; si no, cal text nou.
+	isContinue := req.Continue && len(hist.messages) > 0
+	if msg == "" && !isContinue {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
 	// Qui parla: el triat o el següent del torn, incloent l'últim torn complet.
 	speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
 	if err != nil {
@@ -163,14 +166,35 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	conversation := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "user", Content: msg})
+	conversation := append([]llm.Message(nil), hist.messages...)
+	if !isContinue {
+		conversation = append(conversation, llm.Message{Role: "user", Content: msg})
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
 	system, brief := rotllanaChatBrief(s, rot, speakingWind, conversation, msg)
 	turnStart := time.Now()
-	out, err := rotllanaVoiceLoop(s, ctx, brief)
+	// «Continua» reprèn l'historial (amb la parcial) amb pressupost nou;
+	// el torn normal arrenca el loop amb la consigna.
+	parcial := false
+	var res exploracio
+	if isContinue {
+		s.mu.Lock()
+		p, role := s.windRoleRef()
+		s.mu.Unlock()
+		res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, conversation)
+		if err == nil {
+			parcial = res.parcial
+		}
+	} else {
+		res, err = rotllanaVoiceLoop(s, ctx, brief)
+		if err == nil {
+			parcial = res.parcial
+		}
+	}
+	out := res.text
 	if err != nil {
 		// La cerca web no pot tombar el torn: cau al xat pla (sense eines),
 		// que sempre respon.
@@ -214,6 +238,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"reply":   map[string]string{"wind": replyWind.ID, "text": replyText},
+		"parcial": parcial,
 		"history": s.rotllanaHistoryJSON(history),
 		"actions": remindActionsSince(speakingWind.ID, turnStart),
 	})

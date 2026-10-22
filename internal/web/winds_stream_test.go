@@ -14,11 +14,17 @@ func TestWindChatStreamEmitsPhaseTokensDone(t *testing.T) {
 	s := remindTestServer(t)
 	old := windLoopStream
 	defer func() { windLoopStream = old }()
-	windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (string, error) {
+	// Historial net: el registre és global al procés i un altre test hi
+	// pot haver deixat el seu torn (contaminació preexistent).
+	hist0 := windHistory(s, "xaloc")
+	hist0.mu.Lock()
+	hist0.messages = nil
+	hist0.mu.Unlock()
+	windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
 		emit("phase", "web_search,web_fetch")
 		emit("token", "Hola")
 		emit("token", "!")
-		return "Hola!", nil
+		return exploracio{text: "Hola!"}, nil
 	}
 	req := httptest.NewRequest("POST", "/api/winds/chat/stream", strings.NewReader(`{"wind":"xaloc","message":"hola"}`))
 	rec := httptest.NewRecorder()
@@ -58,8 +64,8 @@ func TestWindChatStreamError(t *testing.T) {
 	s := remindTestServer(t)
 	old := windLoopStream
 	defer func() { windLoopStream = old }()
-	windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (string, error) {
-		return "", context.DeadlineExceeded
+	windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
+		return exploracio{}, context.DeadlineExceeded
 	}
 	req := httptest.NewRequest("POST", "/api/winds/chat/stream", strings.NewReader(`{"wind":"xaloc","message":"hola"}`))
 	rec := httptest.NewRecorder()

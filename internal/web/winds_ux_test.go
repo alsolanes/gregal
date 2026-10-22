@@ -107,7 +107,7 @@ func TestCompanionPromptsUseAuthenticatedMemory(t *testing.T) {
 		close(learned)
 		return "", nil
 	}
-	windLoop = func(_ *Server, _ context.Context, b string) (string, error) { check("wind", b); return "ok", nil }
+	windLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) { check("wind", b); return exploracio{text: "ok"}, nil }
 	petChatter = func(_ context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, m []llm.Message) (string, error) {
 		check("group/pet", m[0].Content)
 		return "ok", nil
@@ -382,7 +382,7 @@ func TestWindChatSendsBoundedPreviousTurns(t *testing.T) {
 	windHistories.Delete(s) // force the real persisted-history path
 	var brief string
 	prev := windLoop
-	windLoop = func(_ *Server, _ context.Context, b string) (string, error) { brief = b; return "Joana", nil }
+	windLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) { brief = b; return exploracio{text: "Joana"}, nil }
 	t.Cleanup(func() { windLoop = prev })
 	rec := postJSON(t, s.handleWindChat, `{"wind":"xaloc","message":"Com em dic?"}`)
 	if rec.Code != 200 {
