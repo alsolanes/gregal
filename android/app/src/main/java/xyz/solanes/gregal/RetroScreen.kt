@@ -199,6 +199,7 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
                         }
                         if (counts.isNotEmpty()) ReviewBar(counts, filter, lang) { filter = if (filter == it) "" else it }
+                        MoodBar(ch?.persona ?: "neutral", busy = state == "rewriting", lang = lang) { vm.setRetroMood(it) }
                     }
                     items(rows, key = { it.first.id }) { (m, inThread) ->
                         val prev = rows.getOrNull(rows.indexOfFirst { it.first.id == m.id } - 1)?.first
@@ -206,8 +207,8 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                             emojis = emojis, lang = lang, onReact = { e -> haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); vm.reactRetro(m.id, e) },
                             onFix = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.fixRetro(m.id) })
                     }
-                    if (replying) item { Typing(lang) }
-                    if (state.isNotBlank() && state !in setOf("loading", "starting", "replying")) item {
+                    if (replying || state == "rewriting") item { Typing(lang) }
+                    if (state.isNotBlank() && state !in setOf("loading", "starting", "replying", "rewriting")) item {
                         Text(state, color = Red, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
                     }
                     item { Spacer(Modifier.height(8.dp)) }
@@ -245,6 +246,42 @@ private fun ReviewBar(counts: Map<String, Int>, filter: String, lang: String, on
                 }
             }
         }
+    }
+}
+
+/** To del #retro: 6 moods reals. Canviar-ne reescriu els missatges d'agent. */
+@Composable
+private fun MoodBar(current: String, busy: Boolean, lang: String, onPick: (String) -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp), color = PillDark, border = BorderStroke(1.dp, Line),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(tr(lang, "app.retro.mood").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.6.sp)
+            if (busy) {
+                Text(tr(lang, "app.retro.rewriting"), color = Sea, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+            Row(
+                Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                RETRO_MOODS.forEach { m ->
+                    MoodChip(tr(lang, "app.retro.moods." + m.id), on = current == m.id, enabled = !busy) { onPick(m.id) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MoodChip(label: String, on: Boolean, enabled: Boolean, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(50), color = if (on) Sea.copy(alpha = 0.16f) else CodeDark,
+        border = BorderStroke(1.dp, if (on) Sea.copy(alpha = 0.6f) else Line),
+        modifier = Modifier.clip(RoundedCornerShape(50)).clickable(onClick = onClick, enabled = enabled),
+    ) {
+        Text(label, color = if (on) Sea else Muted, fontSize = 12.5.sp, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
     }
 }
 

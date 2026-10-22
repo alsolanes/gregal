@@ -517,6 +517,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/retro/start", h.route((*Server).handleRetroStart))
 	handle("/api/retro/message", h.route((*Server).handleRetroMessage))
 	handle("/api/retro/react", h.route((*Server).handleRetroReact))
+	handle("/api/retro/rewrite", h.route((*Server).handleRetroRewrite))
 	handle("/api/retro/fix", h.route((*Server).handleRetroFix))
 	// Repetició de torns a la sala i Gregal Wrapped (replay.go, stats.go).
 	handle("/api/replay", h.route((*Server).handleReplay))

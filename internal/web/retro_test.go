@@ -150,6 +150,8 @@ func (f *retroFake) handler(t *testing.T) http.HandlerFunc {
 			content = `{"applies":false}`
 		case strings.Contains(sys, "opening stand-up"):
 			content = "```json\n" + `{"messages":[{"agent":"coordinator","text":"I edited calc.go and go test passed.","receipts":["e1","e2","e999"]},{"agent":"builder","text":"I wrote the parser helper, fully tested!","receipts":["e6"]},{"agent":"reviewer","text":"go vet failed at the checkpoint.","receipts":["e8"]},{"agent":"ghost","text":"boo"}],"reactions":[{"agent":"reviewer","message":1,"emoji":"🤔"},{"agent":"builder","message":0,"emoji":"🎉"},{"agent":"coordinator","message":0,"emoji":"💣"}]}` + "\n```"
+		case strings.Contains(sys, "Rewrite ONLY the quoted message"):
+			content = `{"text":"Rewritten with the new tone, same receipts intact."}`
 		case strings.Contains(sys, "reacted 🤔"):
 			content = `{"replies":[{"agent":"builder","text":"touché — the evidence only shows I wrote parser.go, no tests.","receipts":["e6"],"concede":true,"fix_suggestion":"Add unit tests for the parser helper and run go test ./..."}]}`
 		case strings.Contains(sys, "reacted 👎"):

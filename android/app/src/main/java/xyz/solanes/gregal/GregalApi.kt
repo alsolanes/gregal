@@ -103,6 +103,10 @@ class GregalApi(val base: String, val token: String) {
         return parseRetroChannelResponse(read(conn("/api/retro/fix", "POST", p.toString())))
     }
 
+    /** Canvia el to del canal i regenera els missatges d'agent (mateixos IDs i ordre). */
+    fun retroRewrite(key: String, persona: String): RetroChannel? =
+        parseRetroChannelResponse(read(conn("/api/retro/rewrite", "POST", RetroRequests.rewrite(key, persona))))
+
     fun retroReact(key: String, messageId: String, emoji: String, add: Boolean): RetroChannel? {
         val p = JSONObject().put("key", key).put("message_id", messageId).put("emoji", emoji).put("action", if (add) "add" else "remove")
         return parseRetroChannelResponse(read(conn("/api/retro/react", "POST", p.toString())))

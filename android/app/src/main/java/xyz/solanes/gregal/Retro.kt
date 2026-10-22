@@ -45,12 +45,26 @@ fun retroFilter(msgs: List<RetroMsg>, filter: String): List<RetroMsg> =
     if (filter.isEmpty()) msgs
     else msgs.filter { it.isFinding && it.thread.isEmpty() && (filter == "all" || it.sev == filter) }
 
+/** Un mood del #retro: to real del model, no decoració. */
+data class RetroMood(val id: String)
+
+/** Els 6 tons que funcionen de debò al backend (docs/api-contract.md). */
+val RETRO_MOODS = listOf(
+    RetroMood("neutral"),
+    RetroMood("sarcastic"),
+    RetroMood("playful"),
+    RetroMood("sharp"),
+    RetroMood("flirty"),
+    RetroMood("serious"),
+)
+
 data class RetroChannel(
     val key: String,
     val title: String,
     val degraded: Boolean,
     val agents: List<RetroAgent>,
     val messages: List<RetroMsg>,
+    val persona: String = "neutral",
 ) {
     fun agent(id: String): RetroAgent? = agents.firstOrNull { it.id == id }
 }
@@ -90,7 +104,8 @@ fun parseRetroChannel(o: Map<String, Any?>?): RetroChannel? {
             fixRun = (m["fix_run"] as? Double)?.toLong() ?: 0L,
         )
     }
-    return RetroChannel(s(o, "key"), s(o, "title"), o["degraded"] == true, agents, msgs)
+    val persona = (s(o, "persona").ifBlank { "neutral" }).takeIf { it in RETRO_MOODS.map { m -> m.id } } ?: "neutral"
+    return RetroChannel(s(o, "key"), s(o, "title"), o["degraded"] == true, agents, msgs, persona)
 }
 
 @Suppress("UNCHECKED_CAST")
@@ -104,6 +119,12 @@ fun parseRetroInfo(json: String): RetroInfo {
         latestRunning = latest["running"] == true,
         emojis = (o["emojis"] as? List<*>)?.mapNotNull { it as? String }?.takeIf { it.isNotEmpty() } ?: RETRO_DEFAULT_EMOJIS,
     )
+}
+
+/** Cossos de les peticions del #retro que porten to (contracte a docs/api-contract.md). */
+object RetroRequests {
+    fun rewrite(key: String, persona: String): String =
+        org.json.JSONObject().put("key", key).put("persona", persona).toString()
 }
 
 /** Canal dins d'una resposta de start/message/react ({"channel": …}). */

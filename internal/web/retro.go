@@ -82,7 +82,8 @@ type retroChannel struct {
 	Title  string `json:"title"`
 	Lang   string `json:"lang"`
 	Model  string `json:"model,omitempty"`
-	// Persona és el to dels agents (neutral|friendly|sarcastic|mentor).
+	// Persona és el to dels agents (neutral|sarcastic|playful|sharp|flirty|serious;
+	// friendly|mentor es mantenen per compatibilitat).
 	// Només canvia l'estil: les regles de fonamentació són les mateixes.
 	Persona   string          `json:"persona,omitempty"`
 	CreatedAt time.Time       `json:"created_at"`
@@ -1567,9 +1568,112 @@ func (s *Server) handleRetroFix(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"run": out.Run, "cursor": out.Cursor, "channel": ch})
 }
 
+// --- reescriptura amb canvi de to ---
+//
+// POST /api/retro/rewrite {key, persona}: canvia el to del canal i reescriu
+// els missatges d'agent ja publicats amb el model, un per un. IDs i ordre es
+// mantenen; els de l'usuari i els del sistema no es toquen. Si el model falla
+// a mig camí, es conserva el que ja s'ha reescrit (millor parcial que res).
+func retroRewritePrompt(c *retroChannel, persona, author, text string, receipts []string) (string, string) {
+	sys := "You rewrite ONE agent message from a #retro channel in a new tone.\n" +
+		retroRules + "\n" + retroPersonaDirective(persona) +
+		"Rewrite ONLY the quoted message below: same facts, same verdicts (including any touché/concede), same claim scope. " +
+		"Change the voice, never the content: no new facts, no dropped receipts, no invented jokes about things that did not happen.\n" +
+		"Reply with ONLY one JSON object, no code fences: {\"text\":\"...\"}\n" +
+		config.LanguageDirective(c.Lang)
+	var ub strings.Builder
+	ub.WriteString("AGENT: " + author + "\n\nMESSAGE TO REWRITE:\n" + text + "\n\nRECEIPTS (keep exactly these): " + strings.Join(receipts, ", ") + "\n")
+	ub.WriteString("\nEVIDENCE (grounding only, do not add facts beyond the message):\n" + renderRetroEvidence(retroPack{Agents: retroWorkers(c), Evidence: c.Evidence}))
+	return sys, ub.String()
+}
+
+func (s *Server) handleRetroRewrite(w http.ResponseWriter, r *http.Request) {
+	req, ok := retroDecode(w, r)
+	if !ok {
+		return
+	}
+	p := retroPersonaNorm(req.Persona)
+	if p == "" {
+		retroError(w, http.StatusBadRequest, "unknown persona")
+		return
+	}
+	key := s.retroKeyFor(req)
+	c := s.retroGet(key)
+	if c == nil {
+		retroError(w, http.StatusNotFound, errRetroNoChannel.Error())
+		return
+	}
+	type job struct {
+		idx      int
+		author   string
+		text     string
+		receipts []string
+	}
+	var jobs []job
+	for i, m := range c.Messages {
+		if m.Author == "user" || m.Author == "system" || strings.TrimSpace(m.Text) == "" {
+			continue
+		}
+		if c.agent(m.Author) == nil {
+			continue
+		}
+		jobs = append(jobs, job{idx: i, author: m.Author, text: m.Text, receipts: m.Receipts})
+		if len(jobs) >= 14 {
+			break
+		}
+	}
+	if len(jobs) > 0 {
+		ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+		defer cancel()
+		for _, j := range jobs {
+			sys, user := retroRewritePrompt(c, p, j.author, j.text, j.receipts)
+			js, _, err := s.retroAsk(ctx, sys, user, func(out string) error {
+				var d struct {
+					Text string `json:"text"`
+				}
+				if err := json.Unmarshal([]byte(retroExtractJSON(out)), &d); err != nil {
+					return err
+				}
+				if strings.TrimSpace(d.Text) == "" {
+					return errors.New("empty text")
+				}
+				return nil
+			})
+			if err != nil || ctx.Err() != nil {
+				break
+			}
+			var d struct {
+				Text string `json:"text"`
+			}
+			if err := json.Unmarshal([]byte(retroExtractJSON(js)), &d); err != nil {
+				continue
+			}
+			if text := retroClip(strings.TrimSpace(d.Text), 700); text != "" {
+				j := j
+				text := text
+				if _, err := s.retroUpdate(key, func(ch *retroChannel) error {
+					if j.idx >= len(ch.Messages) || ch.Messages[j.idx].Author != j.author {
+						return errors.New("channel changed underneath")
+					}
+					ch.Messages[j.idx].Text = text
+					return nil
+				}); err != nil {
+					break
+				}
+			}
+		}
+	}
+	upd, err := s.retroUpdate(key, func(c *retroChannel) error { c.Persona = p; return nil })
+	if err != nil {
+		retroError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]any{"channel": upd, "cursor": s.retroCursor()})
+}
+
 // --- personatges (to dels missatges) ---
 
-var retroPersonas = []string{"neutral", "friendly", "sarcastic", "mentor"}
+var retroPersonas = []string{"neutral", "sarcastic", "playful", "sharp", "flirty", "serious", "friendly", "mentor"}
 
 // retroPersonaNorm valida el to demanat; buit si no n'és cap de conegut.
 func retroPersonaNorm(p string) string {
@@ -1616,6 +1720,14 @@ func retroPersonaDirective(p string) string {
 		tone = "warm, upbeat and encouraging, like friendly teammates; celebrate real wins (only those in the evidence) and keep a positive spin on problems."
 	case "sarcastic":
 		tone = "dry, witty and lightly sarcastic, like a seasoned team joking around; tease the work and the tools, never the user, never mean or offensive; the facts stay exact."
+	case "playful":
+		tone = "playful and mischievous like teammates celebrating a release: jokes, vivid metaphors and exclamation, but every claim stays backed by the evidence; hype never invents wins."
+	case "sharp":
+		tone = "blunt and cutting like a brutally honest senior: call out weak work and excuses directly, no sugar-coating; never insult or mock any person, and every criticism points at a concrete fact from the evidence."
+	case "flirty":
+		tone = "charming and flirtatious like witty banter between crushes: compliments and playful teasing toward the team, never explicit, never sexual, never creepy; the facts stay exact and professional underneath the charm."
+	case "serious":
+		tone = "grave and professional like a post-incident report: no jokes, no filler, short declarative sentences; state what happened, what it means and what is still uncertain, strictly from the evidence."
 	case "mentor":
 		tone = "a patient senior mentor: explain briefly why things went well or badly and end with one concrete lesson or tip when the evidence supports it."
 	default:

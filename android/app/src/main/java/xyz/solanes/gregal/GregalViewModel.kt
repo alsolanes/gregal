@@ -871,6 +871,26 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Canvia el mood del #retro: el servidor reescriu els missatges
+    d'agent ja publicats amb el to nou (mateixos IDs i ordre). */
+    fun setRetroMood(persona: String) {
+        val ch = _retro.value ?: return
+        if (persona == ch.persona || _retroState.value == "rewriting") return
+        if (persona !in RETRO_MOODS.map { it.id }) return
+        _retroState.value = "rewriting"
+        viewModelScope.launch {
+            try {
+                val out = withContext(Dispatchers.IO) { _conn.value.api().retroRewrite(ch.key.ifBlank { retroKey }, persona) }
+                if (out != null) _retro.value = out
+                _retroState.value = ""
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _retroState.value = requestMessage(e)
+            }
+        }
+    }
+
     /** «Arregla-ho»: l'arranjament d'una troballa passa a ser un torn. */
     fun fixRetro(messageId: String) {
         val ch = _retro.value ?: return
