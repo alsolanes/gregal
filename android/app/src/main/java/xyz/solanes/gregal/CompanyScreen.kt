@@ -450,6 +450,7 @@ private fun ConversationRow(
             WindHalo(
                 accent = accent, style = style, size = 48,
                 stacked = faces.drop(1), online = !busy,
+                mood = if (busy) WindMood.THINKING else WindMood.HAPPY,
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -549,7 +550,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
             }
             WindHalo(size = 52, accent = accent, style = wind.faceStyle,
-                mood = if (isBusy) WindMood.THINKING else WindMood.HAPPY)
+                mood = when {
+                    msgs.any { it.streaming } -> WindMood.TALKING
+                    isBusy -> WindMood.THINKING
+                    else -> WindMood.HAPPY
+                })
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(wind.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -592,7 +597,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (msgs.isEmpty()) {
                 item {
                     ChatEmptyState(
-                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY) },
+                        face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
                         title = tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
                     )
@@ -773,7 +778,11 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             WindHalo(
                 accent = rotAccent, style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
                 size = 52, stacked = faces.drop(1),
-                mood = if (rotBusy) WindMood.THINKING else WindMood.HAPPY,
+                mood = when {
+                    msgs.any { it.streaming } -> WindMood.TALKING
+                    rotBusy -> WindMood.THINKING
+                    else -> WindMood.HAPPY
+                },
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -822,7 +831,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                         WindHalo(
                             size = 88, accent = rotAccent,
                             style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
-                            stacked = faces.drop(1), mood = WindMood.HAPPY,
+                            stacked = faces.drop(1), mood = WindMood.HAPPY, tappable = true,
                         )
                     },
                     title = tr(lang, "app.vents.emptyThreadTitle"),
@@ -1125,7 +1134,8 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
         // Cara del vent fora de la targeta: l'agent té cos.
         if (speaker != null) {
             Box(Modifier.padding(top = 14.dp, end = 8.dp).clip(CircleShape).clickable(enabled = onSpeakerClick != null, onClick = { onSpeakerClick?.invoke() })) {
-                WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 44)
+                WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 44,
+                    mood = if (m.streaming) WindMood.TALKING else WindMood.HAPPY)
             }
         }
         // Bombolla del vent: clara com la del dots (la blanca ressalta sobre

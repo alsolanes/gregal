@@ -47,6 +47,7 @@ fun WindHalo(
     mood: WindMood = WindMood.IDLE,
     online: Boolean = true,
     stacked: List<Wind> = emptyList(),
+    tappable: Boolean = false,
 ) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size((size + 14).dp)) {
         // Resplendor exterior del color del vent.
@@ -59,7 +60,7 @@ fun WindHalo(
             modifier = Modifier.size(size.dp),
         ) {
             Box(contentAlignment = Alignment.Center) {
-                WindFace(size = size - 6, mood = mood, accent = accent, style = style)
+                WindFace(size = size - 6, mood = mood, accent = accent, style = style, tappable = tappable)
             }
         }
         if (stacked.isNotEmpty()) {

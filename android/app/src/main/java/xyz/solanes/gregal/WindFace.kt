@@ -2,6 +2,8 @@ package xyz.solanes.gregal
 
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -10,8 +12,14 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.min
+import kotlin.math.sin
 
 /**
  * WindFace — la cara viva d'un vent de Gregal: una bola del color triat que
@@ -22,7 +30,7 @@ import kotlin.math.min
  */
 
 /** L'estat d'ànim del vent, pel qual canvien els ulls. */
-enum class WindMood { IDLE, THINKING, HAPPY }
+enum class WindMood { IDLE, THINKING, HAPPY, TALKING }
 
 /** Decorative motion can be disabled for accessibility and deterministic UI tests. */
 val LocalWindMotion = compositionLocalOf { true }
@@ -58,17 +66,65 @@ fun WindFace(
     mood: WindMood = WindMood.IDLE,
     accent: Color = Color(0xFFFF9F00),
     style: WindStyle = WindStyle(),
+    tappable: Boolean = false,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val motion = LocalWindMotion.current && android.provider.Settings.Global.getFloat(
         context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
-    val breathe = if (motion) {
-        val value by rememberInfiniteTransition(label = "wind-breathe").animateFloat(
-            initialValue = 1f, targetValue = 1.04f,
-            animationSpec = infiniteRepeatable(tween(1600, easing = LinearEasing), RepeatMode.Reverse), label = "breathing")
+    // Petó en prémer: la cara s'aixafa i torna amb molla (tendre!).
+    var punch by remember { mutableIntStateOf(0) }
+    val punchScale = remember { Animatable(1f) }
+    LaunchedEffect(punch) {
+        if (punch > 0 && motion) {
+            punchScale.animateTo(0.84f, spring(stiffness = Spring.StiffnessMedium))
+            punchScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
+        }
+    }
+    // Ritme: saltironet content, balanceig en pensar, bressol en parlar.
+    val bounceSpeed = when (mood) {
+        WindMood.HAPPY -> 900
+        WindMood.TALKING -> 700
+        else -> 2200
+    }
+    val bounceAmp = when (mood) {
+        WindMood.HAPPY -> 0.045f
+        WindMood.TALKING -> 0.030f
+        else -> 0.018f
+    }
+    val bounce = if (motion) {
+        val value by rememberInfiniteTransition(label = "wind-bounce").animateFloat(
+            initialValue = 0f, targetValue = (2 * Math.PI).toFloat(),
+            animationSpec = infiniteRepeatable(tween(bounceSpeed, easing = LinearEasing)), label = "bounce")
         value
-    } else 1f
-    val blink = if (motion) {
+    } else 0f
+    val tilt = if (motion && mood == WindMood.THINKING) {
+        val value by rememberInfiniteTransition(label = "wind-tilt").animateFloat(
+            initialValue = -1f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "tilt")
+        value
+    } else 0f
+    // Boca que s'obre i tanca en parlar (unes 3 síl·labes per segon).
+    val talkOpen = if (motion && mood == WindMood.TALKING) {
+        val value by rememberInfiniteTransition(label = "wind-talk").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(340, easing = LinearEasing)), label = "talk")
+        value < 0.5f
+    } else false
+    // Espurnes de felicitat + zetes de son.
+    val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) {
+        val value by rememberInfiniteTransition(label = "wind-twinkle").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(900, easing = LinearEasing), RepeatMode.Reverse), label = "twinkle")
+        value
+    } else 0f
+    val sleepy = if (motion && style.eyes == WindEyes.SLEEPY) {
+        val value by rememberInfiniteTransition(label = "wind-zzz").animateFloat(
+            initialValue = 0f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing)), label = "zzz")
+        value
+    } else -1f
+    val measurer = rememberTextMeasurer()
+    val blink: Float = if (motion) {
         val value by rememberInfiniteTransition(label = "wind-blink").animateFloat(
             initialValue = 1f, targetValue = 1f,
             animationSpec = infiniteRepeatable(keyframes {
@@ -77,20 +133,29 @@ fun WindFace(
         value
     } else 1f
     val blinking = blink < .5f
-    val gaze = if (motion) {
+    val gaze: Float = if (motion) {
         val value by rememberInfiniteTransition(label = "wind-gaze").animateFloat(
             initialValue = -1f, targetValue = 1f,
             animationSpec = infiniteRepeatable(tween(3400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "gaze")
         value
     } else 0f
-    val thinkingPhase = if (motion) {
+    val thinkingPhase: Float = if (motion) {
         val value by rememberInfiniteTransition(label = "wind-think").animateFloat(
             initialValue = 0f, targetValue = 3f,
             animationSpec = infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "thinking")
         value
     } else 0f
-
+    val bobFrac = sin(bounce) * bounceAmp
+    val squashX = if (mood == WindMood.HAPPY) 1f + sin(bounce) * 0.035f else 1f
+    val squashY = if (mood == WindMood.HAPPY) 1f - sin(bounce) * 0.035f else 1f
+    Box(Modifier.graphicsLayer {
+        translationY = bobFrac * size.dp.toPx()
+        scaleX = squashX * punchScale.value
+        scaleY = squashY * punchScale.value
+        rotationZ = tilt * 5f
+    }.then(if (tappable) Modifier.clickable { punch++ } else Modifier)) {
     Canvas(Modifier.size(size.dp)) {
+        val breathe = 1f + sin(bounce) * 0.008f
         val w = this.size.width
         val h = this.size.height
         val cx = w / 2f
@@ -272,5 +337,40 @@ fun WindFace(
                 )
             }
         }
+        // En parlar, la boca de l'estil s'obre i tanca: sembla que vocalitza.
+        if (talkOpen) {
+            drawOval(
+                color = ink,
+                topLeft = Offset(cx - r * 0.11f, cy + r * 0.16f),
+                size = Size(r * 0.22f, r * 0.20f),
+            )
+            drawOval(
+                color = Color(0xFFE86A6A),
+                topLeft = Offset(cx - r * 0.07f, cy + r * 0.26f),
+                size = Size(r * 0.14f, r * 0.10f),
+            )
+        }
+        // Espurnes quan està content o explica coses.
+        if (twinkle > 0f) {
+            fun sparkle(sx: Float, sy: Float, rad: Float, alpha: Float) {
+                val a = accent.copy(alpha = alpha.coerceIn(0f, 1f))
+                drawLine(a, Offset(sx - rad, sy), Offset(sx + rad, sy), strokeWidth = r * 0.03f, cap = StrokeCap.Round)
+                drawLine(a, Offset(sx, sy - rad), Offset(sx, sy + rad), strokeWidth = r * 0.03f, cap = StrokeCap.Round)
+            }
+            sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
+            sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
+        }
+        // Zetes quan té son (ulls mig tancats).
+        if (sleepy >= 0f) {
+            for (k in 0 until 2) {
+                val pz = (sleepy + k * 0.5f) % 1f
+                drawText(
+                    measurer, "z",
+                    topLeft = Offset(cx + r * (0.55f + k * 0.22f), cy - r * (0.95f + pz * 0.55f)),
+                    style = TextStyle(fontSize = (10 + pz * 9).sp, color = ink.copy(alpha = (1f - pz) * 0.75f)),
+                )
+            }
+        }
+    }
     }
 }

@@ -143,7 +143,7 @@ internal fun WindEditor(
                 .background(Brush.verticalGradient(listOf(Color(Wind("", "", color, "").argb).copy(alpha = 0.20f), Color.Transparent)), RoundedCornerShape(22.dp))
                 .padding(16.dp), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    WindHalo(accent = Color(Wind("", "", color, "").argb), style = windStyleOf(style), size = 84, mood = WindMood.HAPPY)
+                    WindHalo(accent = Color(Wind("", "", color, "").argb), style = windStyleOf(style), size = 84, mood = WindMood.HAPPY, tappable = true)
                     Text(name.ifBlank { tr(lang, "app.vents.makeYours") }, color = Ink, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                     if (role.isNotBlank()) Text(role, color = Muted, fontSize = 13.sp)
                 }

@@ -75,7 +75,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                WindHalo(accent = accent, style = wind.faceStyle, size = 92, mood = WindMood.HAPPY)
+                WindHalo(accent = accent, style = wind.faceStyle, size = 92, mood = WindMood.HAPPY, tappable = true)
                 Text(wind.name,
                     style = androidx.compose.ui.text.TextStyle(
                         brush = Brush.linearGradient(listOf(Ink, accent)),
