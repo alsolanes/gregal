@@ -93,7 +93,7 @@ class VentsExperienceTest {
         val winds = listOf(Wind("a", "Marinada", "#EFC69A", "calma"), Wind("b", "Xaloc", "#EFA68F", "música"))
         var saved: List<String>? = null
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
-            MaterialTheme(colorScheme = LightPal.scheme()) { ConversationPicker("ca", winds, false, {}, { _, members -> saved = members }) }
+            MaterialTheme(colorScheme = LightPal.scheme()) { ConversationPicker("ca", winds, false, {}, onCreate = { _, members -> saved = members }) }
         } }
         ui.onNodeWithText(tr("ca", "app.vents.chatName")).performTextInput("El meu racó")
         ui.mainClock.advanceTimeBy(100)
@@ -102,6 +102,18 @@ class VentsExperienceTest {
         ui.mainClock.advanceTimeBy(100)
         ui.onNodeWithText(tr("ca", "app.vents.startChat")).assertIsEnabled().performClick()
         ui.runOnIdle { org.junit.Assert.assertEquals(listOf("a"), saved) }
+    }
+
+    @Test fun memberRowsShowRoleAndExpertise() {
+        val winds = listOf(Wind("a", "Marinada", "#EFC69A", "calma"), Wind("b", "Xaloc", "#EFA68F", "música"))
+        val resum = mapOf("a" to GregalApi.WindResum("a", "Marinada", "calma",
+            listOf(GregalApi.Coneixement("calcots", "Calçots", "Temporada i ritual."))))
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { ConversationPicker("ca", winds, true, {}, resum = resum, onCreate = { _, _ -> }) }
+        } }
+        ui.onNodeWithText("calma").assertIsDisplayed()
+        ui.onNodeWithText("música").assertIsDisplayed()
+        ui.onNodeWithText("Sap de: Calçots").assertIsDisplayed()
     }
 
     @Test fun profileShowsActualKnowledgeAndSeparatePersonalMemory() {

@@ -2417,6 +2417,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _ventDetall = MutableStateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>>(emptyMap())
     val ventDetall: StateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>> = _ventDetall.asStateFlow()
 
+    /** Resum de tots els vents (rol + de què és expert) per al selector de membres. */
+    private val _windsResum = MutableStateFlow<Map<String, GregalApi.WindResum>>(emptyMap())
+    val windsResum: StateFlow<Map<String, GregalApi.WindResum>> = _windsResum.asStateFlow()
+
+    fun loadWindsResum() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val resum = withContext(Dispatchers.IO) { source.api().getWindsResum() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _windsResum.value = resum.associateBy { it.id }
+            } catch (_: Exception) { }
+        }
+    }
+
     fun loadVentDetall(windId: String) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {

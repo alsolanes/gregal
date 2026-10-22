@@ -574,6 +574,23 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/coneixements", "DELETE", JSONObject().put("wind", windId).put("nom", nom).toString()))
     }
 
+    /** Resum de tots els vents: rol + índex de coneixements (selector de membres). */
+    data class WindResum(val id: String, val nom: String, val rol: String, val coneixements: List<Coneixement>)
+
+    fun getWindsResum(): List<WindResum> {
+        val o = JSONObject(read(conn("/api/winds/resum", "GET")))
+        val a = o.optJSONArray("vents") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val v = a.optJSONObject(i) ?: return@mapNotNull null
+            val c = v.optJSONArray("coneixements") ?: JSONArray()
+            WindResum(v.optString("id"), v.optString("nom"), v.optString("rol"),
+                (0 until c.length()).mapNotNull { j ->
+                    val e = c.optJSONObject(j) ?: return@mapNotNull null
+                    Coneixement(e.optString("nom"), e.optString("titol"), e.optString("descripcio"))
+                })
+        }
+    }
+
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
     fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
         val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))

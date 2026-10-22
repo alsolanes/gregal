@@ -9,14 +9,18 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** Named single-wind chats use the same durable thread store as groups. */
 @Composable
 internal fun ConversationCreator(vm: GregalViewModel, lang: String, winds: List<Wind>, group: Boolean, onDone: () -> Unit) {
     var saving by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    ConversationPicker(lang, winds, group, onDone, onCreate = { name, members ->
+    val resum by vm.windsResum.collectAsState()
+    LaunchedEffect(Unit) { vm.loadWindsResum() }
+    ConversationPicker(lang, winds, group, onDone, resum = resum, onCreate = { name, members ->
         saving = true; failed = false
         vm.createRotllana(name, members, onError = { saving = false; failed = true }, onDone = { saving = false; onDone() })
     }, busy = saving, error = failed)
@@ -25,9 +29,30 @@ internal fun ConversationCreator(vm: GregalViewModel, lang: String, winds: List<
 internal fun canCreateConversation(name: String, members: Collection<String>, group: Boolean): Boolean =
     name.isNotBlank() && members.distinct().size >= if (group) 2 else 1
 
+/** Fila de membre amb cara, nom, rol i de què és expert (creació i edició). */
+@Composable
+internal fun WindMemberRow(lang: String, wind: Wind, resum: GregalApi.WindResum?,
+    checked: Boolean, onToggle: (Boolean) -> Unit, faceSize: Int = 48) {
+    Row(Modifier.fillMaxWidth().clickable { onToggle(!checked) }
+        .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        WindFace(size = faceSize, accent = Color(wind.argb), style = wind.faceStyle)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            val rol = resum?.rol?.ifBlank { null } ?: wind.role
+            if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = 13.sp)
+            val experts = resum?.coneixements.orEmpty().map { it.titol.ifBlank { it.nom } }.filter { it.isNotBlank() }
+            if (experts.isNotEmpty()) Text(tr(lang, "app.vents.knowsAbout", experts.joinToString(", ")),
+                color = Muted, fontSize = 12.sp)
+        }
+        Checkbox(checked = checked, onCheckedChange = onToggle)
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean, onDismiss: () -> Unit,
+    resum: Map<String, GregalApi.WindResum> = emptyMap(),
     onCreate: (String, List<String>) -> Unit, busy: Boolean = false, error: Boolean = false) {
     var name by remember { mutableStateOf("") }
     var members by remember { mutableStateOf(setOf<String>()) }
@@ -54,13 +79,9 @@ internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean,
             Text(tr(lang, if (group) "app.vents.pickGroup" else "app.vents.pickChat"), color = Muted)
             if (winds.isEmpty()) Text(tr(lang, "app.vents.needWind"), color = Ink)
             winds.forEach { wind ->
-                Row(Modifier.fillMaxWidth().clickable { members = if (wind.id in members) members - wind.id else members + wind.id }
-                    .padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    WindFace(size = 48, accent = Color(wind.argb), style = wind.faceStyle)
-                    Text(wind.name, color = Ink, modifier = Modifier.weight(1f))
-                    Checkbox(checked = wind.id in members, onCheckedChange = { checked -> members = if (checked) members + wind.id else members - wind.id })
-                }
+                WindMemberRow(lang, wind, resum[wind.id],
+                    checked = wind.id in members,
+                    onToggle = { checked -> members = if (checked) members + wind.id else members - wind.id })
             }
         }
     }
@@ -78,12 +99,22 @@ internal fun GroupProfileDialog(vm: GregalViewModel, lang: String, rot: Rotllana
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(tr(lang, "app.company.rotllanaMembers"), color = Muted)
+                val resum by vm.windsResum.collectAsState()
+                LaunchedEffect(Unit) { vm.loadWindsResum() }
                 winds.forEach { wind ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).clickable { selectedProfile = wind }.padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             WindFace(size = 40, accent = Color(wind.argb), style = wind.faceStyle)
-                            Text(wind.name, color = Ink)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                                Text(wind.name, color = Ink)
+                                val rol = resum[wind.id]?.rol?.ifBlank { null } ?: wind.role
+                                if (rol.isNotBlank()) Text(rol, color = Muted, fontSize = 13.sp)
+                                val experts = resum[wind.id]?.coneixements.orEmpty()
+                                    .map { it.titol.ifBlank { it.nom } }.filter { it.isNotBlank() }
+                                if (experts.isNotEmpty()) Text(tr(lang, "app.vents.knowsAbout", experts.joinToString(", ")),
+                                    color = Muted, fontSize = 12.sp)
+                            }
                         }
                         Checkbox(checked = wind.id in members, enabled = !saving, onCheckedChange = { checked -> members = if (checked) members + wind.id else members - wind.id })
                     }

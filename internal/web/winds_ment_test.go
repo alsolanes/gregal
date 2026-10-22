@@ -104,6 +104,56 @@ func postConeixement(t *testing.T, s *Server, body string) *httptest.ResponseRec
 	return rec
 }
 
+// TestWindsResum: tots els vents amb rol i índex de coneixements en un cop.
+type resumVent struct {
+	ID           string `json:"id"`
+	Nom          string `json:"nom"`
+	Rol          string `json:"rol"`
+	Coneixements []struct {
+		Nom        string `json:"nom"`
+		Titol      string `json:"titol"`
+		Descripcio string `json:"descripcio"`
+	} `json:"coneixements"`
+}
+
+func TestWindsResum(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	postJSON(t, s.handleWinds, `{"name":"Llevant","color":"#29ADFF","role":"cuina"}`)
+	postJSON(t, s.handleWinds, `{"name":"Xaloc","color":"#FF9F00","role":"música"}`)
+	rec := postConeixement(t, s, `{"wind":"llevant","nom":"Calçots","titol":"Calçots","descripcio":"Temporada i ritual.","cos":"De gener a març."}`)
+	if rec.Code != 200 {
+		t.Fatalf("put: %d %s", rec.Code, rec.Body.String())
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/winds/resum", nil)
+	get := httptest.NewRecorder()
+	s.handleWindsResum(get, req)
+	if get.Code != 200 {
+		t.Fatalf("resum: %d %s", get.Code, get.Body.String())
+	}
+	var d struct {
+		Vents []resumVent `json:"vents"`
+	}
+	if err := json.Unmarshal(get.Body.Bytes(), &d); err != nil {
+		t.Fatalf("json: %v", err)
+	}
+	if len(d.Vents) != 2 {
+		t.Fatalf("vents: %d", len(d.Vents))
+	}
+	var llevant *resumVent
+	for i := range d.Vents {
+		if d.Vents[i].ID == "llevant" {
+			llevant = &d.Vents[i]
+		}
+	}
+	if llevant == nil || llevant.Rol != "cuina" {
+		t.Fatalf("llevant: %+v", llevant)
+	}
+	if len(llevant.Coneixements) != 1 || llevant.Coneixements[0].Nom != "calçots" {
+		t.Fatalf("coneixements: %+v", llevant.Coneixements)
+	}
+}
+
 // TestWindConeixements: desar, llistar, llegir i esborrar un coneixement.
 func TestWindConeixements(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())

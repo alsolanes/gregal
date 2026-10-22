@@ -292,3 +292,22 @@ func (s *Server) handleWindConeixement(w http.ResponseWriter, r *http.Request) {
 	}
 	http.Error(w, "not found", http.StatusNotFound)
 }
+
+// handleWindsResum serveix tots els vents amb rol i índex de coneixements:
+// un sol cop per pintar el selector de membres (nom + de què és expert).
+func (s *Server) handleWindsResum(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	winds, _ := s.winds.List()
+	out := make([]map[string]any, 0, len(winds))
+	for _, wind := range winds {
+		breus := make([]map[string]string, 0)
+		for _, c := range s.windSkills(wind.ID) {
+			breus = append(breus, map[string]string{"nom": c.Nom, "titol": c.Titol, "descripcio": c.Descripcio})
+		}
+		out = append(out, map[string]any{"id": wind.ID, "nom": wind.Name, "rol": wind.Role, "coneixements": breus})
+	}
+	writeJSON(w, map[string]any{"vents": out})
+}
