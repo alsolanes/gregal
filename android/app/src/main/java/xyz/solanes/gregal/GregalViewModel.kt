@@ -2305,7 +2305,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         val before = _rotllanaChat.value[rotllanaId].orEmpty()
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
-        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message)))
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message, ts = System.currentTimeMillis())))
         viewModelScope.launch {
             try {
                 try {
@@ -2336,7 +2336,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     val speaker = _winds.value.firstOrNull { it.id == wind }
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
-                        before + PetMsg("user", message) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
+                        before + PetMsg("user", message, ts = System.currentTimeMillis()) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
                     })
                 }
                 // El torn pot haver programat avisos (remind): posa al dia
@@ -2478,7 +2478,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (msg.isEmpty() || _windBusy.value.contains(windId)) return
         val source = _conn.value; val epoch = companionEpoch
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
-        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg)))
+        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
         _windBusy.value = _windBusy.value + windId
         viewModelScope.launch {
             try {
@@ -2656,7 +2656,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // Xat amb mascota: missatges en memòria + enviament
-    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false, val parcial: Boolean = false)
+    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false, val parcial: Boolean = false, val ts: Long = 0L)
 
     private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat
@@ -2677,7 +2677,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val msg = text.trim()
         if (msg.isEmpty()) return
         viewModelScope.launch {
-            _petChat.value = _petChat.value + (petId to (_petChat.value[petId].orEmpty() + PetMsg("user", msg)))
+            _petChat.value = _petChat.value + (petId to (_petChat.value[petId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
             _petChatBusy.value = _petChatBusy.value + petId
             try {
                 val reply = withContext(Dispatchers.IO) { _conn.value.api().petChat(petId, msg) }

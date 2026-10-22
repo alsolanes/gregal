@@ -447,13 +447,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     }
 
     val isBusy = busy.contains(wind.id)
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.14f), Superficie)))) {
+    Box(Modifier.fillMaxSize().background(Superficie)) {
         ChatAmbient(accent)
         Column(Modifier.fillMaxSize()) {
         // Capçalera espectacular: degradat del vent + halo + estat viu.
         Row(
             Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.38f), accent.copy(alpha = 0.10f))))
+                .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.30f), accent.copy(alpha = 0.06f))))
                 .clickable { profile = true }.padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -513,7 +513,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
             items(msgs.size, key = { idx -> idx }) { idx ->
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 12.dp else 3.dp
+                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 16.dp else 4.dp
                 Column(Modifier.padding(top = gap)) {
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
                         WindBubble(msgs[idx], accent, lang = lang,
@@ -670,7 +670,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
 
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
-    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Sea.copy(alpha = 0.12f), Superficie)))) {
+    Box(Modifier.fillMaxSize().background(Superficie)) {
         ChatAmbient(rotAccent)
         Column(Modifier.fillMaxSize()) {
         Row(
@@ -752,10 +752,10 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 val firstOfRun = idx == 0 || runKeyOf(resolved) != runKeyOf(resolveWindMessage(msgs[idx - 1], faces))
                 val continuation = !firstOfRun && resolved.message.from != "user"
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val gap = if (firstOfRun && idx > 0) 12.dp else 3.dp
+                val gap = if (firstOfRun && idx > 0) 16.dp else 4.dp
                 Column(Modifier.padding(top = gap)) {
                 BubbleIn("rot#$idx", animate = idx >= liveFrom) {
-                WindBubble(resolved.message, resolved.wind?.let { Color(it.argb) } ?: Sea,
+                WindBubble(resolved.message, if (resolved.message.from == "user") rotAccent else resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
                     speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } },
@@ -991,116 +991,138 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
     speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp,
     onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null) {
     val mine = m.from == "user"
-    Row(
-        Modifier.fillMaxWidth().padding(start = indent),
-        horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
-    ) {
-        if (mine) {
+    // Lletra sobre el color del vent: blanca si el color és intens, tinta
+    // si és pàl·lid (com la bombolla rosa del dots amb text blanc).
+    val onAccent = remember(accent) {
+        val lum = 0.2126f * accent.red + 0.7152f * accent.green + 0.0722f * accent.blue
+        if (lum > 0.55f) Color(0xFF2B2118) else Color.White
+    }
+    val receipt = remember(m.ts, lang) {
+        if (m.ts > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(m.ts)) else ""
+    }
+    if (mine) {
+        Column(Modifier.fillMaxWidth().padding(start = indent), horizontalAlignment = Alignment.End) {
             Surface(
                 shape = RoundedCornerShape(
-                    topStart = 16.dp, topEnd = 16.dp,
-                    bottomStart = 16.dp, bottomEnd = 4.dp,
+                    topStart = 20.dp, topEnd = 20.dp,
+                    bottomStart = 20.dp, bottomEnd = 6.dp,
                 ),
-                color = Sea,
-                shadowElevation = 4.dp,
-                modifier = Modifier.widthIn(max = 300.dp),
+                color = accent,
+                shadowElevation = 2.dp,
+                // Prémer llarg copia el missatge en text pla (sense marques).
+                modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                    onClick = {}, onLongClick = { onCopy?.invoke() },
+                ),
             ) {
                 Text(
                     m.text,
-                    fontSize = 14.sp,
-                    color = OnSea,
-                    modifier = Modifier.padding(horizontal = 13.dp, vertical = 9.dp),
+                    fontSize = 15.sp,
+                    color = onAccent,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
-            return@Row
-        }
-        // Cara del vent fora de la targeta: l'agent té cos.
-        if (speaker != null) {
-            Box(Modifier.padding(top = 2.dp).clip(CircleShape).clickable(enabled = onSpeakerClick != null, onClick = { onSpeakerClick?.invoke() })) {
-                WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 38)
+            // Rebut d'hora com el dots («Read 2:59 PM»): només als enviats
+            // en aquesta sessió (l'historial antic no porta hora).
+            if (receipt.isNotEmpty()) {
+                Text(receipt, fontSize = 11.sp, color = Ink.copy(alpha = 0.55f),
+                    modifier = Modifier.padding(top = 2.dp, end = 4.dp))
             }
         }
-        // Bombolla del vent: un sol farciment tenyit del seu color (sense
-        // vora ni halo: la vora fina sobre blanc es perdia i el halo no es
-        // distingia del fons). La cua la marca la cantonada superior.
+        return
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = indent),
+        horizontalArrangement = Arrangement.Start,
+    ) {
+        // Cara del vent fora de la targeta: l'agent té cos.
+        if (speaker != null) {
+            Box(Modifier.padding(top = 14.dp, end = 8.dp).clip(CircleShape).clickable(enabled = onSpeakerClick != null, onClick = { onSpeakerClick?.invoke() })) {
+                WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 44)
+            }
+        }
+        // Bombolla del vent: clara com la del dots (la blanca ressalta sobre
+        // el fons tenyit), cantonades grosses i ombra suau. La cua la marca
+        // la cantonada superior.
         val bubbleShape = RoundedCornerShape(
-            topStart = 4.dp, topEnd = 16.dp,
-            bottomStart = 16.dp, bottomEnd = 16.dp,
+            topStart = 6.dp, topEnd = 20.dp,
+            bottomStart = 20.dp, bottomEnd = 20.dp,
         )
-        Surface(
-            shape = bubbleShape,
-            color = accent.copy(alpha = 0.12f),
-            shadowElevation = 0.dp,
-            // Prémer llarg copia la resposta en text pla (sense marques).
-            modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
-                onClick = {}, onLongClick = { onCopy?.invoke() },
-            ),
-        ) {
-            val uri = LocalUriHandler.current
-            val dark = isSystemInDarkTheme()
-            // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
-            // no es recalculi a cada recomposició (streaming, scroll, teclat).
-            // El parse viu a més en cau global: en tornar a la pantalla no se'n
-            // refà ni un.
-            val link = remember(accent, dark) { readableLink(accent, dark) }
-            val codeBg = CodeDark
-            val blocks = remember(m.text) { richBlocks(m.text) }
-            val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (speakerName.isNotBlank()) {
-                    Row(Modifier.then(if (speaker != null && onSpeakerClick != null) Modifier.clickable(onClick = onSpeakerClick) else Modifier),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Box(Modifier.size(9.dp).background(accent, CircleShape))
-                        Text(speakerName, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
-                        Surface(shape = RoundedCornerShape(999.dp), color = accent.copy(alpha = 0.16f)) {
-                            Text("vent", color = Ink.copy(alpha = 0.7f), fontSize = 10.sp,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 1.dp))
-                        }
-                    }
-                }
-                // En directe el markdown parcial es trencaria: text pla net
-                // (sense marques crues) fins al done.
-                if (m.streaming) {
-                    Text(plain, fontSize = 14.sp, lineHeight = 21.sp, color = Tinta)
-                } else { for (b in blocks) {
-                    when (b) {
-                        is Rich.Inline -> {
-                            val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
-                            ClickableText(
-                                rich,
-                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp, lineHeight = 21.sp, color = Tinta),
-                                onClick = { off ->
-                                    rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
-                                },
+        // Pastilla amb el nom a cavall de la vora (com el «Jojo» del dots).
+        Box(Modifier.padding(top = if (speakerName.isNotBlank()) 10.dp else 0.dp)) {
+            Surface(
+                shape = bubbleShape,
+                color = Superficie,
+                shadowElevation = 2.dp,
+                // Prémer llarg copia la resposta en text pla (sense marques).
+                modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                    onClick = {}, onLongClick = { onCopy?.invoke() },
+                ),
+            ) {
+                val uri = LocalUriHandler.current
+                val dark = isSystemInDarkTheme()
+                // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
+                // no es recalculi a cada recomposició (streaming, scroll, teclat).
+                // El parse viu a més en cau global: en tornar a la pantalla no se'n
+                // refà ni un.
+                val link = remember(accent, dark) { readableLink(accent, dark) }
+                val codeBg = CodeDark
+                val blocks = remember(m.text) { richBlocks(m.text) }
+                val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // En directe el markdown parcial es trencaria: text pla net
+                    // (sense marques crues) fins al done.
+                    if (m.streaming) {
+                        Text(plain, fontSize = 15.sp, lineHeight = 22.sp, color = Tinta)
+                    } else { for (b in blocks) {
+                        when (b) {
+                            is Rich.Inline -> {
+                                val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
+                                ClickableText(
+                                    rich,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp, color = Tinta),
+                                    onClick = { off ->
+                                        rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
+                                    },
+                                )
+                            }
+                            is Rich.Code -> Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                Text(
+                                    b.code,
+                                    fontSize = 12.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    softWrap = false,
+                                    color = Ink,
+                                    modifier = Modifier
+                                        .background(CodeDark, RoundedCornerShape(8.dp))
+                                        .padding(8.dp),
+                                )
+                            }
+                            is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                            is Rich.Image -> MdImage(
+                                b.url, b.alt,
+                                link, lang,
                             )
                         }
-                        is Rich.Code -> Row(Modifier.horizontalScroll(rememberScrollState())) {
-                            Text(
-                                b.code,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace,
-                                softWrap = false,
-                                color = Ink,
-                                modifier = Modifier
-                                    .background(CodeDark, RoundedCornerShape(8.dp))
-                                    .padding(8.dp),
-                            )
+                    }
+                    }
+                    // Parcial: el vent s'ha quedat a mitges (pressupost exhaurit).
+                    // El botó reprèn la resposta pel mateix fil, sense preguntar.
+                    if (onContinue != null && m.parcial && !m.streaming) {
+                        TextButton(onClick = onContinue, contentPadding = PaddingValues(0.dp)) {
+                            Text(tr(lang, "app.vents.continue"), color = accent,
+                                fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
-                        is Rich.Table -> MdTable(b.headers, b.rows, lang)
-                        is Rich.Image -> MdImage(
-                            b.url, b.alt,
-                            link, lang,
-                        )
                     }
                 }
-                }
-                // Parcial: el vent s'ha quedat a mitges (pressupost exhaurit).
-                // El botó reprèn la resposta pel mateix fil, sense preguntar.
-                if (onContinue != null && m.parcial && !m.streaming) {
-                    TextButton(onClick = onContinue, contentPadding = PaddingValues(0.dp)) {
-                        Text(tr(lang, "app.vents.continue"), color = accent,
-                            fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
+            }
+            if (speakerName.isNotBlank()) {
+                Surface(shape = RoundedCornerShape(999.dp), color = accent,
+                    shadowElevation = 2.dp,
+                    modifier = Modifier.align(Alignment.TopStart).offset(x = 12.dp, y = (-11).dp)
+                        .then(if (speaker != null && onSpeakerClick != null) Modifier.clickable(onClick = onSpeakerClick) else Modifier)) {
+                    Text(speakerName, color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
                 }
             }
         }
