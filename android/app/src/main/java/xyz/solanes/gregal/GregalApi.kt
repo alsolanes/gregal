@@ -537,6 +537,43 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/chat", "DELETE", JSONObject().put("wind", windId).toString()))
     }
 
+    /** Memòria del vent sobre l'usuari (markdown, editable). */
+    fun getWindMemoria(windId: String): String {
+        val o = JSONObject(read(conn("/api/winds/memoria?wind=$windId", "GET")))
+        return o.optString("memoria")
+    }
+
+    fun saveWindMemoria(windId: String, memoria: String) {
+        read(conn("/api/winds/memoria", "PUT", JSONObject().put("wind", windId).put("memoria", memoria).toString()))
+    }
+
+    /** Coneixement d'un vent: resum de catàleg. */
+    data class Coneixement(val nom: String, val titol: String, val descripcio: String, val cos: String = "")
+
+    fun listConeixements(windId: String): List<Coneixement> {
+        val o = JSONObject(read(conn("/api/winds/coneixements?wind=$windId", "GET")))
+        val a = o.optJSONArray("coneixements") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val c = a.optJSONObject(i) ?: return@mapNotNull null
+            Coneixement(c.optString("nom"), c.optString("titol"), c.optString("descripcio"))
+        }
+    }
+
+    fun getConeixement(windId: String, nom: String): Coneixement {
+        val o = JSONObject(read(conn("/api/winds/coneixement?wind=$windId&nom=$nom", "GET")))
+        return Coneixement(o.optString("nom"), o.optString("titol"), o.optString("descripcio"), o.optString("cos"))
+    }
+
+    fun saveConeixement(windId: String, c: Coneixement): String {
+        val o = post("/api/winds/coneixements", JSONObject().put("wind", windId).put("nom", c.nom)
+            .put("titol", c.titol).put("descripcio", c.descripcio).put("cos", c.cos))
+        return o.optString("nom", c.nom)
+    }
+
+    fun deleteConeixement(windId: String, nom: String) {
+        read(conn("/api/winds/coneixements", "DELETE", JSONObject().put("wind", windId).put("nom", nom).toString()))
+    }
+
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
     fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
         val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))
@@ -591,7 +628,7 @@ class GregalApi(val base: String, val token: String) {
         data class Phase(val phase: String) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         data class DoneWind(val reply: WindReply) : WindStreamEvent
-        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false) : WindStreamEvent
+        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false) : WindStreamEvent
         data class Error(val message: String) : WindStreamEvent
     }
 
@@ -643,7 +680,7 @@ class GregalApi(val base: String, val token: String) {
                 }
                 val parcial = o.optBoolean("parcial", false)
                 WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
-                    if (parcial) markParcial(hist) else hist, parcial)
+                    if (parcial) markParcial(hist) else hist, parcial, o.optBoolean("silenci", false))
             } else {
                 WindStreamEvent.DoneWind(windReplyOf(o))
             }

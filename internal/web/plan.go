@@ -87,7 +87,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return out, err
 		},
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {
-			return agent.ExecCtx(agent.WithSkillsDirs(ctx, s.userSkillsDirs()...), s.id, s.cwd, name, argsJSON)
+			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
+			dirs = append(dirs, s.userSkillsDirs()...)
+			return agent.ExecCtx(agent.WithSkillsDirs(ctx, dirs...), s.id, s.cwd, name, argsJSON)
 		},
 		Decide: func(name, argsJSON string) (string, string) {
 			// Els vents poden programar avisos (remind, eina validada); la

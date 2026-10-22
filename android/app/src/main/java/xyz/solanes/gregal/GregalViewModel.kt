@@ -10,6 +10,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -2311,13 +2312,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     // Directe primer; el done porta l'historial amb veus.
                     var buf = ""
+                    var streamSpeaker = ""
                     val (_, _, hist) = withContext(Dispatchers.IO) {
                         source.api().rotllanaChatStream(rotllanaId, message, wind) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = ""
-                                    setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
+                                    val sp = e.phase.removePrefix("speaker:")
+                                    if (sp != e.phase) {
+                                        // Nova veu: la bombolla anterior queda com a missatge.
+                                        commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
+                                        buf = ""
+                                        streamSpeaker = sp
+                                        val who = _winds.value.firstOrNull { it.id == sp }?.name.orEmpty()
+                                        setStreamingBubble(rotllanaId, streamPhaseText("speaker") + " " + who, rotllana = true)
+                                    } else {
+                                        buf = ""
+                                        setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
+                                    }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
@@ -2398,6 +2410,64 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
             }
+        }
+    }
+
+    /** Memòria del vent sobre l'usuari + els seus coneixements (perfil). */
+    private val _ventDetall = MutableStateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>>(emptyMap())
+    val ventDetall: StateFlow<Map<String, Pair<String, List<GregalApi.Coneixement>>>> = _ventDetall.asStateFlow()
+
+    fun loadVentDetall(windId: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val mem = withContext(Dispatchers.IO) { source.api().getWindMemoria(windId) }
+                val coneix = withContext(Dispatchers.IO) { source.api().listConeixements(windId) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _ventDetall.value = _ventDetall.value + (windId to (mem to coneix))
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun saveVentMemoria(windId: String, memoria: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().saveWindMemoria(windId, memoria) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val (oldMem, coneix) = _ventDetall.value[windId] ?: ("" to emptyList())
+                _ventDetall.value = _ventDetall.value + (windId to (memoria to coneix))
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun saveConeixement(windId: String, c: GregalApi.Coneixement, onDone: () -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val nom = withContext(Dispatchers.IO) { source.api().saveConeixement(windId, c) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val (mem, coneix) = _ventDetall.value[windId] ?: ("" to emptyList())
+                val nou = c.copy(nom = nom)
+                _ventDetall.value = _ventDetall.value + (windId to (mem to (coneix.filterNot { it.nom == nom } + nou)))
+                onDone()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Llegeix un coneixement sencer (per a l'editor del perfil). */
+    suspend fun apiConeixement(windId: String, nom: String): GregalApi.Coneixement =
+        withContext(Dispatchers.IO) { _conn.value.api().getConeixement(windId, nom) }
+
+    fun deleteConeixement(windId: String, nom: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().deleteConeixement(windId, nom) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val (mem, coneix) = _ventDetall.value[windId] ?: ("" to emptyList())
+                _ventDetall.value = _ventDetall.value + (windId to (mem to coneix.filterNot { it.nom == nom }))
+            } catch (_: Exception) { }
         }
     }
 
@@ -2495,6 +2565,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Tanca la bombolla en directe com a missatge del vent que parlava. */
+    private fun commitRotllanaStreamBubble(rotllanaId: String, buf: String, speakerId: String) {
+        if (buf.isBlank()) return
+        val speaker = _winds.value.firstOrNull { it.id == speakerId }
+        val cur = _rotllanaChat.value[rotllanaId].orEmpty().filterNot { it.streaming }
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to
+            (cur + PetMsg("pet", buf, speakerId, speaker?.name.orEmpty())))
+    }
+
     private fun dropStreamingBubble(windId: String, rotllana: Boolean = false) {
         if (rotllana) {
             val cur = _rotllanaChat.value[windId].orEmpty()
@@ -2512,6 +2591,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         "searching" -> appText("app.vents.streamSearching")
         "scheduling" -> appText("app.vents.streamScheduling")
         "thinking" -> appText("app.vents.streamThinking")
+        "speaker" -> appText("app.vents.streamSpeaker")
         else -> appText("app.vents.streamWorking")
     }
 

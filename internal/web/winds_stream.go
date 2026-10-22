@@ -56,12 +56,12 @@ func streamPhase(names string) string {
 // windChatBrief munta la consigna del xat directe (compartida pel clàssic i l'stream).
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest())
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
-	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID))
+	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
 	transcript := agent.TranscriptDigest(conversation, 16000)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts." + windRemindBrief(speakingWind.ID)
 	return system, brief
@@ -121,7 +121,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		}, previous)
 	} else {
 		brief := windChatBrief(s, wind, previous, msg)
-		res, err = windLoopStream(s, ctx, brief, func(kind, text string) {
+		res, err = windLoopStream(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), brief, func(kind, text string) {
 			switch kind {
 			case "token":
 				emit("token", map[string]string{"token": text})
@@ -146,6 +146,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	hist.messages = history
 	s.startWindLearn(wind, msg, reply)
+	s.startWindMemoryLearn(wind, msg, reply)
 	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }
 
@@ -178,10 +179,18 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
-	speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Qui parla: el router tria 1-3 vents (o cap); amb vent explícit o
+	// «continua», el d'abans.
+	rctx, rcancel := context.WithTimeout(context.Background(), 90*time.Second)
+	speakers := s.routeRotllanaSpeakers(rctx, rot, strings.TrimSpace(req.Wind), msg, hist.messages)
+	rcancel()
+	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
+		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		speakers = []companion.Wind{speakingWind}
 	}
 	conversation := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
@@ -193,8 +202,22 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 
 	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
-	system, brief := rotllanaChatBrief(s, rot, speakingWind, conversation, msg)
+	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
+	if len(speakers) == 0 {
+		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
+			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+			return
+		}
+		hist.messages = conversation
+		emit("done", map[string]any{
+			"reply":   map[string]string{"wind": "", "text": ""},
+			"silenci": true,
+			"history": s.rotllanaHistoryJSON(conversation),
+		})
+		return
+	}
 	turnStart := time.Now()
+	speakingWind := speakers[0]
 	emitTokens := func(kind, text string) {
 		switch kind {
 		case "token":
@@ -203,64 +226,81 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			emit("phase", map[string]string{"phase": streamPhase(text)})
 		}
 	}
+	type veu struct {
+		wind companion.Wind
+		text string
+	}
+	var veus []veu
 	parcial := false
-	var res exploracio
-	if isContinue {
-		s.mu.Lock()
-		p, role := s.windRoleRef()
-		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, emitTokens, conversation)
-		if err == nil {
-			parcial = res.parcial
+	for si, sp := range speakers {
+		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
+		emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
+		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+		var res exploracio
+		var err error
+		if isContinue && si == 0 {
+			s.mu.Lock()
+			p, role := s.windRoleRef()
+			s.mu.Unlock()
+			res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, emitTokens, conversation)
+			if err == nil {
+				parcial = res.parcial
+			}
+		} else {
+			res, err = rotllanaVoiceLoopStream(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID)), brief, emitTokens)
+			if err == nil {
+				parcial = res.parcial || parcial
+			}
 		}
-	} else {
-		res, err = rotllanaVoiceLoopStream(s, ctx, brief, emitTokens)
-		if err == nil {
-			parcial = res.parcial
+		out := res.text
+		if err != nil {
+			// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
+			p, role, ok2 := s.sideRoleRef()
+			if !ok2 {
+				emit("error", map[string]string{"error": "no side role available"})
+				return
+			}
+			s.mu.Lock()
+			cfg, client := s.cfg, s.client
+			s.mu.Unlock()
+			msgs := []llm.Message{{Role: "system", Content: system}}
+			msgs = append(msgs, conversation...)
+			if len(msgs) > 41 {
+				msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
+			}
+			plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
+			if perr != nil {
+				emit("error", map[string]string{"error": redactError(perr)})
+				return
+			}
+			out = plain
+		}
+		reply := stripQuoteTrim(out)
+		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
+		if len(voices) == 0 {
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name})
+			veus = append(veus, veu{sp, reply})
+			continue
+		}
+		for _, v := range voices {
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
+			veus = append(veus, veu{v.wind, v.text})
 		}
 	}
-	out := res.text
-	if err != nil {
-		// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
-		p, role, ok2 := s.sideRoleRef()
-		if !ok2 {
-			emit("error", map[string]string{"error": "no side role available"})
-			return
-		}
-		s.mu.Lock()
-		cfg, client := s.cfg, s.client
-		s.mu.Unlock()
-		msgs := []llm.Message{{Role: "system", Content: system}}
-		msgs = append(msgs, conversation...)
-		if len(msgs) > 41 {
-			msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
-		}
-		plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
-		if perr != nil {
-			emit("error", map[string]string{"error": redactError(perr)})
-			return
-		}
-		out = plain
-	}
-	reply := stripQuoteTrim(out)
-	voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), speakingWind)
-	history := conversation
-	for _, v := range voices {
-		history = append(history, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
-	}
-	if err := saveRotllanaHistory(s, rot.ID, history); err != nil {
+	if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
 		emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 		return
 	}
-	hist.messages = history
-	replyWind, replyText := speakingWind, reply
-	if len(voices) > 0 {
-		replyWind, replyText = voices[0].wind, voices[0].text
+	hist.messages = conversation
+	if strings.TrimSpace(msg) != "" {
+		for _, v := range veus {
+			s.startWindMemoryLearn(v.wind, msg, v.text)
+		}
 	}
 	emit("done", map[string]any{
-		"reply":   map[string]string{"wind": replyWind.ID, "text": replyText},
+		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
 		"parcial": parcial,
-		"history": s.rotllanaHistoryJSON(history),
+		"history": s.rotllanaHistoryJSON(conversation),
 		"actions": remindActionsSince(speakingWind.ID, turnStart),
 	})
 }

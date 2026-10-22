@@ -28,7 +28,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
     val busy by vm.windProfileBusy.collectAsState()
     val error by vm.windProfileError.collectAsState()
     val chats by vm.windChat.collectAsState()
-    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadWindChat(wind.id); vm.loadJobs() }
+    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadWindChat(wind.id); vm.loadVentDetall(wind.id); vm.loadJobs() }
     val current = profile?.takeIf { it.wind.id == wind.id }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         WindProfileContent(vm, lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(),
@@ -130,6 +130,10 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         Text(tr(lang, "app.vents.personalMemory"), color = Ink, fontWeight = FontWeight.SemiBold)
                         Text(tr(lang, "app.vents.personalMemoryHelp"), color = Muted, fontSize = 13.sp)
                         SelectionContainer { Text(profile.personalMemory.ifBlank { tr(lang, "app.vents.noPersonalMemory") }, color = Tinta, lineHeight = 23.sp) }
+                        HorizontalDivider(color = Muted.copy(alpha = .15f))
+                        VentMemorySection(vm, lang, wind)
+                        HorizontalDivider(color = Muted.copy(alpha = .15f))
+                        VentSkillsSection(vm, lang, wind)
                     }
                     2 -> {
                         Text(tr(lang, "app.vents.activityHelp"), color = Muted, fontSize = 13.sp)
@@ -246,6 +250,110 @@ private fun remindersRow(lang: String, vm: GregalViewModel, wind: Wind) {
                     if (whenDue.isNotBlank()) Text(whenDue, color = Muted, fontSize = 12.sp)
                 }
                 TextButton(onClick = { vm.deleteJob(j.id) }) { Text(tr(lang, "app.company.windCancel")) }
+            }
+        }
+    }
+}
+
+/** El que el vent recorda de tu (memòria pròpia, editable). */
+@Composable
+private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
+    val detall by vm.ventDetall.collectAsState()
+    val (mem, _) = detall[wind.id] ?: ("" to emptyList<GregalApi.Coneixement>())
+    var editing by remember(wind.id) { mutableStateOf(false) }
+    var draft by remember(wind.id) { mutableStateOf("") }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(tr(lang, "app.vents.memoryTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
+        if (editing) {
+            OutlinedTextField(draft, { draft = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { editing = false; vm.saveVentMemoria(wind.id, draft) }) { Text(tr(lang, "app.vents.chatSave")) }
+                TextButton(onClick = { editing = false }) { Text(tr(lang, "app.vents.chatCancel")) }
+            }
+        } else {
+            SelectionContainer {
+                Text(mem.ifBlank { tr(lang, "app.vents.memoryEmpty") }, color = Tinta, fontSize = 14.sp, lineHeight = 22.sp)
+            }
+            OutlinedButton(onClick = { draft = mem; editing = true }) { Text(tr(lang, "app.vents.memoryEdit")) }
+        }
+    }
+}
+
+/** Coneixements del vent (estil skill): descripció al prompt, cos sota demanda. */
+@Composable
+private fun VentSkillsSection(vm: GregalViewModel, lang: String, wind: Wind) {
+    val detall by vm.ventDetall.collectAsState()
+    val (_, coneix) = detall[wind.id] ?: ("" to emptyList())
+    var editor by remember(wind.id) { mutableStateOf<GregalApi.Coneixement?>(null) }
+    var creating by remember(wind.id) { mutableStateOf(false) }
+    var confirmDel by remember(wind.id) { mutableStateOf<GregalApi.Coneixement?>(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(tr(lang, "app.vents.skillsTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
+            TextButton(onClick = { creating = true }) { Text("+ " + tr(lang, "app.vents.skillsNew")) }
+        }
+        if (coneix.isEmpty()) Text(tr(lang, "app.vents.skillsEmpty"), color = Muted, fontSize = 13.sp)
+        coneix.forEach { c ->
+            Surface(shape = RoundedCornerShape(14.dp), color = Color(wind.argb).copy(alpha = 0.07f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(wind.argb).copy(alpha = 0.30f)),
+                modifier = Modifier.fillMaxWidth().clickable { editor = c }) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(if (c.titol.isNotBlank()) c.titol else c.nom, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    if (c.descripcio.isNotBlank()) Text(c.descripcio, color = Muted, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+    if (creating) ConeixementEditor(vm, lang, wind, null, onClose = { creating = false })
+    editor?.let { c -> ConeixementEditor(vm, lang, wind, c, onClose = { editor = null }, onDelete = { confirmDel = c; editor = null }) }
+    confirmDel?.let { c ->
+        AlertDialog(onDismissRequest = { confirmDel = null },
+            title = { Text(tr(lang, "app.vents.skillDelete")) },
+            text = { Text(tr(lang, "app.vents.skillConfirmDelete", c.nom)) },
+            confirmButton = { TextButton(onClick = { vm.deleteConeixement(wind.id, c.nom); confirmDel = null }) {
+                Text(tr(lang, "app.vents.chatDelete"), color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { confirmDel = null }) { Text(tr(lang, "app.vents.chatCancel")) } })
+    }
+}
+
+/** Editor d'un coneixement: nom + descripció (índex) + cos (markdown). */
+@Composable
+private fun ConeixementEditor(vm: GregalViewModel, lang: String, wind: Wind, existing: GregalApi.Coneixement?, onClose: () -> Unit, onDelete: () -> Unit = {}) {
+    var nom by remember { mutableStateOf(existing?.nom.orEmpty()) }
+    var titol by remember { mutableStateOf(existing?.titol.orEmpty()) }
+    var desc by remember { mutableStateOf(existing?.descripcio.orEmpty()) }
+    var cos by remember { mutableStateOf(existing?.cos.orEmpty()) }
+    var loading by remember { mutableStateOf(existing != null && existing.cos.isBlank()) }
+    LaunchedEffect(existing?.nom) {
+        if (existing != null && existing.cos.isBlank()) {
+            try {
+                val ple = vm.apiConeixement(wind.id, existing.nom)
+                titol = ple.titol; desc = ple.descripcio; cos = ple.cos
+            } catch (_: Exception) { }
+            loading = false
+        }
+    }
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
+            Column(Modifier.padding(20.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(if (existing == null) tr(lang, "app.vents.skillsNew") else existing.nom, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Ink)
+                if (loading) {
+                    CircularProgressIndicator()
+                } else {
+                    if (existing == null) OutlinedTextField(nom, { nom = it }, label = { Text(tr(lang, "app.vents.skillName")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(titol, { titol = it }, label = { Text(tr(lang, "app.vents.skillTitle")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(desc, { desc = it }, label = { Text(tr(lang, "app.vents.skillDesc")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(cos, { cos = it }, label = { Text(tr(lang, "app.vents.skillBody")) }, minLines = 5, modifier = Modifier.fillMaxWidth())
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        if (existing != null) TextButton(onClick = onDelete) {
+                            Text(tr(lang, "app.vents.chatDelete"), color = MaterialTheme.colorScheme.error)
+                        }
+                        TextButton(onClick = onClose) { Text(tr(lang, "app.vents.chatCancel")) }
+                        Button(onClick = {
+                            vm.saveConeixement(wind.id, GregalApi.Coneixement(nom.ifBlank { existing?.nom.orEmpty() }, titol, desc, cos)) { onClose() }
+                        }, enabled = desc.isNotBlank() && cos.isNotBlank()) { Text(tr(lang, "app.vents.chatSave")) }
+                    }
+                }
             }
         }
     }

@@ -14,6 +14,7 @@ import (
 
 	"gregal/internal/companion"
 
+	"gregal/internal/agent"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
@@ -159,11 +160,18 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
-	// Qui parla: el triat o el següent del torn, incloent l'últim torn complet.
-	speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
+	// Qui parla: el router tria 1-3 vents (o cap); amb vent explícit o
+	// «continua», el d'abans.
+	rctx, rcancel := context.WithTimeout(context.Background(), 90*time.Second)
+	speakers := s.routeRotllanaSpeakers(rctx, rot, strings.TrimSpace(req.Wind), msg, hist.messages)
+	rcancel()
+	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
+		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		speakers = []companion.Wind{speakingWind}
 	}
 
 	conversation := append([]llm.Message(nil), hist.messages...)
@@ -174,72 +182,102 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	system, brief := rotllanaChatBrief(s, rot, speakingWind, conversation, msg)
+	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
+	if len(speakers) == 0 {
+		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
+			http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
+			return
+		}
+		hist.messages = conversation
+		writeJSON(w, map[string]any{
+			"reply":   map[string]string{"wind": "", "text": ""},
+			"silenci": true,
+			"history": s.rotllanaHistoryJSON(conversation),
+		})
+		return
+	}
 	turnStart := time.Now()
-	// «Continua» reprèn l'historial (amb la parcial) amb pressupost nou;
-	// el torn normal arrenca el loop amb la consigna.
+	speakingWind := speakers[0]
 	parcial := false
-	var res exploracio
-	if isContinue {
-		s.mu.Lock()
-		p, role := s.windRoleRef()
-		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, conversation)
-		if err == nil {
-			parcial = res.parcial
+	type veu struct {
+		wind companion.Wind
+		text string
+	}
+	var veus []veu
+	for i, sp := range speakers {
+		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+		var res exploracio
+		var err error
+		if isContinue && i == 0 {
+			// «Continua» reprèn l'historial (amb la parcial) amb
+			// pressupost nou; la resta arrenca amb la consigna.
+			s.mu.Lock()
+			p, role := s.windRoleRef()
+			s.mu.Unlock()
+			res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, conversation)
+			if err == nil {
+				parcial = res.parcial
+			}
+		} else {
+			res, err = rotllanaVoiceLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID)), brief)
+			if err == nil {
+				parcial = res.parcial || parcial
+			}
 		}
-	} else {
-		res, err = rotllanaVoiceLoop(s, ctx, brief)
-		if err == nil {
-			parcial = res.parcial
+		out := res.text
+		if err != nil {
+			// La cerca web no pot tombar el torn: cau al xat pla
+			// (sense eines), que sempre respon.
+			p, role, ok2 := s.sideRoleRef()
+			if !ok2 {
+				http.Error(w, "no side role available", http.StatusServiceUnavailable)
+				return
+			}
+			s.mu.Lock()
+			cfg, client := s.cfg, s.client
+			s.mu.Unlock()
+			msgs := []llm.Message{{Role: "system", Content: system}}
+			msgs = append(msgs, conversation...)
+			if len(msgs) > 41 {
+				msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
+			}
+			plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
+			if perr != nil {
+				http.Error(w, redactError(perr), http.StatusBadGateway)
+				return
+			}
+			out = plain
+		}
+		reply := stripQuoteTrim(out)
+		// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada
+		// veu queda com un missatge propi amb la seva identitat, en ordre.
+		// La primera veu del primer vent és la resposta del torn.
+		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
+		if len(voices) == 0 {
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name})
+			veus = append(veus, veu{sp, reply})
+			continue
+		}
+		for _, v := range voices {
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
+			veus = append(veus, veu{v.wind, v.text})
 		}
 	}
-	out := res.text
-	if err != nil {
-		// La cerca web no pot tombar el torn: cau al xat pla (sense eines),
-		// que sempre respon.
-		p, role, ok2 := s.sideRoleRef()
-		if !ok2 {
-			http.Error(w, "no side role available", http.StatusServiceUnavailable)
-			return
-		}
-		s.mu.Lock()
-		cfg, client := s.cfg, s.client
-		s.mu.Unlock()
-		msgs := []llm.Message{{Role: "system", Content: system}}
-		msgs = append(msgs, conversation...)
-		if len(msgs) > 41 {
-			msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
-		}
-		plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
-		if perr != nil {
-			http.Error(w, redactError(perr), http.StatusBadGateway)
-			return
-		}
-		out = plain
-	}
-	reply := stripQuoteTrim(out)
-	// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada veu
-	// queda com un missatge propi amb la seva identitat, en ordre. La
-	// primera veu és la resposta del torn.
-	voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), speakingWind)
-	history := conversation
-	for _, v := range voices {
-		history = append(history, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
-	}
-	if err := saveRotllanaHistory(s, rot.ID, history); err != nil {
+	if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
 		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 		return
 	}
-	hist.messages = history
-	replyWind, replyText := speakingWind, reply
-	if len(voices) > 0 {
-		replyWind, replyText = voices[0].wind, voices[0].text
+	hist.messages = conversation
+	// Cada veu recorda l'usuari (gustos, fets duradors), en segon pla.
+	if strings.TrimSpace(msg) != "" {
+		for _, v := range veus {
+			s.startWindMemoryLearn(v.wind, msg, v.text)
+		}
 	}
 	writeJSON(w, map[string]any{
-		"reply":   map[string]string{"wind": replyWind.ID, "text": replyText},
+		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
 		"parcial": parcial,
-		"history": s.rotllanaHistoryJSON(history),
+		"history": s.rotllanaHistoryJSON(conversation),
 		"actions": remindActionsSince(speakingWind.ID, turnStart),
 	})
 }

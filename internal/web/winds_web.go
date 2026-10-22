@@ -9,6 +9,7 @@ import (
 
 	"gregal/internal/companion"
 
+	"gregal/internal/agent"
 	"gregal/internal/goal"
 	"gregal/internal/llm"
 	"gregal/internal/session"
@@ -233,7 +234,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, previous)
 	} else {
-		res, err = windLoop(s, ctx, windChatBrief(s, wind, previous, msg))
+		res, err = windLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatBrief(s, wind, previous, msg))
 	}
 	if err != nil {
 		http.Error(w, redactError(err), http.StatusBadGateway)
@@ -252,5 +253,6 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	hist.messages = history // failed model/save calls never publish a partial turn
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
 	s.startWindLearn(wind, msg, reply)
+	s.startWindMemoryLearn(wind, msg, reply)
 	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }
