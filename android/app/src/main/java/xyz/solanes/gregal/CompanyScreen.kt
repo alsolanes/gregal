@@ -133,6 +133,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     var menu by remember { mutableStateOf(false) }
     var manage by remember { mutableStateOf(false) }
     var profile by remember { mutableStateOf<Wind?>(null) }
+    var rowTarget by remember { mutableStateOf<RowTarget?>(null) }
     val creator by vm.windCreator.collectAsState()
     LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes() }
     LaunchedEffect(winds.map { it.id }, rotllanes.map { it.id }) {
@@ -216,7 +217,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         if (rotllanes.isEmpty() && winds.none { chats[it.id].orEmpty().isNotEmpty() }) item { VentsEmpty(lang, true) }
                         items(winds.filter { chats[it.id].orEmpty().isNotEmpty() }, key = { "wind:" + it.id }) { w ->
                             ConversationRow(w.name, chats[w.id].orEmpty().lastOrNull()?.text.orEmpty(), Color(w.argb), w.faceStyle,
-                                busy = busy.contains(w.id), onClick = { vm.openVentsChat("wind:" + w.id) })
+                                busy = busy.contains(w.id), onClick = { vm.openVentsChat("wind:" + w.id) },
+                                onLongClick = { rowTarget = RowTarget.Dm(w) })
                         }
                         items(rotllanes, key = { "rot:" + it.id }) { r ->
                             val faces = r.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
@@ -224,7 +226,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                                 faces.firstOrNull()?.let { Color(it.argb) } ?: Sea,
                                 faces.firstOrNull()?.faceStyle ?: WindStyle(), faces = faces,
                                 busy = rBusy.contains(r.id),
-                                onClick = { vm.openVentsChat("rot:" + r.id) })
+                                onClick = { vm.openVentsChat("rot:" + r.id) },
+                                onLongClick = { rowTarget = RowTarget.Rot(r) })
                         }
                     }
                 }
@@ -232,6 +235,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         }
     }
     profile?.let { w -> WindProfileDialog(vm, lang, w) { profile = null } }
+    rowTarget?.let { t ->
+        ChatRowDialog(vm, lang, t) { rowTarget = null }
+    }
 }
 
 @Composable
@@ -332,8 +338,85 @@ private fun WindsModelDialog(vm: GregalViewModel, lang: String, onDismiss: () ->
     }
 }
 
+/** Quina fila de la llista s'està editant: DM amb un vent o rotllana. */
+private sealed interface RowTarget {
+    data class Dm(val wind: Wind) : RowTarget
+    data class Rot(val rot: Rotllana) : RowTarget
+}
+
+/** Accions d'una fila de la llista: canviar el nom o esborrar el xat. */
+@Composable
+private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, onClose: () -> Unit) {
+    var mode by remember(target) { mutableStateOf(0) } // 0 menú, 1 nom, 2 confirmar
+    val currentName = when (target) {
+        is RowTarget.Dm -> target.wind.name
+        is RowTarget.Rot -> target.rot.name
+    }
+    var name by remember(target) { mutableStateOf(currentName) }
+    val deleteLabel = tr(lang, if (target is RowTarget.Dm) "app.vents.chatClear" else "app.vents.chatDeleteRot")
+    val confirmText = tr(
+        lang,
+        if (target is RowTarget.Dm) "app.vents.chatConfirmClear" else "app.vents.chatConfirmDeleteRot",
+        currentName,
+    )
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(currentName, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                when (mode) {
+                    1 -> {
+                        OutlinedTextField(
+                            value = name, onValueChange = { name = it },
+                            label = { Text(tr(lang, "app.vents.chatNameLabel")) },
+                            singleLine = true, shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = onClose) { Text(tr(lang, "app.vents.chatCancel")) }
+                            TextButton(onClick = {
+                                when (target) {
+                                    is RowTarget.Dm -> vm.renameWind(target.wind, name)
+                                    is RowTarget.Rot -> vm.renameRotllana(target.rot, name)
+                                }
+                                onClose()
+                            }) { Text(tr(lang, "app.vents.chatSave")) }
+                        }
+                    }
+                    2 -> {
+                        Text(confirmText, fontSize = 14.sp, color = Tinta)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = onClose) { Text(tr(lang, "app.vents.chatCancel")) }
+                            TextButton(onClick = {
+                                when (target) {
+                                    is RowTarget.Dm -> vm.clearWindChat(target.wind.id)
+                                    is RowTarget.Rot -> vm.deleteRotllana(target.rot.id)
+                                }
+                                onClose()
+                            }) { Text(tr(lang, "app.vents.chatDelete"), color = MaterialTheme.colorScheme.error) }
+                        }
+                    }
+                    else -> {
+                        TextButton(
+                            onClick = { mode = 1 },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 10.dp),
+                        ) { Text(tr(lang, "app.vents.chatRename"), modifier = Modifier.fillMaxWidth()) }
+                        TextButton(
+                            onClick = { mode = 2 },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 10.dp),
+                        ) { Text(deleteLabel, color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth()) }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** Una conversa de la llista: targeta amb halo, nom i darrer missatge. */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun ConversationRow(
     title: String,
     subtitle: String,
@@ -342,6 +425,7 @@ private fun ConversationRow(
     busy: Boolean = false,
     faces: List<Wind> = emptyList(),
     onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     // ATENCIÓ: shadowElevation ha de ser 0 amb color translúcid: amb elevació
     // el Surface composa un fons blanc opac darrere la columna de text
@@ -352,7 +436,10 @@ private fun ConversationRow(
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.40f)),
         shadowElevation = 0.dp,
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(20.dp)).clickable(onClick = onClick),
+            .clip(RoundedCornerShape(20.dp)).combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
     ) {
         Row(
             Modifier.padding(horizontal = 12.dp, vertical = 10.dp),

@@ -2401,6 +2401,48 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Buida el xat amb un vent (DELETE /api/winds/chat): el vent es queda. */
+    fun clearWindChat(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().clearWindChat(id) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _windChat.value = _windChat.value + (id to emptyList())
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    /** Canvia el nom d'un vent (el xat es queda amb el mateix id). */
+    fun renameWind(wind: Wind, name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty() || clean == wind.name) return
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    source.api().saveWind(clean, wind.color, wind.role, wind.style, wind.persona, id = wind.id)
+                }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _winds.value = _winds.value.map { if (it.id == wind.id) it.copy(name = clean) else it }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
+    /** Canvia el títol d'una rotllana (mateix id i membres). */
+    fun renameRotllana(rot: Rotllana, name: String) {
+        val clean = name.trim()
+        if (clean.isEmpty() || clean == rot.name) return
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().saveRotllana(clean, rot.members, id = rot.id) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = _rotllanes.value.map { if (it.id == rot.id) it.copy(name = clean) else it }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+        }
+    }
+
     fun deleteWind(id: String) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {

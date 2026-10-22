@@ -532,6 +532,11 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/rotllanes", "DELETE", JSONObject().put("id", id).toString()))
     }
 
+    /** Buida el xat amb un vent (DELETE /api/winds/chat): el vent es queda. */
+    fun clearWindChat(windId: String) {
+        read(conn("/api/winds/chat", "DELETE", JSONObject().put("wind", windId).toString()))
+    }
+
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
     fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
         val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))

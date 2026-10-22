@@ -55,6 +55,19 @@ func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
 	return err
 }
 
+// clearWindHistory buida la conversa amb un vent (disc + memòria).
+// El vent i el seu perfil es queden: només marxa el xat.
+func (s *Server) clearWindHistory(windID string) error {
+	windHistories.Delete(historyKey(s, "wind", windID))
+	if err := session.Delete(s.sessDir(), "company-"+windID); err != nil {
+		// Sense historial previ no hi ha res a netejar: no és error.
+		if !strings.Contains(err.Error(), "no trobada") {
+			return err
+		}
+	}
+	return nil
+}
+
 // windGoalTitles llegeix els títols dels objectius pendents del projecte.
 func (s *Server) windGoalTitles() []string {
 	list, err := goal.List(s.goalDir, s.projectName())
@@ -148,8 +161,32 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"wind": wind.ID, "history": petHistoryJSON(messages)})
 		return
 	}
+	// DELETE buida la conversa amb el vent (el vent es queda).
+	if r.Method == http.MethodDelete {
+		var req struct {
+			ID   string `json:"id"`
+			Wind string `json:"wind"`
+		}
+		if !decodeSmall(w, r, &req) {
+			return
+		}
+		id := strings.TrimSpace(req.Wind)
+		if id == "" {
+			id = strings.TrimSpace(req.ID)
+		}
+		if _, ok := s.winds.ByID(id); !ok {
+			http.Error(w, "unknown wind", http.StatusBadRequest)
+			return
+		}
+		if err := s.clearWindHistory(id); err != nil {
+			http.Error(w, err.Error(), 500)
+			return
+		}
+		writeJSON(w, map[string]bool{"ok": true})
+		return
+	}
 	if r.Method != http.MethodPost {
-		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
+		http.Error(w, "GET, POST or DELETE required", http.StatusMethodNotAllowed)
 		return
 	}
 	var req struct {

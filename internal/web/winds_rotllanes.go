@@ -609,4 +609,17 @@ func (s *Server) saveRotllana(rot Rotllana) (Rotllana, error) {
 
 var errNoName = errConst("la rotllana necessita un nom")
 
-func (s *Server) deleteRotllana(id string) error { return s.rotllanes.Delete(id) }
+func (s *Server) deleteRotllana(id string) error {
+	if err := s.rotllanes.Delete(id); err != nil {
+		return err
+	}
+	// La conversa no és el catàleg: sense netejar-la, l'historial orfe
+	// quedaria al disc i tornaria si es recrea una rotllana amb el mateix id.
+	rotllanaHistories.Delete(historyKey(s, "rotllana", id))
+	if err := session.Delete(s.sessDir(), "rotllana-"+id); err != nil {
+		if !strings.Contains(err.Error(), "no trobada") {
+			return err
+		}
+	}
+	return nil
+}
