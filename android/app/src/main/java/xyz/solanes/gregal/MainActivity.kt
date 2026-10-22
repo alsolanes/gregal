@@ -422,6 +422,10 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(JobAlarms.EXTRA_RUN)
             vm.openRunFromNotification(it)
         }
+        intent?.getStringExtra(WindNotifications.EXTRA_WIND)?.takeIf { it.isNotBlank() }?.let {
+            intent.removeExtra(WindNotifications.EXTRA_WIND)
+            vm.openVentsChat("wind:" + it)
+        }
     }
 
     override fun onStart() {

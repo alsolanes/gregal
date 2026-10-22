@@ -160,7 +160,10 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().Unix())
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: "Recordatori " + w.Name, Prompt: msg,
-		Kind: "remind", Enabled: true, Notify: true, NextAt: &moment,
+		// Notify:false — l'avís arriba per notificació local de l'app
+		// (novetats); el bot de Telegram hi afegiria un duplicat genèric
+		// («llest, mira-ho al panell») i els vents no hi parlen.
+		Kind: "remind", Enabled: true, Notify: false, NextAt: &moment,
 	})
 	if err != nil {
 		return jobs.Job{}, err
@@ -199,6 +202,9 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 	hist.mu.Unlock()
 	_ = saveWindHistory(s, w, history)
 	go s.windLearn(w, source, text)
+	// Registre per a l'app (notificació local): el missatge és proactiu,
+	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
+	recordNovetat(s, w, source, text)
 }
 
 // executeWindRemind dispara un recordatori: el text entra al xat del vent,

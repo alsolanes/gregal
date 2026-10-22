@@ -563,6 +563,24 @@ class GregalApi(val base: String, val token: String) {
         return windReplyOf(o)
     }
 
+    /** Veus proactives posteriors a desDe (unix). Lleuger: el vigilant ho
+     *  crida en segon pla sense descarregar historials. */
+    fun windNovetats(desDe: Long): List<WindNovetat> {
+        val o = JSONObject(read(conn("/api/winds/novetats?des_de=$desDe", "GET")))
+        val a = o.optJSONArray("novetats") ?: JSONArray()
+        return (0 until a.length()).mapNotNull {
+            val j = a.optJSONObject(it) ?: return@mapNotNull null
+            val text = j.optString("text")
+            if (text.isBlank()) null else WindNovetat(
+                ts = j.optLong("ts"),
+                wind = j.optString("wind"),
+                name = j.optString("name"),
+                source = j.optString("source"),
+                text = text,
+            )
+        }
+    }
+
     /** Resposta d'un torn amb streaming (SSE per POST). */
     sealed interface WindStreamEvent {
         data class Phase(val phase: String) : WindStreamEvent

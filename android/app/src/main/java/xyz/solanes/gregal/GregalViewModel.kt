@@ -478,6 +478,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun useThisDevice(retries: Int = 3) {
         if (!_conn.value.local) resetServerState()
         prefsStore?.target = Prefs.TARGET_LOCAL
+        // En local els jobs els dispara l'app: el vigilant remot sobra.
+        WindWatch.cancel(appContext)
         setConn(Conn("127.0.0.1", "", "", local = true))
         LocalServer.resetCrashes()
         connect(retries) { go(landing()) }
@@ -487,8 +489,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private fun useRemote(c: Conn) {
         if (_conn.value.local || _conn.value.host != c.host || _conn.value.port != c.port) resetServerState()
         prefsStore?.target = Prefs.TARGET_REMOTE
-        // Al servidor remot els jobs els programa ell: res a despertar aquí.
+        // Al servidor remot els jobs els programa ell: res a despertar aquí,
+        // però sí a vigilar les veus dels vents per avisar amb notificació.
         JobAlarms.clear(appContext)
+        WindWatch.schedule(appContext)
         setConn(c)
         viewModelScope.launch { try { LocalServer.stop() } catch (_: Exception) {} }
     }
@@ -507,6 +511,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             p.target == Prefs.TARGET_LOCAL && localAvailable() -> useThisDevice(retries = 3)
             p.host.isNotBlank() -> {
                 setConn(Conn(p.host, p.port, p.token, p.usuari))
+                WindWatch.schedule(appContext)
                 connect(retries = 8) { go(landing()) }
             }
         }

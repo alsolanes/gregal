@@ -275,6 +275,9 @@ fun goalStatusLabel(status: String, lang: String = "ca"): String =
  *  «continua» per reprendre la resposta pel mateix fil. */
 data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false)
 
+/** Veu proactiva d'un vent apuntada pel servidor (cor, recordatori). */
+data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String)
+
 /** Job programat del servidor (butlletins desatesos). */
 data class JobItem(
     val id: String = "",

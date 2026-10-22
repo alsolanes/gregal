@@ -32,9 +32,25 @@
             android:name=".JobRunService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <service
+            android:name=".WindWatchService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <receiver
             android:name=".JobAlarmReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".WindWatchReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".WindWatchBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
         <receiver
             android:name=".JobBootReceiver"
             android:exported="true">
