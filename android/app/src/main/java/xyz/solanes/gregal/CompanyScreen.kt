@@ -571,16 +571,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 })
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(wind.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                Surface(shape = RoundedCornerShape(999.dp), color = Ink) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
                         if (isBusy) tr(lang, "app.company.windThinking", wind.name)
                         else wind.role.ifBlank { tr(lang, "app.company.windHello", wind.name) },
-                        color = Superficie, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        fontSize = 12.sp, color = Ink.copy(alpha = 0.6f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
                     )
+                    if (isBusy) TypingDots(accent)
                 }
-                if (isBusy) TypingDots(accent)
             }
             IconButton(onClick = { profile = true }) {
                 Icon(Icons.Rounded.Info, tr(lang, "app.vents.profile"), tint = Ink, modifier = Modifier.size(20.dp))
@@ -807,16 +806,12 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Surface(shape = RoundedCornerShape(999.dp), color = Ink) {
-                        Text(
-                            if (rotBusy) tr(lang, "app.vents.rotThinking")
-                            else tr(lang, "app.vents.rotVoices", faces.size),
-                            color = Superficie, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
-                    }
                     if (rotBusy) TypingDots(rotAccent)
+                    else Text(
+                        faces.joinToString(", ") { it.name }, fontSize = 12.sp,
+                        color = Ink.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
                 }
             }
             IconButton(onClick = { groupProfile = true }) { Icon(Icons.Rounded.Info, tr(lang, "app.vents.members"), tint = Ink) }
@@ -1217,6 +1212,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                                 )
                             }
                             is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                            is Rich.Chart -> ChartBlock(b.spec, accent, dark)
                             is Rich.Image -> MdImage(
                                 b.url, b.alt,
                                 link, lang,

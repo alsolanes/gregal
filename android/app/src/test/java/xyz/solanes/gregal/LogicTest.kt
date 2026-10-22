@@ -1,5 +1,6 @@
 package xyz.solanes.gregal
 
+import androidx.compose.ui.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -143,6 +144,36 @@ class MdTest {
         val code = rich.filterIsInstance<Rich.Code>().firstOrNull()
         assertTrue(code != null && code.lang == "kotlin" && code.code.contains("val x = 1"))
         assertTrue(rich.first() is Rich.Inline)
+    }
+
+    @Test
+    fun graficBarresParsejat() {
+        val md = "mira\n```chart\n{\"type\":\"bar\",\"title\":\"Calçots\",\"labels\":[\"2024\",\"2025\"],\"series\":[{\"name\":\"Llevant\",\"values\":[3,5]}]}\n```\nfi"
+        val segs = splitMd(md)
+        val c = segs.filterIsInstance<Seg.Chart>().firstOrNull()
+        assertTrue(c != null)
+        assertEquals("bar", c!!.spec.type)
+        assertEquals("Calçots", c.spec.title)
+        assertEquals(listOf("2024", "2025"), c.spec.labels)
+        assertEquals(5f, chartMax(c.spec))
+        val rich = groupRich(segs)
+        assertTrue(rich.any { it is Rich.Chart })
+    }
+
+    @Test
+    fun graficInvalidEsCodi() {
+        val segs = splitMd("```chart\nno és json\n```")
+        assertTrue(segs.filterIsInstance<Seg.Chart>().isEmpty())
+        assertTrue(segs.any { it is Seg.Block && (it as Seg.Block).lang == "chart" })
+    }
+
+    @Test
+    fun graficFormatgetIColors() {
+        val spec = parseChartSpec("{\"type\":\"pie\",\"labels\":[\"A\",\"B\"],\"series\":[{\"name\":\"S\",\"values\":[1,3]}]}")!!
+        assertEquals(3f, chartMax(spec))
+        assertEquals(3, chartPalette(Color.Red, 3).size)
+        assertEquals("3", fmtNum(3f))
+        assertEquals("2.5", fmtNum(2.5f))
     }
 }
 

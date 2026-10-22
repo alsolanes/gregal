@@ -998,6 +998,7 @@ fun AssistantResponse(text: String, lang: String = "ca") {
                 }
                 is Rich.Code -> CodeBlock(b.lang, b.code, lang)
                 is Rich.Table -> MdTable(b.headers, b.rows, lang)
+                is Rich.Chart -> ChartBlock(b.spec, Sea, false)
                 is Rich.Image -> MdImage(b.url, b.alt, Sea, lang)
             }
         }
