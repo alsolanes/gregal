@@ -72,6 +72,11 @@ type Bot struct {
 	policy            *agent.Policy
 	queue             *runs.Queue
 	logf              Logf
+	// handlers compta els updates en curs (cada un va en la seva goroutine).
+	// Run l'espera abans de tornar: si no, un torn a mig escriure sobreviu a
+	// l'aturada —als tests, el t.TempDir encara s'estava escrivint quan es
+	// netejava, i a Windows això fa fallar el cleanup—.
+	handlers sync.WaitGroup
 	// Ritme d\'edicio del missatge de resposta (vegeu limitador d\'edicions).
 	editMu   sync.Mutex
 	lastEdit map[int64]time.Time
@@ -246,8 +251,36 @@ func (b *Bot) polOf(st *chatState) *agent.Policy {
 	return b.policy
 }
 
+// handlerTimeout és el que Run espera els updates en curs quan s'atura.
+// Acotat: un torn encallat no ha d'impedir mai que el bot mori.
+const handlerTimeout = 10 * time.Second
+
+// waitHandlers espera els updates en curs, com a molt handlerTimeout.
+func (b *Bot) waitHandlers() {
+	done := make(chan struct{})
+	go func() {
+		b.handlers.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(handlerTimeout):
+		b.logf("aturada: queden updates en curs després de %s", handlerTimeout)
+	}
+}
+
+// goHandler executa un update en la seva goroutine, comptat a handlers.
+func (b *Bot) goHandler(fn func()) {
+	b.handlers.Add(1)
+	go func() {
+		defer b.handlers.Done()
+		fn()
+	}()
+}
+
 // Run fa el bucle de long polling fins que el context es cancel·la.
 func (b *Bot) Run(ctx context.Context) error {
+	defer b.waitHandlers()
 	me, err := b.api.Me(ctx)
 	if err != nil {
 		return fmt.Errorf("%s: %w", b.tr("token rebutjat per Telegram", "Telegram rejected the bot token"), err)
@@ -292,13 +325,13 @@ func (b *Bot) Run(ctx context.Context) error {
 			case u.Message != nil:
 				// Cada update en una goroutine: si no, un torn llarg bloquejaria
 				// el bucle i els botons d'aprovació no arribarien mai.
-				go b.handleMessage(ctx, u.Message)
+				b.goHandler(func() { b.handleMessage(ctx, u.Message) })
 			case u.EditedMessage != nil:
 				// Un missatge editat es tracta com de nou (p. ex. correcció
 				// d'una ordre mal escrita).
-				go b.handleMessage(ctx, u.EditedMessage)
+				b.goHandler(func() { b.handleMessage(ctx, u.EditedMessage) })
 			case u.CallbackQuery != nil:
-				go b.handleCallback(ctx, u.CallbackQuery)
+				b.goHandler(func() { b.handleCallback(ctx, u.CallbackQuery) })
 			}
 		}
 	}
