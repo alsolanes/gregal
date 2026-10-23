@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.13.1 - 2026-10-23 - CI estable i aturada neta
+
+- **Stable CI and clean shutdown:** the data races that made the `-race` job
+  flaky are gone — background learning and reminder work now settles before a
+  test restores its hooks, and the Telegram typing indicator no longer reads a
+  context the turn rewrites afterwards. The bot also waits for in-flight
+  updates before exiting (bounded to 10 s), so stopping it never leaves a
+  half-written state file behind.
+- **No more Windows timeouts:** the huge-output guard is exercised with one
+  `head -c 20MB` instead of twenty thousand forks (0.03 s instead of 46 s, and
+  it no longer dies at the 60 s limit on the Windows runner).
+
 ## v1.13.0 - 2026-10-23 - Vents, gràfics al xat i un bot més sòlid
 
 - **Vents (company mode), on the web and on the phone:** a chat with one wind
