@@ -150,7 +150,10 @@ func TestBashSortidaGegantQuedaLimitada(t *testing.T) {
 	if runtime.GOOS == "windows" && !shell.IsPOSIX() {
 		t.Skip("cal un shell POSIX")
 	}
-	out, err := Bash("for i in $(seq 1 20000); do head -c 1024 /dev/zero | tr '\\0' 'x'; done", 60*time.Second)
+	// 20 MB d'una tirada: el que es prova és el sostre de captura, i amb un
+	// bucle de 20.000 iteracions el test trigava més de seixanta segons a la
+	// CI de Windows (on `head` i `tr` hi són, però cada fork costa molt).
+	out, err := Bash("head -c 20000000 /dev/zero | tr '\\0' 'x'", 60*time.Second)
 	if err != nil {
 		t.Fatalf("bash gegant: %v", err)
 	}
