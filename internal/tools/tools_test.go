@@ -145,6 +145,11 @@ func TestBash(t *testing.T) {
 // Una sortida gegant (centenars de MB) no pot omplir la RAM: el sostre
 // de captura és a la font, i el truncat final de sempre.
 func TestBashSortidaGegantQuedaLimitada(t *testing.T) {
+	// La comanda és POSIX (seq/head/tr/dev/zero): a Windows sense sh no hi ha
+	// res a provar i el que falla és el test, no el sostre de captura.
+	if runtime.GOOS == "windows" && !shell.IsPOSIX() {
+		t.Skip("cal un shell POSIX")
+	}
 	out, err := Bash("for i in $(seq 1 20000); do head -c 1024 /dev/zero | tr '\\0' 'x'; done", 60*time.Second)
 	if err != nil {
 		t.Fatalf("bash gegant: %v", err)
