@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -129,47 +130,55 @@ fun ChatAmbient(accent: Color) {
         Box(Modifier.size(340.dp).align(Alignment.BottomEnd).offset(x = (110).dp - dx.dp, y = 120.dp).background(accent.copy(alpha = 0.07f), CircleShape))
     }
 }
-/** Hero de Vents: marca viva + títol + cares apilades + mode. */
+/** Hero de Vents: marca viva del desktop — punt d'accent, kicker, títol gran i cares apilades. */
 @Composable
 fun VentsHero(lang: String, winds: List<Wind>, modeLabel: String) {
-    Surface(
-        shape = RoundedCornerShape(24.dp),
-        shadowElevation = 8.dp,
-        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(
-            Modifier.background(
-                Brush.linearGradient(
-                    listOf(Sea.copy(alpha = 0.28f), Onada.copy(alpha = 0.18f), SuperficieAlta)
-                )
-            ).padding(16.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                GregalMark(size = 56.dp, alive = LocalWindMotion.current)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        tr(lang, "app.vents.title"),
-                        fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = Ink
-                    )
-                    Text(modeLabel, fontSize = 12.sp, color = Muted)
-                    if (winds.isNotEmpty()) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            winds.take(4).forEachIndexed { i, w ->
-                                Box(Modifier.offset(x = (-10 * i).dp).zIndex(4 - i.toFloat())) {
-                                    Surface(shape = CircleShape, color = Superficie, shadowElevation = 3.dp) {
-                                        WindFace(size = 28, accent = Color(w.argb), style = w.faceStyle)
-                                    }
+        // Kicker amb punt d'accent, com el .winds-heading del desktop.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(6.dp).background(Sea, CircleShape))
+            Text(modeLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.4.sp, color = Muted)
+        }
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                tr(lang, "app.vents.title"),
+                fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
+                letterSpacing = (-0.8).sp, lineHeight = 36.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (winds.isNotEmpty()) {
+                // Cares apilades a la dreta del títol: la colla sencera, en petit.
+                Row(verticalAlignment = Alignment.Bottom) {
+                    winds.take(4).forEachIndexed { i, w ->
+                        Box(Modifier.offset(x = (-11 * i).dp).zIndex(4 - i.toFloat())) {
+                            Surface(shape = CircleShape, color = Superficie, shadowElevation = 3.dp) {
+                                WindFace(size = 30, accent = Color(w.argb), style = w.faceStyle)
+                            }
+                        }
+                    }
+                    if (winds.size > 4) {
+                        Box(Modifier.offset(x = (-11 * 4).dp).zIndex(0f)) {
+                            Surface(shape = CircleShape, color = Ink) {
+                                Box(contentAlignment = Alignment.Center,
+                                    modifier = Modifier.size(30.dp)) {
+                                    Text("+${winds.size - 4}", color = Superficie, fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold)
                                 }
                             }
-                            Text(
-                                "  ${winds.size} · ${winds.take(3).joinToString(", ") { it.name }}",
-                                fontSize = 12.sp, color = Muted, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
                         }
                     }
                 }
             }
+        }
+        if (winds.isNotEmpty()) {
+            Text(
+                winds.take(3).joinToString(", ") { it.name } + if (winds.size > 3) " +${winds.size - 3}" else "",
+                fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
     }
 }

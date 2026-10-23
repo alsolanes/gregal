@@ -5,8 +5,12 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.drawBehind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -51,8 +55,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyColumn
@@ -240,17 +242,30 @@ internal fun VentsGrid(
                 news.contains(w.id) -> WindMood.NEWS
                 else -> WindMood.HAPPY
             }
+            val accent = Color(w.argb)
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(24.dp))
-                    .background(if (thinking) Ink.copy(alpha = 0.06f) else Superficie)
+                Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
+                    // Fons tenyit amb el color propi del vent, com les targetes wind-desk.
+                    .background(Brush.linearGradient(
+                        listOf(accent.copy(alpha = 0.13f), Superficie)
+                    ))
+                    // Ombra dura de 3 px del color del vent, sota la targeta.
+                    .drawBehind {
+                        drawRoundRect(
+                            color = accent.copy(alpha = 0.13f),
+                            topLeft = Offset(0f, size.height - 3.dp.toPx()),
+                            size = Size(size.width, 3.dp.toPx()),
+                            cornerRadius = CornerRadius(18.dp.toPx() / 2),
+                        )
+                    }
                     .clickable { onOpen(w) }
                     .semantics { contentDescription = w.name }
-                    .padding(vertical = 16.dp, horizontal = 8.dp),
+                    .padding(vertical = 14.dp, horizontal = 8.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 WindHalo(
-                    accent = Color(w.argb), style = w.faceStyle, size = 88,
+                    accent = accent, style = w.faceStyle, size = 88,
                     mood = mood,
                 )
                 Text(
