@@ -33,9 +33,17 @@ function lockVersions(src) {
   } catch { return ['', '']; }
 }
 
+// La línia de versió pot ser plana (`versionName = "0.9.9"`) o condicional per
+// a la variant de proves (`versionName = if (project.hasProperty("x")) "0.9.9-preview" else "0.9.9"`).
+// El que compta per a la release és el valor de producció: el que va després
+// d'`else`. Amb els patrons antics, la forma condicional no casava i el bump
+// deixava l'Android a la versió vella sense dir-ho.
+const PROD_NAME = /versionName\s*=\s*(?:[^\n]*?\belse\s+)?"([^"]+)"/;
+const PROD_CODE = /versionCode\s*=\s*(?:[^\n]*?\belse\s+)?(\d+)/;
+
 function androidVersion(src) {
-  const name = /versionName = "([^"]+)"/.exec(src);
-  const code = /versionCode = (\d+)/.exec(src);
+  const name = PROD_NAME.exec(src);
+  const code = PROD_CODE.exec(src);
   return { name: name ? name[1] : '', code: code ? Number(code[1]) : 0 };
 }
 
@@ -99,8 +107,10 @@ function bump(files, { version, title, date, android }) {
     if (!SEMVER.test(android)) throw new Error(`--android must look like 0.9.9, got "${android}"`);
     const a = androidVersion(files.android);
     out.android = files.android
-      .replace(/versionName = "[^"]+"/, `versionName = "${android}"`)
-      .replace(/versionCode = \d+/, `versionCode = ${a.code + 1}`);
+      .replace(/versionName(\s*=\s*)((?:[^\n]*?\belse\s+)?)"[^"]+"/,
+        (_m, eq, pre) => `versionName${eq}${pre}"${android}"`)
+      .replace(/versionCode(\s*=\s*)((?:[^\n]*?\belse\s+)?)\d+/,
+        (_m, eq, pre) => `versionCode${eq}${pre}${a.code + 1}`);
   }
   return out;
 }
