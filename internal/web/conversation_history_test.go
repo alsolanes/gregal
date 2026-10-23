@@ -91,7 +91,7 @@ func historySeam(t *testing.T, call func(string) (string, error)) {
 		}
 		return call(b.String())
 	}
-	t.Cleanup(func() { windLoop = oldWind; petChatter = oldPet })
+	t.Cleanup(func() { waitBackground(); windLoop = oldWind; petChatter = oldPet })
 }
 func assertHistory(t *testing.T, out *httptest.ResponseRecorder, turns int) {
 	t.Helper()

@@ -123,7 +123,7 @@ func (e skillError) Error() string { return string(e) }
 // demanar permís; l'usuari ho veu i ho pot editar al perfil.
 func (s *Server) startWindMemoryLearn(w companion.Wind, question, answer string) {
 	revision := companion.WindMemoryRevision(s.windStateDir(), w.ID)
-	go s.windMemoryLearnRevision(w, question, answer, revision)
+	goBackground(func() { s.windMemoryLearnRevision(w, question, answer, revision) })
 }
 
 func (s *Server) windMemoryLearnRevision(w companion.Wind, question, answer string, revision uint64) {

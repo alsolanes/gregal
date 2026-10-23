@@ -94,7 +94,7 @@ func TestCompanionPromptsUseAuthenticatedMemory(t *testing.T) {
 		}
 	}
 	oldWind, oldPet, oldCheck, oldPetCheck, oldHeart, oldLearn := windLoop, petChatter, companionCheckiner, petCheckiner, windHeartbeatLoop, windLearnLoop
-	t.Cleanup(func() {
+	t.Cleanup(func() { waitBackground()
 		windLoop = oldWind
 		petChatter = oldPet
 		companionCheckiner = oldCheck
@@ -314,7 +314,7 @@ func TestRotllanaHistorySpeakerIdentitySurvivesReloadAndRename(t *testing.T) {
 	petChatter = func(_ context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, _ []llm.Message) (string, error) {
 		return "resposta", nil
 	}
-	t.Cleanup(func() { petChatter = old })
+	t.Cleanup(func() { waitBackground(); petChatter = old })
 	// Existing chats have only the textual name prefix; keep them readable.
 	if err := saveRotllanaHistory(s, rot.ID, []llm.Message{{Role: "assistant", Content: "Xaloc: antic"}}); err != nil {
 		t.Fatal(err)
@@ -383,7 +383,7 @@ func TestWindChatSendsBoundedPreviousTurns(t *testing.T) {
 	var brief string
 	prev := windLoop
 	windLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) { brief = b; return exploracio{text: "Joana"}, nil }
-	t.Cleanup(func() { windLoop = prev })
+	t.Cleanup(func() { waitBackground(); windLoop = prev })
 	rec := postJSON(t, s.handleWindChat, `{"wind":"xaloc","message":"Com em dic?"}`)
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())

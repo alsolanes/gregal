@@ -99,7 +99,7 @@ func TestRotllanaChatTurns(t *testing.T) {
 		gotSystem = msgs[0].Content
 		return "endavant!", nil
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 
 	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+group.Rotllana.ID+`","message":"què hi ha de nou?"}`)
 	if rec.Code != 200 {
@@ -126,7 +126,7 @@ func TestRotllanaChatTurns(t *testing.T) {
 		gotSystem = msgs[0].Content
 		return "doncs jo afegiria…", nil
 	}
-	t.Cleanup(func() { petChatter = saved2 })
+	t.Cleanup(func() { waitBackground(); petChatter = saved2 })
 
 	rec = postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+group.Rotllana.ID+`","message":"i de música què?"}`)
 	if rec.Code != 200 {
@@ -164,7 +164,7 @@ func TestWindHeartbeatSpeaksWhenWorthIt(t *testing.T) {
 	windHeartbeatLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
 		return exploracio{text: "(res)"}, nil
 	}
-	t.Cleanup(func() { windHeartbeatLoop = saved })
+	t.Cleanup(func() { waitBackground(); windHeartbeatLoop = saved })
 	run, err := s.executeWindHeartbeat(context.Background(), jobs.Job{ID: "wind-xaloc", Name: "Cor de Xaloc"}, runs.Run{}, companion.Wind{ID: "xaloc", Name: "Xaloc", Role: "música nova", Persona: "ets en Xaloc"})
 	if err != nil {
 		t.Fatalf("heartbeat silenci: %v", err)
@@ -287,14 +287,14 @@ func TestWindBrainGrowsWithWhatItLearns(t *testing.T) {
 	windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
 		return exploracio{text: "El MacBook Air M4 té 53,8 Wh de bateria [apple.com]."}, nil
 	}
-	t.Cleanup(func() { windLoop = savedLoop })
+	t.Cleanup(func() { waitBackground(); windLoop = savedLoop })
 
 	// L'extracció de fets: una sola crida petita que torna bales.
 	savedLearn := windLearnLoop
 	windLearnLoop = func(s *Server, ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, role config.Role, msgs []llm.Message) (string, error) {
 		return "- El MacBook Air M4 té 53,8 Wh de bateria [apple.com]", nil
 	}
-	t.Cleanup(func() { windLearnLoop = savedLearn })
+	t.Cleanup(func() { waitBackground(); windLearnLoop = savedLearn })
 
 	rec := postJSON(t, s.handleWindChat, `{"wind":"llebeig","message":"quanta bateria té el MacBook Air M4?"}`)
 	if rec.Code != 200 {

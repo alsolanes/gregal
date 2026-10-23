@@ -21,7 +21,7 @@ func stubLearnLoop(t *testing.T, out string) {
 	windLearnLoop = func(_ *Server, _ context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, _ []llm.Message) (string, error) {
 		return out, nil
 	}
-	t.Cleanup(func() { windLearnLoop = saved })
+	t.Cleanup(func() { waitBackground(); windLearnLoop = saved })
 }
 
 func mustWindID(t *testing.T, s *Server, id string) companion.Wind {

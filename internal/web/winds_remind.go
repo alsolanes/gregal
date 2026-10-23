@@ -201,7 +201,7 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 	history := append([]llm.Message(nil), hist.messages...)
 	hist.mu.Unlock()
 	_ = saveWindHistory(s, w, history)
-	go s.windLearn(w, source, text)
+	goBackground(func() { s.windLearn(w, source, text) })
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
 	recordNovetat(s, w, source, text)

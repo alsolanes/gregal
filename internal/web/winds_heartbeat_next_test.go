@@ -34,7 +34,7 @@ func TestWindHeartbeatReschedulesItself(t *testing.T) {
 	windHeartbeatLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
 		return exploracio{text: reply}, nil
 	}
-	t.Cleanup(func() { windHeartbeatLoop = old })
+	t.Cleanup(func() { waitBackground(); windHeartbeatLoop = old })
 
 	if _, err := s.executeWindHeartbeat(context.Background(), jobs.Job{ID: "wind-xaloc", Name: "Cor de Xaloc"}, runs.Run{}, companion.Wind{ID: "xaloc", Name: "Xaloc", Role: "futbol", Persona: "ets en Xaloc"}); err != nil {
 		t.Fatal(err)

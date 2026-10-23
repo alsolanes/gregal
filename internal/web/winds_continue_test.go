@@ -18,7 +18,7 @@ func TestWindChatParcial(t *testing.T) {
 	windLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
 		return exploracio{text: "primera meitat…", parcial: true}, nil
 	}
-	t.Cleanup(func() { windLoop = saved })
+	t.Cleanup(func() { waitBackground(); windLoop = saved })
 
 	rec := postJSON(t, s.handleWindChat, `{"wind":"mitja","message":"explica-m'ho tot"}`)
 	if rec.Code != 200 {

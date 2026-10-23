@@ -14,7 +14,7 @@ func TestWindLearnRejectsInventedOrConversationOnlySources(t *testing.T) {
 	postJSON(t, s.handleWinds, `{"name":"Marinada","color":"#EFC69A","role":"natura"}`)
 	w, _ := s.winds.ByID("marinada")
 	saved := windLearnLoop
-	defer func() { windLearnLoop = saved }()
+	defer func() { waitBackground(); windLearnLoop = saved }()
 	windLearnLoop = func(s *Server, ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, role config.Role, msgs []llm.Message) (string, error) {
 		return "- La ruta de prova es diu SAFIRA [conversa actual].\n- Un fet amb una font inventada [invented.example].\n- Un coneixement amb una font present [example.org].", nil
 	}

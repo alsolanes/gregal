@@ -97,7 +97,7 @@ func TestRotllanaWebSearchFallbackToChatter(t *testing.T) {
 		calls++
 		return "Xaloc: resposta pla", nil
 	}
-	t.Cleanup(func() { petChatter = savedChatter })
+	t.Cleanup(func() { waitBackground(); petChatter = savedChatter })
 	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+group.Rotllana.ID+`","message":"hola"}`)
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())

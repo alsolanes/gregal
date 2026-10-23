@@ -93,7 +93,7 @@ func TestWindChatGroundedInProjectContext(t *testing.T) {
 		gotBrief = brief
 		return exploracio{text: "buf, quin dia!"}, nil
 	}
-	t.Cleanup(func() { windLoop = saved })
+	t.Cleanup(func() { waitBackground(); windLoop = saved })
 
 	rec := postJSON(t, s.handleWindChat, `{"wind":"migjorn","message":"què fem avui?"}`)
 	if rec.Code != 200 {

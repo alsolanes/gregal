@@ -35,7 +35,7 @@ func (s *Server) startWindLearn(w companion.Wind, question, answer string) {
 	// Capture before spawning: even an extraction not yet scheduled must not
 	// repopulate knowledge that the user clears immediately after the reply.
 	revision := companion.WindBrainRevision(s.windStateDir(), w.ID)
-	go s.windLearnRevision(w, question, answer, revision)
+	goBackground(func() { s.windLearnRevision(w, question, answer, revision) })
 }
 
 func (s *Server) windLearn(w companion.Wind, question, answer string) {

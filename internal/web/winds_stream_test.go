@@ -13,7 +13,7 @@ import (
 func TestWindChatStreamEmitsPhaseTokensDone(t *testing.T) {
 	s := remindTestServer(t)
 	old := windLoopStream
-	defer func() { windLoopStream = old }()
+	defer func() { waitBackground(); windLoopStream = old }()
 	// Historial net: el registre és global al procés i un altre test hi
 	// pot haver deixat el seu torn (contaminació preexistent).
 	hist0 := windHistory(s, "xaloc")
@@ -63,7 +63,7 @@ func TestWindChatStreamEmitsPhaseTokensDone(t *testing.T) {
 func TestWindChatStreamError(t *testing.T) {
 	s := remindTestServer(t)
 	old := windLoopStream
-	defer func() { windLoopStream = old }()
+	defer func() { waitBackground(); windLoopStream = old }()
 	windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
 		return exploracio{}, context.DeadlineExceeded
 	}

@@ -31,7 +31,7 @@ func rotllanaChatter(t *testing.T, reply string) (*Server, string) {
 	petChatter = func(ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, role config.Role, msgs []llm.Message) (string, error) {
 		return reply, nil
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 	return s, group.Rotllana.ID
 }
 
@@ -135,7 +135,7 @@ func TestRotllanaBriefIncludesWindBrain(t *testing.T) {
 		gotSystem = msgs[0].Content
 		return "entèsos", nil
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+group.Rotllana.ID+`","message":"què saps de la Björk?"}`)
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())

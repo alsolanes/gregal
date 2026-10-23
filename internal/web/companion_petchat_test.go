@@ -23,7 +23,7 @@ func TestPetChatRepliesInVoice(t *testing.T) {
 		gotSystem = msgs[0].Content
 		return "«Buf, quin dia!»", nil // el model ha posat cometes: cal netejar
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 
 	rec := postJSON(t, s.handleCompanionPetChat, `{"pet":"mel","message":"què recomanes avui?"}`)
 	if rec.Code != 200 {
@@ -59,7 +59,7 @@ func TestPetChatHistoryGrows(t *testing.T) {
 		lastHist = msgs
 		return "resposta " + strings.Repeat("x", 20), nil
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 
 	postJSON(t, s.handleCompanionPetChat, `{"pet":"pixel","message":"hola"}`)
 	postJSON(t, s.handleCompanionPetChat, `{"pet":"pixel","message":"com va?"}`)
@@ -105,7 +105,7 @@ func TestPetChatPersistsAndCanBeLoadedAfterRestart(t *testing.T) {
 	petChatter = func(context.Context, *llm.Client, *config.Config, config.Provider, config.Role, []llm.Message) (string, error) {
 		return "Continuem demà amb el projecte.", nil
 	}
-	t.Cleanup(func() { petChatter = saved })
+	t.Cleanup(func() { waitBackground(); petChatter = saved })
 
 	first, _ := companionTestServer(t)
 	rec := postJSON(t, first.handleCompanionPetChat, `{"pet":"pixel","message":"Recorda el fil del projecte"}`)

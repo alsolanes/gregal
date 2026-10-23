@@ -44,7 +44,7 @@ func TestCheckinRoutesPetPersona(t *testing.T) {
 		gotSystem, gotUser = system, user
 		return "Check-in de prova de la Mel", nil
 	}
-	t.Cleanup(func() { petCheckiner = saved })
+	t.Cleanup(func() { waitBackground(); petCheckiner = saved })
 
 	rec := postJSON(t, s.handleCompanionCheckinPet, `{"pet":"mel"}`)
 	if rec.Code != 200 {
@@ -76,7 +76,7 @@ func TestCheckinUnknownPet400(t *testing.T) {
 		called = true
 		return "", nil
 	}
-	t.Cleanup(func() { petCheckiner = saved })
+	t.Cleanup(func() { waitBackground(); petCheckiner = saved })
 
 	rec := postJSON(t, s.handleCompanionCheckinPet, `{"pet":"fantasma"}`)
 	if rec.Code != 400 {

@@ -31,7 +31,7 @@ func TestWindLearnCannotUndoConfirmedMemoryEdit(t *testing.T) {
 				<-release
 				return "- Un fet pendent que ja s'ha oblidat [example.org].", nil
 			}
-			defer func() { windLearnLoop = original }()
+			defer func() { waitBackground(); windLearnLoop = original }()
 			go func() { defer close(done); s.windLearn(wind, "Pregunta", "Fet a https://example.org/font") }()
 			select {
 			case <-entered:
