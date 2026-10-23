@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.13.0 - 2026-10-23 - Vents, gràfics al xat i un bot més sòlid
+
+- **Vents (company mode), on the web and on the phone:** a chat with one wind
+  or with a whole `rotllana`, each with its own voice, memory and knowledge.
+  Rename or delete chats from the list, and a wind that speaks unprompted sends
+  a local notification. On Android it is a first-class section; on the web it
+  sits in the sidebar as a secondary view.
+- **Plots in the chat:** `gregal-plot` data blocks render as real charts — line,
+  bar, scatter and the other types — in the web chat and natively on Android,
+  inside a card that can be expanded or collapsed.
+- **Winds stay quiet:** faces rest by default and only move when the wind is
+  happy, speaking, or when you press it. No continuous animated bots.
+- Android 0.11: vents as a main screen, chart cards, per-wind profiles and
+  names, and the same backend and updater as the desktop build.
+
 - Updater: check-only remains read-only with force enabled; force rebuild
   no longer bypasses the dirty-tree guard.
 - Telegram: learn provider context windows at startup and avoid inheriting a
