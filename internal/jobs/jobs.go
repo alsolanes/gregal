@@ -305,7 +305,11 @@ func NextDue(j Job, now time.Time) time.Time {
 	}
 }
 
-// Due diu si cal executar ara (amb 1 minut de gràcia per l'interval de tick).
+// Due diu si cal executar ara: quan arriba la franja, mai abans. No cal
+// marge pel tick: NextDue torna la franja passada fins que una execució la
+// cobreix, així que un tick tardà la troba igual. Un marge d'avançada feia
+// sonar un «d'aquí a 1 minut» als pocs segons, i una diària a les 08:59 que
+// acabés abans de les 09:00 deixava la franja sense cobrir i corria dos cops.
 func Due(j Job, now time.Time) bool {
 	next := NextDue(j, now)
 	if next.IsZero() {
@@ -314,7 +318,7 @@ func Due(j Job, now time.Time) bool {
 	if j.Kind == "interval" && j.LastAt == nil {
 		return true
 	}
-	return !now.Before(next.Add(-time.Minute))
+	return !now.Before(next)
 }
 
 func trim(s string, n int) string {
