@@ -1,5 +1,11 @@
 package agent
 
+import (
+	"strings"
+
+	"gregal/internal/config"
+)
+
 // Via ràpida de cortesia: un "hola" ha de tornar un "hola", no un torn
 // d'agent amb glob/bash que crema passos i diners. Abans, qualsevol text
 // curt passava pel model amb totes les eines i un raonador avorrit es
@@ -10,10 +16,6 @@ package agent
 // salts de línia): cap crida al model, cap eina, zero cost. "hola,
 // resumeix el document" NO hi entra (té feina a fer) i va a l'agent.
 
-import (
-	"gregal/internal/config"
-	"strings"
-)
 
 type smallKind int
 
@@ -99,8 +101,8 @@ var smallTalkReplies = map[smallKind]map[string]string{
 // Normalitza (minúscules, espais, signes): "  Hola! " també és un hola.
 // Respon en la llengua de la frase i suposa que la conversa comença: els
 // fronts han de fer servir SmallTalkFor.
-func SmallTalk(text string) (string, bool) {
-	return SmallTalkFor(text, "", false)
+func SmallTalk(text string, salutsAlModel bool) (string, bool) {
+	return SmallTalkFor(text, "", false, salutsAlModel)
 }
 
 // SmallTalkFor és SmallTalk sabent la llengua de la sessió (cfg.Lang(); buit
@@ -113,7 +115,7 @@ func SmallTalk(text string) (string, bool) {
 // encara no hi ha conversa; salutacions, gràcies i comiats sí, sempre.
 // La resposta va en la llengua de la sessió: «ok» no és català, i un usuari
 // amb lang: en rebia «Perfecte, digues-m'hi».
-func SmallTalkFor(text, lang string, enConversa bool) (string, bool) {
+func SmallTalkFor(text, lang string, enConversa bool, salutsAlModel bool) (string, bool) {
 	norm := strings.ToLower(strings.TrimSpace(text))
 	norm = strings.Trim(norm, "?!.,;¡¿·…\"'()")
 	norm = strings.Join(strings.Fields(norm), " ")
@@ -125,6 +127,11 @@ func SmallTalkFor(text, lang string, enConversa bool) (string, bool) {
 		return "", false
 	}
 	if enConversa && hit.kind == kindAck {
+		return "", false
+	}
+	// Amb `salutacio: off` (salutsAlModel) les salutacions planes passen pel
+	// model: saluda de manera natural i pot aprofitar per oferir-se.
+	if salutsAlModel && hit.kind == kindGreet {
 		return "", false
 	}
 	l := hit.lang

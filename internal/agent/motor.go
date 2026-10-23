@@ -171,8 +171,11 @@ type OpcionsTorn struct {
 	Rol       func() (provider, model string)
 	// Recordat diu si l'usuari ja ha aprovat aquesta crida per la sessió.
 	Recordat func(name, argsJSON string) bool
-	// AutoAprova salta asks en modes interactius. El mode autònom els manté
-	// pendents d'una confirmació interactiva fins i tot amb mode permissiu.
+	// AutoAprova salta els «ask»: ho decideix el frontend. El bot de
+	// Telegram l'activa en mode autònom (que ja neix filtrat per
+	// mayRunUnattended: qui hi entra és qui ha decidit confiar-hi);
+	// el TUI i la web, amb el seu mode permissiu. Nil o fals: els ask
+	// esperen confirmació interactiva, també en mode autònom.
 	AutoAprova func() bool
 	// Revisor decideix les crides que demanen permís en mode auto-review
 	// (autoreview.go). Una decisió buida o «ask» les torna a la persona;
@@ -374,16 +377,21 @@ func (t *Torn) EsperaUsuari() bool { return t.pregunta != nil || t.teActual }
 // autonom diu si el torn corre en mode autònom.
 func (t *Torn) autonom() bool { return t.o.Mode == ModeAutonomous }
 
-// histAmbSys posa el system prompt al davant.
+// histAmbSys posa el system prompt al davant i garanteix que l'històric
+// sigui enviable: si el torn ha quedat amb crides d'eina sense resposta
+// (pregunta ajornada, cancel·lació a mig pas), els proveïdors estrictes
+// responen 400 a cada intent posterior. SanitizeHist aplan aquelles
+// crides abans que surtin pel cable.
 func (t *Torn) histAmbSys() []llm.Message {
 	sys := ""
 	if t.o.SysPrompt != nil {
 		sys = t.o.SysPrompt()
 	}
+	base := llm.SanitizeHist(t.Hist)
 	if sys == "" {
-		return append([]llm.Message{}, t.Hist...)
+		return append([]llm.Message{}, base...)
 	}
-	return append([]llm.Message{{Role: "system", Content: sys}}, t.Hist...)
+	return append([]llm.Message{{Role: "system", Content: sys}}, base...)
 }
 
 // Seguent diu què cal fer ara. No té efectes secundaris més enllà de
@@ -424,7 +432,7 @@ func (t *Torn) Seguent() Pas {
 	if len(t.pendents) > 0 {
 		t.actual, t.pendents = t.pendents[0], t.pendents[1:]
 		t.teActual = true
-		if !t.autonom() && t.o.AutoAprova != nil && t.o.AutoAprova() {
+		if t.o.AutoAprova != nil && t.o.AutoAprova() {
 			// Aprovació automàtica: no es molesta ningú, però la crida
 			// passa pel mateix camí (i pel mateix comptador).
 			t.teActual = false
@@ -751,6 +759,19 @@ func (t *Torn) repError(err error) []Event {
 		if evs, fet := t.retallaPerContext(actual); fet {
 			t.recuperacions++
 			// El pas no s'ha arribat a fer: no compta.
+			if t.passos > 0 {
+				t.passos--
+			}
+			return evs
+		}
+	}
+	// 400 amb cos buit d'un endpoint que normalment explica (zen torna
+	// {"model":"..."} quan l'upstream s'ofega): amb un històric gran és
+	// context excedit encara que no ho digui. Es retalla i es torna a
+	// provar; si no és això, la segona fallada ja dirà el motiu.
+	if llm.Buit400(err) && t.recuperacions < 2 && llm.EstimateTokens(t.histAmbSys()) > 24_000 {
+		if evs, fet := t.retallaPerContext(0); fet {
+			t.recuperacions++
 			if t.passos > 0 {
 				t.passos--
 			}

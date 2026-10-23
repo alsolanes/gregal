@@ -200,6 +200,10 @@ func newFakeLLM(t *testing.T, replies ...string) *fakeLLM {
 	t.Helper()
 	f := &fakeLLM{replies: replies}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			fmt.Fprint(w, `{"data":[]}`) // metadata probes are not model generations
+			return
+		}
 		body, _ := io.ReadAll(r.Body)
 		f.mu.Lock()
 		defer f.mu.Unlock()
@@ -414,6 +418,54 @@ func TestTornDeAgentResponIDesaLaSessio(t *testing.T) {
 	}
 }
 
+func TestTornAmagaEinesPeroEinesLesMostra(t *testing.T) {
+	tg := newFakeTG(t)
+	work := t.TempDir()
+	target := filepath.Join(work, "fitxer.txt")
+	llm := newFakeLLM(t,
+		replyToolCall("write", fmt.Sprintf(`{"path":%q,"content":"x"}`, target)),
+		replyText("fet"),
+	)
+	bot, _, _ := testBot(t, tg, llm, nil)
+	st := bot.state(1234567)
+	st.mu.Lock()
+	st.mode = agent.ModeAutonomous // el write és «ask»: l'autònom l'executa sense diàleg
+	st.mu.Unlock()
+	ctx := context.Background()
+
+	bot.handleMessage(ctx, msg(1234567, "escriu el fitxer"))
+
+	// Cap missatge d'activitat 🏃: la traça és silenciosa.
+	for _, m := range tg.all() {
+		if strings.Contains(m.Text, "activitat") || strings.HasPrefix(strings.TrimSpace(m.Text), "🏃") {
+			t.Fatalf("la traça d'eines ha de ser amagada: %+v", m)
+		}
+		if strings.Contains(m.Text, "Permís") {
+			t.Fatalf("en mode autònom no hi ha diàleg de permís: %+v", m)
+		}
+	}
+	// El fitxer s'ha escrit i el resum final menciona /eines.
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("el torn no ha executat l'eina: %v", err)
+	}
+	if m, ok := tg.find("/eines"); !ok {
+		t.Fatalf("el resum final hauria de mencionar /eines: %+v", tg.all())
+	} else if !strings.Contains(m.Text, "1 eina") && !strings.Contains(m.Text, "eina(es)") {
+		t.Fatalf("el resum no compta l'eina: %q", m.Text)
+	}
+
+	// /eines publica la traça completa del darrer torn.
+	before := len(tg.all())
+	bot.handleMessage(ctx, msg(1234567, "/eines"))
+	m, ok := tg.waitFor("traça del darrer torn", 5*time.Second)
+	if !ok {
+		t.Fatalf("/eines no ha respost: %+v", tg.all()[before:])
+	}
+	if !strings.Contains(m.Text, "write") {
+		t.Fatalf("la traça no conté l'eina: %q", m.Text)
+	}
+}
+
 func TestOrdresBasiques(t *testing.T) {
 	tg := newFakeTG(t)
 	llm := newFakeLLM(t, replyText("x"))
@@ -545,6 +597,32 @@ func TestAprovacioDenegadaNoEscriu(t *testing.T) {
 	}
 	if _, err := os.Stat(target); err == nil {
 		t.Fatal("el fitxer no s'hauria d'haver escrit")
+	}
+}
+
+func TestAutonomNoDemanaPermis(t *testing.T) {
+	tg := newFakeTG(t)
+	work := t.TempDir()
+	target := filepath.Join(work, "auto.txt")
+	llm := newFakeLLM(t,
+		replyToolCall("write", fmt.Sprintf(`{"path":%q,"content":"auto"}`, target)),
+		replyText("fet"),
+	)
+	// write:ask força el camí de permís; en mode autònom el bot ho
+	// executa sense el diàleg Permet/Sempre/Denega.
+	bot, _, _ := testBot(t, tg, llm, map[string]string{"write": "ask"})
+	st := bot.state(1234567)
+	st.mu.Lock()
+	st.mode = agent.ModeAutonomous
+	st.mu.Unlock()
+
+	bot.handleMessage(context.Background(), msg(1234567, "escriu el fitxer"))
+
+	if _, err := os.Stat(target); err != nil {
+		t.Fatalf("en mode autònom s'hauria d'escriure sense demanar: %v", err)
+	}
+	if m, ok := tg.findKB("Permís"); ok {
+		t.Fatalf("no hauria d'haver diàleg de permís: %+v", m)
 	}
 }
 

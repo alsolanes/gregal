@@ -226,7 +226,7 @@ const (
 	// sense eines, però un model pensador amb 24 % de context darrere hi
 	// pot trigar més d'un minut i mig. Amb 90 s, l'error es prenia per un
 	// FINAL i el torn es tancava a mitges.
-	TimeoutDecisio = 180 * time.Second
+	TimeoutDecisio = 600 * time.Second
 )
 
 // PreguntaAmpliacio demana CONTINUE <n> o FINAL (%d = topall del tros).

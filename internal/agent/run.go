@@ -374,7 +374,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	sys = AmbContext(PromptForModel(sys+note, mode, cfg.CompactCode()), o.System)
 	hist = append(append([]llm.Message{{Role: "system", Content: sys}}, o.Prior...), llm.Message{Role: "user", Content: task})
 	// Cortesia pura ("hola"): resposta directa, zero passos, zero cost.
-	if reply, ok := SmallTalkFor(task, cfg.Lang(), false); ok {
+	if reply, ok := SmallTalkFor(task, cfg.Lang(), false, !cfg.SalutacioLocal()); ok {
 		hist = append(hist, llm.Message{Role: "assistant", Content: reply})
 		res.Answer = reply
 		res.Steps = 0

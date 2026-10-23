@@ -82,7 +82,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if err != nil {
 		return res, err
 	}
-	if strings.TrimSpace(brut) != "" && !o.Forca && !o.NomesComprova {
+	if strings.TrimSpace(brut) != "" && !o.NomesComprova {
 		return res, fmt.Errorf("hi ha canvis sense cometre a %s\n%s\nComete'ls o desa'ls (git stash) abans d'actualitzar", repo, indent(truncateLines(brut, 8)))
 	}
 
@@ -102,7 +102,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if local == remot {
 		res.AlDia = true
 		o.Sortida("✅ ja estàs al dia (" + short(local) + ", " + res.VersioAbans + ")")
-		if !o.Forca {
+		if o.NomesComprova || !o.Forca {
 			return res, nil
 		}
 		o.Sortida("↻ -forca: recompilo igualment")
@@ -263,6 +263,24 @@ func campos(u string) string { return strings.TrimSuffix(u, ".service") }
 
 // reinicia reinicia un servei i comprova que quedi actiu.
 func reinicia(ctx context.Context, unitat string) error {
+	cgroup, _ := os.ReadFile("/proc/self/cgroup")
+	return reiniciaEn(ctx, unitat, string(cgroup))
+}
+
+func reiniciaEn(ctx context.Context, unitat, cgroup string) error {
+	// Match whole cgroup components, not a substring of another unit.
+	wanted := strings.TrimSuffix(unitat, ".service") + ".service"
+	for _, line := range strings.Split(cgroup, "\n") {
+		fields := strings.SplitN(line, ":", 3)
+		if len(fields) != 3 {
+			continue
+		}
+		for _, component := range strings.Split(fields[2], "/") {
+			if component == wanted {
+				return fmt.Errorf("no reinicio la pròpia unitat %s: el binari està instal·lat, però cal un reinici extern quan el torn acabi", wanted)
+			}
+		}
+	}
 	if out, err := exec.CommandContext(ctx, "systemctl", "--user", "restart", unitat).CombinedOutput(); err != nil {
 		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
 	}

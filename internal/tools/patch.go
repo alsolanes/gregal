@@ -28,6 +28,10 @@ func pedaça(path string, ops []PatchOp, seg *Seguiment) (string, error) {
 	if len(ops) == 0 {
 		return "", fmt.Errorf("patch: cap edició")
 	}
+	// Com a Edit: per damunt del sostre, fallar net val més que OOM.
+	if fi, err := os.Stat(path); err == nil && fi.Size() > MaxCaptureBytes {
+		return "", fmt.Errorf("%s massa gran per al patch (%d bytes; sostre %d): fes servir bash per a fitxers així", path, fi.Size(), MaxCaptureBytes)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err

@@ -12,6 +12,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 )
 
 // delegateToolSpec és l'eina de subagents paral·lels (estil Task de Claude
@@ -246,6 +247,9 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 		if isolated {
 			pol.ProjectDir = workspace
 		}
+		// Cada invocació té el seu checklist. RunCalls serialitza todowrite
+		// respecte als lots de todoread, que només llegeixen aquesta llista.
+		var todos []tools.TodoItem
 		hist := []llm.Message{{Role: "system", Content: sys}, {Role: "user", Content: prompt}}
 		ctx = llm.WithThink(ctx, rr.Think)
 		// tanca és la sortida sense passos (o amb el model caigut a mig
@@ -321,22 +325,26 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 				plans = PlanCalls(pol, ModeCode, nil, calls)
 			}
 			for i, c := range calls {
-				switch c.Function.Name {
-				case "todowrite", "question", "preview":
+				// El checklist del subagent és propi de la invocació: el
+				// runner l'executa aquí mateix (switch de sota) i no toca
+				// mai el del pare, així que ni es denega ni demana permís.
+				local := c.Function.Name == "todowrite" || c.Function.Name == "todoread"
+				switch {
+				case local:
+					plans[i] = CallPlan{}
+				case c.Function.Name == "question" || c.Function.Name == "preview":
 					plans[i] = CallPlan{Fixed: "TOOL NOT AVAILABLE (read-only subagent): this tool changes the parent's state", Reason: "eina d'estat global desactivada per a subagents"}
-				default:
-					if !subagentAllowed(def, c.Function.Name) {
-						plans[i] = CallPlan{Fixed: "TOOL NOT AVAILABLE: not in this subagent's tools", Reason: "not in this subagent's tools: " + c.Function.Name}
-					}
+				case !subagentAllowed(def, c.Function.Name):
+					plans[i] = CallPlan{Fixed: "TOOL NOT AVAILABLE: not in this subagent's tools", Reason: "not in this subagent's tools: " + c.Function.Name}
 				}
 				// Fora d'un worktree, tota acció que no sigui lectura passa
 				// per l'usuari encara que la política la deixés passar sola.
-				if writable && !isolated && plans[i].Fixed == "" && !plans[i].Ask {
+				if writable && !isolated && !local && plans[i].Fixed == "" && !plans[i].Ask {
 					if d, _ := pol.Decide(ModeInspect, c.Function.Name, c.Function.Arguments); d != "allow" {
 						plans[i] = CallPlan{Ask: true, Reason: "subagent change outside an isolated worktree"}
 					}
 				}
-				if writable && plans[i].Ask {
+				if writable && !local && plans[i].Ask {
 					if approver == nil {
 						plans[i] = CallPlan{Fixed: "TOOL DENIED: read-only subagent (no isolated worktree and nobody to approve)", Reason: "read-only subagent: no isolated worktree and nobody to approve"}
 					} else if blocked, why := PreToolHook(ctx, session, workspace, c.Function.Name, c.Function.Arguments); blocked {
@@ -357,7 +365,23 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			}
 			res := RunCalls(calls, func(i int) bool { return plans[i].Fixed != "" || plans[i].Ask }, func(_ int, c llm.ToolCall) resultat {
 				emitDelegateEvent(ctx, DelegateEvent{Status: DelegateWorking, Step: step, MaxSteps: maxSteps, Model: model, Tool: c.Function.Name, Message: "tool started"})
-				o, oi, err := ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
+				var o string
+				var oi []string
+				var err error
+				switch c.Function.Name {
+				case "todowrite":
+					var input struct {
+						Items []tools.TodoItem `json:"items"`
+					}
+					if err = json.Unmarshal([]byte(c.Function.Arguments), &input); err == nil {
+						todos = tools.NetejaTodos(input.Items)
+						o = tools.RenderTodos(todos)
+					}
+				case "todoread":
+					o = tools.RenderTodos(todos)
+				default:
+					o, oi, err = ExecCtx(ctx, session, workspace, c.Function.Name, c.Function.Arguments)
+				}
 				if err != nil {
 					return resultat{out: "ERROR: " + err.Error()}
 				}

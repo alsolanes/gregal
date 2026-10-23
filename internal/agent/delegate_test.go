@@ -200,8 +200,12 @@ func TestDelegateUsesCallingWorkspaceAndConfigDeny(t *testing.T) {
 
 	cfg := testCfg(server.URL)
 	cfg.Permissions = config.PermissionsCfg{Tools: map[string]string{"read": "deny"}}
+	previousParallel := delegateParallelDefault.Load()
 	SetupDelegate(cfg, llm.New())
-	t.Cleanup(func() { SetDelegateRunner(nil) })
+	t.Cleanup(func() {
+		delegateParallelDefault.Store(previousParallel)
+		SetDelegateRunner(nil)
+	})
 
 	for _, marker := range []string{"WORKSPACE_ONE_ONLY", "WORKSPACE_TWO_ONLY"} {
 		workspace := t.TempDir()

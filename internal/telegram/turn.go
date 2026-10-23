@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"gregal/internal/agent"
@@ -217,25 +218,6 @@ func (b *Bot) finishAnswer(ctx context.Context, chatID int64, id int, buf *strin
 	return len([]rune(buf.String())) > 3900
 }
 
-// addActivity manté un missatge amb les eines que s'han fet servir.
-func (b *Bot) addActivity(ctx context.Context, chatID int64, id *int, buf *strings.Builder, line string) {
-	buf.WriteString(line + "\n")
-	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
-	if len(lines) > 12 {
-		lines = append([]string{"…"}, lines[len(lines)-12:]...)
-	}
-	text := "🏃 " + b.tr("activitat", "activity") + "\n" + esc(strings.Join(lines, "\n"))
-	if *id == 0 {
-		if m, err := b.api.SendMessage(ctx, chatID, text, nil); err == nil {
-			*id = m.MessageID
-		}
-		return
-	}
-	if err := b.api.EditMessageText(ctx, chatID, *id, text, nil); err != nil {
-		b.logf("editMessageText (activitat): %v", err)
-	}
-}
-
 // truncateFromStart retalla pel començament (els missatges llargs de Telegram).
 func truncateFromStart(s string, max int) string {
 	if len(s) <= max {
@@ -309,15 +291,28 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	st.convo = append(st.convo, llm.Message{Role: "user", Content: agent.AmbNovetats(tascaMapa, nota), Images: images})
 	mode, role := st.mode, st.role
 	pinned := st.rolePinned
-	convo := append([]llm.Message{}, st.convo...)
+	// Sanejada a la font: una crida d'eina sense resposta (torn mort per
+	// OOM o cancel·lat) fa que l'endpoint respongui 400 a CADA missatge
+	// posterior — així es trenca el cicle.
+	convo := llm.SanitizeHist(append([]llm.Message{}, st.convo...))
 	st.mu.Unlock()
+	// All exits release the queue identity, including the no-model greeting.
+	defer func() {
+		st.mu.Lock()
+		st.busy = false
+		st.cancel = nil
+		if st.runID == run.ID {
+			st.runID = 0
+		}
+		st.mu.Unlock()
+	}()
 	// Cortesia pura ("hola"): resposta directa sense model ni eines.
-	if reply, ok := agent.SmallTalkFor(text, b.cfg.Lang(), teConversa); ok && len(images) == 0 {
+	if reply, ok := agent.SmallTalkFor(text, b.cfg.Lang(), teConversa, !b.cfg.SalutacioLocal()); ok && len(images) == 0 {
 		b.send(ctx, chatID, reply)
 		st.mu.Lock()
 		st.convo = append(st.convo, llm.Message{Role: "assistant", Content: reply})
-		st.busy = false
 		st.mu.Unlock()
+		b.saveSession(st)
 		return nil
 	}
 	if !pinned {
@@ -331,16 +326,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	st.mu.Lock()
 	st.cancel = cancel
 	st.mu.Unlock()
-	defer func() {
-		cancel()
-		st.mu.Lock()
-		st.busy = false
-		st.cancel = nil
-		if st.runID == run.ID {
-			st.runID = 0
-		}
-		st.mu.Unlock()
-	}()
+	defer cancel()
 
 	// "escrivint…" mentre dura el torn.
 	done := make(chan struct{})
@@ -361,17 +347,28 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	// La directiva d'idioma ha de quedar l'última (AmbContext).
 	sys := st.prefix.Sys(sysBase, sysCtx, func(c string) string { return agent.AmbContext(sysBase, c) })
 
-	var answerID, activityID int
-	var answer, activity strings.Builder
+	var answerID int
+	var answer strings.Builder
 	var lastReply string
 	var turnErr error
-	toolCount := 0
-	activitat := func(line string) { b.addActivity(tctx, chatID, &activityID, &activity, line) }
+	var reportedError string
+	toolCount, failCount := 0, 0
+	// La traça d'eines s'acumula en silenci — amagada per defecte, es
+	// consulta amb /eines — i el xat només veu el «typing», la resposta
+	// i el resum final d'una línia. Cada torn comença amb la traça neta.
+	st.mu.Lock()
+	st.lastTrace = nil
+	st.mu.Unlock()
+	traca := func(line string) {
+		st.mu.Lock()
+		st.lastTrace = append(st.lastTrace, line)
+		st.mu.Unlock()
+	}
 
-	// Els reintents del client es veuen a l'activitat: abans l'espera era
-	// muda i semblava que el bot s'havia penjat.
+	// Els reintents del client queden a la traça (/eines): el xat no
+	// s'omple de soroll però res no es perd.
 	tctx = llm.WithRetryHook(tctx, func(attempt, total int, wait time.Duration, err error) {
-		activitat("↻ " + llm.RetryNote(attempt, total, wait, err))
+		traca("↻ " + llm.RetryNote(attempt, total, wait, err))
 	})
 
 	// El motor decideix; aquí només es fa la feina (cridar el model,
@@ -386,7 +383,9 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	uso := &llm.UsageMeter{}
 	tctx = llm.WithUsage(tctx, uso)
 	tctx = agent.WithHookScope(tctx, tgScope(chatID), b.dirOf(st))
+	var checklist turnChecklist
 	torn := agent.NouTorn(agent.OpcionsTorn{
+		Todos: checklist.list,
 		Usage: uso,
 		Cfg:   b.cfg, Pol: b.polOf(st), Mode: mode, Tasca: text, MaxSteps: b.cfg.Agent.MaxSteps,
 		Hist:      convo,
@@ -403,25 +402,38 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		Ctx: tctx, Sessio: tgScope(chatID), Workspace: b.dirOf(st),
 		// permissions.mode: auto-review → el revisor decideix abans dels botons.
 		Revisor: revisorBot(b.client, b.cfg),
+		// En mode autònom el bot no demana permís: qui hi entra ja ha estat
+		// filtrat per mayRunUnattended i els «deny» (sudo, rm -rf /, curl|sh)
+		// es mantenen. En mode code el diàleg Permet/Sempre/Denega va igual.
+		AutoAprova: func() bool { return mode == agent.ModeAutonomous },
 	})
 	pinta := func(evs []agent.Event) {
 		for _, e := range evs {
 			switch e.Tipus {
 			case agent.EvCrida:
 				toolCount++
-				activitat(toolLineNom(e.Eina, e.EinaArgs))
+				traca(toolLineNom(e.Eina, e.EinaArgs))
 			case agent.EvResultat:
 				if e.Fallada {
-					activitat("✗ " + e.Eina + " · " + truncate(primeraLinia(b.eventMessage(e)), 70))
+					failCount++
+					traca("✗ " + e.Eina + " · " + truncate(primeraLinia(b.eventMessage(e)), 70))
 				}
 			case agent.EvResposta:
 				lastReply = e.Text
 				b.streamAnswer(tctx, chatID, &answerID, &answer, e.Text)
 			case agent.EvError:
-				b.send(ctx, chatID, "⚠️ "+truncate(b.eventMessage(e), 300))
+				reportedError = b.eventMessage(e)
+				b.logf("turn error chat=%d: %s", chatID, reportedError)
+				b.send(ctx, chatID, "⚠️ "+esc(truncate(reportedError, 1200)))
 			case agent.EvAvis, agent.EvNota:
+				if e.Clau == "app.tornBuit" {
+					reportedError = b.eventMessage(e)
+					turnErr = fmt.Errorf("agent: %s", reportedError)
+					b.logf("turn error chat=%d: %s", chatID, reportedError)
+					b.send(ctx, chatID, "⚠️ "+esc(reportedError))
+				}
 				if t := b.eventMessage(e); strings.TrimSpace(t) != "" {
-					activitat("· " + truncate(t, 120))
+					traca("· " + truncate(t, 120))
 				}
 			}
 		}
@@ -430,19 +442,27 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 		b.send(ctx, chatID, b.tr("↪ Primari caigut · respon el fallback ", "↪ Primary failed · using fallback ")+esc(model))
 	}
 
+	// Separate timer: a blocked model/tool must not block liveness notices.
+	var visibleSteps atomic.Int64
+	stopHeartbeat := b.startTurnHeartbeat(tctx, chatID, &visibleSteps)
+	defer stopHeartbeat()
+
 bucle:
 	for {
 		if tctx.Err() != nil {
 			pinta(torn.Cancella())
 			break
 		}
+		visibleSteps.Store(int64(torn.Passos()))
 		p := torn.Seguent()
 		pinta(p.Events)
 		pr, r := rolActual()
 		switch p.Ordre {
 		case agent.OrdrePasModel:
-			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(tctx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
+			modelCtx, stopModel := context.WithTimeout(tctx, b.cfg.ModelTimeout(mode))
+			content, calls, _, err := b.client.ChatWithToolsFO(llm.WithThink(modelCtx, agent.ThinkPerPas(r.Think, p)), b.cfg.PrimTarget(pr, r), b.cfg.FallbackTarget(r), p.Hist,
 				r.Temperature, r.MaxTokens, agent.SpecsForHist(mode, b.cfg.CompactFor(r), p.Hist), avisaFallback)
+			stopModel()
 			// El text que acompanya crides d'eina també es publica: és el
 			// model explicant què farà. La resposta final arriba per EvResposta.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {
@@ -458,7 +478,11 @@ bucle:
 			outs := agent.RunCalls(p.Calls, nil, func(_ int, c llm.ToolCall) agent.Execucio {
 				// Amb el context del torn: /stop atura també l'eina a mitges,
 				// no només la següent crida al model.
-				o, imgs, err := agent.ExecCtx(tctx, "", b.dirOf(st), c.Function.Name, c.Function.Arguments)
+				o, handled, err := checklist.exec(c.Function.Name, c.Function.Arguments)
+				var imgs []string
+				if !handled {
+					o, imgs, err = agent.ExecCtx(tctx, "", b.dirOf(st), c.Function.Name, c.Function.Arguments)
+				}
 				if err != nil {
 					o = "ERROR: " + err.Error()
 				}
@@ -493,7 +517,10 @@ bucle:
 			pinta(torn.RepCheckpoint("", ""))
 
 		case agent.OrdreError:
-			b.send(ctx, chatID, "⚠️ "+truncate(p.Text, 300))
+			if reportedError != p.Text {
+				b.logf("turn error chat=%d: %s", chatID, p.Text)
+				b.send(ctx, chatID, "⚠️ "+esc(truncate(p.Text, 1200)))
+			}
 			turnErr = fmt.Errorf("agent: %s", p.Text)
 			break bucle
 
@@ -513,9 +540,7 @@ bucle:
 	}
 
 	st.mu.Lock()
-	if strings.TrimSpace(lastReply) != "" {
-		st.convo = append(st.convo, llm.Message{Role: "assistant", Content: lastReply})
-	}
+	st.convo = convoAfterTurn(torn.Hist, lastReply)
 	tools.Active.MarkConvo(len(st.convo))
 	name := st.name
 	st.mu.Unlock()
@@ -530,13 +555,63 @@ bucle:
 		}
 	}
 	if toolCount > 0 || answer.Len() > 0 {
-		b.send(ctx, chatID, fmt.Sprintf("— %s · "+b.tr("sessió", "session")+" <code>%s</code> · <code>%s</code> · %d "+b.tr("pas(sos)", "step(s)")+" · %d "+b.tr("eina(es)", "tool(s)"),
-			esc(b.modeBadge(mode)), esc(name), esc(shortModel(b.currentRef(chatID, role))), steps, toolCount))
+		suma := fmt.Sprintf("— %s · "+b.tr("sessió", "session")+" <code>%s</code> · <code>%s</code> · %d "+b.tr("pas(sos)", "step(s)")+" · %d "+b.tr("eina(es)", "tool(s)"),
+			esc(b.modeBadge(mode)), esc(name), esc(shortModel(b.currentRef(chatID, role))), steps, toolCount)
+		if failCount > 0 {
+			suma += fmt.Sprintf(" · ✗ %d", failCount)
+		}
+		if toolCount > 0 {
+			suma += " · /eines"
+		}
+		b.send(ctx, chatID, suma)
 	}
 	if ctx.Err() != nil {
 		return runs.ErrCancelled
 	}
 	return turnErr
+}
+
+// startTurnHeartbeat owns its context and joins its goroutine on shutdown.
+// The step snapshot is atomic: reading Torn from the timer would race with it.
+func (b *Bot) startTurnHeartbeat(ctx context.Context, chatID int64, steps *atomic.Int64) func() {
+	period := b.heartbeatInterval
+	if period <= 0 {
+		period = 90 * time.Second
+	}
+	hctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	start := time.Now()
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(period)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-hctx.Done():
+				return
+			case <-ticker.C:
+				sendCtx, stop := context.WithTimeout(hctx, 10*time.Second)
+				b.send(sendCtx, chatID, fmt.Sprintf("⏱️ "+b.tr("encara treballant: %d passos · %s · /stop per aturar", "still working: %d steps · %s · /stop to cancel"), steps.Load(), time.Since(start).Round(time.Second)))
+				stop()
+			}
+		}
+	}()
+	return func() { cancel(); <-done }
+}
+
+// convoAfterTurn keeps the engine's compacted history and tool evidence.
+// A sanitized final answer replaces its existing message, never duplicates it.
+func convoAfterTurn(hist []llm.Message, final string) []llm.Message {
+	out := append([]llm.Message(nil), hist...)
+	if strings.TrimSpace(final) == "" {
+		return llm.SanitizeHist(out)
+	}
+	if n := len(out); n > 0 && out[n-1].Role == "assistant" && len(out[n-1].ToolCalls) == 0 {
+		out[n-1].Content = final
+	} else {
+		out = append(out, llm.Message{Role: "assistant", Content: final})
+	}
+	return llm.SanitizeHist(out)
 }
 
 // saveSession desa la conversa al magatzem compartit amb el TUI.

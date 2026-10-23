@@ -297,19 +297,19 @@ func TestErrorAmbSortida(t *testing.T) {
 
 // B8
 func TestSmallTalkForConversa(t *testing.T) {
-	if _, ok := SmallTalkFor("ok", "en", true); ok {
+	if _, ok := SmallTalkFor("ok", "en", true, false); ok {
 		t.Fatal("an acknowledgement mid-conversation must go to the model")
 	}
-	if r, ok := SmallTalkFor("ok", "en", false); !ok || r != smallTalkReplies[kindAck]["en"] {
+	if r, ok := SmallTalkFor("ok", "en", false, false); !ok || r != smallTalkReplies[kindAck]["en"] {
 		t.Fatalf("ok at the start: %q %v", r, ok)
 	}
-	if r, ok := SmallTalkFor("hola", "en", false); !ok || r != smallTalkReplies[kindGreet]["en"] {
+	if r, ok := SmallTalkFor("hola", "en", false, false); !ok || r != smallTalkReplies[kindGreet]["en"] {
 		t.Fatalf("reply in the session language: %q", r)
 	}
-	if r, ok := SmallTalkFor("thanks", "ca", true); !ok || r != smallTalkReplies[kindThanks]["ca"] {
+	if r, ok := SmallTalkFor("thanks", "ca", true, false); !ok || r != smallTalkReplies[kindThanks]["ca"] {
 		t.Fatalf("thanks mid-conversation is still small talk: %q %v", r, ok)
 	}
-	if r, ok := SmallTalk("hola"); !ok || r != smallTalkReplies[kindGreet]["ca"] {
+	if r, ok := SmallTalk("hola", false); !ok || r != smallTalkReplies[kindGreet]["ca"] {
 		t.Fatalf("legacy SmallTalk keeps the phrase language: %q", r)
 	}
 }

@@ -2726,7 +2726,7 @@ func (m Model) submitText(text string) (tea.Model, tea.Cmd) {
 	// Cortesia pura ("hola") es respon en local, sense model ni eines:
 	// abans cremava un torn d'agent sencer explorant el repo.
 	// Un «ok» a mitja conversa és una resposta, no cortesia: va al model.
-	if reply, ok := agent.SmallTalkFor(text, m.cfg.Lang(), agent.TeConversa(m.convo)); ok {
+	if reply, ok := agent.SmallTalkFor(text, m.cfg.Lang(), agent.TeConversa(m.convo), !m.cfg.SalutacioLocal()); ok {
 		m.push(userLine(text))
 		m.convo = append(m.convo, llm.Message{Role: "user", Content: text})
 		m.convo = append(m.convo, llm.Message{Role: "assistant", Content: reply})

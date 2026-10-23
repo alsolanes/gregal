@@ -347,7 +347,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 
 		case agent.OrdreCompacta:
 			progres.faseNova(faseCompacta, nil)
-			ctx, cancel := context.WithTimeout(runCtx, 240*time.Second)
+			ctx, cancel := context.WithTimeout(runCtx, 600*time.Second)
 			room := agent.MakeRoom(ctx, s.client, prim, fb, sys, torn.Hist, pas.Budget)
 			cancel()
 			if room.Changed() {

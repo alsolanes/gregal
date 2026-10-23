@@ -2,6 +2,39 @@
 
 ## Unreleased
 
+- Updater: check-only remains read-only with force enabled; force rebuild
+  no longer bypasses the dirty-tree guard.
+- Telegram: learn provider context windows at startup and avoid inheriting a
+  different model's context window when selecting an override. Keep role
+  think/fallback settings and honor the explicit same-model configured cap.
+- Router: a default unpinned chat role can escalate heavy coding tasks.
+
+- Reliability: reject destructive self-service systemctl commands before
+  permission overrides and before foreground/background shell execution.
+  Parse compound commands and static shell wrappers; this is a command guard,
+  not a sandbox for arbitrary scripts. The built-in updater also refuses to
+  restart its own cgroup unit and requires an external restart.
+- Telegram: release and persist short no-model turns, retain the motor's
+  compacted history and tool transcript, honor configured model-step timeouts,
+  and run the heartbeat independently of blocked model/tool calls.
+- Telegram: make sanitized-empty responses visible, deduplicate terminal
+  errors and preserve their full diagnostics in the local log.
+- Add deterministic reliability regressions and an opt-in real-Qwen Telegram
+  driver test with isolated sessions and a local delivery sink.
+
+- Telegram: hide the live tool-activity message by default. Tool calls,
+  failures and retries accumulate in a silent per-turn trace; the chat only
+  shows the typing indicator, the answer, and the one-line summary. The new
+  /eines (alias /tools) command prints the full trace of the last turn (sent
+  as a file when it does not fit one message). The summary line now shows a
+  ✗ count when tools failed and mentions /eines whenever tools ran.
+- Telegram: the bot no longer asks for permission dialogs (Permet/Sempre/Denega)
+  on every «ask» tool call in autonomous mode. Who enters autonomous mode is
+  already gated by `mayRunUnattended`, and hard denials (sudo, `rm -rf /`,
+  download→execute) still block before any approval. Mode `code` keeps the
+  interactive approval dialog exactly as before. `AutoAprova` is now decided
+  by each frontend; the motor no longer special-cases autonomous mode.
+
 ## v1.12.4 - 2026-10-19 - Session web views and continuity
 
 - **Web views belong to their session:** Preview has page tabs, keeps loaded

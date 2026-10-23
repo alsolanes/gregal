@@ -59,7 +59,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		MaxSteps: maxSteps,
 		Lang:     s.cfg.Lang(),
 		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
-			cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+			cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 			defer cancel()
 			if !stream {
 				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)

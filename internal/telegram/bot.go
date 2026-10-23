@@ -56,18 +56,22 @@ type chatState struct {
 	runID       int64
 	pendingRuns []int64
 	created     time.Time
+	// lastTrace és la traça d'eines del darrer torn, amagada per defecte:
+	// /eines la publica sencera.
+	lastTrace []string
 }
 
 // Bot és el bot de Telegram de Gregal.
 type Bot struct {
-	cfg     *config.Config
-	cfgPath string
-	cwd     string
-	api     *API
-	client  *llm.Client
-	policy  *agent.Policy
-	queue   *runs.Queue
-	logf    Logf
+	cfg               *config.Config
+	cfgPath           string
+	cwd               string
+	api               *API
+	client            *llm.Client
+	heartbeatInterval time.Duration // zero selects the production 5-minute interval
+	policy            *agent.Policy
+	queue             *runs.Queue
+	logf              Logf
 	// Ritme d\'edicio del missatge de resposta (vegeu limitador d\'edicions).
 	editMu   sync.Mutex
 	lastEdit map[int64]time.Time
@@ -248,6 +252,9 @@ func (b *Bot) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", b.tr("token rebutjat per Telegram", "Telegram rejected the bot token"), err)
 	}
+	probeCtx, stopProbe := context.WithTimeout(ctx, 4*time.Second)
+	agent.DetectWindows(probeCtx, b.cfg)
+	stopProbe()
 	b.logf("bot @%s (%d) en marxa · projecte %s · grups: %v", me.Username, me.ID, b.cwd, b.allowGroups)
 	b.meUser = me.Username
 
@@ -313,7 +320,10 @@ func (b *Bot) state(chatID int64) *chatState {
 			st.mode = agent.ModeCode
 		}
 		if s, err := session.Load(b.sessionsDir, st.name); err == nil {
-			st.convo = agent.AmbResum(s.Convo, s.Compacted)
+			// Saneja en carregar: una sessió desada a mig torn (OOM,
+			// cancel·lació) duu tool_calls sense resposta, i enviar-la
+			// així fa que proveïdors estrictes responguin 400 per sempre.
+			st.convo = llm.SanitizeHist(agent.AmbResum(s.Convo, s.Compacted))
 			if s.Role != "" {
 				st.role = s.Role
 			}

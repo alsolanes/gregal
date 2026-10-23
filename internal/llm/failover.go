@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,6 +18,36 @@ type Target struct {
 // IsRetryable diu si l'error justifica provar el fallback: errors de xarxa,
 // 429 i 5xx. Els 400/401/403/404 són errors de configuració: reintentar
 // amb un altre provider els amagaria, així que fallen directe.
+
+// Buit400 detecta el 400 amb cos buit que torna opencode zen quan
+// l'upstream s'ofega ({"model":"..."} i prou): no explica res, però en
+// un torn amb històric gran és context excedit gairebé sempre.
+func Buit400(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "HTTP 400") {
+		return false
+	}
+	i := strings.Index(msg, "HTTP 400: ")
+	if i < 0 {
+		return false
+	}
+	cos := strings.TrimSpace(msg[i+len("HTTP 400: "):])
+	if cos == "" {
+		return true
+	}
+	// {"model":"x"} i prou també és buit (sense error ni message).
+	var probe struct {
+		Error   *struct{} `json:"error"`
+		Message string    `json:"message"`
+	}
+	if json.Unmarshal([]byte(cos), &probe) == nil {
+		return probe.Error == nil && probe.Message == ""
+	}
+	return false
+}
 func IsRetryable(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false

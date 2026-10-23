@@ -1658,7 +1658,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 	hist := append([]llm.Message{{Role: "system", Content: s.sysPrompt()}}, s.convo...)
 	s.mu.Unlock()
 
-	ctx, cancel := context.WithTimeout(runCtx, 180*time.Second)
+	ctx, cancel := context.WithTimeout(runCtx, 900*time.Second)
 	defer cancel()
 	ctx = llm.WithRetryHook(ctx, func(attempt, total int, wait time.Duration, err error) {
 		emit("status", map[string]string{"message": llm.RetryNote(attempt, total, wait, err)})
@@ -1682,7 +1682,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 				hist = append([]llm.Message{{Role: "system", Content: s.sysPrompt()}}, s.convo...)
 				s.mu.Unlock()
 				emit("compact", map[string]int{"abans": abans, "despres": len(s.convo)})
-				ctx2, cancel2 := context.WithTimeout(runCtx, 180*time.Second)
+				ctx2, cancel2 := context.WithTimeout(runCtx, 900*time.Second)
 				defer cancel2()
 				reply, err = s.client.ChatStream(ctx2, p.BaseURL, p.APIKey, role.Model, hist, role.Temperature, role.MaxTokens,
 					func(tok string) { emit("token", map[string]string{"text": tok}) }, nil)
@@ -1782,7 +1782,7 @@ func (s *Server) handleParallel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "calen almenys dos rols amb models diferents", http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 900*time.Second)
 	defer cancel()
 	results := make([]parallelWebResult, len(names))
 	var wg sync.WaitGroup
@@ -2228,7 +2228,7 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	if !agent.NeedsCompact(agent.EstimaCalibrat(role.Model, hist), agent.Budget(s.cfg, role)) {
 		return
 	}
-	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
+	cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 	defer cancel()
 	// El resum anterior ja és el primer missatge de convo (MissatgeResum):
 	// el nou l'incorpora.
@@ -2357,7 +2357,7 @@ func (s *Server) emitVerify(emit func(string, any), workspace string) string {
 	emit("verify_start", map[string]string{})
 	r := s.cfg.Roles["reviewer"]
 	p := s.cfg.Providers[r.Provider]
-	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Second)
 	defer cancel()
 	v, raw, err := verify.Run(ctx, s.client, p, r, s.transcriptTail(6), tools.GitDiff(workspace), s.cfg.Lang())
 	if err != nil {
@@ -2948,7 +2948,7 @@ func (s *Server) smallTalk(text string) (string, bool) {
 	s.mu.Lock()
 	lang, enConversa := s.cfg.Lang(), agent.TeConversa(s.convo)
 	s.mu.Unlock()
-	return agent.SmallTalkFor(text, lang, enConversa)
+	return agent.SmallTalkFor(text, lang, enConversa, !s.cfg.SalutacioLocal())
 }
 
 // esperaResposta és el temporitzador d'una aprovació o pregunta: el canal

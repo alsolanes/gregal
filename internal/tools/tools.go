@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,17 +13,28 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
 	"gregal/internal/procs"
 	"gregal/internal/sandbox"
+	"gregal/internal/serviceguard"
 	"gregal/internal/shell"
 )
 
 // Límits de seguretat per defecte.
 const (
 	MaxOutputChars = 8000
+	// MaxCaptureBytes és el sostre de memòria que qualsevol eina pot
+	// dedicar a capturar sortida o llegir un fitxer abans de tallar.
+	// El truncat a MaxOutputChars era sempre al FINAL: una comanda que
+	// escupi gigabytes (find sobre un home amb 39 GB de models, cat d'un
+	// vídeo) omplia la RAM del procés sencer abans d'arribar al tall —
+	// el kernel ha arribat a matar el bot per OOM amb 37,9 GB. Tallar a
+	// la font vol dir que el procés segueix corrent fins al final, però
+	// nosaltres deixem d'emmagatzemar passat aquest sostre.
+	MaxCaptureBytes = 4 << 20 // 4 MiB per captura/lectura
 	// DefaultTimeout eren 30s, i es quedaven curts per a la primera cosa
 	// que fa qualsevol agent en un projecte: compilar. Mesurat en aquest
 	// mateix repositori amb la cau buida, `go build ./...` triga 36s —amb
@@ -39,12 +51,34 @@ const (
 
 // Read retorna línies numerades d'un fitxer (offset 1-based, limit 0 = tot).
 func Read(path string, offset, limit int) (string, error) {
-	raw, err := os.ReadFile(path)
+	// Sostre de lectura A LA FONT: os.ReadFile carregava el fitxer SENCER
+	// (un log de 2 GB, un GGUF) abans del truncat final. Amb LimitReader
+	// la RAM queda lligada a MaxCaptureBytes passi el que passi al disc.
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	var nota string
+	if fi.Size() > MaxCaptureBytes {
+		nota = fmt.Sprintf("…(fitxer de %d bytes: només els primers %d)\n", fi.Size(), MaxCaptureBytes)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	raw, err := io.ReadAll(io.LimitReader(f, MaxCaptureBytes))
 	if err != nil {
 		return "", err
 	}
 	l, err := llegeix(path, raw, offset, limit)
-	return l.text, err
+	if err != nil {
+		return "", err
+	}
+	if nota != "" {
+		return nota + l.text, nil
+	}
+	return l.text, nil
 }
 
 // lectura és el que surt de llegeix: el text i el rang de línies que hi ha
@@ -160,6 +194,11 @@ func editaText(text, old, new string) (string, string, error) {
 // edita és el cos d'Edit. Amb seg != nil (i el seu mutex agafat) aplica la
 // guarda de lectura, actualitza què coneix el model i torna el resum.
 func edita(path, old, new string, totes bool, seg *Seguiment) (string, error) {
+	// Un fitxer per damunt del sostre no és editable amb blocs: fallar
+	// net (el model ja sap que ha de fer servir bash) val més que OOM.
+	if fi, err := os.Stat(path); err == nil && fi.Size() > MaxCaptureBytes {
+		return "", fmt.Errorf("%s massa gran per a l'edició (%d bytes; sostre %d): fes servir bash per a fitxers així", path, fi.Size(), MaxCaptureBytes)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -283,8 +322,16 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 				return nil
 			}
 		}
-		raw, err := os.ReadFile(path)
-		if err != nil || bytes.IndexByte(raw, 0) >= 0 {
+		// Lectura limitada a la font: abans os.ReadFile carregava el
+		// fitxer sencer (un model de 39 GB a l'arbre i prou per OOM)
+		// només per descartar-lo com a binari o sense coincidències.
+		f, err := os.Open(path)
+		if err != nil {
+			return nil
+		}
+		raw, readErr := io.ReadAll(io.LimitReader(f, MaxCaptureBytes))
+		f.Close()
+		if readErr != nil || bytes.IndexByte(raw, 0) >= 0 {
 			return nil // il·legible o binari
 		}
 		for i, line := range strings.Split(string(raw), "\n") {
@@ -822,6 +869,9 @@ func Classify(cmd string) (string, string) {
 
 // ClassifyWith afegeix prefixos allow i subcadenes deny del config.
 func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return "deny", err.Error()
+	}
 	lower := strings.ToLower(strings.TrimSpace(cmd))
 	// `rm -rf /` (l'arrel, sola o amb més trossos) no té marxa enrere: es
 	// denega. `rm -rf /tmp/x` o `rm -rf ./build` són esborrats acotats i
@@ -868,11 +918,52 @@ func BashIn(dir, cmd string, timeout time.Duration) (string, error) {
 	return BashCtx(context.Background(), dir, cmd, timeout)
 }
 
+// limitedWriter emmagatzema fins a max bytes i després descarta: la
+// comanda segueix corrent (el seu exit code és vàlid), però la RAM del
+// procés no creix amb la sortida. Budget compartit per stdout i stderr.
+type limitedWriter struct {
+	mu     sync.Mutex
+	buf    bytes.Buffer
+	max    int
+	n      int // bytes vists en total
+	capped bool
+}
+
+func (w *limitedWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.n += len(p)
+	if w.capped || w.buf.Len() >= w.max {
+		w.capped = true
+		return len(p), nil // consumim tot: el procés no es bloqueja
+	}
+	if room := w.max - w.buf.Len(); len(p) > room {
+		w.buf.Write(p[:room])
+		w.capped = true
+		return len(p), nil
+	}
+	w.buf.Write(p)
+	return len(p), nil
+}
+
+// String torna el que s'ha guardat, amb la nota si s'ha tallat.
+func (w *limitedWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.capped {
+		return w.buf.String() + "\n…(sortida tallada: supera el sostre de captura)"
+	}
+	return w.buf.String()
+}
+
 // BashCtx és BashIn amb context de l'usuari: cancel·lar-lo mata la
 // comanda. Sense això, Esc durant un `go test` de dos minuts no aturava
 // res —el procés seguia i el TUI esperava igual— i Ctrl+C tancava el
 // programa sencer perquè no hi havia cap cancel·lació a què agafar-se.
 func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (string, error) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return "", err
+	}
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
@@ -887,7 +978,11 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	c := exec.Command(plan.Name, plan.Args...)
 	c.Dir = plan.Dir
 	c.Env = shell.ChildEnv()
-	var out bytes.Buffer
+	// Sostre de captura A LA FONT: el buffer il·limitat d'abans és el
+	// que portava el procés a l'OOM (una comanda de sortida gegant
+	// omplia la RAM sencera abans del truncat final a 8.000 caràcters).
+	var out limitedWriter
+	out.max = MaxCaptureBytes
 	c.Stdout = &out
 	c.Stderr = &out
 	err = procs.Run(ctx, c)
@@ -897,7 +992,7 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 	// Cap i cua, i la sortida sencera a .gregal/out: els errors de
 	// compilació i de test solen ser al final, i abans només en quedava el
 	// principi.
-	text := retallaCapICua(shell.DecodeOutput(out.Bytes()), MaxOutputChars, func(full string) string {
+	text := retallaCapICua(shell.DecodeOutput([]byte(out.String())), MaxOutputChars, func(full string) string {
 		return desaSortida(dir, "bash", full)
 	})
 	if plan.Warning != "" {
@@ -955,7 +1050,7 @@ func GitDiff(dir string) string {
 		if rel == "" {
 			continue
 		}
-		raw, readErr := os.ReadFile(filepath.Join(dir, filepath.FromSlash(rel)))
+		raw, readErr := readLimited(filepath.Join(dir, filepath.FromSlash(rel)), MaxCaptureBytes)
 		if readErr != nil {
 			continue
 		}
@@ -979,7 +1074,10 @@ func GitDiff(dir string) string {
 func gitOut(dir string, args ...string) (string, error) {
 	full := append([]string{"-C", dir}, args...)
 	c := exec.Command("git", full...)
-	var out bytes.Buffer
+	// Limitat a la font (vegeu MaxCaptureBytes): un «git log -p» sobre
+	// una història llarga pot ser de centenars de MB.
+	var out limitedWriter
+	out.max = MaxCaptureBytes
 	c.Stdout = &out
 	c.Stderr = &out
 	if err := c.Run(); err != nil {

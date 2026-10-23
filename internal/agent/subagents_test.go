@@ -100,8 +100,12 @@ func TestDelegateDefinedSubagentWritesOnlyWithApproval(t *testing.T) {
 			bodies := make(chan string, 8)
 			server := fakeChild(t, bodies)
 			defer server.Close()
+			previousParallel := delegateParallelDefault.Load()
 			SetupDelegate(testCfg(server.URL), llm.New())
-			t.Cleanup(func() { SetDelegateRunner(nil) })
+			t.Cleanup(func() {
+				delegateParallelDefault.Store(previousParallel)
+				SetDelegateRunner(nil)
+			})
 			ws := t.TempDir()
 			writeSubagent(t, ws, "writer", "---\nname: writer\ndescription: Writes files\nmode: code\ntools: [read, write]\nmax_steps: 3\n---\nWrite what is asked.")
 			var mu sync.Mutex

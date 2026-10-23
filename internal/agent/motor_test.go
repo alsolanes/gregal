@@ -161,6 +161,38 @@ func TestMotorAutonomNoPreguntaMai(t *testing.T) {
 	}
 }
 
+func TestMotorAutonomSenseAutoAprovaDemana(t *testing.T) {
+	tools.TodoClear()
+	// El mode autònom no pregunta: Decide converteix tots els «ask» en
+	// «allow» (treballa sol). El que sí que ha de preguntar és el mode
+	// interactiu quan ningú no ha activat AutoAprova.
+	crida := func(t *testing.T, mode string, auto bool) Ordre {
+		t.Helper()
+		opts := OpcionsTorn{
+			Pol:      &Policy{ProjectDir: t.TempDir()},
+			Mode:     mode,
+			MaxSteps: 10,
+			Hist:     []llm.Message{{Role: "user", Content: "x"}},
+		}
+		if auto {
+			opts.AutoAprova = func() bool { return true }
+		}
+		tn := NouTorn(opts)
+		tn.Seguent()
+		tn.RepPas("", []llm.ToolCall{cridaProva("1", "write", `{"path":"../outside.txt","content":"x"}`)}, nil)
+		return tn.Seguent().Ordre
+	}
+	if ordre := crida(t, ModeAutonomous, false); ordre != OrdreExecuta {
+		t.Fatalf("l'autònom ha de treballar sol: %v", ordre)
+	}
+	if ordre := crida(t, ModeCode, false); ordre != OrdreAprova {
+		t.Fatalf("en mode code, sense AutoAprova, s'ha de demanar permís: %v", ordre)
+	}
+	if ordre := crida(t, ModeCode, true); ordre != OrdreExecuta {
+		t.Fatalf("amb AutoAprova s'ha d'executar sense preguntar: %v", ordre)
+	}
+}
+
 func TestMotorEinaBloquejadaEnModeXat(t *testing.T) {
 	tools.TodoClear()
 	tn := tornProva(ModeChat, 10)

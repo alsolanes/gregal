@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -260,6 +262,12 @@ type Client struct {
 	// proveïdor no en declara cap.
 	usageMu   sync.Mutex
 	lastUsage Usage
+	// raonamentMu protegeix lastReasoning: el raonament de la darrera
+	// resposta. Zen/deepseek l'exigeixen de tornada al següent pas; el
+	// client el desa aquí perquè el motor el pengi al missatge
+	// d'assistant (OpcionsTorn.Raonament).
+	raonamentMu   sync.Mutex
+	lastReasoning string
 	// campsOff: «endpoint|camp» dels camps opcionals que un proveïdor ha
 	// rebutjat (compat.go). També sota usageMu.
 	campsOff map[string]bool
@@ -277,6 +285,25 @@ type Client struct {
 	// lastTimings és el rendiment de l'última crida a un servidor local
 	// (llamacpp.go, ollama.go). Sota usageMu.
 	lastTimings *LocalTimings
+}
+
+// LastReasoning torna el raonament de la darrera resposta (buit si no n'hi
+// havia). El motor el posa al missatge d'assistant per als proveïdors que
+// l'exigeixen de tornada (zen thinking).
+func (c *Client) LastReasoning() string {
+	if c == nil {
+		return ""
+	}
+	c.raonamentMu.Lock()
+	defer c.raonamentMu.Unlock()
+	return c.lastReasoning
+}
+
+// setReasoning desa el raonament d'una resposta (buit el neteja).
+func (c *Client) setReasoning(r string) {
+	c.raonamentMu.Lock()
+	c.lastReasoning = r
+	c.raonamentMu.Unlock()
 }
 
 type promptCacheConfig struct {
@@ -407,7 +434,51 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 	if strings.Contains(baseURL, "opencode.ai") {
 		req.Header.Set("x-opencode-session", c.sessionID())
 	}
-	return c.hc.Do(req)
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	// Dump de peticions fallides: sense el cos sencer és impossible saber
+	// QUÈ rebutja exactament l'endpoint (el 400 de zen arriba buit,
+	// {"model":"..."}). Escriu només en error ≥400; capçaleres mai.
+	if resp.StatusCode >= 400 {
+		dumpFailedRequest(baseURL, body, resp)
+	}
+	return resp, nil
+}
+
+// dumpFailedRequest desa la petició i la resposta d'una crida fallida per
+// poder reproduir-la exactament. Cap clau ni capçalera: només el cos JSON.
+// Mida limitada (els històrics poden ser de MB) i neteja per edat.
+func dumpFailedRequest(baseURL string, reqBody []byte, resp *http.Response) {
+	dir := filepath.Join(os.Getenv("HOME"), ".local", "share", "gregal", "req-dumps")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return
+	}
+	// Neteja: només els últims 20 dumps.
+	if entries, err := os.ReadDir(dir); err == nil && len(entries) > 20 {
+		for _, e := range entries[:len(entries)-20] {
+			_ = os.Remove(filepath.Join(dir, e.Name()))
+		}
+	}
+	respBody, _ := io.ReadAll(io.LimitReader(resp.Body, 8<<10))
+	resp.Body = io.NopCloser(bytes.NewReader(respBody))
+	stamp := time.Now().Format("20060102-150405")
+	name := fmt.Sprintf("%s-%d.json", stamp, resp.StatusCode)
+	d := struct {
+		URL      string          `json:"url"`
+		Status   int             `json:"status"`
+		Request  json.RawMessage `json:"request"`
+		Response string          `json:"response"`
+	}{baseURL, resp.StatusCode, json.RawMessage(reqBody), string(respBody)}
+	b, err := json.MarshalIndent(d, "", " ")
+	if err != nil {
+		return
+	}
+	if len(b) > 4<<20 { // sostre: no omplim el disc amb històrics gegants
+		b = append([]byte("// TRUNCATED\n"), b[:4<<20]...)
+	}
+	_ = os.WriteFile(filepath.Join(dir, name), b, 0o600)
 }
 
 // marshalChatRequest és el wire específic del provider. No usa directament

@@ -122,7 +122,7 @@ func (c *Config) Route(task string, hasImages bool, current string) (string, str
 		}
 		return current, ""
 	}
-	if current == "chat" || routeQuestion(task) {
+	if routeQuestion(task) {
 		if _, ok := c.Roles["chat"]; ok && current != "chat" {
 			return "chat", "router: sembla una pregunta → rol chat (barat)"
 		}

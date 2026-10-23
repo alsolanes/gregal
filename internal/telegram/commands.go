@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
@@ -64,11 +65,12 @@ func (b *Bot) help(st *chatState) string {
 		"/model [name] — " + b.tr("tria el model en viu (es desa per xat+rol)", "choose a live model (saved per chat and role)"),
 		"/goal [llista|executa [id]|mostra [id]|esborra &lt;id&gt;] — " + b.tr("objectius", "manage goals"),
 		"/retry — " + b.tr("reintenta l'última petició", "retry the last request") + " · /resum — " + b.tr("resumeix el xat", "summarize the chat"),
-		"/status — " + b.tr("estat", "status") + " · /stop — " + b.tr("atura", "stop") + " · /ara <code>&lt;task&gt;</code> — " + b.tr("talla la feina anterior i fes això", "cancel the previous work and do this"),
+		"/status — " + b.tr("estat", "status") + " · /eines — " + b.tr("traça d'eines del darrer torn", "tool trace of the last turn") + " · /stop — " + b.tr("atura", "stop") + " · /ara <code>&lt;task&gt;</code> — " + b.tr("talla la feina anterior i fes això", "cancel the previous work and do this"),
 		"/verify — " + b.tr("revisor", "reviewer") + " · /perms — " + b.tr("permisos", "permissions"),
 		"/rewind — " + b.tr("desfés els canvis de fitxers de la sessió", "undo this session's file changes"),
 		"/rewind N — " + b.tr("torna al checkpoint N", "restore checkpoint N") + " · /plan <code>&lt;task&gt;</code> — " + b.tr("explora sense actuar i proposa un pla", "inspect without making changes and propose a plan"),
 		"/whoami — " + b.tr("id d'usuari i de xat", "show user and chat IDs"),
+		"/reinicia — " + b.tr("reinicia el servidor (web + bot)", "restart the server (web + bot)"),
 		"",
 		b.tr("Per aprovar eines ({write, edit, bash), fes servir els botons. Només l'amo pot decidir.", "Approve tools ({write, edit, bash}) with the buttons. Only the owner can decide."),
 	}, "\n")
@@ -163,8 +165,30 @@ func (b *Bot) command(ctx context.Context, m *Message, st *chatState, text strin
 	case "/status", "/estat":
 		b.status(ctx, chatID, st)
 
+	case "/eines", "/tools":
+		st.mu.Lock()
+		trace := append([]string(nil), st.lastTrace...)
+		st.mu.Unlock()
+		if len(trace) == 0 {
+			b.send(ctx, chatID, b.tr("encara no hi ha traça: envia una feina i aquí sortirà tot el que ha fet servir l'agent", "no trace yet: send a task and everything the agent used will appear here"))
+			return
+		}
+		body := esc(strings.Join(trace, "\n"))
+		if len([]rune(body)) > 3900 {
+			// La traça sencera no cap en un missatge: va en fitxer.
+			if err := b.api.SendDocument(ctx, chatID, "eines.md", []byte(strings.Join(trace, "\n")),
+				"🔧 "+b.tr("Traça completa (", "Full trace (")+itoa(len(trace))+" "+b.tr("línies)", "lines)")+")"); err != nil {
+				b.logf("sendDocument (eines): %v", err)
+			}
+			return
+		}
+		b.send(ctx, chatID, "🔧 "+b.tr("traça del darrer torn · "+itoa(len(trace))+" línies", "last turn trace · "+itoa(len(trace))+" lines")+"\n"+body)
+
 	case "/stop", "/atura":
 		b.stop(ctx, chatID, st)
+
+	case "/reinicia", "/reiniciar", "/restart":
+		b.reinicia(ctx, chatID)
 
 	case "/ara", "/now":
 		b.nowCommand(ctx, m, chatID, st, arg)
@@ -441,6 +465,21 @@ func (b *Bot) stop(ctx context.Context, chatID int64, st *chatState) {
 		return
 	}
 	b.send(ctx, chatID, b.tr("No hi ha res en marxa.", "Nothing is running."))
+}
+
+// reinicia implementa /reinicia: reinicia el servidor (web + bot).
+// El guard (serviceguard) bloqueja que el bot toqui les seves unitats des
+// de les eines, així que aquí no passa per cap eina: primer respon (send
+// bloqueja fins que Telegram confirma) i després programa el reinici en
+// una unitat transient externa (gregal-reinicia) amb 5 s de marge. La
+// transient viu fora del cgroup del bot i sobreviu al restart.
+func (b *Bot) reinicia(ctx context.Context, chatID int64) {
+	b.send(ctx, chatID, "🔄 "+b.tr("Reiniciant el servidor (web + bot)... torno en uns segons.", "Restarting the server (web + bot)... back in a few seconds."))
+	cmd := exec.Command("systemd-run", "--user", "--unit=gregal-reinicia", "--collect",
+		"/bin/sh", "-c", "sleep 5; systemctl --user restart gregal-web.service gregal-telegram.service")
+	if err := cmd.Run(); err != nil {
+		b.send(ctx, chatID, "⚠️ "+b.tr("No he pogut programar el reinici: ", "Could not schedule the restart: ")+esc(err.Error()))
+	}
 }
 
 // nowCommand implementa /ara (àlies /now): «talla el que estàs fent i fes

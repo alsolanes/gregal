@@ -41,6 +41,7 @@ func botMenu() []BotCommand {
 		{"export", "descarrega la sessió (.md)"},
 		{"perms", "permisos d'eines actius"},
 		{"whoami", "el teu id d'usuari i de xat"},
+		{"reinicia", "reinicia el servidor (web + bot)"},
 		{"help", "ajuda"},
 	}
 }
@@ -55,7 +56,7 @@ func (b *Bot) botMenu() []BotCommand {
 		"undo this session's file changes", "inspect without acting and propose a plan: /plan <task>",
 		"send the latest diff to the reviewer", "summarize the current conversation", "retry the last request",
 		"rename: /rename <name>", "clear the current conversation", "download the session (.md)",
-		"active tool permissions", "show your user and chat IDs", "help",
+		"active tool permissions", "show your user and chat IDs", "restart the server (web + bot)", "help",
 	}
 	for i := range menu {
 		menu[i].Description = b.tr(menu[i].Description, en[i])
