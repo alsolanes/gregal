@@ -328,9 +328,11 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	st.mu.Unlock()
 	defer cancel()
 
-	// "escrivint…" mentre dura el torn.
+	// "escrivint…" mentre dura el torn. Rep el context com a paràmetre: més
+	// avall el torn reconstrueix tctx (think, usage, hook scope) i llegir la
+	// variable des d'aquesta goroutine era una cursa de dades.
 	done := make(chan struct{})
-	go func() {
+	go func(ctx context.Context) {
 		t := time.NewTicker(5 * time.Second)
 		defer t.Stop()
 		for {
@@ -338,10 +340,10 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 			case <-done:
 				return
 			case <-t.C:
-				_ = b.api.SendChatAction(tctx, chatID, "typing")
+				_ = b.api.SendChatAction(ctx, chatID, "typing")
 			}
 		}
-	}()
+	}(tctx)
 	defer close(done)
 
 	// La directiva d'idioma ha de quedar l'última (AmbContext).
