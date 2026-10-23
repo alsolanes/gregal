@@ -591,6 +591,30 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
+    /** Colles predefinides (Dia a dia, Ciència de dades, Software i seguretat). */
+    data class SquadMember(val key: String, val name: String, val ca: String, val en: String, val color: String, val style: String)
+    data class Squad(val id: String, val ca: String, val en: String, val members: List<SquadMember>)
+
+    fun getSquads(): List<Squad> {
+        val o = JSONObject(read(conn("/api/winds/squads", "GET")))
+        val a = o.optJSONArray("squads") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val s = a.optJSONObject(i) ?: return@mapNotNull null
+            val m = s.optJSONArray("members") ?: JSONArray()
+            Squad(s.optString("id"), s.optString("ca"), s.optString("en"),
+                (0 until m.length()).mapNotNull { j ->
+                    val e = m.optJSONObject(j) ?: return@mapNotNull null
+                    SquadMember(e.optString("key"), e.optString("name"), e.optString("ca"), e.optString("en"), e.optString("color"), e.optString("style"))
+                })
+        }
+    }
+
+    /** Activa una colla: crea els especialistes que falten (idempotent). */
+    fun activateSquad(id: String, lang: String): Boolean {
+        val o = post("/api/winds/squads", JSONObject().put("id", id).put("lang", lang))
+        return o.optBoolean("ok", false)
+    }
+
     /** Envia un missatge al grup; respon el vent que toca (o el demanat). */
     fun rotllanaChat(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false): Triple<String, String, List<GregalViewModel.PetMsg>> {
         val o = post("/api/winds/rotllana", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind)))

@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Edit
@@ -185,6 +186,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     }
                     if (manage) {
                         item { WindsModelRow(vm, lang) }
+                        item { SquadsRow(vm, lang) }
                         item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
                         if (winds.isEmpty()) item { VentsEmpty(lang, false) }
                         items(winds, key = { it.id }) { w ->
@@ -297,6 +299,75 @@ private fun SectionHeader(text: String) {
     Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Faint,
         modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, bottom = 2.dp))
 }
+
+/** Colles predefinides: targeta que activa els especialistes que falten. */
+@Composable
+private fun SquadsRow(vm: GregalViewModel, lang: String) {
+    val squads by vm.squads.collectAsState()
+    val winds by vm.winds.collectAsState()
+    var expanded by remember { mutableStateOf(false) }
+    var activating by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { vm.loadSquads() }
+    if (squads.isEmpty()) return
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = Sea.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(20.dp)).clickable { expanded = !expanded },
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TintedIcon(Icons.Rounded.Groups, Sea)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(tr(lang, "app.vents.squads"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text(tr(lang, "app.vents.squadsHelp"), fontSize = 13.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                Text(if (expanded) "▾" else "▸", color = Muted)
+            }
+            if (expanded) {
+                squads.forEach { s ->
+                    val have = s.members.count { m -> winds.any { w -> w.specialty == m.key && w.id.startsWith("w-") } }
+                    val done = have == s.members.size
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                            .background(Superficie.copy(alpha = 0.7f))
+                            .clickable(enabled = !done && activating == null) {
+                                activating = s.id
+                                vm.activateSquad(s.id, lang)
+                            }
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        // Mini preview de les cares dels membres.
+                        Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
+                            s.members.take(5).forEach { m ->
+                                WindHalo(accent = Color(windArgb(m.color)), style = windStyleOf(m.style).copy(kit = m.key), size = 34, mood = WindMood.HAPPY)
+                            }
+                        }
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                            Text(if (lang == "ca") s.ca else s.en, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink)
+                            Text(
+                                if (done) tr(lang, "app.vents.squadDone", s.members.size)
+                                else tr(lang, "app.vents.squadCount", have, s.members.size),
+                                fontSize = 12.sp, color = Muted,
+                            )
+                        }
+                        if (done) Text("✓", color = Sea, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        else if (activating == s.id) TypingDots(Sea)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** ARGB d'un color hex del servidor (#RRGGBB). */
+private fun windArgb(hex: String): Long = runCatching {
+    val v = hex.removePrefix("#")
+    (0xFF000000L or v.toLong(16))
+}.getOrDefault(0xFFBFCCA8L)
 
 /** Model per defecte dels vents: fila + diàleg amb el catàleg del servidor. */
 @Composable

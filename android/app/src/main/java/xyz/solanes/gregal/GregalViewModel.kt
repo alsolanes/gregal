@@ -2481,6 +2481,31 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val _squads = MutableStateFlow<List<GregalApi.Squad>>(emptyList())
+    val squads: StateFlow<List<GregalApi.Squad>> = _squads.asStateFlow()
+
+    fun loadSquads() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val sq = withContext(Dispatchers.IO) { source.api().getSquads() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _squads.value = sq
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun activateSquad(id: String, lang: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().activateSquad(id, lang) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                loadWinds(); loadWindsResum()
+            } catch (_: Exception) { }
+        }
+    }
+
     fun loadVentDetall(windId: String) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
