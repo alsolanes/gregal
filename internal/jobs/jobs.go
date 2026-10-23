@@ -13,6 +13,8 @@ import (
 
 // Job és una tasca programada (v1: diària, per interval o manual).
 type Job struct {
+	Wind       string     `json:"wind,omitempty"`
+	WindOwner  string     `json:"wind_owner,omitempty"`
 	ID         string     `json:"id"`
 	Name       string     `json:"name"`
 	Prompt     string     `json:"prompt"`
@@ -33,6 +35,8 @@ type Job struct {
 
 // Run és una execució (la sortida és markdown llest per renderitzar ric).
 type Run struct {
+	Wind       string    `json:"wind,omitempty"`
+	WindOwner  string    `json:"wind_owner,omitempty"`
 	ID         string    `json:"id"`
 	JobID      string    `json:"job_id"`
 	JobName    string    `json:"job_name"`

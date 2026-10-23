@@ -370,7 +370,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Conversa oberta dins els Vents ("wind:<id>" / "rot:<id>"), perquè l'enrere la tanqui. */
     private val _ventsOpen = MutableStateFlow<String?>(null)
     val ventsOpen: StateFlow<String?> = _ventsOpen
-    fun openVentsChat(id: String?) { _ventsOpen.value = id }
+    fun openVentsChat(id: String?) {
+        if (id != null && id.startsWith("wind:")) markWindNewsSeen(id.removePrefix("wind:"))
+        _ventsOpen.value = id
+    }
 
     /**
      * Enrere: torna a la pantalla anterior si n'hi ha; si ja ets a l'arrel i no
@@ -429,6 +432,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _winds.value = emptyList()
         _windChat.value = emptyMap()
         _windBusy.value = emptySet()
+        _windLive.value = emptyMap()
+        _windNews.value = emptySet()
         _rotllanes.value = emptyList()
         _rotllanaChat.value = emptyMap()
         _rotllanaBusy.value = emptySet()
@@ -2134,6 +2139,44 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windBusy = MutableStateFlow<Set<String>>(emptySet())
     val windBusy: StateFlow<Set<String>> = _windBusy
 
+    /** Torn en directe per xat (id del vent o de la rotllana): la cara en mostra l'estat. */
+    private val _windLive = MutableStateFlow<Map<String, WindLive>>(emptyMap())
+    val windLive: StateFlow<Map<String, WindLive>> = _windLive
+    private fun live(id: String, change: (WindLive) -> WindLive) {
+        val next = change(_windLive.value[id] ?: WindLive())
+        if (_windLive.value[id] != next) _windLive.value = _windLive.value + (id to next)
+    }
+    private fun endLive(id: String) { _windLive.value = _windLive.value - id }
+
+    /** Vents amb una veu proactiva que encara no has obert (cor, recordatoris). */
+    private val _windNews = MutableStateFlow<Set<String>>(emptySet())
+    val windNews: StateFlow<Set<String>> = _windNews
+    private val newsPrefs get() = getApplication<Application>().getSharedPreferences("gregal_winds_seen", android.content.Context.MODE_PRIVATE)
+
+    fun refreshWindNews() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val prefs = newsPrefs
+                var floor = prefs.getLong("floor", 0L)
+                if (floor == 0L) {
+                    floor = System.currentTimeMillis() / 1000 - WindNewsLogic.FIRST_RUN_WINDOW
+                    prefs.edit().putLong("floor", floor).apply()
+                }
+                val list = withContext(Dispatchers.IO) { source.api().windNovetats(floor) }
+                val seen = prefs.all.mapNotNull { (k, v) -> if (k.startsWith("w:") && v is Long) k.removePrefix("w:") to v else null }.toMap()
+                if (isCompanionOrigin(source, epoch)) _windNews.value = WindNewsLogic.unseen(list, seen, floor)
+            } catch (_: Exception) {
+                // Sense servidor o en mode local: cap novetat, cap soroll.
+            }
+        }
+    }
+
+    fun markWindNewsSeen(id: String) {
+        newsPrefs.edit().putLong("w:$id", System.currentTimeMillis() / 1000).apply()
+        _windNews.value = _windNews.value - id
+    }
+
     /** El vent actiu al botó flotant (null = cap). */
     private val _activeWind = MutableStateFlow<Wind?>(null)
     val activeWind: StateFlow<Wind?> = _activeWind
@@ -2306,6 +2349,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         val before = _rotllanaChat.value[rotllanaId].orEmpty()
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
+        live(rotllanaId) { WindLive() }
         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message, ts = System.currentTimeMillis())))
         viewModelScope.launch {
             try {
@@ -2320,6 +2364,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     val sp = e.phase.removePrefix("speaker:")
                                     if (sp != e.phase) {
+                                        // Una veu que respon una altra veu del mateix torn: discussió.
+                                        val answering = streamSpeaker.isNotEmpty() && streamSpeaker != sp
+                                        live(rotllanaId) { it.copy(phase = "thinking", writing = false, voices = if (answering) it.voices + 1 else it.voices) }
                                         // Nova veu: la bombolla anterior queda com a missatge.
                                         commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
                                         buf = ""
@@ -2328,11 +2375,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         setStreamingBubble(rotllanaId, streamPhaseText("speaker") + " " + who, rotllana = true)
                                     } else {
                                         buf = ""
+                                        live(rotllanaId) { it.copy(phase = e.phase, writing = false) }
                                         setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
                                     }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
+                                    live(rotllanaId) { it.copy(writing = true) }
                                     setStreamingBubble(rotllanaId, buf, rotllana = true)
                                 }
                                 else -> {}
@@ -2360,7 +2409,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to before)
                 }
             } finally {
-                if (isCompanionOrigin(source, epoch)) _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId
+                if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
             }
         }
     }
@@ -2617,6 +2666,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
         _windBusy.value = _windBusy.value + windId
+        live(windId) { WindLive() }
         viewModelScope.launch {
             try {
                 try {
@@ -2629,10 +2679,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     buf = ""
+                                    live(windId) { it.copy(phase = e.phase, writing = false) }
                                     setStreamingBubble(windId, streamPhaseText(e.phase))
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
+                                    live(windId) { it.copy(writing = true) }
                                     setStreamingBubble(windId, buf)
                                 }
                                 else -> {}
@@ -2661,7 +2713,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch))
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
-                if (isCompanionOrigin(source, epoch)) _windBusy.value = _windBusy.value - windId
+                if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
             }
         }
     }
@@ -2676,6 +2728,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val source = _conn.value; val epoch = companionEpoch
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windBusy.value = _windBusy.value + windId
+        live(windId) { WindLive() }
         viewModelScope.launch {
             try {
                 try {
@@ -2686,10 +2739,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     buf = ""
+                                    live(windId) { it.copy(phase = e.phase, writing = false) }
                                     setStreamingBubble(windId, streamPhaseText(e.phase))
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
+                                    live(windId) { it.copy(writing = true) }
                                     setStreamingBubble(windId, buf)
                                 }
                                 else -> {}
@@ -2725,7 +2780,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch))
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
-                if (isCompanionOrigin(source, epoch)) _windBusy.value = _windBusy.value - windId
+                if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
             }
         }
     }
@@ -2773,7 +2828,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
-                if (isCompanionOrigin(source, epoch)) _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId
+                if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
             }
         }
     }

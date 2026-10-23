@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"gregal/internal/agent"
+	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/jobs"
 	"gregal/internal/runs"
@@ -64,6 +65,17 @@ func (s *Server) runDueJobs() {
 	now := time.Now()
 	for _, j := range list {
 		if jobs.Due(j, now) {
+			if j.WindOwner != "" {
+				if s.users == nil {
+					continue
+				}
+				user := s.users.Usuari(j.WindOwner)
+				if user == nil {
+					continue
+				}
+				_, _ = s.Hub().SessionFor(user, "wind-routines").runJob(j.ID, false)
+				return
+			}
 			// Un per tick: evita solapaments i pics al model local.
 			_, _ = s.runJob(j.ID, false)
 			return
@@ -107,6 +119,10 @@ func (s *Server) runJob(id string, manual bool) (run jobs.Run, err error) {
 	if job == nil {
 		return jobs.Run{}, fmt.Errorf("job inexistent")
 	}
+	if !s.canSeeWindRoutine(*job) {
+		return jobs.Run{}, fmt.Errorf("job inexistent")
+	}
+	run.Wind, run.WindOwner = job.Wind, job.WindOwner
 	if !job.Enabled && !manual {
 		return jobs.Run{}, fmt.Errorf("job deshabilitat")
 	}
@@ -153,6 +169,7 @@ func (s *Server) runJob(id string, manual bool) (run jobs.Run, err error) {
 		// recuperat un pànic abans d'entrar al callback.
 		finished, _ := s.Hub().Queue().Get(queued.ID)
 		run = jobs.Run{
+			Wind: job.Wind, WindOwner: job.WindOwner,
 			JobID: job.ID, JobName: job.Name, StartedAt: queued.StartedAt,
 			FinishedAt: finished.FinishedAt,
 			Status:     "error",
@@ -204,7 +221,20 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 		brief += "\n\n" + info
 	}
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
-	res, runErr := s.runReadOnlyLoop(jobCtx, brief, s.cfg.Agent.MaxSteps)
+	var res exploracio
+	var runErr error
+	if job.Wind != "" {
+		wind, ok := s.winds.ByID(job.Wind)
+		if !ok {
+			runErr = fmt.Errorf("the routine's wind is archived or unavailable")
+		} else {
+			brief += "\nWind: " + wind.Name + ". " + wind.Persona + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
+			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
+		}
+	}
+	if runErr == nil {
+		res, runErr = s.runReadOnlyLoop(jobCtx, brief, s.cfg.Agent.MaxSteps)
+	}
 	out := res.text
 	if res.parcial {
 		// Un job desatès no pot continuar sol: el butlletí diu que és parcial.
@@ -212,6 +242,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	}
 	end := time.Now()
 	run := jobs.Run{
+		Wind: job.Wind, WindOwner: job.WindOwner,
 		JobID: job.ID, JobName: job.Name, StartedAt: start, FinishedAt: end,
 	}
 	if runErr != nil {
@@ -248,6 +279,9 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]jobOut, 0, len(list))
 	for _, j := range list {
+		if !s.canSeeWindRoutine(j) {
+			continue
+		}
 		o := jobOut{Job: j}
 		if nd := jobs.NextDue(j, now); !nd.IsZero() {
 			o.NextDue = nd.Format("02-01 15:04")
@@ -282,6 +316,38 @@ func (s *Server) handleJobSave(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nom i prompt obligatoris", 400)
 		return
 	}
+	if j.ID != "" {
+		oldJobs, err := s.jobs.List()
+		if err != nil {
+			http.Error(w, "could not read routines", 500)
+			return
+		}
+		for _, old := range oldJobs {
+			if old.ID == j.ID {
+				if !s.canSeeWindRoutine(old) {
+					http.Error(w, "unknown routine", 404)
+					return
+				}
+				if _, supplied := body["wind"]; !supplied {
+					j.Wind = old.Wind
+				}
+			}
+		}
+	}
+	j.WindOwner = ""
+	if j.Wind != "" && s.user != nil && !s.user.Tothom {
+		j.WindOwner = s.user.Name
+	}
+	if j.Wind != "" {
+		if s.winds == nil {
+			http.Error(w, "unknown wind", 400)
+			return
+		}
+		if _, ok := s.winds.ByID(j.Wind); !ok {
+			http.Error(w, "unknown wind", 400)
+			return
+		}
+	}
 	if j.ID == "" && !hasNotify {
 		// Per defecte els jobs nous avisen per Telegram (es pot desmarcar).
 		j.Notify = true
@@ -306,6 +372,10 @@ func (s *Server) handleJobDelete(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "id obligatori", 400)
 		return
 	}
+	if !s.windRoutineVisibleID(req.ID) {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
 	if err := s.jobs.Delete(req.ID); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
@@ -328,6 +398,10 @@ func (s *Server) handleJobRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
 		http.Error(w, "id obligatori", 400)
+		return
+	}
+	if !s.windRoutineVisibleID(req.ID) {
+		http.Error(w, "unknown routine", 404)
 		return
 	}
 	if req.Scheduled {
@@ -368,10 +442,44 @@ func (s *Server) handleJobRuns(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "jobs desactivats", 500)
 		return
 	}
-	runs, err := s.jobs.Runs(r.URL.Query().Get("job"), 30)
+	id := r.URL.Query().Get("job")
+	if id == "" {
+		id = r.URL.Query().Get("id")
+	}
+	runs, err := s.jobs.Runs(id, 30)
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	writeJSON(w, map[string]any{"runs": runs})
+	visible := runs[:0]
+	for _, run := range runs {
+		if (run.Wind != "" && s.canSeeWindRoutine(jobs.Job{Wind: run.Wind, WindOwner: run.WindOwner})) || (run.Wind == "" && s.windRoutineVisibleID(run.JobID)) {
+			visible = append(visible, run)
+		}
+	}
+	writeJSON(w, map[string]any{"runs": visible})
+}
+
+func (s *Server) canSeeWindRoutine(job jobs.Job) bool {
+	if job.Wind == "" {
+		return true
+	}
+	owner := ""
+	if s.user != nil && !s.user.Tothom {
+		owner = s.user.Name
+	}
+	return job.WindOwner == owner
+}
+func (s *Server) windRoutineVisibleID(id string) bool {
+	list, err := s.jobs.List()
+	if err != nil {
+		return false
+	}
+	for _, job := range list {
+		if job.ID == id {
+			return s.canSeeWindRoutine(job)
+		}
+	}
+	// Old run records may outlive a deleted, ordinary job.
+	return true
 }

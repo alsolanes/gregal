@@ -91,6 +91,8 @@ func (s *Server) windGoalTitles() []string {
 // handleWinds gestiona el catàleg de vents.
 func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
+		windLibraryMu.Lock()
+		defer windLibraryMu.Unlock()
 		var req companion.Wind
 		if !decodeSmall(w, r, &req) {
 			return
@@ -111,7 +113,7 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "id obligatori", http.StatusBadRequest)
 			return
 		}
-		if err := s.winds.Delete(req.ID); err != nil {
+		if err := s.archiveWind(req.ID); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -129,7 +131,7 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, w := range list {
-		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style})
+		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style, "squad": w.Squad, "specialty": w.Specialty})
 	}
 	writeJSON(w, map[string]any{"winds": out})
 }

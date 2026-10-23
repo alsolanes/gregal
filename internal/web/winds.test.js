@@ -27,8 +27,9 @@ class Element {
   showModal() { this.open=true; }
   close() { this.open=false; this.emit('close'); }
   scrollIntoView() {}
+  getBoundingClientRect() { return { top:0 }; }
 }
-function fixture(apiOverride) {
+function fixture(apiOverride, translator) {
   const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
   const pane=html.slice(html.indexOf('<section class="workspace-page" id="ventsPage"'),html.indexOf('<section class="workspace-page" id="programatPage"'));
   const doc={activeElement:null,createElement:t=>new Element(t,doc),createElementNS:(_,t)=>new Element(t,doc),listeners:{},addEventListener(k,f){(this.listeners[k]||=[]).push(f);}};
@@ -43,7 +44,7 @@ function fixture(apiOverride) {
   const winds=[{id:'xaloc',name:'Xaloc',color:'#F5B45D',role:'Música',style:'pso'},{id:'mestral',name:'Mestral',color:'#8BD9CA',role:'Codi',style:'mtn'}];
   const rotllanes=[{id:'vespre',name:'Vespre',members:['xaloc','mestral']},{id:'musica',name:'Idees de música',members:['xaloc']}];
   const requests=[];
-  const root={document:doc,api:async(url,opts={})=>{
+  const root={document:doc,gregalWindI18n:translator,api:async(url,opts={})=>{
     const req={url,method:opts.method||'GET',body:opts.body ? JSON.parse(opts.body) : undefined}; requests.push(req);
     const overridden=apiOverride && await apiOverride(req,{winds,rotllanes});
     if(overridden) return overridden;
@@ -58,7 +59,7 @@ function fixture(apiOverride) {
   return {root,doc,dom,requests,winds,rotllanes,$:id=>doc.getElementById(id)};
 }
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
-async function boot(override) { const f=fixture(override); await f.root.loadWindsPage(); await settle(); return f; }
+async function boot(override, translator) { const f=fixture(override,translator); await f.root.loadWindsPage(); await settle(); return f; }
 function byText(root, selector, text) { return root.querySelectorAll(selector).find(n=>n.textContent.includes(text)); }
 
 test('shows existing wind histories plus group and named single-wind conversations with faces',async()=>{
@@ -158,7 +159,7 @@ test('new wind starts with eight pastel character presets that fill editable per
     if(req.url==='/api/winds' && req.method==='POST') {const wind={...req.body,id:'new-migjorn'};winds.push(wind);return {ok:true,json:async()=>({wind})};}
     if(req.url==='/api/winds/profile?wind=new-migjorn') return {ok:true,json:async()=>({wind:winds.at(-1)})};
   });
-  const presets=[['Marinada','#EFC69A','bsn',/calma/i],['Xaloc','#EFA68F','eto',/música/i],['Tramuntana','#A8CDE2','pso',/curios/i],['Mestral','#BFCFA4','esn',/aprendre/i],['Llebeig','#E8AEC2','pto',/cultura/i],['Gregal','#C1B4DE','mso',/dia a dia/i],['Ponent','#EACF87','msn',/llibres/i],['Migjorn','#9ED3C5','bss',/natura/i]];
+  const presets=[['Marinada','#EFC69A','bsn',/cerques/i],['Xaloc','#EFA68F','eto',/música/i],['Tramuntana','#A8CDE2','pso',/codi/i],['Mestral','#BFCFA4','esn',/qualitat/i],['Llebeig','#E8AEC2','pto',/cultura/i],['Gregal','#C1B4DE','mso',/dia a dia/i],['Ponent','#EACF87','msn',/llibres/i],['Migjorn','#9ED3C5','bss',/natura/i]];
   for(const [name,color,style,interest] of presets) {
     await f.$('windsCreateWind').click();
     const gallery=f.$('windsPresetGallery');
@@ -344,7 +345,7 @@ test('hostile names, persona, face codes and colors cannot add markup, attribute
   });
   assert.match(f.$('windsList').textContent,/<svg onload/);
   await byText(f.$('windsList'),'button',hostile).click(); await byText(f.$('windsChatMembers'),'button','Perfil').click();
-  assert.ok(f.dom.querySelectorAll('script').every(n=>n.getAttribute('src')==='/app/winds.js'),'only the authored script tag exists');
+  assert.ok(f.dom.querySelectorAll('script').every(n=>['/app/winds.js','/app/wind-desk.js','/app/wind-i18n.js'].includes(n.getAttribute('src'))),'only the authored script tags exist');
   for (const svg of f.dom.querySelectorAll('svg')) {
     assert.equal(svg.querySelectorAll('[onload]').length,0);
     assert.equal(svg.querySelectorAll('image').length,0);
@@ -352,6 +353,34 @@ test('hostile names, persona, face codes and colors cannot add markup, attribute
   }
   const source=fs.readFileSync(path.join(__dirname,'app/winds.js'),'utf8');
   assert.ok(!/\b(?:prompt|alert|fetch)\s*\(|innerHTML\s*=|insertAdjacentHTML/.test(source));
+});
+
+test('winds UI uses shared translations for dynamic labels, attributes and locale-sensitive presets',async()=>{
+  const painted=[], attributed=[];
+  const words={
+    'winds.profileOf':'Profile of {name}', 'winds.characterOf':'The character of {name}',
+    'winds.chooseACharacterToGetStarted':'Choose a character to get started',
+    'winds.researchAndContent':'research and content',
+    'winds.youAreObservantAndImaginativeResearchWithSources':'An English preset persona.',
+    'winds.researchWebsitesCodeReviews':'Research, websites, code, reviews…'
+  };
+  const translator={
+    text(key,fallback,vars){ return (words[key]||fallback).replace(/\{([\w]+)\}/g,(_,name)=>vars?.[name]??`{${name}}`); },
+    paint(element,value){ painted.push([element,String(value)]); element.textContent=String(value); element.setAttribute('data-wind-i18n','tracked'); },
+    attribute(element,name,value){ attributed.push([element,name,String(value)]); element.setAttribute(name,String(value)); element.setAttribute('data-wind-i18n','tracked'); }
+  };
+  const f=await boot(undefined,translator);
+  await byText(f.$('windsList'),'button','Xaloc').click();
+  assert.equal(f.$('windsChatMembers').textContent,'Profile of Xaloc');
+  await f.$('windsCreateWind').click();
+  const gallery=f.$('windsPresetGallery');
+  assert.equal(gallery.getAttribute('aria-label'),'Choose a character to get started');
+  assert.match(gallery.textContent,/research and content/);
+  await byText(gallery,'button','Marinada').click();
+  assert.equal(f.$('windPersona').value,'An English preset persona.');
+  assert.equal(f.$('windRole').getAttribute('placeholder'),'Research, websites, code, reviews…');
+  assert.ok(painted.some(([element])=>element.getAttribute('data-wind-i18n')==='tracked'));
+  assert.ok(attributed.some(([,name])=>name==='placeholder'));
 });
 
 test('renaming a wind refreshes the chat header and restores focus to the current edit button',async()=>{

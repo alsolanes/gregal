@@ -283,7 +283,7 @@ async function maybeCard() {
 }
 
 function navItem() {
-  const more = document.getElementById('sideMore');
+  const more = document.querySelector('#sideMore .rail-more-menu') || document.getElementById('sideMore');
   if (!more || more.querySelector('[data-stats-open]')) return;
   // side-view dona l'estil de la resta d'entrades (sense, el botó sortia
   // amb el fons blanc per defecte del navegador).

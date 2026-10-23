@@ -14,6 +14,8 @@ func (s *Server) writeWindProfile(w http.ResponseWriter, wind companion.Wind) {
 		"wind":            wind,
 		"knowledge":       s.windBrain(wind.ID),
 		"personal_memory": s.personalMemory(),
+		"memory":          companion.LoadWindMemory(s.windStateDir(), wind.ID),
+		"skills":          s.windSkills(wind.ID),
 	})
 }
 
@@ -31,6 +33,8 @@ func (s *Server) handleWindProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWindMemory(w http.ResponseWriter, r *http.Request) {
+	windLibraryMu.Lock()
+	defer windLibraryMu.Unlock()
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return

@@ -41,7 +41,7 @@ function loadSessions() {
   };
   const sandbox = {
     T(key) { return key; },
-    convs: { forgetSession() {} },
+    convs: { forgetSession() {}, async load() {} },
     window,
     localStorage: {
       getItem(key) { return stored.has(key) ? stored.get(key) : null; },
@@ -237,6 +237,20 @@ test('a queued or externally changed session is followed without a second run', 
   sandbox.window.gregalRunEventHandlers.clear();
   await sessions.syncCurrent([{id:'alpha',busy:false,msgs:2}]);
   assert.equal(visits.length,2,'fetch a completed turn from another client');
+});
+
+test('automatic busy and completion refreshes preserve the workspace, while clicking a tab opens chat', async () => {
+  const {sessions,sandbox} = loadSessions();
+  await sessions.switchTo('alpha');
+  const views=[];
+  sandbox.window.gregal.setView=view=>views.push(view);
+  sandbox.window.gregal.viewActual=()=>'vents';
+  await sessions.syncCurrent([{id:'alpha',busy:true,msgs:0}]);
+  await sessions.syncCurrent([{id:'alpha',busy:false,msgs:1}]);
+  assert.deepEqual(views,[],'background activity must not replace the selected workspace');
+  assert.equal(sessions._loadedSession,'alpha','session data still refreshes');
+  await sessions.switchTo('alpha');
+  assert.deepEqual(views,['agent'],'explicit tab selection still opens chat');
 });
 
 

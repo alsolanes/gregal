@@ -314,6 +314,7 @@ export const sessions = {
   async open(cwd) {
     const r = await j('/api/sessions/open', { method: 'POST', body: JSON.stringify({ cwd: cwd || '' }) });
     await this.switchTo(r.id);
+    await convs.load();
   },
   _switchVersion: 0,
   _loadedSession: '',
@@ -321,7 +322,7 @@ export const sessions = {
   isLoading(id) { return this._loadingSession === id; },
   async switchTo(id, options = {}) {
     if (!options.force && id === this.current && this._loadedSession === id) {
-      G().setView('agent');
+      if (!options.background) G().setView('agent');
       return G().state;
     }
     const version = ++this._switchVersion;
@@ -333,7 +334,7 @@ export const sessions = {
     this._loadedSession = saved ? id : '';
     this._loadingSession = id;
     this.restoreDraft(id);
-    G().setView('agent');
+    if (!options.background) G().setView('agent');
     G().onSessionSwitch(id, saved?.state);
     try { localStorage.setItem('gregal_session', id); } catch (e) {}
     // Cached nodes are visible before the first network round trip. Each
@@ -405,7 +406,9 @@ export const sessions = {
     if (this._syncing || this.isLoading(id) || window.gregalRunEventHandlers?.has(id)) return;
     if (!live.busy && (previous === undefined || previous === signature)) return;
     this._syncing = true;
-    try { await this.switchTo(id, { force: true }); }
+    // Polling refreshes session data without navigating away from Winds,
+    // scheduled tasks, or whichever workspace the user is viewing.
+    try { await this.switchTo(id, { force: true, background: true }); }
     finally { this._syncing = false; }
   },
   async close(id) {
@@ -845,6 +848,7 @@ export const models = {
     const pill = $('modelPill');
     if (!pill) return;
     pill.addEventListener('click', e => { e.stopPropagation(); this.box && !this.box.hidden ? this.close() : this.open(); });
+    window.addEventListener('resize', () => { if(this.box && !this.box.hidden) this.place(); });
     document.addEventListener('click', e => { if (this.box && !this.box.hidden && !this.box.contains(e.target)) this.close(); });
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && this.box && !this.box.hidden) this.close(); });
   },
@@ -880,17 +884,23 @@ export const models = {
     return this.box;
   },
   place() {
-    const pill = $('modelPill');
+    const pill = this.anchor?.isConnected ? this.anchor : $('modelPill');
     const r = pill.getBoundingClientRect();
     const w = Math.min(440, window.innerWidth - 16);
-    this.box.style.top = (r.bottom + 6) + 'px';
+    const above = r.top > window.innerHeight / 2;
+    const available = above ? r.top - 14 : window.innerHeight - r.bottom - 14;
+    this.box.style.top = above ? 'auto' : (r.bottom + 6) + 'px';
+    this.box.style.bottom = above ? (window.innerHeight - r.top + 6) + 'px' : 'auto';
+    this.box.style.maxHeight = Math.max(120, Math.min(560, available)) + 'px';
     this.box.style.left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8)) + 'px';
     this.box.style.width = w + 'px';
   },
-  async open() {
+  async open(anchor) {
+    this.anchor = anchor?.nodeType === 1 ? anchor : null;
     this.ensure();
     this.place();
     this.box.hidden = false;
+    $('modelPill').setAttribute('aria-expanded','true');
     this.box.querySelector('.mp-list').innerHTML = '<div class="mp-empty">' + T('models.fetching') + '</div>';
     this.box.querySelector('.mp-foot').textContent = '';
     const s = this.box.querySelector('.mp-search'); s.value = ''; s.focus();
@@ -980,6 +990,7 @@ export const models = {
   },
   close() {
     if (!this.box) return;
+    $('modelPill').setAttribute('aria-expanded','false');
     const dins = this.box.contains(document.activeElement);
     this.box.hidden = true;
     // En seleccionar un model el focus quedava al cercador ocult del picker;

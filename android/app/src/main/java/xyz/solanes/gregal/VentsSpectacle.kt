@@ -72,8 +72,9 @@ fun WindHalo(
                 }
             }
             if (stacked.size > 1) {
+                // A l'esquerra: la cantonada dreta és per a la insígnia d'estat de la cara.
                 Box(
-                    Modifier.align(Alignment.TopEnd).background(Ink, CircleShape)
+                    Modifier.align(Alignment.TopStart).background(Ink, CircleShape)
                         .padding(horizontal = 5.dp, vertical = 1.dp).zIndex(1f)
                 ) {
                     Text("+${stacked.size}", color = Superficie, fontSize = 9.sp, fontWeight = FontWeight.Bold)

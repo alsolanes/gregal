@@ -16,12 +16,14 @@ import (
 
 // Wind és un companion personal, desat en disc.
 type Wind struct {
-	ID      string `json:"id"`      // id estable (slug del nom)
-	Name    string `json:"name"`    // nom de vent: Tramuntana, Xaloc…
-	Color   string `json:"color"`   // hex triat per l'usuari, p.ex. #FF9F00
-	Persona string `json:"persona"` // veu: com parla i què li importa
-	Role    string `json:"role"`    // subtítol curt de la UI: "música", "notícies"…
-	Style   string `json:"style"`   // peces de la cara: ulls/boca/forma (p.ex. "pso")
+	ID        string `json:"id"`      // id estable (slug del nom)
+	Name      string `json:"name"`    // nom de vent: Tramuntana, Xaloc…
+	Color     string `json:"color"`   // hex triat per l'usuari, p.ex. #FF9F00
+	Persona   string `json:"persona"` // veu: com parla i què li importa
+	Role      string `json:"role"`    // subtítol curt de la UI: "música", "notícies"…
+	Style     string `json:"style"`   // peces de la cara: ulls/boca/forma (p.ex. "pso")
+	Squad     string `json:"squad,omitempty"`
+	Specialty string `json:"specialty,omitempty"`
 }
 
 // WindStore desa els vents al costat del config (winds.json), com els goals.
@@ -99,6 +101,13 @@ func (ws *WindStore) Save(w Wind) (Wind, error) {
 		w.Color = "#FF9F00"
 	}
 	if index >= 0 {
+		// Older Android/desktop editors do not send squad metadata.
+		if w.Squad == "" {
+			w.Squad = d.Winds[index].Squad
+		}
+		if w.Specialty == "" {
+			w.Specialty = d.Winds[index].Specialty
+		}
 		d.Winds[index] = w
 	} else {
 		d.Winds = append(d.Winds, w)
@@ -129,6 +138,58 @@ func (ws *WindStore) Delete(id string) error {
 	}
 	b, _ := json.MarshalIndent(windDisc{Winds: out}, "", "  ")
 	return os.WriteFile(ws.path(), b, 0o644)
+}
+
+// Restore inserts a known identity without deriving its ID from its display name.
+// Existing identities are never overwritten (used by archives and starter squads).
+func (ws *WindStore) Restore(w Wind) error {
+	if w.ID == "" || slug(w.ID) != w.ID || strings.TrimSpace(w.Name) == "" {
+		return fmt.Errorf("invalid wind identity")
+	}
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	var d windDisc
+	raw, err := os.ReadFile(ws.path())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &d); err != nil {
+			return err
+		}
+	}
+	for _, existing := range d.Winds {
+		if existing.ID == w.ID {
+			return fmt.Errorf("wind already exists")
+		}
+	}
+	d.Winds = append(d.Winds, w)
+	if err := os.MkdirAll(ws.dir, 0o700); err != nil {
+		return err
+	}
+	b, err := json.MarshalIndent(d, "", "  ")
+	if err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(ws.dir, ".winds-*.tmp")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err = f.Chmod(0o600); err == nil {
+		_, err = f.Write(b)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return os.Rename(f.Name(), ws.path())
 }
 
 // WindByID cerca un vent per id.

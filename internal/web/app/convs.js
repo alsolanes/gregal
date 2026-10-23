@@ -75,9 +75,11 @@ export function matchesConversation(c, query) {
 }
 export const convs = {
   items: [],
+  projects: [],
   _liveSessions: [],
   _liveSignature: '',
   expandedProjects: new Set(),
+  collapsedProjects: new Set(),
   filtre: '',
   loading: false,
   loadError: false,
@@ -98,7 +100,8 @@ export const convs = {
     this.loadError = false;
     this.draw();
     try {
-      const r = await G().api('/api/sessions');
+      const [r, projects] = await Promise.all([G().api('/api/sessions'), G().api('/api/workspaces').then(async r => r.ok ? (await r.json()).workspaces || [] : []).catch(() => [])]);
+      this.projects = projects;
       if (r.ok) {
         this.items = (await r.json()) || [];
       } else {
@@ -141,14 +144,14 @@ export const convs = {
     if (!llista.length) {
       box.innerHTML = '<div class="conv-empty">' +
         esc(q ? (gregalT('conv.empty.search') || 'No conversations match.') : (gregalT('conv.empty.none') || 'No conversations yet.')) + '</div>';
+      this.drawProjects(new Map());
       return;
     }
-    // La jerarquia segueix el shell del desktop: fixats primer, després
-    // projectes i finalment converses sense projecte agrupades per data.
-    const pins = llista.filter(c => c.pinned);
+    // Projects have their own section; general conversations stay grouped by date.
+    const pins = llista.filter(c => c.pinned && !c.workspace);
     const projectes = new Map();
     const recents = [];
-    llista.filter(c => !c.pinned).forEach(c => {
+    llista.filter(c => !c.pinned || c.workspace).forEach(c => {
       const ws = c.workspace || '';
       if (!ws) { recents.push(c); return; }
       // La ruta completa és la clau: dos repositoris poden acabar amb el
@@ -163,7 +166,7 @@ export const convs = {
     const expLabel = gregalT('conv.export') || 'Export or share';
     const liveById = new Map(this._liveSessions.map(s => [s.id, s]));
     const resumed = resumedSessions();
-    const fila = c => {
+    const fila = (c, inProject = false) => {
       const sessionId = c.live_session || resumed[c.name] || (c.current ? window.gregalSession : '');
       const live = sessionId ? liveById.get(sessionId) : null;
       const busy = live ? !!live.busy : !!c.live_busy;
@@ -172,29 +175,24 @@ export const convs = {
         : busy ? '<span class="conv-live-state busy">' + esc(gregalT('sessions.workingLabel') || 'Working') + '</span>' : '';
       return '<div class="conv' + (c.current ? ' current' : '') + '" data-name="' + esc(c.name) + '" title="' +
       esc(titolVisible(c) + ' · ' + c.msgs + ' ' + msgsWord + (c.when ? ' · ' + c.when : '')) + '">' +
-      '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + xipProjecte(c) +
+      '<span class="conv-t">' + esc(titolVisible(c)) + '</span>' + status + (inProject ? '' : xipProjecte(c)) +
       '<button class="conv-pin' + (c.pinned ? ' pinned' : '') + '" title="' + esc(c.pinned ? unpinLabel : pinLabel) + '" aria-label="' + esc(c.pinned ? unpinLabel : pinLabel) + '">★</button>' +
       '<button class="conv-exp" title="' + esc(expLabel) + '" aria-label="' + esc(expLabel) + '" aria-haspopup="menu">⤓</button>' +
       '<button class="conv-x" title="' + esc(delTitle) + '" aria-label="' + esc(delAria) + '">×</button></div>';
     };
     let html = '';
     if (pins.length) html += '<div class="conv-grup">' + esc(gregalT('conv.pinned') || 'Pinned') + '</div>' + pins.map(fila).join('');
-    [...projectes.entries()].sort((a,b) => a[0].localeCompare(b[0])).forEach(([ws, files]) => {
-      const nom = ws.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || ws;
-      const oberta = this.expandedProjects.has(ws);
-      html += '<div class="conv-project" title="' + esc(ws) + '">' + esc(nom) + '</div>' + files.slice(0, oberta ? files.length : 5).map(fila).join('');
-      if (!oberta && files.length > 5) html += '<button class="conv-more" data-project-more="' + esc(ws) + '">' + esc(gregalT('conv.showMore') || 'Show more') + '</button>';
-    });
+    this.drawProjects(projectes, fila);
     if (recents.length) {
       const grups = new Map();
       recents.forEach(c => { const g = grup(c.at); if (!grups.has(g.nom)) grups.set(g.nom, []); grups.get(g.nom).push(c); });
       for (const [nom, files] of grups) html += '<div class="conv-grup">' + esc(nom) + '</div>' + files.map(fila).join('');
     }
     box.innerHTML = html;
-    box.querySelectorAll('.conv-more').forEach(el => {
+    [...box.querySelectorAll('.conv-more'), ...($('projectList')?.querySelectorAll('.conv-more') || [])].forEach(el => {
       el.onclick = e => { e.stopPropagation(); this.expandedProjects.add(el.dataset.projectMore); this.draw(); };
     });
-    box.querySelectorAll('.conv').forEach(el => {
+    [...box.querySelectorAll('.conv'), ...($('projectList')?.querySelectorAll('.conv') || [])].forEach(el => {
       el.onclick = e => {
         if (e.target.classList.contains('conv-x')) { this.esborra(el.dataset.name); return; }
         if (e.target.classList.contains('conv-exp')) { window.gregalExport?.openMenu(e.target, el.dataset.name); return; }
@@ -202,6 +200,42 @@ export const convs = {
         this.obre(el.dataset.name);
       };
     });
+  },
+  drawProjects(grouped, row = () => '') {
+    const box = $('projectList');
+    if (!box) return;
+    const projects = new Map(this.projects.map(p => [p.path, p]));
+    for (const path of grouped.keys()) if (!projects.has(path)) projects.set(path, {path});
+    const cwd = G().state?.cwd || window.gregalCwd || '';
+    const norm = path => path.replace(/[\\/]+$/, '').toLowerCase();
+    box.innerHTML = [...projects.values()].filter(p => !this.filtre || matchesConversation({workspace:p.path, title:p.name}, this.filtre) || grouped.has(p.path)).map(p => {
+      const name = p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+      const expanded = (this.expandedProjects.has(p.path) || norm(cwd) === norm(p.path)) && !this.collapsedProjects.has(p.path);
+      const files = grouped.get(p.path) || [];
+      return '<section class="sidebar-project' + (norm(cwd) === norm(p.path) ? ' selected' : '') + '"><div class="sidebar-project-row"><button class="project-open" data-path="'+esc(p.path)+'" aria-expanded="'+expanded+'" title="'+esc(p.path)+'"><span class="project-chevron" aria-hidden="true">'+(expanded?'⌄':'›')+'</span><svg class="project-folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.5a1 1 0 0 1 1-1h3.1l1.45 1.55h5.95a1 1 0 0 1 1 1v5.45a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>'+esc(name)+'</span></button><button class="project-new" data-path="'+esc(p.path)+'" title="'+esc(gregalT('shell.newProjectChat'))+'" aria-label="'+esc(gregalT('shell.newProjectChat')+' · '+name)+'">＋</button></div>' +
+        (expanded ? '<div class="project-conversations"><div class="project-folder" title="'+esc(gregalT('shell.projectFolder'))+'">'+esc(p.path)+'</div>'+files.map(c => row(c, true)).join('')+'</div>' : '')+'</section>';
+    }).join('') || '<div class="conv-empty">'+esc(gregalT('shell.noProjects'))+'</div>';
+    box.querySelectorAll('.project-open').forEach(b => b.onclick = async () => {
+      const path = b.dataset.path;
+      if (b.getAttribute('aria-expanded') === 'true') { this.collapsedProjects.add(path); this.draw(); return; }
+      this.collapsedProjects.delete(path);
+      this.expandedProjects.add(path);
+      if (norm(cwd) === norm(path)) { this.draw(); return; }
+      const latest = (grouped.get(path) || [])[0];
+      if (latest) await this.obre(latest.name);
+      else await this.newProjectConversation(path);
+    });
+    box.querySelectorAll('.project-new').forEach(b => b.onclick = () => this.newProjectConversation(b.dataset.path));
+  },
+  async newProjectConversation(path) {
+    try {
+      await window.gregalPanels.sessions.open(path);
+      this.expandedProjects.add(path);
+      this.collapsedProjects.delete(path);
+      G().setView('agent');
+      await this.load();
+      $('in')?.focus();
+    } catch (e) { G().sys(String(e.message || e)); }
   },
   async fixa(name, pinned) {
     try {

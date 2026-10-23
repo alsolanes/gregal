@@ -1,4 +1,4 @@
-// Updates live in Preferences and use only the narrow, pinned Electron bridge.
+// Update controls use only the narrow, pinned Electron bridge.
 // The ordinary browser UI never advertises an update capability.
 const esc = value => String(value == null ? '' : value)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -68,6 +68,15 @@ export const desktopUpdates = {
     const label = pending ? translate('prefs.update.notice') : translate('prefs.title');
     button.title = label;
     button.setAttribute('aria-label', label);
+    const notice = document.getElementById('desktopUpdateNotice');
+    const text = document.getElementById('desktopUpdateNoticeText');
+    if (notice && text) {
+      notice.hidden = !['available', 'downloading', 'ready'].includes(this.status.state);
+      text.textContent = this.message();
+      notice.title = this.message();
+      notice.setAttribute('aria-label', this.message());
+      notice.onclick = () => button.click();
+    }
   },
 
   message() {

@@ -1,6 +1,6 @@
 import { attentionQueue, checkFlow, layoutFlow, nextAttention, progressSummary, readJSON, replaceAgentButtons, teamFlowTopology, writeJSON } from './team-status.js';
 import { buildFlowGraph, updateFlowGraph } from './team-flow-graph.js';
-import { htmlArtifact } from './web-artifact.js';
+import { htmlArtifact, bundleLocalHTML } from './web-artifact.js';
 const $ = id => document.getElementById(id);
 const roles = ['coordinator', 'researcher', 'builder', 'reviewer'];
 const baseRoles = [...roles];
@@ -19,6 +19,11 @@ const words = {
 };
 const lang = () => document.documentElement.lang === 'ca' ? 'ca' : 'en';
 const t = key => words[lang()][key] || key;
+const windText = (key, fallback) => {
+  const value=window.gregalWindI18n?.text?.(key,fallback);
+  return value === undefined ? fallback : String(value);
+};
+const windError = (key, fallback) => window.gregalWindI18n?.error?.(key, fallback) || new Error(windText(key, fallback));
 const name = role => metadata[role]?.name || t(role);
 const actionLabels = {en:{plan:'Planning',analyze:'Analyzing evidence',draft:'Writing a draft',review:'Checking the result',coding:'Writing code · demo',web:'Searching the web · demo',revision:'Applying feedback',discussion:'Review feedback',coffee:'Coffee break',chat:'Taking a break',delegated:'Delegated task',waiting:'Waiting for inputs'},ca:{plan:'Planificant',analyze:'Analitzant evidències',draft:'Redactant un esborrany',review:'Comprovant el resultat',coding:'Escrivint codi · demo',web:'Cercant al web · demo',revision:'Aplicant correccions',discussion:'Feedback de revisió',coffee:'Pausa per fer cafè',chat:'Fent una pausa',delegated:'Tasca delegada',waiting:'Esperant resultats'}};
 const actionLabel = role => actionLabels[lang()][actions[role]] || t(states[role]);
@@ -47,6 +52,8 @@ let stoppedAt = null;
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 
 function render() {
+  window.gregalWindWorkspace?.update?.({source:windWorkActive?'winds':'workshop',busy:!!controller,state:overall,task:$('teamTask').value,nodes:roles.map(id=>({id,name:name(id),wind:runSpec?.nodes?.find(n=>n.id===id)?.wind||'',state:states[id],output:outputs[id]||'',activity:actions[id]||''}))});
+  window.gregalWindDesk?.update?.({ source:windWorkActive?'winds':'workshop', busy:!!controller, state:overall, demo, task:$('teamTask').value, nodes:roles.map(id=>({id,name:name(id),state:states[id],output:outputs[id]||'',activity:actions[id]||''})), events:activity.slice(-12) });
   $('teamTitle').textContent = t('title'); if ($('teamNav')) $('teamNav').textContent = t('title');
   $('teamTaskLabel').textContent = t('task');
   $('teamStart').textContent = t('start'); $('teamStop').textContent = t('stop');
@@ -305,11 +312,16 @@ function draw(){
   }
 }
 function receive(e){
+  if(windWorkActive) window.gregalWindWorkspace?.event?.(e);
   if(e.type==='spawn'&&e.agent&&!roles.includes(e.agent)&&roles.includes(e.parent)&&roles.length<8){roles.push(e.agent);const i=roles.length-5;homes.push([145+i*245,245]);agents.push(agents[roles.indexOf(e.parent)%4]);states[e.agent]='waiting';metadata[e.agent]={parent:e.parent,name:e.name||e.agent,model:e.model};}
   if(e.agent&&!roles.includes(e.agent))return;
   if(e.agent){if(e.activity&&['working','discussion','spawn'].includes(e.type))actions[e.agent]=e.activity;if(e.message)bubbles[e.agent]=e.message;if(e.model)metadata[e.agent]={...metadata[e.agent],model:e.model};}
-  if(e.type==='tool'&&e.agent){bubbles[e.agent]=`${e.activity||t('tool')}${e.message?' '+e.message:''}`;}
+  if(e.type==='tool'&&e.agent){actions[e.agent]=e.activity||'working';bubbles[e.agent]=`${e.activity||t('tool')}${e.message?' '+e.message:''}`;}
+  if(e.type==='tool_result'&&e.agent){actions[e.agent]=e.activity||'working';bubbles[e.agent]=`${e.activity||t('tool')}${e.message?' · '+e.message:''}`;}
+  if(e.type==='reviewing'&&e.agent){actions[e.agent]='reviewing';bubbles[e.agent]=e.message||t('review');}
   if(e.type==='approval'&&e.agent){lastApprovalAgent=e.agent;bubbles[e.agent]=`${t('approval')}: ${e.activity||''}`;}
+  // An auto-review verdict concerns the seat's own tool call; 'review' is the reviewer seat's job.
+  if(e.type==='review'&&e.agent){actions[e.agent]='reviewing';bubbles[e.agent]=e.message||t('review');}
   if(e.type==='working'){stoppedAt=null;states[e.agent]='working';overall='working';selected=e.agent;}
   if(e.type==='completed'){
     states[e.agent]='completed';outputs[e.agent]=e.output||'';delete bubbles[e.agent];delete actions[e.agent];
@@ -324,11 +336,11 @@ function receive(e){
     flowTimer=setTimeout(()=>{lastHandoff=null;flowTimer=0;render();},4000);
   }
   if(['done','failed','cancelled'].includes(e.type)){
-    if(e.type==='done'&&e.output){outputs.reviewer=e.output;const html=!demo&&htmlArtifact(e.output);if(html)window.gregalPreview?.request({kind:'html',content:html,title:name('reviewer')},true);}
+    if(e.type==='done'&&e.output){const resultRole=runSpec?.output||'reviewer';outputs[resultRole]=e.output;const html=!demo&&htmlArtifact(e.output);if(html)window.gregalPreview?.request({kind:'html',content:html,title:name(resultRole)},true);}
     overall=e.type;
     stoppedAt=performance.now();handoffWalk=null;lastHandoff=null;if(flowTimer){clearTimeout(flowTimer);flowTimer=0;}
     for(const role of roles)if(states[role]==='working'||states[role]==='waiting')states[role]=e.type==='done'?'completed':e.type==='failed'?'failed':'cancelled';
-    if(e.type==='done')selected='reviewer';
+    if(e.type==='done')selected=runSpec?.output||'reviewer';
     for(const role of roles){delete bubbles[role];delete actions[role];}
   }
   activity.push({...e,time:new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})});
@@ -336,7 +348,7 @@ function receive(e){
 }
 
 $('teamForm').onsubmit=async event=>{event.preventDefault();startRun(null);};
-async function startRun(flow){
+async function startRun(flow, options = {}){
   if(controller)return;
   const task=$('teamTask').value.trim();if(!task)return;
   if(flow){
@@ -350,8 +362,9 @@ async function startRun(flow){
   states=Object.fromEntries(roles.map(role=>[role,'waiting']));lastModel=window.gregal.state?.model||'';render();
   let reader;
   try{
-    const payload={task,lang:lang(),tools:useTools()};
+    const payload={task,lang:lang(),tools:options.tools ?? useTools(),...(options.winds?{winds:true}:{})};
     if(flow)payload.flow=flow;
+    if(options.thread)payload.thread=options.thread;
     const response=await window.gregal.api('/api/v2/team/run',{method:'POST',signal:current.signal,body:JSON.stringify(payload)});
     if(!response.ok||!response.body){
       if(response.status===400){
@@ -811,11 +824,12 @@ function renderToolsToggle(){
   label.querySelector('span').textContent=t('useTools');label.title=t('useToolsHint');
 }
 function approvalsBox(){
+  if(windWorkActive && $('windsWorkApprovals')) return $('windsWorkApprovals');
   let box=$('teamApprovals');
   if(!box){box=document.createElement('div');box.id='teamApprovals';box.setAttribute('aria-live','assertive');document.querySelector('.team-layout').before(box);}
   return box;
 }
-function clearTeamApprovals(){const box=$('teamApprovals');if(box)box.replaceChildren();}
+function clearTeamApprovals(){for(const id of ['teamApprovals','windsWorkApprovals']){const box=$(id);if(box)box.replaceChildren();}}
 function teamApproval(kind,d){
   const box=approvalsBox();
   if(kind==='timeout'){box.querySelectorAll('[data-call]').forEach(card=>{if(card.dataset.call===String(d.call_id||''))card.remove();});return;}
@@ -862,3 +876,33 @@ function paintTeamModel(){
   el.textContent = demo ? (lang()==='ca'?'Demo local · resultats de mostra':'Local demo · sample results') : `${lastModel || window.gregal?.state?.model || t('model')} · ${useTools()?t('withTools'):t('textOnly')}`;
 }
 document.addEventListener('gregal:state', paintTeamModel);
+
+// Winds share the existing runner, stream, permission policy and stop control.
+// A single controller prevents simultaneous runs against the same workspace.
+var windWorkActive = false;
+window.gregalWindRunner = {
+  async start(task, flow, tools, context = {}) {
+    if(controller) throw windError('winds.aTaskIsAlreadyRunningInTheWorkshop','Ja hi ha un encàrrec en marxa al taller. Espera que acabi o atura’l.');
+    if(!task.trim()) throw windError('winds.describeWhatYouWouldLikeToAchieve','Explica què vols aconseguir.');
+    const problem=checkFlow(flow,lang());
+    if(problem) throw new Error(problem);
+    $('teamTask').value=task;
+    windWorkActive=true;
+    try { await startRun(flow,{tools,winds:true,thread:context.thread}); }
+    finally { windWorkActive=false; }
+  },
+  stop() { controller?.abort(); },
+  async openResult(content, title, path) {
+    if(path) {
+      const read=async file=>{const response=await window.gregal.api('/api/file?path='+encodeURIComponent(file));if(!response.ok)throw new Error(windText('winds.resultFileUnavailable','No s’ha pogut obrir el fitxer del resultat.'));const data=await response.json();if(typeof data.content!=='string')throw new Error('Invalid result file');return data.content;};
+      const actual=await read(path),html=htmlArtifact(actual);
+      if(html) window.gregalPreview?.request({kind:'html',content:await bundleLocalHTML(html,path,read),title:path});
+      else window.gregalPreview?.request({kind:'markdown',content:actual,title:path});
+      return;
+    }
+    if(!content) return;
+    const html=htmlArtifact(content);
+    if(html) window.gregalPreview?.openHTML(html);
+    else window.gregalPreview?.request({kind:'markdown',content,title});
+  },
+};

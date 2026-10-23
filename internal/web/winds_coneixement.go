@@ -78,7 +78,7 @@ func windSkillFiles(dir string) []string {
 
 // saveWindSkill desa un coneixement (nom normalitzat, escriptura atòmica).
 func (s *Server) saveWindSkill(windID string, sk skills.Skill) error {
-	if windID == "" || sk.Nom == "" || sk.Descripcio == "" || sk.Cos == "" {
+	if windID == "" || !validWindSkillName(sk.Nom) || sk.Descripcio == "" || sk.Cos == "" {
 		return errBadSkill
 	}
 	dir := s.windSkillsDir(windID)
@@ -110,6 +110,18 @@ func (s *Server) saveWindSkill(windID string, sk skills.Skill) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), filepath.Join(dir, sk.Nom+".md"))
+}
+
+func validWindSkillName(name string) bool {
+	if strings.TrimSpace(name) == "" || len(name) > 160 || name == "." || name == ".." || strings.ContainsAny(name, "/\\<>:\"|?*\x00\r\n") {
+		return false
+	}
+	for _, r := range name {
+		if r < 32 {
+			return false
+		}
+	}
+	return true
 }
 
 var errBadSkill = skillError("coneixement incomplet: cal nom, descripció i cos")
@@ -170,6 +182,8 @@ func (s *Server) windMemoryLearnRevision(w companion.Wind, question, answer stri
 // --- Endpoints (mòbil, escriptori i edició a mà comparteixen fitxers) ---
 
 func (s *Server) handleWindMemoria(w http.ResponseWriter, r *http.Request) {
+	windLibraryMu.Lock()
+	defer windLibraryMu.Unlock()
 	switch r.Method {
 	case http.MethodGet:
 		id := strings.TrimSpace(r.URL.Query().Get("wind"))
@@ -201,6 +215,8 @@ func (s *Server) handleWindMemoria(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWindConeixements(w http.ResponseWriter, r *http.Request) {
+	windLibraryMu.Lock()
+	defer windLibraryMu.Unlock()
 	switch r.Method {
 	case http.MethodGet:
 		id := strings.TrimSpace(r.URL.Query().Get("wind"))

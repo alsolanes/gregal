@@ -2,6 +2,130 @@
 
 ## Unreleased
 
+- Center Winds dialogs (profile, new wind, routines and library) instead of pinning them to the top-left corner.
+- Stop repeating the speaker's name at the start of group replies in Winds conversations.
+- Make Winds work activity readable: wind names instead of flow seats, a recognisable file, pattern or command instead of raw tool arguments, and no raw tool output. Saved tasks remember who filled each seat.
+- Lead finished Winds work with the deliverable and the builder's summary; the reviewer's verdict is folded underneath, and a finished task opens at the top.
+- Show the Winds collaboration example only before the first conversation or task, with an everyday example that matches each specialist's role.
+- On phones, the Winds bar replaces the app rail; the menu opens the rail and Winds navigation together and closes after choosing a destination.
+- Give every squad specialist a recognisable mascot with the tool of their trade (bag, book, headphones, magnifier, laptop, shield, hard hat…) and its own colour and expression, on the web and on Android. Personal winds keep their chosen face.
+- Animate wind faces only from observed state: breathing and blinking at rest; thinking, searching, reading, writing, working, discussing, done and needs-attention each with a small badge, in chats, group conversations and live tasks. Reduced-motion preferences turn the motion off.
+- Show when a wind has something new to tell you (a reminder or a watched topic) until you open its chat, on the web and on Android.
+- Android: live chat phases drive the faces, the crew grid names the state in words, and mascots no longer breathe or blink in unison.
+- Show the right specialist's face in live task rows when names repeat across squads.
+- Fire reminders and scheduled jobs at their time instead of up to a minute early.
+- Keep the web test suite away from the real jobs store and recent workspaces list.
+
+## v1.15.1 - 2026-10-23 - Polish Winds conversations and live responses
+
+- Polish the Winds conversation composer: use centered vector send/stop icons, an enabled stop control that cancels chat requests, and a more compact input area.
+- Show waiting, search activity and streamed replies beside the responding wind inside the conversation. Remove the detached thinking footer, preserve drafts after stopping, and respect reduced-motion preferences.
+- Check pending-state layout and actual stream cancellation on desktop and mobile, including both interface languages and transitions from speculative tokens to tool activity.
+
+## v1.15.0 - 2026-10-23 - A shared home for Winds, conversations and projects
+
+- Redesign Winds as a shared workspace with complementary Conversations and Projects, a calm responsive interface, a compact in-chat model selector and folder-based project threads.
+- Add ready-to-use everyday, data science and software/security squads with 16 defined specialists. Route common tasks locally and bind each participant to its own persona, memory and knowledge.
+- Expose separate editable Memory and Knowledge, document import, a recoverable library, export and selective assignment between winds. Archiving preserves information and identity; transfers keep a previous copy and reject conflicting documents.
+- Persist delegated work and its public progress, connect results to their conversation and folder, and open the actual HTML deliverable with its local CSS and JavaScript in the isolated preview.
+- Add daily research routines that use the responsible wind's current information, with pause/resume and result history. Preserve ownership of private routine history after deletion. The local scheduler requires Gregal to remain open.
+
+## v1.14.13 - 2026-10-23 - Start Winds with one request
+
+- Start Winds with a request and one click: choose helpers and review automatically, prepare a starter crew on first use, and keep manual options collapsed. Put the composer first, show the project folder, and make character cards and routines more compact.
+
+## v1.14.12 - 2026-10-23 - Show Winds progress and open website deliverables
+
+- Show live tool activity and automatic reviews while Winds work, and open a successfully created HTML file from the project as the result preview.
+
+## v1.14.11 - 2026-10-23 - Let Winds finish tasks autonomously
+
+- Let Winds run tasks without pausing for tool approvals: project-local file changes are authorized directly, and other approval requests go through an automatic reviewer. Explicitly denied tools remain blocked; uncertain actions are refused so the wind can try another approach.
+- Guide the builder to use scoped file tools instead of shell redirection and runtime probes when editing project files.
+
+## v1.14.10 - 2026-10-23 - Allow Winds to edit project files
+
+- Let Winds write and edit project files inside the selected workspace without per-file permission prompts, while preserving explicit deny rules and path-specific approval rules.
+- Guide the builder to use scoped file tools for project edits; shell commands and operations outside the workspace still require approval.
+
+## v1.14.9 - 2026-10-23 - Keep Wind tasks in their workspace
+
+- Keep Winds tasks on the Winds workspace while automatic session polling reports activity or completion. Background session refreshes no longer navigate to an empty main chat; explicit tab selection still opens the selected chat.
+- Add browser coverage that starts the actual Wind runner with a controlled event stream and checks the workspace during busy and completion polls.
+
+## v1.14.8 - 2026-10-23 - Keep the app shell fixed when opening Winds
+
+- Fix selecting a Wind scrolling the entire app document upward, which hid the navigation and tabs and left a blank strip below the sidebar. Keep the outer document stationary and scroll only the Winds panel after its history loads.
+- Add a browser regression check for empty conversations, long histories, and wind profiles that verifies the document, sidebar, and tab strip stay at their original position.
+
+## v1.14.7 - 2026-10-23 - Reset Winds scroll after navigation
+
+- Reset the Winds sidebar after the conversation list has been hidden and the wind roster is visible, so the browser applies the new scroll range before positioning the list.
+
+## v1.14.6 - 2026-10-23 - Keep the Winds sidebar aligned
+
+- Reset the shared sidebar scroll position when entering Winds so the shorter wind roster starts at its heading instead of inheriting a conversation-list offset.
+
+## v1.14.5 - 2026-10-23 - Keep the Winds view in place
+
+- Keep the Winds conversation section heading visible when opening a wind from the contextual sidebar, avoiding a jump that clipped the heading.
+
+## v1.14.4 - 2026-10-23 - Readable wind conversations
+
+- Center wind conversations in a narrower reading column and cap message width for easier reading on wide desktop windows.
+
+## v1.14.3 - 2026-10-23 - A quieter sidebar
+
+- The sidebar now uses one scrollable region for projects and conversations. Its bright nested scrollbar is hidden while wheel and trackpad scrolling remain available.
+
+
+## v1.14.2 - 2026-10-23 - Winds that stay in context
+
+- Winds now configure and save scheduled routines in a dialog without leaving the Winds workspace. The Winds surface follows the selected theme, and project names in the sidebar have a folder icon.
+
+
+## v1.14.1 - 2026-10-23 - A calmer sidebar and compact composer
+
+- Refined the desktop sidebar into a continuous surface with separate Projects and Conversations sections. Open a folder using the Projects + button; start project conversations with their own working directory, including folders with no saved history.
+- Kept the model selector, permission lock, attachments and send action on a single composer row. Moved work modes and planning into the advanced options popover, with keyboard and mobile support.
+
+
+## v1.14.0 - 2026-10-23 - A warmer workspace for the Winds
+
+- Split desktop navigation into a permanent app rail and a collapsible
+  project/conversation sidebar. Winds show their own context list. Move
+  secondary destinations into More and keep help/settings on the rail.
+  Files, changes, terminal, browser and knowledge open beside the chat.
+  Move the model picker into the composer and keep its popup in the viewport.
+
+- Keep Wind task results mounted during live activity, preserving focus,
+  selection, open sections and output scroll position. Reuse unchanged wind
+  cards and participant options. Add Ctrl/Cmd+Enter to start a task and a
+  direct shortcut back to the current work.
+
+- Refine the Winds desk with an editorial heading, warmer surfaces, expressive
+  character portraits, a visible owner selection, and a quieter routine rail.
+  Improve task hierarchy across desktop, dark mode and narrow screens.
+
+- Winds follow the selected English/Catalan language across the work desk,
+  conversations, profiles, character presets, forms, examples and status
+  messages. Switching language updates open UI without changing user drafts,
+  saved names, memories or conversation content.
+
+- Winds now have a desktop work desk with pastel character cards, concrete
+  task briefs, a read-only research mode, and an optional second wind to review
+  and request one revision. Work uses the real team runner and project
+  permission policy, with live states, inline approvals and result previews.
+  Selected winds contribute their saved context. A routine shortcut prepares
+  the existing scheduler form without saving or starting it automatically.
+  New character presets offer research, coding, review and organisation roles;
+  existing profiles and conversations are preserved.
+
+- Desktop/web: keep help and preferences visible while More is expanded and
+  in the compact sidebar. Navigation and conversation history scroll together;
+  Winds have a direct entry. Desktop updates show a persistent sidebar notice
+  while available, downloading, or ready to install.
+
 ## v1.13.1 - 2026-10-23 - CI estable i aturada neta
 
 - **Stable CI and clean shutdown:** the data races that made the `-race` job

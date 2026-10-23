@@ -70,3 +70,25 @@ test('live session state clears a stale working badge from the saved list', asyn
   convs.updateLiveSessions([{id:'alpha',busy:true}]);
   assert.match(box.innerHTML,/conv-live-state busy/);
 });
+
+test('registered folders remain visible without saved conversations and reopen after loading', async () => {
+  const {convs,document,window} = await loadConvs();
+  const projectBox={innerHTML:'',querySelectorAll(){return [];}};
+  const conversationBox={innerHTML:'',querySelectorAll(){return [];}};
+  document.getElementById=id=>id==='convs'?conversationBox:id==='projectList'?projectBox:null;
+  window.gregal.api=async url=>({ok:true,async json(){return url==='/api/workspaces'?{workspaces:[{name:'Empty project',path:'C:/empty'}]}:[];}});
+  await convs.load();
+  assert.match(projectBox.innerHTML,/Empty project/);
+  assert.match(projectBox.innerHTML,/data-path="C:\/empty"/);
+  assert.doesNotMatch(conversationBox.innerHTML,/sidebar-project/);
+});
+
+test('project conversation creation passes its own folder and returns to chat', async () => {
+  const {convs,window,calls}=await loadConvs();
+  const folders=[];
+  window.gregalPanels.sessions.open=async cwd=>folders.push(cwd);
+  await convs.newProjectConversation('C:/other-project');
+  assert.deepEqual(folders,['C:/other-project']);
+  assert.deepEqual(calls.views,['agent']);
+  assert.ok(convs.expandedProjects.has('C:/other-project'));
+});

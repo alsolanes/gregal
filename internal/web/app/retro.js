@@ -688,7 +688,7 @@ function paintNav() {
   nav.querySelector('.retro-nav-dot').hidden = !(latestRun && latestRun > seenRun());
 }
 function mountNav() {
-  const side = document.querySelector('#side .side-main');
+  const side = document.querySelector('#sideMore .side-main') || document.querySelector('#side .side-main');
   if (!side || document.getElementById('retroNav')) return;
   nav = btn('nav-item', T('retro.navHelp'), '', () => { markSeen(); open(latestRun ? { runId: String(latestRun), autostart: true } : { autostart: false }); });
   nav.id = 'retroNav';

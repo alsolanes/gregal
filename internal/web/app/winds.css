@@ -1,5 +1,56 @@
 /* Vents only. Inherit the host's system-aware palette; color lives in faces. */
 .winds-page { width:min(1280px,100%); }
+.wind-desk { display:grid; gap:24px; margin:30px 0 48px; }
+.wind-desk .ghost, .winds-heading .ghost { background:var(--bg); color:var(--ink); border:1px solid var(--line-hi); }
+.wind-desk .ghost:hover, .winds-heading .ghost:hover { background:var(--surface-hi); border-color:var(--accent); }
+.wind-desk-roster { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:14px; }
+.wind-desk-card { min-width:0; display:flex; flex-direction:column; align-items:center; text-align:center; padding:24px 16px 18px; border:1px solid var(--line); border-radius:22px; background:linear-gradient(160deg,color-mix(in srgb,var(--wind-tint) 14%,var(--bg)),var(--surface)); }
+.wind-desk-avatar { display:grid; place-items:center; width:104px; height:104px; margin-bottom:10px; border-radius:50%; background:color-mix(in srgb,var(--wind-tint) 18%,transparent); }
+.wind-desk-avatar .winds-face { filter:drop-shadow(0 7px 7px color-mix(in srgb,var(--wind-tint) 24%,transparent)); transition:transform .2s ease; }
+.wind-desk-card:hover .winds-face { transform:translateY(-3px) rotate(-3deg); }
+.wind-desk-copy { flex:1; }
+.wind-desk-copy h2 { font-size:17px; font-weight:600; color:var(--ink); margin:0 0 5px; }
+.wind-desk-copy p { font-size:12px; line-height:1.6; color:var(--muted); margin:0 0 18px; overflow-wrap:anywhere; }
+.wind-desk-card > button { font-size:11px; border-color:var(--line); }
+.wind-desk-empty { padding:26px; border:1px dashed var(--line-hi); border-radius:18px; color:var(--muted); line-height:1.8; }
+.wind-desk-workspace { display:grid; grid-template-columns:minmax(0,1.7fr) minmax(220px,1fr); gap:18px; }
+.wind-work-form, .wind-routines, .wind-work-progress { min-width:0; border:1px solid var(--line); border-radius:20px; padding:26px; background:var(--surface); }
+.wind-work-form h2, .wind-routines h2 { margin:8px 0 18px; font-size:22px; font-weight:550; letter-spacing:-.025em; color:var(--ink); }
+#ventsPage .wind-work-form textarea { display:block; width:100%; min-width:0; resize:vertical; padding:14px; border:1px solid var(--line-hi); border-radius:12px; background:var(--bg); color:var(--ink); font:inherit; font-size:13px; line-height:1.7; }
+.wind-work-examples { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 22px; }
+.wind-work-chip { border:1px solid var(--line); border-radius:99px; background:transparent; color:var(--muted); padding:6px 11px; font:inherit; font-size:11px; cursor:pointer; }
+.wind-work-chip:hover { color:var(--ink); background:var(--accent-soft); border-color:var(--accent); }
+.wind-work-options { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.wind-work-options label { display:grid; gap:7px; color:var(--muted); font-size:11px; }
+.wind-work-options select { width:100%; min-width:0; background:var(--bg); border:1px solid var(--line-hi); border-radius:8px; color:var(--ink); padding:9px; font:inherit; font-size:12px; }
+.wind-work-actions { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:20px 0 12px; }
+.wind-work-actions label { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--muted); }
+.wind-work-actions input { accent-color:var(--accent); }
+.wind-routines { background:linear-gradient(150deg,var(--accent-soft),var(--surface)); display:flex; flex-direction:column; align-items:flex-start; }
+.wind-routine-icon { font-size:32px; color:var(--accent); margin-bottom:24px; }
+.wind-routines > p:not(.winds-composer-hint) { font-size:13px; line-height:1.8; color:var(--muted); margin:0 0 24px; }
+.wind-routines > button { margin-top:auto; }
+.wind-routines .winds-composer-hint { margin-top:14px; }
+.wind-work-progress[hidden] { display:none; }
+.wind-work-progress > header { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.wind-work-progress h2 { font-size:18px; margin-top:6px; overflow-wrap:anywhere; }
+#windWorkSummary { font-size:12px; color:var(--muted); margin:12px 0 20px; }
+.wind-work-steps { display:grid; gap:10px; }
+.wind-work-step { border:1px solid var(--line); border-radius:12px; min-width:0; }
+.wind-work-step > summary { display:flex; gap:10px; align-items:center; padding:12px; cursor:pointer; list-style:none; }
+.wind-work-step > summary::-webkit-details-marker { display:none; }
+.wind-work-step > summary::after { content:'⌄'; color:var(--muted); }
+.wind-work-step strong { font-size:13px; }
+.wind-work-state { margin-left:auto; font-size:11px; color:var(--muted); }
+.wind-work-output { padding:18px; border-top:1px solid var(--line); white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.8; max-height:520px; overflow:auto; }
+.wind-work-preview { margin:0 18px 16px; font-size:12px; }
+.wind-work-log { font-size:11px; color:var(--muted); margin-top:20px; }
+.wind-work-log summary { cursor:pointer; }
+.wind-work-log ol { padding-left:20px; line-height:1.8; overflow-wrap:anywhere; }
+.winds-conversation-heading { display:flex; flex-wrap:wrap; align-items:end; justify-content:space-between; gap:12px; padding-top:24px; margin-bottom:24px; border-top:1px solid var(--line); }
+.winds-conversation-heading h2 { color:var(--ink); font-size:22px; font-weight:550; margin-top:6px; }
+@media(max-width:900px) { .wind-desk-workspace { grid-template-columns:minmax(0,1fr); } .wind-routines { display:block; } .wind-routine-icon { float:right; } }
+@media(max-width:520px) { .wind-desk-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; } .wind-desk-card { padding:16px 10px; } .wind-desk-avatar { width:80px; height:80px; } .wind-desk-avatar .winds-face-large { width:66px; height:66px; } .wind-work-form, .wind-routines, .wind-work-progress { padding:18px; } .wind-work-options { grid-template-columns:1fr; } .wind-work-state { max-width:40%; } }
 .winds-page *, .winds-dialog * { box-sizing:border-box; }
 .winds-heading { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:22px; }
 .winds-heading .page-title { margin-top:6px; }
@@ -23,7 +74,7 @@
 .winds-face-stack .winds-face:not(:first-child) { margin-left:-24px; }
 .winds-face-stack .winds-face:nth-child(2) { transform:translateY(3px); }
 .winds-face-stack .winds-face:nth-child(3) { transform:translateY(-3px); }
-.winds-main { min-width:0; display:grid; gap:18px; align-items:start; }
+.winds-main { width:min(100%,1040px); min-width:0; margin-inline:auto; display:grid; gap:18px; align-items:start; }
 .winds-welcome { min-height:400px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:32px; border:1px solid var(--line); border-radius:16px; }
 .winds-mark { color:var(--muted); font-size:42px; margin-bottom:18px; }
 .winds-welcome h2 { font-size:20px; color:var(--ink); font-weight:550; }
@@ -40,7 +91,7 @@
 .winds-history { min-height:220px; max-height:48vh; overflow:auto; overscroll-behavior:contain; padding:14px 0; scrollbar-gutter:stable; }
 .winds-message { display:flex; align-items:flex-start; gap:9px; margin:10px 0 20px; }
 .winds-message .winds-face, .winds-user-avatar { width:34px; height:34px; flex:none; }
-.winds-message-content { min-width:0; max-width:90%; }
+.winds-message-content { min-width:0; max-width:min(76ch,90%); }
 .winds-speaker { display:block; color:var(--ink); font-size:11px; font-weight:600; margin-bottom:5px; }
 .winds-message-text { font-size:13px; line-height:1.75; white-space:pre-wrap; overflow-wrap:anywhere; margin:0; }
 .winds-message-user { flex-direction:row-reverse; margin-left:12%; }
@@ -58,7 +109,7 @@
 .winds-new-menu { position:absolute; right:0; top:calc(100% + 8px); z-index:20; width:260px; max-width:75vw; padding:6px; background:var(--surface); border:1px solid var(--line-hi); border-radius:12px; box-shadow:0 10px 32px var(--ombra); }
 .winds-new-menu button { display:block; width:100%; border:0; padding:11px 12px; border-radius:7px; color:var(--text); background:transparent; text-align:left; font:inherit; font-size:13px; cursor:pointer; }
 .winds-new-menu button:hover { background:var(--surface-hi); }
-.winds-new-menu span { display:block; margin-top:4px; font-size:11px; color:var(--muted); }
+.winds-new-menu button > span + span { display:block; margin-top:4px; font-size:11px; color:var(--muted); }
 .winds-dialog { width:min(520px,calc(100vw - 32px)); max-height:85vh; overflow:auto; padding:26px; margin:auto; border:1px solid var(--line-hi); border-radius:16px; color:var(--text); background:var(--surface); box-shadow:0 16px 60px var(--ombra); }
 .winds-dialog::backdrop { background:rgba(0,0,0,.5); }
 .winds-dialog h2 { color:var(--ink); font-size:20px; font-weight:600; margin:0 0 18px; }
@@ -116,4 +167,173 @@
 }
 @media (prefers-reduced-motion:reduce) {
   .winds-page *, .winds-page *::before, .winds-page *::after { animation:none !important; transition:none !important; scroll-behavior:auto !important; }
+}
+
+/* A calm atelier: editorial type, a shelf of characters and one working sheet. */
+#ventsPage { background:radial-gradient(ellipse at 95% 0%,color-mix(in srgb,var(--accent) 6%,transparent),transparent 48%),var(--bg); }
+.winds-page { width:min(1080px,100%); margin:0 auto; }
+.winds-heading { position:relative; align-items:flex-end; padding:4px 0 22px; margin-bottom:0; border-bottom:1px solid var(--line-hi); }
+.winds-heading .page-kicker, .wind-desk .page-kicker, .winds-conversation-heading .page-kicker { font-size:10px; font-weight:600; letter-spacing:.14em; color:var(--muted); }
+.winds-heading .page-kicker { display:flex; align-items:center; gap:9px; margin-bottom:14px; }
+.winds-heading .page-kicker::before { content:''; width:6px; height:6px; background:var(--accent); border-radius:50%; }
+.winds-heading .page-title { font-family:Georgia,'Times New Roman',serif; font-size:clamp(36px,4.1vw,56px); line-height:1.05; letter-spacing:-.045em; font-weight:500; max-width:730px; margin:0 0 12px; text-wrap:balance; }
+.winds-heading .page-copy { font-size:14px; line-height:1.7; max-width:590px; color:var(--muted); }
+.winds-heading-art { position:absolute; right:130px; top:4px; width:110px; height:74px; color:var(--accent); opacity:.35; pointer-events:none; }
+.winds-heading .winds-new-wrap { margin-bottom:5px; }
+.winds-heading #windNewBtn { min-height:38px; padding:8px 16px; border-radius:99px; font-size:12px; }
+.wind-desk { margin:24px 0 44px; gap:28px; }
+.wind-desk-roster { gap:12px; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); }
+.wind-desk-card { position:relative; padding:20px 18px 12px; border:1px solid color-mix(in srgb,var(--wind-tint) 24%,var(--line)); border-radius:16px; background:linear-gradient(150deg,color-mix(in srgb,var(--wind-tint) 13%,var(--surface)),var(--surface)); box-shadow:0 3px 0 color-mix(in srgb,var(--wind-tint) 13%,transparent); transition:border-color .18s,box-shadow .18s,transform .18s; }
+.wind-desk-card::before { content:attr(data-number); position:absolute; left:14px; top:13px; color:var(--muted); opacity:.7; font:10px var(--mono); letter-spacing:.06em; }
+.wind-desk-card[data-selected="true"] { border-color:color-mix(in srgb,var(--wind-tint) 72%,var(--ink)); box-shadow:0 3px 0 color-mix(in srgb,var(--wind-tint) 45%,transparent); }
+.wind-desk-card[data-selected="true"]::after { content:''; position:absolute; right:14px; top:15px; width:7px; height:7px; border-radius:50%; background:color-mix(in srgb,var(--wind-tint) 60%,var(--ink)); }
+.wind-desk-avatar { position:relative; width:132px; height:100px; margin:0 0 8px; border-radius:48% 52% 45% 55% / 60% 44% 56% 40%; background:radial-gradient(ellipse at 50% 60%,color-mix(in srgb,var(--wind-tint) 25%,transparent),transparent 70%); }
+.wind-desk-avatar::after { content:''; position:absolute; left:20px; right:20px; bottom:3px; height:1px; background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--wind-tint) 60%,var(--line)),transparent); }
+.wind-desk-avatar .winds-face-large { width:98px; height:98px; filter:drop-shadow(0 9px 7px color-mix(in srgb,var(--wind-tint) 28%,transparent)); }
+.wind-desk-card:nth-child(3n+2) .wind-desk-avatar .winds-face { transform:rotate(-5deg); }
+.wind-desk-card:nth-child(3n+3) .wind-desk-avatar .winds-face { transform:rotate(5deg); }
+.wind-desk-card:hover .wind-desk-avatar .winds-face { transform:translateY(-4px) rotate(0); }
+.wind-desk-copy h2 { font-size:18px; letter-spacing:-.02em; font-weight:600; margin-bottom:4px; }
+.wind-desk-copy p { font-size:12px; line-height:1.5; margin-bottom:12px; }
+.wind-desk .wind-desk-card > .ghost { width:100%; min-height:32px; border:0; border-top:1px solid color-mix(in srgb,var(--wind-tint) 30%,var(--line)); border-radius:0; padding:12px 0 2px; background:transparent; font-size:11px; color:var(--muted); }
+.wind-desk .wind-desk-card > .ghost:hover { color:var(--ink); }
+.wind-desk .wind-desk-card > .ghost[aria-pressed="true"] { color:var(--ink); font-weight:600; }
+.wind-desk-workspace { grid-template-columns:minmax(0,1fr) 280px; gap:24px; align-items:start; }
+.wind-work-form { padding:28px; border-radius:16px; border-color:var(--line-hi); box-shadow:0 8px 24px color-mix(in srgb,var(--ink) 4%,transparent); }
+.wind-work-form h2 { font-size:24px; letter-spacing:-.035em; margin:9px 0 18px; }
+#ventsPage .wind-work-form textarea { min-height:96px; padding:12px 0; border:0; border-bottom:1px solid var(--line-hi); border-radius:0; background:transparent; font-size:16px; line-height:1.7; box-shadow:none; }
+#ventsPage .wind-work-form textarea:focus { border-color:var(--accent); outline:none; }
+.wind-work-examples { margin:12px 0 22px; gap:6px; }
+.wind-work-chip { font-size:11px; padding:6px 10px; border-style:dashed; }
+.wind-work-options { padding:18px 0 0; border-top:1px solid var(--line); gap:12px; }
+.wind-work-options select { padding:8px; border-radius:7px; font-size:11px; }
+.wind-work-actions { margin:20px 0 12px; }
+.wind-desk #windWorkStart { min-height:40px; padding:10px 22px; border-radius:99px; background:var(--ink); color:var(--bg); border-color:var(--ink); box-shadow:0 3px 6px color-mix(in srgb,var(--ink) 12%,transparent); }
+.wind-desk #windWorkStart:hover { background:var(--accent); border-color:var(--accent); color:var(--bg); }
+.wind-routines { position:relative; padding:26px 0 24px 24px; border:0; border-left:1px solid var(--line-hi); border-radius:0; background:transparent; }
+.wind-routine-icon { display:grid; place-items:center; width:52px; height:52px; border:1px solid var(--line-hi); border-radius:50%; background:var(--surface); font-size:27px; color:var(--ink); margin-bottom:24px; transform:rotate(-12deg); }
+.wind-routines h2 { font-family:Georgia,'Times New Roman',serif; font-size:28px; line-height:1.15; letter-spacing:-.035em; font-weight:500; margin-bottom:14px; }
+.wind-routines > p:not(.winds-composer-hint) { font-size:12px; line-height:1.85; margin-bottom:20px; }
+.wind-desk .wind-routines > button { font-size:12px; background:transparent; border:0; border-bottom:1px solid var(--line-hi); border-radius:0; padding:8px 0; }
+.wind-work-progress { border-radius:16px; padding:28px; }
+.wind-work-step { border-radius:10px; }
+.winds-conversation-heading { padding-top:30px; margin-bottom:24px; }
+.winds-conversation-heading h2 { font-family:Georgia,'Times New Roman',serif; font-size:30px; letter-spacing:-.03em; font-weight:500; }
+.winds-welcome { min-height:290px; border-style:dashed; background:linear-gradient(150deg,var(--surface),transparent); }
+.winds-welcome h2 { font-family:Georgia,'Times New Roman',serif; font-size:28px; }
+.winds-welcome p { font-size:13px; }
+.winds-history { max-height:min(62vh,760px); }
+@media(max-width:1100px) { .winds-heading-art { display:none; } .wind-desk-workspace { grid-template-columns:minmax(0,1fr) 220px; gap:18px; } .wind-work-form { padding:22px; } }
+@media(max-width:900px) { .wind-desk-workspace { grid-template-columns:minmax(0,1fr); } .wind-routines { padding:22px; border:1px solid var(--line); border-radius:14px; } .wind-routine-icon { float:right; margin:0 0 12px 20px; } .wind-routines h2 { font-size:26px; } }
+@media(max-width:520px) { .winds-heading { align-items:flex-start; padding-bottom:22px; gap:12px; } .winds-heading .page-title { font-size:37px; } .winds-heading .page-copy { font-size:12px; } .winds-heading .page-kicker { font-size:9px; letter-spacing:.1em; margin-bottom:14px; } .winds-heading #windNewBtn { padding:7px 12px; min-height:34px; } .wind-desk-roster { grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; } .wind-desk-card { padding:22px 12px 14px; } .wind-desk-avatar { width:104px; height:95px; } .wind-desk-avatar .winds-face-large { width:88px; height:88px; } .wind-desk-copy h2 { font-size:16px; } .wind-desk-copy p { font-size:10px; } .wind-desk .wind-desk-card > .ghost { font-size:10px; } .wind-work-form { padding:20px; } .wind-work-form h2 { font-size:22px; } .wind-work-options { grid-template-columns:1fr; } #ventsPage .wind-work-form textarea { font-size:15px; } .wind-work-progress { padding:20px; } }
+@media(prefers-reduced-motion:reduce) { .wind-desk-card, .wind-desk-avatar .winds-face { transition:none; } .wind-desk-card:hover .wind-desk-avatar .winds-face { transform:none; } }
+.winds-heading .winds-new-wrap { display:flex; align-items:center; gap:8px; }
+.winds-heading:has(.wind-work-jump:not([hidden])) .winds-heading-art { visibility:hidden; }
+.winds-heading .wind-work-jump { display:inline-flex; align-items:center; gap:8px; min-height:38px; padding:8px 13px; border-radius:99px; font-size:11px; }
+.wind-work-jump[hidden] { display:none !important; }
+.wind-jump-dot { width:6px; height:6px; flex:none; border-radius:50%; background:var(--muted); }
+.wind-work-jump[data-busy="true"] .wind-jump-dot { background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.wind-submit-group { display:flex; align-items:center; gap:12px; }
+.wind-shortcut { font:10px var(--mono); color:var(--muted); }
+.wind-work-step[data-state="working"] { border-color:color-mix(in srgb,var(--accent) 55%,var(--line)); }
+.wind-work-step[data-state="working"] .wind-work-state { color:var(--accent); }
+.wind-work-step[data-state="failed"] .wind-work-state { color:var(--red); }
+.wind-work-step .wind-work-preview[hidden] { display:none; }
+.wind-work-output { scrollbar-gutter:stable; }
+.wind-desk-presence { position:absolute; right:12px; top:11px; max-width:75%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:9px; line-height:18px; padding:0 6px; border-radius:99px; background:var(--surface-hi); color:var(--muted); }
+.wind-desk-presence[hidden] { display:none; }
+.wind-desk-card:has(.wind-desk-presence:not([hidden]))::after { display:none; }
+.wind-desk-card[data-work="working"] .wind-desk-presence { color:var(--accent); background:var(--accent-soft); }
+.wind-desk-card[data-work="failed"] .wind-desk-presence { color:var(--red); background:var(--red-soft); }
+@media(max-width:600px) { .wind-shortcut { display:none; } .winds-heading .wind-work-jump > span[data-i18n] { display:none; } .winds-heading .wind-work-jump { padding:8px 10px; } }
+
+/* Start with the request; people and advanced controls stay close at hand. */
+.wind-desk .wind-desk-workspace { display:flex; flex-direction:column; gap:12px; }
+.wind-desk-workspace > .wind-work-form { width:100%; padding:28px 32px 20px; }
+.wind-work-settings { min-width:0; flex:1; }
+.wind-work-settings > summary { width:fit-content; cursor:pointer; color:var(--muted); font-size:12px; padding:8px 0; }
+.wind-work-settings > summary:hover { color:var(--ink); }
+.wind-work-settings[open] { flex-basis:100%; }
+.wind-work-settings .wind-work-options { margin-bottom:14px; }
+.wind-work-options .wind-tools-option { display:flex; align-items:center; gap:6px; grid-column:1/-1; }
+.wind-desk .wind-routines { display:block; width:100%; padding:12px 16px; border:1px solid var(--line); border-radius:12px; background:transparent; }
+.wind-routines > summary { cursor:pointer; color:var(--muted); font-size:12px; }
+.wind-routines[open] > p { margin:14px 0; }
+.wind-desk .wind-desk-roster { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:10px; margin:0 0 8px; }
+.wind-desk .wind-desk-card { display:grid; grid-template-columns:48px minmax(0,1fr); text-align:left; align-items:center; gap:0 12px; padding:16px; border-radius:14px; box-shadow:none; }
+.wind-desk .wind-desk-card::before { display:none; }
+.wind-desk .wind-desk-avatar { width:48px; height:48px; margin:0; }
+.wind-desk .wind-desk-avatar .winds-face-large { width:48px; height:48px; filter:none; }
+.wind-desk .wind-desk-avatar::after { display:none; }
+.wind-desk .wind-desk-copy h2 { font-size:14px; margin:0 0 3px; }
+.wind-desk .wind-desk-copy p { font-size:11px; margin:0; }
+.wind-desk .wind-desk-card > .ghost { grid-column:2; width:fit-content; min-height:26px; text-align:left; border:0; padding:7px 0 0; font-size:10px; }
+.wind-desk .wind-desk-card:has(.wind-desk-presence:not([hidden])) { padding-top:32px; }
+@media(max-width:520px) { .wind-desk-workspace > .wind-work-form { padding:20px; } .wind-desk .wind-desk-roster { grid-template-columns:1fr; } }
+
+/* Living faces. Idle: breath and an unsynchronised blink. Every other motion is
+   tied to an observed mood (data-mood) set from chat phases or live step state.
+   Loop delays use --wf-phase so a redrawn face continues its loop; one-shots use
+   --wf-since so the «done» hop plays once per transition. All loops divide 12 s. */
+.winds-face { overflow:visible; }
+.winds-face .wf-figure, .winds-face .wf-gaze, .winds-face .wf-eyes, .winds-face .wf-prop, .winds-face .wf-badge, .winds-face .wf-tool, .winds-face .wf-pop, .winds-face .wf-dot, .winds-face .wf-line, .winds-face .wf-say, .winds-face .wf-foot { transform-box:fill-box; transform-origin:50% 50%; }
+.winds-face .wf-figure { transform-origin:50% 100%; animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face .wf-eyes { animation:wf-blink 6s linear var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=done] .wf-eyes { display:none; }
+.winds-face[data-mood=done] .wf-joy { display:inline; }
+.winds-face[data-mood=failed] .wf-mouth { display:none; }
+.winds-face[data-mood=failed] .wf-worry { display:inline; }
+.winds-face[data-mood=thinking] .wf-figure { animation:wf-ponder 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=thinking] .wf-gaze { transform:translate(2px,-2.5px); }
+.winds-face[data-mood=thinking] .wf-dot { animation:wf-dot 1.5s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=thinking] .wf-dot:nth-of-type(4) { animation-delay:calc(var(--wf-phase,0s) + .2s); }
+.winds-face[data-mood=thinking] .wf-dot:nth-of-type(5) { animation-delay:calc(var(--wf-phase,0s) + .4s); }
+.winds-face[data-mood=searching] .wf-gaze { animation:wf-scan 2.4s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=searching] .wf-tool { animation:wf-orbit 2.4s linear var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=reading] .wf-gaze { animation:wf-read 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face .wf-line { transform-origin:0 50%; }
+.winds-face[data-mood=reading] .wf-line { animation:wf-page 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=writing] .wf-figure { animation:wf-bob 1.2s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=writing] .wf-gaze { transform:translateY(2.5px); }
+.winds-face[data-mood=writing] .wf-tool { animation:wf-scribble .6s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=working] .wf-figure { animation:wf-busy .75s ease-in-out var(--wf-phase,0s) infinite; }
+/* Hands busy, feet too: little alternating steps while working or writing. */
+.winds-face[data-mood=working] .wf-foot, .winds-face[data-mood=writing] .wf-foot { animation:wf-step .75s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=working] .wf-foot-r, .winds-face[data-mood=writing] .wf-foot-r { animation-delay:calc(var(--wf-phase,0s) + .375s); }
+.winds-face[data-mood=working] .wf-prop { animation:wf-wiggle 1.5s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=working] .wf-tool { animation:wf-turn 3s linear var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=discussing] .wf-figure { animation:wf-converse 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=discussing] .wf-gaze { animation:wf-glance 3s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=discussing] .wf-say { animation:wf-say 2s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=discussing] .wf-say-b { animation-delay:calc(var(--wf-phase,0s) + 1s); }
+.winds-face[data-mood=news] .wf-figure { animation:wf-hello 4s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=news] .wf-gaze { transform:translate(2px,-1.5px); }
+.winds-face[data-mood=news] .wf-tool { animation:wf-twinkle 2s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face[data-mood=done] .wf-figure { animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite, wf-hop .8s ease-out var(--wf-since,0s) 1; }
+.winds-face[data-mood=done] .wf-pop { animation:wf-pop .5s cubic-bezier(.3,1.6,.5,1) var(--wf-since,0s) 1 backwards; }
+@keyframes wf-breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(.99,1.025); } }
+@keyframes wf-blink { 0%,95%,100% { transform:scaleY(1); } 96.5% { transform:scaleY(.1); } 98% { transform:scaleY(1); } }
+@keyframes wf-ponder { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(3deg); } }
+@keyframes wf-dot { 0%,60%,100% { opacity:.3; } 30% { opacity:1; } }
+@keyframes wf-scan { 0%,100% { transform:translateX(-3px); } 45%,55% { transform:translateX(3px); } }
+@keyframes wf-orbit { 0% { transform:translate(-1.5px,-1px); } 25% { transform:translate(1.5px,-1px); } 50% { transform:translate(1.5px,1.5px); } 75% { transform:translate(-1.5px,1.5px); } 100% { transform:translate(-1.5px,-1px); } }
+@keyframes wf-read { 0% { transform:translate(-3px,1px); } 40% { transform:translate(3px,1px); } 50% { transform:translate(-3px,3px); } 90% { transform:translate(3px,3px); } 100% { transform:translate(-3px,1px); } }
+@keyframes wf-page { 0%,40% { transform:scaleX(1); } 55%,99.9% { transform:scaleX(-1); } 100% { transform:scaleX(1); } }
+@keyframes wf-bob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-1.5px); } }
+@keyframes wf-scribble { 0%,100% { transform:translate(-1.5px,0) rotate(-6deg); } 50% { transform:translate(1.5px,-.5px) rotate(6deg); } }
+@keyframes wf-busy { 0%,100% { transform:translateY(0) scale(1,1); } 45% { transform:translateY(-2.5px) scale(.99,1.02); } 90% { transform:translateY(0) scale(1.02,.98); } }
+@keyframes wf-step { 0%,50%,100% { transform:translateY(0); } 25% { transform:translateY(-2.4px); } }
+@keyframes wf-wiggle { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(5deg); } }
+@keyframes wf-turn { to { transform:rotate(360deg); } }
+@keyframes wf-hop { 0% { transform:translateY(0); } 35% { transform:translateY(-7px) scale(.97,1.04); } 70% { transform:translateY(0) scale(1.04,.96); } 100% { transform:translateY(0); } }
+@keyframes wf-converse { 0%,100% { transform:rotate(-4deg); } 50% { transform:rotate(4deg); } }
+@keyframes wf-glance { 0%,100% { transform:translateX(-2.5px); } 50% { transform:translateX(2.5px); } }
+@keyframes wf-say { 0%,50%,100% { transform:scale(1); } 22% { transform:scale(1.14); } }
+@keyframes wf-hello { 0%,70%,100% { transform:translateY(0); } 78% { transform:translateY(-3px); } 86% { transform:translateY(0); } 92% { transform:translateY(-1.5px); } }
+@keyframes wf-twinkle { 0%,100% { transform:scale(.85) rotate(0); } 50% { transform:scale(1.1) rotate(20deg); } }
+@keyframes wf-pop { 0% { transform:scale(0); } 100% { transform:scale(1); } }
+/* Long lists stay still: a page of breathing history avatars is noise, not life. */
+.winds-message .winds-face *, .vw-message:not(.vw-pending) > .winds-face *, .vw-library-item > .winds-face *, .winds-member-choice .winds-face * { animation:none !important; }
+@media (prefers-reduced-motion:reduce) {
+  .winds-face, .winds-face * { animation:none !important; transition:none !important; }
 }

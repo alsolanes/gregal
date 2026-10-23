@@ -135,8 +135,10 @@
 :root[data-size="petita"] { --fs:13px; }
 :root[data-size="gran"]   { --fs:16px; }
 * { box-sizing:border-box; margin:0; padding:0; }
-html, body { width:100%; height:100%; }
-body { display:flex; overflow:hidden; color:var(--text); background:var(--bg); font-size:var(--fs); line-height:var(--lh);
+/* The app shell stays anchored; only its inner panels may scroll. Unlike
+   hidden, clip also prevents scrollIntoView/focus from scrolling the root. */
+html, body { width:100%; height:100%; overflow:clip; }
+body { display:flex; color:var(--text); background:var(--bg); font-size:var(--fs); line-height:var(--lh);
   font-family:var(--font, Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif);
   font-size:var(--t3); font-feature-settings:"cv01","ss03"; }
 button, textarea, input, select { font:inherit; }
@@ -156,15 +158,14 @@ button:disabled { opacity:.45; cursor:not-allowed; }
 #side.compact .brand-name, #side.compact .side-quick-btn span:not(:first-child),
 #side.compact .side-fold > summary, #side.compact .side-primary span:last-child,
 #side.compact .nav-item span:last-child, #side.compact .conv-head span,
-#side.compact .conv-search, #side.compact #convs, #side.compact .endpoint-row,
-#side.compact .side-foot .side-control .icon-btn:not(#sideCompact) { display:none; }
+#side.compact .conv-search, #side.compact #convs, #side.compact .endpoint-row { display:none; }
 #side.compact .side-quick { display:flex; flex-direction:column; margin:9px 8px 7px; }
 #side.compact .side-quick .side-quick-btn { width:42px; padding:0; }
 #side.compact .side-fold { margin:0 7px; }
 #side.compact .side-primary, #side.compact .nav-item { width:44px; justify-content:center; margin:2px 0; padding:9px 0; }
 #side.compact .nav-icon { width:auto; font-size:var(--t4); }
 #side.compact .side-foot { padding:9px 8px; }
-#side.compact .side-foot .side-control { justify-content:center; }
+#side.compact .side-foot .side-control { justify-content:center; flex-direction:column; }
 .brand { height:38px; min-height:38px; display:flex; align-items:center; gap:8px; padding:0 10px;
   border-bottom:1px solid var(--line); box-sizing:border-box; }
 .brand-mark { width:32px; height:32px; min-width:32px; display:grid; place-items:center;
@@ -1354,6 +1355,7 @@ body.sense-inspector #inspector { display:none; }
 
 </style>
 <link rel="stylesheet" href="/app/polish.css">
+<link rel="stylesheet" href="/app/shell-layout.css">
 <link rel="stylesheet" href="/app/plots.css">
 <link rel="stylesheet" href="/app/gitflow.css">
 <link rel="stylesheet" href="/app/retro.css">
@@ -1365,48 +1367,34 @@ body.sense-inspector #inspector { display:none; }
 <link rel="stylesheet" href="/app/folder.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
-<aside id="side">
-  <div class="brand">
-    <span class="brand-mark"><img src="/app/icon.png" width="32" height="32" alt=""></span>
-    <span class="brand-name">Gregal <span class="brand-badge">45° NE</span></span>
-    <button class="icon-btn" id="sideCompact" data-i18n-aria="ui.sidebarSize" aria-label="Compact or expand the sidebar" data-i18n-title="ui.sidebarCompact" title="Compact sidebar">‹</button>
-    <button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar">×</button>
-  </div>
-  <div class="side-quick">
-    <button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">New session</span></button>
-    <button id="newproject" class="side-quick-btn" data-i18n-title="ui.newProjectHelp" title="Create a project and associate a folder"><span>▰</span> <span data-i18n="ui.project">Project</span></button>
-  </div>
-  <!-- Primer nivell: el que es fa servir cada dia. La resta viu plegat a
-       «Més»: res no s'ha tret, només s'ha apartat del camí. -->
-  <nav class="side-fold side-main" data-i18n-aria="nav.workspace" aria-label="Workspace">
-    <button class="nav-item active side-view" data-view="agent"><span class="nav-icon">›_</span><span id="sideProject" data-i18n="nav.project">Current project</span></button>
-    <button class="nav-item side-view" data-view="canvis"><span class="nav-icon">±</span><span data-i18n="nav.changes">Changes</span><span class="nav-badge" id="navChangesBadge" hidden></span></button>
-    <button class="nav-item side-view" data-view="fitxers"><span class="nav-icon">▤</span><span data-i18n="nav.files">Files</span></button>
-    <button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
-    <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
-  </nav>
-  <details class="side-fold tools" id="sideMore">
-    <summary data-i18n="nav.more">More</summary>
-    <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
-          <button class="nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button>
-    <button class="nav-item side-view" data-view="terminal"><span class="nav-icon">▷</span><span data-i18n="nav.terminal">Terminal</span></button>
-    <button class="nav-item side-view" data-view="navegador"><span class="nav-icon">◎</span><span data-i18n="nav.browser">Browser</span></button>
-    <button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
-    <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
-    <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Graphs</span></button>
-    <button class="nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button>
-    <button class="nav-item side-view" data-view="mcp"><span class="nav-icon">@</span><span data-i18n="ui.connectors">Connectors / MCP</span></button>
-  </details>
-  <div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true">⌃</button></div>
-  <div class="conv-search"><input id="convSearch" data-i18n-ph="nav.search" placeholder="Search…" data-i18n-aria="ui.searchConversations" aria-label="Search conversations" autocomplete="off"></div>
-  <div id="convs"></div>
-  <div class="side-foot">
-    <div class="side-control">
+<nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
+  <a class="rail-brand" href="#" aria-label="Gregal"><span class="brand-mark"><img src="/app/icon.png" width="30" height="30" alt="Gregal"></span></a>
+  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
+  <details id="sideMore" class="rail-more"><summary title="More" aria-label="More" data-i18n-title="nav.more" data-i18n-aria="nav.more">⋯</summary><div class="rail-more-menu side-main"><button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
+<button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
+<button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
+<button class="nav-item side-view" data-view="github"><span class="nav-icon">⎇</span><span>GitHub</span></button>
+<button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
+<button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Graphs</span></button>
+<button class="nav-item side-view" data-view="mcp"><span class="nav-icon">@</span><span data-i18n="ui.connectors">Connectors / MCP</span></button></div></details>
+  <div class="rail-footer"><button class="icon-btn" id="sideCompact" data-i18n-aria="ui.sidebarSize" aria-label="Compact or expand the sidebar" data-i18n-title="ui.sidebarCompact" title="Compact sidebar">‹</button>
       <button class="icon-btn" id="keysBtn" data-i18n-title="ui.shortcuts" title="Keyboard shortcuts" data-i18n-aria="ui.shortcuts" aria-label="Keyboard shortcuts">?</button>
       <button class="icon-btn" id="prefsBtn" data-i18n-title="prefs.title" title="Preferences" data-i18n-aria="prefs.title" aria-label="Preferences">⚙</button>
     </div>
-    <div class="endpoint-row"><span id="statusDot" aria-live="polite"></span><span id="endpoint">…</span></div>
+</nav>
+<aside id="side">
+  <div class="brand"><span class="brand-name" data-i18n="shell.yourSpace">Your space</span><button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar">×</button></div>
+  <div class="side-quick"><button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">New conversation</span></button></div>
+  <div class="side-scroll">
+    <div id="conversationNav"><button class="shell-project" id="shellProject"><span aria-hidden="true">▰</span><span id="sideProject" data-i18n="nav.project">Current project</span><span aria-hidden="true">⌄</span></button>
+<div class="sidebar-section-head"><span data-i18n="shell.projects">Projects</span><button id="newproject" class="icon-btn" data-i18n-title="ui.newProjectHelp" data-i18n-aria="ui.newProjectHelp" aria-label="Open a project folder">＋</button></div>
+<div id="projectList"></div>
+<div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true">⌃</button></div>
+  <div class="conv-search"><input id="convSearch" data-i18n-ph="nav.search" placeholder="Search…" data-i18n-aria="ui.searchConversations" aria-label="Search conversations" autocomplete="off"></div>
+  <div id="convs"></div>
+</div><div id="windContextNav" hidden></div>
   </div>
+  <div class="side-foot"><button id="desktopUpdateNotice" class="side-update" hidden><span class="side-update-dot" aria-hidden="true"></span><span id="desktopUpdateNoticeText" role="status" aria-live="polite"></span><span class="side-update-arrow" aria-hidden="true">↗</span></button><div class="endpoint-row"><span id="statusDot" aria-live="polite"></span><span id="endpoint">…</span></div></div>
 </aside>
 <div id="sideShade" aria-hidden="true"></div>
 <div id="prefsModal" role="dialog" aria-modal="true" data-i18n-aria="prefs.title" aria-label="Preferences">
@@ -1458,7 +1446,8 @@ body.sense-inspector #inspector { display:none; }
     </div>
     <span class="spacer"><span class="tide" aria-hidden="true"></span></span>
     <div class="top-meta">
-      <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox">model <b id="model">…</b> <span class="mp-caret">▾</span></button>
+      <button class="icon-btn" data-view="fitxers" data-i18n-title="nav.files" data-i18n-aria="nav.files" title="Files" aria-label="Files">▤</button>
+      <button class="icon-btn" data-view="canvis" data-i18n-title="nav.changes" data-i18n-aria="nav.changes" title="Changes" aria-label="Changes">±<span class="nav-badge" id="navChangesBadge" hidden></span></button>
       <button class="icon-btn" id="inspToggle" data-i18n-title="ui.toggleInspector" title="Toggle inspector" data-i18n-aria="ui.toggleInspector" aria-label="Toggle inspector" aria-pressed="false">▥</button>
       <button class="icon-btn" id="previewToggle" title="Preview" aria-label="Preview" aria-pressed="false">▣</button>
       <div id="moreWrap">
@@ -1518,43 +1507,91 @@ body.sense-inspector #inspector { display:none; }
       </section>
       <section class="workspace-page" id="ventsPage" hidden>
         <link rel="stylesheet" href="/app/winds.css">
+        <script defer src="/app/wind-i18n.js"></script>
+        <script defer src="/app/wind-desk.js"></script>
         <script defer src="/app/winds.js"></script>
         <div class="page-inner winds-page">
           <header class="winds-heading">
-            <div><div class="page-kicker">Un espai per fer companyia</div><h1 class="page-title">Vents</h1><p class="page-copy">Cadascun amb la seva veu. A soles o en rotllana.</p></div>
+            <div><div class="page-kicker" data-i18n="winds.aSmallCrewByYourSide">Una petita colla, al teu costat</div><h1 class="page-title" data-i18n="winds.makeRoomForYourIdeas">Fem lloc a les teves idees.</h1><p class="page-copy" data-i18n="winds.youSetTheCourseYourWindsHelpYou">Tu poses el rumb. Els teus vents t’ajuden a fer camí.</p></div>
+            <svg class="winds-heading-art" viewBox="0 0 180 110" fill="none" aria-hidden="true"><path d="M8 48h104c36 0 36-35 12-35-19 0-22 21-9 24M25 65h114c31 0 31 31 10 31-16 0-20-17-9-23M46 82H13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m38 13 3 9 9 3-9 3-3 9-3-9-9-3 9-3Z" fill="currentColor"/><circle cx="166" cy="45" r="3" fill="currentColor"/></svg>
             <div class="winds-new-wrap">
-              <button class="ghost winds-primary" type="button" id="windNewBtn" aria-expanded="false" aria-controls="windsNewMenu">＋ Nou</button>
+              <button type="button" class="ghost wind-work-jump" id="windWorkJump" hidden aria-label="Encàrrec actual" data-i18n-aria="winds.currentTask"><span class="wind-jump-dot" aria-hidden="true"></span><span data-i18n="winds.currentTask">Encàrrec actual</span> ↓</button>
+              <button class="ghost winds-primary" type="button" id="windNewBtn" aria-expanded="false" aria-controls="windsNewMenu" data-i18n="winds.new">＋ Nou</button>
               <div id="windsNewMenu" class="winds-new-menu" hidden>
-                <button type="button" id="windsCreateWind">Crea un vent<span>Una cara i una veu pròpies</span></button>
-                <button type="button" id="windsCreateChat">Nova conversa<span>Amb un vent o amb una rotllana</span></button>
+                <button type="button" id="windsCreateWind"><span data-i18n="winds.createAWind">Crea un vent</span><span data-i18n="winds.aFaceAndVoiceOfTheirOwn">Una cara i una veu pròpies</span></button>
+                <button type="button" id="windsCreateChat"><span data-i18n="winds.newConversation">Nova conversa</span><span data-i18n="winds.withOneWindOrAGroup">Amb un vent o amb una rotllana</span></button>
               </div>
             </div>
           </header>
           <div id="windsStatus" class="winds-status" role="status" aria-live="polite"></div>
+          <section class="wind-desk" aria-label="Espai de treball dels vents" data-i18n-aria="winds.windsWorkspace">
+            <div class="wind-desk-workspace">
+              <form id="windWorkForm" class="wind-work-form">
+                <div class="page-kicker" data-i18n="winds.aTaskToMoveThingsForward">Un encàrrec per avançar</div>
+                <h2 data-i18n="winds.whatWouldYouLikeUsToDo">Què t’agradaria que féssim?</h2>
+                <label class="winds-sr-only" for="windWorkTask" data-i18n="winds.whatWouldYouLikeToAchieve">Què vols aconseguir?</label>
+                <textarea id="windWorkTask" rows="3" required placeholder="Una web, una cerca amb fonts, aquell canvi de codi que tens pendent…" data-i18n-ph="winds.aWebsiteResearchWithSourcesThatCodeChange"></textarea>
+                <div class="wind-work-examples" id="windWorkExamples"></div>
+                <div class="wind-work-actions"><details class="wind-work-settings"><summary data-i18n="winds.taskOptions">Opcions de l’encàrrec</summary><div class="wind-work-options">
+                  <label><span data-i18n="winds.typeOfWork">Tipus de feina</span><select id="windWorkKind"><option value="auto" data-i18n="winds.automatic">Automàtic</option><option value="build" data-i18n="winds.createOrModify">Crear o modificar</option><option value="research" data-i18n="winds.researchReadOnly">Investigar · només lectura</option></select></label>
+                  <label><span data-i18n="winds.takingCareOfIt">Se n’encarrega</span><select id="windWorkOwner"></select></label>
+                  <label><span data-i18n="winds.aSecondPairOfEyes">Una segona mirada</span><select id="windWorkReviewer"></select></label>
+                  <label class="wind-tools-option"><input type="checkbox" id="windWorkTools" checked> <span data-i18n="winds.withProjectTools">Amb eines del projecte</span></label>
+                </div></details><div class="wind-submit-group"><span class="wind-shortcut" data-i18n="winds.startShortcut">Ctrl/⌘ + Retorn</span><button type="submit" class="ghost winds-primary" id="windWorkStart" data-i18n="winds.letSGo" aria-keyshortcuts="Control+Enter Meta+Enter">Som-hi ↗</button></div></div>
+                <p id="windWorkContext" class="winds-composer-hint" data-i18n="winds.readyToHelp">Explica què vols. Els vents es reparteixen la feina i treballen al projecte obert.</p>
+                <p id="windWorkStatus" class="winds-status" role="status" aria-live="polite"></p>
+              </form>
+              <details class="wind-routines"><summary data-i18n="winds.keepTheLittleThingsOnTrack">Les petites coses, al dia</summary><p data-i18n="winds.scheduleRecurringResearchAndSummariesCheckTheirHistory">Programa cerques i resums recurrents. Consulta’n l’historial i reprèn el fil quan vulguis.</p><button type="button" id="windRoutineStart" class="ghost" data-i18n="winds.setUpARoutine">Prepara una rutina ↗</button><p class="winds-composer-hint" data-i18n="winds.routinesCurrentlySupportReadingAndResearchTheService">Les rutines actuals són de lectura i cerca. El servei ha d’estar actiu perquè s’executin.</p></details>
+            </div>
+            <div id="windDeskRoster" class="wind-desk-roster"></div>
+            <section id="windWorkProgress" class="wind-work-progress" hidden aria-label="Encàrrec actual" data-i18n-aria="winds.currentTask">
+              <header><div><div class="page-kicker" data-i18n="winds.gettingToWork">Ens hi posem</div><h2 id="windWorkTitle" tabindex="-1"></h2></div><button type="button" class="ghost" id="windWorkStop" data-i18n="winds.stop">Atura</button></header>
+              <p id="windWorkSummary" role="status" aria-live="polite"></p>
+              <div id="windsWorkApprovals" aria-live="assertive"></div>
+              <div id="windWorkSteps" class="wind-work-steps"></div>
+              <details class="wind-work-log"><summary data-i18n="winds.followTheWork">El fil de la feina</summary><ol id="windWorkEvents"></ol></details>
+            </section>
+          </section>
+          <div class="winds-conversation-heading"><div><div class="page-kicker" data-i18n="winds.thereSTimeToTalkToo">També hi ha temps per parlar</div><h2 data-i18n="winds.yourCornerWithTheWinds">El teu racó amb els vents</h2></div><p class="winds-muted" data-i18n="winds.conversationsMemoriesAndGroups">Converses, records i rotllanes.</p></div>
           <div class="winds-layout">
-            <aside class="winds-sidebar" id="windsListCard" aria-label="Vents i converses">
-              <h2>Els teus vents</h2><div id="windsList" class="winds-list"></div>
-              <h2>Converses</h2><div id="windsConversations" class="winds-list"></div>
-              <button type="button" class="ghost winds-refresh" id="windsRefresh">Actualitza la llista</button>
+            <aside class="winds-sidebar" id="windsListCard" aria-label="Vents i converses" data-i18n-aria="winds.windsAndConversations">
+              <h2 data-i18n="winds.yourWinds">Els teus vents</h2><div id="windsList" class="winds-list"></div>
+              <h2 data-i18n="winds.conversations">Converses</h2><div id="windsConversations" class="winds-list"></div>
+              <button type="button" class="ghost winds-refresh" id="windsRefresh" data-i18n="winds.refreshTheList">Actualitza la llista</button>
             </aside>
             <div class="winds-main">
-              <div id="windsWelcome" class="winds-welcome"><span class="winds-mark" aria-hidden="true">≋</span><h2>Una mica de bona companyia</h2><p>Tria un vent per reprendre la conversa, o crea un espai nou per parlar-ne plegats.</p></div>
+              <div id="windsWelcome" class="winds-welcome"><span class="winds-mark" aria-hidden="true">≋</span><h2 data-i18n="winds.weReHere">Som aquí.</h2><p data-i18n="winds.chooseAWindToThinkOutLoudPick">Tria un vent per pensar en veu alta, reprendre una conversa o compartir una idea abans de posar fil a l’agulla.</p></div>
               <article class="winds-chat" id="windChatCard" hidden>
                 <header class="winds-chat-heading"><div id="windChatFaces" class="winds-face-stack" aria-hidden="true"></div><div><h2 id="windChatTitle"></h2><p id="windChatSubtitle" class="winds-muted"></p></div></header>
-                <div id="windsChatMembers" class="winds-members" aria-label="Perfils dels participants"></div>
-                <div id="windChatHistory" class="winds-history" role="log" aria-label="Missatges" aria-live="polite" tabindex="0"></div>
+                <div id="windsChatMembers" class="winds-members" aria-label="Perfils dels participants" data-i18n-aria="winds.participantProfiles"></div>
+                <div id="windChatHistory" class="winds-history" role="log" aria-label="Missatges" data-i18n-aria="winds.messages" aria-live="polite" tabindex="0"></div>
                 <div id="windsChatStatus" class="winds-status" role="status" aria-live="polite"></div>
                 <form id="windsChatForm" class="winds-composer">
-                  <label class="winds-sr-only" for="windChatInput">Missatge als vents</label>
-                  <textarea id="windChatInput" rows="2" placeholder="Què tens al cap?" required></textarea>
-                  <button class="ghost winds-primary" type="submit" id="windChatSend">Envia</button>
+                  <label class="winds-sr-only" for="windChatInput" data-i18n="winds.messageYourWinds">Missatge als vents</label>
+                  <textarea id="windChatInput" rows="2" placeholder="Què tens al cap?" data-i18n-ph="winds.whatSOnYourMind" required></textarea>
+                  <button class="ghost winds-primary" type="submit" id="windChatSend" data-i18n="winds.send">Envia</button>
                 </form>
-                <p class="winds-composer-hint">Retorn per enviar · Majúscules + Retorn per fer un salt de línia</p>
+                <p class="winds-composer-hint" data-i18n="winds.enterToSendShiftEnterForANew">Retorn per enviar · Majúscules + Retorn per fer un salt de línia</p>
               </article>
-              <aside id="windsProfile" class="winds-profile" aria-label="Perfil del vent" hidden></aside>
+              <aside id="windsProfile" class="winds-profile" aria-label="Perfil del vent" data-i18n-aria="winds.windProfile" hidden></aside>
             </div>
           </div>
           <dialog id="windsDialog" class="winds-dialog" aria-labelledby="windsDialogTitle"><div id="windsDialogBody"></div></dialog>
+          <dialog id="windRoutineDialog" class="winds-dialog" aria-labelledby="windRoutineTitle">
+            <form id="windRoutineForm" class="winds-form">
+              <h2 id="windRoutineTitle" data-i18n="winds.setUpARoutine">Prepara una rutina</h2>
+              <div class="winds-form-fields">
+                <label><span data-i18n="jobs.name">Task name</span><input id="windRoutineName" required maxlength="120"></label>
+                <label><span data-i18n="jobs.frequency">Frequency</span><select id="windRoutineKind"><option value="daily" data-i18n="jobs.daily">Daily</option><option value="interval" data-i18n="jobs.interval">Interval</option></select></label>
+                <label id="windRoutineTimeField"><span data-i18n="jobs.time">Time (HH:MM)</span><input id="windRoutineTime" type="time" value="09:00"></label>
+                <label id="windRoutineIntervalField" hidden><span data-i18n="jobs.intervalHours">Interval in hours</span><input id="windRoutineInterval" type="number" min="0.1" step="0.1" value="24"></label>
+                <label><span data-i18n="jobs.prompt">What should Gregal do?</span><textarea id="windRoutinePrompt" rows="4" required></textarea></label>
+                <label><input id="windRoutineNotify" type="checkbox"><span data-i18n="jobs.notify">Notify</span></label>
+              </div>
+              <p id="windRoutineStatus" class="winds-status" role="status" aria-live="polite"></p>
+              <div class="winds-dialog-actions"><button type="button" class="ghost" id="windRoutineCancel" data-i18n="ws.cancella">Cancel</button><button type="submit" class="ghost winds-primary" data-i18n="jobs.save">Save task</button></div>
+            </form>
+          </dialog>
         </div>
       </section>
       <section class="workspace-page" id="programatPage" hidden>
@@ -1804,8 +1841,11 @@ body.sense-inspector #inspector { display:none; }
         </div>
         <div id="box">
           <textarea id="in" rows="1" data-i18n-aria="ui.message" aria-label="Message for Gregal" data-i18n-ph="composer.ph" placeholder="Describe the change you want…"></textarea>
+
           <div class="composer-row">
-            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
+            <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox"><b id="model">…</b> <span class="mp-caret">▾</span></button>
+            <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
+            <details class="composer-options"><summary data-i18n-title="shell.advanced" data-i18n-aria="shell.advanced" aria-label="Advanced options">···</summary><div class="composer-options-menu">            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
               <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
                 <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and investigates without changing files"><b data-i18n="mode.ask">Ask</b></button>
                 <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
@@ -1816,8 +1856,9 @@ body.sense-inspector #inspector { display:none; }
                  dins del menú ⋯). Objectiu i Debug no ocupen el composer:
                  s'hi entra amb /goal, /debug o el menú ⋯, i aquí només en
                  queda una etiqueta per saber-ho i sortir-ne. -->
-            <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
+
             <button type="button" id="planFirst" class="plan-toggle" role="switch" aria-checked="false" data-i18n-title="mode.planFirstHelp" title="Propose a plan and wait for your approval before acting"><span class="plan-toggle-dot" aria-hidden="true"></span><span data-i18n="mode.planFirst">Plan first</span></button>
+</div></details>
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
             <span class="composer-meta" data-i18n="composer.hint">@file adds context · Shift+Enter for a new line</span>
             <span class="spacer"></span>
@@ -1870,8 +1911,16 @@ body.sense-inspector #inspector { display:none; }
         <div id="activity"><div class="activity-empty" data-i18n="inspector.activityHint">Reads, edits and commands will appear here while the agent is working.</div></div>
       </section>
     </aside>
+    <aside id="toolDock" hidden aria-label="Project tools" data-i18n-aria="shell.projectTools">
+      <header class="tool-dock-head"><strong id="toolDockTitle"></strong><button type="button" class="icon-btn" id="toolDockClose" aria-label="Close panel" data-i18n-aria="shell.closePanel">×</button></header>
+      <nav class="tool-dock-tabs" aria-label="Project tools" data-i18n-aria="shell.projectTools"><button data-view="fitxers" data-i18n="nav.files">Files</button><button data-view="canvis" data-i18n="nav.changes">Changes</button><button data-view="terminal" data-i18n="nav.terminal">Terminal</button><button data-view="navegador" data-i18n="nav.browser">Browser</button></nav>
+      <div id="toolDockBody"></div>
+    </aside>
   </div>
 </div>
+<script defer src="/app/shell-layout.js"></script>
+<link rel="stylesheet" href="/app/winds-workspace.css">
+<script defer src="/app/winds-workspace.js"></script>
 <script type="module" src="/app/preview.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
 <script src="/app/mode-cycle.js"></script>
@@ -1931,9 +1980,14 @@ const sendLabel = () => sending && !input.value.trim() ? ICONA_ATURA : ICONA_ENV
 const mobile = matchMedia('(max-width:760px)');
 const escapeHTML = s => String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 function setView(view) {
+  // Accions dins dels vents han de conservar el seu espai de treball. Una
+  // crida accidental a «agent» des d'un botó intern no les envia al xat.
+  if (view === 'agent' && currentView === 'vents' && window.gregalWindClickActive) return;
   const previousView = currentView;
   currentView = ['agent','objectius','vents','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
-  const agent = currentView === 'agent';
+  const dockTool = !!window.gregalShell?.isTool(currentView);
+  const agent = currentView === 'agent' || dockTool;
+  window.gregalShell?.sync(currentView);
   hero.hidden = !agent || main.classList.contains('on'); main.hidden = !agent; $('composer').hidden = !agent;
   $('objectiusPage').hidden = currentView !== 'objectius';
   $('ventsPage').hidden = currentView !== 'vents';
@@ -1952,7 +2006,7 @@ function setView(view) {
   $('workshopPage').hidden = currentView !== 'workshop';
   // A Grafs l'espai és el producte: el llenç necessita amplada i
   // l'inspector de sessió no diu res que ajudi a dibuixar un graf.
-  $('inspector').hidden = currentView === 'grafs' || currentView === 'team' || currentView === 'workshop';
+  $('inspector').hidden = dockTool || currentView === 'grafs' || currentView === 'team' || currentView === 'workshop';
   document.body.classList.toggle('sense-inspector', !inspectorObert());
   const P = window.gregalPanels;
   if (P) {
@@ -1966,7 +2020,7 @@ function setView(view) {
   if (currentView === 'workshop') $('workshopPage').focus();
   // Les permisos i preguntes també poden arribar mentre l'usuari mira una
   // altra vista. Torna'ls a obrir quan el fil sigui visible.
-  if (currentView === 'agent') resumePendingInteraction(window.gregalSession || 'default', state);
+  if (agent) resumePendingInteraction(window.gregalSession || 'default', state);
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'vents') loadWindsPage();
   if (currentView === 'mcp') loadMcpPage();
@@ -1980,7 +2034,7 @@ function setView(view) {
     if (active) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
   });
   document.querySelectorAll('[data-inspector]').forEach(b => b.classList.toggle('active', b.dataset.inspector === currentView));
-  if (document.querySelector('#sideMore .nav-item.active')) $('sideMore').open = true;
+  $('sideMore').open = false;
   if (mobile.matches) setSide(false);
 }
 async function loadJobsPage() {
@@ -2053,6 +2107,7 @@ async function loadMcpPage() {
   } catch (e) { box.innerHTML = '<div class="activity-empty">' + escapeHTML(gregalT('mcp.loadFailed')) + escapeHTML(e.message || e) + '</div>'; }
 }
 function setSide(open) {
+  if (mobile.matches) $('side').classList.remove('compact');
   $('side').classList.toggle('closed', !open);
   $('sideShade').classList.toggle('on', open && mobile.matches);
   $('menu').setAttribute('aria-expanded', String(open));
@@ -2104,7 +2159,7 @@ document.addEventListener('keydown', e => {
 $('moreMenu').addEventListener('click', e => {
   if (e.target.closest('.ghost')) setMore(false);
 });
-mobile.addEventListener?.('change', e => setSide(!e.matches));
+mobile.addEventListener?.('change', e => { setSide(!e.matches); if(!e.matches) setSideCompact(sideCompacta()); });
 const SUGG = ['sugg.explora', 'sugg.bug', 'sugg.tests', 'sugg.millora'];
 SUGG.forEach(clau => {
   const b = document.createElement('button'); b.className = 'hero-card';
@@ -2942,7 +2997,7 @@ function rewindSummary(s) {
   if (!txt || txt === 'res a desfer') return gregalT('act.resadesfer');
   return txt.replace(/(^|· )restaurats: /g, '$1' + gregalT('rewind.restored')).replace(/(^|· )esborrats: /g, '$1' + gregalT('rewind.deleted'));
 }
-$('menu').onclick = () => setSide($('side').classList.contains('closed'));
+$('menu').onclick = () => { const reopen=$('side').classList.contains('closed') || $('side').classList.contains('compact'); if(reopen) setSideCompact(false); setSide(reopen); };
 $('permBtn').onclick = e => { e.stopPropagation(); togglePermMenu(); };
 // Vista del transcript: Normal (eines plegades) · Detallada (tot) · Resum (només respostes).
 let viewMode = 'normal';

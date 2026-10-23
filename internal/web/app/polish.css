@@ -392,6 +392,17 @@ body.view-summary .work-group { display:none; }
 @media (prefers-reduced-motion:reduce) { .work-group.running .wg-dot { animation:none; } .work-group > summary::before { transition:none; } }
 
 /* Simplified sidebar: four daily destinations, the rest folded in "More". */
+.side-scroll { flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
+#side > .brand, #side > .side-quick, #side > .side-foot { flex-shrink:0; }
+#side .side-foot { background:var(--sidebar); }
+#side .side-scroll #convs { min-height:0; overflow:visible; }
+.side-update { display:flex; align-items:center; gap:8px; width:100%; padding:10px; border:1px solid var(--line-hi); border-radius:10px; background:var(--accent-soft); color:var(--ink); font:inherit; font-size:var(--t2); text-align:left; cursor:pointer; }
+.side-update[hidden] { display:none; }
+.side-update:hover { border-color:var(--accent); }
+.side-update-dot { flex:none; width:7px; height:7px; border-radius:50%; background:var(--accent); }
+.side-update-arrow { margin-left:auto; }
+#side.compact .side-update { justify-content:center; padding:10px 0; }
+#side.compact #desktopUpdateNoticeText, #side.compact .side-update-arrow { display:none; }
 .side-main { display:flex; flex-direction:column; margin:4px 10px 6px; }
 .side-main > .nav-item { width:100%; margin:1px 0; }
 .nav-item { position:relative; }

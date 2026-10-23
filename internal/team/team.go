@@ -20,6 +20,7 @@ type Event struct {
 	To       string `json:"to,omitempty"`
 	Output   string `json:"output,omitempty"`
 	Activity string `json:"activity,omitempty"`
+	Path     string `json:"path,omitempty"`
 	Model    string `json:"model,omitempty"`
 	Message  string `json:"message,omitempty"`
 }

@@ -119,7 +119,7 @@ func (s *Server) setWorkspace(dir string) error {
 	}
 	queued := s.queueHasActiveTurn()
 	s.mu.Lock()
-	if abs != s.cwd && (queued || s.agentBusy || s.planRunning) {
+	if abs != s.cwd && (queued || s.agentBusy || s.planRunning || s.flowRunning || s.jobRunning) {
 		s.mu.Unlock()
 		return errors.New("stop the current run before changing its working folder, or open a new project")
 	}

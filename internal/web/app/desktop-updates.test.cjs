@@ -32,11 +32,13 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
       'prefs.update.releases': 'Obre les versions oficials', 'prefs.update.busy': 'Un moment…',
     },
   };
-  const button = { classList: { toggle() {} }, setAttribute() {}, title: '' };
+  const button = { classList: { toggle() {} }, setAttribute() {}, title: '', click() { this.clicked = true; } };
+  const notice = { hidden: true, setAttribute() {} };
+  const noticeText = { textContent: '' };
   const document = {
     activeElement: null,
     addEventListener() {},
-    getElementById(id) { return id === 'prefsBtn' ? button : null; },
+    getElementById(id) { return ({ prefsBtn: button, desktopUpdateNotice: notice, desktopUpdateNoticeText: noticeText })[id] || null; },
   };
   const window = {
     gregalDesktop: bridge,
@@ -48,8 +50,23 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
   source += '\nglobalThis.__updates = desktopUpdates;';
   const sandbox = { window, document, console, Promise, Set, Number, String, Object };
   vm.runInNewContext(source, sandbox, { filename: 'desktop-updates.js' });
-  return { updates: sandbox.__updates, button, sandbox };
+  return { updates: sandbox.__updates, button, notice, noticeText, sandbox };
 }
+
+test('sidebar notice follows update lifecycle and opens preferences without installing', () => {
+  const { updates, button, notice, noticeText } = load();
+  updates.setStatus({ state: 'available', version: '1.14.0' });
+  assert.equal(notice.hidden, false);
+  assert.match(noticeText.textContent, /1\.14\.0/);
+  notice.onclick();
+  assert.equal(button.clicked, true);
+  updates.setStatus({ state: 'downloading' });
+  assert.equal(notice.hidden, false);
+  updates.setStatus({ state: 'ready' });
+  assert.match(noticeText.textContent, /ready to install/);
+  updates.setStatus({ state: 'up-to-date' });
+  assert.equal(notice.hidden, true);
+});
 
 test('updates are absent from the browser and present only with the desktop bridge', () => {
   const browser = load();

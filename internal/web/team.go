@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/agent"
+	"gregal/internal/companion"
 	"gregal/internal/llm"
 	"gregal/internal/team"
 )
@@ -27,6 +29,10 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 		// i escriptures amb la política de la sessió). Absent = sense eines,
 		// com abans: els clients antics no canvien de comportament.
 		Tools *bool `json:"tools"`
+		// Winds own a delegated task and must not stop for interactive tool
+		// approvals. Their pending actions go through the automatic reviewer.
+		Winds  bool   `json:"winds,omitempty"`
+		Thread string `json:"thread,omitempty"`
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 	d.DisallowUnknownFields()
@@ -41,9 +47,35 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid flow: "+err.Error(), 400)
 			return
 		}
+		for _, node := range req.Flow.Nodes {
+			if node.Wind != "" {
+				if !req.Winds {
+					http.Error(w, "wind context requires a Winds task", 400)
+					return
+				}
+				if _, ok := s.winds.ByID(node.Wind); !ok {
+					http.Error(w, "unknown wind", 400)
+					return
+				}
+			}
+		}
 	}
 	started := time.Now()
+	threadWorkspace := ""
+	if req.Thread != "" {
+		thread, ok := s.rotllanaByID(req.Thread)
+		if !req.Winds || !ok {
+			http.Error(w, "unknown wind conversation", 400)
+			return
+		}
+		threadWorkspace = thread.Workspace
+	}
 	s.mu.Lock()
+	if threadWorkspace != "" && threadWorkspace != s.cwd {
+		s.mu.Unlock()
+		http.Error(w, "select the conversation project first", 409)
+		return
+	}
 	if s.agentBusy || s.jobRunning || s.flowRunning || s.planRunning {
 		s.mu.Unlock()
 		http.Error(w, "session busy", 409)
@@ -72,6 +104,12 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.flowRunning = true
+	if s.cwd != workspace {
+		s.flowRunning = false
+		s.mu.Unlock()
+		http.Error(w, "working folder changed; retry the task", 409)
+		return
+	}
 	cfg, client := s.cfg, s.client
 	s.mu.Unlock()
 	// The team run owns this session's room: publish it as shared activity
@@ -107,6 +145,20 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	emit, stop := sseWithHeartbeat(w, ctx, 15*time.Second)
 	defer stop()
+	if req.Winds {
+		record, err := s.recordWindTask(strings.TrimSpace(req.Task), workspace, req.Thread, flow)
+		if err != nil {
+			emit("team", team.Event{Type: "failed", Message: "could not save work history"})
+			return
+		}
+		stream := emit
+		emit = func(kind string, value any) {
+			if event, ok := value.(team.Event); ok {
+				record(event)
+			}
+			stream(kind, value)
+		}
+	}
 	language := "English"
 	if req.Lang == "ca" {
 		language = "Catalan"
@@ -117,7 +169,13 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 	runner := func(ctx context.Context, name, task string) (string, error) {
 		node, _ := team.NodeFrom(ctx)
 		if seat := seatFor(node, subagents[node.ID], withTools); seat.Agentic {
-			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, workspace, language, name, task, emit)
+			if node.Wind != "" {
+				wind, _ := s.winds.ByID(node.Wind)
+				seat.System += "\nYour identity: " + wind.Name + ". Specialty: " + wind.Role + ". Instructions: " + wind.Persona + "\n"
+				seat.System += s.windMemorySystem(node.Wind) + companion.WindBrainSystem(s.windBrain(node.Wind)) + s.windSkillsSystem(node.Wind)
+				ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(node.Wind))
+			}
+			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, workspace, language, name, task, req.Winds, emit)
 			if err != nil {
 				log.Printf("team role %s error: %s", name, redactError(err))
 			}

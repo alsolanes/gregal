@@ -24,6 +24,7 @@ type FlowNode struct {
 	// El paquet team no el valida (no sap on és el projecte): ho fa qui
 	// executa el flux.
 	Agent string `json:"agent,omitempty"`
+	Wind  string `json:"wind,omitempty"`
 }
 
 // FlowEdge carries a deliverable (data) or asks for rework (revision).

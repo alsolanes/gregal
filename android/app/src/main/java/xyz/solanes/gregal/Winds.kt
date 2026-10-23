@@ -18,6 +18,8 @@ data class Wind(
     val role: String,
     val style: String = "pso",
     val persona: String = "",
+    /** Especialitat dins una colla ("shopping", "frontend"…); buit si és un vent propi. */
+    val specialty: String = "",
 ) {
     /** Color ARGB per a Compose. */
     val argb: Long get() = run {
@@ -26,8 +28,8 @@ data class Wind(
         (0xFF000000L or v.toLong(16))
     }
 
-    /** L'estil de cara per a WindFace. */
-    val faceStyle: WindStyle get() = windStyleOf(style)
+    /** L'estil de cara per a WindFace; els especialistes hi afegeixen l'eina de l'ofici. */
+    val faceStyle: WindStyle get() = windStyleOf(style).copy(kit = specialty)
 
     companion object {
         fun parse(raw: String): List<Wind> {
@@ -35,10 +37,30 @@ data class Wind(
             val a = o.optJSONArray("winds") ?: JSONArray()
             return (0 until a.length()).mapNotNull { i ->
                 val w = a.optJSONObject(i) ?: return@mapNotNull null
-                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"))
+                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"), w.optString("specialty"))
             }
         }
     }
+}
+
+/**
+ * Torn en directe d'un xat o d'una rotllana tal com l'observa l'app: l'última
+ * fase del servidor, si ja arriba text i quantes veus han parlat. Només viu
+ * mentre el torn és en marxa; la cara la tradueix amb windMoodOf.
+ */
+data class WindLive(val phase: String = "thinking", val writing: Boolean = false, val voices: Int = 1) {
+    val mood: WindMood get() = windMoodOf(phase = phase, writing = writing, voices = voices)
+}
+
+/**
+ * Veus proactives (cor, recordatoris) que encara no has obert. Un vent hi és
+ * fins que n'obres el xat. La primera vegada només compta l'últim dia, perquè
+ * un historial vell no desperti tota la colla.
+ */
+object WindNewsLogic {
+    const val FIRST_RUN_WINDOW = 86_400L
+    fun unseen(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Set<String> =
+        novetats.filter { it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }.map { it.wind }.toSet()
 }
 
 /** Cossos de les peticions POST /api/winds i /api/winds/chat. */

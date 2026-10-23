@@ -50,7 +50,9 @@ function frameFor(tab) {
   frame.setAttribute('referrerpolicy', 'no-referrer');
   frame.setAttribute('title', tab.title || labels().title);
   frame.hidden = true;
-  $('previewViewport').append(frame);
+  // Moving an already attached iframe resets its browsing context in Chromium.
+  // Keep the initial frame in place so its first srcdoc has a rendered layout.
+  if(frame.parentNode !== $('previewViewport')) $('previewViewport').append(frame);
   tab.frame = frame;
   frame.onload = () => { if (active() === tab && tab.kind === 'url') $('previewStatus').textContent = labels().loaded; };
   return frame;
@@ -60,8 +62,8 @@ function applyContent(tab, deferred = false) {
   const frame = frameFor(tab);
   if (tab.kind === 'url') { frame.removeAttribute('srcdoc'); frame.src = tab.content; }
   else if (tab.kind === 'html' || tab.kind === 'markdown') {
-    frame.removeAttribute('src');
-    const apply = () => { tab.timer = null; frame.srcdoc = isolatedHTML(tab.content); };
+    if(frame.hasAttribute('src')) frame.removeAttribute('src');
+    const apply = () => { tab.timer = null; frame.getBoundingClientRect(); frame.srcdoc = isolatedHTML(tab.content); };
     if (deferred) tab.timer = setTimeout(apply, 0); else apply();
   }
 }

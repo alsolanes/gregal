@@ -146,7 +146,10 @@ their current locations; this change does not migrate chat files.
 | `/api/companion/chat` | POST | Chat with one pet in its voice → `{reply,pet,history:[{from,text}]}`. Body: `{pet,message}`. Histories are separate per pet, persisted in the authenticated user's saved-conversation directory, and the model context is capped at the last 16 turns. The user memory is injected as what the pet knows. The pet has no access to external data and says so instead of inventing. |
 | `/api/winds` | GET | → `{winds:[{id,name,color,role,style}]}`. The wind catalog omits persona; use the authorized profile endpoint to read/edit it. |
 | `/api/winds` | POST | Create/update a wind → `{wind}` (full object, including persona). Body: `{id?,name,color,role,persona?,style?}`. Explicit `id` edits only that existing wind and stays stable on rename; unknown explicit id is 400. Without id, the name slug creates/updates the legacy same-name entry. Blank/omitted persona preserves the existing voice, or fills a default for a new wind. Invalid color falls back to `#FF9F00`. |
-| `/api/winds` | DELETE | Remove a wind. Body: `{id}`. |
+| `/api/winds` | DELETE | Archive a wind, preserving identity, memory, knowledge and documents in the user library. Body: `{id}`. |
+| `/api/winds/library` | GET, POST | GET returns `{items}` with active, archived, recovered and pre-transfer versions, including per-wind memory, knowledge and full skills. `?export=<item-id>` exports one JSON snapshot. POST `{action:"restore",source}` restores an archived identity; `{action:"assign",source,target,memory,knowledge}` merges selected information into an active wind, saving a previous version and rejecting conflicting documents or size overflow. |
+| `/api/winds/squads` | GET, POST | GET `{squads}` lists predefined everyday, data and software/security specialists. POST `{id,lang:"ca"\|"en"}` activates missing specialists without changing existing winds. Stable independent identities, idempotent activation. |
+| `/api/winds/tasks` | GET | `{tasks}` returns up to 100 recent delegated tasks for the authenticated user with folder, status and persisted public events/results (bounded to 160 events per task). No tool arguments or hidden reasoning. Execution still requires Gregal to remain open. |
 | `/api/winds/chat` | GET | `?wind=<id>` → `{wind,history:[{from,text}]}`; the durable conversation with a wind, persisted as `company-<wind>`. |
 | `/api/winds/chat/stream` | POST | Same turn as `/api/winds/chat` but as SSE: `phase` (`thinking|searching|scheduling|working`), `token` (reply-text fragments; speculative tokens before a phase must be discarded), `done` (same payload as the classic POST plus `actions`), `error`. Body: `{wind,message}`. |
 | `/api/winds/rotllana/stream` | POST | Same group turn as `/api/winds/rotllana` but as SSE with the same event protocol; `done` carries `{reply:{wind,text},history,actions}`. Between speakers the server emits `phase: speaker:<windID>` so the client can start a new bubble. Body: `{rotllana,message,wind?}`. |
@@ -290,7 +293,7 @@ workspace roots.
 | `/api/providers` | GET | `{providers:[{name,url,type?,key,used_by}], roles}`; `type` is omitted for Chat Completions providers. |
 | `/api/github` | GET | `{available, cwd}`. |
 | `/api/jobs` | GET | Scheduled jobs; `next_due_at` is the next slot in RFC 3339. |
-| `/api/jobs/runs` | GET | `?id=` returns run history. |
+| `/api/jobs/runs` | GET | `?job=` (or legacy `?id=`) returns run history. Wind routine runs retain their owner even after deletion. |
 | `/api/mcp` | GET | `{summary,servers:[{name,status,transport,tools,prompts,resources?,auth?,host?,error?}],tools:[name],prompts:[{command,server,name,description,arguments}]}`: safe diagnostics for MCP connectors; does not expose commands, headers, tokens or environment. `status` is `connected`, `error` or `needs_auth`; `auth` (remote servers only) is `none`, `authorized` or `required`. |
 | `/api/mcp/connect` | POST | Admin. `{name}` → `{status:"connected",servers}` or `{status:"needs_auth",auth_url}`: (re)connects a server; when it asks for OAuth 2.1 the UI opens `auth_url` in the browser (PKCE, dynamic client registration when offered). 502 `{error,servers}` if it cannot connect. |
 | `/api/mcp/disconnect` | POST | Admin. `{name}` → `{servers}`: forgets the stored OAuth token of a remote server and disconnects it. |
@@ -330,7 +333,7 @@ workspace roots.
 | `/api/office/download` | GET | `?id=` → returns the edited file. |
 | `/api/office/render` | POST | `{id, pages?}` → `{report, images, engine}`: renders the document with LibreOffice (or Microsoft Office on Windows) to PNG data URLs (a numbered thumbnail grid, or the requested pages at full size) plus automatic QA. Without a render engine, `images` is empty and `report` says so. |
 | `/api/office/open` | POST | `{id}` → opens the document with the server's associated application (local/desktop only). |
-| `/api/jobs/save` | POST | Creates or updates a scheduled job. |
+| `/api/jobs/save` | POST | Creates or updates a scheduled job. Optional `wind` binds a reading/research routine to the wind's current persona, memory and knowledge. The server assigns its owner; other users cannot read, change or run it. Existing shared jobs keep their behavior. Gregal must remain running for the local scheduler. |
 | `/api/jobs/delete` | POST | Deletes a scheduled job. |
 | `/api/jobs/run` | POST | Runs a job immediately. `scheduled: true` is a slot fired by an external scheduler (`GREGAL_JOBS_SCHEDULER=external`, the Android app): it queues behind an interactive turn and refuses a paused job. |
 

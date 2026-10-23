@@ -108,7 +108,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val rChats by vm.rotllanaChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val rBusy by vm.rotllanaBusy.collectAsState()
+    val live by vm.windLive.collectAsState()
+    val news by vm.windNews.collectAsState()
     val conn by vm.conn.collectAsState()
+    // Veus proactives per obrir: es consulten en obrir els Vents i cada minut.
+    LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(60_000) } }
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
     // diàleg del sistema el permís queda denegat i no sona mai res.
@@ -177,7 +181,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                 VentsPillTabs(lang, manage, onManage = { manage = it })
                 LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp, top = 12.dp)) {
                     if (!manage && winds.isNotEmpty()) item {
-                        VentsGrid(lang, winds, busy) { vm.openVentsChat("wind:" + it.id) }
+                        VentsGrid(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
                     }
                     if (manage) {
                         item { WindsModelRow(vm, lang) }
@@ -190,7 +194,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         if (rotllanes.isEmpty() && winds.none { chats[it.id].orEmpty().isNotEmpty() }) item { VentsEmpty(lang, true) }
                         items(winds.filter { chats[it.id].orEmpty().isNotEmpty() }, key = { "wind:" + it.id }) { w ->
                             ConversationRow(w.name, chats[w.id].orEmpty().lastOrNull()?.text.orEmpty(), Color(w.argb), w.faceStyle,
-                                busy = busy.contains(w.id), onClick = { vm.openVentsChat("wind:" + w.id) },
+                                busy = busy.contains(w.id), mood = if (busy.contains(w.id)) live[w.id]?.mood else if (news.contains(w.id)) WindMood.NEWS else null,
+                                onClick = { vm.openVentsChat("wind:" + w.id) },
                                 onLongClick = { rowTarget = RowTarget.Dm(w) })
                         }
                         items(rotllanes, key = { "rot:" + it.id }) { r ->
@@ -198,7 +203,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             ConversationRow(r.name, rChats[r.id].orEmpty().lastOrNull()?.text ?: faces.joinToString(" · ") { it.name },
                                 faces.firstOrNull()?.let { Color(it.argb) } ?: Sea,
                                 faces.firstOrNull()?.faceStyle ?: WindStyle(), faces = faces,
-                                busy = rBusy.contains(r.id),
+                                busy = rBusy.contains(r.id), mood = if (rBusy.contains(r.id)) live[r.id]?.mood else null,
                                 onClick = { vm.openVentsChat("rot:" + r.id) },
                                 onLongClick = { rowTarget = RowTarget.Rot(r) })
                         }
@@ -215,7 +220,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
 
 /** Graella de mascotes (estil Dots): cada vent en gran amb el seu estat. */
 @Composable
-internal fun VentsGrid(lang: String, winds: List<Wind>, busy: Set<String>, onOpen: (Wind) -> Unit) {
+internal fun VentsGrid(
+    lang: String, winds: List<Wind>, busy: Set<String>,
+    live: Map<String, WindLive> = emptyMap(), news: Set<String> = emptySet(), onOpen: (Wind) -> Unit,
+) {
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
@@ -225,6 +233,11 @@ internal fun VentsGrid(lang: String, winds: List<Wind>, busy: Set<String>, onOpe
     ) {
         winds.forEach { w ->
             val thinking = busy.contains(w.id)
+            val mood = when {
+                thinking -> live[w.id]?.mood ?: WindMood.THINKING
+                news.contains(w.id) -> WindMood.NEWS
+                else -> WindMood.HAPPY
+            }
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(24.dp))
                     .background(if (thinking) Ink.copy(alpha = 0.06f) else Superficie)
@@ -236,16 +249,23 @@ internal fun VentsGrid(lang: String, winds: List<Wind>, busy: Set<String>, onOpe
             ) {
                 WindHalo(
                     accent = Color(w.argb), style = w.faceStyle, size = 88,
-                    mood = if (thinking) WindMood.THINKING else WindMood.HAPPY,
+                    mood = mood,
                 )
                 Text(
                     w.name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                 )
+                // L'estat sempre amb paraules, no només amb la insígnia.
                 Text(
-                    if (thinking) tr(lang, "app.vents.gridThinking")
-                    else w.role.ifBlank { tr(lang, "app.vents.gridOnline") },
-                    fontSize = 12.sp, color = Muted, maxLines = 1,
+                    when (mood) {
+                        WindMood.SEARCHING -> tr(lang, "app.vents.gridSearching")
+                        WindMood.WRITING -> tr(lang, "app.vents.gridWriting")
+                        WindMood.WORKING -> tr(lang, "app.vents.gridWorking")
+                        WindMood.DISCUSSING -> tr(lang, "app.vents.gridDiscussing")
+                        WindMood.NEWS -> tr(lang, "app.vents.gridNews")
+                        else -> if (thinking) tr(lang, "app.vents.gridThinking") else w.role.ifBlank { tr(lang, "app.vents.gridOnline") }
+                    },
+                    fontSize = 12.sp, color = if (mood == WindMood.NEWS) Ink else Muted, maxLines = 1,
                     overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
                 )
             }
@@ -437,6 +457,7 @@ private fun ConversationRow(
     accent: Color,
     style: WindStyle,
     busy: Boolean = false,
+    mood: WindMood? = null,
     faces: List<Wind> = emptyList(),
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
@@ -464,7 +485,7 @@ private fun ConversationRow(
             WindHalo(
                 accent = accent, style = style, size = 48,
                 stacked = faces.drop(1), online = !busy,
-                mood = if (busy) WindMood.THINKING else WindMood.HAPPY,
+                mood = mood ?: if (busy) WindMood.THINKING else WindMood.HAPPY,
             )
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -492,6 +513,7 @@ private fun ConversationRow(
 internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit) {
     val chats by vm.windChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
+    val live by vm.windLive.collectAsState()
     val msgs = chats[wind.id].orEmpty()
     val clipboard = LocalClipboardManager.current
     var field by remember(wind.id) { mutableStateOf(TextFieldValue("")) }
@@ -565,8 +587,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
             WindHalo(size = 52, accent = accent, style = wind.faceStyle,
                 mood = when {
+                    isBusy -> live[wind.id]?.mood ?: WindMood.THINKING
                     msgs.any { it.streaming } -> WindMood.TALKING
-                    isBusy -> WindMood.THINKING
                     else -> WindMood.HAPPY
                 })
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -721,6 +743,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
 private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit) {
     val chats by vm.rotllanaChat.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
+    val live by vm.windLive.collectAsState()
     val msgs = chats[rot.id].orEmpty()
     val clipboard = LocalClipboardManager.current
     var field by remember(rot.id) { mutableStateOf(TextFieldValue("")) }
@@ -792,8 +815,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 accent = rotAccent, style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
                 size = 52, stacked = faces.drop(1),
                 mood = when {
+                    rotBusy -> live[rot.id]?.mood ?: WindMood.THINKING
                     msgs.any { it.streaming } -> WindMood.TALKING
-                    rotBusy -> WindMood.THINKING
                     else -> WindMood.HAPPY
                 },
             )
@@ -1284,6 +1307,8 @@ fun DrawerWindIcon(vm: GregalViewModel) {
 fun WindFab(vm: GregalViewModel, onOpen: () -> Unit) {
     val wind by vm.activeWind.collectAsState()
     val busy by vm.windBusy.collectAsState()
+    val live by vm.windLive.collectAsState()
+    val news by vm.windNews.collectAsState()
     val w = wind ?: return
     Box(
         Modifier
@@ -1305,7 +1330,11 @@ fun WindFab(vm: GregalViewModel, onOpen: () -> Unit) {
             Box(contentAlignment = Alignment.Center) {
                 WindFace(
                     size = 52,
-                    mood = if (busy.contains(w.id)) WindMood.THINKING else WindMood.IDLE,
+                    mood = when {
+                        busy.contains(w.id) -> live[w.id]?.mood ?: WindMood.THINKING
+                        news.contains(w.id) -> WindMood.NEWS
+                        else -> WindMood.IDLE
+                    },
                     accent = Color(w.argb),
                     style = w.faceStyle,
                 )

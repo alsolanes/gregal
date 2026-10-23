@@ -29,9 +29,10 @@ import (
 //	GET    /api/winds/rotllana?rotlla=<id> → {rotllana,history:[{from,text}]}
 //	POST   /api/winds/rotllana            → {reply:{wind,text},history} — un vent del grup respon
 type Rotllana struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name"`
-	Members []string `json:"members"` // ids de vent
+	Workspace string   `json:"workspace,omitempty"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Members   []string `json:"members"` // ids de vent
 }
 
 // rotllanaEntry és la història en memòria + persistència, com windHistoryEntry.
@@ -633,6 +634,16 @@ func (s *Server) rotllanaByID(id string) (Rotllana, bool) {
 }
 
 func (s *Server) saveRotllana(rot Rotllana) (Rotllana, error) {
+	if rot.Workspace != "" {
+		resolved, err := resolveWorkspace(rot.Workspace)
+		if err != nil {
+			return Rotllana{}, err
+		}
+		if err := s.user.Allow(resolved); err != nil {
+			return Rotllana{}, err
+		}
+		rot.Workspace = resolved
+	}
 	name := strings.TrimSpace(rot.Name)
 	if name == "" {
 		return Rotllana{}, errNoName

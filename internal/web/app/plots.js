@@ -170,7 +170,7 @@ const openLabel = el('span', 'plots-nav-label', t('open'));
 const openBadge = el('span', 'nav-badge plots-new'); openBadge.hidden = true;
 open.append(openLabel, openBadge);
 open.addEventListener('click', () => openLibrary());
-(document.querySelector('#side .side-main') || document.querySelector('#side details'))?.append(open);
+(document.querySelector('#sideMore .side-main') || document.querySelector('#side .side-main'))?.append(open);
 document.addEventListener('gregal:idioma', () => { openLabel.textContent = t('open'); });
 function newCount() { try { return +localStorage.getItem('gregal_plots_new') || 0; } catch { return 0; } }
 function paintNew() { const n = newCount(); openBadge.hidden = !n; openBadge.textContent = n > 99 ? '99+' : String(n); }
