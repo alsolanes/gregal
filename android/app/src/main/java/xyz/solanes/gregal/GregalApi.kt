@@ -577,6 +577,22 @@ class GregalApi(val base: String, val token: String) {
     /** Resum de tots els vents: rol + índex de coneixements (selector de membres). */
     data class WindResum(val id: String, val nom: String, val rol: String, val coneixements: List<Coneixement>)
 
+    /** Estat d'una sessió d'estudi «fes-te expert» d'un vent. */
+    data class WindExpert(
+        val wind: String,
+        val tema: String,
+        val fase: String,      // "" | cerca | apren | fet | error
+        val pas: Int,
+        val passos: Int,
+        val iniciat: Long,     // unix s
+        val acabat: Long,      // unix s
+        val error: String = "",
+    ) {
+        val actiu get() = fase == "cerca" || fase == "lectura" || fase == "apren"
+        val exit get() = fase == "fet"
+        val progres: Float get() = if (passos <= 0) 0f else (pas.coerceIn(0, passos) / passos.toFloat()) * .9f + (if (exit) .1f else 0f)
+    }
+
     fun getWindsResum(): List<WindResum> {
         val o = JSONObject(read(conn("/api/winds/resum", "GET")))
         val a = o.optJSONArray("vents") ?: JSONArray()
@@ -815,6 +831,18 @@ class GregalApi(val base: String, val token: String) {
                 ProgramatStats(x.optString("wind_name"), x.optInt("beats"), x.optInt("spoke"), x.optInt("silent"), x.optInt("reminders"), str(x, "last_at"))
             },
         )
+    }
+
+    /** Estudi «fes-te expert»: engega una sessió (POST) o consulta el progrés (GET). */
+    fun startWindExpert(windId: String, tema: String): Boolean {
+        val o = post("/api/winds/expert", JSONObject().put("wind", windId).put("tema", tema))
+        return o.optBoolean("ok", false)
+    }
+
+    fun getWindExpert(windId: String): WindExpert {
+        val o = JSONObject(read(conn("/api/winds/expert?wind=${java.net.URLEncoder.encode(windId, "UTF-8")}", "GET")))
+        return WindExpert(o.optString("wind"), o.optString("tema"), o.optString("fase"),
+            o.optInt("pas"), o.optInt("passos"), o.optLong("iniciat", 0L), o.optLong("acabat", 0L), o.optString("error"))
     }
 
     fun getJobs(): List<JobItem> {

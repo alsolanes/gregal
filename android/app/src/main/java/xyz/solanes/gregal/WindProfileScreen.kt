@@ -279,7 +279,58 @@ private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
     }
 }
 
-/** Coneixements del vent (estil skill): descripció al prompt, cos sota demanda. */
+/** Estudi «fes-te expert»: el vent busca informació del seu tema i la deixa
+ *  com a coneixement. La cara s'anima segons la fase (cercant → llegint →
+ *  escrivint) i la barra mostra com en va. */
+@Composable
+private fun expertRow(vm: GregalViewModel, lang: String, wind: Wind) {
+    val expert by vm.windExpert.collectAsState()
+    val est = expert[wind.id]
+    LaunchedEffect(wind.id) { vm.loadWindExpertOnce(wind.id) }
+    Surface(shape = RoundedCornerShape(14.dp), color = Color(wind.argb).copy(alpha = 0.07f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(wind.argb).copy(alpha = 0.30f)),
+        modifier = Modifier.fillMaxWidth()) {
+        if (est != null && est.actiu) {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    WindFace(size = 44, accent = Color(wind.argb), style = wind.faceStyle,
+                        mood = when (est.fase) {
+                            "lectura" -> WindMood.READING
+                            "apren" -> WindMood.WRITING
+                            else -> WindMood.SEARCHING
+                        })
+                    Column(Modifier.weight(1f)) {
+                        Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                        Text(tr(lang, "app.vents.expertStudyingHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = 12.sp)
+                    }
+                }
+                LinearProgressIndicator(progress = { est.progres }, modifier = Modifier.fillMaxWidth(),
+                    color = Color(wind.argb), trackColor = Color(wind.argb).copy(alpha = 0.15f))
+            }
+        } else if (est != null && est.exit) {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WindFace(size = 44, accent = Color(wind.argb), style = wind.faceStyle, mood = WindMood.DONE)
+                Column(Modifier.weight(1f)) {
+                    Text(tr(lang, "app.vents.expertDone"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(tr(lang, "app.vents.expertDoneHelp", est.tema.ifBlank { wind.role }), color = Muted, fontSize = 12.sp)
+                }
+                TextButton(onClick = { vm.startWindExpert(wind.id, wind.role) }) { Text(tr(lang, "app.vents.expertAgain")) }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WindFace(size = 44, accent = Color(wind.argb), style = wind.faceStyle, mood = WindMood.IDLE)
+                Column(Modifier.weight(1f)) {
+                    Text(tr(lang, "app.vents.expertTitle"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                    Text(tr(lang, "app.vents.expertHelp", wind.role), color = Muted, fontSize = 12.sp)
+                }
+                Button(onClick = { vm.startWindExpert(wind.id, wind.role) }, colors = ButtonDefaults.buttonColors(containerColor = Color(wind.argb))) {
+                    Text(tr(lang, "app.vents.expertGo"))
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun VentSkillsSection(vm: GregalViewModel, lang: String, wind: Wind) {
     val detall by vm.ventDetall.collectAsState()
@@ -287,6 +338,7 @@ private fun VentSkillsSection(vm: GregalViewModel, lang: String, wind: Wind) {
     var editor by remember(wind.id) { mutableStateOf<GregalApi.Coneixement?>(null) }
     var creating by remember(wind.id) { mutableStateOf(false) }
     var confirmDel by remember(wind.id) { mutableStateOf<GregalApi.Coneixement?>(null) }
+    expertRow(vm, lang, wind)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(tr(lang, "app.vents.skillsTitle"), color = Ink, fontWeight = FontWeight.SemiBold)

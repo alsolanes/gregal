@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -2429,6 +2430,56 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _programats.value = p
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
+        }
+    }
+
+    /** Estudi «fes-te expert»: estat per vent (fase, pas) i engegar-la. */
+    private val _windExpert = MutableStateFlow<Map<String, GregalApi.WindExpert>>(emptyMap())
+    val windExpert: StateFlow<Map<String, GregalApi.WindExpert>> = _windExpert.asStateFlow()
+    private val expertPolling = mutableSetOf<String>()
+
+    fun startWindExpert(windId: String, tema: String, onError: () -> Unit = {}) {
+        val source = _conn.value
+        viewModelScope.launch {
+            val ok = runCatching { withContext(Dispatchers.IO) { source.api().startWindExpert(windId, tema) } }.getOrDefault(false)
+            if (ok) {
+                expertPolling.add(windId)
+                pollWindExpert(windId)
+            } else onError()
+        }
+    }
+
+    fun pollWindExpert(windId: String) {
+        if (windId !in expertPolling) return
+        val source = _conn.value
+        viewModelScope.launch {
+            val est = runCatching { withContext(Dispatchers.IO) { source.api().getWindExpert(windId) } }.getOrNull()
+            if (est != null) {
+                _windExpert.update { it + (windId to est) }
+                if (est.actiu) {
+                    delay(2000)
+                    pollWindExpert(windId)
+                } else {
+                    expertPolling.remove(windId)
+                    if (est.exit) {
+                        // Ja és expert: refresca coneixements i marcador de novetats.
+                        loadVentDetall(windId)
+                        refreshWindNews()
+                    }
+                }
+            } else {
+                delay(3000)
+                pollWindExpert(windId)
+            }
+        }
+    }
+
+    fun loadWindExpertOnce(windId: String) {
+        val source = _conn.value
+        viewModelScope.launch {
+            val est = runCatching { withContext(Dispatchers.IO) { source.api().getWindExpert(windId) } }.getOrNull() ?: return@launch
+            _windExpert.update { it + (windId to est) }
+            if (est.actiu) { expertPolling.add(windId); pollWindExpert(windId) }
         }
     }
 
