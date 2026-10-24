@@ -3,6 +3,15 @@ package xyz.solanes.gregal
 /** Claus només-mòbil (aparellament, cua, avisos...). Manual: la web no les té.
  *  Paritat ca/en a mà, com exigeix la identitat. */
 val STR_APP_CA: Map<String, String> = mapOf(
+    "app.programats.title" to "Programats",
+    "app.programats.empty" to "Cap missatge programat",
+    "app.programats.emptyHelp" to "Demana a un vent que t\u2019avisi d\u2019alguna cosa, o enc\u00e9n el seu cor al perfil.",
+    "app.programats.reminders" to "AVISOS PENDENTS",
+    "app.programats.hearts" to "CORS QUE VIGILEN",
+    "app.programats.stats" to "ESTAD\u00cdSTIQUES",
+    "app.programats.next" to "Pr\u00f2xima mirada: %s",
+    "app.programats.statLine" to "%s mirades · %s avisos · %s silencis · parla el %s%",
+    "app.programats.open" to "Programats",
     "app.vents.startFromScratch" to "Comença de zero",
     "app.vents.changePreset" to "Tria una altra carona",
     "app.vents.back" to "Enrere",
@@ -770,6 +779,15 @@ val STR_APP_CA: Map<String, String> = mapOf(
 )
 
 val STR_APP_EN: Map<String, String> = mapOf(
+    "app.programats.title" to "Scheduled",
+    "app.programats.empty" to "Nothing scheduled yet",
+    "app.programats.emptyHelp" to "Ask a wind to remind you of something, or turn on its heart in the profile.",
+    "app.programats.reminders" to "PENDING REMINDERS",
+    "app.programats.hearts" to "HEARTS ON WATCH",
+    "app.programats.stats" to "STATS",
+    "app.programats.next" to "Next look: %s",
+    "app.programats.statLine" to "%s looks · %s spoke · %s silent · speaks %s%",
+    "app.programats.open" to "Scheduled",
     "app.vents.startFromScratch" to "Start from scratch",
     "app.vents.changePreset" to "Pick another face",
     "app.vents.back" to "Back",

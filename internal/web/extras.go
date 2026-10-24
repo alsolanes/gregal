@@ -48,6 +48,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/rotllana", h.route((*Server).handleRotllanaChat))
 	handle("/api/winds/rotllana/stream", h.route((*Server).handleRotllanaChatStream))
 	handle("/api/winds/novetats", h.route((*Server).handleWindNovetats))
+	handle("/api/winds/programats", h.route((*Server).handleWindsProgramats))
 	handle("/api/winds/memoria", h.route((*Server).handleWindMemoria))
 	handle("/api/winds/coneixements", h.route((*Server).handleWindConeixements))
 	handle("/api/winds/coneixement", h.route((*Server).handleWindConeixement))

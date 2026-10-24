@@ -794,6 +794,29 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
+    /** Missatges programats i estadístiques dels vents (recordatoris, cors). */
+    fun getWindsProgramats(): WindsProgramats {
+        val o = JSONObject(read(conn("/api/winds/programats", "GET")))
+        fun str(x: JSONObject, k: String) = x.optString(k)
+        val rem = o.optJSONArray("reminders") ?: JSONArray()
+        val hearts = o.optJSONArray("hearts") ?: JSONArray()
+        val stats = o.optJSONArray("stats") ?: JSONArray()
+        return WindsProgramats(
+            reminders = (0 until rem.length()).map { i ->
+                val x = rem.getJSONObject(i)
+                ProgramatReminder(x.optString("id"), x.optString("wind_name"), x.optString("at"), x.optString("text"))
+            },
+            hearts = (0 until hearts.length()).map { i ->
+                val x = hearts.getJSONObject(i)
+                ProgramatHeart(x.optString("wind"), x.optString("wind_name"), x.optString("next_at"), x.optString("last_status"))
+            },
+            stats = (0 until stats.length()).map { i ->
+                val x = stats.getJSONObject(i)
+                ProgramatStats(x.optString("wind_name"), x.optInt("beats"), x.optInt("spoke"), x.optInt("silent"), x.optInt("reminders"), str(x, "last_at"))
+            },
+        )
+    }
+
     fun getJobs(): List<JobItem> {
         val o = JSONObject(read(conn("/api/jobs", "GET")))
         val a = o.optJSONArray("jobs") ?: JSONArray()

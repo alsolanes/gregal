@@ -92,6 +92,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val goals: StateFlow<List<GoalItem>> = _goals
     private val _jobs = MutableStateFlow<List<JobItem>>(emptyList())
     val jobs: StateFlow<List<JobItem>> = _jobs
+    private val _programats = MutableStateFlow<WindsProgramats?>(null)
+    val programats: StateFlow<WindsProgramats?> = _programats
     /** Salut del segon pla (mode local): alarmes exactes, notificacions, bateria. */
     private val _bgHealth = MutableStateFlow<BackgroundHealth?>(null)
     val bgHealth: StateFlow<BackgroundHealth?> = _bgHealth
@@ -2415,6 +2417,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
             }
+        }
+    }
+
+    /** Carrega els missatges programats i les estadístiques dels vents. */
+    fun loadProgramats() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val p = loadingOf("programats") { withContext(Dispatchers.IO) { source.api().getWindsProgramats() } }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _programats.value = p
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
         }
     }
 

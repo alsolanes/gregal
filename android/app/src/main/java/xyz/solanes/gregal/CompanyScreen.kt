@@ -136,6 +136,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     var query by rememberSaveable { mutableStateOf("") }
     var profile by remember { mutableStateOf<Wind?>(null) }
     var rowTarget by remember { mutableStateOf<RowTarget?>(null) }
+    var programatsOpen by remember { mutableStateOf(false) }
     val creator by vm.windCreator.collectAsState()
     LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes() }
     LaunchedEffect(winds.map { it.id }, rotllanes.map { it.id }) {
@@ -226,6 +227,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     if (winds.isNotEmpty() && query.isBlank()) item {
                         VentsCrew(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
                     }
+                    if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
+                        ProgramatsButton(lang) { programatsOpen = true }
+                    }
                     val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
                     if (rows.isEmpty()) item {
                         if (query.isBlank()) VentsEmpty(lang, true)
@@ -254,6 +258,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
             }
         }
     }
+    if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     profile?.let { w -> WindProfileDialog(vm, lang, w) { profile = null } }
     rowTarget?.let { t ->
         ChatRowDialog(vm, lang, t) { rowTarget = null }

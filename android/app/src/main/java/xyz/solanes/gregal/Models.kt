@@ -305,6 +305,12 @@ data class WindReply(val text: String, val reminds: List<String> = emptyList(), 
 data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String)
 
 /** Job programat del servidor (butlletins desatesos). */
+/** Missatges programats i estadístiques dels vents. */
+data class ProgramatReminder(val id: String, val windName: String, val at: String, val text: String)
+data class ProgramatHeart(val wind: String, val windName: String, val nextAt: String, val lastStatus: String)
+data class ProgramatStats(val windName: String, val beats: Int, val spoke: Int, val silent: Int, val reminders: Int, val lastAt: String)
+data class WindsProgramats(val reminders: List<ProgramatReminder>, val hearts: List<ProgramatHeart>, val stats: List<ProgramatStats>)
+
 data class JobItem(
     val id: String = "",
     val name: String = "",
