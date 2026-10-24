@@ -7,39 +7,28 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 
-/**
- * Peces espectaculars dels vents: halo amb resplendor, punts d'escriptura,
- * heroi de capçalera i píndoles. Tot amb la paleta Gregal + el color del vent.
- */
+/** Shared minimal mascot wrappers and truthful activity indicators. */
 
-/** Cara amb halo: resplendor del seu color + ombra suau + punt en línia. */
+/** Shared mascot wrapper; source-compatible name, no halo or invented presence. */
 @Composable
 fun WindHalo(
     accent: Color,
@@ -51,23 +40,12 @@ fun WindHalo(
     tappable: Boolean = false,
 ) {
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size((size + 14).dp)) {
-        // Resplendor exterior del color del vent.
-        Box(Modifier.size((size + 14).dp).background(accent.copy(alpha = 0.22f), CircleShape))
-        Box(Modifier.size((size + 4).dp).background(accent.copy(alpha = 0.35f), CircleShape))
-        Surface(
-            shape = CircleShape,
-            color = Superficie,
-            shadowElevation = 6.dp,
-            modifier = Modifier.size(size.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                WindFace(size = size - 6, mood = mood, accent = accent, style = style, tappable = tappable)
-            }
-        }
+        // Same footprint as before, without rings or shadows around the silhouette.
+        WindFace(size = size + 8, mood = mood, accent = accent, style = style, tappable = tappable)
         if (stacked.isNotEmpty()) {
             stacked.take(1).forEach {
                 Box(Modifier.align(Alignment.BottomEnd).offset(x = 4.dp, y = 4.dp).zIndex(1f)) {
-                    Surface(shape = CircleShape, color = Superficie, shadowElevation = 4.dp) {
+                    Surface(shape = CircleShape, color = Superficie) {
                         WindFace(size = 26, accent = Color(it.argb), style = it.faceStyle)
                     }
                 }
@@ -78,25 +56,18 @@ fun WindHalo(
                     Modifier.align(Alignment.TopStart).background(Ink, CircleShape)
                         .padding(horizontal = 5.dp, vertical = 1.dp).zIndex(1f)
                 ) {
-                    Text("+${stacked.size}", color = Superficie, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-        } else if (online) {
-            // Insígnia de presència: punt verd amb anell clar, enganxat a la
-            // vora de la cara (no un segon cercle flotant).
-            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 3.dp).zIndex(1f)) {
-                Surface(shape = CircleShape, color = Superficie, shadowElevation = 2.dp) {
-                    Box(Modifier.padding(2.dp).size(8.dp).background(Green, CircleShape))
+                    Text("+${stacked.size - 1}", color = Superficie, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
+        // `online` stays source-compatible; a decorative avatar is not proof of presence.
     }
 }
 
 /** Tres punts que respiren quan el vent escriu. Estàtics als tests. */
 @Composable
 fun TypingDots(accent: Color = Sea) {
-    if (!LocalWindMotion.current) {
+    if (!windMotionEnabled()) {
         Text("•••", color = accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         return
     }
@@ -110,114 +81,6 @@ fun TypingDots(accent: Color = Sea) {
                 ), label = "dot$i"
             )
             Box(Modifier.size(7.dp).background(accent.copy(alpha = 0.35f + 0.65f * a), CircleShape))
-        }
-    }
-}
-
-/** Fons ambient d'un xat: dos respirs del color del vent. Estàtic als tests. */
-@Composable
-fun ChatAmbient(accent: Color) {
-    Box(Modifier.fillMaxSize()) {
-        if (!LocalWindMotion.current) {
-            Box(Modifier.size(280.dp).offset(x = (-90).dp, y = (-60).dp).background(accent.copy(alpha = 0.10f), CircleShape))
-            Box(Modifier.size(340.dp).align(Alignment.BottomEnd).offset(x = 110.dp, y = 120.dp).background(accent.copy(alpha = 0.07f), CircleShape))
-            return@Box
-        }
-        val t = rememberInfiniteTransition(label = "ambient")
-        val dx by t.animateFloat(0f, 36f, infiniteRepeatable(tween(12000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "dx")
-        val dy by t.animateFloat(0f, -28f, infiniteRepeatable(tween(17000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "dy")
-        Box(Modifier.size(280.dp).offset(x = (-90).dp + dx.dp, y = (-60).dp + dy.dp).background(accent.copy(alpha = 0.10f), CircleShape))
-        Box(Modifier.size(340.dp).align(Alignment.BottomEnd).offset(x = (110).dp - dx.dp, y = 120.dp).background(accent.copy(alpha = 0.07f), CircleShape))
-    }
-}
-/** Hero de Vents: marca viva del desktop — punt d'accent, kicker, títol gran i cares apilades. */
-@Composable
-fun VentsHero(lang: String, winds: List<Wind>, modeLabel: String) {
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        // Kicker amb punt d'accent, com el .winds-heading del desktop.
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(6.dp).background(Sea, CircleShape))
-            Text(modeLabel, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.4.sp, color = Muted)
-        }
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(
-                tr(lang, "app.vents.title"),
-                fontSize = 34.sp, fontWeight = FontWeight.ExtraBold, color = Ink,
-                letterSpacing = (-0.8).sp, lineHeight = 36.sp,
-                modifier = Modifier.weight(1f),
-            )
-            if (winds.isNotEmpty()) {
-                // Cares apilades a la dreta del títol: la colla sencera, en petit.
-                Row(verticalAlignment = Alignment.Bottom) {
-                    winds.take(4).forEachIndexed { i, w ->
-                        Box(Modifier.offset(x = (-11 * i).dp).zIndex(4 - i.toFloat())) {
-                            Surface(shape = CircleShape, color = Superficie, shadowElevation = 3.dp) {
-                                WindFace(size = 30, accent = Color(w.argb), style = w.faceStyle)
-                            }
-                        }
-                    }
-                    if (winds.size > 4) {
-                        Box(Modifier.offset(x = (-11 * 4).dp).zIndex(0f)) {
-                            Surface(shape = CircleShape, color = Ink) {
-                                Box(contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(30.dp)) {
-                                    Text("+${winds.size - 4}", color = Superficie, fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        if (winds.isNotEmpty()) {
-            Text(
-                winds.take(3).joinToString(", ") { it.name } + if (winds.size > 3) " +${winds.size - 3}" else "",
-                fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-/** Pestanyes píndola: Converses / Els meus vents. */
-@Composable
-fun VentsPillTabs(lang: String, manage: Boolean, onManage: (Boolean) -> Unit) {
-    Row(
-        Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-            .background(SuperficieAlta, RoundedCornerShape(999.dp))
-            .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        PillTab(
-            label = tr(lang, "app.vents.conversations"), selected = !manage,
-            modifier = Modifier.weight(1f), onClick = { onManage(false) },
-        )
-        PillTab(
-            label = tr(lang, "app.vents.myWinds"), selected = manage,
-            modifier = Modifier.weight(1f), onClick = { onManage(true) },
-        )
-    }
-}
-
-@Composable
-private fun PillTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Surface(
-        shape = RoundedCornerShape(999.dp),
-        color = if (selected) Sea else Color.Transparent,
-        shadowElevation = if (selected) 4.dp else 0.dp,
-        modifier = modifier.clip(RoundedCornerShape(999.dp)).clickable(onClick = onClick),
-    ) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 8.dp)) {
-            Text(
-                label,
-                fontSize = 13.sp,
-                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                color = if (selected) OnSea else Muted,
-            )
         }
     }
 }

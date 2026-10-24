@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,8 +55,8 @@ internal fun WindMemberRow(lang: String, wind: Wind, resum: GregalApi.WindResum?
 internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean, onDismiss: () -> Unit,
     resum: Map<String, GregalApi.WindResum> = emptyMap(),
     onCreate: (String, List<String>) -> Unit, busy: Boolean = false, error: Boolean = false) {
-    var name by remember { mutableStateOf("") }
-    var members by remember { mutableStateOf(setOf<String>()) }
+    var name by rememberSaveable { mutableStateOf("") }
+    var members by rememberSaveable { mutableStateOf(setOf<String>()) }
     androidx.activity.compose.BackHandler { if (!busy) onDismiss() }
     Scaffold(containerColor = Superficie,
         topBar = { TopAppBar(

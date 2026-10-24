@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Android Vents preview 1.17.0 (103): messaging-first home with one mascot strip, searchable conversations, compact shared chat headers/composer and quiet flat bubbles. Mascots use matte silhouettes and simple eyes; the visual editor puts shape/color first while preserving personality, memory and knowledge. No voice features or production service changes.
+
 - Android: a calmer, more organised app. The drawer is grouped (crew, agent, automate, tools) with the connection and project at the top and one primary «New session» action. The Winds home shows the whole crew by squad on swipeable shelves above the conversations, with management as a header action. Conversations get readable titles and a face or icon per kind. Work, Preferences and empty states use the same cards, section labels and illustrations, and the companion bubble moved left so it no longer covers screen actions.
 - Center Winds dialogs (profile, new wind, routines and library) instead of pinning them to the top-left corner.
 - Stop repeating the speaker's name at the start of group replies in Winds conversations.

@@ -40,6 +40,7 @@ data class Conn(val host: String, val port: String, val token: String, val user:
 
 class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val appContext = app.applicationContext
+    private val ventsRecency = VentsRecency(app.getSharedPreferences("vents-observed-receipts", 0))
     private val _screen = MutableStateFlow(Screen.Pairing)
     val screen: StateFlow<Screen> = _screen
 
@@ -2322,6 +2323,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { source.api().deleteRotllana(id) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _rotllanes.value = _rotllanes.value.filterNot { it.id == id }
+                ventsRecency.clear(source, "rot", id)
                 _rotllanaChat.value = _rotllanaChat.value - id
                 if (_ventsOpen.value == "rot:$id") _ventsOpen.value = null
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
@@ -2338,7 +2340,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val msgs = withContext(Dispatchers.IO) { source.api().getRotllanaChat(id) }
                 if (isCompanionOrigin(source, epoch) && request == rotllanaHistoryRequests[id] &&
                     !_rotllanaBusy.value.contains(id))
-                    _rotllanaChat.value = _rotllanaChat.value + (id to msgs)
+                    _rotllanaChat.value = _rotllanaChat.value + (id to ventsRecency.restore(source, "rot", id, msgs))
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
         }
     }
@@ -2350,7 +2352,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val before = _rotllanaChat.value[rotllanaId].orEmpty()
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
         live(rotllanaId) { WindLive() }
-        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (before + PetMsg("user", message, ts = System.currentTimeMillis())))
+        val sentHistory = before + PetMsg("user", message, ts = System.currentTimeMillis())
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to sentHistory)
         viewModelScope.launch {
             try {
                 try {
@@ -2390,15 +2393,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     dropStreamingBubble(rotllanaId, rotllana = true)
-                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty { before + PetMsg("pet", "") })
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId,
+                        hist.ifEmpty { before + PetMsg("pet", "") }, System.currentTimeMillis(), sentHistory))
                 } catch (_: Exception) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message, wind) }
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     val speaker = _winds.value.firstOrNull { it.id == wind }
-                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty {
-                        before + PetMsg("user", message, ts = System.currentTimeMillis()) + PetMsg("pet", text, wind, speaker?.name.orEmpty())
-                    })
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist.ifEmpty {
+                        sentHistory + PetMsg("pet", text, wind, speaker?.name.orEmpty())
+                    }, System.currentTimeMillis(), sentHistory))
                 }
                 // El torn pot haver programat avisos (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
@@ -2568,6 +2572,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { source.api().clearWindChat(id) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _windChat.value = _windChat.value + (id to emptyList())
+                ventsRecency.clear(source, "wind", id)
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
         }
     }
@@ -2610,6 +2615,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 if (_activeWind.value?.id == id) _activeWind.value = null
                 _windChat.value = _windChat.value - id
+                ventsRecency.clear(source, "wind", id)
                 if (_ventsOpen.value == "wind:$id") _ventsOpen.value = null
                 loadWinds(); loadRotllanes()
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
@@ -2632,7 +2638,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val history = withContext(Dispatchers.IO) { source.api().getWindChat(windId) }
                 if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
                     !_windBusy.value.contains(windId))
-                    _windChat.value = _windChat.value + (windId to history)
+                    _windChat.value = _windChat.value + (windId to ventsRecency.restore(source, "wind", windId, history))
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
         }
     }
@@ -2718,7 +2724,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     if (isCompanionOrigin(source, epoch)) {
                         dropStreamingBubble(windId)
-                        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial)))
+                        _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
+                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial), System.currentTimeMillis()))
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
@@ -2727,7 +2734,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     dropStreamingBubble(windId)
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
                     if (isCompanionOrigin(source, epoch)) {
-                        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial)))
+                        _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
+                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial), System.currentTimeMillis()))
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }
@@ -2784,7 +2792,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
-                        _windChat.value = _windChat.value + (windId to merged)
+                        _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
+                            ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 } catch (_: Exception) {
@@ -2796,7 +2805,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         val merged = if (idx >= 0) {
                             cur.toMutableList().also { it[idx] = it[idx].copy(text = it[idx].text + r.text, parcial = r.parcial) }
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
-                        _windChat.value = _windChat.value + (windId to merged)
+                        _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
+                            ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }
@@ -2818,6 +2828,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun sendRotllanaContinue(rotllanaId: String, wind: String = "") {
         if (_rotllanaBusy.value.contains(rotllanaId)) return
         val source = _conn.value; val epoch = companionEpoch
+        val before = _rotllanaChat.value[rotllanaId].orEmpty()
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
         viewModelScope.launch {
@@ -2842,12 +2853,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     dropStreamingBubble(rotllanaId, rotllana = true)
-                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty { _rotllanaChat.value[rotllanaId].orEmpty() })
+                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
+                            ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
                 } catch (_: Exception) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (_, _, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, "", wind, cont = true) }
                     if (isCompanionOrigin(source, epoch))
-                        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to hist.ifEmpty { _rotllanaChat.value[rotllanaId].orEmpty() })
+                        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
+                            ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {

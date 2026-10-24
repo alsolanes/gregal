@@ -56,9 +56,14 @@ class VentsExperienceTest {
             }
         } }
         ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertDoesNotExist()
-        ui.onNodeWithText("Escolto amb calma.").assertExists()
+        // La personalitat està plegada, però l'edició visual no l'ha d'esborrar.
+        ui.onNodeWithText("Escolto amb calma.").assertDoesNotExist()
         ui.onNodeWithText(tr("ca", "app.vents.saveChanges")).performClick()
-        ui.runOnIdle { org.junit.Assert.assertFalse(closed); org.junit.Assert.assertEquals("same-id", saved?.id) }
+        ui.runOnIdle {
+            org.junit.Assert.assertFalse(closed)
+            org.junit.Assert.assertEquals("same-id", saved?.id)
+            org.junit.Assert.assertEquals("Escolto amb calma.", saved?.persona)
+        }
         ui.runOnIdle { completion!!(false) }
         ui.onNodeWithText(tr("ca", "app.vents.saveError")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.saveChanges")).performClick()
@@ -66,17 +71,20 @@ class VentsExperienceTest {
         ui.runOnIdle { org.junit.Assert.assertTrue(closed) }
     }
 
-    @Test fun choosingPresetAdvancesToEditablePersonalityNotEightCardWall() {
+    @Test fun optionalGalleryReturnsToVisualEditorWithPersonalityPreserved() {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) {
                 WindEditor("ca", null, {}, { _, _, _, _ -> error("unexpected suggestion") }, { _, _ -> error("unexpected save") })
             }
         } }
-        ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertIsDisplayed()
-        ui.onNodeWithText("Marinada").performClick()
         ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertDoesNotExist()
-        ui.onNodeWithText(tr("ca", "app.company.windName")).assertIsDisplayed()
-        ui.onNodeWithText(tr("ca", "app.vents.personality")).assertIsDisplayed()
+        ui.onNodeWithText(tr("ca", "app.vents.changePreset")).performScrollTo().performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertIsDisplayed()
+        ui.onNodeWithText("Marinada").performScrollTo().performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertDoesNotExist()
+        ui.onNodeWithText(tr("ca", "app.company.windName")).performScrollTo().assertIsDisplayed()
+        ui.onNodeWithText(tr("ca", "app.vents.personality")).performScrollTo().performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.preset.Marinada.persona")).assertExists()
     }
 
     @Test fun creatorReplacesHomeAndHasExactlyOneOwner() {
@@ -85,7 +93,9 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
-        ui.onAllNodesWithText(tr("ca", "app.vents.galleryTitle")).assertCountEquals(1)
+        ui.onAllNodesWithTag("wind-editor-preview").assertCountEquals(1)
+        ui.onAllNodesWithText(tr("ca", "app.company.windName")).assertCountEquals(1)
+        ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertDoesNotExist()
         ui.onNodeWithText(tr("ca", "app.vents.conversations")).assertDoesNotExist()
     }
 
@@ -124,7 +134,7 @@ class VentsExperienceTest {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsCrew("ca", winds, setOf("b")) { opened = it.id } }
         } }
         ui.onNodeWithText("Marinada").assertIsDisplayed()
-        ui.onNodeWithText("calma").assertIsDisplayed()
+        ui.onNodeWithText("calma").assertDoesNotExist()
         ui.onNodeWithText("Xaloc").assertIsDisplayed()
         ui.onNodeWithText(tr("ca", "app.vents.gridThinking")).assertIsDisplayed()
         ui.onNodeWithContentDescription("Marinada").performClick()

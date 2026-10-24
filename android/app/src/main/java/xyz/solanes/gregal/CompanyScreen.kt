@@ -5,10 +5,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.ui.draw.drawBehind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asImageBitmap
@@ -25,23 +23,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Groups
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.NotificationsActive
-import androidx.compose.material.icons.rounded.Send
-import androidx.compose.material.icons.rounded.TravelExplore
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Construction
-import androidx.compose.material.icons.rounded.Create
-import androidx.compose.material.icons.rounded.PersonAddAlt
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalUriHandler
@@ -57,20 +49,15 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.layout.onSizeChanged
 import kotlinx.coroutines.launch
-import androidx.compose.ui.text.input.KeyboardCapitalization
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -140,7 +127,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val open by vm.ventsOpen.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
-    var manage by remember { mutableStateOf(false) }
+    var manage by rememberSaveable { mutableStateOf(false) }
+    var searching by rememberSaveable { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
     var profile by remember { mutableStateOf<Wind?>(null) }
     var rowTarget by remember { mutableStateOf<RowTarget?>(null) }
     val creator by vm.windCreator.collectAsState()
@@ -149,7 +138,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         winds.forEach { vm.loadWindChat(it.id) }
         rotllanes.forEach { vm.loadRotllanaChat(it.id) }
     }
-    androidx.activity.compose.BackHandler(enabled = manage && open == null) { manage = false }
+    androidx.activity.compose.BackHandler(enabled = manage && open == null && !creator.first) { manage = false }
+    androidx.activity.compose.BackHandler(enabled = searching && !manage && open == null && !creator.first && creation == null) {
+        searching = false; query = ""
+    }
     if (creator.first) {
         WindCreatorScreen(vm, lang, creator.second)
     } else if (creation != null) {
@@ -164,34 +156,57 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
             else -> LaunchedEffect(open) { vm.openVentsChat(null) }
         }
     } else {
-        Scaffold(containerColor = Color.Transparent,
+        Scaffold(containerColor = Superficie,
             topBar = {
-                GregalTopBar(
-                    title = tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"),
-                    lang = lang,
-                    onMenu = if (manage) null else openDrawer,
-                    onBack = if (manage) ({ manage = false }) else null,
-                    subtitle = tr(lang, if (conn.local) "app.vents.localMode" else "app.vents.serverMode", conn.host),
-                    actions = {
-                        if (!manage) IconButton(onClick = { manage = true }) {
-                            Icon(Icons.Rounded.Tune, tr(lang, "app.vents.manage"), tint = Ink)
-                        }
-                    },
-                )
-            },
-            floatingActionButton = {
-                Box {
-                    FloatingActionButton(onClick = { menu = true }, containerColor = Sea, contentColor = OnSea, shape = RoundedCornerShape(20.dp)) {
-                        Icon(Icons.Rounded.Add, tr(lang, "app.vents.create"))
-                    }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        DropdownMenuItem(text = { Text(tr(lang, "app.vents.newChat")) }, onClick = { menu = false; creation = "chat" })
-                        DropdownMenuItem(text = { Text(tr(lang, "app.company.rotllanaNew")) }, onClick = { menu = false; creation = "group" })
-                        DropdownMenuItem(text = { Text(tr(lang, "app.company.windNew")) }, onClick = { menu = false; vm.showWindCreator(true) })
+                Column {
+                    TopAppBar(
+                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                        navigationIcon = {
+                            IconButton(onClick = { if (manage) manage = false else openDrawer() }) {
+                                Icon(if (manage) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
+                                    tr(lang, if (manage) "app.vents.back" else "app.nav.menu"), tint = Ink)
+                            }
+                        },
+                        actions = {
+                            if (!manage) {
+                                IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
+                                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
+                                        tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
+                                }
+                                IconButton(onClick = { manage = true }) {
+                                    Icon(Icons.Rounded.Tune, tr(lang, "app.vents.manage"), tint = Ink)
+                                }
+                            }
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(Icons.Rounded.Add, tr(lang, "app.vents.create"), tint = Ink)
+                                }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.vents.newChat")) }, onClick = { menu = false; creation = "chat" })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.company.rotllanaNew")) }, onClick = { menu = false; creation = "group" })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.company.windNew")) }, onClick = { menu = false; vm.showWindCreator(true) })
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
+                    )
+                    if (searching && !manage) {
+                        OutlinedTextField(
+                            query, { query = it }, singleLine = true,
+                            placeholder = { Text(tr(lang, "app.vents.searchHint"), fontSize = 14.sp) },
+                            leadingIcon = { Icon(Icons.Rounded.Search, null) },
+                            shape = RoundedCornerShape(24.dp),
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = SuperficieAlta.copy(alpha = .45f),
+                                unfocusedContainerColor = SuperficieAlta.copy(alpha = .45f),
+                                focusedBorderColor = Sea, unfocusedBorderColor = Color.Transparent,
+                            ),
+                        )
                     }
                 }
             }) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 104.dp)) {
+            LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {
                     item { WindsModelRow(vm, lang) }
                     item { SquadsRow(vm, lang) }
@@ -201,27 +216,32 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         ConversationRow(w.name, w.role, Color(w.argb), w.faceStyle, onClick = { profile = w })
                     }
                 } else {
-                    // La colla primer, agrupada per colles; després les converses.
-                    if (winds.isNotEmpty()) item {
+                    if (winds.isNotEmpty() && query.isBlank()) item {
                         VentsCrew(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
                     }
-                    val talked = winds.filter { chats[it.id].orEmpty().isNotEmpty() }
-                    if (rotllanes.isEmpty() && talked.isEmpty()) item { VentsEmpty(lang, true) }
-                    else item { SectionLabel(tr(lang, "app.vents.conversations")) }
-                    items(talked, key = { "wind:" + it.id }) { w ->
-                        ConversationRow(w.name, chats[w.id].orEmpty().lastOrNull()?.text.orEmpty(), Color(w.argb), w.faceStyle,
-                            busy = busy.contains(w.id), mood = if (busy.contains(w.id)) live[w.id]?.mood else if (news.contains(w.id)) WindMood.NEWS else null,
-                            onClick = { vm.openVentsChat("wind:" + w.id) },
-                            onLongClick = { rowTarget = RowTarget.Dm(w) }, lang = lang)
+                    val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
+                    if (rows.isEmpty()) item {
+                        if (query.isBlank()) VentsEmpty(lang, true)
+                        else Column(Modifier.fillMaxWidth().padding(32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(tr(lang, "app.vents.searchEmpty"), color = Ink, fontWeight = FontWeight.SemiBold)
+                            Text(tr(lang, "app.vents.searchEmptyHelp"), color = Muted, fontSize = 14.sp)
+                        }
                     }
-                    items(rotllanes, key = { "rot:" + it.id }) { r ->
-                        val faces = r.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
-                        ConversationRow(r.name, rChats[r.id].orEmpty().lastOrNull()?.text ?: faces.joinToString(" · ") { it.name },
-                            faces.firstOrNull()?.let { Color(it.argb) } ?: Sea,
-                            faces.firstOrNull()?.faceStyle ?: WindStyle(), faces = faces,
-                            busy = rBusy.contains(r.id), mood = if (rBusy.contains(r.id)) live[r.id]?.mood else null,
-                            onClick = { vm.openVentsChat("rot:" + r.id) },
-                            onLongClick = { rowTarget = RowTarget.Rot(r) }, lang = lang)
+                    items(rows, key = { it.key }) { entry ->
+                        val id = entry.key.substringAfter(':')
+                        val group = entry.key.startsWith("rot:")
+                        val thinking = if (group) id in rBusy else id in busy
+                        val unread = !group && id in news
+                        val face = entry.members.firstOrNull()
+                        ConversationRow(entry.title, entry.preview, face?.let { Color(it.argb) } ?: Sea,
+                            face?.faceStyle ?: WindStyle(), faces = if (group) entry.members else emptyList(),
+                            busy = thinking, mood = if (thinking) live[id]?.mood else if (unread) WindMood.NEWS else null,
+                            timestamp = entry.timestamp,
+                            onClick = { vm.openVentsChat(entry.key) },
+                            onLongClick = {
+                                if (group) rotllanes.firstOrNull { it.id == id }?.let { rowTarget = RowTarget.Rot(it) }
+                                else face?.let { rowTarget = RowTarget.Dm(it) }
+                            }, lang = lang)
                     }
                 }
             }
@@ -231,13 +251,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     rowTarget?.let { t ->
         ChatRowDialog(vm, lang, t) { rowTarget = null }
     }
-}
-
-/** Nom visible d'una colla; els vents propis, al final, a «Els teus vents». */
-internal fun squadName(lang: String, squad: String): String = when (squad) {
-    "daily", "data", "software" -> tr(lang, "app.vents.squad.$squad")
-    "" -> tr(lang, "app.vents.squad.personal")
-    else -> squad.replaceFirstChar { it.uppercase() }
 }
 
 /** L'estat d'un vent en paraules (mai només amb la insígnia); null si està en repòs. */
@@ -250,71 +263,38 @@ internal fun windStateLabel(lang: String, mood: WindMood, busy: Boolean): String
     else -> if (busy) tr(lang, "app.vents.gridThinking") else null
 }
 
-/**
- * La colla: cada colla (Dia a dia, Ciència de dades, Software…) en una
- * prestatgeria horitzontal de mascotes amb el seu estat. Els vents propis
- * van al final. Cap a dalt hi cap tota la colla d'un cop d'ull, i les
- * converses queden a tocar.
- */
+/** Una sola fila de mascotes: les converses sempre queden al primer viewport. */
 @Composable
 internal fun VentsCrew(
     lang: String, winds: List<Wind>, busy: Set<String>,
     live: Map<String, WindLive> = emptyMap(), news: Set<String> = emptySet(), onOpen: (Wind) -> Unit,
 ) {
-    val known = listOf("daily", "data", "software")
-    val groups = winds.groupBy { it.squad }
-    val order = known.filter { it in groups } + groups.keys.filter { it.isNotBlank() && it !in known } + listOf("").filter { it in groups }
-    Column {
-        for (squad in order) {
-            SectionLabel(squadName(lang, squad))
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(groups[squad].orEmpty(), key = { it.id }) { w ->
-                    CrewCard(lang, w, busy.contains(w.id), live[w.id], news.contains(w.id)) { onOpen(w) }
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().testTag("vents-strip"),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(winds, key = { it.id }) { w ->
+            val thinking = w.id in busy
+            val mood = when {
+                thinking -> live[w.id]?.mood ?: WindMood.THINKING
+                w.id in news -> WindMood.NEWS
+                else -> WindMood.IDLE
+            }
+            Column(
+                Modifier.width(88.dp).clip(RoundedCornerShape(18.dp))
+                    .clickable { onOpen(w) }.semantics { contentDescription = w.name }
+                    .padding(vertical = 4.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                WindHalo(Color(w.argb), w.faceStyle, size = 72, mood = mood, online = false)
+                Text(w.name, color = Ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                windStateLabel(lang, mood, thinking)?.let {
+                    Text(it, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
-    }
-}
-
-/** Una mascota de la colla: cara viva, nom i estat (o l'ofici, en repòs). */
-@Composable
-private fun CrewCard(lang: String, w: Wind, thinking: Boolean, live: WindLive?, hasNews: Boolean, onClick: () -> Unit) {
-    val mood = when {
-        thinking -> live?.mood ?: WindMood.THINKING
-        hasNews -> WindMood.NEWS
-        else -> WindMood.HAPPY
-    }
-    val state = windStateLabel(lang, mood, thinking)
-    val accent = Color(w.argb)
-    Column(
-        Modifier.width(104.dp).clip(RoundedCornerShape(18.dp))
-            // Fons tenyit amb el color propi del vent i ombra dura de 3 px a
-            // sota, com les targetes wind-desk de l'escriptori.
-            .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.13f), Superficie)))
-            .drawBehind {
-                drawRoundRect(
-                    color = accent.copy(alpha = 0.13f),
-                    topLeft = Offset(0f, size.height - 3.dp.toPx()),
-                    size = Size(size.width, 3.dp.toPx()),
-                    cornerRadius = CornerRadius(18.dp.toPx() / 2),
-                )
-            }
-            .clickable { onClick() }
-            .semantics { contentDescription = w.name }
-            .padding(horizontal = 4.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        WindHalo(accent = accent, style = w.faceStyle, size = 66, mood = mood, online = !thinking)
-        Text(
-            w.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1,
-            overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-        )
-        Text(
-            state ?: w.role.ifBlank { tr(lang, "app.vents.gridOnline") },
-            fontSize = 11.5.sp, lineHeight = 14.sp, color = if (state != null) Sea else Muted, fontWeight = if (state != null) FontWeight.SemiBold else FontWeight.Normal,
-            maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
-        )
     }
 }
 
@@ -333,13 +313,6 @@ private fun VentsEmpty(lang: String, conversations: Boolean) {
         Text(tr(lang, if (conversations) "app.vents.emptyBody" else "app.company.windEmptyBody"), color = Muted,
             fontSize = 14.sp, textAlign = TextAlign.Center)
     }
-}
-
-/** Capçalera de secció a la llista de converses. */
-@Composable
-private fun SectionHeader(text: String) {
-    Text(text, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Faint,
-        modifier = Modifier.fillMaxWidth().padding(start = 20.dp, top = 10.dp, bottom = 2.dp))
 }
 
 /** Colles predefinides: targeta que activa els especialistes que falten. */
@@ -561,10 +534,10 @@ private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, 
     }
 }
 
-/** Una conversa de la llista: targeta amb halo, nom i darrer missatge. */
+/** Fila de missatgeria, sense targeta: la mascota porta tot el color. */
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
-private fun ConversationRow(
+internal fun ConversationRow(
     title: String,
     subtitle: String,
     accent: Color,
@@ -572,55 +545,38 @@ private fun ConversationRow(
     busy: Boolean = false,
     mood: WindMood? = null,
     faces: List<Wind> = emptyList(),
+    timestamp: Long = 0L,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     lang: String = "ca",
 ) {
-    // Targeta neutra: el color el porta la cara (i la vora fina, el tema).
-    // shadowElevation 0: amb elevació el Surface hi pintava un fons opac.
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = Superficie,
-        border = androidx.compose.foundation.BorderStroke(1.dp, Line),
-        shadowElevation = 0.dp,
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(20.dp)).combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
+    val unread = mood == WindMood.NEWS
+    val state = if (unread) null else windStateLabel(lang, mood ?: WindMood.IDLE, busy)
+    val receipt = remember(timestamp, lang) {
+        if (timestamp > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(timestamp)) else ""
+    }
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 80.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Row(
-            Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            // Avatar amb halo; la rotllana apila la segona cara.
-            WindHalo(
-                accent = accent, style = style, size = 48,
-                stacked = faces.drop(1), online = !busy,
-                mood = mood ?: if (busy) WindMood.THINKING else WindMood.HAPPY,
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (busy) TypingDots(accent)
-                }
-                // Feina en marxa: l'estat en paraules. Una veu proactiva per obrir:
-                // el seu missatge, en negreta com un no llegit.
-                val unread = mood == WindMood.NEWS
-                val state = if (unread) null else windStateLabel(lang, mood ?: if (busy) WindMood.THINKING else WindMood.HAPPY, busy)
-                Text(
-                    state ?: subtitle,
-                    fontSize = 13.sp, color = if (state != null) Sea else if (unread) Ink else Muted,
-                    fontWeight = if (state != null || unread) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                )
+        WindHalo(accent, style, size = 48, stacked = faces.drop(1), online = false,
+            mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
+                    color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
-            if (faces.size > 1) {
-                Surface(shape = RoundedCornerShape(999.dp), color = SuperficieAlta) {
-                    Text("◍ ${faces.size}", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(state ?: subtitle, fontSize = 13.sp, color = if (unread) Ink else Muted,
+                    fontWeight = if (unread) FontWeight.Medium else FontWeight.Normal,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (busy) TypingDots(Sea)
+                else if (unread) Box(Modifier.size(7.dp).background(Sea, CircleShape))
             }
         }
     }
@@ -634,7 +590,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val live by vm.windLive.collectAsState()
     val msgs = chats[wind.id].orEmpty()
     val clipboard = LocalClipboardManager.current
-    var field by remember(wind.id) { mutableStateOf(TextFieldValue("")) }
+    var field by rememberSaveable(wind.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     val accent = Color(wind.argb)
     val winds by vm.winds.collectAsState()
     // Mencions @Nom: el desplegable segueix el cursor; en enviar,
@@ -690,41 +646,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
 
     val isBusy = busy.contains(wind.id)
     Box(Modifier.fillMaxSize().background(Superficie)) {
-        ChatAmbient(accent)
         Column(Modifier.fillMaxSize()) {
-        // Capçalera espectacular: degradat del vent + halo + estat viu.
-        Row(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.30f), accent.copy(alpha = 0.06f))))
-                .clickable { profile = true }.padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(shape = CircleShape, color = Superficie.copy(alpha = 0.85f), shadowElevation = 3.dp) {
-                IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
-            }
-            WindHalo(size = 52, accent = accent, style = wind.faceStyle,
-                mood = when {
-                    isBusy -> live[wind.id]?.mood ?: WindMood.THINKING
-                    msgs.any { it.streaming } -> WindMood.TALKING
-                    else -> WindMood.HAPPY
-                })
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(wind.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        if (isBusy) tr(lang, "app.company.windThinking", wind.name)
-                        else wind.role.ifBlank { tr(lang, "app.company.windHello", wind.name) },
-                        fontSize = 12.sp, color = Ink.copy(alpha = 0.6f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-                    )
-                    if (isBusy) TypingDots(accent)
-                }
-            }
-            IconButton(onClick = { profile = true }) {
-                Icon(Icons.Rounded.Info, tr(lang, "app.vents.profile"), tint = Ink, modifier = Modifier.size(20.dp))
-            }
-        }
+        VentsChatHeader(lang, wind.name,
+            if (isBusy) tr(lang, "app.company.windThinking", wind.name) else wind.role,
+            accent, wind.faceStyle,
+            if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
+            onBack = onBack, onProfile = { profile = true })
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -800,55 +727,18 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = field,
-                onValueChange = { field = it },
-                placeholder = { Text(tr(lang, "app.company.windChatHint", wind.name), fontSize = 14.sp) },
-                shape = RoundedCornerShape(26.dp),
-                modifier = Modifier.weight(1f),
-                maxLines = 3,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    autoCorrect = true,
-                    keyboardType = KeyboardType.Text,
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = accent, unfocusedBorderColor = accent.copy(alpha = 0.35f),
-                    focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
-                ),
-            )
-            Surface(
-                shape = CircleShape,
-                color = if (canSend) accent else SuperficieAlta,
-                shadowElevation = if (canSend) 8.dp else 0.dp,
-                modifier = Modifier.size(50.dp).clip(CircleShape)
-                    .clickable(enabled = canSend) {
-                        val body = field.text
-                        val target = resolveMention(body, winds)
-                        if (target != null && target.id != wind.id) {
-                            // Handoff: la feina viatja al xat de l'altre vent.
-                            if (busy.contains(target.id)) {
-                                vm.notify(tr(lang, "app.vents.handoffBusy", target.name))
-                            } else {
-                                vm.sendWindMessage(target.id, body)
-                                vm.notify(tr(lang, "app.vents.handoffSent", target.name))
-                                field = TextFieldValue("")
-                            }
-                        } else {
-                            vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
-                        }
-                    },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
-                        tint = if (canSend) Color.White else Muted,
-                        modifier = Modifier.size(22.dp))
+        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend) {
+            val body = field.text
+            val target = resolveMention(body, winds)
+            if (target != null && target.id != wind.id) {
+                if (busy.contains(target.id)) vm.notify(tr(lang, "app.vents.handoffBusy", target.name))
+                else {
+                    vm.sendWindMessage(target.id, body)
+                    vm.notify(tr(lang, "app.vents.handoffSent", target.name))
+                    field = TextFieldValue("")
                 }
+            } else {
+                vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
             }
         }
         }
@@ -864,7 +754,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val live by vm.windLive.collectAsState()
     val msgs = chats[rot.id].orEmpty()
     val clipboard = LocalClipboardManager.current
-    var field by remember(rot.id) { mutableStateOf(TextFieldValue("")) }
+    var field by rememberSaveable(rot.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
     var speakerProfile by remember(rot.id) { mutableStateOf<Wind?>(null) }
     val listState = rememberLazyListState()
@@ -917,46 +807,12 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
     Box(Modifier.fillMaxSize().background(Superficie)) {
-        ChatAmbient(rotAccent)
         Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(rotAccent.copy(alpha = 0.28f), Sea.copy(alpha = 0.10f))))
-                .clickable { groupProfile = true }.padding(horizontal = 8.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Surface(shape = CircleShape, color = Superficie.copy(alpha = 0.85f), shadowElevation = 3.dp) {
-                IconButton(onClick = onBack) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
-            }
-            WindHalo(
-                accent = rotAccent, style = faces.firstOrNull()?.faceStyle ?: WindStyle(),
-                size = 52, stacked = faces.drop(1),
-                mood = when {
-                    rotBusy -> live[rot.id]?.mood ?: WindMood.THINKING
-                    msgs.any { it.streaming } -> WindMood.TALKING
-                    else -> WindMood.HAPPY
-                },
-            )
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(rot.name, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Surface(shape = RoundedCornerShape(999.dp), color = rotAccent.copy(alpha = 0.22f)) {
-                        Text("◍ ${faces.size}", color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp))
-                    }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (rotBusy) TypingDots(rotAccent)
-                    else Text(
-                        faces.joinToString(", ") { it.name }, fontSize = 12.sp,
-                        color = Ink.copy(alpha = 0.6f), maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                }
-            }
-            IconButton(onClick = { groupProfile = true }) { Icon(Icons.Rounded.Info, tr(lang, "app.vents.members"), tint = Ink) }
-        }
+        VentsChatHeader(lang, rot.name,
+            if (rotBusy) tr(lang, "app.company.windThinking", rot.name) else faces.joinToString(", ") { it.name },
+            rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
+            if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
+            onBack = onBack, onProfile = { groupProfile = true })
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
@@ -999,7 +855,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 // (from només diu user/pet i l'historial antic no porta
                 // speakerId: la ratxa va pel parlant ja resolt.)
                 val firstOfRun = idx == 0 || runKeyOf(resolved) != runKeyOf(resolveWindMessage(msgs[idx - 1], faces))
-                val continuation = !firstOfRun && resolved.message.from != "user"
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (firstOfRun && idx > 0) 16.dp else 4.dp
                 Column(Modifier.padding(top = gap)) {
@@ -1008,7 +863,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
                     speakerName = if (firstOfRun) resolved.name.ifBlank { tr(lang, "app.vents.windSpeaker") } else "",
                     onSpeakerClick = { resolved.wind?.let { speakerProfile = it } },
-                    indent = if (continuation) 52.dp else 0.dp,
+                    indent = 0.dp,
                     onCopy = {
                         clipboard.setText(AnnotatedString(stripMdInline(resolved.message.text)))
                         scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
@@ -1044,46 +899,10 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 )
             }
         }
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = field,
-                onValueChange = { field = it },
-                placeholder = { Text(tr(lang, "app.company.rotllanaHint"), fontSize = 14.sp) },
-                shape = RoundedCornerShape(26.dp),
-                modifier = Modifier.weight(1f),
-                maxLines = 3,
-                keyboardOptions = KeyboardOptions(
-                    capitalization = KeyboardCapitalization.Sentences,
-                    autoCorrect = true,
-                    keyboardType = KeyboardType.Text,
-                ),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = rotAccent, unfocusedBorderColor = rotAccent.copy(alpha = 0.35f),
-                    focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
-                ),
-            )
-            Surface(
-                shape = CircleShape,
-                color = if (canSend) rotAccent else SuperficieAlta,
-                shadowElevation = if (canSend) 8.dp else 0.dp,
-                modifier = Modifier.size(50.dp).clip(CircleShape)
-                    .clickable(enabled = canSend) {
-                        val body = field.text
-                        // @Nom dirigeix el torn: només respon l'etiquetat.
-                        val target = resolveMention(body, faces)
-                        vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
-                    },
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Rounded.Send, tr(lang, "app.vents.send"),
-                        tint = if (canSend) Color.White else Muted,
-                        modifier = Modifier.size(22.dp))
-                }
-            }
+        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.rotllanaHint"), canSend) {
+            val body = field.text
+            val target = resolveMention(body, faces)
+            vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
         }
         }
     }
@@ -1240,12 +1059,9 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
     speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp,
     onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null) {
     val mine = m.from == "user"
-    // Lletra sobre el color del vent: blanca si el color és intens, tinta
-    // si és pàl·lid (com la bombolla rosa del dots amb text blanc).
-    val onAccent = remember(accent) {
-        val lum = 0.2126f * accent.red + 0.7152f * accent.green + 0.0722f * accent.blue
-        if (lum > 0.55f) Color(0xFF2B2118) else Color.White
-    }
+    val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
+    val ownBackground = Ink
+    val ownText = Superficie
     val receipt = remember(m.ts, lang) {
         if (m.ts > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
             .format(java.util.Date(m.ts)) else ""
@@ -1257,8 +1073,8 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                     topStart = 20.dp, topEnd = 20.dp,
                     bottomStart = 20.dp, bottomEnd = 6.dp,
                 ),
-                color = accent,
-                shadowElevation = 2.dp,
+                color = ownBackground,
+                shadowElevation = 0.dp,
                 // Prémer llarg copia el missatge en text pla (sense marques).
                 modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
@@ -1267,7 +1083,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 Text(
                     m.text,
                     fontSize = 15.sp,
-                    color = onAccent,
+                    color = ownText,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
@@ -1284,34 +1100,23 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
         Modifier.fillMaxWidth().padding(start = indent),
         horizontalArrangement = Arrangement.Start,
     ) {
-        // Cara del vent fora de la targeta: l'agent té cos.
-        if (speaker != null) {
-            Box(Modifier.padding(top = 14.dp, end = 8.dp).clip(CircleShape).clickable(enabled = onSpeakerClick != null, onClick = { onSpeakerClick?.invoke() })) {
-                WindHalo(accent = Color(speaker.argb), style = speaker.faceStyle, size = 44,
-                    mood = if (m.streaming) WindMood.TALKING else WindMood.HAPPY)
-            }
-        }
-        // Bombolla del vent: clara com la del dots (la blanca ressalta sobre
-        // el fons tenyit), cantonades grosses i ombra suau. La cua la marca
-        // la cantonada superior.
+        // La identitat del parlant queda dins la bombolla, sense avatar repetit ni etiqueta superposada.
         val bubbleShape = RoundedCornerShape(
-            topStart = 6.dp, topEnd = 20.dp,
+            topStart = 20.dp, topEnd = 20.dp,
             bottomStart = 20.dp, bottomEnd = 20.dp,
         )
-        // Pastilla amb el nom a cavall de la vora (com el «Jojo» del dots):
-        // marge de sobra perquè no tapi mai la primera línia.
-        Box(Modifier.padding(top = if (speakerName.isNotBlank()) 12.dp else 0.dp)) {
+        Box {
             Surface(
                 shape = bubbleShape,
-                color = Superficie,
-                shadowElevation = 2.dp,
+                color = SuperficieAlta.copy(alpha = .55f),
+                shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
                 modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
                 val uri = LocalUriHandler.current
-                val dark = isSystemInDarkTheme()
+                val dark = LocalPal.current == DarkPal
                 // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
                 // no es recalculi a cada recomposició (streaming, scroll, teclat).
                 // El parse viu a més en cau global: en tornar a la pantalla no se'n
@@ -1322,8 +1127,13 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
                 Column(
                     Modifier.padding(horizontal = 14.dp)
-                        .padding(top = if (speakerName.isNotBlank()) 14.dp else 10.dp, bottom = 10.dp),
+                        .padding(vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (displayName.isNotBlank()) {
+                        Text(displayName, color = link, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.then(if (onSpeakerClick != null) Modifier
+                                .heightIn(min = 32.dp).clickable(onClick = onSpeakerClick) else Modifier))
+                    }
                     // En directe el markdown parcial es trencaria: text pla net
                     // (sense marques crues) fins al done.
                     if (m.streaming) {
@@ -1365,21 +1175,13 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                     // El botó reprèn la resposta pel mateix fil, sense preguntar.
                     if (onContinue != null && m.parcial && !m.streaming) {
                         TextButton(onClick = onContinue, contentPadding = PaddingValues(0.dp)) {
-                            Text(tr(lang, "app.vents.continue"), color = accent,
+                            Text(tr(lang, "app.vents.continue"), color = link,
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
-            if (speakerName.isNotBlank()) {
-                Surface(shape = RoundedCornerShape(999.dp), color = accent,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier.align(Alignment.TopStart).offset(x = 12.dp, y = (-11).dp)
-                        .then(if (speaker != null && onSpeakerClick != null) Modifier.clickable(onClick = onSpeakerClick) else Modifier)) {
-                    Text(speakerName, color = onAccent, fontSize = 12.sp, fontWeight = FontWeight.ExtraBold,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
-                }
-            }
+
         }
     }
 }

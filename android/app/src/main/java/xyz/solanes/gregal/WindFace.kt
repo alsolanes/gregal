@@ -18,16 +18,20 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kotlin.math.PI
-import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sin
+
+/** WCAG contrast ratio between two colors (1..21), pure math for unit tests. */
+internal fun contrastWith(a: Color, b: Color): Double {
+    fun channel(v: Float): Double = if (v <= 0.03928) (v / 12.92).toDouble() else Math.pow(((v + 0.055f) / 1.055f).toDouble(), 2.4)
+    fun lum(c: Color): Double = 0.2126 * channel(c.red) + 0.7152 * channel(c.green) + 0.0722 * channel(c.blue)
+    val (l1, l2) = listOf(lum(a), lum(b)).sortedDescending()
+    return (l1 + 0.05) / (l2 + 0.05)
+}
 
 /**
  * WindFace — la cara viva d'un vent de Gregal: una bola del color triat que
@@ -77,6 +81,14 @@ fun windMoodOf(phase: String? = null, writing: Boolean = false, voices: Int = 1,
 /** Decorative motion can be disabled for accessibility and deterministic UI tests. */
 val LocalWindMotion = compositionLocalOf { true }
 
+/** A single motion gate for faces and shared indicators, including Android reduce-motion. */
+@Composable
+internal fun windMotionEnabled(): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return LocalWindMotion.current && android.provider.Settings.Global.getFloat(
+        context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+}
+
 /**
  * WindStyle — les peces triables de la cara:
  *  - eyes: punts, badalls (ovals grossos), estrellats, mig tancats
@@ -112,9 +124,7 @@ fun WindFace(
     style: WindStyle = WindStyle(),
     tappable: Boolean = false,
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val motion = LocalWindMotion.current && android.provider.Settings.Global.getFloat(
-        context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) > 0f
+    val motion = windMotionEnabled()
     // Petó en prémer: la cara s'aixafa, torna amb molla i somriu amb els ulls.
     var punch by remember { mutableIntStateOf(0) }
     val punchScale = remember { Animatable(1f) }
@@ -140,33 +150,21 @@ fun WindFace(
     val t = if (motion) (loop + seed) % 12f else 0f
     fun wave(period: Float) = sin(2f * PI.toFloat() * (t % period) / period)
     fun phase(period: Float) = t % period / period
-    // Ritme: quiets per defecte; només un balanceig suau quan estan
-    // contents o parlen. Res de bots continus.
-    val bounce = when (mood) {
-        WindMood.HAPPY -> wave(2.4f) * 0.016f
-        WindMood.TALKING -> wave(2f) * 0.014f
-        else -> 0f
-    }
+    // No ambient bouncing, even on the happy creator/profile preview.
     val tilt = if (mood == WindMood.THINKING) wave(6f) else 0f
     // Boca que s'obre i tanca en parlar (unes 2,5 síl·labes per segon).
     val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
-    // Espurnes de felicitat + zetes de son.
+    // A hint of delight only while happy or talking.
     val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(2f) + 1f) / 2f else 0f
-    val sleepy = if (motion && style.eyes == WindEyes.SLEEPY) phase(2.4f) else -1f
-    val measurer = rememberTextMeasurer()
     // Parpelleig curt cada 6 s; contents, de tant en tant fan els ulls feliços.
     val blinking = motion && phase(6f) in .955f..0.975f
     val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
-    val gaze = wave(6f)
     // Enllestit: un sol salt i la insígnia que apareix, cada cop que hi arriba.
     val doneHop = remember { Animatable(1f) }
     LaunchedEffect(mood, motion) {
         if (mood == WindMood.DONE && motion) { doneHop.snapTo(0f); doneHop.animateTo(1f, tween(800)) } else doneHop.snapTo(1f)
     }
     val lift = when (mood) {
-        WindMood.WORKING -> -abs(wave(1.5f)) * 2.5f
-        WindMood.WRITING -> -(wave(1.2f) + 1f) * .75f
-        WindMood.NEWS -> -hello(phase(4f)) * 3f
         WindMood.DONE -> -sin(PI.toFloat() * doneHop.value) * 7f
         else -> 0f
     } / 80f
@@ -181,45 +179,29 @@ fun WindFace(
         }
         WindMood.WRITING -> 0f to 1f
         WindMood.DISCUSSING -> wave(3f) to 0f
-        else -> gaze to 0f
+        else -> 0f to 0f
     }
-    // Feina amb les mans: els peus fan passets alterns mentre treballa o escriu.
-    val steps = if (mood == WindMood.WORKING || mood == WindMood.WRITING) wave(.75f) else 0f
-    // Galtes una mica més vermelles quan està content, té una novetat o ha acabat.
-    val blush = .31f + (if (mood == WindMood.HAPPY || mood == WindMood.DONE || mood == WindMood.NEWS) (wave(4f) + 1f) * .05f else 0f) + cheer.value * .2f
-    // Respiració de repòs: molt suau, des dels peus. És vida, no feina.
+    // Rest is nearly still: breathing and an occasional blink, not a wandering gaze.
     val breath = wave(4f)
-    val kit = windKits[style.kit]
-    val bobFrac = bounce
-    // L'aixafada només és pel petó en prémer, no contínua.
-    val squashX = 1f
-    val squashY = 1f
+    // The stored specialty stays intact; small avatars show only their identity.
+    val kit = if (size >= 80) windKits[style.kit] else null
     Box(Modifier.graphicsLayer {
         transformOrigin = TransformOrigin(0.5f, 1f)
-        translationY = (bobFrac + lift) * size.dp.toPx()
-        scaleX = squashX * punchScale.value * (1f - breath * 0.005f)
-        scaleY = squashY * punchScale.value * (1f + breath * 0.012f)
+        translationY = lift * size.dp.toPx()
+        scaleX = punchScale.value * (1f - breath * 0.002f)
+        scaleY = punchScale.value * (1f + breath * 0.004f)
         rotationZ = tilt * 5f + moodTilt
     }.then(if (tappable) Modifier.clickable { punch++ } else Modifier)) {
     Canvas(Modifier.size(size.dp)) {
-        val breathe = 1f + bounce * 0.5f
         val w = this.size.width
         val h = this.size.height
         val cx = w / 2f
-        // Mascots stand a little higher to leave room for their feet.
-        val cy = if (kit != null) h * 39f / 80f else h / 2f
-        val r = min(w, h) * 0.37f * breathe
-        val ink = Color(0xFF463C46)
+        // Keep the same silhouette/face placement with or without a specialty.
+        val cy = h / 2f
+        val r = min(w, h) * 0.37f
+        val ink = if (contrastWith(accent, Color(0xFF202127)) >= contrastWith(accent, Color.White)) Color(0xFF202127) else Color.White
         val unit = min(w, h) / 80f
 
-        // Keep the complete silhouette inside the canvas, including a breathing cloud.
-        if (kit != null) {
-            drawOval(ink.copy(alpha = .06f), Offset(cx - r * .82f, h * 73.5f / 80f), Size(r * 1.64f, r * .16f))
-            for ((i, fx) in listOf(30f, 50f).withIndex()) {
-                val up = (if (i == 0) steps else -steps).coerceAtLeast(0f) * 2.4f
-                drawOval(accent.darker(.2f), Offset((fx - 6.5f) * unit, (67.4f - up) * unit), Size(13f * unit, 7.2f * unit))
-            }
-        } else drawOval(ink.copy(alpha = .06f), Offset(cx - r * .82f, cy + r * .88f), Size(r * 1.64f, r * .22f))
         when (style.shape) {
             WindShape.CLOUD -> {
                 drawRoundRect(accent, Offset(cx - r * 1.19f, cy - r * .30f), Size(r * 2.38f, r * 1.27f),
@@ -229,119 +211,73 @@ fun WindFace(
                 drawCircle(accent, r * .60f, Offset(cx + r * .66f, cy + r * .04f))
             }
             WindShape.SPIRAL -> {
-                drawCircle(accent, r, Offset(cx, cy))
-                drawArc(ink.copy(alpha = .14f), 210f, 230f, false,
-                    Offset(cx - r * .93f, cy - r * 1.02f), Size(r * 1.18f, r * .84f),
-                    style = Stroke(r * .055f, cap = StrokeCap.Round))
-                drawCircle(accent, r * .32f, Offset(cx - r * .30f, cy - r * .80f))
+                // A curled gust with an open notch: recognizable from its outline,
+                // not a circle with a faint spiral etched onto the forehead.
+                val curl = Path().apply {
+                    moveTo(-.95f, -.16f)
+                    cubicTo(-1.10f, -.91f, -.14f, -1.27f, .43f, -.96f)
+                    cubicTo(.93f, -.68f, .66f, -.20f, .19f, -.33f)
+                    cubicTo(.55f, -.38f, .51f, -.73f, .17f, -.73f)
+                    cubicTo(-.23f, -.73f, -.32f, -.43f, -.14f, -.23f)
+                    cubicTo(.05f, -.09f, .53f, -.25f, .82f, .04f)
+                    cubicTo(1.23f, .45f, .73f, 1.03f, .02f, 1.03f)
+                    cubicTo(-.68f, 1.03f, -1.11f, .48f, -.95f, -.16f)
+                    close()
+                }
+                withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) { drawPath(curl, accent) }
             }
             WindShape.BALL -> drawCircle(accent, r, Offset(cx, cy))
         }
-        drawOval(Color.White.copy(alpha = .25f), Offset(cx - r * .57f, cy - r * .78f), Size(r * .47f, r * .22f))
-        // Blush is warm and subtle, not a second outline around the face.
-        for (side in listOf(-1f, 1f)) {
-            drawOval(Color(0xFFD8747E).copy(alpha = blush.coerceAtMost(1f)), Offset(cx + side * r * .61f - r * .17f, cy + r * .20f), Size(r * .34f, r * .18f))
-        }
-
-        // L'eina de l'ofici: al cap (escalat amb la cara, com al web) i a les mans.
+        // A single small tool on large profiles, never a costume over the eyes.
         fun accessories() {
             if (kit == null) return
-            withTransform({ scale(unit, unit, Offset.Zero); translate(4f, 3f); scale(.9f, .9f, Offset.Zero) }) { drawKit(kit.head) }
-            withTransform({ scale(unit, unit, Offset.Zero); if (mood == WindMood.WORKING) rotate(wave(1.5f) * 5f, Offset(60f, 62f)) }) {
-                drawKit(kit.prop)
-                for (hand in kit.hands) {
-                    drawOval(accent, Offset(hand.x - 4.6f, hand.y - 4f), Size(9.2f, 8f))
-                    drawOval(accent.darker(.35f), Offset(hand.x - 4.6f, hand.y - 4f), Size(9.2f, 8f), style = Stroke(1.4f))
-                }
-            }
+            val shapes = kit.prop.ifEmpty { kit.head }
+            withTransform({
+                scale(unit, unit, Offset.Zero)
+                translate(38f, 43f)
+                scale(.43f, .43f, Offset.Zero)
+            }) { drawKit(shapes) }
         }
 
         val eyeY = cy - r * 0.05f + look.second * r * 0.07f
-        val eyeDx = r * 0.38f
-        val eyeW = r * 0.12f
+        val eyeDx = r * 0.29f
+        val eyeW = r * 0.135f
         val gazeShift = look.first * r * 0.07f
 
-        // Ulls: segons l'estil; HAPPY i DONE tanquen (arc feliç), i el parpelleig també.
+        // Two bold eye marks; no pupils, reflections, cheeks or glossy shading.
         if (mood == WindMood.DONE || blinking || squint || cheer.value > .15f) {
             for (side in listOf(-1f, 1f)) {
-                drawArc(
-                    color = ink,
-                    startAngle = 190f,
-                    sweepAngle = 160f,
-                    useCenter = false,
-                    topLeft = Offset(cx + side * eyeDx - eyeW, eyeY - eyeW),
-                    size = Size(eyeW * 2, eyeW * 2),
-                    style = Stroke(width = r * 0.05f, cap = StrokeCap.Round),
-                )
+                drawArc(ink, 190f, 160f, false,
+                    Offset(cx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
+                    Size(eyeW * 2f, eyeW * 1.1f),
+                    style = Stroke(r * .085f, cap = StrokeCap.Round))
             }
-        } else {
-            for (side in listOf(-1f, 1f)) {
-                val ex = cx + side * eyeDx + gazeShift
-                when (style.eyes) {
-                    WindEyes.DOTS -> {
-                        drawOval(
-                            color = ink,
-                            topLeft = Offset(ex - eyeW, eyeY - eyeW * 1.2f),
-                            size = Size(eyeW * 2, eyeW * 2.4f),
-                        )
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.85f), radius = eyeW * 0.32f,
-                            center = Offset(ex + eyeW * 0.35f, eyeY - eyeW * 0.35f),
-                        )
-                    }
-                    WindEyes.WIDE -> {
-                        // Badalls grossos: blanc darrere, nineta gran.
-                        drawOval(
-                            color = Color.White.copy(alpha = 0.92f),
-                            topLeft = Offset(ex - eyeW * 1.25f, eyeY - eyeW * 1.45f),
-                            size = Size(eyeW * 2.5f, eyeW * 2.9f),
-                        )
-                        drawCircle(color = ink, radius = eyeW * 0.85f, center = Offset(ex, eyeY))
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.9f), radius = eyeW * 0.28f,
-                            center = Offset(ex + eyeW * 0.30f, eyeY - eyeW * 0.30f),
-                        )
-                    }
-                    WindEyes.STARRY -> {
-                        // Estrella de quatre puntes: dues rombes creuades.
-                        fun star(cxS: Float, cyS: Float, rad: Float) {
-                            val pts = listOf(
-                                Offset(cxS, cyS - rad),
-                                Offset(cxS + rad * 0.28f, cyS - rad * 0.28f),
-                                Offset(cxS + rad, cyS),
-                                Offset(cxS + rad * 0.28f, cyS + rad * 0.28f),
-                                Offset(cxS, cyS + rad),
-                                Offset(cxS - rad * 0.28f, cyS + rad * 0.28f),
-                                Offset(cxS - rad, cyS),
-                                Offset(cxS - rad * 0.28f, cyS - rad * 0.28f),
-                            )
-                            for (i in 0 until pts.size) {
-                                drawLine(
-                                    color = ink,
-                                    start = pts[i],
-                                    end = pts[(i + 1) % pts.size],
-                                    strokeWidth = r * 0.028f,
-                                    cap = StrokeCap.Round,
-                                )
-                            }
-                        }
-                        star(ex, eyeY, eyeW * 1.5f)
-                        drawCircle(color = Color.White.copy(alpha = 0.8f), radius = eyeW * 0.22f, center = Offset(ex, eyeY))
-                    }
-                    WindEyes.SLEEPY -> {
-                        // Mig tancats: tapa superior + escletxa.
-                        drawOval(
-                            color = ink,
-                            topLeft = Offset(ex - eyeW, eyeY - eyeW * 0.4f),
-                            size = Size(eyeW * 2, eyeW * 1.5f),
-                        )
-                        drawOval(
-                            color = accent,
-                            topLeft = Offset(ex - eyeW * 1.2f, eyeY - eyeW * 1.6f),
-                            size = Size(eyeW * 2.4f, eyeW * 1.5f),
-                        )
-                    }
+        } else for (side in listOf(-1f, 1f)) {
+            val ex = cx + side * eyeDx + gazeShift
+            when (style.eyes) {
+                WindEyes.DOTS, WindEyes.WIDE -> {
+                    val wide = if (style.eyes == WindEyes.WIDE) 1.3f else 1f
+                    drawRoundRect(ink, Offset(ex - eyeW * wide, eyeY - r * .27f),
+                        Size(eyeW * 2f * wide, r * .54f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(eyeW * wide))
                 }
+                WindEyes.STARRY -> {
+                    val rad = r * .23f
+                    val star = Path().apply {
+                        moveTo(ex, eyeY - rad)
+                        lineTo(ex + rad * .3f, eyeY - rad * .3f)
+                        lineTo(ex + rad, eyeY)
+                        lineTo(ex + rad * .3f, eyeY + rad * .3f)
+                        lineTo(ex, eyeY + rad)
+                        lineTo(ex - rad * .3f, eyeY + rad * .3f)
+                        lineTo(ex - rad, eyeY)
+                        lineTo(ex - rad * .3f, eyeY - rad * .3f)
+                        close()
+                    }
+                    drawPath(star, ink)
+                }
+                WindEyes.SLEEPY -> drawLine(ink, Offset(ex - eyeW, eyeY),
+                    Offset(ex + eyeW, eyeY), r * .09f, StrokeCap.Round)
             }
         }
 
@@ -421,23 +357,10 @@ fun WindFace(
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        // Zetes quan té son (ulls mig tancats), mai mentre treballa o avisa.
-        if (sleepy >= 0f && (mood == WindMood.IDLE || mood == WindMood.HAPPY)) {
-            for (k in 0 until 2) {
-                val pz = (sleepy + k * 0.5f) % 1f
-                drawText(
-                    measurer, "z",
-                    topLeft = Offset(cx + r * (0.55f + k * 0.22f), cy - r * (0.95f + pz * 0.55f)),
-                    style = TextStyle(fontSize = (10 + pz * 9).sp, color = ink.copy(alpha = (1f - pz) * 0.75f)),
-                )
-            }
-        }
         withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop.value) }
     }
     }
 }
-
-private fun Color.darker(amount: Float) = Color(red * (1f - amount), green * (1f - amount), blue * (1f - amount), alpha)
 
 // --- Mascotes: l'eina de l'ofici de cada especialista de colla --------------
 // Les mateixes formes que `kits` a internal/web/app/winds.js, amb la mateixa
