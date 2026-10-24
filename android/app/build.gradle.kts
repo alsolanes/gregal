@@ -27,9 +27,9 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 103 else 44
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 104 else 44
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.17.0-vents" else "0.11.2"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.17.1-vents" else "0.11.2"
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
