@@ -494,7 +494,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
         }
     }
 
@@ -640,7 +640,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         val hist = (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
         }
         return Triple(reply.optString("wind"), reply.optString("text"),
             if (o.optBoolean("parcial", false)) markParcial(hist) else hist)
@@ -651,7 +651,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
         }
     }
 
@@ -735,7 +735,7 @@ class GregalApi(val base: String, val token: String) {
                 val a = o.optJSONArray("history") ?: JSONArray()
                 val hist = (0 until a.length()).mapNotNull { i ->
                     val item = a.optJSONObject(i) ?: return@mapNotNull null
-                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
                 }
                 val parcial = o.optBoolean("parcial", false)
                 WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
@@ -790,7 +790,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
         }
     }
 

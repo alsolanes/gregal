@@ -32,6 +32,7 @@ func getNovetats(t *testing.T, s *Server, desDe int64) []windNovetat {
 
 // TestNovetatsRegistreFiltre: el que parla sol queda apuntat i des_de filtra.
 func TestNovetatsRegistreFiltre(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := remindTestServer(t)
 	w := companion.Wind{ID: "xaloc", Name: "Xaloc"}
 	recordNovetat(s, w, "remind", "primera")
@@ -54,6 +55,7 @@ func TestNovetatsRegistreFiltre(t *testing.T) {
 
 // TestNovetatsTallen: el registre no creix sense fre (màxim 100).
 func TestNovetatsTallen(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := remindTestServer(t)
 	w := companion.Wind{ID: "xaloc", Name: "Xaloc"}
 	for i := 0; i < maxNovetats+20; i++ {

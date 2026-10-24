@@ -254,6 +254,14 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	}
 	_ = s.jobs.AddRun(run)
 	_ = s.jobs.MarkRun(job.ID, end, run.Status)
+	// La feina d'un vent li pertany al seu xat: si ha produït text, hi
+	// entra com si hagués parlat ell i queda apuntada com a novetat per
+	//què el mòbil pugui avisar encara que l'app sigui tancada.
+	if job.Wind != "" && run.Status == "ok" && strings.TrimSpace(out) != "" {
+		if w, ok := s.winds.ByID(job.Wind); ok {
+			postWindMessage(s, w, "job", strings.TrimSpace(out))
+		}
+	}
 	return run, runErr
 }
 

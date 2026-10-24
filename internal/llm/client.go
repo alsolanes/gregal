@@ -30,6 +30,12 @@ type Message struct {
 	// Speaker metadata belongs to durable companion history, not provider wire.
 	SpeakerID   string `json:"speaker_id,omitempty"`
 	SpeakerName string `json:"speaker_name,omitempty"`
+	// Ts és el moment (segons Unix) en què el missatge ha entrat a la
+	// conversa: l'hora de la bombolla i el rellotge de la safata. Els
+	// missatges antics no el porten (0 = desconegut). Forma part de la
+	// història durable del company, no del cable cap al provider: a
+	// marshalMessage amb sanitize es treu igual que els parlants.
+	Ts int64 `json:"ts,omitempty"`
 	// ReasoningContent és el raonament que el proveïdor ha tornat amb
 	// aquesta crida d'eina (reasoning_content). Els models de raonament que
 	// criden eines l'exigeixen de tornada dins de la mateixa cadena de
@@ -56,6 +62,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 	w := wire(m)
 	if sanitize {
 		w.SpeakerID, w.SpeakerName = "", ""
+		w.Ts = 0
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
 	} else {
 		// El raonament és d'aquesta cadena de crides: no es desa a les
@@ -80,10 +87,14 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 		Content    any        `json:"content"`
 		ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
 		ToolCallID string     `json:"tool_call_id,omitempty"`
+		Ts         int64      `json:"ts,omitempty"`
 	}
 	iw := imgWire{
 		Role: m.Role, Content: parts,
-		ToolCalls: m.ToolCalls, ToolCallID: m.ToolCallID,
+		ToolCalls: m.ToolCalls, ToolCallID: m.ToolCallID, Ts: m.Ts,
+	}
+	if sanitize {
+		iw.Ts = 0
 	}
 	if sanitize {
 		iw.ToolCalls = safeToolCalls(m.ToolCalls)

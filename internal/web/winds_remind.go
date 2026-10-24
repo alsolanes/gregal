@@ -197,7 +197,7 @@ func (s *Server) registerRemindTool() {
 func postWindMessage(s *Server, w companion.Wind, source, text string) {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: text})
+	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()})
 	history := append([]llm.Message(nil), hist.messages...)
 	hist.mu.Unlock()
 	_ = saveWindHistory(s, w, history)

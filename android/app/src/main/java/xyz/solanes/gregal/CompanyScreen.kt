@@ -1077,9 +1077,12 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
     val ownBackground = Ink
     val ownText = Superficie
-    val receipt = remember(m.ts, lang) {
-        if (m.ts > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-            .format(java.util.Date(m.ts)) else ""
+    // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
+    // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
+    val tsMillis = remember(m.ts) { if (m.ts > 10_000_000_000L) m.ts else m.ts * 1000L }
+    val receipt = remember(tsMillis, lang) {
+        if (tsMillis > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(tsMillis)) else ""
     }
     if (mine) {
         Column(Modifier.fillMaxWidth().padding(start = indent), horizontalAlignment = Alignment.End) {
@@ -1198,6 +1201,14 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                             Text(tr(lang, "app.vents.continue"), color = link,
                                 fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+                    // Hora de la bombolla: tot missatge durador en porta una;
+                    // els antics (ts=0) i els que estan en directe, no.
+                    if (tsMillis > 0L && !m.streaming) {
+                        Text(receipt, fontSize = 10.sp,
+                            color = Tinta.copy(alpha = 0.55f),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
                     }
                 }
             }

@@ -56,14 +56,18 @@ func savePetHistory(s *Server, pet companion.Pet, history []llm.Message) error {
 	return err
 }
 
-func petHistoryJSON(history []llm.Message) []map[string]string {
-	out := make([]map[string]string, 0, len(history))
+func petHistoryJSON(history []llm.Message) []map[string]any {
+	out := make([]map[string]any, 0, len(history))
 	for _, m := range history {
 		from := "pet"
 		if m.Role == "user" {
 			from = "user"
 		}
-		out = append(out, map[string]string{"from": from, "text": m.Content})
+		row := map[string]any{"from": from, "text": m.Content}
+		if m.Ts > 0 {
+			row["ts"] = m.Ts
+		}
+		out = append(out, row)
 	}
 	return out
 }

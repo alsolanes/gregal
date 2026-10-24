@@ -32,9 +32,14 @@ func windJobID(jobID string) (string, bool) {
 func WindJobID(windID string) string { return windJobPrefix + windID }
 
 // windHeartbeatSystem compon la consigna del cor: persona + tema a vigilar.
-func windHeartbeatSystem(w companion.Wind, memory string) string {
+func windHeartbeatSystem(w companion.Wind, memory, userName string) string {
 	var b strings.Builder
 	b.WriteString(w.Persona)
+	if n := strings.TrimSpace(userName); n != "" {
+		b.WriteString("\n\nWHO YOU TALK TO:\nThis message goes to one person: " + n + ". Use their name only when it helps, and never anyone else's.")
+	} else {
+		b.WriteString("\n\nWHO YOU TALK TO:\nThis message goes to one person whose name you do NOT know. If a name would help, ask them; NEVER invent a name and NEVER borrow another wind's name.")
+	}
 	b.WriteString("\n\nYOU ARE ON WATCH. Your job (" + w.Role + ") is to check your topic with web_search and web_fetch. Rules:\n- Search the web for news about your topic. Prefer recent sources (last 24-48h).\n- Speak ONLY if you find something genuinely worth telling the user: real news, a release, a price drop, something actionable for them.\n- If nothing deserves their attention, reply with exactly: (res)\n- Never invent news. Cite source URLs inline like [title](url).\n- Reply in the user's language (Catalan if unsure). 1-4 sentences, no preamble.\n- ALWAYS end your reply with a NEXT line: when you should look again. Find the next scheduled event of your topic (match, release, sale…) and set NEXT 30 minutes after it ends; if you cannot find one, 24 hours from now. Format the line exactly as: NEXT: 2026-10-21T19:30:00Z (RFC 3339, UTC).")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
@@ -90,7 +95,7 @@ func windStripNext(reply string) string {
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
 func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued runs.Run, w companion.Wind) (jobs.Run, error) {
 	start := time.Now()
-	brief := windHeartbeatSystem(w, s.personalMemory()) + windRemindBrief(w.ID)
+	brief := windHeartbeatSystem(w, s.personalMemory(), s.usuari()) + windRemindBrief(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID))
 	brief += "\n\nTopic to watch: " + w.Role
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())

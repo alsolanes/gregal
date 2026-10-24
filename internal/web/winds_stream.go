@@ -56,13 +56,13 @@ func streamPhase(names string) string {
 
 // windChatBrief munta la consigna del xat directe (compartida pel clàssic i l'stream).
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
-	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest())
+	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.usuari())
 	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
-	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
+	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.usuari()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
 	transcript := agent.TranscriptDigest(conversation, 16000)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts." + windRemindBrief(speakingWind.ID)
 	return system, brief
@@ -144,9 +144,9 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
-		history = append(history, llm.Message{Role: "user", Content: msg})
+		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
-	history = append(history, llm.Message{Role: "assistant", Content: reply})
+	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	if err := saveWindHistory(s, wind, history); err != nil {
 		emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 		return
@@ -201,7 +201,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	}
 	conversation := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
-		conversation = append(conversation, llm.Message{Role: "user", Content: msg})
+		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -291,12 +291,12 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		reply := stripQuoteTrim(out)
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
 		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
 			continue
 		}
 		for _, v := range voices {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{v.wind, v.text})
 		}
 	}

@@ -250,9 +250,9 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	}
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
-		history = append(history, llm.Message{Role: "user", Content: msg})
+		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
-	history = append(history, llm.Message{Role: "assistant", Content: reply})
+	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	if err := saveWindHistory(s, wind, history); err != nil {
 		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 		return

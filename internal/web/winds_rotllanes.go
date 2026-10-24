@@ -419,7 +419,7 @@ func memberByPrefix(members []companion.Wind, name string) (companion.Wind, bool
 
 // Keep from/text byte-compatible. New replies persist identity independently
 // of their display name; old chats resolve a unique name prefix when possible.
-func (s *Server) rotllanaHistoryJSON(messages []llm.Message) []map[string]string {
+func (s *Server) rotllanaHistoryJSON(messages []llm.Message) []map[string]any {
 	out := petHistoryJSON(messages)
 	winds, _ := s.winds.List()
 	for i, m := range messages {

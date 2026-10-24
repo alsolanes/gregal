@@ -2401,7 +2401,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     val speaker = _winds.value.firstOrNull { it.id == wind }
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist.ifEmpty {
-                        sentHistory + PetMsg("pet", text, wind, speaker?.name.orEmpty())
+                        sentHistory + PetMsg("pet", text, wind, speaker?.name.orEmpty(), ts = System.currentTimeMillis())
                     }, System.currentTimeMillis(), sentHistory))
                 }
                 // El torn pot haver programat avisos (remind): posa al dia
@@ -2733,7 +2733,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val speaker = _winds.value.firstOrNull { it.id == speakerId }
         val cur = _rotllanaChat.value[rotllanaId].orEmpty().filterNot { it.streaming }
         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to
-            (cur + PetMsg("pet", buf, speakerId, speaker?.name.orEmpty())))
+            (cur + PetMsg("pet", buf, speakerId, speaker?.name.orEmpty(), ts = System.currentTimeMillis())))
     }
 
     private fun dropStreamingBubble(windId: String, rotllana: Boolean = false) {
@@ -2793,7 +2793,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (isCompanionOrigin(source, epoch)) {
                         dropStreamingBubble(windId)
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
-                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial), System.currentTimeMillis()))
+                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
@@ -2803,7 +2803,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
                     if (isCompanionOrigin(source, epoch)) {
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
-                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial), System.currentTimeMillis()))
+                            _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }

@@ -96,7 +96,7 @@ func historySeam(t *testing.T, call func(string) (string, error)) {
 func assertHistory(t *testing.T, out *httptest.ResponseRecorder, turns int) {
 	t.Helper()
 	var got struct {
-		History []map[string]string `json:"history"`
+		History []map[string]any `json:"history"`
 	}
 	if out.Code != 200 {
 		t.Fatalf("history HTTP %d: %s", out.Code, out.Body.String())
