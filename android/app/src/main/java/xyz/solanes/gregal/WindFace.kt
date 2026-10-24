@@ -229,14 +229,22 @@ fun WindFace(
             WindShape.BALL -> drawCircle(accent, r, Offset(cx, cy))
         }
         // A single small tool on large profiles, never a costume over the eyes.
+        // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
+        // coordenades de la cara sencera, cenyint a les seves vores. El 'prop'
+        // es porta davant, petit i a la dreta.
         fun accessories() {
             if (kit == null) return
-            val shapes = kit.prop.ifEmpty { kit.head }
-            withTransform({
-                scale(unit, unit, Offset.Zero)
-                translate(38f, 43f)
-                scale(.43f, .43f, Offset.Zero)
-            }) { drawKit(shapes) }
+            if (kit.head.isNotEmpty()) {
+                withTransform({ scale(unit, unit, Offset.Zero) }) { drawKit(kit.head) }
+            }
+            if (kit.prop.isNotEmpty() || kit.head.isEmpty()) {
+                val shapes = kit.prop.ifEmpty { kit.head }
+                withTransform({
+                    scale(unit, unit, Offset.Zero)
+                    translate(38f, 43f)
+                    scale(.43f, .43f, Offset.Zero)
+                }) { drawKit(shapes) }
+            }
         }
 
         val eyeY = cy - r * 0.05f + look.second * r * 0.07f
