@@ -178,8 +178,9 @@ internal fun WindEditor(
                                 .selectable(selected = color == c, enabled = controlsEnabled, role = Role.RadioButton, onClick = { color = c })
                                 .semantics { contentDescription = tr(lang, "app.vents.colorChoice", (row * 4 + index + 1).toString()) },
                                 contentAlignment = Alignment.Center) {
+                                // Vora fina sempre: un color fosc no desapareix sobre el fons fosc.
                                 Box(Modifier.size(34.dp).background(Color(Wind("", "", c, "").argb), CircleShape)
-                                    .then(if (color == c) Modifier.border(2.dp, Ink, CircleShape) else Modifier))
+                                    .border(if (color == c) 2.dp else 1.dp, if (color == c) Ink else LineHi, CircleShape))
                             }
                         }
                     }

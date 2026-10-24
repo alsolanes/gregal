@@ -271,8 +271,10 @@ internal fun VentsCrew(
 ) {
     LazyRow(
         modifier = Modifier.fillMaxWidth().testTag("vents-strip"),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // Columnes de 78 dp: la cinquena mascota treu mitja cara pel marge i
+        // convida a lliscar (abans només en sobresortia un tros d'etiqueta).
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         items(winds, key = { it.id }) { w ->
             val thinking = w.id in busy
@@ -282,13 +284,13 @@ internal fun VentsCrew(
                 else -> WindMood.IDLE
             }
             Column(
-                Modifier.width(88.dp).clip(RoundedCornerShape(18.dp))
+                Modifier.width(78.dp).clip(RoundedCornerShape(18.dp))
                     .clickable { onOpen(w) }.semantics { contentDescription = w.name }
                     .padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                WindHalo(Color(w.argb), w.faceStyle, size = 72, mood = mood, online = false)
+                WindHalo(Color(w.argb), w.faceStyle, size = 64, mood = mood, online = false)
                 Text(w.name, color = Ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 windStateLabel(lang, mood, thinking)?.let {
                     Text(it, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
