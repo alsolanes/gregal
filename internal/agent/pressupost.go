@@ -154,6 +154,10 @@ func motiuAmable(motiu, lang string) string {
 // ResumDeFeina és el resum mecànic de l'últim recurs: què s'ha consultat i
 // l'últim text del model. Es fa servir quan la crida final també falla
 // (proveïdor caigut, temps exhaurit): la feina feta no es perd.
+// MotiuAmablePub és el pont públic de motiuAmable per als fronts (web,
+// app): el motiu d'un torn aturat, en frase curta i sense adreces internes.
+func MotiuAmablePub(motiu, lang string) string { return motiuAmable(motiu, lang) }
+
 func ResumDeFeina(hist []llm.Message, motiu, lang string) string {
 	ca := lang == "ca"
 	motiu = motiuAmable(motiu, lang)

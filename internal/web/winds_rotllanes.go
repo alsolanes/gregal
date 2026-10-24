@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,6 +44,30 @@ type rotllanaEntry struct {
 }
 
 var rotllanaHistories sync.Map // conversationHistoryKey -> *rotllanaEntry
+
+// esRespostaMecanica diu si el text és el resum automàtic d'un torn aturat
+// («Resposta parcial: …» / «Partial answer: …») i no una resposta del vent.
+func esRespostaMecanica(text string) bool {
+	t := strings.TrimSpace(text)
+	return strings.HasPrefix(t, "Resposta parcial:") || strings.HasPrefix(t, "Partial answer:")
+}
+
+// fraseTornAturat és l'última línia de defensa: una sola frase curta, en la
+// llengua de la conversa, que diu què ha passat i convida a tornar-ho a provar.
+// Cap URL, cap text de Go, cap «Resposta parcial».
+func fraseTornAturat(motiu, lang string) string {
+	amable := agent.MotiuAmablePub(motiu, lang)
+	if lang == "ca" {
+		if amable != "" {
+			return "Ui, se m'ha tallat el fil a mitges (" + amable + "). Ho tornem a provar?"
+		}
+		return "Ui, se m'ha tallat el fil a mitges. Ho tornem a provar?"
+	}
+	if amable != "" {
+		return "Oops, I lost my train of thought mid-answer (" + amable + "). Shall we try again?"
+	}
+	return "Oops, I lost my train of thought mid-answer. Shall we try again?"
+}
 
 func rotllanaHistory(s *Server, id string) *rotllanaEntry {
 	h, _ := rotllanaHistories.LoadOrStore(historyKey(s, "rotllana", id), &rotllanaEntry{})
@@ -226,6 +251,14 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		out := res.text
+		// Un torn que mor a mitges (proveïdor caigut després d'un pas
+		// bo) no és una resposta del vent: és el resum mecànic de
+		// «Resposta parcial». Es tracta com un error i cau al xat pla,
+		// perquè si el proveïdor s'ha recuperat el vent contesta de veritat.
+		if err == nil && res.parcial && esRespostaMecanica(out) {
+			err = errors.New(res.motiu)
+			out = ""
+		}
 		if err != nil {
 			// La cerca web no pot tombar el torn: cau al xat pla
 			// (sense eines), que sempre respon.

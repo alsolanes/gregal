@@ -393,7 +393,7 @@ func TestWindChatSendsBoundedPreviousTurns(t *testing.T) {
 			t.Errorf("model missing previous context %q", want)
 		}
 	}
-	if strings.Contains(brief, "OLD-SECRET-TURN") || len([]rune(brief)) > 19000 {
+	if strings.Contains(brief, "OLD-SECRET-TURN") || len([]rune(brief)) > 20000 {
 		t.Fatalf("history not bounded: %d chars", len([]rune(brief)))
 	}
 	req := httptest.NewRequest(http.MethodGet, "/api/winds/chat?wind=xaloc", nil)

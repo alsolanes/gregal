@@ -243,6 +243,11 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply := stripQuoteTrim(res.text)
+	// Un torn mort a mitges no és una resposta del vent (vegeu el mateix
+	// criteri a winds_stream.go): mai el resum mecànic a la bombolla.
+	if res.parcial && esRespostaMecanica(reply) {
+		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
+	}
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg})

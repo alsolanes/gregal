@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -135,6 +136,12 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	reply := stripQuoteTrim(res.text)
+	// Torn mort a mitges (proveïdor caigut després d'un pas bo): el
+	// resum mecànic no és una resposta del vent. Una frase curta i
+	// accionable, en la seva llengua, sense adreces internes.
+	if err == nil && res.parcial && esRespostaMecanica(reply) {
+		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
+	}
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg})
@@ -253,6 +260,12 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			}
 		}
 		out := res.text
+		// Un torn que mor a mitges no és una resposta del vent: cau al
+		// xat pla com al clàssic (vegeu winds_rotllanes.go).
+		if err == nil && res.parcial && esRespostaMecanica(out) {
+			err = errors.New(res.motiu)
+			out = ""
+		}
 		if err != nil {
 			// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
 			p, role, ok2 := s.sideRoleRef()
