@@ -138,15 +138,11 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } },
-                    title = { Text(tr(lang, "app.off.title"), color = Ink) },
-                    actions = {
+                GregalTopBar(tr(lang, "app.off.title"), lang, onMenu = onMenu, actions = {
                         if (doc.id.isNotBlank()) IconButton(onClick = { vm.officeClear(); notice = "" }) {
                             Icon(Icons.Rounded.Close, tr(lang, "app.off.closeDoc"), tint = Ink)
                         }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
+                    })
             },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->

@@ -210,6 +210,32 @@ data class SessionInfo(val name: String, val msgs: Int, val moment: String,
     fun displayTitle(): String = title.ifBlank { name }
 }
 
+/** Tipus d'una conversa a la llista: xat amb un vent, rotllana o agent. */
+enum class ConvKind { WIND, GROUP, AGENT }
+
+/** Com es presenta una conversa: el tipus i un títol llegible. */
+data class ConvLook(val kind: ConvKind, val title: String)
+
+/**
+ * El servidor titula les converses dels vents «Company — Garbí» i les
+ * rotllanes «Rotllana — debat-de-viatge-a220a724…». A la llista es mostra el
+ * nom del vent o el tema de la rotllana, sense prefix ni identificador.
+ */
+fun SessionInfo.look(): ConvLook {
+    val t = displayTitle().trim()
+    fun human(raw: String): String {
+        val bare = raw.replace(Regex("-[0-9a-f]{10,}$"), "")
+        return if (bare.contains(' ') || !bare.contains('-')) bare
+        else bare.replace('-', ' ').replaceFirstChar { it.uppercase() }
+    }
+    fun after(prefix: String) = t.substringAfter(prefix).trim().trimStart('—', '-', ' ')
+    return when {
+        t.startsWith("Company ") -> ConvLook(ConvKind.WIND, after("Company"))
+        t.startsWith("Rotllana ") -> ConvLook(ConvKind.GROUP, human(after("Rotllana")))
+        else -> ConvLook(ConvKind.AGENT, t)
+    }
+}
+
 /** Graf del projecte (.gregal/flows): resum, node i detall per a la UI. */
 data class FlowSummary(val name: String, val slug: String, val desc: String, val steps: Int)
 data class FlowNode(val id: String, val kind: String, val title: String,

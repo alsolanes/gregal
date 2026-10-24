@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -64,6 +65,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -1139,18 +1141,10 @@ fun ActivityCluster(steps: List<ChatMsg>, lang: String = "ca") {
 
 /** Estat buit amb marca marina (sessions, objectius). */
 @Composable
-fun EmptyBoard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth().padding(vertical = 56.dp, horizontal = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally) {
-        TintedIcon(icon, Sea)
-        Spacer(Modifier.height(16.dp))
-        Text(title, color = Ink, style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
-        if (subtitle.isNotBlank()) {
-            Text(subtitle, color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp, textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = 6.dp))
-        }
-    }
-}
+fun EmptyBoard(
+    icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String,
+    actionLabel: String? = null, onAction: (() -> Unit)? = null,
+) = EmptyState(icon, title, subtitle, actionLabel = actionLabel, onAction = onAction)
 
 /** Píndola del projecte (carpeta · branca): que sempre quedi clar on treballa. */
 @Composable
@@ -1314,24 +1308,30 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "nav.convs"), color = Ink) }, actions = {
+            topBar = { GregalTopBar(tr(lang, "nav.convs"), lang, onMenu = onMenu, actions = {
                 RefreshAction(lang, carregant) { vm.loadSessions() }
                 IconButton(onClick = { vm.newSession(); vm.go(Screen.Chat) }) {
                     Icon(Icons.Rounded.Add, tr(lang, "nav.new"), tint = Ink)
                 }
-            }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
+            }) },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadSessions() }.padding(12.dp)) {
+            val winds by vm.winds.collectAsState()
+            LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadSessions() },
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 104.dp)) {
                 active?.let { run ->
                     item { ActiveAgentCard(run, lang) }
                     item { Spacer(Modifier.height(12.dp)) }
                 }
                 if (sessions.isNotEmpty()) item {
                     OutlinedTextField(filtre, { filtre = it }, Modifier.fillMaxWidth(),
-                        placeholder = { Text(tr(lang, "app.sess.search")) }, singleLine = true,
+                        placeholder = { Text(tr(lang, "app.sess.search"), color = Faint) }, singleLine = true,
                         leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Muted) },
-                        shape = RoundedCornerShape(50))
+                        shape = RoundedCornerShape(50),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
+                            unfocusedBorderColor = Line, focusedBorderColor = Sea.copy(alpha = 0.6f),
+                        ))
                     Spacer(Modifier.height(4.dp))
                 }
                 if (sessions.isEmpty() && active == null && carregant) item { LoadingBoard(lang) }
@@ -1340,34 +1340,37 @@ fun SessionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
                 grups.forEach { (g, items) ->
                     item {
-                        Text(convGroupLabel(g, lang), color = Muted, fontSize = 13.sp,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp))
+                        Text(convGroupLabel(g, lang).uppercase(), color = Faint, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            letterSpacing = 1.4.sp, modifier = Modifier.padding(start = 4.dp, top = 16.dp, bottom = 6.dp))
                     }
                     items(items, key = { it.name }) { s ->
-                        Card(
-                            onClick = { vm.resumeSession(s.name) },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = PillDark),
-                        ) {
-                            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Surface(shape = RoundedCornerShape(12.dp), color = CodeDark,
-                                    modifier = Modifier.size(40.dp)) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Rounded.ChatBubbleOutline, null, tint = Sea,
-                                            modifier = Modifier.size(20.dp))
-                                    }
+                        val look = s.look()
+                        // Una conversa amb un vent porta la seva cara; la rotllana i
+                        // l'agent, la seva icona. El tipus també en paraules.
+                        val wind = if (look.kind == ConvKind.WIND) winds.firstOrNull { it.name == look.title } else null
+                        GCard(onClick = { vm.resumeSession(s.name) }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            padding = PaddingValues(start = 12.dp, top = 12.dp, bottom = 12.dp, end = 4.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(44.dp).background(
+                                    (wind?.let { Color(it.argb) } ?: if (look.kind == ConvKind.GROUP) Lila else Sea).copy(alpha = 0.16f),
+                                    RoundedCornerShape(14.dp)), contentAlignment = Alignment.Center) {
+                                    if (wind != null) WindFace(size = 38, accent = Color(wind.argb), style = wind.faceStyle)
+                                    else Icon(if (look.kind == ConvKind.GROUP) Icons.Rounded.Forum else Icons.Rounded.ChatBubbleOutline, null,
+                                        tint = if (look.kind == ConvKind.GROUP) Lila else Sea, modifier = Modifier.size(21.dp))
                                 }
                                 Spacer(Modifier.width(12.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(s.displayTitle(), fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Ink)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(look.title, fontWeight = FontWeight.SemiBold, fontSize = 15.5.sp, color = Ink,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     val count = if (s.msgs == 1) tr(lang, "app.sess.oneMessage")
                                         else tr(lang, "app.sess.messages", s.msgs)
-                                    Text("$count · ${ago(s.moment, lang = lang)}" +
+                                    val kind = tr(lang, when (look.kind) { ConvKind.WIND -> "app.sess.kindWind"; ConvKind.GROUP -> "app.sess.kindGroup"; ConvKind.AGENT -> "app.sess.kindAgent" })
+                                    Text("$kind · $count · ${ago(s.moment, lang = lang)}" +
                                         if (s.current) " · ${tr(lang, "app.sess.current")}" else "",
-                                        style = MaterialTheme.typography.bodySmall, color = Muted)
+                                        fontSize = 12.5.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 IconButton(onClick = { confirma = s.name }) {
-                                    Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Muted)
+                                    Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Faint, modifier = Modifier.size(20.dp))
                                 }
                             }
                         }
@@ -1457,9 +1460,7 @@ fun GoalsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
-            topBar = { TopAppBar(navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) } }, title = { Text(tr(lang, "app.goals.title"), color = Ink) },
-                actions = { RefreshAction(lang, carregant) { vm.loadGoals() } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)) },
+            topBar = { GregalTopBar(tr(lang, "app.goals.title"), lang, onMenu = onMenu, actions = { RefreshAction(lang, carregant) { vm.loadGoals() } }) },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->
             LazyColumn(Modifier.fillMaxSize().padding(pad).pullToRefresh(carregant) { vm.loadGoals() }.padding(12.dp)) {

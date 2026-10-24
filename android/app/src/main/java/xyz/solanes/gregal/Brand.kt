@@ -82,11 +82,7 @@ fun GregalMark(size: Dp, modifier: Modifier = Modifier, alive: Boolean = false) 
 
 /** Icona dins d'un cercle tintat suau: estats buits i capçaleres de secció. */
 @Composable
-fun TintedIcon(icon: ImageVector, tint: Color, box: Dp = 64.dp, glyph: Dp = 30.dp) {
-    Box(Modifier.size(box).background(tint.copy(alpha = 0.13f), CircleShape), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = tint, modifier = Modifier.size(glyph))
-    }
-}
+fun TintedIcon(icon: ImageVector, tint: Color, box: Dp = 64.dp, glyph: Dp = 30.dp) = EmptyArt(icon, tint, box, glyph)
 
 /**
  * Tipografia Gregal: la de Material sense l'espaiat de lletra ample del cos

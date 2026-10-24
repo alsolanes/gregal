@@ -67,12 +67,10 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    navigationIcon = {
-                        if (flow == null) IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu"), tint = Ink) }
-                        else IconButton(onClick = { vm.closeFlow() }) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.flow.back"), tint = Ink) }
-                    },
-                    title = { Text(flow?.name ?: tr(lang, "graphs.title"), color = Ink) },
+                GregalTopBar(
+                    flow?.name ?: tr(lang, "graphs.title"), lang,
+                    onMenu = if (flow == null) onMenu else null,
+                    onBack = if (flow != null) ({ vm.closeFlow() }) else null,
                     actions = {
                         val f = flow
                         if (f != null && !running) IconButton(onClick = { confirma = f.name }) {
@@ -80,7 +78,7 @@ fun FlowsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                         if (f == null) RefreshAction(lang, carregant) { vm.loadFlows() }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
+                )
             },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->

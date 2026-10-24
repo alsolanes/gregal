@@ -36,8 +36,9 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
-        ui.onNodeWithText("Converses").assertExists()
-        ui.onNodeWithText("Els meus vents").assertExists()
+        // Les converses ocupen l'inici; gestionar els vents és una acció a part.
+        ui.onNodeWithText(tr("ca", "app.vents.emptyTitle")).assertExists()
+        ui.onNodeWithContentDescription(tr("ca", "app.vents.manage")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()
         ui.onNodeWithText("Nou xat").assertExists()
         ui.onNodeWithText("Nova rotllana").assertExists()
@@ -116,11 +117,11 @@ class VentsExperienceTest {
         ui.onNodeWithText("Sap de: Calçots").assertIsDisplayed()
     }
 
-    @Test fun ventsGridShowsBigMascotsWithStatus() {
+    @Test fun ventsCrewShowsMascotsWithStatus() {
         val winds = listOf(Wind("a", "Marinada", "#EFC69A", "calma"), Wind("b", "Xaloc", "#EFA68F", "música"))
         var opened: String? = null
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
-            MaterialTheme(colorScheme = LightPal.scheme()) { VentsGrid("ca", winds, setOf("b")) { opened = it.id } }
+            MaterialTheme(colorScheme = LightPal.scheme()) { VentsCrew("ca", winds, setOf("b")) { opened = it.id } }
         } }
         ui.onNodeWithText("Marinada").assertIsDisplayed()
         ui.onNodeWithText("calma").assertIsDisplayed()
@@ -163,7 +164,8 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
-        ui.onNodeWithText(tr("ca", "app.vents.myWinds")).performClick()
+        ui.onNodeWithContentDescription(tr("ca", "app.vents.manage")).performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.myWinds")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModelSameAsWork")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).performClick()

@@ -18,6 +18,21 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -65,75 +80,68 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(idioma, "app.nav.menu"), tint = Ink) } },
-                    title = { Text(t("prefs.title"), color = Ink) },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
+                GregalTopBar(t("prefs.title"), idioma, onMenu = onMenu)
             },
             snackbarHost = { NoticeHost(vm) },
         ) { pad ->
-            Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Column(Modifier.fillMaxSize().padding(pad).imePadding().verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, bottom = 104.dp)) {
                 // On corre Gregal i amb quin model: abans no es veia enlloc
                 // fora del calaix, i la clau només es podia posar des del
                 // desplegable del model.
                 val conn by vm.conn.collectAsState()
-                Text(t("app.prefs.server"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (conn.local) t("app.server.thisDevice") else t("app.prefs.serverRemote", "${conn.host}:${conn.port}"),
-                        color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                    OutlinedButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch")) }
+                PrefsSection(t("app.prefs.server"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    SettingsRow(
+                        Icons.Rounded.Dns, t("app.prefs.server"),
+                        if (conn.local) t("app.server.thisDevice") else t("app.prefs.serverRemote", "${conn.host}:${conn.port}"),
+                        tint = Onada,
+                        trailing = { TextButton(onClick = { vm.switchServer() }) { Text(t("app.server.switch"), color = Sea) } },
+                    )
+                    HorizontalDivider(Modifier.padding(start = 66.dp), color = Line)
+                    SettingsRow(
+                        Icons.Rounded.AutoAwesome, t("app.prefs.model"),
+                        st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
+                    )
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(t("app.prefs.model"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
-                    color = Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 ProviderSetup(vm, current = st.provider, change = true)
-                Spacer(Modifier.height(20.dp))
-                Text(t("prefs.appearance"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Text(t("prefs.theme"), color = Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(4.dp))
-                listOf("sistema" to "prefs.theme.system", "fosc" to "prefs.theme.dark", "clar" to "prefs.theme.light").forEach { (v, k) ->
-                    Row(Modifier.fillMaxWidth().selectable(v == tema, role = Role.RadioButton) { vm.setTema(v) }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = v == tema, onClick = null, modifier = Modifier.padding(12.dp))
-                        Text(t(k), color = Ink, fontSize = 15.sp)
-                    }
-                }
-                Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.sp)
-                Spacer(Modifier.height(16.dp))
-                Text(t("prefs.lang"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English").forEach { (v, nom) ->
-                    Row(Modifier.fillMaxWidth().selectable(v == idiomaChoice, role = Role.RadioButton) { vm.setIdioma(v) }.padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = v == idiomaChoice, onClick = null, modifier = Modifier.padding(12.dp))
-                        Text(nom, color = Ink, fontSize = 15.sp)
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-                Text(t("prefs.verify"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Row(Modifier.fillMaxWidth().toggleable(st.verify == "auto", role = Role.Checkbox) { vm.setVerify(it) }.padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = st.verify == "auto", onCheckedChange = null, modifier = Modifier.padding(12.dp))
-                    Text(t("prefs.verify.help"), color = Muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
+
+                PrefsSection(t("prefs.appearance"))
+                GCard(Modifier.fillMaxWidth()) {
+                    Text(t("prefs.theme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    ChoicePills(listOf("sistema" to t("prefs.theme.system"), "fosc" to t("prefs.theme.dark"), "clar" to t("prefs.theme.light")), tema, { vm.setTema(it) })
+                    Spacer(Modifier.height(8.dp))
+                    Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    Spacer(Modifier.height(18.dp))
+                    Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(10.dp))
+                    ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
                 }
 
-                Spacer(Modifier.height(20.dp))
-                Text(t("app.settings.version"), color = Ink, fontSize = 16.sp)
-                Spacer(Modifier.height(4.dp))
-                Text("Gregal Android ${vm.versionNameInstalada()} (vc${vm.versionCodeInstalada()})",
-                    color = Muted, fontSize = 13.sp)
-                Spacer(Modifier.height(6.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = { vm.checkUpdate() }) { Text(t("app.settings.checkUpdates")) }
-                    Spacer(Modifier.width(10.dp))
-                    Text(updateMsg, color = if (teNova != null) Sand else Muted, fontSize = 12.sp,
-                        modifier = Modifier.weight(1f))
+                PrefsSection(t("prefs.verify"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(st.verify == "auto", role = Role.Switch) { vm.setVerify(it) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(Modifier.size(36.dp).background(Green.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Verified, null, tint = Green, modifier = Modifier.size(20.dp))
+                        }
+                        Text(t("prefs.verify.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                        Switch(checked = st.verify == "auto", onCheckedChange = null,
+                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+                    }
+                }
+
+                PrefsSection(t("app.settings.version"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    SettingsRow(
+                        Icons.Rounded.SystemUpdate, "Gregal Android ${vm.versionNameInstalada()}",
+                        updateMsg.ifBlank { "vc${vm.versionCodeInstalada()}" }, tint = Lila,
+                        trailing = { TextButton(onClick = { vm.checkUpdate() }) { Text(t("app.settings.checkUpdates"), color = Sea) } },
+                    )
                 }
                 teNova?.let { r ->
                     Spacer(Modifier.height(8.dp))
@@ -174,4 +182,13 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
             }
         }
     }
+}
+
+/** Títol de secció de preferències: el mateix estil discret de tota l'app. */
+@Composable
+private fun PrefsSection(text: String) {
+    Text(
+        text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
+        modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
+    )
 }
