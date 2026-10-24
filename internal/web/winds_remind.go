@@ -136,7 +136,7 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	if s.winds == nil || s.jobs == nil {
 		return jobs.Job{}, fmt.Errorf("recordatoris no disponibles")
 	}
-	w, ok := s.winds.ByID(strings.TrimSpace(windID))
+	w, ok := windByRef(s, strings.TrimSpace(windID))
 	if !ok {
 		return jobs.Job{}, fmt.Errorf("vent inexistent")
 	}

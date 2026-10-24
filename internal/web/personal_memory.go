@@ -3,8 +3,18 @@ package web
 import (
 	"path/filepath"
 
+	"gregal/internal/companion"
 	"gregal/internal/config"
 )
+
+// windByRef resol un vent per id o nom (els models confonen l'id llarg
+// amb el nom i així els recordatoris no fallen).
+func windByRef(s *Server, ref string) (companion.Wind, bool) {
+	if s == nil || s.winds == nil {
+		return companion.Wind{}, false
+	}
+	return s.winds.ByRef(ref)
+}
 
 // personalMemoryPath follows the authenticated user, never the browser's session
 // ID or process-global environment. Legacy Tothom/local keeps the global file.

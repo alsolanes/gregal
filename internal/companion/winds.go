@@ -206,6 +206,28 @@ func (ws *WindStore) ByID(id string) (Wind, bool) {
 	return Wind{}, false
 }
 
+// ByRef troba un vent per id, nom o slug del nom: els vents reben referències
+// del model i no sempre encerten l'id llarg. Torna el vent amb l'id real.
+func (ws *WindStore) ByRef(ref string) (Wind, bool) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return Wind{}, false
+	}
+	if w, ok := ws.ByID(ref); ok {
+		return w, true
+	}
+	list, err := ws.List()
+	if err != nil {
+		return Wind{}, false
+	}
+	for _, w := range list {
+		if strings.EqualFold(strings.TrimSpace(w.Name), ref) || slug(w.Name) == slug(ref) {
+			return w, true
+		}
+	}
+	return Wind{}, false
+}
+
 // SlugWind normalitza un nom (vent o rotllana) per fer-ne id.
 func SlugWind(s string) string { return slug(s) }
 
