@@ -62,6 +62,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -1120,9 +1121,15 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             bottomStart = 20.dp, bottomEnd = 20.dp,
         )
         Box {
+            // Bombolla tenyida amb el color del vent: clara en tema clar (un
+            // vel suau), més viva en tema fosc. Dots/Grok: cada persona
+            // respira el seu propi color.
+            val dark = LocalPal.current == DarkPal
+            val tinted = if (dark) accent.copy(alpha = .30f).compositeOver(Superficie)
+                else accent.copy(alpha = .14f).compositeOver(Superficie)
             Surface(
                 shape = bubbleShape,
-                color = SuperficieAlta.copy(alpha = .55f),
+                color = tinted,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
                 modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
@@ -1130,7 +1137,6 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                 ),
             ) {
                 val uri = LocalUriHandler.current
-                val dark = LocalPal.current == DarkPal
                 // Color d'enllaç llegible + blocs parsejats: tot amb remember perquè
                 // no es recalculi a cada recomposició (streaming, scroll, teclat).
                 // El parse viu a més en cau global: en tornar a la pantalla no se'n

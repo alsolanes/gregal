@@ -94,11 +94,69 @@ func NetejaFinal(s string) string {
 	return strings.TrimSpace(net)
 }
 
+// motiuAmable tradueix el motiu d'interrupció a una frase curta i accionable.
+// L'error cru del client duu la URL del proveïdor i el text de Go («provider
+// https://…: dial tcp: lookup …»). A la conversa de l'usuari només hi ha
+// d'arribar el que ha passat i què pot fer, mai adreces internes.
+func motiuAmable(motiu, lang string) string {
+	ca := lang == "ca"
+	m := strings.ToLower(motiu)
+	switch {
+	case m == "" || strings.Contains(m, "passos"):
+		return ""
+	case strings.Contains(m, "no such host") || strings.Contains(m, "host not found"):
+		if ca {
+			return "no s'ha pogut arribar al proveïdor de models (DNS); comprova la connexió a internet"
+		}
+		return "could not reach the model provider (DNS); check the internet connection"
+	case strings.Contains(m, "connection refused") || strings.Contains(m, "refused"):
+		if ca {
+			return "el proveïdor de models no accepta la connexió; comprova que el servidor local estigui engegat"
+		}
+		return "the model provider refused the connection; check that the local server is running"
+	case strings.Contains(m, "deadline exceeded") || strings.Contains(m, "timeout") || strings.Contains(m, "context deadline"):
+		if ca {
+			return "el proveïdor de models ha trigat massa; torna-ho a provar d'aquí a una mica"
+		}
+		return "the model provider took too long; try again in a bit"
+	case strings.Contains(m, "tls") || strings.Contains(m, "certificate"):
+		if ca {
+			return "error de certificat del proveïdor de models"
+		}
+		return "certificate error with the model provider"
+	case strings.Contains(m, "context length") || strings.Contains(m, "maximum context"):
+		if ca {
+			return "la conversa ha superat la mida màxima del model"
+		}
+		return "the conversation exceeded the model context length"
+	case strings.Contains(m, "unauthorized") || strings.Contains(m, "http 401") || strings.Contains(m, "invalid api key"):
+		if ca {
+			return "la clau del proveïdor de models no és vàlida (o ha caducat)"
+		}
+		return "the model provider key is invalid (or expired)"
+	case strings.Contains(m, "http 429") || strings.Contains(m, "rate limit") || strings.Contains(m, "quota"):
+		if ca {
+			return "el proveïdor de models ha dit que hi ha massa tràfec; torna-ho a provar d'aquí a una mica"
+		}
+		return "the model provider is rate limiting; try again in a bit"
+	case strings.Contains(m, "http 5"):
+		if ca {
+			return "el proveïdor de models té una incidència; torna-ho a provar d'aquí a una mica"
+		}
+		return "the model provider is having trouble; try again in a bit"
+	case strings.Contains(m, "no side role"):
+		return ""
+	}
+	// Qualsevol altre motiu: retallat net, sense URLs ni adreces internes.
+	return retallaText(strings.Join(strings.Fields(motiu), " "), 120)
+}
+
 // ResumDeFeina és el resum mecànic de l'últim recurs: què s'ha consultat i
 // l'últim text del model. Es fa servir quan la crida final també falla
 // (proveïdor caigut, temps exhaurit): la feina feta no es perd.
 func ResumDeFeina(hist []llm.Message, motiu, lang string) string {
 	ca := lang == "ca"
+	motiu = motiuAmable(motiu, lang)
 	var eines []string
 	vistes := map[string]bool{}
 	ultim := ""
