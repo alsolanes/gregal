@@ -82,6 +82,16 @@
       ['circle', { cx:63, cy:61, r:11.5, fill:'#FFFFFF', ...ln() }],
       ['path', { d:'M55 64.5l3-3.5 3 2.5 4-6 3 3.5 2.5-2', fill:'none', stroke:'#3FA39A', 'stroke-width':2, 'stroke-linecap':'round', 'stroke-linejoin':'round' }],
       ['path', { d:'M63 61V53.5M63 61l4.5 3', fill:'none', ...ln(2) }]] },
+    research: { hands:[[52,64]], prop:[
+      ['path', { d:'M50 46h7v9l5 13a3 3 0 0 1-2.8 4H47.8A3 3 0 0 1 45 68l5-13Z', fill:'#D7EEFA', ...ln() } ],
+      ['path', { d:'M48 61h14l1.5 7a1.5 1.5 0 0 1-1.4 2h-14a1.5 1.5 0 0 1-1.4-2Z', fill:'#5E86D6' } ],
+      ['path', { d:'M51 64h3M57 64h3', stroke:'#FFF8EE', 'stroke-width':1.6, 'stroke-linecap':'round' } ],
+      ['ellipse', { cx:53.5, cy:69, rx:1.6, ry:2.2, fill:'#FFF8EE' } ],
+      ['path', { d:'M52 46v-2.5a2 2 0 0 1 3 0V46', fill:'none', stroke:'#A79FBC', 'stroke-width':1.6, 'stroke-linecap':'round' } ] ] },
+    tech: { hands:[[52,63]], prop:[
+      ['rect', { x:50, y:50, width:23, height:23, rx:4, fill:'#3A3F5C', ...ln() } ],
+      ['path', { d:'M56 56h11M56 60h11M56 64h6', stroke:'#8EE3B0', 'stroke-width':2, 'stroke-linecap':'round' } ],
+      ['path', { d:'M61.5 73v4M56 73v4M67 73v4', stroke:'#A79FBC', 'stroke-width':1.8, 'stroke-linecap':'round' } ] ] },
     review: { hands:[[52,63]], head:[
       ['circle', { cx:29, cy:36, r:8.5, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
       ['circle', { cx:51, cy:36, r:8.5, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
@@ -247,11 +257,11 @@
   }
   function face(w, large, mood) {
     w = w || {};
-    const s = style(w.style), kit = kits[w.specialty], fill = color(w.color);
+    const s = style(w.style), kitKey = w.kit || w.specialty, kit = kits[kitKey], fill = color(w.color);
     const svg = doc.createElementNS(SVG, 'svg'), key = w.id || w.name || 'crew';
     svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large ? ' winds-face-large' : ''));
     svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
-    if (kit) svg.setAttribute('data-kit', w.specialty);
+    if (kit) svg.setAttribute('data-kit', kitKey);
     if (w.id) svg.setAttribute('data-wind', w.id);
     if ((!mood || mood === 'idle') && news.has(w.id)) mood = 'news';
     let seed = 0; for (const c of String(key)) seed = (seed * 31 + c.charCodeAt(0)) % 997;

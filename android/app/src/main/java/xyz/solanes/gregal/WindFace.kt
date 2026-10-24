@@ -431,6 +431,16 @@ internal val windKits: Map<String, MascotKit> = mapOf(
         solid(circle(63f, 61f, 11.5f), 0xFFFFFFFF),
         line("M55 64.5l3-3.5 3 2.5 4-6 3 3.5 2.5-2", 2f, 0xFF3FA39A),
         line("M63 61V53.5M63 61l4.5 3", 2f))),
+    "research" to MascotKit(hands = listOf(Offset(52f, 64f)), prop = listOf(
+        solid("M50 46h7v9l5 13a3 3 0 0 1-2.8 4H47.8A3 3 0 0 1 45 68l5-13Z", 0xFFD7EEFA, 2.2f),
+        solid("M48 61h14l1.5 7a1.5 1.5 0 0 1-1.4 2h-14a1.5 1.5 0 0 1-1.4-2Z", 0xFF5E86D6),
+        line("M51 64h3M57 64h3", 1.6f, 0xFFFFF8EE),
+        solid(oval(53.5f, 69f, 1.6f, 2.2f), 0xFFFFF8EE),
+        line("M52 46v-2.5a2 2 0 0 1 3 0V46", 1.6f, 0xFFA79FBC))),
+    "tech" to MascotKit(hands = listOf(Offset(52f, 63f)), prop = listOf(
+        solid(rect(50f, 50f, 23f, 23f, 4f), 0xFF3A3F5C, 2.2f),
+        line("M56 56h11M56 60h11M56 64h6", 2f, 0xFF8EE3B0),
+        line("M61.5 73v4M56 73v4M67 73v4", 1.8f, 0xFFA79FBC))),
     "review" to MascotKit(hands = listOf(Offset(52f, 63f)),
         head = listOf(
             KitShape(circle(29f, 36f, 8.5f), 0xFFFFFFFF, KitInk, 2.2f, .25f),
