@@ -139,3 +139,30 @@ object RotllanaRequests {
         }
     }
 }
+
+/** Un vent que ja existeix i encaixa amb l'encàrrec (porta la seva memòria). */
+data class CrewReuse(val id: String, val name: String, val role: String, val why: String)
+
+/** Un especialista nou per a l'encàrrec, amb color, cara i ofici propis. */
+data class CrewNew(val name: String, val role: String, val kit: String, val persona: String, val why: String, val color: String, val style: String) {
+    val wind: Wind get() = Wind("", name, color, role, style, specialty = kit)
+    fun json(): JSONObject = JSONObject().put("name", name).put("role", role).put("kit", kit)
+        .put("persona", persona).put("why", why).put("color", color).put("style", style)
+}
+
+/** Proposta de colla per a un encàrrec (POST /api/winds/crew/propose). */
+data class CrewProposal(val plan: String, val reuse: List<CrewReuse>, val create: List<CrewNew>) {
+    companion object {
+        fun parse(o: JSONObject): CrewProposal {
+            val r = o.optJSONArray("reuse") ?: JSONArray()
+            val c = o.optJSONArray("create") ?: JSONArray()
+            return CrewProposal(
+                o.optString("plan"),
+                (0 until r.length()).mapNotNull { i -> r.optJSONObject(i)?.let { CrewReuse(it.optString("id"), it.optString("name"), it.optString("role"), it.optString("why")) } },
+                (0 until c.length()).mapNotNull { i -> c.optJSONObject(i)?.let {
+                    CrewNew(it.optString("name"), it.optString("role"), it.optString("kit"), it.optString("persona"), it.optString("why"), it.optString("color"), it.optString("style"))
+                } },
+            )
+        }
+    }
+}

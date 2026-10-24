@@ -2499,6 +2499,73 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Full de «Convoca una colla»: encàrrec, proposta i estat. null = tancat. */
+    data class CrewUi(val task: String = "", val loading: Boolean = false, val proposal: CrewProposal? = null,
+                      val starting: Boolean = false, val error: Boolean = false)
+    private val _crew = MutableStateFlow<CrewUi?>(null)
+    val crew: StateFlow<CrewUi?> = _crew
+    /** Pas de les colles convocades que treballen ara (id de rotllana -> pas). */
+    private val _crewStep = MutableStateFlow<Map<String, String>>(emptyMap())
+    val crewStep: StateFlow<Map<String, String>> = _crewStep
+
+    fun openCrew(task: String = "") { _crew.value = CrewUi(task) }
+    fun closeCrew() { _crew.value = null }
+
+    fun proposeCrew(task: String) {
+        if (task.isBlank()) return
+        val source = _conn.value; val epoch = companionEpoch
+        _crew.value = CrewUi(task, loading = true)
+        viewModelScope.launch {
+            try {
+                val p = withContext(Dispatchers.IO) { source.api().crewPropose(task.trim(), idioma.value) }
+                if (isCompanionOrigin(source, epoch) && _crew.value?.task == task) _crew.value = CrewUi(task, proposal = p)
+            } catch (_: Exception) {
+                if (_crew.value?.task == task) _crew.value = CrewUi(task, error = true)
+            }
+        }
+    }
+
+    fun startCrew() {
+        val ui = _crew.value ?: return
+        val p = ui.proposal ?: return
+        val source = _conn.value; val epoch = companionEpoch
+        _crew.value = ui.copy(starting = true, error = false)
+        viewModelScope.launch {
+            try {
+                val id = withContext(Dispatchers.IO) { source.api().crewStart(ui.task.trim(), idioma.value, p) }
+                if (!isCompanionOrigin(source, epoch) || id.isBlank()) return@launch
+                // The thread must be in the list before it opens: an unknown
+                // id is closed straight away by the Vents screen.
+                val list = withContext(Dispatchers.IO) { source.api().getRotllanes() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rotllanes.value = list
+                loadWinds(); loadRotllanaChat(id)
+                _crew.value = null
+                openVentsChat("rot:$id")
+                followCrew(id)
+            } catch (_: Exception) {
+                _crew.value = ui.copy(starting = false, error = true)
+            }
+        }
+    }
+
+    /** La colla treballa al servidor: refresca el fil mentre en parlen i fan la feina. */
+    fun followCrew(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            repeat(400) {
+                kotlinx.coroutines.delay(4000)
+                val status = try { withContext(Dispatchers.IO) { source.api().crewStatus(id) } } catch (_: Exception) { null }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (status != null) {
+                    _crewStep.value = if (status.first) _crewStep.value + (id to status.second) else _crewStep.value - id
+                    loadRotllanaChat(id)
+                    if (!status.first) return@launch
+                }
+            }
+        }
+    }
+
     fun activateSquad(id: String, lang: String) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {

@@ -5,6 +5,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.border
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.geometry.Offset
@@ -142,6 +145,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     androidx.activity.compose.BackHandler(enabled = searching && !manage && open == null && !creator.first && creation == null) {
         searching = false; query = ""
     }
+    val crewUi by vm.crew.collectAsState()
+    crewUi?.let { CrewSheet(vm, lang, it, winds) }
     if (creator.first) {
         WindCreatorScreen(vm, lang, creator.second)
     } else if (creation != null) {
@@ -185,6 +190,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                                     DropdownMenuItem(text = { Text(tr(lang, "app.vents.newChat")) }, onClick = { menu = false; creation = "chat" })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.rotllanaNew")) }, onClick = { menu = false; creation = "group" })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.windNew")) }, onClick = { menu = false; vm.showWindCreator(true) })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.crew.title")) }, onClick = { menu = false; vm.openCrew() })
                                 }
                             }
                         },
@@ -810,8 +816,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
+        val crewSteps by vm.crewStep.collectAsState()
+        val crewStep = crewSteps[rot.id]
         VentsChatHeader(lang, rot.name,
-            if (rotBusy) tr(lang, "app.company.windThinking", rot.name) else faces.joinToString(", ") { it.name },
+            when {
+                crewStep != null -> tr(lang, "app.crew.step.$crewStep")
+                rotBusy -> tr(lang, "app.company.windThinking", rot.name)
+                else -> faces.joinToString(", ") { it.name }
+            },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
             if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
             onBack = onBack, onProfile = { groupProfile = true })
@@ -1264,6 +1276,76 @@ fun WindFab(vm: GregalViewModel, onOpen: () -> Unit) {
                     style = w.faceStyle,
                 )
             }
+        }
+    }
+}
+
+/**
+ * «Convoca una colla»: escrius l'encàrrec, Gregal proposa qui el pot fer (els
+ * vents que ja hi encaixen i especialistes nous amb el seu color i ofici) i,
+ * en acceptar, s'obre la rotllana on en parlen i després el fan.
+ */
+@Composable
+private fun CrewSheet(vm: GregalViewModel, lang: String, ui: GregalViewModel.CrewUi, winds: List<Wind>) {
+    var task by remember(ui.task) { mutableStateOf(ui.task) }
+    Dialog(onDismissRequest = { if (!ui.starting) vm.closeCrew() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(shape = RoundedCornerShape(28.dp), color = Superficie, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(tr(lang, "app.crew.title"), color = Ink, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(tr(lang, "app.crew.intro"), color = Muted, fontSize = 13.5.sp, lineHeight = 19.sp)
+                OutlinedTextField(task, { task = it }, enabled = !ui.loading && !ui.starting,
+                    placeholder = { Text(tr(lang, "app.crew.hint"), color = Faint) }, minLines = 2, maxLines = 5,
+                    shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                val p = ui.proposal
+                if (p == null) {
+                    if (ui.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TypingDots(Sea); Text(tr(lang, "app.crew.thinking"), color = Muted, fontSize = 13.sp)
+                    }
+                    if (ui.error) Text(tr(lang, "app.crew.error"), color = Red, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { vm.closeCrew() }) { Text(tr(lang, "app.crew.cancel"), color = Muted) }
+                        Spacer(Modifier.weight(1f))
+                        PrimaryPill(tr(lang, "app.crew.propose"), { vm.proposeCrew(task) }, enabled = task.isNotBlank() && !ui.loading)
+                    }
+                } else {
+                    if (p.plan.isNotBlank()) Text(p.plan, color = Tinta, fontSize = 14.sp, lineHeight = 20.sp)
+                    p.reuse.forEach { r ->
+                        val w = winds.firstOrNull { it.id == r.id } ?: Wind(r.id, r.name, "#BFCCA8", r.role)
+                        CrewMemberRow(lang, w, r.why, isNew = false)
+                    }
+                    p.create.forEach { c -> CrewMemberRow(lang, c.wind, c.why, isNew = true) }
+                    if (ui.error) Text(tr(lang, "app.crew.error"), color = Red, fontSize = 13.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = { vm.closeCrew() }, enabled = !ui.starting) { Text(tr(lang, "app.crew.cancel"), color = Muted) }
+                        Spacer(Modifier.weight(1f))
+                        if (ui.starting) TypingDots(Sea)
+                        else PrimaryPill(tr(lang, "app.crew.start"), { vm.startCrew() })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
+    val accent = Color(w.argb)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(if (isNew) Sea.copy(alpha = 0.08f) else SuperficieAlta.copy(alpha = 0.5f))
+            .border(1.dp, if (isNew) Sea.copy(alpha = 0.35f) else Line, RoundedCornerShape(18.dp))
+            .padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        WindFace(size = 48, accent = accent, style = w.faceStyle)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                if (isNew) Text(tr(lang, "app.crew.new").uppercase(), color = Sea, fontSize = 10.sp, fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.8.sp, modifier = Modifier.background(Sea.copy(alpha = 0.14f), RoundedCornerShape(999.dp)).padding(horizontal = 7.dp, vertical = 2.dp))
+            }
+            Text(w.role, color = Muted, fontSize = 12.5.sp)
+            if (why.isNotBlank()) Text(why, color = Tinta, fontSize = 12.5.sp, lineHeight = 17.sp)
         }
     }
 }

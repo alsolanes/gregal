@@ -609,6 +609,24 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
+    /** Qui pot fer un encàrrec: vents que ja hi encaixen i especialistes nous. */
+    fun crewPropose(task: String, lang: String): CrewProposal =
+        CrewProposal.parse(post("/api/winds/crew/propose", JSONObject().put("task", task).put("lang", lang)))
+
+    /** Convoca la colla: crea els vents nous, obre la rotllana i torna'n l'id. */
+    fun crewStart(task: String, lang: String, p: CrewProposal): String {
+        val body = JSONObject().put("task", task).put("lang", lang)
+            .put("reuse", JSONArray(p.reuse.map { it.id }))
+            .put("create", JSONArray(p.create.map { it.json() }))
+        return post("/api/winds/crew/start", body).optJSONObject("rotllana")?.optString("id").orEmpty()
+    }
+
+    /** Pas de la feina d'una colla convocada: discussing, waiting, working, done, failed. */
+    fun crewStatus(rotllanaId: String): Pair<Boolean, String> {
+        val o = JSONObject(read(conn("/api/winds/crew/status?rotllana=" + java.net.URLEncoder.encode(rotllanaId, "UTF-8"), "GET")))
+        return o.optBoolean("running") to o.optString("step")
+    }
+
     /** Activa una colla: crea els especialistes que falten (idempotent). */
     fun activateSquad(id: String, lang: String): Boolean {
         val o = post("/api/winds/squads", JSONObject().put("id", id).put("lang", lang))

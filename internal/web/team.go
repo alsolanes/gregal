@@ -12,6 +12,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/companion"
+	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/team"
 )
@@ -112,23 +113,6 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 	}
 	cfg, client := s.cfg, s.client
 	s.mu.Unlock()
-	// The team run owns this session's room: publish it as shared activity
-	// so the single 2D room renders pipeline runs next to agent sessions.
-	generation := s.beginWorkshop(strings.TrimSpace(req.Task), role.Model, 0)
-	flow := req.Flow
-	if flow == nil {
-		defaultFlow := team.DefaultFlow()
-		flow = &defaultFlow
-	}
-	s.mu.Lock()
-	if s.activity != nil {
-		s.activity.Kind = "team"
-		s.activity.Flow = flow
-	}
-	s.mu.Unlock()
-	// Team cancellation has its own slot (see stopRun): agent stops and
-	// team stops never clobber each other, but either can stop this run.
-	// The old shared runCancel slot is untouched on purpose.
 	runCtx, teamCancel := context.WithCancel(r.Context())
 	s.mu.Lock()
 	s.teamCancel = teamCancel
@@ -145,11 +129,53 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	emit, stop := sseWithHeartbeat(w, ctx, 15*time.Second)
 	defer stop()
-	if req.Winds {
-		record, err := s.recordWindTask(strings.TrimSpace(req.Task), workspace, req.Thread, flow)
+	s.runTeamFlow(ctx, teamFlowRun{
+		task: strings.TrimSpace(req.Task), lang: req.Lang, flow: req.Flow, withTools: withTools,
+		winds: req.Winds, thread: req.Thread, workspace: workspace, subagents: subagents,
+		cfg: cfg, client: client, provider: provider, role: role, started: started,
+	}, emit)
+}
+
+// teamFlowRun is one team pipeline run, from the HTTP handler or from a
+// Winds crew job running in the background on the server.
+type teamFlowRun struct {
+	task, lang, thread, workspace string
+	flow                          *team.FlowSpec
+	withTools, winds              bool
+	subagents                     map[string]*agent.SubagentDef
+	cfg                           *config.Config
+	client                        *llm.Client
+	provider                      config.Provider
+	role                          config.Role
+	started                       time.Time
+}
+
+// runTeamFlow runs a pipeline and emits its events, ending with done,
+// failed or cancelled. The caller owns flowRunning and the cancel slot.
+// It returns the final answer ("" on failure).
+func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(string, any)) string {
+	cfg, client, provider, role, workspace, subagents, withTools := run.cfg, run.client, run.provider, run.role, run.workspace, run.subagents, run.withTools
+	started := run.started
+	// The team run owns this session's room: publish it as shared activity
+	// so the single 2D room renders pipeline runs next to agent sessions.
+	generation := s.beginWorkshop(run.task, role.Model, 0)
+	flow := run.flow
+	if flow == nil {
+		defaultFlow := team.DefaultFlow()
+		flow = &defaultFlow
+	}
+	s.mu.Lock()
+	if s.activity != nil {
+		s.activity.Kind = "team"
+		s.activity.Flow = flow
+	}
+	s.mu.Unlock()
+	if run.winds {
+		record, err := s.recordWindTask(run.task, workspace, run.thread, flow)
 		if err != nil {
 			emit("team", team.Event{Type: "failed", Message: "could not save work history"})
-			return
+			s.finishWorkshop(generation, err)
+			return ""
 		}
 		stream := emit
 		emit = func(kind string, value any) {
@@ -159,12 +185,13 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 			stream(kind, value)
 		}
 	}
+
 	language := "English"
-	if req.Lang == "ca" {
+	if run.lang == "ca" {
 		language = "Catalan"
 	}
 	emit("team", team.Event{Type: "started"})
-	log.Printf("team run started task=%s", previewTask(strings.TrimSpace(req.Task)))
+	log.Printf("team run started task=%s", previewTask(run.task))
 	var models sync.Map
 	runner := func(ctx context.Context, name, task string) (string, error) {
 		node, _ := team.NodeFrom(ctx)
@@ -175,7 +202,7 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 				seat.System += s.windMemorySystem(node.Wind) + companion.WindBrainSystem(s.windBrain(node.Wind)) + s.windSkillsSystem(node.Wind)
 				ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(node.Wind))
 			}
-			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, workspace, language, name, task, req.Winds, emit)
+			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, workspace, language, name, task, run.winds, emit)
 			if err != nil {
 				log.Printf("team role %s error: %s", name, redactError(err))
 			}
@@ -214,10 +241,10 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 	}
 	var answer string
 	var err error
-	if req.Flow != nil {
-		answer, err = team.RunFlow(ctx, strings.TrimSpace(req.Task), *req.Flow, runner, onEvent)
+	if run.flow != nil {
+		answer, err = team.RunFlow(ctx, run.task, *run.flow, runner, onEvent)
 	} else {
-		answer, err = team.Run(ctx, strings.TrimSpace(req.Task), runner, onEvent)
+		answer, err = team.Run(ctx, run.task, runner, onEvent)
 	}
 	if err != nil {
 		// Provider errors may contain credential-bearing URLs; never send them to the UI.
@@ -225,14 +252,15 @@ func (s *Server) handleTeamRun(w http.ResponseWriter, r *http.Request) {
 		// same reason: enough to tell a hang (failed after ~10m) from a
 		// user stop (cancelled in seconds) without leaking anything.
 		kind := teamErrorKind(err, ctx)
-		log.Printf("team run %s after %s", kind, time.Since(started).Round(time.Second))
+		log.Printf("team run %s after %s: %s", kind, time.Since(started).Round(time.Second), redactError(err))
 		s.finishWorkshop(generation, err)
 		emit("team", team.Event{Type: kind})
-		return
+		return ""
 	}
 	emit("team", team.Event{Type: "done", Output: answer})
 	s.finishWorkshop(generation, nil)
 	log.Printf("team run done after %s", time.Since(started).Round(time.Second))
+	return answer
 }
 
 // teamRunTimeout caps a team run. A package var (not const) so tests can

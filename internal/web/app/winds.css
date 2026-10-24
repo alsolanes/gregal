@@ -337,3 +337,16 @@
 @media (prefers-reduced-motion:reduce) {
   .winds-face, .winds-face * { animation:none !important; transition:none !important; }
 }
+
+/* Convoca la colla: who joins, who is new, and why. */
+.vw-crew-dialog { max-width:min(520px,calc(100vw - 32px)); }
+.vw-crew-list { display:flex; flex-direction:column; gap:8px; margin:16px 0 10px; }
+.vw-crew-member { display:flex; align-items:center; gap:12px; padding:10px 12px; border:1px solid var(--line); border-radius:16px; background:var(--surface); }
+.vw-crew-member > .winds-face { width:48px; height:48px; flex:none; }
+.vw-crew-member strong { display:flex; align-items:center; gap:8px; font-size:14px; }
+.vw-crew-new { border-color:color-mix(in srgb,var(--accent) 45%,var(--line)); background:color-mix(in srgb,var(--accent) 7%,var(--surface)); }
+.vw-crew-tag { font-size:10px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; padding:2px 7px; border-radius:99px; color:var(--accent); background:color-mix(in srgb,var(--accent) 14%,transparent); }
+.vw-crew-role { display:block; font-size:12.5px; color:var(--muted); margin-top:2px; }
+.vw-crew-why { margin:4px 0 0; font-size:12.5px; color:var(--text); line-height:1.45; }
+.vw-crew-plan { font-size:13px; color:var(--muted); margin:6px 2px 14px; line-height:1.5; }
+.vw-crew-dialog .vw-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:wrap; }
