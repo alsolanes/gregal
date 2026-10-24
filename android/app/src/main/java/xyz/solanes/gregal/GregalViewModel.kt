@@ -2751,6 +2751,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Fase del directe en la llengua de l'app. */
     private fun streamPhaseText(phase: String): String = when (phase) {
         "searching" -> appText("app.vents.streamSearching")
+        "browsing" -> appText("app.vents.streamBrowsing")
         "scheduling" -> appText("app.vents.streamScheduling")
         "thinking" -> appText("app.vents.streamThinking")
         "speaker" -> appText("app.vents.streamSpeaker")

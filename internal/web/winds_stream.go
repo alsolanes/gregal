@@ -44,7 +44,7 @@ var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string,
 func streamPhase(names string) string {
 	n := strings.ToLower(names)
 	switch {
-	case strings.Contains(n, "web_search") || strings.Contains(n, "web_fetch"):
+	case strings.Contains(n, "web_search") || strings.Contains(n, "web_fetch") || strings.Contains(n, "browser"):
 		return "searching"
 	case strings.Contains(n, "remind"):
 		return "scheduling"
@@ -56,14 +56,14 @@ func streamPhase(names string) string {
 // windChatBrief munta la consigna del xat directe (compartida pel clàssic i l'stream).
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest())
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 16000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed." + windRemindBrief(wind.ID)
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
 	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
 	transcript := agent.TranscriptDigest(conversation, 16000)
-	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts." + windRemindBrief(speakingWind.ID)
+	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts." + windRemindBrief(speakingWind.ID)
 	return system, brief
 }
 
