@@ -337,7 +337,10 @@ data class RunItem(
     val status: String,
     val output: String,
     val error: String,
-)
+) {
+    /** Error de connexió traduït a humà (runs vells amb text cru del servidor). */
+    val errorAmic: String get() = friendlyRunError(error)
+}
 
 data class ApproveReq(val key: String, val callId: String, val name: String, val args: String)
 
@@ -548,3 +551,37 @@ data class MeInfo(
     val admin: Boolean = false,
     val roots: List<String> = emptyList(),
 )
+
+/**
+ * Tradueix un error de connexió del proveïdor (text cru que desa el servidor)
+ * a una frase que una persona entén: què ha passat i què fer-hi. La mateixa
+ * taula existeix al backend Go i a la web. Res conegut es toca.
+ */
+fun friendlyRunError(raw: String): String {
+    val e = raw.trim()
+    if (e.isEmpty()) return e
+    val l = e.lowercase()
+    val host = hostDeError(e)
+    return when {
+        "no such host" in l || "dns" in l ->
+            if (host.isNotEmpty()) "No s'ha pogut arribar al proveïdor: el dispositiu no resol l'adreça $host. Comprova que hi ha internet i torna-ho a provar."
+            else "No s'ha pogut arribar al proveïdor: no es resol la seva adreça. Comprova que hi ha internet i torna-ho a provar."
+        "connection refused" in l -> "No s'ha pogut arribar al proveïdor (connexió refusada). Pot ser un tall puntual: torna-ho a provar més tard."
+        "context deadline exceeded" in l || "client.timeout" in l || "timeout" in l -> "El proveïdor ha trigat massa a respondre. Torna-ho a provar: si continua així, pot estar saturat."
+        "certificate" in l || "x509" in l -> "El proveïdor presenta un certificat que no es confia. Comprova la data/hora del dispositiu."
+        "401" in l || "unauthorized" in l -> "El proveïdor ha rebutjat la clau (401). Revisa la clau API a la configuració."
+        "429" in l || "too many requests" in l -> "El proveïdor ha limitat les peticions (429). Espera una mica i torna-ho a provar."
+        "no route to host" in l || "network is unreachable" in l -> "No hi ha ruta cap al servidor. Comprova que hi ha internet i torna-ho a provar."
+        l == "eof" || l.endsWith("eof") -> "La connexió amb el proveïdor s'ha tallat a mig camí. Torna-ho a provar."
+        else -> e
+    }
+}
+
+/** Extreu l'host de l'error de transport ("dial tcp: lookup HOST:"). */
+private fun hostDeError(e: String): String {
+    val i = e.indexOf("lookup ")
+    if (i < 0) return ""
+    val rest = e.substring(i + "lookup ".length)
+    val end = rest.indexOfFirst { it == ':' || it == ' ' }
+    return if (end > 0) rest.substring(0, end) else rest
+}

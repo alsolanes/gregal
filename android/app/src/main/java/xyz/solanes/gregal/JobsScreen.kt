@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -165,7 +166,7 @@ fun JobsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         }, lang = lang)
     }
     viewing?.let { r ->
-        RunDetail(r, onDismiss = { viewing = null; vm.loadRuns() }, lang = lang)
+        RunDetail(r, vm = vm, onDismiss = { viewing = null; vm.loadRuns() }, lang = lang)
     }
 }
 
@@ -431,28 +432,60 @@ fun trimHours(h: Double): String =
 
 /** Lectura rica d'una execució: capçalera + butlletí amb el render del xat. */
 @Composable
-fun RunDetail(r: RunItem, onDismiss: () -> Unit, lang: String = "ca") {
+fun RunDetail(r: RunItem, vm: GregalViewModel, onDismiss: () -> Unit, lang: String = "ca") {
+    var reintentant by remember(r.id) { mutableStateOf(false) }
+    var errorReintent by remember(r.id) { mutableStateOf<String?>(null) }
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
             colors = CardDefaults.cardColors(containerColor = DeepBottom),
             shape = RoundedCornerShape(20.dp),
         ) {
-            Column(Modifier.padding(18.dp)) {
+            // Altura màxima: sense ella, un butlletí llarg empeny els botons fora de pantalla.
+            Column(Modifier.fillMaxHeight().padding(18.dp)) {
                 Text(stripMdForTitle(r.jobName.ifEmpty { tr(lang, "app.jobs.emptyJobName") }),
                     fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Ink)
                 Text(shortStamp(r.startedAt) +
                     (if (r.status == "ok") " · ${tr(lang, "app.jobs.doneWord")}" else " · ${tr(lang, "app.jobs.errorWord")}"),
                     color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                 Spacer(Modifier.height(8.dp))
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                     if (r.status == "ok" && r.output.isNotBlank()) {
                         AssistantResponse(r.output, lang)
                     } else {
-                        Text(r.error.ifEmpty { tr(lang, "app.jobs.noDetail") }, color = Muted, fontSize = 14.sp)
+                        // Error de connexió traduït a humà; runs vells conserven el
+                        // text cru si no encaixa amb cap patró conegut.
+                        Text(r.errorAmic.ifEmpty { tr(lang, "app.jobs.noDetail") }, color = Muted, fontSize = 14.sp)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
+                if (r.status != "ok" && r.jobId.isNotBlank()) {
+                    when {
+                        reintentant -> Text(tr(lang, "app.jobs.retryQueued"),
+                            color = Muted, fontSize = 13.sp,
+                            modifier = Modifier.padding(bottom = 8.dp))
+                        errorReintent != null -> {
+                            Text(tr(lang, "app.jobs.retryFailed"),
+                                color = Muted, fontSize = 13.sp,
+                                modifier = Modifier.padding(bottom = 8.dp))
+                            Button(
+                                onClick = {
+                                    errorReintent = null
+                                    reintentant = true
+                                    vm.runJobNow(r.jobId) { ok, _ -> if (!ok) { reintentant = false; errorReintent = "si" } }
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            ) { Text(tr(lang, "app.jobs.retry")) }
+                        }
+                        else -> Button(
+                            onClick = {
+                                reintentant = true
+                                vm.runJobNow(r.jobId) { ok, _ -> if (!ok) { reintentant = false; errorReintent = "si" } }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        ) { Text(tr(lang, "app.jobs.retry")) }
+                    }
+                }
                 Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "btn.close")) }
             }
         }

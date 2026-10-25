@@ -3151,12 +3151,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun runJobNow(id: String) {
+    fun runJobNow(id: String, onDone: (ok: Boolean, message: String?) -> Unit = { _, _ -> }) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { _conn.value.api().runJob(id) }
                 notify(appText("app.status.jobStarted"))
-            } catch (e: Exception) { notify(appText("app.status.job", e.message.orEmpty())) }
+                onDone(true, null)
+            } catch (e: Exception) {
+                notify(appText("app.status.job", e.message.orEmpty()))
+                onDone(false, e.message)
+            }
         }
     }
 

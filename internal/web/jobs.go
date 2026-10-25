@@ -176,7 +176,7 @@ func (s *Server) runJob(id string, manual bool) (run jobs.Run, err error) {
 			Error:      "execució de job interrompuda abans de començar",
 		}
 		if finished.Err != "" {
-			run.Error = finished.Err
+			run.Error = friendlyRunError(finished.Err)
 		}
 		if run.FinishedAt.IsZero() {
 			run.FinishedAt = time.Now()
@@ -247,7 +247,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	}
 	if runErr != nil {
 		run.Status = "error"
-		run.Error = runErr.Error()
+		run.Error = friendlyRunError(runErr.Error())
 	} else {
 		run.Status = "ok"
 		run.Output = strings.TrimSpace(out)
@@ -410,6 +410,12 @@ func (s *Server) handleJobRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if !s.windRoutineVisibleID(req.ID) {
 		http.Error(w, "unknown routine", 404)
+		return
+	}
+	// Un run manual d'una rutina esborrada no faria res: el goroutine
+	// no trobaria el job i moriria en silenci. Millor dir-ho ara.
+	if !s.jobs.Has(req.ID) {
+		http.Error(w, "rutina esborrada", 404)
 		return
 	}
 	if req.Scheduled {

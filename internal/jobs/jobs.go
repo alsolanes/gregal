@@ -158,6 +158,23 @@ func (s *Store) Delete(id string) error {
 }
 
 // MarkRun actualitza l'última execució del job.
+// Has diu si el job encara existeix (un run manual d'una rutina esborrada
+// no faria res i cal poder-ho rebutjar).
+func (s *Store) Has(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	jobs, err := s.list()
+	if err != nil {
+		return false
+	}
+	for _, j := range jobs {
+		if j.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Store) MarkRun(id string, at time.Time, status string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
