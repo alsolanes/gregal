@@ -61,7 +61,7 @@ class VentsMessengerTest {
         val restore = androidx.compose.ui.test.junit4.StateRestorationTester(ui)
         restore.setContent {
             CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
-                MaterialTheme(colorScheme = LightPal.scheme()) { WindConversation(vm, "ca", wind) {} }
+                MaterialTheme(colorScheme = LightPal.scheme()) { WindConversation(vm, "ca", wind, onBack = {}) }
             }
         }
         ui.onNodeWithText(tr("ca", "app.company.windChatHint", "Xaloc")).performTextInput("Un esborrany sense enviar")

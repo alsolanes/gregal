@@ -137,6 +137,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     var profile by remember { mutableStateOf<Wind?>(null) }
     var rowTarget by remember { mutableStateOf<RowTarget?>(null) }
     var programatsOpen by remember { mutableStateOf(false) }
+    var wikiOpen by remember { mutableStateOf(false) }
+    var wikiFromChat by remember { mutableStateOf<ChatTarget?>(null) }
+    val wikiBusy by vm.wikiBusy.collectAsState()
     val creator by vm.windCreator.collectAsState()
     LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes() }
     LaunchedEffect(winds.map { it.id }, rotllanes.map { it.id }) {
@@ -158,8 +161,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         val wind = if (open!!.startsWith("wind:")) winds.firstOrNull { it.id == id } else null
         val rot = if (open!!.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
         when {
-            wind != null -> WindConversation(vm, lang, wind) { vm.openVentsChat(null) }
-            rot != null -> RotllanaConversation(vm, lang, rot, winds) { vm.openVentsChat(null) }
+            wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
+            rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
             else -> LaunchedEffect(open) { vm.openVentsChat(null) }
         }
     } else {
@@ -230,6 +233,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
                         ProgramatsButton(lang) { programatsOpen = true }
                     }
+                    if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
+                        WikiButton(lang) { wikiOpen = true }
+                    }
                     val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
                     if (rows.isEmpty()) item {
                         if (query.isBlank()) VentsEmpty(lang, true)
@@ -259,6 +265,24 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         }
     }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
+    if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }
+    // «Resumeix a la wiki» des d'un xat: confirmació + estat en viu i avís en acabar.
+    wikiFromChat?.let { target ->
+        AlertDialog(
+            onDismissRequest = { if (!wikiBusy) wikiFromChat = null },
+            title = { Text(tr(lang, "app.wiki.summarize")) },
+            text = { Text(if (wikiBusy) tr(lang, "app.wiki.summarizing") else tr(lang, "app.wiki.emptyHelp"), color = if (wikiBusy) Muted else Tinta) },
+            confirmButton = {
+                TextButton(enabled = !wikiBusy, onClick = {
+                    vm.summarizeToWiki(target.windId, target.rotId) { ok ->
+                        if (ok) vm.notify(tr(lang, "app.wiki.summarizeDone"))
+                    }
+                    wikiFromChat = null
+                }) { Text(tr(lang, "app.wiki.summarize"), color = Sea) }
+            },
+            dismissButton = { TextButton(enabled = !wikiBusy, onClick = { wikiFromChat = null }) { Text("✕", color = Muted) } },
+        )
+    }
     profile?.let { w -> WindProfileDialog(vm, lang, w) { profile = null } }
     rowTarget?.let { t ->
         ChatRowDialog(vm, lang, t) { rowTarget = null }
@@ -598,7 +622,7 @@ internal fun ConversationRow(
 
 /** El xat d'un vent a pantalla completa: capçalera amb la cara, bombolles, input. */
 @Composable
-internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit) {
+internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.windChat.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val live by vm.windLive.collectAsState()
@@ -665,7 +689,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (isBusy) tr(lang, "app.company.windThinking", wind.name) else wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
-            onBack = onBack, onProfile = { profile = true })
+            onBack = onBack, onProfile = { profile = true },
+            onWiki = onWiki)
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -762,7 +787,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
 
 /** El xat d'una rotllana a pantalla completa. */
 @Composable
-private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit) {
+private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.rotllanaChat.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
@@ -832,7 +857,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
             if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
-            onBack = onBack, onProfile = { groupProfile = true })
+            onBack = onBack, onProfile = { groupProfile = true },
+            onWiki = onWiki)
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
@@ -1364,3 +1390,6 @@ private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
         }
     }
 }
+
+/** Un xat des d'on demanem un resum a la wiki (vent o rotllana). */
+internal data class ChatTarget(val nom: String, val windId: String?, val rotId: String?)

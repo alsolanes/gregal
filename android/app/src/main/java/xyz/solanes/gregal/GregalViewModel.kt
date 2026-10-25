@@ -2443,6 +2443,60 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Wiki de l'espai vents: pàgines de resum. */
+    private val _wikiPages = MutableStateFlow<List<GregalApi.WikiPage>?>(null)
+    val wikiPages: StateFlow<List<GregalApi.WikiPage>?> = _wikiPages.asStateFlow()
+    private val _wikiBusy = MutableStateFlow(false)
+    val wikiBusy: StateFlow<Boolean> = _wikiBusy.asStateFlow()
+
+    fun loadWiki() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val pages = withContext(Dispatchers.IO) { source.api().getWikiPages() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _wikiPages.value = pages
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
+        }
+    }
+
+    /** Llegeix una pàgina sencera (el cos no ve a la llista). */
+    suspend fun lecturaDePagina(nom: String): GregalApi.WikiPage? {
+        val source = _conn.value
+        return withContext(Dispatchers.IO) { runCatching { source.api().getWikiPage(nom) }.getOrNull() }
+    }
+
+    /** Desa una pàgina editada. */
+    fun saveWikiPage(p: GregalApi.WikiPage, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { source.api().saveWikiPage(p) }.getOrDefault(false) }
+            if (isCompanionOrigin(source, epoch)) { _wikiBusy.value = false; onDone(ok) }
+            if (ok) loadWiki()
+        }
+    }
+
+    fun deleteWikiPage(nom: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { runCatching { source.api().deleteWikiPage(nom) } }
+            if (isCompanionOrigin(source, epoch)) loadWiki()
+        }
+    }
+
+    /** Resumeix l'última conversa (vent o rotllana) a una pàgina de wiki. */
+    fun summarizeToWiki(wind: String? = null, rotllana: String? = null, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        _wikiBusy.value = true
+        viewModelScope.launch {
+            val page = withContext(Dispatchers.IO) { runCatching { source.api().summarizeToWiki(wind, rotllana) }.getOrNull() }
+            if (isCompanionOrigin(source, epoch)) {
+                _wikiBusy.value = false
+                if (page != null) { loadWiki(); onDone(true) } else { notify(appText("app.wiki.summarizeFail", "")); onDone(false) }
+            }
+        }
+    }
+
     /** Estudi «fes-te expert»: estat per vent (fase, pas) i engegar-la. */
     private val _windExpert = MutableStateFlow<Map<String, GregalApi.WindExpert>>(emptyMap())
     val windExpert: StateFlow<Map<String, GregalApi.WindExpert>> = _windExpert.asStateFlow()

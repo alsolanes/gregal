@@ -839,6 +839,50 @@ class GregalApi(val base: String, val token: String) {
         return o.optBoolean("ok", false)
     }
 
+    /** Wiki de l'espai vents: pàgines de resum amb markdown, gràfics i imatges. */
+    data class WikiPage(
+        val nom: String, val titol: String, val descripcio: String,
+        val cos: String, val updated: String,
+    )
+
+    fun getWikiPages(): List<WikiPage> {
+        val o = JSONObject(read(conn("/api/winds/wiki", "GET")))
+        val a = o.optJSONArray("pages") ?: JSONArray()
+        return (0 until a.length()).map { wikiFromJSON(a.getJSONObject(it)) }
+    }
+
+    fun getWikiPage(nom: String): WikiPage {
+        val o = JSONObject(read(conn("/api/winds/wiki/${java.net.URLEncoder.encode(nom, "UTF-8")}", "GET")))
+        return wikiFromJSON(o.getJSONObject("page"))
+    }
+
+    fun saveWikiPage(p: WikiPage): Boolean {
+        val o = post("/api/winds/wiki", JSONObject()
+            .put("nom", p.nom).put("titol", p.titol).put("descripcio", p.descripcio).put("cos", p.cos))
+        return o.has("page")
+    }
+
+    fun deleteWikiPage(nom: String): Boolean = try {
+        val c = conn("/api/winds/wiki/${java.net.URLEncoder.encode(nom, "UTF-8")}", "DELETE")
+        c.requestMethod = "DELETE"
+        JSONObject(read(c)).optBoolean("ok", false)
+    } catch (e: Exception) { false }
+
+    /** Resumeix l'última conversa (vent o rotllana) i la desa com a pàgina nova. */
+    fun summarizeToWiki(wind: String? = null, rotllana: String? = null, titol: String = ""): WikiPage? {
+        val body = JSONObject()
+        if (wind != null) body.put("wind", wind)
+        if (rotllana != null) body.put("rotllana", rotllana)
+        if (titol.isNotBlank()) body.put("titol", titol)
+        val o = post("/api/winds/wiki/summary", body)
+        return if (o.has("page")) wikiFromJSON(o.getJSONObject("page")) else null
+    }
+
+    private fun wikiFromJSON(j: JSONObject): WikiPage = WikiPage(
+        j.optString("nom"), j.optString("titol"), j.optString("descripcio"),
+        j.optString("cos"), j.optString("updated"),
+    )
+
     fun getWindExpert(windId: String): WindExpert {
         val o = JSONObject(read(conn("/api/winds/expert?wind=${java.net.URLEncoder.encode(windId, "UTF-8")}", "GET")))
         return WindExpert(o.optString("wind"), o.optString("tema"), o.optString("fase"),
