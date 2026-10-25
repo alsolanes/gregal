@@ -83,18 +83,21 @@
   const phases={thinking:t('Preparant la resposta','Preparing a response'),searching:t('Cercant informació','Searching for information'),scheduling:t('Preparant el recordatori','Preparing the reminder'),working:t('Treballant en la resposta','Working on the response')};
   const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
   activity.append(el('span','',pending.text?t('Escrivint la resposta','Writing the response'):phases[pending.phase]||phases.thinking),dots);copy.append(activity);
-  if(pending.text)copy.append(el('div','vw-message-text vw-stream-text',withoutSpeaker(pending.text,wind?.name)));
+  // Streamed text is formatted as it arrives, like the finished message it becomes.
+  if(pending.text){const body=el('div','vw-message-text vw-stream-text'),shown=withoutSpeaker(pending.text,wind?.name);if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
  function schedulePending(){if(pendingFrame)return;pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;paintPending();});}
- async function streamChat(destination,text,controller){
+ async function streamChat(destination,text,controller,progress={}){
   const response=await root.api(destination.legacyWind?'/api/winds/chat/stream':'/api/winds/rotllana/stream',{method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(destination.legacyWind?{wind:destination.id,message:text}:{rotllana:destination.id,message:text})});
   if(!response.ok||!response.body)throw new Error(t('No s’ha pogut iniciar la resposta.','Could not start the response.'));
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',result=null;
   try{while(true){const chunk=await reader.read();if(chunk.done)break;buffer+=decoder.decode(chunk.value,{stream:true}).replace(/\r\n/g,'\n');let end;
    while((end=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);const lines=frame.split('\n'),kind=lines.find(l=>l.startsWith('event:'))?.slice(6).trim(),raw=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n');if(!raw)continue;const data=JSON.parse(raw);
-    if(kind==='error')throw new Error(data.error||t('La resposta s’ha interromput.','The response was interrupted.'));
+    if(kind==='error')throw new Error(root.gregalFriendlyRunError(data.error)||t('La resposta s’ha interromput.','The response was interrupted.'));
     if(kind==='done'){result=data;continue;}
+    // A group voice finished and is already saved: show it in place before the next voice starts.
+    if(kind==='reply'){if(Array.isArray(data.history)){progress.history=data.history;if(state.pending?.thread===destination.id)state.pending.text='';if(state.view==='chat'&&state.active?.id===destination.id){state.history=data.history;paintHistory();}}continue;}
     const pending=state.pending;if(!pending||pending.thread!==destination.id)continue;
     if(kind==='phase'){if(data.phase.startsWith('speaker:')){const next=data.phase.slice(8);if(pending.wind&&pending.wind!==next)pending.voices=(pending.voices||1)+1;pending.wind=next;}pending.phase=data.phase.startsWith('speaker:')?'thinking':data.phase;pending.text='';}
     else if(kind==='token')pending.text+=data.token||'';
@@ -206,13 +209,13 @@
    try{await root.gregalWindRunner.start(text,flow,true,{thread:conversation.id});}finally{state.busy=false;state.tasks=(await call('/api/winds/tasks')).tasks||[];if(state.view==='task'){paintWork();const work=$('vwWork'),card=work?.querySelector('.vw-deliverable');if(card)work.scrollTop+=card.getBoundingClientRect().top-work.getBoundingClientRect().top-8;const send=composer?.querySelector('.vw-send');if(send)paintSend(send);}}return;
   }
   const epoch=state.chatEpoch||0,workspace=state.active?.project?state.active.path:'';let sentTo=state.view==='chat'?state.active:null;
-  state.busy=true;const controller=new AbortController();chatController=controller;try{
+  state.busy=true;const controller=new AbortController(),progress={};chatController=controller;try{
    if(!sentTo){const data=await call('/api/winds/rotllanes','POST',{name:text.slice(0,75),members:members.map(w=>w.id),workspace});sentTo=data.rotllana;state.chats.unshift(sentTo);if(epoch===(state.chatEpoch||0)){state.active=sentTo;state.history=[];}}
    if(sentTo.workspace)await switchFolder(sentTo.workspace);
    state.pending={thread:sentTo.id,wind:sentTo.legacyWind?sentTo.id:sentTo.members?.length===1?sentTo.members[0]:null,phase:'thinking',text:''};
    if(epoch===(state.chatEpoch||0)){state.history.push({from:'user',text,optimistic:true});state.draft='';state.view='chat';render();}
-   const data=await streamChat(sentTo,text,controller);state.pending=null;if(state.view==='chat'&&state.active?.id===sentTo.id){state.history=data.history||state.history;paintHistory();status.textContent='';}
-  }catch(error){if(state.active?.id===sentTo?.id){state.draft=text;state.history=state.history.filter(m=>!m.optimistic);}if(!controller.signal.aborted)throw error;}finally{if(chatController===controller)chatController=null;state.pending=null;state.busy=false;if(state.view==='chat')render();}
+   const data=await streamChat(sentTo,text,controller,progress);state.pending=null;if(state.view==='chat'&&state.active?.id===sentTo.id){state.history=data.history||state.history;paintHistory();status.textContent=data.failed?.length?t('No han pogut respondre: ','Could not answer: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):''):'';}
+  }catch(error){if(state.active?.id===sentTo?.id){if(progress.history){state.history=progress.history;state.draft='';}else{state.draft=text;state.history=state.history.filter(m=>!m.optimistic);}}if(!controller.signal.aborted)throw error;}finally{if(chatController===controller)chatController=null;state.pending=null;state.busy=false;if(state.view==='chat')render();}
  }
  const statusName=value=>({started:t('En marxa','Running'),working:t('En marxa','Running'),done:t('Enllestit','Complete'),completed:t('Enllestit','Complete'),failed:t('Cal revisar-ho','Needs attention'),cancelled:t('Aturat','Stopped'),waiting:t('En espera','Waiting')})[value]||value;
  function taskView(){content.classList.add('vw-thread-view');const title=state.active?.name||state.snapshot?.task||'';heading(title);if(state.active?.conversation)content.append(btn(t('← Torna a la conversa','← Back to conversation'),()=>openChat(state.active.conversation),'vw-back'));const work=el('div','vw-work');work.id='vwWork';content.append(work);paintWork();addComposer(true);input.placeholder=t('Una altra cosa que vulguis fer…','Something else you’d like to do…');}

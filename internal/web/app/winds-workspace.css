@@ -146,7 +146,7 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-thinking-dots i { display:block; width:4px; height:4px; border-radius:50%; background:var(--vw-accent); animation:vw-thinking 1.4s ease-in-out infinite; }
 .vw-thinking-dots i:nth-child(2) { animation-delay:.15s; }
 .vw-thinking-dots i:nth-child(3) { animation-delay:.3s; }
-.vw-stream-text { white-space:pre-wrap; margin-top:12px; }
+.vw-stream-text { margin-top:12px; }
 @keyframes vw-thinking { 0%,60%,100% { opacity:.35; transform:translateY(0); } 30% { opacity:1; transform:translateY(-2px); } }
 .vw-live-agent { display:flex; align-items:center; gap:10px; padding:11px 0; font-size:12px; }
 .vw-live-agent .winds-face { width:32px; height:32px; }
@@ -156,6 +156,8 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-message-text,.vw-result-text { white-space:normal; }
 .vw-message-text pre,.vw-result-text pre { overflow:auto; white-space:pre; max-width:100%; padding:14px; border-radius:9px; background:var(--panel); font-size:12px; }
 .vw-message-text p,.vw-result-text p { margin:8px 0; }
+/* Images a wind chose to show: framed and bounded, never full-size in the thread. */
+.vw-message-text img.md-img,.vw-result-text img.md-img { display:block; max-width:min(100%,440px); max-height:340px; width:auto; height:auto; object-fit:contain; border-radius:12px; margin:12px 0; background:var(--surface); border:1px solid var(--line); }
 .vw-back { flex:none; align-self:flex-start; background:transparent; color:var(--muted); border:0; font-size:12px!important; padding:0 0 12px; }
 .vw-deliverable { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:20px; margin:15px 0; display:flex; flex-wrap:wrap; gap:9px; }
 .vw-deliverable h2 { width:100%; font-size:14px; font-weight:500; margin:0 0 8px; }

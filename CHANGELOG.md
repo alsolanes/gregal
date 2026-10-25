@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep group replies in Winds conversations: each wind's finished answer is saved and shown at once, a slow wind has its own time limit instead of sharing three minutes with the whole round, and a wind that cannot answer no longer erases the others. Errors are explained in plain words.
+- Format group replies while they stream (bold, tables, images) instead of showing raw markdown until the end, and keep images a wind shows inside a bounded frame on desktop.
+- Android Vents: images in a conversation are shown whole (tall pictures are no longer cropped), without blank bands around them, with a caption naming what they are and where they come from. A tap opens them full screen with pinch zoom and a link to the source.
+
 - Summon a crew for a task, on desktop and Android. Gregal reuses the winds that already know the subject (including ones summoned before, with their memory and knowledge) and proposes new specialists only for what is missing, each with its own name, trade, playful persona and a colour far from the existing ones. Once summoned, the crew discusses the design in a group conversation (you can join in), then one builds and another reviews, all on the server so closing the app does not stop it. The closing message lists the files written and says plainly when the review asks for changes.
 - Android Vents preview 1.17.0 (103): messaging-first home with one mascot strip, searchable conversations, compact shared chat headers/composer and quiet flat bubbles. Mascots use matte silhouettes and simple eyes; the visual editor puts shape/color first while preserving personality, memory and knowledge. No voice features or production service changes.
 

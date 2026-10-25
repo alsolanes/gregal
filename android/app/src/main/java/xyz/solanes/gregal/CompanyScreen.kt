@@ -1008,14 +1008,7 @@ internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
         }
     }
     when {
-        bmp != null -> Image(
-            bitmap = bmp!!,
-            contentDescription = tr(lang, "app.vents.imageContent", alt.ifBlank { url }),
-            contentScale = ContentScale.FillWidth,
-            modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { try { uri.openUri(url) } catch (_: Exception) { } },
-        )
+        bmp != null -> ChatImageFrame(bmp!!, url, alt, lang)
         failed -> Text(
             alt.ifBlank { url }, fontSize = 13.sp, color = link,
             textDecoration = TextDecoration.Underline,

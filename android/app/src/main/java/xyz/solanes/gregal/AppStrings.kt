@@ -788,6 +788,9 @@ val STR_APP_CA: Map<String, String> = mapOf(
     "app.jobs.feedEmpty" to "Encara no hi ha resultats. Quan un avís programat s'executi, el veuràs aquí.",
     "app.vents.fileOpen" to "Obre",
     "app.vents.imageContent" to "Imatge: %s",
+    "app.vents.imageOpen" to "Amplia la imatge",
+    "app.vents.imageClose" to "Tanca la imatge",
+    "app.vents.imageSource" to "Obre a la font",
 )
 
 val STR_APP_EN: Map<String, String> = mapOf(
@@ -1575,6 +1578,9 @@ val STR_APP_EN: Map<String, String> = mapOf(
     "app.jobs.feedEmpty" to "No results yet. When a scheduled alert runs, you will see it here.",
     "app.vents.fileOpen" to "Open",
     "app.vents.imageContent" to "Image: %s",
+    "app.vents.imageOpen" to "Enlarge image",
+    "app.vents.imageClose" to "Close image",
+    "app.vents.imageSource" to "Open at the source",
 )
 
 /** Les dues taules han de tenir les mateixes claus (com a la web). */

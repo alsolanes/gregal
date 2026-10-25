@@ -19,6 +19,7 @@ import (
 // Protocol (SSE, un event per línia doble):
 //   phase: {"phase":"thinking|searching|scheduling|working"}
 //   token: {"token":"fragment"}              (només text de resposta)
+//   reply: {"wind":"id","history":[...]}     (rotllana: una veu acabada i ja desada)
 //   done:  {"reply":..., "history":..., ...}  (mateix payload que el clàssic)
 //   error: {"error":"..."}
 // Els tokens especulatius d'un pas que acaba en eines es retiren: el
@@ -32,6 +33,14 @@ var windLoopStream = func(s *Server, ctx context.Context, brief string, emit fun
 	s.mu.Unlock()
 	return s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
 }
+
+// rotllanaTurnTimeout limita cada veu d'una rotllana, no la ronda sencera:
+// una veu lenta no pot fer perdre les que ja han acabat. Els tests el redueixen.
+var rotllanaTurnTimeout = 3 * time.Minute
+
+// rotllanaFallbackTimeout dona al xat pla un termini propi quan la cerca d'una
+// veu ja ha esgotat el seu.
+var rotllanaFallbackTimeout = 90 * time.Second
 
 // rotllanaVoiceLoopStream és la via de cerca en grup amb emissió.
 var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
@@ -204,9 +213,6 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
-	defer cancel()
-
 	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
 	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
@@ -238,6 +244,8 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		text string
 	}
 	var veus []veu
+	var failed []string
+	var lastErr error
 	parcial := false
 	for si, sp := range speakers {
 		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
@@ -245,6 +253,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		var res exploracio
 		var err error
+		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
 		if isContinue && si == 0 {
 			s.mu.Lock()
 			p, role := s.windRoleRef()
@@ -259,6 +268,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 				parcial = res.parcial || parcial
 			}
 		}
+		cancel()
 		out := res.text
 		// Un torn que mor a mitges no és una resposta del vent: cau al
 		// xat pla com al clàssic (vegeu winds_rotllanes.go).
@@ -270,8 +280,9 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
 			p, role, ok2 := s.sideRoleRef()
 			if !ok2 {
-				emit("error", map[string]string{"error": "no side role available"})
-				return
+				lastErr = errors.New("no side role available")
+				failed = append(failed, sp.Name)
+				continue
 			}
 			s.mu.Lock()
 			cfg, client := s.cfg, s.client
@@ -281,10 +292,14 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			if len(msgs) > 41 {
 				msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
 			}
-			plain, perr := petChatter(ctx, client, cfg, p, role, msgs)
+			fctx, fcancel := context.WithTimeout(context.Background(), rotllanaFallbackTimeout)
+			plain, perr := petChatter(fctx, client, cfg, p, role, msgs)
+			fcancel()
 			if perr != nil {
-				emit("error", map[string]string{"error": redactError(perr)})
-				return
+				// Aquesta veu calla; les altres continuen i el que ja s'ha dit es manté.
+				lastErr = perr
+				failed = append(failed, sp.Name)
+				continue
 			}
 			out = plain
 		}
@@ -293,27 +308,36 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		if len(voices) == 0 {
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
-			continue
 		}
 		for _, v := range voices {
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{v.wind, v.text})
 		}
+		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
+		// primera vegada): si una veu posterior falla, aquesta no es perd.
+		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
+			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+			return
+		}
+		hist.messages = conversation
+		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 	}
-	if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
-		emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+	if len(veus) == 0 {
+		// Ningú no ha pogut respondre: no es desa res i el client conserva l'esborrany.
+		emit("error", map[string]string{"error": redactError(lastErr)})
 		return
 	}
-	hist.messages = conversation
 	if strings.TrimSpace(msg) != "" {
 		for _, v := range veus {
 			s.startWindMemoryLearn(v.wind, msg, v.text)
 		}
 	}
 	emit("done", map[string]any{
-		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
-		"parcial": parcial,
-		"history": s.rotllanaHistoryJSON(conversation),
-		"actions": remindActionsSince(speakingWind.ID, turnStart),
+		"reply":         map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
+		"parcial":       parcial,
+		"history":       s.rotllanaHistoryJSON(conversation),
+		"actions":       remindActionsSince(speakingWind.ID, turnStart),
+		"failed":        failed,
+		"failed_reason": redactError(lastErr),
 	})
 }

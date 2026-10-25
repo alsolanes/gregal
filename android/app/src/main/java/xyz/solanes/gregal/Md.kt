@@ -280,11 +280,17 @@ fun stripMdInline(src: String): String {
 fun groupRich(segs: List<Seg>): List<Rich> {
     val out = mutableListOf<Rich>()
     var run = mutableListOf<Seg>()
+    // Els salts de línia que envolten un bloc (imatge, taula, codi) ja els fa
+    // l'espaiat entre blocs: si es deixessin, cada bloc tindria una franja buida.
     fun flush() {
+        while ((run.firstOrNull() as? Seg.Text)?.t?.isBlank() == true) run.removeAt(0)
+        while ((run.lastOrNull() as? Seg.Text)?.t?.isBlank() == true) run.removeAt(run.size - 1)
+        (run.firstOrNull() as? Seg.Text)?.let { run[0] = Seg.Text(it.t.trimStart()) }
+        (run.lastOrNull() as? Seg.Text)?.let { run[run.size - 1] = Seg.Text(it.t.trimEnd()) }
         if (run.isNotEmpty()) {
             out += Rich.Inline(run)
-            run = mutableListOf()
         }
+        run = mutableListOf()
     }
     for (seg in segs) {
         when (seg) {
