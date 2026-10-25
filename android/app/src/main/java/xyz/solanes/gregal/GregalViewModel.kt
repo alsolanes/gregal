@@ -2348,6 +2348,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Últim text de vent: de l'historial si en porta, si no el text directe. */
+    private fun lastPetText(hist: List<PetMsg>, fallback: String): String =
+        hist.lastOrNull { it.from == "pet" }?.text.orEmpty().ifBlank { fallback }
+
     fun sendRotllanaMessage(rotllanaId: String, message: String, wind: String = "") {
         if (message.isBlank() || _rotllanaBusy.value.contains(rotllanaId)) return
         val source = _conn.value; val epoch = companionEpoch
@@ -2358,6 +2362,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val sentHistory = before + PetMsg("user", message, ts = System.currentTimeMillis())
         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to sentHistory)
         viewModelScope.launch {
+            var answered = false
+            var answer = ""
+            GregalNotifications.workStarted(appContext)
             try {
                 try {
                     // Directe primer; el done porta l'historial amb veus.
@@ -2398,6 +2405,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId,
                         hist.ifEmpty { before + PetMsg("pet", "") }, System.currentTimeMillis(), sentHistory))
+                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
                 } catch (_: Exception) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message, wind) }
@@ -2406,6 +2414,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist.ifEmpty {
                         sentHistory + PetMsg("pet", text, wind, speaker?.name.orEmpty(), ts = System.currentTimeMillis())
                     }, System.currentTimeMillis(), sentHistory))
+                    lastPetText(hist, text).let { if (it.isNotBlank()) { answered = true; answer = it } }
                 }
                 // El torn pot haver programat avisos (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
@@ -2417,6 +2426,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
+                GregalNotifications.workFinished(appContext, answered, message, answer)
             }
         }
     }
@@ -2832,6 +2842,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value + windId
         live(windId) { WindLive() }
         viewModelScope.launch {
+            var answered = false
+            var answer = ""
+            GregalNotifications.workStarted(appContext)
             try {
                 try {
                     // Directe primer: el text creix a la bombolla; si el
@@ -2859,6 +2872,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         dropStreamingBubble(windId)
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
                             _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
+                        answered = true
+                        answer = r.text
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
@@ -2869,6 +2884,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (isCompanionOrigin(source, epoch)) {
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
                             _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
+                        answered = true
+                        answer = r.text
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }
@@ -2880,6 +2897,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
+                GregalNotifications.workFinished(appContext, answered, msg, answer)
             }
         }
     }
@@ -2896,6 +2914,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windBusy.value = _windBusy.value + windId
         live(windId) { WindLive() }
         viewModelScope.launch {
+            var answered = false
+            var answer = ""
+            GregalNotifications.workStarted(appContext)
             try {
                 try {
                     var buf = ""
@@ -2927,6 +2948,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
                         _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
+                        if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 } catch (_: Exception) {
@@ -2940,6 +2962,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
                         _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
+                        if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }
@@ -2949,6 +2972,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
+                GregalNotifications.workFinished(appContext, answered, "", answer)
             }
         }
     }
@@ -2965,6 +2989,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
         viewModelScope.launch {
+            var answered = false
+            var answer = ""
+            GregalNotifications.workStarted(appContext)
             try {
                 try {
                     var buf = ""
@@ -2988,18 +3015,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
                             ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
+                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
                 } catch (_: Exception) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (_, _, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, "", wind, cont = true) }
                     if (isCompanionOrigin(source, epoch))
                         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
                             ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
+                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
+                GregalNotifications.workFinished(appContext, answered, "", answer)
             }
         }
     }
