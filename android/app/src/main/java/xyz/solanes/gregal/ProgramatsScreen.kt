@@ -1,7 +1,9 @@
 package xyz.solanes.gregal
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
@@ -59,13 +61,16 @@ internal fun programatHora(iso: String, now: java.time.Instant = java.time.Insta
 @Composable
 internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit) {
     val programats by vm.programats.collectAsState()
-    LaunchedEffect(Unit) { vm.loadProgramats() }
+    val rutines by vm.rutines.collectAsState()
+    var showNovaRutina by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.loadProgramats(); vm.loadRutines() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                 // Capçalera: títol i tanca.
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(tr(lang, "app.programats.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { showNovaRutina = true }) { Text("＋", color = Sea, fontSize = 22.sp) }
                     IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
                 }
                 val p = programats
@@ -108,6 +113,19 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                                 )
                             }
                         }
+                        val rs = rutines
+                        if (rs != null && rs.isNotEmpty()) {
+                            item { SectionTitle(tr(lang, "app.rutines.title")) }
+                            items(rs.sortedBy { it.nextDueAt }, key = { it.id }) { ru ->
+                                val quan = if (ru.kind == "daily") ru.time
+                                else tr(lang, "app.rutines.each", (if (ru.intervalH >= 1) ru.intervalH.toInt().toString() else ru.intervalH.toString()))
+                                ProgramatRow(
+                                    title = ru.windName + " · " + quan,
+                                    body = ru.prompt,
+                                    onDelete = { vm.deleteRutina(ru.id) },
+                                )
+                            }
+                        }
                         if (p.stats.isNotEmpty()) {
                             item { SectionTitle(tr(lang, "app.programats.stats")) }
                             items(p.stats.sortedByDescending { it.beats }, key = { "s-" + it.windName }) { st ->
@@ -123,6 +141,61 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
             }
         }
     }
+    if (showNovaRutina) NovaRutinaDialog(vm, lang) { showNovaRutina = false }
+}
+
+/** Diàleg «Nova rutina»: tria vent, quan corre i què vigila. La rutina obre
+ * un torn real del vent (LLM + eines), no un text preescrit. */
+@Composable
+private fun NovaRutinaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit) {
+    val winds by vm.winds.collectAsState()
+    val busy by vm.rutinaBusy.collectAsState()
+    var windId by remember { mutableStateOf(winds.firstOrNull()?.id ?: "") }
+    var kind by remember { mutableStateOf("daily") }
+    var hora by remember { mutableStateOf("09:00") }
+    var hores by remember { mutableStateOf("6") }
+    var prompt by remember { mutableStateOf("") }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxWidth().padding(24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(tr(lang, "app.rutines.new"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(tr(lang, "app.rutines.newHelp"), color = Muted, fontSize = 13.sp)
+                // Vent
+                Text(tr(lang, "app.rutines.wind"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    winds.forEach { w ->
+                        FilterChip(selected = w.id == windId, onClick = { windId = w.id }, label = { Text(w.name) })
+                    }
+                }
+                // Quan
+                Text(tr(lang, "app.rutines.when"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = kind == "daily", onClick = { kind = "daily" }, label = { Text(tr(lang, "app.rutines.daily")) })
+                    FilterChip(selected = kind == "interval", onClick = { kind = "interval" }, label = { Text(tr(lang, "app.rutines.interval")) })
+                }
+                if (kind == "daily") {
+                    OutlinedTextField(value = hora, onValueChange = { hora = it }, label = { Text(tr(lang, "app.rutines.timeLabel")) }, singleLine = true)
+                } else {
+                    OutlinedTextField(value = hores, onValueChange = { hores = it }, label = { Text(tr(lang, "app.rutines.hoursLabel")) }, singleLine = true)
+                }
+                // Què ha de fer
+                OutlinedTextField(value = prompt, onValueChange = { prompt = it }, label = { Text(tr(lang, "app.rutines.promptLabel")) },
+                    minLines = 3, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    if (busy) CircularProgressIndicator(color = Sea, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    OutlinedButton(onClick = onDismiss) { Text(tr(lang, "app.rutines.cancel")) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        enabled = !busy && windId.isNotBlank() && prompt.isNotBlank(),
+                        onClick = {
+                            vm.createRutina(windId, kind, hora, hores.toDoubleOrNull() ?: 0.0, prompt, "") { ok -> if (ok) onDismiss() }
+                        },
+                    ) { Text(tr(lang, "app.rutines.create")) }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -132,7 +205,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun ProgramatRow(title: String, body: String) {
+private fun ProgramatRow(title: String, body: String, onDelete: (() -> Unit)? = null) {
     Surface(shape = MaterialTheme.shapes.medium, color = SuperficieAlta.copy(alpha = .45f)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
@@ -140,6 +213,11 @@ private fun ProgramatRow(title: String, body: String) {
             Column(Modifier.weight(1f)) {
                 Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                 Text(body, color = Muted, fontSize = 13.sp)
+            }
+            // Esborrar és per a les rutines pròpies; recordatoris i cors no es
+            // toquen des d'aquí (el cor el governa el mateix vent).
+            if (onDelete != null) {
+                IconButton(onClick = onDelete) { Text("🗑", color = Muted, fontSize = 15.sp) }
             }
         }
     }

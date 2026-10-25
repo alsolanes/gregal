@@ -810,6 +810,41 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
+    /** Rutina d'un vent: feina programada que corre el vent de veres (LLM + eines). */
+    data class WindRutina(
+        val id: String, val wind: String, val windName: String, val name: String,
+        val kind: String, val time: String, val intervalH: Double, val prompt: String,
+        val enabled: Boolean, val nextDue: String, val nextDueAt: String, val lastStatus: String,
+    )
+
+    /** Llista les rutines dels vents (daily/interval): el vent hi corre de veres. */
+    fun getWindRutines(): List<WindRutina> {
+        val o = JSONObject(read(conn("/api/winds/rutines", "GET")))
+        val arr = o.optJSONArray("rutines") ?: JSONArray()
+        return (0 until arr.length()).map { i ->
+            val x = arr.getJSONObject(i)
+            WindRutina(
+                x.optString("id"), x.optString("wind"), x.optString("wind_name"), x.optString("name"),
+                x.optString("kind"), x.optString("time"), x.optDouble("interval_h"), x.optString("prompt"),
+                x.optBoolean("enabled"), x.optString("next_due"), x.optString("next_due_at"), x.optString("last_status"),
+            )
+        }
+    }
+
+    /** Crea una rutina de vent: quan toca, el vent obre un torn real (cerca, pensa, parla). */
+    fun createWindRutina(windId: String, kind: String, time: String, intervalH: Double, prompt: String, name: String): Boolean {
+        val o = post("/api/winds/rutina", JSONObject()
+            .put("wind", windId).put("kind", kind).put("time", time)
+            .put("interval_h", intervalH).put("prompt", prompt).put("name", name))
+        return o.has("job")
+    }
+
+    /** Esborra una rutina de vent. */
+    fun deleteWindRutina(id: String): Boolean {
+        val o = post("/api/winds/rutines/delete", JSONObject().put("id", id))
+        return o.optBoolean("ok", false)
+    }
+
     /** Missatges programats i estadístiques dels vents (recordatoris, cors). */
     fun getWindsProgramats(): WindsProgramats {
         val o = JSONObject(read(conn("/api/winds/programats", "GET")))

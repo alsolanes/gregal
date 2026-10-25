@@ -2503,6 +2503,52 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Rutines de vent: feines programades que obren un torn real del vent. */
+    private val _rutines = MutableStateFlow<List<GregalApi.WindRutina>?>(null)
+    val rutines: StateFlow<List<GregalApi.WindRutina>?> = _rutines.asStateFlow()
+    private val _rutinesError = MutableStateFlow<String?>(null)
+    val rutinesError: StateFlow<String?> = _rutinesError.asStateFlow()
+    private val _rutinaBusy = MutableStateFlow(false)
+    val rutinaBusy: StateFlow<Boolean> = _rutinaBusy.asStateFlow()
+
+    fun loadRutines() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val rs = withContext(Dispatchers.IO) { source.api().getWindRutines() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _rutinesError.value = null
+                _rutines.value = rs
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // Cap spinner etern: error visible i «Torna-hi».
+                _rutinesError.value = e.message ?: "error"
+                if (_rutines.value == null) _rutines.value = emptyList()
+            }
+        }
+    }
+
+    fun createRutina(windId: String, kind: String, time: String, intervalH: Double, prompt: String, name: String, onDone: (Boolean) -> Unit) {
+        val source = _conn.value; val epoch = companionEpoch
+        _rutinaBusy.value = true
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { source.api().createWindRutina(windId, kind, time, intervalH, prompt, name) }.getOrDefault(false) }
+            if (isCompanionOrigin(source, epoch)) {
+                _rutinaBusy.value = false
+                if (ok) loadRutines() else notify(appText("app.rutines.createFail", ""))
+                onDone(ok)
+            }
+        }
+    }
+
+    fun deleteRutina(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) { runCatching { source.api().deleteWindRutina(id) } }
+            if (isCompanionOrigin(source, epoch)) loadRutines()
+        }
+    }
+
     /** Resumeix l'última conversa (vent o rotllana) a una pàgina de wiki. */
     fun summarizeToWiki(wind: String? = null, rotllana: String? = null, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
