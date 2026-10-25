@@ -326,7 +326,7 @@ internal fun VentsCrew(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(5.dp),
             ) {
-                WindHalo(Color(w.argb), w.faceStyle, size = 64, mood = mood, online = false)
+                WindHalo(Color(w.argb), w.faceStyle, size = 64, mood = mood, online = false, showKit = true)
                 Text(w.name, color = Ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 windStateLabel(lang, mood, thinking)?.let {
                     Text(it, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

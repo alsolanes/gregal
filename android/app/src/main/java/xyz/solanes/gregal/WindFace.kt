@@ -123,6 +123,8 @@ fun WindFace(
     accent: Color = Color(0xFFFF9F00),
     style: WindStyle = WindStyle(),
     tappable: Boolean = false,
+    /** Llista de vents: l'eina de l'ofici també en avatars petits, per triar sabent l'especialització. */
+    showKit: Boolean = false,
 ) {
     val motion = windMotionEnabled()
     // Petó en prémer: la cara s'aixafa, torna amb molla i somriu amb els ulls.
@@ -183,8 +185,9 @@ fun WindFace(
     }
     // Rest is nearly still: breathing and an occasional blink, not a wandering gaze.
     val breath = wave(4f)
-    // The stored specialty stays intact; small avatars show only their identity.
-    val kit = if (size >= 80) windKits[style.kit] else null
+    // The stored specialty stays intact; small avatars show only their identity…
+    // unless the caller opts in (the crew strip): picking a wind by its trade tool.
+    val kit = if (size >= 80 || showKit) windKits[style.kit] else null
     Box(Modifier.graphicsLayer {
         transformOrigin = TransformOrigin(0.5f, 1f)
         translationY = lift * size.dp.toPx()
