@@ -73,8 +73,14 @@ func (b *Bot) notifyNewRuns(ctx context.Context) {
 	}
 }
 
-// notifyForRun respecta el flag Notify del job (per defecte avisa).
+// notifyForRun respecta el flag Notify del job (per defecte avisa),
+// però els runs dels vents (cors, recordatoris, rutines d'un vent) no es
+// notifiquen mai per Telegram: els vents avisen dins l'app (novetats),
+// no per cap bot.
 func notifyForRun(st *jobs.Store, r jobs.Run) bool {
+	if strings.TrimSpace(r.Wind) != "" {
+		return false
+	}
 	list, err := st.List()
 	if err != nil {
 		return true

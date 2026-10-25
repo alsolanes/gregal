@@ -1158,3 +1158,57 @@ func archiveBodyOK(body string) bool {
 	}
 	return !isInterstitialTitle(htmlTitle(body))
 }
+
+// ImageHit és un resultat d'imatge: títol, URL de la pàgina d'on surt i URL
+// de la pròpia imatge (inline img_src).
+type ImageHit struct {
+	Title string
+	Page  string
+	Img   string
+}
+
+// WebImages busca imatges amb el SearXNG configurat (categories=images) i en
+// torna les primeres en text per al model: títol, pàgina d'origen i URL de
+// la imatge, a punt per incrustar com a ![títol](img). Sense SearXNG no hi
+// ha cerca d'imatges: cap motor públic la dona sense clau.
+func WebImages(ctx context.Context, query string, count int) (string, error) {
+	base := SearXNGBase()
+	if base == "" {
+		return "", fmt.Errorf("image search needs a configured SearXNG")
+	}
+	if count <= 0 || count > 12 {
+		count = 6
+	}
+	reqURL := base + "/search?q=" + url.QueryEscape(query) + "&categories=images&format=json"
+	body, err := webGet(ctx, reqURL, "application/json", 2_000_000)
+	if err != nil {
+		return "", err
+	}
+	var data struct {
+		Results []struct {
+			Title  string `json:"title"`
+			URL    string `json:"url"`
+			ImgSrc string `json:"img_src"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return "", fmt.Errorf("resposta no JSON: %v", err)
+	}
+	var b strings.Builder
+	n := 0
+	for _, r := range data.Results {
+		img := strings.TrimSpace(r.ImgSrc)
+		if img == "" || !strings.HasPrefix(img, "http") {
+			continue
+		}
+		n++
+		fmt.Fprintf(&b, "%d. %s\n   image: %s\n   page: %s\n", n, strings.TrimSpace(r.Title), img, strings.TrimSpace(r.URL))
+		if n >= count {
+			break
+		}
+	}
+	if n == 0 {
+		return "", fmt.Errorf("cap imatge per a %q", query)
+	}
+	return b.String(), nil
+}

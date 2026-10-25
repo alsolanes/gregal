@@ -73,6 +73,10 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str, "count": map[string]any{"type": "integer"},
 			}, "required": []string{"query"}}},
+		{Name: "web_images", Description: "Search the web for IMAGES about a topic (needs the configured SearXNG). Returns a few results with title, page and the image URL itself, ready to embed in your reply as ![title](image-url). Only embed an image when it truly helps (a photo, diagram, album cover...); never decorate text with random images.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"query": str, "count": map[string]any{"type": "integer"},
+			}, "required": []string{"query"}}},
 		{Name: "web_fetch", Description: "Read an http(s) page and return its main content as markdown (no menus, ads or images), with title, date and URL. Options: find=text to see only the paragraphs that contain it (long pages), max_chars to enlarge the excerpt (up to 30000), raw=true for the whole page as plain text. Prefer one read with a sufficient max_chars over repeated narrow find calls on the same URL, and reuse what you already fetched. Local hosts are blocked.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"url":       str,
@@ -372,7 +376,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
+	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
 	case "lsp":
 		if lspEsRename(argsJSON) {
@@ -879,6 +883,16 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		out, err := tools.WebSearchCtx(ctx, a.Query, a.Count)
+		return out, nil, err
+	case "web_images":
+		var a struct {
+			Query string `json:"query"`
+			Count int    `json:"count"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			return "", nil, err
+		}
+		out, err := tools.WebImages(ctx, a.Query, a.Count)
 		return out, nil, err
 	case "web_fetch":
 		var a struct {

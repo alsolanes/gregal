@@ -22,6 +22,8 @@
   function inline(t) {
     const codes = [];
     t = t.replace(/`([^`\n]+)`/g, (m, c) => { codes.push("<code>" + c + "</code>"); return "<<C" + (codes.length - 1) + "<<C"; });
+    // ![alt](http://…) — imatge; abans que l'enllaç perquè el prefix ! el distingeix.
+    t = t.replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)/g, (m, alt, src) => '<img class="md-img" src="' + src + '" alt="' + esc(alt) + '" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.display=\'none\'">');
     // [text](http://…) — només http/https; la resta es deixa com a text.
     t = t.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
     // URL sola.
