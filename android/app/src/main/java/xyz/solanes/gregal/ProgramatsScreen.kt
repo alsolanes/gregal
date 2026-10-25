@@ -69,9 +69,18 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                     IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
                 }
                 val p = programats
+                val perr by vm.programatsError.collectAsState()
                 when {
                     p == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Sea)
+                    }
+                    perr != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(32.dp)) {
+                            Text("🌤", fontSize = 40.sp)
+                            Text(tr(lang, "app.programats.loadFail"), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                            Text(perr ?: "", color = Muted, fontSize = 13.sp)
+                            OutlinedButton(onClick = { vm.loadProgramats() }) { Text(tr(lang, "app.jobs.retry")) }
+                        }
                     }
                     p.reminders.isEmpty() && p.hearts.isEmpty() && p.stats.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(32.dp)) {

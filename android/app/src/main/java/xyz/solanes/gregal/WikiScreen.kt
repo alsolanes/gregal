@@ -54,6 +54,7 @@ internal fun WikiButton(lang: String, onClick: () -> Unit) {
 internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit) {
     val pages by vm.wikiPages.collectAsState()
     val busy by vm.wikiBusy.collectAsState()
+    val err by vm.wikiError.collectAsState()
     var open by remember { mutableStateOf<GregalApi.WikiPage?>(null) }
     var confirmDelete by remember { mutableStateOf<GregalApi.WikiPage?>(null) }
     LaunchedEffect(Unit) { vm.loadWiki() }
@@ -68,6 +69,14 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                 when {
                     pages == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Sea)
+                    }
+                    err != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(32.dp)) {
+                            Text("📚", fontSize = 40.sp)
+                            Text(tr(lang, "app.wiki.loadFail"), color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                            Text(err ?: "", color = Muted, fontSize = 13.sp)
+                            OutlinedButton(onClick = { vm.loadWiki() }) { Text(tr(lang, "app.jobs.retry")) }
+                        }
                     }
                     pages!!.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(32.dp)) {

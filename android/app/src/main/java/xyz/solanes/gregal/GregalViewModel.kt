@@ -95,6 +95,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val jobs: StateFlow<List<JobItem>> = _jobs
     private val _programats = MutableStateFlow<WindsProgramats?>(null)
     val programats: StateFlow<WindsProgramats?> = _programats
+    private val _programatsError = MutableStateFlow<String?>(null)
+    val programatsError: StateFlow<String?> = _programatsError
     /** Salut del segon pla (mode local): alarmes exactes, notificacions, bateria. */
     private val _bgHealth = MutableStateFlow<BackgroundHealth?>(null)
     val bgHealth: StateFlow<BackgroundHealth?> = _bgHealth
@@ -2438,8 +2440,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val p = loadingOf("programats") { withContext(Dispatchers.IO) { source.api().getWindsProgramats() } }
                 if (!isCompanionOrigin(source, epoch)) return@launch
+                _programatsError.value = null
                 _programats.value = p
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // Mateixa regla que la wiki: cap spinner etern si falla.
+                _programatsError.value = e.message ?: "error"
+                if (_programats.value == null) _programats.value = WindsProgramats(emptyList(), emptyList(), emptyList())
+            }
         }
     }
 
@@ -2449,14 +2457,25 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _wikiBusy = MutableStateFlow(false)
     val wikiBusy: StateFlow<Boolean> = _wikiBusy.asStateFlow()
 
+    /** Darrer error en carregar la wiki; null vol dir cap error conegut. */
+    private val _wikiError = MutableStateFlow<String?>(null)
+    val wikiError: StateFlow<String?> = _wikiError.asStateFlow()
+
     fun loadWiki() {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
                 val pages = withContext(Dispatchers.IO) { source.api().getWikiPages() }
                 if (!isCompanionOrigin(source, epoch)) return@launch
+                _wikiError.value = null
                 _wikiPages.value = pages
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.jobs", e.message.orEmpty())) }
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // Mai spinner etern: si la càrrega falla, la pantalla ha de poder
+                // sortir i tornar-hi. Guardem el missatge i aixequem el null.
+                _wikiError.value = e.message ?: "error"
+                if (_wikiPages.value == null) _wikiPages.value = emptyList()
+            }
         }
     }
 
