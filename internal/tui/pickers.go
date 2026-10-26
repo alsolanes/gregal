@@ -2,7 +2,11 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
+	"unicode/utf8"
 
 	"gregal/internal/session"
 )
@@ -26,7 +30,7 @@ func (m *Model) menuKeys(k string) bool {
 		// El menú nou torna al d'ara amb Esc, tret que ja digui a on torna
 		// (un menú que es refresca a si mateix vol tornar al seu pare, no a
 		// la seva versió vella).
-		if next != nil && next.back == nil {
+		if next != nil && next.back == nil && next != m.menu {
 			next.back = m.menu
 		}
 		m.menu = next
@@ -47,9 +51,22 @@ func (m *Model) menuKeys(k string) bool {
 	case "backspace":
 		m.menu.esborra()
 		return true
+	case "pgdown":
+		menuJump(m.menu, menuWin)
+		return true
+	case "pgup":
+		menuJump(m.menu, -menuWin)
+		return true
+	case "home":
+		menuJump(m.menu, -1<<20)
+		return true
+	case "end":
+		menuJump(m.menu, 1<<20)
+		return true
 	}
-	// Qualsevol lletra filtra la llista.
-	if len(k) == 1 && k != " " {
+	// Qualsevol lletra filtra la llista, també les accentuades («ç», «à»):
+	// abans només comptava un byte i «barç» filtrava per «bar».
+	if utf8.RuneCountInString(k) == 1 && k != " " {
 		m.menu.escriu(k)
 		return true
 	}
@@ -146,21 +163,69 @@ func indexSlash(s string) int {
 	return -1
 }
 
-// resumeMenu tria sessió desada amb fletxes.
+// sessioDeVents diu si una conversa és dels Vents (xat amb un vent o
+// rotllana). Viuen al servidor web: si el TUI les reprèn i hi escriu, les
+// torna a desar com a sessions de codi amb una altra carpeta.
+func sessioDeVents(name string) bool {
+	return strings.HasPrefix(name, "rotllana-") || strings.HasPrefix(name, "company-")
+}
+
+// carpetaNoHiEs diu si la carpeta d'una conversa ja no existeix (reprendre-la
+// fallaria). Sense carpeta, la conversa és general i es pot obrir.
+func carpetaNoHiEs(ws string) bool {
+	if strings.TrimSpace(ws) == "" {
+		return false
+	}
+	abs, err := filepath.Abs(ws)
+	if err != nil {
+		return true
+	}
+	info, err := os.Stat(abs)
+	return err != nil || !info.IsDir()
+}
+
+// resumeMenu tria sessió desada amb fletxes. Les converses dels Vents no hi
+// surten, i les d'una carpeta que ja no existeix van al final, marcades: triar-ne
+// una ho explica sense tancar el selector.
 func resumeMenu() *menuState {
 	infos, err := session.List(session.DefaultDir())
-	if err != nil || len(infos) == 0 {
+	if err != nil {
 		return nil
 	}
-	var items []menuItem
+	var items, perdudes []menuItem
+	gone := map[string]bool{}
 	for _, in := range infos {
-		items = append(items, menuItem{
-			text: sessioText(in),
-			val:  in.Name,
-		})
+		if sessioDeVents(in.Name) {
+			continue
+		}
+		missing, seen := gone[in.Workspace]
+		if !seen {
+			missing = carpetaNoHiEs(in.Workspace)
+			gone[in.Workspace] = missing
+		}
+		if missing {
+			perdudes = append(perdudes, menuItem{text: "⚠ " + sessioText(in), val: "\x00" + in.Name})
+			continue
+		}
+		items = append(items, menuItem{text: sessioText(in), val: in.Name})
 	}
-	return &menuState{title: T("menu.sessions.titol"), items: items, run: func(m *Model, val string) (string, *menuState) {
+	items = append(items, perdudes...)
+	if len(items) == 0 {
+		return nil
+	}
+	var mn *menuState
+	mn = &menuState{title: T("menu.sessions.titol"), items: items, run: func(m *Model, val string) (string, *menuState) {
+		if name, ok := strings.CutPrefix(val, "\x00"); ok {
+			ws := ""
+			for _, in := range infos {
+				if in.Name == name {
+					ws = in.Workspace
+				}
+			}
+			return systemLine(T("app.workspaceNoDisp") + ws), mn
+		}
 		m.resumeSession(val)
 		return "", nil
 	}}
+	return mn
 }

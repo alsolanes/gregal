@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -324,6 +325,13 @@ type Model struct {
 	streamRender time.Time
 
 	pending *pendingOp
+	// pendingSeen/pendingAt diuen quan ha aparegut el diàleg d'aprovació
+	// actual: les tecles que l'usuari ja estava escrivint no l'aproven.
+	pendingSeen *pendingOp
+	pendingAt   time.Time
+	// quitArmedAt és quan s'ha premut Ctrl+C sense feina en marxa: només un
+	// segon Ctrl+C poc després surt (a Windows, Ctrl+C és «copiar»).
+	quitArmedAt time.Time
 	// confirmIdx és el botó ressaltat del diàleg d'aprovació.
 	confirmIdx int // 0=permet, 1=denega
 
@@ -943,11 +951,13 @@ func (m *Model) refresh() {
 	}
 }
 
+// capText i shortArgs tallen per bytes però mai a mig caràcter: abans
+// «àààà» quedava en «àà» seguit d'un byte trencat a la pantalla.
 func capText(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	return s[:n] + "\n" + T("app.truncat")
+	return cutBytes(s, n) + "\n" + T("app.truncat")
 }
 
 func shortArgs(args string, n int) string {
@@ -955,7 +965,18 @@ func shortArgs(args string, n int) string {
 	if len(one) <= n {
 		return one
 	}
-	return one[:n] + "…"
+	return cutBytes(one, n) + "…"
+}
+
+// cutBytes retalla com a molt n bytes sense partir cap caràcter UTF-8.
+func cutBytes(s string, n int) string {
+	if n >= len(s) {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 func (m Model) roleRef() config.Role                 { return m.cfg.Roles[m.role] }
@@ -1234,8 +1255,23 @@ func (m Model) manualVerify() bool {
 	return m.cfg.Verify.Mode == "manual" || m.cfg.Verify.Mode == "both"
 }
 
-// Update gestiona missatges i tecles.
+// approvalGuard és el temps durant el qual un diàleg d'aprovació acabat
+// d'obrir no accepta Enter ni les lletres d'aprovar: si l'usuari estava
+// escrivint quan s'ha obert, la lletra següent («s», «a») aprovaria l'eina
+// sense que l'hagués llegit. Esc i les fletxes funcionen sempre.
+var approvalGuard = 600 * time.Millisecond
+
+// Update gestiona missatges i tecles, i anota quan apareix un diàleg nou.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	next, cmd := m.update(msg)
+	if mm, ok := next.(Model); ok && mm.pending != nil && mm.pending != mm.pendingSeen {
+		mm.pendingSeen, mm.pendingAt = mm.pending, time.Now()
+		return mm, cmd
+	}
+	return next, cmd
+}
+
+func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -1350,6 +1386,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if m.pending != nil && msg.String() != "ctrl+c" {
+			settling := time.Since(m.pendingAt) < approvalGuard
 			switch msg.String() {
 			case "left", "up", "shift+tab":
 				if m.confirmIdx > 0 {
@@ -1361,9 +1398,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.confirmIdx++
 				}
 				return m, nil
+			case "esc":
+				return m.answerPending("n")
+			}
+			if settling {
+				return m, nil
+			}
+			switch msg.String() {
 			case "enter":
 				return m.answerPending(m.botonsConfirm()[m.confirmIdx].resposta)
-			case "esc", "n":
+			case "n":
 				return m.answerPending("n")
 			case "s", "y":
 				return m.answerPending("s")
@@ -1438,6 +1482,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cancelRequested = true
 				m.cancel()
 				m.status = T("est.cancellant")
+				return m, nil
+			}
+			if m.cancel == nil && time.Since(m.quitArmedAt) > 2*time.Second {
+				// Res en marxa: el primer Ctrl+C avisa i conserva l'esborrany.
+				m.quitArmedAt = time.Now()
+				m.status = T("est.ctrlcSortir")
 				return m, nil
 			}
 			m.autoSave()
@@ -2592,7 +2642,18 @@ func sessioText(in session.Info) string {
 	if r := []rune(titol); len(r) > 40 {
 		titol = strings.TrimSpace(string(r[:39])) + "…"
 	}
-	return fmt.Sprintf(T("app.sessioText"), titol, in.Name, in.Msgs, in.SavedAt.Format("02-01 15:04"))
+	// Títol · projecte · data · missatges: el nom tècnic (sessio-2026…) no
+	// diu res i empenyia la data fora de la fila.
+	projecte := filepath.Base(strings.TrimRight(strings.TrimSpace(in.Workspace), `\/`))
+	if projecte == "." || projecte == string(filepath.Separator) {
+		projecte = ""
+	}
+	parts := []string{titol}
+	if projecte != "" {
+		parts = append(parts, projecte)
+	}
+	parts = append(parts, in.SavedAt.Format("02-01 15:04"), fmt.Sprintf(T("app.sessioText"), in.Msgs))
+	return strings.Join(parts, " · ")
 }
 
 // llistaSessions pinta les desades numerades (1 = la més recent): una
@@ -2698,11 +2759,26 @@ func (m *Model) resumeTriada(dir, arg string) {
 // sessionsHint diu a l'inici que hi ha feina per reprendre (directori
 // explícit pels tests; buit si no hi ha res).
 func sessionsHint(dir string) string {
-	infos, err := session.List(dir)
-	if err != nil || len(infos) == 0 {
+	all, err := session.List(dir)
+	if err != nil {
 		return ""
 	}
-	txt := fmt.Sprintf(T("benvinguda.sessions"), len(infos), nomSessioCurt(infos[0].Name))
+	// Només les que es poden reprendre des d'aquí: ni les dels Vents ni les
+	// d'una carpeta que ja no existeix.
+	var infos []session.Info
+	for _, in := range all {
+		if !sessioDeVents(in.Name) && !carpetaNoHiEs(in.Workspace) {
+			infos = append(infos, in)
+		}
+	}
+	if len(infos) == 0 {
+		return ""
+	}
+	darrera := nomSessioCurt(infos[0].Name)
+	if darrera == infos[0].Name && strings.TrimSpace(infos[0].Title) != "" {
+		darrera = infos[0].Title
+	}
+	txt := fmt.Sprintf(T("benvinguda.sessions"), len(infos), darrera)
 	return "  " + faintStyle.Render("↺ ") + dimStyle.Render(strings.TrimPrefix(txt, "  ↺ "))
 }
 
@@ -2710,8 +2786,9 @@ func sessionsHint(dir string) string {
 // pantalla d'entrada l'identificador sencer era la línia més llarga i la
 // menys llegible.
 func nomSessioCurt(name string) string {
-	n := strings.TrimPrefix(name, "sessio-")
-	if len(n) >= 15 && n[8] == '-' {
+	n, ok := strings.CutPrefix(name, "sessio-")
+	// Només els noms «sessio-AAAAMMDD-HHMMSS…»: «rotllana-em-recomaneu…» no és una data.
+	if ok && len(n) >= 15 && n[8] == '-' && strings.Trim(n[:8]+n[9:15], "0123456789") == "" {
 		d, h := n[:8], n[9:15]
 		return d[6:8] + "/" + d[4:6] + " " + h[0:2] + ":" + h[2:4]
 	}

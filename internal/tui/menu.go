@@ -128,6 +128,24 @@ func menuLine(mn *menuState, ample int) string {
 }
 
 // menuMove mou el cursor del menú (amb wrap sobre les files visibles).
+// menuJump salta una pàgina (o fins al principi/final) sense donar la volta.
+func menuJump(mn *menuState, d int) {
+	if mn == nil {
+		return
+	}
+	n := len(mn.visibles())
+	if n == 0 {
+		return
+	}
+	mn.idx += d
+	if mn.idx < 0 {
+		mn.idx = 0
+	}
+	if mn.idx > n-1 {
+		mn.idx = n - 1
+	}
+}
+
 func menuMove(mn *menuState, d int) {
 	if mn == nil {
 		return

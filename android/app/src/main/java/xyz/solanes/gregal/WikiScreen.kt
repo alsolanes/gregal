@@ -97,7 +97,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
                                     Text(p.titol.ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                                     if (p.descripcio.isNotBlank()) Text(p.descripcio, color = Muted, fontSize = 13.sp, maxLines = 2)
                                     if (p.updated.isNotBlank()) {
-                                        Text(tr(lang, "app.wiki.updated") + " · " + programatHora(p.updated), color = Muted.copy(alpha = .8f), fontSize = 11.sp)
+                                        Text(tr(lang, "app.wiki.updated") + " · " + programatHora(p.updated, lang = lang), color = Muted.copy(alpha = .8f), fontSize = 11.sp)
                                     }
                                 }
                             }

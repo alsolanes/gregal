@@ -14,32 +14,32 @@ import (
 
 // ReminderInfo és un recordatori pendent d'un vent.
 type ReminderInfo struct {
-	ID    string `json:"id"`
-	Wind  string `json:"wind"`
-	WindName string `json:"wind_name"`
-	At    time.Time `json:"at"`
-	Text  string `json:"text"`
+	ID       string    `json:"id"`
+	Wind     string    `json:"wind"`
+	WindName string    `json:"wind_name"`
+	At       time.Time `json:"at"`
+	Text     string    `json:"text"`
 }
 
 // HeartInfo és el cor d'un vent en marxa.
 type HeartInfo struct {
-	Wind     string `json:"wind"`
-	WindName string `json:"wind_name"`
-	NextAt   *time.Time `json:"next_at,omitempty"`
-	LastAt   *time.Time `json:"last_at,omitempty"`
-	LastStatus string `json:"last_status,omitempty"`
+	Wind       string     `json:"wind"`
+	WindName   string     `json:"wind_name"`
+	NextAt     *time.Time `json:"next_at,omitempty"`
+	LastAt     *time.Time `json:"last_at,omitempty"`
+	LastStatus string     `json:"last_status,omitempty"`
 }
 
 // WindStats són les estadístiques d'avisos proactius d'un vent: per quin
 // canal ha parlat i quants cops ha decidit callar.
 type WindStats struct {
-	Wind     string `json:"wind"`
-	WindName string `json:"wind_name"`
-	Beats    int `json:"beats"`    // batecs del cor executats
-	Spoke    int `json:"spoke"`   // batecs que han acabat en missatge
-	Silent   int `json:"silent"`   // batecs en silenci (res que valgués la pena)
-	Reminders int `json:"reminders"` // recordatoris disparats (missatges puntuals)
-	LastAt   *time.Time `json:"last_at,omitempty"` // darrer avís de qualsevol mena
+	Wind      string     `json:"wind"`
+	WindName  string     `json:"wind_name"`
+	Beats     int        `json:"beats"`             // batecs del cor executats
+	Spoke     int        `json:"spoke"`             // batecs que han acabat en missatge
+	Silent    int        `json:"silent"`            // batecs en silenci (res que valgués la pena)
+	Reminders int        `json:"reminders"`         // recordatoris disparats (missatges puntuals)
+	LastAt    *time.Time `json:"last_at,omitempty"` // darrer avís de qualsevol mena
 }
 
 // handleWindsProgramats torna la programació i les estadístiques de tots els
@@ -58,8 +58,9 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 		}
 		return ""
 	}
-	var reminders []ReminderInfo
-	var hearts []HeartInfo
+	// Llistes buides, no null: els clients les recorren directament.
+	reminders := []ReminderInfo{}
+	hearts := []HeartInfo{}
 	if s.jobs != nil {
 		list, _ := s.jobs.List()
 		for _, j := range list {
@@ -69,7 +70,8 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 			switch {
 			case strings.HasPrefix(j.ID, remindJobPrefix):
 				id, ok := remindJobWind(j.ID)
-				if !ok {
+				// Un avís d'un vent que ja no hi és no té a qui parlar: no es llista.
+				if !ok || nameOf(id) == "" {
 					continue
 				}
 				if j.NextAt == nil {
@@ -81,7 +83,7 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 				})
 			case j.Kind == "event" && strings.HasPrefix(j.ID, windJobPrefix):
 				id, ok := windJobID(j.ID)
-				if !ok {
+				if !ok || nameOf(id) == "" {
 					continue
 				}
 				hearts = append(hearts, HeartInfo{

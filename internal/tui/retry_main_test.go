@@ -18,6 +18,8 @@ import (
 func TestMain(m *testing.M) {
 	// Existing snapshots and text assertions explicitly exercise Catalan.
 	SetIdioma("ca")
+	// Els tests premen tecles a l'instant: la protecció del diàleg té el seu propi test.
+	approvalGuard = 0
 	llm.RetryBase, llm.RetryMax, llm.RetryJitter = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
 	dir, err := os.MkdirTemp("", "gregal-tui-test-")
 	if err != nil {

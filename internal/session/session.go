@@ -253,13 +253,11 @@ func Delete(dir, name string) error {
 	return os.Remove(path)
 }
 
-// HistoryPath retorna ~/.local/share/gregal/history.
+// HistoryPath retorna <dades>/history: ~/.local/share/gregal/history, o a
+// GREGAL_DATA_DIR com la resta de dades. Abans sempre anava al home, i les
+// proves (i qualsevol instància aïllada) reescrivien l'historial de debò.
 func HistoryPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal", "history")
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "history")
+	return filepath.Join(baseDataDir(), "history")
 }
 
 // MaxHistory és el topall d'entrades desades.

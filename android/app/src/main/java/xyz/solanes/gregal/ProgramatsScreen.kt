@@ -46,16 +46,26 @@ internal fun ProgramatsButton(lang: String, onClick: () -> Unit) {
 }
 
 /** «dimarts 04:15» — el dia només si no és avui. */
-internal fun programatHora(iso: String, now: java.time.Instant = java.time.Instant.now()): String {
+internal fun programatHora(iso: String, now: java.time.Instant = java.time.Instant.now(), lang: String = "ca"): String {
     if (iso.isBlank()) return ""
     return try {
         val at = Instant.parse(iso)
         val z = at.atZone(ZoneId.systemDefault())
         val today = now.atZone(ZoneId.systemDefault()).toLocalDate()
         val pattern = if (z.toLocalDate() == today) "HH:mm" else "EEE d MMM HH:mm"
-        java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.forLanguageTag("ca"))
+        // La data surt en la llengua de l'app, no sempre en català.
+        java.time.format.DateTimeFormatter.ofPattern(pattern, java.util.Locale.forLanguageTag(if (lang == "en") "en" else "ca"))
             .format(z)
     } catch (e: Exception) { "" }
+}
+
+/** Pròxima mirada d'un cor. Si ja tocava i no s'ha fet (servidor aturat),
+ *  ho diu així en lloc de mostrar una hora passada com si fos futura. Pura. */
+internal fun programatProperaMirada(iso: String, lang: String, now: java.time.Instant = java.time.Instant.now()): String {
+    val hora = programatHora(iso, now, lang)
+    if (hora.isEmpty()) return ""
+    val vencuda = try { java.time.Instant.parse(iso).isBefore(now) } catch (e: Exception) { false }
+    return tr(lang, if (vencuda) "app.programats.overdue" else "app.programats.next", hora)
 }
 
 @Composable
@@ -99,7 +109,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                             item { SectionTitle(tr(lang, "app.programats.reminders")) }
                             items(p.reminders.sortedBy { it.at }, key = { it.id }) { r ->
                                 ProgramatRow(
-                                    title = r.windName + " · " + programatHora(r.at),
+                                    title = r.windName + " · " + programatHora(r.at, lang = lang),
                                     body = r.text,
                                 )
                             }
@@ -109,7 +119,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                             items(p.hearts.sortedBy { it.nextAt }, key = { "h-" + it.wind }) { h ->
                                 ProgramatRow(
                                     title = h.windName,
-                                    body = tr(lang, "app.programats.next", programatHora(h.nextAt)),
+                                    body = programatProperaMirada(h.nextAt, lang),
                                 )
                             }
                         }

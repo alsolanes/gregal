@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -78,5 +79,30 @@ func TestEscTancaLAprovacio(t *testing.T) {
 	m = mod.(Model)
 	if m.pending != nil {
 		t.Fatal("Esc ha de tancar l'aprovacio")
+	}
+}
+
+// TestAprovacioNoEsDisparaEscrivint: si el diàleg s'obre mentre l'usuari
+// escriu, la lletra següent («s» de «dos», Enter) no aprova l'eina. Passat
+// l'instant de protecció, les dreceres funcionen com sempre.
+func TestAprovacioNoEsDisparaEscrivint(t *testing.T) {
+	saved := approvalGuard
+	approvalGuard = time.Hour
+	t.Cleanup(func() { approvalGuard = saved })
+	ran := false
+	op := &pendingOp{desc: "prova", run: func(ctx context.Context) (string, error) { ran = true; return "ok", nil }}
+	m := Model{pending: op, pendingSeen: op, pendingAt: time.Now()}
+	for _, k := range []tea.KeyMsg{{Type: tea.KeyRunes, Runes: []rune("s")}, {Type: tea.KeyRunes, Runes: []rune("a")}, {Type: tea.KeyEnter}} {
+		mod, cmd := m.Update(k)
+		m = mod.(Model)
+		if cmd != nil || m.pending == nil || ran {
+			t.Fatalf("%q ha aprovat un diàleg acabat d'obrir", k.String())
+		}
+	}
+	approvalGuard = 0
+	mod, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	m = mod.(Model)
+	if cmd == nil || m.pending != nil {
+		t.Fatal("passada la protecció, «s» ha d'aprovar")
 	}
 }

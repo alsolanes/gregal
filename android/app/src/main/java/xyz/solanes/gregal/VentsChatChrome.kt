@@ -37,7 +37,7 @@ internal fun VentsChatHeader(
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
         Row(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable(onClick = onProfile).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            WindHalo(accent, style, size = 34, mood = mood, stacked = faces.drop(1), online = false)
+            WindHalo(accent, style, size = 34, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

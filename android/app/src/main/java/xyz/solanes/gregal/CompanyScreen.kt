@@ -601,8 +601,10 @@ internal fun ConversationRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        // Un vent sol porta l'eina del seu ofici també a la llista: és com es
+        // distingeixen els especialistes d'un cop d'ull, no només pel color.
         WindHalo(accent, style, size = 48, stacked = faces.drop(1), online = false,
-            mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE)
+            mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE, showKit = faces.size <= 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
@@ -1099,8 +1101,10 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
     onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null) {
     val mine = m.from == "user"
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
-    val ownBackground = Ink
-    val ownText = Superficie
+    // Bombolla pròpia suau en tots dos temes: el blanc ple sobre fons fosc
+    // enlluernava i pesava més que les respostes.
+    val ownBackground = Ink.copy(alpha = 0.11f)
+    val ownText = Ink
     // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
     // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
     val tsMillis = remember(m.ts) { if (m.ts > 10_000_000_000L) m.ts else m.ts * 1000L }
@@ -1378,7 +1382,7 @@ private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        WindFace(size = 48, accent = accent, style = w.faceStyle)
+        WindFace(size = 48, accent = accent, style = w.faceStyle, showKit = true)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(w.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Bold)
