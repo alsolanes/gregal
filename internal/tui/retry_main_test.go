@@ -2,6 +2,7 @@ package tui
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -26,6 +27,9 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	os.Setenv("GREGAL_DATA_DIR", dir)
+	// El magatzem de claus també: /key p sk-… (TestKeyCommand) desava la
+	// clau de prova a ~/.config/gregal/auth.yaml de debò.
+	os.Setenv("GREGAL_AUTH", filepath.Join(dir, "auth.yaml"))
 	code := m.Run()
 	os.RemoveAll(dir)
 	os.Exit(code)
