@@ -38,13 +38,13 @@ func TestExpertDesaConeixement(t *testing.T) {
 	}
 	for i := 0; i < 50; i++ {
 		e := expertDe("experti")
-		if e != nil && e.fase == expertFaseFet {
+		if e != nil && faseDe(e) == expertFaseFet {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
 	e := expertDe("experti")
-	if e == nil || e.fase != expertFaseFet {
+	if e == nil || faseDe(e) != expertFaseFet {
 		t.Fatalf("fase final = %v", e)
 	}
 
@@ -91,4 +91,9 @@ func TestExtrauSkill(t *testing.T) {
 	if !ok || nom != "futbol" || titol != "Futbol" || desc != "Regles" || !strings.Contains(cos, "Cos del coneixement") {
 		t.Errorf("extrauSkill = %q %q %q %q ok=%v", nom, titol, desc, cos, ok)
 	}
+}
+
+func faseDe(e *expertEstat) string {
+	fase, _ := e.estat()
+	return fase
 }

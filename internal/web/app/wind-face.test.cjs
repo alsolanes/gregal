@@ -41,7 +41,11 @@ test('every squad specialist is a mascot with a trade tool; personal winds keep 
 test('Android draws the same specialties as the web', () => {
   const kotlin = fs.readFileSync(path.join(__dirname, '..', '..', '..', 'android', 'app', 'src', 'main', 'java', 'xyz', 'solanes', 'gregal', 'WindFace.kt'), 'utf8');
   const android = [...kotlin.matchAll(/^\s+"([a-z]+)" to MascotKit\(/gm)].map(m => m[1]).sort();
-  assert.deepEqual(android, [...squadKeys].sort());
+  const source = fs.readFileSync(path.join(__dirname, 'winds.js'), 'utf8');
+  const block = source.match(/const kits = \{[\s\S]*?\n  \};/)[0];
+  const web = [...block.matchAll(/^    ([a-z]+): \{/gm)].map(m => m[1]).sort();
+  for (const specialty of squadKeys) assert.ok(web.includes(specialty), specialty + ' has a web kit');
+  assert.deepEqual(android, web);
 });
 
 test('moods come only from observed chat phases and live step state', () => {

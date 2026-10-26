@@ -217,6 +217,9 @@ func TestWindRoutineUsesCurrentMemoryAndKeepsPrivateHistory(t *testing.T) {
 	if err := store.AddRun(jobs.Run{ID: "private-run", JobID: "deleted-private-job", Wind: "wind-id", WindOwner: "anna", Output: "PRIVATE"}); err != nil {
 		t.Fatal(err)
 	}
+	// La rutina deixa feina de fons (aprenentatge del vent) que llegeix s.user:
+	// cal que acabi abans de canviar d'usuari, o el detector de curses salta.
+	waitBackground()
 	s.user = &User{Name: "bert"}
 	rec := httptest.NewRecorder()
 	s.handleJobRuns(rec, httptest.NewRequest(http.MethodGet, "/api/jobs/runs", nil))

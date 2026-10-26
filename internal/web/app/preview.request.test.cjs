@@ -43,6 +43,8 @@ function previewFixture() {
     get innerHTML() { return this._innerHTML || ''; }
     setAttribute(name, value) { this.attributes[name] = String(value); }
     removeAttribute(name) { delete this[name]; }
+    hasAttribute(name) { return this[name] !== undefined; }
+    getBoundingClientRect() { return { width: 0, height: 0 }; }
     append(...children) {this.children.push(...children);}
     replaceChildren(...children) {this.children=children;}
     remove() {if(elements.get(this.id)===this)elements.delete(this.id);}
@@ -75,7 +77,7 @@ function previewFixture() {
   });
 
   const isolatedStart = artifactSource.indexOf('export function isolatedHTML(');
-  vm.runInContext(artifactSource.slice(isolatedStart).replace(/^export /, ''), context);
+  vm.runInContext(artifactSource.slice(isolatedStart).replace(/^export /gm, ''), context);
   vm.runInContext(markdownSource, context);
   window.gregal.md = context.gregalMD.render;
   vm.runInContext(previewSource.replace("import { isolatedHTML } from './web-artifact.js';", '')

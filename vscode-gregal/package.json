@@ -210,6 +210,9 @@
     "esbuild": "^0.28.2",
     "typescript": "^5.6.0"
   },
+  "overrides": {
+    "@azure/msal-node": "^7.1.1"
+  },
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": false,

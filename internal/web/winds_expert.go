@@ -62,12 +62,22 @@ func expertDe(windID string) *expertEstat {
 func engegaExpert(windID, tema string) *expertEstat {
 	expertMu.Lock()
 	defer expertMu.Unlock()
-	if e, ok := expertActius[windID]; ok && e.fase != expertFaseFet && e.fase != expertFaseError && e.fase != expertFaseInactiu {
-		return nil
+	if e, ok := expertActius[windID]; ok {
+		if fase, _ := e.estat(); fase != expertFaseFet && fase != expertFaseError && fase != expertFaseInactiu {
+			return nil
+		}
 	}
 	e := &expertEstat{wind: windID, tema: tema, fase: expertFaseCerca, pas: 0, passos: expertPassos, iniciat: time.Now()}
 	expertActius[windID] = e
 	return e
+}
+
+// estat llegeix la fase i l'hora final sota el candau: executaExpert les
+// escriu des d'una altra goroutine.
+func (e *expertEstat) estat() (string, time.Time) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.fase, e.acabat
 }
 
 func (e *expertEstat) set(fase string, pas int) {
@@ -262,7 +272,7 @@ func netejaExpert() {
 	expertMu.Lock()
 	defer expertMu.Unlock()
 	for id, e := range expertActius {
-		if (e.fase == expertFaseFet || e.fase == expertFaseError) && time.Since(e.acabat) > time.Hour {
+		if fase, acabat := e.estat(); (fase == expertFaseFet || fase == expertFaseError) && time.Since(acabat) > time.Hour {
 			delete(expertActius, id)
 		}
 	}
