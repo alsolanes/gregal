@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -1167,22 +1168,45 @@ type ImageHit struct {
 	Img   string
 }
 
-// WebImages busca imatges amb el SearXNG configurat (categories=images) i en
-// torna les primeres en text per al model: títol, pàgina d'origen i URL de
-// la imatge, a punt per incrustar com a ![títol](img). Sense SearXNG no hi
-// ha cerca d'imatges: cap motor públic la dona sense clau.
+// WebImages busca imatges i en torna les primeres en text per al model: títol,
+// pàgina d'origen i URL de la imatge, a punt per incrustar com a ![títol](img).
+// Amb SearXNG configurat cerca a tot el web (categories=images); sense, o si no
+// en troba cap, cau a Wikimedia Commons, que no demana clau i té llicències
+// lliures: el vent pot ensenyar fotos de llocs, persones, obres o objectes
+// també en un mòbil sense cap servei propi.
 func WebImages(ctx context.Context, query string, count int) (string, error) {
-	base := SearXNGBase()
-	if base == "" {
-		return "", fmt.Errorf("image search needs a configured SearXNG")
-	}
 	if count <= 0 || count > 12 {
 		count = 6
 	}
-	reqURL := base + "/search?q=" + url.QueryEscape(query) + "&categories=images&format=json"
-	body, err := webGet(ctx, reqURL, "application/json", 2_000_000)
+	var hits []ImageHit
+	var searxErr error
+	if base := SearXNGBase(); base != "" {
+		hits, searxErr = searxImages(ctx, base, query)
+	}
+	if len(hits) == 0 {
+		commons, err := commonsImages(ctx, commonsAPI, query, count)
+		if err != nil && searxErr != nil {
+			return "", fmt.Errorf("%v; Wikimedia Commons: %v", searxErr, err)
+		}
+		hits = commons
+	}
+	if len(hits) == 0 {
+		return "", fmt.Errorf("cap imatge per a %q", query)
+	}
+	var b strings.Builder
+	for i, h := range hits {
+		if i >= count {
+			break
+		}
+		fmt.Fprintf(&b, "%d. %s\n   image: %s\n   page: %s\n", i+1, h.Title, h.Img, h.Page)
+	}
+	return b.String(), nil
+}
+
+func searxImages(ctx context.Context, base, query string) ([]ImageHit, error) {
+	body, err := webGet(ctx, base+"/search?q="+url.QueryEscape(query)+"&categories=images&format=json", "application/json", 2_000_000)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	var data struct {
 		Results []struct {
@@ -1192,23 +1216,85 @@ func WebImages(ctx context.Context, query string, count int) (string, error) {
 		} `json:"results"`
 	}
 	if err := json.Unmarshal(body, &data); err != nil {
-		return "", fmt.Errorf("resposta no JSON: %v", err)
+		return nil, fmt.Errorf("resposta no JSON: %v", err)
 	}
-	var b strings.Builder
-	n := 0
+	var hits []ImageHit
 	for _, r := range data.Results {
 		img := strings.TrimSpace(r.ImgSrc)
 		if img == "" || !strings.HasPrefix(img, "http") {
 			continue
 		}
-		n++
-		fmt.Fprintf(&b, "%d. %s\n   image: %s\n   page: %s\n", n, strings.TrimSpace(r.Title), img, strings.TrimSpace(r.URL))
-		if n >= count {
-			break
+		hits = append(hits, ImageHit{Title: strings.TrimSpace(r.Title), Page: strings.TrimSpace(r.URL), Img: img})
+	}
+	return hits, nil
+}
+
+// commonsAPI és l'API de Wikimedia Commons; els tests la substitueixen.
+var commonsAPI = "https://commons.wikimedia.org/w/api.php"
+
+// commonsImages cerca fitxers d'imatge a Wikimedia Commons i en dona una
+// miniatura de 960 px (lleugera per al mòbil) i la pàgina del fitxer, on hi ha
+// l'autor i la llicència.
+func commonsImages(ctx context.Context, api, query string, count int) ([]ImageHit, error) {
+	q := url.Values{}
+	q.Set("action", "query")
+	q.Set("format", "json")
+	q.Set("generator", "search")
+	q.Set("gsrnamespace", "6")
+	q.Set("gsrsearch", query+" filetype:bitmap")
+	q.Set("gsrlimit", fmt.Sprint(count*2))
+	q.Set("prop", "imageinfo")
+	q.Set("iiprop", "url|mime")
+	q.Set("iiurlwidth", "960")
+	body, err := webGet(ctx, api+"?"+q.Encode(), "application/json", 2_000_000)
+	if err != nil {
+		return nil, err
+	}
+	var data struct {
+		Query struct {
+			Pages map[string]struct {
+				Title     string `json:"title"`
+				Index     int    `json:"index"`
+				ImageInfo []struct {
+					URL      string `json:"url"`
+					ThumbURL string `json:"thumburl"`
+					DescURL  string `json:"descriptionurl"`
+					Mime     string `json:"mime"`
+				} `json:"imageinfo"`
+			} `json:"pages"`
+		} `json:"query"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("resposta no JSON: %v", err)
+	}
+	type ranked struct {
+		hit   ImageHit
+		index int
+	}
+	var found []ranked
+	for _, p := range data.Query.Pages {
+		if len(p.ImageInfo) == 0 {
+			continue
 		}
+		info := p.ImageInfo[0]
+		if !strings.HasPrefix(info.Mime, "image/") || info.Mime == "image/svg+xml" {
+			continue
+		}
+		img := info.ThumbURL
+		if img == "" {
+			img = info.URL
+		}
+		if !strings.HasPrefix(img, "https://") {
+			continue
+		}
+		title := strings.TrimSuffix(strings.TrimPrefix(p.Title, "File:"), filepath.Ext(p.Title))
+		found = append(found, ranked{ImageHit{Title: strings.ReplaceAll(title, "_", " "), Page: info.DescURL, Img: img}, p.Index})
 	}
-	if n == 0 {
-		return "", fmt.Errorf("cap imatge per a %q", query)
+	// L'API torna les pàgines en un mapa: l'ordre de rellevància és a `index`.
+	sort.Slice(found, func(i, j int) bool { return found[i].index < found[j].index })
+	hits := make([]ImageHit, 0, len(found))
+	for _, f := range found {
+		hits = append(hits, f.hit)
 	}
-	return b.String(), nil
+	return hits, nil
 }

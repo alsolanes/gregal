@@ -77,7 +77,8 @@
 
   function codeBlock(lang, code) {
     const cos = code.replace(/\n$/, "");
-    if (lang === 'gregal-plot') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
+    // ```chart (el format dels vents i d'Android) i ```gregal-plot són el mateix gràfic.
+    if (lang === 'gregal-plot' || lang === 'chart') return '<pre class="codeblock lang-gregal-plot"><code>' + cos + '</code></pre>';
     return '<div class="codeblock"><div class="codehead"><span>' + (lang || label("md.code", "code")) +
       '</span><button class="copybtn" data-i18n="md.copy">' + label("md.copy", "Copy") + '</button></div><pre><code>' + highlight(cos) + "</code></pre></div>";
   }

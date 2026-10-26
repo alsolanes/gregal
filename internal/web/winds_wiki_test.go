@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -106,5 +107,68 @@ func TestWikiSummaryConversaBuidaIGarbi(t *testing.T) {
 	rec = postJSON(t, s.handleWikiSummary, `{"wind":"`+w.ID+`"}`)
 	if rec.Code != 502 {
 		t.Fatalf("proveïdor de prova: %d %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestWikiSummaryCreaIActualitza: el resum fa una pàgina amb títol i
+// descripció propis, conserva un gràfic al final i, en tornar a resumir la
+// mateixa conversa, actualitza la mateixa pàgina amb la versió anterior al context.
+func TestWikiSummaryCreaIActualitza(t *testing.T) {
+	s, _ := companionTestServer(t)
+	w, err := s.winds.Save(companion.Wind{Name: "VentDeWikiResum", Role: "Esports"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := session.SaveSession(s.sessDir(), session.Session{
+		Name: "company-" + w.ID, Title: "Company", Role: "chat",
+		Convo: []llm.Message{{Role: "user", Content: "Com van les obres?"}, {Role: "assistant", Content: "Fase 1C al 80%."}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var prompts []string
+	saved := wikiSummarizer
+	t.Cleanup(func() { wikiSummarizer = saved })
+	wikiSummarizer = func(_ *Server, _ context.Context, msgs []llm.Message) (string, error) {
+		prompts = append(prompts, msgs[1].Content)
+		return "```markdown\n# Obres del Camp Nou\nEstat de les obres i dates clau.\n\n- Fase 1C al 80%\n\n```chart\n{\"title\":\"Avanç\",\"type\":\"bar\",\"labels\":[\"1C\"],\"series\":[{\"name\":\"%\",\"values\":[80]}]}\n```\n```", nil
+	}
+	rec := postJSON(t, s.handleWikiSummary, `{"wind":"`+w.ID+`"}`)
+	var first struct {
+		Page    wikiPage
+		Updated bool
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &first); err != nil || rec.Code != 200 {
+		t.Fatalf("resum: %d %s", rec.Code, rec.Body.String())
+	}
+	p := first.Page
+	if p.Titol != "Obres del Camp Nou" || p.Descripcio != "Estat de les obres i dates clau." || p.Autor != "VentDeWikiResum" || first.Updated {
+		t.Fatalf("pàgina: %+v", p)
+	}
+	if strings.Contains(p.Cos, "# Obres") || !strings.HasSuffix(p.Cos, "]}\n```") {
+		t.Fatalf("el cos ha de dur el gràfic sencer i no repetir el títol: %q", p.Cos)
+	}
+	rec = postJSON(t, s.handleWikiSummary, `{"wind":"`+w.ID+`"}`)
+	var second struct {
+		Page    wikiPage
+		Updated bool
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &second); err != nil || !second.Updated || second.Page.Nom != p.Nom {
+		t.Fatalf("havia d'actualitzar la mateixa pàgina: %s", rec.Body.String())
+	}
+	if len(prompts) != 2 || !strings.Contains(prompts[1], "Current page:") || !strings.Contains(prompts[1], "Fase 1C al 80%") {
+		t.Fatalf("l'actualització no porta la pàgina anterior: %q", prompts)
+	}
+	if pages := s.wikiList(); len(pages) != 1 {
+		t.Fatalf("hi havia d'haver una sola pàgina: %+v", pages)
+	}
+}
+
+// TestWikiReadRejectsBackslash: el nom d'una pàgina no pot sortir de la carpeta.
+func TestWikiReadRejectsBackslash(t *testing.T) {
+	s, _ := companionTestServer(t)
+	out := httptest.NewRecorder()
+	s.handleWindsWiki(out, httptest.NewRequest(http.MethodGet, `/api/winds/wiki/..\..\config`, nil))
+	if out.Code != http.StatusBadRequest {
+		t.Fatalf("volia 400, tinc %d", out.Code)
 	}
 }

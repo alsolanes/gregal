@@ -56,7 +56,8 @@ fun splitMd(src: String): List<Seg> {
             val lang = inner.substring(0, nl)
             val body = inner.substring(nl + 1)
             // Bloc chart amb JSON vàlid: gràfic; si no, codi com sempre.
-            if (lang == "chart") {
+            // ```gregal-plot (el del xat principal i l'escriptori) és el mateix gràfic.
+            if (lang == "chart" || lang == "gregal-plot") {
                 val spec = parseChartSpec(body.trim())
                 if (spec != null) out += listOf(Seg.Chart(spec))
                 else out += listOf(Seg.Block(lang, body))

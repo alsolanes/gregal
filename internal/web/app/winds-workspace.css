@@ -191,3 +191,12 @@ body.shell-winds .side-scroll { overflow:auto; }
  body.shell-winds.vw-drawer #navRail { position:fixed; top:0; bottom:0; left:0; }
 }
 @media(prefers-reduced-motion:reduce) { .wind-workspace *,.vw-nav * { transition:none!important; } .vw-thinking-dots i { animation:none; opacity:.6; } .vw-demo-turn,.vw-demo.is-playing .vw-demo-thread::after { animation:none; } }
+/* Wiki: pages as readable cards, opened in a wider reading dialog. */
+.vw-wiki-row { display:flex; flex-direction:column; gap:4px; width:100%; text-align:left; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); padding:18px 2px; }
+.vw-wiki-row:hover { background:var(--hover-alt); }
+.vw-wiki-row strong { font-size:15px; font-weight:550; color:var(--ink); }
+.vw-wiki-row span { font-size:13px; color:var(--muted); }
+.vw-wiki-row small { font-size:11px; color:var(--faint); }
+.vw-dialog.vw-wiki-dialog { width:min(860px,calc(100vw - 32px)); }
+.vw-wiki-lede { font-size:15px; color:var(--text); margin:0 0 6px; }
+.vw-wiki-dialog .plot-card { margin:16px 0; }

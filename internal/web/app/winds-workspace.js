@@ -48,6 +48,7 @@
  function render(){
   if(!mounted)return;renderNav();page.replaceChildren();messages=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=btn('☰',()=>setDrawer(!document.body.classList.contains('vw-drawer')),'vw-mobile-menu');menu.setAttribute('aria-label',t('Obre la navegació','Open navigation'));menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),el('span','',state.active?.name||squadName(state.squad)));
+  if(state.view==='chat'&&state.active?.id)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   top.append(btn(t('La colla','Crew'),()=>route('crew'),'vw-top-action'));page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');page.append(status);
   if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();
@@ -84,7 +85,7 @@
   const activity=el('div','vw-thinking');activity.setAttribute('role',pending.text?'presentation':'status');const dots=el('span','vw-thinking-dots');dots.setAttribute('aria-hidden','true');for(let i=0;i<3;i++)dots.append(el('i'));
   activity.append(el('span','',pending.text?t('Escrivint la resposta','Writing the response'):phases[pending.phase]||phases.thinking),dots);copy.append(activity);
   // Streamed text is formatted as it arrives, like the finished message it becomes.
-  if(pending.text){const body=el('div','vw-message-text vw-stream-text'),shown=withoutSpeaker(pending.text,wind?.name);if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
+  if(pending.text){const body=el('div','vw-message-text vw-stream-text'),shown=withoutSpeaker(pending.text,wind?.name).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
  function schedulePending(){if(pendingFrame)return;pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;paintPending();});}
@@ -182,19 +183,32 @@ async function wikiView(){
   heading(t('Wiki dels vents','Winds wiki'),t('Resums que es queden: el que s\'ha parlat, en pàgines.','Summaries that stay: what was talked about, as pages.'));
   const data=await call('/api/winds/wiki');if(!content.isConnected)return;
   const pages=data.pages||[];
-  if(!pages.length){content.append(el('p','vw-empty',t('Encara no hi ha pàgines. Resumeix una conversa des del xat.','No pages yet. Summarize a chat to make one.')));return;}
+  if(!pages.length){content.append(el('p','vw-empty',t('Encara no hi ha pàgines. Obre una conversa i tria «Desa a la wiki».','No pages yet. Open a conversation and choose “Save to wiki”.')));return;}
   for(const p of pages){
-    const row=el('article','vw-routine');
-    row.append(el('strong','',p.titol||p.nom),el('span','vw-muted',p.descripcio||''));
-    row.append(btn(t('Obre','Open'),async()=>{
-      const d=dialog(p.titol||p.nom);
-      let full;try{full=(await call('/api/winds/wiki/'+encodeURIComponent(p.nom))).page;}catch(e){full=p;}
-      const body=el('div','vw-result-text');
-      if(root.gregalMD)body.innerHTML=root.gregalMD.render(full.cos||'');else body.textContent=full.cos||'';
-      d.append(body,btn(t('Esborra','Delete'),async()=>{await call('/api/winds/wiki/'+encodeURIComponent(p.nom),'DELETE');d.close();route('wiki');},'vw-archive'));
-    }));
+    const row=btn('',()=>openWikiPage(p),'vw-wiki-row');
+    row.append(el('strong','',p.titol||p.nom));
+    if(p.descripcio)row.append(el('span','',p.descripcio));
+    row.append(el('small','',wikiMeta(p)));
     content.append(row);
   }
+}
+const wikiMeta=p=>[p.autor,p.updated?new Date(p.updated).toLocaleDateString(document.documentElement.lang||undefined,{day:'numeric',month:'short',year:'numeric'}):''].filter(Boolean).join(' · ');
+async function openWikiPage(p){
+  const d=dialog(p.titol||p.nom);d.classList.add('vw-wiki-dialog');
+  let full;try{full=(await call('/api/winds/wiki/'+encodeURIComponent(p.nom))).page;}catch(e){full=p;}
+  if(full.descripcio)d.append(el('p','vw-wiki-lede',full.descripcio));
+  const meta=wikiMeta(full);if(meta)d.append(el('p','vw-muted',meta));
+  const body=el('div','vw-result-text');
+  if(root.gregalMD)body.innerHTML=root.gregalMD.render(full.cos||'');else body.textContent=full.cos||'';
+  d.append(body,btn(t('Esborra la pàgina','Delete page'),async()=>{if(!confirm(t('Esborrar aquesta pàgina de la wiki?','Delete this wiki page?')))return;await call('/api/winds/wiki/'+encodeURIComponent(p.nom),'DELETE');d.close();route('wiki');},'vw-archive'));
+}
+// Resumeix la conversa oberta en una pàgina; si ja en tenia, el servidor l'actualitza.
+async function summarizeToWiki(){
+  const chat=state.active;if(!chat?.id)return;
+  status.removeAttribute('role');status.textContent=t('Resumint la conversa per a la wiki…','Summarizing the conversation for the wiki…');
+  const data=await call('/api/winds/wiki/summary','POST',chat.legacyWind?{wind:chat.wind||chat.id}:{rotllana:chat.id});
+  status.textContent=(data.updated?t('Pàgina actualitzada: ','Page updated: '):t('Pàgina creada: ','Page created: '))+(data.page?.titol||'');
+  await openWikiPage(data.page);
 }
 async function showRoutines(container){container.replaceChildren(el('h2','vw-subtitle',t('Rutines','Routines')),el('p','vw-muted',t('Cerques i resums recurrents. Mantén Gregal obert perquè s’executin.','Recurring searches and summaries. Keep Gregal open for them to run.')),btn(t('＋ Una nova rutina','＋ New routine'),newRoutine));const data=await call('/api/jobs');if(!container.isConnected)return;for(const job of (data.jobs||[]).filter(j=>j.wind)){const row=el('article','vw-routine');row.append(el('strong','',job.name),el('span','vw-muted',(job.enabled?t('Activa','Active'):t('Pausada','Paused'))+' · '+(job.next_due||job.time||'')),btn(job.enabled?t('Pausa','Pause'):t('Activa','Enable'),async()=>{await call('/api/jobs/save','POST',{...job,enabled:!job.enabled});await showRoutines(container);}));row.append(btn(t('Resultats','Results'),async()=>{const data=await call('/api/jobs/runs?job='+encodeURIComponent(job.id));const d=dialog(job.name);for(const run of data.runs||[]){const body=el('div','vw-result-text');const shown=run.output||(run.error?root.gregalFriendlyRunError(run.error):'');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown||'');else body.textContent=shown||'';d.append(el('p','vw-muted',new Date(run.finished_at).toLocaleString()),body);}if(!(data.runs||[]).length)d.append(el('p','vw-muted',t('Encara no s’ha executat.','No runs yet.')));}));container.append(row);}}
  async function newRoutine(){if(!crew().length)await activate(state.squad);const d=dialog(t('Una petita ajuda, cada dia.','A little help, every day.'));const name=field(d,t('Nom de la rutina','Routine name')),prompt=field(d,t('Què vols que cerqui o resumeixi?','What should it research or summarize?'),state.draft,true),time=field(d,t('Cada dia a les','Every day at'),'09:00');time.type='time';const select=el('select');select.setAttribute('aria-label',t('Vent responsable','Responsible wind'));for(const w of state.winds)select.append(new Option(w.name+' · '+roleName(w),w.id));select.value=crew()[0]?.id||state.winds[0]?.id;d.append(select,el('p','vw-muted',t('Fa servir la memòria i el coneixement actuals del vent. És una rutina de lectura i cerca; Gregal ha d’estar obert.','Uses the wind’s current memory and knowledge. This is a reading and research routine; Gregal must stay open.')),btn(t('Desa la rutina','Save routine'),async()=>{if(!name.value.trim()||!prompt.value.trim()){(!name.value.trim()?name:prompt).focus();return;}await call('/api/jobs/save','POST',{name:name.value,prompt:prompt.value,kind:'daily',time:time.value,enabled:true,notify:false,wind:select.value});d.close();route('tasks');},'vw-primary'));}

@@ -42,13 +42,20 @@ data class ChartSeries(val name: String, val values: List<Float>)
 /** Parseja l'JSON del bloc chart. Torna null si no és vàlid (es mostra com a codi). Pura: testejable. */
 fun parseChartSpec(json: String): ChartSpec? {
     return try {
-        val type = jsonStrField(json, "type")?.lowercase() ?: return null
-        if (type != "bar" && type != "line" && type != "pie") return null
+        // Els tipus del gràfic de l'escriptori (gregal-plot) es dibuixen amb el
+        // més proper que sap fer el mòbil, en lloc de caure a codi.
+        val type = when (val raw = jsonStrField(json, "type")?.lowercase() ?: return null) {
+            "bar", "line", "pie" -> raw
+            "area" -> "line"
+            "horizontal-bar" -> "bar"
+            "doughnut" -> "pie"
+            else -> return null
+        }
         val labels = jsonStrArray(json, "labels") ?: emptyList()
         val seriesRaw = jsonArrayRaw(json, "series") ?: return null
         val series = splitObjects(seriesRaw).map { obj ->
             val vals = jsonNumArray(obj, "values") ?: return null
-            ChartSeries(jsonStrField(obj, "name") ?: "", vals)
+            ChartSeries(jsonStrField(obj, "name") ?: jsonStrField(obj, "label") ?: "", vals)
         }
         if (series.isEmpty() || series.any { it.values.isEmpty() }) return null
         if (type == "pie" && (series.size != 1 || labels.size != series.first().values.size)) return null
@@ -220,11 +227,13 @@ private fun drawBars(scope: DrawScope, spec: ChartSpec, palette: List<Color>, gr
     groups.forEach { gi ->
         spec.series.forEachIndexed { si, s ->
             val v = s.values.getOrNull(gi) ?: 0f
-            val h = (v / max) * (scope.size.height - 60f)
+            val h = (v / max) * (scope.size.height - 84f)
             val x = gi * gw + (gw - bw * spec.series.size) / 2 + si * bw
             scope.drawRoundRect(palette[si % palette.size], Offset(x, scope.size.height - 34f - h), Size(bw * 0.86f, h), CornerRadius(8f, 8f))
+            // Amb poques barres, el número a sobre: el gràfic es llegeix sense endevinar.
+            if (n * spec.series.size <= 12) scope.label(fmtNum(v), x + bw * 0.43f, scope.size.height - 42f - h, ink)
         }
-        if (gi < spec.labels.size) scope.label(spec.labels[gi].take(8), gi * gw + gw / 2, scope.size.height - 8f, ink)
+        if (gi < spec.labels.size) scope.label(fitChartLabel(spec.labels[gi], gw), gi * gw + gw / 2, scope.size.height - 8f, ink)
     }
 }
 
@@ -246,7 +255,7 @@ private fun drawLines(scope: DrawScope, spec: ChartSpec, palette: List<Color>, g
         pts.forEach { scope.drawCircle(palette[si % palette.size], 9f, it) }
     }
     if (n > 1) (0 until n).forEach { i ->
-        if (i < spec.labels.size) scope.label(spec.labels[i].take(8), px(i).coerceIn(30f, scope.size.width - 30f), scope.size.height - 8f, ink)
+        if (i < spec.labels.size) scope.label(fitChartLabel(spec.labels[i], scope.size.width / n), px(i).coerceIn(30f, scope.size.width - 30f), scope.size.height - 8f, ink)
     }
 }
 
@@ -296,4 +305,12 @@ private fun ChartLegendRow(color: Color, name: String, value: Float?, ink: Color
 }
 
 /** Formata un nombre: enters sense decimals. Pura: testejable. */
-internal fun fmtNum(v: Float): String = if (v == v.toInt().toFloat()) v.toInt().toString() else String.format("%.1f", v)
+internal fun fmtNum(v: Float): String = if (v == v.toInt().toFloat()) v.toInt().toString() else String.format(java.util.Locale.ROOT, "%.1f", v)
+
+/** Etiqueta d'eix que cap a l'espai de la columna: sencera si hi cap, si no
+ *  retallada amb «…» (mai a mitja paraula sense avisar). Pura: testejable. */
+fun fitChartLabel(text: String, widthPx: Float, charPx: Float = 14f): String {
+    val max = (widthPx / charPx).toInt().coerceAtLeast(3)
+    val t = text.trim()
+    return if (t.length <= max) t else t.take(max - 1).trimEnd() + "…"
+}

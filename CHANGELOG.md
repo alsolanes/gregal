@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Winds wiki: a summary now has its own title and one-line description, keeps a closing chart intact, follows the conversation's language and updates the same page when the conversation is summarized again (with the previous version as context) instead of piling up copies. Pages list newest first and say who wrote them. On desktop, an open conversation has a "Save to wiki" action and pages open in a wider reader with their charts and images.
+- One chart format everywhere: ```chart and ```gregal-plot draw the same chart on desktop (now also inside Winds and the wiki) and on Android, which maps area, doughnut and horizontal-bar charts and shows values above bars with readable labels. Winds are told to add a small chart when real numbers compare or change.
+- Image search works without SearXNG: winds fall back to Wikimedia Commons (freely licensed photos, light thumbnails, link to the file page).
+
 - Keep group replies in Winds conversations: each wind's finished answer is saved and shown at once, a slow wind has its own time limit instead of sharing three minutes with the whole round, and a wind that cannot answer no longer erases the others. Errors are explained in plain words.
 - Format group replies while they stream (bold, tables, images) instead of showing raw markdown until the end, and keep images a wind shows inside a bounded frame on desktop.
 - Android Vents: images in a conversation are shown whole (tall pictures are no longer cropped), without blank bands around them, with a caption naming what they are and where they come from. A tap opens them full screen with pinch zoom and a link to the source.

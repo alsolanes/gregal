@@ -150,19 +150,26 @@ function openLibrary(boardName) {
   dialog.append(toolbar, grid); load().catch(e => report(dialog, e));
 }
 let scheduled = false;
+// chartAliases accepta el gràfic dels vents i d'Android: sèries amb `name`
+// en lloc de `label`.
+function chartAliases(raw) {
+  for (const series of raw?.series || []) if (series && series.label === undefined && typeof series.name === 'string') series.label = series.name;
+  return raw;
+}
 function scan() {
   scheduled = false; prune();
   document.querySelectorAll('.lang-gregal-plot').forEach(block => {
     if (block.dataset.plotProcessed) return;
     const code = block.querySelector('code'); if (!code) return;
-    let spec; try { spec = core.validate(JSON.parse(code.textContent)); } catch { return; }
+    let spec; try { spec = core.validate(chartAliases(JSON.parse(code.textContent))); } catch { return; }
     block.dataset.plotProcessed = 'true'; block.hidden = true;
     const rendered = card(spec, context()); block.after(rendered);
     rendered.dataset.plotInline = 'true';
   });
 }
 const observer = new MutationObserver(() => { if (!scheduled) { scheduled = true; requestAnimationFrame(scan); } });
-observer.observe(document.getElementById('main') || document.body, {childList: true, subtree: true, characterData: true});
+// Tot el document: també els xats dels vents, la wiki i els diàlegs.
+observer.observe(document.body, {childList: true, subtree: true, characterData: true});
 // Entrada de primer nivell a la barra lateral, amb un comptador dels gràfics
 // que l'agent hi ha desat i encara no has mirat.
 const open = el('button', 'nav-item'); open.type = 'button'; open.id = 'plotsOpen';
