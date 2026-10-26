@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Chat sidebar: a project shows its six latest conversations with "Show more"; conversations and projects whose folder no longer exists are grouped apart (with an explanation instead of an error, and a way to delete them); same-named projects show their parent folder. The chat is denser by default: 14 px text, ~30 px sidebar rows, a lower top bar and composer, smaller hero, and message actions that no longer reserve a tall strip under every reply. Size and density preferences still apply.
 - Faster Winds replies: a group answer usually comes from one wind (two at most) instead of up to three in a row; naming a wind ("Ponent, …") skips the step that picks who answers; that step is a short deterministic call; group turns send a shorter recent history; and wind tasks no longer waste steps on shell commands the review blocks or on browser screenshots. The server log now shows how long each turn spent choosing, thinking and using tools.
 - Every wind knows its own name from the first line of its instructions, in one-to-one chats, groups and watch messages, and never calls the person by a wind's name. Without accounts the user is no longer called "local": the wind asks for their name instead.
 

@@ -131,3 +131,42 @@ body.has-tool-dock #inspector { display:none; }
   #composer .mode-chip { display:none; }
   #composer .composer-options-menu { left:auto; right:-110px; }
 }
+
+/* Densitat per defecte: text de 14 px, files de ~30 px a la barra lateral i
+   un compositor més baix. Abans tot era un graó massa gran (files de 40 px,
+   barra superior de 60 px, compositor de 185 px). Les preferències de mida i
+   densitat continuen funcionant a partir d'aquesta base. */
+:root { --fs:14px; --gap:18px; --pad:22px; }
+:root[data-size="petita"] { --fs:13px; }
+:root[data-size="gran"] { --fs:16px; }
+:root[data-density="compacta"] { --gap:12px; --pad:16px; }
+:root[data-density="comoda"] { --gap:26px; --pad:30px; }
+@media (min-width:761px) {
+  body #side .conv { padding:5px 8px; font-size:13px; min-height:30px; }
+  body #side .conv-grup { padding:12px 8px 3px; font-size:11px; }
+  body #side .sidebar-project-row { min-height:30px; }
+  body #side .project-open { padding:5px 8px; font-size:13px; }
+  body #side .project-conversations .conv { padding-left:30px; }
+  body #side .project-folder { display:none; }
+  body #side .conv-more { margin:2px 0 6px; padding:4px 8px 4px 30px; font-size:12px; text-align:left; }
+  body #side .sidebar-missing { margin-top:6px; }
+  body #side .sidebar-missing > .conv-more { padding-left:8px; color:var(--faint); }
+  body #side .missing-help { margin:2px 8px 6px; color:var(--faint); font-size:11px; line-height:1.4; }
+  body #side .missing-clean { margin:0 8px 6px; padding:4px 10px; border:1px solid var(--line-hi); border-radius:6px; background:transparent; color:var(--red); font-size:12px; cursor:pointer; }
+  body #side .conv.missing { color:var(--faint); }
+  body #side .conv.missing .conv-ws { flex:none; max-width:40%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11px; }
+  body #top { height:48px; min-height:48px; padding:0 16px; }
+  body #composer { padding:8px 22px 14px; }
+  body #composer #box { padding:12px 14px 9px; }
+  body #in { min-height:24px; }
+  body #composer .composer-row { margin-top:8px; }
+  body .hero-card { min-height:46px; padding:9px 34px 9px 13px; font-size:13px; }
+  body #hero h1 { font-size:clamp(24px,2.2vw,32px); margin-bottom:6px; }
+  body #side .project-parent { margin-left:4px; color:var(--faint); font-size:11px; font-weight:400; }
+  /* Les accions de cada missatge (copiar, reintentar…) ocupaven una franja de
+     40 px sota cada resposta; ara són petites i només surten en passar-hi. */
+  body .msg-acts { margin-top:4px; gap:2px; }
+  body .msg-act { width:24px; height:24px; border-radius:6px; }
+  body #main .msg.u .msg-inner { padding:9px 14px; }
+  body #main .msg.u { margin-top:6px; }
+}

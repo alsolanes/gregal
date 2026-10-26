@@ -26,6 +26,8 @@ type workspaceEntry struct {
 	Path string    `json:"path"`
 	Name string    `json:"name"`
 	Last time.Time `json:"last"`
+	// Missing només surt a la resposta: la carpeta ja no existeix.
+	Missing bool `json:"missing,omitempty"`
 }
 
 var wsMu sync.Mutex
@@ -64,6 +66,27 @@ func rememberWorkspace(dir string) {
 	}
 	if len(out) > 20 {
 		out = out[:20]
+	}
+	writeWorkspaces(out)
+}
+
+// forgetWorkspace treu una carpeta de la llista de recents (no toca el disc).
+func forgetWorkspace(dir string) {
+	wsMu.Lock()
+	defer wsMu.Unlock()
+	list := loadWorkspaces()
+	out := make([]workspaceEntry, 0, len(list))
+	for _, e := range list {
+		if e.Path != dir {
+			out = append(out, e)
+		}
+	}
+	writeWorkspaces(out)
+}
+
+func writeWorkspaces(out []workspaceEntry) {
+	for i := range out {
+		out[i].Missing = false
 	}
 	p := workspacesPath()
 	if os.MkdirAll(filepath.Dir(p), 0o700) != nil {
@@ -134,6 +157,22 @@ func (s *Server) setWorkspace(dir string) error {
 
 // handleWorkspaces llista els recents (GET) o canvia el de la sessió (POST).
 func (s *Server) handleWorkspaces(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodDelete {
+		// Només es pot oblidar una carpeta que ja no hi és: la llista de
+		// projectes no ha d'anar perdent carpetes vives per error.
+		path := strings.TrimSpace(r.URL.Query().Get("path"))
+		if path == "" {
+			http.Error(w, "cal path", http.StatusBadRequest)
+			return
+		}
+		if _, err := os.Stat(path); err == nil {
+			http.Error(w, "la carpeta encara existeix", http.StatusConflict)
+			return
+		}
+		forgetWorkspace(path)
+		writeJSON(w, map[string]bool{"ok": true})
+		return
+	}
 	if r.Method == "POST" {
 		var req struct {
 			Path string `json:"path"`
@@ -164,6 +203,9 @@ func (s *Server) handleWorkspaces(w http.ResponseWriter, r *http.Request) {
 	}
 	add(workspaceEntry{Path: cur, Name: filepath.Base(cur), Last: time.Now()})
 	for _, e := range list {
+		if _, err := os.Stat(e.Path); err != nil {
+			e.Missing = true
+		}
 		add(e)
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Last.After(out[j].Last) })

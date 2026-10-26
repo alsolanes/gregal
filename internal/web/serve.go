@@ -3544,9 +3544,22 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		Pinned      bool   `json:"pinned,omitempty"`
 		LiveSession string `json:"live_session,omitempty"`
 		LiveBusy    bool   `json:"live_busy,omitempty"`
+		// Missing: la carpeta de la conversa ja no existeix (o no és accessible),
+		// i obrir-la fallaria. La interfície l'aparta en lloc de mostrar un error.
+		Missing bool `json:"missing,omitempty"`
 	}
 	out := []row{}
+	missing := map[string]bool{}
 	for _, in := range infos {
+		if ws := strings.TrimSpace(in.Workspace); ws != "" {
+			if _, seen := missing[ws]; !seen {
+				resolved, err := resolveWorkspace(ws)
+				if err == nil {
+					err = s.user.Allow(resolved)
+				}
+				missing[ws] = err != nil
+			}
+		}
 		title := in.Title
 		if title == "" {
 			title = in.Name
@@ -3562,6 +3575,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			Pinned:      in.Pinned,
 			LiveSession: liveByConversation[in.Name],
 			LiveBusy:    liveBusyByConversation[in.Name],
+			Missing:     missing[strings.TrimSpace(in.Workspace)],
 		})
 	}
 	writeJSON(w, out)

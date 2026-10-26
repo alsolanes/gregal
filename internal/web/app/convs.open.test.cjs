@@ -92,3 +92,26 @@ test('project conversation creation passes its own folder and returns to chat', 
   assert.deepEqual(calls.views,['agent']);
   assert.ok(convs.expandedProjects.has('C:/other-project'));
 });
+
+test('a project with many conversations shows the latest six and a show-more button', async () => {
+  const { convs } = await loadConvs();
+  const files = Array.from({ length: 20 }, (_, i) => ({ name: 's' + i }));
+  const row = c => '<div class="conv" data-name="' + c.name + '"></div>';
+  const short = convs.projectRows('C:/p', files, row);
+  assert.equal((short.match(/class="conv"/g) || []).length, 6);
+  assert.match(short, /data-project-more="C:\/p"/);
+  convs.allRows.add('C:/p');
+  assert.equal((convs.projectRows('C:/p', files, row).match(/class="conv"/g) || []).length, 20);
+  assert.equal((convs.projectRows('C:/q', files.slice(0, 7), row).match(/class="conv"/g) || []).length, 7);
+});
+
+test('a conversation whose folder is gone explains instead of trying to open', async () => {
+  const { convs, calls, window } = await loadConvs();
+  const said = [];
+  window.gregal.sys = text => said.push(text);
+  convs.items = [{ name: 'old', workspace: 'C\projecte', missing: true }];
+  await convs.obre('old');
+  assert.equal(calls.resumes, 0);
+  assert.equal(calls.opens, 0);
+  assert.match(said[0], /C\projecte/);
+});

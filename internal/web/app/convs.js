@@ -151,7 +151,10 @@ export const convs = {
     const pins = llista.filter(c => c.pinned && !c.workspace);
     const projectes = new Map();
     const recents = [];
-    llista.filter(c => !c.pinned || c.workspace).forEach(c => {
+    // Converses d'una carpeta que ja no existeix: no es poden obrir, així que
+    // van a un sol grup apartat amb l'opció d'esborrar-les.
+    const missing = llista.filter(c => c.missing);
+    llista.filter(c => (!c.pinned || c.workspace) && !c.missing).forEach(c => {
       const ws = c.workspace || '';
       if (!ws) { recents.push(c); return; }
       // La ruta completa és la clau: dos repositoris poden acabar amb el
@@ -182,7 +185,7 @@ export const convs = {
     };
     let html = '';
     if (pins.length) html += '<div class="conv-grup">' + esc(gregalT('conv.pinned') || 'Pinned') + '</div>' + pins.map(fila).join('');
-    this.drawProjects(projectes, fila);
+    this.drawProjects(projectes, fila, missing);
     if (recents.length) {
       const grups = new Map();
       recents.forEach(c => { const g = grup(c.at); if (!grups.has(g.nom)) grups.set(g.nom, []); grups.get(g.nom).push(c); });
@@ -190,7 +193,12 @@ export const convs = {
     }
     box.innerHTML = html;
     [...box.querySelectorAll('.conv-more'), ...($('projectList')?.querySelectorAll('.conv-more') || [])].forEach(el => {
-      el.onclick = e => { e.stopPropagation(); this.expandedProjects.add(el.dataset.projectMore); this.draw(); };
+      el.onclick = e => {
+        e.stopPropagation();
+        const path = el.dataset.projectMore;
+        if (this.allRows.has(path)) this.allRows.delete(path); else this.allRows.add(path);
+        this.draw();
+      };
     });
     [...box.querySelectorAll('.conv'), ...($('projectList')?.querySelectorAll('.conv') || [])].forEach(el => {
       el.onclick = e => {
@@ -201,20 +209,53 @@ export const convs = {
       };
     });
   },
-  drawProjects(grouped, row = () => '') {
+  // Una carpeta amb moltes converses en mostra les més recents: la resta,
+  // a un clic. Sense això, un projecte amb 40 sessions omple tota la barra.
+  allRows: new Set(),
+  projectRows(path, files, row) {
+    const limit = 6;
+    const all = this.allRows.has(path) || files.length <= limit + 1;
+    const shown = all ? files : files.slice(0, limit);
+    let html = shown.map(c => row(c, true)).join('');
+    if (files.length > limit + 1) {
+      const label = all ? (gregalT('conv.less') || 'Show fewer')
+        : (gregalT('conv.more') || 'Show {n} more').replace('{n}', files.length - limit);
+      html += '<button class="conv-more" data-project-more="' + esc(path) + '">' + esc(label) + '</button>';
+    }
+    return html;
+  },
+  drawProjects(grouped, row = () => '', missing = []) {
     const box = $('projectList');
     if (!box) return;
-    const projects = new Map(this.projects.map(p => [p.path, p]));
+    // Carpetes registrades que ja no existeixen: van amb les converses perdudes.
+    const goneFolders = this.projects.filter(p => p.missing && !grouped.has(p.path));
+    const projects = new Map(this.projects.filter(p => !p.missing || grouped.has(p.path)).map(p => [p.path, p]));
     for (const path of grouped.keys()) if (!projects.has(path)) projects.set(path, {path});
     const cwd = G().state?.cwd || window.gregalCwd || '';
     const norm = path => path.replace(/[\\/]+$/, '').toLowerCase();
+    const sameName = new Map();
+    for (const p of projects.values()) { const n = (p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop()).toLowerCase(); sameName.set(n, (sameName.get(n) || 0) + 1); }
     box.innerHTML = [...projects.values()].filter(p => !this.filtre || matchesConversation({workspace:p.path, title:p.name}, this.filtre) || grouped.has(p.path)).map(p => {
       const name = p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
+      // Dues carpetes amb el mateix nom (tres «ws»): la carpeta de sobre les distingeix.
+      const parent = sameName.get(name.toLowerCase()) > 1 ? p.path.replace(/[\\/]+$/, '').split(/[\\/]/).slice(-2, -1)[0] || '' : '';
       const expanded = (this.expandedProjects.has(p.path) || norm(cwd) === norm(p.path)) && !this.collapsedProjects.has(p.path);
       const files = grouped.get(p.path) || [];
-      return '<section class="sidebar-project' + (norm(cwd) === norm(p.path) ? ' selected' : '') + '"><div class="sidebar-project-row"><button class="project-open" data-path="'+esc(p.path)+'" aria-expanded="'+expanded+'" title="'+esc(p.path)+'"><span class="project-chevron" aria-hidden="true">'+(expanded?'⌄':'›')+'</span><svg class="project-folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.5a1 1 0 0 1 1-1h3.1l1.45 1.55h5.95a1 1 0 0 1 1 1v5.45a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>'+esc(name)+'</span></button><button class="project-new" data-path="'+esc(p.path)+'" title="'+esc(gregalT('shell.newProjectChat'))+'" aria-label="'+esc(gregalT('shell.newProjectChat')+' · '+name)+'">＋</button></div>' +
-        (expanded ? '<div class="project-conversations"><div class="project-folder" title="'+esc(gregalT('shell.projectFolder'))+'">'+esc(p.path)+'</div>'+files.map(c => row(c, true)).join('')+'</div>' : '')+'</section>';
+      return '<section class="sidebar-project' + (norm(cwd) === norm(p.path) ? ' selected' : '') + '"><div class="sidebar-project-row"><button class="project-open" data-path="'+esc(p.path)+'" aria-expanded="'+expanded+'" title="'+esc(p.path)+'"><span class="project-chevron" aria-hidden="true">'+(expanded?'⌄':'›')+'</span><svg class="project-folder-ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M1.75 4.5a1 1 0 0 1 1-1h3.1l1.45 1.55h5.95a1 1 0 0 1 1 1v5.45a1 1 0 0 1-1 1h-10.5a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg><span>'+esc(name)+'</span>'+(parent?'<span class="project-parent">'+esc(parent)+'</span>':'')+'</button><button class="project-new" data-path="'+esc(p.path)+'" title="'+esc(gregalT('shell.newProjectChat'))+'" aria-label="'+esc(gregalT('shell.newProjectChat')+' · '+name)+'">＋</button></div>' +
+        (expanded ? '<div class="project-conversations"><div class="project-folder" title="'+esc(gregalT('shell.projectFolder'))+'">'+esc(p.path)+'</div>'+this.projectRows(p.path, files, row)+'</div>' : '')+'</section>';
     }).join('') || '<div class="conv-empty">'+esc(gregalT('shell.noProjects'))+'</div>';
+    if (missing.length || goneFolders.length) {
+      const open = this.allRows.has(':missing');
+      box.insertAdjacentHTML('beforeend', '<section class="sidebar-missing"><button class="conv-more missing-toggle" data-project-more=":missing" aria-expanded="' + open + '">' +
+        esc((gregalT('conv.missing.title') || 'Folders that no longer exist · {n}').replace('{n}', missing.length + goneFolders.length)) + '</button>' +
+        (open ? '<p class="missing-help">' + esc(gregalT('conv.missing.help') || 'These conversations belong to folders that are gone, so they cannot be opened.') + '</p>' +
+          '<button class="missing-clean">' + esc(gregalT('conv.missing.clean') || 'Delete them') + '</button>' +
+          goneFolders.map(p => '<div class="conv missing folder" title="' + esc(p.path) + '"><span class="conv-t">' + esc(p.name || p.path) + '</span></div>').join('') +
+          missing.map(c => '<div class="conv missing" data-name="' + esc(c.name) + '" title="' + esc(c.workspace || '') + '"><span class="conv-t">' + esc(titolVisible(c)) + '</span><span class="conv-ws">' + esc((c.workspace || '').split(/[\\/]/).pop()) + '</span><button class="conv-x" title="' + esc(gregalT('conv.delete.title') || 'Delete this conversation') + '" aria-label="' + esc(gregalT('conv.delete.aria') || 'Delete') + '">×</button></div>').join('') : '') +
+        '</section>');
+      const clean = box.querySelector('.missing-clean');
+      if (clean) clean.onclick = () => this.esborraMissing(missing, goneFolders);
+    }
     box.querySelectorAll('.project-open').forEach(b => b.onclick = async () => {
       const path = b.dataset.path;
       if (b.getAttribute('aria-expanded') === 'true') { this.collapsedProjects.add(path); this.draw(); return; }
@@ -247,6 +288,11 @@ export const convs = {
   _openVersion: 0,
   async obre(name) {
     const version = ++this._openVersion;
+    const target = this.items.find(item => item.name === name);
+    if (target?.missing) {
+      G().sys((gregalT('conv.missing.open') || 'The folder of this conversation no longer exists: {path}').replace('{path}', target.workspace || ''));
+      return;
+    }
     try {
       const tabs = window.gregalPanels?.sessions;
       const cached = this.items.find(item => item.name === name);
@@ -341,6 +387,23 @@ export const convs = {
       await this.load();
       G().refresh();
     } catch (e) { G().sys(String(e.message || e)); }
+  },
+  async esborraMissing(list, folders = []) {
+    const tpl = gregalT('conv.missing.confirm') || 'Delete {n} conversations whose folders no longer exist? This cannot be undone.';
+    if (!confirm(tpl.replace('{n}', list.length))) return;
+    const failed = [];
+    // Les carpetes només s'obliden de la llista (el servidor ho refusa si encara existeixen).
+    for (const p of folders) {
+      try { await G().api('/api/workspaces?path=' + encodeURIComponent(p.path), { method: 'DELETE' }); } catch (e) {}
+    }
+    for (const c of list) {
+      try {
+        const r = await G().api('/api/sessions?name=' + encodeURIComponent(c.name), { method: 'DELETE' });
+        if (!r.ok) failed.push(c.name);
+      } catch (e) { failed.push(c.name); }
+    }
+    if (failed.length) G().sys((gregalT('conv.delete.error') || 'Could not delete: ') + failed.length);
+    await this.load();
   },
   async esborra(name) {
     const c = this.items.find(x => x.name === name);
