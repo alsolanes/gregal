@@ -910,6 +910,7 @@ const CA = {
   'graphs.summaryError': 'error',
   'graphs.summaryDone': 'fet',
   'sessions.main': 'principal',
+  'sessions.untitled': 'Nova',
   'sessions.needsInput': ' · cal respondre',
   'sessions.working': ' · treballant',
   'sessions.needsInputLabel': 'Cal respondre',
@@ -2485,6 +2486,7 @@ const EN = {
   'graphs.summaryDone': 'done',
 
   'sessions.main': 'main',
+  'sessions.untitled': 'New',
   'sessions.needsInput': ' · needs input',
   'sessions.working': ' · working',
   'sessions.needsInputLabel': 'Needs input',

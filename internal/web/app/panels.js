@@ -259,7 +259,8 @@ export const sessions = {
       const tab = document.createElement('button');
       tab.dataset.sessionId = s.id;
       tab.className = 'session-tab' + (s.id === this.current ? ' active' : '') + (s.busy ? ' busy' : '') + (pending?.has(s.id) ? ' needs-input' : '');
-      const name = s.title || (s.id === 'default' ? s.project || T('sessions.main') : s.id);
+      // Una sessió encara sense missatges no té títol: mai no s'ha de veure l'id intern.
+      const name = s.title || (s.id === 'default' ? s.project || T('sessions.main') : (s.project ? T('sessions.untitled') + ' · ' + s.project : T('sessions.untitled')));
       // El tooltip diu on treballa: nom, ruta sencera i, si n'és, el worktree.
       tab.title = name + '\n' + (s.cwd || '') + (s.worktree ? '\n' + T('sessions.worktreeBadge') + s.worktree : '') +
         (pending?.has(s.id) ? T('sessions.needsInput') : s.busy ? T('sessions.working') : '');
