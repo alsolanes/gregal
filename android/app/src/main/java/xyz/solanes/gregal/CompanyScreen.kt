@@ -244,7 +244,17 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             Text(tr(lang, "app.vents.searchEmptyHelp"), color = Muted, fontSize = 14.sp)
                         }
                     }
+                    // Les converses de veritat primer; els vents amb qui encara no
+                    // has parlat, a sota amb el seu títol. Abans tot anava barrejat i
+                    // una fila «Xaloc · Música» semblava una conversa buida.
+                    val firstIdle = rows.indexOfFirst { it.timestamp == 0L }
+                    val idleKey = if (query.isBlank() && firstIdle > 0) rows[firstIdle].key else null
                     items(rows, key = { it.key }) { entry ->
+                        if (entry.key == idleKey) {
+                            Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+                                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+                        }
                         val id = entry.key.substringAfter(':')
                         val group = entry.key.startsWith("rot:")
                         val thinking = if (group) id in rBusy else id in busy
@@ -854,7 +864,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         VentsChatHeader(lang, rot.name,
             when {
                 crewStep != null -> tr(lang, "app.crew.step.$crewStep")
-                rotBusy -> tr(lang, "app.company.windThinking", rot.name)
+                // El títol de la rotllana és la primera pregunta: «Recomana'm… hi
+                // pensa» no deia res. Qui pensa és la colla.
+                rotBusy -> tr(lang, "app.company.groupThinking")
                 else -> faces.joinToString(", ") { it.name }
             },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
@@ -931,7 +943,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     ) {
                         TypingDots(rotAccent)
                         Text(
-                            "  " + tr(lang, "app.company.windThinking", "…"),
+                            "  " + tr(lang, "app.company.groupThinking"),
                             fontSize = 12.sp, color = rotAccent,
                         )
                     }
@@ -1158,12 +1170,15 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             val dark = LocalPal.current == DarkPal
             val tinted = if (dark) accent.copy(alpha = .30f).compositeOver(Superficie)
                 else accent.copy(alpha = .14f).compositeOver(Superficie)
+            // Una taula, un gràfic, codi o una imatge necessiten l'amplada de
+            // la pantalla: a 300 dp una taula de cinc columnes no hi cabia.
+            val rich = remember(m.text) { m.text.contains("\n|") || m.text.contains("```") || m.text.contains("![") }
             Surface(
                 shape = bubbleShape,
                 color = tinted,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
-                modifier = Modifier.widthIn(max = 300.dp).combinedClickable(
+                modifier = Modifier.widthIn(max = if (rich) 600.dp else 300.dp).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {

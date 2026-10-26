@@ -46,7 +46,22 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-composer-foot { display:flex; align-items:center; gap:12px; margin-top:14px; min-width:0; }
 .vw-composer-foot select { background:transparent; border:0; color:var(--muted); font:inherit; font-size:12px; min-width:0; max-width:42%; padding:3px 0; }
 .vw-composer-foot select option { background:var(--surface); color:var(--text); }
-.vw-model { font-size:11px!important; color:var(--faint); background:transparent; border:0; min-width:0; max-width:34%; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; padding:3px 0; }
+.vw-model { display:inline-flex; align-items:center; gap:4px; font-size:12px!important; color:var(--muted); background:transparent; border:1px solid transparent; border-radius:999px; min-width:0; max-width:40%; white-space:nowrap; padding:3px 8px; cursor:pointer; }
+.vw-model:hover,.vw-model:focus-visible { color:var(--text); border-color:var(--line-hi); background:var(--surface-hi); }
+.vw-model-name { overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.vw-model-chev { flex:none; width:14px; height:14px; }
+.vw-model-pop { position:fixed; z-index:60; display:flex; flex-direction:column; gap:8px; padding:12px; background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; box-shadow:0 14px 36px color-mix(in srgb,var(--ombra) 35%,transparent); }
+.vw-model-head { margin:0; font-size:12px; color:var(--muted); }
+.vw-model-filter { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:9px; color:var(--text); font:inherit; font-size:13px; padding:7px 10px; }
+.vw-model-list { overflow:auto; min-height:0; display:flex; flex-direction:column; }
+.vw-model-prov { margin:8px 4px 4px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+.vw-model-row { display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; background:transparent; border:0; border-radius:8px; color:var(--text); font:inherit; font-size:13px; padding:7px 9px; cursor:pointer; }
+.vw-model-row span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-model-row small { flex:none; font-size:10.5px; color:var(--faint); }
+.vw-model-row:hover,.vw-model-row:focus-visible { background:var(--surface-hi); }
+.vw-model-row[aria-selected="true"] { background:color-mix(in srgb,var(--vw-accent) 18%,transparent); }
+.vw-model-row[aria-selected="true"] span::before { content:'✓ '; color:var(--vw-accent); }
+.vw-model-empty { margin:6px 4px; font-size:12px; color:var(--faint); }
 .vw-send { display:grid; place-items:center; flex:0 0 38px; margin-left:auto; width:38px; min-width:38px; height:38px; min-height:38px; padding:0; border-radius:50%; border:1px solid transparent; background:var(--vw-accent); color:var(--vw-ink); line-height:0; align-self:center; }
 .vw-send svg { display:block; width:22px; height:22px; pointer-events:none; }
 .vw-send[data-busy="true"] { background:var(--surface-hi); color:var(--text); border-color:var(--line-hi); }
@@ -178,7 +193,7 @@ body.shell-winds .side-scroll { overflow:auto; }
  .vw-prompts { gap:7px; margin-bottom:22px; } .vw-prompts button { font-size:11px!important; padding:7px 10px; }
  .vw-demo { padding:15px 13px 12px; border-radius:14px; margin-bottom:22px; } .vw-demo-head { align-items:flex-start; } .vw-demo-head h2 { font-size:15px; } .vw-demo-replay { font-size:10px!important; padding:6px 8px; } .vw-demo-turn { grid-template-columns:24px minmax(0,1fr); gap:7px; padding:8px; } .vw-demo-turn > .winds-face,.vw-demo-mark { width:24px; height:24px; }
  .vw-crew-strip { gap:20px; margin-top:28px; } .vw-composer { padding:14px; border-radius:16px; }
- .vw-composer-foot { gap:7px; } .vw-composer-foot select { max-width:45%; } .vw-model { max-width:30%; }
+ .vw-composer-foot { gap:7px; } .vw-composer-foot select { max-width:45%; } .vw-model { max-width:34%; }
  .vw-member { gap:10px; } .vw-member > .winds-face { width:40px; height:40px; } .vw-member button { padding:7px 9px; }
  .vw-member p { font-size:11px; } .vw-member h2 { font-size:14px; }
  .vw-mobile-nav { display:flex; flex:none; gap:5px; justify-content:space-around; border-top:1px solid var(--line); background:var(--panel); padding:9px 8px; }

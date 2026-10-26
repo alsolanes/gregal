@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Desktop Winds: the model chip in the composer opens a model picker for the winds (their own model, separate from the work model) instead of a menu that closed on the same click, and looks like a button.
+- Android Winds: markdown tables keep words whole and scroll sideways when they have more than two columns, and replies with tables, code or images use the full width; the home list separates real conversations from winds you have not talked to yet; a group shows "The group is thinking…" instead of "… is thinking…"; group messages are trimmed like one-to-one ones.
+- Installed squads no longer repeat wind names (two "Garbí", two "Gregal"…): the templates use distinct names, and a squad member whose name is taken gets a free one.
+
 ## v1.17.2 - 2026-10-26 - TUI net i panell «ara»
 
 - TUI: while a turn runs, the side panel opens with a "now" section: your request, the sentence where the model says what it is doing, the tool running and the elapsed time; on narrow terminals that sentence replaces "working…" in the footer. In code mode the model is asked to start each tool step with one short sentence saying what it is doing.

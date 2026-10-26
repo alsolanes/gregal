@@ -110,6 +110,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
@@ -1060,36 +1061,63 @@ fun CodeBlock(lang: String, code: String, uiLang: String = "ca") {
     }
 }
 
-/** Taula markdown simple: capçalera sorra i files amb divisor. */
+/**
+ * Taula markdown: capçalera sorra i files amb divisor. Amb dues columnes
+ * omple l'amplada; amb més, cada columna té l'amplada que demana el seu
+ * text (entre 84 i 210 dp) i la taula es desplaça de costat. Abans totes
+ * les columnes s'encongien a parts iguals i, en un mòbil, una taula de
+ * cinc columnes partia les paraules per la meitat («Zenbo / ok»).
+ */
 @Composable
 fun MdTable(headers: List<String>, rows: List<List<String>>, lang: String = "ca") {
+    val shown = rows.take(12)
+    val widths = remember(headers, shown) { if (headers.size <= 2) null else tableColumnWidths(headers, shown) }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = CodeDark),
     ) {
-        Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
-            TableRow(headers, header = true)
-            HorizontalDivider(color = Muted.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 4.dp))
-            rows.take(12).forEach { TableRow(it, header = false) }
-            if (rows.size > 12) {
-                Text(tr(lang, "app.table.moreFiles", rows.size - 12), color = Muted, fontSize = 12.sp,
-                    modifier = Modifier.padding(4.dp))
+        val body = @Composable {
+            Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                TableRow(headers, header = true, widths = widths)
+                HorizontalDivider(color = Muted.copy(alpha = 0.4f), modifier = Modifier.padding(vertical = 4.dp)
+                    .then(if (widths != null) Modifier.width(widths.sum().dp) else Modifier))
+                shown.forEach { TableRow(it, header = false, widths = widths) }
+                if (rows.size > 12) {
+                    Text(tr(lang, "app.table.moreFiles", rows.size - 12), color = Muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(4.dp))
+                }
             }
         }
+        if (widths == null) body() else Box(Modifier.horizontalScroll(rememberScrollState())) { body() }
     }
 }
 
+/**
+ * Amplada en dp de cada columna segons el text més llarg: com a mínim la
+ * paraula més llarga (perquè no es parteixi) i com a màxim 210 dp (el
+ * text llarg baixa de línia dins la cel·la).
+ */
+fun tableColumnWidths(headers: List<String>, rows: List<List<String>>): List<Int> =
+    headers.indices.map { i ->
+        val cells = listOf(headers[i]) + rows.mapNotNull { it.getOrNull(i) }
+        val plain = cells.map { it.replace(Regex("""\[([^\]]*)]\([^)]*\)"""), "$1").replace(Regex("[*_`]"), "") }
+        val longest = plain.maxOf { it.length }
+        val word = plain.flatMap { it.split(' ', '/', '-') }.maxOfOrNull { it.length } ?: 0
+        (maxOf(word, minOf(longest, 26)) * 8 + 16).coerceIn(84, 210)
+    }
+
 @Composable
-private fun TableRow(cells: List<String>, header: Boolean) {
+private fun TableRow(cells: List<String>, header: Boolean, widths: List<Int>? = null) {
     val codeBg = CodeDark
     val sea = Sea
-    Row(Modifier.fillMaxWidth()) {
-        cells.forEach { c ->
+    Row(if (widths == null) Modifier.fillMaxWidth() else Modifier) {
+        cells.forEachIndexed { i, c ->
             val rich = remember(c) { renderSegs(parseInline(c), codeBg, link = sea) }
+            val w = widths?.getOrNull(i)
             Text(
                 rich,
-                modifier = Modifier.weight(1f).padding(4.dp),
+                modifier = (if (w == null) Modifier.weight(1f) else Modifier.width(w.dp)).padding(4.dp),
                 fontWeight = if (header) FontWeight.Bold else FontWeight.Normal,
                 color = if (header) Sand else Ink,
                 fontSize = 13.sp,

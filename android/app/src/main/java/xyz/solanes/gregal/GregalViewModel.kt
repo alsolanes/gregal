@@ -2354,8 +2354,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private fun lastPetText(hist: List<PetMsg>, fallback: String): String =
         hist.lastOrNull { it.from == "pet" }?.text.orEmpty().ifBlank { fallback }
 
-    fun sendRotllanaMessage(rotllanaId: String, message: String, wind: String = "") {
-        if (message.isBlank() || _rotllanaBusy.value.contains(rotllanaId)) return
+    fun sendRotllanaMessage(rotllanaId: String, rawMessage: String, wind: String = "") {
+        // Com al xat 1:1: sense salts ni espais de més (un Enter de més deixava
+        // la bombolla amb una línia buida).
+        val message = rawMessage.trim()
+        if (message.isEmpty() || _rotllanaBusy.value.contains(rotllanaId)) return
         val source = _conn.value; val epoch = companionEpoch
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         val before = _rotllanaChat.value[rotllanaId].orEmpty()

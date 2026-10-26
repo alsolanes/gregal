@@ -60,11 +60,65 @@
   const foot=el('div','vw-composer-foot'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
   select.append(new Option(squadName(state.squad),'auto'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
   select.onchange=()=>{state.recipient=select.value;};state.recipient=select.value;
-  const model=btn(root.gregal?.state?.model||t('Model actiu','Active model'),()=>root.gregalPanels?.models?.open?.(model),'vw-model');model.title=t('Canvia el model','Change model');
+  const model=el('button','vw-model');model.type='button';paintModel(model);
+  // stopPropagation: el clic que l'obre no ha d'arribar al «clic fora» que el tanca.
+  model.onclick=e=>{e.stopPropagation();openModelPicker(model).catch(fail);};
+  loadModels().then(()=>paintModel(model)).catch(()=>{});
   const send=el('button','vw-send');paintSend(send);
   foot.append(select,model,send);composer.append(input,foot);
   if(workspace){const line=el('div','vw-folder-hint');line.append(folder(),el('span','',state.workspace));composer.append(line);}
   composer.onsubmit=e=>{e.preventDefault();submit().catch(fail);};content.append(composer);
+ }
+ // Model dels vents: propi (POST /api/model amb scope «vents»), independent
+ // del de la feina. Abans el botó obria el selector de la feina, que es
+ // tancava amb el mateix clic, i ensenyava el model de la feina.
+ const models={list:{},current:'',work:'',loaded:false};
+ async function loadModels(force=false){
+  if(models.loaded&&!force)return models;
+  const d=await call('/api/models');
+  models.list=d.models||{};models.work=d.fallback||d.current||'';models.current=d.vents_selected||'';models.loaded=true;
+  return models;
+ }
+ const modelActual=()=>models.current||models.work||root.gregal?.state?.model||'';
+ function paintModel(button){
+  const full=modelActual(),name=full?full.split('/').slice(1).join('/')||full:t('Model','Model');
+  const chev=document.createElementNS('http://www.w3.org/2000/svg','svg');chev.setAttribute('viewBox','0 0 24 24');chev.setAttribute('class','vw-model-chev');chev.setAttribute('aria-hidden','true');
+  const path=document.createElementNS(chev.namespaceURI,'path');path.setAttribute('d','m6 9 6 6 6-6');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','2');path.setAttribute('stroke-linecap','round');chev.append(path);
+  button.replaceChildren(el('span','vw-model-name',name),chev);
+  button.title=t('Model dels vents: ','Winds model: ')+(full||'—')+(models.current?'':t(' (el de la feina)',' (same as work)'));
+  button.setAttribute('aria-label',button.title);
+ }
+ function closeModelPicker(){document.querySelector('.vw-model-pop')?.remove();document.removeEventListener('click',outsideModel,true);document.removeEventListener('keydown',escModel,true);}
+ function outsideModel(e){const pop=document.querySelector('.vw-model-pop');if(pop&&!pop.contains(e.target)&&!e.target.closest?.('.vw-model'))closeModelPicker();}
+ function escModel(e){if(e.key==='Escape'){e.stopPropagation();closeModelPicker();}}
+ async function openModelPicker(anchor){
+  if(document.querySelector('.vw-model-pop')){closeModelPicker();return;}
+  const pop=el('div','vw-model-pop');pop.setAttribute('role','dialog');pop.setAttribute('aria-label',t('Model dels vents','Winds model'));
+  const head=el('p','vw-model-head',t('Model amb què responen els vents','Model the winds answer with'));
+  const filter=el('input','vw-model-filter');filter.type='search';filter.placeholder=t('Filtra models…','Filter models…');filter.setAttribute('aria-label',filter.placeholder);
+  const list=el('div','vw-model-list');list.setAttribute('role','listbox');list.append(el('p','vw-model-empty',t('Carregant…','Loading…')));
+  pop.append(head,filter,list);document.body.append(pop);
+  const place=()=>{const r=anchor.getBoundingClientRect(),w=Math.min(360,innerWidth-16);pop.style.width=w+'px';pop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';const above=r.top>innerHeight/2;pop.style.top=above?'auto':(r.bottom+6)+'px';pop.style.bottom=above?(innerHeight-r.top+6)+'px':'auto';pop.style.maxHeight=Math.max(160,Math.min(420,above?r.top-14:innerHeight-r.bottom-14))+'px';};
+  place();document.addEventListener('click',outsideModel,true);document.addEventListener('keydown',escModel,true);filter.focus();
+  try{await loadModels(true);}catch(e){list.replaceChildren(el('p','vw-model-empty',t('No s’han pogut llegir els models: ','Could not read the models: ')+e.message));return;}
+  const all=[];for(const prov of Object.keys(models.list).sort())for(const id of models.list[prov]||[])all.push(prov+'/'+id);
+  const draw=()=>{
+   const q=filter.value.trim().toLowerCase(),sel=modelActual();
+   const rows=all.filter(m=>!q||m.toLowerCase().includes(q)).slice(0,200);
+   list.replaceChildren();
+   if(!rows.length){list.append(el('p','vw-model-empty',all.length?t('Cap model coincideix','No model matches'):t('Cap proveïdor no llista models','No provider lists models')));return;}
+   let prov='';
+   for(const m of rows){
+    const p=m.split('/')[0];if(p!==prov){prov=p;list.append(el('p','vw-model-prov',p));}
+    const row=el('button','vw-model-row');row.type='button';row.setAttribute('role','option');row.setAttribute('aria-selected',String(m===sel));
+    row.append(el('span','',m.slice(p.length+1)));
+    if(m===models.work)row.append(el('small','',t('feina','work')));
+    row.onclick=async e=>{e.stopPropagation();try{await call('/api/model','POST',{model:m,scope:'vents'});models.current=m;closeModelPicker();document.querySelectorAll('.vw-model').forEach(paintModel);}catch(err){fail(err);}};
+    list.append(row);
+   }
+  };
+  filter.oninput=draw;filter.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();list.querySelector('.vw-model-row')?.click();}};
+  draw();place();
  }
  function paintSend(button){
   button.replaceChildren();button.type=state.busy?'button':'submit';button.dataset.busy=String(state.busy);button.disabled=false;
@@ -124,9 +178,9 @@
     ['music','Xaloc',t('Miraré si hi ha concerts aquell dissabte i només te’ls proposaré si encaixen amb el pla.','I’ll look for concerts that Saturday and only suggest them if they fit the plan.')]
    ],summary:t('Cada especialista hi aporta la seva part i Gregal ho reuneix en un pla que pots conservar.','Each specialist adds their part and Gregal pulls it together into a plan you can keep.')},
    data:{title:t('Entendre una sèrie de vendes','Understanding a sales time series'),turns:[
-    ['quality','Marinada',t('Primer revisaré dates, valors que falten i si les vendes són diàries o setmanals.','First I’ll check dates, missing values, and whether sales are daily or weekly.')],
+    ['quality','Cerç',t('Primer revisaré dates, valors que falten i si les vendes són diàries o setmanals.','First I’ll check dates, missing values, and whether sales are daily or weekly.')],
     ['timeseries','Migjorn',t('Després separaré tendència i estacionalitat, i compararé la previsió amb una referència senzilla.','Then I’ll separate trend and seasonality, and compare the forecast with a simple baseline.')],
-    ['review','Mestral',t('I comprovaré que la validació respecti l’ordre temporal i que el gràfic no suggereixi més certesa de la que tenim.','I’ll check that validation respects time order and that the chart does not imply more certainty than we have.')]
+    ['review','Oratge',t('I comprovaré que la validació respecti l’ordre temporal i que el gràfic no suggereixi més certesa de la que tenim.','I’ll check that validation respects time order and that the chart does not imply more certainty than we have.')]
    ],summary:t('Cada especialista aporta una comprovació; la conclusió es basa en les dades i queda revisada.','Each specialist contributes a check; the conclusion is grounded in the data and reviewed.')},
    software:{title:t('Preparar una web accessible','Making a website accessible'),turns:[
     ['ux','Llebeig',t('Comencem pels usos principals i els criteris d’accessibilitat que cal complir.','Let’s start with the main user journeys and the accessibility criteria to meet.')],
@@ -300,5 +354,5 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  root.gregalFriendlyRunError=function(raw){const e=(raw||'').trim();if(!e)return e;const l=e.toLowerCase();const m=e.match(/lookup ([a-z0-9.-]+)/i);const host=m?m[1]:'';if(l.includes('no such host')||l.includes('dns'))return host?t('No s’ha pogut arribar al proveïdor: el dispositiu no resol l’adreça '+host+'. Comprova que hi ha internet i torna-ho a provar.','Could not reach the provider: the device cannot resolve '+host+'. Check the connection and try again.'):t('No s’ha pogut arribar al proveïdor: no es resol la seva adreça. Comprova que hi ha internet i torna-ho a provar.','Could not reach the provider: its address cannot be resolved. Check the connection and try again.');if(l.includes('connection refused'))return t('No s’ha pogut arribar al proveïdor (connexió refusada). Pot ser un tall puntual: torna-ho a provar més tard.','Could not reach the provider (connection refused). Might be a transient outage: try again later.');if(l.includes('context deadline exceeded')||l.includes('timeout'))return t('El proveïdor ha trigat massa a respondre. Torna-ho a provar: si continua així, pot estar saturat.','The provider took too long to respond. Try again: if it persists it may be overloaded.');if(l.includes('certificate')||l.includes('x509'))return t('El proveïdor presenta un certificat que no es confia. Comprova la data/hora del dispositiu.','The provider certificate is not trusted. Check the device date/time.');if(l.includes('401')||l.includes('unauthorized'))return t('El proveïdor ha rebutjat la clau (401). Revisa la clau API a la configuració.','The provider rejected the key (401). Check the API key in settings.');if(l.includes('429')||l.includes('too many requests'))return t('El proveïdor ha limitat les peticions (429). Espera una mica i torna-ho a provar.','The provider is rate limiting (429). Wait a bit and try again.');if(l.includes('no route to host')||l.includes('network is unreachable'))return t('No hi ha ruta cap al servidor. Comprova que hi ha internet i torna-ho a provar.','No route to the server. Check the connection and try again.');if(l==='eof'||l.endsWith('eof'))return t('La connexió amb el proveïdor s’ha tallat a mig camí. Torna-ho a provar.','The connection to the provider was cut midway. Try again.');return e;};
  root.loadWindsPage=load;
  document.addEventListener('gregal:idioma',()=>{if(mounted){state.draft=input?.value??state.draft;render();}});
- document.addEventListener('gregal:state',()=>{const model=page?.querySelector('.vw-model');if(model)model.textContent=root.gregal?.state?.model||t('Model actiu','Active model');});
+ document.addEventListener('gregal:state',()=>{page?.querySelectorAll('.vw-model').forEach(paintModel);});
 })(window);
