@@ -636,6 +636,20 @@ func (s *Server) legacyAdmin() *User {
 }
 
 // usuari és el nom de qui fa la petició (buit en mode local).
+// windUserName és el nom de la persona per als vents: el del compte si és un
+// nom de debò. «local» (sense comptes) i el compte compartit no són noms, i
+// un vent no ha de dir-li així a ningú.
+func (s *Server) windUserName() string {
+	if s == nil || s.user == nil || s.user.Tothom {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(s.user.Name)) {
+	case "", "local", "tothom", "admin", "default", "user", "usuari":
+		return ""
+	}
+	return s.user.Name
+}
+
 func (s *Server) usuari() string {
 	if s == nil || s.user == nil {
 		return ""

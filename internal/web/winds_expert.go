@@ -183,7 +183,7 @@ func (s *Server) executaExpert(w companion.Wind, e *expertEstat) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 
-	brief := expertSystem(w, e.tema, s.usuari()) + companion.WindBrainSystem(s.windBrain(w.ID))
+	brief := expertSystem(w, e.tema, s.windUserName()) + companion.WindBrainSystem(s.windBrain(w.ID))
 	res, err := expertLoop(s, ctx, brief, func(n int, eines string) {
 		e.mu.Lock()
 		e.pas++

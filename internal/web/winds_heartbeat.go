@@ -34,6 +34,7 @@ func WindJobID(windID string) string { return windJobPrefix + windID }
 // windHeartbeatSystem compon la consigna del cor: persona + tema a vigilar.
 func windHeartbeatSystem(w companion.Wind, memory, userName string) string {
 	var b strings.Builder
+	b.WriteString(companion.WindIdentity(w))
 	b.WriteString(w.Persona)
 	if n := strings.TrimSpace(userName); n != "" {
 		b.WriteString("\n\nWHO YOU TALK TO:\nThis message goes to one person: " + n + ". Use their name only when it helps, and never anyone else's.")
@@ -95,7 +96,7 @@ func windStripNext(reply string) string {
 // executeWindHeartbeat és el pas del cor: cerca + (si cal) missatge al xat.
 func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued runs.Run, w companion.Wind) (jobs.Run, error) {
 	start := time.Now()
-	brief := windHeartbeatSystem(w, s.personalMemory(), s.usuari()) + windRemindBrief(w.ID)
+	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBrief(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID))
 	brief += "\n\nTopic to watch: " + w.Role
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())

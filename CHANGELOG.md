@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Every wind knows its own name from the first line of its instructions, in one-to-one chats, groups and watch messages, and never calls the person by a wind's name. Without accounts the user is no longer called "local": the wind asks for their name instead.
+
 ## v1.16.0 - 2026-10-26 - Vents amb gràfics, imatges i wiki
 
 - Winds wiki: a summary now has its own title and one-line description, keeps a closing chart intact, follows the conversation's language and updates the same page when the conversation is summarized again (with the previous version as context) instead of piling up copies. Pages list newest first and say who wrote them. On desktop, an open conversation has a "Save to wiki" action and pages open in a wider reader with their charts and images.
