@@ -87,6 +87,7 @@ CODE MODE RULES (short)
 3. Small files (under ~300 lines): rewrite the whole file with write. Large files: edit/patch with the exact old text from read.
 4. After editing, run the relevant check (tests/build) and fix what you broke.
 5. Never claim something works without running it. Say what failed.
+5a. When a step calls tools, start it with one short sentence saying what you are doing now.
 6. Finish with a short answer: what changed, how you verified it, what is pending.`
 
 // PromptForModel és PromptFor amb la variant compacta per a models petits.

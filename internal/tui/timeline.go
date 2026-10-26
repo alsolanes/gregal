@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"gregal/internal/agent"
 	"gregal/internal/session"
@@ -306,6 +307,26 @@ func (m Model) cockpitColumna(ample, alt int) string {
 	titol := func(s string) string { return faintStyle.Render(s) }
 	var files []string
 
+	// «ara»: mentre treballa, què li has demanat, què diu que fa i quina
+	// eina corre. En una tasca llarga era l'única cosa que no se sabia.
+	if !m.turnStart.IsZero() {
+		files = append(files, titol(T("timeline.ara")+"  "+elapsedShort(time.Since(m.turnStart))))
+		if obj := strings.TrimSpace(m.lastPrompt); obj != "" {
+			for _, l := range talla(obj, w, 2) {
+				files = append(files, dimStyle.Render(l))
+			}
+		}
+		if m.intencio != "" {
+			for _, l := range talla(m.intencio, w, 4) {
+				files = append(files, l)
+			}
+		}
+		if e := m.einaEnCurs(); e != "" {
+			files = append(files, warnStyle.Render(timelineOneLine("▸ "+e, w)))
+		}
+		files = append(files, "")
+	}
+
 	done, total := tools.TodoStats()
 	// Sense pla, «tasca 0/0» no diu res: només el títol.
 	if total == 0 {
@@ -457,4 +478,53 @@ func (m Model) rutaCurta(f string, w int) string {
 		f = "…" + resta
 	}
 	return f
+}
+
+// einaEnCurs és l'eina que corre ara (la darrera crida sense resultat).
+func (m Model) einaEnCurs() string {
+	for i := len(m.timeline) - 1; i >= 0; i-- {
+		if e := m.timeline[i]; !e.done {
+			return strings.TrimSpace(e.name + " " + humanArgs(e.name, e.args, 80))
+		}
+	}
+	return ""
+}
+
+// talla embolcalla el text a `ample` columnes i en deixa com a molt `n`
+// files; si en sobra, l'última acaba en «…».
+func talla(s string, ample, n int) []string {
+	s = strings.Join(strings.Fields(s), " ")
+	if s == "" || ample < 4 {
+		return nil
+	}
+	files := strings.Split(ansi.Wrap(s, ample, ""), "\n")
+	if len(files) > n {
+		files = files[:n]
+		files[n-1] = timelineOneLine(files[n-1]+" …", ample)
+		if !strings.HasSuffix(files[n-1], "…") {
+			files[n-1] = ansi.Truncate(files[n-1], ample-1, "") + "…"
+		}
+	}
+	return files
+}
+
+// primeraFrase treu del text que el model escriu abans de cridar eines la
+// primera frase, sense markdown, per al panell «ara».
+func primeraFrase(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return ""
+	}
+	if i := strings.Index(s, "\n\n"); i > 0 {
+		s = s[:i]
+	}
+	s = strings.NewReplacer("**", "", "__", "", "`", "", "# ", "").Replace(s)
+	s = strings.Join(strings.Fields(s), " ")
+	for _, fi := range []string{". ", "! ", "? ", ": "} {
+		if i := strings.Index(s, fi); i >= 20 {
+			s = s[:i+1]
+			break
+		}
+	}
+	return timelineOneLine(s, 220)
 }

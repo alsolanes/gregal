@@ -448,6 +448,10 @@ type Model struct {
 	spin   int    // frame del spinner
 	branch string // branca git precalculada; View mai fa I/O
 
+	// intencio és la darrera frase amb què el model ha dit què fa (el text
+	// que escriu abans de cridar eines): el panell «ara» la mostra mentre
+	// treballa, perquè en una tasca llarga se sàpiga què pretén.
+	intencio string
 	// turnStart és quan ha començat el torn en curs (zero si no n'hi ha).
 	// El porta el tick i no els vint llocs que posen busy=true: així no hi
 	// ha cap camí que se'l deixi i mostri un rellotge parat.
@@ -1901,10 +1905,12 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.busy || m.agentActive {
 			if m.turnStart.IsZero() {
 				m.turnStart = time.Now()
+				m.intencio = ""
 			}
 			return m, tick()
 		}
 		m.turnStart = time.Time{}
+		m.intencio = ""
 		// Missatges encuats mentre hi havia feina: s'envien ara.
 		if mm, cmd := m.drainQueue(); cmd != nil {
 			return mm, tea.Batch(cmd, tickIdle())
@@ -2074,6 +2080,11 @@ func (m Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.comptaTokens(msg.promptTokens, msg.cachedTokens, msg.content, msg.calls)
+		if len(msg.calls) > 0 {
+			if f := primeraFrase(msg.content); f != "" {
+				m.intencio = f
+			}
+		}
 		if msg.fb == "" && msg.err == nil {
 			// P14: els tokens reals del prompt calibren l'estimació.
 			m.torn.CalibraPrompt(msg.promptTokens)
@@ -3886,6 +3897,10 @@ func (m Model) inputBox() string {
 		what := strings.TrimSpace(m.status)
 		if what == "" || what == T("barra.llest") {
 			what = T("app.treballant")
+		}
+		// Sense columna lateral, el peu és l'únic lloc per dir què pretén.
+		if !m.columnaActiva() && m.intencio != "" {
+			what = m.intencio
 		}
 		esquerra = spinnerStyle.Render(spinnerFrames[m.visualFrame()%len(spinnerFrames)]) + " " + spinnerStyle.Render(what)
 		dreta = ""
