@@ -3,6 +3,8 @@ package web
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -73,7 +75,8 @@ func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg s
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
 	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
-	transcript := agent.TranscriptDigest(conversation, 16000)
+	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per seguir el fil.
+	transcript := agent.TranscriptDigest(conversation, 10000)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." + windRemindBrief(speakingWind.ID)
 	return system, brief
 }
@@ -145,6 +148,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		emit("error", map[string]string{"error": redactError(err)})
 		return
 	}
+	log.Printf("vents xat %s: %.1fs (%s)", wind.ID, time.Since(turnStart).Seconds(), res.temps)
 	reply := stripQuoteTrim(res.text)
 	// Torn mort a mitges (proveïdor caigut després d'un pas bo): el
 	// resum mecànic no és una resposta del vent. Una frase curta i
@@ -199,7 +203,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	// Qui parla: el router tria 1-3 vents (o cap); amb vent explícit o
 	// «continua», el d'abans.
 	rctx, rcancel := context.WithTimeout(context.Background(), 90*time.Second)
+	tRoute := time.Now()
 	speakers := s.routeRotllanaSpeakers(rctx, rot, strings.TrimSpace(req.Wind), msg, hist.messages)
+	routeDur := time.Since(tRoute)
+	var tempsVeus []string
 	rcancel()
 	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
 		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
@@ -255,6 +262,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		var res exploracio
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
+		tVeu := time.Now()
 		if isContinue && si == 0 {
 			s.mu.Lock()
 			p, role := s.windRoleRef()
@@ -321,8 +329,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			return
 		}
 		hist.messages = conversation
+		tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(tVeu).Seconds(), res.temps))
 		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 	}
+	log.Printf("vents rotllana %s: tria %.1fs · %s", rot.ID, routeDur.Seconds(), strings.Join(tempsVeus, " · "))
 	if len(veus) == 0 {
 		// Ningú no ha pogut respondre: no es desa res i el client conserva l'esborrany.
 		emit("error", map[string]string{"error": redactError(lastErr)})

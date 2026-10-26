@@ -31,7 +31,7 @@
   const statusKeys={idle:'winds.byYourSide',waiting:'winds.waiting',started:'winds.preparingTheWay',working:'winds.inProgress',completed:'winds.workCompleted',done:'winds.taskCompleted',failed:'winds.somethingNeedsAttention',cancelled:'winds.taskStopped'};
   function instruction(wind, review) {
     return `You are ${wind.name}. Specialty: ${wind.role || 'helping with this project'}. Character: ${wind.persona || 'kind, clear and practical'}.\n` +
-      (review ? 'Review the actual deliverable against the request. Identify concrete defects, verify with available read-only tools, and return the required review verdict. Never claim checks you did not perform.' : 'Complete the requested work using the available tools and project context. Produce a concrete deliverable. Distinguish completed work from proposals and explain any limitation. Never claim actions you did not perform.');
+      (review ? 'Review the actual deliverable against the request. Identify concrete defects, verify by reading the files with read, grep and glob (shell commands are not available while reviewing; do not open browsers or take screenshots), and return the required review verdict. Never claim checks you did not perform.' : 'Complete the requested work using the available tools and project context. Produce a concrete deliverable. Distinguish completed work from proposals and explain any limitation. Write files directly with write and edit; do not launch browsers or take screenshots to check a page (the app previews HTML itself). Never claim actions you did not perform.');
   }
   function flowFor(owner, reviewer, kind = 'build') {
     if (!owner?.id) throw failure("winds.chooseAWindForThisTask", "Tria un vent per a l’encàrrec.");

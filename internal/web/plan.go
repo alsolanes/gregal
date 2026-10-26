@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/agent"
@@ -25,6 +26,31 @@ type exploracio struct {
 	parcial bool
 	motiu   string
 	hist    []llm.Message
+	// temps diu on ha anat el temps del torn (crides al model i eines).
+	temps tempsTorn
+}
+
+// tempsTorn és el recompte final d'un loop: passos de model i temps de cada part.
+type tempsTorn struct {
+	passos int
+	model  time.Duration
+	eines  time.Duration
+}
+
+// loopTemps compta passos i temps d'un loop de lectura, per saber on s'espera.
+type loopTemps struct {
+	mu     sync.Mutex
+	passos int
+	model  time.Duration
+	eines  time.Duration
+}
+
+func (t *loopTemps) addModel(d time.Duration) { t.mu.Lock(); t.passos++; t.model += d; t.mu.Unlock() }
+func (t *loopTemps) addEina(d time.Duration)  { t.mu.Lock(); t.eines += d; t.mu.Unlock() }
+
+// String resumeix el torn: «3 passos · model 21.4s · eines 9.8s».
+func (t tempsTorn) String() string {
+	return fmt.Sprintf("%d passos · model %.1fs · eines %.1fs", t.passos, t.model.Seconds(), t.eines.Seconds())
 }
 
 // runReadOnlyLoop fa un loop d'exploració (decisions inspect: escriure queda
@@ -55,12 +81,14 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	if emit == nil {
 		emit = func(_, _ string) {}
 	}
+	var temps loopTemps
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
 		Lang:     s.cfg.Lang(),
 		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
 			cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 			defer cancel()
+			defer func(t0 time.Time) { temps.addModel(time.Since(t0)) }(time.Now())
 			if !stream {
 				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
 				return content, calls, err
@@ -79,6 +107,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		Finalize: func(ctx context.Context, h []llm.Message) (string, error) {
 			cctx, cancel := context.WithTimeout(ctx, agent.TimeoutDecisio)
 			defer cancel()
+			defer func(t0 time.Time) { temps.addModel(time.Since(t0)) }(time.Now())
 			if !stream {
 				out, _, err := s.client.ChatFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, nil)
 				return out, err
@@ -87,6 +116,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return out, err
 		},
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {
+			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
 			return agent.ExecCtx(agent.WithSkillsDirs(ctx, dirs...), s.id, s.cwd, name, argsJSON)
@@ -107,7 +137,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	} else {
 		out, _, err = loop.Run(ctx, brief)
 	}
-	return exploracio{text: strings.TrimSpace(out), parcial: loop.Parcial, motiu: loop.Motiu, hist: loop.Hist}, err
+	res := exploracio{text: strings.TrimSpace(out), parcial: loop.Parcial, motiu: loop.Motiu, hist: loop.Hist}
+	temps.mu.Lock()
+	res.temps = tempsTorn{passos: temps.passos, model: temps.model, eines: temps.eines}
+	temps.mu.Unlock()
+	return res, err
 }
 
 // planBrief munta la consigna d'exploració amb memòria del projecte.

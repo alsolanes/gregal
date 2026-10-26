@@ -650,9 +650,9 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 	instruction := func(w companion.Wind, review bool) string {
 		base := "You are " + w.Name + ". Specialty: " + w.Role + ". Character: " + w.Persona + "\n"
 		if review {
-			return base + "Review the actual deliverable against the request and the agreed design. Check that the requested files really exist and work, using the available read-only tools. Identify concrete defects. Your reply must be exactly the required JSON verdict object, nothing else. Never claim checks you did not perform."
+			return base + "Review the actual deliverable against the request and the agreed design. Check that the requested files really exist and work, using the available read-only tools. Identify concrete defects. Your reply must be exactly the required JSON verdict object, nothing else. Never claim checks you did not perform." + windReviewTools
 		}
-		return base + "Build the complete deliverable now, in this run, with the write and edit tools: create every file the task asks for, using the content and decisions the crew contributed in the discussion. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform."
+		return base + "Build the complete deliverable now, in this run, with the write and edit tools: create every file the task asks for, using the content and decisions the crew contributed in the discussion. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform." + windBuildTools
 	}
 	flow := team.FlowSpec{
 		Name:      say("Feina de la colla", "Crew task"),
@@ -763,3 +763,9 @@ func crewClosing(answer string) (string, bool) {
 	}
 	return oneLineKeepBreaks(body, 4000) + files, changes
 }
+
+// Les tasques dels vents perdien minuts en passos que no podien sortir bé:
+// el revisor provava ordres de shell que el mode de revisió bloqueja, i el
+// constructor obria navegadors per fer captures que l'app ja ensenya.
+const windReviewTools = " Inspect the files with read, grep and glob: shell commands are not available while reviewing. Do not open browsers or take screenshots; read the code instead."
+const windBuildTools = " Write files directly with write and edit. Do not launch browsers or take screenshots to check a page (the app previews HTML itself); one quick check with read is enough."

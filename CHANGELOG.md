@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Faster Winds replies: a group answer usually comes from one wind (two at most) instead of up to three in a row; naming a wind ("Ponent, …") skips the step that picks who answers; that step is a short deterministic call; group turns send a shorter recent history; and wind tasks no longer waste steps on shell commands the review blocks or on browser screenshots. The server log now shows how long each turn spent choosing, thinking and using tools.
 - Every wind knows its own name from the first line of its instructions, in one-to-one chats, groups and watch messages, and never calls the person by a wind's name. Without accounts the user is no longer called "local": the wind asks for their name instead.
 
 ## v1.16.0 - 2026-10-26 - Vents amb gràfics, imatges i wiki
