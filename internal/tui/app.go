@@ -276,11 +276,12 @@ func pensamentEnViu(think string, width int) string {
 
 // Model és l'estat del TUI.
 type Model struct {
-	cfg     *config.Config
-	cfgPath string
-	client  *llm.Client
-	version string
-	cwd     string
+	wrapMemo *wrapMemo
+	cfg      *config.Config
+	cfgPath  string
+	client   *llm.Client
+	version  string
+	cwd      string
 
 	vp    viewport.Model
 	input textarea.Model
@@ -504,7 +505,7 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 		cwd = "."
 	}
 	role := initialRole(cfg)
-	m := Model{cfg: cfg, cfgPath: cfgPath, client: c, version: v, cwd: cwd, input: ti, role: role, status: T("barra.llest"), mode: cfg.Mode,
+	m := Model{wrapMemo: &wrapMemo{}, cfg: cfg, cfgPath: cfgPath, client: c, version: v, cwd: cwd, input: ti, role: role, status: T("barra.llest"), mode: cfg.Mode,
 		// Sense connectar: Init ho fa en segon pla perquè un servidor MCP
 		// lent o penjat no deixi el TUI en blanc fins a 30 s.
 		mcp:         mcp.NewManager(toMCPServers(cfg), mcp.Options{}),
@@ -919,21 +920,77 @@ func (m *Model) retallaSiCal() {
 // a l'amplada. El viewport no embolcalla res, talla: un pas del pla o una
 // ruta llarga quedaven amagats per la dreta i calia eixamplar la finestra
 // per llegir-los. L'embolcall respecta els codis de color.
+//
+// Cada línia embolcallada es recorda (wrapMemo): abans es tornaven a
+// embolcallar totes a cada refresc, i amb una conversa llarga cada
+// fotograma del streaming en refeia milers.
 func (m Model) visual() string {
 	if m.vp.Width <= 0 {
 		return strings.Join(m.lines, "\n")
 	}
+	memo := m.wrapMemo
+	if memo != nil && memo.ample != m.vp.Width {
+		memo.src, memo.out = nil, nil
+	}
 	out := make([]string, len(m.lines))
 	for i, l := range m.lines {
-		// Un \r (sortida de Windows) fa tornar el cursor a la columna 0 i
-		// la resta de la fila, columna del cockpit inclosa, es pinta sobre
-		// el principi. Un tabulador ocupa el que vol el terminal, no el que
-		// compta lipgloss. Cap dels dos pot arribar a la pantalla.
-		l = strings.ReplaceAll(l, "\r", "")
-		l = strings.ReplaceAll(l, "\t", "    ")
-		out[i] = ansi.Wrap(l, m.vp.Width, "")
+		if memo != nil && i < len(memo.src) && memo.src[i] == l {
+			out[i] = memo.out[i]
+			continue
+		}
+		out[i] = embolcallaFila(l, m.vp.Width)
+	}
+	if memo != nil {
+		memo.ample = m.vp.Width
+		memo.src = append(memo.src[:0], m.lines...)
+		memo.out = append(memo.out[:0], out...)
 	}
 	return strings.Join(out, "\n")
+}
+
+// wrapMemo recorda l'embolcall de cada línia per a una amplada.
+type wrapMemo struct {
+	ample int
+	src   []string
+	out   []string
+}
+
+// embolcallaFila embolcalla una línia de la conversa a l'amplada. Una fila
+// del rail de feina («│ ✓ web_fetch …») que no hi cap continua dins del
+// rail: abans la segona fila començava a la columna 0, sense la vora.
+func embolcallaFila(l string, ample int) string {
+	// Un \r (sortida de Windows) fa tornar el cursor a la columna 0 i
+	// la resta de la fila, columna del cockpit inclosa, es pinta sobre
+	// el principi. Un tabulador ocupa el que vol el terminal, no el que
+	// compta lipgloss. Cap dels dos pot arribar a la pantalla.
+	l = strings.ReplaceAll(l, "\r", "")
+	l = strings.ReplaceAll(l, "\t", "    ")
+	// Una entrada pot portar diverses files (un diff, un bloc de codi):
+	// cadascuna s'embolcalla per separat.
+	if strings.Contains(l, "\n") {
+		files := strings.Split(l, "\n")
+		for i, f := range files {
+			files[i] = embolcallaFila(f, ample)
+		}
+		return strings.Join(files, "\n")
+	}
+	if ansi.StringWidth(l) <= ample {
+		return l
+	}
+	if ample > 12 && strings.HasPrefix(ansi.Strip(l), "│ ") {
+		cos := ansi.Cut(l, 2, ansi.StringWidth(l))
+		parts := strings.Split(ansi.Wrap(cos, ample-4, ""), "\n")
+		rail := toolRailStyle.Render("│ ")
+		for i := range parts {
+			if i == 0 {
+				parts[i] = rail + parts[i]
+			} else {
+				parts[i] = rail + "  " + parts[i]
+			}
+		}
+		return strings.Join(parts, "\n")
+	}
+	return ansi.Wrap(l, ample, "")
 }
 
 func (m *Model) refresh() {
@@ -4007,7 +4064,7 @@ func (m Model) View() string {
 	}
 	switch {
 	case m.pendingQ != nil:
-		estat = "? " + T("est.triaOpcio")
+		estat = "? " + fmt.Sprintf(T("est.triaOpcio"), len(m.pendingQ.options))
 		estatStyle = warnStyle
 	case m.pending != nil:
 		// Curt: les tecles ja són al diàleg.

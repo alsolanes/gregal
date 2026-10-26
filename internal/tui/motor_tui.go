@@ -227,7 +227,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 		}
 		m.pendingQ = &questionPending{call: p.Call, query: q, options: opts}
 		m.busy = false
-		m.status = T("est.triaOpcio")
+		m.status = fmt.Sprintf(T("est.triaOpcio"), len(opts))
 		return m, nil
 
 	case agent.OrdreAmplia:

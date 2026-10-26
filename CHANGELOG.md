@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- TUI: an MCP connector writing to stderr (the demo server's "dataset ready" line) no longer corrupts the screen with duplicated rows; its output is kept and shown only if it fails. Long tool rows wrap inside the work rail, dialogs get a clear margin, `todowrite` no longer repeats the plan in the conversation, the settings menu reads "no key", "manual" and "1 endpoint" in the UI language, question prompts give the real option count, and wrapped lines are cached instead of re-wrapped on every repaint.
+
 - `gregal update` works on Windows: untracked files no longer block it, it rebuilds when the installed binary is older than the code even if the repository is up to date, and it moves the running .exe aside (kept as `.abans`) instead of overwriting it, which Windows refuses.
 
 ## v1.17.1 - 2026-10-26 - Cerca web amb Exa

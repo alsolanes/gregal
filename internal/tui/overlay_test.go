@@ -35,7 +35,8 @@ func TestSuperposaCentraISenseMoureElFons(t *testing.T) {
 	if ansi.Strip(got[0]) != fons[0] || ansi.Strip(got[9]) != fons[9] {
 		t.Fatalf("el fons fora de la caixa ha de ser el mateix text: %q", ansi.Strip(got[0]))
 	}
-	if !strings.HasPrefix(mig, "abcdefghijabcdefg") {
+	// El fons es conserva fins a una columna abans de la caixa (marge).
+	if !strings.HasPrefix(mig, "abcdefghijabcdef ") {
 		t.Fatalf("el fons a l'esquerra de la caixa s'ha de conservar: %q", mig)
 	}
 }

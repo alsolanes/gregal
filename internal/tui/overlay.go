@@ -81,6 +81,21 @@ func superposa(fons, caixa string, ample int) string {
 		} else if w > ample {
 			pla = ansi.Truncate(pla, ample, "")
 		}
+		// Una columna i una fila buides al voltant de la caixa: sense
+		// marge, el text de sota hi quedava enganxat («He╰───»).
+		// Si a un costat només en quedarien una o dues lletres soltes,
+		// s'esborra tot aquell costat.
+		e, d := max(x0-1, 0), min(x0+cw+1, ample)
+		if e <= 2 {
+			e = 0
+		}
+		if ample-d <= 2 {
+			d = ample
+		}
+		if i == y0-1 || i == y0+len(cl) {
+			out[i] = faintStyle.Render(ansi.Cut(pla, 0, e)) + strings.Repeat(" ", d-e) + faintStyle.Render(ansi.Cut(pla, d, ample))
+			continue
+		}
 		if i < y0 || i >= y0+len(cl) {
 			out[i] = faintStyle.Render(pla)
 			continue
@@ -89,7 +104,7 @@ func superposa(fons, caixa string, ample int) string {
 		if w := ansi.StringWidth(fila); w < cw {
 			fila += strings.Repeat(" ", cw-w)
 		}
-		out[i] = faintStyle.Render(ansi.Cut(pla, 0, x0)) + fila + faintStyle.Render(ansi.Cut(pla, x0+cw, ample))
+		out[i] = faintStyle.Render(ansi.Cut(pla, 0, e)) + strings.Repeat(" ", x0-e) + fila + strings.Repeat(" ", d-x0-cw) + faintStyle.Render(ansi.Cut(pla, d, ample))
 	}
 	return strings.Join(out, "\n")
 }

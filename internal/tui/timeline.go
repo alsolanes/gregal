@@ -307,7 +307,12 @@ func (m Model) cockpitColumna(ample, alt int) string {
 	var files []string
 
 	done, total := tools.TodoStats()
-	files = append(files, titol(fmt.Sprintf(T("timeline.tasca")+"  %d/%d", done, total)))
+	// Sense pla, «tasca 0/0» no diu res: només el títol.
+	if total == 0 {
+		files = append(files, titol(T("timeline.tasca")))
+	} else {
+		files = append(files, titol(fmt.Sprintf(T("timeline.tasca")+"  %d/%d", done, total)))
+	}
 	if total == 0 {
 		files = append(files, dimStyle.Render(T("timeline.capPasCurt")))
 	} else {

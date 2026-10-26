@@ -25,7 +25,7 @@ func providersBlock(cfg *config.Config) string {
 	}
 	for _, n := range names {
 		p := cfg.Providers[n]
-		line := "  " + cmdStyle.Render(n) + dimStyle.Render("  "+p.BaseURL+"  "+T("set.clauCurt")+": "+p.MaskedKey())
+		line := "  " + cmdStyle.Render(n) + dimStyle.Render("  "+p.BaseURL+"  "+T("set.clauCurt")+": "+clauVisible(p))
 		if ub, ok := usedBy[n]; ok {
 			sort.Strings(ub)
 			line += faintStyle.Render("  ← " + strings.Join(ub, ", "))

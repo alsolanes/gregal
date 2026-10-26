@@ -491,7 +491,7 @@ func resultatPlegat(name string, failed bool) bool {
 		return false
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "browser", "office_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate", "knowledge_search":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "browser", "office_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate", "knowledge_search", "todowrite":
 		return true
 	}
 	return false
@@ -518,7 +518,7 @@ func resumResultat(name, output string) string {
 			return T("eina.unResultat")
 		}
 		return fmt.Sprintf(T("eina.resultats"), n)
-	case "web_search", "knowledge_search":
+	case "web_search", "knowledge_search", "todowrite":
 		return firstLineOf(out)
 	case "web_fetch", "browser":
 		// La primera línia és el títol; la segona, url i paraules.

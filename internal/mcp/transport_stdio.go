@@ -27,6 +27,44 @@ type stdioTransport struct {
 	done    chan struct{}
 	err     error
 	once    sync.Once
+	stderr  *cuaText
+}
+
+// cuaText guarda els últims bytes que el servidor escriu a stderr. Abans
+// anaven directes a la terminal: dins del TUI, una sola línia («gregal mcp
+// demo: dataset ready…») desquadrava el pintat i la pantalla quedava amb
+// files repetides. Ara es guarden i surten amb l'error si el servidor cau.
+type cuaText struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+const maxCuaText = 4096
+
+func (c *cuaText) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.buf = append(c.buf, p...)
+	if len(c.buf) > maxCuaText {
+		c.buf = append([]byte(nil), c.buf[len(c.buf)-maxCuaText:]...)
+	}
+	return len(p), nil
+}
+
+// Ultimes torna les darreres línies no buides.
+func (c *cuaText) Ultimes(n int) string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	var out []string
+	for _, l := range strings.Split(strings.TrimSpace(string(c.buf)), "\n") {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	if len(out) > n {
+		out = out[len(out)-n:]
+	}
+	return strings.Join(out, " | ")
 }
 
 // SelfExecutable és el binari de gregal que corre ara (els tests el poden
@@ -74,11 +112,12 @@ func startStdio(name string, srv Server) (*stdioTransport, error) {
 	if err != nil {
 		return nil, err
 	}
-	cmd.Stderr = os.Stderr
+	cua := &cuaText{}
+	cmd.Stderr = cua
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("mcp %s: %w", name, err)
 	}
-	t := &stdioTransport{name: name, cmd: cmd, stdin: stdin, pending: map[int64]chan rpcMsg{}, done: make(chan struct{})}
+	t := &stdioTransport{name: name, cmd: cmd, stdin: stdin, pending: map[int64]chan rpcMsg{}, done: make(chan struct{}), stderr: cua}
 	go t.read(stdout)
 	return t, nil
 }
@@ -128,6 +167,11 @@ func (t *stdioTransport) answerServer(m rpcMsg) {
 }
 
 func (t *stdioTransport) fail(err error) {
+	if t.stderr != nil {
+		if ult := t.stderr.Ultimes(3); ult != "" {
+			err = fmt.Errorf("%w (stderr: %s)", err, ult)
+		}
+	}
 	t.once.Do(func() {
 		t.mu.Lock()
 		t.err = err

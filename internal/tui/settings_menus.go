@@ -18,22 +18,16 @@ import (
 func settingsMenu(m *Model) *menuState {
 	r := m.roleRef()
 	reviewer := m.cfg.Roles["reviewer"]
-	maskedKey := ""
-	if p, ok := m.cfg.Providers[r.Provider]; ok {
-		maskedKey = p.MaskedKey()
-	}
-	if maskedKey == "" {
-		maskedKey = T("set.senseClau")
-	}
+	maskedKey := clauVisible(m.cfg.Providers[r.Provider])
 	items := []menuItem{
 		{text: fmt.Sprintf(T("set.mode"), m.mode), val: "mode"},
 		{text: fmt.Sprintf(T("set.rol"), m.role, r.Provider, r.Model), val: "role"},
 		{text: fmt.Sprintf(T("set.model"), r.Provider, r.Model), val: "model"},
 		{text: fmt.Sprintf(T("set.clau"), r.Provider, maskedKey), val: "apikey"},
 		{text: fmt.Sprintf(T("set.tema"), m.cfg.Tema()), val: "theme"},
-		{text: fmt.Sprintf(T("set.revisor"), m.cfg.Verify.Mode, reviewer.Provider, reviewer.Model), val: "reviewer"},
+		{text: revisorText(m.cfg.Verify.Mode, reviewer), val: "reviewer"},
 		{text: T("menu.set.perms"), val: "permissions"},
-		{text: fmt.Sprintf(T("set.providers"), len(m.cfg.Providers)), val: "providers"},
+		{text: providersText(len(m.cfg.Providers)), val: "providers"},
 		{text: T("menu.set.connectors"), val: "connectors"},
 		{text: T("menu.set.parallel"), val: "parallel"},
 		{text: T("menu.set.sessions"), val: "sessions"},
@@ -95,7 +89,7 @@ func providerKeyMenu(m *Model) *menuState {
 	curProv := m.roleRef().Provider
 	for _, name := range names {
 		p := m.cfg.Providers[name]
-		masked := p.MaskedKey()
+		masked := clauVisible(p)
 		if masked == "" {
 			masked = T("set.senseClau")
 		}
@@ -232,7 +226,7 @@ func providerSettingsMenu(m *Model) *menuState {
 	items = append(items, menuItem{text: T("menu.provAfegeix"), val: "+"})
 	for _, name := range names {
 		p := m.cfg.Providers[name]
-		items = append(items, menuItem{text: fmt.Sprintf("%s — %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, p.MaskedKey()), val: name})
+		items = append(items, menuItem{text: fmt.Sprintf("%s — %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, clauVisible(p)), val: name})
 	}
 	items = append(items, menuItem{text: T("menu.ajudaProv"), val: "help"})
 	return &menuState{title: "providers", items: items, run: func(m *Model, val string) (string, *menuState) {
@@ -263,7 +257,7 @@ func providerDetailMenu(m *Model, name string) *menuState {
 		case "test":
 			return testProvider(m.cfg, name), nil
 		case "details":
-			return systemLine(fmt.Sprintf("%s · %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, p.MaskedKey())), nil
+			return systemLine(fmt.Sprintf("%s · %s · "+T("set.clauCurt")+" %s", name, p.BaseURL, clauVisible(p))), nil
 		case "key":
 			m.pendingKeyFor = name
 			return systemLine(fmt.Sprintf(T("alta.escriuClau"), name) + T("prov.senseHistorial")), nil
@@ -429,4 +423,35 @@ func errText(err error) string {
 		return T("menu.senseModels")
 	}
 	return err.Error()
+}
+
+// clauVisible diu com està la clau d'un provider en la llengua del TUI.
+// config.MaskedKey torna «(buida)» i «sí (oculta)» en català, i el menú
+// de configuració hi afegia uns altres parèntesis: «p ((buida))».
+func clauVisible(p config.Provider) string {
+	k := strings.TrimSpace(p.APIKey)
+	switch {
+	case k == "":
+		return T("set.senseClau")
+	case strings.HasPrefix(k, "${"):
+		return k
+	default:
+		return T("set.clauDesada")
+	}
+}
+
+// revisorText és la fila del revisor: sense rol de revisió configurat no
+// hi ha cap model a ensenyar (abans sortia «manual  (/)»).
+func revisorText(mode string, r config.Role) string {
+	if r.Provider == "" && r.Model == "" {
+		return fmt.Sprintf(T("set.revisorSol"), mode)
+	}
+	return fmt.Sprintf(T("set.revisor"), mode, r.Provider, r.Model)
+}
+
+func providersText(n int) string {
+	if n == 1 {
+		return T("set.provider1")
+	}
+	return fmt.Sprintf(T("set.providers"), n)
 }
