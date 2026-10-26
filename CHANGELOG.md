@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.17.0 - 2026-10-26 - Vents més ràpids, xat endreçat i TUI més segur
+
 - TUI: a tool-approval dialog that just opened ignores Enter and the approve letters for a moment, so text you were typing can no longer approve a tool by accident. The resume picker hides Winds conversations (resuming them in the TUI damaged them), lists conversations whose folder is gone at the bottom (picking one explains instead of failing), shows "title · project · date · messages", filters accented letters and pages with PgUp/PgDn/Home/End. Ctrl+C with nothing running asks for a second press and keeps your draft. Long tool previews are cut without breaking characters, and prompt history follows GREGAL_DATA_DIR.
 - Android Winds: list rows and chat headers show each specialist's trade tool, your own bubble is a soft tint instead of solid white, and the Scheduled view shows dates in the app's language, says when a look is overdue and skips winds that no longer exist.
 - Desktop Winds: the navigation uses line icons instead of Unicode glyphs, and the Work list shows who worked on each task, its status, project, date and the files it produced.
