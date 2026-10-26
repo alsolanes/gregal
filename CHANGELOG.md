@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- `gregal update` works on Windows: untracked files no longer block it, it rebuilds when the installed binary is older than the code even if the repository is up to date, and it moves the running .exe aside (kept as `.abans`) instead of overwriting it, which Windows refuses.
+
 ## v1.17.1 - 2026-10-26 - Cerca web amb Exa
 
 - Web search that agents can actually use: `web_search` asks Exa first (its public MCP service, no account needed; results carry the page text) together with your own SearXNG, and only falls back to DuckDuckGo and Bing when those find nothing. An engine that blocks (captcha, 403/429, Exa's free limit) is paused for 15 minutes to 2 hours instead of being hammered, and when none is left the agent is told not to retry. Unrelated Bing results are dropped. `EXA_API_KEY` (or an `exa` key in auth.yaml) lifts Exa's daily limit.

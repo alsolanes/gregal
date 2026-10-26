@@ -21,6 +21,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -77,8 +79,11 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	res.Repo = repo
 	o.Sortida("📦 repositori: " + repo)
 
-	// (1) Canvis sense cometre: aturar-se.
-	brut, err := git(ctx, repo, "status", "--porcelain")
+	// (1) Canvis sense cometre: aturar-se. Els fitxers no seguits no
+	// compten: un avançament --ff-only no els toca (i si n'hagués de
+	// trepitjar cap, git s'atura sol). Abans una carpeta qualsevol fora del
+	// repositori (internal/web/.local) bloquejava l'actualització.
+	brut, err := git(ctx, repo, "status", "--porcelain", "--untracked-files=no")
 	if err != nil {
 		return res, err
 	}
@@ -99,7 +104,17 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 		return res, err
 	}
 	res.VersioAbans = versioDelBinari(o.Sortida)
-	if local == remot {
+	// El repositori al dia no vol dir que el binari ho estigui: si el codi
+	// diu una altra versió, el binari instal·lat és d'abans i cal compilar.
+	// Abans deia «ja estàs al dia» amb un binari sis versions enrere.
+	codi := versioDelRepo(repo)
+	desfasat := codi != "" && versioCurta(res.VersioAbans) != codi
+	if local == remot && desfasat {
+		o.Sortida("⬆️ el repositori és al dia (" + short(local) + "), però el binari instal·lat és " + res.VersioAbans + " i el codi ja és " + codi)
+		if o.NomesComprova {
+			return res, nil
+		}
+	} else if local == remot {
 		res.AlDia = true
 		o.Sortida("✅ ja estàs al dia (" + short(local) + ", " + res.VersioAbans + ")")
 		if o.NomesComprova || !o.Forca {
@@ -138,7 +153,8 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 		res.VersioDespres = strings.TrimSpace(string(out))
 	}
 	// El config de debò: si el binari nou no l'accepta, no s'instal·la.
-	cfg := filepath.Join(os.Getenv("HOME"), ".config", "gregal", "config.yaml")
+	casa, _ := os.UserHomeDir()
+	cfg := filepath.Join(casa, ".config", "gregal", "config.yaml")
 	if _, err := os.Stat(cfg); err == nil {
 		if out, err := exec.CommandContext(ctx, tmp, "--check-config", "--config", cfg).CombinedOutput(); err != nil {
 			return res, fmt.Errorf("el binari nou no accepta el config actual (%v): %s", err, strings.TrimSpace(string(out)))
@@ -146,14 +162,19 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 		o.Sortida("   comprovat amb el config de debò")
 	}
 
-	// (4) Còpia de seguretat i substitució atòmica.
+	// (4) L'actual s'aparta com a còpia de seguretat i el nou ocupa el seu
+	// lloc. Apartar-lo (rename) i no sobreescriure'l: Windows no deixa
+	// escriure damunt d'un .exe que s'està executant (i aquest ho està),
+	// però sí canviar-li el nom. Si el nou no hi cap, l'antic hi torna.
 	anterior := desti + ".abans"
 	if _, err := os.Stat(desti); err == nil {
-		if err := copiar(desti, anterior); err != nil {
-			return res, fmt.Errorf("no he pogut fer la còpia de seguretat: %w", err)
+		os.Remove(anterior)
+		if err := os.Rename(desti, anterior); err != nil {
+			return res, fmt.Errorf("no he pogut apartar el binari actual: %w", err)
 		}
 	}
 	if err := os.Rename(tmp, desti); err != nil {
+		os.Rename(anterior, desti)
 		return res, fmt.Errorf("no he pogut instal·lar el binari nou: %w", err)
 	}
 	o.Sortida("✅ instal·lat a " + desti + " (l'anterior és a " + anterior + ")")
@@ -201,6 +222,9 @@ func buildABaix(repo, desti string) (string, error) {
 		return "", err
 	}
 	tmp := filepath.Join(filepath.Dir(desti), fmt.Sprintf(".gregal-update-%d", os.Getpid()))
+	if runtime.GOOS == "windows" {
+		tmp += ".exe" // sense extensió, Windows no l'executa per comprovar-lo
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), tempsMaxBuild)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, goBinari(), "build", "-o", tmp,
@@ -305,6 +329,29 @@ func versioDelBinari(sortida func(string)) string {
 	return strings.TrimSpace(string(out))
 }
 
+var reVersio = regexp.MustCompile(`(?m)^var version = "(v[^"]+)"`)
+
+// versioDelRepo llegeix la versió que porta el codi (main.go); "" si no hi és.
+func versioDelRepo(repo string) string {
+	b, err := os.ReadFile(filepath.Join(repo, "main.go"))
+	if err != nil {
+		return ""
+	}
+	if m := reVersio.FindSubmatch(b); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
+// versioCurta treu «v1.2.3» de «gregal v1.2.3».
+func versioCurta(s string) string {
+	f := strings.Fields(s)
+	if len(f) == 0 {
+		return ""
+	}
+	return f[len(f)-1]
+}
+
 func git(ctx context.Context, repo string, args ...string) (string, error) {
 	c, cancel := context.WithTimeout(ctx, tempsMaxBaixada)
 	defer cancel()
@@ -315,14 +362,6 @@ func git(ctx context.Context, repo string, args ...string) (string, error) {
 		return string(out), fmt.Errorf("git %s: %v", strings.Join(args, " "), err)
 	}
 	return string(out), nil
-}
-
-func copiar(des, cap string) error {
-	b, err := os.ReadFile(des)
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(cap, b, 0o755)
 }
 
 func short(sha string) string {
