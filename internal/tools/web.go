@@ -3,22 +3,24 @@ package tools
 // Eines web: cerca i lectura de pàgines pensades per a un model, no per a
 // una persona amb navegador.
 //
-// web_search consulta diversos motors ALHORA (DuckDuckGo i Bing sense cap
-// servei local ni clau; SearXNG si n'hi ha un de configurat) i fusiona els
-// resultats: el que surt a més d'un motor puja. Abans depenia d'un SearXNG
-// a 127.0.0.1:4000 i, sense ell, la cerca simplement no existia.
+// web_search pregunta primer a Exa (web_exa.go: API pensada per a agents,
+// sense clau) i al SearXNG propi si n'hi ha; només si no troben res, a
+// DuckDuckGo i Bing, que es llegeixen raspant HTML i bloquegen si se'ls
+// insisteix (web_pausa.go). Els resultats de diversos motors es fusionen: el
+// que surt a més d'un puja.
 //
 // web_fetch baixa la pàgina i en torna el contingut principal en markdown
 // (vegeu webread.go): sense menús, peus, imatges ni formularis. Quan la
-// via directa falla (JS, WAF, paywall), les alternatives (render local,
-// Wayback) corren en paral·lel i guanya la primera que respon; archive.today
-// és l'últim recurs. Les respostes es guarden uns minuts en memòria perquè
+// via directa falla (JS, WAF, paywall), les alternatives (Exa, Wayback i el
+// render de Firecrawl si n'hi ha) corren en paral·lel; archive.today és
+// l'últim recurs. Les respostes es guarden uns minuts en memòria perquè
 // repetir una cerca o una pàgina dins del mateix torn sigui immediat.
 
 import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -121,6 +123,7 @@ type SearchHit struct {
 	URL     string
 	Snippet string
 	Engine  string
+	Date    string // AAAA-MM-DD, si el motor la sap
 }
 
 // searchEngine és un motor: nom + funció. La llista és una var perquè els
@@ -128,15 +131,23 @@ type SearchHit struct {
 type searchEngine struct {
 	name string
 	run  func(ctx context.Context, query string) ([]SearchHit, error)
+	// reserva: només es consulta si els principals no troben res. Són els
+	// motors que es llegeixen raspant HTML: com menys se'ls fa servir,
+	// menys bloquegen.
+	reserva bool
 }
 
 func webEngines() []searchEngine {
 	var e []searchEngine
+	if exaEndpoint != "" && !nomesSearXNG {
+		e = append(e, searchEngine{name: "exa", run: searchExa})
+	}
 	if SearXNGBase() != "" {
-		e = append(e, searchEngine{"searxng", searchSearXNG})
+		e = append(e, searchEngine{name: "searxng", run: searchSearXNG})
 	}
 	if !nomesSearXNG {
-		e = append(e, searchEngine{"duckduckgo", searchDuckDuckGo}, searchEngine{"bing", searchBing})
+		e = append(e, searchEngine{name: "duckduckgo", run: searchDuckDuckGo, reserva: true},
+			searchEngine{name: "bing", run: searchBing, reserva: true})
 	}
 	return e
 }
@@ -153,6 +164,8 @@ func WebSearch(query string, count int) (string, error) {
 
 // WebSearchCtx és WebSearch amb el context del torn: els motors ja
 // l'accepten, així que Esc els talla sense esperar els seus timeouts.
+// Primer els motors principals; els de reserva, només si aquells no troben
+// res. Un motor en pausa (web_pausa.go) ni es toca.
 func WebSearchCtx(ctx context.Context, query string, count int) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -172,49 +185,43 @@ func WebSearchCtx(ctx context.Context, query string, count int) (string, error) 
 	if len(engines) == 0 {
 		return "", fmt.Errorf("web_search: cap motor de cerca disponible")
 	}
-	ctx, cancel := context.WithTimeout(ctx, SearchEngineTimeout+2*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 2*SearchEngineTimeout+2*time.Second)
 	defer cancel()
-	type res struct {
-		name string
-		hits []SearchHit
-		err  error
-	}
-	results := make([]res, len(engines))
-	var wg sync.WaitGroup
-	for i, e := range engines {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			ectx, ecancel := context.WithTimeout(ctx, SearchEngineTimeout)
-			defer ecancel()
-			hits, err := e.run(ectx, query)
-			for k := range hits {
-				hits[k].Engine = e.name
-			}
-			results[i] = res{e.name, hits, err}
-		}()
-	}
-	wg.Wait()
-	var llistes [][]SearchHit
-	errs := 0
-	for _, r := range results {
-		if r.err != nil {
-			errs++
-			continue
+	var principals, reserves []searchEngine
+	for _, e := range engines {
+		if e.reserva {
+			reserves = append(reserves, e)
+		} else {
+			principals = append(principals, e)
 		}
-		llistes = append(llistes, r.hits)
 	}
-	merged := fusiona(llistes, count)
+	results := cercaMotors(ctx, principals, query)
+	merged := fusiona(llistaHits(results), count)
+	if len(merged) == 0 && len(reserves) > 0 && ctx.Err() == nil {
+		results = append(results, cercaMotors(ctx, reserves, query)...)
+		merged = fusiona(llistaHits(results), count)
+	}
 	if len(merged) == 0 {
-		var why []string
-		for _, r := range results {
-			if r.err != nil {
-				why = append(why, r.name+": "+shortErr(r.err))
-			} else {
-				why = append(why, r.name+": 0 resultats")
-			}
+		if err := ctx.Err(); err != nil && errors.Is(err, context.Canceled) {
+			return "", err
 		}
-		if errs == len(engines) {
+		var why []string
+		errs, bloquejats := 0, 0
+		for _, r := range results {
+			if r.err == nil {
+				why = append(why, r.name+": 0 resultats")
+				continue
+			}
+			errs++
+			if esBloqueig(r.err) || r.pausa {
+				bloquejats++
+			}
+			why = append(why, r.name+": "+shortErr(r.err))
+		}
+		if errs == len(results) {
+			if bloquejats > 0 {
+				return "", fmt.Errorf("web_search: ara mateix cap motor deixa cercar (%s). No ho tornis a provar en aquest torn: respon amb el que saps i digues que la cerca web no està disponible", strings.Join(why, "; "))
+			}
 			return "", fmt.Errorf("web_search: cap motor ha respost (%s)", strings.Join(why, "; "))
 		}
 		return "sense resultats (" + strings.Join(why, "; ") + ")", nil
@@ -232,14 +239,67 @@ func WebSearchCtx(ctx context.Context, query string, count int) (string, error) 
 		if title == "" {
 			title = h.URL
 		}
-		fmt.Fprintf(&b, "%d. %s\n   %s\n", i+1, truncateInline(title, 160), h.URL)
+		lloc := h.URL
+		if h.Date != "" {
+			lloc += " · " + h.Date
+		}
+		fmt.Fprintf(&b, "%d. %s\n   %s\n", i+1, truncateInline(title, 160), lloc)
+		// Els d'Exa porten el text de la pàgina: se'n deixa prou perquè
+		// sovint no calgui obrir-la (i n'hi ha que bloquegen els agents).
 		if s := strings.TrimSpace(collapseWS(html.UnescapeString(h.Snippet))); s != "" {
-			fmt.Fprintf(&b, "   %s\n", truncateInline(s, 400))
+			fmt.Fprintf(&b, "   %s\n", truncateInline(s, 700))
 		}
 	}
 	out := truncate(b.String(), MaxOutputChars)
 	webCachePut(key, out)
 	return out, nil
+}
+
+// resMotor és la resposta d'un motor (pausa: ni s'ha consultat).
+type resMotor struct {
+	name  string
+	hits  []SearchHit
+	err   error
+	pausa bool
+}
+
+// cercaMotors consulta els motors en paral·lel, saltant els que estan en
+// pausa, i anota els que bloquegen.
+func cercaMotors(ctx context.Context, engines []searchEngine, query string) []resMotor {
+	results := make([]resMotor, len(engines))
+	var wg sync.WaitGroup
+	for i, e := range engines {
+		if motiu, ok := enPausa(e.name); ok {
+			results[i] = resMotor{name: e.name, err: errors.New(motiu), pausa: true}
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			ectx, ecancel := context.WithTimeout(ctx, SearchEngineTimeout)
+			defer ecancel()
+			hits, err := e.run(ectx, query)
+			if ctx.Err() == nil {
+				anotaResultat(e.name, err)
+			}
+			for k := range hits {
+				hits[k].Engine = e.name
+			}
+			results[i] = resMotor{name: e.name, hits: hits, err: err}
+		}()
+	}
+	wg.Wait()
+	return results
+}
+
+func llistaHits(results []resMotor) [][]SearchHit {
+	var out [][]SearchHit
+	for _, r := range results {
+		if r.err == nil {
+			out = append(out, r.hits)
+		}
+	}
+	return out
 }
 
 func fusiona(llistes [][]SearchHit, count int) []SearchHit {
@@ -269,6 +329,9 @@ func fusiona(llistes [][]SearchHit, count int) []SearchHit {
 				}
 				if len(h.Snippet) > len(a.hit.Snippet) {
 					a.hit.Snippet = h.Snippet
+				}
+				if a.hit.Date == "" {
+					a.hit.Date = h.Date
 				}
 			}
 			a.score += 1 / float64(rank+1)
@@ -360,7 +423,8 @@ func searchDuckDuckGo(ctx context.Context, query string) ([]SearchHit, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseDuckDuckGo(string(body))
+	hits, err := parseDuckDuckGo(string(body))
+	return rellevants(query, hits), err
 }
 
 func parseDuckDuckGo(src string) ([]SearchHit, error) {
@@ -393,7 +457,7 @@ func parseDuckDuckGo(src string) ([]SearchHit, error) {
 	walk(root)
 	if len(hits) == 0 {
 		if t := strings.ToLower(htmlTitle(src)); strings.Contains(t, "anomaly") || strings.Contains(src, "anomaly-modal") {
-			return nil, fmt.Errorf("DuckDuckGo demana captcha")
+			return nil, &bloqueig{motiu: "DuckDuckGo demana captcha"}
 		}
 	}
 	out := hits[:0]
@@ -436,7 +500,8 @@ func searchBing(ctx context.Context, query string) ([]SearchHit, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseBingRSS(body)
+	hits, err := parseBingRSS(body)
+	return rellevants(query, hits), err
 }
 
 func parseBingRSS(body []byte) ([]SearchHit, error) {
@@ -480,7 +545,7 @@ func webGet(ctx context.Context, target, accept string, limit int64) ([]byte, er
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, bloqueigHTTP(resp.StatusCode, resp.Header.Get("Retry-After"))
 	}
 	return io.ReadAll(io.LimitReader(resp.Body, limit))
 }
@@ -528,7 +593,9 @@ func webBlockedHost(host string) bool {
 	return false
 }
 
-// Firecrawl local (render amb navegador, sense claus ni tercers).
+// Firecrawl (render amb navegador), només si FIRECRAWL_URL el diu: abans
+// s'assumia a 127.0.0.1:3002, gairebé mai hi era i cada lectura fallida
+// sumava «render local no disponible» als motius.
 const FirecrawlTimeout = 60 * time.Second
 
 // waybackAPIBase i archiveTodayDomains són vars per poder-les redirigir a
@@ -537,12 +604,9 @@ var waybackAPIBase = "https://archive.org"
 
 var archiveTodayDomains = []string{"archive.ph", "archive.md", "archive.li", "archive.is"}
 
-// FirecrawlBase retorna el Firecrawl local (FIRECRAWL_URL o 127.0.0.1:3002).
+// FirecrawlBase retorna el Firecrawl configurat (FIRECRAWL_URL) o buit.
 func FirecrawlBase() string {
-	if v := strings.TrimSpace(os.Getenv("FIRECRAWL_URL")); v != "" {
-		return strings.TrimRight(v, "/")
-	}
-	return "http://127.0.0.1:3002"
+	return strings.TrimRight(strings.TrimSpace(os.Getenv("FIRECRAWL_URL")), "/")
 }
 
 // WebFetchOpts són les opcions de lectura d'una pàgina.
@@ -563,7 +627,7 @@ func WebFetch(rawURL string, maxChars int) (string, error) {
 }
 
 // WebFetchOpts_ és WebFetch amb opcions: cadena de recuperació directe →
-// (render local ‖ còpia arxivada, en paral·lel) → archive.today. Cada via
+// (Exa ‖ còpia arxivada ‖ render, en paral·lel) → archive.today. Cada via
 // que no és en viu porta etiqueta de procedència.
 // WebFetchOpts_Ctx afegeix el context del torn: si Esc arriba a mitja
 // descàrrega, el torn avorta de seguida (la descàrrega de fons mor amb el
@@ -620,6 +684,9 @@ func WebFetchOpts_(rawURL string, o WebFetchOpts) (string, error) {
 			p, why := webFetchFallbacks(u.String(), o.Raw, !webBlockedHost(u.Host))
 			attempts = append(attempts, why...)
 			if p == nil {
+				if errorDeBloqueig(err) {
+					return "", fmt.Errorf("web_fetch: %s (%s)", avisBloqueig(u.Hostname()), strings.Join(attempts, "; "))
+				}
 				return "", fmt.Errorf("web_fetch: pàgina il·legible (%s)", strings.Join(attempts, "; "))
 			}
 			pg = p
@@ -729,49 +796,74 @@ func cercaParagrafs(body, find string) string {
 	return strings.TrimSpace(b.String())
 }
 
-// webFetchFallbacks corre el render local i el Wayback alhora i es queda
-// amb el primer que respon; si cap, archive.today. Torna la pàgina i les
-// raons de cada via que ha fallat.
-// ambArxius=false (hosts locals: només tests) no consulta Wayback ni
-// archive.today: cap arxiu públic té pàgines d'una xarxa privada.
-func webFetchFallbacks(target string, raw bool, ambArxius bool) (*pagina, []string) {
+// webFetchFallbacks corre alhora el render (si n'hi ha), Exa i el Wayback:
+// el render o Exa guanyen en quant responen (són la pàgina d'ara o gairebé);
+// la còpia arxivada, només si cap dels dos no en té. Si tampoc, archive.today.
+// Torna la pàgina i les raons de cada via que ha fallat.
+// public=false (hosts locals: només tests) no consulta cap servei de fora:
+// ni Exa ni cap arxiu públic tenen pàgines d'una xarxa privada.
+func webFetchFallbacks(target string, raw bool, public bool) (*pagina, []string) {
 	type r struct {
 		p   *pagina
 		via string
 		err error
 	}
-	ch := make(chan r, 2)
-	go func() {
-		md, err := webFetchFirecrawl(target)
-		if err != nil {
-			ch <- r{nil, "render", err}
-			return
-		}
-		ch <- r{&pagina{URL: target, Title: firstLineTitle(md), Body: md, Words: comptaParaules(md),
-			Origen: "〔render en viu via navegador local〕"}, "render", nil}
-	}()
-	go func() {
-		if !ambArxius {
-			ch <- r{nil, "arxiu", fmt.Errorf("web_fetch: host privat, sense arxiu")}
-			return
-		}
-		p, when, err := webFetchWaybackPage(target, raw)
-		if err != nil {
-			ch <- r{nil, "arxiu", err}
-			return
-		}
-		p.Origen = fmt.Sprintf("〔còpia arxivada del %s — pot estar desactualitzada〕", when)
-		ch <- r{p, "arxiu", nil}
-	}()
+	vies := 0
+	ch := make(chan r, 3)
+	if FirecrawlBase() != "" {
+		vies++
+		go func() {
+			md, err := webFetchFirecrawl(target)
+			if err != nil {
+				ch <- r{nil, "render", err}
+				return
+			}
+			ch <- r{&pagina{URL: target, Title: firstLineTitle(md), Body: md, Words: comptaParaules(md),
+				Origen: "〔render en viu via navegador local〕"}, "render", nil}
+		}()
+	}
+	if public {
+		vies += 2
+		go func() {
+			if motiu, ok := enPausa("exa"); ok {
+				ch <- r{nil, "exa", errors.New(motiu)}
+				return
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+			defer cancel()
+			p, err := webFetchExa(ctx, target)
+			anotaResultat("exa", err)
+			if err != nil {
+				ch <- r{nil, "exa", err}
+				return
+			}
+			p.Origen = "〔llegida via Exa: còpia del seu índex, pot no ser la versió d'avui〕"
+			ch <- r{p, "exa", nil}
+		}()
+		go func() {
+			if motiu, ok := enPausa("arxiu"); ok {
+				ch <- r{nil, "arxiu", errors.New(motiu)}
+				return
+			}
+			p, when, err := webFetchWaybackPage(target, raw)
+			anotaResultat("arxiu", err)
+			if err != nil {
+				ch <- r{nil, "arxiu", err}
+				return
+			}
+			p.Origen = fmt.Sprintf("〔còpia arxivada del %s — pot estar desactualitzada〕", when)
+			ch <- r{p, "arxiu", nil}
+		}()
+	}
 	var why []string
 	var arxiu *pagina
-	for i := 0; i < 2; i++ {
+	for i := 0; i < vies; i++ {
 		got := <-ch
 		if got.err != nil {
 			why = append(why, got.via+": "+shortErr(got.err))
 			continue
 		}
-		if got.via == "render" {
+		if got.via != "arxiu" {
 			return got.p, why
 		}
 		arxiu = got.p
@@ -779,8 +871,11 @@ func webFetchFallbacks(target string, raw bool, ambArxius bool) (*pagina, []stri
 	if arxiu != nil {
 		return arxiu, why
 	}
-	if !ambArxius {
+	if !public {
 		return nil, why
+	}
+	if motiu, ok := enPausa("archive.today"); ok {
+		return nil, append(why, "archive.today: "+motiu)
 	}
 	if text, err := webFetchArchiveToday(target); err == nil {
 		return &pagina{URL: target, Body: text, Words: comptaParaules(text), Whole: true,
@@ -971,6 +1066,8 @@ func isInterstitialTitle(title string) bool {
 		"just a moment", "attention required", "verify you are human",
 		"verifying you are", "are you a robot", "captcha", "access denied",
 		"403 forbidden", "406 waf", "waf forbidden", "redirecting",
+		"prove your humanity", "pardon our interruption", "you have been blocked",
+		"request unsuccessful",
 	}
 	for _, m := range markers {
 		if strings.Contains(lower, m) {
@@ -1076,6 +1173,9 @@ func webFetchWaybackPage(target string, raw bool) (*pagina, string, error) {
 		return nil, "", fmt.Errorf("web_fetch: arxiu no respon: %v", err)
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusTooManyRequests {
+		return nil, "", &bloqueig{motiu: "l'arxiu (Wayback) limita les consultes", espera: retryAfter(resp.Header.Get("Retry-After"))}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, "", fmt.Errorf("web_fetch: arxiu HTTP %d", resp.StatusCode)
 	}
@@ -1097,6 +1197,17 @@ func webFetchWaybackPage(target string, raw bool) (*pagina, string, error) {
 	p, err := webFetchDirectPage(data.Snapshots.Closest.URL, 20*time.Second, raw)
 	if err != nil {
 		return nil, "", err
+	}
+	// D'una pàgina que només es pinta amb JavaScript (Reddit) l'arxiu en
+	// guarda la carcassa: sense la línia de la barra de Wayback, no queda res.
+	var resta []string
+	for _, ln := range strings.Split(p.Body, "\n") {
+		if !strings.Contains(ln, "Wayback Machine") {
+			resta = append(resta, ln)
+		}
+	}
+	if comptaParaules(strings.Join(resta, "\n")) == 0 {
+		return nil, "", fmt.Errorf("web_fetch: la còpia arxivada és buida")
 	}
 	p.URL = target
 	ts := data.Snapshots.Closest.Timestamp

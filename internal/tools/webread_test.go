@@ -1,6 +1,8 @@
 package tools
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -157,26 +159,31 @@ func TestFusionaDedupIRang(t *testing.T) {
 }
 
 func TestWebSearchFusionaMotors(t *testing.T) {
-	// Dos motors falsos: un SearXNG i el fallback pel DDG (via base
-	// redirigida). El Bing apunta a un port tancat: ha de fallar ràpid
-	// sense tombar la cerca.
+	// El SearXNG (principal) no respon: la cerca passa als de reserva,
+	// DuckDuckGo i Bing falsos, i en fusiona els resultats.
 	WebCacheClear()
-	t.Cleanup(WebCacheClear)
+	PausesClear()
+	t.Cleanup(func() { WebCacheClear(); PausesClear() })
 	srv := newFakeSearch(t)
 	defer srv.Close()
-	t.Setenv("SEARXNG_URL", srv.URL+"/searx")
+	bing := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		w.Write([]byte(`<rss><channel><item><title>Comú</title><link>https://x.cat/comu</link><description>c</description></item><item><title>Només bing</title><link>https://x.cat/nomes-bing</link></item></channel></rss>`))
+	}))
+	defer bing.Close()
+	t.Setenv("SEARXNG_URL", "http://127.0.0.1:1/searx")
 	oldD, oldB := duckduckgoBase, bingBase
-	duckduckgoBase, bingBase = srv.URL+"/ddg", "http://127.0.0.1:1/bing"
+	duckduckgoBase, bingBase = srv.URL+"/ddg", bing.URL
 	defer func() { duckduckgoBase, bingBase = oldD, oldB }()
-	out, err := WebSearch("gregal", 8)
+	out, err := WebSearch("comu ddg bing", 8)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "via searxng+duckduckgo") || !strings.Contains(out, "https://x.cat/comu") || !strings.Contains(out, "https://x.cat/nomes-ddg") {
+	if !strings.Contains(out, "via duckduckgo+bing") || !strings.Contains(out, "https://x.cat/nomes-ddg") || !strings.Contains(out, "https://x.cat/nomes-bing") {
 		t.Fatalf("fusió: %s", out)
 	}
 	// El resultat comú (als dos motors) ha de sortir primer.
-	if i, j := strings.Index(out, "x.cat/comu"), strings.Index(out, "x.cat/nomes-searx"); i > j {
+	if i, j := strings.Index(out, "x.cat/comu"), strings.Index(out, "x.cat/nomes-ddg"); i > j {
 		t.Fatalf("ordre: %s", out)
 	}
 }

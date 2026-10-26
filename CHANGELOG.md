@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Web search that agents can actually use: `web_search` asks Exa first (its public MCP service, no account needed; results carry the page text) together with your own SearXNG, and only falls back to DuckDuckGo and Bing when those find nothing. An engine that blocks (captcha, 403/429, Exa's free limit) is paused for 15 minutes to 2 hours instead of being hammered, and when none is left the agent is told not to retry. Unrelated Bing results are dropped. `EXA_API_KEY` (or an `exa` key in auth.yaml) lifts Exa's daily limit.
+- `web_fetch` reads pages that block agents (Stack Overflow, Medium) from Exa's copy, ignores empty Wayback snapshots, only tries Firecrawl when `FIRECRAWL_URL` is set, and tells the agent plainly when a site rejects bots so it stops retrying with `web_fetch` or the browser.
+
 ## v1.17.0 - 2026-10-26 - Vents més ràpids, xat endreçat i TUI més segur
 
 - TUI: a tool-approval dialog that just opened ignores Enter and the approve letters for a moment, so text you were typing can no longer approve a tool by accident. The resume picker hides Winds conversations (resuming them in the TUI damaged them), lists conversations whose folder is gone at the bottom (picking one explains instead of failing), shows "title · project · date · messages", filters accented letters and pages with PgUp/PgDn/Home/End. Ctrl+C with nothing running asks for a second press and keeps your draft. Long tool previews are cut without breaking characters, and prompt history follows GREGAL_DATA_DIR.

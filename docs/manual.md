@@ -470,6 +470,33 @@ timeouts, and none hides secrets that are readable inside the workspace or
 `gregal --doctor`, in `/api/state` (`sandbox`) and at the bottom of the web
 composer's permission menu.
 
+### Web search and page reading
+
+`web_search` asks [Exa](https://exa.ai) first, through its public MCP service
+(the same one OpenCode uses): no account or key is needed, results are
+semantic, and each one already carries the page text, so the agent often does
+not need to open the page. A SearXNG of your own (`SEARXNG_URL`) runs alongside
+it. DuckDuckGo and Bing, which Gregal reads by scraping, are only a reserve when
+those find nothing.
+
+Without a key Exa has a daily limit per IP. With a key there is none: set
+`EXA_API_KEY`, or save it as `exa` under `keys:` in
+`~/.config/gregal/auth.yaml`. The key travels in a header, never in the URL.
+
+An engine that blocks (a captcha, HTTP 403 or 429, Exa's free limit) is paused
+for 15 minutes, doubling up to 2 hours on repeated blocks, or for as long as its
+`Retry-After` says, and the search uses the others. When every engine is
+paused, the tool tells the agent not to retry in that turn. Bing results that
+share no word with the query are dropped.
+
+`web_fetch` reads the page directly. If that fails, it tries Exa (its copy of
+the page), the Wayback Machine and, when `FIRECRAWL_URL` is set, a Firecrawl
+renderer in parallel, then archive.today. Pages that do not come live are
+labelled. If the site rejects agents (HTTP 403/429 or an anti-bot check) and
+nothing else has a copy, the agent is told plainly not to retry with
+`web_fetch` or the browser; the browser tool adds the same notice when it lands
+on an anti-bot check.
+
 ### Agent browser
 
 The `browser` tool drives a real Chromium page (JavaScript, local apps on

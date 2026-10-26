@@ -471,6 +471,33 @@ dins del workspace o (llevat de docker) a qualsevol lloc que el teu usuari
 pugui llegir. El backend actiu surt a `gregal --doctor`, a `/api/state`
 (`sandbox`) i al peu del menú de permisos del compositor web.
 
+### Cerca web i lectura de pàgines
+
+`web_search` pregunta primer a [Exa](https://exa.ai), pel seu servei MCP
+públic (el mateix que fa servir OpenCode): no cal compte ni clau, la cerca és
+semàntica i cada resultat ja porta el text de la pàgina, així que sovint
+l'agent no l'ha d'obrir. Un SearXNG propi (`SEARXNG_URL`) hi va en paral·lel.
+DuckDuckGo i Bing, que Gregal llegeix raspant, només són la reserva quan
+aquells no troben res.
+
+Sense clau, Exa té un límit diari per IP. Amb clau no n'hi ha: defineix
+`EXA_API_KEY`, o desa-la com a `exa` a `keys:` de `~/.config/gregal/auth.yaml`.
+La clau viatja en una capçalera, mai a la URL.
+
+Un motor que bloqueja (captcha, HTTP 403 o 429, el límit gratuït d'Exa) queda
+en pausa 15 minuts, el doble cada cop seguit fins a 2 hores, o el que digui el
+seu `Retry-After`, i la cerca fa servir els altres. Si tots estan en pausa,
+l'eina diu a l'agent que no ho torni a provar en aquell torn. Els resultats de
+Bing que no comparteixen cap paraula amb la consulta es descarten.
+
+`web_fetch` llegeix la pàgina directament. Si falla, prova alhora Exa (la seva
+còpia de la pàgina), el Wayback Machine i, si `FIRECRAWL_URL` està definit, un
+render de Firecrawl; després, archive.today. Les pàgines que no arriben en viu
+porten etiqueta. Si el lloc rebutja els agents (HTTP 403/429 o una comprovació
+anti-robots) i ningú més en té còpia, l'agent rep l'avís clar de no tornar-ho
+a provar amb `web_fetch` ni amb el navegador; l'eina del navegador afegeix el
+mateix avís quan cau en una comprovació anti-robots.
+
 ### Navegador de l'agent
 
 L'eina `browser` condueix una pàgina Chromium de debò (JavaScript, apps locals

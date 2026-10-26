@@ -910,6 +910,9 @@ func Load(path string) (*Config, string, error) {
 	// Claus desades fora del config (~/.config/gregal/auth.yaml): només
 	// omplen les que el config deixa buides.
 	c.aplicaAuth()
+	// La clau d'Exa (cerca web) també pot viure al magatzem, com «exa»;
+	// EXA_API_KEY, si hi és, mana.
+	tools.SetExaAPIKey(LoadAuth()["exa"])
 	c.rawToken = c.Telegram.Token
 	c.Telegram.Token = os.ExpandEnv(c.Telegram.Token)
 	if c.Agent.MaxSteps <= 0 {

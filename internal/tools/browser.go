@@ -599,6 +599,11 @@ func (b *Browser) Snapshot(o WebFetchOpts) (string, error) {
 	}
 	p := &pagina{URL: snap.URL, Title: snap.Title, Body: body, Words: comptaParaules(body), Whole: whole}
 	out := p.render(WebFetchOpts{MaxChars: o.MaxChars, Find: o.Find})
+	// Una comprovació anti-robots no és la pàgina: sense l'avís, l'agent la
+	// llegia com a contingut i hi tornava.
+	if nota := NotaAntiRobots(snap.Title, hostDe(snap.URL)); nota != "" {
+		out = nota + "\n\n" + out
+	}
 	if len(snap.Items) > 0 {
 		var it strings.Builder
 		it.WriteString("\n\nElements interactius (usa el número amb click/type):\n")
