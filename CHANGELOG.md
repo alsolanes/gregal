@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.16.0 - 2026-10-26 - Vents amb gràfics, imatges i wiki
+
 - Winds wiki: a summary now has its own title and one-line description, keeps a closing chart intact, follows the conversation's language and updates the same page when the conversation is summarized again (with the previous version as context) instead of piling up copies. Pages list newest first and say who wrote them. On desktop, an open conversation has a "Save to wiki" action and pages open in a wider reader with their charts and images.
 - One chart format everywhere: ```chart and ```gregal-plot draw the same chart on desktop (now also inside Winds and the wiki) and on Android, which maps area, doughnut and horizontal-bar charts and shows values above bars with readable labels. Winds are told to add a small chart when real numbers compare or change.
 - Image search works without SearXNG: winds fall back to Wikimedia Commons (freely licensed photos, light thumbnails, link to the file page).
