@@ -88,12 +88,12 @@ func aplicaLandlock(spec HelperSpec) error {
 	// l'exec.
 	runtime.LockOSThread()
 	handled := fsHandled(abi)
-	attr := unix.LandlockRulesetAttr{Access_fs: handled}
-	size := unsafe.Sizeof(attr.Access_fs)
+	attr := unix.LandlockRulesetAttr{Handled_access_fs: handled}
+	size := unsafe.Sizeof(attr.Handled_access_fs)
 	if abi >= 4 {
-		size = unsafe.Sizeof(attr.Access_fs) + unsafe.Sizeof(attr.Access_net)
+		size = unsafe.Sizeof(attr.Handled_access_fs) + unsafe.Sizeof(attr.Handled_access_net)
 		if spec.NetworkOff {
-			attr.Access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
+			attr.Handled_access_net = unix.LANDLOCK_ACCESS_NET_BIND_TCP | unix.LANDLOCK_ACCESS_NET_CONNECT_TCP
 		}
 	} else if spec.NetworkOff {
 		return fmt.Errorf("landlock ABI %d cannot block the network", abi)
