@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Gregal</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <img src="icons/icon32.png" alt="">
+    <select id="wind" title=""></select>
+    <button id="settings-btn" class="icon" title="">⚙</button>
+  </header>
+
+  <section id="settings" hidden>
+    <h2 data-t="connect"></h2>
+    <div class="switch">
+      <button id="mode-desktop" type="button" data-t="modeDesktop"></button>
+      <button id="mode-server" type="button" data-t="modeServer"></button>
+    </div>
+    <p id="desktop-help" class="help" data-t="desktopHelp"></p>
+    <div id="server-fields">
+      <p class="help" data-t="connectHelp"></p>
+      <label><span data-t="address"></span><input id="addr" placeholder="192.168.1.62"></label>
+      <label><span data-t="port"></span><input id="port" placeholder="8097"></label>
+      <label><span data-t="key"></span><input id="key" type="password" autocomplete="off"></label>
+    </div>
+    <div class="row"><button id="save" class="primary" data-t="save"></button><span id="status" class="help"></span></div>
+  </section>
+
+  <section id="chat">
+    <div id="context" class="context"></div>
+    <div id="log"></div>
+    <div id="quick" class="quick"></div>
+    <form id="form">
+      <textarea id="input" rows="2"></textarea>
+      <button id="send" class="primary" type="submit">➤</button>
+    </form>
+  </section>
+  <div id="toast" hidden></div>
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

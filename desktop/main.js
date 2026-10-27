@@ -33,6 +33,7 @@ const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage }
 const { createUpdater } = require('./updater');
 const { createBrowserBridge, validGuest, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
 const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
+const chromeExtension = require('./chrome-extension');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
 const baseError = backendURLError(BASE);
@@ -111,12 +112,16 @@ function readServiceDescriptor() {
     return null;
 }
 
-function freePort() {
+function freePort(preferred = 0) {
     return new Promise((resolve, reject) => {
         const probe = net.createServer();
         probe.unref();
-        probe.on("error", reject);
-        probe.listen(0, "127.0.0.1", () => {
+        probe.on("error", (error) => {
+            // El port de sempre ja és d'algú: qualsevol altre de lliure.
+            if (preferred) freePort(0).then(resolve, reject);
+            else reject(error);
+        });
+        probe.listen(preferred, "127.0.0.1", () => {
             const port = probe.address().port;
             probe.close(() => resolve(port));
         });
@@ -206,7 +211,9 @@ async function ensureServer() {
         }
         if (!descriptorCandidate) {
             try {
-                PORT = await freePort();
+                // 8097 si és lliure: així l'extensió de Chrome troba l'app
+                // sense configurar res (extension/chrome).
+                PORT = await freePort(8097);
             } catch (error) {
                 console.error("[gregal] no s'ha pogut trobar un port lliure: " + error.message);
                 return false;
@@ -361,6 +368,17 @@ function wireIPC(getWin) {
         if (!cwd) return false;
         const err = await shell.openPath(cwd);
         return !err;
+    });
+    // Extensió de Chrome: la deixa a punt en una carpeta fixa, obre la pàgina
+    // d'extensions del navegador i ensenya la carpeta (instal·lar-la és cosa
+    // de l'usuari: Chrome no deixa fer-ho a cap programa).
+    ipcMain.handle('gregal:chrome-extension', async event => {
+        if (!trusted(event)) return null;
+        const dir = prepareChromeExtension();
+        if (!dir) return { ok: false };
+        const browser = chromeExtension.openExtensionsPage();
+        shell.showItemInFolder(path.join(dir, 'manifest.json'));
+        return { ok: true, path: dir, browser };
     });
     ipcMain.handle("gregal:choose-folder", async event => {
         if (!trusted(event)) return null;
@@ -653,7 +671,22 @@ function setupUpdater(win) {
     });
 }
 
-app.whenReady().then(createWindow);
+// Carpeta fixa de l'extensió de Chrome; si ja s'ha preparat abans, cada
+// arrencada la refresca perquè Chrome carregui la versió de l'app.
+function prepareChromeExtension() {
+    try {
+        const src = chromeExtension.sourceDir({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appDir: __dirname });
+        return chromeExtension.syncExtension(src, path.join(app.getPath('userData'), 'chrome-extension'));
+    } catch (e) {
+        console.error('[gregal] extensió de Chrome: ' + e.message);
+        return '';
+    }
+}
+
+app.whenReady().then(() => {
+    if (fs.existsSync(path.join(app.getPath('userData'), 'chrome-extension', 'manifest.json'))) prepareChromeExtension();
+    return createWindow();
+});
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });

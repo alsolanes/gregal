@@ -36,6 +36,7 @@
       "browser-bridge.js",
       "preload.js",
       "mascot-window.js",
+      "chrome-extension.js",
       "mascot-preload.js",
       "mascot.html",
       "mascot-view.js",
@@ -51,6 +52,11 @@
       {
         "from": "backend",
         "to": "backend"
+      },
+      {
+        "from": "../extension/chrome",
+        "to": "chrome-extension",
+        "filter": ["**/*", "!*.test.js", "!package.json"]
       }
     ],
     "linux": {

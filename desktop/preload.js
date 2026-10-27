@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     platform: process.platform,
     // Diàleg natiu per triar el projecte de la sessió.
     chooseFolder: () => ipcRenderer.invoke("gregal:choose-folder"),
+    setupChromeExtension: () => ipcRenderer.invoke('gregal:chrome-extension'),
     // Notificació nativa quan la finestra no té focus.
     notify: (title, body) => ipcRenderer.invoke("gregal:notify", { title, body }),
     // Reintent d'arrencada del backend des de la pantalla d'error
