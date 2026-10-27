@@ -99,6 +99,17 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet: (Pet?) -> Unit) {
+    var feinesOpen by remember { mutableStateOf(false) }
+    val windTasks by vm.windTasks.collectAsState()
+    // Feines en marxa: es tornen a mirar cada 8 s (i cada minut si no n'hi ha
+    // cap), així el progrés es reprèn en obrir l'app i l'avís arriba en acabar.
+    val anyRunning = windTasks.orEmpty().any { it.running }
+    LaunchedEffect(anyRunning) {
+        while (true) {
+            vm.loadWindTasks()
+            kotlinx.coroutines.delay(if (anyRunning) 8_000 else 60_000)
+        }
+    }
     val winds by vm.winds.collectAsState()
     val rotllanes by vm.rotllanes.collectAsState()
     val chats by vm.windChat.collectAsState()
@@ -238,6 +249,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
                         WikiButton(lang) { wikiOpen = true }
                     }
+                    if (query.isBlank() && !windTasks.isNullOrEmpty()) item {
+                        FeinesButton(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
+                    }
                     val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
                     if (rows.isEmpty()) item {
                         if (query.isBlank()) VentsEmpty(lang, true)
@@ -277,6 +291,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         }
     }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
+    if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }
     // «Resumeix a la wiki» des d'un xat: confirmació + estat en viu i avís en acabar.
     wikiFromChat?.let { target ->

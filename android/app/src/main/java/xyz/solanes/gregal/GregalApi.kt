@@ -680,6 +680,36 @@ class GregalApi(val base: String, val token: String) {
         return windReplyOf(o)
     }
 
+    /** Feines dels vents (resum: estat, qui, fitxers i resultat). */
+    fun windTasks(): List<WindTask> {
+        val o = JSONObject(read(conn("/api/winds/tasks?summary=1", "GET")))
+        val a = o.optJSONArray("tasks") ?: JSONArray()
+        fun ms(s: String): Long = try { java.time.Instant.parse(s).toEpochMilli() } catch (_: Exception) { 0L }
+        return (0 until a.length()).map {
+            val t = a.getJSONObject(it)
+            val agents = t.optJSONObject("agents")
+            val files = t.optJSONArray("files") ?: JSONArray()
+            WindTask(
+                id = t.optString("id"), task = t.optString("task"), workspace = t.optString("workspace"),
+                thread = t.optString("thread"), created = ms(t.optString("created")), updated = ms(t.optString("updated")),
+                status = t.optString("status"),
+                agents = agents?.keys()?.asSequence()?.sorted()?.map { k -> agents.optString(k) }?.filter { n -> n.isNotBlank() }?.toList().orEmpty(),
+                files = (0 until files.length()).map { i -> files.optString(i) }.filter { f -> f.isNotBlank() },
+                result = t.optString("result"), error = t.optString("error"),
+            )
+        }
+    }
+
+    /** Text d'un fitxer (GET /api/file). null + motiu si és binari o massa gran. */
+    fun readTextFile(path: String): Pair<String?, String?> {
+        val o = JSONObject(read(conn("/api/file?path=" + java.net.URLEncoder.encode(path, "UTF-8"), "GET")))
+        return when {
+            o.optBoolean("binary") -> null to "binary"
+            o.optBoolean("too_big") -> null to "too_big"
+            else -> o.optString("content") to null
+        }
+    }
+
     /** Veus proactives posteriors a desDe (unix). Lleuger: el vigilant ho
      *  crida en segon pla sense descarregar historials. */
     fun windNovetats(desDe: Long): List<WindNovetat> {

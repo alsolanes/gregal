@@ -294,6 +294,10 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(WindNotifications.EXTRA_WIND)
             vm.openVentsChat("wind:" + it)
         }
+        intent?.getStringExtra(WindNotifications.EXTRA_ROT)?.takeIf { it.isNotBlank() }?.let {
+            intent.removeExtra(WindNotifications.EXTRA_ROT)
+            vm.openVentsChat("rot:" + it)
+        }
     }
 
     override fun onStart() {

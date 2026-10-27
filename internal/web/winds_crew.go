@@ -662,6 +662,13 @@ var crewDiscussLoop = func(s *Server, ctx context.Context, brief string) (string
 	return res.text, err
 }
 
+// crewNotify deixa la frase final d'una feina d'equip a les novetats: el
+// mòbil la mostra com a notificació (també amb l'app tancada) i, en tocar-la,
+// obre el fil de la feina.
+func (s *Server) crewNotify(rot Rotllana, wind companion.Wind, task, text string) {
+	recordNovetat(s, wind, "feina:"+rot.ID, oneLine(task, 80)+"\n"+oneLineKeepBreaks(text, 500))
+}
+
 // runCrew: a design discussion round, then the build-and-review work, all
 // posted into the rotllana so phone and desktop follow the same thread.
 func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
@@ -720,16 +727,20 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 	work := task + "\n\nCrew discussion so far (the agreed design; context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
 	answer, err := crewWork(s, ctx, rot, work, flow, ca)
 	if err == errReviewIncomplete {
-		s.crewSay(rot, builder, say("He fet la feina, però la revisió no s'ha pogut completar. Revisa-ho tu o demana-ho al fil.\n\n",
-			"I did the work, but the review could not be completed. Check it yourself or ask in this thread.\n\n")+oneLineKeepBreaks(answer, 4000))
+		msg := say("He fet la feina, però la revisió no s'ha pogut completar. Revisa-ho tu o demana-ho al fil.\n\n",
+			"I did the work, but the review could not be completed. Check it yourself or ask in this thread.\n\n") + oneLineKeepBreaks(answer, 4000)
+		s.crewSay(rot, builder, msg)
+		s.crewNotify(rot, builder, task, msg)
 		job.set("failed")
 		return
 	}
 	if err != nil {
 		log.Printf("crew work: %s", redactError(err))
-		s.crewSay(rot, builder, say(
+		msg := say(
 			"No hem pogut acabar la feina ("+err.Error()+"). Ho pots tornar a demanar al fil quan vulguis.",
-			"We couldn't finish the work ("+err.Error()+"). You can ask again in this thread whenever you like."))
+			"We couldn't finish the work ("+err.Error()+"). You can ask again in this thread whenever you like.")
+		s.crewSay(rot, builder, msg)
+		s.crewNotify(rot, builder, task, msg)
 		job.set("failed")
 		return
 	}
@@ -739,18 +750,24 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 	}
 	text, changes := crewClosing(answer)
 	if crewRejected(answer) {
-		s.crewSay(rot, speaker, say("La revisió encara hi veu problemes; et deixo el detall. Ho podeu ajustar al mateix fil.\n\n",
-			"The review still sees problems; here are the details. You can adjust it in this thread.\n\n")+text)
+		msg := say("La revisió encara hi veu problemes; et deixo el detall. Ho podeu ajustar al mateix fil.\n\n",
+			"The review still sees problems; here are the details. You can adjust it in this thread.\n\n") + text
+		s.crewSay(rot, speaker, msg)
+		s.crewNotify(rot, speaker, task, msg)
 		job.set("failed")
 		return
 	}
 	if changes {
-		s.crewSay(rot, speaker, say("La feina és feta, però la revisió hi demana canvis. Digues-nos si els fem.\n\n",
-			"The work is done, but the review asks for changes. Tell us whether to make them.\n\n")+text)
+		msg := say("La feina és feta, però la revisió hi demana canvis. Digues-nos si els fem.\n\n",
+			"The work is done, but the review asks for changes. Tell us whether to make them.\n\n") + text
+		s.crewSay(rot, speaker, msg)
+		s.crewNotify(rot, speaker, task, msg)
 		job.set("done")
 		return
 	}
-	s.crewSay(rot, speaker, say("Fet. ", "Done. ")+text)
+	msg := say("Fet. ", "Done. ") + text
+	s.crewSay(rot, speaker, msg)
+	s.crewNotify(rot, speaker, task, msg)
 	job.set("done")
 }
 

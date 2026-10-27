@@ -473,6 +473,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _needsProvider.value = false
         _providerSetupBusy.value = false
         _retro.value = null
+        _windTasks.value = null
         eventCursor = 0L
         activeRunId = null
     }
@@ -484,6 +485,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun onBackgrounded() {
         if (_approve.value != null || _question.value != null) GregalNotifications.needsYou(appContext)
+        // Feina en marxa al servidor: el vigilant hi torna en 3 minuts per
+        // avisar quan acabi (sense, esperava la passada normal de 15).
+        if (!_conn.value.local && _windTasks.value.orEmpty().any { it.running }) {
+            WindWatch.schedule(appContext, WindWatch.SOON_MS)
+        }
     }
 
     /** Fes servir Gregal en aquest dispositiu (el mode per defecte). */
@@ -2532,6 +2538,53 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Darrer error en carregar la wiki; null vol dir cap error conegut. */
     private val _wikiError = MutableStateFlow<String?>(null)
     val wikiError: StateFlow<String?> = _wikiError.asStateFlow()
+
+    // --- Feines dels vents (servidor o mòbil) ---
+
+    private val _windTasks = MutableStateFlow<List<WindTask>?>(null)
+    val windTasks: StateFlow<List<WindTask>?> = _windTasks.asStateFlow()
+
+    /**
+     * Llegeix les feines. Si una que anava en marxa acaba, ho diu: el mateix
+     * avís que el vigilant dona amb l'app tancada.
+     */
+    fun loadWindTasks() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val tasks = withContext(Dispatchers.IO) { source.api().windTasks() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val before = _windTasks.value.orEmpty()
+                _windTasks.value = tasks
+                feinesAcabades(before, tasks).firstOrNull()?.let { t ->
+                    val key = when (t.status) {
+                        "done" -> "app.feines.finished"
+                        "interrupted" -> "app.feines.interruptedNotice"
+                        else -> "app.feines.failedNotice"
+                    }
+                    notify(appText(key, oneLine(t.task, 60)))
+                }
+            } catch (_: Exception) {
+                if (isCompanionOrigin(source, epoch) && _windTasks.value == null) _windTasks.value = emptyList()
+            }
+        }
+    }
+
+    fun readTaskFile(path: String, done: (String?, String?) -> Unit) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val (text, why) = withContext(Dispatchers.IO) { source.api().readTextFile(path) }
+                done(text, when (why) {
+                    null -> null
+                    "binary" -> appText("app.feines.binary")
+                    else -> appText("app.feines.tooBig")
+                })
+            } catch (e: Exception) {
+                done(null, e.message ?: "error")
+            }
+        }
+    }
 
     fun loadWiki() {
         val source = _conn.value; val epoch = companionEpoch

@@ -107,7 +107,10 @@ els comptes ni les dades.
 ## Feines llargues
 
 Les feines dels equips de vents corren al servidor: tancar l'app o el navegador
-no les atura. El pas en què són es desa al disc; si el servidor es reinicia a
+no les atura. Al mòbil, la targeta **Feines** de la pantalla dels vents diu les
+que són en marxa, qui hi treballa i els fitxers que en surten (una web s'obre
+com a web); quan una acaba, arriba una notificació encara que l'app estigui
+tancada, i tocar-la obre el fil de la feina. El pas en què són es desa al disc; si el servidor es reinicia a
 mitja feina, l'app ho diu («aturada: el servidor es va reiniciar») en lloc de
 quedar-se esperant.
 

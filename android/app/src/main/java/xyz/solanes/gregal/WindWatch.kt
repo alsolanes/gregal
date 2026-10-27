@@ -55,6 +55,8 @@ object WindWatch {
     private const val PREFS = "gregal_winds_watch"
     private const val KEY_TS = "last_ts"
     const val INTERVAL_MS = 15 * 60_000L
+    /** Amb una feina en marxa al servidor: l'avís d'acabada no ha d'esperar 15 minuts. */
+    const val SOON_MS = 3 * 60_000L
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     fun lastTs(ctx: Context): Long = prefs(ctx).getLong(KEY_TS, 0L)
@@ -67,10 +69,10 @@ object WindWatch {
     }
 
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
-    fun schedule(ctx: Context) {
+    fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
         if (!wanted(ctx)) return
         val am = ctx.getSystemService(AlarmManager::class.java)
-        val at = System.currentTimeMillis() + INTERVAL_MS
+        val at = System.currentTimeMillis() + delayMs
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && am.canScheduleExactAlarms())
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending(ctx))
@@ -148,6 +150,7 @@ class WindWatchService : Service() {
                 val noves = try { api.windNovetats(desDe) } catch (_: Exception) { return }
                 val (perVent, nouTs) = WindWatchLogic.noves(noves, desDe)
                 WindWatch.saveTs(this, nouTs)
+                aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
                 if (perVent.isEmpty() || AppVisibility.foreground) return
                 if (!WindNotifications.canNotify(this)) return
                 for ((_, n) in perVent) WindNotifications.veu(this, n)
@@ -155,9 +158,12 @@ class WindWatchService : Service() {
                 if (wake.isHeld) wake.release()
             }
         } finally {
-            try { WindWatch.schedule(applicationContext) } catch (_: Exception) {}
+            try { WindWatch.schedule(applicationContext, if (aviat) WindWatch.SOON_MS else WindWatch.INTERVAL_MS) } catch (_: Exception) {}
         }
     }
+
+    /** Hi ha feina en marxa: la propera passada, en 3 minuts. */
+    private var aviat = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -180,6 +186,7 @@ object WindNotifications {
     const val CHANNEL_ID = "gregal_vents"
     const val RUNNING_ID = 451
     const val EXTRA_WIND = "xyz.solanes.gregal.WIND_ID"
+    const val EXTRA_ROT = "xyz.solanes.gregal.ROT_ID"
 
     private fun text(ctx: Context, key: String, vararg a: Any): String = tr(Prefs(ctx).idioma, key, *a)
 
@@ -211,7 +218,7 @@ object WindNotifications {
             .setContentTitle(nom)
             .setContentText(cos.lineSequence().firstOrNull().orEmpty())
             .setStyle(Notification.BigTextStyle().bigText(cos))
-            .setContentIntent(open(ctx, n.wind))
+            .setContentIntent(open(ctx, n.wind, n.source.removePrefix("feina:").takeIf { n.source.startsWith("feina:") }.orEmpty()))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -235,11 +242,13 @@ object WindNotifications {
             ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
 
-    private fun open(ctx: Context, windId: String): PendingIntent = PendingIntent.getActivity(
-        ctx, windId.hashCode(),
+    private fun open(ctx: Context, windId: String, rotId: String = ""): PendingIntent = PendingIntent.getActivity(
+        ctx, (windId + rotId).hashCode(),
         Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            if (windId.isNotEmpty()) putExtra(EXTRA_WIND, windId)
+            // Una feina acabada obre el seu fil; una veu, el xat amb el vent.
+            if (rotId.isNotEmpty()) putExtra(EXTRA_ROT, rotId)
+            else if (windId.isNotEmpty()) putExtra(EXTRA_WIND, windId)
         },
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )

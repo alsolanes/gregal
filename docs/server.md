@@ -106,6 +106,10 @@ config, the accounts or the data.
 ## Long work
 
 Crew work runs on the server: closing the app or the browser does not stop it.
+On the phone, the **Work** card on the Winds screen shows what is running, who
+is working on it and the files it produces (a web page opens as a page); when a
+task finishes a notification arrives even with the app closed, and tapping it
+opens the task's thread.
 Its current step is saved to disk; if the server restarts mid-task, the app
 says so ("stopped: the server restarted") instead of waiting forever.
 
