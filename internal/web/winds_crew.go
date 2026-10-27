@@ -518,7 +518,16 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 	rot, err := s.saveRotllana(Rotllana{Name: oneLine(task, 60), Members: members, Workspace: workspace})
 	if err != nil {
-		http.Error(w, "could not open the conversation", http.StatusInternalServerError)
+		// Sense la causa, l'app només pot dir "torna-ho a provar" i ningú sap
+		// què falla (directori, permisos, nom...). El detall va al journal i
+		// també a la resposta, que és el que l'usuari veu al mòbil.
+		qui := ""
+		if s.user != nil {
+			qui = s.user.Name
+		}
+		log.Printf("colla: no s'ha pogut obrir la conversa (usuari=%q workspace=%q reuse=%d create=%d membres=%v): %v",
+			qui, workspace, len(req.Reuse), len(req.Create), members, err)
+		http.Error(w, "could not open the conversation: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	hist := rotllanaHistory(s, rot.ID)

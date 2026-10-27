@@ -618,7 +618,8 @@ func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		rot, err := s.saveRotllana(Rotllana{Name: name, Members: members, Workspace: workspace})
 		if err != nil {
-			http.Error(w, "could not open the conversation", http.StatusInternalServerError)
+			log.Printf("cap: no s'ha pogut obrir la conversa: %v", err)
+			http.Error(w, "could not open the conversation: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 		id = rot.ID

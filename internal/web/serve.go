@@ -4013,7 +4013,9 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	s.unavailableModels = map[string]string{}
 	s.modelCheckedAt = map[string]time.Time{}
 	s.resetSessionCounters()
-	if restoredWorkspace != "" {
+	// Només es repren la carpeta si encara és un directori: si l'han esborrada
+	// (o ve d'una altra màquina), es queda la que ja té la sessió.
+	if restoredWorkspace != "" && directoriExisteix(restoredWorkspace) {
 		s.cwd = restoredWorkspace
 		if s.policy != nil {
 			s.policy.ProjectDir = restoredWorkspace

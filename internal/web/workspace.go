@@ -103,6 +103,18 @@ func writeWorkspaces(out []workspaceEntry) {
 }
 
 // resolveWorkspace normalitza i valida un directori de treball.
+// directoriExisteix diu si el camí és un directori de debò. Les converses
+// desades guarden la carpeta on es van fer; si algú l'esborra (o ve d'un
+// altre ordinador), reprendre la conversa deixa la sessió apuntant al buit i
+// qualsevol acció que validi el workspace falla amb un 500 incomprensible.
+func directoriExisteix(dir string) bool {
+	if strings.TrimSpace(dir) == "" {
+		return false
+	}
+	st, err := os.Stat(dir)
+	return err == nil && st.IsDir()
+}
+
 func resolveWorkspace(dir string) (string, error) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {

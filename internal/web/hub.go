@@ -195,7 +195,7 @@ func (h *Hub) SessionFor(user *User, id string) *Server {
 		if inici == "" {
 			inici = user.Arrel()
 		}
-		if inici != "" && user.Allow(s.cwd) != nil {
+		if inici != "" && (user.Allow(s.cwd) != nil || !directoriExisteix(s.cwd)) {
 			s.cwd = inici
 			if s.policy != nil {
 				s.policy.ProjectDir = s.cwd
