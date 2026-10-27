@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.18.0 - 2026-10-27 - Servidor propi: mòbil o servidor d'un toc i feines al mòbil
+
 - Long work from the phone: the Winds screen has a **Work** card with the server's tasks (running, done, needs a look, or stopped by a restart), who works on each, the result and the files it produced; a web page opens as a page and other files as text. Progress resumes when you reopen the app (crew tasks show up from the design discussion on), finishing tasks are announced in the app, and with the app closed a notification arrives (the watcher checks every 3 minutes while something runs); tapping it opens the task thread. Server: `GET /api/winds/tasks?summary=1`.
 
 - Phone or server in one tap: the Winds home has a "📱 On the phone · Server" switch with a dot that says whether the saved server answers; if it does not, you stay on the phone with a clear message, and without a saved server it opens the form to add one. Connecting takes three things: address, port and key. `gregal --serve --addr 0.0.0.0` no longer refuses to start without a token: it creates and keeps a short key and prints the address, port and key to type in the app; the Linux installer does the same with your HTTPS domain (accounts with passwords are now optional).
