@@ -3103,6 +3103,62 @@ try {
     history.replaceState(null, '', location.pathname);
   }
 } catch (e) {}
+// demanaCredencials mostra la porta d'entrada del servidor: usuari i
+// contrasenya (que el backend bescanvia per un token de sessió). Torna el
+// token, o null si l'usuari tanca el diàleg. Com el prompt antic, només
+// surt quan una petició rep 401: si ja tens sessió, mai el veus.
+let loginPendent = null;
+async function demanaCredencials() {
+  if (loginPendent) return loginPendent;
+  // panels.js (defer) defineix window.gregalT a l'arrencada; si el 401 ha
+  // arribat abans, espera que hi sigui perquè el diàleg no surti amb claus
+  // sense traduir.
+  await new Promise(res => {
+    let n = 0;
+    const tick = () => {
+      if (typeof window.gregalT === 'function' || n++ > 30) res();
+      else setTimeout(tick, 100);
+    };
+    tick();
+  });
+  const t = window.gregalT ? window.gregalT : () => '';
+  loginPendent = new Promise(resolve => {
+    const back = document.createElement('div');
+    back.id = 'gregalLogin';
+    back.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--paper,#fff);color:var(--ink,#22303F);border-radius:16px;padding:28px 26px;width:min(92vw,340px);box-shadow:0 18px 50px rgba(0,0,0,.35);font:inherit';
+    card.innerHTML =
+      '<h2 style="margin:0 0 4px;font-size:18px;font-weight:700">' + t('auth.title') + '</h2>' +
+      '<p style="margin:0 0 18px;color:var(--muted,#8A93A8);font-size:13px">' + t('auth.subtitle') + '</p>' +
+      '<form id="gregalLoginForm" style="display:flex;flex-direction:column;gap:10px">' +
+      '<input name="user" type="text" autocomplete="username" placeholder="' + t('auth.user') + '" aria-label="' + t('auth.user') + '" style="padding:11px 12px;border:1px solid var(--line,#D8DEE9);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
+      '<input name="password" type="password" autocomplete="current-password" placeholder="' + t('auth.password') + '" aria-label="' + t('auth.password') + '" style="padding:11px 12px;border:1px solid var(--line,#D8DEE9);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
+      '<p id="gregalLoginError" role="alert" style="margin:0;color:#D05656;font-size:13px;min-height:1em"></p>' +
+      '<button type="submit" style="padding:11px 12px;border:0;border-radius:10px;background:var(--sea,#4F5BE8);color:#fff;font:inherit;font-weight:600;cursor:pointer">' + t('auth.enter') + '</button>' +
+      '</form>';
+    back.append(card);
+    document.body.append(back);
+    const tanca = tok => { back.remove(); loginPendent = null; resolve(tok); };
+    card.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const f = ev.target;
+      const err = card.querySelector('#gregalLoginError');
+      err.textContent = '';
+      try {
+        const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: f.user.value.trim(), password: f.password.value }) });
+        if (!r.ok) { err.textContent = t('auth.bad'); f.password.value = ''; return; }
+        const d = await r.json();
+        try { localStorage.setItem('gregal_token', d.token); } catch (e) {}
+        tanca(d.token);
+      } catch (e) { err.textContent = t('auth.offline'); }
+    });
+    f_user = card.querySelector('input[name=user]');
+    if (f_user && !f_user.value) f_user.focus();
+  });
+  return loginPendent;
+}
+
 // Fora de línia: quan el backend no respon (mort, reiniciant-se, port
 // canviat) la pàgina deia «Failed to fetch» dins d'una bombolla i els
 // sondejos continuaven picant cada segon en silenci. Ara una franja a
@@ -3134,12 +3190,10 @@ async function api(url, opts, authRetried = false) {
   marcaOffline(false);
   if (r.status === 401) {
     if (desktopAuth || authRetried) throw new Error(window.gregalT('auth.required'));
-    const t = prompt(window.gregalT('auth.prompt'));
-    if (t && t.trim()) {
-      apiToken = t.trim();
-      try { localStorage.setItem('gregal_token', apiToken); } catch (e) {}
-      return api(url, opts, true);
-    }
+    // La porta d'entrada són ara usuari i contrasenya, no el token:
+    // el login els bescanvia per un token de sessió que viu al localStorage.
+    apiToken = await demanaCredencials();
+    if (apiToken) return api(url, opts, true);
     throw new Error(window.gregalT('auth.required'));
   }
   return r;
