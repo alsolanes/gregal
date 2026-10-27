@@ -2674,6 +2674,64 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Organització de la llista de converses: favorits i seccions (desades al servidor). */
+    private val _windsMeta = MutableStateFlow<GregalApi.WindsMeta>(GregalApi.WindsMeta(emptyList(), emptyList()))
+    val windsMeta: StateFlow<GregalApi.WindsMeta> = _windsMeta.asStateFlow()
+
+    fun loadWindsMeta() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { source.api().getWindsMeta() }
+                if (isCompanionOrigin(source, epoch)) _windsMeta.value = m
+            } catch (_: Exception) { if (isCompanionOrigin(source, epoch)) _windsMeta.value = GregalApi.WindsMeta(emptyList(), emptyList()) }
+        }
+    }
+
+    /** Desa la meta sencera; si el servidor no respon, no toca l'estat local. */
+    private fun pushWindsMeta(m: GregalApi.WindsMeta, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { source.api().saveWindsMeta(m) }.getOrDefault(false) }
+            if (isCompanionOrigin(source, epoch)) {
+                if (ok) _windsMeta.value = m
+                onDone(ok)
+            }
+        }
+    }
+
+    /** Marca o desmarca una conversa com a favorita (clau «wind:<id>»/«rot:<id>»). */
+    fun toggleFavorite(key: String) {
+        val m = _windsMeta.value
+        val favs = if (key in m.favorites) m.favorites - key else m.favorites + key
+        pushWindsMeta(GregalApi.WindsMeta(favs, m.sections))
+    }
+
+    /** Afegeix una conversa a una secció; si ja hi era, la treu. */
+    fun toggleSectionItem(sectionId: String, key: String) {
+        val m = _windsMeta.value
+        val sections = m.sections.map { s ->
+            if (s.id != sectionId) s
+            else GregalApi.WindSection(s.id, s.name, if (key in s.items) s.items - key else s.items + key)
+        }
+        pushWindsMeta(GregalApi.WindsMeta(m.favorites, sections))
+    }
+
+    /** Crea una secció nova (id curt a partir del nom) i hi posa la conversa. */
+    fun createSection(name: String, firstItem: String? = null, onDone: (Boolean) -> Unit = {}) {
+        val m = _windsMeta.value
+        val id = name.trim().lowercase().replace(Regex("[^a-z0-9àèéíòóúçñïü-]+"), "-").trim('-').take(40).ifBlank { "seccio" }
+        if (m.sections.any { it.id == id }) { onDone(false); return }
+        val items = if (firstItem != null) listOf(firstItem) else emptyList()
+        pushWindsMeta(GregalApi.WindsMeta(m.favorites, m.sections + GregalApi.WindSection(id, name.trim(), items)), onDone)
+    }
+
+    /** Esborra una secció sencera (les converses tornen a la llista general). */
+    fun deleteSection(sectionId: String) {
+        val m = _windsMeta.value
+        pushWindsMeta(GregalApi.WindsMeta(m.favorites, m.sections.filter { it.id != sectionId }))
+    }
+
     /** Resumeix l'última conversa (vent o rotllana) a una pàgina de wiki. */
     fun summarizeToWiki(wind: String? = null, rotllana: String? = null, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch

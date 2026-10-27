@@ -875,6 +875,49 @@ class GregalApi(val base: String, val token: String) {
         return o.optBoolean("ok", false)
     }
 
+    /** Preferència d'organització: una secció temàtica de la llista de converses. */
+    data class WindSection(
+        val id: String, val name: String, val items: List<String>,
+    )
+
+    /** Favorits i seccions de la llista de converses; iguals a totes les pantalles. */
+    data class WindsMeta(
+        val favorites: List<String>, val sections: List<WindSection>,
+    ) {
+        fun isFavorite(key: String): Boolean = key in favorites
+        fun sectionOf(key: String): WindSection? = sections.firstOrNull { s -> key in s.items }
+    }
+
+    /** Llegeix els favorits i les seccions (buits si no n'hi ha). */
+    fun getWindsMeta(): WindsMeta {
+        val o = JSONObject(read(conn("/api/winds/meta", "GET")))
+        val m = o.optJSONObject("meta") ?: JSONObject()
+        val favs = m.optJSONArray("favorites") ?: JSONArray()
+        val secs = m.optJSONArray("sections") ?: JSONArray()
+        return WindsMeta(
+            (0 until favs.length()).map { favs.optString(it) },
+            (0 until secs.length()).map { i ->
+                val s = secs.getJSONObject(i)
+                val items = s.optJSONArray("items") ?: JSONArray()
+                WindSection(s.optString("id"), s.optString("name"), (0 until items.length()).map { items.optString(it) })
+            },
+        )
+    }
+
+    /** Desa favorits i seccions sencers (la UI hi envia sempre l'estat complet). */
+    fun saveWindsMeta(meta: WindsMeta): Boolean {
+        val sections = JSONArray()
+        meta.sections.forEach { s ->
+            val items = JSONArray()
+            s.items.forEach(items::put)
+            sections.put(JSONObject().put("id", s.id).put("name", s.name).put("items", items))
+        }
+        val favorites = JSONArray()
+        meta.favorites.forEach(favorites::put)
+        val o = post("/api/winds/meta", JSONObject().put("favorites", favorites).put("sections", sections))
+        return o.optJSONObject("meta") != null
+    }
+
     /** Missatges programats i estadístiques dels vents (recordatoris, cors). */
     fun getWindsProgramats(): WindsProgramats {
         val o = JSONObject(read(conn("/api/winds/programats", "GET")))

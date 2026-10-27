@@ -40,7 +40,76 @@ func (ws *WindStore) path() string { return filepath.Join(ws.dir, "winds.json") 
 func (ws *WindStore) PathForTest() string { return ws.dir }
 
 type windDisc struct {
-	Winds []Wind `json:"winds"`
+	Winds []Wind    `json:"winds"`
+	Meta  *WindMeta `json:"meta,omitempty"`
+}
+
+// WindMeta guarda les preferències d'organització de la llista de converses:
+// quines files són favorites (surten a dalt) i les seccions personalitzades
+// que agrupen converses per tema. Es desa al mateix winds.json i és el mateix
+// per a totes les pantalles (mòbil i web), com la resta de vents.
+type WindMeta struct {
+	Favorites []string      `json:"favorites,omitempty"` // claus de fila: "wind:<id>" o "rot:<id>"
+	Sections  []WindSection `json:"sections,omitempty"`
+}
+
+// WindSection és una secció temàtica creada per l'usuari: un nom i les files
+// que hi ha posat (vents o rotllanes, per clau de fila).
+type WindSection struct {
+	ID    string   `json:"id"`
+	Name  string   `json:"name"`
+	Items []string `json:"items"`
+}
+
+// Meta torna les preferències d'organització (buit si no n'hi ha).
+func (ws *WindStore) Meta() (WindMeta, error) {
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	raw, err := os.ReadFile(ws.path())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return WindMeta{}, nil
+		}
+		return WindMeta{}, err
+	}
+	var d windDisc
+	if err := json.Unmarshal(raw, &d); err != nil {
+		return WindMeta{}, err
+	}
+	if d.Meta == nil {
+		return WindMeta{}, nil
+	}
+	return *d.Meta, nil
+}
+
+// SaveMeta desa les preferències d'organització sense tocar els vents.
+func (ws *WindStore) SaveMeta(m WindMeta) error {
+	if len(m.Sections) > 50 {
+		return fmt.Errorf("massa seccions")
+	}
+	for _, s := range m.Sections {
+		if strings.TrimSpace(s.Name) == "" {
+			return fmt.Errorf("la secció necessita un nom")
+		}
+		if len(s.Items) > 100 {
+			return fmt.Errorf("la secció %s té massa elements", s.Name)
+		}
+	}
+	ws.mu.Lock()
+	defer ws.mu.Unlock()
+	raw, err := os.ReadFile(ws.path())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	var d windDisc
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &d); err != nil {
+			return err
+		}
+	}
+	d.Meta = &m
+	b, _ := json.MarshalIndent(d, "", "  ")
+	return os.WriteFile(ws.path(), b, 0o644)
 }
 
 func (ws *WindStore) List() ([]Wind, error) {

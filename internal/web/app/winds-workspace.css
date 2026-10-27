@@ -229,3 +229,9 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-task-state.is-stopped { color:var(--amber, #d9a441); border-color:color-mix(in srgb,var(--amber, #d9a441) 40%,transparent); }
 .vw-task-state.is-running { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
 .vw-task-row small { padding-left:0; }
+
+/* Estrella de preferit a les converses de la barra lateral. */
+.vw-nav-item.vw-thread{display:flex;align-items:center;gap:6px;justify-content:space-between}
+.vw-star{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;border-radius:6px;flex:none}
+.vw-star:hover{color:var(--ink);background:var(--hover-alt)}
+.vw-star.on{color:#F5B544}

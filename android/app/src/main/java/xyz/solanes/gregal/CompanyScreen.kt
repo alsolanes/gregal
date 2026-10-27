@@ -37,6 +37,9 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
 import androidx.compose.material.icons.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalUriHandler
@@ -114,6 +117,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val rotllanes by vm.rotllanes.collectAsState()
     val chats by vm.windChat.collectAsState()
     val rChats by vm.rotllanaChat.collectAsState()
+    val wmeta by vm.windsMeta.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val rBusy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
@@ -148,12 +152,14 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     var query by rememberSaveable { mutableStateOf("") }
     var profile by remember { mutableStateOf<Wind?>(null) }
     var rowTarget by remember { mutableStateOf<RowTarget?>(null) }
+    var sectionPicker by remember { mutableStateOf(false) }
+    var sectionTargetKey by remember { mutableStateOf<String?>(null) }
     var programatsOpen by remember { mutableStateOf(false) }
     var wikiOpen by remember { mutableStateOf(false) }
     var wikiFromChat by remember { mutableStateOf<ChatTarget?>(null) }
     val wikiBusy by vm.wikiBusy.collectAsState()
     val creator by vm.windCreator.collectAsState()
-    LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes() }
+    LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes(); vm.loadWindsMeta() }
     LaunchedEffect(winds.map { it.id }, rotllanes.map { it.id }) {
         winds.forEach { vm.loadWindChat(it.id) }
         rotllanes.forEach { vm.loadRotllanaChat(it.id) }
@@ -252,6 +258,32 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     if (query.isBlank() && !windTasks.isNullOrEmpty()) item {
                         FeinesButton(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
                     }
+                    /** Fila amb favorit: estrella viva si hi és, i el menú llarg la marca. */
+                    @Composable
+                    fun InboxRow(entry: VentsInboxRow, showSectionHeader: String?) {
+                        if (showSectionHeader != null) {
+                            Text(showSectionHeader.uppercase(), color = Muted, fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+                                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+                        }
+                        val id = entry.key.substringAfter(':')
+                        val group = entry.key.startsWith("rot:")
+                        val thinking = if (group) id in rBusy else id in busy
+                        val unread = !group && id in news
+                        val face = entry.members.firstOrNull()
+                        ConversationRow(entry.title, entry.preview, face?.let { Color(it.argb) } ?: Sea,
+                            face?.faceStyle ?: WindStyle(), faces = if (group) entry.members else emptyList(),
+                            busy = thinking, mood = if (thinking) live[id]?.mood else if (unread) WindMood.NEWS else null,
+                            timestamp = entry.timestamp,
+                            favorite = entry.key in wmeta.favorites,
+                            onFavorite = { vm.toggleFavorite(entry.key) },
+                            onClick = { vm.openVentsChat(entry.key) },
+                            onLongClick = {
+                                if (group) rotllanes.firstOrNull { it.id == id }?.let { rowTarget = RowTarget.Rot(it) }
+                                else face?.let { rowTarget = RowTarget.Dm(it) }
+                            }, lang = lang)
+                    }
+
                     val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
                     if (rows.isEmpty()) item {
                         if (query.isBlank()) VentsEmpty(lang, true)
@@ -265,26 +297,24 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     // una fila «Xaloc · Música» semblava una conversa buida.
                     val firstIdle = rows.indexOfFirst { it.timestamp == 0L }
                     val idleKey = if (query.isBlank() && firstIdle > 0) rows[firstIdle].key else null
-                    items(rows, key = { it.key }) { entry ->
-                        if (entry.key == idleKey) {
-                            Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
-                                modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+                    // Grups: favorits a dalt, després les seccions temàtiques, i la
+                    // resta a baix; dins de cada grup, la més recent primer.
+                    val grouped = if (query.isBlank()) groupInbox(rows, wmeta, lang) else null
+                    if (grouped != null) {
+                        grouped.forEach { g ->
+                            item(key = "hdr:" + g.header) {
+                                InboxHeader(g.header, count = g.rows.size, favorite = g.isFavorites, lang = lang, onAddSection = { sectionPicker = true })
+                            }
+                            items(g.rows, key = { it.key }) { entry ->
+                                if (entry.key == idleKey) InboxDivider(lang)
+                                InboxRow(entry, null)
+                            }
                         }
-                        val id = entry.key.substringAfter(':')
-                        val group = entry.key.startsWith("rot:")
-                        val thinking = if (group) id in rBusy else id in busy
-                        val unread = !group && id in news
-                        val face = entry.members.firstOrNull()
-                        ConversationRow(entry.title, entry.preview, face?.let { Color(it.argb) } ?: Sea,
-                            face?.faceStyle ?: WindStyle(), faces = if (group) entry.members else emptyList(),
-                            busy = thinking, mood = if (thinking) live[id]?.mood else if (unread) WindMood.NEWS else null,
-                            timestamp = entry.timestamp,
-                            onClick = { vm.openVentsChat(entry.key) },
-                            onLongClick = {
-                                if (group) rotllanes.firstOrNull { it.id == id }?.let { rowTarget = RowTarget.Rot(it) }
-                                else face?.let { rowTarget = RowTarget.Dm(it) }
-                            }, lang = lang)
+                    } else {
+                        items(rows, key = { it.key }) { entry ->
+                            if (entry.key == idleKey) InboxDivider(lang)
+                            InboxRow(entry, null)
+                        }
                     }
                 }
             }
@@ -293,6 +323,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }
+    // Triar o crear una secció temàtica: des del botó de la capçalera dels
+    // favorits (secció nova) o des del menú llarg d'una fila (afegir-hi).
+    if (sectionPicker) SectionPickerDialog(vm, lang, sectionTargetKey) { sectionPicker = false; sectionTargetKey = null }
     // «Resumeix a la wiki» des d'un xat: confirmació + estat en viu i avís en acabar.
     wikiFromChat?.let { target ->
         AlertDialog(
@@ -312,7 +345,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     }
     profile?.let { w -> WindProfileDialog(vm, lang, w) { profile = null } }
     rowTarget?.let { t ->
-        ChatRowDialog(vm, lang, t) { rowTarget = null }
+        ChatRowDialog(vm, lang, t, onToSection = { key -> sectionTargetKey = key; sectionPicker = true }) { rowTarget = null }
     }
 }
 
@@ -531,7 +564,7 @@ private sealed interface RowTarget {
 
 /** Accions d'una fila de la llista: canviar el nom o esborrar el xat. */
 @Composable
-private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, onClose: () -> Unit) {
+private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, onToSection: (String) -> Unit, onClose: () -> Unit) {
     var mode by remember(target) { mutableStateOf(0) } // 0 menú, 1 nom, 2 confirmar
     val currentName = when (target) {
         is RowTarget.Dm -> target.wind.name
@@ -582,11 +615,20 @@ private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, 
                         }
                     }
                     else -> {
+                        val sectionKey = when (target) {
+                            is RowTarget.Dm -> "wind:" + target.wind.id
+                            is RowTarget.Rot -> "rot:" + target.rot.id
+                        }
                         TextButton(
                             onClick = { mode = 1 },
                             modifier = Modifier.fillMaxWidth(),
                             contentPadding = PaddingValues(vertical = 10.dp),
                         ) { Text(tr(lang, "app.vents.chatRename"), modifier = Modifier.fillMaxWidth()) }
+                        TextButton(
+                            onClick = { onToSection(sectionKey); onClose() },
+                            modifier = Modifier.fillMaxWidth(),
+                            contentPadding = PaddingValues(vertical = 10.dp),
+                        ) { Text(tr(lang, "app.vents.toSection"), modifier = Modifier.fillMaxWidth()) }
                         TextButton(
                             onClick = { mode = 2 },
                             modifier = Modifier.fillMaxWidth(),
@@ -599,9 +641,64 @@ private fun ChatRowDialog(vm: GregalViewModel, lang: String, target: RowTarget, 
     }
 }
 
-/** Fila de missatgeria, sense targeta: la mascota porta tot el color. */
+/** Un grup de la bústia: favorits, una secció o la resta de converses. */
+internal data class InboxGroup(
+    val header: String,
+    val rows: List<VentsInboxRow>,
+    val isFavorites: Boolean = false,
+)
+
+/**
+ *parteix la bústia en grups: favorits primer, després les seccions temàtiques
+ * (en l'ordre que les has creat) i al final la resta. Dins de cada grup es manté
+ * l'ordre per recència. Les files d'una secció no es repeteixen a la resta.
+ */
+internal fun groupInbox(rows: List<VentsInboxRow>, meta: GregalApi.WindsMeta, lang: String = "ca"): List<InboxGroup> {
+    val groups = mutableListOf<InboxGroup>()
+    val claimed = mutableSetOf<String>()
+    val favs = rows.filter { it.key in meta.favorites }
+    if (favs.isNotEmpty()) {
+        favs.forEach { claimed.add(it.key) }
+        groups += InboxGroup(tr(lang, "app.vents.favorites"), favs, isFavorites = true)
+    }
+    for (s in meta.sections) {
+        val inSec = rows.filter { it.key in s.items && it.key !in claimed }
+        if (inSec.isEmpty()) continue
+        inSec.forEach { claimed.add(it.key) }
+        groups += InboxGroup(s.name, inSec)
+    }
+    val rest = rows.filter { it.key !in claimed }
+    if (rest.isNotEmpty()) groups += InboxGroup(tr(lang, "app.vents.allChats"), rest)
+    return groups
+}
+
+/** Capçalera d'un grup de la bústia: títol, compte i (als favorits) crear secció. */
 @Composable
+internal fun InboxHeader(title: String, count: Int, favorite: Boolean = false, lang: String = "ca", onAddSection: () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(title.uppercase(), color = Muted, fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+            modifier = Modifier.weight(1f))
+        if (favorite) IconButton(onClick = onAddSection, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Rounded.Folder, tr(lang, "app.vents.newSection"), tint = Muted, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/** «Comença un xat»: el tall entre converses i vents sense parlar. */
+@Composable
+internal fun InboxDivider(lang: String) {
+    Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
+}
+
+/** Fila de missatgeria, sense targeta: la mascota porta tot el color. */
 @OptIn(ExperimentalFoundationApi::class)
+@Composable
 internal fun ConversationRow(
     title: String,
     subtitle: String,
@@ -611,6 +708,8 @@ internal fun ConversationRow(
     mood: WindMood? = null,
     faces: List<Wind> = emptyList(),
     timestamp: Long = 0L,
+    favorite: Boolean = false,
+    onFavorite: (() -> Unit)? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     lang: String = "ca",
@@ -633,9 +732,13 @@ internal fun ConversationRow(
         WindHalo(accent, style, size = 48, stacked = faces.drop(1), online = false,
             mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE, showKit = faces.size <= 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
                     color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (onFavorite != null) Icon(
+                    if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                    null, tint = if (favorite) Sea else Muted,
+                    modifier = Modifier.size(16.dp).clickable(onClick = onFavorite))
                 if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1495,5 +1598,49 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
             else -> tr(lang, "app.where.phoneHint")
         }
         Text(hint, color = Muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 6.dp, top = 5.dp))
+    }
+}
+
+
+/** Triar secció: llistar les que hi ha (afegir-hi la fila) o crear-ne una de nova. */
+@Composable
+private fun SectionPickerDialog(vm: GregalViewModel, lang: String, targetKey: String?, onClose: () -> Unit) {
+    val meta by vm.windsMeta.collectAsState()
+    var name by remember { mutableStateOf("") }
+    androidx.compose.ui.window.Dialog(onDismissRequest = onClose) {
+        Surface(shape = RoundedCornerShape(20.dp), color = Superficie, shadowElevation = 6.dp) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(tr(lang, "app.vents.sections"), fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = Ink)
+                // Seccions que ja existeixen: un toc afegeix (o treu) la conversa.
+                meta.sections.forEach { sec ->
+                    val inIt = targetKey != null && targetKey in sec.items
+                    TextButton(
+                        onClick = {
+                            if (targetKey != null) vm.toggleSectionItem(sec.id, targetKey)
+                            onClose()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                    ) { Text((if (inIt) "✓ " else "") + sec.name + " · " + sec.items.size, modifier = Modifier.fillMaxWidth()) }
+                }
+                if (meta.sections.isEmpty()) Text(tr(lang, "app.vents.sectionsEmpty"), color = Muted, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it },
+                    label = { Text(tr(lang, "app.vents.newSectionName")) },
+                    singleLine = true, shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onClose) { Text(tr(lang, "app.vents.chatCancel")) }
+                    TextButton(
+                        onClick = {
+                            val n = name.trim()
+                            if (n.isNotEmpty()) { vm.createSection(n, targetKey); onClose() }
+                        },
+                        enabled = name.trim().isNotEmpty(),
+                    ) { Text(tr(lang, "app.vents.createSection")) }
+                }
+            }
+        }
     }
 }
