@@ -22,10 +22,12 @@ func delegateToolSpec() llm.ToolSpec {
 	str := map[string]any{"type": "string"}
 	return llm.ToolSpec{
 		Name:        "delegate",
-		Description: "Run 1-4 read-only subagents AT THE SAME TIME (read, grep, glob, web_*). When the work splits into independent parts (mapping several areas or modules, reviewing several files, web/docs research next to reading the code), put them all in ONE call: they run in parallel and each returns a summary. Make every task self-contained (paths, question, what to return). Not for a single lookup, a step that needs another's result, or work you are doing yourself. Use the summaries; do not redo the work. Optional `agent` picks a user-defined subagent (see SUBAGENTS in the system prompt) with its own tools, model and mode. Limits: 4 per call and 8 alive per process; the rest wait in a queue.",
+		Description: "Run 1-4 subagents AT THE SAME TIME. By default they only read (read, grep, glob, web_*): when the work splits into independent parts (mapping several areas or modules, reviewing several files, web/docs research next to reading the code), put them all in ONE call: they run in parallel and each returns a summary. To IMPLEMENT in parallel (code, autonomous and debug modes), give each task `files`: the files that subagent alone may create or edit (never the same file in two tasks); it writes only those, cannot run commands, and you integrate and run the checks afterwards. Make every task self-contained (paths, the shared interface, what to return). Not for a single lookup, a step that needs another's result, or work you are doing yourself. Use the summaries; do not redo the work. Optional `agent` picks a user-defined subagent (see SUBAGENTS in the system prompt) with its own tools, model and mode. Limits: 4 per call, 8 alive per process, 12 files per subagent, task text 2000 characters (6000 with files); the rest wait in a queue.",
 		Parameters: map[string]any{"type": "object", "properties": map[string]any{
 			"tasks": map[string]any{"type": "array", "items": map[string]any{"type": "object",
-				"properties": map[string]any{"prompt": str, "agent": str}, "required": []string{"prompt"}}},
+				"properties": map[string]any{"prompt": str, "agent": str,
+					"files": map[string]any{"type": "array", "items": str, "description": "Files this subagent alone may create or edit (implementation in parallel). Omit for read-only tasks."}},
+				"required": []string{"prompt"}}},
 		}, "required": []string{"tasks"}},
 	}
 }
@@ -219,10 +221,17 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			}
 			rr, primary, fallback, budget = dr, cfg.PrimTarget(dp, dr), cfg.FallbackTarget(dr), Budget(cfg, dr)
 		}
-		writable := mode == ModeCode
+		// Fill amb fitxers propis: implementa la seva part (només aquells fitxers).
+		owned := ownedFilesFrom(ctx)
+		if len(owned) > 0 && maxSteps < ownedChildSteps {
+			maxSteps = ownedChildSteps
+		}
+		writable := mode == ModeCode || len(owned) > 0
 		isolated := writable && IsolatedWorktree(workspace)
 		approver := delegateApproverFrom(ctx)
-		if writable {
+		if len(owned) > 0 {
+			extra += "\n\n" + ownedBrief(owned, workspace)
+		} else if writable {
 			if isolated {
 				extra += "\n\nYou work in an isolated git worktree: you may edit files there; the user reviews the changes before applying them."
 			} else if approver != nil {
@@ -244,7 +253,7 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			subName = def.Name
 		}
 		pol := delegatePolicy(permissions, subName)
-		if isolated {
+		if isolated || len(owned) > 0 {
 			pol.ProjectDir = workspace
 		}
 		// Cada invocació té el seu checklist. RunCalls serialitza todowrite
@@ -339,7 +348,9 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 				}
 				// Fora d'un worktree, tota acció que no sigui lectura passa
 				// per l'usuari encara que la política la deixés passar sola.
-				if writable && !isolated && !local && plans[i].Fixed == "" && !plans[i].Ask {
+				if len(owned) > 0 && !local {
+					plans[i] = planOwnedCall(pol, owned, workspace, c, plans[i])
+				} else if writable && !isolated && !local && plans[i].Fixed == "" && !plans[i].Ask {
 					if d, _ := pol.Decide(ModeInspect, c.Function.Name, c.Function.Arguments); d != "allow" {
 						plans[i] = CallPlan{Ask: true, Reason: "subagent change outside an isolated worktree"}
 					}
@@ -439,8 +450,9 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 	}
 	var a struct {
 		Tasks []struct {
-			Prompt string `json:"prompt"`
-			Agent  string `json:"agent"`
+			Prompt string   `json:"prompt"`
+			Agent  string   `json:"agent"`
+			Files  []string `json:"files"`
 		} `json:"tasks"`
 	}
 	if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
@@ -456,9 +468,30 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 		if strings.TrimSpace(t.Prompt) == "" {
 			return "", fmt.Errorf("tasca %d sense prompt", i+1)
 		}
-		if len(t.Prompt) > 2000 {
-			return "", fmt.Errorf("tasca %d massa llarga (màx 2000 caràcters)", i+1)
+		// Una tasca que implementa porta la interfície compartida: li cal més lloc.
+		limit := 2000
+		if len(t.Files) > 0 {
+			limit = MaxOwnedPrompt
 		}
+		if len(t.Prompt) > limit {
+			return "", fmt.Errorf("tasca %d massa llarga (màx %d caràcters)", i+1, limit)
+		}
+	}
+	// Fitxers propis (implementar en paral·lel): validats abans de llançar res.
+	perTask := make([][]string, len(a.Tasks))
+	for i, t := range a.Tasks {
+		perTask[i] = t.Files
+	}
+	owned, err := resolveOwnedFiles(turnModeFrom(ctx), delegateWorkspace(ctx), perTask)
+	if err != nil {
+		return "", err
+	}
+	prompts := make([]string, len(a.Tasks))
+	for i, t := range a.Tasks {
+		prompts[i] = t.Prompt
+	}
+	if err := missingFilesError(turnModeFrom(ctx), prompts, perTask); err != nil {
+		return "", err
 	}
 	// Subagents definits per l'usuari: un nom desconegut és un error que
 	// el model pot corregir (es diuen els que hi ha), no un fill genèric.
@@ -512,6 +545,7 @@ func delegateExec(ctx context.Context, argsJSON string) (string, error) {
 		started := time.Now()
 		baseCtx := withDelegateIdentity(ctx, id, t.Prompt, started)
 		baseCtx = withSubagentDef(baseCtx, defs[i])
+		baseCtx = withOwnedFiles(baseCtx, owned[i])
 		// Each child gets its own meter, chained to the parent's: the room
 		// shows child-only totals while the parent turn still sums everything.
 		baseCtx = llm.WithUsage(baseCtx, &llm.UsageMeter{})

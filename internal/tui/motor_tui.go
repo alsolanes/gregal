@@ -169,6 +169,7 @@ func (m Model) avanca() (tea.Model, tea.Cmd) {
 		m.cancel = cancel
 		m.cancelRequested = false
 		cwd, calls := m.cwd, p.Calls
+		ctx = agent.WithTurnMode(ctx, m.mode) // delegate: els fills escriuen només si el mode escriu
 		return m, func() tea.Msg {
 			defer cancel()
 			// Lectures alhora, escriptures en ordre (agent.RunCalls).

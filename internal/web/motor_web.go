@@ -71,6 +71,7 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	// think: no del rol (fins ara la web l'ignorava) i comptador de tokens
 	// reals: el topall de cost autònom en depèn.
 	runCtx = llm.WithThink(runCtx, role.Think)
+	runCtx = agent.WithTurnMode(runCtx, mode)
 	uso := &llm.UsageMeter{}
 	runCtx = llm.WithUsage(runCtx, uso)
 	// Bind children to this session's model/config, not the last Server

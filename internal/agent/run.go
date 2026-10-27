@@ -325,6 +325,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 	// think: no al rol = el model no raona. El valor viatja al context i tots
 	// els mètodes de xat el respecten; les crides de subagents hereden.
 	ctx = llm.WithThink(ctx, r.Think)
+	ctx = WithTurnMode(ctx, mode)
 	// Comptador del consum real: totes les crides que surten d'aquest
 	// context (passos, compactació, ampliació, síntesi, revisió) hi sumen.
 	meter := &llm.UsageMeter{}

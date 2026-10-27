@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- The agent implements in parallel: `delegate` tasks can carry `files`, the files that subagent alone may create or edit (code, autonomous and debug modes; never the same file in two tasks, at most 12 per subagent, task text up to 6000 characters so it can carry the shared interface). Such a subagent writes only those files with the same rule as the agent (writing inside the project needs no approval unless the config says otherwise), can only run read-only commands, and gets 24 steps; the agent integrates and runs the checks. The code-mode rules now say when: small independent files are written together in one step (several writes in the same answer, which is already parallel), and large parts or parts that need their own reading of the code go to subagents after the agent settles the shared interface. A task that orders creating or editing files without `files` is sent back to the model asking for them (otherwise the subagent stays read-only and the agent ends up copying its code).
+
 ## v1.20.0 - 2026-10-27 - Extensió de Chrome i la mascota juganera
 
 - Crews no longer fail at the very end: the reviewer's JSON answer is accepted when the model adds an extra field (`agent`, `revisor`…) or wraps it in a ```json block; before, the whole crew ended with "the review could not be done". On the phone, a crew that cannot start says why (the server's error, "can't reach the server" or a timeout) instead of only "That didn't work", and once the server has started it, a failed list refresh no longer shows an error (retrying created the new winds twice).

@@ -382,6 +382,7 @@ func (b *Bot) turnRun(ctx context.Context, chatID int64, st *chatState, text str
 	if _, r := rolActual(); r.Think != "" {
 		tctx = llm.WithThink(tctx, r.Think)
 	}
+	tctx = agent.WithTurnMode(tctx, mode)
 	uso := &llm.UsageMeter{}
 	tctx = llm.WithUsage(tctx, uso)
 	tctx = agent.WithHookScope(tctx, tgScope(chatID), b.dirOf(st))
