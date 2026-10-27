@@ -1,0 +1,161 @@
+/* El pati dels vents: un món il·lustrat que es desplaça de costat, amb un
+   racó per tema i la plaça al mig. Les mides de dins del món són en unitats
+   del dibuix: tot s'escala junt amb la pantalla. */
+.pati { position:relative; display:flex; flex-direction:column; gap:10px; min-height:0; }
+.pati-tools { display:flex; gap:8px; flex-wrap:wrap; }
+.pati-tool { font:inherit; font-size:12.5px; color:var(--text); background:var(--surface); border:1px solid var(--line-hi); border-radius:999px; padding:6px 12px; cursor:pointer; }
+.pati-tool:hover { background:var(--surface-hi); }
+.pati-tool[aria-label] { min-width:34px; font-size:15px; font-weight:700; padding:4px 10px; }
+
+/* Barra de racons: d'un toc, el pati hi va. */
+.pati-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+.pati-chip { flex:none; display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:12.5px; color:var(--muted); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
+.pati-chip:hover { color:var(--text); border-color:var(--line-hi); }
+.pati-chip[aria-current=true] { color:var(--text); border-color:var(--vw-accent); background:color-mix(in srgb,var(--vw-accent) 14%,var(--surface)); }
+.pati-chip-icon { font-size:14px; }
+.pati-chip-count { min-width:16px; font-size:11px; font-weight:700; color:var(--vw-ink); background:var(--vw-accent); border-radius:999px; padding:0 5px; text-align:center; }
+.pati-chip-count:empty { display:none; }
+
+.pati-scene {
+  --pati-sky-a:#BFE3F5; --pati-sky-b:#E6F4FA; --pati-sand-a:#EED9AE; --pati-sand-b:#DDC28E;
+  --pati-grass:#8DBF6A; --pati-path:#F6E9CC; --pati-wall:#D7A77A; --pati-leaves:#7DB36A; --pati-plot:#F8EBCF; --pati-plaza:#F3E1BB;
+  position:relative; height:clamp(420px,64vh,720px); border-radius:18px; overflow:hidden; border:1px solid var(--line-hi);
+  background:var(--pati-sand-b); box-shadow:0 14px 34px color-mix(in srgb,var(--ombra) 22%,transparent);
+  user-select:none; -webkit-user-select:none;
+}
+.pati-scene.is-night { --pati-sky-a:#16213B; --pati-sky-b:#2B3657; --pati-sand-a:#8E806A; --pati-sand-b:#6F634F; --pati-grass:#4F6E45; --pati-path:#9C927E; --pati-leaves:#3F5E3A; --pati-plot:#A39579; --pati-plaza:#978A6E; }
+.pati-scroller { position:absolute; inset:0; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; display:flex; align-items:center; }
+.pati-sizer { position:relative; flex:none; margin:auto; }
+.pati-world { position:absolute; left:0; top:0; transform-origin:0 0; cursor:grab; touch-action:none; }
+.pati-world.is-panning { cursor:grabbing; }
+.pati-ground { position:absolute; inset:0; display:block; }
+.pati-label-svg { font:650 15px system-ui,sans-serif; fill:#5B4A35; paint-order:stroke; stroke:rgba(255,248,232,.9); stroke-width:4px; stroke-linejoin:round; }
+.pati-scene.is-night .pati-label-svg { fill:#E8E1F5; stroke:rgba(20,24,40,.75); }
+.pati-stars { opacity:0; transition:opacity 1.5s; }
+.pati-scene.is-night .pati-stars { opacity:.9; }
+.pati-scene.is-night .pati-clouds { opacity:.15; }
+.pati-scene.is-night::after { content:''; position:absolute; inset:0; background:linear-gradient(transparent 0 40%, rgba(10,14,30,.22)); pointer-events:none; }
+.pati-clouds { animation:pati-drift 60s linear infinite alternate; }
+@keyframes pati-drift { from { transform:translateX(-40px); } to { transform:translateX(40px); } }
+.pati-chalk { transition:stroke-width .2s, opacity .2s; }
+.pati-scene.drop-hot .pati-chalk { stroke-width:9; opacity:1; animation:pati-glow 1s ease-in-out infinite; }
+@keyframes pati-glow { 50% { opacity:.55; } }
+.pati-scene.bell { animation:pati-ring .6s ease-in-out 2; }
+@keyframes pati-ring { 25% { transform:rotate(.3deg); } 75% { transform:rotate(-.3deg); } }
+.pati-swing { transform-box:fill-box; transform-origin:50% 0; animation:pati-sway 3.2s ease-in-out infinite; }
+@keyframes pati-sway { 0%,100% { transform:rotate(-6deg); } 50% { transform:rotate(6deg); } }
+.pati-fountain { transform-box:fill-box; transform-origin:50% 100%; animation:pati-spout 1.4s ease-in-out infinite; }
+@keyframes pati-spout { 50% { transform:scaleY(1.15); opacity:.6; } }
+
+/* Cel fix (no es desplaça): sol o lluna i ocells. */
+.pati-sky { position:absolute; left:0; right:0; top:0; pointer-events:none; overflow:hidden; z-index:2; }
+.pati-sun { position:absolute; top:12%; height:62%; aspect-ratio:1; border-radius:50%; transform:translateX(-50%); background:radial-gradient(circle at 40% 40%,#FFF3B0,#F7C948 60%,#F0A93A); box-shadow:0 0 22px 8px rgba(255,214,90,.55); transition:left 2s linear; }
+.pati-sun.moon { background:radial-gradient(circle at 60% 40%,#FBFAF2,#DCD8C8 70%); box-shadow:0 0 18px 4px rgba(230,230,255,.35); overflow:hidden; }
+.pati-sun.moon::after { content:''; position:absolute; inset:-4% 30% 0 -18%; border-radius:50%; background:var(--pati-sky-a); }
+.pati-bird { position:absolute; left:-30px; width:18px; animation:pati-fly 30s linear infinite; }
+.pati-bird svg { display:block; width:100%; animation:pati-flap .5s ease-in-out infinite alternate; }
+.pati-scene.is-night .pati-bird { display:none; }
+@keyframes pati-fly { from { left:-30px; } to { left:calc(100% + 30px); } }
+@keyframes pati-flap { to { transform:scaleY(.4); } }
+
+/* Els vents (mides en unitats del món). */
+.pati-layer, .pati-castles { position:absolute; inset:0; pointer-events:none; }
+.pati-wind {
+  position:absolute; width:110px; transform:translate(-50%,-92%); display:flex; flex-direction:column; align-items:center;
+  background:transparent; border:0; padding:0; cursor:grab; color:inherit; font:inherit; touch-action:none; pointer-events:auto;
+}
+.pati-wind:focus-visible { outline:3px solid var(--vw-accent); outline-offset:3px; border-radius:12px; }
+.pati-wind .winds-face { position:relative; width:78px; height:78px; transition:transform .25s; filter:drop-shadow(0 3px 2px rgba(60,40,20,.18)); }
+.pati-wind.face-left .winds-face { transform:scaleX(-1); }
+.pati-wind:hover { z-index:9000 !important; }
+.pati-wind:hover .winds-face { filter:drop-shadow(0 0 6px rgba(255,255,255,.9)) drop-shadow(0 3px 2px rgba(60,40,20,.2)); }
+.pati-wind.is-dragging { cursor:grabbing; z-index:9999 !important; }
+.pati-wind.is-dragging .winds-face { transform:scale(1.15) rotate(-6deg); }
+.pati-shadow { position:absolute; bottom:24px; left:50%; width:52px; height:9px; transform:translateX(-50%); border-radius:50%; background:rgba(70,50,25,.22); filter:blur(1px); }
+.pati-name { margin-top:-2px; font-size:13px; font-weight:650; color:#3E3020; background:rgba(255,250,240,.86); border-radius:999px; padding:1px 8px; white-space:nowrap; }
+.pati-scene.is-night .pati-name { background:rgba(30,34,52,.82); color:#EDE6FF; }
+.pati-doing { display:none; margin-top:3px; font-size:12px; color:#3E3020; background:rgba(255,250,240,.96); border:1px solid rgba(60,48,36,.25); border-radius:8px; padding:2px 8px; white-space:nowrap; }
+.pati-wind:hover .pati-doing, .pati-wind:focus-visible .pati-doing { display:block; }
+/* Caminar, córrer i pols. */
+.pati-wind.is-moving .winds-face { animation:pati-walk .45s ease-in-out infinite; }
+.pati-wind.is-running .winds-face { animation:pati-run .28s ease-in-out infinite; }
+.pati-wind.face-left.is-moving .winds-face { animation-name:pati-walk-l; }
+.pati-wind.face-left.is-running .winds-face { animation-name:pati-run-l; }
+@keyframes pati-walk { 0%,100% { transform:rotate(-4deg); } 50% { transform:rotate(4deg) translateY(-2px); } }
+@keyframes pati-walk-l { 0%,100% { transform:scaleX(-1) rotate(-4deg); } 50% { transform:scaleX(-1) rotate(4deg) translateY(-2px); } }
+@keyframes pati-run { 0%,100% { transform:translateY(0) rotate(-6deg); } 50% { transform:translateY(-9px) rotate(6deg); } }
+@keyframes pati-run-l { 0%,100% { transform:scaleX(-1) translateY(0) rotate(-6deg); } 50% { transform:scaleX(-1) translateY(-9px) rotate(6deg); } }
+.pati-wind.is-running::after { content:''; position:absolute; bottom:22px; left:50%; width:18px; height:9px; border-radius:50%; background:rgba(200,170,120,.65); animation:pati-dust .45s ease-out infinite; }
+.pati-wind.is-running:not(.face-left)::after { margin-left:-30px; }
+.pati-wind.is-running.face-left::after { margin-left:12px; }
+@keyframes pati-dust { from { transform:scale(.5); opacity:.8; } to { transform:scale(1.6) translateY(-4px); opacity:0; } }
+/* El que fan al seu racó. */
+.pati-wind[data-act=home-hop]:not(.is-moving) .winds-face { animation:pati-hop .9s ease-in-out infinite; }
+.pati-wind[data-act=home-dance]:not(.is-moving) .winds-face { animation:pati-dance 1.1s ease-in-out infinite; }
+.pati-wind[data-act=home-swim]:not(.is-moving) .winds-face { animation:pati-swim 1.6s ease-in-out infinite; }
+.pati-wind[data-act=home-laps]:not(.is-moving) .winds-face { animation:pati-hop .5s ease-in-out infinite; }
+.pati-wind[data-act=home-stir]:not(.is-moving) .winds-face, .pati-wind[data-act=work]:not(.is-moving) .winds-face { animation:pati-hammer .6s ease-in-out infinite; }
+.pati-wind[data-act=home-carry]:not(.is-moving) .winds-face { animation:pati-hop 1.2s ease-in-out infinite; }
+.pati-wind[data-act=line]:not(.is-moving) .winds-face { animation:pati-hop 1.6s ease-in-out infinite; }
+.pati-wind[data-act=swing]:not(.is-moving) .winds-face { transform-origin:50% -60%; animation:pati-swing 1.6s ease-in-out infinite; }
+.pati-wind[data-act=slide]:not(.is-moving) .winds-face { animation:pati-slide 2.2s ease-in infinite; }
+.pati-wind[data-act=sleep] .winds-face { opacity:.85; animation:pati-sleep 3s ease-in-out infinite; }
+@keyframes pati-dance { 0%,100% { transform:rotate(-8deg); } 50% { transform:rotate(8deg) translateY(-3px); } }
+@keyframes pati-hop { 0%,100% { transform:translateY(0); } 40% { transform:translateY(-7px); } }
+@keyframes pati-swim { 0%,100% { transform:translateY(6px) rotate(-6deg); } 50% { transform:translateY(10px) rotate(6deg); } }
+@keyframes pati-hammer { 0%,100% { transform:rotate(0); } 30% { transform:rotate(-7deg) translateY(-2px); } 60% { transform:rotate(3deg); } }
+@keyframes pati-swing { 0%,100% { transform:rotate(-14deg); } 50% { transform:rotate(14deg); } }
+@keyframes pati-slide { 0% { transform:translate(-16px,-30px) rotate(-12deg); } 60% { transform:translate(12px,4px) rotate(18deg); } 75%,100% { transform:translate(12px,4px) rotate(0); } }
+@keyframes pati-sleep { 50% { transform:translateY(2px) scale(1.02,.97); } }
+/* Efecte i bombolla de diàleg. */
+.pati-fx { position:absolute; top:-4px; right:2px; font-size:19px; pointer-events:none; animation:pati-float 2.4s ease-in-out infinite; }
+.pati-fx:empty { display:none; }
+.pati-wind.is-moving .pati-fx { display:none; }
+@keyframes pati-float { 0% { transform:translateY(4px); opacity:0; } 25% { opacity:1; } 100% { transform:translateY(-18px); opacity:0; } }
+.pati-bubble {
+  position:absolute; bottom:100%; left:50%; transform:translateX(-50%); margin-bottom:2px; max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  font-size:14px; font-weight:600; color:#2D2418; background:#FFFDF7; border:1.5px solid #3B3024; border-radius:12px; padding:3px 10px; z-index:3;
+  animation:pati-pop .25s ease-out; pointer-events:none;
+}
+.pati-bubble::after { content:''; position:absolute; left:50%; bottom:-6px; transform:translateX(-50%) rotate(45deg); width:8px; height:8px; background:#FFFDF7; border-right:1.5px solid #3B3024; border-bottom:1.5px solid #3B3024; }
+@keyframes pati-pop { from { transform:translateX(-50%) scale(.6); opacity:0; } to { transform:translateX(-50%) scale(1); opacity:1; } }
+.pati-ball { position:absolute; font-size:24px; transform:translate(-50%,-50%); pointer-events:none; z-index:2000; }
+.pati-castle { position:absolute; font-size:20px; transform:translate(-50%,-50%); animation:pati-pop-in .4s ease-out; transition:opacity 2s; }
+.pati-castle.fade { opacity:0; }
+@keyframes pati-pop-in { from { transform:translate(-50%,-50%) scale(0); } }
+.pati-balloon { position:absolute; font-size:28px; pointer-events:none; z-index:9500; animation:pati-up 3.6s ease-out forwards; }
+@keyframes pati-up { 0% { transform:translateY(0) scale(.6); opacity:0; } 15% { opacity:1; } 100% { transform:translateY(-200px) translateX(12px) scale(1); opacity:0; } }
+.pati-sign { position:absolute; width:250px; display:flex; flex-direction:column; gap:2px; text-align:left; font:inherit; font-size:14px; color:#2D2418; background:#FFF6DE; border:2px solid #8A6A45; border-radius:10px; padding:7px 11px; box-shadow:0 4px 10px rgba(60,40,20,.2); cursor:pointer; z-index:9200; pointer-events:auto; animation:pati-rise .3s ease-out; }
+.pati-sign strong { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pati-sign span { color:#6B5A44; font-size:.9em; }
+.pati-sign:hover { background:#FFEFC2; }
+.pati-scene.is-paused .pati-wind .winds-face, .pati-scene.is-paused .pati-fx, .pati-scene.is-paused .pati-clouds, .pati-scene.is-paused .pati-bird, .pati-scene.is-paused .pati-swing, .pati-scene.is-paused .pati-fountain { animation-play-state:paused; }
+
+/* Panell de la rotllana i fitxa d'un vent (fixos sobre l'escena). */
+.pati-circle-panel, .pati-card {
+  background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; padding:12px 14px;
+  box-shadow:0 10px 26px color-mix(in srgb,var(--ombra) 25%,transparent); font-size:13px; color:var(--text);
+}
+.pati-circle-panel { position:absolute; left:12px; bottom:12px; z-index:20; width:min(440px,calc(100% - 24px)); display:flex; flex-direction:column; gap:10px; animation:pati-rise .25s ease-out; }
+@keyframes pati-rise { from { transform:translateY(8px); opacity:0; } }
+.pati-circle-actions, .pati-card-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.pati-btn { font:inherit; font-size:12.5px; border-radius:999px; padding:6px 13px; border:1px solid var(--line-hi); background:transparent; color:var(--text); cursor:pointer; }
+.pati-btn:hover { background:var(--surface-hi); }
+.pati-btn.primary { background:var(--vw-accent); color:var(--vw-ink); border-color:transparent; }
+.pati-task { display:flex; gap:8px; align-items:flex-end; }
+.pati-task textarea { flex:1; resize:vertical; font:inherit; font-size:13px; background:var(--bg); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:7px 10px; }
+.pati-card { position:absolute; top:12px; right:12px; width:min(330px,calc(100% - 24px)); z-index:21; display:flex; flex-direction:column; gap:8px; }
+.pati-card-head { display:flex; gap:10px; align-items:center; }
+.pati-card-head .winds-face { width:56px; height:56px; flex:none; }
+.pati-card-head div { display:flex; flex-direction:column; flex:1; min-width:0; }
+.pati-card-head strong { font-size:15px; }
+.pati-card-head span { color:var(--muted); font-size:12px; }
+.pati-close { background:transparent; border:0; color:var(--muted); font-size:15px; cursor:pointer; align-self:flex-start; }
+.pati-now { margin:0; font-weight:600; }
+.pati-think, .pati-last { margin:0; color:var(--muted); line-height:1.45; }
+.pati-last:empty { display:none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pati-wind .winds-face, .pati-fx, .pati-ball, .pati-clouds, .pati-bubble, .pati-scene.bell, .pati-bird, .pati-swing, .pati-fountain, .pati-wind::after { animation:none !important; }
+  .pati-wind { transition:none !important; }
+}
