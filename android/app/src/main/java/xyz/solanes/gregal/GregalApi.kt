@@ -494,7 +494,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
         }
     }
 
@@ -656,7 +656,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         val hist = (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
         }
         return Triple(reply.optString("wind"), reply.optString("text"),
             if (o.optBoolean("parcial", false)) markParcial(hist) else hist)
@@ -667,7 +667,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
         }
     }
 
@@ -681,6 +681,19 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Feines dels vents (resum: estat, qui, fitxers i resultat). */
+    /** La mascota: nom, cara, fil i el resum del que ha passat des de l'última visita. */
+    fun cap(lang: String): CapState =
+        CapState.parse(JSONObject(read(conn("/api/winds/cap?lang=" + java.net.URLEncoder.encode(lang, "UTF-8"), "GET"))))
+
+    /** Li diu una cosa a la mascota; force = el camí que tria l'usuari ("self", "wind:<id>", "rotllana", "crew"). */
+    fun capAsk(message: String, lang: String, force: String = ""): CapDecision =
+        CapDecision.parse(post("/api/winds/cap", JSONObject().put("message", message).put("lang", lang).put("force", force)))
+
+    fun capRename(name: String): CapState {
+        val o = post("/api/winds/cap/profile", JSONObject().put("name", name))
+        return CapState(name = o.optString("name"), color = o.optString("color"), style = o.optString("style"))
+    }
+
     fun windTasks(): List<WindTask> {
         val o = JSONObject(read(conn("/api/winds/tasks?summary=1", "GET")))
         val a = o.optJSONArray("tasks") ?: JSONArray()
@@ -781,7 +794,7 @@ class GregalApi(val base: String, val token: String) {
                 val a = o.optJSONArray("history") ?: JSONArray()
                 val hist = (0 until a.length()).mapNotNull { i ->
                     val item = a.optJSONObject(i) ?: return@mapNotNull null
-                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
+                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
                 }
                 val parcial = o.optBoolean("parcial", false)
                 WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
@@ -836,7 +849,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = item.optLong("ts", 0L))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
         }
     }
 
@@ -1095,3 +1108,10 @@ class GregalApi(val base: String, val token: String) {
 }
 
 class ApiException(msg: String) : Exception(msg)
+
+/**
+ * L'hora d'un missatge en mil·lisegons. El servidor la desa en segons; abans
+ * es llegia tal qual i tots els xats semblaven del gener de 1970, de manera
+ * que els que acabaves d'escriure al mòbil sempre quedaven a dalt.
+ */
+internal fun msgMillis(ts: Long): Long = if (ts in 1 until 100_000_000_000L) ts * 1000 else ts

@@ -2363,7 +2363,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun createRotllana(name: String, members: List<String>, onError: () -> Unit = {}, onDone: () -> Unit = {}) {
+    fun createRotllana(name: String, members: List<String>, onError: () -> Unit = {}, onDone: () -> Unit = {}, onOpened: (String) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
@@ -2374,7 +2374,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _rotllanes.value = list
                 onDone()
-                if (id.isNotBlank() && list.any { it.id == id }) openVentsChat("rot:" + id)
+                if (id.isNotBlank() && list.any { it.id == id }) { openVentsChat("rot:" + id); onOpened(id) }
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
             }
@@ -2873,6 +2873,81 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _squads.value = sq
             } catch (_: Exception) { }
+        }
+    }
+
+    // --- La mascota, cap de gabinet ---
+
+    /** El que hi ha pendent de dir «endavant»: el missatge i la decisió. */
+    data class CapPending(val message: String, val decision: CapDecision)
+    data class CapUi(val state: CapState = CapState(), val loaded: Boolean = false, val busy: Boolean = false,
+                     val pending: CapPending? = null, val asked: String = "", val error: Boolean = false)
+    private val _cap = MutableStateFlow(CapUi())
+    val cap: StateFlow<CapUi> = _cap.asStateFlow()
+
+    fun loadCap() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val st = withContext(Dispatchers.IO) { source.api().cap(idioma.value) }
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(state = st, loaded = true)
+            } catch (_: Exception) {
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(loaded = true)
+            }
+        }
+    }
+
+    /** Li diu una cosa a la mascota; amb force, l'usuari tria un altre camí per al mateix missatge. */
+    fun askCap(rawMessage: String, force: String = "") {
+        val message = rawMessage.trim()
+        if (message.isEmpty() || _cap.value.busy) return
+        val source = _conn.value; val epoch = companionEpoch
+        _cap.value = _cap.value.copy(busy = true, asked = message, pending = null, error = false)
+        viewModelScope.launch {
+            try {
+                val d = withContext(Dispatchers.IO) { source.api().capAsk(message, idioma.value, force) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val st = _cap.value.state.copy(history = d.history, brief = "", briefCount = 0)
+                _cap.value = _cap.value.copy(state = st, busy = false,
+                    pending = if (d.delegates) CapPending(message, d) else null)
+            } catch (_: Exception) {
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true)
+            }
+        }
+    }
+
+    /** Endavant: fa el que la mascota ha decidit (o l'usuari ha triat). */
+    fun capGo() {
+        val p = _cap.value.pending ?: return
+        _cap.value = _cap.value.copy(pending = null)
+        val d = p.decision
+        when (d.action) {
+            "wind" -> d.winds.firstOrNull()?.let { id ->
+                openVentsChat("wind:$id")
+                sendWindMessage(id, p.message)
+            }
+            "rotllana" -> if (d.rotllana.isNotBlank() && _rotllanes.value.any { it.id == d.rotllana }) {
+                openVentsChat("rot:" + d.rotllana)
+                sendRotllanaMessage(d.rotllana, p.message)
+            } else {
+                val names = d.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id }?.name }
+                createRotllana(capRotllanaName(names, idioma.value), d.winds, onOpened = { id -> sendRotllanaMessage(id, p.message) })
+            }
+            "crew" -> { openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message }) }
+        }
+    }
+
+    fun capDismiss() { _cap.value = _cap.value.copy(pending = null) }
+
+    fun renameCap(name: String) {
+        val n = name.trim()
+        if (n.isEmpty()) return
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val st = withContext(Dispatchers.IO) { source.api().capRename(n) }
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(state = _cap.value.state.copy(name = st.name))
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
         }
     }
 

@@ -326,7 +326,7 @@ func TestRotllanaHistorySpeakerIdentitySurvivesReloadAndRename(t *testing.T) {
 	assert := func(raw []byte) {
 		t.Helper()
 		var got struct {
-			History []map[string]string `json:"history"`
+			History []histMsg `json:"history"`
 		}
 		if err := json.Unmarshal(raw, &got); err != nil {
 			t.Fatal(err)
@@ -344,7 +344,7 @@ func TestRotllanaHistorySpeakerIdentitySurvivesReloadAndRename(t *testing.T) {
 	}
 	assert(rec.Body.Bytes())
 	var first struct {
-		History []map[string]string `json:"history"`
+		History []histMsg `json:"history"`
 	}
 	_ = json.Unmarshal(rec.Body.Bytes(), &first)
 	if first.History[0]["speaker_id"] != wind.ID || first.History[0]["speaker_name"] != "Xaloc" {

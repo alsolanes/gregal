@@ -45,7 +45,7 @@ func TestRotllanaSplitsMultiVoiceReply(t *testing.T) {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
 	}
 	var out struct {
-		History []map[string]string `json:"history"`
+		History []histMsg `json:"history"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
@@ -96,7 +96,7 @@ func TestRotllanaSplitsPreambleAndColons(t *testing.T) {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
 	}
 	var out struct {
-		History []map[string]string `json:"history"`
+		History []histMsg `json:"history"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)

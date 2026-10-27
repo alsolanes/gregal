@@ -122,10 +122,26 @@ func (s *Server) handleWindTasks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET required", 405)
 		return
 	}
-	entries, err := os.ReadDir(filepath.Join(s.windStateDir(), "wind-tasks"))
-	if err != nil && !os.IsNotExist(err) {
+	records, err := s.windTaskRecords()
+	if err != nil {
 		http.Error(w, "could not read work history", 500)
 		return
+	}
+	if r.URL.Query().Get("summary") == "1" {
+		out := s.windTaskSummaries(records)
+		out = append(s.crewTasksInDiscussion(out), out...)
+		writeJSON(w, map[string]any{"tasks": out})
+		return
+	}
+	writeJSON(w, map[string]any{"tasks": records})
+}
+
+// windTaskRecords són les feines d'aquest usuari, de la més nova a la més
+// vella (100 com a molt).
+func (s *Server) windTaskRecords() ([]windTaskRecord, error) {
+	entries, err := os.ReadDir(filepath.Join(s.windStateDir(), "wind-tasks"))
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
 	}
 	records := []windTaskRecord{}
 	for _, entry := range entries {
@@ -149,20 +165,19 @@ func (s *Server) handleWindTasks(w http.ResponseWriter, r *http.Request) {
 	if len(records) > 100 {
 		records = records[:100]
 	}
-	if r.URL.Query().Get("summary") == "1" {
-		out := make([]windTaskSummary, 0, len(records))
-		for _, rec := range records {
-			updated := rec.Created
-			if info, err := os.Stat(filepath.Join(s.windStateDir(), "wind-tasks", rec.ID+".json")); err == nil {
-				updated = info.ModTime().UTC()
-			}
-			out = append(out, summarizeWindTask(rec, updated))
+	return records, nil
+}
+
+func (s *Server) windTaskSummaries(records []windTaskRecord) []windTaskSummary {
+	out := make([]windTaskSummary, 0, len(records))
+	for _, rec := range records {
+		updated := rec.Created
+		if info, err := os.Stat(filepath.Join(s.windStateDir(), "wind-tasks", rec.ID+".json")); err == nil {
+			updated = info.ModTime().UTC()
 		}
-		out = append(s.crewTasksInDiscussion(out), out...)
-		writeJSON(w, map[string]any{"tasks": out})
-		return
+		out = append(out, summarizeWindTask(rec, updated))
 	}
-	writeJSON(w, map[string]any{"tasks": records})
+	return out
 }
 
 // crewTasksInDiscussion són les feines d'equip que encara són a la

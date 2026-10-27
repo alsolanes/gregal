@@ -62,6 +62,8 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/coneixement", h.route((*Server).handleWindConeixement))
 	handle("/api/winds/resum", h.route((*Server).handleWindsResum))
 	handle("/api/winds/suggest", h.route((*Server).handleWindSuggest))
+	handle("/api/winds/cap", h.route((*Server).handleCap))
+	handle("/api/winds/cap/profile", h.route((*Server).handleCapProfile))
 	handle("/api/user/skills", h.route((*Server).handleUserSkills))
 }
 

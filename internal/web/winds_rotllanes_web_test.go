@@ -56,7 +56,7 @@ func TestRotllanaWebSearch(t *testing.T) {
 	}
 	// La resposta de la cerca queda com a missatge del parlant amb la seva identitat.
 	var out struct {
-		History []map[string]string `json:"history"`
+		History []histMsg `json:"history"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)

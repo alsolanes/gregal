@@ -7,6 +7,8 @@ internal data class VentsInboxRow(
     val preview: String,
     val members: List<Wind>,
     val timestamp: Long,
+    /** Hi ha missatges, encara que siguin antics i sense hora. */
+    val hasMessages: Boolean = timestamp > 0,
 )
 
 private val MARKS = Regex("\\p{M}+")
@@ -27,7 +29,7 @@ internal fun ventsInbox(
         if (!identityMatches && match == null) return
         val preview = (if (!identityMatches) match else messages.lastOrNull())?.text ?: fallback
         rows += VentsInboxRow(key, title, stripMdInline(preview).replace(Regex("\\s+"), " ").trim(), members,
-            messages.maxOfOrNull { it.ts } ?: 0L) to messages.isNotEmpty()
+            messages.maxOfOrNull { it.ts } ?: 0L, messages.isNotEmpty()) to messages.isNotEmpty()
     }
     winds.forEach { w -> add("wind:${w.id}", w.name, w.role, listOf(w), chats[w.id].orEmpty()) }
     groups.forEach { g ->
@@ -36,4 +38,23 @@ internal fun ventsInbox(
     }
     return rows.sortedWith(compareByDescending<Pair<VentsInboxRow, Boolean>> { it.first.timestamp }
         .thenByDescending { it.second }).map { it.first }
+}
+
+/**
+ * L'hora d'una fila: avui l'hora, ahir «ahir», aquesta setmana el dia i,
+ * si és més antic, la data. Només l'hora feia semblar més nou un xat d'ahir.
+ */
+internal fun inboxWhen(ms: Long, lang: String, now: Long = System.currentTimeMillis(),
+                       zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String {
+    val at = java.time.Instant.ofEpochMilli(ms).atZone(zone)
+    val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val days = java.time.temporal.ChronoUnit.DAYS.between(at.toLocalDate(), today)
+    val locale = java.util.Locale.forLanguageTag(if (lang == "en") "en" else "ca")
+    fun f(p: String) = java.time.format.DateTimeFormatter.ofPattern(p, locale).format(at)
+    return when {
+        days <= 0L -> f("HH:mm")
+        days == 1L -> tr(lang, "app.inbox.yesterday")
+        days < 7L -> f("EEE")
+        else -> f("d MMM")
+    }
 }

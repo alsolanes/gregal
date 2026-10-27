@@ -523,7 +523,7 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "user", Content: task})
+	hist.messages = append(hist.messages, llm.Message{Role: "user", Content: task, Ts: time.Now().Unix()})
 	_ = saveRotllanaHistory(s, rot.ID, hist.messages)
 	hist.mu.Unlock()
 	job := &crewJob{path: crewJobPath(s, rot.ID)}
@@ -551,7 +551,7 @@ func (s *Server) crewSay(rot Rotllana, wind companion.Wind, text string) {
 	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: wind.Name + ": " + text, SpeakerID: wind.ID, SpeakerName: wind.Name})
+	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: wind.Name + ": " + text, SpeakerID: wind.ID, SpeakerName: wind.Name, Ts: time.Now().Unix()})
 	_ = saveRotllanaHistory(s, rot.ID, hist.messages)
 	hist.mu.Unlock()
 }

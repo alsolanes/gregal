@@ -202,7 +202,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 
 	conversation := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
-		conversation = append(conversation, llm.Message{Role: "user", Content: msg})
+		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
@@ -288,12 +288,12 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		// La primera veu del primer vent és la resposta del torn.
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
 		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
 			continue
 		}
 		for _, v := range voices {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{v.wind, v.text})
 		}
 	}

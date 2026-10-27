@@ -113,6 +113,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
             kotlinx.coroutines.delay(if (anyRunning) 8_000 else 60_000)
         }
     }
+    // El fil d'una feina en marxa rep missatges de la colla: es torna a llegir
+    // perquè la conversa pugi a dalt amb l'hora bona.
+    LaunchedEffect(windTasks) {
+        windTasks.orEmpty().filter { it.running && it.thread.isNotBlank() }.forEach { vm.loadRotllanaChat(it.thread) }
+    }
     val winds by vm.winds.collectAsState()
     val rotllanes by vm.rotllanes.collectAsState()
     val chats by vm.windChat.collectAsState()
@@ -125,6 +130,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val conn by vm.conn.collectAsState()
     // Veus proactives per obrir: es consulten en obrir els Vents i cada minut.
     LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(60_000) } }
+    // La mascota: en obrir els Vents (o canviar de lloc) diu què ha passat mentrestant.
+    LaunchedEffect(conn) { vm.loadCap() }
+    // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
+    // xat: així puja a dalt de la llista.
+    LaunchedEffect(news) { news.forEach { vm.loadWindChat(it) } }
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
     // diàleg del sistema el permís queda denegat i no sona mai res.
@@ -246,17 +256,15 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         ConversationRow(w.name, w.role, Color(w.argb), w.faceStyle, onClick = { profile = w })
                     }
                 } else {
+                    if (query.isBlank()) item { CapHero(vm, lang, winds) }
                     if (winds.isNotEmpty() && query.isBlank()) item {
                         VentsCrew(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
                     }
+                    // Programats, wiki i feines en una sola fila: les converses
+                    // han de quedar a dalt, no sota tres targetes.
                     if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
-                        ProgramatsButton(lang) { programatsOpen = true }
-                    }
-                    if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
-                        WikiButton(lang) { wikiOpen = true }
-                    }
-                    if (query.isBlank() && !windTasks.isNullOrEmpty()) item {
-                        FeinesButton(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
+                        VentsShortcuts(lang, windTasks.orEmpty().count { it.running }, !windTasks.isNullOrEmpty(),
+                            onProgramats = { programatsOpen = true }, onWiki = { wikiOpen = true }, onFeines = { feinesOpen = true })
                     }
                     /** Fila amb favorit: estrella viva si hi és, i el menú llarg la marca. */
                     @Composable
@@ -295,7 +303,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     // Les converses de veritat primer; els vents amb qui encara no
                     // has parlat, a sota amb el seu títol. Abans tot anava barrejat i
                     // una fila «Xaloc · Música» semblava una conversa buida.
-                    val firstIdle = rows.indexOfFirst { it.timestamp == 0L }
+                    val firstIdle = rows.indexOfFirst { !it.hasMessages }
                     val idleKey = if (query.isBlank() && firstIdle > 0) rows[firstIdle].key else null
                     // Grups: favorits a dalt, després les seccions temàtiques, i la
                     // resta a baix; dins de cada grup, la més recent primer.
@@ -717,8 +725,7 @@ internal fun ConversationRow(
     val unread = mood == WindMood.NEWS
     val state = if (unread) null else windStateLabel(lang, mood ?: WindMood.IDLE, busy)
     val receipt = remember(timestamp, lang) {
-        if (timestamp > 0L) java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
-            .format(java.util.Date(timestamp)) else ""
+        if (timestamp > 0L) inboxWhen(timestamp, lang) else ""
     }
     Row(
         Modifier.fillMaxWidth().heightIn(min = 80.dp)
