@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	cryptorand "crypto/rand"
+	"crypto/md5"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -415,6 +416,17 @@ func (h *Hub) mux() *http.ServeMux {
 	_ = s
 	handle("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		// La web viu incrustada al binari i canvia amb cada desplegament:
+		// l'ETag obliga els navegadors a revalidar en comptes de servir una
+		// còpia antiga de la cache (un login vell sota un servidor nou és
+		// confús i ha provocat pantalles amb claus sense traduir).
+		etag := `"` + fmt.Sprintf("%x", md5.Sum(indexHTML)) + `"`
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("ETag", etag)
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
 		w.Write(indexHTML)
 	})
 	// Mòduls de la UI (app/*.js). Sense token: són estàtics i no toquen
@@ -428,6 +440,15 @@ func (h *Hub) mux() *http.ServeMux {
 		raw, err := assets.ReadFile(name)
 		if err != nil {
 			http.NotFound(w, r)
+			return
+		}
+		// Com la pàgina principal: els mòduls canvien amb cada desplegament
+		// i el navegador ha de revalidar, no confiar en una còpia antiga.
+		etag := `"` + fmt.Sprintf("%x", md5.Sum(raw)) + `"`
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("ETag", etag)
+		if r.Header.Get("If-None-Match") == etag {
+			w.WriteHeader(http.StatusNotModified)
 			return
 		}
 		switch filepath.Ext(name) {

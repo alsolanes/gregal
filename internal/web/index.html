@@ -3121,21 +3121,32 @@ async function demanaCredencials() {
     };
     tick();
   });
-  const t = window.gregalT ? window.gregalT : () => '';
+  // Les cadenes viuen aquí mateix, no a i18n.js: la pantalla d'entrada ha
+  // de sortir ben pintada encara que el navegador tingui un i18n.js vell a
+  // la cache. Si gregalT hi és, mana (manté l'idioma triat a la web).
+  const CA = { title: 'Entra a Gregal', subtitle: 'Usuari i contrasenya del teu compte.', user: 'Usuari', password: 'Contrasenya', enter: 'Entra', bad: 'Usuari o contrasenya incorrectes.', offline: 'No hi ha connexió amb el servidor.' };
+  const EN = { title: 'Sign in to Gregal', subtitle: 'Your account user and password.', user: 'User', password: 'Password', enter: 'Sign in', bad: 'Wrong user or password.', offline: 'No connection to the server.' };
+  const t = k => {
+    // k arriba amb el prefix complet ('auth.title'); dic, sense prefix.
+    const curt = k.startsWith('auth.') ? k.slice(5) : k;
+    if (typeof window.gregalT === 'function') { const v = window.gregalT(k); if (v && v !== k) return v; }
+    const L = (document.documentElement.lang || 'ca').toLowerCase().startsWith('en') ? EN : CA;
+    return L[curt] || CA[curt] || k;
+  };
   loginPendent = new Promise(resolve => {
     const back = document.createElement('div');
     back.id = 'gregalLogin';
-    back.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,22,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:9999';
+    back.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,22,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
     const card = document.createElement('div');
-    card.style.cssText = 'background:var(--paper,#fff);color:var(--ink,#22303F);border-radius:16px;padding:28px 26px;width:min(92vw,340px);box-shadow:0 18px 50px rgba(0,0,0,.35);font:inherit';
+    card.style.cssText = 'background:var(--panel,#fff);color:var(--ink);border-radius:16px;padding:28px 26px;width:min(92vw,340px);box-shadow:0 18px 50px rgba(0,0,0,.35);font:inherit';
     card.innerHTML =
       '<h2 style="margin:0 0 4px;font-size:18px;font-weight:700">' + t('auth.title') + '</h2>' +
-      '<p style="margin:0 0 18px;color:var(--muted,#8A93A8);font-size:13px">' + t('auth.subtitle') + '</p>' +
+      '<p style="margin:0 0 18px;color:var(--muted);font-size:13px">' + t('auth.subtitle') + '</p>' +
       '<form id="gregalLoginForm" style="display:flex;flex-direction:column;gap:10px">' +
-      '<input name="user" type="text" autocomplete="username" placeholder="' + t('auth.user') + '" aria-label="' + t('auth.user') + '" style="padding:11px 12px;border:1px solid var(--line,#D8DEE9);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
-      '<input name="password" type="password" autocomplete="current-password" placeholder="' + t('auth.password') + '" aria-label="' + t('auth.password') + '" style="padding:11px 12px;border:1px solid var(--line,#D8DEE9);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
-      '<p id="gregalLoginError" role="alert" style="margin:0;color:#D05656;font-size:13px;min-height:1em"></p>' +
-      '<button type="submit" style="padding:11px 12px;border:0;border-radius:10px;background:var(--sea,#4F5BE8);color:#fff;font:inherit;font-weight:600;cursor:pointer">' + t('auth.enter') + '</button>' +
+      '<input name="user" type="text" autocomplete="username" placeholder="' + t('auth.user') + '" aria-label="' + t('auth.user') + '" style="padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
+      '<input name="password" type="password" autocomplete="current-password" placeholder="' + t('auth.password') + '" aria-label="' + t('auth.password') + '" style="padding:11px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:transparent;color:inherit">' +
+      '<p id="gregalLoginError" role="alert" style="margin:0;color:var(--red);font-size:13px;min-height:1em"></p>' +
+      '<button type="submit" style="padding:11px 12px;border:0;border-radius:10px;background:var(--accent);color:var(--bg);font:inherit;font-weight:600;cursor:pointer">' + t('auth.enter') + '</button>' +
       '</form>';
     back.append(card);
     document.body.append(back);
