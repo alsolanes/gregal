@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -201,6 +202,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
                     )
+                    if (!searching && !manage) WhereSwitch(vm, lang)
                     if (searching && !manage) {
                         OutlinedTextField(
                             query, { query = it }, singleLine = true,
@@ -1412,3 +1414,71 @@ private fun CrewMemberRow(lang: String, w: Wind, why: String, isNew: Boolean) {
 
 /** Un xat des d'on demanem un resum a la wiki (vent o rotllana). */
 internal data class ChatTarget(val nom: String, val windId: String?, val rotId: String?)
+
+/**
+ * On viuen els vents, d'un toc: «Al mòbil» (tot es queda aquí, sense cap
+ * ordinador) o al servidor desat (feines llargues que continuen amb l'app
+ * tancada). El punt diu si el servidor respon. Cada lloc té els seus vents i
+ * converses: el text de sota ho recorda.
+ */
+@Composable
+internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
+    val conn by vm.conn.collectAsState()
+    val reach by vm.serverReach.collectAsState()
+    val switching by vm.switchingWhere.collectAsState()
+    val local by vm.localState.collectAsState()
+    val onServer = !conn.local
+    val canLocal = remember { vm.localAvailable() }
+    LaunchedEffect(onServer) {
+        while (true) {
+            vm.checkServerReach()
+            kotlinx.coroutines.delay(60_000)
+        }
+    }
+    val serverName = vm.savedServerName().ifBlank { tr(lang, "app.where.server") }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)) {
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(SuperficieAlta.copy(alpha = .55f)).padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            @Composable
+            fun Option(selected: Boolean, enabled: Boolean, onClick: () -> Unit, content: @Composable RowScope.() -> Unit) {
+                Row(
+                    Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
+                        .background(if (selected) Sea.copy(alpha = .22f) else Color.Transparent)
+                        .clickable(enabled = enabled && !selected && !switching, onClick = onClick)
+                        .semantics { this.selected = selected }
+                        .padding(vertical = 9.dp, horizontal = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    content = content,
+                )
+            }
+            Option(!onServer, canLocal, { vm.switchWhere(false) }) {
+                Text("📱 " + tr(lang, "app.where.phone"), color = if (!onServer) Ink else Muted, fontSize = 14.sp,
+                    fontWeight = if (!onServer) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+            }
+            Option(onServer, true, { vm.switchWhere(true) }) {
+                val dot = when {
+                    switching -> Sand
+                    reach == true -> Color(0xFF6FCF97)
+                    reach == false -> Color(0xFFE57373)
+                    else -> Muted
+                }
+                Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+                Spacer(Modifier.width(7.dp))
+                Text(if (vm.hasSavedServer()) serverName else tr(lang, "app.where.addServer"),
+                    color = if (onServer) Ink else Muted, fontSize = 14.sp,
+                    fontWeight = if (onServer) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        val hint = when {
+            switching || local is LocalState.Starting -> tr(lang, "app.where.switching")
+            onServer -> tr(lang, "app.where.serverHint")
+            reach == false && vm.hasSavedServer() -> tr(lang, "app.where.serverDown", serverName)
+            else -> tr(lang, "app.where.phoneHint")
+        }
+        Text(hint, color = Muted, fontSize = 12.sp, lineHeight = 16.sp, modifier = Modifier.padding(start = 6.dp, top = 5.dp))
+    }
+}

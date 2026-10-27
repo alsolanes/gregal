@@ -158,9 +158,9 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     var usuari by remember { mutableStateOf(prefs.usuari) }
     var contrasenya by remember { mutableStateOf("") }
     var token by remember { mutableStateOf(prefs.token) }
-    // El token queda amagat: amb usuaris configurats ja no cal, pero el
-    // servidor sense comptes (us local) nomes enten aquest cami.
-    var ambToken by remember { mutableStateOf(prefs.token.isNotBlank()) }
+    // La clau és el camí normal (la mostra el servidor en engegar-se); usuari
+    // i contrasenya, per als servidors amb comptes.
+    var ambUsuari by remember { mutableStateOf(prefs.usuari.isNotBlank() && prefs.token.isBlank()) }
     val notice by vm.notice.collectAsState()
     val local by vm.localState.collectAsState()
     val localOk = remember { vm.localAvailable() }
@@ -226,33 +226,43 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(), singleLine = true)
                 Spacer(Modifier.height(10.dp))
-                OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
-                    leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
-                    modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
-                    leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
-                    modifier = Modifier.fillMaxWidth(), singleLine = true,
-                    visualTransformation = PasswordVisualTransformation())
-                Spacer(Modifier.height(18.dp))
-                val login: @Composable () -> Unit = { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
-                if (localOk) {
-                    OutlinedButton(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
-                } else {
-                    Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
-                }
-                TextButton(onClick = { ambToken = !ambToken }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr(lang, if (ambToken) "app.pair.hideToken" else "app.pair.showToken"),
-                        color = Muted, fontSize = 13.sp)
-                }
-                if (ambToken) {
-                    OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.token")) },
+                // Adreça, port i clau: el que diu el servidor en engegar-se.
+                // Usuari i contrasenya, només per als servidors amb comptes.
+                if (!ambUsuari) {
+                    OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.key")) },
+                        leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedButton(onClick = { vm.connectRemote(host, port, token) },
-                        modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.pair.connect")) }
+                    Spacer(Modifier.height(18.dp))
+                    val connect: @Composable () -> Unit = { Text(tr(lang, "app.pair.connect"), fontSize = 16.sp) }
+                    val go = { vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim()) }
+                    if (localOk) OutlinedButton(onClick = go, enabled = host.isNotBlank() && token.isNotBlank(), shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { connect() }
+                    else Button(onClick = go, enabled = host.isNotBlank() && token.isNotBlank(), shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.fillMaxWidth().height(52.dp)) { connect() }
+                    Spacer(Modifier.height(6.dp))
+                    Text(tr(lang, "app.pair.keyHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                } else {
+                    OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
+                        leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
+                        leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
+                        modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        visualTransformation = PasswordVisualTransformation())
+                    Spacer(Modifier.height(18.dp))
+                    val login: @Composable () -> Unit = { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
+                    if (localOk) {
+                        OutlinedButton(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                    } else {
+                        Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                    }
+                }
+                TextButton(onClick = { ambUsuari = !ambUsuari }, modifier = Modifier.fillMaxWidth()) {
+                    Text(tr(lang, if (ambUsuari) "app.pair.useKey" else "app.pair.useAccount"),
+                        color = Muted, fontSize = 13.sp)
                 }
             }
             val ctx = LocalContext.current

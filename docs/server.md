@@ -1,23 +1,48 @@
-# Your own server on the internet
+# Your own server
 
-Gregal can run on an always-on Linux machine (a VPS or a mini-PC at home) and
-open on your domain over HTTPS. Winds can then do long work (websites,
-analyses, whole crews) that keeps going after you close the app, and you
-follow it from the phone or any browser.
+The Android app works on its own, inside the phone. If you want the winds to do
+long work (websites, analyses, whole crews) that keeps going after you close the
+app, run Gregal on a computer or server and connect the phone to it. At the top
+of the Winds screen there is a **📱 On the phone · Server** switch: one tap and
+you change. Each place keeps its own winds and chats.
 
-## Requirements
+Connecting the phone is always the same: **address, port and key**. The server
+tells you when it starts.
+
+## At home (same Wi-Fi)
+
+On the computer:
+
+```bash
+gregal --serve --addr 0.0.0.0
+```
+
+It prints a message like this:
+
+```
+Gregal is running.
+In the phone app, "Connect to a server", enter:
+  Address:   192.168.1.62
+  Port:      8097
+  Key:       7buvc-9brxu-mujdw-emenx
+```
+
+On the phone: tap **Add a server** (on the switch at the top), type the three
+things and **Connect**. The key is created the first time and saved: it is the
+same on every start.
+
+Away from home, the switch's dot turns red and you stay on the phone.
+
+## On the internet (an always-on machine with your domain)
+
+To reach it from anywhere you need a domain with HTTPS. You need:
 
 - A Linux machine with systemd (Debian or Ubuntu for the automatic Caddy
-  install).
-- A domain (or subdomain) pointing at that machine: an A record (and AAAA if it
-  has IPv6).
-- Ports 80 and 443 open to the internet (80 is only used by Let's Encrypt to
-  issue the certificate).
+  install): a VPS or a mini-PC.
+- A domain or subdomain pointing at it (A record, and AAAA if it has IPv6).
+- Ports 80 and 443 open (80 is only used by Let's Encrypt).
 
-## Install
-
-1. Build the Linux binary from the repository (or download it from the
-   release):
+1. Build the Linux binary (or download it from the release):
 
    ```bash
    ./build.sh
@@ -34,50 +59,49 @@ follow it from the phone or any browser.
 3. On the machine, run the installer with your domain:
 
    ```bash
-   sudo sh install.sh --domain winds.example.com --binary ./gregal-linux-amd64 --user alex --email you@example.com
+   sudo sh install.sh --domain winds.example.com --binary ./gregal-linux-amd64 --email you@example.com
    ```
 
-   At the end it prints the address, the user and a generated password. Save
-   it: it is not shown again.
+   At the end it says what to enter in the app:
 
-4. Open `https://winds.example.com` in a browser, sign in and, in Settings, add
-   your model provider key and the Exa key (web search). They are stored on the
-   server.
+   ```
+   Gregal ja corre. A l'app del mòbil, «Connecta't a un servidor», escriu:
+     Adreça:  https://winds.example.com
+     Port:    (no cal)
+     Clau:    xxxxx-xxxxx-xxxxx-xxxxx
+   ```
 
-5. On the phone: "Switch server" → "Or connect to a server…", type
-   `https://winds.example.com` (no port needed), the user and the password.
+4. Open `https://winds.example.com` in a browser, enter the key and, in
+   Settings, add your model provider key and the Exa key (web search). They are
+   stored on the server.
 
-## What the installer does
+### What the installer does
 
 - Creates the `gregal` system user (home `/var/lib/gregal`): Gregal never runs
   as root and, with systemd sandboxing, cannot write outside its home.
 - Installs the `gregal` service, listening only on `127.0.0.1:8097` and
   restarting by itself if it crashes or the machine reboots.
-- Adds an admin account with a password (PBKDF2-hashed): on the internet
-  everyone signs in with their own name; there is no shared token.
+- Generates the access key and stores it in `/etc/gregal/env` (root only): it
+  does not show in the process list or the config. It is kept on reinstall.
 - Puts Caddy in front: automatic HTTPS certificate, HSTS, and the winds' live
-  streams without buffering.
+  replies without buffering.
+- Optional: `--user NAME` also adds an account with a password (for servers
+  shared by several people).
 
-It can be run again to update the binary: it does not touch the config, the
-accounts or the data.
+It can be run again to update the binary: it does not touch the key, the
+config, the accounts or the data.
 
 ## Security
 
-- Failed sign-ins are limited per address (8 per 5 minutes) and overall (60
-  per 5 minutes). The address comes from the connection; `X-Forwarded-For` is
-  only trusted from the proxy on the same machine.
+- The key has 20 random characters (about 99 bits): it cannot be guessed.
+- Failed password sign-ins are limited per address (8 per 5 minutes) and
+  overall (60 per 5 minutes). The address comes from the connection;
+  `X-Forwarded-For` is only trusted from the proxy on the same machine.
 - `X-Content-Type-Options`, `X-Frame-Options` and `Referrer-Policy` on every
   response; HSTS from Caddy.
 - Time limits for request headers and idle connections.
-- To change the password:
-
-  ```bash
-  sudo runuser -u gregal -- env HOME=/var/lib/gregal gregal --config /var/lib/gregal/.config/gregal/config.yaml --passwd alex
-  ```
-
-- To add a person, add them to the `users:` section of
-  `/var/lib/gregal/.config/gregal/config.yaml` and set a password with the same
-  command.
+- To change the key, delete the `GREGAL_API_TOKEN` line from `/etc/gregal/env`,
+  run the installer again and reconnect the phone.
 
 ## Long work
 
@@ -87,7 +111,7 @@ says so ("stopped: the server restarted") instead of waiting forever.
 
 ## Maintenance
 
-- Log: `journalctl -u gregal -f`
+- Log (includes the address, port and key at start): `journalctl -u gregal -f`
 - Restart: `sudo systemctl restart gregal`
 - Update: copy the new binary and run `install.sh` again with the same options.
 - Data: everything is in `/var/lib/gregal` (back it up).

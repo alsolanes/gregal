@@ -8,8 +8,8 @@
 #   1. Usuari de sistema `gregal` amb casa a /var/lib/gregal (dades, config,
 #      projectes). Gregal no corre mai com a root.
 #   2. Copia el binari a /usr/local/bin/gregal.
-#   3. Config amb un compte d'administrador (usuari i contrasenya): a
-#      internet no hi ha token compartit, cadascú entra amb el seu nom.
+#   3. Una clau d'accés (o, amb --user, un compte amb contrasenya). En
+#      acabar mostra el que cal escriure a l'app: adreça, port i clau.
 #   4. Servei systemd `gregal` escoltant NOMÉS a 127.0.0.1:8097, amb
 #      reinici automàtic i l'aïllament de systemd (no pot escriure fora de
 #      /var/lib/gregal).
@@ -23,7 +23,7 @@ set -eu
 
 DOMAIN=""
 BIN=""
-ADMIN="admin"
+ADMIN=""
 PASSWORD="${GREGAL_ADMIN_PASSWORD:-}"
 PORT=8097
 EMAIL=""
@@ -40,15 +40,15 @@ usage() {
 
   --domain DOMINI     domini públic (p. ex. vents.exemple.cat)
   --binary FITXER     binari de Gregal per a Linux (gregal-linux-amd64 o -arm64)
-  --user NOM          nom del compte d'administrador (defecte: admin)
+  --user NOM          a més de la clau, un compte amb contrasenya (opcional)
   --email ADREÇA      correu per a Let's Encrypt (avisos de caducitat)
   --port PORT         port intern (defecte: 8097, només a 127.0.0.1)
   --no-caddy          no instal·lis ni configuris Caddy (ja tens un proxy)
   --tls-internal      certificat propi de Caddy en lloc de Let's Encrypt
                       (proves sense domini real)
 
-La contrasenya de l'administrador es genera i es mostra al final; per triar-la
-tu, passa-la a GREGAL_ADMIN_PASSWORD.
+Al final mostra l'adreça, el port i la clau per a l'app. Amb --user, la
+contrasenya es genera i es mostra (o tria-la amb GREGAL_ADMIN_PASSWORD).
 EOF
 }
 
@@ -70,7 +70,7 @@ done
 [ -n "$DOMAIN" ] || { usage >&2; die "falta --domain"; }
 [ -n "$BIN" ] && [ -f "$BIN" ] || { usage >&2; die "falta --binary (o el fitxer no existeix)"; }
 command -v systemctl >/dev/null 2>&1 || die "cal systemd"
-case "$ADMIN" in *[!A-Za-z0-9._-]* | "") die "--user: només lletres, xifres, punt, guió i guió baix" ;; esac
+[ -z "$ADMIN" ] || case "$ADMIN" in *[!A-Za-z0-9._-]*) die "--user: només lletres, xifres, punt, guió i guió baix" ;; esac
 case "$PORT" in *[!0-9]* | "") die "--port ha de ser un número" ;; esac
 case "$DOMAIN" in *[!A-Za-z0-9.-]*) die "--domain: només el nom (sense https:// ni camins)" ;; esac
 
@@ -101,7 +101,8 @@ if [ ! -f "$CFG" ]; then
 	(cd "$HOME_DIR/projects" && asgregal /usr/local/bin/gregal init --config="$CFG" >/dev/null) ||
 		die "no s'ha pogut crear $CFG"
 fi
-if ! grep -q '^users:' "$CFG"; then
+NEW_ADMIN=0
+if [ -n "$ADMIN" ] && ! grep -q '^users:' "$CFG"; then
 	info "afegint el compte $ADMIN al config"
 	cat >>"$CFG" <<EOF
 
@@ -117,10 +118,9 @@ EOF
 	chown gregal:gregal "$CFG"
 	chmod 0600 "$CFG"
 	NEW_ADMIN=1
-else
-	NEW_ADMIN=0
 fi
-if [ "$NEW_ADMIN" = 1 ] || [ -n "$PASSWORD" ]; then
+SHOW_PASSWORD=0
+if [ -n "$ADMIN" ] && { [ "$NEW_ADMIN" = 1 ] || [ -n "$PASSWORD" ]; }; then
 	if [ -z "$PASSWORD" ]; then
 		PASSWORD=$(head -c 24 /dev/urandom | base64 | tr -d '/+=\n' | cut -c1-24)
 		SHOW_PASSWORD=1
@@ -129,9 +129,22 @@ if [ "$NEW_ADMIN" = 1 ] || [ -n "$PASSWORD" ]; then
 	fi
 	printf '%s\n' "$PASSWORD" | asgregal /usr/local/bin/gregal --config "$CFG" --passwd "$ADMIN" >/dev/null 2>&1 ||
 		die "no s'ha pogut desar la contrasenya de $ADMIN"
-else
-	SHOW_PASSWORD=0
 fi
+
+# Clau d'accés (la que s'escriu a l'app) i adreça pública, fora del config
+# i de la línia d'ordres (no surten a `ps`). Es conserva entre instal·lacions.
+mkdir -p /etc/gregal
+ENVF=/etc/gregal/env
+KEY=""
+[ -f "$ENVF" ] && KEY=$(sed -n 's/^GREGAL_API_TOKEN=//p' "$ENVF")
+if [ -z "$KEY" ]; then
+	KEY=$(LC_ALL=C tr -dc '23456789abcdefghjkmnpqrstuvwxyz' </dev/urandom | head -c 20 | sed 's/.\{5\}/&-/g; s/-$//')
+fi
+PUBLIC_URL="https://$DOMAIN"
+[ "$NO_CADDY" = 1 ] && PUBLIC_URL=""
+umask 077
+printf 'GREGAL_API_TOKEN=%s\nGREGAL_PUBLIC_URL=%s\n' "$KEY" "$PUBLIC_URL" >"$ENVF"
+umask 022
 
 # 4. Servei systemd.
 info "configurant el servei gregal (127.0.0.1:$PORT)"
@@ -148,6 +161,7 @@ WorkingDirectory=$HOME_DIR/projects
 Environment=HOME=$HOME_DIR
 # Les claus que entris al web (models, Exa) es desen a l'auth.yaml del servidor.
 Environment=GREGAL_PERSIST_KEYS=1
+EnvironmentFile=/etc/gregal/env
 ExecStart=/usr/local/bin/gregal --serve --addr 127.0.0.1 --port $PORT --config $CFG
 Restart=on-failure
 RestartSec=5
@@ -232,19 +246,23 @@ EOF
 fi
 
 echo
-echo "Gregal ja corre."
+echo "Gregal ja corre. A l'app del mòbil, «Connecta't a un servidor», escriu:"
 if [ "$NO_CADDY" = 0 ]; then
 	echo "  Adreça:  https://$DOMAIN"
+	echo "  Port:    (no cal)"
 else
-	echo "  Servei:  http://127.0.0.1:$PORT (posa-hi el teu proxy HTTPS al davant)"
+	echo "  Adreça:  la del teu proxy HTTPS (el servei és a http://127.0.0.1:$PORT)"
 fi
-echo "  Usuari:  $ADMIN"
-if [ "$SHOW_PASSWORD" = 1 ]; then
-	echo "  Contrasenya: $PASSWORD"
-	echo "  (desa-la ara: no es torna a mostrar; per canviar-la:"
-	echo "   sudo runuser -u gregal -- env HOME=$HOME_DIR gregal --config $CFG --passwd $ADMIN)"
+echo "  Clau:    $KEY"
+if [ -n "$ADMIN" ]; then
+	echo
+	echo "També pots entrar amb l'usuari $ADMIN."
+	if [ "$SHOW_PASSWORD" = 1 ]; then
+		echo "  Contrasenya: $PASSWORD (desa-la ara: no es torna a mostrar)"
+	fi
 fi
 echo
-echo "Següent pas: entra a l'adreça amb el navegador i, a Configuració, posa"
-echo "la clau del teu proveïdor de models (i la d'Exa per a la cerca web)."
+echo "La clau és a /etc/gregal/env (només root). Al navegador, la mateixa"
+echo "adreça et demanarà la clau; a Configuració posa la clau del proveïdor de"
+echo "models (i la d'Exa per a la cerca web)."
 echo "Registre del servei: journalctl -u gregal -f"

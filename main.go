@@ -282,10 +282,19 @@ func main() {
 		}
 		url := "http://" + addr + "/"
 		fmt.Printf("gregal web a %s\n", url)
+		// Obert a la xarxa sense token ni usuaris: en lloc de negar-s'hi, es
+		// fa servir una clau pròpia (desada, la mateixa a cada arrencada) i
+		// el missatge diu què escriure al mòbil.
 		if !nomesLocal(host) && tok == "" && len(cfg.Users) == 0 {
-			fmt.Fprintln(os.Stderr, "gregal serve: remote access requires --token, GREGAL_API_TOKEN, or configured users")
-			os.Exit(1)
+			k, err := claveServidor()
+			if err != nil {
+				fmt.Fprintln(os.Stderr, "gregal serve: key:", err)
+				os.Exit(1)
+			}
+			tok = k
 		}
+		_, port, _ := net.SplitHostPort(addr)
+		fmt.Print(infoConnexio(cliLanguage(cfg), host, port, tok, strings.TrimSpace(os.Getenv("GREGAL_PUBLIC_URL")), len(cfg.Users) > 0, adrecesXarxa()))
 		if *openFlag {
 			web.Open(url)
 		}

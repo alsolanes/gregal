@@ -6,10 +6,14 @@ Gregal on Android works in two ways:
   desktop app, inside the phone. You need no computer, and your
   conversations and keys stay on the device.
 - **Remote server**: the app connects to `gregal --serve` on another
-  computer, with a token or a username and password.
+  computer or on your own domain, with the address, port and key the server
+  prints when it starts (or a username and password). See
+  [server.md](server.md).
 
-You switch between them from the menu (**Switch server**). Each server keeps
-its own conversations, and nothing from one shows up in the other.
+You switch between them with one tap on the **📱 On the phone · Server**
+switch at the top of the Winds screen (or from the menu, **Switch server**).
+Each server keeps its own conversations, and nothing from one shows up in the
+other.
 
 This document covers the audit of the app before this work, the design, and
 what is left.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Phone or server in one tap: the Winds home has a "📱 On the phone · Server" switch with a dot that says whether the saved server answers; if it does not, you stay on the phone with a clear message, and without a saved server it opens the form to add one. Connecting takes three things: address, port and key. `gregal --serve --addr 0.0.0.0` no longer refuses to start without a token: it creates and keeps a short key and prints the address, port and key to type in the app; the Linux installer does the same with your HTTPS domain (accounts with passwords are now optional).
+
 - Own server on the internet: `deploy/linux/install.sh` sets Gregal up on an always-on Linux machine as a sandboxed systemd service on 127.0.0.1 behind Caddy (automatic HTTPS, HSTS, unbuffered streams), with a password-protected admin account; see docs/server.md. Sign-in limits can no longer be bypassed by spoofing X-Forwarded-For (it is only trusted from a local proxy, last hop), and there is also an overall cap; responses carry basic security headers and the HTTP server has header and idle timeouts. Crew work saves its step, so after a server restart the app says it was interrupted. The Android app accepts `https://your-domain` (no port) and treats public domains as HTTPS.
 
 ## v1.17.3 - 2026-10-26 - Model dels vents i xats més llegibles

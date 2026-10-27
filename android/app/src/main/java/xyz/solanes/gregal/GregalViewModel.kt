@@ -532,6 +532,75 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Torna a la pantalla de connexió per triar un altre servidor. */
     fun switchServer() = disconnect()
 
+    // --- Mòbil o servidor, d'un toc ---
+
+    // Les preferències encara no hi són en els tests de pantalla (i abans de
+    // MainActivity): el selector no ha de petar per això.
+    private val prefsOrNull: Prefs? get() = if (::prefsStore.isInitialized) prefsStore else null
+
+    private val _serverReach = MutableStateFlow<Boolean?>(null)
+    /** Si el servidor desat respon (null = no n'hi ha cap o encara no se sap). */
+    val serverReach: StateFlow<Boolean?> = _serverReach
+    private val _switchingWhere = MutableStateFlow(false)
+    val switchingWhere: StateFlow<Boolean> = _switchingWhere
+
+    /** Hi ha un servidor desat amb credencials (encara que ara siguis al mòbil). */
+    fun hasSavedServer(): Boolean = prefsOrNull?.let { it.host.isNotBlank() && it.token.isNotBlank() } == true
+
+    /** El nom curt del servidor desat («vents.exemple.cat»), per al selector. */
+    fun savedServerName(): String = prefsOrNull?.host.orEmpty().substringAfter("://").substringBefore('/').substringBefore(':')
+
+    /** Comprova (en 4 s com a molt) si el servidor desat respon amb la sessió desada. */
+    fun checkServerReach() {
+        val p = prefsOrNull ?: return
+        if (!hasSavedServer()) { _serverReach.value = null; return }
+        if (!_conn.value.local && _connected.value) { _serverReach.value = true; return }
+        viewModelScope.launch { _serverReach.value = withContext(Dispatchers.IO) { pingServer(p.host, p.port, p.token) } }
+    }
+
+    private fun pingServer(host: String, port: String, token: String): Boolean = try {
+        val c = java.net.URL(baseUrlOf(host, port) + "/api/me").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 4_000
+        c.readTimeout = 4_000
+        c.setRequestProperty("Authorization", "Bearer $token")
+        try { c.responseCode == 200 } finally { c.disconnect() }
+    } catch (_: Exception) { false }
+
+    /**
+     * Canvia d'un toc on viuen els vents: aquest mòbil o el servidor desat.
+     * Abans calia obrir el menú, «Canvia de servidor» i tornar a escriure les
+     * dades. Si el servidor no respon, no es marxa del mòbil: s'avisa i prou.
+     * Sense servidor desat, s'obre la pantalla per afegir-ne un.
+     */
+    fun switchWhere(toServer: Boolean) {
+        if (_switchingWhere.value || toServer == !_conn.value.local) return
+        if (!toServer) {
+            useThisDevice()
+            return
+        }
+        val p = prefsOrNull ?: return
+        if (!hasSavedServer()) {
+            p.target = Prefs.TARGET_REMOTE
+            disconnect()
+            return
+        }
+        _switchingWhere.value = true
+        viewModelScope.launch {
+            try {
+                val ok = withContext(Dispatchers.IO) { pingServer(p.host, p.port, p.token) }
+                _serverReach.value = ok
+                if (!ok) {
+                    notify(appText("app.where.serverDown", savedServerName()))
+                    return@launch
+                }
+                useRemote(Conn(p.host, p.port, p.token, p.usuari))
+                connect(retries = 2) { go(Screen.Company) }
+            } finally {
+                _switchingWhere.value = false
+            }
+        }
+    }
+
     /** Engega (o reaprofita) el backend local i hi apunta la connexió. */
     private suspend fun ensureLocal() {
         val r = LocalServer.ensure(appContext, _idioma.value)
