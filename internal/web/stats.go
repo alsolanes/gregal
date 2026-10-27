@@ -74,11 +74,11 @@ type statsReport struct {
 func statsToolKind(name string) string {
 	n := strings.ToLower(strings.TrimSpace(name))
 	switch {
-	case n == "read" || n == "read_image" || n == "glob" || n == "todoread" || strings.HasPrefix(n, "office_read") || n == "office_open":
+	case n == "read" || n == "read_image" || n == "glob" || n == "todoread" || strings.HasPrefix(n, "office_read") || n == "pdf_read" || n == "office_open":
 		return "read"
 	case n == "grep" || n == "symbols" || n == "search" || n == "repomap":
 		return "search"
-	case n == "write" || n == "edit" || n == "patch" || n == "multi_edit" || n == "todowrite" || n == "office_edit" || n == "office_create":
+	case n == "write" || n == "edit" || n == "patch" || n == "multi_edit" || n == "todowrite" || n == "office_edit" || n == "office_create" || n == "pdf_edit" || n == "pdf_create":
 		return "edit"
 	case strings.HasPrefix(n, "bash") || n == "exec" || n == "git_commit":
 		return "shell"

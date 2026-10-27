@@ -512,6 +512,8 @@ table.doc-grid td.num { text-align:right; }
 .pptx-nav span { font:11px var(--mono); color:var(--accent-hi); }
 canvas.pptx-canvas { width:100%; height:auto; background:#fff; border-radius:8px;
   box-shadow:0 2px 14px rgba(0,0,0,.4); }
+img.pdf-page { display:block; width:100%; height:auto; margin:0 0 12px; background:#fff; border-radius:6px;
+  box-shadow:0 2px 14px rgba(0,0,0,.4); }
 .doc-lock { margin:0 12px 8px; padding:7px 10px; border:1px solid var(--amber-soft); border-radius:8px;
   color:var(--text); font-size:var(--t2); background:var(--amber-soft); }
 .doc-ask { padding:10px 12px 12px; border-top:1px solid var(--line); display:flex; flex-direction:column; gap:8px; }
@@ -1541,7 +1543,7 @@ body.sense-inspector #inspector { display:none; }
                   <label><span data-i18n="winds.takingCareOfIt">Se n’encarrega</span><select id="windWorkOwner"></select></label>
                   <label><span data-i18n="winds.aSecondPairOfEyes">Una segona mirada</span><select id="windWorkReviewer"></select></label>
                   <label class="wind-tools-option"><input type="checkbox" id="windWorkTools" checked> <span data-i18n="winds.withProjectTools">Amb eines del projecte</span></label>
-                </div></details><div class="wind-submit-group"><span class="wind-shortcut" data-i18n="winds.startShortcut">Ctrl/⌘ + Retorn</span><button type="submit" class="ghost winds-primary" id="windWorkStart" data-i18n="winds.letSGo" aria-keyshortcuts="Control+Enter Meta+Enter">Som-hi ↗</button></div></div>
+                </div></details><div class="wind-submit-group"><button type="button" class="ghost" id="windWorkAttach" title="PDF, Word, Excel, PowerPoint" data-i18n="winds.attachDocument">📎 Adjunta un document</button><input type="file" id="windWorkDoc" accept=".pdf,.docx,.xlsx,.pptx,application/pdf" multiple hidden><span class="wind-shortcut" data-i18n="winds.startShortcut">Ctrl/⌘ + Retorn</span><button type="submit" class="ghost winds-primary" id="windWorkStart" data-i18n="winds.letSGo" aria-keyshortcuts="Control+Enter Meta+Enter">Som-hi ↗</button></div></div>
                 <p id="windWorkContext" class="winds-composer-hint" data-i18n="winds.readyToHelp">Explica què vols. Els vents es reparteixen la feina i treballen al projecte obert.</p>
                 <p id="windWorkStatus" class="winds-status" role="status" aria-live="polite"></p>
               </form>
@@ -1657,10 +1659,10 @@ body.sense-inspector #inspector { display:none; }
           <div class="page-kicker">Word · Excel · PowerPoint</div>
           <h1 class="page-title" data-i18n="nav.office">Office</h1>
           <p class="page-copy" data-i18n="office.lead">Drop a document and ask the agent for things: summarise, correct, translate, fill in values. The document stays in a side pane while you talk and is re-read whenever the agent touches it. You can download it too.</p>
-          <input type="file" id="offPick" accept=".docx,.xlsx,.pptx" hidden>
+          <input type="file" id="offPick" accept=".pdf,.docx,.xlsx,.pptx" hidden>
           <div class="off-drop" id="offDrop" role="button" tabindex="0" data-i18n-aria="office.upload" aria-label="Upload a document">
             <div class="off-drop-ico">≋</div>
-            <div class="off-drop-title" data-i18n="office.drop">Drop a .docx, .xlsx or .pptx here</div>
+            <div class="off-drop-title" data-i18n="office.drop">Drop a .pdf, .docx, .xlsx or .pptx here</div>
             <div class="off-drop-sub" data-i18n="office.pickHint">or click to select a file · up to 25 MB</div>
           </div>
           <div id="offMsg" class="off-msg"></div>
@@ -1867,6 +1869,7 @@ body.sense-inspector #inspector { display:none; }
             <span class="composer-meta" data-i18n="composer.hint">@file adds context · Shift+Enter for a new line</span>
             <span class="spacer"></span>
             <input type="file" id="imgPick" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+            <input type="file" id="docPick" accept=".pdf,.docx,.xlsx,.pptx,application/pdf" multiple hidden>
             <!-- Icones dibuixades, no emoji: l'emoji canvia de forma i de
                  color a cada sistema i desentonava amb la resta. -->
             <button id="attach" class="icon-btn" data-i18n-aria="composer.attach" aria-label="Attach" data-i18n-title="ui.attachContext" title="Attach images or a folder as context">
@@ -3136,7 +3139,7 @@ async function demanaCredencials() {
   loginPendent = new Promise(resolve => {
     const back = document.createElement('div');
     back.id = 'gregalLogin';
-    back.style.cssText = 'position:fixed;inset:0;background:rgba(10,14,22,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
+    back.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--panel,#fff);color:var(--ink);border-radius:16px;padding:28px 26px;width:min(92vw,340px);box-shadow:0 18px 50px rgba(0,0,0,.35);font:inherit';
     card.innerHTML =

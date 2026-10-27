@@ -24,7 +24,7 @@ func Noms() []string {
 		"write", "edit", "patch",
 		"bash", "bash_background", "bash_output", "bash_kill",
 		"web_search", "web_fetch", "browser",
-		"office_read", "office_render", "office_open", "office_edit", "office_create", "preview", "dashboard_save",
+		"office_read", "office_render", "office_open", "office_edit", "office_create", "pdf_read", "pdf_edit", "pdf_create", "preview", "dashboard_save",
 		"gh_issue", "gh_pr", "git_commit", "gh_pr_create",
 		"delegate", "question", "todowrite", "todoread", "skill",
 		"knowledge_search", "knowledge_note",

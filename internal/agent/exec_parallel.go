@@ -10,21 +10,22 @@ import (
 // pura, sense escriptura ni interacció. Són les mateixes que la policy marca
 // com a allow (loop.go) menys delegate (fan-out de subagents: recursió i
 // recursos propis, mai dins d'un paral·lel) i question (interactiva).
-// bash/edit/write/patch/todowrite/office_* (excepte office_read),
+// bash/edit/write/patch/todowrite/office_* (excepte office_read), pdf_edit,
 // bash_background/bash_output/bash_kill són mutables o amb efectes.
 var readOnlyParallel = map[string]bool{
-	"read":        true,
-	"grep":        true,
-	"glob":        true,
-	"symbols":     true,
-	"todoread":    true,
-	"web_search":  true,
-	"web_fetch":   true,
-	"read_image":  true,
+	"read":          true,
+	"grep":          true,
+	"glob":          true,
+	"symbols":       true,
+	"todoread":      true,
+	"web_search":    true,
+	"web_fetch":     true,
+	"read_image":    true,
 	"office_read":   true,
 	"office_render": true,
-	"gh_issue":    true,
-	"gh_pr":       true,
+	"pdf_read":      true,
+	"gh_issue":      true,
+	"gh_pr":         true,
 	// knowledge_search només llegeix l'índex (si n'ha de fer un de nou, el
 	// bloqueig per col·lecció evita feina doble).
 	"knowledge_search": true,

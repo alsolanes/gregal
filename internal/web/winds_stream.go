@@ -69,7 +69,7 @@ func streamPhase(names string) string {
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// The previous-turn digest leaves room for the wind's own guidance (images, charts) inside the 20k brief.
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 15000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID)
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 15000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
@@ -114,6 +114,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	ctx = s.windDocsCtx(ctx)
 
 	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
@@ -156,6 +157,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	if err == nil && res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
+	reply += s.windDocLinks(turnStart, reply)
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
@@ -259,9 +261,11 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
 		emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+		brief += windDocsBrief
 		var res exploracio
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
+		ctx = s.windDocsCtx(ctx)
 		tVeu := time.Now()
 		if isContinue && si == 0 {
 			s.mu.Lock()
@@ -313,6 +317,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			out = plain
 		}
 		reply := stripQuoteTrim(out)
+		reply += s.windDocLinks(tVeu, reply)
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
 		if len(voices) == 0 {
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})

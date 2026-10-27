@@ -224,12 +224,14 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
-    /** Office: puja un docx/xlsx/pptx (base64) → id per llegir/editar al servidor. */
+    /** Office i PDF: puja un pdf/docx/xlsx/pptx (base64) → id per llegir/editar
+     *  al servidor i la ruta que es dona a l'agent. */
     fun officeUpload(name: String, dataB64: String): OfficeDoc {
         return try {
             val o = post("/api/office/upload", JSONObject().put("name", name).put("data", dataB64))
             OfficeDoc(id = o.optString("id"), name = o.optString("name"),
-                kind = o.optString("kind"), text = "", result = "uploaded ${o.optInt("size")} bytes")
+                kind = o.optString("kind"), text = "", result = "uploaded ${o.optInt("size")} bytes",
+                path = o.optString("path"))
         } catch (e: Exception) {
             OfficeDoc(error = e.message ?: "upload failed")
         }

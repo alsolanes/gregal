@@ -33,6 +33,9 @@ func OfficeOpen(path string) (string, error) {
 		return "", fmt.Errorf("és un directori, no un document: %s", path)
 	}
 	kind := OfficeKind(path)
+	if kind == "" && IsPDF(path) {
+		kind = "pdf"
+	}
 	if kind == "" {
 		return "", fmt.Errorf("no és un document office: %s", path)
 	}
@@ -54,6 +57,7 @@ func OfficeOpen(path string) (string, error) {
 		"docx": "Word", "doc": "Word",
 		"xlsx": "Excel", "xls": "Excel",
 		"pptx": "PowerPoint", "ppt": "PowerPoint",
+		"pdf": "el visor de PDF",
 	}
 	app, ok := names[kind]
 	if !ok {

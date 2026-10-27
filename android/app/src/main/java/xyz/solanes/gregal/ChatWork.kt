@@ -436,6 +436,7 @@ fun ComposerPlusMenu(
     canUseInput: Boolean, canAttach: Boolean,
     onAttach: () -> Unit, onPlanOnce: () -> Unit, onCompare: () -> Unit,
     onMode: (String) -> Unit, onPerm: () -> Unit,
+    onAttachDoc: () -> Unit = {},
 ) {
     androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = onClose) {
         @Composable
@@ -453,6 +454,7 @@ fun ComposerPlusMenu(
             )
         }
         item(tr(lang, "app.composer.attach"), enabled = canAttach, onClick = onAttach)
+        item(tr(lang, "app.composer.attachDoc"), tr(lang, "app.composer.attachDocHelp"), onClick = onAttachDoc)
         item(tr(lang, "app.composer.planOnce"), enabled = canUseInput, onClick = onPlanOnce)
         item(tr(lang, "app.composer.compare"), enabled = canUseInput, onClick = onCompare)
         androidx.compose.material3.HorizontalDivider(color = Line)

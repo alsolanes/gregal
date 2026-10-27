@@ -225,6 +225,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// runReadOnlyLoop li dona web_search/web_fetch (mode inspect: cap eina
 	// d'escriptura) i l'obliguem a respondre curt amb Finalize.
 	turnStart := time.Now()
+	ctx = s.windDocsCtx(ctx)
 	isContinue := req.Continue && len(previous) > 0
 	var res exploracio
 	var err error
@@ -248,6 +249,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	if res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
+	reply += s.windDocLinks(turnStart, reply)
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})

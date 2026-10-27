@@ -5,6 +5,7 @@
 // carpeta com a context — que és com li dius «treballa amb aquest tros del
 // projecte» sense haver d'enumerar-li els fitxers un per un.
 import { t as T } from './i18n.js';
+import { office, uploadDocument } from './office.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -20,6 +21,23 @@ async function j(url) {
 export const attach = {
   box: null,
   init() {
+    const pick = $('docPick');
+    if (pick) pick.onchange = async () => {
+      const fs = [...pick.files];
+      pick.value = '';
+      for (const f of fs) await this.posaDocument(f);
+    };
+    // El despatx dels vents (wind-desk.js) també pot rebre documents: la
+    // ruta va a l'encàrrec i el vent la llegeix amb pdf_read/office_read.
+    const wbtn = $('windWorkAttach'), wpick = $('windWorkDoc');
+    if (wbtn && wpick) {
+      wbtn.onclick = () => wpick.click();
+      wpick.onchange = async () => {
+        const fs = [...wpick.files];
+        wpick.value = '';
+        for (const f of fs) await this.documentPerAlVent(f);
+      };
+    }
     const btn = $('attach');
     if (!btn) return;
     btn.onclick = e => { e.stopPropagation(); this.toggle(); };
@@ -36,6 +54,7 @@ export const attach = {
       '<span data-i18n="' + clau + 'Hint">' + esc(T(clau + 'Hint')) + '</span></button>';
     this.box.innerHTML =
       opcio('img', '🖼️', 'attach.images') +
+      opcio('doc', '📄', 'attach.document') +
       opcio('folder', '📁', 'attach.projectFolder') +
       opcio('extfolder', '🌐', 'attach.externalFolder') +
       opcio('workspace', '⚡', 'attach.changeProject');
@@ -45,6 +64,7 @@ export const attach = {
         const a = b.dataset.a;
         this.tanca();
         if (a === 'img') $('imgPick').click();
+        if (a === 'doc') $('docPick')?.click();
         if (a === 'folder') this.triaCarpeta();
         if (a === 'extfolder') this.triaCarpetaExterna();
         if (a === 'workspace') this.triaProjecte();
@@ -116,6 +136,47 @@ export const attach = {
     input.dispatchEvent(new Event('input'));
     input.focus();
     G().activityItem('context', path, linies.length + T('attach.entries'), 'ok');
+  },
+
+  // posaDocument puja un PDF/Office i en posa la ruta al missatge (@ruta):
+  // el servidor n'adjunta el text en enviar-lo i l'agent el pot llegir
+  // sencer (pdf_read, office_read) o editar (pdf_edit, office_edit).
+  async posaDocument(f) {
+    const msg = (k, v) => T(k).replace(/\{(\w+)\}/g, (m, n) => v[n] == null ? m : String(v[n]));
+    let d;
+    try { d = await uploadDocument(f); } catch (e) {
+      G().sys(msg('attach.docFailed', { name: f.name, error: e.message || e }));
+      return null;
+    }
+    office.remember(d);
+    office.renderRecent && office.renderRecent();
+    const input = $('in');
+    if (input) {
+      const prefix = input.value.trim() ? input.value.replace(/\s*$/, ' ') : '';
+      input.value = prefix + '@' + d.path + ' ';
+      input.dispatchEvent(new Event('input'));
+      input.focus();
+    }
+    G().activityItem('office', msg('attach.docAdded', { name: d.name }), d.kind.toUpperCase(), 'ok');
+    return d;
+  },
+
+  async documentPerAlVent(f) {
+    const msg = (k, v) => T(k).replace(/\{(\w+)\}/g, (m, n) => v[n] == null ? m : String(v[n]));
+    const st = $('windWorkStatus');
+    if (st) st.textContent = msg('attach.docUploading', { name: f.name });
+    let d;
+    try { d = await uploadDocument(f); } catch (e) {
+      if (st) st.textContent = msg('attach.docFailed', { name: f.name, error: e.message || e });
+      return;
+    }
+    office.remember(d);
+    const task = $('windWorkTask');
+    if (task) {
+      task.value = task.value.replace(/\s*$/, '') + (task.value.trim() ? '\n' : '') + msg('winds.attachedDoc', { name: d.name, path: d.path });
+      task.focus();
+    }
+    if (st) st.textContent = msg('attach.docAdded', { name: d.name });
   },
 
   // triaProjecte canvia el directori de treball de la sessió. A l'escriptori

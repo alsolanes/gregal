@@ -29,7 +29,9 @@ data class GithubResult(val output: String = "", val error: String = "")
 
 /** Estat del document office pujat al servidor (per id). */
 data class OfficeDoc(val id: String = "", val name: String = "", val kind: String = "",
-                     val text: String = "", val result: String = "", val error: String = "")
+                     val text: String = "", val result: String = "", val error: String = "",
+                     /** Ruta al servidor: és el que es dona a l'agent (@ruta). */
+                     val path: String = "")
 
 /** Proveïdor del servidor: key ve emmascarada ((buida) | ${VAR} | sí). */
 data class ProviderInfo(val name: String = "", val url: String = "",

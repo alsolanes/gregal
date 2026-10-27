@@ -1,8 +1,10 @@
 package web
 
-// Office via API (per a l'app Android i el web): el fitxer viu al
+// Office i PDF via API (per a l'app Android i el web): el fitxer viu al
 // TELÈFON/navegador, no al servidor. Flux: upload (base64) → read/edit
-// per id → download. Els fitxers pugen a tmp, caduquen en 2h i el límit
+// per id → download. Un PDF pujat també és el camí perquè l'agent o un
+// vent el tinguin de context: la resposta du la ruta i la UI l'adjunta
+// al missatge com a @ruta. Els fitxers pugen a tmp, caduquen en 2h i el límit
 // és 25MB. L'edició passa pel journal: el rewind del servidor també
 // restaura aquests fitxers.
 
@@ -79,8 +81,11 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	kind := tools.OfficeKind(req.Name)
-	if kind != "xlsx" && kind != "docx" && kind != "pptx" {
-		http.Error(w, "només .docx/.xlsx/.pptx (i no formats antics .doc/.xls/.ppt)", http.StatusBadRequest)
+	if kind == "" && tools.IsPDF(req.Name) {
+		kind = "pdf"
+	}
+	if kind != "xlsx" && kind != "docx" && kind != "pptx" && kind != "pdf" {
+		http.Error(w, "només .pdf, .docx, .xlsx o .pptx (i no formats antics .doc/.xls/.ppt)", http.StatusBadRequest)
 		return
 	}
 	raw, err := base64.StdEncoding.DecodeString(req.Data)
@@ -107,7 +112,7 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Valida que obre de debò.
-	if _, err := tools.OfficeRead(path); err != nil {
+	if _, err := docText(kind, path); err != nil {
 		os.Remove(path)
 		http.Error(w, "el fitxer no obre: "+err.Error(), http.StatusBadRequest)
 		return
@@ -137,7 +142,7 @@ func (s *Server) handleOfficeRead(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "document caducat o inexistent (torna'l a pujar)", http.StatusNotFound)
 		return
 	}
-	out, err := tools.OfficeRead(d.path)
+	out, err := docText(d.kind, d.path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -174,6 +179,16 @@ func (s *Server) handleOfficeEdit(w http.ResponseWriter, r *http.Request) {
 		Shapes   map[string]string `json:"shapes"`
 		Cells    map[string]string `json:"cells"`
 		Vars     map[string]string `json:"vars"`
+		// PDF (les operacions de pdf_edit que treballen sobre el mateix
+		// fitxer; extract/split/merge en crearien d'altres).
+		Pages   string            `json:"pages"`
+		Degrees int               `json:"degrees"`
+		Fields  map[string]string `json:"fields"`
+		Size    int               `json:"size"`
+		Color   string            `json:"color"`
+		Kind    string            `json:"kind"`
+		X       float64           `json:"x"`
+		Y       float64           `json:"y"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "json invàlid", http.StatusBadRequest)
@@ -186,6 +201,27 @@ func (s *Server) handleOfficeEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Op == "" {
 		http.Error(w, "falta op", http.StatusBadRequest)
+		return
+	}
+	if d.kind == "pdf" {
+		switch req.Op {
+		case "rotate", "delete_pages", "reorder", "add_text", "stamp", "watermark", "fill_form", "annotate", "set_info":
+		default:
+			http.Error(w, "op de PDF no admesa aquí: rotate, delete_pages, reorder, add_text, stamp, watermark, fill_form, annotate, set_info", http.StatusBadRequest)
+			return
+		}
+		out, err := tools.PdfEdit(r.Context(), tools.PdfEditOpts{Path: d.path, Op: req.Op, Pages: req.Pages,
+			Degrees: req.Degrees, Text: req.Text, Position: req.Position, X: req.X, Y: req.Y, Size: req.Size,
+			Color: req.Color, Kind: req.Kind, Author: req.Author, Fields: req.Fields})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		text, _ := docText(d.kind, d.path)
+		if len(text) > 20000 {
+			text = text[:20000] + "\n… (retallat)"
+		}
+		writeJSON(w, map[string]any{"result": out, "text": text})
 		return
 	}
 	// Les mateixes operacions que l'eina office_edit (tools.OfficeEdit les
@@ -226,6 +262,15 @@ func (s *Server) handleOfficeRender(w http.ResponseWriter, r *http.Request) {
 	d, ok := officeGetFor(req.ID, s.usuari())
 	if !ok {
 		http.Error(w, "document caducat o inexistent (torna'l a pujar)", http.StatusNotFound)
+		return
+	}
+	if d.kind == "pdf" {
+		out, imgs, err := tools.PdfRender(r.Context(), d.path, req.Pages)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		writeJSON(w, map[string]any{"report": out, "images": imgs, "engine": tools.PdfRenderAvailable()})
 		return
 	}
 	out, imgs, err := tools.OfficeRender(r.Context(), tools.RenderOpts{Path: d.path, Pages: req.Pages})
@@ -276,6 +321,14 @@ func (s *Server) handleOfficeDownload(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("Content-Disposition", "attachment; filename=\""+d.name+"\"")
 	http.ServeFile(w, r, d.path)
+}
+
+// docText és el text d'un document pujat: Office o PDF.
+func docText(kind, path string) (string, error) {
+	if kind == "pdf" {
+		return tools.PdfText(path)
+	}
+	return tools.OfficeRead(path)
 }
 
 // senseEspais treu de l'anomenada tot el que faria trontollar una ruta

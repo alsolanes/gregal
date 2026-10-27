@@ -58,6 +58,9 @@ func officeCheck(path string) (string, error) {
 	case "legacy":
 		return "", fmt.Errorf("format antic (.doc/.xls/.ppt) no suportat: converteix-lo amb LibreOffice (soffice --headless --convert-to %sx %s)", strings.TrimPrefix(strings.ToLower(filepath.Ext(path)), "."), path)
 	case "":
+		if IsPDF(path) {
+			return "", fmt.Errorf("%s és un PDF: fes servir pdf_read (text, info, images) i pdf_edit", path)
+		}
 		return "", fmt.Errorf("no és un document office: %s", path)
 	}
 	return kind, nil
@@ -72,6 +75,14 @@ func OfficeRead(path string) (string, error) { return OfficeReadDetail(path, "te
 // layouts, formes amb posició i desbordaments; docx: estils
 // disponibles) o "full" (sense límits).
 func OfficeReadDetail(path, detail string) (string, error) {
+	if IsPDF(path) {
+		// Els models demanen office_read per a qualsevol document: un PDF
+		// es llegeix igual que amb pdf_read (sense les imatges).
+		if detail == "layout" {
+			return PdfInfoText(context.Background(), path)
+		}
+		return PdfText(path)
+	}
 	kind, err := officeCheck(path)
 	if err != nil {
 		return "", err

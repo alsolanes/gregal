@@ -342,6 +342,10 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val pickImgs = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         uris.take(3).forEach { vm.addImage(it) }
     }
+    // Documents (PDF, Word, Excel, PowerPoint): es pugen i el missatge en duu la ruta.
+    val pickDocs = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        uris.take(3).forEach { uri -> vm.attachDocument(uri) { path -> setInput(appendDocMention(input, path)) } }
+    }
     val voiceOk = remember {
         try {
             ctx.packageManager.queryIntentActivities(
@@ -562,6 +566,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     expanded = showPlus, onClose = { showPlus = false }, lang = lang, st = st,
                                     canUseInput = !busy && input.isNotBlank(), canAttach = !sending && pendingImgs.size < 3,
                                     onAttach = { pickImgs.launch("image/*") },
+                                    onAttachDoc = { pickDocs.launch("*/*") },
                                     onPlanOnce = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.requestPlan(consumeInput()) },
                                     onCompare = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.parallel(consumeInput()) },
                                     onMode = { vm.setMode(it) },

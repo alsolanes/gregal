@@ -63,7 +63,7 @@ func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) 
 	switch name {
 	case "question":
 		return "deny", "autonomous mode: do not ask the user; make a reasonable choice, keep going and list your assumptions in the final answer", true
-	case "write", "edit", "patch", "office_edit", "office_create":
+	case "write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create":
 		if InsideProject(projecte, toolPath(name, argsJSON)) {
 			return "allow", "", true
 		}

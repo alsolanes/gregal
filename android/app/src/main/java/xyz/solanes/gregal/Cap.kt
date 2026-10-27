@@ -65,6 +65,10 @@ data class CapDecision(
     /** Vents triats que encara no saben res: es proposa un curs accelerat. */
     val novices: List<String> = emptyList(),
     val pet: CapPet? = null,
+    /** L'usuari ha dit «endavant» a la proposta d'abans: es fa sense tornar a preguntar. */
+    val confirm: Boolean = false,
+    /** La petició original de la proposta confirmada (la que va al vent o a la colla). */
+    val message: String = "",
 ) {
     /** Hi ha res a fer? «self» ja és la resposta. */
     val delegates: Boolean get() = action == "wind" || action == "rotllana" || action == "crew"
@@ -82,6 +86,8 @@ data class CapDecision(
                 create = o.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
                 novices = o.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
                 pet = o.optJSONObject("pet")?.let { CapPet.parse(it) },
+                confirm = o.optBoolean("confirm", false),
+                message = o.optString("message"),
             )
         }
     }

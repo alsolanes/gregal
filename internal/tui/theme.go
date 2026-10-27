@@ -393,14 +393,14 @@ func humanArgs(name, args string, max int) string {
 	}
 	var out string
 	switch name {
-	case "read", "write", "edit", "patch", "read_image", "office_read", "office_open", "office_create":
+	case "read", "write", "edit", "patch", "read_image", "office_read", "office_open", "office_create", "pdf_read", "pdf_create":
 		out = str("path")
 		if name == "read" {
 			if o, ok := v["offset"].(float64); ok && o > 0 {
 				out += fmt.Sprintf(T("eina.desDeLinia"), int(o))
 			}
 		}
-	case "office_edit":
+	case "office_edit", "pdf_edit":
 		out = str("op") + " " + str("path")
 		if c := str("cell"); c != "" {
 			out += " " + c
@@ -491,7 +491,7 @@ func resultatPlegat(name string, failed bool) bool {
 		return false
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "browser", "office_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate", "knowledge_search", "todowrite":
+	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "browser", "office_read", "pdf_read", "todoread", "read_image", "gh_issue", "gh_pr", "delegate", "knowledge_search", "todowrite":
 		return true
 	}
 	return false
@@ -615,7 +615,7 @@ func plural(n int, un, molts string) string {
 // quan només és l'acusament de rebut. Torna la resta i si ha retallat.
 func senseConfirmacio(name, body string) (string, bool) {
 	switch name {
-	case "write", "edit", "patch", "office_edit", "office_create":
+	case "write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create":
 	default:
 		return body, false
 	}

@@ -265,7 +265,7 @@ func buildRetroPack(evs []events.Event, runID int, diff []tools.DiffFile, cwd st
 					Detail: "$ " + cmd + "\n" + retroTail(out, 1200), OK: boolPtr(good)})
 			case "delegate":
 				// Els delegats es narren pels seus propis events.
-			case "read", "grep", "glob", "web_search", "web_fetch", "read_image", "todoread", "todowrite", "skill", "office_read":
+			case "read", "grep", "glob", "web_search", "web_fetch", "read_image", "todoread", "todowrite", "skill", "office_read", "pdf_read":
 				r := reads[name]
 				if r == nil {
 					r = &readAgg{}

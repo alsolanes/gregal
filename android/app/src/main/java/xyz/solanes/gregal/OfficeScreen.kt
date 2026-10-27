@@ -48,15 +48,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-private val OFFICE_EXTS = setOf("docx", "xlsx", "pptx")
+private val OFFICE_EXTS = setOf("pdf", "docx", "xlsx", "pptx")
 
-/** El nom triat és un document Office suportat (puja per extensió). */
+/** El nom triat és un document Office o un PDF (puja per extensió). */
 fun isOfficeName(name: String): Boolean =
     name.substringAfterLast('.', "").lowercase() in OFFICE_EXTS
+
+/** Afegeix «@ruta» al text del compositor (el servidor talla les mencions a
+ *  l'espai: les rutes de pujada no en duen). Pura: testejable. */
+fun appendDocMention(input: String, path: String): String {
+    val p = path.trim()
+    if (p.isEmpty()) return input
+    val base = input.trimEnd()
+    return (if (base.isEmpty()) "" else "$base ") + "@$p "
+}
 
 /** Frases ràpides per tipus, com el QUICK de la web: l'edició la fa
  *  l'agent parlant, sense camps manuals (fora set_cell/cerca-substitueix). */
 private fun quickPrompts(kind: String, lang: String): List<Pair<String, String>> {
+    if (isPdfDoc(kind, kind)) return listOf(
+        tr(lang, "app.off.quick.resume") to tr(lang, "app.off.prompt.pdfResume"),
+        tr(lang, "app.off.quick.keyData") to tr(lang, "app.off.prompt.pdfKeyData"),
+        tr(lang, "app.off.quick.fillForm") to tr(lang, "app.off.prompt.pdfFill"),
+    )
     val xlsx = kind.contains("sheet", true)
     val pptx = kind.contains("slide", true) || kind.contains("present", true)
     return when {
@@ -129,7 +143,7 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
 
     fun ask(text: String) {
         val q = text.ifBlank { return }
-        vm.send(tr(lang, "app.off.askContext", doc.name, doc.id, q))
+        vm.send(tr(lang, "app.off.askContext", doc.name, doc.path.ifBlank { doc.id }, q))
         question = ""
         onAskAgent()
     }
@@ -168,7 +182,9 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                         FilterChip(!vista, { vista = false }, { Text(tr(lang, "app.off.text")) })
                     }
                     Spacer(Modifier.height(8.dp))
-                    if (vista) {
+                    if (vista && isPdfDoc(doc.kind, doc.name)) {
+                        PdfPages(vm, doc, Modifier.fillMaxWidth())
+                    } else if (vista) {
                         OfficeRender(vm, doc, Modifier.fillMaxWidth())
                     } else if (doc.text.isNotBlank()) {
                         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = CodeDark)) {
@@ -178,7 +194,7 @@ fun OfficeScreen(vm: GregalViewModel, onMenu: () -> Unit, onAskAgent: () -> Unit
                     }
                     Spacer(Modifier.height(10.dp))
                     FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        quickPrompts(doc.kind.ifBlank { doc.name }, lang).forEach { (label, prompt) ->
+                        quickPrompts(if (isPdfDoc(doc.kind, doc.name)) "pdf" else doc.kind.ifBlank { doc.name }, lang).forEach { (label, prompt) ->
                             OutlinedButton(onClick = { ask(prompt) }) { Text(label) }
                         }
                     }

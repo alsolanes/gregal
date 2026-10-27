@@ -110,8 +110,8 @@ func TestDeny(t *testing.T) {
 
 func TestSpecsAndPolicy(t *testing.T) {
 	lsp.Configure(nil, true) // el compte no pot dependre de si hi ha gopls al PATH
-	if len(Specs()) != 33 {
-		t.Fatalf("specs=%d (han de ser 33)", len(Specs()))
+	if len(Specs()) != 36 {
+		t.Fatalf("specs=%d (han de ser 36)", len(Specs()))
 	}
 	if d, _ := PolicyFor("read", `{}`); d != "allow" {
 		t.Fatalf("read=%s", d)

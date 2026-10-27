@@ -37,7 +37,7 @@ const MaxCridesPerPas = 8
 func ParallelSafe(name string) bool {
 	switch name {
 	case "read", "grep", "glob", "symbols", "web_search", "web_fetch", "gh_issue", "gh_pr",
-		"office_read", "office_render", "read_image", "todoread", "bash_output", "delegate", "knowledge_search":
+		"office_read", "office_render", "pdf_read", "read_image", "todoread", "bash_output", "delegate", "knowledge_search":
 		return true
 	}
 	return false

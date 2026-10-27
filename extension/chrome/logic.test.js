@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { baseUrl, connection, parseSSE, splitBlocks, buildMessage, MAX_CONTEXT } from './logic.js';
+import { baseUrl, connection, parseSSE, splitBlocks, buildMessage, MAX_CONTEXT, isPdfUrl, bytesToBase64 } from './logic.js';
 
 test('adreça i port com al mòbil', () => {
   assert.equal(baseUrl('127.0.0.1', '8097'), 'http://127.0.0.1:8097');
@@ -40,4 +40,16 @@ test("amb l'app d'escriptori no cal configurar res", () => {
   assert.deepEqual(connection({}), { addr: '127.0.0.1', port: '8097', key: '' });
   assert.deepEqual(connection({ mode: 'desktop', addr: 'x', key: 'k' }), { addr: '127.0.0.1', port: '8097', key: '' });
   assert.deepEqual(connection({ mode: 'server', addr: 'vents.exemple.cat', port: '', key: 'k' }), { addr: 'vents.exemple.cat', port: '', key: 'k' });
+});
+
+test('PDF: es reconeix per la ruta i el missatge en duu la ruta a Gregal', () => {
+  assert.equal(isPdfUrl('https://exemple.cat/docs/Factura.PDF?v=2#page=3'), true);
+  assert.equal(isPdfUrl('https://exemple.cat/pdf/visor.html'), false);
+  assert.equal(isPdfUrl('file:///C:/a.pdf'), false);
+  assert.equal(isPdfUrl('no és una url'), false);
+  assert.equal(bytesToBase64(new Uint8Array([37, 80, 68, 70])), 'JVBERg==');
+  const msg = buildMessage('resumeix', { kind: 'pdf', title: 'Factura', url: 'https://x/f.pdf', content: 'Total 10 €', path: '/tmp/gregal-office-1-f.pdf' }, 'ca');
+  assert.match(msg, /\[PDF: «Factura»/);
+  assert.match(msg, /fitxer a Gregal: \/tmp\/gregal-office-1-f\.pdf — pdf_read/);
+  assert.match(msg, /Total 10 €/);
 });

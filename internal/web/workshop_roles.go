@@ -111,7 +111,7 @@ func classifyCall(name, args string) laneInfo {
 		if ts, ok := a["tasks"].([]any); ok {
 			info.N = len(ts)
 		}
-	case "read", "read_image", "office_read", "symbols":
+	case "read", "read_image", "office_read", "pdf_read", "symbols":
 		info.Role, info.Kind = roleResearcher, "read"
 		file(str("path"))
 	case "grep", "glob", "knowledge_search", "gh_issue", "gh_pr":
@@ -126,7 +126,7 @@ func classifyCall(name, args string) laneInfo {
 	case "browser":
 		info.Role, info.Kind = roleResearcher, "web"
 		info.Target = firstNonEmpty(hostOf(str("url")), str("action"))
-	case "write", "edit", "patch", "office_edit", "office_create":
+	case "write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create":
 		info.Role, info.Kind = roleBuilder, "edit"
 		file(str("path"))
 	case "git_commit", "gh_pr_create":

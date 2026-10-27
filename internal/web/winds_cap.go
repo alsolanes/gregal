@@ -44,6 +44,9 @@ type capMsg struct {
 	Ts     int64    `json:"ts"`
 	Action string   `json:"action,omitempty"`
 	Winds  []string `json:"winds,omitempty"`
+	// Task és l'encàrrec d'una colla proposada: si l'usuari respon
+	// «endavant», es fa aquest, no «endavant».
+	Task string `json:"task,omitempty"`
 }
 
 type capState struct {
@@ -66,6 +69,11 @@ type capDecision struct {
 	// Novices: vents triats que encara no saben res del seu ofici (ni
 	// coneixements ni memòria): l'app proposa fer-los un curs accelerat.
 	Novices []string `json:"novices"`
+	// Confirm: l'usuari ha dit «endavant» a la proposta anterior. L'app la
+	// fa sense tornar a preguntar, amb Message (la petició original) com a
+	// missatge per al vent o encàrrec de la colla.
+	Confirm bool   `json:"confirm,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
 var capMu sync.Mutex
@@ -263,14 +271,15 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		} else {
 			st.History = append(st.History, capMsg{From: "user", Text: msg, Ts: now})
 		}
-		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds})
+		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds, Task: d.Task})
 		if d.Action != "self" {
 			capCheer(&st.Pet, time.Now())
 		}
 		s.saveCap(st)
 		capMu.Unlock()
 		writeJSON(w, map[string]any{"action": d.Action, "reply": d.Reply, "winds": d.Winds, "task": d.Task, "rotllana": d.Rotllana,
-			"create": d.Create, "novices": d.Novices, "history": st.History, "pet": st.Pet.json(time.Now())})
+			"create": d.Create, "novices": d.Novices, "confirm": d.Confirm, "message": d.Message,
+			"history": st.History, "pet": st.Pet.json(time.Now())})
 	default:
 		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
 	}
@@ -329,8 +338,14 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		return capDecision{}, errConst("unknown wind")
 	case force == "crew":
 		return capFinish(s, capDecision{Action: "crew", Task: msg}, st, byID, ca, msg), nil
-	case force == "" && len(winds) > 0:
-		if w, ok := windNamedIn(winds, msg); ok {
+	case force == "":
+		// «Endavant», «sí, crea-la»: la resposta a la proposta d'abans. Abans
+		// anava al model com un missatge nou, que contestava «fet!» sense
+		// fer res o tornava a proposar el mateix.
+		if d, ok := capConfirmed(st, msg, byID, ca); ok {
+			return d, nil
+		}
+		if w, ok := windNamedIn(winds, msg); ok && len(winds) > 0 {
 			return capFinish(s, capDecision{Action: "wind", Winds: []string{w.ID}}, st, byID, ca, msg), nil
 		}
 	}
@@ -358,7 +373,7 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		roster.WriteString("(none yet)\n")
 	}
 	system := "You are " + st.Name + ", the user's small, cheerful mascot and chief of staff of a crew of AI helpers called winds. " +
-		"You decide who should handle each request. Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences."
+		"You decide who should handle each request; the app carries out your decision. You cannot create, build or start anything yourself: with \"self\" you only talk, so never claim you created, started or did something. Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences."
 	var b strings.Builder
 	b.WriteString("WINDS:\n" + roster.String())
 	if tail := capTail(st.History, 6); tail != "" {
@@ -610,6 +625,92 @@ func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
 	}
 	out["rotllana"] = id
 	writeJSON(w, out)
+}
+
+// capConfirmed: si el missatge és un «endavant» i la mascota acaba de
+// proposar un camí (un vent, una rotllana, una colla), torna aquella decisió
+// marcada com a confirmada, amb la petició original.
+func capConfirmed(st capState, msg string, byID map[string]companion.Wind, ca bool) (capDecision, bool) {
+	n := len(st.History)
+	if n < 2 || !capIsConfirm(msg) {
+		return capDecision{}, false
+	}
+	last, asked := st.History[n-1], st.History[n-2]
+	if last.From != "cap" || asked.From != "user" {
+		return capDecision{}, false
+	}
+	switch last.Action {
+	case "crew":
+		task := strings.TrimSpace(last.Task)
+		if task == "" {
+			task = asked.Text
+		}
+		return capDecision{Action: "crew", Task: task, Winds: []string{}, Create: []crewNew{}, Novices: []string{},
+			Reply:   map[bool]string{true: "Som-hi! Munto la colla i es posen a treballar 🛠️", false: "On it! Putting the crew together 🛠️"}[ca],
+			Confirm: true, Message: asked.Text}, true
+	case "wind", "rotllana":
+		var ids []string
+		for _, id := range last.Winds {
+			if _, ok := byID[id]; ok {
+				ids = append(ids, id)
+			}
+		}
+		if len(ids) == 0 {
+			return capDecision{}, false
+		}
+		action := "rotllana"
+		if len(ids) == 1 {
+			action = "wind"
+		}
+		d := capDecision{Action: action, Winds: ids, Create: []crewNew{}, Novices: []string{}, Confirm: true, Message: asked.Text}
+		if action == "wind" {
+			d.Reply = capHandOver(byID[ids[0]].Name, ca)
+		} else {
+			d.Reply = map[bool]string{true: "Som-hi! Obro la rotllana 🌀", false: "On it! Opening the group 🌀"}[ca]
+		}
+		return d, true
+	}
+	return capDecision{}, false
+}
+
+// capConfirmWords: paraules que, soles o juntes, volen dir «fes-ho».
+var capConfirmWords = map[string]bool{
+	"endavant": true, "si": true, "som-hi": true, "somhi": true, "fes-ho": true, "fesho": true, "dacord": true, "d'acord": true,
+	"ok": true, "okay": true, "vale": true, "va": true, "perfecte": true, "genial": true, "crea-la": true, "creala": true,
+	"crea-ho": true, "engega-la": true, "engega": true, "comenca": true, "yes": true, "yep": true, "sure": true, "go": true,
+	"ahead": true, "proceed": true, "adelante": true, "dale": true, "fet": true, "perfect": true, "great": true,
+}
+
+// capConfirmFiller: paraules que poden acompanyar el «sí» sense canviar-lo.
+var capConfirmFiller = map[string]bool{
+	"crea": true, "fes": true, "la": true, "el": true, "ho": true, "colla": true, "do": true, "it": true, "please": true,
+	"sisplau": true, "siusplau": true, "i": true, "and": true, "ja": true, "ara": true, "now": true, "doncs": true, "then": true,
+	"create": true, "start": true, "the": true, "crew": true, "us": true, "let's": true, "lets": true, "vinga": true, "molt": true, "be": true,
+}
+
+// capIsConfirm diu si el missatge és només un «endavant» (curt i sense res
+// nou: «endavant, crea-la» sí; «sí, però fes-ho en anglès» no).
+func capIsConfirm(msg string) bool {
+	t := strings.ToLower(strings.TrimSpace(msg))
+	if t == "" || len([]rune(t)) > 60 {
+		return false
+	}
+	t = strings.NewReplacer("í", "i", "à", "a", "è", "e", "é", "e", "ò", "o", "ó", "o", "ú", "u", "ç", "c", "’", "'").Replace(t)
+	words := strings.FieldsFunc(t, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r == '-' || r == '\'')
+	})
+	strong := false
+	for _, w := range words {
+		w = strings.Trim(w, "-'")
+		switch {
+		case capConfirmWords[w]:
+			strong = true
+		case capConfirmFiller[w] || w == "":
+		default:
+			return false
+		}
+	}
+	return strong
 }
 
 func capHandOver(name string, ca bool) string {

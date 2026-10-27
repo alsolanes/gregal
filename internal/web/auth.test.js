@@ -23,7 +23,11 @@ function runtime({ desktop, search = '', statuses = [200], storageBlocked = fals
     marcaOffline() {},
     async fetch(url, options) { calls.requests.push({ url, ...options }); return { status: statuses.shift() ?? 200 }; },
   };
-  vm.runInNewContext(setup + api + '\nthis.request = api;', context);
+  // La pantalla d'entrada (demanaCredencials) necessita una pàgina; aquí la
+  // substitueix un doble que compta les vegades que es demana i torna un token.
+  context.demanaCredencials = async () => { calls.prompts++; return 'replacement-token'; };
+  const code = setup.replace(/async function demanaCredencials\(\) \{[\s\S]*?\n\}\n/, '');
+  vm.runInNewContext(code + api + '\nthis.request = api;', context);
   return { context, calls };
 }
 

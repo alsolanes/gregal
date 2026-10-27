@@ -119,13 +119,22 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
-			return agent.ExecCtx(agent.WithSkillsDirs(ctx, dirs...), s.id, s.cwd, name, argsJSON)
+			cwd := s.cwd
+			// Un vent crea els documents a la seva carpeta (winds_docs.go).
+			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
+				cwd = d
+			}
+			return agent.ExecCtx(agent.WithSkillsDirs(ctx, dirs...), s.id, cwd, name, argsJSON)
 		},
 		Decide: func(name, argsJSON string) (string, string) {
 			// Els vents poden programar avisos (remind, eina validada); la
 			// resta segueix el permís del mode inspect (només lectura).
 			if name == "remind" {
 				return "allow", "eina del vent"
+			}
+			// Els documents (crear un PDF, un Word…) també, a la seva carpeta.
+			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
+				return windDocDecide(d, name, argsJSON)
 			}
 			return s.policy.Decide(agent.ModeInspect, name, argsJSON)
 		},

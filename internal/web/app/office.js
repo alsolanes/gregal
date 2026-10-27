@@ -1,4 +1,4 @@
-// office: documents Word/Excel/PowerPoint com a ciutadans de primera.
+// office: documents Word/Excel/PowerPoint (i PDF) com a ciutadans de primera.
 //
 // Abans la pàgina Office era un formulari: tria fitxer, un <pre> amb el text i
 // camps per posar un valor a una cel·la o substituir text a mà. El que es vol
@@ -16,7 +16,7 @@ import { t as T } from './i18n.js';
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-const KIND_LABEL = { docx: 'Word', xlsx: 'Excel', pptx: 'PowerPoint' };
+const KIND_LABEL = { docx: 'Word', xlsx: 'Excel', pptx: 'PowerPoint', pdf: 'PDF' };
 const message = (key, values = {}) => T(key).replace(/\{(\w+)\}/g, (match, name) => values[name] == null ? match : String(values[name]));
 
 // lletraCol converteix un índex de columna en la seva lletra (0→A, 26→AA),
@@ -56,6 +56,12 @@ const QUICK = {
     ['office.quick.value', 'office.prompt.sheetValue'],
     ['office.quick.review', 'office.prompt.visualReview'],
   ],
+  pdf: [
+    ['office.quick.summarize', 'office.prompt.pdfSummary'],
+    ['office.quick.keyData', 'office.prompt.pdfExtract'],
+    ['office.quick.fillForm', 'office.prompt.pdfFill'],
+    ['office.quick.stamp', 'office.prompt.pdfStamp'],
+  ],
   pptx: [
     ['office.quick.summarize', 'office.prompt.slidesSummary'],
     ['office.quick.correct', 'office.prompt.slidesCorrect'],
@@ -63,6 +69,25 @@ const QUICK = {
     ['office.quick.review', 'office.prompt.visualReview'],
   ],
 };
+
+// DOC_RE són els documents que es poden pujar (el servidor ho torna a
+// comprovar). El clip del xat i el despatx dels vents també hi pugen.
+export const DOC_RE = /\.(pdf|docx|xlsx|pptx)$/i;
+export const DOC_MAX = 25 * 1024 * 1024;
+
+// uploadDocument puja un fitxer a /api/office/upload i torna
+// {id, kind, name, path}. La ruta és el que es dona a l'agent (@ruta).
+export async function uploadDocument(f) {
+  if (!DOC_RE.test(f.name)) throw new Error(T('office.formats'));
+  if (f.size > DOC_MAX) throw new Error(T('office.tooLarge'));
+  const buf = new Uint8Array(await f.arrayBuffer());
+  let bin = ''; const CH = 0x8000;
+  for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
+  const up = await G().api('/api/office/upload', { method: 'POST', body: JSON.stringify({ name: f.name, data: btoa(bin) }) });
+  if (!up.ok) throw new Error(await up.text());
+  const d = await up.json();
+  return { id: d.id, kind: d.kind, name: d.name || f.name, path: d.path, text: '' };
+}
 
 export function quickActions(kind) {
   return (QUICK[kind] || QUICK.docx).map(([label, prompt]) => [T(label), T(prompt)]);
@@ -110,24 +135,23 @@ export const office = {
   },
   msg(t, bad) { const el = $('offMsg'); el.textContent = t || ''; el.classList.toggle('bad', !!bad); },
   async upload(f) {
-    if (!/\.(docx|xlsx|pptx)$/i.test(f.name)) { this.msg(T('office.formats'), true); return; }
-    if (f.size > 25 * 1024 * 1024) { this.msg(T('office.tooLarge'), true); return; }
+    if (!DOC_RE.test(f.name)) { this.msg(T('office.formats'), true); return; }
+    if (f.size > DOC_MAX) { this.msg(T('office.tooLarge'), true); return; }
     this.msg(message('office.uploading', { name: f.name }));
     try {
-      const buf = new Uint8Array(await f.arrayBuffer());
-      let bin = ''; const CH = 0x8000;
-      for (let i = 0; i < buf.length; i += CH) bin += String.fromCharCode.apply(null, buf.subarray(i, i + CH));
-      const up = await G().api('/api/office/upload', { method: 'POST', body: JSON.stringify({ name: f.name, data: btoa(bin) }) });
-      if (!up.ok) { this.msg(await up.text(), true); return; }
-      const d = await up.json();
-      this.doc = { id: d.id, kind: d.kind, name: d.name || f.name, path: d.path, text: '' };
-      this.recent = [this.doc, ...this.recent.filter(r => r.id !== d.id)].slice(0, 8);
+      this.remember(await uploadDocument(f));
       await this.read();
       this.msg('');
       this.renderRecent();
       this.openPane();
       G().activityItem('office', message('office.uploaded', { name: this.doc.name }), KIND_LABEL[this.doc.kind] || '', 'ok');
     } catch (e) { this.msg(String(e.message || e), true); }
+  },
+  // remember fa que el document pujat (des d'aquí o des del clip del xat)
+  // sigui l'actual i surti als recents.
+  remember(doc) {
+    this.doc = doc;
+    this.recent = [doc, ...this.recent.filter(r => r.id !== doc.id)].slice(0, 8);
   },
   async read() {
     if (!this.doc) return;
@@ -167,7 +191,7 @@ export const office = {
   renderControls() {
     const d = this.doc; if (!d) return;
     const app = $('docOpenApp');
-    if (app) app.textContent = message('office.openWith', { app: KIND_LABEL[d.kind] || T('office.application') });
+    if (app) app.textContent = message('office.openWith', { app: d.kind === 'pdf' ? T('office.pdfViewer') : KIND_LABEL[d.kind] || T('office.application') });
     const toggle = $('docVista');
     if (toggle) toggle.textContent = T(d.view === 'vista' ? 'office.textView' : 'office.previewView');
     const q = $('docQuick'); if (!q) return;
@@ -236,6 +260,7 @@ export const office = {
       try {
         if (d.kind === 'docx') await this.renderDocx(box);
         else if (d.kind === 'xlsx') await this.renderXlsx(box);
+        else if (d.kind === 'pdf') await this.renderPdf(box);
         else await this.renderPptx(box);
       } catch (e) {
         box.innerHTML = this.preview(d.text);
@@ -359,6 +384,15 @@ export const office = {
     box.querySelector('[data-next]').onclick = async () => { await v.nextSlide(canvas); await v.render(canvas); count.textContent = (v.getCurrentSlideIndex() + 1) + ' / ' + total; };
     await show(0);
   },
+  // renderPdf ensenya les pàgines com a imatges que fa el servidor
+  // (pdftoppm o Windows.Data.Pdf). Sense rasteritzador, es cau al text.
+  async renderPdf(box) {
+    const r = await G().api('/api/office/render', { method: 'POST', body: JSON.stringify({ id: this.doc.id, pages: '1-4' }) });
+    if (!r.ok) throw new Error(await r.text());
+    const d = await r.json();
+    if (!d.images || !d.images.length) throw new Error(T('office.pdfNoRender'));
+    box.innerHTML = d.images.map(u => '<img class="pdf-page" alt="" src="' + esc(u) + '">').join('');
+  },
   minimize() {
     if (!this.doc) return;
     const pane = $('docPane');
@@ -367,7 +401,7 @@ export const office = {
     document.body.classList.add('doc-minimized');
     if ($('docMinName')) $('docMinName').textContent = this.doc.name;
     if ($('docMinKind')) $('docMinKind').textContent = KIND_LABEL[this.doc.kind] || this.doc.kind || '';
-    const icon = this.doc.kind === 'xlsx' ? '📊' : this.doc.kind === 'pptx' ? '📽️' : '📄';
+    const icon = this.doc.kind === 'xlsx' ? '📊' : this.doc.kind === 'pptx' ? '📽️' : this.doc.kind === 'pdf' ? '📕' : '📄';
     if ($('docMinIcon')) $('docMinIcon').textContent = icon;
   },
   restore() {

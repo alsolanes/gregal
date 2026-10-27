@@ -42,6 +42,7 @@ use the one whose trade fits (a data wind for Sheets, a writer for Docs).
 | Google Docs | The whole document (its text export) and your selection when the page exposes it. |
 | Google Sheets | The current tab as CSV and the selected range. |
 | Apps Script | The files open in the editor (or the visible lines if the editor is not reachable). |
+| A PDF (Chrome's viewer) | The PDF is uploaded to Gregal and its text is the context; the message carries its path so the wind can read the whole file, scanned pages included, with `pdf_read` (see [PDF](pdf.md)). |
 | Any other site | Your selection, or the main text of the page. |
 
 Long documents are cut at 14,000 characters. Untick **Include the page** to

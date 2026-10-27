@@ -60,7 +60,22 @@ export function splitBlocks(text) {
   return out.filter((b) => b.type === 'code' || b.text.trim());
 }
 
-const KIND = { docs: 'Google Docs', sheets: 'Google Sheets', script: 'Apps Script', web: 'Web' };
+const KIND = { docs: 'Google Docs', sheets: 'Google Sheets', script: 'Apps Script', web: 'Web', pdf: 'PDF' };
+
+/** La pestanya és un PDF (el visor de Chrome): per l'extensió de la ruta. */
+export function isPdfUrl(url) {
+  try {
+    const u = new URL(String(url || ''));
+    return /^https?:$/.test(u.protocol) && /\.pdf$/i.test(u.pathname);
+  } catch { return false; }
+}
+
+/** Bytes → base64 a trossos (String.fromCharCode amb tot de cop peta). */
+export function bytesToBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 export const MAX_CONTEXT = 14000;
 
 /**
@@ -76,7 +91,10 @@ export function buildMessage(text, ctx, lang) {
     content = content.slice(0, MAX_CONTEXT);
     cut = lang === 'ca' ? '\n[… tallat: el document és més llarg]' : '\n[… truncated: the document is longer]';
   }
-  const head = `[${KIND[ctx.kind] || 'Web'}: «${ctx.title || ''}» — ${ctx.url || ''}${ctx.range ? ` — ${lang === 'ca' ? 'selecció' : 'selection'} ${ctx.range}` : ''}]`;
+  const head = `[${KIND[ctx.kind] || 'Web'}: «${ctx.title || ''}» — ${ctx.url || ''}${ctx.range ? ` — ${lang === 'ca' ? 'selecció' : 'selection'} ${ctx.range}` : ''}]` +
+    // Un PDF pujat a Gregal: el vent el pot llegir sencer (també les pàgines
+    // escanejades) amb pdf_read sobre aquesta ruta.
+    (ctx.kind === 'pdf' && ctx.path ? `\n[${lang === 'ca' ? 'fitxer a Gregal' : 'file in Gregal'}: ${ctx.path} — pdf_read]` : '');
   const hint = ctx.kind === 'sheets'
     ? (lang === 'ca' ? 'Si proposes fórmules, valors o codi d\'Apps Script, posa\'ls cadascun en un bloc ``` (valors de taula separats per tabuladors) perquè es puguin inserir amb un clic.'
       : 'If you propose formulas, values or Apps Script code, put each in a ``` block (table values separated by tabs) so they can be inserted with one click.')

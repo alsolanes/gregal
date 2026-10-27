@@ -232,6 +232,9 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	var veus []veu
 	for i, sp := range speakers {
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
+		brief += windDocsBrief
+		vctx := s.windDocsCtx(ctx)
+		tVeu := time.Now()
 		var res exploracio
 		var err error
 		if isContinue && i == 0 {
@@ -240,12 +243,12 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			s.mu.Lock()
 			p, role := s.windRoleRef()
 			s.mu.Unlock()
-			res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, conversation)
+			res, err = s.runReadOnlyLoopForRole(vctx, "", 6, p, role, conversation)
 			if err == nil {
 				parcial = res.parcial
 			}
 		} else {
-			res, err = rotllanaVoiceLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID)), brief)
+			res, err = rotllanaVoiceLoop(s, agent.WithSkillsDirs(vctx, s.windSkillsDir(sp.ID)), brief)
 			if err == nil {
 				parcial = res.parcial || parcial
 			}
@@ -283,6 +286,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			out = plain
 		}
 		reply := stripQuoteTrim(out)
+		reply += s.windDocLinks(tVeu, reply)
 		// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada
 		// veu queda com un missatge propi amb la seva identitat, en ordre.
 		// La primera veu del primer vent és la resposta del torn.

@@ -221,7 +221,7 @@ func (m Model) cockpitDades() cockpitDades {
 	for _, e := range m.timeline {
 		if e.done && !e.failed {
 			switch e.name {
-			case "write", "edit", "patch", "office_edit":
+			case "write", "edit", "patch", "office_edit", "pdf_edit":
 				if p := timelinePath(e.args); p != "" {
 					files[p] = true
 				}
@@ -426,7 +426,7 @@ func (m Model) runSummaryLine() string {
 		}
 		if e.done && !e.failed {
 			switch e.name {
-			case "write", "edit", "patch", "office_edit":
+			case "write", "edit", "patch", "office_edit", "pdf_edit":
 				if p := timelinePath(e.args); p != "" {
 					files[p] = true
 				}

@@ -16,7 +16,7 @@ import (
 // eines d'escriptura: en chat i inspect la política ja les denega; no
 // cal ensenyar-les.
 var einesEscriptura = map[string]bool{
-	"write": true, "edit": true, "patch": true, "office_edit": true, "office_create": true,
+	"write": true, "edit": true, "patch": true, "office_edit": true, "office_create": true, "pdf_edit": true, "pdf_create": true,
 	"git_commit": true, "gh_pr_create": true, "dashboard_save": true,
 }
 
@@ -34,9 +34,10 @@ var einesCore = map[string]bool{
 // elles sempre a la vista, les fa servir per a tot).
 var einesOffice = map[string]bool{
 	"office_read": true, "office_create": true, "office_edit": true, "office_render": true, "skill": true,
+	"pdf_read": true, "pdf_edit": true, "pdf_create": true,
 }
 
-var officeRe = regexp.MustCompile(`(?i)\.(docx|dotx|docm|pptx|potx|pptm|xlsx|xltx|xlsm)\b|\b(word|excel|powerpoint|presentaci[oó]|diapositiv\w*|full de c[aà]lcul|spreadsheet|slides?|deck|workbook|llibre d'excel)\b`)
+var officeRe = regexp.MustCompile(`(?i)\.(docx|dotx|docm|pptx|potx|pptm|xlsx|xltx|xlsm|pdf)\b|\b(pdf|word|excel|powerpoint|presentaci[oó]|diapositiv\w*|full de c[aà]lcul|spreadsheet|slides?|deck|workbook|llibre d'excel)\b`)
 
 // OfficeAlHist diu si algun missatge de l'usuari parla de documents
 // d'Office. Un cop surt, la resta de la conversa ho manté (prefix estable).

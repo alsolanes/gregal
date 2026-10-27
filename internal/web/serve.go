@@ -1960,6 +1960,13 @@ func (s *Server) expandMentions(text, base string) string {
 		if tools.OfficeKind(path) != "" {
 			// Un .docx/.xlsx/.pptx adjunt és el seu text, no el zip (com al TUI).
 			raw, err = tools.OfficeRead(path)
+		} else if tools.IsPDF(path) {
+			// Un PDF és el seu text per pàgines; si és llarg, el model en
+			// llegeix la resta (i les pàgines escanejades) amb pdf_read.
+			raw, err = tools.PdfText(path)
+			if len(raw) > 20000 {
+				raw = raw[:20000] + "\n… (retallat: llegeix la resta amb pdf_read pages=\"N-M\")"
+			}
 		} else {
 			raw, err = tools.Read(path, 1, 200)
 		}

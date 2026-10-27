@@ -11,7 +11,22 @@ import (
 // toolPath extreu la ruta objectiu de les eines de fitxers ("" si no n'hi ha).
 func toolPath(name, argsJSON string) string {
 	switch name {
-	case "write", "edit", "patch", "read":
+	case "write", "edit", "patch", "read", "pdf_create":
+	case "pdf_edit":
+		// El que s'escriu és out (o el mateix path); merge només té out.
+		var a struct {
+			Path string `json:"path"`
+			Op   string `json:"op"`
+			Out  string `json:"out"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			return ""
+		}
+		t := tools.PdfEditTargets(tools.PdfEditOpts{Path: a.Path, Op: a.Op, Out: a.Out})
+		if len(t) == 0 {
+			return ""
+		}
+		return strings.TrimSpace(t[0])
 	default:
 		return ""
 	}

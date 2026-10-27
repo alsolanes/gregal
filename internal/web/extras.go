@@ -41,6 +41,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/tasks", h.route((*Server).handleWindTasks))
 	handle("/api/winds/squads", h.route((*Server).handleWindSquads))
 	handle("/api/winds/crew/propose", h.route((*Server).handleCrewPropose))
+	handle("/api/winds/doc", h.route((*Server).handleWindDoc))
 	handle("/api/winds/crew/start", h.route((*Server).handleCrewStart))
 	handle("/api/winds/crew/status", h.route((*Server).handleCrewStatus))
 	handle("/api/winds/memory", h.route((*Server).handleWindMemory))

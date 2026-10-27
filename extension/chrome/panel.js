@@ -2,7 +2,7 @@
 // l'escriptori o el teu servidor) amb la pàgina com a context, i posa la
 // resposta a la pàgina o al porta-retalls. Fa servir la mateixa API que
 // l'app del mòbil: /api/winds i /api/winds/chat/stream amb la clau Bearer.
-import { baseUrl, connection, parseSSE, splitBlocks, buildMessage } from './logic.js';
+import { baseUrl, connection, parseSSE, splitBlocks, buildMessage, isPdfUrl, bytesToBase64 } from './logic.js';
 import { pageInfo, scriptFiles, insertText } from './page.js';
 
 const lang = (chrome.i18n.getUILanguage() || 'ca').startsWith('ca') ? 'ca' : 'en';
@@ -23,6 +23,7 @@ const T = {
       sheets: ['Explica\'m aquestes dades', 'Fes-me una fórmula per…', 'Troba errors o valors estranys', 'Fes un script que…'],
       script: ['Explica\'m aquest codi', 'Troba errors', 'Afegeix una funció que…', 'Fes que s\'executi cada dia'],
       web: ['Resumeix la pàgina', 'Què en penses?'],
+      pdf: ['Resumeix el PDF', 'Extreu les dades clau en una taula', 'Què he de fer o signar?'],
     },
   },
   en: {
@@ -41,6 +42,7 @@ const T = {
       sheets: ['Explain this data', 'Write me a formula to…', 'Find errors or odd values', 'Write a script that…'],
       script: ['Explain this code', 'Find bugs', 'Add a function that…', 'Make it run every day'],
       web: ['Summarise the page', 'What do you think?'],
+      pdf: ['Summarise the PDF', 'Extract the key data into a table', 'What do I need to do or sign?'],
     },
   },
 }[lang];
@@ -146,6 +148,7 @@ async function readPage() {
   const tab = await activeTab();
   page = null;
   if (!tab || !/^https?:/.test(tab.url || '')) { paintContext(); return; }
+  if (isPdfUrl(tab.url)) { await readPdf(tab); paintContext(); return; }
   let info;
   try { info = await run(tab.id, pageInfo); } catch { info = { kind: 'web', title: tab.title, url: tab.url }; }
   page = { ...info, tabId: tab.id, content: '' };
@@ -167,11 +170,29 @@ async function readPage() {
   paintContext();
 }
 
+/** Un PDF obert al visor de Chrome: se'n baixen els bytes (amb la sessió
+ *  del navegador), es pugen a Gregal (/api/office/upload, com des de l'app) i
+ *  el context és el seu text; la ruta deixa que el vent el llegeixi sencer. */
+async function readPdf(tab) {
+  const name = decodeURIComponent(new URL(tab.url).pathname.split('/').pop() || 'document.pdf');
+  page = { kind: 'pdf', title: tab.title || name, url: tab.url, tabId: tab.id, content: '', path: '' };
+  try {
+    const r = await fetch(tab.url, { credentials: 'include' });
+    if (!r.ok) return;
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    if (bytes.length > 25 * 1024 * 1024) return;
+    const up = await (await api('/api/office/upload', { method: 'POST', body: JSON.stringify({ name, data: bytesToBase64(bytes) }) })).json();
+    page.path = up.path || '';
+    const rd = await (await api('/api/office/read', { method: 'POST', body: JSON.stringify({ id: up.id }) })).json();
+    page.content = String(rd.text || '').trim();
+  } catch { /* sense context: el vent igualment pot respondre */ }
+}
+
 function paintContext() {
   const el = $('context');
   el.innerHTML = '';
   if (!page) return;
-  const icon = { docs: '📄', sheets: '📊', script: '🧩', web: '🌐' }[page.kind] || '🌐';
+  const icon = { docs: '📄', sheets: '📊', script: '🧩', web: '🌐', pdf: '📕' }[page.kind] || '🌐';
   const name = document.createElement('b');
   name.textContent = `${icon} ${page.title || page.url}`;
   el.append(name);

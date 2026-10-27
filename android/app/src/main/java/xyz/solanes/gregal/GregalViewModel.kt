@@ -1128,7 +1128,41 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val up = withContext(Dispatchers.IO) { _conn.value.api().officeUpload(name, dataB64) }
             if (up.error.isNotBlank() || up.id.isBlank()) { _office.value = up; return@launch }
-            _office.value = withContext(Dispatchers.IO) { _conn.value.api().officeRead(up.id) }
+            val read = withContext(Dispatchers.IO) { _conn.value.api().officeRead(up.id) }
+            _office.value = read.copy(path = up.path, kind = read.kind.ifBlank { up.kind })
+        }
+    }
+
+    /** Adjunta un document (PDF o Office) al xat: el puja i torna la ruta
+     *  perquè el compositor hi posi «@ruta». El servidor n'afegeix el text en
+     *  enviar i l'agent el pot llegir sencer (pdf_read) o editar (pdf_edit). */
+    fun attachDocument(uri: Uri, onReady: (String) -> Unit) {
+        var name = "document"
+        try {
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (c.moveToFirst() && i >= 0) name = c.getString(i) ?: name
+            }
+        } catch (_: Exception) {}
+        if (!isOfficeName(name)) { notify(appText("app.off.fileTypeError", name)); return }
+        viewModelScope.launch {
+            when (val r = readUriBase64(appContext, uri, 25L * 1024 * 1024)) {
+                is UriRead.Ok -> {
+                    notify(appText("app.composer.docUploading", name))
+                    val up = withContext(Dispatchers.IO) { _conn.value.api().officeUpload(name, r.base64) }
+                    if (up.error.isNotBlank() || up.path.isBlank()) {
+                        notify(appText("app.composer.docError", up.error.ifBlank { name }))
+                        return@launch
+                    }
+                    _office.value = up.copy(result = "")
+                    notify(appText("app.composer.docAdded", up.name.ifBlank { name }))
+                    onReady(up.path)
+                }
+                is UriRead.TooLarge -> notify(appText("app.off.fileTooLarge", 25,
+                    if (r.size > 0) r.size / 1024 / 1024 else 25))
+                UriRead.Unreadable -> notify(appText("app.off.fileReadError"))
+                is UriRead.Failed -> notify(appText("app.off.fileOpenError", r.message))
+            }
         }
     }
 
@@ -2915,7 +2949,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 val st = _cap.value.state.copy(history = d.history, brief = "", briefCount = 0, pet = d.pet ?: _cap.value.state.pet)
                 _cap.value = _cap.value.copy(state = st, busy = false, say = "", course = true,
-                    pending = if (d.delegates) CapPending(message, d) else null)
+                    pending = if (d.delegates) CapPending(d.message.ifBlank { message }, d) else null)
+                // «Endavant»: la proposta d'abans es fa ara, sense un altre botó.
+                if (d.delegates && d.confirm) capGo()
             } catch (_: Exception) {
                 if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true)
             }
@@ -2929,8 +2965,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (ui.going) return
         val d = p.decision
         if (d.action == "crew") {
+            // «Endavant» ja és la confirmació: la colla es proposa i es convoca
+            // sola (la fitxa ensenya qui hi és mentre arrenca).
             _cap.value = ui.copy(pending = null)
-            openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message })
+            openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message }, autoStart = true)
             return
         }
         // Un vent sol que ja en sap, sense res a crear: directe, sense esperar el servidor.
@@ -3023,14 +3061,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun proposeCrew(task: String) {
+    fun proposeCrew(task: String, autoStart: Boolean = false) {
         if (task.isBlank()) return
         val source = _conn.value; val epoch = companionEpoch
         _crew.value = CrewUi(task, loading = true)
         viewModelScope.launch {
             try {
                 val p = withContext(Dispatchers.IO) { source.api().crewPropose(task.trim(), idioma.value) }
-                if (isCompanionOrigin(source, epoch) && _crew.value?.task == task) _crew.value = CrewUi(task, proposal = p)
+                if (isCompanionOrigin(source, epoch) && _crew.value?.task == task) {
+                    _crew.value = CrewUi(task, proposal = p)
+                    if (autoStart) startCrew()
+                }
             } catch (e: Exception) {
                 if (_crew.value?.task == task) _crew.value = CrewUi(task, error = true, errorText = crewErrorText(e))
             }

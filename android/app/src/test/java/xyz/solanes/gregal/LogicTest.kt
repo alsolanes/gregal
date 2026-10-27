@@ -397,7 +397,34 @@ class OfficeNameTest {
         assertTrue(isOfficeName("slides.pptx"))
         assert(!isOfficeName("foto.png"))
         assert(!isOfficeName("sense-extensio"))
-        assert(!isOfficeName("doc.pdf"))
+        assertTrue(isOfficeName("contracte.PDF"))
+        assert(!isOfficeName("doc.doc"))
+    }
+}
+
+class PdfDocTest {
+    @Test
+    fun esPdfPelTipusOPelNom() {
+        assertTrue(isPdfDoc("pdf", "x"))
+        assertTrue(isPdfDoc("", "factura.Pdf"))
+        assert(!isPdfDoc("docx", "informe.docx"))
+    }
+
+    @Test
+    fun mencioDelDocumentAlCompositor() {
+        assertEquals("@/tmp/a.pdf ", appendDocMention("", "/tmp/a.pdf"))
+        assertEquals("resumeix @/tmp/a.pdf ", appendDocMention("resumeix  ", "/tmp/a.pdf"))
+        assertEquals("@/tmp/a.pdf @/tmp/b.pdf ", appendDocMention("@/tmp/a.pdf ", "/tmp/b.pdf"))
+        assertEquals("hola", appendDocMention("hola", "  "))
+    }
+
+    @Test
+    fun midaDeLaPaginaPintada() {
+        // A4 (595x842 pt) en una pantalla de 1080 px: ample sencer, proporció mantinguda.
+        assertEquals(1080 to 1528, pdfPageBitmapSize(595, 842, 1080))
+        // Una pàgina petita no s'amplia més del doble.
+        assertEquals(200 to 400, pdfPageBitmapSize(100, 200, 1080))
+        assertEquals(1 to 1, pdfPageBitmapSize(0, 842, 1080))
     }
 }
 

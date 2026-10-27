@@ -185,6 +185,41 @@ func Specs() []llm.ToolSpec {
 				"keep_template_slides": map[string]any{"type": "boolean"},
 				"overwrite":            map[string]any{"type": "boolean"},
 			}, "required": []string{"path"}}},
+		{Name: "pdf_read", Description: "Read a PDF. detail=text (default): text page by page; pages without a text layer (scanned) are attached as images automatically when a renderer is available (pdftoppm or Windows 10/11), so read them yourself. detail=info: page count and sizes in points, metadata, form fields with their current values and options, annotations. detail=images: the pages as images (pages=\"2\" or \"1-3\"; up to 4 at full size, more as a numbered grid). pages=\"1,3-5\" limits text and images.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"path": str, "pages": str,
+				"detail": map[string]any{"type": "string", "enum": []string{"text", "info", "images"}},
+			}, "required": []string{"path"}}},
+		{Name: "pdf_edit", Description: "Edit PDFs (journaled: /rewind undoes it; the result is validated before it replaces anything). By default the file at path is changed in place; out writes elsewhere (an existing different file needs overwrite=true). pages uses \"1-3,5\", \"2-last\", \"odd\". " +
+			"ops: merge (paths = PDFs in order, out required), split (at=\"3,7\" cuts before those pages, or span=N pages per file; out = folder), extract (pages → out, default <name>_p<pages>.pdf), reorder (pages = the new order, e.g. \"3,1,2\"), delete_pages (pages), rotate (degrees 90/180/270, pages; default all), " +
+			"add_text (text, pages, position tl|tc|tr|l|c|r|bl|bc|br, x/y offset in points, size, color #RRGGBB, opacity, rotation), stamp (same, defaults: big red semi-transparent), watermark (behind the content, grey diagonal), " +
+			"fill_form (fields {name: value}; checkboxes true/false; read the names with pdf_read detail=info), annotate (kind note|highlight|box|link, pages, x, y, w, h in points from the bottom-left, text, url, color, author), set_info (fields {title, author, subject, keywords}). " +
+			"After editing, check the result with pdf_read.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"path": str,
+				"op":   map[string]any{"type": "string", "enum": tools.PdfOps},
+				"out":  str, "pages": str, "text": str, "position": str, "color": str, "kind": str, "url": str, "author": str, "at": str,
+				"paths":     map[string]any{"type": "array", "items": str},
+				"degrees":   map[string]any{"type": "integer"},
+				"span":      map[string]any{"type": "integer"},
+				"size":      map[string]any{"type": "integer"},
+				"x":         map[string]any{"type": "number"},
+				"y":         map[string]any{"type": "number"},
+				"w":         map[string]any{"type": "number"},
+				"h":         map[string]any{"type": "number"},
+				"opacity":   map[string]any{"type": "number"},
+				"rotation":  map[string]any{"type": "number"},
+				"fields":    map[string]any{"type": "object", "additionalProperties": str},
+				"overwrite": map[string]any{"type": "boolean"},
+			}, "required": []string{"op"}}},
+		{Name: "pdf_create", Description: "Create a new PDF from markdown (journaled; fails if the file exists unless overwrite=true, which is only for regenerating your own draft). content supports # headings, paragraphs with **bold**, *italic* and `code`, bullet and numbered lists (nested with two spaces), > quotes, ``` code blocks, | tables |, --- rules and \\pagebreak. title is printed big on the first page and stored in the metadata; page numbers go in the footer. Standard fonts: Western European text (Catalan, Spanish, French, German…) only; emojis are dropped. For a designed Word document use office_create instead. After creating, check it with pdf_read detail=images.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"path": str, "title": str, "author": str, "content": str,
+				"page":         map[string]any{"type": "string", "enum": []string{"a4", "letter"}},
+				"landscape":    map[string]any{"type": "boolean"},
+				"page_numbers": map[string]any{"type": "boolean"},
+				"overwrite":    map[string]any{"type": "boolean"},
+			}, "required": []string{"path", "content"}}},
 		{Name: "question", Description: "Ask the user when you need a decision to continue (at most 4 short options; free text is also allowed). Use it instead of guessing ambiguous requirements.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"query": str,
@@ -376,7 +411,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
+	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
 	case "lsp":
 		if lspEsRename(argsJSON) {
@@ -457,7 +492,7 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	if mode == ModeInspect || mode == ModeChat || mode == ModeGoal {
 		switch name {
-		case "office_edit", "office_create", "bash_kill":
+		case "office_edit", "office_create", "pdf_edit", "pdf_create", "bash_kill":
 			return "deny", "read-only mode: cannot modify documents or stop processes"
 		case "git_commit", "gh_pr_create":
 			return "deny", "read-only mode: cannot commit or open pull requests"
@@ -537,7 +572,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	// En code i autònom, escriure dins del projecte passa sol. Un override
 	// explícit del config sempre preval; tota altra acció «ask» continua
 	// requerint aprovació, també en mode autònom.
-	if (mode == ModeCode || mode == ModeAutonomous || mode == ModeDebug) && (name == "write" || name == "edit" || name == "patch") {
+	if (mode == ModeCode || mode == ModeAutonomous || mode == ModeDebug) && (name == "write" || name == "edit" || name == "patch" || name == "pdf_edit" || name == "pdf_create") {
 		if p != nil {
 			if d, why, ok := p.ruleDecision(name, argsJSON); ok {
 				return d, why
@@ -695,6 +730,93 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			Text: oe.Text, Author: oe.Author, Regex: oe.Regex, IgnoreCase: oe.IgnoreCase, Track: oe.Track, All: oe.All,
 			Slide: oe.Slide, To: oe.To, Layout: oe.Layout, Spec: rawText(oe.Spec),
 			Shapes: strMap(oe.Shapes), Cells: strMap(oe.Cells), Vars: strMap(oe.Vars),
+		})
+		if err != nil {
+			return "", nil, err
+		}
+		return out, nil, nil
+	case "pdf_read":
+		var pr struct {
+			Path   string `json:"path"`
+			Pages  string `json:"pages"`
+			Detail string `json:"detail"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &pr); err != nil {
+			return "", nil, err
+		}
+		pout, pimgs, perr := tools.PdfRead(ctx, tools.PdfReadOpts{Path: pr.Path, Pages: pr.Pages, Detail: pr.Detail})
+		if perr != nil {
+			return "", nil, perr
+		}
+		if len(pout) > 40000 {
+			pout = pout[:40000] + "\n… (retallat; demana pages=\"N-M\" per llegir la resta)"
+		}
+		return "llegit " + pr.Path + "\n" + pout, pimgs, nil
+	case "pdf_create":
+		var pc struct {
+			Path        string `json:"path"`
+			Title       string `json:"title"`
+			Author      string `json:"author"`
+			Content     string `json:"content"`
+			Page        string `json:"page"`
+			Landscape   bool   `json:"landscape"`
+			PageNumbers *bool  `json:"page_numbers"`
+			Overwrite   bool   `json:"overwrite"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &pc); err != nil {
+			return "", nil, err
+		}
+		out, err := tools.PdfCreate(ctx, tools.PdfCreateOpts{Path: pc.Path, Title: pc.Title, Author: pc.Author, Content: pc.Content,
+			Page: pc.Page, Landscape: pc.Landscape, NoPageNumbers: pc.PageNumbers != nil && !*pc.PageNumbers, Overwrite: pc.Overwrite})
+		if err != nil {
+			return "", nil, err
+		}
+		return out, nil, nil
+	case "pdf_edit":
+		var pe struct {
+			Path      string          `json:"path"`
+			Op        string          `json:"op"`
+			Out       string          `json:"out"`
+			Paths     []string        `json:"paths"`
+			Pages     json.RawMessage `json:"pages"`
+			Degrees   int             `json:"degrees"`
+			Span      int             `json:"span"`
+			At        json.RawMessage `json:"at"`
+			Text      string          `json:"text"`
+			Position  string          `json:"position"`
+			X         float64         `json:"x"`
+			Y         float64         `json:"y"`
+			W         float64         `json:"w"`
+			H         float64         `json:"h"`
+			Size      int             `json:"size"`
+			Color     string          `json:"color"`
+			Opacity   float64         `json:"opacity"`
+			Rotation  float64         `json:"rotation"`
+			Kind      string          `json:"kind"`
+			URL       string          `json:"url"`
+			Author    string          `json:"author"`
+			Fields    map[string]any  `json:"fields"`
+			Overwrite bool            `json:"overwrite"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &pe); err != nil {
+			return "", nil, err
+		}
+		// "path" ja ve resolt (resolArgs); out i paths, contra el projecte.
+		abs := func(p string) string {
+			if p != "" && dir != "" && !tools.IsRooted(p) {
+				return filepath.Join(dir, p)
+			}
+			return p
+		}
+		for i := range pe.Paths {
+			pe.Paths[i] = abs(pe.Paths[i])
+		}
+		out, err := tools.PdfEdit(ctx, tools.PdfEditOpts{
+			Path: pe.Path, Op: pe.Op, Out: abs(pe.Out), Paths: pe.Paths, Pages: rawText(pe.Pages),
+			Degrees: pe.Degrees, Span: pe.Span, At: rawText(pe.At), Text: pe.Text, Position: pe.Position,
+			X: pe.X, Y: pe.Y, W: pe.W, H: pe.H, Size: pe.Size, Color: pe.Color, Opacity: pe.Opacity,
+			Rotation: pe.Rotation, Kind: pe.Kind, URL: pe.URL, Author: pe.Author, Fields: strMap(pe.Fields),
+			Overwrite: pe.Overwrite,
 		})
 		if err != nil {
 			return "", nil, err

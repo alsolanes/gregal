@@ -3586,6 +3586,8 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		var err error
 		if tools.OfficeKind(parts[1]) != "" {
 			out, err = tools.OfficeRead(workspacePath(m.cwd, parts[1]))
+		} else if tools.IsPDF(parts[1]) {
+			out, err = tools.PdfText(workspacePath(m.cwd, parts[1]))
 		} else {
 			out, err = tools.Read(workspacePath(m.cwd, parts[1]), off, lim)
 		}
