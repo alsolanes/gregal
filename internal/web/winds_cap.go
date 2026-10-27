@@ -52,6 +52,7 @@ type capState struct {
 	Style   string   `json:"style"`
 	Seen    int64    `json:"seen"` // última visita: el resum compta el que ha passat després
 	History []capMsg `json:"history"`
+	Pet     capPet   `json:"pet"`
 }
 
 type capDecision struct {
@@ -60,6 +61,11 @@ type capDecision struct {
 	Winds    []string `json:"winds"`
 	Task     string   `json:"task,omitempty"`
 	Rotllana string   `json:"rotllana,omitempty"`
+	// Create: especialistes que encara no hi són i la mascota proposa crear.
+	Create []crewNew `json:"create"`
+	// Novices: vents triats que encara no saben res del seu ofici (ni
+	// coneixements ni memòria): l'app proposa fer-los un curs accelerat.
+	Novices []string `json:"novices"`
 }
 
 var capMu sync.Mutex
@@ -211,10 +217,12 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		capMu.Lock()
 		st := s.loadCap()
 		brief := s.capBriefSince(st.Seen, ca)
-		st.Seen = time.Now().Unix()
+		now := time.Now()
+		st.Seen = now.Unix()
+		st.Pet.tick(now)
 		s.saveCap(st)
 		capMu.Unlock()
-		writeJSON(w, map[string]any{"name": st.Name, "color": st.Color, "style": st.Style, "history": st.History, "brief": brief})
+		writeJSON(w, map[string]any{"name": st.Name, "color": st.Color, "style": st.Style, "history": st.History, "brief": brief, "pet": st.Pet.json(now)})
 	case http.MethodPost:
 		var req struct {
 			Message string `json:"message"`
@@ -256,9 +264,13 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 			st.History = append(st.History, capMsg{From: "user", Text: msg, Ts: now})
 		}
 		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds})
+		if d.Action != "self" {
+			capCheer(&st.Pet, time.Now())
+		}
 		s.saveCap(st)
 		capMu.Unlock()
-		writeJSON(w, map[string]any{"action": d.Action, "reply": d.Reply, "winds": d.Winds, "task": d.Task, "rotllana": d.Rotllana, "history": st.History})
+		writeJSON(w, map[string]any{"action": d.Action, "reply": d.Reply, "winds": d.Winds, "task": d.Task, "rotllana": d.Rotllana,
+			"create": d.Create, "novices": d.Novices, "history": st.History, "pet": st.Pet.json(time.Now())})
 	default:
 		http.Error(w, "GET or POST required", http.StatusMethodNotAllowed)
 	}
@@ -352,7 +364,7 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 	if tail := capTail(st.History, 6); tail != "" {
 		b.WriteString("\nRECENT TALK WITH YOU:\n" + tail)
 	}
-	b.WriteString("\nUSER NOW: " + msg + "\n\n")
+	b.WriteString("\nUSER NOW: " + msg + "\n(Write `reply` in the same language as USER NOW, whatever language the earlier talk used.)\n\n")
 	if force == "self" {
 		b.WriteString("The user wants YOU to answer this yourself. action must be \"self\".\n")
 	} else if force == "rotllana" {
@@ -360,17 +372,24 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 	}
 	b.WriteString("Pick ONE action:\n" +
 		"- \"self\": greetings, small talk, quick facts, a short answer you can give in a few sentences, or when no wind fits. reply = your full answer (max 5 sentences).\n" +
-		"- \"wind\": one wind's role or knowledge clearly matches. winds = [its id]. reply = one short playful sentence handing it over, naming the wind (e.g. \"This one is for Marinada 🛒\").\n" +
-		"- \"rotllana\": it really needs two or three different viewpoints. winds = 2-3 ids. reply = one short sentence saying you are gathering them.\n" +
+		"- \"rotllana\" (the usual choice for any real question): open a chat with the SPECIALISTS of the subject. winds = the 1-3 existing winds whose role or knowledge is specifically about it (generic roles such as organisation or review never count as specialists of a subject). If the subject has no specialist, add up to 2 new specialists in `new`. reply = one short playful sentence saying who you are gathering.\n" +
+		"- \"wind\": the user names one wind, or exactly one specialist fits and nothing is missing. winds = [its id]. reply = one short playful sentence handing it over (e.g. \"This one is for Marinada 🛒\").\n" +
 		"- \"crew\": long work that produces something: a website, an app, a report, an analysis of data, a plan with many parts. task = the request rewritten as a clear brief. reply = one short sentence saying this needs a crew working on the server.\n" +
-		"Never invent wind ids. Prefer \"wind\" over \"self\" when a wind's role is about the topic.\n" +
-		`JSON: {"action":"…","winds":["id"],"task":"…","reply":"…"}`)
+		"Never invent wind ids. Prefer specialists over answering yourself whenever the subject has any depth.\n" +
+		"New specialists: a short, playful, wind-inspired Catalan name not used above; a role of 2-5 words in " + lang + " saying exactly what it masters; a warm persona (2 sentences, in English) stating its expertise; kit = the closest of [" + strings.Join(crewKits, ", ") + "] or \"\".\n" +
+		`JSON: {"action":"…","winds":["id"],"new":[{"name":"…","role":"…","persona":"…","kit":"…"}],"task":"…","reply":"…"}`)
 	raw, err := capDecider(s, ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: b.String()}})
 	if err != nil {
 		log.Printf("cap: %s", redactError(err))
 		return capDecision{}, err
 	}
 	var d capDecision
+	var extra struct {
+		New []crewNew `json:"new"`
+	}
+	if obj := firstJSONObject(raw); obj != "" && json.Unmarshal([]byte(obj), &extra) == nil {
+		d.Create = extra.New
+	}
 	if obj := firstJSONObject(raw); obj == "" || json.Unmarshal([]byte(obj), &d) != nil {
 		// Sense JSON, el model ha contestat en prosa: és una resposta seva.
 		d = capDecision{Action: "self", Reply: oneLineKeepBreaks(raw, 1200)}
@@ -396,35 +415,61 @@ func capFinish(s *Server, d capDecision, st capState, byID map[string]companion.
 	}
 	d.Winds = ids
 	d.Reply = strings.TrimSpace(d.Reply)
+	if d.Action != "wind" && d.Action != "rotllana" {
+		d.Create = nil
+	}
+	if d.Action == "wind" || d.Action == "rotllana" {
+		// Els especialistes nous passen pel mateix filtre que les colles:
+		// noms i colors lliures, i si n'hi ha un amb el mateix ofici, aquest.
+		if len(d.Create) > 0 {
+			winds := make([]companion.Wind, 0, len(byID))
+			for _, w := range byID {
+				winds = append(winds, w)
+			}
+			reuse := make([]crewReuse, 0, len(ids))
+			for _, id := range ids {
+				reuse = append(reuse, crewReuse{ID: id})
+			}
+			p := crewSanitise(crewProposal{Plan: "-", Reuse: reuse, Create: d.Create}, winds, msg, ca)
+			ids = ids[:0]
+			for _, r := range p.Reuse {
+				ids = append(ids, r.ID)
+			}
+			d.Winds, d.Create = ids, p.Create
+		}
+		if len(d.Create) > 2 {
+			d.Create = d.Create[:2]
+		}
+		if len(d.Winds) > 3 {
+			d.Winds = d.Winds[:3]
+		}
+		switch total := len(d.Winds) + len(d.Create); {
+		case total == 0:
+			d.Action = "self"
+		case total == 1:
+			d.Action = "wind"
+		default:
+			d.Action = "rotllana"
+		}
+	}
 	switch d.Action {
 	case "wind":
-		if len(ids) == 0 {
-			d.Action = "self"
-			break
+		name := ""
+		if len(d.Winds) == 1 {
+			name = byID[d.Winds[0]].Name
+		} else if len(d.Create) == 1 {
+			name = d.Create[0].Name
 		}
-		d.Winds = ids[:1]
 		if d.Reply == "" {
-			d.Reply = capHandOver(byID[ids[0]].Name, ca)
+			d.Reply = capHandOver(name, ca)
 		}
 	case "rotllana":
-		if len(ids) > 3 {
-			d.Winds = ids[:3]
-		}
-		if len(d.Winds) < 2 {
-			if len(d.Winds) == 1 {
-				d.Action = "wind"
-				if d.Reply == "" {
-					d.Reply = capHandOver(byID[d.Winds[0]].Name, ca)
-				}
-				break
-			}
-			d.Action = "self"
-			break
-		}
 		if d.Reply == "" {
-			d.Reply = map[bool]string{true: "Faig rotllana: ho mirem entre uns quants 🌀", false: "Let me gather a few of them 🌀"}[ca]
+			d.Reply = map[bool]string{true: "Faig rotllana amb els que en saben 🌀", false: "Let me gather the experts 🌀"}[ca]
 		}
-		d.Rotllana = s.capRotllanaWith(d.Winds)
+		if len(d.Create) == 0 {
+			d.Rotllana = s.capRotllanaWith(d.Winds)
+		}
 	case "crew":
 		d.Winds = nil
 		if strings.TrimSpace(d.Task) == "" {
@@ -437,12 +482,134 @@ func capFinish(s *Server, d capDecision, st capState, byID map[string]companion.
 		d.Action = "self"
 	}
 	if d.Action == "self" {
-		d.Winds = nil
+		d.Winds, d.Create = nil, nil
 		if d.Reply == "" {
 			d.Reply = map[bool]string{true: "Hmm, no ho he entès del tot. M'ho tornes a dir?", false: "Hmm, I didn't quite get that. Say it again?"}[ca]
 		}
 	}
+	if d.Create == nil {
+		d.Create = []crewNew{}
+	}
+	d.Novices = []string{}
+	for _, id := range d.Winds {
+		if s.windIsNovice(id) {
+			d.Novices = append(d.Novices, id)
+		}
+	}
 	return d
+}
+
+// windIsNovice: el vent encara no sap res del seu ofici, ni per estudi
+// (coneixements) ni per conversa (memòria).
+func (s *Server) windIsNovice(id string) bool {
+	return len(s.windSkills(id)) == 0 && strings.TrimSpace(s.windBrain(id)) == ""
+}
+
+// handleCapGo fa el que la mascota ha decidit: crea els especialistes nous,
+// obre el xat (un vent sol o una rotllana, la que ja hi hagi amb els mateixos
+// vents) i, si l'usuari ho vol, engega el curs accelerat dels que no en saben.
+//
+//	POST /api/winds/cap/go {message,lang,winds,create,course} → {wind|rotllana, created, studying}
+func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Message string    `json:"message"`
+		Lang    string    `json:"lang"`
+		Winds   []string  `json:"winds"`
+		Create  []crewNew `json:"create"`
+		Course  bool      `json:"course"`
+	}
+	if !decodeSmall(w, r, &req) {
+		return
+	}
+	ca := req.Lang == "ca"
+	if n := len(req.Winds) + len(req.Create); n == 0 || n > 4 || len(req.Create) > 2 {
+		http.Error(w, "1-4 winds required", http.StatusBadRequest)
+		return
+	}
+	windLibraryMu.Lock()
+	list, err := s.winds.List()
+	if err != nil {
+		windLibraryMu.Unlock()
+		http.Error(w, "could not read winds", http.StatusInternalServerError)
+		return
+	}
+	reuse := []crewReuse{}
+	for _, id := range req.Winds {
+		reuse = append(reuse, crewReuse{ID: id})
+	}
+	p := crewSanitise(crewProposal{Plan: "-", Reuse: reuse, Create: req.Create}, list, req.Message, ca)
+	members := []string{}
+	for _, r := range p.Reuse {
+		members = append(members, r.ID)
+	}
+	created := []companion.Wind{}
+	for _, c := range p.Create {
+		wind := companion.Wind{
+			ID: "w-" + windRecordID(), Name: c.Name, Role: c.Role, Specialty: c.Kit,
+			Color: c.Color, Style: c.Style,
+			Persona: c.Persona + " Respond in the user's language. Never claim actions or checks you did not perform.",
+		}
+		if err := s.winds.Restore(wind); err != nil {
+			windLibraryMu.Unlock()
+			http.Error(w, "could not create winds", http.StatusInternalServerError)
+			return
+		}
+		created = append(created, wind)
+		members = append(members, wind.ID)
+	}
+	windLibraryMu.Unlock()
+	if len(members) == 0 {
+		http.Error(w, "unknown winds", http.StatusBadRequest)
+		return
+	}
+	studying := []string{}
+	if req.Course {
+		for _, id := range members {
+			wnd, ok := s.winds.ByID(id)
+			if !ok || !s.windIsNovice(id) {
+				continue
+			}
+			if e := engegaExpert(wnd.ID, wnd.Role); e != nil {
+				goBackground(func() { s.executaExpert(wnd, e) })
+				studying = append(studying, wnd.ID)
+			}
+		}
+	}
+	out := map[string]any{"created": created, "studying": studying}
+	if len(members) == 1 {
+		out["wind"] = members[0]
+		writeJSON(w, out)
+		return
+	}
+	id := s.capRotllanaWith(members)
+	if id == "" {
+		names := []string{}
+		for _, m := range members {
+			if wnd, ok := s.winds.ByID(m); ok {
+				names = append(names, wnd.Name)
+			}
+		}
+		and := " & "
+		if ca {
+			and = " i "
+		}
+		name := strings.Join(names[:len(names)-1], ", ") + and + names[len(names)-1]
+		s.mu.Lock()
+		workspace := s.cwd
+		s.mu.Unlock()
+		rot, err := s.saveRotllana(Rotllana{Name: name, Members: members, Workspace: workspace})
+		if err != nil {
+			http.Error(w, "could not open the conversation", http.StatusInternalServerError)
+			return
+		}
+		id = rot.ID
+	}
+	out["rotllana"] = id
+	writeJSON(w, out)
 }
 
 func capHandOver(name string, ca bool) string {

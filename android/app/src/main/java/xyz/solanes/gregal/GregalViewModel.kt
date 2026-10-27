@@ -2881,7 +2881,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** El que hi ha pendent de dir «endavant»: el missatge i la decisió. */
     data class CapPending(val message: String, val decision: CapDecision)
     data class CapUi(val state: CapState = CapState(), val loaded: Boolean = false, val busy: Boolean = false,
-                     val pending: CapPending? = null, val asked: String = "", val error: Boolean = false)
+                     val pending: CapPending? = null, val asked: String = "", val error: Boolean = false,
+                     /** El que acaba de dir jugant (té prioritat uns segons a la bombolla). */
+                     val say: String = "", val sayAt: Long = 0L,
+                     /** Curs accelerat per als que no en saben (proposat, l'usuari el pot treure). */
+                     val course: Boolean = true,
+                     /** Moment de l'última pujada de nivell: l'app hi fa confeti. */
+                     val levelUpAt: Long = 0L, val unlocked: List<String> = emptyList(), val going: Boolean = false)
     private val _cap = MutableStateFlow(CapUi())
     val cap: StateFlow<CapUi> = _cap.asStateFlow()
 
@@ -2907,8 +2913,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val d = withContext(Dispatchers.IO) { source.api().capAsk(message, idioma.value, force) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
-                val st = _cap.value.state.copy(history = d.history, brief = "", briefCount = 0)
-                _cap.value = _cap.value.copy(state = st, busy = false,
+                val st = _cap.value.state.copy(history = d.history, brief = "", briefCount = 0, pet = d.pet ?: _cap.value.state.pet)
+                _cap.value = _cap.value.copy(state = st, busy = false, say = "", course = true,
                     pending = if (d.delegates) CapPending(message, d) else null)
             } catch (_: Exception) {
                 if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true)
@@ -2918,22 +2924,64 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Endavant: fa el que la mascota ha decidit (o l'usuari ha triat). */
     fun capGo() {
-        val p = _cap.value.pending ?: return
-        _cap.value = _cap.value.copy(pending = null)
+        val ui = _cap.value
+        val p = ui.pending ?: return
+        if (ui.going) return
         val d = p.decision
-        when (d.action) {
-            "wind" -> d.winds.firstOrNull()?.let { id ->
-                openVentsChat("wind:$id")
-                sendWindMessage(id, p.message)
+        if (d.action == "crew") {
+            _cap.value = ui.copy(pending = null)
+            openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message })
+            return
+        }
+        // Un vent sol que ja en sap, sense res a crear: directe, sense esperar el servidor.
+        if (d.action == "wind" && d.create.isEmpty() && (d.novices.isEmpty() || !ui.course)) {
+            _cap.value = ui.copy(pending = null)
+            d.winds.firstOrNull()?.let { id -> openVentsChat("wind:$id"); sendWindMessage(id, p.message) }
+            return
+        }
+        val source = _conn.value; val epoch = companionEpoch
+        _cap.value = ui.copy(going = true)
+        viewModelScope.launch {
+            try {
+                val r = withContext(Dispatchers.IO) { source.api().capGo(p.message, idioma.value, d.winds, d.create, ui.course) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                // Els vents nous i la rotllana han de ser a la llista abans d'obrir-los:
+                // la pantalla tanca un xat que no coneix.
+                val ws = withContext(Dispatchers.IO) { source.api().getWinds() }
+                val rots = withContext(Dispatchers.IO) { source.api().getRotllanes() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _winds.value = ws; _rotllanes.value = rots
+                _cap.value = _cap.value.copy(pending = null, going = false)
+                if (r.wind.isNotBlank()) { openVentsChat("wind:" + r.wind); sendWindMessage(r.wind, p.message) }
+                else if (r.rotllana.isNotBlank()) { openVentsChat("rot:" + r.rotllana); sendRotllanaMessage(r.rotllana, p.message) }
+                if (r.studying.isNotEmpty()) {
+                    val names = r.studying.mapNotNull { id -> ws.firstOrNull { it.id == id }?.name }
+                    notify(appText("app.cap.studying", capRotllanaName(names, idioma.value)))
+                }
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) {
+                    _cap.value = _cap.value.copy(going = false)
+                    notify(appText("app.status.company", e.message.orEmpty()))
+                }
             }
-            "rotllana" -> if (d.rotllana.isNotBlank() && _rotllanes.value.any { it.id == d.rotllana }) {
-                openVentsChat("rot:" + d.rotllana)
-                sendRotllanaMessage(d.rotllana, p.message)
-            } else {
-                val names = d.winds.mapNotNull { id -> _winds.value.firstOrNull { it.id == id }?.name }
-                createRotllana(capRotllanaName(names, idioma.value), d.winds, onOpened = { id -> sendRotllanaMessage(id, p.message) })
-            }
-            "crew" -> { openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message }) }
+        }
+    }
+
+    fun capToggleCourse() { _cap.value = _cap.value.copy(course = !_cap.value.course) }
+
+    /** Cuidar-la i jugar-hi: l'estat ve del servidor, les animacions són de l'app. */
+    fun capPlay(act: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val (pet, say, unlocked) = withContext(Dispatchers.IO) { source.api().capPlay(act, idioma.value) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val before = _cap.value.state.pet.level
+                val now = System.currentTimeMillis()
+                _cap.value = _cap.value.copy(state = _cap.value.state.copy(pet = pet), say = say, sayAt = now,
+                    levelUpAt = if (pet.level > before) now else _cap.value.levelUpAt,
+                    unlocked = if (unlocked.isNotEmpty()) unlocked else _cap.value.unlocked)
+            } catch (_: Exception) { }
         }
     }
 

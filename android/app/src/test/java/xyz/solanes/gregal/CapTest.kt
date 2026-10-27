@@ -37,4 +37,34 @@ class CapTest {
         assertEquals("Marinada i Garbí", capRotllanaName(listOf("Marinada", "Garbí"), "ca"))
         assertEquals("A, B & C", capRotllanaName(listOf("A", "B", "C"), "en"))
     }
+
+    @Test fun `proposa especialistes nous i curs per als que no en saben`() {
+        val d = CapDecision.parse(JSONObject("""{"action":"rotllana","reply":"Faig rotllana","winds":["m1"],
+            "create":[{"name":"Fogony","role":"cuina","persona":"Cuina.","kit":"","color":"#F7B2D9","style":"bon"}],
+            "novices":["m1"],"pet":{"happy":80,"energy":40,"full":20,"level":3,"level_xp":20,"outfits":["llacet","gorra"],"outfit":"gorra"}}"""))
+        assertEquals("Fogony", d.create.single().name)
+        assertEquals(listOf("m1"), d.novices)
+        assertEquals(3, d.pet?.level)
+        assertTrue(d.pet!!.hungry)
+        assertEquals("gorra", d.pet!!.outfit)
+    }
+
+    @Test fun `pedra paper tisora`() {
+        assertEquals(1, rpsWinner(1, 0))   // paper guanya pedra
+        assertEquals(1, rpsWinner(0, 2))   // pedra guanya tisora
+        assertEquals(-1, rpsWinner(2, 0))  // tisora perd amb pedra
+        assertEquals(0, rpsWinner(2, 2))
+    }
+
+    @Test fun `els nuvols pugen i marxen`() {
+        val c = CapCloud(1, .5f, born = 1000, gold = false, life = 2000)
+        assertEquals(1f, cloudY(c, 1000)!!, 0.001f)
+        assertEquals(.5f, cloudY(c, 2000)!!, 0.001f)
+        assertEquals(null, cloudY(c, 3500))
+    }
+
+    @Test fun `la roba del cataleg coincideix amb el servidor`() {
+        assertEquals(listOf("llacet", "gorra", "bufanda", "ulleres", "barret", "auriculars", "corona", "flors", "carbassa", "gorro"),
+            capOutfitCatalog.map { it.id })
+    }
 }

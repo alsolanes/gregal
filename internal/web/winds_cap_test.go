@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"gregal/internal/companion"
 	"gregal/internal/llm"
@@ -124,5 +125,79 @@ func TestCapResum(t *testing.T) {
 	s.handleCapProfile(rec, httptest.NewRequest(http.MethodPost, "/api/winds/cap/profile", bytes.NewBufferString(`{"name":"Bufi"}`)))
 	if !strings.Contains(rec.Body.String(), `"Bufi"`) {
 		t.Fatalf("nom: %s", rec.Body.String())
+	}
+}
+
+// TestCapEspecialistes: si ningú no en sap, la mascota proposa especialistes
+// nous; en dir «endavant» els crea, obre la rotllana i, si l'usuari vol, els
+// fa fer el curs accelerat.
+func TestCapEspecialistes(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres i receptes"})
+	old, oldExpert := capDecider, expertLoop
+	t.Cleanup(func() { capDecider, expertLoop = old, oldExpert })
+	capDecider = func(*Server, context.Context, []llm.Message) (string, error) {
+		return `{"action":"rotllana","winds":["` + mar.ID + `"],"new":[{"name":"Fogony","role":"cuina de tardor","persona":"Cooks.","kit":""}],"reply":"Faig rotllana 🌀"}`, nil
+	}
+	out := capPost(t, s, `{"message":"què cuino amb carbassa?","lang":"ca"}`)
+	if out["action"] != "rotllana" || len(out["create"].([]any)) != 1 {
+		t.Fatalf("proposta: %v", out)
+	}
+	if nov := out["novices"].([]any); len(nov) != 1 || nov[0] != mar.ID {
+		t.Fatalf("novells: %v", out["novices"])
+	}
+	expertLoop = func(*Server, context.Context, string, func(int, string)) (exploracio, error) {
+		return exploracio{}, errConst("sense xarxa a la prova")
+	}
+	body, _ := json.Marshal(map[string]any{"message": "què cuino amb carbassa?", "lang": "ca", "winds": out["winds"], "create": out["create"], "course": true})
+	rec := httptest.NewRecorder()
+	s.handleCapGo(rec, httptest.NewRequest(http.MethodPost, "/api/winds/cap/go", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	var res struct {
+		Rotllana string           `json:"rotllana"`
+		Created  []companion.Wind `json:"created"`
+		Studying []string         `json:"studying"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &res)
+	if res.Rotllana == "" || len(res.Created) != 1 || len(res.Studying) != 2 {
+		t.Fatalf("endavant: %s", rec.Body.String())
+	}
+	if rot, ok := s.rotllanaByID(res.Rotllana); !ok || len(rot.Members) != 2 {
+		t.Fatalf("rotllana: %+v", rot)
+	}
+}
+
+// TestCapMascotaJuga: menjar, jugar i mimar-la la fan pujar de nivell i
+// guanyar roba; sense energia no juga; mai no baixa de l'alegria mínima.
+func TestCapMascotaJuga(t *testing.T) {
+	now := time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
+	var p capPet
+	if _, err := capPlay(&p, "pet", true, now); err != nil || p.Happy != 76 {
+		t.Fatalf("mimar: %v %+v", err, p)
+	}
+	if _, err := capPlay(&p, "feed:galeta", true, now); err != nil || p.Full != 85 {
+		t.Fatalf("menjar: %v %+v", err, p)
+	}
+	for i := 0; i < 5; i++ {
+		_, _ = capPlay(&p, "game:nuvols:12", true, now)
+	}
+	if p.Energy != 5 || p.level() < 2 {
+		t.Fatalf("jugar: %+v", p)
+	}
+	if say, _ := capPlay(&p, "game:nuvols:12", true, now); !strings.Contains(say, "becaina") || p.Played != 5 {
+		t.Fatalf("cansat: %q %+v", say, p)
+	}
+	if _, err := capPlay(&p, "wear:corona", true, now); err == nil {
+		t.Fatal("la corona encara no és seva")
+	}
+	if _, err := capPlay(&p, "wear:carbassa", true, now); err != nil || p.Outfit != "carbassa" {
+		t.Fatalf("roba d'octubre: %v %+v", err, p)
+	}
+	p.tick(now.Add(30 * 24 * time.Hour))
+	if p.Happy != capHappyFloor || p.Full != 0 || p.Energy != 100 {
+		t.Fatalf("un mes sense obrir l'app: %+v", p)
 	}
 }

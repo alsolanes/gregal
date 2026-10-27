@@ -689,6 +689,23 @@ class GregalApi(val base: String, val token: String) {
     fun capAsk(message: String, lang: String, force: String = ""): CapDecision =
         CapDecision.parse(post("/api/winds/cap", JSONObject().put("message", message).put("lang", lang).put("force", force)))
 
+    /** Cuidar-la: "pet", "feed:galeta", "game:nuvols:12", "sleep", "wear:gorra". */
+    fun capPlay(act: String, lang: String): Triple<CapPet, String, List<String>> {
+        val o = post("/api/winds/cap/play", JSONObject().put("act", act).put("lang", lang))
+        val u = o.optJSONArray("unlocked")
+        return Triple(CapPet.parse(o.optJSONObject("pet") ?: JSONObject()), o.optString("say"),
+            if (u == null) emptyList() else (0 until u.length()).map { u.optString(it) })
+    }
+
+    /** Endavant: crea els especialistes, obre el xat i, si cal, el curs accelerat. */
+    fun capGo(message: String, lang: String, winds: List<String>, create: List<CapNew>, course: Boolean): CapGoResult {
+        val o = post("/api/winds/cap/go", JSONObject().put("message", message).put("lang", lang)
+            .put("winds", JSONArray(winds)).put("create", JSONArray(create.map { it.json() })).put("course", course))
+        fun strs(k: String) = o.optJSONArray(k)?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty()
+        val created = o.optJSONArray("created")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.optString("id") } }.orEmpty()
+        return CapGoResult(o.optString("wind"), o.optString("rotllana"), strs("studying"), created)
+    }
+
     fun capRename(name: String): CapState {
         val o = post("/api/winds/cap/profile", JSONObject().put("name", name))
         return CapState(name = o.optString("name"), color = o.optString("color"), style = o.optString("style"))

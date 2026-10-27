@@ -16,6 +16,7 @@ data class CapState(
     val history: List<CapMsg> = emptyList(),
     val brief: String = "",
     val briefCount: Int = 0,
+    val pet: CapPet = CapPet(),
 ) {
     val argb: Long get() {
         val hex = color.removePrefix("#")
@@ -35,6 +36,7 @@ data class CapState(
                 history = parseHistory(o.optJSONArray("history")),
                 brief = b?.optString("text").orEmpty(),
                 briefCount = count,
+                pet = o.optJSONObject("pet")?.let { CapPet.parse(it) } ?: CapPet(),
             )
         }
 
@@ -58,6 +60,11 @@ data class CapDecision(
     val task: String = "",
     val rotllana: String = "",
     val history: List<CapMsg> = emptyList(),
+    /** Especialistes nous que proposa crear. */
+    val create: List<CapNew> = emptyList(),
+    /** Vents triats que encara no saben res: es proposa un curs accelerat. */
+    val novices: List<String> = emptyList(),
+    val pet: CapPet? = null,
 ) {
     /** Hi ha res a fer? «self» ja és la resposta. */
     val delegates: Boolean get() = action == "wind" || action == "rotllana" || action == "crew"
@@ -72,6 +79,9 @@ data class CapDecision(
                 task = o.optString("task"),
                 rotllana = o.optString("rotllana"),
                 history = CapState.parseHistory(o.optJSONArray("history")),
+                create = o.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
+                novices = o.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+                pet = o.optJSONObject("pet")?.let { CapPet.parse(it) },
             )
         }
     }
@@ -83,3 +93,52 @@ internal fun capRotllanaName(names: List<String>, lang: String): String = when (
     1 -> names[0]
     else -> names.dropLast(1).joinToString(", ") + (if (lang == "ca") " i " else " & ") + names.last()
 }
+
+/** Un especialista nou que la mascota proposa (es crea en dir «endavant»). */
+data class CapNew(val name: String, val role: String, val persona: String = "", val kit: String = "",
+                  val color: String = "", val style: String = "") {
+    val argb: Long get() {
+        val hex = color.removePrefix("#")
+        return 0xFF000000L or (if (hex.matches(Regex("[0-9a-fA-F]{6}"))) hex else "C9B8F5").toLong(16)
+    }
+    fun json(): JSONObject = JSONObject().put("name", name).put("role", role).put("persona", persona)
+        .put("kit", kit).put("color", color).put("style", style)
+    companion object {
+        fun parse(o: JSONObject) = CapNew(o.optString("name"), o.optString("role"), o.optString("persona"),
+            o.optString("kit"), o.optString("color"), o.optString("style"))
+    }
+}
+
+/** L'estat de criatura de companyia: alegria, energia, gana, nivell i roba. */
+data class CapPet(
+    val happy: Int = 70, val energy: Int = 80, val full: Int = 60,
+    val level: Int = 1, val levelXp: Int = 0, val levelNeed: Int = 100,
+    val outfit: String = "", val outfits: List<String> = emptyList(), val played: Int = 0,
+) {
+    val hungry: Boolean get() = full < 30
+    val tired: Boolean get() = energy < 20
+    companion object {
+        fun parse(o: JSONObject): CapPet {
+            val a = o.optJSONArray("outfits")
+            return CapPet(o.optInt("happy", 70), o.optInt("energy", 80), o.optInt("full", 60),
+                o.optInt("level", 1), o.optInt("level_xp"), o.optInt("level_need", 100),
+                o.optString("outfit"), if (a == null) emptyList() else (0 until a.length()).map { a.optString(it) },
+                o.optInt("played"))
+        }
+    }
+}
+
+/** La roba de la mascota: emoji, on va i com es guanya (ha de coincidir amb capOutfits del servidor). */
+data class CapOutfit(val id: String, val emoji: String, val spot: String, val level: Int = 0, val month: Int = 0)
+
+val capOutfitCatalog = listOf(
+    CapOutfit("llacet", "🎀", "top", level = 2), CapOutfit("gorra", "🧢", "top", level = 3),
+    CapOutfit("bufanda", "🧣", "neck", level = 4), CapOutfit("ulleres", "🕶️", "eyes", level = 5),
+    CapOutfit("barret", "🎩", "top", level = 6), CapOutfit("auriculars", "🎧", "top", level = 7),
+    CapOutfit("corona", "👑", "top", level = 8),
+    CapOutfit("flors", "🌸", "top", month = 4), CapOutfit("carbassa", "🎃", "top", month = 10),
+    CapOutfit("gorro", "🎅", "top", month = 12),
+)
+
+/** Resultat de «endavant»: on s'ha obert la conversa i qui estudia. */
+data class CapGoResult(val wind: String, val rotllana: String, val studying: List<String>, val created: List<String>)
