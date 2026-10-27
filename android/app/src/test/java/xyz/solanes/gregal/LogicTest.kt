@@ -40,6 +40,17 @@ class BaseUrlTest {
         assertEquals("http://192.168.1.84:8097", baseUrlOf("http://192.168.1.84/", "8097"))
         assertEquals("http://127.0.0.1:8097", baseUrlOf("", ""))
     }
+
+    @Test
+    fun dominiPublicVaPerHttpsSensePort() {
+        assertEquals("https://vents.exemple.cat", baseUrlOf("https://vents.exemple.cat/", "8097"))
+        assertEquals("https://vents.exemple.cat", baseUrlOf("vents.exemple.cat", ""))
+        assertEquals("https://vents.exemple.cat:8443", baseUrlOf("vents.exemple.cat", "8443"))
+        assertEquals("https://vents.exemple.cat:9000", baseUrlOf("https://vents.exemple.cat:9000", "8097"))
+        assertEquals("http://casa.lan:8097", baseUrlOf("casa.lan", "8097"))
+        assertEquals("http://pc.local:8097", baseUrlOf("pc.local", ""))
+        assertEquals("http://10.0.2.2:8098", baseUrlOf("10.0.2.2", "8098"))
+    }
 }
 
 class ProtocolV2Test {

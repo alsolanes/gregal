@@ -293,7 +293,35 @@ func (h *Hub) Run(addr string) error {
 		return err
 	}
 	go s.jobLoop(context.Background())
-	return http.ListenAndServe(addr, h.Handler())
+	return newHTTPServer(addr, h.Handler()).ListenAndServe()
+}
+
+// newHTTPServer posa límits que importen quan el servidor és a internet:
+// capçaleres que arriben a poc a poc (slowloris) i connexions inactives.
+// Sense WriteTimeout: els fluxos SSE dels vents i de l'agent duren minuts.
+func newHTTPServer(addr string, h http.Handler) *http.Server {
+	return &http.Server{
+		Addr:              addr,
+		Handler:           h,
+		ReadHeaderTimeout: 15 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		MaxHeaderBytes:    64 << 10,
+	}
+}
+
+// ambCapcaleresSegures afegeix les capçaleres de seguretat bàsiques a totes
+// les respostes. L'HSTS el posa el proxy HTTPS (Caddy), que és qui sap si
+// la connexió és xifrada.
+func ambCapcaleresSegures(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("Referrer-Policy", "no-referrer")
+		if h.Get("X-Frame-Options") == "" {
+			h.Set("X-Frame-Options", "SAMEORIGIN")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Handler is the same authenticated API and UI used by every HTTP client.
@@ -308,7 +336,7 @@ func (h *Hub) Handler() http.Handler {
 	if s.Token != "" || (s.users != nil && s.users.Actiu()) {
 		handler = s.requireUser(mux)
 	}
-	return handler
+	return ambCapcaleresSegures(handler)
 }
 
 // HandlerWithIdentity delegates authentication to an embedding application's
@@ -745,18 +773,30 @@ func (s *Server) handleMe(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// clientIP treu l'adreça del client (darrere d'un proxy, la primera de
-// X-Forwarded-For).
+// clientIP treu l'adreça del client per al límit d'intents d'entrada.
+//
+// X-Forwarded-For només es creu si la connexió ve d'un proxy de la mateixa
+// màquina (Caddy, nginx al davant), i aleshores se n'agafa l'última adreça:
+// és la que hi ha afegit el proxy. Les anteriors les pot escriure qualsevol.
+// Abans s'agafava la primera sempre: amb el servidor obert a internet, un
+// atacant canviava aquella capçalera a cada intent i el límit no
+// l'aturava mai.
 func clientIP(r *http.Request) string {
-	if xf := r.Header.Get("X-Forwarded-For"); xf != "" {
-		if i := strings.Index(xf, ","); i > 0 {
-			return strings.TrimSpace(xf[:i])
-		}
-		return strings.TrimSpace(xf)
-	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
-		return r.RemoteAddr
+		host = r.RemoteAddr
+	}
+	ip := net.ParseIP(host)
+	if ip == nil || !ip.IsLoopback() {
+		return host
+	}
+	xf := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+	if xf == "" {
+		return host
+	}
+	parts := strings.Split(xf, ",")
+	if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+		return last
 	}
 	return host
 }

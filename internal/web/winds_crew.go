@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -410,10 +411,52 @@ var crewJobs sync.Map // rotllana id -> *crewJob
 type crewJob struct {
 	mu   sync.Mutex
 	step string // discussing | waiting | working | done | failed
+	// path és on es desa el pas: si el servidor es reinicia a mitja feina,
+	// l'estat no es perd i el mòbil pot dir «interrompuda» en lloc de
+	// quedar-se sense saber res.
+	path string
 }
 
-func (j *crewJob) set(step string) { j.mu.Lock(); j.step = step; j.mu.Unlock() }
-func (j *crewJob) get() string     { j.mu.Lock(); defer j.mu.Unlock(); return j.step }
+func (j *crewJob) set(step string) {
+	j.mu.Lock()
+	j.step = step
+	path := j.path
+	j.mu.Unlock()
+	if path != "" {
+		raw, _ := json.Marshal(map[string]any{"step": step, "at": time.Now().UTC().Format(time.RFC3339)})
+		if os.MkdirAll(filepath.Dir(path), 0o700) == nil {
+			_ = os.WriteFile(path, raw, 0o600)
+		}
+	}
+}
+func (j *crewJob) get() string { j.mu.Lock(); defer j.mu.Unlock(); return j.step }
+
+// crewJobPath és el fitxer del pas d'una feina de colla, al costat de les
+// converses de l'usuari.
+func crewJobPath(s *Server, rotID string) string {
+	return filepath.Join(s.sessDir(), "crew-jobs", filepath.Base(rotID)+".json")
+}
+
+// crewStepDesat llegeix el pas desat d'una feina que ja no és a la memòria
+// (el servidor s'ha reiniciat). Una feina que anava pel mig ja no avança:
+// es diu «interrupted».
+func crewStepDesat(s *Server, rotID string) string {
+	raw, err := os.ReadFile(crewJobPath(s, rotID))
+	if err != nil {
+		return ""
+	}
+	var d struct {
+		Step string `json:"step"`
+	}
+	if json.Unmarshal(raw, &d) != nil {
+		return ""
+	}
+	switch d.Step {
+	case "discussing", "waiting", "working":
+		return "interrupted"
+	}
+	return d.Step
+}
 
 func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -483,7 +526,8 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	hist.messages = append(hist.messages, llm.Message{Role: "user", Content: task})
 	_ = saveRotllanaHistory(s, rot.ID, hist.messages)
 	hist.mu.Unlock()
-	job := &crewJob{step: "discussing"}
+	job := &crewJob{path: crewJobPath(s, rot.ID)}
+	job.set("discussing")
 	crewJobs.Store(rot.ID, job)
 	goBackground(func() { s.runCrew(rot, task, req.Lang == "ca", job) })
 	writeJSON(w, map[string]any{"rotllana": rot, "created": created})
@@ -496,7 +540,7 @@ func (s *Server) handleCrewStatus(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, map[string]any{"running": step != "done" && step != "failed", "step": step})
 		return
 	}
-	writeJSON(w, map[string]any{"running": false, "step": ""})
+	writeJSON(w, map[string]any{"running": false, "step": crewStepDesat(s, id)})
 }
 
 // crewSay appends a message from a wind to the rotllana and saves it.

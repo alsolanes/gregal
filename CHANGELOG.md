@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Own server on the internet: `deploy/linux/install.sh` sets Gregal up on an always-on Linux machine as a sandboxed systemd service on 127.0.0.1 behind Caddy (automatic HTTPS, HSTS, unbuffered streams), with a password-protected admin account; see docs/server.md. Sign-in limits can no longer be bypassed by spoofing X-Forwarded-For (it is only trusted from a local proxy, last hop), and there is also an overall cap; responses carry basic security headers and the HTTP server has header and idle timeouts. Crew work saves its step, so after a server restart the app says it was interrupted. The Android app accepts `https://your-domain` (no port) and treats public domains as HTTPS.
+
+## v1.17.3 - 2026-10-26 - Model dels vents i xats més llegibles
+
 - Desktop Winds: the model chip in the composer opens a model picker for the winds (their own model, separate from the work model) instead of a menu that closed on the same click, and looks like a button.
 - Android Winds: markdown tables keep words whole and scroll sideways when they have more than two columns, and replies with tables, code or images use the full width; the home list separates real conversations from winds you have not talked to yet; a group shows "The group is thinking…" instead of "… is thinking…"; group messages are trimmed like one-to-one ones.
 - Installed squads no longer repeat wind names (two "Garbí", two "Gregal"…): the templates use distinct names, and a squad member whose name is taken gets a free one.

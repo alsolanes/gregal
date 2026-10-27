@@ -69,6 +69,9 @@ type Users struct {
 	// intents compten els intents fallits per adreça, perquè una
 	// contrasenya no es pugui anar provant a dojo.
 	intents map[string]*intentsIP
+	// global compta els intents fallits de totes les adreces: contra qui
+	// prova des de moltes adreces alhora.
+	global intentsIP
 
 	legacyToken string
 	legacyUser  *User
@@ -84,6 +87,10 @@ type intentsIP struct {
 const (
 	loginMaxIntents = 8
 	loginFinestra   = 5 * time.Minute
+	// loginMaxGlobal és el sostre d'intents fallits de tot el servidor per
+	// finestra: amb el servidor a internet, prou per a una família que
+	// s'equivoca i massa poc per a una llista de contrasenyes.
+	loginMaxGlobal = 60
 )
 
 // Permes diu si aquesta adreça encara pot provar d'entrar.
@@ -93,6 +100,9 @@ func (u *Users) Permes(ip string) bool {
 	}
 	u.mu.Lock()
 	defer u.mu.Unlock()
+	if u.global.n >= loginMaxGlobal && time.Since(u.global.primer) <= loginFinestra {
+		return false
+	}
 	c := u.intents[ip]
 	if c == nil {
 		return true
@@ -114,6 +124,10 @@ func (u *Users) Fallit(ip string) {
 	if u.intents == nil {
 		u.intents = map[string]*intentsIP{}
 	}
+	if time.Since(u.global.primer) > loginFinestra {
+		u.global = intentsIP{primer: time.Now()}
+	}
+	u.global.n++
 	c := u.intents[ip]
 	if c == nil || time.Since(c.primer) > loginFinestra {
 		u.intents[ip] = &intentsIP{n: 1, primer: time.Now()}

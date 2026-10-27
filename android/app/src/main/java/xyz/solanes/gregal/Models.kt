@@ -537,10 +537,38 @@ object SseParser {
 
 /** Construeix la base URL normalitzada. */
 fun baseUrlOf(host: String, port: String): String {
-    val h = host.trim().ifEmpty { "127.0.0.1" }
-    val p = port.trim().ifEmpty { "8097" }
-    val withScheme = if (h.contains("://")) h else "http://$h"
-    return withScheme.trimEnd('/') + ":" + p
+    val h = host.trim().trimEnd('/').ifEmpty { "127.0.0.1" }
+    val p = port.trim()
+    // Un servidor a internet va per HTTPS al port de sempre (443), darrere
+    // del proxy: «https://vents.exemple.cat» no ha de convertir-se en
+    // «https://vents.exemple.cat:8097». El port per defecte (8097) només val
+    // per a l'http de casa.
+    val scheme = when {
+        h.startsWith("https://", ignoreCase = true) -> "https"
+        h.startsWith("http://", ignoreCase = true) -> "http"
+        isPublicDomain(h) -> "https"
+        else -> "http"
+    }
+    val bare = h.substringAfter("://")
+    if (bare.substringAfterLast(']').contains(':')) return "$scheme://$bare" // ja porta port
+    return if (scheme == "https") {
+        if (p.isEmpty() || p == "8097" || p == "443") "https://$bare" else "https://$bare:$p"
+    } else {
+        "http://$bare:" + p.ifEmpty { "8097" }
+    }
+}
+
+/**
+ * Un nom de domini públic (vents.exemple.cat), no una adreça IP ni un nom de
+ * la xarxa de casa (localhost, pc.local, nas.lan): a aquests no se'ls pot
+ * demanar HTTPS, a un domini públic sí.
+ */
+internal fun isPublicDomain(host: String): Boolean {
+    val h = host.substringAfter("://").substringBefore('/').substringBefore(':').lowercase()
+    if (h.isEmpty() || !h.contains('.') || h == "localhost") return false
+    if (h.all { it.isDigit() || it == '.' }) return false
+    val tld = h.substringAfterLast('.')
+    return tld !in setOf("local", "lan", "home", "internal", "localdomain", "arpa") && tld.any { it.isLetter() }
 }
 
 
