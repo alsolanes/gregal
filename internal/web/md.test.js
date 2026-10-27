@@ -82,3 +82,11 @@ test("el ressaltat no altera el codi ni deixa marcadors", () => {
   const cos = /<pre><code>([\s\S]*?)<\/code><\/pre>/.exec(h)[1].replace(/<[^>]+>/g, "");
   assert.equal(cos, "func main() { fmt.Println(&quot;hola &lt;b&gt;&amp;amp; adéu&lt;/b&gt;&quot;) }");
 });
+
+test("enllaços a documents de Gregal (el PDF d'un vent): sí; altres rutes relatives: no", () => {
+  const h = render("📄 [Pressupost obra.pdf](/api/winds/doc?name=Pressupost+obra.pdf) i [x](/api/file?path=a) i [y](javascript:alert(1))");
+  assert.match(h, /<a href="\/api\/winds\/doc\?name=Pressupost\+obra\.pdf" class="gregal-doc" data-gregal-doc="1">Pressupost obra\.pdf<\/a>/);
+  assert.doesNotMatch(h, /href="\/api\/file/);
+  assert.doesNotMatch(h, /href="javascript/);
+  assert.match(render("[d](/api/office/download?id=ab12)"), /data-gregal-doc/);
+});

@@ -1598,6 +1598,7 @@ fun saveToDownloads(ctx: android.content.Context, name: String, bytes: ByteArray
                 safe.endsWith(".docx", true) -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 safe.endsWith(".xlsx", true) -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 safe.endsWith(".pptx", true) -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                safe.endsWith(".pdf", true) -> "application/pdf"
                 else -> "application/octet-stream"
             })
             put(android.provider.MediaStore.Downloads.RELATIVE_PATH, android.os.Environment.DIRECTORY_DOWNLOADS)

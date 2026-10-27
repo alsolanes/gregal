@@ -1192,6 +1192,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun officeClear() { _office.value = OfficeDoc() }
 
+    /** Un enllaç de document d'una resposta (el PDF que ha fet un vent):
+     *  es baixa amb la clau i es desa a Descàrregues. */
+    fun downloadServerDoc(url: String, label: String = "") {
+        val source = _conn.value
+        val name = serverDocName(url, label.ifBlank { "document" })
+        notify(appText("app.composer.docDownloading", name))
+        viewModelScope.launch {
+            val msg = try {
+                val bytes = withContext(Dispatchers.IO) { source.api().downloadServerDoc(url) }
+                withContext(Dispatchers.IO) { saveToDownloads(appContext, name, bytes, idioma.value) }
+            } catch (e: Exception) {
+                appText("app.off.downloadWriteError", e.message.orEmpty())
+            }
+            notify(msg)
+        }
+    }
+
     // --- proveïdors: claus api ---
 
     private val _providers = MutableStateFlow(listOf<ProviderInfo>())

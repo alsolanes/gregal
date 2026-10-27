@@ -21,6 +21,14 @@ async function j(url) {
 export const attach = {
   box: null,
   init() {
+    // Enllaços a documents de Gregal (el PDF que ha fet un vent): l'API vol
+    // la clau, o sigui que es baixen per fetch i no navegant-hi.
+    document.addEventListener('click', e => {
+      const a = e.target.closest && e.target.closest('a[data-gregal-doc]');
+      if (!a) return;
+      e.preventDefault();
+      this.baixaDocument(a.getAttribute('href'), a.textContent);
+    });
     const pick = $('docPick');
     if (pick) pick.onchange = async () => {
       const fs = [...pick.files];
@@ -159,6 +167,20 @@ export const attach = {
     }
     G().activityItem('office', msg('attach.docAdded', { name: d.name }), d.kind.toUpperCase(), 'ok');
     return d;
+  },
+
+  async baixaDocument(href, label) {
+    try {
+      const r = await G().api(href);
+      if (!r.ok) throw new Error((await r.text()) || ('HTTP ' + r.status));
+      const blob = await r.blob();
+      const name = new URL(href, location.href).searchParams.get('name') || String(label || 'document').trim();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch (e) { G().sys(String(e.message || e)); }
   },
 
   async documentPerAlVent(f) {

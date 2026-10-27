@@ -50,10 +50,33 @@ and edited; the result is saved unencrypted. PDFs that need a password to open
 are refused with a clear message. Editing a signed PDF invalidates the
 signature (`detail=info` says when a file is signed).
 
+### `pdf_create`
+
+Creates a new PDF from markdown: `# headings`, paragraphs with **bold**,
+*italic* and `code`, bullet and numbered lists (nested with two spaces),
+`>` quotes, fenced code blocks, `| tables |`, `---` rules and `\pagebreak`.
+`title` is printed big on the first page and stored in the metadata, page
+numbers go in the footer (`page_numbers=false` removes them), `page` is `a4`
+or `letter` and `landscape` turns it. It uses the standard PDF fonts, so the
+text must be Western European (Catalan, Spanish, French, German…); emojis are
+dropped and other scripts become `?`. It refuses to replace an existing file
+unless `overwrite=true`. For a designed Word document use `office_create`.
+
+### Winds create documents
+
+In a wind's chat (alone or in a group) the wind can create documents with
+`pdf_create` and `office_create` and change them with `pdf_edit` and
+`office_edit`. It writes only to its own documents folder (per user, next to
+its memory) or edits documents the user attached; anything else is refused.
+The reply gets a download link per document
+(`[name](/api/winds/doc?name=…)`, or `/api/office/download?id=…` for an
+edited attachment). The web/desktop app and Android download it with their
+own authentication (Android saves it to Downloads).
+
 ### Permissions
 
 `pdf_read` is allowed like `read` (and runs in parallel with other reads).
-`pdf_edit` is treated like `write`: inside the project it runs without asking
+`pdf_edit` and `pdf_create` are treated like `write`: inside the project it runs without asking
 in code and autonomous modes, outside it asks, and read-only modes (chat,
 goal, inspect) deny it. `permissions.tools.pdf_read` / `pdf_edit` override the
 defaults as for any other tool.

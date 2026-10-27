@@ -31,6 +31,20 @@ import java.io.File
  *  o demanant-les a l'agent): prou per reconèixer-lo sense gastar memòria. */
 const val PDF_PREVIEW_PAGES = 6
 
+/** Enllaç a un document que serveix Gregal (el que crea un vent o un adjunt
+ *  editat): es baixa amb l'autenticació de l'app, no al navegador. Pura. */
+fun isServerDocLink(url: String): Boolean =
+    url.startsWith("/api/winds/doc?") || url.startsWith("/api/office/download?")
+
+/** Nom amb què es desa un document de Gregal: el «name» de l'enllaç, o el
+ *  text de l'enllaç si no en du. Pura. */
+fun serverDocName(url: String, fallback: String = "document"): String {
+    val q = url.substringAfter('?', "")
+    val name = q.split('&').firstOrNull { it.startsWith("name=") }?.substringAfter('=')
+        ?.let { runCatching { java.net.URLDecoder.decode(it, "UTF-8") }.getOrNull() }
+    return name?.substringAfterLast('/')?.takeIf { it.isNotBlank() } ?: fallback
+}
+
 /** El document pujat és un PDF (pel tipus del servidor o pel nom). Pura. */
 fun isPdfDoc(kind: String, name: String): Boolean =
     kind.equals("pdf", true) || name.endsWith(".pdf", true)

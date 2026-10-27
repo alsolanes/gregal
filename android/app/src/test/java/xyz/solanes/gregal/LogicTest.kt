@@ -419,6 +419,16 @@ class PdfDocTest {
     }
 
     @Test
+    fun enllacosDeDocumentsDeGregal() {
+        assertTrue(isServerDocLink("/api/winds/doc?name=Pressupost+obra.pdf"))
+        assertTrue(isServerDocLink("/api/office/download?id=ab12"))
+        assert(!isServerDocLink("https://exemple.cat/a.pdf"))
+        assert(!isServerDocLink("/api/file?path=a"))
+        assertEquals("Pressupost obra.pdf", serverDocName("/api/winds/doc?name=Pressupost+obra.pdf"))
+        assertEquals("informe.docx", serverDocName("/api/office/download?id=ab12", "informe.docx"))
+    }
+
+    @Test
     fun midaDeLaPaginaPintada() {
         // A4 (595x842 pt) en una pantalla de 1080 px: ample sencer, proporció mantinguda.
         assertEquals(1080 to 1528, pdfPageBitmapSize(595, 842, 1080))

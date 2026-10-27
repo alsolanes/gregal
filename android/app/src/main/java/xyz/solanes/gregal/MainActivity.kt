@@ -203,7 +203,17 @@ class MainActivity : ComponentActivity() {
                     isAppearanceLightNavigationBars = !dark
                 }
             }
-            CompositionLocalProvider(LocalPal provides pal) {
+            // Els enllaços a documents de Gregal (/api/winds/doc…, el PDF que
+            // ha fet un vent) no són webs: es baixen amb la clau de l'app.
+            val webUris = androidx.compose.ui.platform.LocalUriHandler.current
+            val uris = androidx.compose.runtime.remember(webUris) {
+                object : androidx.compose.ui.platform.UriHandler {
+                    override fun openUri(uri: String) {
+                        if (isServerDocLink(uri)) vm.downloadServerDoc(uri) else webUris.openUri(uri)
+                    }
+                }
+            }
+            CompositionLocalProvider(LocalPal provides pal, androidx.compose.ui.platform.LocalUriHandler provides uris) {
             MaterialTheme(colorScheme = scheme, typography = gregalTypography()) {
                 val screen by vm.screen.collectAsState()
                 val connected by vm.connected.collectAsState()

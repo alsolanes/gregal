@@ -260,6 +260,17 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Office: baixa el fitxer editat (bytes per desar al mòbil). */
+    /** Baixa un document de Gregal per l'enllaç relatiu d'una resposta
+     *  (/api/winds/doc?… o /api/office/download?…), amb la clau. */
+    fun downloadServerDoc(path: String): ByteArray {
+        if (!isServerDocLink(path)) throw ApiException("not a Gregal document link")
+        val c = conn(path, "GET")
+        val code = c.responseCode
+        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
+        if (code !in 200..299) throw ApiException("HTTP $code downloading document")
+        return c.inputStream.use { it.readBytes() }
+    }
+
     fun officeDownload(id: String): ByteArray {
         val c = conn("/api/office/download?id=" + id, "GET")
         val code = c.responseCode
