@@ -344,7 +344,7 @@ func RunFlow(ctx context.Context, task string, spec FlowSpec, runner Runner, emi
 				nodeCtx := WithNode(branchContext, node)
 				emitEvent(Event{Type: "working", Agent: id, Activity: activityFor(node.Role)})
 				if modeOf(node) == flowModeReview {
-					verdict, err := judgeNode(nodeCtx, runner, reviewInstruction(node), promptFor(id))
+					verdict, err := judgeNode(nodeCtx, runner, id, reviewInstruction(node), promptFor(id), reviewedOutput(id, spec, outputs), emitEvent)
 					results <- flowResult{id: id, verdict: verdict, err: err}
 					return
 				}
@@ -506,22 +506,24 @@ func reviewInstruction(node FlowNode) string {
 	return `Review the task and deliverable against the plan and acceptance criteria. Return exactly one JSON object with all three fields: {"approved": boolean, "feedback": string, "deliverable": string}. If approved is false, feedback must give actionable revision guidance. deliverable must contain the corrected final deliverable. Never claim to have run checks you did not actually run.`
 }
 
-// judgeNode runs one review verdict without emitting: the engine decides
-// what the verdict means (rework, finalize) and emits accordingly.
-func judgeNode(ctx context.Context, runner Runner, instruction, prompt string) (*parsedReview, error) {
+// judgeNode runs one review verdict: the engine decides what the verdict
+// means (rework, finalize) and emits accordingly. A verdict the model botches
+// twice keeps fallback (the reviewed work) instead of failing the flow.
+func judgeNode(ctx context.Context, runner Runner, id, instruction, prompt, fallback string, emit func(Event)) (*parsedReview, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	output, err := callRunner(ctx, runner, "reviewer", instruction, prompt)
-	if err != nil {
-		return nil, err
+	return askReview(ctx, runner, id, instruction, prompt, fallback, emit)
+}
+
+// reviewedOutput is what a review node checks: the latest output among its
+// data dependencies (the builder's, in the usual crew).
+func reviewedOutput(id string, spec FlowSpec, outputs map[string]string) string {
+	last := ""
+	for _, node := range spec.Nodes {
+		if out, ok := outputs[node.ID]; ok && isDataDep(node.ID, id, spec) && strings.TrimSpace(out) != "" {
+			last = out
+		}
 	}
-	review, err := parseReview(output)
-	if err != nil {
-		return nil, err
-	}
-	if review == nil {
-		review = &parsedReview{approved: true, deliverable: output}
-	}
-	return review, nil
+	return last
 }

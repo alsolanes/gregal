@@ -135,7 +135,7 @@ func Run(ctx context.Context, task string, runner Runner, emit func(Event)) (str
 		{role: "researcher", output: research},
 		{role: "builder", output: draft},
 	})
-	firstReview, err := reviewRole(ctx, runner, emitEvent, reviewInput, false)
+	firstReview, err := reviewRole(ctx, runner, emitEvent, reviewInput, false, draft)
 	if err != nil {
 		return "", err
 	}
@@ -169,7 +169,7 @@ func Run(ctx context.Context, task string, runner Runner, emit func(Event)) (str
 		{role: "builder", output: revisedDraft},
 		{role: "reviewer", output: "Previous review feedback:\n" + firstReview.feedback},
 	})
-	finalReview, err := reviewRole(ctx, runner, emitEvent, finalReviewInput, true)
+	finalReview, err := reviewRole(ctx, runner, emitEvent, finalReviewInput, true, revisedDraft)
 	if err != nil {
 		return "", err
 	}
@@ -231,23 +231,19 @@ func callRunner(ctx context.Context, runner Runner, role, instruction, prompt st
 	return out, nil
 }
 
-func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt string, final bool) (*parsedReview, error) {
+// reviewRole demana la revisió. Si la resposta no és el JSON que toca, la
+// torna a demanar un cop dient què hi falla; si tampoc, es queda la feina
+// del constructor (fallback) i ho diu: una revisió mal formada no ha de
+// fer perdre tota la feina feta.
+func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt string, final bool, fallback string) (*parsedReview, error) {
 	instruction := `Review the task and deliverable against the plan and acceptance criteria. Return exactly one JSON object with all three fields: {"approved": boolean, "feedback": string, "deliverable": string}. If approved is false, feedback must give actionable revision guidance. deliverable must contain the corrected final deliverable. Never claim to have run checks you did not actually run.`
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	emit(Event{Type: "working", Agent: "reviewer", Activity: "review"})
-	output, err := callRunner(ctx, runner, "reviewer", instruction, prompt)
+	review, err := askReview(ctx, runner, "reviewer", instruction, prompt, fallback, emit)
 	if err != nil {
 		return nil, err
-	}
-	review, err := parseReview(output)
-	if err != nil {
-		return nil, err
-	}
-	if review == nil {
-		// Plain-text reviewer responses remain supported for older providers.
-		review = &parsedReview{approved: true, deliverable: output}
 	}
 	if final && !review.approved {
 		review.deliverable += "\n\nOutstanding review feedback:\n" + review.feedback
@@ -256,8 +252,55 @@ func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt str
 	return review, nil
 }
 
+// askReview demana la revisió i en llegeix el veredicte. Si la resposta no
+// és el JSON que toca, la torna a demanar un cop dient què hi falla; si
+// tampoc, es queda amb fallback (la feina revisada) i ho avisa. Sense
+// fallback, l'error puja com abans.
+func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, fallback string, emit func(Event)) (*parsedReview, error) {
+	output, err := callRunner(ctx, runner, "reviewer", instruction, prompt)
+	if err != nil {
+		return nil, err
+	}
+	review, err := parseReview(output)
+	if err != nil {
+		retry := instruction + "\n\nYour previous answer could not be used (" + err.Error() + "). Answer again with only that JSON object and all three fields."
+		again, err2 := callRunner(ctx, runner, "reviewer", retry, prompt)
+		if err2 != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
+		} else {
+			output = again
+			review, err = parseReview(output)
+		}
+	}
+	if err != nil {
+		if strings.TrimSpace(fallback) == "" {
+			return nil, err
+		}
+		emit(Event{Type: "discussion", Agent: agent, Activity: "review",
+			Message: "The review answer could not be used (" + err.Error() + "); keeping the builder's work."})
+		return &parsedReview{approved: true, deliverable: fallback}, nil
+	}
+	if review == nil {
+		// Plain-text reviewer responses remain supported for older providers.
+		review = &parsedReview{approved: true, deliverable: output}
+	}
+	return review, nil
+}
+
 func parseReview(output string) (*parsedReview, error) {
 	trimmed := strings.TrimSpace(output)
+	// Un bloc ```json … ``` és el mateix objecte embolcallat.
+	if strings.HasPrefix(trimmed, "```") && strings.HasSuffix(trimmed, "```") {
+		inner := strings.TrimSuffix(strings.TrimPrefix(trimmed, "```"), "```")
+		if nl := strings.IndexByte(inner, '\n'); nl >= 0 && !strings.Contains(inner[:nl], "{") {
+			inner = inner[nl+1:]
+		}
+		if t := strings.TrimSpace(inner); strings.HasPrefix(t, "{") {
+			trimmed = t
+		}
+	}
 	if !strings.HasPrefix(trimmed, "{") {
 		// Plain-text reviewer responses remain supported for older providers.
 		return nil, nil
@@ -265,8 +308,9 @@ func parseReview(output string) (*parsedReview, error) {
 	if err := rejectDuplicateFields(trimmed); err != nil {
 		return nil, fmt.Errorf("invalid structured reviewer response: %w", err)
 	}
+	// Camps de més («agent», «revisor»…) no canvien res i alguns models en
+	// posen: abans feien fallar tota la colla just al final.
 	decoder := json.NewDecoder(strings.NewReader(trimmed))
-	decoder.DisallowUnknownFields()
 	var response reviewResponse
 	if err := decoder.Decode(&response); err != nil {
 		return nil, fmt.Errorf("invalid structured reviewer response: %w", err)

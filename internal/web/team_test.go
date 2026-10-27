@@ -295,11 +295,13 @@ func TestTeamReviewerGarbageReportsFailed(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handleTeamRun(w, httptest.NewRequest("POST", "/api/v2/team/run", strings.NewReader(`{"task":"report"}`)))
 	body := w.Body.String()
-	if !strings.Contains(body, `"type":"failed"`) {
-		t.Fatalf("malformed review must report failed: %s", body)
+	// Una revisió mal formada (dues vegades) ja no fa perdre la feina: es
+	// queda la del constructor i es diu que la revisió no s'ha pogut fer servir.
+	if !strings.Contains(body, `"type":"done"`) || !strings.Contains(body, "could not be used") {
+		t.Fatalf("malformed review must keep the work and say so: %s", body)
 	}
-	if strings.Contains(body, `"type":"cancelled"`) || strings.Contains(body, `"type":"done"`) {
-		t.Fatalf("malformed review must not pass or look stopped: %s", body)
+	if strings.Contains(body, `"type":"failed"`) || strings.Contains(body, `"type":"cancelled"`) {
+		t.Fatalf("malformed review must not fail or look stopped: %s", body)
 	}
 }
 

@@ -202,7 +202,6 @@ func TestCancellationStopsFollowingAgents(t *testing.T) {
 func TestParseReviewRequiresStrictStructuredFields(t *testing.T) {
 	for _, output := range []string{
 		`{"approved":false,"feedback":"  ","deliverable":"draft"}`,
-		`{"approved":true,"feedback":"","deliverable":"draft","extra":true}`,
 		`{"approved":false,"approved":true,"feedback":"","deliverable":"draft"}`,
 		`{"approved":true,"deliverable":"draft"}`,
 		`{"approved":true,"feedback":"","deliverable":"draft"} {}`,
@@ -210,6 +209,14 @@ func TestParseReviewRequiresStrictStructuredFields(t *testing.T) {
 	} {
 		if _, err := parseReview(output); err == nil {
 			t.Errorf("parseReview(%q) unexpectedly succeeded", output)
+		}
+	}
+	for _, output := range []string{
+		`{"approved":true,"feedback":"","deliverable":"draft","agent":"reviewer"}`,
+		"```json\n{\"approved\":true,\"feedback\":\"\",\"deliverable\":\"draft\"}\n```",
+	} {
+		if review, err := parseReview(output); err != nil || review == nil || review.deliverable != "draft" {
+			t.Errorf("parseReview(%q) = %#v, %v", output, review, err)
 		}
 	}
 	if review, err := parseReview("plain text deliverable"); err != nil || review != nil {
@@ -255,4 +262,46 @@ func hasOutput(events []Event, agent, output string) bool {
 		}
 	}
 	return false
+}
+
+// TestBotchedReviewKeepsTheWork: una revisió que no és el JSON que toca es
+// torna a demanar un cop; si continua malament, la feina del constructor
+// es queda (abans fallava tota la colla just al final).
+func TestBotchedReviewKeepsTheWork(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		reviews []string
+		want    string
+	}{
+		{"retry fixes it", []string{`{"approved":true}`, `{"approved":true,"feedback":"","deliverable":"reviewed"}`}, "reviewed"},
+		{"still botched", []string{`{"approved":true}`, `{"deliverable":""}`}, "draft"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			n := 0
+			var msgs []string
+			got, err := Run(context.Background(), "task", func(ctx context.Context, role, prompt string) (string, error) {
+				switch role {
+				case "builder":
+					return "draft", nil
+				case "reviewer":
+					mu.Lock()
+					defer mu.Unlock()
+					n++
+					return tc.reviews[n-1], nil
+				}
+				return "ok", nil
+			}, func(e Event) {
+				if e.Type == "discussion" && e.Agent == "reviewer" {
+					msgs = append(msgs, e.Message)
+				}
+			})
+			if err != nil || got != tc.want || n != 2 {
+				t.Fatalf("got %q err=%v reviewer calls=%d", got, err, n)
+			}
+			if tc.want == "draft" && (len(msgs) != 1 || !strings.Contains(msgs[0], "keeping the builder's work")) {
+				t.Fatalf("no warning: %v", msgs)
+			}
+		})
+	}
 }

@@ -1488,7 +1488,7 @@ private fun CrewSheet(vm: GregalViewModel, lang: String, ui: GregalViewModel.Cre
                     if (ui.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         TypingDots(Sea); Text(tr(lang, "app.crew.thinking"), color = Muted, fontSize = 13.sp)
                     }
-                    if (ui.error) Text(tr(lang, "app.crew.error"), color = Red, fontSize = 13.sp)
+                    if (ui.error) CrewError(lang, ui.errorText)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { vm.closeCrew() }) { Text(tr(lang, "app.crew.cancel"), color = Muted) }
                         Spacer(Modifier.weight(1f))
@@ -1501,7 +1501,7 @@ private fun CrewSheet(vm: GregalViewModel, lang: String, ui: GregalViewModel.Cre
                         CrewMemberRow(lang, w, r.why, isNew = false)
                     }
                     p.create.forEach { c -> CrewMemberRow(lang, c.wind, c.why, isNew = true) }
-                    if (ui.error) Text(tr(lang, "app.crew.error"), color = Red, fontSize = 13.sp)
+                    if (ui.error) CrewError(lang, ui.errorText)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { vm.closeCrew() }, enabled = !ui.starting) { Text(tr(lang, "app.crew.cancel"), color = Muted) }
                         Spacer(Modifier.weight(1f))
@@ -1648,6 +1648,17 @@ private fun SectionPickerDialog(vm: GregalViewModel, lang: String, targetKey: St
                     ) { Text(tr(lang, "app.vents.createSection")) }
                 }
             }
+        }
+    }
+}
+
+/** «No s'ha pogut fer» i, a sota, el motiu de debò (es pot seleccionar per copiar-lo). */
+@Composable
+private fun CrewError(lang: String, detail: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(tr(lang, "app.crew.error"), color = Red, fontSize = 13.sp)
+        if (detail.isNotBlank()) androidx.compose.foundation.text.selection.SelectionContainer {
+            Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 14.sp, modifier = Modifier.testTag("crew-error-detail"))
         }
     }
 }

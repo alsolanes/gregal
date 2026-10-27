@@ -3001,7 +3001,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Full de «Convoca una colla»: encàrrec, proposta i estat. null = tancat. */
     data class CrewUi(val task: String = "", val loading: Boolean = false, val proposal: CrewProposal? = null,
-                      val starting: Boolean = false, val error: Boolean = false)
+                      val starting: Boolean = false, val error: Boolean = false,
+                      /** Per què ha fallat (l'error del servidor o de la xarxa), per dir-ho a la pantalla. */
+                      val errorText: String = "")
     private val _crew = MutableStateFlow<CrewUi?>(null)
     val crew: StateFlow<CrewUi?> = _crew
     /** Pas de les colles convocades que treballen ara (id de rotllana -> pas). */
@@ -3011,6 +3013,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openCrew(task: String = "") { _crew.value = CrewUi(task) }
     fun closeCrew() { _crew.value = null }
 
+    /** L'error en paraules curtes: el codi i el que diu el servidor, o la xarxa. */
+    private fun crewErrorText(e: Exception): String {
+        val m = (e.message ?: e.javaClass.simpleName).replace(Regex("\\s+"), " ").trim()
+        return when (e) {
+            is java.net.SocketTimeoutException -> appText("app.crew.errTimeout")
+            is java.net.UnknownHostException, is java.net.ConnectException -> appText("app.crew.errNetwork")
+            else -> m.take(180)
+        }
+    }
+
     fun proposeCrew(task: String) {
         if (task.isBlank()) return
         val source = _conn.value; val epoch = companionEpoch
@@ -3019,8 +3031,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val p = withContext(Dispatchers.IO) { source.api().crewPropose(task.trim(), idioma.value) }
                 if (isCompanionOrigin(source, epoch) && _crew.value?.task == task) _crew.value = CrewUi(task, proposal = p)
-            } catch (_: Exception) {
-                if (_crew.value?.task == task) _crew.value = CrewUi(task, error = true)
+            } catch (e: Exception) {
+                if (_crew.value?.task == task) _crew.value = CrewUi(task, error = true, errorText = crewErrorText(e))
             }
         }
     }
@@ -3029,22 +3041,35 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val ui = _crew.value ?: return
         val p = ui.proposal ?: return
         val source = _conn.value; val epoch = companionEpoch
-        _crew.value = ui.copy(starting = true, error = false)
+        _crew.value = ui.copy(starting = true, error = false, errorText = "")
         viewModelScope.launch {
-            try {
-                val id = withContext(Dispatchers.IO) { source.api().crewStart(ui.task.trim(), idioma.value, p) }
-                if (!isCompanionOrigin(source, epoch) || id.isBlank()) return@launch
-                // The thread must be in the list before it opens: an unknown
-                // id is closed straight away by the Vents screen.
-                val list = withContext(Dispatchers.IO) { source.api().getRotllanes() }
-                if (!isCompanionOrigin(source, epoch)) return@launch
+            val id = try {
+                withContext(Dispatchers.IO) { source.api().crewStart(ui.task.trim(), idioma.value, p) }
+            } catch (e: Exception) {
+                _crew.value = ui.copy(starting = false, error = true, errorText = crewErrorText(e))
+                return@launch
+            }
+            if (!isCompanionOrigin(source, epoch)) return@launch
+            if (id.isBlank()) {
+                _crew.value = ui.copy(starting = false, error = true, errorText = "no rotllana id")
+                return@launch
+            }
+            // Ja ha començat al servidor: a partir d'aquí res no és «no s'ha
+            // pogut fer» (tornar-hi crearia els vents nous dues vegades).
+            _crew.value = null
+            followCrew(id)
+            // El fil ha de ser a la llista abans d'obrir-lo: la pantalla de
+            // Vents tanca un id que no coneix.
+            val list = try { withContext(Dispatchers.IO) { source.api().getRotllanes() } } catch (_: Exception) { null }
+            if (!isCompanionOrigin(source, epoch)) return@launch
+            loadWinds()
+            if (list != null && list.any { it.id == id }) {
                 _rotllanes.value = list
-                loadWinds(); loadRotllanaChat(id)
-                _crew.value = null
+                loadRotllanaChat(id)
                 openVentsChat("rot:$id")
-                followCrew(id)
-            } catch (_: Exception) {
-                _crew.value = ui.copy(starting = false, error = true)
+            } else {
+                loadRotllanes()
+                notify(appText("app.crew.startedElsewhere"))
             }
         }
     }
