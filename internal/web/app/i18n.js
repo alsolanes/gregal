@@ -3615,7 +3615,9 @@ const CLAU_DESAT = 'gregal_idioma';
 // mana per sobre —és més recent i és teva—, però si aquest navegador no
 // n'ha triat mai cap, el que val és el config: amb «lang: en» al fitxer,
 // el TUI sortia en anglès i la finestra en català, que no té cap sentit.
-let perDefecte = 'en';
+// El config del servidor mana (lang: ca a casa nostra); si el navegador
+// no ha triat mai res, el català és el punt de partida.
+let perDefecte = 'ca';
 
 export function idioma() {
   try {

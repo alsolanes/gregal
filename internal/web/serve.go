@@ -414,20 +414,24 @@ func (h *Hub) mux() *http.ServeMux {
 		mux.HandleFunc(path, fn)
 	}
 	_ = s
+	// versioAssets és el fingerprint de la web incrustada: canvia amb cada
+	// build i va enganxat a cada src="/app/…" com a ?fgv=. Així els mòduls
+	// JS/CSS tenen URL nova a cada desplegament i ni el navegador ni la
+	// vora de Cloudflare poden servir una còpia antiga sota un binari nou
+	// (ens ha passat: un login vell pintant claus sense traduir).
+	versioAssets := fmt.Sprintf("%x", md5.Sum(indexHTML))[:8]
+	html := reAsset.ReplaceAllString(string(indexHTML), "$1?fgv="+versioAssets+"")
+	html = reImportAbs.ReplaceAllString(html, "$1$2?fgv="+versioAssets+"")
 	handle("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		// La web viu incrustada al binari i canvia amb cada desplegament:
-		// l'ETag obliga els navegadors a revalidar en comptes de servir una
-		// còpia antiga de la cache (un login vell sota un servidor nou és
-		// confús i ha provocat pantalles amb claus sense traduir).
-		etag := `"` + fmt.Sprintf("%x", md5.Sum(indexHTML)) + `"`
-		w.Header().Set("Cache-Control", "no-cache")
+		etag := `"` + versioAssets + `"`
+		w.Header().Set("Cache-Control", "no-cache, s-maxage=0, must-revalidate, proxy-revalidate")
 		w.Header().Set("ETag", etag)
 		if r.Header.Get("If-None-Match") == etag {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		w.Write(indexHTML)
+		w.Write([]byte(html))
 	})
 	// Mòduls de la UI (app/*.js). Sense token: són estàtics i no toquen
 	// dades; el que demana Bearer és /api/*.
@@ -445,7 +449,16 @@ func (h *Hub) mux() *http.ServeMux {
 		// Com la pàgina principal: els mòduls canvien amb cada desplegament
 		// i el navegador ha de revalidar, no confiar en una còpia antiga.
 		etag := `"` + fmt.Sprintf("%x", md5.Sum(raw)) + `"`
-		w.Header().Set("Cache-Control", "no-cache")
+		// Com la pàgina principal: la vora de Cloudflare també ha de
+		// revalidar els mòduls JS/CSS, no servir còpies velles.
+		w.Header().Set("Cache-Control", "no-cache, s-maxage=0, must-revalidate, proxy-revalidate")
+		// Els mòduls que importen altres mòduls amb rutes relatives
+		// (import './i18n.js') no porten la versió al darrere i la vora
+		// podria servir-los vells: versionem també els imports dins el
+		// propi contingut servit.
+		if strings.HasSuffix(name, ".js") {
+			raw = []byte(reImport.ReplaceAllString(string(raw), "$1$2?fgv="+versioAssets+""))
+		}
 		w.Header().Set("ETag", etag)
 		if r.Header.Get("If-None-Match") == etag {
 			w.WriteHeader(http.StatusNotModified)
@@ -1905,6 +1918,19 @@ func (s *Server) handleParallel(w http.ResponseWriter, r *http.Request) {
 // espais —que a Windows són la norma, no l'excepció— es tallava al primer
 // espai i l'agent deia que el fitxer no existia.
 var mentionRe = regexp.MustCompile(`@"([^"]+)"|@([A-Za-z0-9_./~\\:-][^\s,;'"]*)`)
+
+// reAsset casa amb els src/href="/app/…" del HTML per versionar-los amb
+// ?fgv=<hash del build> a l'hora de servir la pàgina (vegeu "/" handler).
+var reAsset = regexp.MustCompile(`((?:src|href)="(/app/[^"?]+))`)
+
+// reImportAbs versiona els imports amb ruta absoluta dels <script type="module">
+// inline de la pàgina: import '/app/runs.js' → import '/app/runs.js?fgv=<hash>'.
+var reImportAbs = regexp.MustCompile(`((?:import|from)\s+['"])(/app/[^'"?;]+\.js)`)
+
+// reImport versiona els imports de mòduls relatius dins el JS servit:
+// import './prefs.js' → import './prefs.js?fgv=<hash>'. Sense això la
+// vora podia servir el mòdul importat vell sota el pare nou.
+var reImport = regexp.MustCompile(`((?:import|from)\s+['"])(\.{1,2}/[^'"?]+\.js)`)
 
 // refDeMencio treu la ruta de qualsevol de les dues formes.
 func refDeMencio(m []string) string {
