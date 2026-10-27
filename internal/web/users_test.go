@@ -235,3 +235,26 @@ func TestRequireUserAmbUsuaris(t *testing.T) {
 		t.Fatal("/api/login no pot demanar token")
 	}
 }
+
+// La clau d'aparellament del servidor (principal llegat) ha de poder obrir
+// converses a qualsevol carpeta encara que el config defineixi usuaris: si es
+// queda sense arrels, crear una colla falla amb «aquest camí no és a la teva
+// carpeta» tot i ser l'admin del servidor.
+func TestLegacyPrincipalKeepsFullAccessWithUsers(t *testing.T) {
+	u := usuarisProva(t)
+	if err := u.legacyUser.Allow("/home/algú/projectes"); err != nil {
+		t.Fatalf("el principal llegat ha de poder anar a tot arreu: %v", err)
+	}
+	// Si el config en defineix les arrels, mana el config.
+	cfg := &config.Config{Users: map[string]config.UserCfg{
+		"local": {Roots: []string{"/tmp/nomes-aixo"}},
+		"altre": {Roots: []string{"/tmp/altre"}},
+	}}
+	v := NewUsers(cfg, "")
+	if err := v.legacyUser.Allow("/home/algú"); err == nil {
+		t.Fatal("amb arrels explícites al config, el principal llegat no pot sortir-ne")
+	}
+	if err := v.legacyUser.Allow("/tmp/nomes-aixo/x"); err != nil {
+		t.Fatalf("dins de les seves arrels ha de passar: %v", err)
+	}
+}

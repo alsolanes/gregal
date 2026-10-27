@@ -183,6 +183,13 @@ func NewUsers(cfg *config.Config, cfgPath string) *Users {
 		if d.Admin {
 			u.legacyUser.Admin = true
 		}
+	} else if len(u.defs) > 0 {
+		// El config té usuaris però no el principal llegat: és la clau
+		// d'aparellament del servidor (la que surt en arrencar), equivalent a
+		// tenir-hi la consola. Sense arrels, Allow() el deixava fora de la
+		// seua pròpia carpeta i qualsevol acció que validi un camí —crear una
+		// colla, per exemple— responia «aquest camí no és a la teva carpeta».
+		u.legacyUser.Roots = []string{string(filepath.Separator)}
 	}
 	u.loadPasswords()
 	u.loadTokens()
