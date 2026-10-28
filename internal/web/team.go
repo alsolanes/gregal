@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gregal/internal/agent"
@@ -158,6 +159,12 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 	started := run.started
 	// The team run owns this session's room: publish it as shared activity
 	// so the single 2D room renders pipeline runs next to agent sessions.
+	// El run viu mentre arribin senyals de progrés: cada node que arrenca i
+	// cada esdeveniment del pipeline reinicien el comptador. Sense això, un
+	// model penjat cremava el pressupost sencer i una feina llarga i
+	// productiva queia pel rellotge.
+	ctx, toca, atura := vigilaEstanc(ctx, teamIdleTimeout)
+	defer atura()
 	generation := s.beginWorkshop(run.task, role.Model, 0)
 	flow := run.flow
 	if flow == nil {
@@ -194,6 +201,7 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 	log.Printf("team run started task=%s", previewTask(run.task))
 	var models sync.Map
 	runner := func(ctx context.Context, name, task string) (string, error) {
+		toca()
 		node, _ := team.NodeFrom(ctx)
 		if seat := seatFor(node, subagents[node.ID], withTools); seat.Agentic {
 			if node.Wind != "" {
@@ -228,6 +236,7 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 		return out, err
 	}
 	onEvent := func(e team.Event) {
+		toca()
 		model := ""
 		if e.Agent != "" {
 			e.Model = role.Model + " (configured)"
@@ -252,9 +261,13 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 		// same reason: enough to tell a hang (failed after ~10m) from a
 		// user stop (cancelled in seconds) without leaking anything.
 		kind := teamErrorKind(err, ctx)
+		// El motiu viatja a l'esdeveniment: qui crida (una colla, per
+		// exemple) ha de poder dir si ha estat temps esgotat o un model
+		// encallat, i no un genèric «failed».
+		motiu := teamFailureReason(err, ctx)
 		log.Printf("team run %s after %s: %s", kind, time.Since(started).Round(time.Second), redactError(err))
 		s.finishWorkshop(generation, err)
-		emit("team", team.Event{Type: kind})
+		emit("team", team.Event{Type: kind, Message: motiu})
 		return ""
 	}
 	emit("team", team.Event{Type: "done", Output: answer})
@@ -263,14 +276,88 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 	return answer
 }
 
-// teamRunTimeout caps a team run. A package var (not const) so tests can
-// reproduce a hung provider without waiting ten minutes.
-var teamRunTimeout = 10 * time.Minute
+// teamRunTimeout és el sostre absolut d'un run de pipeline. Abans eren 10
+// minuts i matava feines que anaven bé: un builder amb model local no acaba
+// una feina de debò en deu minuts, i el resultat era «no s'ha pogut acabar»
+// amb tota la feina perduda. El que ha de matar un run encallat és el gos
+// guardià (teamIdleTimeout), no el rellotge.
+//
+// És una variable (no una constant) perquè les proves puguin reproduir un
+// proveïdor penjat sense esperar tres quarts d'hora.
+var teamRunTimeout = 45 * time.Minute
+
+// teamIdleTimeout és el temps màxim sense cap senyal de progrés abans de donar
+// el run per encallat: si el model no diu res en aquest temps, està penjat i no
+// val la pena esperar més.
+var teamIdleTimeout = 8 * time.Minute
+
+// errTeamEstancat marca un run cancel·lat per falta de progrés. No és un stop
+// de l'usuari i no s'ha de reportar com a cancel·lació.
+var errTeamEstancat = errors.New("el run s'ha encallat sense cap senyal de progrés")
+
+// vigilaEstanc embolcalla ctx amb un gos guardià: si passen `limit` sense que
+// ningú cridi el toc, cancel·la el context amb errTeamEstancat. Retorna el
+// context, el toc (per marcar progrés) i una funció per aturar la vigilància.
+func vigilaEstanc(ctx context.Context, limit time.Duration) (context.Context, func(), func()) {
+	cctx, cancel := context.WithCancelCause(ctx)
+	if limit <= 0 {
+		return cctx, func() {}, func() { cancel(context.Canceled) }
+	}
+	var ultim atomic.Int64
+	toc := func() { ultim.Store(time.Now().UnixNano()) }
+	toc()
+	done := make(chan struct{})
+	var unCop sync.Once
+	cada := limit / 8
+	if cada < time.Second {
+		cada = time.Second
+	}
+	go func() {
+		t := time.NewTicker(cada)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-cctx.Done():
+				return
+			case <-t.C:
+				if time.Since(time.Unix(0, ultim.Load())) >= limit {
+					cancel(errTeamEstancat)
+					return
+				}
+			}
+		}
+	}()
+	return cctx, toc, func() {
+		unCop.Do(func() {
+			close(done)
+			cancel(context.Canceled)
+		})
+	}
+}
 
 // teamErrorKind maps a team failure to its UI event type. DeadlineExceeded
 // (10 min timeout) stays "failed": a hung model is not a user stop, and the
 // UI suggests checking the connection instead of saying "Stopped".
+// teamFailureReason classifica una fallada per poder-la explicar a l'usuari:
+// temps esgotat, model encallat o qualsevol altra cosa.
+func teamFailureReason(err error, ctx context.Context) string {
+	if errors.Is(context.Cause(ctx), errTeamEstancat) {
+		return "stalled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return "timeout"
+	}
+	return ""
+}
+
 func teamErrorKind(err error, ctx context.Context) string {
+	// Encallat (sense senyals de vida) és una fallada: si el proveïdor s'ha
+	// penjat, dir-ne «cancel·lat» amagaria el problema.
+	if errors.Is(context.Cause(ctx), errTeamEstancat) {
+		return "failed"
+	}
 	if ctx.Err() != nil && ctx.Err() != context.DeadlineExceeded {
 		return "cancelled"
 	}

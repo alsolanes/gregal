@@ -625,7 +625,7 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 	if ca {
 		lang = "ca"
 	}
-	var failure, built string
+	var failure, built, motiu string
 	var paths []string
 	seenPath := map[string]bool{}
 	answer := s.runTeamFlow(ctx2, teamFlowRun{
@@ -638,6 +638,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 		}
 		if e.Type == "failed" || e.Type == "cancelled" {
 			failure = e.Type
+			if e.Message != "" {
+				motiu = e.Message
+			}
 		}
 		if e.Type == "completed" && e.Agent == "builder" && strings.TrimSpace(e.Output) != "" {
 			built = e.Output
@@ -660,6 +663,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 		if built != "" {
 			return built + files, errReviewIncomplete
 		}
+		if motiu != "" {
+			return "", errConst(motiu)
+		}
 		return "", errConst("failed")
 	}
 	return answer + files, nil
@@ -678,9 +684,30 @@ func (s *Server) crewNotify(rot Rotllana, wind companion.Wind, task, text string
 	recordNovetat(s, wind, "feina:"+rot.ID, oneLine(task, 80)+"\n"+oneLineKeepBreaks(text, 500))
 }
 
+// crewMaxIntents és quants cops s'intenta la construcció abans de donar la
+// feina per no acabada. Dos: el primer intent i una represa aprofitant el que
+// ja hi ha al disc.
+const crewMaxIntents = 2
+
+// crewPotReprendre diu si val la pena tornar-ho a intentar: només quan la
+// feina s'ha aturat per temps o per un model encallat (no per un error del
+// projecte ni per un stop), i només si encara queda marge dins el run.
+func crewPotReprendre(err error, inici time.Time) bool {
+	if err == nil {
+		return false
+	}
+	switch err.Error() {
+	case "timeout", "stalled":
+	default:
+		return false
+	}
+	return time.Since(inici) < teamRunTimeout
+}
+
 // runCrew: a design discussion round, then the build-and-review work, all
 // posted into the rotllana so phone and desktop follow the same thread.
 func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
+	inici := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), teamRunTimeout+15*time.Minute)
 	defer cancel()
 	members := s.rotMembersOf(rot)
@@ -734,7 +761,28 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 		return "."
 	}())
 	work := task + "\n\nCrew discussion so far (the agreed design; context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
-	answer, err := crewWork(s, ctx, rot, work, flow, ca)
+	var answer string
+	var err error
+	for intent := 1; intent <= crewMaxIntents; intent++ {
+		answer, err = crewWork(s, ctx, rot, work, flow, ca)
+		if err == nil || err == errReviewIncomplete || !crewPotReprendre(err, inici) {
+			break
+		}
+		// La feina no s'acaba per temps o perquè el model s'ha encallat: en
+		// lloc de rendir-se amb la feina mig feta, es reprèn un cop aprofitant
+		// el que ja hi ha al disc.
+		fets := fitxersTocats(rot.Workspace, inici)
+		avis := say("S'ha encallat la feina; la reprenc aprofitant el que ja hi ha fet.",
+			"The work stalled; I'm resuming from what is already done.")
+		if len(fets) > 0 {
+			avis += say("\n\nJa fet: ", "\n\nAlready done: ") + strings.Join(fets, ", ")
+		}
+		s.crewSay(rot, builder, avis)
+		job.set("working")
+		work = work + "\n\n" + say(
+			"REPRESA: l'intent anterior no va acabar. Ja hi ha feina feta al projecte; revisa-la abans de refer res i continua des d'aquí. No tornis a crear el que ja existeix.",
+			"RESUME: the previous attempt did not finish. Work is already on disk; check it before redoing anything and continue from there. Do not recreate what already exists.")
+	}
 	if err == errReviewIncomplete {
 		msg := say("He fet la feina, però la revisió no s'ha pogut completar. Revisa-ho tu o demana-ho al fil.\n\n",
 			"I did the work, but the review could not be completed. Check it yourself or ask in this thread.\n\n") + oneLineKeepBreaks(answer, 4000)
@@ -745,9 +793,7 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 	}
 	if err != nil {
 		log.Printf("crew work: %s", redactError(err))
-		msg := say(
-			"No hem pogut acabar la feina ("+err.Error()+"). Ho pots tornar a demanar al fil quan vulguis.",
-			"We couldn't finish the work ("+err.Error()+"). You can ask again in this thread whenever you like.")
+		msg := crewFailureMessage(say, err, time.Since(inici), fitxersTocats(rot.Workspace, inici))
 		s.crewSay(rot, builder, msg)
 		s.crewNotify(rot, builder, task, msg)
 		job.set("failed")
@@ -839,3 +885,73 @@ func crewClosing(answer string) (string, bool) {
 // constructor obria navegadors per fer captures que l'app ja ensenya.
 const windReviewTools = " Inspect the files with read, grep and glob: shell commands are not available while reviewing. Do not open browsers or take screenshots; read the code instead."
 const windBuildTools = " Write files directly with write and edit. Do not launch browsers or take screenshots to check a page (the app previews HTML itself); one quick check with read is enough."
+
+// crewFailureMessage explica una feina que no s'ha acabat: què ha passat, què
+// queda fet i què pot fer l'usuari. Un «no s'ha pogut» a seques no serveix de
+// res quan la feina ja portava mitja hora.
+func crewFailureMessage(say func(caText, enText string) string, err error, duracio time.Duration, fitxers []string) string {
+	minuts := int(duracio.Round(time.Minute).Minutes())
+	if minuts < 1 {
+		minuts = 1
+	}
+	var msg string
+	switch err.Error() {
+	case "timeout":
+		msg = say(
+			"Ens hem quedat sense temps: la feina ha passat de "+fmt.Sprint(minuts)+" min i l'he aturada perquè no es mengi el servidor. El que ja està fet queda desat.",
+			"We ran out of time: the work passed "+fmt.Sprint(minuts)+" min, so I stopped it. Whatever was already done is saved.")
+	case "stalled":
+		msg = say(
+			"El model ha deixat de respondre (més de "+fmt.Sprint(int(teamIdleTimeout.Minutes()))+" min sense cap senyal) i he aturat la feina. El que ja està fet queda desat.",
+			"The model stopped responding (over "+fmt.Sprint(int(teamIdleTimeout.Minutes()))+" min with no signal) and I stopped the work. Whatever was already done is saved.")
+	default:
+		msg = say(
+			"No hem pogut acabar la feina ("+err.Error()+").",
+			"We couldn't finish the work ("+err.Error()+").")
+	}
+	if len(fitxers) > 0 {
+		msg += say("\n\nFitxers tocats: ", "\n\nFiles touched: ") + strings.Join(fitxers, ", ")
+	}
+	// No prometem represes que no existeixen: el que sí que funciona és
+	// tornar a engegar la colla (aprofita el que ja hi ha al disc) o demanar
+	// un encàrrec més petit.
+	msg += say("\n\nJa he intentat reprendre-la un cop. Pots tornar a engegar la colla amb el mateix encàrrec (repren des del que ja hi ha fet) o partir-ho en encàrrecs més petits.",
+		"\n\nI already retried once. You can start the crew again with the same task (it resumes from what is already done) or split it into smaller tasks.")
+	return msg
+}
+
+// fitxersTocats llista els fitxers del projecte modificats des que va començar
+// la feina: és la prova tangible que hi ha feina feta encara que el run caigui.
+func fitxersTocats(workspace string, desDe time.Time) []string {
+	if strings.TrimSpace(workspace) == "" {
+		return nil
+	}
+	saltar := map[string]bool{".git": true, "node_modules": true, "build": true, ".gradle": true, "vendor": true, "dist": true, ".idea": true}
+	var out []string
+	_ = filepath.WalkDir(workspace, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if saltar[d.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		info, err := d.Info()
+		if err != nil || info.ModTime().Before(desDe) {
+			return nil
+		}
+		rel, err := filepath.Rel(workspace, p)
+		if err != nil {
+			rel = filepath.Base(p)
+		}
+		out = append(out, rel)
+		if len(out) >= 8 {
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	sort.Strings(out)
+	return out
+}
