@@ -40,7 +40,7 @@ fun Modifier.workingRing(
     active: Boolean,
     corner: Dp = 27.dp,
     outset: Dp = 1.5.dp,
-    volta: Int = 2600,
+    volta: Int = 1800,
 ): Modifier {
     if (!active) return this
     val accent = Sea
