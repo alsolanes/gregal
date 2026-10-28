@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.25.1 - 2026-10-28 - Calma més fidel al disseny
+
 - **The Calm layout, closer to its design.** The sidebar shows only the current project (the others a click away) and one conversation list grouped by day with the current project's and the general conversations, instead of a project tree with each project's conversations plus a second list; titles start with a capital letter. With one session the tab bar keeps only ＋ and ⎇＋. The header shows Changes, Inspector and ⋯; Files and Preview moved into ⋯. The start page shows three starting points under the conversations to continue, and long titles on the cards wrap instead of being cut.
 
 ## v1.25.0 - 2026-10-28 - Distribució Calma i el blau del logo
