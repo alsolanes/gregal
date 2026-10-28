@@ -113,8 +113,10 @@
     box.innerHTML = html;
     box.hidden = !html;
     // Suggeriments genèrics: només si encara no hi ha res a continuar.
+    // Els punts de partida sempre hi són (tres, discrets); abans només sortien
+    // en un projecte sense historial.
     const chips = $('chips');
-    if (chips) chips.hidden = convs.length > 0;
+    if (chips) chips.hidden = false;
   }
 
   async function refresh(force) {

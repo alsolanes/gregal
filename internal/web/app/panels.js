@@ -254,6 +254,9 @@ export const sessions = {
     const firma = list.map(s => s.id + ':' + (s.busy ? 1 : 0) + ':' + (pending?.has(s.id) ? 1 : 0) + ':' + (s.title || '') + ':' + (s.project || '') + ':' + (s.worktree || '')).join('|') + '#' + this.current + '#' + this._error;
     if (firma === this._firma) return;
     this._firma = firma;
+    // Amb una sola sessió la pestanya no aporta res: la barra queda com a
+    // franja de títol amb ＋ i ⎇＋ (calma.css amaga la pestanya sola).
+    bar.classList.toggle('single', list.length <= 1);
     bar.innerHTML = '';
     list.forEach(s => {
       const tab = document.createElement('button');

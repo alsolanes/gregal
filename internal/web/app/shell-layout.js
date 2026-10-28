@@ -31,6 +31,18 @@
     const label=()=>{ if(more) more.dataset.label=title('nav.more'); };
     label(); document.addEventListener('gregal:idioma',label);
   }
+  // Capçalera: a la vista només Canvis, Inspector i ⋯; Fitxers i Preview
+  // passen al menú ⋯ amb el seu nom (els mateixos botons i gestors).
+  const moreMenu=$('moreMenu');
+  if(moreMenu) {
+    const items=[[document.querySelector('#top .top-meta [data-view="fitxers"]'),'nav.files'],[$('previewToggle'),'menu.preview']];
+    for(const [b,key] of items.reverse()) if(b) {
+      const icon=b.innerHTML;
+      b.className='ghost calma-moved';
+      b.innerHTML='<span class="calma-ico">'+icon+'</span> <span data-i18n="'+key+'">'+title(key)+'</span>';
+      moreMenu.prepend(b);
+    }
+  }
   const windList=$('windsListCard');
   if(windList) $('windContextNav').append(windList);
   function sync(view) {
