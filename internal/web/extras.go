@@ -204,7 +204,7 @@ func (s *Server) handleBtw(w http.ResponseWriter, r *http.Request) {
 // ---- /recap ----
 
 // recapSkipKinds no aporten res a un resum (text en viu, senyals de vida).
-var recapSkipKinds = map[string]bool{"token": true, "progress": true, "ping": true}
+var recapSkipKinds = map[string]bool{"token": true, "progress": true, "ping": true, "speed": true}
 
 // recapEventWindow és quants events globals es miren cap enrere: el
 // registre és de tot el procés i llegir-lo sencer a cada recap no escala.

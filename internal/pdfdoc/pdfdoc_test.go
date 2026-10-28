@@ -317,3 +317,24 @@ func TestFillFormMaxLen(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+// «€» needs pdfcpu's Roboto, a user font: the stateless configuration
+// does not see user fonts, so the retry after installing it failed every
+// time and the model replaced € with EUR (seen 2026-10-28).
+func TestFillFormEuroSign(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	a := copia(t, "form-helv.pdf")
+	text := "Pressupost: 512.000 € (40% demanat)"
+	if _, _, err := FillForm(bg, a, a, map[string]string{"entitat": text}); err != nil {
+		t.Fatal(err)
+	}
+	fs, err := Fields(bg, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range fs {
+		if f.Name == "entitat" && f.Value != text {
+			t.Fatalf("valor: %q", f.Value)
+		}
+	}
+}

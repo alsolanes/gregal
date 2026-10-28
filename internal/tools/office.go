@@ -25,7 +25,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"image"
-	"image/png"
+	"image/draw"
+	"image/jpeg"
 	"strings"
 	"time"
 
@@ -669,6 +670,12 @@ func editPptx(o EditOpts, orig []byte) (string, error) {
 		var spec ooxml.DeckSpec
 		if strings.TrimSpace(o.Spec) != "" {
 			spec, err = ooxml.ParseDeckSpec(o.Spec)
+			// Un objecte sense «slides» ({"title":…,"bullets":…}) és UNA
+			// diapositiva: ParseDeckSpec l'acceptava com a presentació buida i
+			// add_slide deia «afegides 0 diapositives» sense fer res.
+			if err == nil && len(spec.Slides) == 0 && strings.HasPrefix(strings.TrimSpace(o.Spec), "{") {
+				err = fmt.Errorf("sense slides")
+			}
 			if err != nil {
 				// una sola diapositiva com a objecte
 				var one ooxml.SlideSpec
@@ -691,6 +698,9 @@ func editPptx(o EditOpts, orig []byte) (string, error) {
 					spec.Slides[i].Layout = o.Layout
 				}
 			}
+		}
+		if len(spec.Slides) == 0 {
+			return "", fmt.Errorf("no hi ha cap diapositiva per afegir: passa content en markdown («# Títol» + punts) o spec amb un objecte de diapositiva o una llista")
 		}
 		warns, err := p.BuildSlides(spec)
 		if err != nil {
@@ -934,20 +944,35 @@ func writeQA(b *strings.Builder, qa []string) {
 }
 
 func imageURLScaled(path string, w int) (string, error) {
+	return renderDataURL(path, w)
+}
+
+// renderDataURL passa una pàgina renderitzada (PDF, Office) al model com a
+// JPEG de qualitat 70 i com a molt w píxels d'ample. Un PNG de pàgines amb
+// text i fotos pesava molt: un full de 10 pàgines feia 847 KB en base64 i,
+// com que s'enviava a cada pas, el prefill d'un model local passava dels
+// ~100 s de Cloudflare (HTTP 524). Si el JPEG no surt més petit, es queda
+// l'original.
+func renderDataURL(path string, w int) (string, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	if len(raw) < 3<<20 {
-		return DataURLForBytes(raw, path)
-	}
 	img, _, err := image.Decode(bytes.NewReader(raw))
 	if err != nil {
-		return "", err
+		return DataURLForBytes(raw, path)
 	}
+	if w > 0 && img.Bounds().Dx() > w {
+		img = officerender.Scale(img, w)
+	}
+	// Fons blanc: el JPEG no té transparència i el negre per defecte
+	// amagaria el text.
+	flat := image.NewRGBA(img.Bounds())
+	draw.Draw(flat, flat.Bounds(), image.White, image.Point{}, draw.Src)
+	draw.Draw(flat, flat.Bounds(), img, img.Bounds().Min, draw.Over)
 	var buf bytes.Buffer
-	if err := png.Encode(&buf, officerender.Scale(img, w)); err != nil {
-		return "", err
+	if err := jpeg.Encode(&buf, flat, &jpeg.Options{Quality: 70}); err != nil || buf.Len() >= len(raw) {
+		return DataURLForBytes(raw, path)
 	}
 	return DataURLForBytes(buf.Bytes(), path)
 }

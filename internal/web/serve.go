@@ -2476,6 +2476,14 @@ func (s *Server) emitVerify(emit func(string, any), workspace string) string {
 	p := s.cfg.Providers[r.Provider]
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Second)
 	defer cancel()
+	// El veredicte és una línia i uns punts: sense «think» al rol revisor,
+	// sense raonament llarg (els models que pensen per defecte hi gastaven
+	// segons a cada torn amb canvis). Un think explícit al rol es respecta.
+	think := r.Think
+	if think == "" {
+		think = "no"
+	}
+	ctx = llm.WithThink(ctx, think)
 	v, raw, err := verify.Run(ctx, s.client, p, r, s.transcriptTail(6), tools.GitDiff(workspace), s.cfg.Lang())
 	if err != nil {
 		emit("verify", map[string]string{"verdict": "error", "detail": err.Error()})

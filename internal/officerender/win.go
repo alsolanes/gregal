@@ -47,12 +47,30 @@ foreach ($i in $list) {
 // Exportació amb Microsoft Office per COM (quan no hi ha LibreOffice).
 const comScript = `param([string]$Src, [string]$OutDir, [string]$Kind, [int]$Width = 1280, [string]$Pages = '')
 $ErrorActionPreference = 'Stop'
-$pdf = Join-Path $OutDir 'src.pdf'
+# Cadenes de debò: el que torna Join-Path arribava a COM embolcallat i Word
+# es penjava, Excel deia «mateix nom que un altre llibre» i PowerPoint
+# «memòria insuficient» (vist el 2026-10-28 amb Office 16).
+$pdf = [string](Join-Path $OutDir 'src.pdf')
+$Src = [string]$Src
+# El procés d'Office que obrim ve de DCOM, no és fill d'aquest script: si
+# Gregal ha de tallar per temps, en necessita el PID. Només el d'una
+# instància NOVA: si l'usuari ja té l'app oberta, COM s'hi enganxa i no
+# se'n tanca res.
+function Remember-Office([string]$exe) {
+  $before = @(Get-Process $exe -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+  return $before
+}
+function Write-NewPid([string]$exe, $before) {
+  $new = @(Get-Process $exe -ErrorAction SilentlyContinue | Where-Object { $before -notcontains $_.Id } | ForEach-Object { $_.Id })
+  if ($new.Count -gt 0) { Set-Content -Path (Join-Path $OutDir 'office.pid') -Value ($new -join ' ') }
+}
 switch ($Kind) {
  'pptx' {
+  $before = Remember-Office 'POWERPNT'
   $app = New-Object -ComObject PowerPoint.Application
+  Write-NewPid 'POWERPNT' $before
   try {
-   $pres = $app.Presentations.Open($Src, $true, $false, $false)
+   $pres = $app.Presentations.Open($Src, -1, 0, 0)
    $n = $pres.Slides.Count
    Write-Output "PAGES $n"
    $h = [int]($Width * $pres.PageSetup.SlideHeight / $pres.PageSetup.SlideWidth)
@@ -62,14 +80,18 @@ switch ($Kind) {
   } finally { $app.Quit() }
  }
  'docx' {
+  $before = Remember-Office 'WINWORD'
   $app = New-Object -ComObject Word.Application
-  $app.Visible = $false
-  try { $d = $app.Documents.Open($Src, $false, $true); $d.ExportAsFixedFormat($pdf, 17); $d.Close($false); Write-Output "PDF $pdf" } finally { $app.Quit() }
+  Write-NewPid 'WINWORD' $before
+  $app.Visible = $false; $app.DisplayAlerts = 0
+  try { $d = $app.Documents.Open($Src, $false, $true); $d.SaveAs2([string]$pdf, 17); $d.Close($false); Write-Output "PDF $pdf" } finally { $app.Quit() }
  }
  'xlsx' {
+  $before = Remember-Office 'EXCEL'
   $app = New-Object -ComObject Excel.Application
+  Write-NewPid 'EXCEL' $before
   $app.Visible = $false; $app.DisplayAlerts = $false
-  try { $w = $app.Workbooks.Open($Src, 0, $true); $w.ExportAsFixedFormat(0, $pdf); $w.Close($false); Write-Output "PDF $pdf" } finally { $app.Quit() }
+  try { $w = $app.Workbooks.Open($Src, 0, $true); $w.ExportAsFixedFormat(0, [string]$pdf); $w.Close($false); Write-Output "PDF $pdf" } finally { $app.Quit() }
  }
 }
 `
@@ -191,6 +213,7 @@ func renderCOM(ctx context.Context, abs, ext string, o Options) (*Result, error)
 	pages := o.Pages
 	out, err := runPS(ctx, o.Timeout, comScript, "-Src", abs, "-OutDir", o.OutDir, "-Kind", kind, "-Width", strconv.Itoa(o.Width), "-Pages", strings.ReplaceAll(joinInts(pages), ",", ":"))
 	if err != nil {
+		killOfficeOrphan(o.OutDir)
 		return nil, fmt.Errorf("Microsoft Office: %v", err)
 	}
 	res := &Result{}
@@ -222,4 +245,25 @@ func renderCOM(ctx context.Context, abs, ext string, o Options) (*Result, error)
 	res.Engine = map[string]string{"docx": "word+winpdf", "xlsx": "excel+winpdf"}[kind]
 	res.Pages = pngs
 	return finish(res, o, sel), nil
+}
+
+// killOfficeOrphan tanca la instància d'Office que ha obert comScript (el
+// PID és a office.pid) quan l'exportació falla o es talla per temps: com
+// que ve de DCOM, matar el PowerShell no la tancava i quedava un WINWORD o
+// un EXCEL penjat. Si l'script s'havia enganxat a una app que l'usuari ja
+// tenia oberta, no n'hi ha cap PID i no es toca res.
+func killOfficeOrphan(outDir string) {
+	raw, err := os.ReadFile(filepath.Join(outDir, "office.pid"))
+	if err != nil {
+		return
+	}
+	for _, f := range strings.Fields(string(raw)) {
+		pid, err := strconv.Atoi(f)
+		if err != nil || pid <= 0 {
+			continue
+		}
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	}
 }

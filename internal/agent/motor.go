@@ -394,7 +394,9 @@ func (t *Torn) histAmbSys() []llm.Message {
 	if t.o.SysPrompt != nil {
 		sys = t.o.SysPrompt()
 	}
-	base := llm.SanitizeHist(t.Hist)
+	// Les imatges d'eines que el model ja ha vist no es tornen a enviar:
+	// amb models locals el seu prefill a cada pas acabava en HTTP 524.
+	base := DropSeenToolImages(llm.SanitizeHist(t.Hist))
 	if sys == "" {
 		return append([]llm.Message{}, base...)
 	}

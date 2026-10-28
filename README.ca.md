@@ -11,6 +11,25 @@ L'anglès és la llengua predeterminada de la interfície i de les respostes de
 l'agent. El català està disponible amb `lang: ca` als clients que admeten
 aquesta opció.
 
+## Instal·lació
+
+**App d'escriptori per a Windows (recomanada).** Descarrega
+`Gregal-Setup-<versió>-x64.exe` de la
+[darrera publicació](https://github.com/alsolanes/gregal/releases/latest) i
+executa'l. Porta el backend inclòs i s'actualitza sola des de les publicacions
+de GitHub; `Gregal-Portable-<versió>-x64.exe` funciona sense instal·lar (sense
+actualitzacions automàtiques). L'instal·lador encara no està signat: si
+SmartScreen l'atura, tria **Més informació → Executa igualment**. Des de l'app
+també pots preparar l'extensió de Chrome i instal·lar el complement de Word
+(Preferències).
+
+**Android (Gregal Vents).** Instal·la `Gregal-Vents-<versió>-arm64-v8a.apk` de
+la publicació que el porta (ara
+[v1.23.0](https://github.com/alsolanes/gregal/releases/tag/v1.23.0)); a partir
+de la 1.35.0 l'app s'actualitza sola.
+
+**Des del codi font (qualsevol sistema).** Vegeu a continuació.
+
 ## Primers passos
 
 Cal Go 1.27.1 o posterior. Des de l'arrel del repositori:
@@ -30,22 +49,14 @@ que mostra el terminal. Per a la resta de clients i l'API HTTP, consulta el
 [contracte de l'API](docs/api-contract.md) i les
 [notes de compatibilitat](docs/compatibility.md).
 
-### Instal·lació ràpida de VS Code a Windows
+### VS Code
 
-Descarrega i executa `Gregal-VSCode-Setup-x64.exe` des de la
-[darrera publicació](https://github.com/alsolanes/gregal/releases). Instal·la
-l'extensió i el backend, i inicia el servidor en una finestra de terminal.
-No necessita PowerShell. També pots fer-ho amb una ordre de PowerShell:
-
-```powershell
-irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
-```
-
-Deixa obert el terminal mentre facis servir VS Code. Configura un proveïdor i
-un model abans de fer la primera petició. Consulta la
-[guia de VS Code](vscode-gregal/README.md) per a altres sistemes i opcions.
-L'instal·lador i l'ordre requereixen una publicació que inclogui el paquet
-`.vsix`; els propers llançaments de Gregal ja l'adjuntaran.
+L'instal·lador d'un clic `Gregal-VSCode-Setup-x64.exe` i l'ordre
+`install-vscode.ps1` necessiten una publicació amb el paquet `.vsix` i el
+backend independent, i les publicacions actuals no els porten (l'última va ser
+la v1.13.1). Mentrestant, compila l'extensió des del codi tal com explica la
+[guia de VS Code](vscode-gregal/README.md) i connecta-la al backend de l'app
+d'escriptori (`http://127.0.0.1:8097`) o a `go run . --serve`.
 
 ## Contribuir
 

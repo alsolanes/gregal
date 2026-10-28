@@ -29,3 +29,19 @@ test('unknown and MCP tools show key/value pairs; broken JSON is shown as text',
   assert.equal(mcp.target, 'title: x · tags: ["a"]');
   assert.deepEqual(summarize('read', '{"path": "trunc', 'en'), { label: 'Read', target: '{"path": "trunc', meta: '' });
 });
+
+test('detail gives the whole bash command, not the clipped header', () => {
+  const { detail } = require('./tool-summary.js');
+  const command = 'cd /c/dev/gregal && ' + 'echo step && '.repeat(40) + 'go test ./...';
+  assert.ok(summarize('bash', JSON.stringify({ command }), 'en').target.endsWith('…'));
+  assert.equal(detail('bash', JSON.stringify({ command })), command);
+  assert.equal(detail('bash', JSON.stringify({ command: 'ls', timeout: 30 })), 'ls\n\n# timeout: 30');
+});
+
+test('detail shows other tools as readable JSON and clips huge strings', () => {
+  const { detail } = require('./tool-summary.js');
+  const out = detail('write', JSON.stringify({ path: 'a.txt', content: 'y'.repeat(3000) }));
+  assert.match(out, /"path": "a.txt"/);
+  assert.match(out, /… \(\+1500\)/);
+  assert.equal(detail('bash', 'not json'), 'not json');
+});

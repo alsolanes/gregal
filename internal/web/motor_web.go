@@ -318,6 +318,9 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			// el text no surt fins al final) alimenta l'event progress.
 			progres.iniciModel()
 			ctx = llm.WithStreamProgress(ctx, progres.delta)
+			// Velocitat de la crida (pp/tg) per a l'indicador de la UI.
+			velocitat := newSpeedProbe(uso)
+			ctx = llm.WithStreamProgress(ctx, velocitat.delta)
 			// El reasoning_content de les crides d'eina torna al proveïdor
 			// dins del torn (llm/reasoning.go).
 			raonament := &llm.ReasoningCapture{}
@@ -339,6 +342,10 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			err = agent.ModelError(ctx, err)
 			cancel()
 			progres.fiModel()
+			if ev := velocitat.result(time.Now(), llm.EstimateTokens(pas.Hist)); ev != nil && err == nil {
+				ev["model"] = prim.Model
+				emit("speed", ev)
+			}
 			// El text que acompanya crides d'eina és treball, no la resposta:
 			// la UI el plega i hi tanca la bombolla del pas.
 			if err == nil && len(calls) > 0 && strings.TrimSpace(content) != "" {

@@ -130,8 +130,9 @@ html body.shell-winds #side > .brand { display:flex; }
 #hero .hero-folder, #hero p { display:none; }
 #hero h1 { font-family:Georgia,"Iowan Old Style",Cambria,"Times New Roman",serif; font-weight:500; font-size:clamp(30px,3.2vw,40px);
   letter-spacing:-.01em; color:var(--ink); margin:0 0 6px; display:flex; align-items:center; justify-content:center; gap:14px; }
-#hero h1::before { content:''; width:30px; height:30px; flex:none; border-radius:9px; background:var(--accent);
-  -webkit-mask:url('/app/icon.png') center/contain no-repeat; mask:url('/app/icon.png') center/contain no-repeat; }
+/* El logo de debò (amb els ulls): una màscara el deixava en silueta. */
+#hero h1::before { content:''; width:34px; height:34px; flex:none; background:url('/app/icon.png') center/contain no-repeat; }
+:root[data-theme="calma"] #hero h1::before, :root[data-theme="calma"] #side .brand .rail-brand img { filter:hue-rotate(160deg) saturate(.8) brightness(1.02); }
 #conversationPane:has(#hero:not([hidden])) #hint { display:none; }
 #heroMore .home-recent { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; border:0; }
 #heroMore .home-recent-head { grid-column:1 / -1; padding:8px 4px 0; font-size:12px; color:var(--faint); }

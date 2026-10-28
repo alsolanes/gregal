@@ -228,7 +228,9 @@ func PdfRender(ctx context.Context, path, pages string) (string, []string, error
 	sum := sha1.Sum([]byte(path + time.Now().String()))
 	out := filepath.Join(os.TempDir(), "gregal-render", "pdf-"+hex.EncodeToString(sum[:6]))
 	big := len(valid) <= 4
-	width := 1280
+	// 1024 px d'ample: una pàgina A4 a ~120 ppp, el text es llegeix bé i
+	// cada imatge pesa ~40% menys que a 1280 (cada pas la reenvia).
+	width := 1024
 	if !big {
 		width = 800
 	}
@@ -241,14 +243,14 @@ func PdfRender(ctx context.Context, path, pages string) (string, []string, error
 	fmt.Fprintf(&b, "Renderitzat amb %s: pàgines %s de %d.\n", eng, joinInts(valid), n)
 	if big {
 		for _, p := range pngs {
-			if u, err := imageURLScaled(p, 1280); err == nil {
+			if u, err := renderDataURL(p, 1024); err == nil {
 				imgs = append(imgs, u)
 			}
 		}
 	} else {
 		sheet := filepath.Join(out, "contact.png")
 		if err := officerender.ContactSheet(pngs, valid, 4, 400, sheet); err == nil {
-			if u, err := ReadImageDataURL(sheet); err == nil {
+			if u, err := renderDataURL(sheet, 1200); err == nil {
 				imgs = append(imgs, u)
 			}
 		}

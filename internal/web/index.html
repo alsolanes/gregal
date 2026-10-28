@@ -692,6 +692,12 @@ body:not(.working) .spin { animation:none; }
 .tool.failed .tspin { color:var(--red); }
 .targs { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--faint); }
 .tool .out:empty { display:none; }
+.tool .tool-args { position:relative; margin-top:7px; padding-top:7px; border-top:1px solid var(--line); }
+.tool .tool-args pre { margin:0; padding:8px 10px; max-height:280px; overflow:auto; border:1px solid var(--codi-vora); border-radius:6px;
+  background:var(--codi-fons); color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; font:var(--t2)/1.5 var(--mono); user-select:text; }
+.tool .tool-copy { position:absolute; top:13px; right:6px; padding:2px 8px; border:1px solid var(--line-hi); border-radius:5px;
+  background:var(--surface); color:var(--muted); font:11px var(--mono); cursor:pointer; opacity:0; transition:opacity .12s; }
+.tool .tool-args:hover .tool-copy, .tool .tool-copy:focus-visible { opacity:1; }
 .tool .out .tool-shot { display:block; max-width:100%; max-height:200px; margin-top:8px; border:1px solid var(--line); border-radius:6px; cursor:zoom-in; }
 .tool .out .tool-shot.gran { max-height:none; cursor:zoom-out; }
 .tool[open] .out { margin-top:7px; padding-top:7px; border-top:1px solid var(--line); }
@@ -814,6 +820,7 @@ body:not(.working) .spin { animation:none; }
   background:var(--surface); color:var(--muted); font:11px var(--mono); }
 #turnTimer:empty { display:none; }
 #turnTimer b { color:var(--ink); font-weight:600; }
+#turnTimer .turn-speed { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; }
 #queueList:empty { display:none; }
 /* Checklist plegable: plegat ensenya el pas en curs, obert la llista. */
 #todoBox[hidden] { display:none; }
@@ -980,7 +987,10 @@ body.working .ctx-gauge.hot i { animation:throb .9s ease-in-out infinite; }
 .todo .tmark.done { color:var(--green); } .todo .tmark.working { color:var(--amber); }
 /* Vistes del transcript (estil Claude: Normal/Detallat/Resum). */
 body.view-summary .msg.t { display:none; }
-body.view-normal .msg.t .out { display:none; }
+/* Normal: les eines plegades. La sortida només s'amaga fora d'una targeta
+   oberta: si hi cliques, s'hi veu la crida sencera i el resultat (abans
+   s'obria buida). */
+body.view-normal .msg.t .out:not(details[open] .out) { display:none; }
 /* Modal de dreceres de teclat. */
 /* Preferències (app/prefs.js): un panell amb seccions i tries d'un clic. */
 #prefsModal { position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:61;
@@ -2343,7 +2353,10 @@ function paintWorkGroup(g, o) {
     : o.ms > 0 ? gregalT(o.failed ? 'work.stopped' : 'work.done').replace('{t}', durada(o.ms))
     : gregalT('work.steps');
   g.querySelector('.wg-label').textContent = label;
-  g.querySelector('.wg-meta').textContent = tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '';
+  const meta = g.querySelector('.wg-meta');
+  meta.textContent = [tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '',
+    o.speed ? '⚡ ' + o.speed : ''].filter(Boolean).join(' · ');
+  meta.title = o.speed ? gregalT('ui.speed.average').replace('{v}', o.speed).replace('{n}', o.calls || 0) + '\n' + gregalT('ui.speed.help') : '';
 }
 document.addEventListener('gregal:idioma', () => {
   document.querySelectorAll('#main .work-group').forEach(g => { try { paintWorkGroup(g, JSON.parse(g.dataset.wg || '{}')); } catch (e) {} });
@@ -2384,6 +2397,8 @@ function endWorkGroup(o = {}) {
   g.classList.remove('running');
   g.classList.toggle('failed', !!o.failed);
   g.open = !!o.failed;
+  // La mitjana de velocitat del torn (PP/TG) va amb el resum del grup.
+  if (!o.speed && typeof speedAverage === 'function' && speedAverage()) o = { ...o, speed: speedAverage(), calls: turnSpeed.calls };
   paintWorkGroup(g, o);
 }
 
@@ -2441,11 +2456,26 @@ function toolSummaryHTML(name, args) {
     '<span class="targs" title="' + escapeHTML(raw.slice(0, 2000)) + '">' + escapeHTML(s.target) + '</span>' +
     (s.meta ? '<span class="tmeta">' + escapeHTML(s.meta) + '</span>' : '');
 }
+// En obrir la targeta es veu la crida sencera (l'ordre de bash completa,
+// o els arguments), a sobre del resultat: la capçalera la retalla.
+function toolArgsHTML(name, args) {
+  const text = window.gregalToolSummary && window.gregalToolSummary.detail
+    ? window.gregalToolSummary.detail(name, String(args || '')) : String(args || '');
+  if (!text) return '';
+  return '<div class="tool-args"><pre><code>' + escapeHTML(text) + '</code></pre>' +
+    '<button type="button" class="tool-copy" title="' + escapeHTML(gregalT('ui.copyCall')) + '">' + escapeHTML(gregalT('ui.copy')) + '</button></div>';
+}
 function toolCard(name, args) {
   const el = add('t', '',
     '<details class="tool pending"><summary><span class="tspin">◍</span>' +
     toolSummaryHTML(name, args) + '</summary>' +
-    '<div class="out"></div></details>');
+    toolArgsHTML(name, args) + '<div class="out"></div></details>');
+  const copy = el.querySelector('.tool-copy');
+  if (copy) copy.onclick = e => {
+    e.preventDefault();
+    const code = el.querySelector('.tool-args code');
+    navigator.clipboard?.writeText(code ? code.textContent : '').then(() => { copy.textContent = gregalT('ui.copied'); setTimeout(() => { copy.textContent = gregalT('ui.copy'); }, 1500); });
+  };
   return el.querySelector('details');
 }
 
@@ -2580,6 +2610,28 @@ function updateCtxGauge(r) {
 // això, i poder escriure el següent sense esperar-te. Abans, escriure amb
 // un torn en marxa et deixava bloquejat mirant «espero el meu torn».
 let turnT0 = 0, turnTick = null, turnNote = '';
+// Velocitat del model al torn (events "speed"): l'última crida es veu en
+// viu a la barra del torn i, en acabar, la mitjana ponderada (tokens totals
+// entre temps total) va amb el «Ha trigat».
+let turnSpeed = null;
+function speedReset() { turnSpeed = { calls: 0, pTok: 0, pSec: 0, gTok: 0, gSec: 0, last: null, est: false }; }
+function speedAdd(d) {
+  if (!turnSpeed) speedReset();
+  const s = turnSpeed;
+  s.calls++; s.last = d; s.est = s.est || !!d.estimated;
+  if (d.pp > 0) { s.pTok += (d.prompt || 0) - (d.cached || 0); s.pSec += (d.ttft_ms || 0) / 1000; }
+  if (d.tg > 0) { s.gTok += d.completion || 0; s.gSec += (d.gen_ms || 0) / 1000; }
+}
+function speedRate(v) { return !(v > 0) ? '–' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? String(Math.round(v)) : v.toFixed(1); }
+function speedText(pp, tg, est) {
+  const t = (est ? '~' : '') + 't/s';
+  return 'PP ' + speedRate(pp) + ' · TG ' + speedRate(tg) + ' ' + t;
+}
+function speedAverage() {
+  const s = turnSpeed;
+  if (!s || !s.calls) return '';
+  return speedText(s.pSec ? s.pTok / s.pSec : 0, s.gSec ? s.gTok / s.gSec : 0, s.est);
+}
 let turnPhase = 'idle', turnCompletedUntil = 0;
 const cua = [];
 
@@ -2597,7 +2649,9 @@ function pintaTurnBar() {
   const nowText = turnT0 && live ? activityLine() : turnNote;
   const activeAction = nowText ? ' · <span class="turn-note">' + escapeHTML(nowText) + '</span>' : '';
   if (typeof paintActivity === 'function') paintActivity();
-  t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + activeAction;
+  const lastSpeed = turnT0 && typeof turnSpeed !== 'undefined' && turnSpeed && typeof speedText === 'function' && turnSpeed.last;
+  const speedHTML = lastSpeed ? ' · <span class="turn-speed" title="' + escapeHTML(gregalT('ui.speed.help')) + '">⚡ ' + escapeHTML(speedText(lastSpeed.pp, lastSpeed.tg, lastSpeed.estimated)) + '</span>' : '';
+  t.innerHTML = visiblePhase === 'idle' ? '' : (visiblePhase === 'working' ? '<span class="spin">◌</span> ' : '') + phaseLabel + (turnT0 ? ' · <b>' + durada(Date.now() - turnT0) + '</b>' : '') + speedHTML + activeAction;
   // Mentre treballa, com dir-li alguna cosa sense esperar (steerNow).
   if (visiblePhase === 'working' && typeof gregalT === 'function') t.innerHTML += ' <span class="turn-hint">' + escapeHTML(gregalT('steer.hint')) + '</span>';
   t.dataset.phase = visiblePhase;
@@ -2669,7 +2723,7 @@ function setSending(active, quiet = false) {
   sending = active;
   if (active && !abans) stoppedVisualSessions.delete(window.gregalSession || 'default');
   if (active && !abans) {
-    turnT0 = Date.now();
+    turnT0 = Date.now(); if (typeof speedReset === 'function') speedReset();
     turnPhase = 'working'; turnCompletedUntil = 0;
     turnTick = setInterval(pintaTurnBar, 1000);
   } else if (!active && abans) {
@@ -3500,6 +3554,8 @@ async function doAgent(task, resumed) {
         // la bombolla, i en perdia la cua.
         if(live && acc.trim()===d.text.trim()){ paintLiveNow(); live.classList.add('working'); intoWorkGroup(live); live=null; acc=''; }
         else add('t','', '<details class="tool"><summary>'+escapeHTML(gregalT('ui.thinking'))+'</summary><div class="out">'+md(d.text.slice(0,2000))+'</div></details>');
+      } else if(ev==='speed'){
+        speedAdd(d); pintaTurnBar();
       } else if(ev==='budget'){
         sys(gregalT('ui.pressupost') + d.message);
         if(window.gregalPanels) window.gregalPanels.hud.set(d.total||'');

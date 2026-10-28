@@ -29,9 +29,10 @@ type replayRun struct {
 // la resposta no creix sense límit.
 const replayMaxEvents = 4000
 
-// replaySkip: el text en viu (token) i el canal #retro no canvien la sala.
+// replaySkip: el text en viu (token), la velocitat del model (speed) i el
+// canal #retro no canvien la sala.
 func replaySkip(kind string) bool {
-	return kind == "token" || strings.HasPrefix(kind, "retro_")
+	return kind == "token" || kind == "speed" || strings.HasPrefix(kind, "retro_")
 }
 
 // replayRuns resumeix els torns d'una conversa, del més recent al més antic.

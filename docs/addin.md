@@ -22,7 +22,7 @@ deployment. Check its add-in requirements before installing.
 in Word**. The app asks the running backend for the manifest, writes the real
 backend address into it (the backend uses another port when 8097 is taken),
 saves it under the app's data folder (`word-addin/gregal-addin.xml`) and
-registers it under `HKCU\Software\Microsoft\Office.0\WEF\Developer`,
+registers it under `HKCU\Software\Microsoft\Office\16.0\WEF\Developer`,
 the key Microsoft's own tools use to load add-ins locally. No shared folder or
 Trust Center step is needed. Then close Word completely, open it again and
 choose **Gregal Agent** in **Home → Add-ins** (or **More add-ins → My add-ins →
@@ -34,7 +34,7 @@ current port. **Remove from Word** deletes the registry value.
 backend (change `8097` in it if you use another port) and run:
 
 ```
-reg add "HKCU\Software\Microsoft\Office.0\WEF\Developer" /v 64C79419-6A50-4552-BF4F-075D1C5F849D /t REG_SZ /d "C:\path	o\gregal-addin.xml" /f
+reg add "HKCU\Software\Microsoft\Office\16.0\WEF\Developer" /v 64C79419-6A50-4552-BF4F-075D1C5F849D /t REG_SZ /d "C:\path\to\gregal-addin.xml" /f
 ```
 
 The older route also works: share a folder on the network, add it in Word

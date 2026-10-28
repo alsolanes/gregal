@@ -123,13 +123,14 @@ function releaseNotes(changelog, version) {
   return [
     title ? `## ${title}` : '', '', s.body, '',
     '## Downloads', '',
+    // Només el que el flux local publica de debò: abans s'hi anunciaven els
+    // binaris de la CLI i l'APK normal, que des de la v1.13.1 no hi són.
     `- **Gregal-Setup-${version}-x64.exe**: Windows installer with automatic updates.`,
-    `- **Gregal-Portable-${version}-x64.exe**: portable Windows app.`,
-    '- **gregal-<os>-<arch>**: standalone backend/CLI for Linux, macOS and Windows (amd64 and arm64).',
-    '- **Gregal-Android-<version>-arm64-v8a.apk**: Android app for phones (debug-signed, install manually). `-x86_64` is for emulators; the plain `Gregal-Android-<version>.apk` works on both but is larger.',
-    '- **SHA256SUMS.txt**: checksums for the CI-built files. Installer updates use the included latest.yml and blockmap.',
+    `- **Gregal-Portable-${version}-x64.exe**: portable Windows app (no automatic updates).`,
+    '- **gregal-vents-version.json**: update manifest for the Gregal Vents Android app (its APKs are attached to the release that introduced them).',
+    '- **SHA256SUMS.txt**: checksums of the Windows packages. Installer updates use the included latest.yml and blockmap.',
     '',
-    'Windows packages are unsigned.',
+    'Windows packages are unsigned: if SmartScreen stops the installer, choose More info → Run anyway.',
   ].join('\n').replace(/^\n+/, '');
 }
 

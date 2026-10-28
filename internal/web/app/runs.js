@@ -243,6 +243,8 @@ export function durableToAgent(e, onEvent) {
   }
   else if (e.kind === 'thinking') onEvent('thinking', { text: fields(e).text || e.text || '' });
   else if (e.kind === 'progress') onEvent('progress', fields(e));
+  // Velocitat de cada crida al model (pp/tg), per a la barra del torn.
+  else if (e.kind === 'speed') onEvent('speed', checkpointFields(e));
   // Missatges escrits mentre el torn treballava (POST /api/steer).
   else if (e.kind === 'steer') onEvent('steer', { text: e.text || '' });
   else if (e.kind === 'steer_restart') onEvent('steer_restart', {});

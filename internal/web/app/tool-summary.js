@@ -128,7 +128,27 @@
     return out;
   }
 
-  const api = { summarize };
+  // detail torna el text sencer de la crida per a la targeta oberta: la
+  // capçalera la resumeix i la retalla, però en clicar s'ha de poder llegir
+  // (i copiar) l'ordre o els arguments complets. Els textos molt llargs
+  // (el contingut d'un write, per exemple) es retallen amb el compte.
+  const LONG = 1500;
+  const clip = v => (typeof v === 'string' && v.length > LONG ? v.slice(0, LONG) + `… (+${v.length - LONG})` : v);
+  function detail(name, args) {
+    const o = parse(args);
+    const tool = String(name || '');
+    if (!o) return String(args == null ? '' : args).trim();
+    const s = k => (typeof o[k] === 'string' ? o[k] : '');
+    if ((tool === 'bash' || tool === 'bash_background') && s('command')) {
+      const extra = Object.keys(o).filter(k => k !== 'command' && o[k] !== '' && o[k] != null);
+      return s('command') + (extra.length ? '\n\n' + extra.map(k => `# ${k}: ${typeof o[k] === 'string' ? o[k] : JSON.stringify(o[k])}`).join('\n') : '');
+    }
+    const shown = {};
+    for (const k of Object.keys(o)) shown[k] = clip(o[k]);
+    return JSON.stringify(shown, null, 2);
+  }
+
+  const api = { summarize, detail };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.gregalToolSummary = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -33,6 +33,7 @@ import (
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/color"
+	"github.com/pdfcpu/pdfcpu/pkg/font"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
@@ -67,7 +68,15 @@ func fontsFormulari() error {
 			}
 			root = filepath.Join(cache, "gregal")
 		}
-		fontsErr = model.EnsureDefaultConfigAt(filepath.Join(root, "pdf"), false)
+		if fontsErr = model.EnsureDefaultConfigAt(filepath.Join(root, "pdf"), false); fontsErr != nil {
+			return
+		}
+		// EnsureDefaultConfigAt només apunta la carpeta: si pdfcpu ja havia
+		// carregat la llista de fonts (buida), el reintent no trobava Roboto
+		// i el primer fill_form amb «€» fallava; el segon, segons després,
+		// ja anava (vist el 2026-10-28: el model va canviar € per EUR i va
+		// anar provant els camps d'un en un).
+		fontsErr = font.ReloadUserFonts(context.Background())
 	})
 	return fontsErr
 }
@@ -621,7 +630,7 @@ func (o StampOpts) desc() (string, error) {
 		fmt.Sprintf("rotation:%g", o.Rotation),
 		fmt.Sprintf("opacity:%g", op),
 	}
-	if c := strings.TrimSpace(o.Color); c != "" {
+	if c := normalizeColor(o.Color); c != "" {
 		if _, err := color.ParseColor(c); err != nil {
 			return "", fmt.Errorf("color %q: %v", c, err)
 		}
@@ -741,7 +750,12 @@ func FillForm(ctx context.Context, in, out string, values map[string]string) ([]
 			return nil, nil, fmt.Errorf("fonts per al formulari: %v", ferr)
 		}
 		buf.Reset()
-		err = api.FillForm(ctx, bytes.NewReader(plain), bytes.NewReader(js), &buf, conf())
+		// La configuració sense estat no admet fonts d'usuari, i Roboto
+		// n'és una: amb conf() el reintent fallava sempre (qualsevol «€»,
+		// vist el 2026-10-28). La de la carpeta de Gregal sí que la veu.
+		fc := model.NewDefaultConfiguration()
+		fc.ValidationMode = model.ValidationRelaxed
+		err = api.FillForm(ctx, bytes.NewReader(plain), bytes.NewReader(js), &buf, fc)
 	}
 	if err != nil {
 		return nil, nil, cleanErr(err)
@@ -793,7 +807,7 @@ func Annotate(ctx context.Context, in, out string, o AnnotOpts) error {
 		return err
 	}
 	col := color.SimpleColor{R: 1, G: 0.85, B: 0}
-	if c := strings.TrimSpace(o.Color); c != "" {
+	if c := normalizeColor(o.Color); c != "" {
 		if col, err = color.ParseColor(c); err != nil {
 			return fmt.Errorf("color %q: %v", c, err)
 		}
@@ -879,4 +893,29 @@ func Validate(ctx context.Context, path string) error {
 	}
 	_, err = api.ReadAndValidate(ctx, bytes.NewReader(plain), conf())
 	return cleanErr(err)
+}
+
+// normalizeColor accepta els colors com els escriuen els models: «FFFFFF»
+// o «0xFFFFFF» (sense #) i «#FFF» curt passen a «#FFFFFF», que és el que
+// entén pdfcpu. Vist en viu: pdf_edit fallava amb «color "FFFFFF": invalid
+// color constant» i el model va acabar provant llibreries de Python.
+func normalizeColor(c string) string {
+	c = strings.TrimSpace(c)
+	h := strings.TrimPrefix(strings.TrimPrefix(strings.TrimPrefix(c, "#"), "0x"), "0X")
+	if len(h) == 3 && isHex(h) {
+		h = string([]byte{h[0], h[0], h[1], h[1], h[2], h[2]})
+	}
+	if len(h) == 6 && isHex(h) {
+		return "#" + strings.ToUpper(h)
+	}
+	return c
+}
+
+func isHex(s string) bool {
+	for _, r := range s {
+		if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+			return false
+		}
+	}
+	return s != ""
 }

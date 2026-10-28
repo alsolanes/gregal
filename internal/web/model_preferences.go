@@ -62,6 +62,12 @@ func cloneModelOverrides(overrides map[string]string) map[string]string {
 // refreshModelAvailability checks a persisted override outside s.mu. A stale
 // or removed model falls back to the role's configured model, while transient
 // provider errors leave the user's selection untouched.
+//
+// Only the first check for a role waits for the provider. After that a
+// stale result is used at once and refreshed in the background: the
+// synchronous GET /models ran before every turn that started more than a
+// minute after the previous one (most human turns) and cost 0.4-4 s on the
+// critical path.
 func (s *Server) refreshModelAvailability(role string) (string, bool) {
 	s.mu.Lock()
 	selection := s.modelOverride[role]
@@ -69,10 +75,28 @@ func (s *Server) refreshModelAvailability(role string) (string, bool) {
 		s.mu.Unlock()
 		return "", false
 	}
-	if time.Since(s.modelCheckedAt[role]) < modelAvailabilityCacheTTL {
+	checked := s.modelCheckedAt[role]
+	if !checked.IsZero() {
 		unavailable := s.unavailableModels[role] == selection
+		if time.Since(checked) >= modelAvailabilityCacheTTL {
+			// Marked now so concurrent turns don't start several refreshes.
+			s.modelCheckedAt[role] = time.Now()
+			go s.checkModelAvailability(role)
+		}
 		s.mu.Unlock()
 		return selection, unavailable
+	}
+	s.mu.Unlock()
+	return s.checkModelAvailability(role)
+}
+
+// checkModelAvailability asks the provider whether the override still exists.
+func (s *Server) checkModelAvailability(role string) (string, bool) {
+	s.mu.Lock()
+	selection := s.modelOverride[role]
+	if selection == "" {
+		s.mu.Unlock()
+		return "", false
 	}
 	providerName, modelName, ok := splitModel(selection)
 	if !ok {

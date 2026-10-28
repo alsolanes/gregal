@@ -6,6 +6,23 @@ Gregal is an open-source coding agent with terminal, desktop and web interfaces,
 
 English is the default interface and agent-response language. Catalan is available with `lang: ca` in clients that support it.
 
+## Install
+
+**Windows desktop app (recommended).** Download `Gregal-Setup-<version>-x64.exe`
+from the [latest release](https://github.com/alsolanes/gregal/releases/latest)
+and run it. It includes the backend and updates itself from GitHub releases;
+`Gregal-Portable-<version>-x64.exe` runs without installing (no automatic
+updates). The installer is not code-signed yet: if Windows SmartScreen stops it,
+choose **More info → Run anyway**. From the app you can also prepare the Chrome
+extension and install the Word add-in (Preferences).
+
+**Android (Gregal Vents).** Install `Gregal-Vents-<version>-arm64-v8a.apk` from
+the release that carries it (currently
+[v1.23.0](https://github.com/alsolanes/gregal/releases/tag/v1.23.0)); from 1.35.0
+on, the app updates itself.
+
+**From source (any OS).** See below.
+
 ## Getting Started
 
 Requires Go 1.27.1 or newer. From the repository root:
@@ -18,22 +35,14 @@ Configure a working endpoint and model IDs before the first request, then launch
 
 To run the web interface locally, use `go run . --serve` and open the URL printed in the terminal. For other clients and the HTTP API, see the [API contract](docs/api-contract.md) and [compatibility notes](docs/compatibility.md).
 
-### Quick VS Code install on Windows
+### VS Code
 
-Download and run `Gregal-VSCode-Setup-x64.exe` from the
-[latest release](https://github.com/alsolanes/gregal/releases). It installs the
-extension and backend, then starts the server in a terminal window. It does
-not require PowerShell. The command-line alternative is:
-
-```powershell
-irm https://raw.githubusercontent.com/alsolanes/gregal/main/scripts/install-vscode.ps1 | iex
-```
-
-Leave the terminal open while using VS Code. Configure a model provider before
-the first request. See the
-[VS Code guide](vscode-gregal/README.md) for other operating systems and options.
-The installer and command require a release that includes the `.vsix` package;
-upcoming Gregal releases will attach it.
+The one-click `Gregal-VSCode-Setup-x64.exe` and the `install-vscode.ps1` command
+need a release with the `.vsix` package and the standalone backend, and current
+releases do not attach them (the last one was v1.13.1). Until they return, build
+the extension from source as described in the
+[VS Code guide](vscode-gregal/README.md) and point it at the desktop app's
+backend (`http://127.0.0.1:8097`) or at `go run . --serve`.
 
 ## Contributing
 

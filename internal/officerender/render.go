@@ -108,11 +108,14 @@ func findSoffice() string {
 
 // Available diu quin motor hi ha (per a missatges i el doctor).
 func Available() string {
+	if runtime.GOOS == "windows" && officeCOM() != "" {
+		if Soffice() != "" {
+			return "Microsoft Office (COM), LibreOffice de reserva"
+		}
+		return "Microsoft Office (COM)"
+	}
 	if Soffice() != "" {
 		return "LibreOffice (" + Soffice() + ")"
-	}
-	if runtime.GOOS == "windows" && officeCOM() != "" {
-		return "Microsoft Office (COM)"
 	}
 	return ""
 }
@@ -174,10 +177,17 @@ func Render(ctx context.Context, path string, o Options) (*Result, error) {
 		return nil, err
 	}
 	ext := strings.ToLower(filepath.Ext(abs))
-	if Soffice() == "" {
-		if runtime.GOOS == "windows" {
-			return renderCOM(ctx, abs, ext, o)
+	// Amb Microsoft Office instal·lat, primer Office: és el que veurà
+	// l'usuari i, mesurat el 2026-10-28, 3-6 vegades més ràpid que
+	// LibreOffice (Word → PDF 1,3 s contra 6 s; el primer LibreOffice en
+	// fred, 23 s). Si falla, LibreOffice continua sent l'alternativa.
+	if runtime.GOOS == "windows" && officeCOM() != "" && ext != ".pdf" {
+		res, err := renderCOM(ctx, abs, ext, o)
+		if err == nil || Soffice() == "" {
+			return res, err
 		}
+	}
+	if Soffice() == "" {
 		return nil, ErrNoEngine
 	}
 	res := &Result{}
