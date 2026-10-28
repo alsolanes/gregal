@@ -7,6 +7,30 @@
   const body=$('toolDockBody');
   let opener=null;
   for(const [id] of Object.values(tools)) if($(id)) body.append($(id));
+  // Calma: una sola barra lateral. El rail (destins i «Més») hi entra sota
+  // «Nova conversa», el logo fa de capçalera i les eines del peu (dreceres,
+  // preferències) van al peu de la barra. Es mouen els mateixos nodes: els
+  // gestors i els selectors (#navRail [data-view]) continuen funcionant.
+  const side=$('side'), rail=$('navRail');
+  if(side && rail) {
+    const brand=side.querySelector('.brand'), quick=side.querySelector('.side-quick'), foot=side.querySelector('.side-foot');
+    const logo=rail.querySelector('.rail-brand');
+    if(brand && logo) {
+      logo.insertAdjacentHTML('beforeend','<span>Gregal</span>');
+      brand.prepend(logo);
+      const sp=document.createElement('span'); sp.className='calma-sp'; logo.after(sp);
+      if($('sideCompact')) sp.after($('sideCompact'));
+    }
+    if(quick) quick.after(rail);
+    if(foot) {
+      const tools=document.createElement('div'); tools.className='calma-tools';
+      for(const id of ['keysBtn','prefsBtn']) if($(id)) tools.append($(id));
+      foot.append(tools);
+    }
+    const more=$('sideMore')?.querySelector('summary');
+    const label=()=>{ if(more) more.dataset.label=title('nav.more'); };
+    label(); document.addEventListener('gregal:idioma',label);
+  }
   const windList=$('windsListCard');
   if(windList) $('windContextNav').append(windList);
   function sync(view) {

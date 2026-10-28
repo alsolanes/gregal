@@ -66,9 +66,19 @@
     if (more) more.hidden = !heroVisible();
   }
 
+  // Inici: una salutació segons l'hora en comptes de «Què vols fer?».
+  function greet() {
+    const h = $('heroTitle');
+    if (!h) return;
+    const hour = new Date().getHours();
+    const key = hour >= 6 && hour < 14 ? 'hero.morning' : hour >= 14 && hour < 21 ? 'hero.afternoon' : 'hero.evening';
+    h.textContent = T(key, T('hero.title', 'What do you want to do?'));
+  }
+
   function render() {
     paintBadges();
     syncMore();
+    greet();
     const box = $('homeContext');
     if (!box || !heroVisible()) return;
     const st = (G() && G().state) || {};

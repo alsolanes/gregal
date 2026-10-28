@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **A calmer layout for the web and desktop app.** One sidebar instead of an icon rail plus a sidebar: the Gregal logo on top, "New session", then Chat, Winds, Scheduled and More (no more cut labels such as "rogramat"), the projects and the conversations; Winds keeps the same sidebar. The header shows only the project chip and the tools (no path line or "workspace"), tabs are quieter, the "+" next to each project and the add-project button appear on hover, temporary folders (sandboxes under the system temp folder) leave the list unless they are the current one (search still finds them), and the "Folders that no longer exist" row is dimmer. The start page greets you by the time of day with a larger, floating composer and the conversations to continue as cards; "No questions" is an amber dot and label instead of an amber frame around the composer. The default dark palette follows the logo's blue, and **Preferences → Theme → Calm (warm)** offers a graphite and amber variant.
+
 ## v1.24.0 - 2026-10-28 - Complement de Word d'un clic
 
 - **The Word add-in installs in one click** from the Windows desktop app: Preferences → Word add-in → **Install in Word**. The app takes the manifest from the running backend, puts the backend's real port in it (it was fixed to 8097, so the pane did not load when the backend used another port) and registers it for Word under `HKCU\Software\Microsoft\Office.0\WEF\Developer`, instead of sharing a network folder and adding it in the Trust Center. On every start the manifest is rewritten with the current port, and **Remove from Word** takes it out. See docs/addin.md.

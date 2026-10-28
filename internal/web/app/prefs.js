@@ -24,7 +24,7 @@ const OPCIONS = {
   tema: {
     clau: 'gregal_tema', defecte: 'sistema', attr: 'data-theme',
     titol: 'prefs.theme', ajuda: 'prefs.theme.help',
-    valors: [['sistema', 'prefs.theme.system'], ['dark', 'prefs.theme.dark'], ['light', 'prefs.theme.light'], ['gpt', 'prefs.theme.gpt'], ['claude', 'prefs.theme.claude'], ['opencode', 'prefs.theme.opencode'], ['mistral', 'prefs.theme.mistral'], ['gemini', 'prefs.theme.gemini'], ['grok', 'prefs.theme.grok']],
+    valors: [['sistema', 'prefs.theme.system'], ['dark', 'prefs.theme.dark'], ['calma', 'prefs.theme.calma'], ['light', 'prefs.theme.light'], ['gpt', 'prefs.theme.gpt'], ['claude', 'prefs.theme.claude'], ['opencode', 'prefs.theme.opencode'], ['mistral', 'prefs.theme.mistral'], ['gemini', 'prefs.theme.gemini'], ['grok', 'prefs.theme.grok']],
   },
   densitat: {
     clau: 'gregal_densitat', defecte: 'normal', attr: 'data-density',

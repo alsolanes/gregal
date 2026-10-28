@@ -235,7 +235,10 @@ export const convs = {
     const norm = path => path.replace(/[\\/]+$/, '').toLowerCase();
     const sameName = new Map();
     for (const p of projects.values()) { const n = (p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop()).toLowerCase(); sameName.set(n, (sameName.get(n) || 0) + 1); }
-    box.innerHTML = [...projects.values()].filter(p => !this.filtre || matchesConversation({workspace:p.path, title:p.name}, this.filtre) || grouped.has(p.path)).map(p => {
+    // Carpetes temporals (sandboxes, proves): fora de la llista si no són
+    // la carpeta actual; la cerca les continua trobant.
+    const temp = path => /[\\/]AppData[\\/]Local[\\/]Temp[\\/]|^\/tmp\//i.test(path);
+    box.innerHTML = [...projects.values()].filter(p => this.filtre ? (matchesConversation({workspace:p.path, title:p.name}, this.filtre) || grouped.has(p.path)) : (!temp(p.path) || norm(cwd) === norm(p.path))).map(p => {
       const name = p.name || p.path.replace(/[\\/]+$/, '').split(/[\\/]/).pop();
       // Dues carpetes amb el mateix nom (tres «ws»): la carpeta de sobre les distingeix.
       const parent = sameName.get(name.toLowerCase()) > 1 ? p.path.replace(/[\\/]+$/, '').split(/[\\/]/).slice(-2, -1)[0] || '' : '';

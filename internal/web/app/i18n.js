@@ -647,6 +647,10 @@ const CA = {
 
   'hero.kicker': 'PROJECTE ACTIU',
   'hero.title': 'Què vols fer?',
+  'hero.morning': 'Bon dia',
+  'hero.afternoon': 'Bona tarda',
+  'hero.evening': 'Bona nit',
+  'prefs.theme.calma': 'Calma (càlid)',
   'hero.lead': 'Demana un canvi, fes una pregunta o planifica una feina.',
   'mode.codi': 'Codi',
   'mode.xat': 'Xat',
@@ -2256,6 +2260,10 @@ const EN = {
 
   'hero.kicker': 'ACTIVE PROJECT',
   'hero.title': 'What do you want to do?',
+  'hero.morning': 'Good morning',
+  'hero.afternoon': 'Good afternoon',
+  'hero.evening': 'Good evening',
+  'prefs.theme.calma': 'Calm (warm)',
   'hero.lead': 'Ask for a change, a question or a plan.',
   'mode.codi': 'Code',
   'mode.xat': 'Chat',
