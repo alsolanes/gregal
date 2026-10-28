@@ -112,7 +112,8 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
                 }
             }
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
-                canSend = field.text.isNotBlank() && !ui.busy) {
+                canSend = field.text.isNotBlank() && !ui.busy,
+                busy = ui.busy || ui.going) {
                 vm.askCap(field.text); field = TextFieldValue("")
             }
         }

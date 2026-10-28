@@ -535,6 +535,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 )
                 Surface(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                        // Mentre el vent treballa, l'anell de llum dona voltes
+                        // per fora de la pastilla (no tapa ni text ni botons).
+                        .workingRing(active = busy, corner = 24.dp)
                         .shadow(if (composerFocused) 6.dp else 2.dp, RoundedCornerShape(24.dp)),
                     shape = RoundedCornerShape(24.dp), color = PillDark,
                     border = BorderStroke(

@@ -52,14 +52,19 @@ internal fun VentsChatHeader(
 @Composable
 internal fun VentsComposer(
     lang: String, field: TextFieldValue, onChange: (TextFieldValue) -> Unit,
-    hint: String, canSend: Boolean, onSend: () -> Unit,
+    hint: String, canSend: Boolean,
+    /** El vent (o la colla) està treballant: el camp s'envolta de llum.
+     *  Va abans de `onSend` perquè la lambda final segueixi funcionant. */
+    busy: Boolean = false,
+    onSend: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = field, onValueChange = onChange,
             placeholder = { Text(hint, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            shape = RoundedCornerShape(26.dp), modifier = Modifier.weight(1f), maxLines = 4,
+            shape = RoundedCornerShape(26.dp), maxLines = 4,
+            modifier = Modifier.weight(1f).workingRing(active = busy, corner = 26.dp),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrect = true, keyboardType = KeyboardType.Text),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = LineHi, unfocusedBorderColor = Color.Transparent,

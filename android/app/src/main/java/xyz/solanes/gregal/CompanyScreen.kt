@@ -915,7 +915,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 )
             }
         }
-        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend) {
+        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend, busy = busy.contains(wind.id)) {
             val body = field.text
             val target = resolveMention(body, winds)
             if (target != null && target.id != wind.id) {
@@ -1111,7 +1111,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
         }
         val waitingAnswer = msgs.lastOrNull()?.kind == "question"
-        VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend) {
+        VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend, busy = busy.contains(rot.id)) {
             val body = field.text
             val target = resolveMention(body, faces)
             vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")

@@ -154,7 +154,8 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
             if (ch != null) {
                 Surface(
                     shape = RoundedCornerShape(24.dp), color = PillDark, border = BorderStroke(1.dp, Line),
-                    modifier = Modifier.imePadding().fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    modifier = Modifier.imePadding().fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                        .workingRing(active = state == "rewriting", corner = 24.dp),
                 ) {
                     Row(Modifier.padding(start = 16.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         BasicTextField(
