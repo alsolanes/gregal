@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet, Carpeta }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -2642,6 +2642,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windTasks = MutableStateFlow<List<WindTask>?>(null)
     val windTasks: StateFlow<List<WindTask>?> = _windTasks.asStateFlow()
 
+    // --- Carpeta de treball: on treballen els vents ---
+    private val _workspaces = MutableStateFlow<WorkspacesInfo?>(null)
+    val workspaces: StateFlow<WorkspacesInfo?> = _workspaces.asStateFlow()
+
+    /** La carpeta que s'està mirant al navegador (no és la triada fins que es toca). */
+    private val _carpeta = MutableStateFlow<DirsInfo?>(null)
+    val carpeta: StateFlow<DirsInfo?> = _carpeta.asStateFlow()
+
+    private val _carpetaBusy = MutableStateFlow(false)
+    val carpetaBusy: StateFlow<Boolean> = _carpetaBusy.asStateFlow()
+
+    /** Error de l'última acció amb carpeta, amb el que cal repetir si es reintenta. */
+    private val _carpetaError = MutableStateFlow<String?>(null)
+    val carpetaError: StateFlow<String?> = _carpetaError.asStateFlow()
+
+    /** Darrera carpeta demanada: el botó de reintentar-la torna a obrir. */
+    private var ultimaCarpeta: String? = null
+
     /**
      * Llegeix les feines. Si una que anava en marxa acaba, ho diu: el mateix
      * avís que el vigilant dona amb l'app tancada.
@@ -2666,6 +2684,81 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch) && _windTasks.value == null) _windTasks.value = emptyList()
             }
         }
+    }
+
+    /**
+     * Carrega la carpeta actual i els projectes recents (/api/workspaces).
+     * Surt de la pantalla del selector i també la fa servir Preferències per
+     * ensenyar on s'està treballant.
+     */
+    fun loadWorkspaces() {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { source.api().workspaces() }
+                if (_conn.value != source) return@launch
+                _workspaces.value = info
+                _carpetaError.value = null
+            } catch (e: Exception) {
+                if (_conn.value == source) _carpetaError.value = e.message ?: ""
+            }
+        }
+    }
+
+    /**
+     * Obre una carpeta al navegador (/api/dirs). Sense path obre la que ja
+     * tens triada; és el que fa la pantalla en entrar-hi.
+     */
+    fun obrirCarpeta(path: String? = null) {
+        val source = _conn.value
+        ultimaCarpeta = path
+        _carpetaBusy.value = true
+        viewModelScope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { source.api().dirs(path) }
+                if (_conn.value != source) return@launch
+                _carpeta.value = info
+                _carpetaError.value = null
+            } catch (e: Exception) {
+                if (_conn.value == source) _carpetaError.value = e.message ?: ""
+            } finally {
+                if (_conn.value == source) _carpetaBusy.value = false
+            }
+        }
+    }
+
+    /** Tria la carpeta on han de treballar els vents (POST /api/workspaces). */
+    fun triarCarpeta(path: String) {
+        val source = _conn.value
+        _carpetaBusy.value = true
+        viewModelScope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { source.api().setWorkspace(path) }
+                if (_conn.value != source) return@launch
+                _workspaces.value = info
+                _carpetaError.value = null
+                // El servidor mana: si ha normalitzat el camí, el navegador
+                // ha d'ensenyar el de debò i no el que s'ha escrit.
+                obrirCarpeta(info.current)
+                notify(appText("app.carpeta.changed", info.project.ifBlank { info.current }))
+                refresh()
+            } catch (e: Exception) {
+                if (_conn.value == source) {
+                    // L'error del servidor sol ser català; si és el del torn en
+                    // curs, s'explica què cal fer en lloc de deixar-lo cru.
+                    val msg = (e.message ?: "").removePrefix("HTTP 400: ")
+                    _carpetaError.value = msg
+                }
+            } finally {
+                if (_conn.value == source) _carpetaBusy.value = false
+            }
+        }
+    }
+
+    /** Reintenta l'última acció de carpeta que ha fallat. */
+    fun reintentarCarpeta() {
+        _carpetaError.value = null
+        obrirCarpeta(ultimaCarpeta)
     }
 
     fun readTaskFile(path: String, done: (String?, String?) -> Unit) {

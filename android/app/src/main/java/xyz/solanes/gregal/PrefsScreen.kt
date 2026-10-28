@@ -32,6 +32,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Verified
 import androidx.compose.material.icons.rounded.Lock
@@ -111,6 +112,23 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
                     )
                 }
+                Spacer(Modifier.height(12.dp))
+
+                // On treballen els vents. Des del mòbil no es podia canviar i
+                // era el que decidia sobre quin codi treballava l'agent.
+                PrefsSection(t("app.carpeta.title"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    SettingsRow(
+                        Icons.Rounded.FolderOpen,
+                        st.project.ifBlank { t("app.carpeta.none") },
+                        camiCurt(st.cwd) + (if (st.branch.isNotBlank()) " · " + st.branch else ""),
+                        tint = Sea,
+                        trailing = {
+                            TextButton(onClick = { vm.go(Screen.Carpeta) }) { Text(t("app.carpeta.change"), color = Sea) }
+                        },
+                    )
+                }
+
                 Spacer(Modifier.height(12.dp))
                 ProviderSetup(vm, current = st.provider, change = true)
 

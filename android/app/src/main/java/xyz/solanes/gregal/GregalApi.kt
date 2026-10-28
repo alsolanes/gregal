@@ -194,6 +194,26 @@ class GregalApi(val base: String, val token: String) {
         )
     }
 
+    // --- carpeta de treball: on treballen els vents ---
+
+    /** GET /api/workspaces: carpeta actual, branca i projectes recents. */
+    fun workspaces(): WorkspacesInfo =
+        parseWorkspaces(JSONObject(read(conn("/api/workspaces", "GET"))))
+
+    /**
+     * POST /api/workspaces {path}: canvia la carpeta d'aquesta sessió.
+     * El servidor la valida (ha d'existir i ser dins de les teves arrels) i
+     * respon amb la llista nova; si falla, llença ApiException amb el motiu.
+     */
+    fun setWorkspace(path: String): WorkspacesInfo =
+        parseWorkspaces(post("/api/workspaces", JSONObject().put("path", path)))
+
+    /** GET /api/dirs?path=: subdirectoris, per triar carpeta sense escriure rutes. */
+    fun dirs(path: String? = null): DirsInfo {
+        val query = if (path.isNullOrBlank()) "" else "?path=" + URLEncoder.encode(path, "UTF-8")
+        return parseDirs(JSONObject(read(conn("/api/dirs$query", "GET"))))
+    }
+
     /** Respon la pregunta de l'agent (POST /api/question {key, answer}). */
     fun answerQuestion(key: String, answer: String): Boolean {
         val o = post("/api/question", JSONObject().put("key", key).put("answer", answer))
@@ -1162,3 +1182,69 @@ class ApiException(msg: String) : Exception(msg)
  * que els que acabaves d'escriure al mòbil sempre quedaven a dalt.
  */
 internal fun msgMillis(ts: Long): Long = if (ts in 1 until 100_000_000_000L) ts * 1000 else ts
+
+
+// --- Parsers de la carpeta de treball (a part per poder-los provar) ---
+
+/** `last` arriba com a data ISO o com a mil·lisegons: es tolera totes dues. */
+internal fun instantsDeWorkspace(o: JSONObject): Long {
+    val raw = o.opt("last") ?: return 0L
+    if (raw is Number) return raw.toLong()
+    val txt = raw.toString()
+    txt.toLongOrNull()?.let { return it }
+    return try {
+        java.time.Instant.parse(txt).toEpochMilli()
+    } catch (_: Exception) {
+        0L
+    }
+}
+
+internal fun parseWorkspaces(o: JSONObject): WorkspacesInfo {
+    val llista = ArrayList<WorkspaceInfo>()
+    o.optJSONArray("workspaces")?.let { arr ->
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            val path = e.optString("path")
+            if (path.isBlank()) continue
+            llista.add(
+                WorkspaceInfo(
+                    path = path,
+                    name = e.optString("name").ifBlank { path.trimEnd('/').substringAfterLast('/') },
+                    last = instantsDeWorkspace(e),
+                    missing = e.optBoolean("missing"),
+                ),
+            )
+        }
+    }
+    return WorkspacesInfo(
+        current = o.optString("current"),
+        project = o.optString("project"),
+        branch = o.optString("branch"),
+        list = llista,
+    )
+}
+
+internal fun parseDirs(o: JSONObject): DirsInfo {
+    val dirs = ArrayList<DirEntry>()
+    o.optJSONArray("dirs")?.let { arr ->
+        for (i in 0 until arr.length()) {
+            val e = arr.optJSONObject(i) ?: continue
+            val path = e.optString("path")
+            if (path.isBlank()) continue
+            dirs.add(DirEntry(name = e.optString("name").ifBlank { path.substringAfterLast('/') }, path = path, git = e.optBoolean("git")))
+        }
+    }
+    val roots = ArrayList<String>()
+    o.optJSONArray("roots")?.let { arr -> for (i in 0 until arr.length()) roots.add(arr.optString(i)) }
+    return DirsInfo(
+        path = o.optString("path"),
+        name = o.optString("name"),
+        git = o.optBoolean("git"),
+        parent = o.optString("parent"),
+        home = o.optString("home"),
+        roots = roots,
+        dirs = dirs,
+        hidden = o.optInt("hidden"),
+        truncated = o.optBoolean("truncat") || o.optBoolean("truncated"),
+    )
+}

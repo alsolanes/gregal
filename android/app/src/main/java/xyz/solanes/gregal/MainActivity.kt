@@ -276,6 +276,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Pairing -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                 }
@@ -288,7 +289,7 @@ class MainActivity : ComponentActivity() {
                 // mateixos vents i al xat de feina: allà ja hi ets, i el FAB
                 // es barrejaria amb els botons de crear conversa o taparia
                 // el botó d'enviar del composer.
-                if (screen != Screen.Company && screen != Screen.Chat && screen != Screen.Ventet) {
+                if (screen != Screen.Company && screen != Screen.Chat && screen != Screen.Ventet && screen != Screen.Carpeta) {
                     WindFab(vm) { vm.go(Screen.Company) }
                 }
                 }

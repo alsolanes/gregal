@@ -633,3 +633,61 @@ fun uiModeOf(mode: String): String = when (mode) {
 
 /** Els tres permisos d'Actua, en l'ordre del menú. */
 val ACCESSES = listOf("ask", "edits", "full")
+
+
+// --- Carpeta de treball (on treballen els vents) ---
+
+/** Un projecte recordat pel servidor (/api/workspaces). */
+data class WorkspaceInfo(
+    val path: String = "",
+    val name: String = "",
+    val last: Long = 0L,
+    /** La carpeta ja no hi és al disc: es pot oblidar però no obrir. */
+    val missing: Boolean = false,
+)
+
+/** On treballa la sessió ara mateix i quins projectes té a mà. */
+data class WorkspacesInfo(
+    val current: String = "",
+    val project: String = "",
+    val branch: String = "",
+    val list: List<WorkspaceInfo> = emptyList(),
+)
+
+/** Un subdirectori del navegador de carpetes (/api/dirs). */
+data class DirEntry(val name: String, val path: String, val git: Boolean = false)
+
+/** Contingut d'una carpeta al navegador: subdirectoris, pare i arrels. */
+data class DirsInfo(
+    val path: String = "",
+    val name: String = "",
+    val git: Boolean = false,
+    val parent: String = "",
+    val home: String = "",
+    val roots: List<String> = emptyList(),
+    val dirs: List<DirEntry> = emptyList(),
+    val hidden: Int = 0,
+    val truncated: Boolean = false,
+)
+
+/**
+ * El camí com el vol veure una persona: la carpeta de casa com a `~` i, si
+ * és molt llarg, el principi mossegat. Serveix per a la targeta de la carpeta
+ * actual, on l'espai és just i el que importa és el final del camí.
+ */
+fun camiCurt(path: String, home: String = "/home/aleix", maxim: Int = 42): String {
+    if (path.isBlank()) return ""
+    var p = path
+    if (home.isNotBlank() && p.startsWith(home)) p = "~" + p.removePrefix(home)
+    if (p.length <= maxim) return p
+    return "…" + p.takeLast(maxim - 1)
+}
+
+/** Les inicials d'un projecte per a la icona rodona (una o dues lletres). */
+fun inicialsProjecte(nom: String): String {
+    val net = nom.trim().trim('-', '_', '.')
+    if (net.isEmpty()) return "?"
+    val parts = net.split('-', '_', ' ').filter { it.isNotBlank() }
+    return if (parts.size >= 2) (parts[0].take(1) + parts[1].take(1)).uppercase()
+    else net.take(2).uppercase()
+}

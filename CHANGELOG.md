@@ -2564,3 +2564,6 @@ la feina diària sense tornar al TUI.
   revisor estricte i delegació read-only en paral·lel.
 
 [0.9.6]: https://releases.example.org/gregal
+
+### Added
+- **The working folder can be chosen from the phone.** Until now the folder was whatever the server had when it started, and the app had no way to change it: to work on another project you had to go to the computer. Preferences now has a *Working folder* card with the folder in use, its branch and a *Change* button that opens a picker with the remembered projects (the server marks the ones that are gone) and a disk browser that flags git repos and starts at the folder you are already using, plus a field for typing a path. All three calls go through the server's own rules: the folder must exist and be inside your roots, and if a job is running the picker says so plainly instead of failing mid-run.
