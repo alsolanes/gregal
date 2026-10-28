@@ -39,10 +39,26 @@ class JobScheduleTest {
     }
 
     @Test
-    fun dueUsesTheBackendGrace() {
+    fun dueNeverBeforeTheSlot() {
         assertEquals(listOf("watch"), JobSchedule.due(listOf(news, watch, manual, paused), now).map { it.id })
+        // Una diària de les 08:00 no s'avança a un tret de les 07:59:30.
         val almost = at("2026-10-18T07:59:30+02:00")
-        assertEquals(listOf("watch", "news"), JobSchedule.due(listOf(news, watch), almost).map { it.id })
+        assertEquals(listOf("watch"), JobSchedule.due(listOf(news, watch), almost).map { it.id })
+        assertEquals(listOf("watch", "news"), JobSchedule.due(listOf(news, watch), at("2026-10-18T08:00:00+02:00")).map { it.id })
+    }
+
+    @Test
+    fun remindFiresAtItsTimeNotWithAnEarlierAlarm() {
+        // «D'aquí a 1 minut» a les 07:29: l'alarma d'un altre job a les
+        // 07:29:05 no l'arrossega; toca a les 07:30, i més tard també.
+        val other = watch.copy(id = "other", nextDueAt = "2026-10-18T07:29:05+02:00")
+        assertEquals(listOf("other"), JobSchedule.due(listOf(remind, other), at("2026-10-18T07:29:05+02:00")).map { it.id })
+        assertTrue(JobSchedule.due(listOf(remind), at("2026-10-18T07:29:59+02:00")).isEmpty())
+        assertEquals(listOf("remind-xaloc-1"), JobSchedule.due(listOf(remind), at("2026-10-18T07:30:00+02:00")).map { it.id })
+        assertEquals(listOf("remind-xaloc-1"), JobSchedule.due(listOf(remind), at("2026-10-18T07:30:40+02:00")).map { it.id })
+        // L'alarma següent és la del recordatori, no abans.
+        val rest = JobSchedule.slots(listOf(remind))
+        assertEquals(at("2026-10-18T07:30:00+02:00"), JobSchedule.nextAlarm(rest, at("2026-10-18T07:29:10+02:00")))
     }
 
     @Test

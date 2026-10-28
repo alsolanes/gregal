@@ -42,8 +42,6 @@ data class ScheduledSlot(val id: String, val name: String, val dueAt: Long)
 
 /** Lògica pura de la programació: testejable a la JVM. */
 object JobSchedule {
-    /** La mateixa gràcia que jobs.Due al backend. */
-    const val GRACE_MS = 60_000L
     /** Una alarma al passat (franja perduda) sona d'aquí a poc, no ara mateix. */
     const val MIN_DELAY_MS = 2_000L
 
@@ -59,11 +57,15 @@ object JobSchedule {
         .mapNotNull { j -> parseInstant(j.nextDueAt)?.let { ScheduledSlot(j.id, j.name, it) } }
         .sortedBy { it.dueAt }
 
-    /** Jobs que toquen ara segons el backend, el més endarrerit primer. */
+    /**
+     * Jobs que toquen ara segons el backend, el més endarrerit primer. Com
+     * jobs.Due: a la franja, mai abans. Un job que toca d'aquí a uns segons
+     * no s'avança; sync() hi torna a posar l'alarma i sona a la seva hora.
+     */
     fun due(jobs: List<JobItem>, now: Long): List<JobItem> = jobs
         .filter(::scheduled)
         .mapNotNull { j -> parseInstant(j.nextDueAt)?.let { j to it } }
-        .filter { (_, at) -> at <= now + GRACE_MS }
+        .filter { (_, at) -> at <= now }
         .sortedBy { it.second }
         .map { it.first }
 
