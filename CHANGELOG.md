@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.22.0 - 2026-10-28 - Ventet com a conversa i molt més ràpid amb models locals
+
 - Android Winds: **Ventet is a real conversation**, pinned at the top of the list with its last message and news. It opens as a full chat with the same header and text field as the winds, and its whole thread is kept (up to 1000 messages instead of the last 40). Delegations live in the thread: the proposal with the faces of who will do it, "Go ahead" or another option, and then a card that opens the resulting conversation; a pending proposal can still be accepted after reopening the app, and "Not now" is remembered. Feeding, playing, dressing and renaming Ventet moved to its profile (tap the header). A message that cannot be sent goes back to the text field with "Try again", and a failed load says so instead of showing an empty card. The drawer's Ventet section opens the same conversation; the Preferences switch is gone.
 - Android Winds home: the conversations start right below the header. The phone/server switch and its explanation became a small indicator in the header that opens the selector; the strip of faces became the **winds directory** (each wind with its trade and "Talk"); Scheduled, Library and Work moved to the "+" menu, and running work shows as a single line only when there is some. The list loads only the last message of each conversation (`GET /api/winds/summaries`) and each thread when it is opened, instead of every history. Server: `/api/winds/cap/link`.
 
