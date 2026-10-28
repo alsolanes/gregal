@@ -37,6 +37,12 @@ func (u *User) Allow(path string) error {
 	}
 	real := realPath(abs)
 	for _, root := range u.Roots {
+		// L'arrel «/» (o «\») és tot el sistema: també a Windows, on
+		// filepath.Abs la convertiria en «C:\» i deixaria fora les altres
+		// unitats i els camins escrits a la manera Unix.
+		if root == "/" || root == `\` {
+			return nil
+		}
 		rr := realPath(root)
 		// El separador al davant evita que `/…/carla2` passi com a
 		// `/…/userb`. Amb l'arrel `/` (l'amo del servidor) el prefix ja
