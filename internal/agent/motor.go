@@ -243,6 +243,13 @@ type Torn struct {
 	doomStalls int
 
 	serverRetries int
+	// stallRetries: passos tornats a demanar després d'un tall per
+	// inactivitat (ModelStallError), com a molt un per torn.
+	stallRetries int
+	// cridesWeb: crides web (cerca i lectura) del torn; avisRecerca: ja
+	// s'ha donat la guia del pressupost (research_budget.go).
+	cridesWeb   int
+	avisRecerca bool
 	// reasoningRetries: el 400 «reasoning_content must be passed back»
 	// s'ha reintentat (una vegada com a molt).
 	reasoningRetries int
@@ -788,6 +795,17 @@ func (t *Torn) repError(err error) []Event {
 		}
 		return []Event{notaClau("app.serverReintentCurt")}
 	}
+	// Pas tallat per inactivitat: el proveïdor no ha enviat res (una
+	// petició encallada al servidor, vist el 2026-10-28: 12 minuts sense
+	// cap byte; la mateixa ordre tornada a llançar va anar bé). Es torna a
+	// demanar el mateix pas una vegada, sense guia i sense gastar pas.
+	if IsModelStall(err) && t.stallRetries < 1 && !t.cancellat(err) {
+		t.stallRetries++
+		if t.passos > 0 {
+			t.passos--
+		}
+		return []Event{avis("agent: " + err.Error() + "; ho torno a demanar")}
+	}
 	// Error de servidor a mig torn (un 5xx: la petició ha arribat al
 	// proveïdor): es reintenta amb guia (sovint la crida era degenerada)
 	// abans de donar la feina per perduda. Els errors de xarxa no: el client
@@ -951,10 +969,23 @@ func (t *Torn) repCrides(calls []llm.ToolCall) []Event {
 		return t.repPregunta(calls, qi)
 	}
 	plans := PlanCalls(t.o.Pol, t.o.Mode, &t.doom, calls)
+	var noves []llm.ToolCall
+	for i, c := range calls {
+		if plans[i].Fixed == "" {
+			noves = append(noves, c)
+		}
+	}
+	tallades := t.recercaTallada(noves)
 	var executables []llm.ToolCall
 	for i, c := range calls {
 		evs = append(evs, Event{Tipus: EvCrida, Eina: c.Function.Name, EinaArgs: c.Function.Arguments, ID: c.ID})
 		pl := plans[i]
+		if tallades[c.ID] {
+			text := RecercaEsgotada(t.cridesWeb)
+			t.Hist = append(t.Hist, ToolMsg(c, text))
+			evs = append(evs, Event{Tipus: EvResultat, Eina: c.Function.Name, Text: text, Fallada: true, ID: c.ID})
+			continue
+		}
 		if pl.Fixed == "" {
 			evs = append(evs, t.hookPreTool(c, &pl)...)
 		}

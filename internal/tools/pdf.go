@@ -317,6 +317,11 @@ func pdfOut(o PdfEditOpts) string {
 // PdfEdit aplica una operació. Torna un resum per al model.
 func PdfEdit(ctx context.Context, o PdfEditOpts) (string, error) {
 	op := strings.ToLower(strings.TrimSpace(o.Op))
+	if op == "" && len(o.Fields) > 0 {
+		// Només fields: no hi ha cap altra operació que en porti. Els
+		// models locals se'n descuidaven i perdien un pas amb l'error.
+		op = "fill_form"
+	}
 	o.Op = op
 	if op == "" {
 		return "", fmt.Errorf("falta op (%s)", strings.Join(PdfOps, ", "))

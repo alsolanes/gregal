@@ -272,3 +272,48 @@ func TestSelection(t *testing.T) {
 		t.Error("selecció invàlida hauria de fallar")
 	}
 }
+
+// A reportlab form (/Helv without an encoding) with Catalan text: pdfcpu
+// needs its Unicode font, which Gregal installs on first use in its own
+// data folder. Before, every accent failed with «font Roboto-Regular not
+// available».
+func TestFillFormAccentsInHelvForm(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	a := copia(t, "form-helv.pdf")
+	text := "Cooperativa Energètica del Garraf; instal·lació a escoles públiques"
+	filled, _, err := FillForm(bg, a, a, map[string]string{"entitat": text})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(filled) != 1 {
+		t.Fatalf("filled=%v", filled)
+	}
+	fs, err := Fields(bg, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range fs {
+		if f.Name == "entitat" && f.Value != text {
+			t.Fatalf("valor: %q", f.Value)
+		}
+	}
+}
+
+// reportlab gives text fields /MaxLen 100. The limit shows in the field list
+// and an overlong value fails for all fields at once, before writing.
+func TestFillFormMaxLen(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	a := copia(t, "form-helv.pdf")
+	fs, err := Fields(bg, a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fs) == 0 || fs[0].MaxLen != 100 || !strings.Contains(fs[0].Type, "max 100") {
+		t.Fatalf("camps: %+v", fs)
+	}
+	llarg := strings.Repeat("x", 120)
+	_, _, err = FillForm(bg, a, a, map[string]string{"entitat": llarg, "responsable": llarg, "calendari": "curt"})
+	if err == nil || !strings.Contains(err.Error(), "entitat (120 > 100)") || !strings.Contains(err.Error(), "responsable (120 > 100)") {
+		t.Fatalf("err=%v", err)
+	}
+}

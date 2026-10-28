@@ -1143,14 +1143,25 @@ opening downloaded HTML outside the preview or publishing it.
 - [Contributing](../CONTRIBUTING.md)
 ## Model Request Time Limits
 
-Autonomous model steps default to a 20-minute time limit; interactive steps
-default to four minutes. Set `agent.model_timeout_s` to a value from 1 to 1200
-seconds to override either default, or use `0` for automatic selection.
+A streamed model step is cut when the provider sends nothing at all for five
+minutes (autonomous) or four minutes (interactive modes): this is a silence
+limit, so a slow model that keeps streaming is never cut, and a hard ceiling
+(30 minutes, 60 autonomous) still ends a runaway step. Steps that are not
+streamed (Telegram, some side calls) keep a whole-step limit of 20 minutes
+autonomous and four interactive. Set `agent.model_timeout_s` to a value from
+1 to 1200 seconds to override both, or use `0` for automatic selection.
 Retries share the same step deadline. Cancellation still stops the request.
 Autonomous requests are also bounded by the remaining `max_minutes` budget;
 when that budget expires, pending tools are discarded and a final summary is
-requested separately, with its existing bounded time limit. A timed-out step
-is not automatically replayed.
+requested separately, with its existing bounded time limit. A step cut for
+silence is asked again once (a request stuck on the server usually goes
+through the second time); a second one ends the turn. Subagents (`delegate`)
+have the same silence limit and single retry.
+
+A proxy that answers HTTP 524 (Cloudflare: the origin took more than ~100
+seconds) is not retried with the same request: from then on, Gregal streams
+every call to that endpoint, so the bytes arrive at once and the proxy does
+not cut them.
 
 ## Chat plots and dashboard
 

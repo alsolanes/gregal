@@ -128,6 +128,11 @@ func (c *Client) postRetryWith(ctx context.Context, baseURL string, malformed bo
 			if isPermanentProviderError(string(raw)) && malformed {
 				return nil, last
 			}
+			// 524: el proxy ha tallat esperant l'origen. La mateixa petició
+			// hi tornaria a topar (origin_timeout.go).
+			if resp.StatusCode == 524 {
+				return nil, &OriginTimeoutError{Err: last}
+			}
 		} else {
 			return resp, nil
 		}

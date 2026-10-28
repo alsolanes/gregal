@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -570,12 +571,19 @@ func (c *Client) chatInner(ctx context.Context, baseURL, apiKey, model string, m
 	if text, _, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, nil, false, nil, nil); ok {
 		return text, err
 	}
+	if streamObligat(baseURL) {
+		return c.chatStreamInner(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, nil, nil)
+	}
 	c.clearUsage()
 	resp, err := c.postCompat(ctx, baseURL, apiKey, chatRequest{
 		Model: model, Messages: msgs,
 		Temperature: temp, MaxTokens: maxTokens,
 		EnableThinking: c.chatRequestExtra(ctx), ChatTemplateKwargs: c.thinkKwargs(ctx), ReasoningEffort: c.reasoningEffort(ctx), Stream: false,
 	})
+	if ot := (*OriginTimeoutError)(nil); errors.As(err, &ot) {
+		marcaStreamObligat(baseURL)
+		return c.chatStreamInner(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, nil, nil)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -649,6 +657,9 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 	if text, calls, ok, err := c.nativeChat(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, false, nil, nil); ok {
 		return text, calls, err
 	}
+	if streamObligat(baseURL) {
+		return c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, nil, nil)
+	}
 	c.clearUsage()
 	var tos []any
 	for _, s := range specs {
@@ -664,6 +675,10 @@ func (c *Client) chatWithToolsInner(ctx context.Context, baseURL, apiKey, model 
 		Temperature: temp, MaxTokens: maxTokens,
 		EnableThinking: c.chatRequestExtra(ctx), ChatTemplateKwargs: c.thinkKwargs(ctx), ReasoningEffort: c.reasoningEffort(ctx), Stream: false, Tools: tos,
 	})
+	if ot := (*OriginTimeoutError)(nil); errors.As(err, &ot) {
+		marcaStreamObligat(baseURL)
+		return c.chatStreamWithToolsInner(ctx, baseURL, apiKey, model, msgs, temp, maxTokens, specs, nil, nil)
+	}
 	if err != nil {
 		return "", nil, err
 	}

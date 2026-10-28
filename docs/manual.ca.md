@@ -1140,14 +1140,26 @@ preview o publicar-lo.
 - [Com contribuir](../CONTRIBUTING.md)
 ## Limits Temporals Del Model
 
-Els passos del model tenen un limit de 20 minuts en Autonomous i de quatre
-minuts en els modes interactius. `agent.model_timeout_s` permet configurar-lo
-entre 1 i 1200 segons; `0` selecciona el valor automatic segons el mode.
-Els reintents comparteixen el mateix termini i la cancel·lacio continua activa.
-Les peticions autonomes tambe respecten el pressupost restant de `max_minutes`.
-Quan s'esgota, es descarten les eines pendents i es demana un resum final per
-separat, amb el seu limit temporal existent. Un pas que excedeix el termini
-no es repeteix automaticament.
+Un pas del model en streaming es talla quan el proveïdor no envia res de res
+durant cinc minuts (Autonomous) o quatre (modes interactius): és un límit de
+silenci, de manera que un model lent que va escrivint no es talla mai, i un
+sostre dur (30 minuts, 60 en Autonomous) encara atura un pas desbocat. Els
+passos sense streaming (Telegram, algunes crides laterals) mantenen un límit
+de pas sencer de 20 minuts en Autonomous i quatre en interactiu.
+`agent.model_timeout_s` permet configurar tots dos entre 1 i 1200 segons; `0`
+selecciona el valor automàtic segons el mode. Els reintents comparteixen el
+mateix termini i la cancel·lació continua activa. Les peticions autònomes
+també respecten el pressupost restant de `max_minutes`. Quan s'esgota, es
+descarten les eines pendents i es demana un resum final per separat, amb el
+seu límit temporal existent. Un pas tallat per silenci es torna a demanar una
+vegada (una petició encallada al servidor sol passar al segon intent); el
+segon tall acaba el torn. Els subagents (`delegate`) tenen el mateix límit i
+el mateix reintent.
+
+Un proxy que respon HTTP 524 (Cloudflare: l'origen ha trigat més de ~100
+segons) no es reintenta amb la mateixa petició: des d'aquell moment Gregal fa
+en streaming totes les crides a aquell endpoint, perquè els bytes arribin de
+seguida i el proxy no les talli.
 
 ## Plots al xat i dashboard
 

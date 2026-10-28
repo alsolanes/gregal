@@ -179,6 +179,10 @@ func TestPdfFillForm(t *testing.T) {
 	if !strings.Contains(out, "omplerts 2 camps") || !strings.Contains(out, "no existeixen: no_hi_es") {
 		t.Fatalf("fill_form: %q", out)
 	}
+	// Sense op però amb fields: és fill_form (no hi ha cap altra op amb fields).
+	if out, err := PdfEdit(context.Background(), PdfEditOpts{Path: p, Fields: map[string]string{"ciutat": "Girona"}}); err != nil || !strings.Contains(out, "omplerts 1 camps") {
+		t.Fatalf("fill_form implícit: %q %v", out, err)
+	}
 	info, _ := PdfInfoText(context.Background(), p)
 	if !strings.Contains(info, `nom [text] pàg. 1 = "Jordi"`) {
 		t.Fatalf("valors: %s", info)

@@ -24,8 +24,11 @@ func TestModelTimeoutConfiguration(t *testing.T) {
 	if c.ModelTimeout("chat") != 4*time.Minute || c.ModelTimeout("autonomous") != 20*time.Minute {
 		t.Fatal("incorrect automatic timeout")
 	}
+	if c.ModelIdleTimeout("chat") != 4*time.Minute || c.ModelIdleTimeout("autonomous") != 5*time.Minute {
+		t.Fatal("incorrect automatic idle timeout")
+	}
 	c.Agent.ModelTimeoutS = 1
-	if c.ModelTimeout("autonomous") != time.Second {
+	if c.ModelTimeout("autonomous") != time.Second || c.ModelIdleTimeout("autonomous") != time.Second {
 		t.Fatal("explicit timeout ignored")
 	}
 }

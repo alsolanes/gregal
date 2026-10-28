@@ -301,7 +301,25 @@ func buildDelegateRunner(cfg *config.Config, client *llm.Client) func(context.Co
 			model := primary.Model
 			hist = AmbAvisPassos(hist, step, maxSteps)
 			t0 := time.Now()
-			content, calls, usedFallback, err := client.ChatWithToolsFO(ctx, primary, fallback, hist, rr.Temperature, rr.MaxTokens, specs, nil)
+			// Cada pas del fill té el seu límit d'inactivitat (com el pare a
+			// ModelContext): abans no en tenia cap, i una petició encallada
+			// només queia pel timeout del client HTTP (20 minuts) mentre el
+			// pare esperava. En streaming perquè el límit vegi els deltes.
+			// Una petició encallada sol passar al segon intent: un sol
+			// reintent per pas.
+			var content string
+			var calls []llm.ToolCall
+			var usedFallback bool
+			var err error
+			for intent := 0; intent < 2; intent++ {
+				stepCtx, stopStep := StepContext(ctx, cfg, mode)
+				content, calls, usedFallback, err = client.ChatStreamWithToolsFO(stepCtx, primary, fallback, hist, rr.Temperature, rr.MaxTokens, specs, nil, nil, nil)
+				err = ModelError(stepCtx, err)
+				stopStep()
+				if !IsModelStall(err) || ctx.Err() != nil {
+					break
+				}
+			}
 			if os.Getenv("GREGAL_PERFIL") != "" {
 				// Com perfilCrida (run.go), però per als fills.
 				fmt.Fprintf(os.Stderr, "[perfil] fill %s pas %d: prompt~%dtok resposta~%dc+%deines %.1fs\n",

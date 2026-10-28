@@ -8,6 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -19,8 +20,27 @@ func (e *autonomousTimeLimitError) Error() string {
 
 func (e *autonomousTimeLimitError) Unwrap() error { return context.DeadlineExceeded }
 
-// ModelContext bounds one model step. The configured limit (4 min
-// interactive, 20 min autonomous, or agent.model_timeout_s) is an
+// ModelStallError is the cause of a model step cut by the inactivity limit:
+// the provider sent nothing at all for Idle. It wraps DeadlineExceeded (it
+// is a timeout, not the user pressing Stop) and the engine retries the step
+// once, because a request stuck on a shared server usually goes through
+// the second time.
+type ModelStallError struct{ Idle time.Duration }
+
+func (e *ModelStallError) Error() string {
+	return fmt.Sprintf("model sent nothing for %s (inactivity limit)", e.Idle)
+}
+
+func (e *ModelStallError) Unwrap() error { return context.DeadlineExceeded }
+
+// IsModelStall diu si l'error és un pas tallat per inactivitat.
+func IsModelStall(err error) bool {
+	var s *ModelStallError
+	return errors.As(err, &s)
+}
+
+// ModelContext bounds one model step. The idle limit (Cfg.ModelIdleTimeout:
+// 4 min interactive, 5 autonomous, or agent.model_timeout_s) is an
 // INACTIVITY limit: it only expires when the provider sends nothing for that
 // long. A slow model that keeps streaming reasoning, text or tool arguments
 // is never cut mid-answer; a hard ceiling (30 min, 60 autonomous, never below
@@ -30,7 +50,7 @@ func (e *autonomousTimeLimitError) Unwrap() error { return context.DeadlineExcee
 // Vist el 2026-10-13: un model lent escrivia una web dins una crida d'eina
 // (16k caràcters, ~60/s) i el límit fix de 4 minuts el va tallar a mitges.
 func (t *Torn) ModelContext(parent context.Context) (context.Context, context.CancelFunc) {
-	idle := t.o.Cfg.ModelTimeout(t.o.Mode)
+	idle := t.o.Cfg.ModelIdleTimeout(t.o.Mode)
 	hard := 30 * time.Minute
 	if t.o.Mode == ModeAutonomous {
 		hard = 60 * time.Minute
@@ -48,6 +68,22 @@ func (t *Torn) ModelContext(parent context.Context) (context.Context, context.Ca
 			hardCause = &autonomousTimeLimitError{minutes: budget}
 		}
 	}
+	return stepContext(parent, idle, deadline, hardCause)
+}
+
+// StepContext és ModelContext per a qui no té Torn (els subagents de
+// delegate): límit d'inactivitat del mode i sostre dur de 30 minuts.
+func StepContext(parent context.Context, cfg *config.Config, mode string) (context.Context, context.CancelFunc) {
+	idle := cfg.ModelIdleTimeout(mode)
+	hard := 30 * time.Minute
+	if hard < idle {
+		hard = idle
+	}
+	return stepContext(parent, idle, time.Now().Add(hard),
+		fmt.Errorf("model step exceeded its %s hard limit: %w", hard, context.DeadlineExceeded))
+}
+
+func stepContext(parent context.Context, idle time.Duration, deadline time.Time, hardCause error) (context.Context, context.CancelFunc) {
 	ctx, cancelHard := context.WithDeadlineCause(parent, deadline, hardCause)
 	ctx, cancelIdle := context.WithCancelCause(ctx)
 	var last atomic.Int64
@@ -65,7 +101,7 @@ func (t *Torn) ModelContext(parent context.Context) (context.Context, context.Ca
 				return
 			case now := <-tick.C:
 				if now.Sub(time.Unix(0, last.Load())) >= idle {
-					cancelIdle(fmt.Errorf("model sent nothing for %s (inactivity limit): %w", idle, context.DeadlineExceeded))
+					cancelIdle(&ModelStallError{Idle: idle})
 					return
 				}
 			}

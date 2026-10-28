@@ -547,8 +547,12 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			raonament := &llm.ReasoningCapture{}
 			pctx = llm.WithReasoningCapture(pctx, raonament)
 			content, calls, _, err := perfilCrida(pctx, p.Passos, p.Hist, func() (string, []llm.ToolCall, error) {
-				c, cs, _, e := client.ChatWithToolsFO(pctx, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), p.Hist,
-					r.Temperature, r.MaxTokens, specs, func(model string) { res.FallbackModel = model })
+				// Streaming sense callbacks: el text no es pinta, però cada
+				// delta arriba a ModelContext i el límit d'inactivitat mesura
+				// silenci de debò. Sense streaming, el pas només donava senyal
+				// en acabar i el límit era un sostre de durada.
+				c, cs, _, e := client.ChatStreamWithToolsFO(pctx, cfg.PrimTarget(pp, r), cfg.FallbackTarget(r), p.Hist,
+					r.Temperature, r.MaxTokens, specs, nil, nil, func(model string) { res.FallbackModel = model })
 				return c, cs, e
 			})
 			err = ModelError(stepCtx, err)

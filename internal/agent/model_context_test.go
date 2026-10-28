@@ -60,15 +60,29 @@ func TestModelContextNeverOutlivesAutonomousBudget(t *testing.T) {
 	}
 }
 
-func TestModelStepTimeoutDoesNotRetryOrClaimBudgetExhaustion(t *testing.T) {
+// A stalled step (nothing received for the idle limit) is asked again once,
+// without spending a step; a second stall ends the turn. Neither counts as
+// a server retry or as an exhausted budget.
+func TestModelStallRetriesOnceThenFails(t *testing.T) {
 	turn := NouTorn(OpcionsTorn{Mode: ModeAutonomous, Cfg: &config.Config{Agent: config.AgentCfg{ModelTimeoutS: 1}}})
-	ctx, cancel := turn.ModelContext(context.Background())
-	defer cancel()
-	<-ctx.Done()
-	err := ModelError(ctx, ctx.Err())
+	stall := func() error {
+		ctx, cancel := turn.ModelContext(context.Background())
+		defer cancel()
+		<-ctx.Done()
+		return ModelError(ctx, ctx.Err())
+	}
+	err := stall()
+	if !IsModelStall(err) || !strings.Contains(err.Error(), "1s") {
+		t.Fatalf("not a stall: %v", err)
+	}
+	turn.passos = 1
 	turn.repError(err)
-	if !turn.fallit || turn.sintesiDemanada || turn.serverRetries != 0 || !strings.Contains(err.Error(), "1s") {
-		t.Fatalf("incorrect timeout handling: %v", err)
+	if turn.fallit || turn.sintesiDemanada || turn.passos != 0 || turn.stallRetries != 1 {
+		t.Fatalf("first stall must retry the same step: fallit=%v passos=%d", turn.fallit, turn.passos)
+	}
+	turn.repError(stall())
+	if !turn.fallit || turn.sintesiDemanada || turn.serverRetries != 0 {
+		t.Fatalf("second stall must end the turn: fallit=%v", turn.fallit)
 	}
 }
 

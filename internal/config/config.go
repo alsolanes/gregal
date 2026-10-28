@@ -261,6 +261,25 @@ func (c *Config) ModelTimeout(mode string) time.Duration {
 	return 4 * time.Minute
 }
 
+// ModelIdleTimeout is how long a STREAMED model step may stay completely
+// silent (no byte of reasoning, text or tool arguments) before it counts as
+// stalled. It is not a duration limit: a slow model that keeps streaming
+// is never cut. Silence only covers queueing and prompt prefill (a 120k
+// token prompt prefills in ~90 s on the local qwen flash server), so five
+// minutes is generous in every mode. The autonomous twenty minutes of
+// ModelTimeout used to apply here too, and a request that never answered
+// (2026-10-28, a headless run with mode: autonomous) sat 12 minutes doing
+// nothing. agent.model_timeout_s still overrides both.
+func (c *Config) ModelIdleTimeout(mode string) time.Duration {
+	if c != nil && c.Agent.ModelTimeoutS > 0 {
+		return time.Duration(c.Agent.ModelTimeoutS) * time.Second
+	}
+	if mode == "autonomous" {
+		return 5 * time.Minute
+	}
+	return 4 * time.Minute
+}
+
 // ApprovalTimeout és l'espera efectiva d'una aprovació (0 = sense límit).
 // Abans eren 120 s fixos: qui s'aixecava a fer un cafè tornava i trobava
 // l'acció denegada i el model provant una altra cosa. El TUI i Telegram

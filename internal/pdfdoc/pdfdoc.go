@@ -29,6 +29,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/pdfcpu/pdfcpu/pkg/api"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/color"
@@ -40,6 +41,35 @@ func init() {
 	// pdfcpu, amb conf nil, crea ~/.config/pdfcpu (config.yml i fonts).
 	// Gregal no en vol res: sempre configuració sense estat.
 	model.ConfigPath = "disable"
+}
+
+// Fonts per omplir formularis amb text que no és ASCII. Quan la font del
+// camp (sovint /Helv sense codificació, el que fan reportlab i molts
+// generadors) no cobreix el text, pdfcpu hi posa Roboto, que instal·la a
+// la carpeta de fonts de la seva configuració. Amb la configuració
+// desactivada no n'hi havia cap: «font Roboto-Regular not available»
+// amb qualsevol accent (vist el 2026-10-28 omplint una sol·licitud en
+// català; el model va acabar instal·lant pypdf amb pip). La carpeta és de
+// Gregal (dades o caché d'usuari), mai ~/.config/pdfcpu.
+var (
+	fontsOnce sync.Once
+	fontsErr  error
+)
+
+func fontsFormulari() error {
+	fontsOnce.Do(func() {
+		root := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR"))
+		if root == "" {
+			cache, err := os.UserCacheDir()
+			if err != nil {
+				fontsErr = err
+				return
+			}
+			root = filepath.Join(cache, "gregal")
+		}
+		fontsErr = model.EnsureDefaultConfigAt(filepath.Join(root, "pdf"), false)
+	})
+	return fontsErr
 }
 
 // conf és una configuració nova per crida (pdfcpu en modifica camps).
@@ -142,6 +172,8 @@ type Field struct {
 	Options []string `json:"options,omitempty"`
 	Pages   []int    `json:"pages"`
 	Locked  bool     `json:"locked,omitempty"`
+	// MaxLen és el màxim de caràcters d'un camp de text (0 = sense).
+	MaxLen int `json:"max_len,omitempty"`
 }
 
 // Annot és una anotació existent.
@@ -244,7 +276,13 @@ func fields(ctx context.Context, data []byte) ([]Field, error) {
 	var out []Field
 	for _, f := range fg.Forms {
 		for _, x := range f.TextFields {
-			out = append(out, Field{Name: x.Name, ID: x.ID, Type: "text", Value: x.Value, Pages: x.Pages, Locked: x.Locked})
+			tipus := "text"
+			if x.MaxLen > 0 {
+				// Que es vegi a pdf_read: sense això el model ho buscava
+				// amb grep al PDF i comptava caràcters amb python (6 passos).
+				tipus = fmt.Sprintf("text, max %d chars", x.MaxLen)
+			}
+			out = append(out, Field{Name: x.Name, ID: x.ID, Type: tipus, Value: x.Value, Pages: x.Pages, Locked: x.Locked, MaxLen: x.MaxLen})
 		}
 		for _, x := range f.DateFields {
 			out = append(out, Field{Name: x.Name, ID: x.ID, Type: "date (" + x.Format + ")", Value: x.Value, Pages: x.Pages, Locked: x.Locked})
@@ -623,10 +661,13 @@ func FillForm(ctx context.Context, in, out string, values map[string]string) ([]
 		}
 		return "", false
 	}
-	var filled []string
+	var filled, llargs []string
 	for _, f := range fg.Forms {
 		for _, x := range f.TextFields {
 			if v, ok := pick(x.Name, x.ID); ok {
+				if n := len([]rune(v)); x.MaxLen > 0 && n > x.MaxLen {
+					llargs = append(llargs, fmt.Sprintf("%s (%d > %d)", x.Name, n, x.MaxLen))
+				}
 				x.Value = v
 				filled = append(filled, x.Name)
 			}
@@ -674,6 +715,10 @@ func FillForm(ctx context.Context, in, out string, values map[string]string) ([]
 			}
 		}
 	}
+	// Tots els massa llargs d'un cop: el model els escurça en un sol pas.
+	if len(llargs) > 0 {
+		return nil, nil, fmt.Errorf("text massa llarg per al màxim de caràcters del camp: %s; escurça'ls i torna-ho a provar (res no s'ha escrit)", strings.Join(llargs, ", "))
+	}
 	var missing []string
 	for k := range values {
 		if !used[k] {
@@ -689,10 +734,23 @@ func FillForm(ctx context.Context, in, out string, values map[string]string) ([]
 		return nil, nil, err
 	}
 	var buf bytes.Buffer
-	if err := api.FillForm(ctx, bytes.NewReader(plain), bytes.NewReader(js), &buf, conf()); err != nil {
+	err = api.FillForm(ctx, bytes.NewReader(plain), bytes.NewReader(js), &buf, conf())
+	if err != nil && strings.Contains(err.Error(), "Roboto-Regular") {
+		// Text que la font del camp no cobreix: cal la font Unicode.
+		if ferr := fontsFormulari(); ferr != nil {
+			return nil, nil, fmt.Errorf("fonts per al formulari: %v", ferr)
+		}
+		buf.Reset()
+		err = api.FillForm(ctx, bytes.NewReader(plain), bytes.NewReader(js), &buf, conf())
+	}
+	if err != nil {
 		return nil, nil, cleanErr(err)
 	}
-	return filled, missing, commit(ctx, out, buf.Bytes())
+	result := buf.Bytes()
+	if fix, n, ferr := arreglaAparences(ctx, result); ferr == nil && n > 0 {
+		result = fix
+	}
+	return filled, missing, commit(ctx, out, result)
 }
 
 func truthy(s string) bool {
