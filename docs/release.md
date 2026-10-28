@@ -49,6 +49,12 @@ that builds assets lives in `.github/workflows/release.yml`.
    `Build.SUPPORTED_ABIS` listed there. All APKs share the `versionCode`
    and the signing key, so any of them installs over any other.
 
+   **Gregal Vents** (the `-Pgregal.plotsPreview` build) has its own version
+   line, the first branch of the `if` in `build.gradle.kts`; bump it by hand.
+   `node scripts/release.cjs apk 1.9.1 --vents` builds it and attaches
+   `Gregal-Vents-*.apk` with `gregal-vents-version.json`, which the Vents
+   app reads from the latest published release to update itself.
+
 5. **Review the draft on GitHub and publish it.** The desktop app's
    automatic updates only see published releases.
 

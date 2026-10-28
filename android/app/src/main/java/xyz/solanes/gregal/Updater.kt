@@ -40,6 +40,14 @@ import java.security.MessageDigest
 
 // Distribution maintainers may set an HTTPS manifest for their own releases.
 const val ANDROID_OTA_URL = ""
+// Gregal Vents (xyz.solanes.gregal.vents) s'actualitza des de les releases
+// publicades de GitHub: `latest` no veu els esborranys, i el manifest i els
+// APK són tots dos a github.com (el host de confiança és el mateix).
+const val ANDROID_OTA_URL_VENTS = "https://github.com/alsolanes/gregal/releases/latest/download/gregal-vents-version.json"
+
+/** El manifest OTA de l'app instal·lada; buit = sense actualitzacions. */
+fun androidOtaUrl(packageName: String): String =
+    if (packageName.endsWith(".vents")) ANDROID_OTA_URL_VENTS else ANDROID_OTA_URL
 const val UPDATE_CHANNEL_ID = "gregal_updates"
 const val UPDATE_NOTIF_ID = 4100
 const val UPDATE_NOTIF_CHECK_ID = 4101

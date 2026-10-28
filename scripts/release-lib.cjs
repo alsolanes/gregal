@@ -146,6 +146,21 @@ function androidApkName(versionName, abi) {
   return `Gregal-Android-${versionName}${abi ? '-' + abi : ''}.apk`;
 }
 
+// Gregal Vents is the same app built with -Pgregal.plotsPreview: its version
+// is the first branch of the "if" in build.gradle.kts ("1.35.0-vents"), its
+// APKs are Gregal-Vents-1.35.0[-abi].apk and its updater reads
+// gregal-vents-version.json from the latest published release.
+const VENTS_NAME = /versionName\s*=\s*if\s*\(project\.hasProperty\("gregal\.plotsPreview"\)\)\s*"([^"]+)"/;
+const VENTS_CODE = /versionCode\s*=\s*if\s*\(project\.hasProperty\("gregal\.plotsPreview"\)\)\s*(\d+)/;
+function ventsVersion(src) {
+  const name = VENTS_NAME.exec(src);
+  const code = VENTS_CODE.exec(src);
+  return { name: name ? name[1] : '', code: code ? Number(code[1]) : 0 };
+}
+function ventsApkName(versionName, abi) {
+  return `Gregal-Vents-${versionName.replace(/-vents$/, '')}${abi ? '-' + abi : ''}.apk`;
+}
+
 // The in-app updater's manifest (gregal-android-version.json). The top-level
 // downloadUrl/sha256/sizeBytes describe the universal APK, which is what
 // apps from before the splits read; "apks" has one entry per ABI and the
@@ -160,4 +175,4 @@ function androidManifest({ versionName, versionCode, changelog, baseUrl, apks })
   return { versionCode, versionName, changelog: changelog || '', ...entry(universal), apks: perAbi };
 }
 
-module.exports = { ANDROID_APKS, androidApkName, androidManifest, FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };
+module.exports = { ANDROID_APKS, androidApkName, ventsVersion, ventsApkName, androidManifest, FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };

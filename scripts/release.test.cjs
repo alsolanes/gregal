@@ -69,3 +69,12 @@ test('the Android manifest lists one APK per ABI and keeps the universal one on 
   assert.equal(m.apks.x86_64.sizeBytes, 102);
   assert.throws(() => lib.androidManifest({ versionName: '0', versionCode: 1, baseUrl: '', apks: apks.slice(1) }));
 });
+
+test('Gregal Vents reads its own version line and names its APKs', () => {
+  const src = 'versionCode = if (project.hasProperty("gregal.plotsPreview")) 134 else 45\n' +
+    'versionName = if (project.hasProperty("gregal.plotsPreview")) "1.35.0-vents" else "0.11.3"\n';
+  assert.deepEqual(lib.ventsVersion(src), { name: '1.35.0-vents', code: 134 });
+  assert.deepEqual(lib.androidVersion(src), { name: '0.11.3', code: 45 });
+  assert.equal(lib.ventsApkName('1.35.0-vents', null), 'Gregal-Vents-1.35.0.apk');
+  assert.equal(lib.ventsApkName('1.35.0-vents', 'arm64-v8a'), 'Gregal-Vents-1.35.0-arm64-v8a.apk');
+});

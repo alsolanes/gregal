@@ -166,8 +166,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * Comprova si hi ha versió nova. `silent` = arrencada: no diu res si no
      * n'hi ha o si l'has silenciada, però avisa per notificació si en surt.
      */
+    private val otaUrl: String get() = androidOtaUrl(appContext.packageName)
+
     fun checkUpdate(silent: Boolean = false) {
-        if (ANDROID_OTA_URL.isBlank()) return
+        if (otaUrl.isBlank()) return
         viewModelScope.launch {
             if (!silent) _updateMsg.value = appText("app.update.checking")
             val actual = versionCodeInstalada()
@@ -175,7 +177,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 // Primer la caché (6 h): no truquem el servidor a cada
                 // arrencada, i si la xarxa falla encara serveix.
                 val cau = llegeixCache(appContext.cacheDir, System.currentTimeMillis(), abisDelMobil())
-                if (cau != null && cau.hiHaNova(actual) && isTrustedDownloadUrl(ANDROID_OTA_URL, cau.downloadUrl)) {
+                if (cau != null && cau.hiHaNova(actual) && isTrustedDownloadUrl(otaUrl, cau.downloadUrl)) {
                     return@withContext UpdateCheckResult(
                         isAvailable = true, latestVersion = cau.versionName,
                         currentVersion = versionNameInstalada(), changelog = cau.changelog,
@@ -187,7 +189,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 var últimError = ""
                 for (intent in 0 until 3) {
                     try {
-                        text = fetchTextAbsolut(ANDROID_OTA_URL)
+                        text = fetchTextAbsolut(otaUrl)
                         break
                     } catch (e: Exception) {
                         últimError = e.message ?: "xarxa"
@@ -210,7 +212,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     return@withContext UpdateCheckResult(currentVersion = versionNameInstalada())
                 }
                 val info = parseUpdateText(cos, abisDelMobil())
-                if (!manifestPlausible(info) || !isTrustedDownloadUrl(ANDROID_OTA_URL, info.downloadUrl)) {
+                if (!manifestPlausible(info) || !isTrustedDownloadUrl(otaUrl, info.downloadUrl)) {
                     return@withContext UpdateCheckResult(currentVersion = versionNameInstalada())
                 }
                 desaCache(appContext.cacheDir, cos, System.currentTimeMillis())
@@ -235,7 +237,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             _updateProg.value = 0
             val apk = withContext(Dispatchers.IO) {
                 baixaApk(
-                    appContext, r.downloadUrl, ANDROID_OTA_URL,
+                    appContext, r.downloadUrl, otaUrl,
                     r.sha256, r.sizeBytes,
                 ) { p -> _updateProg.value = p }
             }

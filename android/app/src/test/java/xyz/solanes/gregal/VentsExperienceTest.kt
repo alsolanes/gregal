@@ -37,7 +37,12 @@ class VentsExperienceTest {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
         // Les converses ocupen l'inici; gestionar els vents és una acció a part.
-        ui.onNodeWithText(tr("ca", "app.vents.emptyTitle")).assertExists()
+        // Buit o amb converses (si a la màquina hi ha un Gregal servint al
+        // 8097, el model en carrega les reals), però mai el directori a dins.
+        ui.waitForIdle()
+        val buit = ui.onAllNodesWithText(tr("ca", "app.vents.emptyTitle")).fetchSemanticsNodes().isNotEmpty()
+        val converses = ui.onAllNodesWithText(tr("ca", "app.vents.conversations"), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
+        org.junit.Assert.assertTrue("la portada no ensenya ni les converses ni el buit", buit || converses)
         ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()
         ui.onNodeWithText("Nou xat").assertExists()

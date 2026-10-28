@@ -290,4 +290,13 @@ class OtaTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun ventsSActualitzaDesDeGitHubIlaNormalNo() {
+        val vents = androidOtaUrl("xyz.solanes.gregal.vents")
+        assertTrue(vents.startsWith("https://github.com/alsolanes/gregal/releases/latest/download/"))
+        assertEquals(ANDROID_OTA_URL, androidOtaUrl("xyz.solanes.gregal"))
+        // El manifest i l'APK de la release viuen al mateix host.
+        assertTrue(isTrustedDownloadUrl(vents, "https://github.com/alsolanes/gregal/releases/download/v1.23.0/Gregal-Vents-1.35.0.apk"))
+    }
 }

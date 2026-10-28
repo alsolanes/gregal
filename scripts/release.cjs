@@ -15,6 +15,9 @@
 //       and attaches them to the v1.9.1 release with the in-app updater's
 //       manifest, gregal-android-version.json (the APKs are not built in
 //       CI: they need this machine's signing key).
+//   node scripts/release.cjs apk 1.9.1 --vents
+//       The same for Gregal Vents (-Pgregal.plotsPreview): Gregal-Vents-*.apk
+//       and gregal-vents-version.json, which the Vents app's updater reads.
 'use strict';
 
 const crypto = require('node:crypto');
@@ -67,17 +70,19 @@ if (cmd === 'check') {
   process.stdout.write('Gregal v' + value + (t ? ' — ' + t : '') + '\n');
 } else if (cmd === 'apk') {
   if (!lib.SEMVER.test(value || '')) fail('usage: release.cjs apk X.Y.Z');
-  const a = lib.androidVersion(read(lib.FILES.android));
+  const vents = process.argv.includes('--vents');
+  const a = (vents ? lib.ventsVersion : lib.androidVersion)(read(lib.FILES.android));
+  if (!a.name || !a.code) fail('could not read the ' + (vents ? 'Vents ' : '') + 'Android version from ' + lib.FILES.android);
   const android = path.join(root, 'android');
   // Ruta absoluta: cmd no sempre busca a la carpeta actual.
   const gradle = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
   console.log(`building Android ${a.name} (${a.code})…`);
-  execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q'], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
+  execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q', ...(vents ? ['-Pgregal.plotsPreview'] : [])], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
   const dir = path.join(root, 'output', 'release-' + value);
   fs.mkdirSync(dir, { recursive: true });
   const built = path.join(android, 'app/build/outputs/apk/debug');
   const apks = lib.ANDROID_APKS.map(({ abi, from }) => {
-    const name = lib.androidApkName(a.name, abi);
+    const name = (vents ? lib.ventsApkName : lib.androidApkName)(a.name, abi);
     const file = path.join(dir, name);
     fs.copyFileSync(path.join(built, from), file);
     const buf = fs.readFileSync(file);
@@ -93,10 +98,11 @@ if (cmd === 'check') {
     baseUrl: `https://github.com/${repo}/releases/download/v${value}/`,
     apks,
   });
-  const manifestFile = path.join(dir, 'gregal-android-version.json');
+  const manifestName = vents ? 'gregal-vents-version.json' : 'gregal-android-version.json';
+  const manifestFile = path.join(dir, manifestName);
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
   execFileSync('gh', ['release', 'upload', 'v' + value, ...apks.map(x => x.file), manifestFile, '--clobber'], { cwd: root, stdio: 'inherit' });
-  console.log(`attached ${apks.length} APKs and gregal-android-version.json to v${value}`);
+  console.log(`attached ${apks.length} APKs and ${manifestName} to v${value}`);
 } else {
-  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z');
+  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z [--vents]');
 }
