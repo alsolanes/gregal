@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     // Diàleg natiu per triar el projecte de la sessió.
     chooseFolder: () => ipcRenderer.invoke("gregal:choose-folder"),
     setupChromeExtension: () => ipcRenderer.invoke('gregal:chrome-extension'),
+    // Complement de Word: 'install', 'remove' o 'status'.
+    wordAddin: action => ipcRenderer.invoke('gregal:word-addin', action),
     // Notificació nativa quan la finestra no té focus.
     notify: (title, body) => ipcRenderer.invoke("gregal:notify", { title, body }),
     // Reintent d'arrencada del backend des de la pantalla d'error

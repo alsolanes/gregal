@@ -9,6 +9,7 @@
 import { t as T, idioma, posa as posaLang, IDIOMES } from './i18n.js';
 import { desktopUpdates } from './desktop-updates.js';
 import { chromeExt } from './chrome-ext.js';
+import { wordAddin } from './word-addin.js';
 import { shares } from './export.js';
 import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
@@ -189,6 +190,7 @@ export const prefs = {
       funPrefs.section() +
       shares.section() +
       chromeExt.section() +
+      wordAddin.section() +
       desktopUpdates.section();
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
@@ -235,6 +237,7 @@ export const prefs = {
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.pinta());
+    wordAddin.bind(cos, () => this.pinta());
     shares.bind(cos);
     funPrefs.bind(cos);
     // Repintar conserva el desplaçament: la secció de brandings és llarga.

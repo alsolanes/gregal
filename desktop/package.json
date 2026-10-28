@@ -37,6 +37,7 @@
       "preload.js",
       "mascot-window.js",
       "chrome-extension.js",
+      "word-addin.js",
       "mascot-preload.js",
       "mascot.html",
       "mascot-view.js",

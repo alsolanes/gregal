@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The Word add-in installs in one click** from the Windows desktop app: Preferences → Word add-in → **Install in Word**. The app takes the manifest from the running backend, puts the backend's real port in it (it was fixed to 8097, so the pane did not load when the backend used another port) and registers it for Word under `HKCU\Software\Microsoft\Office.0\WEF\Developer`, instead of sharing a network folder and adding it in the Trust Center. On every start the manifest is rewritten with the current port, and **Remove from Word** takes it out. See docs/addin.md.
+
 ## v1.23.0 - 2026-10-28 - Modes més clars, portada neta i Vents s'actualitza sol
 
 - **Crews coordinate for real.** After the design discussion, a coordinator decides each next step instead of a fixed script (the first builds, the second reviews): it puts 1-4 specialists to work **at the same time**, each on its own part and files, with another member reviewing it all; it repeats only what the review left open (3 rounds at most); it **asks you** a concrete question when a decision that changes the result is missing, and the crew waits (also across server restarts) until your reply in the thread **resumes it**; and it ends with a result that has the conclusion, the files, what was checked and what was not. On Android the debate is folded into one line per stretch ("Crew debate · 5 contributions", tap to open), a waiting question shows a card and the text field says "Answer the crew…", and the result is labelled.

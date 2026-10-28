@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- Complement del Gregal per a Word/Excel/PowerPoint (Office.js).
-     Sideload local: vegeu docs/addin.md. El panell es serveix des del
+     Instal·lació: vegeu docs/addin.md. El panell es serveix des del
      propi gregal (localhost per HTTP està permès en sideload).
-     Si el backend escolta en un altre port, edita SourceLocation o
-     canvia la URL dins del panell (s'hi pot canviar i es recorda). -->
+     L'app d'escriptori l'instal·la d'un clic i hi canvia el 8097 pel port
+     real del backend (desktop/word-addin.js); a mà, edita'l tu. -->
 <OfficeApp
   xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"

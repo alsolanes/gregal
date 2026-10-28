@@ -16,20 +16,34 @@ files externally.
 Supported add-in capabilities and platform availability depend on the Office
 deployment. Check its add-in requirements before installing.
 
-## Sideload the Add-in
+## Install the Add-in
 
-1. In Word, open **File → Options → Trust Center → Trust Center Settings →
-   Trusted Add-in Catalogs**.
-2. Add the repository's `internal/web/app/addin/` folder as a catalog and
-   enable **Show in Menu**.
-3. In the ribbon, open **Home → Add-ins → My Add-ins → Shared Folder** and
-   choose **Gregal Agent**.
-4. In the task pane, check the server URL, enter a token if the server requires
-   one, and select **Check**.
+**From the desktop app (Windows):** Preferences → **Word add-in** → **Install
+in Word**. The app asks the running backend for the manifest, writes the real
+backend address into it (the backend uses another port when 8097 is taken),
+saves it under the app's data folder (`word-addin/gregal-addin.xml`) and
+registers it under `HKCU\Software\Microsoft\Office.0\WEF\Developer`,
+the key Microsoft's own tools use to load add-ins locally. No shared folder or
+Trust Center step is needed. Then close Word completely, open it again and
+choose **Gregal Agent** in **Home → Add-ins** (or **More add-ins → My add-ins →
+Developer add-ins**). On every start the app rewrites the manifest with the
+current port. **Remove from Word** deletes the registry value.
 
-If the backend uses another port, update `SourceLocation` in
-`gregal-addin.xml` before loading the manifest. The task pane can also remember
-a different backend URL.
+**Without the desktop app**, register the manifest by hand. Save
+`http://127.0.0.1:<port>/app/addin/gregal-addin.xml` from your running
+backend (change `8097` in it if you use another port) and run:
+
+```
+reg add "HKCU\Software\Microsoft\Office.0\WEF\Developer" /v 64C79419-6A50-4552-BF4F-075D1C5F849D /t REG_SZ /d "C:\path	o\gregal-addin.xml" /f
+```
+
+The older route also works: share a folder on the network, add it in Word
+under **File → Options → Trust Center → Trust Center Settings → Trusted
+Add-in Catalogs** with **Show in Menu**, and pick the add-in under **Shared
+Folder**.
+
+In the task pane, check the server URL, enter a token if the server requires
+one, and select **Check**.
 
 ## Use the Task Pane
 
@@ -63,5 +77,5 @@ before applying them.
   [data-handling notes](getting-started.md) for details.
 - `office.js` is loaded from Microsoft's CDN; the pane requires network access
   to load it.
-- The manifest's default `SourceLocation` uses port 8097. If the desktop client
-  selects another port, update the task pane's server URL.
+- The repository manifest uses port 8097. The desktop app's one-click install
+  rewrites it with the real port; a manual install must be edited by hand.

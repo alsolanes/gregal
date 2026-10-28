@@ -34,6 +34,7 @@ const { createUpdater } = require('./updater');
 const { createBrowserBridge, validGuest, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
 const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
 const chromeExtension = require('./chrome-extension');
+const wordAddin = require('./word-addin');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
 const baseError = backendURLError(BASE);
@@ -380,6 +381,28 @@ function wireIPC(getWin) {
         shell.showItemInFolder(path.join(dir, 'manifest.json'));
         return { ok: true, path: dir, browser };
     });
+    // Complement de Word: instal·la'l d'un clic (registre WEF\Developer amb
+    // el manifest del backend i el seu port), treu-lo o digues si hi és.
+    ipcMain.handle('gregal:word-addin', async (event, action) => {
+        if (!trusted(event)) return null;
+        if (process.platform !== 'win32') return { ok: false, reason: 'platform' };
+        try {
+            if (action === 'remove') {
+                const id = wordAddinId();
+                return { ok: !!id && await wordAddin.unregister(id), installed: false };
+            }
+            if (action === 'install') {
+                const r = await installWordAddin();
+                return { ok: !!r, installed: !!r, path: r || '' };
+            }
+            const id = wordAddinId();
+            const at = id ? await wordAddin.registeredPath(id) : '';
+            return { ok: true, installed: !!at, path: at };
+        } catch (e) {
+            console.error('[gregal] complement de Word: ' + e.message);
+            return { ok: false, reason: 'error' };
+        }
+    });
     ipcMain.handle("gregal:choose-folder", async event => {
         if (!trusted(event)) return null;
         const win = getWin();
@@ -627,6 +650,7 @@ async function createWindow() {
     }
     setupUpdater(win);
     if (await ensureServer()) {
+        void refreshWordAddin();
         await win.loadURL(BASE + "/");
     } else {
         const tail = lastBackendLogs.map(l => String(l).trimEnd()).filter(Boolean).slice(-12).join("\n");
@@ -669,6 +693,32 @@ function setupUpdater(win) {
         updateCheckStarted = true;
         void updateController.check();
     });
+}
+
+// Complement de Word: el manifest viu a userData/word-addin i el registre
+// apunta allà. L'Id surt del manifest desat (o del backend si encara no n'hi ha).
+const wordAddinDir = () => path.join(app.getPath('userData'), 'word-addin');
+function wordAddinId() {
+    try { return wordAddin.manifestId(fs.readFileSync(path.join(wordAddinDir(), wordAddin.FILE), 'utf8')); } catch (e) { return ''; }
+}
+// Demana el manifest al backend, hi posa l'origen real i el registra.
+// Torna el camí del fitxer, o "" si no s'ha pogut.
+async function installWordAddin() {
+    const res = await fetch(BASE + '/app/addin/' + wordAddin.FILE);
+    if (!res.ok) throw new Error('manifest HTTP ' + res.status);
+    const xml = wordAddin.withOrigin(await res.text(), BASE);
+    const id = wordAddin.manifestId(xml);
+    if (!id) throw new Error('manifest sense Id');
+    const file = wordAddin.writeManifest(xml, wordAddinDir());
+    return (await wordAddin.register(id, file)) ? file : '';
+}
+// A cada arrencada, si ja estava instal·lat, torna a escriure el manifest amb
+// el port d'ara (el 8097 pot estar ocupat i el backend en tria un altre).
+async function refreshWordAddin() {
+    if (process.platform !== 'win32' || !fs.existsSync(path.join(wordAddinDir(), wordAddin.FILE))) return;
+    const id = wordAddinId();
+    if (!id || !(await wordAddin.registeredPath(id))) return;
+    try { await installWordAddin(); } catch (e) { console.error('[gregal] complement de Word: ' + e.message); }
 }
 
 // Carpeta fixa de l'extensió de Chrome; si ja s'ha preparat abans, cada
