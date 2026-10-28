@@ -32,7 +32,8 @@ import (
 
 const (
 	capFile       = "cap.json"
-	capMaxHistory = 40
+	// El Ventet és una conversa de veritat: el fil sencer, no les últimes 40.
+	capMaxHistory = 1000
 	capName       = "Ventet"
 	capColor      = "#FFC857"
 	capStyle      = "pto"
@@ -47,6 +48,14 @@ type capMsg struct {
 	// Task és l'encàrrec d'una colla proposada: si l'usuari respon
 	// «endavant», es fa aquest, no «endavant».
 	Task string `json:"task,omitempty"`
+	// Create i Novices: la proposta sencera (especialistes nous, vents que
+	// no en saben), perquè una delegació pendent es pugui refer en tornar a
+	// obrir l'app.
+	Create  []crewNew `json:"create,omitempty"`
+	Novices []string  `json:"novices,omitempty"`
+	// Link: la conversa que ha sortit d'una delegació ("wind:<id>" o
+	// "rot:<id>"); l'app hi posa un botó per obrir-la.
+	Link string `json:"link,omitempty"`
 }
 
 type capState struct {
@@ -271,7 +280,8 @@ func (s *Server) handleCap(w http.ResponseWriter, r *http.Request) {
 		} else {
 			st.History = append(st.History, capMsg{From: "user", Text: msg, Ts: now})
 		}
-		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds, Task: d.Task})
+		st.History = append(st.History, capMsg{From: "cap", Text: d.Reply, Ts: now, Action: d.Action, Winds: d.Winds, Task: d.Task,
+			Create: d.Create, Novices: d.Novices})
 		if d.Action != "self" {
 			capCheer(&st.Pet, time.Now())
 		}
@@ -597,6 +607,9 @@ func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"created": created, "studying": studying}
 	if len(members) == 1 {
 		out["wind"] = members[0]
+		if wnd, ok := s.winds.ByID(members[0]); ok {
+			s.capNoteLink("wind:"+wnd.ID, map[bool]string{true: "He obert la conversa amb " + wnd.Name + ".", false: "Opened the chat with " + wnd.Name + "."}[ca])
+		}
 		writeJSON(w, out)
 		return
 	}
@@ -625,7 +638,52 @@ func (s *Server) handleCapGo(w http.ResponseWriter, r *http.Request) {
 		id = rot.ID
 	}
 	out["rotllana"] = id
+	if rot, ok := s.rotllanaByID(id); ok {
+		s.capNoteLink("rot:"+id, map[bool]string{true: "He obert la rotllana «" + rot.Name + "».", false: "Opened the group chat “" + rot.Name + "”."}[ca])
+	}
 	writeJSON(w, out)
+}
+
+// capNoteLink apunta al fil del Ventet on ha anat a parar una delegació.
+func (s *Server) capNoteLink(link, text string) {
+	capMu.Lock()
+	defer capMu.Unlock()
+	st := s.loadCap()
+	st.History = append(st.History, capMsg{From: "cap", Text: text, Ts: time.Now().Unix(), Action: "link", Link: link})
+	s.saveCap(st)
+}
+
+// handleCapLink: l'app hi apunta les delegacions que fa ella (una colla
+// convocada des del full de la colla).
+//
+//	POST /api/winds/cap/link {link, text} → {history}
+func (s *Server) handleCapLink(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Link string `json:"link"`
+		Text string `json:"text"`
+	}
+	if !decodeSmall(w, r, &req) {
+		return
+	}
+	link := strings.TrimSpace(req.Link)
+	if !(strings.HasPrefix(link, "wind:") || strings.HasPrefix(link, "rot:")) || len(link) > 120 {
+		http.Error(w, "link must be wind:<id> or rot:<id>", http.StatusBadRequest)
+		return
+	}
+	text := oneLine(req.Text, 200)
+	if text == "" {
+		http.Error(w, "text required", http.StatusBadRequest)
+		return
+	}
+	s.capNoteLink(link, text)
+	capMu.Lock()
+	st := s.loadCap()
+	capMu.Unlock()
+	writeJSON(w, map[string]any{"history": st.History})
 }
 
 // capConfirmed: si el missatge és un «endavant» i la mascota acaba de

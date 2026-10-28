@@ -42,19 +42,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * La mascota a dalt de tot dels Vents: cap de gabinet i criatura de
- * companyia alhora. Li dius què necessites i reuneix els especialistes;
- * també la pots alimentar, mimar, vestir i jugar-hi. Les animacions són
- * locals; l'estat (alegria, energia, gana, nivell, roba) és al servidor.
+ * El perfil del Ventet: la criatura de companyia. Aquí se l'alimenta, s'hi
+ * juga i se la vesteix; la conversa (VentetConversation) queda per parlar i
+ * delegar. Les animacions són locals; l'estat (alegria, energia, gana,
+ * nivell, roba) és al servidor.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
-fun CapHero(vm: GregalViewModel, lang: String, winds: List<Wind>) {
+fun VentetProfile(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
     val ui by vm.cap.collectAsState()
     val st = ui.state
     val pet = st.pet
     val accent = Color(st.argb)
-    var input by rememberSaveable { mutableStateOf("") }
     var renaming by remember { mutableStateOf(false) }
     var game by remember { mutableStateOf<String?>(null) }
     var wardrobe by remember { mutableStateOf(false) }
@@ -66,89 +65,42 @@ fun CapHero(vm: GregalViewModel, lang: String, winds: List<Wind>) {
     }
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(1000); value = System.currentTimeMillis() } }
     val hour = remember(now / 600_000) { java.time.LocalTime.now().hour }
-    val asleep = !ui.busy && ui.pending == null && (pet.tired || hour >= 23 || hour < 7) && now - ui.sayAt > 6_000
+    val asleep = (pet.tired || hour >= 23 || hour < 7) && now - ui.sayAt > 6_000
     LaunchedEffect(ui.levelUpAt) { if (ui.levelUpAt > 0 && now - ui.levelUpAt < 5_000) burst("🎉", 9) }
-    val mood = when {
-        ui.busy || ui.going -> WindMood.THINKING
-        ui.pending != null -> WindMood.HAPPY
-        now - ui.sayAt < 4_000 -> WindMood.HAPPY
-        st.briefCount > 0 && ui.asked.isBlank() -> WindMood.NEWS
-        else -> WindMood.IDLE
-    }
-    // El que diu ara: jugant, pensant, la decisió, la seva resposta, el resum o com està.
-    val lastCap = st.history.lastOrNull { it.from == "cap" }
+    val mood = if (now - ui.sayAt < 4_000) WindMood.HAPPY else WindMood.IDLE
     val says = when {
         ui.say.isNotBlank() && now - ui.sayAt < 6_000 -> ui.say
-        ui.busy -> tr(lang, "app.cap.thinking")
-        ui.going -> tr(lang, "app.cap.going")
-        ui.error -> tr(lang, "app.cap.error")
-        ui.pending != null -> ui.pending!!.decision.reply
-        ui.asked.isNotBlank() && lastCap != null -> lastCap.text
-        st.brief.isNotBlank() && st.briefCount > 0 -> st.brief
         asleep -> tr(lang, "app.cap.sleepy")
         pet.hungry -> tr(lang, "app.cap.hungry")
-        st.brief.isNotBlank() -> st.brief
-        else -> tr(lang, "app.cap.hello")
+        else -> tr(lang, "app.cap.profileHello")
     }
-    Surface(
-        color = accent.copy(alpha = .13f), shape = RoundedCornerShape(26.dp),
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).testTag("cap-hero"),
-    ) {
-        Column(Modifier.padding(14.dp).animateContentSize(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                CapCreature(st, mood, asleep, bursts, onTap = { vm.capPlay("pet"); burst("💛") }, onLongTap = { renaming = true })
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(st.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 16.sp,
-                            modifier = Modifier.combinedClickable(onClick = {}, onLongClick = { renaming = true }))
-                        Text(tr(lang, "app.cap.role"), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f))
-                        Surface(color = accent.copy(alpha = .35f), shape = RoundedCornerShape(10.dp)) {
-                            Text(tr(lang, "app.cap.level", pet.level), color = Ink, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp))
-                        }
-                    }
-                    CapStats(lang, pet, accent)
-                    if (ui.asked.isNotBlank() && !ui.error && ui.say.isBlank()) {
-                        Text("«" + oneLineUi(ui.asked, 90) + "»", color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    Surface(color = Superficie, shape = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomEnd = 18.dp, bottomStart = 18.dp)) {
-                        Text(renderMd(says, SuperficieAlta), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp,
-                            maxLines = 12, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp).testTag("cap-says"))
-                    }
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp).testTag("ventet-profile"),
+            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            CapCreature(st, mood, asleep, bursts, onTap = { vm.capPlay("pet"); burst("💛") }, onLongTap = { renaming = true })
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(st.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 22.sp,
+                    modifier = Modifier.combinedClickable(onClick = { renaming = true }, onLongClick = { renaming = true }))
+                Surface(color = accent.copy(alpha = .35f), shape = RoundedCornerShape(10.dp)) {
+                    Text(tr(lang, "app.cap.level", pet.level), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp))
                 }
             }
-            ui.pending?.let { CapDecisionRow(vm, lang, it, winds, ui.course, ui.going) }
+            Text(tr(lang, "app.cap.role"), color = Muted, fontSize = 14.sp)
+            Surface(color = SuperficieAlta.copy(alpha = .6f), shape = RoundedCornerShape(18.dp)) {
+                Text(says, color = Tinta, fontSize = 15.sp, lineHeight = 21.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp).testTag("cap-says"))
+            }
+            CapStats(lang, pet, accent)
             CapActions(lang, pet, asleep,
                 onFeed = { snack -> vm.capPlay("feed:$snack"); burst(when (snack) { "poma" -> "🍎"; "cafe" -> "☕"; else -> "🍪" }, 4) },
                 onPet = { vm.capPlay("pet"); burst("💛") },
                 onPlay = { game = it },
                 onWardrobe = { wardrobe = true },
                 onSleep = { vm.capPlay("sleep"); burst("💤", 3) })
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    input, { input = it }, singleLine = false, maxLines = 4, enabled = !ui.busy,
-                    placeholder = { Text(tr(lang, "app.cap.hint", st.name), fontSize = 14.sp) },
-                    shape = RoundedCornerShape(22.dp),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { if (input.isNotBlank()) { vm.askCap(input); input = "" } }),
-                    modifier = Modifier.weight(1f).testTag("cap-input"),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Superficie, unfocusedContainerColor = Superficie,
-                        focusedBorderColor = accent, unfocusedBorderColor = Color.Transparent,
-                    ),
-                )
-                val canSend = input.isNotBlank() && !ui.busy
-                Surface(color = if (canSend) Sea else SuperficieAlta, shape = CircleShape,
-                    modifier = Modifier.size(44.dp).clip(CircleShape)
-                        .combinedClickable(enabled = canSend, onClick = { vm.askCap(input); input = "" })
-                        .semantics { contentDescription = tr(lang, "app.chat.send") }.testTag("cap-send")) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Rounded.Send, null, tint = if (canSend) OnSea else Muted, modifier = Modifier.size(19.dp))
-                    }
-                }
-            }
+            TextButton(onClick = { renaming = true }) { Text(tr(lang, "app.cap.renameAction"), color = Muted) }
         }
     }
     if (renaming) {
@@ -174,7 +126,7 @@ data class CapBurst(val id: Long, val emoji: String, val dx: Float, val delayMs:
 /** La cara viva: respira, sura, salta, dorm, porta roba i treu partícules. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: MutableList<CapBurst>,
+internal fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: MutableList<CapBurst>,
                         onTap: () -> Unit, onLongTap: () -> Unit) {
     val accent = Color(st.argb)
     val loop = rememberInfiniteTransition(label = "cap")
@@ -237,7 +189,7 @@ private fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: M
 
 /** Alegria, energia i panxa, amb barres petites. */
 @Composable
-private fun CapStats(lang: String, pet: CapPet, accent: Color) {
+internal fun CapStats(lang: String, pet: CapPet, accent: Color) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.testTag("cap-stats")) {
         CapBar("💛", pet.happy, accent, tr(lang, "app.cap.statHappy"), Modifier.weight(1f))
@@ -260,7 +212,7 @@ private fun CapBar(icon: String, value: Int, accent: Color, label: String, modif
 
 /** Menjar, mimar, jugar, vestir, dormir: xips petits. */
 @Composable
-private fun CapActions(lang: String, pet: CapPet, asleep: Boolean, onFeed: (String) -> Unit, onPet: () -> Unit,
+internal fun CapActions(lang: String, pet: CapPet, asleep: Boolean, onFeed: (String) -> Unit, onPet: () -> Unit,
                        onPlay: (String) -> Unit, onWardrobe: () -> Unit, onSleep: () -> Unit) {
     var feedMenu by remember { mutableStateOf(false) }
     var playMenu by remember { mutableStateOf(false) }
@@ -305,7 +257,7 @@ private fun CapChip(icon: String, label: String, highlight: Boolean = false, ena
  * decidir res, va sola al cap d'uns segons.
  */
 @Composable
-private fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewModel.CapPending, winds: List<Wind>, course: Boolean, going: Boolean) {
+internal fun CapDecisionRow(vm: GregalViewModel, lang: String, p: GregalViewModel.CapPending, winds: List<Wind>, course: Boolean, going: Boolean) {
     val d = p.decision
     val who = d.winds.mapNotNull { id -> winds.firstOrNull { it.id == id } }
     var other by remember { mutableStateOf(false) }

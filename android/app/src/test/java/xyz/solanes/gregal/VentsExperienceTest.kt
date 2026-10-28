@@ -38,11 +38,27 @@ class VentsExperienceTest {
         } }
         // Les converses ocupen l'inici; gestionar els vents és una acció a part.
         ui.onNodeWithText(tr("ca", "app.vents.emptyTitle")).assertExists()
-        ui.onNodeWithContentDescription(tr("ca", "app.vents.manage")).assertExists()
+        ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()
         ui.onNodeWithText("Nou xat").assertExists()
         ui.onNodeWithText("Nova rotllana").assertExists()
         ui.onNodeWithText("Nou vent").assertExists()
+    }
+
+    @Test fun homeStartsWithPinnedVentetAndCompactConnection() {
+        val vm = vm()
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
+        } }
+        // El Ventet és la primera conversa, i la connexió és un indicador petit (sense franja amb explicació).
+        ui.onNodeWithTag("ventet-row").assertExists()
+        ui.onNodeWithTag("where-chip").assertExists()
+        ui.onNodeWithText(tr("ca", "app.where.phoneHint")).assertDoesNotExist()
+        ui.onNodeWithTag("vents-strip").assertDoesNotExist()
+        // Tocar-lo obre la conversa amb el Ventet, amb el camp d'escriptura a baix.
+        ui.onNodeWithTag("ventet-row").performClick()
+        ui.onNodeWithTag("ventet-chat").assertExists()
+        ui.onNodeWithText(tr("ca", "app.cap.hint", "Ventet")).assertExists()
     }
 
     @Test fun editingStartsWithExistingIdentityAndWaitsForConfirmedSave() {
@@ -174,7 +190,7 @@ class VentsExperienceTest {
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
-        ui.onNodeWithContentDescription(tr("ca", "app.vents.manage")).performClick()
+        ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).performClick()
         ui.onNodeWithText(tr("ca", "app.vents.myWinds")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModel")).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.defaultModelSameAsWork")).assertExists()

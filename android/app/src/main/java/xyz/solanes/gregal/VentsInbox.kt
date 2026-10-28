@@ -18,6 +18,8 @@ internal fun ventsInbox(
     chats: Map<String, List<GregalViewModel.PetMsg>>,
     groupChats: Map<String, List<GregalViewModel.PetMsg>>,
     query: String = "",
+    /** Últim missatge de cada conversa (key → resum): la portada no carrega tots els fils. */
+    summaries: Map<String, ConvoSummary> = emptyMap(),
 ): List<VentsInboxRow> {
     fun searchable(text: String): String = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
         .replace(MARKS, "").lowercase(java.util.Locale.ROOT)
@@ -27,9 +29,17 @@ internal fun ventsInbox(
         val identityMatches = needle.isEmpty() || searchable(title + " " + fallback + " " + members.joinToString(" ") { it.name + " " + it.role }).contains(needle)
         val match = if (needle.isEmpty()) null else messages.lastOrNull { searchable(it.text).contains(needle) }
         if (!identityMatches && match == null) return
-        val preview = (if (!identityMatches) match else messages.lastOrNull())?.text ?: fallback
+        // Sense el fil carregat (o amb un resum més nou), mana el resum del servidor.
+        val sum = summaries[key]?.takeIf { it.count > 0 }
+        val chatTs = messages.maxOfOrNull { it.ts } ?: 0L
+        val useSum = sum != null && match == null && (messages.isEmpty() || sum.ts > chatTs)
+        val preview = when {
+            useSum -> (if (sum!!.speaker.isNotBlank() && key.startsWith("rot:")) sum.speaker + ": " else "") + sum.text
+            else -> ((if (!identityMatches) match else messages.lastOrNull())?.text ?: fallback)
+        }
+        val has = messages.isNotEmpty() || sum != null
         rows += VentsInboxRow(key, title, stripMdInline(preview).replace(Regex("\\s+"), " ").trim(), members,
-            messages.maxOfOrNull { it.ts } ?: 0L, messages.isNotEmpty()) to messages.isNotEmpty()
+            maxOf(chatTs, sum?.ts ?: 0L), has) to has
     }
     winds.forEach { w -> add("wind:${w.id}", w.name, w.role, listOf(w), chats[w.id].orEmpty()) }
     groups.forEach { g ->
@@ -58,3 +68,6 @@ internal fun inboxWhen(ms: Long, lang: String, now: Long = System.currentTimeMil
         else -> f("d MMM")
     }
 }
+
+/** L'últim missatge d'una conversa (GET /api/winds/summaries); ts en mil·lisegons. */
+data class ConvoSummary(val key: String, val from: String, val speaker: String, val text: String, val ts: Long, val count: Int)

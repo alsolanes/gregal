@@ -115,9 +115,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     }
     // El fil d'una feina en marxa rep missatges de la colla: es torna a llegir
     // perquè la conversa pugi a dalt amb l'hora bona.
-    LaunchedEffect(windTasks) {
-        windTasks.orEmpty().filter { it.running && it.thread.isNotBlank() }.forEach { vm.loadRotllanaChat(it.thread) }
-    }
+    LaunchedEffect(windTasks) { vm.loadSummaries() }
     val winds by vm.winds.collectAsState()
     val rotllanes by vm.rotllanes.collectAsState()
     val chats by vm.windChat.collectAsState()
@@ -134,7 +132,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     LaunchedEffect(conn) { vm.loadCap() }
     // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
     // xat: així puja a dalt de la llista.
-    LaunchedEffect(news) { news.forEach { vm.loadWindChat(it) } }
+    LaunchedEffect(news) { vm.loadSummaries() }
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
     // diàleg del sistema el permís queda denegat i no sona mai res.
@@ -155,7 +153,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         }
     }
     val open by vm.ventsOpen.collectAsState()
-    val capHome by vm.capHome.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var manage by rememberSaveable { mutableStateOf(false) }
@@ -171,10 +168,17 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val wikiBusy by vm.wikiBusy.collectAsState()
     val creator by vm.windCreator.collectAsState()
     LaunchedEffect(Unit) { vm.loadWinds(); vm.loadRotllanes(); vm.loadWindsMeta() }
-    LaunchedEffect(winds.map { it.id }, rotllanes.map { it.id }) {
-        winds.forEach { vm.loadWindChat(it.id) }
-        rotllanes.forEach { vm.loadRotllanaChat(it.id) }
+    // La portada en té prou amb l'últim missatge de cada conversa (cada fil es
+    // carrega en obrir-lo); en tornar d'una conversa es refresca. Per cercar
+    // dins dels missatges, sí que calen tots els fils.
+    LaunchedEffect(conn, open, winds.size, rotllanes.size) { if (open == null) vm.loadSummaries() }
+    LaunchedEffect(searching) {
+        if (searching) { winds.forEach { vm.loadWindChat(it.id) }; rotllanes.forEach { vm.loadRotllanaChat(it.id) } }
     }
+    val summaries by vm.summaries.collectAsState()
+    val capUi by vm.cap.collectAsState()
+    var whereOpen by remember { mutableStateOf(false) }
+    var moreMenu by remember { mutableStateOf(false) }
     androidx.activity.compose.BackHandler(enabled = manage && open == null && !creator.first) { manage = false }
     androidx.activity.compose.BackHandler(enabled = searching && !manage && open == null && !creator.first && creation == null) {
         searching = false; query = ""
@@ -190,6 +194,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         val wind = if (open!!.startsWith("wind:")) winds.firstOrNull { it.id == id } else null
         val rot = if (open!!.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
         when {
+            open == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
             wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
             rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
             else -> LaunchedEffect(open) { vm.openVentsChat(null) }
@@ -208,12 +213,13 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         },
                         actions = {
                             if (!manage) {
+                                WhereChip(vm, lang) { whereOpen = true }
                                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                                     Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
                                 }
                                 IconButton(onClick = { manage = true }) {
-                                    Icon(Icons.Rounded.Tune, tr(lang, "app.vents.manage"), tint = Ink)
+                                    Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
                                 }
                             }
                             Box {
@@ -225,12 +231,15 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.rotllanaNew")) }, onClick = { menu = false; creation = "group" })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.windNew")) }, onClick = { menu = false; vm.showWindCreator(true) })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.crew.title")) }, onClick = { menu = false; vm.openCrew() })
+                                    HorizontalDivider()
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.programats.open")) }, onClick = { menu = false; programatsOpen = true })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.wiki.open")) }, onClick = { menu = false; wikiOpen = true })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.feines.title")) }, onClick = { menu = false; feinesOpen = true })
                                 }
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
                     )
-                    if (!searching && !manage) WhereSwitch(vm, lang)
                     if (searching && !manage) {
                         OutlinedTextField(
                             query, { query = it }, singleLine = true,
@@ -254,20 +263,17 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
                     if (winds.isEmpty()) item { VentsEmpty(lang, false) }
                     items(winds, key = { it.id }) { w ->
-                        ConversationRow(w.name, w.role, Color(w.argb), w.faceStyle, onClick = { profile = w })
+                        DirectoryRow(lang, w, onProfile = { profile = w }) { manage = false; vm.openVentsChat("wind:" + w.id) }
                     }
                 } else {
                     // El Ventet viu a la seva secció; a la portada només si ho
                     // has triat a Preferències (les converses primer).
-                    if (query.isBlank() && capHome) item { CapHero(vm, lang, winds) }
-                    if (winds.isNotEmpty() && query.isBlank()) item {
-                        VentsCrew(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
-                    }
-                    // Programats, wiki i feines en una sola fila: les converses
-                    // han de quedar a dalt, no sota tres targetes.
-                    if (query.isBlank() && (winds.isNotEmpty() || rotllanes.isNotEmpty())) item {
-                        VentsShortcuts(lang, windTasks.orEmpty().count { it.running }, !windTasks.isNullOrEmpty(),
-                            onProgramats = { programatsOpen = true }, onWiki = { wikiOpen = true }, onFeines = { feinesOpen = true })
+                    // Portada: el Ventet fixat a dalt i les converses just a sota. Els
+                    // personatges són al directori; programats, biblioteca i feines,
+                    // al menú «+»; la feina en marxa, una línia que només surt si n'hi ha.
+                    if (query.isBlank()) item { VentetRow(lang, capUi, summaries["cap"]) { vm.openVentsChat("cap") } }
+                    if (query.isBlank() && anyRunning) item {
+                        RunningWorkLine(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
                     }
                     /** Fila amb favorit: estrella viva si hi és, i el menú llarg la marca. */
                     @Composable
@@ -295,7 +301,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             }, lang = lang)
                     }
 
-                    val rows = ventsInbox(winds, rotllanes, chats, rChats, query)
+                    val rows = ventsInbox(winds, rotllanes, chats, rChats, query, summaries)
                     if (rows.isEmpty()) item {
                         if (query.isBlank()) VentsEmpty(lang, true)
                         else Column(Modifier.fillMaxWidth().padding(32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -355,6 +361,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         )
     }
     profile?.let { w -> WindProfileDialog(vm, lang, w) { profile = null } }
+    if (whereOpen) WhereDialog(vm, lang) { whereOpen = false }
     rowTarget?.let { t ->
         ChatRowDialog(vm, lang, t, onToSection = { key -> sectionTargetKey = key; sectionPicker = true }) { rowTarget = null }
     }

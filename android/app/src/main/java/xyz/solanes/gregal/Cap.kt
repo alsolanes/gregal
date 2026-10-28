@@ -7,7 +7,34 @@ import org.json.JSONObject
  * La mascota, cap de gabinet de la colla (/api/winds/cap). Viu al servidor
  * (o al del mòbil): el nom, la cara i el fil curt amb l'usuari.
  */
-data class CapMsg(val from: String, val text: String, val action: String = "", val winds: List<String> = emptyList())
+data class CapMsg(
+    val from: String, val text: String, val action: String = "", val winds: List<String> = emptyList(),
+    /** L'encàrrec d'una colla proposada. */
+    val task: String = "",
+    /** La proposta sencera: especialistes nous i vents que encara no en saben. */
+    val create: List<CapNew> = emptyList(), val novices: List<String> = emptyList(),
+    /** On ha anat a parar una delegació ("wind:<id>" o "rot:<id>"); action = "link". */
+    val link: String = "",
+    /** Segons Unix (0 = sense hora). */
+    val ts: Long = 0L,
+) {
+    /** És una proposta de delegació (un vent, una rotllana o una colla). */
+    val delegates: Boolean get() = from == "cap" && (action == "wind" || action == "rotllana" || action == "crew")
+}
+
+/**
+ * La delegació que encara espera «endavant»: l'última proposta del fil si no
+ * hi ha res després (ni la resposta de l'usuari ni l'enllaç a la conversa) i
+ * l'usuari no l'ha deixada per a més tard. Torna la petició original i la
+ * decisió. Així una proposta es pot acceptar també després de tornar a obrir l'app.
+ */
+internal fun capPendingOf(history: List<CapMsg>, dismissedTs: Long = 0L): Pair<String, CapDecision>? {
+    val last = history.lastOrNull() ?: return null
+    if (!last.delegates) return null
+    if (last.ts != 0L && last.ts <= dismissedTs) return null
+    val asked = history.getOrNull(history.size - 2)?.takeIf { it.from == "user" }?.text ?: return null
+    return asked to CapDecision(last.action, last.text, last.winds, last.task, create = last.create, novices = last.novices)
+}
 
 data class CapState(
     val name: String = "Ventet",
@@ -46,7 +73,12 @@ data class CapState(
                 val m = a.optJSONObject(i) ?: return@mapNotNull null
                 val w = m.optJSONArray("winds")
                 CapMsg(m.optString("from"), m.optString("text"), m.optString("action"),
-                    if (w == null) emptyList() else (0 until w.length()).map { w.optString(it) })
+                    if (w == null) emptyList() else (0 until w.length()).map { w.optString(it) },
+                    task = m.optString("task"),
+                    create = m.optJSONArray("create")?.let { a -> (0 until a.length()).mapNotNull { a.optJSONObject(it)?.let(CapNew::parse) } }.orEmpty(),
+                    novices = m.optJSONArray("novices")?.let { a -> (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() } }.orEmpty(),
+                    link = m.optString("link"),
+                    ts = m.optLong("ts", 0L))
             }
         }
     }

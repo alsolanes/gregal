@@ -386,6 +386,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _ventsOpen = MutableStateFlow<String?>(null)
     val ventsOpen: StateFlow<String?> = _ventsOpen
+    /** El Ventet és una conversa dels Vents: la secció del menú i els avisos hi porten. */
+    fun showVentet() {
+        _ventsOpen.value = "cap"
+        if (_screen.value == Screen.Ventet) _screen.value = Screen.Company else go(Screen.Company)
+    }
+
     fun openVentsChat(id: String?) {
         if (id != null && id.startsWith("wind:")) markWindNewsSeen(id.removePrefix("wind:"))
         _ventsOpen.value = id
@@ -2952,7 +2958,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                      /** Curs accelerat per als que no en saben (proposat, l'usuari el pot treure). */
                      val course: Boolean = true,
                      /** Moment de l'última pujada de nivell: l'app hi fa confeti. */
-                     val levelUpAt: Long = 0L, val unlocked: List<String> = emptyList(), val going: Boolean = false)
+                     val levelUpAt: Long = 0L, val unlocked: List<String> = emptyList(), val going: Boolean = false,
+                     /** No s'ha pogut carregar el Ventet (es diu, amb «torna-ho a provar»). */
+                     val loadError: Boolean = false,
+                     /** El missatge que no s'ha pogut enviar: torna al camp per no perdre'l. */
+                     val failedText: String = "",
+                     /** L'hora de l'última proposta deixada per a «ara no» (no torna a sortir). */
+                     val dismissedTs: Long = 0L)
     private val _cap = MutableStateFlow(CapUi())
     val cap: StateFlow<CapUi> = _cap.asStateFlow()
 
@@ -2961,9 +2973,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val st = withContext(Dispatchers.IO) { source.api().cap(idioma.value) }
-                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(state = st, loaded = true)
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val dismissed = capPrefs()?.getLong("dismissed", 0L) ?: 0L
+                // Una proposta pendent es refà del fil: es pot acceptar també
+                // després de tornar a obrir l'app.
+                val pending = if (_cap.value.busy || _cap.value.going) _cap.value.pending
+                    else capPendingOf(st.history, dismissed)?.let { CapPending(it.first, it.second) }
+                _cap.value = _cap.value.copy(state = st, loaded = true, loadError = false, dismissedTs = dismissed, pending = pending)
             } catch (_: Exception) {
-                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(loaded = true)
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(loaded = true, loadError = true)
             }
         }
     }
@@ -2973,7 +2991,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val message = rawMessage.trim()
         if (message.isEmpty() || _cap.value.busy) return
         val source = _conn.value; val epoch = companionEpoch
-        _cap.value = _cap.value.copy(busy = true, asked = message, pending = null, error = false)
+        _cap.value = _cap.value.copy(busy = true, asked = message, pending = null, error = false, failedText = "")
         viewModelScope.launch {
             try {
                 val d = withContext(Dispatchers.IO) { source.api().capAsk(message, idioma.value, force) }
@@ -2984,10 +3002,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 // «Endavant»: la proposta d'abans es fa ara, sense un altre botó.
                 if (d.delegates && d.confirm) capGo()
             } catch (_: Exception) {
-                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true)
+                if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(busy = false, error = true,
+                    failedText = if (force.isBlank()) message else _cap.value.failedText)
             }
         }
     }
+
+    private fun capPrefs(): android.content.SharedPreferences? =
+        try { appContext.getSharedPreferences("gregal_cap", android.content.Context.MODE_PRIVATE) } catch (_: Exception) { null }
+
+    /** Una colla convocada des del Ventet: quan arrenca, el fil hi apunta l'enllaç. */
+    private var crewFromCap: String? = null
 
     /** Endavant: fa el que la mascota ha decidit (o l'usuari ha triat). */
     fun capGo() {
@@ -2999,13 +3024,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             // «Endavant» ja és la confirmació: la colla es proposa i es convoca
             // sola (la fitxa ensenya qui hi és mentre arrenca).
             _cap.value = ui.copy(pending = null)
+            crewFromCap = d.task.ifBlank { p.message }
             openCrew(d.task.ifBlank { p.message }); proposeCrew(d.task.ifBlank { p.message }, autoStart = true)
-            return
-        }
-        // Un vent sol que ja en sap, sense res a crear: directe, sense esperar el servidor.
-        if (d.action == "wind" && d.create.isEmpty() && (d.novices.isEmpty() || !ui.course)) {
-            _cap.value = ui.copy(pending = null)
-            d.winds.firstOrNull()?.let { id -> openVentsChat("wind:$id"); sendWindMessage(id, p.message) }
             return
         }
         val source = _conn.value; val epoch = companionEpoch
@@ -3021,6 +3041,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _winds.value = ws; _rotllanes.value = rots
                 _cap.value = _cap.value.copy(pending = null, going = false)
+                loadCap() // el fil ja porta l'enllaç a la conversa
                 if (r.wind.isNotBlank()) { openVentsChat("wind:" + r.wind); sendWindMessage(r.wind, p.message) }
                 else if (r.rotllana.isNotBlank()) { openVentsChat("rot:" + r.rotllana); sendRotllanaMessage(r.rotllana, p.message) }
                 if (r.studying.isNotEmpty()) {
@@ -3054,7 +3075,34 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun capDismiss() { _cap.value = _cap.value.copy(pending = null) }
+    /** «Ara no»: la proposta queda al fil però no torna a demanar resposta. */
+    fun capDismiss() {
+        val ts = _cap.value.state.history.lastOrNull()?.ts ?: 0L
+        capPrefs()?.edit()?.putLong("dismissed", ts)?.apply()
+        _cap.value = _cap.value.copy(pending = null, dismissedTs = ts)
+    }
+
+    /** Torna a enviar el missatge que no ha arribat. */
+    fun capRetry() {
+        val text = _cap.value.failedText.ifBlank { _cap.value.asked }
+        if (text.isNotBlank()) askCap(text)
+    }
+
+    // --- Resums de les converses (la llista de Vents) ---
+
+    private val _summaries = MutableStateFlow<Map<String, ConvoSummary>>(emptyMap())
+    val summaries: StateFlow<Map<String, ConvoSummary>> = _summaries.asStateFlow()
+
+    /** Últim missatge de cada conversa: la portada ja no carrega tots els fils. */
+    fun loadSummaries() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val m = withContext(Dispatchers.IO) { source.api().summaries() }
+                if (isCompanionOrigin(source, epoch)) _summaries.value = m
+            } catch (_: Exception) { }
+        }
+    }
 
     fun renameCap(name: String) {
         val n = name.trim()
@@ -3130,6 +3178,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             // pogut fer» (tornar-hi crearia els vents nous dues vegades).
             _crew.value = null
             followCrew(id)
+            crewFromCap?.let { task ->
+                crewFromCap = null
+                viewModelScope.launch {
+                    try {
+                        withContext(Dispatchers.IO) { source.api().capLink("rot:$id", appText("app.cap.crewLink", oneLine(task, 60))) }
+                        loadCap()
+                    } catch (_: Exception) { }
+                }
+            }
             // El fil ha de ser a la llista abans d'obrir-lo: la pantalla de
             // Vents tanca un id que no coneix.
             val list = try { withContext(Dispatchers.IO) { source.api().getRotllanes() } } catch (_: Exception) { null }

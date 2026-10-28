@@ -67,4 +67,27 @@ class CapTest {
         assertEquals(listOf("llacet", "gorra", "bufanda", "ulleres", "barret", "auriculars", "corona", "flors", "carbassa", "gorro"),
             capOutfitCatalog.map { it.id })
     }
+
+    @Test fun `la proposta pendent es refa del fil`() {
+        val ask = CapMsg("user", "sopar?", ts = 10)
+        val prop = CapMsg("cap", "Ho fa la Marinada", "wind", listOf("m1"), ts = 11)
+        val (msg, d) = capPendingOf(listOf(ask, prop))!!
+        assertEquals("sopar?", msg)
+        assertEquals("wind", d.action)
+        assertEquals(listOf("m1"), d.winds)
+        // Ja resolta (n'hi ha l'enllaç), deixada per a «ara no», o sense pregunta: res pendent.
+        assertEquals(null, capPendingOf(listOf(ask, prop, CapMsg("cap", "He obert la conversa", "link", link = "wind:m1", ts = 12))))
+        assertEquals(null, capPendingOf(listOf(ask, prop), dismissedTs = 11))
+        assertEquals(null, capPendingOf(listOf(prop)))
+        assertEquals(null, capPendingOf(listOf(ask, CapMsg("cap", "Bon dia", "self", ts = 11))))
+    }
+
+    @Test fun `el fil porta la proposta sencera i l'enllac`() {
+        val h = CapState.parseHistory(org.json.JSONArray("""[{"from":"cap","text":"Faig rotllana","action":"rotllana","winds":["a"],"create":[{"name":"Fogony","role":"cuina"}],"novices":["a"],"ts":5},{"from":"cap","text":"He obert la rotllana","action":"link","link":"rot:r1","ts":6}]"""))
+        assertEquals("Fogony", h[0].create.single().name)
+        assertEquals(listOf("a"), h[0].novices)
+        assertTrue(h[0].delegates)
+        assertEquals("rot:r1", h[1].link)
+        assertFalse(h[1].delegates)
+    }
 }

@@ -719,6 +719,22 @@ class GregalApi(val base: String, val token: String) {
         return CapGoResult(o.optString("wind"), o.optString("rotllana"), strs("studying"), created)
     }
 
+    /** Apunta al fil del Ventet on ha anat a parar una delegació. */
+    fun capLink(link: String, text: String) {
+        post("/api/winds/cap/link", JSONObject().put("link", link).put("text", text))
+    }
+
+    /** Últim missatge de cada conversa (wind:<id>, rot:<id>, cap) per a la llista. */
+    fun summaries(): Map<String, ConvoSummary> {
+        val o = JSONObject(read(conn("/api/winds/summaries", "GET")))
+        val a = o.optJSONArray("items") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val j = a.optJSONObject(i) ?: return@mapNotNull null
+            ConvoSummary(j.optString("key"), j.optString("from"), j.optString("speaker"), j.optString("text"),
+                msgMillis(j.optLong("ts", 0L)), j.optInt("count"))
+        }.associateBy { it.key }
+    }
+
     fun capRename(name: String): CapState {
         val o = post("/api/winds/cap/profile", JSONObject().put("name", name))
         return CapState(name = o.optString("name"), color = o.optString("color"), style = o.optString("style"))

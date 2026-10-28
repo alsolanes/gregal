@@ -201,3 +201,72 @@ func TestCapMascotaJuga(t *testing.T) {
 		t.Fatalf("un mes sense obrir l'app: %+v", p)
 	}
 }
+
+// TestCapFilAmbEnllac: en fer una delegació, el fil del Ventet hi apunta la
+// conversa que n'ha sortit; i la proposta es desa sencera (especialistes nous).
+func TestCapFilAmbEnllac(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres"})
+	old := capDecider
+	t.Cleanup(func() { capDecider = old })
+	capDecider = func(*Server, context.Context, []llm.Message) (string, error) {
+		return `{"action":"rotllana","winds":["` + mar.ID + `"],"new":[{"name":"Fogony","role":"cuina","persona":"Cooks.","kit":""}],"reply":"Faig rotllana"}`, nil
+	}
+	out := capPost(t, s, `{"message":"sopar?","lang":"ca"}`)
+	hist := out["history"].([]any)
+	last := hist[len(hist)-1].(map[string]any)
+	if c, _ := last["create"].([]any); len(c) != 1 {
+		t.Fatalf("la proposta s'ha de desar sencera: %v", last)
+	}
+	body, _ := json.Marshal(map[string]any{"message": "sopar?", "lang": "ca", "winds": out["winds"], "create": out["create"]})
+	rec := httptest.NewRecorder()
+	s.handleCapGo(rec, httptest.NewRequest(http.MethodPost, "/api/winds/cap/go", bytes.NewReader(body)))
+	if rec.Code != 200 {
+		t.Fatalf("%d %s", rec.Code, rec.Body.String())
+	}
+	st := s.loadCap()
+	link := st.History[len(st.History)-1]
+	if link.Action != "link" || !strings.HasPrefix(link.Link, "rot:") || !strings.Contains(link.Text, "rotllana") {
+		t.Fatalf("enllaç: %+v", link)
+	}
+	rec = httptest.NewRecorder()
+	s.handleCapLink(rec, httptest.NewRequest(http.MethodPost, "/api/winds/cap/link", bytes.NewBufferString(`{"link":"https://x","text":"no"}`)))
+	if rec.Code != 400 {
+		t.Fatalf("un enllaç que no és una conversa s'ha de refusar: %d", rec.Code)
+	}
+}
+
+// TestResumsDeConverses: la portada en té prou amb l'últim missatge de cada fil.
+func TestResumsDeConverses(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres"})
+	h := windHistory(s, mar.ID)
+	h.mu.Lock()
+	h.messages = append(h.messages, llm.Message{Role: "user", Content: "hola", Ts: 100}, llm.Message{Role: "assistant", Content: "Bon dia!", Ts: 200})
+	h.mu.Unlock()
+	capMu.Lock()
+	st := s.loadCap()
+	st.History = append(st.History, capMsg{From: "cap", Text: "Tot tranquil", Ts: 300})
+	s.saveCap(st)
+	capMu.Unlock()
+	rec := httptest.NewRecorder()
+	s.handleWindsSummaries(rec, httptest.NewRequest(http.MethodGet, "/api/winds/summaries", nil))
+	var out struct {
+		Items []convoSummary `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]convoSummary{}
+	for _, it := range out.Items {
+		got[it.Key] = it
+	}
+	if w := got["wind:"+mar.ID]; w.Text != "Bon dia!" || w.Ts != 200 || w.Count != 2 || w.From != "pet" {
+		t.Fatalf("vent: %+v", w)
+	}
+	if c := got["cap"]; c.Text != "Tot tranquil" || c.Ts != 300 {
+		t.Fatalf("ventet: %+v", c)
+	}
+}

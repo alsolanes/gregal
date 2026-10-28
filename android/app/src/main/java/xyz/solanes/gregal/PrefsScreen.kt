@@ -120,26 +120,6 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
                 }
 
-                PrefsSection(t("app.nav.ventet"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    val capHome by vm.capHome.collectAsState()
-                    Row(
-                        Modifier.fillMaxWidth().toggleable(capHome, role = Role.Switch) { vm.setCapHome(it) }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    ) {
-                        Box(Modifier.size(36.dp).background(Sea.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.Toys, null, tint = Sea, modifier = Modifier.size(20.dp))
-                        }
-                        Column(Modifier.weight(1f)) {
-                            Text(t("app.prefs.capHome"), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                            Text(t("app.prefs.capHomeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
-                        }
-                        Switch(checked = capHome, onCheckedChange = null,
-                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
-                    }
-                }
-
                 PrefsSection(t("prefs.verify"))
                 GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
                     Row(
