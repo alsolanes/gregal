@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.25.0 - 2026-10-28 - Distribució Calma i el blau del logo
+
 - **A calmer layout for the web and desktop app.** One sidebar instead of an icon rail plus a sidebar: the Gregal logo on top, "New session", then Chat, Winds, Scheduled and More (no more cut labels such as "rogramat"), the projects and the conversations; Winds keeps the same sidebar. The header shows only the project chip and the tools (no path line or "workspace"), tabs are quieter, the "+" next to each project and the add-project button appear on hover, temporary folders (sandboxes under the system temp folder) leave the list unless they are the current one (search still finds them), and the "Folders that no longer exist" row is dimmer. The start page greets you by the time of day with a larger, floating composer and the conversations to continue as cards; "No questions" is an amber dot and label instead of an amber frame around the composer. The default dark palette follows the logo's blue, and **Preferences → Theme → Calm (warm)** offers a graphite and amber variant.
 
 ## v1.24.0 - 2026-10-28 - Complement de Word d'un clic
