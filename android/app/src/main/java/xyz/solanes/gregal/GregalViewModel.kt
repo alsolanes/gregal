@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -297,6 +297,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Enllaça el magatzem de prefs (tema/idioma/esborrany desats). */
     fun attachPrefs(p: Prefs) {
         prefsStore = p
+        _capHome.value = p.capHome
         _tema.value = p.tema
         _idioma.value = p.idioma
         _idiomaChoice.value = p.idiomaChoice
@@ -374,11 +375,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun resetBackStackForTest() { _backStack.value = emptyList() }
 
     /** Conversa oberta dins els Vents ("wind:<id>" / "rot:<id>"), perquè l'enrere la tanqui. */
+    /** El Ventet a dalt dels Vents (a Preferències). Per defecte té secció pròpia. */
+    private val _capHome = MutableStateFlow(false)
+    val capHome: StateFlow<Boolean> = _capHome
+
+    fun setCapHome(v: Boolean) {
+        if (::prefsStore.isInitialized) prefsStore.capHome = v
+        _capHome.value = v
+    }
+
     private val _ventsOpen = MutableStateFlow<String?>(null)
     val ventsOpen: StateFlow<String?> = _ventsOpen
     fun openVentsChat(id: String?) {
         if (id != null && id.startsWith("wind:")) markWindNewsSeen(id.removePrefix("wind:"))
         _ventsOpen.value = id
+        // Tocar una notificació ha d'obrir la conversa que l'ha provocada: si
+        // només desàvem el vent, l'app es quedava a la pantalla on era i
+        // semblava que no fes res.
+        if (id != null && _connected.value) go(Screen.Company)
     }
 
     /**
@@ -3658,6 +3672,27 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _openRun = MutableStateFlow<String?>(null)
     val openRun: StateFlow<String?> = _openRun
 
+    /** Pantalla pendent que ha demanat una notificació. */
+    private val _openScreen = MutableStateFlow<String?>(null)
+
+    /**
+     * Obre la pantalla que demana una notificació («chat», «office», «jobs»,
+     * «vents»). Si l'app encara no està connectada, es recorda i s'aplica en
+     * connectar: l'avís no es perd.
+     */
+    fun openScreenFromNotification(name: String) {
+        val screen = pantallaDeNotificacio(name) ?: return
+        if (_connected.value) go(screen) else _openScreen.value = name
+    }
+
+    private fun pantallaDeNotificacio(name: String): Screen? = when (name) {
+        "chat" -> Screen.Chat
+        "office" -> Screen.Office
+        "jobs" -> Screen.Jobs
+        "vents", "company" -> Screen.Company
+        else -> null
+    }
+
     fun openRunFromNotification(id: String) {
         _openRun.value = id
         if (_connected.value) go(Screen.Jobs)
@@ -3667,7 +3702,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Després de connectar: la pantalla de la notificació tocada o, per
      *  defecte, els vents — són la cara de l'app, no un calaix. */
-    private fun landing(): Screen = if (_openRun.value != null) Screen.Jobs else Screen.Company
+    private fun landing(): Screen {
+        val screen = when {
+            _openRun.value != null -> Screen.Jobs
+            _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: Screen.Company
+            else -> Screen.Company
+        }
+        _openScreen.value = null
+        return screen
+    }
 
     fun saveJob(j: JobItem) {
         viewModelScope.launch {

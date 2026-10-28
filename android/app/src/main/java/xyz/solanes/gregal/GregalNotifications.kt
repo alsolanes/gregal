@@ -147,7 +147,7 @@ object GregalNotifications {
         val b = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_gregal)
             .setContentTitle(text(context, "app.notifications.readyTitle"))
-            .setContentIntent(openApp(context))
+            .setContentIntent(openApp(context, SCREEN_CHAT))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         val excerpt = answer.trim().take(280)
@@ -186,7 +186,7 @@ object GregalNotifications {
             .setSmallIcon(R.drawable.ic_stat_gregal)
             .setContentTitle(text(context, "app.notifications.needsYouTitle"))
             .setContentText(text(context, "app.notifications.needsYouBody"))
-            .setContentIntent(openApp(context))
+            .setContentIntent(openApp(context, SCREEN_CHAT))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .build()
@@ -200,19 +200,29 @@ object GregalNotifications {
         .setSmallIcon(R.drawable.ic_stat_gregal)
         .setContentTitle(text(context, "app.notifications.workingTitle"))
         .setContentText(text(context, "app.notifications.workingBody"))
-        .setContentIntent(openApp(context))
+        .setContentIntent(openApp(context, SCREEN_CHAT))
         .setUsesChronometer(true)
         .setOngoing(true)
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .build()
 
-    private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(
-        context, 0,
+    /**
+     * Tocar l'avís ha d'obrir la pantalla que l'ha provocat. Abans anava sempre
+     * a la portada, i qui rebia «ja està» acabava a la llista sense la
+     * conversa que demanava.
+     */
+    private fun openApp(context: Context, screen: String = ""): PendingIntent = PendingIntent.getActivity(
+        context, screen.hashCode() and 0xffff,
         Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            if (screen.isNotEmpty()) putExtra(EXTRA_SCREEN, screen)
         },
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    /** Pantalla que obre l'avís: el xat, que és on viu la conversa. */
+    const val SCREEN_CHAT = "chat"
+    const val EXTRA_SCREEN = "xyz.solanes.gregal.SCREEN"
 
     private fun canNotify(context: Context): Boolean =
         Build.VERSION.SDK_INT < 33 ||

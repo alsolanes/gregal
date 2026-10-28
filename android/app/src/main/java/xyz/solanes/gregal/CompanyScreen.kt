@@ -155,6 +155,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
         }
     }
     val open by vm.ventsOpen.collectAsState()
+    val capHome by vm.capHome.collectAsState()
     var creation by remember { mutableStateOf<String?>(null) }
     var menu by remember { mutableStateOf(false) }
     var manage by rememberSaveable { mutableStateOf(false) }
@@ -256,7 +257,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         ConversationRow(w.name, w.role, Color(w.argb), w.faceStyle, onClick = { profile = w })
                     }
                 } else {
-                    if (query.isBlank()) item { CapHero(vm, lang, winds) }
+                    // El Ventet viu a la seva secció; a la portada només si ho
+                    // has triat a Preferències (les converses primer).
+                    if (query.isBlank() && capHome) item { CapHero(vm, lang, winds) }
                     if (winds.isNotEmpty() && query.isBlank()) item {
                         VentsCrew(lang, winds, busy, live, news) { vm.openVentsChat("wind:" + it.id) }
                     }

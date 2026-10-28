@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Verified
@@ -117,6 +118,26 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(10.dp))
                     ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
+                }
+
+                PrefsSection(t("app.nav.ventet"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    val capHome by vm.capHome.collectAsState()
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(capHome, role = Role.Switch) { vm.setCapHome(it) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(Modifier.size(36.dp).background(Sea.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Toys, null, tint = Sea, modifier = Modifier.size(20.dp))
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(t("app.prefs.capHome"), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Text(t("app.prefs.capHomeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        }
+                        Switch(checked = capHome, onCheckedChange = null,
+                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+                    }
                 }
 
                 PrefsSection(t("prefs.verify"))

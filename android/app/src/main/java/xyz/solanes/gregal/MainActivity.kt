@@ -102,6 +102,10 @@ class Prefs(val ctx: Context) {
             else -> if (ctx.resources.configuration.locales[0]?.language == "ca") "ca" else "en"
         }
         set(v) { p.edit().putString("idioma", if (v == "ca" || v == "en") v else "system").apply() }
+    /** El Ventet també a dalt dels Vents (per defecte té secció pròpia). */
+    var capHome: Boolean
+        get() = p.getBoolean("capHome", false)
+        set(v) { p.edit().putBoolean("capHome", v).apply() }
     /** Esborrany del composer: el que havies escrit no es perd. */
     var esborrany: String
         get() = p.getString("esborrany", "") ?: ""
@@ -263,6 +267,7 @@ class MainActivity : ComponentActivity() {
                                 when (s) {
                                     Screen.Chat -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Company -> androidx.compose.runtime.key(conn) { CompanyScreen(vm) { scope.launch { drawer.open() } } }
+                                    Screen.Ventet -> VentetScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Work -> WorkScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Sessions -> SessionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Goals -> GoalsScreen(vm) { scope.launch { drawer.open() } }
@@ -282,7 +287,7 @@ class MainActivity : ComponentActivity() {
                 // mateixos vents i al xat de feina: allà ja hi ets, i el FAB
                 // es barrejaria amb els botons de crear conversa o taparia
                 // el botó d'enviar del composer.
-                if (screen != Screen.Company && screen != Screen.Chat) {
+                if (screen != Screen.Company && screen != Screen.Chat && screen != Screen.Ventet) {
                     WindFab(vm) { vm.go(Screen.Company) }
                 }
                 }
@@ -299,6 +304,10 @@ class MainActivity : ComponentActivity() {
         intent?.getStringExtra(JobAlarms.EXTRA_RUN)?.takeIf { it.isNotBlank() }?.let {
             intent.removeExtra(JobAlarms.EXTRA_RUN)
             vm.openRunFromNotification(it)
+        }
+        intent?.getStringExtra(GregalNotifications.EXTRA_SCREEN)?.takeIf { it.isNotBlank() }?.let {
+            intent.removeExtra(GregalNotifications.EXTRA_SCREEN)
+            vm.openScreenFromNotification(it)
         }
         intent?.getStringExtra(WindNotifications.EXTRA_WIND)?.takeIf { it.isNotBlank() }?.let {
             intent.removeExtra(WindNotifications.EXTRA_WIND)
