@@ -1321,7 +1321,7 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
             // Bombolla tenyida amb el color del vent: clara en tema clar (un
             // vel suau), més viva en tema fosc. Dots/Grok: cada persona
             // respira el seu propi color.
-            val dark = LocalPal.current == DarkPal
+            val dark = LocalPal.current.dark
             val tinted = if (dark) accent.copy(alpha = .30f).compositeOver(Superficie)
                 else accent.copy(alpha = .14f).compositeOver(Superficie)
             // Una taula, un gràfic, codi o una imatge necessiten l'amplada de

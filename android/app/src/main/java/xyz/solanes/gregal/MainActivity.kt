@@ -92,6 +92,10 @@ class Prefs(val ctx: Context) {
     var tema: String
         get() = p.getString("tema", "sistema") ?: "sistema"
         set(v) { p.edit().putString("tema", v).apply() }
+    /** Tema de l'app: un id de `GregalTemes`. `gregal` és el de sempre. */
+    var temaApp: String
+        get() = p.getString("temaApp", "gregal") ?: "gregal"
+        set(v) { p.edit().putString("temaApp", v).apply() }
     /** Missing/automatic preference follows only the device's primary locale. */
     val idiomaChoice: String
         get() = p.getString("idioma", "system").let { if (it == "ca" || it == "en") it else "system" }
@@ -188,14 +192,11 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val tema by vm.tema.collectAsState()
+            val temaApp by vm.temaApp.collectAsState()
             val foscSistema = isSystemInDarkTheme()
-            val pal = paletteFor(tema, foscSistema)
+            val pal = paletteFor(temaApp, tema, foscSistema)
             val scheme = pal.scheme()
-            val dark = when (tema) {
-                "clar" -> false
-                "fosc" -> true
-                else -> foscSistema
-            }
+            val dark = esFosc(tema, foscSistema)
             val view = LocalView.current
             // Colors de barra i icones fora de la composició, i icones fosques
             // sobre el tema clar (abans quedaven blanques sobre blanc).

@@ -284,6 +284,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private lateinit var prefsStore: Prefs
     private val _tema = MutableStateFlow("sistema")
     val tema: StateFlow<String> = _tema
+    /** Quin tema (paleta) vol l'usuari: gregal, nit, calma, paper o grafit. */
+    private val _temaApp = MutableStateFlow("gregal")
+    val temaApp: StateFlow<String> = _temaApp
     private val _idioma = MutableStateFlow("en")
     val idioma: StateFlow<String> = _idioma
     private val _idiomaChoice = MutableStateFlow("system")
@@ -301,6 +304,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         prefsStore = p
         _capHome.value = p.capHome
         _tema.value = p.tema
+        _temaApp.value = p.temaApp
         _idioma.value = p.idioma
         _idiomaChoice.value = p.idiomaChoice
         _usuari.value = p.usuari
@@ -313,6 +317,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun setTema(v: String) {
         _tema.value = v
         if (::prefsStore.isInitialized) prefsStore.tema = v
+    }
+
+    /** Canvia la paleta sense tocar el mode clar/fosc. */
+    fun setTemaApp(v: String) {
+        _temaApp.value = v
+        if (::prefsStore.isInitialized) prefsStore.temaApp = v
     }
 
     /** Local UI preference is authoritative, never replaced by server defaults. */

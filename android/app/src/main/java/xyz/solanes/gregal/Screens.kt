@@ -1250,7 +1250,7 @@ fun MsgRow(m: ChatMsg, stable: Int, lang: String = "ca", onCopyNotice: () -> Uni
         )
         m.kind == "error" -> Text(
             m.text, Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 3.dp),
-            color = if (LocalPal.current == DarkPal) Red else LightPal.red, fontSize = 15.sp,
+            color = if (LocalPal.current.dark) Red else LightPal.red, fontSize = 15.sp,
         )
         // L'animació corre un sol cop per missatge nou (clau = posició):
         // el streaming actualitza el text al mateix índex sense rellançar-la.

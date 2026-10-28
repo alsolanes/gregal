@@ -13,6 +13,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.semantics.Role
@@ -66,6 +71,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val tema by vm.tema.collectAsState()
+    val temaApp by vm.temaApp.collectAsState()
     val idioma by vm.idioma.collectAsState()
     val idiomaChoice by vm.idiomaChoice.collectAsState()
     val st by vm.state.collectAsState()
@@ -115,6 +121,25 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     ChoicePills(listOf("sistema" to t("prefs.theme.system"), "fosc" to t("prefs.theme.dark"), "clar" to t("prefs.theme.light")), tema, { vm.setTema(it) })
                     Spacer(Modifier.height(8.dp))
                     Text(t("app.prefs.themeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    Spacer(Modifier.height(18.dp))
+                    Text(t("prefs.appTheme"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Text(t("prefs.appThemeHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    Spacer(Modifier.height(10.dp))
+                    // El mostrari ensenya la paleta de debò: dues bombolles i
+                    // l'accent, amb el clar/fosc que tens triat ara mateix.
+                    val foscAra = esFosc(tema, isSystemInDarkTheme())
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        for (tem in GregalTemes) {
+                            TemaMostra(
+                                tem = tem, fosc = foscAra, triat = temaApp == tem.id,
+                                nom = t("prefs.tema." + tem.id),
+                            ) { vm.setTemaApp(tem.id) }
+                        }
+                    }
                     Spacer(Modifier.height(18.dp))
                     Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(10.dp))
@@ -209,4 +234,35 @@ private fun PrefsSection(text: String) {
         text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
         modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
     )
+}
+
+/** Un quadre del selector de temes: mini conversa amb la paleta de debò. */
+@Composable
+private fun TemaMostra(tem: GregalTema, fosc: Boolean, triat: Boolean, nom: String, onPick: () -> Unit) {
+    val p = tem.perMode(fosc)
+    Column(
+        Modifier.width(96.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(p.surface)
+            .border(if (triat) 2.dp else 1.dp, if (triat) p.sea else p.lineHi, RoundedCornerShape(14.dp))
+            .clickable(onClick = onPick)
+            .padding(9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Box(Modifier.fillMaxWidth().height(52.dp).clip(RoundedCornerShape(10.dp)).background(p.deepTop)) {
+            Column(Modifier.fillMaxSize().padding(6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Box(Modifier.width(38.dp).height(10.dp).clip(RoundedCornerShape(6.dp)).background(p.surfaceHi))
+                Box(
+                    Modifier.width(26.dp).height(10.dp).clip(RoundedCornerShape(6.dp))
+                        .background(p.sea).align(Alignment.End),
+                )
+                Box(Modifier.width(30.dp).height(6.dp).clip(RoundedCornerShape(4.dp)).background(p.surfaceHi))
+            }
+        }
+        Spacer(Modifier.height(7.dp))
+        Text(
+            nom, color = if (triat) p.sea else p.text, fontSize = 12.sp, maxLines = 1,
+            fontWeight = if (triat) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
 }

@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## [Unreleased]
+
+- **Five themes for the app and the chats.** Preferences → Appearance → **App theme** picks between Gregal (the one you had), Midnight (true black and a single violet), Calm (sage green), Paper (warm off-white and terracotta) and Graphite (cool grey and mint). The light/dark switch stays separate, so every theme has both faces; the chat bubbles, the drawer, the panels, the pills and the code blocks all take the theme's colours (a wind's chat keeps its own warm tint on top). The swatches show the real palette — two bubbles and the accent — so you pick by eye, and choosing one repaints the app at once, no restart. Every palette passes a contrast test (text 7:1, secondary text 4:1, accent 3:1, text on the accent 4.5:1): the test caught the first Graphite accent, which was darkened before shipping.
 
 ## v1.26.0 - 2026-10-28 - Tasques amb documents 4 vegades més ràpides
 
