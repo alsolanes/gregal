@@ -54,6 +54,12 @@ that builds assets lives in `.github/workflows/release.yml`.
    `node scripts/release.cjs apk 1.9.1 --vents` builds it and attaches
    `Gregal-Vents-*.apk` with `gregal-vents-version.json`, which the Vents
    app reads from the latest published release to update itself.
+   **Every release must carry `gregal-vents-version.json`**, because the app
+   asks `releases/latest`: when Android does not change, upload the previous
+   release's manifest (its URLs keep pointing at the older APKs) with
+   `gh release upload vX.Y.Z output/release-<previous>/gregal-vents-version.json`.
+   Upload it before anyone requests the URL: GitHub caches a 404 for a few
+   minutes.
 
 5. **Review the draft on GitHub and publish it.** The desktop app's
    automatic updates only see published releases.
