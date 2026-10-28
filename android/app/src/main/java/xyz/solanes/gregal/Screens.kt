@@ -335,7 +335,6 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val live by vm.live.collectAsState()
     val needsProvider by vm.needsProvider.collectAsState()
     val activity by vm.activity.collectAsState()
-    val planFirst by vm.planFirst.collectAsState()
     var showPlus by remember { mutableStateOf(false) }
     var showPerm by remember { mutableStateOf(false) }
     var confirmNew by remember { mutableStateOf(false) }
@@ -494,9 +493,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                     }
                 }
-                // Xips del que no és el normal: mode especial i permisos oberts.
-                val special = st.mode in setOf("goal", "autonomous", "debug", "inspect")
-                if (special || st.permissive || st.autoReview) {
+                // Xips del que no és el normal: mode avançat, autonomia total
+                // i revisor de permisos.
+                val special = st.mode in setOf("goal", "debug")
+                val full = st.access == "full" && uiModeOf(st.mode) == "act"
+                if (special || full || st.autoReview) {
                     Row(
                         Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -505,13 +506,18 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             ComposerChip(
                                 "◆ " + tr(lang, "app.mode." + st.mode), Lila, null,
                                 onClick = { showPlus = true },
-                                onClose = { vm.setMode("code") },
+                                onClose = { vm.setMode("act") },
                             )
                         }
-                        if (st.permissive || st.autoReview) {
+                        if (full) {
                             ComposerChip(
-                                tr(lang, if (st.autoReview) "app.perm.review" else "app.perm.auto"), Sand,
+                                tr(lang, "app.perm.full"), Sand,
                                 { PermIcon(true, Sand) }, onClick = { showPerm = true }, onClose = null,
+                            )
+                        } else if (st.autoReview) {
+                            ComposerChip(
+                                tr(lang, "prefs.reviewer"), Sand,
+                                { PermIcon(false, Sand) }, onClick = { showPerm = true }, onClose = null,
                             )
                         }
                     }
@@ -567,7 +573,6 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     canUseInput = !busy && input.isNotBlank(), canAttach = !sending && pendingImgs.size < 3,
                                     onAttach = { pickImgs.launch("image/*") },
                                     onAttachDoc = { pickDocs.launch("*/*") },
-                                    onPlanOnce = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.requestPlan(consumeInput()) },
                                     onCompare = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.parallel(consumeInput()) },
                                     onMode = { vm.setMode(it) },
                                     onPerm = { showPerm = true },
@@ -575,17 +580,13 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
                             Spacer(Modifier.width(2.dp))
                             CappedFontScale(1.3f) {
-                                AskActToggle(
-                                    act = st.mode != "chat", enabled = !sending, lang = lang,
-                                    onChange = { act ->
+                                ModeToggle(
+                                    uiMode = uiModeOf(st.mode), enabled = !sending, lang = lang,
+                                    onChange = { m ->
                                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        vm.setMode(if (act) "code" else "chat")
+                                        vm.setMode(m)
                                     },
                                 )
-                            }
-                            if (st.mode == "code") {
-                                Spacer(Modifier.width(4.dp))
-                                CappedFontScale(1.3f) { PlanFirstToggle(planFirst, lang) { vm.setPlanFirst(it) } }
                             }
                             Spacer(Modifier.weight(1f))
                             SendStopButton(
@@ -827,7 +828,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     }
 
     if (showPerm) {
-        PermissionDialog(st, lang, onPick = { on, review -> vm.setPermissive(on, review); showPerm = false },
+        PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false },
             onClose = { showPerm = false })
     }
 
@@ -934,8 +935,8 @@ fun AgentBusyStrip(lang: String) {
 @Composable
 fun ModeBadge(mode: String, modifier: Modifier = Modifier, lang: String = "ca") {
     val label = tr(lang, when (mode) {
-        "chat" -> "app.modeBadgeChat"
-        "inspect" -> "app.modeBadgeInspect"
+        "chat", "inspect" -> "app.modeBadgeChat"
+        "plan" -> "app.modeBadgePlan"
         "goal" -> "app.modeBadgeGoal"
         else -> "app.modeBadgeCode"
     })
@@ -947,6 +948,7 @@ fun ModeBadge(mode: String, modifier: Modifier = Modifier, lang: String = "ca") 
 
 private fun composerHint(mode: String, lang: String): String = when (mode) {
     "chat" -> tr(lang, "composer.ph.chat")
+    "plan" -> tr(lang, "app.chat.composerPlan")
     "inspect" -> tr(lang, "app.chat.composerInspect")
     "goal" -> tr(lang, "app.chat.composerGoal")
     else -> tr(lang, "app.chat.composerCode")
@@ -1457,8 +1459,8 @@ fun ActiveAgentCard(run: ActiveAgent, lang: String = "ca") {
                 Text(tr(lang, if (expanded) "app.sess.hide" else "app.sess.show"), color = Sea, fontSize = 12.sp)
             }
             val mode = tr(lang, when (run.mode) {
-                "chat" -> "app.modeLabelChat"
-                "inspect" -> "app.modeLabelInspect"
+                "chat", "inspect" -> "app.modeLabelChat"
+                "plan" -> "app.modeLabelPlan"
                 "goal" -> "app.modeLabelGoal"
                 else -> "app.modeLabelCode"
             })

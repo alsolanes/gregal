@@ -15,7 +15,6 @@ import (
 	"time"
 	"unicode"
 
-	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/llm"
 	"gregal/internal/team"
@@ -452,7 +451,12 @@ func crewStepDesat(s *Server, rotID string) string {
 		return ""
 	}
 	switch d.Step {
-	case "discussing", "waiting", "working":
+	case "waiting":
+		if st, ok := loadCrewState(s, rotID); ok && st.Waiting {
+			return "waiting"
+		}
+		return "interrupted"
+	case "discussing", "working":
 		return "interrupted"
 	}
 	return d.Step
@@ -642,12 +646,16 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 				motiu = e.Message
 			}
 		}
-		if e.Type == "completed" && e.Agent == "builder" && strings.TrimSpace(e.Output) != "" {
-			built = e.Output
+		if e.Type == "completed" && (e.Agent == "builder" || strings.HasPrefix(e.Agent, "build-")) && strings.TrimSpace(e.Output) != "" {
+			if built != "" {
+				built += "\n\n"
+			}
+			built += e.Output
 		}
 		if e.Type == "tool_result" && e.Path != "" && (e.Activity == "write" || e.Activity == "edit" || e.Activity == "patch") && !seenPath[e.Path] {
 			seenPath[e.Path] = true
 			paths = append(paths, filepath.Base(e.Path))
+			noteCrewWrite(rot.ID, workspace, e.Path)
 		}
 	})
 	files := ""
@@ -731,99 +739,12 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 			log.Printf("crew discussion %s: %s", wind.Name, redactError(err))
 			continue
 		}
-		s.crewSay(rot, wind, stripQuoteTrim(text))
+		s.crewSayKind(rot, wind, "debate", stripQuoteTrim(text))
 	}
-	builder := members[0]
-	instruction := func(w companion.Wind, review bool) string {
-		base := "You are " + w.Name + ". Specialty: " + w.Role + ". Character: " + w.Persona + "\n"
-		if review {
-			return base + "Review the actual deliverable against the request and the agreed design. Check that the requested files really exist and work, using the available read-only tools. Identify concrete defects. Your reply must be exactly the required JSON verdict object, nothing else. Never claim checks you did not perform." + windReviewTools
-		}
-		return base + "Build the complete deliverable now, in this run, with the write and edit tools: create every file the task asks for, using the content and decisions the crew contributed in the discussion. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform." + windBuildTools
-	}
-	flow := team.FlowSpec{
-		Name:      say("Feina de la colla", "Crew task"),
-		Nodes:     []team.FlowNode{{ID: "builder", Label: builder.Name, Role: "builder", Mode: "task", Instruction: instruction(builder, false), Wind: builder.ID}},
-		Output:    "builder",
-		MaxRounds: 2,
-	}
-	if len(members) > 1 {
-		reviewer := members[1]
-		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: "reviewer", Label: reviewer.Name, Role: "reviewer", Mode: "review", Instruction: instruction(reviewer, true), Wind: reviewer.ID})
-		flow.Edges = []team.FlowEdge{{From: "builder", To: "reviewer", Kind: "data"}, {From: "reviewer", To: "builder", Kind: "revision"}}
-		flow.Output = "reviewer"
-	}
-	job.set("working")
-	s.crewSay(rot, builder, say("Som-hi: ho construeixo jo", "Let's go: I'll build it")+func() string {
-		if len(members) > 1 {
-			return say(" i "+members[1].Name+" ho revisa.", " and "+members[1].Name+" reviews it.")
-		}
-		return "."
-	}())
-	work := task + "\n\nCrew discussion so far (the agreed design; context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
-	var answer string
-	var err error
-	for intent := 1; intent <= crewMaxIntents; intent++ {
-		answer, err = crewWork(s, ctx, rot, work, flow, ca)
-		if err == nil || err == errReviewIncomplete || !crewPotReprendre(err, inici) {
-			break
-		}
-		// La feina no s'acaba per temps o perquè el model s'ha encallat: en
-		// lloc de rendir-se amb la feina mig feta, es reprèn un cop aprofitant
-		// el que ja hi ha al disc.
-		fets := fitxersTocats(rot.Workspace, inici)
-		avis := say("S'ha encallat la feina; la reprenc aprofitant el que ja hi ha fet.",
-			"The work stalled; I'm resuming from what is already done.")
-		if len(fets) > 0 {
-			avis += say("\n\nJa fet: ", "\n\nAlready done: ") + strings.Join(fets, ", ")
-		}
-		s.crewSay(rot, builder, avis)
-		job.set("working")
-		work = work + "\n\n" + say(
-			"REPRESA: l'intent anterior no va acabar. Ja hi ha feina feta al projecte; revisa-la abans de refer res i continua des d'aquí. No tornis a crear el que ja existeix.",
-			"RESUME: the previous attempt did not finish. Work is already on disk; check it before redoing anything and continue from there. Do not recreate what already exists.")
-	}
-	if err == errReviewIncomplete {
-		msg := say("He fet la feina, però la revisió no s'ha pogut completar. Revisa-ho tu o demana-ho al fil.\n\n",
-			"I did the work, but the review could not be completed. Check it yourself or ask in this thread.\n\n") + oneLineKeepBreaks(answer, 4000)
-		s.crewSay(rot, builder, msg)
-		s.crewNotify(rot, builder, task, msg)
-		job.set("failed")
-		return
-	}
-	if err != nil {
-		log.Printf("crew work: %s", redactError(err))
-		msg := crewFailureMessage(say, err, time.Since(inici), fitxersTocats(rot.Workspace, inici))
-		s.crewSay(rot, builder, msg)
-		s.crewNotify(rot, builder, task, msg)
-		job.set("failed")
-		return
-	}
-	speaker := builder
-	if len(members) > 1 {
-		speaker = members[1]
-	}
-	text, changes := crewClosing(answer)
-	if crewRejected(answer) {
-		msg := say("La revisió encara hi veu problemes; et deixo el detall. Ho podeu ajustar al mateix fil.\n\n",
-			"The review still sees problems; here are the details. You can adjust it in this thread.\n\n") + text
-		s.crewSay(rot, speaker, msg)
-		s.crewNotify(rot, speaker, task, msg)
-		job.set("failed")
-		return
-	}
-	if changes {
-		msg := say("La feina és feta, però la revisió hi demana canvis. Digues-nos si els fem.\n\n",
-			"The work is done, but the review asks for changes. Tell us whether to make them.\n\n") + text
-		s.crewSay(rot, speaker, msg)
-		s.crewNotify(rot, speaker, task, msg)
-		job.set("done")
-		return
-	}
-	msg := say("Fet. ", "Done. ") + text
-	s.crewSay(rot, speaker, msg)
-	s.crewNotify(rot, speaker, task, msg)
-	job.set("done")
+	// Després de la discussió, la feina la porta el coordinador (winds_crew_coord.go).
+	st := &crewState{Task: task, Ca: ca, Started: inici}
+	saveCrewState(s, rot.ID, st)
+	s.crewLoop(rot, st, job)
 }
 
 // crewRejected tells a review that did not pass: the flow engine's outstanding

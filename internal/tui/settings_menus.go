@@ -20,12 +20,13 @@ func settingsMenu(m *Model) *menuState {
 	reviewer := m.cfg.Roles["reviewer"]
 	maskedKey := clauVisible(m.cfg.Providers[r.Provider])
 	items := []menuItem{
-		{text: fmt.Sprintf(T("set.mode"), m.mode), val: "mode"},
+		{text: fmt.Sprintf(T("set.mode"), modeNom(m.mode)), val: "mode"},
 		{text: fmt.Sprintf(T("set.rol"), m.role, r.Provider, r.Model), val: "role"},
 		{text: fmt.Sprintf(T("set.model"), r.Provider, r.Model), val: "model"},
 		{text: fmt.Sprintf(T("set.clau"), r.Provider, maskedKey), val: "apikey"},
 		{text: fmt.Sprintf(T("set.tema"), m.cfg.Tema()), val: "theme"},
 		{text: revisorText(m.cfg.Verify.Mode, reviewer), val: "reviewer"},
+		{text: fmt.Sprintf(T("set.perm"), accessLabel(m.access())), val: "access"},
 		{text: T("menu.set.perms"), val: "permissions"},
 		{text: providersText(len(m.cfg.Providers)), val: "providers"},
 		{text: T("menu.set.connectors"), val: "connectors"},
@@ -48,6 +49,8 @@ func settingsMenu(m *Model) *menuState {
 			return "", themeMenu(m)
 		case "reviewer":
 			return "", reviewerMenu(m)
+		case "access":
+			return "", accessMenu(m)
 		case "permissions":
 			return "", permissionsMenu(m)
 		case "providers":
@@ -290,12 +293,7 @@ func nativeTools() []string { return tools.Configurables() }
 
 // permissionsMenu permet configurar allow/ask/deny sense YAML.
 func permissionsMenu(m *Model) *menuState {
-	permLabel := T("set.permissiuOff")
-	if m.permissive {
-		permLabel = T("set.permissiuOn")
-	}
-	items := make([]menuItem, 0, len(nativeTools())+1)
-	items = append(items, menuItem{text: permLabel, val: "permissive_toggle"})
+	items := make([]menuItem, 0, len(nativeTools()))
 	for _, name := range nativeTools() {
 		decision, _ := m.policy.For(name, "{}")
 		items = append(items, menuItem{text: fmt.Sprintf("%-5s — %s", name, decision), val: name})

@@ -321,17 +321,16 @@ fun LiveAnswer(text: String, lang: String) {
     }
 }
 
-// --- Composer: Pregunta/Actua, primer el pla, modes especials i permisos ---
+// --- Composer: Pregunta/Planifica/Actua, modes avançats i permisos ---
 
-/** Interruptor Pregunta | Actua amb la píndola que llisca. */
+/** Selector Pregunta | Planifica | Actua amb la píndola que llisca (com la web i el TUI). */
 @Composable
-fun AskActToggle(act: Boolean, enabled: Boolean, lang: String, onChange: (Boolean) -> Unit) {
-    val ask = tr(lang, "app.mode.ask")
-    val actL = tr(lang, "app.mode.act")
+fun ModeToggle(uiMode: String, enabled: Boolean, lang: String, onChange: (String) -> Unit) {
     Surface(shape = RoundedCornerShape(50), color = CodeDark, modifier = Modifier.height(34.dp)) {
         Row(Modifier.padding(3.dp), verticalAlignment = Alignment.CenterVertically) {
-            listOf(false to ask, true to actL).forEach { (v, label) ->
-                val sel = v == act
+            listOf("chat" to "app.mode.ask", "plan" to "app.mode.plan", "act" to "app.mode.act").forEach { (v, key) ->
+                val label = tr(lang, key)
+                val sel = v == uiMode
                 val bg by androidx.compose.animation.animateColorAsState(if (sel) Sea else Color.Transparent, tween(180), label = "bg")
                 val fg by androidx.compose.animation.animateColorAsState(if (sel) OnSea else Muted, tween(180), label = "fg")
                 Box(
@@ -343,25 +342,6 @@ fun AskActToggle(act: Boolean, enabled: Boolean, lang: String, onChange: (Boolea
                     Text(label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
                 }
             }
-        }
-    }
-}
-
-/** Botó «primer el pla»: icona que s'encén (i diu el nom quan és actiu). */
-@Composable
-fun PlanFirstToggle(on: Boolean, lang: String, onChange: (Boolean) -> Unit) {
-    val bg by androidx.compose.animation.animateColorAsState(if (on) LilaFons else Color.Transparent, tween(180), label = "pbg")
-    Row(
-        Modifier.height(34.dp).clip(RoundedCornerShape(50)).background(bg)
-            .clickable(role = Role.Switch) { onChange(!on) }
-            .semantics { contentDescription = tr(lang, "app.mode.planFirst") + if (on) " ✓" else "" }
-            .padding(horizontal = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(Icons.Rounded.Checklist, null, tint = if (on) Lila else Muted, modifier = Modifier.size(19.dp))
-        if (on) {
-            Spacer(Modifier.width(5.dp))
-            Text(tr(lang, "app.mode.planFirst"), color = Lila, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
         }
     }
 }
@@ -429,12 +409,12 @@ fun SendStopButton(busy: Boolean, canSend: Boolean, voice: Boolean, lang: String
     }
 }
 
-/** Menú «+»: adjuntar, un pla sol, comparar models, modes especials i permisos. */
+/** Menú «+»: adjuntar, comparar models, modes avançats i permisos. */
 @Composable
 fun ComposerPlusMenu(
     expanded: Boolean, onClose: () -> Unit, lang: String, st: ServerState,
     canUseInput: Boolean, canAttach: Boolean,
-    onAttach: () -> Unit, onPlanOnce: () -> Unit, onCompare: () -> Unit,
+    onAttach: () -> Unit, onCompare: () -> Unit,
     onMode: (String) -> Unit, onPerm: () -> Unit,
     onAttachDoc: () -> Unit = {},
 ) {
@@ -455,46 +435,44 @@ fun ComposerPlusMenu(
         }
         item(tr(lang, "app.composer.attach"), enabled = canAttach, onClick = onAttach)
         item(tr(lang, "app.composer.attachDoc"), tr(lang, "app.composer.attachDocHelp"), onClick = onAttachDoc)
-        item(tr(lang, "app.composer.planOnce"), enabled = canUseInput, onClick = onPlanOnce)
         item(tr(lang, "app.composer.compare"), enabled = canUseInput, onClick = onCompare)
         androidx.compose.material3.HorizontalDivider(color = Line)
         Text(tr(lang, "app.mode.more"), Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
             color = Muted, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
         item(tr(lang, "app.mode.goal"), tr(lang, "app.mode.goalHelp"), checked = st.mode == "goal") { onMode("goal") }
-        item(tr(lang, "app.mode.autonomous"), tr(lang, "app.mode.autonomousHelp"), checked = st.mode == "autonomous") { onMode("autonomous") }
         item(tr(lang, "app.mode.debug"), tr(lang, "app.mode.debugHelp"), checked = st.mode == "debug") { onMode("debug") }
-        if (st.mode in setOf("goal", "autonomous", "debug", "inspect")) item(tr(lang, "app.mode.exit")) { onMode("code") }
+        if (st.mode in setOf("goal", "debug")) item(tr(lang, "app.mode.exit")) { onMode("act") }
         androidx.compose.material3.HorizontalDivider(color = Line)
-        item(tr(lang, "app.perm.title") + " · " + tr(lang, when {
-            st.autoReview -> "app.perm.review"; st.permissive -> "app.perm.auto"; else -> "app.perm.manual"
-        }), onClick = onPerm)
+        item(tr(lang, "app.perm.title") + " · " + tr(lang, "app.perm." + st.access), onClick = onPerm)
     }
 }
 
-/** Bloqueig de permisos (com la web): demana, sense preguntar, o revisor. */
+/** Permís d'Actua (com la web i el TUI): demana, edicions o autonomia total. */
 @Composable
-fun PermissionDialog(st: ServerState, lang: String, onPick: (Boolean, Boolean) -> Unit, onClose: () -> Unit) {
-    val cur = when { st.autoReview -> "review"; st.permissive -> "auto"; else -> "manual" }
+fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, onClose: () -> Unit) {
+    val cur = st.access
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onClose,
         title = { Text(tr(lang, "app.perm.title")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("manual", "app.perm.manual", "app.perm.manualHelp"),
-                    Triple("review", "app.perm.review", "app.perm.reviewHelp"),
-                    Triple("auto", "app.perm.auto", "app.perm.autoHelp"),
-                ).forEach { (id, l, h) ->
+                // A Pregunta i Planifica no es canvia res: triar-ne un passa a Actua.
+                if (uiModeOf(st.mode) != "act") {
+                    Text(tr(lang, "app.perm.appliesInAct"), color = Muted, fontSize = 12.sp)
+                }
+                ACCESSES.forEach { id ->
+                    val l = "app.perm.$id"
+                    val h = "app.perm.${id}Help"
                     val sel = id == cur
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = if (sel) Sea.copy(alpha = 0.12f) else CodeDark,
                         border = BorderStroke(1.dp, if (sel) Sea.copy(alpha = 0.5f) else Color.Transparent),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                            .clickable(role = Role.RadioButton) { onPick(id == "auto", id == "review") },
+                            .clickable(role = Role.RadioButton) { onPick(id) },
                     ) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            PermIcon(id != "manual", if (id == "auto") Sand else if (sel) Sea else Muted)
+                            PermIcon(id == "full", if (id == "full") Sand else if (sel) Sea else Muted)
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(tr(lang, l), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

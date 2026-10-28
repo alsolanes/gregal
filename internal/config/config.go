@@ -414,6 +414,22 @@ type PermissionsCfg struct {
 	// ReviewTimeoutS és el temps màxim del revisor (per defecte 30 s). En
 	// esgotar-se, la decisió torna a la persona.
 	ReviewTimeoutS int `yaml:"review_timeout_s,omitempty"`
+	// Access és el permís d'Actua (agent/access.go): "ask" (Demana abans
+	// de canviar: també les edicions dins del projecte pregunten) o
+	// "edits"/"" (Aprova les edicions del projecte, per defecte). L'Autonomia
+	// total és el mode autonomous (mode: autonomous).
+	Access string `yaml:"access,omitempty"`
+}
+
+// Permisos d'Actua del config.
+const (
+	AccessAsk   = "ask"
+	AccessEdits = "edits"
+)
+
+// AskEdits diu si el config demana abans de cada canvi.
+func (p PermissionsCfg) AskEdits() bool {
+	return strings.EqualFold(strings.TrimSpace(p.Access), AccessAsk)
 }
 
 // Modes de permís del config.
@@ -1093,9 +1109,9 @@ func (c *Config) Validate() error {
 		c.Mode = "code"
 	}
 	switch c.Mode {
-	case "code", "chat", "inspect", "goal", "autonomous", "debug":
+	case "code", "chat", "inspect", "goal", "autonomous", "debug", "plan":
 	default:
-		return fmt.Errorf("mode %q invàlid (code|inspect|chat|goal|autonomous|debug)", c.Mode)
+		return fmt.Errorf("mode %q invàlid (chat|plan|code|autonomous|inspect|goal|debug)", c.Mode)
 	}
 	switch strings.ToLower(strings.TrimSpace(c.Agent.Bets)) {
 	case "", "on", "off", "side":
@@ -1128,6 +1144,11 @@ func (c *Config) Validate() error {
 	}
 	if a.MaxCostUSD < 0 {
 		return fmt.Errorf("agent.autonomous.max_cost_usd %v invàlid (>=0)", a.MaxCostUSD)
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Permissions.Access)) {
+	case "", AccessAsk, AccessEdits:
+	default:
+		return fmt.Errorf("permissions.access=%q invalid (ask|edits)", c.Permissions.Access)
 	}
 	switch strings.ToLower(strings.TrimSpace(c.Permissions.Mode)) {
 	case "", PermModeManual, PermModeAutoReview:

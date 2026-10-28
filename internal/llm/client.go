@@ -31,6 +31,10 @@ type Message struct {
 	// Speaker metadata belongs to durable companion history, not provider wire.
 	SpeakerID   string `json:"speaker_id,omitempty"`
 	SpeakerName string `json:"speaker_name,omitempty"`
+	// Kind marca missatges especials d'un fil de colla: "debate" (discussió
+	// i progrés, que l'app plega), "question" (la colla espera resposta) i
+	// "result" (el resultat final). No s'envia mai al model.
+	Kind string `json:"kind,omitempty"`
 	// Ts és el moment (segons Unix) en què el missatge ha entrat a la
 	// conversa: l'hora de la bombolla i el rellotge de la safata. Els
 	// missatges antics no el porten (0 = desconegut). Forma part de la
@@ -64,6 +68,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 	if sanitize {
 		w.SpeakerID, w.SpeakerName = "", ""
 		w.Ts = 0
+		w.Kind = ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
 	} else {
 		// El raonament és d'aquesta cadena de crides: no es desa a les

@@ -138,12 +138,12 @@ func TestPromptForModes(t *testing.T) {
 }
 
 func TestModesValids(t *testing.T) {
-	for _, m := range []string{"code", "chat", "inspect", "goal"} {
+	for _, m := range []string{"code", "chat", "inspect", "goal", "plan"} {
 		if !ValidMode(m) {
 			t.Fatalf("%s hauria de ser vàlid", m)
 		}
 	}
-	for _, m := range []string{"", "plan", "CODIGO"} {
+	for _, m := range []string{"", "specs", "CODIGO"} {
 		if ValidMode(m) {
 			t.Fatalf("%q no hauria de ser vàlid", m)
 		}

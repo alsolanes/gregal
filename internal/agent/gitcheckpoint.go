@@ -33,7 +33,7 @@ func checkpointAbansDe(owner, dir, name, argsJSON string) {
 // conversa abans del missatge nou). Els modes de només lectura no en fan.
 // L'error és informatiu (la web el registra al log): el torn continua.
 func CheckpointTorn(owner, dir, mode string, convoLen int) error {
-	if mode == ModeChat || mode == ModeInspect || mode == ModeGoal {
+	if ReadOnlyMode(mode) {
 		return nil
 	}
 	_, err := tools.GitCPs.Snapshot(owner, dir, "turn", "before turn", convoLen)

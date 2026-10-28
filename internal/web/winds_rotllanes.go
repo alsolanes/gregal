@@ -176,6 +176,11 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
+	// La colla d'aquest fil espera resposta: el missatge la reprèn.
+	if !req.Continue && msg != "" && s.crewTakeAnswer(rot, msg) {
+		writeJSON(w, map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
+		return
+	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock() // choose the speaker and commit under the same turn lock
@@ -441,6 +446,9 @@ func (s *Server) rotllanaHistoryJSON(messages []llm.Message) []map[string]any {
 			}
 		}
 		out[i]["speaker_id"], out[i]["speaker_name"] = id, name
+		if m.Kind != "" {
+			out[i]["kind"] = m.Kind
+		}
 	}
 	return out
 }

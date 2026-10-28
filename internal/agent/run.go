@@ -298,7 +298,7 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 		}
 	}
 	res := RunResult{Tools: []string{}}
-	if mode != ModeChat && mode != ModeInspect && mode != ModeGoal && mode != ModeAutonomous && mode != ModeDebug {
+	if !ValidMode(mode) {
 		mode = "code"
 	}
 	if maxSteps < 1 || maxSteps > 200 {

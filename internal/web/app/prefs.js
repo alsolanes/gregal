@@ -154,7 +154,8 @@ export const prefs = {
     const cos = $('prefsBody');
     if (!cos) return;
     const vista = (() => { try { return localStorage.getItem('gregal_view') || 'normal'; } catch (e) { return 'normal'; } })();
-    const perm = (() => { try { return localStorage.getItem('gregal_perm') || 'manual'; } catch (e) { return 'manual'; } })();
+    // El permís d'Actua viu al servidor (/api/access), igual que al composer.
+    const perm = (G().state && G().state.access) || 'edits';
     const fila = (titol, ajuda, dins) => '<div class="pf-row"><div class="pf-lab"><b>' + T(titol) + '</b>' +
       (ajuda ? '<span>' + T(ajuda) + '</span>' : '') + '</div>' + dins + '</div>';
     const seg = (k, ara2, valors) => '<div class="pf-seg" data-k="' + k + '">' +
@@ -170,7 +171,10 @@ export const prefs = {
         [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
       '<h3 class="pf-sec">' + T('prefs.agent') + '</h3>' +
       fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
-        [['manual', 'prefs.perms.manual'], ['accept', 'prefs.perms.accept'], ['auto', 'prefs.perms.auto'], ['review', 'prefs.perms.review']])) +
+        [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']])) +
+      // El revisor de permisos és avançat: fora del composer, aquí.
+      fila('prefs.reviewer', 'prefs.reviewer.help',
+        '<label class="pf-check"><input type="checkbox" id="prefsReviewer"' + (G().state && G().state.auto_review ? ' checked' : '') + '><span></span></label>') +
       // El revisor passava el model per sobre de CADA resposta i no hi
       // havia manera d'apagar-lo des de la finestra: només editant el
       // config a mà o des del TUI. Aquí és on el busques.
@@ -224,6 +228,8 @@ export const prefs = {
     });
     const v = $('prefsVerify');
     if (v) v.onchange = () => this.posaVerify(v.checked);
+    const rv = $('prefsReviewer');
+    if (rv) rv.onchange = () => this.posaRevisor(rv.checked);
     this.carregaSkills();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
@@ -302,6 +308,20 @@ export const prefs = {
   verifyAuto() {
     const m = (G().state && G().state.verify) || 'manual';
     return m === 'auto' || m === 'both' || m === 'strict';
+  },
+  // El revisor de permisos: un model ràpid decideix el que demanaria
+  // permís (agent/autoreview.go). No toca el permís d'Actua; el mode
+  // permissiu antic queda com estava (l'encén l'autonomia total).
+  async posaRevisor(on) {
+    const st = G().state || {};
+    try {
+      const r = await G().api('/api/permissive', { method: 'POST', body: JSON.stringify({ on: !!st.permissive && !on, review: on }) });
+      if (!r.ok) throw new Error((await r.text()).trim());
+      await G().refresh();
+    } catch (e) {
+      alert(T('prefs.reviewer') + ': ' + e.message);
+    }
+    this.pinta();
   },
   async posaVerify(on) {
     const ara = (G().state && G().state.verify) || 'manual';

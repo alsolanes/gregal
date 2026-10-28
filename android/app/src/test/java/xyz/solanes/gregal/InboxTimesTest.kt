@@ -31,4 +31,10 @@ class InboxTimesTest {
         val idle = ventsInbox(listOf(w), emptyList(), emptyMap(), emptyMap()).single()
         assertEquals(false, idle.hasMessages)
     }
+
+    @Test fun `el debat de la colla es plega per tirades`() {
+        fun m(kind: String) = GregalViewModel.PetMsg("pet", "x", kind = kind)
+        val msgs = listOf(m(""), m("debate"), m("debate"), m("question"), m("debate"), m("result"))
+        assertEquals(listOf(-1, 1, 1, -1, 4, -1), msgs.indices.map { debateRunStart(msgs, it) })
+    }
 }

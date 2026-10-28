@@ -47,7 +47,7 @@ func lspRule(mode string) string {
 	switch mode {
 	case ModeCode, ModeAutonomous, ModeDebug:
 		return "\nLSP: for the uses of one specific function, method or type, where it is defined, or the type of an expression, call `lsp` (references, definition, hover) instead of grep: it is exact, across the whole project, and one call. To rename a symbol in several files use `lsp` rename, not edit. After editing, `lsp` diagnostics lists the compiler errors of the file."
-	case ModeInspect, ModeChat:
+	case ModeInspect, ModeChat, ModePlan:
 		return "\nLSP: for the uses of one specific function, method or type, where it is defined, or the type of an expression, call `lsp` (references, definition, hover) instead of grep: it is exact, across the whole project, and one call."
 	}
 	return ""

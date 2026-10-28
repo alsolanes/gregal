@@ -772,11 +772,9 @@ body:not(.working) .spin { animation:none; }
   border:1px solid var(--line-hi); border-radius:9px; background:var(--surface); box-shadow:0 14px 34px var(--ombra); }
 .mode-advanced-menu button { display:flex; flex-direction:column; align-items:flex-start; width:100%; padding:7px 9px; text-align:left; }
 .mode-advanced-menu button span { color:var(--faint); font-size:var(--t1); font-weight:400; }
-.mode-switch button[data-mode="autonomous"] { color:var(--onada); }
-.mode-switch button[data-mode="autonomous"][aria-checked="true"] { color:var(--bg); background:var(--onada); }
 #modeCode[aria-checked="true"] { background:var(--accent); }
 #modeChat[aria-checked="true"] { background:var(--onada); }
-#modeGoal[aria-checked="true"] { background:var(--lila); }
+#modePlan[aria-checked="true"] { background:var(--lila); }
 /* Permisos: icona amb el detall a sobre, no un botó de text a la barra de
    dalt. El cadenat obert avisa tot sol que l'agent tira sense demanar. */
 .perm-btn { position:relative; display:flex; align-items:center; justify-content:center; gap:6px;
@@ -784,6 +782,7 @@ body:not(.working) .spin { animation:none; }
   border-radius:7px; background:transparent; color:var(--muted); cursor:pointer; }
 .perm-btn:hover { color:var(--ink); border-color:var(--line-hi); background:var(--hover); }
 .perm-btn.obert { color:var(--amber); border-color:var(--amber-soft); background:var(--amber-soft); }
+.perm-btn.inactiu { opacity:.6; }
 .perm-menu { position:absolute; bottom:calc(100% + 8px); left:0; z-index:40; min-width:250px;
   padding:5px; border:1px solid var(--line-hi); border-radius:10px; background:var(--surface);
   box-shadow:0 14px 34px var(--ombra); }
@@ -1460,9 +1459,7 @@ body.sense-inspector #inspector { display:none; }
         <button class="icon-btn" id="moreBtn" data-i18n-title="ui.moreActions" title="More actions" data-i18n-aria="ui.moreActions" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <div id="moreMenu" role="menu" hidden>
           <button class="ghost" data-special-mode="goal">◆ <span data-i18n="menu.goalMode">Goal mode</span></button>
-          <button class="ghost" data-special-mode="autonomous">≋ <span data-i18n="menu.autoMode">Autonomous mode</span></button>
           <button class="ghost" data-special-mode="debug">⌕ <span data-i18n="menu.debugMode">Debug mode</span></button>
-          <button class="ghost" id="planBtn" data-i18n-title="menu.planTitle" title="Explore without acting and propose a plan (enter a task in the field first)">◇ <span data-i18n="menu.plan">Plan</span></button>
           <button class="ghost" id="bestofBtn" data-i18n-title="menu.bestofTitle" title="Run the task several ways in separate git worktrees, verify and compare them, then apply the best">⑂ <span data-i18n="menu.bestof">Try N ways</span></button>
           <button class="ghost" id="parallelBtn" data-i18n-title="menu.compareTitle" title="Ask several models in parallel (enter a question first)">⇄ <span data-i18n="menu.compare">Compare</span></button>
           <button class="ghost" id="rewindBtn" data-i18n-title="menu.rewindTitle" title="Undo file changes made by the agent in this session">↩ <span data-i18n="menu.rewind">Undo</span></button>
@@ -1480,6 +1477,13 @@ body.sense-inspector #inspector { display:none; }
           <div id="heroFolder" class="hero-folder" hidden></div>
           <h1 id="heroTitle" data-i18n="hero.title">What do you want to do?</h1>
           <p data-i18n="hero.lead">Ask for a change or choose a starting point. Gregal will inspect the project and verify the result.</p>
+        </div>
+      </section>
+      <!-- Sota el compositor: el que hi ha per continuar i, en un projecte
+           nou, uns quants punts de partida. A la pàgina d'inici el compositor
+           va just després del títol (ordre CSS), no al fons de la pantalla. -->
+      <section id="heroMore" class="hero-more">
+        <div class="hero-more-inner">
           <div id="homeContext" class="home-context" hidden></div>
           <div id="chips"></div>
         </div>
@@ -1851,20 +1855,20 @@ body.sense-inspector #inspector { display:none; }
           <div class="composer-row">
             <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox"><b id="model">…</b> <span class="mp-caret">▾</span></button>
             <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
-            <details class="composer-options"><summary data-i18n-title="shell.advanced" data-i18n-aria="shell.advanced" aria-label="Advanced options">···</summary><div class="composer-options-menu">            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
+            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
               <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
-                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and investigates without changing files"><b data-i18n="mode.ask">Ask</b></button>
-                <button id="modeCode" data-mode="code" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
-                <button id="modeAuto" data-mode="autonomous" role="radio" aria-checked="false" data-i18n-title="mode.autoHelp" title="Works on its own until done: decides for itself and never asks for permission"><b data-i18n="mode.autonom">Autonomous</b></button>
+                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and reads the project; changes nothing"><b data-i18n="mode.ask">Ask</b></button>
+                <button id="modePlan" data-mode="plan" role="radio" aria-checked="false" data-i18n-title="mode.planHelp" title="Investigates and proposes a plan; changes nothing until you approve it"><b data-i18n="mode.plan">Plan</b></button>
+                <button id="modeCode" data-mode="act" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
               </div>
             </div>
-            <!-- Autònom té botó al commutador (es buscava i no es trobava
-                 dins del menú ⋯). Objectiu i Debug no ocupen el composer:
-                 s'hi entra amb /goal, /debug o el menú ⋯, i aquí només en
-                 queda una etiqueta per saber-ho i sortir-ne. -->
-
-            <button type="button" id="planFirst" class="plan-toggle" role="switch" aria-checked="false" data-i18n-title="mode.planFirstHelp" title="Propose a plan and wait for your approval before acting"><span class="plan-toggle-dot" aria-hidden="true"></span><span data-i18n="mode.planFirst">Plan first</span></button>
-</div></details>
+            <!-- Tres modes, com ChatGPT i Claude: Pregunta, Planifica i
+                 Actua. L'autonomia total és un permís d'Actua (botó del
+                 cadenat). Objectiu i Depuració són avançats: s'hi entra amb
+                 /goal, /debug o el menú ⋯, i aquí només en queda una
+                 etiqueta per saber-ho i sortir-ne. El commutador és sempre
+                 a la vista: amagat dins del ··· no se sabia en quin mode
+                 treballaves. -->
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
             <span class="composer-meta" data-i18n="composer.hint">@file adds context · Shift+Enter for a new line</span>
             <span class="spacer"></span>
@@ -1970,19 +1974,23 @@ let currentView = 'agent';
 // s'afegeix al cicle de la UI sense trencar els integradors que llegeixen la
 // declaració inicial.
 const MODES = ['code', 'chat', 'goal'];
-MODES.push('autonomous');
+MODES.push('autonomous', 'plan');
+// uiMode és el botó que es veu (agent/access.go): Pregunta (chat), Planifica
+// (plan) o Actua (act). inspect es mostra com a Pregunta; goal com a
+// Planifica; autonomous i debug com a Actua.
+const uiMode = m => (m === 'chat' || m === 'inspect') ? 'chat' : (m === 'plan' || m === 'goal') ? 'plan' : 'act';
 // Funció, no taula: una taula es congela en carregar el mòdul, quan
 // gregalT encara no existeix, i tampoc seguiria un canvi d'idioma. És
 // exactament el que ja va passar amb la paleta d'ordres del TUI.
-const modeBadge = m => ({code:'◆ ' + gregalT('mode.codi'), chat:'◇ ' + gregalT('mode.xat'), goal:'◆ ' + gregalT('mode.objectiu'), autonomous:'≋ ' + gregalT('mode.autonom'), debug:'⌕ ' + gregalT('mode.debug')})[m];
+const modeBadge = m => ({code:'◆ ' + gregalT('mode.codi'), chat:'◇ ' + gregalT('mode.xat'), goal:'◆ ' + gregalT('mode.objectiu'), autonomous:'≋ ' + gregalT('mode.autonom'), debug:'⌕ ' + gregalT('mode.debug'), plan:'◇ ' + gregalT('mode.plan')})[m];
 // El text del camp depèn del mode; les claus es tradueixen a i18n.js.
-const MODE_PLACE = { code:'composer.ph', chat:'composer.ph.chat', goal:'composer.ph.goal', autonomous:'composer.ph', debug:'composer.ph.debug' };
+const MODE_PLACE = { code:'composer.ph', chat:'composer.ph.chat', goal:'composer.ph.goal', autonomous:'composer.ph', debug:'composer.ph.debug', plan:'composer.ph.plan' };
 // gregalT és el pont cap a i18n.js per al codi d'aquesta pàgina, que no és
 // un mòdul i per tant no pot importar. panels.js el posa en arrencar; fins
 // llavors, la clau tal qual (dura mil·lisegons i no es veu).
 const gregalT = k => (window.gregalT ? window.gregalT(k) : '');
-const SIMPLE_MODES = ['code', 'chat'];
-const nextMode = () => window.gregalModeCycle.next(state.mode || 'code', SIMPLE_MODES);
+const SIMPLE_MODES = ['chat', 'plan', 'act'];
+const nextMode = () => window.gregalModeCycle.next(uiMode(state.mode || 'code'), SIMPLE_MODES);
 // Icones del botó d'enviar: fletxa amunt per enviar, quadrat per aturar.
 // Amb textContent el botó perdia l'SVG i tornava a un caràcter solt.
 const ICONA_ENVIA = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
@@ -2801,9 +2809,8 @@ async function refresh(options = {}) {
   input.placeholder = gregalT(MODE_PLACE[r.mode] || MODE_PLACE.chat);
   // Qui respon viu a la píndola del model (app/panels.js): és la mateixa
   // pregunta i ara té un sol lloc.
-  // El mode auto-review viu al servidor (pot venir de permissions.mode).
-  if (r.auto_review === true && permMode !== 'review') permMode = 'review';
-  else if (r.auto_review === false && permMode === 'review') permMode = 'manual';
+  // El permís d'Actua viu al servidor (/api/access, permissions.access).
+  if (r.access) permMode = r.access;
   paintPerm();
   updateInspector(state); if (!options.conversation) loadGoals();
   // La llista de converses viu a app/convs.js; es refresca sola en acabar
@@ -2813,19 +2820,20 @@ async function refresh(options = {}) {
   // ha de tornar a demanar /api/state.
   return r;
 }
-// Modes de permís: Manual (demana) · Accepta edicions (tira sol amb fitxers)
-// · Auto (aprova «ask» si el mode de treball ho permet).
-// Manual/Accepta viuen al servidor (permissive); Auto hi afegeix auto-aprova
-// al client. Es recorda per sessió del navegador.
-let permMode = 'manual';
-try { permMode = localStorage.getItem('gregal_perm') || 'manual'; } catch (e) {}
-// Els tres modes de permís, amb el que expliquen. El menú i el title en
-// surten tots dos: si el text viu en dos llocs, un dels dos queda vell.
+// El permís d'Actua (agent/access.go), el mateix a totes les interfícies:
+// Demana abans de canviar · Aprova les edicions del projecte (per defecte)
+// · Autonomia total (mode autònom). Viu al servidor (/api/access): el
+// config el recorda. El revisor automàtic és a Preferències.
+let permMode = 'edits';
+// Els menús antics (manual, accept, auto, review) es guardaven aquí; ara
+// mana el servidor.
+try { localStorage.removeItem('gregal_perm'); } catch (e) {}
+// Els tres permisos, amb el que expliquen. El menú i el title en surten
+// tots dos: si el text viu en dos llocs, un dels dos queda vell.
 const PERMS = [
-  ['manual', 'prefs.perms.manual', 'ui.permManualHelp'],
-  ['accept', 'prefs.perms.accept', 'ui.permAcceptHelp'],
-  ['auto', 'prefs.perms.auto', 'ui.permAutoHelp'],
-  ['review', 'prefs.perms.review', 'ui.permReviewHelp'],
+  ['ask', 'perm.ask', 'perm.askHelp'],
+  ['edits', 'perm.edits', 'perm.editsHelp'],
+  ['full', 'perm.full', 'perm.fullHelp'],
 ];
 // sandboxText resumeix /api/state.sandbox per al menú de permisos.
 function sandboxText(sb) {
@@ -2842,19 +2850,24 @@ const ICONA_PANY = {
 function paintPerm() {
   const pb = $('permBtn');
   if (!pb) return;
-  const p = PERMS.find(x => x[0] === permMode) || PERMS[0];
-  // En autònom no es pregunta res, sigui quin sigui el mode de permís: el
-  // candau ho diu en lloc de mostrar una opció que allà no compta.
-  const autonom = state && state.mode === 'autonomous';
-  const obert = autonom || permMode !== 'manual';
+  const p = PERMS.find(x => x[0] === permMode) || PERMS[1];
+  // Cadenat obert = no pregunta res (autonomia total).
+  const obert = permMode === 'full';
   const icon = pb.querySelector('.perm-icon');
   if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
-  const nom = gregalT(autonom ? 'ui.permAutonomousLabel' : p[1]);
+  const nom = gregalT(p[1]);
   const label = $('permLabel');
-  if (label) label.textContent = nom;
+  if (label) label.textContent = gregalT(p[1] + 'Short');
   pb.classList.toggle('obert', obert);
+  // A Pregunta i Planifica no es canvia res: el permís és per a Actua.
+  const actua = !state || uiMode(state.mode) === 'act';
+  pb.classList.toggle('inactiu', !actua);
+  // Sense preguntes i a Actua, tot el compositor ho diu: la vora canvia de
+  // color i no cal mirar la icona per saber que l'agent no demanarà res.
+  const box = $('box');
+  if (box) box.classList.toggle('perm-risc', obert && actua);
   // El detall al hover, que és on el vas a buscar quan dubtes.
-  pb.title = autonom ? gregalT('ui.permAutonomous') : gregalT(p[1]) + ' - ' + gregalT(p[2]);
+  pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]);
   pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + nom);
 }
 document.addEventListener('gregal:idioma', () => {
@@ -2878,22 +2891,19 @@ document.addEventListener('gregal:idioma', () => {
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el
 // pintaven tres.
 function paintMode(mode) {
-  // Ask, Act i Autònom tenen botó i queden marcats en el seu mode; Objectiu
-  // i Debug es mostren amb l'etiqueta i cap botó marcat.
+  // Pregunta, Planifica i Actua tenen botó; Objectiu (dins de Planifica) i
+  // Depuració (dins d'Actua) hi afegeixen una etiqueta per sortir-ne.
   document.querySelectorAll('.mode-switch button').forEach(b => {
-    b.setAttribute('aria-checked', String(b.dataset.mode === mode));
+    b.setAttribute('aria-checked', String(b.dataset.mode === uiMode(mode)));
   });
   const chip = $('modeChip');
   if (chip) {
-    // Autònom té botó propi al commutador: el xip només per a Objectiu i Debug.
     const special = mode === 'goal' || mode === 'debug';
     chip.hidden = !special;
     chip.dataset.mode = special ? mode : '';
     const label = $('modeChipLabel');
     if (label && special) label.textContent = gregalT(mode === 'goal' ? 'mode.objectiu' : mode === 'debug' ? 'mode.debug' : 'mode.autonom');
   }
-  const plan = $('planFirst');
-  if (plan) plan.hidden = mode === 'chat' || mode === 'goal';
   if (typeof paintPerm === 'function') paintPerm();
 }
 // El menú de permisos: tot visible i amb l'explicació al costat, en comptes
@@ -2916,10 +2926,10 @@ function togglePermMenu(obre) {
     $('permBtn').setAttribute('aria-expanded', 'false');
     return;
   }
-  // En autònom no es pregunta res: el menú ho diu primer i les opcions
-  // queden per a quan tornis a Pregunta o Actua.
-  const autonom = state.mode === 'autonomous';
-  menu.innerHTML = (autonom ? '<div class="perm-autonomous"><b>' + escapeHTML(gregalT('ui.permAutonomous')) + '</b><span>' + escapeHTML(gregalT('ui.permAutonomousLater')) + '</span></div>' : '') +
+  // A Pregunta i Planifica el menú ho diu primer: triar un permís passa a
+  // Actua, que és on compta.
+  const fora = uiMode(state.mode) !== 'act';
+  menu.innerHTML = (fora ? '<div class="perm-autonomous"><span>' + escapeHTML(gregalT('perm.appliesInAct')) + '</span></div>' : '') +
     PERMS.map(([v, nom, ajuda]) =>
     '<button role="menuitemradio" aria-checked="' + (v === permMode) + '" class="' + (v === permMode ? 'on' : '') +
     '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('') +
@@ -2937,33 +2947,28 @@ document.addEventListener('click', e => {
   if (m && !m.hidden && !e.target.closest('#permMenu') && !e.target.closest('#permBtn')) togglePermMenu(false);
 });
 async function setPermMode(next, confirmed = false) {
-  const on = next !== 'manual';
-  const autonomyNote = state.mode === 'autonomous' ? gregalT('perm.autonomyNote') : '';
-  const permName = mode => gregalT((PERMS.find(x => x[0] === mode) || PERMS[0])[1]);
-  const review = next === 'review';
-  if (review && !state.auto_review && !confirmed && !confirm(gregalT('perm.confirmReview'))) return false;
-  if (on && !review && !state.permissive && !confirmed && !confirm(gregalT('perm.confirm').replace('{mode}', permName(next)).replace('{note}', autonomyNote))) return false;
+  // Els noms dels menús antics (preferències desades, integradors).
+  next = ({manual:'edits', accept:'edits', review:'edits', auto:'full'})[next] || next;
+  const permName = mode => gregalT((PERMS.find(x => x[0] === mode) || PERMS[1])[1]);
+  if (next === 'full' && state.mode !== 'autonomous' && !confirmed && !confirm(gregalT('perm.confirmFull'))) return false;
   try {
-    const r = await api('/api/permissive', {method:'POST', body:JSON.stringify({on: on && !review, review})});
+    const r = await api('/api/access', {method:'POST', body:JSON.stringify({access: next})});
     if (!r.ok) throw new Error(await r.text());
     permMode = next;
-    try { localStorage.setItem('gregal_perm', permMode); } catch (e) {}
-    const detail = gregalT(permMode === 'manual' ? 'perm.detail.manual' : state.mode === 'autonomous' ? 'perm.detail.autonomous' : permMode === 'review' ? 'perm.detail.review' : 'perm.detail.auto');
-    activityItem('permissiu', permName(permMode), detail, permMode === 'manual' ? 'warn' : 'ok');
+    activityItem('permís', permName(permMode), gregalT('perm.detail.' + permMode), permMode === 'full' ? 'warn' : 'ok');
   } catch (e) {
     activityItem('permissiu', 'Error', String(e.message || e), 'err');
     return false;
   }
   paintPerm(); await refresh(); return true;
 }
-// «Plan first»: en Act, el missatge primer proposa un pla (doPlan) i no
-// s'executa res fins que l'aproves des de la targeta del pla.
-let planFirst = false;
-try { planFirst = localStorage.getItem('gregal_plan_first') === '1'; } catch (e) {}
-function paintPlanFirst() { const b = $('planFirst'); if (b) b.setAttribute('aria-checked', String(planFirst)); }
+// Planifica: el missatge proposa un pla (doPlan) i no s'executa res fins
+// que l'aproves des de la targeta del pla, que passa a Actua.
+// («Primer el pla» era un interruptor a part; ara és el mode.)
+try { localStorage.removeItem('gregal_plan_first'); } catch (e) {}
 function sendByMode() {
+  if (state.mode === 'plan') return doPlan();
   if (!(agentMode || goalMode)) return doChat();
-  if (planFirst && state.mode === 'code') return doPlan();
   return doAgent();
 }
 async function setMode(next) {
@@ -2974,22 +2979,16 @@ async function setMode(next) {
     activityItem('mode', 'Error', String(e.message || e), 'err');
     return false;
   }
-  const detall = ['code', 'chat', 'goal', 'autonomous', 'debug'].includes(next) ? gregalT('mode.detail.' + next) : '';
-  activityItem('mode', modeBadge(next) || next, detall, 'ok');
   await refresh();
+  const ara = state.mode || next;
+  const detall = ['code', 'chat', 'goal', 'autonomous', 'debug', 'plan'].includes(ara) ? gregalT('mode.detail.' + ara) : '';
+  activityItem('mode', modeBadge(ara) || ara, detall, 'ok');
 }
 document.querySelectorAll('.mode-switch button').forEach(b => {
   b.onclick = () => { if (b.getAttribute('aria-checked') !== 'true') setMode(b.dataset.mode); };
 });
-$('planFirst').onclick = () => {
-  planFirst = !planFirst;
-  try { localStorage.setItem('gregal_plan_first', planFirst ? '1' : '0'); } catch (e) {}
-  paintPlanFirst();
-};
-$('modeChipExit').onclick = () => setMode('code');
+$('modeChipExit').onclick = () => setMode('act');
 document.querySelectorAll('[data-special-mode]').forEach(b => { b.onclick = () => setMode(b.dataset.specialMode); });
-paintPlanFirst();
-$('planBtn').onclick = () => doPlan();
 $('parallelBtn').onclick = () => doParallel();
 $('rewindBtn').onclick = async () => {
   if (!confirm(gregalT('rewind.confirm'))) return;
@@ -3546,7 +3545,7 @@ async function doAgent(task, resumed) {
         notify(gregalT('notify.confirmTool'), d.name);
         approvals++;
         const autoAllowed = d.auto_approve_allowed === true;
-        const offerAuto = autoAllowed && !offeredAuto && permMode === 'manual' && (text.length >= 300 || approvals >= 3);
+        const offerAuto = autoAllowed && !offeredAuto && permMode !== 'full' && (text.length >= 300 || approvals >= 3);
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
         api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
@@ -3722,9 +3721,10 @@ function planCard(plan, critic, partial) {
   if (cont) cont.onclick = () => { box.querySelector('.goal-row').textContent = gregalT('ui.planContinuing'); doPlan(true); };
   box.querySelector('[data-run]').onclick = async () => {
     box.querySelector('.goal-row').textContent = gregalT('ui.planRunning');
+    // Executar el pla és cosa d'Actua: hi torna amb el permís que tenia.
     // En autònom el pla es revisa una vegada amb la crítica abans d'executar.
+    if (uiMode(state.mode) !== 'act') await setMode('act');
     const auto = state.mode === 'autonomous';
-    if (!auto) await setMode('code');
     const concerns = window.gregalCaps ? window.gregalCaps.criticPrompt(critic, auto) : '';
     await doAgent(gregalT('ui.runPlanPrompt') + '\n' + plan + concerns);
   };
@@ -3782,7 +3782,7 @@ async function runGoal(id) {
   if (!r.ok) { sys(gregalT('ui.objectiu.ko')); return; }
   const d = await r.json();
   setView('agent');
-  await setMode('code');
+  await setMode('act');
   activityItem('objectiu',gregalT('goal.running'), d.title || d.id, 'warn');
   await doAgent(d.task);
 }
@@ -3908,11 +3908,6 @@ function reviewRowHTML(d) {
   return '<div class="review-row review-ask"><b>' + escapeHTML(gregalT('review.asked')) + ':</b> ' + escapeHTML(rv.reason || '') + '</div>';
 }
 function askApprove(d, offerAuto = false) {
-  // Mode Auto: aprova sol (deny del servidor continua bloquejant).
-  if (d.auto_approve_allowed === true && typeof permMode !== 'undefined' && permMode === 'auto') {
-    activityItem('permís', d.name, gregalT('approve.auto'), 'ok');
-    return Promise.resolve(true);
-  }
   return new Promise(res=>{
     const L = k => escapeHTML(gregalT(k));
     const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">'+L('approve.allow')+'</button>'+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger">'+L('approve.deny')+'</button></div></div>');
@@ -3922,7 +3917,7 @@ function askApprove(d, offerAuto = false) {
     const finish=ok=>{if(settled)return;settled=true;clearInterval(tick);const verdict=gregalT(ok?'approve.allowed':'approve.denied');box.querySelector('.row').textContent=verdict;box.querySelector('.count')?.remove();box.querySelector('.approve')?.classList.add('resolved',ok?'is-allowed':'is-denied');activityItem('permís',d.name,verdict,ok?'ok':'bad');res(ok);};
     yes.onclick=()=>finish(true); no.onclick=()=>finish(false);
     const auto=box.querySelector('.auto-approve');
-    if(auto) auto.onclick=async()=>{ auto.disabled=true; const changed=await setPermMode('auto', true); if(changed) finish(true); else auto.disabled=false; };
+    if(auto) auto.onclick=async()=>{ auto.disabled=true; const changed=await setPermMode('full', true); if(changed) finish(true); else auto.disabled=false; };
     box.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finish(false);}if(e.key==='Enter'&&document.activeElement===yes){e.preventDefault();finish(true);}};
     requestAnimationFrame(()=>yes.focus());
   });

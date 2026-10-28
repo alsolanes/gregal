@@ -38,7 +38,7 @@ func TestIndexHasUsableVisualShell(t *testing.T) {
 		`max-height:min(72vh,640px)`,
 		`id="goals"`,
 		`id="heroTitle"`,
-		`id="planBtn"`,
+		`id="modePlan"`,
 		`function doPlan`,
 		`function planCard`,
 		`◇ ' + escapeHTML(gregalT('ui.planLabel'))`,
@@ -101,6 +101,42 @@ func TestIndexAvoidsFlashyMarketingEffects(t *testing.T) {
 	for _, bad := range []string{"radial-gradient", "backdrop-filter", "hero-mark"} {
 		if strings.Contains(html, bad) {
 			t.Errorf("la web d'agent encara conté efecte decoratiu %q", bad)
+		}
+	}
+}
+
+// El mode de treball i el permís s'han de veure sense obrir cap menú: amagats
+// dins del ··· no se sabia en quin mode treballaves ni si l'agent demanaria
+// permís.
+func TestComposerModeAndPermissionVisible(t *testing.T) {
+	html := string(indexHTML)
+	if strings.Contains(html, `class="composer-options"`) {
+		t.Fatal("the work mode is hidden again inside the composer options menu")
+	}
+	row := html[strings.Index(html, `<div class="composer-row">`):]
+	row = row[:strings.Index(row, `id="attach"`)]
+	for _, want := range []string{`class="mode-switch"`, `id="modeCode"`, `id="permLabel"`} {
+		if !strings.Contains(row, want) {
+			t.Errorf("composer row lacks %s", want)
+		}
+	}
+	if !strings.Contains(html, `label.textContent = gregalT(p[1] + 'Short')`) || !strings.Contains(html, `classList.toggle('perm-risc'`) {
+		t.Error("paintPerm no longer shows the short permission label or marks the risky composer")
+	}
+	css, err := os.ReadFile("app/shell-layout.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(css), "#permLabel { display:none; }\n.composer") {
+		t.Error("shell-layout.css hides the permission label on desktop")
+	}
+	i18n, err := os.ReadFile("app/i18n.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"perm.askShort", "perm.editsShort", "perm.fullShort"} {
+		if strings.Count(string(i18n), "'"+k+"'") != 2 {
+			t.Errorf("%s must exist in Catalan and English", k)
 		}
 	}
 }

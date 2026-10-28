@@ -54,7 +54,7 @@ func OfficeAlHist(hist []llm.Message) bool {
 // afegeix les eines d'Office al conjunt compacte.
 func FilterSpecs(specs []llm.ToolSpec, mode string, compact bool, office ...bool) []llm.ToolSpec {
 	ambOffice := len(office) > 0 && office[0]
-	readOnly := mode == ModeChat || mode == ModeInspect
+	readOnly := mode == ModeChat || mode == ModeInspect || mode == ModePlan
 	out := make([]llm.ToolSpec, 0, len(specs))
 	for _, s := range specs {
 		if readOnly && einesEscriptura[s.Name] {

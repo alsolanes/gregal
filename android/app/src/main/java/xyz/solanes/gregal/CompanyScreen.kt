@@ -994,6 +994,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
 
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
+    // El debat de la colla (discussió i progrés) es plega: cada tirada és una
+    // línia que s'obre amb un toc. Clau: l'índex del primer missatge de la tirada.
+    val openDebates = remember(rot.id) { mutableStateListOf<Int>() }
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
@@ -1045,6 +1048,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 )
             }
             items(msgs.size, key = { idx -> idx }) { idx ->
+                val run = debateRunStart(msgs, idx)
+                if (run >= 0 && run != idx && run !in openDebates) return@items
+                if (run == idx) {
+                    DebateHeader(lang, msgs, idx, faces, run in openDebates) {
+                        if (run in openDebates) openDebates.remove(run) else openDebates.add(run)
+                    }
+                    if (run !in openDebates) return@items
+                }
                 val resolved = resolveWindMessage(msgs[idx], faces)
                 // La cara i el nom només al primer missatge de cada ratxa
                 // del mateix parlant: si no, cada bombolla repetia cara +
@@ -1055,6 +1066,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
                 val gap = if (firstOfRun && idx > 0) 16.dp else 4.dp
                 Column(Modifier.padding(top = gap)) {
+                if (msgs[idx].kind == "result") Text("✅ " + tr(lang, "app.crew.result"), color = Muted, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
                 BubbleIn("rot#$idx", animate = idx >= liveFrom) {
                 WindBubble(resolved.message, if (resolved.message.from == "user") rotAccent else resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,
@@ -1067,6 +1080,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     },
                     onContinue = if (!busy.contains(rot.id)) ({ vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null)
                 }
+                if (msgs[idx].kind == "question" && idx == msgs.lastIndex) CrewQuestionCard(lang, rotAccent)
                 }
             }
             // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
@@ -1096,10 +1110,13 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 )
             }
         }
-        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.rotllanaHint"), canSend) {
+        val waitingAnswer = msgs.lastOrNull()?.kind == "question"
+        VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend) {
             val body = field.text
             val target = resolveMention(body, faces)
             vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
+            // La resposta reprèn la colla que esperava: se'n torna a seguir el progrés.
+            if (waitingAnswer) vm.followCrew(rot.id)
         }
         }
     }
@@ -1670,5 +1687,45 @@ private fun CrewError(lang: String, detail: String) {
         if (detail.isNotBlank()) androidx.compose.foundation.text.selection.SelectionContainer {
             Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 14.sp, modifier = Modifier.testTag("crew-error-detail"))
         }
+    }
+}
+
+/** On comença la tirada de debat on és idx (-1 si no és debat). */
+internal fun debateRunStart(msgs: List<GregalViewModel.PetMsg>, idx: Int): Int {
+    if (msgs.getOrNull(idx)?.kind != "debate") return -1
+    var i = idx
+    while (i > 0 && msgs[i - 1].kind == "debate") i--
+    return i
+}
+
+/** La línia d'un debat plegat: qui hi ha parlat, quantes intervencions i l'última. */
+@Composable
+private fun DebateHeader(lang: String, msgs: List<GregalViewModel.PetMsg>, start: Int, faces: List<Wind>, open: Boolean, onToggle: () -> Unit) {
+    var end = start
+    while (end + 1 < msgs.size && msgs[end + 1].kind == "debate") end++
+    val run = msgs.subList(start, end + 1)
+    val who = run.mapNotNull { m -> faces.firstOrNull { it.id == m.speakerId } }.distinctBy { it.id }
+    val last = stripMdInline(run.last().text.substringAfter(": ")).replace(Regex("\\s+"), " ").trim()
+    Surface(onClick = onToggle, shape = RoundedCornerShape(14.dp), color = SuperficieAlta.copy(alpha = .45f),
+        modifier = Modifier.fillMaxWidth().padding(top = 10.dp).testTag("crew-debate")) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            who.take(4).forEach { WindFace(size = 22, accent = Color(it.argb), style = it.faceStyle) }
+            Column(Modifier.weight(1f)) {
+                Text(tr(lang, "app.crew.debate", run.size), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                if (!open) Text(last, color = Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Text(if (open) "▴" else "▾", color = Muted, fontSize = 16.sp)
+        }
+    }
+}
+
+/** La colla ha preguntat i espera: la resposta del camp de sota la reprèn. */
+@Composable
+private fun CrewQuestionCard(lang: String, accent: Color) {
+    Surface(shape = RoundedCornerShape(14.dp), color = accent.copy(alpha = .14f),
+        modifier = Modifier.fillMaxWidth().padding(top = 6.dp).testTag("crew-question")) {
+        Text("❓ " + tr(lang, "app.crew.waitingAnswer"), color = Ink, fontSize = 13.sp, lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
     }
 }

@@ -145,10 +145,13 @@ El servidor escriu al terminal l'inici i el final de cada torn i equip
 una execució s'atura, el terminal o el fitxer diuen si ha acabat, ha
 fallat o s'ha aturat, i quant ha durat.
 
-Al compositor, tria **Fer una tasca** per treballar amb eines o **Conversar**
-per parlar sense modificar fitxers. Els modes d'objectiu i autònom són dins
-del desplegable de modes avançats. Els permisos es mostren al costat: canviar
-de mode no els amplia. La selecció manual del rol és una opció avançada del
+Al compositor, tria **Pregunta** (respon i llegeix, no canvia res),
+**Planifica** (investiga i proposa un pla que aproves) o **Actua** (fa canvis).
+El botó del cadenat diu què pot fer Actua sense preguntar: **Demana abans de
+canviar**, **Aprova les edicions** (per defecte) o **Autonomia total**. El
+terminal i l'Android mostren els mateixos tres modes i permisos; vegeu
+[Modes i permisos](modes.ca.md). Objectiu i depuració són modes avançats
+(`/goal`, `/debug`). La selecció manual del rol és una opció avançada del
 selector de models; Gregal pot triar-lo automàticament segons la feina.
 
 ## Taller 2D
@@ -553,7 +556,8 @@ barrera de seguretat. Combina'l amb el sandbox per a la feina desatesa.
 
 Activa'l amb `permissions.mode: auto-review` al config (web, terminal,
 execucions no interactives i Telegram), des del menú de permisos de la web
-(**Revisor automàtic**, només aquesta sessió) o amb `/autoreview` a la
+(**Revisor de permisos** a les Preferències de la web o l'Android, només
+aquesta sessió) o amb `/autoreview` a la
 interfície de terminal.
 
 El mode autònom no demana permís mai: decideix ell i ho fa tot sol. El que
@@ -674,7 +678,7 @@ vegeu [github-action.md](github-action.md).
 
 ## Mode depuració, Prova N maneres, crític del pla i apostes
 
-**Mode depuració.** Tria **Depuració** als modes avançats del compositor,
+**Mode depuració.** Tria **Depuració** al menú ⋯, `/debug`,
 `/mode debug` al terminal o `--mode debug` amb `-p`. L'agent treballa com en
 mode code (mateixa política d'escriptura) amb un contracte de depuració: escriu
 2-4 hipòtesis ordenades, afegeix instrumentació temporal mínima on cada línia

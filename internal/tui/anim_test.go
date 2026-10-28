@@ -321,7 +321,7 @@ func TestBenvingudaCurtaISenseCaixa(t *testing.T) {
 		modes = append(modes, it.text)
 	}
 	tot := strings.Join(modes, "\n")
-	for _, want := range []string{"ACTUA", "PREGUNTA", "PREGUNTA · eines", "OBJECTIU", "fa canvis", "investiga"} {
+	for _, want := range []string{"ACTUA", "PREGUNTA", "PLANIFICA", "fa canvis", "proposa un pla"} {
 		if !strings.Contains(tot, want) {
 			t.Fatalf("el selector de mode ha d'explicar %q:\n%s", want, tot)
 		}

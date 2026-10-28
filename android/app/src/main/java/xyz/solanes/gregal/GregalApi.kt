@@ -141,6 +141,7 @@ class GregalApi(val base: String, val token: String) {
             contextWindow = o.optInt("context_window"),
             permissive = o.optBoolean("permissive"),
             autoReview = o.optBoolean("auto_review"),
+            access = o.optString("access", "edits").ifBlank { "edits" },
             transcript = o.optJSONArray("transcript")?.let { a ->
                 (0 until a.length()).mapNotNull { i ->
                     val m = a.optJSONObject(i) ?: return@mapNotNull null
@@ -507,7 +508,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
         }
     }
 
@@ -669,7 +670,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         val hist = (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
         }
         return Triple(reply.optString("wind"), reply.optString("text"),
             if (o.optBoolean("parcial", false)) markParcial(hist) else hist)
@@ -680,7 +681,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
         }
     }
 
@@ -840,7 +841,7 @@ class GregalApi(val base: String, val token: String) {
                 val a = o.optJSONArray("history") ?: JSONArray()
                 val hist = (0 until a.length()).mapNotNull { i ->
                     val item = a.optJSONObject(i) ?: return@mapNotNull null
-                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
+                    GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
                 }
                 val parcial = o.optBoolean("parcial", false)
                 WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
@@ -895,7 +896,7 @@ class GregalApi(val base: String, val token: String) {
         val a = o.optJSONArray("history") ?: JSONArray()
         return (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
-            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)))
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
         }
     }
 

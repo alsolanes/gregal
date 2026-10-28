@@ -194,6 +194,11 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
+	// La colla d'aquest fil espera resposta: el missatge la reprèn.
+	if !req.Continue && msg != "" && s.crewTakeAnswer(rot, msg) {
+		sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
+		return
+	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock()

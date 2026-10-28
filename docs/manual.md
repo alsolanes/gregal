@@ -139,11 +139,14 @@ The server logs each turn and team run to the terminal (outcome, elapsed
 time, never credentials). With `--log-file path` (or `GREGAL_LOG_FILE`) it
 also appends to a file, so a stopped run leaves a trace of what happened.
 
-In the composer, choose **Do a task** to work with tools or **Chat** to talk
-without modifying files. Goal and autonomous modes are available through
-the advanced modes disclosure. Permissions remain visible beside the mode
-selector; changing modes does not expand them. Manual role selection is an
-advanced model picker option; Gregal can select the role for the task.
+In the composer, pick **Ask** (answers and reads, changes nothing), **Plan**
+(investigates and proposes a plan you approve) or **Act** (makes changes). The
+lock button beside it sets what Act may do without asking: **Ask before
+changes**, **Auto-approve edits** (the default) or **Full autonomy**. The
+terminal and Android apps show the same three modes and permissions; see
+[Modes and permissions](modes.md). Goal and debug are advanced modes (`/goal`,
+`/debug`). Manual role selection is an advanced model picker option; Gregal
+can select the role for the task.
 
 ## 2D Workshop
 
@@ -550,11 +553,11 @@ prompts, it is not a security boundary. Combine it with the sandbox for
 unattended work.
 
 Enable it with `permissions.mode: auto-review` in the config (web, terminal,
-non-interactive runs and Telegram), from the web permission menu
-(**Auto-review**, this session only) or with `/autoreview` in the terminal
+non-interactive runs and Telegram), with **Permission reviewer** in the web or
+Android Preferences (this session only) or with `/autoreview` in the terminal
 interface.
 
-Autonomous mode never asks for permission: it decides and does everything on
+Autonomous mode (the **Full autonomy** permission of Act) never asks for permission: it decides and does everything on
 its own. Whatever other modes would ask about runs without waiting for
 anyone. Only what is forbidden stays blocked: commands the classifier denies
 (`sudo`, piping downloads into a shell, formatting disks, deleting the root…)
@@ -684,7 +687,7 @@ A reusable GitHub Action for PR reviews is described in
 
 ## Debug Mode, Try N Ways, Plan Critic and Confidence Bets
 
-**Debug mode.** Choose **Debug** in the composer's advanced modes, `/mode debug`
+**Debug mode.** Choose **Debug** in the ⋯ menu, `/debug`, `/mode debug`
 in the terminal or `--mode debug` with `-p`. The agent works like code mode
 (same write policy) with a debugging contract: it writes 2-4 ranked
 hypotheses, adds minimal temporary instrumentation where every line carries

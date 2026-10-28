@@ -785,11 +785,11 @@ const COMMANDS = [
   { cmd: '/atura', en: '/stop', desc: 'cmd.stop', run: () => j('/api/agent/cancel', { method: 'POST', body: '{}' }) },
   { cmd: '/desfes', en: '/undo', desc: 'cmd.undo', run: () => $('rewindBtn').click() },
   { cmd: '/compara', en: '/compare', desc: 'cmd.compare', run: () => $('parallelBtn').click() },
-  { cmd: '/pla', en: '/plan', desc: 'cmd.plan', run: () => $('planBtn').click() },
+  { cmd: '/pla', en: '/plan', desc: 'cmd.plan', run: () => G().setMode('plan') },
   // /debug <tasca>: mode depuració per a aquest torn (app/caps.js l'intercepta en enviar).
   { cmd: '/debug', en: '/debug', desc: 'cmd.debug', run: () => { const i = $('in'); i.value = '/debug ' + i.value.trimStart(); } },
   { cmd: '/objectiu', en: '/goal', desc: 'cmd.goalMode', run: () => G().setMode('goal') },
-  { cmd: '/autonom', en: '/auto', desc: 'cmd.autoMode', run: () => G().setMode('autonomous') },
+  { cmd: '/autonom', en: '/auto', desc: 'cmd.autoMode', run: () => window.gregalSetPerm && window.gregalSetPerm('full') },
   { cmd: '/objectius', en: '/goals', desc: 'cmd.goals', run: () => G().setView('objectius') },
   { cmd: '/activitat', en: '/activity', desc: 'cmd.activity', run: () => G().setView('activitat') },
   { cmd: '/permissiu', en: '/permissive', desc: 'cmd.permissive', run: () => $('permBtn').click() },

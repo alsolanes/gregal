@@ -29,6 +29,7 @@ import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Verified
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -118,6 +119,22 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(10.dp))
                     ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
+                }
+
+                PrefsSection(t("prefs.reviewer"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(st.autoReview, role = Role.Switch) { vm.setReviewer(it) }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Box(Modifier.size(36.dp).background(Sand.copy(alpha = 0.14f), RoundedCornerShape(11.dp)), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.Lock, null, tint = Sand, modifier = Modifier.size(20.dp))
+                        }
+                        Text(t("prefs.reviewer.help"), color = Tinta, fontSize = 14.sp, lineHeight = 19.sp, modifier = Modifier.weight(1f))
+                        Switch(checked = st.autoReview, onCheckedChange = null,
+                            colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+                    }
                 }
 
                 PrefsSection(t("prefs.verify"))

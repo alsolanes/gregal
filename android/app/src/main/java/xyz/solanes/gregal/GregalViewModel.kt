@@ -1898,29 +1898,44 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     // --- controls: rol, mode, model ---
 
     fun setRole(role: String) = simplePost("/api/role", JSONObject().put("role", role))
+    /**
+     * Canvia el mode. «act» torna a l'últim mode d'Actua amb el seu permís
+     * (el servidor el recorda); la resta són ids interns (chat, plan, goal…).
+     */
     fun setMode(mode: String) {
         // Optimista: el composer canvia a l'instant; refresh() ho confirma.
-        _state.value = _state.value.copy(mode = mode)
+        val cur = _state.value
+        val optimistic = when {
+            mode != "act" -> mode
+            uiModeOf(cur.mode) == "act" -> cur.mode
+            cur.access == "full" -> "autonomous"
+            else -> "code"
+        }
+        _state.value = cur.copy(mode = optimistic)
         simplePost("/api/mode", JSONObject().put("mode", mode))
     }
 
-    /** «Primer el pla» (com la web): a Actua, l'enviament demana un pla abans. */
-    private val _planFirst = MutableStateFlow(false)
-    val planFirst: StateFlow<Boolean> = _planFirst
-    fun setPlanFirst(on: Boolean) { _planFirst.value = on }
-
-    /** Bloqueig de permisos: manual, sense preguntar o revisor automàtic. */
-    fun setPermissive(on: Boolean, review: Boolean) {
-        _state.value = _state.value.copy(permissive = on && !review, autoReview = review)
-        simplePost("/api/permissive", JSONObject().put("on", on).put("review", review))
+    /** Permís d'Actua (com la web i el TUI): ask, edits o full. Hi passa. */
+    fun setAccess(access: String) {
+        val cur = _state.value
+        val mode = if (access == "full") "autonomous" else if (cur.mode == "debug") "debug" else "code"
+        _state.value = cur.copy(access = access, mode = mode, permissive = access == "full")
+        simplePost("/api/access", JSONObject().put("access", access))
     }
 
-    /** Envia segons el composer: amb «primer el pla» a Actua, primer el pla.
+    /** Revisor de permisos (Preferències): no toca el permís d'Actua. */
+    fun setReviewer(on: Boolean) {
+        val cur = _state.value
+        _state.value = cur.copy(autoReview = on)
+        simplePost("/api/permissive", JSONObject().put("on", cur.permissive && !on).put("review", on))
+    }
+
+    /** Envia segons el composer: a Planifica, primer el pla.
      *  Si l'agent ja treballa, el missatge li arriba ara (steer). */
     fun submit(text: String, interrupt: Boolean = false) {
         when {
             _sending.value && workId != 0L -> steer(text, interrupt)
-            _planFirst.value && _state.value.mode == "code" -> requestPlan(text)
+            _state.value.mode == "plan" -> requestPlan(text)
             else -> send(text)
         }
     }
@@ -2156,11 +2171,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissPlan() { _plan.value = null }
 
-    /** Executa el pla: mode codi + la tasca com a torn d'agent. */
+    /** Executa el pla: passa a Actua (amb el seu permís) i fa el torn d'agent. */
     fun runPlan() {
         val p = _plan.value ?: return
         _plan.value = null
-        setMode("code")
+        setMode("act")
         send(p, forceAgent = true)
     }
 
@@ -3628,7 +3643,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     // Xat amb mascota: missatges en memòria + enviament
-    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false, val parcial: Boolean = false, val ts: Long = 0L)
+    data class PetMsg(val from: String, val text: String, val speakerId: String = "", val speakerName: String = "", val streaming: Boolean = false, val parcial: Boolean = false, val ts: Long = 0L,
+                      /** Fil d'una colla: "debate" (es plega), "question" (espera resposta), "result". */
+                      val kind: String = "")
 
     private val _petChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val petChat: StateFlow<Map<String, List<PetMsg>>> = _petChat

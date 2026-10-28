@@ -255,6 +255,10 @@ func modeBadge(mode string) string {
 	if mode == "goal" {
 		return modeGoalStyle.Render(T("mode.goal.badge"))
 	}
+	if mode == "plan" {
+		// Mateix to que Objectiu: tots dos proposen abans d'actuar.
+		return modeGoalStyle.Render(T("mode.plan.badge"))
+	}
 	if mode == "autonomous" {
 		return modeAutoStyle.Render(T("mode.autonomous.badge"))
 	}

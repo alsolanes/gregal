@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"gregal/internal/agent"
 	"gregal/internal/session"
 )
 
@@ -105,24 +106,46 @@ func roleMenu(m *Model) *menuState {
 	}}
 }
 
-// modeMenu tria el mode amb fletxes (i desa): els mateixos que la web, amb
-// els especials al final. Triar-lo només canvia el mode; l'autònom no
-// arrenca res fins al següent missatge.
+// modeMenu tria el mode amb fletxes (i desa): els tres de totes les
+// interfícies (agent/access.go). Objectiu i Depuració són avançats: /goal i
+// /mode debug. Triar-lo només canvia el mode.
 func modeMenu() *menuState {
 	// Cada fila diu què fa el mode: és aquí on s'expliquen, no a la
 	// benvinguda.
 	return &menuState{title: "mode", items: []menuItem{
-		// Pregunta i la seva variant amb eines van juntes; els ids interns
-		// (chat/inspect/code) no canvien.
-		{text: T("mode.code.badge") + "  " + T("mode.code.desc"), val: "code"},
-		{text: T("mode.chat.badge") + "  " + T("mode.chat.desc"), val: "chat"},
-		{text: T("mode.inspect.badge") + "  " + T("mode.inspect.desc"), val: "inspect"},
-		{text: T("mode.goal.badge") + "  " + T("mode.goal.desc"), val: "goal"},
-		{text: T("mode.debug.badge") + "  " + T("mode.debug.desc"), val: "debug"},
-		{text: T("mode.autonomous.badge") + "  " + T("mode.autonomous.desc"), val: "autonomous"},
+		{text: T("mode.chat.badge") + "  " + T("mode.chat.desc"), val: agent.UIModeAsk},
+		{text: T("mode.plan.badge") + "  " + T("mode.plan.desc"), val: agent.UIModePlan},
+		{text: T("mode.code.badge") + "  " + T("mode.code.desc"), val: agent.UIModeAct},
 	}, run: func(m *Model, val string) (string, *menuState) {
-		m.setMode(val)
+		if val == agent.UIModeAct {
+			m.setMode(m.currentActMode())
+		} else {
+			m.setMode(agent.ModeFor(val, ""))
+		}
 		return "", nil
+	}}
+}
+
+// accessMenu tria el permís d'Actua: els tres de totes les interfícies.
+// Els permisos per eina (allow/ask/deny) són avançats: /permissions tools
+// o el fitxer de config.
+func accessMenu(m *Model) *menuState {
+	ara := m.access()
+	items := make([]menuItem, 0, len(agent.Accesses)+1)
+	for _, a := range agent.Accesses {
+		marca := "  "
+		if a == ara {
+			marca = "● "
+		}
+		items = append(items, menuItem{text: marca + accessLabel(a) + "  " + accessHelp(a), val: a})
+	}
+	items = append(items, menuItem{text: "  " + T("perm.tools"), val: "tools"})
+	return &menuState{title: T("perm.titol"), items: items, run: func(m *Model, val string) (string, *menuState) {
+		if val == "tools" {
+			return "", permissionsMenu(m)
+		}
+		m.setAccess(val)
+		return okStyle.Render("◆ " + accessLabel(val)), nil
 	}}
 }
 

@@ -59,8 +59,16 @@
     return !!hero && !hero.hidden && hero.style.display !== 'none';
   }
 
+  // Les converses i els suggeriments viuen sota el compositor, fora del
+  // #hero: es mostren i s'amaguen amb ell.
+  function syncMore() {
+    const more = $('heroMore');
+    if (more) more.hidden = !heroVisible();
+  }
+
   function render() {
     paintBadges();
+    syncMore();
     const box = $('homeContext');
     if (!box || !heroVisible()) return;
     const st = (G() && G().state) || {};
@@ -117,7 +125,7 @@
       if (conv && P() && P().convs) P().convs.obre(conv.dataset.conv);
     });
     const hero = $('hero');
-    if (hero) new MutationObserver(() => { if (heroVisible()) refresh(true); }).observe(hero, { attributes: true, attributeFilter: ['style', 'hidden'] });
+    if (hero) new MutationObserver(() => { syncMore(); if (heroVisible()) refresh(true); }).observe(hero, { attributes: true, attributeFilter: ['style', 'hidden'] });
     document.addEventListener('gregal:idioma', render);
     setInterval(() => refresh(false), 5000);
     refresh(true);

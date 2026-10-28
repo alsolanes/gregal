@@ -127,6 +127,10 @@ type Server struct {
 	// crides que demanen permís; agent/autoreview.go). Exclusiu amb
 	// permissive. Arrenca amb permissions.mode del config. Amb s.mu.
 	autoReview bool
+	// actMode és l'últim mode d'Actua (code, autonomous o debug): tornar a
+	// Actua des de Pregunta o Planifica recupera el permís triat. Buit =
+	// el del config, o code. Amb s.mu.
+	actMode string
 	// jobs programa butlletins i recerques desateses (nil = desactivats).
 	jobs *jobs.Store
 	mcp  *mcp.Manager
@@ -497,6 +501,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/approve", h.route((*Server).handleApprove))
 	handle("/api/question", h.route((*Server).handleQuestion))
 	handle("/api/permissive", h.route((*Server).handlePermissive))
+	handle("/api/access", h.route((*Server).handleAccess))
 	handle("/api/mode", h.route((*Server).handleMode))
 	handle("/api/goal", h.route((*Server).handleGoal))
 	handle("/api/verify", h.route((*Server).handleVerify))
@@ -916,7 +921,11 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"agent_busy": queued || s.agentBusy || s.planRunning, "cwd": cwd, "project": filepath.Base(cwd),
 		"permissive":  s.permissive, // handleState ja té s.mu; no usar permissiveNow() aquí (deadlock)
 		"auto_review": s.autoReview,
-		"sandbox":     sandbox.Current(),
+		// El que mostren els selectors (agent/access.go): ask|plan|act i,
+		// per a Actua, ask|edits|full.
+		"ui_mode": agent.UIMode(s.mode),
+		"access":  agent.AccessOf(s.currentActMode(), s.cfg.Permissions.AskEdits()),
+		"sandbox": sandbox.Current(),
 		// Estimació del context ocupat, per al mesurador de la UI (J4). El TUI
 		// ho compta al client; la web no tenia res i pintava un percentatge
 		// que no existia. context_window 0 = el rol no el declara.
@@ -2725,10 +2734,13 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 	if s.policy != nil {
 		cp := *s.policy
 		cp.ProjectDir = ws
+		// El permís d'Actua és del config (/api/access): una altra pestanya
+		// el pot haver canviat.
+		cp.AskEdits = s.cfg.Permissions.AskEdits()
 		pol = &cp
 	}
 	s.mu.Unlock()
-	if reqMode == agent.ModeChat || reqMode == agent.ModeInspect || reqMode == agent.ModeAutonomous || reqMode == agent.ModeDebug {
+	if reqMode == agent.ModeChat || reqMode == agent.ModeInspect || reqMode == agent.ModeAutonomous || reqMode == agent.ModeDebug || reqMode == agent.ModePlan {
 		mode = reqMode
 	}
 	roleWhy := ""
@@ -3239,6 +3251,86 @@ func (s *Server) handlePermissive(w http.ResponseWriter, r *http.Request) {
 
 // --- controls ---
 
+// currentActMode és el mode al qual torna Actua. Amb s.mu.
+func (s *Server) currentActMode() string {
+	if agent.UIMode(s.mode) == agent.UIModeAct {
+		return s.mode
+	}
+	if s.actMode != "" {
+		return s.actMode
+	}
+	if agent.UIMode(s.cfg.Mode) == agent.UIModeAct && s.cfg.Mode != "" {
+		return s.cfg.Mode
+	}
+	return agent.ModeCode
+}
+
+// setModeLocked canvia el mode i el desa al config (sense escriure'l). El
+// mode permissiu antic (aprova-ho tot) ara és part de l'Autonomia total:
+// s'encén amb autonomous, perquè un torn en curs també deixi de preguntar,
+// i s'apaga amb qualsevol altre mode. Amb s.mu.
+func (s *Server) setModeLocked(mode string) {
+	if agent.UIMode(s.mode) == agent.UIModeAct {
+		s.actMode = s.mode
+	}
+	if agent.UIMode(mode) == agent.UIModeAct {
+		s.actMode = mode
+	}
+	s.mode = mode
+	s.cfg.Mode = mode
+	s.permissive = mode == agent.ModeAutonomous
+}
+
+// handleAccess: GET → {access, mode}; POST {access: ask|edits|full} → el
+// permís d'Actua (agent/access.go). ask i edits queden al config
+// (permissions.access); full és el mode autònom. Triar-lo des de Pregunta
+// o Planifica passa a Actua, que és on compta. Els noms antics del menú
+// (manual, accept, auto, review) també valen.
+func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		s.mu.Lock()
+		out := map[string]string{"access": agent.AccessOf(s.currentActMode(), s.cfg.Permissions.AskEdits()), "mode": s.mode}
+		s.mu.Unlock()
+		writeJSON(w, out)
+		return
+	}
+	var req struct {
+		Access string `json:"access"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "petició il·legible", 400)
+		return
+	}
+	access := agent.AccessFromWord(req.Access)
+	if access == "" || strings.TrimSpace(req.Access) == "" {
+		http.Error(w, "access invàlid (ask|edits|full)", 400)
+		return
+	}
+	s.mu.Lock()
+	if access == agent.AccessAsk {
+		s.cfg.Permissions.Access = config.AccessAsk
+	} else if access == agent.AccessEdits {
+		s.cfg.Permissions.Access = ""
+	}
+	mode := agent.ModeFor(agent.UIModeAct, access)
+	if access != agent.AccessFull && s.currentActMode() == agent.ModeDebug {
+		mode = agent.ModeDebug // la depuració és Actua: s'hi queda
+	}
+	s.setModeLocked(mode)
+	if s.policy != nil {
+		cp := *s.policy
+		cp.AskEdits = s.cfg.Permissions.AskEdits()
+		s.policy = &cp
+	}
+	err := s.cfg.Save(s.cfgPath)
+	s.mu.Unlock()
+	if err != nil {
+		http.Error(w, "permís aplicat però no desat: "+err.Error(), 500)
+		return
+	}
+	writeJSON(w, map[string]string{"access": access, "mode": mode})
+}
+
 func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Mode string `json:"mode"`
@@ -3247,13 +3339,21 @@ func (s *Server) handleMode(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "petició il·legible", 400)
 		return
 	}
+	// També accepta els noms que veu la persona (ask, plan, act…). «act»
+	// torna a l'últim mode d'Actua, amb el seu permís.
+	act := agent.IsActWord(req.Mode)
+	if m := agent.ModeFromWord(req.Mode); m != "" {
+		req.Mode = m
+	}
 	if !agent.ValidMode(req.Mode) {
-		http.Error(w, "mode invàlid (code|inspect|chat|goal|autonomous|debug)", 400)
+		http.Error(w, "mode invàlid (chat|plan|code|autonomous|inspect|goal|debug)", 400)
 		return
 	}
 	s.mu.Lock()
-	s.mode = req.Mode
-	s.cfg.Mode = req.Mode
+	if act {
+		req.Mode = s.currentActMode()
+	}
+	s.setModeLocked(req.Mode)
 	err := s.cfg.Save(s.cfgPath)
 	s.mu.Unlock()
 	if err != nil {

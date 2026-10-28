@@ -236,6 +236,11 @@ func (m *Model) answerPlan(k string) (tea.Model, tea.Cmd) {
 		// començar: el cockpit els mostra des del primer segon i el model
 		// només els ha d'anar marcant.
 		m.seedTodos = agent.TodosDelPla(pla)
+		// Executar és cosa d'Actua: des de Planifica hi passa, amb el
+		// permís que hi havia.
+		if agent.UIMode(m.mode) != agent.UIModeAct {
+			m.setMode(m.currentActMode())
+		}
 		consigna := "Executa aquest pla pas a pas. Si un pas falla, adapta'l i continua"
 		if len(m.seedTodos) > 0 {
 			consigna += ". El checklist (todowrite) ja conté els passos numerats: quan n'acabis un, crida todowrite marcant-lo done i el següent working"

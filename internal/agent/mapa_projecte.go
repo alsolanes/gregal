@@ -164,7 +164,7 @@ func seccioSimbols(dir, tasca string, fitxers []string, estat string) repomap.Ra
 // només als modes que treballen amb el projecte (el xat conversa).
 func TascaAmbMapa(mode, dir, tasca string, hist []llm.Message) string {
 	switch mode {
-	case ModeCode, ModeAutonomous, ModeDebug, ModeInspect, ModeGoal, "":
+	case ModeCode, ModeAutonomous, ModeDebug, ModeInspect, ModeGoal, ModePlan, "":
 		return AmbMapaProjecte(dir, tasca, hist)
 	}
 	return tasca

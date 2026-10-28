@@ -36,6 +36,7 @@ func PolicyFromConfig(cfg *config.Config, projectDir string) *Policy {
 	p.BashAllow = cfg.Permissions.BashAllow
 	p.BashDeny = cfg.Permissions.BashDeny
 	p.Rules = cfg.Permissions.Rules
+	p.AskEdits = cfg.Permissions.AskEdits()
 	return p
 }
 
@@ -44,7 +45,7 @@ func PolicyFromConfig(cfg *config.Config, projectDir string) *Policy {
 // subagent substitueix també les regles generals d'aquella eina; les regles
 // del subagent van després de les generals (i per tant manen).
 func subagentPolicy(permissions config.PermissionsCfg, name string) *Policy {
-	p := &Policy{Tools: permissions.Tools, BashAllow: permissions.BashAllow, BashDeny: permissions.BashDeny, Rules: permissions.Rules}
+	p := &Policy{Tools: permissions.Tools, BashAllow: permissions.BashAllow, BashDeny: permissions.BashDeny, Rules: permissions.Rules, AskEdits: permissions.AskEdits()}
 	o, ok := permissions.Subagents[name]
 	if !ok || name == "" {
 		return p

@@ -57,8 +57,8 @@ func TestCrewProposalFallsBackWithoutModel(t *testing.T) {
 func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	s, _ := companionTestServer(t)
 	keeper, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització", Color: "#C1B4DE"})
-	savedDiscuss, savedWork := crewDiscussLoop, crewWork
-	t.Cleanup(func() { crewDiscussLoop, crewWork = savedDiscuss, savedWork })
+	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
+	t.Cleanup(func() { crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord })
 	crewDiscussLoop = func(_ *Server, _ context.Context, brief string) (string, error) {
 		if !strings.Contains(brief, "Discussió de disseny") {
 			t.Errorf("brief misses the discussion prompt")
@@ -69,7 +69,37 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	var workTask string
 	crewWork = func(_ *Server, _ context.Context, _ Rotllana, task string, f team.FlowSpec, _ bool) (string, error) {
 		flow, workTask = f, task
-		return "Web feta: index.html", nil
+		return "Web feta: index.html i style.css", nil
+	}
+	// El coordinador: primer una volta amb tots dos en paral·lel, després acaba.
+	calls := 0
+	var ratxaID string
+	crewCoordinator = func(_ *Server, _ context.Context, _, prompt string) (string, error) {
+		calls++
+		if calls == 1 {
+			if !strings.Contains(prompt, "Fes una web del sopar") || !strings.Contains(prompt, "Jo m'encarrego") {
+				t.Errorf("the coordinator must see the task and the discussion: %s", prompt)
+			}
+			return `{"action":"work","say":"Som-hi en paral·lel","assignments":[{"wind":"` + keeper.ID + `","part":"l'estructura","files":["index.html"]},{"wind":"` + ratxaID + `","part":"els estils","files":["style.css","index.html"]}]}`, nil
+		}
+		if !strings.Contains(prompt, "Round 1") {
+			t.Errorf("the second decision must see the round: %s", prompt)
+		}
+		return `{"action":"finish","conclusion":"Web feta amb el menú del sopar.","checked":["index.html obre bé"],"unchecked":["mòbil"]}`, nil
+	}
+	// L'id del vent nou encara no existeix: el coordinador el llegeix de la colla.
+	origCoord := crewCoordinator
+	crewCoordinator = func(s2 *Server, ctx context.Context, sys, prompt string) (string, error) {
+		if ratxaID == "" {
+			if list, _ := s2.winds.List(); len(list) > 0 {
+				for _, w := range list {
+					if w.Name == "Ratxa" {
+						ratxaID = w.ID
+					}
+				}
+			}
+		}
+		return origCoord(s2, ctx, sys, prompt)
 	}
 	rec := postJSON(t, s.handleCrewStart, `{"task":"Fes una web del sopar","lang":"ca","reuse":["`+keeper.ID+`"],"create":[{"name":"Ratxa","role":"Disseny web","kit":"frontend","persona":"Draws pretty pages."}]}`)
 	if rec.Code != 200 {
@@ -89,33 +119,153 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	if len(out.Rotllana.Members) != 2 || out.Rotllana.Members[0] != keeper.ID {
 		t.Fatalf("members = %v", out.Rotllana.Members)
 	}
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		v, _ := crewJobs.Load(out.Rotllana.ID)
-		if v != nil && v.(*crewJob).get() == "done" {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("crew job did not finish")
-		}
-		time.Sleep(20 * time.Millisecond)
-	}
-	if flow.Output != "reviewer" || flow.Nodes[0].Wind != keeper.ID || flow.Nodes[1].Wind != out.Created[0].ID {
+	waitCrew(t, out.Rotllana.ID, "done")
+	// Dos constructors alhora (cada un amb els seus fitxers; index.html no es
+	// repeteix) i un revisor que ho mira tot.
+	if len(flow.Nodes) != 3 || flow.Output != "review" || flow.Nodes[0].Wind != keeper.ID || flow.Nodes[1].Wind != out.Created[0].ID {
 		t.Fatalf("flow = %+v", flow)
+	}
+	if !strings.Contains(flow.Nodes[1].Instruction, "style.css") || strings.Contains(flow.Nodes[1].Instruction, "style.css, index.html") {
+		t.Fatalf("each file belongs to one member: %s", flow.Nodes[1].Instruction)
+	}
+	if len(flow.Edges) != 2 || flow.Edges[0].To != "review" {
+		t.Fatalf("edges = %+v", flow.Edges)
 	}
 	if !strings.Contains(workTask, "Jo m'encarrego de l'estructura") {
 		t.Fatal("the work must carry the agreed design")
 	}
-	hist := s.crewHistory(out.Rotllana)
+	kinds := map[string]int{}
 	var said []string
-	for _, m := range hist {
+	for _, m := range s.crewHistory(out.Rotllana) {
 		said = append(said, m.Content)
+		kinds[m.Kind]++
 	}
 	joined := strings.Join(said, "\n")
-	for _, want := range []string{"Fes una web del sopar", "Gregal: Jo m'encarrego", "Ratxa: Jo m'encarrego", "Som-hi", "Fet. Web feta"} {
+	for _, want := range []string{"Fes una web del sopar", "Gregal: Jo m'encarrego", "Ratxa: Jo m'encarrego", "Som-hi en paral·lel", "**Conclusió**", "Web feta amb el menú", "**Comprovat**", "index.html obre bé", "**Sense comprovar**"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("history misses %q:\n%s", want, joined)
 		}
+	}
+	if kinds["debate"] < 3 || kinds["result"] != 1 {
+		t.Fatalf("kinds = %v", kinds)
+	}
+}
+
+func waitCrew(t *testing.T, rotID, step string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		v, _ := crewJobs.Load(rotID)
+		if v != nil && v.(*crewJob).get() == step {
+			return
+		}
+		if time.Now().After(deadline) {
+			got := ""
+			if v != nil {
+				got = v.(*crewJob).get()
+			}
+			t.Fatalf("crew job did not reach %q (now %q)", step, got)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// TestCrewAsksAndResumes: la colla fa una pregunta, s'atura, i la resposta de
+// l'usuari al fil la reprèn (sense passar pel xat de sempre).
+func TestCrewAsksAndResumes(t *testing.T) {
+	s, _ := companionTestServer(t)
+	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització"})
+	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Disseny"})
+	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
+	t.Cleanup(func() { crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord })
+	crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "D'acord.", nil }
+	worked := 0
+	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+		worked++
+		return "Fet", nil
+	}
+	calls := 0
+	crewCoordinator = func(_ *Server, _ context.Context, _, prompt string) (string, error) {
+		calls++
+		switch calls {
+		case 1:
+			return `{"action":"ask","question":"Per a quantes persones és el sopar?"}`, nil
+		case 2:
+			if !strings.Contains(prompt, "The user answered the crew's question: Sis") {
+				t.Errorf("the answer must reach the coordinator: %s", prompt)
+			}
+			return `{"action":"work","assignments":[{"wind":"` + b.ID + `","part":"menú per a sis"}]}`, nil
+		default:
+			return `{"action":"finish","conclusion":"Menú per a sis."}`, nil
+		}
+	}
+	rec := postJSON(t, s.handleCrewStart, `{"task":"Prepara el sopar","lang":"ca","reuse":["`+a.ID+`","`+b.ID+`"]}`)
+	var out struct {
+		Rotllana Rotllana `json:"rotllana"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	waitCrew(t, out.Rotllana.ID, "waiting")
+	if worked != 0 {
+		t.Fatal("asking must stop the crew before any work")
+	}
+	if st, ok := loadCrewState(s, out.Rotllana.ID); !ok || !st.Waiting || st.Questions != 1 {
+		t.Fatalf("the question must be saved: %+v", st)
+	}
+	if got := crewStepDesat(s, out.Rotllana.ID); got != "waiting" {
+		t.Fatalf("after a restart it still waits, got %q", got)
+	}
+	hist := s.crewHistory(out.Rotllana)
+	if last := hist[len(hist)-1]; last.Kind != "question" || !strings.Contains(last.Content, "quantes persones") {
+		t.Fatalf("question: %+v", last)
+	}
+	// La resposta al fil reprèn la colla.
+	rot, _ := s.rotllanaByID(out.Rotllana.ID)
+	if !s.crewTakeAnswer(rot, "Sis") {
+		t.Fatal("the answer must be taken by the waiting crew")
+	}
+	waitCrew(t, out.Rotllana.ID, "done")
+	if worked != 1 {
+		t.Fatalf("work rounds = %d", worked)
+	}
+	if s.crewTakeAnswer(rot, "una altra cosa") {
+		t.Fatal("a finished crew does not take messages")
+	}
+	if _, ok := loadCrewState(s, out.Rotllana.ID); ok {
+		t.Fatal("the state is removed when the crew finishes")
+	}
+}
+
+func TestCrewSanitiseDecision(t *testing.T) {
+	members := []companion.Wind{{ID: "a", Name: "A"}, {ID: "b", Name: "B"}}
+	st := &crewState{Task: "x"}
+	// Res de vàlid a la primera: construeix el primer membre.
+	if d := crewSanitiseDecision(crewDecision{Action: "dance"}, st, members); d.Action != "work" || d.Assignments[0].Wind != "a" {
+		t.Fatalf("fallback: %+v", d)
+	}
+	// Membres inventats fora; fitxers repetits o que surten del projecte, fora.
+	d := crewSanitiseDecision(crewDecision{Action: "work", Assignments: []crewAssignment{
+		{Wind: "zz", Part: "p"}, {Wind: "a", Files: []string{"x.go", "../fora.go"}}, {Wind: "b", Files: []string{"x.go", "y.go"}},
+	}}, st, members)
+	if len(d.Assignments) != 2 || len(d.Assignments[0].Files) != 1 || d.Assignments[1].Files[0] != "y.go" {
+		t.Fatalf("assignments: %+v", d.Assignments)
+	}
+	// Dades inventades abans de la primera volta: es pregunta, encara que el model digui «work».
+	fresh := &crewState{Task: "x", Ca: true}
+	if d := crewSanitiseDecision(crewDecision{Action: "work", Assumed: []string{"8 convidats", "100 €"}, Assignments: []crewAssignment{{Wind: "a"}}}, fresh, members); d.Action != "ask" || !strings.Contains(d.Question, "8 convidats; 100 €") {
+		t.Fatalf("assumed: %+v", d)
+	}
+	// Després d'una resposta (o d'una volta), ja no.
+	fresh.Questions = 1
+	if d := crewSanitiseDecision(crewDecision{Action: "work", Assumed: []string{"x"}, Assignments: []crewAssignment{{Wind: "a"}}}, fresh, members); d.Action != "work" {
+		t.Fatalf("after an answer: %+v", d)
+	}
+	// Sense voltes, acaba; sense preguntes, no pregunta.
+	st.Round, st.Questions = crewMaxRounds, crewMaxQuestions
+	if d := crewSanitiseDecision(crewDecision{Action: "work", Assignments: []crewAssignment{{Wind: "a"}}}, st, members); d.Action != "finish" {
+		t.Fatalf("rounds: %+v", d)
+	}
+	if d := crewSanitiseDecision(crewDecision{Action: "ask", Question: "?"}, st, members); d.Action != "finish" {
+		t.Fatalf("questions: %+v", d)
 	}
 }
 

@@ -63,7 +63,6 @@ body.has-tool-dock #inspector { display:none; }
   #composer .mode-primary { width:100%; }
   #composer .mode-primary button { flex:1; }
   #composer .composer-row > .spacer, #composer .composer-meta { display:none; }
-  #composer #planFirst { grid-column:1; justify-self:start; }
   #composer #permBtn { grid-column:2; }
   #composer #attach { grid-column:3; }
   #composer #send { grid-column:4; justify-self:end; }
@@ -113,23 +112,31 @@ body.has-tool-dock #inspector { display:none; }
 #modelPill b { overflow:hidden; text-overflow:ellipsis; font-weight:500; }
 #composer .composer-meta { display:none; }
 #composer .composer-row > .spacer { display:block; flex:1; }
-#composer #permBtn { width:29px; height:29px; padding:6px; justify-content:center; flex:none; }
-#permLabel { display:none; }
-.composer-options { position:relative; flex:none; }
-.composer-options > summary { display:grid; place-items:center; cursor:pointer; width:29px; height:29px; border-radius:7px; list-style:none; color:var(--muted); font-size:20px; }
-.composer-options > summary::-webkit-details-marker { display:none; }
-.composer-options > summary:hover { background:var(--hover); }
-.composer-options-menu { position:absolute; bottom:calc(100% + 12px); left:0; padding:12px; width:280px; max-width:calc(100vw - 90px); border:1px solid var(--line); border-radius:12px; background:var(--surface); box-shadow:0 12px 36px var(--ombra); z-index:40; display:flex; flex-direction:column; align-items:stretch; gap:12px; }
-#composer .composer-options .mode-switch { display:flex; }
-#composer .composer-options .mode-primary { display:flex; width:100%; }
-#composer .composer-options .mode-primary button { flex:1; padding:5px 7px; }
-#composer .composer-options #planFirst { align-self:flex-start; }
+/* Mode i permisos sempre a la vista: el commutador compacte al costat del
+   model i el permís amb el seu nom, no una icona que calia endevinar. */
+#composer .mode-switch { display:flex; flex:none; padding:2px; gap:1px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+#composer .mode-primary { display:flex; gap:1px; }
+#composer .mode-primary button { flex:none; min-width:0; height:25px; padding:0 9px; border-radius:6px; font-size:12px; }
+#composer .mode-primary button b { font-weight:500; }
+#composer .mode-primary button { transition:none; }
+#composer .mode-primary button[aria-checked="false"] { background:transparent; color:var(--muted); }
+#composer .mode-primary button[aria-checked="false"]:hover { color:var(--ink); background:var(--hover); }
+#composer #permBtn { width:auto; height:29px; min-height:29px; padding:0 9px; gap:5px; justify-content:center; flex:none; border-radius:7px; font-size:12px; white-space:nowrap; }
+#permLabel { position:static; width:auto; height:auto; margin:0; overflow:visible; clip-path:none; }
+#composer #permBtn.obert { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
+#composer #permBtn.inactiu { opacity:.55; }
+#box.perm-risc, #box.perm-risc:focus-within { border-color:var(--amber); box-shadow:0 6px 24px var(--ombra),0 0 0 2px var(--amber-soft); }
 #composer .mode-chip { flex:none; max-width:90px; overflow:hidden; }
 @media(max-width:760px) { #side,#side.compact { left:56px; } #sideShade { left:56px; } .rail-more-menu { left:64px; } }
 @media(max-width:600px) {
   #composer #modelPill { max-width:calc(100vw - 210px); font-size:10px; padding:4px; }
   #composer .mode-chip { display:none; }
-  #composer .composer-options-menu { left:auto; right:-110px; }
+  #composer .composer-row { flex-wrap:wrap; row-gap:8px; }
+  #composer .mode-switch { order:-1; flex:1 0 100%; }
+  #composer .mode-primary { flex:1; }
+  #composer .mode-primary button { flex:1; justify-content:center; }
+  #permLabel { display:none; }
+  #composer #permBtn { width:29px; padding:0; }
 }
 
 /* Densitat per defecte: text de 14 px, files de ~30 px a la barra lateral i
@@ -169,4 +176,47 @@ body.has-tool-dock #inspector { display:none; }
   body .msg-act { width:24px; height:24px; border-radius:6px; }
   body #main .msg.u .msg-inner { padding:9px 14px; }
   body #main .msg.u { margin-top:6px; }
+}
+
+/* Pàgina d'inici: títol, compositor i el que hi ha per continuar, tot
+   centrat i a l'altura dels ulls. Abans el títol era a dalt, el compositor
+   al fons i al mig un forat; i la carpeta ocupava quatre línies (nom,
+   ruta, insígnia i botons) que ara són un xip amb menú. */
+#heroMore[hidden] { display:none; }
+#conversationPane:has(#hero:not([hidden])) { justify-content:center; padding-bottom:6vh; }
+#conversationPane:has(#hero:not([hidden])) #hero { order:1; flex:0 0 auto; overflow:visible; padding:0 24px; align-items:center; justify-content:center; }
+#conversationPane:has(#hero:not([hidden])) #composer { order:2; padding-top:18px; padding-bottom:0; }
+#conversationPane:has(#hero:not([hidden])) #heroMore { order:3; }
+#conversationPane:has(#hero:not([hidden])) #main:not(.on) { display:none; }
+#hero .hero-inner { text-align:center; margin:0 auto; }
+#hero h1 { margin:0 0 8px; font-size:clamp(28px,3vw,36px); font-weight:600; letter-spacing:-.03em; }
+#hero p { margin:0 auto; max-width:440px; color:var(--muted); font-size:var(--t3); line-height:1.5; }
+#hero .hero-folder { display:flex; justify-content:center; margin-bottom:18px; }
+#hero .hf-row { display:inline-flex; gap:6px; padding:4px 12px 4px 10px; border:1px solid var(--line); border-radius:99px;
+  background:var(--surface); cursor:pointer; font-size:var(--t1); }
+#hero .hf-row:hover, #hero .hf-row:focus-visible { border-color:var(--accent); outline:none; }
+#hero .hf-row .folder-ico { width:14px; height:14px; }
+#hero .hf-label, #hero .hf-path, #hero .hf-actions { display:none; }
+#hero .hf-badge { padding:0; border:0; font-size:var(--t1); }
+#hero .hf-badge::before { content:'·'; margin-right:6px; color:var(--faint); }
+.hero-more { flex:0 0 auto; padding:0 24px; }
+.hero-more-inner { width:min(var(--lectura),100%); margin:0 auto; }
+#heroMore .home-context { margin-top:18px; gap:12px; }
+#heroMore .home-pills { justify-content:center; }
+#heroMore .home-recent { border:0; border-radius:0; }
+#heroMore .home-recent-head { padding:0 4px 4px; background:none; border:0; color:var(--faint); font-size:var(--t1); font-weight:500; letter-spacing:0; text-transform:none; }
+#heroMore .home-recent-row { padding:8px 10px; border:0; border-radius:8px; }
+#heroMore .home-recent-row:hover { background:var(--hover); }
+#heroMore #chips { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:16px; }
+#heroMore #chips[hidden] { display:none; }
+#heroMore .hero-card { display:inline-flex; align-items:center; min-height:0; width:auto; padding:6px 14px; border:1px solid var(--line); border-radius:99px;
+  background:transparent; grid-column:auto !important; }
+#heroMore .hero-card:hover { border-color:var(--accent); background:var(--hover); }
+#heroMore .hero-card b { font-size:var(--t2); font-weight:500; color:var(--text); }
+#heroMore .hero-card small, #heroMore .hero-card::after, #heroMore .hero-card .ico { display:none; }
+@media(max-width:600px) {
+  #conversationPane:has(#hero:not([hidden])) { justify-content:flex-end; padding-bottom:0; }
+  #conversationPane:has(#hero:not([hidden])) #hero { flex:1 1 auto; align-items:flex-end; padding:16px 16px 0; }
+  #conversationPane:has(#hero:not([hidden])) #composer { padding:12px 12px 6px; }
+  .hero-more { padding:0 12px 10px; }
 }

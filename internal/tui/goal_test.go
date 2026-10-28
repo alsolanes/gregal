@@ -228,7 +228,8 @@ func TestTabCyclesQuatreModes(t *testing.T) {
 	}
 	// Tab ja no canvia de mode sol (provocava caure a "goal" sense eines i
 	// semblava que l'agent no acabava). El cicle explícit és Shift+Tab.
-	modes := []string{"inspect", "chat", "goal", "code"}
+	// Pregunta → Planifica → Actua, com a la web i l'Android.
+	modes := []string{"chat", "plan", "code"}
 	for i, volia := range modes {
 		m.cycleMode()
 		if m.mode != volia {
@@ -243,14 +244,47 @@ func TestTabCyclesQuatreModes(t *testing.T) {
 	}
 }
 
-func TestModeMenuInclouObjectiu(t *testing.T) {
+// El selector té els tres modes de totes les interfícies; Objectiu i
+// Depuració són avançats (/goal, /mode debug).
+func TestModeMenuTeElsTresModes(t *testing.T) {
 	menu := modeMenu()
 	var vals []string
 	for _, it := range menu.items {
 		vals = append(vals, it.val)
 	}
-	if strings.Join(vals, ",") != "code,chat,inspect,goal,debug,autonomous" {
+	if strings.Join(vals, ",") != "ask,plan,act" {
 		t.Fatalf("modeMenu=%v", vals)
+	}
+}
+
+// Tornar a Actua des de Planifica recupera l'Autonomia total, i el permís
+// queda al config.
+func TestPermisDActua(t *testing.T) {
+	m := goalTestModel(t)
+	m.setAccess("full")
+	if m.mode != "autonomous" || !m.permissive {
+		t.Fatalf("full: mode=%q permissive=%v", m.mode, m.permissive)
+	}
+	m.cycleMode() // → Pregunta
+	if m.mode != "chat" || m.permissive {
+		t.Fatalf("Pregunta: mode=%q permissive=%v", m.mode, m.permissive)
+	}
+	m.cycleMode() // → Planifica
+	m.cycleMode() // → Actua
+	if m.mode != "autonomous" {
+		t.Fatalf("tornar a Actua = %q, volia autonomous", m.mode)
+	}
+	m.setAccess("ask")
+	if m.mode != "code" || !m.cfg.Permissions.AskEdits() || !m.policy.AskEdits || m.access() != "ask" {
+		t.Fatalf("ask: mode=%q access=%q", m.mode, m.access())
+	}
+	menu := accessMenu(&m)
+	var vals []string
+	for _, it := range menu.items {
+		vals = append(vals, it.val)
+	}
+	if strings.Join(vals, ",") != "ask,edits,full,tools" {
+		t.Fatalf("accessMenu=%v", vals)
 	}
 }
 

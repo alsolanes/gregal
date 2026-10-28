@@ -32,10 +32,7 @@
   document.querySelector('.rail-brand').onclick=e=>{e.preventDefault();root.gregal.setView('agent');};
   document.addEventListener('gregal:idioma',()=>sync(root.gregal.viewActual()));
   document.addEventListener('click',e=>{ if(!$('sideMore').contains(e.target) || e.target.closest('#sideMore button')) $('sideMore').open=false; });
-  document.addEventListener('click',e=>{ const options=document.querySelector('.composer-options'); if(options && !options.contains(e.target)) options.open=false; });
   document.addEventListener('keydown',e=>{
-    const options=document.querySelector('.composer-options');
-    if(e.key==='Escape' && options?.open) { options.open=false; options.querySelector('summary').focus(); e.preventDefault(); return; }
     if(e.key==='Escape' && $('sideMore').open) { $('sideMore').open=false; $('sideMore').querySelector('summary').focus(); return; }
     if(e.key==='Escape' && !$('toolDock').hidden && !e.defaultPrevented && e.target.tagName!=='TEXTAREA' && e.target.tagName!=='INPUT') {
       closeTool();

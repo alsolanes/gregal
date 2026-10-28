@@ -167,9 +167,12 @@ data class ServerState(
     // declara i el mesurador s'amaga, com a la web i al TUI.
     val usedTokens: Int = 0,
     val contextWindow: Int = 0,
-    /** Bloqueig de permisos de la web: true = l'agent no demana permís. */
+    /** Mode permissiu del servidor: va lligat a l'Autonomia total. */
     val permissive: Boolean = false,
+    /** Revisor de permisos (Preferències): un model decideix el que preguntaria. */
     val autoReview: Boolean = false,
+    /** Permís d'Actua (agent/access.go): ask | edits | full. */
+    val access: String = "edits",
     /** Darrers missatges de la conversa (user/assistant), per reprendre-la. */
     val transcript: List<ChatMsg> = emptyList(),
 ) {
@@ -615,3 +618,18 @@ private fun hostDeError(e: String): String {
     val end = rest.indexOfFirst { it == ':' || it == ' ' }
     return if (end > 0) rest.substring(0, end) else rest
 }
+
+
+/**
+ * El mode que es veu (com la web i el TUI, agent/access.go): Pregunta
+ * ("chat"), Planifica ("plan") o Actua ("act"). inspect es mostra com a
+ * Pregunta; goal com a Planifica; code, autonomous i debug com a Actua.
+ */
+fun uiModeOf(mode: String): String = when (mode) {
+    "chat", "inspect" -> "chat"
+    "plan", "goal" -> "plan"
+    else -> "act"
+}
+
+/** Els tres permisos d'Actua, en l'ordre del menú. */
+val ACCESSES = listOf("ask", "edits", "full")

@@ -285,6 +285,9 @@ type Policy struct {
 	// ProjectDir habilita el pas automàtic d'escriptures (write/edit) en
 	// mode code o autònom quan la ruta queda dins. Buit = ask.
 	ProjectDir string
+	// AskEdits és el permís «Demana abans de canviar» (access.go): en
+	// code i debug les escriptures dins del projecte també pregunten.
+	AskEdits bool
 }
 
 // DefaultPolicy retorna la política base (read allow, bash classify, write/edit ask).
@@ -490,7 +493,7 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 }
 
 func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
-	if mode == ModeInspect || mode == ModeChat || mode == ModeGoal {
+	if ReadOnlyMode(mode) {
 		switch name {
 		case "office_edit", "office_create", "pdf_edit", "pdf_create", "bash_kill":
 			return "deny", "read-only mode: cannot modify documents or stop processes"
@@ -504,7 +507,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
-	if (mode == ModeInspect || mode == ModeChat || mode == ModeGoal) && (name == "bash" || name == "browser") {
+	if ReadOnlyMode(mode) && (name == "bash" || name == "browser") {
 		// Read-only modes cannot inherit broader shell or browser grants.
 		if d, reason := DefaultPolicy().For(name, argsJSON); d != "allow" {
 			return "deny", "read-only mode: " + reason
@@ -536,10 +539,13 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
-	if mode == ModeChat || mode == ModeGoal {
+	if mode == ModeChat || mode == ModeGoal || mode == ModePlan {
 		què := "mode xat"
-		if mode == ModeGoal {
+		switch mode {
+		case ModeGoal:
 			què = "mode objectiu"
+		case ModePlan:
+			què = "mode pla"
 		}
 		switch name {
 		case "write", "edit", "patch":
@@ -583,7 +589,9 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 					return d, "permissions del config"
 				}
 			}
-			if InsideProject(p.ProjectDir, toolPath(name, argsJSON)) {
+			// «Demana abans de canviar»: l'autònom no en fa cas (no
+			// pregunta mai).
+			if (!p.AskEdits || mode == ModeAutonomous) && InsideProject(p.ProjectDir, toolPath(name, argsJSON)) {
 				return "allow", ""
 			}
 		}

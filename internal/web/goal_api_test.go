@@ -54,8 +54,8 @@ func TestModeAcceptaObjectiu(t *testing.T) {
 	if s.sysPrompt() == s.cfg.SystemPrompt() {
 		t.Fatal("el prompt del mode objectiu ha d'afegir instruccions")
 	}
-	if rec := postJSON(t, s.handleMode, `{"mode":"plan"}`); rec.Code == 200 {
-		t.Fatal("plan no hauria de ser un mode vàlid")
+	if rec := postJSON(t, s.handleMode, `{"mode":"specs"}`); rec.Code == 200 {
+		t.Fatal("specs no hauria de ser un mode vàlid")
 	}
 }
 

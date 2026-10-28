@@ -21,16 +21,19 @@ const (
 	// ModeDebug és el mode depuració (debugmode.go): hipòtesis,
 	// instrumentació temporal marcada, evidència i neteja.
 	ModeDebug = "debug"
+	// ModePlan investiga sense canviar res i acaba amb un pla que la
+	// persona aprova abans de passar a Actua (access.go).
+	ModePlan = "plan"
 )
 
 // ValidMode diu si m és un mode suportat.
 func ValidMode(m string) bool {
-	return m == ModeCode || m == ModeChat || m == ModeInspect || m == ModeGoal || m == ModeAutonomous || m == ModeDebug
+	return m == ModeCode || m == ModeChat || m == ModeInspect || m == ModeGoal || m == ModeAutonomous || m == ModeDebug || m == ModePlan
 }
 
-// ModeFromWord tradueix el nom que veu la persona al mode intern. Els dos
-// modes principals es diuen Ask/Act (Pregunta/Actua) a totes les
-// interfícies; els ids interns (chat/code…) es mantenen perquè els fan
+// ModeFromWord tradueix el nom que veu la persona al mode intern. Els tres
+// modes principals es diuen Ask/Plan/Act (Pregunta/Planifica/Actua) a totes
+// les interfícies; els ids interns (chat/code…) es mantenen perquè els fan
 // servir el config, l'API i les sessions desades. Torna "" si no el coneix.
 func ModeFromWord(w string) string {
 	switch strings.ToLower(strings.TrimSpace(w)) {
@@ -40,6 +43,8 @@ func ModeFromWord(w string) string {
 		return ModeCode
 	case ModeInspect, "consulta":
 		return ModeInspect
+	case ModePlan, "planifica", "pla":
+		return ModePlan
 	case ModeGoal, "objectiu":
 		return ModeGoal
 	case ModeAutonomous, "autonom", "autònom":
@@ -94,6 +99,7 @@ func AmbContext(prompt string, blocs ...string) string {
 	}
 	return cos
 }
+
 // latestRequestRules is static and shared by all fronts and modes. A saved
 // conversation is background, not permission to reopen an old task. Keep this
 // out of per-turn messages to preserve the reusable prefix and user history.
@@ -110,6 +116,8 @@ func reglesBase(mode string) string {
 		return chatRules
 	case ModeInspect:
 		return inspectRules
+	case ModePlan:
+		return planRules
 	case ModeGoal:
 		return goal.Prompt()
 	case ModeAutonomous:
@@ -126,6 +134,11 @@ func reglesBase(mode string) string {
 // chatRules: el xat pot llegir (read és allow) i ho ha de saber; sense la
 // línia de question el model preguntava en text pla o endevinava.
 const chatRules = "\nCHAT MODE: conversation with read access. You MAY read the disk with read/glob/grep when useful: do it directly, without asking permission or announcing limits. Do not write or modify anything; if a change is needed, tell the user to switch to /mode code. If you need a decision from the user to continue (two incompatible options, a preference you cannot infer), call the `question` tool with 2-4 short options BEFORE answering instead of asking in plain text. Do not ask about anything you can check by reading the disk."
+
+// planRules: el mode Planifica és de només lectura (Policy.Decide) i acaba
+// amb un pla que la persona aprova; executar-lo és cosa d'Actua.
+const planRules = `
+PLAN MODE: investigate and propose, do not change anything. Read the code with read, grep, glob and clearly read-only shell commands (and the web when it helps); never write, edit or run commands that change things. If you need a decision from the user, call the ` + "`question`" + ` tool with 2-4 short options. When you understand the task, reply with the plan: numbered steps (file + concrete change in each step) and a final line "VERIFICATION: <how to check it>". The user approves the plan and switches to Act to run it.`
 
 // inspectRules és també el prompt dels subagents (delegate).
 const inspectRules = "\nINSPECT MODE: inspect and explain the project without modifying it. Use read, grep, glob, web_search, web_fetch and only clearly read-only shell commands. Do not ask for permissions: if an action is not safe or not read-only, do not run it and explain the limit."

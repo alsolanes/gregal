@@ -204,7 +204,7 @@
     const wt = worktreeLabel(info, T);
     if (wt) badges.push('<span class="hf-badge wt" title="' + esc(T('folder.worktreeHelp') + (info.repoPath ? '\n' + info.repoPath : '')) + '">' + esc(wt) + '</span>');
     box.innerHTML =
-      '<div class="hf-row">' + ICON + '<span class="hf-label">' + esc(T('folder.workingIn', 'Working in')) + '</span> ' +
+      '<div class="hf-row" role="button" tabindex="0" aria-haspopup="menu" title="' + esc(info.path) + '">' + ICON + '<span class="hf-label">' + esc(T('folder.workingIn', 'Working in')) + '</span> ' +
       '<b class="hf-name" title="' + esc(info.path) + '">' + esc(info.name) + '</b>' + badges.join('') + '</div>' +
       '<div class="hf-path" title="' + esc(info.path) + '">' + esc(info.path) + '</div>' +
       '<div class="hf-actions">' + actionsHTML('hf-act') + '</div>';
@@ -245,7 +245,14 @@
     const home = $('heroFolder');
     if (home) home.addEventListener('click', e => {
       const b = e.target.closest('[data-folder-act]');
-      if (b && !b.disabled) ACTIONS[b.dataset.folderAct]();
+      if (b && !b.disabled) { ACTIONS[b.dataset.folderAct](); return; }
+      // A l'inici la carpeta és un xip: el menú hi té canviar i copiar.
+      const row = e.target.closest('.hf-row');
+      if (row) openMenu(row);
+    });
+    if (home) home.addEventListener('keydown', e => {
+      const row = e.target.closest('.hf-row');
+      if (row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openMenu(row); }
     });
     document.addEventListener('gregal:state', e => paint(e.detail));
     document.addEventListener('gregal:idioma', () => paint());

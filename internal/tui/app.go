@@ -314,7 +314,10 @@ type Model struct {
 	permissive bool // mode permissiu: les ask s'aproven soles (deny continua bloquejant)
 	// autoReview: mode auto-review; un model revisor decideix les ask
 	// (agent/autoreview.go). Exclusiu amb permissive.
-	autoReview  bool
+	autoReview bool
+	// actMode és l'últim mode d'Actua (code, autonomous o debug): tornar a
+	// Actua recupera el permís triat (modes.go).
+	actMode     string
 	journalBase int // Seq del journal a l'inici del torn: verificar només si ha fet coses reals
 
 	stream      *streamer
@@ -516,7 +519,9 @@ func New(cfg *config.Config, cfgPath string, c *llm.Client, v string) Model {
 		policy:      agent.PolicyFromConfig(cfg, cwd),
 		remembers:   agent.NewRemember(),
 		histEntries: session.LoadHistory(), histIdx: -1,
-		mouseOn: cfg.MouseOn(), autoReview: cfg.Permissions.AutoReview()} // el programa arrenca amb WithMouseCellMotion
+		mouseOn: cfg.MouseOn(), autoReview: cfg.Permissions.AutoReview() && cfg.Mode != agent.ModeAutonomous,
+		// L'Autonomia total no pregunta res (modes.go).
+		permissive: cfg.Mode == agent.ModeAutonomous} // el programa arrenca amb WithMouseCellMotion
 	m.reducedMotion = strings.TrimSpace(os.Getenv("GREGAL_REDUCED_MOTION")) != ""
 	m.animacions = cfg.AnimacionsOn() && !m.reducedMotion
 	m.cockpit = cfg.CockpitOn()
@@ -2890,6 +2895,10 @@ func (m Model) submitText(text string) (tea.Model, tea.Cmd) {
 	if m.serviceClient != nil {
 		return m.submitServiceTurn(text)
 	}
+	// Planifica: investiga i proposa un pla; [e] l'executa a Actua.
+	if m.mode == agent.ModePlan {
+		return m.startPlan(text)
+	}
 	return m.startAgent(text)
 }
 
@@ -2911,7 +2920,7 @@ func (m Model) submitServiceTurn(text string) (tea.Model, tea.Cmd) {
 	// més permisos dels que mostra el TUI. Els altres modes els governa la
 	// sessió compartida del servei; sincronitzar-los és un lliurament posterior.
 	mode := m.mode
-	if mode != "chat" && mode != "inspect" && mode != agent.ModeAutonomous {
+	if mode != "chat" && mode != "inspect" && mode != agent.ModeAutonomous && mode != agent.ModePlan {
 		mode = ""
 	}
 	return m, func() tea.Msg {
@@ -3494,10 +3503,21 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		}
 		m.push(systemLine(estat))
 		return m, nil
-	case "/permissions":
+	case "/permissions", "/permisos":
 		if len(parts) == 1 {
+			m.menu = accessMenu(&m)
+			return m, nil
+		}
+		if len(parts) == 2 && parts[1] == "tools" {
 			m.menu = permissionsMenu(&m)
 			return m, nil
+		}
+		if len(parts) == 2 && parts[1] != "show" {
+			if a := agent.AccessFromWord(parts[1]); a != "" {
+				m.setAccess(a)
+				m.push(okStyle.Render("◆ "+accessLabel(a)) + dimStyle.Render(" — "+accessHelp(a)))
+				return m, nil
+			}
 		}
 		if len(parts) != 2 || parts[1] != "show" {
 			m.push(systemLine(T("app.usPerms")))
@@ -3549,22 +3569,25 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case "/permissiu":
+		// Nom antic del mode que aprovava-ho-tot: ara és l'Autonomia total
+		// (on) o tornar a Aprova les edicions (off).
 		arg := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(text, "/permissiu")))
+		full := false
 		switch arg {
 		case "on", "sí", "si", "s":
-			m.permissive = true
+			full = true
 		case "off", "no", "n":
-			m.permissive = false
 		case "":
-			m.permissive = !m.permissive
+			full = !m.permissive
 		default:
 			m.push(systemLine(T("app.usPermissiu")))
 			return m, nil
 		}
-		if m.permissive {
-			m.autoReview = false
+		if full {
+			m.setAccess(agent.AccessFull)
 			m.push(warnStyle.Render(T("app.permissiuActiu")) + dimStyle.Render(T("app.denyBloqueja")))
 		} else {
+			m.setAccess(agent.AccessEdits)
 			m.push(systemLine(T("app.permissiuOff")))
 		}
 		return m, nil
@@ -3871,6 +3894,8 @@ func (m Model) inputBox() string {
 		c, badge, nom = blue, modeInspectStyle, T("composer.consulta")
 	case agent.ModeGoal:
 		c, badge, nom = lilaFons, composerGoal, T("composer.objectiu")
+	case agent.ModePlan:
+		c, badge, nom = lilaFons, composerGoal, T("composer.plan")
 	case agent.ModeAutonomous:
 		c, badge, nom = teal, composerAuto, T("composer.autonomous")
 	case agent.ModeDebug:
