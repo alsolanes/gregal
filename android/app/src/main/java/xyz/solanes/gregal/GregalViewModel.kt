@@ -707,6 +707,48 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Afegeix un proveïdor nou al servidor (nom + URL + clau). En mode
+     * servidor el proveïdor viu a la configuració del servidor: aquí només
+     * s'hi envia l'ordre i es refresca el que es veu.
+     */
+    fun addProvider(nom: String, url: String, key: String, onOk: () -> Unit = {}) {
+        if (_providerSetupBusy.value) return
+        val problema = problemaProveidor(nom, url)
+        if (problema != null) {
+            _provMsg.value = appText(problema)
+            return
+        }
+        if (key.isBlank()) {
+            _provMsg.value = appText("app.setup.errKey")
+            return
+        }
+        val c = _conn.value
+        _providerSetupBusy.value = true
+        _provMsg.value = ""
+        viewModelScope.launch {
+            try {
+                val msg = withContext(Dispatchers.IO) {
+                    if (_conn.value != c) return@withContext ""
+                    c.api().addProvider(nom, url, key)
+                }
+                if (_conn.value != c) return@launch
+                _provMsg.value = msg.ifBlank { appText("app.setup.ready") }
+                refresh()
+                loadProviders()
+                loadCatalog()
+                loadModels()
+                onOk()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (_conn.value == c) _provMsg.value = appText("app.menu.providerSaveError", e.message.orEmpty())
+            } finally {
+                if (_conn.value == c) _providerSetupBusy.value = false
+            }
+        }
+    }
+
     fun setConn(c: Conn) {
         if (_conn.value != c) resetServerState()
         _conn.value = c

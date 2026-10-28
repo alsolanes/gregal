@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -114,6 +115,11 @@ fun ProviderSetup(
     var chosen by remember(conn) { mutableStateOf("") }
     var key by remember(conn) { mutableStateOf("") }
     var expanded by remember(conn) { mutableStateOf(false) }
+    // Proveïdor nou: nom i URL propis (servidor de casa, OpenAI-compatible).
+    var nou by remember(conn) { mutableStateOf(false) }
+    var nomNou by remember(conn) { mutableStateOf("") }
+    var urlNou by remember(conn) { mutableStateOf("") }
+    var keyNou by remember(conn) { mutableStateOf("") }
     LaunchedEffect(conn) { vm.loadCatalog(); vm.loadProviders() }
     val choices = (providers.map { p ->
         catalog.firstOrNull { it.name == p.name } ?: CatalogEntry(p.name, p.name, false, "", "")
@@ -152,6 +158,49 @@ fun ProviderSetup(
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea, trackColor = Line)
             if (msg.isNotBlank() && !busy) Text(msg, color = Muted, fontSize = 12.sp)
+
+            // El catàleg no ho cobreix tot: servidors propis, un altre
+            // OpenAI-compatible, un endpoint de feina. El servidor accepta
+            // proveïdors nous des del principi (`action:add`); l'app només
+            // oferia triar-ne un de la llista i enganxar la clau.
+            if (!nou) {
+                TextButton(onClick = { nou = true; expanded = false }) {
+                    Text("＋ " + tr(lang, "app.setup.newProvider"), color = Sea)
+                }
+            } else {
+                HorizontalDivider(color = Line)
+                Text(tr(lang, "app.setup.newProviderHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                OutlinedTextField(
+                    value = nomNou, onValueChange = { nomNou = it }, singleLine = true,
+                    label = { Text(tr(lang, "app.setup.name")) },
+                    supportingText = { Text(tr(lang, "app.setup.nameHelp"), fontSize = 11.sp) },
+                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = urlNou, onValueChange = { urlNou = it }, singleLine = true,
+                    label = { Text(tr(lang, "app.setup.url")) },
+                    placeholder = { Text("https://api.exemple.com/v1", fontSize = 12.sp) },
+                    shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth(),
+                )
+                ProviderKeyField(lang, keyNou) { keyNou = it.trim() }
+                val problema = problemaProveidor(nomNou, urlNou)
+                val potDesar = !busy && problema == null && keyNou.isNotBlank()
+                Button(
+                    onClick = {
+                        vm.addProvider(nomNou, urlNou, keyNou) {
+                            nomNou = ""; urlNou = ""; keyNou = ""; nou = false; onDone()
+                        }
+                    },
+                    enabled = potDesar,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) { Text(tr(lang, "app.setup.add")) }
+                val ensenyat = nomNou.isNotBlank() || urlNou.isNotBlank()
+                if (problema != null && ensenyat) {
+                    Text(tr(lang, problema), color = Red, fontSize = 11.5.sp)
+                }
+                TextButton(onClick = { nou = false }) { Text(tr(lang, "app.setup.cancel"), color = Muted) }
+            }
             Spacer(Modifier.height(2.dp))
             // Mateixa distinció que feia l'antic diàleg de clau del menú de
             // model: en remot la clau viu a la memòria del servidor fins que

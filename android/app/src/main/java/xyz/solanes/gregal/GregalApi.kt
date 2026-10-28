@@ -322,6 +322,20 @@ class GregalApi(val base: String, val token: String) {
         return o.optString("msg").ifBlank { "desat" }
     }
 
+    /**
+     * Afegeix un proveïdor nou (POST /api/providers {action:add}).
+     * El servidor valida el nom i l'URL i el desa a la SEVA configuració; des
+     * del mòbil això és una ordre al servidor, no una preferència del telèfon.
+     */
+    fun addProvider(name: String, url: String, key: String): String {
+        val o = post(
+            "/api/providers",
+            JSONObject().put("action", "add").put("name", name.trim())
+                .put("url", url.trim()).put("key", key.trim()),
+        )
+        return o.optString("msg").ifBlank { "ok" }
+    }
+
     /** Prova la connexió d'un proveïdor (GET /models amb la seva clau). */
     fun testProvider(name: String): String {
         val o = post("/api/providers", JSONObject().put("action", "test").put("name", name))

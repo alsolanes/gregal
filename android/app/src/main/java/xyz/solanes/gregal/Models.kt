@@ -691,3 +691,21 @@ fun inicialsProjecte(nom: String): String {
     return if (parts.size >= 2) (parts[0].take(1) + parts[1].take(1)).uppercase()
     else net.take(2).uppercase()
 }
+
+
+/**
+ * Comprova el que el servidor tornarà a comprovar (internal/web/serve.go,
+ * `providerAction` `add`): nom amb lletres, digits, guions i guions baixos,
+ * i URL http(s). Es fa aquí perquè l'error surti a l'instant, sense anar i
+ * tornar, i perquè el botó no es pugui prémer amb dades impossibles.
+ * Torna la clau del missatge, o null si tot està bé.
+ */
+fun problemaProveidor(nom: String, url: String): String? {
+    val n = nom.trim()
+    if (n.isEmpty()) return "app.setup.errName"
+    if (!Regex("^[A-Za-z0-9_-]+$").matches(n)) return "app.setup.errNameChars"
+    val u = url.trim().trimEnd('/')
+    if (u.isEmpty()) return "app.setup.errUrl"
+    if (!u.startsWith("http://") && !u.startsWith("https://")) return "app.setup.errUrlScheme"
+    return null
+}
