@@ -541,3 +541,38 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .steer-ok .steer-state { color:var(--green); }
 .turn-hint { margin-left:10px; color:var(--faint); font-size:var(--t1); white-space:nowrap; }
 @media (max-width:760px) { .turn-hint { display:none; } }
+
+/* El Racó dels vents */
+.raco { padding:18px 22px 24px; display:flex; flex-direction:column; gap:14px; min-height:100%; }
+.raco-head { display:flex; gap:16px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; }
+.raco-head .page-title { margin:2px 0 4px; }
+.raco-head .page-copy { margin:0; max-width:620px; }
+.raco-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.raco-actions button { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:6px 12px; cursor:pointer; }
+.raco-actions button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.raco-actions button:disabled { opacity:.5; cursor:default; }
+.raco-status { color:var(--muted); font-size:13px; }
+.raco-actions button.danger { background:#c0392b; border-color:#c0392b; color:#fff; }
+.raco-spend { color:var(--muted); font-size:12px; }
+.raco-body { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:16px; flex:1; min-height:0; }
+.raco-stage { position:relative; display:flex; flex-direction:column; min-height:520px; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--surface); }
+.raco-stage iframe { flex:1; width:100%; border:0; background:#fff; min-height:520px; }
+.raco-empty { margin:auto; padding:40px; max-width:420px; text-align:center; color:var(--muted); line-height:1.5; }
+.raco-preview { padding:8px 12px; background:var(--amber, #e0a800); color:#1d1d1d; font-size:13px; display:flex; gap:10px; align-items:center; }
+.raco-preview button { border:0; border-radius:6px; padding:3px 9px; cursor:pointer; }
+.raco-side { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.raco-side h3 { margin:8px 0 0; font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.raco-comment { display:flex; gap:6px; }
+.raco-comment textarea { flex:1; resize:vertical; border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:7px 9px; font:inherit; }
+.raco-comment button { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:0 12px; cursor:pointer; }
+.raco-journal, .raco-versions { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:360px; overflow:auto; }
+.raco-journal li { display:flex; gap:8px; font-size:13px; line-height:1.4; }
+.raco-journal li .ic { width:18px; flex:0 0 18px; text-align:center; }
+.raco-journal li small, .raco-versions li small { display:block; color:var(--muted); font-size:11px; }
+.raco-journal li.none { color:var(--muted); }
+.raco-versions li { display:flex; gap:8px; justify-content:space-between; align-items:flex-start; font-size:13px; padding:6px 8px; border-radius:8px; border:1px solid var(--line); }
+.raco-versions li.cur { border-color:var(--accent); }
+.raco-versions li span { display:flex; gap:4px; flex:0 0 auto; }
+.raco-versions button { border:1px solid var(--line-hi); border-radius:6px; background:var(--surface); color:var(--ink); padding:2px 8px; font-size:12px; cursor:pointer; }
+.raco-budget { color:var(--muted); font-size:12px; margin:6px 0 0; }
+@media (max-width:1000px) { .raco-body { grid-template-columns:1fr; } }

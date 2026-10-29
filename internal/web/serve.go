@@ -298,6 +298,7 @@ func (h *Hub) Run(addr string) error {
 		return err
 	}
 	go s.jobLoop(context.Background())
+	go s.cornerLoop(context.Background())
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -368,6 +369,7 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
+		go s.cornerLoop(ctx)
 		s.jobLoop(ctx)
 	}()
 	return done
@@ -485,6 +487,10 @@ func (h *Hub) mux() *http.ServeMux {
 	// El Chrome de l'usuari, a través de l'extensió (browser_ext.go).
 	handle(browserExtensionPath, h.handleBrowserExtension)
 	handle(browserExtensionPath+"/status", h.global((*Server).handleBrowserExtensionStatus))
+	// El Racó dels vents (corner.go): la pàgina que fan ells.
+	handle("/api/corner", h.global((*Server).handleCorner))
+	handle("/api/corner/page", h.global((*Server).handleCornerPage))
+	handle("/api/corner/ask", h.global((*Server).handleCornerAsk))
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.

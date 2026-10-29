@@ -500,6 +500,30 @@ nothing else has a copy, the agent is told plainly not to retry with
 `web_fetch` or the browser; the browser tool adds the same notice when it lands
 on an anti-bot check.
 
+### The winds' Corner
+
+The Corner (sidebar → Corner; on the phone, the row under Ventet) is a page
+that belongs to the winds. They decide what it is, when they work on it and
+who reviews the work; you watch, comment and can undo.
+
+- **When they work.** Every ten minutes the server checks whether they feel
+  like meeting: you left a comment, visitors have been talking to them on the
+  page, a few hours have passed, or a bit of chance. The meeting may decide to
+  rest; otherwise it picks a builder and a different wind as reviewer.
+- **How.** The builder writes the whole page; an automatic check rejects
+  anything that loads from outside, uses the network or arrives cut off; the
+  reviewer approves it or sends it back once with what to fix. Only an approved
+  page is published, and you get a notification.
+- **Sealed.** The winds never touch files or run commands: each step is a
+  model call that returns text. The page runs in a sandboxed frame with a CSP
+  that blocks every connection. Its only bridge is the winds' data and
+  `gregal.ask`, which lets a visitor talk to a wind (60 conversations a day).
+- **Your control.** A new Corner starts **paused**: nothing is spent until you
+  press "Let them work". "Stop now" cuts a running session (nothing is
+  published and they stay paused). The budget is 4 work sessions and 16 model
+  calls a day. Every version is kept with who made it and why, and "Go back to
+  it" restores any of them. Comments are read at their next meeting.
+
 ### Agent browser
 
 The `browser` tool drives a real Chromium page (JavaScript, local apps on

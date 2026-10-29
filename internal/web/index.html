@@ -1385,7 +1385,7 @@ body.sense-inspector #inspector { display:none; }
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
   <a class="rail-brand" href="#" aria-label="Gregal"><span class="brand-mark"><img src="/app/icon.png" width="30" height="30" alt="Gregal"></span></a>
-  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
+  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
   <details id="sideMore" class="rail-more"><summary title="More" aria-label="More" data-i18n-title="nav.more" data-i18n-aria="nav.more">⋯</summary><div class="rail-more-menu side-main"><button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
 <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
 <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
@@ -1615,6 +1615,7 @@ body.sense-inspector #inspector { display:none; }
           </dialog>
         </div>
       </section>
+      <section class="workspace-page" id="racoPage" hidden></section>
       <section class="workspace-page" id="programatPage" hidden>
         <div class="page-inner">
           <div class="page-kicker" data-i18n="jobs.kicker">Background service</div>
@@ -1949,6 +1950,7 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/winds-workspace.js"></script>
 <script type="module" src="/app/preview.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
+<script type="module" src="/app/corner.js"></script>
 <script src="/app/mode-cycle.js"></script>
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
@@ -2014,7 +2016,7 @@ function setView(view) {
   // crida accidental a «agent» des d'un botó intern no les envia al xat.
   if (view === 'agent' && currentView === 'vents' && window.gregalWindClickActive) return;
   const previousView = currentView;
-  currentView = ['agent','objectius','vents','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
+  currentView = ['agent','objectius','vents','raco','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const dockTool = !!window.gregalShell?.isTool(currentView);
   const agent = currentView === 'agent' || dockTool;
   window.gregalShell?.sync(currentView);
@@ -2022,6 +2024,7 @@ function setView(view) {
   $('objectiusPage').hidden = currentView !== 'objectius';
   $('ventsPage').hidden = currentView !== 'vents';
   $('programatPage').hidden = currentView !== 'programat';
+  $('racoPage').hidden = currentView !== 'raco';
   $('mcpPage').hidden = currentView !== 'mcp';
   $('activitatPage').hidden = currentView !== 'activitat';
   $('githubPage').hidden = currentView !== 'github';
@@ -2052,6 +2055,7 @@ function setView(view) {
   // altra vista. Torna'ls a obrir quan el fil sigui visible.
   if (agent) resumePendingInteraction(window.gregalSession || 'default', state);
   if (currentView === 'programat') loadJobsPage();
+  if (currentView === 'raco') window.gregalCorner?.load();
   if (currentView === 'vents') loadWindsPage();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();

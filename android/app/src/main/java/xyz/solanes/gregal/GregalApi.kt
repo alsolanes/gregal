@@ -170,6 +170,9 @@ class GregalApi(val base: String, val token: String) {
         return JSONObject(read(conn(path, "POST", payload.toString())))
     }
 
+    /** GET que torna un objecte JSON (el Racó dels vents, entre d'altres). */
+    fun get(path: String): JSONObject = JSONObject(read(conn(path, "GET")))
+
     /**
      * Entra amb usuari i contrasenya (POST /api/login) i torna el token de
      * sessio. El servidor el desa a passwords.json/tokens.json i el token
