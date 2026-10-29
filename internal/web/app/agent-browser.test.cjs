@@ -38,6 +38,8 @@ function fixture(desktop) {
     append(child) { this.children.push(child); if (child.id) elements.set(child.id, child); }
     setAttribute(k, v) { this.attributes[k] = String(v); }
     addEventListener(name, fn) { this.events[name] = fn; }
+    getBoundingClientRect() { return { left: 0, right: 1400, width: 1400 }; }
+    setZoomFactor(z) { this.zoom = z; }
   }
   const workbench = new Element('div', 'workbench');
   elements.set('workbench', workbench);
@@ -46,10 +48,14 @@ function fixture(desktop) {
     createElement: tag => new Element(tag),
     getElementById: id => elements.get(id) || null,
     addEventListener: (name, fn) => listeners.set(name, fn),
+    documentElement: { style: { props: {}, setProperty(k, v) { this.props[k] = v; }, removeProperty(k) { delete this.props[k]; } } },
+    body: { classList: { add() {}, remove() {} } },
   };
-  const window = { gregalDesktop: desktop, gregalT: k => 'T:' + k };
-  vm.runInNewContext(source, { window, document, console });
-  return { elements, workbench, listeners, window };
+  const store = new Map();
+  const localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
+  const window = { gregalDesktop: desktop, gregalT: k => 'T:' + k, innerWidth: 1400, addEventListener() {} };
+  vm.runInNewContext(source, { window, document, console, localStorage });
+  return { elements, workbench, listeners, window, document, localStorage };
 }
 
 test('agent browser stays out of the way outside the desktop app', () => {
@@ -119,4 +125,18 @@ test('background browser navigation stays with its owning session', () => {
   listeners.get('gregal:session')({detail:{id:'alpha'}});
   assert.equal(elements.get('agentBrowserView'),alpha);
   assert.equal(elements.get('agentBrowserUrl').textContent,'http://localhost:3000/alpha');
+});
+
+test('the pane width stays between its minimum and what leaves room for the chat', () => {
+  const ctx = { window: {}, document: { getElementById: () => null } };
+  vm.runInNewContext(source + '\nthis.clamp = clampBrowserWidth; this.zoom = nextZoom;', ctx);
+  assert.equal(ctx.clamp(100, 1400), 340);
+  assert.equal(ctx.clamp(700, 1400), 700);
+  assert.equal(ctx.clamp(1300, 1400), 1020);
+  assert.equal(ctx.clamp(900, 600), 340);
+  assert.equal(ctx.zoom(1, 1), 1.1);
+  assert.equal(ctx.zoom(1, -1), 0.9);
+  assert.equal(ctx.zoom(2, 1), 2);
+  assert.equal(ctx.zoom(0.5, -1), 0.5);
+  assert.equal(ctx.zoom(1.5, 0), 1);
 });

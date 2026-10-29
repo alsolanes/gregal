@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **The agent's browser pane can be resized and zoomed.** Drag its left edge to make it as wide as you need (it always leaves room for the conversation, and double-clicking the edge goes back to the default width); the width is remembered. −, 100% and + in its header zoom the page from 50% to 200%, and the zoom stays when the page changes.
+
 ## v1.27.1 - 2026-10-29 - «Deixa que Gregal faci servir aquest navegador» funciona
 
 - **"Let Gregal use this browser" works.** Chrome does not let an extension ask for the debugger permission later, so the switch always answered "without the debugger permission…". The extension (1.1.1) now declares it when it is installed, and the switch is what decides whether Gregal uses it. If you loaded the extension before, reload it on chrome://extensions (or press "Prepare the extension" again).
