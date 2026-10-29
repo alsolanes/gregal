@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.27.1 - 2026-10-29 - «Deixa que Gregal faci servir aquest navegador» funciona
+
 - **"Let Gregal use this browser" works.** Chrome does not let an extension ask for the debugger permission later, so the switch always answered "without the debugger permission…". The extension (1.1.1) now declares it when it is installed, and the switch is what decides whether Gregal uses it. If you loaded the extension before, reload it on chrome://extensions (or press "Prepare the extension" again).
 
 ## v1.27.0 - 2026-10-29 - El navegador de l'agent al dia i el teu Chrome
