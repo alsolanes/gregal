@@ -20,7 +20,7 @@ const T = {
     reading: 'Llegint la pàgina…', unreadable: 'no s\'ha pogut llegir', error: 'Error: %s', needKey: 'Configura la connexió amb Gregal.',
     controlOn: '🤖 Deixa que Gregal faci servir aquest navegador', stop: 'Atura',
     controlLive: 'Gregal pot fer servir aquest navegador · %s pestanyes al grup «Gregal»', controlWaiting: 'Esperant l\'app de Gregal…',
-    controlDenied: 'Sense el permís de depuració, Gregal no pot fer servir el navegador.',
+    controlDenied: 'Aquesta extensió és d\'una versió anterior: recarrega-la a chrome://extensions (o torna-la a preparar des de Gregal) i torna-ho a provar.',
     controlHelp: 'Gregal treballarà en pestanyes del grup «Gregal», amb les teves sessions. Et preguntarà abans d\'actuar a cada web i abans d\'enviar, pagar o esborrar res.',
     q: {
       docs: ['Resumeix el document', 'Millora la redacció del que he seleccionat', 'Revisa l\'ortografia i el to', 'Escriu-me un paràgraf sobre…'],
@@ -43,7 +43,7 @@ const T = {
     reading: 'Reading the page…', unreadable: 'could not be read', error: 'Error: %s', needKey: 'Set up the connection to Gregal.',
     controlOn: '🤖 Let Gregal use this browser', stop: 'Stop',
     controlLive: 'Gregal can use this browser · %s tabs in the «Gregal» group', controlWaiting: 'Waiting for the Gregal app…',
-    controlDenied: 'Without the debugger permission, Gregal cannot use the browser.',
+    controlDenied: 'This is an older version of the extension: reload it on chrome://extensions (or prepare it again from Gregal) and try again.',
     controlHelp: 'Gregal will work in tabs of the «Gregal» group, with your logins. It asks before acting on each website and before sending, paying or deleting anything.',
     q: {
       docs: ['Summarise the document', 'Improve the wording of my selection', 'Check spelling and tone', 'Write a paragraph about…'],
@@ -343,8 +343,10 @@ async function refreshControl() {
 }
 
 $('control-on').onclick = async () => {
-  // El permís de depuració es demana ara, amb un gest de l'usuari, i no en instal·lar.
-  const ok = await chrome.permissions.request({ permissions: ['debugger'] }).catch(() => false);
+  // Chrome no deixa que «debugger» sigui opcional: es concedeix en instal·lar
+  // l'extensió, i l'interruptor és qui decideix si Gregal el fa servir. Si
+  // falta (una versió antiga carregada), cal recarregar l'extensió.
+  const ok = await chrome.permissions.contains({ permissions: ['debugger'] }).catch(() => false);
   if (!ok) { toast(t('controlDenied')); return; }
   await chrome.storage.local.set({ control: true });
   paintControl(await chrome.runtime.sendMessage({ gregalLink: true }).catch(() => null), true);

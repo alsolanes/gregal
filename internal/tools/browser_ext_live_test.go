@@ -1,7 +1,7 @@
 package tools
 
 // Prova viva de punta a punta: un Chrome de debò amb l'extensió de Gregal
-// carregada (una còpia amb el permís de depuració ja concedit i apuntant al
+// carregada (una còpia amb l'interruptor encès i apuntant al
 // port de la prova), que es connecta al backend i deixa que l'agent faci
 // servir el navegador. Salta sense GREGAL_LIVE_EXT=1.
 //
@@ -101,15 +101,14 @@ func TestLiveChromeExtension(t *testing.T) {
 	}))
 	defer site.Close()
 
-	// Còpia de l'extensió: permís concedit i port de la prova.
+	// Còpia de l'extensió: interruptor encès i port de la prova (el permís de
+	// depuració ja ve al manifest, com en una instal·lació de debò).
 	_, here, _, _ := runtime.Caller(0)
 	src := filepath.Join(filepath.Dir(here), "..", "..", "extension", "chrome")
 	extRoot, _ := os.MkdirTemp("", "gregal-ext-src-")
 	defer os.RemoveAll(extRoot)
 	ext := filepath.Join(extRoot, "ext")
 	copyDir(t, src, ext)
-	patchFile(t, filepath.Join(ext, "manifest.json"), `"optional_permissions": [`+"\n"+`    "debugger"`+"\n"+`  ]`, `"optional_permissions": []`)
-	patchFile(t, filepath.Join(ext, "manifest.json"), `"alarms"`, `"alarms", "debugger"`)
 	patchFile(t, filepath.Join(ext, "background.js"), "return !!c.control &&", "return true ||")
 	patchFile(t, filepath.Join(ext, "logic.js"), "conf.desktopPort || '8097'", fmt.Sprintf("'%d'", port))
 

@@ -1,7 +1,8 @@
 // La icona obre el panell lateral: el xat amb els vents viu al costat de la pàgina.
 //
 // A més, si l'usuari ho activa al panell («Deixa que Gregal faci servir aquest
-// navegador»), aquest service worker obre un websocket cap a Gregal i hi fa de
+// navegador»; el permís de depuració ve amb la instal·lació, perquè Chrome
+// no el deixa demanar després), aquest service worker obre un websocket cap a Gregal i hi fa de
 // mans: obre pestanyes al grup «Gregal», hi enganxa el depurador i hi envia
 // les ordres CDP de l'agent. Només toca pestanyes d'aquell grup; l'usuari pot
 // arrossegar-hi una pestanya per compartir-la, o prémer Atura.
