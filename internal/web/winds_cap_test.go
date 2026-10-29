@@ -36,12 +36,12 @@ func TestCapDelega(t *testing.T) {
 	gar, _ := s.winds.Save(companion.Wind{Name: "Garbí", Role: "esports"})
 	calls := 0
 	reply := ""
-	old := capDecider
-	t.Cleanup(func() { capDecider = old })
-	capDecider = func(_ *Server, _ context.Context, msgs []llm.Message) (string, error) {
+	old := capDeciderActual()
+	t.Cleanup(func() { setCapDecider(old) })
+	setCapDecider(func(_ *Server, _ context.Context, msgs []llm.Message) (string, error) {
 		calls++
 		return reply, nil
-	}
+	})
 
 	// Un vent nomenat va directe, sense model.
 	out := capPost(t, s, `{"message":"Garbí, com ha quedat el Barça?","lang":"ca"}`)
@@ -135,11 +135,11 @@ func TestCapEspecialistes(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := goalTestServer(t)
 	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres i receptes"})
-	old, oldExpert := capDecider, expertLoop
-	t.Cleanup(func() { capDecider, expertLoop = old, oldExpert })
-	capDecider = func(*Server, context.Context, []llm.Message) (string, error) {
+	old, oldExpert := capDeciderActual(), expertLoopActual()
+	t.Cleanup(func() { setCapDecider(old); setExpertLoop(oldExpert) })
+	setCapDecider(func(*Server, context.Context, []llm.Message) (string, error) {
 		return `{"action":"rotllana","winds":["` + mar.ID + `"],"new":[{"name":"Fogony","role":"cuina de tardor","persona":"Cooks.","kit":""}],"reply":"Faig rotllana 🌀"}`, nil
-	}
+	})
 	out := capPost(t, s, `{"message":"què cuino amb carbassa?","lang":"ca"}`)
 	if out["action"] != "rotllana" || len(out["create"].([]any)) != 1 {
 		t.Fatalf("proposta: %v", out)
@@ -147,9 +147,9 @@ func TestCapEspecialistes(t *testing.T) {
 	if nov := out["novices"].([]any); len(nov) != 1 || nov[0] != mar.ID {
 		t.Fatalf("novells: %v", out["novices"])
 	}
-	expertLoop = func(*Server, context.Context, string, func(int, string)) (exploracio, error) {
+	setExpertLoop(func(*Server, context.Context, string, func(int, string)) (exploracio, error) {
 		return exploracio{}, errConst("sense xarxa a la prova")
-	}
+	})
 	body, _ := json.Marshal(map[string]any{"message": "què cuino amb carbassa?", "lang": "ca", "winds": out["winds"], "create": out["create"], "course": true})
 	rec := httptest.NewRecorder()
 	s.handleCapGo(rec, httptest.NewRequest(http.MethodPost, "/api/winds/cap/go", bytes.NewReader(body)))
@@ -208,11 +208,11 @@ func TestCapFilAmbEnllac(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := goalTestServer(t)
 	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres"})
-	old := capDecider
-	t.Cleanup(func() { capDecider = old })
-	capDecider = func(*Server, context.Context, []llm.Message) (string, error) {
+	old := capDeciderActual()
+	t.Cleanup(func() { setCapDecider(old) })
+	setCapDecider(func(*Server, context.Context, []llm.Message) (string, error) {
 		return `{"action":"rotllana","winds":["` + mar.ID + `"],"new":[{"name":"Fogony","role":"cuina","persona":"Cooks.","kit":""}],"reply":"Faig rotllana"}`, nil
-	}
+	})
 	out := capPost(t, s, `{"message":"sopar?","lang":"ca"}`)
 	hist := out["history"].([]any)
 	last := hist[len(hist)-1].(map[string]any)

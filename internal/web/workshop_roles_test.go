@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"time"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -166,6 +167,10 @@ func TestConduirTornRunsScoutAndEmitsLanes(t *testing.T) {
 			Messages []llm.Message `json:"messages"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
+		// El scout corre en paral·lel: amb un model instantani el torn
+		// s'acabaria abans que l'investigador tingués temps de lliurar el
+		// brief i el test no provaria res. Unes dècimes per crida basten.
+		time.Sleep(60 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
 		if len(req.Messages) > 0 && strings.Contains(req.Messages[0].Content, "SUBAGENT scout") {
 			fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"stats.py:1 defines mean(); add describe() below it"},"finish_reason":"stop"}]}`)
@@ -191,11 +196,20 @@ func TestConduirTornRunsScoutAndEmitsLanes(t *testing.T) {
 	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: provider.URL}}
 	// Un sol fitxer: en mode auto el scout no s'engegaria (projecte petit).
 	s.cfg.Agent.Scout = "always"
+	// El proveïdor del test és httptest (loopback = una ranura), on el scout
+	// va en sèrie. Aquí es força el paral·lel perquè el test cobreixi el
+	// lliurament del brief pel canal de steering.
+	s.cfg.Agent.ParallelSubagents = 4
 	s.permissive = true
 	role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
 	task := "add a describe() function to stats.py with tests"
 	gen := s.beginWorkshop(task, "m", 6)
 	ctx := context.WithValue(context.Background(), workshopRunKey{}, gen)
+	// La bústia del steering (el que lliura el brief del scout al torn) la
+	// obre el worker del torn, no conduirTorn. Aquí es fa igual, si no el
+	// lliurament no té on anar i el test no provaria el camí real.
+	endSteer := s.steerBegin()
+	defer endSteer()
 	var mu sync.Mutex
 	var kinds []string
 	var handoffs []string
@@ -225,10 +239,19 @@ func TestConduirTornRunsScoutAndEmitsLanes(t *testing.T) {
 	if scoutAgent != agent.ScoutAgentName {
 		t.Fatalf("scout must surface as a real delegate child, got %q", scoutAgent)
 	}
+	// Els relleus són els mateixos però l'ordre ja no és fix: el brief del
+	// researcher entra al torn quan l'investigador acaba, que pot ser després
+	// del primer relleu a builder. Es comprova el conjunt, no la seqüència.
 	got := strings.Join(handoffs, " ")
-	want := "coordinator>researcher:read researcher>coordinator:brief coordinator>builder:edit builder>tester:test"
-	if got != want {
-		t.Fatalf("handoffs = %q, want %q", got, want)
+	for _, want := range []string{
+		"coordinator>researcher:read",
+		"researcher>coordinator:brief",
+		"coordinator>builder:edit",
+		"builder>tester:test",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("falta el relleu %q a %q", want, got)
+		}
 	}
 	s.mu.Lock()
 	lanes := append([]workshopLane{}, s.activity.Lanes...)

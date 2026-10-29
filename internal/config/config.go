@@ -211,11 +211,30 @@ type AgentCfg struct {
 	// que demanen investigar comencin amb un subagent investigador de
 	// només lectura; off ho desactiva.
 	Scout string `yaml:"scout,omitempty"`
+	// ScoutParallel: on (per defecte) fa que l'investigador d'inici de torn
+	// corri ALHORA que el primer pas del coordinador i lliuri el seu resum
+	// al torn en curs; off el torna a fer esperar abans del primer pas.
+	// Les preguntes de mode inspect sempre esperen: allà el resum és la
+	// resposta que el vent ha de donar.
+	ScoutParallel string `yaml:"scout_parallel,omitempty"`
 	// ParallelSubagents topa quants subagents (delegate i scouts) corren
 	// alhora en un torn. 0 = automàtic: 4 amb proveïdors remots, 1 quan
 	// els subagents van a un servidor local (un sol slot: en paral·lel
 	// només farien cua dins del servidor).
 	ParallelSubagents int `yaml:"parallel_subagents,omitempty"`
+}
+
+// ScoutParallelOn diu si l'investigador corre en paral·lel amb el
+// coordinador (per defecte, sí). Amb off, el torn l'espera com abans.
+func (c *Config) ScoutParallelOn() bool {
+	if c == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(c.Agent.ScoutParallel)) {
+	case "off", "false", "no", "never":
+		return false
+	}
+	return true
 }
 
 // ScoutOn diu si l'investigador d'inici de torn és actiu (per defecte, sí).

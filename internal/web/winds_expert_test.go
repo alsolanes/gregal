@@ -17,11 +17,11 @@ import (
 // L'estudi desa un coneixement real al perfil del vent i reporta el progrés.
 func TestExpertDesaConeixement(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
-	oldLoop := expertLoop
-	defer func() { expertLoop = oldLoop }()
-	expertLoop = func(s *Server, ctx context.Context, brief string, onPas func(int, string)) (exploracio, error) {
+	oldLoop := expertLoopActual()
+	defer func() { setExpertLoop(oldLoop) }()
+	setExpertLoop(func(s *Server, ctx context.Context, brief string, onPas func(int, string)) (exploracio, error) {
 		return exploracio{text: "---\nnom: barca-basquet\ntitol: Barça de bàsquet\ndescripcio: El que he après\n---\nEl Barça de bàsquet juga a la Palau Blaugrana. Fonts: [ACB](https://acb.com).\n---END---"}, nil
-	}
+	})
 	s, _ := companionTestServer(t)
 	s.winds = companion.NewWindStore(t.TempDir())
 	if _, err := s.winds.Save(companion.Wind{Name: "Expertí", Role: "música"}); err != nil {

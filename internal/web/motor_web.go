@@ -37,6 +37,24 @@ func maxTokensPerTorn(mode string, role config.Role, window int) int {
 	return agentOutputBudget
 }
 
+// scoutEnParallel diu si l'investigador d'inici de torn ha de córrer ALHORA
+// que el coordinador en lloc d'abans.
+//
+// Mesurat amb el model local (una sola ranura a llama.cpp): en paral·lel la
+// mateixa pregunta va passar de 58 s a 2m18s — el scout i el coordinador es
+// disputen el motlle i es trepitgen el prefix cache, i el coordinador, sense
+// el brief a la primera volta, explora el doble. Amb un proveïdor que pot
+// servir crides concurrents (núvol) sí que estalvia el temps del brief.
+func (s *Server) scoutEnParallel(mode string) bool {
+	if mode == agent.ModeInspect {
+		return false
+	}
+	if !s.cfg.ScoutParallelOn() {
+		return false
+	}
+	return agent.ParallelSubagents(s.cfg) > 1
+}
+
 // conduirTorn fa córrer el torn d'agent de la web sobre el motor compartit
 // (agent.Torn), com el TUI, Telegram i el headless.
 //
@@ -128,12 +146,22 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	// tasca. Si falla, el torn continua igual.
 	respondreAl := 0
 	if agent.ScoutWantedIn(s.cfg, mode, task, workspace) {
-		var ambResum bool
-		convo, ambResum = s.runScout(runCtx, generation, mode, task, workspace, convo, maxSteps, uso, role.Provider, emit)
-		// Pregunta amb informe de l'explorador: recordatori de respondre
-		// (agent.ExploreRespondreAl).
-		if ambResum && mode == agent.ModeInspect {
-			respondreAl = agent.ExploreRespondreAl
+		if !s.scoutEnParallel(mode) {
+			// Mode inspect (el resum ÉS la resposta), scout_parallel: off, o
+			// proveïdor d'una sola ranura: el torn l'espera, com sempre.
+			var ambResum bool
+			convo, ambResum = s.runScout(runCtx, generation, mode, task, workspace, convo, maxSteps, uso, role.Provider, emit)
+			if ambResum && mode == agent.ModeInspect {
+				respondreAl = agent.ExploreRespondreAl
+			}
+		} else {
+			// Feina de codi: el coordinador arrenca ja i el brief entra al
+			// torn pel canal de steering quan l'investigador acaba. Abans,
+			// el torn s'esperava 45-57 s (71-87% del total) a tenir-lo.
+			scoutCtx, tallaScout := context.WithCancel(runCtx)
+			defer tallaScout() // en acabar el torn, el scout es talla
+			log.Printf("scout: engegat en paral·lel amb el coordinador")
+			go s.scoutAlDarrere(scoutCtx, &delegateEmitMu, generation, mode, task, workspace, maxSteps, uso, role.Provider, emit)
 		}
 	} else {
 		log.Printf("scout: saltat (%s)", agent.ScoutReason(s.cfg, mode, task, workspace))

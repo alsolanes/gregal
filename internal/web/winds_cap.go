@@ -324,6 +324,28 @@ func (s *Server) handleCapProfile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"name": st.Name, "color": st.Color, "style": st.Style})
 }
 
+// Panys dels seients de prova. Els tests substitueixen capDecider i
+// expertLoop, però handleCapGo engega una goroutine de fons
+// (goBackground → executaExpert) que els llegeix: si el test ja ha acabat i
+// els restaura, la lectura i l'escriptura es creuen. El detector de curses ho
+// va caçar; ara tot passa per aquí.
+var seientsMu sync.RWMutex
+
+// capDeciderActual llegeix el seient amb pany (per a qui l'hagi de cridar o
+// desar-lo abans de canviar-lo).
+func capDeciderActual() func(*Server, context.Context, []llm.Message) (string, error) {
+	seientsMu.RLock()
+	defer seientsMu.RUnlock()
+	return capDecider
+}
+
+// setCapDecider canvia el seient amb pany (només tests).
+func setCapDecider(f func(*Server, context.Context, []llm.Message) (string, error)) {
+	seientsMu.Lock()
+	defer seientsMu.Unlock()
+	capDecider = f
+}
+
 // capDecider és la crida al model; els tests la substitueixen.
 var capDecider = func(s *Server, ctx context.Context, msgs []llm.Message) (string, error) {
 	s.mu.Lock()
@@ -403,7 +425,7 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		"Never invent wind ids. Prefer specialists over answering yourself whenever the subject has any depth.\n" +
 		"New specialists: a short, playful, wind-inspired Catalan name not used above; a role of 2-5 words in " + lang + " saying exactly what it masters; a warm persona (2 sentences, in English) stating its expertise; kit = the closest of [" + strings.Join(crewKits, ", ") + "] or \"\".\n" +
 		`JSON: {"action":"…","winds":["id"],"new":[{"name":"…","role":"…","persona":"…","kit":"…"}],"task":"…","reply":"…"}`)
-	raw, err := capDecider(s, ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: b.String()}})
+	raw, err := capDeciderActual()(s, ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: b.String()}})
 	if err != nil {
 		log.Printf("cap: %s", redactError(err))
 		return capDecision{}, err

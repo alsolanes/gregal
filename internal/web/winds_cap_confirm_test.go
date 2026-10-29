@@ -16,12 +16,12 @@ func TestCapEndavantFaLaProposta(t *testing.T) {
 	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres i receptes"})
 	calls := 0
 	reply := ""
-	old := capDecider
-	t.Cleanup(func() { capDecider = old })
-	capDecider = func(_ *Server, _ context.Context, _ []llm.Message) (string, error) {
+	old := capDeciderActual()
+	t.Cleanup(func() { setCapDecider(old) })
+	setCapDecider(func(_ *Server, _ context.Context, _ []llm.Message) (string, error) {
 		calls++
 		return reply, nil
-	}
+	})
 
 	reply = `{"action":"crew","task":"Fer una web de receptes amb buscador","reply":"Això és feina per a una colla 🛠️"}`
 	out := capPost(t, s, `{"message":"fes-me una web de receptes","lang":"ca"}`)

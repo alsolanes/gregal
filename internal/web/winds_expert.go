@@ -170,6 +170,22 @@ func extrauSkill(text string) (nom, titol, descripcio, cos string, ok bool) {
 	return nom, titol, descripcio, cos, nom != "" && cos != ""
 }
 
+// expertLoopActual llegeix el seient amb pany (vegeu seientsMu a winds_cap.go):
+// executaExpert corre en una goroutine de fons i el test pot haver-lo
+// restaurat mentrestant.
+func expertLoopActual() func(*Server, context.Context, string, func(int, string)) (exploracio, error) {
+	seientsMu.RLock()
+	defer seientsMu.RUnlock()
+	return expertLoop
+}
+
+// setExpertLoop canvia el seient amb pany (només tests).
+func setExpertLoop(f func(*Server, context.Context, string, func(int, string)) (exploracio, error)) {
+	seientsMu.Lock()
+	defer seientsMu.Unlock()
+	expertLoop = f
+}
+
 // expertLoop és la via de cerca de l'estudi; els tests la substitueixen.
 // Mateixa interfície que el cor. Aquesta implementació aprofita l'emissió
 // en directe del loop per actualitzar el progrés: cada pas que acaba en
@@ -194,7 +210,7 @@ func (s *Server) executaExpert(w companion.Wind, e *expertEstat) {
 	defer cancel()
 
 	brief := expertSystem(w, e.tema, s.windUserName()) + companion.WindBrainSystem(s.windBrain(w.ID))
-	res, err := expertLoop(s, ctx, brief, func(n int, eines string) {
+	res, err := expertLoopActual()(s, ctx, brief, func(n int, eines string) {
 		e.mu.Lock()
 		e.pas++
 		// Les eines del pas diuen què fa: cercar o llegir.
