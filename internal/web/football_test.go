@@ -61,7 +61,12 @@ func TestFootballMatchPlaysToTheEnd(t *testing.T) {
 	if commented == 0 || len(m.Plans) < 8 {
 		t.Fatalf("comentaris %d, plans %d", commented, len(m.Plans))
 	}
-	if c := atomic.LoadInt32(&calls); c < 13 || c > 30 {
+	// El mínim garantit són les 8 decisions dels entrenadors (2 equips × 4
+	// quarts). El comentarista va per quart i, si un quart no té cap jugada
+	// clau, fbCommentary torna sense cridar el model — per això 12 també és
+	// un partit bo i el terra no pot ser 13. Que el comentari funciona ja ho
+	// comprova `commented` aquí a sobre, i el resum, `m.Summary`.
+	if c := atomic.LoadInt32(&calls); c < 8 || c > 30 {
 		t.Fatalf("crides al model: %d", c)
 	}
 	// Les jugades noves, a partir d'una.
