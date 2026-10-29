@@ -352,6 +352,14 @@ func hookScopeDe(ctx context.Context) (string, string) {
 // s'enganxa al resultat perquè el model ho llegeixi.
 func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out string, images []string, err error) {
 	out, images, err = execCtxEina(ctx, session, dir, name, argsJSON)
+	// Notes per camí (pathnotes.go): si l'eina ha tocat un fitxer, el
+	// resultat porta el que ja sabem d'aquell fitxer. Context tardà i sense
+	// cap crida al model, que és el que necessita un servidor d'una ranura.
+	if err == nil && out != "" {
+		if nota := NotaNotes(session, dir, name, argsJSON); nota != "" {
+			out += "\n" + nota
+		}
+	}
 	if !HiHaHooks(HookPostTool) || ctx.Err() != nil {
 		return out, images, err
 	}
