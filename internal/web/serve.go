@@ -482,6 +482,9 @@ func (h *Hub) mux() *http.ServeMux {
 	})
 	handle("/api/state", h.route((*Server).handleState))
 	handle("/api/health", h.global((*Server).handleHealth))
+	// El Chrome de l'usuari, a través de l'extensió (browser_ext.go).
+	handle(browserExtensionPath, h.handleBrowserExtension)
+	handle(browserExtensionPath+"/status", h.global((*Server).handleBrowserExtensionStatus))
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.
@@ -668,7 +671,8 @@ func userFrom(r *http.Request) *User {
 func (s *Server) requireUser(next http.Handler) http.Handler {
 	senseAuth := strings.TrimSpace(s.Token) == "" && (s.users == nil || !s.users.Actiu())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" || r.URL.Path == mcp.OAuthCallbackPath {
+		// L'extensió de Chrome s'autentica al primer missatge del websocket.
+		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" || r.URL.Path == mcp.OAuthCallbackPath || r.URL.Path == browserExtensionPath {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -1630,7 +1634,7 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 	var allowed []string
 	switch event {
 	case "approve_request":
-		allowed = []string{"key", "call_id", "name", "args", "timeout_s", "auto_approve_allowed"}
+		allowed = []string{"key", "call_id", "name", "args", "timeout_s", "auto_approve_allowed", "reason", "forced"}
 	case "question_request":
 		allowed = []string{"key", "call_id", "query", "options", "timeout_s"}
 	case "tool_call":

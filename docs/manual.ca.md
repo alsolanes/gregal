@@ -509,7 +509,7 @@ a `localhost`, llocs on has iniciat sessió). On corre ho decideix
 
 ```yaml
 browser:
-  mode: auto   # auto (per defecte) | app | headless | window
+  mode: auto   # auto (per defecte) | app | headless | window | chrome
 ```
 
 | Mode | Comportament |
@@ -518,6 +518,7 @@ browser:
 | `app` | s'obre el panell de navegador de la mateixa app al costat de la conversa i l'agent el condueix; ho veus en directe i hi pots clicar o escriure quan vulguis. Sense pont torna a `headless` i el resultat de l'eina ho diu |
 | `headless` | el Chrome o l'Edge de la màquina sense finestra, amb el perfil propi del Gregal (`~/.config/gregal/browser`) |
 | `window` | el mateix navegador amb finestra visible; útil per iniciar sessió un cop en un lloc dins del perfil del Gregal |
+| `chrome` | el teu Chrome, amb les teves sessions, a través de l'extensió de Gregal (vegeu més avall). Si no està connectada, l'eina diu com activar-la |
 
 `GREGAL_BROWSER_HEADLESS=1` força `headless` digui el que digui el config.
 A l'app d'escriptori el pont és un punt HTTP només de loopback que serveix
@@ -526,10 +527,41 @@ l'engega; només accepta ordres DevTools de pàgina i mai navega a l'adreça del
 mateix backend. Una app connectada a un backend que no ha engegat ella
 (`GREGAL_URL` o un servei que ja corria) no té pont i l'agent fa servir
 `headless`. El panell de l'agent comparteix galetes amb la pàgina Navegador de
-l'app. Les accions de lectura (`open`, `read`, `screenshot`, `back`) corren
-directament; actuar sobre la pàgina (`click`, `type`, `press`, `eval`) demana
-permís i mai es permet en mode xat o inspecció. Les captures també surten a
-la targeta de l'eina del web.
+l'app. Les captures també surten a la targeta de l'eina del web.
+
+**Com veu i actua l'agent.** `read` torna la pàgina com un arbre
+d'accessibilitat: una línia per element amb el rol, el nom i l'estat, i una
+ref com `[ref=e12]` a tot allò on pot actuar. La ref va lligada al node de la
+pàgina i val mentre l'element hi sigui. `click`, `type`, `select`, `hover`,
+`drag`, `upload` (un fitxer del projecte a un camp de fitxer) i `scroll` fan
+servir la ref; `press` accepta tecles i combinacions (`Enter`, `Control+a`);
+`wait` espera un text, que en desaparegui un, o que la pàgina s'aturi; `click`
+amb `x`/`y` clica píxels d'una captura (apps de llenç). Cada acció torna només
+el que ha canviat. `batch` fa fins a 15 passos en una crida. `console` i
+`network` mostren errors i peticions; `tabs`, `tab_new`, `tab_select` i
+`tab_close` gestionen pestanyes, i un clic que n'obre una hi porta l'agent.
+`alert`/`confirm`/`prompt` es responen sols (cancel·lar per defecte) i es diu;
+`dialog accept:true` accepta el següent.
+
+**Permisos.** Llegir amb el navegador propi del Gregal corre directament. La
+primera acció que canvia alguna cosa en un web nou (clicar, escriure, triar…)
+pregunta un cop; després el lloc queda permès durant la sessió (`localhost` mai
+pregunta). Clicar una cosa que envia, paga, compra, esborra o publica, i
+acceptar un diàleg de la pàgina, pregunten sempre, també amb aprovació
+automàtica o autonomia total. El Gregal mai escriu en camps de contrasenya,
+targeta o codis d'un sol ús: ho escrius tu. En mode xat o inspecció no es pot
+actuar mai.
+
+**El teu Chrome.** Al panell lateral de l'extensió de Gregal, «Deixa que
+Gregal faci servir aquest navegador» demana a Chrome el permís de depuració en
+aquell moment i es connecta a l'app d'escriptori (un websocket local que només
+accepta l'extensió). Després demana-li al Gregal que faci una cosa «al meu
+Chrome»: l'agent treballa en pestanyes del grup «Gregal», amb les teves
+sessions, i només allà (arrossega-hi una pestanya per compartir-la). Cada web
+nou pregunta primer, també amb aprovació automàtica. Chrome mostra la seva
+barra «està depurant aquest navegador»; Atura al panell o Cancel·la a la barra
+ho acaben, i l'agent no s'hi torna a enganxar fins que ho tornis a activar.
+`browser.mode: chrome` fa que el teu Chrome sigui el de per defecte.
 
 ### Mode de permís amb revisor automàtic
 

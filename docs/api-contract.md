@@ -295,6 +295,8 @@ workspace roots.
 | Route | Method | Response |
 |---|---|---|
 | `/api/state` | GET | `{role:[], current_role, mode, model, provider, verify, agent_busy, cwd, project, branch, git, worktree?, worktree_repo?, permissive, auto_review, ui_mode, access, sandbox, used_tokens, context_window}`. `ui_mode` is what the mode picker shows (`ask` for chat/inspect, `plan` for plan/goal, `act` for code/autonomous/debug) and `access` is the Act permission (`ask`, `edits` or `full`); see [modes and permissions](modes.md). `git` says whether `cwd` is inside a git working tree (`branch` is empty on a detached HEAD); `worktree`/`worktree_repo` appear only when `cwd` is a gregal worktree (`<repo>/.gregal/worktrees/<name>`) and give its name and the main repository root. `used_tokens` estimates conversation context usage; `context_window` is 0 when the role does not declare it. `auto_review` is true in auto-review permission mode. `sandbox` is the shell sandbox status: `{mode: off\|workspace\|strict, requested_backend, backend: none\|bwrap\|landlock\|sandbox-exec\|docker, active, refuses, network: on\|off, network_isolated, allow_write?, warning?, guarantee}`; `active` means commands really run confined, `refuses` means strict mode without a usable backend (shell commands are denied). |
+| `/api/browser/extension` | WebSocket | Only from a `chrome-extension://` origin. The Gregal extension connects when the user turns on "Let Gregal use this browser"; its first message is `{type:"hello",key,version}` (the key is checked like a Bearer token when the server has one). The backend then sends `{id,op}` requests (`open`, `cdp`, `tabs`, `select`, `close`, `detach`) and the extension answers `{id,result}` or `{id,error}`; it also sends `{event:"detached"|"stop"|"ping"}`. |
+| `/api/browser/extension/status` | GET | `{connected, stopped, version?, since?}`: whether the user's Chrome is connected for the agent. |
 | `/api/health` | GET | `{status, protocol, instance_id, capabilities}` for discovering and validating the service instance. `capabilities.interactive_events` is `true` only when durable storage and payload serialization are available. |
 | `/api/active` | GET | `{active:{id,task,started_at,role,mode,project,events[],progress?}}` for the active turn. `progress` is the latest `progress` event payload (see below); progress events never enter `events[]`. |
 | `/api/v2/events` | GET | `?after=<cursor>&limit=1..500&session=<id>` → `{events:[{id,at,session_id,run_id,kind,text,payload?}],cursor,next}`; durable reads can resume after a disconnect. |
@@ -362,7 +364,9 @@ workspace roots.
 
 `route` (the router changed roles) · `thinking` (reasoning accompanying a
 tool call) · `tool_call` · `approve_request` (`{key, call_id, name, args,
-timeout_s, auto_approve_allowed}`; `timeout_s` is a number of seconds from
+timeout_s, auto_approve_allowed}`, plus `reason` and `forced` for `browser`:
+why it asks — a new site or an irreversible action — and whether it can never
+be remembered or auto-approved; `timeout_s` is a number of seconds from
 `agent.approval_timeout_s`, default 1800; `0` means no limit) ·
 `approve_timeout` (no response within `timeout_s` seconds means denied) ·
 `question_request` (selectable question:

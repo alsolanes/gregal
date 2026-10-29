@@ -33,12 +33,12 @@ func TestChooseBrowserMode(t *testing.T) {
 			t.Errorf("chooseBrowserMode(%q, %v, %v) = %q, want %q", c.cfg, c.force, c.bridge, got, c.want)
 		}
 	}
-	for _, ok := range []string{"", "auto", "app", "headless", "window", " Window "} {
+	for _, ok := range []string{"", "auto", "app", "headless", "window", " Window ", "chrome"} {
 		if !ValidBrowserMode(ok) {
 			t.Errorf("%q should be valid", ok)
 		}
 	}
-	for _, bad := range []string{"visible", "chrome", "on"} {
+	for _, bad := range []string{"visible", "firefox", "on"} {
 		if ValidBrowserMode(bad) {
 			t.Errorf("%q should be invalid", bad)
 		}
@@ -269,7 +269,7 @@ func TestBrowserAppTransportDrivesTheAppView(t *testing.T) {
 	if navegat != "http://exemple.cat/inici" || clics != 1 || attach != 1 {
 		t.Fatalf("url=%q clics=%d attach=%d", navegat, clics, attach)
 	}
-	if !strings.HasPrefix(calls, "Page.enable,Runtime.enable,Page.navigate") {
+	if !strings.HasPrefix(calls, "Page.enable,Runtime.enable") || !strings.Contains(calls, "Page.navigate") {
 		t.Fatalf("calls: %s", calls)
 	}
 	// Els errors CDP del pont arriben com a errors de l'acció.

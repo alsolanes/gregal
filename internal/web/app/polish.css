@@ -287,6 +287,8 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 .approve { border-radius:12px; padding:14px 16px; background:var(--surface); border-color:var(--amber); }
 .approve > b { display:block; margin-bottom:2px; color:var(--ink); }
 .approve .args { border-radius:8px; }
+.approve .approve-why { margin:4px 0 6px; color:var(--ink); }
+.approve .approve-why.forced { font-weight:600; color:var(--red, #c0392b); }
 .approve .row { margin-top:4px; }
 .approve .row button { min-width:84px; }
 .approve .count { font-size:var(--t1); }

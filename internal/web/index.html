@@ -3602,7 +3602,7 @@ async function doAgent(task, resumed) {
         notify(gregalT('notify.confirmTool'), d.name);
         approvals++;
         const autoAllowed = d.auto_approve_allowed === true;
-        const offerAuto = autoAllowed && !offeredAuto && permMode !== 'full' && (text.length >= 300 || approvals >= 3);
+        const offerAuto = autoAllowed && !d.forced && !offeredAuto && permMode !== 'full' && (text.length >= 300 || approvals >= 3);
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
         api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
@@ -3967,7 +3967,7 @@ function reviewRowHTML(d) {
 function askApprove(d, offerAuto = false) {
   return new Promise(res=>{
     const L = k => escapeHTML(gregalT(k));
-    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">'+L('approve.allow')+'</button>'+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger">'+L('approve.deny')+'</button></div></div>');
+    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+(d.reason?'<p class="approve-why'+(d.forced?' forced':'')+'">'+escapeHTML(d.reason)+'</p>':'')+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">'+L('approve.allow')+'</button>'+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger">'+L('approve.deny')+'</button></div></div>');
     intoWorkGroup(box); if (turnGroup) turnGroup.open = true;
     const yes=box.querySelector('.row .primary'), no=box.querySelector('.row .danger'); let settled=false;
     const tick = compteEnrere(box.querySelector('.count'), d, gregalT('approve.timeout'), () => finish(false));

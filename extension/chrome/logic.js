@@ -27,6 +27,11 @@ export function connection(conf) {
   return { addr: conf.addr || '127.0.0.1', port: conf.port || '', key: conf.key || '' };
 }
 
+/** On es connecta l'extensió perquè Gregal pugui fer servir aquest navegador. */
+export function extensionSocketUrl(conn) {
+  return baseUrl(conn.addr, conn.port).replace(/^http/, 'ws') + '/api/browser/extension';
+}
+
 /** Talla un flux SSE en esdeveniments {event, data}; torna també el que encara no és complet. */
 export function parseSSE(buffer) {
   const events = [];

@@ -234,19 +234,7 @@ func Specs() []llm.ToolSpec {
 					"title": str, "status": map[string]any{"type": "string", "enum": []string{"pending", "working", "done"}},
 				}, "required": []string{"title", "status"}}},
 			}, "required": []string{"items"}}},
-		{Name: "browser", Description: "Real browser for pages with JavaScript, local apps (localhost) and sites with a logged-in session. action=open (url) loads and reads; read returns the page as markdown + numbered interactive elements [n]; click (target: [n], CSS selector or visible text); type (target, text, enter=true to submit); press (key: Enter|Tab|Escape|ArrowDown…); screenshot attaches a capture; back; eval (js) runs JavaScript; close. In the desktop app it drives the app's built-in browser pane, which the user watches live; elsewhere it is headless Chrome/Edge with gregal's own profile (browser.mode: window shows a visible window). For static pages web_fetch is faster.",
-			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"action":    map[string]any{"type": "string", "enum": []string{"open", "read", "click", "type", "press", "screenshot", "back", "eval", "close"}},
-				"url":       str,
-				"target":    str,
-				"text":      str,
-				"key":       str,
-				"js":        str,
-				"find":      str,
-				"enter":     map[string]any{"type": "boolean"},
-				"raw":       map[string]any{"type": "boolean"},
-				"max_chars": map[string]any{"type": "integer"},
-			}, "required": []string{"action"}}},
+		{Name: "browser", Description: tools.BrowserToolDescription, Parameters: tools.BrowserToolParameters()},
 		{Name: "todoread", Description: "Read the published list of steps (progress checks).",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{}}},
 		{Name: "skill", Description: "Open a skill by name and return its full content. Skills are knowledge about gregal itself, your project, or specialist workflows. Check the short index in your prompt and open a skill only when the task materially benefits from it; do not open unrelated skills. Specialist skills disabled in settings are unavailable. Read a relevant skill before acting when it provides a workflow for the task.",
@@ -435,7 +423,14 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 			Action string `json:"action"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
-		if tools.BrowserActionSegura(a.Action) {
+		var full map[string]any
+		_ = json.Unmarshal([]byte(argsJSON), &full)
+		if full == nil {
+			full = map[string]any{"action": a.Action}
+		}
+		// Amb el Chrome de l'usuari, fins i tot llegir passa pel permís de
+		// lloc (el decideix el torn amb tools.BrowserGate).
+		if tools.BrowserCallSegura(full) && !browserWantsChrome(full) {
 			return "allow", ""
 		}
 		return "ask", "navegador: actua sobre la pàgina (" + a.Action + ")"
@@ -508,7 +503,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 		}
 	}
-	if ReadOnlyMode(mode) && (name == "bash" || name == "browser") {
+	if ReadOnlyMode(mode) && (name == "bash" || (name == "browser" && !browserSafeRead(argsJSON))) {
 		// Read-only modes cannot inherit broader shell or browser grants.
 		if d, reason := DefaultPolicy().For(name, argsJSON); d != "allow" {
 			return "deny", "read-only mode: " + reason
@@ -524,7 +519,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 		case "bash_background", "office_open":
 			return "deny", "mode consulta: no engega processos ni programes"
 		case "browser":
-			if d, _ := p.For(name, argsJSON); d == "allow" {
+			if d, _ := p.For(name, argsJSON); d == "allow" || (d == "ask" && browserSafeRead(argsJSON)) {
 				return "allow", ""
 			}
 			return "deny", "mode consulta: el navegador només mira (open, read, screenshot)"
@@ -554,7 +549,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 		case "bash_background", "office_open":
 			return "deny", què + ": només lectura (no engega processos ni programes)"
 		case "browser":
-			if d, _ := p.For(name, argsJSON); d == "allow" {
+			if d, _ := p.For(name, argsJSON); d == "allow" || (d == "ask" && browserSafeRead(argsJSON)) {
 				return "allow", ""
 			}
 			return "deny", què + ": el navegador només mira (open, read, screenshot)"
@@ -1052,6 +1047,8 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 			return "", nil, err
 		}
 		action, _ := ba["action"].(string)
+		// Els fitxers a pujar (upload) són relatius a la carpeta del projecte.
+		ba["_dir"] = procDirOr(dir)
 		return tools.BrowserActionFor(ctx, session, action, ba)
 	case "office_create":
 		var oc struct {
@@ -1417,4 +1414,20 @@ func contaTasques(argsJSON string) int {
 		return 1
 	}
 	return len(a.Tasks)
+}
+
+// browserWantsChrome diu si la crida va al Chrome de l'usuari (chrome:true).
+func browserWantsChrome(args map[string]any) bool {
+	v, _ := args["chrome"].(bool)
+	return v
+}
+
+// browserSafeRead: la crida només mira (també al Chrome de l'usuari, on el
+// torn hi posa el permís de lloc amb tools.BrowserGate).
+func browserSafeRead(argsJSON string) bool {
+	var m map[string]any
+	if json.Unmarshal([]byte(argsJSON), &m) != nil || m == nil {
+		return false
+	}
+	return tools.BrowserCallSegura(m)
 }

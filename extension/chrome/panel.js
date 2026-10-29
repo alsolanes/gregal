@@ -18,6 +18,10 @@ const T = {
     copy: 'Copia', insert: 'Insereix', replace: 'Substitueix el fitxer', copied: 'Copiat al porta-retalls',
     inserted: 'Fet ✓', pasteHint: 'No s\'ha pogut posar directament: és al porta-retalls, prem Ctrl+V on vulguis.',
     reading: 'Llegint la pàgina…', unreadable: 'no s\'ha pogut llegir', error: 'Error: %s', needKey: 'Configura la connexió amb Gregal.',
+    controlOn: '🤖 Deixa que Gregal faci servir aquest navegador', stop: 'Atura',
+    controlLive: 'Gregal pot fer servir aquest navegador · %s pestanyes al grup «Gregal»', controlWaiting: 'Esperant l\'app de Gregal…',
+    controlDenied: 'Sense el permís de depuració, Gregal no pot fer servir el navegador.',
+    controlHelp: 'Gregal treballarà en pestanyes del grup «Gregal», amb les teves sessions. Et preguntarà abans d\'actuar a cada web i abans d\'enviar, pagar o esborrar res.',
     q: {
       docs: ['Resumeix el document', 'Millora la redacció del que he seleccionat', 'Revisa l\'ortografia i el to', 'Escriu-me un paràgraf sobre…'],
       sheets: ['Explica\'m aquestes dades', 'Fes-me una fórmula per…', 'Troba errors o valors estranys', 'Fes un script que…'],
@@ -37,6 +41,10 @@ const T = {
     copy: 'Copy', insert: 'Insert', replace: 'Replace the file', copied: 'Copied to the clipboard',
     inserted: 'Done ✓', pasteHint: 'Could not put it in directly: it is on the clipboard, press Ctrl+V where you want it.',
     reading: 'Reading the page…', unreadable: 'could not be read', error: 'Error: %s', needKey: 'Set up the connection to Gregal.',
+    controlOn: '🤖 Let Gregal use this browser', stop: 'Stop',
+    controlLive: 'Gregal can use this browser · %s tabs in the «Gregal» group', controlWaiting: 'Waiting for the Gregal app…',
+    controlDenied: 'Without the debugger permission, Gregal cannot use the browser.',
+    controlHelp: 'Gregal will work in tabs of the «Gregal» group, with your logins. It asks before acting on each website and before sending, paying or deleting anything.',
     q: {
       docs: ['Summarise the document', 'Improve the wording of my selection', 'Check spelling and tone', 'Write a paragraph about…'],
       sheets: ['Explain this data', 'Write me a formula to…', 'Find errors or odd values', 'Write a script that…'],
@@ -318,11 +326,42 @@ async function send(text) {
   }
 }
 
+// --- Deixar que Gregal faci servir aquest navegador ---
+function paintControl(st, on) {
+  $('control-on').hidden = on;
+  $('control-on').title = t('controlHelp');
+  $('control-live').hidden = !on;
+  $('control-live').classList.toggle('waiting', !(st && st.connected));
+  $('control-live').title = t('controlHelp');
+  $('control-text').textContent = st && st.connected ? t('controlLive', String(st.tabs || 0)) : t('controlWaiting');
+}
+
+async function refreshControl() {
+  const { control } = await chrome.storage.local.get(['control']);
+  const st = await chrome.runtime.sendMessage({ gregalStatus: true }).catch(() => null);
+  paintControl(st, !!control);
+}
+
+$('control-on').onclick = async () => {
+  // El permís de depuració es demana ara, amb un gest de l'usuari, i no en instal·lar.
+  const ok = await chrome.permissions.request({ permissions: ['debugger'] }).catch(() => false);
+  if (!ok) { toast(t('controlDenied')); return; }
+  await chrome.storage.local.set({ control: true });
+  paintControl(await chrome.runtime.sendMessage({ gregalLink: true }).catch(() => null), true);
+};
+$('control-stop').onclick = async () => {
+  paintControl(await chrome.runtime.sendMessage({ gregalStop: true }).catch(() => null), false);
+};
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg && msg.gregalControl) chrome.storage.local.get(['control']).then(({ control }) => paintControl(msg.gregalControl, !!control));
+});
+
 $('form').onsubmit = (e) => { e.preventDefault(); send($('input').value); };
 $('input').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('input').value); } };
 
 (async () => {
   await loadConf();
+  refreshControl();
   try { await loadWinds(); log(t('empty'), 'empty'); } catch {
     $('settings').hidden = false;
     $('status').textContent = conf.mode === 'server' ? t('needKey') : t('noDesktop');

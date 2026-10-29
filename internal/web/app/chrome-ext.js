@@ -31,10 +31,18 @@ export const chromeExt = {
         '<li>' + esc(desktop ? T('prefs.chromeExt.step3') : T('prefs.chromeExt.step3server')) + '</li>' +
         '</ol>';
     }
+    // Deixar que l'agent faci servir el Chrome de l'usuari (les seves sessions).
+    body += '<p class="pf-skills-help" id="prefsChromeControl">' + esc(T('prefs.chromeExt.control')) + '</p>';
     return '<h3 class="pf-sec">' + esc(T('prefs.chromeExt')) + '</h3><div id="prefsChromeExtBox">' + body + '</div>';
   },
 
   bind(parent, repaint) {
+    const ctl = parent.querySelector('#prefsChromeControl');
+    if (ctl && typeof window.api === 'function') {
+      window.api('/api/browser/extension/status').then(r => r.json()).then(st => {
+        if (st && st.connected) ctl.textContent = T('prefs.chromeExt.controlOn');
+      }).catch(() => {});
+    }
     const prep = parent.querySelector('#prefsChromeExt');
     if (prep) prep.onclick = async () => {
       prep.disabled = true;

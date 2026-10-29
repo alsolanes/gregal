@@ -100,7 +100,7 @@ func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) 
 			Action string `json:"action"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
-		if a.Action == "eval" {
+		if a.Action == "eval" || strings.Contains(argsJSON, `"eval"`) {
 			return "ask", "autonomous: running custom JavaScript in the browser", true
 		}
 		return "allow", "", true

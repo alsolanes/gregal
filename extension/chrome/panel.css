@@ -45,3 +45,11 @@ button:disabled { opacity: .5; cursor: default; }
 #input { flex: 1; resize: none; }
 #toast { position: fixed; left: 10px; right: 10px; bottom: 70px; background: var(--ink); color: var(--bg); padding: 8px 12px; border-radius: 10px; font-size: 13px; }
 .empty { color: var(--muted); text-align: center; margin-top: 30px; }
+.control { padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12px; }
+#control-on { width: 100%; font-size: 12px; text-align: left; color: var(--muted); }
+.control-live { display: flex; align-items: center; gap: 6px; }
+.control-live[hidden] { display: none; }
+.control-live span:nth-child(2) { flex: 1; }
+.control-live .dot { width: 8px; height: 8px; border-radius: 50%; background: #2fb36d; box-shadow: 0 0 0 3px #2fb36d33; }
+.control-live.waiting .dot { background: #e0a800; box-shadow: 0 0 0 3px #e0a80033; }
+#control-stop { font-size: 12px; padding: 2px 10px; border-color: #d9534f; color: #d9534f; }

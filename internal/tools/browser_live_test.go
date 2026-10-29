@@ -30,7 +30,7 @@ func TestLiveBrowser(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("open en %v:\n%s", time.Since(t0), out)
-	if !strings.Contains(out, "Example Domain") || !strings.Contains(out, "[1] a") {
+	if !strings.Contains(out, "Example Domain") || !strings.Contains(out, "[ref=e1]") {
 		t.Fatalf("lectura inesperada")
 	}
 	t1 := time.Now()

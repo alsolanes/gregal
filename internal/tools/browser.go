@@ -69,6 +69,14 @@ type Browser struct {
 	launched bool
 	// actx: context del pas en marxa; call el consulta per tallar-se.
 	actx context.Context
+	// ax: refs i última lectura de l'arbre d'accessibilitat (browser_ax.go).
+	ax *axState
+	// shotScale: píxels de captura per píxel CSS (click amb x/y).
+	shotScale float64
+	// tabID: la pestanya on parla el transport (Chrome engegat per nosaltres).
+	tabID string
+	// lastURL: on era la pàgina l'última vegada que es va mirar (permís de lloc).
+	lastURL string
 }
 
 var (
@@ -146,9 +154,14 @@ func freePort() (int, error) {
 func GetBrowser() (*Browser, error) { return GetBrowserFor("") }
 
 func GetBrowserFor(scope string) (*Browser, error) {
+	return GetBrowserWant(scope, EffectiveBrowserMode())
+}
+
+// GetBrowserWant és GetBrowserFor amb el mode triat per la crida (chrome:true
+// fa servir el Chrome de l'usuari encara que el config digui una altra cosa).
+func GetBrowserWant(scope, want string) (*Browser, error) {
 	browserMu.Lock()
 	defer browserMu.Unlock()
-	want := EffectiveBrowserMode()
 	if scope != "" {
 		previous := browserSessions[scope]
 		if previous != nil && previous.alive() && previous.want == want {
@@ -198,6 +211,8 @@ func openBrowser(want string, scopes ...string) (*Browser, error) {
 		launch = func(headless bool) (*Browser, error) { return launchChromeScoped(headless, scopes...) }
 	}
 	switch want {
+	case BrowserModeChrome:
+		return openExtBrowser()
 	case BrowserModeApp:
 		bridge := browserAppBridge()
 		if bridge == "" {
@@ -340,6 +355,15 @@ func (b *Browser) connectaPagina() error {
 			break
 		}
 	}
+	return b.connectaWS(ws)
+}
+
+// connectaWS obre el canal CDP amb la pestanya del websocket ws (o en crea
+// una de nova si és buit).
+func (b *Browser) connectaWS(ws string) error {
+	type tab struct {
+		WS string `json:"webSocketDebuggerUrl"`
+	}
 	if ws == "" {
 		req, _ := http.NewRequest("PUT", b.httpBase()+"/json/new?about:blank", nil)
 		resp, err := http.DefaultClient.Do(req)
@@ -358,11 +382,22 @@ func (b *Browser) connectaPagina() error {
 	if err != nil {
 		return err
 	}
+	if b.t != nil {
+		b.t.Close()
+	}
 	b.t = t
+	b.tabID = ws[strings.LastIndex(ws, "/")+1:]
+	return b.prepara()
+}
+
+// prepara activa els dominis CDP de la pestanya i hi posa la instrumentació.
+func (b *Browser) prepara() error {
 	if _, err := b.call("Page.enable", nil); err != nil {
 		return err
 	}
 	_, _ = b.call("Runtime.enable", nil)
+	_, _ = b.call("DOM.enable", nil)
+	b.instrument()
 	return nil
 }
 
@@ -519,6 +554,9 @@ func (b *Browser) Navigate(rawURL string) error {
 	if _, err := b.call("Page.navigate", map[string]any{"url": u.String()}); err != nil {
 		return err
 	}
+	b.mu.Lock()
+	b.lastURL = u.String()
+	b.mu.Unlock()
 	return b.esperaCarrega()
 }
 
@@ -742,41 +780,8 @@ func (b *Browser) Type(target, text string, enter bool) (string, error) {
 	return fmt.Sprintf("escrit %q", truncateInline(text, 60)) + map[bool]string{true: " + Enter", false: ""}[enter], nil
 }
 
-var keyCodes = map[string]struct {
-	code string
-	vk   int
-	text string
-}{
-	"Enter":     {"Enter", 13, "\r"},
-	"Tab":       {"Tab", 9, "\t"},
-	"Escape":    {"Escape", 27, ""},
-	"Backspace": {"Backspace", 8, ""},
-	"ArrowDown": {"ArrowDown", 40, ""},
-	"ArrowUp":   {"ArrowUp", 38, ""},
-	"PageDown":  {"PageDown", 34, ""},
-	"PageUp":    {"PageUp", 33, ""},
-	"Space":     {"Space", 32, " "},
-}
-
-// Press prem una tecla (Enter, Tab, Escape, ArrowDown…).
-func (b *Browser) Press(key string) error {
-	k, ok := keyCodes[key]
-	if !ok {
-		return fmt.Errorf("browser: tecla %q no suportada (Enter, Tab, Escape, Backspace, ArrowUp/Down, PageUp/Down, Space)", key)
-	}
-	down := map[string]any{"type": "keyDown", "key": key, "code": k.code, "windowsVirtualKeyCode": k.vk, "nativeVirtualKeyCode": k.vk}
-	if k.text != "" {
-		down["text"] = k.text
-		down["unmodifiedText"] = k.text
-	}
-	if _, err := b.call("Input.dispatchKeyEvent", down); err != nil {
-		return err
-	}
-	_, err := b.call("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": key, "code": k.code, "windowsVirtualKeyCode": k.vk, "nativeVirtualKeyCode": k.vk})
-	time.Sleep(300 * time.Millisecond)
-	_ = b.esperaCarrega()
-	return err
-}
+// Press prem una tecla o combinació (Enter, Tab, Control+a…).
+func (b *Browser) Press(key string) error { return b.pressCombo(key) }
 
 // Screenshot torna una captura PNG com a data URL (per adjuntar al model).
 func (b *Browser) Screenshot() (string, error) {
@@ -825,6 +830,9 @@ func (b *Browser) Eval(js string) (string, error) {
 func (b *Browser) On() string {
 	u, _ := b.evalString("location.href")
 	t, _ := b.evalString("document.title")
+	b.mu.Lock()
+	b.lastURL = u
+	b.mu.Unlock()
 	return strings.TrimSpace(u + " · " + t)
 }
 
@@ -845,37 +853,30 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	str := func(k string) string {
-		if v, ok := args[k].(string); ok {
-			return strings.TrimSpace(v)
-		}
-		return ""
-	}
-	num := func(k string) int {
-		switch v := args[k].(type) {
-		case float64:
-			return int(v)
-		case int:
-			return v
-		}
-		return 0
-	}
-	boolean := func(k string) bool {
-		v, _ := args[k].(bool)
-		return v
+	a := browserArgs(args)
+	if a == nil {
+		a = browserArgs{}
 	}
 	action = strings.ToLower(strings.TrimSpace(action))
 	if action == "close" {
 		CloseBrowserFor(scope)
 		return "navegador tancat", nil, nil
 	}
+	if a.str("action") == "" {
+		a["action"] = action
+	}
+	args = a
 	// Topall dur per acció: l'arrencada del navegador (fins a ~15 s) corre
 	// fora; les accions sobre la pàgina queden limitades. El context del
-	// torn (cancel·lat amb /stop) també talla aquí.
-	actx, cancel := context.WithTimeout(ctx, BrowserActionTimeout)
+	// torn (cancel·lat amb /stop) també talla aquí. Un lot té més marge.
+	limit := BrowserActionTimeout
+	if action == "batch" {
+		limit += time.Duration(len(batchSteps(args))) * 15 * time.Second
+	}
+	actx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
 	ctx = actx
-	b, err := GetBrowserFor(scope)
+	b, err := GetBrowserWant(scope, wantFromArgs(scope, a))
 	if err != nil {
 		return "", nil, err
 	}
@@ -889,8 +890,16 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 		b.actx = nil
 		b.mu.Unlock()
 	}()
-	out, imgs, err := browserDo(b, action, str, num, boolean)
+	hosts := callHosts(b.host(), args)
+	out, imgs, err := browserDo(b, action, a, false)
 	if err == nil {
+		// Executar ja és el permís (l'usuari ho ha aprovat o no calia):
+		// el lloc queda permès per a aquesta sessió (browser_gate.go).
+		if b.mode == BrowserModeChrome || !BrowserCallSegura(args) {
+			for _, h := range hosts {
+				allowSite(scope, h)
+			}
+		}
 		if n := b.takeNote(); n != "" {
 			out = "Note: " + n + "\n\n" + out
 		}
@@ -907,50 +916,6 @@ func (b *Browser) takeNote() string {
 	return n
 }
 
-// browserDo executa una acció sobre el navegador ja obert.
-func browserDo(b *Browser, action string, str func(string) string, num func(string) int, boolean func(string) bool) (string, []string, error) {
-	switch action {
-	case "open", "goto", "navigate":
-		if err := b.Navigate(str("url")); err != nil {
-			return "", nil, err
-		}
-		out, err := b.Snapshot(WebFetchOpts{MaxChars: num("max_chars"), Find: str("find"), Raw: boolean("raw")})
-		return out, nil, err
-	case "read", "snapshot":
-		out, err := b.Snapshot(WebFetchOpts{MaxChars: num("max_chars"), Find: str("find"), Raw: boolean("raw")})
-		return out, nil, err
-	case "click":
-		out, err := b.Click(firstNonEmpty(str("target"), str("ref"), str("selector"), str("text")))
-		return out, nil, err
-	case "type", "fill":
-		out, err := b.Type(firstNonEmpty(str("target"), str("ref"), str("selector")), str("text"), boolean("enter"))
-		return out, nil, err
-	case "press", "key":
-		k := firstNonEmpty(str("key"), str("text"))
-		if err := b.Press(k); err != nil {
-			return "", nil, err
-		}
-		return "premuda " + k + " · " + b.On(), nil, nil
-	case "screenshot":
-		img, err := b.Screenshot()
-		if err != nil {
-			return "", nil, err
-		}
-		return "captura adjunta · " + b.On(), []string{img}, nil
-	case "back":
-		if err := b.Back(); err != nil {
-			return "", nil, err
-		}
-		return "enrere · " + b.On(), nil, nil
-	case "eval", "js":
-		out, err := b.Eval(str("js"))
-		return out, nil, err
-	case "where", "url":
-		return b.On(), nil, nil
-	}
-	return "", nil, fmt.Errorf("browser: acció %q desconeguda (open, read, click, type, press, screenshot, back, eval, close)", action)
-}
-
 func firstNonEmpty(vals ...string) string {
 	for _, v := range vals {
 		if v != "" {
@@ -958,14 +923,4 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
-}
-
-// BrowserActionSegura diu si una acció només mira (obre, llegeix, captura)
-// o si actua sobre la pàgina (clic, escriure, JavaScript).
-func BrowserActionSegura(action string) bool {
-	switch strings.ToLower(strings.TrimSpace(action)) {
-	case "open", "goto", "navigate", "read", "snapshot", "screenshot", "back", "where", "url", "close":
-		return true
-	}
-	return false
 }

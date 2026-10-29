@@ -435,7 +435,12 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		case agent.OrdreAprova:
 			c := pas.Call
 			emetCrida(c.ID, c.Function.Name, c.Function.Arguments)
-			ok, caducada := s.waitApproval(runCtx, emit, c.ID, c.Function.Name, c.Function.Arguments, agent.Sig(c.Function.Name, c.Function.Arguments), mode != agent.ModeAutonomous)
+			var extra map[string]any
+			forced := torn.Forcada(c.ID)
+			if c.Function.Name == "browser" {
+				extra = map[string]any{"reason": s.browserReason(torn.Motiu(c.ID)), "forced": forced}
+			}
+			ok, caducada := s.waitApproval(runCtx, emit, c.ID, c.Function.Name, c.Function.Arguments, agent.Sig(c.Function.Name, c.Function.Arguments), mode != agent.ModeAutonomous && !forced, extra)
 			if runCtx.Err() != nil {
 				continue
 			}

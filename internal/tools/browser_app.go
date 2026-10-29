@@ -110,11 +110,10 @@ func openAppBrowser(raw string, scopes ...string) (*Browser, error) {
 		return nil, err
 	}
 	b := &Browser{refs: map[int]string{}, t: t, mode: BrowserModeApp}
-	if _, err := b.call("Page.enable", nil); err != nil {
+	if err := b.prepara(); err != nil {
 		t.Close()
 		return nil, err
 	}
-	_, _ = b.call("Runtime.enable", nil)
 	return b, nil
 }
 

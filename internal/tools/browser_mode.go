@@ -9,6 +9,9 @@ package tools
 //   - headless: Chrome/Edge de la màquina sense finestra.
 //   - window: Chrome/Edge amb finestra visible (per iniciar sessió a mà al
 //     perfil del gregal).
+//   - chrome: el Chrome de l'usuari, amb les seves sessions, a través de
+//     l'extensió de Gregal (browser_ext.go). Sense extensió connectada, error.
+//     Amb qualsevol altre mode, l'agent hi pot anar igualment amb chrome:true.
 //
 // GREGAL_BROWSER_HEADLESS=1 mana sobre el config i força headless.
 
@@ -23,10 +26,11 @@ const (
 	BrowserModeApp      = "app"
 	BrowserModeHeadless = "headless"
 	BrowserModeWindow   = "window"
+	BrowserModeChrome   = "chrome"
 )
 
 // BrowserModes són els valors acceptats a browser.mode.
-var BrowserModes = []string{BrowserModeAuto, BrowserModeApp, BrowserModeHeadless, BrowserModeWindow}
+var BrowserModes = []string{BrowserModeAuto, BrowserModeApp, BrowserModeHeadless, BrowserModeWindow, BrowserModeChrome}
 
 var (
 	browserModeMu  sync.Mutex
@@ -72,6 +76,8 @@ func chooseBrowserMode(cfg string, forceHeadless, bridge bool) string {
 		return BrowserModeHeadless
 	case BrowserModeWindow:
 		return BrowserModeWindow
+	case BrowserModeChrome:
+		return BrowserModeChrome
 	}
 	if bridge {
 		return BrowserModeApp

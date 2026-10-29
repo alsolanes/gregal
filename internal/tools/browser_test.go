@@ -225,7 +225,7 @@ func TestBrowserEscriuCapturaIPolitica(t *testing.T) {
 		t.Fatalf("escrit=%q calls=%s", escrit, calls)
 	}
 	txt, imgs, err := BrowserAction(nil, "screenshot", nil)
-	if err != nil || len(imgs) != 1 || !strings.HasPrefix(imgs[0], "data:image/jpeg;base64,") || !strings.Contains(txt, "captura") {
+	if err != nil || len(imgs) != 1 || !strings.HasPrefix(imgs[0], "data:image/jpeg;base64,") || !strings.Contains(txt, "screenshot") {
 		t.Fatalf("screenshot: %v %v %q", err, imgs, txt)
 	}
 	if _, _, err := BrowserAction(nil, "press", map[string]any{"key": "F13"}); err == nil {

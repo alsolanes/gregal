@@ -282,6 +282,10 @@ type Torn struct {
 	pendents    []llm.ToolCall
 	// motius: per què cada crida pendent demana permís (per al revisor).
 	motius   map[string]string
+	// forcats: crides que l'usuari ha de confirmar sí o sí (accions
+	// irreversibles del navegador, el seu Chrome): ni l'aprovació
+	// automàtica ni el revisor les deixen passar.
+	forcats  map[string]bool
 	actual   llm.ToolCall
 	teActual bool
 	pregunta *llm.ToolCall
@@ -441,13 +445,13 @@ func (t *Torn) Seguent() Pas {
 	if len(t.pendents) > 0 {
 		t.actual, t.pendents = t.pendents[0], t.pendents[1:]
 		t.teActual = true
-		if t.o.AutoAprova != nil && t.o.AutoAprova() {
+		if t.o.AutoAprova != nil && t.o.AutoAprova() && !t.forcats[t.actual.ID] {
 			// Aprovació automàtica: no es molesta ningú, però la crida
 			// passa pel mateix camí (i pel mateix comptador).
 			t.teActual = false
 			return t.pas(Pas{Ordre: OrdreExecuta, Calls: []llm.ToolCall{t.actual}})
 		}
-		if !t.autonom() && t.o.Revisor != nil {
+		if !t.autonom() && t.o.Revisor != nil && !t.forcats[t.actual.ID] {
 			return t.revisa()
 		}
 		return t.pas(Pas{Ordre: OrdreAprova, Call: t.actual})
@@ -566,7 +570,8 @@ func (t *Torn) revisa() Pas {
 		Task: t.o.Tasca, Mode: t.o.Mode, Dir: dir, Call: c,
 		Reason: t.motius[c.ID], Recent: t.Hist,
 	})
-	delete(t.motius, c.ID)
+	// El motiu es conserva: si el revisor torna a l'usuari, la targeta de
+	// permís el mostra (navegador: «actuar a botiga.cat»).
 	if ctx.Err() != nil {
 		// Torn cancel·lat mentre es revisava: que el conductor ho vegi.
 		return t.pas(Pas{Ordre: OrdreAprova, Call: c})
@@ -982,6 +987,9 @@ func (t *Torn) repCrides(calls []llm.ToolCall) []Event {
 	for i, c := range calls {
 		evs = append(evs, Event{Tipus: EvCrida, Eina: c.Function.Name, EinaArgs: c.Function.Arguments, ID: c.ID})
 		pl := plans[i]
+		if c.Function.Name == "browser" && pl.Fixed == "" {
+			t.browserGate(c, &pl)
+		}
 		if tallades[c.ID] {
 			text := RecercaEsgotada(t.cridesWeb)
 			t.Hist = append(t.Hist, ToolMsg(c, text))

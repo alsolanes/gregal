@@ -508,7 +508,7 @@ The `browser` tool drives a real Chromium page (JavaScript, local apps on
 
 ```yaml
 browser:
-  mode: auto   # auto (default) | app | headless | window
+  mode: auto   # auto (default) | app | headless | window | chrome
 ```
 
 | Mode | Behaviour |
@@ -517,6 +517,7 @@ browser:
 | `app` | the desktop app's own browser pane opens next to the conversation and the agent drives it; you watch live and can click or type at any time. Without a bridge it falls back to `headless` and the tool result says so |
 | `headless` | the machine's Chrome or Edge without a window, using Gregal's own profile (`~/.config/gregal/browser`) |
 | `window` | the same browser with a visible window; useful to sign in to a site once in Gregal's profile |
+| `chrome` | your own Chrome, with your logins, through the Gregal extension (see below). Without it connected the tool says how to turn it on |
 
 `GREGAL_BROWSER_HEADLESS=1` forces `headless` whatever the config says.
 In the desktop app the bridge is a loopback-only HTTP endpoint served by the
@@ -525,10 +526,41 @@ environment when the app starts it; it only accepts page-level DevTools
 commands and never navigates to the backend's own address. A desktop app
 attached to a backend it did not start (`GREGAL_URL` or an already running
 service) has no bridge, so the agent uses `headless`. The agent pane shares
-cookies with the app's Browser page. Reading actions (`open`, `read`,
-`screenshot`, `back`) run directly; acting on the page (`click`, `type`,
-`press`, `eval`) asks for permission and is never allowed in chat or inspect
+cookies with the app's Browser page.
+
+**How the agent sees and acts.** `read` returns the page as an accessibility
+tree: one line per element with its role, name and state, and a ref such as
+`[ref=e12]` on everything it can act on. The ref is tied to the page's own
+node, so it stays valid while the element exists. `click`, `type`, `select`,
+`hover`, `drag`, `upload` (a project file into a file input) and `scroll` take
+the ref; `press` takes keys and combinations (`Enter`, `Control+a`); `wait`
+waits for a text, for one to disappear, or for the page to settle; `click`
+with `x`/`y` clicks screenshot pixels for canvas apps. Every action returns
+only what changed on the page. `batch` runs up to 15 steps in one call.
+`console` and `network` show page errors and requests; `tabs`, `tab_new`,
+`tab_select` and `tab_close` manage tabs, and a click that opens a tab moves
+the agent there. `alert`/`confirm`/`prompt` are answered automatically (cancel
+by default) and reported; `dialog accept:true` accepts the next one.
+
+**Permissions.** Reading with Gregal's own browser runs directly. The first
+action that changes something on a new website (click, type, select…) asks
+once; after that the site is allowed for the session (`localhost` never asks).
+Clicking something that sends, pays, buys, deletes or publishes, and accepting
+a page dialog, always ask, even with auto-approve or Full autonomy. Gregal
+never types into password, card or one-time-code fields: you type those.
+Acting is never allowed in chat or inspect
 mode. Screenshots also appear in the web tool card.
+
+**Your own Chrome.** In the Gregal extension's side panel, "Let Gregal use
+this browser" asks Chrome for the debugger permission at that moment and
+connects to the desktop app (a local websocket that only accepts the
+extension). Then ask Gregal to do something "in my Chrome": the agent works
+in tabs of a "Gregal" tab group, with your logins, and only there (drag a
+tab into the group to share it). Every new website asks first, also with
+auto-approve. Chrome shows its own "is debugging this browser" bar; Stop in
+the panel or Cancel on that bar ends it, and the agent does not reattach
+until you turn it on again. `browser.mode: chrome` makes your Chrome the
+default.
 
 ### Auto-review permission mode
 
