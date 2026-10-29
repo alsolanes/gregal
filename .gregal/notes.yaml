@@ -1,0 +1,30 @@
+# Notes per camí: context que arriba quan el model toca el fitxer.
+#
+# Cada nota s'enganxa AL RESULTAT de l'eina (read/edit/patch/write) la primera
+# vegada que el model toca un fitxer que encaixa, i no es repeteix en aquella
+# sessió. No és cap crida al model: zero latència i zero tokens de més.
+#
+# Match: amb barra es prova contra el camí relatiu (i com a prefix de carpeta:
+# "internal/web/*" cobreix "internal/web/x/y.go"); sense barra, contra el nom
+# del fitxer ("*.kt").
+#
+# Aquí només hi van coses del projecte (es versiona). Les d'aquesta màquina
+# (ports, rutes, entorn) van a .gregal/notes.local.yaml, que no es versiona.
+
+notes:
+  - match: "internal/web/motor_web.go"
+    note: "ConduirTorn és el motor d'un torn. El scout s'engega aquí i la decisió de si va en paral·lel és a Server.scoutEnParallel (només amb proveïdors que serveixen crides concurrents)."
+  - match: "internal/web/steer.go"
+    note: "Aquesta és la bústia que lliura missatges al torn en curs (POST /api/steer i el brief del scout). La obre el worker, no conduirTorn."
+  - match: "internal/agent/scout.go"
+    note: "El gate del scout: ScoutWantedIn mira el mode, si la tasca ja diu el fitxer i la mida del projecte (scoutMinFitxers=40). Topall: 4 passos i 90 s."
+  - match: "internal/config/config.go"
+    note: "Les claus d'API no van al config.yaml: viuen a ~/.config/gregal/auth.yaml (0600) i Config.aplicaAuth() les carrega només si el config les deixa buides."
+  - match: "internal/web/serve.go"
+    note: "Les rutes es declaren a la llista de handle() del muntatge, no a extras.go. POST /api/providers fa action=key|add|rm|test i només desa si GREGAL_PERSIST_KEYS=1."
+  - match: "*.go"
+    note: "Idioma del codi i dels comentaris: català. Els tests van al costat del fitxer (_test.go) i el projecte no accepta gofmt pendent."
+  - match: "android/app/build.gradle.kts"
+    note: "Cada APK puja versionCode i versionName (format X.Y.Z-vents). El build vol -Pgregal.skipBackend i GRADLE_OPTS amb -Xmx3g."
+  - match: "android/app/src/main/java/xyz/solanes/gregal/AppStrings.kt"
+    note: "L'app és bilingüe: tota cadena nova va al bloc català I a l'anglès, en el mateix ordre."

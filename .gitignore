@@ -34,7 +34,13 @@ quaderna/
 .env
 .env.*
 !.env.example
-.gregal/
+# Es ignora el contingut i no la carpeta: si s'ignorés «.gregal/» sencer, git
+# no hi baixaria i la nota de sota no podria reincloure res.
+.gregal/*
+# Les notes per camí sí que es versionen: són del projecte i són el context
+# que el model rep en tocar el fitxer (docs/notes.md). Les d'aquesta màquina
+# van a notes.local.yaml, que es queda ignorat.
+!.gregal/notes.yaml
 .playwright-cli/
 .hermes/
 *.pem
