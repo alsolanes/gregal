@@ -141,6 +141,7 @@ func (b *Browser) axSnapshot() (lines []string, ok bool, err error) {
 	}
 	href, _ := b.evalString("location.href")
 	title, _ := b.evalString("document.title")
+	frames := b.axFrames()
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	if b.ax == nil {
@@ -165,7 +166,78 @@ func (b *Browser) axSnapshot() (lines []string, ok bool, err error) {
 	root := &res.Nodes[0]
 	w := &axWriter{ax: ax, byID: byID}
 	w.walk(root, 0, "")
+	// Els iframes: molts webs (jocs, intranets, webmails) hi posen el
+	// contingut. Cada marc té el seu arbre; les refs hi funcionen igual
+	// perquè el node és del mateix procés.
+	for _, f := range frames {
+		w.flushText()
+		head := "- iframe " + strconv.Quote(axClip(f.url, 120))
+		if f.nodes == nil {
+			w.lines = append(w.lines, head+" (another site: not readable as text; use screenshot and click x/y)")
+			continue
+		}
+		w.lines = append(w.lines, head)
+		fw := &axWriter{ax: ax, byID: make(map[string]*axNode, len(f.nodes))}
+		for i := range f.nodes {
+			fw.byID[f.nodes[i].NodeID] = &f.nodes[i]
+		}
+		fw.walk(&f.nodes[0], 1, "")
+		fw.flushText()
+		w.lines = append(w.lines, fw.lines...)
+	}
 	return w.lines, true, nil
+}
+
+type axFrame struct {
+	url   string
+	nodes []axNode // nil: un marc d'un altre lloc (procés a part)
+}
+
+// axFrames llegeix els arbres dels iframes (fins a 8).
+func (b *Browser) axFrames() []axFrame {
+	raw, err := b.call("Page.getFrameTree", nil)
+	if err != nil {
+		return nil
+	}
+	type frameNode struct {
+		Frame struct {
+			ID  string `json:"id"`
+			URL string `json:"url"`
+		} `json:"frame"`
+		Children []json.RawMessage `json:"childFrames"`
+	}
+	var tree struct {
+		FrameTree frameNode `json:"frameTree"`
+	}
+	if json.Unmarshal(raw, &tree) != nil {
+		return nil
+	}
+	var out []axFrame
+	var visit func(children []json.RawMessage)
+	visit = func(children []json.RawMessage) {
+		for _, c := range children {
+			if len(out) >= 8 {
+				return
+			}
+			var f frameNode
+			if json.Unmarshal(c, &f) != nil || f.Frame.URL == "" || f.Frame.URL == "about:blank" {
+				continue
+			}
+			fr := axFrame{url: f.Frame.URL}
+			if r, err := b.call("Accessibility.getFullAXTree", map[string]any{"frameId": f.Frame.ID}); err == nil {
+				var res struct {
+					Nodes []axNode `json:"nodes"`
+				}
+				if json.Unmarshal(r, &res) == nil && len(res.Nodes) > 0 {
+					fr.nodes = res.Nodes
+				}
+			}
+			out = append(out, fr)
+			visit(f.Children)
+		}
+	}
+	visit(tree.FrameTree.Children)
+	return out
 }
 
 type axWriter struct {
@@ -683,7 +755,11 @@ func (b *Browser) mouse(x, y float64, button string, count int, modifiers int) e
 }
 
 // jsHit diu si el punt (x, y) cau sobre l'element o a dins (no tapat).
-const jsHit = `function(x, y) { const e = document.elementFromPoint(x, y); return !!e && (e === this || this.contains(e) || e.contains(this)); }`
+// Dins d'un iframe, (x, y) són del marc de dalt: es passen al del document.
+const jsHit = `function(x, y) {
+  let w = window;
+  try { while (w.frameElement) { const r = w.frameElement.getBoundingClientRect(); x -= r.left + w.frameElement.clientLeft; y -= r.top + w.frameElement.clientTop; w = w.parent; } } catch (err) { return true; }
+  const e = document.elementFromPoint(x, y); return !!e && (e === this || this.contains(e) || e.contains(this)); }`
 
 // ClickRef fa clic a una ref. Si una altra cosa la tapa (un bàner, una
 // capa), fa el clic per JavaScript i ho diu.

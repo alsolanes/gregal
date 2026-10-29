@@ -21,7 +21,10 @@
 const http = require('node:http');
 const crypto = require('node:crypto');
 
-const ALLOWED_DOMAINS = new Set(['Page', 'Runtime', 'Input', 'DOM']);
+// Accessibility és només de lectura: l'eina browser llegeix la pàgina com un
+// arbre d'accessibilitat (internal/tools/browser_ax.go). Sense, queia a la
+// lectura antiga i les webs fetes amb JavaScript sortien buides.
+const ALLOWED_DOMAINS = new Set(['Page', 'Runtime', 'Input', 'DOM', 'Accessibility']);
 const MAX_BODY = 1024 * 1024;
 const PROTOCOL_VERSION = '1.3';
 

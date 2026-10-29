@@ -119,6 +119,9 @@ test('bridge relays page CDP only and guards navigation', async t => {
   assert.match(failing.body.error.message, /unexpected DOM.getDocument/);
   assert.deepEqual(guest.debugger.calls, ['attach:1.3', 'Page.navigate', 'DOM.getDocument']);
   assert.equal(allowedMethod('Input.dispatchMouseEvent'), true);
+  assert.equal(allowedMethod('Accessibility.getFullAXTree'), true);
+  assert.equal(allowedMethod('Browser.close'), false);
+  assert.equal(allowedMethod('Target.createTarget'), false);
   assert.equal(navigableURL('https://example.org', () => ''), true);
 });
 

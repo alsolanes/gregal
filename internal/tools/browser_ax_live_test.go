@@ -37,6 +37,7 @@ const fixtureHTML = `<!doctype html><html><head><title>Botiga de prova</title></
 <p id="cont"></p>
 <table><tr><th>Producte</th><th>Preu</th></tr><tr><td>Poma</td><td>1 €</td></tr><tr><td>Pera</td><td>2 €</td></tr></table>
 <button onclick="console.error('error de prova')">Fes un error</button>
+<iframe src="/frame" title="Marc" width="400" height="120"></iframe>
 </main></body></html>`
 
 func TestLiveBrowserEngine(t *testing.T) {
@@ -50,6 +51,10 @@ func TestLiveBrowserEngine(t *testing.T) {
 	t.Setenv("GREGAL_BROWSER_PROFILE", t.TempDir())
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if r.URL.Path == "/frame" {
+			fmt.Fprint(w, `<!doctype html><title>Marc</title><p>Contingut del marc</p><button onclick="document.getElementById('f').textContent='Clicat al marc'">Dins del marc</button><p id="f"></p>`)
+			return
+		}
 		if r.URL.Path == "/other" {
 			fmt.Fprint(w, `<!doctype html><title>Una altra</title><h1>Pestanya nova</h1>`)
 			return
@@ -128,6 +133,15 @@ func TestLiveBrowserEngine(t *testing.T) {
 	// Errors de consola: surten sols després de l'acció.
 	if out = do("click", map[string]any{"target": refOf(t, page, `button "Fes un error"`)}); !strings.Contains(out, "error de prova") {
 		t.Errorf("l'error de consola havia de sortir:\n%s", out)
+	}
+
+	// Iframes: el contingut del marc surt a la lectura i les seves refs funcionen.
+	framed := do("read", nil)
+	if !strings.Contains(framed, "- iframe") || !strings.Contains(framed, "Contingut del marc") {
+		t.Errorf("el marc havia de sortir a la lectura:\n%s", framed)
+	}
+	if out = do("click", map[string]any{"target": refOf(t, framed, `button "Dins del marc"`)}); !strings.Contains(out, "Clicat al marc") {
+		t.Errorf("el clic dins del marc havia de funcionar:\n%s", out)
 	}
 
 	// Upload.
