@@ -26,7 +26,7 @@ const https = require("https");
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
-const { startServer } = require("./server-manager");
+const { startServer, appBackendEnv } = require("./server-manager");
 const { loadState, saveState } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -248,7 +248,7 @@ async function ensureServer() {
             config: process.env.GREGAL_CONFIG,
             dir: process.env.GREGAL_DIR || app.getPath("home"),
             logFile: backendLog,
-            env: await browserBridgeEnv(),
+            env: appBackendEnv(await browserBridgeEnv()),
             onLog: line => console.log("[gregal] " + line.trimEnd()),
             onExit: (code, logs) => {
                 backendEarlyExit = code;

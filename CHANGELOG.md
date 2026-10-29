@@ -1,6 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## Unreleased
+
+- **API keys typed in the desktop app stay saved until you remove them.** The desktop app starts its backend with `GREGAL_PERSIST_KEYS=1`, as the Android app already did, so a key entered in Providers goes to the key store (`auth.yaml`, 0600), the same one the TUI uses, and never to `config.yaml`; it used to say "active in memory only" and was gone after a restart. To remove it, open the provider's key editor and save it empty. Clearing a key, switching it to `${VAR}` or deleting the provider now also deletes it from the key store (before, a cleared key came back on the next start), and adding a provider with a literal key on such a server stores it there instead of in `config.yaml`. Shared servers still keep typed keys in memory unless they set the variable.
 
 - **Notes per camí: context sense cap crida al model.** A projecte es declaren notes a `.gregal/notes.yaml` (i `.gregal/notes.local.yaml`, que no es versiona) amb un `match` glob i un text; quan el model toca un d'aquells fitxers amb `read`/`edit`/`patch`/`write`, el **resultat de l'eina** porta la nota en un bloc `[notes]`, un cop per sessió i amb topall de 3 notes / 700 caràcters. Cap torn de model, cap subagent: és la versió barata del lliurament tardà que fan els harnesses amb regles per ruta — i amb un servidor d'una sola ranura (llama.cpp local) és el que cal, perquè el scout competint amb el coordinador empitjora el torn (58 s → 2m18s). Cada injecció deixa `notes: N injectades a <camí>` al registre. Vegeu docs/notes.md.
 

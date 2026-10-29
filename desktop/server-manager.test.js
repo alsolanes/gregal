@@ -42,3 +42,12 @@ test('backend env adds the app browser bridge without touching process.env', () 
   assert.equal(process.env.GREGAL_APP_BROWSER, before);
   assert.equal(backendEnv({}), process.env);
 });
+
+test('app backend saves typed API keys to the key store unless the env says otherwise', () => {
+  const { appBackendEnv } = require("./server-manager");
+  const env = appBackendEnv({ GREGAL_APP_BROWSER: 'x' }, {});
+  assert.equal(env.GREGAL_PERSIST_KEYS, '1');
+  assert.equal(env.GREGAL_APP_BROWSER, 'x');
+  assert.equal(appBackendEnv({}, { GREGAL_PERSIST_KEYS: '0' }).GREGAL_PERSIST_KEYS, undefined);
+  assert.equal(appBackendEnv(undefined, {}).GREGAL_PERSIST_KEYS, '1');
+});

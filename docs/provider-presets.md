@@ -51,8 +51,11 @@ silently drops the start of the prompt. `gregal doctor` flags it. The
 options `num_ctx`, `keep_alive`, `slot` and `side_slot`, and the server
 flags worth setting, are in [local-models.md](local-models.md).
 
-Literal API keys entered in the UI are active in memory only. For persistence,
-use an environment variable reference such as `${ZEN_API_KEY}`. Hosted presets
+Literal API keys entered in the desktop or Android app are saved to the key
+store (`auth.yaml`, 0600) and stay until you clear them (save the key empty).
+A plain `gregal --serve` keeps them in memory only unless it runs with
+`GREGAL_PERSIST_KEYS=1`; there, use an environment variable reference such as
+`${ZEN_API_KEY}` for persistence. Hosted presets
 without keys are not probed for models. No paid inference is performed by setup.
 
 Defaults were checked against official documentation on 2026-10-02:

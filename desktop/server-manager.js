@@ -53,6 +53,17 @@ function backendEnv(options) {
   return env;
 }
 
+// appBackendEnv és l'entorn extra del backend que engega l'app. L'app és
+// d'un sol usuari, així que les claus d'API que s'hi escriuen es desen al
+// magatzem de claus (auth.yaml, 0600) i sobreviuen al reinici, com a
+// Android. Qui hagi posat GREGAL_PERSIST_KEYS a l'entorn mana.
+function appBackendEnv(extra, baseEnv) {
+  const env = { ...(extra || {}) };
+  const base = baseEnv || process.env;
+  if (!base.GREGAL_PERSIST_KEYS) env.GREGAL_PERSIST_KEYS = "1";
+  return env;
+}
+
 function startServer(options) {
   const candidates = binaryCandidates(options);
   const args = serverArgs(options);
@@ -90,4 +101,4 @@ function startServer(options) {
   throw lastError || new Error("Gregal executable not found");
 }
 
-module.exports = { binaryCandidates, serverArgs, backendEnv, startServer, appendBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, appendBackendLog, rotateBackendLog, BACKEND_LOG_MAX };

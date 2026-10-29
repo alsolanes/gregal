@@ -2102,6 +2102,16 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		}
 		s.cfg.Providers[name] = config.Provider{BaseURL: url, APIKey: os.ExpandEnv(strings.TrimSpace(key))}
 		s.cfg.SetRawKey(name, strings.TrimSpace(key))
+		// Una clau vella amb el mateix nom (d'un provider esborrat) no ha
+		// de tornar a aparèixer.
+		if err := forgetStoredKey(name); err != nil {
+			return "", err
+		}
+		if raw := strings.TrimSpace(key); raw != "" && !strings.HasPrefix(raw, "${") {
+			if _, err := s.storeLiteralKey(name, raw); err != nil {
+				return "", err
+			}
+		}
 		if err := save(); err != nil {
 			return "", err
 		}
@@ -2136,6 +2146,9 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		}
 		delete(s.cfg.Providers, name)
 		if err := save(); err != nil {
+			return "", err
+		}
+		if err := forgetStoredKey(name); err != nil {
 			return "", err
 		}
 		return s.tr("provider "+name+" esborrat", "Provider "+name+" deleted"), nil
@@ -2207,29 +2220,30 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 		s.cfg.Providers[name] = p
 		if strings.HasPrefix(raw, "${") || raw == "" {
 			s.cfg.SetRawKey(name, raw)
+			// Buidar-la o passar a ${VAR} vol dir que la clau desada ja no
+			// mana: si no l'esborrem, en tornar a arrencar reviuria.
+			if err := forgetStoredKey(name); err != nil {
+				return "", err
+			}
 			if err := save(); err != nil {
 				return "", err
+			}
+			if raw == "" {
+				return s.tr("clau de "+name+" esborrada", "API key for "+name+" removed"), nil
 			}
 			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
 		}
-		if persistKeys() {
-			// Com al TUI: el secret va al magatzem de claus (auth.yaml,
-			// 0600), mai al config.yaml. L'app d'Android ho demana perquè
-			// el seu servidor local es reinicia sovint i no té variables
-			// d'entorn on deixar ${VAR}.
-			s.cfg.SetRawKey(name, "")
-			if err := config.SaveKey(name, raw); err != nil {
-				return "", err
-			}
-			if err := save(); err != nil {
-				return "", err
-			}
-			return s.tr("clau de "+name+" desada", "API key for "+name+" saved"), nil
+		persisted, err := s.storeLiteralKey(name, raw)
+		if err != nil {
+			return "", err
 		}
 		if err := save(); err != nil {
 			return "", err
 		}
-		return s.tr("clau activa només en memòria (no desada al disc)", "API key active in memory only (not saved to disk)"), nil
+		if persisted {
+			return s.tr("clau de "+name+" desada al magatzem de claus (deixa-la buida per esborrar-la)", "API key for "+name+" saved to the key store (leave it empty to remove it)"), nil
+		}
+		return s.tr("clau activa només en memòria: aquest servidor no desa claus (GREGAL_PERSIST_KEYS=1 per desar-les)", "API key active in memory only: this server does not save keys (set GREGAL_PERSIST_KEYS=1 to save them)"), nil
 	case "test":
 		p, ok := s.cfg.Providers[name]
 		if !ok {
@@ -2247,6 +2261,28 @@ func (s *Server) providerAction(action, name, url, key, role, provider, model st
 func persistKeys() bool {
 	v := strings.TrimSpace(os.Getenv("GREGAL_PERSIST_KEYS"))
 	return v == "1" || strings.EqualFold(v, "true")
+}
+
+// storeLiteralKey desa una clau literal al magatzem de claus (auth.yaml,
+// 0600) si el servidor ho permet, com fa el TUI: mai al config.yaml. Les
+// apps (escriptori i Android) engeguen el seu servidor amb
+// GREGAL_PERSIST_KEYS=1 perquè és d'un sol usuari i es reinicia sovint.
+// Si no es desa, la clau queda activa només en memòria.
+func (s *Server) storeLiteralKey(name, raw string) (bool, error) {
+	if !persistKeys() {
+		return false, nil
+	}
+	s.cfg.SetRawKey(name, "")
+	return true, config.SaveKey(name, raw)
+}
+
+// forgetStoredKey esborra la clau desada d'un provider, si n'hi ha. No crea
+// auth.yaml quan no hi ha res a esborrar.
+func forgetStoredKey(name string) error {
+	if _, ok := config.LoadAuth()[name]; !ok {
+		return nil
+	}
+	return config.SaveKey(name, "")
 }
 
 // fetchModelIDs retorna els IDs de GET <base>/models.
@@ -3094,7 +3130,7 @@ func (s *Server) esperaResposta() (<-chan time.Time, func(), int) {
 // no respon a temps es denega PERÒ s'emet approve_timeout perquè la UI ho
 // mostri ("no has respost", no "ho has denegat"). Aturar el torn també la
 // talla: abans el torn cancel·lat quedava penjat fins al límit.
-func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, name, args, sig string, autoApproveAllowed bool) (bool, bool) {
+func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, name, args, sig string, autoApproveAllowed bool, extra ...map[string]any) (bool, bool) {
 	s.mu.Lock()
 	s.apSeq++
 	key := fmt.Sprintf("%d", s.apSeq)
@@ -3106,7 +3142,15 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 	// timeout_s és el nombre de segons (0 = sense límit); auto_approve_allowed
 	// és booleà perquè el client només aprovi automàticament quan el
 	// servidor ho autoritza.
-	emit("approve_request", map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": segons, "auto_approve_allowed": autoApproveAllowed})
+	req := map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": segons, "auto_approve_allowed": autoApproveAllowed}
+	// reason/forced: per què es pregunta (navegador: «actuar a botiga.cat»,
+	// «acció irreversible») i si és una pregunta que no es pot recordar.
+	for _, e := range extra {
+		for k, v := range e {
+			req[k] = v
+		}
+	}
+	emit("approve_request", req)
 	oblida := func() {
 		s.mu.Lock()
 		delete(s.approvals, key)
