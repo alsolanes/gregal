@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -229,8 +230,20 @@ func RunScout(ctx context.Context, o ScoutOptions) ScoutResult {
 // (ParallelSubagents > 1), un investigador per àrea, tots en paral·lel, i
 // els resums s'ajunten per àrea. Si no, un sol RunScout com sempre. Brief
 // buit només quan cap àrea ha tornat res.
-func RunScouts(ctx context.Context, o ScoutOptions) ScoutResult {
+func RunScouts(ctx context.Context, o ScoutOptions) (res ScoutResult) {
+	t0 := time.Now()
 	focuses := ScoutFocuses(o.Task)
+	// El scout és un torn de model sencer ABANS del primer pas del
+	// coordinador: si no se sap quant dura, no es pot decidir si val la pena.
+	// Es mesura aquí perquè és l'únic lloc que veu tots els focusos junts.
+	defer func() {
+		n := len(focuses)
+		if n < 1 {
+			n = 1
+		}
+		log.Printf("scout: %.1fs · %d focusos · resum %d caràcters · err=%v",
+			time.Since(t0).Seconds(), n, len(res.Brief), res.Err != nil)
+	}()
 	if o.explora() && o.Mapa == "" {
 		o.Mapa = MapaProjecte(o.Workspace, o.Task, nil)
 	}

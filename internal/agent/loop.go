@@ -5,6 +5,7 @@ package agent
 
 import (
 	"context"
+	"log"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1132,7 +1133,12 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		out, err := knowledge.NoteTool(knowledge.Where{Project: procDirOr(dir), Session: session}, argsJSON)
 		return out, nil, err
 	case "delegate":
+		// Els subagents són torns de model sencers dins del torn: es mesuren
+		// a part de les eines perquè el recompte «eines Xs» els amaga.
+		t0 := time.Now()
 		out, err := delegateExec(withDelegateScope(ctx, session, dir), argsJSON)
+		log.Printf("subagent: %.1fs · %d tasques · %d caràcters de sortida",
+			time.Since(t0).Seconds(), contaTasques(argsJSON), len(out))
 		return out, nil, err
 	default:
 		if fn, ok := extraFn(name); ok {
@@ -1400,3 +1406,15 @@ func esDeDirectori(m map[string]any) bool {
 
 // resolArgsProva exposa resolArgs als tests d'altres paquets.
 func ResolArgsProva(dir, argsJSON string) string { return resolArgs(dir, argsJSON) }
+
+// contaTasques diu quantes tasques porta un delegate (per als registres).
+// Un JSON il·legible compta com una: la crida ha passat pel bucle igual.
+func contaTasques(argsJSON string) int {
+	var a struct {
+		Tasks []struct{} `json:"tasks"`
+	}
+	if json.Unmarshal([]byte(argsJSON), &a) != nil || len(a.Tasks) == 0 {
+		return 1
+	}
+	return len(a.Tasks)
+}

@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"log"
 	"errors"
 	"fmt"
 	"maps"
@@ -134,6 +135,8 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 		if ambResum && mode == agent.ModeInspect {
 			respondreAl = agent.ExploreRespondreAl
 		}
+	} else {
+		log.Printf("scout: saltat (%s)", agent.ScoutReason(s.cfg, mode, task, workspace))
 	}
 	torn := agent.NouTorn(agent.OpcionsTorn{
 		Cfg: s.cfg, Pol: pol, Mode: mode, Tasca: task, MaxSteps: maxSteps, Usage: uso,

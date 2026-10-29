@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"fmt"
 	"strings"
 
 	"gregal/internal/config"
@@ -42,4 +43,33 @@ func projectePetit(workspace string) bool {
 	}
 	fitxers, _ := repomap.ListFiles(workspace)
 	return len(fitxers) < scoutMinFitxers
+}
+
+// ScoutReason diu en una línia per què el scout ha corregut o no. Sense això
+// el journal no distingeix «no calia» de «s'ha saltat per error», i qualsevol
+// mesura de quant temps es perd amb l'explorador queda a cegues.
+func ScoutReason(cfg *config.Config, mode, task, workspace string) string {
+	if mode == ModeInspect {
+		if ExploreWanted(cfg, mode, task, workspace) {
+			return "explorar (mode inspect)"
+		}
+		return "xat (mode inspect sense res a explorar)"
+	}
+	if !ScoutWanted(cfg, mode, task) {
+		return "mode " + mode + " (el scout és per a feina de codi)"
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Agent.Scout), "always") {
+		return "always (configurat a la força)"
+	}
+	if strings.TrimSpace(workspace) == "" {
+		return "auto (sense workspace, no es pot saber la mida)"
+	}
+	fitxers, ok := repomap.ListFiles(workspace)
+	if !ok {
+		return "auto (no s'ha pogut comptar els fitxers)"
+	}
+	if len(fitxers) < scoutMinFitxers {
+		return fmt.Sprintf("projecte petit (%d fitxers < %d)", len(fitxers), scoutMinFitxers)
+	}
+	return fmt.Sprintf("auto (%d fitxers)", len(fitxers))
 }
