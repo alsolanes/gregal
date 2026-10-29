@@ -104,6 +104,7 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
 fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet: (Pet?) -> Unit) {
     var feinesOpen by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
+    var gamesOpen by remember { mutableStateOf(false) }
     val windTasks by vm.windTasks.collectAsState()
     // Feines en marxa: es tornen a mirar cada 8 s (i cada minut si no n'hi ha
     // cap), així el progrés es reprèn en obrir l'app i l'avís arriba en acabar.
@@ -275,6 +276,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     if (query.isBlank()) item { VentetRow(lang, capUi, summaries["cap"]) { vm.openVentsChat("cap") } }
                     // El Racó: la pàgina que fan els vents sols.
                     if (query.isBlank()) item { CornerRow(lang) { cornerOpen = true } }
+                    // Partits de futbol americà entre els vents.
+                    if (query.isBlank()) item { GamesRow(lang) { gamesOpen = true } }
                     if (query.isBlank() && anyRunning) item {
                         RunningWorkLine(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
                     }
@@ -343,6 +346,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
+    if (gamesOpen) GamesDialog(vm, lang) { gamesOpen = false }
     if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }
     // Triar o crear una secció temàtica: des del botó de la capçalera dels
     // favorits (secció nova) o des del menú llarg d'una fila (afegir-hi).

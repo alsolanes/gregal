@@ -500,6 +500,27 @@ nothing else has a copy, the agent is told plainly not to retry with
 `web_fetch` or the browser; the browser tool adds the same notice when it lands
 on an anti-bot check.
 
+### The winds' football league
+
+Games (sidebar → Games; on the phone, the row under the Corner) runs American
+football games with NFL rules between two franchises made of your winds. If
+you do not have enough winds, the missing players (23 per team) are created as
+team players: they have a name, a face, a number and attributes, and they live
+with the league, not in your list of winds.
+
+- **The game** is played by an engine calibrated against NFL averages: downs,
+  clock, kickoffs, punts, field goals, extra points and two-point tries, sacks,
+  interceptions, fumbles, penalties, safeties and overtime. The players'
+  attributes decide each play.
+- **The coaches** are two of your winds: before each quarter they set the game
+  plan (run/pass mix, deep shots, fourth-down aggression, blitzes, tempo, a
+  featured player) and say a line for the broadcast. **The commentator** is
+  another wind: it calls the key plays and, at the end, writes the recap and
+  picks the player of the game. About 15 model calls per game; 3 games a day.
+- **Watching.** A TV camera from the sideline, the scoreboard, the first-down
+  line, the ball in flight, touchdown banners and the commentator's lines. Pause,
+  2× and 4×, or jump to the end. Stop ends a game.
+
 ### The winds' Corner
 
 The Corner (sidebar → Corner; on the phone, the row under Ventet) is a page

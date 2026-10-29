@@ -491,6 +491,9 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/corner", h.global((*Server).handleCorner))
 	handle("/api/corner/page", h.global((*Server).handleCornerPage))
 	handle("/api/corner/ask", h.global((*Server).handleCornerAsk))
+	// Partits de futbol americà entre els vents (football.go).
+	handle("/api/football", h.global((*Server).handleFootball))
+	handle("/api/football/match", h.global((*Server).handleFootballMatch))
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.

@@ -576,3 +576,33 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .raco-versions button { border:1px solid var(--line-hi); border-radius:6px; background:var(--surface); color:var(--ink); padding:2px 8px; font-size:12px; cursor:pointer; }
 .raco-budget { color:var(--muted); font-size:12px; margin:6px 0 0; }
 @media (max-width:1000px) { .raco-body { grid-template-columns:1fr; } }
+
+/* Partits */
+.fb { padding:18px 22px 24px; display:flex; flex-direction:column; gap:14px; }
+.fb-head { display:flex; gap:16px; align-items:flex-end; justify-content:space-between; flex-wrap:wrap; }
+.fb-head .page-title { margin:2px 0 4px; }
+.fb-head .page-copy { margin:0; max-width:620px; }
+.fb-actions { display:flex; gap:8px; align-items:center; }
+.fb-actions button, .fb-controls button { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:6px 12px; cursor:pointer; }
+.fb-actions button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+.fb-actions button.danger { background:#c0392b; border-color:#c0392b; color:#fff; }
+.fb-status { color:var(--muted); font-size:13px; }
+.fb-teams { display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; }
+.fb-team { flex:1; min-width:220px; padding:12px 14px; border-radius:12px; background:linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 55%, #000)); color:#fff; display:flex; flex-direction:column; gap:2px; }
+.fb-team b { font-size:16px; } .fb-team span { font-weight:700; color:var(--c2); } .fb-team small { opacity:.85; font-size:12px; }
+.fb-vs { align-self:center; color:var(--muted); font-weight:700; }
+.fb-stage { position:relative; border-radius:14px; overflow:hidden; border:1px solid var(--line); background:#0b1020; aspect-ratio:16/9; max-height:68vh; }
+.fb-stage canvas { width:100%; height:100%; display:block; }
+.fb-controls { position:absolute; right:10px; top:10px; display:flex; gap:6px; }
+.fb-controls button { background:rgba(255,255,255,.12); border-color:transparent; color:#fff; padding:4px 10px; }
+.fb-controls button.on { background:#ffd400; color:#111; }
+.fb-below { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:16px; }
+.fb-below h3 { margin:4px 0 6px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.fb-plan { margin:4px 0; font-size:13px; }
+.fb-recap { padding:12px 14px; border-radius:12px; border:1px solid var(--accent); margin-bottom:10px; }
+.fb-recap p { margin:6px 0 0; }
+.fb-games { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.fb-games li { padding:7px 10px; border:1px solid var(--line); border-radius:8px; cursor:pointer; font-size:13px; }
+.fb-games li.cur { border-color:var(--accent); }
+.fb-games li small { display:block; color:var(--muted); font-size:11px; }
+@media (max-width:1000px) { .fb-below { grid-template-columns:1fr; } }

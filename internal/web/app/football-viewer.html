@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gregal · Partit</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .ctl { position: fixed; right: 8px; top: 8px; display: flex; gap: 6px; }
+  .ctl button { border: 0; border-radius: 8px; background: rgba(255,255,255,.14); color: #fff; padding: 6px 10px; font: 600 13px system-ui, sans-serif; }
+  .ctl button.on { background: #ffd400; color: #111; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="ctl"><button id="pause">⏸</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button><button id="skip">⏭</button></div>
+<script type="module">
+// Visor autònom per al mòbil (WebView): #id=<partit>&token=<clau>&lang=ca.
+// El token va al fragment, que no s'envia mai al servidor ni queda als logs.
+import { FootballView } from './football-view.js';
+const q = new URLSearchParams(location.hash.slice(1));
+const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
+const source = { load: after => fetch('/api/football/match?id=' + encodeURIComponent(q.get('id') || '') + '&after=' + after, { headers }).then(r => r.json()) };
+const view = new FootballView(document.getElementById('cv'), { lang: q.get('lang') || 'ca', source });
+window.gregalFootballView = view;
+document.getElementById('pause').onclick = e => { e.target.textContent = view.togglePause() ? '▶' : '⏸'; };
+document.getElementById('skip').onclick = () => view.skipToEnd();
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { view.setSpeed(+b.dataset.s); document.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); });
+</script>
+</body>
+</html>

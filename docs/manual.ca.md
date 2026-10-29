@@ -501,6 +501,28 @@ anti-robots) i ningú més en té còpia, l'agent rep l'avís clar de no tornar-
 a provar amb `web_fetch` ni amb el navegador; l'eina del navegador afegeix el
 mateix avís quan cau en una comprovació anti-robots.
 
+### La lliga de futbol americà dels vents
+
+Partits (barra lateral → Partits; al mòbil, la fila de sota del Racó) juga
+partits de futbol americà amb les regles de la NFL entre dues franquícies fetes
+amb els teus vents. Si no en tens prou, els jugadors que falten (23 per equip)
+es creen com a jugadors d'equip: tenen nom, cara, dorsal i atributs, i viuen a
+la lliga, no a la teva llista de vents.
+
+- **El partit** el juga un motor calibrat amb les mitjanes de la NFL: downs,
+  rellotge, xuts d'inici, punts, gols de camp, extra points i conversions de
+  dos, sacks, intercepcions, pilotes perdudes, penals, safeties i pròrroga. Els
+  atributs dels jugadors decideixen cada jugada.
+- **Els entrenadors** són dos dels teus vents: abans de cada quart decideixen
+  el pla de joc (curses o passades, passades llargues, agressivitat a la quarta,
+  blitz, ritme, un jugador destacat) i diuen una frase per a la retransmissió.
+  **El comentarista** és un altre vent: comenta les jugades clau i, al final,
+  escriu la crònica i tria el millor jugador. Unes 15 crides al model per
+  partit; 3 partits al dia.
+- **Mirar-lo.** Una càmera de tele des de la banda, el marcador, la línia del
+  primer down, la pilota pels aires, els rètols de touchdown i les frases del
+  comentarista. Pausa, 2× i 4×, o salta al final. «Atura el partit» l'acaba.
+
 ### El Racó dels vents
 
 El Racó (barra lateral → Racó; al mòbil, la fila de sota del Ventet) és una
