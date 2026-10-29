@@ -27,7 +27,11 @@ import (
 const ScoutAgentName = "scout"
 
 const (
-	scoutMaxSteps = 8
+	// 4 i no 8: mesurat al repo gran (1.467 fitxers), el scout s'enduia
+	// 45-55 s per torn. Amb 4 passos segueix llegint el que cal per al
+	// briefing però deixa de recórrer el projecte sencer abans del primer
+	// pas del coordinador.
+	scoutMaxSteps = 4
 	scoutTimeout  = 4 * time.Minute
 	scoutMaxTask  = 1500
 )
