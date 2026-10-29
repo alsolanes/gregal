@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.27.2 - 2026-10-29 - El panell del navegador es pot fer més ample
+
 - **The agent's browser pane can be resized and zoomed.** Drag its left edge to make it as wide as you need (it always leaves room for the conversation, and double-clicking the edge goes back to the default width); the width is remembered. −, 100% and + in its header zoom the page from 50% to 200%, and the zoom stays when the page changes.
 
 ## v1.27.1 - 2026-10-29 - «Deixa que Gregal faci servir aquest navegador» funciona
