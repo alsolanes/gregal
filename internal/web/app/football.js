@@ -3,12 +3,14 @@
 // visor en directe (pausa, velocitat, salta al final), amb les notes dels
 // entrenadors i, al final, la crònica i el millor jugador.
 import { FootballView } from './football-view.js';
+import { mountScrubber } from './arena-scrubber.js';
 
 const $ = id => document.getElementById(id);
 const T = key => (window.gregalTEn ? window.gregalTEn(key) : '') || key; // els jocs, en anglès
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const api = (path, opts) => window.api(path, opts).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; });
 const lang = () => 'en'; // els jocs van sempre en anglès
+const Tq = key => { const v = T(key); return v === key ? '' : v; };
 
 const games = {
   view: null, current: '', data: null,
@@ -30,8 +32,7 @@ const games = {
         <p class="page-copy">${esc(T('fb.lead'))}</p></div>
         <div class="fb-actions"><span id="fbStatus" class="fb-status" role="status"></span><button type="button" id="fbPlay" class="primary"></button></div></header>
       <div id="fbTeams" class="fb-teams"></div>
-      <div class="fb-stage"><canvas id="fbCanvas"></canvas>
-        <div class="fb-controls"><button type="button" id="fbPause">⏸</button><button type="button" data-speed="1" class="on">1×</button><button type="button" data-speed="2">2×</button><button type="button" data-speed="4">4×</button><button type="button" id="fbSkip">${esc(T('fb.skip'))}</button><button type="button" id="fbFull" title="${esc(T('ar.tv'))}">⛶</button></div></div>
+      <div class="fb-stage"><canvas id="fbCanvas"></canvas></div>
       <div class="fb-below"><div id="fbNotes" class="fb-notes"></div><div><h3>${esc(T('fb.games'))}</h3><ol id="fbGames" class="fb-games"></ol></div></div>
     </div>`;
     $('fbPlay').onclick = async () => {
@@ -44,11 +45,12 @@ const games = {
       $('fbPlay').disabled = false;
       this.load();
     };
-    $('fbPause').onclick = () => { if (this.view) $('fbPause').textContent = this.view.togglePause() ? '▶' : '⏸'; };
-    page.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { this.view && this.view.setSpeed(+b.dataset.speed); page.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b)); });
-    $('fbSkip').onclick = () => this.view && this.view.skipToEnd();
+    // La barra de progrés sobre el partit (s'amaga sola): enrere, des del
+    // principi, pausa, velocitat, al final i, al costat, la pantalla completa.
+    const full = document.createElement('button'); full.type = 'button'; full.title = T('ar.tv'); full.textContent = '⛶';
     // Pantalla completa: l'escenari sencer (el canvas es torna a mesurar sol).
-    $('fbFull').onclick = () => { const st = page.querySelector('.fb-stage'); if (document.fullscreenElement) document.exitFullscreen(); else if (st.requestFullscreen) st.requestFullscreen().catch(() => {}); };
+    full.onclick = () => { const st = page.querySelector('.fb-stage'); if (document.fullscreenElement) document.exitFullscreen(); else if (st.requestFullscreen) st.requestFullscreen().catch(() => {}); };
+    this.scrub = mountScrubber(page.querySelector('.fb-stage'), { t: Tq, overlay: true, autoHide: 2600, keys: true, extra: full });
     document.addEventListener('fullscreenchange', () => { if (this.view) setTimeout(() => this.view.resize(), 50); });
   },
 
@@ -71,6 +73,7 @@ const games = {
     this.current = id;
     const source = { load: after => api('/api/football/match?id=' + encodeURIComponent(id) + '&after=' + after) };
     this.view = new FootballView($('fbCanvas'), { lang: lang(), source, onUpdate: m => this.notes(m) });
+    if (this.scrub) this.scrub.setView(this.view);
     if (this.data) this.paint();
   },
 

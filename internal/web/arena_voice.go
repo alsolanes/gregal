@@ -489,6 +489,7 @@ func (s *Server) voiceLater(text, who, lang string) string {
 				voiceQueuedMu.Lock()
 				delete(voiceQueued, j.key)
 				voiceQueuedMu.Unlock()
+				bgWork.Done()
 			}
 		}()
 	})
@@ -503,9 +504,13 @@ func (s *Server) voiceLater(text, who, lang string) string {
 	}
 	voiceQueued[key] = true
 	voiceQueuedMu.Unlock()
+	// Cada frase a la cua compta com a feina de fons: qui espera que el fons
+	// s'assequi (un test, una aturada) també espera les veus pendents.
+	bgWork.Add(1)
 	select {
 	case voiceJobs <- voiceJob{s, text, who, lang, key}:
 	default:
+		bgWork.Done()
 		voiceQueuedMu.Lock()
 		delete(voiceQueued, key)
 		voiceQueuedMu.Unlock()

@@ -364,3 +364,98 @@ test('the view cuts to the arena between rounds and stages the trophy ceremony',
   view.draw();
   view.destroy();
 });
+
+test('seek rebuilds the same state as playing straight through, and seek(0) restarts', async () => {
+  const V = await load();
+  global.window = { addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1 };
+  global.requestAnimationFrame = () => 1;
+  global.document = { createElement: () => ({ width: 0, height: 0, getContext: () => fakeCtx() }) };
+  const events = matchEvents();
+  const canvas = { getContext: () => fakeCtx(), getBoundingClientRect: () => ({ width: 1280, height: 720 }), width: 0, height: 0 };
+  const source = { load: async after => ({ status: 'final', names: ['A', 'B'], meta, events: events.filter(e => e.n > after), score: [2, 1] }) };
+  let view = null;
+  const snap = v => JSON.stringify({ score: v.score, ri: v.ri, round: v.R && v.R.num, fired: v.fired, players: v.R && v.R.players, bomb: v.R && V.bombState(v.R, v.R.events[v.fired - 1] ? v.R.events[v.fired - 1]._t : 0) });
+  // Straight through: the state when each event fires.
+  const straight = new Map();
+  view = new V.Cs2View(canvas, { source, onEvent: e => straight.set(e.n, snap(view)) });
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < 6000 && !view.isFinished(); i++) view.advance(0.05);
+  assert.equal(straight.size, events.length);
+  view.destroy();
+
+  const seen = [];
+  const got = new Map();
+  const v = new V.Cs2View(canvas, { source, onEvent: e => { seen.push(e.n); got.set(e.n, snap(v)); } });
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < 300; i++) v.advance(0.05);
+  const idx = kind => events.findIndex(e => e.kind === kind);
+  const roundStarts = events.map((e, i) => e.kind === 'round_start' ? i : -1).filter(i => i >= 0);
+  const targets = [roundStarts[1] + 9, 3, idx('half'), roundStarts[2], events.length - 1, roundStarts[1] + 14, idx('round_end') + 0, 0];
+  for (const k of targets) {
+    seen.length = 0;
+    assert.equal(v.seek(k), true);
+    assert.deepEqual(seen.filter(n => n !== events[k].n), [], 'no onEvent for the rebuilt events');
+    assert.ok(!v.replay && !v.banner && v.confetti.length === 0 || events[k].kind === 'match_end', 'nothing carried over');
+    for (let i = 0; i < 2000 && !seen.includes(events[k].n); i++) v.advance(0.05);
+    assert.ok(seen.includes(events[k].n), 'onEvent for the event landed on: ' + k);
+    assert.equal(seen.filter(n => n === events[k].n).length, 1);
+    assert.equal(got.get(events[k].n), straight.get(events[k].n), 'same state as straight through at event ' + k + ' (' + events[k].kind + ')');
+  }
+  // seek(0): the first round's intro again, 0-0.
+  v.seek(0);
+  assert.deepEqual(v.score, [0, 0]); assert.equal(v.ri, 0); assert.equal(v.phase, 'wait'); assert.equal(v.seenFirst, false);
+  v.advance(0.05);
+  assert.equal(v.phase, 'intro');
+  // The end: the final table.
+  v.seek(events.length);
+  assert.ok(v.isFinished());
+  const pr = v.getProgress();
+  assert.equal(pr.index, events.length); assert.equal(pr.total, events.length); assert.equal(pr.live, false);
+  assert.deepEqual(pr.chapters, roundStarts);
+  assert.ok(pr.marks.some(m => m.kind === 'score'));
+  // Back from the end plays again.
+  v.seek(roundStarts[2]);
+  for (let i = 0; i < 200; i++) v.advance(0.05);
+  assert.ok(!v.isFinished() && ['intro', 'play'].includes(v.phase));
+  v.destroy();
+
+  // Live: past what has loaded it lands on the last event; a round still in play waits for its end.
+  const live = { load: async after => ({ status: 'live', names: ['A', 'B'], meta, events: events.filter(e => e.n > after && e.n < roundStarts[1] + 6) }) };
+  const w = new V.Cs2View(canvas, { source: live });
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(w.getProgress().live, true);
+  w.seek(999);
+  assert.equal(w.phase, 'wait');
+  for (let i = 0; i < 100; i++) w.advance(0.05);
+  assert.equal(w.phase, 'wait');
+  w.seek(5);
+  for (let i = 0; i < 100; i++) w.advance(0.05);
+  assert.ok(w.phase !== 'wait');
+  w.destroy();
+});
+
+test('playback time: the estimate matches playing at 1×, and elapsed only moves forward', async () => {
+  const V = await load();
+  global.window = { addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1 };
+  global.requestAnimationFrame = () => 1;
+  global.document = { createElement: () => ({ width: 0, height: 0, getContext: () => fakeCtx() }) };
+  const events = matchEvents();
+  const times = V.matchTimes(events, meta);
+  assert.equal(times.length, events.length + 1);
+  assert.ok(times.every((t, i) => i === 0 || t >= times[i - 1]), 'never goes back');
+  assert.ok(V.replaySeconds({ t: 10 }) > 3 && V.replaySeconds(null) === 0);
+  const canvas = { getContext: () => fakeCtx(), getBoundingClientRect: () => ({ width: 1280, height: 720 }), width: 0, height: 0 };
+  const v = new V.Cs2View(canvas, { source: { load: async after => ({ status: 'final', names: ['A', 'B'], meta, events: events.filter(e => e.n > after) }) } });
+  await new Promise(r => setTimeout(r, 10));
+  let t = 0, last = -1;
+  for (let i = 0; i < 20000 && !v.isFinished(); i++) {
+    v.advance(.02); t += .02;
+    const p = v.getProgress();
+    assert.ok(p.elapsed >= last - 1e-9, 'elapsed never goes back while playing');
+    last = p.elapsed;
+  }
+  const pr = v.getProgress();
+  assert.equal(pr.elapsed, pr.duration);
+  assert.ok(Math.abs(t - pr.duration) / pr.duration < .05, `estimate ${pr.duration.toFixed(1)} s vs played ${t.toFixed(1)} s`);
+  v.destroy();
+});

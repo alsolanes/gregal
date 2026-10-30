@@ -546,3 +546,22 @@ func TestArenaMomentsFallback(t *testing.T) {
 		}
 	}
 }
+
+// Sense cap competició, la retransmissió també porta el guió (si hi ha veu i
+// l'explicació de cada joc): si no, la tele d'un partit sol no parlava mai.
+func TestArenaStreamScriptWithoutCompetition(t *testing.T) {
+	s := cornerTestServer(t)
+	rec := httptest.NewRecorder()
+	s.handleArenaStream(rec, httptest.NewRequest("GET", "/api/arena/stream", nil))
+	var out struct {
+		Competition any            `json:"competition"`
+		Script      map[string]any `json:"script"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &out)
+	if out.Competition != nil || out.Script == nil || out.Script["explain"] == nil {
+		t.Fatalf("cal el guió encara que no hi hagi competició: %s", rec.Body.String())
+	}
+	if _, ok := out.Script["voice"]; !ok {
+		t.Fatal("el guió ha de dir si hi ha veu")
+	}
+}

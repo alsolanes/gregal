@@ -179,3 +179,105 @@ test('player cam rides low behind the ball carrier', async () => {
   assert.equal(slowmo(pa, pass, pa.marks.tCatch), .3);
   assert.equal(subjectOf(pa, pa.marks.tCatch - .1, 'target').p.id, 'home-WR1');
 });
+
+test('seek lands on any play with the same state as playing straight through; seek(0) restarts', async () => {
+  const { FootballView } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  global.window = { addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1 };
+  global.requestAnimationFrame = () => 1;
+  const A = { target: 'home-WR1', runner: 'home-RB0', tackler: 'away-LB1', defender: 'away-CB0', kicker: 'home-K0', returner: 'away-WR0' };
+  const kinds = [
+    { kind: 'kickoff', spot: 35, end: 25, detail: 'touchback' }, { kind: 'run', dir: 'left', spot: 25, end: 31, yards: 6 },
+    { kind: 'pass', detail: 'deep', depth: 30, spot: 31, end: 70, yards: 39, complete: true, hl: true }, { kind: 'run', dir: 'middle', spot: 95, end: 100, yards: 5, td: true, hl: true },
+    { kind: 'pat', spot: 98, end: 98, good: true }, { kind: 'sack', spot: 40, end: 33, yards: -7 }, { kind: 'punt', spot: 33, end: 75, yards: 42 },
+  ];
+  let sc = [0, 0];
+  const plays = Array.from({ length: 21 }, (_, i) => {
+    const p = { n: i + 1, q: 1 + Math.floor(i / 6), clock: 900 - i * 30, off: Math.floor(i / 7) % 2, down: 1, dist: 10, actors: A, text: 'play ' + (i + 1), ...kinds[i % kinds.length] };
+    if (p.td) sc = sc.map((v, s) => s === p.off ? v + 6 : v);
+    if (p.kind === 'pat') sc = sc.map((v, s) => s === p.off ? v + 1 : v);
+    return { ...p, score: sc.slice() };
+  });
+  const canvas = { getContext: () => new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }), getBoundingClientRect: () => ({ width: 960, height: 540 }), width: 0, height: 0 };
+  const mk = (status, upto, onEvent) => new FootballView(canvas, { source: { load: async after => ({ ...match, status, plays: plays.slice(0, upto).filter(p => p.n > after) }) }, onEvent });
+  const snap = v => JSON.stringify({ idx: v.idx, n: v.cur && v.cur.play.n, score: v.score(), phase: v.phase, pos: v.cur && v.cur.anim.tracks.map(tr => tr.path(.5)), ball: v.cur && v.cur.anim.ball(.7) });
+  const straight = new Map();
+  const a = mk('final', 99, p => straight.set(p.n, snap(a)));
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < 20000 && !a.isFinished(); i++) a.advance(.1);
+  assert.equal(straight.size, plays.length);
+  a.destroy();
+
+  const seen = [], got = new Map();
+  const v = mk('final', 99, p => { seen.push(p.n); got.set(p.n, snap(v)); });
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < 120; i++) v.advance(.1);
+  for (const k of [15, 2, 3, 20, 9, 0]) {
+    seen.length = 0;
+    v.seek(k);
+    assert.deepEqual(seen, []);
+    assert.ok(!v.cur && !v.banner && v.particles.length === 0, 'nothing carried over');
+    assert.equal(v.getProgress().index, k);
+    v.advance(.1);
+    assert.deepEqual(seen, [plays[k].n], 'onEvent once, for the play landed on');
+    assert.equal(got.get(plays[k].n), straight.get(plays[k].n), 'same state at play ' + k);
+  }
+  // Restart: from the first play, 0-0.
+  v.seek(0);
+  assert.deepEqual(v.score(), [0, 0]); assert.equal(v.idx, 0);
+  // Past the end: clamped, finished.
+  v.seek(999);
+  assert.ok(v.isFinished());
+  const pr = v.getProgress();
+  assert.deepEqual([pr.index, pr.total, pr.live], [plays.length, plays.length, false]);
+  assert.ok(pr.marks.some(m => m.kind === 'score') && pr.marks.every(m => plays[m.i].hl || m.kind === 'score'));
+  v.destroy();
+
+  // Live: what has loaded grows; seeking past it waits at the edge.
+  const w = mk('live', 8);
+  await new Promise(r => setTimeout(r, 10));
+  w.seek(50);
+  assert.equal(w.idx, 8); assert.equal(w.getProgress().live, true);
+  w.advance(.1); assert.ok(!w.cur);
+  w.destroy();
+});
+
+test('playback time: the estimate matches playing at 1×, and elapsed only moves forward', async () => {
+  const { FootballView, playTimes, playSeconds } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  global.window = { addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1 };
+  global.requestAnimationFrame = () => 1;
+  const A = { target: 'home-WR1', runner: 'home-RB0', tackler: 'away-LB1', defender: 'away-CB0', kicker: 'home-K0', returner: 'away-WR0' };
+  const plays = [
+    { kind: 'kickoff', spot: 35, end: 27 }, { kind: 'run', dir: 'left', spot: 27, end: 33, yards: 6 },
+    { kind: 'pass', detail: 'deep', depth: 30, spot: 33, end: 95, yards: 62, complete: true, hl: true }, { kind: 'run', dir: 'middle', spot: 95, end: 100, yards: 5, td: true, hl: true, score: [6, 0] },
+    { kind: 'pat', spot: 98, end: 98, good: true, score: [7, 0] }, { kind: 'sack', spot: 40, end: 33, yards: -7 },
+  ].map((p, i) => ({ score: [0, 0], n: i + 1, q: 1, clock: 900 - i * 30, off: 0, down: 1, dist: 10, actors: A, text: 't', ...p }));
+  for (const p of plays.slice(4)) p.score = [7, 0];
+  const times = playTimes(plays, match);
+  assert.equal(times.length, plays.length + 1);
+  assert.ok(times.every((t, i) => i === 0 || t > times[i - 1]));
+  assert.ok(playSeconds(plays[3], match) > playSeconds(plays[1], match), 'a touchdown (replays) lasts longer than a run');
+  const canvas = { getContext: () => new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }), getBoundingClientRect: () => ({ width: 960, height: 540 }), width: 0, height: 0 };
+  let v, pr;
+  // The director's cameras (replays, slow motion at the catch) and the fixed TV camera.
+  for (const [cam, tol] of [['auto', .1], ['tv', .03]]) {
+    v = new FootballView(canvas, { source: { load: async after => ({ ...match, status: 'final', plays: plays.filter(p => p.n > after) }) } });
+    await new Promise(r => setTimeout(r, 10));
+    if (cam !== 'auto') v.setCamera(cam);
+    let t = 0, last = -1;
+    for (let i = 0; i < 20000 && !v.isFinished(); i++) {
+      v.advance(.02); t += .02;
+      const p = v.getProgress();
+      assert.ok(p.elapsed >= last - 1e-9, 'elapsed never goes back while playing');
+      last = p.elapsed;
+    }
+    pr = v.getProgress();
+    assert.equal(pr.elapsed, pr.duration);
+    assert.ok(Math.abs(t - pr.duration) / pr.duration < tol, `${cam}: estimate ${pr.duration.toFixed(1)} s vs played ${t.toFixed(1)} s`);
+    if (cam === 'auto') v.destroy();
+  }
+  v.seek(3);
+  assert.equal(v.getProgress().elapsed, pr.times[3], 'after a seek: the start of the play landed on');
+  v.destroy();
+});

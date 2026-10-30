@@ -418,3 +418,98 @@ test('the viewer plays a whole match with the action cam and a replay, headless'
   w.draw();
   w.destroy();
 });
+
+test('seek rebuilds the same state as playing straight through, and seek(0) restarts', async () => {
+  const V = await load();
+  global.requestAnimationFrame = () => 0;
+  const evs = events().filter(e => e.kind !== 'weird_future_kind');
+  const match = { status: 'final', meta, names: ['Alice', 'Bob'], events: evs };
+  const canvas = { width: 1280, height: 720, getContext: () => stubCtx() };
+  // The state right after each event is applied, playing straight through.
+  const strip = st => JSON.stringify({ ...st, pos: undefined, meta: undefined, map: undefined });
+  const straight = [];
+  const a = new V.LolView(canvas, { source: { load: async () => match } });
+  await new Promise(r => setTimeout(r, 10));
+  a.setSpeed(8); // no arena scenes: straight through
+  for (let i = 0; i < 20000 && !a.isFinished(); i++) { const before = a.idx; a.advance(1 / 30); if (a.idx > before) straight[a.idx - 1] = strip(a.state); }
+  assert.equal(straight.length, evs.length);
+  a.destroy();
+
+  const seen = [];
+  const v = new V.LolView(canvas, { source: { load: async () => match }, onEvent: e => seen.push(e.n) });
+  await new Promise(r => setTimeout(r, 10));
+  for (let i = 0; i < 400; i++) v.advance(1 / 30); // play a bit first, then jump around
+  for (const k of [20, 5, 27, evs.length - 2, 12, 0]) {
+    seen.length = 0;
+    assert.equal(v.seek(k), true);
+    assert.deepEqual(seen, [], 'no onEvent while rebuilding');
+    assert.ok(!v.shot && !v.replay && !v.scene && !v.banner && v.acts.length === 0, 'no effects carried over');
+    assert.equal(v.getProgress().index, k);
+    // Everyone is snapped into place.
+    for (let t = 0; t < 2; t++) for (let r = 0; r < 5; r++) { const p = v.state.pos[t][r], q = v.state.target[t][r]; assert.ok(p.x === q.x && p.y === q.y, 'snapped'); }
+    v.setSpeed(8);
+    for (let i = 0; i < 200 && v.idx === k; i++) v.advance(1 / 30);
+    assert.equal(seen[0], evs[k].n, 'onEvent fires for the event landed on');
+    assert.equal(seen.length, 1);
+    assert.equal(strip(v.state), straight[k], 'same state as straight through after event ' + k);
+    v.setSpeed(1);
+  }
+  // seek(0) is a restart: fresh state and the opening show again.
+  v.seek(0);
+  assert.equal(v.idx, 0); assert.equal(v.state.mode, 'draft'); assert.deepEqual(v.state.kills, [0, 0]); assert.equal(v.opened, false);
+  // Past the end: clamped, finished.
+  v.seek(9999);
+  assert.equal(v.idx, evs.length); assert.ok(v.isFinished());
+  const pr = v.getProgress();
+  assert.equal(pr.total, evs.length); assert.equal(pr.live, false);
+  assert.ok(pr.marks.length > 0 && pr.marks.every(m => evs[m.i].hl), 'hl marks');
+  v.destroy();
+});
+
+test('seek while live: total grows and seeking past it waits at the edge', async () => {
+  const V = await load();
+  global.requestAnimationFrame = () => 0;
+  const evs = events().filter(e => e.kind !== 'weird_future_kind');
+  let upto = 15;
+  const src = { load: async after => ({ status: 'live', meta, names: ['A', 'B'], events: evs.slice(0, upto).filter(e => e.n > after) }) };
+  const canvas = { width: 1280, height: 720, getContext: () => stubCtx() };
+  const v = new V.LolView(canvas, { source: src });
+  await new Promise(r => setTimeout(r, 10));
+  assert.deepEqual([v.getProgress().total, v.getProgress().live], [15, true]);
+  v.seek(40);
+  assert.equal(v.idx, 15, 'clamped to what has loaded');
+  for (let i = 0; i < 60; i++) v.advance(1 / 30);
+  assert.ok(!v.isFinished());
+  upto = 25; await v.poll(); clearTimeout(v.pollTimer);
+  assert.equal(v.getProgress().total, 25);
+  v.setSpeed(8);
+  for (let i = 0; i < 300; i++) v.advance(1 / 30);
+  assert.ok(v.idx > 15, 'carries on with the new events');
+  v.destroy();
+});
+
+test('playback time: event times, and elapsed only moves forward to the total', async () => {
+  const V = await load();
+  global.requestAnimationFrame = () => 0;
+  const evs = events().filter(e => e.kind !== 'weird_future_kind');
+  const times = V.eventTimes(evs);
+  assert.equal(times.length, evs.length + 1);
+  assert.ok(times.every((t, i) => i === 0 || t > times[i - 1]));
+  assert.equal(V.eventSeconds({ kind: 'kill', hl: true }), 1.7 + .6);
+  const canvas = { width: 1280, height: 720, getContext: () => stubCtx() };
+  const v = new V.LolView(canvas, { source: { load: async () => ({ status: 'final', meta, names: ['A', 'B'], events: evs }) } });
+  await new Promise(r => setTimeout(r, 10));
+  let t = 0, last = -1;
+  for (let i = 0; i < 60 * 300 && !v.isFinished(); i++) {
+    v.advance(1 / 30); t += 1 / 30;
+    const p = v.getProgress();
+    assert.ok(p.elapsed >= last - 1e-9, 'elapsed never goes back while playing');
+    last = p.elapsed;
+  }
+  const pr = v.getProgress();
+  assert.equal(pr.elapsed, pr.duration);
+  // The arena show (opening, draft cuts, reaction cuts, finale) is in the estimate; action-cam replays aren't.
+  assert.ok(Math.abs(t - pr.duration) / pr.duration < .15, `estimate ${pr.duration.toFixed(1)} s vs played ${t.toFixed(1)} s`);
+  assert.equal(pr.times[0] > 0, true, 'the opening comes before the first event');
+  v.destroy();
+});

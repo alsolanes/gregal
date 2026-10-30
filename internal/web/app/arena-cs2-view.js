@@ -10,6 +10,28 @@
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Progress-bar marks: big moments (hl) and, when scores=true, events that move
+// the score up. [{ i, kind: 'score'|'hl', text }], cached while the list doesn't grow.
+const MARKS = new WeakMap();
+// Playback seconds now: when the current event started plus how long it has been on (capped at its length).
+export function elapsedAt(times, index, since) {
+  const n = times.length - 1, i = Math.max(0, Math.min(n, index)), t0 = times[Math.max(0, i - 1)], t1 = times[i];
+  return { times, duration: times[n], elapsed: i >= n && index > 0 ? times[n] : i === 0 ? Math.min(times[0], Math.max(0, since || 0)) : Math.min(t1, t0 + Math.max(0, since || 0)) };
+}
+export function progressMarks(list, scores = true) {
+  const c = MARKS.get(list);
+  if (c && c.len === list.length && c.scores === scores) return c.marks;
+  const marks = []; let prev = [0, 0];
+  list.forEach((e, i) => {
+    const sc = Array.isArray(e.score) ? e.score : null;
+    const up = scores && sc && (sc[0] > prev[0] || sc[1] > prev[1]);
+    if (sc) prev = sc;
+    if (up || e.hl) marks.push({ i, kind: up ? 'score' : 'hl', text: e.text || '' });
+  });
+  MARKS.set(list, { len: list.length, scores, marks });
+  return marks;
+}
 const easeOut = t => 1 - Math.pow(1 - t, 3);
 const FONT = '"Segoe UI", system-ui, sans-serif';
 const SIDE_COL = { T: '#e8a33d', CT: '#5aa9e6' };
@@ -577,6 +599,41 @@ export function studioPlan(kind, o = {}) {
   return [];
 }
 export function planLength(plan) { return (plan || []).reduce((a, s) => a + s.dur, 0); }
+
+// Seconds a kill-cam replay lasts on screen (the same slow motion as the viewer's replay phase).
+export function replaySeconds(k) {
+  if (!k) return 0;
+  let g = Math.max(0, k.t - 1.5), s = 0;
+  const end = k.t + 0.7, dt = 0.02;
+  while (g < end) { const near = Math.abs(g - k.t); g += dt * (near < 0.35 ? 0.28 : near < 0.8 ? 0.6 : 1); s += dt; }
+  return s;
+}
+
+// Playback time at 1x of every event (in arrival order) and the total: the
+// studio intro, the round's compressed timeline, the round-end studio and the
+// kill-cam replay, half-time and the trophy ceremony. Returns events.length + 1
+// start times (the last one is the total), never going back.
+export function matchTimes(events, meta) {
+  const at = new Map();
+  let t = 0, first = true, score = [0, 0];
+  for (const g of groupRounds(events)) {
+    const d = dataOf(g.start), round = d.round || 0;
+    const intro = planLength(studioPlan('intro', { round, first, matchPoint: matchPointTeams(score, round), ot: round > 24, pistol: !!d.pistol }));
+    first = false;
+    if (!g.end) { for (const e of g.events) at.set(e, e === g.start ? t : t + intro); t += intro; continue; }
+    const R = buildRound(g, meta || {});
+    for (const e of R.events) at.set(e, (e.kind === 'round_start' || e.kind === 'buy') && e._p <= 0 ? t : t + intro + e._p);
+    t += intro + R.tl.total;
+    const end = R.events.find(e => e.kind === 'round_end');
+    t += planLength(studioPlan('roundEnd', { winner: R.end && R.end.winner, level: crowdReaction(end, R).level })) + replaySeconds(pickReplay(R));
+    if (end && Array.isArray(end.score)) score = end.score;
+    for (const e of g.after) { at.set(e, t); t += planLength(studioPlan(e.kind === 'half' ? 'half' : 'matchEnd', { winner: dataOf(e).winner })); }
+  }
+  const out = []; let m = 0;
+  for (const e of events) { m = Math.max(m, at.has(e) ? at.get(e) : m); out.push(m); }
+  out.push(Math.max(m, t));
+  return out;
+}
 // The step on air t seconds into a plan: {s, i, t (into the step), k (0..1)}.
 export function shotAt(plan, t) {
   if (!plan || !plan.length) return null;
@@ -649,7 +706,7 @@ export class Cs2View {
     this.source = opts.source;
     this.onUpdate = opts.onUpdate || (() => {});
     this.onEvent = opts.onEvent || null;
-    this.match = null; this.meta = null; this.events = []; this.rounds = []; this.lastN = 0;
+    this.match = null; this.meta = null; this.events = []; this.rounds = []; this.lastN = 0; this.nIdx = new Map(); this.at = 0;
     this.ri = 0; this.R = null; this.phase = 'wait'; this.p = 0; this.hold = 0; this.fired = 0;
     this.speed = 1; this.paused = false; this.stopped = false; this.score = [0, 0]; this.ticker = null; this.banner = null; this.overlay = null;
     this.last = performance.now(); this.mapCache = null;
@@ -681,6 +738,65 @@ export class Cs2View {
     this.banner = null; this.overlay = null; this.ticker = null; this.replay = null; this.view = { mode: 'map', id: null, why: '' }; this.studio = null; this.halfE = null;
     if (this.R.after.some(e => e.kind === 'match_end') || this.terminal()) { this.ri = this.rounds.length; this.enterFinal(); }
     else { this.ri++; this.phase = 'wait'; }
+    this.at = this.events.length;
+  }
+
+  // Jump to event index (0 = the start), an index into the events as they
+  // arrived. The round it belongs to is rebuilt (rounds are self-contained: the
+  // start carries players, money and calls) with everything before the event
+  // marked as played, the score taken from the last event before it, and the
+  // studio, replays, banners and crowd reset. Then the event plays normally, so
+  // onEvent fires once for it. A round start lands on the round's intro, a
+  // half/match end on its studio segment. Past what has loaded: the last event.
+  seek(index) {
+    const n = this.events.length;
+    if (!this.meta || !n) return false;
+    index = clamp(Math.round(+index || 0), 0, n);
+    if (index >= n && this.terminal()) { this.skipToEnd(); this.onUpdate(this.match, this.current()); return true; }
+    index = Math.min(index, n - 1);
+    const e = this.events[index];
+    let score = [0, 0];
+    for (let i = 0; i < index; i++) if (Array.isArray(this.events[i].score)) score = this.events[i].score;
+    this.score = score.slice();
+    this.banner = null; this.overlay = null; this.ticker = null; this.replay = null; this.replayed = false; this.studio = null; this.halfE = null;
+    this.party = null; this.confetti = []; this.cheer = [0.06, 0.06]; this.boothPulse = [-99, -99];
+    this.view = { mode: 'map', id: null, why: '' }; this.cam = null; this.shotAge = 0; this.calm = 0; this.explodeT = 0; this.povBoomT = 0;
+    this.seenFirst = index > 0; this.hold = 0; this.at = index;
+    this.since = index > 0 ? Infinity : 0; // the bar: at the start of the event landed on
+    let ri = this.rounds.findIndex(g => g.events.includes(e) || g.after.includes(e));
+    if (ri < 0) ri = Math.max(0, this.rounds.findIndex(g => (this.nIdx.get(g.start.n) || 0) > index));
+    const g = this.rounds[ri];
+    this.ri = ri; this.R = null; this.p = 0; this.fired = 0; this.phase = 'wait';
+    // A round start or buy: the round's intro. A round still being played (live): from its start, once it's in.
+    if (!g || !g.end || e === g.start || (e.kind === 'buy' && g.events.includes(e))) { this.onUpdate(this.match, null); return true; }
+    const R = this.R = buildRound(g, this.meta);
+    if (g.after.includes(e)) {
+      // The round is over: straight to the half-time or the trophy ceremony.
+      this.p = R.tl.total; this.fired = R.events.length; this.replayed = true; R.after = g.after;
+      this.fire(e);
+      if (e.kind === 'match_end') {
+        this.ri = ri + 1;
+        const w = dataOf(e).winner; this.party = w === 0 || w === 1 ? w : null;
+        if (this.party == null) this.enterFinal();
+        else { const plan = studioPlan('matchEnd', { winner: this.party }); this.phase = 'ceremony'; this.studio = { plan, t: 0 }; this.hold = planLength(plan); }
+      } else { this.phase = 'half'; this.halfE = e; const plan = studioPlan('half'); this.studio = { plan, t: 0 }; this.hold = planLength(plan); }
+      this.onUpdate(this.match, this.current());
+      return true;
+    }
+    const k = R.events.indexOf(e);
+    this.fired = Math.max(0, k);
+    this.p = Math.max(0, (e._p || 0) - 1e-3);
+    this.phase = 'play';
+    this.onUpdate(this.match, this.current());
+    return true;
+  }
+  // Where playback is: index = events played, total = events loaded; the
+  // chapters are the round starts (back/forward jump between rounds).
+  getProgress() {
+    const ch = this.chapters && this.chapters.len === this.events.length ? this.chapters : (this.chapters = { len: this.events.length, list: this.events.map((e, i) => e.kind === 'round_start' ? i : -1).filter(i => i >= 0) });
+    const tc = this.timesC && this.timesC.len === this.events.length && this.timesC.meta === this.meta ? this.timesC : (this.timesC = { len: this.events.length, meta: this.meta, times: matchTimes(this.events, this.meta) });
+    const index = this.phase === 'final' ? this.events.length : this.at;
+    return { index, total: this.events.length, live: !!this.match && !this.terminal(), events: this.events, marks: progressMarks(this.events), chapters: ch.list, step: 8, ...elapsedAt(tc.times, index, this.since) };
   }
 
   async poll() {
@@ -690,7 +806,7 @@ export class Cs2View {
       if (m) {
         if (m.meta && !this.meta) { this.meta = m.meta; this.mapCache = null; if (this.sCache) this.sCache.clear(); }
         const fresh = (m.events || []).filter(e => e.n > this.lastN);
-        for (const e of fresh) { this.events.push(e); this.lastN = Math.max(this.lastN, e.n); }
+        for (const e of fresh) { this.nIdx.set(e.n, this.events.length); this.events.push(e); this.lastN = Math.max(this.lastN, e.n); }
         if (fresh.length) this.rounds = groupRounds(this.events);
         this.match = { ...(this.match || {}), ...m, events: this.events, meta: this.meta };
         this.onUpdate(this.match, this.current());
@@ -743,6 +859,9 @@ export class Cs2View {
   }
 
   fire(e) {
+    // Where playback is (events arrive in order; inside a round they play by time, so it only moves forward).
+    const i = this.nIdx.get(e.n);
+    if (i != null && i + 1 > this.at) { this.at = i + 1; this.since = 0; }
     if (e.score) this.score = e.score;
     if (['kill', 'plant', 'defuse', 'explode', 'round_end', 'buy', 'half', 'match_end'].includes(e.kind) && e.text) this.ticker = { text: e.text, t0: performance.now(), hl: !!e.hl };
     this.react(e);
@@ -763,6 +882,7 @@ export class Cs2View {
   enterFinal() { this.phase = 'final'; this.studio = null; this.halfE = null; this.party = this.matchWinner(); this.overlay = { kind: 'final', t0: performance.now() }; }
 
   advance(dt) {
+    this.since = (this.since || 0) + dt;
     this.tickStudio(dt);
     if (!this.meta) return;
     if (this.phase === 'final') return;

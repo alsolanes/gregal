@@ -1887,15 +1887,24 @@ func (s *Server) handleArenaStream(w http.ResponseWriter, r *http.Request) {
 	if cur == nil && len(comps) > 0 {
 		cur = &comps[0]
 	}
+	// Sense competició (un partit sol, una demo) també cal el guió: diu si hi
+	// ha veu i porta l'explicació de cada joc. Sense això la tele no parlava.
+	noComp := func() {
+		all := &arenaComp{Title: "Gregal Arena"}
+		for _, g := range arena.Games() {
+			all.Games = append(all.Games, g.ID())
+		}
+		writeJSON(w, map[string]any{"competition": nil, "script": s.streamScript(all)})
+	}
 	if cur == nil {
-		writeJSON(w, map[string]any{"competition": nil})
+		noComp()
 		return
 	}
 	arenaMu.Lock()
 	c := s.arenaComp(cur.ID)
 	arenaMu.Unlock()
 	if c == nil {
-		writeJSON(w, map[string]any{"competition": nil})
+		noComp()
 		return
 	}
 	writeJSON(w, map[string]any{"competition": s.compView(c), "script": s.streamScript(c)})

@@ -6,10 +6,14 @@
 // els partits, les competicions i la retransmissió van plegats a sota.
 import { makeView, LESSONS, GUIDE } from './arena-views.js';
 import { exportVideo, momentsByEvent, momentKeys, showMomentCard, sideColor, momentCSS } from './arena-export.js';
+import { mountScrubber } from './arena-scrubber.js';
+import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summaryHTML, playerCSS } from './arena-player.js';
 
 const $ = id => document.getElementById(id);
 // Els jocs van sempre en anglès.
 const T = key => (window.gregalTEn ? window.gregalTEn(key) : '') || key;
+// Per a la barra de progrés: buit si la clau no hi és (llavors fa servir els seus rètols).
+const Tq = key => { const v = T(key); return v === key ? '' : v; };
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const api = (path, opts) => window.api(path, opts).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || (typeof j === 'string' ? j : r.status)); return j; });
 const lang = () => 'en';
@@ -39,7 +43,7 @@ const arenaUI = {
 
   build(page) {
     page.dataset.ready = '1';
-    momentCSS();
+    momentCSS(); playerCSS();
     page.innerHTML = `<div class="ar">
       <header class="ar-head"><div><div class="page-kicker">${esc(T('ar.kicker'))}</div><h1 class="page-title">${esc(T('ar.title'))}</h1>
         <p class="page-copy">${esc(T('ar.lead2'))}</p></div>
@@ -48,8 +52,11 @@ const arenaUI = {
       <span id="arStatus" class="ar-status" role="status"></span>
       <section class="ar-card" id="arMatchCard" hidden>
         <div class="ar-row"><h2 id="arMatchTitle"></h2><span class="ar-muted" id="arMatchStatus"></span>
-          <span class="ar-ctl"><button type="button" id="arTV" class="primary">📺 ${esc(T('ar.tv'))}</button><button type="button" id="arPause">⏸</button><button type="button" id="arSpeed"></button><button type="button" id="arSkip">⏭ ${esc(T('ar.skipEnd'))}</button><button type="button" id="arExport" hidden title="A highlights video: the match fast-forwarded, slowed down at each prompt moment, and the summary">⬇ Export video</button><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
-        <div class="ar-match"><div class="ar-stage" id="arStage" style="position:relative"><canvas id="arCanvas"></canvas></div><div class="ar-decisions" id="arDecisions"></div></div>
+          <span class="ar-ctl"><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
+        <div class="ar-match ar-player"><div class="ar-watch"><div class="ar-stage" id="arStage" style="position:relative"><canvas id="arCanvas"></canvas><div class="ar-cc" id="arCC" aria-live="polite"></div><div class="ar-end" id="arEnd" hidden></div></div><div id="arScrub" class="ar-scrub-host"></div></div>
+          <div class="ar-side"><div class="ar-tabs" role="tablist"><button type="button" role="tab" data-tab="track" class="on">${esc(T('ar.vp.commentary'))}</button><button type="button" role="tab" data-tab="dec">${esc(T('ar.vp.decisions'))}</button></div>
+            <div id="arTrackPane" class="ar-trackpane"><div class="ar-filter" id="arFilter"><button type="button" data-f="all" class="on">${esc(T('ar.vp.all'))}</button><button type="button" data-f="key">${esc(T('ar.vp.key'))}</button><button type="button" data-f="prompt">★ ${esc(T('ar.vp.prompt'))}</button></div><ol class="ar-track" id="arTrack"></ol></div>
+            <div class="ar-decisions" id="arDecisions" hidden></div></div></div>
         <div class="ar-feedback" id="arFeedback"></div>
         <div class="ar-row" id="arAgainRow" hidden><button type="button" id="arAgain" class="primary ar-big">${esc(T('ar.playAgain'))}</button><span class="ar-muted">${esc(T('ar.againHint'))}</span></div>
       </section>
@@ -115,14 +122,27 @@ const arenaUI = {
     // Un partit de demostració (gravat, amb comentaris), a la tele i a 2×.
     $('arDemo').onclick = () => this.openTV('demo-' + this.game, 2);
     $('arAgain').onclick = () => { this.closeMatch(); $('arPlayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); md.focus(); };
-    $('arPause').onclick = () => { if (this.view) $('arPause').textContent = this.view.togglePause() ? '▶' : '⏸'; };
-    const paintSpeed = () => { $('arSpeed').textContent = T('ar.speed').replace('{x}', this.speed + '×'); };
-    paintSpeed();
-    $('arSpeed').onclick = () => { this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1; if (this.view) this.view.setSpeed(this.speed); paintSpeed(); };
-    $('arSkip').onclick = () => this.view && this.view.skipToEnd();
     $('arClose').onclick = () => this.closeMatch();
-    $('arExport').onclick = () => this.match && this.exportVideo(this.match.id);
-    $('arTV').onclick = () => this.match && this.openTV(this.match.id);
+    // El reproductor: pestanyes (comentaris | decisions), el filtre de la pista i clic a una línia per anar-hi.
+    page.querySelectorAll('.ar-tabs [data-tab]').forEach(b => b.onclick = () => {
+      page.querySelectorAll('.ar-tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b));
+      $('arTrackPane').hidden = b.dataset.tab !== 'track'; $('arDecisions').hidden = b.dataset.tab !== 'dec';
+    });
+    $('arFilter').querySelectorAll('[data-f]').forEach(b => b.onclick = () => {
+      this.trackMode = b.dataset.f; $('arFilter').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b));
+      this.trackKey = ''; this.paintTrack();
+    });
+    $('arTrack').onclick = e => { const li = e.target.closest('[data-i]'); if (li && this.scrub) this.scrub.seek(+li.dataset.i); };
+    $('arEnd').onclick = e => {
+      const b = e.target.closest('[data-end]'), mo = e.target.closest('[data-seek]');
+      if (mo && this.scrub) { this.endShown = 'closed'; $('arEnd').hidden = true; this.scrub.seek(+mo.dataset.seek); return; }
+      if (!b) return;
+      if (b.dataset.end === 'again') { this.endShown = ''; $('arEnd').hidden = true; if (this.scrub) this.scrub.seek(0); if (this.view && this.view.paused) this.view.togglePause(); }
+      else if (b.dataset.end === 'download') this.match && this.exportVideo(this.match.id);
+      else { this.endShown = 'closed'; $('arEnd').hidden = true; }
+    };
+    this.cc = (() => { try { return localStorage.getItem('arenaCC') !== '0'; } catch (e) { return true; } })();
+    this.trackMode = 'all';
     addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.arenaTV === 'close') this.closeTV(); });
     this.buildBroadcast();
     $('arStreamLink').href = '/app/arena-stream.html#lang=' + lang() + (() => { let t = ''; try { t = localStorage.getItem('gregal_token') || ''; } catch (e) {} return t ? '&token=' + encodeURIComponent(t) : ''; })();
@@ -310,7 +330,7 @@ const arenaUI = {
   // amb les crides de cada equip, resultat i anàlisi) a pantalla completa.
   openTV(id, speed) {
     this.closeTV();
-    if (this.view && !this.view.paused) { this.view.togglePause(); $('arPause').textContent = '▶'; }
+    this.pauseView();
     let tok = ''; try { tok = localStorage.getItem('gregal_token') || ''; } catch (e) {}
     const box = document.createElement('div'); box.className = 'ar-tv'; box.id = 'arTVBox';
     const fr = document.createElement('iframe'); fr.allow = 'autoplay; fullscreen'; fr.title = T('ar.tv');
@@ -327,9 +347,87 @@ const arenaUI = {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   },
 
+  // Els botons de la dreta de la barra: subtítols, mode tele, descarregar el vídeo i compartir-lo.
+  playerButtons() {
+    const box = document.createElement('span'); box.className = 'x';
+    box.innerHTML = `<button type="button" class="cc" id="arCCBtn" title="${esc(T('ar.vp.ccHelp'))}">CC</button><button type="button" id="arTV" title="${esc(T('ar.tv'))}">📺</button>` +
+      `<button type="button" class="dl" id="arExport">${esc(T('ar.vp.download'))}</button><button type="button" id="arShare" hidden>${esc(T('ar.vp.share'))}</button>`;
+    box.querySelector('#arCCBtn').classList.toggle('on', this.cc);
+    box.querySelector('#arCCBtn').onclick = () => { this.cc = !this.cc; try { localStorage.setItem('arenaCC', this.cc ? '1' : '0'); } catch (e) {} box.querySelector('#arCCBtn').classList.toggle('on', this.cc); if (!this.cc) $('arCC').classList.remove('on'); };
+    box.querySelector('#arTV').onclick = () => this.match && this.openTV(this.match.id);
+    box.querySelector('#arExport').onclick = () => {
+      if (!this.match) return;
+      if (this.match.status !== 'final') { $('arStatus').textContent = T('ar.vp.downloadWait'); return; }
+      this.exportVideo(this.match.id);
+    };
+    box.querySelector('#arShare').onclick = () => this.shareVideo();
+    return box;
+  },
+
+  // ⬇ sempre a la vista: apagat (amb el perquè) fins que el partit s'acaba.
+  paintDownload() {
+    const b = $('arExport'); if (!b || !this.match) return;
+    const ready = this.match.status === 'final';
+    b.classList.toggle('wait', !ready); b.setAttribute('aria-disabled', ready ? 'false' : 'true');
+    b.title = ready ? T('ar.vp.downloadHelp') : T('ar.vp.downloadWait');
+  },
+
+  // Compartir el vídeo exportat (el sistema ho fa: Web Share amb el fitxer).
+  async shareVideo() {
+    const v = this.lastVideo; if (!v) return;
+    try { await navigator.share({ files: [v.file], title: v.file.name }); } catch (e) { if (e && e.name !== 'AbortError') $('arStatus').textContent = e.message; }
+  },
+
+  // A cada repàs de la barra (4 cops per segon): la línia de la pista que toca,
+  // el subtítol i, quan s'ha vist tot, el resum dins del reproductor.
+  onProgress(pr) {
+    if (!this.match) return;
+    this.progress = pr;
+    this.paintTrack();
+    const act = activeEntry(this.track || [], pr.index);
+    const key = act ? act.i : -1;
+    if (key !== this.activeKey) {
+      this.activeKey = key;
+      $('arTrack').querySelectorAll('.ar-tk.now').forEach(x => x.classList.remove('now'));
+      const li = act && $('arTrack').querySelector(`.ar-tk[data-i="${act.i}"]`);
+      if (li) { li.classList.add('now'); if (!$('arTrack').matches(':hover')) li.scrollIntoView({ block: 'nearest' }); }
+      $('arTrack').querySelectorAll('.ar-tk').forEach(x => x.classList.toggle('future', +x.dataset.i > pr.index - 1));
+      // Subtítol: només quan la línia comença ara (no en saltar enrere a mig partit).
+      clearTimeout(this.ccT);
+      if (this.cc && act && act.i === pr.index - 1 && captionOf(act)) {
+        $('arCC').textContent = captionOf(act); $('arCC').classList.add('on');
+        this.ccT = setTimeout(() => $('arCC').classList.remove('on'), 6500);
+      } else $('arCC').classList.remove('on');
+    }
+    // El resum, quan s'arriba al final d'un partit acabat; tornar enrere el treu.
+    const atEnd = this.match.status === 'final' && pr.total > 0 && this.view && this.view.isFinished && this.view.isFinished();
+    if (atEnd && !this.endShown) {
+      this.endShown = 'on';
+      const ix = new Map((pr.events || []).map((e, i) => [e.n, i]));
+      $('arEnd').innerHTML = summaryHTML(this.match, { T, sideColor: s => sideColor(this.match, s), momentIndex: mo => (mo.event && ix.has(mo.event) ? ix.get(mo.event) : null), times: pr.times || [] });
+      $('arEnd').hidden = false;
+    } else if (!atEnd && this.endShown) { this.endShown = ''; $('arEnd').hidden = true; }
+  },
+
+  // La pista de comentaris: es refà quan arriben esdeveniments, frases o moments.
+  paintTrack() {
+    const pr = this.progress; if (!pr || !this.match) return;
+    const key = [pr.total, (this.lines && this.lines.size) || 0, this.moments ? this.moments.size : 0, (this.match.decisions || []).length, this.trackMode].join('|');
+    if (key === this.trackKey) return;
+    this.trackKey = key; this.activeKey = null;
+    this.track = buildTrack({ events: pr.events || [], times: pr.times || [], lines: this.lines || new Map(), decisions: this.match.decisions || [], moments: this.moments || new Map() });
+    const list = filterTrack(this.track, this.trackMode || 'all');
+    const names = this.match.names || [];
+    $('arTrack').innerHTML = list.map(e => trackItemHTML(e, { teamName: s => names[s] || '', sideColor: s => sideColor(this.match, s) })).join('') ||
+      `<li class="none">${esc(T('ar.vp.noTrack'))}</li>`;
+  },
+
+  pauseView() { if (this.view && !this.view.paused) this.view.togglePause(); if (this.scrub) this.scrub.sync(); },
+
   closeMatch() {
     if (this.view) this.view.destroy();
-    this.view = null; this.match = null; clearTimeout(this.poll); clearInterval(this.thinkTimer);
+    if (this.scrub) this.scrub.destroy();
+    this.view = null; this.scrub = null; this.match = null; this.progress = null; this.track = []; this.trackKey = ''; this.lines = new Map(); this.endShown = ''; this.lastVideo = null; clearTimeout(this.ccT); clearTimeout(this.poll); clearInterval(this.thinkTimer);
     $('arMatchCard').hidden = true; $('arPlayCard').hidden = false;
   },
 
@@ -337,6 +435,7 @@ const arenaUI = {
     this.closeMatch();
     const card = $('arMatchCard');
     card.hidden = false; $('arPlayCard').hidden = true; $('arAgainRow').hidden = true; $('arFeedback').innerHTML = ''; $('arDecisions').innerHTML = '';
+    $('arTrack').innerHTML = ''; $('arEnd').hidden = true; $('arCC').classList.remove('on');
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     let first;
     try { first = await api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=0'); } catch (e) { $('arStatus').textContent = e.message; return; }
@@ -349,6 +448,14 @@ const arenaUI = {
     try {
       this.view = await makeView(first.game, $('arCanvas'), { lang: lang(), fetchMatch, onEvent: e => this.highlight(e) });
       this.view.setSpeed(this.speed);
+      // La barra del reproductor: enrere, des del principi, saltar a un moment
+      // del prompt (★), el temps, la velocitat, subtítols, tele i descarregar.
+      this.scrub = mountScrubber($('arScrub'), {
+        view: this.view, t: Tq, speed: this.speed, keys: true, extra: this.playerButtons(),
+        moments: () => this.moments, teamName: s => this.match ? this.match.names[s] : '', sideColor: s => sideColor(this.match, s),
+        onSpeed: x => { this.speed = x; }, onSeek: () => this.seeked(), onSync: pr => this.onProgress(pr),
+      });
+      this.paintDownload();
     } catch (e) { $('arStatus').textContent = e.message; }
     this.updateMatch(first);
     // Si el model triga, que es vegi que hi està pensant i no que s'ha penjat.
@@ -370,8 +477,11 @@ const arenaUI = {
     this.match.decisions = m.decisions || this.match.decisions; this.match.md = m.md || this.match.md;
     if (m.analysis) this.match.analysis = m.analysis;
     this.moments = momentsByEvent(this.match);
+    // Les frases del narrador arriben una mica després de les jugades.
+    if (!this.lines) this.lines = new Map();
+    (m.lines || []).forEach(l => this.lines.set(l.n, l));
     const starred = momentKeys(this.match);
-    $('arExport').hidden = m.status !== 'final';
+    this.paintDownload();
     this.paintMatchStatus();
     const names = this.match.names;
     const decs = this.match.decisions || [];
@@ -401,17 +511,22 @@ const arenaUI = {
   // El vídeo de resum del partit (arena-export.js), descarregat.
   async exportVideo(id) {
     if (this.exporting) return;
-    this.exporting = true; $('arExport').disabled = true;
-    if (this.view && !this.view.paused) { this.view.togglePause(); $('arPause').textContent = '▶'; }
+    this.exporting = true; $('arExport').disabled = true; $('arExport').textContent = T('ar.vp.exporting');
+    this.pauseView();
     try {
       const r = await exportVideo({
         id,
         fetchMatch: after => api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after),
         fetchVoice: key => window.api('/api/arena/voice?k=' + encodeURIComponent(key)).then(x => x.ok ? x.arrayBuffer() : null),
       });
-      if (r) $('arStatus').textContent = `⬇ ${r.name} (${(r.size / 1e6).toFixed(1)} MB)`;
+      if (r) {
+        $('arStatus').textContent = `⬇ ${r.name} (${(r.size / 1e6).toFixed(1)} MB)`;
+        // Compartir-lo, si el sistema ho sap fer amb fitxers.
+        const file = typeof File === 'function' ? new File([r.blob], r.name, { type: r.type }) : null;
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) { this.lastVideo = { file }; $('arShare').hidden = false; }
+      }
     } catch (e) { $('arStatus').textContent = e.message; }
-    this.exporting = false; $('arExport').disabled = false;
+    this.exporting = false; $('arExport').disabled = false; $('arExport').textContent = T('ar.vp.download');
   },
 
   // El que el model va veure en una decisió: la situació i el format.
@@ -421,6 +536,15 @@ const arenaUI = {
     catch (e) { $('arStatus').textContent = T('ar.noSituation'); return; }
     const d = (this.match.decisions || []).find(v => v.n === n && v.side === side) || {};
     this.showMD(`${who} · ${d.short || ''}`, `${T('ar.sawTitle')}\n\n${x.situation}\n\n${T('ar.formatTitle')}\n${x.schema}\n\n${T('ar.answerTitle')}\n${JSON.stringify(d.decision || {})}\n${d.why ? 'why: ' + d.why + '\n' : ''}${d.rule ? 'rule: ' + d.rule : ''}`);
+  },
+
+  // Després d'un salt: fora la targeta i la decisió marcada; l'esdeveniment on
+  // s'aterra (onEvent) les torna a posar si toca.
+  seeked() {
+    const card = $('arStage').querySelector('.ar-moment-card');
+    if (card) { clearTimeout(card._t); card.classList.remove('on'); }
+    clearTimeout(this.ccT); $('arCC').classList.remove('on'); this.activeKey = null;
+    $('arDecisions').querySelectorAll('.ar-dec.now').forEach(x => x.classList.remove('now'));
   },
 
   highlight(e) {

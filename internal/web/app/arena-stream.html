@@ -118,6 +118,7 @@
 // #token=<clau> o #spectator=<clau de l'enllaç d'espectador>, &lang=ca|en.
 import { makeView, LESSONS, EXPLAIN } from './arena-views.js';
 import { exportVideo, momentsByEvent, showMomentCard } from './arena-export.js';
+import { mountScrubber } from './arena-scrubber.js';
 
 // Per sota de 1280×720 tot es pinta a aquesta mida i s'escala (amb bandes),
 // que una retransmissió s'ha de veure igual en un portàtil que a l'OBS.
@@ -144,7 +145,7 @@ const L = lang === 'ca' ? {
   how3: ['Guanya el millor prompt', 'Instruccions clares, concretes i que llegeixen el rival guanyen a les vagues.'],
   practice: 'Partit de prova', demo: 'Partit de mostra', replay: '▶ Torna-ho a veure', close: 'Tanca', end: 'Final del partit', callTip: 'A sota de cada equip: què ha decidit i la regla del seu .md que l’hi ha portat.',
   stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
-  summary: 'Resum del partit', moments: 'Moments del prompt', noMoments: 'Cap moment del prompt en aquest partit.', coach: 'coach', followed: 'ha seguit el .md', exportVideo: '⬇ Exporta el vídeo',
+  summary: 'Resum del partit', moments: 'Moments del prompt', noMoments: 'Cap moment del prompt en aquest partit.', coach: 'coach', followed: 'ha seguit el .md', exportVideo: '⬇ Descarrega el vídeo',
 } : {
   waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
   champions: 'Champions', win: 'wins', draw: 'Draw', p: 'Player', pj: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', preview: 'Preview', analysis: 'The analysis',
@@ -154,7 +155,7 @@ const L = lang === 'ca' ? {
   how3: ['The best prompt wins', 'Clear, concrete instructions that read the opponent beat vague ones.'],
   practice: 'Practice game', demo: 'Demo match', replay: '▶ Watch it again', close: 'Close', end: 'Full time', callTip: 'Under each team: what it decided and the rule of its .md that led there.',
   stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
-  summary: 'Match summary', moments: 'Prompt moments', noMoments: 'No prompt moments in this match.', coach: 'coach', followed: 'followed its .md', exportVideo: '⬇ Export video',
+  summary: 'Match summary', moments: 'Prompt moments', noMoments: 'No prompt moments in this match.', coach: 'coach', followed: 'followed its .md', exportVideo: '⬇ Download video',
 };
 const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
 
@@ -259,7 +260,8 @@ function caption(who, text, secs = 8, audio = '') {
   if (!text) return Promise.resolve();
   const seq = ++capSeq;
   // Amb un panell a la pantalla, el text ja hi és: només es diu (i es marca qui parla).
-  const voiced = soundOn && audio && script && script.voice, quiet = document.body.classList.contains('paneled');
+  // Si la frase porta àudio, sona (el guió pot no haver arribat encara).
+  const voiced = soundOn && audio && !(script && script.voice === false), quiet = document.body.classList.contains('paneled');
   $('capWho').textContent = (quiet ? '🔊 ' : '') + who; $('capText').textContent = text;
   $('caption').classList.toggle('quiet', quiet);
   if (!quiet || voiced) $('caption').classList.add('on'); else $('caption').classList.remove('on');
@@ -307,10 +309,48 @@ const single = q.get('match') || '';
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(lang === 'ca' ? 'ca-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); }, 1000);
 
 // ---- segments ----
-async function wipe(swap) {
+async function wipe(swap, my) {
+  if (my !== undefined && my !== epoch) return;
   sfx.whoosh();
   const w = $('wipe'); w.classList.remove('go'); void w.offsetWidth; w.classList.add('go');
-  await sleep(480); swap(); sfx.sting(); await sleep(560);
+  await sleep(480); if (my === undefined || my === epoch) swap(); sfx.sting(); await sleep(560);
+}
+
+// ---- la barra de progrés (només es veu en moure el ratolí) ----
+// En un sol partit: enrere, des del principi o saltar a un moment; si el
+// directe ja s'havia acabat (resultat, resum), es torna al partit. En una
+// competició, només dins del partit que s'està fent.
+// epoch canvia cada cop que es torna al partit: el que quedava pendent del
+// resultat o del resum ja no pinta res.
+let epoch = 0, scrub = null, live = null, inLive = false, wantLive = null;
+function ensureScrub() {
+  if (scrub) return scrub;
+  scrub = mountScrubber($('tv'), {
+    overlay: true, big: true, autoHide: 2600, keys: true,
+    moments: () => (live ? live.moments : new Map()),
+    teamName: s => live ? name(s ? live.sl.b : live.sl.a) : '',
+    sideColor: s => live && (live.sl.flip ? 1 : 0) === s ? '#3e7bfa' : '#e5484d',
+    speed: Math.max(1, +q.get('speed') || 1), speeds: [1, 2, 4],
+    onSpeed: x => { if (live) { live.base = x; clearTimeout(live.slowT); } },
+    onSeek: (i, pr) => seeked(i, pr),
+  });
+  return scrub;
+}
+// Després d'un salt: el marcador de baix, les crides, el subtítol i la targeta
+// del moment, com estaven just abans de l'esdeveniment on s'aterra (l'onEvent
+// d'aquest els torna a posar).
+function seeked(i, pr) {
+  if (!live) return;
+  const ev = (pr && pr.events) || [];
+  const prev = i > 0 && ev[i - 1] && Array.isArray(ev[i - 1].score) ? ev[i - 1].score : [0, 0];
+  live.shown = prev.slice();
+  $('score').textContent = live.sc2(prev);
+  $('nameA').parentElement.classList.remove('calling'); $('nameB').parentElement.classList.remove('calling');
+  clearTimeout(capTimer); capSeq++; $('caption').classList.remove('on'); stopVoice();
+  const card = $('momentHost').querySelector('.ar-moment-card'); if (card) { clearTimeout(card._t); card.classList.remove('on'); }
+  clearTimeout(live.slowT); if (view) view.setSpeed(live.base);
+  // Ja no érem al partit: hi tornem (des d'on s'ha triat).
+  if (!inLive && wantLive && i < ((pr && pr.total) || 0)) { const r = wantLive; wantLive = null; r('back'); }
 }
 function panel(html) { $('panel').innerHTML = html; $('panel').classList.add('on'); document.body.classList.add('paneled'); $('stageWrap').style.opacity = 0; $('lower').classList.add('hide'); $('live').classList.add('hide'); }
 function hidePanel() { $('panel').classList.remove('on'); document.body.classList.remove('paneled'); }
@@ -388,74 +428,84 @@ function showCall(side, d) {
   card.parentElement.classList.remove('calling'); void card.offsetWidth; card.parentElement.classList.add('calling');
 }
 
-async function segLive(sl) {
+async function segLive(sl, resume = false) {
   segLabel(L.live + ' · ' + (GAME[sl.game] || sl.game) + ' · ' + sl.stage);
-  let latest = null;
-  const lines = new Map(), calls = new Map();
-  let shown = [0, 0];
   $('nameA').parentElement.classList.remove('calling'); $('nameB').parentElement.classList.remove('calling');
   await sideOrder(sl);
   const flip = sl.flip, [L0, R0] = LR(sl);
-  const sc2 = sc => LRs(sl, sc).join(' - ');
-  let moments = new Map(), slowT = 0;
-  const base = Math.max(1, +q.get("speed") || 1);
-  const fm = after => fetchMatch(sl.match, after).then(m => {
-    latest = m; (m.lines || []).forEach(l => lines.set(l.n, l));
-    if (m.analysis && m.analysis.moments) moments = momentsByEvent(m);
-    (m.decisions || []).forEach(d => { const c = calls.get(d.n) || []; c[d.side] = d; calls.set(d.n, c); });
-    $('live').classList.toggle('hide', m.status !== 'live');
-    return m;
-  });
-  await wipe(() => {
-    hidePanel();
-    $('stageWrap').style.opacity = 1; $('lower').classList.remove('hide');
-    $('score').textContent = '0 - 0';
-    $('nameA').textContent = name(L0); $('nameB').textContent = name(R0);
-    $('mottoA').textContent = motto(L0); $('mottoB').textContent = motto(R0);
-  });
-  if (view) view.destroy();
+  if (resume && live && live.sl === sl && view) {
+    // Tornem al partit (s'ha anat enrere des del resultat o el resum).
+    epoch++;
+    $('panel').querySelectorAll('.again').forEach(b => b.remove()); $('panel').style.pointerEvents = '';
+    await wipe(() => { hidePanel(); $('stageWrap').style.opacity = 1; $('lower').classList.remove('hide'); });
+  } else {
+    const ctx = live = { sl, latest: null, lines: new Map(), calls: new Map(), shown: [0, 0], moments: new Map(), slowT: 0,
+      base: Math.max(1, +q.get("speed") || 1), sc2: sc => LRs(sl, sc).join(' - ') };
+    const fm = after => fetchMatch(sl.match, after).then(m => {
+      ctx.latest = m; (m.lines || []).forEach(l => ctx.lines.set(l.n, l));
+      if (m.analysis && m.analysis.moments) ctx.moments = momentsByEvent(m);
+      (m.decisions || []).forEach(d => { const c = ctx.calls.get(d.n) || []; c[d.side] = d; ctx.calls.set(d.n, c); });
+      $('live').classList.toggle('hide', m.status !== 'live');
+      return m;
+    });
+    await wipe(() => {
+      hidePanel();
+      $('stageWrap').style.opacity = 1; $('lower').classList.remove('hide');
+      $('score').textContent = '0 - 0';
+      $('nameA').textContent = name(L0); $('nameB').textContent = name(R0);
+      $('mottoA').textContent = motto(L0); $('mottoB').textContent = motto(R0);
+    });
+    if (view) view.destroy();
+    view = await makeView(sl.game, $('cv'), { lang, fetchMatch: fm, onEvent: e => {
+      // El marcador de baix va amb el que es veu, no amb l'últim que ha arribat.
+      // A l'NFL l'esdeveniment arriba quan comença la jugada i porta el marcador
+      // de després: es mostra el de la jugada anterior.
+      if (e && Array.isArray(e.score)) {
+        const sc = sl.game === 'nfl' ? ctx.shown : e.score; ctx.shown = e.score;
+        $('score').textContent = ctx.sc2(sc);
+      }
+      if (e && e.decision && ctx.calls.has(e.decision)) { const c = ctx.calls.get(e.decision); showCall(flip ? 1 : 0, c[0]); showCall(flip ? 0 : 1, c[1]); }
+      if (e && e.hl) sfx.roar(/touchdown|ace|baron|nexus|win|guanya|TOUCHDOWN/i.test(e.text || ''));
+      const l = e && ctx.lines.get(e.n); if (l) caption(L.caster, l.text, 9, l.audio);
+      // Un moment del prompt: la targeta, la sintonia i una mica a càmera lenta.
+      const mo = e && ctx.moments.get(e.n);
+      if (mo) {
+        const left = (flip ? 1 : 0) === mo.side;
+        showMomentCard($('momentHost'), mo, name(mo.side ? sl.b : sl.a), left ? '#3e7bfa' : '#e5484d', { secs: 5.5, big: true });
+        sfx.sting();
+        if (view) { view.setSpeed(ctx.base * .5); clearTimeout(ctx.slowT); ctx.slowT = setTimeout(() => view && view.setSpeed(ctx.base), 3500); }
+      }
+    } });
+    // Demo (o qui ho demani): més de pressa, «#speed=2».
+    view.setSpeed(ctx.base);
+    ensureScrub().setView(view); scrub.setSpeed(ctx.base);
+    // Els moments es calculen al final: d'un partit acabat ja hi són.
+    fetchMatch(sl.match).then(m => { if (m.analysis && m.analysis.moments) ctx.moments = momentsByEvent(m); }).catch(() => {});
+  }
+  const ctx = live;
+  inLive = true;
   sfx.ambience(true);
-  view = await makeView(sl.game, $('cv'), { lang, fetchMatch: fm, onEvent: e => {
-    // El marcador de baix va amb el que es veu, no amb l'últim que ha arribat.
-    // A l'NFL l'esdeveniment arriba quan comença la jugada i porta el marcador
-    // de després: es mostra el de la jugada anterior.
-    if (e && Array.isArray(e.score)) {
-      const sc = sl.game === 'nfl' ? shown : e.score; shown = e.score;
-      $('score').textContent = sc2(sc);
-    }
-    if (e && e.decision && calls.has(e.decision)) { const c = calls.get(e.decision); showCall(flip ? 1 : 0, c[0]); showCall(flip ? 0 : 1, c[1]); }
-    if (e && e.hl) sfx.roar(/touchdown|ace|baron|nexus|win|guanya|TOUCHDOWN/i.test(e.text || ''));
-    const l = e && lines.get(e.n); if (l) caption(L.caster, l.text, 9, l.audio);
-    // Un moment del prompt: la targeta, la sintonia i una mica a càmera lenta.
-    const mo = e && moments.get(e.n);
-    if (mo) {
-      const left = (flip ? 1 : 0) === mo.side;
-      showMomentCard($('momentHost'), mo, name(mo.side ? sl.b : sl.a), left ? '#3e7bfa' : '#e5484d', { secs: 5.5, big: true });
-      sfx.sting();
-      if (view) { view.setSpeed(base * .5); clearTimeout(slowT); slowT = setTimeout(() => view && view.setSpeed(base), 3500); }
-    }
-  } });
-  // Demo (o qui ho demani): més de pressa, «#speed=2».
-  if (+q.get("speed") > 1) view.setSpeed(+q.get("speed"));
-  // Els moments es calculen al final: d'un partit acabat ja hi són.
-  fetchMatch(sl.match).then(m => { if (m.analysis && m.analysis.moments) moments = momentsByEvent(m); }).catch(() => {});
   // Els comentaris arriben una mica després de les jugades: es tornen a llegir.
-  const refresh = setInterval(() => fetchMatch(sl.match).then(m => (m.lines || []).forEach(l => lines.set(l.n, l))).catch(() => {}), 6000);
+  const refresh = setInterval(() => fetchMatch(sl.match).then(m => (m.lines || []).forEach(l => ctx.lines.set(l.n, l))).catch(() => {}), 6000);
   while (!view.isFinished()) await sleep(1000);
-  clearInterval(refresh); clearTimeout(slowT);
-  if (latest) $('score').textContent = sc2(latest.score);
+  clearInterval(refresh); clearTimeout(ctx.slowT);
+  if (ctx.latest) $('score').textContent = ctx.sc2(ctx.latest.score);
   sfx.roar(true);
   await sleep(2500);
   sfx.ambience(false);
-  return latest;
+  inLive = false;
+  // En una competició la barra només val per al partit en directe.
+  if (!single && scrub) { scrub.destroy(); scrub = null; }
+  return ctx.latest;
 }
 
-async function segResult(sl) {
+async function segResult(sl, my) {
   await sideOrder(sl);
   const [A, B] = LR(sl);
   segLabel(L.result + ' · ' + sl.stage);
   let m = null;
   for (let i = 0; i < 12; i++) { try { m = await fetchMatch(sl.match); } catch (e) {} if (m && m.analysis) break; await sleep(2500); }
+  if (my !== undefined && my !== epoch) return;
   sl.final = m;
   const w = m && m.winner >= 0 ? name(m.winner === 0 ? sl.a : sl.b) : '';
   const a = m && m.analysis && m.analysis.headline ? m.analysis : null;
@@ -463,16 +513,17 @@ async function segResult(sl) {
     <div class="result">${esc(name(A))} ${m ? LRs(sl, m.score).join(' - ') : '-'} ${esc(name(B))}</div>
     <div class="winner">${w ? '🏆 ' + esc(w) + ' ' + esc(L.win) : esc(L.draw)}</div>
     ${a ? `<div class="quote"><small>${esc(L.analysis)} · ${esc(a.headline)}</small>${esc(a.text)}</div>
-    ${a.rule ? `<div><div class="kicker">${esc(L.keyRule)} · ${esc(name(a.side === 1 ? sl.b : sl.a))}</div><div class="rule">«${esc(a.rule)}»</div></div>` : ''}` : ''}`));
+    ${a.rule ? `<div><div class="kicker">${esc(L.keyRule)} · ${esc(name(a.side === 1 ? sl.b : sl.a))}</div><div class="rule">«${esc(a.rule)}»</div></div>` : ''}` : ''}`), my);
+  if (my !== undefined && my !== epoch) return;
   await hold(a ? 16000 : 9000, a ? caption(L.analyst, a.headline + '. ' + a.text, 60, a.audio) : null);
 }
 
 // Resum del partit: marcador, els moments del prompt en ordre, l'anàlisi, la
 // regla que ho va decidir i, per equip, la nota del coach i quant ha seguit el .md.
-async function segSummary(sl) {
+async function segSummary(sl, my) {
   let m = sl.final;
   for (let i = 0; i < 4 && m && !(m.feedback && (m.feedback[0] || m.feedback[1])); i++) { await sleep(2500); try { m = await fetchMatch(sl.match); } catch (e) {} }
-  if (!m) return;
+  if (!m || (my !== undefined && my !== epoch)) return;
   const [A, B] = LR(sl), team = s => name(s ? sl.b : sl.a);
   const col = s => ((sl.flip ? 1 : 0) === s ? 'var(--a)' : 'var(--b)');
   const an = m.analysis || {}, mos = an.moments || [];
@@ -488,7 +539,7 @@ async function segSummary(sl) {
       ${an.rule ? `<div><div class="kicker" style="font-size:12px">${esc(L.keyRule)} · ${esc(team(an.side === 1 ? 1 : 0))}</div><div class="rule">«${esc(an.rule)}»</div></div>` : ''}
       <div class="coach">${[0, 1].map(s => `<b style="color:${col(s)}">${esc(team(s))}</b><span>${esc(L.coach)} ${esc(coach(s))} · ${esc(L.followed)} ${Math.round((fol[s] || 0) * 100)}%</span>`).join('')}</div>
     </div><div><div class="kicker" style="margin-bottom:8px">📋 ${esc(L.moments)}</div><div class="tl">${mos.map((mo, i) =>
-      `<div class="mo" style="--mc:${col(mo.side)}"><b>${i + 1}. ${esc(team(mo.side))}</b> · ${esc(mo.what)}<q>«${esc(mo.rule)}»</q></div>`).join('') || `<div class="lead">${esc(L.noMoments)}</div>`}</div></div></div>`));
+      `<div class="mo" style="--mc:${col(mo.side)}"><b>${i + 1}. ${esc(team(mo.side))}</b> · ${esc(mo.what)}<q>«${esc(mo.rule)}»</q></div>`).join('') || `<div class="lead">${esc(L.noMoments)}</div>`}</div></div></div>`), my);
   await hold(18000);
 }
 
@@ -563,29 +614,46 @@ async function singleShow() {
     await segExplain(sl.game);
     await segPreview(sl);
     await segLive(sl);
-    await segResult(sl);
-    await segSummary(sl);
-    segLabel(L.end);
-    const again = await new Promise(res => {
-      const box = document.createElement('div'); box.className = 'again';
-      box.innerHTML = `<button type="button">${esc(L.replay)}</button><button type="button" class="ghost">${esc(L.exportVideo)}</button><button type="button" class="ghost">${esc(L.close)}</button>`;
-      $('panel').append(box);
-      $('panel').style.pointerEvents = 'auto';
-      const done = v => { box.remove(); $('panel').style.pointerEvents = ''; res(v); };
-      box.children[0].onclick = () => done(true);
-      box.children[1].onclick = async () => {
-        const b = box.children[1]; b.disabled = true;
-        try {
-          const r = await exportVideo({ id: single, fetchMatch: after => fetchMatch(single, after),
-            fetchVoice: key => fetch('/api/arena/voice?k=' + encodeURIComponent(key), { headers }).then(x => x.ok ? x.arrayBuffer() : null) });
-          b.textContent = r ? '✓ ' + r.name : L.exportVideo;
-        } catch (e) { b.textContent = '⚠ ' + (e.message || e); }
-        b.disabled = false;
-      };
-      box.children[2].onclick = () => done(false);
-    });
+    let again;
+    for (;;) {
+      const my = epoch;
+      const back = new Promise(res => { wantLive = res; });
+      again = await Promise.race([back, (async () => {
+        await segResult(sl, my);
+        if (my !== epoch) return 'back';
+        await segSummary(sl, my);
+        if (my !== epoch) return 'back';
+        segLabel(L.end);
+        return endPrompt();
+      })()]);
+      wantLive = null;
+      if (again !== 'back') break;
+      await segLive(sl, true);
+    }
     if (!again) { parent.postMessage({ arenaTV: 'close' }, location.origin); return; }
   }
+}
+
+// Al final: torna-ho a veure, exporta el vídeo o tanca.
+function endPrompt() {
+  return new Promise(res => {
+    const box = document.createElement('div'); box.className = 'again';
+    box.innerHTML = `<button type="button">${esc(L.replay)}</button><button type="button" class="ghost">${esc(L.exportVideo)}</button><button type="button" class="ghost">${esc(L.close)}</button>`;
+    $('panel').append(box);
+    $('panel').style.pointerEvents = 'auto';
+    const done = v => { box.remove(); $('panel').style.pointerEvents = ''; res(v); };
+    box.children[0].onclick = () => done(true);
+    box.children[1].onclick = async () => {
+      const b = box.children[1]; b.disabled = true;
+      try {
+        const r = await exportVideo({ id: single, fetchMatch: after => fetchMatch(single, after),
+          fetchVoice: key => fetch('/api/arena/voice?k=' + encodeURIComponent(key), { headers }).then(x => x.ok ? x.arrayBuffer() : null) });
+        b.textContent = r ? '✓ ' + r.name : L.exportVideo;
+      } catch (e) { b.textContent = '⚠ ' + (e.message || e); }
+      b.disabled = false;
+    };
+    box.children[2].onclick = () => done(false);
+  });
 }
 
 async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }

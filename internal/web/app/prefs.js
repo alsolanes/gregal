@@ -14,6 +14,7 @@ import { shares } from './export.js';
 import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
 import { plugins } from './plugins.js';
+import { voicePrefs } from './voice-prefs.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -206,6 +207,7 @@ export const prefs = {
         '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
         '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
       ['plugins', '✚', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>'],
+      ['voice', '🔊', voicePrefs.section()],
       ['extras', '✧', senseCap(funPrefs.section())],
       ['integrations', '⇄', chromeExt.section() + wordAddin.section() + shares.section()],
       ['advanced', '⋯', fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
@@ -266,6 +268,7 @@ export const prefs = {
     const k = $('prefsKeys');
     if (k) k.onclick = () => { this.tanca(); const m = $('keysModal'); if (m) m.classList.add('on'); };
     this.lligaPlugins();
+    voicePrefs.bind(cos);
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());

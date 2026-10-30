@@ -9,6 +9,28 @@
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+// Progress-bar marks: big moments (hl) and, when scores=true, events that move
+// the score up. [{ i, kind: 'score'|'hl', text }], cached while the list doesn't grow.
+const MARKS = new WeakMap();
+// Playback seconds now: when the current event started plus how long it has been on (capped at its length).
+export function elapsedAt(times, index, since) {
+  const n = times.length - 1, i = Math.max(0, Math.min(n, index)), t0 = times[Math.max(0, i - 1)], t1 = times[i];
+  return { times, duration: times[n], elapsed: i >= n && index > 0 ? times[n] : i === 0 ? Math.min(times[0], Math.max(0, since || 0)) : Math.min(t1, t0 + Math.max(0, since || 0)) };
+}
+export function progressMarks(list, scores = true) {
+  const c = MARKS.get(list);
+  if (c && c.len === list.length && c.scores === scores) return c.marks;
+  const marks = []; let prev = [0, 0];
+  list.forEach((e, i) => {
+    const sc = Array.isArray(e.score) ? e.score : null;
+    const up = scores && sc && (sc[0] > prev[0] || sc[1] > prev[1]);
+    if (sc) prev = sc;
+    if (up || e.hl) marks.push({ i, kind: up ? 'score' : 'hl', text: e.text || '' });
+  });
+  MARKS.set(list, { len: list.length, scores, marks });
+  return marks;
+}
 const easeOut = t => 1 - Math.pow(1 - t, 3);
 const TAU = Math.PI * 2;
 const FONT = '"Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
@@ -171,6 +193,41 @@ export function eventDuration(ev) {
     case 'match_end': return 1.5;
   }
   return 1;
+}
+
+// Seconds an event holds the screen at 1x (its duration, plus the action-cam
+// cut on the map).
+const SHOT_KINDS = new Set(['gank', 'kill', 'teamfight', 'dragon', 'baron', 'herald', 'tower', 'inhibitor', 'nexus']);
+export function eventSeconds(ev) { return eventDuration(ev) + (SHOT_KINDS.has(ev && ev.kind) ? .6 : 0); }
+const sceneSecs = list => (list || []).reduce((a, s) => a + (s.dur || 0), 0);
+// The playback start time at 1x of every event, plus the total: each event's
+// own time and the arena show around it as the viewer stages it (the opening,
+// the cuts between draft phases, the teams ready, the crowd's reaction cuts and
+// the finale; with meta, the state is replayed to know the mode). Replays of
+// the action cam aren't counted (they depend on what the camera filmed).
+export function eventTimes(list, meta, names) {
+  list = list || [];
+  const out = [];
+  const st = meta ? createState(meta, names) : null;
+  let t = 0, prevDraft = null, cuts = 0, ready = false, lastCut = -99;
+  list.forEach((ev, i) => {
+    if (st && i === 0 && st.mode === 'draft') t += sceneSecs(openingScenes(st));
+    if (st && st.mode === 'draft') {
+      if (ev.kind === 'draft_ban' || ev.kind === 'draft_pick') { const c = draftCut(prevDraft, ev, cuts); prevDraft = ev.kind; if (c) { cuts++; t += c.dur; } }
+      else if (st.draft.done && !ready && !(ev.kind === 'phase' && ['draft', 'draft_done'].includes((ev.data || {}).phase))) { ready = true; t += sceneSecs(readyScenes(st)); }
+    }
+    out.push(t);
+    t += eventSeconds(ev);
+    if (!st) return;
+    applyEvent(st, ev);
+    if (st.mode === 'map') {
+      const c = reactionCut(crowdReaction(st, ev), { sinceCut: t - lastCut, speed: 1 });
+      if (c) { t += c.dur; lastCut = t; }
+    }
+    if (ev.kind === 'match_end') t += sceneSecs(finaleScenes((ev.data || {}).winner));
+  });
+  out.push(t);
+  return out;
 }
 
 export function createState(meta, names) {
@@ -1182,6 +1239,41 @@ export class LolView {
     this.clock = this.state.t;
     if (this.state.end) this.state.mode = 'victory';
   }
+  // Jump to event index (0 = the start): rebuild the state from scratch with
+  // events 0..index-1, silently (no banners, shots, replays, arena scenes or
+  // onEvent), snap everyone into place and let event index play normally (so
+  // onEvent fires once, for the event landed on). Past what has loaded, it
+  // stays at the edge (live: waiting for the next event).
+  seek(index) {
+    const m = this.match;
+    if (!m || !m.meta) return false;
+    index = clamp(Math.round(+index || 0), 0, this.queue.length);
+    const st = createState(m.meta, m.names || (this.state && this.state.names));
+    for (let i = 0; i < index; i++) applyEvent(st, this.queue[i]);
+    this.state = st; this.idx = index; this.cur = null; this.prog = 0;
+    this.since = index > 0 ? Infinity : 0; // the bar: at the start of the event landed on
+    this.snapPositions();
+    for (let t = 0; t < 2; t++) for (let r = 0; r < 5; r++) this.hp[t][r] = st.target[t][r].alive === false ? 0 : 1;
+    this.flashes = []; this.particles = []; this.popups = []; this.skulls = []; this.clashes = []; this.killFeed = [];
+    this.banner = null; this.planFlash = -10; this.draftAnim = { t0: -10 };
+    this.shot = null; this.camTw = null; this.acts = []; this.pending = []; this.replay = null;
+    this.lastShotEnd = -99; this.lastReplay = -999; this.dash = [[], []]; this.air = [[], []];
+    this.camC = { fX: 0, fY: 0, z: 1 }; this.camT = 0; this.camFocus = [50, 50]; this.zoomed = false;
+    this.scene = null; this.sceneQ = []; this.sceneThen = null; this.pendingCut = null; this.lastCut = -99; this.confetti = [];
+    // From the very start the opening plays again; anywhere else the arena cuts stay off until the next moment.
+    this.opened = index > 0; this.readyDone = index > 0 && (st.mode !== 'draft' || st.draft.done); this.finaleDone = false;
+    this.draftKind = index > 0 ? this.queue[index - 1].kind : null; this.draftCuts = 0;
+    this.clock = st.t;
+    if (st.end && index >= this.queue.length) st.mode = 'victory';
+    this.onUpdate(m, this.queue[index - 1] || null);
+    return true;
+  }
+  // Where playback is: index = events started, total = events loaded.
+  getProgress() {
+    const done = !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status);
+    const tc = this.timesC && this.timesC.len === this.queue.length ? this.timesC : (this.timesC = { len: this.queue.length, times: eventTimes(this.queue, this.match && this.match.meta, this.match && this.match.names) });
+    return { index: this.idx, total: this.queue.length, live: !!this.match && !done, events: this.queue, marks: progressMarks(this.queue, false), chapters: [], step: 6, ...elapsedAt(tc.times, this.idx, this.since) };
+  }
   isFinished() {
     const m = this.match;
     if (!m || !['final', 'stopped', 'failed'].includes(m.status)) return false;
@@ -1294,6 +1386,7 @@ export class LolView {
   advance(dt) {
     if (!this.state) return;
     // A replay pauses the match: only the replay clock runs.
+    this.since = (this.since || 0) + dt;
     if (this.replay) { this.replay.t += dt; if (this.replay.t >= this.replay.len) this.finishReplay(); return; }
     // So does an arena scene: only its own clock (and the confetti) runs.
     if (this.scene) { this.scene.t += dt; this.updateConfetti(dt); if (this.scene.t >= this.scene.dur) this.nextScene(); return; }
@@ -1305,7 +1398,7 @@ export class LolView {
       const wasDraft = this.state.mode === 'draft';
       const fx = applyEvent(this.state, ev);
       if (wasDraft && this.state.mode === 'map') this.snapPositions();
-      this.cur = { ev, fx }; this.prog = 0;
+      this.cur = { ev, fx }; this.prog = 0; this.since = 0;
       if (fx.planChange) this.planFlash = this.anim;
       const delay = this.direct(ev, fx);
       const show = () => {

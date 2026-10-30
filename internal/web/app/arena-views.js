@@ -11,7 +11,8 @@ export async function makeView(game, canvas, { lang, fetchMatch, onUpdate, onEve
       load: async after => {
         const m = await fetchMatch(after);
         if (m.meta && m.meta.teams) teams = m.meta.teams.map((t, i) => ({ ...t, name: (m.names && m.names[i]) || t.name }));
-        const plays = (m.events || []).map(e => ({ ...(e.data || {}), n: e.n, decision: e.decision, comment: '' }));
+        // El text, la jugada grossa i el marcador de l'esdeveniment, si les dades no en porten (la barra i la pista en fan servir).
+        const plays = (m.events || []).map(e => { const d = e.data || {}; return { ...d, n: e.n, decision: e.decision, comment: '', text: d.text || e.text, hl: d.hl != null ? d.hl : e.hl, score: d.score || e.score }; });
         return { ...m, teams, plays, commentator: '' };
       },
     };

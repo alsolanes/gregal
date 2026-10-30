@@ -5,6 +5,7 @@
 // amb MediaRecorder d'un llenç propi on es pinten el visor i els rètols (els
 // elements de la pàgina no surten a la gravació), amb el so dels efectes i la veu.
 import { makeView } from './arena-views.js';
+import { fmtTime } from './arena-scrubber.js';
 
 export const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
 export const SIDE_COLOR = ['#3e7bfa', '#e5484d'];
@@ -212,6 +213,9 @@ export async function exportVideo({ id, fetchMatch, fetchVoice }) {
     g.textAlign = 'center'; g.font = FONT(900, 26); g.fillStyle = '#ffd400'; g.fillText(sc, W / 2, y + 22);
     g.font = FONT(700, 14); g.fillStyle = '#9aa4bd'; g.textAlign = 'left';
     g.fillText(`GREGAL ARENA · ${GAME[m.game] || m.game}${speed > slow ? `   ▶▶ ${speed}×` : ''}`, 24, 26);
+    // El minut del partit, el mateix que la barra i la pista del reproductor (temps de reproducció a 1×).
+    const pr = view && view.getProgress ? view.getProgress() : null;
+    if (pr && pr.duration) { g.textAlign = 'right'; g.fillText(`${fmtTime(pr.elapsed)} / ${fmtTime(pr.duration)}`, W - 24, 26); g.textAlign = 'left'; }
     g.textBaseline = 'alphabetic';
   }
   function momentCard(now) {

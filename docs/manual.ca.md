@@ -584,8 +584,22 @@ servidor de Gregal.
   ★. Després del resultat, el mode tele fa un **Resum del partit**: marcador, els
   moments en ordre, l'anàlisi, la regla que ho va decidir, la nota del coach i
   quant ha seguit cada equip el seu `.md`.
-- **Exporta el vídeo.** «⬇ Export video» (a la targeta del partit i a la
-  pantalla final de la tele) grava un vídeo de resum al navegador i el
+- **El reproductor del partit.** Un partit s'obre en un reproductor: la imatge
+  i, a sota, una barra amb ▶/⏸, ⏮ des del principi, ⏪/⏩ 15 segons, una línia
+  de temps (clica o arrossega per saltar; ★ marca els moments del prompt, les
+  ratlletes els punts i els punts les grans jugades; passant-hi el ratolí es
+  llegeix què hi passa), el temps en mm:ss, la velocitat, subtítols (CC), 📺
+  mode tele i ⬇ Download video. Teclat: ←/→, espai, Inici i Fi. Al costat,
+  **Commentary** llista cada moment del prompt, punt, gran jugada i frase del
+  narrador amb el seu minut, la crida de l'equip i la regla del `.md` que la
+  va portar; segueix el partit i clicant una línia s'hi va (filtre: All / Key
+  moments / Prompt moments). **Decisions** és la llista sencera de crides. Al
+  final, el resum surt dins del reproductor amb Watch again, Download video i
+  Close. La mateixa barra és al mode tele (mou el ratolí per veure-la; anar
+  enrere després del final torna al partit) i a la pàgina de Partits.
+- **Descarrega el vídeo.** «⬇ Download video» (sota el partit, al resum del
+  final i a la pantalla final de la tele; quan el partit s'ha acabat) grava un
+  vídeo de resum al navegador i el
   descarrega com a `gregal-arena-<joc>-<equipA>-vs-<equipB>.mp4` (WebM si no es
   pot gravar MP4): presentació, el partit accelerat entre moments i a velocitat
   normal a cada moment amb la seva targeta, i el resum, amb els efectes i les

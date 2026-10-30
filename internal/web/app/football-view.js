@@ -29,6 +29,23 @@ const SKIN = ['#f1c7a5', '#d9a47e', '#b77b52', '#8d5a3b', '#6b4329', '#e8b893'];
 function hashStr(v) { let h = 0; for (const c of String(v)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function luminance(h) { const [r, g, b] = hexToRgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 
+// Les marques de la barra de progrés: jugades grosses (hl) i les que fan pujar
+// el marcador. [{ i, kind: 'score'|'hl', text }], desades mentre la llista no creix.
+const MARKS = new WeakMap();
+export function progressMarks(list) {
+  const c = MARKS.get(list);
+  if (c && c.len === list.length) return c.marks;
+  const marks = []; let prev = [0, 0];
+  list.forEach((e, i) => {
+    const sc = Array.isArray(e.score) ? e.score : null;
+    const up = sc && (sc[0] > prev[0] || sc[1] > prev[1]);
+    if (sc) prev = sc;
+    if (up || e.hl) marks.push({ i, kind: up ? 'score' : 'hl', text: e.text || '' });
+  });
+  MARKS.set(list, { len: list.length, marks });
+  return marks;
+}
+
 export const TEXT = {
   ca: { q: ['1r', '2n', '3r', '4t', 'Pr.'], down: ['', '1a', '2a', '3a', '4a'], and: 'i', goal: 'gol', td: 'TOUCHDOWN!', fg: 'GOL DE CAMP!', int: 'INTERCEPCIÓ!', fumble: 'PILOTA PERDUDA!', safety: 'SAFETY!', sack: 'SACK!', final: 'FINAL', half: 'DESCANS', pregame: 'Els entrenadors preparen el partit…', live: 'EN DIRECTE', waiting: 'Esperant la jugada següent…', mvp: 'MVP' },
   en: { q: ['1st', '2nd', '3rd', '4th', 'OT'], down: ['', '1st', '2nd', '3rd', '4th'], and: '&', goal: 'Goal', td: 'TOUCHDOWN!', fg: 'IT\'S GOOD!', int: 'INTERCEPTED!', fumble: 'FUMBLE!', safety: 'SAFETY!', sack: 'SACK!', final: 'FINAL', half: 'HALFTIME', pregame: 'The coaches are preparing the game…', live: 'LIVE', waiting: 'Waiting for the next play…', mvp: 'MVP' },
@@ -526,6 +543,31 @@ function makeStadium(teams) {
   return { polys, people, pal, stars, bench, key: teams[0].color + teams[1].color };
 }
 
+// Segons que una jugada ocupa la pantalla a 1×: la pausa d'abans, la jugada,
+// les repeticions lentes i la pausa de després (com a advance()).
+export function playSeconds(play, match, pref = 'auto') {
+  let anim;
+  try { anim = buildPlay(play, match); } catch (e) { return 6; }
+  const plan = directPlay(play, anim, pref);
+  const rest = (play.comment ? 3.2 : 1.6) + (play.hl ? 1 : 0);
+  let s = .7 + anim.dur;
+  if (plan.replays.length) s += 1.4 + plan.replays.reduce((a, r) => a + (1 - r.from) * anim.dur / r.rate, 0);
+  return s + rest;
+}
+// L'inici de cada jugada a la reproducció i el total (s'allarga quan n'arriben més).
+const TIMES = new WeakMap();
+export function playTimes(list, match, pref = 'auto') {
+  let c = TIMES.get(list);
+  if (!c || c.match !== match || c.pref !== pref || c.out.length - 1 > list.length) { c = { match, pref, out: [0] }; TIMES.set(list, c); }
+  while (c.out.length - 1 < list.length) c.out.push(c.out[c.out.length - 1] + playSeconds(list[c.out.length - 1], match, pref));
+  return c.out;
+}
+// Playback seconds now: when the current event started plus how long it has been on (capped at its length).
+export function elapsedAt(times, index, since) {
+  const n = times.length - 1, i = Math.max(0, Math.min(n, index)), t0 = times[Math.max(0, i - 1)], t1 = times[i];
+  return { times, duration: times[n], elapsed: i >= n && index > 0 ? times[n] : i === 0 ? Math.min(times[0], Math.max(0, since || 0)) : Math.min(t1, t0 + Math.max(0, since || 0)) };
+}
+
 // ---- dibuix ----
 
 export class FootballView {
@@ -551,6 +593,26 @@ export class FootballView {
   setSpeed(x) { this.speed = x; }
   togglePause() { this.paused = !this.paused; return this.paused; }
   skipToEnd() { this.idx = this.queue.length; this.cur = null; this.phase = 'wait'; this.banner = null; }
+  // Salta a la jugada index (0 = des del principi): cada jugada porta el seu
+  // marcador i la seva posició, així que n'hi ha prou de netejar el que queda de
+  // l'anterior (celebració, repeticions, càmera) i deixar que es jugui aquesta.
+  // Fora del que ja ha arribat, es queda a la vora (en directe, esperant).
+  seek(index) {
+    if (!this.match) return false;
+    this.idx = clamp(Math.round(+index || 0), 0, this.queue.length);
+    this.cur = null; this.phase = 'wait'; this.t = 0; this.hold = 0; this.banner = null; this.particles = [];
+    this.since = this.idx > 0 ? Infinity : 0; // la barra: a l'inici de la jugada on s'aterra
+    this.hype = 0; this.hypeTeam = -1; this.slow = 1; this.shake = 0; this.fx = null; this.cam3 = null; this.snap = true;
+    if (this.camPref === 'auto') { this.camMode = 'tv'; this.camWho = 'auto'; }
+    this.onUpdate(this.match, this.shown());
+    return true;
+  }
+  // On som: index = jugades començades, total = les que han arribat.
+  getProgress() {
+    const done = !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status);
+    const times = this.match && this.match.teams ? playTimes(this.queue, this.match, this.camPref) : this.queue.map((_, i) => i * 6).concat(this.queue.length * 6);
+    return { index: this.idx, total: this.queue.length, live: !!this.match && !done, events: this.queue, marks: progressMarks(this.queue), chapters: [], step: 3, ...elapsedAt(times, this.idx, this.since) };
+  }
   // Ja s'ha vist tot (la retransmissió passa al partit següent).
   isFinished() { return !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status) && this.idx >= this.queue.length && !this.cur; }
   // Càmera: 'auto' (el realitzador), o fixa: 'tv', 'sky', 'player', 'endzone', 'pylon', 'rail', 'blimp'.
@@ -626,11 +688,12 @@ export class FootballView {
 
   advance(dt) {
     if (!this.match) return;
+    this.since = (this.since || 0) + dt;
     if (!this.cur) {
       if (this.idx < this.queue.length) {
         const p = this.queue[this.idx++];
         const anim = buildPlay(p, this.match);
-        this.cur = { play: p, anim, plan: directPlay(p, anim, this.camPref), seg: -1, rep: -1, replaysDone: false };
+        this.cur = { play: p, anim, plan: directPlay(p, anim, this.camPref), seg: -1, rep: -1, replaysDone: false }; this.since = 0;
         this.t = 0; this.phase = 'pre'; this.hold = .7;
         this.followLive();
         this.onUpdate(this.match, p);

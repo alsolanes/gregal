@@ -581,7 +581,20 @@ Gregal server.
   jingle); in the decisions list they carry a ★. After the result, TV mode shows
   a **Match summary**: score, the moments in order, the analysis, the rule that
   decided it, each coach score and how often each team followed its `.md`.
-- **Export video.** “⬇ Export video” (in the match card and on the TV end screen)
+- **The match player.** A match opens in a player: the picture, and under it a
+  control bar with ▶/⏸, ⏮ restart, ⏪/⏩ 15 seconds, a timeline (click or drag
+  to jump; ★ marks the prompt moments, ticks the scores and dots the big plays;
+  hover it to read what happens there), the time in mm:ss, the speed, CC
+  captions, 📺 TV mode and ⬇ Download video. Keyboard: ←/→, Space, Home and End.
+  Beside it, **Commentary** lists every prompt moment, score, big play and
+  caster line with its time, the team's call and the `.md` rule behind it; it
+  follows the match, and clicking a line jumps there (filter: All / Key moments /
+  Prompt moments). **Decisions** is the full list of calls. At the end, a summary
+  shows inside the player with Watch again, Download video and Close. The same
+  bar is in TV mode (move the mouse to see it; going back after the end returns
+  to the match) and on the Games page.
+- **Download video.** “⬇ Download video” (under the match, in the summary at the
+  end and on the TV end screen; available once the match has finished)
   records a highlights video in the browser and downloads it as
   `gregal-arena-<game>-<teamA>-vs-<teamB>.mp4` (WebM where MP4 can't be
   recorded): an intro card, the match fast-forwarded between prompt moments and
