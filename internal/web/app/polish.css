@@ -662,4 +662,27 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-table th, .ar-table td { padding:4px 6px; border-bottom:1px solid var(--line); text-align:left; }
 .ar-dialog { max-width:min(760px, 92vw); border:1px solid var(--line-hi); border-radius:14px; background:var(--surface); color:var(--ink); }
 .ar-dialog pre { white-space:pre-wrap; max-height:65vh; overflow:auto; font-size:12px; }
-@media (max-width:1100px) { .ar-grid, .ar-grid2, .ar-match, .ar-feedback { grid-template-columns:1fr; } }
+.ar-me input { width:170px; }
+.ar-games { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; }
+.ar-games button { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:12px; align-items:center; text-align:left; border:2px solid var(--line); border-radius:14px; background:var(--surface); color:var(--ink); padding:12px 14px; cursor:pointer; }
+.ar-games button .ic { grid-row:span 2; font-size:30px; line-height:1; }
+.ar-games button b { font-size:15px; } .ar-games button small { color:var(--muted); font-size:12px; }
+.ar-games button.on { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 10%, var(--surface)); }
+.ar-steps { list-style:none; counter-reset:st; margin:0; padding:0; display:flex; gap:8px; flex-wrap:wrap; }
+.ar-steps li { counter-increment:st; display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; padding:4px 12px 4px 4px; border-radius:999px; border:1px solid var(--line); }
+.ar-steps li::before { content:counter(st); width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--line); color:var(--ink); font-weight:700; font-size:12px; }
+.ar-steps li.on { color:var(--ink); border-color:var(--accent); font-weight:600; } .ar-steps li.on::before { background:var(--accent); color:#fff; }
+.ar-steps li.done::before { content:'✓'; background:color-mix(in srgb, var(--accent) 35%, var(--line)); }
+.ar-play-grid { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:14px; }
+.ar-editor { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.ar .ar-editor textarea { min-height:240px; height:min(40vh, 360px); }
+.ar-tips { border-left:1px solid var(--line); padding-left:14px; display:flex; flex-direction:column; gap:8px; }
+.ar-go { display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+.ar button.ar-big { font-size:16px; font-weight:700; padding:11px 22px; border-radius:10px; }
+.ar button.ar-link { border:0; background:none; color:var(--accent); padding:2px 4px; text-decoration:underline; text-underline-offset:3px; }
+.ar-editor .ar-row .ar-link { margin-left:auto; font-size:12px; }
+.ar-fold > summary { cursor:pointer; font-weight:600; color:var(--muted); list-style-position:inside; }
+.ar-fold[open] > summary { margin-bottom:6px; color:var(--ink); }
+.ar-broadcast { display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--line); padding-top:12px; margin-top:6px; }
+@media (max-width:1100px) { .ar-grid, .ar-grid2, .ar-match, .ar-feedback, .ar-play-grid { grid-template-columns:1fr; } .ar-tips { border-left:0; padding-left:0; } }
+@media (max-width:700px) { .ar-games { grid-template-columns:1fr; } }

@@ -513,10 +513,13 @@ Gregal server.
   buy and plan in CS2, the draft and each phase's objective and stance in LoL.
   The games reward reading the opponent and managing resources, so clear,
   adaptive instructions win.
-- **During the week.** Write your `.md` (start from the template), save it
-  (Gregal keeps the last 20 versions), ask for a review, and play practice games
-  against the bots (6 a day). The bots' `.md` are written by the model at four
-  levels; read them to learn. Each match shows every decision with the model's
+- **During the week.** Pick a game: the editor already holds the template.
+  Change it (it saves itself; Gregal keeps the last 20 versions) or press
+  **Play** straight away: the opponent is the easiest bot you have not beaten
+  yet (6 practice games a day). The bots are written by the model, at four
+  levels, the first time anyone opens the Arena; read their `.md` to learn
+  (Ranking and bots). **What can I improve?** asks for a review. Matches use
+  your conversation model, with reasoning off, so a game takes a few minutes. Each match shows every decision with the model's
   reason and the exact line of your `.md` it followed, and ends with a coach's
   report: scores for clarity, coverage, adaptivity, specificity and consistency,
   the moments where the `.md` failed with a rewritten rule, and lessons.

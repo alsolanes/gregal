@@ -325,7 +325,9 @@ func (s *Server) arenaLoadMatch(id string) *arenaMatch {
 var arenaModel = func(s *Server, ctx context.Context, system, user string, maxTokens int) (string, error) {
 	s.mu.Lock()
 	cfg, client := s.cfg, s.client
-	p, role := s.windRoleRef()
+	// El model de la conversa, no el dels vents: l'Arena en fa moltes crides
+	// seguides i ha de ser el ràpid i fiable que la persona ja fa servir.
+	p, role := s.roleRef()
 	s.mu.Unlock()
 	if client == nil || cfg == nil {
 		return "", errConst("no model configured")
@@ -1095,27 +1097,35 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
 				return
 			}
-			display := oneLine(req.Display, 40)
-			if display == "" {
-				display = me
-			}
-			s.saveEntry(arenaEntry{Owner: me, Display: display, Game: game.ID(), MD: md})
+			s.saveEntry(arenaEntry{Owner: me, Display: s.arenaDisplay(me, req.Display, s.arenaEntry(game.ID(), me)), Game: game.ID(), MD: md})
 			writeJSON(w, map[string]bool{"ok": true})
 			return
 		case "practice":
-			mine := s.arenaEntry(game.ID(), me)
-			if mine == nil || strings.TrimSpace(mine.MD) == "" {
-				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr("Primer desa el teu .md per a aquest joc.", "Save your .md for this game first.")})
-				return
-			}
-			opp := s.arenaEntry(game.ID(), req.Opponent)
-			if opp == nil || !opp.Bot {
-				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr("Tria un bot com a rival.", "Pick a bot as the opponent.")})
-				return
-			}
+			// Un sol clic: desa el .md que s'envia (o la plantilla, si encara
+			// no n'hi ha cap) i tria el rival que toca si no se n'ha triat.
 			if s.arenaPracticeToday(me) >= arenaPracticePerDay && !admin {
 				writeJSONStatus(w, http.StatusTooManyRequests, map[string]string{"error": s.tr("Avui ja has fet prou partits de prova.", "Enough practice games for today.")})
 				return
+			}
+			mine := s.arenaEntry(game.ID(), me)
+			md := strings.TrimSpace(req.MD)
+			if md == "" && (mine == nil || strings.TrimSpace(mine.MD) == "") {
+				md = game.Starter()
+			}
+			if len(md) > arenaMaxMD {
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
+				return
+			}
+			if md != "" && (mine == nil || mine.MD != md || (req.Display != "" && req.Display != mine.Display)) {
+				s.saveEntry(arenaEntry{Owner: me, Display: s.arenaDisplay(me, req.Display, mine), Game: game.ID(), MD: md})
+				mine = s.arenaEntry(game.ID(), me)
+			}
+			var opp *arenaEntry
+			if req.Opponent != "" {
+				opp = s.arenaEntry(game.ID(), req.Opponent)
+			}
+			if opp == nil || !opp.Bot {
+				opp = s.arenaNextBot(game, me)
 			}
 			e := [2]arenaEntry{*mine, *opp}
 			if rand.Intn(2) == 1 {
@@ -1172,7 +1182,9 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// GET
+	s.arenaAutoSeed()
 	ratings := s.arenaRatings()
+	next := map[string]any{}
 	mine := map[string]any{}
 	bots := map[string][]map[string]any{}
 	board := map[string][]map[string]any{}
@@ -1195,9 +1207,113 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			board[g.ID()] = append(board[g.ID()], map[string]any{"owner": owner, "display": d, "elo": math.Round(r.Elo), "played": r.Played, "won": r.Won, "lost": r.Lost, "drawn": r.Drawn, "bot": strings.HasPrefix(owner, "bot:")})
 		}
 		sort.Slice(board[g.ID()], func(i, j int) bool { return board[g.ID()][i]["elo"].(float64) > board[g.ID()][j]["elo"].(float64) })
+		if b := s.arenaNextBot(g, me); b != nil {
+			next[g.ID()] = map[string]any{"owner": b.Owner, "display": b.Display, "level": b.Level}
+		}
 	}
-	writeJSON(w, map[string]any{"me": me, "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots,
+	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": s.arenaRecent(me), "practice_left": arenaPracticePerDay - s.arenaPracticeToday(me)})
+}
+
+// arenaDisplay: el nom que es veu als partits. Sense comptes, «Jo».
+func (s *Server) arenaDisplay(me, want string, prev *arenaEntry) string {
+	if d := oneLine(want, 40); d != "" {
+		return d
+	}
+	if prev != nil && prev.Display != "" && prev.Display != "local" {
+		return prev.Display
+	}
+	if me == "local" || me == "" {
+		return s.tr("Jo", "Me")
+	}
+	return me
+}
+
+// arenaNextBot tria el rival de pràctica: el primer bot (de més fàcil a més
+// difícil) que encara no has guanyat. Sense bots escrits, la plantilla.
+func (s *Server) arenaNextBot(game arena.Game, me string) *arenaEntry {
+	beaten := map[string]bool{}
+	for _, m := range s.arenaMatchList() {
+		if m.Game != game.ID() || m.Status != "final" || m.Winner < 0 {
+			continue
+		}
+		if m.Owners[m.Winner] == me {
+			beaten[m.Owners[1-m.Winner]] = true
+		}
+	}
+	var last *arenaEntry
+	for _, b := range arenaBotStyles {
+		e := s.arenaEntry(game.ID(), b.ID)
+		if e == nil || !e.Bot {
+			continue
+		}
+		last = e
+		if !beaten[b.ID] {
+			return e
+		}
+	}
+	if last != nil {
+		return last
+	}
+	return &arenaEntry{Owner: "bot:template", Display: s.tr("Bot Plantilla", "Bot Template"), Game: game.ID(), Bot: true, Level: "rookie", MD: game.Starter()}
+}
+
+var (
+	arenaSeedMu    sync.Mutex
+	arenaSeedTried = map[string]bool{}
+	arenaSeedBusy  = map[string]bool{}
+)
+
+func arenaSeedingNow() []string {
+	arenaSeedMu.Lock()
+	defer arenaSeedMu.Unlock()
+	var out []string
+	for g, b := range arenaSeedBusy {
+		if b {
+			out = append(out, g)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// arenaAutoSeed escriu els bots d'un joc la primera vegada que algú entra a
+// l'Arena (un cop per joc i per arrencada): ningú ha de prémer cap botó.
+func (s *Server) arenaAutoSeed() {
+	s.mu.Lock()
+	ready := s.client != nil && s.cfg != nil
+	s.mu.Unlock()
+	if !ready {
+		return
+	}
+	for _, g := range arena.Games() {
+		hasBots := false
+		for _, e := range s.arenaEntries(g.ID()) {
+			if e.Bot {
+				hasBots = true
+				break
+			}
+		}
+		arenaSeedMu.Lock()
+		key := s.arenaDir() + "|" + g.ID()
+		if hasBots || arenaSeedTried[key] {
+			arenaSeedMu.Unlock()
+			continue
+		}
+		arenaSeedTried[key], arenaSeedBusy[g.ID()] = true, true
+		arenaSeedMu.Unlock()
+		game := g
+		goBackground(func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Minute)
+			defer cancel()
+			if err := s.arenaSeedBots(ctx, game); err != nil {
+				log.Printf("arena: bots %s: %v", game.ID(), err)
+			}
+			arenaSeedMu.Lock()
+			arenaSeedBusy[game.ID()] = false
+			arenaSeedMu.Unlock()
+		})
+	}
 }
 
 func (s *Server) arenaMatchList() []arenaMatch {

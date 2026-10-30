@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gregal/internal/arena"
 )
 
 // arenaStub fa de model: decideix, escriu bots i dona informes.
@@ -253,5 +255,37 @@ func TestArenaResumeAfterRestart(t *testing.T) {
 	}
 	if c.Schedule[0].Match == "orfe" || !c.Schedule[0].Done {
 		t.Fatalf("el partit que tocava es torna a jugar: %+v", c.Schedule[0])
+	}
+}
+
+// Un sol clic, sense res preparat: desa la plantilla i juga contra el bot
+// plantilla; amb bots, el rival és el primer que encara no has guanyat.
+func TestArenaOneClickPractice(t *testing.T) {
+	s := cornerTestServer(t)
+	arenaStub(t)
+	rec := postJSON(t, s.handleArena, `{"action":"practice","game":"nfl"}`)
+	var started struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &started)
+	if started.ID == "" {
+		t.Fatalf("practice sense res: %d %s", rec.Code, rec.Body.String())
+	}
+	m := waitMatch(t, s, started.ID)
+	if m.Owners[0] != "bot:template" && m.Owners[1] != "bot:template" {
+		t.Fatalf("rival: %v", m.Owners)
+	}
+	g, _ := arena.Get("nfl")
+	if e := s.arenaEntry("nfl", "local"); e == nil || e.MD != strings.TrimSpace(g.Starter()) && e.MD != g.Starter() {
+		t.Fatalf("s'havia de desar la plantilla: %+v", e)
+	}
+	postJSON(t, s.handleArena, `{"action":"seed_bots","games":["nfl"]}`)
+	waitBackground()
+	if b := s.arenaNextBot(g, "local"); b == nil || b.Owner != "bot:rookie" {
+		t.Fatalf("el primer rival ha de ser el més fàcil: %+v", b)
+	}
+	// El .md de l'editor es desa en jugar.
+	postJSON(t, s.handleArena, `{"action":"practice","game":"nfl","md":"# Nou\nRun on first down."}`)
+	waitBackground()
+	if e := s.arenaEntry("nfl", "local"); e == nil || !strings.Contains(e.MD, "# Nou") || e.Display != "Jo" && e.Display != "Me" {
+		t.Fatalf("entrada: %+v", e)
 	}
 }

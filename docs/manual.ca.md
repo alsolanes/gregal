@@ -514,10 +514,13 @@ servidor de Gregal.
   cada ronda al CS2, el draft i l'objectiu i la postura de cada fase al LoL. Els
   jocs premien llegir el rival i gestionar els recursos: guanyen les
   instruccions clares i que s'adapten.
-- **Durant la setmana.** Escriu el teu `.md` (comença per la plantilla), desa'l
-  (en guarda les 20 últimes versions), demana'n una revisió i juga partits de
-  prova contra els bots (6 al dia). Els `.md` dels bots els escriu el model a
-  quatre nivells: llegeix-los per aprendre. Cada partit mostra cada decisió amb
+- **Durant la setmana.** Tria un joc: l'editor ja té la plantilla. Canvia-la
+  (es desa sola; en guarda les 20 últimes versions) o prem **Juga** de seguida:
+  el rival és el bot més fàcil que encara no has guanyat (6 partits de prova
+  al dia). Els bots els escriu el model, a quatre nivells, la primera vegada
+  que algú obre l'Arena; llegeix-ne el `.md` per aprendre (Classificació i
+  bots). **Què puc millorar?** en demana una revisió. Els partits fan servir el
+  model de la conversa, sense raonament, i un partit dura uns minuts. Cada partit mostra cada decisió amb
   el motiu del model i la línia exacta del teu `.md` que ha seguit, i acaba amb
   l'informe d'un coach: notes de claredat, cobertura, adaptació, concreció i
   coherència, els moments on el `.md` ha fallat amb una regla reescrita, i
