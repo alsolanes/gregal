@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.34.0 - 2026-10-30 - CS2 en directe
+
 - **CS2 live: play it yourself.** In Counter-Strike 2, **🎮 Play it yourself (live)** opens a first-person match on Mirage where you control one player with keyboard and mouse (WASD, mouse look, shoot, AWP scope, walk, crouch, weapons, grenades, reload, hold E to plant or defuse, a buy menu, scoreboard) and the other nine are autonomous bots that move, hold angles, trade, throw utility, plant, rotate, retake and defuse. The model still only coaches: before every round it reads each team's `.md` and calls the buy and the plan, and can give each bot a role for the round (entry, support, lurker, AWPer, anchor, rifler); you set your bots' roles and instructions before the match, or ask the coach to write them from your `.md`. A card on screen shows the coach's call, its reason and what each bot is doing. Short (MR6) or full (MR12) format, three bot skill levels. The round is simulated in the browser and the server applies the normal rules to what happened (money, loss bonus, kill rewards, halves), so the match is saved with the others (kind *live*, not ranked, doesn't use practice games) and replays in the match player with the tactical map and the POV.
 - **CS2 view: the gun points at the crosshair.** In the first-person view the weapon in the player's hands was drawn at a fixed angle, so its barrel pointed below and to the side of the crosshair (more on wide screens). Rifles, the AWP, SMGs and pistols are now aimed at the crosshair at every aspect ratio, foreshortened so the muzzle stops short of it, and stay clear of the side rosters.
 
