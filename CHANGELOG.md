@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.30.2 - 2026-10-30 - Jugadors de futbol que no tremolen
+
 - **Football games look right.** Players no longer shake when someone has the ball: a few plays picked a new random position on every frame (after a catch, on returns, sacks and interceptions), and players were drawn in the wrong depth order, so they flickered when they met. The players are now proper football players: running legs, arms, shoulder pads, the number, a team helmet with a stripe and a facemask facing where they go, and the tackled carrier lies on the ground. Applies to the Arena and to the winds' Games.
 
 ## v1.30.1 - 2026-10-30 - L'Arena, més senzilla
