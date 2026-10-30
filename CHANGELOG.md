@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.33.1 - 2026-10-30 - Pilota, recepcions i placatges
+
 - **Broadcast fixes.** The standings screen no longer hides the top two rows (they took the style of the page's top bar), the ticker text now passes under the yellow GREGAL ARENA label, and "Up next" announces the match the server is actually about to show.
 
 ## v1.33.0 - 2026-10-30 - El reproductor dels partits
