@@ -17,10 +17,12 @@ const FONT = '"Segoe UI", system-ui, sans-serif';
 const q = new URLSearchParams(location.hash.slice(1));
 const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
 const POST_TIME = 5;
-const BOT_ROLES = ['entry', 'support', 'lurker', 'awper', 'anchor', 'rifler'];
+const BOT_ROLES = ['entry', 'support', 'lurker', 'awper', 'anchor', 'rifler', 'follow'];
+// Una instrucció que demana anar amb la persona fa d'escorta (el servidor fa el mateix).
+const FOLLOW_NOTE = /(follow|stick|stay|cover|escort|protect|guard).{0,12}(me|my|human|player)|segueix[- ]?me|acompanya[- ]?m|cobreix[- ]?me|v[eé]s amb mi|s[ií]gueme|sigue ?me|c[uú]breme|qu[eé]date conmigo/i;
 const POS = ['IGL', 'AWPer', 'Entry', 'Support', 'Lurker'];
 const DEFAULT_ROLE = ['rifler', 'awper', 'entry', 'support', 'lurker'];
-const ROLE_HELP = { entry: 'first in, takes duels', support: 'follows the entry, flashes, trades', lurker: 'plays apart, flanks late', awper: 'holds long angles', anchor: 'holds the site, rotates late', rifler: 'standard' };
+const ROLE_HELP = { entry: 'first in, takes duels', support: 'follows the entry, flashes, trades', lurker: 'plays apart, flanks late', awper: 'holds long angles', anchor: 'holds the site, rotates late', rifler: 'standard', follow: 'stays with you, covers you, trades your duels' };
 const REASON = { elim: 'Elimination', bomb: 'Bomb exploded', defuse: 'Bomb defused', time: 'Time ran out' };
 
 async function call(body) {
@@ -52,11 +54,11 @@ async function lobby(game) {
     <h2>Your team</h2>
     <p class="muted">Pick the position you play (highlighted). For each bot pick a role and, if you like, a short instruction: the coach reads them every round and may change a role for one round.</p>
     <div class="slots" id="lbSlots"></div>
-    <div class="row"><button type="button" id="lbCoach">✨ Ask the coach to set the roles</button><span id="lbCoachMsg" class="muted"></span></div>
+    <div class="row"><button type="button" id="lbCoach">✨ Ask the coach to set the roles</button><button type="button" id="lbFollow">🛡 All follow me</button><span id="lbCoachMsg" class="muted"></span></div>
     <h2>Controls</h2>
     <div class="keys"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span><span><kbd>Mouse</kbd> look · <kbd>Left</kbd> shoot</span><span><kbd>Right</kbd> AWP scope</span><span><kbd>Shift</kbd> walk · <kbd>C</kbd> crouch</span>
       <span><kbd>1</kbd> rifle <kbd>2</kbd> pistol <kbd>3</kbd> knife</span><span><kbd>4</kbd> grenades (again: next) · <kbd>G</kbd> throw</span><span><kbd>R</kbd> reload · <kbd>Q</kbd> last weapon</span><span><kbd>E</kbd> hold: plant / defuse</span>
-      <span><kbd>B</kbd> buy menu</span><span><kbd>Tab</kbd> scoreboard</span><span><kbd>Esc</kbd> free the mouse</span><span><kbd>F</kbd> autopilot (a bot plays you)</span></div>
+      <span><kbd>B</kbd> buy menu</span><span><kbd>Tab</kbd> scoreboard</span><span><kbd>Esc</kbd> free the mouse</span><span><kbd>F</kbd> autopilot (a bot plays you)</span><span><kbd>V</kbd> team: follow me / play the plan</span></div>
     <div class="row" style="margin-top:16px"><button type="button" class="primary" id="lbStart">▶ Start the match</button><span id="lbMsg" class="muted"></span></div>`;
   $('lbFormat').value = cfg.format; $('lbSkill').value = cfg.skill; $('lbSens').value = cfg.sens;
   const sensV = () => { $('lbSensV').textContent = (+$('lbSens').value).toFixed(1); };
@@ -69,9 +71,13 @@ async function lobby(game) {
           <input data-note="${i}" maxlength="140" placeholder="Instruction (optional)" value="${esc(cfg.notes[i] || '')}"></div>`).join('');
     $('lbSlots').querySelectorAll('[data-me]').forEach(a => a.onclick = e => { e.preventDefault(); cfg.slot = +a.dataset.me; paintSlots(); });
     $('lbSlots').querySelectorAll('[data-role]').forEach(s => s.onchange = () => { cfg.roles[+s.dataset.role] = s.value; });
-    $('lbSlots').querySelectorAll('[data-note]').forEach(s => s.oninput = () => { cfg.notes[+s.dataset.note] = s.value; });
+    $('lbSlots').querySelectorAll('[data-note]').forEach(s => s.oninput = () => {
+      const i = +s.dataset.note; cfg.notes[i] = s.value;
+      if (FOLLOW_NOTE.test(s.value) && cfg.roles[i] !== 'follow') { cfg.roles[i] = 'follow'; const sel = $('lbSlots').querySelector(`[data-role="${i}"]`); if (sel) sel.value = 'follow'; }
+    });
   };
   paintSlots();
+  $('lbFollow').onclick = () => { cfg.roles = cfg.roles.map((r, i) => i === cfg.slot ? r : 'follow'); paintSlots(); $('lbCoachMsg').textContent = 'Your four bots will stick with you (V in game: follow me / play the plan).'; };
   $('lbCoach').onclick = async () => {
     $('lbCoach').disabled = true; $('lbCoachMsg').textContent = 'The coach is reading your .md…';
     try {
@@ -141,6 +147,7 @@ class LiveGame {
     this.setup = setup; this.decisions = decisions; this.score = setup.score;
     if (this.G) { this.R = new LiveRound(this.meta, setup, { skill: this.cfg.skill, grid: this.G, nav: this.N, humanBot: this.autopilot }); }
     else { this.R = new LiveRound(this.meta, setup, { skill: this.cfg.skill, humanBot: this.autopilot }); this.G = this.R.G; this.N = this.R.N; }
+    this.teamOrder = null; // la crida V dura fins al final de la ronda
     const me = this.R.human;
     this.bought = []; this.startLoadout = this.snapshot(me);
     this.loadout = this.snapshot(me);
@@ -171,6 +178,7 @@ class LiveGame {
       if (k === 'Tab') { e.preventDefault(); this.showBoard(true); return; }
       if (k === 'KeyB') { this.toggleBuy(); return; }
       if (!$('buy').hidden && /^Digit[1-9]$/.test(k)) { const btn = $('buyCard').querySelectorAll('[data-w]')[+k.slice(5) - 1]; if (btn) btn.click(); return; }
+      if (k === 'KeyV' && !e.repeat && this.R) { const R = this.R, cur = R.teamOrder || (R.players.filter(q => q.team === R.human.team && !q.human && R.follows(q)).length >= 2 ? 'all' : 'plan'); this.teamOrder = cur === 'all' ? 'plan' : 'all'; this.R.teamOrder = this.teamOrder; this.toast(this.teamOrder === 'all' ? 'Team: follow me (V)' : 'Team: play the plan (V)'); }
       if (k === 'KeyF' && !e.repeat) { this.autopilot = !this.autopilot; if (this.R) this.R.opts.humanBot = this.autopilot; this.toast(this.autopilot ? 'Autopilot ON: a bot plays you (F to take over)' : 'You have the controls'); }
       this.keys[k] = true;
       if (e.repeat) return;
@@ -697,6 +705,7 @@ class LiveGame {
     g.font = `900 ${13 * u}px ${FONT}`; g.fillStyle = '#fff'; g.fillText(head, x + 6 * u, y + 27 * u, w - 10 * u);
     g.font = `600 ${10.5 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.7)'; g.fillText(sub, x + 6 * u, y + 42 * u, w - 10 * u);
     let yy = y + 52 * u;
+    if (R.teamOrder) { g.font = `800 ${9.5 * u}px ${FONT}`; g.fillStyle = R.teamOrder === 'all' ? '#7fe39a' : '#8fb4ff'; g.textAlign = 'right'; g.fillText(R.teamOrder === 'all' ? 'TEAM: FOLLOW ME (V)' : 'TEAM: PLAY THE PLAN (V)', x + w - 4 * u, y + 11 * u); g.textAlign = 'left'; }
     if (full && dec && dec.why) { g.font = `italic 600 ${10.5 * u}px ${FONT}`; g.fillStyle = 'rgba(200,215,240,.85)'; g.fillText('“' + dec.why + '”', x + 6 * u, yy + 6 * u, w - 10 * u); yy += 16 * u; }
     for (const p of mates) {
       const col = this.r.teamColor(p.team);
@@ -709,7 +718,7 @@ class LiveGame {
       g.fillText(act, x + 12 * u, yy + 23 * u, w - 16 * u);
       yy += rowH;
     }
-    if (full) { g.font = `600 ${9.5 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.5)'; g.fillText('Your bots follow this call. Hold H to see this card in play.', x + 6 * u, yy + 8 * u, w - 10 * u); }
+    if (full) { g.font = `600 ${9.5 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.5)'; g.fillText('Your bots follow this call. H: this card · V: follow me / play the plan.', x + 6 * u, yy + 8 * u, w - 10 * u); }
   }
 
   metaZone(id) { return (this.meta.zones || []).find(z => z.id === id); }

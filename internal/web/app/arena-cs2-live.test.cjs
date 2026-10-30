@@ -138,3 +138,81 @@ test('grenades: a smoke blocks sight, a flash blinds who looks at it', async () 
   for (let i = 0; i < 90; i++) R.utilStep(S.TICK), R.t += S.TICK;
   assert.ok(b.flashUntil > R.t + 1, 'the CT facing the flash is blind');
 });
+
+// Una ronda on la persona camina cap a un lloc i els seus bots tenen el rol «follow».
+function escortRound(S, setupIdx, opts = {}) {
+  const setup = JSON.parse(JSON.stringify(fx.full[setupIdx]));
+  const human = setup.players.find(p => p.human);
+  for (const p of setup.players) if (p.team === human.team && !p.human) p.bot = 'follow';
+  const R = new S.LiveRound(fx.meta, setup, { seed: 11, ...opts });
+  const me = R.human;
+  // els rivals no es mouen ni disparen: només mirem com el segueixen
+  for (const p of R.players) if (p.team !== me.team) { p.ai.think = 1e9; p.x = me.side === 'T' ? 11 : 90; p.y = me.side === 'T' ? 50 : 42; }
+  return R;
+}
+
+test('escorts: "follow" bots stay with the human along his path, spaced out', async () => {
+  const S = await load();
+  const R = escortRound(S, 0, { noEnemies: true });
+  const me = R.human;
+  while (R.t < 0) R.step(S.TICK, {});
+  const goal = me.side === 'T' ? [41, 66] : [56, 42];
+  const path = S.findPath(R.N, me.x, me.y, goal[0], goal[1]);
+  let worst = 0, sum = 0, n = 0, minGap = 99;
+  for (let i = 0; i < 60 * 30 && path.length; i++) {
+    const [wx, wy] = path[0];
+    if (Math.hypot(wx - me.x, wy - me.y) < 0.6) { path.shift(); continue; }
+    me.ang = Math.atan2(wy - me.y, wx - me.x);
+    R.step(S.TICK, { fwd: 1 });
+    if (R.t > 4) {
+      const fs = R.players.filter(p => p.team === me.team && !p.human && p.alive);
+      for (const f of fs) { const d = Math.hypot(f.x - me.x, f.y - me.y); worst = Math.max(worst, d); sum += d; n++; }
+      for (let a = 0; a < fs.length; a++) for (let b = a + 1; b < fs.length; b++) minGap = Math.min(minGap, Math.hypot(fs[a].x - fs[b].x, fs[a].y - fs[b].y));
+    }
+  }
+  assert.ok(!path.length, 'the human got there');
+  // standing still for a while: they gather around without stacking
+  for (let i = 0; i < 60 * 4; i++) R.step(S.TICK, {});
+  const fs = R.players.filter(p => p.team === me.team && !p.human);
+  for (const f of fs) assert.ok(Math.hypot(f.x - me.x, f.y - me.y) < 7, `${f.id} is ${Math.hypot(f.x - me.x, f.y - me.y).toFixed(1)} m away after the human stopped`);
+  assert.ok(sum / n < 8, `average distance ${(sum / n).toFixed(1)} m`);
+  assert.ok(worst < 16, `worst distance ${worst.toFixed(1)} m`);
+  assert.ok(minGap > 0.4, 'followers do not stand inside each other');
+  assert.ok(fs.every(f => R.doing(f) === 'covering you'), fs.map(f => R.doing(f)).join(','));
+});
+
+test('escorts trade the human\'s killer, then go back to the plan', async () => {
+  const S = await load();
+  const R = escortRound(S, 0);
+  const me = R.human;
+  while (R.t < 0) R.step(S.TICK, {});
+  for (let i = 0; i < 60 * 3; i++) R.step(S.TICK, {});
+  const foe = R.players.find(p => p.team !== me.team);
+  for (const p of R.players) if (p.team !== me.team && p !== foe) p.alive = false;
+  foe.x = me.x + 6; foe.y = me.y; foe.ai.think = 1e9;
+  if (S.blocked(R.G, foe.x, foe.y)) { foe.x = me.x - 6; }
+  R.die(me, foe, 'ak47', false);
+  R.step(S.TICK, {}); for (let i = 0; i < 12; i++) R.step(S.TICK, {});
+  const fs = R.players.filter(p => p.team === me.team && !p.human && p.alive);
+  assert.ok(fs.some(f => f.ai.priority && f.ai.priority.id === foe.id), 'the killer is the escorts\' first target');
+  for (let i = 0; i < 60 * 8 && foe.alive; i++) R.step(S.TICK, {});
+  assert.ok(!foe.alive, 'the escorts traded the killer');
+  assert.ok(R.kills.some(k => k.victim === foe.id && k.killer !== me.id));
+  // ...and back to the plan (no human to follow any more)
+  const s2 = escortRound(S, 0);
+  while (s2.t < 0) s2.step(S.TICK, {});
+  s2.die(s2.human, null, 'c4', false);
+  for (let i = 0; i < 60 * 7; i++) s2.step(S.TICK, {});
+  const f2 = s2.players.filter(p => p.team === s2.human.team && !p.human && p.alive);
+  assert.ok(f2.length && f2.every(f => !f.ai.following && f.ai.unfollow), 'after the human dies the escorts play the plan');
+  assert.ok(f2.every(f => R.doing(f) !== 'covering you'));
+});
+
+test('team order: "all" makes every bot follow, "plan" none', async () => {
+  const S = await load();
+  const R = new S.LiveRound(fx.meta, JSON.parse(JSON.stringify(fx.full[3])), { seed: 2, teamOrder: 'all' });
+  const mates = R.players.filter(p => p.team === R.human.team && !p.human);
+  assert.ok(mates.every(p => R.follows(p)));
+  R.teamOrder = 'plan';
+  assert.ok(mates.every(p => !R.follows(p)));
+});

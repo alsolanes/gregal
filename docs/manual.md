@@ -624,7 +624,14 @@ Gregal server.
   the bots' skill (the same for both teams), the position you play and a role
   (entry, support, lurker, AWPer, anchor, rifler) plus an optional
   instruction for each bot, or **Ask the coach to set the roles** from your
-  `.md`. In game: WASD move, mouse look, left click shoot, right click AWP
+  `.md`. **follow** makes a bot your escort: it walks behind you on your path,
+  covers the angles you are not looking at, goes in right after you, trades
+  your duels (your killer first), throws its utility for you and rotates with
+  you; if you die it trades you and then plays the plan. **🛡 All follow me**
+  gives it to all four, an instruction such as "follow me", "stick with me",
+  "cover me" or "segueix-me" picks it for that bot, and **V** in game switches
+  the whole team between "follow me" and "play the plan" until the round ends.
+  In game: WASD move, mouse look, left click shoot, right click AWP
   scope, Shift walk, C crouch, 1/2/3 rifle/pistol/knife, 4 grenades and G
   throw, R reload, E hold to plant or defuse, B buy menu (freeze time and the
   first 20 seconds, in your spawn), Tab scoreboard, H the coach's card, F

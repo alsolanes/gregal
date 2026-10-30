@@ -238,3 +238,35 @@ func TestTargetForH(t *testing.T) {
 		}
 	}
 }
+
+func TestLiveFollowRole(t *testing.T) {
+	for _, c := range [][2]string{{"Follow me all the time", "follow"}, {"stick with me on B", "follow"}, {"cover me when I peek", "follow"},
+		{"Segueix-me sempre", "follow"}, {"sígueme", "follow"}, {"hold mid angles with AWP", ""}, {"follow the entry", ""}} {
+		if got := NoteRole(c[0]); got != c[1] {
+			t.Errorf("NoteRole(%q) = %q, want %q", c[0], got, c[1])
+		}
+	}
+	for _, a := range []string{"follow", "Follow me", "escort", "bodyguard", "follow-me"} {
+		if pick(a, botRoles, roleAlias) != "follow" {
+			t.Errorf("alias %q is not follow", a)
+		}
+	}
+	l := NewLive(3, "en", [2]string{"A", "B"}, 6, 0, 2)
+	// a0 té rol explícit, a1 una nota «segueix-me» (guanya la nota), a3 res.
+	l.SetRoles(0, []string{"entry", "awper", "", "rifler", ""}, []string{"", "segueix-me", "", "", ""})
+	p, _ := l.Prompts()
+	if !strings.Contains(p[0].Schema, "follow = stays with your human player") || strings.Contains(p[1].Schema, "|follow") {
+		t.Fatalf("follow is offered only to the human's team: %q / %q", p[0].Schema, p[1].Schema)
+	}
+	opp := l.m.players[1][0].Handle
+	s, _ := l.Start([2]json.RawMessage{json.RawMessage(`{"roles":{"` + l.m.players[0][3].Handle + `":"follow_me"}}`), json.RawMessage(`{"roles":{"` + opp + `":"follow"}}`)})
+	want := map[string]string{"a0": "entry", "a1": "follow", "a3": "follow"}
+	for _, pl := range s.Players {
+		if w := want[pl.ID]; w != "" && pl.Bot != w {
+			t.Errorf("%s: role %s, want %s", pl.ID, pl.Bot, w)
+		}
+		if pl.Team == 1 && pl.Bot == "follow" {
+			t.Errorf("the bot team has no human to follow: %s", pl.ID)
+		}
+	}
+}

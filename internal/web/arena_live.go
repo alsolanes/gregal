@@ -310,7 +310,7 @@ func (s *Server) arenaLiveRoles(w http.ResponseWriter, r *http.Request, me strin
 	slot := max(0, min(4, req.Slot))
 	pos := []string{"IGL", "AWPer", "Entry", "Support", "Lurker"}
 	system := "You are the head coach of a Counter-Strike 2 team in an AI strategy game. Your human player plays one position with keyboard and mouse; the other four are bots. Give each bot a role and one short instruction in the spirit of the team's STRATEGY. Reply with JSON only.\n\nRULES:\n" + game.Rules() + "\n\nTEAM STRATEGY:\n<<<\n" + clip(md, arenaMaxMD) + "\n>>>"
-	user := fmt.Sprintf("The human plays position %d (%s). Bot roles: entry (first in, takes duels), support (follows the entry, flashes and trades), lurker (plays apart, flanks late; as CT holds a lonely spot), awper (holds long angles, buys the AWP), anchor (holds the site, does not rotate early), rifler (standard). For each position 0-4 except the human's, one role and one instruction (max 15 words) that covers both T and CT.\n", slot, pos[slot]) +
+	user := fmt.Sprintf("The human plays position %d (%s). Bot roles: entry (first in, takes duels), support (follows the entry, flashes and trades), lurker (plays apart, flanks late; as CT holds a lonely spot), awper (holds long angles, buys the AWP), anchor (holds the site, does not rotate early), rifler (standard), follow (stays with the human player, covers them and trades their duels: use it when the strategy says to follow, stick with or cover the player). For each position 0-4 except the human's, one role and one instruction (max 15 words) that covers both T and CT.\n", slot, pos[slot]) +
 		`JSON: {"players":[{"slot":0,"role":"rifler","note":"…"}]}`
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()

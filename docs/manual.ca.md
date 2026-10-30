@@ -629,7 +629,14 @@ servidor de Gregal.
   rondes, o complet MR12), el nivell dels bots (el mateix als dos equips), la
   posició que jugues i un rol (entry, support, lurker, AWPer, àncora, rifler)
   amb una instrucció opcional per a cada bot, o **Ask the coach to set the
-  roles** perquè els triï a partir del teu `.md`. En joc: WASD per moure't, el
+  roles** perquè els triï a partir del teu `.md`. **follow** fa del bot la teva
+  escorta: et segueix pel camí que fas, cobreix els angles que no mires, entra
+  just darrere teu, intercanvia els teus duels (primer qui t'ha matat), llança
+  la seva utilitat per a tu i rota amb tu; si mors, et venja i després juga el
+  pla. **🛡 All follow me** el dona als quatre, una instrucció com «follow me»,
+  «stick with me», «cover me» o «segueix-me» el tria per a aquell bot, i **V**
+  en joc canvia tot l'equip entre «segueix-me» i «juga el pla» fins al final de
+  la ronda. En joc: WASD per moure't, el
   ratolí per mirar, clic esquerre dispara, clic dret la mira de l'AWP, Maj
   camina, C t'ajup, 1/2/3 rifle/pistola/ganivet, 4 granades i G llança, R
   recarrega, E (mantingut) planta o desactiva, B el menú de compra (en la

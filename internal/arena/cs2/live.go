@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -24,7 +25,8 @@ import (
 )
 
 // Rols dels bots: com juguen la ronda dins del pla de l'equip.
-var botRoles = []string{"entry", "support", "lurker", "awper", "anchor", "rifler"}
+// follow: es queda amb la persona (només l'equip on juga la persona).
+var botRoles = []string{"entry", "support", "lurker", "awper", "anchor", "rifler", "follow"}
 
 // El rol per defecte de cada posició, segons el bàndol.
 func defaultBotRole(role string, side int) string {
@@ -96,11 +98,27 @@ func (l *Live) SetRoles(team int, roles, notes []string) {
 		}
 		if i < len(notes) {
 			l.notes[team][i] = oneLineCS(notes[i], 140)
+			if r := NoteRole(notes[i]); r != "" && team == l.human.Team {
+				l.roles[team][i] = r
+			}
 		}
 	}
 }
 
-var roleAlias = map[string]string{"awp": "awper", "sniper": "awper", "entry_fragger": "entry", "lurk": "lurker", "flex": "rifler", "rotator": "rifler", "igl": "rifler", "anchor_site": "anchor", "util": "support", "utility": "support"}
+var roleAlias = map[string]string{"awp": "awper", "sniper": "awper", "entry_fragger": "entry", "lurk": "lurker", "flex": "rifler", "rotator": "rifler", "igl": "rifler", "anchor_site": "anchor", "util": "support", "utility": "support",
+	"follow_me": "follow", "follower": "follow", "escort": "follow", "bodyguard": "follow", "guard": "follow", "cover_me": "follow", "stick_with_me": "follow", "segueix_me": "follow", "segueixme": "follow", "sigueme": "follow", "sígueme": "follow"}
+
+// followNote: una instrucció que demana que el bot vagi amb la persona
+// («follow me», «stick with me», «segueix-me», «sígueme»…).
+var followNote = regexp.MustCompile(`(?i)\b(follow|stick|stay|cover|escort|protect|guard)\b.{0,12}\b(me|my|human|player)\b|segueix[- ]?me|acompanya[- ]?m|cobreix[- ]?me|v[eé]s amb mi|s[ií]gueme|sigue ?me|c[uú]breme|qu[eé]date conmigo`)
+
+// NoteRole: el rol que una instrucció demana sense dubte ("" si cap).
+func NoteRole(note string) string {
+	if followNote.MatchString(note) {
+		return "follow"
+	}
+	return ""
+}
 
 func oneLineCS(s string, n int) string {
 	s = strings.Join(strings.Fields(s), " ")
@@ -130,7 +148,13 @@ func (l *Live) Prompts() (p [2]arena.Prompt, done bool) {
 		if t == l.human.Team {
 			extra += fmt.Sprintf(" and by a human, who plays %s (%s) and follows the plan as he sees fit", l.human.Handle, l.human.Role)
 		}
-		extra += `. Optional: "roles": {"<handle>": "entry|support|lurker|awper|anchor|rifler"} to change how your bots play this round (entry = first in, peeks; support = follows the entry, throws utility, trades; lurker = plays apart, flanks late / CT: holds a lonely spot; awper = holds long angles; anchor = holds the site and never rotates early; rifler = standard). Your bots: ` + strings.Join(names, ", ") + "."
+		roles := "entry|support|lurker|awper|anchor|rifler"
+		follow := ""
+		if t == l.human.Team {
+			roles += "|follow"
+			follow = "; follow = stays with your human player, covers them and trades their duels (use it when the human's instructions or your strategy say \"follow me\", \"stick with me\", \"cover me\", \"segueix-me\", \"sígueme\" or similar)"
+		}
+		extra += `. Optional: "roles": {"<handle>": "` + roles + `"} to change how your bots play this round (entry = first in, peeks; support = follows the entry, throws utility, trades; lurker = plays apart, flanks late / CT: holds a lonely spot; awper = holds long angles; anchor = holds the site and never rotates early; rifler = standard` + follow + `). Your bots: ` + strings.Join(names, ", ") + "."
 		p[t].Schema += extra
 		if t == l.human.Team {
 			var ns []string
@@ -148,10 +172,12 @@ func (l *Live) Prompts() (p [2]arena.Prompt, done bool) {
 }
 
 func (l *Live) roleOf(p *Player, side int, over map[string]string) string {
-	if r := over[p.Handle]; r != "" {
+	// seguir la persona només té sentit al seu equip
+	ok := func(r string) bool { return r != "" && (r != "follow" || p.Team == l.human.Team) }
+	if r := over[p.Handle]; ok(r) {
 		return r
 	}
-	if r := l.roles[p.Team][p.Slot]; r != "" {
+	if r := l.roles[p.Team][p.Slot]; ok(r) {
 		return r
 	}
 	return defaultBotRole(p.Role, side)

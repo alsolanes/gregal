@@ -55,6 +55,9 @@ export const ROLE = {
   awper: { delay: 2.6, react: 1.08, hold: true },
   lurker: { delay: 9, react: 0.95, lurk: true },
   anchor: { delay: 2, react: 0.95, anchor: true },
+  // follow: va amb la persona (escorta): la segueix pel camí que fa, cobreix els
+  // angles que no mira, entra darrere seu i intercanvia els seus duels.
+  follow: { delay: 0.8, react: 0.95, follow: true },
 };
 
 // On fumen els T per tallar les rotacions CT de cada lloc.
@@ -257,6 +260,10 @@ export class LiveRound {
     this.human = this.byId[setup.human];
     this.sampleT = 0;
     this.later = [];
+    // per on ha passat la persona (els escortes la segueixen pel mateix camí)
+    this.trail = this.human ? [[this.human.x, this.human.y]] : [];
+    // l'ordre de l'equip de la persona: null (cada bot el seu rol), 'all' (tots la segueixen), 'plan' (cap)
+    this.teamOrder = opts.teamOrder || null;
   }
 
   // Una acció més tard, en temps de ronda (va amb els passos, no amb el rellotge).
@@ -337,6 +344,8 @@ export class LiveRound {
     if (this.later.length) { const due = this.later.filter(x => this.t >= x.t); this.later = this.later.filter(x => this.t < x.t); due.forEach(x => x.fn()); }
     this.utilStep(dt);
     this.bombStep(dt);
+    const hu = this.human;
+    if (hu && hu.alive) { const l = this.trail[this.trail.length - 1]; if (!l || Math.hypot(hu.x - l[0], hu.y - l[1]) > 0.5) { this.trail.push([hu.x, hu.y]); if (this.trail.length > 400) this.trail.shift(); } }
     if (this.t - this.sampleT >= 0.25) { this.sampleT = this.t; for (const p of this.players) if (p.alive) p.track.push([+this.t.toFixed(2), +p.x.toFixed(2), +p.y.toFixed(2)]); }
     this.shots = this.shots.filter(s => this.t - s.t < 0.2);
     this.checkEnd();
@@ -497,7 +506,8 @@ export class LiveRound {
     if (this.bomb.carrier === q.id) Object.assign(this.bomb, { carrier: null, dropped: true, x: q.x, y: q.y });
     if (this.bomb.planting === q) this.bomb.planting = null;
     if (this.bomb.defusing === q) this.bomb.defusing = null;
-    for (const m of this.mates(q)) m.ai.mateDied = { x: q.x, y: q.y, t: this.t };
+    q.killedBy = k && k !== q ? k.id : null;
+    for (const m of this.mates(q)) m.ai.mateDied = { x: q.x, y: q.y, t: this.t, killer: q.killedBy };
   }
 
   end(side, reason) {
@@ -621,7 +631,12 @@ export class LiveRound {
       if (d < 0.35) { ai.path.shift(); if (!ai.path.length) ai.arrived = this.t; }
       else { mx = dx / d; my = dy / d; if (!tg && ai.face == null) p.ang += clamp(angDiff(Math.atan2(dy, dx), p.ang), -turn, turn); }
     }
-    const w = this.weapon(p), sp = RUN * w.speed * (ai.walk ? WALK_K : 1);
+    // no posar-se dins d'un company: una mica d'espai entre cossos
+    for (const q of this.players) { if (q === p || !q.alive || q.team !== p.team) continue; const dx = p.x - q.x, dy = p.y - q.y, d = Math.hypot(dx, dy); if (d < 1 && d > 1e-3) { mx += dx / d * (1 - d) * 1.5; my += dy / d * (1 - d) * 1.5; } }
+    { const l = Math.hypot(mx, my); if (l > 1) { mx /= l; my /= l; } }
+    // l'escorta que s'ha quedat enrere corre una mica més per tornar al seu lloc
+    const lag = ai.following && this.human.alive ? Math.hypot(this.human.x - p.x, this.human.y - p.y) : 0;
+    const w = this.weapon(p), sp = RUN * w.speed * (ai.walk ? WALK_K : 1) * (lag > 4 ? 1.2 : 1);
     const k = Math.min(1, dt * 10);
     p.vx = lerp(p.vx, mx * sp, k); p.vy = lerp(p.vy, my * sp, k);
     const ox = p.x, oy = p.y;
@@ -646,6 +661,8 @@ export class LiveRound {
       if (d < bd) { bd = d; best = q; }
       this.spotted[p.team][q.id] = { x: q.x, y: q.y, t: this.t, zone: (this.zoneOf(q) || {}).id };
     }
+    // qui ha matat (o està matant) la persona, primer
+    if (ai.priority && this.t < ai.priority.until) { const q = this.byId[ai.priority.id]; if (q && q.alive && this.sees(p, q)) { best = q; bd = Math.hypot(q.x - p.x, q.y - p.y); } }
     if (best) {
       if (ai.target !== best.id) {
         // de lluny costa més adonar-se'n (i el que es mou es veu abans)
@@ -729,8 +746,94 @@ export class LiveRound {
   plan(p, role) {
     const ai = p.ai, S = this.setup, b = this.bomb;
     ai.use = false;
+    const follow = this.follows(p);
+    if (follow) { ai.following = true; return this.planFollow(p, ai, b); }
+    if (ai.following) { ai.following = false; this.rejoin(p); }
+    if (p.bot === 'follow' || this.teamOrder === 'all') role = ROLE.support; // sense ningú a seguir: support
     if (p.side === 'T') return this.planT(p, role, ai, S, b);
     return this.planCT(p, role, ai, S, b);
+  }
+
+  // Aquest bot escorta la persona ara?
+  follows(p) {
+    const h = this.human;
+    if (!h || p === h || p.team !== h.team || p.ai.unfollow) return false;
+    if (!h.alive) { if (this.t - h.deathT > 5) p.ai.unfollow = true; return this.t - h.deathT <= 5 && (p.bot === 'follow' || this.teamOrder === 'all'); }
+    if (this.teamOrder === 'plan') return false;
+    return this.teamOrder === 'all' || p.bot === 'follow';
+  }
+
+  followers() { return this.players.filter(q => q.alive && this.follows(q)).sort((a, c) => a.id < c.id ? -1 : 1); }
+
+  // Un punt del camí de la persona, d metres enrere.
+  trailBack(d) {
+    const tr = this.trail, h = this.human;
+    let px = h.x, py = h.y, acc = 0;
+    for (let i = tr.length - 1; i >= 0; i--) {
+      const [x, y] = tr[i], l = Math.hypot(x - px, y - py);
+      if (acc + l >= d) { const k = (d - acc) / (l || 1); return [px + (x - px) * k, py + (y - py) * k]; }
+      acc += l; px = x; py = y;
+    }
+    return [px, py];
+  }
+
+  planFollow(p, ai, b) {
+    const h = this.human, fs = this.followers(), k = Math.max(0, fs.indexOf(p)), n = fs.length;
+    // la persona ha mort: anar a intercanviar-la (primer el seu assassí), i després el pla
+    if (!h.alive) {
+      if (!ai.traded) { ai.traded = true; if (h.killedBy) ai.priority = { id: h.killedBy, until: this.t + 5 }; const kk = this.byId[h.killedBy]; this.goTo(p, kk && kk.alive ? kk.x : h.x, kk && kk.alive ? kk.y : h.y); }
+      return;
+    }
+    // si li disparen, cap a qui li dispara
+    const hit = h.ai.hitFrom;
+    if (hit && this.t - hit.t < 1.5 && !ai.target) {
+      const shooter = this.players.find(q => q.alive && q.team !== h.team && Math.hypot(q.x - hit.x, q.y - hit.y) < 3);
+      if (shooter) ai.priority = { id: shooter.id, until: this.t + 3 };
+      ai.face = Math.atan2(hit.y - p.y, hit.x - p.x);
+      if (!ai.path.length || Math.hypot(ai.goal[0] - hit.x, ai.goal[1] - hit.y) > 3) this.goTo(p, (h.x + hit.x) / 2, (h.y + hit.y) / 2);
+      return;
+    }
+    // cobrir els angles que la persona no mira
+    const off = [Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI * 0.75, -Math.PI * 0.75][k % 5];
+    ai.hold = h.ang + (n === 1 ? Math.PI * 0.7 : off);
+    // on posar-se: pel camí que ha fet, a 3-8 m (cadascú a la seva distància)
+    const moving = this.speedOf(h) > 1;
+    let tx, ty;
+    if (moving) [tx, ty] = this.trailBack(2.4 + 1.3 * k);
+    else { const a = h.ang + Math.PI + (k - (n - 1) / 2) * 0.9, r = 2.6 + 0.6 * (k % 2); tx = h.x + Math.cos(a) * r; ty = h.y + Math.sin(a) * r; }
+    const cell = nearestWalk(this.N, tx, ty);
+    if (cell >= 0) { tx = (cell % this.G.gw + 0.5) * this.G.res; ty = (((cell / this.G.gw) | 0) + 0.5) * this.G.res; }
+    const dh = Math.hypot(h.x - p.x, h.y - p.y), dg = ai.goal ? Math.hypot(ai.goal[0] - tx, ai.goal[1] - ty) : 99;
+    if (dh < 1.3 && !moving) ai.path = [];
+    else if (Math.hypot(tx - p.x, ty - p.y) > 0.8 && clearLine(this.N, p.x, p.y, tx, ty)) { ai.path = [[tx, ty]]; ai.goal = [tx, ty]; }
+    else if (dg > 1.2 || !ai.path.length && Math.hypot(tx - p.x, ty - p.y) > 0.8) this.goTo(p, tx, ty);
+    ai.walk = h.walking && moving && dh < 8;
+    // la utilitat per a la persona: quan entra en un lloc (T) o quan l'equip veu rivals a prop (CT)
+    if (p.side === 'T') {
+      const site = ['A', 'B'].find(s0 => { const z = this.siteZone(s0); return Math.hypot(z.x - h.x, z.y - h.y) < Math.max(z.w, z.h) / 2 + 8; });
+      if (site && moving) {
+        const sz = this.siteZone(site);
+        if (!ai.utilDone.fsmoke && p.nades.includes('smoke')) { ai.utilDone.fsmoke = true; const z = this.byZone[SMOKES[site][k % 2]]; this.throwTo(p, 'smoke', z.x, z.y); }
+        else if (!ai.utilDone.fflash && p.nades.includes('flash')) { ai.utilDone.fflash = true; this.throwTo(p, 'flash', sz.x, sz.y); }
+      }
+      // la bomba: si la porta l'escorta, planta quan són al lloc
+      if (b.carrier === p.id && this.inSite(p.x, p.y) && !ai.target && this.inSite(h.x, h.y)) { ai.use = true; ai.path = []; }
+    } else {
+      const seen = Object.values(this.spotted[p.team]).filter(s0 => this.t - s0.t < 2 && Math.hypot(s0.x - h.x, s0.y - h.y) < 22);
+      if (seen.length && !ai.utilDone.fnade) {
+        const nade = p.nades.includes('molotov') ? 'molotov' : p.nades.includes('he') ? 'he' : '';
+        if (nade) { ai.utilDone.fnade = true; this.throwTo(p, nade, seen[0].x, seen[0].y); }
+      }
+      if (b.planted && !b.defused && !ai.target && Math.hypot(p.x - b.x, p.y - b.y) < 1.6 && (!b.defusing || b.defusing === p) && b.plantT + BOMB_TIME - this.t > (p.kit ? KIT_TIME : BARE_TIME)) { ai.use = true; ai.path = []; }
+    }
+  }
+
+  // Deixa d'escortar: torna al pla des d'on és.
+  rejoin(p) {
+    const ai = p.ai, from = (this.zoneOf(p) || {}).id;
+    ai.path = []; ai.hold = null; ai.priority = null;
+    if (p.side === 'T') { ai.stage = this.bomb.planted ? 'start' : 'stage'; if (!this.bomb.planted) this.goRoute(p, zonePath(this.meta, from, p.post)); }
+    else { ai.stage = 'post'; this.goRoute(p, zonePath(this.meta, from, p.post)); ai.hold = this.facingFrom(p.post, 't_spawn'); }
   }
 
   planT(p, role, ai, S, b) {
@@ -880,6 +983,7 @@ export class LiveRound {
     if (ai.target && this.t >= ai.reactAt) return 'fighting';
     const z = ai.goal ? zoneAt(this.meta, ai.goal[0], ai.goal[1]) : this.zoneOf(p);
     const zn = z ? z.name : '';
+    if (ai.following) return this.human.alive ? (ai.target ? 'fighting' : 'covering you') : 'trading you';
     if (ai.stage === 'pickup') return 'getting the bomb';
     if (ai.stage === 'post') return p.side === 'T' ? 'post-plant' : (ai.path.length ? '→ ' : 'holding ') + zn;
     if (ai.stage === 'retake') return 'retaking ' + (b.site || '');
