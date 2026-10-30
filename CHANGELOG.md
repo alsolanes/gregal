@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.34.1 - 2026-10-30 - Segueix-me
+
 - **CS2 live: bots that follow you.** A new bot role, **follow**, makes a bot your escort: it walks your actual path a few metres behind you (several escorts keep their distance from each other), watches the angles you are not looking at, enters a site right after you, turns on whoever shoots you and goes for your killer first, throws its smoke and flash for you when you hit a site (as CT, a molotov or HE where the team spots enemies near you) and rotates when you rotate. If you die, escorts trade you and then play the team plan for the rest of the round. Set it per bot, with **🛡 All follow me** in the setup, or by writing an instruction like "follow me", "stick with me", "cover me", "segueix-me" or "sígueme" (the role is picked for you, and the coach is told to use it when your strategy asks for it). In game, **V** switches the whole team between "follow me" and "play the plan" until the end of the round, shown on the coach's card.
 
 ## v1.34.0 - 2026-10-30 - CS2 en directe
