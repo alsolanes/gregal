@@ -29,8 +29,10 @@ func (Game) Title(lang string) string {
 func (Game) Rules() string {
 	return `AMERICAN FOOTBALL, NFL rules. Two identical teams; the only difference is each team's strategy. Four 15-minute quarters, overtime if tied (both teams get the ball; then next score wins).
 You call EVERY scrimmage play for your side. On offense you pick the play (and on 4th down whether to punt, kick a field goal or go for it); on defense you pick the coverage. Both calls are made at the same time, without seeing the other's.
-What wins: matching your call to theirs. Runs beat soft/pass coverages, passes beat stacked boxes, screens and deep shots punish blitzes, cover2/prevent kill deep balls, play-action works after you have established the run. You see the opponent's tendencies so far (overall, on 1st down, on 3rd & long, last plays): exploit them, and avoid becoming predictable yourself.
-Situational football matters: 4th-down decisions by field position, the clock (hurry when behind late, milk/kneel when ahead), field goal range, two-minute drills, protecting a lead.
+What wins: matching your call to theirs. Every call beats some calls and loses to others (rock-paper-scissors), so no single call is safe: a team that always calls the same thing gets countered.
+` + football.MatchupText() + `play_action also needs an established run: it gains more once 40%+ of your plays have been runs, and less if you never run.
+Each prompt shows the opponent's tendencies (overall, on 1st down, on 3rd & 5+, last plays) and the RESULTS so far (yards per play and success rate by your call and by their call): counter what they call most, keep calling what works, drop what fails, and avoid becoming predictable yourself.
+Situational football matters: 4th-down decisions by field position (if you give no valid answer on 4th down, you kick), the clock (hurry when behind late, milk/kneel when ahead), field goal range, two-minute drills, protecting a lead.
 Answer only with the JSON asked for.`
 }
 
@@ -159,39 +161,69 @@ func itoa(n int) string {
 	return string(b)
 }
 
-const starterMD = `# Strategy: "Take what they give"
+const starterMD = `# Strategy: "Read, counter, adapt"
 
 ## Identity
-We are a balanced team that reads the defense and takes the easy yards. We never force deep balls into two-deep coverage and we never let the opponent guess our play.
+We win the chess match, not the highlight reel. We find what the opponent calls most, answer it with the call the MATCHUP TABLE says beats it, keep doing what gains yards and drop what fails. We never let them key on one call of ours.
 
-## Offense: reading the defense (most important)
-Look at "Their DEFENSE so far" before every call.
-- If they blitz on more than 30% of plays: call **screen** (to the RB) or **run_outside**. On 3rd & long vs a blitz-happy team: screen.
-- If they play **cover2** or **prevent** a lot: run_inside, and pass_medium to the middle. Never pass_deep against them.
-- If they play **man** a lot: pass_deep to wr1, run_outside.
-- If they play **cover3** a lot: pass_short (target wr2/te), run_inside.
-- If they stack the box with **goal_line**: play_action or pass_short to the te.
-- No data yet (first drive): run_inside on 1st down, pass_short on 2nd & long, pass_medium on 3rd & 5+.
+## Priorities (go down the list; the first rule that applies decides)
+1. The situation: 4th down, the clock, short yardage.
+2. The RESULTS line: what has worked and what has failed in this game.
+3. Their tendencies: counter their most frequent call.
+4. Our own tendencies: no single call above 40% of our plays.
 
-## Staying unpredictable
-Check "Your offense so far". If one play type is above 40% of our calls, pick something else this down unless the situation demands it. After 5+ runs, play_action is our best shot.
+## Offense
+### 4th down (decide this first)
+- "A field goal from here would be X yards" and X is at most our kicker's range → **field_goal**.
+- 4th & 1 or 2 at "the defense's" 45 or closer → go for it: **qb_sneak** on 4th & 1 (play_action if their top defense is goal_line), otherwise our counter call below.
+- Q4, under 5:00, behind by 4 or more → go for it with our counter call.
+- Anything else → **punt**.
 
-## Situations
-- 3rd/4th & 1: qb_sneak, unless they are in goal_line (then play_action).
-- 4th down: inside their 35 with 1-2 yards to go → go for it. In field goal range (kick distance ≤ our range) → field_goal. Otherwise punt. Down by 9+ in the 4th quarter → go for it from anywhere past midfield.
-- Behind in the last 4 minutes: tempo hurry, prefer passes to the sideline (pass_short/pass_medium), spike only to save the last seconds.
-- Ahead in the last 4 minutes: run_inside with tempo milk; kneel when the clock can run out.
-- Red zone (inside their 20): no pass_deep. Mix run_inside and play_action; vs goal_line → pass_short to the te.
+### Clock
+- Q4, under 3:00, ahead: run (run_inside, or run_outside if their top defense is man, blitz or cover3), tempo **milk**.
+- Q4 under 5:00 behind, or Q2 under 2:00: tempo **hurry** and pass (pick the pass option from the table below).
 
-## Defense: reading their offense
-Look at "Their OFFENSE so far".
-- They run more than 55% (or on 1st down): base or goal_line on 1st down, cover3 otherwise.
-- They throw deep a lot: cover2; late in halves: prevent.
-- They love short passes: man.
-- 3rd & 7+: cover2 or prevent (make them throw short of the sticks); 3rd & short: goal_line or blitz.
-- Blitz at most on 1 play out of 4, and never twice in a row if they have run screens.
-- Last 2 minutes of a half while ahead: prevent.
+### Counter their defense
+Look at "Their DEFENSE so far: overall" and take their most-called defense. On 3rd & 5+, use their "on 3rd & 5+" numbers instead.
+| Their top defense | Option A | Option B (every 3rd play, or when A is failing) |
+| base | pass_medium to wr1 | play_action (only once runs are 40%+ of our plays) |
+| blitz | screen to rb | pass_short to wr2 |
+| cover2 | run_inside | pass_medium to wr1 |
+| cover3 | pass_short to wr2 | screen to rb |
+| man | run_outside | pass_deep to wr1 |
+| goal_line | play_action | pass_medium to te |
+| prevent | run_inside | run_outside |
+- On 3rd & 7+, prefer a pass from that row.
+- No data yet: 1st down run_inside, 2nd down pass_short, 3rd down pass_medium.
 
-## Example
-3rd & 8 at their 42, they blitzed 4 of the last 6 plays → {"play":"screen","target":"rb","tempo":"normal"}.
+### Use the RESULTS
+- In "RESULTS of your offense ... by your call": if the call we are about to make has 3+ plays and under 4.0 yds/play, switch to the other option.
+- A call at 7+ yds/play and 60%+ success: keep calling it (still respecting the 40% cap).
+
+## Defense
+### Counter their offense
+Look at "Their OFFENSE so far: overall" and take their most-called play (on 3rd & 5+, their "on 3rd & 5+" numbers).
+| Their top play | Our call |
+| run_inside | blitz |
+| run_outside | cover3 |
+| pass_short | man |
+| pass_medium | blitz |
+| pass_deep | cover2 |
+| screen | man |
+| play_action | blitz |
+- If their second play is 25%+ and the MATCHUP TABLE gives it + or ++ against that call, pick instead the defense that is best against both together (e.g. run_inside + screen → base; pass_short + pass_deep → cover2).
+- In "RESULTS of their offense ... by your defense": a defense that allows 6+ yds/play over 4+ plays is broken; use a different one.
+
+### Situations
+- 3rd or 4th & 1-2, or goal to go from our 3: **goal_line**.
+- No data yet: base on 1st down, cover2 on 2nd, man on 3rd.
+- Q2 or Q4 under 1:00 and we are ahead: **prevent**.
+- Never blitz on more than 3 plays in a row: a screen kills it.
+
+## Examples
+- 3rd & 8 at the defense's 42; Their DEFENSE so far: overall: blitz 45%, base 30%, ... → {"play":"screen","target":"rb","tempo":"normal"}
+- Their OFFENSE so far: overall: run_outside 50%, pass_short 20%, ...; 1st & 10 → {"call":"cover3"}
+
+## Writing tips (for whoever edits this file)
+Quote the exact words of the Situation ("Their DEFENSE so far", "RESULTS", "on 3rd & 5+") in your rules, give each rule one clear action, and keep the order of priorities explicit: the model follows short if/then rules best.
 `

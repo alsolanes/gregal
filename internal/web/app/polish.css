@@ -686,3 +686,18 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-broadcast { display:flex; flex-direction:column; gap:10px; border-top:1px solid var(--line); padding-top:12px; margin-top:6px; }
 @media (max-width:1100px) { .ar-grid, .ar-grid2, .ar-match, .ar-feedback, .ar-play-grid { grid-template-columns:1fr; } .ar-tips { border-left:0; padding-left:0; } }
 @media (max-width:700px) { .ar-games { grid-template-columns:1fr; } }
+.fb-stage:fullscreen { background:#000; display:flex; align-items:center; justify-content:center; }
+.fb-stage:fullscreen canvas { width:100vw; height:56.25vw; max-height:100vh; max-width:177.8vh; }
+.ar-guide dl { margin:0; display:flex; flex-direction:column; gap:6px; }
+.ar-guide dt { font-weight:700; font-size:13px; } .ar-guide dd { margin:0; font-size:12px; color:var(--muted); font-family:var(--mono, ui-monospace, Consolas, monospace); word-break:break-word; }
+.ar-ex pre { margin:4px 0 0; white-space:pre-wrap; font-size:12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px 10px; }
+.ar-tips details summary { cursor:pointer; color:var(--muted); font-size:13px; }
+.ar-progress { border-top:1px solid var(--line); padding-top:10px; display:flex; flex-direction:column; gap:6px; }
+.ar-chart { width:100%; max-width:720px; height:auto; color:var(--ink); }
+.ar-how { margin:0 0 6px; font-size:12px; color:var(--muted); }
+.ar-follow { display:flex; gap:10px; flex-wrap:wrap; font-size:12px; margin-bottom:6px; } .ar-follow span { padding:3px 8px; border-radius:999px; border:1px solid var(--line); }
+.ar-follow .side0 { border-color:#3e7bfa; } .ar-follow .side1 { border-color:#e5484d; }
+.ar-dec { cursor:pointer; } .ar-dec em { font-style:normal; font-size:11px; font-weight:700; } .ar-dec em.ok { color:#2fbf71; } .ar-dec em.warn { color:#e0a800; } .ar-dec em.bad { color:#e5484d; }
+.ar button.ar-demo { font-weight:700; padding:9px 14px; border-radius:10px; }
+.ar-tv { position:fixed; inset:0; z-index:2000; background:#000; }
+.ar-tv iframe { width:100%; height:100%; border:0; display:block; }

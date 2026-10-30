@@ -56,3 +56,66 @@ test('every kind of play builds an animation with sane positions', async () => {
   assert.equal(fieldX(0, 1), 10);
   assert.equal(fieldX(0, -1), 110);
 });
+
+test('the TV camera keeps the old sideline projection', async () => {
+  const { tvView, project } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const W = 1280, focal = 61.65 * W / 44, camH = 12, horizon = 200, camX = 47, FW = 53.33;
+  const v = tvView(camX, focal, camH, W, horizon);
+  for (const [x, y, z] of [[30, 10, 0], [60, 40, 2], [100, 0, 11]]) {
+    const sc = focal / (30 + (FW - y)), p = project(v, x, y, z);
+    assert.ok(Math.abs(p.x - (W / 2 + (x - camX) * sc)) < 1e-6);
+    assert.ok(Math.abs(p.y - (horizon + camH * sc - z * sc)) < 1e-6);
+    assert.ok(Math.abs(p.s - sc) < 1e-9);
+  }
+});
+
+test('the skycam looks downfield from behind the offense', async () => {
+  const { buildPlay, skyShot, makeView, project } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  const A = { target: 'home-WR1', runner: 'home-RB0', defender: 'away-CB0', kicker: 'home-K0' };
+  for (const off of [0, 1]) for (const q of [1, 2]) {
+    const play = { n: 3, q, off, kind: 'pass', detail: 'deep', depth: 30, spot: 40, end: 70, yards: 30, complete: true, actors: A, dist: 10, down: 1 };
+    const anim = buildPlay(play, match);
+    for (const t of [0, .5, 1]) {
+      const shot = skyShot(anim, play.kind, t);
+      // Darrere la pilota (en el sentit de l'atac) i enlairada.
+      assert.ok((shot.L[0] - shot.P[0]) * anim.dir > 10, 'looks along the attack');
+      assert.ok(shot.P[2] > 5, 'raised');
+      const b = anim.ball(t);
+      assert.ok((b.x - shot.P[0]) * anim.dir > 5, 'camera behind the ball');
+      const v = makeView(shot.P, shot.L, 900, 640, 360);
+      const near = project(v, shot.P[0] + anim.dir * 12, 26.6), far = project(v, shot.P[0] + anim.dir * 40, 26.6);
+      assert.ok(far.y < near.y, 'downfield is higher on screen');
+      assert.ok(far.s < near.s, 'nearer is larger');
+      // Esquerra i dreta: la banda y=53 queda a la dreta quan s'ataca cap a +x.
+      const r = project(v, shot.P[0] + anim.dir * 20, 50), l = project(v, shot.P[0] + anim.dir * 20, 3);
+      assert.ok(anim.dir > 0 ? r.x > l.x : r.x < l.x);
+      assert.ok(project(v, shot.P[0] - anim.dir * 5, 26.6).d < 0, 'behind the camera');
+    }
+  }
+  // Gol de camp: darrere el xutador mirant els pals.
+  const fg = buildPlay({ n: 5, q: 1, off: 0, kind: 'fg', spot: 70, end: 70, good: true, actors: A }, match);
+  const s0 = skyShot(fg, 'fg', 0), goalX = fg.dir > 0 ? 120 : 0;
+  assert.equal(s0.L[0], goalX);
+  assert.ok((fg.los - s0.P[0]) * fg.dir > 7);
+});
+
+test('cameras alternate like a TV broadcast', async () => {
+  const { chooseCameras } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const a = chooseCameras({ n: 10, kind: 'run', yards: 3 }), b = chooseCameras({ n: 11, kind: 'pass', yards: 5 });
+  assert.notEqual(a.live, b.live);
+  assert.equal(a.replay, null);
+  for (const big of [{ td: true }, { int: true }, { fumble: true }, { yards: 34 }, { hl: true }]) {
+    for (const n of [4, 5]) {
+      const c = chooseCameras({ n, kind: 'pass', ...big });
+      assert.ok(c.replay && c.replay !== c.live, JSON.stringify(big));
+      assert.ok(c.from > 0 && c.from < .5);
+    }
+  }
+  assert.equal(chooseCameras({ n: 1, kind: 'fg' }).live, 'sky');
+  assert.equal(chooseCameras({ n: 2, kind: 'pat' }).live, 'sky');
+  assert.equal(chooseCameras({ n: 3, kind: 'kickoff' }).live, 'tv');
+  assert.equal(chooseCameras({ n: 3, kind: 'kickoff', td: true }).replay, 'sky');
+  assert.deepEqual(chooseCameras({ n: 3, kind: 'pass', td: true }, 'tv'), { live: 'tv', replay: null, from: 0 });
+  assert.equal(chooseCameras({ n: 3, kind: 'run' }, 'sky').live, 'sky');
+});

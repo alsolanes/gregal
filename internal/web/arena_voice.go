@@ -604,7 +604,7 @@ func (s *Server) handleArenaVoice(w http.ResponseWriter, r *http.Request) {
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 		defer cancel()
-		k, err := s.synth(ctx, firstNonEmptyStr(req.Text, s.tr("I aquí arriba el moment! Quina jugada, senyores i senyors!", "And here it comes! What a play, ladies and gentlemen!")), who, lang)
+		k, err := s.synth(ctx, firstNonEmptyStr(req.Text, gameTr("I aquí arriba el moment! Quina jugada, senyores i senyors!", "And here it comes! What a play, ladies and gentlemen!")), who, lang)
 		if err != nil {
 			writeJSONStatus(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
 			return

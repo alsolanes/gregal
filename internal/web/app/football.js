@@ -5,10 +5,10 @@
 import { FootballView } from './football-view.js';
 
 const $ = id => document.getElementById(id);
-const T = key => (window.gregalT ? window.gregalT(key) : '') || key;
+const T = key => (window.gregalTEn ? window.gregalTEn(key) : '') || key; // els jocs, en anglès
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const api = (path, opts) => window.api(path, opts).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || r.status); return j; });
-const lang = () => ((window.gregalLang && window.gregalLang()) || document.documentElement.lang || 'ca').startsWith('ca') ? 'ca' : 'en';
+const lang = () => 'en'; // els jocs van sempre en anglès
 
 const games = {
   view: null, current: '', data: null,
@@ -31,7 +31,7 @@ const games = {
         <div class="fb-actions"><span id="fbStatus" class="fb-status" role="status"></span><button type="button" id="fbPlay" class="primary"></button></div></header>
       <div id="fbTeams" class="fb-teams"></div>
       <div class="fb-stage"><canvas id="fbCanvas"></canvas>
-        <div class="fb-controls"><button type="button" id="fbPause">⏸</button><button type="button" data-speed="1" class="on">1×</button><button type="button" data-speed="2">2×</button><button type="button" data-speed="4">4×</button><button type="button" id="fbSkip">${esc(T('fb.skip'))}</button></div></div>
+        <div class="fb-controls"><button type="button" id="fbPause">⏸</button><button type="button" data-speed="1" class="on">1×</button><button type="button" data-speed="2">2×</button><button type="button" data-speed="4">4×</button><button type="button" id="fbSkip">${esc(T('fb.skip'))}</button><button type="button" id="fbFull" title="${esc(T('ar.tv'))}">⛶</button></div></div>
       <div class="fb-below"><div id="fbNotes" class="fb-notes"></div><div><h3>${esc(T('fb.games'))}</h3><ol id="fbGames" class="fb-games"></ol></div></div>
     </div>`;
     $('fbPlay').onclick = async () => {
@@ -47,6 +47,9 @@ const games = {
     $('fbPause').onclick = () => { if (this.view) $('fbPause').textContent = this.view.togglePause() ? '▶' : '⏸'; };
     page.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { this.view && this.view.setSpeed(+b.dataset.speed); page.querySelectorAll('[data-speed]').forEach(x => x.classList.toggle('on', x === b)); });
     $('fbSkip').onclick = () => this.view && this.view.skipToEnd();
+    // Pantalla completa: l'escenari sencer (el canvas es torna a mesurar sol).
+    $('fbFull').onclick = () => { const st = page.querySelector('.fb-stage'); if (document.fullscreenElement) document.exitFullscreen(); else if (st.requestFullscreen) st.requestFullscreen().catch(() => {}); };
+    document.addEventListener('fullscreenchange', () => { if (this.view) setTimeout(() => this.view.resize(), 50); });
   },
 
   runningGame() { return (this.data && this.data.games || []).find(g => g.status === 'live' || g.status === 'pregame'); },

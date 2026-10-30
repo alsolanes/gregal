@@ -162,8 +162,12 @@ test('the view plays a whole match, reports events and finishes', async () => {
   assert.equal(view.names()[0], 'Prompt A');
   assert.equal(view.isFinished(), false);
   let now = 0;
-  for (let i = 0; i < 4000 && !view.isFinished(); i++) { now += 100; view.advance(0.1); view.draw(); }
+  const modes = new Set(), phases = new Set();
+  for (let i = 0; i < 4000 && !view.isFinished(); i++) { now += 100; view.advance(0.1); view.draw(); modes.add(view.povOn() ? 'pov' : 'map'); phases.add(view.phase); }
   assert.ok(view.isFinished(), 'finished after playback');
+  assert.ok(modes.has('pov') && modes.has('map'), 'the director alternates map and POV');
+  assert.ok(phases.has('replay'), 'a kill-cam replay was shown');
+  assert.equal(view.T, V.TEXT.en, 'always English');
   assert.equal(new Set(seen).size, events.length, 'every event reported once');
   assert.deepEqual(view.score, [2, 1]);
   view.draw();
@@ -191,4 +195,61 @@ test('the view plays a whole match, reports events and finishes', async () => {
   assert.equal(v3.isFinished(), false);
   assert.equal(v3.phase, 'wait');
   v3.destroy();
+});
+
+test('spectator cam: grid, raycast, projection and director', async () => {
+  const V = await load();
+  const G = V.buildGrid(meta);
+  assert.equal(G.gw, 200); assert.equal(G.gh, 160);
+  assert.equal(V.cellAt(G, 40, 65), 1, 'A site is floor');
+  assert.equal(V.cellAt(G, 36, 62), 2, 'a crate on A');
+  assert.equal(V.cellAt(G, 2, 2), 0, 'outside the map is wall');
+  assert.equal(V.cellAt(G, 80, 53), 1, 'corridor between T spawn and A main');
+  // From the middle of A site (20 wide, x 30..50) looking east and west the walls are ~10 away
+  // (the A main corridor opens east, so look west only), north/south ~7.5.
+  const west = V.castRay(G, 40, 72, -1, 0);
+  assert.ok(west.hit && west.d > 9 && west.d < 11.5, 'west wall ' + west.d);
+  const south = V.castRay(G, 44, 65, 0, 1);
+  assert.ok(south.hit && south.d > 6.5 && south.d < 9, 'south wall ' + south.d);
+  // A ray through the crate reports it and still finds the wall behind.
+  const crates = [];
+  const h = V.castRay(G, 40, 62.5, -1, 0, 90, crates);
+  assert.ok(crates.length === 1 && crates[0].d0 > 2 && crates[0].d1 > crates[0].d0 && h.d > crates[0].d1);
+  // Starting inside a wall walks out of it instead of returning 0.
+  const out = V.castRay(G, 29.8, 65, 1, 0);
+  assert.ok(out.d > 5, 'escapes the wall it starts in');
+  assert.equal(V.castRay(G, 40, 65, 0, 0).hit, false, 'zero direction does not loop');
+  assert.ok(V.sees(G, 35, 65, 45, 65));
+  assert.ok(!V.sees(G, 40, 65, 24, 15), 'A cannot see B');
+  // Projection: straight ahead is screen centre, the right-hand side (y down) is to the right.
+  const cam = { x: 0, y: 0, ang: 0, eye: 1.6, focal: 500, cx: 400, horizon: 300 };
+  const c = V.projectPoint(cam, 10, 0, 1.6);
+  assert.equal(c.x, 400); assert.equal(c.y, 300); assert.equal(c.depth, 10);
+  assert.ok(V.projectPoint(cam, 10, 2, 1.6).x > 400, 'right');
+  assert.ok(V.projectPoint(cam, 10, 0, 0).y > 300, 'floor below horizon');
+  assert.ok(V.projectPoint(cam, -5, 0, 0).behind);
+  assert.ok(Math.abs(V.projectPoint({ ...cam, ang: Math.PI / 2 }, 0, 10, 1.6).x - 400) < 1e-9);
+  assert.ok(Math.abs(V.angDiff(0.1, Math.PI * 2 - 0.1) - 0.2) < 1e-9);
+
+  const R = V.buildRound(V.groupRounds(matchEvents())[0], meta);
+  const first = R.kills[0];
+  // Just before the first kill the director is on the killer, pre-aiming at the victim.
+  const w = V.directorWant(R, first._p - 0.3, V.gameTimeAt(R.tl, first._p - 0.3));
+  assert.equal(w.mode, 'pov'); assert.equal(w.id, first.killer); assert.equal(w.why, 'kill');
+  assert.equal(V.directorWant(R, 0.2, V.gameTimeAt(R.tl, 0.2)).mode, 'map', 'map during the setup');
+  const aim = V.povAim(R, first.killer, first.t);
+  const want = Math.atan2(first.vy - first.ky, first.vx - first.kx);
+  assert.ok(Math.abs(V.angDiff(aim, want)) < 0.6, 'aims at the victim');
+  // planting shows the planter
+  const pp = V.playTimeAt(R.tl, (R.plant.start + R.plant.t) / 2);
+  const wp = V.directorWant(R, pp, V.gameTimeAt(R.tl, pp));
+  assert.ok(wp.mode === 'pov');
+  const rk = V.pickReplay(R);
+  assert.ok(rk && rk.killer === 'a1', 'replay the AWP multi-kill');
+  assert.ok(V.shotsAt(R, first._p).some(s => s.kill && s.from === first.killer));
+  const hs = V.hudStats(R, 'b0', first.t + 1);
+  assert.equal(hs.hp, 0);
+  const ha = V.hudStats(R, 'a1', 0);
+  assert.equal(ha.hp, 100); assert.equal(ha.ammo, 5);
+  assert.equal(V.weaponClass('usp'), 'pistol'); assert.equal(V.weaponClass('awp'), 'awp');
 });

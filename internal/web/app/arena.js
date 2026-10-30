@@ -4,16 +4,22 @@
 // rival el tria el servidor (el primer bot que encara no has guanyat). Al
 // final del partit, l'informe del coach i «Torna-hi». El rànquing, els bots,
 // els partits, les competicions i la retransmissió van plegats a sota.
-import { makeView, LESSONS } from './arena-views.js';
+import { makeView, LESSONS, GUIDE } from './arena-views.js';
 
 const $ = id => document.getElementById(id);
-const T = key => (window.gregalT ? window.gregalT(key) : '') || key;
+// Els jocs van sempre en anglès.
+const T = key => (window.gregalTEn ? window.gregalTEn(key) : '') || key;
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const api = (path, opts) => window.api(path, opts).then(async r => { const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || (typeof j === 'string' ? j : r.status)); return j; });
-const lang = () => ((window.gregalLang && window.gregalLang()) || document.documentElement.lang || 'ca').startsWith('ca') ? 'ca' : 'en';
+const lang = () => 'en';
 const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
 const RUBRIC = ['clarity', 'coverage', 'adaptivity', 'specificity', 'consistency'];
 const ICON = { nfl: '🏈', cs2: '💣', lol: '🐉' };
+// Una decisió en paraules: els valors del JSON, sense guions baixos.
+const callText = d => {
+  const v = d && d.decision && typeof d.decision === 'object' ? Object.values(d.decision).flat().filter(x => typeof x === 'string' && x) : [];
+  return v.join(' · ').replace(/_/g, ' ') || (d && d.fallback ? '—' : '');
+};
 
 const arenaUI = {
   data: null, game: 'nfl', view: null, match: null, poll: 0, comp: null, speed: 1,
@@ -40,7 +46,7 @@ const arenaUI = {
       <span id="arStatus" class="ar-status" role="status"></span>
       <section class="ar-card" id="arMatchCard" hidden>
         <div class="ar-row"><h2 id="arMatchTitle"></h2><span class="ar-muted" id="arMatchStatus"></span>
-          <span class="ar-ctl"><button type="button" id="arPause">⏸</button><button type="button" id="arSpeed"></button><button type="button" id="arSkip">⏭ ${esc(T('ar.skipEnd'))}</button><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
+          <span class="ar-ctl"><button type="button" id="arTV" class="primary">📺 ${esc(T('ar.tv'))}</button><button type="button" id="arPause">⏸</button><button type="button" id="arSpeed"></button><button type="button" id="arSkip">⏭ ${esc(T('ar.skipEnd'))}</button><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
         <div class="ar-match"><div class="ar-stage"><canvas id="arCanvas"></canvas></div><div class="ar-decisions" id="arDecisions"></div></div>
         <div class="ar-feedback" id="arFeedback"></div>
         <div class="ar-row" id="arAgainRow" hidden><button type="button" id="arAgain" class="primary ar-big">${esc(T('ar.playAgain'))}</button><span class="ar-muted">${esc(T('ar.againHint'))}</span></div>
@@ -53,14 +59,19 @@ const arenaUI = {
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
           </div>
-          <aside class="ar-tips"><h3>${esc(T('ar.tips'))}</h3><ol id="arLessons" class="ar-lessons"></ol></aside>
+          <aside class="ar-tips">
+            <h3>${esc(T('ar.decides'))}</h3><div id="arGuide" class="ar-guide"></div>
+            <details><summary>${esc(T('ar.tips'))}</summary><ol id="arLessons" class="ar-lessons"></ol></details>
+          </aside>
         </div>
         <div class="ar-go">
           <button type="button" id="arPlay" class="primary ar-big"></button>
           <span class="ar-muted" id="arPlayHint"></span>
+          <button type="button" id="arDemo" class="ar-demo">🎬 ${esc(T('ar.demo'))}</button>
           <button type="button" id="arReview" class="ar-link">${esc(T('ar.askTips'))}</button>
         </div>
         <div id="arReviewOut"></div>
+        <div id="arProgress" class="ar-progress"></div>
       </section>
       <details class="ar-card ar-fold"><summary>${esc(T('ar.foldBoard'))}</summary>
         <div class="ar-grid2"><div><h3>${esc(T('ar.leaderboard'))}</h3><ol id="arBoard" class="ar-board"></ol></div>
@@ -98,6 +109,8 @@ const arenaUI = {
       $('arReview').disabled = false;
     };
     $('arPlay').onclick = () => this.play('');
+    // Un partit de demostració (gravat, amb comentaris), a la tele i a 2×.
+    $('arDemo').onclick = () => this.openTV('demo-' + this.game, 2);
     $('arAgain').onclick = () => { this.closeMatch(); $('arPlayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); md.focus(); };
     $('arPause').onclick = () => { if (this.view) $('arPause').textContent = this.view.togglePause() ? '▶' : '⏸'; };
     const paintSpeed = () => { $('arSpeed').textContent = T('ar.speed').replace('{x}', this.speed + '×'); };
@@ -105,6 +118,8 @@ const arenaUI = {
     $('arSpeed').onclick = () => { this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1; if (this.view) this.view.setSpeed(this.speed); paintSpeed(); };
     $('arSkip').onclick = () => this.view && this.view.skipToEnd();
     $('arClose').onclick = () => this.closeMatch();
+    $('arTV').onclick = () => this.match && this.openTV(this.match.id);
+    addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.arenaTV === 'close') this.closeTV(); });
     this.buildBroadcast();
     $('arStreamLink').href = '/app/arena-stream.html#lang=' + lang() + (() => { let t = ''; try { t = localStorage.getItem('gregal_token') || ''; } catch (e) {} return t ? '&token=' + encodeURIComponent(t) : ''; })();
   },
@@ -154,6 +169,11 @@ const arenaUI = {
     const played = (d.matches || []).some(m => m.game === this.game && m.kind === 'practice' && m.status === 'final');
     const step = !mine ? 0 : played ? 2 : 1;
     $('arSteps').querySelectorAll('li').forEach((li, i) => { li.classList.toggle('on', i === step); li.classList.toggle('done', i < step); });
+    const gd = GUIDE[this.game];
+    $('arGuide').innerHTML = gd ? `<dl>${gd.decides.map(([w, o]) => `<dt>${esc(w)}</dt><dd>${esc(o)}</dd>`).join('')}</dl>
+      <p class="ar-muted"><b>${esc(T('ar.sees'))}</b> ${esc(gd.sees)}</p>
+      <div class="ar-ex"><b>${esc(T('ar.example'))}</b><pre>${esc(gd.example)}</pre></div>` : '';
+    this.paintProgress(d);
     $('arLessons').innerHTML = LESSONS[lang()].slice(0, 5).map(([h, p]) => `<li><b>${esc(h)}</b><span>${esc(p)}</span></li>`).join('');
     const bots = d.bots[this.game] || [];
     const board = d.leaderboard[this.game] || [];
@@ -175,6 +195,35 @@ const arenaUI = {
     };
     $('arComps').innerHTML = (d.competitions || []).map(c => `<li data-c="${esc(c.id)}"><b>${esc(c.title)}</b><small>${esc(T('ar.compStatus.' + c.status))} · ${esc((c.games || []).join(', '))}</small></li>`).join('') || `<li class="none">${esc(T('ar.noComps'))}</li>`;
     $('arComps').querySelectorAll('[data-c]').forEach(li => li.onclick = () => this.openComp(li.dataset.c));
+  },
+
+  // Com evoluciones: cada partit acabat és una barra (verda si guanyes, vermella
+  // si perds, alçada = diferència del marcador) i la línia és la nota del coach
+  // al teu .md (0-25). Si el .md millora, la línia puja.
+  paintProgress(d) {
+    const rows = ((d.progress || {})[this.game]) || [];
+    const box = $('arProgress');
+    if (!rows.length) { box.innerHTML = `<h3>${esc(T('ar.progress'))}</h3><p class="ar-muted">${esc(T('ar.progressNone'))}</p>`; return; }
+    const W = 640, H = 150, pad = 26, n = rows.length, bw = Math.min(46, (W - pad * 2) / n * .62);
+    const x = i => pad + (W - pad * 2) * (n === 1 ? .5 : i / (n - 1));
+    const maxDiff = Math.max(1, ...rows.map(r => Math.abs(r.score[0] - r.score[1])));
+    const mid = H * .55;
+    const bars = rows.map((r, i) => {
+      const diff = r.score[0] - r.score[1], h = Math.max(4, Math.abs(diff) / maxDiff * (H * .38));
+      const col = r.result === 'win' ? '#2fbf71' : r.result === 'loss' ? '#e5484d' : '#9aa4bd';
+      return `<g><title>${esc(r.opponent)} · ${r.score[0]}-${r.score[1]}${r.coach ? ' · coach ' + r.coach + '/25' : ''}</title>
+        <rect x="${x(i) - bw / 2}" y="${diff >= 0 ? mid - h : mid}" width="${bw}" height="${h}" rx="4" fill="${col}" opacity=".85"/>
+        <text x="${x(i)}" y="${H - 4}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".7">${r.score[0]}-${r.score[1]}</text></g>`;
+    }).join('');
+    const pts = rows.map((r, i) => r.coach ? [x(i), mid - (r.coach / 25 - .5) * H * .8] : null).filter(Boolean);
+    const line = pts.length > 1 ? `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>` : '';
+    const dots = pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--accent)"/>`).join('');
+    const wins = rows.filter(r => r.result === 'win').length;
+    const coached = rows.filter(r => r.coach);
+    const trend = coached.length > 1 ? `${coached[0].coach} → ${coached[coached.length - 1].coach}/25` : coached.length ? `${coached[0].coach}/25` : '—';
+    box.innerHTML = `<div class="ar-row"><h3>${esc(T('ar.progress'))}</h3><span class="ar-muted">${esc(T('ar.progressSum').replace('{w}', wins).replace('{n}', n).replace('{c}', trend))}</span></div>
+      <svg viewBox="0 0 ${W} ${H}" class="ar-chart" role="img"><line x1="${pad}" x2="${W - pad}" y1="${mid}" y2="${mid}" stroke="currentColor" opacity=".2"/>${bars}${line}${dots}</svg>
+      <p class="ar-muted">${esc(T('ar.progressHelp'))}</p>`;
   },
 
   buildBroadcast() {
@@ -243,6 +292,27 @@ const arenaUI = {
       ${(f.suggestions || []).length ? `<h5>${esc(T('ar.suggestions'))}</h5><ul>${f.suggestions.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>`;
   },
 
+  // Mode tele: la retransmissió d'aquest partit (explicació, prèvia, directe
+  // amb les crides de cada equip, resultat i anàlisi) a pantalla completa.
+  openTV(id, speed) {
+    this.closeTV();
+    if (this.view && !this.view.paused) { this.view.togglePause(); $('arPause').textContent = '▶'; }
+    let tok = ''; try { tok = localStorage.getItem('gregal_token') || ''; } catch (e) {}
+    const box = document.createElement('div'); box.className = 'ar-tv'; box.id = 'arTVBox';
+    const fr = document.createElement('iframe'); fr.allow = 'autoplay; fullscreen'; fr.title = T('ar.tv');
+    fr.src = '/app/arena-stream.html#match=' + encodeURIComponent(id) + '&lang=' + lang() + (speed ? '&speed=' + speed : '') + (tok ? '&token=' + encodeURIComponent(tok) : '');
+    box.append(fr); document.body.append(box);
+    if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
+    box.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) this.closeTV(); });
+    fr.focus();
+  },
+
+  closeTV() {
+    const box = $('arTVBox'); if (!box) return;
+    box.remove();
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  },
+
   closeMatch() {
     if (this.view) this.view.destroy();
     this.view = null; this.match = null; clearTimeout(this.poll); clearInterval(this.thinkTimer);
@@ -257,7 +327,10 @@ const arenaUI = {
     let first;
     try { first = await api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=0'); } catch (e) { $('arStatus').textContent = e.message; return; }
     this.match = first; this.lastEvAt = Date.now();
-    $('arMatchTitle').textContent = `${first.names[0]} vs ${first.names[1]}`;
+    // Al LoL el mapa posa el blau a l'esquerra: el títol i el marcador, igual.
+    this.flip = first.game === 'lol' && first.meta && first.meta.blue === 1;
+    const [l, r] = this.flip ? [1, 0] : [0, 1];
+    $('arMatchTitle').textContent = `${first.names[l]} vs ${first.names[r]}`;
     const fetchMatch = after => api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after).then(m => { this.updateMatch(m); return m; });
     try {
       this.view = await makeView(first.game, $('arCanvas'), { lang: lang(), fetchMatch, onEvent: e => this.highlight(e) });
@@ -271,7 +344,7 @@ const arenaUI = {
 
   paintMatchStatus() {
     const m = this.match; if (!m) return;
-    let st = T('ar.status.' + m.status) + ' · ' + m.score[0] + ' - ' + m.score[1];
+    let st = T('ar.status.' + m.status) + ' · ' + (this.flip ? m.score[1] + ' - ' + m.score[0] : m.score[0] + ' - ' + m.score[1]);
     if ((m.status === 'live' || m.status === 'pregame') && Date.now() - this.lastEvAt > 4000) st += ' · ' + T('ar.thinking');
     $('arMatchStatus').textContent = st;
   },
@@ -284,9 +357,20 @@ const arenaUI = {
     this.paintMatchStatus();
     const names = this.match.names;
     const decs = this.match.decisions || [];
-    $('arDecisions').innerHTML = `<h4>${esc(T('ar.why'))}</h4>` + (decs.length ? '' : `<p class="ar-muted">${esc(T('ar.thinking'))}</p>`) +
-      decs.slice(-400).map(d => `<div class="ar-dec side${d.side}" data-n="${d.n}"><b>${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
-      ${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${d.fallback ? `<em>${esc(T('ar.fallback'))}</em>` : ''}</div>`).join('');
+    // Cada decisió: què ha triat, per què, la regla del .md que cita i si el
+    // servidor l'ha trobada de debò al .md (✓) o el model ha improvisat (⚠).
+    // Clicant-la, el que el model va veure.
+    const fol = m.followed || this.match.followed;
+    if (m.followed) this.match.followed = m.followed;
+    const pct = v => Math.round((v || 0) * 100) + '%';
+    const badge = d => d.fallback ? `<em class="bad">⚠ ${esc(T('ar.fallback'))}</em>` : d.rule_found ? `<em class="ok">✓ ${esc(T('ar.ruleFound'))}</em>` : `<em class="warn">⚠ ${esc(T('ar.improvised'))}</em>`;
+    $('arDecisions').innerHTML = `<h4>${esc(T('ar.why'))}</h4>
+      <p class="ar-how">${esc(T('ar.howDecides'))}</p>
+      ${fol && decs.length ? `<div class="ar-follow">${[0, 1].map(i => `<span class="side${i}"><b>${esc(names[i])}</b> ${esc(T('ar.followed'))} <b>${pct(fol[i])}</b></span>`).join('')}</div>` : ''}` +
+      (decs.length ? '' : `<p class="ar-muted">${esc(T('ar.thinking'))}</p>`) +
+      decs.slice(-400).map(d => `<div class="ar-dec side${d.side}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b>${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
+      <code>${esc(callText(d))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${badge(d)}</div>`).join('');
+    $('arDecisions').querySelectorAll('.ar-dec').forEach(el => el.onclick = () => this.showSituation(m.id || this.match.id, +el.dataset.n, +el.dataset.side, names[+el.dataset.side]));
     if (['final', 'stopped', 'failed'].includes(m.status)) { $('arAgainRow').hidden = false; clearInterval(this.thinkTimer); }
     const fetchAgain = () => api('/api/arena/match?id=' + encodeURIComponent(m.id) + '&after=999999').then(x => this.updateMatch(x)).catch(() => {});
     if (m.status === 'final' && m.feedback) {
@@ -294,6 +378,15 @@ const arenaUI = {
         `<p class="ar-muted">${esc(T('ar.reportPending'))}</p>`;
       if (!m.feedback[0] && !m.feedback[1]) { clearTimeout(this.poll); this.poll = setTimeout(fetchAgain, 8000); }
     }
+  },
+
+  // El que el model va veure en una decisió: la situació i el format.
+  async showSituation(id, n, side, who) {
+    let x;
+    try { x = await api('/api/arena/match?id=' + encodeURIComponent(id) + '&situation=' + n + '&side=' + side); }
+    catch (e) { $('arStatus').textContent = T('ar.noSituation'); return; }
+    const d = (this.match.decisions || []).find(v => v.n === n && v.side === side) || {};
+    this.showMD(`${who} · ${d.short || ''}`, `${T('ar.sawTitle')}\n\n${x.situation}\n\n${T('ar.formatTitle')}\n${x.schema}\n\n${T('ar.answerTitle')}\n${JSON.stringify(d.decision || {})}\n${d.why ? 'why: ' + d.why + '\n' : ''}${d.rule ? 'rule: ' + d.rule : ''}`);
   },
 
   highlight(e) {

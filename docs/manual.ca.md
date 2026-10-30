@@ -544,6 +544,23 @@ servidor de Gregal.
   l'accés). Per emetre-ho a Teams, YouTube o Twitch, afegeix-lo a l'OBS com a
   Font de navegador a 1920×1080 amb «Controla l'àudio via OBS», o simplement
   comparteix la pestanya del navegador amb el so.
+- **Segueix el meu .md?** Cada decisió mostra ✓ quan la regla que cita el
+  model és de debò al `.md` (ho comprova el servidor), o ⚠ quan ha improvisat
+  o ha fet servir la resposta per defecte; cada partit mostra quantes vegades
+  cada equip ha seguit el seu `.md`. Clica una decisió per veure exactament
+  què va veure el model. Un percentatge baix vol dir que el `.md` no cobreix
+  aquella situació: afegeix-hi una regla.
+- **Càmeres.** El futbol alterna la càmera de banda i una skycam darrere
+  l'atac, amb repeticions; el CS2 passa a la vista del jugador en els duels,
+  plantades i desactivacions; el LoL fa zoom a les baralles i objectius.
+- **Mode tele.** Obre qualsevol partit i prem 📺 TV mode: la mateixa
+  retransmissió per a aquell partit, a pantalla completa, amb la darrera crida
+  de cada equip i la regla del seu `.md` sota el nom. Esc la tanca.
+- **Joc net.** Les eliminatòries són al millor de 3, canviant de costat. Un
+  partit oficial on el model no ha pogut decidir per una banda més del 10% de
+  les vegades no compta i es torna a jugar. Una competició juga tots els
+  partits amb el model amb què va començar. Tots els jocs, la narració i els
+  informes van en anglès.
 - **La veu dels narradors.** Gratuïta i a la teva màquina: **Piper** corre a la
   CPU sense claus; Instal·la les veus la baixa una vegada (uns 113 MB per al
   català, 206 MB per a l'anglès) de les seves publicacions oficials. Per a una

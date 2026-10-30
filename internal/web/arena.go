@@ -240,6 +240,80 @@ type arenaDecision struct {
 	Why      string          `json:"why,omitempty"`
 	Rule     string          `json:"rule,omitempty"`
 	Fallback bool            `json:"fallback,omitempty"`
+	// RuleFound: la regla que el model diu que ha aplicat és de debò al .md
+	// (comprovat pel servidor, no pel model).
+	RuleFound bool `json:"rule_found,omitempty"`
+}
+
+// ruleNorm deixa un text en minúscules, sense markdown ni puntuació.
+func ruleNorm(t string) string {
+	var b strings.Builder
+	space := true
+	for _, r := range strings.ToLower(t) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r > 127 {
+			b.WriteRune(r)
+			space = false
+		} else if !space {
+			b.WriteByte(' ')
+			space = true
+		}
+	}
+	return strings.TrimSpace(b.String())
+}
+
+// ruleInMD: la regla citada surt al .md, literal o gairebé (el model de
+// vegades retalla o canvia un signe): o és un tros del .md, o el 80% de les
+// seves paraules són a una mateixa línia.
+func ruleInMD(rule, md string) bool {
+	r := ruleNorm(rule)
+	if len(r) < 6 {
+		return false
+	}
+	if strings.Contains(ruleNorm(md), r) {
+		return true
+	}
+	words := strings.Fields(r)
+	if len(words) < 3 {
+		return false
+	}
+	for _, line := range strings.Split(md, "\n") {
+		l := " " + ruleNorm(line) + " "
+		if len(l) < 8 {
+			continue
+		}
+		hit := 0
+		for _, w := range words {
+			if strings.Contains(l, " "+w+" ") {
+				hit++
+			}
+		}
+		if float64(hit) >= .8*float64(len(words)) {
+			return true
+		}
+	}
+	return false
+}
+
+// arenaFollowed: quina part de les decisions de cada banda aplica una regla
+// que és de debò al seu .md.
+func arenaFollowed(m *arenaMatch) [2]float64 {
+	var n, ok [2]int
+	for _, d := range m.Decisions {
+		if d.Side < 0 || d.Side > 1 {
+			continue
+		}
+		n[d.Side]++
+		if d.RuleFound {
+			ok[d.Side]++
+		}
+	}
+	var out [2]float64
+	for i := range out {
+		if n[i] > 0 {
+			out[i] = float64(ok[i]) / float64(n[i])
+		}
+	}
+	return out
 }
 
 type arenaFeedback struct {
@@ -276,6 +350,7 @@ type arenaMatch struct {
 	Score     [2]int            `json:"score"`
 	Winner    int               `json:"winner"`
 	Feedback  [2]*arenaFeedback `json:"feedback"`
+	Model     string            `json:"model,omitempty"` // el model que hi va jugar
 	// La retransmissió (arena_broadcast.go): prèvia, comentaris i anàlisi.
 	Preview      string         `json:"preview,omitempty"`
 	PreviewAudio string         `json:"preview_audio,omitempty"`
@@ -289,6 +364,7 @@ type arenaRun struct {
 	mu     sync.Mutex
 	m      *arenaMatch
 	cancel context.CancelFunc
+	sits   []arenaSituation // el que va veure el model, decisió per decisió
 }
 
 var (
@@ -296,6 +372,19 @@ var (
 	arenaRuns   = map[string]*arenaRun{}
 	arenaQueue  = make(chan struct{}, 1) // un partit alhora (el model no dona per a més)
 )
+
+// arenaSituation: el que el model va veure en una decisió (la situació i el
+// format), per poder comprovar per què va decidir el que va decidir.
+type arenaSituation struct {
+	N         int    `json:"n"`
+	Side      int    `json:"side"`
+	Situation string `json:"situation"`
+	Schema    string `json:"schema"`
+}
+
+func (s *Server) sitPath(id string) string {
+	return filepath.Join(s.arenaDir(), "matches", safeName(id)+".sit")
+}
 
 func (s *Server) matchPath(id string) string {
 	return filepath.Join(s.arenaDir(), "matches", safeName(id)+".json")
@@ -332,24 +421,65 @@ var arenaModel = func(s *Server, ctx context.Context, system, user string, maxTo
 	if client == nil || cfg == nil {
 		return "", errConst("no model configured")
 	}
+	fallback := cfg.FallbackTarget(role)
+	// Un partit juga tot amb el mateix model (el que s'hi va fixar en
+	// començar), i sense model de reserva: si una banda canviés de model a
+	// mitges, el partit ja no seria igual per a tots dos.
+	if ref, _ := ctx.Value(arenaPinKey{}).(string); ref != "" {
+		if pp, mm, ok := splitModel(ref); ok {
+			if prov, ok := cfg.Providers[pp]; ok {
+				p, role.Provider, role.Model = prov, pp, mm
+			}
+		}
+		fallback = nil
+	}
 	msgs := []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: user}}
 	// Sense raonament: cada decisió ha de ser ràpida (un partit de l'NFL en té
 	// més de cent per banda) i el .md ja és el raonament.
-	text, _, _, err := client.ChatStreamWithToolsFO(llm.WithThink(ctx, "no"), cfg.PrimTarget(p, role), cfg.FallbackTarget(role), msgs, 0.2, maxTokens, nil, func(string) {}, nil, nil)
+	text, _, _, err := client.ChatStreamWithToolsFO(llm.WithThink(ctx, "no"), cfg.PrimTarget(p, role), fallback, msgs, 0.2, maxTokens, nil, func(string) {}, nil, nil)
 	return text, err
+}
+
+// arenaRetryWait: l'espera base entre intents (els tests la posen a zero).
+var arenaRetryWait = 1500 * time.Millisecond
+
+// arenaPinKey porta al context el model fixat d'un partit («provider/model»).
+type arenaPinKey struct{}
+
+// arenaModelRef és el model que la conversa fa servir ara, «provider/model».
+func (s *Server) arenaModelRef() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.cfg == nil {
+		return ""
+	}
+	_, r := s.roleRef()
+	if r.Provider == "" || r.Model == "" {
+		return ""
+	}
+	return r.Provider + "/" + r.Model
 }
 
 func arenaSystem(g arena.Game, md string) string {
 	return "You are the head coach of a team in an AI strategy competition. You must play by the RULES and follow your team's STRATEGY, written by your human player. Follow it faithfully; when it does not cover a case, decide in its spirit with sound judgement.\n\nRULES:\n" + g.Rules() +
 		"\n\nYOUR TEAM'S STRATEGY:\n<<<\n" + md + "\n>>>\n\n" +
-		`Answer with JSON only: {"decision": <the decision JSON exactly as described>, "why": "one short sentence", "rule": "the exact line of the strategy you applied, copied word for word, or \"\" if none"}`
+		`Answer with JSON only: {"decision": <the decision JSON exactly as described>, "why": "one short sentence, max 20 words", "rule": "the exact line of the strategy you applied, copied word for word, or \"\" if none"}`
 }
 
 // arenaDecide demana la decisió d'una banda.
 func (s *Server) arenaDecide(ctx context.Context, g arena.Game, md string, p arena.Prompt) (arena.Answer, bool) {
 	user := p.Situation + "\nDECISION FORMAT:\n" + p.Schema
-	for try := 0; try < 2; try++ {
-		raw, err := arenaModel(s, ctx, arenaSystem(g, md), user, 500)
+	// Tres intents, amb una espera creixent: si el proveïdor limita les
+	// crides, una banda no s'ha de quedar sense decidir per mala sort.
+	for try := 0; try < 3; try++ {
+		if try > 0 {
+			select {
+			case <-ctx.Done():
+				return arena.Answer{}, true
+			case <-time.After(time.Duration(try*try) * arenaRetryWait):
+			}
+		}
+		raw, err := arenaModel(s, ctx, arenaSystem(g, md), user, 700)
 		if err != nil {
 			if ctx.Err() != nil {
 				return arena.Answer{}, true
@@ -366,6 +496,14 @@ func (s *Server) arenaDecide(ctx context.Context, g arena.Game, md string, p are
 
 // arenaStart prepara un partit i el posa a la cua. Torna l'id.
 func (s *Server) arenaStart(game arena.Game, kind, comp, stage string, e [2]arenaEntry) string {
+	return s.arenaStartWith(game, kind, comp, stage, e, "")
+}
+
+// arenaStartWith: amb el model fixat (el de la competició); buit, el d'ara.
+func (s *Server) arenaStartWith(game arena.Game, kind, comp, stage string, e [2]arenaEntry, model string) string {
+	if model == "" {
+		model = s.arenaModelRef()
+	}
 	now := time.Now()
 	id := fmt.Sprintf("%s-%s-%04x", game.ID(), now.Format("20060102-150405"), now.UnixNano()&0xffff)
 	seed := int64(now.UnixNano() % 1000000)
@@ -375,8 +513,8 @@ func (s *Server) arenaStart(game arena.Game, kind, comp, stage string, e [2]aren
 	}
 	m := &arenaMatch{ID: id, Game: game.ID(), Kind: kind, Comp: comp, Stage: stage, Status: "pregame", Started: now.Unix(), Seed: seed, Winner: -1,
 		Owners: [2]string{e[0].Owner, e[1].Owner}, Names: [2]string{e[0].Display, e[1].Display},
-		Titles: [2]string{mdTitle(e[0].MD), mdTitle(e[1].MD)}, MD: [2]string{e[0].MD, e[1].MD}}
-	ctx, cancel := context.WithCancel(context.Background())
+		Titles: [2]string{mdTitle(e[0].MD), mdTitle(e[1].MD)}, MD: [2]string{e[0].MD, e[1].MD}, Model: model}
+	ctx, cancel := context.WithCancel(context.WithValue(context.Background(), arenaPinKey{}, model))
 	run := &arenaRun{m: m, cancel: cancel}
 	arenaRunsMu.Lock()
 	arenaRuns[id] = run
@@ -481,7 +619,9 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 				continue
 			}
 			m.Decisions = append(m.Decisions, arenaDecision{N: dn, Side: side, Short: p[side].Short, Decision: ans[side].Decision,
-				Why: oneLine(ans[side].Why, 240), Rule: oneLine(ans[side].Rule, 240), Fallback: fb[side]})
+				Why: oneLine(ans[side].Why, 240), Rule: oneLine(ans[side].Rule, 240), Fallback: fb[side],
+				RuleFound: !fb[side] && ruleInMD(ans[side].Rule, md[side])})
+			run.sits = append(run.sits, arenaSituation{N: dn, Side: side, Situation: clip(p[side].Situation, 4000), Schema: clip(p[side].Schema, 3000)})
 		}
 		m.Events = append(m.Events, events...)
 		for _, e := range events {
@@ -496,6 +636,7 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 		m.Score = match.Score()
 		if steps%4 == 0 {
 			arenaWrite(s.matchPath(m.ID), m)
+			arenaWrite(s.sitPath(m.ID), run.sits)
 		}
 		run.mu.Unlock()
 	}
@@ -512,7 +653,14 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 		m.Analysis = a
 		run.mu.Unlock()
 	}
+	// Un partit oficial on el model no ha pogut decidir massa vegades per una
+	// banda (més del 10%) no diu res dels .md: no compta i es torna a jugar.
 	if m.Kind == "official" {
+		if side, rate := arenaFallbackRate(m); rate > arenaMaxFallback {
+			s.arenaFinish(run, "failed", fmt.Sprintf("too many default decisions for side %d (%.0f%%)", side, rate*100))
+			log.Printf("arena: %s %s es repetirà: %.0f%% de decisions per defecte", m.Game, m.ID, rate*100)
+			return
+		}
 		s.arenaRecord(m.Game, m.Owners, m.Winner)
 	}
 	s.arenaFinish(run, "final", "")
@@ -527,8 +675,36 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 	log.Printf("arena: %s %s %d-%d", m.Game, m.ID, m.Score[0], m.Score[1])
 }
 
+const arenaMaxFallback = 0.10
+
+// arenaFallbackRate torna la banda amb més decisions per defecte i la proporció.
+func arenaFallbackRate(m *arenaMatch) (int, float64) {
+	var n, fb [2]int
+	for _, d := range m.Decisions {
+		if d.Side < 0 || d.Side > 1 {
+			continue
+		}
+		n[d.Side]++
+		if d.Fallback {
+			fb[d.Side]++
+		}
+	}
+	worst, rate := 0, 0.0
+	for side := 0; side < 2; side++ {
+		if n[side] > 0 {
+			if r := float64(fb[side]) / float64(n[side]); r > rate {
+				worst, rate = side, r
+			}
+		}
+	}
+	return worst, rate
+}
+
 func (s *Server) arenaFinish(run *arenaRun, status, why string) {
 	run.mu.Lock()
+	if len(run.sits) > 0 {
+		arenaWrite(s.sitPath(run.m.ID), run.sits)
+	}
 	run.m.Status, run.m.Error, run.m.Finished = status, why, time.Now().Unix()
 	arenaWrite(s.matchPath(run.m.ID), run.m)
 	run.mu.Unlock()
@@ -569,7 +745,7 @@ func (s *Server) arenaFeedback(ctx context.Context, game arena.Game, run *arenaR
 	}
 	names, score := m.Names, m.Score
 	run.mu.Unlock()
-	lang := s.cornerLang()
+	lang := gameLang()
 	system := "You are a prompt-engineering coach. You review a player's strategy .md after an AI competition match and teach them how to write better instructions. Be concrete, kind and honest. Reply with JSON only."
 	user := fmt.Sprintf("GAME RULES:\n%s\n\nTHE PLAYER'S STRATEGY (.md) for team %s:\n<<<\n%s\n>>>\n\nRESULT: %s, final score %s %d - %s %d.\n\nKEY EVENTS (dN = decision number):\n%s\n\nTHIS TEAM'S DECISIONS (situation → decision | why | quoted rule):\n%s\n\n",
 		game.Rules(), names[side], md, result, names[0], score[0], names[1], score[1], strings.Join(hl, "\n"), strings.Join(decs, "\n")) +
@@ -589,7 +765,7 @@ func (s *Server) arenaFeedback(ctx context.Context, game arena.Game, run *arenaR
 
 // arenaReview: revisió del .md sense jugar (durant la setmana).
 func (s *Server) arenaReview(ctx context.Context, game arena.Game, md string) (*arenaFeedback, error) {
-	lang := s.cornerLang()
+	lang := gameLang()
 	system := "You are a prompt-engineering coach reviewing a strategy .md for an AI competition. The same LLM will read this .md at every decision point together with the game situation. Teach the player how to write better instructions. Reply with JSON only."
 	user := "GAME RULES:\n" + game.Rules() + "\n\nDECISION FORMAT EXAMPLES come from the game; the .md must help choose among them.\n\nTHE STRATEGY (.md):\n<<<\n" + md + "\n>>>\n\n" +
 		"Score it 1-5 on clarity, coverage, adaptivity, specificity, consistency. summary = 2-3 sentences. strengths = up to 3. mistakes = up to 4 weak spots (moment = the kind of situation, what = what the model would probably do, md_issue = quote or describe the problem, fix = a concrete rewritten rule). suggestions = up to 4 prompt-writing lessons. Write in " + lang + ".\n" +
@@ -648,13 +824,19 @@ type arenaSlot struct {
 	Done    bool      `json:"done"`
 	Pending bool      `json:"pending,omitempty"` // eliminatòria que espera rivals
 	From    [2]string `json:"from,omitempty"`    // «A1», «B2», «W:Semifinal 1»
+	// Les eliminatòries es juguen al millor de 3, canviant de costat:
+	// Series són les victòries de cada banda i Matches tots els partits.
+	Series  [2]int   `json:"series,omitempty"`
+	Matches []string `json:"matches,omitempty"`
+	Replays int      `json:"replays,omitempty"`
 }
 
 type arenaComp struct {
 	ID       string                  `json:"id"`
 	Title    string                  `json:"title"`
 	Games    []string                `json:"games"`
-	Status   string                  `json:"status"` // ready, running, done, stopped
+	Status   string                  `json:"status"`          // ready, running, done, stopped
+	Model    string                  `json:"model,omitempty"` // fixat en començar
 	Created  int64                   `json:"created"`
 	Started  int64                   `json:"started,omitempty"`
 	Entries  map[string][]arenaEntry `json:"entries"` // per joc, la foto de les estratègies
@@ -996,9 +1178,23 @@ func (s *Server) arenaRunComp(ctx context.Context, id string) {
 			}
 			return arenaEntry{Owner: owner, Display: owner}
 		}
-		// Costat per sorteig determinista (els grups juguen un sol partit).
-		a, b := find(sl.A), find(sl.B)
-		mid := s.arenaStart(game, "official", c.ID, sl.Stage, [2]arenaEntry{a, b})
+		// Els grups juguen un partit per parella; les eliminatòries, al millor
+		// de 3, canviant de costat a cada partit. Cada repetició (un empat a
+		// les eliminatòries, un partit que no compta) porta una llavor nova.
+		e := [2]arenaEntry{find(sl.A), find(sl.B)}
+		gameNo := len(sl.Matches) + 1
+		stage := sl.Stage
+		if sl.Phase == "playoff" {
+			stage = fmt.Sprintf("%s · Game %d", sl.Stage, gameNo)
+		}
+		if sl.Replays > 0 {
+			stage += fmt.Sprintf(" · replay %d", sl.Replays)
+		}
+		flip := sl.Phase == "playoff" && gameNo%2 == 0
+		if flip {
+			e[0], e[1] = e[1], e[0]
+		}
+		mid := s.arenaStartWith(game, "official", c.ID, stage, e, c.Model)
 		sl.Match = mid
 		c.Current = next
 		arenaMu.Lock()
@@ -1015,34 +1211,57 @@ func (s *Server) arenaRunComp(ctx context.Context, id string) {
 				return
 			}
 			m := s.arenaLoadMatch(mid)
-			if m != nil && (m.Status == "final" || m.Status == "stopped" || m.Status == "failed") {
-				arenaMu.Lock()
-				c2 := s.arenaComp(id)
-				if c2 != nil {
-					c2.Schedule[next].Done = m.Status == "final"
-					c2.Schedule[next].Winner = m.Winner
-					c2.Schedule[next].Score = m.Score
-					if m.Status != "final" {
-						// Un partit que ha fallat es torna a jugar.
-						c2.Schedule[next].Match = ""
-					}
-					arenaWrite(s.compPath(id), c2)
-				}
-				arenaMu.Unlock()
-				// Eliminatòria empatada: es repeteix (cal un guanyador).
-				if m.Status == "final" && c2 != nil && c2.Schedule[next].Phase == "playoff" && m.Winner < 0 {
-					arenaMu.Lock()
-					c3 := s.arenaComp(id)
-					c3.Schedule[next].Done, c3.Schedule[next].Match = false, ""
-					arenaWrite(s.compPath(id), c3)
-					arenaMu.Unlock()
-				}
-				break
+			if m == nil || (m.Status != "final" && m.Status != "stopped" && m.Status != "failed") {
+				time.Sleep(2 * time.Second)
+				continue
 			}
-			time.Sleep(2 * time.Second)
+			// El resultat, vist des de A i B del calendari.
+			w, sc := m.Winner, m.Score
+			if flip {
+				sc = [2]int{sc[1], sc[0]}
+				if w >= 0 {
+					w = 1 - w
+				}
+			}
+			arenaMu.Lock()
+			if c2 := s.arenaComp(id); c2 != nil {
+				slot := &c2.Schedule[next]
+				switch {
+				case m.Status == "stopped" || (m.Status == "failed" && (slot.Replays < arenaMaxReplays || m.Winner < 0 && slot.Replays < 5)):
+					// No compta: es torna a jugar (amb un límit, si és per les
+					// decisions per defecte; un error de veritat, sempre).
+					slot.Replays++
+					slot.Match = ""
+				case slot.Phase != "playoff":
+					slot.Matches = append(slot.Matches, mid)
+					slot.Done, slot.Winner, slot.Score, slot.Replays = true, w, sc, 0
+				default:
+					slot.Matches = append(slot.Matches, mid)
+					if w >= 0 {
+						slot.Series[w]++
+					}
+					slot.Score, slot.Replays = slot.Series, 0
+					if slot.Series[0] >= 2 || slot.Series[1] >= 2 || len(slot.Matches) >= 5 {
+						slot.Done = true
+						slot.Winner = 0
+						if slot.Series[1] > slot.Series[0] {
+							slot.Winner = 1
+						}
+					} else {
+						slot.Match = ""
+					}
+				}
+				arenaWrite(s.compPath(id), c2)
+			}
+			arenaMu.Unlock()
+			break
 		}
 	}
 }
+
+// arenaMaxReplays: vegades que es repeteix un partit que no compta abans
+// d'acceptar-ne el resultat (sense moure l'Elo).
+const arenaMaxReplays = 2
 
 // ---- API ----
 
@@ -1094,7 +1313,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 		case "save":
 			md := strings.TrimSpace(req.MD)
 			if len(md) > arenaMaxMD {
-				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": gameTr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
 				return
 			}
 			s.saveEntry(arenaEntry{Owner: me, Display: s.arenaDisplay(me, req.Display, s.arenaEntry(game.ID(), me)), Game: game.ID(), MD: md})
@@ -1104,7 +1323,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			// Un sol clic: desa el .md que s'envia (o la plantilla, si encara
 			// no n'hi ha cap) i tria el rival que toca si no se n'ha triat.
 			if s.arenaPracticeToday(me) >= arenaPracticePerDay && !admin {
-				writeJSONStatus(w, http.StatusTooManyRequests, map[string]string{"error": s.tr("Avui ja has fet prou partits de prova.", "Enough practice games for today.")})
+				writeJSONStatus(w, http.StatusTooManyRequests, map[string]string{"error": gameTr("Avui ja has fet prou partits de prova.", "Enough practice games for today.")})
 				return
 			}
 			mine := s.arenaEntry(game.ID(), me)
@@ -1113,7 +1332,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 				md = game.Starter()
 			}
 			if len(md) > arenaMaxMD {
-				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": gameTr(fmt.Sprintf("El .md és massa llarg (màxim %d caràcters).", arenaMaxMD), fmt.Sprintf("The .md is too long (max %d characters).", arenaMaxMD))})
 				return
 			}
 			if md != "" && (mine == nil || mine.MD != md || (req.Display != "" && req.Display != mine.Display)) {
@@ -1211,7 +1430,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			next[g.ID()] = map[string]any{"owner": b.Owner, "display": b.Display, "level": b.Level}
 		}
 	}
-	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
+	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": s.arenaProgress(me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": s.arenaRecent(me), "practice_left": arenaPracticePerDay - s.arenaPracticeToday(me)})
 }
 
@@ -1224,7 +1443,7 @@ func (s *Server) arenaDisplay(me, want string, prev *arenaEntry) string {
 		return prev.Display
 	}
 	if me == "local" || me == "" {
-		return s.tr("Jo", "Me")
+		return gameTr("Jo", "Me")
 	}
 	return me
 }
@@ -1255,7 +1474,7 @@ func (s *Server) arenaNextBot(game arena.Game, me string) *arenaEntry {
 	if last != nil {
 		return last
 	}
-	return &arenaEntry{Owner: "bot:template", Display: s.tr("Bot Plantilla", "Bot Template"), Game: game.ID(), Bot: true, Level: "rookie", MD: game.Starter()}
+	return &arenaEntry{Owner: "bot:template", Display: gameTr("Bot Plantilla", "Bot Template"), Game: game.ID(), Bot: true, Level: "rookie", MD: game.Starter()}
 }
 
 var (
@@ -1316,6 +1535,50 @@ func (s *Server) arenaAutoSeed() {
 	}
 }
 
+// arenaProgress: els teus partits acabats per joc (del més antic al més nou):
+// resultat, marcador, rival i la nota del coach (0-25), per veure si el .md
+// millora d'un partit a l'altre.
+func (s *Server) arenaProgress(me string) map[string][]map[string]any {
+	files, _ := filepath.Glob(filepath.Join(s.arenaDir(), "matches", "*.json"))
+	out := map[string][]map[string]any{}
+	for _, f := range files {
+		var m arenaMatch
+		if !arenaRead(f, &m) || m.Status != "final" {
+			continue
+		}
+		side := -1
+		for i, o := range m.Owners {
+			if o == me {
+				side = i
+			}
+		}
+		if side < 0 {
+			continue
+		}
+		coach := 0
+		if fb := m.Feedback[side]; fb != nil {
+			for _, v := range fb.Scores {
+				coach += v
+			}
+		}
+		res := "draw"
+		if m.Winner == side {
+			res = "win"
+		} else if m.Winner == 1-side {
+			res = "loss"
+		}
+		out[m.Game] = append(out[m.Game], map[string]any{"id": m.ID, "started": m.Started, "kind": m.Kind, "opponent": m.Names[1-side],
+			"result": res, "score": [2]int{m.Score[side], m.Score[1-side]}, "coach": coach})
+	}
+	for g := range out {
+		sort.Slice(out[g], func(i, j int) bool { return out[g][i]["started"].(int64) < out[g][j]["started"].(int64) })
+		if n := len(out[g]); n > 20 {
+			out[g] = out[g][n-20:]
+		}
+	}
+	return out
+}
+
 func (s *Server) arenaMatchList() []arenaMatch {
 	files, _ := filepath.Glob(filepath.Join(s.arenaDir(), "matches", "*.json"))
 	var out []arenaMatch
@@ -1364,10 +1627,17 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	m := s.arenaLoadMatch(id)
 	if m == nil {
+		m = arenaDemo(id)
+	}
+	if m == nil {
 		http.Error(w, "no such match", http.StatusNotFound)
 		return
 	}
 	if r.Method == http.MethodPost {
+		if arenaDemoGame(id) != "" {
+			http.Error(w, "demo", http.StatusBadRequest)
+			return
+		}
 		if !admin && m.Owners[0] != me && m.Owners[1] != me {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
@@ -1378,6 +1648,30 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 		}
 		arenaRunsMu.Unlock()
 		writeJSON(w, map[string]bool{"ok": true})
+		return
+	}
+	// ?situation=N&side=S: el que el model va veure en aquella decisió.
+	if q := r.URL.Query().Get("situation"); q != "" {
+		n, _ := strconv.Atoi(q)
+		side, _ := strconv.Atoi(r.URL.Query().Get("side"))
+		var sits []arenaSituation
+		arenaRunsMu.Lock()
+		run := arenaRuns[id]
+		arenaRunsMu.Unlock()
+		if run != nil {
+			run.mu.Lock()
+			sits = append(sits, run.sits...)
+			run.mu.Unlock()
+		} else if !arenaRead(s.sitPath(id), &sits) {
+			sits = arenaDemoSits(id)
+		}
+		for _, x := range sits {
+			if x.N == n && x.Side == side {
+				writeJSON(w, x)
+				return
+			}
+		}
+		http.Error(w, "not recorded", http.StatusNotFound)
 		return
 	}
 	after, _ := strconv.Atoi(r.URL.Query().Get("after"))
@@ -1395,7 +1689,8 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 	// (o és un bot): durant la setmana cadascú guarda el seu secret.
 	for side := 0; side < 2; side++ {
 		own := m.Owners[side] == me
-		if !own && !strings.HasPrefix(m.Owners[side], "bot:") && !(m.Kind == "official" && m.Status == "final") {
+		public := strings.HasPrefix(m.Owners[side], "bot:") || strings.HasPrefix(m.Owners[side], "demo:")
+		if !own && !public && !(m.Kind == "official" && m.Status == "final") {
 			m.MD[side] = ""
 			m.Feedback[side] = nil
 			for i := range m.Decisions {
@@ -1405,7 +1700,10 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeJSON(w, m)
+	writeJSON(w, struct {
+		*arenaMatch
+		Followed [2]float64 `json:"followed"`
+	}{m, arenaFollowed(m)})
 }
 
 // handleArenaComp: GET ?id= (o la llista); POST {action: create|start|stop, …}.
@@ -1434,7 +1732,7 @@ func (s *Server) handleArenaComp(w http.ResponseWriter, r *http.Request) {
 			c := arenaComp{ID: "comp-" + time.Now().Format("20060102-150405"), Title: oneLine(req.Title, 80), Status: "ready", Created: time.Now().Unix(),
 				Entries: map[string][]arenaEntry{}, Groups: map[string][][]string{}}
 			if c.Title == "" {
-				c.Title = s.tr("Competició del ", "Competition of ") + time.Now().Format("2006-01-02")
+				c.Title = gameTr("Competició del ", "Competition of ") + time.Now().Format("2006-01-02")
 			}
 			ratings := s.arenaRatings()
 			games := req.Games
@@ -1469,7 +1767,7 @@ func (s *Server) handleArenaComp(w http.ResponseWriter, r *http.Request) {
 				c.Schedule = append(c.Schedule, arenaBuildSchedule(gid, c.Groups[gid])...)
 			}
 			if len(c.Games) == 0 {
-				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": s.tr("Cal que almenys dos jugadors tinguin un .md en algun joc.", "At least two players need a .md for some game.")})
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": gameTr("Cal que almenys dos jugadors tinguin un .md en algun joc.", "At least two players need a .md for some game.")})
 				return
 			}
 			arenaMu.Lock()
@@ -1486,6 +1784,9 @@ func (s *Server) handleArenaComp(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			c.Status, c.Started = "running", time.Now().Unix()
+			if c.Model == "" {
+				c.Model = s.arenaModelRef() // tota la competició, amb el mateix model
+			}
 			arenaWrite(s.compPath(c.ID), c)
 			arenaMu.Unlock()
 			ctx, cancel := context.WithCancel(context.Background())

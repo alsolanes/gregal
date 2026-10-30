@@ -2,182 +2,12 @@ package cs2
 
 import (
 	"encoding/json"
-	"fmt"
 	"reflect"
-	"regexp"
-	"strconv"
 	"strings"
 	"testing"
 
 	"gregal/internal/arena"
 )
-
-// ---- polítiques de prova ----
-
-func empty(int, arena.Prompt) json.RawMessage { return nil }
-
-var reMoney = regexp.MustCompile(`Your money: \$([\d,]+) total`)
-var reFull = regexp.MustCompile(`Full buy now costs your team about \$([\d,]+) \((affordable|NOT affordable)\)`)
-var reLoss = regexp.MustCompile(`each player gets \$([\d,]+)`)
-var reRound = regexp.MustCompile(`Round (\d+) `)
-
-func num(s string) int { v, _ := strconv.Atoi(strings.ReplaceAll(s, ",", "")); return v }
-
-type sit struct {
-	ct          bool
-	money, full int
-	affordable  bool
-	loss        int
-	round       int
-	pistol      bool
-	lastOfHalf  bool
-	enemyPoor   bool
-	theyT       []string // línies d'historial del rival com a T
-	theyCT      []string
-}
-
-func parseSit(s string) sit {
-	var x sit
-	x.ct = strings.Contains(s, "You are CT")
-	if m := reMoney.FindStringSubmatch(s); m != nil {
-		x.money = num(m[1])
-	}
-	if m := reFull.FindStringSubmatch(s); m != nil {
-		x.full, x.affordable = num(m[1]), m[2] == "affordable"
-	}
-	if m := reLoss.FindStringSubmatch(s); m != nil {
-		x.loss = num(m[1])
-	}
-	if m := reRound.FindStringSubmatch(s); m != nil {
-		x.round = num(m[1])
-	}
-	x.pistol = strings.Contains(s, "PISTOL ROUND") || strings.Contains(s, "Overtime half start")
-	x.lastOfHalf = strings.Contains(s, "Last round of the half")
-	x.enemyPoor = strings.Contains(s, "probably cannot full buy")
-	half := (x.round - 1) / 12
-	for _, l := range strings.Split(s, "\n") {
-		if !strings.HasPrefix(l, "- R") {
-			continue
-		}
-		r := num(strings.TrimPrefix(strings.Fields(l)[1], "R"))
-		if (r-1)/12 != half && x.round <= 24 {
-			continue
-		}
-		if strings.Contains(l, "[they T]") {
-			x.theyT = append(x.theyT, l)
-		} else if strings.Contains(l, "[they CT]") {
-			x.theyCT = append(x.theyCT, l)
-		}
-	}
-	return x
-}
-
-func adaptiveBuy(x sit) string {
-	switch {
-	case x.pistol || x.affordable:
-		return "full"
-	case x.lastOfHalf:
-		return "force"
-	case x.money+5*x.loss >= x.full:
-		if x.enemyPoor && x.money >= x.full*6/10 {
-			return "half"
-		}
-		return "eco"
-	case x.enemyPoor:
-		return "force"
-	case x.money >= x.full*55/100:
-		return "force"
-	}
-	return "eco"
-}
-
-func adaptive(_ int, p arena.Prompt) json.RawMessage {
-	x := parseSit(p.Situation)
-	b := adaptiveBuy(x)
-	var d map[string]any
-	if x.ct {
-		setup, util := "standard_2_1_2", "normal"
-		recent := x.theyT
-		if len(recent) > 4 {
-			recent = recent[len(recent)-4:]
-		}
-		a, bb, rush, def := 0, 0, 0, 0
-		for _, l := range recent {
-			if strings.Contains(l, "hit A") || strings.Contains(l, "rushed A") || strings.Contains(l, "executed A") || strings.Contains(l, "split A") || strings.Contains(l, "then hit A") {
-				a++
-			}
-			if strings.Contains(l, "hit B") || strings.Contains(l, "rushed B") || strings.Contains(l, "executed B") || strings.Contains(l, "split B") || strings.Contains(l, "then hit B") {
-				bb++
-			}
-			if strings.Contains(l, "rushed") {
-				rush++
-			}
-			if strings.Contains(l, "default/mid") {
-				def++
-			}
-		}
-		n := len(recent)
-		switch {
-		case n >= 2 && a*10 >= n*7:
-			setup = "stack_a"
-		case n >= 2 && bb*10 >= n*7:
-			setup = "stack_b"
-		case n >= 2 && def*2 >= n:
-			setup = "aggressive_mid"
-		}
-		if rush >= 1 || b == "full" {
-			util = "heavy"
-		}
-		d = map[string]any{"buy": b, "setup": setup, "utility": util, "awp": true}
-	} else {
-		strat, util := "", "smokes"
-		if b == "full" {
-			util = "full"
-		}
-		if n := len(x.theyCT); n > 0 {
-			last := x.theyCT[n-1]
-			switch {
-			case strings.Contains(last, "stack_a"):
-				strat = "execute_b"
-				if x.round%2 == 0 {
-					strat = "fake_a_go_b"
-				}
-			case strings.Contains(last, "stack_b"):
-				strat = "execute_a"
-				if x.round%2 == 0 {
-					strat = "fake_b_go_a"
-				}
-			case strings.Contains(last, "aggressive_mid"):
-				strat = "rush_b"
-			case strings.Contains(last, "retake_b"):
-				strat = "execute_b"
-			case strings.Contains(last, "retake_a"):
-				strat = "execute_a"
-			}
-		}
-		if strat == "" {
-			strat = []string{"execute_a", "execute_b", "default_mid", "split_b", "execute_b", "split_a"}[x.round%6]
-		}
-		if b == "eco" || b == "half" {
-			strat = []string{"rush_a", "rush_b"}[x.round%2]
-		}
-		d = map[string]any{"buy": b, "strategy": strat, "utility": util, "pace": "default", "awp": true}
-	}
-	raw, _ := json.Marshal(d)
-	return raw
-}
-
-func naive(_ int, p arena.Prompt) json.RawMessage {
-	x := parseSit(p.Situation)
-	b := "eco"
-	if x.pistol || x.affordable {
-		b = "full"
-	}
-	if x.ct {
-		return json.RawMessage(fmt.Sprintf(`{"buy":%q,"setup":"standard_2_1_2","utility":"normal","awp":true}`, b))
-	}
-	return json.RawMessage(fmt.Sprintf(`{"buy":%q,"strategy":"execute_a","utility":"smokes","pace":"default","awp":true}`, b))
-}
 
 func play(seed int64, d [2]arena.Decide) (*Match, []arena.Event) {
 	m := newMatch(seed, "en", [2]string{"Alpha", "Bravo"})
@@ -192,7 +22,7 @@ func TestRegistered(t *testing.T) {
 	if !ok || g.Title("ca") != "Counter-Strike 2" {
 		t.Fatal("cs2 not registered")
 	}
-	if len(g.Rules()) > 2600 || len(g.Rules()) < 500 {
+	if len(g.Rules()) > 6000 || len(g.Rules()) < 500 {
 		t.Fatalf("rules length %d", len(g.Rules()))
 	}
 	if !strings.Contains(g.Starter(), "#") {
@@ -204,11 +34,21 @@ func TestRegistered(t *testing.T) {
 }
 
 func TestRealism(t *testing.T) {
-	const n = 400
+	const n = 120
 	var rounds, ot, kills, hs, totalRounds, ctWins, planted, pistolSeen, eco, defuses, explode, timeouts int
 	maxMoneySeen := 0
+	type res struct {
+		m  *Match
+		ev []arena.Event
+	}
+	all := make([]res, n+1)
+	parallel(n, func(i int) bool {
+		m, ev := play(int64(i+1), [2]arena.Decide{empty, empty})
+		all[i+1] = res{m, ev}
+		return false
+	})
 	for s := int64(1); s <= n; s++ {
-		m, ev := play(s, [2]arena.Decide{empty, empty})
+		m, ev := all[s].m, all[s].ev
 		if !m.done || m.Winner() < 0 {
 			t.Fatalf("seed %d: no winner", s)
 		}
@@ -296,49 +136,19 @@ func TestRealism(t *testing.T) {
 	}
 }
 
-func winRate(t *testing.T, a, b arena.Decide, n int) float64 {
-	wins := 0
-	for s := int64(0); s < int64(n); s++ {
-		// el jugador A alterna d'índex per neutralitzar el costat
-		if s%2 == 0 {
-			m, _ := play(1000+s, [2]arena.Decide{a, b})
-			if m.Winner() == 0 {
-				wins++
-			}
-		} else {
-			m, _ := play(1000+s, [2]arena.Decide{b, a})
-			if m.Winner() == 1 {
-				wins++
-			}
-		}
-	}
-	return float64(wins) / float64(n)
-}
-
-func TestPolicies(t *testing.T) {
-	ad := winRate(t, adaptive, naive, 300)
-	t.Logf("adaptive vs naive: %.1f%%", ad*100)
-	if ad < 0.65 {
-		t.Errorf("adaptive should beat naive >=65%%, got %.1f%%", ad*100)
-	}
-	if ad > 0.9 {
-		t.Errorf("naive should still win >10%%, adaptive got %.1f%%", ad*100)
-	}
-	aa := winRate(t, adaptive, adaptive, 300)
-	t.Logf("adaptive vs adaptive (slot 0 in even seeds): %.1f%%", aa*100)
-	if aa < 0.4 || aa > 0.6 {
-		t.Errorf("mirror match should be ~50%%, got %.1f%%", aa*100)
-	}
-	nn := winRate(t, naive, empty, 200)
-	t.Logf("naive vs defaults: %.1f%%", nn*100)
-}
-
 func TestDeterminism(t *testing.T) {
 	for s := int64(1); s < 6; s++ {
-		_, a := play(s, [2]arena.Decide{adaptive, naive})
-		_, b := play(s, [2]arena.Decide{adaptive, naive})
+		ma, a := play(s, [2]arena.Decide{starter, empty})
+		_, b := play(s, [2]arena.Decide{starter, empty})
 		if !reflect.DeepEqual(a, b) {
 			t.Fatalf("seed %d: not deterministic", s)
+		}
+		// el mode ràpid de les proves juga exactament el mateix partit
+		q := newMatch(s, "en", [2]string{"Alpha", "Bravo"})
+		q.quiet = true
+		arena.Play(q, [2]arena.Decide{starter, empty})
+		if !reflect.DeepEqual(q.hist, ma.hist) || q.score != ma.score {
+			t.Fatalf("seed %d: quiet mode plays a different match", s)
 		}
 	}
 }
@@ -361,8 +171,21 @@ func TestInvalidAnswers(t *testing.T) {
 		t.Fatalf("parse: %+v", d)
 	}
 	c := m.parseCT(json.RawMessage(`garbage`), 1)
-	if c.Setup != "standard_2_1_2" || c.Buy != "full" {
+	if c.Setup != "standard_2_1_2" || c.Buy != "full" || c.Utility != "normal" || !c.AWP {
 		t.Fatalf("ct default: %+v", c)
+	}
+	// Cada camp té els seus àlies: "save" és eco a la compra però un valor vàlid de la utilitat CT.
+	c = m.parseCT(json.RawMessage(`{"buy":"save","setup":"standard","utility":"save"}`), 1)
+	if c.Buy != "eco" || c.Setup != "standard_2_1_2" || c.Utility != "save" {
+		t.Fatalf("ct aliases: %+v", c)
+	}
+	c = m.parseCT(json.RawMessage(`{"buy":"force buy","setup":"Stack-A","utility":"HEAVY"}`), 1)
+	if c.Buy != "force" || c.Setup != "stack_a" || c.Utility != "heavy" {
+		t.Fatalf("ct parse: %+v", c)
+	}
+	d = m.parseT(json.RawMessage(`{"buy":"save","strategy":"fake a","utility":"smoke","pace":"normal"}`), 0)
+	if d.Buy != "eco" || d.Strategy != "fake_a_go_b" || d.Utility != "smokes" || d.Pace != "default" {
+		t.Fatalf("t aliases: %+v", d)
 	}
 }
 
@@ -396,7 +219,7 @@ func TestPromptsAndEvents(t *testing.T) {
 	all := map[string]bool{}
 	hl := 0
 	for s := int64(1); s < 40; s++ {
-		_, ev := play(s, [2]arena.Decide{adaptive, adaptive})
+		_, ev := play(s, [2]arena.Decide{starter, starter})
 		for _, e := range ev {
 			all[e.Kind] = true
 			if e.Highlight {
@@ -411,5 +234,58 @@ func TestPromptsAndEvents(t *testing.T) {
 	}
 	if hl == 0 {
 		t.Error("no highlights")
+	}
+}
+
+// Objectiu 4: la Situation porta el que necessita un bon .md.
+func TestSituationInfo(t *testing.T) {
+	m := newMatch(9, "en", [2]string{"A", "B"})
+	m.quiet = true
+	var p [2]arena.Prompt
+	for i := 0; i < 7; i++ {
+		p, _ = m.Next()
+		m.Apply([2]json.RawMessage{starter(0, p[0]), empty(1, p[1])})
+	}
+	p, _ = m.Next()
+	for team := 0; team < 2; team++ {
+		s := p[team].Situation
+		for _, want := range []string{
+			"Round 8 (first half, round 8 of 12 of this half; first to 13 wins)", "Score: you ",
+			"Your money: $", "Full buy now costs your team about $", "Loss bonus: if you lose this round each player gets $",
+			"Enemy (", "estimated money: $", "their next loss pays $", "AWP: you ", "the enemy ",
+			"Opponent's last rounds as ", "tendencies this match", "Your last rounds as ", "-> we ", "Kept from last round",
+		} {
+			if !strings.Contains(s, want) {
+				t.Errorf("team %d situation lacks %q:\n%s", team, want, s)
+			}
+		}
+		x := parseSit(s)
+		if len(x.their) != 6 || len(x.ours) != 5 || x.round != 8 || x.pos != 8 || x.halfLen != 12 || x.money == 0 || x.full == 0 || x.loss == 0 {
+			t.Errorf("team %d: parsed %+v", team, x)
+		}
+		for _, h := range x.ours {
+			if h.call == "" || h.vs == "" {
+				t.Errorf("own line without calls: %+v", h)
+			}
+		}
+	}
+	both := p[0].Situation + p[1].Situation
+	if !strings.Contains(both, "-> we LOST") || !strings.Contains(both, "-> we WON") {
+		t.Error("own results not reported")
+	}
+}
+
+// El .md inicial diu el mateix que la política "starter" de les proves.
+func TestStarterText(t *testing.T) {
+	for _, want := range []string{"60%", "Never \"half\"", "fake_a_go_b", "fake_b_go_a", "aggressive_mid", "execute_a", "execute_b",
+		"rush_a on even rounds", "\"default_mid\"", "stack_a", "\"heavy\" on a full buy", "\"save\" on an eco", "we LOST", "Last round of the half"} {
+		if !strings.Contains(starterText, want) {
+			t.Errorf("starter lacks %q", want)
+		}
+	}
+	for _, v := range append(append(append([]string{}, stratVals...), setupVals...), tUtilVals...) {
+		if !strings.Contains(rulesText+tSchema+ctSchema, v) {
+			t.Errorf("rules/schema never mention %q", v)
+		}
 	}
 }

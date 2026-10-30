@@ -42,7 +42,9 @@ func arenaStub(t *testing.T) {
 			return `{"decision":{"call":"cover2"},"why":"profund","rule":"Cover2 on 3rd and long."}`, nil
 		}
 	}
-	t.Cleanup(func() { arenaModel = old })
+	oldWait := arenaRetryWait
+	arenaRetryWait = 0
+	t.Cleanup(func() { arenaModel = old; arenaRetryWait = oldWait })
 }
 
 func waitMatch(t *testing.T, s *Server, id string) *arenaMatch {
@@ -151,12 +153,19 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 	if len(board) != 5 {
 		t.Fatalf("rànquing: %d jugadors", len(board))
 	}
-	played := 0
+	played, games := 0, 0
 	for _, r := range board {
 		played += r.Played
 	}
-	if played != 22 {
-		t.Fatalf("partits al rànquing: %d (11 partits × 2)", played)
+	for _, sl := range c.Schedule {
+		games += len(sl.Matches)
+		// Les eliminatòries, al millor de 3: el guanyador en té 2.
+		if sl.Phase == "playoff" && sl.Series[sl.Winner] < 2 && len(sl.Matches) < 5 {
+			t.Fatalf("eliminatòria sense sèrie: %+v", sl)
+		}
+	}
+	if played != games*2 || games < 11 {
+		t.Fatalf("partits al rànquing: %d (%d partits × 2)", played, games)
 	}
 }
 
@@ -287,5 +296,100 @@ func TestArenaOneClickPractice(t *testing.T) {
 	waitBackground()
 	if e := s.arenaEntry("nfl", "local"); e == nil || !strings.Contains(e.MD, "# Nou") || e.Display != "Jo" && e.Display != "Me" {
 		t.Fatalf("entrada: %+v", e)
+	}
+}
+
+// Un partit oficial on una banda no ha pogut decidir (més del 10% per
+// defecte) no compta per a l'Elo i es torna a jugar, amb un límit.
+func TestArenaFallbacksDoNotCount(t *testing.T) {
+	s := cornerTestServer(t)
+	arenaStub(t)
+	old := arenaModel
+	arenaModel = func(s *Server, ctx context.Context, system, user string, n int) (string, error) {
+		if strings.Contains(system, "BROKEN") && strings.Contains(user, "DECISION FORMAT") {
+			return "no json here", nil
+		}
+		return old(s, ctx, system, user, n)
+	}
+	t.Cleanup(func() { arenaModel = old })
+	postJSON(t, s.handleArena, `{"action":"save","game":"nfl","md":"# BROKEN\nNothing useful."}`)
+	s.saveEntry(arenaEntry{Owner: "bob", Display: "Bob", Game: "nfl", MD: "# Balanced\nRun on first down."})
+	rec := postJSON(t, s.handleArenaComp, `{"action":"create","title":"Fallbacks","games":["nfl"]}`)
+	var comp struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &comp)
+	postJSON(t, s.handleArenaComp, `{"action":"start","id":"`+comp.ID+`"}`)
+	var c *arenaComp
+	for i := 0; i < 3000; i++ {
+		arenaMu.Lock()
+		c = s.arenaComp(comp.ID)
+		arenaMu.Unlock()
+		if c != nil && c.Status == "done" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	waitBackground()
+	if c == nil || c.Status != "done" {
+		t.Fatalf("la competició ha d'acabar igualment")
+	}
+	if len(s.arenaRatings()["nfl"]) != 0 {
+		t.Fatalf("un partit amb decisions per defecte no pot moure l'Elo: %+v", s.arenaRatings()["nfl"])
+	}
+	if sl := c.Schedule[0]; !sl.Done || len(sl.Matches) != 1 {
+		t.Fatalf("el partit s'ha de repetir i després acceptar: %+v", sl)
+	}
+	if side, rate := arenaFallbackRate(s.arenaLoadMatch(c.Schedule[0].Matches[0])); rate < .5 {
+		t.Fatalf("taxa de decisions per defecte: banda %d %.2f", side, rate)
+	}
+	if got := mdIdentity("# Title\n\nWe attack.\n\n## Rules\n- secret rule"); strings.Contains(got, "secret") {
+		t.Fatalf("la identitat no pot portar les regles: %q", got)
+	}
+}
+
+// El servidor comprova que la regla citada és de debò al .md.
+func TestArenaRuleInMD(t *testing.T) {
+	md := "# Plan\n- If they run more than 55% of plays: call **goal_line** on 1st down.\n- 3rd & 7+: pass_medium."
+	for rule, want := range map[string]bool{
+		"If they run more than 55% of plays: call goal_line on 1st down.": true,
+		"if they run more than 55% of plays call goal_line":               true,
+		"3rd & 7+: pass_medium":      true,
+		"Always blitz on third down": false,
+		"":                           false,
+		"ok":                         false,
+	} {
+		if got := ruleInMD(rule, md); got != want {
+			t.Errorf("ruleInMD(%q) = %v", rule, got)
+		}
+	}
+}
+
+// Els partits de demostració es serveixen com qualsevol partit, amb les
+// regles visibles i el que va veure el model.
+func TestArenaDemoMatches(t *testing.T) {
+	s := cornerTestServer(t)
+	for _, g := range []string{"nfl", "cs2", "lol"} {
+		rec := httptest.NewRecorder()
+		s.handleArenaMatch(rec, httptest.NewRequest("GET", "/api/arena/match?id=demo-"+g+"&after=0", nil))
+		var m arenaMatch
+		if rec.Code != 200 || json.Unmarshal(rec.Body.Bytes(), &m) != nil || m.Game != g || m.Status != "final" || len(m.Events) < 10 {
+			t.Fatalf("demo %s: %d %s", g, rec.Code, m.Status)
+		}
+		rules := 0
+		for _, d := range m.Decisions {
+			if d.Rule != "" {
+				rules++
+			}
+		}
+		if rules == 0 || m.MD[0] == "" || m.MD[1] == "" {
+			t.Fatalf("demo %s: les regles i els .md han de ser visibles", g)
+		}
+		sit := httptest.NewRecorder()
+		s.handleArenaMatch(sit, httptest.NewRequest("GET", "/api/arena/match?id=demo-"+g+"&situation=1&side=0", nil))
+		if sit.Code != 200 {
+			t.Fatalf("demo %s: situació %d", g, sit.Code)
+		}
+	}
+	if arenaDemo("demo-../../x") != nil {
+		t.Fatal("un id estrany no pot sortir del directori")
 	}
 }

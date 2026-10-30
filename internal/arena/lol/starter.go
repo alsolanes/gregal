@@ -1,84 +1,84 @@
 package lol
 
-const starterText = `# Strategy: "Know your window"
+// starterText és el .md d'exemple. La política de prova "starter"
+// (policies_test.go) en segueix la lògica llegint només la Situation: si
+// canvies una regla aquí, canvia-la també allà.
+const starterText = `# Strategy: "Read, counter, play your window"
 
-My team drafts ONE clear identity, counters what the enemy shows, and plays to the
-moment its composition is strongest. When in doubt: coherent comp > single strong champion.
+How to use this file: every rule below names the exact line of the situation it
+reads (POWER NOW, LANE MATCHUPS, CONDITIONAL COUNTERS NOW, ENEMY STANCES SO FAR...).
+Go through the steps in order and stop at the first rule that applies. Quote that
+rule as your "rule".
 
-## 1. Draft
+## 1. Draft — one clear identity, no holes
 
-### Bans (phase 1)
-- Ban flexible, high-impact champions first: strong engage tanks (engage3 + frontline3)
-  and hyper-scaling carries (late curve + dps3).
-- Always give 5-6 names: if one is already banned, the next is used.
+Bans
+- Phase 1: ban engage tanks with engage3 + frontline3, then late carries with dps3.
+  Always list 6 names: if one is gone, the next is used.
+- Phase 2: read "Enemy stance fit so far" and their open roles. Ban the available
+  champion that adds most to their best stance in a role they still need.
 
-### Bans (phase 2)
-- Look at the enemy's 3 picks. Ban the champion that completes THEIR identity
-  (e.g. their last good engage support, or a peel enchanter for their late carry).
-- Ban the best remaining champion for the role I still need if the enemy could take it.
+Picks — score every legal champion and take the best:
+1. Identity: after the pick, my best stance fit should be high (aim ≥ 1.3) AND my
+   second-best ≥ 1.0, so I have a counter-stance later. Use the stance-fit formulas
+   in the rules.
+2. Frontline: end with total frontline ≥ 5 (never < 3: that is −8% forever).
+3. Damage: at least 2 AP and 2 AD.
+4. Curve: don't mix — with 2+ early champions add no late ones, and vice versa.
+5. Answer what the enemy shows ("Enemy comp so far"):
+   - engage ≥ 6 (per 5 champions) → peel and frontline, so I can play protect;
+   - frontline + peel ≤ 4 after 3 picks → an assassin (pick3);
+   - poke ≥ 6 → hard engage (engage3).
 
-### Picks — choose an identity by my first two picks
-| Identity | Need | Win condition |
-|---|---|---|
-| Engage | engage ≥ 7 total, frontline ≥ 6, dps ≥ 9 | force 5v5 fights at objectives |
-| Protect | peel ≥ 5, 1-2 late dps3 carries, one tank | survive early, win late front-to-back |
-| Siege/poke | poke ≥ 7, waveclear ≥ 9 | take towers without fighting |
-| Pick | pick ≥ 8 (assassins, hooks) | catch isolated enemies, snowball early |
-| Split | one splitpush3 + waveclear | 1-3-1 side lanes, avoid 5v5 |
+## 2. Laning (00:00) — read LANE MATCHUPS
+- STRONGER lane → aggressive. WEAKER → passive. even → even.
+- Jungle: jungle STRONGER by ≥ 0.8 → invade. Otherwise gank the lane where I am
+  most STRONGER (≥ 0.5). No stronger lane → farm.
 
-Rules for every pick:
-1. Never end the draft with frontline < 3: one tank/bruiser is mandatory, two is better.
-2. Keep damage mixed: at least 2 AP and 2 AD.
-3. First picks: flexible or strong-in-any-comp champions. Last picks (R4/R5, B4/B5): counterpicks.
-4. Counters from the enemy draft:
-   - Enemy has 2+ assassins / pick threats → pick peel (peel3 enchanter) and frontline.
-   - Enemy is squishy (frontline ≤ 3, peel ≤ 2) → add an assassin (pick3).
-   - Enemy is poke/siege → pick hard engage (engage3) to dive them.
-   - Enemy is engage → pick protect/disengage (peel3) or a splitpusher.
-   - Enemy has no waveclear (waveclear ≤ 6) → a splitpush3 champion punishes them.
-5. Match power curves: don't mix three early champions with two late ones. Early comps must
-   snowball; late comps must survive.
+## 3. First objective (08:00)
+- POWER NOW ≥ −3% → dragon. Otherwise → grubs (they go dragon; take the other side).
 
-## 2. Laning (00:00)
-- My lane is stronger (higher lane trait, early curve) → aggressive. Weaker → passive.
-- Bot lane is aggressive only if both adc and support have lane ≥ 2.
-- Jungle: gank the lane where MY laner is strongest and the enemy laner is likely aggressive.
-  With a late jungler → farm. With an early jungler vs a late jungler → invade.
+## 4. Plates (12:00) — read "Lane gold leads"
+- Best lane lead > 800 and POWER NOW ≥ +5% → dive that lane.
+- Best lane lead > 0 → plates in that lane.
+- No lead anywhere → farm.
 
-## 3. First objectives (08:00)
-- Stronger early (lead in gold, more early champions, bot lane ahead) → dragon.
-- Weaker early → grubs if the enemy always goes dragon (check their history), else farm.
-- Siege/split comps love grubs (tower damage).
+## 5. Every 4 minutes: stance first, then objective
 
-## 4. Plates (12:00)
-- If the enemy history shows they pushed/dived one lane before → roam to that lane.
-- Otherwise plates in the lane where I lead the most; dive only with a lane lead > 800.
-- Late comp and behind → farm.
+### Stance — counter their most likely stance
+1. Predict: their most frequent stance in ENEMY STANCES SO FAR (the last ones count
+   more). No history yet → the "best stance" in ENEMY COMP.
+2. Counters (rules + CONDITIONAL COUNTERS NOW):
+   - they engage → protect if "protect beats engage — you YES"; split if
+     "split beats engage — you YES".
+   - they siege → engage or pick. they pick → engage or protect.
+   - they split → siege or pick; engage too if "split beats engage — enemy no"
+     and GOLD DIFF ≥ −1000.
+   - they protect → siege or split; engage too if "protect beats engage — enemy no"
+     and GOLD DIFF ≥ −1000.
+3. Among those counters, take the one with my highest stance fit, if it is ≥ 0.85.
+4. No usable counter → my best-fit stance that does NOT lose to theirs.
 
-## 5. Mid and late game (every 4 minutes)
-**Stance: read the enemy's stance history and counter their most frequent stance**,
-choosing among the two stances that beat it the one with my better stance fit:
-- they engage → protect (if fit ≥ 1.0) or split
-- they siege → engage or pick
-- they pick → engage or protect
-- they split → siege or pick
-- they protect → siege or split
-If they have no history yet, use my best-fit stance. Never use a stance with fit < 0.8.
-
-**Objective:**
-- I am stronger now (gold lead, power multiplier ≥ enemy) → contest what they want
-  (same objective = teamfight that I should win). Priority: elder > baron (if UP) > soul-point
-  dragon > dragon > herald > towers.
-- I am weaker now but scale better (my multiplier at +8min > enemy's) → do NOT fight: take a
-  different objective from the one they usually choose, or farm.
-- I am weaker and they scale better → force now: engage on their objective.
-- Never start baron while clearly behind in gold: they will collapse on it.
-- With baron/elder buff active → towers (siege).
-- Enemy has 3 dragons → always contest the next dragon (deny soul).
+### Objective — first rule that applies
+1. I have BARON BUFF or ELDER BUFF → towers.
+2. POWER NOW is EVEN or better (> −5%), or I counter their stance and am not
+   CLEARLY BEHIND → fight for it: the neutral objective they usually take (ENEMY
+   OBJECTIVES SO FAR) if it is available, else elder > baron (baron only if AHEAD)
+   > dragon > herald, else towers.
+3. SOUL POINT and the enemy has 3 drakes, and I am not CLEARLY BEHIND → dragon.
+4. My comp is SCALING, "In 8 min" is better than now by 3+ points, and they are not
+   going for a neutral objective → farm.
+5. They scale better ("In 8 min" no better than now) and I am not CLEARLY BEHIND →
+   take the neutral objective they do NOT usually take (dragon, then herald).
+6. Otherwise (behind) → towers: take the other side of the map. Never start baron
+   or elder while behind: they collapse on you and you lose the fight AND the buff.
 
 ## 6. Examples
-- Enemy history "objective=dragon stance=engage" three times, my protect fit 1.3 →
-  {"objective":"dragon","stance":"protect"} if I'm even or ahead; {"objective":"baron","stance":"split"} if behind.
-- 26:00, I lead +4k, baron UP, enemy stance last two times "split" →
-  {"objective":"baron","stance":"siege"}.
+- 18:00, POWER NOW −2% (EVEN), ENEMY STANCES SO FAR "engage, engage", "protect
+  beats engage — you YES", my protect fit 1.25, they took dragon twice, dragon up →
+  {"objective":"dragon","stance":"protect"}
+- 22:00, POWER NOW −14% (CLEARLY BEHIND), baron UP, they keep sieging, my pick fit
+  1.1 → {"objective":"towers","stance":"pick"}
+- 26:00, POWER NOW +9% (AHEAD), BARON UP, they split every time →
+  {"objective":"baron","stance":"siege"}
 `

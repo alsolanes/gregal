@@ -112,7 +112,8 @@ type match struct {
 	steals     [2]int
 
 	laneDiff   [3]float64 // vist des de l'equip 0
-	hist       [2][]string
+	log        []planLog  // cada punt de decisió de la partida: triar i com ha anat
+	wf         []fightRec // baralles de la finestra actual
 	laneChoice [2]laneAns
 	stHist     [2][]string
 	objHist    [2][]string
@@ -169,8 +170,19 @@ func (m *match) sideName(team int) string {
 	return "RED"
 }
 
-func (m *match) Score() [2]int { return m.kills }
-func (m *match) Winner() int   { return m.winner }
+// Score: durant la partida, les morts (el marcador de la tele). Quan cau el
+// Nexe, el resultat: 1-0 per al guanyador. Així el marcador final que mostra
+// l'app mai no pot fer semblar perdedor qui ha guanyat (les morts finals van
+// a l'esdeveniment match_end).
+func (m *match) Score() [2]int {
+	if m.done && m.winner >= 0 {
+		var s [2]int
+		s[m.winner] = 1
+		return s
+	}
+	return m.kills
+}
+func (m *match) Winner() int { return m.winner }
 
 func (m *match) tx(en, ca string) string {
 	if m.lang == "ca" {
@@ -287,22 +299,32 @@ func (m *match) canPick(team, id int) bool {
 	return assignRoles(append(append([]int{}, m.picks[team]...), id)) != nil
 }
 
+// defaultPick: un campió legal a l'atzar (amb la llavor). Igual per a les
+// dues bandes: res de "el primer de la llista", que regalava el millor al blau.
 func (m *match) defaultPick(team int) int {
+	ok := []int{}
 	for i := range pool {
 		if m.canPick(team, i) {
-			return i
+			ok = append(ok, i)
 		}
+	}
+	if len(ok) > 0 {
+		return ok[m.rng.Intn(len(ok))]
 	}
 	return m.defaultBan() // cap encaixa: algú fora de rol
 }
 
 func (m *match) defaultBan() int {
+	ok := []int{}
 	for i := range pool {
 		if !m.taken[i] {
-			return i
+			ok = append(ok, i)
 		}
 	}
-	return -1
+	if len(ok) == 0 {
+		return -1
+	}
+	return ok[m.rng.Intn(len(ok))]
 }
 
 func (m *match) applyDraft(ans [2]json.RawMessage) {
@@ -383,7 +405,7 @@ func (m *match) finishDraft() {
 			m.lineID[i][roles[k]] = id
 		}
 	}
-	m.form = m.rng.NormFloat64() * 0.11
+	m.form = m.rng.NormFloat64() * formSD
 	for i := 0; i < 2; i++ {
 		m.mod[i] = compMod(m.line[i][:], m.line[1-i][:])
 		m.fit[i] = stanceFit(m.line[i][:])
@@ -473,6 +495,10 @@ func (m *match) hud() map[string]any {
 func (m *match) emitT(kind, text string, hl bool, data map[string]any) {
 	m.emit(kind, text, text, hl, data)
 }
+
+// formSD: la "forma del dia" oculta (equip 0 respecte de l'1). Petita: han de
+// decidir les decisions, no els daus.
+const formSD = 0.03
 
 func (m *match) emit(kind, en, ca string, hl bool, data map[string]any) {
 	if data == nil {

@@ -24,7 +24,7 @@ const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } :
 const id = q.get('id') || '';
 const fetchMatch = after => fetch('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after, { headers }).then(r => r.json());
 const first = await fetchMatch(0);
-const view = await makeView(first.game, document.getElementById('cv'), { lang: q.get('lang') === 'en' ? 'en' : 'ca', fetchMatch });
+const view = await makeView(first.game, document.getElementById('cv'), { lang: 'en', fetchMatch });
 window.gregalArenaView = view;
 document.getElementById('pause').onclick = e => { e.target.textContent = view.togglePause() ? '▶' : '⏸'; };
 document.getElementById('skip').onclick = () => view.skipToEnd();

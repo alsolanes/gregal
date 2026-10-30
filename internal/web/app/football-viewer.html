@@ -22,7 +22,7 @@ import { FootballView } from './football-view.js';
 const q = new URLSearchParams(location.hash.slice(1));
 const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
 const source = { load: after => fetch('/api/football/match?id=' + encodeURIComponent(q.get('id') || '') + '&after=' + after, { headers }).then(r => r.json()) };
-const view = new FootballView(document.getElementById('cv'), { lang: q.get('lang') || 'ca', source });
+const view = new FootballView(document.getElementById('cv'), { lang: 'en', source });
 window.gregalFootballView = view;
 document.getElementById('pause').onclick = e => { e.target.textContent = view.togglePause() ? '▶' : '⏸'; };
 document.getElementById('skip').onclick = () => view.skipToEnd();

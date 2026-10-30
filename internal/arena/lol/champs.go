@@ -185,9 +185,9 @@ func roleIdx(r string) int {
 // ---- corba de poder ----
 
 var curvePts = map[string][][2]float64{
-	"early": {{0, 1.12}, {14, 1.1}, {22, 1.0}, {30, 0.93}, {40, 0.88}, {60, 0.86}},
+	"early": {{0, 1.12}, {14, 1.1}, {22, 0.99}, {30, 0.91}, {40, 0.86}, {60, 0.84}},
 	"mid":   {{0, 0.98}, {14, 1.04}, {22, 1.08}, {30, 1.0}, {40, 0.95}, {60, 0.93}},
-	"late":  {{0, 0.9}, {14, 0.92}, {22, 0.98}, {30, 1.07}, {40, 1.14}, {60, 1.16}},
+	"late":  {{0, 0.9}, {14, 0.92}, {22, 0.99}, {30, 1.1}, {40, 1.17}, {60, 1.19}},
 }
 
 func curveAt(c string, min float64) float64 {
@@ -394,4 +394,23 @@ func clampi(v, a, b int) int {
 		return b
 	}
 	return v
+}
+
+// compCurve: identitat de la corba de la composició, comparant la força
+// mitjana al minut 15 i al 35: "early" (força ara, cal tancar la partida),
+// "scaling" (millora tard, cal sobreviure) o "balanced".
+func compCurve(cs []*Champ) string {
+	a, b := 0.0, 0.0
+	for _, c := range cs {
+		a += curveAt(c.Curve, 15)
+		b += curveAt(c.Curve, 35)
+	}
+	d := (b - a) / float64(len(cs))
+	switch {
+	case d >= 0.02:
+		return "scaling"
+	case d <= -0.06:
+		return "early"
+	}
+	return "balanced"
 }

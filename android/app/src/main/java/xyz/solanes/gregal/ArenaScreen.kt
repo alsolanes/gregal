@@ -84,8 +84,8 @@ internal fun ArenaRow(lang: String, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("🏆", fontSize = 20.sp)
             Column(Modifier.weight(1f)) {
-                Text(tr(lang, "app.arena.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(tr(lang, "app.arena.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tr("en", "app.arena.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(tr("en", "app.arena.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -125,8 +125,8 @@ internal fun ArenaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.arena.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { page = "stream" }) { Text(tr(lang, "app.arena.stream")) }
+                    Text(tr("en", "app.arena.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { page = "stream" }) { Text(tr("en", "app.arena.stream")) }
                     IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
                 }
                 val s = st
@@ -136,20 +136,20 @@ internal fun ArenaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                 msg?.let { Text(it, color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     item {
-                        Text(tr(lang, "app.arena.mine"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(value = display, onValueChange = { display = it.take(40) }, label = { Text(tr(lang, "app.arena.display")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                        Text(tr("en", "app.arena.mine"), color = Ink, fontWeight = FontWeight.SemiBold)
+                        OutlinedTextField(value = display, onValueChange = { display = it.take(40) }, label = { Text(tr("en", "app.arena.display")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                         OutlinedTextField(value = md, onValueChange = { md = it.take(12000) }, modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp),
                             textStyle = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace, fontSize = 12.sp), placeholder = { Text("# …") })
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { s?.games?.firstOrNull { it.id == game }?.let { md = it.starter } }) { Text(tr(lang, "app.arena.starter")) }
+                            TextButton(onClick = { s?.games?.firstOrNull { it.id == game }?.let { md = it.starter } }) { Text(tr("en", "app.arena.starter")) }
                             Spacer(Modifier.weight(1f))
-                            Button(onClick = { act(JSONObject().put("action", "save").put("game", game).put("md", md).put("display", display)) { msg = tr(lang, "app.arena.saved") } }) { Text(tr(lang, "app.arena.save")) }
+                            Button(onClick = { act(JSONObject().put("action", "save").put("game", game).put("md", md).put("display", display)) { msg = tr("en", "app.arena.saved") } }) { Text(tr("en", "app.arena.save")) }
                         }
                     }
                     if (s != null) item {
                         val bots = s.bots[game].orEmpty()
                         if (bots.isNotEmpty()) {
-                            Text(tr(lang, "app.arena.practice", s.practiceLeft), color = Muted, fontSize = 12.sp)
+                            Text(tr("en", "app.arena.practice", s.practiceLeft), color = Muted, fontSize = 12.sp)
                             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 bots.forEach { (owner, name) ->
                                     OutlinedButton(onClick = { act(JSONObject().put("action", "practice").put("game", game).put("opponent", owner)) { r -> r.optString("id").takeIf { it.isNotBlank() }?.let { page = "match:$it" } } }) { Text(name) }
@@ -157,7 +157,7 @@ internal fun ArenaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                             }
                         }
                     }
-                    if (s != null) item { Text(tr(lang, "app.arena.ranking").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                    if (s != null) item { Text(tr("en", "app.arena.ranking").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
                     if (s != null) items(s.board[game].orEmpty()) { r ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.display, color = if (r.me) Sea else Ink, fontWeight = if (r.me) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.weight(1f))
@@ -165,7 +165,7 @@ internal fun ArenaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                             Text(r.elo.toString(), color = Ink, fontWeight = FontWeight.Bold)
                         }
                     }
-                    if (s != null) item { Text(tr(lang, "app.arena.matches").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
+                    if (s != null) item { Text(tr("en", "app.arena.matches").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold) }
                     if (s != null) items(s.matches.filter { it.game == game }, key = { it.id }) { m ->
                         Surface(onClick = { page = "match:" + m.id }, shape = RoundedCornerShape(12.dp), color = SuperficieAlta.copy(alpha = .45f), modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp)) {

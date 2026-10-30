@@ -29,6 +29,15 @@
   .pcard.a { border-left:6px solid var(--a); } .pcard.b { border-right:6px solid var(--b); text-align:right; }
   .pcard .who { font-size:22px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .pcard .motto { color:var(--muted); font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* La crida de cada equip: què ha decidit i la regla del .md que l'ha portat. */
+  .caption.quiet #capText { display:none; } .caption.quiet { padding:8px 14px; }
+  .pcard .call { display:none; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pcard .call b { color:var(--accent); font-weight:800; text-transform:uppercase; letter-spacing:.03em; } .pcard .call q { color:#d6dbea; font-style:italic; }
+  .pcard.calling .motto { display:none; } .pcard.calling .call { display:block; animation:callIn .35s ease-out; }
+  @keyframes callIn { from { opacity:0; transform:translateY(6px); } }
+  .lower { height:96px !important; }
+  .close { position:fixed; top:14px; right:14px; z-index:10; border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; }
+  .again { display:flex; gap:12px; } .again button { font:inherit; font-size:18px; font-weight:800; border:0; border-radius:12px; padding:12px 22px; cursor:pointer; background:var(--accent); color:#111; } .again button.ghost { background:var(--panel); color:var(--ink); border:1px solid var(--line); }
   .score { align-self:center; font-size:38px; font-weight:900; min-width:170px; text-align:center; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 18px; }
   /* Subtítol del narrador */
   .caption { position:fixed; left:50%; bottom:156px; transform:translate(-50%, 20px); max-width:min(980px, calc(var(--vw) * 90)); padding:12px 20px 12px 16px; display:flex; gap:12px; align-items:flex-start;
@@ -82,7 +91,7 @@
 <div id="tv">
 <div class="top"><div class="logo">GREGAL <span>ARENA</span></div><div class="comp" id="comp"></div><div class="seg" id="seg"></div><div class="live hide" id="live">LIVE</div><div class="clock" id="clock"></div><button class="voice" id="voice" type="button"></button></div>
 <div class="stage-wrap" id="stageWrap" style="opacity:0"><canvas id="cv"></canvas></div>
-<div class="lower hide" id="lower"><div class="pcard a"><div class="who" id="nameA"></div><div class="motto" id="mottoA"></div></div><div class="score" id="score">0 - 0</div><div class="pcard b"><div class="who" id="nameB"></div><div class="motto" id="mottoB"></div></div></div>
+<div class="lower hide" id="lower"><div class="pcard a"><div class="who" id="nameA"></div><div class="motto" id="mottoA"></div><div class="call" id="callA"></div></div><div class="score" id="score">0 - 0</div><div class="pcard b"><div class="who" id="nameB"></div><div class="motto" id="mottoB"></div><div class="call" id="callB"></div></div></div>
 <div class="caption" id="caption"><b id="capWho"></b><span id="capText"></span></div>
 <div class="panel" id="panel"></div>
 <div class="ticker"><div class="tag" id="tickerTag"></div><div class="run" id="ticker"></div></div>
@@ -107,7 +116,7 @@ function fitTV() {
 }
 fitTV(); addEventListener('resize', fitTV);
 const q = new URLSearchParams(location.hash.slice(1));
-const lang = q.get('lang') === 'en' ? 'en' : 'ca';
+const lang = 'en'; // els jocs van sempre en anglès
 const headers = q.get('spectator') ? { 'X-Arena-Spectator': q.get('spectator') } : q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
 const get = path => fetch(path, { headers }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
 const $ = id => document.getElementById(id);
@@ -120,6 +129,7 @@ const L = lang === 'ca' ? {
   how1: ['Dos equips idèntics', 'Mateixos jugadors, mateixos atributs. L’única diferència és el .md de cada jugador.'],
   how2: ['El mateix model per a tothom', 'A cada decisió, el model llegeix el .md del seu equip i la situació, i decideix.'],
   how3: ['Guanya el millor prompt', 'Instruccions clares, concretes i que llegeixen el rival guanyen a les vagues.'],
+  practice: 'Partit de prova', demo: 'Partit de mostra', replay: '▶ Torna-ho a veure', close: 'Tanca', end: 'Final del partit', callTip: 'A sota de cada equip: què ha decidit i la regla del seu .md que l’hi ha portat.',
   stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
 } : {
   waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
@@ -128,6 +138,7 @@ const L = lang === 'ca' ? {
   how1: ['Two identical teams', 'Same players, same attributes. The only difference is each player’s .md.'],
   how2: ['The same model for everyone', 'At every decision, the model reads its team’s .md and the situation, and decides.'],
   how3: ['The best prompt wins', 'Clear, concrete instructions that read the opponent beat vague ones.'],
+  practice: 'Practice game', demo: 'Demo match', replay: '▶ Watch it again', close: 'Close', end: 'Full time', callTip: 'Under each team: what it decided and the rule of its .md that led there.',
   stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
 };
 const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
@@ -230,15 +241,19 @@ let capTimer = 0, capSeq = 0;
 function caption(who, text, secs = 8, audio = '') {
   if (!text) return Promise.resolve();
   const seq = ++capSeq;
-  $('capWho').textContent = who; $('capText').textContent = text;
-  $('caption').classList.add('on');
+  // Amb un panell a la pantalla, el text ja hi és: només es diu (i es marca qui parla).
+  const voiced = soundOn && audio && script && script.voice, quiet = document.body.classList.contains('paneled');
+  $('capWho').textContent = (quiet ? '🔊 ' : '') + who; $('capText').textContent = text;
+  $('caption').classList.toggle('quiet', quiet);
+  if (!quiet || voiced) $('caption').classList.add('on'); else $('caption').classList.remove('on');
   clearTimeout(capTimer); capTimer = setTimeout(() => $('caption').classList.remove('on'), secs * 1000);
   // Sense veu, el segment espera el temps de llegir-ho (~20 caràcters per segon).
-  const said = soundOn && audio && script && script.voice ? playVoice(audio) : sleep(Math.min(45000, text.length * 50));
+  const said = voiced ? playVoice(audio) : sleep(Math.min(45000, text.length * 50) / Math.max(1, +q.get("speed") || 1));
   return said.then(() => { if (seq !== capSeq) return; clearTimeout(capTimer); capTimer = setTimeout(() => $('caption').classList.remove('on'), 1500); });
 }
 // Espera el temps mínim del segment i que el narrador acabi.
-const hold = (ms, voice) => Promise.all([sleep(ms), voice || Promise.resolve()]);
+// A la demo (#speed=2) els panells també passen més de pressa.
+const hold = (ms, voice) => Promise.all([sleep(ms / Math.max(1, +q.get("speed") || 1)), voice || Promise.resolve()]);
 
 // ---- rètol ----
 function ticker(items) {
@@ -255,20 +270,21 @@ const shown = new Set(), explained = new Set();
 let opened = false, busy = false, view = null;
 
 async function pollComp() {
-  try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {}
-  // Els rètols van en la llengua dels narradors (la del servidor).
-  if (script && script.lang && script.lang !== lang) { q.set('lang', script.lang); location.hash = q.toString(); location.reload(); return; }
+  try { const r = await get('/api/arena/stream'); comp = single ? null : r.competition; script = r.script || null; } catch (e) {}
   if (comp) {
     $('comp').textContent = comp.title;
     const tips = LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]);
-    const nxt = comp.schedule.find((s, i) => !s.done && !shown.has(i));
+    const nxt = comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match)));
     if (nxt) tips.splice(1, 0, [L.upnext, nxt.pending ? `${GAME[nxt.game]} · ${nxt.stage}` : `${name(nxt.a)} vs ${name(nxt.b)} · ${GAME[nxt.game]} · ${nxt.stage}`]);
     ticker(tips);
   } else ticker(LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]));
-  setTimeout(pollComp, 4000);
+  if (!single) setTimeout(pollComp, 4000);
 }
-const name = o => (comp && comp.names[o]) || o || '—';
-const motto = o => (comp && comp.titles && comp.titles[o]) || '';
+let names = {}, titles = {};
+const name = o => (comp && comp.names[o]) || names[o] || o || '—';
+const motto = o => (comp && comp.titles && comp.titles[o]) || titles[o] || '';
+// Mode d'un sol partit (#match=<id>): el «mira-ho com a la tele» de l'Arena.
+const single = q.get('match') || '';
 
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(lang === 'ca' ? 'ca-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); }, 1000);
 
@@ -305,31 +321,67 @@ async function segExplain(game) {
   const [title, ...lines] = sp ? [sp.title, ...sp.lines] : EXPLAIN[game][lang];
   segLabel(L.explain + ' · ' + (GAME[game] || game));
   await wipe(() => panel(`<div class="kicker">${esc(L.explain)}</div><h1 class="h1">${esc(title)}</h1>
-    <div class="steps">${lines.map((t, i) => `<div class="step"><b>${i + 1}</b>${esc(t)}</div>`).join('')}</div>`));
+    <div class="steps">${lines.map((t, i) => `<div class="step"><b>${i + 1}</b>${esc(t)}</div>`).join('')}</div>
+    <div class="lead">📋 ${esc(L.callTip)}</div>`));
   await hold(15000, caption(L.analyst, lines.join(' '), 40, sp && sp.audio));
 }
 
 async function fetchMatch(id, after = 999999) { return get('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after); }
 
+// Al LoL el mapa posa l'equip blau a l'esquerra, sigui el primer o el segon:
+// tota la retransmissió va en el mateix ordre que el que es veu.
+async function sideOrder(sl) {
+  if (sl.flip !== undefined) return;
+  sl.flip = false;
+  if (sl.game !== 'lol') return;
+  for (let i = 0; i < 20; i++) {
+    try { const m0 = await fetchMatch(sl.match, 0); if (m0.meta) { sl.flip = m0.meta.blue === 1; return; } } catch (e) {}
+    await sleep(1500);
+  }
+}
+const LR = sl => sl.flip ? [sl.b, sl.a] : [sl.a, sl.b];
+const LRs = (sl, sc) => sl.flip ? [sc[1], sc[0]] : [sc[0], sc[1]];
+
 async function segPreview(sl) {
+  await sideOrder(sl);
+  const [A, B] = LR(sl);
   segLabel(L.preview + ' · ' + sl.stage);
   let m = null;
   for (let i = 0; i < 12; i++) { try { m = await fetchMatch(sl.match); } catch (e) {} if (m && (m.preview || m.status !== 'pregame')) break; await sleep(2500); }
   const pv = (m && m.preview) || '';
   await wipe(() => panel(`<div class="kicker">${esc(GAME[sl.game] || sl.game)} · ${esc(sl.stage)}</div>
-    <div class="vs"><div class="big a"><div class="who">${esc(name(sl.a))}</div><div class="motto">${esc(motto(sl.a))}</div></div><div class="vsmark">VS</div>
-    <div class="big b"><div class="who">${esc(name(sl.b))}</div><div class="motto">${esc(motto(sl.b))}</div></div></div>
+    <div class="vs"><div class="big a"><div class="who">${esc(name(A))}</div><div class="motto">${esc(motto(A))}</div></div><div class="vsmark">VS</div>
+    <div class="big b"><div class="who">${esc(name(B))}</div><div class="motto">${esc(motto(B))}</div></div></div>
     ${pv ? `<div class="quote"><small>${esc(L.preview)} · ${esc(L.analyst)}</small>${esc(pv)}</div>` : ''}`));
   await hold(pv ? 14000 : 9000, pv ? caption(L.analyst, pv, 40, m && m.preview_audio) : null);
+}
+
+// Una decisió en paraules: els valors del JSON, sense guions baixos.
+function callText(d) {
+  if (!d) return '';
+  const v = d.decision && typeof d.decision === 'object' ? Object.values(d.decision).flat().filter(x => typeof x === 'string' && x && x !== 'normal') : [];
+  return (v.length ? v.join(' · ') : (d.short || '')).replace(/_/g, ' ');
+}
+function showCall(side, d) {
+  const card = $(side ? 'callB' : 'callA');
+  if (!d) return;
+  const mark = d.fallback ? '⚠ ' : d.rule_found ? '✓ ' : '';
+  card.innerHTML = `${mark}<b>${esc(callText(d))}</b>${d.rule ? ` <q>${esc(d.rule)}</q>` : d.why ? ` <q>${esc(d.why)}</q>` : ''}`;
+  card.parentElement.classList.remove('calling'); void card.offsetWidth; card.parentElement.classList.add('calling');
 }
 
 async function segLive(sl) {
   segLabel(L.live + ' · ' + (GAME[sl.game] || sl.game) + ' · ' + sl.stage);
   let latest = null;
-  const lines = new Map();
+  const lines = new Map(), calls = new Map();
   let shown = [0, 0];
+  $('nameA').parentElement.classList.remove('calling'); $('nameB').parentElement.classList.remove('calling');
+  await sideOrder(sl);
+  const flip = sl.flip, [L0, R0] = LR(sl);
+  const sc2 = sc => LRs(sl, sc).join(' - ');
   const fm = after => fetchMatch(sl.match, after).then(m => {
     latest = m; (m.lines || []).forEach(l => lines.set(l.n, l));
+    (m.decisions || []).forEach(d => { const c = calls.get(d.n) || []; c[d.side] = d; calls.set(d.n, c); });
     $('live').classList.toggle('hide', m.status !== 'live');
     return m;
   });
@@ -337,8 +389,8 @@ async function segLive(sl) {
     hidePanel();
     $('stageWrap').style.opacity = 1; $('lower').classList.remove('hide');
     $('score').textContent = '0 - 0';
-    $('nameA').textContent = name(sl.a); $('nameB').textContent = name(sl.b);
-    $('mottoA').textContent = motto(sl.a); $('mottoB').textContent = motto(sl.b);
+    $('nameA').textContent = name(L0); $('nameB').textContent = name(R0);
+    $('mottoA').textContent = motto(L0); $('mottoB').textContent = motto(R0);
   });
   if (view) view.destroy();
   sfx.ambience(true);
@@ -348,16 +400,19 @@ async function segLive(sl) {
     // de després: es mostra el de la jugada anterior.
     if (e && Array.isArray(e.score)) {
       const sc = sl.game === 'nfl' ? shown : e.score; shown = e.score;
-      $('score').textContent = `${sc[0]} - ${sc[1]}`;
+      $('score').textContent = sc2(sc);
     }
+    if (e && e.decision && calls.has(e.decision)) { const c = calls.get(e.decision); showCall(flip ? 1 : 0, c[0]); showCall(flip ? 0 : 1, c[1]); }
     if (e && e.hl) sfx.roar(/touchdown|ace|baron|nexus|win|guanya|TOUCHDOWN/i.test(e.text || ''));
     const l = e && lines.get(e.n); if (l) caption(L.caster, l.text, 9, l.audio);
   } });
+  // Demo (o qui ho demani): més de pressa, «#speed=2».
+  if (+q.get("speed") > 1) view.setSpeed(+q.get("speed"));
   // Els comentaris arriben una mica després de les jugades: es tornen a llegir.
   const refresh = setInterval(() => fetchMatch(sl.match).then(m => (m.lines || []).forEach(l => lines.set(l.n, l))).catch(() => {}), 6000);
   while (!view.isFinished()) await sleep(1000);
   clearInterval(refresh);
-  if (latest) $('score').textContent = `${latest.score[0]} - ${latest.score[1]}`;
+  if (latest) $('score').textContent = sc2(latest.score);
   sfx.roar(true);
   await sleep(2500);
   sfx.ambience(false);
@@ -365,13 +420,15 @@ async function segLive(sl) {
 }
 
 async function segResult(sl) {
+  await sideOrder(sl);
+  const [A, B] = LR(sl);
   segLabel(L.result + ' · ' + sl.stage);
   let m = null;
   for (let i = 0; i < 12; i++) { try { m = await fetchMatch(sl.match); } catch (e) {} if (m && m.analysis) break; await sleep(2500); }
   const w = m && m.winner >= 0 ? name(m.winner === 0 ? sl.a : sl.b) : '';
   const a = m && m.analysis;
   await wipe(() => panel(`<div class="kicker">${esc(L.result)} · ${esc(GAME[sl.game] || sl.game)} · ${esc(sl.stage)}</div>
-    <div class="result">${esc(name(sl.a))} ${m ? m.score[0] : ''} - ${m ? m.score[1] : ''} ${esc(name(sl.b))}</div>
+    <div class="result">${esc(name(A))} ${m ? LRs(sl, m.score).join(' - ') : '-'} ${esc(name(B))}</div>
     <div class="winner">${w ? '🏆 ' + esc(w) + ' ' + esc(L.win) : esc(L.draw)}</div>
     ${a ? `<div class="quote"><small>${esc(L.analysis)} · ${esc(a.headline)}</small>${esc(a.text)}</div>
     ${a.rule ? `<div><div class="kicker">${esc(L.keyRule)} · ${esc(name(a.side === 1 ? sl.b : sl.a))}</div><div class="rule">«${esc(a.rule)}»</div></div>` : ''}` : ''}`));
@@ -382,7 +439,7 @@ async function segStandings(sl) {
   const html = standingsHTML(sl.game, sl.phase === 'group' ? sl.stage : '');
   if (!html) return;
   segLabel(L.table);
-  const nxt = comp.schedule.find((s, i) => !s.done && !shown.has(i));
+  const nxt = comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match)));
   await wipe(() => panel(`<div class="two"><div>${html}<p class="lead">${esc(L.stakes)}</p></div>
     <div>${nxt ? `<div class="kicker">${esc(L.next)}</div><div class="h2">${esc(nxt.pending ? nxt.from.join(' vs ') : name(nxt.a) + ' vs ' + name(nxt.b))}</div><div class="lead">${esc(GAME[nxt.game] || nxt.game)} · ${esc(nxt.stage)}</div>` : ''}</div></div>`));
   await sleep(12000);
@@ -411,16 +468,25 @@ async function director() {
     if (comp.status === 'done' && (shown.size === 0 || shown.has(-1))) { if (!shown.has(-1)) { shown.add(-1); await segChampions(); } return; }
     if (!opened && (comp.status === 'running' || comp.status === 'ready')) { opened = true; await segOpening(); }
     // Primer cop: comença pel partit en marxa, no des del principi.
+    // Cada partit es mira un cop (per id): una eliminatòria al millor de 3 en
+    // té diversos, i cadascun té la seva prèvia, directe i resultat.
     const from = shown.size === 0 && comp.status === 'running' ? Math.max(0, comp.current) : 0;
-    let idx = -1;
-    for (let i = from; i < comp.schedule.length; i++) if (comp.schedule[i].match && !shown.has(i)) { idx = i; break; }
+    let idx = -1, mid = '';
+    for (let i = from; i < comp.schedule.length && idx < 0; i++) {
+      const sl = comp.schedule[i];
+      for (const id of [...(sl.matches || []), sl.match]) if (id && !shown.has(id)) { idx = i; mid = id; break; }
+    }
     if (idx < 0) {
       if (comp.status === 'done') { if (!shown.has(-1)) { shown.add(-1); await segChampions(); } return; }
       waitingPanel(comp.status === 'running' ? L.preparing : L.soon);
       return;
     }
-    shown.add(idx);
-    const sl = comp.schedule[idx];
+    shown.add(mid);
+    const slot = comp.schedule[idx];
+    // Els costats i l'etapa, els del partit (a la sèrie es canvia de costat).
+    let m0 = null;
+    try { m0 = await fetchMatch(mid); } catch (e) {}
+    const sl = { game: slot.game, phase: slot.phase, match: mid, a: m0 ? m0.owners[0] : slot.a, b: m0 ? m0.owners[1] : slot.b, stage: (m0 && m0.stage) || slot.stage };
     if (!explained.has(sl.game)) { explained.add(sl.game); await segExplain(sl.game); }
     await segPreview(sl);
     await segLive(sl);
@@ -429,10 +495,43 @@ async function director() {
     await segStandings(sl);
   } finally { busy = false; }
 }
+async function singleShow() {
+  let m;
+  try { m = await fetchMatch(single, 0); } catch (e) { panel(`<h1 class="h1">${esc(String(e.message || e))}</h1>`); return; }
+  m.owners.forEach((o, i) => { names[o] = (m.names || [])[i] || o; titles[o] = (m.titles || [])[i] || ''; });
+  const kind = single.startsWith('demo-') ? L.demo : m.kind === 'practice' ? L.practice : (m.stage || '');
+  $('comp').textContent = (GAME[m.game] || m.game) + ' · ' + kind;
+  const sl = { game: m.game, match: single, a: m.owners[0], b: m.owners[1], stage: kind };
+  for (;;) {
+    await segExplain(sl.game);
+    await segPreview(sl);
+    await segLive(sl);
+    await segResult(sl);
+    segLabel(L.end);
+    const again = await new Promise(res => {
+      const box = document.createElement('div'); box.className = 'again';
+      box.innerHTML = `<button type="button">${esc(L.replay)}</button><button type="button" class="ghost">${esc(L.close)}</button>`;
+      $('panel').append(box);
+      box.children[0].onclick = () => { box.remove(); res(true); };
+      box.children[1].onclick = () => { box.remove(); res(false); };
+    });
+    if (!again) { parent.postMessage({ arenaTV: 'close' }, location.origin); return; }
+  }
+}
+
 async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }
 
 pollComp();
-setInterval(director, 1500);
+if (single) {
+  // Dins de l'Arena: un botó per tancar (o Esc).
+  if (parent !== window) {
+    const x = document.createElement('button'); x.className = 'close'; x.type = 'button'; x.textContent = '✕ ' + L.close;
+    x.onclick = () => parent.postMessage({ arenaTV: 'close' }, location.origin); document.body.append(x);
+    addEventListener('keydown', e => { if (e.key === 'Escape') parent.postMessage({ arenaTV: 'close' }, location.origin); });
+    $('voice').style.marginRight = '90px';
+  }
+  singleShow();
+} else setInterval(director, 1500);
 </script>
 </body>
 </html>

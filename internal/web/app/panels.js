@@ -11,7 +11,7 @@ import { office } from './office.js';
 import { convs } from './convs.js';
 import { prefs } from './prefs.js';
 import { attach } from './attach.js';
-import { aplica as aplicaIdioma, t as T, defineixPerDefecte, idioma } from './i18n.js';
+import { aplica as aplicaIdioma, t as T, tEn, defineixPerDefecte, idioma } from './i18n.js';
 import { flows } from './flows.js';
 import { workshop } from './workshop.js';
 
@@ -1161,6 +1161,7 @@ export function boot() {
   // L'idioma, primer de tot: si no, la finestra surt en català i salta a
   // l'anglès un cop carregada, i es veu el salt.
   window.gregalT = T;
+  window.gregalTEn = tEn;
   // Si aquest navegador no ha triat idioma, mana el config del servidor:
   // refresh() ens porta el valor i crida aquesta funcio.
   window.gregalLang = defineixPerDefecte;

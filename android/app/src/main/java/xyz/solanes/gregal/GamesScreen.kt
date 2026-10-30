@@ -71,8 +71,8 @@ internal fun GamesRow(lang: String, onClick: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Text("🏈", fontSize = 20.sp)
             Column(Modifier.weight(1f)) {
-                Text(tr(lang, "app.games.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-                Text(tr(lang, "app.games.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Text(tr("en", "app.games.row"), color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -98,7 +98,7 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().padding(top = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.games.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
+                    Text(tr("en", "app.games.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
                     IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
                 }
                 val s = st
@@ -122,7 +122,7 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                                     try { withContext(Dispatchers.IO) { conn.api().post("/api/football/match?id=" + running.id, JSONObject().put("action", "stop")) } } catch (e: Exception) { err = e.message }
                                     busy = false; refresh()
                                 }
-                            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))) { Text(tr(lang, "app.games.stop")) }
+                            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))) { Text(tr("en", "app.games.stop")) }
                             else Button(enabled = !busy && s.today < s.max && s.error.isBlank(), onClick = {
                                 busy = true
                                 scope.launch {
@@ -132,18 +132,18 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
                                     } catch (e: Exception) { err = e.message }
                                     busy = false; refresh()
                                 }
-                            }) { Text(tr(lang, "app.games.play")) }
-                            Text(tr(lang, "app.games.today", s.today, s.max), color = Muted, fontSize = 12.sp)
+                            }) { Text(tr("en", "app.games.play")) }
+                            Text(tr("en", "app.games.today", s.today, s.max), color = Muted, fontSize = 12.sp)
                         }
                     }
                     if (s != null && s.games.isNotEmpty()) item {
-                        Text(tr(lang, "app.games.list").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(tr("en", "app.games.list").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     }
                     if (s != null) items(s.games, key = { it.id }) { g ->
                         Surface(onClick = { watching = g.id }, shape = RoundedCornerShape(12.dp), color = SuperficieAlta.copy(alpha = .45f), modifier = Modifier.fillMaxWidth()) {
                             Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Text("${g.home} ${g.score.first} - ${g.score.second} ${g.away}", color = Ink, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                                Text(tr(lang, "app.games.status." + g.status), color = if (g.status == "live") Sea else Muted, fontSize = 12.sp)
+                                Text(tr("en", "app.games.status." + g.status), color = if (g.status == "live") Sea else Muted, fontSize = 12.sp)
                             }
                         }
                     }

@@ -62,3 +62,34 @@ export const EXPLAIN = {
     en: ['League of Legends, Summoner’s Rift 5v5', 'First the draft: the model picks and bans champions following the .md. Then, each phase, it chooses the objective (dragon, herald, baron, towers) and the stance (engage, siege, split, protect).', 'The winner builds a team that fits and plays it at the right time: strong early, attack; strong late, stall and scale.', 'Watch the gold graph and who takes the big objectives.'],
   },
 };
+
+// Guia de cada joc per a qui escriu el .md: què decideix el model per tu (amb
+// les opcions exactes del motor), què veu a cada decisió i una regla d'exemple.
+export const GUIDE = {
+  nfl: {
+    sees: 'Down, distance, field position, score, clock, timeouts, and what the other team has called so far (their run/pass mix, favourite defences).',
+    decides: [
+      ['Every offensive snap', 'play: run_inside, run_outside, qb_sneak, pass_short, pass_medium, pass_deep, screen, play_action, punt, field_goal, kneel, spike · target: wr1, wr2, wr3, te, rb · tempo: normal, hurry, milk'],
+      ['Every defensive snap', 'call: base, blitz, cover2, cover3, man, goal_line, prevent'],
+    ],
+    example: '- If they run more than 55% of plays: call goal_line on 1st down, cover3 otherwise.\n- 3rd & 7+: pass_medium to the open side; vs blitz, screen to the rb.\n- Leading by 8+ in the 4th quarter: run_inside, tempo milk.',
+  },
+  cs2: {
+    sees: 'Round, score, side (T or CT), your money and the enemy’s likely money, who has the AWP, and where the other team attacked or stacked in past rounds.',
+    decides: [
+      ['Each round as T', 'buy: eco, half, force, full · strategy: rush_a/b, execute_a/b, split_a/b, default_mid, fake_a_go_b, fake_b_go_a · utility: none, smokes, flash_heavy, full · pace · awp'],
+      ['Each round as CT', 'buy: eco, half, force, full · setup: standard_2_1_2, stack_a, stack_b, aggressive_mid, retake_a, retake_b · utility: save, normal, heavy · awp'],
+    ],
+    example: '- If we have under $3,500 each after a loss: eco, unless it is the last round of the half.\n- If they hit B twice in a row: stack_b as CT.\n- When they stack a site: fake it and go to the other.',
+  },
+  lol: {
+    sees: 'Draft so far (picks, bans, roles), gold and kills, towers and dragons, which objectives are up, and what the other team chose in earlier phases.',
+    decides: [
+      ['Draft', 'bans and picks: the champion names on screen (tanks, engage, poke, scaling carries…)'],
+      ['00:00 laning', 'top/mid/bot: aggressive, even, passive · jungle: gank_top, gank_mid, gank_bot, farm, invade'],
+      ['08:00 & 12:00', 'objective: dragon, grubs, farm · then focus lane + plates, dive, roam, farm'],
+      ['Every 4 minutes after', 'objective: dragon, herald, baron, elder, towers, farm · stance: engage, siege, pick, split, protect'],
+    ],
+    example: '- Draft: if they pick two early-game champions, ban their jungler and pick scaling carries.\n- Behind by 3k+ gold: farm safe lanes and pick off overextenders; never start baron.\n- Ahead with soul point: take dragon with stance engage.',
+  },
+};

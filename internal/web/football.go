@@ -88,12 +88,16 @@ func (s *Server) fbWinds() []football.Wind {
 	return out
 }
 
-func (s *Server) fbLangCode() string {
-	if s.cornerLang() == "Catalan" {
-		return "ca"
-	}
-	return "en"
-}
+// Els jocs (la lliga dels vents i l'Arena) van sempre en anglès: textos del
+// motor, narradors, informes i visors, sigui quina sigui la llengua de l'app.
+func (s *Server) fbLangCode() string { return "en" }
+
+// gameLang és el nom de la llengua dels jocs per als prompts del model.
+func gameLang() string { return "English" }
+
+// gameTr tria el text dels jocs (sempre l'anglès; el català queda escrit al
+// costat per si mai es vol tornar a fer servir).
+func gameTr(_, en string) string { return en }
 
 func (s *Server) fbLoadLeague() *football.League {
 	var lg football.League
@@ -200,7 +204,7 @@ func (s *Server) fbRoster(t *football.Team) string {
 
 // fbCoachPlan: l'entrenador decideix el pla del quart.
 func (s *Server) fbCoachPlan(ctx context.Context, coach companion.Wind, mine, theirs *football.Team, g *football.Game, team int, quarter int) football.Plan {
-	lang := s.cornerLang()
+	lang := gameLang()
 	system := companion.WindIdentity(coach) + coach.Persona + "\n\nYOU ARE THE HEAD COACH of " + mine.Name + " in an American football (NFL rules) game against " + theirs.Name + ". Reply with JSON only, no prose, no code fences."
 	var sit string
 	if quarter == 1 {
@@ -240,7 +244,7 @@ func (s *Server) fbCommentary(ctx context.Context, caster companion.Wind, m *fbM
 	}
 	system := companion.WindIdentity(caster) + caster.Persona + "\n\nYOU ARE THE TV PLAY-BY-PLAY COMMENTATOR of an American football game between " + m.Teams[0].Name + " and " + m.Teams[1].Name + ". Reply with JSON only."
 	user := "Key plays of this stretch (n | time | score after | what happened):\n" + b.String() +
-		"\nWrite one exciting broadcast line for each play, in " + s.cornerLang() + ", in your own voice, max 25 words, no hashtags. Never invent stats or names.\n" +
+		"\nWrite one exciting broadcast line for each play, in " + gameLang() + ", in your own voice, max 25 words, no hashtags. Never invent stats or names.\n" +
 		`JSON: {"lines":[{"n":12,"text":"…"}]}`
 	raw, err := footballModel(s, ctx, system, user, 1500)
 	if err != nil {
@@ -281,7 +285,7 @@ func (s *Server) fbRecap(ctx context.Context, caster companion.Wind, m *fbMatch,
 	for _, p := range football.Highlights(g.Plays) {
 		user += fmt.Sprintf("Q%d %s\n", p.Quarter, p.Text)
 	}
-	user += "\nrecap = 3-4 lively sentences in " + s.cornerLang() + "; mvp = the id of the player of the game (from the list above).\n" + `JSON: {"recap":"…","mvp":"id"}`
+	user += "\nrecap = 3-4 lively sentences in " + gameLang() + "; mvp = the id of the player of the game (from the list above).\n" + `JSON: {"recap":"…","mvp":"id"}`
 	raw, err := footballModel(s, ctx, system, user, 900)
 	if err != nil {
 		return "", ""

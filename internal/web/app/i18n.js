@@ -274,6 +274,24 @@ const CA = {
   'nav.games': 'Partits',
   'nav.arena': "Arena",
   'ar.kicker': "Competició de prompts",
+  'ar.demo': "Mira un partit de mostra",
+  'ar.ruleFound': "regla del teu .md",
+  'ar.improvised': "sense regla del .md (ha improvisat)",
+  'ar.followed': "ha seguit el .md en",
+  'ar.seeSituation': "Clica per veure què va veure el model",
+  'ar.howDecides': "A cada decisió, el model només llegeix el .md d’aquell equip i la situació; respon la jugada i la regla que aplica. El servidor comprova que la regla és de debò al .md (✓). Després el motor juga la jugada: guanya qui contraresta millor el rival.",
+  'ar.noSituation': "Aquesta decisió no té la situació desada (partits antics).",
+  'ar.sawTitle': "EL QUE VA VEURE EL MODEL",
+  'ar.formatTitle': "FORMAT DE RESPOSTA",
+  'ar.answerTitle': "LA SEVA RESPOSTA",
+  'ar.decides': "Què decideix el teu .md",
+  'ar.sees': "El model veu:",
+  'ar.example': "Regles d’exemple",
+  'ar.progress': "Com vas",
+  'ar.progressNone': "Juga un partit i aquí veuràs com evolucionen els resultats.",
+  'ar.progressSum': "{w} victòries de {n} · nota del coach {c}",
+  'ar.progressHelp': "Barres: cada partit (verd guanyat, vermell perdut, alçada = diferència). Línia: la nota del coach al teu .md. Si millores el .md, ha de pujar.",
+  'ar.tv': "Mode tele",
   'ar.lead2': "Escriu en un .md com ha de jugar el teu equip. El model el llegeix a cada decisió: guanya qui escriu millors instruccions.",
   'ar.playAs': "Jugues com a",
   'ar.step1': "Escriu com ha de jugar el teu equip (ja tens una plantilla)",
@@ -2069,6 +2087,24 @@ const EN = {
   'nav.games': 'Games',
   'nav.arena': "Arena",
   'ar.kicker': "Prompt competition",
+  'ar.demo': "Watch a demo match",
+  'ar.ruleFound': "rule from your .md",
+  'ar.improvised': "no rule from the .md (improvised)",
+  'ar.followed': "followed its .md in",
+  'ar.seeSituation': "Click to see what the model saw",
+  'ar.howDecides': "At every decision the model reads only that team’s .md and the situation, and answers with a call and the rule it applied. The server checks that the rule really is in the .md (✓). Then the engine plays it out: whoever counters the other side better wins.",
+  'ar.noSituation': "This decision has no saved situation (older matches).",
+  'ar.sawTitle': "WHAT THE MODEL SAW",
+  'ar.formatTitle': "ANSWER FORMAT",
+  'ar.answerTitle': "ITS ANSWER",
+  'ar.decides': "What your .md decides",
+  'ar.sees': "The model sees:",
+  'ar.example': "Example rules",
+  'ar.progress': "Your progress",
+  'ar.progressNone': "Play a game and your results will show up here.",
+  'ar.progressSum': "{w} wins out of {n} · coach score {c}",
+  'ar.progressHelp': "Bars: each game (green won, red lost, height = margin). Line: the coach’s score for your .md. Improve the .md and it should go up.",
+  'ar.tv': "TV mode",
   'ar.lead2': "Write in a .md how your team should play. The model reads it at every decision: the best instructions win.",
   'ar.playAs': "Playing as",
   'ar.step1': "Write how your team should play (a template is already there)",
@@ -4052,6 +4088,13 @@ export function defineixPerDefecte(l) {
   try { triat = localStorage.getItem(CLAU_DESAT); } catch (e) {}
   perDefecte = l;
   if (!triat || !DICCIONARIS[triat]) aplica();
+}
+
+// tEn: sempre en anglès (els jocs —l'Arena, la lliga dels vents— van en anglès
+// sigui quina sigui la llengua de l'app).
+export function tEn(clau, sino) {
+  if (clau in EN) return EN[clau];
+  return sino == null ? clau : sino;
 }
 
 export function t(clau, sino) {

@@ -4,6 +4,9 @@
 // color, dorsal i casc, la pilota amb l'altura dels xuts i les passades, el
 // marcador a dalt i el comentari a baix. Cada jugada es reconstrueix a partir
 // del que ha passat (tipus, iardes, qui l'ha fet) amb formacions i rutes.
+// A més de la càmera de banda hi ha una «skycam» darrere l'atac, en
+// perspectiva de debò, i la realització alterna totes dues com la tele (amb
+// repeticions de les jugades grosses i els gols de camp des del xutador).
 //
 // El fa servir la pàgina «Partits» de l'app (football.js) i, al mòbil, la
 // pàgina autònoma football-viewer.html dins d'un WebView.
@@ -250,6 +253,89 @@ export function buildPlay(play, match) {
   return { tracks, ball, dur, carrierId, los, endX, dir };
 }
 
+
+// ---- càmeres ----
+// Totes dues càmeres són estenopeiques de debò: una posició P, un punt on
+// miren L i una focal. La de televisió és a la banda de baix, quieta d'alçada,
+// i només llisca seguint la pilota; la «skycam» va darrere l'atac, enlairada,
+// mirant camp avall, i acompanya la jugada.
+const NEAR = .35;
+
+// Vista d'una càmera: base (dreta r, amunt u, endavant f) per projectar.
+export function makeView(P, L, focal, cx, cy, roll = 0) {
+  let fx = L[0] - P[0], fy = L[1] - P[1], fz = L[2] - P[2];
+  const n = Math.hypot(fx, fy, fz) || 1; fx /= n; fy /= n; fz /= n;
+  const hn = Math.hypot(fx, fy) || 1;
+  const r = [-fy / hn, fx / hn, 0];
+  const u = [fy * r[2] - fz * r[1], fz * r[0] - fx * r[2], fx * r[1] - fy * r[0]];
+  return { P, f: [fx, fy, fz], r, u, focal, cx, cy, roll };
+}
+// Coordenades de càmera (X a la dreta, Y amunt, Z la profunditat).
+export function camSpace(v, x, y, z = 0) {
+  const dx = x - v.P[0], dy = y - v.P[1], dz = z - v.P[2];
+  return [dx * v.r[0] + dy * v.r[1] + dz * v.r[2], dx * v.u[0] + dy * v.u[1] + dz * v.u[2], dx * v.f[0] + dy * v.f[1] + dz * v.f[2]];
+}
+// Punt de la pantalla; s són els píxels per iarda a aquella distància i d la
+// profunditat (si d < NEAR és darrere la càmera i no s'ha de dibuixar).
+export function project(v, x, y, z = 0) {
+  const [X, Y, Z] = camSpace(v, x, y, z);
+  const s = v.focal / Math.max(Z, 1e-3);
+  return { x: v.cx + X * s, y: v.cy - Y * s, s, d: Z };
+}
+// La càmera de tele de sempre: a 30 iardes de la banda de baix, a l'alçada camH.
+export function tvView(camX, focal, camH, W, horizon) {
+  return makeView([camX, FIELD_W + 30, camH], [camX, 0, camH], focal, W / 2, horizon);
+}
+
+// On vol ser la skycam a l'instant t d'una jugada: darrere la pilota (o
+// darrere el xutador en un gol de camp, seguint la pilota cap als pals).
+export function skyShot(anim, kind, t) {
+  const dir = anim.dir, u = v => v * dir;
+  const b = (anim.ball && anim.ball(t)) || { x: anim.los, y: C, z: 1 };
+  const bz = Math.min(b.z || 0, 9);
+  if (kind === 'fg' || kind === 'pat') {
+    const goalX = dir > 0 ? 120 : 0, kickFrom = anim.los - dir * 7;
+    const start = u(kickFrom) - 12;
+    const camU = Math.min(Math.max(start, u(b.x) - 18), Math.max(start, u(goalX) - 24));
+    return { P: [camU * dir, C - 1.6, 7.5 + bz * .2], L: [goalX, C, 2.5 + bz * .2], zoom: 1.2 };
+  }
+  const kick = kind === 'kickoff' || kind === 'punt';
+  const fx = (kick ? u(b.x) : Math.max(u(b.x), u(anim.los) - 4)) * dir;
+  const ly = clamp(b.y, 2, FIELD_W - 2);
+  return { P: [fx - dir * 17, lerp(C, ly, .55), 8 + bz * .25], L: [fx + dir * 14, lerp(C, ly, .8), bz * .3], zoom: 1 };
+}
+
+// Quina càmera fa cada jugada, com una retransmissió: les jugades normals
+// alternen tele i skycam; les grosses (touchdown, pèrdua, guany llarg) tenen
+// repetició amb l'altra càmera; els gols de camp, des de darrere el xutador.
+export function chooseCameras(play, pref = 'auto') {
+  if (pref === 'tv' || pref === 'sky') return { live: pref, replay: null, from: 0 };
+  const k = play.kind;
+  if (k === 'fg' || k === 'pat') return { live: 'sky', replay: null, from: 0 };
+  if (k === 'kneel') return { live: 'tv', replay: null, from: 0 };
+  const big = !!(play.td || play.int || play.fumble || play.safety || play.hl || Math.abs(play.yards || 0) >= 20);
+  if (k === 'kickoff' || k === 'punt') return { live: 'tv', replay: big ? 'sky' : null, from: k === 'kickoff' ? .45 : .2 };
+  const live = (play.n || 0) % 2 === 0 ? 'sky' : 'tv';
+  return { live, replay: big ? (live === 'sky' ? 'tv' : 'sky') : null, from: k === 'pass' || k === 'two' ? .28 : .12 };
+}
+
+// Públic de les graderies de la skycam (sempre el mateix).
+function makeCrowd() {
+  const R = rng(11), out = [];
+  const stands = [
+    (a, h) => [lerp(-40, 160, a), -14 - 32 * h, 1.5 + 28 * h],
+    (a, h) => [lerp(-40, 160, a), FIELD_W + 14 + 32 * h, 1.5 + 28 * h],
+    (a, h) => [-22 - 32 * h, lerp(-14, FIELD_W + 14, a), 1.5 + 28 * h],
+    (a, h) => [142 + 32 * h, lerp(-14, FIELD_W + 14, a), 1.5 + 28 * h],
+  ];
+  // Pocs colors i agrupats: es pinta un camí per color (molt més ràpid).
+  const colors = Array.from({ length: 28 }, () => `hsl(${Math.floor(R() * 360)},${20 + R() * 30 | 0}%,${32 + R() * 30 | 0}%)`);
+  stands.forEach((f, i) => { const n = i < 2 ? 2600 : 1100; for (let k = 0; k < n; k++) { const [x, y, z] = f(R(), R()); out.push({ x, y, z, ci: Math.floor(R() * colors.length) }); } });
+  out.sort((a, b) => a.ci - b.ci);
+  out.colors = colors;
+  return out;
+}
+
 // ---- dibuix ----
 
 export class FootballView {
@@ -263,6 +349,8 @@ export class FootballView {
     this.match = null; this.queue = []; this.idx = 0; this.speed = 1; this.paused = false;
     this.cur = null; this.t = 0; this.phase = 'wait'; this.hold = 0; this.camX = 60; this.particles = [];
     this.banner = null; this.lastN = 0; this.stopped = false; this.last = performance.now();
+    this.camPref = 'auto'; this.camMode = 'tv'; this.sky = null; this.snap = true; this.fx = null; this.simDt = 0;
+    this.crowd = makeCrowd();
     this.resize = this.resize.bind(this); window.addEventListener('resize', this.resize); this.resize();
     this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
     this.poll();
@@ -274,6 +362,12 @@ export class FootballView {
   skipToEnd() { this.idx = this.queue.length; this.cur = null; this.phase = 'wait'; this.banner = null; }
   // Ja s'ha vist tot (la retransmissió passa al partit següent).
   isFinished() { return !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status) && this.idx >= this.queue.length && !this.cur; }
+  // Càmera: 'auto' (alterna com la tele), 'tv' (sempre de banda) o 'sky'.
+  setCamera(mode) {
+    this.camPref = ['tv', 'sky'].includes(mode) ? mode : 'auto';
+    if (this.cur) { this.cur.shots = chooseCameras(this.cur.play, this.camPref); if (this.phase !== 'replay') this.setCam(this.cur.shots.live); }
+    else if (this.camPref !== 'auto') this.setCam(this.camPref);
+  }
 
   async poll() {
     if (this.stopped) return;
@@ -301,20 +395,27 @@ export class FootballView {
     const near = .96 * this.H, far = .3 * this.H;
     this.camH = (near - far) / (this.focal * (1 / 30 - 1 / (30 + FIELD_W)));
     this.horizon = near - this.camH * this.focal / 30;
+    this.view = tvView(this.camX, this.focal, this.camH, this.W, this.horizon);
   }
 
-  proj(x, y, z = 0) {
-    const depth = 30 + (FIELD_W - y);
-    const sc = this.focal / depth;
-    return { x: this.W / 2 + (x - this.camX) * sc, y: this.horizon + this.camH * sc - z * sc, s: sc };
-  }
+  proj(x, y, z = 0) { return project(this.view, x, y, z); }
 
   loop(now) {
     if (this.stopped) return;
     const dt = Math.min(.25, (now - this.last) / 1000); this.last = now;
-    if (!this.paused) this.advance(dt * this.speed);
+    this.simDt = this.paused ? 0 : dt * this.speed;
+    if (!this.paused) this.advance(this.simDt);
     this.draw();
     requestAnimationFrame(this.loop);
+  }
+
+  // Canvi de càmera: tall sec amb un flaix (o la cortina de la repetició).
+  setCam(mode, kind = 'cut') {
+    const changed = mode !== this.camMode;
+    if (changed || kind === 'replay') this.fx = { t0: performance.now(), kind };
+    // La tele llisca d'una jugada a l'altra; si canvia de càmera, tall sec.
+    if (changed || mode === 'sky' || kind === 'replay') this.snap = true;
+    this.camMode = mode;
   }
 
   advance(dt) {
@@ -322,25 +423,41 @@ export class FootballView {
     if (!this.cur) {
       if (this.idx < this.queue.length) {
         const p = this.queue[this.idx++];
-        this.cur = { play: p, anim: buildPlay(p, this.match) };
+        this.cur = { play: p, anim: buildPlay(p, this.match), shots: chooseCameras(p, this.camPref), replayed: false };
         this.t = 0; this.phase = 'pre'; this.hold = .7;
+        this.setCam(this.cur.shots.live);
         this.onUpdate(this.match, p);
         this.onEvent(p);
       }
       return;
     }
+    const p = this.cur.play;
+    const restHold = () => (p.comment ? 3.2 : 1.6) + (p.hl ? 1 : 0);
     if (this.phase === 'pre') { this.hold -= dt; if (this.hold <= 0) this.phase = 'run'; return; }
     if (this.phase === 'run') {
       this.t += dt / this.cur.anim.dur;
       if (this.t >= 1) {
         this.t = 1; this.phase = 'post';
-        const p = this.cur.play;
-        this.hold = (p.comment ? 3.2 : 1.6) + (p.hl ? 1 : 0);
+        this.hold = this.cur.shots.replay ? 1.5 : restHold();
         this.celebrate(p);
       }
       return;
     }
-    if (this.phase === 'post') { this.hold -= dt; if (this.hold <= 0) { this.cur = null; this.banner = null; } }
+    if (this.phase === 'replay') {
+      this.t += dt * .7 / this.cur.anim.dur;
+      if (this.t >= 1) { this.t = 1; this.phase = 'post'; this.hold = restHold(); }
+      return;
+    }
+    if (this.phase === 'post') {
+      this.hold -= dt;
+      if (this.hold > 0) return;
+      if (this.cur.shots.replay && !this.cur.replayed) {
+        this.cur.replayed = true; this.phase = 'replay'; this.t = this.cur.shots.from;
+        this.setCam(this.cur.shots.replay, 'replay');
+        return;
+      }
+      this.cur = null; this.banner = null;
+    }
   }
 
   celebrate(p) {
@@ -357,6 +474,38 @@ export class FootballView {
     }
   }
 
+  isSky() { return this.camMode === 'sky' && !!this.sky; }
+
+  // Mou les càmeres: la de tele llisca amb la pilota; la skycam va cap a on
+  // diu skyShot amb una mica de retard, i s'inclina quan es desplaça de costat.
+  updateCamera(a, b) {
+    const W = this.W, H = this.H, dt = this.simDt;
+    const focusX = b ? b.x : (this.cur ? this.cur.anim.los : this.camX);
+    if (this.camMode === 'tv' && this.snap) this.camX = clamp(focusX, 14, 106);
+    else this.camX = lerp(this.camX, clamp(focusX, 14, 106), .06);
+    if (this.camMode === 'sky' && a) {
+      const shot = skyShot(a, this.cur.play.kind, this.t);
+      if (this.snap || !this.sky) this.sky = { P: shot.P.slice(), L: shot.L.slice(), zoom: shot.zoom, roll: 0 };
+      else if (dt > 0) {
+        const s = this.sky, kP = 1 - Math.exp(-dt * 3.2), kL = 1 - Math.exp(-dt * 4.5);
+        const old = s.P.slice();
+        for (let i = 0; i < 3; i++) { s.P[i] = lerp(s.P[i], shot.P[i], kP); s.L[i] = lerp(s.L[i], shot.L[i], kL); }
+        s.zoom = lerp(s.zoom, shot.zoom, kP);
+        const v = this.view && this.view.r ? this.view : makeView(s.P, s.L, 1, 0, 0);
+        const side = ((s.P[0] - old[0]) * v.r[0] + (s.P[1] - old[1]) * v.r[1]) / dt;
+        s.roll = lerp(s.roll, clamp(side * .01, -.045, .045), 1 - Math.exp(-dt * 2.5));
+      }
+    }
+    // Partit acabat o esperant jugades: tornem a la tele.
+    if (!this.cur && this.idx >= this.queue.length) this.camMode = 'tv';
+    this.snap = false;
+    if (this.isSky()) {
+      const s = this.sky;
+      // En vertical (mòbil) el punt de fuga puja perquè es vegi més camp.
+      this.view = makeView(s.P, s.L, Math.max(.68 * W, .5 * H) * s.zoom, W / 2, H * (W < H ? .36 : .5), s.roll);
+    } else this.view = tvView(this.camX, this.focal, this.camH, W, this.horizon);
+  }
+
   draw() {
     const g = this.ctx, W = this.W, H = this.H;
     // Cel i graderia.
@@ -366,13 +515,23 @@ export class FootballView {
     if (!this.match) { this.drawCenterText(this.T.pregame); return; }
     const a = this.cur && this.cur.anim;
     const b = a && a.ball(this.t);
-    const focusX = b ? b.x : (this.cur ? this.cur.anim.los : this.camX);
-    this.camX = lerp(this.camX, clamp(focusX, 14, 106), .06);
-    this.drawStands();
+    this.updateCamera(a, b);
+    const v = this.view;
+    g.save();
+    if (v.roll) { g.translate(v.cx, v.cy); g.rotate(v.roll); g.translate(-v.cx, -v.cy); }
+    if (this.isSky()) this.drawSkyStands(); else this.drawStands();
     this.drawField();
     if (a) this.drawPlay(a, b);
     this.drawParticles();
+    g.restore();
+    if (this.isSky()) {
+      const vg = g.createRadialGradient(W / 2, H * .55, Math.min(W, H) * .35, W / 2, H * .55, Math.max(W, H) * .75);
+      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
+      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    }
+    this.drawCutFx();
     this.drawHUD();
+    this.drawCamTag();
   }
 
   drawStands() {
@@ -388,18 +547,99 @@ export class FootballView {
     for (let i = 0; i < 6; i++) { const x = (i + .5) * W / 6; const lg = g.createRadialGradient(x, top * .1, 0, x, top * .1, W * .12); lg.addColorStop(0, 'rgba(255,255,240,.35)'); lg.addColorStop(1, 'rgba(255,255,240,0)'); g.fillStyle = lg; g.fillRect(x - W * .12, 0, W * .24, top * .5); }
   }
 
-  quad(x0, y0, x1, y1, fill) {
-    const g = this.ctx, a = this.proj(x0, y0), b = this.proj(x1, y0), c = this.proj(x1, y1), d = this.proj(x0, y1);
-    g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.lineTo(c.x, c.y); g.lineTo(d.x, d.y); g.closePath(); g.fillStyle = fill; g.fill();
+  // L'estadi vist des de dins: terra, graderies en talús amb públic, la tanca
+  // del camp i les torres de llum.
+  drawSkyStands() {
+    const g = this.ctx, d = this.dpr, W = this.W, H = this.H;
+    const FW = FIELD_W;
+    this.poly([[-80, -60, 0], [200, -60, 0], [200, FW + 60, 0], [-80, FW + 60, 0]], '#1d3a22');
+    const planes = [
+      [[-40, -14, 0], [160, -14, 0], [160, -46, 30], [-40, -46, 30]],
+      [[-40, FW + 14, 0], [160, FW + 14, 0], [160, FW + 46, 30], [-40, FW + 46, 30]],
+      [[-22, -14, 0], [-22, FW + 14, 0], [-54, FW + 14, 30], [-54, -14, 30]],
+      [[142, -14, 0], [142, FW + 14, 0], [174, FW + 14, 30], [174, -14, 30]],
+    ].map(q => ({ q, dd: camSpace(this.view, (q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2, 15)[2] }))
+      .sort((u, v) => v.dd - u.dd);
+    for (const { q } of planes) {
+      this.poly(q, '#202842');
+      // Grades: franges una mica més clares.
+      for (let h = .1; h < 1; h += .15) {
+        const at = (k) => [0, 1, 2].map(i => lerp(q[0][i], q[3][i], k)), at2 = (k) => [0, 1, 2].map(i => lerp(q[1][i], q[2][i], k));
+        this.poly([at(h), at2(h), at2(h + .035), at(h + .035)], '#2b3558');
+      }
+    }
+    let ci = -1;
+    for (const c of this.crowd) {
+      const p = this.proj(c.x, c.y, c.z);
+      if (p.d < NEAR || p.x < -4 || p.x > W + 4 || p.y < -4 || p.y > H + 4) continue;
+      if (c.ci !== ci) { ci = c.ci; g.fillStyle = this.crowd.colors[ci]; }
+      const sz = clamp(.26 * p.s, 1 * d, 3.6 * d);
+      g.fillRect(p.x - sz / 2, p.y - sz, sz, sz * 1.3);
+    }
+    // Tanca de publicitat al voltant del camp.
+    const wall = [[-14, -6, -14, FW + 6], [134, -6, 134, FW + 6], [-14, -6, 134, -6], [-14, FW + 6, 134, FW + 6]];
+    for (const [x0, y0, x1, y1] of wall) {
+      this.poly([[x0, y0, 0], [x1, y1, 0], [x1, y1, 1.3], [x0, y0, 1.3]], '#0f1a36');
+      this.poly([[x0, y0, 1.05], [x1, y1, 1.05], [x1, y1, 1.3], [x0, y0, 1.3]], '#ffd400');
+    }
+    // Torres de llum.
+    for (const [x, y] of [[-34, -40], [154, -40], [-34, FW + 40], [154, FW + 40], [60, -50], [60, FW + 50]]) {
+      const p = this.proj(x, y, 44);
+      if (p.d < NEAR) continue;
+      const r = clamp(16 * p.s, 20 * d, W * .3);
+      const lg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      lg.addColorStop(0, 'rgba(255,255,235,.9)'); lg.addColorStop(.08, 'rgba(255,255,235,.45)'); lg.addColorStop(1, 'rgba(255,255,235,0)');
+      g.fillStyle = lg; g.fillRect(p.x - r, p.y - r, 2 * r, 2 * r);
+    }
   }
 
+  // Polígon 3D retallat pel pla de davant de la càmera (si no, el que queda
+  // darrere la skycam es dibuixaria del revés).
+  // Amb fill null només afegeix el polígon al camí actual (per pintar-ne molts d'un cop).
+  poly(pts, fill) {
+    const v = this.view, cam = pts.map(p => camSpace(v, p[0], p[1], p[2] || 0)), out = [];
+    for (let i = 0; i < cam.length; i++) {
+      const a = cam[i], b = cam[(i + 1) % cam.length], ia = a[2] >= NEAR, ib = b[2] >= NEAR;
+      if (ia) out.push(a);
+      if (ia !== ib) { const k = (NEAR - a[2]) / (b[2] - a[2]); out.push([lerp(a[0], b[0], k), lerp(a[1], b[1], k), NEAR]); }
+    }
+    if (out.length < 3) return;
+    const g = this.ctx;
+    if (fill !== null) g.beginPath();
+    out.forEach(([X, Y, Z], i) => { const s = v.focal / Z, x = v.cx + X * s, y = v.cy - Y * s; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+    g.closePath();
+    if (fill !== null) { g.fillStyle = fill; g.fill(); }
+  }
+
+  quad(x0, y0, x1, y1, fill) { this.poly([[x0, y0], [x1, y0], [x1, y1], [x0, y1]], fill); }
+
   line(x0, y0, x1, y1, color, w) {
-    const g = this.ctx, a = this.proj(x0, y0), b = this.proj(x1, y1);
+    const g = this.ctx;
+    if (this.isSky()) {
+      // A la skycam les ratlles són tires de gespa pintada (fan perspectiva).
+      const L = Math.hypot(x1 - x0, y1 - y0) || 1, hw = w * .06, nx = -(y1 - y0) / L * hw, ny = (x1 - x0) / L * hw;
+      this.poly([[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]], color);
+      return;
+    }
+    const a = this.proj(x0, y0), b = this.proj(x1, y1);
     g.strokeStyle = color; g.lineWidth = w * a.s * .12; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(b.x, b.y); g.stroke();
   }
 
-  groundText(text, x, y, size, color, flip) {
-    const g = this.ctx, p = this.proj(x, y);
+  // Text pintat a la gespa. rot és la direcció de lectura al terra (per
+  // defecte al llarg del camp; flip el gira mitja volta).
+  groundText(text, x, y, size, color, flip, rot) {
+    const g = this.ctx;
+    if (this.isSky()) {
+      const [rx, ry] = rot || (flip ? [-1, 0] : [1, 0]), ux = ry, uy = -rx;
+      const o = this.proj(x, y), A = this.proj(x + rx, y + ry), B = this.proj(x - ux, y - uy);
+      // Prou lluny perquè tot el text quedi davant la càmera.
+      if (o.d < 3 + size * text.length * .35 || size * o.s < 3) return;
+      g.save(); g.transform(A.x - o.x, A.y - o.y, B.x - o.x, B.y - o.y, o.x, o.y); g.scale(size / 100, size / 100);
+      g.fillStyle = color; g.font = '700 100px "Segoe UI", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(text, 0, 0); g.restore();
+      return;
+    }
+    const p = this.proj(x, y);
     const fs = size * p.s;
     if (fs < 4) return;
     g.save(); g.translate(p.x, p.y); g.scale(1, .45); if (flip) g.rotate(Math.PI);
@@ -408,7 +648,7 @@ export class FootballView {
   }
 
   drawField() {
-    const m = this.match;
+    const m = this.match, sky = this.isSky();
     const q = (this.cur && this.cur.play.q) || m.quarter || 1;
     this.quad(-12, -5, 132, FIELD_W + 5, '#2f6b33');
     for (let x = 10; x < 110; x += 5) this.quad(x, 0, x + 5, FIELD_W, (x / 5) % 2 ? '#3d8a3f' : '#357d38');
@@ -417,55 +657,103 @@ export class FootballView {
     const rightTeam = m.teams[attackDir(0, q) > 0 ? 1 : 0];
     this.quad(0, 0, 10, FIELD_W, shade(leftTeam.color, -.15));
     this.quad(110, 0, 120, FIELD_W, shade(rightTeam.color, -.15));
-    this.groundText(leftTeam.name.toUpperCase(), 5, C, 3.2, leftTeam.color2 || '#fff');
-    this.groundText(rightTeam.name.toUpperCase(), 115, C, 3.2, rightTeam.color2 || '#fff');
+    // A la skycam el nom es llegeix de cara des del camp, d'una banda a l'altra.
+    this.groundText(leftTeam.name.toUpperCase(), 5, C, sky ? 4.4 : 3.2, leftTeam.color2 || '#fff', false, [0, -1]);
+    this.groundText(rightTeam.name.toUpperCase(), 115, C, sky ? 4.4 : 3.2, rightTeam.color2 || '#fff', false, [0, 1]);
     // Línies.
     for (let x = 10; x <= 110; x += 5) this.line(x, 0, x, FIELD_W, 'rgba(255,255,255,.85)', x % 10 === 0 ? 1.4 : 1);
     this.line(0, 0, 120, 0, '#fff', 2); this.line(0, FIELD_W, 120, FIELD_W, '#fff', 2);
     this.line(0, 0, 0, FIELD_W, '#fff', 2); this.line(120, 0, 120, FIELD_W, '#fff', 2);
-    for (let x = 11; x < 110; x++) { this.line(x, 22.9, x, 23.6, 'rgba(255,255,255,.7)', .8); this.line(x, 29.7, x, 30.4, 'rgba(255,255,255,.7)', .8); this.line(x, 1, x, 1.6, 'rgba(255,255,255,.7)', .8); this.line(x, FIELD_W - 1.6, x, FIELD_W - 1, 'rgba(255,255,255,.7)', .8); }
+    if (sky) {
+      // Marques de iarda: totes en un sol camí.
+      const g = this.ctx; g.beginPath();
+      for (let x = 11; x < 110; x++) { if (x % 5 === 0) continue; for (const [y0, y1] of [[22.9, 23.6], [29.7, 30.4], [1, 1.6], [FIELD_W - 1.6, FIELD_W - 1]]) this.poly([[x - .05, y0], [x + .05, y0], [x + .05, y1], [x - .05, y1]], null); }
+      g.fillStyle = 'rgba(255,255,255,.7)'; g.fill();
+    } else for (let x = 11; x < 110; x++) { if (x % 5 === 0) continue; this.line(x, 22.9, x, 23.6, 'rgba(255,255,255,.7)', .8); this.line(x, 29.7, x, 30.4, 'rgba(255,255,255,.7)', .8); this.line(x, 1, x, 1.6, 'rgba(255,255,255,.7)', .8); this.line(x, FIELD_W - 1.6, x, FIELD_W - 1, 'rgba(255,255,255,.7)', .8); }
     for (let x = 20; x <= 100; x += 10) { const n = String(x <= 60 ? x - 10 : 110 - x); this.groundText(n, x, 9, 2.6, 'rgba(255,255,255,.9)', true); this.groundText(n, x, FIELD_W - 9, 2.6, 'rgba(255,255,255,.9)'); }
     // Logo al mig.
     this.groundText('VENTS', 60, C, 4.2, 'rgba(255,255,255,.18)');
-    // Pals.
-    this.drawPosts(0); this.drawPosts(120);
     // Línia de scrimmage i del primer down.
     if (this.cur && !['kickoff', 'pat', 'two'].includes(this.cur.play.kind)) {
       const p = this.cur.play, a = this.cur.anim;
       this.line(a.los, 0, a.los, FIELD_W, 'rgba(70,140,255,.95)', 2.2);
       if (p.dist && p.spot + p.dist < 100) { const fx = fieldX(p.spot + p.dist, a.dir); const g = this.ctx; g.save(); g.shadowColor = '#ffd400'; g.shadowBlur = 12; this.line(fx, 0, fx, FIELD_W, '#ffd400', 2.4); g.restore(); }
     }
+    // Pals (el de lluny primer).
+    const posts = [0, 120].sort((u, v) => camSpace(this.view, v, C)[2] - camSpace(this.view, u, C)[2]);
+    if (!sky) posts.forEach(x => this.drawPosts(x));
+    else this.skyPosts = posts;
   }
 
   drawPosts(x) {
     const g = this.ctx;
     const base = this.proj(x, C), bar = this.proj(x, C, 3.3);
     const l = this.proj(x, C - 3.08, 3.3), r = this.proj(x, C + 3.08, 3.3), lt = this.proj(x, C - 3.08, 11), rt = this.proj(x, C + 3.08, 11);
+    if (Math.min(base.d, l.d, r.d) < NEAR + .5) return;
     g.strokeStyle = '#f4d03f'; g.lineCap = 'round';
     g.lineWidth = .35 * base.s; g.beginPath(); g.moveTo(base.x, base.y); g.lineTo(bar.x, bar.y); g.stroke();
     g.lineWidth = .25 * base.s; g.beginPath(); g.moveTo(l.x, l.y); g.lineTo(r.x, r.y); g.moveTo(l.x, l.y); g.lineTo(lt.x, lt.y); g.moveTo(r.x, r.y); g.lineTo(rt.x, rt.y); g.stroke();
   }
 
-  drawPlay(a, b) {
-    const g = this.ctx, t = this.t;
-    const items = a.tracks.map((tr, i) => ({ tr, i, pos: tr.path(t) }));
-    // Lluny primer (la y petita és la banda de dalt, la més llunyana); en cas
-    // d'empat, sempre el mateix ordre, que si no parpellegen quan s'ajunten.
-    items.sort((u, v) => (u.pos.y - v.pos.y) || (u.i - v.i));
-    for (const it of items) this.drawPlayer(it.tr, it.pos, a);
-    if (b) {
-      const sh = this.proj(b.x, b.y), p = this.proj(b.x, b.y, b.z);
-      g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(sh.x, sh.y, .45 * sh.s, .18 * sh.s, 0, 0, Math.PI * 2); g.fill();
-      g.save(); g.translate(p.x, p.y); g.rotate(-.3 + t * 6);
-      g.fillStyle = '#7a3e14'; g.beginPath(); g.ellipse(0, 0, .42 * p.s, .26 * p.s, 0, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = '#fff'; g.lineWidth = .05 * p.s; g.beginPath(); g.moveTo(-.15 * p.s, 0); g.lineTo(.15 * p.s, 0); g.stroke();
-      g.restore();
-    }
+  drawBall(b, t) {
+    const g = this.ctx;
+    const sh = this.proj(b.x, b.y), p = this.proj(b.x, b.y, b.z);
+    if (p.d < NEAR + .5) return;
+    const flat = this.isSky() ? clamp(this.view.P[2] / Math.max(1, sh.d), .15, .8) : .4;
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(sh.x, sh.y, .45 * sh.s, .45 * flat * sh.s, 0, 0, Math.PI * 2); g.fill();
+    // Mida mínima perquè la pilota es vegi encara que vagi lluny.
+    const s = Math.max(p.s, 9 * this.dpr);
+    g.save(); g.translate(p.x, p.y); g.rotate(-.3 + t * 6);
+    g.fillStyle = '#7a3e14'; g.beginPath(); g.ellipse(0, 0, .42 * s, .26 * s, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = '#fff'; g.lineWidth = .05 * s; g.beginPath(); g.moveTo(-.15 * s, 0); g.lineTo(.15 * s, 0); g.stroke();
+    g.restore();
   }
 
-  // Un jugador de futbol americà vist des de la banda: cames que corren segons
-  // el que es mou, espatlleres, braços, casc amb reixa mirant cap on va i el
-  // dorsal. Placat o a terra, estirat.
+  drawPlay(a, b) {
+    const t = this.t, sky = this.isSky();
+    const items = a.tracks.map((tr, i) => { const pos = tr.path(t); return { tr, i, pos, d: camSpace(this.view, pos.x, pos.y, 1)[2] }; });
+    // Lluny primer; en cas d'empat, sempre el mateix ordre, que si no
+    // parpellegen quan s'ajunten.
+    items.sort((u, v) => (v.d - u.d) || (u.i - v.i));
+    // A la skycam la pilota i els pals entren a l'ordre de profunditat.
+    const extra = [];
+    // A la skycam, la pilota que porta sota el braç un jugador vist de cara o
+    // d'esquena ja la dibuixa el ninot.
+    let held = false;
+    if (sky && b && b.z < 1.4 && t > .2) {
+      const c = items.find(it => it.tr.carrier && it.tr.p.id === a.carrierId);
+      held = !!c && Math.hypot(c.pos.x - b.x, c.pos.y - b.y) < .5 && this.facing(c.tr, c.pos, a).front !== null;
+    }
+    if (b && !held) extra.push({ d: camSpace(this.view, b.x, b.y, b.z)[2] + (sky && b.z < 2 ? .3 : 0), draw: () => this.drawBall(b, t) });
+    if (sky && this.skyPosts) for (const x of this.skyPosts) extra.push({ d: camSpace(this.view, x, C, 0)[2], draw: () => this.drawPosts(x) });
+    if (!sky) {
+      for (const it of items) this.drawPlayer(it.tr, it.pos, a);
+      extra.forEach(e => e.draw());
+      return;
+    }
+    const all = items.map(it => ({ d: it.d, draw: () => { if (it.d > 3) this.drawPlayer(it.tr, it.pos, a); } })).concat(extra);
+    // La pilota per l'aire va per sobre dels que té a prop.
+    all.sort((u, v) => v.d - u.d);
+    all.forEach(e => e.draw());
+  }
+
+  // Cap on mira un jugador respecte de la càmera: face és el costat (±1) i
+  // front, a la skycam, si es veu de cara (true), d'esquena (false) o de costat (null).
+  facing(tr, pos, a) {
+    const ahead = tr.path(Math.min(1, this.t + .015));
+    const vx = ahead.x - pos.x, vy = ahead.y - pos.y;
+    const moving = (this.phase === 'run' || this.phase === 'replay') && Math.hypot(vx, vy) > .004;
+    const homeDir = tr.team === this.cur.play.off ? a.dir : -a.dir;
+    if (!this.isSky()) return { face: Math.abs(vx) > .002 ? Math.sign(vx) : homeDir, front: null, moving };
+    const sp = Math.hypot(vx, vy), v = this.view;
+    const hx = sp > .08 ? vx / sp : homeDir, hy = sp > .08 ? vy / sp : 0;
+    const fr = hx * v.r[0] + hy * v.r[1], ff = hx * v.f[0] + hy * v.f[1];
+    return { face: fr >= 0 ? 1 : -1, front: Math.abs(fr) < 1.5 * Math.abs(ff) ? ff < 0 : null, moving };
+  }
+
+  // Un jugador de futbol americà: cames que corren segons el que es mou,
+  // espatlleres, braços, casc amb reixa i el dorsal. A la tele es veu de
+  // costat; a la skycam, de costat, d'esquena (dorsal gros) o de cara (reixa).
   drawPlayer(tr, pos, a) {
     const g = this.ctx, team = this.match.teams[tr.team], pl = tr.p;
     const down = tr.downAt && this.t > tr.downAt;
@@ -475,13 +763,13 @@ export class FootballView {
     const pants = luminance(trim) > .55 ? trim : shade(jersey, .7);
     const helmet = shade(jersey, -.08), helmetEdge = shade(jersey, -.3);
     const skin = SKIN[hashStr(pl.id || pl.name || '') % SKIN.length];
-    const ahead = tr.path(Math.min(1, this.t + .015));
-    const vx = ahead.x - pos.x, vy = ahead.y - pos.y;
-    const moving = this.phase === 'run' && Math.hypot(vx, vy) > .004;
-    const face = Math.abs(vx) > .002 ? Math.sign(vx) : (tr.team === this.cur.play.off ? a.dir : -a.dir);
+    const { face, front, moving } = this.facing(tr, pos, a);
+    const sky = this.isSky();
     g.lineCap = 'round'; g.lineJoin = 'round';
-    // Ombra.
-    g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(p.x, p.y, (down || tackled ? 1 : .55) * s, .2 * s, 0, 0, Math.PI * 2); g.fill();
+    // Ombra (a la skycam el terra s'aixafa segons l'alçada de la càmera).
+    const flat = sky ? clamp(this.view.P[2] / Math.max(1, p.d), .15, .45) : .36;
+    const shw = (down || tackled ? 1 : .55) * s;
+    g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(p.x, p.y, shw, Math.max(.2 * s * flat / .36, 1), 0, 0, Math.PI * 2); g.fill();
     if (s < 3) { g.fillStyle = jersey; g.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
     if (down || tackled) {
       // Estirat a terra: el cos de costat i el casc al davant.
@@ -496,6 +784,12 @@ export class FootballView {
     const phase = (pos.x * 1.9 + pos.y * 1.3);
     const sw = moving ? Math.sin(phase) : 0, bob = moving ? Math.abs(Math.cos(phase)) * .06 * s : 0;
     const hipY = p.y - .9 * s - bob, shY = p.y - 1.55 * s - bob, headY = p.y - 1.86 * s - bob;
+    const carrying = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id && this.t > .2;
+    if (front !== null) {
+      this.drawPlayerFacing(p, s, { front, face, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl });
+      this.drawLabel(tr, pl, p, s, headY - .5 * s);
+      return;
+    }
     const lean = moving ? face * .1 * s : 0;
     // Cames: cuixa amb el pantaló, mitjó del color de l'equip, bota.
     for (const k of [-1, 1]) {
@@ -515,7 +809,6 @@ export class FootballView {
       g.strokeStyle = shade(jersey, -.1); g.lineWidth = .16 * s; g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(elbow.x, elbow.y); g.stroke();
       g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
     };
-    const carrying = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id && this.t > .2;
     arm(-face, false);
     // Tors: samarreta amb espatlleres, més ample a dalt.
     const tw = .82 * s, ww = .5 * s;
@@ -550,11 +843,78 @@ export class FootballView {
     this.drawLabel(tr, pl, p, s, headY - .5 * s);
   }
 
+  // El mateix ninot vist de cara (reixa del casc, dorsal al pit) o d'esquena
+  // (dorsal gros a l'esquena, ratlla del casc pel mig).
+  drawPlayerFacing(p, s, o) {
+    const g = this.ctx, { front, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl } = o;
+    // Cames: la que puja s'escurça (el peu s'aixeca cap a la càmera o lluny).
+    for (const k of [-1, 1]) {
+      const lift = moving ? Math.max(0, sw * k) : 0;
+      const hip = { x: p.x + k * .13 * s, y: hipY };
+      const foot = { x: p.x + k * .17 * s, y: p.y - lift * .2 * s };
+      const knee = { x: p.x + k * .17 * s, y: lerp(hipY, foot.y, .48) - lift * .1 * s };
+      g.strokeStyle = pants; g.lineWidth = .22 * s; g.beginPath(); g.moveTo(hip.x, hip.y); g.lineTo(knee.x, knee.y); g.stroke();
+      g.strokeStyle = shade(jersey, -.2); g.lineWidth = .16 * s; g.beginPath(); g.moveTo(knee.x, knee.y); g.lineTo(foot.x, foot.y); g.stroke();
+      g.fillStyle = lift > .3 && !front ? '#3a3a40' : '#16161a'; g.beginPath(); g.ellipse(foot.x, foot.y, .1 * s, .07 * s, 0, 0, Math.PI * 2); g.fill();
+    }
+    const tw = 1.0 * s, ww = .58 * s;
+    // Braços a banda i banda (el que porta la pilota, plegat).
+    const arm = (k, carry) => {
+      const sh = { x: p.x + k * (tw / 2 - .04 * s), y: shY + .1 * s };
+      const swing = moving ? sw * k : 0;
+      const hand = carry ? { x: p.x + k * .2 * s, y: shY + .45 * s } : { x: p.x + k * (.5 + Math.max(0, swing) * .06) * s, y: shY + (.62 - Math.max(0, swing) * .2) * s };
+      const elbow = carry ? { x: p.x + k * .52 * s, y: shY + .42 * s } : { x: p.x + k * .55 * s, y: lerp(sh.y, hand.y, .5) };
+      g.strokeStyle = shade(jersey, -.15); g.lineWidth = .17 * s; g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(elbow.x, elbow.y); g.stroke();
+      g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
+    };
+    // Tors.
+    const body = g.createLinearGradient(p.x - tw / 2, 0, p.x + tw / 2, 0);
+    body.addColorStop(0, shade(jersey, -.35)); body.addColorStop(.5, jersey); body.addColorStop(1, shade(jersey, -.35));
+    g.fillStyle = body; g.strokeStyle = shade(jersey, -.5); g.lineWidth = .03 * s;
+    g.beginPath(); g.moveTo(p.x - tw / 2, shY); g.lineTo(p.x + tw / 2, shY); g.lineTo(p.x + ww / 2, hipY + .05 * s); g.lineTo(p.x - ww / 2, hipY + .05 * s); g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = shade(jersey, .12); g.beginPath(); g.ellipse(p.x, shY + .02 * s, tw / 2 + .05 * s, .14 * s, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = trim; g.fillRect(p.x - tw / 2 - .04 * s, shY + .02 * s, .12 * s, .07 * s); g.fillRect(p.x + tw / 2 - .08 * s, shY + .02 * s, .12 * s, .07 * s);
+    if (s > 6) {
+      const big = !front, ny = lerp(shY, hipY, big ? .52 : .45);
+      g.font = `900 ${(big ? .46 : .3) * s}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = .06 * s; g.strokeStyle = shade(jersey, -.55); g.strokeText(String(pl.number || ''), p.x, ny);
+      g.fillStyle = trim; g.fillText(String(pl.number || ''), p.x, ny);
+      // D'esquena, el nom a sobre del dorsal.
+      if (big && s > 22) { g.font = `800 ${.12 * s}px "Segoe UI", system-ui, sans-serif`; g.fillText(String(pl.name || '').toUpperCase().slice(0, 12), p.x, shY + .2 * s); }
+    }
+    if (carrying) {
+      // La pilota sota el braç.
+      g.fillStyle = '#7a3e14'; g.beginPath(); g.ellipse(p.x + .22 * s, shY + .42 * s, .2 * s, .13 * s, -.4, 0, Math.PI * 2); g.fill();
+    }
+    arm(-1, false); arm(1, carrying);
+    // Coll i casc.
+    g.fillStyle = front ? skin : shade(skin, -.15); g.fillRect(p.x - .09 * s, headY + .12 * s, .18 * s, .16 * s);
+    g.fillStyle = helmet; g.strokeStyle = helmetEdge; g.lineWidth = .03 * s; g.beginPath(); g.ellipse(p.x, headY, .27 * s, .26 * s, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    const shine = g.createRadialGradient(p.x - .09 * s, headY - .11 * s, 0, p.x, headY, .3 * s);
+    shine.addColorStop(0, 'rgba(255,255,255,.55)'); shine.addColorStop(.4, 'rgba(255,255,255,0)');
+    g.fillStyle = shine; g.beginPath(); g.ellipse(p.x, headY, .27 * s, .26 * s, 0, 0, Math.PI * 2); g.fill();
+    if (front) {
+      // Obertura de la cara i reixa.
+      g.fillStyle = '#1a1310'; g.beginPath(); g.ellipse(p.x, headY + .07 * s, .17 * s, .13 * s, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = skin; g.beginPath(); g.ellipse(p.x, headY + .09 * s, .1 * s, .08 * s, 0, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = '#c9ccd2'; g.lineWidth = .035 * s; g.beginPath();
+      g.moveTo(p.x - .19 * s, headY + .03 * s); g.lineTo(p.x + .19 * s, headY + .03 * s);
+      g.moveTo(p.x - .16 * s, headY + .13 * s); g.lineTo(p.x + .16 * s, headY + .13 * s);
+      g.moveTo(p.x, headY + .03 * s); g.lineTo(p.x, headY + .2 * s);
+      g.moveTo(p.x - .19 * s, headY + .03 * s); g.lineTo(p.x - .12 * s, headY + .19 * s);
+      g.moveTo(p.x + .19 * s, headY + .03 * s); g.lineTo(p.x + .12 * s, headY + .19 * s); g.stroke();
+      g.strokeStyle = trim; g.lineWidth = .06 * s; g.beginPath(); g.moveTo(p.x, headY - .25 * s); g.lineTo(p.x, headY - .1 * s); g.stroke();
+    } else {
+      g.strokeStyle = trim; g.lineWidth = .07 * s; g.beginPath(); g.moveTo(p.x, headY - .25 * s); g.lineTo(p.x, headY + .2 * s); g.stroke();
+    }
+    if (pl.wind) { g.fillStyle = pl.color || '#fff'; g.beginPath(); g.arc(p.x + .17 * s, headY - .04 * s, .07 * s, 0, Math.PI * 2); g.fill(); }
+  }
+
   drawLabel(tr, pl, p, s, ly) {
     const g = this.ctx;
     const isCarrier = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id;
     if (!isCarrier && !(pl.wind && s > 9)) return;
-    g.font = `700 ${Math.max(10 * this.dpr, .34 * s)}px "Segoe UI", system-ui, sans-serif`;
+    g.font = `700 ${Math.max(10 * this.dpr, Math.min(.34 * s, 16 * this.dpr))}px "Segoe UI", system-ui, sans-serif`;
     const tw = g.measureText(pl.name).width + 8 * this.dpr;
     g.fillStyle = isCarrier ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.45)';
     g.beginPath(); g.roundRect(p.x - tw / 2, ly - 9 * this.dpr, tw, 18 * this.dpr, 9 * this.dpr); g.fill();
@@ -567,8 +927,48 @@ export class FootballView {
     for (const q of this.particles) {
       q.vz -= 20 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.z = Math.max(0, q.z + q.vz * dt);
       const p = this.proj(q.x, clamp(q.y, -3, FIELD_W + 3), q.z);
+      if (p.d < NEAR + .5) continue;
       g.fillStyle = q.c; g.globalAlpha = Math.min(1, q.life); g.fillRect(p.x, p.y, .25 * p.s, .4 * p.s); g.globalAlpha = 1;
     }
+  }
+
+  // Tall de càmera: flaix blanc; repetició: cortina en diagonal amb «REPLAY».
+  drawCutFx() {
+    if (!this.fx) return;
+    const g = this.ctx, W = this.W, H = this.H, d = this.dpr;
+    const age = (performance.now() - this.fx.t0) / 1000;
+    if (this.fx.kind === 'replay') {
+      const k = age / .6;
+      if (k >= 1) { this.fx = null; return; }
+      const team = this.cur ? this.match.teams[this.cur.play.off] : null;
+      const cx = lerp(-.4 * W, 1.4 * W, ease(k)), bw = W * .45, sl = H * .35;
+      g.save();
+      g.fillStyle = team ? team.color : '#1E5BD8';
+      g.beginPath(); g.moveTo(cx - bw / 2 + sl, 0); g.lineTo(cx + bw / 2 + sl, 0); g.lineTo(cx + bw / 2 - sl, H); g.lineTo(cx - bw / 2 - sl, H); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.9)';
+      g.beginPath(); g.moveTo(cx + bw / 2 + sl, 0); g.lineTo(cx + bw / 2 + sl + 10 * d, 0); g.lineTo(cx + bw / 2 - sl + 10 * d, H); g.lineTo(cx + bw / 2 - sl, H); g.closePath(); g.fill();
+      g.fillStyle = (team && team.color2) || '#fff'; g.font = `900 italic ${Math.min(64 * d, W * .08)}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('REPLAY', cx, H / 2);
+      g.restore();
+      return;
+    }
+    const k = age / .28;
+    if (k >= 1) { this.fx = null; return; }
+    g.fillStyle = `rgba(255,255,255,${(.75 * (1 - k)).toFixed(3)})`; g.fillRect(0, 0, W, H);
+  }
+
+  // Etiqueta de la càmera a la cantonada (SKYCAM / REPLAY).
+  drawCamTag() {
+    const replay = this.phase === 'replay';
+    if (!replay && !this.isSky()) return;
+    const g = this.ctx, d = this.dpr;
+    const text = replay ? (this.isSky() ? 'REPLAY · SKYCAM' : 'REPLAY') : 'SKYCAM';
+    g.font = `800 ${11 * d}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'left'; g.textBaseline = 'middle';
+    const w = g.measureText(text).width + 30 * d, x = 12 * d, y = 58 * d, h = 22 * d;
+    g.fillStyle = 'rgba(8,10,20,.78)'; g.beginPath(); g.roundRect(x, y, w, h, 6 * d); g.fill();
+    const on = !replay || (performance.now() / 500 | 0) % 2 === 0;
+    g.fillStyle = replay ? (on ? '#ff3b3b' : 'rgba(255,59,59,.3)') : '#ffd400'; g.beginPath(); g.arc(x + 11 * d, y + h / 2, 4 * d, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff'; g.fillText(text, x + 20 * d, y + h / 2 + .5 * d);
   }
 
   drawCenterText(text) {
@@ -578,7 +978,8 @@ export class FootballView {
   drawHUD() {
     const g = this.ctx, W = this.W, d = this.dpr, m = this.match, T = this.T;
     const p = this.cur ? this.cur.play : this.shown();
-    const score = this.phase === 'post' || !this.cur ? (p ? p.score : [0, 0]) : (this.queue[this.idx - 2] || { score: [0, 0] }).score;
+    const after = this.phase === 'post' || this.phase === 'replay' || !this.cur;
+    const score = after ? (p ? p.score : [0, 0]) : (this.queue[this.idx - 2] || { score: [0, 0] }).score;
     // Marcador.
     const bw = Math.min(W - 20 * d, 560 * d), bh = 40 * d, bx = (W - bw) / 2, by = 10 * d;
     g.fillStyle = 'rgba(8,10,20,.82)'; g.beginPath(); g.roundRect(bx, by, bw, bh, 10 * d); g.fill();
@@ -602,7 +1003,7 @@ export class FootballView {
       const age = (performance.now() - this.banner.t0) / 1000;
       const k = Math.min(1, age * 4);
       const fs = 46 * d * (.6 + .4 * easeOut(k));
-      g.save(); g.globalAlpha = Math.min(1, 3 - age);
+      g.save(); g.globalAlpha = Math.max(0, Math.min(1, 3 - age));
       g.font = `900 italic ${fs}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
       const tw = g.measureText(this.banner.text).width + 60 * d;
       const y = this.H * .42;
@@ -610,8 +1011,9 @@ export class FootballView {
       g.fillStyle = this.banner.color2 || '#fff'; g.fillText(this.banner.text, W / 2, y + 2 * d);
       g.restore();
     }
-    // Text de la jugada i comentari.
-    if (p && (this.phase === 'post' || !this.cur)) {
+    // Text de la jugada i comentari (no tapa la repetició ni el moment d'abans).
+    const replayPending = this.cur && this.cur.shots.replay && !this.cur.replayed;
+    if (p && ((this.phase === 'post' && !replayPending) || !this.cur)) {
       const lines = [p.text]; if (p.comment) lines.push('🎙 ' + (m.commentator ? m.commentator + ': ' : '') + p.comment);
       g.font = `600 ${13 * d}px "Segoe UI", system-ui, sans-serif`;
       const maxW = Math.min(W - 24 * d, 760 * d);

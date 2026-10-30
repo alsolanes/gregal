@@ -22,6 +22,15 @@ const (
 
 var formSigma = 0.55
 
+// duelK: com pesa la diferència d'equip (arma, armilla) a cada duel.
+const duelK = 3.2
+
+// Contra un rival sense armilla / sense casc, cada bala val més.
+const noArmorK, noHelmetK = 1.18, 1.08
+
+// L'AWP: molt fort en duels llargs (sense fums), una mica millor que un rifle de prop.
+const awpLong, awpShort = 0.18, 0.02
+
 type wpt struct{ t, x, y float64 }
 
 type unit struct {
@@ -115,9 +124,13 @@ type rnd struct {
 	posts               map[string]int
 	tAWP, ctAWP         bool
 	form                float64 // forma del dia: soroll comú a tots els duels de la ronda
+	edge                float64 // avantatge del pla T contra la configuració CT (taula planEdge)
 }
 
 func (r *rnd) emit(t float64, kind, text string, hl bool, data map[string]any) {
+	if r.m.quiet && kind != "defuse" {
+		return
+	}
 	if data == nil {
 		data = map[string]any{}
 	}
@@ -180,6 +193,9 @@ func (r *rnd) moveTo(u *unit, route []string, t0, speed float64, final *[2]float
 	}
 	to := route[len(route)-1]
 	u.zone = to
+	if r.m.quiet {
+		return t
+	}
 	r.emit(t0, "move", r.tx.move(u.p.Handle, zoneByID[to].Name), false, map[string]any{
 		"id": u.p.ID, "team": r.teamOf(u), "path": route, "pts": pp, "dur": round1(t - t0), "to": to,
 	})
@@ -192,13 +208,15 @@ func power(w weapon, armor int, long bool) float64 {
 	p := w.Power
 	if w.Class == "awp" {
 		if long {
-			p += 0.12
+			p += awpLong
 		} else {
-			p -= 0.12
+			p += awpShort
 		}
 	}
 	if armor == 0 && w.Class != "awp" {
-		p *= 1.1
+		p *= noArmorK
+	} else if armor == 1 && w.Class != "awp" {
+		p *= noHelmetK
 	}
 	if armor == 2 && w.Class == "pistol" && w.ID != "deagle" {
 		p *= 0.86
@@ -242,7 +260,7 @@ func (r *rnd) strength(u *unit, foe *unit, long bool) float64 {
 // duel: t (T) contra c (CT); mod a favor del T. Torna el guanyador.
 func (r *rnd) duel(t, c *unit, mod float64, at float64, long bool, zoneID string, smoke bool) *unit {
 	st, sc := r.strength(t, c, long), r.strength(c, t, long)
-	lg := 3.2*(st-sc) + mod + r.form
+	lg := duelK*(st-sc) + mod + r.form + r.edge
 	p := 1 / (1 + math.Exp(-lg))
 	w, l := c, t
 	if r.r.Float64() < p {
@@ -275,11 +293,13 @@ func (r *rnd) kill(k, v *unit, at float64, zoneID string, smoke bool) {
 	vx, vy := v.pos(at)
 	kt, vt := r.teamOf(k), r.teamOf(v)
 	hl := k.kills == 5
-	r.emit(at, "kill", r.tx.kill(k.p.Handle, v.p.Handle, w.Name, hs), hl, map[string]any{
-		"killer": k.p.ID, "victim": v.p.ID, "kteam": kt, "vteam": vt, "weapon": w.ID, "weaponName": w.Name, "hs": hs,
-		"smoke": smoke, "first": first, "kx": round1(kx), "ky": round1(ky), "vx": round1(vx), "vy": round1(vy), "zone": zoneID,
-		"multi": k.kills,
-	})
+	if !r.m.quiet {
+		r.emit(at, "kill", r.tx.kill(k.p.Handle, v.p.Handle, w.Name, hs), hl, map[string]any{
+			"killer": k.p.ID, "victim": v.p.ID, "kteam": kt, "vteam": vt, "weapon": w.ID, "weaponName": w.Name, "hs": hs,
+			"smoke": smoke, "first": first, "kx": round1(kx), "ky": round1(ky), "vx": round1(vx), "vy": round1(vy), "zone": zoneID,
+			"multi": k.kills,
+		})
+	}
 	// Clutch: qui es queda sol contra 2 o més.
 	for _, s := range []int{sideT, sideCT} {
 		mine, other := r.T, r.CT
@@ -302,6 +322,9 @@ func (r *rnd) throw(u *unit, kind, zoneID string, at float64) {
 	if kind == "molotov" && (zoneID == "a_site" || zoneID == "b_site") {
 		x, y = plantSpot[zoneByID[zoneID].Site][0]+(r.r.Float64()-0.5)*6, plantSpot[zoneByID[zoneID].Site][1]+(r.r.Float64()-0.5)*4
 	}
+	if r.m.quiet {
+		return
+	}
 	ux, uy := u.pos(at)
 	dur := map[string]float64{"smoke": 18, "molotov": 7, "flash": 1.5, "he": 1}[kind]
 	r.emit(at, "utility", r.tx.util(u.p.Handle, kind, zoneByID[zoneID].Name), false, map[string]any{
@@ -310,6 +333,39 @@ func (r *rnd) throw(u *unit, kind, zoneID string, at float64) {
 }
 
 // ---- configuració CT i pla T ----
+
+// planEdge: avantatge (logit per duel, a favor del T) de cada estratègia T
+// contra cada configuració CT, a més del que ja fa la simulació (quants CT
+// defensen el lloc, rotacions, utilitat). Calibrat perquè la taula de la
+// rules (rondes guanyades amb compra completa) sigui la que dona el motor.
+var planEdge = [9][6]float64{
+	{-0.43, -0.03, -0.16, 0.07, -0.20, -0.68}, // rush_a
+	{-0.50, -0.12, 0.02, 0.16, -0.63, -0.21},  // rush_b
+	{0.17, -0.30, 0.07, -0.36, -0.07, 0.20},   // execute_a
+	{0.11, 0.10, -0.30, -0.34, 0.20, -0.07},   // execute_b
+	{-0.03, -0.38, -0.01, -0.60, -0.13, 0.10}, // split_a
+	{-0.08, -0.05, -0.37, -0.61, 0.07, -0.12}, // split_b
+	{-0.06, 0.37, 0.26, -0.42, 0.17, 0.19},    // default_mid
+	{-0.01, 0.16, -0.39, -0.24, 0.11, -0.07},  // fake_a_go_b
+	{0.05, -0.43, 0.21, -0.24, -0.08, 0.08},   // fake_b_go_a
+}
+
+func edgeOf(strat, setup string) float64 {
+	i, j := indexOf(stratVals, strat), indexOf(setupVals, setup)
+	if i < 0 || j < 0 {
+		return 0
+	}
+	return planEdge[i][j]
+}
+
+func indexOf(xs []string, s string) int {
+	for i, x := range xs {
+		if x == s {
+			return i
+		}
+	}
+	return -1
+}
 
 type post struct{ zone, group string }
 
@@ -327,7 +383,20 @@ var ctRoleOrder = [5]int{2, 3, 1, 0, 4} // índex de post -> slot (Entry, Suppor
 
 var tAvoid = map[string]bool{"ct": true, "ct_spawn": true, "market": true, "window": true}
 
-func tPath(from, to string) []string {
+// tPath: camí T precalculat (és una funció pura de from/to).
+func tPath(from, to string) []string { return tPathTable[[2]string{from, to}] }
+
+var tPathTable = func() map[[2]string][]string {
+	out := map[[2]string][]string{}
+	for _, a := range zones {
+		for _, b := range zones {
+			out[[2]string{a.ID, b.ID}] = tPathCalc(a.ID, b.ID)
+		}
+	}
+	return out
+}()
+
+func tPathCalc(from, to string) []string {
 	if from == to {
 		return []string{to}
 	}
@@ -383,7 +452,19 @@ func tPath(from, to string) []string {
 
 var ctAvoid = map[string]bool{"t_spawn": true, "a_main": true, "palace": true, "b_apps": true, "top_mid": true}
 
-func ctPath(from, to string) []string {
+func ctPath(from, to string) []string { return ctPathTable[[2]string{from, to}] }
+
+var ctPathTable = func() map[[2]string][]string {
+	out := map[[2]string][]string{}
+	for _, a := range zones {
+		for _, b := range zones {
+			out[[2]string{a.ID, b.ID}] = ctPathCalc(a.ID, b.ID)
+		}
+	}
+	return out
+}()
+
+func ctPathCalc(from, to string) []string {
 	p := path(from, to)
 	for _, z := range p[1:] {
 		if ctAvoid[z] && z != to {
@@ -391,7 +472,7 @@ func ctPath(from, to string) []string {
 			a := path(from, "ct_spawn")
 			b := path("ct_spawn", to)
 			if len(a) > 0 && len(b) > 0 {
-				return append(a, b[1:]...)
+				return append(append([]string(nil), a...), b[1:]...)
 			}
 		}
 	}
@@ -465,6 +546,20 @@ func (m *Match) playRound(td tDec, cd ctDec) []arena.Event {
 		r.CT = append(r.CT, &unit{p: p, side: sideCT, alive: true, zone: "ct_spawn", wp: []wpt{{0, x, y}}, idx: i})
 	}
 	r.carrier = r.T[r.r.Intn(4)]
+	if !m.quiet {
+		r.startEvents(td, cd, tBuy, cBuy, tObs, cObs, pistol)
+	}
+	r.tAWP = hasAWP(r.T)
+	r.ctAWP = hasAWP(r.CT)
+
+	r.simulate()
+	return m.finishRound(r, tObs, cObs)
+}
+
+// startEvents: els esdeveniments d'inici de ronda i de compra (no en mode quiet).
+func (r *rnd) startEvents(td tDec, cd ctDec, tBuy, cBuy []buyItem, tObs, cObs string, pistol bool) {
+	m := r.m
+	ct := 1 - r.tTeam
 	var pl []map[string]any
 	for _, u := range r.units() {
 		pl = append(pl, map[string]any{"id": u.p.ID, "team": r.teamOf(u), "side": sideName(u.side), "x": round1(u.wp[0].x), "y": round1(u.wp[0].y),
@@ -494,11 +589,6 @@ func (m *Match) playRound(td tDec, cd ctDec) []arena.Event {
 			"total": teamMoney(m.teamPlayers(b.team)),
 		})
 	}
-	r.tAWP = hasAWP(r.T)
-	r.ctAWP = hasAWP(r.CT)
-
-	r.simulate()
-	return m.finishRound(r, tObs, cObs)
 }
 
 func hasAWP(us []*unit) bool {
@@ -538,6 +628,7 @@ func (r *rnd) rng() float64 { return r.r.Float64() }
 
 func (r *rnd) simulate() {
 	r.form = r.r.NormFloat64() * formSigma
+	r.edge = edgeOf(r.td.Strategy, r.cd.Setup)
 	td, cd := r.td, r.cd
 	speedT := runSpeed
 	if td.Pace == "slow" {
@@ -679,7 +770,10 @@ func (r *rnd) simulate() {
 	}
 
 	// Execució: arribada de cada T al lloc.
-	utilK := map[string]float64{"fast": 0.75, "default": 1, "slow": 1.1}[td.Pace]
+	paceUtil := map[string]float64{"fast": 0.75, "default": 1, "slow": 1.1}[td.Pace]
+	if rush {
+		paceUtil = 1 // les rushes sempre van a tota velocitat: el ritme no hi compta
+	}
 	stratK := 1.0
 	switch {
 	case rush:
@@ -761,14 +855,14 @@ func (r *rnd) simulate() {
 	if len(hitters) > 0 {
 		u *= ua / float64(len(hitters))
 	}
-	r.U = 0.55 * (1 - math.Exp(-u*utilK*stratK/0.6))
+	r.U = 0.55 * (1 - math.Exp(-u*paceUtil*stratK/0.6))
 	// Arribada sincronitzada: cadascú surt a temps d'entrar alhora.
 	routes := map[*unit][]string{}
 	travel := map[*unit]float64{}
 	maxTr := 0.0
 	for _, h := range hitters {
 		if rush {
-			routes[h] = append(tPath("t_spawn", h.stage), tPath(h.stage, sz)[1:]...)
+			routes[h] = append(append([]string(nil), tPath("t_spawn", h.stage)...), tPath(h.stage, sz)[1:]...)
 		} else {
 			routes[h] = tPath(h.zone, sz)
 		}
@@ -1439,16 +1533,18 @@ func (m *Match) finishRound(r *rnd, tObs, cObs string) []arena.Event {
 		tags = append(tags, "ninja")
 		hl = true
 	}
-	var money []map[string]any
-	for _, u := range r.units() {
-		money = append(money, map[string]any{"id": u.p.ID, "money": u.p.Money, "alive": u.alive, "kills": u.kills})
+	if !m.quiet {
+		var money []map[string]any
+		for _, u := range r.units() {
+			money = append(money, map[string]any{"id": u.p.ID, "money": u.p.Money, "alive": u.alive, "kills": u.kills})
+		}
+		clutchN := r.clutch[winSide]
+		r.emit(r.endT+0.01, "round_end", r.tx.roundEnd(m.names[win], r.reason, tags, clutchN), hl, map[string]any{
+			"round": r.num, "winner": win, "side": sideName(winSide), "reason": r.reason, "mvp": mvp.p.ID, "tags": tags,
+			"score": m.score, "players": money, "money": [2]int{teamMoney(m.teamPlayers(0)), teamMoney(m.teamPlayers(1))},
+			"site": r.site, "planted": r.planted, "clutch": clutchN, "lossBonus": [2]int{lossBonus(m.lossLvl[0]), lossBonus(m.lossLvl[1])},
+		})
 	}
-	clutchN := r.clutch[winSide]
-	r.emit(r.endT+0.01, "round_end", r.tx.roundEnd(m.names[win], r.reason, tags, clutchN), hl, map[string]any{
-		"round": r.num, "winner": win, "side": sideName(winSide), "reason": r.reason, "mvp": mvp.p.ID, "tags": tags,
-		"score": m.score, "players": money, "money": [2]int{teamMoney(m.teamPlayers(0)), teamMoney(m.teamPlayers(1))},
-		"site": r.site, "planted": r.planted, "clutch": clutchN, "lossBonus": [2]int{lossBonus(m.lossLvl[0]), lossBonus(m.lossLvl[1])},
-	})
 	// Historial.
 	posts := map[string]int{}
 	for k, v := range r.posts {
@@ -1461,6 +1557,9 @@ func (m *Match) finishRound(r *rnd, tObs, cObs string) []arena.Event {
 	kills := [2]int{}
 	for _, u := range r.units() {
 		kills[r.teamOf(u)] += u.kills
+	}
+	if r.num == 1 || r.num == 13 {
+		tObs, cObs = "pistol", "pistol"
 	}
 	m.hist = append(m.hist, roundRec{Round: r.num, TTeam: r.tTeam, T: r.td, CT: r.cd, TObs: tObs, CTObs: cObs, Site: site, Planted: r.planted,
 		Winner: win, Reason: r.reason, TSmokes: r.tSm, TFlashes: r.tFl, TMollies: r.tMo, CTNades: r.ctNd, CTPosts: posts, TAWP: r.tAWP, CTAWP: r.ctAWP, Kills: kills})
@@ -1521,6 +1620,9 @@ func (m *Match) endData() map[string]any {
 }
 
 func (m *Match) toEvents(r *rnd) []arena.Event {
+	if m.quiet {
+		return nil
+	}
 	kept := r.evs[:0]
 	for _, e := range r.evs {
 		if e.t <= r.endT+0.02 || e.kind == "half" || e.kind == "match_end" {

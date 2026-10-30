@@ -542,6 +542,21 @@ Gregal server.
   it to Teams, YouTube or Twitch, add it in OBS as a Browser source at
   1920×1080 with “Control audio via OBS”, or just share the browser tab with
   its sound.
+- **Does it follow my .md?** Each decision shows ✓ when the rule the model
+  quotes really is in the `.md` (the server checks it), or ⚠ when it improvised
+  or fell back to the default; each match shows how often each team followed
+  its `.md`. Click a decision to see exactly what the model saw. A low share
+  means the `.md` doesn't cover that situation: add a rule for it.
+- **Cameras.** Football alternates the sideline camera and a skycam behind the
+  offense, with replays; CS2 cuts to the player's view for duels, plants and
+  defuses; LoL zooms into fights and objectives.
+- **TV mode.** Open any match and press 📺 TV mode: the same broadcast for that
+  one match, full screen, with each team's latest call and the rule of its
+  `.md` under its name. Esc closes it.
+- **Fairness.** Playoffs are best of 3 with sides swapped. An official game in
+  which the model could not decide for one side more than 10% of the time does
+  not count and is replayed. A competition plays every game with the model it
+  started with. All games, narration and reports are in English.
 - **The narrators' voice.** Free and on your own machine: **Piper** runs on the
   CPU with no keys; Install the voices downloads it once (about 113 MB for
   Catalan, 206 MB for English) from its official releases. For a more
