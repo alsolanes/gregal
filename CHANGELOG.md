@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.32.0 - 2026-10-30 - Plugins, moments del prompt i vídeos
+
 - **Arena, Games and Corner are now plugins.** They are optional features that the server administrator can turn on or off in Preferences → Plugins (all on by default). A disabled plugin disappears from the sidebar and the phone's home screen, its API answers 404 and its background work stops; turning it back on resumes it without restarting. New `GET/POST /api/plugins`.
 - **Preferences, reorganised.** Options are grouped (General, Appearance, Models & agent, Plugins, Extras, Integrations, Advanced) with a short description under each heading, an index on the left and a search box that filters as you type. Every existing option is still there.
 - **Arena: you hear the narrator.** Sound is on by default in the broadcast and TV mode (it only stays off if you mute it), and if you already use the free local voices (Piper) the English ones are downloaded automatically the first time the games need them, with progress shown in the Arena.
