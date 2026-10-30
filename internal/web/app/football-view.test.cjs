@@ -44,6 +44,9 @@ test('every kind of play builds an animation with sane positions', async () => {
         }
         const b = anim.ball(t);
         if (b) assert.ok(Number.isFinite(b.x) && Number.isFinite(b.z) && b.z >= 0, `${p.kind} ball at ${t}`);
+        // El mateix instant dona sempre el mateix lloc: si no, els ninots tremolen.
+        for (const tr of anim.tracks) assert.deepEqual(tr.path(t), tr.path(t), `${p.kind} ${tr.p.id} jitters at ${t}`);
+        if (b) assert.deepEqual(anim.ball(t), b, `${p.kind} ball jitters at ${t}`);
       }
     }
   });

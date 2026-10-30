@@ -20,6 +20,8 @@ function rng(seed) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 
 
 function hexToRgb(h) { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return [120, 120, 120]; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
 function shade(h, f) { const [r, g, b] = hexToRgb(h); const k = v => clamp(Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f), 0, 255); return `rgb(${k(r)},${k(g)},${k(b)})`; }
+const SKIN = ['#f1c7a5', '#d9a47e', '#b77b52', '#8d5a3b', '#6b4329', '#e8b893'];
+function hashStr(v) { let h = 0; for (const c of String(v)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return h; }
 function luminance(h) { const [r, g, b] = hexToRgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 
 export const TEXT = {
@@ -106,8 +108,9 @@ export function buildPlay(play, match) {
       ball = t => { const k = seg(t, .05, .75); return { x: lerp(kx, recvX - dir * 2, k), y: C, z: 0.5 + 11 * Math.sin(Math.PI * k) }; };
       dur = 3.2;
     } else {
-      const catchX = fieldX(3, dir);
-      add(ret, play.off, t => t < .55 ? { x: catchX, y: C } : towards(catchX, C, retEnd, C + (R() * 10 - 5), .55, .97, easeOut)(t));
+      const catchX = fieldX(3, dir), retY = C + (R() * 10 - 5);
+      const retPath = towards(catchX, C, retEnd, retY, .55, .97, easeOut);
+      add(ret, play.off, t => t < .55 ? { x: catchX, y: C } : retPath(t));
       ball = t => { if (t < .55) { const k = seg(t, .05, .55); return { x: lerp(kx, catchX, k), y: C, z: 0.5 + 12 * Math.sin(Math.PI * k) }; } const q = tracks.find(tr => tr.p.id === ret.id).path(t); return { x: q.x, y: q.y, z: 1.1 }; };
       carrierId = ret.id;
       dur = 5.2;
@@ -180,7 +183,7 @@ export function buildPlay(play, match) {
     ball = t => { const c = t < .2 && carrier !== qb ? { x: lerp(px(qb.dx), carrierPath(t).x, seg(t, .1, .2)), y: lerp(C, carrierPath(t).y, seg(t, .1, .2)) } : carrierPath(t); return { x: c.x, y: c.y, z: 1.1 }; };
     offA.filter(a => !['OL', 'QB'].includes(a.p.pos) && a.p.id !== carrier.p.id).forEach(a => add(a.p, play.off, towards(px(a.dx), a.y, dxF(5 + R() * 4), a.y + (C - a.y) * .2, .12, .8)));
   } else if (kind === 'sack') {
-    const qbPath = t => towards(px(qb.dx), C, px(qb.dx + 2.5), C + (R() - .5), .1, .45)(t);
+    const qbPath = towards(px(qb.dx), C, px(qb.dx + 2.5), C + (R() - .5), .1, .45);
     add(qb.p, play.off, qbPath, { downAt: .62, carrier: true });
     carrierId = qb.p.id;
     ball = t => { const q = qbPath(t); return { x: q.x, y: q.y, z: t > .62 ? .4 : 1.3 }; };
@@ -196,11 +199,9 @@ export function buildPlay(play, match) {
     const dropX = px(qb.dx + (play.detail === 'deep' ? 3 : 1.5));
     add(qb.p, play.off, towards(px(qb.dx), C, dropX, C, .08, .35));
     const tThrow = play.detail === 'deep' ? .5 : .4, tCatch = play.detail === 'deep' ? .75 : .58;
-    const tgtPath = t => {
-      if (t < tCatch) return towards(px(tgtA.dx), tgtA.y, catchX, catchY, .08, tCatch, t => t)(t);
-      if (play.complete) return towards(catchX, catchY, endX, catchY + (R() * 6 - 3), tCatch, .92, easeOut)(t);
-      return towards(catchX, catchY, catchX + dir * 2, catchY, tCatch, .8)(t);
-    };
+    const routeIn = towards(px(tgtA.dx), tgtA.y, catchX, catchY, .08, tCatch, t => t);
+    const afterCatch = play.complete ? towards(catchX, catchY, endX, catchY + (R() * 6 - 3), tCatch, .92, easeOut) : towards(catchX, catchY, catchX + dir * 2, catchY, tCatch, .8);
+    const tgtPath = t => t < tCatch ? routeIn(t) : afterCatch(t);
     add(tgtA.p, play.off, tgtPath, { carrier: !!play.complete });
     if (play.complete) carrierId = tgtA.p.id;
     offA.filter(a => !['OL', 'QB'].includes(a.p.pos) && a.p.id !== tgtA.p.id).forEach(a => {
@@ -217,7 +218,9 @@ export function buildPlay(play, match) {
     };
     if (defender && play.int) {
       const da = defA.find(a => a.p.id === defender.id) || defA[defA.length - 1];
-      add(defender, 1 - play.off, t => t < tCatch ? towards(dxF(da.dx), da.y, catchX, catchY, .1, tCatch)(t) : towards(catchX, catchY, catchX - dir * (6 + R() * 10), catchY + (R() * 6 - 3), tCatch, .95, easeOut)(t), { carrier: true });
+      const jump = towards(dxF(da.dx), da.y, catchX, catchY, .1, tCatch);
+      const back = towards(catchX, catchY, catchX - dir * (6 + R() * 10), catchY + (R() * 6 - 3), tCatch, .95, easeOut);
+      add(defender, 1 - play.off, t => t < tCatch ? jump(t) : back(t), { carrier: true });
       carrierId = defender.id;
     } else if (defender) {
       const da = defA.find(a => a.p.id === defender.id) || defA[0];
@@ -232,11 +235,11 @@ export function buildPlay(play, match) {
     if (used.has(a.p.id)) return;
     const isTackler = tackler && a.p.id === tackler.id;
     if (a.p.pos === 'DL' && !isTackler) { add(a.p, 1 - play.off, dlPath(a)); return; }
-    const lag = isTackler ? 0 : 1.5 + R() * 3;
+    const lag = isTackler ? 0 : 1.5 + R() * 3, side = (a.y < C ? -1 : 1) * (1.2 + R() * 2.5);
     add(a.p, 1 - play.off, t => {
       const b = ball(Math.max(0, t - .05)) || { x: los, y: C };
       const k = seg(t, .15, isTackler ? .9 : 1);
-      const tx = b.x - dir * (isTackler ? .6 : lag), ty = b.y + (isTackler ? .4 : (a.y - b.y) * .25);
+      const tx = b.x - dir * (isTackler ? .6 : lag), ty = b.y + (isTackler ? .4 : side);
       return { x: lerp(dxF(a.dx), tx, isTackler ? ease(k) : k * .85), y: lerp(a.y, ty, isTackler ? ease(k) : k * .8) };
     }, { tackle: isTackler });
   });
@@ -445,8 +448,10 @@ export class FootballView {
 
   drawPlay(a, b) {
     const g = this.ctx, t = this.t;
-    const items = a.tracks.map(tr => ({ tr, pos: tr.path(t) }));
-    items.sort((u, v) => v.pos.y - u.pos.y); // lluny primer
+    const items = a.tracks.map((tr, i) => ({ tr, i, pos: tr.path(t) }));
+    // Lluny primer (la y petita és la banda de dalt, la més llunyana); en cas
+    // d'empat, sempre el mateix ordre, que si no parpellegen quan s'ajunten.
+    items.sort((u, v) => (u.pos.y - v.pos.y) || (u.i - v.i));
     for (const it of items) this.drawPlayer(it.tr, it.pos, a);
     if (b) {
       const sh = this.proj(b.x, b.y), p = this.proj(b.x, b.y, b.z);
@@ -458,42 +463,102 @@ export class FootballView {
     }
   }
 
+  // Un jugador de futbol americà vist des de la banda: cames que corren segons
+  // el que es mou, espatlleres, braços, casc amb reixa mirant cap on va i el
+  // dorsal. Placat o a terra, estirat.
   drawPlayer(tr, pos, a) {
-    const g = this.ctx, team = this.match.teams[tr.team];
+    const g = this.ctx, team = this.match.teams[tr.team], pl = tr.p;
     const down = tr.downAt && this.t > tr.downAt;
     const tackled = tr.carrier && this.t > .9 && !this.cur.play.td && this.cur.play.kind !== 'pat';
     const p = this.proj(pos.x, pos.y), s = p.s;
-    const h = down || tackled ? .7 : 1.9;
+    const jersey = team.color, trim = team.color2 || '#fff';
+    const pants = luminance(trim) > .55 ? trim : shade(jersey, .7);
+    const helmet = shade(jersey, -.08), helmetEdge = shade(jersey, -.3);
+    const skin = SKIN[hashStr(pl.id || pl.name || '') % SKIN.length];
+    const ahead = tr.path(Math.min(1, this.t + .015));
+    const vx = ahead.x - pos.x, vy = ahead.y - pos.y;
+    const moving = this.phase === 'run' && Math.hypot(vx, vy) > .004;
+    const face = Math.abs(vx) > .002 ? Math.sign(vx) : (tr.team === this.cur.play.off ? a.dir : -a.dir);
+    g.lineCap = 'round'; g.lineJoin = 'round';
     // Ombra.
-    g.fillStyle = 'rgba(0,0,0,.3)'; g.beginPath(); g.ellipse(p.x, p.y, .55 * s, .2 * s, 0, 0, Math.PI * 2); g.fill();
-    // Cos.
-    const top = this.proj(pos.x, pos.y, h);
-    const w = .62 * s;
-    const body = g.createLinearGradient(p.x - w, 0, p.x + w, 0);
-    body.addColorStop(0, shade(team.color, -.25)); body.addColorStop(.5, team.color); body.addColorStop(1, shade(team.color, -.35));
-    g.fillStyle = body;
-    g.beginPath(); g.roundRect(p.x - w / 2, top.y, w, p.y - top.y, w * .35); g.fill();
-    // Dorsal.
-    const pl = tr.p;
-    if (s > 7 && h > 1) { g.fillStyle = team.color2 || '#fff'; g.font = `800 ${.38 * s}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(String(pl.number || ''), p.x, lerp(top.y, p.y, .45)); }
-    // Casc.
-    const hy = top.y - .18 * s;
-    g.fillStyle = luminance(team.color2) > .6 ? shade(team.color2, -.05) : team.color2 || '#ddd';
-    g.beginPath(); g.arc(p.x, hy, .27 * s, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = team.color; g.lineWidth = .06 * s; g.beginPath(); g.moveTo(p.x - .24 * s, hy); g.lineTo(p.x + .24 * s, hy); g.stroke();
-    // Els vents: el seu color al casc i el nom a sobre.
-    if (pl.wind) {
-      g.fillStyle = pl.color || '#fff'; g.beginPath(); g.arc(p.x, hy - .02 * s, .11 * s, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(p.x, p.y, (down || tackled ? 1 : .55) * s, .2 * s, 0, 0, Math.PI * 2); g.fill();
+    if (s < 3) { g.fillStyle = jersey; g.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
+    if (down || tackled) {
+      // Estirat a terra: el cos de costat i el casc al davant.
+      g.save(); g.translate(p.x, p.y - .22 * s); g.scale(face, 1);
+      g.strokeStyle = pants; g.lineWidth = .24 * s; g.beginPath(); g.moveTo(-.2 * s, 0); g.lineTo(-.95 * s, .05 * s); g.stroke();
+      g.fillStyle = jersey; g.beginPath(); g.roundRect(-.3 * s, -.24 * s, .85 * s, .44 * s, .2 * s); g.fill();
+      g.fillStyle = helmet; g.beginPath(); g.arc(.72 * s, -.02 * s, .24 * s, 0, Math.PI * 2); g.fill();
+      g.restore();
+      this.drawLabel(tr, pl, p, s, p.y - .7 * s);
+      return;
     }
-    if ((tr.carrier && this.cur && this.cur.anim.carrierId === pl.id) || (pl.wind && s > 9)) {
-      const label = pl.name + (tr.carrier ? '' : '');
-      g.font = `700 ${Math.max(10 * this.dpr, .34 * s)}px "Segoe UI", system-ui, sans-serif`;
-      const tw = g.measureText(label).width + 8 * this.dpr;
-      const ly = hy - .55 * s;
-      g.fillStyle = tr.carrier ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.45)';
-      g.beginPath(); g.roundRect(p.x - tw / 2, ly - 9 * this.dpr, tw, 18 * this.dpr, 9 * this.dpr); g.fill();
-      g.fillStyle = tr.carrier ? '#ffd400' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(label, p.x, ly);
+    const phase = (pos.x * 1.9 + pos.y * 1.3);
+    const sw = moving ? Math.sin(phase) : 0, bob = moving ? Math.abs(Math.cos(phase)) * .06 * s : 0;
+    const hipY = p.y - .9 * s - bob, shY = p.y - 1.55 * s - bob, headY = p.y - 1.86 * s - bob;
+    const lean = moving ? face * .1 * s : 0;
+    // Cames: cuixa amb el pantaló, mitjó del color de l'equip, bota.
+    for (const k of [-1, 1]) {
+      const st = sw * k;
+      const hip = { x: p.x + k * .1 * s, y: hipY };
+      const foot = { x: p.x + k * .1 * s + face * st * .36 * s, y: p.y - Math.max(0, -st) * .14 * s };
+      const knee = { x: lerp(hip.x, foot.x, .5) + face * (.08 + Math.max(0, st) * .1) * s, y: lerp(hip.y, foot.y, .5) };
+      g.strokeStyle = pants; g.lineWidth = .2 * s; g.beginPath(); g.moveTo(hip.x, hip.y); g.lineTo(knee.x, knee.y); g.stroke();
+      g.strokeStyle = shade(jersey, -.2); g.lineWidth = .15 * s; g.beginPath(); g.moveTo(knee.x, knee.y); g.lineTo(foot.x, foot.y); g.stroke();
+      g.fillStyle = '#16161a'; g.beginPath(); g.ellipse(foot.x + face * .06 * s, foot.y, .13 * s, .06 * s, 0, 0, Math.PI * 2); g.fill();
     }
+    // Braç del darrere.
+    const arm = (k, carry) => {
+      const sh = { x: p.x + lean + k * .32 * s, y: shY + .1 * s };
+      const hand = carry ? { x: p.x + lean + face * .28 * s, y: shY + .38 * s } : { x: sh.x - face * sw * k * .3 * s, y: shY + .6 * s };
+      const elbow = carry ? { x: sh.x + face * .05 * s, y: shY + .42 * s } : { x: lerp(sh.x, hand.x, .5) - face * .05 * s, y: lerp(sh.y, hand.y, .5) };
+      g.strokeStyle = shade(jersey, -.1); g.lineWidth = .16 * s; g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(elbow.x, elbow.y); g.stroke();
+      g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
+    };
+    const carrying = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id && this.t > .2;
+    arm(-face, false);
+    // Tors: samarreta amb espatlleres, més ample a dalt.
+    const tw = .82 * s, ww = .5 * s;
+    const body = g.createLinearGradient(p.x - tw / 2, 0, p.x + tw / 2, 0);
+    body.addColorStop(0, shade(jersey, -.3)); body.addColorStop(.45, jersey); body.addColorStop(1, shade(jersey, -.4));
+    g.fillStyle = body; g.strokeStyle = shade(jersey, -.5); g.lineWidth = .03 * s;
+    g.beginPath();
+    g.moveTo(p.x + lean - tw / 2, shY); g.lineTo(p.x + lean + tw / 2, shY);
+    g.lineTo(p.x + ww / 2, hipY + .05 * s); g.lineTo(p.x - ww / 2, hipY + .05 * s); g.closePath(); g.fill(); g.stroke();
+    // Espatlleres.
+    g.fillStyle = shade(jersey, .12); g.beginPath(); g.ellipse(p.x + lean, shY + .02 * s, tw / 2 + .04 * s, .13 * s, 0, 0, Math.PI * 2); g.fill();
+    // Ratlla de la màniga i dorsal.
+    g.fillStyle = trim; g.fillRect(p.x + lean - tw / 2 - .02 * s, shY + .05 * s, .1 * s, .06 * s); g.fillRect(p.x + lean + tw / 2 - .08 * s, shY + .05 * s, .1 * s, .06 * s);
+    if (s > 7) {
+      g.font = `900 ${.36 * s}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.lineWidth = .06 * s; g.strokeStyle = shade(jersey, -.55); g.strokeText(String(pl.number || ''), p.x + lean * .6, lerp(shY, hipY, .5));
+      g.fillStyle = trim; g.fillText(String(pl.number || ''), p.x + lean * .6, lerp(shY, hipY, .5));
+    }
+    arm(face, carrying);
+    // Casc: closca, ratlla, reixa al costat on mira, i el color del vent.
+    const hx = p.x + lean * 1.2;
+    g.fillStyle = helmet; g.strokeStyle = helmetEdge; g.lineWidth = .03 * s; g.beginPath(); g.ellipse(hx, headY, .26 * s, .25 * s, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    const shine = g.createRadialGradient(hx - .08 * s, headY - .1 * s, 0, hx, headY, .28 * s);
+    shine.addColorStop(0, 'rgba(255,255,255,.55)'); shine.addColorStop(.4, 'rgba(255,255,255,0)');
+    g.fillStyle = shine; g.beginPath(); g.ellipse(hx, headY, .26 * s, .25 * s, 0, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = trim; g.lineWidth = .07 * s; g.beginPath(); g.ellipse(hx, headY, .25 * s, .24 * s, 0, Math.PI * 1.2, Math.PI * 1.8); g.stroke();
+    g.strokeStyle = '#c9ccd2'; g.lineWidth = .04 * s; g.beginPath();
+    g.moveTo(hx + face * .14 * s, headY - .02 * s); g.lineTo(hx + face * .3 * s, headY - .02 * s);
+    g.moveTo(hx + face * .14 * s, headY + .09 * s); g.lineTo(hx + face * .29 * s, headY + .09 * s);
+    g.moveTo(hx + face * .3 * s, headY - .06 * s); g.lineTo(hx + face * .27 * s, headY + .16 * s); g.stroke();
+    if (pl.wind) { g.fillStyle = pl.color || '#fff'; g.beginPath(); g.arc(hx - face * .08 * s, headY - .06 * s, .08 * s, 0, Math.PI * 2); g.fill(); }
+    this.drawLabel(tr, pl, p, s, headY - .5 * s);
+  }
+
+  drawLabel(tr, pl, p, s, ly) {
+    const g = this.ctx;
+    const isCarrier = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id;
+    if (!isCarrier && !(pl.wind && s > 9)) return;
+    g.font = `700 ${Math.max(10 * this.dpr, .34 * s)}px "Segoe UI", system-ui, sans-serif`;
+    const tw = g.measureText(pl.name).width + 8 * this.dpr;
+    g.fillStyle = isCarrier ? 'rgba(0,0,0,.75)' : 'rgba(0,0,0,.45)';
+    g.beginPath(); g.roundRect(p.x - tw / 2, ly - 9 * this.dpr, tw, 18 * this.dpr, 9 * this.dpr); g.fill();
+    g.fillStyle = isCarrier ? '#ffd400' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(pl.name, p.x, ly);
   }
 
   drawParticles() {

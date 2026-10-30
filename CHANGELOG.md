@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Football games look right.** Players no longer shake when someone has the ball: a few plays picked a new random position on every frame (after a catch, on returns, sacks and interceptions), and players were drawn in the wrong depth order, so they flickered when they met. The players are now proper football players: running legs, arms, shoulder pads, the number, a team helmet with a stripe and a facemask facing where they go, and the tackled carrier lies on the ground. Applies to the Arena and to the winds' Games.
+
 ## v1.30.1 - 2026-10-30 - L'Arena, més senzilla
 
 - **The Arena is simpler.** Pick a game and press Play: the template is already in the editor, your `.md` saves itself, and the opponent is the easiest bot you have not beaten yet. The bots are written automatically the first time, the ranking, games, competitions and broadcast settings fold away below, and a waiting match says the coaches are picking the play. Matches now use your conversation model instead of the winds' one, so a slow model no longer turns a game into half an hour.
