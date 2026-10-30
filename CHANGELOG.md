@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.31.1 - 2026-10-30 - Càmera de jugador i estadi
+
 - **American football: player cam and a full stadium.** The main live camera is now a player cam, low behind whoever has the ball (behind the QB before the snap, then over the receiver's shoulder after the catch, behind the runner or returner), with slow motion on catches and tackles. The field sits in a three-tier stadium with about 11,000 animated fans in team colours who do the wave and jump with flags and camera flashes on big plays, two video boards, benches and light towers. New angles: end-zone and pylon cams for touchdown replays, a low rail cam, and a blimp shot for kickoffs, each tagged on screen.
 
 - **Arena: the narrator's voice in English.** Games are in English, so the narrator needs the English Piper voices: if they are missing, the Arena says so next to the Play button with a one-click install, and the TV mode shows "captions only" instead of staying silent. Demo matches are now narrated with this computer's voices (the recording carried audio from another machine, so they never spoke).
