@@ -253,3 +253,114 @@ test('spectator cam: grid, raycast, projection and director', async () => {
   assert.equal(ha.hp, 100); assert.equal(ha.ammo, 5);
   assert.equal(V.weaponClass('usp'), 'pistol'); assert.equal(V.weaponClass('awp'), 'awp');
 });
+
+test('arena studio: director plans, match point, crowd reactions and crowd model', async () => {
+  const V = await load();
+  // Win targets: MR12 then MR3 overtimes.
+  assert.equal(V.winTarget(1), 13); assert.equal(V.winTarget(24), 13);
+  assert.equal(V.winTarget(25), 16); assert.equal(V.winTarget(30), 16); assert.equal(V.winTarget(31), 19);
+  assert.deepEqual(V.matchPointTeams([12, 7], 20), [0]);
+  assert.deepEqual(V.matchPointTeams([12, 12], 24), [0, 1]);
+  assert.deepEqual(V.matchPointTeams([12, 12], 25), [], 'overtime resets the target');
+  assert.deepEqual(V.matchPointTeams([15, 13], 29), [0]);
+  assert.deepEqual(V.matchPointTeams(null, 1), []);
+
+  // Round start: arena wide (or crowd) shot, then the tactical map for the buy.
+  const intro = V.studioPlan('intro', { round: 5 });
+  assert.deepEqual(intro.map(s => s.shot), ['arena', 'tactical']);
+  assert.equal(V.studioPlan('intro', { round: 7 })[0].shot, 'crowd', 'every fourth round a crowd shot');
+  const first = V.studioPlan('intro', { round: 1, first: true, pistol: true });
+  assert.deepEqual(first.map(s => s.shot), ['desk', 'screen', 'tactical']);
+  assert.equal(first[1].screen, 'pistol');
+  const mp = V.studioPlan('intro', { round: 20, matchPoint: [1] });
+  assert.equal(mp[0].shot, 'screen'); assert.equal(mp[0].screen, 'matchpoint'); assert.equal(mp[0].team, 1);
+  assert.equal(V.studioPlan('intro', { round: 26, ot: true })[0].screen, 'overtime');
+  // Round end: game view with the banner, the winners' booth; a roar adds the crowd.
+  assert.deepEqual(V.studioPlan('roundEnd', { winner: 0, level: 0.5 }).map(s => s.shot), ['live', 'booth']);
+  const big = V.studioPlan('roundEnd', { winner: 1, level: 0.95 });
+  assert.deepEqual(big.map(s => s.shot), ['live', 'crowd', 'booth']);
+  assert.ok(big.slice(1).every(s => s.team === 1));
+  assert.ok(V.planLength(big) > V.planLength(V.studioPlan('roundEnd', { winner: 1, level: 0.5 })), 'big rounds hold longer');
+  assert.deepEqual(V.studioPlan('roundEnd', { level: 1 }).map(s => s.shot), ['live'], 'no winner, no booth');
+  assert.deepEqual(V.studioPlan('half').map(s => s.screen), ['half', 'half']);
+  const me = V.studioPlan('matchEnd', { winner: 1 });
+  assert.deepEqual(me.map(s => s.shot), ['arena', 'trophy', 'booth']);
+  assert.ok(me.every(s => s.team === 1 && s.screen === 'champions'));
+  // shotAt walks the plan; past the end it stays on the last shot.
+  assert.equal(V.shotAt(intro, 0).s.shot, 'arena');
+  assert.equal(V.shotAt(intro, intro[0].dur + 0.1).s.shot, 'tactical');
+  const end = V.shotAt(intro, 99); assert.equal(end.i, 1); assert.equal(end.k, 1);
+  assert.equal(V.shotAt([], 1), null);
+  for (const s of [...intro, ...big, ...me, { shot: 'desk' }, { shot: 'screen' }, null]) for (const k of [0, 0.5, 1]) {
+    const c = V.shotCamera(s, k);
+    assert.ok(finite(c.fx, c.fy, c.z) && c.z >= 1 && c.z < 2.5);
+  }
+
+  // Crowd reactions: quiet in the buy, a roar for aces, clutches and the winning kill.
+  const rounds = V.groupRounds(matchEvents());
+  const R0 = V.buildRound(rounds[0], meta), R1 = V.buildRound(rounds[1], meta);
+  const ev0 = rounds[0].events, ev1 = rounds[1].events;
+  assert.ok(V.crowdReaction(ev0.find(e => e.kind === 'buy'), R0).level < 0.1);
+  const kills0 = ev0.filter(e => e.kind === 'kill');
+  const firstKill = V.crowdReaction(kills0[0], R0);
+  assert.equal(firstKill.team, 0);
+  const third = V.crowdReaction(kills0.find(e => e.n === R0.kills.filter(k => k.killer === 'a1')[2].n), R0);
+  assert.ok(third.level > firstKill.level, 'a multi-kill is louder than an opening kill');
+  const end0 = V.crowdReaction(ev0.find(e => e.kind === 'round_end'), R0);
+  assert.equal(end0.team, 0); assert.ok(end0.level >= 0.9, 'an ace round brings the house down');
+  const def = V.crowdReaction(ev1.find(e => e.kind === 'defuse'), R1);
+  assert.equal(def.team, 1); assert.ok(def.level >= 0.8);
+  const clutchKill = V.crowdReaction(ev1.filter(e => e.kind === 'kill').pop(), R1);
+  assert.equal(clutchKill.team, 1); assert.ok(clutchKill.level > 0.4, 'kills in a 1vX clutch get loud');
+  const half = V.crowdReaction(rounds[1].after[0], R1);
+  assert.equal(half.team, -1);
+  const fin = V.crowdReaction(rounds[2].after[0], null);
+  assert.deepEqual(fin, { level: 1, team: 0 });
+  assert.deepEqual(V.crowdReaction(null), { level: 0, team: -1 });
+  assert.deepEqual(V.crowdReaction({ kind: 'move', data: {} }), { level: 0, team: -1 });
+  for (const e of matchEvents()) { const r = V.crowdReaction(e, null); assert.ok(r.level >= 0 && r.level <= 1); }
+  // Fans: yours roars, neutrals at half voice, the rivals barely move.
+  assert.equal(V.fanExcitement([0.9, 0.1], 0), 0.91);
+  assert.ok(V.fanExcitement([0.9, 0.1], 1) < 0.2);
+  assert.ok(Math.abs(V.fanExcitement([0.9, 0.1], -1) - 0.495) < 1e-9);
+  assert.equal(V.fanExcitement([2, 2], 0), 1);
+  // The crowd: thousands of fans, mostly in the two team colours, capped.
+  const C = V.buildCrowd(7);
+  assert.ok(C.count > 2000 && C.count < 4000, 'crowd size ' + C.count);
+  assert.equal(C.count, C.rows.reduce((a, r) => a + r.fans.length, 0));
+  const fans = C.rows.flatMap(r => r.fans);
+  const t0 = fans.filter(f => f.team === 0).length, t1 = fans.filter(f => f.team === 1).length;
+  assert.ok(t0 > fans.length * 0.3 && t1 > fans.length * 0.3);
+  assert.ok(fans.every(f => finite(f.x, f.y, f.s, f.ph, f.th) && f.s > 0 && f.k >= 0 && f.k <= 6));
+  assert.ok(fans.some(f => f.prop === 1) && fans.some(f => f.prop === 2), 'light sticks and flags');
+  assert.equal(V.buildCrowd(7).count, C.count, 'deterministic');
+});
+
+test('the view cuts to the arena between rounds and stages the trophy ceremony', async () => {
+  const V = await load();
+  global.window = { addEventListener() {}, removeEventListener() {}, devicePixelRatio: 1 };
+  global.requestAnimationFrame = () => 1;
+  global.document = { createElement: () => ({ width: 0, height: 0, getContext: () => fakeCtx() }) };
+  const events = matchEvents();
+  const canvas = { getContext: () => fakeCtx(), getBoundingClientRect: () => ({ width: 1280, height: 720 }), width: 0, height: 0 };
+  const source = { load: async after => ({ status: 'final', names: ['A', 'B'], meta, events: events.filter(e => e.n > after), score: [2, 1] }) };
+  const view = new V.Cs2View(canvas, { source });
+  await new Promise(r => setTimeout(r, 10));
+  const shots = new Set(), phases = new Set();
+  let roar = 0;
+  for (let i = 0; i < 4000 && !view.isFinished(); i++) {
+    view.advance(0.05); view.draw();
+    phases.add(view.phase);
+    if (view.studio) { const st = V.shotAt(view.studio.plan, view.studio.t); shots.add(st.s.shot); }
+    roar = Math.max(roar, view.cheer[0], view.cheer[1]);
+  }
+  assert.ok(view.isFinished());
+  for (const s of ['desk', 'screen', 'arena', 'tactical', 'live', 'booth', 'trophy']) assert.ok(shots.has(s), 'shot ' + s);
+  for (const p of ['intro', 'play', 'outro', 'replay', 'half', 'ceremony', 'final']) assert.ok(phases.has(p), 'phase ' + p);
+  assert.ok(roar > 0.9, 'the crowd roared');
+  assert.equal(view.party, 0, 'the winners party');
+  assert.ok(view.confetti.length > 0 && view.confetti.length <= 280, 'confetti, capped');
+  assert.ok(view.sCache.size <= 5, 'cached layers capped');
+  view.draw();
+  view.destroy();
+});

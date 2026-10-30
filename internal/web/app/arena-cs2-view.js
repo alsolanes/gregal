@@ -489,6 +489,156 @@ export function hudStats(R, id, t) {
   return { hp: clamp(hp, 0, 100) | 0, armor: pl.armor != null ? pl.armor : 1, ammo: mag - used, reserve, money: pl.money || 0 };
 }
 
+// ---- the arena studio: pure helpers (director between rounds, crowd) ----
+
+// Rounds a team needs to win the match at round r (MR12, overtimes MR3).
+export function winTarget(r) { r = +r || 1; return r <= 24 ? 13 : 16 + 3 * Math.floor((r - 25) / 6); }
+// Teams one round away from winning the match when round r starts.
+export function matchPointTeams(score, r) { const t = winTarget(r); return [0, 1].filter(i => ((score && score[i]) || 0) === t - 1); }
+
+// How loud the crowd gets for an event (0 quiet … 1 roaring) and whose fans
+// erupt (-1: everybody). Quiet during the buy, a roar for aces, clutches and
+// the kill that wins the round.
+export function crowdReaction(e, R) {
+  if (!e) return { level: 0, team: -1 };
+  const d = dataOf(e);
+  let lv = 0, team = -1;
+  switch (e.kind) {
+    case 'round_start': case 'buy': return { level: 0.04, team: -1 };
+    case 'kill': {
+      team = d.kteam != null ? +d.kteam : -1; lv = 0.28;
+      if (d.hs) lv += 0.05;
+      if (d.first) lv += 0.07;
+      if (d.weapon === 'awp') lv += 0.05;
+      const ks = R ? R.kills : [], k = ks.find(q => q.n === e.n);
+      if (k) {
+        const n = ks.filter(q => q.killer === k.killer && q.t <= k.t).length;
+        if (n >= 3) lv += 0.15 * (n - 2);
+        const al = aliveAt(R, k.t - 0.01);
+        if (al[k.kteam] === 1 && al[k.vteam] >= 2) lv += 0.15;
+        if (k === ks[ks.length - 1] && R.end && R.end.reason === 'elim') lv += 0.3;
+      }
+      if (e.hl) lv += 0.15;
+      break;
+    }
+    case 'plant': lv = 0.3; team = d.team != null ? +d.team : R ? R.tTeam : -1; break;
+    case 'defuse': lv = d.ninja ? 1 : 0.8; team = d.team != null ? +d.team : R ? R.ctTeam : -1; break;
+    case 'explode': lv = 0.7; team = R ? R.tTeam : -1; break;
+    case 'round_end': {
+      lv = 0.5; team = d.winner != null ? +d.winner : -1;
+      const bonus = { ace: 0.4, clutch: 0.3, '4k': 0.15, eco_win: 0.15, last_second: 0.2, ninja: 0.25 };
+      for (const t of d.tags || []) lv += bonus[t] || 0;
+      if (e.hl) lv += 0.1;
+      break;
+    }
+    case 'half': lv = 0.35; break;
+    case 'match_end': lv = 1; team = d.winner != null ? +d.winner : -1; break;
+    default: return { level: 0, team: -1 };
+  }
+  return { level: clamp(lv, 0, 1), team: team === 0 || team === 1 ? team : -1 };
+}
+
+// Excitement of one fan given both teams' crowd levels: your team's moment is
+// yours, the neutrals join in at half voice, the rivals barely stir.
+export function fanExcitement(lv, fanTeam) {
+  const a = (lv && lv[0]) || 0, b = (lv && lv[1]) || 0;
+  if (fanTeam !== 0 && fanTeam !== 1) return clamp(Math.max(a, b) * 0.55, 0, 1);
+  const own = fanTeam === 0 ? a : b, other = fanTeam === 0 ? b : a;
+  return clamp(own + other * 0.1, 0, 1);
+}
+
+// The studio director: the shots between rounds, in order, with durations
+// (seconds at 1×). 'live' keeps the game view (map/POV + banner), 'tactical'
+// is the map with the buy card; everything else is an arena camera.
+export function studioPlan(kind, o = {}) {
+  if (kind === 'intro') {
+    const mp = o.matchPoint || [];
+    const screen = mp.length ? 'matchpoint' : o.ot ? 'overtime' : o.pistol ? 'pistol' : 'round';
+    const out = [];
+    if (o.first) out.push({ shot: 'desk', screen: 'welcome', dur: 2.6 });
+    if (screen !== 'round') out.push({ shot: 'screen', screen, team: mp.length === 1 ? mp[0] : -1, dur: 2.4 });
+    else out.push({ shot: (o.round || 0) % 4 === 3 ? 'crowd' : 'arena', screen, team: (o.round || 0) % 2, dur: o.first ? 2.2 : 1.3 });
+    out.push({ shot: 'tactical', dur: 1.6 });
+    return out;
+  }
+  if (kind === 'roundEnd') {
+    const lv = o.level || 0, w = o.winner === 0 || o.winner === 1 ? o.winner : -1;
+    const out = [{ shot: 'live', dur: 1.5 }];
+    if (w < 0) return out;
+    if (lv >= 0.8) out.push({ shot: 'crowd', screen: 'win', team: w, dur: 1.4 });
+    out.push({ shot: 'booth', screen: 'win', team: w, dur: 1.7 + lv * 0.8 });
+    return out;
+  }
+  if (kind === 'half') return [{ shot: 'screen', screen: 'half', team: -1, dur: 2.2 }, { shot: 'desk', screen: 'half', dur: 3.2 }];
+  if (kind === 'matchEnd') {
+    const w = o.winner === 0 || o.winner === 1 ? o.winner : 0;
+    return [{ shot: 'arena', screen: 'champions', team: w, trophy: true, dur: 2.8 }, { shot: 'trophy', screen: 'champions', team: w, dur: 3.4 }, { shot: 'booth', screen: 'champions', team: w, dur: 2.2 }];
+  }
+  return [];
+}
+export function planLength(plan) { return (plan || []).reduce((a, s) => a + s.dur, 0); }
+// The step on air t seconds into a plan: {s, i, t (into the step), k (0..1)}.
+export function shotAt(plan, t) {
+  if (!plan || !plan.length) return null;
+  let acc = 0;
+  for (let i = 0; i < plan.length; i++) {
+    const s = plan[i];
+    if (t < acc + s.dur || i === plan.length - 1) { const lt = Math.max(0, t - acc); return { s, i, t: lt, k: clamp(lt / s.dur, 0, 1) }; }
+    acc += s.dur;
+  }
+  return null;
+}
+// Camera move for an arena shot (virtual 1600×900 stage): focus and zoom.
+export function shotCamera(s, k) {
+  const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+  switch (s && s.shot) {
+    case 'screen': return { fx: 800, fy: lerp(250, 430, e), z: lerp(1.75, 1.04, e) };
+    case 'crowd': { const x = s.team === 1 ? 1170 : 430; return { fx: lerp(x, x + (s.team === 1 ? -70 : 70), e), fy: lerp(700, 680, e), z: lerp(1.95, 1.8, e) }; }
+    case 'booth': return { fx: lerp(780, 820, e), fy: 450, z: lerp(1.08, 1.0, e) };
+    case 'desk': return { fx: 800, fy: 450, z: lerp(1.0, 1.07, e) };
+    case 'trophy': return { fx: 800, fy: lerp(430, 470, e), z: lerp(1.12, 1.0, e) };
+    default: return s && s.trophy ? { fx: 800, fy: lerp(450, 470, e), z: lerp(1.0, 1.32, e) } : { fx: 800, fy: lerp(465, 440, e), z: lerp(1.0, 1.08, e) };
+  }
+}
+
+// The crowd: rows of fans (virtual coordinates), back rows first. Side stands
+// face the stage, the floor is seen from behind. Built once, drawn instanced.
+export function buildCrowd(seed = 7) {
+  const r = rng(seed), rows = [];
+  let count = 0;
+  const fan = (x, y, s, pTeam0, pTeam1) => {
+    const q = r(), team = q < pTeam0 ? 0 : q < pTeam0 + pTeam1 ? 1 : -1;
+    const pal = team < 0 ? 4 + Math.floor(r() * 3) : team * 2 + (r() < 0.6 ? 0 : 1);
+    const pr = r();
+    return { x, y, s, team, k: pal, ph: r() * 6.283, th: 0.22 + r() * 0.5, prop: pr < 0.42 ? 1 : pr < 0.46 ? 2 : pr < 0.54 ? 3 : 0, skin: Math.floor(r() * 3), _x: x, _y: y };
+  };
+  for (let side = 0; side < 2; side++) {
+    for (let k = 0; k < 12; k++) {
+      const yi = 252 + k * 27, yo = yi + 42 + k * 5, si = 5 + k * 0.32, fans = [];
+      for (let t = 0; t <= 1;) {
+        const s = lerp(si * 1.55, si, t), x = lerp(4, 296, t), y = lerp(yo, yi, t);
+        fans.push(fan(side ? 1600 - x : x, y + (r() - 0.5) * s * 0.2, s, side ? 0.12 : 0.66, side ? 0.66 : 0.12));
+        t += s * (1.05 + r() * 0.2) / 300;
+      }
+      fans.sort((a, b) => a.k - b.k);
+      rows.push({ kind: 'side', fans, band: Math.min(3, k >> 2) });
+      count += fans.length;
+    }
+  }
+  const N = 15;
+  for (let k = 0; k < N; k++) {
+    const t = k / (N - 1), s = 7 + 21 * Math.pow(t, 1.5), y = 630 + 300 * Math.pow(t, 1.2), fans = [];
+    for (let x = -20 + r() * s; x < 1620; x += s * (1.0 + r() * 0.22)) {
+      const left = x < 800;
+      fans.push(fan(x, y + (r() - 0.5) * s * 0.25, s * (0.92 + r() * 0.16), left ? 0.6 : 0.16, left ? 0.16 : 0.6));
+    }
+    fans.sort((a, b) => a.k - b.k);
+    rows.push({ kind: 'floor', fans, band: Math.min(3, Math.floor(t * 4)) });
+    count += fans.length;
+  }
+  return { rows, count };
+}
+
 // ---- el visor ----
 
 export class Cs2View {
@@ -506,6 +656,9 @@ export class Cs2View {
     // Broadcast camera: 'map' (tactical) or 'pov' (spectator cam on one player).
     this.view = { mode: 'map', id: null, why: '' }; this.shotAge = 0; this.calm = 0; this.cutT = 0; this.cam = null;
     this.replay = null; this.replayed = false; this.grid = null; this.fdt = 0.016;
+    // Arena studio: the shots between rounds, the crowd's mood per team, confetti.
+    this.clock = 0; this.studio = null; this.halfE = null; this.party = null; this.seenFirst = false;
+    this.cheer = [0.06, 0.06]; this.boothPulse = [-99, -99]; this.confetti = []; this.crowd = null; this.sCache = new Map();
     this.resize = this.resize.bind(this); window.addEventListener('resize', this.resize); this.resize();
     this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
     this.poll();
@@ -525,7 +678,7 @@ export class Cs2View {
     this.p = this.R.tl.total; this.fired = this.R.events.length;
     const last = [...this.R.events, ...this.R.after].pop();
     if (last) this.score = last.score || this.score;
-    this.banner = null; this.overlay = null; this.ticker = null; this.replay = null; this.view = { mode: 'map', id: null, why: '' };
+    this.banner = null; this.overlay = null; this.ticker = null; this.replay = null; this.view = { mode: 'map', id: null, why: '' }; this.studio = null; this.halfE = null;
     if (this.R.after.some(e => e.kind === 'match_end') || this.terminal()) { this.ri = this.rounds.length; this.enterFinal(); }
     else { this.ri++; this.phase = 'wait'; }
   }
@@ -535,7 +688,7 @@ export class Cs2View {
     try {
       const m = await this.source.load(this.lastN);
       if (m) {
-        if (m.meta && !this.meta) { this.meta = m.meta; this.mapCache = null; }
+        if (m.meta && !this.meta) { this.meta = m.meta; this.mapCache = null; if (this.sCache) this.sCache.clear(); }
         const fresh = (m.events || []).filter(e => e.n > this.lastN);
         for (const e of fresh) { this.events.push(e); this.lastN = Math.max(this.lastN, e.n); }
         if (fresh.length) this.rounds = groupRounds(this.events);
@@ -573,6 +726,7 @@ export class Cs2View {
     const box = { x: pad + side, y: this.topH + pad, w: this.W - 2 * pad - 2 * side, h: this.H - this.topH - this.rosterH - 2 * pad };
     this.box = box;
     this.mapCache = null;
+    if (this.sCache) this.sCache.clear();
   }
 
   fit() { if (!this.fitR || this.fitR.box !== this.box || this.fitR.meta !== this.meta) this.fitR = { box: this.box, meta: this.meta, f: fitMap(this.meta && this.meta.size, this.box) }; return this.fitR.f; }
@@ -591,12 +745,25 @@ export class Cs2View {
   fire(e) {
     if (e.score) this.score = e.score;
     if (['kill', 'plant', 'defuse', 'explode', 'round_end', 'buy', 'half', 'match_end'].includes(e.kind) && e.text) this.ticker = { text: e.text, t0: performance.now(), hl: !!e.hl };
+    this.react(e);
     if (this.onEvent) { try { this.onEvent(e); } catch { /* res */ } }
   }
 
-  enterFinal() { this.phase = 'final'; this.overlay = { kind: 'final', t0: performance.now() }; }
+  // The crowd hears every event: a roar for the fans of whoever did it.
+  react(e) {
+    const r = crowdReaction(e, this.R);
+    if (e.kind === 'round_start') this.cheer = this.cheer.map(v => Math.min(v, 0.2));
+    if (r.team >= 0) { this.cheer[r.team] = Math.max(this.cheer[r.team], r.level); this.cheer[1 - r.team] = Math.max(this.cheer[1 - r.team], r.level * 0.15); }
+    else if (r.level > 0) this.cheer = this.cheer.map(v => Math.max(v, r.level));
+    if (e.kind === 'round_end') { const w = dataOf(e).winner; if (w === 0 || w === 1) this.boothPulse[w] = this.clock; }
+  }
+
+  matchWinner() { const me = [...this.events].reverse().find(e => e.kind === 'match_end'); const w = me ? dataOf(me).winner : null; return w === 0 || w === 1 ? w : null; }
+
+  enterFinal() { this.phase = 'final'; this.studio = null; this.halfE = null; this.party = this.matchWinner(); this.overlay = { kind: 'final', t0: performance.now() }; }
 
   advance(dt) {
+    this.tickStudio(dt);
     if (!this.meta) return;
     if (this.phase === 'final') return;
     if (this.phase === 'wait') {
@@ -605,13 +772,15 @@ export class Cs2View {
         this.R = buildRound(g, this.meta); this.p = 0; this.fired = 0; this.phase = 'intro'; this.hold = 1.7; this.banner = null; this.overlay = null;
         this.replay = null; this.replayed = false; this.view = { mode: 'map', id: null, why: '' }; this.cam = null;
         while (this.fired < this.R.events.length && this.R.events[this.fired]._p <= 0 && ['round_start', 'buy'].includes(this.R.events[this.fired].kind)) this.fire(this.R.events[this.fired++]);
+        const plan = studioPlan('intro', { round: this.R.num, first: !this.seenFirst, matchPoint: matchPointTeams(this.score, this.R.num), ot: this.R.num > 24, pistol: this.R.pistol });
+        this.seenFirst = true; this.studio = { plan, t: 0 }; this.hold = planLength(plan);
         this.onUpdate(this.match, this.current());
       } else if (this.terminal() && this.ri >= this.rounds.filter(r => r.end).length) {
         this.enterFinal();
       }
       return;
     }
-    if (this.phase === 'intro') { this.hold -= dt; if (this.hold <= 0) this.phase = 'play'; return; }
+    if (this.phase === 'intro') { this.hold -= dt; if (this.studio) this.studio.t += dt; if (this.hold <= 0) { this.phase = 'play'; this.studio = null; } return; }
     if (this.phase === 'play') {
       this.p += dt;
       const R = this.R;
@@ -620,16 +789,20 @@ export class Cs2View {
       if (this.p >= R.tl.total) {
         this.p = R.tl.total;
         while (this.fired < R.events.length) this.fire(R.events[this.fired++]);
-        this.phase = 'outro'; this.hold = 3 + (R.events.some(e => e.kind === 'round_end' && e.hl) ? 0.8 : 0);
+        // Round over: the banner on the game view, then the crowd and the winners' booth.
+        const lv = crowdReaction(R.events.find(e => e.kind === 'round_end'), R).level;
+        const plan = studioPlan('roundEnd', { winner: R.end && R.end.winner, level: lv });
+        this.phase = 'outro'; this.studio = { plan, t: 0 }; this.hold = planLength(plan);
         this.banner = { t0: performance.now() };
       }
       return;
     }
     if (this.phase === 'outro') {
       this.hold -= dt;
+      if (this.studio) this.studio.t += dt;
       this.direct(dt);
       if (this.hold > 0) return;
-      this.banner = null;
+      this.banner = null; this.studio = null;
       // Kill-cam replay of the round's best kill, from the killer's eyes.
       const rk = !this.replayed && pickReplay(this.R);
       this.replayed = true;
@@ -643,9 +816,17 @@ export class Cs2View {
       const after = (g && g.after) || [];
       this.R.after = after;
       const me = after.find(e => e.kind === 'match_end');
-      if (me) { this.fire(me); this.ri++; this.enterFinal(); return; }
+      if (me) {
+        // Trophy ceremony on stage before the final table.
+        this.fire(me); this.ri++;
+        const w = dataOf(me).winner; this.party = w === 0 || w === 1 ? w : null;
+        if (this.party == null) { this.enterFinal(); return; }
+        const plan = studioPlan('matchEnd', { winner: this.party });
+        this.phase = 'ceremony'; this.studio = { plan, t: 0 }; this.hold = planLength(plan);
+        return;
+      }
       const hf = after.find(e => e.kind === 'half');
-      if (hf) { this.fire(hf); this.phase = 'half'; this.hold = 3.8; this.overlay = { kind: 'half', e: hf, t0: performance.now() }; return; }
+      if (hf) { this.fire(hf); this.phase = 'half'; this.halfE = hf; const plan = studioPlan('half'); this.studio = { plan, t: 0 }; this.hold = planLength(plan); return; }
       this.ri++; this.phase = 'wait';
       return;
     }
@@ -657,7 +838,8 @@ export class Cs2View {
       if (rp.g >= rp.end) { this.replay = null; this.phase = 'outro'; this.hold = 0; this.cutTo('map', null, ''); }
       return;
     }
-    if (this.phase === 'half') { this.hold -= dt; if (this.hold <= 0) { this.overlay = null; this.ri++; this.phase = 'wait'; } }
+    if (this.phase === 'half') { this.hold -= dt; if (this.studio) this.studio.t += dt; if (this.hold <= 0) { this.overlay = null; this.studio = null; this.halfE = null; this.ri++; this.phase = 'wait'; } }
+    if (this.phase === 'ceremony') { this.hold -= dt; if (this.studio) this.studio.t += dt; if (this.hold <= 0) this.enterFinal(); }
   }
 
   // Director with hysteresis: shots last at least ~1 s, a kill about to happen
@@ -691,6 +873,18 @@ export class Cs2View {
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     if (!this.meta) { this.centerText(this.match && this.match.status === 'failed' ? this.T.failed : this.T.pregame); return; }
     const R = this.R;
+    const st = this.studio ? shotAt(this.studio.plan, this.studio.t) : null;
+    const arena = st && st.s.shot !== 'tactical' && st.s.shot !== 'live' ? st : this.phase === 'final' && this.party != null ? this.finalShot() : null;
+    this.onStudio = !!arena;
+    if (arena) {
+      this.drawStudio(arena);
+      this.drawStudioLower(arena, R);
+      if (this.phase !== 'final') this.studioTag(arena);
+      this.drawTop(R, R ? gameTimeAt(R.tl, this.p) : 0);
+      this.drawTicker();
+      if (this.overlay) this.drawOverlay();
+      return;
+    }
     const pov = this.povOn();
     if (pov) {
       const rp = this.phase === 'replay' && this.replay;
@@ -706,14 +900,14 @@ export class Cs2View {
         this.drawTracers(R);
         this.drawUtil(R, gt, ['smoke', 'flash', 'he', 'flight']);
       }
-      if (!pov && this.phase === 'play') this.mapTag();
+      if (!pov && (this.phase === 'play' || this.phase === 'intro')) this.mapTag();
       this.drawCut();
       this.drawFeed(R);
       this.drawRosters(R, gt);
       this.drawTop(R, gt);
       this.drawTicker();
-      if (this.phase === 'intro') this.drawIntro(R);
-      if (this.banner) this.drawBanner(R);
+      if (this.phase === 'intro' && st) this.drawIntro(R, clamp(st.t / 0.3, 0, 1) * clamp((st.s.dur - st.t) / 0.3, 0, 1));
+      if (this.banner) this.drawBanner(R, this.box.y + this.box.h * 0.42);
     } else {
       this.drawTop(null, 0);
       this.drawRosters(null, 0);
@@ -1393,13 +1587,21 @@ export class Cs2View {
     g.restore();
   }
 
-  mapTag() {
+  mapTag() { this.camTag('TACTICAL', '', '#ffd34d'); }
+
+  // Camera tag in the corner of the frame: ARENA / BOOTH / TACTICAL (POV and REPLAY draw their own).
+  camTag(label, sub, dot) {
     const g = this.ctx, u = this.u, b = this.box;
     g.font = `900 ${10.5 * u}px ${FONT}`;
-    const t = 'TACTICAL VIEW', tw = g.measureText(t).width + 30 * u;
+    const lw = g.measureText(label).width;
+    g.font = `800 ${9 * u}px ${FONT}`;
+    const sw = sub ? g.measureText(sub).width + 10 * u : 0;
+    const tw = lw + sw + 30 * u;
     g.fillStyle = 'rgba(6,9,14,.75)'; g.beginPath(); g.roundRect(b.x + 8 * u, b.y + 8 * u, tw, 22 * u, 11 * u); g.fill();
-    g.fillStyle = '#ffd34d'; g.beginPath(); g.arc(b.x + 19 * u, b.y + 19 * u, 3.5 * u, 0, Math.PI * 2); g.fill();
-    g.fillStyle = 'rgba(255,255,255,.85)'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(t, b.x + 27 * u, b.y + 19.5 * u);
+    g.fillStyle = dot; g.beginPath(); g.arc(b.x + 19 * u, b.y + 19 * u, 3.5 * u, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.88)'; g.textAlign = 'left'; g.textBaseline = 'middle';
+    g.font = `900 ${10.5 * u}px ${FONT}`; g.fillText(label, b.x + 27 * u, b.y + 19.5 * u);
+    if (sub) { g.fillStyle = '#ffd34d'; g.font = `800 ${9 * u}px ${FONT}`; g.fillText(sub, b.x + 27 * u + lw + 10 * u, b.y + 19.5 * u); }
   }
 
   // Broadcast cut: a quick white pop and a team-coloured swipe across the frame.
@@ -1825,17 +2027,16 @@ export class Cs2View {
     g.font = `600 ${12.5 * u}px ${FONT}`;
     const text = this.ticker.text;
     const tw = Math.min(g.measureText(text).width + 28 * u, this.W - 20 * u);
-    const y = this.povOn() ? this.box.y + (this.narrow ? 40 : 10) * u : this.box.y + this.box.h - 30 * u, x = (this.W - tw) / 2;
+    const y = this.onStudio ? this.H - (this.narrow ? 136 : 152) * u : this.povOn() ? this.box.y + (this.narrow ? 40 : 10) * u : this.box.y + this.box.h - 30 * u, x = (this.W - tw) / 2;
     g.save(); g.globalAlpha = a;
     g.fillStyle = this.ticker.hl ? 'rgba(110,70,10,.85)' : 'rgba(6,9,14,.78)'; g.beginPath(); g.roundRect(x, y, tw, 24 * u, 12 * u); g.fill();
     g.fillStyle = this.ticker.hl ? '#ffd34d' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, this.W / 2, y + 12 * u, tw - 20 * u);
     g.restore();
   }
 
-  drawIntro(R) {
+  drawIntro(R, k) {
     const g = this.ctx, u = this.u, W = this.W, T = this.T;
     const names = this.names();
-    const k = clamp((1.7 - this.hold) / 0.3, 0, 1) * clamp(this.hold / 0.3, 0, 1);
     const w = Math.min(W - 24 * u, 560 * u), h = 112 * u, x = (W - w) / 2, y = this.box.y + this.box.h * 0.32 - h / 2;
     g.save(); g.globalAlpha = k;
     g.fillStyle = 'rgba(6,9,14,.9)'; g.beginPath(); g.roundRect(x, y, w, h, 10 * u); g.fill();
@@ -1858,13 +2059,13 @@ export class Cs2View {
     g.restore();
   }
 
-  drawBanner(R) {
+  drawBanner(R, yc) {
     if (!R.end) return;
     const g = this.ctx, u = this.u, W = this.W, T = this.T;
     const age = (performance.now() - this.banner.t0) / 1000;
     const k = easeOut(clamp(age * 3, 0, 1));
     const win = R.end.winner, col = this.teamColor(win), names = this.names();
-    const h = 74 * u, y = this.box.y + this.box.h * 0.42 - h / 2;
+    const h = 74 * u, y = yc - h / 2;
     const w = Math.min(W - 20 * u, 620 * u) * k, x = (W - w) / 2;
     g.save();
     g.fillStyle = rgba(col, 0.92); g.beginPath(); g.moveTo(x + 14 * u, y); g.lineTo(x + w, y); g.lineTo(x + w - 14 * u, y + h); g.lineTo(x, y + h); g.closePath(); g.fill();
@@ -1890,7 +2091,7 @@ export class Cs2View {
     const age = (performance.now() - o.t0) / 1000;
     const a = clamp(age * 2.5, 0, 1);
     g.save(); g.globalAlpha = a;
-    g.fillStyle = 'rgba(4,6,10,.82)'; g.fillRect(0, 0, W, H);
+    g.fillStyle = this.onStudio ? 'rgba(4,6,10,.8)' : 'rgba(4,6,10,.82)'; g.fillRect(0, 0, W, H);
     const names = this.names();
     if (o.kind === 'half') {
       const d = dataOf(o.e);
@@ -1966,3 +2167,804 @@ export class Cs2View {
     g.fillStyle = this.teamColor(1); g.textAlign = 'left'; g.fillText(names[1], W / 2 + size * 2.2 * u, y, W * 0.3);
   }
 }
+
+// ---- the arena studio: drawing ----
+// Every arena camera draws a virtual 1600×900 set (covering the canvas). The
+// static parts of each set are painted once into a cached canvas; the crowd,
+// screens, lights, players and confetti are drawn live on top.
+
+const VW = 1600, VH = 900;
+function mix(a, b, k) {
+  const x = hexToRgb(a), y = hexToRgb(b), h = v => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0');
+  return '#' + h(lerp(x[0], y[0], k)) + h(lerp(x[1], y[1], k)) + h(lerp(x[2], y[2], k));
+}
+const SKIN = ['#f0c8a4', '#c48f6a', '#8a5a3c'];
+const HAIR = ['#17110e', '#3b2618', '#b8904e'];
+const HEADBACK = ['#2b2420', '#211b17', '#18130f', '#100c0a'];
+function strHash(s) { let h = 7; for (const ch of String(s || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; }
+
+Object.assign(Cs2View.prototype, {
+  // Crowd mood decays back to a murmur; confetti falls during the ceremony.
+  tickStudio(dt) {
+    this.clock += dt;
+    const base = 0.06, f = Math.exp(-dt * 0.5);
+    for (let i = 0; i < 2; i++) this.cheer[i] = base + (this.cheer[i] - base) * f;
+    const party = this.party != null && (this.phase === 'ceremony' || this.phase === 'final');
+    if (party && this.meta) {
+      this.cheer[this.party] = Math.max(this.cheer[this.party], this.phase === 'ceremony' ? 0.95 : 0.7);
+      const col = this.teamColor(this.party), cols = [col, '#ffd34d', '#ffffff', col, '#e9e9e9'];
+      let n = (this.phase === 'ceremony' ? 110 : 30) * dt;
+      while (n > 0 && this.confetti.length < 280) {
+        if (n < 1 && Math.random() > n) break;
+        n -= 1;
+        this.confetti.push({ x: Math.random() * VW, y: -20 - Math.random() * 60, vx: (Math.random() - 0.5) * 60, vy: 90 + Math.random() * 90, r: Math.random() * 6.28, vr: (Math.random() - 0.5) * 10, c: cols[Math.floor(Math.random() * cols.length)], s: 5 + Math.random() * 6, ph: Math.random() * 6.28 });
+      }
+    }
+    if (this.confetti.length) {
+      let j = 0;
+      for (const c of this.confetti) {
+        c.x += (c.vx + Math.sin(this.clock * 2.2 + c.ph) * 45) * dt; c.y += c.vy * dt; c.r += c.vr * dt;
+        if (c.y < 930) this.confetti[j++] = c;
+      }
+      this.confetti.length = j;
+    }
+  },
+
+  pulseOf(team) { const a = this.clock - this.boothPulse[team]; if (a < 0 || a > 7) return 0; return Math.exp(-a * 0.45) * (0.55 + 0.45 * Math.sin(a * 14)); },
+  tags() { const ts = (this.meta && this.meta.teams) || [], n = this.names(); return [0, 1].map(i => (ts[i] && ts[i].tag) || String(n[i]).slice(0, 4).toUpperCase()); },
+  finalShot() { return { s: { shot: 'arena', screen: 'champions', team: this.party, trophy: true, dur: 1 }, i: 0, t: 9, k: 0.8 + 0.2 * Math.sin(this.clock * 0.15) }; },
+
+  vbase() {
+    const W = this.W, H = this.H, sc = Math.max(W / VW, Math.min(H / VH, W / 1000));
+    return { sc, ox: W / 2 - 800 * sc, oy: H / 2 - 450 * sc };
+  },
+
+  // A cached full-canvas layer painted in virtual coordinates (a few kept, least recently used dropped).
+  studioLayer(key, paint) {
+    const m = this.sCache;
+    let c = m.get(key);
+    if (c) { m.delete(key); m.set(key, c); return c; }
+    c = document.createElement('canvas'); c.width = this.W; c.height = this.H;
+    const g = c.getContext('2d'), V = this.vbase();
+    g.setTransform(V.sc, 0, 0, V.sc, V.ox, V.oy);
+    paint(g);
+    m.set(key, c);
+    while (m.size > 5) m.delete(m.keys().next().value);
+    return c;
+  },
+
+  drawStudio(st) {
+    const g = this.ctx, W = this.W, H = this.H, s = st.s;
+    const cam = shotCamera(s, st.k), V = this.vbase(), z = cam.z, sc = V.sc * z;
+    const fit = (v, h, L) => h * 2 >= L ? L / 2 : clamp(v, h, L - h);
+    const fx = fit(cam.fx, W / 2 / sc, VW), fy = fit(cam.fy, H / 2 / sc, VH);
+    const tx = W / 2 - fx * sc, ty = H / 2 - fy * sc;
+    const scene = s.shot === 'booth' || s.shot === 'desk' || s.shot === 'trophy' ? s.shot : 'arena';
+    const team = s.team === 1 ? 1 : 0;
+    const key = scene === 'booth' || scene === 'trophy' ? scene + team : scene;
+    const back = this.studioLayer(key + ':b', gg => scene === 'booth' ? this.paintBoothBack(gg, team) : scene === 'desk' ? this.paintDeskBack(gg) : scene === 'trophy' ? this.paintTrophyBack(gg, team) : this.paintArena(gg));
+    const cached = () => g.setTransform(z, 0, 0, z, tx - V.ox * z, ty - V.oy * z);
+    const live = () => g.setTransform(sc, 0, 0, sc, tx, ty);
+    g.save();
+    g.fillStyle = '#04060a'; g.fillRect(0, 0, W, H);
+    cached(); g.drawImage(back, 0, 0);
+    live();
+    if (scene === 'arena') this.arenaScene(g, s, st);
+    else if (scene === 'booth') {
+      this.boothScene(g, s, st, team);
+      cached(); g.drawImage(this.studioLayer(key + ':f', gg => this.paintBoothFront(gg, team)), 0, 0); live();
+    } else if (scene === 'desk') {
+      this.deskScene(g);
+      cached(); g.drawImage(this.studioLayer('desk:f', gg => this.paintDeskFront(gg)), 0, 0); live();
+    } else this.trophyScene(g, team);
+    this.drawConfetti(g);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const vg = g.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)');
+    g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    if (st.t < 0.16) { g.fillStyle = `rgba(255,255,255,${0.32 * (1 - st.t / 0.16)})`; g.fillRect(0, 0, W, H); }
+    g.restore();
+  },
+
+  studioTag(st) {
+    const s = st.s, red = '#ff3b3b';
+    if (s.shot === 'booth') this.camTag('BOOTH', this.tags()[s.team === 1 ? 1 : 0], red);
+    else this.camTag('ARENA', s.shot === 'crowd' ? 'CROWD CAM' : s.shot === 'desk' ? 'CASTER DESK' : s.shot === 'trophy' ? 'TROPHY' : '', red);
+  },
+
+  // Lower thirds on the arena cameras.
+  drawStudioLower(st, R) {
+    if (this.phase === 'final') return;
+    const s = st.s, T = this.T, names = this.names(), sc = this.score || [0, 0];
+    const yc = this.H - (this.narrow ? 64 : 80) * this.u;
+    if (s.screen === 'win') { if (R && R.end && this.banner) this.drawBanner(R, yc); return; }
+    if (s.screen === 'half' && this.halfE) {
+      const d = dataOf(this.halfE), score = d.score || sc;
+      const title = d.after === 12 ? T.half : d.after === 24 ? T.ot : T.otSwitch;
+      this.lowerCard(yc, title, '#ffd34d', `${names[0]}   ${score[0] || 0} – ${score[1] || 0}   ${names[1]}`, d.money ? `${T.switchNote} ${money(d.money)}` : '', '#ffd34d');
+    } else if (s.screen === 'welcome') {
+      this.lowerCard(yc, 'LIVE FROM THE ARENA', '#ff5a4e', `${names[0]}  vs  ${names[1]}`, `MAP: ${String((this.meta && this.meta.map) || 'Mirage').toUpperCase()}${R ? ` · ${T.round} ${R.num}` : ''}`, '#ff5a4e');
+    } else if (s.screen === 'champions') {
+      const w = s.team === 1 ? 1 : 0;
+      this.lowerCard(yc, 'CHAMPIONS', '#ffd34d', names[w], `${sc[0] || 0} – ${sc[1] || 0}`, this.teamColor(w));
+    } else if (s.screen === 'matchpoint') {
+      const mp = R ? matchPointTeams(sc, R.num) : [];
+      this.lowerCard(yc, 'MATCH POINT', '#ff5a4e', mp.length === 1 ? names[mp[0]] : `${names[0]}  ·  ${names[1]}`, `${T.round} ${R ? R.num : ''} · ${sc[0] || 0} – ${sc[1] || 0}`, mp.length === 1 ? this.teamColor(mp[0]) : '#ff5a4e');
+    } else if (s.screen === 'overtime') {
+      this.lowerCard(yc, T.ot, '#ffd34d', `${names[0]}   ${sc[0] || 0} – ${sc[1] || 0}   ${names[1]}`, `${T.round} ${R ? R.num : ''}`, '#ffd34d');
+    } else if (s.screen === 'pistol') {
+      this.lowerCard(yc, T.pistol, '#ffd34d', `${names[0]}  vs  ${names[1]}`, `${T.round} ${R ? R.num : ''}`, '#ffd34d');
+    }
+  },
+
+  lowerCard(yc, title, tcol, line1, line2, accent) {
+    const g = this.ctx, u = this.u, W = this.W;
+    const w = Math.min(W - 24 * u, 600 * u), h = (line2 ? 70 : 54) * u, x = (W - w) / 2, y = yc - h / 2;
+    g.save();
+    g.fillStyle = 'rgba(6,9,14,.9)'; g.beginPath(); g.moveTo(x + 14 * u, y); g.lineTo(x + w, y); g.lineTo(x + w - 14 * u, y + h); g.lineTo(x, y + h); g.closePath(); g.fill();
+    g.fillStyle = accent; g.fillRect(x + 14 * u, y, w - 14 * u, 3 * u);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = tcol; g.font = `900 italic ${19 * u}px ${FONT}`; g.fillText(title, W / 2, y + 19 * u, w - 30 * u);
+    g.fillStyle = '#fff'; g.font = `800 ${13 * u}px ${FONT}`; g.fillText(line1, W / 2, y + 40 * u, w - 30 * u);
+    if (line2) { g.fillStyle = 'rgba(255,255,255,.65)'; g.font = `600 ${11 * u}px ${FONT}`; g.fillText(line2, W / 2, y + 58 * u, w - 30 * u); }
+    g.restore();
+  },
+
+  // ---- wide shot of the arena ----
+
+  paintArena(g) {
+    const c0 = this.teamColor(0), c1 = this.teamColor(1), tags = this.tags();
+    let gr = g.createLinearGradient(0, 0, 0, VH);
+    gr.addColorStop(0, '#03050a'); gr.addColorStop(0.5, '#0a0f1d'); gr.addColorStop(1, '#05060b');
+    g.fillStyle = gr; g.fillRect(-1200, -600, 4000, 2100);
+    // LED mesh wall behind the stage
+    for (let x = 180, i = 0; x < 1420; x += 36, i++) { g.fillStyle = i % 2 ? 'rgba(60,80,140,.07)' : 'rgba(60,80,140,.12)'; g.fillRect(x, 40, 34, 440); }
+    for (const [x, c] of [[430, c0], [1170, c1]]) {
+      const rg = g.createRadialGradient(x, 430, 0, x, 430, 440); rg.addColorStop(0, rgba(c, 0.26)); rg.addColorStop(1, rgba(c, 0));
+      g.fillStyle = rg; g.fillRect(x - 440, 0, 880, 900);
+    }
+    const sg = g.createRadialGradient(800, 200, 0, 800, 200, 540); sg.addColorStop(0, 'rgba(120,150,255,.24)'); sg.addColorStop(1, 'rgba(120,150,255,0)');
+    g.fillStyle = sg; g.fillRect(260, -340, 1080, 1080);
+    // roof truss and light fixtures
+    g.strokeStyle = '#2a2f3a'; g.lineWidth = 3;
+    for (const y of [30, 56]) { g.beginPath(); g.moveTo(-300, y); g.lineTo(1900, y); g.stroke(); }
+    g.lineWidth = 1.5; g.beginPath();
+    for (let x = -300; x < 1900; x += 26) { g.moveTo(x, 30); g.lineTo(x + 13, 56); g.lineTo(x + 26, 30); }
+    g.stroke();
+    g.fillStyle = '#1b1f28';
+    for (let i = 0; i < 10; i++) g.fillRect(70 + i * (1460 / 9) - 9, 54, 18, 12);
+    g.strokeStyle = 'rgba(160,170,190,.25)'; g.beginPath();
+    for (const [x, y] of [[600, 84], [1000, 84], [300, 146], [420, 146], [1180, 146], [1300, 146]]) { g.moveTo(x, 56); g.lineTo(x, y); }
+    g.stroke();
+    // giant screen and side screens (frames; the pictures are live)
+    g.fillStyle = '#0c0e13'; g.fillRect(544, 80, 512, 236); g.strokeStyle = '#33373f'; g.lineWidth = 3; g.strokeRect(544, 80, 512, 236);
+    for (const x of [250, 1130]) { g.fillStyle = '#0c0e13'; g.fillRect(x - 5, 145, 230, 128); }
+    // side stands
+    for (const side of [0, 1]) {
+      const X = x => side ? VW - x : x;
+      g.fillStyle = '#070910'; g.beginPath(); g.moveTo(X(-300), 236); g.lineTo(X(306), 236); g.lineTo(X(306), 590); g.lineTo(X(-300), 760); g.closePath(); g.fill();
+      g.fillStyle = '#11141c'; g.beginPath(); g.moveTo(X(-300), 220); g.lineTo(X(310), 226); g.lineTo(X(310), 238); g.lineTo(X(-300), 240); g.closePath(); g.fill();
+      // stairs between blocks
+      g.strokeStyle = 'rgba(255,255,255,.04)'; g.lineWidth = 6; g.beginPath(); g.moveTo(X(150), 250); g.lineTo(X(120), 640); g.stroke();
+    }
+    // the stage
+    gr = g.createLinearGradient(0, 470, 0, 592); gr.addColorStop(0, '#151b2a'); gr.addColorStop(1, '#090c14');
+    g.fillStyle = gr; g.beginPath(); g.moveTo(262, 470); g.lineTo(1338, 470); g.lineTo(1372, 592); g.lineTo(228, 592); g.closePath(); g.fill();
+    const rf = g.createRadialGradient(800, 560, 0, 800, 560, 380); rf.addColorStop(0, 'rgba(140,170,255,.13)'); rf.addColorStop(1, 'rgba(140,170,255,0)');
+    g.fillStyle = rf; g.fillRect(420, 470, 760, 122);
+    g.fillStyle = '#05060a'; g.fillRect(222, 592, 1156, 30);
+    g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(228, 591, 1144, 2);
+    // the two team booths (shells; desks, players and glass are live)
+    for (const team of [0, 1]) {
+      const c = this.teamColor(team), x0 = team ? 880 : 300, x1 = x0 + 420, mx = x0 + 210;
+      gr = g.createLinearGradient(0, 368, 0, 575); gr.addColorStop(0, mix(c, '#000000', 0.7)); gr.addColorStop(1, mix(c, '#000000', 0.9));
+      g.fillStyle = gr; g.fillRect(x0, 368, 420, 207);
+      for (let x = x0 + 18; x < x1 - 20; x += 50) { g.fillStyle = rgba(c, 0.09); g.fillRect(x, 378, 30, 96); }
+      g.fillStyle = '#0b0d12'; g.fillRect(x0 - 8, 350, 436, 16); g.fillRect(x0 - 8, 568, 436, 14);
+      g.fillStyle = '#12151c'; g.fillRect(x0 - 8, 350, 8, 232); g.fillRect(x1, 350, 8, 232);
+      g.fillStyle = '#06070b'; g.fillRect(mx - 122, 310, 244, 38); g.strokeStyle = rgba(c, 0.85); g.lineWidth = 2; g.strokeRect(mx - 122, 310, 244, 38);
+      g.fillStyle = c; g.font = `900 27px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tags[team], mx, 330, 224);
+    }
+    // the trophy pedestal between the booths
+    gr = g.createLinearGradient(770, 0, 830, 0); gr.addColorStop(0, '#0c0d10'); gr.addColorStop(0.5, '#2c2f37'); gr.addColorStop(1, '#0c0d10');
+    g.fillStyle = gr; g.fillRect(772, 520, 56, 72); g.fillStyle = '#c9a54a'; g.fillRect(768, 516, 64, 5);
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.font = `800 13px ${FONT}`; g.textAlign = 'center'; g.fillText('GREGAL ARENA', 800, 455);
+  },
+
+  arenaScene(g, s, st) {
+    const ck = this.clock, lv = this.cheer, hype = Math.max(lv[0], lv[1]);
+    if (!this.crowd) this.crowd = buildCrowd(7);
+    // giant screen
+    const mode = this.phase === 'final' ? 'champions' : s.screen && s.screen !== 'round' ? s.screen : this.phase === 'intro' ? 'round' : 'score';
+    g.drawImage(this.boardImage(mode, s.team), 550, 86, 500, 224);
+    g.globalCompositeOperation = 'lighter';
+    const sg = g.createRadialGradient(800, 200, 60, 800, 200, 430); sg.addColorStop(0, 'rgba(130,160,255,.10)'); sg.addColorStop(1, 'rgba(130,160,255,0)');
+    g.fillStyle = sg; g.fillRect(370, -230, 860, 860);
+    g.globalCompositeOperation = 'source-over';
+    this.sideScreens(g);
+    // booths
+    for (const t of [0, 1]) this.arenaBooth(g, t, this.party === t || (this.clock - this.boothPulse[t] >= 0 && this.clock - this.boothPulse[t] < 3.2));
+    // trophy on its pedestal; the ceremony lifts it into a spotlight
+    const tk = s.trophy ? easeOut(clamp(st.t / 1.6, 0, 1)) : 0;
+    if (tk > 0) {
+      g.globalCompositeOperation = 'lighter';
+      const cg = g.createLinearGradient(800, 0, 800, 520); cg.addColorStop(0, `rgba(255,236,170,${0.02})`); cg.addColorStop(1, `rgba(255,236,170,${0.3 * tk})`);
+      g.fillStyle = cg; g.beginPath(); g.moveTo(790, 56); g.lineTo(810, 56); g.lineTo(870, 525); g.lineTo(730, 525); g.closePath(); g.fill();
+      g.globalCompositeOperation = 'source-over';
+    }
+    this.drawTrophy(g, 800, 516, 0.42 + tk * 0.16, tk);
+    // LED ribbons: stage front and the stands' fascias
+    this.ledLine(g, 222, 606, 1378, 606, 14, hype, null);
+    // light show
+    this.beams(g, hype, 10, 62, 760);
+    // side stands (two tiers each side)
+    const pal = this.crowdPal(), ex = [fanExcitement(lv, -1), fanExcitement(lv, 0), fanExcitement(lv, 1)];
+    const rows = this.crowd.rows;
+    for (const row of rows) {
+      if (row.kind !== 'side') continue;
+      this.sideRow(g, row, pal, ex);
+      if (row.k === 5 || row.k === 11) {
+        const side = row.fans.length && row.fans[0].x > 800 ? 1 : 0, X = x => side ? VW - x : x;
+        const yi = 252 + row.k * 27 + 14, yo = yi + 42 + row.k * 5;
+        g.fillStyle = '#06070b'; g.beginPath(); g.moveTo(X(-300), yo + 40); g.lineTo(X(300), yi); g.lineTo(X(300), yi + 16); g.lineTo(X(-300), yo + 70); g.closePath(); g.fill();
+        this.ledLine(g, X(-40), yo + 9, X(300), yi + 4, 6, hype, this.teamColor(side));
+      }
+    }
+    // haze over the stage
+    const hz = g.createLinearGradient(0, 260, 0, 700);
+    const ha = 0.06 + 0.02 * Math.sin(ck * 0.4);
+    hz.addColorStop(0, 'rgba(160,180,240,0)'); hz.addColorStop(0.5, `rgba(160,180,240,${ha})`); hz.addColorStop(1, 'rgba(160,180,240,0)');
+    g.fillStyle = hz; g.fillRect(-300, 260, 2200, 440);
+    for (let i = 0; i < 3; i++) {
+      const x = 800 + Math.sin(ck * 0.07 + i * 2.1) * 520, y = 470 + Math.sin(ck * 0.05 + i) * 60, r = 260;
+      const bg = g.createRadialGradient(x, y, 0, x, y, r); bg.addColorStop(0, 'rgba(170,190,255,.05)'); bg.addColorStop(1, 'rgba(170,190,255,0)');
+      g.fillStyle = bg; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    // pyro on big moments
+    if (this.party != null || hype > 0.85) {
+      const pk = this.pyroK(0), pk2 = this.pyroK(0.85);
+      this.pyro(g, 250, 600, 260, pk); this.pyro(g, 1350, 600, 260, pk);
+      this.pyro(g, 740, 590, 200, pk2); this.pyro(g, 860, 590, 200, pk2);
+    }
+    // the floor crowd, back rows first
+    for (const row of rows) if (row.kind === 'floor') this.floorRow(g, row, pal, ex);
+    this.camFlashes(g, rows, hype);
+  },
+
+  sideScreens(g) {
+    const sc = this.score || [0, 0], tags = this.tags();
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const t of [0, 1]) {
+      const x = t ? 1130 : 250, c = this.teamColor(t), p = this.pulseOf(t);
+      g.fillStyle = mix(c, '#000000', 0.62 - 0.4 * p); g.fillRect(x, 150, 220, 118);
+      g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x, 150, 220, 40);
+      g.fillStyle = '#fff'; g.font = `900 34px ${FONT}`; g.fillText(tags[t], x + 110, 171, 200);
+      g.fillStyle = '#ffd34d'; g.font = `900 52px ${FONT}`; g.fillText(String(sc[t] || 0), x + 110, 232);
+    }
+  },
+
+  // A team booth in the wide shot: five players at their monitors behind glass.
+  arenaBooth(g, team, celebrate) {
+    const c = this.teamColor(team), x0 = team ? 880 : 300, ck = this.clock;
+    const jersey = mix(c, '#000000', 0.2);
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + 50 + i * 80;
+      let y = 474 + Math.sin(ck * 0.9 + i) * 0.8;
+      if (celebrate) y -= 14 + Math.abs(Math.sin(ck * 7 + i * 1.3)) * 9;
+      g.fillStyle = jersey; g.beginPath(); g.roundRect(x - 17, y + 10, 34, 44, 7); g.fill();
+      if (celebrate) {
+        g.strokeStyle = jersey; g.lineWidth = 6; g.lineCap = 'round'; g.beginPath();
+        g.moveTo(x - 13, y + 15); g.lineTo(x - 22, y - 14 + Math.sin(ck * 9 + i) * 3);
+        g.moveTo(x + 13, y + 15); g.lineTo(x + 22, y - 14 + Math.cos(ck * 9 + i) * 3); g.stroke();
+      }
+      g.fillStyle = SKIN[i % 3]; g.beginPath(); g.arc(x, y, 10, 0, 6.283); g.fill();
+      g.fillStyle = '#121318'; g.beginPath(); g.arc(x, y - 2, 10.6, Math.PI, 0); g.fill();
+      g.fillRect(x - 12, y - 3, 4, 8); g.fillRect(x + 8, y - 3, 4, 8);
+    }
+    for (let i = 0; i < 5; i++) {
+      const x = x0 + 50 + i * 80;
+      g.fillStyle = '#181b22'; g.fillRect(x - 28, 494, 56, 36);
+      g.fillStyle = rgba(c, 0.55); g.fillRect(x - 28, 494, 56, 2);
+    }
+    g.fillStyle = '#0e1016'; g.fillRect(x0, 530, 420, 38); g.fillStyle = c; g.fillRect(x0, 530, 420, 3);
+    // glass
+    g.fillStyle = 'rgba(170,200,255,.06)'; g.fillRect(x0, 366, 420, 202);
+    g.fillStyle = 'rgba(255,255,255,.05)'; g.beginPath(); g.moveTo(x0 + 60, 366); g.lineTo(x0 + 120, 366); g.lineTo(x0 + 40, 568); g.lineTo(x0, 568); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(x0 + 208, 366, 3, 202);
+    // booth light: pulses after a round win
+    const p = Math.max(this.pulseOf(team), this.party === team ? 0.7 + 0.3 * Math.sin(ck * 10) : 0);
+    g.fillStyle = c; g.globalAlpha = 0.35 + 0.65 * p; g.fillRect(x0, 364, 420, 5); g.globalAlpha = 1;
+    if (p > 0.02) {
+      g.globalCompositeOperation = 'lighter';
+      const lg = g.createLinearGradient(0, 366, 0, 470); lg.addColorStop(0, rgba(c, 0.4 * p)); lg.addColorStop(1, rgba(c, 0));
+      g.fillStyle = lg; g.fillRect(x0, 366, 420, 104);
+      const og = g.createRadialGradient(x0 + 210, 366, 0, x0 + 210, 366, 300); og.addColorStop(0, rgba(c, 0.25 * p)); og.addColorStop(1, rgba(c, 0));
+      g.fillStyle = og; g.fillRect(x0 - 90, 66, 600, 600);
+      g.globalCompositeOperation = 'source-over';
+    }
+  },
+
+  // LED ribbon along a line: a chase in the team colours (left/right halves, or one colour).
+  ledLine(g, x0, y0, x1, y1, h, hype, col) {
+    const ck = this.clock, len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(4, Math.round(len / 20));
+    const win = this.party != null ? this.party : this.pulseOf(0) > 0.05 ? 0 : this.pulseOf(1) > 0.05 ? 1 : -1;
+    const c0 = this.teamColor(0), c1 = this.teamColor(1);
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const a = i / n, b = (i + 0.78) / n;
+      const ax = lerp(x0, x1, a), ay = lerp(y0, y1, a), bx = lerp(x0, x1, b), by = lerp(y0, y1, b);
+      const br = 0.2 + 0.8 * Math.pow(Math.max(0, Math.sin(a * 16 - ck * (3 + hype * 7))), 2);
+      const c = win >= 0 && (col == null || Math.floor(ck * 6) % 2) ? (win ? c1 : c0) : col || (a < 0.5 ? c0 : c1);
+      g.fillStyle = rgba(c, 0.3 + 0.6 * br);
+      g.beginPath(); g.moveTo(ax, ay - h / 2); g.lineTo(bx, by - h / 2); g.lineTo(bx, by + h / 2); g.lineTo(ax, ay + h / 2); g.closePath(); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+  },
+
+  // Moving-head beams from the roof truss; they speed up and strobe when the crowd roars.
+  beams(g, hype, n, top, len) {
+    const ck = this.clock, cols = [this.teamColor(0), '#ffffff', this.teamColor(1), '#9fb7ff'];
+    const strobe = hype > 0.75 && Math.floor(ck * 9) % 2 === 0;
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      const ox = 70 + i * (1460 / (n - 1)), oy = top;
+      const ang = Math.PI / 2 + Math.sin(ck * (0.45 + hype * 0.9) + i * 1.9) * 0.5 + (i < n / 2 ? 0.14 : -0.14);
+      const ex = ox + Math.cos(ang) * len, ey = oy + Math.sin(ang) * len, px = -Math.sin(ang), py = Math.cos(ang), w = 64;
+      const col = strobe ? '#ffffff' : cols[i % 4], a = (0.09 + hype * 0.12) * (strobe ? 1.5 : 1);
+      const gr = g.createLinearGradient(ox, oy, ex, ey); gr.addColorStop(0, rgba(col, a)); gr.addColorStop(1, rgba(col, 0));
+      g.fillStyle = gr; g.beginPath(); g.moveTo(ox - px * 4, oy - py * 4); g.lineTo(ox + px * 4, oy + py * 4); g.lineTo(ex + px * w, ey + py * w); g.lineTo(ex - px * w, ey - py * w); g.closePath(); g.fill();
+      g.fillStyle = rgba(col, 0.85); g.beginPath(); g.arc(ox, oy + 3, 5, 0, 6.283); g.fill();
+    }
+    g.globalCompositeOperation = 'source-over';
+  },
+
+  pyroK(off) { const t = (this.clock + off) % 1.7; return t < 0.8 ? Math.sin(t / 0.8 * Math.PI) : 0; },
+  pyro(g, x, y, h, k) {
+    if (k <= 0.02) return;
+    g.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < 4; j++) {
+      const yy = y - h * (0.15 + j * 0.22) * k, r = h * (0.16 + j * 0.05) * (0.6 + 0.4 * k);
+      const gr = g.createRadialGradient(x, yy, 0, x, yy, r);
+      gr.addColorStop(0, `rgba(255,240,190,${0.55 * k})`); gr.addColorStop(0.4, `rgba(255,140,40,${0.35 * k})`); gr.addColorStop(1, 'rgba(255,60,0,0)');
+      g.fillStyle = gr; g.fillRect(x - r, yy - r, 2 * r, 2 * r);
+    }
+    g.globalCompositeOperation = 'source-over';
+  },
+
+  crowdPal() {
+    const c0 = this.teamColor(0), c1 = this.teamColor(1), key = c0 + c1;
+    if (this._pal && this._pal.key === key) return this._pal;
+    const base = [c0, mix(c0, '#ffffff', 0.3), c1, mix(c1, '#ffffff', 0.3), '#2c313c', '#16181e', '#c9ced8'];
+    const shade = b => base.map(c => mix(c, '#000000', 1 - b));
+    return (this._pal = {
+      key, floor: [0.55, 0.42, 0.32, 0.24].map(shade), side: [0.42, 0.46, 0.5, 0.54].map(shade),
+      stick: [mix(c0, '#ffffff', 0.18), mix(c1, '#ffffff', 0.18), '#cfe6ff'], flag: [c0, c1, '#dddddd'],
+      skin: SKIN.map(c => mix(c, '#000000', 0.45)),
+    });
+  },
+
+  // Floor fans seen from behind: shirts, backs of heads, arms up and jumping when it's their moment.
+  floorRow(g, row, pal, ex) {
+    const ck = this.clock, F = row.fans, P = pal.floor[row.band];
+    let k = -1;
+    g.beginPath();
+    for (const f of F) {
+      if (f.k !== k) { if (k >= 0) { g.fillStyle = P[k]; g.fill(); g.beginPath(); } k = f.k; }
+      const e = ex[f.team + 1], s = f.s, up = e > f.th;
+      const hop = up ? e * Math.max(0, Math.sin(ck * 7.5 + f.ph)) * 0.32 * s : 0;
+      const x = f.x + Math.sin(ck * 1.1 + f.ph) * 0.06 * s, y = f.y - hop;
+      f._x = x; f._y = y; f._up = up;
+      g.moveTo(x + 0.5 * s, y + 0.3 * s); g.ellipse(x, y + 0.3 * s, 0.5 * s, 0.3 * s, 0, 0, 6.283); g.rect(x - 0.5 * s, y + 0.3 * s, s, 1.3 * s);
+      if (up) {
+        const w = Math.sin(ck * 6 + f.ph) * 0.12 * s;
+        g.rect(x - 0.6 * s + w, y - 0.95 * s, 0.18 * s, 1.05 * s); g.rect(x + 0.42 * s - w, y - 0.95 * s, 0.18 * s, 1.05 * s);
+      }
+    }
+    if (k >= 0) { g.fillStyle = P[k]; g.fill(); }
+    g.beginPath();
+    for (const f of F) { const r = 0.31 * f.s, hy = f._y - 0.3 * f.s; g.moveTo(f._x + r, hy); g.arc(f._x, hy, r, 0, 6.283); }
+    g.fillStyle = HEADBACK[row.band]; g.fill();
+    this.crowdProps(g, F, pal, ex, F.length ? F[0].s : 8);
+  },
+
+  // Side-stand fans face the stage: seated in the quiet, on their feet for the big moments.
+  sideRow(g, row, pal, ex) {
+    const ck = this.clock, F = row.fans, P = pal.side[row.band];
+    let k = -1;
+    g.beginPath();
+    for (const f of F) {
+      if (f.k !== k) { if (k >= 0) { g.fillStyle = P[k]; g.fill(); g.beginPath(); } k = f.k; }
+      const e = ex[f.team + 1], s = f.s, up = e > f.th;
+      const hop = up ? e * Math.max(0, Math.sin(ck * 7 + f.ph)) * 0.25 * s : 0;
+      const x = f.x, y = f.y + (up ? -0.35 * s - hop : 0.1 * s);
+      f._x = x; f._y = y; f._up = up;
+      g.moveTo(x + 0.45 * s, y + 0.25 * s); g.ellipse(x, y + 0.25 * s, 0.45 * s, 0.25 * s, 0, 0, 6.283); g.rect(x - 0.45 * s, y + 0.25 * s, 0.9 * s, 1.05 * s);
+      if (up) g.rect(x - 0.62 * s, y - 0.85 * s, 0.17 * s, 0.95 * s), g.rect(x + 0.45 * s, y - 0.85 * s, 0.17 * s, 0.95 * s);
+    }
+    if (k >= 0) { g.fillStyle = P[k]; g.fill(); }
+    for (let sk = 0; sk < 3; sk++) {
+      g.beginPath();
+      for (const f of F) { if (f.skin !== sk) continue; const r = 0.3 * f.s, hy = f._y - 0.28 * f.s; g.moveTo(f._x + r, hy); g.arc(f._x, hy, r, 0, 6.283); }
+      g.fillStyle = pal.skin[sk]; g.fill();
+    }
+    this.crowdProps(g, F, pal, ex, F.length ? F[F.length >> 1].s : 6);
+  },
+
+  // Light sticks (glowing), flags and phone lights.
+  crowdProps(g, F, pal, ex, s0) {
+    const ck = this.clock;
+    g.lineCap = 'round';
+    for (let t = 0; t < 3; t++) {
+      const team = t === 2 ? -1 : t;
+      g.beginPath();
+      let any = false;
+      for (const f of F) {
+        if (f.prop !== 1 || f.team !== team) continue;
+        const s = f.s, sw = Math.sin(ck * (f._up ? 5 : 1.4) + f.ph);
+        let hx, hy, tx, ty;
+        if (f._up) { hx = f._x + 0.5 * s; hy = f._y - 0.95 * s; tx = hx + sw * 0.4 * s; ty = hy - 0.8 * s; }
+        else { hx = f._x + 0.45 * s; hy = f._y + 0.05 * s; tx = hx + 0.1 * s + sw * 0.12 * s; ty = hy - 0.62 * s; }
+        g.moveTo(hx, hy); g.lineTo(tx, ty); any = true;
+      }
+      if (!any) continue;
+      const col = pal.stick[t];
+      g.globalCompositeOperation = 'lighter';
+      g.strokeStyle = rgba(col, 0.22); g.lineWidth = s0 * 0.42; g.stroke();
+      g.strokeStyle = col; g.lineWidth = s0 * 0.13; g.stroke();
+      g.globalCompositeOperation = 'source-over';
+    }
+    for (let t = 0; t < 2; t++) {
+      g.beginPath();
+      let any = false;
+      for (const f of F) {
+        if (f.prop !== 2 || f.team !== t) continue;
+        const s = f.s, px = f._x + 0.4 * s, top = f._y - 2.4 * s, wv = Math.sin(ck * (f._up ? 7 : 2) + f.ph) * (f._up ? 0.35 : 0.12) * s;
+        g.moveTo(px, top); g.lineTo(px + 1.5 * s, top + wv * 0.5); g.lineTo(px + 1.5 * s, top + 0.95 * s + wv); g.lineTo(px, top + 0.95 * s); g.closePath();
+        any = true;
+      }
+      if (!any) continue;
+      g.fillStyle = pal.flag[t]; g.fill();
+      g.strokeStyle = 'rgba(200,200,200,.6)'; g.lineWidth = s0 * 0.06; g.beginPath();
+      for (const f of F) if (f.prop === 2 && f.team === t) { g.moveTo(f._x + 0.4 * f.s, f._y + 0.2 * f.s); g.lineTo(f._x + 0.4 * f.s, f._y - 2.4 * f.s); }
+      g.stroke();
+    }
+    g.beginPath();
+    let any = false;
+    for (const f of F) {
+      if (f.prop !== 3 || !f._up) continue;
+      const s = f.s; g.rect(f._x + 0.32 * s, f._y - 1.25 * s, 0.2 * s, 0.32 * s); any = true;
+    }
+    if (any) { g.globalCompositeOperation = 'lighter'; g.fillStyle = '#e8f4ff'; g.fill(); g.globalCompositeOperation = 'source-over'; }
+  },
+
+  camFlashes(g, rows, hype) {
+    const n = Math.floor(hype * 8) + (Math.random() < 0.3 ? 1 : 0);
+    if (!n) return;
+    const img = this.sparkImg();
+    for (let i = 0; i < n; i++) {
+      const row = rows[Math.floor(Math.random() * rows.length)], f = row.fans[Math.floor(Math.random() * row.fans.length)];
+      if (!f) continue;
+      const r = f.s * 1.5;
+      g.drawImage(img, f._x - r, f._y - f.s * 0.9 - r, 2 * r, 2 * r);
+    }
+  },
+  sparkImg() {
+    if (this._spark) return this._spark;
+    const c = document.createElement('canvas'); c.width = c.height = 32;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+    return (this._spark = c);
+  },
+
+  drawConfetti(g) {
+    for (const c of this.confetti) {
+      const w = c.s * Math.abs(Math.cos(c.r)) + 1, h = c.s * 0.6;
+      g.fillStyle = c.c; g.fillRect(c.x - w / 2, c.y - h / 2, w, h);
+    }
+  },
+
+  // The trophy: (x, y) is the bottom of its base; tk>0 adds the ceremony glint.
+  drawTrophy(g, x, y, s, tk = 0) {
+    const S = v => v * s;
+    if (tk > 0) {
+      g.globalCompositeOperation = 'lighter';
+      const gl = g.createRadialGradient(x, y - S(90), 0, x, y - S(90), S(160)); gl.addColorStop(0, `rgba(255,220,120,${0.45 * tk})`); gl.addColorStop(1, 'rgba(255,220,120,0)');
+      g.fillStyle = gl; g.fillRect(x - S(160), y - S(250), S(320), S(320));
+      g.globalCompositeOperation = 'source-over';
+    }
+    const gold = g.createLinearGradient(x - S(44), 0, x + S(44), 0);
+    gold.addColorStop(0, '#6e5010'); gold.addColorStop(0.3, '#ffe38a'); gold.addColorStop(0.5, '#c6962a'); gold.addColorStop(0.72, '#fff2c2'); gold.addColorStop(1, '#7a5a14');
+    g.fillStyle = '#121216'; g.beginPath(); g.moveTo(x - S(40), y); g.lineTo(x + S(40), y); g.lineTo(x + S(30), y - S(26)); g.lineTo(x - S(30), y - S(26)); g.closePath(); g.fill();
+    g.fillStyle = '#d9b456'; g.fillRect(x - S(31), y - S(28), S(62), S(3));
+    g.fillStyle = gold; g.fillRect(x - S(8), y - S(62), S(16), S(36));
+    g.beginPath(); g.ellipse(x, y - S(46), S(14), S(5), 0, 0, 6.283); g.fill();
+    g.beginPath(); g.moveTo(x - S(44), y - S(132));
+    g.bezierCurveTo(x - S(44), y - S(84), x - S(14), y - S(64), x, y - S(62));
+    g.bezierCurveTo(x + S(14), y - S(64), x + S(44), y - S(84), x + S(44), y - S(132)); g.closePath(); g.fill();
+    g.strokeStyle = gold; g.lineWidth = S(6); g.beginPath();
+    g.moveTo(x - S(42), y - S(122)); g.bezierCurveTo(x - S(74), y - S(122), x - S(70), y - S(84), x - S(30), y - S(80));
+    g.moveTo(x + S(42), y - S(122)); g.bezierCurveTo(x + S(74), y - S(122), x + S(70), y - S(84), x + S(30), y - S(80)); g.stroke();
+    g.fillStyle = '#fff4c8'; g.beginPath(); g.ellipse(x, y - S(132), S(44), S(7), 0, 0, 6.283); g.fill();
+    g.fillStyle = '#8a6a1c'; g.beginPath(); g.ellipse(x, y - S(132), S(38), S(4.5), 0, 0, 6.283); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x - S(26), y - S(124), S(4), S(44));
+    // glint
+    const gk = Math.max(0, Math.sin(this.clock * 2.3)) ** 8;
+    if (gk > 0.05) {
+      g.globalCompositeOperation = 'lighter'; g.fillStyle = `rgba(255,255,255,${gk})`;
+      const gx = x + S(24), gy = y - S(118), r = S(16) * gk;
+      g.beginPath(); g.moveTo(gx - r, gy); g.lineTo(gx, gy - S(2)); g.lineTo(gx + r, gy); g.lineTo(gx, gy + S(2)); g.closePath(); g.fill();
+      g.beginPath(); g.moveTo(gx, gy - r); g.lineTo(gx + S(2), gy); g.lineTo(gx, gy + r); g.lineTo(gx - S(2), gy); g.closePath(); g.fill();
+      g.globalCompositeOperation = 'source-over';
+    }
+  },
+
+  // The giant screen above the stage (redrawn only when what it shows changes).
+  boardImage(mode, team) {
+    const BW = 640, BH = 286, sc = this.score || [0, 0], names = this.names(), tags = this.tags(), rn = this.R ? this.R.num : 0;
+    const flash = Math.floor(this.clock * 2.5) % 2, anim = mode === 'matchpoint' || mode === 'champions' || mode === 'win';
+    const key = `${mode}|${team}|${sc[0]}|${sc[1]}|${rn}|${anim ? flash : 0}|${names[0]}|${names[1]}`;
+    if (this.board && this.boardKey === key) return this.board;
+    if (!this.board) { this.board = document.createElement('canvas'); this.board.width = BW; this.board.height = BH; }
+    this.boardKey = key;
+    const g = this.board.getContext('2d'), F = (w, s, it) => `${it ? 'italic ' : ''}${w} ${s}px ${FONT}`;
+    const fg = c => luminance(c) > 0.6 ? '#0b0d12' : '#ffffff';
+    g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+    g.fillStyle = '#04060c'; g.fillRect(0, 0, BW, BH);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const scoreRow = (y, size) => {
+      g.font = F(900, size); g.fillStyle = '#fff';
+      g.fillText(String(sc[0] || 0), BW / 2 - size * 0.85, y); g.fillText(String(sc[1] || 0), BW / 2 + size * 0.85, y);
+      g.fillStyle = 'rgba(255,255,255,.45)'; g.fillText(':', BW / 2, y - size * 0.06);
+    };
+    const teamBars = () => [0, 1].forEach(i => {
+      const c = this.teamColor(i), x = i ? BW - 210 : 0, cx = i ? BW - 98 : 98;
+      const gr = g.createLinearGradient(i ? BW : 0, 0, i ? BW - 210 : 210, 0); gr.addColorStop(0, rgba(c, 0.95)); gr.addColorStop(1, rgba(c, 0));
+      g.fillStyle = gr; g.fillRect(x, 0, 210, BH);
+      g.fillStyle = '#fff'; g.font = F(900, 50); g.fillText(tags[i], cx, BH / 2 - 14, 180);
+      g.font = F(700, 17); g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(String(names[i]).toUpperCase(), cx, BH / 2 + 30, 180);
+    });
+    const c = team === 0 || team === 1 ? this.teamColor(team) : '#ffd34d';
+    switch (mode) {
+      case 'round': case 'pistol':
+        teamBars(); g.fillStyle = '#ffd34d'; g.font = F(800, 20); g.fillText(mode === 'pistol' ? 'PISTOL ROUND' : 'NEXT ROUND', BW / 2, 56);
+        g.fillStyle = '#fff'; g.font = F(900, 60); g.fillText(`ROUND ${rn}`, BW / 2, 112, 230); scoreRow(206, 56); break;
+      case 'matchpoint':
+        g.fillStyle = flash ? c : '#04060c'; g.fillRect(0, 0, BW, BH);
+        g.fillStyle = flash ? fg(c) : c; g.font = F(900, 90, true); g.fillText('MATCH POINT', BW / 2, 110, BW - 40);
+        g.font = F(900, 30); g.fillText(team === 0 || team === 1 ? String(names[team]).toUpperCase() : 'BOTH TEAMS', BW / 2, 190, BW - 60);
+        g.font = F(800, 28); g.fillText(`${sc[0] || 0} : ${sc[1] || 0}`, BW / 2, 240); break;
+      case 'overtime':
+        teamBars(); g.fillStyle = '#ffd34d'; g.font = F(900, 58, true); g.fillText('OVERTIME', BW / 2, 92, 230); scoreRow(196, 60); break;
+      case 'half':
+        teamBars(); g.fillStyle = '#ffd34d'; g.font = F(900, 54); g.fillText('HALF TIME', BW / 2, 92, 230); scoreRow(196, 64); break;
+      case 'win':
+        g.fillStyle = flash ? c : mix(c, '#000000', 0.6); g.fillRect(0, 0, BW, BH);
+        g.fillStyle = flash ? fg(c) : '#fff'; g.font = F(900, 96, true); g.fillText(tags[team === 1 ? 1 : 0], BW / 2, 104, BW - 60);
+        g.font = F(900, 40); g.fillText('WIN THE ROUND', BW / 2, 186, BW - 60);
+        g.font = F(800, 26); g.fillText(`${sc[0] || 0} : ${sc[1] || 0}`, BW / 2, 244); break;
+      case 'champions': {
+        const gr = g.createRadialGradient(BW / 2, BH / 2, 10, BW / 2, BH / 2, BW / 1.6); gr.addColorStop(0, '#3a2a06'); gr.addColorStop(1, '#05060a');
+        g.fillStyle = gr; g.fillRect(0, 0, BW, BH);
+        g.fillStyle = flash ? '#ffd34d' : '#fff3b0'; g.font = F(900, 82, true); g.fillText('CHAMPIONS', BW / 2, 100, BW - 40);
+        g.fillStyle = c; g.font = F(900, 40); g.fillText(String(names[team === 1 ? 1 : 0]).toUpperCase(), BW / 2, 180, BW - 60);
+        g.fillStyle = '#fff'; g.font = F(800, 28); g.fillText(`${sc[0] || 0} : ${sc[1] || 0}`, BW / 2, 238); break;
+      }
+      case 'welcome':
+        teamBars(); g.fillStyle = '#ff5a4e'; g.font = F(800, 20); g.fillText('● LIVE', BW / 2, 56);
+        g.fillStyle = '#fff'; g.font = F(900, 80, true); g.fillText('VS', BW / 2, 140);
+        g.fillStyle = 'rgba(255,255,255,.7)'; g.font = F(700, 20); g.fillText(String((this.meta && this.meta.map) || 'Mirage').toUpperCase(), BW / 2, 222); break;
+      default:
+        teamBars(); scoreRow(BH / 2 + 4, 92);
+        g.fillStyle = 'rgba(255,255,255,.7)'; g.font = F(800, 20); g.fillText(`ROUND ${rn}`, BW / 2, 46);
+        g.fillStyle = '#ff5a4e'; g.fillText('● LIVE', BW / 2, BH - 34);
+    }
+    g.fillStyle = 'rgba(0,0,0,.2)';
+    for (let y = 0; y < BH; y += 4) g.fillRect(0, y, BW, 1);
+    return this.board;
+  },
+
+  // ---- people (front view): players, casters ----
+
+  person(g, x, y, s, o) {
+    const len = o.len || 6;
+    g.fillStyle = mix(o.skin, '#000000', 0.25); g.fillRect(x - 0.36 * s, y + 0.6 * s, 0.72 * s, 0.75 * s);
+    const tg = g.createLinearGradient(0, y + 1.15 * s, 0, y + (1.15 + Math.min(len, 6)) * s);
+    tg.addColorStop(0, mix(o.shirt, '#ffffff', 0.14)); tg.addColorStop(0.45, o.shirt); tg.addColorStop(1, mix(o.shirt, '#000000', 0.5));
+    g.fillStyle = tg; g.beginPath(); g.roundRect(x - 1.85 * s, y + 1.15 * s, 3.7 * s, len * s, [0.95 * s, 0.95 * s, 0, 0]); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - 1.85 * s, y + 1.9 * s, 0.45 * s, (len - 0.8) * s); g.fillRect(x + 1.4 * s, y + 1.9 * s, 0.45 * s, (len - 0.8) * s);
+    if (o.suit) {
+      g.fillStyle = o.trim; g.beginPath(); g.moveTo(x - 0.5 * s, y + 1.15 * s); g.lineTo(x + 0.5 * s, y + 1.15 * s); g.lineTo(x, y + 2.9 * s); g.closePath(); g.fill();
+      g.fillStyle = o.tie; g.beginPath(); g.moveTo(x - 0.13 * s, y + 1.3 * s); g.lineTo(x + 0.13 * s, y + 1.3 * s); g.lineTo(x + 0.2 * s, y + 2.6 * s); g.lineTo(x, y + 2.85 * s); g.lineTo(x - 0.2 * s, y + 2.6 * s); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 0.08 * s; g.beginPath(); g.moveTo(x - 0.5 * s, y + 1.15 * s); g.lineTo(x - 0.1 * s, y + 3.1 * s); g.moveTo(x + 0.5 * s, y + 1.15 * s); g.lineTo(x + 0.1 * s, y + 3.1 * s); g.stroke();
+    } else {
+      g.strokeStyle = o.trim; g.lineWidth = 0.14 * s; g.beginPath(); g.ellipse(x, y + 1.15 * s, 0.55 * s, 0.32 * s, 0, 0, Math.PI); g.stroke();
+      g.fillStyle = o.trim; g.fillRect(x - 1.55 * s, y + 1.5 * s, 0.13 * s, 2.6 * s); g.fillRect(x + 1.42 * s, y + 1.5 * s, 0.13 * s, 2.6 * s);
+      g.beginPath(); g.arc(x + 0.85 * s, y + 2.15 * s, 0.22 * s, 0, 6.283); g.fill();
+      if (o.label) { g.fillStyle = o.trim; g.font = `900 ${0.42 * s}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(o.label, x - 0.35 * s, y + 2.2 * s, 1.4 * s); }
+    }
+    this.arms(g, x, y, s, o);
+    g.fillStyle = o.skin; g.beginPath(); g.ellipse(x, y, 0.8 * s, 0.98 * s, 0, 0, 6.283); g.fill();
+    g.fillStyle = mix(o.skin, '#000000', 0.18); g.beginPath(); g.ellipse(x - 0.82 * s, y + 0.05 * s, 0.14 * s, 0.24 * s, 0, 0, 6.283); g.ellipse(x + 0.82 * s, y + 0.05 * s, 0.14 * s, 0.24 * s, 0, 0, 6.283); g.fill();
+    g.fillStyle = o.hair; g.beginPath(); g.ellipse(x, y - 0.3 * s, 0.86 * s, 0.74 * s, 0, Math.PI, 0); g.fill();
+    g.fillRect(x - 0.86 * s, y - 0.32 * s, 0.2 * s, 0.4 * s); g.fillRect(x + 0.66 * s, y - 0.32 * s, 0.2 * s, 0.4 * s);
+    // face
+    g.fillStyle = '#1a1210';
+    if (o.mouth > 0.45) {
+      g.strokeStyle = '#1a1210'; g.lineWidth = 0.08 * s; g.beginPath();
+      g.arc(x - 0.3 * s, y + 0.06 * s, 0.11 * s, Math.PI * 1.1, Math.PI * 1.9); g.moveTo(x + 0.41 * s, y + 0.06 * s); g.arc(x + 0.3 * s, y + 0.06 * s, 0.11 * s, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
+    } else { g.beginPath(); g.ellipse(x - 0.3 * s, y + 0.02 * s, 0.085 * s, 0.1 * s, 0, 0, 6.283); g.ellipse(x + 0.3 * s, y + 0.02 * s, 0.085 * s, 0.1 * s, 0, 0, 6.283); g.fill(); }
+    g.strokeStyle = mix(o.hair, '#000000', 0.2); g.lineWidth = 0.07 * s; g.beginPath(); g.moveTo(x - 0.45 * s, y - 0.2 * s); g.lineTo(x - 0.16 * s, y - 0.24 * s); g.moveTo(x + 0.45 * s, y - 0.2 * s); g.lineTo(x + 0.16 * s, y - 0.24 * s); g.stroke();
+    if (o.mouth > 0.2) { g.fillStyle = '#4a1414'; g.beginPath(); g.ellipse(x, y + 0.5 * s, 0.22 * s + 0.06 * s * o.mouth, 0.05 * s + 0.2 * s * o.mouth, 0, 0, 6.283); g.fill(); }
+    else { g.strokeStyle = '#5a2a22'; g.lineWidth = 0.06 * s; g.beginPath(); g.moveTo(x - 0.18 * s, y + 0.5 * s); g.quadraticCurveTo(x, y + 0.58 * s, x + 0.18 * s, y + 0.5 * s); g.stroke(); }
+    if (o.headset) {
+      const hs = o.headset === true ? '#141519' : o.headset;
+      g.strokeStyle = '#141519'; g.lineWidth = 0.2 * s; g.beginPath(); g.ellipse(x, y - 0.05 * s, 0.94 * s, 1.1 * s, 0, Math.PI * 1.06, Math.PI * 1.94); g.stroke();
+      g.fillStyle = '#141519'; g.beginPath(); g.roundRect(x - 1.08 * s, y - 0.32 * s, 0.38 * s, 0.68 * s, 0.14 * s); g.roundRect(x + 0.7 * s, y - 0.32 * s, 0.38 * s, 0.68 * s, 0.14 * s); g.fill();
+      g.fillStyle = hs; g.fillRect(x - 1.06 * s, y - 0.1 * s, 0.08 * s, 0.24 * s); g.fillRect(x + 0.98 * s, y - 0.1 * s, 0.08 * s, 0.24 * s);
+      g.strokeStyle = '#141519'; g.lineWidth = 0.07 * s; g.beginPath(); g.moveTo(x - 0.9 * s, y + 0.25 * s); g.quadraticCurveTo(x - 0.75 * s, y + 0.72 * s, x - 0.28 * s, y + 0.64 * s); g.stroke();
+      g.fillStyle = '#141519'; g.beginPath(); g.arc(x - 0.26 * s, y + 0.64 * s, 0.08 * s, 0, 6.283); g.fill();
+    }
+  },
+
+  arms(g, x, y, s, o) {
+    const a = o.arms;
+    if (!a || a === 'down') return;
+    const ck = this.clock, i = o.i || 0, w = Math.sin(ck * 8 + i) * 0.22 * s;
+    const sl = [x - 1.5 * s, y + 1.5 * s], sr = [x + 1.5 * s, y + 1.5 * s];
+    const list = [];
+    if (a === 'up') { list.push([sl, [x - 2.35 * s, y - 0.1 * s], [x - 2.0 * s + w, y - 2.2 * s]], [sr, [x + 2.35 * s, y - 0.1 * s], [x + 2.0 * s - w, y - 2.2 * s]]); }
+    else if (a === 'pump') { const p = Math.abs(Math.sin(ck * 7 + i)); list.push([sr, [x + 2.5 * s, y + 0.5 * s], [x + 2.1 * s, y - 1.0 * s - p * 0.9 * s]], [sl, [x - 2.2 * s, y + 2.4 * s], [x - 1.0 * s, y + 3.0 * s]]); }
+    else if (a === 'clap') { const p = Math.abs(Math.sin(ck * 10 + i)) * 0.45 * s; list.push([sl, [x - 2.1 * s, y + 2.6 * s], [x - 0.3 * s - p, y + 2.1 * s]], [sr, [x + 2.1 * s, y + 2.6 * s], [x + 0.3 * s + p, y + 2.1 * s]]); }
+    else if (a === 'hold') { list.push([sl, [x - 2.1 * s, y - 0.5 * s], [x - 0.6 * s, y - 2.55 * s]], [sr, [x + 2.1 * s, y - 0.5 * s], [x + 0.6 * s, y - 2.55 * s]]); }
+    else if (a === 'talk') { list.push([sr, [x + 2.0 * s, y + 3.2 * s], [x + 1.0 * s + Math.sin(ck * 3) * 0.35 * s, y + 2.1 * s + Math.sin(ck * 4.2) * 0.25 * s]]); }
+    g.lineCap = 'round';
+    for (const [sh, el, h] of list) {
+      g.strokeStyle = o.shirt; g.lineWidth = 0.86 * s; g.beginPath(); g.moveTo(sh[0], sh[1]); g.lineTo(el[0], el[1]); g.stroke();
+      g.strokeStyle = o.suit ? o.shirt : o.skin; g.lineWidth = 0.62 * s; g.beginPath(); g.moveTo(el[0], el[1]); g.lineTo(h[0], h[1]); g.stroke();
+      g.fillStyle = o.skin; g.beginPath(); g.arc(h[0], h[1], 0.36 * s, 0, 6.283); g.fill();
+    }
+  },
+
+  // ---- close shot of a team booth ----
+
+  paintBoothBack(g, team) {
+    const c = this.teamColor(team), tag = this.tags()[team];
+    const gr = g.createLinearGradient(0, 0, 0, VH); gr.addColorStop(0, mix(c, '#000000', 0.76)); gr.addColorStop(1, '#05060a');
+    g.fillStyle = gr; g.fillRect(-1200, -600, 4000, 2100);
+    for (let x = -460, i = 0; x < 2060; x += 210, i++) { g.fillStyle = rgba(c, i % 2 ? 0.06 : 0.1); g.fillRect(x + 12, 80, 186, 900); g.fillStyle = rgba(c, 0.25); g.fillRect(x + 12, 80, 3, 900); }
+    g.fillStyle = rgba(c, 0.13); g.font = `900 270px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tag, 800, 300, 1500);
+    g.fillStyle = 'rgba(255,255,255,.18)'; g.font = `800 22px ${FONT}`; g.fillText('GREGAL ARENA', 800, 120);
+    g.fillStyle = '#06070b'; g.fillRect(-1200, -600, 4000, 640);
+    g.fillStyle = '#0d0f14'; g.fillRect(-1200, 36, 4000, 30);
+  },
+
+  paintBoothFront(g, team) {
+    const c = this.teamColor(team), ps = ((this.meta.teams || [])[team] || {}).players || [];
+    for (let i = 0; i < 5; i++) {
+      const x = 240 + i * 280;
+      const mg = g.createLinearGradient(0, 600, 0, 760); mg.addColorStop(0, '#23262e'); mg.addColorStop(1, '#101217');
+      g.fillStyle = mg; g.beginPath(); g.roundRect(x - 132, 600, 264, 160, 12); g.fill();
+      g.fillStyle = rgba(c, 0.5); g.fillRect(x - 128, 601, 256, 3);
+      g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.arc(x, 680, 16, 0, 6.283); g.fill();
+      g.fillStyle = '#0c0d11'; g.fillRect(x - 14, 760, 28, 40);
+    }
+    const dg = g.createLinearGradient(0, 790, 0, 900); dg.addColorStop(0, '#1d2028'); dg.addColorStop(1, '#07080b');
+    g.fillStyle = dg; g.fillRect(-1200, 790, 4000, 800);
+    g.fillStyle = '#30343e'; g.fillRect(-1200, 790, 4000, 4);
+    g.fillStyle = c; g.fillRect(-1200, 812, 4000, 6);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (let i = 0; i < 5; i++) {
+      const x = 240 + i * 280;
+      g.fillStyle = '#05060a'; g.beginPath(); g.roundRect(x - 92, 836, 184, 40, 8); g.fill();
+      g.strokeStyle = rgba(c, 0.7); g.lineWidth = 2; g.stroke();
+      g.fillStyle = '#fff'; g.font = `800 22px ${FONT}`; g.fillText(ps[i] ? ps[i].handle : '', x, 857, 170);
+    }
+    // the glass: frame, joints and reflections
+    g.fillStyle = 'rgba(190,215,255,.05)'; g.fillRect(-1200, -600, 4000, 1390);
+    g.fillStyle = 'rgba(255,255,255,.045)';
+    g.beginPath(); g.moveTo(180, -10); g.lineTo(330, -10); g.lineTo(60, 800); g.lineTo(-90, 800); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(1130, -10); g.lineTo(1175, -10); g.lineTo(1000, 800); g.lineTo(955, 800); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(200,220,255,.12)'; g.fillRect(797, 66, 6, 724); g.fillRect(-1200, 66, 4000, 5);
+    const r = rng(5 + team);
+    for (let i = 0; i < 9; i++) { const x = r() * 1600, y = 100 + r() * 500, rr = 14 + r() * 30; const bg = g.createRadialGradient(x, y, 0, x, y, rr); bg.addColorStop(0, 'rgba(255,255,255,.07)'); bg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = bg; g.fillRect(x - rr, y - rr, 2 * rr, 2 * rr); }
+  },
+
+  boothScene(g, s, st, team) {
+    const c = this.teamColor(team), ck = this.clock;
+    const p = Math.max(this.pulseOf(team), s.screen === 'champions' ? 0.7 + 0.3 * Math.sin(ck * 10) : 0);
+    g.fillStyle = c; g.globalAlpha = 0.4 + 0.6 * p; g.fillRect(-1200, 44, 4000, 14); g.globalAlpha = 1;
+    g.globalCompositeOperation = 'lighter';
+    const gr = g.createLinearGradient(0, 52, 0, 420); gr.addColorStop(0, rgba(c, 0.4 * (0.3 + p))); gr.addColorStop(1, rgba(c, 0));
+    g.fillStyle = gr; g.fillRect(-1200, 52, 4000, 368);
+    g.globalCompositeOperation = 'source-over';
+    const ps = ((this.meta.teams || [])[team] || {}).players || [];
+    const modes = ['up', 'pump', 'up', 'clap', 'pump'], trim = luminance(c) > 0.6 ? '#111318' : '#ffffff';
+    for (let i = 0; i < 5; i++) {
+      const id = ps[i] ? ps[i].id : team + ':' + i, h = strHash(id);
+      const rise = easeOut(clamp((st.t - 0.12 - i * 0.07) / 0.4, 0, 1));
+      const hop = rise * Math.abs(Math.sin(ck * 6.5 + i * 1.7)) * 34;
+      const x = 240 + i * 280 + Math.sin(ck * 0.8 + i) * 5, y = 470 - rise * 125 - hop;
+      this.person(g, x, y, 52, { shirt: c, trim, skin: SKIN[h % 3], hair: HAIR[(h >> 3) % 3], headset: rgba(c, 1), mouth: rise > 0.2 ? 0.6 + 0.4 * Math.sin(ck * 9 + i) : 0.1, arms: rise > 0.3 ? modes[i] : 'down', i, label: this.tags()[team] });
+    }
+  },
+
+  // ---- caster desk ----
+
+  paintDeskBack(g) {
+    const c0 = this.teamColor(0), c1 = this.teamColor(1), r = rng(11);
+    const gr = g.createLinearGradient(0, 0, 0, VH); gr.addColorStop(0, '#060912'); gr.addColorStop(0.55, '#0c1224'); gr.addColorStop(1, '#04050a');
+    g.fillStyle = gr; g.fillRect(-1200, -600, 4000, 2100);
+    const sg = g.createRadialGradient(800, 160, 0, 800, 160, 420); sg.addColorStop(0, 'rgba(120,150,255,.26)'); sg.addColorStop(1, 'rgba(120,150,255,0)');
+    g.fillStyle = sg; g.fillRect(380, -260, 840, 840);
+    g.fillStyle = 'rgba(140,170,255,.10)'; g.beginPath(); g.roundRect(560, 60, 480, 200, 30); g.fill();
+    const cols = [c0, c1, '#ffffff', '#7aa2ff', '#ffd34d'];
+    for (let i = 0; i < 52; i++) {
+      const x = r() * 2000 - 200, y = 40 + r() * 560, rr = 16 + r() * 46, col = cols[Math.floor(r() * cols.length)], a = 0.06 + r() * 0.14;
+      const bg = g.createRadialGradient(x, y, 0, x, y, rr); bg.addColorStop(0, rgba(col, a)); bg.addColorStop(0.7, rgba(col, a * 0.6)); bg.addColorStop(1, rgba(col, 0));
+      g.fillStyle = bg; g.fillRect(x - rr, y - rr, 2 * rr, 2 * rr);
+    }
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    for (let i = 0; i < 160; i++) { const x = r() * 2200 - 300, y = 560 + r() * 80, rr = 13 + r() * 9; g.beginPath(); g.arc(x, y, rr, 0, 6.283); g.fill(); g.fillRect(x - rr, y, 2 * rr, 60); }
+    g.fillStyle = 'rgba(255,255,255,.05)'; g.font = `900 150px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('GREGAL ARENA', 800, 360, 1500);
+  },
+
+  paintDeskFront(g) {
+    const c0 = this.teamColor(0), c1 = this.teamColor(1);
+    g.beginPath(); g.moveTo(130, 668); g.quadraticCurveTo(800, 612, 1470, 668); g.lineTo(1560, 1300); g.lineTo(40, 1300); g.closePath();
+    const gr = g.createLinearGradient(0, 620, 0, 900); gr.addColorStop(0, '#1e222c'); gr.addColorStop(1, '#07080c');
+    g.fillStyle = gr; g.fill();
+    const lg = g.createLinearGradient(130, 0, 1470, 0); lg.addColorStop(0, c0); lg.addColorStop(0.5, '#ffd34d'); lg.addColorStop(1, c1);
+    g.strokeStyle = lg; g.lineWidth = 7; g.beginPath(); g.moveTo(130, 680); g.quadraticCurveTo(800, 624, 1470, 680); g.stroke();
+    g.fillStyle = '#2a2e38'; g.beginPath(); g.moveTo(130, 668); g.quadraticCurveTo(800, 612, 1470, 668); g.lineTo(1474, 676); g.quadraticCurveTo(800, 620, 126, 676); g.closePath(); g.fill();
+    for (const x of [650, 950]) {
+      g.fillStyle = '#2b2f38'; g.beginPath(); g.moveTo(x - 60, 640); g.lineTo(x + 60, 640); g.lineTo(x + 50, 600); g.lineTo(x - 50, 600); g.closePath(); g.fill();
+      g.fillStyle = 'rgba(150,190,255,.18)'; g.fillRect(x - 46, 603, 92, 4);
+    }
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(255,255,255,.9)'; g.font = `900 46px ${FONT}`; g.fillText('ANALYST DESK', 800, 760);
+    g.fillStyle = 'rgba(255,255,255,.45)'; g.font = `700 20px ${FONT}`; g.fillText('GREGAL ARENA  ·  LIVE', 800, 808);
+  },
+
+  deskScene(g) {
+    const ck = this.clock, speaker = Math.floor(ck / 1.9) % 3;
+    const cast = [[520, '#1c2433', this.teamColor(0), 0, 2], [800, '#2a2a31', '#ffd34d', 1, 0], [1080, '#33202a', this.teamColor(1), 2, 1]];
+    cast.forEach(([x, jacket, tie, sk, hr], i) => {
+      const talk = i === speaker, y = 392 + Math.sin(ck * (talk ? 3.1 : 1.2) + i) * (talk ? 4 : 1.5);
+      this.person(g, x, y, 50, { shirt: jacket, trim: '#eef0f4', tie, suit: true, skin: SKIN[sk], hair: HAIR[hr], headset: '#ffd34d', mouth: talk ? 0.12 + 0.3 * Math.abs(Math.sin(ck * 11 + i)) : 0.05, arms: talk ? 'talk' : 'down', i, len: 7 });
+    });
+  },
+
+  // ---- trophy lift on stage ----
+
+  paintTrophyBack(g, team) {
+    const c = this.teamColor(team);
+    const gr = g.createLinearGradient(0, 0, 0, VH); gr.addColorStop(0, mix(c, '#000000', 0.72)); gr.addColorStop(1, '#05060a');
+    g.fillStyle = gr; g.fillRect(-1200, -600, 4000, 2100);
+    for (let x = -400, i = 0; x < 2000; x += 64, i++) { g.fillStyle = rgba(c, i % 3 ? 0.05 : 0.11); g.fillRect(x + 4, 60, 56, 640); }
+    const gg = g.createRadialGradient(800, 300, 0, 800, 300, 560); gg.addColorStop(0, 'rgba(255,210,90,.2)'); gg.addColorStop(1, 'rgba(255,210,90,0)');
+    g.fillStyle = gg; g.fillRect(240, -260, 1120, 1120);
+    g.fillStyle = 'rgba(255,211,77,.10)'; g.font = `900 italic 190px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('CHAMPIONS', 800, 250, 1500);
+    g.strokeStyle = '#2a2f3a'; g.lineWidth = 3;
+    for (const y of [16, 40]) { g.beginPath(); g.moveTo(-1200, y); g.lineTo(2800, y); g.stroke(); }
+    const fg = g.createLinearGradient(0, 700, 0, 900); fg.addColorStop(0, '#111522'); fg.addColorStop(1, '#05060a');
+    g.fillStyle = fg; g.fillRect(-1200, 700, 4000, 800);
+    g.fillStyle = rgba(c, 0.6); g.fillRect(-1200, 700, 4000, 3);
+  },
+
+  trophyScene(g, team) {
+    const c = this.teamColor(team), ck = this.clock, trim = luminance(c) > 0.6 ? '#111318' : '#ffffff';
+    this.beams(g, 1, 8, 20, 900);
+    const ps = ((this.meta.teams || [])[team] || {}).players || [];
+    const xs = [360, 580, 800, 1020, 1240], modes = ['up', 'pump', 'hold', 'pump', 'up'];
+    for (const i of [0, 4, 1, 3, 2]) {
+      const id = ps[i] ? ps[i].id : team + ':' + i, h = strHash(id);
+      const hop = Math.abs(Math.sin(ck * 6.2 + i * 1.4)) * (i === 2 ? 12 : 26);
+      const y = 420 - hop + (i === 2 ? -10 : 0), s = i === 2 ? 48 : 44;
+      this.person(g, xs[i], y, s, { shirt: c, trim, skin: SKIN[h % 3], hair: HAIR[(h >> 3) % 3], mouth: 0.7 + 0.3 * Math.sin(ck * 8 + i), arms: modes[i], i, len: 12, label: this.tags()[team] });
+      if (i === 2) this.drawTrophy(g, xs[i], y - 2.55 * s + 6, 1.05, 1);
+    }
+    this.pyro(g, 120, 900, 460, this.pyroK(0)); this.pyro(g, 1480, 900, 460, this.pyroK(0));
+    this.pyro(g, 300, 900, 300, this.pyroK(0.85)); this.pyro(g, 1300, 900, 300, this.pyroK(0.85));
+  },
+});

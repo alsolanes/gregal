@@ -26,6 +26,7 @@ export const TEXT = {
     roleShort: { top: 'TOP', jungle: 'JNG', mid: 'MID', adc: 'BOT', support: 'SUP' },
     side: ['BLUE SIDE', 'RED SIDE'], objectives: 'OBJECTIVES', lockedIn: 'LOCKED IN', plan: 'PLAN',
     actionCam: 'ACTION CAM', replay: 'REPLAY', slowMo: 'SLOW MOTION', steals: 'Steals', grubsStat: 'Void Grubs', elders: 'Elders',
+    mapTag: 'MAP', arena: 'GREGAL ARENA', grandFinal: 'GRAND FINAL', champions: 'CHAMPIONS',
   },
 };
 const T = TEXT.en;
@@ -699,6 +700,134 @@ export function drainHp(o, t) {
   return (o.hp0 == null ? 1 : o.hp0) * (1 - k * k);
 }
 
+// ---- arena director (pure) ----
+//
+// Between map shots the broadcast cuts to the arena: a wide shot of the stage,
+// the crowd, the team booths and the caster desk. These scenes pause the match
+// (like a replay), so they never hide a fight.
+
+export const CAM_TAGS = { arena: 'ARENA', crowd: 'ARENA', booth: 'BOOTH', casters: 'CASTERS', trophy: 'ARENA', map: 'MAP', action: 'ACTION CAM', replay: 'REPLAY' };
+const BOOTH_LABELS = ['BARON NASHOR', 'BARON STEAL', 'ELDER DRAGON', 'ELDER STEAL', 'DRAGON SOUL'];
+const WIDE_LABELS = ['ACE', 'PENTAKILL', 'QUADRA KILL'];
+
+// How loud the arena gets for an event: {level 0..1, team (whose fans roar, -1 =
+// everyone), label}. level 0 = the crowd doesn't care.
+export function crowdReaction(state, ev) {
+  const d = (ev && ev.data) || {};
+  let team = d.side === 1 ? 1 : d.side === 0 ? 0 : -1;
+  const R = (level, label) => ({ level, team, label });
+  switch (ev && ev.kind) {
+    case 'kill': {
+      const m = d.multi | 0, k = d.killer || {};
+      if (k.side === 0 || k.side === 1) team = k.side;
+      if (m >= 5) return R(1, 'PENTAKILL');
+      if (d.ace) return R(.9, 'ACE');
+      if (m === 4) return R(.85, 'QUADRA KILL');
+      if (d.tag === 'first_blood') return R(.7, 'FIRST BLOOD');
+      if (m === 3) return R(.6, 'TRIPLE KILL');
+      if (d.shutdown) return R(.35, 'SHUTDOWN');
+      return R(m === 2 ? .3 : .15, m === 2 ? 'DOUBLE KILL' : 'KILL');
+    }
+    case 'dragon':
+      if (d.type === 'elder') return R(.95, d.stolen ? 'ELDER STEAL' : 'ELDER DRAGON');
+      if (d.soul) return R(.85, 'DRAGON SOUL');
+      return d.stolen ? R(.8, 'DRAGON STEAL') : R(.3, 'DRAGON');
+    case 'baron': return R(d.stolen ? .95 : .9, d.stolen ? 'BARON STEAL' : 'BARON NASHOR');
+    case 'herald':
+      if (d.obj === 'grubs') return R(.2, 'VOID GRUBS');
+      return d.stolen ? R(.6, 'HERALD STEAL') : R(.3, 'RIFT HERALD');
+    case 'inhibitor': return d.respawn ? R(0, '') : R(.5, 'INHIBITOR');
+    case 'tower': return d.lane === 'nexus' ? R(.45, 'NEXUS TOWER') : R(.15, 'TOWER');
+    case 'teamfight': return R(d.size === 'teamfight' ? .4 : .25, 'TEAMFIGHT');
+    case 'nexus': return R(1, 'NEXUS');
+    case 'match_end': team = d.winner === 1 ? 1 : 0; return R(1, 'VICTORY');
+  }
+  return { level: 0, team: -1, label: '' };
+}
+
+// The reaction cut a big moment earns: null, or {kind: 'crowd' (fans close-up) |
+// 'arena' (wide, the whole arena on its feet) | 'booth' (the team celebrating),
+// team, level, label, dur}. ctx: {sinceCut: seconds since the last cut, speed}.
+// The nexus has its own finale, so it never gets a quick cut.
+export function reactionCut(r, ctx = {}) {
+  if (!r || !(r.level >= .5) || r.label === 'NEXUS' || r.label === 'VICTORY' || (ctx.speed || 1) > 3.01) return null;
+  const since = ctx.sinceCut == null ? Infinity : ctx.sinceCut;
+  if (since < (r.level >= .9 ? 9 : 20)) return null;
+  const kind = BOOTH_LABELS.includes(r.label) && r.team >= 0 ? 'booth' : WIDE_LABELS.includes(r.label) ? 'arena' : 'crowd';
+  return { kind, team: r.team, level: r.level, label: r.label, dur: clamp(1.5 + 1.5 * r.level, 1.5, 3), mood: kind === 'booth' ? 'win' : '' };
+}
+
+// May a pending reaction cut roll now? 'now' | 'wait' | 'drop'. Never while the
+// action cam films or a replay runs (the cut waits for them), never too stale.
+// ctx: {now, shot, replay, mode}.
+export function cutReady(p, ctx = {}) {
+  if (!p || ctx.mode !== 'map') return 'drop';
+  const age = (ctx.now || 0) - p.at;
+  if (age > 8) return 'drop';
+  if (ctx.shot || ctx.replay || age < 1.2) return 'wait';
+  return 'now';
+}
+
+// A cut between draft phases (prev: the kind of the last draft event, n: cuts so
+// far): ban → pick goes to the booth of the team about to pick, pick → ban to the
+// caster desk.
+export function draftCut(prev, ev, n = 0) {
+  const k = ev && ev.kind;
+  if ((k !== 'draft_ban' && k !== 'draft_pick') || !prev || prev === k) return null;
+  const d = ev.data || {}, team = d.side === 1 ? 1 : 0;
+  if (k === 'draft_pick') return { kind: 'booth', team, dur: 2.6, label: n < 1 ? 'PICK PHASE 1' : 'PICK PHASE 2', mood: 'focus' };
+  return { kind: 'casters', team: -1, dur: 3, label: 'BAN PHASE 2', sub: 'bans2' };
+}
+
+// The show's opening (joining mid-game: just a quick look at the arena).
+export function openingScenes(state) {
+  if (!state || state.mode !== 'draft') return [{ kind: 'arena', sub: 'opening', team: -1, level: .45, dur: 3, label: 'LIVE FROM THE ARENA' }];
+  return [
+    { kind: 'arena', sub: 'opening', team: -1, level: .55, dur: 4.6, label: 'GRAND FINAL' },
+    { kind: 'casters', sub: 'intro', team: -1, dur: 3.4, label: 'CHAMPION DRAFT' },
+  ];
+}
+
+// Draft locked in → teams ready → the map.
+export function readyScenes() { return [{ kind: 'arena', sub: 'ready', team: -1, level: .6, dur: 3, label: 'GAME ON' }]; }
+
+// Nexus down: the arena erupts, the booth celebrates, the trophy is lifted.
+export function finaleScenes(winner) {
+  const team = winner === 1 ? 1 : 0;
+  return [
+    { kind: 'arena', sub: 'finale', team, level: 1, dur: 3.2, label: 'VICTORY', confetti: true, fin: true },
+    { kind: 'booth', team, level: 1, dur: 2.6, label: 'VICTORY', mood: 'win', confetti: true, fin: true },
+    { kind: 'trophy', team, level: 1, dur: 6, label: 'CHAMPIONS', confetti: true, fin: true },
+  ];
+}
+
+// The crowd's noise during a scene: rises fast, then slowly settles (0..level).
+export function crowdHype(level, t, dur) {
+  if (!(level > 0) || !(t >= 0)) return 0;
+  const rise = easeOut(clamp(t / .35, 0, 1)), settle = 1 - .35 * clamp((t - .35) / Math.max(.5, dur || 3), 0, 1);
+  return clamp(level * rise * settle, 0, level);
+}
+
+// How much one fan feels it: their team's moment (full), a shared one (most of
+// it), the rival's (a groan). fanTeam / team: -1 = neutral / everyone.
+export function fanHype(h, fanTeam, team) {
+  if (!(h > 0)) return 0;
+  if (team < 0) return h * .85;
+  if (fanTeam < 0) return h * .5;
+  return fanTeam === team ? h : h * .1;
+}
+
+// World camera of an arena scene ({x, y, z} in the 1600×900 arena; pos: the
+// cheering team's side on screen, 0 left / 1 right / -1 none).
+export function sceneCam(sc, t, pos = -1) {
+  const k = sc && sc.dur > 0 ? clamp(t / sc.dur, 0, 1) : 0, e = easeInOut(k), dir = pos === 0 ? -1 : pos === 1 ? 1 : 0;
+  if (!sc) return { x: 800, y: 450, z: 1 };
+  if (sc.kind === 'trophy') return { x: 800, y: lerp(425, 440, e), z: lerp(1.85, 2.2, e) };
+  if (sc.sub === 'opening') return { x: 800, y: lerp(450, 430, e), z: lerp(1, 1.25, e) };
+  if (sc.sub === 'finale') return { x: 800 + dir * 40 * (1 - e), y: 450, z: lerp(1.12, 1, e) };
+  return { x: 800 + dir * 40 * e, y: lerp(455, 445, e), z: lerp(1.08, 1.16, e) };
+}
+
 // ---- drawing primitives ----
 
 const CLASS_GLYPH = {
@@ -911,6 +1040,106 @@ function paintGrubs(g, S, t, alive = 3) {
   });
 }
 
+// ---- arena: people and props ----
+
+const AW = 1600, AH = 900; // the arena "world" (scenes are framed in it, cover-fit)
+const SKINS = ['#f3cfb0', '#e6b48f', '#c99068', '#a8704a', '#7d4e31', '#f7dcc6', '#5e3a24'];
+const HAIRS = ['#16110e', '#2e1d12', '#5a3a1e', '#b88a50', '#26262b', '#7a7a80', '#a2462f', '#0d0d10'];
+const LED_GOLD = '#f2c55c';
+
+// One person, front (or back) view. (x, y): the waist; S: the torso height.
+// o: {shirt, trim, skin, hair, hs (hair style), pants, legs, back, mouth (0..1),
+// headset, suit, arms: [[a1, a2] left, [a1, a2] right] (radians from straight
+// down, positive = outwards; a1 upper arm, a2 forearm), lean}. Returns the hands.
+function drawPerson(g, x, y, S, o = {}) {
+  const sh = o.shirt || '#333a48', skin = o.skin || SKINS[0], hair = o.hair || HAIRS[0];
+  const lean = (o.lean || 0) * S;
+  if (o.legs) {
+    g.fillStyle = o.pants || '#1b1e28';
+    g.fillRect(x - .3 * S, y - .02 * S, .25 * S, .95 * S); g.fillRect(x + .05 * S, y - .02 * S, .25 * S, .95 * S);
+    g.fillStyle = '#0b0c10'; g.fillRect(x - .34 * S, y + .88 * S, .31 * S, .1 * S); g.fillRect(x + .03 * S, y + .88 * S, .31 * S, .1 * S);
+  }
+  const top = y - S, hx = x + lean, hy = top - .3 * S, hr = .27 * S;
+  // Torso.
+  g.fillStyle = sh; g.beginPath();
+  g.moveTo(x - .33 * S, y); g.lineTo(x - .42 * S + lean, top + .12 * S); g.quadraticCurveTo(x - .42 * S + lean, top, x - .28 * S + lean, top);
+  g.lineTo(x + .28 * S + lean, top); g.quadraticCurveTo(x + .42 * S + lean, top, x + .42 * S + lean, top + .12 * S); g.lineTo(x + .33 * S, y); g.closePath(); g.fill();
+  if (o.suit && !o.back) {
+    g.fillStyle = '#eef0f4'; g.beginPath(); g.moveTo(hx - .14 * S, top); g.lineTo(hx + .14 * S, top); g.lineTo(hx, top + .42 * S); g.closePath(); g.fill();
+    g.fillStyle = o.trim || '#8a1c2c'; g.beginPath(); g.moveTo(hx - .035 * S, top + .05 * S); g.lineTo(hx + .035 * S, top + .05 * S); g.lineTo(hx + .05 * S, top + .38 * S); g.lineTo(hx, top + .45 * S); g.lineTo(hx - .05 * S, top + .38 * S); g.closePath(); g.fill();
+  } else if (o.trim) {
+    g.fillStyle = o.trim; g.fillRect(x - .41 * S + lean * .8, top + .3 * S, .82 * S, .07 * S);
+    if (!o.back) { g.beginPath(); g.moveTo(hx - .12 * S, top); g.lineTo(hx + .12 * S, top); g.lineTo(hx, top + .14 * S); g.closePath(); g.fill(); }
+  }
+  // Neck and head.
+  g.fillStyle = o.back ? shade(skin, -.25) : skin; g.fillRect(hx - .09 * S, top - .1 * S, .18 * S, .13 * S);
+  g.beginPath(); g.arc(hx, hy, hr, 0, TAU); g.fill();
+  g.fillStyle = hair;
+  if (o.back) { g.beginPath(); g.arc(hx, hy - .02 * S, hr * 1.02, 0, TAU); g.fill(); }
+  else {
+    const hs = o.hs | 0;
+    g.beginPath(); g.arc(hx, hy - .02 * S, hr * 1.04, Math.PI * (hs === 2 ? 1.12 : 1.0), Math.PI * (hs === 2 ? 1.88 : 2.0)); g.closePath(); g.fill();
+    if (hs === 1) { g.fillRect(hx - hr * 1.04, hy - .04 * S, hr * .32, hr * 1.2); g.fillRect(hx + hr * .72, hy - .04 * S, hr * .32, hr * 1.2); }
+    if (hs === 3) { g.beginPath(); g.arc(hx, hy - hr * .9, hr * .42, 0, TAU); g.fill(); }
+    // Face.
+    g.fillStyle = '#17110e';
+    g.beginPath(); g.arc(hx - .095 * S, hy + .01 * S, .03 * S, 0, TAU); g.arc(hx + .095 * S, hy + .01 * S, .03 * S, 0, TAU); g.fill();
+    const m = clamp(o.mouth || 0, 0, 1);
+    if (m > .08) { g.fillStyle = '#4b1717'; g.beginPath(); g.ellipse(hx, hy + .14 * S, .065 * S + .02 * S * m, .02 * S + .07 * S * m, 0, 0, TAU); g.fill(); }
+    else { g.fillStyle = shade(skin, -.4); g.fillRect(hx - .05 * S, hy + .13 * S, .1 * S, .02 * S); }
+  }
+  if (o.headset) {
+    g.strokeStyle = '#0e0f14'; g.lineWidth = .06 * S; g.beginPath(); g.arc(hx, hy, hr * 1.12, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
+    g.fillStyle = '#16181f'; g.beginPath(); g.ellipse(hx - hr * 1.05, hy + .02 * S, .07 * S, .1 * S, 0, 0, TAU); g.ellipse(hx + hr * 1.05, hy + .02 * S, .07 * S, .1 * S, 0, 0, TAU); g.fill();
+    if (o.trim) { g.fillStyle = o.trim; g.fillRect(hx - hr * 1.12, hy - .01 * S, .05 * S, .06 * S); g.fillRect(hx + hr * 1.07, hy - .01 * S, .05 * S, .06 * S); }
+    if (!o.back) { g.strokeStyle = '#0e0f14'; g.lineWidth = .025 * S; g.beginPath(); g.moveTo(hx - hr * 1.05, hy + .08 * S); g.quadraticCurveTo(hx - hr * .9, hy + .2 * S, hx - .08 * S, hy + .17 * S); g.stroke(); }
+  }
+  // Arms.
+  const arms = o.arms || [[.12, .1], [.12, .1]], hands = [];
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (let k = 0; k < 2; k++) {
+    const dir = k ? 1 : -1, [a1, a2] = arms[k];
+    const sx = x + lean + dir * .36 * S, sy = top + .1 * S;
+    const ex = sx + dir * Math.sin(a1) * .5 * S, ey = sy + Math.cos(a1) * .5 * S;
+    const wx = ex + dir * Math.sin(a2) * .46 * S, wy = ey + Math.cos(a2) * .46 * S;
+    g.strokeStyle = sh; g.lineWidth = .17 * S; g.beginPath(); g.moveTo(sx, sy); g.lineTo(ex, ey); g.lineTo(wx, wy); g.stroke();
+    g.fillStyle = skin; g.beginPath(); g.arc(wx, wy, .085 * S, 0, TAU); g.fill();
+    hands.push([wx, wy]);
+  }
+  g.lineCap = 'butt';
+  return { hands, head: [hx, hy] };
+}
+
+// Pose helpers (see drawPerson's arms).
+const POSE = {
+  down: [[.12, .1], [.12, .1]],
+  type: [[.38, -1.2], [.38, -1.2]],
+  up: [[2.55, 2.85], [2.55, 2.85]],
+  fist: [[.25, 2.9], [2.6, 2.9]],
+  clap: [[.35, 2.25], [.35, 2.25]],
+  mic: [[.15, .3], [.3, -2.6]],
+  point: [[.15, .3], [1.45, 1.6]],
+};
+function wavePose(ph, t, h) {
+  const w = Math.sin(t * 8 + ph) * .25 * h;
+  return [[2.3 + w, 2.7 - w], [2.3 - w, 2.7 + w]];
+}
+
+// The cup: silver, two handles, a dark plinth.
+function drawCup(g, x, y, r, glow) {
+  if (glow) { const gl = g.createRadialGradient(x, y - r, 0, x, y - r, r * 3.2); gl.addColorStop(0, 'rgba(255,240,190,.55)'); gl.addColorStop(1, 'rgba(255,240,190,0)'); g.fillStyle = gl; g.fillRect(x - r * 3.2, y - r * 4.2, r * 6.4, r * 6.4); }
+  const m = g.createLinearGradient(x - r, 0, x + r, 0);
+  m.addColorStop(0, '#8d939e'); m.addColorStop(.35, '#ffffff'); m.addColorStop(.6, '#c9ced8'); m.addColorStop(1, '#6d727c');
+  g.fillStyle = '#2a2420'; g.fillRect(x - r * .55, y - r * .25, r * 1.1, r * .3);
+  g.fillStyle = m;
+  g.beginPath(); g.moveTo(x - r * .35, y - r * .25); g.lineTo(x - r * .15, y - r * .8); g.lineTo(x + r * .15, y - r * .8); g.lineTo(x + r * .35, y - r * .25); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(x - r, y - r * 2.1); g.quadraticCurveTo(x - r * .9, y - r * .9, x, y - r * .82); g.quadraticCurveTo(x + r * .9, y - r * .9, x + r, y - r * 2.1); g.closePath(); g.fill();
+  g.strokeStyle = m; g.lineWidth = r * .16;
+  g.beginPath(); g.arc(x - r * 1.02, y - r * 1.6, r * .38, Math.PI * .5, Math.PI * 1.5); g.stroke();
+  g.beginPath(); g.arc(x + r * 1.02, y - r * 1.6, r * .38, -Math.PI * .5, Math.PI * .5); g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(x - r * .55, y - r * 2, r * .14, r * .9);
+}
+
 export class LolView {
   constructor(canvas, opts = {}) {
     this.cv = canvas; this.ctx = canvas.getContext('2d');
@@ -928,6 +1157,10 @@ export class LolView {
     this.lastShotEnd = -99; this.lastReplay = -999; this.cutFlash = -10; this.hiCache = null; this.hiTimer = null;
     this.dash = [[], []]; this.air = [[], []];
     this.camC = { fX: 0, fY: 0, z: 1 }; this.camT = 0; this.camFocus = [50, 50]; this.zoomed = false;
+    // Arena director: the scene on air (arena / crowd / booth / casters / trophy), the ones queued, a pending reaction cut.
+    this.scene = null; this.sceneQ = []; this.sceneThen = null; this.pendingCut = null; this.lastCut = -99; this.stinger = -10;
+    this.opened = false; this.readyDone = false; this.finaleDone = false; this.draftKind = null; this.draftCuts = 0; this.sceneN = 0;
+    this.confetti = []; this.arena = null;
     this.resize = this.resize.bind(this);
     if (typeof window !== 'undefined') window.addEventListener('resize', this.resize);
     this.resize();
@@ -944,13 +1177,15 @@ export class LolView {
     while (this.idx < this.queue.length) { const ev = this.queue[this.idx++]; applyEvent(this.state, ev); this.onEvent(ev); }
     this.snapPositions(); this.banner = null; this.flashes = []; this.popups = []; this.clashes = [];
     this.shot = null; this.replay = null; this.camTw = null; this.acts = []; this.pending = [];
+    this.scene = null; this.sceneQ = []; this.sceneThen = null; this.pendingCut = null; this.confetti = [];
+    this.opened = this.readyDone = this.finaleDone = true;
     this.clock = this.state.t;
     if (this.state.end) this.state.mode = 'victory';
   }
   isFinished() {
     const m = this.match;
     if (!m || !['final', 'stopped', 'failed'].includes(m.status)) return false;
-    if (this.cur || this.replay || this.idx < this.queue.length) return false;
+    if (this.cur || this.replay || this.scene || this.sceneQ.length || this.idx < this.queue.length) return false;
     return m.status !== 'final' || !!(this.state && this.state.mode === 'victory');
   }
 
@@ -975,7 +1210,7 @@ export class LolView {
     const d = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
     this.cv.width = Math.max(320, Math.round(r.width * d)); this.cv.height = Math.max(240, Math.round(r.height * d));
     this.W = this.cv.width; this.H = this.cv.height; this.dpr = d;
-    this.mapCache = null; this.hiCache = null; clearTimeout(this.hiTimer); this.hiTimer = null;
+    this.mapCache = null; this.hiCache = null; clearTimeout(this.hiTimer); this.hiTimer = null; this.arena = null;
     this.computeLayout();
   }
 
@@ -1060,6 +1295,9 @@ export class LolView {
     if (!this.state) return;
     // A replay pauses the match: only the replay clock runs.
     if (this.replay) { this.replay.t += dt; if (this.replay.t >= this.replay.len) this.finishReplay(); return; }
+    // So does an arena scene: only its own clock (and the confetti) runs.
+    if (this.scene) { this.scene.t += dt; this.updateConfetti(dt); if (this.scene.t >= this.scene.dur) this.nextScene(); return; }
+    if (this.directArena()) return;
     this.anim += dt;
     if (this.pending.length) this.pending = this.pending.filter(p => this.anim < p.at || (p.fn(), false));
     if (!this.cur && this.idx < this.queue.length && this.state.mode !== 'victory') {
@@ -1081,6 +1319,7 @@ export class LolView {
       for (const h of fx.hits) { if (h.hp === 0) this.hp[h.team][h.slot] = 0; else this.hp[h.team][h.slot] = clamp(this.hp[h.team][h.slot] - h.dmg * (.5 + Math.random()), .08, 1); }
       if (ev.kind === 'kill') { const f = this.state.feed[0]; if (f) { this.killFeed.unshift({ ...f, born: this.anim }); this.killFeed.length = Math.min(this.killFeed.length, 5); } }
       if (ev.kind === 'draft_ban' || ev.kind === 'draft_pick') this.draftAnim = { t0: this.anim };
+      this.react(ev);
       this.onEvent(ev);
       this.onUpdate(this.match, ev);
     }
@@ -1088,7 +1327,7 @@ export class LolView {
       this.prog += dt / this.cur.fx.dur;
       if (this.prog >= 1) {
         const ev = this.cur.ev; this.cur = null;
-        if (ev.kind === 'match_end') this.state.mode = 'victory';
+        if (ev.kind === 'match_end') this.finale(ev);
       }
     }
     const st = this.state;
@@ -1114,6 +1353,85 @@ export class LolView {
     for (const a of this.acts) { a.age += dt; if (a.hit && !a.done && a.age >= a.hitAt) { a.done = true; this.impact(a); } }
     this.acts = this.acts.filter(a => a.age < a.life);
     this.updateShot(dt);
+    this.rollCut();
+  }
+
+  // A pending reaction cut goes on air as soon as the action cam and the replay are done.
+  rollCut() {
+    if (!this.pendingCut) return false;
+    const r = cutReady(this.pendingCut, { now: this.anim, shot: this.shot, replay: this.replay, mode: this.state.mode });
+    if (r === 'drop') this.pendingCut = null;
+    if (r !== 'now') return false;
+    const c = this.pendingCut; this.pendingCut = null; this.lastCut = this.anim; this.playScenes([c]);
+    return true;
+  }
+
+  // ---- arena director ----
+
+  // Before the next event: the opening, a cut between draft phases, the teams
+  // ready before the map. Returns true when a scene took the air.
+  directArena() {
+    const st = this.state, fast = this.speed > 3.01;
+    if (!this.opened) { this.opened = true; if (!fast && !this.cur && st.mode !== 'victory') { this.playScenes(openingScenes(st)); return true; } }
+    // Before the next event can start a new shot, the moment that just ended gets its reaction.
+    if (!this.cur && this.rollCut()) return true;
+    const nx = !this.cur && this.queue[this.idx];
+    if (!nx || st.mode !== 'draft') return false;
+    if (nx.kind === 'draft_ban' || nx.kind === 'draft_pick') {
+      const c = fast ? null : draftCut(this.draftKind, nx, this.draftCuts);
+      this.draftKind = nx.kind;
+      if (c) { this.draftCuts++; this.playScenes([c]); return true; }
+      return false;
+    }
+    const isDraft = nx.kind === 'phase' && ['draft', 'draft_done'].includes((nx.data || {}).phase);
+    if (st.draft.done && !isDraft && !this.readyDone) { this.readyDone = true; if (!fast) { this.playScenes(readyScenes(st)); return true; } }
+    return false;
+  }
+
+  // A big moment: the crowd reacts (a quick cut once the action cam is done).
+  react(ev) {
+    if (this.state.mode !== 'map') return;
+    const r = crowdReaction(this.state, ev);
+    const c = reactionCut(r, { sinceCut: this.anim - this.lastCut, speed: this.speed });
+    if (c && (!this.pendingCut || c.level >= this.pendingCut.level)) this.pendingCut = { ...c, at: this.anim };
+  }
+
+  // The nexus fell and the match is over: eruption, booth, trophy, then the stats.
+  finale(ev) {
+    if (this.finaleDone || this.speed > 3.01) { this.state.mode = 'victory'; return; }
+    this.finaleDone = true;
+    this.shot = null; this.replay = null; this.camTw = null; this.acts = []; this.pendingCut = null;
+    const d = (ev && ev.data) || this.state.end || {};
+    this.playScenes(finaleScenes(d.winner), () => { this.state.mode = 'victory'; this.confetti = []; });
+  }
+
+  playScenes(list, then) {
+    this.sceneQ.push(...list);
+    if (then) this.sceneThen = then;
+    if (!this.scene) this.nextScene();
+  }
+
+  nextScene() {
+    const sc = this.sceneQ.shift() || null;
+    this.stinger = this.now;
+    if (sc) {
+      const order = this.order();
+      this.scene = { ...sc, t: 0, n: ++this.sceneN, pos: sc.team >= 0 ? order.indexOf(sc.team) : -1 };
+      return;
+    }
+    this.scene = null;
+    const then = this.sceneThen; this.sceneThen = null;
+    if (then) then();
+  }
+
+  updateConfetti(dt) {
+    const sc = this.scene;
+    if (sc && sc.confetti && this.confetti.length < 420) {
+      const cols = [teamColor(this.state.meta, sc.team), LED_GOLD, '#ffffff', shade(teamColor(this.state.meta, sc.team), .4)];
+      for (let i = 0; i < 9; i++) this.confetti.push({ x: Math.random() * AW, y: -20 - Math.random() * 60, vx: (Math.random() - .5) * 40, vy: 70 + Math.random() * 90, r: Math.random() * TAU, vr: (Math.random() - .5) * 10, c: cols[i % cols.length], s: 4 + Math.random() * 5 });
+    }
+    for (const q of this.confetti) { q.x += (q.vx + Math.sin(q.r) * 25) * dt; q.y += q.vy * dt; q.r += q.vr * dt; }
+    this.confetti = this.confetti.filter(q => q.y < AH + 30);
   }
 
   // ---- action cam director ----
@@ -1403,7 +1721,8 @@ export class LolView {
     bg.addColorStop(0, '#0b1120'); bg.addColorStop(1, '#04060b');
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     if (!this.state) { this.txt(T.pregame, W / 2, H / 2, 18 * Math.min(W / 1280, H / 720) + 6, 'rgba(255,255,255,.8)', 'center', 600); return; }
-    if (this.state.mode === 'draft') this.drawDraft();
+    if (this.scene) this.drawScene();
+    else if (this.state.mode === 'draft') this.drawDraft();
     else {
       const rp = this.replay;
       if (this.state.mode !== 'map') this.setCam(FULL_CAM);
@@ -1418,7 +1737,8 @@ export class LolView {
       this.drawBanner();
       if (this.state.mode === 'victory') this.drawVictory();
     }
-    if (!this.cur && this.idx >= this.queue.length && this.match && this.match.status !== 'final' && this.state.mode !== 'victory') {
+    this.drawStinger();
+    if (!this.scene && !this.cur && this.idx >= this.queue.length && this.match && this.match.status !== 'final' && this.state.mode !== 'victory') {
       const s = this.s;
       this.txt(this.match.status === 'pregame' ? T.pregame : T.waiting, W - 12 * s, H - 8 * s, 12 * s, 'rgba(255,255,255,.6)', 'right', 600, 'bottom');
     }
@@ -1893,6 +2213,13 @@ export class LolView {
         this.otxt(T.slowMo, cx, y + h + 16 * s, 9 * s, 'rgba(255,255,255,.75)', 'center', 800);
       }
       g.restore();
+    } else if (!rp && t < .01) {
+      // On the full map: a small MAP tag.
+      const fs = 9.5 * s, h = 18 * s, y = R.y + 8 * s;
+      g.font = this.font(fs, 900); const w = g.measureText(T.mapTag).width + 26 * s, x0 = R.x + R.w / 2 - w / 2;
+      this.panel(x0, y, w, h, 4 * s, 'rgba(8,11,20,.72)', 'rgba(255,255,255,.12)');
+      g.fillStyle = '#ff4d4d'; g.beginPath(); g.arc(x0 + 9 * s, y + h / 2, 3 * s, 0, TAU); g.fill();
+      this.txt(T.mapTag, x0 + 16 * s, y + h / 2, fs, 'rgba(255,255,255,.85)', 'left', 900);
     }
     // Cut flash.
     const fa = 1 - (this.now - this.cutFlash) / .3;
@@ -2541,5 +2868,789 @@ export class LolView {
       const gx = narrow ? 12 * s : 20 * s, gw = W - 2 * gx;
       const saved = this.s; this.s = s; this.drawGoldGraph(gx, gy, gw, gh); this.s = saved;
     }
+  }
+  // ---- arena scenes ----
+  //
+  // Everything is procedural and framed in a 1600×900 "world" (cover-fit to the
+  // canvas). The static parts (roof, tiers, stage, frames) are cached in one
+  // layer; screens, lights, booths and the crowd are drawn live.
+
+  arenaTeams() {
+    const order = this.order(), meta = this.state.meta, names = this.names();
+    return [0, 1].map(p => ({ team: order[p], col: teamColor(meta, order[p]), name: names[order[p]] || '' }));
+  }
+
+  // The arena caches: fans, static layer, a blurred copy (caster desk backdrop), haze.
+  arenaPrep() {
+    const tm = this.arenaTeams(), key = `${this.W}x${this.H}|${tm.map(t => t.col + t.name).join('|')}`;
+    if (this.arena && this.arena.key === key) return this.arena;
+    const R = rng(7), fans = [], tw = [], rows = [], pal = [], palIx = new Map();
+    // Fans are drawn row by row, one path per shirt colour (a few quantized tones).
+    const ci = c => { if (!palIx.has(c)) { palIx.set(c, pal.length); pal.push(c); } return palIx.get(c); };
+    const addRow = (y, list) => {
+      const by = new Map();
+      for (const f of list) { if (!by.has(f.ci)) by.set(f.ci, []); by.get(f.ci).push(f); fans.push(f); }
+      rows.push({ y, list, groups: [...by.entries()] });
+    };
+    // Floor crowd, seen from behind (they face the stage).
+    for (let y = 600, row = 0; y < 935 && fans.length < 5000; row++) {
+      const s = 4 + (y - 600) * .042, list = [];
+      for (let x = -10 + (row % 2) * s * .75 + R() * s; x < AW + 10; x += s * (1.4 + R() * .35)) {
+        const side = x < AW / 2 ? 0 : 1, r = R(), team = r < .74 ? side : r < .86 ? 1 - side : -1;
+        const tone = Math.floor(R() * 3), col = team < 0 ? (tone < 2 ? '#2b2c35' : '#44454f') : shade(tm[team].col, -.22 - tone * .14);
+        list.push({ x, y: y + (R() - .5) * s * .3, s, team, ph: R() * TAU, stick: R() < .3, arm: R(), back: true, ci: ci(col) });
+      }
+      addRow(y, list);
+      y += s * 1.12;
+    }
+    // Side stands: rows that run towards the stage (we see the fans three-quarter).
+    for (let r = 0; r < 14; r++) for (let k = 0; k < 2; k++) {
+      const y0 = 222 + r * 28, list = [];
+      for (let x = R() * 5; x < 232; x += 6 + R() * 2.5) {
+        const sz = (3.6 + r * .2) * (1 - x / 900), y = y0 + (420 - y0) * x / 800, rr = R(), team = rr < .7 ? k : rr < .82 ? 1 - k : -1;
+        const tone = Math.floor(R() * 3), col = team < 0 ? (tone < 2 ? '#c9ccd6' : '#2c2e36') : shade(tm[team].col, -.05 - tone * .16);
+        list.push({ x: k ? AW - x : x, y, s: sz, team, ph: R() * TAU, stick: R() < .22, arm: R(), back: false, ci: ci(col) });
+      }
+      addRow(y0, list);
+    }
+    rows.sort((a, b) => a.y - b.y);
+    // Twinkling lights in the far tiers.
+    for (let i = 0; i < 160; i++) { const x = R() * AW, y = 122 + R() * 172; if (x > 455 && x < 1145 && y > 100) continue; tw.push({ x, y, ph: R() * TAU, team: x < AW / 2 ? 0 : 1, f: 1 + R() * 3 }); }
+    const banners = [];
+    for (let i = 0; i < 7; i++) banners.push({ x: 90 + i * 225 + R() * 60, y: 640 + R() * 150, ph: R() * TAU, team: i < 3.5 ? 0 : 1, kind: i % 3 });
+    const A = this.arena = { key, fans, rows, pal, tw, banners, stat: null, blur: null, haze: null };
+    if (typeof document !== 'undefined') {
+      const { W, H, k0 } = this.arenaBand();
+      const c = document.createElement('canvas'); c.width = W; c.height = H;
+      const g = c.getContext('2d'); g.setTransform(k0, 0, 0, k0, W / 2 - 800 * k0, H / 2 - 450 * k0);
+      this.paintArenaStatic(g);
+      A.stat = c;
+      const b = document.createElement('canvas'); b.width = Math.max(32, Math.ceil(W / 7)); b.height = Math.max(18, Math.ceil(H / 7));
+      const bg = b.getContext('2d'); bg.drawImage(c, 0, 0, b.width, b.height);
+      bg.setTransform(b.width / AW, 0, 0, b.height / AH, 0, 0);
+      bg.globalCompositeOperation = 'lighter';
+      for (const [x, col] of [[800, LED_GOLD], [300, tm[0].col], [1300, tm[1].col]]) { const gl = bg.createRadialGradient(x, 260, 0, x, 260, 380); gl.addColorStop(0, rgba(col, .45)); gl.addColorStop(1, rgba(col, 0)); bg.fillStyle = gl; bg.fillRect(0, 0, AW, AH); }
+      A.blur = b;
+      const hz = document.createElement('canvas'); hz.width = 256; hz.height = 144;
+      const hg = hz.getContext('2d'), HR = rng(5);
+      for (let i = 0; i < 46; i++) { const x = HR() * 256, y = 20 + HR() * 110, r = 20 + HR() * 50, gr = hg.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, `rgba(190,200,255,${.05 + HR() * .07})`); gr.addColorStop(1, 'rgba(190,200,255,0)'); hg.fillStyle = gr; hg.fillRect(x - r, y - r, 2 * r, 2 * r); }
+      A.haze = hz;
+      this.buildCrowdAtlas(A, k0);
+    }
+    return A;
+  }
+
+  // The crowd as sprites: every row pre-rendered twice (calm / arms up, sticks
+  // raised), cut into short segments that each jump with their own phase.
+  buildCrowdAtlas(A, k0) {
+    const kk = clamp(k0 * 1.1, .5, 1.5), pad = 2, maxW = Math.ceil((AW + 40) * kk) + pad;
+    // Shelf packing: full-width floor rows, the narrow side-stand rows side by side.
+    let ax = 0, ay = 0, shelf = 0;
+    for (const row of A.rows) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (const f of row.list) { x0 = Math.min(x0, f.x - f.s * 1.2); x1 = Math.max(x1, f.x + f.s * 1.4); y0 = Math.min(y0, f.y - f.s * 2.5); y1 = Math.max(y1, f.y + f.s * .8); }
+      if (!row.list.length) continue;
+      const w = Math.ceil((x1 - x0) * kk) + pad, h = Math.ceil((y1 - y0) * kk) + pad;
+      if (ax + w > maxW) { ax = 0; ay += shelf + pad; shelf = 0; }
+      row.box = { x0, x1, y0, y1, ax, ay, w, h };
+      ax += w + pad; shelf = Math.max(shelf, h);
+      // Segments of ~170 world units: each jumps on its own, with the team most of its fans support.
+      const n = Math.max(1, Math.round((x1 - x0) / 170)), sw = (x1 - x0) / n, R = rng(Math.round(row.y * 13));
+      row.segs = [];
+      for (let i = 0; i < n; i++) {
+        const a = x0 + i * sw, cnt = [0, 0];
+        for (const f of row.list) if (f.x >= a && f.x < a + sw && f.team >= 0) cnt[f.team]++;
+        row.segs.push({ x0: a, w: sw, ph: R() * TAU, team: cnt[0] + cnt[1] === 0 ? -1 : cnt[0] >= cnt[1] ? 0 : 1, s: row.list.reduce((m, f) => m + f.s, 0) / row.list.length });
+      }
+    }
+    ay += shelf + pad;
+    if (ay > 4096) return;
+    const atlas = [0, 1].map(up => {
+      const c = document.createElement('canvas'); c.width = maxW; c.height = Math.ceil(ay);
+      const g = c.getContext('2d');
+      for (const row of A.rows) if (row.box) { g.setTransform(kk, 0, 0, kk, row.box.ax - row.box.x0 * kk, row.box.ay - row.box.y0 * kk); this.paintFanRow(g, A, row, up); }
+      return c;
+    });
+    A.atlas = atlas; A.kk = kk;
+  }
+
+  paintFanRow(g, A, row, up) {
+    const tm = this.arenaTeams(), sticks = [[], []];
+    for (const [c, list] of row.groups) {
+      g.beginPath();
+      for (const f of list) {
+        const s = f.s, y = f.y + (f.back || up ? 0 : s * .5), arms = up && f.arm < .75;
+        g.rect(f.x - s * .42, y - s * 1.05, s * .84, s * 1.3);
+        if (arms) { g.rect(f.x - s * .5, y - s * 1.95, s * .17, s * .95); g.rect(f.x + s * .33, y - s * 1.95, s * .17, s * .95); }
+        if (f.stick && f.team >= 0) sticks[f.team].push(f.x + s * .42, y - s * (arms ? 2.1 : 1.15), s, f.ph);
+      }
+      g.fillStyle = A.pal[c]; g.fill();
+    }
+    const back = row.list[0].back;
+    g.beginPath();
+    for (const f of row.list) { const y = f.y + (f.back || up ? 0 : f.s * .5); g.rect(f.x - f.s * .25, y - f.s * 1.5, f.s * .5, f.s * .5); }
+    g.fillStyle = back ? '#0d0a0c' : '#b98564'; g.fill();
+    if (back) {
+      g.beginPath();
+      for (const f of row.list) { g.rect(f.x - f.s * .42, f.y - f.s * 1.05, f.s * .84, f.s * .1); g.rect(f.x - f.s * .25, f.y - f.s * 1.5, f.s * .5, f.s * .08); }
+      g.fillStyle = 'rgba(255,226,200,.3)'; g.fill();
+    }
+    for (let p = 0; p < 2; p++) {
+      const c = shade(tm[p].col, .45), L = sticks[p];
+      g.fillStyle = rgba(c, .3); g.beginPath();
+      for (let i = 0; i < L.length; i += 4) { const s = L[i + 2] * 1.4; g.rect(L[i] - s / 2, L[i + 1] - s * .9, s, s); }
+      g.fill();
+      g.strokeStyle = rgba(shade(c, .3), 1); g.lineWidth = 1.6; g.beginPath();
+      for (let i = 0; i < L.length; i += 4) { const a = (L[i + 3] % 1 - .5) * (up ? 1 : .5), s = L[i + 2]; g.moveTo(L[i], L[i + 1]); g.lineTo(L[i] + Math.sin(a) * s * .8, L[i + 1] - Math.cos(a) * s * .8); }
+      g.stroke();
+    }
+  }
+
+  // The crowd from the atlas: one blit per segment (calm or arms-up pose, a jump, a sway).
+  drawFansAtlas(sc, hype) {
+    const g = this.ctx, A = this.arena, now = this.now, pos = sc.pos, kk = A.kk;
+    const hy = [fanHype(hype, 0, pos), fanHype(hype, 1, pos), fanHype(hype, -1, pos)];
+    for (const row of A.rows) {
+      const b = row.box; if (!b) continue;
+      for (const sg of row.segs) {
+        const h = hy[sg.team < 0 ? 2 : sg.team], up = h > .3 ? 1 : 0;
+        const j = (h > .05 ? Math.abs(Math.sin(now * 8.5 + sg.ph)) * h * sg.s * .6 : 0) - Math.sin(now * 1.6 + sg.ph) * sg.s * .05;
+        // The side stands sit (calm sprite is drawn seated) until they jump up.
+        const sx = b.ax + (sg.x0 - b.x0) * kk, sw = Math.min(sg.w * kk + 1, b.ax + b.w - sx);
+        g.drawImage(A.atlas[up], sx, b.ay, sw, b.h, sg.x0, b.y0 - j, sw / kk, b.h / kk);
+      }
+    }
+  }
+
+  // World → screen for an arena camera {x, y, z}; returns the scale (pixels per world unit).
+  arenaXf(cam) {
+    const { W, H, oy, k0 } = this.arenaBand(), hw0 = W / (2 * k0), hh0 = H / (2 * k0);
+    const z = Math.max(1, cam.z || 1), hw = hw0 / z, hh = hh0 / z;
+    const x = clamp(cam.x, 800 - hw0 + hw, 800 + hw0 - hw), y = clamp(cam.y, 450 - hh0 + hh, 450 + hh0 - hh), k = k0 * z;
+    this.ctx.setTransform(k, 0, 0, k, W / 2 - x * k, oy + H / 2 - y * k);
+    return { k, k0, hw0, hh0, x, y, z };
+  }
+
+  // Where arena scenes are framed: the whole canvas, or on a tall (phone)
+  // canvas a 4:3-ish band across the middle so both booths stay in shot.
+  arenaBand() {
+    const W = this.W, H0 = this.H, H = W / H0 < 1.2 ? Math.min(H0, Math.round(W * .82)) : H0;
+    return { W, H, oy: Math.round((H0 - H) / 2), k0: Math.max(W / AW, H / AH) };
+  }
+
+  paintArenaStatic(g) {
+    const tm = this.arenaTeams(), R = rng(99);
+    const bg = g.createLinearGradient(0, 0, 0, AH); bg.addColorStop(0, '#04050a'); bg.addColorStop(.4, '#0a0d1b'); bg.addColorStop(1, '#06070d');
+    g.fillStyle = bg; g.fillRect(-60, -60, AW + 120, AH + 120);
+    // Far tiers behind the stage, full of tiny fans.
+    for (let r = 0; r < 9; r++) {
+      const y = 118 + r * 20;
+      g.fillStyle = r % 2 ? '#0c0f1e' : '#0a0c18'; g.fillRect(0, y, AW, 20);
+      g.fillStyle = 'rgba(255,255,255,.035)'; g.fillRect(0, y, AW, 1.5);
+      for (let x = R() * 6; x < AW; x += 4.5 + R() * 4) {
+        const side = x < AW / 2 ? 0 : 1, c = R() < .65 ? tm[side].col : R() < .5 ? '#9aa0b5' : tm[1 - side].col;
+        g.fillStyle = rgba(c, .22 + R() * .25); g.fillRect(x, y + 7 + R() * 5, 2.6, 4.5);
+        g.fillStyle = 'rgba(20,16,18,.8)'; g.fillRect(x + .3, y + 4 + R() * 3, 2, 2);
+      }
+    }
+    // Roof: trusses and light rigs.
+    g.fillStyle = '#07080f'; g.fillRect(0, 0, AW, 110);
+    g.strokeStyle = '#1b1f31'; g.lineWidth = 2;
+    for (const y of [28, 86]) { g.fillStyle = '#141828'; g.fillRect(0, y, AW, 5); }
+    g.beginPath(); for (let x = 0; x < AW; x += 40) { g.moveTo(x, 33); g.lineTo(x + 20, 86); g.lineTo(x + 40, 33); } g.stroke();
+    g.fillStyle = '#1d2236'; for (let x = 60; x < AW; x += 110) { g.fillRect(x - 7, 91, 14, 10); g.fillRect(x - 3, 101, 6, 4); }
+    // Cables holding the big screen.
+    g.strokeStyle = '#151827'; g.lineWidth = 2; g.beginPath(); for (const x of [520, 800, 1080]) { g.moveTo(x, 91); g.lineTo(x, 104); } g.stroke();
+    // Side stands (structure behind the fans).
+    for (let k = 0; k < 2; k++) {
+      const X = x => (k ? AW - x : x);
+      g.fillStyle = '#0b0d17'; g.beginPath(); g.moveTo(X(0), 205); g.lineTo(X(240), 255); g.lineTo(X(240), 585); g.lineTo(X(0), 640); g.closePath(); g.fill();
+      g.strokeStyle = 'rgba(255,255,255,.05)'; g.lineWidth = 1.2; g.beginPath();
+      for (let r = 0; r < 15; r++) { const y0 = 226 + r * 28; g.moveTo(X(0), y0); g.lineTo(X(240), y0 + (420 - y0) * .3); }
+      g.stroke();
+      g.fillStyle = '#11141f'; g.fillRect(k ? AW - 252 : 240, 250, 12, 340);
+    }
+    // Side screens (frames) and the big screen (frame).
+    for (const x of [250, 1250]) { g.fillStyle = '#020306'; g.fillRect(x - 6, 124, 112, 242); g.strokeStyle = '#2a2f45'; g.lineWidth = 2; g.strokeRect(x - 6, 124, 112, 242); }
+    g.fillStyle = '#020306'; g.fillRect(458, 100, 684, 254); g.strokeStyle = '#30364f'; g.lineWidth = 3; g.strokeRect(458, 100, 684, 254);
+    // Stage: top and front face.
+    const st = g.createLinearGradient(0, 470, 0, 545); st.addColorStop(0, '#141a2b'); st.addColorStop(1, '#1d2438');
+    g.fillStyle = st; g.beginPath(); g.moveTo(236, 478); g.lineTo(1364, 478); g.lineTo(1404, 546); g.lineTo(196, 546); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(160,180,255,.08)'; g.lineWidth = 1; g.beginPath();
+    for (let i = 1; i < 12; i++) { const u = i / 12; g.moveTo(lerp(236, 1364, u), 478); g.lineTo(lerp(196, 1404, u), 546); }
+    g.stroke();
+    g.fillStyle = '#080a12'; g.fillRect(196, 546, 1208, 46);
+    g.fillStyle = '#05060b'; g.fillRect(0, 590, AW, 14);
+    g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(0, 590, AW, 1.5);
+    // Centrepiece plinth.
+    g.fillStyle = '#10131f'; g.beginPath(); g.moveTo(752, 500); g.lineTo(848, 500); g.lineTo(830, 470); g.lineTo(770, 470); g.closePath(); g.fill();
+    g.fillStyle = '#1a1f33'; g.fillRect(770, 466, 60, 5);
+  }
+
+  // ---- the wide shot (also the trophy shot) ----
+
+  drawArenaWide(sc) {
+    const g = this.ctx, A = this.arenaPrep(), t = sc.t, now = this.now;
+    const hype = crowdHype(sc.level || 0, t, sc.dur), pos = sc.pos;
+    const cam = sceneCam(sc, t, pos);
+    if (sc.kind !== 'trophy' && hype > .8 && t < 1.2) { const sh = (1 - t / 1.2) * 3; cam.x += (Math.random() - .5) * sh; cam.y += (Math.random() - .5) * sh; }
+    const X = this.arenaXf(cam);
+    if (A.stat) g.drawImage(A.stat, 800 - X.hw0, 450 - X.hh0, 2 * X.hw0, 2 * X.hh0); else this.paintArenaStatic(g);
+    const tm = this.arenaTeams();
+    // Twinkles in the far tiers.
+    for (const p of A.tw) { const a = .25 + .6 * Math.max(0, Math.sin(now * p.f + p.ph)); g.fillStyle = rgba(shade(tm[p.team].col, .4), a * (.5 + hype * .5)); g.fillRect(p.x, p.y, 2.2, 2.2); }
+    this.drawLed(sc, hype);
+    this.drawSideScreens(sc, hype);
+    this.drawBoothsWide(sc, hype);
+    this.drawCentrepiece(sc, hype);
+    this.drawStageLeds(sc, hype);
+    if (sc.kind === 'trophy') this.drawWinners(sc);
+    this.drawBeams(sc, hype);
+    if (A.haze) { g.save(); g.globalAlpha = .4 + .15 * hype; g.drawImage(A.haze, -60 + Math.sin(now * .07) * 40, 0, AW + 120, AH); g.restore(); }
+    this.drawPyro(sc, hype);
+    this.drawFansWide(sc, hype);
+    { const sp = g.createRadialGradient(800, 540, 0, 800, 540, 760); sp.addColorStop(0, `rgba(170,190,255,${.16 + .14 * hype})`); sp.addColorStop(1, 'rgba(170,190,255,0)');
+      g.save(); g.globalCompositeOperation = 'lighter'; g.fillStyle = sp; g.fillRect(0, 540, AW, 380); g.restore(); }
+    this.drawConfetti();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const { W, H, oy } = this.arenaBand(), vg = g.createRadialGradient(W / 2, oy + H * .5, H * .35, W / 2, oy + H * .5, Math.max(W, H) * .75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.55)'); g.fillStyle = vg; g.fillRect(0, oy, W, H);
+    if (hype > .75 && t < .35) { g.fillStyle = `rgba(255,255,255,${.22 * (1 - t / .35)})`; g.fillRect(0, oy, W, H); }
+  }
+
+  // The giant screen: the live game (map, kills, gold), the draft, the title, the champions.
+  drawLed(sc, hype) {
+    const g = this.ctx, st = this.state, tm = this.arenaTeams(), now = this.now;
+    const x = 464, y = 106, w = 672, h = 242, cx = x + w / 2;
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+    const bg = g.createLinearGradient(x, y, x, y + h); bg.addColorStop(0, '#0b1230'); bg.addColorStop(1, '#05081a'); g.fillStyle = bg; g.fillRect(x, y, w, h);
+    for (let p = 0; p < 2; p++) { const gl = g.createRadialGradient(p ? x + w : x, y + h / 2, 0, p ? x + w : x, y + h / 2, w * .55); gl.addColorStop(0, rgba(tm[p].col, .35)); gl.addColorStop(1, rgba(tm[p].col, 0)); g.fillStyle = gl; g.fillRect(x, y, w, h); }
+    const T2 = (s, xx, yy, size, col, al = 'center', wt = 900) => { g.font = this.font(size, wt); g.fillStyle = col; g.textAlign = al; g.textBaseline = 'middle'; g.fillText(s, xx, yy); };
+    const fin = sc.sub === 'finale' || sc.kind === 'trophy';
+    if (fin) {
+      const w0 = sc.team >= 0 ? sc.team : 0, col = teamColor(st.meta, w0), names = this.names();
+      g.fillStyle = rgba(col, .3 + .2 * Math.sin(now * 6)); g.fillRect(x, y, w, h);
+      const tr = sc.kind === 'trophy';
+      g.save(); g.shadowColor = col; g.shadowBlur = 30; T2(T.champions, cx, y + (tr ? 182 : 92), tr ? 44 : 64, '#fff3c4', 'center', 900); g.restore();
+      T2(this.fit((names[w0] || '').toUpperCase(), w - 60, 40, 900), cx, y + (tr ? 222 : 165), tr ? 26 : 40, '#fff');
+    } else if (st.mode === 'map') {
+      // Live game: the map in the middle, a team panel on each side.
+      if (!this.mapCache) this.mapCache = this.buildMapCache();
+      const img = this.mapCache, mw = 290, mh = 190, my = y + h / 2 + 8;
+      if (img) { const N = img.width; g.save(); g.transform(mw / 2 / N, mh / 2 / N, -mw / 2 / N, mh / 2 / N, cx, my - mh / 2); g.drawImage(img, 0, 0); g.restore(); }
+      for (let t = 0; t < 2; t++) for (let r = 0; r < 5; r++) {
+        const p = st.pos[t][r]; if (!p || p.alive === false) continue;
+        const px = cx + (p.x - p.y) / 100 * mw / 2, py = my - mh / 2 + (p.x + p.y) / 100 * mh / 2;
+        g.fillStyle = teamColor(st.meta, t); g.beginPath(); g.arc(px, py, 5, 0, TAU); g.fill(); g.strokeStyle = '#fff'; g.lineWidth = 1.2; g.stroke();
+      }
+      for (let p = 0; p < 2; p++) {
+        const team = tm[p].team, px = p ? x + w - 22 : x + 22, al = p ? 'right' : 'left';
+        T2(this.fit(tm[p].name.toUpperCase(), 150, 20, 900), px, y + 34, 20, tm[p].col, al);
+        T2(String(st.kills[team] || 0), px, y + 112, 76, '#fff', al);
+        T2(fmtGold(st.gold[team]), px, y + 176, 22, LED_GOLD, al, 800);
+        T2(`${st.towersK[team] || 0} towers · ${st.dragons[team].length} drakes`, px, y + 206, 13, 'rgba(255,255,255,.7)', al, 700);
+      }
+      this.panel(cx - 44, y + h - 26, 88, 22, 6, 'rgba(0,0,0,.55)', null);
+      T2(fmtClock(this.clock), cx, y + h - 15, 16, '#fff');
+    } else if (sc.sub === 'opening' || sc.sub === 'intro' || sc.sub === 'ready' || !st.draft.picks[0].length) {
+      // Title card: the event, then the two teams.
+      const k = sc.sub === 'ready' ? 1 : clamp((sc.t - .4) / 1.2, 0, 1);
+      T2(sc.sub === 'ready' ? 'GAME ON' : T.grandFinal, cx, y + 62, 46, LED_GOLD);
+      T2(T.arena, cx, y + 104, 15, 'rgba(255,255,255,.7)', 'center', 800);
+      g.globalAlpha = k;
+      T2(this.fit(tm[0].name.toUpperCase(), 250, 34, 900), cx - 50 - (1 - k) * 80, y + 172, 34, tm[0].col, 'right');
+      T2(this.fit(tm[1].name.toUpperCase(), 250, 34, 900), cx + 50 + (1 - k) * 80, y + 172, 34, tm[1].col, 'left');
+      T2('VS', cx, y + 172, 28, '#fff');
+      g.globalAlpha = 1;
+    } else {
+      // The draft so far.
+      T2(T.draft, cx, y + 26, 20, LED_GOLD);
+      for (let p = 0; p < 2; p++) {
+        const team = tm[p].team, picks = st.draft.picks[team];
+        T2(this.fit(tm[p].name.toUpperCase(), 280, 18, 900), p ? x + w - 24 : x + 24, y + 62, 18, tm[p].col, p ? 'right' : 'left');
+        for (let i = 0; i < 5; i++) {
+          const px = p ? x + w - 50 - i * 60 : x + 50 + i * 60, py = y + 130;
+          if (picks[i]) drawPortrait(g, px, py, 25, champInfo(st.meta, picks[i].champ), tm[p].col);
+          else { g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 2; g.beginPath(); g.arc(px, py, 25, 0, TAU); g.stroke(); }
+        }
+        const bans = st.draft.bans[team];
+        for (let i = 0; i < bans.length; i++) drawPortrait(g, p ? x + w - 40 - i * 34 : x + 40 + i * 34, y + 200, 13, champInfo(st.meta, bans[i]), '#555', { banned: true });
+      }
+    }
+    // Pixel sheen.
+    const sh = g.createLinearGradient(x, y, x + w, y + h); sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(.5, `rgba(255,255,255,${.04 + .03 * Math.sin(now)})`); sh.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = sh; g.fillRect(x, y, w, h);
+    g.fillStyle = 'rgba(0,0,0,.18)'; for (let yy = y; yy < y + h; yy += 4) g.fillRect(x, yy, w, 1.2);
+    g.restore();
+    // Glow it throws on the arena.
+    const gl = g.createRadialGradient(cx, y + h, 0, cx, y + h, 420); gl.addColorStop(0, `rgba(120,150,255,${.12 + .1 * hype})`); gl.addColorStop(1, 'rgba(120,150,255,0)');
+    g.fillStyle = gl; g.fillRect(cx - 420, y + h - 60, 840, 300);
+  }
+
+  drawSideScreens(sc, hype) {
+    const g = this.ctx, tm = this.arenaTeams(), now = this.now;
+    for (let p = 0; p < 2; p++) {
+      const x = p ? 1250 : 250, y = 130, w = 100, h = 230, col = tm[p].col, hp = fanHype(hype, p, sc.pos);
+      const bg = g.createLinearGradient(0, y, 0, y + h); bg.addColorStop(0, shade(col, -.35)); bg.addColorStop(1, shade(col, -.75)); g.fillStyle = bg; g.fillRect(x, y, w, h);
+      // Chevrons running up (faster when their fans roar).
+      g.fillStyle = rgba(shade(col, .5), .25 + .5 * hp);
+      for (let i = 0; i < 6; i++) {
+        const yy = y + h - ((now * (40 + 160 * hp) + i * 42) % (h + 40)) + 20;
+        if (yy < y + 8 || yy > y + h - 8) continue;
+        g.beginPath(); g.moveTo(x + 18, yy + 10); g.lineTo(x + 50, yy - 8); g.lineTo(x + 82, yy + 10); g.lineTo(x + 82, yy + 18); g.lineTo(x + 50, yy); g.lineTo(x + 18, yy + 18); g.closePath(); g.fill();
+      }
+      g.save(); g.translate(x + w / 2, y + h / 2); g.rotate(-Math.PI / 2);
+      const nm = tm[p].name.toUpperCase(), fsz = clamp((h - 30) / (Math.max(4, nm.length) * .7), 14, 32);
+      g.font = this.font(fsz, 900); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(this.fit(nm, h - 20, fsz, 900), 0, 0);
+      g.restore();
+    }
+  }
+
+  // The two glass booths with the five players of each team at their PCs.
+  drawBoothsWide(sc, hype) {
+    const g = this.ctx, st = this.state, tm = this.arenaTeams(), now = this.now;
+    const win = sc.kind === 'trophy' ? sc.pos : -1;
+    for (let p = 0; p < 2; p++) {
+      const x0 = p ? 900 : 260, y0 = 372, w = 440, h = 120, col = tm[p].col, team = tm[p].team;
+      const hb = fanHype(hype, p, sc.pos) * (sc.pos === p ? 1 : 0) + (sc.pos < 0 ? hype * .3 : 0);
+      const pulse = .5 + .5 * Math.sin(now * 2.2 + p * 2);
+      const wall = g.createLinearGradient(0, y0, 0, y0 + h); wall.addColorStop(0, rgba(col, .3 + .15 * pulse + .4 * hb)); wall.addColorStop(1, rgba(shade(col, -.6), .9));
+      g.fillStyle = '#05060b'; g.fillRect(x0, y0, w, h);
+      g.fillStyle = wall; g.fillRect(x0, y0, w, h);
+      g.fillStyle = rgba(shade(col, .4), .55 + .45 * pulse); g.fillRect(x0 + 6, y0 + 6, w - 12, 3);
+      if (win !== p) for (let i = 0; i < 5; i++) {
+        const px = x0 + 52 + i * 84, line = st.line[team][i] || {}, hh = hash(line.handle || String(i + p * 5));
+        const celebrate = hb > .4 || (sc.mood === 'win' && sc.team === team);
+        const jump = celebrate ? Math.abs(Math.sin(now * 7 + i * 1.3)) * 6 * hb : 0, rise = celebrate ? 14 : 0;
+        const arms = celebrate ? (i % 2 ? POSE.up : wavePose(i, now, 1)) : POSE.type;
+        drawPerson(g, px, y0 + 108 - rise - jump, 30, { shirt: col, trim: '#ffffff', skin: SKINS[hh % SKINS.length], hair: HAIRS[(hh >> 3) % HAIRS.length], hs: (hh >> 6) % 4, headset: true, mouth: celebrate ? .8 : 0, arms });
+        // Monitor (we see its back) and its glow on the player.
+        g.fillStyle = '#0a0b10'; g.fillRect(px - 15, y0 + 86, 30, 14);
+        g.fillStyle = rgba('#9fd8ff', .1 + .06 * Math.sin(now * 3 + i)); g.fillRect(px - 18, y0 + 50, 36, 36);
+      }
+      g.fillStyle = '#0c0e16'; g.fillRect(x0, y0 + 100, w, 20);
+      g.fillStyle = rgba(col, .8); g.fillRect(x0, y0 + 100, w, 2);
+      // Glass, frame and the name sign.
+      g.fillStyle = 'rgba(190,215,255,.05)'; g.fillRect(x0, y0, w, h);
+      g.fillStyle = 'rgba(255,255,255,.07)'; g.beginPath(); g.moveTo(x0 + 40, y0); g.lineTo(x0 + 90, y0); g.lineTo(x0 + 30, y0 + h); g.lineTo(x0 - 20, y0 + h); g.closePath(); g.fill();
+      g.strokeStyle = '#2b3047'; g.lineWidth = 4; g.strokeRect(x0, y0, w, h);
+      g.fillStyle = '#2b3047'; g.fillRect(x0 + w / 2 - 2, y0, 4, h);
+      g.fillStyle = '#06070c'; g.fillRect(x0 - 6, y0 - 30, w + 12, 26);
+      g.fillStyle = rgba(col, .65 + .35 * pulse); g.fillRect(x0 - 6, y0 - 6, w + 12, 3);
+      g.font = this.font(17, 900); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(this.fit(tm[p].name.toUpperCase(), w - 30, 17, 900), x0 + w / 2, y0 - 17);
+      // Light it throws on the stage.
+      const sg = g.createRadialGradient(x0 + w / 2, y0 + h + 10, 0, x0 + w / 2, y0 + h + 10, 260); sg.addColorStop(0, rgba(col, .2 + .3 * hb)); sg.addColorStop(1, rgba(col, 0));
+      g.fillStyle = sg; g.fillRect(x0 - 60, y0 + h - 10, w + 120, 80);
+    }
+  }
+
+  // A floating crystal between the booths (it turns gold, or the winner's colour).
+  drawCentrepiece(sc, hype) {
+    const g = this.ctx, now = this.now, cx = 800, cy = 402 + Math.sin(now * 1.3) * 5;
+    const fin = sc.sub === 'finale' || sc.kind === 'trophy';
+    const col = fin && sc.team >= 0 ? teamColor(this.state.meta, sc.team) : '#58d6ff';
+    const gl = g.createRadialGradient(cx, cy, 0, cx, cy, 120 + 60 * hype); gl.addColorStop(0, rgba(col, .45 + .3 * hype)); gl.addColorStop(1, rgba(col, 0));
+    g.fillStyle = gl; g.fillRect(cx - 200, cy - 200, 400, 400);
+    // Light shaft from the plinth.
+    const sf = g.createLinearGradient(0, 470, 0, cy - 80); sf.addColorStop(0, rgba(col, .35)); sf.addColorStop(1, rgba(col, 0));
+    g.fillStyle = sf; g.beginPath(); g.moveTo(cx - 26, 470); g.lineTo(cx + 26, 470); g.lineTo(cx + 50, cy - 80); g.lineTo(cx - 50, cy - 80); g.closePath(); g.fill();
+    if (sc.kind === 'trophy') return;
+    // Rings.
+    g.lineWidth = 2;
+    for (let i = 0; i < 2; i++) { g.strokeStyle = rgba(i ? LED_GOLD : col, .6); g.beginPath(); g.ellipse(cx, cy + 6, 70 + i * 16, 14 + i * 4, Math.sin(now * .6 + i) * .15, 0, TAU); g.stroke(); }
+    // The crystal: an octahedron spinning.
+    const a = now * .9, top = [cx, cy - 58], bot = [cx, cy + 48];
+    const eq = [0, 1, 2, 3].map(i => { const b = a + i * Math.PI / 2; return [cx + Math.cos(b) * 38, cy + Math.sin(b) * 9, Math.sin(b)]; });
+    const faces = [];
+    for (let i = 0; i < 4; i++) { const p = eq[i], q = eq[(i + 1) % 4], z = (p[2] + q[2]) / 2; faces.push([p, q, z]); }
+    faces.sort((u, v) => u[2] - v[2]);
+    for (const [p, q, z] of faces) for (const apex of [top, bot]) {
+      const lit = clamp(.45 + .45 * Math.cos(Math.atan2(q[1] - p[1], q[0] - p[0])) * (apex === top ? 1 : -.6), .1, 1);
+      g.fillStyle = z > 0 ? shade(col, lit - .3) : shade(col, -.55);
+      g.beginPath(); g.moveTo(apex[0], apex[1]); g.lineTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.closePath(); g.fill();
+    }
+    g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(top[0], top[1]); g.lineTo(bot[0], bot[1]); g.stroke();
+  }
+
+  // LED strip along the stage front: a chase in the team colours, all flashing on big moments.
+  drawStageLeds(sc, hype) {
+    const g = this.ctx, tm = this.arenaTeams(), now = this.now;
+    for (let i = 0; i < 60; i++) {
+      const x = 200 + i * 20, side = i < 30 ? 0 : 1;
+      const b = .25 + .75 * Math.max(0, Math.sin(now * 5 - i * .45)), flash = hype > .6 ? .5 + .5 * Math.sin(now * 14) : 0;
+      const col = sc.pos >= 0 && hype > .6 ? tm[sc.pos].col : tm[side].col;
+      g.fillStyle = rgba(shade(col, .3), clamp(b * (1 - flash) + flash, 0, 1)); g.fillRect(x + 2, 552, 16, 7);
+    }
+    g.fillStyle = rgba(LED_GOLD, .7); g.fillRect(196, 545, 1208, 2);
+  }
+
+  // Moving-head light beams from the roof, sweeping the stage and the crowd.
+  drawBeams(sc, hype) {
+    const g = this.ctx, tm = this.arenaTeams(), now = this.now;
+    const rigs = [150, 410, 640, 960, 1190, 1450];
+    g.save(); g.globalCompositeOperation = 'lighter';
+    rigs.forEach((rx, i) => {
+      const sp = .35 + .12 * i + hype * .9;
+      const ang = (i < 3 ? .25 : -.25) + Math.sin(now * sp + i * 1.7) * .42;
+      const L = 820, ex = rx + Math.sin(ang) * L, ey = 96 + Math.cos(ang) * L;
+      const col = i === 2 || i === 3 ? LED_GOLD : tm[i < 3 ? 0 : 1].col;
+      const c2 = sc.pos >= 0 && hype > .5 ? tm[sc.pos].col : col;
+      const gr = g.createLinearGradient(rx, 96, ex, ey); gr.addColorStop(0, rgba(shade(c2, .3), .3 + .25 * hype)); gr.addColorStop(1, rgba(c2, 0));
+      const nx = Math.cos(ang), ny = -Math.sin(ang), w0 = 4, w1 = 70;
+      g.fillStyle = gr; g.beginPath();
+      g.moveTo(rx + nx * w0, 96 + ny * w0); g.lineTo(ex + nx * w1, ey + ny * w1); g.lineTo(ex - nx * w1, ey - ny * w1); g.lineTo(rx - nx * w0, 96 - ny * w0); g.closePath(); g.fill();
+      const lg = g.createRadialGradient(rx, 98, 0, rx, 98, 16); lg.addColorStop(0, rgba('#ffffff', .9)); lg.addColorStop(1, rgba(c2, 0)); g.fillStyle = lg; g.fillRect(rx - 16, 82, 32, 32);
+    });
+    g.restore();
+  }
+
+  // Flame columns along the stage front on the biggest moments.
+  drawPyro(sc, hype) {
+    const fin = sc.sub === 'finale' || sc.kind === 'trophy';
+    if (!(fin || (hype > .8 && sc.t < 1.8))) return;
+    const g = this.ctx, now = this.now, life = fin ? 1 : clamp((1.8 - sc.t) / .6, 0, 1);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    [214, 510, 1090, 1386].forEach((x, i) => {
+      const fl = .7 + .3 * Math.sin(now * 31 + i * 2) * Math.sin(now * 17 + i), hgt = 170 * fl * life * (fin ? (.6 + .4 * Math.abs(Math.sin(now * 1.7 + i))) : 1);
+      if (hgt < 5) return;
+      const gr = g.createLinearGradient(0, 546, 0, 546 - hgt); gr.addColorStop(0, 'rgba(255,250,220,.95)'); gr.addColorStop(.35, 'rgba(255,170,60,.75)'); gr.addColorStop(1, 'rgba(255,80,20,0)');
+      g.fillStyle = gr; g.beginPath(); g.moveTo(x - 14, 546); g.quadraticCurveTo(x - 26, 546 - hgt * .5, x, 546 - hgt); g.quadraticCurveTo(x + 26, 546 - hgt * .5, x + 14, 546); g.closePath(); g.fill();
+    });
+    g.restore();
+  }
+
+  // Thousands of fans: blocky bodies, heads, raised arms, light sticks, banners, phone flashes.
+  drawFansWide(sc, hype) {
+    const g = this.ctx, A = this.arena, tm = this.arenaTeams(), now = this.now, pos = sc.pos;
+    const sticks = [[], []], rim = `rgba(255,226,200,${.22 + .2 * hype})`;
+    const hy = [fanHype(hype, 0, pos), fanHype(hype, 1, pos), fanHype(hype, -1, pos)];
+    if (A.atlas) this.drawFansAtlas(sc, hype);
+    else for (const row of A.rows) {
+      // Bodies (and raised arms), one path per colour; each fan's head position is kept for the next pass.
+      for (const [c, list] of row.groups) {
+        g.beginPath();
+        for (const f of list) {
+          const h = hy[f.team < 0 ? 2 : f.team], s = f.s;
+          const j = h > .05 ? Math.abs(Math.sin(now * 8.5 + f.ph)) * h * s * .6 : 0;
+          // Side-stand fans sit until their moment, then jump to their feet.
+          const seat = f.back ? 0 : s * .5 * (1 - clamp((h - .25) * 3, 0, 1));
+          const y = f.y - j + seat + Math.sin(now * 1.6 + f.ph) * s * .05;
+          f.hy = y;
+          g.rect(f.x - s * .42, y - s * 1.05, s * .84, s * 1.3);
+          if (h > .3 && f.arm < h * 1.15) { const w = Math.sin(now * 7 + f.ph) * s * .15; g.rect(f.x - s * .5 + w, y - s * 1.95, s * .17, s * .95); g.rect(f.x + s * .33 + w, y - s * 1.95, s * .17, s * .95); f.up = true; } else f.up = false;
+          if (f.stick && f.team >= 0) sticks[f.team].push(f.x + s * .42, y - s * (f.up ? 2.1 : 1.15), s, f.ph);
+        }
+        g.fillStyle = A.pal[c]; g.fill();
+      }
+      // Heads: hair from behind on the floor, faces in the side stands; stage light catching the backs.
+      const back = row.list[0] && row.list[0].back;
+      g.beginPath();
+      for (const f of row.list) g.rect(f.x - f.s * .25, f.hy - f.s * 1.5, f.s * .5, f.s * .5);
+      g.fillStyle = back ? '#0d0a0c' : '#b98564'; g.fill();
+      if (back) {
+        g.beginPath();
+        for (const f of row.list) { g.rect(f.x - f.s * .42, f.hy - f.s * 1.05, f.s * .84, f.s * .1); g.rect(f.x - f.s * .25, f.hy - f.s * 1.5, f.s * .5, f.s * .08); }
+        g.fillStyle = rim; g.fill();
+      }
+    }
+    // Light sticks (additive), swaying more when their team scores.
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (let p = 0; p < 2; p++) {
+      const c = shade(tm[p].col, .45), h = fanHype(hype, p, pos), L = sticks[p];
+      g.strokeStyle = rgba(c, .9); g.lineWidth = 1.6; g.beginPath();
+      for (let i = 0; i < L.length; i += 4) { const a = Math.sin(now * (2 + 6 * h) + L[i + 3]) * (.3 + .6 * h), s = L[i + 2]; g.moveTo(L[i], L[i + 1]); g.lineTo(L[i] + Math.sin(a) * s * .8, L[i + 1] - Math.cos(a) * s * .8); }
+      g.stroke();
+      g.fillStyle = rgba(c, .16 + .2 * h); g.beginPath();
+      for (let i = 0; i < L.length; i += 4) { const s = L[i + 2] * 1.4; g.rect(L[i] - s / 2, L[i + 1] - s * .9, s, s); }
+      g.fill();
+    }
+    // Phone flashes.
+    const n = Math.floor(hype * 14) + (Math.random() < .3 ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const f = A.fans[Math.floor(Math.random() * A.fans.length)], r = f.s * 1.8;
+      const fg = g.createRadialGradient(f.x, f.y - f.s * 1.6, 0, f.x, f.y - f.s * 1.6, r); fg.addColorStop(0, 'rgba(255,255,255,.95)'); fg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = fg; g.fillRect(f.x - r, f.y - f.s * 1.6 - r, 2 * r, 2 * r);
+    }
+    g.restore();
+    // Banners held up in the crowd.
+    for (const b of A.banners) {
+      const h = fanHype(hype, b.team, pos), s = 4 + (b.y - 600) * .042, wv = Math.sin(now * (2 + 5 * h) + b.ph) * s * .25;
+      const bw = s * 9, bh = s * 2.6, x = b.x - bw / 2, y = b.y - s * 3.4 - h * s * .8;
+      g.fillStyle = '#b8b8b8'; g.fillRect(x, y, s * .2, bh + s * 1.2); g.fillRect(x + bw - s * .2, y + wv, s * .2, bh + s * 1.2);
+      g.fillStyle = b.kind === 1 ? '#f2f2f2' : tm[b.team].col;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + bw, y + wv); g.lineTo(x + bw, y + bh + wv); g.lineTo(x, y + bh); g.closePath(); g.fill();
+      const txt = b.kind === 0 ? `GO ${tm[b.team].name.toUpperCase()}` : b.kind === 1 ? initials(tm[b.team].name).toUpperCase() + ' ♥' : 'LET\'S GO!';
+      g.save(); g.translate(x + bw / 2, y + bh / 2 + wv / 2); g.transform(1, wv / bw, 0, 1, 0, 0);
+      g.font = this.font(bh * .5, 900); g.fillStyle = b.kind === 1 ? tm[b.team].col : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(this.fit(txt, bw * .9, bh * .5, 900), 0, 0);
+      g.restore();
+    }
+  }
+
+  drawConfetti() {
+    const g = this.ctx;
+    for (const q of this.confetti) {
+      const c = Math.cos(q.r);
+      g.fillStyle = q.c; g.fillRect(q.x - q.s / 2, q.y - q.s * .3 * Math.abs(c) - .5, q.s, q.s * .6 * Math.abs(c) + 1);
+    }
+  }
+
+  // The champions on stage, the middle one lifting the cup.
+  drawWinners(sc) {
+    const g = this.ctx, st = this.state, team = sc.team >= 0 ? sc.team : 0, col = teamColor(st.meta, team), now = this.now, t = sc.t;
+    const lift = easeOut(clamp((t - .5) / 1.2, 0, 1));
+    for (const i of [0, 4, 1, 3, 2]) {
+      const line = st.line[team][i] || {}, hh = hash(line.handle || String(i)), mid = i === 2;
+      const x = 800 + (i - 2) * 78, jump = mid ? Math.abs(Math.sin(now * 3)) * 5 * lift : Math.abs(Math.sin(now * 6.5 + i * 1.7)) * 8;
+      const arms = mid ? [[lerp(.2, 2.72, lift), lerp(.3, 3.0, lift)], [lerp(.2, 2.72, lift), lerp(.3, 3.0, lift)]] : i % 2 ? POSE.up : wavePose(i, now, 1);
+      const r = drawPerson(g, x, 500 - jump, 38, { shirt: col, trim: '#ffffff', skin: SKINS[hh % SKINS.length], hair: HAIRS[(hh >> 3) % HAIRS.length], hs: (hh >> 6) % 4, legs: true, pants: '#14161e', mouth: .7 + .3 * Math.sin(now * 9 + i), arms });
+      if (mid) { const [a, b] = r.hands, cx = (a[0] + b[0]) / 2, cy = Math.min(a[1], b[1]) + 8; drawCup(g, cx, cy, 20, true); }
+    }
+  }
+
+  // ---- close-ups ----
+
+  // Fans close-up: rows in the stands going wild (with sticks, scarves and signs).
+  drawCrowdClose(sc) {
+    const g = this.ctx, tm = this.arenaTeams(), now = this.now, t = sc.t, pos = sc.pos;
+    const hype = crowdHype(sc.level || .6, t, sc.dur);
+    if (!sc.fans) {
+      const R = rng(1000 + sc.n * 77), rows = [];
+      for (let r = 0; r < 5; r++) {
+        const S = 62 + r * 18, y = 330 + r * 122, row = [];
+        for (let x = -S * .6 + (r % 2) * S * .55 + R() * S * .3; x < AW + S; x += S * (1.12 + R() * .2)) {
+          const rr = R(), home = pos >= 0 ? pos : x < AW / 2 ? 0 : 1, team = rr < .78 ? home : rr < .86 ? 1 - home : -1;
+          const hh = Math.floor(R() * 1e6), acc = R();
+          row.push({ x, team, ph: R() * TAU, skin: SKINS[hh % SKINS.length], hair: HAIRS[(hh >> 4) % HAIRS.length], hs: (hh >> 8) % 4, acc: acc < .22 ? 'stick' : acc < .34 ? 'scarf' : acc < .4 ? 'sign' : '', arm: R(), neutral: ['#e9e9ee', '#23252d', '#54586a'][hh % 3] });
+        }
+        rows.push({ S, y, row });
+      }
+      sc.fans = rows;
+    }
+    const e = easeInOut(clamp(t / sc.dur, 0, 1)), shake = hype > .7 ? (1 - clamp(t / 1.2, 0, 1)) * 4 : 0;
+    this.arenaXf({ x: 800 + (pos === 0 ? -1 : pos === 1 ? 1 : 0) * 30 * e + (Math.random() - .5) * shake, y: 450 + (Math.random() - .5) * shake, z: lerp(1.02, 1.1, e) });
+    const bg = g.createLinearGradient(0, 0, 0, AH); bg.addColorStop(0, '#06070e'); bg.addColorStop(1, '#10131f'); g.fillStyle = bg; g.fillRect(-40, -40, AW + 80, AH + 80);
+    // Bokeh of the far stands and the stage lights.
+    const BR = rng(31);
+    for (let i = 0; i < 34; i++) {
+      const x = BR() * AW, y = BR() * 260, r = 18 + BR() * 40, c = BR() < .4 ? LED_GOLD : tm[BR() < .5 ? 0 : 1].col, a = .1 + .12 * (.5 + .5 * Math.sin(now * (1 + BR()) + i));
+      const gl = g.createRadialGradient(x, y, 0, x, y, r); gl.addColorStop(0, rgba(c, a)); gl.addColorStop(.7, rgba(c, a * .6)); gl.addColorStop(1, rgba(c, 0)); g.fillStyle = gl; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    // A beam cutting across.
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const bc = pos >= 0 ? tm[pos].col : LED_GOLD, bx = 800 + Math.sin(now * .8) * 500;
+    const bgr = g.createLinearGradient(bx, -40, bx + 200, 700); bgr.addColorStop(0, rgba(bc, .35 * (.4 + hype))); bgr.addColorStop(1, rgba(bc, 0));
+    g.fillStyle = bgr; g.beginPath(); g.moveTo(bx - 20, -40); g.lineTo(bx + 20, -40); g.lineTo(bx + 380, 760); g.lineTo(bx + 60, 760); g.closePath(); g.fill();
+    g.restore();
+    for (const { S, y, row } of sc.fans) {
+      for (const f of row) {
+        const h = fanHype(hype, f.team, pos), jump = Math.abs(Math.sin(now * 8.5 + f.ph)) * h * S * .32;
+        const shirt = f.team < 0 ? f.neutral : tm[f.team].col, up = h > .3 && f.arm < h * 1.25;
+        let arms = up ? (f.acc ? POSE.up : f.arm < .3 ? POSE.fist : wavePose(f.ph, now, h)) : h > .12 ? POSE.clap : POSE.down;
+        if (!up && h > .12 && Math.sin(now * 10 + f.ph) > 0) arms = [[.3, 2.0], [.3, 2.0]];
+        const r = drawPerson(g, f.x, y - jump, S, { shirt, trim: f.team >= 0 ? '#ffffff' : null, skin: f.skin, hair: f.hair, hs: f.hs, mouth: h * (.55 + .45 * Math.abs(Math.sin(now * 11 + f.ph))), arms });
+        const [L, Rh] = r.hands;
+        if (f.acc === 'stick' && f.team >= 0) {
+          const c = shade(tm[f.team].col, .5), a = Math.sin(now * (3 + 6 * h) + f.ph) * .5;
+          g.save(); g.globalCompositeOperation = 'lighter';
+          g.strokeStyle = c; g.lineWidth = S * .09; g.lineCap = 'round'; g.beginPath(); g.moveTo(Rh[0], Rh[1]); g.lineTo(Rh[0] + Math.sin(a) * S * .55, Rh[1] - Math.cos(a) * S * .55); g.stroke();
+          const gl = g.createRadialGradient(Rh[0], Rh[1] - S * .3, 0, Rh[0], Rh[1] - S * .3, S * .6); gl.addColorStop(0, rgba(c, .35)); gl.addColorStop(1, rgba(c, 0)); g.fillStyle = gl; g.fillRect(Rh[0] - S * .6, Rh[1] - S * .9, S * 1.2, S * 1.2);
+          g.restore(); g.lineCap = 'butt';
+        } else if (f.acc === 'scarf' && f.team >= 0 && up) {
+          const c = tm[f.team].col, sag = S * .12 + Math.sin(now * 6 + f.ph) * S * .05;
+          g.strokeStyle = c; g.lineWidth = S * .16; g.beginPath(); g.moveTo(L[0], L[1]); g.quadraticCurveTo((L[0] + Rh[0]) / 2, (L[1] + Rh[1]) / 2 + sag, Rh[0], Rh[1]); g.stroke();
+          g.strokeStyle = '#ffffff'; g.lineWidth = S * .04; g.stroke();
+        } else if (f.acc === 'sign' && up) {
+          const cx = (L[0] + Rh[0]) / 2, cy = Math.min(L[1], Rh[1]) - S * .2, w = S * 1.4, hh = S * .7;
+          g.fillStyle = '#f4f1e8'; g.fillRect(cx - w / 2, cy - hh / 2, w, hh);
+          g.font = this.font(S * .26, 900); g.fillStyle = f.team >= 0 ? tm[f.team].col : '#222'; g.textAlign = 'center'; g.textBaseline = 'middle';
+          g.fillText(f.team >= 0 ? this.fit(`GO ${initials(tm[f.team].name).toUpperCase()}!`, w * .9, S * .26, 900) : 'GG WP', cx, cy);
+        }
+      }
+      // The seat row in front hides the legs.
+      const sb = g.createLinearGradient(0, y + S * .05, 0, y + S * 1.2); sb.addColorStop(0, '#1a1e2e'); sb.addColorStop(1, '#0a0c14');
+      g.fillStyle = sb; g.fillRect(-40, y + S * .05, AW + 80, 500);
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(-40, y + S * .05, AW + 80, 2);
+    }
+    // LED ribbon board along the front.
+    g.fillStyle = '#05060a'; g.fillRect(-40, 836, AW + 80, 70);
+    const label = `${sc.label || ''}  ★  `, col = pos >= 0 ? tm[pos].col : LED_GOLD;
+    g.font = this.font(40, 900); const lw = Math.max(200, g.measureText(label).width);
+    g.fillStyle = shade(col, .35); g.textAlign = 'left'; g.textBaseline = 'middle';
+    for (let x = -((now * 260) % lw) - 40; x < AW + 40; x += lw) g.fillText(label, x, 868);
+    g.fillStyle = 'rgba(0,0,0,.25)'; for (let x = -40; x < AW + 40; x += 5) g.fillRect(x, 836, 1.5, 64);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // Inside a team booth: five players at their PCs (focused in the draft,
+  // jumping out of their chairs after a big objective or the win).
+  drawBoothClose(sc) {
+    const g = this.ctx, st = this.state, now = this.now, t = sc.t, team = sc.team >= 0 ? sc.team : 0;
+    const col = teamColor(st.meta, team), name = this.names()[team] || '';
+    const win = sc.mood === 'win', hype = win ? crowdHype(sc.level || 1, t, sc.dur) : 0;
+    const e = easeInOut(clamp(t / sc.dur, 0, 1));
+    this.arenaXf({ x: lerp(780, 820, e), y: 440, z: lerp(1.0, 1.04, e) });
+    const wall = g.createLinearGradient(0, 0, 0, AH); wall.addColorStop(0, shade(col, -.55)); wall.addColorStop(.7, shade(col, -.8)); wall.addColorStop(1, '#05060a');
+    g.fillStyle = wall; g.fillRect(-40, -40, AW + 80, AH + 80);
+    // Light strips and the team name on the back wall.
+    const pulse = .5 + .5 * Math.sin(now * 2.4);
+    for (const [y, a] of [[150, .6], [250, .35]]) { g.fillStyle = rgba(shade(col, .5), a * (.5 + .5 * pulse) + .4 * hype); g.fillRect(-40, y, AW + 80, 6); }
+    g.save(); g.globalAlpha = .13 + .1 * hype; g.font = this.font(170, 900, true); g.fillStyle = '#ffffff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText(this.fit(name.toUpperCase(), 1500, 170, 900), 800, 360); g.restore();
+    if (win) { const fl = g.createRadialGradient(800, 300, 0, 800, 300, 900); fl.addColorStop(0, rgba(col, .35 * hype)); fl.addColorStop(1, rgba(col, 0)); g.fillStyle = fl; g.fillRect(-40, -40, AW + 80, AH + 80); }
+    // Players.
+    for (let i = 0; i < 5; i++) {
+      const line = st.line[team][i] || {}, hh = hash(line.handle || String(i)), px = 210 + i * 295;
+      const cel = win && t > .15 + i * .07, jump = cel ? Math.abs(Math.sin(now * 7 + i * 1.4)) * 26 * hype : 0;
+      const rise = cel ? 95 : 0, S = 150;
+      // Chair back.
+      g.fillStyle = '#0c0d13'; g.beginPath(); g.roundRect(px - 92, 470, 184, 260, 26); g.fill();
+      g.fillStyle = rgba(col, .85); g.fillRect(px - 92, 500, 184, 14);
+      const talk = !win && Math.sin(now * 1.3 + i * 2.1) > .55;
+      let arms = cel ? (i % 2 ? POSE.up : i === 2 ? POSE.fist : wavePose(i, now, 1)) : [[.38 + .04 * Math.sin(now * 9 + i), -1.2], [.38 + .04 * Math.sin(now * 8 + i * 2), -1.2]];
+      if (talk) arms = [[.38, -1.2], [.45, 2.2 + .2 * Math.sin(now * 5)]];
+      const lean = cel ? Math.sin(now * 3 + i) * .08 : 0;
+      drawPerson(g, px, 725 - rise - jump, S, { shirt: col, trim: '#ffffff', skin: SKINS[hh % SKINS.length], hair: HAIRS[(hh >> 3) % HAIRS.length], hs: (hh >> 6) % 4, headset: true, lean, mouth: cel ? .6 + .4 * Math.abs(Math.sin(now * 10 + i)) : talk ? .3 + .3 * Math.abs(Math.sin(now * 12)) : 0, arms });
+      // Monitor to the side, its glow on the player.
+      const mx = px + 118;
+      g.fillStyle = '#07080c'; g.beginPath(); g.moveTo(mx - 10, 560); g.lineTo(mx + 12, 548); g.lineTo(mx + 12, 708); g.lineTo(mx - 10, 700); g.closePath(); g.fill();
+      g.fillStyle = rgba('#8fd3ff', .75); g.beginPath(); g.moveTo(mx - 10, 566); g.lineTo(mx - 5, 563); g.lineTo(mx - 5, 696); g.lineTo(mx - 10, 694); g.closePath(); g.fill();
+      if (!cel) { const mg = g.createRadialGradient(mx - 30, 600, 0, mx - 30, 600, 140); mg.addColorStop(0, 'rgba(140,210,255,.18)'); mg.addColorStop(1, 'rgba(140,210,255,0)'); g.fillStyle = mg; g.fillRect(mx - 170, 460, 280, 280); }
+    }
+    // Desk, keyboards, name plates.
+    g.fillStyle = '#0b0c12'; g.fillRect(-40, 715, AW + 80, 200);
+    g.fillStyle = rgba(col, .9); g.fillRect(-40, 715, AW + 80, 5);
+    g.fillStyle = 'rgba(255,255,255,.06)'; g.fillRect(-40, 720, AW + 80, 2);
+    for (let i = 0; i < 5; i++) {
+      const px = 210 + i * 295, line = st.line[team][i] || {};
+      this.panel(px - 105, 722, 210, 38, 8, 'rgba(6,8,14,.92)', rgba(col, .7));
+      g.font = this.font(19, 900); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(this.fit((line.handle || ROLES[i]).toUpperCase(), 190, 19, 900), px, 735);
+      g.font = this.font(11, 800); g.fillStyle = shade(col, .5); g.fillText(this.fit(`${T.roleShort[ROLES[i]]}${line.champ ? ' · ' + line.champ.toUpperCase() : ''}`, 190, 11, 800), px, 751);
+    }
+    // Glass: frame and reflections.
+    g.fillStyle = '#05060a'; g.fillRect(-40, -40, AW + 80, 70); g.fillRect(-40, -40, 60, AH + 80); g.fillRect(AW - 20, -40, 60, AH + 80);
+    g.fillStyle = rgba(col, .8); g.fillRect(20, 28, AW - 40, 3);
+    g.save(); g.globalCompositeOperation = 'screen';
+    const rx = ((now * 60) % 2400) - 600;
+    const rg = g.createLinearGradient(rx, 0, rx + 260, 0); rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(.5, 'rgba(255,255,255,.07)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = rg; g.beginPath(); g.moveTo(rx, 30); g.lineTo(rx + 260, 30); g.lineTo(rx - 40, AH); g.lineTo(rx - 300, AH); g.closePath(); g.fill();
+    g.restore();
+    if (sc.confetti) this.drawConfetti();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // The caster desk: three casters, the arena blurred behind them.
+  drawCasters(sc) {
+    const g = this.ctx, A = this.arenaPrep(), now = this.now, t = sc.t, tm = this.arenaTeams();
+    const e = easeInOut(clamp(t / sc.dur, 0, 1));
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const B = this.arenaBand();
+    if (A.blur) { g.imageSmoothingEnabled = true; g.drawImage(A.blur, 0, B.oy, B.W, B.H); }
+    this.arenaXf({ x: lerp(760, 800, e), y: 450, z: lerp(1.0, 1.05, e) });
+    if (!A.blur) { const bg = g.createLinearGradient(0, 0, 0, AH); bg.addColorStop(0, '#0a0d1b'); bg.addColorStop(1, '#05060b'); g.fillStyle = bg; g.fillRect(-40, -40, AW + 80, AH + 80); }
+    // Bokeh lights behind.
+    const BR = rng(57);
+    for (let i = 0; i < 26; i++) {
+      const x = BR() * AW, y = 60 + BR() * 420, r = 16 + BR() * 36, c = BR() < .5 ? LED_GOLD : tm[x < AW / 2 ? 0 : 1].col, a = .12 + .1 * Math.sin(now * (.6 + BR()) + i);
+      const gl = g.createRadialGradient(x, y, 0, x, y, r); gl.addColorStop(0, rgba(c, a)); gl.addColorStop(1, rgba(c, 0)); g.fillStyle = gl; g.fillRect(x - r, y - r, 2 * r, 2 * r);
+    }
+    g.fillStyle = 'rgba(4,5,10,.35)'; g.fillRect(-40, -40, AW + 80, AH + 80);
+    // Casters.
+    const suits = ['#1d2335', '#2c1d27', '#1b2a26'], ties = [LED_GOLD, '#8a1c2c', '#2f6db5'];
+    const speaker = Math.floor(now / 2.2) % 3;
+    for (let i = 0; i < 3; i++) {
+      const x = 470 + i * 330, hh = hash('caster' + i), talk = i === speaker;
+      const rest = [[.38, -1.2], [.38, -1.2]];
+      const arms = i === 1 ? POSE.mic : talk ? [[.3, -2.6], [.45 + .1 * Math.sin(now * 3), 2.0 + .3 * Math.sin(now * 4)]] : rest;
+      const r = drawPerson(g, x, 640, 175, { shirt: suits[i], suit: true, trim: ties[i], skin: SKINS[(hh + i * 2) % SKINS.length], hair: HAIRS[(hh >> 3) % HAIRS.length], hs: (hh >> 6) % 4, mouth: talk ? .3 + .5 * Math.abs(Math.sin(now * 13)) : 0, arms, lean: Math.sin(now * .7 + i) * .03 });
+      if (i === 1 || talk) {
+        const h = i === 1 ? r.hands[1] : r.hands[0];
+        g.fillStyle = '#0d0e12'; g.save(); g.translate(h[0], h[1]); g.rotate(i === 1 ? -.5 : .5);
+        g.fillRect(-7, -48, 14, 52); g.fillStyle = '#3a3d47'; g.beginPath(); g.arc(0, -52, 12, 0, TAU); g.fill();
+        g.fillStyle = LED_GOLD; g.fillRect(-7, -22, 14, 8); g.restore();
+      }
+    }
+    // The desk.
+    const dg = g.createLinearGradient(0, 610, 0, 900); dg.addColorStop(0, '#1b1f2e'); dg.addColorStop(1, '#07080d');
+    g.fillStyle = dg; g.beginPath(); g.moveTo(170, 630); g.quadraticCurveTo(800, 600, 1430, 630); g.lineTo(1480, 920); g.lineTo(120, 920); g.closePath(); g.fill();
+    g.fillStyle = '#2a2f44'; g.beginPath(); g.moveTo(160, 622); g.quadraticCurveTo(800, 590, 1440, 622); g.lineTo(1440, 640); g.quadraticCurveTo(800, 608, 160, 640); g.closePath(); g.fill();
+    for (let i = 0; i < 48; i++) { const x = 190 + i * 25.6, b = .35 + .65 * Math.max(0, Math.sin(now * 3 - i * .3)); g.fillStyle = rgba(LED_GOLD, b); g.fillRect(x, 690, 19, 5); }
+    g.font = this.font(46, 900); g.fillStyle = 'rgba(255,255,255,.9)'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(T.arena, 800, 760);
+    g.font = this.font(18, 800); g.fillStyle = LED_GOLD; g.fillText('LIVE · CASTER DESK', 800, 806);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  // ---- scene dispatch and overlays ----
+
+  drawScene() {
+    const sc = this.scene, g = this.ctx, B = this.arenaBand();
+    g.save();
+    if (B.oy > 0) { g.fillStyle = '#04050a'; g.fillRect(0, 0, this.W, this.H); g.beginPath(); g.rect(0, B.oy, B.W, B.H); g.clip(); }
+    try {
+      if (sc.kind === 'crowd') this.drawCrowdClose(sc);
+      else if (sc.kind === 'booth') this.drawBoothClose(sc);
+      else if (sc.kind === 'casters') this.drawCasters(sc);
+      else this.drawArenaWide(sc);
+    } finally { g.restore(); g.setTransform(1, 0, 0, 1, 0, 0); }
+    this.drawSceneHud(sc);
+  }
+
+  sceneText(sc) {
+    const st = this.state, names = this.names(), team = sc.team >= 0 ? sc.team : -1, nm = team >= 0 ? names[team] : '';
+    const col = team >= 0 ? teamColor(st.meta, team) : LED_GOLD, tm = this.arenaTeams();
+    const vs = `${tm[0].name} vs ${tm[1].name}`;
+    if (sc.kind === 'trophy') return [`${nm.toUpperCase()} ARE THE CHAMPIONS`, 'The cup is lifted on stage', col];
+    if (sc.sub === 'finale') return [`${nm.toUpperCase()} WIN!`, 'The nexus falls and the arena erupts', col];
+    if (sc.sub === 'opening') return [sc.label || T.grandFinal, `Live from the arena · ${vs}`, LED_GOLD];
+    if (sc.sub === 'ready') return ['GAME ON', 'Draft locked in · welcome to Summoner\'s Rift', LED_GOLD];
+    if (sc.kind === 'casters') {
+      if (sc.sub === 'intro') return ['THE CASTERS', `Champion draft coming up · ${vs}`, LED_GOLD];
+      const picks = [0, 1].map(p => st.draft.picks[tm[p].team].map(x => x.champ).join(', ')).filter(Boolean);
+      return [sc.label || 'CASTERS', picks.length ? `First picks: ${picks.join('  |  ')}` : 'Breaking down the draft', LED_GOLD];
+    }
+    if (sc.kind === 'booth') return [`${nm.toUpperCase()}`, sc.mood === 'win' ? (sc.label === 'VICTORY' ? 'The players jump out of their chairs' : `${sc.label} secured · the booth celebrates`) : `${sc.label || 'DRAFT'} · locking in champions`, col];
+    if (sc.kind === 'crowd') return [sc.label || 'THE CROWD', team >= 0 ? `${nm} fans on their feet` : 'The arena roars', col];
+    return [sc.label || 'ARENA', team >= 0 ? `The whole arena on its feet for ${nm}` : 'The arena roars', col];
+  }
+
+  drawSceneHud(sc) {
+    const g = this.ctx, W = this.W, H = this.H, s = Math.min(W / 1280, H / 720);
+    const onMap = this.state.mode === 'map' && !sc.fin;
+    if (onMap) this.drawTopBar();
+    // Camera tag.
+    const tag = CAM_TAGS[sc.kind] || 'ARENA', ty = onMap ? this.topH + 8 * s : 14 * s, fs = 12 * s, th = 24 * s;
+    g.font = this.font(fs, 900); const tw = g.measureText(tag).width + 34 * s;
+    this.panel(14 * s, ty, tw, th, 4 * s, 'rgba(200,30,40,.95)', null);
+    g.fillStyle = `rgba(255,255,255,${.6 + .4 * Math.sin(this.now * 7)})`; g.beginPath(); g.arc(14 * s + 11 * s, ty + th / 2, 3.5 * s, 0, TAU); g.fill();
+    this.txt(tag, 14 * s + 20 * s, ty + th / 2, fs, '#fff', 'left', 900);
+    // Lower third.
+    const [title, sub, col] = this.sceneText(sc);
+    const k = easeOut(clamp(sc.t / .35, 0, 1)) * clamp((sc.dur - sc.t) / .25, 0, 1);
+    if (k <= 0) return;
+    const x = 14 * s, y = ty + th + 8 * s, tfs = 28 * s, sfs = 13 * s;
+    g.font = this.font(tfs, 900, true); const w1 = g.measureText(title).width;
+    g.font = this.font(sfs, 700); const w2 = g.measureText(sub).width;
+    const w = Math.min(W - 56 * s, Math.max(w1, w2) + 48 * s) * k;
+    g.save(); g.beginPath(); g.rect(x, y - 4 * s, w, 80 * s); g.clip();
+    this.panel(x, y, Math.max(w, 1), 46 * s, 4 * s, 'rgba(6,8,14,.9)', null);
+    g.fillStyle = col; g.fillRect(x, y, 6 * s, 46 * s);
+    g.font = this.font(tfs, 900, true); g.fillStyle = '#fff'; g.textAlign = 'left'; g.textBaseline = 'middle'; g.fillText(title, x + 20 * s, y + 24 * s, W - 100 * s);
+    this.panel(x, y + 48 * s, Math.max(w, 1), 26 * s, 4 * s, rgba(col, .85), null);
+    this.txt(this.fit(sub, W - 100 * s, sfs, 700), x + 20 * s, y + 61 * s, sfs, '#fff', 'left', 700);
+    g.restore();
+  }
+
+  // A quick wipe between cameras.
+  drawStinger() {
+    const a = (this.now - this.stinger) / .42;
+    if (!(a >= 0 && a < 1) || !this.state) return;
+    const g = this.ctx, W = this.W, H = this.H, x = lerp(-W * .5, W * 1.3, easeInOut(a)), sk = H * .35;
+    const tm = this.arenaTeams();
+    g.save();
+    const band = (off, w, col) => { g.fillStyle = col; g.beginPath(); g.moveTo(x + off, 0); g.lineTo(x + off + w, 0); g.lineTo(x + off + w - sk, H); g.lineTo(x + off - sk, H); g.closePath(); g.fill(); };
+    band(-W * .16, W * .08, tm[0].col); band(-W * .08, W * .12, LED_GOLD); band(W * .04, W * .08, tm[1].col);
+    g.restore();
   }
 }

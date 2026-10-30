@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **CS2 and LoL as live esports events.** Both viewers now cut to an arena: a stage with the two team booths (players at their PCs), a giant screen with the live score, light beams and thousands of fans in team colours who stand, wave light sticks and roar on the big moments; a caster desk, booth celebrations after round wins and big objectives, big-screen graphics (match point, half time, overtime in CS2) and a trophy lift with confetti at the end.
+
 ## v1.32.0 - 2026-10-30 - Plugins, moments del prompt i vídeos
 
 - **Arena, Games and Corner are now plugins.** They are optional features that the server administrator can turn on or off in Preferences → Plugins (all on by default). A disabled plugin disappears from the sidebar and the phone's home screen, its API answers 404 and its background work stops; turning it back on resumes it without restarting. New `GET/POST /api/plugins`.

@@ -267,6 +267,97 @@ test('match_end uses the new engine fields (winner_name, kills)', async () => {
   assert.equal(V.finalKills({}), null);
 });
 
+test('arena director: crowd reaction intensity', async () => {
+  const V = await load();
+  const st = V.createState(meta, ['A', 'B']);
+  V.applyEvent(st, { n: 1, kind: 'phase', data: { phase: 'laning', t: 0 } });
+  const R = (kind, data) => V.crowdReaction(st, { kind, data });
+  const penta = R('kill', { killer: ref(1, 3), victim: ref(0, 0), multi: 5, side: 1 });
+  assert.deepEqual([penta.level, penta.team, penta.label], [1, 1, 'PENTAKILL'], 'the killer\'s fans roar');
+  assert.equal(R('kill', { killer: ref(0, 2), victim: ref(1, 0), ace: true, multi: 2, side: 0 }).label, 'ACE');
+  const fb = R('kill', { killer: ref(0, 1), victim: ref(1, 0), tag: 'first_blood', side: 0 });
+  const plain = R('kill', { killer: ref(0, 1), victim: ref(1, 0), side: 0 });
+  assert.ok(fb.level > plain.level && fb.label === 'FIRST BLOOD');
+  const order = [
+    R('kill', { killer: ref(0, 1), victim: ref(1, 0), side: 0 }), R('dragon', { side: 0, type: 'ocean' }), R('inhibitor', { side: 0, lane: 'mid' }),
+    R('kill', { killer: ref(0, 1), victim: ref(1, 0), tag: 'first_blood', side: 0 }), R('dragon', { side: 0, type: 'ocean', soul: true }),
+    R('baron', { side: 1 }), R('dragon', { side: 1, type: 'elder' }), R('nexus', { side: 0, owner: 1 }),
+  ];
+  for (let i = 1; i < order.length; i++) assert.ok(order[i].level >= order[i - 1].level, `${order[i].label} ≥ ${order[i - 1].label}`);
+  assert.ok(R('baron', { side: 1, stolen: true }).level > R('baron', { side: 1 }).level, 'a steal is louder');
+  assert.equal(R('inhibitor', { side: 0, respawn: true }).level, 0);
+  assert.equal(R('lane', { lane: 'top', diff: 300 }).level, 0);
+  assert.equal(R('weird', {}).level, 0);
+  for (const r of order) assert.ok(r.level >= 0 && r.level <= 1);
+  // Over a scene the noise rises fast, peaks at the level and settles, never above it.
+  assert.equal(V.crowdHype(.8, 0, 2), 0);
+  assert.ok(Math.abs(V.crowdHype(.8, .35, 2) - .8) < 1e-9);
+  assert.ok(V.crowdHype(.8, 2, 2) < .8 && V.crowdHype(.8, 2, 2) > .4, 'settles but still loud');
+  for (let t = 0; t < 4; t += .1) assert.ok(V.crowdHype(.8, t, 2) <= .8 + 1e-9);
+  assert.equal(V.crowdHype(0, 1, 2), 0);
+  // Each fan: their team's moment, everyone's moment, the rival's.
+  assert.equal(V.fanHype(.9, 1, 1), .9);
+  assert.ok(V.fanHype(.9, 0, 1) < .2, 'rival fans groan');
+  assert.ok(V.fanHype(.9, -1, 1) > V.fanHype(.9, 0, 1) && V.fanHype(.9, -1, 1) < .9);
+  assert.ok(V.fanHype(.9, 0, -1) > .7, 'a shared moment: everyone');
+  assert.equal(V.fanHype(0, 1, 1), 0);
+});
+
+test('arena director: which cut, when, and the show around the match', async () => {
+  const V = await load();
+  const r = (level, label, team = 0) => ({ level, label, team });
+  // Quick reaction cuts: only big moments, not too often, never at high speed.
+  assert.equal(V.reactionCut(r(.3, 'DRAGON')), null, 'small moments: no cut');
+  assert.equal(V.reactionCut(null), null);
+  assert.equal(V.reactionCut(r(1, 'NEXUS')), null, 'the nexus has its own finale');
+  assert.equal(V.reactionCut(r(.7, 'FIRST BLOOD'), { speed: 4 }), null, 'fast-forward: no cuts');
+  assert.equal(V.reactionCut(r(.7, 'FIRST BLOOD'), { sinceCut: 10 }), null, 'not right after another cut');
+  assert.ok(V.reactionCut(r(.95, 'ELDER DRAGON'), { sinceCut: 10 }), 'the biggest moments come back sooner');
+  const fb = V.reactionCut(r(.7, 'FIRST BLOOD', 1), { sinceCut: 60 });
+  assert.deepEqual([fb.kind, fb.team], ['crowd', 1]);
+  assert.ok(fb.dur >= 1.5 && fb.dur <= 3, 'short: ' + fb.dur);
+  assert.equal(V.reactionCut(r(.9, 'BARON NASHOR', 1)).kind, 'booth', 'big objective: the team celebrates in the booth');
+  assert.equal(V.reactionCut(r(.85, 'DRAGON SOUL', 0)).kind, 'booth');
+  assert.equal(V.reactionCut(r(.9, 'ACE', 0)).kind, 'arena', 'an ACE: the whole arena');
+  for (const lv of [.5, .7, .9, 1]) { const c = V.reactionCut(r(lv, 'PENTAKILL')); assert.ok(c.dur >= 1.5 && c.dur <= 3); }
+  // The cut waits for the action cam and the replay, and goes stale.
+  const p = { at: 10 };
+  assert.equal(V.cutReady(p, { now: 12, mode: 'map' }), 'now');
+  assert.equal(V.cutReady(p, { now: 10.5, mode: 'map' }), 'wait', 'let the moment land first');
+  assert.equal(V.cutReady(p, { now: 12, mode: 'map', shot: {} }), 'wait', 'never cut away from a fight on camera');
+  assert.equal(V.cutReady(p, { now: 12, mode: 'map', replay: {} }), 'wait');
+  assert.equal(V.cutReady(p, { now: 19, mode: 'map', shot: {} }), 'drop', 'too late');
+  assert.equal(V.cutReady(p, { now: 12, mode: 'victory' }), 'drop');
+  assert.equal(V.cutReady(null, { now: 12, mode: 'map' }), 'drop');
+  // Draft: casters and booths between the phases.
+  const ban = { kind: 'draft_ban', data: { side: 1 } }, pick = { kind: 'draft_pick', data: { side: 1 } };
+  assert.equal(V.draftCut(null, ban), null, 'the first event: no cut');
+  assert.equal(V.draftCut('draft_ban', ban), null, 'same phase: no cut');
+  assert.deepEqual([V.draftCut('draft_ban', pick, 0).kind, V.draftCut('draft_ban', pick, 0).team, V.draftCut('draft_ban', pick, 0).label], ['booth', 1, 'PICK PHASE 1']);
+  assert.equal(V.draftCut('draft_pick', ban, 1).kind, 'casters');
+  assert.equal(V.draftCut('draft_ban', pick, 2).label, 'PICK PHASE 2');
+  assert.equal(V.draftCut('draft_pick', { kind: 'kill', data: {} }), null);
+  // Opening, ready, finale.
+  const st = V.createState(meta, ['A', 'B']);
+  assert.deepEqual(V.openingScenes(st).map(s => s.kind), ['arena', 'casters']);
+  V.applyEvent(st, { n: 1, kind: 'phase', data: { phase: 'laning', t: 0 } });
+  assert.deepEqual(V.openingScenes(st).map(s => s.kind), ['arena'], 'joining mid-game: a quick look only');
+  assert.equal(V.readyScenes()[0].kind, 'arena');
+  const fin = V.finaleScenes(1);
+  assert.deepEqual(fin.map(s => s.kind), ['arena', 'booth', 'trophy']);
+  assert.ok(fin.every(s => s.team === 1 && s.confetti && s.dur > 0));
+  // Scene cameras stay inside the arena.
+  for (const sc of [...V.openingScenes(V.createState(meta)), ...fin, { kind: 'arena', dur: 2 }, { kind: 'crowd', dur: 2 }])
+    for (const pos of [-1, 0, 1]) for (let t = 0; t <= (sc.dur || 2); t += .25) {
+      const c = V.sceneCam(sc, t, pos);
+      assert.ok(c.z >= 1 && c.x - 800 / c.z >= -1 && c.x + 800 / c.z <= 1601 && c.y - 450 / c.z >= -1 && c.y + 450 / c.z <= 901, `${sc.kind} ${t} ${JSON.stringify(c)}`);
+    }
+  assert.ok(V.sceneCam(fin[2], 6).z > 1.5, 'the trophy: close on the stage');
+  assert.equal(V.CAM_TAGS.booth, 'BOOTH');
+  assert.equal(V.CAM_TAGS.casters, 'CASTERS');
+  assert.equal(V.CAM_TAGS.map, 'MAP');
+});
+
 // A stub 2D context: every method is a no-op, so the real drawing code runs.
 function stubCtx() {
   const grad = { addColorStop() {} };
@@ -292,8 +383,8 @@ test('the viewer plays a whole match with the action cam and a replay, headless'
   await new Promise(r => setTimeout(r, 10));
   assert.ok(v.state, 'loaded');
   const errors = [];
-  let maxZ = 1, replays = 0, wasReplay = false;
-  const labels = new Set(), mons = new Set();
+  let maxZ = 1, replays = 0, wasReplay = false, lastN = 0, overlap = 0;
+  const labels = new Set(), mons = new Set(), scenes = [];
   for (let i = 0; i < 60 * 200 && !v.isFinished(); i++) {
     v.advance(1 / 30);
     try { v.draw(); } catch (e) { errors.push(e.stack); if (errors.length > 3) break; }
@@ -301,8 +392,15 @@ test('the viewer plays a whole match with the action cam and a replay, headless'
     if (v.shot) { labels.add(v.shot.label); if (v.shot.mon) mons.add(v.shot.mon.kind); }
     if (v.replay && !wasReplay) replays++;
     wasReplay = !!v.replay;
+    if (v.scene && v.scene.n !== lastN) { lastN = v.scene.n; scenes.push(`${v.scene.kind}:${v.scene.label}`); if (v.shot || v.replay) overlap++; }
   }
   assert.deepEqual(errors, []);
+  // The show: opening, casters and booths in the draft, reaction cuts, the finale.
+  assert.deepEqual(scenes.slice(0, 2), ['arena:GRAND FINAL', 'casters:CHAMPION DRAFT'], scenes.join(' | '));
+  assert.ok(scenes.includes('arena:GAME ON'), scenes.join(' | '));
+  assert.ok(scenes.some(s => /^(crowd|arena|booth):(FIRST BLOOD|ACE|PENTAKILL|BARON|ELDER|DRAGON)/.test(s)), 'a reaction cut: ' + scenes.join(' | '));
+  assert.deepEqual(scenes.slice(-3), ['arena:VICTORY', 'booth:VICTORY', 'trophy:CHAMPIONS']);
+  assert.equal(overlap, 0, 'a scene never covers the action cam or a replay');
   assert.ok(v.isFinished(), 'reached the victory screen');
   assert.equal(v.state.mode, 'victory');
   assert.ok(maxZ > 2, 'zoomed in: ' + maxZ);
