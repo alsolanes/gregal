@@ -37,6 +37,8 @@ type arenaAnalysis struct {
 	Side     int    `json:"side"` // qui va escriure la regla clau
 	Rule     string `json:"rule"` // la línia del .md que ho va decidir
 	Audio    string `json:"audio,omitempty"`
+	// Els moments on una regla del .md va pesar (arena_moments.go).
+	Moments []arenaMoment `json:"moments,omitempty"`
 }
 
 const castersEN = "You are the broadcast team of GREGAL ARENA, a live show where strategy prompts (.md files written by people at our company) compete: two identical teams, the same AI model plays both, each following its own .md. The audience is colleagues, many of them learning how to write good prompts and agent instructions. Be energetic, warm and clear like a TV sports broadcast, never mean to the players. Reply with JSON only."
@@ -159,15 +161,20 @@ func (s *Server) castAnalysis(ctx context.Context, game arena.Game, m *arenaMatc
 	user := fmt.Sprintf("GAME: %s. Final: %s %d - %d %s (%s).\nKey moments:\n%s\nDecisions with the .md line each team followed:\n%s\n\n",
 		game.Title("en"), m.Names[0], m.Score[0], m.Score[1], m.Names[1], result, strings.Join(hl, "\n"), strings.Join(decs, "\n")) +
 		"As the ANALYST, explain in " + s.castLang() + " why the match went this way, for an audience learning to write prompts: headline (max 10 words), text (3-4 sentences: the turning point and which instruction made the difference, and one lesson about writing prompts), side (0 or 1: whose .md line was decisive) and rule (that line, copied word for word from the decisions above). " +
-		`JSON: {"headline":"…","text":"…","side":0,"rule":"…"}`
-	raw, err := arenaModel(s, ctx, castersEN, user, 900)
+		`JSON: {"headline":"…","text":"…","side":0,"rule":"…","moments":[{"n":12,"side":0,"rule":"…","what":"…","why":"…"}]}`
+	if cands := arenaMomentCandidates(m); cands != "" {
+		user += "\n\nAlso pick up to 6 PROMPT MOMENTS: plays where a team's .md line really mattered (it won or saved points, or set up the turning point). Candidates (dN = decision n, sideS = team, its play, what it chose and why, and the .md line it followed):\n" + cands +
+			"\nFor each moment: n and side from a candidate, rule (that side's .md line, copied word for word), what (what happened, max 20 words) and why (why the rule mattered, max 25 words). In match order, both teams if both had moments."
+	}
+	raw, err := arenaModel(s, ctx, castersEN, user, 2000)
 	if err != nil {
-		return nil
+		return arenaOnlyMoments(m)
 	}
 	var a arenaAnalysis
 	if obj := firstJSONObject(raw); obj == "" || json.Unmarshal([]byte(obj), &a) != nil {
-		return nil
+		return arenaOnlyMoments(m)
 	}
+	a.Moments = arenaMergeMoments(m, a.Moments)
 	a.Headline, a.Text, a.Rule = oneLine(a.Headline, 120), oneLine(a.Text, 900), oneLine(a.Rule, 300)
 	if a.Side != 1 {
 		a.Side = 0

@@ -242,3 +242,17 @@ func TestBestOfAPI(t *testing.T) {
 		t.Fatalf("delete: %d %s", drec.Code, drec.Body.String())
 	}
 }
+
+// La sortida de preview és el JSON que el mòbil obre: retallada ja no es llegeix.
+func TestPreviewPayloadDurableSencer(t *testing.T) {
+	out := `{"kind":"html","content":"` + strings.Repeat("x", 5000) + `"}`
+	raw := interactiveEventPayload("tool_result", map[string]string{"id": "c1", "name": "preview", "output": out})
+	var got map[string]string
+	if err := json.Unmarshal(raw, &got); err != nil || got["output"] != out {
+		t.Fatalf("preview retallada: %d bytes, err %v", len(got["output"]), err)
+	}
+	raw = interactiveEventPayload("tool_result", map[string]string{"id": "c2", "name": "read", "output": strings.Repeat("y", 5000)})
+	if err := json.Unmarshal(raw, &got); err != nil || len([]rune(got["output"])) != 3001 {
+		t.Fatalf("la resta es retalla: %d", len([]rune(got["output"])))
+	}
+}

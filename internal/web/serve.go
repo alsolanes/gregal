@@ -298,8 +298,7 @@ func (h *Hub) Run(addr string) error {
 		return err
 	}
 	go s.jobLoop(context.Background())
-	go s.cornerLoop(context.Background())
-	go s.arenaResume(context.Background())
+	h.startPlugins(context.Background())
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -370,8 +369,7 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		go s.cornerLoop(ctx)
-		go s.arenaResume(ctx)
+		s.Hub().startPlugins(ctx)
 		s.jobLoop(ctx)
 	}()
 	return done
@@ -489,20 +487,10 @@ func (h *Hub) mux() *http.ServeMux {
 	// El Chrome de l'usuari, a través de l'extensió (browser_ext.go).
 	handle(browserExtensionPath, h.handleBrowserExtension)
 	handle(browserExtensionPath+"/status", h.global((*Server).handleBrowserExtensionStatus))
-	// El Racó dels vents (corner.go): la pàgina que fan ells.
-	handle("/api/corner", h.global((*Server).handleCorner))
-	handle("/api/corner/page", h.global((*Server).handleCornerPage))
-	handle("/api/corner/ask", h.global((*Server).handleCornerAsk))
-	// Partits de futbol americà entre els vents (football.go).
-	handle("/api/football", h.global((*Server).handleFootball))
-	handle("/api/football/match", h.global((*Server).handleFootballMatch))
-	// L'Arena: competició de prompts entre .md (arena.go).
-	handle("/api/arena", h.global((*Server).handleArena))
-	handle("/api/arena/match", h.global((*Server).handleArenaMatch))
-	handle("/api/arena/competition", h.global((*Server).handleArenaComp))
-	handle("/api/arena/stream", h.global((*Server).handleArenaStream))
-	handle("/api/arena/starter", h.global((*Server).handleArenaStarter))
-	handle("/api/arena/voice", h.global((*Server).handleArenaVoice))
+	// Funcions opcionals (Racó, Partits, Arena…): cada plugin hi posa les
+	// seves rutes (plugin_*.go) i /api/plugins les encén o apaga.
+	handle("/api/plugins", h.handlePlugins)
+	h.pluginRoutes(handle)
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.
@@ -542,6 +530,8 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/shares", h.route((*Server).handleShares))
 	handle("/api/shares/{id}", h.route((*Server).handleShareDelete))
 	handle("GET /share/{id}", handleSharePage)
+	handle("/api/shares/site", h.route((*Server).handleShareSite))
+	handle("GET /share/{id}/{path...}", handleShareSitePage)
 	handle("/api/save", h.route((*Server).handleSave))
 	handle("/api/new", h.route((*Server).handleNew))
 	handle("/api/verify-approve", h.route((*Server).handleVerifyApprove))
@@ -1692,7 +1682,9 @@ func interactiveEventPayload(event string, value any) json.RawMessage {
 		return nil
 	}
 	// La sortida d'una eina pot ser llarga: la UI en pinta 3000 caràcters.
-	if m, ok := value.(map[string]string); ok && event == "tool_result" && len([]rune(m["output"])) > 3000 {
+	// La de preview no: és el JSON que el client obre (fins a 200 KB, ho
+	// limita l'eina) i retallat ja no es pot llegir.
+	if m, ok := value.(map[string]string); ok && event == "tool_result" && m["name"] != "preview" && len([]rune(m["output"])) > 3000 {
 		c := make(map[string]string, len(m))
 		for k, v := range m {
 			c[k] = v

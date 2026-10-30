@@ -5,6 +5,7 @@
 // final del partit, l'informe del coach i «Torna-hi». El rànquing, els bots,
 // els partits, les competicions i la retransmissió van plegats a sota.
 import { makeView, LESSONS, GUIDE } from './arena-views.js';
+import { exportVideo, momentsByEvent, momentKeys, showMomentCard, sideColor, momentCSS } from './arena-export.js';
 
 const $ = id => document.getElementById(id);
 // Els jocs van sempre en anglès.
@@ -38,6 +39,7 @@ const arenaUI = {
 
   build(page) {
     page.dataset.ready = '1';
+    momentCSS();
     page.innerHTML = `<div class="ar">
       <header class="ar-head"><div><div class="page-kicker">${esc(T('ar.kicker'))}</div><h1 class="page-title">${esc(T('ar.title'))}</h1>
         <p class="page-copy">${esc(T('ar.lead2'))}</p></div>
@@ -46,8 +48,8 @@ const arenaUI = {
       <span id="arStatus" class="ar-status" role="status"></span>
       <section class="ar-card" id="arMatchCard" hidden>
         <div class="ar-row"><h2 id="arMatchTitle"></h2><span class="ar-muted" id="arMatchStatus"></span>
-          <span class="ar-ctl"><button type="button" id="arTV" class="primary">📺 ${esc(T('ar.tv'))}</button><button type="button" id="arPause">⏸</button><button type="button" id="arSpeed"></button><button type="button" id="arSkip">⏭ ${esc(T('ar.skipEnd'))}</button><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
-        <div class="ar-match"><div class="ar-stage"><canvas id="arCanvas"></canvas></div><div class="ar-decisions" id="arDecisions"></div></div>
+          <span class="ar-ctl"><button type="button" id="arTV" class="primary">📺 ${esc(T('ar.tv'))}</button><button type="button" id="arPause">⏸</button><button type="button" id="arSpeed"></button><button type="button" id="arSkip">⏭ ${esc(T('ar.skipEnd'))}</button><button type="button" id="arExport" hidden title="A highlights video: the match fast-forwarded, slowed down at each prompt moment, and the summary">⬇ Export video</button><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
+        <div class="ar-match"><div class="ar-stage" id="arStage" style="position:relative"><canvas id="arCanvas"></canvas></div><div class="ar-decisions" id="arDecisions"></div></div>
         <div class="ar-feedback" id="arFeedback"></div>
         <div class="ar-row" id="arAgainRow" hidden><button type="button" id="arAgain" class="primary ar-big">${esc(T('ar.playAgain'))}</button><span class="ar-muted">${esc(T('ar.againHint'))}</span></div>
       </section>
@@ -119,6 +121,7 @@ const arenaUI = {
     $('arSpeed').onclick = () => { this.speed = this.speed === 1 ? 2 : this.speed === 2 ? 4 : 1; if (this.view) this.view.setSpeed(this.speed); paintSpeed(); };
     $('arSkip').onclick = () => this.view && this.view.skipToEnd();
     $('arClose').onclick = () => this.closeMatch();
+    $('arExport').onclick = () => this.match && this.exportVideo(this.match.id);
     $('arTV').onclick = () => this.match && this.openTV(this.match.id);
     addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.arenaTV === 'close') this.closeTV(); });
     this.buildBroadcast();
@@ -365,6 +368,10 @@ const arenaUI = {
     if ((m.events || []).length) this.lastEvAt = Date.now();
     this.match.status = m.status; this.match.score = m.score; this.match.feedback = m.feedback;
     this.match.decisions = m.decisions || this.match.decisions; this.match.md = m.md || this.match.md;
+    if (m.analysis) this.match.analysis = m.analysis;
+    this.moments = momentsByEvent(this.match);
+    const starred = momentKeys(this.match);
+    $('arExport').hidden = m.status !== 'final';
     this.paintMatchStatus();
     const names = this.match.names;
     const decs = this.match.decisions || [];
@@ -379,7 +386,7 @@ const arenaUI = {
       <p class="ar-how">${esc(T('ar.howDecides'))}</p>
       ${fol && decs.length ? `<div class="ar-follow">${[0, 1].map(i => `<span class="side${i}"><b>${esc(names[i])}</b> ${esc(T('ar.followed'))} <b>${pct(fol[i])}</b></span>`).join('')}</div>` : ''}` +
       (decs.length ? '' : `<p class="ar-muted">${esc(T('ar.thinking'))}</p>`) +
-      decs.slice(-400).map(d => `<div class="ar-dec side${d.side}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b>${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
+      decs.slice(-400).map(d => `<div class="ar-dec side${d.side}${starred.has(d.n + ':' + d.side) ? ' ar-star' : ''}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b>${starred.has(d.n + ':' + d.side) ? '<span title="Prompt moment: this .md line mattered">★</span> ' : ''}${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
       <code>${esc(callText(d))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${badge(d)}</div>`).join('');
     $('arDecisions').querySelectorAll('.ar-dec').forEach(el => el.onclick = () => this.showSituation(m.id || this.match.id, +el.dataset.n, +el.dataset.side, names[+el.dataset.side]));
     if (['final', 'stopped', 'failed'].includes(m.status)) { $('arAgainRow').hidden = false; clearInterval(this.thinkTimer); }
@@ -389,6 +396,22 @@ const arenaUI = {
         `<p class="ar-muted">${esc(T('ar.reportPending'))}</p>`;
       if (!m.feedback[0] && !m.feedback[1]) { clearTimeout(this.poll); this.poll = setTimeout(fetchAgain, 8000); }
     }
+  },
+
+  // El vídeo de resum del partit (arena-export.js), descarregat.
+  async exportVideo(id) {
+    if (this.exporting) return;
+    this.exporting = true; $('arExport').disabled = true;
+    if (this.view && !this.view.paused) { this.view.togglePause(); $('arPause').textContent = '▶'; }
+    try {
+      const r = await exportVideo({
+        id,
+        fetchMatch: after => api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after),
+        fetchVoice: key => window.api('/api/arena/voice?k=' + encodeURIComponent(key)).then(x => x.ok ? x.arrayBuffer() : null),
+      });
+      if (r) $('arStatus').textContent = `⬇ ${r.name} (${(r.size / 1e6).toFixed(1)} MB)`;
+    } catch (e) { $('arStatus').textContent = e.message; }
+    this.exporting = false; $('arExport').disabled = false;
   },
 
   // El que el model va veure en una decisió: la situació i el format.
@@ -402,6 +425,9 @@ const arenaUI = {
 
   highlight(e) {
     if (!e || !e.decision) return;
+    // Un moment del prompt: la targeta sobre el partit.
+    const mo = this.moments && this.moments.get(e.n);
+    if (mo && this.match) showMomentCard($('arStage'), mo, this.match.names[mo.side], sideColor(this.match, mo.side), { secs: 5 });
     const box = $('arDecisions');
     box.querySelectorAll('.ar-dec.now').forEach(x => x.classList.remove('now'));
     const els = box.querySelectorAll(`.ar-dec[data-n="${e.decision}"]`);

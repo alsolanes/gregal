@@ -1,0 +1,53 @@
+/* Preferències (app/prefs.js): grups amb índex a l'esquerra, cerca a dalt
+   i el contingut que es desplaça sol. Fa servir els tokens de sempre. */
+#prefsModal .card { display:flex; flex-direction:column; width:min(900px,95vw); height:min(720px,88vh);
+  max-height:none; overflow:hidden; }
+#prefsModal .pf-head { position:static; flex:none; gap:12px; }
+#prefsModal .pf-head h2 { flex:none; }
+.pf-search { flex:1; min-width:0; max-width:340px; margin-left:auto; padding:6px 10px 6px 30px;
+  border:1px solid var(--line-hi); border-radius:8px; color:var(--ink); font:inherit; font-size:var(--t2);
+  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 10px 50%; }
+.pf-search:focus { outline:2px solid var(--accent); outline-offset:1px; }
+#prefsBody { flex:1; min-height:0; display:grid; grid-template-columns:190px minmax(0,1fr); padding:0; }
+
+/* Índex dels grups */
+.pf-nav { display:flex; flex-direction:column; gap:2px; padding:12px 8px; overflow:auto;
+  border-right:1px solid var(--line); background:var(--bg); }
+.pf-nav button { display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; border:0; border-radius:7px;
+  background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); text-align:left; cursor:pointer; }
+.pf-nav button:hover { color:var(--ink); background:var(--hover); }
+.pf-nav button.on { color:var(--ink); background:var(--surface-hi); box-shadow:inset 2px 0 0 var(--accent); }
+.pf-nav-ic { flex:none; width:16px; color:var(--accent-hi); text-align:center; }
+
+/* Contingut */
+.pf-main { min-width:0; overflow:auto; padding:4px 22px 28px; scroll-behavior:auto; }
+.pf-group { padding:18px 0 6px; border-bottom:1px solid var(--line); }
+.pf-group:last-of-type { border-bottom:0; }
+.pf-ghead { margin-bottom:4px; }
+.pf-gtitle { margin:0; color:var(--ink); font-size:var(--t4); font-weight:600; letter-spacing:0; text-transform:none; }
+.pf-gdesc { margin:3px 0 6px; color:var(--muted); font-size:var(--t2); line-height:1.45; }
+/* Dins d'un grup, l'h3 de les seccions dels mòduls és un subtítol. */
+.pf-gbody .pf-sec { margin:16px 0 2px; color:var(--accent-hi); font-size:var(--t1); }
+.pf-gbody > .pf-row:last-child { border-bottom:0; }
+.pf-noresults { margin:32px 0; color:var(--muted); text-align:center; }
+
+/* Plugins */
+.pf-plugin-ic { flex:none; display:flex; align-items:center; justify-content:center; width:36px; height:36px;
+  border:1px solid var(--line-hi); border-radius:9px; background:var(--bg); font-size:18px; line-height:1; }
+.pf-plugin:not(.on) .pf-plugin-ic { filter:grayscale(1); opacity:.6; }
+.pf-plugin:not(.on) .pf-lab b { color:var(--muted); }
+.pf-open:disabled { opacity:.45; cursor:default; }
+.pf-open:disabled:hover { color:var(--text); border-color:var(--line-hi); }
+.pf-check input:disabled { cursor:default; }
+.pf-check:has(input:disabled) { opacity:.55; cursor:default; }
+
+@media (max-width:700px) {
+  #prefsModal .card { width:100vw; height:100dvh; border-radius:0; }
+  #prefsModal .pf-head { flex-wrap:wrap; }
+  .pf-search { order:3; flex-basis:100%; max-width:none; margin-left:0; }
+  #prefsBody { grid-template-columns:1fr; grid-template-rows:auto minmax(0,1fr); }
+  .pf-nav { flex-direction:row; padding:8px; border-right:0; border-bottom:1px solid var(--line); }
+  .pf-nav button { width:auto; flex:none; white-space:nowrap; }
+  .pf-nav button.on { box-shadow:inset 0 -2px 0 var(--accent); }
+  .pf-main { padding:0 14px 24px; }
+}

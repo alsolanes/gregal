@@ -577,6 +577,11 @@ type Config struct {
 	// ModelsCatalog: "off" desactiva el catàleg de models.dev (finestres,
 	// preus i capacitats dels models remots). Buit o "on" = actiu.
 	ModelsCatalog string `yaml:"models_catalog,omitempty"`
+
+	// Plugins encén o apaga les funcions opcionals del servidor web (arena,
+	// games, corner…): id → on/off. Un id que no hi és fa servir el valor
+	// per defecte del plugin (encès), així qui ja les tenia no perd res.
+	Plugins map[string]bool `yaml:"plugins,omitempty"`
 }
 
 // UserCfg és un compte del servidor web i de l'app.

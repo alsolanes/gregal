@@ -74,6 +74,55 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _question = MutableStateFlow<QuestionReq?>(null)
     val question: StateFlow<QuestionReq?> = _question
 
+    /**
+     * L'última preview que l'agent ha obert amb l'eina preview i si es veu.
+     * Abans el mòbil la ignorava: el treball deia «Previsualitza» i no
+     * s'obria res.
+     */
+    private val _preview = MutableStateFlow<PreviewReq?>(null)
+    val preview: StateFlow<PreviewReq?> = _preview
+    private val _previewOpen = MutableStateFlow(false)
+    val previewOpen: StateFlow<Boolean> = _previewOpen
+    /** Arguments de les crides preview en curs: el registre durable retalla la sortida. */
+    private val previewArgs = mutableMapOf<String, String>()
+    fun showPreview(open: Boolean) { _previewOpen.value = open && _preview.value != null }
+    fun clearPreview() { _previewOpen.value = false; _preview.value = null; _published.value = PublishState() }
+
+    /**
+     * Publica la preview al servidor amb un enllaç que obre qualsevol, sense
+     * l'app ni el token (share_site.go). Tornar a publicar fa servir el mateix
+     * id: l'enllaç es queda, el contingut passa a ser el d'ara.
+     */
+    private val _published = MutableStateFlow(PublishState())
+    val published: StateFlow<PublishState> = _published
+    fun showPublished(open: Boolean) { _published.value = _published.value.copy(dialog = open, error = if (open) _published.value.error else "") }
+    fun publishPreview() {
+        val req = _preview.value?.takeIf { it.kind != "url" } ?: return
+        val cur = _published.value
+        if (cur.busy) return
+        _published.value = cur.copy(busy = true, error = "", dialog = true)
+        viewModelScope.launch {
+            _published.value = try {
+                val site = withContext(Dispatchers.IO) { publishPreviewSite(_conn.value, req, cur.site?.id.orEmpty()) }
+                PublishState(site = site, dialog = true)
+            } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                cur.copy(busy = false, error = requestMessage(e), dialog = true)
+            }
+        }
+    }
+    fun unpublishPreview() {
+        val site = _published.value.site ?: return
+        _published.value = _published.value.copy(busy = true, error = "")
+        viewModelScope.launch {
+            _published.value = try {
+                withContext(Dispatchers.IO) { _conn.value.api().deleteShare(site.id) }
+                PublishState()
+            } catch (e: CancellationException) { throw e } catch (e: Exception) {
+                _published.value.copy(busy = false, error = requestMessage(e))
+            }
+        }
+    }
+
     // Càrregues de llistes en curs ("sessions", "goals", "jobs", "runs",
     // "flows"): les pantalles no ensenyen el tauler buit mentre arriben.
     private val _loading = MutableStateFlow<Set<String>>(emptySet())
@@ -1491,11 +1540,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val sum = summarizeTool(name, args, lang)
                 val id = f("id").ifEmpty { "c${nextMsgId()}" }
                 updateWork { it.add(WorkStep(id, StepKind.Tool, sum.label, sum.target, sum.meta, "", StepState.Running, name)) }
+                if (name == "preview") previewArgs[id] = args
                 setActivity("tool:$id", sum.label + if (sum.target.isNotEmpty()) " · " + oneLine(sum.target, 48) else "")
             }
             "tool_result" -> {
                 val out = f("output").ifEmpty { text.substringAfter(": ", "") }
                 updateWork { it.finishTool(f("id"), f("name"), out, toolOutputFailed(out)) }
+                if (f("name") == "preview") {
+                    val args = previewArgs.remove(f("id"))
+                    if (!toolOutputFailed(out)) (parsePreviewRequest(out) ?: parsePreviewRequest(args))?.let {
+                        _preview.value = it
+                        _previewOpen.value = true
+                    }
+                }
                 setActivity("model", appText("app.work.thinking"))
             }
             "blocked" -> {
@@ -2908,6 +2965,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Organització de la llista de converses: favorits i seccions (desades al servidor). */
+    // Plugins del servidor: id → encès. Buit = no se sap (tot visible).
+    private val _plugins = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val plugins: StateFlow<Map<String, Boolean>> = _plugins.asStateFlow()
+
+    fun loadPlugins() {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val m = withContext(Dispatchers.IO) { runCatching { source.api().getPlugins() }.getOrNull() }
+            if (m != null && isCompanionOrigin(source, epoch)) _plugins.value = m
+        }
+    }
+
     private val _windsMeta = MutableStateFlow<GregalApi.WindsMeta>(GregalApi.WindsMeta(emptyList(), emptyList()))
     val windsMeta: StateFlow<GregalApi.WindsMeta> = _windsMeta.asStateFlow()
 

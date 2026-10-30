@@ -40,6 +40,9 @@ type Hub struct {
 	eventStore *events.Store
 	eventErr   error
 	queue      *runs.Queue
+	// plug és l'estat viu dels plugins (plugins.go): encesos, apagats i
+	// els bucles de fons que tenen en marxa.
+	plug pluginRuntime
 }
 
 // DefaultSession és l'id implícit quan el client no en demana cap.

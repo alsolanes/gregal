@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -28,7 +29,20 @@ func arenaStub(t *testing.T) {
 			}
 			return `{"lines":[` + strings.Join(lines, ",") + `]}`, nil
 		case strings.Contains(system, "GREGAL ARENA"):
-			return `{"headline":"La regla del blitz","text":"Ho va decidir una regla.","side":0,"rule":"Run on first down."}`, nil
+			// Els moments: dos de bons (dels candidats), un d'una decisió que no
+			// existeix i un amb una regla que no és al .md (s'han de descartar).
+			var mo []string
+			for _, c := range regexp.MustCompile(`(?m)^d(\d+) side(\d) .*\| rule: (.*)$`).FindAllStringSubmatch(user, -1) {
+				if len(mo) == 2 {
+					break
+				}
+				rule, _ := json.Marshal(strings.TrimSpace(c[3]))
+				mo = append(mo, `{"n":`+c[1]+`,"side":`+c[2]+`,"rule":`+string(rule)+`,"what":"A big play.","why":"The rule called it."}`)
+			}
+			if len(mo) > 0 {
+				mo = append(mo, `{"n":99999,"side":0,"rule":"Run on first down.","what":"x","why":"y"}`, `{"n":1,"side":0,"rule":"Always punt on every single down, no matter what.","what":"x","why":"y"}`)
+			}
+			return `{"headline":"La regla del blitz","text":"Ho va decidir una regla.","side":0,"rule":"Run on first down.","moments":[` + strings.Join(mo, ",") + `]}`, nil
 		case strings.Contains(system, "You write strategy .md files"):
 			return "# Bot strategy\n\n- Run on first down.\n- Cover2 on 3rd and long.", nil
 		case strings.Contains(system, "prompt-engineering coach"):
@@ -97,6 +111,20 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 	// La retransmissió: prèvia, comentaris lligats a jugades clau i anàlisi.
 	if m.Preview == "" || len(m.Lines) == 0 || m.Analysis == nil || m.Analysis.Rule == "" {
 		t.Fatalf("retransmissió: prèvia %q, %d comentaris, anàlisi %+v", m.Preview, len(m.Lines), m.Analysis)
+	}
+	// Els moments del prompt: els del model que són de debò, i la resta del servidor.
+	checkMoments(t, m, 3)
+	fromModel := 0
+	for _, mo := range m.Analysis.Moments {
+		if mo.N == 99999 || strings.Contains(mo.Rule, "punt") {
+			t.Fatalf("un moment invàlid del model s'havia de descartar: %+v", mo)
+		}
+		if mo.What == "A big play." {
+			fromModel++
+		}
+	}
+	if fromModel == 0 {
+		t.Fatalf("els moments bons del model s'havien de quedar: %+v", m.Analysis.Moments)
 	}
 	hl := map[int]bool{}
 	for _, e := range m.Events {
@@ -383,6 +411,20 @@ func TestArenaDemoMatches(t *testing.T) {
 		if rules == 0 || m.MD[0] == "" || m.MD[1] == "" {
 			t.Fatalf("demo %s: les regles i els .md han de ser visibles", g)
 		}
+		// Les demos no porten moments: el servidor els tria en servir-les.
+		checkMoments(t, &m, 3)
+		// Cada decisió porta el número de les seves jugades (la demo del LoL es
+		// va desar amb els números desquadrats al draft: es refan en servir-la).
+		maxEv, maxN := 0, 0
+		for _, e := range m.Events {
+			maxEv = max(maxEv, e.Decision)
+		}
+		for _, d := range m.Decisions {
+			maxN = max(maxN, d.N)
+		}
+		if maxEv != maxN {
+			t.Fatalf("demo %s: decisions fins a %d, jugades fins a %d", g, maxN, maxEv)
+		}
 		sit := httptest.NewRecorder()
 		s.handleArenaMatch(sit, httptest.NewRequest("GET", "/api/arena/match?id=demo-"+g+"&situation=1&side=0", nil))
 		if sit.Code != 200 {
@@ -416,4 +458,91 @@ func TestArenaDemoVoice(t *testing.T) {
 		t.Fatalf("amb veus, la demo s'ha de narrar: %+v", m.PreviewAudio)
 	}
 	waitBackground()
+}
+
+// checkMoments: entre min i 6 moments, cadascun amb una decisió que existeix,
+// la regla al .md d'aquella banda i la jugada que ho ensenya.
+func checkMoments(t *testing.T, m *arenaMatch, min int) {
+	t.Helper()
+	if m.Analysis == nil || len(m.Analysis.Moments) < min || len(m.Analysis.Moments) > arenaMaxMoments {
+		t.Fatalf("%s: moments %+v", m.ID, m.Analysis)
+	}
+	last := -1
+	for _, mo := range m.Analysis.Moments {
+		if arenaDecisionOf(m, mo.N, mo.Side) == nil || !ruleInMD(mo.Rule, m.MD[mo.Side]) || mo.What == "" || mo.Why == "" {
+			t.Fatalf("%s: moment invàlid %+v", m.ID, mo)
+		}
+		ok := false
+		for _, e := range m.Events {
+			if e.N == mo.Event && e.Decision == mo.N {
+				ok = true
+			}
+		}
+		if !ok || mo.Event < last {
+			t.Fatalf("%s: el moment ha d'anar lligat a una jugada, en ordre: %+v", m.ID, mo)
+		}
+		last = mo.Event
+		if len(strings.Fields(mo.What)) > 21 || len(strings.Fields(mo.Why)) > 26 {
+			t.Fatalf("%s: moment massa llarg: %+v", m.ID, mo)
+		}
+	}
+}
+
+// Sense model, els moments surten igualment: jugades que fan marcador amb una
+// regla trobada al .md de qui en treu profit, i res de les decisions sense regla.
+func TestArenaMomentsFallback(t *testing.T) {
+	md := [2]string{"# A\n- Run on first down.\n- Pass deep on 3rd and long.", "# B\n- Blitz on 3rd down."}
+	m := &arenaMatch{ID: "x", Status: "final", Names: [2]string{"A", "B"}, MD: md, Winner: 0}
+	score := [2]int{}
+	for n := 1; n <= 30; n++ {
+		m.Decisions = append(m.Decisions,
+			arenaDecision{N: n, Side: 0, Why: "they stack the box", Rule: "Run on first down.", RuleFound: n%3 != 0},
+			arenaDecision{N: n, Side: 1, Why: "pressure", Rule: "Blitz on 3rd down.", RuleFound: true})
+		e := arena.Event{N: n, Text: fmt.Sprintf("Play %d", n), Decision: n}
+		if n%5 == 0 {
+			score[0] += 7
+			e.Highlight = true
+		}
+		if n == 12 {
+			score[1] += 3
+		}
+		e.Score = score
+		m.Events = append(m.Events, e)
+	}
+	got := arenaFallbackMoments(m, 6)
+	if len(got) != 5 {
+		t.Fatalf("moments: %+v", got)
+	}
+	for _, mo := range got {
+		d := arenaDecisionOf(m, mo.N, mo.Side)
+		if !d.RuleFound || (mo.Side == 0 && mo.N%5 != 0) || (mo.Side == 1 && mo.N != 12) {
+			t.Fatalf("moment mal triat: %+v", mo)
+		}
+		if mo.Why != "they stack the box" && mo.Why != "pressure" {
+			t.Fatalf("el perquè ha de sortir de la decisió: %+v", mo)
+		}
+	}
+	// Model que falla: l'anàlisi porta igualment els moments.
+	old := arenaModel
+	arenaModel = func(*Server, context.Context, string, string, int) (string, error) { return "", fmt.Errorf("down") }
+	t.Cleanup(func() { arenaModel = old })
+	s := cornerTestServer(t)
+	g, _ := arena.Get("nfl")
+	a := s.castAnalysis(context.Background(), g, m)
+	if a == nil || a.Headline != "" || len(a.Moments) < 3 {
+		t.Fatalf("anàlisi sense model: %+v", a)
+	}
+	// Un moment de model amb una regla inventada o una decisió sense jugada, fora.
+	bad := arenaCheckMoments(m, []arenaMoment{{N: 5, Side: 0, Rule: "Always punt on every down.", What: "x", Why: "y"}, {N: 500, Side: 0, Rule: "Run on first down."}, {N: 5, Side: 0, Rule: "Run on first down.", What: "TD", Why: "rule"}})
+	if len(bad) != 1 || bad[0].N != 5 || bad[0].Event != 5 {
+		t.Fatalf("validació: %+v", bad)
+	}
+	// Un rival que no es pot veure: els seus moments no surten.
+	m.Analysis = a
+	arenaHideMoments(m, 1)
+	for _, mo := range m.Analysis.Moments {
+		if mo.Side == 1 {
+			t.Fatal("un moment d'un .md secret no s'ha de mostrar")
+		}
+	}
 }

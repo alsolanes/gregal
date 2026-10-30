@@ -154,6 +154,36 @@ terminal i l'Android mostren els mateixos tres modes i permisos; vegeu
 (`/goal`, `/debug`). La selecció manual del rol és una opció avançada del
 selector de models; Gregal pot triar-lo automàticament segons la feina.
 
+### Preferències
+
+El botó ⚙ (o Ctrl+,) obre **Preferències**. Les opcions van agrupades, amb una
+línia sota cada títol que diu què hi trobaràs i un índex a l'esquerra (una
+fila de pestanyes a les pantalles estretes): **General** (idioma, detall de
+la conversa), **Aparença** (tema, densitat, mida del text, brandings),
+**Models i agent** (proveïdors i models, permisos d'Actua, el revisor de
+permisos, el revisor automàtic, habilitats), **Plugins**, **Extres** (mascota,
+Wrapped, veu, to de #retro), **Integracions** (extensió de Chrome, Word,
+enllaços compartits) i **Avançat** (dreceres de teclat i, a l'app
+d'escriptori, actualitzacions). La cerca de dalt filtra les opcions mentre
+escrius, sense tenir en compte accents ni majúscules.
+
+### Plugins
+
+L'Arena, els Partits dels vents (la lliga de futbol) i el Racó dels vents són
+plugins opcionals, no formen part del nucli. **Preferències → Plugins** els
+llista amb icona, descripció, un interruptor i un botó **Obre**. Només
+l'administrador del servidor els pot canviar (la resta d'usuaris veuen els
+interruptors en gris); la tria és per servidor i es desa al config com a
+`plugins: {arena: false}`. Tots tres van encesos per defecte: en actualitzar
+no es perd res. Un plugin apagat desapareix de la barra lateral i de la
+portada del mòbil, la seva API respon 404 (`{"error":"plugin disabled"}`) i
+la feina de fons s'atura: el rellotge de reunions del Racó i les competicions
+i partits en marxa de l'Arena (una competició que anava continua pel partit
+que tocava quan es torna a encendre). `GET /api/plugins` els llista i
+`POST /api/plugins {id, enabled}` n'encén o apaga un (vegeu el
+[contracte de l'API](api-contract.md)). `GREGAL_CORNER=off` continua aturant
+el rellotge del Racó encara que el plugin sigui encès.
+
 ## Taller 2D
 
 La vista **Taller 2D** de la barra lateral representa les sessions obertes
@@ -544,6 +574,23 @@ servidor de Gregal.
   l'accés). Per emetre-ho a Teams, YouTube o Twitch, afegeix-lo a l'OBS com a
   Font de navegador a 1920×1080 amb «Controla l'àudio via OBS», o simplement
   comparteix la pestanya del navegador amb el so.
+- **Moments del prompt.** Quan acaba un partit, l'analista tria fins a sis
+  jugades on una línia del `.md` d'un equip va pesar de debò; el servidor
+  comprova que la línia és en aquell `.md` i que la jugada existeix (sense model,
+  tria les jugades que fan marcador amb una regla trobada al `.md` de qui
+  marca). Mentre mires el partit, cadascuna mostra una targeta «📋 PROMPT
+  MOMENT» amb la regla, què va passar i per què va pesar (a la tele, a més,
+  s'alenteix un moment i sona una sintonia); a la llista de decisions porten una
+  ★. Després del resultat, el mode tele fa un **Resum del partit**: marcador, els
+  moments en ordre, l'anàlisi, la regla que ho va decidir, la nota del coach i
+  quant ha seguit cada equip el seu `.md`.
+- **Exporta el vídeo.** «⬇ Export video» (a la targeta del partit i a la
+  pantalla final de la tele) grava un vídeo de resum al navegador i el
+  descarrega com a `gregal-arena-<joc>-<equipA>-vs-<equipB>.mp4` (WebM si no es
+  pot gravar MP4): presentació, el partit accelerat entre moments i a velocitat
+  normal a cada moment amb la seva targeta, i el resum, amb els efectes i les
+  veus. Es grava en temps real (d'un a quatre minuts): deixa la finestra oberta
+  i a la vista fins que acabi, o prem Cancel·la.
 - **Segueix el meu .md?** Cada decisió mostra ✓ quan la regla que cita el
   model és de debò al `.md` (ho comprova el servidor), o ⚠ quan ha improvisat
   o ha fet servir la resposta per defecte; cada partit mostra quantes vegades
@@ -1425,6 +1472,33 @@ d'exportació:
   de l'API. Les pàgines es serveixen amb una Content-Security-Policy sense
   scripts. **Preferències → Enllaços compartits** les llista i les revoca (un
   enllaç revocat torna 404).
+
+### Publicar una pàgina que ha fet l'agent
+
+Quan l'agent t'ensenya una pàgina a la previsualització (una pàgina HTML
+autònoma o un document Markdown), **Publica** en deixa una còpia al teu
+servidor Gregal amb un enllaç que qualsevol pot obrir al navegador, sense l'app
+ni la clau. Al mòbil és a la barra de dalt de la previsualització i al costat
+del xip de la previsualització, sobre el compositor; l'enllaç el tens amb
+**Copia** i **Comparteix** (el full de compartir d'Android). A l'escriptori i
+al web, el botó ⇪ del panell de previsualització la publica i en copia l'enllaç.
+
+- **És una còpia.** El que canviïs després no arriba a l'enllaç fins que no
+  tornis a publicar; **Publica aquesta versió** (⇪ un altre cop a
+  l'escriptori) en canvia el contingut i manté el mateix enllaç.
+- **Quina adreça.** Si el servidor sap la seva adreça pública
+  (`GREGAL_PUBLIC_URL`, que posa l'instal·lador amb `--domain`), l'enllaç la fa
+  servir. Si no, fa servir l'adreça amb què t'hi has connectat: una IP de casa
+  només funciona a la teva xarxa, i Gregal dins del mòbil només en aquell mòbil.
+  L'app t'ho avisa.
+- **Despublica** (o revoca-la a **Preferències → Enllaços compartits**, on les
+  pàgines publicades surten amb els enllaços de converses) n'esborra la còpia;
+  l'enllaç torna 404. Només tu pots actualitzar o despublicar les teves pàgines.
+- **Límits.** 10 MB per fitxer, 20 MB i 1.000 fitxers per pàgina, 100 pàgines
+  publicades per usuari. No caduquen si l'API no ho demana (`expires_days`).
+- **Aïllament.** Es serveixen a `/share/<id>/` amb una Content-Security-Policy
+  sandbox: els seus scripts funcionen, però en un origen aïllat que no pot
+  llegir la teva sessió de Gregal ni cridar-ne l'API amb la teva clau.
 
 Al terminal, `/export` escriu la conversa actual en un fitxer Markdown al
 directori de treball i en mostra el camí. `/export html` escriu HTML,

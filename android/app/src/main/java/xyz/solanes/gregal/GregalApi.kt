@@ -173,6 +173,9 @@ class GregalApi(val base: String, val token: String) {
     /** GET que torna un objecte JSON (el Racó dels vents, entre d'altres). */
     fun get(path: String): JSONObject = JSONObject(read(conn(path, "GET")))
 
+    /** DELETE /api/shares/{id}: revoca un enllaç o despublica una web. */
+    fun deleteShare(id: String) { read(conn("/api/shares/" + java.net.URLEncoder.encode(id, "UTF-8"), "DELETE")) }
+
     /**
      * Entra amb usuari i contrasenya (POST /api/login) i torna el token de
      * sessio. El servidor el desa a passwords.json/tokens.json i el token
@@ -983,6 +986,19 @@ class GregalApi(val base: String, val token: String) {
     ) {
         fun isFavorite(key: String): Boolean = key in favorites
         fun sectionOf(key: String): WindSection? = sections.firstOrNull { s -> key in s.items }
+    }
+
+    /**
+     * Plugins del servidor (Racó, Partits, Arena): id → encès. Un servidor
+     * antic sense /api/plugins torna un mapa buit (i tot es mostra).
+     */
+    fun getPlugins(): Map<String, Boolean> {
+        val o = JSONObject(read(conn("/api/plugins", "GET")))
+        val arr = o.optJSONArray("plugins") ?: JSONArray()
+        return (0 until arr.length()).associate { i ->
+            val p = arr.getJSONObject(i)
+            p.optString("id") to p.optBoolean("enabled", true)
+        }
     }
 
     /** Llegeix els favorits i les seccions (buits si no n'hi ha). */

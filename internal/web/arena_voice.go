@@ -519,6 +519,58 @@ var (
 	voiceQueued   = map[string]bool{}
 )
 
+// startVoiceInstall baixa Piper i les veus d'una llengua en segon pla.
+func (s *Server) startVoiceInstall(lang string) bool {
+	voiceInstMu.Lock()
+	if voiceInst.snapshot().State == "installing" {
+		voiceInstMu.Unlock()
+		return false
+	}
+	voiceInst.set(func(v *voiceInstall) { v.State, v.Error, v.Step = "installing", "", "" })
+	voiceInstMu.Unlock()
+	goBackground(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 40*time.Minute)
+		defer cancel()
+		if err := s.installVoices(ctx, lang); err != nil {
+			voiceInst.set(func(v *voiceInstall) { v.State, v.Error = "error", err.Error() })
+			return
+		}
+		voiceInst.set(func(v *voiceInstall) { v.State, v.Step = "ready", "" })
+	})
+	return true
+}
+
+var (
+	voiceInstMu   sync.Mutex
+	voiceAutoDone = map[string]bool{}
+)
+
+// voiceAutoInstall: qui ja ha triat les veus lliures (Piper) i en té d'una
+// llengua no ha de buscar cap botó quan els jocs en necessiten una altra
+// (van en anglès): es baixen soles, de la mateixa font, un cop per arrencada.
+func (s *Server) voiceAutoInstall(lang string) {
+	c := s.voiceCfg()
+	if c.Engine != "piper" || piperArchive() == "" || s.voiceReady(lang) {
+		return
+	}
+	other := false
+	for l := range piperVoices {
+		if l != lang && s.voiceReady(l) {
+			other = true
+		}
+	}
+	key := s.arenaDir() + "|" + lang
+	voiceInstMu.Lock()
+	if !other || voiceAutoDone[key] {
+		voiceInstMu.Unlock()
+		return
+	}
+	voiceAutoDone[key] = true
+	voiceInstMu.Unlock()
+	log.Printf("arena: baixant les veus de %s (els jocs van en anglès)", lang)
+	s.startVoiceInstall(lang)
+}
+
 // handleArenaVoice: GET ?k= (l'àudio d'una frase), GET (estat); POST (admin)
 // {action: install|config|test}.
 func (s *Server) handleArenaVoice(w http.ResponseWriter, r *http.Request) {
@@ -538,6 +590,7 @@ func (s *Server) handleArenaVoice(w http.ResponseWriter, r *http.Request) {
 			http.ServeFile(w, r, p)
 			return
 		}
+		s.voiceAutoInstall("en")
 		c := s.voiceCfg()
 		c.Key = "" // la clau no surt mai
 		inst := voiceInst.snapshot()
@@ -565,20 +618,10 @@ func (s *Server) handleArenaVoice(w http.ResponseWriter, r *http.Request) {
 		if _, ok := piperVoices[lang]; !ok {
 			lang = "ca"
 		}
-		if voiceInst.snapshot().State == "installing" {
+		if !s.startVoiceInstall(lang) {
 			http.Error(w, "already installing", http.StatusConflict)
 			return
 		}
-		voiceInst.set(func(v *voiceInstall) { v.State, v.Error, v.Step = "installing", "", "" })
-		goBackground(func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 40*time.Minute)
-			defer cancel()
-			if err := s.installVoices(ctx, lang); err != nil {
-				voiceInst.set(func(v *voiceInstall) { v.State, v.Error = "error", err.Error() })
-				return
-			}
-			voiceInst.set(func(v *voiceInstall) { v.State, v.Step = "ready", "" })
-		})
 		writeJSON(w, map[string]bool{"ok": true})
 	case "config":
 		c := req.Config

@@ -613,7 +613,7 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 		wg.Wait()
 		events := match.Apply([2]json.RawMessage{ans[0].Decision, ans[1].Decision})
 		run.mu.Lock()
-		dn := len(m.Decisions)/2 + 1
+		dn := steps // el mateix número que porten les jugades (al draft del LoL, de vegades només decideix un equip)
 		for side := 0; side < 2; side++ {
 			if strings.TrimSpace(p[side].Schema) == "" {
 				continue
@@ -1402,6 +1402,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 	}
 	// GET
 	s.arenaAutoSeed()
+	s.voiceAutoInstall("en")
 	ratings := s.arenaRatings()
 	next := map[string]any{}
 	mine := map[string]any{}
@@ -1635,6 +1636,11 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no such match", http.StatusNotFound)
 		return
 	}
+	renum := arenaRenumber(m) // partits antics del LoL: el número de cada decisió
+	for i, n := range renum {
+		m.Decisions[i].N = n
+	}
+	arenaWithMoments(m) // partits antics i de mostra: els moments del servidor
 	if r.Method == http.MethodPost {
 		if arenaDemoGame(id) != "" {
 			http.Error(w, "demo", http.StatusBadRequest)
@@ -1667,6 +1673,11 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 		} else if !arenaRead(s.sitPath(id), &sits) {
 			sits = arenaDemoSits(id)
 		}
+		if len(renum) == len(sits) {
+			for i := range sits {
+				sits[i].N = renum[i]
+			}
+		}
 		for _, x := range sits {
 			if x.N == n && x.Side == side {
 				writeJSON(w, x)
@@ -1695,6 +1706,7 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 		if !own && !public && !(m.Kind == "official" && m.Status == "final") {
 			m.MD[side] = ""
 			m.Feedback[side] = nil
+			arenaHideMoments(m, side)
 			for i := range m.Decisions {
 				if m.Decisions[i].Side == side {
 					m.Decisions[i].Rule = ""
@@ -1863,6 +1875,7 @@ func (s *Server) compView(c *arenaComp) map[string]any {
 // handleArenaStream: el que la retransmissió necessita (competició en marxa,
 // partit actual i següent, classificacions).
 func (s *Server) handleArenaStream(w http.ResponseWriter, r *http.Request) {
+	s.voiceAutoInstall("en")
 	comps := s.arenaComps()
 	var cur *arenaComp
 	for i := range comps {

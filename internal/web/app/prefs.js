@@ -13,6 +13,7 @@ import { wordAddin } from './word-addin.js';
 import { shares } from './export.js';
 import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
+import { plugins } from './plugins.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -108,16 +109,30 @@ export const prefs = {
     const modal = $('prefsModal');
     if (modal) modal.onclick = e => { if (e.target.id === 'prefsModal') this.tanca(); };
     desktopUpdates.init();
+    plugins.init();
+    const cerca = $('prefsSearch');
+    if (cerca) cerca.oninput = () => this.filtra();
+    // Quan canvien els plugins (des d'aquí o d'una altra pestanya), la
+    // secció es repinta si és oberta.
+    document.addEventListener('gregal:plugins', () => {
+      const box = $('prefsPlugins');
+      if (box && modal && modal.classList.contains('on')) { box.innerHTML = this.pluginsHTML(); this.lligaPlugins(); this.filtra(); }
+    });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape' && modal && modal.classList.contains('on')) { e.stopPropagation(); this.tanca(); }
       if ((e.ctrlKey || e.metaKey) && e.key === ',') { e.preventDefault(); this.obre(); }
     });
   },
-  obre() {
+  // obre('plugins') hi entra directament al grup que demanis.
+  obre(grup) {
     const modal = $('prefsModal');
     if (!modal) return;
     this.pinta();
     modal.classList.add('on');
+    const g = typeof grup === 'string' && $('prefsG-' + grup), main = $('prefsMain');
+    if (g && main) main.scrollTop = g.offsetTop - main.offsetTop;
+    // Les posicions només existeixen amb el modal visible.
+    this.marcaNav();
   },
   tanca() {
     const modal = $('prefsModal');
@@ -151,6 +166,11 @@ export const prefs = {
       o.valors.map(([v, txt]) => '<option value="' + v + '"' + (v === ara ? ' selected' : '') + '>' + T(txt) + '</option>').join('') +
       extres + '</select></div>';
   },
+  // pinta: Preferències en grups (General, Aparença, Models i agent,
+  // Plugins, Extres, Integracions, Avançat), cadascun amb títol i una línia
+  // que diu què hi trobaràs. A l'esquerra, l'índex dels grups; a dalt, una
+  // cerca que filtra files. Les seccions que pinten altres mòduls (marques,
+  // extres, extensions…) hi entren tal qual: el seu h3 queda de subtítol.
   pinta() {
     const cos = $('prefsBody');
     if (!cos) return;
@@ -162,36 +182,44 @@ export const prefs = {
     const seg = (k, ara2, valors) => '<div class="pf-seg" data-k="' + k + '">' +
       valors.map(([v, clau]) => '<button class="' + (v === ara2 ? 'on' : '') + '" data-v="' + v + '">' + T(clau) + '</button>').join('') +
       '</div>';
-    cos.innerHTML =
-      '<h3 class="pf-sec">' + T('prefs.appearance') + '</h3>' +
-      this.select('tema') + this.segment('densitat') + this.segment('mida') +
-      fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
-      brands.section() +
-      '<h3 class="pf-sec">' + T('prefs.conversation') + '</h3>' +
-      fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
-        [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
-      '<h3 class="pf-sec">' + T('prefs.agent') + '</h3>' +
-      fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
-        [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']])) +
-      // El revisor de permisos és avançat: fora del composer, aquí.
-      fila('prefs.reviewer', 'prefs.reviewer.help',
-        '<label class="pf-check"><input type="checkbox" id="prefsReviewer"' + (G().state && G().state.auto_review ? ' checked' : '') + '><span></span></label>') +
-      // El revisor passava el model per sobre de CADA resposta i no hi
-      // havia manera d'apagar-lo des de la finestra: només editant el
-      // config a mà o des del TUI. Aquí és on el busques.
-      fila('prefs.verify', 'prefs.verify.help',
-        '<label class="pf-check"><input type="checkbox" id="prefsVerify"' + (this.verifyAuto() ? ' checked' : '') + '><span></span></label>') +
-      '<h3 class="pf-sec">' + T('prefs.skills') + '</h3>' +
-      '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
-      '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>' +
-      '<h3 class="pf-sec">' + T('prefs.providers') + '</h3>' +
-      fila('prefs.providers.row', 'prefs.providers.help',
+    // Treu l'h3 del principi quan la secció d'un mòdul és tot el grup: el
+    // títol ja el posa el grup.
+    const senseCap = html => String(html || '').replace(/^\s*<h3 class="pf-sec"[^>]*>[\s\S]*?<\/h3>/, '');
+    const grups = [
+      ['general', '⚙', fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
+        fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
+          [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']]))],
+      ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + brands.section()],
+      ['agent', '◇', fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
-      funPrefs.section() +
-      shares.section() +
-      chromeExt.section() +
-      wordAddin.section() +
-      desktopUpdates.section();
+        fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
+          [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']])) +
+        // El revisor de permisos és avançat: fora del composer, aquí.
+        fila('prefs.reviewer', 'prefs.reviewer.help',
+          '<label class="pf-check"><input type="checkbox" id="prefsReviewer"' + (G().state && G().state.auto_review ? ' checked' : '') + '><span></span></label>') +
+        // El revisor passava el model per sobre de CADA resposta i no hi
+        // havia manera d'apagar-lo des de la finestra: només editant el
+        // config a mà o des del TUI. Aquí és on el busques.
+        fila('prefs.verify', 'prefs.verify.help',
+          '<label class="pf-check"><input type="checkbox" id="prefsVerify"' + (this.verifyAuto() ? ' checked' : '') + '><span></span></label>') +
+        '<h3 class="pf-sec">' + T('prefs.skills') + '</h3>' +
+        '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
+        '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
+      ['plugins', '✚', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>'],
+      ['extras', '✧', senseCap(funPrefs.section())],
+      ['integrations', '⇄', chromeExt.section() + wordAddin.section() + shares.section()],
+      ['advanced', '⋯', fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
+        desktopUpdates.section()],
+    ];
+    cos.innerHTML =
+      '<nav class="pf-nav" aria-label="' + T('prefs.title') + '">' +
+      grups.map(([id, icona]) => '<button type="button" data-g="' + id + '"><span class="pf-nav-ic" aria-hidden="true">' + icona + '</span>' + T('prefs.group.' + id) + '</button>').join('') +
+      '</nav><div class="pf-main" id="prefsMain">' +
+      grups.map(([id, , dins]) => '<section class="pf-group" id="prefsG-' + id + '" data-g="' + id + '">' +
+        '<header class="pf-ghead"><h3 class="pf-gtitle">' + T('prefs.group.' + id) + '</h3>' +
+        '<p class="pf-gdesc">' + T('prefs.group.' + id + '.desc') + '</p></header>' +
+        '<div class="pf-gbody">' + dins + '</div></section>').join('') +
+      '<p class="pf-noresults" id="prefsNoResults" hidden>' + T('prefs.search.empty') + '</p></div>';
 
     cos.querySelectorAll('.pf-seg').forEach(seg => {
       seg.querySelectorAll('button').forEach(b => {
@@ -203,7 +231,7 @@ export const prefs = {
           if (k === 'vista' && window.gregalSetView) window.gregalSetView(v);
           if (k === 'perm' && window.gregalSetPerm) {
             await window.gregalSetPerm(v);
-            this.pinta();
+            this.repinta();
           }
           if (k === 'idioma') this.posaIdioma(v);
           return;
@@ -225,7 +253,7 @@ export const prefs = {
         } catch (e) {
           alert(e.message);
         }
-        if (k === 'tema') { pintaBarraTitol(); this.pinta(); }
+        if (k === 'tema') { pintaBarraTitol(); this.repinta(); }
       };
     });
     const v = $('prefsVerify');
@@ -235,17 +263,130 @@ export const prefs = {
     this.carregaSkills();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
+    const k = $('prefsKeys');
+    if (k) k.onclick = () => { this.tanca(); const m = $('keysModal'); if (m) m.classList.add('on'); };
+    this.lligaPlugins();
     desktopUpdates.bind(cos);
-    chromeExt.bind(cos, () => this.pinta());
-    wordAddin.bind(cos, () => this.pinta());
+    chromeExt.bind(cos, () => this.repinta());
+    wordAddin.bind(cos, () => this.repinta());
     shares.bind(cos);
     funPrefs.bind(cos);
     // Repintar conserva el desplaçament: la secció de brandings és llarga.
-    brands.bind(cos, () => {
-      const card = cos.closest('.card') || cos;
-      const top = card.scrollTop;
-      this.pinta();
-      card.scrollTop = top;
+    brands.bind(cos, () => this.repinta());
+    // Índex: un clic hi baixa; en desplaçar-te, marca el grup que mires.
+    const main = $('prefsMain');
+    cos.querySelectorAll('.pf-nav button').forEach(b => {
+      b.onclick = () => {
+        const g = $('prefsG-' + b.dataset.g);
+        if (g && main) main.scrollTo({ top: g.offsetTop - main.offsetTop, behavior: 'smooth' });
+      };
+    });
+    if (main) main.onscroll = () => this.marcaNav();
+    this.filtra();
+  },
+
+  // repinta conserva on eres i la cerca.
+  repinta() {
+    const main = $('prefsMain');
+    const top = main ? main.scrollTop : 0;
+    this.pinta();
+    const m2 = $('prefsMain');
+    if (m2) m2.scrollTop = top;
+  },
+
+  marcaNav() {
+    const main = $('prefsMain');
+    if (!main || !main.offsetParent) return;
+    const grups = [...main.querySelectorAll('.pf-group:not([hidden])')];
+    let actiu = grups[0];
+    for (const g of grups) {
+      if (g.offsetTop - main.offsetTop - main.scrollTop <= 24) actiu = g;
+    }
+    // Al final de tot, l'últim grup (pot ser massa curt per arribar a dalt).
+    if (main.scrollTop > 0 && main.scrollTop + main.clientHeight >= main.scrollHeight - 4 && grups.length) actiu = grups[grups.length - 1];
+    document.querySelectorAll('#prefsBody .pf-nav button').forEach(b => {
+      b.classList.toggle('on', !!actiu && b.dataset.g === actiu.dataset.g);
+    });
+  },
+
+  // filtra amaga les files que no contenen el que busques (sense accents
+  // ni majúscules). Un grup o subtítol que coincideix es mostra sencer.
+  filtra() {
+    const inp = $('prefsSearch');
+    const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const q = norm(inp ? inp.value.trim() : '');
+    const main = $('prefsMain');
+    if (!main) return;
+    let total = 0;
+    main.querySelectorAll('.pf-group').forEach(g => {
+      const items = [...g.querySelector('.pf-gbody').children];
+      const capGrup = !q || norm(g.querySelector('.pf-gtitle').textContent).includes(q);
+      let visibles = 0;
+      let cap = null, capMostra = false, capFills = 0;
+      const tancaCap = () => { if (cap) cap.hidden = !(capMostra || capFills > 0); };
+      for (const el of items) {
+        if (el.matches('h3.pf-sec')) {
+          tancaCap();
+          cap = el; capMostra = capGrup || norm(el.textContent).includes(q); capFills = 0;
+          continue;
+        }
+        const ok = capGrup || (cap && capMostra) || norm(el.textContent).includes(q) ||
+          [...el.querySelectorAll('[aria-label],[placeholder]')].some(x => norm((x.getAttribute('aria-label') || '') + ' ' + (x.getAttribute('placeholder') || '')).includes(q));
+        el.hidden = !ok;
+        if (ok) { visibles++; capFills++; }
+      }
+      tancaCap();
+      g.hidden = !(capGrup || visibles > 0);
+      if (!g.hidden) total++;
+      const nb = document.querySelector('#prefsBody .pf-nav button[data-g="' + g.dataset.g + '"]');
+      if (nb) nb.hidden = g.hidden;
+    });
+    const buit = $('prefsNoResults');
+    if (buit) buit.hidden = total > 0;
+    this.marcaNav();
+  },
+
+  // ---- Plugins: Arena, Partits, Racó ----
+  pluginsHTML() {
+    const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    if (!plugins.loaded()) return '<div class="pf-skills-status">' + esc(T('prefs.plugins.loading')) + '</div>';
+    const list = plugins.list();
+    if (!list.length) return '<div class="pf-skills-status">' + esc(T('prefs.plugins.none')) + '</div>';
+    const admin = plugins.isAdmin();
+    return (admin ? '' : '<p class="pf-skills-help">' + esc(T('prefs.plugins.adminOnly')) + '</p>') +
+      list.map(p => {
+        const nom = T('plugin.' + p.id + '.name', p.name);
+        return '<div class="pf-row pf-plugin' + (p.enabled ? ' on' : '') + '" data-plugin="' + esc(p.id) + '">' +
+          '<span class="pf-plugin-ic" aria-hidden="true">' + esc(p.icon) + '</span>' +
+          '<div class="pf-lab"><b>' + esc(nom) + '</b><span>' + esc(T('plugin.' + p.id + '.desc', p.description)) + '</span></div>' +
+          '<button class="pf-open" data-open="' + esc(p.view) + '"' + (p.enabled ? '' : ' disabled') + '>' + esc(T('prefs.plugins.open')) + '</button>' +
+          '<label class="pf-check" title="' + esc(T(p.enabled ? 'prefs.plugins.on' : 'prefs.plugins.off')) + '"><input type="checkbox" data-plugin-toggle="' + esc(p.id) + '" aria-label="' + esc(nom) + '"' +
+          (p.enabled ? ' checked' : '') + (admin ? '' : ' disabled') + '><span></span></label></div>';
+      }).join('') +
+      '<div class="pf-skills-status error" id="prefsPluginsErr" hidden></div>';
+  },
+  lligaPlugins() {
+    const box = $('prefsPlugins');
+    if (!box) return;
+    const pinta = () => { box.innerHTML = this.pluginsHTML(); this.lligaPlugins(); this.filtra(); };
+    if (!plugins.loaded()) { plugins.load().then(ok => { if (ok && $('prefsPlugins') === box) pinta(); }); return; }
+    box.querySelectorAll('[data-open]').forEach(b => {
+      b.onclick = () => { this.tanca(); G().setView(b.dataset.open); };
+    });
+    box.querySelectorAll('input[data-plugin-toggle]').forEach(inp => {
+      inp.onchange = async () => {
+        const all = [...box.querySelectorAll('input[data-plugin-toggle]')];
+        all.forEach(x => { x.disabled = true; });
+        try {
+          await plugins.set(inp.dataset.pluginToggle, inp.checked);
+          pinta();
+        } catch (e) {
+          inp.checked = !inp.checked;
+          all.forEach(x => { x.disabled = false; });
+          const err = $('prefsPluginsErr');
+          if (err) { err.hidden = false; err.textContent = T('prefs.plugins.error') + ' ' + e.message; }
+        }
+      };
     });
   },
 

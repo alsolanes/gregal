@@ -148,6 +148,36 @@ terminal and Android apps show the same three modes and permissions; see
 `/debug`). Manual role selection is an advanced model picker option; Gregal
 can select the role for the task.
 
+### Preferences
+
+The ⚙ button (or Ctrl+,) opens **Preferences**. Options are grouped, with a
+short description under each heading and an index on the left (a row of tabs
+on narrow screens): **General** (language, conversation detail),
+**Appearance** (theme, density, text size, brandings), **Models & agent**
+(providers and models, Act permissions, the permission reviewer, the
+automatic reviewer, skills), **Plugins**, **Extras** (mascot, Wrapped, voice,
+#retro tone), **Integrations** (Chrome extension, Word add-in, shared links)
+and **Advanced** (keyboard shortcuts and, in the desktop app, updates). The
+search box at the top filters the options as you type, ignoring accents and
+case.
+
+### Plugins
+
+The Arena, the winds' Games (football league) and the winds' Corner are
+optional plugins, not part of the core. **Preferences → Plugins** lists them
+with an icon, a description, an on/off switch and an **Open** button. Only the
+server administrator can change them (other users see the switches greyed
+out); the choice is per server and is saved in the config as
+`plugins: {arena: false}`. All three are on by default, so updating loses
+nothing. A disabled plugin disappears from the sidebar and from the phone's
+home screen, its API answers 404 (`{"error":"plugin disabled"}`), and its
+background work stops: the Corner's meeting clock, and the Arena's running
+competitions and live matches (a competition that was running carries on from
+the current match when the Arena is turned back on). `GET /api/plugins` lists
+them and `POST /api/plugins {id, enabled}` toggles one (see the
+[API contract](api-contract.md)). `GREGAL_CORNER=off` still keeps the Corner's
+clock stopped even when the plugin is on.
+
 ## 2D Workshop
 
 The sidebar's **2D workshop** view represents open sessions as workstations.
@@ -542,6 +572,22 @@ Gregal server.
   it to Teams, YouTube or Twitch, add it in OBS as a Browser source at
   1920×1080 with “Control audio via OBS”, or just share the browser tab with
   its sound.
+- **Prompt moments.** When a match ends the analyst picks up to six plays
+  where a line of a team's `.md` really mattered; the server checks that the
+  line is in that `.md` and that the play exists (without a model, it picks the
+  scoring plays made with a rule that was found in the scorer's `.md`). While you
+  watch, each one shows a “📋 PROMPT MOMENT” card with the rule, what happened
+  and why it mattered (on TV it also slows down for a moment and plays a
+  jingle); in the decisions list they carry a ★. After the result, TV mode shows
+  a **Match summary**: score, the moments in order, the analysis, the rule that
+  decided it, each coach score and how often each team followed its `.md`.
+- **Export video.** “⬇ Export video” (in the match card and on the TV end screen)
+  records a highlights video in the browser and downloads it as
+  `gregal-arena-<game>-<teamA>-vs-<teamB>.mp4` (WebM where MP4 can't be
+  recorded): an intro card, the match fast-forwarded between prompt moments and
+  at normal speed around each one with its card, and the summary, with the sound
+  effects and voices. It records in real time (one to four minutes): keep the
+  window open and visible until it finishes, or press Cancel.
 - **Does it follow my .md?** Each decision shows ✓ when the rule the model
   quotes really is in the `.md` (the server checks it), or ⚠ when it improvised
   or fell back to the default; each match shows how often each team followed
@@ -1426,6 +1472,33 @@ export menu:
   your Gregal server can open it, without the API token. Pages are served with
   a script-free Content-Security-Policy. **Preferences → Shared links** lists
   your links and revokes them (a revoked link returns 404).
+
+### Publishing a page the agent built
+
+When the agent shows you a page in the preview (a standalone HTML page or a
+Markdown document), **Publish** puts a copy on your Gregal server with a link
+anyone can open in a browser, without the app or the key. On the phone it is
+in the preview's top bar and next to the preview chip above the composer; you
+get the link with **Copy** and **Share** (the Android share sheet). On the
+desktop and web, the ⇪ button in the preview panel publishes and copies the link.
+
+- **It's a copy.** Later changes don't reach the link until you publish again;
+  **Publish this version** (⇪ again on the desktop) replaces the content and
+  keeps the same link.
+- **Which address.** If the server knows its public address
+  (`GREGAL_PUBLIC_URL`, set by the installer with `--domain`), the link uses
+  it. Otherwise it uses the address you connected with: a home IP only works on
+  your network, and Gregal running inside the phone only on that phone. The app
+  tells you when that is the case.
+- **Unpublish** (or revoke it in **Preferences → Shared links**, where
+  published pages are listed with the conversation links) deletes the copy;
+  the link returns 404. Only you can update or unpublish your pages.
+- **Limits.** 10 MB per file, 20 MB and 1,000 files per page, 100 published
+  pages per user. Pages don't expire unless the API is asked to
+  (`expires_days`).
+- **Isolation.** Pages are served at `/share/<id>/` with a sandboxed
+  Content-Security-Policy: their scripts run, but in an isolated origin that
+  can't read your Gregal session or call its API with your key.
 
 In the terminal, `/export` writes the current conversation to a Markdown file
 in the working directory and prints the path. `/export html` writes HTML,

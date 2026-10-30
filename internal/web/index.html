@@ -1381,6 +1381,7 @@ body.sense-inspector #inspector { display:none; }
 <link rel="stylesheet" href="/app/knowledge.css">
 <link rel="stylesheet" href="/app/folder.css">
 <link rel="stylesheet" href="/app/calma.css">
+<link rel="stylesheet" href="/app/settings.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
@@ -1417,6 +1418,7 @@ body.sense-inspector #inspector { display:none; }
   <div class="card">
     <header class="pf-head">
       <h2 data-i18n="prefs.title">Preferences</h2>
+      <input type="search" id="prefsSearch" class="pf-search" autocomplete="off" spellcheck="false" data-i18n-ph="prefs.search" placeholder="Search settings" data-i18n-aria="prefs.search" aria-label="Search settings">
       <button class="icon-btn" id="prefsClose" data-i18n-aria="ui.close" aria-label="Close">×</button>
     </header>
     <div id="prefsBody"></div>
@@ -2020,6 +2022,8 @@ function setView(view) {
   // crida accidental a «agent» des d'un botó intern no les envia al xat.
   if (view === 'agent' && currentView === 'vents' && window.gregalWindClickActive) return;
   const previousView = currentView;
+  // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
+  if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
   currentView = ['agent','objectius','vents','raco','partits','arena','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
   const dockTool = !!window.gregalShell?.isTool(currentView);
   const agent = currentView === 'agent' || dockTool;

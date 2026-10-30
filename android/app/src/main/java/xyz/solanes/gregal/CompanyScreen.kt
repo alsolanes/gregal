@@ -133,6 +133,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(60_000) } }
     // La mascota: en obrir els Vents (o canviar de lloc) diu què ha passat mentrestant.
     LaunchedEffect(conn) { vm.loadCap() }
+    // Racó, Partits i Arena són plugins: només surten si el servidor els té encesos.
+    val plugins by vm.plugins.collectAsState()
+    LaunchedEffect(conn) { vm.loadPlugins() }
+    fun pluginOn(id: String) = plugins[id] != false
     // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
     // xat: així puja a dalt de la llista.
     LaunchedEffect(news) { vm.loadSummaries() }
@@ -276,11 +280,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     // al menú «+»; la feina en marxa, una línia que només surt si n'hi ha.
                     if (query.isBlank()) item { VentetRow(lang, capUi, summaries["cap"]) { vm.openVentsChat("cap") } }
                     // El Racó: la pàgina que fan els vents sols.
-                    if (query.isBlank()) item { CornerRow(lang) { cornerOpen = true } }
+                    if (query.isBlank() && pluginOn("corner")) item { CornerRow(lang) { cornerOpen = true } }
                     // Partits de futbol americà entre els vents.
-                    if (query.isBlank()) item { GamesRow(lang) { gamesOpen = true } }
+                    if (query.isBlank() && pluginOn("games")) item { GamesRow(lang) { gamesOpen = true } }
                     // L'Arena: competició de prompts entre .md.
-                    if (query.isBlank()) item { ArenaRow(lang) { arenaOpen = true } }
+                    if (query.isBlank() && pluginOn("arena")) item { ArenaRow(lang) { arenaOpen = true } }
                     if (query.isBlank() && anyRunning) item {
                         RunningWorkLine(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
                     }

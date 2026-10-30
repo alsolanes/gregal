@@ -297,6 +297,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val sending by vm.sending.collectAsState()
     val st by vm.state.collectAsState()
     val approve by vm.approve.collectAsState()
+    val preview by vm.preview.collectAsState()
+    val previewOpen by vm.previewOpen.collectAsState()
+    val published by vm.published.collectAsState()
     val notice by vm.notice.collectAsState()
     val snack = remember { SnackbarHostState() }
     var input by remember { mutableStateOf("") }
@@ -491,6 +494,20 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 Text("✕${i + 1}", color = Muted, fontSize = 13.sp)
                             }
                         }
+                    }
+                }
+                // La preview tancada es pot tornar a obrir.
+                preview?.takeIf { !previewOpen && msgs.isNotEmpty() }?.let { p ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        ComposerChip(
+                            "◱ " + p.title.ifBlank { tr(lang, "app.preview.title") }, Sea, null,
+                            onClick = { vm.showPreview(true) },
+                            onClose = { vm.clearPreview() },
+                        )
+                        if (p.kind != "url") TextButton(onClick = {
+                            if (published.site == null) vm.publishPreview() else vm.showPublished(true)
+                        }) { Text(tr(lang, if (published.site == null) "app.publish.action" else "app.publish.link"), fontSize = 13.sp) }
                     }
                 }
                 // Xips del que no és el normal: mode avançat, autonomia total
@@ -721,6 +738,17 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 }
             }
         }
+    }
+
+    if (previewOpen) preview?.let { p ->
+        val conn by vm.conn.collectAsState()
+        PreviewSheet(p, conn, lang, published.site,
+            onPublish = { if (published.site == null) vm.publishPreview() else vm.showPublished(true) }) { vm.showPreview(false) }
+    }
+    if (published.dialog) {
+        val conn by vm.conn.collectAsState()
+        PublishDialog(published, conn, lang, onRepublish = { vm.publishPreview() },
+            onUnpublish = { vm.unpublishPreview() }, onClose = { vm.showPublished(false) })
     }
 
     approve?.let { a ->

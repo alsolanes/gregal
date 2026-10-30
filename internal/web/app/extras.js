@@ -210,12 +210,13 @@
     const sec = document.createElement('section');
     sec.id = 'memSection';
     sec.className = 'prefs-section mem-section';
-    sec.innerHTML = '<h3></h3><p class="faint"></p><ul class="mem-notes"></ul><div class="mem-diff" hidden></div><div class="row"><button type="button" class="ghost mem-tidy"></button></div>';
+    sec.innerHTML = '<h3 class="pf-sec"></h3><p class="faint"></p><ul class="mem-notes"></ul><div class="mem-diff" hidden></div><div class="row"><button type="button" class="ghost mem-tidy"></button></div>';
     sec.querySelector('h3').textContent = T('extras.mem.section', 'Project memory');
     sec.querySelector('p').textContent = T('extras.mem.help', 'Durable notes in .gregal/memory.md that every session reads.');
     const list = sec.querySelector('.mem-notes'), diffBox = sec.querySelector('.mem-diff'), tidy = sec.querySelector('.mem-tidy');
     tidy.textContent = T('extras.mem.tidy', 'Tidy notes');
-    body.appendChild(sec);
+    // Preferències va per grups: la memòria del projecte és de «Models i agent».
+    (body.querySelector('#prefsG-agent .pf-gbody') || body).appendChild(sec);
     const paint = notes => {
       list.replaceChildren();
       if (!notes.length) { const li = document.createElement('li'); li.className = 'faint'; li.textContent = T('extras.mem.none', 'No project notes yet.'); list.append(li); }

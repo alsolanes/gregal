@@ -46,6 +46,11 @@ type shareMeta struct {
 	Created time.Time `json:"created"`
 	Bytes   int       `json:"bytes"`
 	Emails  bool      `json:"emails_hidden"`
+	// Webs publicades (share_site.go): kind "site", fitxers a <id>/.
+	Kind    string     `json:"kind,omitempty"`
+	Files   int        `json:"files,omitempty"`
+	Updated *time.Time `json:"updated,omitempty"`
+	Expires *time.Time `json:"expires,omitempty"`
 }
 
 var (
@@ -83,7 +88,7 @@ func listShares(owner string) []shareMeta {
 	for _, f := range files {
 		id := strings.TrimSuffix(filepath.Base(f), ".json")
 		m, err := readShareMeta(id)
-		if err != nil || m.Owner != owner {
+		if err != nil || m.Owner != owner || siteExpired(m) {
 			continue
 		}
 		out = append(out, m)
@@ -103,7 +108,11 @@ func (s *Server) handleShares(w http.ResponseWriter, r *http.Request) {
 		}
 		out := make([]row, 0, len(rows))
 		for _, m := range rows {
-			out = append(out, row{m, "/share/" + m.ID})
+			u := "/share/" + m.ID
+			if m.Kind == "site" {
+				u += "/"
+			}
+			out = append(out, row{m, u})
 		}
 		writeJSON(w, map[string]any{"shares": out})
 	case http.MethodPost:
@@ -198,8 +207,12 @@ func (s *Server) handleShareDelete(w http.ResponseWriter, r *http.Request) {
 	sharesMu.Lock()
 	// Primer el .json: un cop fora, l'enllaç ja és mort encara que l'HTML
 	// no es pugui esborrar.
-	err = os.Remove(filepath.Join(sharesDir(), id+".json"))
-	_ = os.Remove(filepath.Join(sharesDir(), id+".html"))
+	if m.Kind == "site" {
+		err = removeSite(id)
+	} else {
+		err = os.Remove(filepath.Join(sharesDir(), id+".json"))
+		_ = os.Remove(filepath.Join(sharesDir(), id+".html"))
+	}
 	sharesMu.Unlock()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -212,8 +225,13 @@ func (s *Server) handleShareDelete(w http.ResponseWriter, r *http.Request) {
 // de dalt). Res de scripts: la CSP ho prohibeix encara que s'hi colés.
 func handleSharePage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
-	if _, err := readShareMeta(id); err != nil {
+	m, err := readShareMeta(id)
+	if err != nil {
 		http.NotFound(w, r)
+		return
+	}
+	if m.Kind == "site" {
+		http.Redirect(w, r, "/share/"+id+"/", http.StatusFound)
 		return
 	}
 	raw, err := os.ReadFile(filepath.Join(sharesDir(), id+".html"))
