@@ -299,6 +299,7 @@ func (h *Hub) Run(addr string) error {
 	}
 	go s.jobLoop(context.Background())
 	go s.cornerLoop(context.Background())
+	go s.arenaResume(context.Background())
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -370,6 +371,7 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	go func() {
 		defer close(done)
 		go s.cornerLoop(ctx)
+		go s.arenaResume(ctx)
 		s.jobLoop(ctx)
 	}()
 	return done
@@ -494,6 +496,13 @@ func (h *Hub) mux() *http.ServeMux {
 	// Partits de futbol americà entre els vents (football.go).
 	handle("/api/football", h.global((*Server).handleFootball))
 	handle("/api/football/match", h.global((*Server).handleFootballMatch))
+	// L'Arena: competició de prompts entre .md (arena.go).
+	handle("/api/arena", h.global((*Server).handleArena))
+	handle("/api/arena/match", h.global((*Server).handleArenaMatch))
+	handle("/api/arena/competition", h.global((*Server).handleArenaComp))
+	handle("/api/arena/stream", h.global((*Server).handleArenaStream))
+	handle("/api/arena/starter", h.global((*Server).handleArenaStarter))
+	handle("/api/arena/voice", h.global((*Server).handleArenaVoice))
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.
@@ -683,6 +692,11 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 		// L'extensió de Chrome s'autentica al primer missatge del websocket.
 		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" || r.URL.Path == mcp.OAuthCallbackPath || r.URL.Path == browserExtensionPath {
 			next.ServeHTTP(w, r)
+			return
+		}
+		// Espectador de l'Arena: només la retransmissió, amb la clau de l'enllaç.
+		if s.arenaSpectatorOK(r) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeySpectator{}, true)))
 			return
 		}
 		got := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))

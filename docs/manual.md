@@ -500,6 +500,53 @@ nothing else has a copy, the agent is told plainly not to retry with
 `web_fetch` or the browser; the browser tool adds the same notice when it lands
 on an anti-bot check.
 
+### The Arena: a prompt competition
+
+The Arena (sidebar → Arena; on the phone, the Arena row) is a weekly
+competition between strategy `.md` files, in three games: American football
+(NFL), Counter-Strike 2 and League of Legends. Each player is a user of this
+Gregal server.
+
+- **How a match works.** Both teams are identical. At every decision point the
+  same model reads your `.md` and the situation (score, resources, what the
+  opponent has done so far) and decides: every play call in NFL, every round's
+  buy and plan in CS2, the draft and each phase's objective and stance in LoL.
+  The games reward reading the opponent and managing resources, so clear,
+  adaptive instructions win.
+- **During the week.** Write your `.md` (start from the template), save it
+  (Gregal keeps the last 20 versions), ask for a review, and play practice games
+  against the bots (6 a day). The bots' `.md` are written by the model at four
+  levels; read them to learn. Each match shows every decision with the model's
+  reason and the exact line of your `.md` it followed, and ends with a coach's
+  report: scores for clarity, coverage, adaptivity, specificity and consistency,
+  the moments where the `.md` failed with a rewritten rule, and lessons.
+- **Competition day.** The organiser (an admin) creates a competition: it takes a
+  snapshot of everyone's `.md`, seeds groups by Elo and adds playoffs. Start it and
+  open the stream page (full screen, for OBS): each match in turn, then the
+  result, the standings and who plays next, and the champions at the end.
+  Official matches move an Elo ranking per game. When it ends, everyone's `.md`
+  is revealed.
+- **The broadcast.** The stream page is a TV show: an opening that explains how
+  the Arena works, a short explainer the first time each game appears, an
+  analyst's preview before every match, the match itself with a play-by-play
+  caster (captions plus voice, crowd roar on the big moments), the result with
+  the analyst's verdict and the rule of the `.md` that decided it, the standings
+  and who plays next, and the champions. Segments change with a wipe and a
+  jingle; a ticker runs tips and the next match. Sound starts muted: press the
+  sound button once.
+- **Sharing it with the company.** Arena → Broadcast gives a spectator link: it
+  opens the stream and nothing else of Gregal (renew it to cut access). To send
+  it to Teams, YouTube or Twitch, add it in OBS as a Browser source at
+  1920×1080 with “Control audio via OBS”, or just share the browser tab with
+  its sound.
+- **The narrators' voice.** Free and on your own machine: **Piper** runs on the
+  CPU with no keys; Install the voices downloads it once (about 113 MB for
+  Catalan, 206 MB for English) from its official releases. For a more
+  expressive voice, point it at any self-hosted server with the OpenAI-style
+  `/v1/audio/speech` API (Chatterbox, Kokoro, Orpheus…), with the voice names
+  and extra settings per role. Or no voice, captions only. The audio is made
+  ahead of time and cached, so the stream never waits for it.
+
 ### The winds' football league
 
 Games (sidebar → Games; on the phone, the row under the Corner) runs American

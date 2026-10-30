@@ -501,6 +501,54 @@ anti-robots) i ningú més en té còpia, l'agent rep l'avís clar de no tornar-
 a provar amb `web_fetch` ni amb el navegador; l'eina del navegador afegeix el
 mateix avís quan cau en una comprovació anti-robots.
 
+### L'Arena: competició de prompts
+
+L'Arena (barra lateral → Arena; al mòbil, la fila Arena) és una competició
+setmanal entre fitxers `.md` d'estratègia, en tres jocs: futbol americà (NFL),
+Counter-Strike 2 i League of Legends. Cada jugador és un usuari d'aquest
+servidor de Gregal.
+
+- **Com va un partit.** Els dos equips són idèntics. A cada punt de decisió el
+  mateix model llegeix el teu `.md` i la situació (marcador, recursos, què ha
+  fet el rival fins ara) i decideix: cada jugada a l'NFL, la compra i el pla de
+  cada ronda al CS2, el draft i l'objectiu i la postura de cada fase al LoL. Els
+  jocs premien llegir el rival i gestionar els recursos: guanyen les
+  instruccions clares i que s'adapten.
+- **Durant la setmana.** Escriu el teu `.md` (comença per la plantilla), desa'l
+  (en guarda les 20 últimes versions), demana'n una revisió i juga partits de
+  prova contra els bots (6 al dia). Els `.md` dels bots els escriu el model a
+  quatre nivells: llegeix-los per aprendre. Cada partit mostra cada decisió amb
+  el motiu del model i la línia exacta del teu `.md` que ha seguit, i acaba amb
+  l'informe d'un coach: notes de claredat, cobertura, adaptació, concreció i
+  coherència, els moments on el `.md` ha fallat amb una regla reescrita, i
+  lliçons.
+- **El dia de la competició.** L'organitzador (un admin) crea una competició:
+  fa una foto dels `.md` de tothom, fa grups per Elo i hi afegeix
+  eliminatòries. Comença-la i obre la pàgina de retransmissió (pantalla
+  completa, per a l'OBS): cada partit per torn, després el resultat, la
+  classificació i qui juga ara, i els campions al final. Els partits oficials
+  mouen un rànquing Elo per joc. Quan s'acaba, es mostren els `.md` de tothom.
+- **La retransmissió.** La pàgina de retransmissió és un programa de tele: una
+  obertura que explica com funciona l'Arena, una explicació curta la primera
+  vegada que surt cada joc, la prèvia d'un analista abans de cada partit, el
+  partit amb un narrador jugada a jugada (subtítols i veu, rugit del públic a
+  les grans jugades), el resultat amb el veredicte de l'analista i la regla del
+  `.md` que l'ha decidit, la classificació i qui juga ara, i els campions. Els
+  segments canvien amb una cortina i una sintonia; a baix passen consells i el
+  partit següent. El so comença apagat: prem el botó de so una vegada.
+- **Compartir-ho amb l'empresa.** Arena → Retransmissió dona un enllaç
+  d'espectador: obre la retransmissió i res més de Gregal (renova'l per tallar
+  l'accés). Per emetre-ho a Teams, YouTube o Twitch, afegeix-lo a l'OBS com a
+  Font de navegador a 1920×1080 amb «Controla l'àudio via OBS», o simplement
+  comparteix la pestanya del navegador amb el so.
+- **La veu dels narradors.** Gratuïta i a la teva màquina: **Piper** corre a la
+  CPU sense claus; Instal·la les veus la baixa una vegada (uns 113 MB per al
+  català, 206 MB per a l'anglès) de les seves publicacions oficials. Per a una
+  veu més expressiva, apunta a qualsevol servidor propi amb l'API
+  `/v1/audio/speech` a l'estil d'OpenAI (Chatterbox, Kokoro, Orpheus…), amb el
+  nom de veu i els ajustos de cada rol. O sense veu, només subtítols. L'àudio es
+  fa per endavant i es guarda, i la retransmissió no l'ha d'esperar.
+
 ### La lliga de futbol americà dels vents
 
 Partits (barra lateral → Partits; al mòbil, la fila de sota del Racó) juga

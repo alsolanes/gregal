@@ -256,6 +256,7 @@ export class FootballView {
     this.T = TEXT[this.lang];
     this.source = opts.source; // { load(after) → Promise<match> }
     this.onUpdate = opts.onUpdate || (() => {});
+    this.onEvent = opts.onEvent || (() => {});
     this.match = null; this.queue = []; this.idx = 0; this.speed = 1; this.paused = false;
     this.cur = null; this.t = 0; this.phase = 'wait'; this.hold = 0; this.camX = 60; this.particles = [];
     this.banner = null; this.lastN = 0; this.stopped = false; this.last = performance.now();
@@ -268,6 +269,8 @@ export class FootballView {
   setSpeed(x) { this.speed = x; }
   togglePause() { this.paused = !this.paused; return this.paused; }
   skipToEnd() { this.idx = this.queue.length; this.cur = null; this.phase = 'wait'; this.banner = null; }
+  // Ja s'ha vist tot (la retransmissió passa al partit següent).
+  isFinished() { return !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status) && this.idx >= this.queue.length && !this.cur; }
 
   async poll() {
     if (this.stopped) return;
@@ -319,6 +322,7 @@ export class FootballView {
         this.cur = { play: p, anim: buildPlay(p, this.match) };
         this.t = 0; this.phase = 'pre'; this.hold = .7;
         this.onUpdate(this.match, p);
+        this.onEvent(p);
       }
       return;
     }

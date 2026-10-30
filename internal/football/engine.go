@@ -22,6 +22,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"strings"
 )
 
 // Posicions (11 d'atac, 11 de defensa i el xutador).
@@ -256,6 +257,17 @@ type Game struct {
 	Lang      string
 	kickNext  bool // toca xut d'inici (després de puntuar o començar part)
 	afterTD   bool // toca PAT / 2 punts
+
+	// Mode extern (Arena): cada jugada de línia la criden l'atac i la defensa.
+	External bool
+	needCall bool
+	haveCall bool
+	callOff  OffCall
+	callDef  DefCall
+	ext      *ext
+	tempo    string
+	offHist  [2][]callRecord
+	defHist  [2][]callRecord
 }
 
 // NewGame prepara un partit: llançament de moneda i xut d'inici.
@@ -501,6 +513,15 @@ func (g *Game) scrimmage() {
 	if g.Quarter >= 5 {
 		g.otPoss[g.Poss] = true
 	}
+	if g.External {
+		if !g.haveCall {
+			g.needCall = true
+			return
+		}
+		g.haveCall = false
+		g.scrimExternal()
+		return
+	}
 	o, d := g.off(), g.def()
 	pl, dp := g.Plans[g.Poss], g.Plans[1-g.Poss]
 	half := g.halfLeft()
@@ -601,11 +622,21 @@ func (g *Game) run(o, d *Team, blitz bool) {
 	rb := o.at(RB, 0)
 	qb := o.at(QB, 0)
 	runner := rb
-	if g.Dist <= 1 && g.rng.Float64() < .25 {
+	if g.ext == nil && g.Dist <= 1 && g.rng.Float64() < .25 {
 		runner = qb // QB sneak
 	}
 	dirs := []string{"left", "middle", "right"}
 	dir := dirs[g.rng.Intn(3)]
+	if g.ext != nil {
+		switch g.ext.off.Play {
+		case "qb_sneak":
+			runner, dir = qb, "middle"
+		case "run_inside":
+			dir = "middle"
+		case "run_outside":
+			dir = []string{"left", "right"}[g.rng.Intn(2)]
+		}
+	}
 	runBlock := avg(o.all(OL), func(a Attrs) int { return (a.Block*2 + a.Strength) / 3 })
 	runDef := (avg(d.all(DL), func(a Attrs) int { return (a.Strength + a.Tackle) / 2 })*2 + avg(d.all(LB), func(a Attrs) int { return a.Tackle })) / 3
 	skill := float64(runner.Attrs.Speed+runner.Attrs.Agility+runner.Attrs.Strength) / 3
@@ -616,10 +647,18 @@ func (g *Game) run(o, d *Team, blitz bool) {
 	if g.Spot >= 80 {
 		edge -= 1.2 // a prop de la zona de marca hi ha onze defensors en poc espai
 	}
+	stuff := 0.0
+	if g.ext != nil {
+		edge += g.ext.runAdj
+		stuff = g.ext.stuffAdj
+		if g.ext.off.Play == "run_outside" {
+			edge += .2 * g.rng.NormFloat64() * 4 // més variància per fora
+		}
+	}
 	var yds int
 	r := g.rng.Float64()
 	switch {
-	case r < .19-edge/40:
+	case r < .19-edge/40+stuff:
 		yds = -3 + g.rng.Intn(4) // aturat
 	case r < .965:
 		yds = int(math.Round(g.norm(4.2+edge*.9, 2.9)))
@@ -629,8 +668,12 @@ func (g *Game) run(o, d *Team, blitz bool) {
 	default:
 		yds = 12 + int(math.Abs(g.norm(0, 18))) + int(edge*2)
 	}
-	if runner == qb && g.Dist <= 1 {
-		yds = int(math.Round(g.norm(1.6, 1.2)))
+	if runner == qb && (g.Dist <= 1 || (g.ext != nil && g.ext.off.Play == "qb_sneak")) {
+		mean := 1.6
+		if g.ext != nil {
+			mean += g.ext.runAdj / 3
+		}
+		yds = int(math.Round(g.norm(mean, 1.2)))
 	}
 	if g.Spot >= 99 {
 		yds = int(math.Round(g.norm(.6, 1.4)))
@@ -727,6 +770,12 @@ func (g *Game) pass(o, d *Team, pl Plan, blitz bool) {
 	if blitz {
 		sackP += .035
 	}
+	if g.ext != nil {
+		sackP += g.ext.sackAdj
+		if sackP < .01 {
+			sackP = .01
+		}
+	}
 	p := Play{Down: g.Down, Dist: g.Dist, Spot: g.Spot, Clock: g.Clock, Actors: Actors{Passer: id(qb)}}
 	if g.rng.Float64() < sackP {
 		dl := g.pick(append(d.all(DL), d.all(LB)...), func(p *Player) float64 { return float64(p.Attrs.Speed + p.Attrs.Strength) })
@@ -769,7 +818,7 @@ func (g *Game) pass(o, d *Team, pl Plan, blitz bool) {
 		return
 	}
 	// Escapada del QB.
-	if g.rng.Float64() < .035+float64(qb.Attrs.Speed-70)/600 {
+	if g.ext == nil && g.rng.Float64() < .035+float64(qb.Attrs.Speed-70)/600 {
 		p.Kind = "scramble"
 		yds := int(math.Round(g.norm(5+float64(qb.Attrs.Speed-70)/6, 4)))
 		g.finishCarry(&p, qb, yds, false, false)
@@ -790,11 +839,30 @@ func (g *Game) pass(o, d *Team, pl Plan, blitz bool) {
 		}
 		return w
 	})
+	if t := g.targetFor(o); t != nil {
+		tgt = t
+	}
 	r := g.rng.Float64()
 	var depth int
 	kind := "short"
+	if g.ext != nil && g.ext.kind != "" {
+		switch g.ext.kind {
+		case "screen":
+			r = -1
+			tgt = o.at(RB, 0)
+			if t := g.targetFor(o); t != nil && t.Pos != OL {
+				tgt = t
+			}
+		case "short":
+			r = .3
+		case "medium":
+			r = 1 - pl.DeepShots - .1
+		case "deep":
+			r = .999
+		}
+	}
 	switch {
-	case tgt.Pos == RB && r < .6, r < .07:
+	case r < 0, g.ext == nil && (tgt.Pos == RB && r < .6 || r < .07):
 		kind, depth = "screen", -2+g.rng.Intn(3)
 	case r < 1-pl.DeepShots-.25:
 		kind, depth = "short", 3+g.rng.Intn(7)
@@ -828,7 +896,28 @@ func (g *Game) pass(o, d *Team, pl Plan, blitz bool) {
 		compP -= .1
 	}
 	intP := map[string]float64{"screen": .006, "short": .014, "medium": .026, "deep": .052}[kind] - float64(qb.Attrs.Awareness-75)/2500 + float64(cov.Attrs.Hands-60)/4000
+	if g.ext != nil {
+		compP += g.ext.compAdj
+		intP += g.ext.intAdj
+		if g.ext.playAction {
+			// El play-action enganya si l'atac ha corregut molt fins ara.
+			runs, total := 0, 0
+			for _, h := range g.offHist[g.Poss] {
+				total++
+				if strings.HasPrefix(h.Call, "run") || h.Call == "qb_sneak" {
+					runs++
+				}
+			}
+			if total >= 4 {
+				compP += (float64(runs)/float64(total) - .45) * .25
+			}
+			p.Detail = "play_action"
+		}
+	}
 	p.Kind, p.Detail, p.Depth = "pass", kind, depth
+	if g.ext != nil && g.ext.playAction {
+		p.Detail = "play_action"
+	}
 	p.Dir = []string{"left", "middle", "right"}[g.rng.Intn(3)]
 	p.Actors.Target = id(tgt)
 	st := g.st(qb.ID)
@@ -878,6 +967,9 @@ func (g *Game) pass(o, d *Team, pl Plan, blitz bool) {
 			yac = int(math.Round(g.norm(2.2, 2.6)))
 		case "deep":
 			yac = int(math.Round(g.norm(2.5, 4)))
+		}
+		if g.ext != nil {
+			yac += int(g.ext.yacAdj)
 		}
 		if yac < 0 {
 			yac = 0
@@ -1071,6 +1163,12 @@ func (g *Game) runClock(playSecs int, running bool) {
 		gap := 36
 		pl := g.Plans[g.Poss]
 		gap -= int(pl.Tempo * 12)
+		switch g.tempo {
+		case "hurry":
+			gap = 12
+		case "milk":
+			gap = 40
+		}
 		lead := g.lead()
 		late := g.Quarter == 4 || g.Quarter == 2
 		if late && g.Clock < 150 && lead < 0 {

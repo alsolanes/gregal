@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gregal Arena</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden; }
+  canvas { width: 100%; height: 100%; display: block; }
+  .ctl { position: fixed; right: 8px; top: 8px; display: flex; gap: 6px; }
+  .ctl button { border: 0; border-radius: 8px; background: rgba(255,255,255,.14); color: #fff; padding: 6px 10px; font: 600 13px system-ui, sans-serif; }
+  .ctl button.on { background: #ffd400; color: #111; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div class="ctl"><button id="pause">⏸</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button><button id="skip">⏭</button></div>
+<script type="module">
+// Un partit de l'Arena, sol (mòbil): #id=<partit>&token=<clau>&lang=ca.
+// El token va al fragment: no s'envia mai al servidor ni queda als logs.
+import { makeView } from './arena-views.js';
+const q = new URLSearchParams(location.hash.slice(1));
+const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
+const id = q.get('id') || '';
+const fetchMatch = after => fetch('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after, { headers }).then(r => r.json());
+const first = await fetchMatch(0);
+const view = await makeView(first.game, document.getElementById('cv'), { lang: q.get('lang') === 'en' ? 'en' : 'ca', fetchMatch });
+window.gregalArenaView = view;
+document.getElementById('pause').onclick = e => { e.target.textContent = view.togglePause() ? '▶' : '⏸'; };
+document.getElementById('skip').onclick = () => view.skipToEnd();
+document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { view.setSpeed(+b.dataset.s); document.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); });
+</script>
+</body>
+</html>

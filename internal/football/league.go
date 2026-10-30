@@ -273,3 +273,42 @@ func Ensure(lg *League, winds []Wind, lang string, seed int64) *League {
 	}
 	return lg
 }
+
+// MirroredTeams fa dos equips idèntics (mateixes posicions, dorsals i
+// atributs) amb noms de jugador diferents: a l'Arena l'única diferència ha de
+// ser l'estratègia.
+func MirroredTeams(seed int64, names [2]string) [2]*Team {
+	r := rand.New(rand.NewSource(seed))
+	colors := [2][2]string{{"#1E5BD8", "#F2B705"}, {"#C8102E", "#F4F4F4"}}
+	var out [2]*Team
+	for t := 0; t < 2; t++ {
+		abbr := strings.ToUpper(strings.ReplaceAll(names[t], " ", ""))
+		if len([]rune(abbr)) > 3 {
+			abbr = string([]rune(abbr)[:3])
+		}
+		if abbr == "" {
+			abbr = []string{"HOM", "AWY"}[t]
+		}
+		out[t] = &Team{ID: fmt.Sprintf("t%d", t+1), Name: names[t], Abbr: abbr, Color: colors[t][0], Color2: colors[t][1]}
+	}
+	if out[0].Abbr == out[1].Abbr {
+		out[1].Abbr = out[1].Abbr[:2] + "2"
+	}
+	nameN := 0
+	for _, rs := range RosterShape {
+		for i := 0; i < rs.N; i++ {
+			attrs := makeAttrs(rs.Pos, r, false)
+			style := faceStyle(r)
+			num := 0
+			for t := 0; t < 2; t++ {
+				name := windNames[nameN%len(windNames)]
+				nameN++
+				if num == 0 {
+					num = 10 + nameN
+				}
+				out[t].Players = append(out[t].Players, Player{ID: fmt.Sprintf("%s-%s%d", out[t].ID, strings.ToLower(rs.Pos), i+1), Name: name, Pos: rs.Pos, Number: num % 100, Style: style, Attrs: attrs})
+			}
+		}
+	}
+	return out
+}

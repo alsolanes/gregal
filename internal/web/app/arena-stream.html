@@ -1,0 +1,438 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gregal Arena · Live</title>
+<style>
+  :root { --vw:1vw; --vh:1vh; --bg:#070a14; --panel:rgba(13,18,34,.9); --line:rgba(255,255,255,.12); --ink:#f3f5fb; --muted:#9aa4bd; --accent:#ffd400; --a:#3e7bfa; --b:#e5484d; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:radial-gradient(1400px 700px at 50% -20%, #1d2a5c 0%, var(--bg) 62%); color:var(--ink); font:16px/1.45 "Segoe UI", system-ui, sans-serif; overflow:hidden; }
+  /* Barra de dalt */
+  .top { position:fixed; top:0; left:0; right:0; height:62px; display:flex; align-items:center; gap:16px; padding:0 24px; z-index:6; background:linear-gradient(180deg, rgba(0,0,0,.65), transparent); }
+  .logo { font-weight:900; letter-spacing:.16em; font-size:19px; white-space:nowrap; } .logo span { color:var(--accent); }
+  .comp { color:var(--muted); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .seg { margin-left:auto; padding:5px 14px; border-radius:999px; background:var(--panel); border:1px solid var(--line); font-weight:700; white-space:nowrap; }
+  .live { padding:4px 10px; border-radius:6px; background:#e5484d; font-weight:800; font-size:12px; letter-spacing:.12em; animation:pulse 1.6s infinite; }
+  @keyframes pulse { 50% { opacity:.55; } }
+  .clock { color:var(--muted); font-variant-numeric:tabular-nums; }
+  .voice { border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; }
+  .voice.on { background:var(--accent); color:#111; }
+  .voice.blocked { background:#e5484d; color:#fff; animation:pulse 1.2s infinite; }
+  /* Als segments de panell, el subtítol baixa al lloc del marcador. */
+  body.paneled .caption { bottom:62px; }
+  /* Escenari del partit */
+  .stage-wrap { position:fixed; inset:66px 24px 150px 24px; display:flex; align-items:center; justify-content:center; transition:opacity .4s; }
+  canvas { width:100%; height:100%; max-width:calc((calc(var(--vh) * 100) - 216px) * 16 / 9); max-height:calc((calc(var(--vw) * 100) - 48px) * 9 / 16); border-radius:16px; box-shadow:0 30px 90px rgba(0,0,0,.65); background:#0b1020; }
+  .lower { position:fixed; left:24px; right:24px; bottom:58px; height:84px; display:grid; grid-template-columns:1fr auto 1fr; gap:14px; z-index:5; }
+  .pcard { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 16px; overflow:hidden; display:flex; flex-direction:column; justify-content:center; }
+  .pcard.a { border-left:6px solid var(--a); } .pcard.b { border-right:6px solid var(--b); text-align:right; }
+  .pcard .who { font-size:22px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pcard .motto { color:var(--muted); font-style:italic; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .score { align-self:center; font-size:38px; font-weight:900; min-width:170px; text-align:center; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:12px 18px; }
+  /* Subtítol del narrador */
+  .caption { position:fixed; left:50%; bottom:156px; transform:translate(-50%, 20px); max-width:min(980px, calc(var(--vw) * 90)); padding:12px 20px 12px 16px; display:flex; gap:12px; align-items:flex-start;
+    background:rgba(8,10,22,.92); border:1px solid var(--line); border-left:5px solid var(--accent); border-radius:12px; z-index:7; opacity:0; transition:opacity .35s, transform .35s; font-size:20px; }
+  .caption.on { opacity:1; transform:translate(-50%, 0); }
+  .caption b { color:var(--accent); white-space:nowrap; font-size:14px; letter-spacing:.08em; text-transform:uppercase; padding-top:4px; }
+  /* Plafons de segment (presentació, prèvia, resultat…) */
+  .panel { position:fixed; inset:76px calc(var(--vw) * 6) 190px calc(var(--vw) * 6); display:flex; flex-direction:column; justify-content:center; gap:22px; z-index:4; opacity:0; pointer-events:none; transition:opacity .45s; }
+  .panel.on { opacity:1; }
+  .kicker { color:var(--accent); font-weight:800; letter-spacing:.2em; text-transform:uppercase; font-size:15px; }
+  .h1 { font-size:clamp(34px, calc(var(--vw) * 5.2), 70px); font-weight:900; line-height:1.05; margin:0; }
+  .h2 { font-size:clamp(22px, calc(var(--vw) * 2.6), 34px); font-weight:800; margin:0; }
+  .lead { font-size:clamp(17px, calc(var(--vw) * 1.7), 24px); color:#d6dbea; max-width:1100px; }
+  .steps { display:grid; grid-template-columns:repeat(3, 1fr); gap:18px; }
+  .step { background:var(--panel); border:1px solid var(--line); border-radius:16px; padding:18px 20px; font-size:18px; }
+  .step b { display:block; color:var(--accent); font-size:14px; letter-spacing:.1em; text-transform:uppercase; margin-bottom:6px; }
+  .vs { display:grid; grid-template-columns:1fr auto 1fr; gap:26px; align-items:center; }
+  .big { background:var(--panel); border:1px solid var(--line); border-radius:20px; padding:26px 28px; }
+  .big.a { border-top:6px solid var(--a); } .big.b { border-top:6px solid var(--b); text-align:right; }
+  .big .who { font-size:clamp(26px, calc(var(--vw) * 3), 44px); font-weight:900; } .big .motto { color:var(--muted); font-style:italic; font-size:19px; }
+  .vsmark { font-size:56px; font-weight:900; color:var(--accent); }
+  .quote { background:rgba(255,212,0,.08); border-left:5px solid var(--accent); border-radius:12px; padding:16px 20px; font-size:clamp(17px, calc(var(--vw) * 1.6), 23px); }
+  .quote small { display:block; color:var(--accent); font-weight:800; letter-spacing:.1em; text-transform:uppercase; font-size:13px; margin-bottom:6px; }
+  .rule { font-family:ui-monospace, Consolas, monospace; background:rgba(255,255,255,.06); border-radius:10px; padding:12px 16px; font-size:clamp(15px, calc(var(--vw) * 1.4), 20px); }
+  .result { font-size:clamp(40px, calc(var(--vw) * 5), 72px); font-weight:900; }
+  .winner { color:var(--accent); font-size:clamp(22px, calc(var(--vw) * 2.4), 32px); font-weight:800; }
+  table { width:100%; border-collapse:collapse; font-size:clamp(16px, calc(var(--vw) * 1.5), 22px); }
+  th, td { padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; }
+  th { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
+  td.pts { font-weight:900; color:var(--accent); } tr.top td:first-child { color:var(--accent); }
+  .two { display:grid; grid-template-columns:1.1fr 1fr; gap:26px; align-items:start; }
+  .champ { font-size:clamp(30px, calc(var(--vw) * 4), 56px); font-weight:900; } .champ small { display:block; color:var(--muted); font-size:18px; font-weight:600; }
+  /* Rètol de baix (tips i el que ve) */
+  .ticker { position:fixed; left:0; right:0; bottom:0; height:44px; background:rgba(4,6,14,.94); border-top:1px solid var(--line); overflow:hidden; z-index:6; display:flex; align-items:center; }
+  .ticker .tag { flex:0 0 auto; height:100%; display:flex; align-items:center; padding:0 18px; background:var(--accent); color:#111; font-weight:900; letter-spacing:.1em; font-size:13px; }
+  .ticker .run { white-space:nowrap; animation:scroll var(--dur, 60s) linear infinite; padding-left:100%; font-size:16px; color:#dfe4f2; }
+  .ticker .run span { margin-right:60px; } .ticker .run b { color:var(--accent); }
+  @keyframes scroll { to { transform:translateX(-100%); } }
+  /* Transició (cortina) */
+  .wipe { position:fixed; inset:0; z-index:9; pointer-events:none; transform:translateX(-110%); background:linear-gradient(100deg, var(--a) 0 32%, var(--accent) 32% 40%, var(--b) 40% 100%); }
+  .wipe.go { animation:wipe 1s cubic-bezier(.7,0,.3,1); }
+  .wipe::after { content:'GREGAL ARENA'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:.3em; font-size:48px; color:#fff; text-shadow:0 4px 20px rgba(0,0,0,.4); }
+  @keyframes wipe { 0% { transform:translateX(-110%); } 45%, 55% { transform:translateX(0); } 100% { transform:translateX(110%); } }
+  .hide { display:none !important; }
+  /* Finestres petites: l'escenari es pinta a 1280×720 i s'escala sencer, com una tele. */
+  body.fit { --vw:12.8px; --vh:7.2px; }
+  body.fit #tv { position:fixed; left:0; top:0; width:1280px; height:720px; overflow:hidden; transform-origin:0 0; }
+</style>
+</head>
+<body>
+<div id="tv">
+<div class="top"><div class="logo">GREGAL <span>ARENA</span></div><div class="comp" id="comp"></div><div class="seg" id="seg"></div><div class="live hide" id="live">LIVE</div><div class="clock" id="clock"></div><button class="voice" id="voice" type="button"></button></div>
+<div class="stage-wrap" id="stageWrap" style="opacity:0"><canvas id="cv"></canvas></div>
+<div class="lower hide" id="lower"><div class="pcard a"><div class="who" id="nameA"></div><div class="motto" id="mottoA"></div></div><div class="score" id="score">0 - 0</div><div class="pcard b"><div class="who" id="nameB"></div><div class="motto" id="mottoB"></div></div></div>
+<div class="caption" id="caption"><b id="capWho"></b><span id="capText"></span></div>
+<div class="panel" id="panel"></div>
+<div class="ticker"><div class="tag" id="tickerTag"></div><div class="run" id="ticker"></div></div>
+<div class="wipe" id="wipe"></div>
+</div>
+<script type="module">
+// La retransmissió de l'Arena com un programa de tele: obertura, explicació de
+// cada joc el primer cop, prèvia de l'analista, el partit amb els comentaris
+// del narrador (subtítols i, si es vol, veu), resultat amb l'anàlisi i la
+// regla del .md que ho va decidir, classificació i el que ve, amb cortines
+// entre segments i un rètol de consells a baix.
+// #token=<clau> o #spectator=<clau de l'enllaç d'espectador>, &lang=ca|en.
+import { makeView, LESSONS, EXPLAIN } from './arena-views.js';
+
+// Per sota de 1280×720 tot es pinta a aquesta mida i s'escala (amb bandes),
+// que una retransmissió s'ha de veure igual en un portàtil que a l'OBS.
+// Un ancestre amb transform fa de marc als elements fixos de dins.
+function fitTV() {
+  const z = Math.min(innerWidth / 1280, innerHeight / 720), on = z < 1, tv = document.getElementById('tv');
+  document.body.classList.toggle('fit', on);
+  tv.style.transform = on ? `translate(${(innerWidth - 1280 * z) / 2}px, ${(innerHeight - 720 * z) / 2}px) scale(${z})` : '';
+}
+fitTV(); addEventListener('resize', fitTV);
+const q = new URLSearchParams(location.hash.slice(1));
+const lang = q.get('lang') === 'en' ? 'en' : 'ca';
+const headers = q.get('spectator') ? { 'X-Arena-Spectator': q.get('spectator') } : q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
+const get = path => fetch(path, { headers }).then(r => { if (!r.ok) throw new Error(r.status); return r.json(); });
+const $ = id => document.getElementById(id);
+const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const L = lang === 'ca' ? {
+  waiting: 'Esperant la competició…', soon: 'Comença aviat', opening: 'Comença la competició', next: 'A continuació', result: 'Resultat', table: 'Classificació',
+  champions: 'Campions', win: 'guanya', draw: 'Empat', p: 'Jugador', pj: 'PJ', w: 'G', d: 'E', l: 'P', pts: 'Pts', preview: 'Prèvia', analysis: 'L’anàlisi',
+  keyRule: 'La regla que ho va decidir', live: 'En directe', explain: 'Com es juga', caster: 'Narrador', analyst: 'Analista', voiceOn: '🔊 Veu', voiceOff: '🔈 Sense veu', voiceBlocked: '🔇 Clica per sentir-ho',
+  how1: ['Dos equips idèntics', 'Mateixos jugadors, mateixos atributs. L’única diferència és el .md de cada jugador.'],
+  how2: ['El mateix model per a tothom', 'A cada decisió, el model llegeix el .md del seu equip i la situació, i decideix.'],
+  how3: ['Guanya el millor prompt', 'Instruccions clares, concretes i que llegeixen el rival guanyen a les vagues.'],
+  stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
+} : {
+  waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
+  champions: 'Champions', win: 'wins', draw: 'Draw', p: 'Player', pj: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', preview: 'Preview', analysis: 'The analysis',
+  keyRule: 'The rule that decided it', live: 'Live', explain: 'How it is played', caster: 'Caster', analyst: 'Analyst', voiceOn: '🔊 Voice', voiceOff: '🔈 Muted', voiceBlocked: '🔇 Click for sound',
+  how1: ['Two identical teams', 'Same players, same attributes. The only difference is each player’s .md.'],
+  how2: ['The same model for everyone', 'At every decision, the model reads its team’s .md and the situation, and decides.'],
+  how3: ['The best prompt wins', 'Clear, concrete instructions that read the opponent beat vague ones.'],
+  stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
+};
+const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
+
+// ---- so: veu dels narradors (pregravada al servidor) i efectes ----
+let soundOn = localStorage.getItem('arenaVoice') === '1';
+let script = null;
+// El navegador no deixa sonar res fins que l'espectador hi clica: llavors el
+// botó ho demana.
+let soundBlocked = false;
+const paintVoice = () => { $('voice').textContent = soundBlocked ? L.voiceBlocked : soundOn ? L.voiceOn : L.voiceOff; $('voice').classList.toggle('on', soundOn && !soundBlocked); $('voice').classList.toggle('blocked', soundBlocked); };
+$('voice').onclick = () => { if (soundBlocked) { soundBlocked = false; sfx.start(); paintVoice(); return; } soundOn = !soundOn; localStorage.setItem('arenaVoice', soundOn ? '1' : '0'); if (soundOn) sfx.start(); else { sfx.stop(); stopVoice(); } paintVoice(); };
+paintVoice();
+
+// Efectes generats amb WebAudio (cap fitxer): ambient d'estadi, rugit del
+// públic, cortina i sintonia.
+const sfx = {
+  ctx: null, amb: null, ambGain: null, master: null,
+  start() {
+    if (!this.ctx) {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+      this.ctx = new C(); this.master = this.ctx.createGain(); this.master.gain.value = .9; this.master.connect(this.ctx.destination);
+    }
+    this.ctx.resume();
+  },
+  stop() { if (this.ctx) this.ctx.suspend(); },
+  noise(secs) {
+    const b = this.ctx.createBuffer(1, this.ctx.sampleRate * secs, this.ctx.sampleRate), d = b.getChannelData(0);
+    let last = 0; for (let i = 0; i < d.length; i++) { last = (last + .02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; } // soroll marró: públic llunyà
+    return b;
+  },
+  ambience(on) {
+    if (!this.ctx || !soundOn) return;
+    if (on && !this.amb) {
+      const src = this.ctx.createBufferSource(); src.buffer = this.noise(4); src.loop = true;
+      const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 900; bp.Q.value = .6;
+      this.ambGain = this.ctx.createGain(); this.ambGain.gain.value = 0;
+      src.connect(bp); bp.connect(this.ambGain); this.ambGain.connect(this.master); src.start();
+      this.ambGain.gain.linearRampToValueAtTime(.18, this.ctx.currentTime + 2);
+      this.amb = src;
+    } else if (!on && this.amb) {
+      const a = this.amb, g = this.ambGain; g.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 1.5); setTimeout(() => a.stop(), 1600); this.amb = null;
+    }
+  },
+  duck(on) { if (this.ambGain && this.ctx) this.ambGain.gain.linearRampToValueAtTime(on ? .07 : .18, this.ctx.currentTime + .4); },
+  roar(big) {
+    if (!this.ctx || !soundOn) return;
+    const src = this.ctx.createBufferSource(); src.buffer = this.noise(4);
+    const bp = this.ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1100; bp.Q.value = .5;
+    const g = this.ctx.createGain(), t = this.ctx.currentTime, peak = big ? .9 : .5;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + .35); g.gain.exponentialRampToValueAtTime(.001, t + (big ? 3.8 : 2.4));
+    src.connect(bp); bp.connect(g); g.connect(this.master); src.start(); src.stop(t + 4);
+  },
+  whoosh() {
+    if (!this.ctx || !soundOn) return;
+    const src = this.ctx.createBufferSource(); src.buffer = this.noise(1.2);
+    const f = this.ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2; const t = this.ctx.currentTime;
+    f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(4000, t + .5); f.frequency.exponentialRampToValueAtTime(400, t + 1);
+    const g = this.ctx.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.6, t + .45); g.gain.linearRampToValueAtTime(0, t + 1);
+    src.connect(f); f.connect(g); g.connect(this.master); src.start(); src.stop(t + 1.2);
+  },
+  sting() {
+    if (!this.ctx || !soundOn) return;
+    const t = this.ctx.currentTime;
+    [[523.25, 0], [659.25, .12], [783.99, .24], [1046.5, .36]].forEach(([f, d]) => {
+      const o = this.ctx.createOscillator(), g = this.ctx.createGain(); o.type = 'triangle'; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t + d); g.gain.linearRampToValueAtTime(.18, t + d + .03); g.gain.exponentialRampToValueAtTime(.001, t + d + .9);
+      o.connect(g); g.connect(this.master); o.start(t + d); o.stop(t + d + 1);
+    });
+  },
+};
+
+// Amb el so recordat d'abans, s'intenta engegar; si el navegador ho atura, es demana el clic.
+if (soundOn) { sfx.start(); setTimeout(() => { if (sfx.ctx && sfx.ctx.state !== 'running') { soundBlocked = true; paintVoice(); } }, 600); }
+
+// La veu: l'àudio que el servidor ha generat per a cada frase. Si encara no hi
+// és, s'espera una mica; sense veus instal·lades, només subtítols.
+let voiceEl = null;
+function stopVoice() { if (voiceEl) { voiceEl.pause(); voiceEl = null; } sfx.duck(false); }
+async function playVoice(key) {
+  if (!soundOn || !key) return;
+  for (let i = 0; i < 16; i++) {
+    let r;
+    try { r = await fetch('/api/arena/voice?k=' + encodeURIComponent(key), { headers }); } catch (e) { return; }
+    if (r.ok) {
+      const url = URL.createObjectURL(await r.blob());
+      stopVoice();
+      const a = new Audio(url); voiceEl = a; sfx.duck(true);
+      await new Promise(res => { a.onended = res; a.onerror = res; a.play().catch(e => { if (e && e.name === 'NotAllowedError') { soundBlocked = true; paintVoice(); } res(); }); });
+      if (voiceEl === a) { voiceEl = null; sfx.duck(false); }
+      URL.revokeObjectURL(url);
+      return;
+    }
+    if (r.status !== 404) return;
+    await sleep(1500);
+  }
+}
+let capTimer = 0, capSeq = 0;
+// caption mostra el subtítol i en diu la veu; torna quan la veu acaba (o de seguida).
+function caption(who, text, secs = 8, audio = '') {
+  if (!text) return Promise.resolve();
+  const seq = ++capSeq;
+  $('capWho').textContent = who; $('capText').textContent = text;
+  $('caption').classList.add('on');
+  clearTimeout(capTimer); capTimer = setTimeout(() => $('caption').classList.remove('on'), secs * 1000);
+  // Sense veu, el segment espera el temps de llegir-ho (~20 caràcters per segon).
+  const said = soundOn && audio && script && script.voice ? playVoice(audio) : sleep(Math.min(45000, text.length * 50));
+  return said.then(() => { if (seq !== capSeq) return; clearTimeout(capTimer); capTimer = setTimeout(() => $('caption').classList.remove('on'), 1500); });
+}
+// Espera el temps mínim del segment i que el narrador acabi.
+const hold = (ms, voice) => Promise.all([sleep(ms), voice || Promise.resolve()]);
+
+// ---- rètol ----
+function ticker(items) {
+  const html = items.map(([tag, t]) => `<span><b>${esc(tag)}</b> · ${esc(t)}</span>`).join('');
+  if ($('ticker').dataset.html === html) return;
+  $('ticker').dataset.html = html; $('ticker').innerHTML = html;
+  $('ticker').style.setProperty('--dur', Math.max(40, items.length * 12) + 's');
+  $('tickerTag').textContent = 'GREGAL ARENA';
+}
+
+// ---- estat ----
+let comp = null;
+const shown = new Set(), explained = new Set();
+let opened = false, busy = false, view = null;
+
+async function pollComp() {
+  try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {}
+  // Els rètols van en la llengua dels narradors (la del servidor).
+  if (script && script.lang && script.lang !== lang) { q.set('lang', script.lang); location.hash = q.toString(); location.reload(); return; }
+  if (comp) {
+    $('comp').textContent = comp.title;
+    const tips = LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]);
+    const nxt = comp.schedule.find((s, i) => !s.done && !shown.has(i));
+    if (nxt) tips.splice(1, 0, [L.upnext, nxt.pending ? `${GAME[nxt.game]} · ${nxt.stage}` : `${name(nxt.a)} vs ${name(nxt.b)} · ${GAME[nxt.game]} · ${nxt.stage}`]);
+    ticker(tips);
+  } else ticker(LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]));
+  setTimeout(pollComp, 4000);
+}
+const name = o => (comp && comp.names[o]) || o || '—';
+const motto = o => (comp && comp.titles && comp.titles[o]) || '';
+
+setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(lang === 'ca' ? 'ca-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); }, 1000);
+
+// ---- segments ----
+async function wipe(swap) {
+  sfx.whoosh();
+  const w = $('wipe'); w.classList.remove('go'); void w.offsetWidth; w.classList.add('go');
+  await sleep(480); swap(); sfx.sting(); await sleep(560);
+}
+function panel(html) { $('panel').innerHTML = html; $('panel').classList.add('on'); document.body.classList.add('paneled'); $('stageWrap').style.opacity = 0; $('lower').classList.add('hide'); $('live').classList.add('hide'); }
+function hidePanel() { $('panel').classList.remove('on'); document.body.classList.remove('paneled'); }
+const segLabel = t => { $('seg').textContent = t; };
+
+function standingsHTML(game, stage) {
+  const tables = (comp.tables || {})[game] || [];
+  const tb = tables.find(t => !stage || t.stage === stage) || tables[0];
+  if (!tb) return '';
+  return `<div class="h2">${esc(L.table)} · ${esc(GAME[game] || game)} · ${esc(tb.stage)}</div><table><tr><th></th><th>${L.p}</th><th>${L.pj}</th><th>${L.w}</th><th>${L.d}</th><th>${L.l}</th><th>${L.pts}</th></tr>` +
+    tb.rows.map((r, i) => `<tr class="${i < 2 ? 'top' : ''}"><td>${i + 1}</td><td>${esc(name(r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') + '</table>';
+}
+
+async function segOpening() {
+  segLabel(L.opening);
+  const op = script && script.opening;
+  const steps = op && op.lines && op.lines.length >= 6 ? [[op.lines[0], op.lines[1]], [op.lines[2], op.lines[3]], [op.lines[4], op.lines[5]]] : [L.how1, L.how2, L.how3];
+  await wipe(() => panel(`<div class="kicker">${esc(L.opening)}</div><h1 class="h1">${esc(comp.title)}</h1>
+    <div class="lead">${esc(comp.games.map(g => GAME[g] || g).join(' · '))}</div>
+    <div class="steps">${steps.map(([h, p]) => `<div class="step"><b>${esc(h)}</b>${esc(p)}</div>`).join('')}</div>`));
+  await hold(14000, caption(L.analyst, op ? op.text : `${comp.title}. ${L.how1[1]} ${L.how2[1]} ${L.how3[1]}`, 30, op && op.audio));
+}
+
+async function segExplain(game) {
+  const sp = script && script.explain && script.explain[game];
+  const [title, ...lines] = sp ? [sp.title, ...sp.lines] : EXPLAIN[game][lang];
+  segLabel(L.explain + ' · ' + (GAME[game] || game));
+  await wipe(() => panel(`<div class="kicker">${esc(L.explain)}</div><h1 class="h1">${esc(title)}</h1>
+    <div class="steps">${lines.map((t, i) => `<div class="step"><b>${i + 1}</b>${esc(t)}</div>`).join('')}</div>`));
+  await hold(15000, caption(L.analyst, lines.join(' '), 40, sp && sp.audio));
+}
+
+async function fetchMatch(id, after = 999999) { return get('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after); }
+
+async function segPreview(sl) {
+  segLabel(L.preview + ' · ' + sl.stage);
+  let m = null;
+  for (let i = 0; i < 12; i++) { try { m = await fetchMatch(sl.match); } catch (e) {} if (m && (m.preview || m.status !== 'pregame')) break; await sleep(2500); }
+  const pv = (m && m.preview) || '';
+  await wipe(() => panel(`<div class="kicker">${esc(GAME[sl.game] || sl.game)} · ${esc(sl.stage)}</div>
+    <div class="vs"><div class="big a"><div class="who">${esc(name(sl.a))}</div><div class="motto">${esc(motto(sl.a))}</div></div><div class="vsmark">VS</div>
+    <div class="big b"><div class="who">${esc(name(sl.b))}</div><div class="motto">${esc(motto(sl.b))}</div></div></div>
+    ${pv ? `<div class="quote"><small>${esc(L.preview)} · ${esc(L.analyst)}</small>${esc(pv)}</div>` : ''}`));
+  await hold(pv ? 14000 : 9000, pv ? caption(L.analyst, pv, 40, m && m.preview_audio) : null);
+}
+
+async function segLive(sl) {
+  segLabel(L.live + ' · ' + (GAME[sl.game] || sl.game) + ' · ' + sl.stage);
+  let latest = null;
+  const lines = new Map();
+  let shown = [0, 0];
+  const fm = after => fetchMatch(sl.match, after).then(m => {
+    latest = m; (m.lines || []).forEach(l => lines.set(l.n, l));
+    $('live').classList.toggle('hide', m.status !== 'live');
+    return m;
+  });
+  await wipe(() => {
+    hidePanel();
+    $('stageWrap').style.opacity = 1; $('lower').classList.remove('hide');
+    $('score').textContent = '0 - 0';
+    $('nameA').textContent = name(sl.a); $('nameB').textContent = name(sl.b);
+    $('mottoA').textContent = motto(sl.a); $('mottoB').textContent = motto(sl.b);
+  });
+  if (view) view.destroy();
+  sfx.ambience(true);
+  view = await makeView(sl.game, $('cv'), { lang, fetchMatch: fm, onEvent: e => {
+    // El marcador de baix va amb el que es veu, no amb l'últim que ha arribat.
+    // A l'NFL l'esdeveniment arriba quan comença la jugada i porta el marcador
+    // de després: es mostra el de la jugada anterior.
+    if (e && Array.isArray(e.score)) {
+      const sc = sl.game === 'nfl' ? shown : e.score; shown = e.score;
+      $('score').textContent = `${sc[0]} - ${sc[1]}`;
+    }
+    if (e && e.hl) sfx.roar(/touchdown|ace|baron|nexus|win|guanya|TOUCHDOWN/i.test(e.text || ''));
+    const l = e && lines.get(e.n); if (l) caption(L.caster, l.text, 9, l.audio);
+  } });
+  // Els comentaris arriben una mica després de les jugades: es tornen a llegir.
+  const refresh = setInterval(() => fetchMatch(sl.match).then(m => (m.lines || []).forEach(l => lines.set(l.n, l))).catch(() => {}), 6000);
+  while (!view.isFinished()) await sleep(1000);
+  clearInterval(refresh);
+  if (latest) $('score').textContent = `${latest.score[0]} - ${latest.score[1]}`;
+  sfx.roar(true);
+  await sleep(2500);
+  sfx.ambience(false);
+  return latest;
+}
+
+async function segResult(sl) {
+  segLabel(L.result + ' · ' + sl.stage);
+  let m = null;
+  for (let i = 0; i < 12; i++) { try { m = await fetchMatch(sl.match); } catch (e) {} if (m && m.analysis) break; await sleep(2500); }
+  const w = m && m.winner >= 0 ? name(m.winner === 0 ? sl.a : sl.b) : '';
+  const a = m && m.analysis;
+  await wipe(() => panel(`<div class="kicker">${esc(L.result)} · ${esc(GAME[sl.game] || sl.game)} · ${esc(sl.stage)}</div>
+    <div class="result">${esc(name(sl.a))} ${m ? m.score[0] : ''} - ${m ? m.score[1] : ''} ${esc(name(sl.b))}</div>
+    <div class="winner">${w ? '🏆 ' + esc(w) + ' ' + esc(L.win) : esc(L.draw)}</div>
+    ${a ? `<div class="quote"><small>${esc(L.analysis)} · ${esc(a.headline)}</small>${esc(a.text)}</div>
+    ${a.rule ? `<div><div class="kicker">${esc(L.keyRule)} · ${esc(name(a.side === 1 ? sl.b : sl.a))}</div><div class="rule">«${esc(a.rule)}»</div></div>` : ''}` : ''}`));
+  await hold(a ? 16000 : 9000, a ? caption(L.analyst, a.headline + '. ' + a.text, 60, a.audio) : null);
+}
+
+async function segStandings(sl) {
+  const html = standingsHTML(sl.game, sl.phase === 'group' ? sl.stage : '');
+  if (!html) return;
+  segLabel(L.table);
+  const nxt = comp.schedule.find((s, i) => !s.done && !shown.has(i));
+  await wipe(() => panel(`<div class="two"><div>${html}<p class="lead">${esc(L.stakes)}</p></div>
+    <div>${nxt ? `<div class="kicker">${esc(L.next)}</div><div class="h2">${esc(nxt.pending ? nxt.from.join(' vs ') : name(nxt.a) + ' vs ' + name(nxt.b))}</div><div class="lead">${esc(GAME[nxt.game] || nxt.game)} · ${esc(nxt.stage)}</div>` : ''}</div></div>`));
+  await sleep(12000);
+}
+
+async function segChampions() {
+  segLabel(L.champions);
+  await wipe(() => panel(`<div class="kicker">${esc(comp.title)}</div><h1 class="h1">${esc(L.champions)}</h1>
+    <div class="steps">${comp.games.map(g => `<div class="step"><div class="champ">🏆 ${esc(name((comp.champion || {})[g]))}<small>${esc(GAME[g] || g)}</small></div></div>`).join('')}</div>`));
+  const ch = script && script.champions;
+  sfx.roar(true);
+  caption(L.caster, ch ? ch.text : L.champions + ': ' + comp.games.map(g => `${GAME[g]}, ${name((comp.champion || {})[g])}`).join('; '), 40, ch && ch.audio);
+}
+
+function waitingPanel(text) {
+  segLabel(text);
+  panel(`<div class="kicker">${esc(comp ? comp.title : '')}</div><h1 class="h1">${esc(text)}</h1>${comp ? `<div class="two"><div>${standingsHTML(comp.games[0])}</div><div></div></div>` : ''}`);
+}
+
+async function director() {
+  if (busy) return;
+  busy = true;
+  try {
+    if (!comp) { waitingPanel(L.waiting); return; }
+    // Obert quan ja s'havia acabat: els campions, un sol cop, i s'hi queda.
+    if (comp.status === 'done' && (shown.size === 0 || shown.has(-1))) { if (!shown.has(-1)) { shown.add(-1); await segChampions(); } return; }
+    if (!opened && (comp.status === 'running' || comp.status === 'ready')) { opened = true; await segOpening(); }
+    // Primer cop: comença pel partit en marxa, no des del principi.
+    const from = shown.size === 0 && comp.status === 'running' ? Math.max(0, comp.current) : 0;
+    let idx = -1;
+    for (let i = from; i < comp.schedule.length; i++) if (comp.schedule[i].match && !shown.has(i)) { idx = i; break; }
+    if (idx < 0) {
+      if (comp.status === 'done') { if (!shown.has(-1)) { shown.add(-1); await segChampions(); } return; }
+      waitingPanel(comp.status === 'running' ? L.preparing : L.soon);
+      return;
+    }
+    shown.add(idx);
+    const sl = comp.schedule[idx];
+    if (!explained.has(sl.game)) { explained.add(sl.game); await segExplain(sl.game); }
+    await segPreview(sl);
+    await segLive(sl);
+    await segResult(sl);
+    await pollOnce();
+    await segStandings(sl);
+  } finally { busy = false; }
+}
+async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }
+
+pollComp();
+setInterval(director, 1500);
+</script>
+</body>
+</html>
