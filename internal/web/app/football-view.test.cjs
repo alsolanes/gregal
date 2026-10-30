@@ -100,22 +100,82 @@ test('the skycam looks downfield from behind the offense', async () => {
   assert.ok((fg.los - s0.P[0]) * fg.dir > 7);
 });
 
-test('cameras alternate like a TV broadcast', async () => {
-  const { chooseCameras } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
-  const a = chooseCameras({ n: 10, kind: 'run', yards: 3 }), b = chooseCameras({ n: 11, kind: 'pass', yards: 5 });
-  assert.notEqual(a.live, b.live);
-  assert.equal(a.replay, null);
-  for (const big of [{ td: true }, { int: true }, { fumble: true }, { yards: 34 }, { hl: true }]) {
-    for (const n of [4, 5]) {
-      const c = chooseCameras({ n, kind: 'pass', ...big });
-      assert.ok(c.replay && c.replay !== c.live, JSON.stringify(big));
-      assert.ok(c.from > 0 && c.from < .5);
+test('the director picks cameras like a broadcast, player cam first', async () => {
+  const { buildPlay, directPlay, liveSeg, CAM_TAGS } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  const A = { target: 'home-WR1', runner: 'home-RB0', tackler: 'away-LB1', defender: 'away-CB0', kicker: 'home-K0', returner: 'away-WR0' };
+  const mk = p => { const play = { q: 1, off: 0, down: 1, dist: 10, actors: A, ...p }; return [play, buildPlay(play, match)]; };
+  let player = 0, total = 0;
+  for (let n = 1; n <= 40; n++) {
+    for (const p of [{ kind: 'run', spot: 30, end: 35, yards: 5 }, { kind: 'pass', detail: 'short', depth: 6, spot: 40, end: 47, yards: 7, complete: true }]) {
+      const [play, anim] = mk({ n, ...p });
+      const plan = directPlay(play, anim);
+      assert.ok(plan.live.length >= 1 && plan.live[0].at === 0);
+      for (const s of plan.live) assert.ok(s.cam in CAM_TAGS, s.cam);
+      total++; if (plan.live.some(s => s.cam === 'player')) player++;
+      assert.deepEqual(plan.replays, []);
     }
   }
-  assert.equal(chooseCameras({ n: 1, kind: 'fg' }).live, 'sky');
-  assert.equal(chooseCameras({ n: 2, kind: 'pat' }).live, 'sky');
-  assert.equal(chooseCameras({ n: 3, kind: 'kickoff' }).live, 'tv');
-  assert.equal(chooseCameras({ n: 3, kind: 'kickoff', td: true }).replay, 'sky');
-  assert.deepEqual(chooseCameras({ n: 3, kind: 'pass', td: true }, 'tv'), { live: 'tv', replay: null, from: 0 });
-  assert.equal(chooseCameras({ n: 3, kind: 'run' }, 'sky').live, 'sky');
+  assert.ok(player / total > .6, 'player cam is the main live camera: ' + player + '/' + total);
+  // Passada: darrere el quarterback i, quan arriba la pilota, darrere el receptor.
+  const [pass, pa] = mk({ n: 2, kind: 'pass', detail: 'short', depth: 6, spot: 40, end: 47, yards: 7, complete: true });
+  const pp = directPlay(pass, pa);
+  assert.equal(pp.live[0].who, 'qb');
+  const last = pp.live[liveSeg(pp, pa.marks.tCatch)];
+  assert.equal(last.cam, 'player'); assert.equal(last.who, 'target');
+  // Passada llarga: la skycam mentre vola la pilota.
+  const [deep, da] = mk({ n: 2, kind: 'pass', detail: 'deep', depth: 35, spot: 20, end: 55, yards: 35, complete: true });
+  assert.equal(directPlay(deep, da).live[liveSeg(directPlay(deep, da), (da.marks.tThrow + da.marks.tCatch) / 2)].cam, 'sky');
+  // Touchdown: repeticions lentes des de la zona de marca i el pal.
+  const [td, ta] = mk({ n: 7, kind: 'run', dir: 'middle', spot: 95, end: 100, yards: 5, td: true });
+  const tp = directPlay(td, ta);
+  assert.deepEqual(tp.replays.map(r => r.cam), ['endzone', 'pylon']);
+  assert.ok(tp.replays.every(r => r.rate < 1 && r.from >= 0 && r.from < 1));
+  // Retorn de xut inicial: dirigible i després el retornador.
+  const [ko, ka] = mk({ n: 1, kind: 'kickoff', spot: 35, end: 27 });
+  const kp = directPlay(ko, ka);
+  assert.equal(kp.live[0].cam, 'blimp');
+  assert.equal(kp.live[kp.live.length - 1].cam, 'player');
+  assert.equal(kp.live[kp.live.length - 1].who, 'returner');
+  const [fg, fa] = mk({ n: 5, kind: 'fg', spot: 70, end: 70, good: true });
+  assert.equal(directPlay(fg, fa).live[0].cam, 'sky');
+  // Càmera fixada.
+  assert.deepEqual(directPlay(td, ta, 'tv'), { live: [{ cam: 'tv', at: 0, who: 'auto' }], replays: [] });
+});
+
+test('player cam rides low behind the ball carrier', async () => {
+  const { buildPlay, playerShot, subjectOf, makeView, project, slowmo, shotFor } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  const A = { target: 'home-WR1', runner: 'home-RB0', tackler: 'away-LB1', defender: 'away-CB0', kicker: 'home-K0', returner: 'away-WR0' };
+  for (const off of [0, 1]) for (const q of [1, 2]) {
+    const run = { n: 3, q, off, kind: 'run', dir: 'left', spot: 30, end: 42, yards: 12, actors: A, down: 1, dist: 10 };
+    const anim = buildPlay(run, match);
+    for (const t of [0, .1, .5, .8]) {
+      const shot = playerShot(anim, run, t);
+      const sub = subjectOf(anim, t).path(t);
+      const back = Math.hypot(shot.P[0] - sub.x, shot.P[1] - sub.y);
+      assert.ok(back > 3 && back < 5.5, 'distance behind: ' + back);
+      assert.ok(shot.P[2] >= 1.8 && shot.P[2] <= 2.6, 'helmet height');
+      // Mira endavant, cap on ataca qui porta la pilota.
+      assert.ok((shot.L[0] - shot.P[0]) * anim.dir > 5);
+      const v = makeView(shot.P, shot.L, 700, 640, 360);
+      const p = project(v, sub.x, sub.y, 1);
+      assert.ok(p.d > 3 && p.x > 300 && p.x < 980, 'subject in frame');
+    }
+    assert.equal(subjectOf(anim, .05).p.pos, 'QB');
+    assert.equal(subjectOf(anim, .5).p.id, 'home-RB0'.replace('home', off ? 'away' : 'home'));
+    assert.equal(slowmo(anim, run, .92), .35);
+    assert.equal(slowmo(anim, run, .5), 1);
+    // Totes les càmeres donen plans finits.
+    for (const cam of ['player', 'sky', 'endzone', 'pylon', 'rail', 'blimp']) for (const t of [0, .5, 1]) {
+      const s = shotFor(cam, anim, run, t, 'auto');
+      assert.ok([...s.P, ...s.L, s.zoom].every(Number.isFinite), cam);
+      assert.ok(Math.hypot(s.L[0] - s.P[0], s.L[1] - s.P[1], s.L[2] - s.P[2]) > 1, cam + ' looks somewhere');
+    }
+  }
+  // Recepció: càmera lenta just quan arriba la pilota.
+  const pass = { n: 4, q: 1, off: 0, kind: 'pass', detail: 'short', depth: 6, spot: 40, end: 47, yards: 7, complete: true, actors: A };
+  const pa = buildPlay(pass, match);
+  assert.equal(slowmo(pa, pass, pa.marks.tCatch), .3);
+  assert.equal(subjectOf(pa, pa.marks.tCatch - .1, 'target').p.id, 'home-WR1');
 });

@@ -4,9 +4,11 @@
 // color, dorsal i casc, la pilota amb l'altura dels xuts i les passades, el
 // marcador a dalt i el comentari a baix. Cada jugada es reconstrueix a partir
 // del que ha passat (tipus, iardes, qui l'ha fet) amb formacions i rutes.
-// A més de la càmera de banda hi ha una «skycam» darrere l'atac, en
-// perspectiva de debò, i la realització alterna totes dues com la tele (amb
-// repeticions de les jugades grosses i els gols de camp des del xutador).
+// A més de la càmera de banda hi ha càmeres 3D en perspectiva de debò: la de
+// jugador (per sobre l'espatlla de qui porta la pilota), la skycam, la de la
+// zona de marca, la del pal, la de carril i el dirigible. Un realitzador les
+// tria per a cada jugada i fa repeticions a càmera lenta de les grosses. Tot
+// passa dins d'un estadi amb graderies, públic animat i videomarcadors.
 //
 // El fa servir la pàgina «Partits» de l'app (football.js) i, al mòbil, la
 // pàgina autònoma football-viewer.html dins d'un WebView.
@@ -88,6 +90,9 @@ export function buildPlay(play, match) {
   const towards = (x0, y0, x1, y1, a, b, f = ease) => t => { const k = f(seg(t, a, b)); return { x: lerp(x0, x1, k), y: lerp(y0, y1, k) }; };
   let ball = () => ({ x: los, y: C, z: 0.3 });
   let dur = 3.4, carrierId = '';
+  // Moments i protagonistes de la jugada (per a les càmeres): qui la llança,
+  // a qui va, quan surt i quan arriba la pilota.
+  const marks = {};
 
   const isKick = kind === 'kickoff' || kind === 'punt';
   if (kind === 'kickoff') {
@@ -116,20 +121,23 @@ export function buildPlay(play, match) {
       add(ret, play.off, t => t < .55 ? { x: catchX, y: C } : retPath(t));
       ball = t => { if (t < .55) { const k = seg(t, .05, .55); return { x: lerp(kx, catchX, k), y: C, z: 0.5 + 12 * Math.sin(Math.PI * k) }; } const q = tracks.find(tr => tr.p.id === ret.id).path(t); return { x: q.x, y: q.y, z: 1.1 }; };
       carrierId = ret.id;
+      marks.returnerId = ret.id; marks.tCatch = .55;
       dur = 5.2;
     }
-    return { tracks, ball, dur, carrierId, los, endX, dir };
+    return { tracks, ball, dur, carrierId, los, endX, dir, marks };
   }
 
   const offA = assign(off, offenseSet(kind, play.detail));
   const defA = assign(def, defenseSet());
   const qb = offA.find(a => a.p.pos === 'QB');
+  marks.qbId = qb.p.id;
   const px = dx => los - dir * Math.abs(dx); // darrere la línia
   const dxF = dx => los + dir * dx; // davant
 
   if (kind === 'punt' || kind === 'fg' || kind === 'pat') {
     const k = off.players.find(p => p.id === A.kicker) || off.players.find(p => p.pos === 'K');
     const kickFrom = kind === 'punt' ? px(13) : px(7);
+    marks.kickerId = k && k.id;
     offA.forEach(a => { if (a.p.pos === 'OL' || a.p.pos === 'TE') add(a.p, play.off, still(los - dir * 0.6, a.y)); else if (a.p.pos !== 'QB') add(a.p, play.off, towards(px(2), a.y, kind === 'punt' ? dxF(25) : px(2), a.y, .3, .95)); });
     if (kind !== 'punt') add(qb.p, play.off, still(px(7) + dir * .1, C + 1.2)); // el que aguanta
     add(k, play.off, towards(kickFrom - dir * 2, C - .6, kickFrom, C - .4, .1, .3));
@@ -138,7 +146,7 @@ export function buildPlay(play, match) {
       const land = endX;
       ball = t => { if (t < .12) return { x: lerp(los, kickFrom, t / .12), y: C, z: 1 }; const k2 = seg(t, .25, .8); return { x: lerp(kickFrom, land, k2), y: C + Math.sin(k2 * 3), z: 1 + 11 * Math.sin(Math.PI * k2) }; };
       const ret = def.players.find(p => p.id === A.returner);
-      if (ret) add(ret, 1 - play.off, still(land, C));
+      if (ret) { add(ret, 1 - play.off, still(land, C)); marks.returnerId = ret.id; }
       dur = 4.6;
     } else {
       const goalX = dir > 0 ? 120 : 0;
@@ -147,7 +155,7 @@ export function buildPlay(play, match) {
       ball = t => { if (t < .2) return { x: lerp(los, kickFrom, t / .2), y: C, z: 1 }; const k2 = seg(t, .3, .85); return { x: lerp(kickFrom, goalX + dir * 3, k2), y: C + (good ? 0 : wide * k2), z: 1 + 3.5 * k2 + 4 * Math.sin(Math.PI * k2 * .8) }; };
       dur = 3.6;
     }
-    return { tracks, ball, dur, carrierId, los, endX, dir, goalPost: kind !== 'punt' };
+    return { tracks, ball, dur, carrierId, los, endX, dir, marks, goalPost: kind !== 'punt' };
   }
 
   // Línia: l'atac bloqueja i la defensa empeny.
@@ -168,7 +176,7 @@ export function buildPlay(play, match) {
       ball = t => ({ x: px(qb.dx) - dir * seg(t, .2, .4), y: C, z: .6 - .3 * seg(t, .2, .5) });
       offA.filter(a => a.p.pos !== 'OL' && a.p.pos !== 'QB').forEach(a => add(a.p, play.off, still(px(a.dx), a.y)));
       defA.forEach(a => add(a.p, 1 - play.off, still(dxF(a.dx), a.y)));
-      return { tracks, ball, dur: 1.8, carrierId: qb.p.id, los, endX, dir };
+      return { tracks, ball, dur: 1.8, carrierId: qb.p.id, los, endX, dir, marks };
     }
     const carrier = kind === 'scramble' ? qb : rb;
     const wob = R() * 6 - 3;
@@ -181,6 +189,7 @@ export function buildPlay(play, match) {
       return towards(los - dir * .5, lane, endX, lane + wob, .32, .9, easeOut)(t);
     };
     add(carrier.p, play.off, carrierPath, { carrier: true });
+    if (carrier !== qb) marks.tHand = .2;
     carrierId = carrier.p.id;
     if (carrier !== qb) add(qb.p, play.off, t => ({ x: px(qb.dx) + dir * .5 * seg(t, .1, .2), y: lerp(C, lane, seg(t, .1, .2) * .3) }));
     ball = t => { const c = t < .2 && carrier !== qb ? { x: lerp(px(qb.dx), carrierPath(t).x, seg(t, .1, .2)), y: lerp(C, carrierPath(t).y, seg(t, .1, .2)) } : carrierPath(t); return { x: c.x, y: c.y, z: 1.1 }; };
@@ -202,6 +211,7 @@ export function buildPlay(play, match) {
     const dropX = px(qb.dx + (play.detail === 'deep' ? 3 : 1.5));
     add(qb.p, play.off, towards(px(qb.dx), C, dropX, C, .08, .35));
     const tThrow = play.detail === 'deep' ? .5 : .4, tCatch = play.detail === 'deep' ? .75 : .58;
+    Object.assign(marks, { targetId: tgtA.p.id, tThrow, tCatch, deep: play.detail === 'deep' || depth >= 15 });
     const routeIn = towards(px(tgtA.dx), tgtA.y, catchX, catchY, .08, tCatch, t => t);
     const afterCatch = play.complete ? towards(catchX, catchY, endX, catchY + (R() * 6 - 3), tCatch, .92, easeOut) : towards(catchX, catchY, catchX + dir * 2, catchY, tCatch, .8);
     const tgtPath = t => t < tCatch ? routeIn(t) : afterCatch(t);
@@ -250,15 +260,15 @@ export function buildPlay(play, match) {
   defA.forEach(a => { if (!tracks.find(tr => tr.p.id === a.p.id)) add(a.p, 1 - play.off, still(dxF(a.dx), a.y)); });
   if (kind === 'pass' && (play.detail === 'deep')) dur = 4.4;
   if (play.td) dur += .4;
-  return { tracks, ball, dur, carrierId, los, endX, dir };
+  return { tracks, ball, dur, carrierId, los, endX, dir, marks };
 }
 
 
 // ---- càmeres ----
-// Totes dues càmeres són estenopeiques de debò: una posició P, un punt on
-// miren L i una focal. La de televisió és a la banda de baix, quieta d'alçada,
-// i només llisca seguint la pilota; la «skycam» va darrere l'atac, enlairada,
-// mirant camp avall, i acompanya la jugada.
+// Totes les càmeres són estenopeiques de debò: una posició P, un punt on
+// miren L i una focal. La de televisió és a la banda de baix i llisca seguint
+// la pilota; les altres (jugador, skycam, zona de marca, pal, carril, dirigible)
+// es calculen per a cada instant de la jugada i la càmera hi va suaument.
 const NEAR = .35;
 
 // Vista d'una càmera: base (dreta r, amunt u, endavant f) per projectar.
@@ -287,53 +297,233 @@ export function tvView(camX, focal, camH, W, horizon) {
   return makeView([camX, FIELD_W + 30, camH], [camX, 0, camH], focal, W / 2, horizon);
 }
 
-// On vol ser la skycam a l'instant t d'una jugada: darrere la pilota (o
-// darrere el xutador en un gol de camp, seguint la pilota cap als pals).
+// Nom de cada càmera a la cantonada de la pantalla.
+export const CAM_TAGS = { tv: '', sky: 'SKYCAM', player: 'PLAYER CAM', endzone: 'END ZONE', pylon: 'PYLON', rail: 'RAIL CAM', blimp: 'BLIMP' };
+
+export function isBig(play) {
+  const kick = ['kickoff', 'punt', 'fg', 'pat'].includes(play.kind);
+  return !!(play.td || play.int || play.fumble || play.safety || play.hl || (!kick && Math.abs(play.yards || 0) >= 20));
+}
+const trackOf = (anim, id) => (id && anim.tracks.find(tr => tr.p.id === id)) || null;
+const ballAt = (anim, t) => (anim.ball && anim.ball(t)) || { x: anim.los, y: C, z: 1 };
+// Cap on corre qui acaba amb la pilota (una intercepció torna enrere).
+function scoreDir(anim, play) { const c = trackOf(anim, anim.carrierId); return c && c.team !== play.off ? -anim.dir : anim.dir; }
+
+// Skycam: darrere la pilota, enlairada (o darrere el xutador en un gol de
+// camp, seguint la pilota cap als pals).
 export function skyShot(anim, kind, t) {
   const dir = anim.dir, u = v => v * dir;
-  const b = (anim.ball && anim.ball(t)) || { x: anim.los, y: C, z: 1 };
+  const b = ballAt(anim, t);
   const bz = Math.min(b.z || 0, 9);
   if (kind === 'fg' || kind === 'pat') {
     const goalX = dir > 0 ? 120 : 0, kickFrom = anim.los - dir * 7;
     const start = u(kickFrom) - 12;
     const camU = Math.min(Math.max(start, u(b.x) - 18), Math.max(start, u(goalX) - 24));
-    return { P: [camU * dir, C - 1.6, 7.5 + bz * .2], L: [goalX, C, 2.5 + bz * .2], zoom: 1.2 };
+    return { P: [camU * dir, C - 1.6, 7.5 + bz * .2], L: [goalX, C, 2.5 + bz * .2], zoom: 1.2, kP: 3.2, kL: 4.5 };
   }
   const kick = kind === 'kickoff' || kind === 'punt';
   const fx = (kick ? u(b.x) : Math.max(u(b.x), u(anim.los) - 4)) * dir;
   const ly = clamp(b.y, 2, FIELD_W - 2);
-  return { P: [fx - dir * 17, lerp(C, ly, .55), 8 + bz * .25], L: [fx + dir * 14, lerp(C, ly, .8), bz * .3], zoom: 1 };
+  return { P: [fx - dir * 17, lerp(C, ly, .55), 8 + bz * .25], L: [fx + dir * 14, lerp(C, ly, .8), bz * .3], zoom: 1, kP: 3.2, kL: 4.5 };
 }
 
-// Quina càmera fa cada jugada, com una retransmissió: les jugades normals
-// alternen tele i skycam; les grosses (touchdown, pèrdua, guany llarg) tenen
-// repetició amb l'altra càmera; els gols de camp, des de darrere el xutador.
-export function chooseCameras(play, pref = 'auto') {
-  if (pref === 'tv' || pref === 'sky') return { live: pref, replay: null, from: 0 };
-  const k = play.kind;
-  if (k === 'fg' || k === 'pat') return { live: 'sky', replay: null, from: 0 };
-  if (k === 'kneel') return { live: 'tv', replay: null, from: 0 };
-  const big = !!(play.td || play.int || play.fumble || play.safety || play.hl || Math.abs(play.yards || 0) >= 20);
-  if (k === 'kickoff' || k === 'punt') return { live: 'tv', replay: big ? 'sky' : null, from: k === 'kickoff' ? .45 : .2 };
-  const live = (play.n || 0) % 2 === 0 ? 'sky' : 'tv';
-  return { live, replay: big ? (live === 'sky' ? 'tv' : 'sky') : null, from: k === 'pass' || k === 'two' ? .28 : .12 };
+// A qui segueix la càmera de jugador: el quarterback, el receptor (i, quan
+// l'ha agafada, qui porta la pilota), el retornador o, per defecte, qui la porta.
+export function subjectOf(anim, t, who = 'auto') {
+  const m = anim.marks || {};
+  let id;
+  if (who === 'qb') id = m.qbId;
+  else if (who === 'target') id = (t >= (m.tCatch === undefined ? 0 : m.tCatch) && anim.carrierId) || m.targetId;
+  else if (who === 'returner') id = m.returnerId || anim.carrierId;
+  else id = (m.tHand !== undefined && t < m.tHand) ? m.qbId : (anim.carrierId || m.qbId);
+  return trackOf(anim, id) || trackOf(anim, m.qbId) || anim.tracks[0];
 }
 
-// Públic de les graderies de la skycam (sempre el mateix).
-function makeCrowd() {
-  const R = rng(11), out = [];
-  const stands = [
-    (a, h) => [lerp(-40, 160, a), -14 - 32 * h, 1.5 + 28 * h],
-    (a, h) => [lerp(-40, 160, a), FIELD_W + 14 + 32 * h, 1.5 + 28 * h],
-    (a, h) => [-22 - 32 * h, lerp(-14, FIELD_W + 14, a), 1.5 + 28 * h],
-    (a, h) => [142 + 32 * h, lerp(-14, FIELD_W + 14, a), 1.5 + 28 * h],
-  ];
-  // Pocs colors i agrupats: es pinta un camí per color (molt més ràpid).
-  const colors = Array.from({ length: 28 }, () => `hsl(${Math.floor(R() * 360)},${20 + R() * 30 | 0}%,${32 + R() * 30 | 0}%)`);
-  stands.forEach((f, i) => { const n = i < 2 ? 2600 : 1100; for (let k = 0; k < n; k++) { const [x, y, z] = f(R(), R()); out.push({ x, y, z, ci: Math.floor(R() * colors.length) }); } });
-  out.sort((a, b) => a.ci - b.ci);
-  out.colors = colors;
+// Càmera de jugador: baixa, per sobre l'espatlla de qui segueix, 4 iardes
+// darrere i a l'alçada del casc, mirant cap on corre. Mentre la pilota vola,
+// la del quarterback la segueix amb la mirada.
+export function playerShot(anim, play, t, who = 'auto') {
+  const m = anim.marks || {};
+  const tr = subjectOf(anim, t, who);
+  const pos = tr.path(t), a = tr.path(Math.max(0, t - .03)), b = tr.path(Math.min(1, t + .03));
+  const own = tr.team === play.off ? anim.dir : -anim.dir;
+  let hx = b.x - a.x, hy = b.y - a.y;
+  const sp = Math.hypot(hx, hy);
+  if (tr.p.id === m.qbId || sp < .3) { hx = own; hy = 0; }
+  else { hx = hx / sp + own * .5; hy /= sp; const n = Math.hypot(hx, hy) || 1; hx /= n; hy /= n; }
+  const rx = -hy, ry = hx;
+  const P = [pos.x - hx * 4.3 + rx * .8, pos.y - hy * 4.3 + ry * .8, 2.15];
+  let L = [pos.x + hx * 10, pos.y + hy * 10, 1.4];
+  if (who === 'qb' && m.tThrow !== undefined && t > m.tThrow) {
+    const bl = ballAt(anim, t), k = ease(seg(t, m.tThrow, m.tThrow + .05));
+    L = [lerp(L[0], bl.x, k), lerp(L[1], bl.y, k), lerp(L[2], bl.z, k)];
+  }
+  return { P, L, zoom: 1, kP: 6, kL: 8, speed: sp / (.06 * anim.dur), subject: tr.p.id };
+}
+
+// Des de darrere els pals de la zona de marca on s'ataca, mirant la pilota.
+export function endzoneShot(anim, play, t) {
+  const sd = scoreDir(anim, play), gx = sd > 0 ? 120 : 0, b = ballAt(anim, t);
+  const P = [gx + sd * 8, lerp(C, b.y, .3), 6.5];
+  return { P, L: [b.x, b.y, 1.2], zoom: clamp(Math.abs(P[0] - b.x) / 20, 1, 2.6), kP: 3, kL: 6 };
+}
+// Arran de gespa, al pal (pylon) de la línia de gol per on entra la pilota.
+export function pylonShot(anim, play, t) {
+  const sd = scoreDir(anim, play), gl = sd > 0 ? 110 : 10, b = ballAt(anim, t), end = ballAt(anim, 1);
+  const P = [gl + sd * .4, end.y < C ? -.6 : FIELD_W + .6, .3];
+  return { P, L: [b.x, b.y, .9], zoom: clamp(Math.hypot(b.x - P[0], b.y - P[1]) / 9, 1, 3.2), kP: 8, kL: 7 };
+}
+// Càmera de carril a la banda, baixa, corrent amb la pilota.
+export function railShot(anim, play, t) {
+  const sd = scoreDir(anim, play), b = ballAt(anim, t);
+  return { P: [b.x - sd * 2.5, FIELD_W + 6, 2.3], L: [b.x + sd * 3, b.y, 1], zoom: 1.25, kP: 4, kL: 5, speed: 0 };
+}
+// Dirigible: ben amunt, girant a poc a poc al voltant de la jugada.
+export function blimpShot(anim, play, t) {
+  const b = ballAt(anim, t), a = .9 + t * .5;
+  return { P: [lerp(60, b.x, .6) - 55 * Math.cos(a) * anim.dir, C + 55 * Math.sin(a), 95], L: [lerp(60, b.x, .7), b.y, 0], zoom: 1.05, kP: 1.5, kL: 2.5 };
+}
+export function shotFor(mode, anim, play, t, who) {
+  if (mode === 'player') return playerShot(anim, play, t, who);
+  if (mode === 'endzone') return endzoneShot(anim, play, t);
+  if (mode === 'pylon') return pylonShot(anim, play, t);
+  if (mode === 'rail') return railShot(anim, play, t);
+  if (mode === 'blimp') return blimpShot(anim, play, t);
+  return skyShot(anim, play.kind, t);
+}
+
+// El realitzador: quina càmera va en directe a cada moment de la jugada
+// (llista de trams {cam, at, who}) i quines repeticions es fan després. La
+// càmera de jugador és la principal en curses, recepcions i retorns; la tele
+// i la skycam donen context; les jugades grosses tenen repeticions a càmera
+// lenta des de la zona de marca, el pal o el jugador.
+export function directPlay(play, anim, pref = 'auto') {
+  const m = anim.marks || {}, k = play.kind, n = play.n || 0, big = isBig(play);
+  const S = (cam, at = 0, who = 'auto') => ({ cam, at, who });
+  const passing = !!m.targetId && m.tThrow !== undefined;
+  const flip = passing ? m.tThrow + .65 * (m.tCatch - m.tThrow) : 0;
+  if (pref !== 'auto') {
+    if (pref === 'player' && passing) return { live: [S('player', 0, 'qb'), S('player', flip, 'target')], replays: [] };
+    return { live: [S(pref, 0, k === 'kickoff' ? 'returner' : 'auto')], replays: [] };
+  }
+  let live, replays = [];
+  if (k === 'kickoff') live = m.tCatch ? [S('blimp'), S('player', m.tCatch - .12, 'returner')] : [S('blimp')];
+  else if (k === 'punt' || k === 'fg') live = [S('sky')];
+  else if (k === 'pat') live = [S(n % 2 ? 'endzone' : 'sky')];
+  else if (k === 'kneel') live = [S('tv')];
+  else if (passing) {
+    if (n % 4 === 3) live = [S('tv')];
+    else if (m.deep) live = [S('player', 0, 'qb'), S('sky', m.tThrow + .03), S('player', m.tCatch - .06, 'target')];
+    else live = [S('player', 0, 'qb'), S('player', flip, 'target')];
+  } else if ((play.spot || 0) >= 95 && n % 2 === 0) live = [S('endzone')];
+  else if (n % 5 === 2) live = [S('player', 0, 'qb'), S('rail', .3)];
+  else live = [S('player')];
+  if (big && !['fg', 'pat', 'kneel'].includes(k)) {
+    const from = passing ? Math.max(0, m.tThrow - .12) : k === 'kickoff' ? .45 : k === 'punt' ? .2 : .1;
+    if (play.td) replays = [{ cam: 'endzone', from, rate: .6 }, { cam: 'pylon', from: .72, rate: .35 }];
+    else if (k === 'kickoff') replays = [{ cam: 'player', who: 'returner', from, rate: .55 }];
+    else if (k === 'punt') replays = [{ cam: 'blimp', from, rate: .7 }];
+    else replays = [{ cam: live.some(s => s.cam === 'sky') ? 'rail' : 'sky', from, rate: .65 }, { cam: 'player', who: passing ? 'target' : 'auto', from: passing ? m.tCatch - .08 : .3, rate: .4 }];
+  }
+  return { live, replays };
+}
+// Tram del directe que toca a l'instant t.
+export function liveSeg(plan, t) { let i = 0; plan.live.forEach((s, k) => { if (s.at <= t) i = k; }); return i; }
+
+// Càmera lenta en directe: quan arriba la pilota al receptor i en el placatge.
+export function slowmo(anim, play, t) {
+  const m = anim.marks || {};
+  if (m.tCatch !== undefined && (play.complete || play.int) && Math.abs(t - m.tCatch) < .025) return .3;
+  if (anim.carrierId && !play.td && play.kind !== 'kneel' && t > .895 && t < .94) return .35;
+  return 1;
+}
+// Sacsejada de la càmera en el contacte (0..1).
+function contact(anim, play, t) { return anim.carrierId && !play.td && play.kind !== 'kneel' && t > .9 ? 1 - seg(t, .9, 1) : 0; }
+
+// ---- l'estadi ----
+// Una grada en forma de bol (superel·lipse) al voltant del camp, amb tres
+// pisos, llotges il·luminades, el ràfec del sostre i quatre torres de llum.
+const BOWL_A = 76, BOWL_B = 44, BOWL_N = 56;
+function ring(th, o) {
+  const c = Math.cos(th), s = Math.sin(th);
+  return [60 + (BOWL_A + o) * Math.sign(c) * Math.sqrt(Math.abs(c)), C + (BOWL_B + o) * Math.sign(s) * Math.sqrt(Math.abs(s))];
+}
+// Angle per a una fracció u (0..1) del perímetre: així els trams i la gent
+// queden repartits per igual (amb l'angle tal qual, els fons quedarien buits).
+const RING_U = (() => {
+  const n = 2048, th = [], acc = [0];
+  for (let i = 0; i <= n; i++) th.push(i / n * Math.PI * 2);
+  for (let i = 1; i <= n; i++) { const a = ring(th[i - 1], 20), b = ring(th[i], 20); acc.push(acc[i - 1] + Math.hypot(b[0] - a[0], b[1] - a[1])); }
+  const out = new Float64Array(1025);
+  let j = 0;
+  for (let k = 0; k <= 1024; k++) { const L = k / 1024 * acc[n]; while (j < n && acc[j + 1] < L) j++; const f = (L - acc[j]) / ((acc[j + 1] - acc[j]) || 1); out[k] = lerp(th[j], th[Math.min(n, j + 1)], clamp(f, 0, 1)); }
   return out;
+})();
+function ringTh(u) { u = ((u % 1) + 1) % 1; const k = u * 1024, i = Math.floor(k); return lerp(RING_U[i], RING_U[Math.min(1024, i + 1)], k - i); }
+// [desplaçament i alçada de baix, desplaçament i alçada de dalt, color, tipus]
+const TIERS = [
+  [0, 0, 0, 1.4, null, 'wall'],
+  [0, 1.4, 22, 12, '#283252', 'seats'],
+  [22, 12, 22, 15.5, '#0c1120', 'suite'],
+  [22, 13.2, 22, 14.4, 'rgba(255,224,150,.55)', 'glass'],
+  [22, 15.5, 40, 26, '#232c4a', 'seats'],
+  [40, 26, 40, 29.5, '#0c1120', 'suite'],
+  [40, 27.2, 40, 28.4, 'rgba(255,224,150,.45)', 'glass'],
+  [40, 29.5, 58, 41, '#1f2843', 'seats'],
+  [58, 41, 58, 47, '#11172a', 'rim'],
+  [58, 47, 46, 48.5, '#1a2138', 'roof'],
+  [46, 48.4, 46, 48.9, 'rgba(255,250,225,.9)', 'glass'],
+];
+const SEAT_ROWS = [[1, 9], [4, 8], [7, 7]]; // [índex del pis a TIERS, files]
+const TOWERS = [.62, Math.PI - .62, Math.PI + .62, -.62];
+
+function makeStadium(teams) {
+  const polys = [];
+  for (let i = 0; i < BOWL_N; i++) {
+    const t0 = ringTh(i / BOWL_N), t1 = i + 1 === BOWL_N ? Math.PI * 2 : ringTh((i + 1) / BOWL_N);
+    TIERS.forEach(([o0, z0, o1, z1, fill, kind], ti) => {
+      const a = ring(t0, o0), b = ring(t1, o0), c = ring(t1, o1), d = ring(t0, o1);
+      let col = fill;
+      if (kind === 'wall') col = i % 2 ? shade(teams[0].color, -.35) : shade(teams[1].color, -.35);
+      else if (kind === 'seats') {
+        // Les grades agafen un to fosc de l'equip d'aquella banda (fa de públic llunyà).
+        const th = ringTh((i + .5) / BOWL_N), side = Math.abs(Math.cos(th)) > .82 ? -1 : (Math.sin(th) < 0 ? 0 : 1);
+        col = side < 0 ? (i % 4 ? '#2b3150' : '#343b5c') : shade(teams[side].color, i % 4 ? -.62 : -.55);
+      }
+      const pts = [[a[0], a[1], z0], [b[0], b[1], z0], [c[0], c[1], z1], [d[0], d[1], z1]];
+      const cen = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (z0 + z1) / 2];
+      polys.push({ pts, fill: col, cen, kind, bias: kind === 'glass' ? -.2 : -ti * .01 });
+    });
+  }
+  // Públic: files de seients a cada pis, amb els colors de l'equip de cada banda.
+  const R = rng(23), people = [];
+  const pal = [teams[0].color, teams[0].color2 || '#fff', teams[1].color, teams[1].color2 || '#fff', '#c9c4b8', '#5b6170', '#8a6f55', '#2e3240'];
+  for (const [ti, rows] of SEAT_ROWS) {
+    const [o0, z0, o1, z1] = TIERS[ti];
+    for (let r = 0; r < rows; r++) {
+      const k = (r + .5) / rows, o = lerp(o0, o1, k), z = lerp(z0, z1, k) + .3;
+      const per = Math.round((380 + o * 6.3) / 1.15);
+      for (let j = 0; j < per; j++) {
+        if (R() < .07) continue; // seients buits
+        const th = ringTh((j + R() * .6) / per), [x, y] = ring(th, o);
+        const side = Math.abs(Math.cos(th)) > .82 ? -1 : (y < C ? 0 : 1); // fons: barrejat
+        const q = R();
+        const team = side < 0 ? (R() < .5 ? 0 : 1) : (q < .82 ? side : 1 - side);
+        const ci = q < .9 ? team * 2 + (R() < .72 ? 0 : 1) : 4 + Math.floor(R() * 4);
+        people.push({ x, y, z, th, team: q < .9 ? team : -1, ci, ph: R() * 6.28, flag: R() < .025, lod: R() < .5 });
+      }
+    }
+  }
+  people.sort((a, b) => a.ci - b.ci);
+  // Estrelles: direccions fixes del cel.
+  const stars = Array.from({ length: 170 }, () => { const az = R() * 6.28, el = .12 + R() * 1.2; return [Math.cos(az) * Math.cos(el), Math.sin(az) * Math.cos(el), Math.sin(el), .3 + R() * .7]; });
+  // Banquetes: cada equip a una banda, amb els jugadors de peu mirant el camp.
+  const bench = [];
+  [0, 1].forEach(team => {
+    const y = team === 0 ? -9.5 : FIELD_W + 9.5;
+    for (let i = 0; i < 18; i++) bench.push({ team, x: 38 + i * 2.5 + R() * 1.2, y: y + (team === 0 ? 1 : -1) * (1.2 + R() * 1.5), num: 2 + Math.floor(R() * 97) });
+  });
+  return { polys, people, pal, stars, bench, key: teams[0].color + teams[1].color };
 }
 
 // ---- dibuix ----
@@ -349,8 +539,9 @@ export class FootballView {
     this.match = null; this.queue = []; this.idx = 0; this.speed = 1; this.paused = false;
     this.cur = null; this.t = 0; this.phase = 'wait'; this.hold = 0; this.camX = 60; this.particles = [];
     this.banner = null; this.lastN = 0; this.stopped = false; this.last = performance.now();
-    this.camPref = 'auto'; this.camMode = 'tv'; this.sky = null; this.snap = true; this.fx = null; this.simDt = 0;
-    this.crowd = makeCrowd();
+    this.camPref = 'auto'; this.camMode = 'tv'; this.camWho = 'auto'; this.cam3 = null; this.snap = true; this.fx = null;
+    this.simDt = 0; this.clock = 0; this.hype = 0; this.hypeTeam = -1; this.slow = 1; this.shake = 0;
+    this.stadium = null; this.cache = null; this.cacheKey = ''; this.lastKey = ''; this.board = null; this.boardKey = '';
     this.resize = this.resize.bind(this); window.addEventListener('resize', this.resize); this.resize();
     this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
     this.poll();
@@ -362,11 +553,13 @@ export class FootballView {
   skipToEnd() { this.idx = this.queue.length; this.cur = null; this.phase = 'wait'; this.banner = null; }
   // Ja s'ha vist tot (la retransmissió passa al partit següent).
   isFinished() { return !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status) && this.idx >= this.queue.length && !this.cur; }
-  // Càmera: 'auto' (alterna com la tele), 'tv' (sempre de banda) o 'sky'.
+  // Càmera: 'auto' (el realitzador), o fixa: 'tv', 'sky', 'player', 'endzone', 'pylon', 'rail', 'blimp'.
   setCamera(mode) {
-    this.camPref = ['tv', 'sky'].includes(mode) ? mode : 'auto';
-    if (this.cur) { this.cur.shots = chooseCameras(this.cur.play, this.camPref); if (this.phase !== 'replay') this.setCam(this.cur.shots.live); }
-    else if (this.camPref !== 'auto') this.setCam(this.camPref);
+    this.camPref = mode in CAM_TAGS ? mode : 'auto';
+    if (this.cur) {
+      this.cur.plan = directPlay(this.cur.play, this.cur.anim, this.camPref); this.cur.seg = -1;
+      if (this.phase !== 'replay') this.followLive();
+    } else if (this.camPref !== 'auto') this.setCam(this.camPref);
   }
 
   async poll() {
@@ -396,6 +589,7 @@ export class FootballView {
     this.camH = (near - far) / (this.focal * (1 / 30 - 1 / (30 + FIELD_W)));
     this.horizon = near - this.camH * this.focal / 30;
     this.view = tvView(this.camX, this.focal, this.camH, this.W, this.horizon);
+    this.cacheKey = '';
   }
 
   proj(x, y, z = 0) { return project(this.view, x, y, z); }
@@ -403,19 +597,31 @@ export class FootballView {
   loop(now) {
     if (this.stopped) return;
     const dt = Math.min(.25, (now - this.last) / 1000); this.last = now;
+    this.clock += dt; this.hype = Math.max(0, this.hype - dt * .16);
     this.simDt = this.paused ? 0 : dt * this.speed;
     if (!this.paused) this.advance(this.simDt);
     this.draw();
     requestAnimationFrame(this.loop);
   }
 
-  // Canvi de càmera: tall sec amb un flaix (o la cortina de la repetició).
-  setCam(mode, kind = 'cut') {
-    const changed = mode !== this.camMode;
-    if (changed || kind === 'replay') this.fx = { t0: performance.now(), kind };
-    // La tele llisca d'una jugada a l'altra; si canvia de càmera, tall sec.
-    if (changed || mode === 'sky' || kind === 'replay') this.snap = true;
-    this.camMode = mode;
+  // Canvi de càmera: tall sec amb un flaix, un escombrat ràpid (whip) o la
+  // cortina de la repetició.
+  setCam(mode, kind = 'cut', who = 'auto') {
+    const changed = mode !== this.camMode || who !== this.camWho;
+    if (changed || kind === 'replay') this.fx = { t0: performance.now(), kind: mode === this.camMode && kind === 'cut' ? 'whip' : kind };
+    // La tele llisca d'una jugada a l'altra; la resta, tall sec.
+    if (changed || mode !== 'tv' || kind === 'replay') this.snap = true;
+    this.camMode = mode; this.camWho = who;
+  }
+  // Posa la càmera del tram de directe que toca.
+  followLive() {
+    const c = this.cur, i = liveSeg(c.plan, this.t);
+    if (i === c.seg) return;
+    const first = c.seg < 0;
+    c.seg = i;
+    const s = c.plan.live[i];
+    if (first && s.cam === this.camMode && s.who === this.camWho) { this.snap = true; return; }
+    this.setCam(s.cam, 'cut', s.who);
   }
 
   advance(dt) {
@@ -423,179 +629,338 @@ export class FootballView {
     if (!this.cur) {
       if (this.idx < this.queue.length) {
         const p = this.queue[this.idx++];
-        this.cur = { play: p, anim: buildPlay(p, this.match), shots: chooseCameras(p, this.camPref), replayed: false };
+        const anim = buildPlay(p, this.match);
+        this.cur = { play: p, anim, plan: directPlay(p, anim, this.camPref), seg: -1, rep: -1, replaysDone: false };
         this.t = 0; this.phase = 'pre'; this.hold = .7;
-        this.setCam(this.cur.shots.live);
+        this.followLive();
         this.onUpdate(this.match, p);
         this.onEvent(p);
       }
       return;
     }
-    const p = this.cur.play;
+    const c = this.cur, p = c.play;
     const restHold = () => (p.comment ? 3.2 : 1.6) + (p.hl ? 1 : 0);
+    this.slow = 1; this.shake = 0;
     if (this.phase === 'pre') { this.hold -= dt; if (this.hold <= 0) this.phase = 'run'; return; }
     if (this.phase === 'run') {
-      this.t += dt / this.cur.anim.dur;
+      const close = this.camMode === 'player' || this.camMode === 'rail';
+      this.slow = close ? slowmo(c.anim, p, this.t) : 1;
+      this.shake = close ? contact(c.anim, p, this.t) : 0;
+      this.t += dt * this.slow / c.anim.dur;
       if (this.t >= 1) {
         this.t = 1; this.phase = 'post';
-        this.hold = this.cur.shots.replay ? 1.5 : restHold();
+        this.hold = c.plan.replays.length ? 1.4 : restHold();
+        if (!c.plan.replays.length) c.replaysDone = true;
         this.celebrate(p);
-      }
+      } else this.followLive();
       return;
     }
     if (this.phase === 'replay') {
-      this.t += dt * .7 / this.cur.anim.dur;
-      if (this.t >= 1) { this.t = 1; this.phase = 'post'; this.hold = restHold(); }
+      const r = c.plan.replays[c.rep];
+      this.slow = r.rate; this.shake = r.cam === 'player' ? contact(c.anim, p, this.t) * .6 : 0;
+      this.t += dt * r.rate / c.anim.dur;
+      if (this.t >= 1) {
+        this.t = 1;
+        if (c.rep + 1 < c.plan.replays.length) this.startReplay(c.rep + 1);
+        else { this.phase = 'post'; this.hold = restHold(); c.replaysDone = true; }
+      }
       return;
     }
     if (this.phase === 'post') {
       this.hold -= dt;
       if (this.hold > 0) return;
-      if (this.cur.shots.replay && !this.cur.replayed) {
-        this.cur.replayed = true; this.phase = 'replay'; this.t = this.cur.shots.from;
-        this.setCam(this.cur.shots.replay, 'replay');
-        return;
-      }
+      if (!c.replaysDone) { this.startReplay(0); return; }
       this.cur = null; this.banner = null;
     }
+  }
+
+  startReplay(i) {
+    const c = this.cur, r = c.plan.replays[i];
+    c.rep = i; this.phase = 'replay'; this.t = r.from;
+    this.setCam(r.cam, 'replay', r.who || 'auto');
   }
 
   celebrate(p) {
     const T = this.T;
     const team = this.match.teams[p.td && p.int ? 1 - p.off : p.off];
+    // L'afició: salta la de l'equip que celebra.
+    if (p.td) { this.hype = 1; this.hypeTeam = p.int ? 1 - p.off : p.off; }
+    else if (p.int || p.fumble || p.safety) { this.hype = .85; this.hypeTeam = 1 - p.off; }
+    else if (p.kind === 'fg' && p.good) { this.hype = .7; this.hypeTeam = p.off; }
+    else if (isBig(p)) { this.hype = .55; this.hypeTeam = p.kind === 'sack' ? 1 - p.off : p.off; }
     let text = '';
     if (p.td) text = T.td; else if ((p.kind === 'fg') && p.good) text = T.fg; else if (p.int) text = T.int; else if (p.fumble) text = T.fumble; else if (p.safety) text = T.safety; else if (p.kind === 'sack' && p.hl) text = T.sack;
     if (!text) return;
     const scorer = p.td ? this.match.teams[(p.int ? 1 - p.off : p.off)] : (p.int || p.fumble || p.safety ? this.match.teams[1 - p.off] : team);
-    this.banner = { text, color: scorer.color, color2: scorer.color2, t0: performance.now() };
+    this.banner = { text, color: scorer.color, color2: scorer.color2, t0: performance.now(), td: !!p.td };
     if (p.td || (p.kind === 'fg' && p.good)) {
       const b = this.cur.anim.ball(1) || { x: this.cur.anim.endX, y: C, z: 1 };
       for (let i = 0; i < 160; i++) this.particles.push({ x: b.x, y: b.y, z: 2, vx: (Math.random() - .5) * 18, vy: (Math.random() - .5) * 18, vz: 8 + Math.random() * 14, c: Math.random() < .5 ? scorer.color : scorer.color2, life: 2 + Math.random() });
     }
   }
 
-  isSky() { return this.camMode === 'sky' && !!this.sky; }
+  // Càmera 3D (qualsevol menys la tele de banda).
+  is3D() { return this.camMode !== 'tv' && !!this.cam3; }
+  isSky() { return this.camMode === 'sky' && !!this.cam3; }
 
-  // Mou les càmeres: la de tele llisca amb la pilota; la skycam va cap a on
-  // diu skyShot amb una mica de retard, i s'inclina quan es desplaça de costat.
+  // Mou les càmeres: la de tele llisca amb la pilota; la resta va cap al pla
+  // que toca amb una mica de retard (més viva la de jugador), amb balanceig
+  // del cap quan corre i la skycam inclinant-se quan es desplaça de costat.
   updateCamera(a, b) {
     const W = this.W, H = this.H, dt = this.simDt;
     const focusX = b ? b.x : (this.cur ? this.cur.anim.los : this.camX);
     if (this.camMode === 'tv' && this.snap) this.camX = clamp(focusX, 14, 106);
     else this.camX = lerp(this.camX, clamp(focusX, 14, 106), .06);
-    if (this.camMode === 'sky' && a) {
-      const shot = skyShot(a, this.cur.play.kind, this.t);
-      if (this.snap || !this.sky) this.sky = { P: shot.P.slice(), L: shot.L.slice(), zoom: shot.zoom, roll: 0 };
+    if (this.camMode !== 'tv' && a) {
+      const shot = shotFor(this.camMode, a, this.cur.play, this.t, this.camWho);
+      if (this.snap || !this.cam3) this.cam3 = { P: shot.P.slice(), L: shot.L.slice(), zoom: shot.zoom, roll: 0, speed: shot.speed || 0 };
       else if (dt > 0) {
-        const s = this.sky, kP = 1 - Math.exp(-dt * 3.2), kL = 1 - Math.exp(-dt * 4.5);
+        const s = this.cam3, kP = 1 - Math.exp(-dt * shot.kP), kL = 1 - Math.exp(-dt * shot.kL);
         const old = s.P.slice();
         for (let i = 0; i < 3; i++) { s.P[i] = lerp(s.P[i], shot.P[i], kP); s.L[i] = lerp(s.L[i], shot.L[i], kL); }
         s.zoom = lerp(s.zoom, shot.zoom, kP);
-        const v = this.view && this.view.r ? this.view : makeView(s.P, s.L, 1, 0, 0);
-        const side = ((s.P[0] - old[0]) * v.r[0] + (s.P[1] - old[1]) * v.r[1]) / dt;
-        s.roll = lerp(s.roll, clamp(side * .01, -.045, .045), 1 - Math.exp(-dt * 2.5));
+        s.speed = lerp(s.speed, shot.speed || 0, kP);
+        let rollTo = 0;
+        if (this.camMode === 'sky') { const v = this.view && this.view.r ? this.view : makeView(s.P, s.L, 1, 0, 0); rollTo = clamp(((s.P[0] - old[0]) * v.r[0] + (s.P[1] - old[1]) * v.r[1]) / dt * .01, -.045, .045); }
+        s.roll = lerp(s.roll, rollTo, 1 - Math.exp(-dt * 2.5));
       }
     }
     // Partit acabat o esperant jugades: tornem a la tele.
     if (!this.cur && this.idx >= this.queue.length) this.camMode = 'tv';
     this.snap = false;
-    if (this.isSky()) {
-      const s = this.sky;
-      // En vertical (mòbil) el punt de fuga puja perquè es vegi més camp.
-      this.view = makeView(s.P, s.L, Math.max(.68 * W, .5 * H) * s.zoom, W / 2, H * (W < H ? .36 : .5), s.roll);
+    if (this.is3D()) {
+      const s = this.cam3, P = s.P.slice();
+      // Balanceig del cap a la càmera de jugador quan corre.
+      if (this.camMode === 'player') P[2] += Math.sin(this.clock * 13) * .07 * clamp(s.speed / 7, 0, 1);
+      const base = this.camMode === 'player' ? Math.max(.5 * W, .42 * H) : Math.max(.68 * W, .5 * H);
+      const cy = this.camMode === 'player' ? H * (W < H ? .42 : .5) : H * (W < H ? .36 : .5);
+      this.view = makeView(P, s.L, base * s.zoom, W / 2, cy, s.roll);
     } else this.view = tvView(this.camX, this.focal, this.camH, W, this.horizon);
   }
 
   draw() {
-    const g = this.ctx, W = this.W, H = this.H;
-    // Cel i graderia.
-    const sky = g.createLinearGradient(0, 0, 0, H * .35);
-    sky.addColorStop(0, '#0b1020'); sky.addColorStop(1, '#1b2440');
-    g.fillStyle = sky; g.fillRect(0, 0, W, H);
-    if (!this.match) { this.drawCenterText(this.T.pregame); return; }
+    const g = this.ctx, W = this.W, H = this.H, d = this.dpr;
+    if (!this.match) { g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H); this.drawCenterText(this.T.pregame); return; }
+    if (!this.stadium || this.stadium.key !== this.match.teams[0].color + this.match.teams[1].color) { this.stadium = makeStadium(this.match.teams); this.cacheKey = ''; }
     const a = this.cur && this.cur.anim;
     const b = a && a.ball(this.t);
     this.updateCamera(a, b);
     const v = this.view;
     g.save();
+    if (this.shake) g.translate(Math.sin(this.clock * 61) * this.shake * 9 * d, Math.cos(this.clock * 47) * this.shake * 6 * d);
+    this.drawStatic();
+    g.save();
     if (v.roll) { g.translate(v.cx, v.cy); g.rotate(v.roll); g.translate(-v.cx, -v.cy); }
-    if (this.isSky()) this.drawSkyStands(); else this.drawStands();
-    this.drawField();
-    if (a) this.drawPlay(a, b);
+    this.drawCrowd();
+    if (this.camMode !== 'tv') this.drawBoards();
+    this.drawPlay(a, b);
     this.drawParticles();
     g.restore();
-    if (this.isSky()) {
-      const vg = g.createRadialGradient(W / 2, H * .55, Math.min(W, H) * .35, W / 2, H * .55, Math.max(W, H) * .75);
-      vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
-      g.fillStyle = vg; g.fillRect(0, 0, W, H);
+    g.restore();
+    if (this.is3D()) {
+      // Vinyeta: es pinta un cop per mida i després només es copia.
+      if (!this.vig || this.vig.width !== W || this.vig.height !== H) {
+        this.vig = document.createElement('canvas'); this.vig.width = W; this.vig.height = H;
+        const vc = this.vig.getContext('2d'), vg = vc.createRadialGradient(W / 2, H * .55, Math.min(W, H) * .35, W / 2, H * .55, Math.max(W, H) * .75);
+        vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.42)');
+        vc.fillStyle = vg; vc.fillRect(0, 0, W, H);
+      }
+      g.drawImage(this.vig, 0, 0);
     }
+    this.drawSpeed();
     this.drawCutFx();
+    if (this.slow < 1) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, H - 10 * d, W, 10 * d); }
     this.drawHUD();
     this.drawCamTag();
   }
 
-  drawStands() {
-    const g = this.ctx, W = this.W;
-    const top = this.proj(this.camX, FIELD_W + 6).y;
-    const grad = g.createLinearGradient(0, 0, 0, top);
-    grad.addColorStop(0, '#141a2e'); grad.addColorStop(1, '#2a3354');
-    g.fillStyle = grad; g.fillRect(0, 0, W, top);
-    // Públic: punts de colors.
-    const R = rng(7);
-    for (let i = 0; i < 380; i++) { const x = R() * W, y = R() * top * .92; g.fillStyle = `hsla(${R() * 360},45%,${45 + R() * 30}%,.55)`; g.fillRect(x, y, 2 * this.dpr, 2 * this.dpr); }
-    // Llums de l'estadi.
-    for (let i = 0; i < 6; i++) { const x = (i + .5) * W / 6; const lg = g.createRadialGradient(x, top * .1, 0, x, top * .1, W * .12); lg.addColorStop(0, 'rgba(255,255,240,.35)'); lg.addColorStop(1, 'rgba(255,255,240,0)'); g.fillStyle = lg; g.fillRect(x - W * .12, 0, W * .24, top * .5); }
+  // Capa quieta (cel, estadi, camp): si la càmera no s'ha mogut des de l'últim
+  // fotograma, es fa servir la còpia desada en lloc de tornar-la a pintar.
+  drawStatic() {
+    const v = this.view, W = this.W, H = this.H;
+    const r3 = x => x.toFixed(3);
+    const key = [this.camMode, v.P.map(r3), v.f.map(r3), r3(v.focal), r3(v.roll), W, H, this.cur ? this.cur.play.n : 0].join('|');
+    const still = key === this.lastKey;
+    this.lastKey = key;
+    const g = this.ctx;
+    if (still && this.cacheKey === key) { g.drawImage(this.cache, 0, 0); return; }
+    let target = g;
+    if (still && typeof document !== 'undefined') {
+      if (!this.cache || this.cache.width !== W || this.cache.height !== H) { this.cache = document.createElement('canvas'); this.cache.width = W; this.cache.height = H; }
+      target = this.cache.getContext('2d');
+      target.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    this.ctx = target;
+    target.save();
+    if (v.roll) { target.translate(v.cx, v.cy); target.rotate(v.roll); target.translate(-v.cx, -v.cy); }
+    this.drawSky();
+    this.drawStadium();
+    this.drawField();
+    target.restore();
+    this.ctx = g;
+    if (target !== g) { this.cacheKey = key; g.drawImage(this.cache, 0, 0); }
   }
 
-  // L'estadi vist des de dins: terra, graderies en talús amb públic, la tanca
-  // del camp i les torres de llum.
-  drawSkyStands() {
-    const g = this.ctx, d = this.dpr, W = this.W, H = this.H;
-    const FW = FIELD_W;
-    this.poly([[-80, -60, 0], [200, -60, 0], [200, FW + 60, 0], [-80, FW + 60, 0]], '#1d3a22');
-    const planes = [
-      [[-40, -14, 0], [160, -14, 0], [160, -46, 30], [-40, -46, 30]],
-      [[-40, FW + 14, 0], [160, FW + 14, 0], [160, FW + 46, 30], [-40, FW + 46, 30]],
-      [[-22, -14, 0], [-22, FW + 14, 0], [-54, FW + 14, 30], [-54, -14, 30]],
-      [[142, -14, 0], [142, FW + 14, 0], [174, FW + 14, 30], [174, -14, 30]],
-    ].map(q => ({ q, dd: camSpace(this.view, (q[0][0] + q[2][0]) / 2, (q[0][1] + q[2][1]) / 2, 15)[2] }))
-      .sort((u, v) => v.dd - u.dd);
-    for (const { q } of planes) {
-      this.poly(q, '#202842');
-      // Grades: franges una mica més clares.
-      for (let h = .1; h < 1; h += .15) {
-        const at = (k) => [0, 1, 2].map(i => lerp(q[0][i], q[3][i], k)), at2 = (k) => [0, 1, 2].map(i => lerp(q[1][i], q[2][i], k));
-        this.poly([at(h), at2(h), at2(h + .035), at(h + .035)], '#2b3558');
-      }
+  // Cel de nit amb estrelles i una boirina clara a l'horitzó.
+  drawSky() {
+    const g = this.ctx, v = this.view, W = this.W, H = this.H, d = this.dpr;
+    // L'horitzó (on van a parar els punts llunyans a terra).
+    const hz = project(v, v.P[0] + v.f[0] * 1e4, v.P[1] + v.f[1] * 1e4, v.P[2]).y;
+    const sky = g.createLinearGradient(0, Math.min(hz, H) - H, 0, Math.min(hz, H));
+    sky.addColorStop(0, '#03050c'); sky.addColorStop(.75, '#0d1430'); sky.addColorStop(1, '#2a3156');
+    g.fillStyle = sky; g.fillRect(-W * .1, -H * .1, W * 1.2, H * 1.2);
+    g.fillStyle = 'rgba(255,255,255,.6)';
+    for (const [x, y, z] of this.stadium.stars) {
+      const X = x * v.r[0] + y * v.r[1] + z * v.r[2], Y = x * v.u[0] + y * v.u[1] + z * v.u[2], Z = x * v.f[0] + y * v.f[1] + z * v.f[2];
+      if (Z < .05) continue;
+      const sx = v.cx + v.focal * X / Z, sy = v.cy - v.focal * Y / Z;
+      if (sx < 0 || sx > W || sy < 0 || sy > H) continue;
+      g.fillRect(sx, sy, 1.4 * d, 1.4 * d);
     }
-    let ci = -1;
-    for (const c of this.crowd) {
-      const p = this.proj(c.x, c.y, c.z);
-      if (p.d < NEAR || p.x < -4 || p.x > W + 4 || p.y < -4 || p.y > H + 4) continue;
-      if (c.ci !== ci) { ci = c.ci; g.fillStyle = this.crowd.colors[ci]; }
-      const sz = clamp(.26 * p.s, 1 * d, 3.6 * d);
-      g.fillRect(p.x - sz / 2, p.y - sz, sz, sz * 1.3);
+  }
+
+  // El bol de graderies, les torres de llum i el terra de fora del camp.
+  drawStadium() {
+    const g = this.ctx, v = this.view, W = this.W, tv = this.camMode === 'tv';
+    this.poly([[-90, -70, 0], [210, -70, 0], [210, FIELD_W + 70, 0], [-90, FIELD_W + 70, 0]], '#14301c');
+    // Torres (darrere de tot): pal i focus.
+    const glows = [];
+    for (const th of TOWERS) {
+      const [x, y] = ring(th, 64), [nx, ny] = [Math.cos(th), Math.sin(th)];
+      if (tv && y > FIELD_W) continue;
+      const tx = -ny, ty = nx;
+      this.poly([[x - tx * .7, y - ty * .7, 0], [x + tx * .7, y + ty * .7, 0], [x + tx * .5, y + ty * .5, 56], [x - tx * .5, y - ty * .5, 56]], '#0b0f1c');
+      this.poly([[x - tx * 7, y - ty * 7, 54], [x + tx * 7, y + ty * 7, 54], [x + tx * 7, y + ty * 7, 62], [x - tx * 7, y - ty * 7, 62]], '#fffbe8');
+      const p = this.proj(x, y, 58);
+      if (p.d > NEAR) glows.push(p);
     }
-    // Tanca de publicitat al voltant del camp.
-    const wall = [[-14, -6, -14, FW + 6], [134, -6, 134, FW + 6], [-14, -6, 134, -6], [-14, FW + 6, 134, FW + 6]];
-    for (const [x0, y0, x1, y1] of wall) {
-      this.poly([[x0, y0, 0], [x1, y1, 0], [x1, y1, 1.3], [x0, y0, 1.3]], '#0f1a36');
-      this.poly([[x0, y0, 1.05], [x1, y1, 1.05], [x1, y1, 1.3], [x0, y0, 1.3]], '#ffd400');
+    const list = [];
+    for (const q of this.stadium.polys) {
+      if (tv && q.cen[1] > FIELD_W + 8) continue;
+      const dd = camSpace(v, q.cen[0], q.cen[1], q.cen[2])[2];
+      if (dd < -40) continue;
+      list.push([dd + q.bias, q]);
     }
-    // Torres de llum.
-    for (const [x, y] of [[-34, -40], [154, -40], [-34, FW + 40], [154, FW + 40], [60, -50], [60, FW + 50]]) {
-      const p = this.proj(x, y, 44);
-      if (p.d < NEAR) continue;
-      const r = clamp(16 * p.s, 20 * d, W * .3);
+    list.sort((p, q) => q[0] - p[0]);
+    for (const [, q] of list) this.poly(q.pts, q.fill);
+    // Resplendor dels focus i boirina.
+    for (const p of glows) {
+      const r = clamp(30 * p.s, 30 * this.dpr, W * .25);
       const lg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-      lg.addColorStop(0, 'rgba(255,255,235,.9)'); lg.addColorStop(.08, 'rgba(255,255,235,.45)'); lg.addColorStop(1, 'rgba(255,255,235,0)');
+      lg.addColorStop(0, 'rgba(255,252,230,.95)'); lg.addColorStop(.06, 'rgba(255,250,225,.5)'); lg.addColorStop(.35, 'rgba(200,210,255,.12)'); lg.addColorStop(1, 'rgba(200,210,255,0)');
       g.fillStyle = lg; g.fillRect(p.x - r, p.y - r, 2 * r, 2 * r);
     }
   }
 
+  // El públic: punts i ninots amb els colors dels equips, que es balancegen,
+  // fan l'onada de tant en tant i salten, aixequen els braços, onegen
+  // banderes i disparen flaixos quan el seu equip marca.
+  drawCrowd() {
+    const g = this.ctx, v = this.view, W = this.W, H = this.H, d = this.dpr, st = this.stadium;
+    const tv = this.camMode === 'tv', ck = this.clock, hype = this.hype, ht = this.hypeTeam;
+    const Px = v.P[0], Py = v.P[1], Pz = v.P[2], r = v.r, u = v.u, f = v.f, F = v.focal, cx = v.cx, cy = v.cy;
+    const wt = ck % 40, wave = wt < 13, wth = wt / 13 * Math.PI * 3;
+    const heads = [], flags = [];
+    let ci = -1;
+    for (const c of st.people) {
+      if (tv && c.y > FIELD_W + 8) continue;
+      const ex = hype * (c.team === ht ? 1 : c.team < 0 ? .4 : .08);
+      let up = Math.sin(ck * 1.6 + c.ph) * .05 + ex * Math.abs(Math.sin(ck * 8.5 + c.ph * 3)) * .55, arms = ex > .3;
+      if (wave) { const dth = Math.abs((((c.th - wth) % 6.2832) + 9.4248) % 6.2832 - 3.1416); const w = Math.exp(-dth * dth * 30); up += w * .7; if (w > .35) arms = true; }
+      const dx = c.x - Px, dy = c.y - Py, dz = c.z + up - Pz;
+      const Z = dx * f[0] + dy * f[1] + dz * f[2];
+      if (Z < 2) continue;
+      const s = F / Z;
+      // De lluny n'hi ha prou amb la meitat (la grada ja té el color de l'afició).
+      if (c.lod && s < 4 * d) continue;
+      const x = cx + (dx * r[0] + dy * r[1]) * s, y = cy - (dx * u[0] + dy * u[1] + dz * u[2]) * s;
+      if (x < -20 || x > W + 20 || y < -20 || y > H + 20) continue;
+      if (c.ci !== ci) { ci = c.ci; g.fillStyle = st.pal[ci]; }
+      const bw = Math.max(.5 * s, 1.1 * d), bh = Math.max(.66 * s, 1.3 * d);
+      g.fillRect(x - bw / 2, y - bh, bw, bh);
+      if (bw > 3 * d) {
+        heads.push(x, y - bh - .14 * s, .26 * s);
+        // De prop, els veïns de seient (més gent sense més càlculs).
+        const sx = .58 * s, sy = (Math.sin(c.ph * 7) * .08) * s;
+        g.fillRect(x - sx - bw / 2, y - bh + sy, bw, bh); g.fillRect(x + sx - bw / 2, y - bh - sy, bw, bh);
+        heads.push(x - sx, y - bh - .14 * s + sy, .26 * s, x + sx, y - bh - .14 * s - sy, .26 * s);
+        if (arms) { g.fillRect(x - bw / 2 - .05 * s, y - bh - .42 * s, .1 * s, .45 * s); g.fillRect(x + bw / 2 - .05 * s, y - bh - .42 * s, .1 * s, .45 * s); }
+      }
+      if (c.flag && bw > 1.5 * d) flags.push(x, y - bh, s, c.ph, c.team);
+    }
+    g.fillStyle = '#c99f7e';
+    for (let i = 0; i < heads.length; i += 3) g.fillRect(heads[i] - heads[i + 2] / 2, heads[i + 1] - heads[i + 2] / 2, heads[i + 2], heads[i + 2]);
+    const teams = this.match.teams;
+    for (let i = 0; i < flags.length; i += 5) {
+      const [x, y, s, ph, tm] = [flags[i], flags[i + 1], flags[i + 2], flags[i + 3], flags[i + 4]];
+      const team = teams[tm < 0 ? 0 : tm], top = y - 1.3 * s, wav = Math.sin(ck * 6 + ph) * (.15 + hype * .3) * s;
+      g.fillStyle = '#ddd'; g.fillRect(x, top, Math.max(1, .05 * s), 1.3 * s);
+      g.fillStyle = team.color; g.beginPath(); g.moveTo(x, top); g.lineTo(x + .8 * s, top + wav * .5); g.lineTo(x + .8 * s, top + .5 * s + wav); g.lineTo(x, top + .5 * s); g.closePath(); g.fill();
+    }
+    // Flaixos de càmeres: sempre algun, i una pluja quan hi ha gresca.
+    const n = Math.floor(hype * 18) + (Math.random() < .25 ? 1 : 0);
+    for (let k = 0; k < n; k++) {
+      const c = st.people[Math.floor(Math.random() * st.people.length)];
+      if (tv && c.y > FIELD_W + 8) continue;
+      const p = this.proj(c.x, c.y, c.z + .6);
+      if (p.d < 2 || p.x < 0 || p.x > W || p.y < 0 || p.y > H) continue;
+      const rr = clamp(.9 * p.s, 3 * d, 18 * d);
+      const lg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, rr);
+      lg.addColorStop(0, 'rgba(255,255,255,1)'); lg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = lg; g.fillRect(p.x - rr, p.y - rr, 2 * rr, 2 * rr);
+    }
+  }
+
+  // Videomarcadors penjats sobre les dues zones de marca.
+  boardCanvas() {
+    const m = this.match, T = this.T, p = this.cur ? this.cur.play : this.shown(), sc = this.score();
+    const bn = this.banner, flash = bn ? Math.floor(performance.now() / 280) % 2 : 0;
+    const key = bn ? 'B' + bn.text + flash : [sc, p && p.q, p && p.clock, p && p.down, p && p.dist].join(',');
+    if (key === this.boardKey && this.board) return this.board;
+    this.boardKey = key;
+    if (!this.board) { this.board = document.createElement('canvas'); this.board.width = 384; this.board.height = 176; }
+    const g = this.board.getContext('2d'), w = 384, h = 176;
+    g.fillStyle = '#04060c'; g.fillRect(0, 0, w, h);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    if (bn) {
+      g.fillStyle = flash ? bn.color : (bn.color2 || '#fff'); g.fillRect(6, 6, w - 12, h - 12);
+      g.fillStyle = flash ? (bn.color2 || '#fff') : bn.color; g.font = '900 italic 54px "Segoe UI", system-ui, sans-serif';
+      g.fillText(bn.text.replace(/!$/, ''), w / 2, h / 2, w - 30);
+    } else {
+      [0, 1].forEach(i => {
+        const t = m.teams[i], x = i ? w * .75 : w * .25;
+        g.fillStyle = t.color; g.fillRect(i ? w / 2 + 6 : 6, 6, w / 2 - 12, 34);
+        g.fillStyle = luminance(t.color) > .6 ? '#111' : '#fff'; g.font = '800 24px "Segoe UI", system-ui, sans-serif'; g.fillText(t.abbr, x, 24);
+        g.fillStyle = '#ffd400'; g.font = '900 72px "Segoe UI", system-ui, sans-serif'; g.fillText(String(sc ? sc[i] : 0), x, 96);
+      });
+      g.fillStyle = '#fff'; g.font = '700 20px "Segoe UI", system-ui, sans-serif';
+      const q = p ? `${T.q[Math.min(4, p.q - 1)]}  ${Math.floor(p.clock / 60)}:${String(p.clock % 60).padStart(2, '0')}` : '';
+      g.fillText(q, w / 2, 150);
+    }
+    return this.board;
+  }
+
+  drawBoards() {
+    const g = this.ctx, img = this.boardCanvas();
+    for (const [x, sgn] of [[-20, 1], [140, -1]]) {
+      // Qui el mira des del camp té la dreta cap a -y (pantalla a x<0) o +y.
+      const y0 = sgn > 0 ? C + 15 : C - 15, y1 = sgn > 0 ? C - 15 : C + 15;
+      const zb = 13, zt = 26.5;
+      const TL = this.proj(x, y0, zt), TR = this.proj(x, y1, zt), BL = this.proj(x, y0, zb), BR = this.proj(x, y1, zb);
+      if (Math.min(TL.d, TR.d, BL.d, BR.d) < 3) continue;
+      // Que es vegi de cara (no d'esquena).
+      if ((TR.x - TL.x) * (BL.y - TL.y) - (TR.y - TL.y) * (BL.x - TL.x) <= 0) continue;
+      this.poly([[x, y0 + sgn * .8, zb - .8], [x, y1 - sgn * .8, zb - .8], [x, y1 - sgn * .8, zt + .8], [x, y0 + sgn * .8, zt + .8]], '#1c2233');
+      g.strokeStyle = '#3a4258'; g.lineWidth = Math.max(1, .15 * TL.s);
+      g.beginPath(); g.moveTo(TL.x, TL.y); const c1 = this.proj(x, y0, 47); g.lineTo(c1.x, c1.y); g.moveTo(TR.x, TR.y); const c2 = this.proj(x, y1, 47); g.lineTo(c2.x, c2.y); g.stroke();
+      g.save(); g.transform((TR.x - TL.x) / img.width, (TR.y - TL.y) / img.width, (BL.x - TL.x) / img.height, (BL.y - TL.y) / img.height, TL.x, TL.y);
+      g.drawImage(img, 0, 0); g.restore();
+    }
+  }
+
   // Polígon 3D retallat pel pla de davant de la càmera (si no, el que queda
-  // darrere la skycam es dibuixaria del revés).
-  // Amb fill null només afegeix el polígon al camí actual (per pintar-ne molts d'un cop).
+  // darrere es dibuixaria del revés). Amb fill null només afegeix el polígon
+  // al camí actual (per pintar-ne molts d'un cop).
   poly(pts, fill) {
     const v = this.view, cam = pts.map(p => camSpace(v, p[0], p[1], p[2] || 0)), out = [];
     for (let i = 0; i < cam.length; i++) {
@@ -615,8 +980,8 @@ export class FootballView {
 
   line(x0, y0, x1, y1, color, w) {
     const g = this.ctx;
-    if (this.isSky()) {
-      // A la skycam les ratlles són tires de gespa pintada (fan perspectiva).
+    if (this.is3D()) {
+      // A les càmeres 3D les ratlles són tires de gespa pintada (fan perspectiva).
       const L = Math.hypot(x1 - x0, y1 - y0) || 1, hw = w * .06, nx = -(y1 - y0) / L * hw, ny = (x1 - x0) / L * hw;
       this.poly([[x0 + nx, y0 + ny], [x1 + nx, y1 + ny], [x1 - nx, y1 - ny], [x0 - nx, y0 - ny]], color);
       return;
@@ -629,7 +994,7 @@ export class FootballView {
   // defecte al llarg del camp; flip el gira mitja volta).
   groundText(text, x, y, size, color, flip, rot) {
     const g = this.ctx;
-    if (this.isSky()) {
+    if (this.is3D()) {
       const [rx, ry] = rot || (flip ? [-1, 0] : [1, 0]), ux = ry, uy = -rx;
       const o = this.proj(x, y), A = this.proj(x + rx, y + ry), B = this.proj(x - ux, y - uy);
       // Prou lluny perquè tot el text quedi davant la càmera.
@@ -647,8 +1012,10 @@ export class FootballView {
     g.fillText(text, 0, 0); g.restore();
   }
 
+  circle(x, y, r, fill) { const pts = []; for (let i = 0; i < 28; i++) { const a = i / 28 * Math.PI * 2; pts.push([x + Math.cos(a) * r, y + Math.sin(a) * r]); } this.poly(pts, fill); }
+
   drawField() {
-    const m = this.match, sky = this.isSky();
+    const m = this.match, s3 = this.is3D();
     const q = (this.cur && this.cur.play.q) || m.quarter || 1;
     this.quad(-12, -5, 132, FIELD_W + 5, '#2f6b33');
     for (let x = 10; x < 110; x += 5) this.quad(x, 0, x + 5, FIELD_W, (x / 5) % 2 ? '#3d8a3f' : '#357d38');
@@ -657,49 +1024,63 @@ export class FootballView {
     const rightTeam = m.teams[attackDir(0, q) > 0 ? 1 : 0];
     this.quad(0, 0, 10, FIELD_W, shade(leftTeam.color, -.15));
     this.quad(110, 0, 120, FIELD_W, shade(rightTeam.color, -.15));
-    // A la skycam el nom es llegeix de cara des del camp, d'una banda a l'altra.
-    this.groundText(leftTeam.name.toUpperCase(), 5, C, sky ? 4.4 : 3.2, leftTeam.color2 || '#fff', false, [0, -1]);
-    this.groundText(rightTeam.name.toUpperCase(), 115, C, sky ? 4.4 : 3.2, rightTeam.color2 || '#fff', false, [0, 1]);
+    // Ratlles en diagonal a les zones de marca.
+    for (const [x0, tm] of [[0, leftTeam], [110, rightTeam]]) {
+      const g = this.ctx; g.beginPath();
+      for (let y = 2; y < FIELD_W - 6; y += 6) this.poly([[x0 + .6, y], [x0 + .6, y + 1.2], [x0 + 9.4, y + 5.2], [x0 + 9.4, y + 4]], null);
+      g.fillStyle = shade(tm.color, -.28); g.fill();
+    }
+    // A les càmeres 3D el nom es llegeix de cara des del camp, d'una banda a l'altra.
+    this.groundText(leftTeam.name.toUpperCase(), 5, C, s3 ? 4.4 : 3.2, leftTeam.color2 || '#fff', false, [0, -1]);
+    this.groundText(rightTeam.name.toUpperCase(), 115, C, s3 ? 4.4 : 3.2, rightTeam.color2 || '#fff', false, [0, 1]);
     // Línies.
     for (let x = 10; x <= 110; x += 5) this.line(x, 0, x, FIELD_W, 'rgba(255,255,255,.85)', x % 10 === 0 ? 1.4 : 1);
     this.line(0, 0, 120, 0, '#fff', 2); this.line(0, FIELD_W, 120, FIELD_W, '#fff', 2);
     this.line(0, 0, 0, FIELD_W, '#fff', 2); this.line(120, 0, 120, FIELD_W, '#fff', 2);
-    if (sky) {
+    if (s3) {
       // Marques de iarda: totes en un sol camí.
       const g = this.ctx; g.beginPath();
       for (let x = 11; x < 110; x++) { if (x % 5 === 0) continue; for (const [y0, y1] of [[22.9, 23.6], [29.7, 30.4], [1, 1.6], [FIELD_W - 1.6, FIELD_W - 1]]) this.poly([[x - .05, y0], [x + .05, y0], [x + .05, y1], [x - .05, y1]], null); }
       g.fillStyle = 'rgba(255,255,255,.7)'; g.fill();
     } else for (let x = 11; x < 110; x++) { if (x % 5 === 0) continue; this.line(x, 22.9, x, 23.6, 'rgba(255,255,255,.7)', .8); this.line(x, 29.7, x, 30.4, 'rgba(255,255,255,.7)', .8); this.line(x, 1, x, 1.6, 'rgba(255,255,255,.7)', .8); this.line(x, FIELD_W - 1.6, x, FIELD_W - 1, 'rgba(255,255,255,.7)', .8); }
     for (let x = 20; x <= 100; x += 10) { const n = String(x <= 60 ? x - 10 : 110 - x); this.groundText(n, x, 9, 2.6, 'rgba(255,255,255,.9)', true); this.groundText(n, x, FIELD_W - 9, 2.6, 'rgba(255,255,255,.9)'); }
-    // Logo al mig.
-    this.groundText('VENTS', 60, C, 4.2, 'rgba(255,255,255,.18)');
+    // Logo del mig del camp: cercle amb els colors dels dos equips.
+    this.circle(60, C, 5.2, 'rgba(255,255,255,.55)');
+    this.circle(60, C, 4.7, shade(m.teams[0].color, -.2));
+    this.poly(Array.from({ length: 15 }, (_, i) => { const a = -Math.PI / 2 + i / 14 * Math.PI; return [60 + Math.cos(a) * 4.7, C + Math.sin(a) * 4.7]; }), shade(m.teams[1].color, -.2));
+    this.groundText('VENTS', 60, C, 2.6, 'rgba(255,255,255,.85)');
     // Línia de scrimmage i del primer down.
     if (this.cur && !['kickoff', 'pat', 'two'].includes(this.cur.play.kind)) {
       const p = this.cur.play, a = this.cur.anim;
       this.line(a.los, 0, a.los, FIELD_W, 'rgba(70,140,255,.95)', 2.2);
       if (p.dist && p.spot + p.dist < 100) { const fx = fieldX(p.spot + p.dist, a.dir); const g = this.ctx; g.save(); g.shadowColor = '#ffd400'; g.shadowBlur = 12; this.line(fx, 0, fx, FIELD_W, '#ffd400', 2.4); g.restore(); }
     }
-    // Pals (el de lluny primer).
-    const posts = [0, 120].sort((u, v) => camSpace(this.view, v, C)[2] - camSpace(this.view, u, C)[2]);
-    if (!sky) posts.forEach(x => this.drawPosts(x));
-    else this.skyPosts = posts;
   }
 
   drawPosts(x) {
     const g = this.ctx;
     const base = this.proj(x, C), bar = this.proj(x, C, 3.3);
     const l = this.proj(x, C - 3.08, 3.3), r = this.proj(x, C + 3.08, 3.3), lt = this.proj(x, C - 3.08, 11), rt = this.proj(x, C + 3.08, 11);
-    if (Math.min(base.d, l.d, r.d) < NEAR + .5) return;
+    if (Math.min(base.d, l.d, r.d, lt.d, rt.d) < NEAR + .5) return;
     g.strokeStyle = '#f4d03f'; g.lineCap = 'round';
     g.lineWidth = .35 * base.s; g.beginPath(); g.moveTo(base.x, base.y); g.lineTo(bar.x, bar.y); g.stroke();
     g.lineWidth = .25 * base.s; g.beginPath(); g.moveTo(l.x, l.y); g.lineTo(r.x, r.y); g.moveTo(l.x, l.y); g.lineTo(lt.x, lt.y); g.moveTo(r.x, r.y); g.lineTo(rt.x, rt.y); g.stroke();
+  }
+
+  // Pal taronja (pylon) a les cantonades de les zones de marca.
+  drawPylon(x, y) {
+    const g = this.ctx, b = this.proj(x, y), t = this.proj(x, y, 1.2);
+    if (b.d < NEAR + .3) return;
+    const w = Math.max(1.5, .14 * b.s);
+    g.fillStyle = '#ff7a12'; g.fillRect(b.x - w / 2, t.y, w, b.y - t.y);
+    g.fillStyle = '#fff'; g.fillRect(b.x - w / 2, lerp(t.y, b.y, .45), w, Math.max(1, (b.y - t.y) * .08));
   }
 
   drawBall(b, t) {
     const g = this.ctx;
     const sh = this.proj(b.x, b.y), p = this.proj(b.x, b.y, b.z);
     if (p.d < NEAR + .5) return;
-    const flat = this.isSky() ? clamp(this.view.P[2] / Math.max(1, sh.d), .15, .8) : .4;
+    const flat = this.is3D() ? clamp(this.view.P[2] / Math.max(1, sh.d), .15, .8) : .4;
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(sh.x, sh.y, .45 * sh.s, .45 * flat * sh.s, 0, 0, Math.PI * 2); g.fill();
     // Mida mínima perquè la pilota es vegi encara que vagi lluny.
     const s = Math.max(p.s, 9 * this.dpr);
@@ -709,42 +1090,57 @@ export class FootballView {
     g.restore();
   }
 
+  // Jugadors, banquetes, pals, pylons i pilota, ordenats de lluny a prop.
   drawPlay(a, b) {
-    const t = this.t, sky = this.isSky();
-    const items = a.tracks.map((tr, i) => { const pos = tr.path(t); return { tr, i, pos, d: camSpace(this.view, pos.x, pos.y, 1)[2] }; });
-    // Lluny primer; en cas d'empat, sempre el mateix ordre, que si no
-    // parpellegen quan s'ajunten.
-    items.sort((u, v) => (v.d - u.d) || (u.i - v.i));
-    // A la skycam la pilota i els pals entren a l'ordre de profunditat.
-    const extra = [];
-    // A la skycam, la pilota que porta sota el braç un jugador vist de cara o
-    // d'esquena ja la dibuixa el ninot.
-    let held = false;
-    if (sky && b && b.z < 1.4 && t > .2) {
-      const c = items.find(it => it.tr.carrier && it.tr.p.id === a.carrierId);
-      held = !!c && Math.hypot(c.pos.x - b.x, c.pos.y - b.y) < .5 && this.facing(c.tr, c.pos, a).front !== null;
+    const t = this.t, s3 = this.is3D(), v = this.view;
+    const depth = (x, y, z = 1) => camSpace(v, x, y, z)[2];
+    const all = [];
+    const near = ['player', 'pylon', 'rail'].includes(this.camMode) ? .8 : 2;
+    if (a) {
+      const items = a.tracks.map((tr, i) => { const pos = tr.path(t); return { tr, i, pos, d: depth(pos.x, pos.y) }; });
+      for (const it of items) all.push({ d: it.d, i: it.i, draw: () => { if (it.d > near) this.drawPlayer(it.tr, it.pos, a); } });
+      // La pilota que porta sota el braç un jugador vist de cara o d'esquena ja la dibuixa el ninot.
+      let held = false;
+      if (s3 && b && b.z < 1.4 && t > .2) {
+        const c = items.find(it => it.tr.carrier && it.tr.p.id === a.carrierId);
+        held = !!c && Math.hypot(c.pos.x - b.x, c.pos.y - b.y) < .5 && this.facing(c.tr, c.pos, a).front !== null;
+      }
+      if (b && !held) all.push({ d: s3 ? depth(b.x, b.y, b.z) + (b.z < 2 ? .3 : 0) : -1e9, i: 1e4, draw: () => this.drawBall(b, t) });
     }
-    if (b && !held) extra.push({ d: camSpace(this.view, b.x, b.y, b.z)[2] + (sky && b.z < 2 ? .3 : 0), draw: () => this.drawBall(b, t) });
-    if (sky && this.skyPosts) for (const x of this.skyPosts) extra.push({ d: camSpace(this.view, x, C, 0)[2], draw: () => this.drawPosts(x) });
-    if (!sky) {
-      for (const it of items) this.drawPlayer(it.tr, it.pos, a);
-      extra.forEach(e => e.draw());
-      return;
-    }
-    const all = items.map(it => ({ d: it.d, draw: () => { if (it.d > 3) this.drawPlayer(it.tr, it.pos, a); } })).concat(extra);
-    // La pilota per l'aire va per sobre dels que té a prop.
-    all.sort((u, v) => v.d - u.d);
+    for (const x of [0, 120]) all.push({ d: depth(x, C, 0), i: -1, draw: () => this.drawPosts(x) });
+    for (const x of [0, 10, 110, 120]) for (const y of [0, FIELD_W]) all.push({ d: depth(x, y, 0), i: -2, draw: () => this.drawPylon(x, y) });
+    for (const bp of this.stadium.bench) { const dd = depth(bp.x, bp.y); if (dd > 2) all.push({ d: dd, i: -3, draw: () => this.drawBencher(bp) }); }
+    // Les banquetes: un banc llarg de cada equip.
+    for (const team of [0, 1]) { const y = team === 0 ? -10.2 : FIELD_W + 10.2; all.push({ d: depth(60, y, .4), i: -4, draw: () => this.drawBench(team, y) }); }
+    all.sort((p, q) => (q.d - p.d) || (p.i - q.i));
     all.forEach(e => e.draw());
   }
 
+  drawBench(team, y) {
+    const col = this.match.teams[team].color;
+    this.poly([[37, y - .5, 0], [83, y - .5, 0], [83, y - .5, .55], [37, y - .5, .55]], shade(col, -.3));
+    this.poly([[37, y - .5, .55], [83, y - .5, .55], [83, y + .5, .55], [37, y + .5, .55]], shade(col, -.1));
+  }
+
+  // Un reserva de peu a la banqueta, mirant el camp.
+  drawBencher(bp) {
+    const p = this.proj(bp.x, bp.y), s = p.s, team = this.match.teams[bp.team];
+    if (p.d < 2 || p.x < -s * 2 || p.x > this.W + s * 2) return;
+    const jersey = team.color, trim = team.color2 || '#fff';
+    if (s < 4) { this.ctx.fillStyle = jersey; this.ctx.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
+    const toField = bp.team === 0 ? 1 : -1, front = toField * this.view.f[1] < 0;
+    const hipY = p.y - .9 * s, shY = p.y - 1.55 * s, headY = p.y - 1.86 * s;
+    this.drawPlayerFacing(p, s, { front, face: 1, sw: 0, moving: false, hipY, shY, headY, jersey, trim, pants: luminance(trim) > .55 ? trim : shade(jersey, .7), helmet: shade(jersey, -.08), helmetEdge: shade(jersey, -.3), skin: SKIN[bp.num % SKIN.length], carrying: false, pl: { number: bp.num, name: '' } });
+  }
+
   // Cap on mira un jugador respecte de la càmera: face és el costat (±1) i
-  // front, a la skycam, si es veu de cara (true), d'esquena (false) o de costat (null).
+  // front, a les càmeres 3D, si es veu de cara (true), d'esquena (false) o de costat (null).
   facing(tr, pos, a) {
     const ahead = tr.path(Math.min(1, this.t + .015));
     const vx = ahead.x - pos.x, vy = ahead.y - pos.y;
     const moving = (this.phase === 'run' || this.phase === 'replay') && Math.hypot(vx, vy) > .004;
     const homeDir = tr.team === this.cur.play.off ? a.dir : -a.dir;
-    if (!this.isSky()) return { face: Math.abs(vx) > .002 ? Math.sign(vx) : homeDir, front: null, moving };
+    if (!this.is3D()) return { face: Math.abs(vx) > .002 ? Math.sign(vx) : homeDir, front: null, moving };
     const sp = Math.hypot(vx, vy), v = this.view;
     const hx = sp > .08 ? vx / sp : homeDir, hy = sp > .08 ? vy / sp : 0;
     const fr = hx * v.r[0] + hy * v.r[1], ff = hx * v.f[0] + hy * v.f[1];
@@ -764,13 +1160,20 @@ export class FootballView {
     const helmet = shade(jersey, -.08), helmetEdge = shade(jersey, -.3);
     const skin = SKIN[hashStr(pl.id || pl.name || '') % SKIN.length];
     const { face, front, moving } = this.facing(tr, pos, a);
-    const sky = this.isSky();
+    const sky = this.is3D();
     g.lineCap = 'round'; g.lineJoin = 'round';
     // Ombra (a la skycam el terra s'aixafa segons l'alçada de la càmera).
     const flat = sky ? clamp(this.view.P[2] / Math.max(1, p.d), .15, .45) : .36;
     const shw = (down || tackled ? 1 : .55) * s;
     g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(p.x, p.y, shw, Math.max(.2 * s * flat / .36, 1), 0, 0, Math.PI * 2); g.fill();
     if (s < 3) { g.fillStyle = jersey; g.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
+    if ((down || tackled) && front !== null) {
+      // De cara o d'esquena: ajupit, caient amb el placatge.
+      const carrying = tr.carrier && this.cur.anim.carrierId === pl.id;
+      this.drawPlayerFacing(p, s, { front, face, sw: 0, moving: false, hipY: p.y - .5 * s, shY: p.y - 1.08 * s, headY: p.y - 1.36 * s, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl });
+      this.drawLabel(tr, pl, p, s, p.y - 1.9 * s);
+      return;
+    }
     if (down || tackled) {
       // Estirat a terra: el cos de costat i el casc al davant.
       g.save(); g.translate(p.x, p.y - .22 * s); g.scale(face, 1);
@@ -880,7 +1283,7 @@ export class FootballView {
       g.lineWidth = .06 * s; g.strokeStyle = shade(jersey, -.55); g.strokeText(String(pl.number || ''), p.x, ny);
       g.fillStyle = trim; g.fillText(String(pl.number || ''), p.x, ny);
       // D'esquena, el nom a sobre del dorsal.
-      if (big && s > 22) { g.font = `800 ${.12 * s}px "Segoe UI", system-ui, sans-serif`; g.fillText(String(pl.name || '').toUpperCase().slice(0, 12), p.x, shY + .2 * s); }
+      if (big && s > 22) { g.font = `800 ${.1 * s}px "Segoe UI", system-ui, sans-serif`; g.fillText(String(pl.name || '').toUpperCase().slice(0, 12), p.x, shY + .2 * s); }
     }
     if (carrying) {
       // La pilota sota el braç.
@@ -932,7 +1335,23 @@ export class FootballView {
     }
   }
 
-  // Tall de càmera: flaix blanc; repetició: cortina en diagonal amb «REPLAY».
+
+  // Línies de velocitat a la càmera de jugador quan corre de pressa.
+  drawSpeed() {
+    if (!this.is3D() || this.camMode !== 'player' || this.phase === 'pre') return;
+    const k = clamp((this.cam3.speed - 4.5) / 5, 0, 1);
+    if (k <= 0) return;
+    const g = this.ctx, W = this.W, H = this.H, d = this.dpr, cx = W / 2, cy = this.view.cy, R = Math.hypot(W, H) / 2;
+    g.strokeStyle = `rgba(255,255,255,${(.22 * k).toFixed(3)})`; g.lineWidth = 1.6 * d; g.beginPath();
+    for (let i = 0; i < 34; i++) {
+      const a = Math.random() * Math.PI * 2, r0 = R * (.55 + Math.random() * .3), r1 = r0 + R * (.15 + .3 * k);
+      g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
+    }
+    g.stroke();
+  }
+
+  // Tall de càmera: flaix blanc; escombrat ràpid (whip) d'un jugador a l'altre
+  // amb el fotograma esborronat; repetició: cortina en diagonal amb «REPLAY».
   drawCutFx() {
     if (!this.fx) return;
     const g = this.ctx, W = this.W, H = this.H, d = this.dpr;
@@ -952,17 +1371,29 @@ export class FootballView {
       g.restore();
       return;
     }
+    if (this.fx.kind === 'whip') {
+      const k = age / .3;
+      if (k >= 1) { this.fx = null; return; }
+      g.save(); g.globalAlpha = .45 * (1 - k);
+      for (let i = 1; i <= 3; i++) { g.drawImage(this.cv, i * 26 * d * (1 - k), 0); g.drawImage(this.cv, -i * 26 * d * (1 - k), 0); }
+      g.restore();
+      g.fillStyle = `rgba(255,255,255,${(.18 * (1 - k)).toFixed(3)})`;
+      for (let i = 0; i < 14; i++) g.fillRect(0, Math.random() * H, W, (1 + Math.random() * 3) * d);
+      return;
+    }
     const k = age / .28;
     if (k >= 1) { this.fx = null; return; }
     g.fillStyle = `rgba(255,255,255,${(.75 * (1 - k)).toFixed(3)})`; g.fillRect(0, 0, W, H);
   }
 
-  // Etiqueta de la càmera a la cantonada (SKYCAM / REPLAY).
+  // Etiqueta de la càmera a la cantonada (PLAYER CAM, SKYCAM, REPLAY…).
   drawCamTag() {
     const replay = this.phase === 'replay';
-    if (!replay && !this.isSky()) return;
+    const name = this.is3D() ? CAM_TAGS[this.camMode] : '';
+    if (!replay && !name) return;
     const g = this.ctx, d = this.dpr;
-    const text = replay ? (this.isSky() ? 'REPLAY · SKYCAM' : 'REPLAY') : 'SKYCAM';
+    let text = replay ? (name ? 'REPLAY · ' + name : 'REPLAY') : name;
+    if (this.slow < 1) text += ' · SLOW-MO';
     g.font = `800 ${11 * d}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'left'; g.textBaseline = 'middle';
     const w = g.measureText(text).width + 30 * d, x = 12 * d, y = 58 * d, h = 22 * d;
     g.fillStyle = 'rgba(8,10,20,.78)'; g.beginPath(); g.roundRect(x, y, w, h, 6 * d); g.fill();
@@ -975,11 +1406,17 @@ export class FootballView {
     const g = this.ctx; g.fillStyle = 'rgba(255,255,255,.85)'; g.font = `600 ${16 * this.dpr}px "Segoe UI", system-ui, sans-serif`; g.textAlign = 'center'; g.fillText(text, this.W / 2, this.H / 2);
   }
 
+  // El marcador que toca ara (abans d'acabar la jugada, el d'abans).
+  score() {
+    const p = this.cur ? this.cur.play : this.shown();
+    const after = this.phase === 'post' || this.phase === 'replay' || !this.cur;
+    return after ? (p ? p.score : [0, 0]) : (this.queue[this.idx - 2] || { score: [0, 0] }).score;
+  }
+
   drawHUD() {
     const g = this.ctx, W = this.W, d = this.dpr, m = this.match, T = this.T;
     const p = this.cur ? this.cur.play : this.shown();
-    const after = this.phase === 'post' || this.phase === 'replay' || !this.cur;
-    const score = after ? (p ? p.score : [0, 0]) : (this.queue[this.idx - 2] || { score: [0, 0] }).score;
+    const score = this.score();
     // Marcador.
     const bw = Math.min(W - 20 * d, 560 * d), bh = 40 * d, bx = (W - bw) / 2, by = 10 * d;
     g.fillStyle = 'rgba(8,10,20,.82)'; g.beginPath(); g.roundRect(bx, by, bw, bh, 10 * d); g.fill();
@@ -1011,14 +1448,13 @@ export class FootballView {
       g.fillStyle = this.banner.color2 || '#fff'; g.fillText(this.banner.text, W / 2, y + 2 * d);
       g.restore();
     }
-    // Text de la jugada i comentari (no tapa la repetició ni el moment d'abans).
-    const replayPending = this.cur && this.cur.shots.replay && !this.cur.replayed;
-    if (p && ((this.phase === 'post' && !replayPending) || !this.cur)) {
+    // Text de la jugada i comentari (no tapa les repeticions ni el moment d'abans).
+    if (p && (!this.cur || (this.phase === 'post' && this.cur.replaysDone))) {
       const lines = [p.text]; if (p.comment) lines.push('🎙 ' + (m.commentator ? m.commentator + ': ' : '') + p.comment);
       g.font = `600 ${13 * d}px "Segoe UI", system-ui, sans-serif`;
       const maxW = Math.min(W - 24 * d, 760 * d);
       const wrapped = [];
-      lines.forEach((l, i) => { const words = l.split(' '); let cur = ''; words.forEach(w => { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW - 24 * d) { wrapped.push([cur, i]); cur = w; } else cur = test; }); if (cur) wrapped.push([cur, i]); });
+      lines.forEach((l, i) => { const words = String(l || '').split(' '); let cur = ''; words.forEach(w => { const test = cur ? cur + ' ' + w : w; if (g.measureText(test).width > maxW - 24 * d) { wrapped.push([cur, i]); cur = w; } else cur = test; }); if (cur) wrapped.push([cur, i]); });
       const lh = 18 * d, hgt = wrapped.length * lh + 14 * d, y0 = this.H - hgt - 12 * d;
       g.fillStyle = 'rgba(8,10,20,.82)'; g.beginPath(); g.roundRect((W - maxW) / 2, y0, maxW, hgt, 10 * d); g.fill();
       g.textAlign = 'left'; g.textBaseline = 'top';

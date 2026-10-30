@@ -699,5 +699,6 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-follow .side0 { border-color:#3e7bfa; } .ar-follow .side1 { border-color:#e5484d; }
 .ar-dec { cursor:pointer; } .ar-dec em { font-style:normal; font-size:11px; font-weight:700; } .ar-dec em.ok { color:#2fbf71; } .ar-dec em.warn { color:#e0a800; } .ar-dec em.bad { color:#e5484d; }
 .ar button.ar-demo { font-weight:700; padding:9px 14px; border-radius:10px; }
+.ar-voice-note { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:13px; padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:color-mix(in srgb, var(--accent) 7%, transparent); }
 .ar-tv { position:fixed; inset:0; z-index:2000; background:#000; }
 .ar-tv iframe { width:100%; height:100%; border:0; display:block; }

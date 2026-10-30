@@ -52,3 +52,23 @@ func arenaDemoSits(id string) []arenaSituation {
 	_ = json.Unmarshal(raw, &out)
 	return out
 }
+
+// arenaDemoVoice: la veu de la demo es fa en aquest ordinador, amb les veus
+// que hi hagi (la gravació no porta àudio). Sense veus, subtítols. La primera
+// vegada les frases es van generant; després surten de la memòria cau.
+func (s *Server) arenaDemoVoice(m *arenaMatch) {
+	ready := s.voiceReady("en")
+	say := func(text, who string) string {
+		if !ready || text == "" {
+			return ""
+		}
+		return s.voiceLater(text, who, "en")
+	}
+	m.PreviewAudio = say(m.Preview, "analyst")
+	for i := range m.Lines {
+		m.Lines[i].Audio = say(m.Lines[i].Text, "caster")
+	}
+	if m.Analysis != nil {
+		m.Analysis.Audio = say(m.Analysis.Headline+". "+m.Analysis.Text, "analyst")
+	}
+}

@@ -393,3 +393,27 @@ func TestArenaDemoMatches(t *testing.T) {
 		t.Fatal("un id estrany no pot sortir del directori")
 	}
 }
+
+// La demo es narra amb les veus d'aquest ordinador; sense veus, subtítols.
+func TestArenaDemoVoice(t *testing.T) {
+	s := cornerTestServer(t)
+	get := func() arenaMatch {
+		rec := httptest.NewRecorder()
+		s.handleArenaMatch(rec, httptest.NewRequest("GET", "/api/arena/match?id=demo-cs2&after=0", nil))
+		var m arenaMatch
+		json.Unmarshal(rec.Body.Bytes(), &m)
+		return m
+	}
+	s.saveVoiceCfg(arenaVoiceCfg{Engine: "off"})
+	if m := get(); m.PreviewAudio != "" || (len(m.Lines) > 0 && m.Lines[0].Audio != "") {
+		t.Fatalf("sense veus no hi pot haver àudio (la gravació no en porta): %q", m.PreviewAudio)
+	}
+	tts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("ID3")) }))
+	defer tts.Close()
+	s.saveVoiceCfg(arenaVoiceCfg{Engine: "http", URL: tts.URL})
+	m := get()
+	if m.PreviewAudio == "" || len(m.Lines) == 0 || m.Lines[0].Audio == "" || m.Analysis == nil || m.Analysis.Audio == "" {
+		t.Fatalf("amb veus, la demo s'ha de narrar: %+v", m.PreviewAudio)
+	}
+	waitBackground()
+}

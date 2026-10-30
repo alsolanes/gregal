@@ -70,6 +70,7 @@ const arenaUI = {
           <button type="button" id="arDemo" class="ar-demo">🎬 ${esc(T('ar.demo'))}</button>
           <button type="button" id="arReview" class="ar-link">${esc(T('ar.askTips'))}</button>
         </div>
+        <div id="arVoiceNote" class="ar-voice-note" hidden></div>
         <div id="arReviewOut"></div>
         <div id="arProgress" class="ar-progress"></div>
       </section>
@@ -187,7 +188,8 @@ const arenaUI = {
     $('arMatches').querySelectorAll('[data-id]').forEach(li => li.onclick = () => this.openMatch(li.dataset.id));
     // Competicions i retransmissió (l'organitzador).
     $('arBroadcast').hidden = !d.admin;
-    if (d.admin && !this.broadcastLoaded) { this.broadcastLoaded = true; this.share(false); this.voiceStatus(); }
+    if (d.admin && !this.broadcastLoaded) { this.broadcastLoaded = true; this.share(false); }
+    if (d.admin) this.voiceStatus();
     $('arCompAdmin').innerHTML = d.admin ? `<div class="ar-row ar-actions"><input id="arCompTitle" placeholder="${esc(T('ar.compTitle'))}"><label><input type="checkbox" id="arCompBots" checked> ${esc(T('ar.withBots'))}</label><button type="button" id="arCompCreate">${esc(T('ar.compCreate'))}</button></div>` : '';
     if ($('arCompCreate')) $('arCompCreate').onclick = async () => {
       try { const r = await post('/api/arena/competition', { action: 'create', title: $('arCompTitle').value, bots: $('arCompBots').checked }); this.openComp(r.id); this.load(); }
@@ -269,6 +271,15 @@ const arenaUI = {
     else if (v.config.engine === 'http') st = v.config.url ? T('ar.voiceHttpReady') : T('ar.voiceHttpMissing');
     else st = T('ar.voiceDisabled');
     $('arVoiceState').textContent = st;
+    // Al costat de Juga: si el narrador no té veu en anglès, dir-ho i
+    // instal·lar-la amb un clic (els jocs van en anglès).
+    const note = $('arVoiceNote');
+    if (inst.state === 'installing') { note.hidden = false; note.innerHTML = `🔊 ${esc(st)}`; }
+    else if (v.config.engine !== 'off' && !v.ready[l]) {
+      note.hidden = false;
+      note.innerHTML = `🔇 ${esc(T('ar.noVoice'))} <button type="button" class="primary">${esc(T('ar.voiceInstall').replace('{size}', (v.sizes || {})[l] || ''))}</button>${inst.state === 'error' ? ` <span class="ar-muted">⚠ ${esc(inst.error)}</span>` : ''}`;
+      note.querySelector('button').onclick = () => $('arVoiceInstall').click();
+    } else note.hidden = true;
     $('arVoiceTestC').disabled = $('arVoiceTestA').disabled = !(v.ready[l]);
     clearTimeout(this.voiceTimer);
     if (inst.state === 'installing') this.voiceTimer = setTimeout(() => this.voiceStatus(), 1500);

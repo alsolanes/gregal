@@ -1627,7 +1627,9 @@ func (s *Server) handleArenaMatch(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	m := s.arenaLoadMatch(id)
 	if m == nil {
-		m = arenaDemo(id)
+		if m = arenaDemo(id); m != nil {
+			s.arenaDemoVoice(m)
+		}
 	}
 	if m == nil {
 		http.Error(w, "no such match", http.StatusNotFound)

@@ -125,7 +125,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const L = lang === 'ca' ? {
   waiting: 'Esperant la competició…', soon: 'Comença aviat', opening: 'Comença la competició', next: 'A continuació', result: 'Resultat', table: 'Classificació',
   champions: 'Campions', win: 'guanya', draw: 'Empat', p: 'Jugador', pj: 'PJ', w: 'G', d: 'E', l: 'P', pts: 'Pts', preview: 'Prèvia', analysis: 'L’anàlisi',
-  keyRule: 'La regla que ho va decidir', live: 'En directe', explain: 'Com es juga', caster: 'Narrador', analyst: 'Analista', voiceOn: '🔊 Veu', voiceOff: '🔈 Sense veu', voiceBlocked: '🔇 Clica per sentir-ho',
+  keyRule: 'La regla que ho va decidir', live: 'En directe', explain: 'Com es juga', caster: 'Narrador', analyst: 'Analista', voiceOn: '🔊 Veu', voiceOff: '🔈 Sense veu', voiceBlocked: '🔇 Clica per sentir-ho', noVoice: '🔇 Només subtítols (sense veu instal·lada)',
   how1: ['Dos equips idèntics', 'Mateixos jugadors, mateixos atributs. L’única diferència és el .md de cada jugador.'],
   how2: ['El mateix model per a tothom', 'A cada decisió, el model llegeix el .md del seu equip i la situació, i decideix.'],
   how3: ['Guanya el millor prompt', 'Instruccions clares, concretes i que llegeixen el rival guanyen a les vagues.'],
@@ -134,7 +134,7 @@ const L = lang === 'ca' ? {
 } : {
   waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
   champions: 'Champions', win: 'wins', draw: 'Draw', p: 'Player', pj: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', preview: 'Preview', analysis: 'The analysis',
-  keyRule: 'The rule that decided it', live: 'Live', explain: 'How it is played', caster: 'Caster', analyst: 'Analyst', voiceOn: '🔊 Voice', voiceOff: '🔈 Muted', voiceBlocked: '🔇 Click for sound',
+  keyRule: 'The rule that decided it', live: 'Live', explain: 'How it is played', caster: 'Caster', analyst: 'Analyst', voiceOn: '🔊 Voice', voiceOff: '🔈 Muted', voiceBlocked: '🔇 Click for sound', noVoice: '🔇 Captions only (no voice installed)',
   how1: ['Two identical teams', 'Same players, same attributes. The only difference is each player’s .md.'],
   how2: ['The same model for everyone', 'At every decision, the model reads its team’s .md and the situation, and decides.'],
   how3: ['The best prompt wins', 'Clear, concrete instructions that read the opponent beat vague ones.'],
@@ -149,7 +149,8 @@ let script = null;
 // El navegador no deixa sonar res fins que l'espectador hi clica: llavors el
 // botó ho demana.
 let soundBlocked = false;
-const paintVoice = () => { $('voice').textContent = soundBlocked ? L.voiceBlocked : soundOn ? L.voiceOn : L.voiceOff; $('voice').classList.toggle('on', soundOn && !soundBlocked); $('voice').classList.toggle('blocked', soundBlocked); };
+// Sense veus instal·lades: ho diu (només subtítols), no fa veure que sona.
+const paintVoice = () => { $('voice').textContent = soundBlocked ? L.voiceBlocked : soundOn && script && script.voice === false ? L.noVoice : soundOn ? L.voiceOn : L.voiceOff; $('voice').classList.toggle('on', soundOn && !soundBlocked); $('voice').classList.toggle('blocked', soundBlocked); };
 $('voice').onclick = () => { if (soundBlocked) { soundBlocked = false; sfx.start(); paintVoice(); return; } soundOn = !soundOn; localStorage.setItem('arenaVoice', soundOn ? '1' : '0'); if (soundOn) sfx.start(); else { sfx.stop(); stopVoice(); } paintVoice(); };
 paintVoice();
 
@@ -271,6 +272,7 @@ let opened = false, busy = false, view = null;
 
 async function pollComp() {
   try { const r = await get('/api/arena/stream'); comp = single ? null : r.competition; script = r.script || null; } catch (e) {}
+  paintVoice();
   if (comp) {
     $('comp').textContent = comp.title;
     const tips = LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]);
