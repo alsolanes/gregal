@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.30.1 - 2026-10-30 - L'Arena, més senzilla
+
 - **The Arena is simpler.** Pick a game and press Play: the template is already in the editor, your `.md` saves itself, and the opponent is the easiest bot you have not beaten yet. The bots are written automatically the first time, the ranking, games, competitions and broadcast settings fold away below, and a waiting match says the coaches are picking the play. Matches now use your conversation model instead of the winds' one, so a slow model no longer turns a game into half an hour.
 
 ## v1.30.0 - 2026-10-30 - L'Arena dels prompts
