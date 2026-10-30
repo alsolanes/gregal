@@ -459,3 +459,24 @@ test('playback time: the estimate matches playing at 1×, and elapsed only moves
   assert.ok(Math.abs(t - pr.duration) / pr.duration < .05, `estimate ${pr.duration.toFixed(1)} s vs played ${t.toFixed(1)} s`);
   v.destroy();
 });
+
+test('the first-person gun points at the crosshair at every aspect ratio', async () => {
+  const V = await load();
+  const sizes = [[1280, 720], [960, 720], [1680, 720], [720, 720], [400, 711], [2560, 1080], [1891, 947, 1493]];
+  for (const wid of ['ak47', 'm4a1s', 'galil', 'famas', 'awp', 'mac10', 'mp9', 'glock', 'usp', 'p250', 'deagle']) {
+    for (const [w, h, right] of sizes) {
+      const P = V.gunPose(w, h, wid, right), c = Math.cos(P.rot), s = Math.sin(P.rot);
+      // Two points on the barrel's axis (y = tip[1] in the gun's frame), in screen space.
+      const at = l => [P.ax + (l * P.fx * c - P.tip[1] * s) * P.S, P.ay + (l * P.fx * s + P.tip[1] * c) * P.S];
+      const [mx, my] = at(P.tip[0]), [bx, by] = at(0);
+      const cx = w / 2, cy = h / 2;
+      // Distance from the crosshair to the barrel line, in pixels.
+      const cross = Math.abs((mx - bx) * (cy - by) - (my - by) * (cx - bx)) / Math.hypot(mx - bx, my - by);
+      assert.ok(cross < 0.5, `${wid} ${w}x${h}: barrel misses the crosshair by ${cross.toFixed(2)} px`);
+      // The muzzle is between the receiver and the crosshair, low and to the right of it.
+      assert.ok(Math.hypot(mx - cx, my - cy) < Math.hypot(bx - cx, by - cy), `${wid} ${w}x${h}: muzzle past the receiver`);
+      assert.ok(mx > cx && my > cy, `${wid} ${w}x${h}: muzzle at ${mx.toFixed(0)},${my.toFixed(0)}`);
+      assert.ok(Math.hypot(mx - cx, my - cy) > h * 0.08, `${wid} ${w}x${h}: muzzle on top of the crosshair`);
+    }
+  }
+});

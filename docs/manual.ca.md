@@ -617,6 +617,31 @@ servidor de Gregal.
 - **Mode tele.** Obre qualsevol partit i prem 📺 TV mode: la mateixa
   retransmissió per a aquell partit, a pantalla completa, amb la darrera crida
   de cada equip i la regla del seu `.md` sota el nom. Esc la tanca.
+- **CS2 en directe: juga-ho tu.** Al Counter-Strike 2, **🎮 Play it yourself
+  (live)** obre un partit en primera persona on portes un jugador del teu equip
+  amb teclat i ratolí i els altres nou són bots. El model continua fent només
+  d'entrenador: abans de cada ronda llegeix el `.md` de cada equip i tria la
+  compra, el pla (estratègia o muntatge CT, utilitat, ritme) i, si vol, un rol
+  per a cada bot aquella ronda; després els bots el juguen sols (es mouen,
+  aguanten angles, intercanvien, llancen fums i flaixos, planten, roten,
+  recuperen el lloc i desactiven). Abans del partit tries el rival (un bot o
+  el `.md` d'un altre jugador, que no es veu), el format (curt MR6, a 7
+  rondes, o complet MR12), el nivell dels bots (el mateix als dos equips), la
+  posició que jugues i un rol (entry, support, lurker, AWPer, àncora, rifler)
+  amb una instrucció opcional per a cada bot, o **Ask the coach to set the
+  roles** perquè els triï a partir del teu `.md`. En joc: WASD per moure't, el
+  ratolí per mirar, clic esquerre dispara, clic dret la mira de l'AWP, Maj
+  camina, C t'ajup, 1/2/3 rifle/pistola/ganivet, 4 granades i G llança, R
+  recarrega, E (mantingut) planta o desactiva, B el menú de compra (en la
+  congelació i els primers 20 segons, al teu spawn), Tab el marcador, H la
+  fitxa de l'entrenador, F el pilot automàtic (un bot juga per tu), Esc
+  allibera el ratolí. La fitxa de l'esquerra mostra la crida de l'entrenador,
+  el motiu i què fa cada bot. Els diners, la bonificació per derrota, les
+  recompenses i les meitats segueixen les mateixes regles que els partits
+  simulats (el servidor les aplica al que ha passat al navegador), i el partit
+  es desa amb els altres (de mena *live*) per tornar-lo a mirar al
+  reproductor. Els partits en directe no compten per al rànquing ni gasten
+  partits de prova.
 - **Joc net.** Les eliminatòries són al millor de 3, canviant de costat. Un
   partit oficial on el model no ha pogut decidir per una banda més del 10% de
   les vegades no compta i es torna a jugar. Una competició juga tots els

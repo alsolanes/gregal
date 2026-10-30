@@ -93,11 +93,11 @@ func (x *texts) roundEnd(team, reason string, tags []string, clutch int) string 
 	return fmt.Sprintf("%s win the round (%s)%s", team, reasonEn[reason], extra)
 }
 
-func (x *texts) half(n int, s [2]int) string {
-	if n == 12 {
+func (x *texts) half(n, h int, s [2]int) string {
+	if n == h {
 		return fmt.Sprintf(x.pick("Mitja part: %d-%d. Canvi de banda", "Halftime: %d-%d. Sides switch"), s[0], s[1])
 	}
-	if n == 24 {
+	if n == 2*h {
 		return fmt.Sprintf(x.pick("%d-%d: pròrroga! $10.000 per jugador", "%d-%d: overtime! $10,000 each"), s[0], s[1])
 	}
 	return fmt.Sprintf(x.pick("Canvi de banda a la pròrroga (%d-%d)", "Overtime side switch (%d-%d)"), s[0], s[1])

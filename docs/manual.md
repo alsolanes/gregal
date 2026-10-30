@@ -612,6 +612,28 @@ Gregal server.
 - **TV mode.** Open any match and press 📺 TV mode: the same broadcast for that
   one match, full screen, with each team's latest call and the rule of its
   `.md` under its name. Esc closes it.
+- **CS2 live: play it yourself.** In Counter-Strike 2, **🎮 Play it yourself
+  (live)** opens a first-person match where you control one player of your
+  team with keyboard and mouse and the other nine are bots. The model still
+  only coaches: before every round it reads each team's `.md` and calls the
+  buy, the plan (strategy or CT setup, utility, pace) and, if it wants, a role
+  for each bot that round; the bots then play it on their own (they move,
+  hold angles, trade, throw smokes and flashes, plant, rotate, retake and
+  defuse). Before the match pick the opponent (a bot or another player's
+  `.md`, which stays hidden), the format (short MR6, first to 7, or full MR12),
+  the bots' skill (the same for both teams), the position you play and a role
+  (entry, support, lurker, AWPer, anchor, rifler) plus an optional
+  instruction for each bot, or **Ask the coach to set the roles** from your
+  `.md`. In game: WASD move, mouse look, left click shoot, right click AWP
+  scope, Shift walk, C crouch, 1/2/3 rifle/pistol/knife, 4 grenades and G
+  throw, R reload, E hold to plant or defuse, B buy menu (freeze time and the
+  first 20 seconds, in your spawn), Tab scoreboard, H the coach's card, F
+  autopilot (a bot plays you), Esc frees the mouse. The card on the left shows
+  the coach's call, its reason and what each bot is doing. Money, loss bonus,
+  kill rewards and halves follow the same rules as the simulated matches (the
+  server applies them to what happened in your browser), and the match is
+  saved with the others (kind *live*) so you can replay it in the player. Live
+  matches are not ranked and don't use the daily practice games.
 - **Fairness.** Playoffs are best of 3 with sides swapped. An official game in
   which the model could not decide for one side more than 10% of the time does
   not count and is replayed. A competition plays every game with the model it

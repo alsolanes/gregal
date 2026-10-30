@@ -31,6 +31,8 @@ type Match struct {
 	evN      int
 	stats    matchStats
 	quiet    bool // proves: sense esdeveniments (simulacions ràpides)
+	// H: rondes per meitat (12 = MR12; el mode en directe pot jugar MR6).
+	H int
 }
 
 type matchStats struct {
@@ -215,17 +217,19 @@ func (m *Match) parseCT(raw json.RawMessage, team int) ctDec {
 
 func (m *Match) nextRound() int { return m.round + 1 }
 
-func (m *Match) isPistol() bool { r := m.nextRound(); return r == 1 || r == 13 }
+func (m *Match) isPistol() bool { return m.pistolRound(m.nextRound()) }
+
+func (m *Match) pistolRound(r int) bool { return r == 1 || r == m.H+1 }
 
 // tTeamFor: qui fa de T a la ronda r. A cada pròrroga es torna a canviar.
 func (m *Match) tTeamFor(r int) int {
 	switch {
-	case r <= 12:
+	case r <= m.H:
 		return m.startT
-	case r <= 24:
+	case r <= 2*m.H:
 		return 1 - m.startT
 	}
-	if ((r-25)/3)%2 == 0 {
+	if ((r-2*m.H-1)/3)%2 == 0 {
 		return m.startT
 	}
 	return 1 - m.startT
@@ -233,23 +237,26 @@ func (m *Match) tTeamFor(r int) int {
 
 func (m *Match) halfName(r int) string {
 	switch {
-	case r <= 12:
+	case r <= m.H:
 		return "first half"
-	case r <= 24:
+	case r <= 2*m.H:
 		return "second half"
 	}
-	return fmt.Sprintf("overtime %d", (r-25)/6+1)
+	return fmt.Sprintf("overtime %d", (r-2*m.H-1)/6+1)
 }
 
 // targetFor: rondes que cal per guanyar a la ronda r (MR12, pròrrogues MR3).
-func targetFor(r int) int {
-	if r <= 24 {
-		return 13
+func targetFor(r int) int { return targetForH(r, 12) }
+
+// targetForH: el mateix amb meitats de h rondes.
+func targetForH(r, h int) int {
+	if r <= 2*h {
+		return h + 1
 	}
-	return 16 + 3*((r-25)/6)
+	return h + 4 + 3*((r-2*h-1)/6)
 }
 
-func (m *Match) target() int { return targetFor(m.nextRound()) }
+func (m *Match) target() int { return targetForH(m.nextRound(), m.H) }
 
 func (m *Match) resetHalf(cash int) {
 	for t := 0; t < 2; t++ {
@@ -367,11 +374,11 @@ func hashFloat(x uint64) float64 {
 }
 
 // halfPos: posició de la ronda r dins la seva meitat (1..len) i la llargada.
-func halfPos(r int) (int, int) {
-	if r <= 24 {
-		return (r-1)%12 + 1, 12
+func (m *Match) halfPos(r int) (int, int) {
+	if r <= 2*m.H {
+		return (r-1)%m.H + 1, m.H
 	}
-	return (r-25)%3 + 1, 3
+	return (r-2*m.H-1)%3 + 1, 3
 }
 
 // freshFullCost: el que costa la compra completa d'un equip sense res.
@@ -392,11 +399,11 @@ func (m *Match) situation(team int) string {
 	if side == sideCT {
 		me, them, sideName, oppName = "CT (defend A and B, defuse)", "T", "CT", "T"
 	}
-	pos, hl := halfPos(r)
+	pos, hl := m.halfPos(r)
 	fmt.Fprintf(&b, "Map: Mirage. Round %d (%s, round %d of %d of this half; first to %d wins). You are %s. Score: you %d - %d them.\n",
 		r, m.halfName(r), pos, hl, m.target(), me, m.score[team], m.score[opp])
-	if m.isPistol() || r > 24 && (r-25)%3 == 0 {
-		if r <= 24 {
+	if m.isPistol() || r > 2*m.H && (r-2*m.H-1)%3 == 0 {
+		if r <= 2*m.H {
 			fmt.Fprintf(&b, "PISTOL ROUND: everyone has $800.\n")
 		} else {
 			fmt.Fprintf(&b, "Overtime half start: everyone has $10,000.\n")
@@ -639,6 +646,7 @@ type meta struct {
 	Halves    []metaHalf            `json:"halves"`
 	RoundTime int                   `json:"roundTime"`
 	BombTime  int                   `json:"bombTime"`
+	Half      int                   `json:"half"` // rondes per meitat (12 = MR12)
 }
 
 func tag(name string) string {
@@ -661,7 +669,8 @@ func tag(name string) string {
 func (m *Match) Meta() any {
 	mt := meta{Game: "cs2", Map: "Mirage", Size: [2]float64{mapW, mapH}, Zones: zones, Links: links, Props: props, Plant: plantSpot,
 		StartT: m.startT, RoundTime: roundTime, BombTime: bombTime,
-		Halves: []metaHalf{{1, 12, m.startT}, {13, 24, 1 - m.startT}, {25, 27, m.startT}, {28, 30, 1 - m.startT}}}
+		Half:   m.H,
+		Halves: []metaHalf{{1, m.H, m.startT}, {m.H + 1, 2 * m.H, 1 - m.startT}, {2*m.H + 1, 2*m.H + 3, m.startT}, {2*m.H + 4, 2*m.H + 6, 1 - m.startT}}}
 	for t := 0; t < 2; t++ {
 		mt.Teams[t] = metaTeam{Name: m.names[t], Tag: tag(m.names[t]), Color: teamColors[t]}
 		for _, p := range m.players[t] {

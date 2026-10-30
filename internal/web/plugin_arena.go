@@ -21,6 +21,7 @@ func init() {
 			handle("/api/arena/stream", h.global((*Server).handleArenaStream))
 			handle("/api/arena/starter", h.global((*Server).handleArenaStarter))
 			handle("/api/arena/voice", h.global((*Server).handleArenaVoice))
+			handle("/api/arena/live", h.global((*Server).handleArenaLive))
 		},
 		Start: func(ctx context.Context, s *Server) { s.arenaResume(ctx) },
 		Stop:  func(*Server) { arenaPauseAll() },

@@ -37,7 +37,7 @@ var teamColors = [2]string{"#2ec4b6", "#ff6b6b"}
 
 func newMatch(seed int64, lang string, names [2]string) *Match {
 	r := rand.New(rand.NewSource(seed))
-	m := &Match{seed: seed, lang: lang, names: names, rng: r}
+	m := &Match{seed: seed, lang: lang, names: names, rng: r, H: 12}
 	for i := range names {
 		if m.names[i] == "" {
 			m.names[i] = []string{"Team A", "Team B"}[i]

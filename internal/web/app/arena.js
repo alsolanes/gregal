@@ -77,6 +77,7 @@ const arenaUI = {
           <button type="button" id="arPlay" class="primary ar-big"></button>
           <span class="ar-muted" id="arPlayHint"></span>
           <button type="button" id="arDemo" class="ar-demo">🎬 ${esc(T('ar.demo'))}</button>
+          <button type="button" id="arLive" class="ar-demo" title="${esc(T('ar.playLiveHint'))}" hidden>🎮 ${esc(T('ar.playLive'))}</button>
           <button type="button" id="arReview" class="ar-link">${esc(T('ar.askTips'))}</button>
         </div>
         <div id="arVoiceNote" class="ar-voice-note" hidden></div>
@@ -121,6 +122,8 @@ const arenaUI = {
     $('arPlay').onclick = () => this.play('');
     // Un partit de demostració (gravat, amb comentaris), a la tele i a 2×.
     $('arDemo').onclick = () => this.openTV('demo-' + this.game, 2);
+    // El CS2 en directe: la persona porta un jugador (arena-cs2-live.html).
+    $('arLive').onclick = async () => { clearTimeout(this.saveTimer); await this.save(); this.openLive(); };
     $('arAgain').onclick = () => { this.closeMatch(); $('arPlayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); md.focus(); };
     $('arClose').onclick = () => this.closeMatch();
     // El reproductor: pestanyes (comentaris | decisions), el filtre de la pista i clic a una línia per anar-hi.
@@ -143,7 +146,11 @@ const arenaUI = {
     };
     this.cc = (() => { try { return localStorage.getItem('arenaCC') !== '0'; } catch (e) { return true; } })();
     this.trackMode = 'all';
-    addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.arenaTV === 'close') this.closeTV(); });
+    addEventListener('message', e => {
+      if (e.origin !== location.origin || !e.data) return;
+      if (e.data.arenaTV === 'close') this.closeTV();
+      if (e.data.arenaOpen) { this.closeTV(); this.load(); this.openMatch(e.data.arenaOpen); }
+    });
     this.buildBroadcast();
     $('arStreamLink').href = '/app/arena-stream.html#lang=' + lang() + (() => { let t = ''; try { t = localStorage.getItem('gregal_token') || ''; } catch (e) {} return t ? '&token=' + encodeURIComponent(t) : ''; })();
   },
@@ -186,6 +193,7 @@ const arenaUI = {
     const next = (d.next || {})[this.game];
     const left = Math.max(0, d.practice_left);
     $('arPlay').textContent = T('ar.playVs').replace('{name}', next ? next.display : 'Bot');
+    $('arLive').hidden = this.game !== 'cs2';
     $('arPlay').disabled = !d.admin && left <= 0;
     $('arPlayHint').textContent = (seeding ? T('ar.seedingNow') + ' ' : '') +
       T('ar.playHint').replace('{level}', next ? T('ar.level.' + next.level) : '').replace('{n}', left);
@@ -338,6 +346,20 @@ const arenaUI = {
     box.append(fr); document.body.append(box);
     if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
     box.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement) this.closeTV(); });
+    fr.focus();
+  },
+
+  // El mode en directe, a pantalla completa com la tele (el mateix marc).
+  openLive() {
+    this.closeTV();
+    this.pauseView();
+    let tok = ''; try { tok = localStorage.getItem('gregal_token') || ''; } catch (e) {}
+    const box = document.createElement('div'); box.className = 'ar-tv'; box.id = 'arTVBox';
+    const fr = document.createElement('iframe'); fr.allow = 'fullscreen; pointer-lock; autoplay'; fr.title = T('ar.playLive');
+    fr.src = '/app/arena-cs2-live.html#lang=' + lang() + (tok ? '&token=' + encodeURIComponent(tok) : '');
+    // Sortir de la pantalla completa (Esc) no tanca el partit: el tanca el botó de dins.
+    box.append(fr); document.body.append(box);
+    if (box.requestFullscreen) box.requestFullscreen().catch(() => {});
     fr.focus();
   },
 

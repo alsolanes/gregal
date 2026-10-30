@@ -495,6 +495,32 @@ export function shotsAt(R, p) {
 }
 
 const MAG = { glock: [20, 120], usp: [12, 24], p250: [13, 26], deagle: [7, 35], mac10: [30, 100], mp9: [30, 120], galil: [35, 90], famas: [25, 90], ak47: [30, 90], m4a1s: [20, 80], awp: [5, 30] };
+// The muzzle in the gun's own drawing frame (barrel along -x, receiver at 0,0).
+export function gunTip(wid) {
+  const cls = weaponClass(wid);
+  if (cls === 'pistol') return wid === 'usp' ? [-106, -8] : [-61, -8];
+  if (cls === 'awp') return [-162, -6];
+  if (cls === 'smg') return [-68, -6];
+  return wid === 'm4a1s' ? [-164, -6] : [-120, -6];
+}
+
+// Where the first-person gun sits in a w×h view: the receiver anchored low on
+// the right, rotated so the barrel's axis runs through the crosshair (the
+// view centre) at any aspect ratio, and shortened along the barrel (fx, a
+// cheap perspective) so the muzzle stops short of the crosshair. `right`: where
+// the HUD box ends (the side rosters float over the rest of the view).
+export function gunPose(w, h, wid, right = w) {
+  const pistol = weaponClass(wid) === 'pistol';
+  const S = Math.min(h, w * 0.75) / 235, tip = gunTip(wid);
+  const ax = Math.min(w * (pistol ? 0.74 : 0.86), right - (pistol ? 70 : 40) * S), ay = h - (pistol ? 40 : 24) * S;
+  const dx = w / 2 - ax, dy = h / 2 - ay, D = Math.hypot(dx, dy) || 1, off = S * tip[1];
+  let rot = Math.atan2(dy, dx) - Math.PI + Math.asin(clamp(off / D, -1, 1));
+  rot = Math.atan2(Math.sin(rot), Math.cos(rot));
+  const L = Math.sqrt(Math.max(0, D * D - off * off));
+  const fx = clamp(L * (pistol ? 0.5 : 0.62) / (S * -tip[0]), 0.4, 1.15);
+  return { ax, ay, rot, S, fx, tip };
+}
+
 export function weaponClass(w) { return w === 'awp' ? 'awp' : ['glock', 'usp', 'p250', 'deagle'].includes(w) ? 'pistol' : ['mac10', 'mp9'].includes(w) ? 'smg' : w ? 'rifle' : 'pistol'; }
 
 // HUD numbers for the spectated player (health is cosmetic: duels won cost a bit).
@@ -514,9 +540,11 @@ export function hudStats(R, id, t) {
 // ---- the arena studio: pure helpers (director between rounds, crowd) ----
 
 // Rounds a team needs to win the match at round r (MR12, overtimes MR3).
-export function winTarget(r) { r = +r || 1; return r <= 24 ? 13 : 16 + 3 * Math.floor((r - 25) / 6); }
+// half: rounds per half (12 = MR12; the live mode can play MR6).
+export function winTarget(r, half = 12) { r = +r || 1; return r <= 2 * half ? half + 1 : half + 4 + 3 * Math.floor((r - 2 * half - 1) / 6); }
+const halfOf = meta => (meta && meta.half) || 12;
 // Teams one round away from winning the match when round r starts.
-export function matchPointTeams(score, r) { const t = winTarget(r); return [0, 1].filter(i => ((score && score[i]) || 0) === t - 1); }
+export function matchPointTeams(score, r, half = 12) { const t = winTarget(r, half); return [0, 1].filter(i => ((score && score[i]) || 0) === t - 1); }
 
 // How loud the crowd gets for an event (0 quiet … 1 roaring) and whose fans
 // erupt (-1: everybody). Quiet during the buy, a roar for aces, clutches and
@@ -618,7 +646,7 @@ export function matchTimes(events, meta) {
   let t = 0, first = true, score = [0, 0];
   for (const g of groupRounds(events)) {
     const d = dataOf(g.start), round = d.round || 0;
-    const intro = planLength(studioPlan('intro', { round, first, matchPoint: matchPointTeams(score, round), ot: round > 24, pistol: !!d.pistol }));
+    const intro = planLength(studioPlan('intro', { round, first, matchPoint: matchPointTeams(score, round, halfOf(meta)), ot: round > 2 * halfOf(meta), pistol: !!d.pistol }));
     first = false;
     if (!g.end) { for (const e of g.events) at.set(e, e === g.start ? t : t + intro); t += intro; continue; }
     const R = buildRound(g, meta || {});
@@ -892,7 +920,7 @@ export class Cs2View {
         this.R = buildRound(g, this.meta); this.p = 0; this.fired = 0; this.phase = 'intro'; this.hold = 1.7; this.banner = null; this.overlay = null;
         this.replay = null; this.replayed = false; this.view = { mode: 'map', id: null, why: '' }; this.cam = null;
         while (this.fired < this.R.events.length && this.R.events[this.fired]._p <= 0 && ['round_start', 'buy'].includes(this.R.events[this.fired].kind)) this.fire(this.R.events[this.fired++]);
-        const plan = studioPlan('intro', { round: this.R.num, first: !this.seenFirst, matchPoint: matchPointTeams(this.score, this.R.num), ot: this.R.num > 24, pistol: this.R.pistol });
+        const plan = studioPlan('intro', { round: this.R.num, first: !this.seenFirst, matchPoint: matchPointTeams(this.score, this.R.num, halfOf(this.meta)), ot: this.R.num > 2 * halfOf(this.meta), pistol: this.R.pistol });
         this.seenFirst = true; this.studio = { plan, t: 0 }; this.hold = planLength(plan);
         this.onUpdate(this.match, this.current());
       } else if (this.terminal() && this.ri >= this.rounds.filter(r => r.end).length) {
@@ -1488,11 +1516,13 @@ export class Cs2View {
     }
     const cls = weaponClass(pl.weapon), wid = pl.weapon;
     const pistol = cls === 'pistol';
-    const ax = x0 + w * (pistol ? 0.6 : 0.66) + bobX + kick * 10 * S, ay = y0 + h - (pistol ? 46 : 34) * S + bobY + kick * 12 * S;
-    const rot = (pistol ? 0.42 : 0.36) + kick * (cls === 'awp' ? 0.16 : 0.07);
-    g.save(); g.translate(ax, ay); g.rotate(rot); g.scale(S, S);
+    // At rest the barrel points at the crosshair; bob and recoil only nudge it.
+    const pose = gunPose(w, h, wid, this.box.x + this.box.w - x0), fx = pose.fx;
+    const ax = x0 + pose.ax + bobX + kick * 10 * S, ay = y0 + pose.ay + bobY + kick * 12 * S;
+    const rot = pose.rot + kick * (cls === 'awp' ? 0.16 : 0.07);
+    g.save(); g.translate(ax, ay); g.rotate(rot); g.scale(S * fx, S);
     const metal = '#2a2c30', metal2 = '#45484f';
-    let tip;
+    const tip = pose.tip;
     const poly = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); g.fill(); };
     if (pistol) {
       poly([[-14, 26], [18, 26], [70, 150], [-40, 150]], sleeve);
@@ -1500,7 +1530,7 @@ export class Cs2View {
       g.fillStyle = wid === 'deagle' ? '#8d9096' : metal; g.beginPath(); g.roundRect(-58, -16, 76, 16, 3); g.fill();
       g.fillStyle = metal2; g.fillRect(-58, -16, 76, 3);
       g.fillStyle = '#111'; g.fillRect(-60, -12, 4, 8);
-      if (wid === 'usp') { g.fillStyle = '#18191b'; g.beginPath(); g.roundRect(-104, -14, 48, 12, 4); g.fill(); tip = [-106, -8]; } else tip = [-61, -8];
+      if (wid === 'usp') { g.fillStyle = '#18191b'; g.beginPath(); g.roundRect(-104, -14, 48, 12, 4); g.fill(); }
       g.fillStyle = glove; g.beginPath(); g.ellipse(6, 18, 17, 15, 0, 0, Math.PI * 2); g.fill();
       g.beginPath(); g.ellipse(-6, 24, 14, 12, 0, 0, Math.PI * 2); g.fill();
     } else {
@@ -1518,8 +1548,7 @@ export class Cs2View {
       g.fillStyle = wood; g.fillRect(hgL, -12, -hgL - 24, 15);
       const bL = awp ? -160 : smg ? -66 : wid === 'm4a1s' ? -112 : -118;
       g.fillStyle = metal; g.fillRect(bL, -9, hgL - bL, 6);
-      if (wid === 'm4a1s') { g.fillStyle = '#17181a'; g.beginPath(); g.roundRect(-162, -12, 52, 12, 4); g.fill(); tip = [-164, -6]; }
-      else tip = [bL - 2, -6];
+      if (wid === 'm4a1s') { g.fillStyle = '#17181a'; g.beginPath(); g.roundRect(-162, -12, 52, 12, 4); g.fill(); }
       if (!awp) { g.fillStyle = metal; g.fillRect(bL + 6, -17, 4, 8); g.fillRect(14, -20, 10, 6); }
       if (awp) {
         g.fillStyle = '#111214'; g.beginPath(); g.roundRect(-44, -34, 66, 14, 6); g.fill();
@@ -1533,7 +1562,7 @@ export class Cs2View {
     }
     g.restore();
     const c = Math.cos(rot), s = Math.sin(rot);
-    const mx = ax + (tip[0] * c - tip[1] * s) * S, my = ay + (tip[0] * s + tip[1] * c) * S;
+    const mx = ax + (tip[0] * fx * c - tip[1] * s) * S, my = ay + (tip[0] * fx * s + tip[1] * c) * S;
     if (own && own.age < 0.07) this.flashStar(mx, my, (cls === 'awp' ? 30 : 22) * S, own.k.n);
     return { x: mx, y: my };
   }
@@ -2062,7 +2091,7 @@ export class Cs2View {
       g.fillText(clock || '--:--', cx, by + bh * 0.4);
       g.fillStyle = 'rgba(255,255,255,.6)'; g.font = `700 ${9.5 * u}px ${FONT}`;
       const rn = R ? R.num : (this.rounds.length || 0);
-      g.fillText(R ? `${this.T.round} ${rn}${rn > 24 ? ' · OT' : ''}` : this.T.live, cx, by + bh * 0.78);
+      g.fillText(R ? `${this.T.round} ${rn}${rn > 2 * halfOf(this.meta) ? ' · OT' : ''}` : this.T.live, cx, by + bh * 0.78);
     }
   }
 
@@ -2215,7 +2244,7 @@ export class Cs2View {
     const names = this.names();
     if (o.kind === 'half') {
       const d = dataOf(o.e);
-      const title = d.after === 12 ? T.half : d.after === 24 ? T.ot : T.otSwitch;
+      const title = d.after === halfOf(this.meta) ? T.half : d.after === 2 * halfOf(this.meta) ? T.ot : T.otSwitch;
       g.fillStyle = '#ffd34d'; g.font = `900 ${26 * u}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(title, W / 2, H * 0.32);
       this.scoreLine(H * 0.48, names, d.score || this.score, 34);
@@ -2400,7 +2429,7 @@ Object.assign(Cs2View.prototype, {
     if (s.screen === 'win') { if (R && R.end && this.banner) this.drawBanner(R, yc); return; }
     if (s.screen === 'half' && this.halfE) {
       const d = dataOf(this.halfE), score = d.score || sc;
-      const title = d.after === 12 ? T.half : d.after === 24 ? T.ot : T.otSwitch;
+      const title = d.after === halfOf(this.meta) ? T.half : d.after === 2 * halfOf(this.meta) ? T.ot : T.otSwitch;
       this.lowerCard(yc, title, '#ffd34d', `${names[0]}   ${score[0] || 0} – ${score[1] || 0}   ${names[1]}`, d.money ? `${T.switchNote} ${money(d.money)}` : '', '#ffd34d');
     } else if (s.screen === 'welcome') {
       this.lowerCard(yc, 'LIVE FROM THE ARENA', '#ff5a4e', `${names[0]}  vs  ${names[1]}`, `MAP: ${String((this.meta && this.meta.map) || 'Mirage').toUpperCase()}${R ? ` · ${T.round} ${R.num}` : ''}`, '#ff5a4e');
@@ -2408,7 +2437,7 @@ Object.assign(Cs2View.prototype, {
       const w = s.team === 1 ? 1 : 0;
       this.lowerCard(yc, 'CHAMPIONS', '#ffd34d', names[w], `${sc[0] || 0} – ${sc[1] || 0}`, this.teamColor(w));
     } else if (s.screen === 'matchpoint') {
-      const mp = R ? matchPointTeams(sc, R.num) : [];
+      const mp = R ? matchPointTeams(sc, R.num, halfOf(this.meta)) : [];
       this.lowerCard(yc, 'MATCH POINT', '#ff5a4e', mp.length === 1 ? names[mp[0]] : `${names[0]}  ·  ${names[1]}`, `${T.round} ${R ? R.num : ''} · ${sc[0] || 0} – ${sc[1] || 0}`, mp.length === 1 ? this.teamColor(mp[0]) : '#ff5a4e');
     } else if (s.screen === 'overtime') {
       this.lowerCard(yc, T.ot, '#ffd34d', `${names[0]}   ${sc[0] || 0} – ${sc[1] || 0}   ${names[1]}`, `${T.round} ${R ? R.num : ''}`, '#ffd34d');

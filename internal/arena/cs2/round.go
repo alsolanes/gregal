@@ -271,14 +271,24 @@ func (r *rnd) duel(t, c *unit, mod float64, at float64, long bool, zoneID string
 }
 
 func (r *rnd) kill(k, v *unit, at float64, zoneID string, smoke bool) {
+	r.killWith(k, v, at, zoneID, smoke, k.p.weapon(k.side), nil)
+}
+
+// killWith: una mort amb l'arma que l'ha fet. given: el cap (mode en directe,
+// on el dany també el porta el navegador); nil, a l'atzar com sempre.
+func (r *rnd) killWith(k, v *unit, at float64, zoneID string, smoke bool, w weapon, given *bool) {
 	v.alive = false
 	v.cut(at)
-	w := k.p.weapon(k.side)
-	hs := r.r.Float64() < w.HS*(0.95+0.3*(k.p.Aim-0.9))
+	var hs bool
+	if given != nil {
+		hs = *given
+	} else {
+		hs = r.r.Float64() < w.HS*(0.95+0.3*(k.p.Aim-0.9))
+		k.p.Dmg += 100
+		v.p.Dmg += r.r.Intn(45)
+	}
 	k.kills++
 	k.p.K++
-	k.p.Dmg += 100
-	v.p.Dmg += r.r.Intn(45)
 	v.p.D++
 	if hs {
 		k.p.HS++
@@ -1491,7 +1501,7 @@ func (m *Match) finishRound(r *rnd, tObs, cObs string) []arena.Event {
 	// Destacats.
 	hl := false
 	var tags []string
-	if r.num == 1 || r.num == 13 {
+	if m.pistolRound(r.num) {
 		hl = true
 		tags = append(tags, "pistol")
 	}
@@ -1558,7 +1568,7 @@ func (m *Match) finishRound(r *rnd, tObs, cObs string) []arena.Event {
 	for _, u := range r.units() {
 		kills[r.teamOf(u)] += u.kills
 	}
-	if r.num == 1 || r.num == 13 {
+	if m.pistolRound(r.num) {
 		tObs, cObs = "pistol", "pistol"
 	}
 	m.hist = append(m.hist, roundRec{Round: r.num, TTeam: r.tTeam, T: r.td, CT: r.cd, TObs: tObs, CTObs: cObs, Site: site, Planted: r.planted,
@@ -1567,20 +1577,20 @@ func (m *Match) finishRound(r *rnd, tObs, cObs string) []arena.Event {
 	// Mitja part, pròrroga, final.
 	n := m.round
 	endT := r.endT + 1
-	if m.score[win] >= targetFor(n) {
+	if m.score[win] >= targetForH(n, m.H) {
 		m.done, m.winner = true, win
 		r.emit(endT, "match_end", r.tx.matchEnd(m.names[win], m.score), true, m.endData())
-	} else if n == 12 || n == 24 || n > 24 && (n-24)%3 == 0 {
+	} else if n == m.H || n == 2*m.H || n > 2*m.H && (n-2*m.H)%3 == 0 {
 		cash := startMoney
-		if n >= 24 {
+		if n >= 2*m.H {
 			cash = otMoney
 		}
 		m.resetHalf(cash)
-		if n >= 24 && (n-24)%6 == 0 {
+		if n >= 2*m.H && (n-2*m.H)%6 == 0 {
 			m.stats.OT++
 		}
 		nt := m.tTeamFor(n + 1)
-		r.emit(endT, "half", r.tx.half(n, m.score), false, map[string]any{"after": n, "score": m.score, "tTeam": nt, "ot": n >= 24, "money": cash})
+		r.emit(endT, "half", r.tx.half(n, m.H, m.score), false, map[string]any{"after": n, "score": m.score, "tTeam": nt, "ot": n >= 2*m.H, "money": cash})
 	}
 	return m.toEvents(r)
 }
