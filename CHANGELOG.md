@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.31.0 - 2026-10-30 - Guanya el millor prompt
+
 - **Arena: demo matches.** 🎬 Watch a demo match shows, in TV mode and at 2×, a real recorded game for the chosen sport (the model playing an expert `.md` against a beginner one, with commentary, analysis, the rules applied and what the model saw), instantly and without spending model calls.
 
 - **Arena: the better prompt wins.** The three engines were retuned so the result depends on what the `.md` says. Before, a vague "always attack" strategy beat a careful one in 5 of 6 live games. Every option now has real counters, the rules text is generated from the engine so it can't contradict it, fixed one-note play loses to a strategy that reads the situation (by 85-98% in simulations), defaults are fair to both sides and luck matters less. Each situation now also shows what has been working (yards and success per call in NFL, your recent calls and whether you won in CS2, both teams' plans and what happened in LoL).
