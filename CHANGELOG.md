@@ -4,6 +4,7 @@
 
 ## v1.33.1 - 2026-10-30 - Pilota, recepcions i placatges
 
+- **American football looks real.** The ball bounces with the irregular hop of an oval ball, rolls and settles, spirals in flight and tumbles on kicks; snaps and handoffs go hand to hand, the QB visibly throws, receivers reach out and catch (chest, high-point, over the shoulder or diving) and tuck the ball away; tackles have an approach, a wrap-up, a brief impact freeze with a flash and grass, and both players falling together, plus gang tackles, stiff-arms, sacks, pass breakups and fumbles; linemen engage at the snap and players no longer overlap.
 - **Broadcast fixes.** The standings screen no longer hides the top two rows (they took the style of the page's top bar), the ticker text now passes under the yellow GREGAL ARENA label, and "Up next" announces the match the server is actually about to show.
 
 ## v1.33.0 - 2026-10-30 - El reproductor dels partits
