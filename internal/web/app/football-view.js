@@ -9,6 +9,8 @@
 // zona de marca, la del pal, la de carril i el dirigible. Un realitzador les
 // tria per a cada jugada i fa repeticions a càmera lenta de les grosses. Tot
 // passa dins d'un estadi amb graderies, públic animat i videomarcadors.
+// La pilota té física (vol amb gir, bots irregulars, rodolar) i passa de mà en
+// mà; els placatges tenen contacte, aturada curta, caiguda conjunta i terra.
 //
 // El fa servir la pàgina «Partits» de l'app (football.js) i, al mòbil, la
 // pàgina autònoma football-viewer.html dins d'un WebView.
@@ -91,9 +93,9 @@ function assign(team, set) {
   });
 }
 
-// buildPlay converteix una jugada en pistes d'animació: cada jugador té una
+// buildRaw converteix una jugada en pistes d'animació: cada jugador té una
 // funció de posició al llarg de t (0..1) i la pilota té x, y, z (altura).
-export function buildPlay(play, match) {
+function buildRaw(play, match) {
   const R = rng(play.n * 9973 + 17);
   const off = match.teams[play.off], def = match.teams[1 - play.off];
   const dir = attackDir(play.off, play.q);
@@ -281,6 +283,490 @@ export function buildPlay(play, match) {
 }
 
 
+
+// buildPlay: les trajectòries de buildRaw més la física de la pilota, qui la
+// porta i com, els contactes (placatges, línia, stiff-arm) i la separació.
+export function buildPlay(play, match) { return enrich(buildRaw(play, match), play); }
+
+// ---- física de la pilota, agafades i placatges ----
+// La pilota passa de mà en mà (centre, quarterback, corredor o receptor), vola
+// girant (en espiral a les passades i els punts, de punta a punta als xuts) i,
+// quan cau, bota de manera irregular, rodola i s'atura. Els placatges tenen
+// aproximació, contacte, una aturada curta, caiguda conjunta i terra; els de
+// línia s'empenyen; ningú no travessa ningú. Tot surt de la llavor de la
+// jugada: el mateix t dona sempre el mateix.
+// ARM_REACH: fins on arriba una mà des de l'espatlla (iardes); la pilota a la mà mai queda més lluny.
+export const ARM_REACH = 1.15;
+const GRAV = 10.7, SEP = .62, BALL_R = .1;
+const unit2 = (x, y) => { const n = Math.hypot(x, y); return n > 1e-9 ? [x / n, y / n] : [1, 0]; };
+const unit3 = v => { const n = Math.hypot(v[0], v[1], v[2]); return n > 1e-9 ? [v[0] / n, v[1] / n, v[2] / n] : [1, 0, 0]; };
+
+// Agafades: [endavant, costat (+ = dreta), alçada, mans] respecte del jugador.
+const GRIPS = {
+  snap: [.35, 0, .14, 2], carry: [.3, .05, 1.3, 2], cock: [-.22, .4, 1.95, 1], tuck: [.14, .34, 1.12, 1],
+  field: [.42, 0, 1.3, 2], high: [.28, 0, 2.45, 2], low: [.7, 0, .7, 2], over: [.22, 0, 1.7, 2],
+  ground: [.42, .25, .17, 1], clutch: [.3, 0, 1.08, 2], kneel: [.32, 0, .75, 2], hand: [.48, .12, 1.15, 2],
+};
+
+// Pilota solta: vol, bots irregulars que s'apaguen, rodolar i quedar quieta.
+// p0, v0 en iardes i iardes/segon; el temps, en segons des que s'ha deixat anar.
+export function looseBall(p0, v0, seed) {
+  const R = rng(seed), segs = [];
+  let p = [p0[0], p0[1], Math.max(BALL_R, p0[2])], v = v0.slice(), tau = 0, tumble = 8 + R() * 8, yaw = Math.atan2(v[1], v[0]), ph = R() * 6;
+  for (let k = 0; k < 6; k++) {
+    const z = p[2] - BALL_R, tf = Math.max(.001, (v[2] + Math.sqrt(v[2] * v[2] + 2 * GRAV * Math.max(0, z))) / GRAV);
+    segs.push({ kind: 'air', tau, p: p.slice(), v: v.slice(), dur: tf, tumble, yaw, ph });
+    p = [p[0] + v[0] * tf, p[1] + v[1] * tf, BALL_R]; tau += tf;
+    const vzIn = Math.abs(v[2] - GRAV * tf);
+    // La punta toca primer: el bot surt cap a un costat i amb un gir nou.
+    const e = .38 + R() * .27, keep = .5 + R() * .35, turn = (R() - .5) * 1.5, c = Math.cos(turn), s = Math.sin(turn);
+    v = [(v[0] * c - v[1] * s) * keep, (v[0] * s + v[1] * c) * keep, vzIn * e];
+    tumble = (R() < .5 ? -1 : 1) * (10 + R() * 22); yaw = Math.atan2(v[1], v[0]); ph = R() * 6;
+    if (v[2] < 1.1) break;
+  }
+  const sp = Math.hypot(v[0], v[1]), fr = 6, rd = Math.max(.05, sp / fr);
+  segs.push({ kind: 'roll', tau, p: p.slice(), v: [v[0], v[1], 0], dur: rd, yaw: Math.atan2(v[1], v[0]) });
+  tau += rd;
+  segs.push({ kind: 'rest', tau, p: [p[0] + v[0] * rd / 2, p[1] + v[1] * rd / 2, BALL_R], dur: 1e9, yaw: Math.atan2(v[1], v[0]) + Math.PI / 2 + (R() - .5) });
+  return segs;
+}
+// Altura màxima de cada vol (per comprovar que els bots s'apaguen).
+export function bounceApexes(segs) { return segs.filter(s => s.kind === 'air').map(s => s.p[2] + Math.max(0, s.v[2]) ** 2 / (2 * GRAV)); }
+export function looseAt(segs, tau) {
+  let s = segs[segs.length - 1];
+  for (const q of segs) if (tau < q.tau + q.dur) { s = q; break; }
+  const dt = clamp(tau - s.tau, 0, s.dur);
+  if (s.kind === 'air') {
+    const phi = s.ph + s.tumble * dt, h = [Math.cos(s.yaw), Math.sin(s.yaw)];
+    return { x: s.p[0] + s.v[0] * dt, y: s.p[1] + s.v[1] * dt, z: Math.max(BALL_R, s.p[2] + s.v[2] * dt - GRAV * dt * dt / 2), axis: [h[0] * Math.cos(phi), h[1] * Math.cos(phi), Math.sin(phi)], spin: phi };
+  }
+  if (s.kind === 'roll') {
+    const f = dt - dt * dt / (2 * s.dur), wob = s.yaw + Math.PI / 2 + .35 * Math.sin(dt * 9);
+    return { x: s.p[0] + s.v[0] * f, y: s.p[1] + s.v[1] * f, z: BALL_R, axis: [Math.cos(wob), Math.sin(wob), .08], spin: f * 14 };
+  }
+  return { x: s.p[0], y: s.p[1], z: BALL_R, axis: [Math.cos(s.yaw), Math.sin(s.yaw), .05], spin: 0 };
+}
+
+// Retalla t d'una jugada perquè el placatge faci una aturada curta (hit-stop)
+// sense allargar la jugada: es para un moment i després recupera.
+export function hitStop(anim, t) {
+  const h = .02;
+  for (const c of anim.contacts || []) {
+    const u = t - c.tc;
+    if (u > 0 && u < 3 * h) return c.tc + (u < h ? u * .15 : .15 * h + (u - h) * (2.85 * h) / (2 * h));
+  }
+  return t;
+}
+
+function enrich(anim, play) {
+  anim.rawBall = anim.ball;
+  const { tracks, dir, dur } = anim, m = anim.marks, A = play.actors || {}, kind = play.kind, N = tracks.length;
+  const R = rng((play.n || 1) * 7919 + 3);
+  const idx = id => id ? tracks.findIndex(tr => tr.p.id === id) : -1;
+  const raw = (i, t) => tracks[i].path(t);
+  const teamDir = i => tracks[i].team === play.off ? dir : -dir;
+  const scrim = ['run', 'pass', 'sack', 'scramble', 'kneel', 'two'].includes(kind);
+  const qbI = idx(m.qbId);
+  const olI = tracks.map((_, i) => i).filter(i => tracks[i].team === play.off && tracks[i].p.pos === 'OL');
+  const centerI = olI.length ? olI.reduce((a, i) => Math.abs(raw(i, 0).y - C) < Math.abs(raw(a, 0).y - C) ? i : a) : -1;
+  const carrierI = idx(anim.carrierId), targetI = idx(m.targetId), defI = idx(A.defender);
+  const passing = m.targetId && m.tThrow !== undefined;
+  const nearestOpp = (i, t, excl = []) => {
+    let best = -1, bd = 1e9; const p = raw(i, t);
+    tracks.forEach((tr, j) => { if (tr.team === tracks[i].team || excl.includes(j)) return; const q = raw(j, t), d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = j; } });
+    return [best, bd];
+  };
+  const rawHead = (i, t) => { const a = raw(i, Math.max(0, t - .03)), b = raw(i, t); const n = Math.hypot(b.x - a.x, b.y - a.y); return n > .05 ? unit2(b.x - a.x, b.y - a.y) : [teamDir(i), 0]; };
+
+  const overrides = [], allow = [], locks = [], falls = [], fx = [], contacts = [];
+  // Línia: cada defensiu de línia s'enganxa al de davant i s'empenyen.
+  const engaged = [];
+  if (scrim && kind !== 'kneel') {
+    const taken = new Set();
+    tracks.forEach((tr, j) => {
+      if (tr.team === play.off || tr.p.pos !== 'DL') return;
+      let best = -1, bd = 1e9; const q = raw(j, .05);
+      for (const o of olI) { if (taken.has(o)) continue; const p = raw(o, .05), d = Math.hypot(p.x - q.x, p.y - q.y); if (d < bd) { bd = d; best = o; } }
+      if (best < 0) return;
+      taken.add(best);
+      engaged.push({ o: best, d: j, t1: .55 });
+    });
+  }
+  // Qui porta la pilota (per no moure'l quan s'aparten els altres).
+  let th = m.tHand;
+  if (m.tHand !== undefined && qbI >= 0 && carrierI >= 0) {
+    // L'entrega: el moment en què el corredor passa més a prop del quarterback.
+    let bd = 1e9;
+    for (let t = .08; t <= .3; t += .005) { const a = raw(qbI, t), b = raw(carrierI, t), d = Math.hypot(a.x - b.x, a.y - b.y); if (d < bd) { bd = d; th = t; } }
+  }
+  const tGot = passing ? m.tCatch : th !== undefined ? th : kind === 'kickoff' ? (m.tCatch || 1) : 0;
+  const holderAt = t => {
+    if (passing) return t < m.tThrow ? qbI : t >= m.tCatch ? carrierI : -1;
+    if (th !== undefined) return t < th ? qbI : carrierI;
+    if (kind === 'kickoff' || kind === 'punt') return t >= (m.tCatch || 1) ? carrierI : -1;
+    return carrierI >= 0 ? carrierI : qbI;
+  };
+
+  // Placatge.
+  const tackled = carrierI >= 0 && !play.td && !['kneel', 'pat', 'fg', 'punt'].includes(kind) && !(kind === 'kickoff' && play.detail === 'touchback');
+  let tk = -1, tc = -1, gang = [], travel = [dir, 0], ap = [-dir, 0];
+  if (tackled) {
+    tk = idx(kind === 'sack' ? A.defender : A.tackler);
+    if (tk < 0 || tracks[tk].team === tracks[carrierI].team) tk = nearestOpp(carrierI, .95)[0];
+    if (kind === 'sack') tc = .58;
+    else {
+      for (let t = Math.max(tGot + .06, .3); t <= .95; t += .005) { const a = raw(carrierI, t), b = raw(tk, t); if (Math.hypot(a.x - b.x, a.y - b.y) < 1.5) { tc = t; break; } }
+      if (tc < 0) tc = .9;
+    }
+    tc = clamp(tc, Math.min(.9, tGot + .08), .93);
+    const c0 = raw(carrierI, tc - .03), k0 = raw(tk, tc - .03);
+    ap = unit2(k0.x - c0.x, k0.y - c0.y);
+    const vc = rawHead(carrierI, tc);
+    travel = kind === 'sack' ? [-ap[0], -ap[1]] : unit2(vc[0] - ap[0] * .5, vc[1] - ap[1] * .5);
+    // Placatge en grup: un o dos més s'hi tiren a sobre.
+    if (kind !== 'sack' && (R() < .45 || play.hl)) {
+      const cands = [];
+      tracks.forEach((tr, j) => { if (tr.team === tracks[carrierI].team || j === tk) return; const a = raw(carrierI, tc), b = raw(j, tc), d = Math.hypot(a.x - b.x, a.y - b.y); if (d < 7.5) cands.push([d, j]); });
+      cands.sort((a, b) => a[0] - b[0]);
+      gang = cands.slice(0, R() < .5 ? 1 : 2).map(([, j], n) => ({ j, tj: tc + .015 * (n + 1), side: n % 2 ? -1 : 1 }));
+    }
+  }
+  const pile = tackled ? [carrierI, tk, ...gang.map(g => g.j)] : [];
+  const cPos0 = tackled ? raw(carrierI, tc) : null;
+  const pileAt = t => { const k = 1.1 * easeOut(seg(t, tc, tc + .1)); return { x: cPos0.x + travel[0] * k, y: cPos0.y + travel[1] * k }; };
+
+  // Stiff-arm a les curses llargues: un defensor arriba de costat i el corredor l'aparta.
+  let stiff = null;
+  const longRun = carrierI >= 0 && (kind === 'run' || kind === 'scramble' || kind === 'kickoff' || (kind === 'pass' && play.complete)) && Math.abs(play.yards || 0) >= 15;
+  if (longRun) {
+    const ts = Math.max(.55, tGot + .14), limit = tackled ? tc - .14 : .86;
+    if (ts < limit) {
+      const [sd, dd] = nearestOpp(carrierI, ts, [tk, ...gang.map(g => g.j)]);
+      if (sd >= 0 && dd < 16) {
+        const h = rawHead(carrierI, ts), cp = raw(carrierI, ts), q = raw(sd, ts);
+        const side = (-h[1] * (q.x - cp.x) + h[0] * (q.y - cp.y)) >= 0 ? 1 : -1;
+        stiff = { j: sd, ts, side, h, at: { x: cp.x - h[1] * side * .75 + h[0] * .25, y: cp.y + h[0] * side * .75 + h[1] * .25 } };
+      }
+    }
+  }
+
+  // Overrides (en ordre): línia, entrega, stiff-arm, placatge i grup.
+  for (const e of engaged) overrides.push((t, P) => {
+    const k = ease(seg(t, .03, .09)) * (1 - ease(seg(t, e.d === tk ? .28 : e.t1, (e.d === tk ? .28 : e.t1) + .1)));
+    if (k <= 0) return;
+    const o = P[e.o], q = P[e.d], tgt = { x: o.x + dir * .82, y: lerp(q.y, o.y, .75) };
+    P[e.d] = { x: lerp(q.x, tgt.x, k), y: lerp(q.y, tgt.y, k) };
+  });
+  if (th !== undefined && qbI >= 0 && carrierI >= 0) {
+    overrides.push((t, P) => {
+      const k = Math.sin(Math.PI * seg(t, th - .07, th + .05));
+      if (k <= 0) return;
+      const r = P[carrierI], q = P[qbI], u = unit2(q.x - r.x, q.y - r.y), tgt = { x: r.x + u[0] * .7, y: r.y + u[1] * .7 };
+      P[qbI] = { x: lerp(q.x, tgt.x, k), y: lerp(q.y, tgt.y, k) };
+    });
+    allow.push([qbI, carrierI, th - .08, th + .06]);
+  }
+  if (stiff) {
+    const s = stiff, away = unit2(s.at.x - raw(carrierI, s.ts).x, s.at.y - raw(carrierI, s.ts).y);
+    overrides.push((t, P) => {
+      if (t < s.ts - .08) return;
+      if (t < s.ts) { const k = ease(seg(t, s.ts - .08, s.ts)), c = P[carrierI], tgt = { x: c.x - s.h[1] * s.side * .75 + s.h[0] * .25, y: c.y + s.h[0] * s.side * .75 + s.h[1] * .25 }; P[s.j] = { x: lerp(P[s.j].x, tgt.x, k), y: lerp(P[s.j].y, tgt.y, k) }; return; }
+      const k = 1.3 * easeOut(seg(t, s.ts, s.ts + .08));
+      P[s.j] = { x: s.at.x + away[0] * k, y: s.at.y + away[1] * k };
+    });
+    allow.push([carrierI, s.j, s.ts - .03, s.ts + .03]);
+    locks.push([s.j, s.ts - .08, 2]);
+    falls.push({ i: s.j, t0: s.ts + .01, t1: s.ts + .08, dir: away });
+    fx.push({ t: s.ts, kind: 'hit', at: s.at, big: false });
+  }
+  if (tackled) {
+    overrides.push((t, P) => {
+      if (t < tc - .08) return;
+      const base = t >= tc ? pileAt(t) : P[carrierI];
+      P[carrierI] = base;
+      const fk = ease(seg(t, tc + .04, tc + .11));
+      const att = { x: base.x + ap[0] * .55 + travel[0] * .3 * fk, y: base.y + ap[1] * .55 + travel[1] * .3 * fk };
+      if (t < tc) { const k = ease(seg(t, tc - .08, tc)); P[tk] = { x: lerp(P[tk].x, att.x, k), y: lerp(P[tk].y, att.y, k) }; }
+      else P[tk] = att;
+      for (const g of gang) {
+        if (t < g.tj - .08) continue;
+        const q = P[g.j], a = unit2(q.x - base.x, q.y - base.y);
+        const ang = g.side * .9, c = Math.cos(ang), s = Math.sin(ang);
+        const off = t < g.tj ? a : unit2(ap[0] * c - ap[1] * s, ap[0] * s + ap[1] * c);
+        const tgt = { x: base.x + off[0] * .62 + travel[0] * .2, y: base.y + off[1] * .62 + travel[1] * .2 };
+        const k = t < g.tj ? ease(seg(t, g.tj - .08, g.tj)) : 1;
+        P[g.j] = { x: lerp(q.x, tgt.x, k), y: lerp(q.y, tgt.y, k) };
+      }
+    });
+    for (let a = 0; a < pile.length; a++) for (let b = a + 1; b < pile.length; b++) allow.push([pile[a], pile[b], tc - .04, 2]);
+    for (const j of pile) locks.push([j, tc - .08, 2]);
+    falls.push({ i: carrierI, t0: tc + .03, t1: tc + .1, dir: travel }, { i: tk, t0: tc + .04, t1: tc + .11, dir: travel });
+    gang.forEach((g, n) => falls.push({ i: g.j, t0: g.tj + .03, t1: g.tj + .1, dir: unit2(travel[0] + (n ? -.3 : .3) * travel[1], travel[1] - (n ? -.3 : .3) * travel[0]) }));
+    const big = kind === 'sack' || gang.length > 0 || !!play.hl;
+    contacts.push({ tc, big, carrier: carrierI, tackler: tk, gang: gang.map(g => g.j), travel, ap });
+    fx.push({ t: tc, kind: 'hit', at: null, big }, { t: tc + .1, kind: 'turf', at: null, big });
+  }
+  const lockedAt = (i, t) => locks.some(([j, t0]) => j === i && t >= t0);
+  const allowed = (i, j, t) => allow.some(([a, b, t0, t1]) => ((a === i && b === j) || (a === j && b === i)) && t >= t0 && t <= t1);
+
+  // Posicions resoltes per a cada instant (amb memòria curta).
+  const cache = new Map();
+  anim.frameAt = t0 => {
+    // t arrodonit: el mateix instant dona exactament el mateix, sigui quin sigui l'ordre de les crides.
+    const key = Math.round(t0 * 1e6), t = key / 1e6;
+    let P = cache.get(key);
+    if (P) return P;
+    P = tracks.map(tr => { const q = tr.path(t); return { x: q.x, y: q.y }; });
+    for (const f of overrides) f(t, P);
+    const pin = holderAt(t);
+    const w = tracks.map((_, i) => i === pin ? 0 : lockedAt(i, t) ? .15 : 1);
+    for (let it = 0; it < 4; it++) for (let i = 0; i < N; i++) for (let j = i + 1; j < N; j++) {
+      const dx = P[j].x - P[i].x, dy = P[j].y - P[i].y, d = Math.hypot(dx, dy);
+      if (d >= SEP || allowed(i, j, t)) continue;
+      const sum = w[i] + w[j];
+      if (sum <= 0) continue;
+      const u = d > 1e-6 ? [dx / d, dy / d] : [Math.cos(i * 2.4 + j), Math.sin(i * 2.4 + j)], push = SEP - d;
+      P[i] = { x: P[i].x - u[0] * push * w[i] / sum, y: P[i].y - u[1] * push * w[i] / sum };
+      P[j] = { x: P[j].x + u[0] * push * w[j] / sum, y: P[j].y + u[1] * push * w[j] / sum };
+    }
+    if (cache.size > 48) cache.clear();
+    cache.set(key, P);
+    return P;
+  };
+  tracks.forEach((tr, i) => { tr.pos = t => anim.frameAt(t)[i]; });
+  // Cap on mira: on va (o el seu atac si està quiet o recula), el placador cap al corredor.
+  anim.headingOf = (i, t) => {
+    if (tackled && t >= tc - .08 && pile.includes(i) && i !== carrierI) { const a = anim.frameAt(t)[i], c = anim.frameAt(t)[carrierI]; return [...unit2(c.x - a.x, c.y - a.y), 0]; }
+    for (const e of engaged) if ((e.o === i || e.d === i) && t > .04 && t < e.t1) return [teamDir(i), 0, 0];
+    const a = anim.frameAt(Math.max(0, t - .012))[i], b = anim.frameAt(Math.min(1, t + .012))[i];
+    const dx = b.x - a.x, dy = b.y - a.y, n = Math.hypot(dx, dy), td = teamDir(i);
+    if (n < .06 || (dx * td < -.5 * n && t < .55)) return [td, 0, n];
+    return [dx / n, dy / n, n];
+  };
+  const fallOf = (i, t) => { for (const f of falls) if (f.i === i && t >= f.t0) return { k: ease(seg(t, f.t0, f.t1)), dir: f.dir }; return null; };
+  anim.fallOf = fallOf;
+
+  // Tipus d'agafada del receptor.
+  let catchType = 'field';
+  if (passing) {
+    if (m.deep || (play.depth || 0) >= 20) catchType = 'over';
+    else if (play.hl && R() < .6) catchType = 'high';
+    else if (play.complete && Math.abs((play.yards || 0) - (play.depth || 0)) < 1.5 && R() < .45) catchType = 'low';
+    if (catchType === 'low' && targetI >= 0) falls.push({ i: targetI, t0: m.tCatch - .03, t1: m.tCatch + .04, dir: rawHead(targetI, m.tCatch) });
+  }
+  const catcher = passing ? (play.int && defI >= 0 ? defI : targetI) : -1;
+  const jumpOf = (i, t) => (passing && i === catcher && catchType === 'high') ? .55 * Math.sin(Math.PI * seg(t, m.tCatch - .07, m.tCatch + .07)) : 0;
+  anim.jumpOf = jumpOf;
+
+  // On és una agafada a l'instant t (segueix el cos quan cau).
+  const gripPt = (i, t, grip, side = 1, grip2, k = 0) => {
+    const P = anim.frameAt(t)[i], h = anim.headingOf(i, t), r = [-h[1], h[0]];
+    const g0 = GRIPS[grip], g = grip2 ? g0.map((v, n) => lerp(v, GRIPS[grip2][n], k)) : g0;
+    let x = P.x + h[0] * g[0] + r[0] * g[1] * side, y = P.y + h[1] * g[0] + r[1] * g[1] * side, z = g[2] + jumpOf(i, t);
+    const f = fallOf(i, t);
+    if (f) { const a = f.k * Math.PI / 2 * .85; x += f.dir[0] * z * Math.sin(a); y += f.dir[1] * z * Math.sin(a); z = Math.max(BALL_R + .05, z * Math.cos(a)); }
+    const up = grip === 'ground' ? .95 : grip === 'tuck' || grip2 === 'tuck' ? .45 : .2;
+    return { x, y, z, axis: unit3([h[0], h[1], up]), hands: g[3] > 1.5 ? 2 : 1 };
+  };
+  // Tuck: al braç del costat contrari del defensor més proper.
+  const tuckSide = (i, t) => {
+    if (i < 0) return 1;
+    const [j] = nearestOpp(i, t); if (j < 0) return 1;
+    const P = raw(i, t), q = raw(j, t), h = rawHead(i, t);
+    return (-h[1] * (q.x - P.x) + h[0] * (q.y - P.y)) > 0 ? -1 : 1;
+  };
+
+  // Línia de temps de la pilota.
+  const tl = [];
+  const hold = (t0, t1, who, grip, side, grip2) => { if (who >= 0 && t1 > t0) tl.push({ t0, t1, type: 'hold', who, grip, side: side || 1, grip2 }); };
+  const give = (t0, t1, a, ga, b, gb, side) => { if (a >= 0 && b >= 0) tl.push({ t0, t1, type: 'pass', a, ga, b, gb, side: side || 1 }); };
+  const fly = (t0, t1, p0, p1, peak, spin) => tl.push({ t0, t1, type: 'fly', p0, p1, peak, spin });
+  const loose = (t0, p0, v0, n) => tl.push({ t0, t1: 99, type: 'loose', p0: [p0.x, p0.y, p0.z], segs: looseBall([p0.x, p0.y, p0.z], v0, (play.n || 1) * 131 + n) });
+  const still = (t0, t1, p, axis) => tl.push({ t0, t1, type: 'still', p, axis });
+  const flyVel = (f, t1) => { const T = Math.max(.05, (f.t1 - f.t0) * dur); return [(f.p1.x - f.p0.x) / T, (f.p1.y - f.p0.y) / T, (f.p1.z - f.p0.z - 4 * f.peak) / T]; };
+  const pt = g => ({ x: g.x, y: g.y, z: g.z });
+  // El snap: del centre al quarterback (a les mans si és a sota, volant si és en escopeta).
+  const snapTo = (who, grip, tEnd) => {
+    if (centerI < 0 || who < 0) return 0;
+    const far = Math.hypot(raw(who, 0).x - raw(centerI, 0).x, raw(who, 0).y - raw(centerI, 0).y) > 1.6;
+    hold(0, .03, centerI, 'snap');
+    if (far) { const t1 = tEnd || .09; fly(.03, t1, pt(gripPt(centerI, .03, 'snap')), pt(gripPt(who, t1, grip)), .25, 'spiral'); return t1; }
+    give(.03, .06, centerI, 'snap', who, grip); return .06;
+  };
+  const tuckAfter = (who, t0, from) => { const sd = tuckSide(who, t0); hold(t0, t0 + .06, who, from, sd, 'tuck'); return sd; };
+  let fumbleAt = -1, tuck = 1;
+
+  if (kind === 'kickoff') {
+    const kx = fieldX(65, dir), tee = { x: kx, y: C, z: .25 };
+    still(0, .05, tee, [0, 0, 1]);
+    if (play.detail === 'touchback' || carrierI < 0) {
+      const land = { x: fieldX(-2, dir) - dir * 2, y: C + (R() - .5) * 6, z: BALL_R };
+      const f = { t0: .05, t1: .7, p0: tee, p1: land, peak: 12, spin: 'flip' };
+      tl.push({ ...f, type: 'fly' });
+      const v = flyVel(f); loose(.7, land, [v[0] * .55, v[1] * .55, v[2]], 1);
+    } else {
+      const tC = m.tCatch || .55;
+      fly(.05, tC, tee, pt(gripPt(carrierI, tC, 'field')), 12, 'flip');
+      tuck = tuckAfter(carrierI, tC, 'field'); hold(tC + .06, 1.01, carrierI, 'tuck', tuck);
+    }
+  } else if (kind === 'punt' || kind === 'fg' || kind === 'pat') {
+    const kI = idx(m.kickerId);
+    if (kind === 'punt') {
+      const tS = .12;
+      if (centerI >= 0 && kI >= 0) { hold(0, .02, centerI, 'snap'); fly(.02, tS, pt(gripPt(centerI, .02, 'snap')), pt(gripPt(kI, tS, 'field')), .4, 'spiral'); hold(tS, .25, kI, 'field', 1, 'carry'); }
+      const from = kI >= 0 ? pt(gripPt(kI, .25, 'carry')) : { x: anim.los, y: C, z: 1 };
+      const ret = idx(m.returnerId), caught = ret >= 0 && !['downed', 'touchback', 'out', 'blocked'].includes(play.detail);
+      if (caught) { fly(.25, .8, from, pt(gripPt(ret, .8, 'field')), 11, 'spiral'); hold(.8, 1.01, ret, 'field'); }
+      else { const land = { x: anim.endX, y: C + Math.sin(3), z: BALL_R }, f = { t0: .25, t1: .8, p0: from, p1: land, peak: 11 }; fly(.25, .8, from, land, 11, 'spiral'); const v = flyVel(f); loose(.8, land, [v[0] * .6, v[1] * .6, v[2]], 2); }
+    } else {
+      // Gol de camp / extra: snap baix al que l'aguanta, a terra, i el xut de punta a punta.
+      const hI = qbI;
+      if (centerI >= 0 && hI >= 0) { hold(0, .03, centerI, 'snap'); fly(.03, .17, pt(gripPt(centerI, .03, 'snap')), pt(gripPt(hI, .17, 'hand')), .15, 'spiral'); hold(.17, .3, hI, 'hand', 1, 'ground'); }
+      const from = hI >= 0 ? pt(gripPt(hI, .3, 'ground')) : { x: anim.los - dir * 7, y: C, z: .2 };
+      const end = anim.rawBall(.85);
+      const f = { t0: .3, t1: .85, p0: from, p1: { x: end.x, y: end.y, z: end.z }, peak: 4.5 };
+      fly(.3, .85, f.p0, f.p1, 4.5, 'flip');
+      const v = flyVel(f); loose(.85, f.p1, [v[0] * .7, v[1] * .7, v[2]], 3);
+    }
+  } else if (passing) {
+    const tS = snapTo(qbI, 'carry');
+    hold(tS, m.tThrow - .08, qbI, 'carry');
+    hold(m.tThrow - .08, m.tThrow, qbI, 'carry', 1, 'cock');
+    const grip = catchType === 'high' ? 'high' : catchType === 'low' ? 'low' : catchType === 'over' ? 'over' : 'field';
+    const p0 = pt(gripPt(qbI, m.tThrow, 'cock'));
+    const who = catcher >= 0 ? catcher : targetI;
+    const p1 = pt(gripPt(who, m.tCatch, grip));
+    const peak = m.deep ? 6 : play.detail === 'medium' ? 3.5 : 1.8;
+    const f = { t0: m.tThrow, t1: m.tCatch, p0, p1, peak };
+    fly(m.tThrow, m.tCatch, p0, p1, peak, 'spiral');
+    if (play.complete || play.int) {
+      tuck = tuckAfter(who, m.tCatch, grip);
+      hold(m.tCatch + .06, 1.01, who, 'tuck', tuck);
+    } else {
+      const v = flyVel(f), h = rawHead(targetI, m.tCatch);
+      if (defI >= 0) loose(m.tCatch, p1, [v[0] * .15 - h[1] * 3.5, v[1] * .15 + h[0] * 3.5, 4.5], 4); // la desvia el defensor
+      else loose(m.tCatch, p1, [v[0] * .3, v[1] * .3, 1.4], 5); // li rebota a les mans
+    }
+  } else if (qbI >= 0) {
+    // Curses, scrambles, sacks i genolls a terra.
+    const tS = snapTo(qbI, 'carry');
+    if (th !== undefined && carrierI >= 0 && carrierI !== qbI) {
+      hold(tS, th - .03, qbI, 'carry');
+      give(th - .03, th + .02, qbI, 'carry', carrierI, 'hand');
+      tuck = tuckAfter(carrierI, th + .02, 'hand');
+      hold(th + .08, 1.01, carrierI, 'tuck', tuck);
+    } else if (kind === 'sack') {
+      hold(tS, tc - .04, qbI, 'carry'); hold(tc - .04, tc, qbI, 'carry', 1, 'clutch'); hold(tc, 1.01, qbI, 'clutch');
+    } else if (kind === 'kneel') {
+      hold(tS, .2, qbI, 'carry'); hold(.2, .35, qbI, 'carry', 1, 'kneel'); hold(.35, 1.01, qbI, 'kneel');
+    } else {
+      hold(tS, .4, qbI, 'carry'); tuck = tuckAfter(qbI, .4, 'carry'); hold(.46, 1.01, qbI, 'tuck', tuck);
+    }
+  }
+  tl.sort((a, b) => a.t0 - b.t0);
+  // Pilota perduda: surt de les mans en el placatge.
+  if (play.fumble && tackled) {
+    fumbleAt = tc + .02;
+    const cut = tl.findIndex(s => s.t1 > fumbleAt);
+    const holdSeg = tl[cut];
+    if (holdSeg) {
+      const p = (holdSeg.type === 'hold') ? pt(gripPt(holdSeg.who, fumbleAt, holdSeg.grip, holdSeg.side)) : { x: cPos0.x, y: cPos0.y, z: 1 };
+      tl.splice(cut + 1);
+      holdSeg.t1 = fumbleAt;
+      loose(fumbleAt, p, [travel[0] * 3.5 + ap[1] * 2, travel[1] * 3.5 - ap[0] * 2, 3.2], 6);
+    }
+  }
+  anim.timeline = tl;
+  const ballCache = new Map();
+  anim.ball = t0 => {
+    const key = Math.round(t0 * 1e6), t = key / 1e6;
+    const hit = ballCache.get(key);
+    if (hit) return hit;
+    let s = tl[tl.length - 1];
+    for (const q of tl) if (t < q.t1) { s = q; break; }
+    let out;
+    if (!s) out = { x: anim.los, y: C, z: BALL_R, axis: [1, 0, 0], spin: 0, holder: -1, hands: 0, mode: 'still' };
+    else if (t < s.t0 && s === tl[0] && s.type === 'hold') out = { ...gripPt(s.who, t, s.grip, s.side), holder: s.who, spin: 0, mode: 'held' };
+    else if (s.type === 'hold') {
+      const k = s.grip2 ? ease(seg(t, s.t0, s.t1)) : 0, g = gripPt(s.who, t, s.grip, s.side, s.grip2, k);
+      out = { ...g, holder: s.who, spin: 0, mode: 'held', grip: k > .5 ? s.grip2 : s.grip };
+    } else if (s.type === 'pass') {
+      const k = ease(seg(t, s.t0, s.t1)), a = gripPt(s.a, t, s.ga), b = gripPt(s.b, t, s.gb, s.side);
+      out = { x: lerp(a.x, b.x, k), y: lerp(a.y, b.y, k), z: lerp(a.z, b.z, k), axis: k < .5 ? a.axis : b.axis, hands: 2, holder: k < .5 ? s.a : s.b, giver: k < .5 ? s.b : s.a, spin: 0, mode: 'held' };
+    } else if (s.type === 'fly') {
+      const k = seg(t, s.t0, s.t1), tau = (t - s.t0) * dur;
+      const x = lerp(s.p0.x, s.p1.x, k), y = lerp(s.p0.y, s.p1.y, k), z = lerp(s.p0.z, s.p1.z, k) + s.peak * 4 * k * (1 - k);
+      const tan = unit3([s.p1.x - s.p0.x, s.p1.y - s.p0.y, s.p1.z - s.p0.z + s.peak * 4 * (1 - 2 * k)]);
+      let axis = tan, spin = tau * 38;
+      if (s.spin === 'flip') { const h = unit2(tan[0], tan[1]), phi = tau * Math.PI * 2 * 2.3; axis = [h[0] * Math.cos(phi), h[1] * Math.cos(phi), Math.sin(phi)]; spin = 0; }
+      out = { x, y, z: Math.max(BALL_R, z), axis, spin, spiral: s.spin === 'spiral', holder: -1, hands: 0, mode: 'fly' };
+    } else if (s.type === 'loose') {
+      out = { ...looseAt(s.segs, Math.max(0, t - s.t0) * dur), holder: -1, hands: 0, mode: 'loose' };
+    } else out = { x: s.p.x, y: s.p.y, z: s.p.z, axis: s.axis, spin: 0, holder: -1, hands: 0, mode: 'still' };
+    if (ballCache.size > 48) ballCache.clear();
+    ballCache.set(key, out);
+    return out;
+  };
+
+  // Qui xuta d'inici: el de l'equip que xuta més a prop del tee.
+  let kickerI = -1;
+  if (kind === 'kickoff') { let bd = 1e9; const kx = fieldX(65, dir); tracks.forEach((tr, j) => { if (tr.team === play.off) return; const q = raw(j, .05), d = Math.hypot(q.x - kx, q.y - C); if (d < bd) { bd = d; kickerI = j; } }); }
+
+  // Postura de cada jugador: inclinació, caiguda, salt, braços (punts on van
+  // les mans, al món), xut i ajupit.
+  anim.poseOf = (i, t) => {
+    const pose = { lean: 0, fall: fallOf(i, t), jump: jumpOf(i, t), arms: null, kick: 0, crouch: 0 };
+    const P = anim.frameAt(t)[i], b = anim.ball(t), bp = [b.x, b.y, b.z];
+    const hd = anim.headingOf(i, t);
+    pose.lean = b.holder === i && b.grip !== 'tuck' ? 0 : clamp(hd[2] * 1.2, 0, .35);
+    if (b.holder === i || b.giver === i) pose.arms = b.hands === 2 || b.giver === i ? [bp, bp] : [bp, null];
+    if (i === qbI && passing && t >= m.tThrow && t < m.tThrow + .08) {
+      // Acaba el llançament: el braç endavant.
+      pose.arms = [[P.x + hd[0] * .95, P.y + hd[1] * .95, 1.85 - seg(t, m.tThrow, m.tThrow + .08) * .6], [P.x + hd[0] * .5, P.y + hd[1] * .5, 1.2]];
+      pose.lean = .4;
+    }
+    if (passing && i === (catcher >= 0 ? catcher : targetI) && t >= m.tCatch - .08 && t < m.tCatch) {
+      const near = Math.hypot(b.x - P.x, b.y - P.y) < 8;
+      const reach = near ? bp : [P.x + hd[0] * .6, P.y + hd[1] * .6, catchType === 'over' ? 1.8 : 1.5];
+      pose.arms = [reach, reach]; pose.lean = 0;
+    }
+    if (passing && !play.complete && !play.int && i === defI && t >= m.tCatch - .05 && t < m.tCatch + .03) pose.arms = [bp, null], pose.lean = .3;
+    for (const e of engaged) if ((e.o === i || e.d === i) && t > .05 && t < (e.d === tk ? .28 : e.t1)) {
+      const o = anim.frameAt(t)[e.o === i ? e.d : e.o]; pose.arms = [[o.x, o.y, 1.15], [o.x, o.y, 1.25]]; pose.lean = .55;
+    }
+    if (stiff && t > stiff.ts - .05 && t < stiff.ts + .04) {
+      if (i === carrierI) { const q = anim.frameAt(t)[stiff.j]; pose.arms = [pose.arms ? pose.arms[0] : bp, [q.x, q.y, 1.45]]; }
+      if (i === stiff.j) pose.lean = .5;
+    }
+    if (tackled && t >= tc - .06 && (i === tk || gang.some(g => g.j === i))) {
+      const c = anim.frameAt(t)[carrierI];
+      pose.arms = [[c.x - travel[1] * .25, c.y + travel[0] * .25, 1.0], [c.x + travel[1] * .25, c.y - travel[0] * .25, 1.0]];
+      pose.lean = .85;
+    }
+    if (kind === 'kickoff' && i === kickerI) pose.kick = Math.sin(Math.PI * seg(t, .02, .1));
+    if ((kind === 'fg' || kind === 'pat') && i === idx(m.kickerId)) pose.kick = Math.sin(Math.PI * seg(t, .26, .36));
+    if (kind === 'punt' && i === idx(m.kickerId)) pose.kick = Math.sin(Math.PI * seg(t, .21, .31));
+    if ((kind === 'fg' || kind === 'pat') && i === qbI) pose.crouch = 1;
+    if (i === centerI) pose.crouch = Math.max(pose.crouch, 1 - seg(t, .03, .1));
+    if (kind === 'kneel' && i === qbI) pose.crouch = ease(seg(t, .25, .4));
+    return pose;
+  };
+  anim.contacts = contacts;
+  anim.fx = fx.map(f => ({ ...f, at: f.at || (tackled ? pileAt(f.t) : { x: anim.los, y: C }) }));
+  anim.tHand = th;
+  anim.tuckSide = tuck;
+  anim.holderAt = holderAt;
+  anim.inContact = allowed;
+  // L'espatlla (on neix el braç) al món: amb la postura, el salt i la caiguda.
+  anim.shoulderOf = (i, t) => {
+    const P = anim.frameAt(t)[i], pose = anim.poseOf(i, t);
+    let x = P.x, y = P.y, z = 1.45 - pose.lean * .24 - pose.crouch * .42 + pose.jump;
+    if (pose.fall) { const a = pose.fall.k * Math.PI / 2 * .85; x += pose.fall.dir[0] * z * Math.sin(a); y += pose.fall.dir[1] * z * Math.sin(a); z *= Math.cos(a); }
+    return { x, y, z };
+  };
+  return anim;
+}
+
 // ---- càmeres ----
 // Totes les càmeres són estenopeiques de debò: una posició P, un punt on
 // miren L i una focal. La de televisió és a la banda de baix i llisca seguint
@@ -362,7 +848,7 @@ export function subjectOf(anim, t, who = 'auto') {
 export function playerShot(anim, play, t, who = 'auto') {
   const m = anim.marks || {};
   const tr = subjectOf(anim, t, who);
-  const pos = tr.path(t), a = tr.path(Math.max(0, t - .03)), b = tr.path(Math.min(1, t + .03));
+  const at = tr.pos || tr.path, pos = at(t), a = at(Math.max(0, t - .03)), b = at(Math.min(1, t + .03));
   const own = tr.team === play.off ? anim.dir : -anim.dir;
   let hx = b.x - a.x, hy = b.y - a.y;
   const sp = Math.hypot(hx, hy);
@@ -451,11 +937,18 @@ export function liveSeg(plan, t) { let i = 0; plan.live.forEach((s, k) => { if (
 export function slowmo(anim, play, t) {
   const m = anim.marks || {};
   if (m.tCatch !== undefined && (play.complete || play.int) && Math.abs(t - m.tCatch) < .025) return .3;
-  if (anim.carrierId && !play.td && play.kind !== 'kneel' && t > .895 && t < .94) return .35;
+  const c = (anim.contacts || [])[0];
+  if (c && Math.abs(t - (c.tc + .02)) < .025) return .35;
   return 1;
 }
 // Sacsejada de la càmera en el contacte (0..1).
-function contact(anim, play, t) { return anim.carrierId && !play.td && play.kind !== 'kneel' && t > .9 ? 1 - seg(t, .9, 1) : 0; }
+function contact(anim, play, t) {
+  let v = 0;
+  for (const c of anim.contacts || []) if (t > c.tc && t < c.tc + .1) v = Math.max(v, (c.big ? 1 : .6) * (1 - seg(t, c.tc, c.tc + .1)));
+  return v;
+}
+// Només els cops grossos sacsegen les càmeres de lluny.
+function bigHit(anim, t) { let v = 0; for (const c of anim.contacts || []) if (c.big && t > c.tc && t < c.tc + .06) v = Math.max(v, 1 - seg(t, c.tc, c.tc + .06)); return v; }
 
 // ---- l'estadi ----
 // Una grada en forma de bol (superel·lipse) al voltant del camp, amb tres
@@ -708,10 +1201,10 @@ export class FootballView {
     if (this.phase === 'run') {
       const close = this.camMode === 'player' || this.camMode === 'rail';
       this.slow = close ? slowmo(c.anim, p, this.t) : 1;
-      this.shake = close ? contact(c.anim, p, this.t) : 0;
+      this.shake = close ? contact(c.anim, p, this.t) : bigHit(c.anim, this.t) * .45;
       this.t += dt * this.slow / c.anim.dur;
       if (this.t >= 1) {
-        this.t = 1; this.phase = 'post';
+        this.t = 1; this.phase = 'post'; this.postAge = 0;
         this.hold = c.plan.replays.length ? 1.4 : restHold();
         if (!c.plan.replays.length) c.replaysDone = true;
         this.celebrate(p);
@@ -720,17 +1213,17 @@ export class FootballView {
     }
     if (this.phase === 'replay') {
       const r = c.plan.replays[c.rep];
-      this.slow = r.rate; this.shake = r.cam === 'player' ? contact(c.anim, p, this.t) * .6 : 0;
+      this.slow = r.rate; this.shake = r.cam === 'player' ? contact(c.anim, p, this.t) * .6 : bigHit(c.anim, this.t) * .3;
       this.t += dt * r.rate / c.anim.dur;
       if (this.t >= 1) {
         this.t = 1;
         if (c.rep + 1 < c.plan.replays.length) this.startReplay(c.rep + 1);
-        else { this.phase = 'post'; this.hold = restHold(); c.replaysDone = true; }
+        else { this.phase = 'post'; this.postAge = 0; this.hold = restHold(); c.replaysDone = true; }
       }
       return;
     }
     if (this.phase === 'post') {
-      this.hold -= dt;
+      this.hold -= dt; this.postAge = (this.postAge || 0) + dt;
       if (this.hold > 0) return;
       if (!c.replaysDone) { this.startReplay(0); return; }
       this.cur = null; this.banner = null;
@@ -806,7 +1299,9 @@ export class FootballView {
     if (!this.match) { g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H); this.drawCenterText(this.T.pregame); return; }
     if (!this.stadium || this.stadium.key !== this.match.teams[0].color + this.match.teams[1].color) { this.stadium = makeStadium(this.match.teams); this.cacheKey = ''; }
     const a = this.cur && this.cur.anim;
-    const b = a && a.ball(this.t);
+    // Temps que es veu: amb l'aturada curta (hit-stop) dels placatges.
+    this.tt = a ? hitStop(a, this.t) : this.t;
+    const b = a && a.ball(this.tt);
     this.updateCamera(a, b);
     const v = this.view;
     g.save();
@@ -1139,36 +1634,47 @@ export class FootballView {
     g.fillStyle = '#fff'; g.fillRect(b.x - w / 2, lerp(t.y, b.y, .45), w, Math.max(1, (b.y - t.y) * .08));
   }
 
-  drawBall(b, t) {
-    const g = this.ctx;
-    const sh = this.proj(b.x, b.y), p = this.proj(b.x, b.y, b.z);
-    if (p.d < NEAR + .5) return;
-    const flat = this.is3D() ? clamp(this.view.P[2] / Math.max(1, sh.d), .15, .8) : .4;
-    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(sh.x, sh.y, .45 * sh.s, .45 * flat * sh.s, 0, 0, Math.PI * 2); g.fill();
-    // Mida mínima perquè la pilota es vegi encara que vagi lluny.
-    const s = Math.max(p.s, 9 * this.dpr);
-    g.save(); g.translate(p.x, p.y); g.rotate(-.3 + t * 6);
-    g.fillStyle = '#7a3e14'; g.beginPath(); g.ellipse(0, 0, .42 * s, .26 * s, 0, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = '#fff'; g.lineWidth = .05 * s; g.beginPath(); g.moveTo(-.15 * s, 0); g.lineTo(.15 * s, 0); g.stroke();
+  drawBall(b) {
+    const g = this.ctx, d = this.dpr;
+    const sh = this.proj(b.x, b.y, 0), p = this.proj(b.x, b.y, b.z);
+    if (p.d < NEAR + .3) return;
+    // Ombra a terra: més petita i clara com més amunt va la pilota.
+    const flat = this.is3D() ? clamp(this.view.P[2] / Math.max(1, sh.d), .15, .8) : .4, hk = clamp(1 - b.z / 14, .35, 1);
+    if (sh.d > NEAR) { g.fillStyle = `rgba(0,0,0,${(.35 * hk).toFixed(3)})`; g.beginPath(); g.ellipse(sh.x, sh.y, .32 * sh.s * hk, .32 * flat * sh.s * hk, 0, 0, Math.PI * 2); g.fill(); }
+    // Mida mínima perquè es vegi de lluny; orientada segons el seu eix (el vol, el gir, el bot).
+    const up = Math.max(1, 6 * d / Math.max(p.s * .19, .01)), L = .3 * up, ax = b.axis || [1, 0, 0];
+    const t1 = this.proj(b.x + ax[0] * L, b.y + ax[1] * L, b.z + ax[2] * L), t2 = this.proj(b.x - ax[0] * L, b.y - ax[1] * L, b.z - ax[2] * L);
+    const minor = .19 * p.s * up, major = Math.max(minor * 1.06, Math.hypot(t1.x - t2.x, t1.y - t2.y) / 2), ang = Math.atan2(t1.y - t2.y, t1.x - t2.x);
+    g.save(); g.translate(p.x, p.y); g.rotate(ang);
+    g.fillStyle = '#7a3e14'; g.strokeStyle = '#4a240b'; g.lineWidth = Math.max(1, .02 * p.s * up);
+    g.beginPath(); g.ellipse(0, 0, major, minor, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = 'rgba(255,220,180,.25)'; g.beginPath(); g.ellipse(-major * .1, -minor * .35, major * .6, minor * .3, 0, 0, Math.PI * 2); g.fill();
+    if (major > minor * 1.35) {
+      // Ratlles blanques a prop de les puntes i les costures, que giren amb l'espiral.
+      g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = Math.max(1, .035 * p.s * up);
+      const sx = major * .62, sy = minor * .82;
+      g.beginPath(); g.moveTo(sx, -sy); g.lineTo(sx, sy); g.moveTo(-sx, -sy); g.lineTo(-sx, sy); g.stroke();
+      const sp = b.spin || 0, off = Math.sin(sp) * minor * .5;
+      if (Math.cos(sp) > -.2) { g.beginPath(); g.moveTo(-major * .3, off); g.lineTo(major * .3, off); g.stroke(); }
+    }
     g.restore();
   }
 
   // Jugadors, banquetes, pals, pylons i pilota, ordenats de lluny a prop.
   drawPlay(a, b) {
-    const t = this.t, s3 = this.is3D(), v = this.view;
+    const t = this.tt, s3 = this.is3D(), v = this.view;
     const depth = (x, y, z = 1) => camSpace(v, x, y, z)[2];
     const all = [];
     const near = ['player', 'pylon', 'rail'].includes(this.camMode) ? .8 : 2;
     if (a) {
-      const items = a.tracks.map((tr, i) => { const pos = tr.path(t); return { tr, i, pos, d: depth(pos.x, pos.y) }; });
-      for (const it of items) all.push({ d: it.d, i: it.i, draw: () => { if (it.d > near) this.drawPlayer(it.tr, it.pos, a); } });
-      // La pilota que porta sota el braç un jugador vist de cara o d'esquena ja la dibuixa el ninot.
-      let held = false;
-      if (s3 && b && b.z < 1.4 && t > .2) {
-        const c = items.find(it => it.tr.carrier && it.tr.p.id === a.carrierId);
-        held = !!c && Math.hypot(c.pos.x - b.x, c.pos.y - b.y) < .5 && this.facing(c.tr, c.pos, a).front !== null;
+      const items = a.tracks.map((tr, i) => { const pos = tr.pos(t); return { tr, i, pos, d: depth(pos.x, pos.y) }; });
+      for (const it of items) all.push({ d: it.d, i: it.i, draw: () => { if (it.d > near) this.drawPlayer(it.tr, it.pos, a, it.i, b); } });
+      if (b) {
+        let bd = s3 ? depth(b.x, b.y, b.z) : FIELD_W + 30 - b.y;
+        // A la mà: just per sobre de qui la porta si es veu de costat; si no, per profunditat.
+        if (b.holder >= 0) { const h = items[b.holder], f = this.facingOf(b.holder, a.headingOf(b.holder, t)); if (!s3 || f.front === null) bd = h.d - 1e-3; }
+        all.push({ d: bd, i: 1e4, draw: () => this.drawBall(b) });
       }
-      if (b && !held) all.push({ d: s3 ? depth(b.x, b.y, b.z) + (b.z < 2 ? .3 : 0) : -1e9, i: 1e4, draw: () => this.drawBall(b, t) });
     }
     for (const x of [0, 120]) all.push({ d: depth(x, C, 0), i: -1, draw: () => this.drawPosts(x) });
     for (const x of [0, 10, 110, 120]) for (const y of [0, FIELD_W]) all.push({ d: depth(x, y, 0), i: -2, draw: () => this.drawPylon(x, y) });
@@ -1177,6 +1683,46 @@ export class FootballView {
     for (const team of [0, 1]) { const y = team === 0 ? -10.2 : FIELD_W + 10.2; all.push({ d: depth(60, y, .4), i: -4, draw: () => this.drawBench(team, y) }); }
     all.sort((p, q) => (q.d - p.d) || (p.i - q.i));
     all.forEach(e => e.draw());
+    if (a) this.drawContactFx(a, t);
+  }
+
+  // Cop i gespa: un flaix al contacte i terra que salta quan cauen. Surt de la
+  // jugada (llavor i t), així es veu igual a la repetició i a càmera lenta.
+  drawContactFx(a, t) {
+    const g = this.ctx, dur = a.dur;
+    for (const f of a.fx) {
+      const age = (t - f.t) * dur;
+      if (age < 0 || age > .7) continue;
+      if (f.kind === 'hit' && age < .16) {
+        const p = this.proj(f.at.x, f.at.y, 1.2);
+        if (p.d < NEAR + .5) continue;
+        const r = Math.max(6 * this.dpr, (f.big ? 1.6 : 1.1) * p.s) * (.6 + age * 3), al = (1 - age / .16) * (f.big ? .85 : .6);
+        const lg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+        lg.addColorStop(0, `rgba(255,255,240,${al.toFixed(3)})`); lg.addColorStop(1, 'rgba(255,255,240,0)');
+        g.fillStyle = lg; g.fillRect(p.x - r, p.y - r, 2 * r, 2 * r);
+        // Rajos curts.
+        g.strokeStyle = `rgba(255,255,255,${(al * .8).toFixed(3)})`; g.lineWidth = Math.max(1, .05 * p.s);
+        g.beginPath();
+        for (let k = 0; k < 7; k++) { const an = k * .9 + f.t * 50, r0 = r * .45, r1 = r * (.8 + (k % 3) * .15); g.moveTo(p.x + Math.cos(an) * r0, p.y + Math.sin(an) * r0); g.lineTo(p.x + Math.cos(an) * r1, p.y + Math.sin(an) * r1); }
+        g.stroke();
+      }
+      if (f.kind === 'turf') {
+        const R = rng(Math.round(f.t * 1e5) + 7), n = f.big ? 22 : 13;
+        for (let k = 0; k < n; k++) {
+          const ang = R() * Math.PI * 2, sp = 1 + R() * 3.5, vz = 2 + R() * 3.5, sz = .06 + R() * .1, grass = R() < .55;
+          const z = vz * age - GRAV * age * age / 2;
+          if (z < 0) continue;
+          const p = this.proj(f.at.x + Math.cos(ang) * sp * age, f.at.y + Math.sin(ang) * sp * age, z + .05);
+          if (p.d < NEAR + .5) continue;
+          g.fillStyle = grass ? '#4f9a3c' : '#6b4a2b'; g.globalAlpha = clamp(1 - age / .7, 0, 1);
+          const w = Math.max(1.2 * this.dpr, sz * p.s); g.fillRect(p.x - w / 2, p.y - w / 2, w, grass ? w * .5 : w);
+        }
+        g.globalAlpha = 1;
+        // Polsim.
+        const p = this.proj(f.at.x, f.at.y, .3);
+        if (p.d > NEAR + .5 && age < .5) { const r = (1.2 + age * 3) * p.s, lg = g.createRadialGradient(p.x, p.y, 0, p.x, p.y, r); lg.addColorStop(0, `rgba(150,130,100,${(.35 * (1 - age / .5)).toFixed(3)})`); lg.addColorStop(1, 'rgba(150,130,100,0)'); g.fillStyle = lg; g.fillRect(p.x - r, p.y - r, 2 * r, 2 * r); }
+      }
+    }
   }
 
   drawBench(team, y) {
@@ -1193,89 +1739,98 @@ export class FootballView {
     if (s < 4) { this.ctx.fillStyle = jersey; this.ctx.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
     const toField = bp.team === 0 ? 1 : -1, front = toField * this.view.f[1] < 0;
     const hipY = p.y - .9 * s, shY = p.y - 1.55 * s, headY = p.y - 1.86 * s;
-    this.drawPlayerFacing(p, s, { front, face: 1, sw: 0, moving: false, hipY, shY, headY, jersey, trim, pants: luminance(trim) > .55 ? trim : shade(jersey, .7), helmet: shade(jersey, -.08), helmetEdge: shade(jersey, -.3), skin: SKIN[bp.num % SKIN.length], carrying: false, pl: { number: bp.num, name: '' } });
+    this.drawPlayerFacing(p, s, { front, face: 1, sw: 0, moving: false, hipY, shY, headY, jersey, trim, pants: luminance(trim) > .55 ? trim : shade(jersey, .7), helmet: shade(jersey, -.08), helmetEdge: shade(jersey, -.3), skin: SKIN[bp.num % SKIN.length], pl: { number: bp.num, name: '' } });
   }
 
-  // Cap on mira un jugador respecte de la càmera: face és el costat (±1) i
-  // front, a les càmeres 3D, si es veu de cara (true), d'esquena (false) o de costat (null).
-  facing(tr, pos, a) {
-    const ahead = tr.path(Math.min(1, this.t + .015));
-    const vx = ahead.x - pos.x, vy = ahead.y - pos.y;
-    const moving = (this.phase === 'run' || this.phase === 'replay') && Math.hypot(vx, vy) > .004;
-    const homeDir = tr.team === this.cur.play.off ? a.dir : -a.dir;
-    if (!this.is3D()) return { face: Math.abs(vx) > .002 ? Math.sign(vx) : homeDir, front: null, moving };
-    const sp = Math.hypot(vx, vy), v = this.view;
-    const hx = sp > .08 ? vx / sp : homeDir, hy = sp > .08 ? vy / sp : 0;
-    const fr = hx * v.r[0] + hy * v.r[1], ff = hx * v.f[0] + hy * v.f[1];
+  // Com es veu un jugador segons cap on mira (hd: direcció al terra i velocitat):
+  // face és el costat (±1) i front, a les càmeres 3D, de cara (true), d'esquena (false) o de costat (null).
+  facingOf(i, hd) {
+    const moving = (this.phase === 'run' || this.phase === 'replay') && hd[2] > .02;
+    if (!this.is3D()) return { face: Math.abs(hd[0]) > .15 ? Math.sign(hd[0]) : (hd[0] >= 0 ? 1 : -1), front: null, moving };
+    const v = this.view, fr = hd[0] * v.r[0] + hd[1] * v.r[1], ff = hd[0] * v.f[0] + hd[1] * v.f[1];
     return { face: fr >= 0 ? 1 : -1, front: Math.abs(fr) < 1.5 * Math.abs(ff) ? ff < 0 : null, moving };
   }
 
-  // Un jugador de futbol americà: cames que corren segons el que es mou,
-  // espatlleres, braços, casc amb reixa i el dorsal. A la tele es veu de
-  // costat; a la skycam, de costat, d'esquena (dorsal gros) o de cara (reixa).
-  drawPlayer(tr, pos, a) {
-    const g = this.ctx, team = this.match.teams[tr.team], pl = tr.p;
-    const down = tr.downAt && this.t > tr.downAt;
-    const tackled = tr.carrier && this.t > .9 && !this.cur.play.td && this.cur.play.kind !== 'pat';
-    const p = this.proj(pos.x, pos.y), s = p.s;
+  // Un braç fins a un punt (estirat del tot si cal, per no deixar mai la
+  // pilota penjant), amb el colze doblegat cap a fora.
+  limb(S, T, s, upper, skin, cx) {
+    const g = this.ctx, A = .62 * s, R = ARM_REACH * s;
+    let dx = T.x - S.x, dy = T.y - S.y, d = Math.hypot(dx, dy) || 1e-6;
+    if (d > R) { dx *= R / d; dy *= R / d; d = R; }
+    const H = { x: S.x + dx, y: S.y + dy }, half = A * .5, bend = Math.sqrt(Math.max(0, half * half - (d / 2) ** 2)) * .7;
+    let nx = -dy / d, ny = dx / d;
+    if (cx !== undefined ? nx * (S.x - cx) < 0 : ny < 0) { nx = -nx; ny = -ny; }
+    const E = { x: S.x + dx / 2 + nx * bend, y: S.y + dy / 2 + ny * bend };
+    g.strokeStyle = upper; g.lineWidth = .16 * s; g.beginPath(); g.moveTo(S.x, S.y); g.lineTo(E.x, E.y); g.stroke();
+    g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(E.x, E.y); g.lineTo(H.x, H.y); g.stroke();
+    g.fillStyle = '#2a2a30'; g.beginPath(); g.arc(H.x, H.y, .075 * s, 0, Math.PI * 2); g.fill();
+    return H;
+  }
+
+  // Un jugador de futbol americà segons la seva postura: corre, bloqueja,
+  // llança, estira els braços cap a la pilota, la porta sota el braç, placa
+  // (espatlla avall i braços al voltant) o cau amb el placatge i queda a terra.
+  // A la tele es veu de costat; a les càmeres 3D, de costat, d'esquena o de cara.
+  drawPlayer(tr, pos, a, i, ball) {
+    const g = this.ctx, team = this.match.teams[tr.team], pl = tr.p, t = this.tt;
+    const pose = a.poseOf(i, t), hd = a.headingOf(i, t);
+    const ground = this.proj(pos.x, pos.y, 0), p = pose.jump ? this.proj(pos.x, pos.y, pose.jump) : ground, s = p.s;
     const jersey = team.color, trim = team.color2 || '#fff';
     const pants = luminance(trim) > .55 ? trim : shade(jersey, .7);
     const helmet = shade(jersey, -.08), helmetEdge = shade(jersey, -.3);
     const skin = SKIN[hashStr(pl.id || pl.name || '') % SKIN.length];
-    const { face, front, moving } = this.facing(tr, pos, a);
+    const { face, front, moving } = this.facingOf(i, hd);
     const sky = this.is3D();
     g.lineCap = 'round'; g.lineJoin = 'round';
-    // Ombra (a la skycam el terra s'aixafa segons l'alçada de la càmera).
-    const flat = sky ? clamp(this.view.P[2] / Math.max(1, p.d), .15, .45) : .36;
-    const shw = (down || tackled ? 1 : .55) * s;
-    g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(p.x, p.y, shw, Math.max(.2 * s * flat / .36, 1), 0, 0, Math.PI * 2); g.fill();
-    if (s < 3) { g.fillStyle = jersey; g.fillRect(p.x - s * .3, p.y - s * 1.8, s * .6, s * 1.8); return; }
-    if ((down || tackled) && front !== null) {
-      // De cara o d'esquena: ajupit, caient amb el placatge.
-      const carrying = tr.carrier && this.cur.anim.carrierId === pl.id;
-      this.drawPlayerFacing(p, s, { front, face, sw: 0, moving: false, hipY: p.y - .5 * s, shY: p.y - 1.08 * s, headY: p.y - 1.36 * s, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl });
-      this.drawLabel(tr, pl, p, s, p.y - 1.9 * s);
-      return;
+    // Caiguda (i, un cop acabada la jugada, s'aixequen).
+    let fall = pose.fall ? pose.fall.k : 0;
+    if (fall && this.phase === 'post' && this.t >= 1) fall *= 1 - ease(seg(this.postAge || 0, 1, 1.6));
+    let ang = 0, squash = 1;
+    if (fall > 0) {
+      const q = this.proj(pos.x + pose.fall.dir[0], pos.y + pose.fall.dir[1], 0), sx = q.x - ground.x, sy = q.y - ground.y, n = Math.hypot(sx, sy) || 1;
+      ang = fall * 1.45 * (sx / n); squash = 1 - fall * .72 * Math.abs(sy / n);
     }
-    if (down || tackled) {
-      // Estirat a terra: el cos de costat i el casc al davant.
-      g.save(); g.translate(p.x, p.y - .22 * s); g.scale(face, 1);
-      g.strokeStyle = pants; g.lineWidth = .24 * s; g.beginPath(); g.moveTo(-.2 * s, 0); g.lineTo(-.95 * s, .05 * s); g.stroke();
-      g.fillStyle = jersey; g.beginPath(); g.roundRect(-.3 * s, -.24 * s, .85 * s, .44 * s, .2 * s); g.fill();
-      g.fillStyle = helmet; g.beginPath(); g.arc(.72 * s, -.02 * s, .24 * s, 0, Math.PI * 2); g.fill();
-      g.restore();
-      this.drawLabel(tr, pl, p, s, p.y - .7 * s);
-      return;
-    }
+    // Ombra (a les càmeres 3D el terra s'aixafa segons l'alçada de la càmera).
+    const flat = sky ? clamp(this.view.P[2] / Math.max(1, ground.d), .15, .45) : .36;
+    const shw = (.55 + fall * .5) * s;
+    g.fillStyle = 'rgba(0,0,0,.32)'; g.beginPath(); g.ellipse(ground.x, ground.y, shw, Math.max(.2 * s * flat / .36, 1), 0, 0, Math.PI * 2); g.fill();
+    if (s < 3) { g.fillStyle = jersey; g.fillRect(p.x - s * .3, p.y - s * 1.8 * (1 - fall * .7), s * .6, s * 1.8 * (1 - fall * .7)); return; }
+    const isCarrier = ball && ball.holder === i;
+    // Punts on van les mans, a la pantalla i en coordenades del ninot (si cau, girat).
+    const ca = Math.cos(-ang), sa = Math.sin(-ang);
+    const bodyD = camSpace(this.view, pos.x, pos.y, 1.3)[2];
+    const local = pt => { const q = this.proj(pt[0], pt[1], pt[2]); const dx = q.x - p.x, dy = q.y - p.y; return { x: p.x + dx * ca - dy * sa, y: p.y + (dx * sa + dy * ca) / squash, near: q.d < bodyD }; };
+    const targets = pose.arms ? pose.arms.map(pt => pt && local(pt)) : null;
+    g.save();
+    if (fall > 0) { g.translate(p.x, p.y); g.rotate(ang); g.scale(1, squash); g.translate(-p.x, -p.y); }
     const phase = (pos.x * 1.9 + pos.y * 1.3);
-    const sw = moving ? Math.sin(phase) : 0, bob = moving ? Math.abs(Math.cos(phase)) * .06 * s : 0;
-    const hipY = p.y - .9 * s - bob, shY = p.y - 1.55 * s - bob, headY = p.y - 1.86 * s - bob;
-    const carrying = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id && this.t > .2;
+    const sw = moving && fall < .2 ? Math.sin(phase) : 0, bob = moving ? Math.abs(Math.cos(phase)) * .06 * s : 0;
+    const bend = pose.lean * .24 * s + pose.crouch * .42 * s;
+    const hipY = p.y - .9 * s - bob + pose.crouch * .32 * s, shY = p.y - 1.55 * s - bob + bend, headY = p.y - 1.86 * s - bob + bend * 1.05;
     if (front !== null) {
-      this.drawPlayerFacing(p, s, { front, face, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl });
-      this.drawLabel(tr, pl, p, s, headY - .5 * s);
+      this.drawPlayerFacing(p, s, { front, face, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, pl, targets, kick: pose.kick, crouch: pose.crouch });
+      g.restore();
+      this.drawLabel(pl, p, s, p.y - (2.36 - fall * 1.7) * s, isCarrier);
       return;
     }
-    const lean = moving ? face * .1 * s : 0;
+    const lean = face * (pose.lean * .38 + (moving ? .1 : 0)) * s;
     // Cames: cuixa amb el pantaló, mitjó del color de l'equip, bota.
     for (const k of [-1, 1]) {
       const st = sw * k;
       const hip = { x: p.x + k * .1 * s, y: hipY };
-      const foot = { x: p.x + k * .1 * s + face * st * .36 * s, y: p.y - Math.max(0, -st) * .14 * s };
-      const knee = { x: lerp(hip.x, foot.x, .5) + face * (.08 + Math.max(0, st) * .1) * s, y: lerp(hip.y, foot.y, .5) };
+      let foot = { x: p.x + k * .1 * s + face * st * .36 * s - (pose.crouch ? face * .25 * s * k : 0), y: p.y - Math.max(0, -st) * .14 * s };
+      if (pose.kick && k === 1) foot = { x: hip.x + face * .75 * s * pose.kick, y: lerp(p.y, hipY - .1 * s, pose.kick) };
+      const knee = { x: lerp(hip.x, foot.x, .5) + face * (.08 + Math.max(0, st) * .1 + pose.crouch * .2) * s, y: lerp(hip.y, foot.y, .5) };
       g.strokeStyle = pants; g.lineWidth = .2 * s; g.beginPath(); g.moveTo(hip.x, hip.y); g.lineTo(knee.x, knee.y); g.stroke();
       g.strokeStyle = shade(jersey, -.2); g.lineWidth = .15 * s; g.beginPath(); g.moveTo(knee.x, knee.y); g.lineTo(foot.x, foot.y); g.stroke();
       g.fillStyle = '#16161a'; g.beginPath(); g.ellipse(foot.x + face * .06 * s, foot.y, .13 * s, .06 * s, 0, 0, Math.PI * 2); g.fill();
     }
-    // Braç del darrere.
-    const arm = (k, carry) => {
-      const sh = { x: p.x + lean + k * .32 * s, y: shY + .1 * s };
-      const hand = carry ? { x: p.x + lean + face * .28 * s, y: shY + .38 * s } : { x: sh.x - face * sw * k * .3 * s, y: shY + .6 * s };
-      const elbow = carry ? { x: sh.x + face * .05 * s, y: shY + .42 * s } : { x: lerp(sh.x, hand.x, .5) - face * .05 * s, y: lerp(sh.y, hand.y, .5) };
-      g.strokeStyle = shade(jersey, -.1); g.lineWidth = .16 * s; g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(elbow.x, elbow.y); g.stroke();
-      g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
-    };
-    arm(-face, false);
+    // Braços: el del darrere abans del cos, el del davant després.
+    const swing = k => { const sh = { x: p.x + lean + k * .32 * s, y: shY + .1 * s }; const hand = { x: sh.x - face * sw * k * .3 * s, y: shY + .68 * s }; this.limb(sh, hand, s, shade(jersey, -.1), skin); };
+    const back = -face, frontArm = face;
+    const tBack = targets ? (targets[1] || null) : null, tFront = targets ? (targets[0] || targets[1]) : null;
+    const shoulder = k => ({ x: p.x + lean + k * .32 * s, y: shY + .1 * s });
+    if (tBack) this.limb(shoulder(back), tBack, s, shade(jersey, -.25), shade(skin, -.12)); else swing(back);
     // Tors: samarreta amb espatlleres, més ample a dalt.
     const tw = .82 * s, ww = .5 * s;
     const body = g.createLinearGradient(p.x - tw / 2, 0, p.x + tw / 2, 0);
@@ -1293,7 +1848,7 @@ export class FootballView {
       g.lineWidth = .06 * s; g.strokeStyle = shade(jersey, -.55); g.strokeText(String(pl.number || ''), p.x + lean * .6, lerp(shY, hipY, .5));
       g.fillStyle = trim; g.fillText(String(pl.number || ''), p.x + lean * .6, lerp(shY, hipY, .5));
     }
-    arm(face, carrying);
+    if (tFront) this.limb(shoulder(frontArm), tFront, s, shade(jersey, -.1), skin); else swing(frontArm);
     // Casc: closca, ratlla, reixa al costat on mira, i el color del vent.
     const hx = p.x + lean * 1.2;
     g.fillStyle = helmet; g.strokeStyle = helmetEdge; g.lineWidth = .03 * s; g.beginPath(); g.ellipse(hx, headY, .26 * s, .25 * s, 0, 0, Math.PI * 2); g.fill(); g.stroke();
@@ -1306,33 +1861,42 @@ export class FootballView {
     g.moveTo(hx + face * .14 * s, headY + .09 * s); g.lineTo(hx + face * .29 * s, headY + .09 * s);
     g.moveTo(hx + face * .3 * s, headY - .06 * s); g.lineTo(hx + face * .27 * s, headY + .16 * s); g.stroke();
     if (pl.wind) { g.fillStyle = pl.color || '#fff'; g.beginPath(); g.arc(hx - face * .08 * s, headY - .06 * s, .08 * s, 0, Math.PI * 2); g.fill(); }
-    this.drawLabel(tr, pl, p, s, headY - .5 * s);
+    g.restore();
+    this.drawLabel(pl, p, s, p.y - (2.36 - fall * 1.7) * s, isCarrier);
   }
 
   // El mateix ninot vist de cara (reixa del casc, dorsal al pit) o d'esquena
-  // (dorsal gros a l'esquena, ratlla del casc pel mig).
+  // (dorsal gros a l'esquena, ratlla del casc pel mig). targets: on van les mans.
   drawPlayerFacing(p, s, o) {
-    const g = this.ctx, { front, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, carrying, pl } = o;
+    const g = this.ctx, { front, sw, moving, hipY, shY, headY, jersey, trim, pants, helmet, helmetEdge, skin, pl, targets, kick = 0 } = o;
     // Cames: la que puja s'escurça (el peu s'aixeca cap a la càmera o lluny).
     for (const k of [-1, 1]) {
-      const lift = moving ? Math.max(0, sw * k) : 0;
+      const lift = moving ? Math.max(0, sw * k) : 0, kk = kick && k === 1 ? kick : 0;
       const hip = { x: p.x + k * .13 * s, y: hipY };
-      const foot = { x: p.x + k * .17 * s, y: p.y - lift * .2 * s };
-      const knee = { x: p.x + k * .17 * s, y: lerp(hipY, foot.y, .48) - lift * .1 * s };
+      const foot = { x: p.x + k * .17 * s, y: p.y - lift * .2 * s - kk * .55 * s };
+      const knee = { x: p.x + k * .17 * s, y: lerp(hipY, foot.y, .48) - lift * .1 * s - kk * .15 * s };
       g.strokeStyle = pants; g.lineWidth = .22 * s; g.beginPath(); g.moveTo(hip.x, hip.y); g.lineTo(knee.x, knee.y); g.stroke();
       g.strokeStyle = shade(jersey, -.2); g.lineWidth = .16 * s; g.beginPath(); g.moveTo(knee.x, knee.y); g.lineTo(foot.x, foot.y); g.stroke();
       g.fillStyle = lift > .3 && !front ? '#3a3a40' : '#16161a'; g.beginPath(); g.ellipse(foot.x, foot.y, .1 * s, .07 * s, 0, 0, Math.PI * 2); g.fill();
     }
     const tw = 1.0 * s, ww = .58 * s;
-    // Braços a banda i banda (el que porta la pilota, plegat).
-    const arm = (k, carry) => {
-      const sh = { x: p.x + k * (tw / 2 - .04 * s), y: shY + .1 * s };
-      const swing = moving ? sw * k : 0;
-      const hand = carry ? { x: p.x + k * .2 * s, y: shY + .45 * s } : { x: p.x + k * (.5 + Math.max(0, swing) * .06) * s, y: shY + (.62 - Math.max(0, swing) * .2) * s };
-      const elbow = carry ? { x: p.x + k * .52 * s, y: shY + .42 * s } : { x: p.x + k * .55 * s, y: lerp(sh.y, hand.y, .5) };
-      g.strokeStyle = shade(jersey, -.15); g.lineWidth = .17 * s; g.beginPath(); g.moveTo(sh.x, sh.y); g.lineTo(elbow.x, elbow.y); g.stroke();
-      g.strokeStyle = skin; g.lineWidth = .12 * s; g.beginPath(); g.moveTo(elbow.x, elbow.y); g.lineTo(hand.x, hand.y); g.stroke();
+    const shoulder = k => ({ x: p.x + k * (tw / 2 - .04 * s), y: shY + .1 * s });
+    // Braços: cap on toquen (la pilota, el rival) o balancejant-se.
+    const swing = k => {
+      const sh = shoulder(k), sw2 = moving ? sw * k : 0;
+      this.limb(sh, { x: p.x + k * (.52 + Math.max(0, sw2) * .06) * s, y: shY + (.7 - Math.max(0, sw2) * .2) * s }, s, shade(jersey, -.15), skin, p.x);
     };
+    let tl = null, tr = null;
+    if (targets) {
+      const [a, b] = targets;
+      if (a && b) { if (a.x <= b.x) { tl = a; tr = b; } else { tl = b; tr = a; } }
+      else { const one = a || b; if (one) { if (one.x < p.x) tl = one; else tr = one; } }
+    }
+    // Els braços que van cap a un punt més lluny que el cos (d'esquena, endavant)
+    // queden darrere; els que venen cap a la càmera, davant.
+    const reach = (k, T) => this.limb(shoulder(k), T, s, shade(jersey, -.15), skin, p.x);
+    if (tl && !tl.near) reach(-1, tl);
+    if (tr && !tr.near) reach(1, tr);
     // Tors.
     const body = g.createLinearGradient(p.x - tw / 2, 0, p.x + tw / 2, 0);
     body.addColorStop(0, shade(jersey, -.35)); body.addColorStop(.5, jersey); body.addColorStop(1, shade(jersey, -.35));
@@ -1348,11 +1912,8 @@ export class FootballView {
       // D'esquena, el nom a sobre del dorsal.
       if (big && s > 22) { g.font = `800 ${.1 * s}px "Segoe UI", system-ui, sans-serif`; g.fillText(String(pl.name || '').toUpperCase().slice(0, 12), p.x, shY + .2 * s); }
     }
-    if (carrying) {
-      // La pilota sota el braç.
-      g.fillStyle = '#7a3e14'; g.beginPath(); g.ellipse(p.x + .22 * s, shY + .42 * s, .2 * s, .13 * s, -.4, 0, Math.PI * 2); g.fill();
-    }
-    arm(-1, false); arm(1, carrying);
+    if (tl && tl.near) reach(-1, tl); else if (!tl) swing(-1);
+    if (tr && tr.near) reach(1, tr); else if (!tr) swing(1);
     // Coll i casc.
     g.fillStyle = front ? skin : shade(skin, -.15); g.fillRect(p.x - .09 * s, headY + .12 * s, .18 * s, .16 * s);
     g.fillStyle = helmet; g.strokeStyle = helmetEdge; g.lineWidth = .03 * s; g.beginPath(); g.ellipse(p.x, headY, .27 * s, .26 * s, 0, 0, Math.PI * 2); g.fill(); g.stroke();
@@ -1376,9 +1937,8 @@ export class FootballView {
     if (pl.wind) { g.fillStyle = pl.color || '#fff'; g.beginPath(); g.arc(p.x + .17 * s, headY - .04 * s, .07 * s, 0, Math.PI * 2); g.fill(); }
   }
 
-  drawLabel(tr, pl, p, s, ly) {
+  drawLabel(pl, p, s, ly, isCarrier) {
     const g = this.ctx;
-    const isCarrier = tr.carrier && this.cur && this.cur.anim.carrierId === pl.id;
     if (!isCarrier && !(pl.wind && s > 9)) return;
     g.font = `700 ${Math.max(10 * this.dpr, Math.min(.34 * s, 16 * this.dpr))}px "Segoe UI", system-ui, sans-serif`;
     const tw = g.measureText(pl.name).width + 8 * this.dpr;

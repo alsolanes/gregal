@@ -164,7 +164,8 @@ test('player cam rides low behind the ball carrier', async () => {
     }
     assert.equal(subjectOf(anim, .05).p.pos, 'QB');
     assert.equal(subjectOf(anim, .5).p.id, 'home-RB0'.replace('home', off ? 'away' : 'home'));
-    assert.equal(slowmo(anim, run, .92), .35);
+    assert.ok(anim.contacts.length === 1, 'the run ends in a tackle');
+    assert.equal(slowmo(anim, run, anim.contacts[0].tc + .02), .35);
     assert.equal(slowmo(anim, run, .5), 1);
     // Totes les càmeres donen plans finits.
     for (const cam of ['player', 'sky', 'endzone', 'pylon', 'rail', 'blimp']) for (const t of [0, .5, 1]) {
@@ -200,7 +201,8 @@ test('seek lands on any play with the same state as playing straight through; se
   });
   const canvas = { getContext: () => new Proxy({}, { get: () => () => ({ addColorStop() {} }), set: () => true }), getBoundingClientRect: () => ({ width: 960, height: 540 }), width: 0, height: 0 };
   const mk = (status, upto, onEvent) => new FootballView(canvas, { source: { load: async after => ({ ...match, status, plays: plays.slice(0, upto).filter(p => p.n > after) }) }, onEvent });
-  const snap = v => JSON.stringify({ idx: v.idx, n: v.cur && v.cur.play.n, score: v.score(), phase: v.phase, pos: v.cur && v.cur.anim.tracks.map(tr => tr.path(.5)), ball: v.cur && v.cur.anim.ball(.7) });
+  const snap = v => JSON.stringify({ idx: v.idx, n: v.cur && v.cur.play.n, score: v.score(), phase: v.phase, pos: v.cur && v.cur.anim.tracks.map(tr => tr.path(.5)), ball: v.cur && v.cur.anim.ball(.7),
+    frame: v.cur && v.cur.anim.frameAt(.93), pose: v.cur && v.cur.anim.tracks.map((_, i) => v.cur.anim.poseOf(i, .91)), loose: v.cur && v.cur.anim.ball(.99) });
   const straight = new Map();
   const a = mk('final', 99, p => straight.set(p.n, snap(a)));
   await new Promise(r => setTimeout(r, 10));
@@ -280,4 +282,96 @@ test('playback time: the estimate matches playing at 1×, and elapsed only moves
   v.seek(3);
   assert.equal(v.getProgress().elapsed, pr.times[3], 'after a seek: the start of the play landed on');
   v.destroy();
+});
+
+test('ball physics, catches and tackles: deterministic, attached to the hands, bouncing, no overlaps', async () => {
+  const { buildPlay, looseBall, looseAt, bounceApexes, hitStop, ARM_REACH, makeView, project, skyShot } = await import(pathToFileURL(path.join(__dirname, 'football-view.js')).href);
+  const match = { teams: [team('home', '#1E5BD8'), team('away', '#C8102E')] };
+  const A = { passer: 'home-QB0', target: 'home-WR1', runner: 'home-RB0', tackler: 'away-LB1', defender: 'away-CB0', kicker: 'home-K0', returner: 'away-WR0' };
+  const plays = [
+    { kind: 'run', dir: 'left', spot: 30, end: 36, yards: 6 },
+    { kind: 'run', dir: 'right', spot: 20, end: 60, yards: 40, hl: true },
+    { kind: 'run', dir: 'middle', spot: 40, end: 43, yards: 3, fumble: true },
+    { kind: 'run', dir: 'middle', spot: 95, end: 100, yards: 5, td: true },
+    { kind: 'pass', detail: 'short', depth: 6, spot: 40, end: 49, yards: 9, complete: true },
+    { kind: 'pass', detail: 'deep', depth: 35, spot: 20, end: 20, yards: 0 },
+    { kind: 'pass', detail: 'medium', depth: 14, spot: 50, end: 64, int: true },
+    { kind: 'pass', detail: 'short', depth: 5, spot: 30, end: 30, yards: 0, hl: true },
+    { kind: 'sack', spot: 45, end: 38, yards: -7, hl: true },
+    { kind: 'scramble', spot: 45, end: 52, yards: 7 },
+    { kind: 'punt', spot: 30, end: 75, yards: 45 },
+    { kind: 'fg', spot: 70, end: 70, good: true },
+    { kind: 'kickoff', spot: 35, end: 30, detail: 'touchback' },
+    { kind: 'kickoff', spot: 35, end: 27 },
+    { kind: 'kneel', spot: 60, end: 59, yards: -1 },
+  ];
+  let held = 0, worstSep = 9, worstPx = 0;
+  plays.forEach((p, k) => {
+    for (const off of [0, 1]) {
+      const play = { n: k + 3, q: 1 + off, off, down: 1, dist: 10, actors: A, ...p };
+      const a = buildPlay(play, match), b = buildPlay(play, match);
+      const shot = skyShot(a, play.kind, .5), view = makeView(shot.P, shot.L, 900, 640, 360);
+      for (let t = 0; t <= 1.0001; t += .02) {
+        // Determinisme: la mateixa jugada dona la mateixa pilota, posicions i postures.
+        assert.deepEqual(a.ball(t), b.ball(t), `${p.kind} ball at ${t}`);
+        assert.deepEqual(a.frameAt(t), b.frameAt(t), `${p.kind} frame at ${t}`);
+        a.tracks.forEach((_, i) => assert.deepEqual(a.poseOf(i, t), b.poseOf(i, t), `${p.kind} pose ${i} at ${t}`));
+        const ball = a.ball(t);
+        assert.ok([ball.x, ball.y, ball.z, ...ball.axis].every(Number.isFinite) && ball.z >= 0, `${p.kind} ball finite at ${t}`);
+        // A la mà: mai més lluny que on arriba el braç (al món i a la pantalla).
+        if (ball.holder >= 0) {
+          held++;
+          const sh = a.shoulderOf(ball.holder, t), d = Math.hypot(ball.x - sh.x, ball.y - sh.y, ball.z - sh.z);
+          assert.ok(d <= ARM_REACH + 1e-9, `${p.kind}: ball ${d.toFixed(2)} yd from the hand of its carrier at ${t}`);
+          const ps = project(view, sh.x, sh.y, sh.z), pb = project(view, ball.x, ball.y, ball.z);
+          if (ps.d > 2 && pb.d > 2) { const px = Math.hypot(ps.x - pb.x, ps.y - pb.y) / (ARM_REACH * ps.s); worstPx = Math.max(worstPx, px); assert.ok(px <= 1.08, `${p.kind}: on screen the ball is ${px.toFixed(2)} arm lengths away at ${t}`); }
+        }
+        // Ningú no travessa ningú, llevat del punt de contacte.
+        const P = a.frameAt(t);
+        for (let i = 0; i < P.length; i++) for (let j = i + 1; j < P.length; j++) {
+          if (a.inContact(i, j, t)) continue;
+          const dd = Math.hypot(P[i].x - P[j].x, P[i].y - P[j].y);
+          worstSep = Math.min(worstSep, dd);
+          assert.ok(dd > .45, `${p.kind}: players ${i},${j} overlap (${dd.toFixed(2)} yd) at ${t}`);
+        }
+      }
+      // Hit-stop: no fa enrere i no allarga la jugada.
+      let prev = -1;
+      for (let t = 0; t <= 1; t += .001) { const h = hitStop(a, t); assert.ok(h >= prev - 1e-9 && Math.abs(h - t) < .03); prev = h; }
+      assert.equal(hitStop(a, 1), 1);
+    }
+  });
+  assert.ok(held > 300 && worstSep > .45);
+
+  // Bots: cada vol és més baix que l'anterior, i al final queda quieta a terra.
+  for (const seed of [1, 2, 3, 99]) {
+    const segs = looseBall([10, 20, 2.5], [7, 2, 3], seed), ap = bounceApexes(segs);
+    assert.ok(ap.length >= 2, 'it bounces');
+    for (let i = 2; i < ap.length; i++) assert.ok(ap[i] < ap[i - 1], 'bounce heights decay: ' + ap.map(v => v.toFixed(2)));
+    const end = looseAt(segs, 60), later = looseAt(segs, 90);
+    assert.deepEqual(end, later); assert.ok(end.z <= .11);
+  }
+  // Passada incompleta: rebota, bota i es para.
+  const inc = buildPlay({ n: 9, q: 1, off: 0, down: 1, dist: 10, actors: A, kind: 'pass', detail: 'deep', depth: 35, spot: 20, end: 20, yards: 0 }, match);
+  const lo = inc.timeline.find(s => s.type === 'loose');
+  assert.ok(lo && Math.abs(lo.t0 - inc.marks.tCatch) < 1e-9, 'it comes loose at the catch point');
+  const ap = bounceApexes(lo.segs);
+  assert.ok(ap.length >= 2 && ap.slice(1).every((v, i) => v < ap[i]), 'it pops up, then the bounces decay: ' + ap.map(v => v.toFixed(2)));
+  const zs = []; for (let t = inc.marks.tCatch; t <= 1; t += .002) zs.push(inc.ball(t).z);
+  assert.ok(Math.max(...zs) > zs[0], 'the ball pops off the hands');
+  assert.equal(inc.ball(1).mode, 'loose');
+  // Entrega en mà, i el llançament amb el braç enrere.
+  const run = buildPlay({ n: 4, q: 1, off: 0, down: 1, dist: 10, actors: A, kind: 'run', dir: 'left', spot: 30, end: 36, yards: 6 }, match);
+  let hand = false;
+  for (let t = 0; t <= .4; t += .002) { const bl = run.ball(t); if (bl.giver >= 0 && bl.holder >= 0) { const q1 = run.frameAt(t)[bl.giver], q2 = run.frameAt(t)[bl.holder]; if (Math.hypot(q1.x - q2.x, q1.y - q2.y) < 1) hand = true; } }
+  assert.ok(hand, 'hand-to-hand handoff');
+  const pass = buildPlay({ n: 5, q: 1, off: 0, down: 1, dist: 10, actors: A, kind: 'pass', detail: 'short', depth: 6, spot: 40, end: 49, yards: 9, complete: true }, match);
+  assert.ok(pass.ball(pass.marks.tThrow - .001).z > 1.8, 'the arm is cocked at the release');
+  assert.equal(pass.ball(pass.marks.tCatch + .1).grip, 'tuck');
+  // Placatge: contacte, caiguda i a terra.
+  assert.equal(run.contacts.length, 1);
+  const c = run.contacts[0];
+  assert.ok(c.tc > .3 && c.tc < .95);
+  assert.equal(run.fallOf(c.carrier, c.tc + .15).k, 1);
+  assert.equal(run.fallOf(c.tackler, c.tc + .15).k, 1);
 });

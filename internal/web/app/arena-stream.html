@@ -45,7 +45,7 @@
   .caption.on { opacity:1; transform:translate(-50%, 0); }
   .caption b { color:var(--accent); white-space:nowrap; font-size:14px; letter-spacing:.08em; text-transform:uppercase; padding-top:4px; }
   /* Plafons de segment (presentació, prèvia, resultat…) */
-  .panel { position:fixed; inset:76px calc(var(--vw) * 6) 190px calc(var(--vw) * 6); display:flex; flex-direction:column; justify-content:center; gap:22px; z-index:4; opacity:0; pointer-events:none; transition:opacity .45s; }
+  .panel { position:fixed; inset:76px calc(var(--vw) * 6) 150px calc(var(--vw) * 6); display:flex; flex-direction:column; justify-content:safe center; overflow:hidden; gap:22px; z-index:4; opacity:0; pointer-events:none; transition:opacity .45s; }
   .panel.on { opacity:1; }
   .kicker { color:var(--accent); font-weight:800; letter-spacing:.2em; text-transform:uppercase; font-size:15px; }
   .h1 { font-size:clamp(34px, calc(var(--vw) * 5.2), 70px); font-weight:900; line-height:1.05; margin:0; }
@@ -67,12 +67,12 @@
   table { width:100%; border-collapse:collapse; font-size:clamp(16px, calc(var(--vw) * 1.5), 22px); }
   th, td { padding:9px 12px; border-bottom:1px solid var(--line); text-align:left; }
   th { color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.08em; }
-  td.pts { font-weight:900; color:var(--accent); } tr.top td:first-child { color:var(--accent); }
+  td.pts { font-weight:900; color:var(--accent); } tr.qual td:first-child { color:var(--accent); }
   .two { display:grid; grid-template-columns:1.1fr 1fr; gap:26px; align-items:start; }
   .champ { font-size:clamp(30px, calc(var(--vw) * 4), 56px); font-weight:900; } .champ small { display:block; color:var(--muted); font-size:18px; font-weight:600; }
   /* Rètol de baix (tips i el que ve) */
   .ticker { position:fixed; left:0; right:0; bottom:0; height:44px; background:rgba(4,6,14,.94); border-top:1px solid var(--line); overflow:hidden; z-index:6; display:flex; align-items:center; }
-  .ticker .tag { flex:0 0 auto; height:100%; display:flex; align-items:center; padding:0 18px; background:var(--accent); color:#111; font-weight:900; letter-spacing:.1em; font-size:13px; }
+  .ticker .tag { position:relative; z-index:2; box-shadow:12px 0 14px rgba(4,6,14,.95); flex:0 0 auto; height:100%; display:flex; align-items:center; padding:0 18px; background:var(--accent); color:#111; font-weight:900; letter-spacing:.1em; font-size:13px; }
   .ticker .run { white-space:nowrap; animation:scroll var(--dur, 60s) linear infinite; padding-left:100%; font-size:16px; color:#dfe4f2; }
   .ticker .run span { margin-right:60px; } .ticker .run b { color:var(--accent); }
   @keyframes scroll { to { transform:translateX(-100%); } }
@@ -294,7 +294,7 @@ async function pollComp() {
   if (comp) {
     $('comp').textContent = comp.title;
     const tips = LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]);
-    const nxt = comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match)));
+    const nxt = upNext();
     if (nxt) tips.splice(1, 0, [L.upnext, nxt.pending ? `${GAME[nxt.game]} · ${nxt.stage}` : `${name(nxt.a)} vs ${name(nxt.b)} · ${GAME[nxt.game]} · ${nxt.stage}`]);
     ticker(tips);
   } else ticker(LESSONS[lang].map(([h, p]) => [L.tips, h + ': ' + p]));
@@ -361,7 +361,7 @@ function standingsHTML(game, stage) {
   const tb = tables.find(t => !stage || t.stage === stage) || tables[0];
   if (!tb) return '';
   return `<div class="h2">${esc(L.table)} · ${esc(GAME[game] || game)} · ${esc(tb.stage)}</div><table><tr><th></th><th>${L.p}</th><th>${L.pj}</th><th>${L.w}</th><th>${L.d}</th><th>${L.l}</th><th>${L.pts}</th></tr>` +
-    tb.rows.map((r, i) => `<tr class="${i < 2 ? 'top' : ''}"><td>${i + 1}</td><td>${esc(name(r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') + '</table>';
+    tb.rows.map((r, i) => `<tr class="${i < 2 ? 'qual' : ''}"><td>${i + 1}</td><td>${esc(name(r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') + '</table>';
 }
 
 async function segOpening() {
@@ -547,7 +547,7 @@ async function segStandings(sl) {
   const html = standingsHTML(sl.game, sl.phase === 'group' ? sl.stage : '');
   if (!html) return;
   segLabel(L.table);
-  const nxt = comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match)));
+  const nxt = upNext();
   await wipe(() => panel(`<div class="two"><div>${html}<p class="lead">${esc(L.stakes)}</p></div>
     <div>${nxt ? `<div class="kicker">${esc(L.next)}</div><div class="h2">${esc(nxt.pending ? nxt.from.join(' vs ') : name(nxt.a) + ' vs ' + name(nxt.b))}</div><div class="lead">${esc(GAME[nxt.game] || nxt.game)} · ${esc(nxt.stage)}</div>` : ''}</div></div>`));
   await sleep(12000);
@@ -654,6 +654,17 @@ function endPrompt() {
     };
     box.children[2].onclick = () => done(false);
   });
+}
+
+// Què ve ara: el partit que el servidor ja juga (si no s'ha vist), si no el
+// primer pendent després d'ell. Abans es triava l'ordre del calendari i de
+// vegades anunciava un partit i en sortia un altre.
+function upNext() {
+  if (!comp) return null;
+  const cur = comp.schedule[comp.current];
+  if (cur && !cur.done && !(cur.match && shown.has(cur.match))) return cur;
+  return comp.schedule.find((s, i) => i > (comp.current || 0) && !s.done && !(s.match && shown.has(s.match)))
+    || comp.schedule.find(s => !s.done && !(s.match && shown.has(s.match))) || null;
 }
 
 async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Broadcast fixes.** The standings screen no longer hides the top two rows (they took the style of the page's top bar), the ticker text now passes under the yellow GREGAL ARENA label, and "Up next" announces the match the server is actually about to show.
+
 ## v1.33.0 - 2026-10-30 - El reproductor dels partits
 
 - **Arena: matches play in a real video player.** The match card is now a player: a large 16:9 picture with a control bar under it — ▶/⏸, ⏮ restart, ⏪/⏩ 15 seconds, a timeline you can click or drag (★ for prompt moments, marks for scores and big plays, a tooltip with what happens at each point), elapsed / total time in mm:ss, speed, CC captions, 📺 TV mode and an always-visible **⬇ Download video** (greyed out with an explanation until the match has finished; then it records the highlights video, and offers **Share…** where the system can share files). Beside it, a **Commentary** track works like video chapters: one line per prompt moment, score, big play and caster line, with its time, the team's call and the `.md` rule behind it; the current line lights up and follows the match, clicking a line jumps there, and All / Key moments / Prompt moments filter it (the decisions list is the **Decisions** tab next to it). When the match ends, a summary appears inside the player: result, analysis, the deciding rule, the prompt moments (click one to watch it again), coach scores and how often each team followed its `.md`, with ↻ Watch again, ⬇ Download video and Close.
