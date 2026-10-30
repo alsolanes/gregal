@@ -45,13 +45,20 @@ type Match struct {
 	sent     int // jugades ja enviades com a esdeveniments
 	decision int
 	lang     string
+	// hints: el format de decisió porta, per a cada crida, contra què guanya
+	// i perd (la taula de les regles ja mastegada). Per defecte sí; les
+	// competicions oficials ho treuen (SetHints(false)).
+	hints bool
 }
+
+// SetHints encén o apaga les ajudes del format de decisió.
+func (m *Match) SetHints(on bool) { m.hints = on }
 
 func (Game) NewMatch(seed int64, lang string, names [2]string) arena.Match {
 	teams := football.MirroredTeams(seed, names)
 	g := football.NewGame(teams[0], teams[1], seed, lang)
 	g.External = true
-	return &Match{g: g, names: names, lang: lang}
+	return &Match{g: g, names: names, lang: lang, hints: true}
 }
 
 // advance juga fins que el motor demana crides o s'acaba.
@@ -70,10 +77,15 @@ func (m *Match) Next() ([2]arena.Prompt, bool) {
 	var p [2]arena.Prompt
 	for t := 0; t < 2; t++ {
 		p[t].Situation = m.g.Situation(t)
-		if t == off {
+		switch {
+		case t == off && m.hints:
 			p[t].Schema = football.OffenseSchema
-		} else {
+		case t == off:
+			p[t].Schema = football.OffenseSchemaBare
+		case m.hints:
 			p[t].Schema = football.DefenseSchema
+		default:
+			p[t].Schema = football.DefenseSchemaBare
 		}
 		dist := "goal"
 		if m.g.Spot+m.g.Dist < 100 {

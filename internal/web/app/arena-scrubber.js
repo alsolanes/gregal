@@ -33,10 +33,28 @@ export function indexAtTime(times, t) {
   return lo;
 }
 
+// La línia de temps: on cau (0..1) l'esdeveniment i (amb temps, el seu inici;
+// sense, i / total, així que i + .5 és el mig) i quin esdeveniment hi ha a una
+// fracció k de la línia. Va en temps de reproducció (pr.times, segons a 1×) si
+// el visor el dona; si no, repartit per esdeveniments.
+export const isTimed = pr => !!pr && Array.isArray(pr.times) && pr.times.length === pr.total + 1 && pr.duration > 0;
+export function fracOfIndex(pr, i) {
+  if (!pr || !pr.total) return 0;
+  if (!isTimed(pr)) return clamp(i / pr.total, 0, 1);
+  return clamp(pr.times[clamp(Math.floor(i), 0, pr.total)] / pr.duration, 0, 1);
+}
+export function fracNow(pr) { return isTimed(pr) ? clamp((pr.elapsed || 0) / pr.duration, 0, 1) : fracOfIndex(pr, pr ? pr.index : 0); }
+export function indexAtFrac(pr, k) {
+  if (!pr || !pr.total) return 0;
+  k = clamp(k, 0, 1);
+  if (!isTimed(pr)) return clamp(Math.floor(k * pr.total), 0, pr.total - 1);
+  return clamp(indexAtTime(pr.times, k * pr.duration), 0, pr.total - 1);
+}
+
 // Cap on va ⏪ / ⏩: uns segons enrere o endavant (com un vídeo) si hi ha temps
 // de reproducció; si no, per capítols (les rondes del CS2) o uns quants esdeveniments.
 // cur = l'esdeveniment que es veu ara (index - 1).
-const timedPr = pr => Array.isArray(pr.times) && pr.times.length === pr.total + 1 && pr.duration > 0;
+const timedPr = isTimed;
 export const JUMP_SECS = 15;
 export function backTarget(pr, secs = JUMP_SECS) {
   const cur = Math.max(0, (pr.index || 0) - 1);
@@ -125,9 +143,8 @@ export function mountScrubber(host, opts = {}) {
 
   const progress = () => { try { return view && view.getProgress ? view.getProgress() : null; } catch (e) { return null; } };
   // La línia va en temps de reproducció (pr.times, segons a 1×) si el visor el dona; si no, per esdeveniments.
-  const timed = () => Array.isArray(pr.times) && pr.times.length === pr.total + 1 && pr.duration > 0;
-  const frac = i => !pr.total ? 0 : timed() ? clamp(pr.times[clamp(Math.floor(i), 0, pr.total)] / pr.duration, 0, 1) : clamp(i / pr.total, 0, 1);
-  const fracNow = () => timed() ? clamp((pr.elapsed || 0) / pr.duration, 0, 1) : frac(pr.index);
+  const timed = () => isTimed(pr);
+  const frac = i => fracOfIndex(pr, i);
   const idxOfN = n => {
     const ev = pr.events || [];
     if (nIdx.len !== ev.length) { nIdx = { len: ev.length, map: new Map(ev.map((e, i) => [e.n, i])) }; }
@@ -154,7 +171,7 @@ export function mountScrubber(host, opts = {}) {
   function sync() {
     const p = progress();
     if (p) pr = p;
-    const f = drag ? frac(drag.i) : fracNow();
+    const f = drag ? frac(drag.i) : fracNow(pr);
     q('.sc-done').style.width = (f * 100) + '%';
     q('.sc-buf').style.width = pr.total ? '100%' : '0';
     q('.sc-knob').style.left = (f * 100) + '%';
@@ -208,9 +225,8 @@ export function mountScrubber(host, opts = {}) {
 
   // ---- la línia: rètol, clic i arrossegar ----
   const idxAt = x => {
-    const r = trk.getBoundingClientRect(), k = clamp((x - r.left) / Math.max(1, r.width), 0, 1);
-    if (!timed()) return clamp(Math.floor(k * pr.total), 0, Math.max(0, pr.total - 1));
-    return clamp(indexAtTime(pr.times, k * pr.duration), 0, Math.max(0, pr.total - 1));
+    const r = trk.getBoundingClientRect();
+    return indexAtFrac(pr, (x - r.left) / Math.max(1, r.width));
   };
   function hideTip() { hover = -1; tip.classList.remove('sc-on'); }
   function tipAt(i) {

@@ -7,31 +7,10 @@
 // Pure helpers (createState, applyEvent, layout, caption…) don't touch the DOM
 // and are tested with node (arena-lol-view.test.cjs).
 
-const lerp = (a, b, t) => a + (b - a) * t;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+import { ArenaViewBase, lerp, clamp, easeOut, rng, hexToRgb as hexRgb, viewDpr, elapsedAt, progressMarks } from './arena-view-base.js';
+export { elapsedAt, progressMarks };
 
-// Progress-bar marks: big moments (hl) and, when scores=true, events that move
-// the score up. [{ i, kind: 'score'|'hl', text }], cached while the list doesn't grow.
-const MARKS = new WeakMap();
-// Playback seconds now: when the current event started plus how long it has been on (capped at its length).
-export function elapsedAt(times, index, since) {
-  const n = times.length - 1, i = Math.max(0, Math.min(n, index)), t0 = times[Math.max(0, i - 1)], t1 = times[i];
-  return { times, duration: times[n], elapsed: i >= n && index > 0 ? times[n] : i === 0 ? Math.min(times[0], Math.max(0, since || 0)) : Math.min(t1, t0 + Math.max(0, since || 0)) };
-}
-export function progressMarks(list, scores = true) {
-  const c = MARKS.get(list);
-  if (c && c.len === list.length && c.scores === scores) return c.marks;
-  const marks = []; let prev = [0, 0];
-  list.forEach((e, i) => {
-    const sc = Array.isArray(e.score) ? e.score : null;
-    const up = scores && sc && (sc[0] > prev[0] || sc[1] > prev[1]);
-    if (sc) prev = sc;
-    if (up || e.hl) marks.push({ i, kind: up ? 'score' : 'hl', text: e.text || '' });
-  });
-  MARKS.set(list, { len: list.length, scores, marks });
-  return marks;
-}
-const easeOut = t => 1 - Math.pow(1 - t, 3);
+// Progress-bar marks (progressMarks) and playback seconds (elapsedAt) live in arena-view-base.js.
 const TAU = Math.PI * 2;
 const FONT = '"Segoe UI", "Helvetica Neue", Arial, system-ui, sans-serif';
 const SQ = 0.64; // vertical squash of the tilted map
@@ -103,8 +82,7 @@ export function initials(name) {
 }
 
 function hash(s) { let h = 2166136261; for (const c of String(s)) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
-function rng(seed) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
-function hexToRgb(h) { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return [128, 128, 128]; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+const hexToRgb = h => hexRgb(h);
 function shade(h, f) { const [r, g, b] = hexToRgb(h); const k = v => clamp(Math.round(f < 0 ? v * (1 + f) : v + (255 - v) * f), 0, 255); return `rgb(${k(r)},${k(g)},${k(b)})`; }
 function rgba(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function segDist(px, py, a, b) {
@@ -179,9 +157,10 @@ export function respawnTime(t) { return 8 + (t / 60) * 1.15; }
 export function eventDuration(ev) {
   const d = ev && ev.data || {};
   switch (ev && ev.kind) {
-    case 'phase': return d.phase === 'macro' ? 2.6 : d.phase === 'draft' ? 1.0 : d.phase === 'draft_done' ? 1.8 : d.phase === 'laning' ? 2.4 : 2.0;
-    case 'draft_ban': return 0.75;
-    case 'draft_pick': return 1.15;
+    case 'phase': return d.phase === 'macro' ? 2.6 : d.phase === 'draft' ? 0.6 : d.phase === 'draft_done' ? 1.2 : d.phase === 'laning' ? 2.4 : 2.0;
+    // The draft moves briskly at 1× (it used to drag on before the map).
+    case 'draft_ban': return 0.55;
+    case 'draft_pick': return 0.85;
     case 'lane': return 1.0;
     case 'gank': return 1.3;
     case 'kill': return ev.hl ? 1.7 : 1.0;
@@ -832,16 +811,16 @@ export function draftCut(prev, ev, n = 0) {
   const k = ev && ev.kind;
   if ((k !== 'draft_ban' && k !== 'draft_pick') || !prev || prev === k) return null;
   const d = ev.data || {}, team = d.side === 1 ? 1 : 0;
-  if (k === 'draft_pick') return { kind: 'booth', team, dur: 2.6, label: n < 1 ? 'PICK PHASE 1' : 'PICK PHASE 2', mood: 'focus' };
-  return { kind: 'casters', team: -1, dur: 3, label: 'BAN PHASE 2', sub: 'bans2' };
+  if (k === 'draft_pick') return { kind: 'booth', team, dur: 1.8, label: n < 1 ? 'PICK PHASE 1' : 'PICK PHASE 2', mood: 'focus' };
+  return { kind: 'casters', team: -1, dur: 2.2, label: 'BAN PHASE 2', sub: 'bans2' };
 }
 
 // The show's opening (joining mid-game: just a quick look at the arena).
 export function openingScenes(state) {
   if (!state || state.mode !== 'draft') return [{ kind: 'arena', sub: 'opening', team: -1, level: .45, dur: 3, label: 'LIVE FROM THE ARENA' }];
   return [
-    { kind: 'arena', sub: 'opening', team: -1, level: .55, dur: 4.6, label: 'GRAND FINAL' },
-    { kind: 'casters', sub: 'intro', team: -1, dur: 3.4, label: 'CHAMPION DRAFT' },
+    { kind: 'arena', sub: 'opening', team: -1, level: .55, dur: 3.4, label: 'GRAND FINAL' },
+    { kind: 'casters', sub: 'intro', team: -1, dur: 2.4, label: 'CHAMPION DRAFT' },
   ];
 }
 
@@ -897,33 +876,114 @@ const CLASS_GLYPH = {
   engage(g, r) { g.lineWidth = r * .26; g.beginPath(); g.moveTo(-r * .8, -r * .1); g.lineTo(0, r * .7); g.lineTo(r * .8, -r * .1); g.stroke(); g.beginPath(); g.moveTo(-r * .8, -r * .8); g.lineTo(0, 0); g.lineTo(r * .8, -r * .8); g.stroke(); },
 };
 
-// Procedural champion portrait: class-coloured emblem with initials.
-export function drawPortrait(g, x, y, r, info, ring, opts = {}) {
-  const cls = info.class || 'bruiser';
-  const base = opts.dead ? '#555a63' : (CLASS_COLORS[cls] || '#888');
-  const hue = (hash(info.name) % 40) - 20;
-  g.save(); g.translate(x, y);
-  if (opts.glow) { g.shadowColor = ring; g.shadowBlur = r * .9; }
-  g.beginPath(); g.arc(0, 0, r, 0, TAU);
+// Procedural champion portraits: a bust in the team's armour on the class
+// colour, with headgear built from the class shape (a tank's helm, a
+// bruiser's horns, an assassin's hood, a mage's star crown, a marksman's bow,
+// an enchanter's charm, an engage crest) and the class emblem behind. Every
+// detail (skin, hair, eyes, tilt) comes from the champion's name, so the same
+// champion always looks the same. Painted once per size into a cache.
+const PORTRAIT_SKINS = ['#f1c7a5', '#d9a47e', '#b77b52', '#8d5a3b', '#e8b893', '#c7b3e6', '#a9cfd9', '#9fd3a8'];
+const PORTRAIT_HAIRS = ['#1d1612', '#4a2e1c', '#c9a05a', '#e8e2d6', '#7a1f2b', '#2d3f7a', '#3a6b46', '#9b4fd0'];
+const PORTRAITS = new Map();
+
+function paintPortrait(g, r, info, ring, dead) {
+  const cls = info.class || 'bruiser', h = hash(info.name || '?');
+  const base = dead ? '#555a63' : (CLASS_COLORS[cls] || '#888');
+  const hue = (h % 40) - 20, team = dead ? '#6a6f78' : (/^#[0-9a-f]{6}$/i.test(ring) ? ring : '#7a8494');
+  const skin = dead ? '#9a9da3' : PORTRAIT_SKINS[(h >>> 3) % PORTRAIT_SKINS.length], hair = dead ? '#55585e' : PORTRAIT_HAIRS[(h >>> 7) % PORTRAIT_HAIRS.length];
+  const armor = shade(team, -.25), trim = shade(team, .4), eye = dead ? '#444' : shade(base, .55);
+  const tilt = ((h >>> 11) % 7 - 3) * .025;
+  g.save();
+  g.beginPath(); g.arc(0, 0, r, 0, TAU); g.clip();
+  // Backdrop: the class colour, a diagonal light band and the class emblem.
   const grd = g.createRadialGradient(-r * .3, -r * .4, r * .1, 0, 0, r);
   grd.addColorStop(0, shade(base, .35 + hue / 200)); grd.addColorStop(.7, base); grd.addColorStop(1, shade(base, -.45));
-  g.fillStyle = grd; g.fill(); g.shadowBlur = 0;
-  g.save(); g.clip(); g.globalAlpha = .18; g.fillStyle = '#fff'; g.rotate((hash(info.name) % 6) * .5);
-  g.fillRect(-r, -r * .25, r * 2, r * .3); g.restore();
-  g.globalAlpha = .26; g.fillStyle = '#fff'; g.strokeStyle = '#fff';
-  (CLASS_GLYPH[cls] || CLASS_GLYPH.bruiser)(g, r * .62);
-  g.globalAlpha = 1;
-  if (r > 7) {
-    g.fillStyle = '#fff'; g.font = `800 ${Math.round(r * .8)}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.shadowColor = 'rgba(0,0,0,.7)'; g.shadowBlur = r * .25; g.fillText(initials(info.name), 0, r * .05); g.shadowBlur = 0;
+  g.fillStyle = grd; g.fillRect(-r, -r, 2 * r, 2 * r);
+  g.save(); g.globalAlpha = .14; g.fillStyle = '#fff'; g.rotate((h % 6) * .5); g.fillRect(-r, -r * .25, r * 2, r * .3); g.restore();
+  g.save(); g.globalAlpha = .2; g.fillStyle = '#fff'; g.strokeStyle = '#fff'; g.translate(0, -r * .12); (CLASS_GLYPH[cls] || CLASS_GLYPH.bruiser)(g, r * .9); g.restore();
+  g.rotate(tilt);
+  // Marksman: the bow behind the shoulder.
+  if (cls === 'marksman') { g.strokeStyle = shade('#8a5a2b', dead ? -.3 : 0); g.lineWidth = r * .07; g.beginPath(); g.arc(r * .55, r * .2, r * .62, -Math.PI * .75, Math.PI * .35); g.stroke(); g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = r * .02; g.beginPath(); g.moveTo(r * .55 + Math.cos(-Math.PI * .75) * r * .62, r * .2 + Math.sin(-Math.PI * .75) * r * .62); g.lineTo(r * .55 + Math.cos(Math.PI * .35) * r * .62, r * .2 + Math.sin(Math.PI * .35) * r * .62); g.stroke(); }
+  // Long hair behind the head (mages, enchanters, marksmen).
+  if (cls === 'mage' || cls === 'enchanter' || cls === 'marksman') { g.fillStyle = hair; g.beginPath(); g.ellipse(0, r * .05, r * .4, r * .5, 0, 0, TAU); g.fill(); }
+  // Shoulders: team armour with a trim and the class emblem on the chest.
+  g.fillStyle = armor; g.beginPath(); g.moveTo(-r * 1.05, r * 1.05); g.quadraticCurveTo(-r * .95, r * .42, -r * .3, r * .4); g.lineTo(r * .3, r * .4); g.quadraticCurveTo(r * .95, r * .42, r * 1.05, r * 1.05); g.closePath(); g.fill();
+  g.strokeStyle = trim; g.lineWidth = r * .06; g.beginPath(); g.moveTo(-r * .85, r * .62); g.quadraticCurveTo(0, r * .38, r * .85, r * .62); g.stroke();
+  if (cls === 'tank' || cls === 'bruiser' || cls === 'engage') { g.fillStyle = shade(team, -.05); for (const k of [-1, 1]) { g.beginPath(); g.ellipse(k * r * .66, r * .55, r * .3, r * .17, k * .35, 0, TAU); g.fill(); } }
+  g.save(); g.translate(0, r * .78); g.fillStyle = trim; g.strokeStyle = trim; (CLASS_GLYPH[cls] || CLASS_GLYPH.bruiser)(g, r * .16); g.restore();
+  // Neck and face.
+  g.fillStyle = shade(skin, -.2); g.fillRect(-r * .11, r * .12, r * .22, r * .3);
+  g.fillStyle = skin; g.beginPath(); g.ellipse(0, -r * .08, r * .27, r * .33, 0, 0, TAU); g.fill();
+  g.fillStyle = shade(skin, -.18); g.beginPath(); g.ellipse(r * .06, r * .06, r * .2, r * .17, 0, 0, Math.PI); g.fill();
+  // Eyes (glowing in the class colour under a helm or a hood).
+  const covered = cls === 'tank' || cls === 'assassin' || cls === 'engage';
+  g.fillStyle = covered ? eye : '#1b1b22';
+  for (const k of [-1, 1]) { g.beginPath(); g.ellipse(k * r * .1, -r * .08, r * (covered ? .065 : .045), r * (covered ? .03 : .04), 0, 0, TAU); g.fill(); }
+  if (!covered) { g.strokeStyle = shade(hair, -.2); g.lineWidth = r * .03; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * r * .04, -r * .17); g.lineTo(k * r * .17, -r * .19 + (cls === 'assassin' ? r * .03 : 0)); g.stroke(); } }
+  // Headgear from the class shape.
+  const metal = dead ? '#777' : shade('#9aa6b8', hue / 100);
+  if (cls === 'tank') {
+    g.fillStyle = metal; g.beginPath(); g.moveTo(0, -r * .58); g.lineTo(r * .34, -r * .4); g.lineTo(r * .33, -r * .02); g.lineTo(r * .2, r * .2); g.lineTo(-r * .2, r * .2); g.lineTo(-r * .33, -r * .02); g.lineTo(-r * .34, -r * .4); g.closePath(); g.fill();
+    g.fillStyle = '#15161b'; g.fillRect(-r * .25, -r * .12, r * .5, r * .08);
+    g.fillStyle = eye; g.fillRect(-r * .2, -r * .105, r * .14, r * .05); g.fillRect(r * .06, -r * .105, r * .14, r * .05);
+    g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(-r * .02, -r * .55, r * .04, r * .4);
+  } else if (cls === 'bruiser') {
+    g.fillStyle = metal; g.beginPath(); g.arc(0, -r * .17, r * .3, Math.PI, TAU); g.lineTo(r * .3, -r * .1); g.lineTo(-r * .3, -r * .1); g.fill();
+    g.fillStyle = dead ? '#888' : '#efe6cf';
+    for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * r * .26, -r * .3); g.quadraticCurveTo(k * r * .62, -r * .38, k * r * .58, -r * .78); g.quadraticCurveTo(k * r * .48, -r * .45, k * r * .2, -r * .4); g.fill(); }
+    g.fillStyle = '#15161b'; g.fillRect(-r * .2, -r * .14, r * .4, r * .05);
+  } else if (cls === 'assassin') {
+    g.fillStyle = shade(base, -.45); g.beginPath(); g.moveTo(0, -r * .72); g.quadraticCurveTo(r * .42, -r * .4, r * .36, r * .25); g.lineTo(r * .2, r * .05); g.quadraticCurveTo(r * .22, -r * .32, 0, -r * .36); g.quadraticCurveTo(-r * .22, -r * .32, -r * .2, r * .05); g.lineTo(-r * .36, r * .25); g.quadraticCurveTo(-r * .42, -r * .4, 0, -r * .72); g.fill();
+    g.fillStyle = shade(base, -.6); g.fillRect(-r * .2, r * .0, r * .4, r * .17); // mask
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, -r * .2, r * .22, r * .1, 0, 0, TAU); g.fill();
+  } else if (cls === 'mage') {
+    g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+    g.save(); g.translate(0, -r * .5); g.fillStyle = dead ? '#999' : '#ffe27a'; CLASS_GLYPH.mage(g, r * .2); g.restore();
+    g.fillStyle = dead ? '#777' : shade(base, .6); g.beginPath(); g.arc(0, -r * .26, r * .035, 0, TAU); g.fill();
+  } else if (cls === 'marksman') {
+    g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.05, Math.PI * 1.95); g.fill();
+    g.fillStyle = trim; g.fillRect(-r * .29, -r * .26, r * .58, r * .06);
+  } else if (cls === 'enchanter') {
+    g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.02, Math.PI * 1.98); g.fill();
+    g.save(); g.translate(r * .2, -r * .38); g.rotate(.4); g.fillStyle = dead ? '#999' : shade(base, .5); CLASS_GLYPH.enchanter(g, r * .16); g.restore();
+  } else if (cls === 'engage') {
+    g.fillStyle = metal; g.beginPath(); g.arc(0, -r * .15, r * .31, Math.PI, TAU); g.lineTo(r * .31, r * .05); g.lineTo(r * .18, r * .08); g.lineTo(r * .16, -r * .12); g.lineTo(-r * .16, -r * .12); g.lineTo(-r * .18, r * .08); g.lineTo(-r * .31, r * .05); g.closePath(); g.fill();
+    g.fillStyle = trim; g.beginPath(); g.moveTo(-r * .05, -r * .46); g.quadraticCurveTo(r * .1, -r * .8, r * .42, -r * .7); g.quadraticCurveTo(r * .2, -r * .58, r * .05, -r * .44); g.fill();
   }
-  g.lineWidth = Math.max(1.5, r * .17); g.strokeStyle = opts.dead ? '#777' : ring; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+  g.restore();
+  // The ring in the team colour.
+  g.lineWidth = Math.max(1.5, r * .17); g.strokeStyle = dead ? '#777' : ring; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+}
+
+export function drawPortrait(g, x, y, r, info, ring, opts = {}) {
+  info = info || {};
+  if (opts.glow) {
+    // A soft halo in layered strokes (shadowBlur is slow).
+    g.save(); g.strokeStyle = rgba(/^#[0-9a-f]{6}$/i.test(ring) ? ring : '#ffffff', .16);
+    for (const k of [.55, .32]) { g.lineWidth = r * k; g.beginPath(); g.arc(x, y, r * (1 + k / 2), 0, TAU); g.stroke(); }
+    g.restore();
+  }
+  const dead = !!opts.dead;
+  if (typeof document !== 'undefined' && r >= 3) {
+    const R = Math.pow(2, Math.ceil(Math.log2(r) * 4) / 4), pad = Math.ceil(R * .12) + 2;
+    const key = (info.name || '') + '|' + (info.class || '') + '|' + ring + '|' + (dead ? 1 : 0) + '|' + R;
+    let c = PORTRAITS.get(key);
+    if (!c) {
+      if (PORTRAITS.size > 400) PORTRAITS.clear();
+      c = document.createElement('canvas'); c.width = c.height = Math.ceil(2 * (R + pad));
+      const cg = c.getContext('2d'); cg.translate(R + pad, R + pad); paintPortrait(cg, R, info, ring, dead);
+      PORTRAITS.set(key, c);
+    }
+    const k = r / R, half = c.width / 2 * k;
+    g.drawImage(c, x - half, y - half, half * 2, half * 2);
+  } else { g.save(); g.translate(x, y); paintPortrait(g, r, info, ring, dead); g.restore(); }
   if (opts.banned) {
+    g.save(); g.translate(x, y);
     g.fillStyle = 'rgba(20,20,24,.55)'; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
     const k = opts.slash == null ? 1 : opts.slash;
     g.strokeStyle = '#ff3b4b'; g.lineWidth = r * .2; g.lineCap = 'round'; g.beginPath(); g.moveTo(-r * .7, -r * .7); g.lineTo(-r * .7 + r * 1.4 * k, -r * .7 + r * 1.4 * k); g.stroke();
+    g.restore();
   }
-  g.restore();
 }
 
 function drawDrake(g, r, col) {
@@ -1197,15 +1257,15 @@ function drawCup(g, x, y, r, glow) {
   g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(x - r * .55, y - r * 2, r * .14, r * .9);
 }
 
-export class LolView {
+export class LolView extends ArenaViewBase {
   constructor(canvas, opts = {}) {
-    this.cv = canvas; this.ctx = canvas.getContext('2d');
+    super(canvas, opts);
     this.lang = 'en'; this.T = T;
     this.source = opts.source;
     this.onUpdate = opts.onUpdate || (() => {});
     this.onEvent = opts.onEvent || (() => {});
-    this.match = null; this.state = null; this.queue = []; this.idx = 0; this.speed = 1; this.paused = false;
-    this.cur = null; this.prog = 0; this.lastN = 0; this.stopped = false; this.last = performance.now();
+    this.match = null; this.state = null; this.queue = []; this.idx = 0;
+    this.cur = null; this.prog = 0; this.lastN = 0;
     this.flashes = []; this.particles = []; this.popups = []; this.skulls = []; this.clashes = []; this.killFeed = [];
     this.banner = null; this.mapCache = null; this.now = 0; this.anim = 0; this.clock = 0;
     this.hp = [[1, 1, 1, 1, 1], [1, 1, 1, 1, 1]]; this.planFlash = -10; this.draftAnim = { t0: 0 };
@@ -1218,18 +1278,14 @@ export class LolView {
     this.scene = null; this.sceneQ = []; this.sceneThen = null; this.pendingCut = null; this.lastCut = -99; this.stinger = -10;
     this.opened = false; this.readyDone = false; this.finaleDone = false; this.draftKind = null; this.draftCuts = 0; this.sceneN = 0;
     this.confetti = []; this.arena = null;
-    this.resize = this.resize.bind(this);
-    if (typeof window !== 'undefined') window.addEventListener('resize', this.resize);
-    this.resize();
-    this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
-    this.poll();
+    this.start(); // arena-view-base.js: size, frame loop, observers and the first poll
   }
 
-  destroy() { this.stopped = true; if (typeof window !== 'undefined') window.removeEventListener('resize', this.resize); clearTimeout(this.pollTimer); clearTimeout(this.hiTimer); }
-  setSpeed(x) { this.speed = Math.max(.1, +x || 1); }
-  togglePause() { this.paused = !this.paused; return this.paused; }
+  destroy() { super.destroy(); clearTimeout(this.hiTimer); }
+  setSpeed(x) { super.setSpeed(Math.max(.1, +x || 1)); }
   skipToEnd() {
     if (!this.state) return;
+    this.invalidate();
     if (this.cur) this.cur = null;
     while (this.idx < this.queue.length) { const ev = this.queue[this.idx++]; applyEvent(this.state, ev); this.onEvent(ev); }
     this.snapPositions(); this.banner = null; this.flashes = []; this.popups = []; this.clashes = [];
@@ -1247,6 +1303,7 @@ export class LolView {
   seek(index) {
     const m = this.match;
     if (!m || !m.meta) return false;
+    this.invalidate();
     index = clamp(Math.round(+index || 0), 0, this.queue.length);
     const st = createState(m.meta, m.names || (this.state && this.state.names));
     for (let i = 0; i < index; i++) applyEvent(st, this.queue[i]);
@@ -1291,15 +1348,16 @@ export class LolView {
         else if (this.state && Array.isArray(m.names)) this.state.names = m.names;
         for (const e of m.events || []) if (e.n > this.lastN) { this.queue.push(e); this.lastN = e.n; }
         this.onUpdate(this.match, this.queue[this.idx - 1] || null);
+        this.invalidate();
       }
     } catch (e) { /* retry */ }
     const done = this.match && ['final', 'stopped', 'failed'].includes(this.match.status);
-    if (!done) this.pollTimer = setTimeout(() => this.poll(), 3000);
+    if (!done && !this.stopped) this.schedulePoll(3000);
   }
 
   resize() {
     const r = this.cv.getBoundingClientRect ? this.cv.getBoundingClientRect() : { width: this.cv.width, height: this.cv.height };
-    const d = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const d = viewDpr();
     this.cv.width = Math.max(320, Math.round(r.width * d)); this.cv.height = Math.max(240, Math.round(r.height * d));
     this.W = this.cv.width; this.H = this.cv.height; this.dpr = d;
     this.mapCache = null; this.hiCache = null; clearTimeout(this.hiTimer); this.hiTimer = null; this.arena = null;
@@ -1375,12 +1433,11 @@ export class LolView {
     return [x, y];
   }
 
-  loop(now) {
-    if (this.stopped) return;
-    const dt = Math.min(.25, (now - this.last) / 1000); this.last = now; this.now = now / 1000;
+  // One frame (the loop itself is in arena-view-base.js).
+  onFrame(dt, now) {
+    this.now = now / 1000;
     if (!this.paused) this.advance(dt * this.speed, dt);
     try { this.draw(); } catch (e) { /* one bad frame doesn't stop the viewer */ }
-    requestAnimationFrame(this.loop);
   }
 
   advance(dt) {

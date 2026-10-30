@@ -6,11 +6,15 @@ import { fmtTime } from './arena-scrubber.js';
 
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// Una decisió en paraules: els valors del JSON, sense guions baixos.
-export function callText(d) {
+// Una decisió en paraules: els valors del JSON, sense guions baixos (el
+// «normal» de per defecte no diu res). Sense valors: el resum curt de la
+// decisió o, amb short:false (la llista de decisions, que ja el mostra), «—»
+// si el model no va respondre. L'única còpia: arena.js també la fa servir.
+export function callText(d, { short = true } = {}) {
   if (!d) return '';
   const v = d.decision && typeof d.decision === 'object' ? Object.values(d.decision).flat().filter(x => typeof x === 'string' && x && x !== 'normal') : [];
-  return (v.length ? v.join(' · ') : (d.short || '')).replace(/_/g, ' ');
+  if (v.length) return v.join(' · ').replace(/_/g, ' ');
+  return short ? String(d.short || '').replace(/_/g, ' ') : (d.fallback ? '—' : '');
 }
 
 // La pista: una línia per moment que compta (moments del prompt ★, punts,

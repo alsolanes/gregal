@@ -14,6 +14,7 @@ The license text for each artifact and bundled dependency follows this index.
 | pako 1.0.5, included in JSZip's browser build | [npm release](https://registry.npmjs.org/pako/-/pako-1.0.5.tgz) | MIT AND Zlib |
 | `lie` 3.3.0 and `immediate` 3.0.6, Promise fallback in JSZip | [npm releases: lie](https://registry.npmjs.org/lie/-/lie-3.3.0.tgz), [immediate](https://registry.npmjs.org/immediate/-/immediate-3.0.6.tgz) | MIT |
 | `setimmediate` 1.0.5, included in JSZip | [npm release](https://registry.npmjs.org/setimmediate/-/setimmediate-1.0.5.tgz) | MIT |
+| mp4-muxer 5.2.2 (`mp4-muxer.esm.min.js`, upstream `build/mp4-muxer.min.mjs`) | [GitHub tag v5.2.2](https://github.com/Vanilagy/mp4-muxer/tree/v5.2.2/build) (npm: [mp4-muxer-5.2.2.tgz](https://registry.npmjs.org/mp4-muxer/-/mp4-muxer-5.2.2.tgz)) | MIT |
 
 PptxViewJS declares Chart.js and JSZip as peer dependencies; its published UMD
 artifact receives them as external globals, and Gregal serves the separate
@@ -1292,3 +1293,29 @@ NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
 LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+#### mp4-muxer 5.2.2 full upstream license
+
+MIT License
+
+Copyright (c) 2023 Vanilagy
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

@@ -8,37 +8,16 @@
 // Les rondes arriben senceres (un punt de decisió = una ronda); cada ronda es
 // reprodueix comprimint els temps morts perquè duri uns 8-15 s a 1×.
 
-const lerp = (a, b, t) => a + (b - a) * t;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+import { ArenaViewBase, lerp, clamp, easeOut, rng, hexToRgb as hexRgb, viewDpr, elapsedAt, progressMarks } from './arena-view-base.js';
+export { elapsedAt, progressMarks };
 
-// Progress-bar marks: big moments (hl) and, when scores=true, events that move
-// the score up. [{ i, kind: 'score'|'hl', text }], cached while the list doesn't grow.
-const MARKS = new WeakMap();
-// Playback seconds now: when the current event started plus how long it has been on (capped at its length).
-export function elapsedAt(times, index, since) {
-  const n = times.length - 1, i = Math.max(0, Math.min(n, index)), t0 = times[Math.max(0, i - 1)], t1 = times[i];
-  return { times, duration: times[n], elapsed: i >= n && index > 0 ? times[n] : i === 0 ? Math.min(times[0], Math.max(0, since || 0)) : Math.min(t1, t0 + Math.max(0, since || 0)) };
-}
-export function progressMarks(list, scores = true) {
-  const c = MARKS.get(list);
-  if (c && c.len === list.length && c.scores === scores) return c.marks;
-  const marks = []; let prev = [0, 0];
-  list.forEach((e, i) => {
-    const sc = Array.isArray(e.score) ? e.score : null;
-    const up = scores && sc && (sc[0] > prev[0] || sc[1] > prev[1]);
-    if (sc) prev = sc;
-    if (up || e.hl) marks.push({ i, kind: up ? 'score' : 'hl', text: e.text || '' });
-  });
-  MARKS.set(list, { len: list.length, scores, marks });
-  return marks;
-}
-const easeOut = t => 1 - Math.pow(1 - t, 3);
+// Progress-bar marks (progressMarks) and playback seconds (elapsedAt) live in arena-view-base.js.
 const FONT = '"Segoe UI", system-ui, sans-serif';
 const SIDE_COL = { T: '#e8a33d', CT: '#5aa9e6' };
 const ROUND_TIME = 115, BOMB_TIME = 40;
 
-function rng(seed) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
-function hexToRgb(h) { const m = /^#?([0-9a-f]{6})$/i.exec(h || ''); if (!m) return [140, 140, 140]; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+const GREY = [140, 140, 140];
+const hexToRgb = h => hexRgb(h, GREY);
 function rgba(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function luminance(h) { const [r, g, b] = hexToRgb(h); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 
@@ -306,15 +285,27 @@ export function buildGrid(meta, res = 0.5) {
   const zs = (meta && meta.zones) || [], byId = {}; zs.forEach(z => { byId[z.id] = z; });
   const links = ((meta && meta.links) || []).map(([a, b]) => [byId[a], byId[b]]).filter(l => l[0] && l[1]);
   const props = (meta && meta.props) || [];
+  // Plain loops and squared distances: this runs for every cell (~32k) and
+  // used to take ~60 ms, a visible hitch on the first POV cut.
+  const nz = zs.length, zx = new Float64Array(nz), zy = new Float64Array(nz), zw = new Float64Array(nz), zh = new Float64Array(nz);
+  zs.forEach((z, zi) => { zx[zi] = z.x; zy[zi] = z.y; zw[zi] = z.w / 2; zh[zi] = z.h / 2; });
+  const C2 = CORRIDOR * CORRIDOR;
+  const segs = links.map(([a, b]) => { const dx = b.x - a.x, dy = b.y - a.y; return { ax: a.x, ay: a.y, dx, dy, l2: dx * dx + dy * dy, x0: Math.min(a.x, b.x) - CORRIDOR, x1: Math.max(a.x, b.x) + CORRIDOR, y0: Math.min(a.y, b.y) - CORRIDOR, y1: Math.max(a.y, b.y) + CORRIDOR }; });
   for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) {
     const x = (i + 0.5) * res, y = (j + 0.5) * res, k = j * gw + i;
-    let best = 1e9, bi = -1, floor = false;
-    zs.forEach((z, zi) => {
-      const dx = Math.max(0, Math.abs(x - z.x) - z.w / 2), dy = Math.max(0, Math.abs(y - z.y) - z.h / 2), d = Math.hypot(dx, dy);
-      if (d < best) { best = d; bi = zi; }
-      if (d <= 0.3) floor = true;
-    });
-    if (!floor) for (const [a, b] of links) if (segDist(x, y, a.x, a.y, b.x, b.y) <= CORRIDOR) { floor = true; break; }
+    let best = 1e18, bi = -1, floor = false;
+    for (let zi = 0; zi < nz; zi++) {
+      const ddx = Math.abs(x - zx[zi]) - zw[zi], ddy = Math.abs(y - zy[zi]) - zh[zi];
+      const dx = ddx > 0 ? ddx : 0, dy = ddy > 0 ? ddy : 0, d2 = dx * dx + dy * dy;
+      if (d2 < best) { best = d2; bi = zi; }
+      if (d2 <= 0.09) floor = true;
+    }
+    if (!floor) for (const q of segs) {
+      if (x < q.x0 || x > q.x1 || y < q.y0 || y > q.y1) continue;
+      const t = q.l2 ? clamp(((x - q.ax) * q.dx + (y - q.ay) * q.dy) / q.l2, 0, 1) : 0;
+      const ex = x - q.ax - t * q.dx, ey = y - q.ay - t * q.dy;
+      if (ex * ex + ey * ey <= C2) { floor = true; break; }
+    }
     let c = floor ? 1 : 0;
     if (floor) for (const p of props) if (Math.abs(x - p.x) <= p.w / 2 && Math.abs(y - p.y) <= p.h / 2) { c = 2; break; }
     cells[k] = c; zone[k] = bi;
@@ -365,15 +356,33 @@ export function castRay(G, ox, oy, dx, dy, maxD = 90, crates = null) {
 
 // Mirage sandstone, tinted by the zone a wall belongs to.
 const HAZE = [226, 210, 178];
+// Both memoised: the raycaster asks for them for every column and brick row, every frame.
+const PALS = new WeakMap(), NOPAL = [188, 162, 122], CRATE_TOP = [150, 116, 72], CRATE_SIDE = [118, 86, 50];
 function wallPal(z) {
-  if (!z) return [188, 162, 122];
+  if (!z) return NOPAL;
+  let p = PALS.get(z);
+  if (!p) { p = wallPal0(z); PALS.set(z, p); }
+  return p;
+}
+function wallPal0(z) {
   const j = (hash3(z.id.length, z.id.charCodeAt(0), 11) - 0.5) * 18;
   const base = z.kind === 'site' ? [216, 186, 140] : z.kind === 'spawn_t' ? [204, 160, 106] : z.kind === 'spawn_ct' ? [178, 172, 158] : [198, 170, 128];
   return base.map(v => v + j);
 }
+const SHADECOLS = new WeakMap();
 function shadeCol(pal, sh, fog) {
-  const c = i => Math.round(clamp(pal[i] * sh * (1 - fog) + HAZE[i] * fog, 0, 255));
-  return `rgb(${c(0)},${c(1)},${c(2)})`;
+  // Quantised (1/128 of shade, 1/64 of fog): invisible steps, a few hundred strings instead of thousands per frame.
+  const qs = Math.round(sh * 128), qf = Math.round(fog * 64), key = qs * 128 + qf;
+  let m = SHADECOLS.get(pal);
+  if (!m) { m = new Map(); SHADECOLS.set(pal, m); }
+  let out = m.get(key);
+  if (out === undefined) {
+    const s2 = qs / 128, f2 = qf / 64, c = i => Math.round(clamp(pal[i] * s2 * (1 - f2) + HAZE[i] * f2, 0, 255));
+    out = `rgb(${c(0)},${c(1)},${c(2)})`;
+    if (m.size > 4096) m.clear();
+    m.set(key, out);
+  }
+  return out;
 }
 
 // Line of sight between two points (true when no wall in between).
@@ -726,9 +735,9 @@ export function buildCrowd(seed = 7) {
 
 // ---- el visor ----
 
-export class Cs2View {
+export class Cs2View extends ArenaViewBase {
   constructor(canvas, opts = {}) {
-    this.cv = canvas; this.ctx = canvas.getContext('2d');
+    super(canvas, opts);
     this.lang = 'en'; // the games are always shown in English (TEXT.ca is kept for old callers)
     this.T = TEXT[this.lang];
     this.source = opts.source;
@@ -736,22 +745,18 @@ export class Cs2View {
     this.onEvent = opts.onEvent || null;
     this.match = null; this.meta = null; this.events = []; this.rounds = []; this.lastN = 0; this.nIdx = new Map(); this.at = 0;
     this.ri = 0; this.R = null; this.phase = 'wait'; this.p = 0; this.hold = 0; this.fired = 0;
-    this.speed = 1; this.paused = false; this.stopped = false; this.score = [0, 0]; this.ticker = null; this.banner = null; this.overlay = null;
-    this.last = performance.now(); this.mapCache = null;
+    this.score = [0, 0]; this.ticker = null; this.banner = null; this.overlay = null;
+    this.mapCache = null;
     // Broadcast camera: 'map' (tactical) or 'pov' (spectator cam on one player).
     this.view = { mode: 'map', id: null, why: '' }; this.shotAge = 0; this.calm = 0; this.cutT = 0; this.cam = null;
     this.replay = null; this.replayed = false; this.grid = null; this.fdt = 0.016;
     // Arena studio: the shots between rounds, the crowd's mood per team, confetti.
     this.clock = 0; this.studio = null; this.halfE = null; this.party = null; this.seenFirst = false;
     this.cheer = [0.06, 0.06]; this.boothPulse = [-99, -99]; this.confetti = []; this.crowd = null; this.sCache = new Map();
-    this.resize = this.resize.bind(this); window.addEventListener('resize', this.resize); this.resize();
-    this.loop = this.loop.bind(this); requestAnimationFrame(this.loop);
-    this.poll();
+    this.start(); // arena-view-base.js: size, frame loop, observers and the first poll
   }
 
-  destroy() { this.stopped = true; window.removeEventListener('resize', this.resize); clearTimeout(this.pollTimer); }
-  setSpeed(x) { this.speed = +x || 1; }
-  togglePause() { this.paused = !this.paused; return this.paused; }
+  setSpeed(x) { super.setSpeed(+x || 1); }
   terminal() { return !!this.match && ['final', 'stopped', 'failed'].includes(this.match.status); }
   isFinished() { return this.terminal() && this.phase === 'final'; }
 
@@ -767,6 +772,7 @@ export class Cs2View {
     if (this.R.after.some(e => e.kind === 'match_end') || this.terminal()) { this.ri = this.rounds.length; this.enterFinal(); }
     else { this.ri++; this.phase = 'wait'; }
     this.at = this.events.length;
+    this.invalidate();
   }
 
   // Jump to event index (0 = the start), an index into the events as they
@@ -779,6 +785,7 @@ export class Cs2View {
   seek(index) {
     const n = this.events.length;
     if (!this.meta || !n) return false;
+    this.invalidate();
     index = clamp(Math.round(+index || 0), 0, n);
     if (index >= n && this.terminal()) { this.skipToEnd(); this.onUpdate(this.match, this.current()); return true; }
     index = Math.min(index, n - 1);
@@ -838,9 +845,12 @@ export class Cs2View {
         if (fresh.length) this.rounds = groupRounds(this.events);
         this.match = { ...(this.match || {}), ...m, events: this.events, meta: this.meta };
         this.onUpdate(this.match, this.current());
+        this.invalidate();
+        // The first-person grid takes a while to build: do it now, not on the first POV cut.
+        if (this.meta && !this.grid) this.idle(() => { if (!this.stopped) this.povGrid(); });
       }
     } catch (e) { /* torna-ho a provar */ }
-    if (!this.terminal()) this.pollTimer = setTimeout(() => this.poll(), 3000);
+    if (!this.terminal() && !this.stopped) this.schedulePoll(3000);
   }
 
   current() { return this.R && this.R.events[Math.max(0, this.fired - 1)] || null; }
@@ -852,7 +862,7 @@ export class Cs2View {
   teamColor(i) { const t = this.meta && this.meta.teams && this.meta.teams[i]; return (t && t.color) || ['#2ec4b6', '#ff6b6b'][i]; }
 
   resize() {
-    const r = this.cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    const r = this.cv.getBoundingClientRect(), d = viewDpr();
     this.cv.width = Math.max(320, Math.round(r.width * d)); this.cv.height = Math.max(200, Math.round(r.height * d));
     this.W = this.cv.width; this.H = this.cv.height; this.dpr = d;
     const cssW = this.W / d, cssH = this.H / d;
@@ -869,21 +879,56 @@ export class Cs2View {
     const side = this.rosterW ? this.rosterW + pad : 0;
     const box = { x: pad + side, y: this.topH + pad, w: this.W - 2 * pad - 2 * side, h: this.H - this.topH - this.rosterH - 2 * pad };
     this.box = box;
+    // Portrait: the map (wider than tall) would leave big empty bands above and
+    // below, so it zooms in to fill the height and pans with the action.
+    this.zoomMap = portrait && this.layout === 'bottom';
+    this.pan = null; this.fitZ = null;
     this.mapCache = null;
     if (this.sCache) this.sCache.clear();
   }
 
-  fit() { if (!this.fitR || this.fitR.box !== this.box || this.fitR.meta !== this.meta) this.fitR = { box: this.box, meta: this.meta, f: fitMap(this.meta && this.meta.size, this.box) }; return this.fitR.f; }
+  fitBase() { if (!this.fitR || this.fitR.box !== this.box || this.fitR.meta !== this.meta) this.fitR = { box: this.box, meta: this.meta, f: fitMap(this.meta && this.meta.size, this.box) }; return this.fitR.f; }
+  fit() { return (this.zoomMap && this.fitZ) || this.fitBase(); }
+
+  // Portrait framing: zoom the map up to the box height (at most 1.8×) and
+  // follow the living players (and the planted bomb), easing towards them.
+  framePortrait(R, gt, dt) {
+    if (!this.zoomMap || !this.meta) { this.fitZ = null; return; }
+    const base = this.fitBase(), b = this.box, size = this.meta.size || [100, 80];
+    const z = clamp(b.h / (size[1] * base.s), 1, 1.8), sc = base.s * z, w = size[0] * sc, h = size[1] * sc;
+    let tx = size[0] / 2, ty = size[1] / 2;
+    if (R && this.phase !== 'intro') {
+      let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (const q of Object.values(R.players)) {
+        if (gt >= q.deathT) continue;
+        const p = posAt(q.track, gt); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y);
+      }
+      const bomb = bombState(R, gt);
+      if (bomb.planted) { x0 = Math.min(x0, bomb.x); x1 = Math.max(x1, bomb.x); y0 = Math.min(y0, bomb.y); y1 = Math.max(y1, bomb.y); }
+      if (x1 >= x0) { tx = (x0 + x1) / 2; ty = (y0 + y1) / 2; }
+    }
+    if (!this.pan || this.pan.z !== sc) this.pan = { x: tx, y: ty, z: sc };
+    else { const k = 1 - Math.exp(-(dt || 0) * 1.6); this.pan.x += (tx - this.pan.x) * k; this.pan.y += (ty - this.pan.y) * k; }
+    const ox = w <= b.w ? b.x + (b.w - w) / 2 : clamp(b.x + b.w / 2 - this.pan.x * sc, b.x + b.w - w, b.x);
+    const oy = h <= b.h ? b.y + (b.h - h) / 2 : clamp(b.y + b.h / 2 - this.pan.y * sc, b.y + b.h - h, b.y);
+    this.fitZ = { s: sc, ox, oy };
+  }
   sx(x) { const f = this.fit(); return f.ox + x * f.s; }
   sy(y) { const f = this.fit(); return f.oy + y * f.s; }
 
-  loop(now) {
-    if (this.stopped) return;
-    const dt = Math.min(0.25, (now - this.last) / 1000); this.last = now;
+  // One frame (the loop itself is in arena-view-base.js).
+  onFrame(dt) {
     this.fdt = this.paused ? 0 : dt * this.speed;
     if (!this.paused) this.advance(dt * this.speed);
     try { this.draw(); } catch (e) { /* un fotograma dolent no ha d'aturar el visor */ }
-    requestAnimationFrame(this.loop);
+  }
+
+  // Run f when the browser is idle (or soon), off the frame loop.
+  idle(f) {
+    if (this.idleQ) return;
+    this.idleQ = true;
+    const run = () => { this.idleQ = false; f(); };
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(run, { timeout: 1500 }); else setTimeout(run, 50);
   }
 
   fire(e) {
@@ -1034,6 +1079,9 @@ export class Cs2View {
       return;
     }
     const pov = this.povOn();
+    this.framePortrait(R, R ? gameTimeAt(R.tl, this.p) : 0, this.fdt);
+    const clipMap = !pov && this.zoomMap;
+    if (clipMap) { const b = this.box; g.save(); g.beginPath(); g.roundRect(b.x, b.y, b.w, b.h, 6 * this.u); g.clip(); }
     if (pov) {
       const rp = this.phase === 'replay' && this.replay;
       const pg = rp ? rp.g : gameTimeAt(R.tl, this.p);
@@ -1048,6 +1096,7 @@ export class Cs2View {
         this.drawTracers(R);
         this.drawUtil(R, gt, ['smoke', 'flash', 'he', 'flight']);
       }
+      if (clipMap) g.restore();
       if (!pov && (this.phase === 'play' || this.phase === 'intro')) this.mapTag();
       this.drawCut();
       this.drawFeed(R);
@@ -1057,6 +1106,7 @@ export class Cs2View {
       if (this.phase === 'intro' && st) this.drawIntro(R, clamp(st.t / 0.3, 0, 1) * clamp((st.s.dur - st.t) / 0.3, 0, 1));
       if (this.banner) this.drawBanner(R, this.box.y + this.box.h * 0.42);
     } else {
+      if (clipMap) g.restore();
       this.drawTop(null, 0);
       this.drawRosters(null, 0);
     }
@@ -1215,8 +1265,8 @@ export class Cs2View {
         const cr = crates[q], k0 = C.focal / Math.max(0.15, cr.d0), k1 = C.focal / Math.max(0.15, cr.d1);
         const top0 = C.horizon - (CRATE_H - C.eye) * k0, bot0 = C.horizon + C.eye * k0, top1 = C.horizon - (CRATE_H - C.eye) * k1;
         const cf = clamp((cr.d0 - 10) / 75, 0, 0.7);
-        g.fillStyle = shadeCol([150, 116, 72], 1.05, cf); g.fillRect(x, top1, cwx, top0 - top1);
-        g.fillStyle = shadeCol([118, 86, 50], 0.9, cf); g.fillRect(x, top0, cwx, bot0 - top0);
+        g.fillStyle = shadeCol(CRATE_TOP, 1.05, cf); g.fillRect(x, top1, cwx, top0 - top1);
+        g.fillStyle = shadeCol(CRATE_SIDE, 0.9, cf); g.fillRect(x, top0, cwx, bot0 - top0);
         g.fillStyle = 'rgba(40,25,10,.35)';
         g.fillRect(x, top0 + (bot0 - top0) * 0.48, cwx, Math.max(1, 0.06 * k0)); g.fillRect(x, top0, cwx, Math.max(1, 0.07 * k0));
       }
@@ -1285,7 +1335,7 @@ export class Cs2View {
     const fall = it.dead ? clamp((gt - q.deathT) / 0.5, 0, 1) : 0;
     const fallDir = hash3(q.id.charCodeAt(0), q.id.length, 5) < 0.5 ? -1 : 1;
     // X-ray glow through walls, like a GOTV spectator.
-    if (!it.dead && pr.depth < 45) { g.save(); g.globalAlpha = 0.3; this.figure(x, foot, H, q, lat, walk, 0, 0, col, true); g.restore(); }
+    if (!it.dead && pr.depth < 45) { g.save(); g.globalAlpha = 0.6; this.figure(x, foot, H, q, lat, walk, 0, 0, col, true); g.restore(); }
     let tip = null;
     if (this.clipRuns(Z, x - H * 0.7, x + H * 0.7, pr.depth)) {
       g.save(); g.clip();
@@ -1314,43 +1364,78 @@ export class Cs2View {
     }
   }
 
-  // A procedural player model: legs, body armour, head, rifle. Returns the gun tip.
+  // A procedural player model: jointed legs and boots, body armour with the
+  // team stripe, arms holding the rifle, head with helmet (CT) or cap (T), and
+  // a dark outline so it reads against the sandstone. Through walls (xray) the
+  // same silhouette is a flat team-colour shape with a bright edge. Returns the gun tip.
   figure(x, foot, H, q, lat, walk, fall, fallDir, col, xray) {
     const g = this.ctx, s = H / BODY_H;
     g.save(); g.translate(x, foot);
     if (fall > 0) g.rotate(fallDir * easeOut(fall) * Math.PI * 0.48);
     const T = q.side === 'T';
     const cloth = xray ? col : T ? '#6f5c40' : '#2d3d56', dark = xray ? col : T ? '#4b3e2b' : '#1d283a';
-    const sw = walk * 0.13 * s;
-    g.fillStyle = dark;
-    g.beginPath(); g.roundRect(-0.2 * s + sw, -0.86 * s, 0.17 * s, 0.86 * s, 0.05 * s); g.fill();
-    g.beginPath(); g.roundRect(0.03 * s - sw, -0.86 * s, 0.17 * s, 0.86 * s, 0.05 * s); g.fill();
-    g.fillStyle = cloth;
-    g.beginPath(); g.roundRect(-0.26 * s, -1.46 * s, 0.52 * s, 0.68 * s, 0.1 * s); g.fill();
-    if (!xray) {
-      g.fillStyle = T ? '#57482f' : '#22324a'; g.fillRect(-0.24 * s, -1.38 * s, 0.48 * s, 0.34 * s); // vest
-      g.fillStyle = col; g.fillRect(-0.24 * s, -1.2 * s, 0.48 * s, 0.06 * s); // team stripe
-      g.strokeStyle = rgba(col, 0.9); g.lineWidth = Math.max(1, 0.035 * s);
-      g.beginPath(); g.roundRect(-0.26 * s, -1.46 * s, 0.52 * s, 0.68 * s, 0.1 * s); g.stroke();
+    const vest = T ? '#57482f' : '#22324a', boot = '#16171a', skin = '#c49a74', line = 'rgba(8,8,10,.6)';
+    const side = Math.abs(lat) > 0.3, dir = Math.sign(lat) || 1, ow = Math.max(1, 0.035 * s);
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    if (xray) { g.fillStyle = rgba(col, 0.42); g.strokeStyle = rgba(col, 0.95); }
+    // Legs: hip, knee, foot; the stride shows sideways, a lifted foot head-on.
+    const legs = [];
+    for (const k of [-1, 1]) {
+      const st = walk * k, hx = k * 0.1 * s;
+      const fxp = side ? hx + dir * st * 0.24 * s : hx * 1.15, fy = -(side ? Math.max(0, -st) * 0.06 : Math.max(0, st) * 0.1) * s;
+      const kx = (hx + fxp) / 2 + (side ? dir * (0.05 + 0.07 * Math.max(0, st)) * s : 0), ky = -0.47 * s - (side ? 0 : Math.max(0, st) * 0.05 * s);
+      legs.push([hx, -0.88 * s, kx, ky, fxp, fy]);
     }
-    g.fillStyle = xray ? col : '#c49a74'; g.beginPath(); g.arc(0, -1.62 * s, 0.14 * s, 0, Math.PI * 2); g.fill();
-    if (!xray) {
-      g.fillStyle = T ? '#1c1c1c' : '#28374e';
-      g.beginPath(); g.arc(0, -1.64 * s, 0.15 * s, Math.PI, Math.PI * 2); g.fill();
-      if (T) g.fillRect(-0.14 * s, -1.6 * s, 0.28 * s, 0.07 * s);
+    for (const [hx, hy, kx, ky, fx2, fy] of legs) {
+      if (xray) { g.lineWidth = 0.17 * s; g.beginPath(); g.moveTo(hx, hy); g.lineTo(kx, ky); g.lineTo(fx2, fy - 0.04 * s); g.stroke(); continue; }
+      g.strokeStyle = line; g.lineWidth = 0.19 * s + 2 * ow; g.beginPath(); g.moveTo(hx, hy); g.lineTo(kx, ky); g.lineTo(fx2, fy - 0.04 * s); g.stroke();
+      g.strokeStyle = dark; g.lineWidth = 0.19 * s; g.beginPath(); g.moveTo(hx, hy); g.lineTo(kx, ky); g.stroke();
+      g.lineWidth = 0.15 * s; g.beginPath(); g.moveTo(kx, ky); g.lineTo(fx2, fy - 0.04 * s); g.stroke();
+      g.fillStyle = boot; g.beginPath(); g.ellipse(fx2 + (side ? dir * 0.05 * s : 0), fy - 0.03 * s, (side ? 0.13 : 0.09) * s, 0.055 * s, 0, 0, Math.PI * 2); g.fill();
+    }
+    // Torso: wider at the shoulders, armour vest, team stripe across the chest.
+    const torso = () => { g.beginPath(); g.moveTo(-0.27 * s, -1.47 * s); g.lineTo(0.27 * s, -1.47 * s); g.quadraticCurveTo(0.3 * s, -1.2 * s, 0.21 * s, -0.84 * s); g.lineTo(-0.21 * s, -0.84 * s); g.quadraticCurveTo(-0.3 * s, -1.2 * s, -0.27 * s, -1.47 * s); g.closePath(); };
+    torso();
+    if (xray) { g.fill(); g.stroke(); }
+    else {
+      g.fillStyle = cloth; g.fill(); g.strokeStyle = line; g.lineWidth = ow * 1.5; g.stroke();
+      g.fillStyle = vest; g.beginPath(); g.roundRect(-0.22 * s, -1.4 * s, 0.44 * s, 0.4 * s, 0.06 * s); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.08)'; g.fillRect(-0.22 * s, -1.4 * s, 0.44 * s, 0.05 * s);
+      g.fillStyle = col; g.fillRect(-0.25 * s, -1.21 * s, 0.5 * s, 0.07 * s);
+      g.fillStyle = dark; g.fillRect(-0.21 * s, -0.9 * s, 0.42 * s, 0.06 * s); // belt
+    }
+    // Head: neck, face, then the helmet (CT) or a cap and balaclava (T).
+    if (!xray) { g.fillStyle = skin; g.fillRect(-0.05 * s, -1.55 * s, 0.1 * s, 0.1 * s); }
+    g.beginPath(); g.arc(0, -1.63 * s, 0.135 * s, 0, Math.PI * 2);
+    if (xray) { g.fill(); g.stroke(); }
+    else {
+      g.fillStyle = T ? '#2a2622' : skin; g.fill(); g.strokeStyle = line; g.lineWidth = ow; g.stroke();
+      if (T) { g.fillStyle = skin; g.fillRect(side ? (dir > 0 ? 0.02 : -0.12) * s : -0.08 * s, -1.66 * s, (side ? 0.1 : 0.16) * s, 0.05 * s); }
+      g.fillStyle = T ? '#1c1c1c' : '#3a4a62';
+      g.beginPath(); g.arc(0, -1.65 * s, 0.155 * s, Math.PI * 1.02, Math.PI * 1.98); g.closePath(); g.fill();
+      g.fillRect(-0.16 * s + (side ? dir * 0.03 * s : 0), -1.665 * s, 0.32 * s, 0.035 * s); // brim / rim
+      if (!T) { g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(-0.04 * s, -1.72 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
     }
     // Gun: sideways when they face across the screen, foreshortened when aiming at us.
     const L = 0.62 * s * lat, gy = -1.16 * s;
     let tip;
-    g.strokeStyle = xray ? col : '#1a1a1c'; g.lineCap = 'round';
-    if (Math.abs(lat) > 0.3) {
-      g.lineWidth = Math.max(1.5, 0.09 * s); g.beginPath(); g.moveTo(-0.08 * s * Math.sign(lat), gy); g.lineTo(L, gy - 0.03 * s); g.stroke();
-      g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.1 * s); g.beginPath(); g.moveTo(-0.2 * Math.sign(lat) * s, -1.38 * s); g.lineTo(L * 0.55, gy + 0.02 * s); g.stroke();
+    const gunCol = xray ? col : '#1a1a1c';
+    if (side) {
+      g.strokeStyle = gunCol; g.lineWidth = Math.max(1.5, 0.09 * s); g.beginPath(); g.moveTo(-0.08 * s * dir, gy); g.lineTo(L, gy - 0.03 * s); g.stroke();
+      if (!xray) {
+        g.lineWidth = Math.max(1.5, 0.13 * s); g.beginPath(); g.moveTo(-0.14 * s * dir, gy + 0.02 * s); g.lineTo(0.12 * s * dir, gy); g.stroke(); // receiver
+        g.fillStyle = gunCol; g.fillRect(dir > 0 ? 0.04 * s : -0.1 * s, gy, 0.06 * s, 0.14 * s); // magazine
+      }
+      g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.1 * s);
+      g.beginPath(); g.moveTo(-0.2 * dir * s, -1.38 * s); g.lineTo(0, gy + 0.05 * s); g.lineTo(L * 0.55, gy + 0.02 * s); g.stroke();
+      if (!xray) { g.fillStyle = '#2a2420'; g.beginPath(); g.arc(L * 0.55, gy + 0.02 * s, 0.05 * s, 0, Math.PI * 2); g.arc(0, gy + 0.05 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
       tip = { x: L, y: gy - 0.03 * s };
     } else {
-      g.fillStyle = xray ? col : '#141416'; g.beginPath(); g.arc(L * 0.3, gy, 0.08 * s, 0, Math.PI * 2); g.fill();
-      g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.1 * s);
-      g.beginPath(); g.moveTo(-0.22 * s, -1.38 * s); g.lineTo(L * 0.3, gy); g.lineTo(0.22 * s, -1.38 * s); g.stroke();
+      g.fillStyle = gunCol; g.beginPath(); g.arc(L * 0.3, gy, 0.08 * s, 0, Math.PI * 2); g.fill();
+      if (!xray) { g.fillStyle = '#000'; g.beginPath(); g.arc(L * 0.3, gy, 0.035 * s, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.11 * s);
+      g.beginPath(); g.moveTo(-0.24 * s, -1.4 * s); g.lineTo(L * 0.3 - 0.06 * s, gy + 0.03 * s); g.moveTo(0.24 * s, -1.4 * s); g.lineTo(L * 0.3 + 0.06 * s, gy + 0.03 * s); g.stroke();
+      if (!xray) { g.fillStyle = '#2a2420'; g.beginPath(); g.arc(L * 0.3 - 0.07 * s, gy + 0.04 * s, 0.05 * s, 0, Math.PI * 2); g.arc(L * 0.3 + 0.07 * s, gy + 0.04 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
       tip = { x: L * 0.3, y: gy };
     }
     g.restore();
@@ -1521,45 +1606,12 @@ export class Cs2View {
     const ax = x0 + pose.ax + bobX + kick * 10 * S, ay = y0 + pose.ay + bobY + kick * 12 * S;
     const rot = pose.rot + kick * (cls === 'awp' ? 0.16 : 0.07);
     g.save(); g.translate(ax, ay); g.rotate(rot); g.scale(S * fx, S);
-    const metal = '#2a2c30', metal2 = '#45484f';
     const tip = pose.tip;
-    const poly = (pts, fill) => { g.fillStyle = fill; g.beginPath(); pts.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); g.fill(); };
-    if (pistol) {
-      poly([[-14, 26], [18, 26], [70, 150], [-40, 150]], sleeve);
-      poly([[-6, -2], [12, -2], [18, 36], [0, 36]], '#202124');
-      g.fillStyle = wid === 'deagle' ? '#8d9096' : metal; g.beginPath(); g.roundRect(-58, -16, 76, 16, 3); g.fill();
-      g.fillStyle = metal2; g.fillRect(-58, -16, 76, 3);
-      g.fillStyle = '#111'; g.fillRect(-60, -12, 4, 8);
-      if (wid === 'usp') { g.fillStyle = '#18191b'; g.beginPath(); g.roundRect(-104, -14, 48, 12, 4); g.fill(); }
-      g.fillStyle = glove; g.beginPath(); g.ellipse(6, 18, 17, 15, 0, 0, Math.PI * 2); g.fill();
-      g.beginPath(); g.ellipse(-6, 24, 14, 12, 0, 0, Math.PI * 2); g.fill();
-    } else {
-      const awp = cls === 'awp', smg = cls === 'smg';
-      const body = awp ? '#3f5236' : wid === 'ak47' ? metal : wid === 'galil' ? '#3b3a33' : '#25272b';
-      const wood = wid === 'ak47' ? '#7a4520' : body;
-      poly([[150, 70], [40, -4], [16, 22], [100, 110]], sleeve);
-      poly([[30, -10], [84, -4], [88, 22], [30, 8]], awp ? body : wood);
-      g.fillStyle = body; g.fillRect(-24, -14, 58, 20);
-      g.fillStyle = metal2; g.fillRect(-24, -14, 58, 3);
-      if (wid === 'ak47') poly([[-8, 6], [8, 6], [18, 46], [2, 50]], '#8a4b1c');
-      else if (awp) poly([[-4, 6], [10, 6], [10, 26], [-4, 26]], '#1d1f1a');
-      else poly([[-8, 6], [6, 6], [8, smg ? 40 : 44], [-6, smg ? 40 : 44]], '#1d1e21');
-      const hgL = smg ? -46 : -66;
-      g.fillStyle = wood; g.fillRect(hgL, -12, -hgL - 24, 15);
-      const bL = awp ? -160 : smg ? -66 : wid === 'm4a1s' ? -112 : -118;
-      g.fillStyle = metal; g.fillRect(bL, -9, hgL - bL, 6);
-      if (wid === 'm4a1s') { g.fillStyle = '#17181a'; g.beginPath(); g.roundRect(-162, -12, 52, 12, 4); g.fill(); }
-      if (!awp) { g.fillStyle = metal; g.fillRect(bL + 6, -17, 4, 8); g.fillRect(14, -20, 10, 6); }
-      if (awp) {
-        g.fillStyle = '#111214'; g.beginPath(); g.roundRect(-44, -34, 66, 14, 6); g.fill();
-        g.fillStyle = '#26282c'; g.fillRect(-52, -37, 12, 20); g.fillRect(14, -36, 10, 18);
-        g.fillStyle = 'rgba(120,180,255,.5)'; g.fillRect(-53, -34, 3, 14);
-        g.fillStyle = metal2; g.fillRect(20, -2, 10, 4);
-      }
-      g.fillStyle = glove; g.beginPath(); g.ellipse(24, 12, 14, 11, 0.3, 0, Math.PI * 2); g.fill();
-      poly([[hgL + 10, 2], [hgL + 34, 2], [hgL + 70, 120], [hgL - 30, 120]], sleeve);
-      g.fillStyle = glove; g.beginPath(); g.ellipse(hgL + 20, 4, 15, 10, 0, 0, Math.PI * 2); g.fill();
-    }
+    // The model is drawn in gun space (barrel towards -x, the muzzle at `tip`):
+    // shaded metal and polymer, the magazine, sights and rails, gloved hands
+    // gripping it and the sleeves running out of the frame.
+    if (pistol) drawPistolFP(g, wid, sleeve, glove);
+    else drawLongGunFP(g, cls, wid, sleeve, glove);
     g.restore();
     const c = Math.cos(rot), s = Math.sin(rot);
     const mx = ax + (tip[0] * fx * c - tip[1] * s) * S, my = ay + (tip[0] * fx * s + tip[1] * c) * S;
@@ -1706,8 +1758,22 @@ export class Cs2View {
     }
   }
 
+  // The static map in its own canvas (rebuilt on resize). Zoomed (portrait), the
+  // whole map is painted once at the zoomed scale and panned when drawn.
   ensureMapCache() {
-    if (!this.mapCache) { const c = document.createElement('canvas'); c.width = this.W; c.height = this.H; this.renderMap(c.getContext('2d')); this.mapCache = c; }
+    const f = this.fit();
+    if (this.mapCache && this.mapCacheF && this.mapCacheF.s !== f.s) this.mapCache = null;
+    if (!this.mapCache) {
+      const c = document.createElement('canvas');
+      let cf = f;
+      if (this.zoomMap && this.fitZ) {
+        const size = (this.meta && this.meta.size) || [100, 80];
+        cf = { s: f.s, ox: 0, oy: 0 }; c.width = Math.ceil(size[0] * f.s) + 1; c.height = Math.ceil(size[1] * f.s) + 1;
+        const saved = this.fitZ; this.fitZ = cf;
+        try { this.renderMap(c.getContext('2d')); } finally { this.fitZ = saved; }
+      } else { c.width = this.W; c.height = this.H; this.renderMap(c.getContext('2d')); }
+      this.mapCache = c; this.mapCacheF = cf;
+    }
     return this.mapCache;
   }
 
@@ -1717,7 +1783,8 @@ export class Cs2View {
     g.save();
     g.fillStyle = 'rgba(6,9,14,.75)'; g.beginPath(); g.roundRect(x - 3 * u, y - 3 * u, wR + 6 * u, hR + 6 * u, 6 * u); g.fill();
     g.beginPath(); g.roundRect(x, y, wR, hR, 4 * u); g.clip();
-    g.globalAlpha = 0.9; g.drawImage(this.ensureMapCache(), f.ox, f.oy, size[0] * f.s, size[1] * f.s, x, y, wR, hR); g.globalAlpha = 1;
+    const mc = this.ensureMapCache(), cf = this.mapCacheF || f;
+    g.globalAlpha = 0.9; g.drawImage(mc, cf.ox, cf.oy, size[0] * cf.s, size[1] * cf.s, x, y, wR, hR); g.globalAlpha = 1;
     // view cone
     const me = R.players[id], mp = gt < me.deathT ? posAt(me.track, gt) : (me.death || posAt(me.track, gt));
     const mx = x + mp.x * sc, my = y + mp.y * sc;
@@ -1784,12 +1851,9 @@ export class Cs2View {
 
   // Mapa estàtic en una tela a part (es refà en canviar la mida).
   drawMap() {
-    if (!this.mapCache) {
-      const c = document.createElement('canvas'); c.width = this.W; c.height = this.H;
-      this.renderMap(c.getContext('2d'));
-      this.mapCache = c;
-    }
-    this.ctx.drawImage(this.mapCache, 0, 0);
+    const c = this.ensureMapCache(), cf = this.mapCacheF, f = this.fit();
+    if (cf && cf.ox === 0 && cf.oy === 0 && this.zoomMap) this.ctx.drawImage(c, Math.round(f.ox), Math.round(f.oy));
+    else this.ctx.drawImage(c, 0, 0);
   }
 
   renderMap(g) {
@@ -2097,6 +2161,9 @@ export class Cs2View {
 
   drawRosters(R, gt) {
     if (this.layout === 'none') return;
+    // On the first-person cam the side panels would cover ~40% of the picture:
+    // a slim strip under the scoreboard instead.
+    if (this.layout === 'side' && R && this.povOn()) { this.drawRosterStrip(R, gt); return; }
     const g = this.ctx, u = this.u, W = this.W, H = this.H, pad = 8 * u;
     const teams = (this.meta && this.meta.teams) || [];
     const names = this.names();
@@ -2167,6 +2234,35 @@ export class Cs2View {
     });
   }
 
+  // The compact rosters: under the scoreboard, five chips per team (handle,
+  // weapon, kills), dimmed and crossed out when dead, a bomb on the carrier.
+  drawRosterStrip(R, gt) {
+    const g = this.ctx, u = this.u, W = this.W;
+    const teams = (this.meta && this.meta.teams) || [];
+    const sw = Math.min(W - 16 * u, (this.narrow ? 560 : 760) * u), half = sw / 2 - 3 * u, x0 = (W - sw) / 2, y0 = this.topH - 2 * u, ch = 22 * u;
+    g.textBaseline = 'middle';
+    [0, 1].forEach(i => {
+      const col = this.teamColor(i), ps = (teams[i] && teams[i].players) || [];
+      const n = Math.max(1, ps.length), cw = (half - (n - 1) * 3 * u) / n;
+      const bx = i === 0 ? x0 : x0 + sw - half;
+      ps.forEach((mp, k) => {
+        const pl = R.players[mp.id], alive = pl ? gt < pl.deathT : true;
+        const cx = i === 0 ? bx + k * (cw + 3 * u) : bx + half - (k + 1) * cw - k * 3 * u;
+        g.globalAlpha = alive ? 1 : 0.45;
+        g.fillStyle = 'rgba(6,9,14,.82)'; g.beginPath(); g.roundRect(cx, y0, cw, ch, 4 * u); g.fill();
+        g.fillStyle = alive ? col : 'rgba(255,255,255,.25)'; g.fillRect(i === 0 ? cx : cx + cw - 3 * u, y0 + 3 * u, 3 * u, ch - 6 * u);
+        const kills = pl ? R.kills.filter(q => q.killer === mp.id && q.t <= gt).length : 0;
+        g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = `700 ${10 * u}px ${FONT}`;
+        g.fillText(mp.handle, cx + 7 * u, y0 + ch * 0.38, cw - 14 * u);
+        g.fillStyle = 'rgba(255,255,255,.6)'; g.font = `600 ${8 * u}px ${FONT}`;
+        g.fillText(alive ? (pl ? WEAPON[pl.weapon] || pl.weapon || '' : '') : '✕', cx + 7 * u, y0 + ch * 0.76, cw - 26 * u);
+        if (kills) { g.textAlign = 'right'; g.fillStyle = '#ffd34d'; g.font = `800 ${8.5 * u}px ${FONT}`; g.fillText('×' + kills, cx + cw - 6 * u, y0 + ch * 0.76); }
+        if (pl && alive && bombState(R, gt).carrier === mp.id) this.bombIcon(cx + cw - 10 * u, y0 + ch * 0.36, 4 * u, 1);
+      });
+    });
+    g.globalAlpha = 1;
+  }
+
   drawTicker() {
     if (!this.ticker) return;
     const g = this.ctx, u = this.u;
@@ -2176,7 +2272,7 @@ export class Cs2View {
     g.font = `600 ${12.5 * u}px ${FONT}`;
     const text = this.ticker.text;
     const tw = Math.min(g.measureText(text).width + 28 * u, this.W - 20 * u);
-    const y = this.onStudio ? this.H - (this.narrow ? 136 : 152) * u : this.povOn() ? this.box.y + (this.narrow ? 40 : 10) * u : this.box.y + this.box.h - 30 * u, x = (this.W - tw) / 2;
+    const y = this.onStudio ? this.H - (this.narrow ? 136 : 152) * u : this.povOn() ? this.box.y + (this.narrow ? 40 : this.layout === 'side' ? 32 : 10) * u : this.box.y + this.box.h - 30 * u, x = (this.W - tw) / 2;
     g.save(); g.globalAlpha = a;
     g.fillStyle = this.ticker.hl ? 'rgba(110,70,10,.85)' : 'rgba(6,9,14,.78)'; g.beginPath(); g.roundRect(x, y, tw, 24 * u, 12 * u); g.fill();
     g.fillStyle = this.ticker.hl ? '#ffd34d' : '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, this.W / 2, y + 12 * u, tw - 20 * u);
@@ -2317,6 +2413,120 @@ export class Cs2View {
   }
 }
 
+// ---- first-person weapons ----
+// Drawn in gun space (units of the 235-px reference view, barrel towards -x).
+// Colours are memoised: these run every frame.
+const TONES = new Map();
+function tone(a, b, k) { const key = a + b + k; let c = TONES.get(key); if (!c) { c = mix(a, b, k); TONES.set(key, c); } return c; }
+function fpPoly(g, pts, fill) { g.fillStyle = fill; g.beginPath(); pts.forEach(([a, b], i) => i ? g.lineTo(a, b) : g.moveTo(a, b)); g.closePath(); g.fill(); }
+function fpRect(g, x, y, w, h, fill, r = 0) { g.fillStyle = fill; if (r) { g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); } else g.fillRect(x, y, w, h); }
+
+// A sleeve from the bottom of the frame up to the wrist at (wx, wy), with a cuff.
+function fpSleeve(g, pts, cuff, col) {
+  fpPoly(g, pts, col);
+  // Fabric folds and the shadowed underside.
+  g.strokeStyle = tone(col, '#000000', 0.28); g.lineWidth = 3; g.lineCap = 'round';
+  g.beginPath(); const [a, b, c] = pts; g.moveTo(lerp(a[0], b[0], 0.35), lerp(a[1], b[1], 0.35)); g.lineTo(lerp(c[0], b[0], 0.3) + 6, lerp(c[1], b[1], 0.3) + 2); g.stroke();
+  fpPoly(g, cuff, tone(col, '#000000', 0.35));
+}
+
+// A gloved hand wrapped round a grip: palm, four knuckles over the top, the
+// thumb along the side, the knuckle pads lighter.
+function fpHand(g, x, y, ang, sc, glove, fingersUp) {
+  g.save(); g.translate(x, y); g.rotate(ang); g.scale(sc, sc);
+  const hi = tone(glove, '#ffffff', 0.16), lo = tone(glove, '#000000', 0.35);
+  fpRect(g, -13, -10, 26, 22, glove, 8);
+  for (let i = 0; i < 4; i++) {
+    const fy = -9 + i * 5.4;
+    fpRect(g, fingersUp ? -17 : 8, fy, 11, 5, i % 2 ? glove : hi, 2.5);
+    fpRect(g, fingersUp ? -18 : 15, fy + 1, 4, 3, lo, 1.5);
+  }
+  fpRect(g, -6, -15, 18, 7, hi, 3.5); // thumb
+  fpRect(g, -13, 8, 26, 5, lo, 2.5); // wrist strap
+  g.restore();
+}
+
+function drawLongGunFP(g, cls, wid, sleeve, glove) {
+  const awp = cls === 'awp', smg = cls === 'smg', ak = wid === 'ak47';
+  const metal = '#2a2c30', metal2 = '#4a4e57', dark = '#16171a';
+  const body = awp ? '#3f5236' : ak ? metal : wid === 'galil' ? '#3b3a33' : '#25272b';
+  const wood = ak ? '#7a4520' : body, woodHi = tone(wood, '#ffffff', 0.18), woodLo = tone(wood, '#000000', 0.35);
+  const hgL = smg ? -46 : -66;
+  const bL = awp ? -160 : smg ? -66 : wid === 'm4a1s' ? -112 : -118;
+  // Rear arm (trigger hand) under everything.
+  fpSleeve(g, [[150, 70], [40, -4], [16, 22], [100, 110]], [[46, 0], [34, -6], [14, 20], [24, 26]], sleeve);
+  // Stock with a butt pad, highlight on top.
+  fpPoly(g, [[30, -10], [84, -4], [88, 22], [30, 8]], awp ? body : wood);
+  fpPoly(g, [[30, -10], [84, -4], [84, -1], [30, -6]], awp ? tone(body, '#ffffff', 0.15) : woodHi);
+  fpPoly(g, [[80, -5], [88, -4], [92, 23], [84, 22]], dark);
+  // Receiver: body, top highlight, bottom shadow, ejection port, bolt handle.
+  fpRect(g, -24, -14, 58, 20, body, 2);
+  fpRect(g, -24, -14, 58, 3, metal2);
+  fpRect(g, -24, 3, 58, 3, tone(body, '#000000', 0.4));
+  fpRect(g, 2, -9, 16, 5, dark, 1);
+  fpRect(g, 12, -10, 8, 3, '#8b8f97', 1);
+  // Magazine: the AK's curved banana, a straight box with ribs for the rest.
+  if (ak) {
+    g.fillStyle = '#8a4b1c'; g.beginPath(); g.moveTo(-10, 6); g.lineTo(8, 6); g.quadraticCurveTo(14, 26, 26, 46); g.lineTo(8, 52); g.quadraticCurveTo(-2, 30, -10, 6); g.fill();
+    g.strokeStyle = '#5e3210'; g.lineWidth = 2; g.beginPath(); g.moveTo(-4, 16); g.lineTo(10, 14); g.moveTo(0, 28); g.lineTo(14, 25); g.moveTo(5, 39); g.lineTo(19, 36); g.stroke();
+  } else if (awp) fpRect(g, -4, 6, 14, 20, '#1d1f1a', 2);
+  else {
+    fpPoly(g, [[-8, 6], [6, 6], [9, smg ? 40 : 44], [-5, smg ? 40 : 44]], '#1d1e21');
+    g.strokeStyle = '#34363b'; g.lineWidth = 1.5; g.beginPath(); for (let k = 0; k < 3; k++) { const yy = 14 + k * 9; g.moveTo(-6, yy); g.lineTo(7, yy); } g.stroke();
+  }
+  // Pistol grip and trigger guard.
+  fpPoly(g, [[22, 4], [32, 4], [36, 26], [26, 28]], dark);
+  g.strokeStyle = metal; g.lineWidth = 2.5; g.beginPath(); g.moveTo(10, 6); g.quadraticCurveTo(14, 16, 24, 10); g.stroke();
+  // Handguard: wood with grain (AK) or a polymer one with vent slots.
+  fpRect(g, hgL, -12, -hgL - 24, 15, wood, 2);
+  fpRect(g, hgL, -12, -hgL - 24, 3, woodHi);
+  fpRect(g, hgL, 0, -hgL - 24, 3, woodLo);
+  if (!ak && !awp) { g.fillStyle = dark; for (let x = hgL + 6; x < -30; x += 9) g.fillRect(x, -7, 5, 4); }
+  // Barrel with a highlight, front sight post and a muzzle device.
+  fpRect(g, bL, -9, hgL - bL, 6, metal);
+  fpRect(g, bL, -9, hgL - bL, 1.6, '#62666f');
+  fpRect(g, bL - 4, -11, 10, 10, dark, 2);
+  if (wid === 'm4a1s') { fpRect(g, -162, -12, 52, 12, '#17181a', 4); fpRect(g, -162, -12, 52, 2.5, '#2e3034'); }
+  if (!awp) {
+    fpRect(g, bL + 6, -18, 4, 9, metal); // front sight
+    if (!ak) { g.fillStyle = '#3a3d44'; for (let x = -22; x < 30; x += 6) g.fillRect(x, -17, 4, 3); } // top rail
+    fpRect(g, 14, -21, 10, 7, metal, 1); // rear sight
+  }
+  if (awp) {
+    fpRect(g, -44, -34, 66, 14, '#111214', 6);
+    fpRect(g, -44, -34, 66, 3, '#2c2f35', 2);
+    fpRect(g, -52, -37, 12, 20, '#26282c', 2); fpRect(g, 14, -36, 10, 18, '#26282c', 2);
+    fpRect(g, -53, -34, 3, 14, 'rgba(120,180,255,.5)');
+    fpRect(g, -10, -22, 8, 8, '#26282c'); fpRect(g, 4, -22, 8, 8, '#26282c'); // scope rings
+    fpRect(g, 20, -2, 10, 4, metal2);
+  }
+  // Trigger hand round the grip, then the support arm and hand under the handguard.
+  fpHand(g, 28, 14, 0.25, 0.95, glove, false);
+  fpSleeve(g, [[hgL + 10, 6], [hgL + 34, 6], [hgL + 70, 120], [hgL - 30, 120]], [[hgL + 6, 8], [hgL + 36, 8], [hgL + 40, 20], [hgL + 2, 20]], sleeve);
+  fpHand(g, hgL + 20, 2, -0.08, 0.95, glove, true);
+}
+
+function drawPistolFP(g, wid, sleeve, glove) {
+  const metal = wid === 'deagle' ? '#8d9096' : '#2a2c30', hi = tone(metal, '#ffffff', 0.25), lo = tone(metal, '#000000', 0.45);
+  fpSleeve(g, [[-14, 30], [18, 30], [70, 150], [-40, 150]], [[-16, 28], [20, 28], [24, 40], [-20, 40]], sleeve);
+  // Frame and textured grip.
+  fpPoly(g, [[-6, -2], [12, -2], [18, 36], [0, 36]], '#202124');
+  g.strokeStyle = '#2f3134'; g.lineWidth = 1.2; g.beginPath(); for (let k = 0; k < 5; k++) { g.moveTo(1 + k * 0.6, 8 + k * 5); g.lineTo(14 + k * 0.6, 8 + k * 5); } g.stroke();
+  g.strokeStyle = '#2a2b2e'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(-12, 10, -2, 8); g.stroke(); // trigger guard
+  // Slide: highlight, shadow, serrations, ejection port, sights.
+  fpRect(g, -58, -16, 76, 16, metal, 3);
+  fpRect(g, -58, -16, 76, 3, hi);
+  fpRect(g, -58, -3, 76, 3, lo);
+  g.fillStyle = lo; for (let x = 4; x < 16; x += 3) g.fillRect(x, -14, 1.5, 10);
+  fpRect(g, -24, -14, 12, 5, '#111214', 1);
+  fpRect(g, -56, -20, 4, 4, '#111'); fpRect(g, 10, -20, 6, 4, '#111');
+  fpRect(g, -60, -12, 4, 8, '#111');
+  if (wid === 'usp') { fpRect(g, -104, -14, 48, 12, '#18191b', 4); fpRect(g, -104, -14, 48, 2.5, '#2e3034'); }
+  // Two hands: the shooting hand round the grip, the support thumb along the frame.
+  fpHand(g, 6, 20, 0.15, 1, glove, false);
+  fpHand(g, -6, 26, -0.2, 0.85, glove, true);
+}
+
 // ---- the arena studio: drawing ----
 // Every arena camera draws a virtual 1600×900 set (covering the canvas). The
 // static parts of each set are painted once into a cached canvas; the crowd,
@@ -2364,7 +2574,8 @@ Object.assign(Cs2View.prototype, {
   finalShot() { return { s: { shot: 'arena', screen: 'champions', team: this.party, trophy: true, dur: 1 }, i: 0, t: 9, k: 0.8 + 0.2 * Math.sin(this.clock * 0.15) }; },
 
   vbase() {
-    const W = this.W, H = this.H, sc = Math.max(W / VW, Math.min(H / VH, W / 1000));
+    // Portrait: crop in closer on the middle of the set instead of leaving big empty bands.
+    const W = this.W, H = this.H, sc = Math.max(W / VW, Math.min(H / VH, W / (H > W * 1.25 ? 640 : 1000)));
     return { sc, ox: W / 2 - 800 * sc, oy: H / 2 - 450 * sc };
   },
 

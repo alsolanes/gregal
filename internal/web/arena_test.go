@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -105,8 +106,24 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 	if m.Status != "final" || len(m.Events) < 60 || len(m.Decisions) < 100 {
 		t.Fatalf("partit: %s, %d esdeveniments, %d decisions", m.Status, len(m.Events), len(m.Decisions))
 	}
-	if m.Decisions[0].Why == "" || m.Decisions[0].Rule == "" || m.Feedback[0] == nil || m.Feedback[0].Scores["clarity"] != 4 {
-		t.Fatalf("decisions/informe: %+v %+v", m.Decisions[0], m.Feedback[0])
+	// L'informe del coach només per a la persona: el bot de pràctica no en té.
+	meSide := 0
+	if m.Owners[1] == "local" {
+		meSide = 1
+	}
+	if m.Decisions[0].Why == "" || m.Decisions[0].Rule == "" || m.Feedback[meSide] == nil || m.Feedback[meSide].Scores["clarity"] != 4 {
+		t.Fatalf("decisions/informe: %+v %+v", m.Decisions[0], m.Feedback[meSide])
+	}
+	if m.Feedback[1-meSide] != nil {
+		t.Fatalf("el bot d'una pràctica no ha de tenir informe: %+v", m.Feedback[1-meSide])
+	}
+	// Les pràctiques porten les ajudes del format, i el partit diu què ha costat.
+	if !m.Hints || m.Stats == nil || m.Stats.Decisions != len(m.Decisions) || m.Stats.Calls < m.Stats.Decisions-m.Stats.Memo || m.Stats.WallMS < 0 {
+		t.Fatalf("hints/stats: %v %+v (%d decisions)", m.Hints, m.Stats, len(m.Decisions))
+	}
+	// Desat sense sagnar.
+	if raw, _ := os.ReadFile(s.matchPath(m.ID)); len(raw) == 0 || strings.Contains(string(raw), "\n ") {
+		t.Fatalf("el partit s'ha de desar compacte (%d bytes)", len(raw))
 	}
 	// La retransmissió: prèvia, comentaris lligats a jugades clau i anàlisi.
 	if m.Preview == "" || len(m.Lines) == 0 || m.Analysis == nil || m.Analysis.Rule == "" {
@@ -176,6 +193,10 @@ func TestArenaPracticeAndCompetition(t *testing.T) {
 	final := c.Schedule[len(c.Schedule)-1]
 	if final.Stage != "Final" || !final.Done || final.A == "" || final.B == "" {
 		t.Fatalf("final: %+v", final)
+	}
+	// Els oficials, per defecte sense les ajudes del format.
+	if fm := s.arenaLoadMatch(final.Matches[0]); fm == nil || fm.Hints || fm.Feedback[0] == nil || fm.Feedback[1] == nil {
+		t.Fatalf("un partit oficial: sense ajudes i amb informe per a tots dos: %+v", fm)
 	}
 	board := s.arenaRatings()["nfl"]
 	if len(board) != 5 {

@@ -599,8 +599,11 @@ Gregal server.
   `gregal-arena-<game>-<teamA>-vs-<teamB>.mp4` (WebM where MP4 can't be
   recorded): an intro card, the match fast-forwarded between prompt moments and
   at normal speed around each one with its card, and the summary, with the sound
-  effects and voices. It records in real time (one to four minutes): keep the
-  window open and visible until it finishes, or press Cancel.
+  effects and voices. Where the browser can encode H.264 (WebCodecs: current
+  Chrome and Edge) it renders the video frame by frame, several times faster
+  than the match itself, with a progress bar and the time left, and it keeps
+  going in a background tab; elsewhere it records in real time as before (keep
+  the window open and visible). Cancel stops it either way.
 - **Does it follow my .md?** Each decision shows ✓ when the rule the model
   quotes really is in the `.md` (the server checks it), or ⚠ when it improvised
   or fell back to the default; each match shows how often each team followed
@@ -645,13 +648,50 @@ Gregal server.
   which the model could not decide for one side more than 10% of the time does
   not count and is replayed. A competition plays every game with the model it
   started with. All games, narration and reports are in English.
+- **Hints and cost.** In practice the NFL decision format tells the model what
+  each call stops and is beaten by; official competitions leave that out by
+  default (the organiser can turn it on when creating one), so your `.md` has to
+  read the matchup table itself. Practice and official matches have separate
+  slots (by default 1 official and 2 practice at once; an admin can change it),
+  so practice no longer waits behind a whole competition; a match waiting for a
+  slot shows its place in the queue. Every match records how many model calls,
+  tokens (and how many came from the provider's cache) and how much time it
+  took. Bots get no coach report in practice.
 - **The narrators' voice.** Free and on your own machine: **Piper** runs on the
   CPU with no keys; Install the voices downloads it once (about 113 MB for
-  Catalan, 206 MB for English) from its official releases. For a more
+  Catalan, 148 MB for English) from its official releases. For a more
   expressive voice, point it at any self-hosted server with the OpenAI-style
   `/v1/audio/speech` API (Chatterbox, Kokoro, Orpheus…), with the voice names
   and extra settings per role. Or no voice, captions only. The audio is made
-  ahead of time and cached, so the stream never waits for it.
+  ahead of time and cached, so the stream never waits for it. Each voice
+  keeps one Piper process open, so a line takes well under a second.
+- **Voice licences.** The English voices are Norman (caster) and Cori
+  (analyst), both public domain, so they can be used at a company event with
+  sponsors; Preferences → Narrator voices shows each voice's licence with a link
+  to its model card. The Catalan voices (Ona, Pau) are CC BY-SA 3.0 ES: credit
+  them, and share derived audio under the same licence. Older installs with the
+  previous English voices get the new ones automatically.
+- **Bracket and OBS overlays.** During the playoffs the broadcast shows the
+  bracket (each best-of-3 series score, the live match and the champion) with
+  the schedule between matches. For OBS, add browser sources with a
+  transparent background that follow the live competition:
+  `/app/arena-stream.html#overlay=scorebug`, `#overlay=standings` or
+  `#overlay=bracket`, adding `&spectator=<key>` from the spectator link.
+- **From the report to the next win.** After a practice game, **Last match**
+  beside the editor (step 3 points at it) shows the result, the coach score and
+  the top mistakes with the coach's rewritten rule. **Apply fix** puts that rule
+  in your `.md`: it replaces the line the coach quoted (or the one most like
+  it), or adds it next to the rules it belongs with, or under *Coach fixes* at
+  the end; it shows what changed and **Undo** takes it back. **.md versions**
+  under the editor lists your saved versions with the games played with each
+  one (matched by time: started after that version was saved and before the
+  next): pick A and B to see the line-by-line diff and how the results changed,
+  or **Restore this version**. The match player shows what a match cost (model
+  calls, tokens and how many were cached, time), a waiting match shows its
+  place in the queue, and the page stops asking the server for updates while
+  you are elsewhere. The practice-games counter is hidden for admins (no
+  limit), and on touch-only screens **Play it yourself (live)** is disabled
+  because it needs a keyboard and mouse.
 
 ### The winds' football league
 

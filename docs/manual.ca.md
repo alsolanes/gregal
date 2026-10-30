@@ -603,8 +603,11 @@ servidor de Gregal.
   descarrega com a `gregal-arena-<joc>-<equipA>-vs-<equipB>.mp4` (WebM si no es
   pot gravar MP4): presentació, el partit accelerat entre moments i a velocitat
   normal a cada moment amb la seva targeta, i el resum, amb els efectes i les
-  veus. Es grava en temps real (d'un a quatre minuts): deixa la finestra oberta
-  i a la vista fins que acabi, o prem Cancel·la.
+  veus. Si el navegador sap codificar H.264 (WebCodecs: Chrome i Edge actuals),
+  el vídeo es fa fotograma a fotograma, diverses vegades més de pressa que el
+  partit, amb una barra de progrés i el temps que falta, i continua encara que
+  canviïs de pestanya; si no, es grava en temps real com abans (deixa la
+  finestra oberta i a la vista). Cancel·la l'atura en tots dos casos.
 - **Segueix el meu .md?** Cada decisió mostra ✓ quan la regla que cita el
   model és de debò al `.md` (ho comprova el servidor), o ⚠ quan ha improvisat
   o ha fet servir la resposta per defecte; cada partit mostra quantes vegades
@@ -654,13 +657,53 @@ servidor de Gregal.
   les vegades no compta i es torna a jugar. Una competició juga tots els
   partits amb el model amb què va començar. Tots els jocs, la narració i els
   informes van en anglès.
+- **Ajudes i cost.** A les pràctiques, el format de decisió de l'NFL diu al
+  model què atura cada crida i què la guanya; les competicions oficials ho
+  treuen per defecte (l'organitzador ho pot encendre en crear-la), de manera
+  que el teu `.md` ha de llegir la taula de duels pel seu compte. Els partits
+  oficials i les pràctiques tenen torns separats (per defecte, 1 oficial i 2
+  pràctiques alhora; un admin ho pot canviar), així que una pràctica ja no
+  espera tota una competició; un partit que espera torn mostra el seu lloc a la
+  cua. Cada partit desa quantes crides al model, quants tokens (i quants han
+  sortit de la cache del proveïdor) i quant de temps ha costat. Els bots no
+  reben informe del coach a les pràctiques.
 - **La veu dels narradors.** Gratuïta i a la teva màquina: **Piper** corre a la
   CPU sense claus; Instal·la les veus la baixa una vegada (uns 113 MB per al
-  català, 206 MB per a l'anglès) de les seves publicacions oficials. Per a una
+  català, 148 MB per a l'anglès) de les seves publicacions oficials. Per a una
   veu més expressiva, apunta a qualsevol servidor propi amb l'API
   `/v1/audio/speech` a l'estil d'OpenAI (Chatterbox, Kokoro, Orpheus…), amb el
   nom de veu i els ajustos de cada rol. O sense veu, només subtítols. L'àudio es
-  fa per endavant i es guarda, i la retransmissió no l'ha d'esperar.
+  fa per endavant i es guarda, i la retransmissió no l'ha d'esperar. Cada veu
+  té un procés de Piper obert, i una frase triga bastant menys d'un segon.
+- **Llicències de les veus.** Les veus angleses són Norman (narrador) i Cori
+  (analista), totes dues de domini públic: es poden fer servir en un acte
+  d'empresa amb patrocinadors. Preferències → Veus dels narradors mostra la
+  llicència de cada veu amb l'enllaç a la seva fitxa. Les catalanes (Ona, Pau)
+  són CC BY-SA 3.0 ES: cal citar-les i compartir l'àudio derivat amb la mateixa
+  llicència. Les instal·lacions amb les veus angleses d'abans baixen les noves
+  soles.
+- **Quadre i capes per a l'OBS.** A les eliminatòries, entre partit i partit,
+  la retransmissió mostra el quadre (el marcador de cada sèrie al millor de 3,
+  el partit en directe i el campió) amb el calendari. Per a l'OBS, afegeix fonts
+  de navegador amb el fons transparent que segueixen la competició en directe:
+  `/app/arena-stream.html#overlay=scorebug`, `#overlay=standings` o
+  `#overlay=bracket`, amb `&spectator=<clau>` de l'enllaç d'espectador.
+- **De l'informe a la propera victòria.** Després d'un partit de pràctica,
+  **Last match** al costat de l'editor (el pas 3 hi porta) mostra el resultat,
+  la nota del coach i els errors principals amb la regla que el coach proposa.
+  **Apply fix** posa aquesta regla al teu `.md`: substitueix la línia que el
+  coach cita (o la que s'hi assembla més), o l'afegeix al costat de les regles
+  del mateix tema, o sota *Coach fixes* al final; ensenya què ha canviat i
+  **Undo** ho desfà. **.md versions**, sota l'editor, llista les versions
+  desades amb els partits jugats amb cada una (pel temps: començats després de
+  desar-la i abans de la següent): tria A i B per veure les diferències línia a
+  línia i com han canviat els resultats, o **Restore this version**. El
+  reproductor mostra què ha costat el partit (crides al model, tokens i quants
+  venien de la cache, temps), un partit que espera torn mostra el seu lloc a la
+  cua, i la pàgina deixa de demanar novetats al servidor mentre ets en una altra
+  vista. El comptador de partits de prova no surt als administradors (no tenen
+  límit), i a les pantalles només tàctils **Play it yourself (live)** surt
+  apagat perquè necessita teclat i ratolí.
 
 ### La lliga de futbol americà dels vents
 

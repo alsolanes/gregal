@@ -2,23 +2,25 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Gregal Arena</title>
 <style>
   html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden; }
-  canvas { width: 100%; height: 100%; display: block; }
-  .ctl { position: fixed; right: 8px; top: 8px; display: flex; gap: 6px; }
-  .ctl button { border: 0; border-radius: 8px; background: rgba(255,255,255,.14); color: #fff; padding: 6px 10px; font: 600 13px system-ui, sans-serif; }
-  .ctl button.on { background: #ffd400; color: #111; }
+  #stage { position: fixed; inset: 0; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: manipulation; }
+  /* La barra de controls va a baix, sobre el partit, i s'amaga sola: no tapa mai els marcadors de dalt. */
+  #stage .ar-scrub.sc-overlay { left: max(8px, env(safe-area-inset-left)); right: max(8px, env(safe-area-inset-right)); bottom: max(8px, env(safe-area-inset-bottom)); }
 </style>
 </head>
 <body>
-<canvas id="cv"></canvas>
-<div class="ctl"><button id="pause">⏸</button><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button><button id="skip">⏭</button></div>
+<div id="stage"><canvas id="cv"></canvas></div>
 <script type="module">
 // Un partit de l'Arena, sol (mòbil): #id=<partit>&token=<clau>&lang=ca.
 // El token va al fragment: no s'envia mai al servidor ni queda als logs.
+// Els controls (pausa, velocitat, salt, progrés) són la barra de baix de
+// arena-scrubber.js, que s'amaga sola i torna en tocar o moure el ratolí.
 import { makeView } from './arena-views.js';
+import { mountScrubber } from './arena-scrubber.js';
 const q = new URLSearchParams(location.hash.slice(1));
 const headers = q.get('token') ? { Authorization: 'Bearer ' + q.get('token') } : {};
 const id = q.get('id') || '';
@@ -26,9 +28,9 @@ const fetchMatch = after => fetch('/api/arena/match?id=' + encodeURIComponent(id
 const first = await fetchMatch(0);
 const view = await makeView(first.game, document.getElementById('cv'), { lang: 'en', fetchMatch });
 window.gregalArenaView = view;
-document.getElementById('pause').onclick = e => { e.target.textContent = view.togglePause() ? '▶' : '⏸'; };
-document.getElementById('skip').onclick = () => view.skipToEnd();
-document.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { view.setSpeed(+b.dataset.s); document.querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); });
+const bar = mountScrubber(document.getElementById('stage'), { overlay: true, autoHide: 2600, keys: true });
+bar.setView(view);
+window.gregalArenaBar = bar;
 </script>
 </body>
 </html>

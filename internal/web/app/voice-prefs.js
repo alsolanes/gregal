@@ -32,14 +32,25 @@ export const voicePrefs = {
       '<div class="pf-seg" data-voice-engine>' + [['piper', 'prefs.voice.piper'], ['http', 'prefs.voice.http'], ['off', 'prefs.voice.off']]
         .map(([k, t]) => '<button data-v="' + k + '" class="' + (k === eng ? 'on' : '') + '">' + esc(T(t)) + '</button>').join('') + '</div></div>';
     const rows = LANGS.map(([l, name]) => {
-      const ready = !!(v.ready || {})[l];
-      const state = ready ? '✓ ' + T('prefs.voice.ready') : eng === 'piper' ? (v.platform ? T('prefs.voice.missing') : T('prefs.voice.noPlatform')) : eng === 'off' ? T('prefs.voice.offState') : T('prefs.voice.server');
+      const ready = !!(v.ready || {})[l], voices = (v.voices || {})[l] || [];
+      // Unes veus d'abans (p. ex. Ryan, retirada per la llicència): en falta alguna de les noves.
+      const partial = !ready && eng === 'piper' && voices.some(x => x.installed);
+      const state = ready ? '✓ ' + T('prefs.voice.ready') : eng === 'piper' ? (v.platform ? (partial ? T('prefs.voice.partial') : T('prefs.voice.missing')) : T('prefs.voice.noPlatform')) : eng === 'off' ? T('prefs.voice.offState') : T('prefs.voice.server');
+      const size = (v.sizes || {})[l] || '';
       const btn = eng === 'piper' && v.platform
-        ? '<button class="pf-open" data-voice-install="' + l + '"' + (busy ? ' disabled' : '') + '>' + esc(ready ? T('prefs.voice.reinstall') : T('prefs.voice.install').replace('{size}', (v.sizes || {})[l] || '')) + '</button>' : '';
+        ? '<button class="pf-open" data-voice-install="' + l + '"' + (busy ? ' disabled' : '') + '>' + esc(ready ? T('prefs.voice.reinstall') : T(partial ? 'prefs.voice.update' : 'prefs.voice.install').replace('{size}', size)) + '</button>' : '';
       const test = ready ? '<button class="pf-open" data-voice-test="caster" data-lang="' + l + '">▶ ' + esc(T('prefs.voice.caster')) + '</button>' +
         '<button class="pf-open" data-voice-test="analyst" data-lang="' + l + '">▶ ' + esc(T('prefs.voice.analyst')) + '</button>' : '';
+      // Qui parla i amb quina llicència (la del MODEL_CARD de la veu).
+      // (Sense <span> ni <b>: als .pf-lab són blocs, i en verd quan la llengua hi és.)
+      const sub = 'display:block;margin-top:3px;font-size:12px;color:var(--muted);line-height:1.4';
+      const who = eng === 'piper' && voices.length ? '<small class="pf-voice-list" style="' + sub + '">' + voices.map(x =>
+        esc(T(x.who === 'analyst' ? 'prefs.voice.analyst' : 'prefs.voice.caster')) + ': <strong style="color:var(--ink);font-weight:600">' + esc(x.label || x.name) + '</strong> · ' +
+        (x.card ? '<a href="' + esc(x.card) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline dotted" title="' + esc(T('prefs.voice.card')) + '">' + esc(x.license || '?') + '</a>' : esc(x.license || '?')) +
+        (x.installed ? '' : ' ⬇')).join(' · ') + '</small>' : '';
+      const note = eng === 'piper' && voices.some(x => /SA/.test(x.license || '')) ? '<small class="pf-voice-note" style="' + sub + '">ⓘ ' + esc(T('prefs.voice.shareAlike')) + '</small>' : '';
       return '<div class="pf-row pf-voice' + (ready ? ' on' : '') + '"><div class="pf-lab"><b>' + esc(name) + (l === 'en' ? ' · ' + esc(T('prefs.voice.games')) : '') +
-        '</b><span>' + esc(state) + '</span></div><div class="pf-voice-btns">' + test + btn + '</div></div>';
+        '</b><span>' + esc(state) + '</span>' + who + note + '</div><div class="pf-voice-btns">' + test + btn + '</div></div>';
     }).join('');
     const prog = busy ? '<div class="pf-skills-status">⬇ ' + esc(T('prefs.voice.installing').replace('{step}', inst.step || '…').replace('{pct}', pct)) + '</div>'
       : inst.state === 'error' ? '<div class="pf-skills-status error">⚠ ' + esc(inst.error || '') + '</div>' : '';

@@ -12,6 +12,7 @@ offline. Full upstream license texts and notices are in
 | `xlsx.mini.min.js` | [SheetJS CE](https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.mini.min.js) | 0.20.3 | Apache-2.0 | `XLSX`; read and worksheet utilities used by the preview. |
 | `chart.umd.min.js` | [chart.js](https://www.npmjs.com/package/chart.js) | 4.5.1 | MIT | `Chart`; the UMD build includes `@kurkle/color` 0.3.2. |
 | `PptxViewJS.min.js` | [pptxviewjs](https://www.npmjs.com/package/pptxviewjs) | 1.1.9 | MIT | `PptxViewJS.PPTXViewer`; its UMD build takes Chart.js and JSZip as external globals. |
+| `mp4-muxer.esm.min.js` | [mp4-muxer](https://github.com/Vanilagy/mp4-muxer/blob/v5.2.2/build/mp4-muxer.min.mjs) | 5.2.2 | MIT (`mp4-muxer.LICENSE`) | Upstream `build/mp4-muxer.min.mjs`, byte for byte, renamed to `.js` so it is served as JavaScript on every platform (Windows has no `.mjs` MIME type). ES module (`Muxer`, `ArrayBufferTarget`), loaded lazily by `arena-export.js` to mux the WebCodecs H.264/AAC video export. The upstream package is deprecated in favour of Mediabunny (MPL-2.0); 5.2.2 is kept on purpose for its MIT licence. |
 
 The npm package metadata for PptxViewJS is 1.1.9, but its published minified
 browser artifact reports runtime version 1.1.8. The hash check records the

@@ -214,7 +214,15 @@ func (s *Server) arenaSpectatorKey(reset bool) string {
 		b := make([]byte, 18)
 		_, _ = rand.Read(b)
 		st.Spectator = hex.EncodeToString(b)
-		arenaWrite(filepath.Join(s.arenaDir(), "settings.json"), st)
+		// settings.json també porta la veu i els torns: només es toca la clau.
+		path := filepath.Join(s.arenaDir(), "settings.json")
+		raw := map[string]json.RawMessage{}
+		arenaRead(path, &raw)
+		if raw == nil {
+			raw = map[string]json.RawMessage{}
+		}
+		raw["spectator"], _ = json.Marshal(st.Spectator)
+		arenaWrite(path, raw)
 	}
 	return st.Spectator
 }

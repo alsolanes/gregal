@@ -6,8 +6,9 @@
 // els partits, les competicions i la retransmissió van plegats a sota.
 import { makeView, LESSONS, GUIDE } from './arena-views.js';
 import { exportVideo, momentsByEvent, momentKeys, showMomentCard, sideColor, momentCSS } from './arena-export.js';
-import { mountScrubber } from './arena-scrubber.js';
-import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summaryHTML, playerCSS } from './arena-player.js';
+import { mountScrubber, fmtTime } from './arena-scrubber.js';
+import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summaryHTML, playerCSS, callText } from './arena-player.js';
+import { applyFix, undoFix, diffLines, diffHunks, diffCount, matchesByVersion, versionStats, lastPractice, topMistakes, coachScore } from './arena-learn.js';
 
 const $ = id => document.getElementById(id);
 // Els jocs van sempre en anglès.
@@ -20,11 +21,11 @@ const lang = () => 'en';
 const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
 const RUBRIC = ['clarity', 'coverage', 'adaptivity', 'specificity', 'consistency'];
 const ICON = { nfl: '🏈', cs2: '💣', lol: '🐉' };
-// Una decisió en paraules: els valors del JSON, sense guions baixos.
-const callText = d => {
-  const v = d && d.decision && typeof d.decision === 'object' ? Object.values(d.decision).flat().filter(x => typeof x === 'string' && x) : [];
-  return v.join(' · ').replace(/_/g, ' ') || (d && d.fallback ? '—' : '');
-};
+// Només pantalla tàctil (cap punter fi): el CS2 en directe necessita teclat i ratolí.
+const touchOnly = () => { try { return !matchMedia('(any-pointer: fine)').matches && matchMedia('(any-pointer: coarse)').matches; } catch (e) { return false; } };
+const n0 = v => Math.round(+v || 0).toLocaleString('en');
+const when = at => { try { return new Date(at * 1000).toLocaleString('en', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return String(at); } };
+const MATCH_Q = '/api/arena/match?id=';
 
 const arenaUI = {
   data: null, game: 'nfl', view: null, match: null, poll: 0, comp: null, speed: 1,
@@ -33,6 +34,7 @@ const arenaUI = {
     const page = $('arenaPage');
     if (!page || typeof window.api !== 'function') return;
     if (!page.dataset.ready) this.build(page);
+    this.resume();
     try { this.data = await api('/api/arena'); } catch (e) { $('arStatus').textContent = e.message; return; }
     if (!this.data.games.find(g => g.id === this.game) && this.data.games.length) this.game = this.data.games[0].id;
     this.paint();
@@ -53,7 +55,7 @@ const arenaUI = {
       <section class="ar-card" id="arMatchCard" hidden>
         <div class="ar-row"><h2 id="arMatchTitle"></h2><span class="ar-muted" id="arMatchStatus"></span>
           <span class="ar-ctl"><button type="button" id="arClose" title="${esc(T('ar.close'))}">✕</button></span></div>
-        <div class="ar-match ar-player"><div class="ar-watch"><div class="ar-stage" id="arStage" style="position:relative"><canvas id="arCanvas"></canvas><div class="ar-cc" id="arCC" aria-live="polite"></div><div class="ar-end" id="arEnd" hidden></div></div><div id="arScrub" class="ar-scrub-host"></div></div>
+        <div class="ar-match ar-player"><div class="ar-watch"><div class="ar-stage" id="arStage" style="position:relative"><canvas id="arCanvas"></canvas><div class="ar-cc" id="arCC" aria-live="polite"></div><div class="ar-end" id="arEnd" hidden></div></div><div id="arScrub" class="ar-scrub-host"></div><div id="arStats" class="ar-stats" hidden></div></div>
           <div class="ar-side"><div class="ar-tabs" role="tablist"><button type="button" role="tab" data-tab="track" class="on">${esc(T('ar.vp.commentary'))}</button><button type="button" role="tab" data-tab="dec">${esc(T('ar.vp.decisions'))}</button></div>
             <div id="arTrackPane" class="ar-trackpane"><div class="ar-filter" id="arFilter"><button type="button" data-f="all" class="on">${esc(T('ar.vp.all'))}</button><button type="button" data-f="key">${esc(T('ar.vp.key'))}</button><button type="button" data-f="prompt">★ ${esc(T('ar.vp.prompt'))}</button></div><ol class="ar-track" id="arTrack"></ol></div>
             <div class="ar-decisions" id="arDecisions" hidden></div></div></div>
@@ -67,8 +69,10 @@ const arenaUI = {
             <textarea id="arMD" spellcheck="false" placeholder="${esc(T('ar.mdPlaceholder'))}"></textarea>
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
+            <details id="arHist" class="ar-hist"><summary id="arHistSum"></summary><div id="arHistBody"></div></details>
           </div>
           <aside class="ar-tips">
+            <section id="arLast" class="ar-last" hidden></section>
             <h3>${esc(T('ar.decides'))}</h3><div id="arGuide" class="ar-guide"></div>
             <details><summary>${esc(T('ar.tips'))}</summary><ol id="arLessons" class="ar-lessons"></ol></details>
           </aside>
@@ -78,6 +82,7 @@ const arenaUI = {
           <span class="ar-muted" id="arPlayHint"></span>
           <button type="button" id="arDemo" class="ar-demo">🎬 ${esc(T('ar.demo'))}</button>
           <button type="button" id="arLive" class="ar-demo" title="${esc(T('ar.playLiveHint'))}" hidden>🎮 ${esc(T('ar.playLive'))}</button>
+          <span id="arLiveTouch" class="ar-muted" hidden>${esc(T('ar.liveTouch'))}</span>
           <button type="button" id="arReview" class="ar-link">${esc(T('ar.askTips'))}</button>
         </div>
         <div id="arVoiceNote" class="ar-voice-note" hidden></div>
@@ -126,6 +131,19 @@ const arenaUI = {
     $('arLive').onclick = async () => { clearTimeout(this.saveTimer); await this.save(); this.openLive(); };
     $('arAgain').onclick = () => { this.closeMatch(); $('arPlayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }); md.focus(); };
     $('arClose').onclick = () => this.closeMatch();
+    // Les decisions: un sol escoltador (les files s'afegeixen a mesura que arriben).
+    $('arDecisions').onclick = e => {
+      const el = e.target.closest('.ar-dec'); if (!el || !this.match) return;
+      this.showSituation(this.match.id, +el.dataset.n, +el.dataset.side, this.match.names[+el.dataset.side]);
+    };
+    // El pas 3 porta a la targeta de l'últim partit.
+    $('arSteps').onclick = e => { if (e.target.closest('[data-go="last"]')) this.focusLast(); };
+    $('arLast').onclick = e => this.lastClick(e);
+    $('arHist').addEventListener('toggle', () => { if ($('arHist').open) this.paintHistory(); });
+    $('arHistBody').onclick = e => this.histClick(e);
+    $('arHistBody').onchange = () => this.paintCompare();
+    // Fora de la vista de l'Arena (o tancant el partit) no es consulta res.
+    new MutationObserver(() => { if (page.hidden) this.suspend(); }).observe(page, { attributes: true, attributeFilter: ['hidden'] });
     // El reproductor: pestanyes (comentaris | decisions), el filtre de la pista i clic a una línia per anar-hi.
     page.querySelectorAll('.ar-tabs [data-tab]').forEach(b => b.onclick = () => {
       page.querySelectorAll('.ar-tabs [data-tab]').forEach(x => x.classList.toggle('on', x === b));
@@ -191,16 +209,29 @@ const arenaUI = {
     }
     if (document.activeElement !== $('arDisplay')) $('arDisplay').value = mine && mine.display && mine.display !== 'local' ? mine.display : (d.display || d.me);
     const next = (d.next || {})[this.game];
-    const left = Math.max(0, d.practice_left);
+    // Les partides de prova que queden: no hi és si no compta (l'administrador no en té límit).
+    const limited = !d.admin && typeof d.practice_left === 'number';
+    const left = limited ? Math.max(0, d.practice_left) : Infinity;
     $('arPlay').textContent = T('ar.playVs').replace('{name}', next ? next.display : 'Bot');
+    $('arPlay').disabled = left <= 0;
+    $('arPlayHint').textContent = [seeding ? T('ar.seedingNow') : '', next ? T('ar.level.' + next.level) : '',
+      limited ? (left > 0 ? T('ar.practiceLeft').replace('{n}', left) : T('ar.practiceNone')) : ''].filter(Boolean).join(' · ');
+    // El CS2 en directe es juga amb teclat i ratolí: a una pantalla només tàctil, apagat i amb el perquè.
+    const touch = touchOnly();
     $('arLive').hidden = this.game !== 'cs2';
-    $('arPlay').disabled = !d.admin && left <= 0;
-    $('arPlayHint').textContent = (seeding ? T('ar.seedingNow') + ' ' : '') +
-      T('ar.playHint').replace('{level}', next ? T('ar.level.' + next.level) : '').replace('{n}', left);
+    $('arLive').disabled = touch;
+    $('arLiveTouch').hidden = this.game !== 'cs2' || !touch;
     // El pas on som: 1 escriure, 2 jugar, 3 llegir l'informe i millorar.
-    const played = (d.matches || []).some(m => m.game === this.game && m.kind === 'practice' && m.status === 'final');
+    const last = lastPractice(((d.progress || {})[this.game]) || []);
+    const played = !!last || (d.matches || []).some(m => m.game === this.game && m.kind === 'practice' && m.status === 'final');
     const step = !mine ? 0 : played ? 2 : 1;
-    $('arSteps').querySelectorAll('li').forEach((li, i) => { li.classList.toggle('on', i === step); li.classList.toggle('done', i < step); });
+    $('arSteps').querySelectorAll('li').forEach((li, i) => {
+      li.classList.toggle('on', i === step); li.classList.toggle('done', i < step);
+      // El pas 3 assenyala la targeta de l'últim partit (al costat de l'editor).
+      if (i === 2) li.innerHTML = last ? `<button type="button" class="ar-link" data-go="last">${esc(T('ar.step3'))} →</button>` : esc(T('ar.step3'));
+    });
+    this.paintLast(last);
+    this.paintHistSummary();
     const gd = GUIDE[this.game];
     $('arGuide').innerHTML = gd ? `<dl>${gd.decides.map(([w, o]) => `<dt>${esc(w)}</dt><dd>${esc(o)}</dd>`).join('')}</dl>
       <p class="ar-muted"><b>${esc(T('ar.sees'))}</b> ${esc(gd.sees)}</p>
@@ -232,15 +263,17 @@ const arenaUI = {
 
   // Com evoluciones: cada partit acabat és una barra (verda si guanyes, vermella
   // si perds, alçada = diferència del marcador) i la línia és la nota del coach
-  // al teu .md (0-25). Si el .md millora, la línia puja.
+  // al teu .md (0-25). Si el .md millora, la línia puja. Cada partit té un
+  // espai fix (el gràfic creix amb els partits): amb 1 o 2 no queda un llenç
+  // buit amb una barra perduda al mig.
   paintProgress(d) {
     const rows = ((d.progress || {})[this.game]) || [];
     const box = $('arProgress');
     if (!rows.length) { box.innerHTML = `<h3>${esc(T('ar.progress'))}</h3><p class="ar-muted">${esc(T('ar.progressNone'))}</p>`; return; }
-    const W = 640, H = 150, pad = 26, n = rows.length, bw = Math.min(46, (W - pad * 2) / n * .62);
-    const x = i => pad + (W - pad * 2) * (n === 1 ? .5 : i / (n - 1));
+    const n = rows.length, slot = 56, padL = 30, padR = 14, H = 150, W = padL + padR + n * slot, bw = 30;
+    const x = i => padL + slot * (i + .5);
     const maxDiff = Math.max(1, ...rows.map(r => Math.abs(r.score[0] - r.score[1])));
-    const mid = H * .55;
+    const mid = H * .55, cy = v => mid - (v / 25 - .5) * H * .8;
     const bars = rows.map((r, i) => {
       const diff = r.score[0] - r.score[1], h = Math.max(4, Math.abs(diff) / maxDiff * (H * .38));
       const col = r.result === 'win' ? '#2fbf71' : r.result === 'loss' ? '#e5484d' : '#9aa4bd';
@@ -248,14 +281,17 @@ const arenaUI = {
         <rect x="${x(i) - bw / 2}" y="${diff >= 0 ? mid - h : mid}" width="${bw}" height="${h}" rx="4" fill="${col}" opacity=".85"/>
         <text x="${x(i)}" y="${H - 4}" text-anchor="middle" font-size="10" fill="currentColor" opacity=".7">${r.score[0]}-${r.score[1]}</text></g>`;
     }).join('');
-    const pts = rows.map((r, i) => r.coach ? [x(i), mid - (r.coach / 25 - .5) * H * .8] : null).filter(Boolean);
-    const line = pts.length > 1 ? `<polyline points="${pts.map(p => p.join(',')).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>` : '';
-    const dots = pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--accent)"/>`).join('');
+    const pts = rows.map((r, i) => r.coach ? [x(i), cy(r.coach), r.coach] : null).filter(Boolean);
+    const line = pts.length > 1 ? `<polyline points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="2.5"/>` : '';
+    const dots = pts.map(p => `<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="var(--accent)"/>${pts.length < 3 ? `<text x="${p[0] + 7}" y="${p[1] - 6}" font-size="10" fill="var(--accent)">${p[2]}</text>` : ''}`).join('');
+    // L'escala de la nota del coach, a l'esquerra.
+    const axis = [0, 25].map(v => `<text x="${padL - 6}" y="${cy(v) + 3}" text-anchor="end" font-size="9" fill="currentColor" opacity=".5">${v}</text>`).join('');
     const wins = rows.filter(r => r.result === 'win').length;
     const coached = rows.filter(r => r.coach);
     const trend = coached.length > 1 ? `${coached[0].coach} → ${coached[coached.length - 1].coach}/25` : coached.length ? `${coached[0].coach}/25` : '—';
     box.innerHTML = `<div class="ar-row"><h3>${esc(T('ar.progress'))}</h3><span class="ar-muted">${esc(T('ar.progressSum').replace('{w}', wins).replace('{n}', n).replace('{c}', trend))}</span></div>
-      <svg viewBox="0 0 ${W} ${H}" class="ar-chart" role="img"><line x1="${pad}" x2="${W - pad}" y1="${mid}" y2="${mid}" stroke="currentColor" opacity=".2"/>${bars}${line}${dots}</svg>
+      <div class="ar-chart-row"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="ar-chart" role="img"><line x1="${padL}" x2="${W - padR}" y1="${mid}" y2="${mid}" stroke="currentColor" opacity=".2"/>${axis}${bars}${line}${dots}</svg>
+      ${n < 3 ? `<p class="ar-muted ar-chart-few">${esc(T('ar.progressFew'))}</p>` : ''}</div>
       <p class="ar-muted">${esc(T('ar.progressHelp'))}</p>`;
   },
 
@@ -314,6 +350,162 @@ const arenaUI = {
     $('arVoiceTestC').disabled = $('arVoiceTestA').disabled = !(v.ready[l]);
     clearTimeout(this.voiceTimer);
     if (inst.state === 'installing') this.voiceTimer = setTimeout(() => this.voiceStatus(), 1500);
+  },
+
+  // ---- de «escriure» a «guanyar»: l'últim partit i les versions del .md ----
+
+  // L'últim partit de pràctica, al costat de l'editor (el pas 3 hi porta): el
+  // resultat, la nota del coach i els 2-3 errors amb la regla reescrita, cada
+  // un amb «Aplica»: la posa a l'editor, ensenya què ha canviat i es pot desfer.
+  paintLast(last) {
+    const box = $('arLast');
+    if (!last) { box.hidden = true; this.lastId = ''; clearTimeout(this.lastTimer); return; }
+    box.hidden = false;
+    const c = this.lastCache && this.lastCache.id === last.id ? this.lastCache : null;
+    this.lastRow = last;
+    if (!c && this.lastId !== last.id) { this.lastId = last.id; this.lastTries = 0; this.loadLast(last.id); }
+    this.renderLast();
+  },
+  async loadLast(id) {
+    clearTimeout(this.lastTimer);
+    let m;
+    try { m = await api(MATCH_Q + encodeURIComponent(id) + '&after=999999&dafter=999999&lafter=999999'); } catch (e) { return; }
+    if (this.lastId !== id) return;
+    const me = this.data && this.data.me, side = (m.owners || []).indexOf(me);
+    const fb = (m.feedback || [])[side] || (side < 0 ? (m.feedback || []).find(Boolean) : null) || null;
+    this.lastCache = { id, fb };
+    this.renderLast();
+    // L'informe del coach arriba una mica després del final: es torna a mirar (un temps).
+    if (!fb && !this.suspended && ++this.lastTries < 20) this.lastTimer = setTimeout(() => this.loadLast(id), 10000);
+  },
+  renderLast() {
+    const box = $('arLast'), r = this.lastRow; if (!r) return;
+    const c = this.lastCache && this.lastCache.id === r.id ? this.lastCache : null, fb = c && c.fb;
+    const res = r.result === 'win' ? 'win' : r.result === 'loss' ? 'loss' : 'draw';
+    const coach = fb ? coachScore(fb) : r.coach;
+    const mist = fb ? topMistakes(fb, 3) : [];
+    this.lastMistakes = mist;
+    this.fixes = this.fixes || {};
+    const fixHTML = (mo, i) => {
+      const ch = this.fixes[r.id + ':' + i];
+      const applied = ch ? `<div class="ar-applied"><span>${esc(T(ch.kind === 'replace' ? 'ar.fix.replaced' : 'ar.fix.added').replace('{n}', ch.start + 1))}</span>
+        <pre>${ch.old.map(l => `<del>- ${esc(l)}</del>`).join('')}${ch.lines.map(l => `<ins>+ ${esc(l)}</ins>`).join('')}</pre>
+        <button type="button" data-undo="${i}">${esc(T('ar.fix.undo'))}</button></div>` : '';
+      return `<li><b>${esc(mo.moment || '')}</b> ${esc(mo.what || '')}${mo.md_issue ? `<div class="ar-issue">${esc(mo.md_issue)}</div>` : ''}
+        ${mo.fix ? `<div class="ar-fix">✍ ${esc(mo.fix)}</div>${ch ? '' : `<button type="button" class="primary" data-fix="${i}">${esc(T('ar.fix.apply'))}</button>`}<span class="ar-muted" data-note="${i}"></span>` : ''}${applied}</li>`;
+    };
+    box.innerHTML = `<div class="ar-row"><h3>${esc(T('ar.last.title'))}</h3><span class="ar-res ${res}">${esc(T('ar.last.' + res))} ${r.score[0]}-${r.score[1]}</span></div>
+      <p class="ar-last-sub">${esc(T('ar.last.vs').replace('{name}', r.opponent || ''))}${coach ? ' · ' + esc(T('ar.last.coach').replace('{n}', coach)) : ''} · <button type="button" class="ar-link" data-open="${esc(r.id)}">${esc(T('ar.last.watch'))}</button></p>` +
+      (!c ? `<p class="ar-muted">${esc(T('ar.hist.loading'))}</p>` : !fb ? `<p class="ar-muted">${esc(T('ar.last.pending'))}</p>` :
+        mist.length ? `<h4>${esc(T('ar.last.fixes'))}</h4><ol class="ar-fixes">${mist.map(fixHTML).join('')}</ol>` : `<p class="ar-muted">${esc(T('ar.last.none'))}</p>`);
+  },
+  lastClick(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.open) { this.openMatch(b.dataset.open); return; }
+    const md = $('arMD'), r = this.lastRow;
+    if (b.dataset.fix != null) {
+      const mo = this.lastMistakes[+b.dataset.fix]; if (!mo || !r) return;
+      const res = applyFix(md.value, mo.fix, { issue: mo.md_issue || '' });
+      if (res.change.kind === 'none') { const n = $('arLast').querySelector(`[data-note="${b.dataset.fix}"]`); if (n) n.textContent = T('ar.fix.already'); return; }
+      md.value = res.md; md.dispatchEvent(new Event('input'));
+      this.fixes[r.id + ':' + b.dataset.fix] = res.change;
+      this.renderLast();
+      // Les línies de la regla (sense el títol «## Coach fixes» si s'ha creat).
+      const k = res.change.lines.filter(l => l.trim() && !/^#/.test(l.trim())).length || res.change.lines.length;
+      this.selectLines(res.change.start + res.change.lines.length - k, k);
+    } else if (b.dataset.undo != null) {
+      const key = r.id + ':' + b.dataset.undo, ch = this.fixes[key];
+      const back = undoFix(md.value, ch);
+      if (back == null) { const n = b.parentElement.querySelector('span'); if (n) n.textContent = T('ar.fix.cantUndo'); return; }
+      md.value = back; md.dispatchEvent(new Event('input'));
+      delete this.fixes[key];
+      this.renderLast();
+    }
+  },
+  // Selecciona unes línies de l'editor (el canvi que s'acaba d'aplicar).
+  selectLines(start, count) {
+    const md = $('arMD'), lines = md.value.split('\n');
+    let a = 0; for (let i = 0; i < start && i < lines.length; i++) a += lines[i].length + 1;
+    const b = a + lines.slice(start, start + count).join('\n').length;
+    try { md.focus({ preventScroll: true }); md.setSelectionRange(a, b); } catch (e) { /* res */ }
+    md.scrollTop = Math.max(0, start / Math.max(1, lines.length) * md.scrollHeight - md.clientHeight / 3);
+  },
+  focusLast() {
+    const box = $('arLast'); if (box.hidden) return;
+    box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box.classList.remove('ar-flash'); void box.offsetWidth; box.classList.add('ar-flash');
+  },
+
+  // Les versions del .md (la llista «history» de GET /api/arena).
+  history() { const mine = this.data && this.data.mine[this.game]; return (mine && mine.history) || []; },
+  paintHistSummary() {
+    const h = this.history();
+    $('arHist').hidden = !h.length;
+    $('arHistSum').textContent = T('ar.hist.title').replace('{n}', h.length);
+    if ($('arHist').open) this.paintHistory();
+  },
+  async versionText(at) {
+    this.verText = this.verText || new Map();
+    const k = this.game + ':' + at;
+    if (!this.verText.has(k)) this.verText.set(k, post('/api/arena', { action: 'version', game: this.game, at }).then(r => r.md || '').catch(e => { this.verText.delete(k); throw e; }));
+    return this.verText.get(k);
+  },
+  // La llista (la més nova a dalt): quan, el hash, la mida i els partits
+  // jugats amb cada una (pel temps); tria A i B per comparar-les.
+  paintHistory() {
+    const h = this.history(), body = $('arHistBody');
+    if (!h.length) { body.innerHTML = ''; return; }
+    const games = matchesByVersion(h, ((this.data.progress || {})[this.game]) || []);
+    const sel = this.histSel && this.histSel.game === this.game && this.histSel.n === h.length ? this.histSel : (this.histSel = { game: this.game, n: h.length, a: Math.max(0, h.length - 2), b: h.length - 1 });
+    const rows = h.map((v, i) => ({ v, i, st: versionStats(games[i]) })).reverse();
+    body.innerHTML = (h.length < 2 ? `<p class="ar-muted">${esc(T('ar.hist.none'))}</p>` : `<p class="ar-muted">${esc(T('ar.hist.help'))}</p>`) +
+      `<table class="ar-hist-t"><thead><tr>${h.length > 1 ? '<th>A</th><th>B</th>' : ''}<th>${esc(T('ar.hist.saved'))}</th><th>${esc(T('ar.hist.version'))}</th><th>${esc(T('ar.hist.results'))}</th><th></th></tr></thead><tbody>` +
+      rows.map(({ v, i, st }) => `<tr${v.current ? ' class="cur"' : ''}>${h.length > 1 ? `<td><input type="radio" name="arHA" value="${i}" aria-label="A"${i === sel.a ? ' checked' : ''}></td><td><input type="radio" name="arHB" value="${i}" aria-label="B"${i === sel.b ? ' checked' : ''}></td>` : ''}
+        <td>${esc(when(v.at))}${v.current ? ` <span class="ar-badge">${esc(T('ar.hist.current'))}</span>` : ''}</td><td><code>#${esc(v.hash)}</code> <small>${n0(v.size)} B</small></td>
+        <td>${esc(this.statText(st))}</td><td>${v.current ? '' : `<button type="button" class="ar-link" data-restore="${i}">${esc(T('ar.hist.restore'))}</button>`}</td></tr>`).join('') +
+      `</tbody></table><div id="arHistCmp" class="ar-hist-cmp"></div>`;
+    if (h.length > 1) this.paintCompare();
+  },
+  statText(st) {
+    if (!st.n) return T('ar.hist.noGames');
+    return `${st.n === 1 ? T('ar.hist.game1') : T('ar.hist.games').replace('{n}', st.n)} · ${st.w}-${st.l}-${st.d}${st.coach != null ? ' · ' + T('ar.last.coach').replace('{n}', st.coach) : ''}`;
+  },
+  // A → B: què ha canviat al .md i com han anat els partits de cada una.
+  async paintCompare() {
+    const box = $('arHistCmp'), h = this.history(); if (!box || h.length < 2) return;
+    const pick = name => { const r = $('arHistBody').querySelector(`input[name="${name}"]:checked`); return r ? +r.value : -1; };
+    const a = pick('arHA'), b = pick('arHB');
+    if (a < 0 || b < 0) return;
+    this.histSel = { ...this.histSel, a, b };
+    const games = matchesByVersion(h, ((this.data.progress || {})[this.game]) || []);
+    const sa = versionStats(games[a]), sb = versionStats(games[b]);
+    const rate = s => (s.n ? Math.round(s.w * 100 / s.n) + '%' : '—');
+    const dc = sa.coach != null && sb.coach != null ? Math.round((sb.coach - sa.coach) * 10) / 10 : null;
+    const head = `<div class="ar-hist-res"><span><b>A</b> ${esc(this.statText(sa))} · ${esc(T('ar.hist.winRate'))} ${rate(sa)}</span><span>→</span><span><b>B</b> ${esc(this.statText(sb))} · ${esc(T('ar.hist.winRate'))} ${rate(sb)}${dc != null ? ` <b class="${dc > 0 ? 'up' : dc < 0 ? 'down' : ''}">${dc > 0 ? '+' : ''}${dc}</b>` : ''}</span></div>`;
+    box.innerHTML = head + `<p class="ar-muted">${esc(T('ar.hist.loading'))}</p>`;
+    let ta, tb;
+    try { [ta, tb] = await Promise.all([this.versionText(h[a].at), this.versionText(h[b].at)]); } catch (e) { box.innerHTML = head + `<p class="ar-muted">${esc(e.message)}</p>`; return; }
+    if (!$('arHistCmp') || this.histSel.a !== a || this.histSel.b !== b) return;
+    const ops = diffLines(ta, tb), cnt = diffCount(ops);
+    const lines = diffHunks(ops, 2).map(o => o.op === '…' ? `<span class="d-skip">⋯ ${esc(T('ar.hist.unchanged').replace('{n}', o.skip))}</span>` :
+      `<span class="${o.op === '+' ? 'd-add' : o.op === '-' ? 'd-del' : 'd-same'}">${o.op} ${esc(o.text)}</span>`).join('');
+    box.innerHTML = head + (cnt.add || cnt.del ? `<div class="ar-muted">${esc(T('ar.hist.lines').replace('{a}', cnt.add).replace('{d}', cnt.del))}</div><pre class="ar-diff">${lines}</pre>` : `<p class="ar-muted">${esc(T('ar.hist.same'))}</p>`);
+  },
+  histClick(e) {
+    const b = e.target.closest('[data-restore]'); if (b) this.restoreVersion(+b.dataset.restore);
+  },
+  // Torna a posar una versió a l'editor i la desa (queda com la més nova; l'actual es conserva a la llista).
+  async restoreVersion(i) {
+    const v = this.history()[i]; if (!v) return;
+    let text;
+    try { text = await this.versionText(v.at); } catch (e) { $('arStatus').textContent = e.message; return; }
+    const md = $('arMD');
+    if (md.value.trim() && md.value.trim() !== text.trim() && !confirm(T('ar.hist.restoreConfirm'))) return;
+    md.value = text; $('arCount').textContent = md.value.length + ' / 12000';
+    clearTimeout(this.saveTimer);
+    await this.save();
+    $('arStatus').textContent = T('ar.hist.restored');
+    await this.load();
   },
 
   showMD(title, md) {
@@ -450,25 +642,51 @@ const arenaUI = {
     if (this.view) this.view.destroy();
     if (this.scrub) this.scrub.destroy();
     this.view = null; this.scrub = null; this.match = null; this.progress = null; this.track = []; this.trackKey = ''; this.lines = new Map(); this.endShown = ''; this.lastVideo = null; clearTimeout(this.ccT); clearTimeout(this.poll); clearInterval(this.thinkTimer);
+    this.decN = 0; this.lineN = 0; this.starKey = ''; this.fbKey = ''; this.folKey = null;
     $('arMatchCard').hidden = true; $('arPlayCard').hidden = false;
+  },
+
+  // Fora de la vista de l'Arena: ni consultes ni rellotges (el visor s'atura sol
+  // quan no es veu). load() ho torna a engegar en tornar-hi.
+  suspend() {
+    this.suspended = true;
+    clearTimeout(this.poll); clearInterval(this.thinkTimer); clearTimeout(this.seedTimer); clearTimeout(this.voiceTimer); clearTimeout(this.lastTimer);
+    this.pauseView();
+  },
+  resume() {
+    if (!this.suspended) return;
+    this.suspended = false;
+    const m = this.match;
+    if (m && !['final', 'stopped', 'failed'].includes(m.status)) { clearInterval(this.thinkTimer); this.thinkTimer = setInterval(() => this.paintMatchStatus(), 1000); }
+    if (m && m.status === 'final' && !(m.feedback && (m.feedback[0] || m.feedback[1]))) this.pollFeedback(m.id, 1000);
+    // L'informe de l'últim partit que encara no havia arribat.
+    if (this.lastId && this.lastCache && this.lastCache.id === this.lastId && !this.lastCache.fb) { this.lastTries = 0; this.loadLast(this.lastId); }
+  },
+
+  // La consulta del partit: només les decisions i frases noves (dafter/lafter).
+  matchURL(id, after) { return MATCH_Q + encodeURIComponent(id) + '&after=' + after + '&dafter=' + (this.decN || 0) + '&lafter=' + (this.lineN || 0); },
+  fetchMatch(id, after) {
+    const dk = this.decN || 0, lk = this.lineN || 0;
+    return api(this.matchURL(id, after)).then(m => { this.updateMatch(m, dk, lk); return m; });
   },
 
   async openMatch(id) {
     this.closeMatch();
     const card = $('arMatchCard');
-    card.hidden = false; $('arPlayCard').hidden = true; $('arAgainRow').hidden = true; $('arFeedback').innerHTML = ''; $('arDecisions').innerHTML = '';
+    card.hidden = false; $('arPlayCard').hidden = true; $('arAgainRow').hidden = true; $('arFeedback').innerHTML = ''; $('arStats').hidden = true;
+    $('arDecisions').innerHTML = `<h4>${esc(T('ar.why'))}</h4><p class="ar-how">${esc(T('ar.howDecides'))}</p><div id="arDecFollow"></div><p class="ar-muted" id="arDecWait">${esc(T('ar.thinking'))}</p><div id="arDecList" class="ar-dec-list"></div>`;
     $('arTrack').innerHTML = ''; $('arEnd').hidden = true; $('arCC').classList.remove('on');
     card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     let first;
-    try { first = await api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=0'); } catch (e) { $('arStatus').textContent = e.message; return; }
-    this.match = first; this.lastEvAt = Date.now();
+    try { first = await api(MATCH_Q + encodeURIComponent(id) + '&after=0'); } catch (e) { $('arStatus').textContent = e.message; return; }
+    this.match = { ...first, decisions: [] }; this.lastEvAt = Date.now();
     // Al LoL el mapa posa el blau a l'esquerra: el títol i el marcador, igual.
     this.flip = first.game === 'lol' && first.meta && first.meta.blue === 1;
     const [l, r] = this.flip ? [1, 0] : [0, 1];
     $('arMatchTitle').textContent = `${first.names[l]} vs ${first.names[r]}`;
-    const fetchMatch = after => api('/api/arena/match?id=' + encodeURIComponent(id) + '&after=' + after).then(m => { this.updateMatch(m); return m; });
+    this.updateMatch(first, 0, 0);
     try {
-      this.view = await makeView(first.game, $('arCanvas'), { lang: lang(), fetchMatch, onEvent: e => this.highlight(e) });
+      this.view = await makeView(first.game, $('arCanvas'), { lang: lang(), fetchMatch: after => this.fetchMatch(id, after), onEvent: e => this.highlight(e) });
       this.view.setSpeed(this.speed);
       // La barra del reproductor: enrere, des del principi, saltar a un moment
       // del prompt (★), el temps, la velocitat, subtítols, tele i descarregar.
@@ -479,61 +697,120 @@ const arenaUI = {
       });
       this.paintDownload();
     } catch (e) { $('arStatus').textContent = e.message; }
-    this.updateMatch(first);
     // Si el model triga, que es vegi que hi està pensant i no que s'ha penjat.
     clearInterval(this.thinkTimer);
-    this.thinkTimer = setInterval(() => this.paintMatchStatus(), 1000);
+    if (this.match && !['final', 'stopped', 'failed'].includes(this.match.status)) this.thinkTimer = setInterval(() => this.paintMatchStatus(), 1000);
   },
 
   paintMatchStatus() {
     const m = this.match; if (!m) return;
     let st = T('ar.status.' + m.status) + ' · ' + (this.flip ? m.score[1] + ' - ' + m.score[0] : m.score[0] + ' - ' + m.score[1]);
-    if ((m.status === 'live' || m.status === 'pregame') && Date.now() - this.lastEvAt > 4000) st += ' · ' + T('ar.thinking');
+    // A la cua: quants partits hi ha davant (1 = el següent).
+    if (m.status === 'pregame' && m.queue > 0) st = T('ar.queue').replace('{n}', m.queue);
+    else if ((m.status === 'live' || m.status === 'pregame') && Date.now() - this.lastEvAt > 4000) st += ' · ' + T('ar.thinking');
     $('arMatchStatus').textContent = st;
   },
 
-  updateMatch(m) {
+  // El que ha costat el partit: crides al model · tokens (quants de la memòria cau) · temps.
+  paintStats(st) {
+    const el = $('arStats');
+    const calls = st ? st.all_calls || st.calls || 0 : 0, pt = st ? st.all_prompt_tokens || st.prompt_tokens || 0 : 0, ct = st ? st.all_completion_tokens || st.completion_tokens || 0 : 0;
+    // Fins que no hi ha la primera crida, res (sense «0 crides»).
+    if (!st || (!calls && !pt && !st.memo)) { el.hidden = true; return; }
+    const cached = st.all_cached_tokens || st.cached_tokens || 0, secs = (st.wall_ms || 0) / 1000;
+    el.textContent = (pt + ct ? T('ar.stats') : T('ar.statsNoTokens')).replace('{calls}', n0(calls)).replace('{tokens}', n0(pt + ct))
+      .replace('{cached}', pt ? Math.round(cached * 100 / pt) : 0).replace('{time}', secs ? fmtTime(secs) : '—');
+    el.title = [`decisions ${st.decisions || 0}`, `decision calls ${st.calls || 0}`, st.retries ? `retries ${st.retries}` : '', st.fallbacks ? `fallbacks ${st.fallbacks}` : '', st.memo ? `reused ${st.memo}` : '',
+      `prompt ${n0(pt)} · completion ${n0(ct)} · cached ${n0(cached)}`, `model ${fmtTime((st.model_ms || 0) / 1000)}`, st.queue_ms ? `queue ${fmtTime(st.queue_ms / 1000)}` : ''].filter(Boolean).join('\n');
+    el.hidden = false;
+  },
+
+  // Una resposta de /api/arena/match. dk/lk: quantes decisions i frases teníem
+  // quan es va demanar (amb dafter/lafter només arriben les noves). Les files
+  // de decisions s'afegeixen (no es refà la llista) i el clic va per delegació.
+  updateMatch(m, dk = 0, lk = 0) {
     if (!this.match || m.id !== this.match.id) return;
     if ((m.events || []).length) this.lastEvAt = Date.now();
-    this.match.status = m.status; this.match.score = m.score; this.match.feedback = m.feedback;
-    this.match.decisions = m.decisions || this.match.decisions; this.match.md = m.md || this.match.md;
+    this.match.status = m.status; this.match.score = m.score; this.match.feedback = m.feedback; this.match.queue = m.queue || 0;
+    if (m.winner != null) this.match.winner = m.winner;
+    this.match.md = m.md || this.match.md;
     if (m.analysis) this.match.analysis = m.analysis;
+    if (m.stats) this.match.stats = m.stats;
     this.moments = momentsByEvent(this.match);
     // Les frases del narrador arriben una mica després de les jugades.
     if (!this.lines) this.lines = new Map();
     (m.lines || []).forEach(l => this.lines.set(l.n, l));
-    const starred = momentKeys(this.match);
+    this.lineN = Math.max(this.lineN || 0, (m.lines_total != null ? lk : 0) + (m.lines || []).length);
+    // Les decisions noves: les que arriben a partir de la que ja teníem.
+    const from = m.decisions_total != null ? dk : 0, got = m.decisions || [];
+    const fresh = got.slice(Math.max(0, (this.decN || 0) - from));
+    if (from <= (this.decN || 0) && fresh.length) {
+      this.match.decisions = (this.match.decisions || []).concat(fresh);
+      this.decN = this.match.decisions.length;
+      this.appendDecisions(fresh);
+    }
+    if (m.followed) this.match.followed = m.followed;
+    this.paintDecHead();
+    this.paintStars();
     this.paintDownload();
     this.paintMatchStatus();
-    const names = this.match.names;
-    const decs = this.match.decisions || [];
-    // Cada decisió: què ha triat, per què, la regla del .md que cita i si el
-    // servidor l'ha trobada de debò al .md (✓) o el model ha improvisat (⚠).
-    // Clicant-la, el que el model va veure.
-    const fol = m.followed || this.match.followed;
-    if (m.followed) this.match.followed = m.followed;
-    const pct = v => Math.round((v || 0) * 100) + '%';
-    const badge = d => d.fallback ? `<em class="bad">⚠ ${esc(T('ar.fallback'))}</em>` : d.rule_found ? `<em class="ok">✓ ${esc(T('ar.ruleFound'))}</em>` : `<em class="warn">⚠ ${esc(T('ar.improvised'))}</em>`;
-    $('arDecisions').innerHTML = `<h4>${esc(T('ar.why'))}</h4>
-      <p class="ar-how">${esc(T('ar.howDecides'))}</p>
-      ${fol && decs.length ? `<div class="ar-follow">${[0, 1].map(i => `<span class="side${i}"><b>${esc(names[i])}</b> ${esc(T('ar.followed'))} <b>${pct(fol[i])}</b></span>`).join('')}</div>` : ''}` +
-      (decs.length ? '' : `<p class="ar-muted">${esc(T('ar.thinking'))}</p>`) +
-      decs.slice(-400).map(d => `<div class="ar-dec side${d.side}${starred.has(d.n + ':' + d.side) ? ' ar-star' : ''}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b>${starred.has(d.n + ':' + d.side) ? '<span title="Prompt moment: this .md line mattered">★</span> ' : ''}${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
-      <code>${esc(callText(d))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${badge(d)}</div>`).join('');
-    $('arDecisions').querySelectorAll('.ar-dec').forEach(el => el.onclick = () => this.showSituation(m.id || this.match.id, +el.dataset.n, +el.dataset.side, names[+el.dataset.side]));
+    this.paintStats(this.match.stats);
     if (['final', 'stopped', 'failed'].includes(m.status)) { $('arAgainRow').hidden = false; clearInterval(this.thinkTimer); }
-    const fetchAgain = () => api('/api/arena/match?id=' + encodeURIComponent(m.id) + '&after=999999').then(x => this.updateMatch(x)).catch(() => {});
     if (m.status === 'final' && m.feedback) {
-      $('arFeedback').innerHTML = [0, 1].map(s => m.feedback[s] ? this.feedbackHTML(m.feedback[s], T('ar.reportFor').replace('{name}', names[s])) : '').join('') ||
-        `<p class="ar-muted">${esc(T('ar.reportPending'))}</p>`;
-      if (!m.feedback[0] && !m.feedback[1]) { clearTimeout(this.poll); this.poll = setTimeout(fetchAgain, 8000); }
+      const names = this.match.names;
+      const key = [0, 1].map(s => (m.feedback[s] ? 1 : 0)).join('');
+      if (key !== this.fbKey) {
+        this.fbKey = key;
+        $('arFeedback').innerHTML = [0, 1].map(s => m.feedback[s] ? this.feedbackHTML(m.feedback[s], T('ar.reportFor').replace('{name}', names[s])) : '').join('') ||
+          `<p class="ar-muted">${esc(T('ar.reportPending'))}</p>`;
+      }
+      if (!m.feedback[0] && !m.feedback[1]) this.pollFeedback(m.id, 8000);
     }
+  },
+
+  // L'informe del coach arriba després del final: es torna a mirar (sense les jugades).
+  pollFeedback(id, ms) {
+    clearTimeout(this.poll);
+    if (this.suspended) return;
+    this.poll = setTimeout(() => { if (this.match && this.match.id === id && !this.suspended) this.fetchMatch(id, 999999).catch(() => {}); }, ms);
+  },
+
+  // Cada decisió: què ha triat, per què, la regla del .md que cita i si el
+  // servidor l'ha trobada de debò al .md (✓) o el model ha improvisat (⚠).
+  // Clicant-la, el que el model va veure. Com a molt 400 a la pàgina.
+  appendDecisions(decs) {
+    const list = $('arDecList'); if (!list) return;
+    const names = this.match.names;
+    const badge = d => d.fallback ? `<em class="bad">⚠ ${esc(T('ar.fallback'))}</em>` : d.rule_found ? `<em class="ok">✓ ${esc(T('ar.ruleFound'))}</em>` : `<em class="warn">⚠ ${esc(T('ar.improvised'))}</em>`;
+    const starred = momentKeys(this.match);
+    list.insertAdjacentHTML('beforeend', decs.slice(-400).map(d => `<div class="ar-dec side${d.side}${starred.has(d.n + ':' + d.side) ? ' ar-star' : ''}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b><span class="ar-st" title="Prompt moment: this .md line mattered">★ </span>${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
+      <code>${esc(callText(d, { short: false }))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${badge(d)}</div>`).join(''));
+    while (list.childElementCount > 400) list.firstElementChild.remove();
+  },
+  paintDecHead() {
+    const fol = this.match.followed, names = this.match.names, n = this.decN || 0;
+    const pct = v => Math.round((v || 0) * 100) + '%';
+    const key = n ? JSON.stringify(fol || null) : '';
+    if (key !== this.folKey) {
+      this.folKey = key;
+      const el = $('arDecFollow'); if (el) el.innerHTML = fol && n ? `<div class="ar-follow">${[0, 1].map(i => `<span class="side${i}"><b>${esc(names[i])}</b> ${esc(T('ar.followed'))} <b>${pct(fol[i])}</b></span>`).join('')}</div>` : '';
+    }
+    const w = $('arDecWait'); if (w) w.hidden = n > 0;
+  },
+  // Les decisions que són moments del prompt (★) arriben amb l'anàlisi, al final.
+  paintStars() {
+    const starred = momentKeys(this.match), key = [...starred].join(',');
+    if (key === this.starKey) return;
+    this.starKey = key;
+    const list = $('arDecList'); if (!list) return;
+    list.querySelectorAll('.ar-dec').forEach(el => el.classList.toggle('ar-star', starred.has(el.dataset.n + ':' + el.dataset.side)));
   },
 
   // El vídeo de resum del partit (arena-export.js), descarregat.
   async exportVideo(id) {
     if (this.exporting) return;
-    this.exporting = true; $('arExport').disabled = true; $('arExport').textContent = T('ar.vp.exporting');
+    const btn = (on, text) => { const x = $('arExport'); if (x) { x.disabled = on; x.textContent = text; } };
+    this.exporting = true; btn(true, T('ar.vp.exporting'));
     this.pauseView();
     try {
       const r = await exportVideo({
@@ -542,13 +819,14 @@ const arenaUI = {
         fetchVoice: key => window.api('/api/arena/voice?k=' + encodeURIComponent(key)).then(x => x.ok ? x.arrayBuffer() : null),
       });
       if (r) {
-        $('arStatus').textContent = `⬇ ${r.name} (${(r.size / 1e6).toFixed(1)} MB)`;
+        // Quant dura el vídeo i quant ha costat fer-lo (el camí ràpid va més de pressa que el partit).
+        $('arStatus').textContent = `⬇ ${r.name} (${(r.size / 1e6).toFixed(1)} MB` + (r.secs ? ` · ${fmtTime(r.secs)} ` + T('ar.vp.madeIn').replace('{t}', fmtTime(r.wall)).replace('{x}', (r.secs / Math.max(0.1, r.wall)).toFixed(1)) : '') + ')';
         // Compartir-lo, si el sistema ho sap fer amb fitxers.
         const file = typeof File === 'function' ? new File([r.blob], r.name, { type: r.type }) : null;
-        if (file && navigator.canShare && navigator.canShare({ files: [file] })) { this.lastVideo = { file }; $('arShare').hidden = false; }
+        if (file && navigator.canShare && navigator.canShare({ files: [file] }) && $('arShare')) { this.lastVideo = { file }; $('arShare').hidden = false; }
       }
     } catch (e) { $('arStatus').textContent = e.message; }
-    this.exporting = false; $('arExport').disabled = false; $('arExport').textContent = T('ar.vp.download');
+    this.exporting = false; btn(false, T('ar.vp.download'));
   },
 
   // El que el model va veure en una decisió: la situació i el format.

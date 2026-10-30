@@ -96,6 +96,29 @@
   /* Finestres petites: l'escenari es pinta a 1280×720 i s'escala sencer, com una tele. */
   body.fit { --vw:12.8px; --vh:7.2px; }
   body.fit #tv { position:fixed; left:0; top:0; width:1280px; height:720px; overflow:hidden; transform-origin:0 0; }
+  /* Quadre (eliminatòries) i calendari, dins d'un plafó */
+  .bk { display:grid; grid-template-columns:minmax(0, 1.75fr) minmax(0, 1fr); gap:24px; align-items:center; min-height:0; flex:1 1 auto; }
+  .bk .abk-bracket { height:100%; max-height:calc(var(--vh) * 100 - 330px); min-height:200px; }
+  .bk .abk-sched li { font-size:14px; padding:4px 8px; }
+  .panel .abk-groups { grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); }
+  /* Capes per a l'OBS (#overlay=scorebug|standings|bracket): fons transparent. */
+  html.ov, html.ov body { background:transparent !important; }
+  body.ov #tv { display:none; }
+  #ov { position:fixed; inset:0; pointer-events:none; }
+  .sbug { position:absolute; top:3vh; left:50%; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:4px; transition:opacity .4s; }
+  .sbug.off { opacity:0; }
+  .sbug .bar { display:flex; align-items:stretch; background:rgba(8,10,22,.94); border:1px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 10px 30px rgba(0,0,0,.45); font-size:clamp(18px, 1.6vw, 34px); }
+  .sbug .t { padding:.3em .8em; font-weight:800; white-space:nowrap; max-width:30vw; overflow:hidden; text-overflow:ellipsis; }
+  .sbug .t.a { border-left:.3em solid var(--a); } .sbug .t.b { border-right:.3em solid var(--b); }
+  .sbug .s { padding:.3em .7em; background:var(--accent); color:#111; font-weight:900; font-variant-numeric:tabular-nums; }
+  .sbug .sub { display:flex; gap:10px; align-items:center; background:rgba(8,10,22,.88); border-radius:8px; padding:3px 12px; font-size:clamp(12px, .85vw, 18px); color:var(--muted); font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .sbug .sub .live { font-size:.85em; padding:1px 8px; }
+  .ovbox { position:absolute; left:4vw; right:4vw; top:5vh; bottom:5vh; display:flex; flex-direction:column; gap:14px; justify-content:center; }
+  .ovbox .kicker { align-self:center; background:rgba(8,10,22,.9); border-radius:8px; padding:4px 14px; }
+  .ovbox .abk-groups { width:100%; max-width:1100px; align-self:center; }
+  .ovbox .abk-bracket { flex:1 1 auto; min-height:0; }
+  .ovbox .abk-group { background:rgba(8,10,22,.9); }
+  .ovbox .abk-group table { font-size:clamp(15px, 1.25vw, 28px); }
 </style>
 </head>
 <body>
@@ -119,6 +142,7 @@
 import { makeView, LESSONS, EXPLAIN } from './arena-views.js';
 import { exportVideo, momentsByEvent, showMomentCard } from './arena-export.js';
 import { mountScrubber } from './arena-scrubber.js';
+import { bracketHTML, groupsHTML, scheduleHTML, playoffsStarted, currentGame, ensureBracketCSS, shortStage, seedLabel, maskUnseen } from './arena-bracket.js';
 
 // Per sota de 1280×720 tot es pinta a aquesta mida i s'escala (amb bandes),
 // que una retransmissió s'ha de veure igual en un portàtil que a l'OBS.
@@ -146,6 +170,7 @@ const L = lang === 'ca' ? {
   practice: 'Partit de prova', demo: 'Partit de mostra', replay: '▶ Torna-ho a veure', close: 'Tanca', end: 'Final del partit', callTip: 'A sota de cada equip: què ha decidit i la regla del seu .md que l’hi ha portat.',
   stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
   summary: 'Resum del partit', moments: 'Moments del prompt', noMoments: 'Cap moment del prompt en aquest partit.', coach: 'coach', followed: 'ha seguit el .md', exportVideo: '⬇ Descarrega el vídeo',
+  bracket: 'Quadre', bo3: 'Al millor de 3', gameN: 'Partit', series: 'Sèrie',
 } : {
   waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
   champions: 'Champions', win: 'wins', draw: 'Draw', p: 'Player', pj: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', preview: 'Preview', analysis: 'The analysis',
@@ -156,6 +181,7 @@ const L = lang === 'ca' ? {
   practice: 'Practice game', demo: 'Demo match', replay: '▶ Watch it again', close: 'Close', end: 'Full time', callTip: 'Under each team: what it decided and the rule of its .md that led there.',
   stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
   summary: 'Match summary', moments: 'Prompt moments', noMoments: 'No prompt moments in this match.', coach: 'coach', followed: 'followed its .md', exportVideo: '⬇ Download video',
+  bracket: 'Bracket', bo3: 'Best of 3', gameN: 'Game', series: 'Series',
 };
 const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
 
@@ -356,13 +382,15 @@ function panel(html) { $('panel').innerHTML = html; $('panel').classList.add('on
 function hidePanel() { $('panel').classList.remove('on'); document.body.classList.remove('paneled'); }
 const segLabel = t => { $('seg').textContent = t; };
 
+// La taula del grup (o de tots els grups) d'un joc, amb arena-bracket.js.
 function standingsHTML(game, stage) {
   const tables = (comp.tables || {})[game] || [];
-  const tb = tables.find(t => !stage || t.stage === stage) || tables[0];
-  if (!tb) return '';
-  return `<div class="h2">${esc(L.table)} · ${esc(GAME[game] || game)} · ${esc(tb.stage)}</div><table><tr><th></th><th>${L.p}</th><th>${L.pj}</th><th>${L.w}</th><th>${L.d}</th><th>${L.l}</th><th>${L.pts}</th></tr>` +
-    tb.rows.map((r, i) => `<tr class="${i < 2 ? 'qual' : ''}"><td>${i + 1}</td><td>${esc(name(r.owner))}</td><td>${r.played}</td><td>${r.won}</td><td>${r.drawn}</td><td>${r.lost}</td><td class="pts">${r.pts}</td></tr>`).join('') + '</table>';
+  if (!tables.length) return '';
+  const one = stage && tables.some(t => t.stage === stage);
+  const html = groupsHTML(comp, { game, lang, stage: one ? stage : '' });
+  return `<div class="h2">${esc(L.table)} · ${esc(GAME[game] || game)}</div>${html}`; // el grup ja surt a la taula
 }
+ensureBracketCSS(document);
 
 async function segOpening() {
   segLabel(L.opening);
@@ -543,14 +571,50 @@ async function segSummary(sl, my) {
   await hold(18000);
 }
 
+// Entre partits de les eliminatòries: el quadre (arbre al millor de 3) i el calendari.
+// La tele pot anar per darrere del servidor (els partits es juguen més de
+// pressa del que es miren): el quadre només ensenya el que ja s'ha vist.
+// skipped: els partits d'abans que la tele s'engegués; winners: qui ha guanyat
+// cada partit (per descomptar els que encara no s'han vist d'una sèrie).
+const skipped = new Set(), winners = new Map();
+async function seenComp() {
+  const unseen = new Set();
+  for (const s of comp.schedule) for (const id of s.matches || []) if (!shown.has(id) && !skipped.has(id)) unseen.add(id);
+  for (const id of unseen) {
+    if (winners.has(id)) continue;
+    try { const m = await get('/api/arena/match?id=' + encodeURIComponent(id) + '&after=999999&dafter=999999&lafter=999999'); winners.set(id, m.winner >= 0 ? m.owners[m.winner] : ''); } catch (e) {}
+  }
+  return maskUnseen(comp, unseen, winners);
+}
+
+async function segBracket(game) {
+  const c = await seenComp();
+  const br = bracketHTML(c, { game, lang });
+  if (!br) return;
+  segLabel(L.bracket + ' · ' + (GAME[game] || game));
+  await wipe(() => panel(`<div class="kicker">${esc(L.bracket)} · ${esc(GAME[game] || game)} · ${esc(L.bo3)}</div>
+    <div class="bk">${br}${scheduleHTML(c, { game, lang, max: 4 })}</div>`));
+  await sleep(14000 / Math.max(1, +q.get('speed') || 1));
+}
+
 async function segStandings(sl) {
-  const html = standingsHTML(sl.game, sl.phase === 'group' ? sl.stage : '');
+  // A les eliminatòries ja no hi ha taula que es mogui: el quadre.
+  if (sl.phase === 'playoff') { await segBracket(sl.game); return; }
+  // L'últim partit de grups que es mira (la tele pot anar endarrerida respecte
+  // del servidor): llavors, tots els grups i el quadre; abans, el del partit.
+  const left = comp.schedule.some(x => x.game === sl.game && x.phase === 'group' && (!x.done || [...(x.matches || []), x.match].some(id => id && !shown.has(id))));
+  const po = !left && playoffsStarted(comp, sl.game);
+  const html = standingsHTML(sl.game, po ? '' : sl.stage);
   if (!html) return;
   segLabel(L.table);
   const nxt = upNext();
-  await wipe(() => panel(`<div class="two"><div>${html}<p class="lead">${esc(L.stakes)}</p></div>
-    <div>${nxt ? `<div class="kicker">${esc(L.next)}</div><div class="h2">${esc(nxt.pending ? nxt.from.join(' vs ') : name(nxt.a) + ' vs ' + name(nxt.b))}</div><div class="lead">${esc(GAME[nxt.game] || nxt.game)} · ${esc(nxt.stage)}</div>` : ''}</div></div>`));
+  const next = nxt ? `<div class="kicker">${esc(L.next)}</div><div class="h2">${esc(nxt.pending ? (nxt.from || []).map(f => seedLabel(f, lang)).join(' vs ') : name(nxt.a) + ' vs ' + name(nxt.b))}</div><div class="lead">${esc(GAME[nxt.game] || nxt.game)} · ${esc(nxt.stage)}</div>` : '';
+  // Tots els grups, de costat; un sol grup, amb el que ve al costat.
+  await wipe(() => panel(po ? `${html}<p class="lead" style="margin:0">${esc(L.stakes)}</p><div>${next}</div>`
+    : `<div class="two"><div>${html}<p class="lead">${esc(L.stakes)}</p></div><div>${next}</div></div>`));
   await sleep(12000);
+  // L'últim partit de grups: tot seguit, com queda el quadre.
+  if (po) await segBracket(sl.game);
 }
 
 async function segChampions() {
@@ -564,7 +628,12 @@ async function segChampions() {
 
 function waitingPanel(text) {
   segLabel(text);
-  panel(`<div class="kicker">${esc(comp ? comp.title : '')}</div><h1 class="h1">${esc(text)}</h1>${comp ? `<div class="two"><div>${standingsHTML(comp.games[0])}</div><div></div></div>` : ''}`);
+  const g = comp ? currentGame(comp) : '';
+  // Mentre s'espera: a les eliminatòries, el quadre; si no, la taula i el calendari.
+  const br = comp && playoffsStarted(comp, g) ? bracketHTML(comp, { game: g, lang }) : '';
+  const body = !comp ? '' : br ? `<div class="bk">${br}${scheduleHTML(comp, { game: g, lang, max: 3 })}</div>`
+    : `<div class="two"><div>${standingsHTML(g, (comp.schedule[comp.current || 0] || {}).stage)}</div><div>${scheduleHTML(comp, { lang, max: 2 })}</div></div>`;
+  panel(`<div class="kicker">${esc(comp ? comp.title : '')}</div><h1 class="h1" style="font-size:clamp(28px, calc(var(--vw) * 3.6), 52px)">${esc(text)}</h1>${body}`);
 }
 
 async function director() {
@@ -579,6 +648,7 @@ async function director() {
     // Cada partit es mira un cop (per id): una eliminatòria al millor de 3 en
     // té diversos, i cadascun té la seva prèvia, directe i resultat.
     const from = shown.size === 0 && comp.status === 'running' ? Math.max(0, comp.current) : 0;
+    if (shown.size === 0) comp.schedule.slice(0, from).forEach(s => (s.matches || []).forEach(id => skipped.add(id)));
     let idx = -1, mid = '';
     for (let i = from; i < comp.schedule.length && idx < 0; i++) {
       const sl = comp.schedule[i];
@@ -669,8 +739,59 @@ function upNext() {
 
 async function pollOnce() { try { const r = await get('/api/arena/stream'); comp = r.competition; script = r.script || null; } catch (e) {} }
 
-pollComp();
-if (single) {
+// ---- capes per a l'OBS ----
+// #overlay=scorebug|standings|bracket: només aquella peça, amb el fons
+// transparent (font de navegador de l'OBS), seguint la competició en directe.
+// Va també amb #spectator=<clau>: només fa servir /api/arena/stream i /match.
+const overlay = q.get('overlay') || '';
+const ovFlip = new Map(); // al LoL, l'equip blau a l'esquerra (com a la tele)
+async function ovMatchSides(id, game) {
+  if (game !== 'lol') return false;
+  if (!ovFlip.has(id)) { try { const m0 = await fetchMatch(id, 0); if (m0.meta) ovFlip.set(id, m0.meta.blue === 1); } catch (e) {} }
+  return !!ovFlip.get(id);
+}
+async function paintOverlay() {
+  const root = $('ov');
+  if (!comp) { root.innerHTML = ''; return; }
+  const g = currentGame(comp);
+  if (overlay === 'scorebug') {
+    const i = comp.current || 0, sl = comp.schedule[i];
+    const id = sl && !sl.done ? sl.match || '' : '';
+    let m = null;
+    if (id && comp.status === 'running') { try { m = await get('/api/arena/match?id=' + encodeURIComponent(id) + '&after=999999&dafter=999999&lafter=999999'); } catch (e) {} }
+    if (!m || !sl) { const b = root.querySelector('.sbug'); if (b) b.classList.add('off'); return; }
+    const flip = await ovMatchSides(id, sl.game);
+    // Els costats del partit (a la sèrie es canvien): el nom de cada banda, del partit.
+    const own = m.owners || [sl.a, sl.b], sc = m.score || [0, 0];
+    const [A, B] = flip ? [own[1], own[0]] : own, [sa, sb] = flip ? [sc[1], sc[0]] : sc;
+    let sub = `${esc(GAME[sl.game] || sl.game)} · ${esc(sl.phase === 'playoff' ? shortStage(sl.stage, lang) : sl.stage)}`;
+    if (sl.phase === 'playoff') {
+      // La sèrie, vista des dels costats d'aquest partit.
+      const ser = sl.series || [0, 0], sA = own[0] === sl.a ? ser : [ser[1], ser[0]], sv = flip ? [sA[1], sA[0]] : sA;
+      sub += ` · ${esc(L.gameN)} ${(sl.matches || []).length + 1} · ${esc(L.series)} ${sv[0]}-${sv[1]}`;
+    }
+    root.innerHTML = `<div class="sbug"><div class="bar"><div class="t a">${esc(name(A))}</div><div class="s">${sa} - ${sb}</div><div class="t b">${esc(name(B))}</div></div>
+      <div class="sub">${m.status === 'live' ? `<span class="live">${esc(L.live.toUpperCase())}</span>` : ''}<span>${sub}</span></div></div>`;
+  } else if (overlay === 'standings') {
+    root.innerHTML = `<div class="ovbox"><div class="kicker">${esc(L.table)} · ${esc(GAME[g] || g)}</div>${groupsHTML(comp, { game: g, lang })}</div>`;
+  } else if (overlay === 'bracket') {
+    const br = bracketHTML(comp, { game: g, lang });
+    root.innerHTML = br ? `<div class="ovbox"><div class="kicker">${esc(L.bracket)} · ${esc(GAME[g] || g)} · ${esc(L.bo3)}</div>${br}</div>` : '';
+  }
+}
+async function overlayLoop() {
+  try { const r = await get('/api/arena/stream'); comp = r.competition; } catch (e) {}
+  try { await paintOverlay(); } catch (e) {}
+  setTimeout(overlayLoop, overlay === 'scorebug' ? 2000 : 5000);
+}
+
+if (overlay) {
+  document.documentElement.classList.add('ov'); document.body.classList.add('ov');
+  const root = document.createElement('div'); root.id = 'ov'; document.body.append(root);
+  sfx.stop();
+  overlayLoop();
+} else pollComp();
+if (overlay) { /* només la capa */ } else if (single) {
   // Dins de l'Arena: un botó per tancar (o Esc).
   if (parent !== window) {
     const x = document.createElement('button'); x.className = 'close'; x.type = 'button'; x.textContent = '✕ ' + L.close;

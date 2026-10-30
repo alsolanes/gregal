@@ -593,12 +593,14 @@ var OffenseSchema = func() string {
 	for _, p := range scrimmageOrder() {
 		fmt.Fprintf(&b, "- %s: %s. vs defenses: %s.\n", p, offDesc[p], MatchupLine(p))
 	}
-	b.WriteString(`- punt / field_goal: kick (choose them yourself on 4th down; a field goal beyond your kicker's range usually misses). Without a valid answer on 4th down you kick.
-- kneel: run out the clock (when ahead late). spike: stop the clock (costs a down).
-- target: preferred receiver for passes (wr1 is the best receiver; "" lets the QB choose).
-- tempo: hurry = no huddle, ~12 s between plays (when behind late); milk = use the whole play clock (when ahead late); normal otherwise.`)
+	b.WriteString(offSchemaTail)
 	return b.String()
 }()
+
+const offSchemaTail = `- punt / field_goal: kick (choose them yourself on 4th down; a field goal beyond your kicker's range usually misses). Without a valid answer on 4th down you kick.
+- kneel: run out the clock (when ahead late). spike: stop the clock (costs a down).
+- target: preferred receiver for passes (wr1 is the best receiver; "" lets the QB choose).
+- tempo: hurry = no huddle, ~12 s between plays (when behind late); milk = use the whole play clock (when ahead late); normal otherwise.`
 
 var DefenseSchema = func() string {
 	var b strings.Builder
@@ -616,3 +618,26 @@ func (g *Game) LastPlays(after int) []Play {
 	}
 	return g.Plays[after:]
 }
+
+// OffenseSchemaBare i DefenseSchemaBare són els mateixos formats sense les
+// ajudes de la taula (contra què guanya i perd cada crida): les competicions
+// oficials els fan servir per defecte (hints: false), perquè sigui el .md qui
+// llegeixi la taula de les regles i triï, i no el format.
+var OffenseSchemaBare = func() string {
+	var b strings.Builder
+	b.WriteString(`{"play":"run_inside|run_outside|qb_sneak|pass_short|pass_medium|pass_deep|screen|play_action|punt|field_goal|kneel|spike","target":"wr1|wr2|wr3|te|rb|","tempo":"normal|hurry|milk"}` + "\n")
+	for _, p := range scrimmageOrder() {
+		fmt.Fprintf(&b, "- %s: %s.\n", p, offDesc[p])
+	}
+	b.WriteString(offSchemaTail)
+	return b.String()
+}()
+
+var DefenseSchemaBare = func() string {
+	var b strings.Builder
+	b.WriteString(`{"call":"base|blitz|cover2|cover3|man|goal_line|prevent"}` + "\n")
+	for _, d := range DefenseCalls {
+		fmt.Fprintf(&b, "- %s: %s.\n", d, defDesc[d])
+	}
+	return strings.TrimSpace(b.String())
+}()

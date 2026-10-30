@@ -98,3 +98,12 @@ test('the end-of-match summary shows the result, analysis, rule, moments and coa
   const lol = P.summaryHTML({ ...m, game: 'lol', meta: { blue: 1 }, score: [1, 0], winner: 0 }, {});
   assert.ok(lol.includes('Bob <b>0 - 1</b> Alice'));
 });
+
+test('callText: one copy for the track and the decision list', async () => {
+  const P = await load('arena-player.js');
+  assert.equal(P.callText({ decision: { play: 'run_inside', tempo: 'normal', target: ['wr1', 'te'] } }), 'run inside · wr1 · te');
+  assert.equal(P.callText({ decision: { tempo: 'normal' }, short: 'kneel_down' }), 'kneel down', 'nothing said: the short summary');
+  assert.equal(P.callText({ decision: {}, short: 'x', fallback: true }, { short: false }), '—', 'the decision list already shows the short one');
+  assert.equal(P.callText({ decision: {}, short: 'x' }, { short: false }), '');
+  assert.equal(P.callText(null), '');
+});
