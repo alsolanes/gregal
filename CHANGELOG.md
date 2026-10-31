@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.35.1 - 2026-10-31 - Ona x_low
+
 - **Catalan narrator: Ona x_low.** The Catalan caster is now Ona x_low (21 MB, trained from scratch) instead of Ona medium, which was fine-tuned from a research-only voice. Installs that had Catalan get it automatically and the old model is removed; both Catalan voices remain CC BY-SA 3.0 ES (credit required, share-alike).
 
 ## v1.35.0 - 2026-10-30 - L'Arena, millorada
