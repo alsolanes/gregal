@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Catalan narrator: Ona x_low.** The Catalan caster is now Ona x_low (21 MB, trained from scratch) instead of Ona medium, which was fine-tuned from a research-only voice. Installs that had Catalan get it automatically and the old model is removed; both Catalan voices remain CC BY-SA 3.0 ES (credit required, share-alike).
+
 ## v1.35.0 - 2026-10-30 - L'Arena, millorada
 
 - **Arena: faster and cheaper.** The Arena page loads in about 15 ms instead of 2 s with a hundred matches (match summaries are cached and match files are saved compact). Practice and official matches have separate slots (1 official and 2 practice at once by default, admin-configurable), so practice no longer waits behind a competition, and a waiting match shows its place in the queue. Saving a match no longer freezes the viewers, and a slow caster can no longer stall a match. Model calls put the fixed part of the prompt first so the provider's cache serves most of it, ask for shorter answers, and on an invalid answer say what was wrong instead of asking the same thing again; each match records its model calls, tokens (and cached tokens) and time. Bots get no coach report in practice. The viewer can poll only the new decisions and caster lines, and the Arena state lists the history of your `.md` versions.

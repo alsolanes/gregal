@@ -245,8 +245,18 @@ func TestArenaVoiceAutoInstallSwitchesOldVoices(t *testing.T) {
 	if !s.voiceReady("en") || s.voiceAutoWanted("en") {
 		t.Fatal("amb les veus noves, a punt i res a baixar")
 	}
-	// En acabar, les retirades se'n van; les noves i les del català es queden.
-	touchVoice(t, s, piperVoices["ca"]["caster"].Name)
+	// Qui tenia Ona medium (retirada) rep Ona x_low sola: el català ja no és
+	// a punt fins que hi és la nova.
+	if piperVoices["ca"]["caster"].Name != "ca_ES-upc_ona-x_low" {
+		t.Fatalf("la narradora en català ha de ser Ona x_low: %s", piperVoices["ca"]["caster"].Name)
+	}
+	if s.voiceReady("ca") || !s.voiceAutoWanted("ca") {
+		t.Fatal("amb Ona medium (retirada), Ona x_low s'ha de baixar sola")
+	}
+	// En acabar, les retirades se'n van; les noves de cada llengua es queden.
+	for _, v := range piperVoices["ca"] {
+		touchVoice(t, s, v.Name)
+	}
 	s.pruneRetiredVoices()
 	for _, n := range piperRetired {
 		if _, err := os.Stat(filepath.Join(s.voiceDir(), "voices", n+".onnx")); err == nil {

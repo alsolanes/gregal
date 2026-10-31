@@ -77,7 +77,7 @@ type piperVoice struct {
 //     pantalla de veus ho diu.
 var piperVoices = map[string]map[string]piperVoice{
 	"ca": {
-		"caster":  {Name: "ca_ES-upc_ona-medium", Path: "ca/ca_ES/upc_ona/medium", Length: .84, Noise: .9, NoiseW: .95, Label: "Ona", License: "CC BY-SA 3.0 ES", MB: 63},
+		"caster":  {Name: "ca_ES-upc_ona-x_low", Path: "ca/ca_ES/upc_ona/x_low", Length: .84, Noise: .9, NoiseW: .95, Label: "Ona", License: "CC BY-SA 3.0 ES", MB: 21},
 		"analyst": {Name: "ca_ES-upc_pau-x_low", Path: "ca/ca_ES/upc_pau/x_low", Length: 1, Noise: .667, NoiseW: .8, Label: "Pau", License: "CC BY-SA 3.0 ES", MB: 28},
 	},
 	"en": {
@@ -90,7 +90,9 @@ var piperVoices = map[string]map[string]piperVoice{
 
 // piperRetired: veus que ja no es fan servir (llicència no comercial o de
 // recerca). Quan les noves ja hi són, s'esborren del directori de veus.
-var piperRetired = []string{"en_US-ryan-high", "en_GB-alan-medium"}
+// Ona medium es va afinar a partir de lessac (llicència només de recerca):
+// ara és Ona x_low, entrenada de zero.
+var piperRetired = []string{"en_US-ryan-high", "en_GB-alan-medium", "ca_ES-upc_ona-medium"}
 
 // piperEngineMB és el que pesa el motor Piper (el zip de Windows; els altres, semblant).
 const piperEngineMB = 22
@@ -809,6 +811,16 @@ func (s *Server) voiceAutoInstall(lang string) {
 	log.Printf("arena: baixant les veus de %s", lang)
 }
 
+// voiceAutoUpgrade: qui tenia una veu retirada d'una llengua (p. ex. Ona
+// medium) rep la nova d'aquella llengua sola, sense buscar cap botó.
+func (s *Server) voiceAutoUpgrade() {
+	for _, name := range piperRetired {
+		if _, err := os.Stat(filepath.Join(s.voiceDir(), "voices", name+".onnx")); err == nil {
+			s.voiceAutoInstall(name[:2])
+		}
+	}
+}
+
 // voicesView: les veus de cada llengua per a la pantalla de preferències.
 func (s *Server) voicesView() map[string][]map[string]any {
 	out := map[string][]map[string]any{}
@@ -846,6 +858,7 @@ func (s *Server) handleArenaVoice(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.voiceAutoInstall("en")
+		s.voiceAutoUpgrade()
 		c := s.voiceCfg()
 		c.Key = "" // la clau no surt mai
 		inst := voiceInst.snapshot()
