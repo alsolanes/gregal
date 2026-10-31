@@ -3,6 +3,8 @@ package web
 import (
 	"net/http"
 	"strings"
+
+	"gregal/internal/session"
 )
 
 // Resums per a la llista de converses dels Vents: l'últim missatge i quan,
@@ -52,23 +54,23 @@ func (s *Server) handleWindsSummaries(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET required", http.StatusMethodNotAllowed)
 		return
 	}
+	// Read the durable snapshots, not the mutable live histories: their mu
+	// serializes entire LLM turns. SaveSession publishes via atomic rename,
+	// so Load sees a complete previous or new commit without waiting for a
+	// model call, even on the first inbox refresh during a turn. This also
+	// covers every writer (classic, SSE, crew, clear) without a second cache
+	// whose invalidation could expose stale or uncommitted messages.
 	items := []convoSummary{}
 	if winds, err := s.winds.List(); err == nil {
 		for _, wd := range winds {
-			h := windHistory(s, wd.ID)
-			h.mu.Lock()
-			msgs := petHistoryJSON(h.messages)
-			h.mu.Unlock()
-			items = append(items, summaryOf("wind:"+wd.ID, msgs))
+			saved, _ := session.Load(s.sessDir(), "company-"+wd.ID)
+			items = append(items, summaryOf("wind:"+wd.ID, petHistoryJSON(saved.Convo)))
 		}
 	}
 	if rots, err := s.listRotllanes(); err == nil {
 		for _, rot := range rots {
-			h := rotllanaHistory(s, rot.ID)
-			h.mu.Lock()
-			msgs := s.rotllanaHistoryJSON(h.messages)
-			h.mu.Unlock()
-			items = append(items, summaryOf("rot:"+rot.ID, msgs))
+			saved, _ := session.Load(s.sessDir(), "rotllana-"+rot.ID)
+			items = append(items, summaryOf("rot:"+rot.ID, s.rotllanaHistoryJSON(saved.Convo)))
 		}
 	}
 	capMu.Lock()

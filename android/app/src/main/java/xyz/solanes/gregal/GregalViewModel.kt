@@ -340,6 +340,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val idioma: StateFlow<String> = _idioma
     private val _idiomaChoice = MutableStateFlow("system")
     val idiomaChoice: StateFlow<String> = _idiomaChoice
+    private val _expressiveMotion = MutableStateFlow(false)
+    val expressiveMotion: StateFlow<Boolean> = _expressiveMotion
 
     /**
      * L'arrencada (reconnexió automàtica + comprovar actualitzacions) ja s'ha
@@ -356,6 +358,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _temaApp.value = p.temaApp
         _idioma.value = p.idioma
         _idiomaChoice.value = p.idiomaChoice
+        _expressiveMotion.value = p.expressiveMotion
         _usuari.value = p.usuari
         if (p.esborrany.isNotEmpty()) _draft.value = p.esborrany
         // A partir d'aquí totes les peticions van a la sessió del mòbil, no a
@@ -366,6 +369,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun setTema(v: String) {
         _tema.value = v
         if (::prefsStore.isInitialized) prefsStore.tema = v
+    }
+
+    fun setExpressiveMotion(v: Boolean) {
+        _expressiveMotion.value = v
+        if (::prefsStore.isInitialized) prefsStore.expressiveMotion = v
     }
 
     /** Canvia la paleta sense tocar el mode clar/fosc. */
@@ -514,6 +522,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun resetServerState() {
         companionEpoch++
+        expertPolling.values.toList().forEach { it.cancel() }
+        expertPolling.clear()
         windHistoryRequests.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
@@ -531,6 +541,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windProfile.value = null
         _windProfileBusy.value = false
         _windProfileError.value = null
+        libraryRequest++
+        _windLibrary.value = WindLibraryState(generation = companionEpoch)
         _company.value = CompanyState()
         _checkin.value = null
         _pets.value = emptyList()
@@ -543,6 +555,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _sessions.value = emptyList()
         _active.value = null
         _approve.value = null
+        _wikiPages.value = null
+        _wikiError.value = null
+        _wikiBusy.value = false
+        _rutines.value = null
+        _rutinesError.value = null
+        _programats.value = null
+        _programatsError.value = null
+        _plugins.value = emptyMap()
+        _windsMeta.value = GregalApi.WindsMeta(emptyList(), emptyList())
+        _windExpert.value = emptyMap()
+        _ventDetall.value = emptyMap()
+        _windsResum.value = emptyMap()
+        _summaries.value = emptyMap()
         _question.value = null
         _goals.value = emptyList()
         _jobs.value = emptyList()
@@ -2459,20 +2484,132 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _activeWind = MutableStateFlow<Wind?>(null)
     val activeWind: StateFlow<Wind?> = _activeWind
 
+    private var windsRequest = 0L
+
     fun loadWinds() {
         val source = _conn.value
         val epoch = companionEpoch
+        val request = ++windsRequest
         viewModelScope.launch {
             try {
                 val list = withContext(Dispatchers.IO) { source.api().getWinds() }
-                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (!isCompanionOrigin(source, epoch) || request != windsRequest) return@launch
                 _winds.value = list
                 _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
-                list.forEach { loadWindChat(it.id) }
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
             }
         }
+    }
+
+    data class WindLibraryState(
+        val generation: Long = 0L,
+        val items: List<GregalApi.WindLibraryItem>? = null,
+        val loading: Boolean = false, val pending: String? = null,
+        val error: String? = null, val success: Boolean = false,
+    )
+    private val _windLibrary = MutableStateFlow(WindLibraryState())
+    val windLibrary: StateFlow<WindLibraryState> = _windLibrary
+    private var libraryRequest = 0L
+
+    fun loadWindLibrary() {
+        if (_windLibrary.value.pending != null) return
+        val source = _conn.value; val epoch = companionEpoch; val request = ++libraryRequest
+        _windLibrary.value = _windLibrary.value.copy(loading = true, error = null)
+        viewModelScope.launch {
+            try {
+                val items = withContext(Dispatchers.IO) { source.api().getWindLibrary() }
+                if (isCompanionOrigin(source, epoch) && request == libraryRequest)
+                    _windLibrary.value = _windLibrary.value.copy(items = items, loading = false)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch) && request == libraryRequest)
+                    _windLibrary.value = _windLibrary.value.copy(items = _windLibrary.value.items.orEmpty(),
+                        loading = false, error = appText("app.library.loadError"))
+            }
+        }
+    }
+
+    fun restoreWindLibrary(item: GregalApi.WindLibraryItem, onDone: (Boolean) -> Unit = {}) =
+        mutateWindLibrary(item, null, true, true, onDone)
+
+    fun assignWindLibrary(item: GregalApi.WindLibraryItem, target: Wind, memory: Boolean,
+                          knowledge: Boolean, onDone: (Boolean) -> Unit = {}) =
+        mutateWindLibrary(item, target, memory, knowledge, onDone)
+
+    private fun mutateWindLibrary(item: GregalApi.WindLibraryItem, target: Wind?, memory: Boolean,
+                                  knowledge: Boolean, onDone: (Boolean) -> Unit) {
+        if (_windLibrary.value.pending != null) { onDone(false); return }
+        val source = _conn.value; val epoch = companionEpoch; val request = ++libraryRequest
+        _windLibrary.value = _windLibrary.value.copy(pending = item.id, loading = false, error = null, success = false)
+        viewModelScope.launch {
+            try {
+                require(if (target == null) item.restorable else target.id != item.wind.id && (memory || knowledge))
+                val api = source.api()
+                val before = withContext(Dispatchers.IO) { api.getWindLibrary() }
+                if (!isCompanionOrigin(source, epoch) || request != libraryRequest) return@launch
+                val current = before.singleOrNull { it.id == item.id }
+                check(current != null && item.sameInformation(current)) { "libraryChanged" }
+                val targetId = target?.id ?: item.wind.id
+                val activeBefore = before.singleOrNull { it.kind == "active" && it.wind.id == targetId }
+                if (target != null) check(activeBefore?.wind == target) { "libraryChanged" }
+                // Restoring after an uncertain response reconciles first: do not duplicate the POST.
+                if (target == null && activeBefore != null) {
+                    check(libraryRestoreMatches(item, activeBefore)) { "libraryConflict" }
+                } else {
+                    withContext(Dispatchers.IO) {
+                        if (target == null) api.restoreWindLibrary(item.id)
+                        else api.assignWindLibrary(item.id, target.id, memory, knowledge)
+                    }
+                }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val after = withContext(Dispatchers.IO) { api.getWindLibrary() }
+                val active = after.singleOrNull { it.kind == "active" && it.wind.id == targetId }
+                check(active != null && if (target == null) libraryRestoreMatches(item, active)
+                    else libraryAssignmentMatches(item, activeBefore!!, active, memory, knowledge)) { "libraryReadback" }
+                val winds = withContext(Dispatchers.IO) { api.getWinds() }
+                check(winds.any { it.id == targetId }) { "libraryReadback" }
+                if (!isCompanionOrigin(source, epoch) || request != libraryRequest) return@launch
+                ++windsRequest // Invalidate catalog GETs started before the verified mutation.
+                _winds.value = winds
+                _activeWind.value = winds.firstOrNull { it.id == _activeWind.value?.id } ?: winds.firstOrNull()
+                _ventDetall.value = _ventDetall.value - targetId
+                _windsResum.value = _windsResum.value - targetId
+                if (_windProfile.value?.wind?.id == targetId) loadWindProfile(targetId)
+                _windLibrary.value = _windLibrary.value.copy(items = after, pending = null, success = true, error = null)
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch) && request == libraryRequest) {
+                    val key = when {
+                        e.message == "libraryChanged" -> "app.library.changed"
+                        e.message == "libraryConflict" || e.message.orEmpty().contains("HTTP 409") -> "app.library.conflict"
+                        else -> "app.library.saveError"
+                    }
+                    _windLibrary.value = _windLibrary.value.copy(pending = null, error = appText(key))
+                    onDone(false)
+                }
+            }
+        }
+    }
+
+    private fun libraryRestoreMatches(source: GregalApi.WindLibraryItem, active: GregalApi.WindLibraryItem): Boolean =
+        source.wind.copy(kit = "") == active.wind.copy(kit = "") &&
+            (source.memory.isBlank() || active.memory.contains(source.memory.trim())) &&
+            (source.knowledge.isBlank() || active.knowledge.contains(source.knowledge.trim())) &&
+            source.skills.all { sk -> active.skills.any { it == sk } }
+
+    private fun libraryAssignmentMatches(source: GregalApi.WindLibraryItem, before: GregalApi.WindLibraryItem,
+                                         after: GregalApi.WindLibraryItem, memory: Boolean, knowledge: Boolean): Boolean {
+        fun merge(old: String, incoming: String): String = when {
+            incoming.isBlank() -> old
+            old.isBlank() -> incoming
+            old.contains(incoming.trim()) -> old
+            else -> old.trimEnd('\r', '\n') + "\n\n" + incoming
+        }
+        return before.wind == after.wind &&
+            after.memory == (if (memory) merge(before.memory, source.memory) else before.memory) &&
+            after.knowledge == (if (knowledge) merge(before.knowledge, source.knowledge) else before.knowledge) &&
+            after.skills.sortedBy { it.nom } == (if (knowledge) (before.skills + source.skills).distinctBy { it.nom }
+                else before.skills).sortedBy { it.nom }
     }
 
     private val _windProfile = MutableStateFlow<WindProfile?>(null)
@@ -2491,6 +2628,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 val profile = withContext(Dispatchers.IO) { source.api().getWindProfile(id) }
+                check(profile.wind.id == id) { "Profile identity does not match" }
                 if (isCompanionOrigin(source, epoch) && request == profileRequest) _windProfile.value = profile
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch) && request == profileRequest)
@@ -2505,7 +2643,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
-                val result = withContext(Dispatchers.IO) { source.api().updateWindKnowledge(id, text) }
+                val result = withContext(Dispatchers.IO) {
+                    val api = source.api()
+                    api.updateWindKnowledge(id, text)
+                    api.getWindProfile(id)
+                }
+                check(result.wind.id == id && result.knowledge == text) { "Knowledge readback does not match" }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 if (_windProfile.value?.wind?.id == id) _windProfile.value = result
                 onDone(true)
@@ -2986,7 +3129,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val m = withContext(Dispatchers.IO) { source.api().getWindsMeta() }
                 if (isCompanionOrigin(source, epoch)) _windsMeta.value = m
-            } catch (_: Exception) { if (isCompanionOrigin(source, epoch)) _windsMeta.value = GregalApi.WindsMeta(emptyList(), emptyList()) }
+            } catch (_: Exception) { /* keep the last acknowledged organization; the UI can retry */ }
         }
     }
 
@@ -3050,29 +3193,27 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Estudi «fes-te expert»: estat per vent (fase, pas) i engegar-la. */
     private val _windExpert = MutableStateFlow<Map<String, GregalApi.WindExpert>>(emptyMap())
     val windExpert: StateFlow<Map<String, GregalApi.WindExpert>> = _windExpert.asStateFlow()
-    private val expertPolling = mutableSetOf<String>()
+    private val expertPolling = mutableMapOf<String, Job>()
 
     fun startWindExpert(windId: String, tema: String, onError: () -> Unit = {}) {
         val source = _conn.value
+        val epoch = companionEpoch
         viewModelScope.launch {
             val ok = runCatching { withContext(Dispatchers.IO) { source.api().startWindExpert(windId, tema) } }.getOrDefault(false)
-            if (ok) {
-                expertPolling.add(windId)
-                pollWindExpert(windId)
-            } else onError()
+            if (!isCompanionOrigin(source, epoch)) return@launch
+            if (ok) { expertPolling[windId]?.cancel(); expertPolling[windId] = pollWindExpert(windId, source, epoch) }
+            else onError()
         }
     }
 
-    fun pollWindExpert(windId: String) {
-        if (windId !in expertPolling) return
-        val source = _conn.value
-        viewModelScope.launch {
+    private fun pollWindExpert(windId: String, source: Conn, epoch: Long): Job = viewModelScope.launch {
+        while (isCompanionOrigin(source, epoch)) {
             val est = runCatching { withContext(Dispatchers.IO) { source.api().getWindExpert(windId) } }.getOrNull()
             if (est != null) {
+                if (!isCompanionOrigin(source, epoch)) break
                 _windExpert.update { it + (windId to est) }
                 if (est.actiu) {
                     delay(2000)
-                    pollWindExpert(windId)
                 } else {
                     expertPolling.remove(windId)
                     if (est.exit) {
@@ -3080,20 +3221,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         loadVentDetall(windId)
                         refreshWindNews()
                     }
+                    break
                 }
             } else {
                 delay(3000)
-                pollWindExpert(windId)
             }
         }
     }
 
     fun loadWindExpertOnce(windId: String) {
         val source = _conn.value
+        val epoch = companionEpoch
         viewModelScope.launch {
             val est = runCatching { withContext(Dispatchers.IO) { source.api().getWindExpert(windId) } }.getOrNull() ?: return@launch
+            if (!isCompanionOrigin(source, epoch)) return@launch
             _windExpert.update { it + (windId to est) }
-            if (est.actiu) { expertPolling.add(windId); pollWindExpert(windId) }
+            if (est.actiu && windId !in expertPolling) expertPolling[windId] = pollWindExpert(windId, source, epoch)
         }
     }
 
@@ -3102,10 +3245,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  reprograma ell sol per quan acabi el proper esdeveniment del seu
      *  tema (partit, llançament…): el primer cop corre ara i ell decideix
      *  quan mirar altra vegada. L'id és wind-<vent>: el backend el tracta. */
-    fun ensureWindHeartbeat(wind: Wind, on: Boolean) {
+    fun ensureWindHeartbeat(wind: Wind, on: Boolean, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
-                val api = _conn.value.api()
+                val api = source.api()
                 val jobId = "wind-" + wind.id
                 val jobs = withContext(Dispatchers.IO) { api.getJobs() }
                 val existing = jobs.firstOrNull { it.id == jobId }
@@ -3121,14 +3265,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         // Primera mirada ara: el mateix vent programa la següent.
                         api.runJob(jobId)
                     }
+                } else if (on && existing != null && !existing.enabled) {
+                    withContext(Dispatchers.IO) { api.saveJob(existing.copy(enabled = true)) }
                 } else if (!on && existing != null) {
                     withContext(Dispatchers.IO) { api.deleteJob(jobId) }
                 }
-                if (_conn.value.local) {
-                    val current = withContext(Dispatchers.IO) { api.getJobs() }
-                    JobAlarms.sync(appContext, current)
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                val current = withContext(Dispatchers.IO) { api.getJobs() }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                check(if (on) current.any { it.id == jobId && it.enabled } else current.none { it.id == jobId }) {
+                    "Heartbeat state could not be verified"
                 }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+                _jobs.value = current
+                if (source.local) JobAlarms.sync(appContext, current)
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+            }
         }
     }
 
@@ -3474,15 +3627,26 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun saveVentMemoria(windId: String, memoria: String) {
+    fun saveVentMemoria(windId: String, memoria: String, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { source.api().saveWindMemoria(windId, memoria) }
+                val readback = withContext(Dispatchers.IO) {
+                    val api = source.api()
+                    api.saveWindMemoria(windId, memoria)
+                    api.getWindMemoria(windId)
+                }
                 if (!isCompanionOrigin(source, epoch)) return@launch
-                val (oldMem, coneix) = _ventDetall.value[windId] ?: ("" to emptyList())
-                _ventDetall.value = _ventDetall.value + (windId to (memoria to coneix))
-            } catch (_: Exception) { }
+                check(readback == memoria) { "Memory readback does not match" }
+                val (_, coneix) = _ventDetall.value[windId] ?: ("" to emptyList())
+                _ventDetall.value = _ventDetall.value + (windId to (readback to coneix))
+                onDone(true)
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) {
+                    notify(appText("app.status.company", e.message.orEmpty()))
+                    onDone(false)
+                }
+            }
         }
     }
 

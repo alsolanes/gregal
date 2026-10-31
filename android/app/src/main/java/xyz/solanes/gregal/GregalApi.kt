@@ -628,6 +628,55 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/coneixements", "DELETE", JSONObject().put("wind", windId).put("nom", nom).toString()))
     }
 
+    /** Information snapshots, not conversation backups. Record IDs are NOT wind IDs. */
+    data class WindLibraryItem(
+        val id: String, val kind: String, val wind: Wind,
+        val memory: String = "", val knowledge: String = "",
+        val skills: List<Coneixement> = emptyList(), val created: String = "", val origin: String = "",
+    ) {
+        val restorable: Boolean get() = kind == "archived" || kind == "recovered"
+        // Active/recovered snapshots get a new timestamp on every GET.
+        fun sameInformation(other: WindLibraryItem): Boolean =
+            id == other.id && kind == other.kind && wind == other.wind && memory == other.memory &&
+                knowledge == other.knowledge && skills.sortedBy { it.nom } == other.skills.sortedBy { it.nom }
+    }
+
+    companion object {
+        fun parseWindLibrary(raw: String): List<WindLibraryItem> {
+            val items = JSONObject(raw).getJSONArray("items")
+            return (0 until items.length()).map { i ->
+                val item = items.getJSONObject(i)
+                val wind = Wind.parse(JSONObject().put("winds", JSONArray().put(item.getJSONObject("wind"))).toString()).single()
+                require(item.getString("id").isNotBlank() && wind.id.isNotBlank()) { "Invalid library identity" }
+                val skills = item.optJSONArray("skills") ?: JSONArray()
+                WindLibraryItem(item.getString("id"), item.getString("kind"), wind,
+                    item.optString("memory"), item.optString("knowledge"),
+                    (0 until skills.length()).map { j ->
+                        val sk = skills.getJSONObject(j)
+                        // Library serializes skills.Skill directly (Go exported field names).
+                        // The dedicated skills endpoints use lowercase DTO fields instead.
+                        fun field(lower: String, go: String) = if (sk.has(go)) sk.getString(go) else sk.optString(lower)
+                        val name = field("nom", "Nom")
+                        require(name.isNotBlank()) { "Invalid library skill" }
+                        Coneixement(name, field("titol", "Titol"), field("descripcio", "Descripcio"), field("cos", "Cos"))
+                    }, item.optString("created"), item.optString("origin"))
+            }
+        }
+    }
+
+    fun getWindLibrary(): List<WindLibraryItem> = parseWindLibrary(read(conn("/api/winds/library", "GET")))
+
+    fun restoreWindLibrary(sourceId: String) {
+        val result = post("/api/winds/library", JSONObject().put("action", "restore").put("source", sourceId))
+        check(result.optBoolean("ok")) { "Restore was not acknowledged" }
+    }
+
+    fun assignWindLibrary(sourceId: String, targetId: String, memory: Boolean, knowledge: Boolean) {
+        val result = post("/api/winds/library", JSONObject().put("action", "assign").put("source", sourceId)
+            .put("target", targetId).put("memory", memory).put("knowledge", knowledge))
+        check(result.optBoolean("ok")) { "Assignment was not acknowledged" }
+    }
+
     /** Resum de tots els vents: rol + índex de coneixements (selector de membres). */
     data class WindResum(val id: String, val nom: String, val rol: String, val coneixements: List<Coneixement>)
 
@@ -1118,7 +1167,7 @@ class GregalApi(val base: String, val token: String) {
             JobItem(
                 id = j.optString("id"), name = j.optString("name"), prompt = j.optString("prompt"),
                 kind = j.optString("kind", "manual"), time = j.optString("time"),
-                intervalH = j.optDouble("interval_h"), enabled = j.optBoolean("enabled"),
+                intervalH = j.optDouble("interval_h", 0.0), enabled = j.optBoolean("enabled"),
                 notify = j.optBoolean("notify", true), lastStatus = j.optString("last_status"),
                 nextDue = j.optString("next_due"),
                 lastAt = j.optString("last_at"), nextDueAt = j.optString("next_due_at"),

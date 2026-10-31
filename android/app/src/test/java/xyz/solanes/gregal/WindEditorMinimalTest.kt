@@ -33,7 +33,7 @@ class WindEditorMinimalTest {
         ui.onNodeWithText(tr("ca", "app.company.windShape_s")).performClick()
         ui.onNodeWithContentDescription(tr("ca", "app.vents.colorChoice", "2")).performClick()
         restore.emulateSavedInstanceStateRestore()
-        ui.onNodeWithText("Brisa").assertExists()
+        ui.onNode(hasText("Brisa") and hasSetTextAction()).assertExists()
         ui.onNodeWithText(tr("ca", "app.company.windShape_s")).assertIsSelected()
         ui.onNodeWithContentDescription(tr("ca", "app.vents.colorChoice", "2")).assertIsSelected()
     }
@@ -163,7 +163,7 @@ class WindEditorMinimalTest {
         ui.onNodeWithText(tr("ca", "app.vents.changePreset")).performScrollTo().performClick()
         ui.onNodeWithContentDescription(tr("ca", "app.vents.back")).performClick()
         ui.runOnIdle { assertFalse(closed) }
-        ui.onNodeWithText("Brisa").assertExists()
+        ui.onNode(hasText("Brisa") and hasSetTextAction()).assertExists()
         ui.onNodeWithText(tr("ca", "app.vents.changePreset")).performScrollTo().performClick()
         ui.onNodeWithText("Marinada").performScrollTo().performClick()
         ui.onNode(hasSetTextAction() and hasText(tr("ca", "app.vents.personality"))).assertDoesNotExist()

@@ -75,6 +75,8 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val temaApp by vm.temaApp.collectAsState()
     val idioma by vm.idioma.collectAsState()
     val idiomaChoice by vm.idiomaChoice.collectAsState()
+    val capHome by vm.capHome.collectAsState()
+    val expressiveMotion by vm.expressiveMotion.collectAsState()
     val st by vm.state.collectAsState()
     val updateMsg by vm.updateMsg.collectAsState()
     val info by vm.update.collectAsState()
@@ -162,6 +164,13 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(10.dp))
                     ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
+                }
+
+                PrefsSection(t("prefs.vents"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                    PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
+                    HorizontalDivider(color = Line.copy(alpha = .5f))
+                    PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
                 }
 
                 PrefsSection(t("prefs.reviewer"))
@@ -252,6 +261,18 @@ private fun PrefsSection(text: String) {
         text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
         modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
     )
+}
+
+@Composable
+private fun PreferenceSwitchRow(title: String, help: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChecked).padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(help, color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        }
+        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+    }
 }
 
 /** Un quadre del selector de temes: mini conversa amb la paleta de debò. */

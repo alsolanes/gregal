@@ -31,6 +31,16 @@ L'edició explícita de coneixements substitueix tot el text del vent (màxim 24
 
 ## Verificació reproduïble
 
+## Pass Android 1.44
+
+- La portada és conversa-primer: el Ventet es pot fixar a l’inici des de Preferències, però per defecte no desplaça els fils. La gestió de Vents continua al directori i la creació passa per una sola acció `+`.
+- Els Programats consideren també les rutines LLM reals en el seu estat buit. Des del perfil, el cor del Vent es desa i es torna a llegir abans de deixar l’interruptor, inclòs quan es reactiva un job existent.
+- El canvi d’origen buida totes les memòries auxiliars de Vents i cancel·la el polling d’experts; les respostes tardanes d’un altre servidor no poden repoblar el perfil actual. La càrrega de portada usa resums i deixa l’última organització bona si el GET falla.
+- La memòria pròpia manté l’edició oberta si el desat falla. El moviment decoratiu és quiet per defecte i es pot activar amb **Moviment expressiu**; les cares i indicadors continuen mostrant treball real.
+- Els xats individuals del creador són d’un sol vent; les rotllanes mantenen selecció múltiple. El preview Vents és `1.44.0-vents` / `vc145`.
+
+La direcció d’interacció pren com a referència la separació entre autoria i context de [SillyTavern Character Design](https://docs.sillytavern.app/usage/core-concepts/characterdesign), la gestió de converses de [Kindroid Groupchats](https://docs.kindroid.ai/docs/groupchats) i la memòria editable de [Kindroid](https://kindroid.ai/v2/docs/memory). Són referències d’usabilitat, no promeses de capacitat ni còpia de producte.
+
 ```sh
 # Go (en un entorn amb Go 1.27.1)
 go test ./...

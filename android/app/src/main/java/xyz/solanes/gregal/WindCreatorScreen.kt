@@ -155,9 +155,22 @@ internal fun WindEditor(
             // The face owns the canvas: no halo, duplicate title, or preset wall before creation.
             val face = windStyleOf(style)
             val controlsEnabled = !saving && !suggesting
-            Box(Modifier.fillMaxWidth().height(156.dp).testTag("wind-editor-preview"), contentAlignment = Alignment.Center) {
-                WindFace(size = 144, accent = Color(Wind("", "", color, "").argb),
-                    style = face, tappable = !saving)
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = Color(Wind("", "", color, "").argb).copy(alpha = .10f),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(Wind("", "", color, "").argb).copy(alpha = .28f)),
+                modifier = Modifier.fillMaxWidth().testTag("wind-editor-preview"),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (lang == "en") "Identity preview" else "Previsualització de la identitat", color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        WindFace(size = 118, accent = Color(Wind("", "", color, "").argb), style = face, tappable = !saving)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(name.ifBlank { if (lang == "en") "Your wind" else "El teu vent" }, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(role.ifBlank { if (lang == "en") "A companion with a clear purpose" else "Un company amb un propòsit clar" }, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3)
+                        }
+                    }
+                }
             }
             OutlinedTextField(name, { name = it }, enabled = controlsEnabled,
                 label = { Text(tr(lang, "app.company.windName")) }, singleLine = true,

@@ -85,7 +85,7 @@ import androidx.compose.ui.unit.sp
 fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
     val lang by vm.idioma.collectAsState()
     Box(Modifier.fillMaxSize()) {
-        VentsHome(vm, lang, openDrawer) { }
+        VentsHome(vm, lang, openDrawer, openPet = { })
         Box(Modifier.align(Alignment.BottomCenter).imePadding().padding(start = 16.dp, end = 16.dp, bottom = 88.dp)) {
             NoticeHost(vm)
         }
@@ -101,7 +101,7 @@ fun CompanyScreen(vm: GregalViewModel, openDrawer: () -> Unit) {
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet: (Pet?) -> Unit) {
+fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLibrary: () -> Unit = {}, openPet: (Pet?) -> Unit) {
     var feinesOpen by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
     var gamesOpen by remember { mutableStateOf(false) }
@@ -124,6 +124,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val chats by vm.windChat.collectAsState()
     val rChats by vm.rotllanaChat.collectAsState()
     val wmeta by vm.windsMeta.collectAsState()
+    val capHome by vm.capHome.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val rBusy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
@@ -186,6 +187,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
     val capUi by vm.cap.collectAsState()
     var whereOpen by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
+    var exploreOpen by remember { mutableStateOf(false) }
+    var libraryOpen by remember { mutableStateOf(false) }
+    var inboxFilter by rememberSaveable { mutableStateOf("all") }
     androidx.activity.compose.BackHandler(enabled = manage && open == null && !creator.first) { manage = false }
     androidx.activity.compose.BackHandler(enabled = searching && !manage && open == null && !creator.first && creation == null) {
         searching = false; query = ""
@@ -221,6 +225,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                         actions = {
                             if (!manage) {
                                 WhereChip(vm, lang) { whereOpen = true }
+                                IconButton(onClick = { exploreOpen = !exploreOpen }) {
+                                    Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
+                                }
                                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                                     Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
@@ -261,6 +268,14 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             ),
                         )
                     }
+                    if (!manage && !searching) {
+                        VentsInboxFilters(lang, inboxFilter) { inboxFilter = it }
+                        if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"), pluginOn("arena"),
+                            onCorner = { cornerOpen = true; exploreOpen = false },
+                            onGames = { gamesOpen = true; exploreOpen = false },
+                            onArena = { arenaOpen = true; exploreOpen = false },
+                            onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false })
+                    }
                 }
             }) { pad ->
             LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -278,13 +293,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                     // Portada: el Ventet fixat a dalt i les converses just a sota. Els
                     // personatges són al directori; programats, biblioteca i feines,
                     // al menú «+»; la feina en marxa, una línia que només surt si n'hi ha.
-                    if (query.isBlank()) item { VentetRow(lang, capUi, summaries["cap"]) { vm.openVentsChat("cap") } }
+                    if (query.isBlank() && capHome) item { VentetRow(lang, capUi, summaries["cap"]) { vm.openVentsChat("cap") } }
                     // El Racó: la pàgina que fan els vents sols.
-                    if (query.isBlank() && pluginOn("corner")) item { CornerRow(lang) { cornerOpen = true } }
-                    // Partits de futbol americà entre els vents.
-                    if (query.isBlank() && pluginOn("games")) item { GamesRow(lang) { gamesOpen = true } }
-                    // L'Arena: competició de prompts entre .md.
-                    if (query.isBlank() && pluginOn("arena")) item { ArenaRow(lang) { arenaOpen = true } }
                     if (query.isBlank() && anyRunning) item {
                         RunningWorkLine(lang, windTasks.orEmpty().count { it.running }) { feinesOpen = true }
                     }
@@ -314,9 +324,18 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
                             }, lang = lang)
                     }
 
-                    val rows = ventsInbox(winds, rotllanes, chats, rChats, query, summaries)
+                    val allRows = ventsInbox(winds, rotllanes, chats, rChats, query, summaries)
+                    val rows = allRows.filter { row ->
+                        when (inboxFilter) {
+                            "unread" -> row.key.startsWith("wind:") && row.key.substringAfter(':') in news
+                            "groups" -> row.key.startsWith("rot:")
+                            else -> true
+                        }
+                    }
                     if (rows.isEmpty()) item {
-                        if (query.isBlank()) VentsEmpty(lang, true)
+                        if (query.isBlank() && inboxFilter == "unread") EmptyInboxFilter(lang, "unread")
+                        else if (query.isBlank() && inboxFilter == "groups") EmptyInboxFilter(lang, "groups")
+                        else if (query.isBlank()) VentsEmpty(lang, true)
                         else Column(Modifier.fillMaxWidth().padding(32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(tr(lang, "app.vents.searchEmpty"), color = Ink, fontWeight = FontWeight.SemiBold)
                             Text(tr(lang, "app.vents.searchEmptyHelp"), color = Muted, fontSize = 14.sp)
@@ -350,6 +369,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openPet
             }
         }
     }
+    if (libraryOpen) WindLibraryDialog(vm, lang) { libraryOpen = false }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
@@ -768,10 +788,18 @@ internal fun ConversationRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
                     color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (onFavorite != null) Icon(
-                    if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    null, tint = if (favorite) Sea else Muted,
-                    modifier = Modifier.size(16.dp).clickable(onClick = onFavorite))
+                if (onFavorite != null) IconButton(
+                    onClick = onFavorite,
+                    modifier = Modifier.size(48.dp).semantics {
+                        contentDescription = if (favorite) ventsCopy(lang, "removeFavorite") else ventsCopy(lang, "addFavorite")
+                        selected = favorite
+                    },
+                ) {
+                    Icon(
+                        if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = null, tint = if (favorite) Sea else Muted,
+                        modifier = Modifier.size(18.dp))
+                }
                 if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -860,9 +888,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
+        val awayFromLatest by remember { derivedStateOf {
+            msgs.size > 1 && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it < msgs.lastIndex - 1 } == true
+        } }
         var lastViewportH by remember(wind.id) { mutableStateOf(0) }
+        Box(Modifier.weight(1f)) {
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().onSizeChanged { size ->
+            Modifier.fillMaxSize().onSizeChanged { size ->
                 val h = size.height
                 if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
                     val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
@@ -919,6 +951,14 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     }
                 }
             }
+        }
+        if (awayFromLatest) {
+            Surface(
+                onClick = { scope.launch { listState.animateScrollToItem(msgs.lastIndex) } },
+                shape = RoundedCornerShape(999.dp), color = Ink,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
+            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        }
         }
         // Input píndola amb el color del vent + enviament amb resplendor.
         // El desplegable de mencions va just a sobre del camp.
@@ -1032,9 +1072,13 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
+        val awayFromLatest by remember { derivedStateOf {
+            msgs.size > 1 && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it < msgs.lastIndex - 1 } == true
+        } }
         var lastViewportH by remember(rot.id) { mutableStateOf(0) }
+        Box(Modifier.weight(1f)) {
         LazyColumn(
-            Modifier.weight(1f).fillMaxWidth().onSizeChanged { size ->
+            Modifier.fillMaxSize().onSizeChanged { size ->
                 val h = size.height
                 if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
                     val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
@@ -1116,6 +1160,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                     }
                 }
             }
+        }
+        if (awayFromLatest) {
+            Surface(
+                onClick = { scope.launch { listState.animateScrollToItem(msgs.lastIndex) } },
+                shape = RoundedCornerShape(999.dp), color = Ink,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
+            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        }
         }
         mention?.let { q ->
             MentionSuggestions(lang, q, rotAccent) { w ->

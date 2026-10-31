@@ -108,8 +108,7 @@ func (ws *WindStore) SaveMeta(m WindMeta) error {
 		}
 	}
 	d.Meta = &m
-	b, _ := json.MarshalIndent(d, "", "  ")
-	return os.WriteFile(ws.path(), b, 0o644)
+	return ws.writeDisc(d)
 }
 
 func (ws *WindStore) List() ([]Wind, error) {
@@ -181,11 +180,7 @@ func (ws *WindStore) Save(w Wind) (Wind, error) {
 	} else {
 		d.Winds = append(d.Winds, w)
 	}
-	if err := os.MkdirAll(ws.dir, 0o755); err != nil {
-		return Wind{}, err
-	}
-	b, _ := json.MarshalIndent(d, "", "  ")
-	return w, os.WriteFile(ws.path(), b, 0o644)
+	return w, ws.writeDisc(d)
 }
 
 func (ws *WindStore) Delete(id string) error {
@@ -205,8 +200,24 @@ func (ws *WindStore) Delete(id string) error {
 			out = append(out, w)
 		}
 	}
-	b, _ := json.MarshalIndent(windDisc{Winds: out}, "", "  ")
-	return os.WriteFile(ws.path(), b, 0o644)
+	d.Winds = out
+	if d.Meta != nil {
+		key := "wind:" + id
+		without := func(items []string) []string {
+			kept := make([]string, 0, len(items))
+			for _, item := range items {
+				if item != key {
+					kept = append(kept, item)
+				}
+			}
+			return kept
+		}
+		d.Meta.Favorites = without(d.Meta.Favorites)
+		for i := range d.Meta.Sections {
+			d.Meta.Sections[i].Items = without(d.Meta.Sections[i].Items)
+		}
+	}
+	return ws.writeDisc(d)
 }
 
 // Restore inserts a known identity without deriving its ID from its display name.
@@ -233,6 +244,12 @@ func (ws *WindStore) Restore(w Wind) error {
 		}
 	}
 	d.Winds = append(d.Winds, w)
+	return ws.writeDisc(d)
+}
+
+// writeDisc atomically replaces the complete catalogue while its caller holds ws.mu.
+// Every writer preserves sibling keys such as user-created inbox sections.
+func (ws *WindStore) writeDisc(d windDisc) error {
 	if err := os.MkdirAll(ws.dir, 0o700); err != nil {
 		return err
 	}

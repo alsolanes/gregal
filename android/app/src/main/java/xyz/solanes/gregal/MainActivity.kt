@@ -110,6 +110,10 @@ class Prefs(val ctx: Context) {
     var capHome: Boolean
         get() = p.getBoolean("capHome", false)
         set(v) { p.edit().putBoolean("capHome", v).apply() }
+    /** Decorative face/composer motion is opt-in; event motion follows real work. */
+    var expressiveMotion: Boolean
+        get() = p.getBoolean("expressiveMotion", false)
+        set(v) { p.edit().putBoolean("expressiveMotion", v).apply() }
     /** Esborrany del composer: el que havies escrit no es perd. */
     var esborrany: String
         get() = p.getString("esborrany", "") ?: ""
@@ -218,7 +222,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
-            CompositionLocalProvider(LocalPal provides pal, androidx.compose.ui.platform.LocalUriHandler provides uris) {
+            CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides vm.expressiveMotion.collectAsState().value, androidx.compose.ui.platform.LocalUriHandler provides uris) {
             MaterialTheme(colorScheme = scheme, typography = gregalTypography()) {
                 val screen by vm.screen.collectAsState()
                 val connected by vm.connected.collectAsState()

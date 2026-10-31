@@ -82,7 +82,9 @@ internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean,
             winds.forEach { wind ->
                 WindMemberRow(lang, wind, resum[wind.id],
                     checked = wind.id in members,
-                    onToggle = { checked -> members = if (checked) members + wind.id else members - wind.id })
+                    onToggle = { checked -> members = if (group) {
+                        if (checked) members + wind.id else members - wind.id
+                    } else if (checked) setOf(wind.id) else emptySet() })
             }
         }
     }

@@ -32,19 +32,22 @@ internal fun VentsChatHeader(
     mood: WindMood, faces: List<Wind> = emptyList(), onBack: () -> Unit, onProfile: () -> Unit,
     onWiki: (() -> Unit)? = null,
 ) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).background(Superficie).padding(horizontal = 4.dp),
+    Column(Modifier.fillMaxWidth().background(Superficie)) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 62.dp).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "app.vents.back"), tint = Ink) }
         Row(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).clickable(onClick = onProfile).padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             WindHalo(accent, style, size = 34, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (onWiki != null) IconButton(onClick = onWiki) { Icon(Icons.Rounded.AutoStories, tr(lang, "app.wiki.summarize"), tint = Ink) }
         IconButton(onClick = onProfile) { Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.profile"), tint = Ink) }
+    }
+    androidx.compose.material3.HorizontalDivider(color = Line.copy(alpha = .55f), thickness = 1.dp)
     }
 }
 
@@ -58,13 +61,14 @@ internal fun VentsComposer(
     busy: Boolean = false,
     onSend: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 16.dp, vertical = 10.dp),
+    Row(Modifier.fillMaxWidth().background(Superficie).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = field, onValueChange = onChange,
             placeholder = { Text(hint, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
             shape = RoundedCornerShape(26.dp), maxLines = 4,
-            modifier = Modifier.weight(1f).workingRing(active = busy, corner = 26.dp),
+            modifier = Modifier.weight(1f).workingRing(active = busy, corner = 26.dp)
+                .padding(vertical = 1.dp),
             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrect = true, keyboardType = KeyboardType.Text),
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = LineHi, unfocusedBorderColor = Color.Transparent,
@@ -73,7 +77,7 @@ internal fun VentsComposer(
             ),
         )
         IconButton(onClick = onSend, enabled = canSend,
-            modifier = Modifier.padding(bottom = 4.dp).size(48.dp).clip(CircleShape)
+            modifier = Modifier.padding(bottom = 3.dp).size(48.dp).clip(CircleShape)
                 .background(if (canSend) Ink else SuperficieAlta)) {
             Icon(Icons.AutoMirrored.Rounded.Send, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
         }

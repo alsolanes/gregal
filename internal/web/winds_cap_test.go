@@ -242,10 +242,10 @@ func TestResumsDeConverses(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s := goalTestServer(t)
 	mar, _ := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres"})
-	h := windHistory(s, mar.ID)
-	h.mu.Lock()
-	h.messages = append(h.messages, llm.Message{Role: "user", Content: "hola", Ts: 100}, llm.Message{Role: "assistant", Content: "Bon dia!", Ts: 200})
-	h.mu.Unlock()
+	// Inbox summaries describe durable commits, never an unsaved live buffer.
+	if err := saveWindHistory(s, mar, []llm.Message{{Role: "user", Content: "hola", Ts: 100}, {Role: "assistant", Content: "Bon dia!", Ts: 200}}); err != nil {
+		t.Fatal(err)
+	}
 	capMu.Lock()
 	st := s.loadCap()
 	st.History = append(st.History, capMsg{From: "cap", Text: "Tot tranquil", Ts: 300})

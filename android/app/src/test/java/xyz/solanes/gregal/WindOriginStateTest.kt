@@ -34,6 +34,8 @@ class WindOriginStateTest {
         seed(v, "_windChat", mapOf(w.id to listOf(GregalViewModel.PetMsg("pet", "privat"))))
         seed(v, "_rotllanes", listOf(Rotllana("group", "Casa", listOf(w.id))))
         seed(v, "_rotllanaChat", mapOf("group" to listOf(GregalViewModel.PetMsg("user", "privat"))))
+        seed(v, "_windLibrary", GregalViewModel.WindLibraryState(items = listOf(
+            GregalApi.WindLibraryItem("archive-private", "archived", w, memory = "private snapshot")), pending = "archive-private"))
         v.setActiveWind(w)
         seed(v, "_windProfile", WindProfile(w, "privat", "memòria personal"))
         v.openVentsChat("wind:${w.id}")
@@ -47,6 +49,47 @@ class WindOriginStateTest {
         assertNull(v.windProfile.value)
         assertNull(v.ventsOpen.value)
         assertFalse(v.windCreator.value.first)
+        assertNull(v.windLibrary.value.items)
+        assertNull(v.windLibrary.value.pending)
+        assertNull(v.windLibrary.value.error)
+    }
+
+    @Test fun lateLibraryFromPreviousGenerationCannotLeakAfterSwitchingAwayAndBack() {
+        val requested = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        val responded = CountDownLatch(1)
+        val server = ServerSocket(0)
+        val worker = thread(isDaemon = true) {
+            server.accept().use { socket ->
+                val reader = socket.getInputStream().bufferedReader()
+                while (!reader.readLine().isNullOrEmpty()) { }
+                requested.countDown()
+                release.await(4, TimeUnit.SECONDS)
+                val body = """{"items":[{"id":"archive","kind":"archived","wind":{"id":"same","name":"Private A"},"memory":"secret"}]}""".toByteArray()
+                socket.getOutputStream().apply {
+                    write("HTTP/1.1 200 OK\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                    write(body); flush()
+                }
+                responded.countDown()
+            }
+        }
+        try {
+            val v = vm()
+            val a = Conn("127.0.0.1", server.localPort.toString(), "token-a", "alice")
+            v.setConn(a)
+            v.loadWindLibrary()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(requested.await(3, TimeUnit.SECONDS))
+            v.setConn(a.copy(token = "token-b"))
+            v.setConn(a)
+            val generation = v.windLibrary.value.generation
+            release.countDown()
+            assertTrue(responded.await(3, TimeUnit.SECONDS))
+            repeat(20) { Thread.sleep(20); shadowOf(Looper.getMainLooper()).idle() }
+            assertNull(v.windLibrary.value.items)
+            assertFalse(v.windLibrary.value.loading)
+            assertEquals(generation, v.windLibrary.value.generation)
+        } finally { release.countDown(); server.close(); worker.join(1000) }
     }
 
     @Test fun lateCatalogFromPreviousOriginCannotRepopulateNewAccount() {

@@ -1,6 +1,52 @@
 package companion
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
+
+func TestWindDeletePreservesUnrelatedOrganization(t *testing.T) {
+	store := NewWindStore(t.TempDir())
+	removed, err := store.Save(Wind{Name: "North"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	kept, err := store.Save(Wind{Name: "South"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta := WindMeta{
+		Favorites: []string{"wind:" + removed.ID, "wind:" + kept.ID, "rot:weekend"},
+		Sections: []WindSection{
+			{ID: "first", Name: "Shared", Items: []string{"wind:" + removed.ID, "wind:" + kept.ID, "rot:weekend"}},
+			{ID: "empty", Name: "Keep this section", Items: []string{"wind:" + removed.ID}},
+		},
+	}
+	if err := store.SaveMeta(meta); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(removed.ID); err != nil {
+		t.Fatal(err)
+	}
+	want := WindMeta{
+		Favorites: []string{"wind:" + kept.ID, "rot:weekend"},
+		Sections: []WindSection{
+			{ID: "first", Name: "Shared", Items: []string{"wind:" + kept.ID, "rot:weekend"}},
+			{ID: "empty", Name: "Keep this section", Items: []string{}},
+		},
+	}
+	got, err := store.Meta()
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("delete lost unrelated organization: got %+v, want %+v (error %v)", got, want, err)
+	}
+	if err := store.Restore(removed); err != nil {
+		t.Fatal(err)
+	}
+	afterRestore, err := store.Meta()
+	if err != nil || !reflect.DeepEqual(afterRestore, want) {
+		t.Fatalf("restore changed organization: %+v (%v)", afterRestore, err)
+	}
+}
 
 func TestWindEditKeepsExplicitIDAndPersona(t *testing.T) {
 	ws := NewWindStore(t.TempDir())

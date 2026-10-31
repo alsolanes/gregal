@@ -97,7 +97,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                             OutlinedButton(onClick = { vm.loadProgramats() }) { Text(tr(lang, "app.jobs.retry")) }
                         }
                     }
-                    p.reminders.isEmpty() && p.hearts.isEmpty() && p.stats.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    p.reminders.isEmpty() && p.hearts.isEmpty() && p.stats.isEmpty() && rutines.orEmpty().isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(32.dp)) {
                             Text("🌤", fontSize = 40.sp)
                             Text(tr(lang, "app.programats.empty"), color = Ink, fontWeight = FontWeight.SemiBold)
@@ -151,16 +151,16 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
             }
         }
     }
-    if (showNovaRutina) NovaRutinaDialog(vm, lang) { showNovaRutina = false }
+    if (showNovaRutina) NovaRutinaDialog(vm, lang, onDismiss = { showNovaRutina = false })
 }
 
 /** Diàleg «Nova rutina»: tria vent, quan corre i què vigila. La rutina obre
  * un torn real del vent (LLM + eines), no un text preescrit. */
 @Composable
-private fun NovaRutinaDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit) {
+internal fun NovaRutinaDialog(vm: GregalViewModel, lang: String, preselectedWind: String? = null, onDismiss: () -> Unit) {
     val winds by vm.winds.collectAsState()
     val busy by vm.rutinaBusy.collectAsState()
-    var windId by remember { mutableStateOf(winds.firstOrNull()?.id ?: "") }
+    var windId by remember(preselectedWind, winds) { mutableStateOf(preselectedWind ?: winds.firstOrNull()?.id ?: "") }
     var kind by remember { mutableStateOf("daily") }
     var hora by remember { mutableStateOf("09:00") }
     var hores by remember { mutableStateOf("6") }

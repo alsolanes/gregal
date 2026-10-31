@@ -31,6 +31,17 @@ class VentsExperienceTest {
         ui.onNodeWithText("No s’ha pogut enviar. Torna-ho a provar.").assertExists()
     }
 
+    @Test fun libraryEntryOpensTheRealRecoveryDialog() {
+        val vm = vm()
+        ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+            MaterialTheme(colorScheme = LightPal.scheme()) { CompanyScreen(vm) {} }
+        } }
+        val lang = vm.idioma.value
+        ui.onNodeWithContentDescription(ventsCopy(lang, "explore")).performClick()
+        ui.onNodeWithText(ventsCopy(lang, "library")).performClick()
+        ui.onNodeWithText(tr(lang, "app.library.about")).assertExists()
+    }
+
     @Test fun homeSeparatesConversationsFromWindManagementAndHasOneCreationMenu() {
         val vm = vm()
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
@@ -50,20 +61,16 @@ class VentsExperienceTest {
         ui.onNodeWithText("Nou vent").assertExists()
     }
 
-    @Test fun homeStartsWithPinnedVentetAndCompactConnection() {
+    @Test fun homeStartsWithConversationsAndCompactConnectionByDefault() {
         val vm = vm()
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
-        // El Ventet és la primera conversa, i la connexió és un indicador petit (sense franja amb explicació).
-        ui.onNodeWithTag("ventet-row").assertExists()
+        // Les converses són el primer pla per defecte; el Ventet continua al menú.
+        ui.onNodeWithTag("ventet-row").assertDoesNotExist()
         ui.onNodeWithTag("where-chip").assertExists()
         ui.onNodeWithText(tr("ca", "app.where.phoneHint")).assertDoesNotExist()
         ui.onNodeWithTag("vents-strip").assertDoesNotExist()
-        // Tocar-lo obre la conversa amb el Ventet, amb el camp d'escriptura a baix.
-        ui.onNodeWithTag("ventet-row").performClick()
-        ui.onNodeWithTag("ventet-chat").assertExists()
-        ui.onNodeWithText(tr("ca", "app.cap.hint", "Ventet")).assertExists()
     }
 
     @Test fun editingStartsWithExistingIdentityAndWaitsForConfirmedSave() {
@@ -167,14 +174,14 @@ class VentsExperienceTest {
         val profile = WindProfile(wind, "Coneixement real del servidor", "Memòria personal real")
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
             MaterialTheme(colorScheme = LightPal.scheme()) {
-                WindProfileContent(vm(), "ca", wind, profile, false, null, emptyList(), {}, {}, {}, { _, _ -> error("unexpected write") })
+                WindProfileContent(vm(), "ca", wind, profile, false, null, emptyList(), emptyList(), {}, {}, {}, { _, _ -> error("unexpected write") })
             }
         } }
         ui.onNodeWithText(tr("ca", "app.vents.memory")).performClick()
         ui.onNodeWithText("Coneixement real del servidor").assertExists()
         ui.onNodeWithText("Memòria personal real").assertExists()
-        ui.onNodeWithText(tr("ca", "app.vents.activity")).performClick()
-        ui.onNodeWithText(tr("ca", "app.vents.noActivity")).assertExists()
+        ui.onNodeWithText(tr("ca", "app.vents.plans")).performClick()
+        ui.onNodeWithText(tr("ca", "app.vents.noPlans")).assertExists()
     }
 
     @Test fun groupBubbleLabelsItsActualSpeakerAndOpensTheirProfile() {

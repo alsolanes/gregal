@@ -14,7 +14,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -28,10 +27,11 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
     val busy by vm.windProfileBusy.collectAsState()
     val error by vm.windProfileError.collectAsState()
     val chats by vm.windChat.collectAsState()
-    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadWindChat(wind.id); vm.loadVentDetall(wind.id); vm.loadJobs() }
+    val rutines by vm.rutines.collectAsState()
+    LaunchedEffect(wind.id) { vm.loadWindProfile(wind.id); vm.loadVentDetall(wind.id); vm.loadJobs(); vm.loadRutines() }
     val current = profile?.takeIf { it.wind.id == wind.id }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        WindProfileContent(vm, lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(),
+        WindProfileContent(vm, lang, current?.wind ?: wind, current, busy, error, chats[wind.id].orEmpty(), rutines.orEmpty(),
             onDismiss = onDismiss,
             onRetry = { vm.loadWindProfile(wind.id) },
             onEdit = { onDismiss(); vm.showWindCreator(true, current?.wind ?: wind) },
@@ -43,7 +43,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, profile: WindProfile?, busy: Boolean, error: String?,
-    messages: List<GregalViewModel.PetMsg>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
+    messages: List<GregalViewModel.PetMsg>, routines: List<GregalApi.WindRutina>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
     onSaveKnowledge: (String, (Boolean) -> Unit) -> Unit, onChat: () -> Unit = {}) {
     var tab by remember(wind.id) { mutableStateOf(0) }
     var editing by remember(wind.id) { mutableStateOf(false) }
@@ -51,41 +51,39 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     var saving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
     var confirmForget by remember { mutableStateOf(false) }
+    var createRoutine by remember { mutableStateOf(false) }
+    val accent = Color(wind.argb)
+    val buttonContent = if (contrastWith(accent, Ink) >= 4.5) Ink else Superficie
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
                 Button(onClick = onChat, modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(wind.argb))) {
+                    colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = buttonContent)) {
                     Text(tr(lang, "app.vents.talkTo"))
                 }
             }
         },
         topBar = { TopAppBar(
-            title = { Text(wind.name) },
+            title = { Text(tr(lang, "app.vents.profile"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
             actions = { IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            val accent = Color(wind.argb)
             Box(
                 Modifier.fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(accent.copy(alpha = 0.22f), Color.Transparent)))
-                    .padding(bottom = 20.dp, top = 8.dp),
+                    .padding(horizontal = 20.dp).padding(top = 10.dp, bottom = 14.dp),
                 contentAlignment = Alignment.Center,
             ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                WindHalo(accent = accent, style = wind.faceStyle, size = 92, mood = WindMood.HAPPY, tappable = true)
-                Text(wind.name,
-                    style = androidx.compose.ui.text.TextStyle(
-                        brush = Brush.linearGradient(listOf(Ink, accent)),
-                        fontWeight = FontWeight.Bold, fontSize = 26.sp),
-                )
-                if (wind.role.isNotBlank()) Text(wind.role, color = Muted, modifier = Modifier.padding(horizontal = 24.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                WindHalo(accent = accent, style = wind.faceStyle, size = 76, mood = WindMood.HAPPY, tappable = true)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                    Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = 14.sp, lineHeight = 19.sp)
+                }
             }
             }
             TabRow(selectedTabIndex = tab, containerColor = Superficie) {
-                listOf("character", "memory", "activity").forEachIndexed { index, key ->
+                listOf("character", "memory", "plans").forEachIndexed { index, key ->
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key")) })
                 }
             }
@@ -136,16 +134,21 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         VentSkillsSection(vm, lang, wind)
                     }
                     2 -> {
-                        Text(tr(lang, "app.vents.activityHelp"), color = Muted, fontSize = 13.sp)
+                        Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
+                        Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {
+                            Text(if (lang == "en") "Create routine" else "Crea una rutina")
+                        }
                         bgHealthRow(lang, vm)
                         heartbeatRow(lang, vm, wind)
                         remindersRow(lang, vm, wind)
-                        if (messages.isEmpty()) Text(tr(lang, "app.vents.noActivity"), color = Tinta)
-                        messages.forEach { message ->
+                        val ownRoutines = routines.filter { it.wind == wind.id }
+                        if (ownRoutines.isEmpty()) Text(tr(lang, "app.vents.noPlans"), color = Tinta)
+                        ownRoutines.forEach { routine ->
                             Surface(color = Color(wind.argb).copy(alpha = .08f), shape = MaterialTheme.shapes.medium) {
                                 Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(if (message.from == "user") tr(lang, "app.vents.you") else wind.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    SelectionContainer { Text(message.text, color = Tinta, fontSize = 14.sp) }
+                                    Text(routine.name.ifBlank { tr(lang, "app.rutines.title") }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                    Text(routine.prompt, color = Tinta, fontSize = 14.sp)
+                                    if (routine.nextDueAt.isNotBlank()) Text(tr(lang, "app.vents.nextPlan", routine.nextDueAt), color = Muted, fontSize = 12.sp)
                                 }
                             }
                         }
@@ -161,6 +164,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             onSaveKnowledge("") { success -> saving = false; saveError = !success }
         }) { Text(tr(lang, "app.vents.forgetKnowledge")) } },
         dismissButton = { TextButton(onClick = { confirmForget = false }) { Text(tr(lang, "app.company.windCancel")) } })
+    if (createRoutine) NovaRutinaDialog(vm, lang, preselectedWind = wind.id, onDismiss = { createRoutine = false })
 }
 
 /** Salut del segon pla (mode local): avisa si falta permís d'alarmes
@@ -225,10 +229,7 @@ private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
         Switch(checked = job?.enabled == true, onCheckedChange = { on ->
             if (!pending) {
                 pending = true
-                vm.ensureWindHeartbeat(wind, on)
-                // Refresca l'estat quan el job s'ha creat/esborrat.
-                vm.loadJobs()
-                pending = false
+                vm.ensureWindHeartbeat(wind, on) { pending = false }
             }
         }, enabled = !pending)
     }
@@ -265,10 +266,11 @@ private fun VentMemorySection(vm: GregalViewModel, lang: String, wind: Wind) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(tr(lang, "app.vents.memoryTitle"), color = Ink, fontWeight = FontWeight.SemiBold)
         if (editing) {
-            OutlinedTextField(draft, { draft = it }, minLines = 4, modifier = Modifier.fillMaxWidth())
+            var saving by remember(wind.id) { mutableStateOf(false) }
+            OutlinedTextField(draft, { draft = it }, enabled = !saving, minLines = 4, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { editing = false; vm.saveVentMemoria(wind.id, draft) }) { Text(tr(lang, "app.vents.chatSave")) }
-                TextButton(onClick = { editing = false }) { Text(tr(lang, "app.vents.chatCancel")) }
+                Button(onClick = { saving = true; vm.saveVentMemoria(wind.id, draft) { ok -> saving = false; if (ok) editing = false } }, enabled = !saving) { Text(tr(lang, if (saving) "app.vents.saving" else "app.vents.chatSave")) }
+                TextButton(onClick = { editing = false }, enabled = !saving) { Text(tr(lang, "app.vents.chatCancel")) }
             }
         } else {
             SelectionContainer {
