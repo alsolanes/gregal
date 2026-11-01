@@ -342,6 +342,11 @@ func (s *Server) handleJobSave(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	if j.Wind == "" {
+		if wid, ok := windJobID(j.ID); ok {
+			j.Wind = wid
+		}
+	}
 	j.WindOwner = ""
 	if j.Wind != "" && s.user != nil && !s.user.Tothom {
 		j.WindOwner = s.user.Name

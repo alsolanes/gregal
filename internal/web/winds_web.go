@@ -218,14 +218,15 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
 	defer cancel()
+	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
+	defer doneTurn()
 
-	// El vent busca al web abans de respondre: és un company de cerques.
-	// runReadOnlyLoop li dona web_search/web_fetch (mode inspect: cap eina
-	// d'escriptura) i l'obliguem a respondre curt amb Finalize.
+	// Intentional user turns inherit this session's mode and project policy.
+	// Background callers of the same loop remain read-only.
 	turnStart := time.Now()
-	ctx = s.windDocsCtx(ctx)
+	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
 	isContinue := req.Continue && len(previous) > 0
 	var res exploracio
 	var err error
@@ -240,6 +241,10 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		res, err = windLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatBrief(s, wind, previous, msg))
 	}
 	if err != nil {
+		if tornAturat(err) {
+			writeJSON(w, map[string]any{"error": "aturat", "cancelat": true})
+			return
+		}
 		http.Error(w, redactError(err), http.StatusBadGateway)
 		return
 	}

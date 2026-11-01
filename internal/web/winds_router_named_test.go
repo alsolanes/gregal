@@ -1,10 +1,87 @@
 package web
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"gregal/internal/companion"
+	"gregal/internal/llm"
 )
+
+// No routing request may compete with the actual reply on a busy provider.
+func TestRotllanaSelectionIsLocalAndFair(t *testing.T) {
+	s, _ := companionTestServer(t)
+	id := makeRotllanaTrio(t, s)
+	rot, _ := s.rotllanaByID(id)
+	var requests atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"choices":[{"message":{"role":"assistant","content":"{\"parlen\":[\"tramuntana\"]}"}}]}`))
+	}))
+	defer provider.Close()
+	for name, p := range s.cfg.Providers {
+		p.BaseURL = provider.URL
+		s.cfg.Providers[name] = p
+	}
+	tail := []llm.Message{{Role: "assistant", SpeakerID: "tramuntana", Content: "Tramuntana: hola"}}
+	got := s.routeRotllanaSpeakers(context.Background(), rot, "", "hola a tothom", tail)
+	if requests.Load() != 0 {
+		t.Fatalf("speaker selection called provider %d times", requests.Load())
+	}
+	if len(got) != 1 || got[0].ID != "xaloc" {
+		t.Fatalf("expected least-recently represented wind, got %+v", got)
+	}
+}
+
+func TestRotllanaLocalSelectionSemantics(t *testing.T) {
+	s, _ := companionTestServer(t)
+	id := makeRotllanaTrio(t, s)
+	rot, _ := s.rotllanaByID(id)
+	tail := []llm.Message{{Role: "assistant", Content: "Tramuntana: old reply"}}
+	for _, tc := range []struct{ name, wanted, msg, want string }{
+		{"default fairness with legacy identity", "", "hola", "xaloc"},
+		{"explicit member wins over mention", "llevant", "@Xaloc hola", "llevant"},
+		{"unknown explicit member is not silently replaced", "absent", "hola", ""},
+		{"accent insensitive case", "", "@XALOC hola", "xaloc"},
+		{"word boundaries", "", "Tramuntanada", "xaloc"},
+		{"two named members", "", "@Tramuntana @Llevant", "tramuntana,llevant"},
+		{"two voice cap", "", "Tramuntana Xaloc Llevant", "tramuntana,xaloc"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var ids []string
+			for _, w := range s.routeRotllanaSpeakers(context.Background(), rot, tc.wanted, tc.msg, tail) {
+				ids = append(ids, w.ID)
+			}
+			if got := strings.Join(ids, ","); got != tc.want {
+				t.Fatalf("got=%s want=%s", got, tc.want)
+			}
+		})
+	}
+	members := []companion.Wind{{ID: "a", Name: "Ponent"}, {ID: "b", Name: "Ponent"}}
+	if got := windsNamedIn(members, "@Ponent"); len(got) != 0 {
+		t.Fatalf("ambiguous name chose %+v", got)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if got := s.routeRotllanaSpeakers(ctx, rot, "", "hola", nil); len(got) != 0 {
+		t.Fatal("cancelled selector chose a speaker")
+	}
+	var participation []llm.Message
+	seen := map[string]bool{}
+	for range 3 {
+		got := s.routeRotllanaSpeakers(context.Background(), rot, "", "hola", participation)
+		if len(got) != 1 || seen[got[0].ID] {
+			t.Fatalf("unbalanced participation: %+v", got)
+		}
+		seen[got[0].ID] = true
+		participation = append(participation, llm.Message{Role: "user"}, llm.Message{Role: "assistant", SpeakerID: got[0].ID})
+	}
+}
 
 // TestWindNamedInSkipsRouter: si el missatge nomena un sol vent, respon ell
 // sense passar pel model que tria; un nom dins d'una altra paraula no compta.

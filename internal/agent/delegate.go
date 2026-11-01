@@ -91,13 +91,10 @@ func WithDelegateRunner(ctx context.Context, cfg *config.Config, client *llm.Cli
 }
 
 func copyDelegatePermissions(src config.PermissionsCfg) config.PermissionsCfg {
-	dst := config.PermissionsCfg{
-		Tools:     make(map[string]string, len(src.Tools)),
-		BashAllow: append([]string(nil), src.BashAllow...),
-		BashDeny:  append([]string(nil), src.BashDeny...),
-		Rules:     src.Rules,
-		Subagents: src.Subagents,
-	}
+	dst := src
+	dst.Tools = make(map[string]string, len(src.Tools))
+	dst.BashAllow = append([]string(nil), src.BashAllow...)
+	dst.BashDeny = append([]string(nil), src.BashDeny...)
 	for name, decision := range src.Tools {
 		dst.Tools[name] = decision
 	}

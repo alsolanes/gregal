@@ -97,6 +97,35 @@ func TestDoomEscripturesDeFitxersDiferents(t *testing.T) {
 	}
 }
 
+// Crear deu fitxers numerats (pas1.txt, pas2.txt…) és la feina demanada, no
+// un bucle: la signatura normalitzada els convertia tots en «pas#.txt» i el
+// torn s'aturava al quart fitxer (trobat amb TestWindTurnAcabaTascaLLarga).
+func TestDoomEscripturesNumeradesSonProgres(t *testing.T) {
+	var d DoomTracker
+	for i := 0; i < 10; i++ {
+		sig := DoomSig("write", fmt.Sprintf(`{"path":"pas%d.txt","content":"fet"}`, i))
+		if d.Note(sig) {
+			t.Fatalf("el fitxer pas%d.txt marcat com a repetit", i)
+		}
+	}
+	// El mateix fitxer amb el mateix contingut sí que és bucle, encara que
+	// porti números: la repetició exacta no es relaxa.
+	var e DoomTracker
+	same := DoomSig("write", `{"path":"informe1.txt","content":"igual"}`)
+	e.Note(same)
+	e.Note(same)
+	if !e.Note(same) {
+		t.Fatal("el mateix fitxer numerat 3 cops sí que és bucle")
+	}
+	// Les lectures numerades ja no comptaven i continuen sense comptar.
+	var r DoomTracker
+	for i := 0; i < 8; i++ {
+		if r.Note(DoomSig("read", fmt.Sprintf(`{"path":"f%d.go"}`, i))) {
+			t.Fatalf("llegir f%d.go marcat com a repetit", i)
+		}
+	}
+}
+
 // Mateixa sortida exacta 3 cops = repetició (NoteOut).
 func TestDoomMateixaSortidaATres(t *testing.T) {
 	var d DoomTracker

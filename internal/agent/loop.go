@@ -5,10 +5,10 @@ package agent
 
 import (
 	"context"
-	"log"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -274,6 +274,10 @@ type Policy struct {
 	// ProjectDir habilita el pas automàtic d'escriptures (write/edit) en
 	// mode code o autònom quan la ruta queda dins. Buit = ask.
 	ProjectDir string
+	// AlsoDirs són carpetes escrivibles a més del ProjectDir (per exemple el
+	// repo del Gregal mentre el vent treballa a la carpeta de projectes: una
+	// feina sobre el Gregal no s'ha de trencar per la ubicació per defecte).
+	AlsoDirs []string
 	// AskEdits és el permís «Demana abans de canviar» (access.go): en
 	// code i debug les escriptures dins del projecte també pregunten.
 	AskEdits bool
@@ -587,7 +591,7 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			}
 			// «Demana abans de canviar»: l'autònom no en fa cas (no
 			// pregunta mai).
-			if (!p.AskEdits || mode == ModeAutonomous) && InsideProject(p.ProjectDir, toolPath(name, argsJSON)) {
+			if (!p.AskEdits || mode == ModeAutonomous) && p.writablePath(name, argsJSON) {
 				return "allow", ""
 			}
 		}
@@ -1224,6 +1228,16 @@ type Loop struct {
 	Parcial bool
 	// Motiu és per què és parcial: "steps" o el text de l'error.
 	Motiu string
+	// Esgotat diu que s'ha acabat el pressupost amb feina a mitges i que
+	// NO s'ha sintetitzat res (només amb SenseTancarPassos): el torn pot
+	// continuar sol amb Continua, sense ensenyar cap resum a mig camí.
+	Esgotat bool
+	// SenseTancarPassos fa que esgotar el pressupost torni el control al
+	// cridador (Esgotat=true) en comptes de tancar amb una síntesi. És el
+	// que permet encadenar rondes fins a acabar la feina, com fan els
+	// agents que no pregunten res (Claude Code, Codex): primer s'acaba,
+	// després es resumeix.
+	SenseTancarPassos bool
 	// Hist és l'historial sencer, amb la resposta final (per continuar).
 	Hist []llm.Message
 }
@@ -1251,12 +1265,21 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 	if max <= 0 {
 		max = 10
 	}
-	l.Parcial, l.Motiu, l.Hist = false, "", nil
+	l.Parcial, l.Motiu, l.Esgotat, l.Hist = false, "", false, nil
 	doom := &DoomTracker{}
+	retallades := 0
 	for i := 0; i < max; i++ {
 		hist = AmbAvisPassos(hist, i+1, max)
 		content, calls, err := l.Step(ctx, hist)
 		if err != nil {
+			// La conversa no hi cap: s'escurça i es reintenta el mateix pas
+			// (no és un error passatger: la mateixa petició fallaria igual).
+			if retallades < maxRetallades && ctx.Err() == nil && EsErrorContext(err.Error()) {
+				retallades++
+				hist = contextRetallat(hist, retallades)
+				i--
+				continue
+			}
 			// Cancel·lat per l'usuari, o sense res fet encara: no hi ha
 			// feina a salvar i l'error és la resposta honesta.
 			if errors.Is(ctx.Err(), context.Canceled) || i == 0 {
@@ -1305,6 +1328,12 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 				ToolCallID: c.ID, Name: c.Function.Name,
 			})
 		}
+	}
+	if l.SenseTancarPassos {
+		// Pressupost gastat amb feina a mitges: es torna el control sense
+		// síntesi perquè el cridador pugui continuar (auto-continuació).
+		l.Esgotat, l.Hist = true, hist
+		return "", hist, nil
 	}
 	return l.tanca(ctx, hist, MotiuPassos)
 }

@@ -518,7 +518,7 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	}
 	windLibraryMu.Unlock()
 	s.mu.Lock()
-	workspace := s.cwd
+	workspace, _ := s.ventWorkspaceLocked()
 	s.mu.Unlock()
 	rot, err := s.saveRotllana(Rotllana{Name: oneLine(task, 60), Members: members, Workspace: workspace})
 	if err != nil {
@@ -605,7 +605,10 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 	// phone that summoned it, so closing a session must not stop it.
 	runCtx := ctx
 	s.mu.Lock()
-	cfg, client, workspace := s.cfg, s.client, s.cwd
+	cfg, client := s.cfg, s.client
+	// Una colla que fa feina per a la persona treballa a la carpeta de
+	// projectes, no a l'arrel del repo del Gregal.
+	workspace, _ := s.ventWorkspaceLocked()
 	provider, role := s.roleRef()
 	s.mu.Unlock()
 	defer func() {

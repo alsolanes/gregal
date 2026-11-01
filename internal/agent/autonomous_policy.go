@@ -122,6 +122,76 @@ func (p *Policy) decideAutonomous(name, argsJSON string) (string, string, bool) 
 	return "", "", false
 }
 
+// WindAutoAllow diu si un «ask» d'un torn interactiu de vent/colla es pot
+// aprovar sol. Aquests torns no tenen cap UI d'aprovació: un «ask» no el
+// pot respondre ningú i l'eina queda sense executar («REQUIRES APPROVAL»),
+// de manera que demanar codi al vent sempre acaba en «falta permís».
+// La instrucció explícita del xat JA és l'aprovació per a la feina
+// d'aquí: escriure i executar dins del projecte, sense res destructiu.
+// Continua manant tot «deny» (classificador: sudo, curl a internet…;
+// regles explícites del config), i queden fora: esborrats/perilloses,
+// escriure fora del projecte, commits i PRs, serveis externs (MCP) i notes
+// globals. Per a això cal el xat principal.
+func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
+	projecte := ""
+	var allow, deny []string
+	if p != nil {
+		projecte = p.ProjectDir
+		allow, deny = p.BashAllow, p.BashDeny
+	}
+	// Un permís explícit del config (el més restrictiu) mana: l'autoaprovat
+	// del xat no el relaxa mai.
+	if p != nil {
+		if d, _, ok := p.ruleDecision(name, argsJSON); ok && d != "allow" {
+			return false
+		}
+		if name == "bash" || name == "bash_background" {
+			if d, _, ok := p.ruleDecision("bash", argsJSON); ok && d != "allow" {
+				return false
+			}
+			if d, _, ok := p.ruleDecision("bash_background", argsJSON); ok && d != "allow" {
+				return false
+			}
+			if bashPermissionOverride(p) != "" && bashPermissionOverride(p) != "allow" {
+				return false
+			}
+		} else if d, ok := p.Tools[name]; ok && d != "allow" {
+			return false
+		}
+	}
+	switch name {
+	case "write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create":
+		return projecte != "" && InsideProject(projecte, toolPath(name, argsJSON))
+	case "lsp":
+		// Renombrar símbols toca diversos fitxers: només dins del projecte.
+		// Consultar (definition, references, hover, diagnostics) no canvia res.
+		if !lspEsRename(argsJSON) {
+			return true
+		}
+		return projecte != "" && InsideProject(projecte, toolPath(name, argsJSON))
+	case "knowledge_note":
+		// Una nota global la veurien tots els projectes: això es queda per
+		// al xat principal, on la persona ho pot confirmar.
+		return knowledge.NoteScope(knowledge.Where{Project: projecte, Session: procSession}, argsJSON) != knowledge.ScopeGlobal
+	case "bash", "bash_background":
+		var a struct {
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		if d, _ := tools.ClassifyWith(a.Command, allow, deny); d == "deny" {
+			return false
+		}
+		if perillosa.MatchString(a.Command) {
+			return false
+		}
+		if escriuFora(a.Command, projecte) {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
 // escriuFora diu si una ordre amb un verb d'escriptura apunta a un camí
 // fora del projecte (absolut, ~ o ..). Sense projecte conegut, qualsevol
 // camí absolut d'escriptura compta com a fora.

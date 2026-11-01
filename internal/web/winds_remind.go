@@ -157,6 +157,10 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	if len([]rune(msg)) > remindMaxText {
 		return jobs.Job{}, fmt.Errorf("text massa llarg")
 	}
+	owner := ""
+	if s.user != nil && !s.user.Tothom {
+		owner = s.user.Name
+	}
 	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().Unix())
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: "Recordatori " + w.Name, Prompt: msg,
@@ -164,6 +168,7 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 		// (novetats); el bot de Telegram hi afegiria un duplicat genèric
 		// («llest, mira-ho al panell») i els vents no hi parlen.
 		Kind: "remind", Enabled: true, Notify: false, NextAt: &moment,
+		Wind: w.ID, WindOwner: owner,
 	})
 	if err != nil {
 		return jobs.Job{}, err
@@ -172,9 +177,22 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	return j, nil
 }
 
+type remindServerKey struct{}
+
+// withRemindServer lliga el context del torn a la sessió real del Server
+// (amb els vents de l'usuari); sense això, registerRemindTool usava el
+// Server d'arrencada i per a un usuari multiusuari s.winds estava buit
+// ("vent inexistent").
+func (s *Server) withRemindServer(ctx context.Context) context.Context {
+	if s == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, remindServerKey{}, s)
+}
+
 // registerRemindTool exposa l'eina remind al loop (la criden els vents).
 func (s *Server) registerRemindTool() {
-	agent.RegisterExtraCtx(remindToolSpec, func(_ context.Context, argsJSON string) (string, error) {
+	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
 			Wind string `json:"wind"`
 			At   string `json:"at"`
@@ -183,7 +201,11 @@ func (s *Server) registerRemindTool() {
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("arguments il·legibles")
 		}
-		j, err := saveWindReminder(s, a.Wind, a.At, a.Text)
+		target := s
+		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
+			target = cur
+		}
+		j, err := saveWindReminder(target, a.Wind, a.At, a.Text)
 		if err != nil {
 			return "", err
 		}

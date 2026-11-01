@@ -229,16 +229,7 @@ func TestWindSkillsSystem(t *testing.T) {
 	}
 }
 
-// --- Router: només parla qui hi té res a dir ---
-
-func stubRouter(t *testing.T, out string) {
-	t.Helper()
-	saved := rotllanaRouteLoop
-	rotllanaRouteLoop = func(_ *Server, _ context.Context, _ []llm.Message) (string, error) {
-		return out, nil
-	}
-	t.Cleanup(func() { rotllanaRouteLoop = saved })
-}
+// --- Local speaker selection ---
 
 func makeRotllanaTrio(t *testing.T, s *Server) string {
 	t.Helper()
@@ -255,13 +246,12 @@ func makeRotllanaTrio(t *testing.T, s *Server) string {
 	return saved.Rotllana.ID
 }
 
-// TestRouterPicksExpert: el router tria l'expert i només ell parla.
-func TestRouterPicksExpert(t *testing.T) {
+// A named expert keeps its knowledge index without a model-based selector.
+func TestRouterExplicitExpertKeepsKnowledge(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
 	postConeixement(t, s, `{"wind":"llevant","nom":"Arrossos","descripcio":"Arrossos i paelles.","cos":"L'arròs bomba necessita..."}`)
-	stubRouter(t, `{"parlen":["llevant"]}`)
 	var briefs []string
 	saved := rotllanaVoiceLoop
 	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) {
@@ -270,7 +260,7 @@ func TestRouterPicksExpert(t *testing.T) {
 	}
 	t.Cleanup(func() { rotllanaVoiceLoop = saved })
 
-	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"com faig una paella?"}`)
+	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"@Llevant, com faig una paella?"}`)
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
 	}
@@ -286,12 +276,11 @@ func TestRouterPicksExpert(t *testing.T) {
 	}
 }
 
-// TestRouterSilence: sense expert ni afinitat, silenci (però el missatge es desa).
-func TestRouterSilence(t *testing.T) {
+// A default local turn participates and persists the user message.
+func TestRouterDefaultParticipates(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
-	stubRouter(t, `{"parlen":[]}`)
 	called := false
 	saved := rotllanaVoiceLoop
 	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
@@ -304,11 +293,11 @@ func TestRouterSilence(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
 	}
-	if called {
-		t.Fatal("silenci trencat: ha parlat un vent")
+	if !called {
+		t.Fatal("default selection must let a member participate")
 	}
-	if !strings.Contains(rec.Body.String(), `"silenci":true`) {
-		t.Fatalf("falta el marcador: %s", rec.Body.String())
+	if strings.Contains(rec.Body.String(), `"silenci":true`) {
+		t.Fatalf("local selection must not invent model-decided silence: %s", rec.Body.String())
 	}
 	get := httptest.NewRequest(http.MethodGet, "/api/winds/rotllana?rotlla="+id, nil)
 	getRec := httptest.NewRecorder()
@@ -318,12 +307,11 @@ func TestRouterSilence(t *testing.T) {
 	}
 }
 
-// TestRouterFallback: si el router diu ximpleries, el torn clàssic (un sol vent).
-func TestRouterFallback(t *testing.T) {
+// An unaddressed group message selects one fair participant, not extra voices.
+func TestRouterDefaultChoosesOne(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
-	stubRouter(t, `això no és JSON`)
 	count := 0
 	saved := rotllanaVoiceLoop
 	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {

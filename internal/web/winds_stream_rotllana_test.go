@@ -14,14 +14,13 @@ import (
 	"gregal/internal/session"
 )
 
-// rotllanaStreamFixture prepara una rotllana de tres vents on el router fa
-// parlar Tramuntana i Xaloc, i substitueix la cerca i el xat pla de cada veu.
+// rotllanaStreamFixture prepares three members; the request names Tramuntana
+// and Xaloc explicitly. Search and plain fallback are stubbed per voice.
 func rotllanaStreamFixture(t *testing.T, loop func(n int32, ctx context.Context, emit func(kind, text string)) (exploracio, error), plain func(ctx context.Context) (string, error)) (*Server, string) {
 	t.Helper()
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
-	stubRouter(t, `{"parlen":["tramuntana","xaloc"]}`)
 	var calls int32
 	savedLoop, savedChatter := rotllanaVoiceLoopStream, petChatter
 	rotllanaVoiceLoopStream = func(_ *Server, ctx context.Context, _ string, emit func(kind, text string)) (exploracio, error) {
@@ -35,7 +34,7 @@ func rotllanaStreamFixture(t *testing.T, loop func(n int32, ctx context.Context,
 }
 
 func postRotllanaStream(s *Server, id, message string) string {
-	req := httptest.NewRequest("POST", "/api/winds/rotllana/stream", strings.NewReader(`{"rotllana":"`+id+`","message":"`+message+`"}`))
+	req := httptest.NewRequest("POST", "/api/winds/rotllana/stream", strings.NewReader(`{"rotllana":"`+id+`","message":"@Tramuntana @Xaloc `+message+`"}`))
 	rec := httptest.NewRecorder()
 	s.handleRotllanaChatStream(rec, req)
 	return rec.Body.String()

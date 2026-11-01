@@ -191,11 +191,9 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
-	// Qui parla: el router tria 1-3 vents (o cap); amb vent explícit o
-	// «continua», el d'abans.
-	rctx, rcancel := context.WithTimeout(context.Background(), 90*time.Second)
-	speakers := s.routeRotllanaSpeakers(rctx, rot, strings.TrimSpace(req.Wind), msg, hist.messages)
-	rcancel()
+	// Tria local: membres nomenats (màxim dos) o participació equilibrada;
+	// «continua» conserva l’última veu, sense una crida extra al model.
+	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, hist.messages, isContinue)
 	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
 		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
 		if err != nil {
@@ -212,6 +210,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
+	ctx = s.interactiveWindCtx(ctx)
 
 	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
 	if len(speakers) == 0 {

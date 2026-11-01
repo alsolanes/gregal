@@ -2,11 +2,13 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/agent"
@@ -24,9 +26,50 @@ import (
 //   reply: {"wind":"id","history":[...]}     (rotllana: una veu acabada i ja desada)
 //   done:  {"reply":..., "history":..., ...}  (mateix payload que el clàssic)
 //   error: {"error":"..."}
+//   activity: {"phase":"waiting|choosing|preparing|model|thinking|responding|tool|tool_done|retry|fallback", "tool":"name"?, "step":N?}
+//   ping: {} (transport keepalive, NOT progress)
 // Els tokens especulatius d'un pas que acaba en eines es retiren: el
 // client els descarta quan arriba una fase (poden ser JSON d'eina, no
 // text per a l'usuari).
+
+// windActivity is additive to the legacy phase/token protocol. Never put model
+// reasoning, tool arguments/results, paths or conversation text in this DTO.
+type windActivity struct {
+	Phase string `json:"phase"`
+	Tool  string `json:"tool,omitempty"`
+	Step  int    `json:"step,omitempty"`
+}
+
+func emitWindActivity(emit func(string, any), text string) {
+	var activity windActivity
+	if json.Unmarshal([]byte(text), &activity) == nil {
+		emit("activity", activity)
+	}
+}
+
+// windSSE keeps a silent model/lock wait connected without inventing progress.
+// Join the heartbeat goroutine before the handler returns: no ResponseWriter
+// writes may outlive the request. Disconnect stops pings, not the durable turn.
+func windSSE(w http.ResponseWriter, ctx context.Context, interval time.Duration) (func(string, any), func()) {
+	emit := sse(w)
+	ctx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				emit("ping", map[string]any{})
+			}
+		}
+	}()
+	var once sync.Once
+	return emit, func() { once.Do(func() { cancel(); <-done }) }
+}
 
 // windLoopStream és la via de cerca amb emissió; els tests la substitueixen.
 var windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
@@ -65,21 +108,36 @@ func streamPhase(names string) string {
 	}
 }
 
+// windCodeBrief orienta els vents quan se'ls demana codi o comandes al xat:
+// tenen read/grep/glob/write/edit/patch/bash dins del projecte.
+const windCodeBrief = "\n\nCODE: for project work use read/grep/glob/write/edit/patch/bash directly inside the project folder (for URLs use web_fetch, never curl)." +
+	"\n\nPROJECTS: a site, a game or a script you build is a project: create <projectes>/<slug>/ and keep every file there, never in the Gregal repo root." +
+	"\n\nSERVING: never start a server (no http.server, no nohup, no trailing &) — it dies when the command ends. Write index.html in the project and name the entry file: Gregal publishes the folder and the app previews it."
+
 // windChatBrief munta la consigna del xat directe (compartida pel clàssic i l'stream).
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
+	ws, _ := s.ventWorkspace()
+	brief := windProjectesBrief(ws)
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// The previous-turn digest leaves room for the wind's own guidance (images, charts) inside the 20k brief.
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 15000) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 14500) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + brief
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
+	wsp, _ := s.ventWorkspace()
+	onTreballa := windProjectesBrief(wsp)
 	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID)
 	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per seguir el fil.
 	transcript := agent.TranscriptDigest(conversation, 10000)
-	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first; if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." + windRemindBrief(speakingWind.ID)
+	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." + windRemindBrief(speakingWind.ID) + windCodeBrief + onTreballa
 	return system, brief
 }
+
+// windTurnTimeout és el temps d'un torn del xat directe d'un vent. Amb
+// l'auto-continuació (plan.go) un torn pot encadenar tres rondes de passos:
+// una petició de codi necessita més que els tres minuts d'abans.
+var windTurnTimeout = 5 * time.Minute
 
 // handleWindChatStream és el xat directe amb emissió en directe.
 func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
@@ -101,6 +159,13 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
+	if msg == "" && !req.Continue {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
+	emit, stopStream := windSSE(w, r.Context(), 15*time.Second)
+	defer stopStream()
+	emit("activity", windActivity{Phase: "waiting"})
 	hist := windHistory(s, wind.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock()
@@ -109,15 +174,17 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		previous = previous[len(previous)-40:]
 	}
 	if msg == "" && !(req.Continue && len(previous) > 0) {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
+		emit("error", map[string]string{"error": "missatge buit"})
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
 	defer cancel()
-	ctx = s.windDocsCtx(ctx)
+	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
+	defer doneTurn()
+	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
 
-	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
+	emit("activity", windActivity{Phase: "preparing"})
 	turnStart := time.Now()
 	isContinue := req.Continue && len(previous) > 0
 	var res exploracio
@@ -128,6 +195,8 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, func(kind, text string) {
 			switch kind {
+			case "activity":
+				emitWindActivity(emit, text)
 			case "token":
 				emit("token", map[string]string{"token": text})
 			case "phase":
@@ -138,6 +207,8 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		brief := windChatBrief(s, wind, previous, msg)
 		res, err = windLoopStream(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), brief, func(kind, text string) {
 			switch kind {
+			case "activity":
+				emitWindActivity(emit, text)
 			case "token":
 				emit("token", map[string]string{"token": text})
 			case "phase":
@@ -146,6 +217,10 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	if err != nil {
+		if tornAturat(err) {
+			emit("error", map[string]any{"error": "aturat", "cancelat": true})
+			return
+		}
 		emit("error", map[string]string{"error": redactError(err)})
 		return
 	}
@@ -199,22 +274,34 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
 		return
 	}
+	if msg == "" && !req.Continue {
+		http.Error(w, "missatge buit", http.StatusBadRequest)
+		return
+	}
+	if wanted := strings.TrimSpace(req.Wind); wanted != "" {
+		if _, err := s.nextWindInHistory(rot, wanted, nil); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
+	emit, stopStream := windSSE(w, r.Context(), 15*time.Second)
+	defer stopStream()
+	emit("activity", windActivity{Phase: "waiting"})
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
 	defer hist.mu.Unlock()
 	isContinue := req.Continue && len(hist.messages) > 0
 	if msg == "" && !isContinue {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
+		emit("error", map[string]string{"error": "missatge buit"})
 		return
 	}
-	// Qui parla: el router tria 1-3 vents (o cap); amb vent explícit o
-	// «continua», el d'abans.
-	rctx, rcancel := context.WithTimeout(context.Background(), 90*time.Second)
+	emit("activity", windActivity{Phase: "choosing"})
+	// Tria local: membres nomenats (màxim dos) o participació equilibrada;
+	// «continua» conserva l’última veu, sense una crida extra al model.
 	tRoute := time.Now()
-	speakers := s.routeRotllanaSpeakers(rctx, rot, strings.TrimSpace(req.Wind), msg, hist.messages)
+	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, hist.messages, isContinue)
 	routeDur := time.Since(tRoute)
 	var tempsVeus []string
-	rcancel()
 	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
 		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
 		if err != nil {
@@ -228,7 +315,6 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
-	emit := sse(w)
 	emit("phase", map[string]string{"phase": "thinking"})
 	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
 	if len(speakers) == 0 {
@@ -248,6 +334,8 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	speakingWind := speakers[0]
 	emitTokens := func(kind, text string) {
 		switch kind {
+		case "activity":
+			emitWindActivity(emit, text)
 		case "token":
 			emit("token", map[string]string{"token": text})
 		case "phase":
@@ -265,12 +353,14 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	for si, sp := range speakers {
 		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
 		emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
+		emit("activity", windActivity{Phase: "preparing"})
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		brief += windDocsBrief
 		var res exploracio
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
-		ctx = s.windDocsCtx(ctx)
+		ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
+		ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
 		tVeu := time.Now()
 		if isContinue && si == 0 {
 			s.mu.Lock()
@@ -287,6 +377,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			}
 		}
 		cancel()
+		doneTurn()
 		out := res.text
 		// Un torn que mor a mitges no és una resposta del vent: cau al
 		// xat pla com al clàssic (vegeu winds_rotllanes.go).
@@ -295,6 +386,11 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			out = ""
 		}
 		if err != nil {
+			if tornAturat(err) {
+				// Aturada per la persona: no es fa el pla B ni parlen les altres veus.
+				lastErr = err
+				break
+			}
 			// Com al clàssic: la cerca no pot tombar el torn (però sense tokens).
 			p, role, ok2 := s.sideRoleRef()
 			if !ok2 {
@@ -311,6 +407,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 				msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
 			}
 			fctx, fcancel := context.WithTimeout(context.Background(), rotllanaFallbackTimeout)
+			emit("activity", windActivity{Phase: "fallback"})
 			plain, perr := petChatter(fctx, client, cfg, p, role, msgs)
 			fcancel()
 			if perr != nil {
@@ -345,6 +442,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	log.Printf("vents rotllana %s: tria %.1fs · %s", rot.ID, routeDur.Seconds(), strings.Join(tempsVeus, " · "))
 	if len(veus) == 0 {
 		// Ningú no ha pogut respondre: no es desa res i el client conserva l'esborrany.
+		if tornAturat(lastErr) {
+			emit("error", map[string]any{"error": "aturat", "cancelat": true})
+			return
+		}
 		emit("error", map[string]string{"error": redactError(lastErr)})
 		return
 	}

@@ -168,6 +168,164 @@ func TestPassosPlaTeUnMinim(t *testing.T) {
 	}
 }
 
+// SenseTancarPassos: esgotar el pressupost torna el control amb Esgotat i
+// sense síntesi (cap Finalize), perquè el cridador pugui encadenar rondes
+// fins a acabar la feina. L'última ronda, sense el flag, sí que sintetitza.
+func TestLoopSenseTancarPassosEncadenaRondes(t *testing.T) {
+	passos, execs, finals := 0, 0, 0
+	l := &Loop{
+		MaxSteps:          3,
+		Lang:              "ca",
+		Step:              tossut(&passos),
+		RunTool:           func(ctx context.Context, n, a string) (string, []string, error) { execs++; return "x", nil, nil },
+		Decide:            allowAll,
+		SenseTancarPassos: true,
+		Finalize: func(ctx context.Context, h []llm.Message) (string, error) {
+			finals++
+			return "resum", nil
+		},
+	}
+	out, hist, err := l.Run(context.Background(), "fes la feina")
+	if err != nil || out != "" || !l.Esgotat || l.Parcial || finals != 0 {
+		t.Fatalf("out=%q err=%v esgotat=%v parcial=%v finals=%d", out, err, l.Esgotat, l.Parcial, finals)
+	}
+	if execs != 3 || len(hist) == 0 {
+		t.Fatalf("execs=%d: s'han de fer els 3 passos i conservar l'historial", execs)
+	}
+	// Ronda següent amb el mateix loop: reprèn la conversa, no la reinicia.
+	out2, hist2, err := l.Continua(context.Background(), l.Hist)
+	if err != nil || !l.Esgotat || finals != 0 || execs != 6 {
+		t.Fatalf("ronda 2: out=%q err=%v esgotat=%v finals=%d execs=%d", out2, err, l.Esgotat, finals, execs)
+	}
+	if len(hist2) <= len(hist) {
+		t.Fatal("la segona ronda ha d'allargar l'historial, no substituir-lo")
+	}
+	// Última ronda: el flag fora i la síntesi arriba.
+	l.SenseTancarPassos = false
+	out3, _, err := l.Continua(context.Background(), l.Hist)
+	if err != nil || out3 != "resum" || !l.Parcial || l.Esgotat || finals != 1 {
+		t.Fatalf("última ronda: out=%q err=%v parcial=%v esgotat=%v finals=%d", out3, err, l.Parcial, l.Esgotat, finals)
+	}
+}
+
+// La conversa no hi cap: el bucle l'escurça i reintenta el mateix pas, sense
+// perdre la tasca ni trencar el parell tool_call → tool.
+func TestLoopRecuperaContextPle(t *testing.T) {
+	intents := 0
+	var vist []llm.Message
+	l := &Loop{
+		MaxSteps: 5,
+		Lang:     "ca",
+		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
+			intents++
+			vist = h
+			if intents == 2 {
+				return "", nil, errors.New(`provider: 400 {"error":"context length exceeded: reduce the length of the messages"}`)
+			}
+			if intents == 1 {
+				// Un pas amb moltes lectures: l'historial creix de cop, com en
+				// una tasca de codi de veritat.
+				var calls []llm.ToolCall
+				for i := 0; i < 15; i++ {
+					calls = append(calls, mkCall(fmt.Sprintf("c%d", i), "read", fmt.Sprintf(`{"path":"f%d.go"}`, i)))
+				}
+				return "", calls, nil
+			}
+			return "ja està", nil, nil
+		},
+		RunTool: func(ctx context.Context, n, a string) (string, []string, error) {
+			return strings.Repeat("x", 4000), nil, nil
+		},
+		Decide: allowAll,
+	}
+	final, hist, err := l.Run(context.Background(), "arregla el bug de main.go")
+	if err != nil || final != "ja està" {
+		t.Fatalf("final=%q err=%v", final, err)
+	}
+	if intents != 3 {
+		t.Fatalf("intents=%d: el pas s'ha de reintentar després de retallar", intents)
+	}
+	// El reintent veu una conversa més curta i amb la tasca intacta.
+	teRetallat := false
+	for _, m := range vist {
+		if m.Content == Retallat {
+			teRetallat = true
+		}
+	}
+	if !teRetallat {
+		t.Fatalf("cal haver retallat contingut antic: %+v", vist)
+	}
+	if vist[0].Content != "arregla el bug de main.go" {
+		t.Fatalf("la tasca no es pot perdre: %q", vist[0].Content)
+	}
+	// L'ordre i el parell tool_call → tool es mantenen.
+	for i, m := range hist {
+		if m.Role == "tool" && i == 0 {
+			t.Fatal("un resultat d'eina no pot quedar sense la seva crida")
+		}
+	}
+	if hist[len(hist)-1].Content != final {
+		t.Fatalf("la resposta final ha de quedar a l'historial: %+v", hist[len(hist)-1])
+	}
+}
+
+// Un error que no és de context no s'ha de reintentar retallant: es tanca
+// amb la millor resposta (o l'error, si encara no s'ha fet res).
+func TestEsErrorContextNomesAmbMissatgeDeContext(t *testing.T) {
+	for _, cas := range []struct {
+		msg string
+		vol bool
+	}{
+		{"400 context length exceeded", true},
+		{"This model's maximum context length is 8192 tokens", true},
+		{"input is too large for n_ctx", true},
+		{"prompt is too long", true},
+		{"401 unauthorized", false},
+		{"429 rate limit", false},
+		{"dial tcp: lookup example.com: no such host", false},
+	} {
+		if got := EsErrorContext(cas.msg); got != cas.vol {
+			t.Fatalf("EsErrorContext(%q)=%v, volia %v", cas.msg, got, cas.vol)
+		}
+	}
+}
+
+// RetallaContext: mateixa llista de missatges, primers intents curts, cua
+// intacta i cap missatge eliminat (els proveïdors validen l'ordre).
+func TestRetallaContextManteEstructures(t *testing.T) {
+	h := []llm.Message{{Role: "user", Content: strings.Repeat("a", 2000)}}
+	h = append(h, llm.Message{Role: "assistant", Content: "ok", ToolCalls: []llm.ToolCall{mkCall("1", "read", `{"path":"x"}`)}})
+	h = append(h, llm.Message{Role: "tool", Content: strings.Repeat("z", 5000), Name: "read", ToolCallID: "1"})
+	for i := 0; i < 20; i++ {
+		h = append(h, llm.Message{Role: "assistant", Content: strings.Repeat("m", 1000)})
+		h = append(h, llm.Message{Role: "tool", Content: strings.Repeat("t", 1000), Name: "read", ToolCallID: "x"})
+	}
+	out := RetallaContext(h, 6, 600)
+	if len(out) != len(h) {
+		t.Fatalf("no s'han d'eliminar missatges: %d vs %d", len(out), len(h))
+	}
+	for i := range h {
+		if out[i].Role != h[i].Role {
+			t.Fatalf("rol canviat a %d: %s → %s", i, h[i].Role, out[i].Role)
+		}
+		if out[i].ToolCallID != h[i].ToolCallID {
+			t.Fatalf("s'ha trencat el parell tool_call a %d", i)
+		}
+		if len(h[i].ToolCalls) != len(out[i].ToolCalls) {
+			t.Fatalf("s'han perdut crides d'eina a %d", i)
+		}
+	}
+	if !strings.HasPrefix(out[0].Content, "aaaa") || len(out[0].Content) > 700 {
+		t.Fatalf("la tasca s'ha de conservar escurçada: %d caràcters", len(out[0].Content))
+	}
+	if out[2].Content != Retallat {
+		t.Fatalf("la sortida d'eina antiga s'hauria d'haver retallat: %q", out[2].Content[:30])
+	}
+	if out[len(out)-1].Content != h[len(h)-1].Content {
+		t.Fatal("la cua ha de quedar sencera")
+	}
+}
+
 // servidorTossut és un proveïdor fals que amb eines sempre torna una
 // lectura nova, i sense eines (síntesi, pregunta d'ampliació) respon FINAL
 // o el resum, però hi enganxa una crida write: no s'ha d'executar mai.
@@ -179,7 +337,7 @@ func servidorTossut(t *testing.T, dir string, sentinella string, ambEines *atomi
 			return
 		}
 		var req struct {
-			Messages []llm.Message    `json:"messages"`
+			Messages []llm.Message     `json:"messages"`
 			Tools    []json.RawMessage `json:"tools"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

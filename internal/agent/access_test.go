@@ -74,4 +74,8 @@ func TestDemanaAbansDeCanviar(t *testing.T) {
 	if !delegatePolicy(config.PermissionsCfg{Access: "ask"}, "").AskEdits {
 		t.Fatal("els subagents també han de demanar")
 	}
+	// The runner snapshots permissions before deriving the child's policy.
+	if !delegatePolicy(copyDelegatePermissions(config.PermissionsCfg{Access: "ask"}), "").AskEdits {
+		t.Fatal("delegate runner must preserve ask-before-edits in its snapshot")
+	}
 }

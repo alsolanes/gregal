@@ -11,7 +11,9 @@ import (
 // toolPath extreu la ruta objectiu de les eines de fitxers ("" si no n'hi ha).
 func toolPath(name, argsJSON string) string {
 	switch name {
-	case "write", "edit", "patch", "read", "pdf_create":
+	case "write", "edit", "patch", "read", "pdf_create",
+		"office_read", "office_edit", "office_create", "office_render", "office_open",
+		"lsp":
 	case "pdf_edit":
 		// El que s'escriu és out (o el mateix path); merge només té out.
 		var a struct {
@@ -76,6 +78,24 @@ func InsideProject(projectDir, path string) bool {
 	// comparar l'escrit amb el resolt falla i tot demana permís.
 	abs = resolveInexistent(abs)
 	return abs == absDir || strings.HasPrefix(abs, absDir+string(filepath.Separator))
+}
+
+// writablePath diu si l'eina escriu dins d'algun lloc permès: el projecte o
+// qualsevol de les carpetes extra (AlsoDirs).
+func (p *Policy) writablePath(name, argsJSON string) bool {
+	if p == nil {
+		return false
+	}
+	path := toolPath(name, argsJSON)
+	if InsideProject(p.ProjectDir, path) {
+		return true
+	}
+	for _, d := range p.AlsoDirs {
+		if InsideProject(d, path) {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveInexistent resol enllaços i noms curts fins on el disc permet:

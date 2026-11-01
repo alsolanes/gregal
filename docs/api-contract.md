@@ -10,6 +10,26 @@ This document is executable: `TestContracteAPIDocumentat`
 (`internal/web/contract_test.go`) fails if a registered `/api/*` route is not
 documented here.
 
+## Conversation copy across instances
+
+`GET /api/winds/transfer?kind=wind|rot&id=<id>&memory=true&knowledge=true&skills=true`
+exports one version-1 conversation bundle. Optional independent consent flags default
+false. Only profiles, consented text memory/knowledge/skills and committed visible
+chat history are copied, never a workspace, files, credentials, providers, jobs,
+tool calls or running work. Local absolute paths in prose are redacted. Import
+never executes content, calls a model, deletes the source or changes running jobs.
+
+`POST /api/winds/transfer` accepts `{transferId,bundle}`. Save the exact request for
+retries; the same transferId (8–100 ASCII letters/digits/underscore/hyphen) and
+same bundle always resolve to the same fresh destination, even after restart.
+A changed bundle for an existing transferId is 409. Namesakes are not overwritten.
+Response `{transferId,kind,id,idMap,counts,verifyPath,replayed}` identifies the
+clone; GET verifyPath on the destination before switching conversation. Group
+member and speaker IDs are remapped, timestamps preserved. Group workspace and
+member direct-chat histories are excluded. See [exact transfer JSON examples and
+limits](winds-transfer.md). Authentication and user-scoped stores are the same as
+other wind endpoints; the request cannot choose another user or destination path.
+
 ## Team Collaboration
 
 `GET /api/providers` includes a `catalog` of public provider presets with
@@ -163,6 +183,7 @@ their current locations; this change does not migrate chat files.
 | `/api/winds/tasks` | GET | `{tasks}` returns up to 100 recent delegated tasks for the authenticated user with folder, status and persisted public events/results (bounded to 160 events per task). No tool arguments or hidden reasoning. Execution still requires Gregal to remain open. With `?summary=1`, each task is a light summary (`status` running/done/failed/cancelled/interrupted, `agents`, `files`, `result`, `error`, `updated`) and crew tasks still in their design discussion are included. |
 | `/api/winds/chat` | GET | `?wind=<id>` → `{wind,history:[{from,text}]}`; the durable conversation with a wind, persisted as `company-<wind>`. |
 | `/api/winds/chat/stream` | POST | Same turn as `/api/winds/chat` but as SSE: `phase` (`thinking|searching|scheduling|working`), `token` (reply-text fragments; speculative tokens before a phase must be discarded), `done` (same payload as the classic POST plus `actions`), `error`. Body: `{wind,message}`. |
+| `/api/winds/cancel` | POST | Stop the turn in flight for a wind and/or a rotllana → `{ok:true,aturat:<bool>}`. Body: `{wind}` or `{rotllana}`. Cancelling is idempotent; the stopped turn answers `{error:"aturat",cancelat:true}` and keeps whatever work was already done (no message is deleted). |
 | `/api/winds/rotllana/stream` | POST | Same group turn as `/api/winds/rotllana` but as SSE with the same event protocol; `done` carries `{reply:{wind,text},history,actions}`. Between speakers the server emits `phase: speaker:<windID>` so the client can start a new bubble. Body: `{rotllana,message,wind?}`. |
 | `/api/winds/memoria` | GET | `?wind=<id>` → `{wind,memoria}`. What the wind remembers about the user (markdown, user facts only, no citations). Unknown wind is 400. |
 | `/api/winds/memoria` | PUT | Replace the wind's memory → `{ok:true}`. Body: `{wind,memoria}`. Atomic write, max 8,192 bytes; bumps the revision so stale background extractions cannot restore edited-out facts. The wind learns on its own after each conversation; the user can read/edit here, on mobile, on desktop, or by hand (`wind-memory/<id>.md`). |
@@ -476,6 +497,7 @@ The working directory is selected per session rather than fixed at startup.
 | Route | Method | Notes |
 |---|---|---|
 | `/api/workspaces` | GET/POST | GET: `{current, project, branch, workspaces:[{path,name,last}]}`. POST `{path}` changes it for the session. |
+| `/api/preview` | GET | `{root, roots:[{Slug,Dir}], base, index, webs:[{path,name,size,mtime}]}` — what can be previewed (up to 20 `.html` per folder, `index.html` first). Two folders are published: `projectes` (the winds' project folder, `$GREGAL_PROJECTES` or `~/gregal/projectes`) and `carpeta` (the session working folder); `webs[].path` carries the folder slug, so the client only appends it to `base`. The files themselves are served read-only at `/p/<key>/<slug>/<path>` (outside `/api`, so a WebView or a phone browser opens it with no header); `<key>` is derived from the server token, so changing the token kills old links and the token never appears in the URL. A path with no slug is tried in every folder (old links). Anything outside the folders, dotfiles, `node_modules` or symlinks pointing out are 404; symlinked folders are resolved on both sides (Android's `/data/user/0` → `/data/data`). Directories answer with a plain index page. `Cache-Control: no-store`. |
 | `/api/dirs` | GET | `?path=` (defaults to the session workspace) → `{path, name, git, parent, home, roots, dirs:[{name,path,git}], hidden, truncat}`; directory picker for project selection, names only. |
 | `/api/tree` | GET | `?path=&depth=1..6` → `{path, root, project, entries:[{name,path,dir,size,status,children}], truncated}`. Skips `.git`, `node_modules`, `dist`, `target`, etc. |
 | `/api/file` | GET | `?path=` → `{path,size,content,lines}`; returns `{binary:true}` or `{too_big:true}` when it cannot display the file. Maximum 2 MB. |

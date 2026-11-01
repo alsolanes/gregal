@@ -99,6 +99,15 @@ func normSig(sig string) string {
 		// MCP: les consultes difereixen sovint al final (group_by, filtres).
 		return sig
 	}
+	// Escriure a fitxers amb noms numerats no és un bucle: `pas1.txt`,
+	// `pas2.txt`, `capitol8.md`… és fer la feina demanada (una tasca de
+	// crear deu fitxers s'aturava al quart). La repetició EXACTA (el
+	// mateix fitxer tres cops) continua comptant a Note.
+	for _, t := range []string{"write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create"} {
+		if strings.HasPrefix(sig, t+"\x00") {
+			return sig
+		}
+	}
 	s := reDigitsDoom.ReplaceAllString(sig, "#")
 	if r := []rune(s); len(r) > normDoomLen {
 		return string(r[:normDoomLen])

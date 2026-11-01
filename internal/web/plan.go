@@ -3,20 +3,41 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/tools"
 )
 
 // planSystem obliga exploració read-only i tanca amb pla numerat + verificació
 // (mateix contracte que el /plan del TUI).
 const planSystem = agent.PlanSystem
+
+// windAutoContinues és quantes rondes extra fa un torn interactiu de vent o
+// colla quan el pressupost de passos s'esgota amb feina a mitges. Amb 2, una
+// petició de codi té fins a tres rondes (3 × passos) abans de tancar amb un
+// resum parcial. Els tests el posen a 0 per tenir un sol torn.
+var windAutoContinues = 2
+
+// motiuPassatger diu si un error de torn pot anar bé amb un reintent
+// immediat: xarxa/estona, no clau dolenta ni context massa llarg.
+func motiuPassatger(m string) bool {
+	m = strings.ToLower(m)
+	for _, s := range []string{"timeout", "deadline exceeded", "temporar", "http 5", "http 429", "rate limit", "connection reset", "eof", "broken pipe", "overloaded"} {
+		if strings.Contains(m, s) {
+			return true
+		}
+	}
+	return false
+}
 
 // exploracio és el resultat d'un loop read-only: el text, si és parcial
 // (pressupost o error a mig camí: vegeu agent.Loop) i l'historial per
@@ -77,9 +98,56 @@ func (s *Server) runReadOnlyLoopForRole(ctx context.Context, brief string, maxSt
 // el client els descarta quan arriba la fase. Amb emit == nil les crides
 // són les clàssiques (comportament idèntic al d'abans).
 func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string, maxSteps int, p config.Provider, role config.Role, emit func(kind, text string), prev ...[]llm.Message) (exploracio, error) {
+	scope, interactive := ctx.Value(interactiveWindKey{}).(windTurnScope)
+	if !interactive {
+		scope = s.windLoopScope()
+		scope.mode = agent.ModeInspect
+	}
+	ctx = s.withRemindServer(agent.WithTurnMode(ctx, scope.mode))
+	var requiresApproval bool // Decide is serial, before any tools run.
 	stream := emit != nil
 	if emit == nil {
 		emit = func(_, _ string) {}
+	}
+	// Tools can run in parallel. Keep additive activity and legacy events safe
+	// for callers other than the HTTP emitter as well.
+	rawEmit := emit
+	var emitMu sync.Mutex
+	emit = func(kind, text string) {
+		emitMu.Lock()
+		defer emitMu.Unlock()
+		rawEmit(kind, text)
+	}
+	var step atomic.Int32
+	activity := func(phase, tool string) {
+		if !stream {
+			return
+		}
+		b, _ := json.Marshal(windActivity{Phase: phase, Tool: tool, Step: int(step.Load())})
+		emit("activity", string(b))
+	}
+	modelContext := func(ctx context.Context) context.Context {
+		step.Add(1)
+		// A request is being attempted, not proof of an active inference slot.
+		activity("model", "")
+		last := ""
+		ctx = llm.WithRetryHook(ctx, func(_, _ int, _ time.Duration, _ error) {
+			last = "retry"
+			activity("retry", "")
+		})
+		return llm.WithStreamProgress(ctx, func(kind string, _ int) {
+			phase := ""
+			switch kind {
+			case llm.ProgressReasoning:
+				phase = "thinking"
+			case llm.ProgressText:
+				phase = "responding"
+			}
+			if phase != "" && phase != last {
+				last = phase
+				activity(phase, "")
+			}
+		})
 	}
 	var temps loopTemps
 	loop := &agent.Loop{
@@ -89,6 +157,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 			defer cancel()
 			defer func(t0 time.Time) { temps.addModel(time.Since(t0)) }(time.Now())
+			if stream {
+				cctx = modelContext(cctx)
+			}
 			if !stream {
 				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
 				return content, calls, err
@@ -108,6 +179,9 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			cctx, cancel := context.WithTimeout(ctx, agent.TimeoutDecisio)
 			defer cancel()
 			defer func(t0 time.Time) { temps.addModel(time.Since(t0)) }(time.Now())
+			if stream {
+				cctx = modelContext(cctx)
+			}
 			if !stream {
 				out, _, err := s.client.ChatFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, nil)
 				return out, err
@@ -116,10 +190,18 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			return out, err
 		},
 		RunTool: func(ctx context.Context, name, argsJSON string) (string, []string, error) {
+			// Only known native tool NAMES are public. Never expose arguments,
+			// results or arbitrary model-supplied/MCP names as a summary.
+			tool := "tool"
+			if tools.EsNativa(name) && len(name) <= 64 {
+				tool = name
+			}
+			activity("tool", tool)
+			defer activity("tool_done", tool) // returned, not necessarily succeeded
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
-			cwd := s.cwd
+			cwd := scope.workspace
 			// Un vent crea els documents a la seva carpeta (winds_docs.go).
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
 				cwd = d
@@ -128,23 +210,79 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		},
 		Decide: func(name, argsJSON string) (string, string) {
 			// Els vents poden programar avisos (remind, eina validada); la
-			// resta segueix el permís del mode inspect (només lectura).
+			// resta usa la política compartida i el mode del torn.
 			if name == "remind" {
 				return "allow", "eina del vent"
 			}
-			// Els documents (crear un PDF, un Word…) també, a la seva carpeta.
+			pol := scope.policy
+			// Keep the existing documents scope, but interactive turns must
+			// also respect the selected mode/access and explicit policy rules.
 			if d := windDocsOf(ctx); d != "" && windDocTool(name) {
-				return windDocDecide(d, name, argsJSON)
+				if decision, reason := windDocDecide(d, name, argsJSON); decision != "allow" || !interactive {
+					return decision, reason
+				}
+				cp := *pol
+				cp.ProjectDir = d
+				pol = &cp
 			}
-			return s.policy.Decide(agent.ModeInspect, name, argsJSON)
+			decision, reason := pol.Decide(scope.mode, name, argsJSON)
+			// agent.Loop treats ask as executable (headless semantics).
+			// These clients have no approval UI: never pass a pending ask
+			// through, and do not wait for an approval nobody can answer.
+			// Però la instrucció explícita del xat JA és l'aprovació per a
+			// la feina d'aquí (escriure i executar dins del projecte, sense
+			// res destructiu): si no, demanar codi al vent sempre acaba en
+			// «falta permís». Tot «deny» continua denegat.
+			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
+				return "allow", "ordre del xat del vent (" + reason + ")"
+			}
+			if decision == "ask" {
+				requiresApproval = true
+				return "deny", windRequiresApproval + " " + reason
+			}
+			return decision, reason
 		},
 	}
 	var out string
 	var err error
-	if len(prev) > 0 && len(prev[0]) > 0 {
-		out, _, err = loop.Continua(ctx, prev[0])
-	} else {
-		out, _, err = loop.Run(ctx, brief)
+	// Torn interactiu (xat del vent, colla): no hi ha cap UI d'aprovació i
+	// la persona ha demanat una feina. Si el pressupost de passos s'esgota
+	// a mig treball, no es tanca amb un resum: es reprèn sol amb pressupost
+	// nou, com fan els agents que no pregunten (Claude Code, Codex). Només
+	// l'última ronda sintetitza, perquè mai no quedi un torn sense resposta.
+	rounds := windAutoContinues
+	if !interactive {
+		rounds = 0
+	}
+	first := true
+	retried := false
+	for round := 0; ; round++ {
+		last := round >= rounds
+		loop.SenseTancarPassos = interactive && !last
+		switch {
+		case first && len(prev) > 0 && len(prev[0]) > 0:
+			out, _, err = loop.Continua(ctx, prev[0])
+		case first:
+			out, _, err = loop.Run(ctx, brief)
+		default:
+			out, _, err = loop.Continua(ctx, loop.Hist)
+		}
+		first = false
+		if err != nil {
+			// Caiguda passatgera del proveïdor abans de fer res: un reintent.
+			if !retried && !errors.Is(ctx.Err(), context.Canceled) && ctx.Err() == nil && motiuPassatger(err.Error()) {
+				retried = true
+				continue
+			}
+			break
+		}
+		if !loop.Esgotat || last || ctx.Err() != nil {
+			break
+		}
+	}
+	// Do not depend on a model to relay an approval block honestly.
+	if requiresApproval && !strings.Contains(out, windRequiresApproval) {
+		out = strings.TrimSpace(out) + "\n\n" + windRequiresApproval
 	}
 	res := exploracio{text: strings.TrimSpace(out), parcial: loop.Parcial, motiu: loop.Motiu, hist: loop.Hist}
 	temps.mu.Lock()

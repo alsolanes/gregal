@@ -104,8 +104,11 @@ type Server struct {
 
 	agentBusy bool
 	// steer: missatges escrits mentre el torn treballa (steer.go).
-	steer       steerBox
-	activity    *workshopActivity
+	steer    steerBox
+	activity *workshopActivity
+	// windTurns: torns de vent/colla en curs, per poder-los aturar
+	// (winds_cancel.go). La clau és el tipus i l'id.
+	windTurns   map[turnKey]*turnHandle
 	workshopSeq uint64
 	active      *activeAgent
 	activeSeq   int
@@ -585,6 +588,10 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/md", h.route((*Server).handleMarkdown))
 	// G2: workspaces (directori de treball per sessió).
 	handle("/api/workspaces", h.route((*Server).handleWorkspaces))
+	// Previsualitzar la carpeta de treball: la web que el vent acaba de fer,
+	// oberta al mòbil sense engegar cap servidor efímer.
+	handle(previewPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handlePreview(w, r) })
+	handle("/api/preview", h.route((*Server).handlePreviewInfo))
 	handle("/api/dirs", h.route((*Server).handleDirs))
 	// G3: arbre, fitxers i diffs del workspace.
 	handle("/api/tree", h.route((*Server).handleTree))
