@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Vents (Android): winds with volume.** The winds now look like soft 3D figures instead of flat stickers: light from the top left, their own shade underneath, a reflected rim of light and a soft shadow on the ground, all in each wind's colour, same shapes and faces. On large faces (profile, creator, chat start) tilting the phone moves the eyes and mouth slightly while the light stays put, so the ball turns like a sphere. The tilt stops with reduce-motion, battery saver or when the app is in the background, and it uses one shared sensor and no new libraries.
+
 ## v1.31.1 - 2026-10-30 - Càmera de jugador i estadi
 
 - **American football: player cam and a full stadium.** The main live camera is now a player cam, low behind whoever has the ball (behind the QB before the snap, then over the receiver's shoulder after the catch, behind the runner or returner), with slow motion on catches and tackles. The field sits in a three-tier stadium with about 11,000 animated fans in team colours who do the wave and jump with flags and camera flashes on big plays, two video boards, benches and light towers. New angles: end-zone and pylon cams for touchdown replays, a low rail cam, and a blimp shot for kickoffs, each tagged on screen.

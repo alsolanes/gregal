@@ -188,6 +188,9 @@ fun WindFace(
     // The stored specialty stays intact; small avatars show only their identity…
     // unless the caller opts in (the crew strip): picking a wind by its trade tool.
     val kit = if (size >= 80 || showKit) windKits[style.kit] else null
+    // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
+    // a les llistes petites seria soroll i sensor per a res.
+    val lean = rememberWindLean(motion && size >= 64)
     Box(Modifier.graphicsLayer {
         transformOrigin = TransformOrigin(0.5f, 1f)
         translationY = lift * size.dp.toPx()
@@ -205,32 +208,10 @@ fun WindFace(
         val ink = if (contrastWith(accent, Color(0xFF202127)) >= contrastWith(accent, Color.White)) Color(0xFF202127) else Color.White
         val unit = min(w, h) / 80f
 
-        when (style.shape) {
-            WindShape.CLOUD -> {
-                drawRoundRect(accent, Offset(cx - r * 1.19f, cy - r * .30f), Size(r * 2.38f, r * 1.27f),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(r * .58f))
-                drawCircle(accent, r * .67f, Offset(cx - r * .61f, cy - r * .05f))
-                drawCircle(accent, r * .86f, Offset(cx + r * .08f, cy - r * .19f))
-                drawCircle(accent, r * .60f, Offset(cx + r * .66f, cy + r * .04f))
-            }
-            WindShape.SPIRAL -> {
-                // A curled gust with an open notch: recognizable from its outline,
-                // not a circle with a faint spiral etched onto the forehead.
-                val curl = Path().apply {
-                    moveTo(-.95f, -.16f)
-                    cubicTo(-1.10f, -.91f, -.14f, -1.27f, .43f, -.96f)
-                    cubicTo(.93f, -.68f, .66f, -.20f, .19f, -.33f)
-                    cubicTo(.55f, -.38f, .51f, -.73f, .17f, -.73f)
-                    cubicTo(-.23f, -.73f, -.32f, -.43f, -.14f, -.23f)
-                    cubicTo(.05f, -.09f, .53f, -.25f, .82f, .04f)
-                    cubicTo(1.23f, .45f, .73f, 1.03f, .02f, 1.03f)
-                    cubicTo(-.68f, 1.03f, -1.11f, .48f, -.95f, -.16f)
-                    close()
-                }
-                withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) { drawPath(curl, accent) }
-            }
-            WindShape.BALL -> drawCircle(accent, r, Offset(cx, cy))
-        }
+        // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
+        val tx = lean.value.x
+        val ty = lean.value.y
+        drawWindBody(style.shape, accent, cx, cy, r, tx, ty)
         // A single small tool on large profiles, never a costume over the eyes.
         // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
         // coordenades de la cara sencera, cenyint a les seves vores. El 'prop'
@@ -250,21 +231,24 @@ fun WindFace(
             }
         }
 
-        val eyeY = cy - r * 0.05f + look.second * r * 0.07f
+        // Els trets viuen a la cara de l'esfera: amb la inclinació es desplacen una mica.
+        val fx = cx + tx * r * .09f
+        val fy = cy + ty * r * .07f
+        val eyeY = fy - r * 0.05f + look.second * r * 0.07f
         val eyeDx = r * 0.29f
         val eyeW = r * 0.135f
         val gazeShift = look.first * r * 0.07f
 
-        // Two bold eye marks; no pupils, reflections, cheeks or glossy shading.
+        // Two bold eye marks; no pupils or reflections: the volume lives in the body.
         if (mood == WindMood.DONE || blinking || squint || cheer.value > .15f) {
             for (side in listOf(-1f, 1f)) {
                 drawArc(ink, 190f, 160f, false,
-                    Offset(cx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
+                    Offset(fx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
                     Size(eyeW * 2f, eyeW * 1.1f),
                     style = Stroke(r * .085f, cap = StrokeCap.Round))
             }
         } else for (side in listOf(-1f, 1f)) {
-            val ex = cx + side * eyeDx + gazeShift
+            val ex = fx + side * eyeDx + gazeShift
             when (style.eyes) {
                 WindEyes.DOTS, WindEyes.WIDE -> {
                     val wide = if (style.eyes == WindEyes.WIDE) 1.3f else 1f
@@ -303,7 +287,7 @@ fun WindFace(
                 startAngle = 20f,
                 sweepAngle = 140f,
                 useCenter = false,
-                topLeft = Offset(cx - r * 0.30f, cy + r * 0.10f),
+                topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
                 size = Size(r * 0.60f, r * 0.55f),
                 style = Stroke(width = r * 0.045f, cap = StrokeCap.Round),
             )
@@ -311,19 +295,19 @@ fun WindFace(
                 // Boca oberta: llavor fosca amb una mica de llengua.
                 drawOval(
                     color = ink,
-                    topLeft = Offset(cx - r * 0.14f, cy + r * 0.16f),
+                    topLeft = Offset(fx - r * 0.14f, fy + r * 0.16f),
                     size = Size(r * 0.28f, r * 0.26f),
                 )
                 drawOval(
                     color = Color(0xFFE86A6A),
-                    topLeft = Offset(cx - r * 0.10f, cy + r * 0.28f),
+                    topLeft = Offset(fx - r * 0.10f, fy + r * 0.28f),
                     size = Size(r * 0.20f, r * 0.14f),
                 )
             }
             WindMouth.NEUTRAL -> drawLine(
                 color = ink,
-                start = Offset(cx - r * 0.16f, cy + r * 0.28f),
-                end = Offset(cx + r * 0.16f, cy + r * 0.28f),
+                start = Offset(fx - r * 0.16f, fy + r * 0.28f),
+                end = Offset(fx + r * 0.16f, fy + r * 0.28f),
                 strokeWidth = r * 0.045f,
                 cap = StrokeCap.Round,
             )
@@ -333,13 +317,13 @@ fun WindFace(
                     startAngle = 20f,
                     sweepAngle = 140f,
                     useCenter = false,
-                    topLeft = Offset(cx - r * 0.30f, cy + r * 0.10f),
+                    topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
                     size = Size(r * 0.60f, r * 0.55f),
                     style = Stroke(width = r * 0.045f, cap = StrokeCap.Round),
                 )
                 drawOval(
                     color = Color(0xFFE86A6A),
-                    topLeft = Offset(cx - r * 0.08f, cy + r * 0.30f),
+                    topLeft = Offset(fx - r * 0.08f, fy + r * 0.30f),
                     size = Size(r * 0.16f, r * 0.22f),
                 )
             }
@@ -348,12 +332,12 @@ fun WindFace(
         if (talkOpen) {
             drawOval(
                 color = ink,
-                topLeft = Offset(cx - r * 0.11f, cy + r * 0.16f),
+                topLeft = Offset(fx - r * 0.11f, fy + r * 0.16f),
                 size = Size(r * 0.22f, r * 0.20f),
             )
             drawOval(
                 color = Color(0xFFE86A6A),
-                topLeft = Offset(cx - r * 0.07f, cy + r * 0.26f),
+                topLeft = Offset(fx - r * 0.07f, fy + r * 0.26f),
                 size = Size(r * 0.14f, r * 0.10f),
             )
         }
