@@ -14,6 +14,13 @@
 //
 // Una subclasse posa els seus camps, crida this.start() al final del
 // constructor i implementa resize(), draw(), onFrame(dt, now) i poll().
+//
+// Mode sense dibuix (headless): la vista 3D en primera persona (arena-3d.js)
+// fa servir aquest mateix visor com a rellotge i estat del partit. Amb
+// setHeadless(true) el visor deixa el seu bucle (i de dibuixar), la vista 3D
+// crida tick(dt) a cada fotograma seu i llegeix l'estat; la línia de temps, el
+// salt (seek), la velocitat i la pausa són exactament els mateixos. onFrame()
+// no ha de cridar draw() quan this.headless és cert.
 
 export const lerp = (a, b, t) => a + (b - a) * t;
 export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -123,8 +130,27 @@ export class ArenaViewBase {
     }
   }
 
-  // Es veu? (pestanya visible i canvas a la pantalla)
-  active() { return !this.stopped && this.vis.page && this.vis.screen; }
+  // Es veu? (pestanya visible i canvas a la pantalla; en mode headless el
+  // canvas 2D pot quedar tapat o amagat: compta si es veu la vista que el fa
+  // servir, que ho diu amb setShown('driver', on))
+  active() { return !this.stopped && this.vis.page && (this.headless ? this.vis.driver !== false : this.vis.screen); }
+
+  // Headless: un altre (la vista 3D) porta el bucle amb tick(dt) i no es dibuixa.
+  setHeadless(on) {
+    on = !!on;
+    if (on === !!this.headless) return;
+    this.headless = on;
+    this.vis.driver = true;
+    caf(this.rafId); this.rafId = 0;
+    if (!on) { this.last = now(); this.remeasure(true); this.invalidate(); }
+    else if (this.pollDue != null && !this.pollTimer) this.schedulePoll(Math.max(0, this.pollDue - now()));
+  }
+  // Un pas del partit portat de fora (headless): el mateix que un fotograma, sense dibuixar.
+  tick(dt) {
+    if (this.stopped) return;
+    this.dirty = false;
+    this.onFrame(Math.min(0.25, Math.max(0, +dt || 0)), now());
+  }
 
   setShown(what, on) {
     if (this.vis[what] === on) return;
@@ -141,7 +167,7 @@ export class ArenaViewBase {
 
   // Cal tornar a pintar (en pausa no es pinta si no ha canviat res).
   invalidate() { this.dirty = true; if (this.active()) this.wake(); }
-  wake() { if (!this.rafId && this.active()) this.rafId = raf(this.frame) || 0; }
+  wake() { if (!this.rafId && !this.headless && this.active()) this.rafId = raf(this.frame) || 0; }
 
   // La propera consulta d'aquí a ms (s'atura mentre el visor no es veu).
   schedulePoll(ms) {
@@ -156,7 +182,7 @@ export class ArenaViewBase {
 
   frame(t) {
     this.rafId = 0;
-    if (!this.active()) return;
+    if (!this.active() || this.headless) return;
     if (t == null) t = now();
     // En pausa i sense canvis: no es pinta (ni es demana cap fotograma més fins a invalidate()).
     if (this.paused && !this.dirty) { this.last = t; return; }

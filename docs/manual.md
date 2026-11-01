@@ -615,6 +615,46 @@ Gregal server.
 - **TV mode.** Open any match and press 📺 TV mode: the same broadcast for that
   one match, full screen, with each team's latest call and the rule of its
   `.md` under its name. Esc closes it.
+- **👁 First person 3D.** In American football, the **👁 First person 3D**
+  button (in the player's control bar, and at the top of TV mode for a single
+  match) puts you inside the stadium, looking through a player's helmet. By
+  default the camera follows the action on its own (the QB until the ball is
+  thrown, then the receiver; the runner after the handoff; the returner on
+  kicks). Drag to look around (it turns back after a moment), **Tab** or **E**
+  / **Q** (or ◀ ▶) to lock onto another player, **A** or *Auto* to follow the
+  action again, **F** or *Free* for a free camera that orbits the ball (drag
+  to orbit, wheel to zoom), **R** to recentre and **Esc** or *✕ 2D* to go back.
+  It is the same match on the same clock: the progress bar, speed, pause,
+  jumps, captions and commentary keep working, and ⬇ Download video still
+  records the 2D broadcast. It needs WebGL 2; without it a message says so and
+  the 2D view stays.
+- **👁 3D in League of Legends.** The same button puts you on a 3D Summoner's
+  Rift built from the match's map: lanes, the river, jungle walls and trees,
+  team-coloured bases, towers that lose HP and collapse into rubble,
+  inhibitors, the nexus, minion waves, and the dragon (in its element's
+  colour), Baron, the Herald and the Void Grubs with HP bars. League isn't a
+  first-person game, so the camera sits **over the shoulder** of a champion;
+  *👁 Eyes* (or **V**) switches to their own eyes and back. On its own it
+  follows the champion in the fight or objective the action cam is filming
+  (the killer of a kill, the team on the dragon or Baron); **Tab** / **E** /
+  **Q** lock onto any of the ten. The abilities are the 2D action cam's (skill
+  shots, AoE circles, dashes, slams, shields, heals, tower shots, smites,
+  damage numbers), and replays play in 3D too. The top bar shows kills, gold,
+  towers and the game clock; a card shows the watched champion's role, K/D/A,
+  gold and HP (or respawn timer), with the kill feed and the big banners (First
+  Blood, ACE, Baron) as in 2D.
+- **👁 3D in Counter-Strike 2.** The same button puts you on a 3D Mirage built
+  from the tactical map (the same areas, corridors, crates and A/B sites),
+  looking through a player's eyes with their gun in hand and a crosshair. On
+  its own it follows whoever the 2D POV would show (the player about to get a
+  kill, the planter, the defuser, otherwise the bomb carrier) and the killer
+  in the kill-cam replay; **Tab** / **E** / **Q** lock onto any of the ten.
+  You see tracers, smoke clouds (the view turns grey inside one), molotov
+  fire, flashbangs (the screen goes white if they catch your player), the bomb
+  on the carrier's back, planted with its blinking light and exploding, and a
+  progress bar while it is planted or defused. The HUD shows the score, round,
+  clock or bomb timer, the player's money, HP, armour and ammo, and the kill
+  feed.
 - **CS2 live: play it yourself.** In Counter-Strike 2, **🎮 Play it yourself
   (live)** opens a first-person match where you control one player of your
   team with keyboard and mouse and the other nine are bots. The model still

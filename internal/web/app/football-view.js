@@ -1227,7 +1227,7 @@ export class FootballView extends ArenaViewBase {
     this.clock += dt; this.hype = Math.max(0, this.hype - dt * .16);
     this.simDt = this.paused ? 0 : dt * this.speed;
     if (!this.paused) this.advance(this.simDt);
-    this.draw();
+    if (!this.headless) this.draw(); // headless: la vista 3D (arena-3d.js) llegeix l'estat i dibuixa
   }
 
   // Canvi de càmera: tall sec amb un flaix, un escombrat ràpid (whip) o la

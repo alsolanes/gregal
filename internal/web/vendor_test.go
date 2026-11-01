@@ -12,6 +12,7 @@ func TestVendorOfficeIncrustat(t *testing.T) {
 		"app/vendor/jszip.min.js":        "JSZip",
 		"app/vendor/docx-preview.min.js": "renderAsync",
 		"app/vendor/xlsx.mini.min.js":    "sheet_to_json",
+		"app/vendor/three.module.min.js": "WebGLRenderer",
 	}
 	for nom, marca := range fitxers {
 		raw, err := assets.ReadFile(nom)

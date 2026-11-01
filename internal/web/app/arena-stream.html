@@ -18,6 +18,7 @@
   .clock { color:var(--muted); font-variant-numeric:tabular-nums; }
   .voice { border:1px solid var(--line); background:var(--panel); color:var(--ink); border-radius:8px; padding:5px 10px; cursor:pointer; font:inherit; font-size:13px; }
   .voice.on { background:var(--accent); color:#111; }
+  .voice.fp3d.soon { opacity:.6; cursor:help; }
   .voice.blocked { background:#e5484d; color:#fff; animation:pulse 1.2s infinite; }
   /* Als segments de panell, el subtítol baixa al lloc del marcador. */
   body.paneled .caption { bottom:62px; }
@@ -123,7 +124,7 @@
 </head>
 <body>
 <div id="tv">
-<div class="top"><div class="logo">GREGAL <span>ARENA</span></div><div class="comp" id="comp"></div><div class="seg" id="seg"></div><div class="live hide" id="live">LIVE</div><div class="clock" id="clock"></div><button class="voice" id="voice" type="button"></button></div>
+<div class="top"><div class="logo">GREGAL <span>ARENA</span></div><div class="comp" id="comp"></div><div class="seg" id="seg"></div><div class="live hide" id="live">LIVE</div><div class="clock" id="clock"></div><button class="voice fp3d hide" id="fp3d" type="button"></button><button class="voice" id="voice" type="button"></button></div>
 <div class="stage-wrap" id="stageWrap" style="opacity:0"><canvas id="cv"></canvas></div>
 <div class="lower hide" id="lower"><div class="pcard a"><div class="who" id="nameA"></div><div class="motto" id="mottoA"></div><div class="call" id="callA"></div></div><div class="score" id="score">0 - 0</div><div class="pcard b"><div class="who" id="nameB"></div><div class="motto" id="mottoB"></div><div class="call" id="callB"></div></div></div>
 <div id="momentHost"></div>
@@ -142,6 +143,7 @@
 import { makeView, LESSONS, EXPLAIN } from './arena-views.js';
 import { exportVideo, momentsByEvent, showMomentCard } from './arena-export.js';
 import { mountScrubber } from './arena-scrubber.js';
+import { has3D, mount3D } from './arena-3d.js';
 import { bracketHTML, groupsHTML, scheduleHTML, playoffsStarted, currentGame, ensureBracketCSS, shortStage, seedLabel, maskUnseen } from './arena-bracket.js';
 
 // Per sota de 1280×720 tot es pinta a aquesta mida i s'escala (amb bandes),
@@ -171,6 +173,7 @@ const L = lang === 'ca' ? {
   stakes: 'Els dos primers de cada grup passen a les eliminatòries.', preparing: 'S’està jugant el partit següent: tornem de seguida.', tips: 'CONSELL', upnext: 'ARA VE',
   summary: 'Resum del partit', moments: 'Moments del prompt', noMoments: 'Cap moment del prompt en aquest partit.', coach: 'coach', followed: 'ha seguit el .md', exportVideo: '⬇ Descarrega el vídeo',
   bracket: 'Quadre', bo3: 'Al millor de 3', gameN: 'Partit', series: 'Sèrie',
+  fp3d: '👁 Primera persona 3D', fp3dOn: '👁 Torna al 2D', fp3dSoon: '👁 3D · aviat', fp3dHelp: 'Mira el partit des del casc d’un jugador (arrossega per mirar, Tab/Q-E canvia de jugador, F càmera lliure, Esc torna al 2D)', fp3dSoonHelp: 'La primera persona en 3D arribarà aviat per a aquest joc',
 } : {
   waiting: 'Waiting for the competition…', soon: 'Starting soon', opening: 'The competition starts', next: 'Up next', result: 'Result', table: 'Standings',
   champions: 'Champions', win: 'wins', draw: 'Draw', p: 'Player', pj: 'P', w: 'W', d: 'D', l: 'L', pts: 'Pts', preview: 'Preview', analysis: 'The analysis',
@@ -182,6 +185,7 @@ const L = lang === 'ca' ? {
   stakes: 'The top two of each group go through to the playoffs.', preparing: 'The next match is being played: back in a moment.', tips: 'TIP', upnext: 'UP NEXT',
   summary: 'Match summary', moments: 'Prompt moments', noMoments: 'No prompt moments in this match.', coach: 'coach', followed: 'followed its .md', exportVideo: '⬇ Download video',
   bracket: 'Bracket', bo3: 'Best of 3', gameN: 'Game', series: 'Series',
+  fp3d: '👁 First person 3D', fp3dOn: '👁 Back to 2D', fp3dSoon: '👁 3D · coming soon', fp3dHelp: 'Watch the match through a player’s helmet (drag to look, Tab/Q-E switch player, F free camera, Esc back to 2D)', fp3dSoonHelp: 'First person 3D is coming soon for this game',
 };
 const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
 
@@ -334,6 +338,31 @@ const single = q.get('match') || '';
 
 setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString(lang === 'ca' ? 'ca-ES' : 'en-GB', { hour: '2-digit', minute: '2-digit' }); }, 1000);
 
+// ---- primera persona 3D (només un sol partit, mentre es juga) ----
+// La capa 3D (arena-3d.js) es posa sobre el canvas i porta el mateix visor:
+// la barra, el marcador de baix, els subtítols i les crides no canvien.
+let v3 = null, v3Loading = false;
+function paint3D() {
+  const b = $('fp3d'), game = live && live.sl.game, ok = !!game && has3D(game);
+  b.textContent = v3 ? L.fp3dOn : ok ? L.fp3d : L.fp3dSoon;
+  b.title = ok ? L.fp3dHelp : L.fp3dSoonHelp;
+  b.classList.toggle('soon', !ok); b.classList.toggle('on', !!v3);
+}
+function show3D(on) { $('fp3d').classList.toggle('hide', !on || !single); if (!on) close3D(); else paint3D(); }
+function close3D() { if (v3) { const h = v3; v3 = null; h.destroy('close'); } paint3D(); }
+async function toggle3D() {
+  if (v3) { close3D(); return; }
+  if (!view || !live || v3Loading) return;
+  if (!has3D(live.sl.game)) { caption('', L.fp3dSoonHelp, 4); return; }
+  v3Loading = true;
+  const vw = view;
+  try {
+    const h = await mount3D($('cv'), { game: live.sl.game, view: vw, lang, onExit: () => { if (v3 === h) v3 = null; paint3D(); } });
+    if (h && view !== vw) h.destroy('stale'); else v3 = h;
+  } finally { v3Loading = false; paint3D(); }
+}
+$('fp3d').onclick = () => toggle3D();
+
 // ---- segments ----
 async function wipe(swap, my) {
   if (my !== undefined && my !== epoch) return;
@@ -483,6 +512,7 @@ async function segLive(sl, resume = false) {
       $('nameA').textContent = name(L0); $('nameB').textContent = name(R0);
       $('mottoA').textContent = motto(L0); $('mottoB').textContent = motto(R0);
     });
+    close3D();
     if (view) view.destroy();
     view = await makeView(sl.game, $('cv'), { lang, fetchMatch: fm, onEvent: e => {
       // El marcador de baix va amb el que es veu, no amb l'últim que ha arribat.
@@ -512,11 +542,13 @@ async function segLive(sl, resume = false) {
   }
   const ctx = live;
   inLive = true;
+  show3D(true);
   sfx.ambience(true);
   // Els comentaris arriben una mica després de les jugades: es tornen a llegir.
   const refresh = setInterval(() => fetchMatch(sl.match).then(m => (m.lines || []).forEach(l => ctx.lines.set(l.n, l))).catch(() => {}), 6000);
   while (!view.isFinished()) await sleep(1000);
   clearInterval(refresh); clearTimeout(ctx.slowT);
+  show3D(false);
   if (ctx.latest) $('score').textContent = ctx.sc2(ctx.latest.score);
   sfx.roar(true);
   await sleep(2500);

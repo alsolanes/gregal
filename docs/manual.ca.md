@@ -620,6 +620,47 @@ servidor de Gregal.
 - **Mode tele.** Obre qualsevol partit i prem 📺 TV mode: la mateixa
   retransmissió per a aquell partit, a pantalla completa, amb la darrera crida
   de cada equip i la regla del seu `.md` sota el nom. Esc la tanca.
+- **👁 Primera persona 3D.** Al futbol americà, el botó **👁 First person 3D**
+  (a la barra del reproductor, i a dalt del mode tele d'un sol partit) et posa
+  dins de l'estadi, mirant pel casc d'un jugador. Per defecte la càmera segueix
+  l'acció sola (el quarterback fins que llança, després el receptor; el
+  corredor després de l'entrega; el retornador als xuts). Arrossega per mirar
+  al voltant (al cap d'una estona torna endavant), **Tab** o **E** / **Q** (o
+  ◀ ▶) per fixar-te en un altre jugador, **A** o *Auto* per tornar a seguir
+  l'acció, **F** o *Free* per a una càmera lliure que gira al voltant de la
+  pilota (arrossega per girar, roda per apropar), **R** per centrar i **Esc** o
+  *✕ 2D* per tornar. És el mateix partit amb el mateix rellotge: la barra, la
+  velocitat, la pausa, els salts, els subtítols i els comentaris continuen
+  anant, i ⬇ Download video continua gravant la retransmissió 2D. Necessita
+  WebGL 2; si no n'hi ha, un missatge ho diu i es queda la vista 2D.
+- **👁 3D al League of Legends.** El mateix botó et posa en un Summoner's Rift
+  en 3D fet amb el mapa del partit: carrils, el riu, parets i arbres de la
+  jungla, bases amb el color de cada equip, torres que perden vida i cauen
+  fetes runa, inhibidors, el nexe, onades de minions, i el drac (amb el color
+  del seu element), el Baró, l'Herald i els Void Grubs amb barres de vida. El
+  LoL no és un joc en primera persona, i per això la càmera va **darrere
+  l'espatlla** d'un campió; *👁 Ulls* (o **V**) passa als seus ulls i torna.
+  Sola, segueix el campió de la baralla o l'objectiu que filma la càmera
+  d'acció (qui fa la mort, l'equip que fa el drac o el Baró); **Tab** / **E** /
+  **Q** et fixen en qualsevol dels deu. Les habilitats són les de la càmera
+  d'acció 2D (projectils, cercles d'àrea, embestides, cops a terra, escuts,
+  curacions, trets de torre, smites, números de dany), i les repeticions també
+  es veuen en 3D. La barra de dalt mostra morts, or, torres i el rellotge; una
+  fitxa mostra el rol, el K/D/A, l'or i la vida (o el temps per reaparèixer)
+  del campió que mires, amb les últimes morts i els rètols grans (First Blood,
+  ACE, Baró) com al 2D.
+- **👁 3D al Counter-Strike 2.** El mateix botó et posa en un Mirage en 3D fet
+  amb el mapa tàctic (les mateixes zones, passadissos, caixes i llocs A/B),
+  mirant pels ulls d'un jugador amb la seva arma a les mans i el punt de mira.
+  Sola, la càmera segueix qui ensenyaria la POV 2D (qui està a punt de fer una
+  mort, qui planta, qui desactiva, si no qui porta la bomba) i qui mata a la
+  repetició; **Tab** / **E** / **Q** et fixen en qualsevol dels deu. Es veuen
+  les traçadores, els fums (dins d'un, la imatge es torna grisa), el foc dels
+  molotovs, els flaixos (la pantalla es torna blanca si enlluernen el teu
+  jugador), la bomba a l'esquena de qui la porta, plantada amb el llum que
+  parpelleja i quan esclata, i una barra mentre es planta o es desactiva. El
+  marcador mostra el resultat, la ronda, el rellotge o el temps de la bomba,
+  els diners, la vida, l'armilla i les bales del jugador, i les últimes morts.
 - **CS2 en directe: juga-ho tu.** Al Counter-Strike 2, **🎮 Play it yourself
   (live)** obre un partit en primera persona on portes un jugador del teu equip
   amb teclat i ratolí i els altres nou són bots. El model continua fent només

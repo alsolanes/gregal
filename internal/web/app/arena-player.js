@@ -168,6 +168,8 @@ export function playerCSS() {
 .ar-scrub .x { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
 .ar-scrub button.dl { background:#ffd400; color:#111; border-color:#ffd400; font-weight:800; }
 .ar-scrub button.dl.wait { background:rgba(255,255,255,.07); color:#9aa4bd; border-color:rgba(255,255,255,.14); cursor:help; }
-.ar-scrub button.cc.on { background:#f3f5fb; color:#111; }`;
+.ar-scrub button.cc.on { background:#f3f5fb; color:#111; }
+.ar-scrub button.fp3d.on { background:#ffd400; color:#111; border-color:#ffd400; }
+.ar-scrub button.fp3d.soon { opacity:.6; cursor:help; }`;
   document.head.append(st);
 }

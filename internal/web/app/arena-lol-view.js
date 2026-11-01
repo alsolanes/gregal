@@ -1373,7 +1373,7 @@ export class LolView extends ArenaViewBase {
       const top = 62 * s, bottom = 38 * s, pad = 10 * s, mw = W * .68;
       this.topH = top;
       this.mapR = { x: pad, y: top + 6 * s, w: mw - pad, h: H - top - 6 * s - bottom };
-      this.tick = { x: pad, y: H - bottom + 2 * s, w: mw - pad, h: bottom - 10 * s };
+      this.tickR = { x: pad, y: H - bottom + 2 * s, w: mw - pad, h: bottom - 10 * s };
       this.side = { x: mw + 10 * s, y: top + 8 * s, w: W - mw - 10 * s - pad, h: H - top - 8 * s - pad };
     } else {
       s = this.s = Math.min(W / 640, H / 760);
@@ -1381,8 +1381,8 @@ export class LolView extends ArenaViewBase {
       this.topH = top;
       const mh = Math.min(H * .5, W * .72);
       this.mapR = { x: 6 * s, y: top + 4 * s, w: W - 12 * s, h: mh };
-      this.tick = { x: 6 * s, y: this.mapR.y + mh + 2 * s, w: W - 12 * s, h: 28 * s };
-      this.side = { x: 6 * s, y: this.tick.y + this.tick.h + 6 * s, w: W - 12 * s, h: H - (this.tick.y + this.tick.h + 12 * s) };
+      this.tickR = { x: 6 * s, y: this.mapR.y + mh + 2 * s, w: W - 12 * s, h: 28 * s };
+      this.side = { x: 6 * s, y: this.tickR.y + this.tickR.h + 6 * s, w: W - 12 * s, h: H - (this.tickR.y + this.tickR.h + 12 * s) };
     }
     const R = this.mapR, depth = 12 * s;
     const k = Math.min(R.w / (100 * Math.SQRT2), (R.h - depth) / (100 * Math.SQRT2 * SQ));
@@ -1437,7 +1437,17 @@ export class LolView extends ArenaViewBase {
   onFrame(dt, now) {
     this.now = now / 1000;
     if (!this.paused) this.advance(dt * this.speed, dt);
+    if (this.headless) { this.headlessCam(); return; } // the 3D view (arena-3d.js) drives tick() and draws
     try { this.draw(); } catch (e) { /* one bad frame doesn't stop the viewer */ }
+  }
+  // Headless: no drawing, but the action cam's framing (camT, camFocus) still
+  // follows its tween, as draw() would set it: champXY() and the abilities cast
+  // from it then match what the 2D view would show.
+  headlessCam() {
+    const st = this.state;
+    if (!st || !this.mapG || this.scene || st.mode === 'draft') return;
+    if (st.mode !== 'map') this.setCam(FULL_CAM);
+    else if (!this.replay) this.setCam(this.camNow());
   }
 
   advance(dt) {
@@ -2719,7 +2729,7 @@ export class LolView extends ArenaViewBase {
   }
 
   drawTicker() {
-    const st = this.state, s = this.s, K = this.tick;
+    const st = this.state, s = this.s, K = this.tickR;
     if (st.mode === 'victory' || !st.ticker) return;
     const ev = this.cur ? this.cur.ev : this.queue[this.idx - 1];
     const d = (ev && ev.data) || {};

@@ -8,6 +8,7 @@ import { makeView, LESSONS, GUIDE } from './arena-views.js';
 import { exportVideo, momentsByEvent, momentKeys, showMomentCard, sideColor, momentCSS } from './arena-export.js';
 import { mountScrubber, fmtTime } from './arena-scrubber.js';
 import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summaryHTML, playerCSS, callText } from './arena-player.js';
+import { has3D, mount3D } from './arena-3d.js';
 import { applyFix, undoFix, diffLines, diffHunks, diffCount, matchesByVersion, versionStats, lastPractice, topMistakes, coachScore } from './arena-learn.js';
 
 const $ = id => document.getElementById(id);
@@ -564,11 +565,12 @@ const arenaUI = {
   // Els botons de la dreta de la barra: subtítols, mode tele, descarregar el vídeo i compartir-lo.
   playerButtons() {
     const box = document.createElement('span'); box.className = 'x';
-    box.innerHTML = `<button type="button" class="cc" id="arCCBtn" title="${esc(T('ar.vp.ccHelp'))}">CC</button><button type="button" id="arTV" title="${esc(T('ar.tv'))}">📺</button>` +
+    box.innerHTML = `<button type="button" class="cc" id="arCCBtn" title="${esc(T('ar.vp.ccHelp'))}">CC</button><button type="button" class="fp3d" id="ar3D"></button><button type="button" id="arTV" title="${esc(T('ar.tv'))}">📺</button>` +
       `<button type="button" class="dl" id="arExport">${esc(T('ar.vp.download'))}</button><button type="button" id="arShare" hidden>${esc(T('ar.vp.share'))}</button>`;
     box.querySelector('#arCCBtn').classList.toggle('on', this.cc);
     box.querySelector('#arCCBtn').onclick = () => { this.cc = !this.cc; try { localStorage.setItem('arenaCC', this.cc ? '1' : '0'); } catch (e) {} box.querySelector('#arCCBtn').classList.toggle('on', this.cc); if (!this.cc) $('arCC').classList.remove('on'); };
-    box.querySelector('#arTV').onclick = () => this.match && this.openTV(this.match.id);
+    box.querySelector('#arTV').onclick = () => { this.close3D(); if (this.match) this.openTV(this.match.id); };
+    box.querySelector('#ar3D').onclick = () => this.toggle3D();
     box.querySelector('#arExport').onclick = () => {
       if (!this.match) return;
       if (this.match.status !== 'final') { $('arStatus').textContent = T('ar.vp.downloadWait'); return; }
@@ -577,6 +579,34 @@ const arenaUI = {
     box.querySelector('#arShare').onclick = () => this.shareVideo();
     return box;
   },
+
+  // 👁 Primera persona 3D (arena-3d.js): la capa 3D va sobre el canvas 2D i fa
+  // servir el mateix visor com a rellotge (la barra, la pista i el vídeo no
+  // canvien). Els jocs sense adaptador 3D encara mostren «aviat».
+  paint3D() {
+    const b = $('ar3D'); if (!b) return;
+    const game = this.match && this.match.game, ok = !!game && has3D(game);
+    b.textContent = ok ? T('ar.vp.fp3d') : T('ar.vp.fp3dSoon');
+    b.title = ok ? T('ar.vp.fp3dHelp') : T('ar.vp.fp3dSoonHelp');
+    b.classList.toggle('soon', !ok); b.classList.toggle('on', !!this.v3);
+    b.setAttribute('aria-pressed', this.v3 ? 'true' : 'false');
+  },
+  async toggle3D() {
+    if (this.v3) { this.close3D(); return; }
+    const game = this.match && this.match.game;
+    if (!this.view || !game) return;
+    if (!has3D(game)) { $('arStatus').textContent = T('ar.vp.fp3dSoonHelp'); return; }
+    if (this.v3Loading) return;
+    this.v3Loading = true;
+    const view = this.view;
+    try {
+      const h = await mount3D($('arCanvas'), { game, view, lang: lang(), onExit: () => { if (this.v3 === h) this.v3 = null; this.paint3D(); }, onFail: msg => { $('arStatus').textContent = msg; } });
+      // The match changed while 3D was loading: drop it.
+      if (h && this.view !== view) h.destroy('stale');
+      else this.v3 = h;
+    } finally { this.v3Loading = false; this.paint3D(); }
+  },
+  close3D() { if (this.v3) { const h = this.v3; this.v3 = null; h.destroy('close'); } this.paint3D(); },
 
   // ⬇ sempre a la vista: apagat (amb el perquè) fins que el partit s'acaba.
   paintDownload() {
@@ -639,6 +669,7 @@ const arenaUI = {
   pauseView() { if (this.view && !this.view.paused) this.view.togglePause(); if (this.scrub) this.scrub.sync(); },
 
   closeMatch() {
+    this.close3D();
     if (this.view) this.view.destroy();
     if (this.scrub) this.scrub.destroy();
     this.view = null; this.scrub = null; this.match = null; this.progress = null; this.track = []; this.trackKey = ''; this.lines = new Map(); this.endShown = ''; this.lastVideo = null; clearTimeout(this.ccT); clearTimeout(this.poll); clearInterval(this.thinkTimer);
@@ -695,7 +726,7 @@ const arenaUI = {
         moments: () => this.moments, teamName: s => this.match ? this.match.names[s] : '', sideColor: s => sideColor(this.match, s),
         onSpeed: x => { this.speed = x; }, onSeek: () => this.seeked(), onSync: pr => this.onProgress(pr),
       });
-      this.paintDownload();
+      this.paintDownload(); this.paint3D();
     } catch (e) { $('arStatus').textContent = e.message; }
     // Si el model triga, que es vegi que hi està pensant i no que s'ha penjat.
     clearInterval(this.thinkTimer);

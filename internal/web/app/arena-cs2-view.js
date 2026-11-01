@@ -920,6 +920,7 @@ export class Cs2View extends ArenaViewBase {
   onFrame(dt) {
     this.fdt = this.paused ? 0 : dt * this.speed;
     if (!this.paused) this.advance(dt * this.speed);
+    if (this.headless) return; // the 3D view (arena-3d.js) drives tick() and draws
     try { this.draw(); } catch (e) { /* un fotograma dolent no ha d'aturar el visor */ }
   }
 

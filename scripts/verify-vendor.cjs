@@ -13,6 +13,7 @@ const artifacts = [
   ['PptxViewJS.min.js', 'F44EA1CACCB5FE82DD1531B52A110F85E05C2622CD1F896C70E156C73D38FC36'],
   ['xlsx.mini.min.js', '0CB353F830D7288385492C83D277B058DDEAC664CA51CF1393AA1FD3E2B70939'],
   ['mp4-muxer.esm.min.js', '9635E0A6CDB08BE2CC8F6156B7DF70C1B9F405D4E6968B013A59369C69ECFA7D'],
+  ['three.module.min.js', 'EA0B317604D082B1393CB2BBE5C6E5F97884A3B66EAA55CF55D89104F8779A2A'],
 ];
 
 for (const [name, expected] of artifacts) {
@@ -51,4 +52,12 @@ const rows = XLSX.utils.sheet_to_json(parsed.Sheets.Scores, {
 });
 assert.deepEqual(JSON.parse(JSON.stringify(rows)), [['name', 'score'], ['Ada', 42]]);
 
-console.log('Vendor artifact pins and XLSX round-trip passed.');
+// three.js: one self-contained ES module (no imports left after bundling) of revision 187.
+const three = fs.readFileSync(path.join(vendor, 'three.module.min.js'), 'utf8');
+assert.ok(!/from\s*["']\.\/three\./.test(three), 'three.module.min.js must not import other files');
+assert.ok(three.includes('="187"'), 'three.module.min.js is not revision 187');
+for (const name of ['WebGLRenderer', 'InstancedMesh', 'PerspectiveCamera', 'CanvasTexture']) {
+  assert.match(three, new RegExp(' as ' + name + '[,}]'), 'three.module.min.js does not export ' + name);
+}
+
+console.log('Vendor artifact pins, XLSX round-trip and three.js exports passed.');
