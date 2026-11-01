@@ -4058,6 +4058,45 @@ Object.assign(CA, { 'winds.routineSaved':'La rutina ja està preparada.', 'winds
 Object.assign(EN, { 'winds.routineSaved':'Your routine is ready.', 'winds.routineSaveFailed':'Could not save the routine: {error}' });
 Object.assign(CA, { 'shell.chat':'Xat', 'shell.navigation':'Navegació principal', 'shell.yourSpace':'El teu espai', 'shell.projectTools':'Eines del projecte', 'shell.closePanel':'Tanca el panell' });
 Object.assign(EN, { 'shell.chat':'Chat', 'shell.navigation':'Main navigation', 'shell.yourSpace':'Your space', 'shell.projectTools':'Project tools', 'shell.closePanel':'Close panel' });
+// Mode Kanban (experimental, app/kanban.js).
+Object.assign(CA, {
+  'kanban.nav': 'Kanban', 'kanban.kicker': 'Experimental', 'kanban.title': 'Kanban',
+  'kanban.lead': 'Cada targeta és un TUI de Gregal viu. Es mouen soles a mesura que avança la feina; clica’n una per veure-la gran i escriure-hi.',
+  'kanban.new': '+ Targeta nova', 'kanban.live': '{n}/{max} terminals en marxa',
+  'kanban.empty': 'Encara no hi ha targetes. Crea’n una per engegar un TUI.',
+  'kanban.col.definition': 'Definició', 'kanban.col.ready': 'Preparada', 'kanban.col.progress': 'En curs', 'kanban.col.review': 'Revisió', 'kanban.col.done': 'Fet',
+  'kanban.col.definition.hint': 'Espera una tasca o planifica', 'kanban.col.ready.hint': 'Arrenca o espera lloc', 'kanban.col.progress.hint': 'El model i les eines treballen',
+  'kanban.col.review.hint': 'Et necessita: permís, pregunta o pla', 'kanban.col.done.hint': 'Torn acabat',
+  'kanban.state.idle': 'espera una tasca', 'kanban.state.planning': 'planificant', 'kanban.state.plan_review': 'pla per aprovar', 'kanban.state.working': 'treballant',
+  'kanban.state.approval': 'demana permís', 'kanban.state.question': 'té una pregunta', 'kanban.state.done': 'ha acabat', 'kanban.state.starting': 'arrencant…',
+  'kanban.state.queued': 'espera lloc', 'kanban.state.stopped': 'aturada',
+  'kanban.form.task': 'Tasca', 'kanban.form.taskPh': 'Opcional: s’envia al TUI tan bon punt arrenca (Ctrl+Enter crea la targeta)',
+  'kanban.form.title': 'Títol', 'kanban.form.titlePh': 'Opcional: surt de la tasca', 'kanban.form.dir': 'Carpeta', 'kanban.form.dirPh': 'Carpeta de la sessió',
+  'kanban.form.create': 'Crea i engega', 'kanban.form.cancel': 'Cancel·la',
+  'kanban.stop': 'Atura', 'kanban.restart': 'Reengega', 'kanban.delete': 'Esborra', 'kanban.deleteConfirm': 'Vols esborrar aquesta targeta? S’aturarà el seu terminal.',
+  'kanban.collapse': 'Torna al tauler', 'kanban.rename': 'Canvia el nom', 'kanban.exit': 'sortida {code}', 'kanban.turns': '{n} torns', 'kanban.manual': 'moguda a mà',
+  'kanban.termHint': 'Clica el terminal i escriu. Esc i Ctrl+C van al TUI; per tornar al tauler, ⤡ o clica fora.',
+  'kanban.pref': 'Mode Kanban (experimental)', 'kanban.pref.help': 'Un tauler de terminals amb el TUI viu, a la barra lateral.',
+});
+Object.assign(EN, {
+  'kanban.nav': 'Kanban', 'kanban.kicker': 'Experimental', 'kanban.title': 'Kanban',
+  'kanban.lead': 'Every card is a live Gregal TUI. Cards move by themselves as the work advances; click one to open it big and type into it.',
+  'kanban.new': '+ New card', 'kanban.live': '{n}/{max} terminals running',
+  'kanban.empty': 'No cards yet. Create one to start a TUI.',
+  'kanban.col.definition': 'Definition', 'kanban.col.ready': 'Ready', 'kanban.col.progress': 'In progress', 'kanban.col.review': 'Review', 'kanban.col.done': 'Done',
+  'kanban.col.definition.hint': 'Waiting for a task or planning', 'kanban.col.ready.hint': 'Starting or waiting for a slot', 'kanban.col.progress.hint': 'Model and tools at work',
+  'kanban.col.review.hint': 'Needs you: approval, question or plan', 'kanban.col.done.hint': 'Turn finished',
+  'kanban.state.idle': 'waiting for a task', 'kanban.state.planning': 'planning', 'kanban.state.plan_review': 'plan to approve', 'kanban.state.working': 'working',
+  'kanban.state.approval': 'needs approval', 'kanban.state.question': 'has a question', 'kanban.state.done': 'finished', 'kanban.state.starting': 'starting…',
+  'kanban.state.queued': 'waiting for a slot', 'kanban.state.stopped': 'stopped',
+  'kanban.form.task': 'Task', 'kanban.form.taskPh': 'Optional: sent to the TUI as soon as it starts (Ctrl+Enter creates the card)',
+  'kanban.form.title': 'Title', 'kanban.form.titlePh': 'Optional: taken from the task', 'kanban.form.dir': 'Folder', 'kanban.form.dirPh': 'Session folder',
+  'kanban.form.create': 'Create and start', 'kanban.form.cancel': 'Cancel',
+  'kanban.stop': 'Stop', 'kanban.restart': 'Restart', 'kanban.delete': 'Delete', 'kanban.deleteConfirm': 'Delete this card? Its terminal will be stopped.',
+  'kanban.collapse': 'Back to the board', 'kanban.rename': 'Rename', 'kanban.exit': 'exit {code}', 'kanban.turns': '{n} turns', 'kanban.manual': 'moved by hand',
+  'kanban.termHint': 'Click the terminal and type. Esc and Ctrl+C go to the TUI; to go back to the board, use ⤡ or click outside.',
+  'kanban.pref': 'Kanban mode (experimental)', 'kanban.pref.help': 'A board of live TUI terminals in the sidebar.',
+});
 const DICCIONARIS = { ca: CA, en: EN };
 export const CLAUS = { ca: CA, en: EN }; // per als tests
 

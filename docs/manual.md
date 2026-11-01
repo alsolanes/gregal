@@ -148,6 +148,43 @@ terminal and Android apps show the same three modes and permissions; see
 `/debug`). Manual role selection is an advanced model picker option; Gregal
 can select the role for the task.
 
+## Kanban Mode (experimental)
+
+A board where every card is a live Gregal terminal interface, so several
+tasks can run side by side. Turn it on in **Preferences → Extras → Kanban
+mode (experimental)** (or open the app once with `?kanban=1`); a **Kanban**
+item then appears in the sidebar.
+
+**+ New card** starts a TUI in a pseudoterminal with an optional task (sent as
+soon as the TUI is ready, as if you had typed it), a title and a working
+folder (the session folder by default). Cards move by themselves, following
+the state the TUI reports:
+
+| Column | When |
+|---|---|
+| Definition | waiting for a task, or exploring a plan |
+| Ready | starting, or waiting for a free slot |
+| In progress | the model or its tools are working |
+| Review | it needs you: a permission, a question or a plan to approve |
+| Done | the turn finished |
+
+Minimised cards are colour-coded by column and show the state, what the model
+says it is doing, the last lines of the conversation and the status bar, and a
+pulsing dot while the terminal produces output. Click a card to open it big:
+it is the real TUI, so you can type, approve, scroll with the wheel and use
+every command. Esc and Ctrl+C go to the TUI; go back to the board with ⤡ or by
+clicking outside. You can drag a card to another column; it stays there until
+the TUI changes state.
+
+At most six terminals run at once (`GREGAL_KANBAN_MAX` changes it, up to 32);
+extra cards wait in Ready and start when one stops. The board is saved; after a
+server restart cards come back stopped with their last screen and **Restart**
+opens a fresh TUI in the same folder (the task is sent again only if the card
+had not started working). The TUI runs with the server's environment and
+configuration, so isolated `GREGAL_DATA_DIR`/`GREGAL_AUTH` setups stay
+isolated. Only the local owner or an administrator can use it. Windows needs
+ConPTY (Windows 10 1809 or later); Linux and macOS use `/dev/ptmx`.
+
 ## 2D Workshop
 
 The sidebar's **2D workshop** view represents open sessions as workstations.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Kanban mode (experimental).** A board where every card is a live Gregal TUI running in its own terminal, so several tasks can work at once. Cards move by themselves between Definition, Ready, In progress, Review and Done from the state the TUI reports (waiting for a task, working, needs approval or an answer, plan to approve, finished); minimised they are colour-coded and show what the model is doing, the last lines and an activity pulse, and a click opens the real terminal big to type, approve and scroll. Cards can be dragged between columns, at most six terminals run at once (the rest wait in Ready), and the board survives restarts with stopped cards ready to restart. Turn it on in Preferences → Extras.
+
 ## v1.31.1 - 2026-10-30 - Càmera de jugador i estadi
 
 - **American football: player cam and a full stadium.** The main live camera is now a player cam, low behind whoever has the ball (behind the QB before the snap, then over the receiver's shoulder after the catch, behind the runner or returner), with slow motion on catches and tackles. The field sits in a three-tier stadium with about 11,000 animated fans in team colours who do the wave and jump with flags and camera flashes on big plays, two video boards, benches and light towers. New angles: end-zone and pylon cams for touchdown replays, a low rail cam, and a blimp shot for kickoffs, each tagged on screen.

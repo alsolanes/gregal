@@ -3,7 +3,7 @@
 // per defecte, si no se'n tria cap, és el del config (retro.persona).
 import { t as T } from './i18n.js';
 
-const KEYS = { mascot: 'gregal_fun_mascot', wrapped: 'gregal_fun_wrapped', voice: 'gregal_fun_voice', desktopMascot: 'gregal_desktop_mascot' };
+const KEYS = { mascot: 'gregal_fun_mascot', wrapped: 'gregal_fun_wrapped', voice: 'gregal_fun_voice', desktopMascot: 'gregal_desktop_mascot', kanban: 'gregal_exp_kanban' };
 // La mascota flotant només existeix a l'app d'escriptori (desktop/main.js):
 // el preload n'anuncia el suport i la preferència viatja per savePreference.
 const hasDesktopMascot = () => { try { return !!(window.gregalDesktop && window.gregalDesktop.mascotWindow); } catch (e) { return false; } };
@@ -26,6 +26,7 @@ export const funPrefs = {
       (hasDesktopMascot() ? row('fun.desktopMascot', 'fun.desktopMascot.help', check('prefsDesktopMascot', get(KEYS.desktopMascot, '0') === '1')) : '') +
       row('fun.wrapped', 'fun.wrapped.help', check('prefsFunWrapped', get(KEYS.wrapped, '1') !== '0')) +
       row('fun.voice', 'fun.voice.help', check('prefsFunVoice', get(KEYS.voice, '1') !== '0')) +
+      row('kanban.pref', 'kanban.pref.help', check('prefsKanban', get(KEYS.kanban, '0') === '1')) +
       row('retro.persona', 'retro.persona.help',
         '<select class="pf-select" id="prefsRetroPersona" aria-label="' + esc(T('retro.persona')) + '">' +
         '<option value=""' + (persona ? '' : ' selected') + '>' + esc(T('retro.persona.config')) + '</option>' +
@@ -42,6 +43,7 @@ export const funPrefs = {
     wire('prefsDesktopMascot', KEYS.desktopMascot);
     wire('prefsFunWrapped', KEYS.wrapped);
     wire('prefsFunVoice', KEYS.voice);
+    wire('prefsKanban', KEYS.kanban);
     const p = root.querySelector('#prefsRetroPersona');
     if (p) p.onchange = () => { set(PERSONA_KEY, p.value); changed(); };
   },

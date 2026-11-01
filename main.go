@@ -362,7 +362,8 @@ func main() {
 	if cfg.MouseOn() {
 		opts = append(opts, tea.WithMouseCellMotion())
 	}
-	p := tea.NewProgram(m, opts...)
+	// Dins d'una targeta del Kanban (web), el TUI publica el seu estat.
+	p := tea.NewProgram(tui.WithKanban(m), opts...)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "gregal:", err)
 		os.Exit(1)

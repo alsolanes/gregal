@@ -390,6 +390,7 @@ func (s *Server) Stop() {
 		h.Queue().CancelSession(session.id)
 		session.stopRun()
 	}
+	kanbanStopAll()
 }
 
 func validateListenAuth(addr string, authenticated bool) error {
@@ -619,6 +620,12 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/flows/delete", h.route((*Server).handleFlowDelete))
 	handle("/api/flows/run", h.route((*Server).handleFlowRun))
 	// G8: processos en segon pla (terminal i bash_background).
+	// Mode Kanban (experimental): targetes amb un TUI viu cadascuna (kanban.go).
+	handle("/api/kanban", h.global((*Server).handleKanban))
+	handle("/api/kanban/card", h.global((*Server).handleKanbanCard))
+	handle("/api/kanban/input", h.global((*Server).handleKanbanInput))
+	handle("/api/kanban/resize", h.global((*Server).handleKanbanResize))
+	handle("/api/kanban/stream", h.global((*Server).handleKanbanStream))
 	handle("/api/exec", h.route((*Server).handleExec))
 	handle("/api/exec/output", h.route((*Server).handleExecOutput))
 	handle("/api/exec/stream", h.route((*Server).handleExecStream))
