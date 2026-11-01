@@ -19,6 +19,7 @@ import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.math.abs
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -57,6 +58,18 @@ class MascotMinimalTest {
         if (a.width != b.width || a.height != b.height) return false
         for (y in 0 until a.height) for (x in 0 until a.width) {
             if (a.getPixel(x, y) != b.getPixel(x, y)) return false
+        }
+        return true
+    }
+
+    /** Same picture drawn elsewhere: gradients dither by position, so allow ±3 per channel. */
+    private fun samePixel(a: Int, b: Int): Boolean =
+        listOf(24, 16, 8, 0).all { abs(((a shr it) and 0xff) - ((b shr it) and 0xff)) <= 3 }
+
+    private fun alike(a: Bitmap, b: Bitmap): Boolean {
+        if (a.width != b.width || a.height != b.height) return false
+        for (y in 0 until a.height) for (x in 0 until a.width) {
+            if (!samePixel(a.getPixel(x, y), b.getPixel(x, y))) return false
         }
         return true
     }
@@ -132,7 +145,8 @@ class MascotMinimalTest {
             ui.mainClock.advanceTimeBy(400)
             listOf("IDLE", "HAPPY", "TALKING").forEach { tag ->
                 val frame = image(tag)
-                val ys = (0 until frame.height).filter { y -> frame.getPixel(frame.width / 2, y) == 0xFFFF7900.toInt() }
+                // The body is shaded now: find it as anything brighter than the black floor.
+                val ys = (0 until frame.height).filter { y -> android.graphics.Color.red(frame.getPixel(frame.width / 2, y)) > 60 }
                 centers.getOrPut(tag) { mutableListOf() }.add((ys.first() + ys.last()) / 2f)
             }
         }
@@ -194,9 +208,9 @@ class MascotMinimalTest {
         val plain = image("plain")
         val specialist = image("specialist")
         for (y in 0 until (plain.height * .60f).toInt()) for (x in 0 until plain.width) {
-            assertEquals("The optional profile tool must leave the identity untouched", plain.getPixel(x, y), specialist.getPixel(x, y))
+            assertTrue("The optional profile tool must leave the identity untouched", samePixel(plain.getPixel(x, y), specialist.getPixel(x, y)))
         }
-        assertFalse("The specialist still has a discreet tool on the large profile", identical(plain, specialist))
+        assertFalse("The specialist still has a discreet tool on the large profile", alike(plain, specialist))
     }
 
     @Test fun spiralIsADistinctSilhouetteNotABallWithAnEtchedLine() {
@@ -229,20 +243,25 @@ class MascotMinimalTest {
             }
         }
         val avatar = image("default")
-        assertTrue("online is a compatibility hint, not proof of presence", identical(avatar, image("offline")))
+        assertTrue("online is a compatibility hint, not proof of presence", alike(avatar, image("offline")))
         assertEquals("Empty space around the silhouette stays clean", android.graphics.Color.WHITE,
             avatar.getPixel((avatar.width * .08f).toInt(), avatar.height / 2))
     }
 
-    @Test fun defaultFaceIsMatteWithTwoLargeSimpleEyes() {
+    @Test fun defaultFaceHasSoftVolumeAndTwoLargeSimpleEyes() {
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false) {
                 Box(Modifier.background(Color.Black).testTag("face")) { WindFace(size = 96, accent = accent) }
             }
         }
         val face = image("face")
-        val mattePixel = face.getPixel((face.width * .35f).toInt(), (face.height * .25f).toInt())
-        assertEquals("The body is one flat accent, without a glossy highlight", 0xFFFF7900.toInt(), mattePixel)
+        fun lum(x: Float, y: Float) = face.getPixel((face.width * x).toInt(), (face.height * y).toInt())
+            .let { android.graphics.Color.red(it) * .2126f + android.graphics.Color.green(it) * .7152f + android.graphics.Color.blue(it) * .0722f }
+        assertTrue("Lit from the top left: the body has volume", lum(.35f, .25f) > lum(.68f, .78f) + 12f)
+        for (y in (face.height * .15f).toInt() until (face.height * .85f).toInt()) for (x in (face.width * .15f).toInt() until (face.width * .85f).toInt()) {
+            val p = face.getPixel(x, y)
+            assertFalse("Satin, not glossy: no white glare on the body", android.graphics.Color.blue(p) > 200 && android.graphics.Color.green(p) > 230)
+        }
         var eyePixels = 0
         val expectedInk = if (contrastWith(accent, Color(0xFF202127)) >= contrastWith(accent, Color.White))
             0xFF202127.toInt() else android.graphics.Color.WHITE
@@ -252,6 +271,19 @@ class MascotMinimalTest {
             }
         }
         assertTrue("Two bold, unadorned eyes must survive at avatar size", eyePixels > face.width * face.height * .018f)
+    }
+
+    @Test fun softContactShadowSitsUnderTheBodyOnly() {
+        ui.setContent {
+            CompositionLocalProvider(LocalWindMotion provides false) {
+                Box(Modifier.background(Color.White).testTag("face")) { WindFace(size = 96, accent = accent) }
+            }
+        }
+        val face = image("face")
+        val under = face.getPixel(face.width / 2, (face.height * .91f).toInt())
+        assertTrue("A soft shadow grounds the wind", android.graphics.Color.red(under) in 150..250)
+        assertEquals("No halo beside the silhouette", android.graphics.Color.WHITE, face.getPixel((face.width * .06f).toInt(), face.height / 2))
+        assertEquals("No shadow above the head", android.graphics.Color.WHITE, face.getPixel(face.width / 2, (face.height * .06f).toInt()))
     }
 
     @Test fun smallSpecialistKeepsItsUnclutteredSilhouette() {
@@ -266,6 +298,6 @@ class MascotMinimalTest {
             }
         }
         assertTrue("A 48dp avatar must prioritize face and shape, not feet or tools",
-            identical(image("plain"), image("specialist")))
+            alike(image("plain"), image("specialist")))
     }
 }
