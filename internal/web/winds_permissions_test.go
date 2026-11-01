@@ -103,8 +103,9 @@ func windScriptProvider(t *testing.T, need int, final string) *httptest.Server {
 // fer. Amb l'auto-continuació desactivada, la mateixa tasca queda parcial —
 // això és el que demostra que el mecanisme és el que la fa acabar.
 func TestWindTurnAcabaTascaLLarga(t *testing.T) {
-	old := windAutoContinues
-	t.Cleanup(func() { windAutoContinues = old })
+	old, oldSteps := windAutoContinues, windTurnSteps
+	t.Cleanup(func() { windAutoContinues, windTurnSteps = old, oldSteps })
+	windTurnSteps = 6
 	const passos = 9 // més que els 6 d'una ronda
 	for _, cas := range []struct {
 		nom       string
@@ -250,7 +251,7 @@ func TestWindInteractiveBashAutoAllow(t *testing.T) {
 					t.Fatalf("el mkdir del vent no s'ha executat: %v; response=%s", err, rec.Body.String())
 				}
 			}
-			teBloc := strings.Contains(rec.Body.String(), windRequiresApproval) ||
+			teBloc := strings.Contains(rec.Body.String(), "Not run") ||
 				strings.Contains(rec.Body.String(), "BLOQUEJADA") ||
 				strings.Contains(rec.Body.String(), "bloquejat")
 			if teBloc != cas.volBloc {

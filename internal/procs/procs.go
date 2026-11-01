@@ -129,6 +129,12 @@ func (s *Store) Start(session, dir, cmd string) (*Proc, error) {
 // es cancel·la. És útil per a processos que pertanyen a un torn; Start els
 // continua deixant vius fins que els aturi l'usuari o tanqui la sessió.
 func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, error) {
+	return s.StartEnv(ctx, session, dir, cmd, nil)
+}
+
+// StartEnv és StartCtx amb variables d'entorn extra (KEY=valor) per al
+// procés: les apps gestionades hi reben PORT i BASE_PATH.
+func (s *Store) StartEnv(ctx context.Context, session, dir, cmd string, env []string) (*Proc, error) {
 	if err := serviceguard.Check(cmd); err != nil {
 		return nil, err
 	}
@@ -148,7 +154,7 @@ func (s *Store) StartCtx(ctx context.Context, session, dir, cmd string) (*Proc, 
 	}
 	c := exec.Command(plan.Name, plan.Args...)
 	c.Dir = plan.Dir
-	c.Env = shell.ChildEnv()
+	c.Env = append(shell.ChildEnv(), env...)
 	group, err := newProcessGroup(c)
 	if err != nil {
 		return nil, err

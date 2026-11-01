@@ -178,15 +178,71 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 			Command string `json:"command"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
-		if d, _ := tools.ClassifyWith(a.Command, allow, deny); d == "deny" {
+		return ordreSegura(a.Command, projecte, allow, deny)
+	case "bash_kill", "bash_output":
+		// Només els processos que el mateix torn ha engegat.
+		return true
+	case "app":
+		// Engegar una app és executar la seva ordre a la carpeta del
+		// projecte: les mateixes regles que bash, i la carpeta a dins.
+		if appActionReadOnly(argsJSON) {
+			return true
+		}
+		var a struct {
+			Action  string `json:"action"`
+			Dir     string `json:"dir"`
+			Command string `json:"command"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		if a.Action == "stop" || a.Action == "restart" {
+			// Atura o torna a engegar una app que ja hi és, amb la mateixa
+			// ordre i carpeta que es van acceptar en engegar-la.
+			return true
+		}
+		// Sense dir, l'app va a la carpeta del torn (el projecte).
+		if projecte == "" || (a.Dir != "" && !InsideProject(projecte, a.Dir)) {
 			return false
 		}
-		if perillosa.MatchString(a.Command) {
-			return false
+		return a.Command == "" || ordreSegura(a.Command, projecte, allow, deny)
+	case "publish":
+		// La persona ha demanat la web: publicar-la (un enllaç no
+		// endevinable, revocable) és la feina. Només carpetes del projecte.
+		var a struct {
+			Dir string `json:"dir"`
 		}
-		if escriuFora(a.Command, projecte) {
-			return false
-		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		return projecte != "" && InsideProject(projecte, a.Dir)
+	}
+	return false
+}
+
+// ordreSegura: una ordre que un vent pot executar sol (sense res denegat,
+// perillós ni escriptures fora del projecte).
+func ordreSegura(cmd, projecte string, allow, deny []string) bool {
+	// Un heredoc que no va a una shell és dades (el fitxer que s'escriu, un
+	// script de python): «kill» o «/api» dins d'un joc no són ordres.
+	if d, _ := tools.ClassifyWith(cmd, allow, deny); d == "deny" && treuDades(cmd) == cmd {
+		return false
+	}
+	cmd = treuDades(cmd)
+	if d, _ := tools.ClassifyWith(cmd, allow, deny); d == "deny" {
+		return false
+	}
+	if perillosa.MatchString(cmd) {
+		return false
+	}
+	return !escriuFora(cmd, projecte)
+}
+
+// appActionReadOnly: consultar una app (estat, registres, llista) no
+// canvia res.
+func appActionReadOnly(argsJSON string) bool {
+	var a struct {
+		Action string `json:"action"`
+	}
+	_ = json.Unmarshal([]byte(argsJSON), &a)
+	switch strings.TrimSpace(a.Action) {
+	case "status", "logs", "list":
 		return true
 	}
 	return false
@@ -199,6 +255,7 @@ var redireccioInofensiva = regexp.MustCompile(`\d*>&\d+|\d*>\s*/dev/null|\d*>\s*
 var camiGitBash = regexp.MustCompile(`^/([a-zA-Z])/`)
 
 func escriuFora(cmd, projecte string) bool {
+	cmd = treuDades(cmd)
 	cmd = redireccioInofensiva.ReplaceAllString(cmd, " ")
 	if !verbEscriptura.MatchString(cmd) {
 		return false
@@ -227,4 +284,49 @@ func escriuFora(cmd, projecte string) bool {
 		}
 	}
 	return false
+}
+
+// heredocInici reconeix l'obertura d'un heredoc: <<EOF, <<-EOF, <<'EOF', <<"EOF".
+var heredocInici = regexp.MustCompile(`<<-?\s*['"]?([A-Za-z_][A-Za-z0-9_]*)['"]?`)
+
+// heredocAShell: un heredoc que alimenta una shell (bash <<EOF, | sh) és codi
+// de shell i es mira sencer.
+var heredocAShell = regexp.MustCompile(`(?i)(^|[;&|(]\s*|\|\s*)(sudo\s+)?(sh|bash|zsh|dash|ksh|fish|pwsh|powershell|cmd|eval|xargs|source|\.)(\.exe)?(\s|$|<)`)
+
+// treuHeredocs treu el cos dels heredocs d'una ordre. El cos és el contingut
+// que s'escriu (un script, una pàgina amb camins com '/api' o '//'), no camins
+// on s'escriu: abans un `cat > joc.js <<'EOF'` amb codi JavaScript dins semblava
+// una escriptura fora del projecte i el vent no podia crear el fitxer.
+// La línia de l'ordre (amb la redirecció i el destí) es conserva sencera.
+func treuHeredocs(cmd string) string {
+	lines := strings.Split(cmd, "\n")
+	var out []string
+	var tancament []string
+	for _, l := range lines {
+		if len(tancament) > 0 {
+			if strings.TrimSpace(l) == tancament[0] {
+				tancament = tancament[1:]
+			}
+			continue
+		}
+		out = append(out, l)
+		if heredocAShell.MatchString(l) {
+			continue // el cos s'executa: s'ha de mirar sencer
+		}
+		for _, m := range heredocInici.FindAllStringSubmatch(l, -1) {
+			tancament = append(tancament, m[1])
+		}
+	}
+	return strings.Join(out, "\n")
+}
+
+// scriptEnLinia: el codi d'un `node -e "…"` o `python -c '…'` és un programa
+// (amb comparacions `>` i camins com '/api'), no redireccions ni camins on
+// la shell escriu.
+var scriptEnLinia = regexp.MustCompile(`(?i)\b(node|nodejs|deno|bun|python3?|py|ruby|perl|php)(\.exe)?\s+(-e|-p|-c|-r|--eval|--print|eval)\s+("(?:[^"\\]|\\.)*"|'[^']*')`)
+
+// treuDades treu el que és contingut i no ordre de shell: els cossos dels
+// heredocs i els scripts en línia dels intèrprets.
+func treuDades(cmd string) string {
+	return scriptEnLinia.ReplaceAllString(treuHeredocs(cmd), "$1$2 $3 ''")
 }

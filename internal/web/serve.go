@@ -302,6 +302,8 @@ func (h *Hub) Run(addr string) error {
 	}
 	go s.jobLoop(context.Background())
 	h.startPlugins(context.Background())
+	// Les apps gestionades que corrien tornen a arrencar (apps.go).
+	go appsMgr.autostart()
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -592,6 +594,12 @@ func (h *Hub) mux() *http.ServeMux {
 	// oberta al mòbil sense engegar cap servidor efímer.
 	handle(previewPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handlePreview(w, r) })
 	handle("/api/preview", h.route((*Server).handlePreviewInfo))
+	// Apps gestionades (apps.go): el que necessita servidor, engegat i
+	// vigilat pel Gregal, a /apps/<id>/ sense token (id no endevinable).
+	handle(appPrefix, handleAppProxy)
+	handle("/api/apps", h.route((*Server).handleApps))
+	// Registre d'especialitats dels vents (winds_specialists.go).
+	handle("/api/winds/specialists", h.route((*Server).handleWindSpecialists))
 	handle("/api/dirs", h.route((*Server).handleDirs))
 	// G3: arbre, fitxers i diffs del workspace.
 	handle("/api/tree", h.route((*Server).handleTree))
@@ -3112,6 +3120,12 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 		return tools.RenderTodos(nets), nil
 	case "dashboard_save":
 		out, err := s.dashboardSave(c.Function.Arguments)
+		if err != nil {
+			return "ERROR: " + err.Error(), nil
+		}
+		return out, nil
+	case "app", "publish", "wind":
+		out, err := s.runServerTool(ctx, workspace, c.Function.Name, c.Function.Arguments)
 		if err != nil {
 			return "ERROR: " + err.Error(), nil
 		}

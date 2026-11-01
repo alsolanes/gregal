@@ -12,7 +12,7 @@ func TestWindAutoAllow(t *testing.T) {
 	proj := t.TempDir()
 	pol := &Policy{ProjectDir: proj}
 	dins := filepath.Join(proj, "sub", "f.txt")
-	bashQ := func(cmd string) string { return "{\"command\":" + quote(cmd) + "}" }
+	bashQ := func(cmd string) string { return "{\"command\":" + quoteJSON(cmd) + "}" }
 	casos := []struct {
 		nom  string
 		pol  *Policy
@@ -30,6 +30,19 @@ func TestWindAutoAllow(t *testing.T) {
 		{"bash perillosa", pol, "bash", bashQ("git push"), false},
 		{"bash escriu fora", pol, "bash", bashQ("echo x > /tmp/fora-vents.txt"), false},
 		{"bash fons segur", pol, "bash_background", bashQ("go test ./..."), true},
+		// Un heredoc és el contingut del fitxer: camins com '/api' o un
+		// «kill()» de JavaScript no són ordres (el joc del vent es quedava
+		// sense escriure). Però un heredoc que va a una shell es mira sencer.
+		{"heredoc amb codi js", pol, "bash", bashQ("cat > joc.js <<'EOF'\nfetch('/api/x'); // http://x/y\nfunction kill(){}\nEOF"), true},
+		{"heredoc python", pol, "bash", bashQ("python - <<'PY'\nopen('/etc/hosts').read()\nPY"), true},
+		{"heredoc a bash", pol, "bash", bashQ("bash <<'EOF'\nrm -rf ..\nEOF"), false},
+		{"heredoc a fora", pol, "bash", bashQ("cat > /tmp/fora-vents.txt <<EOF\nhola\nEOF"), false},
+		{"bash_kill propi", pol, "bash_kill", `{"id":"p1"}`, true},
+		{"node -e amb codi", pol, "bash", bashQ(`node -e "fetch('http://127.0.0.1:1/health').then(r=>{if(r.status>399)process.exit(1)})"`), true},
+		{"python -c amb camí", pol, "bash", bashQ(`python -c 'print(open("/etc/hosts").read()[:1])'`), true},
+		{"node -e i escriu fora", pol, "bash", bashQ(`node -e "1" > /tmp/fora-vents.txt`), false},
+		{"app restart", pol, "app", `{"action":"restart","name":"x"}`, true},
+		{"app start sense dir", pol, "app", `{"action":"start","name":"x","command":"node server.js"}`, true},
 		{"commit queda a la persona", pol, "git_commit", `{"message":"x"}`, false},
 		{"MCP extern queda fora", pol, "mcp_github_x", `{}`, false},
 		{"config explícit bash=ask mana", &Policy{ProjectDir: proj, Tools: map[string]string{"bash": "ask"}}, "bash", bashQ("go build ./..."), false},

@@ -389,7 +389,10 @@ func adminOnly(fn func(*Server, http.ResponseWriter, *http.Request)) func(*Serve
 
 // route lliga un handler de sessió a la sessió que demana la petició.
 func (h *Hub) route(fn func(*Server, http.ResponseWriter, *http.Request)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) { fn(h.resolve(r), w, r) }
+	return func(w http.ResponseWriter, r *http.Request) {
+		noteClientBase(r)
+		fn(h.resolve(r), w, r)
+	}
 }
 
 // global lliga un handler que no depèn de la pestanya (providers, models,

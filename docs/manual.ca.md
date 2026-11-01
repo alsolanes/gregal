@@ -1634,3 +1634,74 @@ Al terminal, `/export` escriu la conversa actual en un fitxer Markdown al
 directori de treball i en mostra el camí. `/export html` escriu HTML,
 `/export md notes/xat.md` tria el camí, `--redact` sanititza com a dalt i
 `--emails` també amaga els correus.
+
+## Els vents com a especialistes
+
+Un vent és un ajudant amb un ofici (el seu rol), i amb el temps hi és cada cop
+més bo. Demana-li feina de debò al seu xat («fes-me un joc de la serp que pugui
+obrir al mòbil», «una app de llista de la compra que desi al servidor») i fa la
+feina sencera al servidor de Gregal, també si l'hi demanes des del mòbil.
+
+- **On treballa.** Cada projecte té la seva carpeta a `~/gregal/projectes/<nom>`
+  (o `$GREGAL_PROJECTES`). La resposta del vent sempre diu la carpeta.
+- **Permisos.** Demanar-li una cosa és l'aprovació per a la feina normal dins
+  de la carpeta del projecte: escriure fitxers, `npm install`, `pip install`,
+  `node`, `python`, `go build`, provar el seu servidor amb `curl` a
+  `127.0.0.1`. Funciona així encara que el xat principal estigui en
+  **Pregunta**; només **Planifica** deixa el vent en lectura. Continua
+  bloquejat: res fora de la carpeta del projecte, ordres destructives, `sudo`,
+  descàrregues amb `curl`/`wget` d'internet (llegeix les pàgines amb les seves
+  eines web), `git push`, commits i connectors externs. Si alguna cosa no s'ha
+  pogut fer, la resposta acaba amb una línia curta que diu què i per què; el
+  vent continua per una altra via en lloc d'aturar-se.
+- **Webs i jocs de navegador** es publiquen amb la mateixa publicació d'un toc
+  d'abans: el vent crida **publish** i et dona un enllaç `/share/<id>/` que
+  s'obre a qualsevol aparell. Tornar a publicar la mateixa carpeta manté
+  l'enllaç.
+- **Apps que necessiten servidor** (una API, dades desades al servidor, un joc
+  multijugador) corren com a **apps gestionades**: Gregal engega l'ordre a la
+  carpeta del projecte amb un port lliure a `PORT`, la manté en marxa després
+  del xat, la torna a engegar si cau i quan es reinicia el servidor, i la
+  serveix a `/apps/<id>/` (també des del mòbil). El vent et dona aquest
+  enllaç. `GET /api/apps` les llista amb el seu estat, i es poden aturar,
+  reiniciar o esborrar (`POST /api/apps`); el vent en pot llegir els registres.
+  Les apps corren en un origen aïllat com les pàgines publicades: no poden
+  llegir la teva sessió de Gregal, i han de fer servir URL relatives.
+- **Enllaços que s'obren on ho has demanat.** Els enllaços de la resposta fan
+  servir `GREGAL_PUBLIC_URL` si hi és; si no, l'adreça amb què el teu aparell
+  ha arribat al servidor.
+
+### Ensenyar un vent
+
+Escriu **«aprèn a …»**, **«estudia …»**, **«fes-te expert en …»** o
+**«learn …»** al principi d'un missatge («aprèn a fer jocs web»). El vent
+respon de seguida i estudia en segon pla (la cara mostra que cerca i llegeix):
+
+- per a un ofici, cerca com es fa avui, **practica** a la seva carpeta
+  (`projectes/_practica/<vent>/<tema>`), comprova que l'exemple funciona de
+  debò i n'escriu un **manual**: quan fer-lo servir, una llista de passos
+  des d'una carpeta buida fins a l'enllaç publicat, les ordres que han
+  funcionat en aquest servidor, una plantilla mínima, errors coneguts i com
+  resoldre'ls, i com publicar o servir;
+- per a un tema (un equip, una matèria), un resum amb fonts.
+
+Quan acaba, ho diu al seu xat. Tornar a estudiar el mateix tema millora el
+mateix manual en lloc de començar de zero. El manual és un dels coneixements
+del vent: el pots llegir i editar al seu perfil.
+
+**També aprèn treballant.** Després de cada feina amb eines, el vent escriu
+fins a tres lliçons curtes del que ha passat (una ordre que aquí no hi és i la
+que ha funcionat, un error i com s'ha resolt) al coneixement **Lliçons de
+feina**, sense repetides i guardant-ne les 40 últimes. Les més noves van a les
+seves instruccions de cada feina següent.
+
+### Encarregar feina a un especialista
+
+L'agent principal (web, escriptori, Android) té l'eina **wind**. Quan una tasca
+encaixa amb l'ofici d'un vent, pot llistar els vents amb el que sap fer cadascun
+i passar-la al millor: el vent la fa amb el seu manual i les seves lliçons, i
+l'agent rep la resposta, la carpeta i els enllaços. L'encàrrec i la resposta
+també surten al xat del vent. La tria surt del rol, els coneixements i les
+lliçons del vent (`GET /api/winds/specialists?task=…` mostra la classificació
+i el perquè); si cap vent no hi encaixa, l'agent fa la feina ell mateix. En
+**Pregunta** i **Planifica** l'agent principal no encarrega feina als vents.

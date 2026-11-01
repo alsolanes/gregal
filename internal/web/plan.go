@@ -105,6 +105,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	}
 	ctx = s.withRemindServer(agent.WithTurnMode(ctx, scope.mode))
 	var requiresApproval bool // Decide is serial, before any tools run.
+	var skipped []string
 	stream := emit != nil
 	if emit == nil {
 		emit = func(_, _ string) {}
@@ -161,10 +162,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				cctx = modelContext(cctx)
 			}
 			if !stream {
-				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), nil)
+				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, windSpecs(), nil)
 				return content, calls, err
 			}
-			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, agent.SpecsAll(), func(tok string) { emit("token", tok) }, nil, nil)
+			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, windSpecs(), func(tok string) { emit("token", tok) }, nil, nil)
 			if err == nil && len(calls) > 0 {
 				names := make([]string, 0, len(calls))
 				for _, c := range calls {
@@ -199,6 +200,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			activity("tool", tool)
 			defer activity("tool_done", tool) // returned, not necessarily succeeded
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
+			// Apps, publicar: les fa el servidor web, no el paquet agent.
+			if name == "app" || name == "publish" {
+				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
+				return out, nil, err
+			}
 			dirs := append([]string{}, agent.SkillsDirsOf(ctx)...)
 			dirs = append(dirs, s.userSkillsDirs()...)
 			cwd := scope.workspace
@@ -238,7 +244,8 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			if decision == "ask" {
 				requiresApproval = true
-				return "deny", windRequiresApproval + " " + reason
+				skipped = append(skipped, reason)
+				return "deny", windNotRun + " (" + reason + ")"
 			}
 			return decision, reason
 		},
@@ -280,9 +287,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			break
 		}
 	}
-	// Do not depend on a model to relay an approval block honestly.
-	if requiresApproval && !strings.Contains(out, windRequiresApproval) {
-		out = strings.TrimSpace(out) + "\n\n" + windRequiresApproval
+	// Do not depend on a model to relay a skipped action honestly: one short
+	// line with what was not run (not a wall of text that reads as a crash).
+	if requiresApproval {
+		out = strings.TrimSpace(out) + "\n\n" + windSkippedNote(skipped)
 	}
 	res := exploracio{text: strings.TrimSpace(out), parcial: loop.Parcial, motiu: loop.Motiu, hist: loop.Hist}
 	temps.mu.Lock()

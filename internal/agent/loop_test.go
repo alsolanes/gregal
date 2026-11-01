@@ -185,7 +185,7 @@ func TestMCPTools(t *testing.T) {
 	RegisterExtra(llm.ToolSpec{Name: "mcp_srv_eco"}, func(a string) (string, error) {
 		return "EXTRA:" + a, nil
 	})
-	if got := len(SpecsAll()); got != len(Specs())+2 {
+	if got := len(SpecsAll()); got != len(Specs())+2+len(serverToolSpecs()) {
 		t.Fatalf("specs=%d", got)
 	}
 	out, _, err := Exec("mcp_srv_eco", `{"x":1}`)

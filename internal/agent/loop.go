@@ -344,9 +344,36 @@ func extraFn(name string) (func(ctx context.Context, argsJSON string) (string, e
 	return fn, ok
 }
 
-// SpecsAll retorna les natives + delegate + les externes registrades.
+// serverToolSpecs són les eines que executa el servidor web (apps
+// gestionades, webs publicades, vents): com delegate, només al loop pare,
+// mai als subagents (que no hi arriben).
+func serverToolSpecs() []llm.ToolSpec {
+	str := map[string]any{"type": "string"}
+	return []llm.ToolSpec{
+		{Name: "app", Description: "Run a project that needs a server (node, python, go, a game server) as a MANAGED app of the Gregal server: it keeps running after your turn, restarts if it crashes, and is reachable through a stable link /apps/<id>/ (also from the phone). start needs name, dir (the project folder) and command (e.g. \"node server.js\", \"python app.py\", \"npm start\"). The app MUST listen on 127.0.0.1 at the port in the PORT environment variable and use RELATIVE URLs (fetch('api/x'), not '/api/x'): it is served under a path prefix (also in BASE_PATH). Wait for status running, then test it (curl http://127.0.0.1:$PORT/ or the returned link). Other actions: status, logs (last lines of output), restart, stop, list. Never start servers with bash/nohup/&: use this. Available through the Gregal web server, not the CLI.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"action":  map[string]any{"type": "string", "enum": []string{"start", "status", "logs", "restart", "stop", "list"}},
+				"name":    str,
+				"dir":     str,
+				"command": str,
+			}, "required": []string{"action"}}},
+		{Name: "publish", Description: "Publish a static website or web game (a folder with index.html) as a public link /share/<id>/ that opens on any device, including the user's phone. Publishing the same folder again updates the same link. Give dir (the project folder) and a short title. Use it when the user wants to see, share or open what you built; report the link it returns. For projects that need a server use the app tool instead.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"dir": str, "title": str,
+			}, "required": []string{"dir"}}},
+		{Name: "wind", Description: "Summon a specialist wind (one of the user's AI helpers, each with its own trade, playbook and memory). list shows who is good at what; ask hands a task to a wind (wind = its id or name, or omit it to pick the best specialist for the task) and returns its answer, the folder it worked in and any links. Use it when the task matches a wind's speciality (a website, a game, a topic it studied). Give the full context in task: the wind does not see this conversation. Available through the Gregal web server, not the CLI.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"action": map[string]any{"type": "string", "enum": []string{"list", "ask"}},
+				"wind":   str,
+				"task":   str,
+			}, "required": []string{"action"}}},
+	}
+}
+
+// SpecsAll retorna les natives + delegate + les eines del servidor web + les
+// externes registrades.
 func SpecsAll() []llm.ToolSpec {
-	all := append(append([]llm.ToolSpec{}, Specs()...), delegateToolSpec())
+	all := append(append(append([]llm.ToolSpec{}, Specs()...), delegateToolSpec()), serverToolSpecs()...)
 	extraMu.RLock()
 	defer extraMu.RUnlock()
 	return append(all, extraSpecs...)
@@ -417,6 +444,16 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 	case "knowledge_note":
 		// Escriu a una base de coneixement que dura més que el torn.
 		return "ask", "knowledge: confirm saving a note"
+	case "wind":
+		// El vent aplica les seves pròpies regles (WindAutoAllow).
+		return "allow", ""
+	case "app":
+		if appActionReadOnly(argsJSON) {
+			return "allow", ""
+		}
+		return "ask", "app: confirm running a server"
+	case "publish":
+		return "ask", "publish: confirm a public link"
 	case "bash_output", "bash_kill":
 		// Llegir o aturar un procés que ja s'ha aprovat no torna a preguntar.
 		return "allow", ""
@@ -518,6 +555,11 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	// es denega explícitament (mai es converteix en una aprovació).
 	if mode == ModeInspect {
 		switch name {
+		case "app", "publish", "wind":
+			if name == "app" && appActionReadOnly(argsJSON) {
+				return "allow", ""
+			}
+			return "deny", "mode consulta: no engega, no publica ni encarrega feina"
 		case "write", "edit", "patch":
 			return "deny", "mode consulta: no modifica fitxers"
 		case "bash_background", "office_open":
@@ -548,6 +590,11 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			què = "mode pla"
 		}
 		switch name {
+		case "app", "publish", "wind":
+			if name == "app" && appActionReadOnly(argsJSON) {
+				return "allow", ""
+			}
+			return "deny", què + ": només lectura (passa a Actua per engegar, publicar o encarregar feina)"
 		case "write", "edit", "patch":
 			return "deny", què + ": només lectura (passa a /mode code per editar)"
 		case "bash_background", "office_open":
@@ -644,6 +691,8 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return previewRequest(argsJSON)
 	case "dashboard_save":
 		return "", nil, fmt.Errorf("dashboard_save requires the Gregal web server (web, desktop or Android), not the CLI; show the charts as gregal-plot blocks instead")
+	case "app", "publish", "wind":
+		return "", nil, fmt.Errorf("%s requires the Gregal web server (web, desktop or Android), not the CLI", name)
 	case "read":
 		var a struct {
 			Path   string `json:"path"`
@@ -1389,6 +1438,10 @@ func (l *Loop) tanca(ctx context.Context, hist []llm.Message, motiu string) (str
 // hauria hagut prou que un s'oblidés. Les claus són sempre rutes a les
 // nostres eines ("path" a read/write/edit/patch/office/read_image, "dir" a
 // grep/glob); "url", "repo" i companyia no s'hi toquen.
+// ResolveArgs és resolArgs per a les eines que executa el servidor web
+// (app, publish): "path" i "dir" relatius van contra el projecte.
+func ResolveArgs(dir, argsJSON string) string { return resolArgs(dir, argsJSON) }
+
 func resolArgs(dir, argsJSON string) string {
 	if strings.TrimSpace(dir) == "" || strings.TrimSpace(argsJSON) == "" {
 		return argsJSON

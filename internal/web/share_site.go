@@ -348,6 +348,11 @@ func handleShareSitePage(w http.ResponseWriter, r *http.Request) {
 	if ct == "" {
 		ct = http.DetectContentType(raw)
 	}
+	if strings.HasPrefix(ct, "text/html") {
+		// Origen opac: sense el shim, un joc que desa el rècord a
+		// localStorage peta en carregar (apps.go).
+		raw = injectStorageShim(raw)
+	}
 	h := w.Header()
 	h.Set("Content-Type", ct)
 	h.Set("Content-Security-Policy", siteCSP)

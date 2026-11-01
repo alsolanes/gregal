@@ -1626,3 +1626,73 @@ In the terminal, `/export` writes the current conversation to a Markdown file
 in the working directory and prints the path. `/export html` writes HTML,
 `/export md notes/chat.md` chooses the path, `--redact` sanitizes as above and
 `--emails` also hides e-mail addresses.
+
+## Winds as specialist helpers
+
+A wind is a helper with a trade (its role), and it gets better at that trade
+over time. Ask it for real work in its chat ("make me a snake game I can open
+on my phone", "a shopping list app that saves on the server") and it does the
+whole job on the Gregal server, also when you ask from the phone.
+
+- **Where it works.** Every project gets its own folder,
+  `~/gregal/projectes/<name>` (or `$GREGAL_PROJECTES`). The wind's reply always says the folder.
+- **Permissions.** Asking a wind for something is the approval for normal work
+  inside that project folder: writing files, `npm install`, `pip install`,
+  `node`, `python`, `go build`, testing its own server with `curl` on
+  `127.0.0.1`. It works like this even when the main chat is in **Ask**; only
+  **Plan** keeps a wind read-only. What stays blocked: anything outside the
+  project folder, destructive commands, `sudo`, downloads with `curl`/`wget`
+  from the internet (it reads pages with its web tools instead), `git push`,
+  commits and external connectors. If something it wanted could not run, the
+  reply ends with one short line saying what and why; the wind keeps working
+  another way instead of stopping.
+- **Static sites and browser games** are published with the same one-tap
+  publishing as above: the wind calls **publish** and gives you a
+  `/share/<id>/` link that opens on any device. Publishing the same folder
+  again keeps the same link.
+- **Apps that need a server** (an API, data saved on the server, a
+  multiplayer game) run as **managed apps**: Gregal starts the command in the
+  project folder with a free port in `PORT`, keeps it running after the chat,
+  restarts it if it crashes, starts it again when the server restarts, and
+  serves it at `/apps/<id>/` (from the phone too). The wind gives you that
+  link. `GET /api/apps` lists them with their status, and an app can be
+  stopped, restarted or removed (`POST /api/apps`); the wind can read its logs.
+  Apps run in an isolated origin like published pages: they can't read your
+  Gregal session, and they must use relative URLs.
+- **Links that open where you asked.** The links in a wind's reply use
+  `GREGAL_PUBLIC_URL` when it is set, otherwise the address your device used
+  to reach the server.
+
+### Teaching a wind
+
+Write **"aprèn a …"**, **"learn …"**, **"estudia …"** or **"fes-te expert en
+…"** at the start of a message ("learn to make web games"). The wind answers at
+once and studies in the background (the face shows it searching and reading):
+
+- for a craft it researches the current way to do it, **practises** in its own
+  folder (`projectes/_practica/<wind>/<topic>`), checks that the example
+  really works, and writes a **playbook**: when to use it, a checklist from an
+  empty folder to a published link, the commands that worked on this server,
+  a minimal template, known errors and fixes, and how to publish or serve;
+- for a subject (a team, a field) it writes a summary with sources.
+
+When it finishes, it says so in its chat. Studying the same topic again
+improves the same playbook instead of starting over. The playbook is one of the
+wind's knowledge files: you can read and edit it in the wind's profile.
+
+**It also learns by working.** After each job with tools, the wind writes up
+to three short lessons from what happened (a command that is missing here and
+the one that worked, an error and its fix) into its **Lliçons de feina**
+knowledge file, without repeats and keeping the last 40. The latest lessons go
+into its instructions for every next job.
+
+### Summoning a specialist
+
+The main agent (web, desktop, Android) has a **wind** tool. When a task matches
+a wind's trade it can list the winds with what each one is good at and hand the
+task to the best one: the wind does it with its own playbook and lessons, and
+the main agent gets the answer, the folder and the links back. The request and
+the answer also appear in the wind's own chat. The choice is made from the
+wind's role, knowledge files and lessons (`GET /api/winds/specialists?task=…`
+shows the ranking and why); if no wind fits, the agent does the work itself.
+In **Ask** and **Plan** the main agent does not hand work to winds.

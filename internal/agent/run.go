@@ -233,7 +233,9 @@ const NoUIQuestionReply = PreguntaSenseUI
 // respon ningú, preview i office_open obren finestres que ningú no mira, i
 // browser condueix un navegador que algú ha de poder vigilar (i les accions
 // que actuen demanen permís).
-var einesInteractives = map[string]bool{"question": true, "preview": true, "dashboard_save": true, "office_open": true, "browser": true}
+var einesInteractives = map[string]bool{"question": true, "preview": true, "dashboard_save": true, "office_open": true, "browser": true,
+	// Les executa el servidor web (apps, webs publicades, vents): sense ell no hi són.
+	"app": true, "publish": true, "wind": true}
 
 // SpecsNoInteractiu és SpecsAll sense les eines que necessiten una persona.
 func SpecsNoInteractiu() []llm.ToolSpec {

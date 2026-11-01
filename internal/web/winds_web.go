@@ -145,7 +145,7 @@ var windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, e
 	s.mu.Lock()
 	p, role := s.windRoleRef()
 	s.mu.Unlock()
-	return s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
+	return s.runReadOnlyLoopForRole(ctx, brief, windTurnSteps, p, role)
 }
 
 // handleWindChat és el xat amb un vent: persona + context de projecte.
@@ -226,7 +226,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// Intentional user turns inherit this session's mode and project policy.
 	// Background callers of the same loop remain read-only.
 	turnStart := time.Now()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
+	ctx = s.windDocsCtx(s.interactiveWindCtx(withLinkBase(ctx, r)))
 	isContinue := req.Continue && len(previous) > 0
 	var res exploracio
 	var err error
@@ -236,7 +236,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		p, role := s.windRoleRef()
 		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, previous)
+		res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, previous)
 	} else {
 		res, err = windLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatBrief(s, wind, previous, msg))
 	}
@@ -268,5 +268,6 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)
+	s.startWindLessons(wind, msg, reply, res.hist)
 	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
 }

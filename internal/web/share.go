@@ -51,6 +51,9 @@ type shareMeta struct {
 	Files   int        `json:"files,omitempty"`
 	Updated *time.Time `json:"updated,omitempty"`
 	Expires *time.Time `json:"expires,omitempty"`
+	// Source és la carpeta d'on surt una web publicada amb l'eina publish:
+	// tornar-la a publicar actualitza el mateix enllaç.
+	Source string `json:"source,omitempty"`
 }
 
 var (

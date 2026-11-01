@@ -2,8 +2,10 @@ package web
 
 import (
 	"context"
+	"strings"
 
 	"gregal/internal/agent"
+	"gregal/internal/llm"
 )
 
 // Only intentional HTTP wind/group turns carry this marker. Jobs, plans,
@@ -39,15 +41,83 @@ func (s *Server) windLoopScope() windTurnScope {
 
 func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
 	scope := s.windLoopScope()
-	// The full/autonomous policy upgrades pending asks to allow. Wind chat
-	// has no approval UI: retain code permissions, never that upgrade.
-	if scope.mode == agent.ModeAutonomous {
-		scope.mode = agent.ModeCode
-	}
-	if !agent.ValidMode(scope.mode) {
-		scope.mode = agent.ModeInspect
-	}
+	scope.mode = windTurnMode(scope.mode)
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 
-const windRequiresApproval = "REQUIRES APPROVAL: this action was not run. Wind chat cannot request approval yet; use the main agent chat to review and approve it. No permission was granted."
+// windTurnMode és el mode d'un torn que la persona ha demanat a un vent.
+//
+// El mode del servidor és el del xat principal: «Pregunta» (chat) vol dir que
+// l'agent principal no toca res, però un vent és un especialista a qui la
+// persona encarrega feina («fes-me un joc»): heretar-ne el només-lectura feia
+// que el vent no pogués ni crear la carpeta del projecte. Per això els torns
+// de vent treballen en mode code (escriure i executar dins del projecte, amb
+// WindAutoAllow) llevat que s'hagi triat «Planifica» (plan), que demana
+// explícitament no actuar. L'autònom tampoc no s'hereta: el seu «tot ask és
+// allow» no té lloc en un xat sense aprovacions.
+func windTurnMode(mode string) string {
+	switch mode {
+	case agent.ModePlan:
+		return agent.ModePlan
+	case agent.ModeDebug:
+		return agent.ModeDebug
+	}
+	return agent.ModeCode
+}
+
+// windStudyCtx és el context d'un estudi («aprèn X»): el vent pot escriure i
+// executar només a la seva carpeta de pràctiques, per provar el que aprèn.
+func (s *Server) windStudyCtx(ctx context.Context, dir string) context.Context {
+	scope := s.windLoopScope()
+	pol := *scope.policy
+	pol.ProjectDir = dir
+	pol.AlsoDirs = nil
+	pol.AskEdits = false
+	scope.policy, scope.workspace, scope.mode = &pol, dir, agent.ModeCode
+	return context.WithValue(ctx, interactiveWindKey{}, scope)
+}
+
+// windSpecs són les eines dels torns de vent: totes menys `wind` (un vent no
+// n'invoca un altre: ho fan les colles i l'agent principal).
+func windSpecs() []llm.ToolSpec {
+	all := agent.SpecsAll()
+	out := make([]llm.ToolSpec, 0, len(all))
+	for _, t := range all {
+		if t.Name != "wind" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// windNotRun és el que rep el model quan una acció necessita una aprovació
+// que el xat del vent no pot demanar. Ha de seguir treballant per una altra
+// via, no aturar-se ni demanar a la persona que vagi al xat principal.
+const windNotRun = "NOT RUN: this needs the user's explicit approval and wind chat cannot ask for it. Do not retry it and do not stop: find another way inside the project folder (servers: the app tool; stopping something you started: bash_kill or app stop; downloads: web_fetch or a CDN link; files: only inside the project)."
+
+// windSkippedNote és la línia que va al final de la resposta quan alguna
+// acció no s'ha fet.
+func windSkippedNote(reasons []string) string {
+	seen := map[string]bool{}
+	var uniq []string
+	for _, r := range reasons {
+		// El motiu pot portar l'ordre sencera (un heredoc de 50 línies):
+		// a la nota, només la primera línia i curta.
+		r, _, _ = strings.Cut(strings.TrimSpace(r), "\n")
+		if rr := []rune(r); len(rr) > 90 {
+			r = string(rr[:90]) + "…"
+		}
+		if r != "" && !seen[r] {
+			seen[r] = true
+			uniq = append(uniq, r)
+		}
+	}
+	note := "(Not run — needs your approval in the main chat"
+	if len(uniq) > 0 {
+		if len(uniq) > 3 {
+			uniq = uniq[:3]
+		}
+		note += ": " + strings.Join(uniq, "; ")
+	}
+	return note + ".)"
+}
