@@ -183,6 +183,43 @@ que tocava quan es torna a encendre). `GET /api/plugins` els llista i
 `POST /api/plugins {id, enabled}` n'encén o apaga un (vegeu el
 [contracte de l'API](api-contract.md)). `GREGAL_CORNER=off` continua aturant
 el rellotge del Racó encara que el plugin sigui encès.
+## Mode Kanban (experimental)
+
+Un tauler on cada targeta és una interfície de terminal de Gregal viva, per
+tenir diverses tasques en marxa alhora. S'activa a **Preferències → Extres →
+Mode Kanban (experimental)** (o obrint l'app un cop amb `?kanban=1`); llavors
+surt **Kanban** a la barra lateral.
+
+**+ Targeta nova** engega un TUI en un pseudoterminal amb una tasca opcional
+(s'envia tan bon punt el TUI és a punt, com si l'haguessis escrit), un títol i
+una carpeta de treball (per defecte, la de la sessió). Les targetes es mouen
+soles segons l'estat que publica el TUI:
+
+| Columna | Quan |
+|---|---|
+| Definició | espera una tasca, o explora un pla |
+| Preparada | arrenca, o espera que hi hagi lloc |
+| En curs | el model o les seves eines treballen |
+| Revisió | et necessita: un permís, una pregunta o un pla per aprovar |
+| Fet | el torn ha acabat |
+
+Les targetes minimitzades tenen el color de la columna i mostren l'estat, què
+diu el model que fa, les últimes línies de la conversa i la barra d'estat, amb
+un punt que batega mentre el terminal escriu. Clica una targeta per obrir-la
+gran: és el TUI de debò, així que hi pots escriure, aprovar, fer scroll amb la
+roda i fer servir totes les ordres. Esc i Ctrl+C van al TUI; per tornar al
+tauler, ⤡ o clica fora. Pots arrossegar una targeta a una altra columna; s'hi
+queda fins que el TUI canvia d'estat.
+
+Com a molt corren sis terminals alhora (`GREGAL_KANBAN_MAX` ho canvia, fins a
+32); les altres esperen a Preparada i arrenquen quan se n'atura una. El tauler
+es desa; després de reiniciar el servidor, les targetes tornen aturades amb
+l'última pantalla i **Reengega** obre un TUI nou a la mateixa carpeta (la
+tasca només es torna a enviar si la targeta no havia començat a treballar). El
+TUI corre amb l'entorn i la configuració del servidor, així que les
+instal·lacions aïllades amb `GREGAL_DATA_DIR`/`GREGAL_AUTH` continuen aïllades.
+Només el propietari local o un administrador el pot fer servir. A Windows cal
+ConPTY (Windows 10 1809 o posterior); a Linux i macOS es fa servir `/dev/ptmx`.
 
 ## Taller 2D
 

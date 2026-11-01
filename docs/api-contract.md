@@ -523,6 +523,35 @@ server, build or test suite) run here and can outlive the turn; the agent uses
 | `/api/exec/stream` | GET **SSE** | `?id=&from=` → `line`, `end`. |
 | `/api/exec/kill` | POST | `{id}` → `{ok,killed}`; stops the entire process group. |
 
+## Kanban mode (experimental)
+
+A board where every card is a live Gregal TUI running in a pseudoterminal
+(ConPTY on Windows, `/dev/ptmx` on Linux and macOS). The server keeps each
+screen in its own VT emulator and sends rendered lines, so the browser needs
+no terminal emulator and minimised cards cost only a summary. Only the local
+owner or an administrator can use it (403 otherwise).
+
+Cards move between columns from the state the TUI itself publishes: the
+server starts it with `GREGAL_KANBAN_STATUS=<file>` and the TUI writes
+`{state,detail,intent,task,turns,mode,pid,at}` there whenever its state
+changes. States map to columns: `idle`/`planning` → `definition`; no state
+yet (starting, or waiting for a free slot) → `ready`; `working` →
+`progress`; `approval`/`question`/`plan_review` → `review`; `done` → `done`.
+A manual move holds until the TUI reports a different state. At most
+`GREGAL_KANBAN_MAX` terminals (default 6) run at once; extra cards wait in
+`ready` and start when a slot frees. The board is saved to
+`<data>/kanban/board.json`; after a server restart cards come back stopped
+and can be restarted.
+
+| Route | Method | Notes |
+|---|---|---|
+| `/api/kanban` | GET | `{columns, cards:[{id,title,prompt,dir,column,activity,manual,detail,intent,task,turns,alive,queued,exit?,pid?,idle_ms?,tail:[html]}], live, max_live}`. `tail` is the last non-empty screen lines as HTML. |
+| `/api/kanban` | POST | `{title?,prompt?,dir?}` → the new card. `prompt` is submitted to the TUI once it starts (`GREGAL_KANBAN_PROMPT`); `dir` defaults to the session folder and must exist and be inside the user's roots. |
+| `/api/kanban/card` | POST | `{id,action,column?,title?}` with `action` = `move` (needs `column`), `rename` (needs `title`), `stop`, `restart` (409 while running; re-sends the prompt only if the card never started work) or `delete`. |
+| `/api/kanban/input` | POST | `{id,data}`: keystrokes as a terminal would encode them. 409 if the terminal is stopped. |
+| `/api/kanban/resize` | POST | `{id,cols,rows}` (20–400 × 5–200); also used for later restarts. |
+| `/api/kanban/stream` | GET **SSE** | `?id=` → `frame` `{cols,rows,full,lines:{row:html},app_cursor,paste,mouse,mouse_sgr,title}` (only changed rows after the first), `stopped` (the card, when the terminal exits; the stream keeps waiting for a restart), `gone`, `ping`. |
+
 ## Compatibility
 
 Clients may ignore new fields; existing required fields are not reused with a
