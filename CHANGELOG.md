@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.37.0 - 2026-11-01 - Vents especialistes
+
 - **Winds finish the job: build, test, publish or serve, without permission dead-ends.** A wind asked for a website, a game or a program now does it whole on the server, in its own project folder, and answers with the folder and a link. Wind turns no longer inherit the main chat's **Ask** mode (that left them unable to even create the project folder; only **Plan** keeps them read-only), get 12 steps per round and 15 minutes instead of 6 and 5, and treat heredoc bodies and `node -e`/`python -c` scripts as content, not as writes outside the project (a JS file written with `cat > f <<EOF` used to be blocked). When something really needs approval the model is told to carry on another way, and the reply ends with one short line instead of a "REQUIRES APPROVAL" block.
 - **Managed apps.** Projects that need a server (node, python, go, a game server) run as managed apps: a free port in `PORT`, kept running after the chat, restarted when they crash and when Gregal restarts, served at `/apps/<id>/` (also WebSockets, also from the phone) in an isolated origin with Gregal's credentials stripped. New `app` tool (start, status, logs, restart, stop, list) for winds and the main agent, and `GET/POST /api/apps`.
 - **Winds publish.** New `publish` tool: a wind (or the main agent) publishes a folder with the one-tap publishing and returns the `/share/<id>/` link; publishing the same folder again keeps the link. Links are absolute, using the address the phone or computer used for that turn. Published pages and apps with scripts get a small shim so a game that saves its high score in `localStorage` doesn't break in the sandbox.
