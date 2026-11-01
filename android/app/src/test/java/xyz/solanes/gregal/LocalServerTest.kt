@@ -7,6 +7,22 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LocalServerTest {
+    @Test
+    fun notificationIdentityIsNonsecretStableLocallyAndAccountScopedRemotely() {
+        val local = Conn("127.0.0.1", "18097", "ephemeral-a", local = true)
+        assertEquals(local.notificationOrigin(), local.copy(port = "24001", token = "ephemeral-b").notificationOrigin())
+        val remote = Conn("https://EXAMPLE.com/", "443", "private-secret", "Alice")
+        val origin = remote.notificationOrigin()
+        assertEquals(origin, remote.copy(host = "https://example.com", port = "8097").notificationOrigin())
+        assertNotEquals(origin, remote.copy(token = "different-secret").notificationOrigin())
+        assertNotEquals(origin, remote.copy(user = "alice").notificationOrigin())
+        assertNotEquals(origin, remote.copy(host = "https://other.example").notificationOrigin())
+        assertNotEquals(origin, local.notificationOrigin())
+        assertFalse(origin.toString().contains("private-secret"))
+        assertFalse(origin.toString().contains("Alice"))
+        assertTrue(origin.id.matches(Regex("remote-[0-9a-f]{64}")))
+    }
+
     private val paths = LocalPaths(
         binary = "/data/app/x/lib/arm64/libgregal.so",
         home = "/data/user/0/xyz.solanes.gregal/files/home",

@@ -12,7 +12,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.Construction
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.FolderOpen
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -21,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -72,7 +78,13 @@ internal fun VentsExploreSheet(
     onGames: () -> Unit,
     onArena: () -> Unit,
     onLibrary: () -> Unit,
+    onProgramats: (() -> Unit)? = null,
+    onWiki: (() -> Unit)? = null,
+    onFeines: (() -> Unit)? = null,
+    onCrew: (() -> Unit)? = null,
+    onWorkspace: (() -> Unit)? = null,
 ) {
+    val en = lang == "en"
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 2.dp)) {
             Icon(Icons.Rounded.AutoAwesome, null, tint = Sea, modifier = Modifier.size(18.dp))
@@ -80,10 +92,15 @@ internal fun VentsExploreSheet(
             Spacer(Modifier.weight(1f))
             Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 11.sp)
         }
-        if (showCorner) ExploreRow(lang, "Racó", "corner", onCorner)
-        if (showGames) ExploreRow(lang, if (lang == "en") "Games" else "Partits", "games", onGames)
-        if (showArena) ExploreRow(lang, "Arena", "arena", onArena)
-        ExploreRow(lang, ventsCopy(lang, "library"), "library", onLibrary, folder = true)
+        if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), if (en) "Summon specialists to discuss, build and review" else "Convoca especialistes que en parlin, ho facin i ho revisin", Icons.Rounded.Groups, onCrew)
+        if (onFeines != null) ExploreRow(lang, tr(lang, "app.feines.title"), if (en) "Long tasks running on the server and their files" else "Tasques llargues en marxa i els fitxers resultants", Icons.Rounded.Construction, onFeines)
+        if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), if (en) "Reminders, watches and routines" else "Recordatoris, cors en guàrdia i rutines", Icons.Rounded.Schedule, onProgramats)
+        if (onWiki != null) ExploreRow(lang, tr(lang, "app.wiki.open"), if (en) "Distilled pages from your conversations" else "Pàgines resumides de les teves converses", Icons.Rounded.AutoStories, onWiki)
+        if (onWorkspace != null) ExploreRow(lang, tr(lang, "app.carpeta.title"), if (en) "Active project folder where winds read and write" else "Carpeta del projecte on llegeixen i escriuen els vents", Icons.Rounded.FolderOpen, onWorkspace)
+        if (showCorner) ExploreRow(lang, "Racó", if (en) "The page the winds write on their own" else "La pàgina que escriuen els vents sols", Icons.Rounded.AutoAwesome, onCorner)
+        if (showGames) ExploreRow(lang, if (en) "Games" else "Partits", if (en) "Football league between winds" else "La lliga de futbol entre els vents", Icons.Rounded.AutoAwesome, onGames)
+        if (showArena) ExploreRow(lang, "Arena", if (en) "Compare models head to head" else "Compara respostes de models cara a cara", Icons.Rounded.AutoAwesome, onArena)
+        ExploreRow(lang, ventsCopy(lang, "library"), if (en) "Recover and reuse learned information" else "Recupera i reutilitza informació apresa", Icons.Rounded.Folder, onLibrary)
     }
 }
 
@@ -103,16 +120,16 @@ internal fun EmptyInboxFilter(lang: String, filter: String) {
 }
 
 @Composable
-private fun ExploreRow(lang: String, title: String, key: String, onClick: () -> Unit, folder: Boolean = false) {
+private fun ExploreRow(@Suppress("UNUSED_PARAMETER") lang: String, title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick)
             .background(SuperficieAlta.copy(alpha = .42f)).padding(horizontal = 12.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(if (folder) Icons.Rounded.Folder else Icons.Rounded.AutoAwesome, null, tint = Sea, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = Sea, modifier = Modifier.size(18.dp))
         Column(Modifier.padding(start = 10.dp)) {
             Text(title, color = Ink, fontSize = 14.sp)
-            Text(if (folder) if (lang == "en") "Recover and reuse learned information" else "Recupera i reutilitza informació apresa" else "Plugin", color = Muted, fontSize = 11.sp)
+            Text(subtitle, color = Muted, fontSize = 11.sp)
         }
     }
 }

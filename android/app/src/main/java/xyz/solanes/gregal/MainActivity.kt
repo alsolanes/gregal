@@ -281,6 +281,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Preview -> PreviewScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Retro -> RetroScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Pairing -> ChatScreen(vm) { scope.launch { drawer.open() } }
                                 }
@@ -307,22 +308,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun openRunFrom(intent: Intent?) {
-        intent?.getStringExtra(JobAlarms.EXTRA_RUN)?.takeIf { it.isNotBlank() }?.let {
-            intent.removeExtra(JobAlarms.EXTRA_RUN)
-            vm.openRunFromNotification(it)
-        }
-        intent?.getStringExtra(GregalNotifications.EXTRA_SCREEN)?.takeIf { it.isNotBlank() }?.let {
-            intent.removeExtra(GregalNotifications.EXTRA_SCREEN)
-            vm.openScreenFromNotification(it)
-        }
-        intent?.getStringExtra(WindNotifications.EXTRA_WIND)?.takeIf { it.isNotBlank() }?.let {
-            intent.removeExtra(WindNotifications.EXTRA_WIND)
-            vm.openVentsChat("wind:" + it)
-        }
-        intent?.getStringExtra(WindNotifications.EXTRA_ROT)?.takeIf { it.isNotBlank() }?.let {
-            intent.removeExtra(WindNotifications.EXTRA_ROT)
-            vm.openVentsChat("rot:" + it)
-        }
+        // Cada avís porta el seu origen (mòbil o servidor desat): obre la
+        // conversa a la instància que la va provocar, mai a l'actual per
+        // defecte. Els avisos antics sense origen s'avisen i no s'obren.
+        val dest = NotificationNavigation.consume(intent) ?: return
+        vm.openConversationFromNotification(dest.originId, dest.target)
     }
 
     override fun onStart() {

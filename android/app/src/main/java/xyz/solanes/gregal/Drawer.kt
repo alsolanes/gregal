@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Code
 import androidx.compose.material.icons.rounded.Construction
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Flag
+import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
@@ -79,7 +80,9 @@ fun GregalDrawerContent(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Box(Modifier.padding(horizontal = 6.dp)) { ProjectPill(project.ifEmpty { tr(lang, "app.nav.project") }, branch) }
+            Box(Modifier.padding(horizontal = 6.dp).clip(RoundedCornerShape(50)).clickable { nav(Screen.Carpeta) }) {
+                ProjectPill(project.ifEmpty { tr(lang, "app.nav.project") }, branch)
+            }
             Spacer(Modifier.height(16.dp))
             PrimaryPill(tr(lang, "nav.new"), { vm.newSession(); nav(Screen.Chat) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
 
@@ -98,6 +101,7 @@ fun GregalDrawerContent(
             DrawerRow(tr(lang, "graphs.title"), screen == Screen.Flows, { nav(Screen.Flows); vm.loadFlows() }, Icons.Rounded.AccountTree)
 
             DrawerSection(tr(lang, "app.nav.sectionTools"))
+            DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
             DrawerRow(tr(lang, "nav.office"), screen == Screen.Office, { nav(Screen.Office) }, Icons.Rounded.Description)
             DrawerRow(tr(lang, "app.retro.title"), screen == Screen.Retro, { close(); vm.openRetro() }, Icons.Rounded.Tag)
             // Al dispositiu no hi ha la CLI gh: GitHub només en remot.

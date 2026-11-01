@@ -220,6 +220,19 @@ class GregalApi(val base: String, val token: String) {
         return parseDirs(JSONObject(read(conn("/api/dirs$query", "GET"))))
     }
 
+    /** GET /api/preview: què es pot previsualitzar de la carpeta de treball. */
+    fun preview(): PreviewInfo {
+        val o = JSONObject(read(conn("/api/preview", "GET")))
+        val a = o.optJSONArray("webs") ?: JSONArray()
+        val webs = (0 until a.length()).mapNotNull { i ->
+            val w = a.optJSONObject(i) ?: return@mapNotNull null
+            val p = w.optString("path")
+            if (p.isBlank()) null else PreviewWeb(p, w.optString("name").ifBlank { p }, w.optLong("size"), w.optString("mtime"))
+        }
+        return PreviewInfo(root = o.optString("root"), base = o.optString("base"),
+            index = o.optString("index"), webs = webs)
+    }
+
     /** Respon la pregunta de l'agent (POST /api/question {key, answer}). */
     fun answerQuestion(key: String, answer: String): Boolean {
         val o = post("/api/question", JSONObject().put("key", key).put("answer", answer))
@@ -591,6 +604,24 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/chat", "DELETE", JSONObject().put("wind", windId).toString()))
     }
 
+    /**
+     * COPIA explícita cap al servidor (TRANSFER-API.md): només aquest DTO
+     * creua d'instància. Exporta el bundle sencer (historial + perfil sempre;
+     * memòria/coneixements/skills només si es marquen).
+     */
+    fun exportWindsTransfer(kind: String, id: String, memory: Boolean, knowledge: Boolean, skills: Boolean): JSONObject {
+        val q = "kind=" + enc(kind) + "&id=" + enc(id) +
+            "&memory=" + enc(memory.toString()) + "&knowledge=" + enc(knowledge.toString()) + "&skills=" + enc(skills.toString())
+        return get("/api/winds/transfer?$q")
+    }
+
+    /** Importa un bundle amb un transferId propi: el servidor no clona mai dues vegades. */
+    fun importWindsTransfer(transferId: String, bundle: JSONObject): JSONObject =
+        post("/api/winds/transfer", JSONObject().put("transferId", transferId).put("bundle", bundle))
+
+    /** Verifica la destinació abans de navegar-hi: l'endpoint el diu el mateix import. */
+    fun getTransferVerify(verifyPath: String): JSONObject = get(verifyPath)
+
     /** Memòria del vent sobre l'usuari (markdown, editable). */
     fun getWindMemoria(windId: String): String {
         val o = JSONObject(read(conn("/api/winds/memoria?wind=$windId", "GET")))
@@ -880,6 +911,7 @@ class GregalApi(val base: String, val token: String) {
     /** Resposta d'un torn amb streaming (SSE per POST). */
     sealed interface WindStreamEvent {
         data class Phase(val phase: String) : WindStreamEvent
+        data class Activity(val phase: String, val tool: String = "", val step: Int = 0) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         data class DoneWind(val reply: WindReply) : WindStreamEvent
         data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false) : WindStreamEvent
@@ -892,31 +924,40 @@ class GregalApi(val base: String, val token: String) {
      */
     fun streamPost(path: String, payload: JSONObject, onEvent: (WindStreamEvent) -> Unit) {
         val c = conn(path, "POST", payload.toString())
-        val code = c.responseCode
-        if (code !in 200..299) {
-            val err = try { c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.readText().orEmpty() } catch (_: Exception) { "" }
-            throw ApiException("HTTP $code: ${err.take(200)}")
-        }
-        var ev: String? = null
-        val data = StringBuilder()
-        c.inputStream.bufferedReader(StandardCharsets.UTF_8).useLines { lines ->
-            lines.forEach { line ->
-                when {
-                    line.startsWith("event:") -> { ev = line.substringAfter("event:").trim(); data.clear() }
-                    line.startsWith("data:") -> {
-                        if (data.isNotEmpty()) data.append("\n")
-                        data.append(line.substringAfter("data:").trim())
-                    }
-                    line.isBlank() -> {
-                        parseWindStreamEvent(ev, data.toString())?.let { e ->
-                            if (e is WindStreamEvent.Error) throw ApiException(e.message.ifBlank { "stream error" })
-                            onEvent(e)
+        try {
+            val code = c.responseCode
+            // Only an explicit unsupported route may be retried as a classic POST.
+            // Timeout, server error, or EOF may mean tools have ALREADY run.
+            if (code in listOf(404, 405, 501)) throw WindStreamUnavailable()
+            if (code !in 200..299) {
+                val err = try { c.errorStream?.bufferedReader(StandardCharsets.UTF_8)?.readText().orEmpty() } catch (_: Exception) { "" }
+                throw ApiException("HTTP $code: ${err.take(200)}")
+            }
+            if (c.contentType.orEmpty().startsWith("text/html")) throw WindStreamUnavailable()
+            var ev: String? = null
+            val data = StringBuilder()
+            fun dispatch(): Boolean {
+                val e = parseWindStreamEvent(ev, data.toString())
+                ev = null; data.clear()
+                if (e is WindStreamEvent.Error) throw ApiException(e.message.ifBlank { "stream error" })
+                if (e != null) onEvent(e)
+                return e is WindStreamEvent.DoneWind || e is WindStreamEvent.DoneRotllana
+            }
+            c.inputStream.bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                while (true) {
+                    val line = reader.readLine() ?: break
+                    when {
+                        line.startsWith("event:") -> ev = line.substringAfter("event:").trim()
+                        line.startsWith("data:") -> {
+                            if (data.isNotEmpty()) data.append("\n")
+                            data.append(line.substringAfter("data:").trim())
                         }
-                        ev = null; data.clear()
+                        line.isBlank() -> if (dispatch()) return
                     }
                 }
+                if (data.isNotEmpty()) dispatch()
             }
-        }
+        } finally { c.disconnect() }
     }
 
     fun parseWindStreamEvent(event: String?, data: String): WindStreamEvent? {
@@ -924,6 +965,7 @@ class GregalApi(val base: String, val token: String) {
         val o = try { JSONObject(data) } catch (_: Exception) { return null }
         return when (event) {
             "phase" -> WindStreamEvent.Phase(o.optString("phase", "working"))
+            "activity" -> WindStreamEvent.Activity(o.optString("phase", "working"), o.optString("tool").take(48), o.optInt("step").coerceAtLeast(0))
             "token" -> WindStreamEvent.Token(o.optString("token"))
             "done" -> if (o.has("history") && o.opt("reply") is JSONObject) {
                 val reply = o.optJSONObject("reply") ?: JSONObject()
@@ -978,6 +1020,14 @@ class GregalApi(val base: String, val token: String) {
         }
         val d = done ?: throw ApiException("stream tancat sense done")
         return Triple(d.wind, d.text, d.history)
+    }
+
+    /** Atura el torn en curs d'un vent o d'una rotllana (POST /api/winds/cancel). */
+    fun cancelTurn(windId: String = "", rotllanaId: String = "") {
+        val body = JSONObject()
+        if (windId.isNotEmpty()) body.put("wind", windId)
+        if (rotllanaId.isNotEmpty()) body.put("rotllana", rotllanaId)
+        read(conn("/api/winds/cancel", "POST", body.toString()))
     }
 
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {
@@ -1257,6 +1307,9 @@ class GregalApi(val base: String, val token: String) {
 }
 
 class ApiException(msg: String) : Exception(msg)
+
+/** Known absent endpoint only: safe to fall back without executing work twice. */
+class WindStreamUnavailable : Exception("SSE endpoint unavailable")
 
 /**
  * L'hora d'un missatge en mil·lisegons. El servidor la desa en segons; abans

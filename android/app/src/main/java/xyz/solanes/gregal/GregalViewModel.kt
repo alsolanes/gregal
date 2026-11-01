@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet, Carpeta }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -598,12 +598,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Switching views must not kill an in-flight phone turn or its embedded server. */
+    private fun workPreventsOriginSwitch(): Boolean = _sending.value || _windBusy.value.isNotEmpty() ||
+        _rotllanaBusy.value.isNotEmpty() || (_conn.value.local && _windTasks.value.orEmpty().any { it.running })
+
+    private fun warnOriginBusy() = notify(if (_idioma.value == "en")
+        "A turn is still running here. Finish it before switching where it runs."
+        else "Aquí encara hi ha una feina en marxa. Acaba-la abans de canviar on s'executa.")
+
     /** Fes servir Gregal en aquest dispositiu (el mode per defecte). */
     fun useThisDevice(retries: Int = 3) {
+        if (!_conn.value.local && workPreventsOriginSwitch()) { warnOriginBusy(); return }
         if (!_conn.value.local) resetServerState()
         prefsStore?.target = Prefs.TARGET_LOCAL
-        // En local els jobs els dispara l'app: el vigilant remot sobra.
-        WindWatch.cancel(appContext)
+        // En local els jobs els dispara l'app; el vigilant segueix el
+        // servidor desat (si n'hi ha) i cada avís porta el seu origen.
+        WindWatch.schedule(appContext)
         setConn(Conn("127.0.0.1", "", "", local = true))
         LocalServer.resetCrashes()
         connect(retries) { go(landing()) }
@@ -623,6 +633,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Connecta amb el token (servidor sense comptes d'usuari). */
     fun connectRemote(host: String, port: String, token: String) {
+        if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
         val user = prefsStore?.usuari.orEmpty()
         prefsStore?.save(host, port, token, user)
         useRemote(Conn(host, port, token, user))
@@ -660,7 +671,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun hasSavedServer(): Boolean = prefsOrNull?.let { it.host.isNotBlank() && it.token.isNotBlank() } == true
 
     /** El nom curt del servidor desat («vents.exemple.cat»), per al selector. */
-    fun savedServerName(): String = prefsOrNull?.host.orEmpty().substringAfter("://").substringBefore('/').substringBefore(':')
+    fun savedServerName(): String = displayServerName(prefsOrNull?.host.orEmpty())
 
     /** Comprova (en 4 s com a molt) si el servidor desat respon amb la sessió desada. */
     fun checkServerReach() {
@@ -686,6 +697,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun switchWhere(toServer: Boolean) {
         if (_switchingWhere.value || toServer == !_conn.value.local) return
+        if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
         if (!toServer) {
             useThisDevice()
             return
@@ -2446,8 +2458,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windLive = MutableStateFlow<Map<String, WindLive>>(emptyMap())
     val windLive: StateFlow<Map<String, WindLive>> = _windLive
     private fun live(id: String, change: (WindLive) -> WindLive) {
-        val next = change(_windLive.value[id] ?: WindLive())
+        val next = change(_windLive.value[id] ?: WindLive()).copy(lastEventAt = System.currentTimeMillis())
         if (_windLive.value[id] != next) _windLive.value = _windLive.value + (id to next)
+        val target = if (id in _rotllanaBusy.value) "rot:$id" else "wind:$id"
+        GregalNotifications.workUpdated(appContext, target, windProgressLabel(_idioma.value, next))
     }
     private fun endLive(id: String) { _windLive.value = _windLive.value - id }
 
@@ -2784,13 +2798,17 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var answered = false
             var answer = ""
-            GregalNotifications.workStarted(appContext)
+            var partial = false
+            var turnError = ""
+            val target = "rot:$rotllanaId"
+            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Rotllana" }
+            GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
                     // Directe primer; el done porta l'historial amb veus.
                     var buf = ""
                     var streamSpeaker = ""
-                    val (_, _, hist) = withContext(Dispatchers.IO) {
+                    val (_, replyText, hist) = withContext(Dispatchers.IO) {
                         source.api().rotllanaChatStream(rotllanaId, message, wind) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
@@ -2799,22 +2817,26 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     if (sp != e.phase) {
                                         // Una veu que respon una altra veu del mateix torn: discussió.
                                         val answering = streamSpeaker.isNotEmpty() && streamSpeaker != sp
-                                        live(rotllanaId) { it.copy(phase = "thinking", writing = false, voices = if (answering) it.voices + 1 else it.voices) }
+                                        live(rotllanaId) { it.copy(phase = "thinking", writing = false, receivedText = false, tool = "", voices = if (answering) it.voices + 1 else it.voices) }
                                         // Nova veu: la bombolla anterior queda com a missatge.
                                         commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
                                         buf = ""
                                         streamSpeaker = sp
                                         val who = _winds.value.firstOrNull { it.id == sp }?.name.orEmpty()
-                                        setStreamingBubble(rotllanaId, streamPhaseText("speaker") + " " + who, rotllana = true)
+                                        live(rotllanaId) { it.copy(speaker = who) }
+                                        // The shared status row identifies the speaker; do not add a fake reply bubble.
                                     } else {
-                                        buf = ""
-                                        live(rotllanaId) { it.copy(phase = e.phase, writing = false) }
-                                        setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
+                                        buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                        live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
+                                        dropStreamingBubble(rotllanaId, rotllana = true)
                                     }
+                                }
+                                is GregalApi.WindStreamEvent.Activity -> {
+                                    live(rotllanaId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
-                                    live(rotllanaId) { it.copy(writing = true) }
+                                    live(rotllanaId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(rotllanaId, buf, rotllana = true)
                                 }
                                 else -> {}
@@ -2824,9 +2846,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId,
-                        hist.ifEmpty { before + PetMsg("pet", "") }, System.currentTimeMillis(), sentHistory))
-                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
-                } catch (_: Exception) {
+                        hist.ifEmpty { sentHistory + if (replyText.isBlank()) emptyList() else listOf(PetMsg("pet", replyText)) }, System.currentTimeMillis(), sentHistory))
+                    partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
+                    replyText.let { if (it.isNotBlank()) { answered = true; answer = it } }
+                } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     val (wind, text, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, message, wind) }
                     if (!isCompanionOrigin(source, epoch)) return@launch
@@ -2834,19 +2857,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to ventsRecency.completed(source, "rot", rotllanaId, hist.ifEmpty {
                         sentHistory + PetMsg("pet", text, wind, speaker?.name.orEmpty(), ts = System.currentTimeMillis())
                     }, System.currentTimeMillis(), sentHistory))
-                    lastPetText(hist, text).let { if (it.isNotBlank()) { answered = true; answer = it } }
+                    partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
+                    text.let { if (it.isNotBlank()) { answered = true; answer = it } }
                 }
                 // El torn pot haver programat avisos (remind): posa al dia
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                turnError = e.message.orEmpty().ifBlank { "interrupted" }
+                if (isCompanionOrigin(source, epoch) && !aturatAra(rotllanaId)) interruptedCompanion(rotllanaId, true)
                 if (isCompanionOrigin(source, epoch)) {
                     notify(appText("app.status.company", e.message.orEmpty()))
-                    _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to before)
+                    // Keep the user message and any received partial text visible.
                 }
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
-                GregalNotifications.workFinished(appContext, answered, message, answer)
+                GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), message, answer,
+                    target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
         }
     }
@@ -2944,6 +2972,68 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (_conn.value == source) _carpetaError.value = e.message ?: ""
             }
+        }
+    }
+
+    // --- Previsualització: la web que el vent acaba de fer ---
+    // El servidor publica la carpeta de treball en lectura; aquí només es
+    // munta la URL del servidor on ja s'està connectat (el mateix host que
+    // fa servir l'API), així funciona igual a casa i al servidor.
+
+    private val _webInfo = MutableStateFlow(PreviewInfo())
+    val webInfo: StateFlow<PreviewInfo> = _webInfo.asStateFlow()
+    private val _webUrl = MutableStateFlow("")
+    val webUrl: StateFlow<String> = _webUrl.asStateFlow()
+    private val _webTitle = MutableStateFlow("")
+    val webTitle: StateFlow<String> = _webTitle.asStateFlow()
+    private val _webError = MutableStateFlow("")
+    val webError: StateFlow<String> = _webError.asStateFlow()
+
+    /** URL completa (servidor + clau + fitxer) d'una web de la carpeta. */
+    fun previewUrlOf(path: String): String {
+        val c = _conn.value
+        val base = _webInfo.value.base
+        // Sense clau encara no hi ha res a obrir: millor buit que l'arrel del
+        // servidor, que ensenyaria la pàgina d'entrada de Gregal.
+        if (base.isBlank()) return ""
+        return baseUrlOf(c.host, c.port).trimEnd('/') + base + path.trimStart('/')
+    }
+
+    /** Demana al servidor quines webs hi ha a la carpeta de treball. */
+    fun loadPreview() {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val info = withContext(Dispatchers.IO) { source.api().preview() }
+                if (_conn.value != source) return@launch
+                _webInfo.value = info
+                _webError.value = ""
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (_conn.value == source) _webError.value = e.message ?: ""
+            }
+        }
+    }
+
+    /** Obre la previsualització d'un fitxer (sense path, l'índex de la carpeta). */
+    fun openPreview(path: String = "", title: String = "") {
+        _webUrl.value = previewUrlOf(path)
+        _webTitle.value = title.ifBlank {
+            path.substringAfterLast('/').ifBlank { appText("app.preview.title") }
+        }
+        go(Screen.Preview)
+        if (_webInfo.value.base.isNotBlank()) return
+        // La clau encara no la tenim: es demana i, quan arriba, s'omple la URL.
+        val source = _conn.value
+        viewModelScope.launch {
+            runCatching { withContext(Dispatchers.IO) { source.api().preview() } }
+                .onSuccess { info ->
+                    if (_conn.value != source) return@onSuccess
+                    _webInfo.value = info
+                    _webError.value = ""
+                    _webUrl.value = previewUrlOf(path)
+                }
+                .onFailure { if (_conn.value == source) _webError.value = it.message ?: "" }
         }
     }
 
@@ -3797,6 +3887,51 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Atura el torn en curs d'un vent (POST /api/winds/cancel). */
+    fun cancelWindTurn(windId: String) = cancelTurn("wind", windId)
+
+    /** Atura el torn en curs d'una rotllana. */
+    fun cancelRotllanaTurn(rotllanaId: String) = cancelTurn("rotllana", rotllanaId)
+
+    // Torns aturats per la persona: el que tanca no és cap error i no ha de
+    // sortir la targeta de «torn interromput».
+    private val aturats = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /** aturat diu si aquest id l'ha aturat la persona (i ho consumeix). */
+    private fun aturatAra(id: String): Boolean = aturats.remove(id)
+
+    private fun cancelTurn(kind: String, id: String) {
+        val source = _conn.value
+        aturats.add(id)
+        viewModelScope.launch {
+            runCatching {
+                GregalApi(baseUrlOf(source.host, source.port), source.token).cancelTurn(
+                    windId = if (kind == "wind") id else "", rotllanaId = if (kind == "rotllana") id else "",
+                )
+            }
+            if (isCompanionOrigin(source, companionEpoch)) {
+                if (kind == "wind") { _windBusy.value = _windBusy.value - id; endLive(id) }
+                else { _rotllanaBusy.value = _rotllanaBusy.value - id; endLive(id) }
+                notify(appText("app.vents.stopped"))
+            }
+        }
+    }
+
+    /** Close transient UI honestly; never replay a possibly executed operation. */
+    private fun interruptedCompanion(id: String, rotllana: Boolean) {
+        val state = _windLive.value[id]
+        val store = if (rotllana) _rotllanaChat else _windChat
+        val history = store.value[id].orEmpty()
+        val kept = if (history.lastOrNull()?.streaming == true) {
+            if (state?.receivedText == true) history.dropLast(1) + history.last().copy(streaming = false)
+            else history.dropLast(1)
+        } else history
+        val explanation = if (_idioma.value == "en")
+            "Turn interrupted. It has not been submitted again. Check the saved work before retrying."
+        else "Torn interromput. No l'he repetit automàticament. Revisa la feina desada abans de tornar-ho a provar."
+        store.value = store.value + (id to (kept + PetMsg("system", explanation, kind = "error")))
+    }
+
     /** Fase del directe en la llengua de l'app. */
     private fun streamPhaseText(phase: String): String = when (phase) {
         "searching" -> appText("app.vents.streamSearching")
@@ -3818,7 +3953,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var answered = false
             var answer = ""
-            GregalNotifications.workStarted(appContext)
+            var partial = false
+            var turnError = ""
+            val target = "wind:$windId"
+            val displayName = _winds.value.firstOrNull { it.id == windId }?.name.orEmpty().ifBlank { "Vent" }
+            GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
                     // Directe primer: el text creix a la bombolla; si el
@@ -3829,13 +3968,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = ""
-                                    live(windId) { it.copy(phase = e.phase, writing = false) }
-                                    setStreamingBubble(windId, streamPhaseText(e.phase))
+                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
+                                    dropStreamingBubble(windId)
+                                }
+                                is GregalApi.WindStreamEvent.Activity -> {
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
-                                    live(windId) { it.copy(writing = true) }
+                                    live(windId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(windId, buf)
                                 }
                                 else -> {}
@@ -3846,19 +3988,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         dropStreamingBubble(windId)
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
                             _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
-                        answered = true
+                        partial = r.parcial
+                        answered = r.text.isNotBlank()
                         answer = r.text
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
-                } catch (_: Exception) {
+                } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
                     if (isCompanionOrigin(source, epoch)) {
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
                             _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
-                        answered = true
+                        partial = r.parcial
+                        answered = r.text.isNotBlank()
                         answer = r.text
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
@@ -3867,11 +4011,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 // els jobs perquè l'alarma soni encara que tanquis l'app.
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch))
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                turnError = e.message.orEmpty().ifBlank { "interrupted" }
+                if (isCompanionOrigin(source, epoch) && !aturatAra(windId)) interruptedCompanion(windId, false)
+                if (isCompanionOrigin(source, epoch) && windId !in aturats)
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
-                GregalNotifications.workFinished(appContext, answered, msg, answer)
+                GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), msg, answer,
+                    target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
         }
     }
@@ -3890,7 +4038,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             var answered = false
             var answer = ""
-            GregalNotifications.workStarted(appContext)
+            var partial = false
+            var turnError = ""
+            val target = "wind:$windId"
+            val displayName = _winds.value.firstOrNull { it.id == windId }?.name.orEmpty().ifBlank { "Vent" }
+            GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
                     var buf = ""
@@ -3899,13 +4051,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = ""
-                                    live(windId) { it.copy(phase = e.phase, writing = false) }
-                                    setStreamingBubble(windId, streamPhaseText(e.phase))
+                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
+                                    dropStreamingBubble(windId)
+                                }
+                                is GregalApi.WindStreamEvent.Activity -> {
+                                    live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
-                                    live(windId) { it.copy(writing = true) }
+                                    live(windId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(windId, buf)
                                 }
                                 else -> {}
@@ -3922,10 +4077,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
                         _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
+                        partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
-                } catch (_: Exception) {
+                } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
                     val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true) }
                     if (isCompanionOrigin(source, epoch)) {
@@ -3936,17 +4092,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         } else cur + PetMsg("pet", r.text, parcial = r.parcial)
                         _windChat.value = _windChat.value + (windId to if (r.text.isBlank()) merged else
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
+                        partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
                     }
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch))
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                turnError = e.message.orEmpty().ifBlank { "interrupted" }
+                if (isCompanionOrigin(source, epoch) && !aturatAra(windId)) interruptedCompanion(windId, false)
+                if (isCompanionOrigin(source, epoch) && windId !in aturats)
                     notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
-                GregalNotifications.workFinished(appContext, answered, "", answer)
+                GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
+                    target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
         }
     }
@@ -3962,23 +4123,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val before = _rotllanaChat.value[rotllanaId].orEmpty()
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         _rotllanaBusy.value = _rotllanaBusy.value + rotllanaId
+        live(rotllanaId) { WindLive() }
         viewModelScope.launch {
             var answered = false
             var answer = ""
-            GregalNotifications.workStarted(appContext)
+            var partial = false
+            var turnError = ""
+            val target = "rot:$rotllanaId"
+            val displayName = _rotllanes.value.firstOrNull { it.id == rotllanaId }?.name.orEmpty().ifBlank { if (_idioma.value == "en") "Group" else "Rotllana" }
+            GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
                     var buf = ""
-                    val (_, _, hist) = withContext(Dispatchers.IO) {
+                    val (_, replyText, hist) = withContext(Dispatchers.IO) {
                         source.api().rotllanaChatStream(rotllanaId, "", wind, cont = true) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = ""
-                                    setStreamingBubble(rotllanaId, streamPhaseText(e.phase), rotllana = true)
+                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
+                                    dropStreamingBubble(rotllanaId, rotllana = true)
+                                }
+                                is GregalApi.WindStreamEvent.Activity -> {
+                                    live(rotllanaId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
                                     buf += e.token
+                                    live(rotllanaId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(rotllanaId, buf, rotllana = true)
                                 }
                                 else -> {}
@@ -3989,21 +4160,108 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
                     _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
                             ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
-                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
-                } catch (_: Exception) {
+                    partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
+                    replyText.let { if (it.isNotBlank()) { answered = true; answer = it } }
+                } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(rotllanaId, rotllana = true)
-                    val (_, _, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, "", wind, cont = true) }
+                    val (_, replyText, hist) = withContext(Dispatchers.IO) { source.api().rotllanaChat(rotllanaId, "", wind, cont = true) }
                     if (isCompanionOrigin(source, epoch))
                         _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to if (hist.isEmpty()) _rotllanaChat.value[rotllanaId].orEmpty() else
                             ventsRecency.completed(source, "rot", rotllanaId, hist, System.currentTimeMillis(), before))
-                    hist.lastOrNull { it.from == "pet" }?.text.orEmpty().let { if (it.isNotBlank()) { answered = true; answer = it } }
+                    partial = hist.lastOrNull { it.from == "pet" }?.parcial == true
+                    replyText.let { if (it.isNotBlank()) { answered = true; answer = it } }
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                turnError = e.message.orEmpty().ifBlank { "interrupted" }
+                if (isCompanionOrigin(source, epoch) && !aturatAra(rotllanaId)) interruptedCompanion(rotllanaId, true)
                 if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
             } finally {
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
-                GregalNotifications.workFinished(appContext, answered, "", answer)
+                GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
+                    target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
+            }
+        }
+    }
+
+    /**
+     * «Torna-ho a provar» de la targeta d'error: reenvia l'últim text de
+     * l'usuari pel send actual (mateix fil, sense escriure res de nou).
+     */
+    fun retryLastWindTurn(windId: String) {
+        val last = _windChat.value[windId]?.lastOrNull { it.from == "user" }?.text.orEmpty()
+        if (last.isNotBlank()) sendWindMessage(windId, last)
+    }
+
+    /** El mateix per a la rotllana: reenvia l'últim text pel send actual. */
+    fun retryLastRotllanaTurn(rotllanaId: String, wind: String = "") {
+        val last = _rotllanaChat.value[rotllanaId]?.lastOrNull { it.from == "user" }?.text.orEmpty()
+        if (last.isNotBlank()) sendRotllanaMessage(rotllanaId, last, wind)
+    }
+
+    private val _transferBusy = MutableStateFlow(false)
+    /** S'està copiant una conversa al servidor (export + import + verificació). */
+    val transferBusy: StateFlow<Boolean> = _transferBusy
+
+    /**
+     * La conversa clonada viu a l'altra banda: cap endavant, mai enrere.
+     * Reté l'últim transferId + bundle per conversa: reintentar el mateix
+     * traspàs no clona dues vegades (el servidor el reprodueix).
+     */
+    private val transferAttempts = mutableMapOf<String, Pair<String, String>>()
+
+    /**
+     * Hi ha una altra instància on continuar: ets al mòbil i hi ha un
+     * servidor desat amb credencials. Al servidor no hi ha on delegar.
+     */
+    fun canTransferToServer(): Boolean = _conn.value.local && hasSavedServer()
+
+    /**
+     * «Continua al servidor»: COPIA la conversa (vent o rotllana) al servidor
+     * desat — historial, perfil, memòria/coneixements/skills si es marquen — i
+     * obre la conversa clonada allà. L'original d'aquí no es toca ni s'esborra.
+     * Si res falla (export, import, verificació), no canvia ni de mode ni de
+     * conversa: avisa i et quedes on eres.
+     */
+    fun transferConversationToServer(kind: String, id: String, memory: Boolean, knowledge: Boolean, skills: Boolean) {
+        if (_transferBusy.value) return
+        if (!canTransferToServer()) return
+        if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
+        val prefs = prefsOrNull ?: return
+        val source = _conn.value
+        val dest = Conn(prefs.host, prefs.port, prefs.token, prefs.usuari)
+        _transferBusy.value = true
+        notify(appText("app.vents.transferWorking"))
+        viewModelScope.launch {
+            try {
+                val bundle = withContext(Dispatchers.IO) {
+                    source.api().exportWindsTransfer(kind, id, memory, knowledge, skills).toString()
+                }
+                val key = "$kind:$id"
+                val transferId = transferAttempts[key]
+                    ?.takeIf { it.second == bundle }?.first
+                    ?: UUID.randomUUID().toString().replace("-", "")
+                if (transferAttempts[key]?.second != bundle) transferAttempts[key] = transferId to bundle
+                val result = withContext(Dispatchers.IO) {
+                    dest.api().importWindsTransfer(transferId, org.json.JSONObject(bundle))
+                }
+                val newId = result.optString("id")
+                val verifyPath = result.optString("verifyPath")
+                if (newId.isBlank() || verifyPath.isBlank()) throw ApiException("empty transfer result")
+                val check = withContext(Dispatchers.IO) { dest.api().getTransferVerify(verifyPath).toString() }
+                if (!check.contains(newId)) throw ApiException("destination has no $newId yet")
+                withContext(Dispatchers.IO) { dest.api().getWinds() }
+                useRemote(dest)
+                connect(retries = 2) { go(Screen.Company) }
+                loadWinds(); loadRotllanes()
+                openVentsChat((if (kind == "rot") "rot:" else "wind:") + newId)
+                notify(appText("app.vents.transferDone"))
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                notify(appText("app.vents.transferFailed", friendlyRunError(e.message.orEmpty()).ifBlank { e.message.orEmpty() }))
+            } finally {
+                _transferBusy.value = false
             }
         }
     }
@@ -4150,6 +4408,32 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openRunFromNotification(id: String) {
         _openRun.value = id
         if (_connected.value) go(Screen.Jobs)
+    }
+
+    /**
+     * Tocar un avís obre la conversa a la instància que la va provocar
+     * (aquest mòbil o el servidor desat). Un origen desconegut o que ja no
+     * està desat no s'obre enlloc: s'avisa i prou, mai sota la instància
+     * actual. Canviar d'instància amb feina en marxa s'avisa i s'espera.
+     */
+    fun openConversationFromNotification(originId: String, target: String) {
+        val p = prefsOrNull
+        val conn = p?.let { NotificationOrigins.resolve(it, originId) }
+        if (conn == null) {
+            notify(NotificationOrigins.unavailableMessage(_idioma.value))
+            return
+        }
+        val same = conn.local == _conn.value.local &&
+            (conn.local || (conn.host == _conn.value.host && conn.port == _conn.value.port && conn.token == _conn.value.token))
+        if (!same) {
+            if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
+            if (conn.local) useThisDevice() else useRemote(conn)
+        }
+        when {
+            target.startsWith("wind:") || target.startsWith("rot:") -> openVentsChat(target)
+            target.startsWith("run:") -> openRunFromNotification(target.removePrefix("run:"))
+            target.startsWith("screen:") -> openScreenFromNotification(target.removePrefix("screen:"))
+        }
     }
 
     fun openRunShown() { _openRun.value = null }

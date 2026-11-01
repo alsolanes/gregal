@@ -31,6 +31,24 @@ class VentsExperienceTest {
         ui.onNodeWithText("No s’ha pogut enviar. Torna-ho a provar.").assertExists()
     }
 
+    @Test fun notificationTargetSurvivesACatalogueThatArrivesLater() {
+        val vm = GregalViewModel(ApplicationProvider.getApplicationContext())
+        vm.openVentsChat("wind:late")
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal) {
+                MaterialTheme(colorScheme = LightPal.scheme()) { CompanyScreen(vm, {}) }
+            }
+        }
+        ui.waitForIdle()
+        org.junit.Assert.assertEquals("wind:late", vm.ventsOpen.value)
+        ui.runOnIdle {
+            @Suppress("UNCHECKED_CAST")
+            (GregalViewModel::class.java.getDeclaredField("_winds").apply { isAccessible = true }.get(vm)
+                as kotlinx.coroutines.flow.MutableStateFlow<List<Wind>>).value = listOf(Wind("late", "Brisa tardana", "#A8CDE2", "Prova"))
+        }
+        ui.onNodeWithText("Brisa tardana").assertExists()
+    }
+
     @Test fun libraryEntryOpensTheRealRecoveryDialog() {
         val vm = vm()
         ui.setContent { CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {

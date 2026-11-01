@@ -576,7 +576,6 @@ internal fun isPublicDomain(host: String): Boolean {
     return tld !in setOf("local", "lan", "home", "internal", "localdomain", "arpa") && tld.any { it.isLetter() }
 }
 
-
 /** Qui hi ha darrere la connexio (GET /api/me). */
 data class MeInfo(
     val user: String = "",
@@ -621,6 +620,20 @@ private fun hostDeError(e: String): String {
 
 
 /**
+ * Nom curt del servidor desat per a la capçalera («Mòbil» o el domini):
+ * una IP literal, localhost o el loopback de l'emulador no són un nom i
+ * queden buits perquè la UI mostri «Servidor».
+ */
+internal fun displayServerName(host: String): String {
+    val bare = host.trim().substringAfter("://").substringBefore('/').substringBefore('@').substringBefore(':').lowercase()
+    if (bare.isEmpty() || bare == "localhost" || bare == "localhost.localdomain") return ""
+    if (bare == "127.0.0.1" || bare == "::1" || bare == "[::1]") return ""
+    if (bare.all { it.isDigit() || it == '.' } && bare.any { it.isDigit() }) return ""
+    if (bare.all { it.isDigit() || it == '.' || it == ':' || it == '[' || it == ']' }) return ""
+    return host.trim().substringAfter("://").substringBefore('/').substringBefore('@').substringBefore(':')
+}
+
+/**
  * El mode que es veu (com la web i el TUI, agent/access.go): Pregunta
  * ("chat"), Planifica ("plan") o Actua ("act"). inspect es mostra com a
  * Pregunta; goal com a Planifica; code, autonomous i debug com a Actua.
@@ -652,6 +665,19 @@ data class WorkspacesInfo(
     val project: String = "",
     val branch: String = "",
     val list: List<WorkspaceInfo> = emptyList(),
+)
+
+// --- Previsualització de la feina (webs fetes pels vents) ---
+
+/** Un fitxer HTML de la carpeta de treball que es pot obrir al mòbil. */
+data class PreviewWeb(val path: String = "", val name: String = "", val size: Long = 0, val mtime: String = "")
+
+/** Resposta de /api/preview: on es treballa i què s'hi pot veure. */
+data class PreviewInfo(
+    val root: String = "",
+    val base: String = "",
+    val index: String = "",
+    val webs: List<PreviewWeb> = emptyList(),
 )
 
 /** Un subdirectori del navegador de carpetes (/api/dirs). */

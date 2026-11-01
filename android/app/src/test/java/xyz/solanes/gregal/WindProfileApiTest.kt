@@ -97,7 +97,8 @@ class WindProfileApiTest {
                     val (code, body) = reply(request, String(chars))
                     val bytes = body.toByteArray(Charsets.UTF_8)
                     s.getOutputStream().apply {
-                        write("HTTP/1.1 $code Response\r\nContent-Type: application/json\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        val type = if (body.startsWith("event:")) "text/event-stream" else "application/json"
+                        write("HTTP/1.1 $code Response\r\nContent-Type: $type\r\nContent-Length: ${bytes.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         write(bytes); flush()
                     }
                 }
@@ -229,6 +230,56 @@ class WindProfileApiTest {
             waitUntil { result != null }
             assertEquals(true, result)
             assertEquals("draft", vm.ventDetall.value["wind-2"]?.first)
+        }
+    }
+
+    @Test fun acceptedStreamFailureNeverSubmitsTheSameWorkAgain() {
+        val classic = java.util.concurrent.atomic.AtomicInteger()
+        LibraryServer { request, _ ->
+            val method = request.substringBefore(" ")
+            val path = request.substringAfter(" ").substringBefore(" ")
+            200 to when {
+                path.endsWith("/stream") -> "event: error\ndata: {\"error\":\"provider timed out\"}\n\n"
+                method == "POST" && (path == "/api/winds/chat" || path == "/api/winds/rotllana") -> {
+                    classic.incrementAndGet()
+                    if (path.endsWith("rotllana")) "{\"reply\":{\"wind\":\"w\",\"text\":\"duplicate\"},\"history\":[]}" else "{\"reply\":\"duplicate\"}"
+                }
+                else -> "{}"
+            }
+        }.use { server ->
+            val connection = server.conn()
+            val app = ApplicationProvider.getApplicationContext<Application>()
+            val vm = GregalViewModel(app)
+            @Suppress("UNCHECKED_CAST")
+            (GregalViewModel::class.java.getDeclaredField("_conn").apply { isAccessible = true }
+                .get(vm) as kotlinx.coroutines.flow.MutableStateFlow<Conn>).value = connection
+            vm.sendWindMessage("w", "Do this once")
+            waitUntil { vm.windBusy.value.isEmpty() }
+            vm.sendRotllanaMessage("r", "Do this once")
+            waitUntil { vm.rotllanaBusy.value.isEmpty() }
+            assertEquals("an accepted SSE error must not trigger another POST", 0, classic.get())
+            assertEquals("Do this once", vm.windChat.value["w"]?.first()?.text)
+            assertEquals("Do this once", vm.rotllanaChat.value["r"]?.first()?.text)
+        }
+    }
+
+    @Test fun missingStreamRouteFallsBackOnlyOnceForLegacyServers() {
+        val posts = java.util.concurrent.atomic.AtomicInteger()
+        LibraryServer { request, _ ->
+            when {
+                request.startsWith("POST /api/winds/chat/stream ") -> 404 to "absent"
+                request.startsWith("POST /api/winds/chat ") -> { posts.incrementAndGet(); 200 to "{\"reply\":\"Legacy reply\"}" }
+                else -> 200 to "{}"
+            }
+        }.use { server ->
+            val vm = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+            @Suppress("UNCHECKED_CAST")
+            (GregalViewModel::class.java.getDeclaredField("_conn").apply { isAccessible = true }
+                .get(vm) as kotlinx.coroutines.flow.MutableStateFlow<Conn>).value = server.conn()
+            vm.sendWindMessage("w", "One operation")
+            waitUntil { vm.windBusy.value.isEmpty() }
+            assertEquals(1, posts.get())
+            assertEquals("Legacy reply", vm.windChat.value["w"]?.last()?.text)
         }
     }
 

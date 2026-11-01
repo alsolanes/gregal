@@ -202,6 +202,47 @@ fun CarpetaScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     }
                 }
 
+                // --- previsualitzar la feina: les webs de la carpeta ---
+                item { TitolSeccio(t("app.preview.webs")) }
+                item {
+                    val prev by vm.webInfo.collectAsState()
+                    val prevErr by vm.webError.collectAsState()
+                    LaunchedEffect(Unit) { vm.loadPreview() }
+                    GCard(Modifier.fillMaxWidth()) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            if (prev.webs.isEmpty()) {
+                                Text(
+                                    if (prevErr.isBlank()) t("app.preview.none") else prevErr,
+                                    color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp,
+                                )
+                            } else {
+                                prev.webs.forEach { w ->
+                                    Row(
+                                        Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    ) {
+                                        Column(Modifier.weight(1f)) {
+                                            Text(w.name, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                            Text("${w.path} · ${w.size / 1024} kB", color = Muted, fontSize = 11.5.sp)
+                                        }
+                                        TextButton(onClick = { vm.openPreview(w.path, w.name) }) {
+                                            Text(t("app.preview.open"), color = Sea, fontWeight = FontWeight.SemiBold)
+                                        }
+                                    }
+                                }
+                            }
+                            // L'índex de la carpeta: útil per veure què hi ha i
+                            // obrir fitxers sense tenir-los a la llista.
+                            if (prev.base.isNotBlank()) {
+                                TextButton(onClick = { vm.openPreview("", t("app.preview.webs")) }) {
+                                    Text(t("app.preview.title") + " →", color = Sea, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // --- triar la carpeta que s'està mirant ---
                 item {
                     val triada = dirs?.path.orEmpty()

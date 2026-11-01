@@ -52,8 +52,49 @@ data class Wind(
  * fase del servidor, si ja arriba text i quantes veus han parlat. Només viu
  * mentre el torn és en marxa; la cara la tradueix amb windMoodOf.
  */
-data class WindLive(val phase: String = "thinking", val writing: Boolean = false, val voices: Int = 1) {
+data class WindLive(
+    val phase: String = "waiting", val writing: Boolean = false, val voices: Int = 1,
+    val startedAt: Long = System.currentTimeMillis(), val lastEventAt: Long = startedAt,
+    val tool: String = "", val step: Int = 0, val receivedText: Boolean = false, val speaker: String = "",
+) {
     val mood: WindMood get() = windMoodOf(phase = phase, writing = writing, voices = voices)
+}
+
+/** Only report server-observed stages; no fabricated percentages or queue position. */
+internal fun windProgressLabel(lang: String, live: WindLive): String {
+    val en = lang == "en"
+    if (live.writing) return if (en) "Receiving the reply" else "Rebent la resposta"
+    if (live.phase == "tool") return when (live.tool.lowercase()) {
+        "bash", "shell" -> if (en) "Running a command" else "Executant una ordre"
+        "read", "read_file", "ls" -> if (en) "Reading the project" else "Llegint el projecte"
+        "grep", "search", "search_files" -> if (en) "Searching the project" else "Cercant al projecte"
+        "edit", "write", "patch", "write_file" -> if (en) "Updating files" else "Modificant fitxers"
+        "web_search" -> if (en) "Searching the web" else "Cercant al web"
+        "web_fetch" -> if (en) "Reading a source" else "Llegint una font"
+        else -> if (en) "Using a tool" else "Executant una eina"
+    }
+    return when (live.phase) {
+        "waiting", "queued" -> if (en) "Waiting for the server" else "Esperant el servidor"
+        "choosing" -> if (en) "Choosing who responds" else "Triant qui respon"
+        "preparing" -> if (en) "Preparing the turn" else "Preparant el torn"
+        "responding" -> if (en) "Receiving the reply" else "Rebent la resposta"
+        "retry" -> if (en) "Retrying the model connection" else "Reintentant la connexió amb el model"
+        "thinking", "model" -> if (en) "Waiting for the model's response" else "Esperant la resposta del model"
+        "searching" -> if (en) "Searching the web" else "Cercant al web"
+        "browsing" -> if (en) "Reading sources" else "Llegint fonts"
+        "scheduling" -> if (en) "Scheduling a reminder" else "Programant un avís"
+        "tool_done" -> if (en) "Tool finished; preparing the next step" else "Eina acabada; preparant el pas següent"
+        else -> if (en) "Turn in progress" else "Torn en curs"
+    }
+}
+
+internal fun windProgressTiming(lang: String, live: WindLive, now: Long): String {
+    val elapsed = ((now - live.startedAt).coerceAtLeast(0) / 1000)
+    val silent = ((now - live.lastEventAt).coerceAtLeast(0) / 1000)
+    val time = "${elapsed / 60}:" + (elapsed % 60).toString().padStart(2, '0')
+    val step = if (live.step > 0) (if (lang == "en") " · Step ${live.step}" else " · Pas ${live.step}") else ""
+    val quiet = if (silent >= 20) (if (lang == "en") " · No new activity for ${silent}s" else " · Sense novetats des de fa ${silent}s") else ""
+    return time + step + quiet
 }
 
 /**

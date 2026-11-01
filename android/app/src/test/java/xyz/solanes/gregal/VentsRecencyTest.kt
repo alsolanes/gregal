@@ -128,7 +128,10 @@ class VentsRecencyTest {
                     }
                     repeat(length) { reader.read() }
                     val body = response(first[0], first[1].substringBefore('?')).toByteArray()
-                    val headers = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n"
+                    // An absent streaming route is a legacy server, not an accepted stream with EOF.
+                    val status = if (first[1].substringBefore('?').endsWith("/stream") && body.isEmpty()) "404 Not Found" else "200 OK"
+                    val type = if (body.toString(Charsets.UTF_8).startsWith("event:")) "text/event-stream" else "application/json"
+                    val headers = "HTTP/1.1 $status\r\nContent-Type: $type\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n"
                     client.getOutputStream().apply { write(headers.toByteArray()); write(body); flush() }
                 }
             } catch (e: java.net.SocketException) { if (!socket.isClosed) throw e }

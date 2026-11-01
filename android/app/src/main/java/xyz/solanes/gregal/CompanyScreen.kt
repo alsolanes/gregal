@@ -32,6 +32,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -208,7 +209,12 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             open == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
             wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
             rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
-            else -> LaunchedEffect(open) { vm.openVentsChat(null) }
+            else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                TextButton(onClick = { vm.openVentsChat(null) }) { Text(tr(lang, "app.vents.back")) }
+                Text(if (lang == "en") "Waiting for the conversation data" else "Esperant les dades de la conversa", color = Ink)
+                Text(if (lang == "en") "The notification's conversation will open when its data arrives. You can reload without sending the work again." else "El fil de l'avís s'obrirà quan arribin les dades. Pots recarregar sense tornar a enviar la feina.", color = Muted, fontSize = 13.sp)
+                OutlinedButton(onClick = { vm.loadWinds(); vm.loadRotllanes() }) { Text(if (lang == "en") "Reload" else "Recarrega") }
+            }
         }
     } else {
         Scaffold(containerColor = Superficie,
@@ -274,7 +280,12 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             onCorner = { cornerOpen = true; exploreOpen = false },
                             onGames = { gamesOpen = true; exploreOpen = false },
                             onArena = { arenaOpen = true; exploreOpen = false },
-                            onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false })
+                            onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false },
+                            onProgramats = { programatsOpen = true; exploreOpen = false },
+                            onWiki = { wikiOpen = true; exploreOpen = false },
+                            onFeines = { feinesOpen = true; exploreOpen = false },
+                            onCrew = { vm.openCrew(); exploreOpen = false },
+                            onWorkspace = { exploreOpen = false; vm.go(Screen.Carpeta) })
                     }
                 }
             }) { pad ->
@@ -774,31 +785,33 @@ internal fun ConversationRow(
         if (timestamp > 0L) inboxWhen(timestamp, lang) else ""
     }
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 80.dp)
+        Modifier.fillMaxWidth().heightIn(min = 68.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Un vent sol porta l'eina del seu ofici també a la llista: és com es
         // distingeixen els especialistes d'un cop d'ull, no només pel color.
-        WindHalo(accent, style, size = 48, stacked = faces.drop(1), online = false,
+        WindHalo(accent, style, size = 44, stacked = faces.drop(1), online = false,
             mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE, showKit = faces.size <= 1)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
                     color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (onFavorite != null) IconButton(
                     onClick = onFavorite,
-                    modifier = Modifier.size(48.dp).semantics {
+                    modifier = Modifier.size(40.dp).semantics {
                         contentDescription = if (favorite) ventsCopy(lang, "removeFavorite") else ventsCopy(lang, "addFavorite")
                         selected = favorite
                     },
                 ) {
                     Icon(
                         if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                        contentDescription = null, tint = if (favorite) Sea else Muted,
-                        modifier = Modifier.size(18.dp))
+                        // L'estrella apagada en gris quedava invisible: l'accent
+                        // ple marca el favorit i el contorn fosc el desmarcat.
+                        contentDescription = null, tint = if (favorite) Sea else Ink.copy(alpha = .55f),
+                        modifier = Modifier.size(19.dp))
                 }
                 if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
@@ -829,6 +842,19 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val mention = activeMention(field.text, field.selection.start, winds)
     val canSend = field.text.isNotBlank() && !busy.contains(wind.id)
     var profile by remember(wind.id) { mutableStateOf(false) }
+    var askTransfer by remember(wind.id) { mutableStateOf(false) }
+    var showPerm by remember(wind.id) { mutableStateOf(false) }
+    val st by vm.state.collectAsState()
+    val pickDocs = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        uris.take(3).forEach { uri ->
+            vm.attachDocument(uri) { path ->
+                val next = appendDocMention(field.text, path)
+                field = TextFieldValue(next, TextRange(next.length))
+            }
+        }
+    }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
     // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
@@ -883,7 +909,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
-            onWiki = onWiki)
+            onWiki = onWiki,
+            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
+        if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it) }
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -929,14 +957,17 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                                 clipboard.setText(AnnotatedString(stripMdInline(msgs[idx].text)))
                                 scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                             },
-                            onContinue = if (!isBusy) ({ vm.sendWindContinue(wind.id) }) else null)
+                            onContinue = if (!isBusy) ({ vm.sendWindContinue(wind.id) }) else null,
+                            onRetry = if (!isBusy) ({ vm.retryLastWindTurn(wind.id) }) else null,
+                            onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
+                            onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                     }
                 }
             }
             // Peu "hi pensa" només si no hi ha bombolla de directe: la
             // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
             // dos avisos apilats.
-            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true) {
+            if (busy.contains(wind.id) && live[wind.id] == null && msgs.lastOrNull()?.streaming != true) {
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -971,7 +1002,14 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 )
             }
         }
-        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend, busy = busy.contains(wind.id)) {
+        VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend,
+            busy = busy.contains(wind.id), accent = accent, st = st,
+            onAttachDoc = { pickDocs.launch("*/*") },
+            onMode = { vm.setMode(it) },
+            onPerm = { showPerm = true },
+            onWorkspace = { vm.go(Screen.Carpeta) },
+            onStop = if (busy.contains(wind.id)) ({ vm.cancelWindTurn(wind.id) }) else null,
+            onPreview = { vm.openPreview() }) {
             val body = field.text
             val target = resolveMention(body, winds)
             if (target != null && target.id != wind.id) {
@@ -988,6 +1026,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
     }
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
+    if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
+    if (showPerm) PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false }, onClose = { showPerm = false })
 }
 
 /** El xat d'una rotllana a pantalla completa. */
@@ -1000,7 +1040,20 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val clipboard = LocalClipboardManager.current
     var field by rememberSaveable(rot.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var groupProfile by remember(rot.id) { mutableStateOf(false) }
+    var askTransfer by remember(rot.id) { mutableStateOf(false) }
+    var showPerm by remember(rot.id) { mutableStateOf(false) }
     var speakerProfile by remember(rot.id) { mutableStateOf<Wind?>(null) }
+    val st by vm.state.collectAsState()
+    val pickDocs = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        uris.take(3).forEach { uri ->
+            vm.attachDocument(uri) { path ->
+                val next = appendDocMention(field.text, path)
+                field = TextFieldValue(next, TextRange(next.length))
+            }
+        }
+    }
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     // Mencions @Nom: etiquetar un membre dirigeix el torn (només respon ell).
@@ -1068,7 +1121,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
             if (rotBusy) live[rot.id]?.mood ?: WindMood.THINKING else WindMood.IDLE, faces,
             onBack = onBack, onProfile = { groupProfile = true },
-            onWiki = onWiki)
+            onWiki = onWiki,
+            onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
+        if (rotBusy) live[rot.id]?.let { VentsWorkProgress(lang, it) }
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
@@ -1138,14 +1193,17 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                         clipboard.setText(AnnotatedString(stripMdInline(resolved.message.text)))
                         scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                     },
-                    onContinue = if (!busy.contains(rot.id)) ({ vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null)
+                    onContinue = if (!busy.contains(rot.id)) ({ vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
+                    onRetry = if (!busy.contains(rot.id)) ({ vm.retryLastRotllanaTurn(rot.id) }) else null,
+                    onTransfer = if (vm.canTransferToServer() && !busy.contains(rot.id)) ({ askTransfer = true }) else null,
+                    onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                 }
                 if (msgs[idx].kind == "question" && idx == msgs.lastIndex) CrewQuestionCard(lang, rotAccent)
                 }
             }
             // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
             // motiu que al xat directe: evitar l'avís duplicat).
-            if (busy.contains(rot.id) && msgs.lastOrNull()?.streaming != true) {
+            if (busy.contains(rot.id) && live[rot.id] == null && msgs.lastOrNull()?.streaming != true) {
                 item {
                     Row(
                         Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -1179,7 +1237,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
         }
         val waitingAnswer = msgs.lastOrNull()?.kind == "question"
-        VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend, busy = busy.contains(rot.id)) {
+        VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend,
+            busy = busy.contains(rot.id), accent = rotAccent, st = st,
+            onAttachDoc = { pickDocs.launch("*/*") },
+            onMode = { vm.setMode(it) },
+            onPerm = { showPerm = true },
+            onWorkspace = { vm.go(Screen.Carpeta) },
+            onStop = if (busy.contains(rot.id)) ({ vm.cancelRotllanaTurn(rot.id) }) else null,
+            onPreview = { vm.openPreview() }) {
             val body = field.text
             val target = resolveMention(body, faces)
             vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
@@ -1190,6 +1255,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     }
     if (groupProfile) GroupProfileDialog(vm, lang, rot, winds) { groupProfile = false }
     speakerProfile?.let { WindProfileDialog(vm, lang, it) { speakerProfile = null } }
+    if (askTransfer) TransferConfirmDialog(vm, lang, "rot", rot.id) { askTransfer = false }
+    if (showPerm) PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false }, onClose = { showPerm = false })
 }
 
 /** Desplegable de @mencions: cares candidates sobre el camp de text.
@@ -1332,8 +1399,36 @@ private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable 
 @Composable
 internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
     speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp,
-    onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null) {
+    onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null, onTransfer: (() -> Unit)? = null,
+    /** Avís opcional en copiar un enllaç (p. ex. «Enllaç copiat»). */
+    onCopied: (() -> Unit)? = null) {
     val mine = m.from == "user"
+    if (m.kind == "error") {
+        // Un torn interromput no és una resposta: avís tenyit amb l'acció a
+        // sota (reintentar el mateix text o continuar al servidor).
+        Surface(color = Sand.copy(alpha = 0.12f), shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Sand.copy(alpha = 0.55f)),
+            modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Rounded.Warning, contentDescription = null, tint = Sand, modifier = Modifier.size(20.dp).padding(top = 1.dp))
+                    Text(m.text, color = Ink, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                }
+                if (onRetry != null || onTransfer != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        if (onRetry != null) TextButton(onClick = onRetry) {
+                            Text(tr(lang, "app.vents.retry"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (onTransfer != null) TextButton(onClick = onTransfer) {
+                            Text(tr(lang, "app.vents.transferToServer"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+        }
+        return
+    }
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
     // Bombolla pròpia suau en tots dos temes: el blanc ple sobre fons fosc
     // enlluernava i pesava més que les respostes.
@@ -1459,6 +1554,9 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                         }
                     }
                     }
+                    // Enllaços del missatge com a pastilles per copiar d'un toc:
+                    // al mòbil, obrir-los al navegador és fàcil; copiar-los, no.
+                    if (!m.streaming) MessageLinks(lang, m.text, link, onCopied = onCopied)
                     // Parcial: el vent s'ha quedat a mitges (pressupost exhaurit).
                     // El botó reprèn la resposta pel mateix fil, sense preguntar.
                     if (onContinue != null && m.parcial && !m.streaming) {

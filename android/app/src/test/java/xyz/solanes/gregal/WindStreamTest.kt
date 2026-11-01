@@ -41,6 +41,16 @@ class WindStreamTest {
         assertEquals("xaloc", d.history[0].speakerId)
     }
 
+    @Test fun activityAndProgressAreObservedNotInvented() {
+        val event = api.parseWindStreamEvent("activity", """{"phase":"tool","tool":"read","step":3,"arguments":"private"}""")
+        assertEquals(GregalApi.WindStreamEvent.Activity("tool", "read", 3), event)
+        val live = WindLive(phase = "tool", tool = "read", step = 3, startedAt = 1000, lastEventAt = 11000)
+        assertEquals("Llegint el projecte", windProgressLabel("ca", live))
+        assertEquals("1:00 · Pas 3 · Sense novetats des de fa 50s", windProgressTiming("ca", live, 61000))
+        assertEquals("Receiving the reply", windProgressLabel("en", live.copy(writing = true)))
+        assertFalse(windProgressLabel("en", WindLive()).contains("queue position"))
+    }
+
     @Test
     fun parseErrorIBuits() {
         val err = api.parseWindStreamEvent("error", """{"error":"boom"}""")

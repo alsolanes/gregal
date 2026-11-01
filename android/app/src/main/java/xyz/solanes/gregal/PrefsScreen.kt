@@ -173,6 +173,17 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
                 }
 
+                PrefsSection(t("prefs.perms"))
+                GCard(Modifier.fillMaxWidth()) {
+                    Text(t("prefs.perms.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                    Spacer(Modifier.height(10.dp))
+                    ChoicePills(
+                        listOf("ask" to t("app.perm.ask"), "edits" to t("app.perm.edits"), "full" to t("app.perm.full")),
+                        st.access.ifBlank { "edits" },
+                        { vm.setAccess(it) },
+                    )
+                }
+
                 PrefsSection(t("prefs.reviewer"))
                 GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
                     Row(

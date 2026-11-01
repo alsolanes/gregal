@@ -1308,6 +1308,9 @@ fun MsgRow(m: ChatMsg, stable: Int, lang: String = "ca", onCopyNotice: () -> Uni
                         ) { AssistantResponse(m.text, lang) }
                     }
                 }
+                // Enllaços del missatge com a pastilles per copiar d'un toc
+                // (tocar l'enllaç del text l'obre; això el copia).
+                MessageLinks(lang, m.text, readableLink(Sea, LocalPal.current.dark), onCopied = onCopyNotice)
             }
         }
     }

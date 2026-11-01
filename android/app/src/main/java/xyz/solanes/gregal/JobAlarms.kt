@@ -393,14 +393,38 @@ object JobNotifications {
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .build()
 
-    /** El butlletí: títol = nom del job, cos = el resum; tocar-lo obre l'execució. */
-    fun result(ctx: Context, job: JobItem, run: RunItem) {
+    /** El butlletí: títol = nom del job, cos = el resum; tocar-lo obre l'execució a la instància que la va provocar. */
+    fun result(ctx: Context, job: JobItem, run: RunItem, origin: String = "") {
         // El cor calla sovint (sense novetats): un tret silenciós no fa soroll.
         if (run.status == "ok" && run.output.isBlank()) return
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        ensureChannel(ctx)
+        val source = NotificationOrigins.effective(ctx, origin)
+        val target = "run:${run.id}"
         val ok = run.status == "ok"
         val title = if (ok) stripMdForTitle(job.name) else text(ctx, "app.jobs.notif.failed", stripMdForTitle(job.name))
         val body = if (ok) JobSchedule.excerpt(run.output) else run.error.take(300)
-        post(ctx, job.id.hashCode(), title, body, run.id)
+        // A la pantalla bloquejada, només «Gregal»: el contingut del
+        // butlletí es veu en desbloquejar.
+        val public = Notification.Builder(ctx, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_gregal)
+            .setContentTitle("Gregal")
+            .build()
+        val n = Notification.Builder(ctx, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_gregal)
+            .setContentTitle(title)
+            .setContentText(body.lineSequence().firstOrNull().orEmpty())
+            .setStyle(Notification.BigTextStyle().bigText(body))
+            .setContentIntent(NotificationNavigation.pending(ctx, source, target))
+            .setAutoCancel(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+            .setPublicVersion(public)
+            .build()
+        try {
+            ctx.getSystemService(NotificationManager::class.java).notify(NotificationNavigation.identity(source, target).hashCode(), n)
+        } catch (_: Exception) {
+        }
     }
 
     fun failed(ctx: Context, name: String, why: String) =

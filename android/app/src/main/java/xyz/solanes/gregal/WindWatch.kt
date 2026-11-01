@@ -59,14 +59,24 @@ object WindWatch {
     const val SOON_MS = 3 * 60_000L
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    fun lastTs(ctx: Context): Long = prefs(ctx).getLong(KEY_TS, 0L)
-    fun saveTs(ctx: Context, ts: Long) { prefs(ctx).edit().putLong(KEY_TS, ts).apply() }
 
-    /** Només en mode servidor (host configurat): en local ja avisa JobAlarms. */
-    fun wanted(ctx: Context): Boolean {
-        val p = Prefs(ctx)
-        return p.host.isNotBlank() && p.target != Prefs.TARGET_LOCAL
+    /**
+     * Cursor per servidor desat: canviar de servidor no hereta l'última
+     * marca de l'altre. Sense servidor desat, clau única (mai s'usa).
+     */
+    private fun originKey(ctx: Context): String {
+        val id = NotificationOrigins.remote(Prefs(ctx))?.id
+        return if (id.isNullOrBlank()) KEY_TS else KEY_TS + "_" + id
     }
+
+    fun lastTs(ctx: Context): Long = prefs(ctx).getLong(originKey(ctx), 0L)
+    fun saveTs(ctx: Context, ts: Long) { prefs(ctx).edit().putLong(originKey(ctx), ts).apply() }
+
+    /**
+     * El vigilant segueix el servidor desat encara que ara usis el mòbil:
+     * cada avís porta el seu origen i obre la instància que toca.
+     */
+    fun wanted(ctx: Context): Boolean = NotificationOrigins.remote(Prefs(ctx)) != null
 
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
     fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
@@ -153,7 +163,8 @@ class WindWatchService : Service() {
                 aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
                 if (perVent.isEmpty() || AppVisibility.foreground) return
                 if (!WindNotifications.canNotify(this)) return
-                for ((_, n) in perVent) WindNotifications.veu(this, n)
+                val source = NotificationOrigins.remote(p)?.id.orEmpty()
+                for ((_, n) in perVent) WindNotifications.veu(this, n, source)
             } finally {
                 if (wake.isHeld) wake.release()
             }
@@ -206,19 +217,22 @@ object WindNotifications {
         .setVisibility(Notification.VISIBILITY_PRIVATE)
         .build()
 
-    /** Una veu nova d'un vent: nom + resum; tocar-la obre el seu xat. */
-    fun veu(ctx: Context, n: WindNovetat) {
+    /** Una veu nova d'un vent: nom + resum; tocar-la obre el seu xat a la instància que la va provocar. */
+    fun veu(ctx: Context, n: WindNovetat, origin: String = "") {
         if (Build.VERSION.SDK_INT >= 33 &&
             ctx.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         ensureChannel(ctx)
+        val source = NotificationOrigins.effective(ctx, origin)
         val nom = n.name.ifBlank { text(ctx, "app.vents.notif.wind") }
         val cos = JobSchedule.excerpt(n.text, 600)
+        val rot = n.source.removePrefix("feina:").takeIf { n.source.startsWith("feina:") }.orEmpty()
+        val target = if (rot.isNotEmpty()) "rot:$rot" else "wind:${n.wind}"
         val builder = Notification.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_gregal)
             .setContentTitle(nom)
             .setContentText(cos.lineSequence().firstOrNull().orEmpty())
             .setStyle(Notification.BigTextStyle().bigText(cos))
-            .setContentIntent(open(ctx, n.wind, n.source.removePrefix("feina:").takeIf { n.source.startsWith("feina:") }.orEmpty()))
+            .setContentIntent(NotificationNavigation.pending(ctx, source, target))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -228,11 +242,11 @@ object WindNotifications {
         }
         val publica = Notification.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_gregal)
-            .setContentTitle(nom)
+            .setContentTitle("Gregal")
             .build()
         builder.setPublicVersion(publica)
         try {
-            ctx.getSystemService(NotificationManager::class.java).notify(n.wind.hashCode(), builder.build())
+            ctx.getSystemService(NotificationManager::class.java).notify(NotificationNavigation.identity(source, target).hashCode(), builder.build())
         } catch (_: Exception) {
         }
     }
