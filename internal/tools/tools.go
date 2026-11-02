@@ -907,6 +907,62 @@ func ClassifyWith(cmd string, extraAllow, extraDeny []string) (string, string) {
 	return composta(cmd, extraAllow)
 }
 
+// ClassifyServer és la classificació amb PODERS DE SERVIDOR (l'administrador
+// els activa perquè els seus vents facin de sysadmin, com un agent amb
+// terminal al servidor): tot passa llevat del que no té marxa enrere o
+// trenca el mateix Gregal. Continuen prohibits: aturar o reiniciar el
+// Gregal, rm -rf /, sudo (ningú no hi pot escriure la contrasenya), mkfs/dd,
+// apagar la màquina, baixar i executar en una shell, les subcadenes deny del
+// config i escriure als camins crítics. home és la casa del servei
+// (/var/lib/gregal a la instal·lació de Linux): és dins de /var/lib, que
+// compta com a crític, i s'hi ha de poder escriure.
+func ClassifyServer(cmd, home string, extraDeny []string) (string, string) {
+	if err := serviceguard.Check(cmd); err != nil {
+		return "deny", err.Error()
+	}
+	lower := strings.ToLower(strings.TrimSpace(cmd))
+	if i := strings.Index(lower, "rm -rf /"); i >= 0 {
+		rest := lower[i+len("rm -rf /"):]
+		if rest == "" || strings.ContainsAny(rest[:1], " \t;&|\r\n") {
+			return "deny", "patró bloquejat: rm -rf /"
+		}
+	}
+	if d := ordreDenegadaAmb(strings.TrimSpace(cmd), true); d != "" {
+		return "deny", "patró bloquejat: " + d
+	}
+	for _, d := range extraDeny {
+		if strings.Contains(lower, strings.ToLower(d)) {
+			return "deny", "patró bloquejat: " + d
+		}
+	}
+	mira := lower
+	if h := strings.ToLower(strings.TrimRight(filepath.ToSlash(home), "/")); h != "" && h != "/" {
+		mira = strings.ReplaceAll(mira, h, "~home")
+	}
+	if c := camiCriticA(mira); c != "" && escripturaSobreCritic(mira) {
+		return "deny", "camí crític protegit: no s'hi escriu ni s'hi esborra (" + c + ")"
+	}
+	return "allow", ""
+}
+
+// EscripturaCritica diu si escriure al camí path tocaria un camí crític
+// (caminsCritics), amb la casa del servei exempta.
+func EscripturaCritica(path, home string) bool {
+	p := strings.ToLower(filepath.ToSlash(path))
+	if h := strings.ToLower(strings.TrimRight(filepath.ToSlash(home), "/")); h != "" && h != "/" {
+		if p == h || strings.HasPrefix(p, h+"/") {
+			return false
+		}
+	}
+	if hd, err := os.UserHomeDir(); err == nil {
+		hd = strings.ToLower(strings.TrimRight(filepath.ToSlash(hd), "/"))
+		if hd != "" && (p == hd || strings.HasPrefix(p, hd+"/")) {
+			p = "~" + p[len(hd):]
+		}
+	}
+	return camiCriticA(" "+p+" ") != ""
+}
+
 // Bash executa una comanda al directori del procés.
 func Bash(cmd string, timeout time.Duration) (string, error) { return BashIn("", cmd, timeout) }
 

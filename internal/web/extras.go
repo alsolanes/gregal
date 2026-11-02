@@ -41,6 +41,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/cards", h.route((*Server).handleWindCards))
 	handle("/api/server/accounts", h.global(adminOnly((*Server).handleServerAccounts)))
 	handle("/api/server/invitations", h.global(adminOnly((*Server).handleServerInvite)))
+	handle("/api/server/powers", h.global(adminOnly((*Server).handleServerPowers)))
 	handle("/api/register", h.global((*Server).handleServerRegister))
 	handle("/api/winds/library", h.route((*Server).handleWindLibrary))
 	handle("/api/winds/transfer", h.route((*Server).handleWindsTransfer))

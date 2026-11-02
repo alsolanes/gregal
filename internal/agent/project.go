@@ -90,6 +90,9 @@ func (p *Policy) writablePath(name, argsJSON string) bool {
 	if InsideProject(p.ProjectDir, path) {
 		return true
 	}
+	if p.ServerPowers && path != "" && !tools.EscripturaCritica(path, p.ServerHome) {
+		return true
+	}
 	for _, d := range p.AlsoDirs {
 		if InsideProject(d, path) {
 			return true

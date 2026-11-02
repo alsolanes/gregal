@@ -682,6 +682,34 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Torna a la pantalla de connexió per triar un altre servidor. */
     fun switchServer() = disconnect()
 
+    private val _serverPowers = MutableStateFlow<GregalApi.ServerPowers?>(null)
+    /** Poders de servidor (només l'admin): null mentre no se sap o si no n'hi ha. */
+    val serverPowers: StateFlow<GregalApi.ServerPowers?> = _serverPowers
+
+    fun loadServerPowers() {
+        val c = _conn.value
+        viewModelScope.launch {
+            _serverPowers.value = try { withContext(Dispatchers.IO) { c.api().getServerPowers() } } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                null
+            }
+        }
+    }
+
+    fun setServerPowers(enabled: Boolean? = null, notes: String? = null, onDone: (Boolean) -> Unit = {}) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { c.api().setServerPowers(enabled, notes) }
+                _serverPowers.value = withContext(Dispatchers.IO) { c.api().getServerPowers() }
+                onDone(true)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+            }
+        }
+    }
+
     /** Crea un codi d'invitació (només l'admin d'un servidor amb comptes). */
     fun createInvitation(onCode: (String) -> Unit) {
         val c = _conn.value

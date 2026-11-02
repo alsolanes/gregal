@@ -281,6 +281,14 @@ type Policy struct {
 	// AskEdits és el permís «Demana abans de canviar» (access.go): en
 	// code i debug les escriptures dins del projecte també pregunten.
 	AskEdits bool
+	// ServerPowers: l'administrador ha donat poders de servidor (els seus
+	// vents fan de sysadmin, com un agent amb terminal al servidor). Bash
+	// passa amb tools.ClassifyServer i les escriptures valen a tot arreu
+	// llevat dels camins crítics. Només en code, debug i autònom.
+	ServerPowers bool
+	// ServerHome és la casa del servei: dins de /var/lib (crític) a Linux,
+	// però s'hi ha de poder escriure.
+	ServerHome string
 }
 
 // DefaultPolicy retorna la política base (read allow, bash classify, write/edit ask).
@@ -361,6 +369,14 @@ func serverToolSpecs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"dir": str, "title": str,
 			}, "required": []string{"dir"}}},
+		{Name: "tunnel", Description: "Put a service of THIS server on the internet with Cloudflare (cloudflared), like a sysadmin would. start needs target: a port (3000), a local URL (http://127.0.0.1:3000), the name of a managed app (the app tool), or \"gregal\" for this Gregal server itself. Without hostname you get a quick https://….trycloudflare.com link (no account; it changes if the tunnel restarts). With hostname (e.g. blog.example.com, on the user's Cloudflare domain) it adds the DNS route to the named tunnel (tunnel = its name, or the configured default) and serves it at https://<hostname>. Tunnels stay open after the turn and come back after a restart. Other actions: list, status, logs, stop (by name or hostname). Only for the administrator's winds with server powers. Available through the Gregal web server, not the CLI.",
+			Parameters: map[string]any{"type": "object", "properties": map[string]any{
+				"action":   map[string]any{"type": "string", "enum": []string{"start", "list", "status", "logs", "stop"}},
+				"name":     str,
+				"target":   str,
+				"hostname": str,
+				"tunnel":   str,
+			}, "required": []string{"action"}}},
 		{Name: "wind", Description: "Summon a specialist wind (one of the user's AI helpers, each with its own trade, playbook and memory). list shows who is good at what; ask hands a task to a wind (wind = its id or name, or omit it to pick the best specialist for the task) and returns its answer, the folder it worked in and any links. Use it when the task matches a wind's speciality (a website, a game, a topic it studied). Give the full context in task: the wind does not see this conversation. Available through the Gregal web server, not the CLI.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"action": map[string]any{"type": "string", "enum": []string{"list", "ask"}},
@@ -454,6 +470,11 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "app: confirm running a server"
 	case "publish":
 		return "ask", "publish: confirm a public link"
+	case "tunnel":
+		if tunnelActionReadOnly(argsJSON) {
+			return "allow", ""
+		}
+		return "ask", "tunnel: confirm exposing a local service to the internet"
 	case "bash_output", "bash_kill":
 		// Llegir o aturar un procés que ja s'ha aprovat no torna a preguntar.
 		return "allow", ""
@@ -491,6 +512,9 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 			allow, deny = p.BashAllow, p.BashDeny
 		}
 		decision, reason := tools.ClassifyWith(a.Command, allow, deny)
+		if p != nil && p.ServerPowers {
+			decision, reason = tools.ClassifyServer(a.Command, p.ServerHome, deny)
+		}
 		if decision == "deny" {
 			return decision, reason
 		}
@@ -530,6 +554,13 @@ func (p *Policy) Decide(mode, name, argsJSON string) (string, string) {
 }
 
 func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
+	// Els poders de servidor són per fer feina: en els modes de només
+	// lectura (xat, pla, objectiu, consulta) no amplien res.
+	if p != nil && p.ServerPowers && mode != ModeCode && mode != ModeDebug && mode != ModeAutonomous {
+		cp := *p
+		cp.ServerPowers = false
+		p = &cp
+	}
 	if ReadOnlyMode(mode) {
 		switch name {
 		case "office_edit", "office_create", "pdf_edit", "pdf_create", "bash_kill":
@@ -555,8 +586,8 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 	// es denega explícitament (mai es converteix en una aprovació).
 	if mode == ModeInspect {
 		switch name {
-		case "app", "publish", "wind":
-			if name == "app" && appActionReadOnly(argsJSON) {
+		case "app", "publish", "wind", "tunnel":
+			if (name == "app" && appActionReadOnly(argsJSON)) || (name == "tunnel" && tunnelActionReadOnly(argsJSON)) {
 				return "allow", ""
 			}
 			return "deny", "mode consulta: no engega, no publica ni encarrega feina"
@@ -590,8 +621,8 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			què = "mode pla"
 		}
 		switch name {
-		case "app", "publish", "wind":
-			if name == "app" && appActionReadOnly(argsJSON) {
+		case "app", "publish", "wind", "tunnel":
+			if (name == "app" && appActionReadOnly(argsJSON)) || (name == "tunnel" && tunnelActionReadOnly(argsJSON)) {
 				return "allow", ""
 			}
 			return "deny", què + ": només lectura (passa a Actua per engegar, publicar o encarregar feina)"
@@ -691,7 +722,7 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return previewRequest(argsJSON)
 	case "dashboard_save":
 		return "", nil, fmt.Errorf("dashboard_save requires the Gregal web server (web, desktop or Android), not the CLI; show the charts as gregal-plot blocks instead")
-	case "app", "publish", "wind":
+	case "app", "publish", "wind", "tunnel":
 		return "", nil, fmt.Errorf("%s requires the Gregal web server (web, desktop or Android), not the CLI", name)
 	case "read":
 		var a struct {

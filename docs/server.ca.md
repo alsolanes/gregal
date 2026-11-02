@@ -162,6 +162,70 @@ contrasenya o esborra el compte, l'app torna a la pantalla d'entrar i diu per
 què. Per canviar una contrasenya oblidada: `sudo gregalctl account-password NOM`
 o el panell web.
 
+## Poders de servidor: els vents fan de sysadmin
+
+Amb els poders de servidor, els vents de l'administrador treballen a la
+màquina com un agent amb terminal (el que faries amb Hermes per Telegram, però
+des de l'app). Fan webs i en canvien de les que ja serveix el servidor,
+instal·len paquets, despleguen i les posen a internet amb Cloudflare.
+
+**Activar-los:** Preferències → **Poders de servidor** (web, escriptori o
+mòbil; només l'administrador ho veu), o `sudo gregalctl powers on`. Els altres
+comptes no els tenen mai.
+
+**Què poden fer:**
+- Qualsevol ordre de shell: git, npm, pip, compilar, `curl`/`wget` a internet,
+  `ssh`.
+- Editar fitxers on el sistema els deixi, també fora de la seva carpeta.
+- Servir carpetes de fora del compte amb `app` i `publish`.
+- Obrir túnels de Cloudflare amb l'eina `tunnel`.
+- Respectar un `deny` explícit del config. Un `ask` (la plantilla en porta un
+  per a `write`/`edit`, pensat per al xat principal) no els atura.
+
+**Què no poden fer mai:** `sudo` (ningú no hi pot escriure la contrasenya),
+aturar o reiniciar el Gregal, `rm -rf /`, baixar alguna cosa i executar-la
+amb una shell, ni escriure a camins crítics (`/etc`, `/usr`, `~/.ssh`, la
+configuració del Gregal…). La seva pròpia casa (`/var/lib/gregal`) sí.
+
+**Notes del servidor.** Són un fitxer (`server-notes.md` a la carpeta de
+dades) amb el que els vents saben de la màquina: quines webs hi ha, on viuen,
+amb quin domini i com es despleguen. El llegeixen a cada torn i el van posant
+al dia sols. També el pots editar a Preferències. No hi posis contrasenyes.
+
+**Webs de fora de `/var/lib/gregal`.** El servei de systemd només pot escriure
+a la seva casa. Per deixar-lo treballar en una web que ja serveixes (per
+exemple `/srv/www/blog`):
+
+```sh
+sudo gregalctl site-allow /srv/www/blog
+```
+
+Això dona permís d'escriptura a l'usuari del servei amb ACL (el propietari de
+la web no canvia), afegeix la carpeta a `ReadWritePaths` i reinicia el
+servei.
+
+**Cloudflare.** Hi ha dues maneres:
+
+- **Enllaç ràpid, sense compte:** n'hi ha prou amb instal·lar cloudflared
+  (`sudo gregalctl cloudflared-install`). El vent obre un túnel
+  `https://….trycloudflare.com`, que canvia si el túnel es reinicia.
+- **El teu domini:**
+
+  ```sh
+  sudo gregalctl cloudflared-install
+  sudo gregalctl tunnel-login          # obre l'enllaç i tria el domini
+  sudo gregalctl tunnel-create casa    # crea el túnel i el deixa per defecte
+  ```
+
+  Llavors n'hi ha prou de dir al vent «posa el blog a blog.exemple.cat».
+  Afegeix la ruta DNS, l'entrada al túnel (config a la carpeta de dades) i
+  comprova que respon.
+
+Gregal supervisa els túnels: tornen a obrir-se si cauen i després de
+reiniciar el servidor. També hi pots exposar el mateix Gregal (destí
+`gregal`), i llavors els enllaços `/share/` i `/apps/` són públics al teu
+domini.
+
 ## A internet (una màquina sempre encesa amb el teu domini)
 
 Per arribar-hi des de qualsevol lloc cal un domini amb HTTPS. Necessites:

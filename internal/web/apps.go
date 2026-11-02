@@ -456,6 +456,8 @@ func (s *Server) runBuildTool(ctx context.Context, workspace, name, argsJSON str
 		return s.runAppTool(ctx, workspace, argsJSON)
 	case "publish":
 		return s.runPublishTool(ctx, workspace, argsJSON)
+	case "tunnel":
+		return s.runTunnelTool(ctx, workspace, argsJSON)
 	}
 	return "", fmt.Errorf("unknown tool %q", name)
 }
@@ -540,7 +542,7 @@ func (s *Server) runAppTool(ctx context.Context, workspace, argsJSON string) (st
 		if dir == "" {
 			return "", errors.New("dir is required: the project folder")
 		}
-		if s.user != nil {
+		if s.user != nil && !s.hasServerPowers() {
 			if err := s.user.Allow(dir); err != nil {
 				return "", err
 			}

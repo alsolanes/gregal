@@ -141,26 +141,35 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 	}
 	// Un permís explícit del config (el més restrictiu) mana: l'autoaprovat
 	// del xat no el relaxa mai.
+	// Amb poders de servidor l'administrador ja ha donat el permís: un «ask»
+	// del config (la plantilla porta write/edit: ask, pensat per al xat
+	// principal) no l'atura; un «deny» explícit, sí.
+	blocks := func(d string) bool { return d != "allow" && !(p.ServerPowers && d == "ask") }
 	if p != nil {
-		if d, _, ok := p.ruleDecision(name, argsJSON); ok && d != "allow" {
+		if d, _, ok := p.ruleDecision(name, argsJSON); ok && blocks(d) {
 			return false
 		}
 		if name == "bash" || name == "bash_background" {
-			if d, _, ok := p.ruleDecision("bash", argsJSON); ok && d != "allow" {
+			if d, _, ok := p.ruleDecision("bash", argsJSON); ok && blocks(d) {
 				return false
 			}
-			if d, _, ok := p.ruleDecision("bash_background", argsJSON); ok && d != "allow" {
+			if d, _, ok := p.ruleDecision("bash_background", argsJSON); ok && blocks(d) {
 				return false
 			}
-			if bashPermissionOverride(p) != "" && bashPermissionOverride(p) != "allow" {
+			if o := bashPermissionOverride(p); o != "" && blocks(o) {
 				return false
 			}
-		} else if d, ok := p.Tools[name]; ok && d != "allow" {
+		} else if d, ok := p.Tools[name]; ok && blocks(d) {
 			return false
 		}
 	}
 	switch name {
 	case "write", "edit", "patch", "office_edit", "office_create", "pdf_edit", "pdf_create":
+		if p != nil && p.ServerPowers {
+			if path := toolPath(name, argsJSON); path != "" && !tools.EscripturaCritica(path, p.ServerHome) {
+				return true
+			}
+		}
 		return projecte != "" && InsideProject(projecte, toolPath(name, argsJSON))
 	case "lsp":
 		// Renombrar símbols toca diversos fitxers: només dins del projecte.
@@ -178,6 +187,10 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 			Command string `json:"command"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
+		if p != nil && p.ServerPowers {
+			d, _ := tools.ClassifyServer(a.Command, p.ServerHome, deny)
+			return d == "allow"
+		}
 		return ordreSegura(a.Command, projecte, allow, deny)
 	case "bash_kill", "bash_output":
 		// Només els processos que el mateix torn ha engegat.
@@ -199,6 +212,10 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 			// ordre i carpeta que es van acceptar en engegar-la.
 			return true
 		}
+		if p != nil && p.ServerPowers {
+			d, _ := tools.ClassifyServer(a.Command, p.ServerHome, deny)
+			return a.Command == "" || d == "allow"
+		}
 		// Sense dir, l'app va a la carpeta del torn (el projecte).
 		if projecte == "" || (a.Dir != "" && !InsideProject(projecte, a.Dir)) {
 			return false
@@ -211,7 +228,27 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 			Dir string `json:"dir"`
 		}
 		_ = json.Unmarshal([]byte(argsJSON), &a)
+		if p != nil && p.ServerPowers {
+			return true
+		}
 		return projecte != "" && InsideProject(projecte, a.Dir)
+	case "tunnel":
+		// Obrir un servei a internet és cosa de l'administrador: només amb
+		// poders de servidor. Consultar-los sempre.
+		return tunnelActionReadOnly(argsJSON) || (p != nil && p.ServerPowers)
+	}
+	return false
+}
+
+// tunnelActionReadOnly: consultar túnels (list, status, logs) no canvia res.
+func tunnelActionReadOnly(argsJSON string) bool {
+	var a struct {
+		Action string `json:"action"`
+	}
+	_ = json.Unmarshal([]byte(argsJSON), &a)
+	switch strings.TrimSpace(a.Action) {
+	case "list", "status", "logs":
+		return true
 	}
 	return false
 }

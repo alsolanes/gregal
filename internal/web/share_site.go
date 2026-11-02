@@ -201,7 +201,7 @@ func (s *Server) siteFiles(kind, content, dir, title string) ([]siteFile, error)
 // siteFilesFromDir copia una carpeta del workspace (els mateixos permisos
 // que /api/file). Sense enllaços simbòlics ni carpetes ocultes (.git, .env).
 func (s *Server) siteFilesFromDir(dir string) ([]siteFile, error) {
-	root, err := s.resolveFilePath(dir)
+	root, err := s.resolveToolPath(dir)
 	if err != nil {
 		return nil, err
 	}

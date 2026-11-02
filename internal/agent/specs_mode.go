@@ -18,7 +18,7 @@ import (
 var einesEscriptura = map[string]bool{
 	"write": true, "edit": true, "patch": true, "office_edit": true, "office_create": true, "pdf_edit": true, "pdf_create": true,
 	"git_commit": true, "gh_pr_create": true, "dashboard_save": true,
-	"app": true, "publish": true, "wind": true,
+	"app": true, "publish": true, "wind": true, "tunnel": true,
 }
 
 // einesCore és el conjunt compacte per a models locals petits: les eines

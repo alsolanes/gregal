@@ -194,6 +194,25 @@ class GregalApi(val base: String, val token: String) {
         return o.optString("token")
     }
 
+    /** Poders de servidor (admin): estat, eines de la màquina, túnels i notes. */
+    data class ServerPowers(val enabled: Boolean, val tools: List<String>, val user: String, val notes: String, val tunnels: List<Pair<String, String>>)
+
+    fun getServerPowers(): ServerPowers {
+        val o = JSONObject(read(conn("/api/server/powers", "GET")))
+        val t = o.optJSONArray("tunnels") ?: JSONArray()
+        return ServerPowers(
+            o.optBoolean("enabled"), o.optJSONArray("tools")?.toStrList() ?: emptyList(), o.optString("user"), o.optString("notes"),
+            (0 until t.length()).map { i -> t.getJSONObject(i).let { it.optString("url") to (it.optString("target") + " · " + it.optString("status")) } },
+        )
+    }
+
+    fun setServerPowers(enabled: Boolean? = null, notes: String? = null) {
+        val body = JSONObject()
+        if (enabled != null) body.put("enabled", enabled)
+        if (notes != null) body.put("notes", notes)
+        post("/api/server/powers", body)
+    }
+
     /** Codi d'invitació d'un sol ús (admin): POST /api/server/invitations. */
     fun createInvitation(): String = post("/api/server/invitations", JSONObject()).optString("code")
 

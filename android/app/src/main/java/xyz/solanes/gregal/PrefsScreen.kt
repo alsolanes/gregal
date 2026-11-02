@@ -56,6 +56,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -121,6 +122,10 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 if (!conn.local && admin) {
                     Spacer(Modifier.height(10.dp))
                     InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
+                }
+                if (admin) {
+                    Spacer(Modifier.height(10.dp))
+                    ServerPowersCard(vm, idioma)
                 }
                 Spacer(Modifier.height(12.dp))
                 val simple by vm.simpleVents.collectAsState()
@@ -364,5 +369,47 @@ private fun InviteCard(vm: GregalViewModel, lang: String, server: String) {
                 vm.createInvitation { code = it; busy = false }
             }, enabled = !busy, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.invite.create")) }
         }
+    }
+}
+
+/**
+ * Poders de servidor: els vents de l'administrador fan de sysadmin (webs,
+ * desplegaments, túnels de Cloudflare). Les notes són el que saben de la
+ * màquina; les llegeixen a cada torn.
+ */
+@Composable
+private fun ServerPowersCard(vm: GregalViewModel, lang: String) {
+    val sp by vm.serverPowers.collectAsState()
+    LaunchedEffect(Unit) { vm.loadServerPowers() }
+    val p = sp ?: return
+    var notes by remember(p.notes) { mutableStateOf(p.notes) }
+    var saving by remember { mutableStateOf(false) }
+    GCard(Modifier.fillMaxWidth()) {
+        PreferenceSwitchRowPlain(tr(lang, "app.powers.title"), tr(lang, "app.powers.help"), p.enabled) { vm.setServerPowers(enabled = it) }
+        if (p.tools.isNotEmpty()) Text(tr(lang, "app.powers.machine", p.tools.joinToString(", ")), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        p.tunnels.forEach { (url, what) -> Text(url + "  →  " + what, color = Ink, fontSize = 12.5.sp) }
+        if (p.enabled) {
+            Spacer(Modifier.height(10.dp))
+            Text(tr(lang, "app.powers.notes"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "app.powers.notesHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+            Spacer(Modifier.height(6.dp))
+            androidx.compose.material3.OutlinedTextField(notes, { notes = it }, modifier = Modifier.fillMaxWidth(), minLines = 4, maxLines = 12,
+                textStyle = androidx.compose.ui.text.TextStyle(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, fontSize = 13.sp))
+            Spacer(Modifier.height(6.dp))
+            androidx.compose.material3.OutlinedButton(onClick = { saving = true; vm.setServerPowers(notes = notes) { saving = false } },
+                enabled = !saving && notes != p.notes, shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.powers.save")) }
+        }
+    }
+}
+
+@Composable
+private fun PreferenceSwitchRowPlain(title: String, help: String, checked: Boolean, onChecked: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChecked).padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(help, color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        }
+        Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
     }
 }

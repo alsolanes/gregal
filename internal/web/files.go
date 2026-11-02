@@ -87,6 +87,15 @@ func pathWithinReal(root, target string) bool {
 // del home (~) o absoluta, i després comprova que l'usuari hi pugui anar.
 // És el pas obligat de l'arbre i dels fitxers: el guard és aquí i no a
 // cada handler perquè no se n'oblidi cap.
+// resolveToolPath és la ruta d'una eina del servidor (publish): amb poders
+// de servidor, l'administrador pot fer servir carpetes de fora dels seus roots.
+func (s *Server) resolveToolPath(p string) (string, error) {
+	if s.hasServerPowers() {
+		return s.resolveFilePathRaw(p)
+	}
+	return s.resolveFilePath(p)
+}
+
 func (s *Server) resolveFilePath(p string) (string, error) {
 	abs, err := s.resolveFilePathRaw(p)
 	if err != nil {

@@ -35,6 +35,12 @@ func (s *Server) windLoopScope() windTurnScope {
 		cp.AskEdits = s.cfg.Permissions.AskEdits()
 		pol = &cp
 	}
+	// Poders de servidor (server_powers.go): només l'administrador.
+	if s.hasServerPowers() {
+		cp := *pol
+		cp.ServerPowers, cp.ServerHome = true, serviceHome()
+		pol = &cp
+	}
 	s.mu.Unlock()
 	return windTurnScope{mode: s.mode, workspace: ws, policy: pol}
 }

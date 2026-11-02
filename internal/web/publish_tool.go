@@ -47,7 +47,7 @@ func (s *Server) publishDir(dir, title string) (shareMeta, error) {
 	if err != nil {
 		return shareMeta{}, err
 	}
-	abs, err := s.resolveFilePath(dir)
+	abs, err := s.resolveToolPath(dir)
 	if err != nil {
 		return shareMeta{}, err
 	}

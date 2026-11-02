@@ -302,8 +302,13 @@ func (h *Hub) Run(addr string) error {
 	}
 	go s.jobLoop(context.Background())
 	h.startPlugins(context.Background())
-	// Les apps gestionades que corrien tornen a arrencar (apps.go).
+	// Les apps gestionades que corrien tornen a arrencar (apps.go), i els
+	// túnels de Cloudflare que eren oberts (tunnels.go).
 	go appsMgr.autostart()
+	if _, p, err := net.SplitHostPort(addr); err == nil {
+		gregalListenPort, _ = strconv.Atoi(p)
+	}
+	go tunnelsMgr.autostart()
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -3133,7 +3138,7 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 			return "ERROR: " + err.Error(), nil
 		}
 		return out, nil
-	case "app", "publish", "wind":
+	case "app", "publish", "wind", "tunnel":
 		out, err := s.runServerTool(ctx, workspace, c.Function.Name, c.Function.Arguments)
 		if err != nil {
 			return "ERROR: " + err.Error(), nil

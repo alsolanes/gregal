@@ -210,7 +210,7 @@ export const prefs = {
       ['voice', '🔊', voicePrefs.section()],
       ['extras', '✧', senseCap(funPrefs.section())],
       ['integrations', '⇄', chromeExt.section() + wordAddin.section() + shares.section()],
-      ['advanced', '⋯', '<div id="prefsAccounts" hidden></div>' + fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
+      ['advanced', '⋯', '<div id="prefsPowers" hidden></div><div id="prefsAccounts" hidden></div>' + fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
         desktopUpdates.section()],
     ];
     cos.innerHTML =
@@ -264,6 +264,7 @@ export const prefs = {
     if (rv) rv.onchange = () => this.posaRevisor(rv.checked);
     this.carregaSkills();
     this.carregaAccounts();
+    this.carregaPowers();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     const k = $('prefsKeys');
@@ -287,6 +288,64 @@ export const prefs = {
     });
     if (main) main.onscroll = () => this.marcaNav();
     this.filtra();
+  },
+
+  // Poders de servidor (server_powers.go): només l'administrador els veu.
+  async carregaPowers(success = "") {
+    const box = $('prefsPowers'); if (!box) return;
+    try {
+      const response = await window.api('/api/server/powers');
+      if (!response.ok || !box.isConnected) return;
+      const data = await response.json(); if (!box.isConnected) return;
+      const ca = idioma() === 'ca', text = (a, b) => ca ? a : b;
+      const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+      box.hidden = false; box.replaceChildren();
+      box.append(el('h3', 'pf-sec', text('Poders de servidor', 'Server powers')));
+      box.append(el('p', 'pf-skills-help', text(
+        'Els teus vents fan de sysadmin en aquesta màquina, com un agent amb terminal: fan i canvien webs (també les que ja serveix), instal·len paquets, despleguen i obren túnels de Cloudflare. No poden fer servir sudo, aturar el Gregal ni tocar camins crítics. Mai per als altres comptes.',
+        'Your winds act as sysadmins on this machine, like an agent with a terminal: they build and change websites (including the ones it already serves), install packages, deploy and open Cloudflare tunnels. They cannot use sudo, stop Gregal or touch critical paths. Never for other accounts.')));
+      const row = el('label', 'pf-power-row');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!data.enabled;
+      row.append(cb, el('span', '', text('Activa els poders de servidor', 'Enable server powers')));
+      box.append(row);
+      const status = el('p', 'pf-skills-status'); status.setAttribute('role', 'status');
+      cb.onchange = async () => {
+        cb.disabled = true;
+        try {
+          const r = await window.api('/api/server/powers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: cb.checked }) });
+          if (!r.ok) throw new Error(await r.text());
+          status.textContent = cb.checked ? text('Activats: els teus vents ja hi poden treballar.', 'On: your winds can work on the server now.') : text('Desactivats.', 'Off.');
+        } catch (err) { cb.checked = !cb.checked; status.textContent = text('No s’ha pogut desar: ', 'Could not save: ') + err.message; }
+        finally { cb.disabled = false; }
+      };
+      box.append(el('p', 'pf-skills-help', text('A la màquina: ', 'On the machine: ') + (data.tools || []).join(', ') + ' · ' + (data.user || '') + ' · ' + (data.home || '')));
+      const tunnels = data.tunnels || [];
+      if (tunnels.length) {
+        box.append(el('h4', '', text('Túnels oberts', 'Open tunnels')));
+        const ul = el('ul', 'pf-tunnels');
+        for (const t of tunnels) {
+          const li = el('li'); const a = el('a', '', t.url || t.name); a.href = t.url || '#'; a.target = '_blank'; a.rel = 'noopener';
+          li.append(a, document.createTextNode(' → ' + t.target + ' · ' + t.status)); ul.append(li);
+        }
+        box.append(ul);
+      }
+      box.append(el('h4', '', text('Notes del servidor', 'Server notes')));
+      box.append(el('p', 'pf-skills-help', text('El que els vents saben de la màquina (webs, carpetes, dominis, com es despleguen). Les llegeixen a cada torn i les van posant al dia. Sense contrasenyes ni claus.', 'What the winds know about the machine (sites, folders, domains, how they deploy). They read them every turn and keep them up to date. No passwords or keys.')));
+      const notes = document.createElement('textarea'); notes.className = 'pf-notes'; notes.rows = 8; notes.value = data.notes || '';
+      notes.placeholder = text('- blog: /srv/www/blog, Caddy, blog.exemple.cat\n- túnel per defecte: casa', '- blog: /srv/www/blog, Caddy, blog.example.com\n- default tunnel: home');
+      const save = el('button', 'pf-open', text('Desa les notes', 'Save notes')); save.type = 'button';
+      save.onclick = async () => {
+        save.disabled = true;
+        try {
+          const r = await window.api('/api/server/powers', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: notes.value }) });
+          if (!r.ok) throw new Error(await r.text());
+          status.textContent = text('Notes desades.', 'Notes saved.');
+        } catch (err) { status.textContent = text('No s’han pogut desar: ', 'Could not save: ') + err.message; }
+        finally { save.disabled = false; }
+      };
+      box.append(notes, save, status);
+      if (success) status.textContent = success;
+    } catch (_) { /* Només l'administrador ho veu. */ }
   },
 
   async carregaAccounts(success = "") {

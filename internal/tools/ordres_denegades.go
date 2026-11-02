@@ -79,7 +79,11 @@ type paraulaOrdre struct {
 // ordreDenegada torna el patró que bloqueja la comanda, o "" si no n'hi ha
 // cap. Rep la comanda tal com és: les opcions de curl distingeixen
 // majúscules.
-func ordreDenegada(cmd string) string {
+func ordreDenegada(cmd string) string { return ordreDenegadaAmb(cmd, false) }
+
+// ordreDenegadaAmb: amb internet (poders de servidor), curl, wget i ssh cap a
+// fora passen; baixar i passar-ho a una shell continua prohibit.
+func ordreDenegadaAmb(cmd string, internet bool) string {
 	lower := strings.ToLower(cmd)
 	for _, s := range subcadenesDenegades {
 		if strings.Contains(lower, s) {
@@ -115,6 +119,13 @@ func ordreDenegada(cmd string) string {
 			}
 			if (prog == "curl" || prog == "wget") && !strings.Contains(lower, "proxy") && nomesLocal(prog, expandeixVars(args, vars)) {
 				xarxaLocal = true
+				continue
+			}
+			if internet && (prog == "curl" || prog == "wget") {
+				xarxaLocal = true // per a la regla «baixar | shell» de sota
+				continue
+			}
+			if internet && prog == "ssh" {
 				continue
 			}
 			return d.patro

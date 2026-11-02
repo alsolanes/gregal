@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v1.40.0 - 2026-11-02 - Poders de servidor
+
+- **Poders de servidor: els vents fan de sysadmin.** L'administrador els
+  activa a Preferències (o `gregalctl powers on`) i els seus vents treballen al
+  servidor com un agent amb terminal.
+  - Shell sense la llista de perilloses: internet, `ssh`, paquets i
+    desplegaments.
+  - Editar webs que ja serveix la màquina, i servir-les amb `app`/`publish`
+    des de fora de la carpeta del compte.
+  - Llegir i mantenir unes notes del servidor (quines webs hi ha, on viuen,
+    com es despleguen).
+  - Continuen prohibits `sudo`, tocar el Gregal, `rm -rf /`, baixar i
+    executar, i els camins crítics. Mai per als altres comptes.
+- **Eina `tunnel` (Cloudflare).** Posa a internet un port, una app o el mateix
+  Gregal: un enllaç ràpid `trycloudflare.com` sense compte, o el teu domini amb
+  un túnel amb nom. Gregal hi afegeix la ruta DNS i l'entrada, i el supervisa
+  (torna si cau o es reinicia el servidor). Comandes noves a `gregalctl`:
+  `cloudflared-install`, `tunnel-login`, `tunnel-create`, i `site-allow` per
+  deixar escriure el servei en una web de fora de `/var/lib/gregal`.
+
 ## v1.39.1 - 2026-11-02 - Vents net
 
 - **Gregal Vents net.** A l'app de Vents, el menú només té els vents, el
