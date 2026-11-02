@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **L'APK porta el nom de l'app i la versió.** Gradle deixa de banda els
+  «app-<abi>-debug.apk» i escriu `Gregal-Vents-<versió>[-<abi>].apk` (o
+  `Gregal-Android-...` per a l'app d'escriptori), així que al mòbil i a les
+  descàrregues se sap de seguida quina app és i quina versió. El guió de
+  publicació calcula el mateix nom en lloc de fer servir noms fixos.
+  Versió 1.53.1-vents (165).
+
 - **Pots canviar com es diuen els {vents}.** A Preferències hi ha «Com els vols
   dir»: un camp per al singular i un per al plural. Buit vol dir «Vent» i
   «Vents» (o «Wind»/«Winds» en anglès). Els textos porten {Vent}/{Vents} (o

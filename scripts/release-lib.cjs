@@ -138,10 +138,19 @@ function releaseNotes(changelog, version) {
 // universal APK. The universal one keeps the old name, so older apps (and
 // people who don't know their phone's ABI) still get a working file.
 const ANDROID_APKS = [
-  { abi: null, from: 'app-universal-debug.apk' },
-  { abi: 'arm64-v8a', from: 'app-arm64-v8a-debug.apk' },
-  { abi: 'x86_64', from: 'app-x86_64-debug.apk' },
+  { abi: null },
+  { abi: 'arm64-v8a' },
+  { abi: 'x86_64' },
 ];
+
+// Gradle ja deixa els APK amb el nom i la versió de l'app (build.gradle.kts), així
+// que aquí no hi ha noms fixos: es calcula el mateix nom a partir de la versió.
+function androidApkFrom(versionName, abi, vents = false) {
+  const base = vents
+    ? `Gregal-Vents-${versionName.replace(/-vents$/, '')}`
+    : `Gregal-Android-${versionName}`;
+  return `${base}${abi ? '-' + abi : ''}.apk`;
+}
 
 function androidApkName(versionName, abi) {
   return `Gregal-Android-${versionName}${abi ? '-' + abi : ''}.apk`;
@@ -176,4 +185,4 @@ function androidManifest({ versionName, versionCode, changelog, baseUrl, apks })
   return { versionCode, versionName, changelog: changelog || '', ...entry(universal), apks: perAbi };
 }
 
-module.exports = { ANDROID_APKS, androidApkName, ventsVersion, ventsApkName, androidManifest, FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };
+module.exports = { ANDROID_APKS, androidApkFrom, androidApkName, ventsVersion, ventsApkName, androidManifest, FILES, SEMVER, mainVersion, packageVersion, lockVersions, androidVersion, changelogSection, changelogTitle, checkConsistency, bump, releaseNotes };

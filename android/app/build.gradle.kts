@@ -27,14 +27,26 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 164 else 45
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 165 else 45
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.53.0-vents" else "0.11.3"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.53.1-vents" else "0.11.3"
+    }
+
+    // L'APK surt amb el nom de l'app i la versió: «Gregal-Vents-<versió>-arm64-v8a.apk» no
+    // deia ni quina app era ni quina versió, i al mòbil totes es deien igual.
+    applicationVariants.all {
+        val etiqueta = if (project.hasProperty("gregal.plotsPreview")) "Gregal-Vents-" else "Gregal-Android-"
+        val base = etiqueta + versionName.orEmpty().removeSuffix("-vents")
+        outputs.all {
+            val abi = filters.joinToString("-") { it.identifier }
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                if (abi.isBlank()) "$base.apk" else "$base-$abi.apk"
+        }
     }
 
     sourceSets["main"].jniLibs.srcDir(backendOut)
     // Un APK per ABI (app-<abi>-debug.apk) perquè cada mòbil només baixi el
-    // seu backend, més l'universal (app-universal-debug.apk) per a qui no
+    // seu backend, més l'universal (Gregal-Vents-<versió>.apk) per a qui no
     // sàpiga quin li toca. Tots comparteixen versionCode i signatura: el
     // d'un ABI s'instal·la damunt de l'universal i a l'inrevés.
     splits {

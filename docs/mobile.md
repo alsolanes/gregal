@@ -92,8 +92,8 @@ server is found changes.
   `GREGAL_DNS`, or 1.1.1.1 and 8.8.8.8.
 - ABIs: `arm64-v8a` (phones) and `x86_64` (emulators). AGP ABI splits
   build one APK per ABI, so a phone downloads only its own backend:
-  `app-arm64-v8a-debug.apk` is about 27 MB and `app-x86_64-debug.apk`
-  about 28 MB. `app-universal-debug.apk` carries both (about 42 MB). All
+  `Gregal-Vents-<versió>-arm64-v8a.apk` is about 27 MB and `Gregal-Vents-<versió>-x86_64.apk`
+  about 28 MB. `Gregal-Vents-<versió>.apk` carries both (about 42 MB). All
   share the `versionCode` and the signing key, so they install over each
   other.
 - `-Pgregal.skipBackend` builds a remote-only APK. The app then hides

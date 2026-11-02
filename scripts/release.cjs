@@ -81,7 +81,8 @@ if (cmd === 'check') {
   const dir = path.join(root, 'output', 'release-' + value);
   fs.mkdirSync(dir, { recursive: true });
   const built = path.join(android, 'app/build/outputs/apk/debug');
-  const apks = lib.ANDROID_APKS.map(({ abi, from }) => {
+  const apks = lib.ANDROID_APKS.map(({ abi }) => {
+    const from = lib.androidApkFrom(a.name, abi, vents);
     const name = (vents ? lib.ventsApkName : lib.androidApkName)(a.name, abi);
     const file = path.join(dir, name);
     fs.copyFileSync(path.join(built, from), file);
