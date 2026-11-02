@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -353,6 +353,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Enllaça el magatzem de prefs (tema/idioma/esborrany desats). */
     fun attachPrefs(p: Prefs) {
         prefsStore = p
+        // Com es diuen els vents en aquest mòbil: si la persona els ha posat un
+        // altre nom, tots els textos en fan servir el mot.
+        VentNom.singular = p.ventSingular
+        VentNom.plural = p.ventPlural
         _capHome.value = p.capHome
         _tema.value = p.tema
         _temaApp.value = p.temaApp
@@ -368,6 +372,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // Un 401 de la connexió d'ara vol dir que la sessió ja no val
         // (contrasenya canviada, compte esborrat, sessió tancada): cap a entrar.
         GregalApi.onUnauthorized = { base, token -> viewModelScope.launch { sessionExpired(base, token) } }
+    }
+
+    /** Desa com es diuen els vents (buit = els noms de sempre). */
+    fun desaNomsDelVent(singular: String, plural: String) {
+        prefsStore?.desaNomsDelVent(singular, plural)
     }
 
     fun setTema(v: String) {

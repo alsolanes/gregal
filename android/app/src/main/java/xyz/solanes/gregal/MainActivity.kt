@@ -83,6 +83,11 @@ class Prefs(val ctx: Context) {
     var usuari: String
         get() = p.getString("usuari", "") ?: ""
         set(v) { p.edit().putString("usuari", v.trim()).apply() }
+    /** Com es diuen els vents en aquest mòbil (buit = Vent/Vents). */
+    val ventSingular: String get() = p.getString("ventSingular", "") ?: ""
+    val ventPlural: String get() = p.getString("ventPlural", "") ?: ""
+    fun desaNomsDelVent(sing: String, plur: String) = VentNom.desa(p, sing, plur)
+
     fun save(host: String, port: String, token: String, usuari: String = "") {
         p.edit().putString("host", host.trim()).putString("port", port.trim())
             .putString("token", token.trim())
@@ -286,6 +291,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Jobs -> JobsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Automatitzacions -> AutomatitzacionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Preview -> PreviewScreen(vm) { scope.launch { drawer.open() } }

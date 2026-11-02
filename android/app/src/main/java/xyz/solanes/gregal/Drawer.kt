@@ -106,6 +106,9 @@ fun GregalDrawerContent(
             val admin by vm.isAdmin.collectAsState()
             if (local || admin) DrawerRow(tr(lang, "nav.activity"), screen == Screen.Jobs, { nav(Screen.Jobs); vm.loadJobs(); vm.loadRuns() }, Icons.Rounded.Schedule)
             DrawerRow(tr(lang, "graphs.title"), screen == Screen.Flows, { nav(Screen.Flows); vm.loadFlows() }, Icons.Rounded.AccountTree)
+            DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
+                nav(Screen.Automatitzacions); vm.loadJobs(); vm.loadRutines(); vm.loadFlows(); vm.loadProgramats()
+            }, Icons.Rounded.Schedule)
 
             DrawerSection(tr(lang, "app.nav.sectionTools"))
             DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
@@ -148,6 +151,9 @@ private fun SimpleVentsDrawer(
             Spacer(Modifier.height(18.dp))
             DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
             DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
+            DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
+                nav(Screen.Automatitzacions); vm.loadJobs(); vm.loadRutines(); vm.loadFlows(); vm.loadProgramats()
+            }, Icons.Rounded.Schedule)
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Settings)
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)

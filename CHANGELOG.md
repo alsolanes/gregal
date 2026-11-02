@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- **Pots canviar com es diuen els {vents}.** A Preferències hi ha «Com els vols
+  dir»: un camp per al singular i un per al plural. Buit vol dir «Vent» i
+  «Vents» (o «Wind»/«Winds» en anglès). Els textos porten {Vent}/{Vents} (o
+  {vent}/{vents}) i el mot triat s'hi posa amb la majúscula o la minúscula que
+  demana la frase; el canvi es veu a l'instant a tota l'app.
+- **Secció Automatitzacions.** Un sol lloc amb tot el que es fa sol:
+  recordatoris, tasques programades, plans dels {vents} i fluxos, cadascun amb
+  el seu estat i quan toca. És al calaix, tant al normal com al simple. Els
+  treballs manuals no hi surten: si els has de prémer tu, no són automatismes.
+  Versió 1.53.0-vents (164).
+
 - **Fora la targeta de «ja en sap» del perfil.** Entre el nom del vent i les
   pestanyes hi havia una targeta amb dos resums (personalitat i memòria) que
   repetia el que ja surt a les pestanyes i es menjava 140 dp d'espai. Ara el

@@ -90,6 +90,10 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     // versionCode instal·lat (si no, seria un botó que no fa res).
     val teNova = info?.takeIf { it.isAvailable }
     fun t(k: String, vararg args: Any?) = tr(idioma, k, *args)
+    // Com es diuen els vents: el camp comença amb el que hi ha desat.
+    var nomSing by remember { mutableStateOf(VentNom.singular) }
+    var nomPlur by remember { mutableStateOf(VentNom.plural) }
+    var nomsDesats by remember { mutableStateOf(false) }
     GregalBg {
         Scaffold(
             containerColor = Color.Transparent,
@@ -182,6 +186,27 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Text(t("prefs.lang"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(10.dp))
                     ChoicePills(listOf("system" to t("app.prefs.languageSystem"), "ca" to "Català", "en" to "English"), idiomaChoice, { vm.setIdioma(it) })
+                }
+
+                PrefsSection(t("prefs.ventsName"))
+                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 10.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(t("prefs.ventsNameHelp"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            androidx.compose.material3.OutlinedTextField(nomSing, { nomSing = it.take(20) }, singleLine = true,
+                                label = { Text(t("prefs.ventsNameSing")) }, modifier = Modifier.weight(1f))
+                            androidx.compose.material3.OutlinedTextField(nomPlur, { nomPlur = it.take(20) }, singleLine = true,
+                                label = { Text(t("prefs.ventsNamePlur")) }, modifier = Modifier.weight(1f))
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(onClick = { vm.desaNomsDelVent(nomSing, nomPlur); nomsDesats = true }) { Text(t("prefs.ventsNameSave")) }
+                            if (nomsDesats) Text(t("prefs.ventsNameSaved"), color = Sea, fontSize = 12.5.sp)
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { nomSing = ""; nomPlur = ""; vm.desaNomsDelVent("", ""); nomsDesats = false }) {
+                                Text(t("prefs.ventsNameReset"))
+                            }
+                        }
+                    }
                 }
 
                 PrefsSection(t("prefs.vents"))
