@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, onDismiss: () -> Unit) {
@@ -89,7 +90,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         }
                     }
                 }) {
-                listOf("character", "memory", "plans").forEachIndexed { index, key ->
+                listOf("character", "memory", "plans", "cards").forEachIndexed { index, key ->
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key")) })
                 }
             }
@@ -139,6 +140,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         VentSkillsSection(vm, lang, wind)
                     }
+                    3 -> WindCardsSection(vm, lang, wind)
                     2 -> {
                         Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
                         Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {
@@ -454,4 +456,32 @@ private fun ConeixementEditor(vm: GregalViewModel, lang: String, wind: Wind, exi
             }
         }
     }
+}
+
+
+@Composable
+private fun WindCardsSection(vm: GregalViewModel, lang: String, wind: Wind) {
+    val scope = rememberCoroutineScope()
+    var cards by remember(wind.id) { mutableStateOf<List<org.json.JSONObject>>(emptyList()) }
+    var title by remember(wind.id) { mutableStateOf("") }; var prompt by remember(wind.id) { mutableStateOf("") }
+    var loading by remember(wind.id) { mutableStateOf(false) }; var error by remember(wind.id) { mutableStateOf("") }
+    val ca = lang != "en"
+    suspend fun load() { val data = vm.windCards(wind.id).optJSONArray("cards") ?: org.json.JSONArray(); cards = (0 until data.length()).map { data.getJSONObject(it) } }
+    LaunchedEffect(wind.id) { try { load() } catch (e: Exception) { error = e.message.orEmpty() } }
+    Text(if (ca) "Fitxes consultables" else "Reference cards", fontWeight = FontWeight.SemiBold, color = Ink)
+    Text(if (ca) "Informació per consultar i actualitzar." else "Information to check and refresh.", color = Muted)
+    if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
+    cards.forEach { card ->
+        Surface(shape = RoundedCornerShape(14.dp), color = Color(wind.argb).copy(alpha = .08f), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(card.optString("title"), color = Ink, fontWeight = FontWeight.SemiBold)
+                Text(card.optString("updated").ifBlank { if (ca) "Encara no actualitzada" else "Not updated yet" }, color = Muted, fontSize = 12.sp)
+                SelectionContainer { Text(card.optString("content").ifBlank { if (ca) "Prem Actualitza per cercar informació." else "Press Refresh to research this topic." }, color = Tinta) }
+                OutlinedButton(enabled = !loading, onClick = { scope.launch { loading = true; error = ""; try { vm.windCardAction(wind.id, "refresh", id = card.optString("id")); load() } catch (e: Exception) { error = e.message.orEmpty() } finally { loading = false } } }) { Text(if (loading) { if (ca) "Actualitzant…" else "Refreshing…" } else { if (ca) "Actualitza" else "Refresh" }) }
+            }
+        }
+    }
+    OutlinedTextField(title, { title = it }, label = { Text(if (ca) "Nom de la fitxa" else "Card title") }, modifier = Modifier.fillMaxWidth())
+    OutlinedTextField(prompt, { prompt = it }, label = { Text(if (ca) "Què ha de cercar?" else "What should be researched?") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+    Button(enabled = !loading && title.isNotBlank() && prompt.isNotBlank(), onClick = { scope.launch { loading = true; error = ""; try { vm.windCardAction(wind.id, "create", title = title, prompt = prompt); title = ""; prompt = ""; load() } catch (e: Exception) { error = e.message.orEmpty() } finally { loading = false } } }) { Text(if (ca) "Crea la fitxa" else "Create card") }
 }

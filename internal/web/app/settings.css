@@ -55,3 +55,7 @@
 /* Veus dels narradors */
 .pf-voice .pf-voice-btns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .pf-voice.on .pf-lab span { color:#2fbf71; }
+
+.pf-account-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0 22px; }
+.pf-account-form input { min-width:180px; flex:1 1 180px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:var(--surface); font:inherit; }
+.pf-account-form p { flex-basis:100%; color:var(--red); margin:0; }

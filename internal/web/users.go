@@ -60,11 +60,13 @@ type User struct {
 // com a l'usuari admin i tot queda exactament com abans d'aquesta feina. Els
 // usuaris són una capa de més a sobre, no un canvi de les regles del joc.
 type Users struct {
-	mu     sync.RWMutex
-	defs   map[string]config.UserCfg
-	tokens map[string]string // token → nom d'usuari
-	path   string            // fitxer de tokens emesos (0600)
-	pwPath string            // fitxer de contrasenyes (0600)
+	mu             sync.RWMutex
+	defs           map[string]config.UserCfg
+	tokens         map[string]string // token → nom d'usuari
+	managedNames   map[string]bool
+	revokedManaged map[string]bool // hashes of tokens revoked by a managed password reset
+	path           string          // fitxer de tokens emesos (0600)
+	pwPath         string          // fitxer de contrasenyes (0600)
 
 	// intents compten els intents fallits per adreça, perquè una
 	// contrasenya no es pugui anar provant a dojo.
@@ -150,11 +152,13 @@ func (u *Users) Encertat(ip string) {
 // serveix per saber on desar els tokens emesos.
 func NewUsers(cfg *config.Config, cfgPath string) *Users {
 	u := &Users{
-		defs:    map[string]config.UserCfg{},
-		tokens:  map[string]string{},
-		pwPath:  passwordsPath(),
-		intents: map[string]*intentsIP{},
-		path:    tokensPath(),
+		defs:           map[string]config.UserCfg{},
+		tokens:         map[string]string{},
+		revokedManaged: map[string]bool{},
+		managedNames:   map[string]bool{},
+		pwPath:         passwordsPath(),
+		intents:        map[string]*intentsIP{},
+		path:           tokensPath(),
 		legacyUser: &User{
 			Name:  "local",
 			Admin: true,
@@ -191,6 +195,7 @@ func NewUsers(cfg *config.Config, cfgPath string) *Users {
 		// colla, per exemple— responia «aquest camí no és a la teva carpeta».
 		u.legacyUser.Roots = []string{string(filepath.Separator)}
 	}
+	u.loadManagedAccounts()
 	u.loadPasswords()
 	u.loadTokens()
 	return u
@@ -208,7 +213,14 @@ func (u *Users) SetLegacyToken(tok string) {
 }
 
 // Actiu diu si hi ha cap manera d'entrar configurada.
-func (u *Users) Actiu() bool { return u != nil && len(u.defs) > 0 }
+func (u *Users) Actiu() bool {
+	if u == nil {
+		return false
+	}
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	return len(u.defs) > 0
+}
 
 // Noms torna els usuaris configurats, ordenats.
 func (u *Users) Noms() []string {
@@ -228,7 +240,7 @@ func (u *Users) Login(name, pw string) (string, *User, error) {
 	u.mu.RLock()
 	d, ok := u.defs[name]
 	u.mu.RUnlock()
-	if !ok || len(u.defs) == 0 {
+	if !ok {
 		// Contra l'enumeració d'usuaris: es paga el mateix temps de PBKDF2
 		// encara que el nom no existeixi.
 		VerifyPassword("", pw)
@@ -242,6 +254,11 @@ func (u *Users) Login(name, pw string) (string, *User, error) {
 		return "", nil, err
 	}
 	u.mu.Lock()
+	// A password may have been changed while PBKDF2 was running.
+	if current, exists := u.defs[name]; !exists || current.Password != d.Password {
+		u.mu.Unlock()
+		return "", nil, ErrCredencials
+	}
 	u.tokens[tok] = name
 	u.mu.Unlock()
 	u.saveTokens()
@@ -276,6 +293,9 @@ func (u *Users) Resolve(tok string) (*User, bool) {
 	}
 	u.mu.RLock()
 	name, ok := u.tokens[tok]
+	if u.revokedManaged[tokenDigest(tok)] {
+		ok = false
+	}
 	u.mu.RUnlock()
 	if !ok {
 		return nil, false
