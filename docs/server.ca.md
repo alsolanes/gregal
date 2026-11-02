@@ -86,7 +86,7 @@ nom i contrasenya. L'administrador també pot crear comptes directament.
 
 Un cop iniciada la sessió d'administrador a la web, obre **Configuració →
 Avançat → Comptes del servidor**. Introdueix un nom i una contrasenya de com a
-mínim 12 caràcters per crear cada compte. Els comptes creats aquí no són
+mínim 8 caràcters per crear cada compte. Els comptes creats aquí no són
 administradors. Cada persona pot entrar amb el seu nom i contrasenya des de la
 web o des d'Android. L'administrador inicial també pot utilitzar la clau general,
 que dona accés administratiu i s'ha de mantenir privada.

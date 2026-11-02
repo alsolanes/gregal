@@ -10,6 +10,33 @@ import (
 	"testing"
 )
 
+func TestManagedAccountPasswordMinimumIsEight(t *testing.T) {
+	data := t.TempDir()
+	t.Setenv("GREGAL_DATA_DIR", data)
+	t.Setenv("GREGAL_ACCOUNTS_DIR", filepath.Join(t.TempDir(), "accounts"))
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	handler := adminOnly((*Server).handleServerAccounts)
+	create := func(body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/server/accounts", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		handler(s, w, req)
+		return w
+	}
+	// Set contrasenyes no han de passar ni crear el compte.
+	if w := create(`{"name":"dina","password":"1234567"}`); w.Code != http.StatusBadRequest {
+		t.Fatalf("7 caràcters: codi %d, s'esperava 400", w.Code)
+	}
+	// Vuit sí: el mínim és vuit, com abans.
+	if w := create(`{"name":"dina","password":"12345678"}`); w.Code != http.StatusOK {
+		t.Fatalf("8 caràcters: codi %d (%s), s'esperava 200", w.Code, strings.TrimSpace(w.Body.String()))
+	}
+	if _, _, err := s.users.Login("dina", "12345678"); err != nil {
+		t.Fatalf("el compte de 8 caràcters no pot entrar: %v", err)
+	}
+}
+
 func TestManagedAccountsPersistAndRequireAdmin(t *testing.T) {
 	data := t.TempDir()
 	t.Setenv("GREGAL_DATA_DIR", data)

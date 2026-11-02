@@ -10,12 +10,19 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"gregal/internal/config"
 	"gregal/internal/identity"
 	"gregal/internal/session"
 )
+
+// minPasswordLen és el mínim per a qualsevol compte (web, invitació i app).
+// Vuit, com les contrasenyes que ja es feien servir: qui tria una de més llarga
+// no rep cap avís. Un sol lloc mana, perquè el text de la web i la validació
+// del servidor no es poden separar.
+const minPasswordLen = 8
 
 // Managed accounts are opt-in and stored separately from config.yaml so
 // editing users never rewrites provider settings or exposes password hashes.
@@ -157,8 +164,8 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req.Name = strings.TrimSpace(req.Name)
-		if !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") || len(req.Password) < 12 || len(req.Password) > 1024 {
-			http.Error(w, "invalid username or password (minimum 12 characters)", 400)
+		if !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") || len(req.Password) < minPasswordLen || len(req.Password) > 1024 {
+			http.Error(w, "invalid username or password (minimum "+strconv.Itoa(minPasswordLen)+" characters)", 400)
 			return
 		}
 		hash := HashPassword(req.Password)

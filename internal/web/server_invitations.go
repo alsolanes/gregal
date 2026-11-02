@@ -101,7 +101,7 @@ func (s *Server) handleServerRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Name = strings.TrimSpace(req.Name)
 	req.Code = strings.TrimSpace(req.Code)
-	if len(req.Code) != 32 || !windCardID.MatchString(req.Code) || !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") || len(req.Password) < 12 || len(req.Password) > 1024 {
+	if len(req.Code) != 32 || !windCardID.MatchString(req.Code) || !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") || len(req.Password) < minPasswordLen || len(req.Password) > 1024 {
 		s.users.Fallit(ip)
 		http.Error(w, "invalid invitation or account details", 400)
 		return

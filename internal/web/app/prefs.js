@@ -308,7 +308,7 @@ export const prefs = {
       box.append(inviteButton,inviteResult);
       const form = document.createElement('form'); form.className = 'pf-account-form';
       const name = document.createElement('input'); name.placeholder = text('Nom d’usuari','Username'); name.setAttribute('aria-label',name.placeholder); name.autocomplete = 'off'; name.required = true; name.pattern='[A-Za-z][A-Za-z0-9_-]{1,31}'; name.maxLength=32;
-      const password = document.createElement('input'); password.type = 'password'; password.placeholder = text('Contrasenya (mínim 12 caràcters)','Password (at least 12 characters)'); password.setAttribute('aria-label',password.placeholder); password.autocomplete = 'new-password'; password.minLength=12; password.required=true;
+      const password = document.createElement('input'); password.type = 'password'; password.placeholder = text('Contrasenya (mínim 8 caràcters)','Password (at least 8 characters)'); password.setAttribute('aria-label',password.placeholder); password.autocomplete = 'new-password'; password.minLength=8; password.required=true;
       const button = document.createElement('button'); button.type='submit'; button.className='pf-open'; button.textContent=text('Crea el compte','Create account');
       const cancel=document.createElement('button'); cancel.type='button'; cancel.className='pf-open'; cancel.textContent=text('Cancel·la','Cancel'); cancel.hidden=true; cancel.onclick=()=>{action='create';name.readOnly=false;name.value='';password.value='';button.textContent=text('Crea el compte','Create account');cancel.hidden=true;};
       const message = document.createElement('p'); message.setAttribute('role','status'); form.append(name,password,button,cancel,message); box.append(form);

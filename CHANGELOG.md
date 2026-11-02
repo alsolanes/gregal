@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Contrasenyes de 8 caràcters, com abans.** El mínim per crear un compte o
+  registrar-se amb invitació torna a ser 8 (era 12). El número surt d'una sola
+  constant (`minPasswordLen` a `internal/web/server_accounts.go`), de manera que
+  el text de la web, la validació del servidor i la documentació no es poden
+  separar mai més; hi ha un test que comprova que 7 es rebutja i que 8 crea el
+  compte i deixa entrar.
+
 ## v1.38.1 - 2026-11-02 - Conversa dels vents
 
 - **Winds conversation polish.** The model selector is easier to recognize and displays a more readable model name, while retaining the full identifier for accessibility. Conversation avatars and composer controls are a little larger.
