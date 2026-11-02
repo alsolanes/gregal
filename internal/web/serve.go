@@ -702,7 +702,7 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 	senseAuth := strings.TrimSpace(s.Token) == "" && (s.users == nil || !s.users.Actiu())
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// L'extensió de Chrome s'autentica al primer missatge del websocket.
-		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || r.URL.Path == "/api/login" || r.URL.Path == mcp.OAuthCallbackPath || r.URL.Path == browserExtensionPath {
+		if senseAuth || !strings.HasPrefix(r.URL.Path, "/api/") || (r.URL.Path == "/api/login" || r.URL.Path == "/api/register") || r.URL.Path == mcp.OAuthCallbackPath || r.URL.Path == browserExtensionPath {
 			next.ServeHTTP(w, r)
 			return
 		}

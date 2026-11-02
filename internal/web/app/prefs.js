@@ -210,7 +210,7 @@ export const prefs = {
       ['voice', '🔊', voicePrefs.section()],
       ['extras', '✧', senseCap(funPrefs.section())],
       ['integrations', '⇄', chromeExt.section() + wordAddin.section() + shares.section()],
-      ['advanced', '⋯', fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
+      ['advanced', '⋯', '<div id="prefsAccounts" hidden></div>' + fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
         desktopUpdates.section()],
     ];
     cos.innerHTML =
@@ -263,6 +263,7 @@ export const prefs = {
     const rv = $('prefsReviewer');
     if (rv) rv.onchange = () => this.posaRevisor(rv.checked);
     this.carregaSkills();
+    this.carregaAccounts();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     const k = $('prefsKeys');
@@ -286,6 +287,35 @@ export const prefs = {
     });
     if (main) main.onscroll = () => this.marcaNav();
     this.filtra();
+  },
+
+  async carregaAccounts(success = "") {
+    const box = $('prefsAccounts'); if (!box) return;
+    try {
+      const response = await window.api('/api/server/accounts');
+      if (!response.ok || !box.isConnected) return;
+      const data = await response.json(); if (!box.isConnected) return;
+      const ca = idioma() === 'ca', text = (a,b) => ca ? a : b;
+      box.hidden = false; box.replaceChildren();
+      if (success) { const confirmation = document.createElement('p'); confirmation.setAttribute('role','status'); confirmation.textContent = success; box.append(confirmation); }
+      const title = document.createElement('h3'); title.className = 'pf-sec'; title.textContent = text('Comptes del servidor','Server accounts'); box.append(title);
+      const hint = document.createElement('p'); hint.className = 'pf-skills-help'; hint.textContent = text('Crea un perfil amb usuari i contrasenya per a cada persona. Cada perfil té el seu espai.','Create a profile with a username and password for each person. Each profile has its own space.'); box.append(hint);
+      let action='create';
+      const list = document.createElement('ul'); for (const account of data.accounts) { const li = document.createElement('li'); li.textContent = account.name + (account.admin ? text(' · administrador',' · administrator') : ''); if(account.managed){ const reset=document.createElement('button'); reset.type='button'; reset.className='pf-open'; reset.textContent=text('Canvia la contrasenya','Change password'); reset.onclick=()=>{action='reset';name.value=account.name;name.readOnly=true;password.value='';password.focus();button.textContent=text('Desa la contrasenya','Save password');cancel.hidden=false;};li.append(' ',reset); } list.append(li); } box.append(list);
+      const inviteButton = document.createElement('button'); inviteButton.type='button'; inviteButton.className='pf-open'; inviteButton.textContent=text('Genera un codi d’invitació','Generate invitation code');
+      const inviteResult = document.createElement('p'); inviteResult.setAttribute('role','status');
+      inviteButton.onclick=async()=>{inviteButton.disabled=true; inviteResult.textContent=''; try {const r=await window.api('/api/server/invitations',{method:'POST'});if(!r.ok)throw new Error(await r.text());const result=await r.json();inviteResult.textContent=text('Codi d’un sol ús (caduca en 30 minuts): ','One-use code (expires in 30 minutes): ')+result.code;}catch(err){inviteResult.textContent=text('No s’ha pogut generar la invitació: ','Could not generate invitation: ')+err.message;}finally{inviteButton.disabled=false;}};
+      box.append(inviteButton,inviteResult);
+      const form = document.createElement('form'); form.className = 'pf-account-form';
+      const name = document.createElement('input'); name.placeholder = text('Nom d’usuari','Username'); name.setAttribute('aria-label',name.placeholder); name.autocomplete = 'off'; name.required = true; name.pattern='[A-Za-z][A-Za-z0-9_-]{1,31}'; name.maxLength=32;
+      const password = document.createElement('input'); password.type = 'password'; password.placeholder = text('Contrasenya (mínim 12 caràcters)','Password (at least 12 characters)'); password.setAttribute('aria-label',password.placeholder); password.autocomplete = 'new-password'; password.minLength=12; password.required=true;
+      const button = document.createElement('button'); button.type='submit'; button.className='pf-open'; button.textContent=text('Crea el compte','Create account');
+      const cancel=document.createElement('button'); cancel.type='button'; cancel.className='pf-open'; cancel.textContent=text('Cancel·la','Cancel'); cancel.hidden=true; cancel.onclick=()=>{action='create';name.readOnly=false;name.value='';password.value='';button.textContent=text('Crea el compte','Create account');cancel.hidden=true;};
+      const message = document.createElement('p'); message.setAttribute('role','status'); form.append(name,password,button,cancel,message); box.append(form);
+      form.onsubmit = async e => { e.preventDefault(); button.disabled=true; message.textContent=''; try {
+        const r=await window.api('/api/server/accounts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,name:name.value,password:password.value})}); if(!r.ok) throw new Error(await r.text()); password.value=''; await this.carregaAccounts(action === 'reset' ? text('Contrasenya actualitzada.','Password updated.') : text('Perfil creat. Ja pot iniciar sessió.','Profile created. They can now sign in.'));
+      } catch(err) { message.textContent=text('No s’ha pogut crear el compte: ','Could not create account: ')+err.message; } finally { button.disabled=false; } };
+    } catch (_) { /* Account management is available only on configured servers. */ }
   },
 
   // repinta conserva on eres i la cerca.

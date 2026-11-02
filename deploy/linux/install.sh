@@ -26,6 +26,7 @@ BIN=""
 ADMIN=""
 PASSWORD="${GREGAL_ADMIN_PASSWORD:-}"
 PORT=8097
+LISTEN=127.0.0.1
 EMAIL=""
 TLS_INTERNAL=0
 NO_CADDY=0
@@ -43,6 +44,7 @@ usage() {
   --user NOM          a més de la clau, un compte amb contrasenya (opcional)
   --email ADREÇA      correu per a Let's Encrypt (avisos de caducitat)
   --port PORT         port intern (defecte: 8097, només a 127.0.0.1)
+  --listen ADREÇA     IP on escolta el servei (defecte: 127.0.0.1)
   --no-caddy          no instal·lis ni configuris Caddy (ja tens un proxy)
   --tls-internal      certificat propi de Caddy en lloc de Let's Encrypt
                       (proves sense domini real)
@@ -59,6 +61,7 @@ while [ $# -gt 0 ]; do
 	--user) ADMIN="${2:-}"; shift 2 ;;
 	--email) EMAIL="${2:-}"; shift 2 ;;
 	--port) PORT="${2:-}"; shift 2 ;;
+	--listen) LISTEN="${2:-}"; shift 2 ;;
 	--no-caddy) NO_CADDY=1; shift ;;
 	--tls-internal) TLS_INTERNAL=1; shift ;;
 	-h | --help) usage; exit 0 ;;
@@ -70,8 +73,16 @@ done
 [ -n "$DOMAIN" ] || { usage >&2; die "falta --domain"; }
 [ -n "$BIN" ] && [ -f "$BIN" ] || { usage >&2; die "falta --binary (o el fitxer no existeix)"; }
 command -v systemctl >/dev/null 2>&1 || die "cal systemd"
+if ! command -v curl >/dev/null 2>&1 || ! command -v python3 >/dev/null 2>&1; then
+    command -v apt-get >/dev/null 2>&1 || die "cal instal·lar curl i python3"
+    info "instal·lant dependències (curl i python3)"
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl python3
+fi
 [ -z "$ADMIN" ] || case "$ADMIN" in *[!A-Za-z0-9._-]*) die "--user: només lletres, xifres, punt, guió i guió baix" ;; esac
 case "$PORT" in *[!0-9]* | "") die "--port ha de ser un número" ;; esac
+case "$LISTEN" in 127.0.0.1|0.0.0.0) ;; *) die "--listen: usa 127.0.0.1 o 0.0.0.0" ;; esac
+[ "$NO_CADDY" = 1 ] || [ "$LISTEN" = 127.0.0.1 ] || die "amb Caddy cal escoltar a 127.0.0.1"
 case "$DOMAIN" in *[!A-Za-z0-9.-]*) die "--domain: només el nom (sense https:// ni camins)" ;; esac
 
 "$BIN" --version >/dev/null 2>&1 || die "$BIN no s'executa en aquesta màquina (arquitectura equivocada?)"
@@ -93,6 +104,19 @@ if systemctl is-active --quiet gregal 2>/dev/null; then
 	systemctl stop gregal
 fi
 install -m 0755 "$BIN" /usr/local/bin/gregal
+
+# L'eina de control i la còpia viuen fora del directori temporal del paquet.
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -f "$SCRIPT_DIR/gregalctl.sh" ] && [ -f "$SCRIPT_DIR/backup.sh" ]; then
+    install -d -m 0755 /usr/local/lib/gregal
+    install -m 0644 "$SCRIPT_DIR/gregalctl.sh" /usr/local/lib/gregal/gregalctl.sh
+    install -m 0644 "$SCRIPT_DIR/backup.sh" /usr/local/lib/gregal/backup.sh
+    cat >/usr/local/bin/gregalctl <<'GREGALCTL'
+#!/bin/sh
+exec sh /usr/local/lib/gregal/gregalctl.sh "$@"
+GREGALCTL
+    chmod 0755 /usr/local/bin/gregalctl
+fi
 
 # 3. Config i compte d'administrador.
 CFG="$HOME_DIR/.config/gregal/config.yaml"
@@ -143,7 +167,13 @@ fi
 PUBLIC_URL="https://$DOMAIN"
 [ "$NO_CADDY" = 1 ] && PUBLIC_URL=""
 umask 077
-printf 'GREGAL_API_TOKEN=%s\nGREGAL_PUBLIC_URL=%s\n' "$KEY" "$PUBLIC_URL" >"$ENVF"
+TMPENV=$(mktemp /etc/gregal/.env.XXXXXX)
+if [ -f "$ENVF" ]; then
+    sed '/^GREGAL_API_TOKEN=/d; /^GREGAL_PUBLIC_URL=/d' "$ENVF" >"$TMPENV"
+fi
+printf 'GREGAL_API_TOKEN=%s\nGREGAL_PUBLIC_URL=%s\n' "$KEY" "$PUBLIC_URL" >>"$TMPENV"
+chmod 0600 "$TMPENV"
+mv -f "$TMPENV" "$ENVF"
 umask 022
 
 # 4. Servei systemd.
@@ -161,8 +191,9 @@ WorkingDirectory=$HOME_DIR/projects
 Environment=HOME=$HOME_DIR
 # Les claus que entris al web (models, Exa) es desen a l'auth.yaml del servidor.
 Environment=GREGAL_PERSIST_KEYS=1
+Environment=GREGAL_ACCOUNTS_DIR=$HOME_DIR/projects/accounts
 EnvironmentFile=/etc/gregal/env
-ExecStart=/usr/local/bin/gregal --serve --addr 127.0.0.1 --port $PORT --config $CFG
+ExecStart=/usr/local/bin/gregal --serve --addr $LISTEN --port $PORT --config $CFG
 Restart=on-failure
 RestartSec=5
 # Aïllament: només pot escriure a la seva casa.
@@ -193,6 +224,39 @@ while [ $i -lt 30 ]; do
 	sleep 1
 done
 [ "$code" = 401 ] || die "el servei no respon com cal (codi «$code»): journalctl -u gregal -n 50"
+
+# Anuncia només el servei exposat a la LAN. Un túnel a loopback no és
+# accessible des del mòbil per mDNS i no s'ha d'anunciar com si ho fos.
+AVAHI_SERVICE=/etc/avahi/services/gregal.service
+if [ "$LISTEN" = 0.0.0.0 ]; then
+    if ! command -v avahi-daemon >/dev/null 2>&1; then
+        if command -v apt-get >/dev/null 2>&1; then
+            info "instal·lant descoberta local (Avahi)"
+            apt-get update -qq
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -qq avahi-daemon
+        else
+            die "cal avahi-daemon per a la descoberta local"
+        fi
+    fi
+    mkdir -p /etc/avahi/services
+    if [ -e "$AVAHI_SERVICE" ] && ! grep -q 'Generat per Gregal' "$AVAHI_SERVICE"; then
+        die "$AVAHI_SERVICE ja existeix i no és gestionat per Gregal"
+    fi
+    cat >"$AVAHI_SERVICE" <<EOF
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!-- Generat per Gregal -->
+<service-group>
+  <name replace-wildcards="yes">Gregal a %h</name>
+  <service><type>_gregal._tcp</type><port>$PORT</port></service>
+</service-group>
+EOF
+    systemctl enable --now avahi-daemon >/dev/null 2>&1 || die "no s'ha pogut iniciar Avahi"
+    systemctl reload avahi-daemon 2>/dev/null || true
+elif [ -f "$AVAHI_SERVICE" ] && grep -q 'Generat per Gregal' "$AVAHI_SERVICE"; then
+    rm -f -- "$AVAHI_SERVICE"
+    systemctl reload avahi-daemon 2>/dev/null || true
+fi
 
 # 5. Caddy (HTTPS).
 if [ "$NO_CADDY" = 0 ]; then
@@ -251,7 +315,11 @@ if [ "$NO_CADDY" = 0 ]; then
 	echo "  Adreça:  https://$DOMAIN"
 	echo "  Port:    (no cal)"
 else
-	echo "  Adreça:  la del teu proxy HTTPS (el servei és a http://127.0.0.1:$PORT)"
+	if [ "$LISTEN" = 0.0.0.0 ]; then
+        echo "  Adreça:  http://$(hostname -I | awk '{print $1}'):$PORT (només xarxa local de confiança; HTTP sense xifrar)"
+    else
+        echo "  Adreça:  la del teu proxy HTTPS (el servei és a http://127.0.0.1:$PORT)"
+    fi
 fi
 echo "  Clau:    $KEY"
 if [ -n "$ADMIN" ]; then

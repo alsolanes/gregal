@@ -884,6 +884,24 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private val _registering = MutableStateFlow(false)
+    val registering: StateFlow<Boolean> = _registering
+    fun registerAccount(host: String, port: String, code: String, user: String, password: String) {
+        if (_registering.value) return
+        _registering.value = true
+        viewModelScope.launch {
+            try {
+                val api = GregalApi(baseUrlOf(host, port), "")
+                withContext(Dispatchers.IO) { api.post("/api/register", org.json.JSONObject().put("code", code.trim()).put("name", user.trim()).put("password", password)) }
+                notify(if (_idioma.value == "ca") "Compte creat. Entrant…" else "Account created. Signing in…")
+                entra(host, port, user, password)
+            } catch (e: Exception) {
+                val needsNew = e.message.orEmpty().contains("request a new invitation")
+                notify(if (needsNew) { if (_idioma.value == "ca") "No s’ha pogut crear el compte. Demana un codi nou a l’administrador." else "Could not create the account. Ask the administrator for a new code." } else { if (_idioma.value == "ca") "No s’ha pogut crear el compte: comprova el codi i les dades." else "Could not create the account: check the invitation and details." })
+            } finally { _registering.value = false }
+        }
+    }
+
     private fun appText(key: String, vararg args: Any?): String = tr(_idioma.value, key, *args)
 
     fun notify(t: String) { _notice.value = t }
@@ -2678,6 +2696,20 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch) && request == profileRequest) _windProfileBusy.value = false
             }
         }
+    }
+
+    suspend fun windCards(windId: String): org.json.JSONObject {
+        val source = _conn.value; val epoch = companionEpoch
+        val result = withContext(Dispatchers.IO) { source.api().get("/api/winds/cards?wind=" + java.net.URLEncoder.encode(windId, "UTF-8")) }
+        if (!isCompanionOrigin(source, epoch)) throw IllegalStateException("Connection changed")
+        return result
+    }
+    suspend fun windCardAction(windId: String, action: String, id: String = "", title: String = "", prompt: String = ""): org.json.JSONObject {
+        val source = _conn.value; val epoch = companionEpoch
+        val payload = org.json.JSONObject().put("wind", windId).put("action", action).put("id", id).put("title", title).put("prompt", prompt)
+        val result = withContext(Dispatchers.IO) { source.api().post("/api/winds/cards", payload) }
+        if (!isCompanionOrigin(source, epoch)) throw IllegalStateException("Connection changed")
+        return result
     }
 
     fun updateWindKnowledge(id: String, text: String, onDone: (Boolean) -> Unit = {}) {

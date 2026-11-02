@@ -161,7 +161,10 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     // La clau és el camí normal (la mostra el servidor en engegar-se); usuari
     // i contrasenya, per als servidors amb comptes.
     var ambUsuari by remember { mutableStateOf(prefs.usuari.isNotBlank() && prefs.token.isBlank()) }
+    var registre by remember { mutableStateOf(false) }
+    var invitacio by remember { mutableStateOf("") }
     val notice by vm.notice.collectAsState()
+    val registering by vm.registering.collectAsState()
     val local by vm.localState.collectAsState()
     val localOk = remember { vm.localAvailable() }
     // El remot és l'opció: plegat si l'app pot treballar sola, obert si
@@ -216,6 +219,8 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             if (remot) {
                 Text(tr(lang, "app.server.remoteHelp"), color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
+                ServerDiscovery(lang) { address, discoveredPort -> host = address; port = discoveredPort }
+                Text(if (lang == "ca") "La connexió local HTTP no és xifrada; per internet fes servir HTTPS." else "Local HTTP is unencrypted; use HTTPS over the internet.", color = Muted, fontSize = 12.sp)
                 val field = RoundedCornerShape(14.dp)
                 OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
                     leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
@@ -250,17 +255,25 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                         leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
                         visualTransformation = PasswordVisualTransformation())
+                    if (registre) {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(invitacio, { invitacio = it }, label = { Text(if (lang == "ca") "Codi d’invitació" else "Invitation code") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text(if (lang == "ca") "Demana un codi a l’administrador del servidor." else "Ask the server administrator for an invitation code.", color = Muted, fontSize = 12.sp)
+                    }
                     Spacer(Modifier.height(18.dp))
-                    val login: @Composable () -> Unit = { Text(tr(lang, "app.pair.login"), fontSize = 16.sp) }
+                    val login: @Composable () -> Unit = { Text(if (registre) { if (lang == "ca") "Crea el compte" else "Create account" } else tr(lang, "app.pair.login"), fontSize = 16.sp) }
+                    val goAccount = { if (registre) vm.registerAccount(host, port, invitacio, usuari, contrasenya) else vm.entra(host, port, usuari, contrasenya) }
                     if (localOk) {
-                        OutlinedButton(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        OutlinedButton(onClick = goAccount, enabled = !registering && host.isNotBlank() && usuari.isNotBlank() && contrasenya.isNotBlank() && (!registre || (invitacio.isNotBlank() && contrasenya.length >= 12)), shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
                     } else {
-                        Button(onClick = { vm.entra(host, port, usuari, contrasenya) }, shape = RoundedCornerShape(14.dp),
+                        Button(onClick = goAccount, enabled = !registering && host.isNotBlank() && usuari.isNotBlank() && contrasenya.isNotBlank() && (!registre || (invitacio.isNotBlank() && contrasenya.length >= 12)), shape = RoundedCornerShape(14.dp),
                             modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
                     }
                 }
-                TextButton(onClick = { ambUsuari = !ambUsuari }, modifier = Modifier.fillMaxWidth()) {
+                if (!ambUsuari) TextButton(onClick = { ambUsuari = true; registre = true }, modifier = Modifier.fillMaxWidth()) { Text(if (lang == "ca") "Crea un compte amb invitació" else "Create account with an invitation") }
+                if (ambUsuari) TextButton(onClick = { registre = !registre }, modifier = Modifier.fillMaxWidth()) { Text(if (registre) { if (lang == "ca") "Ja tinc compte" else "I already have an account" } else { if (lang == "ca") "Crea un compte amb invitació" else "Create account with an invitation" }) }
+                TextButton(onClick = { ambUsuari = !ambUsuari; registre = false }, modifier = Modifier.fillMaxWidth()) {
                     Text(tr(lang, if (ambUsuari) "app.pair.useKey" else "app.pair.useAccount"),
                         color = Muted, fontSize = 13.sp)
                 }
