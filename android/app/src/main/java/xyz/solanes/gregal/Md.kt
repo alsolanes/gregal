@@ -248,6 +248,13 @@ private val mdEmRe = Regex("\\*([^\\s*][^*]*?)\\*")
  * Títol d'una sola línia sense marques markdown: treu encapçalaments, cites,
  * vinyetes, negretes, cursives, codi i enllaços. Per targetes (objectius, sessions).
  */
+/** El text d'un missatge sense les imatges markdown: quan la foto ja es veu,
+ *  tornar a ensenyar «![nom](url)» seria soroll. */
+fun stripMarkdownImages(src: String): String =
+    src.replace(Regex("!\\[[^\\]]*\\]\\([^\\)\\s]+\\)"), "")
+        .replace(Regex("\\n{3,}"), "\n\n")
+        .trim()
+
 fun stripMdForTitle(src: String, max: Int = 140): String {
     val line = src.lineSequence().map { it.trim() }.firstOrNull { it.isNotEmpty() } ?: return ""
     return stripMdInline(line).take(max)

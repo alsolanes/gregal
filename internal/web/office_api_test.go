@@ -125,3 +125,34 @@ func TestOfficeEditGuards(t *testing.T) {
 		t.Fatalf("set_cell en docx hauria de ser 400, és %d", w.Code)
 	}
 }
+
+// Una imatge viatja pel mateix camí que els documents: el xat l'ha de poder
+// ensenyar i el vent ha de rebre la ruta del fitxer al disc.
+func TestOfficeUploadAcceptaImatges(t *testing.T) {
+	s := goalTestServer(t)
+	png := []byte{0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R'}
+	body, _ := json.Marshal(map[string]string{"name": "foto.png", "data": base64.StdEncoding.EncodeToString(png)})
+	w := httptest.NewRecorder()
+	s.handleOfficeUpload(w, httptest.NewRequest("POST", "/api/office/upload", bytes.NewReader(body)))
+	if w.Code != 200 {
+		t.Fatalf("una imatge s'hauria d'acceptar: %d %s", w.Code, w.Body.String())
+	}
+	var up struct {
+		ID   string `json:"id"`
+		Kind string `json:"kind"`
+		Path string `json:"path"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &up); err != nil {
+		t.Fatalf("resposta no JSON: %v", err)
+	}
+	if up.Kind != "image" || up.ID == "" || up.Path == "" {
+		t.Fatalf("una imatge ha de tornar kind=image amb id i ruta: %+v", up)
+	}
+	// I un fitxer que diu .png però no és una imatge ha de caure.
+	body, _ = json.Marshal(map[string]string{"name": "fals.png", "data": base64.StdEncoding.EncodeToString([]byte("això no és una imatge"))})
+	w = httptest.NewRecorder()
+	s.handleOfficeUpload(w, httptest.NewRequest("POST", "/api/office/upload", bytes.NewReader(body)))
+	if w.Code == 200 {
+		t.Fatalf("un .png que no és imatge no s'ha d'acceptar")
+	}
+}

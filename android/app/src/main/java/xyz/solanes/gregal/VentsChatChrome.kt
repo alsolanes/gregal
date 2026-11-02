@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
@@ -103,6 +104,7 @@ internal fun VentsComposer(
     accent: Color = Color.Unspecified,
     st: ServerState? = null,
     onAttachDoc: (() -> Unit)? = null,
+    onAttachImage: (() -> Unit)? = null,
     onMode: ((String) -> Unit)? = null,
     onPerm: (() -> Unit)? = null,
     onWorkspace: (() -> Unit)? = null,
@@ -112,7 +114,7 @@ internal fun VentsComposer(
     onPreview: (() -> Unit)? = null,
     onSend: () -> Unit,
 ) {
-    val hasTools = onAttachDoc != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null
+    val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
     Column(Modifier.fillMaxWidth().background(Superficie)) {
@@ -189,6 +191,18 @@ internal fun VentsComposer(
                                     }
                                 },
                                 onClick = { showPlus = false; onAttachDoc() },
+                            )
+                        }
+                        if (onAttachImage != null) {
+                            DropdownMenuItem(
+                                leadingIcon = { Icon(Icons.Rounded.Image, null, tint = Sea) },
+                                text = {
+                                    Column {
+                                        Text(tr(lang, "app.composer.attachImage"), color = Ink, fontSize = 14.sp)
+                                        Text(tr(lang, "app.composer.attachImageHelp"), color = Muted, fontSize = 11.5.sp, maxLines = 2)
+                                    }
+                                },
+                                onClick = { showPlus = false; onAttachImage() },
                             )
                         }
                         if (onWorkspace != null) {

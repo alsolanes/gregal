@@ -1461,6 +1461,41 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Una foto del mòbil: puja-la pel camí dels documents i deixa al camp la
+     * imatge (perquè la vegis al xat) seguida de la ruta (perquè el vent pugui
+     * obrir el fitxer amb les eines).
+     */
+    fun attachImage(uri: Uri, onReady: (String) -> Unit) {
+        var name = "imatge.jpg"
+        try {
+            appContext.contentResolver.query(uri, null, null, null, null)?.use { c ->
+                val i = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                if (c.moveToFirst() && i >= 0) name = c.getString(i) ?: name
+            }
+        } catch (_: Exception) {}
+        if (!isImageName(name)) name = "imatge-" + System.currentTimeMillis() + ".jpg"
+        viewModelScope.launch {
+            when (val r = readUriBase64(appContext, uri, 20L * 1024 * 1024)) {
+                is UriRead.Ok -> {
+                    notify(appText("app.composer.imageUploading", name))
+                    val up = withContext(Dispatchers.IO) { _conn.value.api().officeUpload(name, r.base64) }
+                    if (up.error.isNotBlank() || up.path.isBlank() || up.id.isBlank()) {
+                        notify(appText("app.composer.docError", up.error.ifBlank { name }))
+                        return@launch
+                    }
+                    notify(appText("app.composer.imageAdded", up.name.ifBlank { name }))
+                    val label = up.name.ifBlank { name }
+                    onReady("![" + label + "](gregal-image:" + up.id + ") " + appendDocMention("", up.path).trim())
+                }
+                is UriRead.TooLarge -> notify(appText("app.off.fileTooLarge", 20,
+                    if (r.size > 0) r.size / 1024 / 1024 else 20))
+                UriRead.Unreadable -> notify(appText("app.off.fileReadError"))
+                is UriRead.Failed -> notify(appText("app.off.fileOpenError", r.message))
+            }
+        }
+    }
+
     fun officeEdit(op: String, sheet: String = "", cell: String = "",
                    value: String = "", find: String = "", replace: String = "") {
         val id = _office.value.id

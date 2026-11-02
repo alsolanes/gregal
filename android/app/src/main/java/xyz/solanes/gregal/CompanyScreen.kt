@@ -48,6 +48,7 @@ import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -62,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -940,11 +942,18 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             }
         }
     }
+    // Una foto: es puja i queda al camp la imatge (es veu al xat) amb la ruta.
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) vm.attachImage(uri) { next ->
+            val txt = (next + " " + field.text).trim()
+            field = TextFieldValue(txt, TextRange(txt.length))
+        }
+    }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
-    // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
-    // infravalora; avança per passos fins clavar el final, i després només
-    // baixa sol si ja hi eres.
+    // Obre sempre a l'últim, i després només baixa sol si ja hi érem.
     var openedAtEnd by remember(wind.id) { mutableStateOf(false) }
     // A partir de quin índex els missatges són "en directe" (animen):
     // tot l'historial inicial apareix de cop, sense fades.
@@ -952,37 +961,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(wind.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            // Entrada instantània: un sol salt (sense animació) posiciona
-            // la primera maqueta al final; l'usuari no veu cap desplaçament.
-            // Amb ítems sense mesurar pot quedar curt: verificació curta
-            // amb salts instantanis (0,8 s màx, sense xarxa animada).
-            try {
-                listState.scrollToItem(msgs.size - 1)
-            } catch (_: Exception) { }
-            repeat(8) {
-                kotlinx.coroutines.delay(100)
-                val li = listState.layoutInfo
-                val darrer = li.visibleItemsInfo.lastOrNull()
-                // L'últim ha d'estar DINS del viewport, no al prefetch:
-                // offset+size més enllà del final vol dir que encara no es veu.
-                if (darrer != null && darrer.index >= msgs.size - 1 &&
-                    darrer.offset + darrer.size <= li.viewportEndOffset
-                ) {
-                    openedAtEnd = true
-                    liveFrom = msgs.size
-                    return@LaunchedEffect
-                }
-                try {
-                    listState.scrollToItem(msgs.size - 1)
-                } catch (_: Exception) {
-                    // Índex encara fora de la maqueta: el proper intent ho torna a provar.
-                }
-            }
+            // Entrada instantània: sense animació, l'usuari no veu cap salt.
+            listState.scrollToLatest()
             openedAtEnd = true
             liveFrom = msgs.size
         } else {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+            listState.followLatest()
         }
     }
 
@@ -1001,21 +985,14 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest by remember { derivedStateOf {
-            msgs.size > 1 && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it < msgs.lastIndex - 1 } == true
-        } }
+        val awayFromLatest by remember { derivedStateOf { msgs.size > 1 && !listState.atLatest(1) } }
         var lastViewportH by remember(wind.id) { mutableStateOf(0) }
         Box(Modifier.weight(1f)) {
         LazyColumn(
             Modifier.fillMaxSize().onSizeChanged { size ->
                 val h = size.height
-                if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
-                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                    if (lastVisible == null || lastVisible >= msgs.size - 3) {
-                        scope.launch {
-                            try { listState.scrollToItem(msgs.size - 1) } catch (_: Exception) { }
-                        }
-                    }
+                if (lastViewportH > 0 && h < lastViewportH - 40 && msgs.isNotEmpty() && listState.atLatest(3)) {
+                    scope.launch { listState.scrollToLatest() }
                 }
                 lastViewportH = h
             },
@@ -1077,7 +1054,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         if (awayFromLatest) {
             Surface(
-                onClick = { scope.launch { listState.animateScrollToItem(msgs.lastIndex) } },
+                onClick = { scope.launch { listState.scrollToLatest(animate = true) } },
                 shape = RoundedCornerShape(999.dp), color = Ink,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
@@ -1097,6 +1074,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         VentsComposer(lang, field, { field = it }, tr(lang, "app.company.windChatHint", wind.name), canSend,
             busy = busy.contains(wind.id), accent = accent, st = st,
             onAttachDoc = { pickDocs.launch("*/*") },
+            onAttachImage = { pickPhoto.launch("image/*") },
             onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
@@ -1147,50 +1125,32 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
         }
     }
+    // Una foto: es puja i queda al camp la imatge (es veu al xat) amb la ruta.
+    val pickPhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) vm.attachImage(uri) { next ->
+            val txt = (next + " " + field.text).trim()
+            field = TextFieldValue(txt, TextRange(txt.length))
+        }
+    }
     val listState = rememberLazyListState()
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     // Mencions @Nom: etiquetar un membre dirigeix el torn (només respon ell).
     val mention = activeMention(field.text, field.selection.start, faces)
     val canSend = field.text.isNotBlank() && !busy.contains(rot.id)
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    // Obre sempre a l'últim: un sol scrollToItem amb ítems sense mesurar
-    // infravalora; espera el layout, verifica i torna a acostar fins
-    // clavar el final.
+    // Obre sempre a l'últim, i després només baixa sol si ja hi érem.
     var openedAtEnd by remember(rot.id) { mutableStateOf(false) }
     var liveFrom by remember(rot.id) { mutableStateOf(Int.MAX_VALUE) }
     LaunchedEffect(rot.id, msgs.size) {
         if (msgs.isEmpty()) return@LaunchedEffect
         if (!openedAtEnd) {
-            // Entrada instantània: un sol salt (sense animació) posiciona
-            // la primera maqueta al final; verificació curta amb salts
-            // instantanis (0,8 s màx, sense xarxa animada).
-            try {
-                listState.scrollToItem(msgs.size - 1)
-            } catch (_: Exception) { }
-            repeat(8) {
-                kotlinx.coroutines.delay(100)
-                val li = listState.layoutInfo
-                val darrer = li.visibleItemsInfo.lastOrNull()
-                // L'últim ha d'estar DINS del viewport, no al prefetch:
-                // offset+size més enllà del final vol dir que encara no es veu.
-                if (darrer != null && darrer.index >= msgs.size - 1 &&
-                    darrer.offset + darrer.size <= li.viewportEndOffset
-                ) {
-                    openedAtEnd = true
-                    liveFrom = msgs.size
-                    return@LaunchedEffect
-                }
-                try {
-                    listState.scrollToItem(msgs.size - 1)
-                } catch (_: Exception) {
-                    // Índex encara fora de la maqueta: el proper intent ho torna a provar.
-                }
-            }
+            listState.scrollToLatest()
             openedAtEnd = true
             liveFrom = msgs.size
         } else {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-            if (lastVisible == null || lastVisible >= msgs.size - 3) listState.animateScrollToItem(msgs.size - 1)
+            listState.followLatest()
         }
     }
 
@@ -1220,21 +1180,14 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest by remember { derivedStateOf {
-            msgs.size > 1 && listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.let { it < msgs.lastIndex - 1 } == true
-        } }
+        val awayFromLatest by remember { derivedStateOf { msgs.size > 1 && !listState.atLatest(1) } }
         var lastViewportH by remember(rot.id) { mutableStateOf(0) }
         Box(Modifier.weight(1f)) {
         LazyColumn(
             Modifier.fillMaxSize().onSizeChanged { size ->
                 val h = size.height
-                if (lastViewportH > 0 && h < lastViewportH - 200 && msgs.isNotEmpty()) {
-                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-                    if (lastVisible == null || lastVisible >= msgs.size - 3) {
-                        scope.launch {
-                            try { listState.scrollToItem(msgs.size - 1) } catch (_: Exception) { }
-                        }
-                    }
+                if (lastViewportH > 0 && h < lastViewportH - 40 && msgs.isNotEmpty() && listState.atLatest(3)) {
+                    scope.launch { listState.scrollToLatest() }
                 }
                 lastViewportH = h
             },
@@ -1315,7 +1268,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         }
         if (awayFromLatest) {
             Surface(
-                onClick = { scope.launch { listState.animateScrollToItem(msgs.lastIndex) } },
+                onClick = { scope.launch { listState.scrollToLatest(animate = true) } },
                 shape = RoundedCornerShape(999.dp), color = Ink,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
@@ -1334,6 +1287,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         VentsComposer(lang, field, { field = it }, tr(lang, if (waitingAnswer) "app.crew.answerHint" else "app.company.rotllanaHint"), canSend,
             busy = busy.contains(rot.id), accent = rotAccent, st = st,
             onAttachDoc = { pickDocs.launch("*/*") },
+            onAttachImage = { pickPhoto.launch("image/*") },
             onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
@@ -1382,6 +1336,33 @@ private fun MentionSuggestions(lang: String, q: MentionQuery, accent: Color, onP
     }
 }
 
+/** Bytes d'una foto penjada al servidor (id de la pujada), amb la clau. */
+internal fun gregalImageBytes(ctx: android.content.Context, id: String): ByteArray? = try {
+    if (id.isBlank()) null else {
+        val p = ctx.getSharedPreferences("gregal", android.content.Context.MODE_PRIVATE)
+        val token = p.getString("token", "").orEmpty()
+        val host = p.getString("host", "").orEmpty()
+        val port = p.getString("port", "8097").orEmpty()
+        if (token.isBlank() || host.isBlank()) null
+        else GregalApi(baseUrlOf(host, port), token).officeDownload(id)
+    }
+} catch (_: Exception) { null }
+
+/** Bitmap del xat a partir dels bytes, reduït a 1024 px de costat com a màxim. */
+internal fun decodeChatBytes(bytes: ByteArray?): ImageBitmap? {
+    if (bytes == null || bytes.isEmpty() || bytes.size > 8 * 1024 * 1024) return null
+    return try {
+        val probe = android.graphics.BitmapFactory.Options()
+        probe.inJustDecodeBounds = true
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, probe)
+        var sample = 1
+        while (maxOf(probe.outWidth, probe.outHeight) / sample > 1024) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options()
+        opts.inSampleSize = sample
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)?.asImageBitmap()
+    } catch (_: Exception) { null }
+}
+
 /** Memòria d'imatges del xat (http): evita tornar a baixar en recomposar. */
 private val chatImageCache = object : LinkedHashMap<String, ImageBitmap>(32, 0.75f, true) {
     override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > 20
@@ -1421,9 +1402,16 @@ internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
     val uri = LocalUriHandler.current
     var bmp by remember(url) { mutableStateOf(chatImageCache[url]) }
     var failed by remember(url) { mutableStateOf(false) }
+    val ctx = LocalContext.current
     LaunchedEffect(url) {
         if (bmp == null && !failed) {
-            val got = withContext(Dispatchers.IO) { loadChatBitmap(url) }
+            val got = withContext(Dispatchers.IO) {
+                // «gregal-image:<id>» és una foto que has penjat tu al servidor:
+                // es baixa amb la clau, com els documents.
+                if (url.startsWith("gregal-image:")) {
+                    decodeChatBytes(gregalImageBytes(ctx, url.removePrefix("gregal-image:")))
+                } else loadChatBitmap(url)
+            }
             if (got != null) {
                 synchronized(chatImageCache) { chatImageCache[url] = got }
                 bmp = got
@@ -1578,12 +1566,17 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
-                Text(
-                    m.text,
-                    fontSize = 15.sp,
-                    color = ownText,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                )
+                // Les fotos que envies tu també s'han de veure: amb text pla
+                // sortia «![foto](gregal-image:…)» en lloc de la foto.
+                val ownImages = remember(m.text) { richBlocks(m.text).filterIsInstance<Rich.Image>() }
+                val ownText2 = remember(m.text) { stripMarkdownImages(m.text) }
+                Column(
+                    Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    for (img in ownImages) MdImage(img.url, img.alt, ownText, lang)
+                    if (ownText2.isNotBlank()) Text(ownText2, fontSize = 15.sp, color = ownText)
+                }
             }
             // Rebut d'hora com el dots («Read 2:59 PM»): només als enviats
             // en aquesta sessió (l'historial antic no porta hora).
@@ -2017,4 +2010,51 @@ private fun CrewQuestionCard(lang: String, accent: Color) {
         Text("❓ " + tr(lang, "app.crew.waitingAnswer"), color = Ink, fontSize = 13.sp, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp))
     }
+}
+
+/**
+ * Els índexs de la llista no són els dels missatges: a dalt hi ha sempre
+ * l'element de l'esquelet o del xat buit, i a baix de vegades el «hi pensa».
+ * Per això `scrollToItem(msgs.lastIndex)` es quedava un element curt i el darrer
+ * missatge acabava tapat pel compositor o pel teclat.
+ */
+internal fun LazyListState.atLatest(maxBehind: Int = 2): Boolean {
+    val li = layoutInfo
+    if (li.totalItemsCount == 0) return true
+    val last = li.visibleItemsInfo.lastOrNull() ?: return true
+    return last.index >= li.totalItemsCount - 1 - maxBehind
+}
+
+/** Baixa al darrer element de debò, amb marge per als ítems encara sense mesurar. */
+internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
+    repeat(8) {
+        val li = layoutInfo
+        val last = li.totalItemsCount - 1
+        if (last < 0) {
+            kotlinx.coroutines.delay(80)
+            return@repeat
+        }
+        try {
+            if (animate) animateScrollToItem(last) else scrollToItem(last)
+        } catch (_: Exception) {
+            return
+        }
+        val end = layoutInfo
+        val darrer = end.visibleItemsInfo.lastOrNull()
+        // L'últim ha d'estar DINS del viewport, no al prefetch.
+        if (darrer != null && darrer.index >= end.totalItemsCount - 1 &&
+            darrer.offset + darrer.size <= end.viewportEndOffset
+        ) return
+        kotlinx.coroutines.delay(60)
+    }
+}
+
+/** Segueix el final només si ja hi érem: si llegeixes enrere, no et mou. */
+internal suspend fun LazyListState.followLatest(animate: Boolean = true) {
+    if (!atLatest()) return
+    val last = layoutInfo.totalItemsCount - 1
+    if (last < 0) return
+    try {
+        if (animate) animateScrollToItem(last) else scrollToItem(last)
+    } catch (_: Exception) { }
 }

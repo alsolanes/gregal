@@ -51,6 +51,10 @@ import kotlinx.coroutines.launch
 private val OFFICE_EXTS = setOf("pdf", "docx", "xlsx", "pptx")
 
 /** El nom triat és un document Office o un PDF (puja per extensió). */
+/** Una foto del mòbil: viatja pel mateix camí que els documents. */
+fun isImageName(name: String): Boolean =
+    name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif")
+
 fun isOfficeName(name: String): Boolean =
     name.substringAfterLast('.', "").lowercase() in OFFICE_EXTS
 

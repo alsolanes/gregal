@@ -84,8 +84,11 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 	if kind == "" && tools.IsPDF(req.Name) {
 		kind = "pdf"
 	}
-	if kind != "xlsx" && kind != "docx" && kind != "pptx" && kind != "pdf" {
-		http.Error(w, "només .pdf, .docx, .xlsx o .pptx (i no formats antics .doc/.xls/.ppt)", http.StatusBadRequest)
+	if kind == "" && imageKind(req.Name) != "" {
+		kind = "image"
+	}
+	if kind != "xlsx" && kind != "docx" && kind != "pptx" && kind != "pdf" && kind != "image" {
+		http.Error(w, "només .pdf, .docx, .xlsx, .pptx o una imatge (.png .jpg .jpeg .webp .gif)", http.StatusBadRequest)
 		return
 	}
 	raw, err := base64.StdEncoding.DecodeString(req.Data)
@@ -112,7 +115,15 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Valida que obre de debò.
-	if _, err := docText(kind, path); err != nil {
+	// Valida que obre de debò. Una imatge no s'obre com un document: es mira
+	// que els bytes siguin de debò una imatge del tipus que diu el nom.
+	if kind == "image" {
+		if imageKind(req.Name) == "" || !isImageBytes(raw) {
+			os.Remove(path)
+			http.Error(w, "el fitxer no és una imatge PNG, JPEG, WebP o GIF", http.StatusBadRequest)
+			return
+		}
+	} else if _, err := docText(kind, path); err != nil {
 		os.Remove(path)
 		http.Error(w, "el fitxer no obre: "+err.Error(), http.StatusBadRequest)
 		return
@@ -318,8 +329,12 @@ func (s *Server) handleOfficeDownload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "document caducat o inexistent", http.StatusNotFound)
 		return
 	}
-	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Disposition", "attachment; filename=\""+d.name+"\"")
+	if ct := imageMime(d.name); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	} else {
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+d.name+"\"")
+	}
 	http.ServeFile(w, r, d.path)
 }
 
@@ -342,4 +357,42 @@ func senseEspais(nom string) string {
 		}
 		return r
 	}, nom)
+}
+
+// imageKind diu quin tipus d'imatge és pel nom (buit si no ho és). Les imatges
+// viatgen pel mateix camí que els documents perquè el xat les pugui ensenyar i
+// el vent rebi la ruta del fitxer.
+func imageKind(name string) string {
+	return imageMime(name)
+}
+
+// imageMime: el Content-Type pel nom del fitxer (buit si no és imatge).
+func imageMime(name string) string {
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png":
+		return "image/png"
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".webp":
+		return "image/webp"
+	case ".gif":
+		return "image/gif"
+	}
+	return ""
+}
+
+// isImageBytes reconeix els quatre formats pels seus bytes màgics: el nom no
+// n'hi ha prou (un .png que no és cap imatge no s'ha d'acceptar).
+func isImageBytes(b []byte) bool {
+	switch {
+	case len(b) > 8 && b[0] == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G':
+		return true
+	case len(b) > 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF:
+		return true
+	case len(b) > 12 && string(b[0:4]) == "RIFF" && string(b[8:12]) == "WEBP":
+		return true
+	case len(b) > 6 && string(b[0:3]) == "GIF":
+		return true
+	}
+	return false
 }

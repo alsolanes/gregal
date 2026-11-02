@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **El teclat ja no tapa l'últim missatge.** Els índexs de la llista no són els
+  dels missatges (a dalt hi ha sempre l'element de l'esquelet o del xat buit, i a
+  baix de vegades el «hi pensa»), així que `scrollToItem(msgs.lastIndex)` es
+  quedava un element curt i, en obrir-se el teclat, el darrer missatge quedava
+  amagat. Ara el xat dels vents i el de la colla baixen al darrer element de
+  debò (`atLatest`/`scrollToLatest`/`followLatest`) quan el viewport s'encongeix.
+- **Fotos al xat dels vents.** El menú «+» del compositor té «Adjunta una foto»:
+  es puja pel camí dels documents (una imatge no s'obria com un document, així
+  que `/api/office/upload` ara accepta PNG/JPEG/WebP/GIF validant els bytes) i al
+  camp hi queda la imatge, que es veu a la teva bombolla, seguida de la ruta per
+  al vent. La bombolla pròpia ara també passa pel renderitzador ric.
+  Versió 1.52.1-vents (160).
+
+
 - **Els túnels amb nom apunten el DNS al túnel correcte.** `cloudflared tunnel
   route dns <nom> <amfitrió>` d'aquesta versió crea el CNAME cap a un altre túnel
   (el primer de la llista) i l'amfitrió dona 404 tot i tenir el connector viu:
