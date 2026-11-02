@@ -170,8 +170,18 @@ des de l'app). Fan webs i en canvien de les que ja serveix el servidor,
 instal·len paquets, despleguen i les posen a internet amb Cloudflare.
 
 **Activar-los:** Preferències → **Poders de servidor** (web, escriptori o
-mòbil; només l'administrador ho veu), o `sudo gregalctl powers on`. Els altres
-comptes no els tenen mai.
+mòbil; només l'administrador ho veu), o `sudo gregalctl powers on`. Els comptes
+que no són administradors no els tenen mai.
+
+**Dos administradors.** Si porteu el servidor a mitges, feu administrador
+l'altre compte: Preferències → Comptes del servidor → **Fes-lo administrador**,
+o `sudo gregalctl account-admin carla on`. Llavors té exactament el mateix que
+tu: poders de servidor, publicar, túnels, convidar, comptes i proveïdors.
+L'efecte és immediat, sense tornar a entrar. Les notes del servidor són
+compartides: el que aprèn un vent ho llegeixen els de l'altre. Tingues present
+que tots els comptes són el mateix usuari del sistema: un administrador amb
+poders pot arribar a tot el que el servei pot tocar, també a les dades de
+l'altre.
 
 **Què poden fer:**
 - Qualsevol ordre de shell: git, npm, pip, compilar, `curl`/`wget` a internet,

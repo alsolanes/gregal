@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.40.1 - 2026-11-02 - Dos administradors
+
+- **Dos administradors.** Un compte gestionat es pot fer administrador (Preferències →
+  Comptes del servidor → «Fes-lo administrador», o `gregalctl account-admin NOM on`):
+  té el mateix que l'administrador del config, també els poders de servidor,
+  publicar i túnels. Val a l'instant, també a la sessió que ja tenia oberta, i
+  es desa per als reinicis.
+
 ## v1.40.0 - 2026-11-02 - Poders de servidor
 
 - **Poders de servidor: els vents fan de sysadmin.** L'administrador els

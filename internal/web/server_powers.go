@@ -59,7 +59,15 @@ func (s *Server) hasServerPowers() bool {
 		return false
 	}
 	u := s.user
-	return u == nil || u.Admin || u.Tothom
+	if u == nil || u.Tothom {
+		return true
+	}
+	// La sessió guarda l'usuari de quan es va obrir: si després l'han fet
+	// (o desfet) administrador, mana el que hi ha ara.
+	if admin, ok := s.users.IsAdmin(u.Name); ok {
+		return admin
+	}
+	return u.Admin
 }
 
 func serviceHome() string {

@@ -242,3 +242,60 @@ func TestProvidersWritesNeedAdmin(t *testing.T) {
 		t.Fatalf("POST as non-admin: %d, want 403", code)
 	}
 }
+
+// Dues persones que porten el servidor: un compte gestionat es pot fer
+// administrador, amb efecte a la sessió oberta i després de reiniciar.
+func TestManagedAccountCanBeMadeAdmin(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_ACCOUNTS_DIR", filepath.Join(t.TempDir(), "accounts"))
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+		t.Fatalf("create: %d", w.Code)
+	}
+	tok, user, err := s.users.Login("carla", "12345678")
+	if err != nil || user.Admin {
+		t.Fatalf("new account must not be admin: %v %+v", err, user)
+	}
+	powers := func() int {
+		req := httptest.NewRequest(http.MethodGet, "/api/server/powers", nil)
+		req.Header.Set("Authorization", "Bearer "+tok)
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, req)
+		return w.Code
+	}
+	if code := powers(); code != http.StatusForbidden {
+		t.Fatalf("before: %d, want 403", code)
+	}
+	// La sessió del vent de la Carla, oberta abans de fer-la admin.
+	session := &Server{user: user, users: s.users}
+	if err := setServerPowers(true); err != nil {
+		t.Fatal(err)
+	}
+	if session.hasServerPowers() {
+		t.Fatal("not admin yet: no server powers")
+	}
+	if w := accountsPost(t, s, `{"name":"carla","action":"admin","admin":true}`); w.Code != 200 {
+		t.Fatalf("make admin: %d %s", w.Code, w.Body.String())
+	}
+	if code := powers(); code != 200 {
+		t.Fatalf("after: %d, want 200", code)
+	}
+	if !session.hasServerPowers() {
+		t.Fatal("an open session must see the new admin flag")
+	}
+	again := New(h.def.cfg, h.def.cfgPath)
+	if _, u, err := again.users.Login("carla", "12345678"); err != nil || !u.Admin {
+		t.Fatalf("admin lost after restart: %v", err)
+	}
+	if w := accountsPost(t, s, `{"name":"carla","action":"admin","admin":false}`); w.Code != 200 {
+		t.Fatalf("remove admin: %d", w.Code)
+	}
+	if code := powers(); code != http.StatusForbidden || session.hasServerPowers() {
+		t.Fatalf("after removing admin: %d", code)
+	}
+	if w := accountsPost(t, s, `{"name":"bert","action":"admin","admin":true}`); w.Code != 404 {
+		t.Fatalf("config/unknown accounts are not managed here: %d", w.Code)
+	}
+}

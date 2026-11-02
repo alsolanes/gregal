@@ -10,6 +10,7 @@ usage() {
   account-create NOM             Crea un compte; contrasenya per stdin
   account-password NOM           Canvia la contrasenya d'un compte gestionat; per stdin
   account-delete NOM             Esborra un compte gestionat (les dades s'aparten)
+  account-admin NOM on|off       Fa (o desfà) administrador un compte gestionat
   backup [DIRECTORI]             Còpia coherent i reinici si estava en marxa
   powers on|off                  Poders de servidor per als vents de l'administrador
   site-allow DIRECTORI           Deixa que Gregal (i els vents) escriguin en una web
@@ -40,8 +41,8 @@ case "$command" in
   trap 'restart' EXIT
   if [ "$#" = 1 ]; then sh "$dir/backup.sh" "$1"; else sh "$dir/backup.sh"; fi
   restart; trap - EXIT ;;
- accounts|invite|account-create|account-password|account-delete)
-  case "$command:$#" in accounts:0|invite:0|account-create:1|account-password:1|account-delete:1) ;; *) usage >&2; exit 2 ;; esac
+ accounts|invite|account-create|account-password|account-delete|account-admin)
+  case "$command:$#" in accounts:0|invite:0|account-create:1|account-password:1|account-delete:1|account-admin:2) ;; *) usage >&2; exit 2 ;; esac
   command -v curl >/dev/null 2>&1 || { echo 'Cal curl.' >&2; exit 1; }
   command -v python3 >/dev/null 2>&1 || { echo 'Cal python3.' >&2; exit 1; }
   [ -r /etc/gregal/env ] || { echo 'No es troba /etc/gregal/env.' >&2; exit 1; }
@@ -57,6 +58,10 @@ case "$command" in
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -o "$tmp/result" -w '%{http_code}' "$url")
   elif [ "$command" = invite ]; then
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -X POST -o "$tmp/result" -w '%{http_code}' "http://127.0.0.1:$port/api/server/invitations")
+  elif [ "$command" = account-admin ]; then
+   case "$2" in on) adm=True ;; off) adm=False ;; *) usage >&2; exit 2 ;; esac
+   python3 -c 'import json,sys; json.dump({"name":sys.argv[1],"action":"admin","admin":sys.argv[2]=="True"},sys.stdout)' "$1" "$adm" >"$tmp/body"
+   code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -H 'Content-Type: application/json' --data-binary "@$tmp/body" -o "$tmp/result" -w '%{http_code}' "$url")
   elif [ "$command" = account-delete ]; then
    python3 -c 'import json,sys; json.dump({"name":sys.argv[1],"action":"delete"},sys.stdout)' "$1" >"$tmp/body"
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -H 'Content-Type: application/json' --data-binary "@$tmp/body" -o "$tmp/result" -w '%{http_code}' "$url")

@@ -32,6 +32,9 @@ type managedAccount struct {
 	Name     string   `json:"name"`
 	Password string   `json:"password"`
 	Revoked  []string `json:"revoked,omitempty"`
+	// Admin: un compte gestionat també pot administrar el servidor (dues
+	// persones que el porten a mitges). L'administrador del config ho és sempre.
+	Admin bool `json:"admin,omitempty"`
 }
 
 func tokenDigest(token string) string {
@@ -68,7 +71,7 @@ func readManaged() ([]managedAccount, error) {
 }
 func managedDefinition(root string, a managedAccount) config.UserCfg {
 	dir := filepath.Join(root, identity.Key(a.Name))
-	return config.UserCfg{Password: a.Password, Roots: []string{dir}, Home: dir}
+	return config.UserCfg{Password: a.Password, Roots: []string{dir}, Home: dir, Admin: a.Admin}
 }
 func (u *Users) loadManagedAccounts() {
 	root := managedRoot()
@@ -162,6 +165,7 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 			Name     string `json:"name"`
 			Password string `json:"password"`
 			Action   string `json:"action"`
+			Admin    bool   `json:"admin"`
 		}
 		if !decodeSmall(w, r, &req) {
 			return
@@ -177,7 +181,7 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "invalid username or password (minimum "+strconv.Itoa(minPasswordLen)+" characters)", 400)
 				return
 			}
-		case "delete":
+		case "delete", "admin":
 		default:
 			http.Error(w, "unknown action", 400)
 			return
@@ -189,6 +193,12 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			writeJSON(w, map[string]any{"name": req.Name})
+		case "admin":
+			if code, err := u.setManagedAdmin(req.Name, req.Admin); err != nil {
+				http.Error(w, err.Error(), code)
+				return
+			}
+			writeJSON(w, map[string]any{"name": req.Name, "admin": req.Admin})
 		case "delete":
 			if code, err := u.deleteManaged(req.Name); err != nil {
 				http.Error(w, err.Error(), code)
@@ -347,6 +357,43 @@ func (u *Users) deleteManaged(name string) (int, error) {
 	u.mu.Unlock()
 	_ = u.saveTokens()
 	return 0, nil
+}
+
+// setManagedAdmin fa (o desfà) administrador un compte gestionat. Els
+// permisos es miren a cada petició: no cal tornar a entrar.
+func (u *Users) setManagedAdmin(name string, admin bool) (int, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if !u.managedNames[name] {
+		return 404, errors.New("account is not managed here")
+	}
+	list, err := readManaged()
+	if err != nil {
+		return 500, errors.New("cannot read accounts")
+	}
+	i := managedIndex(list, name)
+	if i < 0 {
+		return 404, errors.New("account is not managed here")
+	}
+	list[i].Admin = admin
+	if err := writeManaged(list); err != nil {
+		return 500, errors.New("cannot save account")
+	}
+	d := u.defs[name]
+	d.Admin = admin
+	u.defs[name] = d
+	return 0, nil
+}
+
+// IsAdmin diu si el compte és administrador ara mateix (ok=false si no hi és).
+func (u *Users) IsAdmin(name string) (admin, ok bool) {
+	if u == nil {
+		return false, false
+	}
+	u.mu.RLock()
+	defer u.mu.RUnlock()
+	d, ok := u.defs[name]
+	return d.Admin, ok
 }
 
 func managedIndex(list []managedAccount, name string) int {
