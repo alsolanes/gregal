@@ -225,9 +225,14 @@ fun WindFace(
                 val shapes = kit.prop.ifEmpty { kit.head }
                 withTransform({
                     scale(unit, unit, Offset.Zero)
-                    translate(38f, 43f)
-                    scale(.43f, .43f, Offset.Zero)
-                }) { drawKit(shapes) }
+                    translate(20f, 20f)
+                    scale(.75f, .75f, Offset.Zero)
+                }) {
+                    drawKit(shapes)
+                    for (hand in kit.hands) {
+                        drawOval(accent, Offset(hand.x - 4.6f, hand.y - 4f), Size(9.2f, 8f))
+                    }
+                }
             }
         }
 
@@ -238,6 +243,12 @@ fun WindFace(
         val eyeDx = r * 0.29f
         val eyeW = r * 0.135f
         val gazeShift = look.first * r * 0.07f
+
+        // Soft cheeks stay subtle on every wind colour, including small avatars.
+        for (side in listOf(-1f, 1f)) {
+            drawOval(Color(0xFFD86F7D).copy(alpha = .22f),
+                Offset(fx + side * r * .56f - r * .15f, fy + r * .16f), Size(r * .30f, r * .16f))
+        }
 
         // Two bold eye marks; no pupils or reflections: the volume lives in the body.
         if (mood == WindMood.DONE || blinking || squint || cheer.value > .15f) {

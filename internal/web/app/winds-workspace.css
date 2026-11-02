@@ -120,6 +120,15 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-dialog > .winds-face { width:55px; height:55px; }
 .vw-field { display:flex; flex-direction:column; gap:7px; color:var(--muted); margin:17px 0; font-size:12px; }
 .vw-field input,.vw-field textarea,.vw-dialog select,.vw-search { padding:11px; border:1px solid var(--line-hi); border-radius:9px; background:var(--bg); color:var(--text); font:inherit; width:100%; }
+.vw-wind-suggestions { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:7px; margin:16px 0; }
+.vw-wind-suggestion { display:flex; flex-direction:column; gap:3px; text-align:left; padding:10px 11px; border:1px solid var(--line); border-radius:11px; background:var(--bg); color:var(--text); }
+.vw-wind-suggestion:hover { border-color:var(--vw-accent); background:var(--hover-alt); }
+.vw-wind-suggestion span { color:var(--muted); font-size:11px; }
+.vw-wind-preview { display:flex; justify-content:center; padding:8px; }
+.vw-wind-preview .winds-face { width:96px; height:96px; }
+.vw-wind-appearance { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:10px; align-items:end; }
+.vw-wind-appearance .vw-field { margin:8px 0 18px; }
+.vw-wind-appearance input[type=color] { height:40px; padding:3px; cursor:pointer; }
 .vw-field textarea { resize:vertical; line-height:1.6; }
 .vw-muted { color:var(--muted); font-size:12px; }
 .vw-archive { background:transparent; border:0; border-top:1px solid var(--line); color:var(--muted); padding:20px 0 0; margin-top:20px; text-align:left; font-size:11px!important; }

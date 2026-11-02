@@ -222,7 +222,37 @@
  }
  function dialog(title){const d=el('dialog','vw-dialog');d.setAttribute('aria-label',title);const head=el('header');head.append(el('h2','',title),btn('×',()=>d.close(),'vw-close'));d.append(head);document.body.append(d);d.addEventListener('close',()=>d.remove());d.showModal();return d;}
  function field(parent,label,value='',multiline=false){const wrap=el('label','vw-field',label),n=el(multiline?'textarea':'input');n.value=value;if(multiline)n.rows=7;wrap.append(n);parent.append(wrap);return n;}
- function createWind(){const d=dialog(t('Una nova companyia','A new companion'));const name=field(d,t('Nom','Name')),role=field(d,t('Com et pot ajudar?','How can they help?')),persona=field(d,t('Manera de ser i instruccions','Personality and instructions'),'',true);d.append(btn(t('Crea el vent','Create wind'),async()=>{if(!name.value.trim()){name.focus();return;}await call('/api/winds','POST',{name:name.value,role:role.value,persona:persona.value,color:'#C1CDA9',style:'psn'});d.close();await load();route('crew');},'vw-primary'));}
+ function createWind(){
+  const d=dialog(t('Una nova companyia','A new companion'));
+  d.append(el('p','vw-muted',t('Tria una idea o crea un vent a la teva mida. Pots canviar-ho tot abans de crear-lo.','Choose an idea or create your own wind. You can change everything before creating it.')));
+  const suggestions=[
+   ['Brúixola','Recerca i comparatives','Research and comparisons','Busca fonts fiables, contrasta la informació i explica les incerteses.','Find reliable sources, compare information and explain uncertainty.','#8fcabb','psn'],
+   ['Espurna','Idees i escriptura','Ideas and writing','Ajuda a imaginar, escriure i polir textos amb una veu propera.','Help brainstorm, write and polish text with a warm voice.','#efad85','eso'],
+   ['Farcell','Organització i plans','Organization and planning','Converteix idees en plans clars, pràctics i flexibles.','Turn ideas into clear, practical and flexible plans.','#d6bb87','pso'],
+   ['Traç','Disseny i webs','Design and websites','Dissenya interfícies clares, boniques i accessibles.','Design clear, attractive and accessible interfaces.','#b3a3df','bsn'],
+   ['Bit','Programació','Programming','Escriu codi entenedor i comprova que funcioni.','Write understandable code and check that it works.','#8eb4d6','pso'],
+   ['Lupa','Revisió i proves','Review and testing','Revisa amb cura, troba problemes i proposa millores concretes.','Review carefully, find problems and suggest concrete improvements.','#d7adba','bss'],
+   ['Gràfica','Dades i gràfics','Data and charts','Analitza dades amb rigor i explica els resultats de manera entenedora.','Analyze data carefully and explain results clearly.','#91c7ac','psn'],
+   ['Teca','Cuina i àpats','Cooking and meals','Proposa receptes i menús adaptats als gustos i al temps disponible.','Suggest recipes and meal plans suited to tastes and available time.','#eebc78','pso']
+  ];
+  const list=el('div','vw-wind-suggestions');list.setAttribute('aria-label',t('Vents suggerits','Suggested winds'));d.append(list);
+  const preview=el('div','vw-wind-preview');d.append(preview);
+  const name=field(d,t('Nom','Name')),role=field(d,t('Com et pot ajudar?','How can they help?')),persona=field(d,t('Manera de ser i instruccions','Personality and instructions'),'',true);persona.rows=3;
+  const appearance=el('div','vw-wind-appearance');d.append(appearance);
+  const tint=field(appearance,t('Color','Color'),'#c1cda9');tint.type='color';
+  function choice(label,options,value){const wrap=el('label','vw-field',label),select=el('select');for(const [key,caLabel,enLabel] of options){const option=el('option','',t(caLabel,enLabel));option.value=key;select.append(option);}select.value=value;wrap.append(select);appearance.append(wrap);return select;}
+  const shape=choice(t('Forma','Shape'),[['o','Bola','Ball'],['n','Núvol','Cloud'],['s','Rínxol','Curl']],'n');
+  const eyes=choice(t('Ulls','Eyes'),[['p','Punts','Dots'],['b','Ben oberts','Wide'],['e','Estrellats','Starry'],['m','Mig tancats','Sleepy']],'p');
+  const mouth=choice(t('Boca','Mouth'),[['s','Somriure','Smile'],['o','Oberta','Open'],['n','Tranquil·la','Relaxed'],['t','Llengua','Tongue']],'s');
+  const update=()=>preview.replaceChildren(root.gregalWinds.face({name:name.value,color:tint.value,style:eyes.value+mouth.value+shape.value},true));
+  for(const control of [name,tint,shape,eyes,mouth]){control.addEventListener('input',update);control.addEventListener('change',update);}
+  for(const [suggested,caRole,enRole,caPersona,enPersona,color,style] of suggestions){
+   const b=btn('',()=>{let candidate=suggested,index=2;const used=new Set(state.winds.map(w=>w.name.trim().toLocaleLowerCase()));while(used.has(candidate.toLocaleLowerCase()))candidate=suggested+' '+index++;name.value=candidate;role.value=t(caRole,enRole);persona.value=t(caPersona,enPersona);tint.value=color;eyes.value=style[0];mouth.value=style[1];shape.value=style[2];update();},'vw-wind-suggestion');
+   b.append(el('strong','',suggested),el('span','',t(caRole,enRole)));list.append(b);
+  }
+  update();
+  d.append(btn(t('Crea el vent','Create wind'),async()=>{if(!name.value.trim()){name.focus();return;}await call('/api/winds','POST',{name:name.value.trim(),role:role.value.trim(),persona:persona.value.trim(),color:tint.value,style:eyes.value+mouth.value+shape.value});d.close();await load();route('crew');},'vw-primary'));
+ }
  async function profile(w){
   const data=await call('/api/winds/profile?wind='+encodeURIComponent(w.id));const d=dialog(w.name);d.append(face(w),el('p','vw-muted',roleName(w)));const tabs=el('div','vw-tabs'),body=el('div');d.append(tabs,body);
   const draw=kind=>{body.replaceChildren();for(const b of tabs.children)b.dataset.selected=String(b.dataset.kind===kind);const memory=kind==='memory';body.append(el('p','vw-muted',memory?t('Preferències, decisions i coses sobre tu que aquest vent recorda.','Preferences, decisions and things about you this wind remembers.'):t('Fets, documents i procediments que pot utilitzar per ajudar-te.','Facts, documents and procedures it can use to help you.')));const area=field(body,memory?t('Memòria','Memory'):t('Coneixement','Knowledge'),memory?data.memory:data.knowledge,true);area.maxLength=memory?8000:24576;body.append(btn(t('Desa els canvis','Save changes'),async()=>{await call(memory?'/api/winds/memoria':'/api/winds/memory',memory?'PUT':'POST',memory?{wind:w.id,memoria:area.value}:{wind:w.id,text:area.value});if(memory)data.memory=area.value;else data.knowledge=area.value;notice.textContent=t('Desat','Saved');},'vw-primary'));

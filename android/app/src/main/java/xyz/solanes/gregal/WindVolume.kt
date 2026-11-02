@@ -23,6 +23,8 @@ import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -49,20 +51,8 @@ private val windBodies: Map<WindShape, Path> by lazy {
         .fold(Path().apply { addRoundRect(RoundRect(-1.19f, -.30f, 1.19f, .97f, CornerRadius(.58f))) }) { acc, p ->
             Path.combine(PathOperation.Union, acc, p)
         }
-    // A curled gust with an open notch: recognizable from its outline,
-    // not a circle with a faint spiral etched onto the forehead.
-    val curl = Path().apply {
-        moveTo(-.95f, -.16f)
-        cubicTo(-1.10f, -.91f, -.14f, -1.27f, .43f, -.96f)
-        cubicTo(.93f, -.68f, .66f, -.20f, .19f, -.33f)
-        cubicTo(.55f, -.38f, .51f, -.73f, .17f, -.73f)
-        cubicTo(-.23f, -.73f, -.32f, -.43f, -.14f, -.23f)
-        cubicTo(.05f, -.09f, .53f, -.25f, .82f, .04f)
-        cubicTo(1.23f, .45f, .73f, 1.03f, .02f, 1.03f)
-        cubicTo(-.68f, 1.03f, -1.11f, .48f, -.95f, -.16f)
-        close()
-    }
-    mapOf(WindShape.BALL to circle(0f, 0f, 1f), WindShape.CLOUD to cloud, WindShape.SPIRAL to curl)
+    // A closed silhouette keeps the fringe clear of the eyes at every size.
+    mapOf(WindShape.BALL to circle(0f, 0f, 1f), WindShape.CLOUD to cloud, WindShape.SPIRAL to circle(0f, 0f, 1f))
 }
 
 /** Fins on arriba cada silueta des del centre de la vora de llum: la vora en cenyeix el contorn. */
@@ -84,7 +74,18 @@ internal fun DrawScope.drawWindBody(shape: WindShape, accent: Color, cx: Float, 
             drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = .22f), 1f to Color.Transparent, center = foot, radius = .8f),
                 radius = .8f, center = foot)
         }
+        // Little feet anchor the character without changing the saved style.
+        drawOval(windDeep(accent), topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
+        drawOval(windDeep(accent), topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
         drawPath(body, Brush.radialGradient(0f to windLight(accent), .45f to accent, 1f to windDeep(accent), center = light, radius = 1.9f))
+        if (shape == WindShape.SPIRAL) {
+            val fringe = Path().apply {
+                moveTo(-.60f, -.48f)
+                cubicTo(-.50f, -.82f, -.16f, -.88f, .08f, -.72f)
+                cubicTo(.30f, -.57f, .50f, -.62f, .62f, -.82f)
+            }
+            drawPath(fringe, windDeep(accent).copy(alpha = .45f), style = Stroke(.08f, cap = StrokeCap.Round))
+        }
         clipPath(body) {
             // Vora de llum reflectida, a baix a la dreta: dona el gir de la forma.
             drawRect(Brush.radialGradient(0f to Color.Transparent, .80f to Color.Transparent,

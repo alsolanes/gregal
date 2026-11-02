@@ -1908,7 +1908,7 @@ body.sense-inspector #inspector { display:none; }
         </div>
         <!-- El mode ja el diu el commutador de dalt amb el seu color: aquí
              només el que no es veu enlloc més. -->
-        <div id="hint"><span id="hrole" hidden></span><b>/</b> <span data-i18n="ui.commands">commands</span> · <b>@</b> <span data-i18n="ui.files">files</span><span id="hmode" hidden></span><span id="ctxGauge" class="ctx-gauge" role="progressbar" data-i18n-aria="ui.contextUsed" aria-label="Context used" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span><span id="hudCost" class="hud-cost"></span><button type="button" id="hintFolder" class="hint-folder" hidden></button></div>
+        <div id="hint"><span id="hrole" hidden></span><b>/</b> <span data-i18n="ui.commands">commands</span> · <b>@</b> <span data-i18n="ui.files">files</span><span id="hmode" hidden></span><span id="ctxGauge" class="ctx-gauge" tabindex="0" role="progressbar" data-i18n-aria="ui.contextUsed" aria-label="Context used" aria-valuemin="0" aria-valuemax="100" hidden><i></i></span><span id="speedReadout" class="speed-readout" hidden></span><span id="hudCost" class="hud-cost"></span><button type="button" id="hintFolder" class="hint-folder" hidden></button></div>
       </footer>
     </section>
     <aside id="inspector" data-i18n-aria="inspector.label" aria-label="Session inspector">
@@ -2622,7 +2622,9 @@ function updateCtxGauge(r) {
   g.firstElementChild.style.width = pct + '%';
   g.classList.toggle('warn', pct >= 50 && pct < 80);
   g.classList.toggle('hot', pct >= 80);
-  g.title = 'context ' + pct + '% · ' + used.toLocaleString() + ' / ' + win.toLocaleString() + ' tokens';
+  const detail = (document.documentElement.lang === 'ca' ? 'Context utilitzat: ' : 'Context used: ') + pct + '% · ' + used.toLocaleString() + ' / ' + win.toLocaleString() + ' tokens';
+  g.dataset.tooltip = detail;
+  g.setAttribute('aria-valuetext', detail);
   g.setAttribute('aria-valuenow', pct);
 }
 // --- Temps del torn i cua de missatges ---
@@ -2635,13 +2637,15 @@ let turnT0 = 0, turnTick = null, turnNote = '';
 // viu a la barra del torn i, en acabar, la mitjana ponderada (tokens totals
 // entre temps total) va amb el «Ha trigat».
 let turnSpeed = null;
-function speedReset() { turnSpeed = { calls: 0, pTok: 0, pSec: 0, gTok: 0, gSec: 0, last: null, est: false }; }
+function speedReset() { turnSpeed = { calls: 0, pTok: 0, pSec: 0, gTok: 0, gSec: 0, last: null, est: false }; const readout = $('speedReadout'); if (readout) readout.hidden = true; }
 function speedAdd(d) {
   if (!turnSpeed) speedReset();
   const s = turnSpeed;
   s.calls++; s.last = d; s.est = s.est || !!d.estimated;
   if (d.pp > 0) { s.pTok += (d.prompt || 0) - (d.cached || 0); s.pSec += (d.ttft_ms || 0) / 1000; }
   if (d.tg > 0) { s.gTok += d.completion || 0; s.gSec += (d.gen_ms || 0) / 1000; }
+  const readout = $('speedReadout');
+  if (readout) { readout.textContent = '⚡ ' + speedAverage(); readout.title = gregalT('ui.speed.average').replace('{v}', speedAverage()).replace('{n}', s.calls) + '\n' + gregalT('ui.speed.help'); readout.hidden = false; }
 }
 function speedRate(v) { return !(v > 0) ? '–' : v >= 1000 ? (v / 1000).toFixed(1) + 'k' : v >= 100 ? String(Math.round(v)) : v.toFixed(1); }
 function speedText(pp, tg, est) {

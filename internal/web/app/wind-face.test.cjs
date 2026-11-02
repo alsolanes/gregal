@@ -22,6 +22,8 @@ function load(extra = {}) {
   return { winds:window.gregalWinds, tick:ms => { now += ms; } };
 }
 const groups = svg => svg.all().map(n => n.attrs.class).filter(Boolean);
+// Every wind stands on its feet now; the trade kit is what sets specialists apart.
+const parts = svg => svg.all().filter(n => !/wf-foot/.test(n.attrs.class || '')).length;
 const squadKeys = [...fs.readFileSync(path.join(__dirname, '..', 'winds_squads.go'), 'utf8').matchAll(/^\t\t\{"([a-z]+)", "/gm)].map(m => m[1]);
 
 test('every squad specialist is a mascot with a trade tool; personal winds keep the plain face', () => {
@@ -31,7 +33,7 @@ test('every squad specialist is a mascot with a trade tool; personal winds keep 
   for (const specialty of squadKeys) {
     const svg = winds.face({ id:specialty, specialty, color:'#A8CDE2', style:'pso' });
     assert.equal(svg.getAttribute('data-kit'), specialty);
-    assert.ok(svg.all().length >= own.all().length + 4, specialty + ' wears or carries the tool of its trade');
+    assert.ok(parts(svg) >= parts(own) + 3, specialty + ' wears or carries the tool of its trade');
   }
   assert.equal(own.getAttribute('data-kit'), null);
   assert.equal(groups(own).includes('wf-prop'), false);

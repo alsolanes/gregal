@@ -334,7 +334,11 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 .composer-row .mode-advanced summary:hover { color:var(--ink); background:var(--hover); }
 .composer-row .perm-btn { width:32px; height:32px; min-height:32px; }
 #hint { display:flex; align-items:center; justify-content:center; gap:4px; flex-wrap:wrap; }
-.ctx-gauge { width:44px; height:4px; margin:0 6px 0 10px; }
+.ctx-gauge { position:relative; width:44px; height:8px; margin:0 6px 0 10px; overflow:visible; cursor:help; }
+.ctx-gauge::before { content:''; position:absolute; inset:-8px 0; }
+.ctx-gauge:hover::after,.ctx-gauge:focus-visible::after { content:attr(data-tooltip); position:absolute; z-index:50; bottom:calc(100% + 10px); left:50%; transform:translateX(-50%); width:max-content; max-width:min(290px,80vw); padding:8px 10px; border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--text); box-shadow:0 5px 20px var(--ombra); font-size:12px; line-height:1.4; white-space:normal; pointer-events:none; }
+.ctx-gauge:focus-visible { outline:2px solid var(--accent); outline-offset:4px; }
+.speed-readout { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; cursor:help; }
 @media (max-width:600px) {
   .composer-row .mode-switch { flex:1 0 100%; }
   .composer-row .mode-primary { flex:2; }
