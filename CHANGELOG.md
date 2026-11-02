@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Apps behind `/apps/` can call their own API again.** The proxy duplicated the CORS header when the app set it too, and browsers rejected the response.
+
 - **Vents 1.48.0 — opening a chat feels like opening a chat.** Tapping a conversation now slides the chat in and, while its history is still on the way, shows a skeleton of alternating bubbles instead of the “start the conversation” state that vanished half a second later. Unread messages say **how many** are waiting: a count badge on the row (`9+` above nine) and on the *No llegits* filter, instead of a nameless dot.
 
 ## v1.37.0 - 2026-11-01 - Vents especialistes
