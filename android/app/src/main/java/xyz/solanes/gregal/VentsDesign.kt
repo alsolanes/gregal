@@ -1,12 +1,19 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,6 +38,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -46,24 +55,72 @@ internal fun ventsCopy(lang: String, key: String): String = when (key) {
 }
 
 @Composable
-internal fun VentsInboxFilters(lang: String, selected: String, onSelected: (String) -> Unit) {
+internal fun VentsInboxFilters(lang: String, selected: String, unread: Int = 0, onSelected: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         listOf("all", "unread", "groups").forEach { key ->
             val active = selected == key
+            // Quants missatges esperen, al mateix filtre: si no n'hi ha cap, la
+            // pastilla queda com sempre.
+            val badge = if (key == "unread") unreadBadge(unread) else ""
             Surface(
                 shape = RoundedCornerShape(999.dp),
                 color = if (active) Ink else SuperficieAlta.copy(alpha = .58f),
                 modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable { onSelected(key) }
                     .semantics { this.selected = active; contentDescription = ventsCopy(lang, key) },
             ) {
-                Text(
-                    ventsCopy(lang, key), color = if (active) Superficie else Muted,
-                    fontSize = 12.sp, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                )
+                Row(
+                    Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(ventsCopy(lang, key), color = if (active) Superficie else Muted, fontSize = 12.sp)
+                    if (badge.isNotEmpty()) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
+                        Text(
+                            badge, color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                }
             }
+        }
+    }
+}
+
+/**
+ * L'esquelet d'una conversa mentre el fil arriba del servidor: bombolles
+ * alternes que respiren amb un accent suau. Substitueix el «comença la
+ * conversa» que sortia un instant i marxava — obrir un xat amb historial no
+ * hauria de semblar un xat buit.
+ */
+@Composable
+internal fun ChatSkeleton(accent: Color, modifier: Modifier = Modifier) {
+    val respiracio = rememberInfiniteTransition(label = "esquelet")
+    val glow by respiracio.animateFloat(
+        initialValue = 0.35f, targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(tween(850), RepeatMode.Reverse), label = "glow",
+    )
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        // Amplades i costats com una conversa de debò: la del vent a l'esquerra,
+        // les teves a la dreta.
+        listOf(
+            Triple(0.56f, false, 34.dp),
+            Triple(0.74f, true, 34.dp),
+            Triple(0.42f, false, 34.dp),
+            Triple(0.64f, true, 34.dp),
+        ).forEach { (amplada, meu, alt) ->
+            Box(
+                Modifier.align(if (meu) Alignment.End else Alignment.Start)
+                    .fillMaxWidth(amplada).height(alt)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(if (meu) SuperficieAlta.copy(alpha = 0.55f + 0.25f * glow)
+                    else accent.copy(alpha = 0.10f + 0.18f * glow)),
+            )
         }
     }
 }

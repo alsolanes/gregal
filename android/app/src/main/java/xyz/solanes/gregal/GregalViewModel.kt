@@ -462,12 +462,25 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openVentsChat(id: String?) {
-        if (id != null && id.startsWith("wind:")) markWindNewsSeen(id.removePrefix("wind:"))
+        // El que es pinta en el mateix fotograma del toc: la insígnia baixa i,
+        // si el fil encara no és a la mà, l'esquelet. Sense això la pantalla
+        // ensenyava un estat buit i els missatges apareixien de cop.
+        if (id == null) {
+            _ventsOpen.value = null
+            return
+        }
+        val bare = id.substringAfter(':')
+        if (id.startsWith("wind:")) {
+            markWindNewsSeen(bare)
+            if (_windChat.value[bare].isNullOrEmpty()) _windChatLoading.value = _windChatLoading.value + bare
+        } else if (id.startsWith("rot:")) {
+            if (_rotllanaChat.value[bare].isNullOrEmpty()) _rotllanaChatLoading.value = _rotllanaChatLoading.value + bare
+        }
         _ventsOpen.value = id
         // Tocar una notificació ha d'obrir la conversa que l'ha provocada: si
         // només desàvem el vent, l'app es quedava a la pantalla on era i
         // semblava que no fes res.
-        if (id != null && _connected.value) go(Screen.Company)
+        if (_connected.value) go(Screen.Company)
     }
 
     /**
@@ -2450,6 +2463,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _windChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val windChat: StateFlow<Map<String, List<PetMsg>>> = _windChat
+    /**
+     * Fils que s'estan demanant al servidor sense cap missatge a la mà. És el
+     * que permet obrir un xat amb l'esquelet en lloc d'un «comença la
+     * conversa» fals que desapareix mig segon després.
+     */
+    private val _windChatLoading = MutableStateFlow<Set<String>>(emptySet())
+    val windChatLoading: StateFlow<Set<String>> = _windChatLoading
 
     private val _windBusy = MutableStateFlow<Set<String>>(emptySet())
     val windBusy: StateFlow<Set<String>> = _windBusy
@@ -2468,6 +2488,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Vents amb una veu proactiva que encara no has obert (cor, recordatoris). */
     private val _windNews = MutableStateFlow<Set<String>>(emptySet())
     val windNews: StateFlow<Set<String>> = _windNews
+    /** Quants missatges pendents té cada vent: la insígnia diu quants, no només que n'hi ha. */
+    private val _windNewsCount = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val windNewsCount: StateFlow<Map<String, Int>> = _windNewsCount
     private val newsPrefs get() = getApplication<Application>().getSharedPreferences("gregal_winds_seen", android.content.Context.MODE_PRIVATE)
 
     fun refreshWindNews() {
@@ -2482,7 +2505,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 val list = withContext(Dispatchers.IO) { source.api().windNovetats(floor) }
                 val seen = prefs.all.mapNotNull { (k, v) -> if (k.startsWith("w:") && v is Long) k.removePrefix("w:") to v else null }.toMap()
-                if (isCompanionOrigin(source, epoch)) _windNews.value = WindNewsLogic.unseen(list, seen, floor)
+                if (isCompanionOrigin(source, epoch)) {
+                    _windNews.value = WindNewsLogic.unseen(list, seen, floor)
+                    _windNewsCount.value = WindNewsLogic.unseenCounts(list, seen, floor)
+                }
             } catch (_: Exception) {
                 // Sense servidor o en mode local: cap novetat, cap soroll.
             }
@@ -2492,6 +2518,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun markWindNewsSeen(id: String) {
         newsPrefs.edit().putLong("w:$id", System.currentTimeMillis() / 1000).apply()
         _windNews.value = _windNews.value - id
+        _windNewsCount.value = _windNewsCount.value - id
     }
 
     /** El vent actiu al botó flotant (null = cap). */
@@ -2700,6 +2727,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val rotllanes: StateFlow<List<Rotllana>> = _rotllanes
     private val _rotllanaChat = MutableStateFlow<Map<String, List<PetMsg>>>(emptyMap())
     val rotllanaChat: StateFlow<Map<String, List<PetMsg>>> = _rotllanaChat
+    private val _rotllanaChatLoading = MutableStateFlow<Set<String>>(emptySet())
+    val rotllanaChatLoading: StateFlow<Set<String>> = _rotllanaChatLoading
     private val _rotllanaBusy = MutableStateFlow<Set<String>>(emptySet())
     val rotllanaBusy: StateFlow<Set<String>> = _rotllanaBusy
 
@@ -2766,9 +2795,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadRotllanaChat(id: String) {
         val source = _conn.value; val epoch = companionEpoch
-        if (_rotllanaBusy.value.contains(id)) return
+        if (_rotllanaBusy.value.contains(id)) { _rotllanaChatLoading.value = _rotllanaChatLoading.value - id; return }
         val request = (rotllanaHistoryRequests[id] ?: 0L) + 1
         rotllanaHistoryRequests[id] = request
+        val skeleton = _rotllanaChat.value[id].isNullOrEmpty()
+        if (skeleton) _rotllanaChatLoading.value = _rotllanaChatLoading.value + id
         viewModelScope.launch {
             try {
                 val msgs = withContext(Dispatchers.IO) { source.api().getRotllanaChat(id) }
@@ -2776,6 +2807,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     !_rotllanaBusy.value.contains(id))
                     _rotllanaChat.value = _rotllanaChat.value + (id to ventsRecency.restore(source, "rot", id, msgs))
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            finally { if (skeleton) _rotllanaChatLoading.value = _rotllanaChatLoading.value - id }
         }
     }
 
@@ -3836,9 +3868,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadWindChat(windId: String) {
         val source = _conn.value; val epoch = companionEpoch
-        if (_windBusy.value.contains(windId)) return
+        if (_windBusy.value.contains(windId)) { _windChatLoading.value = _windChatLoading.value - windId; return }
         val request = (windHistoryRequests[windId] ?: 0L) + 1
         windHistoryRequests[windId] = request
+        val skeleton = _windChat.value[windId].isNullOrEmpty()
+        if (skeleton) _windChatLoading.value = _windChatLoading.value + windId
         viewModelScope.launch {
             try {
                 val history = withContext(Dispatchers.IO) { source.api().getWindChat(windId) }
@@ -3846,6 +3880,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     !_windBusy.value.contains(windId))
                     _windChat.value = _windChat.value + (windId to ventsRecency.restore(source, "wind", windId, history))
             } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            finally { if (skeleton) _windChatLoading.value = _windChatLoading.value - windId }
         }
     }
 

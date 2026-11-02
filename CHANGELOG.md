@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Vents 1.48.0 — opening a chat feels like opening a chat.** Tapping a conversation now slides the chat in and, while its history is still on the way, shows a skeleton of alternating bubbles instead of the “start the conversation” state that vanished half a second later. Unread messages say **how many** are waiting: a count badge on the row (`9+` above nine) and on the *No llegits* filter, instead of a nameless dot.
+
 ## v1.37.0 - 2026-11-01 - Vents especialistes
 
 - **Winds finish the job: build, test, publish or serve, without permission dead-ends.** A wind asked for a website, a game or a program now does it whole on the server, in its own project folder, and answers with the folder and a link. Wind turns no longer inherit the main chat's **Ask** mode (that left them unable to even create the project folder; only **Plan** keeps them read-only), get 12 steps per round and 15 minutes instead of 6 and 5, and treat heredoc bodies and `node -e`/`python -c` scripts as content, not as writes outside the project (a JS file written with `cat > f <<EOF` used to be blocked). When something really needs approval the model is told to carry on another way, and the reply ends with one short line instead of a "REQUIRES APPROVAL" block.

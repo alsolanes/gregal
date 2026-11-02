@@ -1,8 +1,12 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
@@ -130,6 +134,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val rBusy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
     val news by vm.windNews.collectAsState()
+    val newsCount by vm.windNewsCount.collectAsState()
     val conn by vm.conn.collectAsState()
     // Veus proactives per obrir: es consulten en obrir els Vents i cada minut.
     LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(60_000) } }
@@ -202,18 +207,30 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     } else if (creation != null) {
         ConversationCreator(vm, lang, winds, group = creation == "group") { creation = null }
     } else if (open != null) {
-        val id = open!!.substringAfter(':')
-        val wind = if (open!!.startsWith("wind:")) winds.firstOrNull { it.id == id } else null
-        val rot = if (open!!.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
-        when {
-            open == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
-            wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
-            rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
-            else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                TextButton(onClick = { vm.openVentsChat(null) }) { Text(tr(lang, "app.vents.back")) }
-                Text(if (lang == "en") "Waiting for the conversation data" else "Esperant les dades de la conversa", color = Ink)
-                Text(if (lang == "en") "The notification's conversation will open when its data arrives. You can reload without sending the work again." else "El fil de l'avís s'obrirà quan arribin les dades. Pots recarregar sense tornar a enviar la feina.", color = Muted, fontSize = 13.sp)
-                OutlinedButton(onClick = { vm.loadWinds(); vm.loadRotllanes() }) { Text(if (lang == "en") "Reload" else "Recarrega") }
+        // L'entrada al xat llisca i apareix; abans la pantalla canviava de cop i
+        // el toc no s'assemblava a res. El canvi entre dos xats també hi passa.
+        AnimatedContent(
+            targetState = open,
+            transitionSpec = {
+                (fadeIn(tween(160)) + slideInHorizontally(tween(230)) { it / 10 })
+                    .togetherWith(fadeOut(tween(110)))
+            },
+            label = "conversa",
+        ) { target ->
+            val key = target.orEmpty()
+            val id = key.substringAfter(':')
+            val wind = if (key.startsWith("wind:")) winds.firstOrNull { it.id == id } else null
+            val rot = if (key.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
+            when {
+                key == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
+                wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
+                rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
+                else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    TextButton(onClick = { vm.openVentsChat(null) }) { Text(tr(lang, "app.vents.back")) }
+                    Text(if (lang == "en") "Waiting for the conversation data" else "Esperant les dades de la conversa", color = Ink)
+                    Text(if (lang == "en") "The notification's conversation will open when its data arrives. You can reload without sending the work again." else "El fil de l'avís s'obrirà quan arribin les dades. Pots recarregar sense tornar a enviar la feina.", color = Muted, fontSize = 13.sp)
+                    OutlinedButton(onClick = { vm.loadWinds(); vm.loadRotllanes() }) { Text(if (lang == "en") "Reload" else "Recarrega") }
+                }
             }
         }
     } else {
@@ -275,7 +292,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         )
                     }
                     if (!manage && !searching) {
-                        VentsInboxFilters(lang, inboxFilter) { inboxFilter = it }
+                        VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
                         if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"), pluginOn("arena"),
                             onCorner = { cornerOpen = true; exploreOpen = false },
                             onGames = { gamesOpen = true; exploreOpen = false },
@@ -325,6 +342,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         ConversationRow(entry.title, entry.preview, face?.let { Color(it.argb) } ?: Sea,
                             face?.faceStyle ?: WindStyle(), faces = if (group) entry.members else emptyList(),
                             busy = thinking, mood = if (thinking) live[id]?.mood else if (unread) WindMood.NEWS else null,
+                            unreadCount = if (unread) (newsCount[id] ?: 1) else 0,
                             timestamp = entry.timestamp,
                             favorite = entry.key in wmeta.favorites,
                             onFavorite = { vm.toggleFavorite(entry.key) },
@@ -775,6 +793,8 @@ internal fun ConversationRow(
     timestamp: Long = 0L,
     favorite: Boolean = false,
     onFavorite: (() -> Unit)? = null,
+    /** Quants missatges esperen resposta; 0 = cap insígnia. */
+    unreadCount: Int = 0,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
     lang: String = "ca",
@@ -820,7 +840,18 @@ internal fun ConversationRow(
                     fontWeight = if (unread) FontWeight.Medium else FontWeight.Normal,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (busy) TypingDots(Sea)
-                else if (unread) Box(Modifier.size(7.dp).background(Sea, CircleShape))
+                else if (unread) {
+                    // Amb el número: un «3» diu quants missatges t'esperen, un
+                    // punt només deia que n'hi havia algun.
+                    val badge = unreadBadge(unreadCount)
+                    if (badge.isEmpty()) Box(Modifier.size(7.dp).background(Sea, CircleShape))
+                    else Surface(shape = CircleShape, color = Sea) {
+                        Text(
+                            badge, color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                        )
+                    }
+                }
             }
         }
     }
@@ -830,6 +861,7 @@ internal fun ConversationRow(
 @Composable
 internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.windChat.collectAsState()
+    val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val live by vm.windLive.collectAsState()
     val msgs = chats[wind.id].orEmpty()
@@ -939,8 +971,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) {
+                // Mentre el fil arriba del servidor, l'esquelet: ensenyar el
+                // «comença la conversa» un instant i treure'l de cop feia
+                // l'entrada pobra i el xat, buit.
                 item {
-                    ChatEmptyState(
+                    if (wind.id in loadingChat) ChatSkeleton(accent)
+                    else ChatEmptyState(
                         face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
                         title = tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
@@ -1034,6 +1070,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
 @Composable
 private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllana, winds: List<Wind>, onBack: () -> Unit, onWiki: () -> Unit = {}) {
     val chats by vm.rotllanaChat.collectAsState()
+    val loadingChat by vm.rotllanaChatLoading.collectAsState()
     val busy by vm.rotllanaBusy.collectAsState()
     val live by vm.windLive.collectAsState()
     val msgs = chats[rot.id].orEmpty()
@@ -1150,7 +1187,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             verticalArrangement = Arrangement.spacedBy(0.dp),
         ) {
             if (msgs.isEmpty()) item {
-                ChatEmptyState(
+                if (rot.id in loadingChat) ChatSkeleton(rotAccent)
+                else ChatEmptyState(
                     face = {
                         WindHalo(
                             size = 88, accent = rotAccent,

@@ -106,6 +106,26 @@ object WindNewsLogic {
     const val FIRST_RUN_WINDOW = 86_400L
     fun unseen(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Set<String> =
         novetats.filter { it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }.map { it.wind }.toSet()
+
+    /**
+     * Les mateixes veus que [unseen], però amb quants missatges pendents té
+     * cadascuna: un punt al costat d'una fila diu «hi ha alguna cosa», un 3
+     * diu quanta. El servidor ja envia un element per veu, així que comptar-los
+     * no costa cap crida més.
+     */
+    fun unseenCounts(novetats: List<WindNovetat>, seen: Map<String, Long>, floor: Long): Map<String, Int> =
+        novetats.filter { it.wind.isNotBlank() && it.ts > maxOf(seen[it.wind] ?: 0L, floor) }
+            .groupingBy { it.wind }.eachCount()
+}
+
+/**
+ * El text de la insígnia: 1-9 tal qual, «9+» a partir de deu, i buit si no hi
+ * ha res pendent (les files sense res pendent no duen insígnia).
+ */
+internal fun unreadBadge(n: Int): String = when {
+    n <= 0 -> ""
+    n > 9 -> "9+"
+    else -> n.toString()
 }
 
 /** Cossos de les peticions POST /api/winds i /api/winds/chat. */
