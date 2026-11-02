@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
+import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Add
@@ -71,6 +72,8 @@ fun GregalDrawerContent(
     nav: (Screen) -> Unit,
     close: () -> Unit,
 ) {
+    val simple by vm.simpleVents.collectAsState()
+    if (simple) { SimpleVentsDrawer(vm, lang, screen, local, server, nav, close); return }
     CappedFontScale(1.5f) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -117,6 +120,38 @@ fun GregalDrawerContent(
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
             // Amb compte (el servidor de casa), sortir de debò: el token es tanca al servidor.
             if (vm.signedInWithAccount()) DrawerRow(tr(lang, "app.server.signOut", vm.usuari.collectAsState().value), false, { close(); vm.signOut() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
+        }
+    }
+}
+
+/**
+ * Vents net: només el que és dels vents. Les eines de programació (agent,
+ * objectius, gràfics, Office, Retro…) tornen amb «Eines de programació» a
+ * Preferències; programats, wiki i feines són al «+» de la portada.
+ */
+@Composable
+private fun SimpleVentsDrawer(
+    vm: GregalViewModel, lang: String, screen: Screen, local: Boolean, server: String,
+    nav: (Screen) -> Unit, close: () -> Unit,
+) {
+    val user by vm.usuari.collectAsState()
+    CappedFontScale(1.5f) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
+                GregalMark(36.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Gregal Vents", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp)
+                    StatusPill(if (local) tr(lang, "app.server.thisDevice") else if (user.isNotBlank()) "$user · $server" else server, Green)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
+            DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
+            HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), color = Line)
+            DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Settings)
+            DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)
+            if (vm.signedInWithAccount()) DrawerRow(tr(lang, "app.server.signOut", user), false, { close(); vm.signOut() }, Icons.AutoMirrored.Rounded.Logout, muted = true)
         }
     }
 }

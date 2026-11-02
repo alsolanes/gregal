@@ -123,24 +123,29 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
                 }
                 Spacer(Modifier.height(12.dp))
+                val simple by vm.simpleVents.collectAsState()
 
                 // On treballen els vents. Des del mòbil no es podia canviar i
                 // era el que decidia sobre quin codi treballava l'agent.
-                PrefsSection(t("app.carpeta.title"))
-                GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
-                    SettingsRow(
-                        Icons.Rounded.FolderOpen,
-                        st.project.ifBlank { t("app.carpeta.none") },
-                        camiCurt(st.cwd) + (if (st.branch.isNotBlank()) " · " + st.branch else ""),
-                        tint = Sea,
-                        trailing = {
-                            TextButton(onClick = { vm.go(Screen.Carpeta) }) { Text(t("app.carpeta.change"), color = Sea) }
-                        },
-                    )
+                // Al Vents net no hi surt: els vents ja treballen a la seva carpeta.
+                if (!simple) {
+                    PrefsSection(t("app.carpeta.title"))
+                    GCard(Modifier.fillMaxWidth(), padding = PaddingValues(vertical = 4.dp)) {
+                        SettingsRow(
+                            Icons.Rounded.FolderOpen,
+                            st.project.ifBlank { t("app.carpeta.none") },
+                            camiCurt(st.cwd) + (if (st.branch.isNotBlank()) " · " + st.branch else ""),
+                            tint = Sea,
+                            trailing = {
+                                TextButton(onClick = { vm.go(Screen.Carpeta) }) { Text(t("app.carpeta.change"), color = Sea) }
+                            },
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
-                ProviderSetup(vm, current = st.provider, change = true)
+                // El model i la clau són del servidor: només els toca qui l'administra.
+                if (conn.local || admin) ProviderSetup(vm, current = st.provider, change = true)
 
                 PrefsSection(t("prefs.appearance"))
                 GCard(Modifier.fillMaxWidth()) {
@@ -179,7 +184,11 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     PreferenceSwitchRow(t("prefs.capHome"), t("prefs.capHomeHelp"), capHome) { vm.setCapHome(it) }
                     HorizontalDivider(color = Line.copy(alpha = .5f))
                     PreferenceSwitchRow(t("prefs.motion"), t("prefs.motionHelp"), expressiveMotion) { vm.setExpressiveMotion(it) }
+                    HorizontalDivider(color = Line.copy(alpha = .5f))
+                    PreferenceSwitchRow(t("prefs.codingTools"), t("prefs.codingToolsHelp"), !simple) { vm.setSimpleVents(!it) }
                 }
+
+                if (!simple) {
 
                 PrefsSection(t("prefs.perms"))
                 GCard(Modifier.fillMaxWidth()) {
@@ -222,6 +231,8 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Switch(checked = st.verify == "auto", onCheckedChange = null,
                             colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
                     }
+                }
+
                 }
 
                 PrefsSection(t("app.settings.version"))

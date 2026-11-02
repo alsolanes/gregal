@@ -359,6 +359,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _idioma.value = p.idioma
         _idiomaChoice.value = p.idiomaChoice
         _expressiveMotion.value = p.expressiveMotion
+        _simpleVents.value = p.simpleVents
         _usuari.value = p.usuari
         if (p.esborrany.isNotEmpty()) _draft.value = p.esborrany
         // A partir d'aquí totes les peticions van a la sessió del mòbil, no a
@@ -372,6 +373,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun setTema(v: String) {
         _tema.value = v
         if (::prefsStore.isInitialized) prefsStore.tema = v
+    }
+
+    private val _simpleVents = MutableStateFlow(false)
+    /** Vents net: el menú i el xat només ensenyen el que és dels vents. */
+    val simpleVents: StateFlow<Boolean> = _simpleVents
+    fun setSimpleVents(v: Boolean) {
+        _simpleVents.value = v
+        if (::prefsStore.isInitialized) prefsStore.simpleVents = v
     }
 
     fun setExpressiveMotion(v: Boolean) {

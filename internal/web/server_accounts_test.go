@@ -212,3 +212,33 @@ func TestManagedHomeShowsTheAccountName(t *testing.T) {
 		t.Fatalf("a project inside the home keeps its name: %q", got)
 	}
 }
+
+// Els proveïdors i les claus són de tot el servidor: un compte que no és
+// admin els pot llegir (per triar model) però no els pot canviar.
+func TestProvidersWritesNeedAdmin(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_ACCOUNTS_DIR", filepath.Join(t.TempDir(), "accounts"))
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+		t.Fatalf("create: %d", w.Code)
+	}
+	tok, _, err := s.users.Login("carla", "12345678")
+	if err != nil {
+		t.Fatal(err)
+	}
+	do := func(method, body string) int {
+		req := httptest.NewRequest(method, "/api/providers", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		w := httptest.NewRecorder()
+		s.Handler().ServeHTTP(w, req)
+		return w.Code
+	}
+	if code := do(http.MethodGet, ""); code != 200 {
+		t.Fatalf("GET as non-admin: %d", code)
+	}
+	if code := do(http.MethodPost, `{"action":"key","name":"p","key":"x"}`); code != http.StatusForbidden {
+		t.Fatalf("POST as non-admin: %d, want 403", code)
+	}
+}

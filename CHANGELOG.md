@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.39.1 - 2026-11-02 - Vents net
+
+- **Gregal Vents net.** A l'app de Vents, el menú només té els vents, el
+  Ventet, les preferències i el compte; l'agent de codi, els objectius, els
+  gràfics, Office i Retro tornen amb **Preferències → Eines de programació**.
+  El xat ja no ensenya el xip de la carpeta del projecte, les preferències
+  amaguen la carpeta, els permisos, el revisor i la verificació mentre les
+  eines estan apagades, i la vista prèvia de les converses mostra les taules
+  com a text pla (abans «| Botiga | Què |»).
+- **Només l'administrador canvia els proveïdors i les claus.** Amb comptes,
+  qualsevol usuari podia afegir o treure proveïdors i canviar la clau del
+  model de tot el servidor (`POST /api/providers`). Ara és 403 per als altres;
+  la lectura continua oberta per triar model, i l'app amaga «Canvia el
+  proveïdor» a qui no administra.
+
 ## v1.39.0 - 2026-11-02 - Vents per a dos
 
 - **Gregal Vents, a punt per a dues persones al mateix servidor.**

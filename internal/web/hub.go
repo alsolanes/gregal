@@ -387,6 +387,19 @@ func adminOnly(fn func(*Server, http.ResponseWriter, *http.Request)) func(*Serve
 	}
 }
 
+// adminWrites deixa llegir a tothom i reserva els canvis a l'administrador:
+// els proveïdors i les claus són de tot el servidor, i amb comptes un altre
+// usuari podia canviar el model o la clau de tothom.
+func adminWrites(fn func(*Server, http.ResponseWriter, *http.Request)) func(*Server, http.ResponseWriter, *http.Request) {
+	return func(s *Server, w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			adminOnly(fn)(s, w, r)
+			return
+		}
+		fn(s, w, r)
+	}
+}
+
 // route lliga un handler de sessió a la sessió que demana la petició.
 func (h *Hub) route(fn func(*Server, http.ResponseWriter, *http.Request)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

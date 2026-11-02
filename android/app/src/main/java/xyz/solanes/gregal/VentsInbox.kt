@@ -13,6 +13,18 @@ internal data class VentsInboxRow(
 
 private val MARKS = Regex("\\p{M}+")
 
+/**
+ * Text de la vista prèvia d'una conversa: sense markdown, i les taules com a
+ * text pla (abans sortia «| Botiga | Què |» tal qual).
+ */
+internal fun inboxPreview(text: String): String = stripMdInline(
+    text.lines().filterNot { Regex("^\\s*\\|?\\s*:?-{2,}").containsMatchIn(it) }
+        .joinToString(" ") { line ->
+            if (!line.contains('|')) line
+            else line.trim().trim('|').split('|').map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ")
+        }
+).replace(Regex("\\s+"), " ").trim()
+
 internal fun ventsInbox(
     winds: List<Wind>, groups: List<Rotllana>,
     chats: Map<String, List<GregalViewModel.PetMsg>>,
@@ -38,7 +50,7 @@ internal fun ventsInbox(
             else -> ((if (!identityMatches) match else messages.lastOrNull())?.text ?: fallback)
         }
         val has = messages.isNotEmpty() || sum != null
-        rows += VentsInboxRow(key, title, stripMdInline(preview).replace(Regex("\\s+"), " ").trim(), members,
+        rows += VentsInboxRow(key, title, inboxPreview(preview), members,
             maxOf(chatTs, sum?.ts ?: 0L), has) to has
     }
     winds.forEach { w -> add("wind:${w.id}", w.name, w.role, listOf(w), chats[w.id].orEmpty()) }

@@ -114,6 +114,13 @@ class Prefs(val ctx: Context) {
     var expressiveMotion: Boolean
         get() = p.getBoolean("expressiveMotion", false)
         set(v) { p.edit().putBoolean("expressiveMotion", v).apply() }
+    /**
+     * Vents net: només els vents, sense les eines de programació (agent,
+     * objectius, gràfics, Office…). Per defecte a la build de Vents.
+     */
+    var simpleVents: Boolean
+        get() = p.getBoolean("simpleVents", ctx.packageName.endsWith(".vents"))
+        set(v) { p.edit().putBoolean("simpleVents", v).apply() }
     /** Esborrany del composer: el que havies escrit no es perd. */
     var esborrany: String
         get() = p.getString("esborrany", "") ?: ""

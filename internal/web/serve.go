@@ -542,7 +542,7 @@ func (h *Hub) mux() *http.ServeMux {
 	handle("/api/new", h.route((*Server).handleNew))
 	handle("/api/verify-approve", h.route((*Server).handleVerifyApprove))
 	handle("/api/resume", h.route((*Server).handleResume))
-	handle("/api/providers", h.global((*Server).handleProviders))
+	handle("/api/providers", h.global(adminWrites((*Server).handleProviders)))
 	handle("/api/skills", h.global(adminOnly((*Server).handleSkills)))
 	handle("/api/github", h.global(adminOnly((*Server).handleGitHub)))
 	handle("/api/office/upload", h.global((*Server).handleOfficeUpload))

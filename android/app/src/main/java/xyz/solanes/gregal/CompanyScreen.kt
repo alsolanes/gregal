@@ -309,7 +309,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             onWiki = { wikiOpen = true; exploreOpen = false },
                             onFeines = { feinesOpen = true; exploreOpen = false },
                             onCrew = { vm.openCrew(); exploreOpen = false },
-                            onWorkspace = { exploreOpen = false; vm.go(Screen.Carpeta) })
+                            onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
                     }
                 }
             }) { pad ->
@@ -1099,7 +1099,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onAttachDoc = { pickDocs.launch("*/*") },
             onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
-            onWorkspace = { vm.go(Screen.Carpeta) },
+            onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(wind.id)) ({ vm.cancelWindTurn(wind.id) }) else null,
             onPreview = { vm.openPreview() }) {
             val body = field.text
@@ -1336,7 +1336,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             onAttachDoc = { pickDocs.launch("*/*") },
             onMode = { vm.setMode(it) },
             onPerm = { showPerm = true },
-            onWorkspace = { vm.go(Screen.Carpeta) },
+            onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(rot.id)) ({ vm.cancelRotllanaTurn(rot.id) }) else null,
             onPreview = { vm.openPreview() }) {
             val body = field.text
