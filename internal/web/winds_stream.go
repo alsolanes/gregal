@@ -125,12 +125,17 @@ const windCodeBrief = "\n\nBUILDING (a website, a game, a program, a script): yo
 	"\n6. REPORT at the end (here you may use up to 8 lines): what you built, the folder, the link, and how you checked it. If something could not be done, say exactly what and why."
 
 // windChatBrief munta la consigna del xat directe (compartida pel clàssic i l'stream).
+// windEstilBrief és com s'escriu la resposta: el que la persona llegeix al
+// mòbil. Sense això els vents tornaven taules de SHA, branques i comptes de
+// línies, que és informació de feina i no una resposta.
+const windEstilBrief = "\n\nHOW TO WRITE THE REPLY: 2-4 short lines of plain sentences, in the user's language: what you did, where it is, and what is left. No diff counters, no branch names or commit SHAs unless the user asked for them, no tables for a small thing, no jargon. If something could not be done, say it in one plain line — never claim it as done."
+
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
 	ws, _ := s.ventWorkspace()
 	brief := windProjectesBrief(ws)
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// The previous-turn digest leaves room for the wind's own guidance (images, charts, building, lessons) inside the 20k brief.
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 12500) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 12500) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief + windEstilBrief
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).

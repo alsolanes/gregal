@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Els vents poden fer el commit.** Un commit local dins del seu projecte ja no
+  queda «pendent d'aprovació»: el xat del vent no té cap finestra on confirmar-lo
+  i la feina s'acabava dient «feta» sense commit, amb una nota d'aprovació que
+  semblava una errada. Els PRs i els pushos al remot continuen sent del xat
+  principal. I la resposta s'escriu curta i plana: què s'ha fet, on és i què
+  queda, sense taules de SHA ni comptes de línies si no els demanes.
+
 - **Els vents et poden enviar fitxers pel xat.** Eina nova `send_file`: donat un
   fitxer del disc, el publica amb un enllaç propi (`/f/<clau>/<nom>`, clau
   aleatòria de 24 caràcters, sense sessió) i el model enganxa l'enllaç a la

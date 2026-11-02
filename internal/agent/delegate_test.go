@@ -101,8 +101,8 @@ func TestDelegateSenseRecursio(t *testing.T) {
 			t.Fatal("Specs() no pot incloure delegate (recursió)")
 		}
 	}
-	if len(Specs()) != 36 {
-		t.Fatalf("natives=%d, han de ser 36", len(Specs()))
+	if len(Specs()) != 37 {
+		t.Fatalf("natives=%d, han de ser 37", len(Specs()))
 	}
 	trobat := false
 	for _, s := range SpecsAll() {

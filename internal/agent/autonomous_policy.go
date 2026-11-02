@@ -178,6 +178,13 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 			return true
 		}
 		return projecte != "" && InsideProject(projecte, toolPath(name, argsJSON))
+	case "git_commit":
+		// Un commit local dins del projecte no destrueix res i el xat del vent no
+		// té cap finestra on confirmar-lo: deixat en «ask», la feina s'acaba
+		// dient «feta» sense commit i amb una nota d'aprovació pendent que
+		// sembla una errada. Els PRs i els pushos al remot continuen sent del
+		// xat principal.
+		return projecte != ""
 	case "knowledge_note":
 		// Una nota global la veurien tots els projectes: això es queda per
 		// al xat principal, on la persona ho pot confirmar.
