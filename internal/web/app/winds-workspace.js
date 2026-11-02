@@ -93,14 +93,14 @@
  }
  const modelActual=()=>models.current||models.work||root.gregal?.state?.model||'';
  function paintModel(button){
-  const full=modelActual(),name=full?full.split('/').slice(1).join('/')||full:t('Model','Model');
+  const full=modelActual(),id=full?full.split('/').slice(1).join('/')||full:'',name=id?id.replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim():t('Model','Model');
   const chev=document.createElementNS('http://www.w3.org/2000/svg','svg');chev.setAttribute('viewBox','0 0 24 24');chev.setAttribute('class','vw-model-chev');chev.setAttribute('aria-hidden','true');
   const path=document.createElementNS(chev.namespaceURI,'path');path.setAttribute('d','m6 9 6 6 6-6');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','2');path.setAttribute('stroke-linecap','round');chev.append(path);
   button.replaceChildren(el('span','vw-model-name',name),chev);
   button.title=t('Model dels vents: ','Winds model: ')+(full||'—')+(models.current?'':t(' (el de la feina)',' (same as work)'));
-  button.setAttribute('aria-label',button.title);
+  button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(!!document.querySelector('.vw-model-pop')));
  }
- function closeModelPicker(){document.querySelector('.vw-model-pop')?.remove();document.removeEventListener('click',outsideModel,true);document.removeEventListener('keydown',escModel,true);}
+ function closeModelPicker(){document.querySelector('.vw-model-pop')?.remove();document.querySelectorAll('.vw-model').forEach(b=>b.setAttribute('aria-expanded','false'));document.removeEventListener('click',outsideModel,true);document.removeEventListener('keydown',escModel,true);}
  function outsideModel(e){const pop=document.querySelector('.vw-model-pop');if(pop&&!pop.contains(e.target)&&!e.target.closest?.('.vw-model'))closeModelPicker();}
  function escModel(e){if(e.key==='Escape'){e.stopPropagation();closeModelPicker();}}
  async function openModelPicker(anchor){
@@ -109,7 +109,7 @@
   const head=el('p','vw-model-head',t('Model amb què responen els vents','Model the winds answer with'));
   const filter=el('input','vw-model-filter');filter.type='search';filter.placeholder=t('Filtra models…','Filter models…');filter.setAttribute('aria-label',filter.placeholder);
   const list=el('div','vw-model-list');list.setAttribute('role','listbox');list.append(el('p','vw-model-empty',t('Carregant…','Loading…')));
-  pop.append(head,filter,list);document.body.append(pop);
+  pop.append(head,filter,list);document.body.append(pop);anchor.setAttribute('aria-expanded','true');
   const place=()=>{const r=anchor.getBoundingClientRect(),w=Math.min(360,innerWidth-16);pop.style.width=w+'px';pop.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+'px';const above=r.top>innerHeight/2;pop.style.top=above?'auto':(r.bottom+6)+'px';pop.style.bottom=above?(innerHeight-r.top+6)+'px':'auto';pop.style.maxHeight=Math.max(160,Math.min(420,above?r.top-14:innerHeight-r.bottom-14))+'px';};
   place();document.addEventListener('click',outsideModel,true);document.addEventListener('keydown',escModel,true);filter.focus();
   try{await loadModels(true);}catch(e){list.replaceChildren(el('p','vw-model-empty',t('No s’han pogut llegir els models: ','Could not read the models: ')+e.message));return;}
