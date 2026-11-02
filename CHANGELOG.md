@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **La colla respon sencera quan preguntes a tots.** A la consigna del torn en
+  grup s'hi diu qui hi ha de respondre: si la persona parla a la colla (sense
+  nomenar ningú), responen tots els membres que tinguin alguna cosa a dir, un
+  bloc curt per cap amb el seu nom al davant; si en nomena un, només contesta
+  aquell. Abans només hi responia un (el que havia parlat menys) i la resta
+  callava. Mateix torn i mateixa crida al model, no tres.
+
 ## v1.41.0 - 2026-11-02 - Vents vius
 
 - **Els vents tornen a moure's a Android.** Des del 31 d'octubre el «Moviment
