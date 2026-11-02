@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Fora la targeta de «ja en sap» del perfil.** Entre el nom del vent i les
+  pestanyes hi havia una targeta amb dos resums (personalitat i memòria) que
+  repetia el que ja surt a les pestanyes i es menjava 140 dp d'espai. Ara el
+  perfil comença amb la cara, el nom i l'ofici, i tot seguit les pestanyes.
+  Versió 1.52.4-vents (163).
+
 - **El perfil del vent es pot llegir sencer.** La cara, el nom i la targeta de
   «ja en sap» s'emportaven mitja pantalla i es quedaven fixes: el contingut de la
   pestanya era una columna `fillMaxSize()` dins d'una altra columna, tan alta com

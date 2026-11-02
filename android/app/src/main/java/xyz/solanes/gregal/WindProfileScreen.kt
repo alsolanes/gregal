@@ -88,7 +88,6 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 Text(wind.name, color = Ink, fontWeight = FontWeight.Bold, fontSize = 24.sp, textAlign = TextAlign.Center)
                 Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = 14.sp,
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
-                ProfileGlance(lang, wind, profile, accent, tab, onTab = { tab = it })
             }
             }
             stickyHeader(key = "tabs") {
@@ -186,43 +185,6 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
         }) { Text(tr(lang, "app.vents.forgetKnowledge")) } },
         dismissButton = { TextButton(onClick = { confirmForget = false }) { Text(tr(lang, "app.company.windCancel")) } })
     if (createRoutine) NovaRutinaDialog(vm, lang, preselectedWind = wind.id, onDismiss = { createRoutine = false })
-}
-
-/** Vista prèvia del que el vent ja té desat: personalitat i memòria d'una
- *  ullada; cada fila obre la seva pestanya. La fila de la pestanya oberta
- *  s'amaga: seria el mateix text repetit (i els tests ho comproven).
- *  Omple el buit del perfil. */
-@Composable
-private fun ProfileGlance(lang: String, wind: Wind, profile: WindProfile?, accent: Color, tab: Int, onTab: (Int) -> Unit) {
-    val persona = wind.persona.ifBlank { tr(lang, "app.vents.noPersonality") }
-        .replace(Regex("\\s+"), " ").trim().take(140)
-    val memory = (profile?.knowledge?.ifBlank { profile.personalMemory }.orEmpty())
-        .replace(Regex("\\s+"), " ").trim().take(140)
-        .ifBlank { tr(lang, "app.vents.noKnowledge") }
-    val showPersona = tab != 0
-    val showMemory = tab != 1
-    Surface(shape = RoundedCornerShape(16.dp), color = accent.copy(alpha = 0.07f),
-        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
-        modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-            if (showPersona) GlanceLine(tr(lang, "app.vents.personality"), persona) { onTab(0) }
-            if (showPersona && showMemory) HorizontalDivider(color = Muted.copy(alpha = .15f))
-            if (showMemory) GlanceLine(tr(lang, "app.vents.topicMemory"), memory) { onTab(1) }
-        }
-    }
-}
-
-@Composable
-private fun GlanceLine(label: String, preview: String, onOpen: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, color = Ink, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text(preview, color = Muted, fontSize = 13.sp, maxLines = 2,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-        }
-        Text("›", color = Muted, fontSize = 18.sp)
-    }
 }
 
 /** Salut del segon pla (mode local): avisa si falta permís d'alarmes
