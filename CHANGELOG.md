@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **El que el vent ja ha escrit no s'esborra.** Quan el model narrava alguna
+  cosa i tot seguit cridava una eina, el text desapareixia de la conversa: el
+  client llençava els tokens («tokens were speculative») i el servidor només
+  desava la resposta final. Ara la fita tanca el text com a missatge (xat d'un
+  vent i rotllana, també a «Continua») i el servidor el desa com a missatge
+  propi, així que en recarregar el fil hi segueix sent. Versió 1.54.0-vents (166).
+
 - **L'APK porta el nom de l'app i la versió.** Gradle deixa de banda els
   «app-<abi>-debug.apk» i escriu `Gregal-Vents-<versió>[-<abi>].apk` (o
   `Gregal-Android-...` per a l'app d'escriptori), així que al mòbil i a les

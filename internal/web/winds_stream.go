@@ -210,6 +210,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 
 	emit("phase", map[string]string{"phase": "thinking"})
 	emit("activity", windActivity{Phase: "preparing"})
+	tornTexte := &tornText{}
 	turnStart := time.Now()
 	isContinue := req.Continue && len(previous) > 0
 	s.mu.Lock()
@@ -228,8 +229,10 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 				emitWindActivity(emit, text)
 			case "token":
 				tl.token()
+				tornTexte.token(text)
 				emit("token", map[string]string{"token": text})
 			case "phase":
+				tornTexte.fita()
 				emit("phase", map[string]string{"phase": streamPhase(text)})
 			}
 		}, previous)
@@ -241,8 +244,10 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 				emitWindActivity(emit, text)
 			case "token":
 				tl.token()
+				tornTexte.token(text)
 				emit("token", map[string]string{"token": text})
 			case "phase":
+				tornTexte.fita()
 				emit("phase", map[string]string{"phase": streamPhase(text)})
 			}
 		})
@@ -268,6 +273,11 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	history := append([]llm.Message(nil), hist.messages...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
+	}
+	// El que el vent ha escrit abans de les eines també és conversa: si només
+	// es desa la resposta final, en recarregar el fil desapareix.
+	for _, n := range tornTexte.narracions(reply) {
+		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	if err := saveWindHistory(s, wind, history); err != nil {
@@ -366,6 +376,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	turnStart := time.Now()
 	speakingWind := speakers[0]
 	var veuLog *turnLog // la veu que parla ara (un registre per veu)
+	tornTexte := &tornText{}
 	emitTokens := func(kind, text string) {
 		switch kind {
 		case "activity":
@@ -374,8 +385,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			if veuLog != nil {
 				veuLog.token()
 			}
+			tornTexte.token(text)
 			emit("token", map[string]string{"token": text})
 		case "phase":
+			tornTexte.fita()
 			emit("phase", map[string]string{"phase": streamPhase(text)})
 		}
 	}
@@ -388,6 +401,8 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	var lastErr error
 	parcial := false
 	for si, sp := range speakers {
+		// Cada veu té la seva narració: el text de l'anterior ja s'ha desat.
+		tornTexte = &tornText{}
 		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
 		emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
 		emit("activity", windActivity{Phase: "preparing"})
@@ -420,7 +435,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		cancel()
 		doneTurn()
 		veuLog.finish(err, tornAturat(err), res.parcial, &res.temps)
-		out := res.text
+		out := ambNarracions(tornTexte.narracions(res.text), res.text)
 		// Un torn que mor a mitges no és una resposta del vent: cau al
 		// xat pla com al clàssic (vegeu winds_rotllanes.go).
 		if err == nil && res.parcial && esRespostaMecanica(out) {

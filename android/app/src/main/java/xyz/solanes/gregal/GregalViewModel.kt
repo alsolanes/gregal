@@ -1647,22 +1647,30 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** La narració escrita abans d'una eina és part del treball, no la resposta. */
+    /**
+     * El raonament va al panell de treball. El text que ja s'ha vist, NO: es
+     * queda a la conversa. Abans s'esborrava el missatge (i el que s'estava
+     * escrivint) quan el model encara havia de cridar una eina, i es veia com
+     * si la resposta s'esborrés sola a mitges.
+     */
     private fun narrationToWork() {
         flushTokens()
         val live = _live.value.trim()
         _live.value = ""
         if (live.isNotEmpty()) step(StepKind.Note, oneLine(live, 140), detail = live)
-        val aid = answerId
-        if (aid != 0L) {
-            answerId = 0L
-            val cur = _msgs.value
-            val i = cur.indexOfLast { it.id == aid }
-            if (i >= 0) {
-                val t = cur[i].text
-                _msgs.value = cur.filterIndexed { k, _ -> k != i }
-                step(StepKind.Note, oneLine(t, 140), detail = t)
-            }
-        }
+        // El proper text serà un missatge nou, no continuació del que ja s'ha vist.
+        answerId = 0L
+    }
+
+    /** El text que s'està escrivint es tanca com a missatge abans de les eines. */
+    private fun settleLiveAsMessage() {
+        flushTokens()
+        val live = _live.value.trim()
+        if (live.isEmpty()) return
+        _live.value = ""
+        val m = ChatMsg("assistant", live)
+        answerId = m.id
+        push(m)
     }
 
     private fun endTurn(failed: Boolean) {
@@ -1750,7 +1758,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (t.isNotBlank() && !dup) step(StepKind.Think, appText("app.work.thought"), oneLine(t, 140), detail = t)
             }
             "tool_call" -> {
-                narrationToWork()
+                settleLiveAsMessage()
                 val name = f("name").ifEmpty { text.removePrefix("🔧").trim() }
                 val args = o.opt("args")?.toString().orEmpty()
                 val sum = summarizeTool(name, args, lang)
@@ -3038,7 +3046,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         live(rotllanaId) { it.copy(speaker = who) }
                                         // The shared status row identifies the speaker; do not add a fake reply bubble.
                                     } else {
-                                        buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                        // Una eina pel mig no esborra el que ja s'ha llegit.
+                                        commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
+                                        buf = ""
                                         live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                         dropStreamingBubble(rotllanaId, rotllana = true)
                                     }
@@ -4098,6 +4108,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             (cur + PetMsg("pet", buf, speakerId, speaker?.name.orEmpty(), ts = System.currentTimeMillis())))
     }
 
+    /**
+     * Tanca la bombolla en directe com a missatge del vent (una sola veu).
+     * Serveix a les fites del torn: una eina pel mig no esborra el que ja
+     * s'ha llegit, que és el que passava abans («tokens were speculative»).
+     */
+    private fun commitWindStreamBubble(windId: String, buf: String) {
+        if (buf.isBlank()) return
+        val w = _winds.value.firstOrNull { it.id == windId }
+        val cur = _windChat.value[windId].orEmpty().filterNot { it.streaming }
+        // Sense segell: l'historial del servidor tampoc no en porta, i el rebut
+        // del torn el posa qui tanca el fil (ventsRecency).
+        _windChat.value = _windChat.value + (windId to
+            (cur + PetMsg("pet", buf, windId, w?.name.orEmpty())))
+    }
+
     private fun dropStreamingBubble(windId: String, rotllana: Boolean = false) {
         if (rotllana) {
             val cur = _rotllanaChat.value[windId].orEmpty()
@@ -4206,7 +4231,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    // Una eina pel mig no esborra el que ja s'ha llegit.
+                                    commitWindStreamBubble(windId, buf)
+                                    buf = ""
                                     live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(windId)
                                 }
@@ -4289,7 +4316,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    // Una eina pel mig no esborra el que ja s'ha llegit.
+                                    commitWindStreamBubble(windId, buf)
+                                    buf = ""
                                     live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(windId)
                                 }
@@ -4378,7 +4407,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
-                                    buf = "" // legacy phase means a tool/speaker boundary: tokens were speculative
+                                    // Una eina pel mig no esborra el que ja s'ha llegit.
+                                    commitRotllanaStreamBubble(rotllanaId, buf, wind)
+                                    buf = ""
                                     live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(rotllanaId, rotllana = true)
                                 }
