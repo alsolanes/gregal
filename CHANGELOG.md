@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **El títol de la capçalera ja no queda tallat.** Amb el commutador de lloc, la
+  cerca i quatre botons més, a «Vents» li quedaven deu punts d'amplada i es
+  partia en dues lletres soltes («e» sobre «nt»). Les dues accions secundàries
+  (Explora i el directori) baixen a la fila dels filtres, a la dreta, i el títol
+  passa a una sola línia amb punts suspensius si mai no hi cap.
+  Versió 1.49.4-vents (156).
 - **L'APK tornava a arrencar el backend.** La 1.49.2 portava `libgregal.so`
   compilat com a biblioteca compartida (`-buildmode=c-shared`) en lloc del
   programa que l'app executa: el procés fill moria amb senyal 11 (`backend exited

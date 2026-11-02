@@ -238,7 +238,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             topBar = {
                 Column {
                     TopAppBar(
-                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink) },
+                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
                             IconButton(onClick = { if (manage) manage = false else openDrawer() }) {
                                 Icon(if (manage) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
@@ -248,15 +248,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         actions = {
                             if (!manage) {
                                 WhereChip(vm, lang) { whereOpen = true }
-                                IconButton(onClick = { exploreOpen = !exploreOpen }) {
-                                    Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
-                                }
                                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                                     Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
-                                }
-                                IconButton(onClick = { manage = true }) {
-                                    Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
                                 }
                             }
                             Box {
@@ -292,7 +286,20 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         )
                     }
                     if (!manage && !searching) {
-                        VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
+                        // Els tres filtres deixen espai a la dreta per a les dues
+                        // accions que abans omplien la capçalera: així el títol
+                        // («Vents») hi cap sencer en lloc de quedar tallat.
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) {
+                                VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
+                            }
+                            IconButton(onClick = { exploreOpen = !exploreOpen }) {
+                                Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
+                            }
+                            IconButton(onClick = { manage = true }, modifier = Modifier.padding(end = 6.dp)) {
+                                Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
+                            }
+                        }
                         if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"), pluginOn("arena"),
                             onCorner = { cornerOpen = true; exploreOpen = false },
                             onGames = { gamesOpen = true; exploreOpen = false },
