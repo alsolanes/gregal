@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.41.0 - 2026-11-02 - Vents vius
+
+- **Els vents tornen a moure's a Android.** Des del 31 d'octubre el «Moviment
+  expressiu» venia apagat per defecte i les cares quedaven quietes del tot (cap
+  píxel no canviava): sense respirar, parpellejar, parlar, reaccionar en tocar-les
+  ni seguir la inclinació del mòbil. Ara ve activat (l'opció «Elimina les
+  animacions» del sistema el continua aturant) i el repòs és més viu però calmat:
+  respiració que es veu, una mica de flotació i una mirada a cada costat de tant
+  en tant. Parlant, pensant, treballant o enllestint mantenen els seus gestos.
+  Versió 1.55.0-vents (167).
+
 - **El que el vent ja ha escrit no s'esborra.** Quan el model narrava alguna
   cosa i tot seguit cridava una eina, el text desapareixia de la conversa: el
   client llençava els tokens («tokens were speculative») i el servidor només

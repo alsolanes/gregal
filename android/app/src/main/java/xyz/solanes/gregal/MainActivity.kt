@@ -117,7 +117,9 @@ class Prefs(val ctx: Context) {
         set(v) { p.edit().putBoolean("capHome", v).apply() }
     /** Decorative face/composer motion is opt-in; event motion follows real work. */
     var expressiveMotion: Boolean
-        get() = p.getBoolean("expressiveMotion", false)
+        // Activat per defecte: amb la cara quieta els vents semblaven dibuixos.
+        // Android «Elimina les animacions» continua aturant-ho (windMotionEnabled).
+        get() = p.getBoolean("expressiveMotion", true)
         set(v) { p.edit().putBoolean("expressiveMotion", v).apply() }
     /**
      * Vents net: només els vents, sense les eines de programació (agent,

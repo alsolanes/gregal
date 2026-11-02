@@ -150,7 +150,16 @@ class MascotMinimalTest {
                 centers.getOrPut(tag) { mutableListOf() }.add((ys.first() + ys.last()) / 2f)
             }
         }
-        centers.forEach { (mood, ys) -> assertTrue("$mood should breathe, not bounce: $ys", ys.max() - ys.min() <= 1f) }
+        // En repòs suren una mica (es veu que són vius) però mai no salten:
+        // com a molt un 4 % de la mida. Parlant no suren.
+        centers.forEach { (mood, ys) ->
+            val range = ys.max() - ys.min()
+            if (mood == "TALKING") assertTrue("$mood should not float: $ys", range <= 2f)
+            else {
+                assertTrue("$mood should float gently, not bounce: $ys", range <= 128 * .04f)
+                assertTrue("$mood should not stand frozen: $ys", range >= 1f)
+            }
+        }
     }
 
     @Test fun idleSleepyFaceDoesNotEmitFloatingDecoration() {

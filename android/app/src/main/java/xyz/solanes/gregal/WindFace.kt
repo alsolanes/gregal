@@ -166,9 +166,11 @@ fun WindFace(
     LaunchedEffect(mood, motion) {
         if (mood == WindMood.DONE && motion) { doneHop.snapTo(0f); doneHop.animateTo(1f, tween(800)) } else doneHop.snapTo(1f)
     }
+    // En repòs sura una mica (amunt i avall en 4 s): un vent, no un adhesiu.
+    val calm = mood == WindMood.IDLE || mood == WindMood.HAPPY || mood == WindMood.NEWS
     val lift = when (mood) {
         WindMood.DONE -> -sin(PI.toFloat() * doneHop.value) * 7f
-        else -> 0f
+        else -> if (calm && motion) wave(4f) * 1.6f else 0f
     } / 80f
     val moodTilt = if (mood == WindMood.DISCUSSING) wave(3f) * 4f else 0f
     // On mira: cap a la insígnia, escombrant, llegint línies o la feina.
@@ -181,9 +183,15 @@ fun WindFace(
         }
         WindMood.WRITING -> 0f to 1f
         WindMood.DISCUSSING -> wave(3f) to 0f
+        // En repòs, de tant en tant una mirada a cada costat (cada 12 s, desfasat per vent).
+        WindMood.IDLE, WindMood.HAPPY -> when (phase(12f)) {
+            in .30f..0.40f -> -.7f to .1f
+            in .62f..0.70f -> .7f to .1f
+            else -> 0f to 0f
+        }
         else -> 0f to 0f
     }
-    // Rest is nearly still: breathing and an occasional blink, not a wandering gaze.
+    // Repòs: respira, sura, parpelleja i de tant en tant mira a un costat.
     val breath = wave(4f)
     // The stored specialty stays intact; small avatars show only their identity…
     // unless the caller opts in (the crew strip): picking a wind by its trade tool.
@@ -194,8 +202,9 @@ fun WindFace(
     Box(Modifier.graphicsLayer {
         transformOrigin = TransformOrigin(0.5f, 1f)
         translationY = lift * size.dp.toPx()
-        scaleX = punchScale.value * (1f - breath * 0.002f)
-        scaleY = punchScale.value * (1f + breath * 0.004f)
+        // Respiració que es veu (±1,5 % d'alçada), com el pit que s'infla.
+        scaleX = punchScale.value * (1f - breath * 0.008f)
+        scaleY = punchScale.value * (1f + breath * 0.015f)
         rotationZ = tilt * 5f + moodTilt
     }.then(if (tappable) Modifier.clickable { punch++ } else Modifier)) {
     Canvas(Modifier.size(size.dp)) {

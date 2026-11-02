@@ -340,7 +340,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val idioma: StateFlow<String> = _idioma
     private val _idiomaChoice = MutableStateFlow("system")
     val idiomaChoice: StateFlow<String> = _idiomaChoice
-    private val _expressiveMotion = MutableStateFlow(false)
+    private val _expressiveMotion = MutableStateFlow(true)
     val expressiveMotion: StateFlow<Boolean> = _expressiveMotion
 
     /**
