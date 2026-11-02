@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **El xat no fa salts mentre arriba la resposta.** El text del darrer missatge
+  creix a cada token i els elements de sobre (barra de treball, narracions)
+  canvien d'alçada: la llista mantenia el desplaçament i el que estaves llegint
+  anava amunt i avall. Ara, mentre s'escriu, el final queda fixat a baix sense
+  animació (abans cada missatge nou engegava una animació que xocava amb la
+  següent). Versió 1.55.1-vents (168).
+
 - **Els vents poden fer el commit.** Un commit local dins del seu projecte ja no
   queda «pendent d'aprovació»: el xat del vent no té cap finestra on confirmar-lo
   i la feina s'acabava dient «feta» sense commit, amb una nota d'aprovació que

@@ -69,6 +69,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.layout.onSizeChanged
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.TextRange
@@ -968,6 +969,15 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         } else {
             listState.followLatest()
         }
+    }
+    // El text del darrer missatge creix a cada token i els elements de sobre
+    // (barra de treball, narracions) canvien d'alçada: la llista manté el
+    // desplaçament i el que llegeixes va saltant. Mentre s'escriu, el final es
+    // queda fixat a baix de tot, sense animació i amb una sola passada.
+    LaunchedEffect(wind.id) {
+        snapshotFlow { msgs.size to (msgs.lastOrNull()?.text?.length ?: 0) }
+            .conflate()
+            .collect { if (openedAtEnd) listState.followLatest() }
     }
 
     val isBusy = busy.contains(wind.id)
@@ -2050,7 +2060,7 @@ internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
 }
 
 /** Segueix el final només si ja hi érem: si llegeixes enrere, no et mou. */
-internal suspend fun LazyListState.followLatest(animate: Boolean = true) {
+internal suspend fun LazyListState.followLatest(animate: Boolean = false) {
     if (!atLatest()) return
     val last = layoutInfo.totalItemsCount - 1
     if (last < 0) return
