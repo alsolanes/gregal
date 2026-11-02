@@ -49,13 +49,18 @@ sudo -n gregalctl accounts
 sudo -n gregalctl invite  # codi d’un sol ús, vàlid durant 30 minuts
 printf '%s\n' "$CONTRASENYA" | sudo -n gregalctl account-create anna
 printf '%s\n' "$CONTRASENYA_NOVA" | sudo -n gregalctl account-password anna
+sudo -n gregalctl account-delete anna
 sudo -n gregalctl backup
 ```
 
 Les contrasenyes es llegeixen de l'entrada estàndard; les variables de
 l'exemple s'han d'obtenir d'un canal segur, sense posar valors literals a
 l'historial. `account-password` canvia comptes creats amb el panell o el
-terminal i invalida les seves sessions. L'administrador inicial, definit al
+terminal i invalida les seves sessions. `account-delete` (o «Esborra el compte»
+al panell) treu el compte i en tanca les sessions; la seva carpeta i el seu
+estat no s'esborren, s'aparten amb el sufix `.deleted-<data>`, així que un
+compte nou amb el mateix nom comença buit. Els noms no distingeixen
+majúscules: si existeix `Anna`, no es pot crear `anna`. L'administrador inicial, definit al
 config, utilitza l'ordre següent i reinicia el servei; aquesta via antiga no
 revoca automàticament les sessions existents:
 

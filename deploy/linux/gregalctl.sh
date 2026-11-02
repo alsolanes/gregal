@@ -9,6 +9,7 @@ usage() {
   invite                         Genera un codi d’un sol ús (30 minuts)
   account-create NOM             Crea un compte; contrasenya per stdin
   account-password NOM           Canvia la contrasenya d'un compte gestionat; per stdin
+  account-delete NOM             Esborra un compte gestionat (les dades s'aparten)
   backup [DIRECTORI]             Còpia coherent i reinici si estava en marxa
 
 Exemple interactiu (no escriu la contrasenya a l'historial):
@@ -34,8 +35,8 @@ case "$command" in
   trap 'restart' EXIT
   if [ "$#" = 1 ]; then sh "$dir/backup.sh" "$1"; else sh "$dir/backup.sh"; fi
   restart; trap - EXIT ;;
- accounts|invite|account-create|account-password)
-  case "$command:$#" in accounts:0|invite:0|account-create:1|account-password:1) ;; *) usage >&2; exit 2 ;; esac
+ accounts|invite|account-create|account-password|account-delete)
+  case "$command:$#" in accounts:0|invite:0|account-create:1|account-password:1|account-delete:1) ;; *) usage >&2; exit 2 ;; esac
   command -v curl >/dev/null 2>&1 || { echo 'Cal curl.' >&2; exit 1; }
   command -v python3 >/dev/null 2>&1 || { echo 'Cal python3.' >&2; exit 1; }
   [ -r /etc/gregal/env ] || { echo 'No es troba /etc/gregal/env.' >&2; exit 1; }
@@ -51,9 +52,12 @@ case "$command" in
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -o "$tmp/result" -w '%{http_code}' "$url")
   elif [ "$command" = invite ]; then
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -X POST -o "$tmp/result" -w '%{http_code}' "http://127.0.0.1:$port/api/server/invitations")
+  elif [ "$command" = account-delete ]; then
+   python3 -c 'import json,sys; json.dump({"name":sys.argv[1],"action":"delete"},sys.stdout)' "$1" >"$tmp/body"
+   code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -H 'Content-Type: application/json' --data-binary "@$tmp/body" -o "$tmp/result" -w '%{http_code}' "$url")
   else
    action=create; [ "$command" = account-password ] && action=reset
-   python3 -c 'import json,sys; p=sys.stdin.readline(1026).rstrip("\r\n"); (len(p)>=12 and len(p.encode())<=1024) or sys.exit("La contrasenya ha de tenir entre 12 caràcters i 1024 bytes."); json.dump({"name":sys.argv[1],"action":sys.argv[2],"password":p},sys.stdout)' "$1" "$action" >"$tmp/body"
+   python3 -c 'import json,sys; p=sys.stdin.readline(1026).rstrip("\r\n"); (len(p)>=8 and len(p.encode())<=1024) or sys.exit("La contrasenya ha de tenir entre 8 caràcters i 1024 bytes."); json.dump({"name":sys.argv[1],"action":sys.argv[2],"password":p},sys.stdout)' "$1" "$action" >"$tmp/body"
    code=$(curl --noproxy '*' --silent --show-error --max-time 30 --config "$tmp/curl.conf" -H 'Content-Type: application/json' --data-binary "@$tmp/body" -o "$tmp/result" -w '%{http_code}' "$url")
   fi
   cat "$tmp/result"; printf '\n'

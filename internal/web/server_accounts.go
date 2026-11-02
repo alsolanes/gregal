@@ -10,8 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"gregal/internal/config"
 	"gregal/internal/identity"
@@ -153,6 +155,7 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 		for name, d := range u.defs {
 			out = append(out, entry{Name: name, Managed: managed[name], Admin: d.Admin})
 		}
+		sort.Slice(out, func(i, j int) bool { return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name) })
 		writeJSON(w, map[string]any{"accounts": out})
 	case http.MethodPost:
 		var req struct {
@@ -164,76 +167,210 @@ func (s *Server) handleServerAccounts(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		req.Name = strings.TrimSpace(req.Name)
-		if !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") || len(req.Password) < minPasswordLen || len(req.Password) > 1024 {
-			http.Error(w, "invalid username or password (minimum "+strconv.Itoa(minPasswordLen)+" characters)", 400)
+		if !managedName.MatchString(req.Name) || strings.EqualFold(req.Name, "local") {
+			http.Error(w, "invalid username", 400)
 			return
 		}
-		hash := HashPassword(req.Password)
-		u.mu.Lock()
-		defer u.mu.Unlock()
-		list, err := readManaged()
-		if err != nil {
-			http.Error(w, "cannot read accounts", 500)
-			return
-		}
-		if req.Action == "reset" {
-			if !u.managedNames[req.Name] {
-				http.Error(w, "account is not managed here", 404)
+		switch req.Action {
+		case "", "create", "reset":
+			if len(req.Password) < minPasswordLen || len(req.Password) > 1024 {
+				http.Error(w, "invalid username or password (minimum "+strconv.Itoa(minPasswordLen)+" characters)", 400)
 				return
 			}
-			for i := range list {
-				if list[i].Name != req.Name {
-					continue
-				}
-				for token, name := range u.tokens {
-					if name == req.Name {
-						list[i].Revoked = append(list[i].Revoked, tokenDigest(token))
-					}
-				}
-				list[i].Password = hash
-				if err := writeManaged(list); err != nil {
-					http.Error(w, "cannot save account", 500)
-					return
-				}
-				for token, name := range u.tokens {
-					if name == req.Name {
-						u.revokedManaged[tokenDigest(token)] = true
-						delete(u.tokens, token)
-					}
-				}
-				d := u.defs[req.Name]
-				d.Password = hash
-				u.defs[req.Name] = d
-				writeJSON(w, map[string]any{"name": req.Name})
-				return
-			}
-			http.Error(w, "account is not managed here", 404)
-			return
-		}
-		if req.Action != "" && req.Action != "create" {
+		case "delete":
+		default:
 			http.Error(w, "unknown action", 400)
 			return
 		}
-		if code, err := u.createManagedLocked(root, req.Name, hash, list); err != nil {
-			http.Error(w, err.Error(), code)
-			return
+		switch req.Action {
+		case "reset":
+			if code, err := u.resetManaged(req.Name, HashPassword(req.Password)); err != nil {
+				http.Error(w, err.Error(), code)
+				return
+			}
+			writeJSON(w, map[string]any{"name": req.Name})
+		case "delete":
+			if code, err := u.deleteManaged(req.Name); err != nil {
+				http.Error(w, err.Error(), code)
+				return
+			}
+			// The data stays on disk for the administrator, but a new account
+			// with the same name must not inherit it.
+			archived := archiveDir(managedDefinition(root, managedAccount{Name: req.Name}).Home) &&
+				archiveDir(userStateDir(s.cfgPath, req.Name))
+			writeJSON(w, map[string]any{"name": req.Name, "deleted": true, "archived": archived})
+		default:
+			hash := HashPassword(req.Password)
+			u.mu.Lock()
+			list, err := readManaged()
+			code := 500
+			if err == nil {
+				code, err = u.createManagedLocked(root, req.Name, hash, list)
+			} else {
+				err = errors.New("cannot read accounts")
+			}
+			u.mu.Unlock()
+			if err != nil {
+				http.Error(w, err.Error(), code)
+				return
+			}
+			writeJSON(w, map[string]any{"name": req.Name})
 		}
-		writeJSON(w, map[string]any{"name": req.Name})
 	default:
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, fmt.Sprintf("method %s not allowed", r.Method), 405)
 	}
 }
 
-// Caller holds u.mu. The account registry is committed before it becomes live.
-func (u *Users) createManagedLocked(root, name, hash string, list []managedAccount) (int, error) {
-	if _, exists := u.defs[name]; exists {
-		return 409, errors.New("account already exists")
+// nameTakenLocked diu si el nom ja és d'algú, sense distingir majúscules:
+// «Anna» i «anna» serien dues persones amb noms que ningú no sap separar.
+// Caller holds u.mu.
+func (u *Users) nameTakenLocked(name string, list []managedAccount) bool {
+	for existing := range u.defs {
+		if strings.EqualFold(existing, name) {
+			return true
+		}
 	}
 	for _, a := range list {
-		if a.Name == name {
-			return 409, errors.New("account already exists")
+		if strings.EqualFold(a.Name, name) {
+			return true
 		}
+	}
+	return false
+}
+
+// dropTokensLocked tanca totes les sessions d'un usuari. Caller holds u.mu.
+func (u *Users) dropTokensLocked(name string) (digests []string) {
+	for token, owner := range u.tokens {
+		if owner == name {
+			digests = append(digests, tokenDigest(token))
+			delete(u.tokens, token)
+		}
+	}
+	return digests
+}
+
+// resetManaged canvia la contrasenya i tanca les sessions obertes. Les
+// empremtes de les sessions tancades es desen amb la contrasenya nova només
+// fins que el fitxer de tokens ja no les té: protegeixen d'una caiguda entre
+// les dues escriptures, i després s'esborren perquè la llista no creixi.
+func (u *Users) resetManaged(name, hash string) (int, error) {
+	u.mu.Lock()
+	if !u.managedNames[name] {
+		u.mu.Unlock()
+		return 404, errors.New("account is not managed here")
+	}
+	list, err := readManaged()
+	if err != nil {
+		u.mu.Unlock()
+		return 500, errors.New("cannot read accounts")
+	}
+	i := managedIndex(list, name)
+	if i < 0 {
+		u.mu.Unlock()
+		return 404, errors.New("account is not managed here")
+	}
+	var digests []string
+	for token, owner := range u.tokens {
+		if owner == name {
+			digests = append(digests, tokenDigest(token))
+		}
+	}
+	list[i].Password = hash
+	list[i].Revoked = append(list[i].Revoked, digests...)
+	if err := writeManaged(list); err != nil {
+		u.mu.Unlock()
+		return 500, errors.New("cannot save account")
+	}
+	for _, d := range u.dropTokensLocked(name) {
+		u.revokedManaged[d] = true
+	}
+	d := u.defs[name]
+	d.Password = hash
+	u.defs[name] = d
+	u.mu.Unlock()
+	if u.saveTokens() == nil {
+		u.forgetRevoked(name)
+	}
+	return 0, nil
+}
+
+// forgetRevoked esborra les empremtes d'un compte un cop el fitxer de tokens
+// ja no conté cap d'aquelles sessions.
+func (u *Users) forgetRevoked(name string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	list, err := readManaged()
+	if err != nil {
+		return
+	}
+	i := managedIndex(list, name)
+	if i < 0 || len(list[i].Revoked) == 0 {
+		return
+	}
+	for _, d := range list[i].Revoked {
+		delete(u.revokedManaged, d)
+	}
+	list[i].Revoked = nil
+	_ = writeManaged(list)
+}
+
+// deleteManaged treu un compte gestionat i en tanca les sessions. Un token
+// d'un nom que ja no existeix no es torna a carregar, així que no cal
+// recordar-ne cap empremta.
+func (u *Users) deleteManaged(name string) (int, error) {
+	u.mu.Lock()
+	if !u.managedNames[name] {
+		u.mu.Unlock()
+		return 404, errors.New("account is not managed here")
+	}
+	list, err := readManaged()
+	if err != nil {
+		u.mu.Unlock()
+		return 500, errors.New("cannot read accounts")
+	}
+	i := managedIndex(list, name)
+	if i < 0 {
+		u.mu.Unlock()
+		return 404, errors.New("account is not managed here")
+	}
+	for _, d := range list[i].Revoked {
+		delete(u.revokedManaged, d)
+	}
+	if err := writeManaged(append(list[:i:i], list[i+1:]...)); err != nil {
+		u.mu.Unlock()
+		return 500, errors.New("cannot save accounts")
+	}
+	delete(u.defs, name)
+	delete(u.managedNames, name)
+	u.dropTokensLocked(name)
+	u.mu.Unlock()
+	_ = u.saveTokens()
+	return 0, nil
+}
+
+func managedIndex(list []managedAccount, name string) int {
+	for i := range list {
+		if list[i].Name == name {
+			return i
+		}
+	}
+	return -1
+}
+
+// archiveDir aparta una carpeta d'un compte esborrat amb un nom que cap
+// compte nou no pot reclamar. Torna true si no hi havia res o s'ha apartat.
+func archiveDir(dir string) bool {
+	if _, err := os.Lstat(dir); os.IsNotExist(err) {
+		return true
+	}
+	return os.Rename(dir, dir+".deleted-"+strconv.FormatInt(time.Now().Unix(), 10)) == nil
+}
+
+// Caller holds u.mu. The account registry is committed before it becomes live.
+func (u *Users) createManagedLocked(root, name, hash string, list []managedAccount) (int, error) {
+	if u.nameTakenLocked(name, list) {
+		return 409, errors.New("account already exists")
 	}
 	account := managedAccount{Name: name, Password: hash}
 	def := managedDefinition(root, account)

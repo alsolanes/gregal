@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- **Es poden esborrar comptes del servidor.** Al panell («Esborra el compte»),
+  amb `gregalctl account-delete NOM` o amb `{action:"delete"}` a
+  `/api/server/accounts`. Se'n tanquen les sessions i les dades s'aparten
+  (`.deleted-<data>`) en lloc d'esborrar-se, perquè un compte nou amb el mateix
+  nom no hereti els fitxers ni la memòria de l'anterior.
+- **Noms de compte sense duplicats per majúscules.** `Anna` i `anna` ja no poden
+  ser dos comptes diferents, ni des del panell ni amb una invitació.
+- **Canviar una contrasenya ja no fa créixer el fitxer de comptes.** Les sessions
+  tancades s'esborren del fitxer de tokens, i les empremtes que les bloquejaven
+  només hi queden fins aleshores. Les escriptures del fitxer de tokens ara van
+  en fila, perquè un login simultani no hi pugui tornar a escriure una sessió
+  tancada.
+- **`gregalctl` accepta contrasenyes de 8 caràcters**, com la web i l'app (en
+  demanava 12). La llista de comptes surt ordenada per nom.
+
 - **El títol de la capçalera ja no queda tallat.** Amb el commutador de lloc, la
   cerca i quatre botons més, a «Vents» li quedaven deu punts d'amplada i es
   partia en dues lletres soltes («e» sobre «nt»). Les dues accions secundàries

@@ -130,15 +130,9 @@ func (s *Server) handleServerRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "cannot read accounts", 500)
 		return
 	}
-	if _, ok := u.defs[req.Name]; ok {
+	if u.nameTakenLocked(req.Name, list) {
 		http.Error(w, "account already exists", 409)
 		return
-	}
-	for _, a := range list {
-		if a.Name == req.Name {
-			http.Error(w, "account already exists", 409)
-			return
-		}
 	}
 	if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		http.Error(w, "cannot use invitation", 500)

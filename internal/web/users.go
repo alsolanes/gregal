@@ -67,6 +67,10 @@ type Users struct {
 	revokedManaged map[string]bool // hashes of tokens revoked by a managed password reset
 	path           string          // fitxer de tokens emesos (0600)
 	pwPath         string          // fitxer de contrasenyes (0600)
+	// tokensFile serialitza les escriptures del fitxer de tokens: la foto es
+	// fa amb el fitxer agafat, i així una foto vella no pot trepitjar una de
+	// nova (p. ex. un login que torna a escriure sessions ja tancades).
+	tokensFile sync.Mutex
 
 	// intents compten els intents fallits per adreça, perquè una
 	// contrasenya no es pugui anar provant a dojo.
@@ -198,6 +202,7 @@ func NewUsers(cfg *config.Config, cfgPath string) *Users {
 	u.loadManagedAccounts()
 	u.loadPasswords()
 	u.loadTokens()
+	u.purgeRevokedTokens()
 	return u
 }
 
@@ -408,7 +413,10 @@ func (u *Users) loadTokens() {
 
 // saveTokens desa els tokens emesos perquè un reinici del servidor no
 // expulsi tothom. El fitxer va a 0600: un token és una clau.
-func (u *Users) saveTokens() {
+// No s'ha de cridar amb u.mu agafat.
+func (u *Users) saveTokens() error {
+	u.tokensFile.Lock()
+	defer u.tokensFile.Unlock()
 	u.mu.RLock()
 	cp := make(map[string]string, len(u.tokens))
 	for k, v := range u.tokens {
@@ -417,16 +425,33 @@ func (u *Users) saveTokens() {
 	u.mu.RUnlock()
 	raw, err := json.MarshalIndent(cp, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(u.path), 0o700); err != nil {
-		return
+		return err
 	}
 	tmp := u.path + ".tmp"
-	if os.WriteFile(tmp, append(raw, '\n'), 0o600) != nil {
-		return
+	if err := os.WriteFile(tmp, append(raw, '\n'), 0o600); err != nil {
+		return err
 	}
-	_ = os.Rename(tmp, u.path)
+	return os.Rename(tmp, u.path)
+}
+
+// purgeRevokedTokens treu del fitxer les sessions tancades per un canvi de
+// contrasenya que una caiguda hi hagués pogut deixar.
+func (u *Users) purgeRevokedTokens() {
+	u.mu.Lock()
+	dropped := false
+	for tok := range u.tokens {
+		if u.revokedManaged[tokenDigest(tok)] {
+			delete(u.tokens, tok)
+			dropped = true
+		}
+	}
+	u.mu.Unlock()
+	if dropped {
+		_ = u.saveTokens()
+	}
 }
 
 func tokenNou() (string, error) {
