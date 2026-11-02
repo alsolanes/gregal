@@ -78,11 +78,39 @@ object WindWatch {
      */
     fun wanted(ctx: Context): Boolean = NotificationOrigins.remote(Prefs(ctx)) != null
 
+    private const val KEY_DUE = "due"
+    /** Marge després de l'hora de l'avís: el servidor el fa sonar i el desa. */
+    const val DUE_GRACE_MS = 30_000L
+
+    /** Avisos pendents (ms), els que encara no han passat. */
+    fun dueTimes(ctx: Context, now: Long = System.currentTimeMillis()): List<Long> =
+        prefs(ctx).getStringSet(KEY_DUE, emptySet()).orEmpty().mapNotNull { it.toLongOrNull() }
+            .filter { it + DUE_GRACE_MS > now }.sorted()
+
+    /**
+     * Un vent ha programat avisos al servidor: la propera passada es fa just
+     * després de l'hora, no d'aquí a 15 minuts (un «d'aquí a 2 minuts» arribava tard).
+     */
+    fun expect(ctx: Context, times: List<Long>) {
+        if (times.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val keep = (dueTimes(ctx, now) + times.filter { it + DUE_GRACE_MS > now }).distinct().takeLast(32)
+        prefs(ctx).edit().putStringSet(KEY_DUE, keep.map { it.toString() }.toSet()).apply()
+        schedule(ctx)
+    }
+
+    /** Quan toca la passada: el primer avís pendent si arriba abans que l'interval. */
+    fun nextCheckDelay(delayMs: Long, due: List<Long>, now: Long): Long {
+        val first = due.firstOrNull { it + DUE_GRACE_MS > now } ?: return delayMs
+        return minOf(delayMs, maxOf(5_000L, first + DUE_GRACE_MS - now))
+    }
+
     /** Programa la propera passada (exacta si es pot, si no inexacta). */
     fun schedule(ctx: Context, delayMs: Long = INTERVAL_MS) {
         if (!wanted(ctx)) return
         val am = ctx.getSystemService(AlarmManager::class.java)
-        val at = System.currentTimeMillis() + delayMs
+        val now = System.currentTimeMillis()
+        val at = now + nextCheckDelay(delayMs, dueTimes(ctx, now), now)
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && am.canScheduleExactAlarms())
                 am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending(ctx))
@@ -150,7 +178,7 @@ class WindWatchService : Service() {
         try {
             if (!WindWatch.wanted(applicationContext)) return
             val p = Prefs(applicationContext)
-            if (p.host.isBlank()) return
+            if (p.host.isBlank() || p.token.isBlank()) return
             val wake = getSystemService(PowerManager::class.java)
                 .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "gregal:windwatch")
             wake.acquire(60_000L)
@@ -160,6 +188,9 @@ class WindWatchService : Service() {
                 val noves = try { api.windNovetats(desDe) } catch (_: Exception) { return }
                 val (perVent, nouTs) = WindWatchLogic.noves(noves, desDe)
                 WindWatch.saveTs(this, nouTs)
+                // Primera passada en aquest servidor/compte: només marca on som.
+                // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
+                if (desDe == 0L) return
                 aviat = try { api.windTasks().any { it.running } } catch (_: Exception) { false }
                 if (perVent.isEmpty() || AppVisibility.foreground) return
                 if (!WindNotifications.canNotify(this)) return

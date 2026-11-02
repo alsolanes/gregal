@@ -128,6 +128,40 @@ mateixa a cada arrencada.
 
 Fora de casa, el punt de l'interruptor es posa vermell i continues al mòbil.
 
+## Dues persones al mateix servidor (Gregal Vents)
+
+Cada persona té el seu compte, amb els seus vents, converses, memòria i
+recordatoris. Ningú no veu els de l'altre.
+
+1. **El servidor amb comptes.** L'instal·lador ja hi posa `GREGAL_ACCOUNTS_DIR`
+   i el compte d'administrador (`sudo sh setup.sh`). Si el fas córrer a mà,
+   posa-hi una carpeta absoluta:
+   `GREGAL_ACCOUNTS_DIR=/ruta/comptes gregal --serve --addr 0.0.0.0`.
+2. **L'administrador entra al mòbil.** Gregal Vents → **Afegeix un servidor** →
+   adreça (i port, si no és `https://`) → pestanya **Entra** amb el seu usuari
+   i contrasenya.
+3. **Convida l'altra persona.** Al mòbil: **Preferències → Convida algú →
+   Genera un codi d'invitació → Comparteix la invitació**. El missatge porta
+   l'adreça del servidor i el codi, que caduca en 30 minuts i només val una
+   vegada. També es pot fer des de la web (Preferències → Comptes del
+   servidor) o amb `sudo gregalctl invite`.
+4. **L'altra persona** instal·la l'APK de Gregal Vents (de la release de
+   GitHub), toca **Afegeix un servidor**, escriu l'adreça, tria **Tinc
+   invitació** i hi posa un nom, una contrasenya (mínim 8 caràcters) i el codi.
+   Entra directament.
+5. **Primer cop.** Un compte nou no té vents: la portada ofereix la **colla del
+   dia a dia** (compres, llibres, esports, música i organització) d'un toc, o
+   crear-ne un de propi. Cada xat buit proposa tres primeres preguntes.
+
+Els recordatoris («recorda'm d'aquí a 10 minuts…») els fa sonar el servidor, i
+el mòbil programa la seva comprovació just després de l'hora, de manera que la
+notificació arriba a temps encara que l'app estigui tancada.
+
+Per sortir: menú → **Surt del compte**. Si l'administrador canvia la
+contrasenya o esborra el compte, l'app torna a la pantalla d'entrar i diu per
+què. Per canviar una contrasenya oblidada: `sudo gregalctl account-password NOM`
+o el panell web.
+
 ## A internet (una màquina sempre encesa amb el teu domini)
 
 Per arribar-hi des de qualsevol lloc cal un domini amb HTTPS. Necessites:

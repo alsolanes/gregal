@@ -59,6 +59,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -113,6 +115,12 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         Icons.Rounded.AutoAwesome, t("app.prefs.model"),
                         st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
                     )
+                }
+                // Convidar algú (la Carla) des del mòbil: abans calia la web.
+                val admin by vm.isAdmin.collectAsState()
+                if (!conn.local && admin) {
+                    Spacer(Modifier.height(10.dp))
+                    InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
                 }
                 Spacer(Modifier.height(12.dp))
 
@@ -314,5 +322,36 @@ private fun TemaMostra(tem: GregalTema, fosc: Boolean, triat: Boolean, nom: Stri
             nom, color = if (triat) p.sea else p.text, fontSize = 12.sp, maxLines = 1,
             fontWeight = if (triat) FontWeight.SemiBold else FontWeight.Normal,
         )
+    }
+}
+
+
+/** Genera un codi d'un sol ús i el comparteix amb l'adreça del servidor. */
+@Composable
+private fun InviteCard(vm: GregalViewModel, lang: String, server: String) {
+    val ctx = LocalContext.current
+    var code by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    GCard(Modifier.fillMaxWidth()) {
+        Text(tr(lang, "app.invite.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(4.dp))
+        Text(tr(lang, "app.invite.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Spacer(Modifier.height(10.dp))
+        if (code.isNotEmpty()) {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(code, color = Ink, fontSize = 15.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+            }
+            Spacer(Modifier.height(8.dp))
+            androidx.compose.material3.Button(onClick = {
+                val text = tr(lang, "app.invite.share", server, code)
+                val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain").putExtra(android.content.Intent.EXTRA_TEXT, text)
+                ctx.startActivity(android.content.Intent.createChooser(send, tr(lang, "app.invite.title")))
+            }, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.invite.shareButton")) }
+        } else {
+            androidx.compose.material3.OutlinedButton(onClick = {
+                busy = true
+                vm.createInvitation { code = it; busy = false }
+            }, enabled = !busy, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) { Text(tr(lang, "app.invite.create")) }
+        }
     }
 }

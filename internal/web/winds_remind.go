@@ -58,19 +58,21 @@ func remindJobWind(jobID string) (string, bool) {
 
 // remindEvent és una crida real a l'eina: la prova que el vent ha actuat.
 type remindEvent struct {
-	wind string
-	at   string // "02/01 15:04"
-	text string
-	when time.Time
+	owner  string // compte que l'ha demanat ("" en local): dos comptes poden tenir el mateix vent
+	wind   string
+	at     string // "02/01 15:04"
+	atTime time.Time
+	text   string
+	when   time.Time
 }
 
 var remindEventsMu sync.Mutex
 var remindEvents []remindEvent
 
-func recordRemindEvent(windID string, at time.Time, text string) {
+func recordRemindEvent(owner, windID string, at time.Time, text string) {
 	remindEventsMu.Lock()
 	defer remindEventsMu.Unlock()
-	remindEvents = append(remindEvents, remindEvent{windID, at.Format("02/01 15:04"), text, time.Now()})
+	remindEvents = append(remindEvents, remindEvent{owner, windID, at.Format("02/01 15:04"), at, text, time.Now()})
 	// Anell curt: només cal el torn en curs.
 	if len(remindEvents) > 32 {
 		remindEvents = remindEvents[len(remindEvents)-32:]
@@ -79,13 +81,15 @@ func recordRemindEvent(windID string, at time.Time, text string) {
 
 // remindActionsSince torna els avisos que aquest vent ha programat des de t0:
 // el xat els mostra i l'usuari veu que l'eina s'ha cridat de debò.
-func remindActionsSince(windID string, t0 time.Time) []map[string]string {
+// at_iso és el moment exacte (RFC3339): l'app connectada a un servidor
+// hi programa la propera passada perquè l'avís no arribi tard.
+func remindActionsSince(owner, windID string, t0 time.Time) []map[string]string {
 	remindEventsMu.Lock()
 	defer remindEventsMu.Unlock()
 	var out []map[string]string
 	for _, e := range remindEvents {
-		if e.wind == windID && !e.when.Before(t0) {
-			out = append(out, map[string]string{"kind": "remind", "at": e.at, "text": e.text})
+		if e.owner == owner && e.wind == windID && !e.when.Before(t0) {
+			out = append(out, map[string]string{"kind": "remind", "at": e.at, "at_iso": e.atTime.Format(time.RFC3339), "text": e.text})
 		}
 	}
 	return out
@@ -157,10 +161,7 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	if len([]rune(msg)) > remindMaxText {
 		return jobs.Job{}, fmt.Errorf("text massa llarg")
 	}
-	owner := ""
-	if s.user != nil && !s.user.Tothom {
-		owner = s.user.Name
-	}
+	owner := s.remindOwner()
 	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().Unix())
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: "Recordatori " + w.Name, Prompt: msg,
@@ -173,8 +174,16 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	if err != nil {
 		return jobs.Job{}, err
 	}
-	recordRemindEvent(w.ID, moment, msg)
+	recordRemindEvent(owner, w.ID, moment, msg)
 	return j, nil
+}
+
+// remindOwner és el compte d'aquesta sessió ("" en local o per a tothom).
+func (s *Server) remindOwner() string {
+	if s.user != nil && !s.user.Tothom {
+		return s.user.Name
+	}
+	return ""
 }
 
 type remindServerKey struct{}

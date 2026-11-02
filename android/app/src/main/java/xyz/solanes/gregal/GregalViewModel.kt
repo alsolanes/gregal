@@ -364,6 +364,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // A partir d'aquí totes les peticions van a la sessió del mòbil, no a
         // la `default` (la pestanya «principal» de la web).
         sessioApp = p.appSession.ifBlank { "mobil" }
+        // Un 401 de la connexió d'ara vol dir que la sessió ja no val
+        // (contrasenya canviada, compte esborrat, sessió tancada): cap a entrar.
+        GregalApi.onUnauthorized = { base, token -> viewModelScope.launch { sessionExpired(base, token) } }
     }
 
     fun setTema(v: String) {
@@ -647,9 +650,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Connecta amb el token (servidor sense comptes d'usuari). */
     fun connectRemote(host: String, port: String, token: String) {
         if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
-        val user = prefsStore?.usuari.orEmpty()
-        prefsStore?.save(host, port, token, user)
-        useRemote(Conn(host, port, token, user))
+        // La clau no és de cap compte: el nom d'un compte d'abans no hi pinta res.
+        _usuari.value = ""
+        prefsStore?.save(host, port, token, "")
+        useRemote(Conn(host, port, token, ""))
         connect { go(Screen.Company) }
     }
 
@@ -657,7 +661,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun startSaved(p: Prefs) {
         when {
             p.target == Prefs.TARGET_LOCAL && localAvailable() -> useThisDevice(retries = 3)
-            p.host.isNotBlank() -> {
+            // Sense token (has sortit o la sessió ha caducat) toca entrar de nou.
+            p.host.isNotBlank() && p.token.isNotBlank() -> {
                 setConn(Conn(p.host, p.port, p.token, p.usuari))
                 WindWatch.schedule(appContext)
                 connect(retries = 8) { go(landing()) }
@@ -667,6 +672,51 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Torna a la pantalla de connexió per triar un altre servidor. */
     fun switchServer() = disconnect()
+
+    /** Crea un codi d'invitació (només l'admin d'un servidor amb comptes). */
+    fun createInvitation(onCode: (String) -> Unit) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val code = withContext(Dispatchers.IO) { c.api().createInvitation() }
+                if (code.isNotBlank()) onCode(code) else notify(appText("app.invite.failed", ""))
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.invite.failed", if ((e.message ?: "").contains("404")) appText("app.invite.notConfigured") else e.message.orEmpty().take(120)))
+            }
+        }
+    }
+
+    /** Hi ha un compte (usuari i contrasenya) obert en aquest servidor. */
+    fun signedInWithAccount(): Boolean = !_conn.value.local && _conn.value.user.isNotBlank()
+
+    /**
+     * Surt del compte: tanca la sessió al servidor i oblida el token en
+     * aquest mòbil. L'adreça i el nom es queden per tornar a entrar d'un toc.
+     */
+    fun signOut() {
+        val c = _conn.value
+        if (c.local || workPreventsOriginSwitch()) { if (!c.local) warnOriginBusy(); return }
+        viewModelScope.launch(Dispatchers.IO) { runCatching { c.api().logout() } }
+        prefsStore?.save(c.host, c.port, "", c.user)
+        disconnect()
+        _signInReason.value = appText("app.server.signedOut")
+    }
+
+    private val _signInReason = MutableStateFlow("")
+    /**
+     * Per què tornes a la pantalla d'entrar (has sortit, la sessió ha caducat).
+     * No va pel snackbar: la pantalla que marxa se l'enduia abans de mostrar-lo.
+     */
+    val signInReason: StateFlow<String> = _signInReason
+
+    private fun sessionExpired(base: String, token: String) {
+        val c = _conn.value
+        if (c.local || !_connected.value || c.token != token || baseUrlOf(c.host, c.port) != base) return
+        prefsStore?.save(c.host, c.port, "", c.user)
+        disconnect()
+        _signInReason.value = appText("app.server.sessionExpired")
+    }
 
     // --- Mòbil o servidor, d'un toc ---
 
@@ -990,6 +1040,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         continue
                     }
                     _connected.value = false
+                    // La sessió desada ja no val (compte esborrat, contrasenya canviada):
+                    // cap a entrar, amb el motiu a la vista i sense el token mort.
+                    if ((e.message ?: "").contains("401") && !_conn.value.local && _conn.value.user.isNotBlank()) {
+                        prefsStore?.save(_conn.value.host, _conn.value.port, "", _conn.value.user)
+                        _signInReason.value = appText("app.server.sessionExpired")
+                        go(Screen.Pairing)
+                        return@launch
+                    }
                     notify(connectionMessage(e))
                     return@launch
                 }
@@ -1005,14 +1063,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try { api.health() } catch (_: Exception) { null }
         }
         _v2Runs.value = health?.supportsV2Interactive() == true
+        // Qui ets en aquest servidor: un compte que no és admin no pot veure
+        // els jobs ni GitHub, i l'app no els ha de demanar (sortia un error).
+        // Un servidor antic sense /api/me és d'un sol usuari: admin.
+        _isAdmin.value = withContext(Dispatchers.IO) { try { api.me().admin } catch (_: Exception) { true } }
         val st = withContext(Dispatchers.IO) { api.getState() }
         _state.value = st
         // Obrir l'app ha de mostrar la conversa on eres, no un xat buit.
         if (_msgs.value.isEmpty() && st.transcript.isNotEmpty()) _msgs.value = st.transcript
         _connected.value = true
+        _signInReason.value = ""
         clearNotice()
         attachToRunning()
     }
+
+    private val _isAdmin = MutableStateFlow(true)
+    /** Aquest compte administra el servidor (en local i amb la clau, sempre). */
+    val isAdmin: StateFlow<Boolean> = _isAdmin
 
     fun refresh() {
         viewModelScope.launch {
@@ -2929,13 +2996,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                turnError = e.message.orEmpty().ifBlank { "interrupted" }
-                if (isCompanionOrigin(source, epoch) && !aturatAra(rotllanaId)) interruptedCompanion(rotllanaId, true)
-                if (isCompanionOrigin(source, epoch)) {
-                    notify(appText("app.status.company", e.message.orEmpty()))
-                    // Keep the user message and any received partial text visible.
-                }
+                turnError = turnFailed(source, epoch, rotllanaId, true, e)
             } finally {
+                aturats.remove(rotllanaId) // un «atura» que arriba tard no amaga el proper error
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), message, answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
@@ -2975,6 +3038,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _windTasks = MutableStateFlow<List<WindTask>?>(null)
     val windTasks: StateFlow<List<WindTask>?> = _windTasks.asStateFlow()
+    private val _windTasksError = MutableStateFlow("")
+    /** Per què no s'han pogut llegir les feines ("" si tot bé): una llista buida no ho ha d'amagar. */
+    val windTasksError: StateFlow<String> = _windTasksError.asStateFlow()
 
     // --- Carpeta de treball: on treballen els vents ---
     private val _workspaces = MutableStateFlow<WorkspacesInfo?>(null)
@@ -3006,6 +3072,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 val before = _windTasks.value.orEmpty()
                 _windTasks.value = tasks
+                _windTasksError.value = ""
                 feinesAcabades(before, tasks).firstOrNull()?.let { t ->
                     val key = when (t.status) {
                         "done" -> "app.feines.finished"
@@ -3014,8 +3081,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                     notify(appText(key, oneLine(t.task, 60)))
                 }
-            } catch (_: Exception) {
-                if (isCompanionOrigin(source, epoch) && _windTasks.value == null) _windTasks.value = emptyList()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                if (isCompanionOrigin(source, epoch)) {
+                    _windTasksError.value = e.message.orEmpty().ifBlank { "error" }.take(160)
+                    if (_windTasks.value == null) _windTasks.value = emptyList()
+                }
             }
         }
     }
@@ -3758,14 +3829,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun activateSquad(id: String, lang: String) {
+    fun activateSquad(id: String, lang: String, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) { source.api().activateSquad(id, lang) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 loadWinds(); loadWindsResum()
-            } catch (_: Exception) { }
+                onDone(true)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+            }
         }
     }
 
@@ -3984,6 +4059,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Tanca un torn que ha acabat amb error i torna l'error per a la
+     * notificació. Si l'ha aturat la persona no és cap error: ni targeta de
+     * «torn interromput», ni avís, ni notificació de «ha fallat».
+     */
+    private fun turnFailed(source: Conn, epoch: Long, id: String, rotllana: Boolean, e: Exception): String {
+        val stopped = aturatAra(id)
+        if (stopped) return ""
+        if (isCompanionOrigin(source, epoch)) {
+            interruptedCompanion(id, rotllana)
+            notify(appText("app.status.company", e.message.orEmpty()))
+        }
+        return e.message.orEmpty().ifBlank { "interrupted" }
+    }
+
     /** Close transient UI honestly; never replay a possibly executed operation. */
     private fun interruptedCompanion(id: String, rotllana: Boolean) {
         val state = _windLive.value[id]
@@ -4061,6 +4151,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
@@ -4072,6 +4163,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         answered = r.text.isNotBlank()
                         answer = r.text
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 }
                 // El vent pot haver programat un avís (remind): posa al dia
@@ -4079,11 +4171,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                turnError = e.message.orEmpty().ifBlank { "interrupted" }
-                if (isCompanionOrigin(source, epoch) && !aturatAra(windId)) interruptedCompanion(windId, false)
-                if (isCompanionOrigin(source, epoch) && windId !in aturats)
-                    notify(appText("app.status.company", e.message.orEmpty()))
+                turnError = turnFailed(source, epoch, windId, false, e)
             } finally {
+                aturats.remove(windId) // un «atura» que arriba tard no amaga el proper error
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), msg, answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
@@ -4147,6 +4237,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
@@ -4162,16 +4253,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
                         if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 }
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                turnError = e.message.orEmpty().ifBlank { "interrupted" }
-                if (isCompanionOrigin(source, epoch) && !aturatAra(windId)) interruptedCompanion(windId, false)
-                if (isCompanionOrigin(source, epoch) && windId !in aturats)
-                    notify(appText("app.status.company", e.message.orEmpty()))
+                turnError = turnFailed(source, epoch, windId, false, e)
             } finally {
+                aturats.remove(windId) // un «atura» que arriba tard no amaga el proper error
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
@@ -4241,10 +4331,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                turnError = e.message.orEmpty().ifBlank { "interrupted" }
-                if (isCompanionOrigin(source, epoch) && !aturatAra(rotllanaId)) interruptedCompanion(rotllanaId, true)
-                if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
+                turnError = turnFailed(source, epoch, rotllanaId, true, e)
             } finally {
+                aturats.remove(rotllanaId) // un «atura» que arriba tard no amaga el proper error
                 if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
@@ -4422,6 +4511,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     fun loadJobs() {
         val source = _conn.value; val epoch = companionEpoch
+        // Els jobs del servidor són de l'administrador: un altre compte rep 403.
+        if (!source.local && !_isAdmin.value) { _jobs.value = emptyList(); return }
         viewModelScope.launch {
             try {
                 val jobs = loadingOf("jobs") { withContext(Dispatchers.IO) { source.api().getJobs() } }

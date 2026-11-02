@@ -191,3 +191,24 @@ func TestManagedAccountDelete(t *testing.T) {
 		t.Fatalf("old data not archived: %v", old)
 	}
 }
+
+// La carpeta d'un compte es diu com un hash: a l'app i al model ha de sortir
+// el nom del compte, no 64 xifres.
+func TestManagedHomeShowsTheAccountName(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	accounts := filepath.Join(t.TempDir(), "accounts")
+	t.Setenv("GREGAL_ACCOUNTS_DIR", accounts)
+	h := testHubWithUsers(t)
+	s := h.def
+	s.SetToken("admin-secret")
+	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+		t.Fatalf("create: %d %s", w.Code, w.Body.String())
+	}
+	home := managedDefinition(accounts, managedAccount{Name: "carla"}).Home
+	if got := projectName(home); got != "carla" {
+		t.Fatalf("projectName(home) = %q, want carla", got)
+	}
+	if got := projectName(filepath.Join(home, "receptes")); got != "receptes" {
+		t.Fatalf("a project inside the home keeps its name: %q", got)
+	}
+}

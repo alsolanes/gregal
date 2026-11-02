@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"gregal/internal/goal"
 	"gregal/internal/identity"
@@ -36,7 +35,7 @@ func userStateDir(cfgPath, user string) string {
 
 // projectName és el nom del projecte actual.
 func (s *Server) projectName() string {
-	return filepath.Base(strings.TrimRight(s.cwd, string(filepath.Separator)))
+	return projectName(s.cwd)
 }
 
 // recordGoal desa l'objectiu d'una resposta de l'agent (mode objectiu).

@@ -34,6 +34,8 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Tag
 import androidx.compose.material.icons.rounded.Dns
@@ -160,11 +162,14 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
     var token by remember { mutableStateOf(prefs.token) }
     // La clau és el camí normal (la mostra el servidor en engegar-se); usuari
     // i contrasenya, per als servidors amb comptes.
-    var ambUsuari by remember { mutableStateOf(prefs.usuari.isNotBlank() && prefs.token.isBlank()) }
+    // Els servidors amb comptes (el cas de casa) són el camí normal; la clau,
+    // si és el que ja havies fet servir.
+    var ambUsuari by remember { mutableStateOf(!(prefs.token.isNotBlank() && prefs.usuari.isBlank())) }
     var registre by remember { mutableStateOf(false) }
     var invitacio by remember { mutableStateOf("") }
     val notice by vm.notice.collectAsState()
     val registering by vm.registering.collectAsState()
+    val reason by vm.signInReason.collectAsState()
     val local by vm.localState.collectAsState()
     val localOk = remember { vm.localAvailable() }
     // El remot és l'opció: plegat si l'app pot treballar sola, obert si
@@ -178,8 +183,10 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             Spacer(Modifier.height(32.dp))
             GregalMark(64.dp, alive = true)
             Spacer(Modifier.height(14.dp))
-            Text("Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
-            Text(tr(lang, "app.pair.subtitle"), color = Muted, style = MaterialTheme.typography.bodyLarge)
+            // La build de Vents es presenta com a Vents; la de codi, com sempre.
+            val vents = LocalContext.current.packageName.endsWith(".vents")
+            Text(if (vents) tr(lang, "app.pair.title") else "Gregal", style = MaterialTheme.typography.displaySmall, color = Ink)
+            Text(if (vents) tr(lang, "app.pair.subtitle") else if (lang == "ca") "L'agent de codi de casa, al mòbil" else "Your home coding agent, on mobile", color = Muted, style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(28.dp))
             if (localOk) {
                 // Aquest dispositiu: el mateix backend que l'escriptori, dins l'app.
@@ -217,65 +224,77 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
                 }
             }
             if (remot) {
+                if (reason.isNotEmpty()) {
+                    Surface(shape = RoundedCornerShape(16.dp), color = Sea.copy(alpha = 0.12f), modifier = Modifier.fillMaxWidth()) {
+                        Text(reason, color = Ink, fontSize = 14.sp, modifier = Modifier.padding(14.dp))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
                 Text(tr(lang, "app.server.remoteHelp"), color = Muted, fontSize = 13.sp)
                 Spacer(Modifier.height(10.dp))
                 ServerDiscovery(lang) { address, discoveredPort -> host = address; port = discoveredPort }
-                Text(if (lang == "ca") "La connexió local HTTP no és xifrada; per internet fes servir HTTPS." else "Local HTTP is unencrypted; use HTTPS over the internet.", color = Muted, fontSize = 12.sp)
                 val field = RoundedCornerShape(14.dp)
                 OutlinedTextField(host, { host = it }, label = { Text(tr(lang, "app.pair.host")) },
                     leadingIcon = { Icon(Icons.Rounded.Dns, null, tint = Muted) }, shape = field,
                     modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
-                    leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(), singleLine = true)
-                Spacer(Modifier.height(10.dp))
-                // Adreça, port i clau: el que diu el servidor en engegar-se.
-                // Usuari i contrasenya, només per als servidors amb comptes.
+                // Amb un domini https:// el port no cal: el camp només fa nosa.
+                if (!host.trim().startsWith("https://")) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(port, { port = it }, label = { Text(tr(lang, "app.pair.port")) },
+                        leadingIcon = { Icon(Icons.Rounded.Tag, null, tint = Muted) }, shape = field,
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(), singleLine = true)
+                    Text(tr(lang, "app.pair.httpNote"), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+                Spacer(Modifier.height(14.dp))
+                // Tres maneres d'entrar, a la vista: compte, invitació o clau.
+                PairModeTabs(lang, if (!ambUsuari) "key" else if (registre) "invite" else "login") { m ->
+                    ambUsuari = m != "key"; registre = m == "invite"
+                }
+                Spacer(Modifier.height(12.dp))
                 if (!ambUsuari) {
                     OutlinedTextField(token, { token = it }, label = { Text(tr(lang, "app.pair.key")) },
                         leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
-                    Spacer(Modifier.height(18.dp))
-                    val connect: @Composable () -> Unit = { Text(tr(lang, "app.pair.connect"), fontSize = 16.sp) }
-                    val go = { vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim()) }
-                    if (localOk) OutlinedButton(onClick = go, enabled = host.isNotBlank() && token.isNotBlank(), shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)) { connect() }
-                    else Button(onClick = go, enabled = host.isNotBlank() && token.isNotBlank(), shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier.fillMaxWidth().height(52.dp)) { connect() }
                     Spacer(Modifier.height(6.dp))
                     Text(tr(lang, "app.pair.keyHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp)
+                    Spacer(Modifier.height(14.dp))
+                    PairButton(tr(lang, "app.pair.connect"), primary = !localOk, enabled = host.isNotBlank() && token.isNotBlank()) {
+                        vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim())
+                    }
                 } else {
+                    var veure by remember { mutableStateOf(false) }
                     OutlinedTextField(usuari, { usuari = it }, label = { Text(tr(lang, "app.pair.user")) },
                         leadingIcon = { Icon(Icons.Rounded.Person, null, tint = Muted) }, shape = field,
                         modifier = Modifier.fillMaxWidth(), singleLine = true)
                     Spacer(Modifier.height(10.dp))
                     OutlinedTextField(contrasenya, { contrasenya = it }, label = { Text(tr(lang, "app.pair.password")) },
                         leadingIcon = { Icon(Icons.Rounded.Lock, null, tint = Muted) }, shape = field,
+                        trailingIcon = {
+                            IconButton(onClick = { veure = !veure }) {
+                                Icon(if (veure) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    tr(lang, if (veure) "app.pair.hidePassword" else "app.pair.showPassword"), tint = Muted)
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth(), singleLine = true,
-                        visualTransformation = PasswordVisualTransformation())
+                        visualTransformation = if (veure) androidx.compose.ui.text.input.VisualTransformation.None else PasswordVisualTransformation())
+                    val curta = registre && contrasenya.isNotEmpty() && contrasenya.length < MIN_PASSWORD
+                    if (registre) Text(tr(lang, "app.pair.passwordMin", MIN_PASSWORD), color = if (curta) Sand else Muted, fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 4.dp))
                     if (registre) {
                         Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(invitacio, { invitacio = it }, label = { Text(if (lang == "ca") "Codi d’invitació" else "Invitation code") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
-                        Text(if (lang == "ca") "Demana un codi a l’administrador del servidor." else "Ask the server administrator for an invitation code.", color = Muted, fontSize = 12.sp)
+                        OutlinedTextField(invitacio, { invitacio = it.trim() }, label = { Text(tr(lang, "app.pair.invite")) },
+                            leadingIcon = { Icon(Icons.Rounded.TaskAlt, null, tint = Muted) }, shape = field,
+                            modifier = Modifier.fillMaxWidth(), singleLine = true)
+                        Text(tr(lang, "app.pair.inviteHelp"), color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
                     }
-                    Spacer(Modifier.height(18.dp))
-                    val login: @Composable () -> Unit = { Text(if (registre) { if (lang == "ca") "Crea el compte" else "Create account" } else tr(lang, "app.pair.login"), fontSize = 16.sp) }
-                    val goAccount = { if (registre) vm.registerAccount(host, port, invitacio, usuari, contrasenya) else vm.entra(host, port, usuari, contrasenya) }
-                    if (localOk) {
-                        OutlinedButton(onClick = goAccount, enabled = !registering && host.isNotBlank() && usuari.isNotBlank() && contrasenya.isNotBlank() && (!registre || (invitacio.isNotBlank() && contrasenya.length >= 12)), shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
-                    } else {
-                        Button(onClick = goAccount, enabled = !registering && host.isNotBlank() && usuari.isNotBlank() && contrasenya.isNotBlank() && (!registre || (invitacio.isNotBlank() && contrasenya.length >= 12)), shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().height(52.dp)) { login() }
+                    Spacer(Modifier.height(14.dp))
+                    val ok = !registering && host.isNotBlank() && usuari.isNotBlank() && contrasenya.isNotBlank() &&
+                        (!registre || (invitacio.isNotBlank() && contrasenya.length >= MIN_PASSWORD))
+                    PairButton(tr(lang, if (registre) "app.pair.createAccount" else "app.pair.login"), primary = !localOk, enabled = ok, busy = registering) {
+                        if (registre) vm.registerAccount(host.trim(), port.trim(), invitacio, usuari, contrasenya)
+                        else vm.entra(host.trim(), port.trim(), usuari, contrasenya)
                     }
-                }
-                if (!ambUsuari) TextButton(onClick = { ambUsuari = true; registre = true }, modifier = Modifier.fillMaxWidth()) { Text(if (lang == "ca") "Crea un compte amb invitació" else "Create account with an invitation") }
-                if (ambUsuari) TextButton(onClick = { registre = !registre }, modifier = Modifier.fillMaxWidth()) { Text(if (registre) { if (lang == "ca") "Ja tinc compte" else "I already have an account" } else { if (lang == "ca") "Crea un compte amb invitació" else "Create account with an invitation" }) }
-                TextButton(onClick = { ambUsuari = !ambUsuari; registre = false }, modifier = Modifier.fillMaxWidth()) {
-                    Text(tr(lang, if (ambUsuari) "app.pair.useKey" else "app.pair.useAccount"),
-                        color = Muted, fontSize = 13.sp)
                 }
             }
             val ctx = LocalContext.current
@@ -293,9 +312,14 @@ fun PairingScreen(vm: GregalViewModel, prefs: Prefs) {
             if (notice.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 ConnectionNotice(notice, lang, onRetry = {
-                    // Reintenta allò que s'havia triat: el dispositiu o el remot.
-                    if (prefs.target == Prefs.TARGET_LOCAL && localOk) vm.useThisDevice()
-                    else vm.connectRemote(host, port, token)
+                    // Reintenta allò que s'havia triat: el dispositiu, el compte,
+                    // la invitació o la clau (abans sempre era la clau).
+                    when {
+                        prefs.target == Prefs.TARGET_LOCAL && localOk && !remot -> vm.useThisDevice()
+                        ambUsuari && registre -> vm.registerAccount(host.trim(), port.trim(), invitacio, usuari, contrasenya)
+                        ambUsuari -> vm.entra(host.trim(), port.trim(), usuari, contrasenya)
+                        else -> vm.connectRemote(host.trim(), port.trim(), token.replace(" ", "").trim())
+                    }
                 })
             }
         }
@@ -964,6 +988,38 @@ fun ConnectionNotice(text: String, lang: String, onRetry: () -> Unit) {
             TextButton(onClick = onRetry) { Text(tr(lang, "app.chat.retry"), color = Sea) }
         }
     }
+}
+
+/** El mínim de contrasenya del servidor (minPasswordLen a server_accounts.go). */
+const val MIN_PASSWORD = 8
+
+/** Entra / Invitació / Clau: les tres maneres de connectar amb un servidor. */
+@Composable
+fun PairModeTabs(lang: String, mode: String, onMode: (String) -> Unit) {
+    Surface(shape = RoundedCornerShape(16.dp), color = CodeDark, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(4.dp)) {
+            listOf("login" to "app.pair.tabLogin", "invite" to "app.pair.tabInvite", "key" to "app.pair.tabKey").forEach { (m, k) ->
+                val on = m == mode
+                Surface(shape = RoundedCornerShape(12.dp), color = if (on) Sea.copy(alpha = 0.22f) else androidx.compose.ui.graphics.Color.Transparent,
+                    modifier = Modifier.weight(1f).clickable { onMode(m) }) {
+                    Text(tr(lang, k), color = if (on) Ink else Muted, fontSize = 14.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        textAlign = TextAlign.Center, modifier = Modifier.padding(vertical = 10.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PairButton(label: String, primary: Boolean, enabled: Boolean, busy: Boolean = false, onClick: () -> Unit) {
+    val content: @Composable () -> Unit = {
+        if (busy) LinearProgressIndicator(Modifier.width(48.dp), color = Sea, trackColor = Line)
+        else Text(label, fontSize = 16.sp)
+    }
+    if (primary) Button(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp)) { content() }
+    else OutlinedButton(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(14.dp),
+        modifier = Modifier.fillMaxWidth().height(52.dp)) { content() }
 }
 
 @Composable

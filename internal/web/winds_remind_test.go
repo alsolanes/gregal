@@ -55,16 +55,34 @@ func TestParseRemindAtLenient(t *testing.T) {
 
 func TestRemindActionsSince(t *testing.T) {
 	t0 := time.Now()
-	recordRemindEvent("vent-prova", t0.Add(time.Hour), "Rega les plantes")
-	got := remindActionsSince("vent-prova", t0)
+	recordRemindEvent("", "vent-prova", t0.Add(time.Hour), "Rega les plantes")
+	got := remindActionsSince("", "vent-prova", t0)
 	if len(got) != 1 || got[0]["at"] == "" || got[0]["text"] != "Rega les plantes" {
 		t.Fatalf("accions = %v", got)
 	}
-	if len(remindActionsSince("un-altre", t0)) != 0 {
+	if len(remindActionsSince("", "un-altre", t0)) != 0 {
 		t.Fatal("no ha de barrejar vents")
 	}
-	if len(remindActionsSince("vent-prova", t0.Add(time.Hour))) != 0 {
+	if len(remindActionsSince("", "vent-prova", t0.Add(time.Hour))) != 0 {
 		t.Fatal("no ha de tornar esdeveniments vells")
+	}
+}
+
+// Dos comptes amb un vent del mateix nom no es veuen els avisos, i l'app rep
+// el moment exacte per programar la passada.
+func TestRemindActionsAreScopedToTheAccount(t *testing.T) {
+	t0 := time.Now()
+	at := t0.Add(2 * time.Minute).Truncate(time.Second)
+	recordRemindEvent("carla", "xaloc-comu", at, "Apaga el foc")
+	if len(remindActionsSince("aleix", "xaloc-comu", t0)) != 0 {
+		t.Fatal("un altre compte veu l'avís")
+	}
+	got := remindActionsSince("carla", "xaloc-comu", t0)
+	if len(got) != 1 {
+		t.Fatalf("accions = %v", got)
+	}
+	if iso, err := time.Parse(time.RFC3339, got[0]["at_iso"]); err != nil || !iso.Equal(at) {
+		t.Fatalf("at_iso = %q (%v), want %v", got[0]["at_iso"], err, at)
 	}
 }
 

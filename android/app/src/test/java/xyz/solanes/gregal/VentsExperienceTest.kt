@@ -71,7 +71,9 @@ class VentsExperienceTest {
         ui.waitForIdle()
         val buit = ui.onAllNodesWithText(tr("ca", "app.vents.emptyTitle")).fetchSemanticsNodes().isNotEmpty()
         val converses = ui.onAllNodesWithText(tr("ca", "app.vents.conversations"), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
-        org.junit.Assert.assertTrue("la portada no ensenya ni les converses ni el buit", buit || converses)
+        // Sense cap vent (compte nou) surt la benvinguda amb la colla del dia a dia.
+        val benvinguda = ui.onAllNodesWithText(tr("ca", "app.vents.welcomeOwn")).fetchSemanticsNodes().isNotEmpty()
+        org.junit.Assert.assertTrue("la portada no ensenya ni les converses, ni el buit, ni la benvinguda", buit || converses || benvinguda)
         ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()
         ui.onNodeWithText("Nou xat").assertExists()

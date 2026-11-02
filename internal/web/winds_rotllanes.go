@@ -320,7 +320,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
 		"parcial": parcial,
 		"history": s.rotllanaHistoryJSON(conversation),
-		"actions": remindActionsSince(speakingWind.ID, turnStart),
+		"actions": remindActionsSince(s.remindOwner(), speakingWind.ID, turnStart),
 	})
 }
 

@@ -554,4 +554,19 @@ func (s *Server) activeRunID() int64 {
 }
 
 // projectName és el nom curt del workspace per a la capçalera.
-func projectName(dir string) string { return filepath.Base(dir) }
+// projectName és el nom que es mostra (i que llegeix el model) d'una carpeta.
+// La carpeta d'un compte gestionat es diu com el hash del nom (server_accounts.go):
+// es mostra el nom del compte en lloc de 64 xifres.
+func projectName(dir string) string {
+	base := filepath.Base(strings.TrimRight(dir, "/\\"))
+	if root := managedRoot(); len(base) == 64 && root != "" && filepath.Clean(filepath.Dir(dir)) == filepath.Clean(root) {
+		if list, err := readManaged(); err == nil {
+			for _, a := range list {
+				if identity.Key(a.Name) == base {
+					return a.Name
+				}
+			}
+		}
+	}
+	return base
+}

@@ -8,6 +8,9 @@ import android.os.Handler
 import android.os.Looper
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -89,6 +92,7 @@ internal fun ServerDiscovery(lang: String, onSelect: (String, String) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         TextButton(onClick = { start() }, enabled = !searching) { Text(if (lang == "ca") { if (searching) "Cercant servidors…" else "Cerca servidors a la xarxa" } else { if (searching) "Searching for servers…" else "Find servers on the network" }) }
         found.forEach { server -> OutlinedButton(onClick = { stop(); onSelect(server.address, server.port.toString()) }, modifier = Modifier.fillMaxWidth()) { Text("${server.name} · ${server.address}:${server.port}") } }
-        if (scanned && !searching && found.isEmpty()) Text(if (lang == "ca") "No se n’ha trobat cap. Pots escriure l’adreça manualment." else "No server found. You can enter the address manually.")
+        if (scanned && !searching && found.isEmpty()) Text(if (lang == "ca") "No se n’ha trobat cap. Pots escriure l’adreça manualment." else "No server found. You can enter the address manually.",
+            color = Muted, fontSize = 13.sp, modifier = Modifier.padding(start = 12.dp, bottom = 6.dp))
     }
 }

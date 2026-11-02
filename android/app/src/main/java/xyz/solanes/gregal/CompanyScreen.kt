@@ -371,6 +371,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     if (rows.isEmpty()) item {
                         if (query.isBlank() && inboxFilter == "unread") EmptyInboxFilter(lang, "unread")
                         else if (query.isBlank() && inboxFilter == "groups") EmptyInboxFilter(lang, "groups")
+                        // Compte nou, sense cap vent: la benvinguda amb la colla del dia a dia.
+                        else if (query.isBlank() && winds.isEmpty()) VentsWelcome(vm, lang)
                         else if (query.isBlank()) VentsEmpty(lang, true)
                         else Column(Modifier.fillMaxWidth().padding(32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(tr(lang, "app.vents.searchEmpty"), color = Ink, fontWeight = FontWeight.SemiBold)
@@ -482,6 +484,50 @@ internal fun VentsCrew(
                     Text(it, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Primer cop (o compte nou): sense vents no hi ha res a fer. Un toc posa la
+ * colla del dia a dia (compres, llibres, esports, música i organització) i
+ * ja es pot parlar; qui vulgui, en crea un de seu.
+ */
+@Composable
+private fun VentsWelcome(vm: GregalViewModel, lang: String) {
+    val squads by vm.squads.collectAsState()
+    val user by vm.usuari.collectAsState()
+    var activating by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.loadSquads() }
+    val daily = squads.firstOrNull { it.id == "daily" }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(if (user.isNotBlank()) tr(lang, "app.vents.welcomeHi", user) else tr(lang, "app.vents.welcomeHiAnon"),
+            color = Ink, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+        Text(tr(lang, "app.vents.welcomeBody"), color = Muted, fontSize = 15.sp, lineHeight = 21.sp, textAlign = TextAlign.Center)
+        if (daily != null) Surface(shape = RoundedCornerShape(26.dp), color = Sea.copy(alpha = 0.09f),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)), modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    daily.members.take(5).forEach { m ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            WindHalo(accent = Color(windArgb(m.color)), style = windStyleOf(m.style).copy(kit = m.key), size = 50, mood = WindMood.HAPPY)
+                            Text(m.name, color = Ink, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        }
+                    }
+                }
+                Text(if (lang == "ca") daily.members.joinToString(" · ") { it.ca } else daily.members.joinToString(" · ") { it.en },
+                    color = Muted, fontSize = 12.sp, textAlign = TextAlign.Center, lineHeight = 16.sp)
+                androidx.compose.material3.Button(onClick = {
+                    activating = true
+                    vm.activateSquad(daily.id, lang) { activating = false }
+                }, enabled = !activating, shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    if (activating) TypingDots(Ink) else Text(tr(lang, "app.vents.welcomeStart"), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        androidx.compose.material3.TextButton(onClick = { vm.showWindCreator(true) }) {
+            Text(tr(lang, "app.vents.welcomeOwn"), color = Sea, fontSize = 14.sp)
         }
     }
 }
@@ -987,6 +1033,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         face = { WindHalo(size = 88, accent = accent, style = wind.faceStyle, mood = WindMood.HAPPY, tappable = true) },
                         title = tr(lang, "app.vents.emptyChatTitle"),
                         hint = tr(lang, "app.company.windHello", wind.name),
+                        // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
+                        suggestions = windStarters(lang, wind.specialty),
+                        onPick = { vm.sendWindMessage(wind.id, it) },
                     )
                 }
             }
@@ -1406,7 +1455,8 @@ internal fun MdImage(url: String, alt: String, link: Color, lang: String) {
  * línia grisa. La cara entra per slot: un vent sol o la pila de la rotllana.
  */
 @Composable
-internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: String) {
+internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: String,
+    suggestions: List<String> = emptyList(), onPick: (String) -> Unit = {}) {
     Column(
         Modifier.fillMaxWidth().padding(vertical = 36.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1415,6 +1465,34 @@ internal fun ChatEmptyState(face: @Composable () -> Unit, title: String, hint: S
         BubbleIn("empty-face") { face() }
         Text(title, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Ink, textAlign = TextAlign.Center)
         Text(hint, fontSize = 13.sp, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = 40.dp))
+        if (suggestions.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            suggestions.forEach { q ->
+                Surface(onClick = { onPick(q) }, shape = RoundedCornerShape(18.dp), color = SuperficieAlta.copy(alpha = 0.55f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Line), modifier = Modifier.padding(horizontal = 28.dp).fillMaxWidth()) {
+                    Text(q, color = Ink, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp))
+                }
+            }
+        }
+    }
+}
+
+/** Primeres frases suggerides per a un xat buit, segons l'ofici del vent. */
+internal fun windStarters(lang: String, specialty: String): List<String> {
+    val ca = lang == "ca"
+    return when (specialty) {
+        "shopping" -> if (ca) listOf("Compara’m dos mòbils per menys de 400 €", "Quina cafetera em convé per a dues persones?", "Avisa’m si baixa de preu una cosa que vull")
+            else listOf("Compare two phones under €400 for me", "Which coffee maker suits two people?", "Tell me if something I want drops in price")
+        "books" -> if (ca) listOf("Recomana’m una novel·la per a aquest cap de setmana", "Un llibre com l’últim que m’ha agradat", "Què val la pena llegir aquest any?")
+            else listOf("Recommend a novel for this weekend", "A book like the last one I loved", "What is worth reading this year?")
+        "sports" -> if (ca) listOf("Quan juga el meu equip?", "Com va quedar el partit d’ahir?", "Fes-me un resum de la jornada")
+            else listOf("When does my team play next?", "How did yesterday’s match end?", "Give me a round-up of the matchday")
+        "music" -> if (ca) listOf("Descobreix-me música nova com la que escolto", "Quins concerts hi ha aquest mes a prop?", "Fes-me una llista per cuinar")
+            else listOf("Find me new music like what I listen to", "Which concerts are near me this month?", "Make me a playlist for cooking")
+        "organisation" -> if (ca) listOf("Recorda’m demà a les 9 que truqui al metge", "Organitza’m la setmana", "Fes-me una llista de la compra")
+            else listOf("Remind me tomorrow at 9 to call the doctor", "Plan my week", "Make me a shopping list")
+        else -> if (ca) listOf("Què em proposes per avui?", "Explica’m alguna cosa interessant del que t’agrada", "Recorda’m d’aquí a una hora que faci un descans")
+            else listOf("What do you suggest for today?", "Tell me something interesting about what you love", "Remind me in an hour to take a break")
     }
 }
 

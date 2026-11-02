@@ -40,6 +40,7 @@ var sessioApp: String = "mobil"
 
 class GregalApi(val base: String, val token: String) {
 
+
     private fun conn(path: String, method: String, body: String? = null): HttpURLConnection {
         val c = URL(base + path).openConnection() as HttpURLConnection
         c.requestMethod = method
@@ -58,9 +59,13 @@ class GregalApi(val base: String, val token: String) {
 
     private fun read(c: HttpURLConnection): String {
         val code = c.responseCode
-        val stream = if (code in 200..299) c.inputStream else (c.errorStream ?: c.inputStream)
-        val text = stream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
-        if (code == 401) throw ApiException("HTTP 401: server requires a valid token")
+        // Sense cos d'error, inputStream llançaria una IOException i tapava el 401.
+        val stream = if (code in 200..299) c.inputStream else c.errorStream
+        val text = stream?.bufferedReader(StandardCharsets.UTF_8)?.use { it.readText() }.orEmpty()
+        if (code == 401) {
+            if (token.isNotBlank()) onUnauthorized?.invoke(base, token)
+            throw ApiException("HTTP 401: server requires a valid token")
+        }
         if (code !in 200..299) throw ApiException("HTTP $code: ${text.take(200)}")
         return text
     }
@@ -188,6 +193,12 @@ class GregalApi(val base: String, val token: String) {
         val o = post("/api/login", JSONObject().put("user", usuari).put("password", contrasenya))
         return o.optString("token")
     }
+
+    /** Codi d'invitació d'un sol ús (admin): POST /api/server/invitations. */
+    fun createInvitation(): String = post("/api/server/invitations", JSONObject()).optString("code")
+
+    /** Tanca la sessió d'aquest token al servidor (POST /api/logout). */
+    fun logout() { post("/api/logout", JSONObject()) }
 
     /** Qui soc (GET /api/me): nom, arrels, carpeta de treball i si es admin. */
     fun me(): MeInfo {
@@ -673,6 +684,13 @@ class GregalApi(val base: String, val token: String) {
     }
 
     companion object {
+        /**
+         * El servidor ha rebutjat el token (sessió tancada, contrasenya
+         * canviada o compte esborrat). El ViewModel decideix si és la connexió
+         * d'ara i, si ho és, torna a la pantalla d'entrar.
+         */
+        @Volatile
+        var onUnauthorized: ((base: String, token: String) -> Unit)? = null
         fun parseWindLibrary(raw: String): List<WindLibraryItem> {
             val items = JSONObject(raw).getJSONArray("items")
             return (0 until items.length()).map { i ->
@@ -990,7 +1008,11 @@ class GregalApi(val base: String, val token: String) {
         val reminds = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
             acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
         }.filter { it.isNotBlank() }
-        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false))
+        val remindAt = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
+            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at_iso")
+                ?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
+        }
+        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false), remindAt)
     }
 
     /** Marca l'última resposta del vent com a parcial (botó «continua»). */

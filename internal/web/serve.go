@@ -957,7 +957,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		"role": roles, "current_role": s.role, "role_pinned": s.rolePinned, "mode": s.mode, "lang": s.cfg.Lang(),
 		"model": role.Model, "provider": pName(p, role),
 		"verify":     s.cfg.Verify.Mode,
-		"agent_busy": queued || s.agentBusy || s.planRunning, "cwd": cwd, "project": filepath.Base(cwd),
+		"agent_busy": queued || s.agentBusy || s.planRunning, "cwd": cwd, "project": projectName(cwd),
 		"permissive":  s.permissive, // handleState ja té s.mu; no usar permissiveNow() aquí (deadlock)
 		"auto_review": s.autoReview,
 		// El que mostren els selectors (agent/access.go): ask|plan|act i,

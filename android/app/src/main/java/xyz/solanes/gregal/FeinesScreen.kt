@@ -86,6 +86,7 @@ internal fun FeinesButton(lang: String, running: Int, onClick: () -> Unit) {
 @Composable
 internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (String) -> Unit, onDismiss: () -> Unit) {
     val tasks by vm.windTasks.collectAsState()
+    val tasksError by vm.windTasksError.collectAsState()
     var file by remember { mutableStateOf<Pair<WindTask, String>?>(null) }
     LaunchedEffect(Unit) { vm.loadWindTasks() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
@@ -99,6 +100,13 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
                 when {
                     list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Sea)
+                    }
+                    list.isEmpty() && tasksError.isNotEmpty() -> Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
+                        Text(tr(lang, "app.feines.loadFailed"), color = Ink, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.height(6.dp))
+                        Text(tasksError, color = Muted, fontSize = 13.sp)
+                        Spacer(Modifier.height(12.dp))
+                        androidx.compose.material3.OutlinedButton(onClick = { vm.loadWindTasks() }) { Text(tr(lang, "app.chat.retry")) }
                     }
                     list.isEmpty() -> Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center) {
                         Text(tr(lang, "app.feines.empty"), color = Ink, fontWeight = FontWeight.SemiBold)

@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## v1.39.0 - 2026-11-02 - Vents per a dos
+
+- **Gregal Vents, a punt per a dues persones al mateix servidor.**
+  - *Entrar*: tres pestanyes clares (Entra / Tinc invitació / Clau), mínim de
+    contrasenya 8 com el servidor (l'app en demanava 12 i el botó quedava
+    gris sense dir per què), ull per veure la contrasenya i «Torna-ho a
+    provar» que repeteix el que havies fet (abans sempre provava la clau).
+  - *Sortir de debò*: «Surt del compte» tanca la sessió al servidor. Si la
+    sessió deixa de valer (contrasenya canviada, compte esborrat), l'app torna
+    a entrar i ho explica, en lloc de fallar a cada pantalla.
+  - *Convida algú des del mòbil* (admin): genera el codi i el comparteix amb
+    l'adreça del servidor.
+  - *Primer cop*: un compte nou veu la benvinguda amb la colla del dia a dia
+    d'un toc, i cada xat buit proposa tres primeres preguntes segons l'ofici
+    del vent.
+  - *Recordatoris a l'hora*: connectat a un servidor, un «d'aquí a 2 minuts»
+    arribava fins a 15 minuts tard; ara el mòbil es desperta just després.
+    Tampoc no surt una ràfega de notificacions velles el primer cop.
+  - *Comptes que no són admin*: l'app ja no demana els jobs ni GitHub (sortia
+    «només per a l'administrador» després de cada missatge) i amaga aquestes
+    entrades del menú.
+  - *Aturar un vent* ja no es presenta com un error amb notificació de «ha
+    fallat», i les feines que no es poden llegir ho diuen en lloc de «no hi ha
+    feines».
+- **Servidor.** Els avisos d'un torn ja no es poden barrejar entre dos comptes
+  amb un vent del mateix nom, i porten l'hora exacta (`at_iso`). La carpeta
+  d'un compte es mostra amb el nom del compte, no amb el hash de 64 xifres
+  (també al context que llegeix el model).
+
 - **Registre de temps dels torns.** Cada torn de l'agent, de xat amb un vent,
   d'encàrrec a un vent i de cada veu d'una rotllana afegeix una línia a
   `turns.jsonl` (carpeta de dades, privat). Hi consta el temps fins a la primera

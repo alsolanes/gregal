@@ -174,7 +174,7 @@ func (s *Server) handleTree(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"path": filepath.ToSlash(displayPath),
-		"root": root, "project": filepath.Base(base), "entries": nodes,
+		"root": root, "project": projectName(base), "entries": nodes,
 		"truncated": n >= maxTreeEntries,
 	})
 }
@@ -283,7 +283,7 @@ func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{
 		"files": files, "added": add, "removed": del,
-		"branch": tools.GitBranch(root), "project": filepath.Base(root),
+		"branch": tools.GitBranch(root), "project": projectName(root),
 	})
 }
 

@@ -304,7 +304,8 @@ fun goalStatusLabel(status: String, lang: String = "ca"): String =
 /** Resposta d'un torn de xat amb un vent: text + avisos reals programats.
  *  parcial = el backend s'ha quedat sense pressupost: el client ofereix
  *  «continua» per reprendre la resposta pel mateix fil. */
-data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false)
+/** remindAt: moments exactes (ms) dels avisos programats en aquest torn. */
+data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false, val remindAt: List<Long> = emptyList())
 
 /** Veu proactiva d'un vent apuntada pel servidor (cor, recordatori). */
 data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String)

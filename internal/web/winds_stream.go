@@ -278,7 +278,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
-	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(wind.ID, turnStart)})
+	emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})
 }
 
 // handleRotllanaChatStream és el torn en grup amb emissió en directe.
@@ -500,7 +500,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		"reply":         map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
 		"parcial":       parcial,
 		"history":       s.rotllanaHistoryJSON(conversation),
-		"actions":       remindActionsSince(speakingWind.ID, turnStart),
+		"actions":       remindActionsSince(s.remindOwner(), speakingWind.ID, turnStart),
 		"failed":        failed,
 		"failed_reason": redactError(lastErr),
 	})
