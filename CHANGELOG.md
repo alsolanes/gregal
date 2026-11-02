@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Els túnels amb nom apunten el DNS al túnel correcte.** `cloudflared tunnel
+  route dns <nom> <amfitrió>` d'aquesta versió crea el CNAME cap a un altre túnel
+  (el primer de la llista) i l'amfitrió dona 404 tot i tenir el connector viu:
+  provat amb un túnel `vents` nou, la ruta va anar a parar a `main`. Gregal ara
+  resol el nom a l'identificador (`cloudflared tunnel list --output json`) abans
+  de demanar la ruta i l'escriu també a la configuració del connector, amb dos
+  tests nous (`TestCloudflaredRouteResolElNomAlIdentificador`).
+
 ## v1.40.1 - 2026-11-02 - Dos administradors
 
 - **Dos administradors.** Un compte gestionat es pot fer administrador (Preferències →

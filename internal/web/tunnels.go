@@ -94,11 +94,45 @@ func cloudflaredBin() (string, error) {
 	return p, nil
 }
 
+// cloudflaredRoute afegeix la ruta DNS d'un hostname al túnel amb nom. Cal
+// passar-hi l'identificador del túnel: amb un nom, `tunnel route dns` d'aquesta
+// versió de cloudflared crea el CNAME apuntant a un altre túnel (el primer de la
+// llista) i l'amfitrió acaba donant 404 encara que el connector estigui bé.
 func cloudflaredRoute(bin, tunnel, hostname string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	tunnel = resolveTunnelID(ctx, bin, tunnel)
 	out, err := exec.CommandContext(ctx, bin, "tunnel", "route", "dns", "--overwrite-dns", tunnel, hostname).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+var reTunnelID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// resolveTunnelID tradueix el nom d'un túnel al seu identificador consultant la
+// llista de túnels. Si ja és un identificador, o no es pot resoldre, torna el
+// valor original perquè cloudflared digui què passa amb les seves paraules.
+func resolveTunnelID(ctx context.Context, bin, tunnel string) string {
+	tunnel = strings.TrimSpace(tunnel)
+	if tunnel == "" || reTunnelID.MatchString(tunnel) {
+		return tunnel
+	}
+	out, err := exec.CommandContext(ctx, bin, "tunnel", "list", "--output", "json").Output()
+	if err != nil {
+		return tunnel
+	}
+	var list []struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(out, &list); err != nil {
+		return tunnel
+	}
+	for _, t := range list {
+		if strings.EqualFold(strings.TrimSpace(t.Name), tunnel) && t.ID != "" {
+			return t.ID
+		}
+	}
+	return tunnel
 }
 
 func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
@@ -200,6 +234,11 @@ func (m *tunnelManager) relaunchNamedLocked(bin string) error {
 		return nil
 	}
 	sort.Slice(ingress, func(i, j int) bool { return ingress[i].Hostname < ingress[j].Hostname })
+	// El nom s'escriu a la configuració com a identificador: així `run` no depèn
+	// de com cloudflared resol els noms (que en aquesta versió falla).
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	tunnel = resolveTunnelID(ctx, bin, tunnel)
+	cancel()
 	var b strings.Builder
 	fmt.Fprintf(&b, "tunnel: %s\n", tunnel)
 	if creds := strings.TrimSpace(os.Getenv("GREGAL_CF_CREDENTIALS")); creds != "" {
