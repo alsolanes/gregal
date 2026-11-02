@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **L'APK tornava a arrencar el backend.** La 1.49.2 portava `libgregal.so`
+  compilat com a biblioteca compartida (`-buildmode=c-shared`) en lloc del
+  programa que l'app executa: el procés fill moria amb senyal 11 (`backend exited
+  (code 139)`) i el mòbil es quedava sense Gregal local. Ara l'APK surt de la
+  tasca `buildGregalBackend` del Gradle, que compila un executable PIE per a cada
+  ABI, i el binari de dins de l'APK torna a ser un `ELF pie executable` com el de
+  la release. Versió 1.49.3-vents (155).
 - **Contrasenyes de 8 caràcters, com abans.** El mínim per crear un compte o
   registrar-se amb invitació torna a ser 8 (era 12). El número surt d'una sola
   constant (`minPasswordLen` a `internal/web/server_accounts.go`), de manera que
