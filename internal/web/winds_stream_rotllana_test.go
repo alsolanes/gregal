@@ -33,6 +33,49 @@ func rotllanaStreamFixture(t *testing.T, loop func(n int32, ctx context.Context,
 	return s, id
 }
 
+func TestRotllanaStreamDebateIsCancellableAndOrdinaryTurnsStop(t *testing.T) {
+	started := make(chan struct{}, 1)
+	var calls atomic.Int32
+	s, id := rotllanaStreamFixture(t, func(n int32, _ context.Context, _ func(string, string)) (exploracio, error) {
+		if n%2 == 1 {
+			return exploracio{text: "Primera proposta"}, nil
+		}
+		return exploracio{text: "Segona proposta"}, nil
+	}, func(ctx context.Context) (string, error) {
+		calls.Add(1)
+		started <- struct{}{}
+		<-ctx.Done()
+		return "", ctx.Err()
+	})
+	raw := postRotllanaStream(s, id, "fem una web")
+	if calls.Load() != 0 || !strings.Contains(raw, "event: done") {
+		t.Fatalf("unexpected debate: %s", raw)
+	}
+	done := make(chan string, 1)
+	go func() { done <- postRotllanaStream(s, id, "discutiu entre vosaltres") }()
+	select {
+	case <-started:
+	case <-time.After(5 * time.Second):
+		t.Fatal("debate did not start")
+	}
+	rec := postJSON(t, s.handleWindCancel, `{"rotllana":"`+id+`"}`)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"aturat":true`) {
+		t.Fatalf("cancel: %s", rec.Body.String())
+	}
+	select {
+	case raw = <-done:
+		if !strings.Contains(raw, `"cancelat":true`) || strings.Contains(raw, "event: done") {
+			t.Fatalf("cancel stream: %s", raw)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("debate did not stop")
+	}
+	disk, err := session.Load(s.sessDir(), "rotllana-"+id)
+	if err != nil || len(disk.Convo) != 6 {
+		t.Fatalf("completed messages lost: %+v, %v", disk, err)
+	}
+}
+
 func postRotllanaStream(s *Server, id, message string) string {
 	req := httptest.NewRequest("POST", "/api/winds/rotllana/stream", strings.NewReader(`{"rotllana":"`+id+`","message":"@Tramuntana @Xaloc `+message+`"}`))
 	rec := httptest.NewRecorder()

@@ -269,6 +269,159 @@ func TestCrewSanitiseDecision(t *testing.T) {
 	}
 }
 
+func TestRotllanaDebateRequiresExplicitRequest(t *testing.T) {
+	for _, tc := range []struct {
+		msg  string
+		want bool
+	}{
+		{"Fes una web de llibres", false},
+		{"Què opineu de la proposta?", false},
+		{"Discutiu entre vosaltres fins a un acord", true},
+		{"Debate this proposal together", true},
+	} {
+		if got := rotllanaVolDebat(tc.msg); got != tc.want {
+			t.Errorf("%q: got %v", tc.msg, got)
+		}
+	}
+}
+
+func TestCrewDiscussionUsesOneVoiceWithoutDuplicatedName(t *testing.T) {
+	s, _ := companionTestServer(t)
+	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Builder"})
+	rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldDiscuss, oldCoord := crewDiscussLoop, crewCoordinator
+	t.Cleanup(func() { crewDiscussLoop, crewCoordinator = oldDiscuss, oldCoord })
+	crewDiscussLoop = func(_ *Server, _ context.Context, brief string) (string, error) {
+		if !strings.Contains(brief, "ONLY as yourself") {
+			t.Error("discussion must request a single voice")
+		}
+		return "Gregal: The structure is ready.", nil
+	}
+	crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+		return `{"action":"giveup","say":"blocked"}`, nil
+	}
+	s.runCrew(rot, "task", false, &crewJob{})
+	for _, m := range s.crewHistory(rot) {
+		if m.Kind == "debate" && strings.Contains(m.Content, "Gregal: Gregal:") {
+			t.Fatalf("duplicate speaker: %q", m.Content)
+		}
+	}
+}
+
+func TestStripQuoteTrimPreservesCodeAndEmptyReplies(t *testing.T) {
+	for _, text := range []string{"", "''", "```go\nprintln(1)\n```", "`literal`"} {
+		got := stripQuoteTrim(text)
+		want := text
+		if text == "''" {
+			want = ""
+		}
+		if got != want {
+			t.Errorf("stripQuoteTrim(%q) = %q, want %q", text, got, want)
+		}
+	}
+}
+
+func TestCrewUnfinishedReviewCannotFinishSuccessfully(t *testing.T) {
+	for _, tc := range []struct {
+		answer string
+		err    error
+	}{
+		{"Draft saved.\n\nOutstanding review feedback:\nmissing page", nil},
+		{"Draft saved.", errReviewIncomplete},
+	} {
+		t.Run(tc.answer, func(t *testing.T) {
+			s, _ := companionTestServer(t)
+			a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Builder"})
+			b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Reviewer"})
+			rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID, b.ID}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldWork, oldCoord := crewWork, crewCoordinator
+			t.Cleanup(func() { crewWork, crewCoordinator = oldWork, oldCoord })
+			calls := 0
+			crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+				calls++
+				if calls == 1 {
+					return `{"action":"work","assignments":[{"wind":"` + a.ID + `","part":"build"}]}`, nil
+				}
+				return `{"action":"finish","conclusion":"Done"}`, nil
+			}
+			crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+				return tc.answer, tc.err
+			}
+			job := &crewJob{}
+			s.crewLoop(rot, &crewState{Task: "build", Started: time.Now()}, job)
+			if job.get() != "failed" {
+				t.Fatalf("unfinished review reported %q", job.get())
+			}
+			hist := s.crewHistory(rot)
+			if !strings.Contains(hist[len(hist)-1].Content, "not finished") {
+				t.Fatalf("result: %+v", hist[len(hist)-1])
+			}
+		})
+	}
+}
+
+func TestCrewRepeatedReviewDoesNotStopWritingWork(t *testing.T) {
+	s, _ := companionTestServer(t)
+	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Builder"})
+	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Reviewer"})
+	rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID, b.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldWork, oldCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { crewWork, crewCoordinator = oldWork, oldCoord })
+	calls := 0
+	crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+		return `{"action":"work","assignments":[{"wind":"` + a.ID + `","part":"fix the page"}]}`, nil
+	}
+	crewWork = func(_ *Server, _ context.Context, _ Rotllana, _ string, _ team.FlowSpec, _ bool) (string, error) {
+		calls++
+		noteCrewWrite(rot.ID, "", "page.html")
+		return "Draft saved.\n\nOutstanding review feedback:\nmissing page", nil
+	}
+	job := &crewJob{}
+	s.crewLoop(rot, &crewState{Task: "build", Started: time.Now()}, job)
+	if calls != crewMaxRounds || job.get() != "failed" {
+		t.Fatalf("calls %d status %s", calls, job.get())
+	}
+}
+
+func TestCrewRepeatedWorkStopsWithoutClaimingCompletion(t *testing.T) {
+	s, _ := companionTestServer(t)
+	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Builder"})
+	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Reviewer"})
+	rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID, b.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldWork, oldCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { crewWork, crewCoordinator = oldWork, oldCoord })
+	calls := 0
+	crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+		return `{"action":"work","assignments":[{"wind":"` + a.ID + `","part":"fix the page"}]}`, nil
+	}
+	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+		calls++
+		return "Draft saved.\n\nOutstanding review feedback:\nmissing page", nil
+	}
+	job := &crewJob{}
+	s.crewLoop(rot, &crewState{Task: "build", Started: time.Now()}, job)
+	if calls != 2 {
+		t.Fatalf("repeated rounds: got %d, want 2", calls)
+	}
+	hist := s.crewHistory(rot)
+	last := hist[len(hist)-1]
+	if last.Kind != "result" || !strings.Contains(last.Content, "missing page") || !strings.Contains(strings.ToLower(last.Content), "not finished") {
+		t.Fatalf("must preserve feedback and report incomplete: %+v", last)
+	}
+}
+
 func TestCrewColourIsFarFromExistingOnes(t *testing.T) {
 	used := map[string]bool{"#A8D8EA": true, "#9CC4E8": true, "#F4B6C2": true}
 	got := nextCrewColor(used)

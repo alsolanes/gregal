@@ -99,8 +99,11 @@ CONVERSATION MODE. You are chatting with your human. Rules:
 // stripQuoteTrim neteja la resposta del model: cometes d'eco i espais.
 func stripQuoteTrim(s string) string {
 	s = strings.TrimSpace(s)
-	pairs := map[rune]rune{'"': '"', '«': '»', '\'': '\'', '`': '`'}
+	pairs := map[rune]rune{'"': '"', '«': '»', '\'': '\''}
 	for {
+		if s == "" {
+			return ""
+		}
 		first := []rune(s)[0:1]
 		o, isOpen := pairs[first[0]]
 		if !isOpen || len(s) < 2 {

@@ -27,9 +27,9 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 168 else 45
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 169 else 45
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.55.1-vents" else "0.11.3"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.55.2-vents" else "0.11.3"
     }
 
     // L'APK surt amb el nom de l'app i la versió: «Gregal-Vents-<versió>-arm64-v8a.apk» no
@@ -64,6 +64,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (project.hasProperty("gregal.scrollTest")) applicationIdSuffix = ".scrolltest"
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(
@@ -162,5 +165,8 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
     testImplementation("androidx.compose.ui:ui-test-junit4")
 
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.05.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

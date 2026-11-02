@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Les colles ja no generen automàticament rondes addicionals de debat en cada resposta: es reserven per quan es demana discutir. A la discussió inicial cada vent parla per si mateix, sense atribuir-se les respostes dels altres. Si es repeteix una revisió idèntica sense escriptures, el treball s'atura com a incomplet; una revisió fallida no es marca com a èxit.
+- El format de codi amb accents greus es conserva als missatges. En enviar un missatge, els xats segueixen el final, també amb missatges llargs i teclat obert; si la persona puja a llegir, no se la força avall.
+
+
 - **El xat no fa salts mentre arriba la resposta.** El text del darrer missatge
   creix a cada token i els elements de sobre (barra de treball, narracions)
   canvien d'alçada: la llista mantenia el desplaçament i el que estaves llegint

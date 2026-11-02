@@ -68,7 +68,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.ClickableText
-import androidx.compose.ui.layout.onSizeChanged
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.input.TextFieldValue
@@ -954,31 +953,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
-    // Obre sempre a l'últim, i després només baixa sol si ja hi érem.
-    var openedAtEnd by remember(wind.id) { mutableStateOf(false) }
-    // A partir de quin índex els missatges són "en directe" (animen):
-    // tot l'historial inicial apareix de cop, sense fades.
-    var liveFrom by remember(wind.id) { mutableStateOf(Int.MAX_VALUE) }
-    LaunchedEffect(wind.id, msgs.size) {
-        if (msgs.isEmpty()) return@LaunchedEffect
-        if (!openedAtEnd) {
-            // Entrada instantània: sense animació, l'usuari no veu cap salt.
-            listState.scrollToLatest()
-            openedAtEnd = true
-            liveFrom = msgs.size
-        } else {
-            listState.followLatest()
-        }
-    }
-    // El text del darrer missatge creix a cada token i els elements de sobre
-    // (barra de treball, narracions) canvien d'alçada: la llista manté el
-    // desplaçament i el que llegeixes va saltant. Mentre s'escriu, el final es
-    // queda fixat a baix de tot, sense animació i amb una sola passada.
-    LaunchedEffect(wind.id) {
-        snapshotFlow { msgs.size to (msgs.lastOrNull()?.text?.length ?: 0) }
-            .conflate()
-            .collect { if (openedAtEnd) listState.followLatest() }
-    }
+    val follow = rememberChatFollow(listState, wind.id)
+    var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
+    LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val isBusy = busy.contains(wind.id)
     Box(Modifier.fillMaxSize().background(Superficie)) {
@@ -995,17 +972,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest by remember { derivedStateOf { msgs.size > 1 && !listState.atLatest(1) } }
-        var lastViewportH by remember(wind.id) { mutableStateOf(0) }
+        val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
         LazyColumn(
-            Modifier.fillMaxSize().onSizeChanged { size ->
-                val h = size.height
-                if (lastViewportH > 0 && h < lastViewportH - 40 && msgs.isNotEmpty() && listState.atLatest(3)) {
-                    scope.launch { listState.scrollToLatest() }
-                }
-                lastViewportH = h
-            },
+            Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -1022,7 +992,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                         hint = tr(lang, "app.company.windHello", wind.name),
                         // Com al Grok: tres primeres frases a un toc, segons l'ofici del vent.
                         suggestions = windStarters(lang, wind.specialty),
-                        onPick = { vm.sendWindMessage(wind.id, it) },
+                        onPick = { follow.requestFollow(); vm.sendWindMessage(wind.id, it) },
                     )
                 }
             }
@@ -1036,8 +1006,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                                 clipboard.setText(AnnotatedString(stripMdInline(msgs[idx].text)))
                                 scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                             },
-                            onContinue = if (!isBusy) ({ vm.sendWindContinue(wind.id) }) else null,
-                            onRetry = if (!isBusy) ({ vm.retryLastWindTurn(wind.id) }) else null,
+                            onContinue = if (!isBusy) ({ follow.requestFollow(); vm.sendWindContinue(wind.id) }) else null,
+                            onRetry = if (!isBusy) ({ follow.requestFollow(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                     }
@@ -1064,7 +1034,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
         }
         if (awayFromLatest) {
             Surface(
-                onClick = { scope.launch { listState.scrollToLatest(animate = true) } },
+                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
                 shape = RoundedCornerShape(999.dp), color = Ink,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
@@ -1100,7 +1070,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     field = TextFieldValue("")
                 }
             } else {
-                vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
+                follow.requestFollow(); vm.sendWindMessage(wind.id, body); field = TextFieldValue("")
             }
         }
         }
@@ -1150,19 +1120,9 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val mention = activeMention(field.text, field.selection.start, faces)
     val canSend = field.text.isNotBlank() && !busy.contains(rot.id)
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
-    // Obre sempre a l'últim, i després només baixa sol si ja hi érem.
-    var openedAtEnd by remember(rot.id) { mutableStateOf(false) }
-    var liveFrom by remember(rot.id) { mutableStateOf(Int.MAX_VALUE) }
-    LaunchedEffect(rot.id, msgs.size) {
-        if (msgs.isEmpty()) return@LaunchedEffect
-        if (!openedAtEnd) {
-            listState.scrollToLatest()
-            openedAtEnd = true
-            liveFrom = msgs.size
-        } else {
-            listState.followLatest()
-        }
-    }
+    val follow = rememberChatFollow(listState, rot.id)
+    var liveFrom by remember(rot.id) { mutableIntStateOf(Int.MAX_VALUE) }
+    LaunchedEffect(rot.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val rotBusy = busy.contains(rot.id)
     val rotAccent = faces.firstOrNull()?.let { Color(it.argb) } ?: Sea
@@ -1190,17 +1150,10 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
-        val awayFromLatest by remember { derivedStateOf { msgs.size > 1 && !listState.atLatest(1) } }
-        var lastViewportH by remember(rot.id) { mutableStateOf(0) }
+        val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
         LazyColumn(
-            Modifier.fillMaxSize().onSizeChanged { size ->
-                val h = size.height
-                if (lastViewportH > 0 && h < lastViewportH - 40 && msgs.isNotEmpty() && listState.atLatest(3)) {
-                    scope.launch { listState.scrollToLatest() }
-                }
-                lastViewportH = h
-            },
+            Modifier.fillMaxSize(),
             state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -1250,8 +1203,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                         clipboard.setText(AnnotatedString(stripMdInline(resolved.message.text)))
                         scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                     },
-                    onContinue = if (!busy.contains(rot.id)) ({ vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
-                    onRetry = if (!busy.contains(rot.id)) ({ vm.retryLastRotllanaTurn(rot.id) }) else null,
+                    onContinue = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.sendRotllanaContinue(rot.id, resolved.message.speakerId) }) else null,
+                    onRetry = if (!busy.contains(rot.id)) ({ follow.requestFollow(); vm.retryLastRotllanaTurn(rot.id) }) else null,
                     onTransfer = if (vm.canTransferToServer() && !busy.contains(rot.id)) ({ askTransfer = true }) else null,
                     onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                 }
@@ -1278,7 +1231,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         }
         if (awayFromLatest) {
             Surface(
-                onClick = { scope.launch { listState.scrollToLatest(animate = true) } },
+                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
                 shape = RoundedCornerShape(999.dp), color = Ink,
                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
@@ -1305,7 +1258,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             onPreview = { vm.openPreview() }) {
             val body = field.text
             val target = resolveMention(body, faces)
-            vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
+            follow.requestFollow(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
             // La resposta reprèn la colla que esperava: se'n torna a seguir el progrés.
             if (waitingAnswer) vm.followCrew(rot.id)
         }
@@ -2022,49 +1975,53 @@ private fun CrewQuestionCard(lang: String, accent: Color) {
     }
 }
 
-/**
- * Els índexs de la llista no són els dels missatges: a dalt hi ha sempre
- * l'element de l'esquelet o del xat buit, i a baix de vegades el «hi pensa».
- * Per això `scrollToItem(msgs.lastIndex)` es quedava un element curt i el darrer
- * missatge acabava tapat pel compositor o pel teclat.
- */
-internal fun LazyListState.atLatest(maxBehind: Int = 2): Boolean {
-    val li = layoutInfo
-    if (li.totalItemsCount == 0) return true
-    val last = li.visibleItemsInfo.lastOrNull() ?: return true
-    return last.index >= li.totalItemsCount - 1 - maxBehind
+/** Follow is user intent, not proximity after a newly appended item changes layout. */
+internal class ChatFollowState {
+    var following by mutableStateOf(true)
+        private set
+    var dragging by mutableStateOf(false)
+        private set
+    fun requestFollow() { following = true }
+    fun startReading() { dragging = true; following = false }
+    fun stopDragging() { dragging = false }
 }
 
-/** Baixa al darrer element de debò, amb marge per als ítems encara sense mesurar. */
-internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
-    repeat(8) {
-        val li = layoutInfo
-        val last = li.totalItemsCount - 1
-        if (last < 0) {
-            kotlinx.coroutines.delay(80)
-            return@repeat
+@Composable
+internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState {
+    val follow = remember(list, key) { ChatFollowState() }
+    LaunchedEffect(list, follow) {
+        list.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is androidx.compose.foundation.interaction.DragInteraction.Start -> follow.startReading()
+                is androidx.compose.foundation.interaction.DragInteraction.Stop,
+                is androidx.compose.foundation.interaction.DragInteraction.Cancel -> {
+                    follow.stopDragging()
+                    if (!list.canScrollForward) follow.requestFollow()
+                }
+            }
         }
-        try {
-            if (animate) animateScrollToItem(last) else scrollToItem(last)
-        } catch (_: Exception) {
-            return
-        }
-        val end = layoutInfo
-        val darrer = end.visibleItemsInfo.lastOrNull()
-        // L'últim ha d'estar DINS del viewport, no al prefetch.
-        if (darrer != null && darrer.index >= end.totalItemsCount - 1 &&
-            darrer.offset + darrer.size <= end.viewportEndOffset
-        ) return
-        kotlinx.coroutines.delay(60)
     }
+    LaunchedEffect(list, follow) {
+        snapshotFlow {
+            val info = list.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()
+            listOf(info.totalItemsCount, info.viewportEndOffset, last?.index ?: -1,
+                last?.offset ?: 0, last?.size ?: 0, if (follow.following) 1 else 0,
+                if (list.isScrollInProgress || follow.dragging) 1 else 0)
+        }.conflate().collect {
+            if (!follow.dragging && !list.isScrollInProgress && !list.canScrollForward) follow.requestFollow()
+            if (follow.following && !follow.dragging && !list.isScrollInProgress && list.canScrollForward) {
+                // User drag may cancel the scroll mutation; keep the observer alive.
+                kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+            }
+        }
+    }
+    return follow
 }
 
-/** Segueix el final només si ja hi érem: si llegeixes enrere, no et mou. */
-internal suspend fun LazyListState.followLatest(animate: Boolean = false) {
-    if (!atLatest()) return
+/** A tall last bubble must be aligned at its bottom, not its top. */
+internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
     val last = layoutInfo.totalItemsCount - 1
     if (last < 0) return
-    try {
-        if (animate) animateScrollToItem(last) else scrollToItem(last)
-    } catch (_: Exception) { }
+    if (animate) animateScrollToItem(last, Int.MAX_VALUE) else scrollToItem(last, Int.MAX_VALUE)
 }

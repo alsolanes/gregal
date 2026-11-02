@@ -506,10 +506,20 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	}
 	// Discussió entre ells: si hi ha hagut més d'una veu i el torn ha anat sencer,
 	// la colla continua fins a entendre's o fins que tothom calla.
-	if len(veus) >= 2 && !parcial && lastErr == nil {
+	if len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
 		var noves []llm.Message
 		tDebat := time.Now()
-		conversation, noves = s.rotllanaDebat(rot, s.rotMembersOf(rot), conversation, msg, emit)
+		debateCtx, cancelDebate := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
+		debateCtx, doneDebate := s.beginWindTurn("rotllana", rot.ID, debateCtx)
+		conversation, noves = s.rotllanaDebat(debateCtx, rot, s.rotMembersOf(rot), conversation, msg, emit)
+		stopped := tornAturat(debateCtx.Err())
+		doneDebate()
+		cancelDebate()
+		if stopped {
+			hist.messages = conversation
+			emit("error", map[string]any{"error": "aturat", "cancelat": true})
+			return
+		}
 		if len(noves) > 0 {
 			hist.messages = conversation
 			tempsVeus = append(tempsVeus, fmt.Sprintf("debat %d veus %.1fs", len(noves), time.Since(tDebat).Seconds()))

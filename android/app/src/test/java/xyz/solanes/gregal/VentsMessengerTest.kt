@@ -1,6 +1,8 @@
 package xyz.solanes.gregal
 
 import android.app.Application
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.*
@@ -67,6 +69,21 @@ class VentsMessengerTest {
         ui.onNodeWithText(tr("ca", "app.company.windChatHint", "Xaloc")).performTextInput("Un esborrany sense enviar")
         restore.emulateSavedInstanceStateRestore()
         ui.onNodeWithText("Un esborrany sense enviar").assertExists()
+    }
+
+    @Test fun scrollToLatestShowsTheEndOfAnOversizedLastMessage() {
+        lateinit var list: androidx.compose.foundation.lazy.LazyListState
+        ui.setContent {
+            list = androidx.compose.foundation.lazy.rememberLazyListState()
+            androidx.compose.foundation.lazy.LazyColumn(
+                state = list
+            ) {
+                item { androidx.compose.foundation.layout.Spacer(androidx.compose.ui.Modifier.height(3000.dp)) }
+            }
+        }
+        kotlinx.coroutines.runBlocking { list.scrollToLatest() }
+        ui.waitForIdle()
+        assert(!list.canScrollForward) { "The bottom of the last message is still below the viewport" }
     }
 
     @Test fun homeHasSearchAndCreationWithoutTechnicalSubtitle() {

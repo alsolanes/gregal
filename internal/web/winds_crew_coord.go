@@ -36,8 +36,9 @@ import (
 // El resultat els llista; abans es llistava tot el que havia canviat a la
 // carpeta (fitxers interns de Gregal inclosos).
 var (
-	crewWritesMu sync.Mutex
-	crewWrites   = map[string][]string{}
+	crewWritesMu    sync.Mutex
+	crewWrites      = map[string][]string{}
+	crewWriteEvents = map[string]uint64{}
 )
 
 func noteCrewWrite(rotID, workspace, path string) {
@@ -50,6 +51,7 @@ func noteCrewWrite(rotID, workspace, path string) {
 	rel = filepath.ToSlash(rel)
 	crewWritesMu.Lock()
 	defer crewWritesMu.Unlock()
+	crewWriteEvents[rotID]++
 	for _, p := range crewWrites[rotID] {
 		if p == rel {
 			return
@@ -63,6 +65,7 @@ func takeCrewWrites(rotID string) []string {
 	defer crewWritesMu.Unlock()
 	out := crewWrites[rotID]
 	delete(crewWrites, rotID)
+	delete(crewWriteEvents, rotID)
 	return out
 }
 
@@ -74,13 +77,15 @@ const (
 // crewState és el que el coordinador necessita per reprendre la feina
 // després d'una pregunta (també si el servidor s'ha reiniciat).
 type crewState struct {
-	Task      string    `json:"task"`
-	Ca        bool      `json:"ca"`
-	Round     int       `json:"round"`
-	Questions int       `json:"questions"`
-	Started   time.Time `json:"started"`
-	Waiting   bool      `json:"waiting"`
-	Log       []string  `json:"log"` // què ha passat a cada volta, per al coordinador
+	Task             string    `json:"task"`
+	Ca               bool      `json:"ca"`
+	Round            int       `json:"round"`
+	Questions        int       `json:"questions"`
+	Started          time.Time `json:"started"`
+	Waiting          bool      `json:"waiting"`
+	Log              []string  `json:"log"` // què ha passat a cada volta, per al coordinador
+	Last             string    `json:"last,omitempty"`
+	ReviewIncomplete bool      `json:"review_incomplete,omitempty"`
 }
 
 func crewStatePath(s *Server, rotID string) string {
@@ -355,7 +360,7 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 		}
 		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: "review", Label: reviewer.Name, Role: "reviewer", Mode: "review",
 			Instruction: instruction(reviewer, true) + " In feedback, say what you actually checked (files opened, behaviour verified) and what you could not check.",
-			Wind: reviewer.ID})
+			Wind:        reviewer.ID})
 		for i := range assign {
 			flow.Edges = append(flow.Edges, team.FlowEdge{From: fmt.Sprintf("build-%d", i+1), To: "review", Kind: "data"})
 		}
@@ -390,7 +395,8 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 		}
 		return base + "Build your part of the deliverable now, in this run, with the write and edit tools, using the content and decisions the crew contributed. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform." + windBuildTools
 	}
-	var last string
+	last := st.Last
+	var previousAssignment, previousAnswer string
 	for {
 		if ctx.Err() != nil {
 			break
@@ -408,11 +414,20 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 			job.set("waiting")
 			return
 		case "finish":
+			// A coordinator or the round cap cannot turn a rejected review into success.
+			unfinished := crewRejected(last) || st.ReviewIncomplete
+			if unfinished {
+				d.Conclusion = say("La feina no està acabada; la revisió és incompleta o hi queden problemes.\n\n", "The work is not finished; review is incomplete or issues remain.\n\n") + last
+			}
 			msg := crewResultText(d, takeCrewWrites(rot.ID), last, st.Ca)
 			s.crewSayKind(rot, lead, "result", msg)
 			s.crewNotify(rot, lead, st.Task, msg)
 			_ = os.Remove(crewStatePath(s, rot.ID))
-			job.set("done")
+			if unfinished {
+				job.set("failed")
+			} else {
+				job.set("done")
+			}
 			return
 		case "giveup":
 			msg := say("No ho podem fer: ", "We can't do it: ") + firstNonEmpty(d.Say, d.Conclusion)
@@ -437,10 +452,29 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 		s.crewSayKind(rot, lead, "debate", fmt.Sprintf("%s (%s %d)\n- %s", note, say("volta", "round"), st.Round, strings.Join(plan, "\n- ")))
 		flow := crewRoundFlow(d.Assignments, members, instruction, st.Ca)
 		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
+		crewWritesMu.Lock()
+		writesBefore := crewWriteEvents[rot.ID]
+		crewWritesMu.Unlock()
 		answer, err := crewWork(s, ctx, rot, work, flow, st.Ca)
+		crewWritesMu.Lock()
+		wroteThisRound := crewWriteEvents[rot.ID] != writesBefore
+		crewWritesMu.Unlock()
 		switch {
 		case err == nil || err == errReviewIncomplete:
 			last = answer
+			st.Last, st.ReviewIncomplete = answer, err == errReviewIncomplete
+			assignmentJSON, _ := json.Marshal(d.Assignments)
+			assignment := string(assignmentJSON)
+			if !wroteThisRound && crewRejected(answer) && assignment == previousAssignment && strings.TrimSpace(answer) == previousAnswer {
+				msg := say("La feina no està acabada: la mateixa revisió s'ha repetit sense progressar.\n\n", "The work is not finished: the same review repeated without progress.\n\n") + answer
+				msg = crewResultText(crewDecision{Conclusion: msg}, takeCrewWrites(rot.ID), "", st.Ca)
+				s.crewSayKind(rot, lead, "result", msg)
+				s.crewNotify(rot, lead, st.Task, msg)
+				_ = os.Remove(crewStatePath(s, rot.ID))
+				job.set("failed")
+				return
+			}
+			previousAssignment, previousAnswer = assignment, strings.TrimSpace(answer)
 			verdict := say("Revisat: ", "Reviewed: ")
 			if err == errReviewIncomplete {
 				verdict = say("Fet, però la revisió no s'ha pogut completar: ", "Done, but the review could not be completed: ")

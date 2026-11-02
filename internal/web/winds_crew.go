@@ -737,12 +737,20 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 		"Design discussion before starting. Task: "+task+"\nFrom your specialty, say in 2-5 sentences how you would do it. Respond concretely to what the other winds said (agree or disagree, with reasons) and contribute the actual content of your part now (data, texts, decisions): everything happens in this session and the builder will do the work right after, without waiting for anything else. Do not promise to send anything later. If the user said something, take it into account first.")
 	for _, wind := range members {
 		_, brief := rotllanaChatBrief(s, rot, wind, s.crewHistory(rot), discuss)
+		brief += "\n\nCREW DISCUSSION OVERRIDE: Speak ONLY as yourself (" + wind.Name + "), not as the whole group. Do not prefix your name or write other members' replies."
 		text, err := crewDiscussLoop(s, ctx, brief)
 		if err != nil {
 			log.Printf("crew discussion %s: %s", wind.Name, redactError(err))
 			continue
 		}
-		s.crewSayKind(rot, wind, "debate", stripQuoteTrim(text))
+		text = stripQuoteTrim(text)
+		// The model sometimes includes speaker labels despite the instruction.
+		// Do not store a second name or attribute other members' words to this one.
+		for _, voice := range splitRotllanaVoices(text, members, wind) {
+			if voice.wind.ID == wind.ID {
+				s.crewSayKind(rot, wind, "debate", voice.text)
+			}
+		}
 	}
 	// Després de la discussió, la feina la porta el coordinador (winds_crew_coord.go).
 	st := &crewState{Task: task, Ca: ca, Started: inici}

@@ -47,11 +47,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         val t = ui.failedText
         if (t.isNotBlank() && field.text.isBlank()) field = TextFieldValue(t, TextRange(t.length))
     }
-    // Sempre a baix de tot quan arriba res nou (com els altres xats).
-    LaunchedEffect(history.size, ui.busy, ui.going, ui.error) {
-        val last = listState.layoutInfo.totalItemsCount - 1
-        if (last >= 0) listState.scrollToItem(last)
-    }
+    val follow = rememberChatFollow(listState, "ventet")
     val mood = when {
         ui.busy || ui.going -> WindMood.THINKING
         ui.pending != null -> WindMood.HAPPY
@@ -107,14 +103,14 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
                     Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cap-send-error"),
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(tr(lang, "app.cap.error"), color = Red, fontSize = 14.sp, textAlign = TextAlign.Center)
-                        TextButton(onClick = { field = TextFieldValue(""); vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
+                        TextButton(onClick = { follow.requestFollow(); field = TextFieldValue(""); vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
                     }
                 }
             }
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
                 canSend = field.text.isNotBlank() && !ui.busy,
                 busy = ui.busy || ui.going, accent = accent) {
-                vm.askCap(field.text); field = TextFieldValue("")
+                follow.requestFollow(); vm.askCap(field.text); field = TextFieldValue("")
             }
         }
     }

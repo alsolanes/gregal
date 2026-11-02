@@ -121,7 +121,7 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
     val counts = remember(ch) { retroFindingCounts(ch?.messages.orEmpty()) }
     val rows = remember(ch, filter) { retroOrdered(retroFilter(ch?.messages.orEmpty(), filter)) }
     val replying = state == "replying"
-    LaunchedEffect(rows.size, replying) { if (rows.isNotEmpty()) list.animateScrollToItem(rows.size + if (replying) 1 else 0) }
+    val follow = rememberChatFollow(list, "retro")
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -169,7 +169,7 @@ fun RetroScreen(vm: GregalViewModel, onMenu: () -> Unit, onBack: () -> Unit) {
                             },
                         )
                         IconButton(
-                            onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); vm.sendRetro(input); input = "" },
+                            onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); follow.requestFollow(); vm.sendRetro(input); input = "" },
                             enabled = input.isNotBlank() && !replying, modifier = Modifier.size(48.dp),
                         ) {
                             Surface(color = if (input.isNotBlank() && !replying) Sea else CodeDark, shape = CircleShape, modifier = Modifier.size(36.dp)) {

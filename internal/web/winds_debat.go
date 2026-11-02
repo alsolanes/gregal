@@ -14,6 +14,18 @@ import (
 // una tercera no ho arregla: torna el pla de qui hi entén més.
 const maxRondesDebat = 2
 
+// Extra model-to-model rounds are reserved for an explicit request to debate;
+// a normal multi-voice answer is already a complete group turn.
+func rotllanaVolDebat(msg string) bool {
+	msg = strings.ToLower(msg)
+	for _, word := range []string{"discutiu", "debateu", "debatre", "debate", "discuss among", "discuss together", "discutir entre"} {
+		if strings.Contains(msg, word) {
+			return true
+		}
+	}
+	return false
+}
+
 // reglaDebat és el que se'ls diu a la ronda de discussió. El guió sol és la
 // manera que té una veu de callar sense gastar una bombolla buida.
 const reglaDebat = "\n\nDEBATE ROUND (the group has already answered once): the others have spoken above. " +
@@ -27,7 +39,7 @@ const reglaDebat = "\n\nDEBATE ROUND (the group has already answered once): the 
 // les altres i pot callar amb un guió. S'atura quan en una ronda no hi ha cap
 // veu nova (acord o res a dir) o al màxim de rondes. Torna la conversa
 // actualitzada i els missatges que s'hi han afegit.
-func (s *Server) rotllanaDebat(rot Rotllana, members []companion.Wind, conversation []llm.Message, msg string, emit func(string, any)) ([]llm.Message, []llm.Message) {
+func (s *Server) rotllanaDebat(ctx context.Context, rot Rotllana, members []companion.Wind, conversation []llm.Message, msg string, emit func(string, any)) ([]llm.Message, []llm.Message) {
 	if len(members) < 2 {
 		return conversation, nil
 	}
@@ -35,6 +47,9 @@ func (s *Server) rotllanaDebat(rot Rotllana, members []companion.Wind, conversat
 	for ronda := 1; ronda <= maxRondesDebat; ronda++ {
 		novesAquesta := 0
 		for _, sp := range members {
+			if ctx.Err() != nil {
+				return conversation, noves
+			}
 			emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
 			system, _ := rotllanaChatBrief(s, rot, sp, conversation, msg)
 			system += reglaDebat
@@ -48,9 +63,9 @@ func (s *Server) rotllanaDebat(rot Rotllana, members []companion.Wind, conversat
 			msgs := make([]llm.Message, 0, len(conversation)+1)
 			msgs = append(msgs, llm.Message{Role: "system", Content: system})
 			msgs = append(msgs, conversation...)
-			ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
+			callCtx, cancel := context.WithTimeout(ctx, rotllanaTurnTimeout)
 			emit("activity", windActivity{Phase: "thinking"})
-			out, err := petChatter(ctx, client, cfg, p, role, msgs)
+			out, err := petChatter(callCtx, client, cfg, p, role, msgs)
 			cancel()
 			if err != nil {
 				continue
