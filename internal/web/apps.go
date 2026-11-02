@@ -778,7 +778,10 @@ func handleAppProxy(w http.ResponseWriter, r *http.Request) {
 		ModifyResponse: func(res *http.Response) error {
 			res.Header.Del("Set-Cookie")
 			res.Header.Set("Content-Security-Policy", siteCSP)
-			res.Header.Set("Access-Control-Allow-Origin", "*")
+			// ACAO ja és a la resposta (h.Set de dalt) i el proxy hi AFEGEIX
+			// les capçaleres de l'app: si l'app també el posa, sortiria «*, *»
+			// i el navegador rebutja la resposta.
+			res.Header.Del("Access-Control-Allow-Origin")
 			res.Header.Set("X-Content-Type-Options", "nosniff")
 			res.Header.Set("Referrer-Policy", "no-referrer")
 			if loc := res.Header.Get("Location"); strings.HasPrefix(loc, "/") && !strings.HasPrefix(loc, "//") {

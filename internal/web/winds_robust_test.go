@@ -368,6 +368,7 @@ func TestHelperAppServer(t *testing.T) {
 	})
 	mux.HandleFunc("/api/x", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*") // com fan moltes apps
 		io.WriteString(w, `{"ok":true}`)
 	})
 	mux.HandleFunc("/crash", func(w http.ResponseWriter, r *http.Request) { os.Exit(3) })
@@ -423,7 +424,7 @@ func TestAppGestionadaEngegaProxyReiniciaAtura(t *testing.T) {
 	if rec.Header().Get("Set-Cookie") != "" || !strings.Contains(rec.Header().Get("Content-Security-Policy"), "sandbox") || !strings.Contains(body, `"localStorage","sessionStorage"`) {
 		t.Fatalf("capçaleres/shim: %v\n%s", rec.Header(), body)
 	}
-	if rec := get("/apps/"+id+"/api/x", nil); !strings.Contains(rec.Body.String(), `"ok":true`) || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
+	if rec := get("/apps/"+id+"/api/x", nil); !strings.Contains(rec.Body.String(), `"ok":true`) || len(rec.Header().Values("Access-Control-Allow-Origin")) != 1 || rec.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Fatalf("api: %d %s %v", rec.Code, rec.Body.String(), rec.Header())
 	}
 	pre := httptest.NewRequest("OPTIONS", "/apps/"+id+"/api/x", nil)
