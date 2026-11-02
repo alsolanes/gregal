@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.38.1 - 2026-11-02 - Conversa dels vents
+
+- **Winds conversation polish.** The model selector is easier to recognize and displays a more readable model name, while retaining the full identifier for accessibility. Conversation avatars and composer controls are a little larger.
+
 ## v1.38.0 - 2026-11-02 - Avatars dels vents
 
 - **Vents 1.49.0 — more expressive winds.** Winds get cheeks, feet and a fringe on the ball shape, so they read as characters at a glance. The wind creator suggests ideas and shows a live preview. The context gauge has a tooltip and the speed readout is clearer.
