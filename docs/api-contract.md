@@ -717,3 +717,17 @@ Sanitization replaces with `[REDACTED]`: API keys and tokens (`sk-…`, `sk-ant-
 | `/api/bestof/apply` | POST | `{id, attempt, keep?}` → `{id, applied, message, removed}`: applies the attempt's diff to the main working tree with `git apply` (no commit; nothing changes if it does not apply → 409), then force-removes the other worktrees (and the chosen one unless `keep`). 409 while attempts are still running or the session agent is busy. |
 
 **Plan critic.** Besides `/api/plan`, in autonomous mode the first milestone checklist (`todowrite` with two or more items) is critiqued once by the reviewer role; if there are concerns the agent is asked to revise the checklist once before executing, and a `status` line `plan critic: N concerns` lists them. `plan.critic: off` disables both.
+
+## Server accounts and wind cards
+
+Multi-user servers keep accounts apart from `config.yaml`: the ones created here
+are *managed* and land in `managed-accounts.json` (PBKDF2, 0600) with their own
+home inside `GREGAL_ACCOUNTS_DIR`. Without that variable the account routes
+answer 503, so a single-user install behaves as before.
+
+| Route | Method | Notes |
+|---|---|---|
+| `/api/winds/cards` | GET/POST | Reference cards of one wind. GET `?wind=` → `{cards:[{id,title,prompt,content,updated}]}`; 400 for an unknown wind. POST `{wind, action:"create", title, prompt}` → the created card (title ≤ 200, prompt ≤ 4000; 400 otherwise). |
+| `/api/server/accounts` | GET/POST | Administrator only (403 for anyone else). GET → `{accounts:[{name,managed,admin}]}`, config users plus managed ones. POST `{name,password}` creates a managed account, `{action:"reset",name,password}` changes its password; passwords need 8 to 1024 characters (400 otherwise) and are never echoed back. |
+| `/api/server/invitations` | POST | Administrator only → `{code,expires}`: a single-use 32-hex code that lives 30 minutes. |
+| `/api/register` | POST | Public, no session: `{code,name,password}` spends the invitation and creates the account → `{name}`. 401 when the code is invalid, expired or already used; 400 for a bad name or a password under 8 characters; 429 after too many attempts from the same address. |
