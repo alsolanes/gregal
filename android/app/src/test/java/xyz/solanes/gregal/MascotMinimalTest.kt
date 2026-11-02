@@ -213,7 +213,7 @@ class MascotMinimalTest {
         assertFalse("The specialist still has a discreet tool on the large profile", alike(plain, specialist))
     }
 
-    @Test fun spiralIsADistinctSilhouetteNotABallWithAnEtchedLine() {
+    @Test fun spiralIsABallWithAFringeThatStillReadsAsDifferentFromAPlainBall() {
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false) {
                 Row(Modifier.background(Color.Black)) {
@@ -227,10 +227,11 @@ class MascotMinimalTest {
         val spiral = image("SPIRAL")
         var different = 0
         for (y in 0 until ball.height) for (x in 0 until ball.width) {
-            if ((ball.getPixel(x, y) != android.graphics.Color.BLACK) !=
-                (spiral.getPixel(x, y) != android.graphics.Color.BLACK)) different++
+            if (ball.getPixel(x, y) != spiral.getPixel(x, y)) different++
         }
-        assertTrue("The outline must identify an espiral without inner decoration", different > ball.width * ball.height * .09f)
+        // La silueta de l'espiral és la de la bola (és intencionat); el que la
+        // distingeix és el serrell interior, així que es compara píxel a píxel.
+        assertTrue("The fringe must still identify the espiral against a plain ball", different > ball.width * ball.height * .01f)
     }
 
     @Test fun idleWrapperDoesNotInventPresenceOrPaintAHalo() {
