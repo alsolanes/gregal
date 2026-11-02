@@ -3,6 +3,8 @@ package xyz.solanes.gregal
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -42,7 +44,7 @@ internal fun WindProfileDialog(vm: GregalViewModel, lang: String, wind: Wind, on
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, profile: WindProfile?, busy: Boolean, error: String?,
     messages: List<GregalViewModel.PetMsg>, routines: List<GregalApi.WindRutina>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
@@ -59,7 +61,12 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
-                Button(onClick = onChat, modifier = Modifier.fillMaxWidth().padding(16.dp),
+                // Dins d'un diàleg els insets del sistema arriben a zero i el
+                // botó quedava mig tapat per la barra de gestos: si l'inset no
+                // diu res, deixa-hi un marge.
+                val navBottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                Button(onClick = onChat, modifier = Modifier.fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + maxOf(0.dp, 24.dp - navBottom)),
                     colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = buttonContent)) {
                     Text(tr(lang, "app.vents.talkTo"))
                 }
@@ -70,10 +77,11 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             navigationIcon = { IconButton(onClick = onDismiss, enabled = !saving) { Icon(Icons.Rounded.ArrowBack, tr(lang, "app.vents.back")) } },
             actions = { IconButton(onClick = onEdit, enabled = !busy && !saving && profile != null) { Icon(Icons.Rounded.Edit, tr(lang, "app.company.windEdit")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie)) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            // Hero centrat: cara, nom i ofici; a sota, una ullada al que ja
-            // sap i recorda (tocar-ho obre la pestanya). Abans hi havia un
-            // buit enorme entre la capçalera i les pestanyes.
+        // Tot en una llista: la cara i el nom s'emporten mitja pantalla i, si
+        // es queden fixes, la informació del vent no té lloc. Ara el hero
+        // llisca i les pestanyes es queden enganxades a dalt.
+        LazyColumn(Modifier.fillMaxSize().padding(padding)) {
+            item(key = "hero") {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(top = 14.dp, bottom = 10.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 WindHalo(accent = accent, style = wind.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true)
@@ -82,6 +90,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
                 ProfileGlance(lang, wind, profile, accent, tab, onTab = { tab = it })
             }
+            }
+            stickyHeader(key = "tabs") {
             TabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
@@ -94,7 +104,9 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key")) })
                 }
             }
-            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            }
+            item(key = "content") {
+            Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
                 if (error != null) {
                     Text(error, color = MaterialTheme.colorScheme.error)
@@ -162,6 +174,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         }
                     }
                 }
+            }
             }
         }
     }

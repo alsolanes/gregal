@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **El perfil del vent es pot llegir sencer.** La cara, el nom i la targeta de
+  «ja en sap» s'emportaven mitja pantalla i es quedaven fixes: el contingut de la
+  pestanya era una columna `fillMaxSize()` dins d'una altra columna, tan alta com
+  la pantalla, i tot el que queia per sota del marc visible no es podia fer
+  lliscar. Ara és una sola llista: el capçal llisca quan hi passes el dit i les
+  pestanyes (Caràcter, Memòria, Pla, Fitxes) queden enganxades a dalt, amb tota
+  l'alçada per a la informació. El botó de xat tampoc no queda mig tapat per la
+  barra de gestos. Versió 1.52.3-vents (162).
+
+
 - **El teclat ja no tapa l'últim missatge.** Els índexs de la llista no són els
   dels missatges (a dalt hi ha sempre l'element de l'esquelet o del xat buit, i a
   baix de vegades el «hi pensa»), així que `scrollToItem(msgs.lastIndex)` es
