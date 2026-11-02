@@ -235,6 +235,9 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	}
 	s.modelOverride = s.defaultModelOverrides()
 	s.registerRemindTool()
+	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
+	// on publicar-los (enllaç amb clau pròpia, sense sessió).
+	tools.PublicarFitxer = s.publicaFitxer
 	return s
 }
 
@@ -599,6 +602,8 @@ func (h *Hub) mux() *http.ServeMux {
 	// Previsualitzar la carpeta de treball: la web que el vent acaba de fer,
 	// oberta al mòbil sense engegar cap servidor efímer.
 	handle(previewPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handlePreview(w, r) })
+	// Fitxers enviats al xat (enllaç amb clau pròpia, sense sessió).
+	handle(fitxersPrefix, func(w http.ResponseWriter, r *http.Request) { h.def.handleFitxer(w, r) })
 	handle("/api/preview", h.route((*Server).handlePreviewInfo))
 	// Apps gestionades (apps.go): el que necessita servidor, engegat i
 	// vigilat pel Gregal, a /apps/<id>/ sense token (id no endevinable).

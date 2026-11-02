@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Els vents et poden enviar fitxers pel xat.** Eina nova `send_file`: donat un
+  fitxer del disc, el publica amb un enllaç propi (`/f/<clau>/<nom>`, clau
+  aleatòria de 24 caràcters, sense sessió) i el model enganxa l'enllaç a la
+  resposta. El mòbil el baixa amb el nom i el tipus correctes (prova: l'APK de
+  35.412.620 B baixat amb el mateix SHA-256). Límit de 250 MB.
+
 - **La colla respon sencera quan preguntes a tots.** A la consigna del torn en
   grup s'hi diu qui hi ha de respondre: si la persona parla a la colla (sense
   nomenar ningú), responen tots els membres que tinguin alguna cosa a dir, un

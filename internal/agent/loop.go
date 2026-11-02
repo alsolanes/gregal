@@ -21,6 +21,19 @@ import (
 	"gregal/internal/tools"
 )
 
+// formatMida és la mida d'un fitxer en paraules d'humà.
+func formatMida(b int64) string {
+	switch {
+	case b >= 1<<30:
+		return fmt.Sprintf("%.1f GB", float64(b)/(1<<30))
+	case b >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(b)/(1<<20))
+	case b >= 1<<10:
+		return fmt.Sprintf("%.0f kB", float64(b)/(1<<10))
+	}
+	return fmt.Sprintf("%d B", b)
+}
+
 // Specs retorna les eines natives exposades al model.
 func Specs() []llm.ToolSpec {
 	str := map[string]any{"type": "string"}
@@ -29,6 +42,9 @@ func Specs() []llm.ToolSpec {
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"kind": map[string]any{"type": "string", "enum": []string{"html", "markdown", "url"}}, "content": str, "title": str,
 			}, "required": []string{"kind", "content"}}},
+		{Name: "send_file", Description: "Send a file from the disk to the user's chat as a download link (APK, ZIP, image, PDF...). Use the absolute path of an existing file. The link it returns must be copied verbatim into your reply, on its own line, as a markdown link with the file name.", Parameters: map[string]any{"type": "object", "properties": map[string]any{
+			"path": str,
+		}, "required": []string{"path"}}},
 		{Name: "dashboard_save", Description: "Save charts to a named dashboard INSIDE the Gregal app (its Plots & dashboard section), shared by web, desktop and Android. Use this when the user asks for a dashboard or saved charts in the app: no HTML needed. Each plot uses the data-only gregal-plot JSON shape {title, type: line|bar|scatter|area|horizontal-bar|pie|doughnut|radar, labels: [strings], series: [{label, values: [numbers]}]}; no executable options. Values must be finite and match labels; maximum 2000 labels and 20 series. Scatter labels are numeric x coordinates written as strings. Area has a zero baseline with signed values; horizontal-bar supports signed grouped series. Pie and doughnut require exactly one series with nonnegative values and at least one positive value. Radar requires 3–32 category labels and nonnegative values; all-zero series are allowed. Creates the dashboard if it does not exist; replace=true clears its previous charts first. Available through the Gregal web server, including desktop and Android clients, not the CLI.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"dashboard": str,
@@ -450,7 +466,7 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "eina MCP: confirma"
 	}
 	switch name {
-	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
+	case "read", "grep", "glob", "symbols", "web_search", "web_images", "web_fetch", "delegate", "read_image", "gh_issue", "gh_pr", "office_read", "office_render", "send_file", "pdf_read", "todoread", "todowrite", "question", "skill", "preview", "knowledge_search", "dashboard_save":
 		return "allow", ""
 	case "lsp":
 		if lspEsRename(argsJSON) {
@@ -1104,6 +1120,19 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		}
 		out, err := tools.WebImages(ctx, a.Query, a.Count)
 		return out, nil, err
+	case "send_file":
+		var a struct {
+			Path string `json:"path"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			return "", nil, err
+		}
+		enllac, nom, mida, err := tools.PublicaFitxer(ctx, a.Path)
+		if err != nil {
+			return "no s'ha pogut enviar: " + err.Error(), nil, nil
+		}
+		// El model ha de copiar l'enllaç tal qual: si el retoca, el mòbil no el pot obrir.
+		return "Enviat. Copia aquesta línia a la resposta, sense canviar-la: [" + nom + "](" + enllac + ") (" + formatMida(mida) + ")", nil, nil
 	case "web_fetch":
 		var a struct {
 			URL      string `json:"url"`
