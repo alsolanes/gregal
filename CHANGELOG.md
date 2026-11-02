@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## v1.38.0 - 2026-11-02 - Avatars dels vents
+
+- **Vents 1.49.0 — more expressive winds.** Winds get cheeks, feet and a fringe on the ball shape, so they read as characters at a glance. The wind creator suggests ideas and shows a live preview. The context gauge has a tooltip and the speed readout is clearer.
+
 ## v1.37.1 - 2026-11-02 - Insígnies i apps
 
 - **Apps behind `/apps/` can call their own API again.** The proxy duplicated the CORS header when the app set it too, and browsers rejected the response.
