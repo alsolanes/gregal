@@ -244,7 +244,13 @@ func (p *Policy) WindAutoAllow(name, argsJSON string) bool {
 		// poders de servidor. Consultar-los sempre.
 		return tunnelActionReadOnly(argsJSON) || (p != nil && p.ServerPowers)
 	}
-	return false
+	// Amb poders de servidor l'administrador ja ha dit que sí: un torn de vent o
+	// de colla no es pot quedar a mitges per una eina que no surt a la llista de
+	// dalt (MCP del propi equip, PRs, preguntes, enviar fitxers…). El que està
+	// barrat ho està més amunt: regles «deny» del config, classificador de shell
+	// (sudo, rm -rf, curl a internet) i escriptura fora del projecte. Sense
+	// poders, aquesta cua continua tancada.
+	return p != nil && p.ServerPowers
 }
 
 // tunnelActionReadOnly: consultar túnels (list, status, logs) no canvia res.

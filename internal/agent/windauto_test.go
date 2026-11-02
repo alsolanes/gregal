@@ -46,6 +46,8 @@ func TestWindAutoAllow(t *testing.T) {
 		{"commit local dins del projecte", pol, "git_commit", `{"message":"x"}`, true},
 		{"commit sense projecte no", &Policy{}, "git_commit", `{"message":"x"}`, false},
 		{"MCP extern queda fora", pol, "mcp_github_x", `{}`, false},
+		{"amb poders de servidor res no atura el torn", &Policy{ProjectDir: proj, ServerPowers: true}, "mcp_github_x", `{}`, true},
+		{"sense poders una eina fora de la llista queda fora", pol, "send_file", `{"path":"/x"}`, false},
 		{"config explícit bash=ask mana", &Policy{ProjectDir: proj, Tools: map[string]string{"bash": "ask"}}, "bash", bashQ("go build ./..."), false},
 		{"config explícit write=ask mana", &Policy{ProjectDir: proj, Tools: map[string]string{"write": "ask"}}, "write", `{"path":` + quote(dins) + `,"content":"x"}`, false},
 		// Documents i símbols: la feina d'aquí també els ha de poder fer.

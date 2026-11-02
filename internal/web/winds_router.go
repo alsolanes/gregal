@@ -80,7 +80,6 @@ func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted
 	}
 	return classicRotllanaSpeaker(members, tail)
 }
-
 // rotllanaTurnSpeakers keeps continuation on the last actual voice, rather
 // than asking the next least-represented wind to finish somebody else's reply.
 func (s *Server) rotllanaTurnSpeakers(ctx context.Context, rot Rotllana, wanted, msg string, tail []llm.Message, continuing bool) []companion.Wind {

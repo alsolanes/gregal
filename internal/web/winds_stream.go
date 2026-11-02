@@ -504,6 +504,17 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(tVeu).Seconds(), res.temps))
 		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 	}
+	// Discussió entre ells: si hi ha hagut més d'una veu i el torn ha anat sencer,
+	// la colla continua fins a entendre's o fins que tothom calla.
+	if len(veus) >= 2 && !parcial && lastErr == nil {
+		var noves []llm.Message
+		tDebat := time.Now()
+		conversation, noves = s.rotllanaDebat(rot, s.rotMembersOf(rot), conversation, msg, emit)
+		if len(noves) > 0 {
+			hist.messages = conversation
+			tempsVeus = append(tempsVeus, fmt.Sprintf("debat %d veus %.1fs", len(noves), time.Since(tDebat).Seconds()))
+		}
+	}
 	log.Printf("vents rotllana %s: tria %.1fs · %s", rot.ID, routeDur.Seconds(), strings.Join(tempsVeus, " · "))
 	if len(veus) == 0 {
 		// Ningú no ha pogut respondre: no es desa res i el client conserva l'esborrany.
