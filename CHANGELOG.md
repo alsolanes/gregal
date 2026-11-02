@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Registre de temps dels torns.** Cada torn de l'agent, de xat amb un vent,
+  d'encàrrec a un vent i de cada veu d'una rotllana afegeix una línia a
+  `turns.jsonl` (carpeta de dades, privat). Hi consta el temps fins a la primera
+  paraula, el temps total, els passos, el temps de model i d'eines, el model i
+  com ha acabat. Mai no hi va el text de la conversa. Serveix per comparar dies
+  amb números; vegeu `docs/performance.md`.
 - **Es poden esborrar comptes del servidor.** Al panell («Esborra el compte»),
   amb `gregalctl account-delete NOM` o amb `{action:"delete"}` a
   `/api/server/accounts`. Se'n tanquen les sessions i les dades s'aparten

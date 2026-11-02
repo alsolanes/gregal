@@ -90,6 +90,37 @@ between the two runs, and note that provider-side cache state is not
 controlled: alternate the order or discard a warm-up run when comparing
 `cache_hit_rate`.
 
+## Turn log (real use)
+
+Every agent turn, wind chat turn, task handed to a wind, and each voice of a
+group conversation (rotllana) appends one JSON line to `turns.jsonl` in the data
+folder (`~/.local/share/gregal/`, or `GREGAL_DATA_DIR`). The file is private
+(0600). When it exceeds 5 MB it moves to `turns.jsonl.1`, and only that previous
+file is kept.
+
+```json
+{"ts":"2026-11-02T15:25:08Z","kind":"wind","id":"prova","model":"zen/deepseek-v4.1-flash","first_token_ms":2721,"total_ms":3080,"steps":1,"model_ms":3079,"outcome":"ok"}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `kind` | `agent`, `wind`, `wind-task` or `rotllana` |
+| `id` | Mode for the agent, wind id, or `rotllana:wind` |
+| `first_token_ms`, `total_ms` | Time to the first visible word, and to the end of the turn |
+| `steps` | Model calls in the turn |
+| `model_ms`, `tools_ms` | Winds only: time waiting for the model, and time running tools |
+| `prompt_tokens`, `completion_tokens` | Agent only, when the provider reports usage |
+| `outcome` | `ok`, `partial`, `stopped` or `error` (with a short redacted `error`) |
+
+The log records only times, counts and the model name. It never records
+conversation text or tool arguments. To compare days, take the median per day
+and kind; single turns vary a lot with the provider (a cold first call to the
+same model took 16.5 s, and the next two took 2.7 s and 2.9 s):
+
+```sh
+node -e "const L=require('fs').readFileSync(process.argv[1],'utf8').trim().split('\n').map(JSON.parse),g={};for(const r of L){const k=r.ts.slice(0,10)+' '+r.kind;(g[k]=g[k]||[]).push(r)}for(const[k,v]of Object.entries(g)){const m=a=>{a=a.filter(x=>x>0).sort((x,y)=>x-y);return a.length?a[a.length>>1]:'-'};console.log(k,'n='+v.length,'first',m(v.map(r=>r.first_token_ms)),'total',m(v.map(r=>r.total_ms)),'steps',m(v.map(r=>r.steps)))}" ~/.local/share/gregal/turns.jsonl
+```
+
 ## Comparison with OpenCode
 
 OpenCode documents [parallel subagents and specialized exploration agents](https://opencode.ai/docs/agents/).

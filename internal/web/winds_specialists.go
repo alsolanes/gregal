@@ -248,7 +248,12 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
 	msg := "[Task handed over by the main agent] " + task
 	start := time.Now()
+	s.mu.Lock()
+	_, logRole := s.windRoleRef()
+	s.mu.Unlock()
+	tl := startTurnLog("wind-task", wind.ID, logRole)
 	res, err := windLoopStream(s, agentSkills(ctx, s, wind.ID), windChatBrief(s, wind, previous, msg), nil)
+	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
 	if err != nil {
 		return "", "", errors.New(redactError(err))
 	}

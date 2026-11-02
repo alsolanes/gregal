@@ -2915,7 +2915,9 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 
 	// El bucle viu al motor compartit (agent.Torn), com al TUI, Telegram
 	// i el headless: conduirTorn (motor_web.go) només en fa l'E/S.
-	lastReply, hist, err := s.conduirTorn(runCtx, task, mode, roleName, p, role, maxSteps, ws, pol, emit)
+	tl := startTurnLog("agent", mode, role)
+	lastReply, hist, err := s.conduirTorn(runCtx, task, mode, roleName, p, role, maxSteps, ws, pol, tl.emitter(emit))
+	tl.finish(err, err != nil && runCtx.Err() != nil, false, nil)
 	if err != nil {
 		// Sense rastre, la petició aturada quedava oberta a la conversa i
 		// el torn següent la continuava (vist el 2026-10-14: «quant fa

@@ -212,6 +212,10 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	emit("activity", windActivity{Phase: "preparing"})
 	turnStart := time.Now()
 	isContinue := req.Continue && len(previous) > 0
+	s.mu.Lock()
+	_, logRole := s.windRoleRef()
+	s.mu.Unlock()
+	tl := startTurnLog("wind", wind.ID, logRole)
 	var res exploracio
 	var err error
 	if isContinue {
@@ -223,6 +227,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			case "activity":
 				emitWindActivity(emit, text)
 			case "token":
+				tl.token()
 				emit("token", map[string]string{"token": text})
 			case "phase":
 				emit("phase", map[string]string{"phase": streamPhase(text)})
@@ -235,12 +240,14 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			case "activity":
 				emitWindActivity(emit, text)
 			case "token":
+				tl.token()
 				emit("token", map[string]string{"token": text})
 			case "phase":
 				emit("phase", map[string]string{"phase": streamPhase(text)})
 			}
 		})
 	}
+	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
 	if err != nil {
 		if tornAturat(err) {
 			emit("error", map[string]any{"error": "aturat", "cancelat": true})
@@ -358,11 +365,15 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	}
 	turnStart := time.Now()
 	speakingWind := speakers[0]
+	var veuLog *turnLog // la veu que parla ara (un registre per veu)
 	emitTokens := func(kind, text string) {
 		switch kind {
 		case "activity":
 			emitWindActivity(emit, text)
 		case "token":
+			if veuLog != nil {
+				veuLog.token()
+			}
 			emit("token", map[string]string{"token": text})
 		case "phase":
 			emit("phase", map[string]string{"phase": streamPhase(text)})
@@ -388,6 +399,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
 		ctx = s.windDocsCtx(s.interactiveWindCtx(withLinkBase(ctx, r)))
 		tVeu := time.Now()
+		s.mu.Lock()
+		_, logRole := s.windRoleRef()
+		s.mu.Unlock()
+		veuLog = startTurnLog("rotllana", rot.ID+":"+sp.ID, logRole)
 		if isContinue && si == 0 {
 			s.mu.Lock()
 			p, role := s.windRoleRef()
@@ -404,6 +419,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		}
 		cancel()
 		doneTurn()
+		veuLog.finish(err, tornAturat(err), res.parcial, &res.temps)
 		out := res.text
 		// Un torn que mor a mitges no és una resposta del vent: cau al
 		// xat pla com al clàssic (vegeu winds_rotllanes.go).
