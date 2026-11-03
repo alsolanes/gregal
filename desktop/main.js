@@ -473,7 +473,9 @@ function wireIPC(getWin) {
 // La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
 // i el botó del peu (o el menú) passa d'un a l'altre.
 const wantsVents = argv => (argv || []).includes("--vents");
-const startPath = () => wantsVents(process.argv) ? "/vents/" : "/";
+const wantsJocs = argv => (argv || []).includes("--jocs");
+const pathFor = argv => wantsVents(argv) ? "/vents/" : wantsJocs(argv) ? "/jocs/" : "/";
+const startPath = () => pathFor(process.argv);
 
 async function createWindow() {
     const state = loadState(app.getPath("userData"));
@@ -618,13 +620,9 @@ async function createWindow() {
                     accelerator: "CmdOrCtrl+E",
                     click: () => win.webContents.send("gregal:command", "files"),
                 },
-                {
-                    label: isEn ? "Switch Gregal Codi / Gregal Vents" : "Canvia entre Gregal Codi i Gregal Vents",
-                    click: () => {
-                        const enVents = (win.webContents.getURL() || "").includes("/vents");
-                        win.loadURL(BASE + (enVents ? "/" : "/vents/"));
-                    },
-                },
+                { label: "Gregal Codi", click: () => win.loadURL(BASE + "/") },
+                { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/") },
+                { label: "Gregal Jocs", click: () => win.loadURL(BASE + "/jocs/") },
                 { type: "separator" },
                 { label: L.recarrega, accelerator: "CmdOrCtrl+R", click: () => win.reload() },
                 {
@@ -757,7 +755,7 @@ if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleIns
         if (win.isMinimized()) win.restore();
         win.show();
         win.focus();
-        if (wantsVents(argv)) win.loadURL(BASE + "/vents/");
+        if (wantsVents(argv) || wantsJocs(argv)) win.loadURL(BASE + pathFor(argv));
     });
 }
 

@@ -8,6 +8,7 @@
     office:'M6 3h8l4 4v14H6z M14 3v5h4 M9 12h6 M9 16h6',
     vents:'M3 8h10a3 3 0 1 0-3-3 M3 12h15a3 3 0 1 1-3 3 M3 16h7',
     programat:'M12 8v4l3 2 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18',
+    automatitzacions:'M12 8v4l3 2 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M19 3l2 2',
     mcp:'M8 3v5 M16 3v5 M6 8h12v3a6 6 0 0 1-12 0z M12 17v4',
     canvis:'M8 4v16 M4 8l4-4 4 4 M16 20V4 M12 16l4 4 4-4',
     fitxers:'M3 7V5h7l2 2h9v13H3z',

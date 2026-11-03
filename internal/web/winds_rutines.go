@@ -199,3 +199,102 @@ func (s *Server) handleWindsRutinaDelete(w http.ResponseWriter, r *http.Request)
 	}
 	writeJSON(w, map[string]bool{"ok": true})
 }
+
+// ownWindJob és un job d'un vent d'aquest compte (rutina, recordatori,
+// resum, cor). Les accions per compte (executa, pausa, historial) només hi
+// arriben: els jobs sense vent són de l'administrador (/api/jobs).
+func (s *Server) ownWindJob(id string) (jobs.Job, bool) {
+	if s.jobs == nil || strings.TrimSpace(id) == "" {
+		return jobs.Job{}, false
+	}
+	list, err := s.jobs.List()
+	if err != nil {
+		return jobs.Job{}, false
+	}
+	for _, j := range list {
+		if j.ID == id && j.Wind != "" && s.canSeeWindRoutine(j) {
+			return j, true
+		}
+	}
+	return jobs.Job{}, false
+}
+
+// handleWindsRutinaRun executa ara una rutina pròpia. POST {"id"}. El
+// resultat arriba com sempre: missatge del vent al seu xat i novetat.
+func (s *Server) handleWindsRutinaRun(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", 405)
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if !decodeSmall(w, r, &req) {
+		return
+	}
+	if _, ok := s.ownWindJob(req.ID); !ok {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
+	s.mu.Lock()
+	busy := s.jobRunning
+	s.mu.Unlock()
+	if busy {
+		http.Error(w, "another routine is running: try again in a moment", 409)
+		return
+	}
+	go func() {
+		defer func() { _ = recover() }()
+		_, _ = s.runJob(req.ID, true)
+	}()
+	writeJSON(w, map[string]bool{"accepted": true})
+}
+
+// handleWindsRutinaToggle pausa o reprèn una rutina pròpia. POST {"id","enabled"}.
+func (s *Server) handleWindsRutinaToggle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", 405)
+		return
+	}
+	var req struct {
+		ID      string `json:"id"`
+		Enabled bool   `json:"enabled"`
+	}
+	if !decodeSmall(w, r, &req) {
+		return
+	}
+	j, ok := s.ownWindJob(req.ID)
+	if !ok {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
+	j.Enabled = req.Enabled
+	if req.Enabled {
+		// En reprendre, no es dispara per les franges que s'han saltat.
+		now := time.Now()
+		j.LastAt = &now
+	}
+	if _, err := s.jobs.Save(j); err != nil {
+		http.Error(w, "cannot save", 500)
+		return
+	}
+	writeJSON(w, map[string]any{"id": j.ID, "enabled": j.Enabled})
+}
+
+// handleWindsRutinaRuns és l'historial d'una rutina pròpia. GET ?id=.
+func (s *Server) handleWindsRutinaRuns(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if _, ok := s.ownWindJob(id); !ok {
+		http.Error(w, "unknown routine", 404)
+		return
+	}
+	runs, err := s.jobs.Runs(id, 20)
+	if err != nil {
+		http.Error(w, "cannot read history", 500)
+		return
+	}
+	if runs == nil {
+		runs = []jobs.Run{}
+	}
+	writeJSON(w, map[string]any{"runs": runs})
+}

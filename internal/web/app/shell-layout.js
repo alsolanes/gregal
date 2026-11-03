@@ -16,7 +16,7 @@
     const brand=side.querySelector('.brand'), quick=side.querySelector('.side-quick'), foot=side.querySelector('.side-foot');
     const logo=rail.querySelector('.rail-brand');
     if(brand && logo) {
-      logo.insertAdjacentHTML('beforeend', root.gregalProduct==='vents' ? '<span>Gregal Vents</span>' : '<span>Gregal</span>');
+      logo.insertAdjacentHTML('beforeend', root.gregalProduct==='vents' ? '<span>Gregal Vents</span>' : root.gregalProduct==='jocs' ? '<span>Gregal Jocs</span>' : '<span>Gregal</span>');
       brand.prepend(logo);
       const sp=document.createElement('span'); sp.className='calma-sp'; logo.after(sp);
       if($('sideCompact')) sp.after($('sideCompact'));
@@ -24,7 +24,8 @@
     if(quick) quick.after(rail);
     if(foot) {
       const tools=document.createElement('div'); tools.className='calma-tools';
-      for(const id of ['productSwitch','keysBtn','prefsBtn']) if($(id)) tools.append($(id));
+      for(const a of document.querySelectorAll('.product-switch')) tools.append(a);
+      for(const id of ['keysBtn','prefsBtn']) if($(id)) tools.append($(id));
       foot.append(tools);
     }
     const more=$('sideMore')?.querySelector('summary');

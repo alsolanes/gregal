@@ -536,6 +536,32 @@ img.pdf-page { display:block; width:100%; height:auto; margin:0 0 12px; backgrou
 .page-title { margin-top:10px; color:var(--ink); font-size:clamp(27px,4vw,40px); font-weight:540; letter-spacing:-.035em; }
 .page-copy { margin-top:9px; max-width:620px; color:var(--muted); font-size:var(--t4); line-height:1.6; }
 .page-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:28px; }
+body.product-bare #conversationNav, body.product-bare .side-quick, body.product-bare #folderChip { display:none !important; }
+.auto-page { max-width:860px; }
+.auto-section { margin-top:22px; padding:16px 18px; border:1px solid var(--line); border-radius:14px; background:var(--raised); }
+.auto-section h2 { font-size:var(--t3); font-weight:600; color:var(--ink); margin:0 0 6px; }
+.auto-help, .auto-empty { color:var(--muted); font-size:13px; line-height:1.5; margin:4px 0 8px; }
+.auto-line { color:var(--ink); margin:4px 0; }
+.auto-status { min-height:1.2em; color:var(--muted); font-size:13px; }
+.auto-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 0; border-top:1px solid var(--line); }
+.auto-row:first-of-type { border-top:0; }
+.auto-row.off .auto-main { opacity:.55; }
+.auto-main { display:flex; flex-direction:column; gap:2px; flex:1 1 280px; min-width:0; }
+.auto-main strong { color:var(--ink); font-weight:560; }
+.auto-sub { color:var(--muted); font-size:13px; overflow-wrap:anywhere; }
+.auto-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.auto-btn { padding:6px 12px; border-radius:9px; border:1px solid var(--line); background:var(--surface, transparent); color:var(--ink); cursor:pointer; font:inherit; font-size:13px; }
+.auto-btn.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent, #fff); }
+.auto-btn.subtle { color:var(--muted); }
+.auto-btn:hover { border-color:var(--accent); }
+.auto-history { flex-basis:100%; }
+.auto-run summary { cursor:pointer; color:var(--muted); font-size:13px; padding:4px 0; }
+.auto-run pre { white-space:pre-wrap; font-size:12.5px; color:var(--ink); background:var(--bg); padding:10px; border-radius:8px; max-height:280px; overflow:auto; }
+.auto-form { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+.auto-form textarea { grid-column:1 / -1; }
+.auto-form .auto-btn { justify-self:start; }
+.auto-form select, .auto-form input, .auto-form textarea { padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font:inherit; }
+@media (max-width:700px) { .auto-form { grid-template-columns:1fr; } }
 .page-card { min-height:120px; padding:16px; background:linear-gradient(145deg,var(--raised),var(--raised));
   border:1px solid var(--line); border-radius:11px; }
 .page-card input, .page-card select,
@@ -1387,7 +1413,7 @@ body.sense-inspector #inspector { display:none; }
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
   <a class="rail-brand" href="#" aria-label="Gregal"><span class="brand-mark"><img src="/app/icon.png" width="30" height="30" alt="Gregal"></span></a>
-  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
+  <div class="rail-main"><button class="rail-item nav-item active side-view" data-view="agent" data-also="fitxers canvis terminal navegador knowledge"><span class="nav-icon">›_</span><span data-i18n="shell.chat">Chat</span></button><button class="rail-item nav-item side-view" data-view="vents"><span class="nav-icon">◍</span><span data-i18n="nav.winds">Winds</span></button><button class="rail-item nav-item side-view" data-view="raco"><span class="nav-icon">✦</span><span data-i18n="nav.corner">Corner</span></button><button class="rail-item nav-item side-view" data-view="partits"><span class="nav-icon">🏈</span><span data-i18n="nav.games">Games</span></button><button class="rail-item nav-item side-view" data-view="arena"><span class="nav-icon">🏆</span><span data-i18n="nav.arena">Arena</span></button><button class="rail-item nav-item side-view" data-view="kanban" hidden><span class="nav-icon">▦</span><span data-i18n="kanban.nav">Kanban</span></button><button class="rail-item nav-item side-view" data-view="automatitzacions"><span class="nav-icon">◷</span><span data-i18n="nav.automations">Automations</span></button><button class="rail-item nav-item side-view" data-view="programat"><span class="nav-icon">◷</span><span data-i18n="ui.scheduled">Scheduled</span></button></div>
   <details id="sideMore" class="rail-more"><summary title="More" aria-label="More" data-i18n-title="nav.more" data-i18n-aria="nav.more">⋯</summary><div class="rail-more-menu side-main"><button class="nav-item side-view" data-view="knowledge"><span class="nav-icon">▥</span><span data-i18n="nav.knowledge">Knowledge</span></button>
 <button class="nav-item side-view" data-view="workshop" data-also="team"><span class="nav-icon">▦</span><span data-i18n="nav.agents">Agents</span><span class="nav-badge busy" id="navAgentsBadge" hidden></span></button>
 <button class="nav-item side-view" data-view="objectius"><span class="nav-icon">○</span><span data-i18n="nav.goals">Goals</span></button>
@@ -1622,6 +1648,9 @@ body.sense-inspector #inspector { display:none; }
       <section class="workspace-page" id="partitsPage" hidden></section>
       <section class="workspace-page" id="arenaPage" hidden></section>
       <section class="workspace-page" id="kanbanPage" hidden></section>
+      <section class="workspace-page" id="automatitzacionsPage" hidden>
+        <div class="page-inner auto-page" id="automatitzacionsInner"></div>
+      </section>
       <section class="workspace-page" id="programatPage" hidden>
         <div class="page-inner">
           <div class="page-kicker" data-i18n="jobs.kicker">Background service</div>
@@ -1995,13 +2024,19 @@ let currentView = 'agent';
 // Dos productes sobre la mateixa web (serve.go): Gregal Codi a / i Gregal
 // Vents a /vents/. Cadascun ensenya només les seves vistes; demanar una vista
 // de l'altre porta a la portada pròpia (el xat o els vents).
-const PRODUCT = document.documentElement.dataset.product === 'vents' ? 'vents' : 'codi';
-const VENTS_VIEWS = ['vents', 'raco', 'partits', 'arena'];
-const CODI_VIEWS = ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'terminal', 'navegador', 'grafs', 'workshop'];
-const productAllows = v => (PRODUCT === 'vents' ? VENTS_VIEWS : CODI_VIEWS).includes(v);
-const productHome = () => PRODUCT === 'vents' ? 'vents' : 'agent';
+// Tres productes: Gregal Codi (/), Gregal Vents (/vents/) i Gregal Jocs
+// (/jocs/: l'Arena i la lliga), cadascun amb les seves vistes.
+const PRODUCT = ['vents', 'jocs'].includes(document.documentElement.dataset.product) ? document.documentElement.dataset.product : 'codi';
+const PRODUCT_VIEWS = {
+  codi: ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'terminal', 'navegador', 'grafs', 'workshop'],
+  vents: ['vents', 'raco', 'automatitzacions'],
+  jocs: ['arena', 'partits'],
+};
+const PRODUCT_HOME = { codi: 'agent', vents: 'vents', jocs: 'arena' };
+const productAllows = v => PRODUCT_VIEWS[PRODUCT].includes(v);
+const productHome = () => PRODUCT_HOME[PRODUCT];
 window.gregalProduct = PRODUCT;
-if (PRODUCT === 'vents') currentView = 'vents';
+currentView = productHome();
 // Mantén la llista base estable per als clients antics; el mode autònom
 // s'afegeix al cicle de la UI sense trencar els integradors que llegeixen la
 // declaració inicial.
@@ -2037,8 +2072,11 @@ function setView(view) {
   const previousView = currentView;
   // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
   if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
-  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
+  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','automatitzacions','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
   if (!productAllows(currentView)) currentView = productHome();
+  // Fora del Codi, les vistes que no són la dels vents no porten res del codi
+  // (sessió nova, projectes, converses de l'agent, carpeta del projecte).
+  document.body.classList.toggle('product-bare', PRODUCT !== 'codi' && currentView !== 'vents');
   const dockTool = !!window.gregalShell?.isTool(currentView);
   const agent = currentView === 'agent' || dockTool;
   window.gregalShell?.sync(currentView);
@@ -2046,6 +2084,7 @@ function setView(view) {
   $('objectiusPage').hidden = currentView !== 'objectius';
   $('ventsPage').hidden = currentView !== 'vents';
   $('programatPage').hidden = currentView !== 'programat';
+  $('automatitzacionsPage').hidden = currentView !== 'automatitzacions';
   $('racoPage').hidden = currentView !== 'raco';
   $('partitsPage').hidden = currentView !== 'partits';
   $('arenaPage').hidden = currentView !== 'arena';
@@ -2080,6 +2119,7 @@ function setView(view) {
   // altra vista. Torna'ls a obrir quan el fil sigui visible.
   if (agent) resumePendingInteraction(window.gregalSession || 'default', state);
   if (currentView === 'programat') loadJobsPage();
+  if (currentView === 'automatitzacions') window.gregalAutomations?.load();
   if (currentView === 'raco') window.gregalCorner?.load();
   if (currentView === 'partits') window.gregalGames?.load();
   if (currentView === 'arena') window.gregalArena?.load();
@@ -2976,6 +3016,7 @@ document.addEventListener('gregal:idioma', () => {
   loadGoals();
   if ($('permMenu') && !$('permMenu').hidden) togglePermMenu(true);
   if (currentView === 'programat') loadJobsPage();
+  if (currentView === 'automatitzacions') window.gregalAutomations?.load();
   if (currentView === 'vents') loadWindsPage();
   if (currentView === 'mcp') loadMcpPage();
 });
@@ -3126,23 +3167,28 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
 // Cada producte, el seu rail: el que és de l'altre no hi surt (display, no
 // hidden, perquè els plugins fan servir hidden per encendre i apagar-los).
 document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAllows(b.dataset.view)) b.style.display = 'none'; });
-// Un botó al peu del rail porta a l'altre producte (mateix servidor i sessió).
+// Al peu del rail, un botó per a cadascun dels altres dos productes (mateix
+// servidor i sessió).
 (() => {
   const foot = document.querySelector('.rail-footer');
   if (!foot) return;
-  const a = document.createElement('a');
-  a.className = 'icon-btn product-switch';
-  a.id = 'productSwitch';
-  a.href = PRODUCT === 'vents' ? '/' : '/vents/';
-  a.textContent = PRODUCT === 'vents' ? '›_' : '◍';
-  const label = () => gregalT(PRODUCT === 'vents' ? 'product.openCodi' : 'product.openVents') || (PRODUCT === 'vents' ? 'Gregal Codi' : 'Gregal Vents');
-  a.title = label(); a.setAttribute('aria-label', label());
-  document.addEventListener('gregal:idioma', () => { a.title = label(); a.setAttribute('aria-label', label()); });
-  foot.prepend(a);
+  const others = [['codi', '/', '›_', 'product.openCodi', 'Gregal Codi'], ['vents', '/vents/', '◍', 'product.openVents', 'Gregal Vents'], ['jocs', '/jocs/', '🏆', 'product.openJocs', 'Gregal Jocs']]
+    .filter(([p]) => p !== PRODUCT);
+  others.reverse().forEach(([p, href, icon, key, fallback]) => {
+    const a = document.createElement('a');
+    a.className = 'icon-btn product-switch';
+    a.id = 'productSwitch-' + p;
+    a.href = href;
+    a.textContent = icon;
+    const label = () => gregalT(key) || fallback;
+    a.title = label(); a.setAttribute('aria-label', label());
+    document.addEventListener('gregal:idioma', () => { a.title = label(); a.setAttribute('aria-label', label()); });
+    foot.prepend(a);
+  });
 })();
 // El menú «Més» és de les eines de codi (coneixement, agents, GitHub, Retro…).
-if (PRODUCT === 'vents') { const more = $('sideMore'); if (more) more.style.display = 'none'; }
-if (PRODUCT === 'vents') setTimeout(() => setView('vents'), 0);
+if (PRODUCT !== 'codi') { const more = $('sideMore'); if (more) more.style.display = 'none'; }
+if (PRODUCT !== 'codi') setTimeout(() => setView(productHome()), 0);
 // novaConversa tanca la d'ara (que ja s'ha desat sola a cada torn) i buida
 // la pantalla. Hi arriben el botó i Ctrl+N.
 async function novaConversa() {
@@ -4375,6 +4421,7 @@ refresh();
   boot();
 </script>
 <script type="module" src="/app/plots.js"></script>
+<script type="module" src="/app/vents-automations.js"></script>
 <script type="module" src="/app/gitflow.js"></script>
 <div id="retroMount"></div>
 <script type="module" src="/app/retro.js"></script>

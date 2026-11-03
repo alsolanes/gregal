@@ -1,4 +1,8 @@
-# Gregal Codi i Gregal Vents: dues interfícies, un sol backend
+# Gregal Codi, Gregal Vents i Gregal Jocs: tres interfícies, un sol backend
+
+> **Estat (v1.44):** fet. Codi a `/`, Vents a `/vents/` (vents, Racó i Automatitzacions) i
+> Jocs a `/jocs/` (l'Arena i la lliga). A l'escriptori, dreceres «Gregal Vents» i
+> «Gregal Jocs» i el menú Gregal per canviar d'un a l'altre.
 
 Proposta del 3 de novembre de 2026.
 

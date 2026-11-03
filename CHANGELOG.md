@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.44.0 - 2026-11-03 - Gregal Jocs i Automatitzacions
+
+- **Gregal Jocs, a part.** L'Arena (NFL, CS2, LoL) i la lliga de jocs ja no són dins
+  dels vents: són a `/jocs/`, amb el seu rail i el seu botó al peu de cada producte. A
+  l'escriptori hi ha la drecera «Gregal Jocs» i el menú Gregal porta a qualsevol
+  dels tres. Fora del Codi ja no surten la sessió nova, els projectes ni la carpeta.
+- **Automatitzacions a Gregal Vents (web).** Una vista amb tot el que els vents fan
+  sols: el resum del matí (amb «Envia-me'l ara»), els recordatoris pendents, les
+  rutines (executa ara, pausa i reprèn, historial amb el que van dir, esborra), què
+  vigila cada vent (quants cops ha mirat, parlat i callat) i un formulari per crear
+  rutines noves. Tot per compte: ningú no veu ni executa les rutines d'un altre.
+
 ## v1.43.0 - 2026-11-03 - Gregal Codi i Gregal Vents
 
 - **Gregal Codi i Gregal Vents, separats.** El mateix servidor serveix dues

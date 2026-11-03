@@ -448,10 +448,16 @@ func (h *Hub) mux() *http.ServeMux {
 	htmlVents := strings.Replace(html, `<html lang="ca">`, `<html lang="ca" data-product="vents">`, 1)
 	htmlVents = strings.Replace(htmlVents, `<title data-i18n="ui.title">Gregal - Coding Agent</title>`, `<title data-i18n="ui.titleVents">Gregal Vents</title>`, 1)
 	htmlVents = strings.Replace(htmlVents, `<meta name="viewport" content="width=device-width, initial-scale=1">`, `<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="manifest" href="/app/vents.webmanifest">`, 1)
+	// Gregal Jocs (/jocs/): l'Arena i la lliga, a part del codi i dels vents.
+	htmlJocs := strings.Replace(html, `<html lang="ca">`, `<html lang="ca" data-product="jocs">`, 1)
+	htmlJocs = strings.Replace(htmlJocs, `<title data-i18n="ui.title">Gregal - Coding Agent</title>`, `<title data-i18n="ui.titleJocs">Gregal Jocs</title>`, 1)
 	handle("/", func(w http.ResponseWriter, r *http.Request) {
 		page, tag := html, versioAssets
-		if r.URL.Path == "/vents" || strings.HasPrefix(r.URL.Path, "/vents/") {
+		switch {
+		case r.URL.Path == "/vents" || strings.HasPrefix(r.URL.Path, "/vents/"):
 			page, tag = htmlVents, versioAssets+"-vents"
+		case r.URL.Path == "/jocs" || strings.HasPrefix(r.URL.Path, "/jocs/"):
+			page, tag = htmlJocs, versioAssets+"-jocs"
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		etag := `"` + tag + `"`
