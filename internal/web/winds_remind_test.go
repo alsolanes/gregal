@@ -73,11 +73,11 @@ func TestRemindActionsSince(t *testing.T) {
 func TestRemindActionsAreScopedToTheAccount(t *testing.T) {
 	t0 := time.Now()
 	at := t0.Add(2 * time.Minute).Truncate(time.Second)
-	recordRemindEvent("carla", "xaloc-comu", at, "Apaga el foc")
+	recordRemindEvent("marta", "xaloc-comu", at, "Apaga el foc")
 	if len(remindActionsSince("aleix", "xaloc-comu", t0)) != 0 {
 		t.Fatal("un altre compte veu l'avís")
 	}
-	got := remindActionsSince("carla", "xaloc-comu", t0)
+	got := remindActionsSince("marta", "xaloc-comu", t0)
 	if len(got) != 1 {
 		t.Fatalf("accions = %v", got)
 	}

@@ -121,7 +121,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         st.provider.ifBlank { "—" } + if (st.model.isNotBlank()) " · " + st.model else "",
                     )
                 }
-                // Convidar algú (la Carla) des del mòbil: abans calia la web.
+                // Convidar algú (la Marta) des del mòbil: abans calia la web.
                 val admin by vm.isAdmin.collectAsState()
                 if (!conn.local && admin) {
                     Spacer(Modifier.height(10.dp))

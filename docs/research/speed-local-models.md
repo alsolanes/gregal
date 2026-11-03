@@ -2,7 +2,7 @@
 
 Date: 2026-10-28. Trigger: on 2026-10-27, a task to fill in a PDF with data from
 another document plus web research ran for over 70 minutes without answering.
-It used `halogen-qwen3.8-flash-next` served from `llm.solanes.xyz`, before
+It used `halogen-qwen3.8-flash-next` served from `llm.example.com`, before
 `pdf_read`/`pdf_edit` existed. A day later, a headless run sat 12 minutes
 without output or CPU and the same command worked on the second try.
 
@@ -16,7 +16,7 @@ in an isolated sandbox: `GREGAL_DATA_DIR`, `GREGAL_AUTH`, `GREGAL_MEMORY`,
 
 ## The model and the server
 
-Measured directly against `llm.solanes.xyz`:
+Measured directly against `llm.example.com`:
 
 | | |
 | --- | --- |
@@ -25,7 +25,7 @@ Measured directly against `llm.solanes.xyz`:
 | Prefill, cached prefix | 41k-token prompt plus one appended turn: 2.2 s |
 | **Non-streamed request > ~100 s** | **HTTP 524 from Cloudflare after 125 s**, every time |
 
-The last row is the main finding. `llm.solanes.xyz` sits behind Cloudflare,
+The last row is the main finding. `llm.example.com` sits behind Cloudflare,
 which returns 524 when the origin sends nothing for ~100 s. A non-streamed
 call sends nothing until the model has finished, so any answer over ~3,800
 tokens hits the limit. A smaller answer on top of a large prompt hits it too.

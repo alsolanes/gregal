@@ -201,12 +201,12 @@ func TestManagedHomeShowsTheAccountName(t *testing.T) {
 	h := testHubWithUsers(t)
 	s := h.def
 	s.SetToken("admin-secret")
-	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","password":"12345678"}`); w.Code != 200 {
 		t.Fatalf("create: %d %s", w.Code, w.Body.String())
 	}
-	home := managedDefinition(accounts, managedAccount{Name: "carla"}).Home
-	if got := projectName(home); got != "carla" {
-		t.Fatalf("projectName(home) = %q, want carla", got)
+	home := managedDefinition(accounts, managedAccount{Name: "marta"}).Home
+	if got := projectName(home); got != "marta" {
+		t.Fatalf("projectName(home) = %q, want marta", got)
 	}
 	if got := projectName(filepath.Join(home, "receptes")); got != "receptes" {
 		t.Fatalf("a project inside the home keeps its name: %q", got)
@@ -221,10 +221,10 @@ func TestProvidersWritesNeedAdmin(t *testing.T) {
 	h := testHubWithUsers(t)
 	s := h.def
 	s.SetToken("admin-secret")
-	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","password":"12345678"}`); w.Code != 200 {
 		t.Fatalf("create: %d", w.Code)
 	}
-	tok, _, err := s.users.Login("carla", "12345678")
+	tok, _, err := s.users.Login("marta", "12345678")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,10 +251,10 @@ func TestManagedAccountCanBeMadeAdmin(t *testing.T) {
 	h := testHubWithUsers(t)
 	s := h.def
 	s.SetToken("admin-secret")
-	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","password":"12345678"}`); w.Code != 200 {
 		t.Fatalf("create: %d", w.Code)
 	}
-	tok, user, err := s.users.Login("carla", "12345678")
+	tok, user, err := s.users.Login("marta", "12345678")
 	if err != nil || user.Admin {
 		t.Fatalf("new account must not be admin: %v %+v", err, user)
 	}
@@ -268,7 +268,7 @@ func TestManagedAccountCanBeMadeAdmin(t *testing.T) {
 	if code := powers(); code != http.StatusForbidden {
 		t.Fatalf("before: %d, want 403", code)
 	}
-	// La sessió del vent de la Carla, oberta abans de fer-la admin.
+	// La sessió del vent de la Marta, oberta abans de fer-la admin.
 	session := &Server{user: user, users: s.users}
 	if err := setServerPowers(true); err != nil {
 		t.Fatal(err)
@@ -276,7 +276,7 @@ func TestManagedAccountCanBeMadeAdmin(t *testing.T) {
 	if session.hasServerPowers() {
 		t.Fatal("not admin yet: no server powers")
 	}
-	if w := accountsPost(t, s, `{"name":"carla","action":"admin","admin":true}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","action":"admin","admin":true}`); w.Code != 200 {
 		t.Fatalf("make admin: %d %s", w.Code, w.Body.String())
 	}
 	if code := powers(); code != 200 {
@@ -286,10 +286,10 @@ func TestManagedAccountCanBeMadeAdmin(t *testing.T) {
 		t.Fatal("an open session must see the new admin flag")
 	}
 	again := New(h.def.cfg, h.def.cfgPath)
-	if _, u, err := again.users.Login("carla", "12345678"); err != nil || !u.Admin {
+	if _, u, err := again.users.Login("marta", "12345678"); err != nil || !u.Admin {
 		t.Fatalf("admin lost after restart: %v", err)
 	}
-	if w := accountsPost(t, s, `{"name":"carla","action":"admin","admin":false}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","action":"admin","admin":false}`); w.Code != 200 {
 		t.Fatalf("remove admin: %d", w.Code)
 	}
 	if code := powers(); code != http.StatusForbidden || session.hasServerPowers() {

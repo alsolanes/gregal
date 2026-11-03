@@ -33,8 +33,8 @@ func TestServerPowersOnlyForAdminWinds(t *testing.T) {
 	if pol := s.windLoopScope().policy; !pol.ServerPowers || pol.ServerHome == "" {
 		t.Fatal("admin wind scope must carry server powers")
 	}
-	carla := &Server{user: &User{Name: "carla"}}
-	if carla.hasServerPowers() || carla.windServerBrief() != "" {
+	marta := &Server{user: &User{Name: "marta"}}
+	if marta.hasServerPowers() || marta.windServerBrief() != "" {
 		t.Fatal("a non-admin account never gets server powers")
 	}
 }
@@ -100,7 +100,7 @@ func TestTunnelQuickAndNamed(t *testing.T) {
 	if l := m.list("aleix"); len(l) != 2 {
 		t.Fatalf("list = %v", l)
 	}
-	if l := m.list("carla"); len(l) != 0 {
+	if l := m.list("marta"); len(l) != 0 {
 		t.Fatal("tunnels are per account")
 	}
 	if _, err := m.start("aleix", "x", "http://10.0.0.5:80", "", ""); err == nil {

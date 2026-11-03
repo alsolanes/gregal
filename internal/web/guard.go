@@ -18,7 +18,7 @@ var ErrForaArrel = errors.New("aquest camí no és a la teva carpeta")
 //     abans d'aquesta feina;
 //   - usuari sense arrels → res permès (només pot xatejar);
 //   - la comprovació es fa sobre el camí REAL (enllaços resolts), amb el
-//     separador al davant, perquè `/home/x/carla2` no passi com a
+//     separador al davant, perquè `/home/x/marta2` no passi com a
 //     `/home/x/userb`.
 func (u *User) Allow(path string) error {
 	if u == nil || u.Tothom {
@@ -44,7 +44,7 @@ func (u *User) Allow(path string) error {
 			return nil
 		}
 		rr := realPath(root)
-		// El separador al davant evita que `/…/carla2` passi com a
+		// El separador al davant evita que `/…/marta2` passi com a
 		// `/…/userb`. Amb l'arrel `/` (l'amo del servidor) el prefix ja
 		// és el separador i no se n'ha d'afegir cap altre.
 		prefix := rr

@@ -1,7 +1,7 @@
 # Google Calendar, Gmail i el resum del matí
 
 Els vents poden mirar el teu calendari i el teu correu i fer-te un resum cada
-matí. Cada compte té els seus: tu connectes el teu i la Carla el seu.
+matí. Cada compte té els seus: tu connectes el teu i la Marta el seu.
 
 **Només lectura.** Els vents no envien, no responen, no accepten invitacions
 ni esborren res. La bústia s'obre en mode només lectura i llegir un correu no

@@ -11,7 +11,7 @@ function twoGroups() {
   const g = (stage, a, b, winner, score) => ({ game: 'lol', stage, phase: 'group', a, b, winner, score, done: true });
   return {
     title: 'Cup', games: ['lol'], status: 'running', current: 7,
-    names: { p1: 'Anna', p2: 'Bernat', p3: 'Carla', p4: 'Dídac', p5: 'Eva', p6: 'Ferran' },
+    names: { p1: 'Anna', p2: 'Bernat', p3: 'Marta', p4: 'Dídac', p5: 'Eva', p6: 'Ferran' },
     tables: { lol: [{ stage: 'Group A', rows: [{ owner: 'p1', played: 2, won: 2, drawn: 0, lost: 0, pts: 6 }, { owner: 'p2', played: 2, won: 1, drawn: 0, lost: 1, pts: 3 }, { owner: 'p3', played: 2, won: 0, drawn: 0, lost: 2, pts: 0 }] },
       { stage: 'Group B', rows: [{ owner: 'p4', played: 2, won: 2, drawn: 0, lost: 0, pts: 6 }, { owner: 'p5', played: 2, won: 1, drawn: 0, lost: 1, pts: 3 }, { owner: 'p6', played: 2, won: 0, drawn: 0, lost: 2, pts: 0 }] }] },
     schedule: [

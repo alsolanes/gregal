@@ -6,7 +6,7 @@ import (
 
 // Proxies que tallen les respostes lentes (HTTP 524).
 //
-// llm.solanes.xyz (el qwen flash local, ~38 tokens/s) és darrere de
+// llm.example.com (el qwen flash local, ~38 tokens/s) és darrere de
 // Cloudflare, que torna 524 si l'origen no envia la resposta en ~100 s.
 // Una crida SENSE streaming no envia res fins que el model acaba: tota
 // resposta de més de ~3.800 tokens (o un prompt gran amb una de mitjana)

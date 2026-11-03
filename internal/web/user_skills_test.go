@@ -27,7 +27,7 @@ func TestUserSkillsCrud(t *testing.T) {
 	}
 
 	// Desa una skill (nom amb majúscules i espais → normalitzat).
-	rec := save(`{"nom":"Preferències de la Carla","titol":"Com parla la Carla","descripcio":"Tons i paraules que fa servir","cos":"A la Carla li agrada que li parlis amb comparacions del mar."}`)
+	rec := save(`{"nom":"Preferències de la Marta","titol":"Com parla la Marta","descripcio":"Tons i paraules que fa servir","cos":"A la Marta li agrada que li parlis amb comparacions del mar."}`)
 	if rec.Code != 200 {
 		t.Fatalf("save: %d %s", rec.Code, rec.Body.String())
 	}
@@ -54,7 +54,7 @@ func TestUserSkillsCrud(t *testing.T) {
 	}
 
 	// Llegeix el cos.
-	get2 := httptest.NewRequest(http.MethodGet, "/api/skills?nom=preferencies-de-la-carla", nil)
+	get2 := httptest.NewRequest(http.MethodGet, "/api/skills?nom=preferencies-de-la-marta", nil)
 	body2 := httptest.NewRecorder()
 	anna.handleUserSkills(body2, get2)
 	if body2.Code != 200 {
@@ -65,7 +65,7 @@ func TestUserSkillsCrud(t *testing.T) {
 	}
 
 	// Esborra.
-	req := httptest.NewRequest(http.MethodDelete, "/api/skills", strings.NewReader(`{"nom":"preferencies-de-la-carla"}`))
+	req := httptest.NewRequest(http.MethodDelete, "/api/skills", strings.NewReader(`{"nom":"preferencies-de-la-marta"}`))
 	body3 := httptest.NewRecorder()
 	anna.handleUserSkills(body3, req)
 	if body3.Code != 200 {

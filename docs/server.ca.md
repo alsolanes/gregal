@@ -177,7 +177,7 @@ que no són administradors no els tenen mai.
 
 **Dos administradors.** Si porteu el servidor a mitges, feu administrador
 l'altre compte: Preferències → Comptes del servidor → **Fes-lo administrador**,
-o `sudo gregalctl account-admin carla on`. Llavors té exactament el mateix que
+o `sudo gregalctl account-admin marta on`. Llavors té exactament el mateix que
 tu: poders de servidor, publicar, túnels, convidar, comptes i proveïdors.
 L'efecte és immediat, sense tornar a entrar. Les notes del servidor són
 compartides: el que aprèn un vent ho llegeixen els de l'altre. Tingues present

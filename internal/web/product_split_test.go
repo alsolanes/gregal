@@ -53,10 +53,10 @@ func TestEventsWithoutSessionWorkForAccounts(t *testing.T) {
 	h := testHubWithUsers(t)
 	s := h.def
 	s.SetToken("admin-secret")
-	if w := accountsPost(t, s, `{"name":"carla","password":"12345678"}`); w.Code != 200 {
+	if w := accountsPost(t, s, `{"name":"marta","password":"12345678"}`); w.Code != 200 {
 		t.Fatalf("create: %d", w.Code)
 	}
-	tok, _, err := s.users.Login("carla", "12345678")
+	tok, _, err := s.users.Login("marta", "12345678")
 	if err != nil {
 		t.Fatal(err)
 	}

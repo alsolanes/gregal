@@ -73,7 +73,7 @@ de Claude o Codex amb la subscripció, calendari, Gmail i plugins.
 - **Condicions:**
   - Només per a ús personal, a la teva màquina, amb la teva sessió.
   - Anthropic ha dit fa pocs dies que l'Agent SDK i `claude -p` amb la subscripció Max es poden continuar fent servir. El que no permet és oferir el login de claude.ai als usuaris d'un producte.
-  - Per a la Carla, cada persona hauria d'iniciar sessió a la seva pròpia CLI.
+  - Per a la Marta, cada persona hauria d'iniciar sessió a la seva pròpia CLI.
 - **Feina:**
   - un nou tipus de motor a `internal/web` que tradueixi el flux d'events (tokens, eines, final) als events dels vents;
   - el servidor MCP d'eines;

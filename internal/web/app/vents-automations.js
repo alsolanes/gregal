@@ -2,7 +2,7 @@
 // lloc i per compte (com «Automations» de Grok o les rutines de dots):
 // resum del matí, recordatoris, rutines (executa ara, pausa, historial),
 // la vigilància de cada vent i crear-ne de noves. Fa servir només l'API per
-// compte (/api/winds/…, /api/connections): la Carla hi veu les seves.
+// compte (/api/winds/…, /api/connections): la Marta hi veu les seves.
 
 import { idioma } from './i18n.js';
 

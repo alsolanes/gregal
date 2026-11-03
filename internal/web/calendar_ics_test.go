@@ -11,7 +11,7 @@ import (
 // «primer dilluns» i un de cancel·lat.
 const googleICS = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Google Inc//Google Calendar 70.9054//EN\r\nX-WR-TIMEZONE:Europe/Madrid\r\n" +
 	"BEGIN:VEVENT\r\nDTSTART;TZID=Europe/Madrid:20261103T090000\r\nDTEND;TZID=Europe/Madrid:20261103T100000\r\nUID:a@google.com\r\nSUMMARY:Reunió\\, equip\r\nLOCATION:Sala 2\r\nEND:VEVENT\r\n" +
-	"BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261104\r\nDTEND;VALUE=DATE:20261105\r\nUID:b@google.com\r\nSUMMARY:Aniversari Carla\r\nEND:VEVENT\r\n" +
+	"BEGIN:VEVENT\r\nDTSTART;VALUE=DATE:20261104\r\nDTEND;VALUE=DATE:20261105\r\nUID:b@google.com\r\nSUMMARY:Aniversari Marta\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nDTSTART;TZID=Europe/Madrid:20261102T183000\r\nDTEND;TZID=Europe/Madrid:20261102T193000\r\nRRULE:FREQ=WEEKLY;BYDAY=MO,WE;UNTIL=20261130T225959Z\r\nEXDATE;TZID=Europe/Madrid:20261109T183000\r\nUID:c@google.com\r\nSUMMARY:Ioga\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nDTSTART;TZID=Europe/Madrid:20261111T200000\r\nDTEND;TZID=Europe/Madrid:20261111T210000\r\nRECURRENCE-ID;TZID=Europe/Madrid:20261111T183000\r\nUID:c@google.com\r\nSUMMARY:Ioga (tard)\r\nEND:VEVENT\r\n" +
 	"BEGIN:VEVENT\r\nDTSTART:20261102T080000Z\r\nDTEND:20261102T083000Z\r\nRRULE:FREQ=MONTHLY;BYDAY=1MO\r\nUID:d@google.com\r\nSUMMARY:Factures\r\nEND:VEVENT\r\n" +
@@ -36,7 +36,7 @@ func TestICSGoogleCalendar(t *testing.T) {
 		"02 18:30 Ioga",
 		"03 09:00 Reunió, equip",
 		"03 09:45 Trucada amb un nom molt llarg que Google plega en dues línies",
-		"04 00:00 Aniversari Carla",
+		"04 00:00 Aniversari Marta",
 		"04 18:30 Ioga",
 		"11 20:00 Ioga (tard)",
 		"16 18:30 Ioga",
@@ -48,7 +48,7 @@ func TestICSGoogleCalendar(t *testing.T) {
 	if !strings.Contains(text, "09:00–10:00 Reunió, equip (at Sala 2) [Personal] ⚠ overlaps") || strings.Contains(text, "Cancel·lada") {
 		t.Fatalf("day text:\n%s", text)
 	}
-	if !strings.Contains(formatEvents(eventsBetween(evs, time.Date(2026, 11, 4, 0, 0, 0, 0, loc), time.Date(2026, 11, 5, 0, 0, 0, 0, loc))), "all day Aniversari Carla") {
+	if !strings.Contains(formatEvents(eventsBetween(evs, time.Date(2026, 11, 4, 0, 0, 0, 0, loc), time.Date(2026, 11, 5, 0, 0, 0, 0, loc))), "all day Aniversari Marta") {
 		t.Fatal("all-day event")
 	}
 }

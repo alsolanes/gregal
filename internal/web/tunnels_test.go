@@ -26,7 +26,7 @@ func TestCloudflaredRouteResolElNomAlIdentificador(t *testing.T) {
 	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
 		t.Fatalf("no s'ha pogut escriure el cloudflared fals: %v", err)
 	}
-	if _, err := cloudflaredRoute(bin, "vents", "prova.solanes.xyz"); err != nil {
+	if _, err := cloudflaredRoute(bin, "vents", "prova.example.com"); err != nil {
 		t.Fatalf("la ruta hauria de funcionar amb el cloudflared fals: %v", err)
 	}
 	got, err := os.ReadFile(args)
@@ -40,7 +40,7 @@ func TestCloudflaredRouteResolElNomAlIdentificador(t *testing.T) {
 	if strings.Contains(line, "67cae018") {
 		t.Fatalf("la ruta ha apuntat el CNAME a un altre túnel: %q", line)
 	}
-	if !strings.Contains(line, "prova.solanes.xyz") {
+	if !strings.Contains(line, "prova.example.com") {
 		t.Fatalf("l'amfitrió s'ha perdut: %q", line)
 	}
 }
