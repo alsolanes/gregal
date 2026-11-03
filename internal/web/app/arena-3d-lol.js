@@ -1,18 +1,21 @@
-// League of Legends in 3D (arena-3d.js adapter): Summoner's Rift seen over a
-// champion's shoulder (or through their eyes).
+// Lantern Legends in 3D (arena-3d.js adapter): the Glowvale at dusk, seen over
+// a champion's shoulder (or through their eyes).
 //
 // Everything comes from the 2D viewer (arena-lol-view.js, LolView), read only:
-// the map model (lanes, river, towers, inhibitors, nexus, pits, fountains), the
-// match state (positions, deaths and respawns, kills, gold, towers, buffs,
-// objective timers), the action cam's shot (the fight or objective it films,
-// the monster or structure whose HP drains on camera), its procedural ability
-// effects (skill shots, AoE circles, dashes, slams, shields, heals, tower shots,
-// smites, damage numbers) and its replays. This file only turns that into a
-// world: terrain painted from the map with lanes and bases, an animated river,
-// instanced jungle (trees and rock walls), towers that lose HP and collapse
-// into rubble, inhibitors and nexus crystals, the dragon (coloured by element),
-// Baron, the Herald and the Void Grubs with HP bars, ten champions built from
-// the kit's class silhouettes, and instanced minion waves walking the lanes.
+// the map model (lanes, river, lantern towers, Seed Shrines, Heart Lanterns,
+// pits, fountains), the match state (positions, tags and relights, gold,
+// lanterns, blessings, objective timers), the action cam's shot (the clash or
+// objective it films, the creature or structure whose HP drains on camera), its
+// procedural ability effects (light shots, AoE circles, dashes, slams, shields,
+// heals, lantern beams, lures, spark numbers) and its replays. This file only
+// turns that into a world: terrain painted from the map with lanes and bases,
+// an animated river, instanced woods (trees and rock walls), lantern towers
+// that dim as they lose HP and go dark when taken, Seed Shrines and Heart
+// Lanterns, the sky dragon (coloured by element), the Moon Baron (a moon moth),
+// the Stone Herald and the Glow Grubs with HP bars, ten champions built from
+// the kit's class silhouettes, instanced wisp waves floating down the lanes,
+// and a few fireflies under a violet dusk sky. Nobody is hurt: a tagged
+// champion fades out in sparkles and relights at its base.
 //
 // Coordinates: the map is 0..100 on both axes, blue base bottom-left (x right,
 // y down, as drawn by the 2D viewer). The world is Y-up with the map centre at
@@ -106,7 +109,7 @@ export function frameSource(v) {
 }
 
 // Who the camera follows on its own, like the action cam's director: the
-// killer of a kill; in a filmed fight or objective, the champion nearest to
+// tagger of a tag (event kind "kill"); in a filmed clash or objective, the champion nearest to
 // what the camera films (the team taking the objective, the side pushing the
 // structure); for a gank the jungler; otherwise whoever it followed, else the
 // blue mid laner. memo { id, since } keeps a choice for at least 2 s so the
@@ -339,7 +342,7 @@ const riftKey = st => [0, 1].map(t => teamColor(st.meta, t) + mapSide(st.meta, t
 // ---------------------------------------------------------------------------
 const CSS = `.a3-lol-card { position:absolute; left:8px; top:44px; background:rgba(8,10,20,.82); border-radius:8px; padding:6px 10px; font-size:12px; line-height:1.35; border-left:4px solid var(--tc,#ffd400); min-width:150px; }
 .a3-lol-card:empty, .a3-lol-feed:empty { display:none; }
-.a3-lol-card b { font-size:13px; } .a3-lol-card .k { color:#ffd400; font-weight:800; } .a3-lol-card .dead { color:#ff8080; font-weight:800; }
+.a3-lol-card b { font-size:13px; } .a3-lol-card .k { color:#ffd400; font-weight:800; } .a3-lol-card .dead { color:#c9d4ff; font-weight:800; }
 .a3-lol-boss { position:absolute; left:50%; top:96px; transform:translateX(-50%); width:min(380px, 60%); font-size:11px; font-weight:800; text-shadow:0 1px 2px #000; }
 .a3-lol-boss:empty { display:none; }
 .a3-lol-boss .bar { height:10px; margin-top:2px; background:rgba(5,5,10,.85); border:1px solid var(--mc,#9b59ff); border-radius:3px; overflow:hidden; }
@@ -350,24 +353,27 @@ const CSS = `.a3-lol-card { position:absolute; left:8px; top:44px; background:rg
 @media (max-width:760px) { .a3-lol-feed { display:none; } .a3-lol-card { font-size:11px; padding:4px 8px; min-width:0; } }`;
 
 export const adapter = {
-  label: 'League of Legends',
+  label: 'Lantern Legends',
 
   build(ctx) {
     const { THREE, scene, kit } = ctx, s = ctx.state;
     s.memo = {}; s.face = new Map(); s.camYaw = null; s.models = new Map(); s.prevSpot = new Map(); s.phase = new Map(); s.corpse = new Map();
     s.eye = false; s.cut = true; s.lastAnim = 0; s.towerFall = new Map(); s.structAlive = new Map(); s.dt = 1 / 60; s.monDie = {};
-    scene.background = new THREE.Color('#9fb7c9');
-    scene.fog = new THREE.Fog(0x9fb7c9, 140, 360);
-    kit.lights(scene, { sky: '#dfe9ff', ground: '#3b4a2c', hemi: 1.35, sun: '#fff1d6', sunI: 1.6, dir: [-60, 110, 50] });
+    // Dusk: a deep blue to violet sky with a warm glow low down, violet haze,
+    // a cool sky light and a low golden sun.
+    s.skyTex = kit.canvasTexture(4, 256, (g, w, h) => { const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0e1236'); gr.addColorStop(.45, '#262a68'); gr.addColorStop(.78, '#5a3f7e'); gr.addColorStop(1, '#c0787a'); g.fillStyle = gr; g.fillRect(0, 0, w, h); }, { aniso: 1 });
+    scene.background = s.skyTex;
+    scene.fog = new THREE.Fog(0x3b3570, 140, 360);
+    kit.lights(scene, { sky: '#a9b0ff', ground: '#2d2a3e', hemi: 1.3, sun: '#ffcf8f', sunI: 1.35, dir: [-90, 70, 60] });
     const low = !!(ctx.quality && ctx.quality.low);
     s.low = low;
-    // Ground beyond the map, then the Rift itself (painted once the map is known).
+    // Ground beyond the map, then the Glowvale itself (painted once the map is known).
     const far = new THREE.Mesh(new THREE.PlaneGeometry(900, 900), kit.mat('#1f3319')); far.rotation.x = -Math.PI / 2; far.position.y = -.05; scene.add(far);
     s.groundTex = kit.canvasTexture(low ? 1024 : 2048, low ? 1024 : 2048, (g, w, h) => { g.fillStyle = '#26401f'; g.fillRect(0, 0, w, h); }, { aniso: Math.min(8, ctx.renderer.capabilities.getMaxAnisotropy()) });
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(100 * K, 100 * K), new THREE.MeshLambertMaterial({ map: s.groundTex }));
     ground.rotation.x = -Math.PI / 2; scene.add(ground);
     s.waterTex = kit.canvasTexture(256, 256, paintWater, { aniso: 2, repeat: true });
-    // Pools: shadows, minions, effects, bars, text.
+    // Pools: shadows, wisps, effects, bars, text.
     s.shadows = kit.blobShadows(100); scene.add(s.shadows.mesh);
     const add = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, side: THREE.DoubleSide });
     const ringG = new THREE.RingGeometry(.84, 1, 40); ringG.rotateX(-Math.PI / 2);
@@ -375,27 +381,27 @@ export const adapter = {
     const arcG = new THREE.RingGeometry(.78, 1, 14, 1, -1.1, 2.2);
     const beamG = new THREE.CylinderGeometry(.5, .5, 1, 6, 1, true); beamG.translate(0, .5, 0);
     s.fx = {
-      orb: instPool(THREE, kit, new THREE.SphereGeometry(.5, 10, 7), add, 160),
+      orb: instPool(THREE, kit, new THREE.SphereGeometry(.5, 10, 7), add, 320),
       ring: instPool(THREE, kit, ringG, add, 96),
       disc: instPool(THREE, kit, discG, add, 48),
       arc: instPool(THREE, kit, arcG, add, 32),
       beam: instPool(THREE, kit, beamG, add, 64),
-      chunk: instPool(THREE, kit, new THREE.BoxGeometry(1, 1, 1), kit.mat('#ffffff'), 160),
     };
-    for (const k in s.fx) { s.fx[k].mesh.renderOrder = k === 'chunk' ? 0 : 5; scene.add(s.fx[k].mesh); }
+    for (const k in s.fx) { s.fx[k].mesh.renderOrder = 5; scene.add(s.fx[k].mesh); }
     s.fx.orb.cam = ctx.camera.position;
     s.bars = barPool(THREE, kit, scene, 64);
     s.text = textPool(THREE, kit, scene, 26);
     s.labels = textPool(THREE, kit, scene, 12, 320, 72);
-    // Minions: one instanced mesh, tinted per side.
-    const minionG = kit.merge([
-      { g: kit.G.box, c: '#d8dbe2', m: kit.M(0, .55, 0, .55, .6, .5) },
-      { g: kit.G.sph, c: '#f2f2f2', m: kit.M(.05, 1.02, 0, .42, .4, .42) },
-      { g: kit.G.box, c: '#9aa0ad', m: kit.M(.32, .62, .2, .35, .1, .1) },
-      { g: kit.G.cyl, c: '#5a5f6b', m: kit.M(0, .15, .14, .16, .32, .16) },
-      { g: kit.G.cyl, c: '#5a5f6b', m: kit.M(0, .15, -.14, .16, .32, .16) },
+    // Wisps: small glowing orbs with a trailing tail and two dark eyes (one
+    // instanced, unlit mesh, tinted per side).
+    const wispG = kit.merge([
+      { g: kit.G.sph, c: '#ffffff', m: kit.M(0, 0, 0, .62, .62, .62) },
+      { g: kit.G.cone, c: '#d9d9d9', m: kit.M(-.34, -.06, 0, .3, .55, .3, 0, 0, -1.25) },
+      { g: kit.G.sph, c: '#ffffff', m: kit.M(-.62, -.12, 0, .14, .14, .14) },
+      { g: kit.G.sph, c: '#1c1f33', m: kit.M(.27, .06, .11, .08, .12, .08) },
+      { g: kit.G.sph, c: '#1c1f33', m: kit.M(.27, .06, -.11, .08, .12, .08) },
     ]);
-    s.minions = new THREE.InstancedMesh(minionG, kit.mats.vc, 96); s.minions.frustumCulled = false; s.minions.count = 0;
+    s.minions = new THREE.InstancedMesh(wispG, new THREE.MeshBasicMaterial({ vertexColors: true }), 96); s.minions.frustumCulled = false; s.minions.count = 0;
     for (let i = 0; i < 96; i++) s.minions.setColorAt(i, kit.col('#ffffff'));
     scene.add(s.minions);
     s.M4 = new THREE.Matrix4(); s.V = new THREE.Vector3(); s.Q = new THREE.Quaternion(); s.S = new THREE.Vector3(); s.UP = new THREE.Vector3(0, 1, 0); s.AX = new THREE.Vector3(); s.QX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
@@ -420,7 +426,7 @@ export const adapter = {
     }
   },
 
-  // The Rift: built when the map and the team colours are known.
+  // The Glowvale: built when the map and the team colours are known.
   rift(ctx, st) {
     const { THREE, scene, kit } = ctx, s = ctx.state, map = st.map;
     if (s.rift) { scene.remove(s.rift); s.rift.traverse(o => { if (o.geometry && !Object.values(kit.G).includes(o.geometry)) o.geometry.dispose(); }); }
@@ -530,47 +536,89 @@ export const adapter = {
     g.add(new THREE.Mesh(kit.merge(parts), clearMat(new THREE.MeshLambertMaterial({ vertexColors: true }), 'a3lol-stone')));
     // Fountain glow.
     s.fountainGlow = FOUNTAIN.map((f, side) => { const w = mapToWorld(f[0], f[1]); const m = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 6, 24, 1, true), new THREE.MeshBasicMaterial({ color: kit.col(shadeHex(sideCols[side], .3)), transparent: true, opacity: .22, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false })); m.position.set(w[0], 3, w[2]); g.add(m); return m; });
-    // Structures: towers (instanced body and crystal), inhibitors and the nexus.
+    // Structures: lantern towers (instanced post, glass and pennant), Seed
+    // Shrines and Heart Lanterns. Nothing collapses: a taken structure stays,
+    // its light out (grey glass, a little mist).
     const towers = map.towers || [];
     s.towers = towers;
+    const IRON = '#2f2a38', BRASS = '#c9a25a';
     const bodyG = kit.merge([
-      { g: kit.G.cap, c: '#5f6170', m: kit.M(0, .5, 0, 3.2, 1, 3.2) },
-      { g: kit.G.cyl, c: '#8b8f9c', m: kit.M(0, 3.2, 0, 1.9, 4.6, 1.9) },
-      { g: kit.G.cyl, c: '#a7abb7', m: kit.M(0, 5.7, 0, 2.6, .5, 2.6) },
-      { g: kit.G.box, c: '#6f7280', m: kit.M(.9, 6.4, 0, .35, 1.2, .35) }, { g: kit.G.box, c: '#6f7280', m: kit.M(-.9, 6.4, 0, .35, 1.2, .35) },
-      { g: kit.G.box, c: '#6f7280', m: kit.M(0, 6.4, .9, .35, 1.2, .35) }, { g: kit.G.box, c: '#6f7280', m: kit.M(0, 6.4, -.9, .35, 1.2, .35) },
+      { g: kit.G.cap, c: '#4f4a5c', m: kit.M(0, .4, 0, 3, .8, 3) },
+      { g: kit.G.cap, c: '#6a6478', m: kit.M(0, .95, 0, 2.2, .3, 2.2) },
+      { g: kit.G.cyl, c: '#3b3446', m: kit.M(0, 4, 0, .75, 6, .75) },
+      { g: kit.G.cyl, c: BRASS, m: kit.M(0, 2.2, 0, .95, .22, .95) },
+      { g: kit.G.cyl, c: BRASS, m: kit.M(0, 6.6, 0, 1.2, .25, 1.2) },
+      { g: kit.G.cap, c: IRON, m: kit.M(0, 7.15, 0, 1.9, .3, 1.9) },
+      ...[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z]) => ({ g: kit.G.box, c: IRON, m: kit.M(x * .68, 8.2, z * .68, .14, 1.9, .14) })),
+      { g: kit.G.cap, c: IRON, m: kit.M(0, 9.2, 0, 2.1, .2, 2.1) },
+      { g: kit.G.cone, c: IRON, m: kit.M(0, 9.75, 0, 2.3, .95, 2.3) },
+      { g: kit.G.sph, c: BRASS, m: kit.M(0, 10.35, 0, .38, .38, .38) },
+      { g: kit.G.box, c: IRON, m: kit.M(0, 5.6, 0, .14, .14, 2.4) },
     ]);
-    const crystalG = kit.merge([
-      { g: kit.G.cyl, c: '#ffffff', m: kit.M(0, 4.6, 0, 1.95, .5, 1.95) },
-      { g: new THREE.OctahedronGeometry(.8, 0), c: '#ffffff', m: kit.M(0, 7.3, 0, 1, 1.5, 1) },
+    const glassG = kit.merge([
+      { g: kit.G.cap, c: '#ffffff', m: kit.M(0, 8.2, 0, 1.3, 1.85, 1.3) },
     ]);
-    s.towerBody = new THREE.InstancedMesh(bodyG, clearMat(new THREE.MeshLambertMaterial({ vertexColors: true }), 'a3lol-tower'), Math.max(1, towers.length)); s.towerBody.frustumCulled = false;
-    s.towerCrys = new THREE.InstancedMesh(crystalG, new THREE.MeshBasicMaterial({ color: 0xffffff }), Math.max(1, towers.length)); s.towerCrys.frustumCulled = false;
-    towers.forEach((tw, i) => s.towerCrys.setColorAt(i, kit.col(shadeHex(sideCols[tw.side], .25))));
-    g.add(s.towerBody, s.towerCrys);
-    // Rubble chunks of every structure (shown once it falls).
-    const rub = [], R = rng(5);
-    const addRubble = (x, y, n, sz) => { const out = []; for (let k = 0; k < n; k++) { const a = R() * TAU, d = R() * sz; const w = mapToWorld(x, y); out.push({ x: w[0] + Math.cos(a) * d, z: w[2] + Math.sin(a) * d, s: .5 + R() * .9, r: R() * 3, h: R() }); } rub.push(...out); return out; };
-    s.towerRubble = towers.map(tw => addRubble(tw.x, tw.y, 7, 2.6));
-    s.inhibs = (map.inhibitors || []).map(ih => ({ o: ih, rubble: addRubble(ih.x, ih.y, 5, 2) }));
-    s.nexus = (map.nexus || []).map(nx => ({ o: nx, rubble: addRubble(nx.x, nx.y, 9, 3.5) }));
-    s.rubbleMesh = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.6, 0), kit.mat('#5d5a54'), Math.max(1, rub.length)); s.rubbleMesh.frustumCulled = false; s.rubbleMesh.count = 0; g.add(s.rubbleMesh);
-    const crysMat = side => new THREE.MeshBasicMaterial({ color: kit.col(shadeHex(sideCols[side], .2)) });
+    const flagG = kit.merge([{ g: kit.G.box, c: '#ffffff', m: kit.M(0, 4.95, 1.15, .06, 1.1, .5) }, { g: kit.G.box, c: '#ffffff', m: kit.M(0, 4.95, -1.15, .06, 1.1, .5) }]);
+    const nT = Math.max(1, towers.length);
+    s.towerBody = new THREE.InstancedMesh(bodyG, clearMat(new THREE.MeshLambertMaterial({ vertexColors: true }), 'a3lol-tower'), nT); s.towerBody.frustumCulled = false;
+    s.towerCrys = new THREE.InstancedMesh(glassG, new THREE.MeshBasicMaterial({ color: 0xffffff }), nT); s.towerCrys.frustumCulled = false;
+    s.towerFlag = new THREE.InstancedMesh(flagG, new THREE.MeshLambertMaterial({ color: 0xffffff }), nT); s.towerFlag.frustumCulled = false;
+    s.towerGlow = towers.map(tw => kit.col(shadeHex(sideCols[tw.side], .55)).clone().lerp(kit.col('#ffc867'), .55));
+    towers.forEach((tw, i) => {
+      const w = mapToWorld(tw.x, tw.y);
+      // Each post turned a little differently (its cross arm and pennants).
+      s.M4.compose(s.V.set(w[0], 0, w[2]), s.Q.setFromAxisAngle(s.UP, i * 1.7), s.S.setScalar(1));
+      s.towerBody.setMatrixAt(i, s.M4); s.towerCrys.setMatrixAt(i, s.M4); s.towerFlag.setMatrixAt(i, s.M4);
+      s.towerCrys.setColorAt(i, s.towerGlow[i]); s.towerFlag.setColorAt(i, kit.col(sideCols[tw.side]));
+    });
+    g.add(s.towerBody, s.towerCrys, s.towerFlag);
+    s.towerGlowHex = s.towerGlow.map(c => '#' + c.getHexString());
+    s.darkGlass = kit.col('#4d5361').clone();
+    const glowMat = side => new THREE.MeshBasicMaterial({ color: kit.col(shadeHex(sideCols[side], .55)).clone().lerp(kit.col('#ffd27a'), .45) });
+    // Seed Shrines: a glowing seed (with a sprout) floating over a stone ring.
+    s.inhibs = (map.inhibitors || []).map(ih => ({ o: ih }));
+    const seedG = (() => { const sp = new THREE.SphereGeometry(1, 14, 10); const P = sp.attributes.position; for (let i = 0; i < P.count; i++) { const y = P.getY(i); P.setX(i, P.getX(i) * (1 - .35 * y)); P.setZ(i, P.getZ(i) * (1 - .35 * y)); } sp.computeVertexNormals(); return sp; })();
     for (const it of s.inhibs) {
       const w = mapToWorld(it.o.x, it.o.y);
-      const base = new THREE.Mesh(kit.merge([{ g: kit.G.cap, c: '#5d6170', m: kit.M(0, .3, 0, 3.6, .6, 3.6) }, { g: kit.G.cap, c: '#3f4250', m: kit.M(0, .7, 0, 2.6, .3, 2.6) }]), kit.mats.vc);
+      const base = new THREE.Mesh(kit.merge([
+        { g: kit.G.cap, c: '#4f4a5c', m: kit.M(0, .25, 0, 3.8, .5, 3.8) },
+        { g: kit.G.cap, c: '#3a3646', m: kit.M(0, .55, 0, 2.6, .2, 2.6) },
+        ...[0, 1, 2, 3, 4, 5].map(k => ({ g: kit.G.box, c: '#6a6478', m: kit.M(Math.cos(k / 6 * TAU) * 1.65, .9, Math.sin(k / 6 * TAU) * 1.65, .5, .9, .5, 0, -k / 6 * TAU, 0) })),
+        { g: kit.G.cap, c: sideCols[it.o.side], m: kit.M(0, .67, 0, 1.4, .06, 1.4) },
+      ]), kit.mats.vc);
       base.position.set(w[0], 0, w[2]); g.add(base);
-      it.crys = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), crysMat(it.o.side)); it.crys.scale.set(1, 1.6, 1); it.crys.position.set(w[0], 2.6, w[2]); g.add(it.crys);
+      it.ringMesh = new THREE.Mesh(new THREE.TorusGeometry(1.75, .12, 6, 32), kit.mat('#6a6478')); it.ringMesh.rotation.x = Math.PI / 2; it.ringMesh.position.set(w[0], 1.35, w[2]); g.add(it.ringMesh);
+      it.glow = glowMat(it.o.side); it.lit = it.glow.color.clone(); it.litHex = '#' + it.lit.getHexString();
+      it.crys = new THREE.Mesh(seedG, it.glow); it.crys.scale.set(.8, 1.15, .8); it.crys.position.set(w[0], 2.6, w[2]); g.add(it.crys);
+      const sprout = new THREE.Mesh(kit.merge([{ g: kit.G.cyl, c: '#5f9a4c', m: kit.M(0, 1.2, 0, .1, .5, .1) }, { g: kit.G.sph, c: '#7cc35e', m: kit.M(.22, 1.45, 0, .42, .1, .22, 0, 0, .4) }, { g: kit.G.sph, c: '#7cc35e', m: kit.M(-.22, 1.45, 0, .42, .1, .22, 0, 0, -.4) }]), kit.mats.vc);
+      it.crys.add(sprout); sprout.scale.set(1 / .8, 1 / 1.15, 1 / .8);
       it.w = w;
     }
+    // Heart Lanterns: a big lantern over the base plaza, a halo ring round it.
+    s.nexus = (map.nexus || []).map(nx => ({ o: nx }));
     for (const it of s.nexus) {
       const w = mapToWorld(it.o.x, it.o.y);
-      const base = new THREE.Mesh(kit.merge([{ g: kit.G.cap, c: '#5b5f6d', m: kit.M(0, .5, 0, 7.5, 1, 7.5) }, { g: kit.G.cap, c: '#454856', m: kit.M(0, 1.2, 0, 5.2, .6, 5.2) }]), kit.mats.vc);
+      const base = new THREE.Mesh(kit.merge([
+        { g: kit.G.cap, c: '#4f4a5c', m: kit.M(0, .5, 0, 7.5, 1, 7.5) },
+        { g: kit.G.cap, c: '#3a3646', m: kit.M(0, 1.2, 0, 5.2, .6, 5.2) },
+        { g: kit.G.cap, c: IRON, m: kit.M(0, 1.75, 0, 4, .5, 4) },
+        ...[0, 1, 2, 3, 4, 5].map(k => ({ g: kit.G.box, c: IRON, m: kit.M(Math.cos(k / 6 * TAU) * 1.75, 5.2, Math.sin(k / 6 * TAU) * 1.75, .3, 6.6, .3) })),
+        { g: kit.G.cap, c: IRON, m: kit.M(0, 8.6, 0, 4.4, .4, 4.4) },
+        { g: kit.G.cone, c: IRON, m: kit.M(0, 9.6, 0, 4.8, 1.8, 4.8) },
+        { g: kit.G.sph, c: BRASS, m: kit.M(0, 10.75, 0, .8, .8, .8) },
+        { g: kit.G.cyl, c: BRASS, m: kit.M(0, 2.05, 0, 4.1, .12, 4.1) }, { g: kit.G.cyl, c: BRASS, m: kit.M(0, 8.35, 0, 4.5, .12, 4.5) },
+        { g: kit.G.cap, c: sideCols[it.o.side], m: kit.M(0, 1.52, 0, 5.4, .12, 5.4) },
+      ]), kit.mats.vc);
       base.position.set(w[0], 0, w[2]); g.add(base);
-      it.crys = new THREE.Mesh(new THREE.OctahedronGeometry(1.8, 0), crysMat(it.o.side)); it.crys.scale.set(1, 1.7, 1); it.crys.position.set(w[0], 5.2, w[2]); g.add(it.crys);
-      it.ring = new THREE.Mesh(new THREE.TorusGeometry(3.4, .14, 6, 40), new THREE.MeshBasicMaterial({ color: kit.col(shadeHex(sideCols[it.o.side], .5)) })); it.ring.position.set(w[0], 5.2, w[2]); g.add(it.ring);
+      it.glow = glowMat(it.o.side); it.lit = it.glow.color.clone(); it.litHex = '#' + it.lit.getHexString();
+      it.crys = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 6, 12), it.glow); it.crys.position.set(w[0], 5.2, w[2]); g.add(it.crys);
+      it.ring = new THREE.Mesh(new THREE.TorusGeometry(3.8, .12, 6, 40), new THREE.MeshBasicMaterial({ color: kit.col(shadeHex(sideCols[it.o.side], .5)).clone().lerp(kit.col('#ffd27a'), .4) })); it.ring.position.set(w[0], 5.2, w[2]); g.add(it.ring);
       it.w = w;
     }
+    // Fireflies over the woods (posed near the camera only).
+    const fr = rng(19), pool = spots.filter(p => p.x > 2 && p.x < 98 && p.y > 2 && p.y < 98);
+    s.fireflies = [];
+    for (let i = 0; i < (s.low ? 40 : 90) && pool.length; i++) { const p = pool[Math.floor(fr() * pool.length)]; s.fireflies.push({ w: mapToWorld(p.x + (fr() - .5) * 3, p.y + (fr() - .5) * 3, 1.2 + fr() * 3.5), ph: fr() * TAU, sp: .6 + fr() * .9 }); }
     // Monsters (built once, posed per frame).
     s.mon = this.monsters(ctx, g, map);
     scene.add(g);
@@ -581,47 +629,77 @@ export const adapter = {
     const { THREE, kit } = ctx, M = kit.M, G = kit.G;
     const mk = parts => new THREE.Mesh(kit.merge(parts), kit.mats.vc);
     const out = {};
-    // Dragon (geometry is white-ish: the material's colour gives the element).
+    // The sky dragon: a round, friendly cloud dragon (geometry is white-ish:
+    // the material's colour gives the element), riding a puff of cloud.
     const dragon = new THREE.Group(), dmat = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xff8a3d });
     const body = new THREE.Mesh(kit.merge([
-      { g: G.sph, c: '#ffffff', m: M(0, 2.2, 0, 4.4, 2.2, 2.3) },
-      { g: G.sph, c: '#d9d2c0', m: M(.3, 1.9, 0, 3.4, 1.6, 1.8) },
-      { g: G.cyl, c: '#ffffff', m: M(2.2, 3.3, 0, .9, 2.4, .9, 0, 0, -.75) },
-      { g: G.sph, c: '#ffffff', m: M(3.2, 4.3, 0, 1.6, .9, 1) },
-      { g: G.box, c: '#f2e7c9', m: M(3.95, 4.05, 0, .9, .3, .7) },
-      { g: G.cone, c: '#f2e7c9', m: M(2.9, 4.9, .3, .25, .8, .25, -.3, 0, .5) }, { g: G.cone, c: '#f2e7c9', m: M(2.9, 4.9, -.3, .25, .8, .25, .3, 0, .5) },
-      { g: G.cone, c: '#ffffff', m: M(-3.4, 1.9, 0, .9, 3.2, .9, 0, 0, 1.35) },
-      ...[[1.2, .8], [1.2, -.8], [-1.2, .8], [-1.2, -.8]].map(([x, z]) => ({ g: G.cyl, c: '#bdb6a6', m: M(x, .6, z, .55, 1.4, .55) })),
+      { g: G.sph, c: '#ffffff', m: M(0, 2.4, 0, 4, 2.4, 2.4) },
+      { g: G.sph, c: '#f4ecd8', m: M(.5, 2.1, 0, 2.8, 1.8, 1.9) },
+      { g: G.cyl, c: '#ffffff', m: M(2, 3.5, 0, 1, 2, 1, 0, 0, -.6) },
+      { g: G.sph, c: '#ffffff', m: M(2.9, 4.5, 0, 1.9, 1.5, 1.5) },
+      { g: G.sph, c: '#f4ecd8', m: M(3.75, 4.3, 0, .9, .7, .9) },
+      { g: G.sph, c: '#1c1f33', m: M(3.45, 4.8, .5, .3, .38, .22) }, { g: G.sph, c: '#1c1f33', m: M(3.45, 4.8, -.5, .3, .38, .22) },
+      { g: G.sph, c: '#ffffff', m: M(3.55, 4.88, .55, .1, .12, .08) }, { g: G.sph, c: '#ffffff', m: M(3.55, 4.88, -.55, .1, .12, .08) },
+      { g: G.sph, c: '#fff4d8', m: M(2.6, 5.35, .45, .32, .6, .32, -.3, 0, .4) }, { g: G.sph, c: '#fff4d8', m: M(2.6, 5.35, -.45, .32, .6, .32, .3, 0, .4) },
+      { g: G.cone, c: '#ffffff', m: M(-3, 2.2, 0, 1, 2.8, 1, 0, 0, 1.25) },
+      { g: G.sph, c: '#ffffff', m: M(-4.4, 2.75, 0, .9, .7, .9) },
+      ...[[1.2, .8], [1.2, -.8], [-1.1, .8], [-1.1, -.8]].map(([x, z]) => ({ g: G.sph, c: '#f4ecd8', m: M(x, .9, z, .8, 1, .8) })),
     ]), dmat);
     dragon.add(body);
-    const wing = side => { const w = new THREE.Group(); w.position.set(.2, 3.2, side * 1); const m = new THREE.Mesh(kit.merge([{ g: G.box, c: '#ffffff', m: M(0, 0, side * 2.2, 2.6, .12, 4.4) }, { g: G.box, c: '#d0c8b4', m: M(-.6, -.1, side * 3.4, 1.6, .1, 2.2) }]), dmat); w.add(m); dragon.add(w); return w; };
+    const wing = side => { const w = new THREE.Group(); w.position.set(.2, 3.5, side * 1); const m = new THREE.Mesh(kit.merge([{ g: G.sph, c: '#ffffff', m: M(0, 0, side * 2, 2.6, .25, 3.8) }, { g: G.sph, c: '#f4ecd8', m: M(-.5, -.05, side * 3.4, 1.6, .2, 2) }]), dmat); w.add(m); dragon.add(w); return w; };
     dragon.wings = [wing(1), wing(-1)];
+    dragon.add(mk([[0, 0, 1.6], [1.8, .3, 1.2], [-1.8, .2, 1.3], [2.2, 0, -1.2], [-1.6, .3, -1.4], [0, .4, -1.7], [3, .1, .2], [-3, .2, 0]].map(([x, y, z]) => ({ g: G.sph, c: '#eef0ff', m: M(x, y - .3, z, 2.6, 1.3, 2.4) }))));
     out.dragon = { g: dragon, mat: dmat };
-    // Baron Nashor: a purple serpent rising from the pit.
+    // The Moon Baron: a giant pale moon moth hovering over its pit.
     const baron = new THREE.Group();
-    const segs = [];
-    for (let i = 0; i < 6; i++) { const k = i / 5; segs.push({ g: G.sph, c: i % 2 ? '#4b2273' : '#5b2a86', m: M(-1.6 + k * 2.4, 1 + k * 5.4, 0, 3.4 - k * 1.1, 2.6, 3.2 - k * 1) }); }
     baron.add(mk([
-      ...segs,
-      { g: G.sph, c: '#6d33a1', m: M(1.6, 7.6, 0, 3.2, 2, 2.4) },
-      { g: G.box, c: '#2b123f', m: M(2.9, 7, 0, 1.4, .6, 1.8) },
-      { g: G.sph, c: '#ffe05a', m: M(2.6, 8.1, .75, .45, .35, .35) }, { g: G.sph, c: '#ffe05a', m: M(2.6, 8.1, -.75, .45, .35, .35) },
-      ...[-1, 1].map(z => ({ g: G.cone, c: '#d8b7ff', m: M(.6, 9, z * 1, .5, 2.2, .5, z * .5, 0, .6) })),
-      ...[0, 1, 2, 3, 4].map(i => ({ g: G.cone, c: '#b77bff', m: M(-2.4 + i * .9, 2.2 + i * 1.4, 0, .45, 1.6, .45, 0, 0, .7) })),
+      { g: G.sph, c: '#e6e4f4', m: M(0, 6, 0, 2.6, 2.2, 2.2) },
+      { g: G.sph, c: '#d4d0ea', m: M(-2.3, 5.6, 0, 3.4, 1.9, 1.9, 0, 0, .15) },
+      ...[0, 1, 2].map(i => ({ g: G.cyl, c: '#bdb8dc', m: M(-1.4 - i * .9, 5.7 - i * .12, 0, .3, 1.95 - i * .2, 1.95 - i * .2, 0, 0, Math.PI / 2) })),
+      { g: G.sph, c: '#f4f2ff', m: M(1.6, 6.4, 0, 1.7, 1.6, 1.6) },
+      { g: G.sph, c: '#ffffff', m: M(1.1, 7.1, 0, 2, .9, 2) },
+      { g: G.sph, c: '#5b6cd6', m: M(2.2, 6.6, .55, .55, .7, .5) }, { g: G.sph, c: '#5b6cd6', m: M(2.2, 6.6, -.55, .55, .7, .5) },
+      { g: G.sph, c: '#ffffff', m: M(2.42, 6.8, .62, .16, .2, .14) }, { g: G.sph, c: '#ffffff', m: M(2.42, 6.8, -.62, .16, .2, .14) },
+      ...[-1, 1].flatMap(z => [{ g: G.cyl, c: '#f0e6c8', m: M(2.5, 8.1, z * .7, .1, 2, .1, z * .5, 0, -.6) }, { g: G.sph, c: '#f0e6c8', m: M(3.1, 8.9, z * 1.15, .9, .35, .5, z * .5, 0, -.6) }]),
+      ...[[.8, 1], [-.6, 1], [.8, -1], [-.6, -1]].map(([x, z]) => ({ g: G.cyl, c: '#bdb8dc', m: M(x, 4.6, z * .9, .16, 1.6, .16, z * .4, 0, 0) })),
     ]));
+    const mwing = (side, back) => {
+      const w = new THREE.Group(); w.position.set(back ? -.6 : .4, 6.4, side * 1);
+      const big = back ? .8 : 1;
+      const m = mk([
+        { g: G.sph, c: '#e2def4', m: M(back ? -1.4 : .6, 0, side * 3.4 * big, 4.2 * big, .18, 6.4 * big, 0, back ? -.3 * side : .25 * side, 0) },
+        { g: G.sph, c: '#c8cdf6', m: M(back ? -1.4 : .6, .05, side * 3.6 * big, 3 * big, .17, 4.6 * big, 0, back ? -.3 * side : .25 * side, 0) },
+        { g: G.sph, c: '#a9b4ff', m: M(back ? -1.5 : .7, .12, side * 4 * big, 1.1 * big, .1, 1.1 * big) },
+        { g: G.sph, c: '#fff6d6', m: M(back ? -1.5 : .7, .14, side * 4 * big, .55 * big, .1, .55 * big) },
+      ]);
+      w.add(m); baron.add(w); return w;
+    };
+    baron.wings = [mwing(1, false), mwing(-1, false), mwing(1, true), mwing(-1, true)];
     out.baron = { g: baron };
-    // Rift Herald: a shelled crab with one big eye.
-    const herald = new THREE.Group();
+    // The Stone Herald: a gentle mossy golem with glowing eyes.
+    const herald = new THREE.Group(), dd = new THREE.DodecahedronGeometry(1, 0);
     herald.add(mk([
-      { g: G.hemi, c: '#5b2f87', m: M(0, .9, 0, 4, 3.2, 3.6) },
-      { g: G.sph, c: '#3c1d5c', m: M(0, .9, 0, 4.2, .7, 3.8) },
-      { g: G.sph, c: '#f3ecff', m: M(1.6, 1.9, 0, 1.3, 1.3, 1.3) }, { g: G.sph, c: '#b04dff', m: M(2.15, 1.95, 0, .5, .7, .7) },
-      ...[-1, 1].flatMap(z => [-1, 0, 1].map(x => ({ g: G.cyl, c: '#2d1745', m: M(x * 1.1, .4, z * 1.9, .3, 1.1, .3, z * .5, 0, 0) }))),
+      { g: dd, c: '#7d8079', m: M(0, 2.6, 0, 2, 1.8, 1.7) },
+      { g: dd, c: '#5f8f4a', m: M(-.2, 3.7, 0, 1.8, .7, 1.6) },
+      { g: dd, c: '#6f726b', m: M(.9, 4.2, 0, 1, .85, .95) },
+      { g: G.hemi, c: '#6aa152', m: M(.75, 4.85, 0, 1.4, .5, 1.3) },
+      { g: G.sph, c: '#9ff0c8', m: M(1.75, 4.25, .38, .22, .26, .2) }, { g: G.sph, c: '#9ff0c8', m: M(1.75, 4.25, -.38, .22, .26, .2) },
+      ...[-1, 1].flatMap(z => [{ g: dd, c: '#6f726b', m: M(.3, 2.9, z * 2.1, .8, .8, .8) }, { g: dd, c: '#7d8079', m: M(.6, 1.6, z * 2.35, .9, 1.1, .9) }, { g: G.hemi, c: '#6aa152', m: M(.3, 3.4, z * 2.1, .9, .35, .9) }]),
+      ...[-1, 1].map(z => ({ g: dd, c: '#666961', m: M(-.1, .7, z * .95, .9, .9, .9) })),
+      ...[[-.7, .5], [.4, -.7], [-.9, -.4]].map(([x, z]) => ({ g: G.cone, c: '#8bd07a', m: M(x, 4.15, z, .14, .5, .14) })),
     ]));
+    dd.dispose();
     out.herald = { g: herald };
-    // Void Grubs: three little bugs.
-    const grubs = new THREE.Group(), grubG = kit.merge([{ g: G.sph, c: '#6a3aa0', m: M(0, .7, 0, 1.8, 1.2, 1.3) }, { g: G.sph, c: '#d6b5ff', m: M(.85, .85, 0, .6, .5, .6) }, ...[0, 1, 2].map(i => ({ g: G.cone, c: '#b884ff', m: M(-.5 + i * .5, 1.35, 0, .2, .55, .2) }))]);
-    out.grubList = [[-1.6, -1.2], [1.4, -1.6], [0, 1.8]].map(([x, z]) => { const m = new THREE.Mesh(grubG, kit.mats.vc); m.position.set(x, 0, z); grubs.add(m); return m; });
+    // Glow Grubs: three fat fireflies with lantern tails (their glow is posed).
+    const grubs = new THREE.Group(), grubG = kit.merge([
+      { g: G.sph, c: '#4b4660', m: M(.3, 0, 0, 1.1, .9, .9) },
+      { g: G.sph, c: '#3a3550', m: M(1, .12, 0, .7, .65, .65) },
+      { g: G.sph, c: '#fff27a', m: M(-.6, -.12, 0, 1.25, .95, .95) },
+      { g: G.sph, c: '#ffffff', m: M(1.26, .26, .2, .16, .16, .16) }, { g: G.sph, c: '#ffffff', m: M(1.26, .26, -.2, .16, .16, .16) },
+      ...[-1, 1].map(z => ({ g: G.sph, c: '#dff1ff', m: M(.1, .55, z * .65, .9, .08, 1.2, z * .5, 0, 0) })),
+      ...[-1, 1].map(z => ({ g: G.cyl, c: '#3a3550', m: M(1.3, .65, z * .2, .05, .6, .05, z * .4, 0, -.4) })),
+    ]);
+    out.grubList = [[-1.6, -1.2], [1.4, -1.6], [0, 1.8]].map(([x, z]) => { const m = new THREE.Mesh(grubG, kit.mats.vc); m.position.set(x, 1.4, z); grubs.add(m); return m; });
     out.grubs = { g: grubs };
     for (const k of ['dragon', 'baron', 'herald', 'grubs']) { out[k].g.visible = false; g.add(out[k].g); }
     out.dragonAt = mapToWorld(map.dragon.x, map.dragon.y); out.baronAt = mapToWorld(map.baron.x, map.baron.y);
@@ -671,7 +749,9 @@ export const adapter = {
       const id = champId(t, r), m = this.model(ctx, st, t, r), h = m.h, p = src.pos[t] && src.pos[t][r];
       if (!p) { h.root.visible = false; continue; }
       const alive = p.alive !== false, [mx, my] = champSpot(src, t, r);
-      // Dying: the body falls where it stood and stays a few seconds, then sinks.
+      // Tagged out: the champion fades where it stood, shrinking into rising
+      // sparkles, and a translucent ghost of light lingers a few seconds
+      // (s.corpse keeps where and when; nobody lies on the ground).
       let corpse = s.corpse.get(id);
       if (!alive && !corpse && !cut && s.prevSpot.has(id)) { corpse = { at: src.anim, x: s.prevSpot.get(id)[0], y: s.prevSpot.get(id)[1], yaw: s.face.get(id) || 0 }; s.corpse.set(id, corpse); }
       if (alive && corpse) { s.corpse.delete(id); corpse = null; }
@@ -682,16 +762,25 @@ export const adapter = {
         const fw = corpse ? mapToWorld(corpse.x, corpse.y) : mapToWorld(p.x, p.y);
         s.spots[id] = { w: fw, yaw: corpse ? corpse.yaw : 0, dead: true, corpse: age < 4.6, respawn, fountain: mapToWorld(...FOUNTAIN[mapSide(st.meta, t)]) };
         if (age < 4.6) {
-          h.root.visible = true;
-          h.root.position.set(fw[0], -clamp((age - 3.6) * 1.6, 0, 1.6), fw[2]);
-          h.pose({ yaw: corpse.yaw, fall: { k: clamp(age / .5, 0, 1), dir: [-Math.cos(corpse.yaw), Math.sin(corpse.yaw)] }, firstPerson: watch.mode === 'first' && s.eye && me && me.t === t && me.r === r });
-          s.shadows.set(sh++, fw[0], fw[2], 1.1, 1);
+          const col = teamColor(st.meta, t), fk = clamp(age / 1.1, 0, 1), gone = clamp((age - 3.4) / 1.2, 0, 1);
+          // The body: lifts a little and shrinks away in the first second.
+          h.root.visible = fk < 1;
+          h.root.position.set(fw[0], easeOut(fk) * .8, fw[2]); h.root.scale.setScalar(Math.max(.02, 1 - easeOut(fk)));
+          h.pose({ yaw: corpse.yaw, firstPerson: watch.mode === 'first' && s.eye && me && me.t === t && me.r === r });
+          // The ghost of light and its sparkles.
+          if (near(fw, 90)) {
+            const ga = (1 - gone) * Math.min(1, age * 3), hgt = 2 * (h.S || 1.2);
+            fx.orb.add(fw[0], hgt * .5 + age * .15, fw[2], null, 1.1, hgt, 1.1, col, .22 * ga);
+            fx.orb.add(fw[0], hgt * .82 + age * .15, fw[2], null, .7, .7, .7, '#ffffff', .18 * ga);
+            for (let i = 0; i < 8; i++) { const ph = (age * .45 + i / 8) % 1, an = i * 2.4 + age * 1.5; fx.orb.add(fw[0] + Math.cos(an) * (.4 + ph * .7), .2 + ph * 3.4, fw[2] + Math.sin(an) * (.4 + ph * .7), null, .14, .14, .14, i % 2 ? '#fff3c4' : col, ga * (1 - ph)); }
+            fx.ring.add(fw[0], .06, fw[2], null, 1.2 + age * .3, 1, 1.2 + age * .3, col, .45 * ga);
+          }
         } else h.root.visible = false;
         const lw = age < 4.6 ? fw : mapToWorld(p.x, p.y);
-        if (near(lw, 70)) s.labels.put(id, `${(st.line[t][r] || {}).champ || ''} ☠ ${respawn}`, '#ff9a9a', lw[0], 1.6, lw[2], { size: .6, alpha: .9 });
+        if (near(lw, 70)) s.labels.put(id, `${(st.line[t][r] || {}).champ || ''} ✨ ${respawn}`, '#c9d4ff', lw[0], 1.6, lw[2], { size: .6, alpha: .9 });
         continue;
       }
-      h.root.visible = true;
+      h.root.visible = true; h.root.scale.setScalar(1);
       const w = mapToWorld(mx, my);
       // Facing: the fight it is in, the nearest enemy, else where it walks.
       let tgtYaw = null;
@@ -739,13 +828,13 @@ export const adapter = {
         if (!mine) s.labels.put(id, (st.line[t][r] || {}).champ || (st.line[t][r] || {}).handle || '', '#ffffff', w[0], top + .25, w[2], { size: .62, alpha: .95 });
       }
       // Buff auras.
-      if (st.buff[t].baron > src.clock) fx.ring.add(w[0], .08, w[2], null, 1.5, 1, 1.5, '#a25bff', .7 + .3 * Math.sin(frame.clock * 5));
+      if (st.buff[t].baron > src.clock) fx.ring.add(w[0], .08, w[2], null, 1.5, 1, 1.5, '#bcc6ff', .7 + .3 * Math.sin(frame.clock * 5)); // Moon blessing
       if (st.buff[t].elder > src.clock) fx.ring.add(w[0], .1, w[2], null, 1.8, 1, 1.8, '#f5e17a', .8);
       fx.ring.add(w[0], .05, w[2], null, 1.05, 1, 1.05, col, mine ? .9 : .45);
     }
 
-    // ---- minion waves (the 2D viewer's formula) ----
-    let mi = 0;
+    // ---- wisp waves (the 2D viewer's formula) ----
+    let mi = 0, halos = 0;
     if (st.mode === 'map') {
       const L = st.map.lanes || {}, Cm = new THREE.Color();
       for (const lane of ['top', 'mid', 'bot']) {
@@ -764,9 +853,11 @@ export const adapter = {
               if (!near(w, 120)) continue;
               const big = sup && i === 0 ? 1.7 : 1, sc = big * clamp(fade * 1.4, .05, 1);
               const yawM = fighting ? headingYaw(side === 0 ? 1 : -1, side === 0 ? -1 : 1) : headingYaw(p2[0] - p[0], p2[1] - p[1]);
-              s.M4.compose(s.V.set(w[0], Math.abs(Math.sin(src.anim * 9 + i + wv)) * .12, w[2]), s.Q.setFromAxisAngle(s.UP, yawM), s.S.setScalar(sc));
-              s.minions.setMatrixAt(mi, s.M4); s.minions.setColorAt(mi, Cm.copy(kit.col(col)).lerp(kit.col('#ffffff'), .25)); mi++;
-              if (sh < 99) s.shadows.set(sh++, w[0], w[2], .55 * big, fade);
+              const wy = (.85 + Math.sin(frame.clock * 3.1 + i * 1.7 + wv * 2.3 + side) * .22) * big;
+              s.M4.compose(s.V.set(w[0], wy, w[2]), s.Q.setFromAxisAngle(s.UP, yawM), s.S.setScalar(sc));
+              s.minions.setMatrixAt(mi, s.M4); s.minions.setColorAt(mi, Cm.copy(kit.col(col)).lerp(kit.col('#ffffff'), .4)); mi++;
+              if (halos < 40 && near(w, 45)) { halos++; fx.orb.add(w[0], wy, w[2], null, 1.5 * sc, 1.5 * sc, 1.5 * sc, col, .28 * fade); }
+              if (sh < 99) s.shadows.set(sh++, w[0], w[2], .4 * big, fade * .6);
             }
           }
         }
@@ -775,11 +866,10 @@ export const adapter = {
     s.minions.count = mi; s.minions.instanceMatrix.needsUpdate = true; if (s.minions.instanceColor) s.minions.instanceColor.needsUpdate = true;
 
     // ---- structures ----
+    // A lantern's light follows its HP; when taken it goes dark over 1.2 s of
+    // match time (not after a seek), a few sparks drifting up, then a faint mist.
     const isHeld = (kind, o) => !!held && Number.isFinite(held.dieAt) && src.anim < held.dieAt && held.kind === kind && held.side === o.side && (kind === 'nexus' || held.lane === o.lane) && (kind !== 'tower' || held.tier === o.tier);
-    let ri = 0;
-    const rubble = (list, k) => { for (const c of list) { if (ri >= s.rubbleMesh.instanceMatrix.count) break; s.M4.compose(s.V.set(c.x, .15 + c.h * .3 * k, c.z), s.Q.setFromAxisAngle(s.UP, c.r), s.S.setScalar(c.s * k)); s.rubbleMesh.setMatrixAt(ri++, s.M4); } };
     const fall = (key, up) => {
-      // Was standing, now down: it collapses over 1.2 s of match time (not after a seek).
       const was = s.structAlive.get(key);
       s.structAlive.set(key, up);
       if (was === true && !up && !cut) s.towerFall.set(key, src.anim);
@@ -787,40 +877,63 @@ export const adapter = {
       const t0 = s.towerFall.get(key);
       return t0 == null ? 1 : clamp((src.anim - t0) / 1.2, 0, 1);
     };
+    const flick = (i, k) => k < 1 ? (Math.sin(src.anim * 37 + i * 3) > .2 - k ? 1 - k : .15 * (1 - k)) : 0;
+    const dimOut = (w, y, k, col, i, r = 1) => {
+      // Going dark: sparks rising, a widening ring of light, then a still mist.
+      if (k < 1) {
+        for (let d = 0; d < 6; d++) { const a = d / 6 * TAU + i, rr = r * (.6 + k * 1.6); fx.orb.add(w[0] + Math.cos(a) * rr, y + k * (2 + d % 3) * r, w[2] + Math.sin(a) * rr, null, .22 * r, .22 * r, .22 * r, d % 2 ? '#fff3c4' : col, 1 - k); }
+        fx.ring.add(w[0], .14, w[2], null, (2 + k * 5) * r, 1, (2 + k * 5) * r, '#ffe2a0', .5 * (1 - k));
+      }
+      if (near(w, 80)) fx.disc.add(w[0], .1, w[2], null, 2.6 * r, 1, 2.6 * r, '#7d86b8', .08 * Math.min(1, k * 2) * (.8 + .2 * Math.sin(frame.clock * .7 + i)));
+    };
+    const Cg = s.Cg || (s.Cg = new THREE.Color());
     (s.towers || []).forEach((tw, i) => {
       const hold = isHeld('tower', tw), up = hold || st.towers[`${tw.side}-${tw.lane}-${tw.tier}`] !== false;
-      const k = fall('t' + i, up), w = mapToWorld(tw.x, tw.y);
+      const k = fall('t' + i, up), w = mapToWorld(tw.x, tw.y), lit = s.towerGlow[i];
       if (k < 0) {
-        s.M4.compose(s.V.set(w[0], 0, w[2]), s.Q.identity(), s.S.setScalar(1));
         const hp = hold ? drainHp(held, src.anim) : (v.towerHp ? v.towerHp(tw) : 1);
-        if (near(w, 110)) s.bars.add(w[0], 9.2, w[2], 3.4, hp, hp > .6 ? s.sideCols[tw.side] : hp > .4 ? '#f0b13a' : '#ef5350', .32);
-      } else if (k < 1) {
-        // Collapse: tilt away from the lane, sink, throw dust.
-        s.AX.set(Math.cos(i * 2.1), 0, Math.sin(i * 2.1));
-        s.M4.compose(s.V.set(w[0], -k * k * 5, w[2]), s.Q.setFromAxisAngle(s.AX, k * k * 1.2), s.S.set(1, 1 - k * .3, 1));
-        for (let d = 0; d < 6; d++) { const a = d / 6 * TAU + i; fx.chunk.add(w[0] + Math.cos(a) * (1 + k * 4), .4 + Math.sin(k * Math.PI) * (2 + d % 3), w[2] + Math.sin(a) * (1 + k * 4), null, .5, .5, .5, '#7a746a'); }
-        fx.disc.add(w[0], .12, w[2], null, 3 + k * 5, 1, 3 + k * 5, '#d8c9a8', .35 * (1 - k));
-        rubble(s.towerRubble[i], k);
-      } else { s.M4.makeScale(0, 0, 0); rubble(s.towerRubble[i], 1); }
-      s.towerBody.setMatrixAt(i, s.M4); s.towerCrys.setMatrixAt(i, s.M4);
+        const b = (.4 + .6 * hp) * (hp < .35 ? .85 + .15 * Math.sin(frame.clock * 9 + i) : 1);
+        s.towerCrys.setColorAt(i, Cg.copy(s.darkGlass).lerp(lit, b));
+        if (near(w, 140)) fx.orb.add(w[0], 8.2, w[2], null, 2.6 + 1.6 * hp, 2.6 + 1.8 * hp, 2.6 + 1.6 * hp, '#ffc867', (.22 + .2 * hp) * (.92 + .08 * Math.sin(frame.clock * 3 + i)));
+        if (near(w, 110)) s.bars.add(w[0], 11.2, w[2], 3.4, hp, hp > .6 ? s.sideCols[tw.side] : hp > .4 ? '#f0b13a' : '#ffb36b', .32);
+      } else {
+        const f = flick(i, k);
+        s.towerCrys.setColorAt(i, Cg.copy(s.darkGlass).lerp(lit, f));
+        if (f > 0) fx.orb.add(w[0], 8.2, w[2], null, 3 * f, 3 * f, 3 * f, '#ffc867', .3 * f);
+        dimOut(w, 8.2, k, s.towerGlowHex[i], i);
+      }
     });
-    if (s.towerBody) { s.towerBody.instanceMatrix.needsUpdate = true; s.towerCrys.instanceMatrix.needsUpdate = true; }
+    if (s.towerCrys && s.towerCrys.instanceColor) s.towerCrys.instanceColor.needsUpdate = true;
     for (const it of s.inhibs || []) {
       const hold = isHeld('inhib', it.o), up = hold || st.inhibs[`${it.o.side}-${it.o.lane}`] !== false;
-      const k = fall('i' + it.o.side + it.o.lane, up);
-      it.crys.visible = k < 1; it.crys.rotation.y = frame.clock * .8; it.crys.position.y = 2.6 + Math.sin(frame.clock * 2 + it.o.x) * .25 - (k > 0 ? k * 2.4 : 0);
-      if (k < 0 && hold && near(it.w)) s.bars.add(it.w[0], 5.2, it.w[2], 3, drainHp(held, src.anim), s.sideCols[it.o.side], .3);
-      if (k >= 0) rubble(it.rubble, Math.max(k, .01));
+      const k = fall('i' + it.o.side + it.o.lane, up), i = it.o.x | 0;
+      const hp = k < 0 && hold ? drainHp(held, src.anim) : 1, f = k < 0 ? .35 + .65 * hp : flick(i, k);
+      it.glow.color.copy(s.darkGlass).lerp(it.lit, f);
+      it.crys.rotation.y = frame.clock * .8 * f;
+      it.crys.position.y = lerp(1.75, 2.6 + Math.sin(frame.clock * 2 + it.o.x) * .25, k < 0 ? 1 : 1 - easeOut(k));
+      if (f > 0 && near(it.w, 120)) fx.orb.add(it.w[0], it.crys.position.y, it.w[2], null, 3.2 * f, 3.6 * f, 3.2 * f, '#ffd27a', .3 * f);
+      if (k < 0 && hold && near(it.w)) s.bars.add(it.w[0], 5.2, it.w[2], 3, hp, s.sideCols[it.o.side], .3);
+      if (k >= 0) dimOut(it.w, 2.4, k, it.litHex, i, .8);
     }
     for (const it of s.nexus || []) {
       const hold = isHeld('nexus', it.o), up = hold || st.nexus[it.o.side];
       const k = fall('n' + it.o.side, up);
-      it.crys.visible = it.ring.visible = k < 1; it.crys.rotation.y = frame.clock * .4; it.ring.rotation.x = Math.PI / 2 + Math.sin(frame.clock) * .3; it.ring.rotation.y = frame.clock;
-      if (k > 0) { it.crys.scale.set(1 + k, 1.7 * (1 - k), 1 + k); fx.orb.add(it.w[0], 5, it.w[2], null, 4 + k * 20, 4 + k * 20, 4 + k * 20, '#ffffff', 1 - k); }
-      if (k < 0 && hold && near(it.w)) s.bars.add(it.w[0], 10, it.w[2], 5, drainHp(held, src.anim), s.sideCols[it.o.side], .38);
-      if (k >= 0) rubble(it.rubble, Math.max(k, .01));
+      const hp = k < 0 && hold ? drainHp(held, src.anim) : 1, f = k < 0 ? .4 + .6 * hp : flick(it.o.side, k);
+      it.glow.color.copy(s.darkGlass).lerp(it.lit, f);
+      it.ring.visible = k < 1; it.ring.scale.setScalar(k > 0 ? 1 + k * .6 : 1); it.ring.rotation.x = Math.PI / 2 + Math.sin(frame.clock) * .3; it.ring.rotation.y = frame.clock;
+      if (f > 0) fx.orb.add(it.w[0], 5.2, it.w[2], null, 9 * f, 11 * f, 9 * f, '#ffd27a', .3 * f);
+      if (k > 0 && k < 1) fx.orb.add(it.w[0], 5.2, it.w[2], null, 4 + k * 20, 4 + k * 20, 4 + k * 20, '#fff3c4', .7 * (1 - k));
+      if (k < 0 && hold && near(it.w)) s.bars.add(it.w[0], 12, it.w[2], 5, hp, s.sideCols[it.o.side], .38);
+      if (k >= 0) dimOut(it.w, 5.2, k, it.litHex, it.o.side, 1.8);
     }
-    if (s.rubbleMesh) { s.rubbleMesh.count = ri; s.rubbleMesh.instanceMatrix.needsUpdate = true; }
+
+    // ---- fireflies ----
+    for (const q of s.fireflies || []) {
+      if (!near(q.w, 60)) continue;
+      const t = frame.clock * q.sp + q.ph, b = Math.max(0, Math.sin(t * 1.7));
+      if (b < .05) continue;
+      fx.orb.add(q.w[0] + Math.sin(t * .7) * 1.4, q.w[1] + Math.sin(t * 1.1) * .6, q.w[2] + Math.cos(t * .6) * 1.4, null, .16, .16, .16, '#ffe98a', b);
+    }
 
     // ---- monsters ----
     this.poseMonsters(ctx, st, src, frame, near);
@@ -855,7 +968,13 @@ export const adapter = {
     const show = { dragon: heldKind === 'drake' || heldKind === 'elder' || drakeUp, baron: pitHeld ? heldKind === 'baron' : baronUp, herald: pitHeld ? heldKind === 'herald' : heraldUp, grubs: pitHeld ? heldKind === 'grubs' : grubsUp };
     const filmed = k => heldKind && ((k === 'dragon' && (heldKind === 'drake' || heldKind === 'elder')) || k === heldKind);
     const t = frame.clock;
-    // The dragon: its element, breathing, wings beating.
+    // Befriended on camera: it drifts up and away in a swirl of sparkles.
+    const befriend = (at, k, y, col) => {
+      if (k <= 0) return;
+      for (let i = 0; i < 10; i++) { const an = i / 10 * TAU + k * 4, r = 3 + k * 6; fx.orb.add(at[0] + Math.cos(an) * r, y + k * 5 + (i % 3), at[2] + Math.sin(an) * r, null, .35, .35, .35, i % 2 ? '#fff3c4' : col, 1 - k); }
+      fx.orb.add(at[0], y, at[2], null, 6 + k * 8, 6 + k * 8, 6 + k * 8, '#fff3c4', .5 * (1 - k));
+    };
+    // The sky dragon: its element, bobbing on its cloud, wings beating.
     {
       const D = M.dragon, on = show.dragon && st.mode !== 'draft';
       D.g.visible = on;
@@ -864,27 +983,39 @@ export const adapter = {
         const col = filmed('dragon') ? sm.col : soul ? DRAGON_COLORS.elder : (types.length >= 3 ? DRAGON_COLORS[types[types.length - 1]] : null) || '#ff8a3d';
         if (D.col !== col) { D.col = col; D.mat.color.copy(ctx.kit.col(col)); }
         const k = filmed('dragon') ? dk : 0, w = M.dragonAt;
-        D.g.position.set(w[0], Math.sin(t * 1.4) * .15 - k * 3, w[2]);
-        D.g.rotation.y = headingYaw(-1, -1) + Math.sin(t * .4) * .25; D.g.scale.setScalar((soul ? 1.25 : 1) * (1 - .3 * k));
-        D.g.wings[0].rotation.x = -.3 + Math.sin(t * 3.2) * .55; D.g.wings[1].rotation.x = .3 - Math.sin(t * 3.2) * .55;
-        if (near(w) && !filmed('dragon')) s.bars.add(w[0], 7.2, w[2], 5, 1, col, .36);
-        if (filmed('dragon') && k > 0) fx.orb.add(w[0], 3, w[2], null, 6 + k * 10, 6 + k * 10, 6 + k * 10, '#ffffff', .8 * (1 - k));
+        D.g.position.set(w[0], .9 + Math.sin(t * 1.4) * .3 + k * 6, w[2]);
+        D.g.rotation.y = headingYaw(-1, -1) + Math.sin(t * .4) * .25 + k * 1.5; D.g.scale.setScalar((soul ? 1.25 : 1) * (1 - .6 * k));
+        D.g.wings[0].rotation.x = -.3 + Math.sin(t * 2.6) * .5; D.g.wings[1].rotation.x = .3 - Math.sin(t * 2.6) * .5;
+        if (near(w, 120)) fx.orb.add(w[0], 3.4, w[2], null, 11, 7, 11, col, .12 * (1 - k));
+        if (near(w) && !filmed('dragon')) s.bars.add(w[0], 8.8, w[2], 5, 1, col, .36);
+        if (filmed('dragon')) befriend(w, k, 3, col);
       }
     }
     const pose = (key, g, at, y, hpCol, barH) => {
       const on = show[key] && st.mode !== 'draft';
       g.visible = on; if (!on) return;
       const k = filmed(key) ? dk : 0;
-      g.position.set(at[0], y - k * 4, at[2]); g.scale.setScalar(1 - .3 * k);
+      g.position.set(at[0], y + k * 6, at[2]); g.scale.setScalar(1 - .6 * k);
       if (near(at) && !filmed(key)) s.bars.add(at[0], barH, at[2], key === 'baron' ? 6 : 4, 1, hpCol, .36); // the filmed one has the boss bar
-      if (filmed(key) && k > 0) fx.orb.add(at[0], 3, at[2], null, 6 + k * 10, 6 + k * 10, 6 + k * 10, '#ffffff', .8 * (1 - k));
+      if (filmed(key)) befriend(at, k, 3, hpCol);
+      return true;
     };
-    pose('baron', M.baron.g, M.baronAt, 0, '#9b59ff', 10.4);
-    M.baron.g.rotation.y = headingYaw(1, 1) + Math.sin(t * .6) * .2; M.baron.g.rotation.z = Math.sin(t * .9) * .05;
-    pose('herald', M.herald.g, M.baronAt, 0, '#c48bff', 5.6);
-    M.herald.g.rotation.y = headingYaw(1, 1) + Math.sin(t * .8) * .3;
-    pose('grubs', M.grubs.g, M.baronAt, 0, '#a78bfa', 4);
-    M.grubList.forEach((g, i) => { g.position.y = Math.abs(Math.sin(t * 3 + i * 2)) * .3; g.rotation.y = t * .5 + i * 2; });
+    if (pose('baron', M.baron.g, M.baronAt, Math.sin(t * 1.1) * .4, '#cdd3ff', 11.8)) {
+      const B = M.baron.g, fl = Math.sin(t * 4.2) * .45;
+      B.rotation.y = headingYaw(1, 1) + Math.sin(t * .6) * .2; B.rotation.z = Math.sin(t * .9) * .05;
+      B.wings[0].rotation.x = -.15 + fl; B.wings[1].rotation.x = .15 - fl; B.wings[2].rotation.x = -.1 + fl * .8; B.wings[3].rotation.x = .1 - fl * .8;
+      if (near(M.baronAt, 120)) fx.orb.add(M.baronAt[0], 6.2 + B.position.y, M.baronAt[2], null, 14, 9, 14, '#bcc6ff', .14);
+    }
+    if (pose('herald', M.herald.g, M.baronAt, 0, '#8bd07a', 6.6)) M.herald.g.rotation.y = headingYaw(1, 1) + Math.sin(t * .8) * .3;
+    if (pose('grubs', M.grubs.g, M.baronAt, 0, '#fff27a', 4.4)) {
+      const G0 = M.grubs.g, gs = G0.scale.x, close = near(M.baronAt, 90);
+      M.grubList.forEach((g, i) => {
+        const an = t * .7 + i * TAU / 3, x = Math.cos(an) * 1.9, z = Math.sin(an) * 1.9, y = 1.4 + Math.sin(t * 2.4 + i * 2) * .45;
+        g.position.set(x, y, z); g.rotation.y = -an - Math.PI / 2;
+        const b = .55 + .45 * Math.sin(t * 3 + i * 1.9);
+        if (close) fx.orb.add(G0.position.x + x * gs, G0.position.y + y * gs, G0.position.z + z * gs, null, 2.2 * gs, 2.2 * gs, 2.2 * gs, '#fff27a', .35 * b);
+      });
+    }
   },
 
   effects(ctx, st, src, frame, near) {
@@ -923,7 +1054,7 @@ export const adapter = {
           const px = lerp(a.x0, a.x1, k), py = lerp(a.y0, a.y1, k), w = W(px, py, H);
           if (!near(w)) break;
           if (a.style === 'arrow') { const kk = Math.max(0, k - .25); beam(W(lerp(a.x0, a.x1, kk), lerp(a.y0, a.y1, kk), H), w, .06, '#fff2b0', .9); fx.orb.add(w[0], w[1], w[2], null, .2, .2, .2, '#ffffff', 1); }
-          else if (a.style === 'hook') { beam(W(a.x0, a.y0, H), w, .08, '#c9ccd6', .9); fx.orb.add(w[0], w[1], w[2], null, .7, .7, .7, '#eef0f6', .9); }
+          else if (a.style === 'hook') { beam(W(a.x0, a.y0, H), w, .08, '#bfe8ff', .9); fx.orb.add(w[0], w[1], w[2], null, .7, .7, .7, '#e8f6ff', .9); }
           else {
             const r = a.big ? 1.1 : .8;
             for (let i = 4; i >= 1; i--) { const kk = Math.max(0, k - i * .06), tw = W(lerp(a.x0, a.x1, kk), lerp(a.y0, a.y1, kk), H); fx.orb.add(tw[0], tw[1], tw[2], null, r * (1 - i * .15), r * (1 - i * .15), r * (1 - i * .15), a.team, .25 * (5 - i) / 4); }
@@ -952,7 +1083,7 @@ export const adapter = {
         }
         case 'beam': {
           const p = spotOf(a.t, a.r); if (!p) break;
-          const o = W(a.x0, a.y0, 7.3); beam(o, [p[0], 1.4, p[2]], .35 * fade + .12, a.col, fade); beam(o, [p[0], 1.4, p[2]], .1, '#ffffff', fade);
+          const o = W(a.x0, a.y0, 8.2); // from the lantern's glass beam(o, [p[0], 1.4, p[2]], .35 * fade + .12, a.col, fade); beam(o, [p[0], 1.4, p[2]], .1, '#ffffff', fade);
           fx.orb.add(o[0], o[1], o[2], null, 1.2, 1.2, 1.2, a.col, fade);
           break;
         }
@@ -962,21 +1093,23 @@ export const adapter = {
           break;
         }
         case 'smite': {
+          // The lure: a soft column of golden light and a few motes.
           const w = W(a.x, a.y); beam([w[0], 30, w[2]], [w[0], 1, w[2]], .9 * fade + .2, '#ffd23f', fade); fx.disc.add(w[0], .15, w[2], null, 4 * (1 + k), 1, 4 * (1 + k), '#ffe58a', fade);
+          for (let i = 0; i < 6; i++) { const an = i / 6 * TAU + k * 3; fx.orb.add(w[0] + Math.cos(an) * 2, 1 + k * 6 + (i % 3), w[2] + Math.sin(an) * 2, null, .25, .25, .25, '#fff3c4', fade); }
           break;
         }
         case 'num': nums.push(a); break;
       }
     }
-    // Damage numbers and gold popups (text sprites).
+    // Spark numbers and gold popups (text sprites).
     for (const a of nums.slice(-14)) {
       const k = clamp(a.age / a.life, 0, 1), w = W(a.x + (a.dx || 0) * .6, a.y, 3.6 + k * 2.2);
       if (!near(w, 70)) continue;
       s.text.put(a, a.text, a.col || '#fff', w[0], w[1], w[2], { alpha: clamp((1 - k) * 3, 0, 1), size: a.big ? 1 : .7 });
     }
     for (const p of src.popups) { const k = p.age / p.life, w = W(p.x + 2, p.y, 5 + k * 3); if (near(w, 90)) s.text.put(p, p.text, p.color, w[0], w[1], w[2], { alpha: clamp((1 - k) * 2, 0, 1), size: .85 }); }
-    for (const q of src.skulls) { const a = clamp(Math.min(q.age * 4, (q.life - q.age) / .6), 0, 1), w = W(q.x, q.y, 4.2); if (near(w, 90)) s.text.put(q, '☠', q.color, w[0], w[1], w[2], { alpha: a, size: 1, outline: 'rgba(0,0,0,.9)' }); }
-    // Flashes: a ring that spreads on the ground; debris and sparks fly.
+    for (const q of src.skulls) { const a = clamp(Math.min(q.age * 4, (q.life - q.age) / .6), 0, 1), w = W(q.x, q.y, 4.2); if (near(w, 90)) s.text.put(q, '✨', q.color, w[0], w[1], w[2], { alpha: a, size: 1, outline: 'rgba(0,0,0,.6)' }); }
+    // Flashes: a ring of light that spreads on the ground; sparkles fly.
     for (const f of src.flashes) {
       const k = f.age / f.life, w = W(f.x, f.y), r = K * (f.big ? 11 : 6) * easeOut(k);
       fx.ring.add(w[0], .15, w[2], null, r, 1, r, f.color && f.color.startsWith('#') ? f.color : '#ffffff', 1 - k);
@@ -984,7 +1117,8 @@ export const adapter = {
     }
     for (const q of src.particles) {
       const w = W(q.x, q.y, .4 + (1.3 - q.life) * 2.2);
-      fx.chunk.add(w[0], Math.max(.2, w[1]), w[2], null, .35, .35, .35, q.c || '#8a7a66');
+      const c = !q.c || q.c === '#8a7a66' ? '#ffd98a' : q.c;
+      fx.orb.add(w[0], Math.max(.2, w[1]), w[2], null, .28, .28, .28, c, clamp(q.life * 1.5, 0, 1));
     }
   },
 
@@ -1033,7 +1167,7 @@ export const adapter = {
     const abbr = t => (st.meta.teams && st.meta.teams[t] && st.meta.teams[t].abbr) || names[t];
     const teams = order.map(t => ({ name: abbr(t), color: teamColor(st.meta, t), score: st.kills[t] || 0, mark: !!(st.buff[t] && (st.buff[t].baron > src.clock || st.buff[t].elder > src.clock)) }));
     const clock = st.mode === 'victory' ? TEXT.en.final : st.mode === 'draft' ? TEXT.en.draft : fmtClock(src.clock);
-    const sub = st.mode === 'draft' ? '' : `${fmtGold(st.gold[order[0]])} ⛁ ${fmtGold(st.gold[order[1]])} · 🗼 ${st.towersK[order[0]] || 0}–${st.towersK[order[1]] || 0}`;
+    const sub = st.mode === 'draft' ? '' : `${fmtGold(st.gold[order[0]])} ⛁ ${fmtGold(st.gold[order[1]])} · 🏮 ${st.towersK[order[0]] || 0}–${st.towersK[order[1]] || 0}`;
     let tag = v.replay ? 'REPLAY · SLOW-MO' : v.scene ? `⏸ ${v.scene.label || CAM_TAGS[v.scene.kind] || ''}` : v.shot ? `ACTION · ${v.shot.label || ''}` : '';
     const caption = st.ticker || '';
     let banner = null;
@@ -1044,7 +1178,7 @@ export const adapter = {
     return { teams, clock, sub, tag, caption, banner };
   },
 
-  // The watched champion's card and the kill feed (DOM, only when the text changes).
+  // The watched champion's card and the tag feed (DOM, only when the text changes).
   paintDom(ctx, st, src) {
     const s = ctx.state, v = ctx.view;
     if (!s.cardEl) return;
@@ -1054,17 +1188,17 @@ export const adapter = {
       const l = st.line[me.t][me.r] || {}, kda = st.kda[me.t][me.r] || { k: 0, d: 0, a: 0 }, RS = TEXT.en.roleShort;
       const alive = isAliveAt(src.pos, me.t, me.r), hp = src.hp ? Math.round(src.hp[me.t][me.r] * 100) : 100;
       const left = Math.max(0, Math.ceil((st.dead[me.t][me.r] || 0) - src.clock));
-      card = `<b>${esc(l.champ || l.handle || '')}</b> · ${esc(l.handle || '')} · ${esc(RS[l.role] || l.role || '')}<br><span class="k">${kda.k} / ${kda.d} / ${kda.a}</span> · ${esc(fmtGold(st.pgold[me.t][me.r]))} gold · ${alive ? `HP ${hp}%` : `<span class="dead">☠ ${left}s</span>`}`;
+      card = `<b>${esc(l.champ || l.handle || '')}</b> · ${esc(l.handle || '')} · ${esc(RS[l.role] || l.role || '')}<br><span class="k">${kda.k} / ${kda.d} / ${kda.a}</span> · ${esc(fmtGold(st.pgold[me.t][me.r]))} gold · ${alive ? `HP ${hp}%` : `<span class="dead">✨ ${ctx.lang === 'ca' ? 'torna en' : 'relights in'} ${left}s</span>`}`;
       const tc = teamColor(st.meta, me.t);
       if (s.cardTc !== tc) { s.cardTc = tc; s.cardEl.style.setProperty('--tc', tc); }
     }
     if (s.cardHtml !== card) { s.cardHtml = card; s.cardEl.innerHTML = card; }
     const feed = (v.killFeed || []).filter(f => (v.anim || 0) - f.born < 14).slice(0, 3).map(f => {
       const kc = teamColor(st.meta, f.killer.side === 1 ? 1 : 0), vc = teamColor(st.meta, f.victim.side === 1 ? 1 : 0);
-      return `<div><span style="color:${esc(kc)}">${esc(f.killer.champ || '?')}</span><i>${f.ace ? 'ACE' : f.multi >= 2 ? '⚔⚔' : '⚔'}</i><span style="color:${esc(vc)}">${esc(f.victim.champ || '?')}</span></div>`;
+      return `<div><span style="color:${esc(kc)}">${esc(f.killer.champ || '?')}</span><i>${f.ace ? 'ACE ✨' : f.multi >= 2 ? '✨✨' : '✨'}</i><span style="color:${esc(vc)}">${esc(f.victim.champ || '?')}</span></div>`;
     }).join('');
     if (s.feedHtml !== feed) { s.feedHtml = feed; s.feedEl.innerHTML = feed; }
-    // The objective dying on camera: a boss bar, like the 2D action cam's.
+    // The objective being claimed on camera: a boss bar, like the 2D action cam's.
     const sm = src.shot && src.shot.mon;
     let boss = '';
     if (sm && Number.isFinite(sm.dieAt) && src.anim < sm.dieAt + .3) {

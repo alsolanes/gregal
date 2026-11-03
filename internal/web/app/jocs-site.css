@@ -127,7 +127,7 @@ body.jx-on { overflow: hidden; }
 .jx-game-art::after { content: ''; position: absolute; inset: auto 0 0; height: 60px; background: linear-gradient(transparent, var(--jx-card)); }
 .jx-g-nfl .jx-game-art { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .12) 0 2px, transparent 2px 46px), radial-gradient(circle at 50% 120%, #1c8a4a, transparent 70%), linear-gradient(160deg, #0d6a38, #053a21); }
 .jx-g-cs2 .jx-game-art { background: radial-gradient(circle at 50% 55%, transparent 22px, rgba(120, 210, 255, .5) 23px, transparent 26px), radial-gradient(circle at 50% 55%, transparent 40px, rgba(120, 210, 255, .3) 41px, transparent 44px), radial-gradient(circle at 50% 55%, transparent 58px, rgba(120, 210, 255, .16) 59px, transparent 62px), radial-gradient(circle at 72% 25%, rgba(80, 190, 255, .5), transparent 55%), linear-gradient(160deg, #0f3550, #061420); }
-.jx-g-lol .jx-game-art { background: radial-gradient(circle at 30% 20%, rgba(110, 150, 255, .5), transparent 55%), radial-gradient(circle at 80% 90%, rgba(200, 90, 255, .35), transparent 50%), conic-gradient(from 30deg at 50% 50%, #171d4a, #0b0d26, #1b1240, #171d4a); }
+.jx-g-lol .jx-game-art { background: radial-gradient(circle at 50% 48%, rgba(255, 200, 90, .65), rgba(255, 170, 60, .18) 22%, transparent 40%), radial-gradient(circle at 22% 30%, rgba(255, 220, 120, .55) 0 2px, transparent 3px), radial-gradient(circle at 78% 22%, rgba(255, 220, 120, .5) 0 2px, transparent 3px), radial-gradient(circle at 68% 74%, rgba(255, 220, 120, .45) 0 2px, transparent 3px), radial-gradient(circle at 80% 90%, rgba(150, 90, 255, .35), transparent 50%), linear-gradient(170deg, #241a52, #0d0b26); }
 .jx-game-body { position: relative; padding: 4px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .jx-game-body h3 { font-family: var(--jx-display); font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
 .jx-game-body p { color: var(--jx-muted); margin: 0; flex: 1; }
@@ -244,7 +244,7 @@ body.jx-on { overflow: hidden; }
 .jx-rule-ic { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 30px; margin-bottom: 6px; }
 .jx-g-nfl .jx-rule-ic { background: linear-gradient(160deg, #0d6a38, #053a21); }
 .jx-g-cs2 .jx-rule-ic { background: linear-gradient(160deg, #1d6a94, #072235); }
-.jx-g-lol .jx-rule-ic { background: linear-gradient(160deg, #26307a, #0b0d26); }
+.jx-g-lol .jx-rule-ic { background: linear-gradient(160deg, #a86a1c, #241a52); }
 .jx-rule h3 { font-family: var(--jx-display); font-size: 20px; margin: 0 0 4px; }
 .jx-rule p { margin: 0; color: var(--jx-muted); }
 .jx-rule p b { color: var(--jx-ink); }

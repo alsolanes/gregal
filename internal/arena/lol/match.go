@@ -19,7 +19,7 @@ type Game struct{}
 func init() { arena.Register(Game{}) }
 
 func (Game) ID() string               { return "lol" }
-func (Game) Title(lang string) string { return "League of Legends" }
+func (Game) Title(lang string) string { return "Lantern Legends" }
 func (Game) Rules() string            { return rulesText }
 func (Game) Starter() string          { return starterText }
 
@@ -57,6 +57,18 @@ var handlePool = []string{"Kairo", "Vexa", "Nimbus", "Talo", "Pyx", "Orrin", "Sa
 	"Brisk", "Halcyon", "Myrr", "Quill", "Zeph", "Tamsin", "Okra", "Fenn", "Ivo", "Rook"}
 
 var dragonTypes = []string{"infernal", "mountain", "ocean", "cloud", "hextech", "chemtech"}
+
+// dragonName: el nom que es veu de cada drac del cel (els ids no canvien).
+var dragonName = map[string]string{"infernal": "ember", "mountain": "stone", "ocean": "tide", "cloud": "breeze", "hextech": "spark", "chemtech": "bloom", "elder": "elder"}
+var dragonNameCa = map[string]string{"infernal": "de Brasa", "mountain": "de Pedra", "ocean": "de Marea", "cloud": "de Brisa", "hextech": "d'Espurna", "chemtech": "de Flor", "elder": "ancestral"}
+
+func dragonNames(ts []string) []string {
+	out := make([]string, len(ts))
+	for i, t := range ts {
+		out[i] = dragonName[t]
+	}
+	return out
+}
 
 type match struct {
 	rng    *rand.Rand

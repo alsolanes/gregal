@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **El League of Legends de l'Arena ara és Lantern Legends**, un joc fantàstic i
+  amable inspirat en League of Legends: dos equips de guardians il·luminen la vall
+  de Glowvale al capvespre. Ningú no surt ferit (els campions es toquen amb
+  encanteris de llum i tornen a la base a reencendre's), les torres són fanals
+  que s'apaguen, els minions són espurnes i els objectius són dracs del cel, el
+  Baró de la lluna i l'Herald de pedra. Canvia a les regles, la plantilla, les
+  vistes 2D i 3D, la web de Jocs, la retransmissió, la demo i els manuals; les
+  estratègies, els partits i el rànquing es conserven.
+
 ## v1.46.0 - 2026-11-03 - Splash Strike i esports sense confusions
 
 - **El Counter-Strike de l'Arena ara és Splash Strike**, una batalla d'aigua

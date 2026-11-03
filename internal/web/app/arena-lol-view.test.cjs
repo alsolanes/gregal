@@ -123,16 +123,16 @@ test('captions are English and built from the data, never from ev.text', async (
     assert.equal(st.ticker, c);
   }
   const kill = { kind: 'kill', data: { killer: ref(0, 0), victim: ref(1, 2), gold: 400, tag: 'first_blood', t: 100 } };
-  assert.equal(V.caption(st, kill), 'Ironwall kills Pyrelord — First Blood (+400g)');
-  assert.equal(V.caption(st, { kind: 'tower', data: { side: 1, owner: 0, lane: 'top', tier: 2 } }), 'Bob destroy the top inner tower');
-  assert.equal(V.caption(st, { kind: 'dragon', data: { side: 0, type: 'ocean', soul: true } }), 'Alice claim the Ocean Soul!');
+  assert.equal(V.caption(st, kill), 'Ironwall tags Pyrelord — First Spark (+400g)');
+  assert.equal(V.caption(st, { kind: 'tower', data: { side: 1, owner: 0, lane: 'top', tier: 2 } }), 'Bob dim the top inner lantern tower');
+  assert.equal(V.caption(st, { kind: 'dragon', data: { side: 0, type: 'ocean', soul: true } }), 'Alice claim the Tide Dragon Blessing!');
 });
 
 test('plans read in plain English and point somewhere on the map', async () => {
   const V = await load();
-  assert.equal(V.planText(V.normalizePlan('macro', { objective: 'dragon', stance: 'engage' })), 'Dragon · Engage');
-  assert.equal(V.planText(V.normalizePlan('macro', { objective: 'towers', stance: 'split' })), 'Push towers · Split push');
-  assert.equal(V.planText(V.normalizePlan('objectives', 'grubs')), 'Take Void Grubs');
+  assert.equal(V.planText(V.normalizePlan('macro', { objective: 'dragon', stance: 'engage' })), 'Sky Dragon · Engage');
+  assert.equal(V.planText(V.normalizePlan('macro', { objective: 'towers', stance: 'split' })), 'Dim lanterns · Split push');
+  assert.equal(V.planText(V.normalizePlan('objectives', 'grubs')), 'Claim Glow Grubs');
   assert.equal(V.planText(V.normalizePlan('plates', { focus: 'top', action: 'dive' })), 'Tower dive top');
   assert.equal(V.planText(V.normalizePlan('laning', { Lane: ['aggressive', 'even', 'even'], Jungle: 'gank_top' })), 'Jungler ganks top · aggressive top');
   const st = V.createState(meta, ['A', 'B']);
@@ -217,7 +217,7 @@ test('action cam: which events get a shot, and how shots chain', async () => {
   assert.equal(V.shotFor(st, { kind: 'teamfight', data: { x: 69, y: 71, size: 'teamfight', t: 900 } }), null, 'no shots during the draft');
   V.applyEvent(st, { n: 1, kind: 'phase', data: { phase: 'laning', t: 0 } });
   const tf = V.shotFor(st, { kind: 'teamfight', data: { x: 69, y: 71, size: 'teamfight', side: 0, t: 900 } });
-  assert.ok(tf && tf.prio === 3 && tf.zoom >= 2 && tf.zoom <= 3 && tf.label === 'TEAMFIGHT' && tf.where === 'the dragon pit');
+  assert.ok(tf && tf.prio === 3 && tf.zoom >= 2 && tf.zoom <= 3 && tf.label === 'BIG CLASH' && tf.where === 'the dragon nest');
   const ace = V.shotFor(st, { kind: 'kill', data: { x: 69, y: 71, killer: ref(0, 2), victim: ref(1, 0), ace: true, multi: 2, side: 0 } });
   assert.ok(ace.replay && ace.label === 'ACE' && ace.prio === 4);
   const baron = V.shotFor(st, { kind: 'baron', data: { x: 31, y: 29, side: 1, stolen: true } });
@@ -262,7 +262,7 @@ test('match_end uses the new engine fields (winner_name, kills)', async () => {
   V.applyEvent(st, ev);
   assert.deepEqual(st.kills, [21, 9], 'kills, not the 1-0 match score');
   assert.equal(st.names[0], 'Alice');
-  assert.equal(V.caption(st, ev), 'Alice win in 30:00 — kills 21–9');
+  assert.equal(V.caption(st, ev), 'Alice win in 30:00 — tags 21–9');
   assert.deepEqual(V.finalKills({ stats: { kills: [2, 5] } }), [2, 5]);
   assert.equal(V.finalKills({}), null);
 });
@@ -273,11 +273,11 @@ test('arena director: crowd reaction intensity', async () => {
   V.applyEvent(st, { n: 1, kind: 'phase', data: { phase: 'laning', t: 0 } });
   const R = (kind, data) => V.crowdReaction(st, { kind, data });
   const penta = R('kill', { killer: ref(1, 3), victim: ref(0, 0), multi: 5, side: 1 });
-  assert.deepEqual([penta.level, penta.team, penta.label], [1, 1, 'PENTAKILL'], 'the killer\'s fans roar');
+  assert.deepEqual([penta.level, penta.team, penta.label], [1, 1, 'PENTA TAG'], 'the killer\'s fans roar');
   assert.equal(R('kill', { killer: ref(0, 2), victim: ref(1, 0), ace: true, multi: 2, side: 0 }).label, 'ACE');
   const fb = R('kill', { killer: ref(0, 1), victim: ref(1, 0), tag: 'first_blood', side: 0 });
   const plain = R('kill', { killer: ref(0, 1), victim: ref(1, 0), side: 0 });
-  assert.ok(fb.level > plain.level && fb.label === 'FIRST BLOOD');
+  assert.ok(fb.level > plain.level && fb.label === 'FIRST SPARK');
   const order = [
     R('kill', { killer: ref(0, 1), victim: ref(1, 0), side: 0 }), R('dragon', { side: 0, type: 'ocean' }), R('inhibitor', { side: 0, lane: 'mid' }),
     R('kill', { killer: ref(0, 1), victim: ref(1, 0), tag: 'first_blood', side: 0 }), R('dragon', { side: 0, type: 'ocean', soul: true }),
@@ -309,17 +309,17 @@ test('arena director: which cut, when, and the show around the match', async () 
   // Quick reaction cuts: only big moments, not too often, never at high speed.
   assert.equal(V.reactionCut(r(.3, 'DRAGON')), null, 'small moments: no cut');
   assert.equal(V.reactionCut(null), null);
-  assert.equal(V.reactionCut(r(1, 'NEXUS')), null, 'the nexus has its own finale');
-  assert.equal(V.reactionCut(r(.7, 'FIRST BLOOD'), { speed: 4 }), null, 'fast-forward: no cuts');
-  assert.equal(V.reactionCut(r(.7, 'FIRST BLOOD'), { sinceCut: 10 }), null, 'not right after another cut');
-  assert.ok(V.reactionCut(r(.95, 'ELDER DRAGON'), { sinceCut: 10 }), 'the biggest moments come back sooner');
-  const fb = V.reactionCut(r(.7, 'FIRST BLOOD', 1), { sinceCut: 60 });
+  assert.equal(V.reactionCut(r(1, 'HEART LANTERN')), null, 'the Heart Lantern has its own finale');
+  assert.equal(V.reactionCut(r(.7, 'FIRST SPARK'), { speed: 4 }), null, 'fast-forward: no cuts');
+  assert.equal(V.reactionCut(r(.7, 'FIRST SPARK'), { sinceCut: 10 }), null, 'not right after another cut');
+  assert.ok(V.reactionCut(r(.95, 'ELDER SKY DRAGON'), { sinceCut: 10 }), 'the biggest moments come back sooner');
+  const fb = V.reactionCut(r(.7, 'FIRST SPARK', 1), { sinceCut: 60 });
   assert.deepEqual([fb.kind, fb.team], ['crowd', 1]);
   assert.ok(fb.dur >= 1.5 && fb.dur <= 3, 'short: ' + fb.dur);
-  assert.equal(V.reactionCut(r(.9, 'BARON NASHOR', 1)).kind, 'booth', 'big objective: the team celebrates in the booth');
-  assert.equal(V.reactionCut(r(.85, 'DRAGON SOUL', 0)).kind, 'booth');
+  assert.equal(V.reactionCut(r(.9, 'MOON BARON', 1)).kind, 'booth', 'big objective: the team celebrates in the booth');
+  assert.equal(V.reactionCut(r(.85, 'DRAGON BLESSING', 0)).kind, 'booth');
   assert.equal(V.reactionCut(r(.9, 'ACE', 0)).kind, 'arena', 'an ACE: the whole arena');
-  for (const lv of [.5, .7, .9, 1]) { const c = V.reactionCut(r(lv, 'PENTAKILL')); assert.ok(c.dur >= 1.5 && c.dur <= 3); }
+  for (const lv of [.5, .7, .9, 1]) { const c = V.reactionCut(r(lv, 'PENTA TAG')); assert.ok(c.dur >= 1.5 && c.dur <= 3); }
   // The cut waits for the action cam and the replay, and goes stale.
   const p = { at: 10 };
   assert.equal(V.cutReady(p, { now: 12, mode: 'map' }), 'now');
@@ -398,13 +398,13 @@ test('the viewer plays a whole match with the action cam and a replay, headless'
   // The show: opening, casters and booths in the draft, reaction cuts, the finale.
   assert.deepEqual(scenes.slice(0, 2), ['arena:GRAND FINAL', 'casters:CHAMPION DRAFT'], scenes.join(' | '));
   assert.ok(scenes.includes('arena:GAME ON'), scenes.join(' | '));
-  assert.ok(scenes.some(s => /^(crowd|arena|booth):(FIRST BLOOD|ACE|PENTAKILL|BARON|ELDER|DRAGON)/.test(s)), 'a reaction cut: ' + scenes.join(' | '));
+  assert.ok(scenes.some(s => /^(crowd|arena|booth):(FIRST SPARK|ACE|PENTA TAG|MOON|ELDER|DRAGON|SKY DRAGON)/.test(s)), 'a reaction cut: ' + scenes.join(' | '));
   assert.deepEqual(scenes.slice(-3), ['arena:VICTORY', 'booth:VICTORY', 'trophy:CHAMPIONS']);
   assert.equal(overlap, 0, 'a scene never covers the action cam or a replay');
   assert.ok(v.isFinished(), 'reached the victory screen');
   assert.equal(v.state.mode, 'victory');
   assert.ok(maxZ > 2, 'zoomed in: ' + maxZ);
-  assert.ok(labels.has('TEAMFIGHT') || labels.has('ACE'), [...labels].join(','));
+  assert.ok(labels.has('BIG CLASH') || labels.has('ACE'), [...labels].join(','));
   assert.ok(mons.has('baron') || mons.has('drake'), [...mons].join(','));
   assert.ok(replays >= 1, 'a replay of the ACE / steal');
   assert.equal(v.camC.z, 1, 'back to the full map at the end');

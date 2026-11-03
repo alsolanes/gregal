@@ -380,8 +380,8 @@ func TestSituationContents(t *testing.T) {
 		if m.stage >= stMacro {
 			sawMacro++
 			s := p[0].Situation
-			for _, want := range []string{"GOLD DIFF", "kills you", "towers destroyed", "POWER NOW", "In 8 min", "OBJECTIVES YOU CAN CHOOSE NOW",
-				"Dragons: you", "YOUR COMP: ", "ENEMY COMP: ", "stance fit", "CONDITIONAL COUNTERS NOW", "HISTORY", "→ "} {
+			for _, want := range []string{"GOLD DIFF", "tags you", "lantern towers dimmed", "POWER NOW", "In 8 min", "OBJECTIVES YOU CAN CHOOSE NOW",
+				"Sky dragons: you", "YOUR COMP: ", "ENEMY COMP: ", "stance fit", "CONDITIONAL COUNTERS NOW", "HISTORY", "→ "} {
 				if !strings.Contains(s, want) {
 					t.Fatalf("macro situation lacks %q:\n%s", want, s)
 				}

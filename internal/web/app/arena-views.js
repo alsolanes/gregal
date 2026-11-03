@@ -59,8 +59,8 @@ export const EXPLAIN = {
     en: ['Splash Strike (inspired by Counter-Strike 2), a competitive water fight (first to 13)', 'Each round, the model reads the .md and decides the buy (eco, force, full), the strategy (rush, execute, fake, split) and utility; the CTs decide how to hold A and B.', 'Economy is everything: knowing when to save, and reading where the opponent attacks to stack it or fool them with a fake.', 'Watch each team’s money and what each .md does after losing a round.'],
   },
   lol: {
-    ca: ['League of Legends, Summoner’s Rift 5 contra 5', 'Primer el draft: el model tria i prohibeix campions seguint el .md. Després, a cada fase, decideix l’objectiu (drac, herald, baró, torres) i la postura (iniciar, assetjar, dividir, protegir).', 'Guanya qui fa un equip que encaixa i el juga al seu moment: fort al principi, ataca; fort al final, aguanta i escala.', 'Mireu el gràfic d’or i qui pren els objectius grans.'],
-    en: ['League of Legends, Summoner’s Rift 5v5', 'First the draft: the model picks and bans champions following the .md. Then, each phase, it chooses the objective (dragon, herald, baron, towers) and the stance (engage, siege, split, protect).', 'The winner builds a team that fits and plays it at the right time: strong early, attack; strong late, stall and scale.', 'Watch the gold graph and who takes the big objectives.'],
+    ca: ['Lantern Legends (inspirat en League of Legends), el Glowvale 5 contra 5', 'Primer el draft: el model tria i prohibeix campions seguint el .md. Després, a cada fase, decideix l’objectiu (drac del cel, Herald de Pedra, Baró de la Lluna, torres-fanal) i la postura (iniciar, assetjar, dividir, protegir).', 'Guanya qui fa un equip que encaixa i el juga al seu moment: fort al principi, ataca; fort al final, aguanta i escala.', 'Mireu el gràfic d’or i qui es guanya els objectius grans, fins que s’apaga un Fanal del Cor.'],
+    en: ['Lantern Legends (inspired by League of Legends), the Glowvale 5v5', 'First the draft: the model picks and bans champions following the .md. Then, each phase, it chooses the objective (sky dragon, Stone Herald, Moon Baron, lantern towers) and the stance (engage, siege, split, protect).', 'The winner builds a team that fits and plays it at the right time: strong early, attack; strong late, stall and scale.', 'Watch the gold graph and who claims the big objectives, until a Heart Lantern goes dark.'],
   },
 };
 
@@ -84,14 +84,14 @@ export const GUIDE = {
     example: '- If we have under $3,500 each after a loss: eco, unless it is the last round of the half.\n- If they hit B twice in a row: stack_b as CT.\n- When they stack a site: fake it and go to the other.',
   },
   lol: {
-    sees: 'Draft so far (picks, bans, roles), gold and kills, towers and dragons, which objectives are up, and what the other team chose in earlier phases.',
+    sees: 'Draft so far (picks, bans, roles), gold and tags, lantern towers and sky dragons, which objectives are up, and what the other team chose in earlier phases.',
     decides: [
       ['Draft', 'bans and picks: the champion names on screen (tanks, engage, poke, scaling carries…)'],
       ['00:00 laning', 'top/mid/bot: aggressive, even, passive · jungle: gank_top, gank_mid, gank_bot, farm, invade'],
-      ['08:00 & 12:00', 'objective: dragon, grubs, farm · then focus lane + plates, dive, roam, farm'],
-      ['Every 4 minutes after', 'objective: dragon, herald, baron, elder, towers, farm · stance: engage, siege, pick, split, protect'],
+      ['08:00 & 12:00', 'objective: dragon (sky dragon), grubs (glow grubs), farm · then focus lane + plates, dive, roam, farm'],
+      ['Every 4 minutes after', 'objective: dragon, herald (Stone Herald), baron (Moon Baron), elder (Elder Sky Dragon), towers, farm · stance: engage, siege, pick, split, protect'],
     ],
-    example: '- Draft: if they pick two early-game champions, ban their jungler and pick scaling carries.\n- Behind by 3k+ gold: farm safe lanes and pick off overextenders; never start baron.\n- Ahead with soul point: take dragon with stance engage.',
+    example: '- Draft: if they pick two early-game champions, ban their jungler and pick scaling carries.\n- Behind by 3k+ gold: farm safe lanes and pick off overextenders; never start the Moon Baron.\n- Ahead with blessing point: take dragon with stance engage.',
   },
 };
 

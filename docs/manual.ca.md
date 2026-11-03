@@ -573,13 +573,15 @@ mateix avís quan cau en una comprovació anti-robots.
 L'Arena (barra lateral → Arena; al mòbil, la fila Arena) és una competició
 setmanal entre fitxers `.md` d'estratègia, en tres jocs: futbol americà (NFL),
 Splash Strike (una guerra d'aigua amistosa inspirada en Counter-Strike 2, amb
-pistoles i globus d'aigua en lloc d'armes) i League of Legends. Cada jugador és un usuari d'aquest
-servidor de Gregal.
+pistoles i globus d'aigua en lloc d'armes) i Lantern Legends (un joc de
+fantasia amistós inspirat en League of Legends, on els campions es marquen
+amb encanteris de llum). Cada jugador és un usuari d'aquest servidor de
+Gregal.
 
 - **Com va un partit.** Els dos equips són idèntics. A cada punt de decisió el
   mateix model llegeix el teu `.md` i la situació (marcador, recursos, què ha
   fet el rival fins ara) i decideix: cada jugada a l'NFL, la compra i el pla de
-  cada ronda al Splash Strike, el draft i l'objectiu i la postura de cada fase al LoL. Els
+  cada ronda al Splash Strike, el draft i l'objectiu i la postura de cada fase al Lantern Legends. Els
   jocs premien llegir el rival i gestionar els recursos: guanyen les
   instruccions clares i que s'adapten.
 - **Durant la setmana.** Tria un joc: l'editor ja té la plantilla. Canvia-la
@@ -669,7 +671,7 @@ servidor de Gregal.
   aquella situació: afegeix-hi una regla.
 - **Càmeres.** El futbol alterna la càmera de banda i una skycam darrere
   l'atac, amb repeticions; el Splash Strike passa a la vista del jugador en
-  els duels, quan es planta el globus i quan es buida; el LoL fa zoom a les baralles i objectius.
+  els duels, quan es planta el globus i quan es buida; el Lantern Legends fa zoom a les topades i objectius.
 - **Mode tele.** Obre qualsevol partit i prem 📺 TV mode: la mateixa
   retransmissió per a aquell partit, a pantalla completa, amb la darrera crida
   de cada equip i la regla del seu `.md` sota el nom. Esc la tanca.
@@ -686,22 +688,26 @@ servidor de Gregal.
   velocitat, la pausa, els salts, els subtítols i els comentaris continuen
   anant, i ⬇ Download video continua gravant la retransmissió 2D. Necessita
   WebGL 2; si no n'hi ha, un missatge ho diu i es queda la vista 2D.
-- **👁 3D al League of Legends.** El mateix botó et posa en un Summoner's Rift
-  en 3D fet amb el mapa del partit: carrils, el riu, parets i arbres de la
-  jungla, bases amb el color de cada equip, torres que perden vida i cauen
-  fetes runa, inhibidors, el nexe, onades de minions, i el drac (amb el color
-  del seu element), el Baró, l'Herald i els Void Grubs amb barres de vida. El
-  LoL no és un joc en primera persona, i per això la càmera va **darrere
-  l'espatlla** d'un campió; *👁 Ulls* (o **V**) passa als seus ulls i torna.
-  Sola, segueix el campió de la baralla o l'objectiu que filma la càmera
-  d'acció (qui fa la mort, l'equip que fa el drac o el Baró); **Tab** / **E** /
-  **Q** et fixen en qualsevol dels deu. Les habilitats són les de la càmera
-  d'acció 2D (projectils, cercles d'àrea, embestides, cops a terra, escuts,
-  curacions, trets de torre, smites, números de dany), i les repeticions també
-  es veuen en 3D. La barra de dalt mostra morts, or, torres i el rellotge; una
-  fitxa mostra el rol, el K/D/A, l'or i la vida (o el temps per reaparèixer)
-  del campió que mires, amb les últimes morts i els rètols grans (First Blood,
-  ACE, Baró) com al 2D.
+- **👁 3D al Lantern Legends.** El mateix botó et posa en un Glowvale en 3D al
+  capvespre, fet amb el mapa del partit: carrils, el rierol, parets i arbres de
+  la jungla amb cuques de llum, bases amb el color de cada equip, torres-fanal
+  que s'apaguen a mesura que perden vida i queden fosques quan les prenen, els
+  Santuaris de la Llavor, el Fanal del Cor, onades de follets de llum, i el drac
+  del cel (amb el color del seu element), el Baró de la Lluna (una gran arna
+  lunar), l'Herald de Pedra i els cuquets de llum amb barres de vida. El
+  Lantern Legends no és un joc en primera persona, i per això la càmera va
+  **darrere l'espatlla** d'un campió; *👁 Ulls* (o **V**) passa als seus ulls i
+  torna. Sola, segueix el campió de la topada o l'objectiu que filma la càmera
+  d'acció (qui està a punt de marcar algú, l'equip que va pel drac o pel Baró
+  de la Lluna); **Tab** / **E** / **Q** et fixen en qualsevol dels deu. Les
+  habilitats són les de la càmera d'acció 2D (rajos de llum, cercles d'àrea,
+  embestides, escuts, curacions, raigs de torre, crides, números d'espurnes), i
+  les repeticions també es veuen en 3D. Un campió marcat torna a la base en
+  espurnes i es torna a encendre al cap d'un temps. La barra de dalt mostra
+  marques, or, torres i el rellotge; una fitxa mostra el rol, les marques, les
+  sortides i les assistències, l'or i la vida (o el temps per tornar) del campió
+  que mires, amb les últimes marques i els rètols grans (Primera Espurna, ACE,
+  Baró de la Lluna) com al 2D.
 - **👁 3D al Splash Strike.** El mateix botó et posa en un Mirage en 3D fet
   amb el mapa tàctic (les mateixes zones, passadissos, caixes i llocs A/B),
   mirant pels ulls d'un jugador amb la seva pistola d'aigua a les mans i el

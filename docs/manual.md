@@ -571,13 +571,15 @@ on an anti-bot check.
 The Arena (sidebar → Arena; on the phone, the Arena row) is a weekly
 competition between strategy `.md` files, in three games: American football
 (NFL), Splash Strike (a friendly water fight inspired by Counter-Strike 2,
-with water blasters and water balloons instead of weapons) and League of Legends. Each player is a user of this
-Gregal server.
+with water blasters and water balloons instead of weapons) and Lantern Legends
+(a friendly fantasy game inspired by League of Legends, where champions tag
+each other out with spells of light). Each player is a user of this Gregal
+server.
 
 - **How a match works.** Both teams are identical. At every decision point the
   same model reads your `.md` and the situation (score, resources, what the
   opponent has done so far) and decides: every play call in NFL, every round's
-  buy and plan in Splash Strike, the draft and each phase's objective and stance in LoL.
+  buy and plan in Splash Strike, the draft and each phase's objective and stance in Lantern Legends.
   The games reward reading the opponent and managing resources, so clear,
   adaptive instructions win.
 - **During the week.** Pick a game: the editor already holds the template.
@@ -663,7 +665,7 @@ Gregal server.
   means the `.md` doesn't cover that situation: add a rule for it.
 - **Cameras.** Football alternates the sideline camera and a skycam behind the
   offense, with replays; Splash Strike cuts to the player's view for duels,
-  balloon plants and drains; LoL zooms into fights and objectives.
+  balloon plants and drains; Lantern Legends zooms into clashes and objectives.
 - **TV mode.** Open any match and press 📺 TV mode: the same broadcast for that
   one match, full screen, with each team's latest call and the rule of its
   `.md` under its name. Esc closes it.
@@ -680,21 +682,23 @@ Gregal server.
   jumps, captions and commentary keep working, and ⬇ Download video still
   records the 2D broadcast. It needs WebGL 2; without it a message says so and
   the 2D view stays.
-- **👁 3D in League of Legends.** The same button puts you on a 3D Summoner's
-  Rift built from the match's map: lanes, the river, jungle walls and trees,
-  team-coloured bases, towers that lose HP and collapse into rubble,
-  inhibitors, the nexus, minion waves, and the dragon (in its element's
-  colour), Baron, the Herald and the Void Grubs with HP bars. League isn't a
-  first-person game, so the camera sits **over the shoulder** of a champion;
-  *👁 Eyes* (or **V**) switches to their own eyes and back. On its own it
-  follows the champion in the fight or objective the action cam is filming
-  (the killer of a kill, the team on the dragon or Baron); **Tab** / **E** /
-  **Q** lock onto any of the ten. The abilities are the 2D action cam's (skill
-  shots, AoE circles, dashes, slams, shields, heals, tower shots, smites,
-  damage numbers), and replays play in 3D too. The top bar shows kills, gold,
-  towers and the game clock; a card shows the watched champion's role, K/D/A,
-  gold and HP (or respawn timer), with the kill feed and the big banners (First
-  Blood, ACE, Baron) as in 2D.
+- **👁 3D in Lantern Legends.** The same button puts you in a 3D Glowvale at
+  dusk, built from the match's map: lanes, the stream, jungle walls and trees
+  with fireflies, team-coloured bases, lantern towers that dim as they lose HP
+  and go dark when taken, the Seed Shrines, the Heart Lantern, waves of glowing
+  wisps, and the sky dragon (in its element's colour), the Moon Baron (a giant
+  moon moth), the Stone Herald and the Glow Grubs with HP bars. Lantern Legends
+  isn't a first-person game, so the camera sits **over the shoulder** of a
+  champion; *👁 Eyes* (or **V**) switches to their own eyes and back. On its
+  own it follows the champion in the clash or objective the action cam is
+  filming (whoever is about to tag someone out, the team on the dragon or the
+  Moon Baron); **Tab** / **E** / **Q** lock onto any of the ten. The abilities
+  are the 2D action cam's (spell shots of light, AoE circles, dashes, shields,
+  heals, tower beams, lures, spark numbers), and replays play in 3D too. A
+  tagged-out champion fades home in sparkles and relights after a timer. The
+  top bar shows tags, gold, towers and the game clock; a card shows the watched
+  champion's role, tags/outs/assists, gold and HP (or relight timer), with the
+  tag feed and the big banners (First Spark, ACE, Moon Baron) as in 2D.
 - **👁 3D in Splash Strike.** The same button puts you on a 3D Mirage built
   from the tactical map (the same areas, corridors, crates and A/B sites),
   looking through a player's eyes with their water blaster in hand and a

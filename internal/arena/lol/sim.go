@@ -162,7 +162,7 @@ func victimW(c *Champ) float64 {
 	return w
 }
 
-var multiName = []string{"", "", "DOUBLE KILL", "TRIPLE KILL", "QUADRA KILL", "PENTAKILL"}
+var multiName = []string{"", "", "DOUBLE TAG", "TRIPLE TAG", "QUADRA TAG", "PENTA TAG"}
 
 func (m *match) champRef(team, slot int) map[string]any {
 	return map[string]any{"side": team, "slot": slot, "champ": m.line[team][slot].Name, "handle": m.handles[team][slot]}
@@ -194,11 +194,11 @@ func (m *match) kill(kt, ks, vs int, x, y float64, assists []int, multi int, ace
 	m.streak[vt][vs] = 0
 	m.kills[kt]++
 	kn, vn := m.line[kt][ks].Name, m.line[vt][vs].Name
-	en, ca := fmt.Sprintf("%s kills %s", kn, vn), fmt.Sprintf("%s mata %s", kn, vn)
+	en, ca := fmt.Sprintf("%s tags out %s", kn, vn), fmt.Sprintf("%s marca %s", kn, vn)
 	hl := false
 	tag := ""
 	if first {
-		en, ca = en+" — FIRST BLOOD", ca+" — PRIMERA SANG"
+		en, ca = en+" — FIRST SPARK", ca+" — PRIMERA ESPURNA"
 		tag = "first_blood"
 	}
 	if multi >= 2 {
@@ -275,7 +275,7 @@ func (m *match) fight(x, y, margin float64, big bool, label string) (int, [2]int
 	if big {
 		kind = "teamfight"
 	}
-	m.emitT("teamfight", m.tx(fmt.Sprintf("Fight at %s", label), fmt.Sprintf("Baralla a %s", label)), false,
+	m.emitT("teamfight", m.tx(fmt.Sprintf("Clash at %s", label), fmt.Sprintf("Topada a %s", label)), false,
 		map[string]any{"x": x, "y": y, "size": kind, "where": label, "winner": w, "side": w})
 	multi := map[[2]int]int{}
 	var kd [2]int
@@ -366,20 +366,20 @@ func (m *match) outcome(s0 snapT, i int) string {
 			continue
 		}
 		if f.w == i {
-			parts = append(parts, fmt.Sprintf("you WON the teamfight at %s (%d-%d)", f.where, f.kd[i], f.kd[j]))
+			parts = append(parts, fmt.Sprintf("you WON the clash at %s (%d-%d)", f.where, f.kd[i], f.kd[j]))
 		} else {
-			parts = append(parts, fmt.Sprintf("you LOST the teamfight at %s (%d-%d)", f.where, f.kd[i], f.kd[j]))
+			parts = append(parts, fmt.Sprintf("you LOST the clash at %s (%d-%d)", f.where, f.kd[i], f.kd[j]))
 		}
 	}
 	if sw+sl > 0 {
 		parts = append(parts, fmt.Sprintf("skirmishes won %d lost %d", sw, sl))
 	}
-	parts = append(parts, fmt.Sprintf("kills %d-%d", m.kills[i]-s0.kills[i], m.kills[j]-s0.kills[j]))
+	parts = append(parts, fmt.Sprintf("tags %d-%d", m.kills[i]-s0.kills[i], m.kills[j]-s0.kills[j]))
 	if d := [2]int{m.towersBy(i) - s0.tw[i], m.towersBy(j) - s0.tw[j]}; d[0]+d[1] > 0 {
 		parts = append(parts, fmt.Sprintf("towers %d-%d", d[0], d[1]))
 	}
 	if d := [2]int{m.inhibsLost[j] - s0.inh[i], m.inhibsLost[i] - s0.inh[j]}; d[0]+d[1] > 0 {
-		parts = append(parts, fmt.Sprintf("inhibitors %d-%d", d[0], d[1]))
+		parts = append(parts, fmt.Sprintf("seed shrines %d-%d", d[0], d[1]))
 	}
 	for _, t := range []int{i, j} {
 		who := "you"
@@ -388,19 +388,19 @@ func (m *match) outcome(s0 snapT, i int) string {
 		}
 		took := []string{}
 		if n := len(m.dragons[t]) - s0.drag[t]; n > 0 {
-			took = append(took, plural(n, "drake"))
+			took = append(took, plural(n, "sky dragon"))
 		}
 		if n := m.elders[t] - s0.eld[t]; n > 0 {
 			took = append(took, "ELDER")
 		}
 		if n := m.barons[t] - s0.bar[t]; n > 0 {
-			took = append(took, "BARON")
+			took = append(took, "MOON BARON")
 		}
 		if n := m.herald[t] - s0.her[t]; n > 0 {
-			took = append(took, "herald")
+			took = append(took, "Stone Herald")
 		}
 		if n := m.grubs[t] - s0.grub[t]; n > 0 {
-			took = append(took, plural(n, "grub"))
+			took = append(took, plural(n, "glow grub"))
 		}
 		if len(took) > 0 {
 			parts = append(parts, who+" took "+strings.Join(took, "+"))
@@ -474,7 +474,7 @@ func (m *match) push(att, n, lane int) int {
 					p = mirror(p)
 				}
 				m.teamGold(att, 250)
-				m.emitT("tower", m.tx(fmt.Sprintf("%s destroy a nexus tower", m.names[att]), fmt.Sprintf("%s tomben una torre del nexe", m.names[att])), false,
+				m.emitT("tower", m.tx(fmt.Sprintf("%s dim a Heart Lantern tower", m.names[att]), fmt.Sprintf("%s apaguen una torre del Fanal del Cor", m.names[att])), false,
 					map[string]any{"side": att, "owner": def, "lane": "nexus", "tier": 3 + m.nexusTowersLost[def], "x": p[0], "y": p[1]})
 				done++
 				continue
@@ -502,17 +502,17 @@ func (m *match) push(att, n, lane int) int {
 				g += 300
 			}
 			m.teamGold(att, g)
-			names := []string{"outer", "inner", "inhibitor"}
-			namesCa := []string{"exterior", "interior", "de l'inhibidor"}
-			m.emitT("tower", m.tx(fmt.Sprintf("%s destroy the %s %s tower", m.names[att], roleLane[l], names[tier]),
-				fmt.Sprintf("%s tomben la torre %s de %s", m.names[att], namesCa[tier], roleLane[l])), tier == 2,
+			names := []string{"outer", "inner", "shrine"}
+			namesCa := []string{"exterior", "interior", "del santuari"}
+			m.emitT("tower", m.tx(fmt.Sprintf("%s dim the %s %s lantern tower", m.names[att], roleLane[l], names[tier]),
+				fmt.Sprintf("%s apaguen la torre-fanal %s de %s", m.names[att], namesCa[tier], roleLane[l])), tier == 2,
 				map[string]any{"side": att, "owner": def, "lane": roleLane[l], "tier": tier + 1, "x": p[0], "y": p[1]})
 		} else {
 			m.inhibUntil[def][l] = m.evT + 300
 			m.inhibsLost[def]++
 			p := structXY(side, l, 3)
 			m.teamGold(att, 300)
-			m.emitT("inhibitor", m.tx(fmt.Sprintf("%s destroy the %s inhibitor!", m.names[att], roleLane[l]), fmt.Sprintf("%s destrueixen l'inhibidor de %s!", m.names[att], roleLane[l])), true,
+			m.emitT("inhibitor", m.tx(fmt.Sprintf("%s dim the %s Seed Shrine!", m.names[att], roleLane[l]), fmt.Sprintf("%s apaguen el Santuari de la Llavor de %s!", m.names[att], roleLane[l])), true,
 				map[string]any{"side": att, "owner": def, "lane": roleLane[l], "x": p[0], "y": p[1]})
 		}
 		done++
@@ -546,7 +546,7 @@ func (m *match) respawnInhibs() {
 			if m.inhibUntil[i][l] > 0 && m.inhibUntil[i][l] <= m.evT {
 				m.inhibUntil[i][l] = 0
 				p := structXY(m.sideOf(i), l, 3)
-				m.emitT("inhibitor", m.tx(fmt.Sprintf("%s %s inhibitor respawns", m.names[i], roleLane[l]), fmt.Sprintf("L'inhibidor de %s de %s reneix", roleLane[l], m.names[i])), false,
+				m.emitT("inhibitor", m.tx(fmt.Sprintf("%s %s Seed Shrine glows again", m.names[i], roleLane[l]), fmt.Sprintf("El Santuari de la Llavor de %s de %s torna a brillar", roleLane[l], m.names[i])), false,
 					map[string]any{"side": i, "owner": i, "lane": roleLane[l], "respawn": true, "x": p[0], "y": p[1]})
 			}
 		}
@@ -560,7 +560,7 @@ func (m *match) finish(w int) {
 	m.done = true
 	m.winner = w
 	p := nexusXY(m.sideOf(1 - w))
-	m.emitT("nexus", m.tx(fmt.Sprintf("%s destroy the Nexus!", m.names[w]), fmt.Sprintf("%s destrueixen el Nexe!", m.names[w])), true,
+	m.emitT("nexus", m.tx(fmt.Sprintf("%s dim the Heart Lantern!", m.names[w]), fmt.Sprintf("%s apaguen el Fanal del Cor!", m.names[w])), true,
 		map[string]any{"side": w, "owner": 1 - w, "x": p[0], "y": p[1]})
 	// MVP: millor KDA i or de l'equip guanyador.
 	best, bestV := 0, -1.0
@@ -578,8 +578,8 @@ func (m *match) finish(w int) {
 		}
 	}
 	comeback := m.has15 && m.gold15[w] < m.gold15[1-w]-1000
-	res := m.tx(fmt.Sprintf("%s WIN — Nexus destroyed at %s (kills %d-%d)", m.names[w], fmtTime(m.evT), m.kills[w], m.kills[1-w]),
-		fmt.Sprintf("%s GUANYEN — Nexe destruït al %s (morts %d-%d)", m.names[w], fmtTime(m.evT), m.kills[w], m.kills[1-w]))
+	res := m.tx(fmt.Sprintf("%s WIN — Heart Lantern dimmed at %s (tags %d-%d)", m.names[w], fmtTime(m.evT), m.kills[w], m.kills[1-w]),
+		fmt.Sprintf("%s GUANYEN — Fanal del Cor apagat al %s (marques %d-%d)", m.names[w], fmtTime(m.evT), m.kills[w], m.kills[1-w]))
 	m.emitT("match_end", res, true,
 		map[string]any{"winner": w, "winner_name": m.names[w], "result": res, "kills": m.kills, "duration": int(m.evT), "mvp": map[string]any{"side": w, "slot": best, "handle": m.handles[w][best], "champ": m.line[w][best].Name,
 			"k": m.k[w][best], "d": m.d[w][best], "a": m.a[w][best]},
@@ -614,19 +614,19 @@ func (m *match) takeDragon(i int, stolen bool) {
 	m.nextDragon = m.evT + 300
 	m.teamGold(i, 250)
 	hl := stolen
-	en := fmt.Sprintf("%s take the %s drake", m.names[i], typ)
-	ca := fmt.Sprintf("%s maten el drac %s", m.names[i], typ)
+	en := fmt.Sprintf("%s befriend the %s sky dragon", m.names[i], dragonName[typ])
+	ca := fmt.Sprintf("%s es fan amics del drac %s", m.names[i], dragonNameCa[typ])
 	if stolen {
 		m.steals[i]++
-		en, ca = fmt.Sprintf("DRAGON STOLEN! %s snatch the %s drake", m.names[i], typ), fmt.Sprintf("DRAC ROBAT! %s s'emporten el drac %s", m.names[i], typ)
+		en, ca = fmt.Sprintf("DRAGON STOLEN! %s charm the %s sky dragon away", m.names[i], dragonName[typ]), fmt.Sprintf("DRAC ROBAT! %s s'emporten el drac %s", m.names[i], dragonNameCa[typ])
 	}
 	soul := false
 	if len(m.dragons[i]) == 4 {
 		m.soul[i] = true
 		soul = true
 		m.elderNext = m.evT + 360
-		en += fmt.Sprintf(" — %s SOUL!", strings.ToUpper(typ))
-		ca += fmt.Sprintf(" — ÀNIMA %s!", strings.ToUpper(typ))
+		en += fmt.Sprintf(" — %s BLESSING!", strings.ToUpper(dragonName[typ]))
+		ca += fmt.Sprintf(" — BENEDICCIÓ %s!", strings.ToUpper(dragonNameCa[typ]))
 		hl = true
 	}
 	m.emit("dragon", en, ca, hl, map[string]any{"side": i, "type": typ, "stolen": stolen, "count": len(m.dragons[i]), "soul": soul, "x": dragonPit[0], "y": dragonPit[1]})
@@ -638,7 +638,7 @@ func (m *match) takeElder(i int, stolen bool) {
 	m.elderUntil[i] = m.evT + 150
 	m.elderNext = m.evT + 360
 	m.teamGold(i, 250)
-	en, ca := fmt.Sprintf("%s slay the ELDER DRAGON", m.names[i]), fmt.Sprintf("%s maten el DRAC ANCESTRAL", m.names[i])
+	en, ca := fmt.Sprintf("%s win over the ELDER SKY DRAGON", m.names[i]), fmt.Sprintf("%s es guanyen el DRAC ANCESTRAL DEL CEL", m.names[i])
 	if stolen {
 		m.steals[i]++
 		en, ca = "ELDER STOLEN! "+en, "ANCESTRAL ROBAT! "+ca
@@ -652,10 +652,10 @@ func (m *match) takeBaron(i int, stolen bool) {
 	m.baronUntil[i] = m.evT + 180
 	m.baronNext = m.evT + 360
 	m.teamGold(i, 1500)
-	en, ca := fmt.Sprintf("%s secure BARON NASHOR", m.names[i]), fmt.Sprintf("%s maten el BARÓ NASHOR", m.names[i])
+	en, ca := fmt.Sprintf("%s earn the MOON BARON's blessing", m.names[i]), fmt.Sprintf("%s es guanyen la benedicció del BARÓ DE LA LLUNA", m.names[i])
 	if stolen {
 		m.steals[i]++
-		en, ca = fmt.Sprintf("BARON STOLEN by %s!", m.names[i]), fmt.Sprintf("BARÓ ROBAT per %s!", m.names[i])
+		en, ca = fmt.Sprintf("MOON BARON STOLEN by %s!", m.names[i]), fmt.Sprintf("BARÓ DE LA LLUNA ROBAT per %s!", m.names[i])
 	}
 	m.emit("baron", en, ca, true, map[string]any{"side": i, "stolen": stolen, "x": baronPit[0], "y": baronPit[1]})
 }
@@ -665,7 +665,7 @@ func (m *match) takeHerald(i int, stolen bool) {
 	m.heraldDone = true
 	m.herald[i]++
 	m.teamGold(i, 200)
-	en, ca := fmt.Sprintf("%s take the Rift Herald", m.names[i]), fmt.Sprintf("%s s'emporten l'Herald", m.names[i])
+	en, ca := fmt.Sprintf("%s wake the Stone Herald", m.names[i]), fmt.Sprintf("%s desperten l'Herald de Pedra", m.names[i])
 	if stolen {
 		m.steals[i]++
 		en, ca = "HERALD STOLEN! "+en, "HERALD ROBAT! "+ca
@@ -676,7 +676,7 @@ func (m *match) takeHerald(i int, stolen bool) {
 func (m *match) takeGrubs(i, n int) {
 	m.grubs[i] += n
 	m.teamGold(i, 60*float64(n))
-	m.emitT("herald", m.tx(fmt.Sprintf("%s take %d void grubs", m.names[i], n), fmt.Sprintf("%s maten %d larves del buit", m.names[i], n)), false,
+	m.emitT("herald", m.tx(fmt.Sprintf("%s gather %d glow grubs", m.names[i], n), fmt.Sprintf("%s apleguen %d cuquets de llum", m.names[i], n)), false,
 		map[string]any{"side": i, "obj": "grubs", "count": n, "x": baronPit[0], "y": baronPit[1]})
 }
 
@@ -762,7 +762,7 @@ func (m *match) applyLaning(ans [2]json.RawMessage) {
 		m.laneChoice[i] = la[i]
 	}
 	s0 := m.snapshot()
-	m.emit("phase", "Minions have spawned — laning phase", "Han sortit els súbdits — fase de línies", false,
+	m.emit("phase", "The wisps have set out — laning phase", "Han sortit els follets — fase de línies", false,
 		map[string]any{"phase": "laning", "lineups": m.lineups(), "choices": [2]laneAns{la[0], la[1]}})
 	jp := [2]float64{laneScore(m.line[0][1]), laneScore(m.line[1][1])}
 	m.at(90)
@@ -1024,7 +1024,7 @@ func (m *match) applyPlates(ans [2]json.RawMessage) {
 		m.plateHist[i] = [2]string{roleLane[foc[i]], act[i]}
 	}
 	s0 := m.snapshot()
-	m.emit("phase", "12:00 — turret plates and roams", "12:00 — plaques i rotacions", false,
+	m.emit("phase", "12:00 — lantern plates and roams", "12:00 — plaques dels fanals i rotacions", false,
 		map[string]any{"phase": "plates", "choices": [2]map[string]string{{"focus": roleLane[foc[0]], "action": act[0]}, {"focus": roleLane[foc[1]], "action": act[1]}}})
 	m.at(740)
 	for i := 0; i < 2; i++ {

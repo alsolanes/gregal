@@ -39,7 +39,7 @@ var (
 	reOpts     = regexp.MustCompile(`OBJECTIVES YOU CAN CHOOSE NOW: ([a-z, ]+)\.`)
 	reComp     = regexp.MustCompile(`(?m)^(YOUR|ENEMY) COMP: (\w+), best stance (\w+) \| stance fit: engage ([\d.]+), siege ([\d.]+), pick ([\d.]+), split ([\d.]+), protect ([\d.]+) \| frontline (\d+), peel (\d+), engage (\d+), poke (\d+), waveclear (\d+), pick (\d+)`)
 	reCond     = regexp.MustCompile(`protect beats engage — you (YES|no), enemy (YES|no) \| split beats engage — you (YES|no), enemy (YES|no)`)
-	reDragons  = regexp.MustCompile(`Dragons: you (\d+) \[[^\]]*\], enemy (\d+)`)
+	reDragons  = regexp.MustCompile(`Sky dragons: you (\d+) \[[^\]]*\], enemy (\d+)`)
 	reLaneM    = regexp.MustCompile(`(top|mid|bot|jungle) you ([\d.]+) vs enemy ([\d.]+)`)
 	reLaneGold = regexp.MustCompile(`Lane gold leads \(you\): top ([+-]\d+), mid ([+-]\d+), bot ([+-]\d+)`)
 )
@@ -92,8 +92,8 @@ func parseSit(t string) sit {
 			if x := reDragons.FindStringSubmatch(ln); x != nil {
 				s.drakes = [2]int{int(atof(x[1])), int(atof(x[2]))}
 			}
-			s.soulPoint = strings.Contains(ln, "SOUL POINT")
-		case strings.HasPrefix(ln, "Void grubs"):
+			s.soulPoint = strings.Contains(ln, "BLESSING POINT")
+		case strings.HasPrefix(ln, "Glow grubs"):
 			s.myBuff = strings.Contains(ln, "Your has BARON BUFF") || strings.Contains(ln, "Your has ELDER BUFF")
 			s.enBuff = strings.Contains(ln, "Enemy has BARON BUFF") || strings.Contains(ln, "Enemy has ELDER BUFF")
 		case strings.HasPrefix(ln, "Lane gold leads"):

@@ -22,7 +22,7 @@ const ago = at => {
 const GAMES = {
   nfl: { short: 'NFL', icon: '🏈', tag: 'Every snap is a call', decide: 'Each offensive play and each defensive front, down by down.', read: 'Read the defence, punish what repeats, manage the clock.' },
   cs2: { short: 'Splash', icon: '💦', tag: 'Buy, plan, splash', decide: 'A friendly water fight inspired by Counter-Strike 2: the buy, the plan and the site for every round.', read: 'Manage the economy and break the rival\'s habits.' },
-  lol: { short: 'LoL', icon: '🐉', tag: 'Draft to Nexus', decide: 'The draft, then objective and stance phase by phase.', read: 'Trade objectives, time your fights, scale or snowball.' },
+  lol: { short: 'Lantern', icon: '🏮', tag: 'Draft to Heart Lantern', decide: 'A friendly fantasy game inspired by League of Legends: the draft, then objective and stance phase by phase.', read: 'Trade objectives, time your clashes, scale or snowball.' },
 };
 
 const ROUTES = [

@@ -1,8 +1,10 @@
-// League of Legends viewer for the Arena (internal/arena/lol), drawn like an
-// esports broadcast: a punchy draft, then an isometric Summoner's Rift with
-// champion tokens, minion waves, fights, objectives and each team's plan, a
+// Lantern Legends viewer for the Arena (internal/arena/lol; a friendly fantasy
+// game; credit in TEXT.en.credit), drawn like an esports broadcast: a punchy
+// draft, then an isometric Glowvale at dusk with champion tokens, wisp waves,
+// clashes of light, lantern towers, sky dragons and each team's plan, a
 // broadcast top bar, a stats panel (rosters, objectives, gold graph) and a
-// victory screen. Everything on screen is English, whatever the page language.
+// victory screen. Nobody is hurt: champions tag each other out and relight at
+// base. Everything on screen is English, whatever the page language.
 //
 // Pure helpers (createState, applyEvent, layout, caption…) don't touch the DOM
 // and are tested with node (arena-lol-view.test.cjs).
@@ -18,23 +20,28 @@ const SQ = 0.64; // vertical squash of the tilted map
 export const TEXT = {
   en: {
     draft: 'CHAMPION DRAFT', pregame: 'Teams are preparing the draft…', waiting: 'Waiting for the next decision…',
-    live: 'LIVE', final: 'FINAL', victory: 'VICTORY', mvp: 'MVP', duration: 'Duration', kills: 'Kills', towers: 'Towers', dragons: 'Dragons',
-    gold: 'Gold', barons: 'Barons', heralds: 'Heralds', grubs: 'Grubs', firstBlood: 'FIRST BLOOD', ace: 'ACE', shutdown: 'SHUTDOWN',
-    dragonStolen: 'DRAGON STOLEN!', baronStolen: 'BARON STOLEN!', heraldStolen: 'HERALD STOLEN!',
-    soul: t => `${t.toUpperCase()} SOUL`, drake: t => `${t.toUpperCase()} DRAKE`, elder: 'ELDER DRAGON', baron: 'BARON NASHOR', herald: 'RIFT HERALD', grubsBanner: 'VOID GRUBS',
-    inhib: 'INHIBITOR DESTROYED', nexus: 'NEXUS DESTROYED', comeback: 'COMEBACK!', golddiff: 'GOLD DIFFERENCE', ban: 'BAN', pick: 'PICK', laning: 'LANING PHASE',
+    live: 'LIVE', final: 'FINAL', victory: 'VICTORY', mvp: 'MVP', duration: 'Duration', kills: 'Tags', towers: 'Lanterns', dragons: 'Sky Dragons',
+    gold: 'Gold', barons: 'Moon Barons', heralds: 'Stone Heralds', grubs: 'Glow Grubs', firstBlood: 'FIRST SPARK', ace: 'ACE', shutdown: 'SHUTDOWN',
+    dragonStolen: 'SKY DRAGON STOLEN!', baronStolen: 'MOON BARON STOLEN!', heraldStolen: 'STONE HERALD STOLEN!',
+    soul: t => `${dragonName(t).toUpperCase()} DRAGON BLESSING`, drake: t => `${dragonName(t).toUpperCase()} SKY DRAGON`, elder: 'ELDER SKY DRAGON', baron: 'MOON BARON', herald: 'STONE HERALD', grubsBanner: 'GLOW GRUBS',
+    inhib: 'SEED SHRINE DIMMED', nexus: 'HEART LANTERN DIMMED', comeback: 'COMEBACK!', golddiff: 'GOLD DIFFERENCE', ban: 'BAN', pick: 'PICK', laning: 'LANING PHASE',
     roles: { top: 'Top', jungle: 'Jungle', mid: 'Mid', adc: 'Bot', support: 'Support' },
     roleShort: { top: 'TOP', jungle: 'JNG', mid: 'MID', adc: 'BOT', support: 'SUP' },
     side: ['BLUE SIDE', 'RED SIDE'], objectives: 'OBJECTIVES', lockedIn: 'LOCKED IN', plan: 'PLAN',
-    actionCam: 'ACTION CAM', replay: 'REPLAY', slowMo: 'SLOW MOTION', steals: 'Steals', grubsStat: 'Void Grubs', elders: 'Elders',
+    actionCam: 'ACTION CAM', replay: 'REPLAY', slowMo: 'SLOW MOTION', steals: 'Steals', grubsStat: 'Glow Grubs', elders: 'Elder Sky Dragons',
     mapTag: 'MAP', arena: 'GREGAL ARENA', grandFinal: 'GRAND FINAL', champions: 'CHAMPIONS',
+    game: 'LANTERN LEGENDS', credit: 'Lantern Legends · inspired by League of Legends', place: 'the Glowvale',
   },
 };
 const T = TEXT.en;
 
-const OBJ_NAMES = { dragon: 'Dragon', elder: 'Elder Dragon', baron: 'Baron', herald: 'Rift Herald', grubs: 'Void Grubs', towers: 'Push towers', farm: 'Farm & scale' };
+// Display names of the sky dragons (the engine ids stay infernal, mountain…).
+export const DRAGON_NAMES = { infernal: 'Ember', mountain: 'Stone', ocean: 'Tide', cloud: 'Breeze', hextech: 'Spark', chemtech: 'Bloom', elder: 'Elder' };
+export function dragonName(type) { return DRAGON_NAMES[type] || cap(type); }
+
+const OBJ_NAMES = { dragon: 'Sky Dragon', elder: 'Elder Sky Dragon', baron: 'Moon Baron', herald: 'Stone Herald', grubs: 'Glow Grubs', towers: 'Dim lanterns', farm: 'Farm & scale' };
 const STANCE_NAMES = { engage: 'Engage', siege: 'Siege', pick: 'Pick-offs', split: 'Split push', protect: 'Protect carry' };
-const TIER_NAMES = { 1: 'outer', 2: 'inner', 3: 'base', 4: 'nexus', 5: 'nexus' };
+const TIER_NAMES = { 1: 'outer', 2: 'inner', 3: 'base', 4: 'heart', 5: 'heart' };
 const cap = s => String(s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 
 export const ROLES = ['top', 'jungle', 'mid', 'adc', 'support'];
@@ -46,6 +53,10 @@ const SIDE_COLORS = [['#2f7df6', '#9cc8ff'], ['#e8414e', '#ffb3b8']];
 const FOUNTAIN = [[5, 95], [95, 5]];
 const JUNGLE = [[30, 60], [70, 40]];
 const GOLDC = '#f2c55c';
+// The friendly creatures of the Glowvale: the Moon Baron (a pale moon moth),
+// the Stone Herald (a mossy golem) and the Glow Grubs (fireflies).
+const MOON = '#c9c2ff', HERALDC = '#8fd18a', GRUBC = '#d8f27a';
+const SPARKC = '#fff2b0'; // the light a tag leaves behind
 
 // Default map (same as Meta().map in the engine).
 export function defaultMap() {
@@ -267,8 +278,8 @@ export function planText(plan) {
       const aggro = ['top', 'mid', 'bot'].filter((l, i) => plan.lanes[i] === 'aggressive');
       return aggro.length ? `${jt} · aggressive ${aggro.join('+')}` : `Laning · ${jt}`;
     }
-    case 'objectives': return plan.objective === 'farm' ? 'Farm lanes' : `Take ${OBJ_NAMES[plan.objective] || cap(plan.objective)}`;
-    case 'plates': return { plates: `Turret plates ${plan.focus}`, dive: `Tower dive ${plan.focus}`, roam: `Roam to ${plan.focus}`, farm: 'Farm & scale' }[plan.action] || cap(plan.action);
+    case 'objectives': return plan.objective === 'farm' ? 'Farm lanes' : `Claim ${OBJ_NAMES[plan.objective] || cap(plan.objective)}`;
+    case 'plates': return { plates: `Lantern plates ${plan.focus}`, dive: `Tower dive ${plan.focus}`, roam: `Roam to ${plan.focus}`, farm: 'Farm & scale' }[plan.action] || cap(plan.action);
     case 'macro': return `${OBJ_NAMES[plan.objective] || cap(plan.objective)} · ${STANCE_NAMES[plan.stance] || cap(plan.stance)}`;
   }
   return '';
@@ -393,20 +404,20 @@ export function layout(state, ev) {
 // Where something happened, in words.
 export function placeName(state, x, y) {
   const m = state.map;
-  if (Math.hypot(x - m.dragon.x, y - m.dragon.y) < 9) return 'the dragon pit';
-  if (Math.hypot(x - m.baron.x, y - m.baron.y) < 9) return 'the baron pit';
+  if (Math.hypot(x - m.dragon.x, y - m.dragon.y) < 9) return 'the dragon nest';
+  if (Math.hypot(x - m.baron.x, y - m.baron.y) < 9) return 'the moon glade';
   for (const lane of ['top', 'mid', 'bot']) if (polyDist(x, y, lanes(state)[lane]) < 4) return `${lane} lane`;
   if (polyDist(x, y, m.river || []) < 6) return 'the river';
   return 'the jungle';
 }
 
-// Final kill count of a match_end event (the match score is 1-0 now; kills travel apart).
+// Final tag count of a match_end event (the match score is 1-0 now; tags travel apart).
 export function finalKills(d) {
   const k = d && (Array.isArray(d.kills) ? d.kills : d.stats && Array.isArray(d.stats.kills) ? d.stats.kills : null);
   return k && k.length === 2 && k.every(Number.isFinite) ? k.slice() : null;
 }
 
-const MULTI = { 2: 'DOUBLE KILL', 3: 'TRIPLE KILL', 4: 'QUADRA KILL', 5: 'PENTAKILL' };
+const MULTI = { 2: 'DOUBLE TAG', 3: 'TRIPLE TAG', 4: 'QUADRA TAG', 5: 'PENTA TAG' };
 
 // English caption for any event (the server text may be in another language).
 export function caption(state, ev) {
@@ -418,9 +429,9 @@ export function caption(state, ev) {
       switch (d.phase) {
         case 'draft': return 'The draft begins';
         case 'draft_done': return 'Draft complete — teams locked in';
-        case 'laning': return 'Minions have spawned — laning phase';
-        case 'objectives': return '08:00 — first neutral objectives';
-        case 'plates': return '12:00 — turret plates and roams';
+        case 'laning': return 'The wisps are out — laning phase';
+        case 'objectives': return '08:00 — the first friendly creatures wake';
+        case 'plates': return '12:00 — lantern plates and roams';
         case 'macro': return `${fmtClock(d.t)} — new plans: ${[0, 1].map(t => `${nm(t)} → ${planText(state.plan[t]) || '?'}`).join('  |  ')}`;
       }
       return ev.text || '';
@@ -428,35 +439,35 @@ export function caption(state, ev) {
     case 'draft_pick': return `${nm(team)} pick ${d.champ}${d.role ? ` (${T.roles[d.role] || d.role})` : ''}`;
     case 'kill': {
       const k = d.killer || {}, v = d.victim || {};
-      let s = `${k.champ || '?'} kills ${v.champ || '?'}`;
-      if (d.tag === 'first_blood') s += ' — First Blood';
+      let s = `${k.champ || '?'} tags ${v.champ || '?'}`;
+      if (d.tag === 'first_blood') s += ' — First Spark';
       if (d.multi >= 2) s += ` — ${cap((MULTI[Math.min(5, d.multi)] || '').toLowerCase())}`;
       if (d.shutdown) s += ' — Shutdown';
       if (d.ace) s += ' — ACE';
       return d.gold ? `${s} (+${d.gold}g)` : s;
     }
     case 'gank':
-      if (d.invade) return `${nm(team)} invade and steal enemy camps`;
+      if (d.invade) return `${nm(team)} sneak in and gather the enemy glow`;
       return `${(d.jungler && d.jungler.champ) || nm(team)} ganks ${d.lane || ''}${d.success === false ? ' — escaped' : ''}`;
     case 'lane':
-      if (Number.isFinite(d.plates)) return `${nm(team)} take ${d.plates}g of turret plates ${d.lane || ''}`;
+      if (Number.isFinite(d.plates)) return `${nm(team)} take ${d.plates}g of lantern plates ${d.lane || ''}`;
       return `${cap(d.lane)} lane: ${nm(team)} ahead by ${Math.abs(d.diff || 0)}g`;
     case 'teamfight': {
-      const where = Number.isFinite(d.x) ? placeName(state, d.x, d.y) : 'the map';
-      return `${d.size === 'teamfight' ? 'Teamfight' : 'Skirmish'} at ${where} — ${nm(d.winner)} win it`;
+      const where = Number.isFinite(d.x) ? placeName(state, d.x, d.y) : T.place;
+      return `${d.size === 'teamfight' ? 'Big clash' : 'Small clash'} at ${where} — ${nm(d.winner)} win it`;
     }
     case 'dragon':
-      if (d.type === 'elder') return `${nm(team)} ${d.stolen ? 'steal' : 'slay'} the Elder Dragon`;
-      if (d.soul) return `${nm(team)} claim the ${cap(d.type)} Soul!`;
-      return `${nm(team)} ${d.stolen ? 'steal' : 'slay'} the ${cap(d.type)} Drake (${d.count || 1})`;
-    case 'baron': return `${nm(team)} ${d.stolen ? 'steal' : 'slay'} Baron Nashor`;
-    case 'herald': return d.obj === 'grubs' ? `${nm(team)} take ${d.count || 3} Void Grubs` : `${nm(team)} ${d.stolen ? 'steal' : 'take'} the Rift Herald`;
-    case 'tower': return d.lane === 'nexus' ? `${nm(team)} destroy a nexus tower` : `${nm(team)} destroy the ${d.lane} ${TIER_NAMES[d.tier] || ''} tower`;
-    case 'inhibitor': return d.respawn ? `${nm(d.owner)} ${d.lane} inhibitor respawns` : `${nm(team)} destroy the ${d.lane} inhibitor!`;
-    case 'nexus': return `${nm(team)} destroy the Nexus!`;
+      if (d.type === 'elder') return `${nm(team)} ${d.stolen ? 'steal' : 'befriend'} the Elder Sky Dragon`;
+      if (d.soul) return `${nm(team)} claim the ${dragonName(d.type)} Dragon Blessing!`;
+      return `${nm(team)} ${d.stolen ? 'steal' : 'befriend'} the ${dragonName(d.type)} Sky Dragon (${d.count || 1})`;
+    case 'baron': return `${nm(team)} ${d.stolen ? 'steal' : 'befriend'} the Moon Baron`;
+    case 'herald': return d.obj === 'grubs' ? `${nm(team)} gather ${d.count || 3} Glow Grubs` : `${nm(team)} ${d.stolen ? 'steal' : 'befriend'} the Stone Herald`;
+    case 'tower': return d.lane === 'nexus' ? `${nm(team)} dim a heart lantern tower` : `${nm(team)} dim the ${d.lane} ${TIER_NAMES[d.tier] || ''} lantern tower`;
+    case 'inhibitor': return d.respawn ? `${nm(d.owner)} ${d.lane} Seed Shrine glows again` : `${nm(team)} dim the ${d.lane} Seed Shrine!`;
+    case 'nexus': return `${nm(team)} dim the Heart Lantern!`;
     case 'match_end': {
       const w = d.winner === 1 ? 1 : 0, k = finalKills(d);
-      return `${d.winner_name || nm(w)} win in ${fmtClock(d.duration || state.t)}${k ? ` — kills ${k[w]}–${k[1 - w]}` : ''}`;
+      return `${d.winner_name || nm(w)} win in ${fmtClock(d.duration || state.t)}${k ? ` — tags ${k[w]}–${k[1 - w]}` : ''}`;
     }
   }
   return '';
@@ -509,9 +520,9 @@ export function applyEvent(state, ev) {
         state.plan = [0, 1].map(t => normalizePlan(d.phase, d.choices[t]));
         state.planT = state.t; fx.planChange = true;
       }
-      if (d.phase === 'laning') { state.mode = 'map'; banner(T.laning, '#d8b25a', true, 'Minions have spawned'); }
-      if (d.phase === 'objectives') banner('FIRST OBJECTIVES', '#d8b25a', false);
-      if (d.phase === 'plates') banner('TURRET PLATES', '#d8b25a', false);
+      if (d.phase === 'laning') { state.mode = 'map'; banner(T.laning, '#d8b25a', true, 'The wisps are out'); }
+      if (d.phase === 'objectives') banner('THE CREATURES WAKE', '#d8b25a', false);
+      if (d.phase === 'plates') banner('LANTERN PLATES', '#d8b25a', false);
       if (d.phase === 'macro') banner('NEW GAME PLANS', '#d8b25a', false);
       break;
     case 'draft_ban':
@@ -544,12 +555,12 @@ export function applyEvent(state, ev) {
       }
       const sub = `${k.champ || ''} ▸ ${v.champ || ''}`;
       if (d.ace) mark('ace', kc);
-      if (d.multi >= 5) banner('PENTAKILL', kc, true, sub);
-      else if (d.ace) banner(T.ace, kc, true, `${teamName(state, k.side === 1 ? 1 : 0)} wipe the enemy team`);
-      else if (d.multi === 4) banner('QUADRA KILL', kc, true, sub);
-      else if (d.multi === 3) banner('TRIPLE KILL', kc, true, sub);
+      if (d.multi >= 5) banner(MULTI[5], kc, true, sub);
+      else if (d.ace) banner(T.ace, kc, true, `${teamName(state, k.side === 1 ? 1 : 0)} send the whole enemy team home`);
+      else if (d.multi === 4) banner(MULTI[4], kc, true, sub);
+      else if (d.multi === 3) banner(MULTI[3], kc, true, sub);
       else if (d.tag === 'first_blood') { banner(T.firstBlood, kc, true, sub); mark('kill', kc); }
-      else if (d.multi === 2) banner('DOUBLE KILL', kc, false, sub);
+      else if (d.multi === 2) banner(MULTI[2], kc, false, sub);
       else if (d.shutdown) banner(T.shutdown, kc, false, sub);
       break;
     }
@@ -567,7 +578,7 @@ export function applyEvent(state, ev) {
         state.obj.dragonNext = state.t + 300;
         if (d.soul) { state.soul[team] = d.type; state.obj.dragonNext = Infinity; state.obj.elderNext = state.t + 360; }
         if (d.stolen) banner(T.dragonStolen, dc, true, teamName(state, team));
-        else if (d.soul) banner(T.soul(d.type || ''), dc, true, `${teamName(state, team)} claim the soul`);
+        else if (d.soul) banner(T.soul(d.type || ''), dc, true, `${teamName(state, team)} earn the blessing`);
         else banner(T.drake(d.type || ''), dc, false, teamName(state, team));
       }
       state.obj.last.dragon = { team, t: state.t };
@@ -577,20 +588,20 @@ export function applyEvent(state, ev) {
     }
     case 'baron':
       state.buff[team].baron = state.t + 180; state.obj.baronNext = state.t + 360; state.obj.last.baron = { team, t: state.t };
-      banner(d.stolen ? T.baronStolen : T.baron, '#9b59ff', true, `${teamName(state, team)} empowered`);
-      mark('baron', '#b77bff');
-      fx.flashes.push({ x: d.x, y: d.y, color: '#b77bff', big: true });
+      banner(d.stolen ? T.baronStolen : T.baron, MOON, true, `${teamName(state, team)} carry the Moon blessing`);
+      mark('baron', MOON);
+      fx.flashes.push({ x: d.x, y: d.y, color: MOON, big: true });
       break;
     case 'herald':
-      if (d.obj === 'grubs') { state.obj.grubsTaken = true; state.obj.last.grubs = { team, t: state.t }; banner(T.grubsBanner, '#a78bfa', false, teamName(state, team)); }
-      else { state.heralds[team]++; state.obj.heraldTaken = true; state.obj.last.herald = { team, t: state.t }; banner(d.stolen ? T.heraldStolen : T.herald, '#a78bfa', !!d.stolen, teamName(state, team)); mark('herald', '#a78bfa'); }
-      fx.flashes.push({ x: d.x, y: d.y, color: '#a78bfa', big: false });
+      if (d.obj === 'grubs') { state.obj.grubsTaken = true; state.obj.last.grubs = { team, t: state.t }; banner(T.grubsBanner, GRUBC, false, teamName(state, team)); }
+      else { state.heralds[team]++; state.obj.heraldTaken = true; state.obj.last.herald = { team, t: state.t }; banner(d.stolen ? T.heraldStolen : T.herald, HERALDC, !!d.stolen, teamName(state, team)); mark('herald', HERALDC); }
+      fx.flashes.push({ x: d.x, y: d.y, color: d.obj === 'grubs' ? GRUBC : HERALDC, big: false });
       break;
     case 'tower': {
       const owner = d.owner === 1 ? 1 : 0;
       state.towers[`${mapSide(state.meta, owner)}-${d.lane}-${d.tier}`] = false;
       fx.flashes.push({ x: d.x, y: d.y, color: '#ffcf6b', big: false, debris: true });
-      if (Number.isFinite(d.x)) fx.popups.push({ x: d.x, y: d.y, text: 'TOWER DOWN', color: color });
+      if (Number.isFinite(d.x)) fx.popups.push({ x: d.x, y: d.y, text: 'LANTERN DIMMED', color: color });
       break;
     }
     case 'inhibitor': {
@@ -680,38 +691,38 @@ export function shotFor(state, ev) {
   const S = o => Object.assign(shot, o);
   const owner = d.owner === 1 ? 1 : 0;
   switch (ev.kind) {
-    case 'teamfight': return d.size === 'teamfight' ? S({ zoom: 2.7, prio: 3, hold: 2.8, label: 'TEAMFIGHT' }) : S({ zoom: 2.5, prio: 2, hold: 2.2, label: 'SKIRMISH' });
+    case 'teamfight': return d.size === 'teamfight' ? S({ zoom: 2.7, prio: 3, hold: 2.8, label: 'BIG CLASH' }) : S({ zoom: 2.5, prio: 2, hold: 2.2, label: 'SMALL CLASH' });
     case 'kill': {
       const multi = d.multi | 0, v = d.victim || {};
       if (d.ace) return S({ prio: 4, label: 'ACE', replay: true });
-      if (multi >= 4) return S({ prio: 4, label: multi >= 5 ? 'PENTAKILL' : 'QUADRA KILL', replay: true });
-      if (multi === 3) return S({ prio: 3, label: 'TRIPLE KILL' });
+      if (multi >= 4) return S({ prio: 4, label: multi >= 5 ? MULTI[5] : MULTI[4], replay: true });
+      if (multi === 3) return S({ prio: 3, label: MULTI[3] });
       const vs = v.side === 0 || v.side === 1 ? mapSide(state.meta, v.side) : -1;
       const dive = vs >= 0 && (state.map.towers || []).some(t => t.side === vs && state.towers[`${t.side}-${t.lane}-${t.tier}`] !== false && Math.hypot(t.x - d.x, t.y - d.y) < 7);
-      if (d.tag === 'first_blood') return S({ prio: 3, label: 'FIRST BLOOD' });
+      if (d.tag === 'first_blood') return S({ prio: 3, label: T.firstBlood });
       if (dive) return S({ prio: 2, zoom: 2.5, label: 'TOWER DIVE' });
       if (d.shutdown) return S({ prio: 2, label: 'SHUTDOWN' });
-      if (multi === 2) return S({ prio: 2, label: 'DOUBLE KILL' });
+      if (multi === 2) return S({ prio: 2, label: MULTI[2] });
       return S({ hold: 1.8, label: 'PICK-OFF' });
     }
     case 'gank': return d.invade || d.success === false ? null : S({ zoom: 2.5, hold: 1.8, label: 'GANK' });
     case 'dragon': {
       const elder = d.type === 'elder';
       return S({ kind: 'objective', zoom: 2.8, prio: elder ? 5 : d.soul ? 4 : 3, hold: 2.6, replay: !!d.stolen,
-        label: d.stolen ? (elder ? 'ELDER STEAL' : 'DRAGON STEAL') : elder ? 'ELDER DRAGON' : d.soul ? 'DRAGON SOUL' : 'DRAGON',
-        mon: { kind: elder ? 'elder' : 'drake', col: DRAGON_COLORS[d.type] || '#ff8a3d', name: elder ? 'ELDER DRAGON' : `${String(d.type || '').toUpperCase()} DRAKE`.trim(), stolen: !!d.stolen } });
+        label: d.stolen ? (elder ? 'ELDER STEAL' : 'DRAGON STEAL') : elder ? T.elder : d.soul ? 'DRAGON BLESSING' : 'SKY DRAGON',
+        mon: { kind: elder ? 'elder' : 'drake', col: DRAGON_COLORS[d.type] || '#ff8a3d', name: elder ? T.elder : d.type ? T.drake(d.type) : 'SKY DRAGON', stolen: !!d.stolen } });
     }
-    case 'baron': return S({ kind: 'objective', zoom: 2.6, prio: 5, hold: 2.8, replay: !!d.stolen, label: d.stolen ? 'BARON STEAL' : 'BARON NASHOR', mon: { kind: 'baron', col: '#9b59ff', name: 'BARON NASHOR', stolen: !!d.stolen } });
+    case 'baron': return S({ kind: 'objective', zoom: 2.6, prio: 5, hold: 2.8, replay: !!d.stolen, label: d.stolen ? 'MOON STEAL' : T.baron, mon: { kind: 'baron', col: MOON, name: T.baron, stolen: !!d.stolen } });
     case 'herald':
-      if (d.obj === 'grubs') return S({ kind: 'objective', zoom: 2.7, prio: 2, hold: 2.2, label: 'VOID GRUBS', mon: { kind: 'grubs', col: '#a78bfa', name: 'VOID GRUBS', stolen: false } });
-      return S({ kind: 'objective', zoom: 2.7, prio: 3, hold: 2.4, replay: !!d.stolen, label: d.stolen ? 'HERALD STEAL' : 'RIFT HERALD', mon: { kind: 'herald', col: '#c48bff', name: 'RIFT HERALD', stolen: !!d.stolen } });
+      if (d.obj === 'grubs') return S({ kind: 'objective', zoom: 2.7, prio: 2, hold: 2.2, label: T.grubsBanner, mon: { kind: 'grubs', col: GRUBC, name: T.grubsBanner, stolen: false } });
+      return S({ kind: 'objective', zoom: 2.7, prio: 3, hold: 2.4, replay: !!d.stolen, label: d.stolen ? 'HERALD STEAL' : T.herald, mon: { kind: 'herald', col: HERALDC, name: T.herald, stolen: !!d.stolen } });
     case 'tower':
-      return S({ kind: 'struct', zoom: 2.4, prio: d.lane === 'nexus' || d.tier >= 2 ? 2 : 1, hold: 2.0, label: d.lane === 'nexus' ? 'NEXUS TOWER' : 'TOWER DOWN',
+      return S({ kind: 'struct', zoom: 2.4, prio: d.lane === 'nexus' || d.tier >= 2 ? 2 : 1, hold: 2.0, label: d.lane === 'nexus' ? 'HEART TOWER' : 'TOWER DIMMED',
         struct: { kind: 'tower', side: mapSide(state.meta, owner), lane: d.lane, tier: d.tier } });
     case 'inhibitor':
       if (d.respawn) return null;
-      return S({ kind: 'struct', zoom: 2.4, prio: 3, hold: 2.2, label: 'INHIBITOR', struct: { kind: 'inhib', side: mapSide(state.meta, owner), lane: d.lane } });
-    case 'nexus': return S({ kind: 'struct', zoom: 2.2, prio: 5, hold: 3.2, label: 'NEXUS', struct: { kind: 'nexus', side: mapSide(state.meta, owner) } });
+      return S({ kind: 'struct', zoom: 2.4, prio: 3, hold: 2.2, label: 'SEED SHRINE', struct: { kind: 'inhib', side: mapSide(state.meta, owner), lane: d.lane } });
+    case 'nexus': return S({ kind: 'struct', zoom: 2.2, prio: 5, hold: 3.2, label: 'HEART LANTERN', struct: { kind: 'nexus', side: mapSide(state.meta, owner) } });
   }
   return null;
 }
@@ -743,8 +754,8 @@ export function drainHp(o, t) {
 // (like a replay), so they never hide a fight.
 
 export const CAM_TAGS = { arena: 'ARENA', crowd: 'ARENA', booth: 'BOOTH', casters: 'CASTERS', trophy: 'ARENA', map: 'MAP', action: 'ACTION CAM', replay: 'REPLAY' };
-const BOOTH_LABELS = ['BARON NASHOR', 'BARON STEAL', 'ELDER DRAGON', 'ELDER STEAL', 'DRAGON SOUL'];
-const WIDE_LABELS = ['ACE', 'PENTAKILL', 'QUADRA KILL'];
+const BOOTH_LABELS = ['MOON BARON', 'MOON STEAL', 'ELDER SKY DRAGON', 'ELDER STEAL', 'DRAGON BLESSING'];
+const WIDE_LABELS = ['ACE', 'PENTA TAG', 'QUADRA TAG'];
 
 // How loud the arena gets for an event: {level 0..1, team (whose fans roar, -1 =
 // everyone), label}. level 0 = the crowd doesn't care.
@@ -756,26 +767,26 @@ export function crowdReaction(state, ev) {
     case 'kill': {
       const m = d.multi | 0, k = d.killer || {};
       if (k.side === 0 || k.side === 1) team = k.side;
-      if (m >= 5) return R(1, 'PENTAKILL');
+      if (m >= 5) return R(1, MULTI[5]);
       if (d.ace) return R(.9, 'ACE');
-      if (m === 4) return R(.85, 'QUADRA KILL');
-      if (d.tag === 'first_blood') return R(.7, 'FIRST BLOOD');
-      if (m === 3) return R(.6, 'TRIPLE KILL');
+      if (m === 4) return R(.85, MULTI[4]);
+      if (d.tag === 'first_blood') return R(.7, T.firstBlood);
+      if (m === 3) return R(.6, MULTI[3]);
       if (d.shutdown) return R(.35, 'SHUTDOWN');
-      return R(m === 2 ? .3 : .15, m === 2 ? 'DOUBLE KILL' : 'KILL');
+      return R(m === 2 ? .3 : .15, m === 2 ? MULTI[2] : 'TAG');
     }
     case 'dragon':
-      if (d.type === 'elder') return R(.95, d.stolen ? 'ELDER STEAL' : 'ELDER DRAGON');
-      if (d.soul) return R(.85, 'DRAGON SOUL');
-      return d.stolen ? R(.8, 'DRAGON STEAL') : R(.3, 'DRAGON');
-    case 'baron': return R(d.stolen ? .95 : .9, d.stolen ? 'BARON STEAL' : 'BARON NASHOR');
+      if (d.type === 'elder') return R(.95, d.stolen ? 'ELDER STEAL' : T.elder);
+      if (d.soul) return R(.85, 'DRAGON BLESSING');
+      return d.stolen ? R(.8, 'DRAGON STEAL') : R(.3, 'SKY DRAGON');
+    case 'baron': return R(d.stolen ? .95 : .9, d.stolen ? 'MOON STEAL' : T.baron);
     case 'herald':
-      if (d.obj === 'grubs') return R(.2, 'VOID GRUBS');
-      return d.stolen ? R(.6, 'HERALD STEAL') : R(.3, 'RIFT HERALD');
-    case 'inhibitor': return d.respawn ? R(0, '') : R(.5, 'INHIBITOR');
-    case 'tower': return d.lane === 'nexus' ? R(.45, 'NEXUS TOWER') : R(.15, 'TOWER');
-    case 'teamfight': return R(d.size === 'teamfight' ? .4 : .25, 'TEAMFIGHT');
-    case 'nexus': return R(1, 'NEXUS');
+      if (d.obj === 'grubs') return R(.2, T.grubsBanner);
+      return d.stolen ? R(.6, 'HERALD STEAL') : R(.3, T.herald);
+    case 'inhibitor': return d.respawn ? R(0, '') : R(.5, 'SEED SHRINE');
+    case 'tower': return d.lane === 'nexus' ? R(.45, 'HEART TOWER') : R(.15, 'LANTERN TOWER');
+    case 'teamfight': return R(d.size === 'teamfight' ? .4 : .25, 'BIG CLASH');
+    case 'nexus': return R(1, 'HEART LANTERN');
     case 'match_end': team = d.winner === 1 ? 1 : 0; return R(1, 'VICTORY');
   }
   return { level: 0, team: -1, label: '' };
@@ -784,9 +795,9 @@ export function crowdReaction(state, ev) {
 // The reaction cut a big moment earns: null, or {kind: 'crowd' (fans close-up) |
 // 'arena' (wide, the whole arena on its feet) | 'booth' (the team celebrating),
 // team, level, label, dur}. ctx: {sinceCut: seconds since the last cut, speed}.
-// The nexus has its own finale, so it never gets a quick cut.
+// The Heart Lantern has its own finale, so it never gets a quick cut.
 export function reactionCut(r, ctx = {}) {
-  if (!r || !(r.level >= .5) || r.label === 'NEXUS' || r.label === 'VICTORY' || (ctx.speed || 1) > 3.01) return null;
+  if (!r || !(r.level >= .5) || r.label === 'HEART LANTERN' || r.label === 'VICTORY' || (ctx.speed || 1) > 3.01) return null;
   const since = ctx.sinceCut == null ? Infinity : ctx.sinceCut;
   if (since < (r.level >= .9 ? 9 : 20)) return null;
   const kind = BOOTH_LABELS.includes(r.label) && r.team >= 0 ? 'booth' : WIDE_LABELS.includes(r.label) ? 'arena' : 'crowd';
@@ -827,7 +838,7 @@ export function openingScenes(state) {
 // Draft locked in → teams ready → the map.
 export function readyScenes() { return [{ kind: 'arena', sub: 'ready', team: -1, level: .6, dur: 3, label: 'GAME ON' }]; }
 
-// Nexus down: the arena erupts, the booth celebrates, the trophy is lifted.
+// Heart Lantern dimmed: the arena erupts, the booth celebrates, the trophy is lifted.
 export function finaleScenes(winner) {
   const team = winner === 1 ? 1 : 0;
   return [
@@ -888,10 +899,11 @@ const PORTRAITS = new Map();
 
 function paintPortrait(g, r, info, ring, dead) {
   const cls = info.class || 'bruiser', h = hash(info.name || '?');
-  const base = dead ? '#555a63' : (CLASS_COLORS[cls] || '#888');
-  const hue = (h % 40) - 20, team = dead ? '#6a6f78' : (/^#[0-9a-f]{6}$/i.test(ring) ? ring : '#7a8494');
-  const skin = dead ? '#9a9da3' : PORTRAIT_SKINS[(h >>> 3) % PORTRAIT_SKINS.length], hair = dead ? '#55585e' : PORTRAIT_HAIRS[(h >>> 7) % PORTRAIT_HAIRS.length];
-  const armor = shade(team, -.25), trim = shade(team, .4), eye = dead ? '#444' : shade(base, .55);
+  // Tagged out: a pale, ghostly version of the champion (they relight at base).
+  const base = dead ? '#7d89aa' : (CLASS_COLORS[cls] || '#888');
+  const hue = (h % 40) - 20, team = dead ? '#8e9abb' : (/^#[0-9a-f]{6}$/i.test(ring) ? ring : '#7a8494');
+  const skin = dead ? '#cdd6ee' : PORTRAIT_SKINS[(h >>> 3) % PORTRAIT_SKINS.length], hair = dead ? '#7a86a6' : PORTRAIT_HAIRS[(h >>> 7) % PORTRAIT_HAIRS.length];
+  const armor = shade(team, -.25), trim = shade(team, .4), eye = dead ? '#e8eeff' : shade(base, .55);
   const tilt = ((h >>> 11) % 7 - 3) * .025;
   g.save();
   g.beginPath(); g.arc(0, 0, r, 0, TAU); g.clip();
@@ -921,7 +933,7 @@ function paintPortrait(g, r, info, ring, dead) {
   for (const k of [-1, 1]) { g.beginPath(); g.ellipse(k * r * .1, -r * .08, r * (covered ? .065 : .045), r * (covered ? .03 : .04), 0, 0, TAU); g.fill(); }
   if (!covered) { g.strokeStyle = shade(hair, -.2); g.lineWidth = r * .03; for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * r * .04, -r * .17); g.lineTo(k * r * .17, -r * .19 + (cls === 'assassin' ? r * .03 : 0)); g.stroke(); } }
   // Headgear from the class shape.
-  const metal = dead ? '#777' : shade('#9aa6b8', hue / 100);
+  const metal = dead ? '#a7b1cc' : shade('#9aa6b8', hue / 100);
   if (cls === 'tank') {
     g.fillStyle = metal; g.beginPath(); g.moveTo(0, -r * .58); g.lineTo(r * .34, -r * .4); g.lineTo(r * .33, -r * .02); g.lineTo(r * .2, r * .2); g.lineTo(-r * .2, r * .2); g.lineTo(-r * .33, -r * .02); g.lineTo(-r * .34, -r * .4); g.closePath(); g.fill();
     g.fillStyle = '#15161b'; g.fillRect(-r * .25, -r * .12, r * .5, r * .08);
@@ -929,7 +941,7 @@ function paintPortrait(g, r, info, ring, dead) {
     g.fillStyle = 'rgba(255,255,255,.3)'; g.fillRect(-r * .02, -r * .55, r * .04, r * .4);
   } else if (cls === 'bruiser') {
     g.fillStyle = metal; g.beginPath(); g.arc(0, -r * .17, r * .3, Math.PI, TAU); g.lineTo(r * .3, -r * .1); g.lineTo(-r * .3, -r * .1); g.fill();
-    g.fillStyle = dead ? '#888' : '#efe6cf';
+    g.fillStyle = dead ? '#c3cbe2' : '#efe6cf';
     for (const k of [-1, 1]) { g.beginPath(); g.moveTo(k * r * .26, -r * .3); g.quadraticCurveTo(k * r * .62, -r * .38, k * r * .58, -r * .78); g.quadraticCurveTo(k * r * .48, -r * .45, k * r * .2, -r * .4); g.fill(); }
     g.fillStyle = '#15161b'; g.fillRect(-r * .2, -r * .14, r * .4, r * .05);
   } else if (cls === 'assassin') {
@@ -938,21 +950,21 @@ function paintPortrait(g, r, info, ring, dead) {
     g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, -r * .2, r * .22, r * .1, 0, 0, TAU); g.fill();
   } else if (cls === 'mage') {
     g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.05, Math.PI * 1.95); g.fill();
-    g.save(); g.translate(0, -r * .5); g.fillStyle = dead ? '#999' : '#ffe27a'; CLASS_GLYPH.mage(g, r * .2); g.restore();
-    g.fillStyle = dead ? '#777' : shade(base, .6); g.beginPath(); g.arc(0, -r * .26, r * .035, 0, TAU); g.fill();
+    g.save(); g.translate(0, -r * .5); g.fillStyle = dead ? '#dfe5f6' : '#ffe27a'; CLASS_GLYPH.mage(g, r * .2); g.restore();
+    g.fillStyle = dead ? '#b3bcd6' : shade(base, .6); g.beginPath(); g.arc(0, -r * .26, r * .035, 0, TAU); g.fill();
   } else if (cls === 'marksman') {
     g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.05, Math.PI * 1.95); g.fill();
     g.fillStyle = trim; g.fillRect(-r * .29, -r * .26, r * .58, r * .06);
   } else if (cls === 'enchanter') {
     g.fillStyle = hair; g.beginPath(); g.arc(0, -r * .17, r * .29, Math.PI * 1.02, Math.PI * 1.98); g.fill();
-    g.save(); g.translate(r * .2, -r * .38); g.rotate(.4); g.fillStyle = dead ? '#999' : shade(base, .5); CLASS_GLYPH.enchanter(g, r * .16); g.restore();
+    g.save(); g.translate(r * .2, -r * .38); g.rotate(.4); g.fillStyle = dead ? '#dfe5f6' : shade(base, .5); CLASS_GLYPH.enchanter(g, r * .16); g.restore();
   } else if (cls === 'engage') {
     g.fillStyle = metal; g.beginPath(); g.arc(0, -r * .15, r * .31, Math.PI, TAU); g.lineTo(r * .31, r * .05); g.lineTo(r * .18, r * .08); g.lineTo(r * .16, -r * .12); g.lineTo(-r * .16, -r * .12); g.lineTo(-r * .18, r * .08); g.lineTo(-r * .31, r * .05); g.closePath(); g.fill();
     g.fillStyle = trim; g.beginPath(); g.moveTo(-r * .05, -r * .46); g.quadraticCurveTo(r * .1, -r * .8, r * .42, -r * .7); g.quadraticCurveTo(r * .2, -r * .58, r * .05, -r * .44); g.fill();
   }
   g.restore();
   // The ring in the team colour.
-  g.lineWidth = Math.max(1.5, r * .17); g.strokeStyle = dead ? '#777' : ring; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
+  g.lineWidth = Math.max(1.5, r * .17); g.strokeStyle = dead ? '#c4cdf0' : ring; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.stroke();
 }
 
 export function drawPortrait(g, x, y, r, info, ring, opts = {}) {
@@ -991,40 +1003,58 @@ function drawDrake(g, r, col) {
   g.beginPath(); g.moveTo(0, -r * .05); g.quadraticCurveTo(-r * .8, -r * .95, -r * 1.05, r * .1); g.quadraticCurveTo(-r * .5, -r * .1, 0, r * .25);
   g.quadraticCurveTo(r * .5, -r * .1, r * 1.05, r * .1); g.quadraticCurveTo(r * .8, -r * .95, 0, -r * .05); g.fill();
   g.beginPath(); g.ellipse(0, r * .2, r * .2, r * .48, 0, 0, TAU); g.fill();
-  g.beginPath(); g.moveTo(-r * .2, -r * .2); g.lineTo(0, -r * .7); g.lineTo(r * .2, -r * .2); g.fill();
+  g.beginPath(); g.arc(0, -r * .32, r * .24, 0, TAU); g.fill();
 }
+// The Moon Baron: a pale moon moth.
 function drawBaronGlyph(g, r, col) {
-  g.strokeStyle = col; g.lineWidth = r * .3; g.lineCap = 'round';
-  g.beginPath(); g.arc(-r * .1, r * .35, r * .62, Math.PI * 1.0, Math.PI * 1.85); g.stroke();
-  g.fillStyle = col; g.beginPath(); g.ellipse(r * .42, -r * .2, r * .38, r * .26, -.6, 0, TAU); g.fill();
-  g.lineWidth = r * .1; for (let i = 0; i < 3; i++) { const a = Math.PI * (1.15 + i * .22); g.beginPath(); g.moveTo(-r * .1 + Math.cos(a) * r * .7, r * .35 + Math.sin(a) * r * .7); g.lineTo(-r * .1 + Math.cos(a) * r * 1.0, r * .35 + Math.sin(a) * r * 1.0); g.stroke(); }
-  g.fillStyle = '#fff'; g.beginPath(); g.arc(r * .5, -r * .25, r * .09, 0, TAU); g.fill();
-}
-function drawEyeGlyph(g, r, col) {
-  g.fillStyle = col; g.beginPath(); g.moveTo(-r * .9, 0); g.quadraticCurveTo(0, -r * .8, r * .9, 0); g.quadraticCurveTo(0, r * .8, -r * .9, 0); g.fill();
-  g.fillStyle = '#16102a'; g.beginPath(); g.arc(0, 0, r * .3, 0, TAU); g.fill();
-  g.fillStyle = '#fff'; g.beginPath(); g.arc(r * .08, -r * .08, r * .09, 0, TAU); g.fill();
-}
-function drawGrubsGlyph(g, r, col) {
   g.fillStyle = col;
-  for (const [x, y] of [[-r * .45, r * .2], [r * .45, r * .2], [0, -r * .3]]) { g.beginPath(); g.ellipse(x, y, r * .32, r * .26, 0, 0, TAU); g.fill(); }
+  for (const sd of [-1, 1]) {
+    g.beginPath(); g.ellipse(sd * r * .48, -r * .2, r * .52, r * .36, sd * -.5, 0, TAU); g.fill();
+    g.beginPath(); g.ellipse(sd * r * .36, r * .4, r * .32, r * .26, sd * .6, 0, TAU); g.fill();
+  }
+  g.fillStyle = 'rgba(20,18,40,.75)'; g.beginPath(); g.ellipse(0, r * .1, r * .12, r * .5, 0, 0, TAU); g.fill();
+  g.strokeStyle = col; g.lineWidth = r * .08; g.lineCap = 'round';
+  for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * r * .05, -r * .38); g.quadraticCurveTo(sd * r * .2, -r * .85, sd * r * .42, -r * .9); g.stroke(); }
+  g.fillStyle = 'rgba(255,240,170,.9)'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * r * .52, -r * .22, r * .1, 0, TAU); g.fill(); }
 }
-function drawSkull(g, x, y, r, col) {
-  g.fillStyle = col || '#eee'; g.beginPath(); g.arc(x, y - r * .15, r * .75, 0, TAU); g.fill();
-  g.fillRect(x - r * .42, y + r * .25, r * .84, r * .45);
-  g.fillStyle = '#111'; g.beginPath(); g.arc(x - r * .3, y - r * .15, r * .2, 0, TAU); g.arc(x + r * .3, y - r * .15, r * .2, 0, TAU); g.fill();
-  g.fillRect(x - r * .06, y + r * .3, r * .12, r * .35);
+// The Stone Herald: a mossy golem's friendly face.
+function drawEyeGlyph(g, r, col) {
+  g.fillStyle = col; g.beginPath(); g.roundRect(-r * .8, -r * .7, r * 1.6, r * 1.4, r * .4); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.3)'; g.beginPath(); g.ellipse(-r * .15, -r * .6, r * .5, r * .15, 0, 0, TAU); g.fill();
+  g.fillStyle = '#16221a'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * r * .32, -r * .08, r * .17, 0, TAU); g.fill(); }
+  g.fillStyle = '#fff6c0'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * r * .32, -r * .08, r * .08, 0, TAU); g.fill(); }
+  g.strokeStyle = '#16221a'; g.lineWidth = r * .1; g.lineCap = 'round'; g.beginPath(); g.arc(0, r * .12, r * .26, Math.PI * .2, Math.PI * .8); g.stroke();
 }
-function drawSwords(g, x, y, r, col) {
-  g.strokeStyle = col; g.lineCap = 'round';
-  for (const s of [-1, 1]) {
-    g.lineWidth = r * .2; g.beginPath(); g.moveTo(x - s * r, y + r); g.lineTo(x + s * r * .8, y - r * .8); g.stroke();
-    g.lineWidth = r * .16; g.beginPath(); g.moveTo(x - s * r * .75 - r * .25, y + r * .45 - s * s * r * .05); g.lineTo(x - s * r * .45 + r * .05, y + r * .75); g.stroke();
+// The Glow Grubs: three fireflies.
+function drawGrubsGlyph(g, r, col) {
+  for (const [x, y] of [[-r * .45, r * .25], [r * .45, r * .2], [0, -r * .35]]) {
+    g.save(); g.globalAlpha *= .3; g.fillStyle = col; g.beginPath(); g.arc(x, y, r * .34, 0, TAU); g.fill(); g.restore();
+    g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.ellipse(x - r * .12, y - r * .14, r * .14, r * .08, -.5, 0, TAU); g.ellipse(x + r * .12, y - r * .14, r * .14, r * .08, .5, 0, TAU); g.fill();
+    g.fillStyle = col; g.beginPath(); g.arc(x, y, r * .17, 0, TAU); g.fill();
   }
 }
+// A four-point star of light (a tag, a befriended creature).
+function drawSparkle(g, x, y, r, col) {
+  g.fillStyle = col || SPARKC;
+  const star = (cx, cy, rr) => { g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4 - Math.PI / 2, q = i % 2 ? rr * .3 : rr; g.lineTo(cx + Math.cos(a) * q, cy + Math.sin(a) * q); } g.closePath(); g.fill(); };
+  star(x, y, r); star(x + r * .8, y - r * .7, r * .38);
+}
+// Two spells meeting: a burst of light rays.
+function drawClash(g, x, y, r, col) {
+  g.strokeStyle = col; g.fillStyle = col; g.lineCap = 'round';
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4 + Math.PI / 8, l = i % 2 ? .6 : 1;
+    g.lineWidth = r * (i % 2 ? .1 : .16); g.beginPath(); g.moveTo(x + Math.cos(a) * r * .3, y + Math.sin(a) * r * .3); g.lineTo(x + Math.cos(a) * r * l, y + Math.sin(a) * r * l); g.stroke();
+  }
+  g.beginPath(); g.arc(x, y, r * .2, 0, TAU); g.fill();
+}
+// A lantern on its post.
 function drawTowerIcon(g, x, y, r, col) {
-  g.fillStyle = col; g.beginPath(); g.moveTo(x - r * .5, y + r); g.lineTo(x - r * .35, y - r * .4); g.lineTo(x + r * .35, y - r * .4); g.lineTo(x + r * .5, y + r); g.closePath(); g.fill();
-  g.beginPath(); g.moveTo(x, y - r); g.lineTo(x + r * .5, y - r * .35); g.lineTo(x - r * .5, y - r * .35); g.closePath(); g.fill();
+  g.fillStyle = col;
+  g.fillRect(x - r * .1, y - r * .15, r * .2, r * 1.05); g.fillRect(x - r * .45, y + r * .82, r * .9, r * .18);
+  g.beginPath(); g.moveTo(x - r * .42, y - r * .15); g.lineTo(x + r * .42, y - r * .15); g.lineTo(x + r * .32, y - r * .85); g.lineTo(x - r * .32, y - r * .85); g.closePath(); g.fill();
+  g.beginPath(); g.moveTo(x - r * .48, y - r * .85); g.lineTo(x + r * .48, y - r * .85); g.lineTo(x, y - r * 1.18); g.closePath(); g.fill();
+  g.fillStyle = 'rgba(255,206,110,.95)'; g.fillRect(x - r * .19, y - r * .7, r * .38, r * .42);
 }
 function drawCoin(g, x, y, r) {
   g.fillStyle = GOLDC; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
@@ -1035,124 +1065,147 @@ function drawDiamond(g, x, y, r, col, filled = true) {
   if (filled) { g.fillStyle = col; g.fill(); } else { g.strokeStyle = col; g.lineWidth = Math.max(1, r * .2); g.stroke(); }
 }
 
-// ---- big monsters for the action cam (origin = the ground under them, S = px per map unit) ----
+// ---- the friendly creatures for the action cam (origin = the ground under them, S = px per map unit) ----
 
 function groundGlow(g, S, col, r, a) {
   const gr = g.createRadialGradient(0, 0, 0, 0, 0, S * r); gr.addColorStop(0, rgba(col, a)); gr.addColorStop(1, rgba(col, 0));
   g.fillStyle = gr; g.beginPath(); g.ellipse(0, 0, S * r, S * r * .45, 0, 0, TAU); g.fill();
 }
 
+// A sky dragon: a round, friendly cloud dragon in its element's colour.
 function paintDrake(g, S, col, t, elder) {
   const flap = Math.sin(t * 5.5), hov = -S * (2.5 + Math.sin(t * 2) * .2);
   groundGlow(g, S, col, 4.2, .35);
-  g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(0, 0, S * 2.6, S * .9, 0, 0, TAU); g.fill();
+  // The little cloud it rides on.
+  g.fillStyle = 'rgba(236,240,255,.5)';
+  for (const [cx, cy, cr] of [[-1.6, .1, .8], [-.6, -.2, 1.05], [.6, -.15, 1], [1.6, .1, .78], [0, .25, .9]]) { g.beginPath(); g.ellipse(S * cx, S * cy, S * cr, S * cr * .5, 0, 0, TAU); g.fill(); }
   const ag = g.createRadialGradient(0, hov, 0, 0, hov, S * 5); ag.addColorStop(0, rgba(col, elder ? .55 : .4)); ag.addColorStop(1, rgba(col, 0));
   g.fillStyle = ag; g.beginPath(); g.arc(0, hov, S * 5, 0, TAU); g.fill();
   g.save(); g.translate(0, hov);
-  const dark = shade(col, -.6), mid = shade(col, -.25);
+  const dark = shade(col, -.45), mid = shade(col, -.2), light = shade(col, .45);
   g.lineCap = 'round'; g.lineJoin = 'round';
-  // Tail.
-  g.strokeStyle = dark; g.lineWidth = S * .5; g.beginPath(); g.moveTo(0, S * .9); g.quadraticCurveTo(S * 1.4 * Math.sin(t * 1.6), S * 2.3, S * 2.2, S * 1.8); g.stroke();
+  // Tail, curled like a wisp of cloud.
+  g.strokeStyle = mid; g.lineWidth = S * .5; g.beginPath(); g.moveTo(0, S * .9); g.quadraticCurveTo(S * 1.4 * Math.sin(t * 1.6), S * 2.3, S * 2.2, S * 1.8); g.stroke();
+  g.fillStyle = light; g.beginPath(); g.arc(S * 2.2, S * 1.8, S * .35, 0, TAU); g.fill();
   // Wings.
   for (const sd of [-1, 1]) {
-    const tx = sd * S * 4.3, ty = -S * 1.5 - flap * S * 1.1;
-    g.fillStyle = dark;
+    const tx = sd * S * 4.1, ty = -S * 1.5 - flap * S * 1.1;
+    g.fillStyle = rgba(col, .75);
     g.beginPath(); g.moveTo(sd * S * .4, -S * .7); g.lineTo(tx * .55, ty - S * .5); g.lineTo(tx, ty);
     g.quadraticCurveTo(sd * S * 3.4, -S * .1 + flap * S * .4, sd * S * 2.6, S * .5);
     g.quadraticCurveTo(sd * S * 1.8, S * .05, sd * S * 1.3, S * .55);
     g.quadraticCurveTo(sd * S * .9, S * .1, sd * S * .4, S * .3); g.closePath(); g.fill();
-    g.strokeStyle = col; g.lineWidth = Math.max(1, S * .14); g.stroke();
-    g.strokeStyle = mid; g.lineWidth = Math.max(1, S * .1);
+    g.strokeStyle = light; g.lineWidth = Math.max(1, S * .14); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.45)'; g.lineWidth = Math.max(1, S * .1);
     for (const [ex, ey] of [[sd * S * 2.6, S * .5], [sd * S * 1.3, S * .55]]) { g.beginPath(); g.moveTo(tx * .55, ty - S * .5); g.lineTo(ex, ey); g.stroke(); }
   }
-  // Body.
-  const bg = g.createRadialGradient(-S * .3, -S * .4, S * .1, 0, 0, S * 1.5); bg.addColorStop(0, shade(col, .35)); bg.addColorStop(.6, col); bg.addColorStop(1, dark);
-  g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0, S * .95, S * 1.35, 0, 0, TAU); g.fill();
-  g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = Math.max(1, S * .07);
-  for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(0, S * (-.2 + i * .4), S * .5, .3, Math.PI - .3); g.stroke(); }
-  // Neck and head.
-  g.fillStyle = mid; g.beginPath(); g.ellipse(0, -S * 1.25, S * .45, S * .55, 0, 0, TAU); g.fill();
-  g.fillStyle = col; g.beginPath(); g.ellipse(0, -S * 1.85, S * .72, S * .52, 0, 0, TAU); g.fill();
-  g.beginPath(); g.ellipse(0, -S * 1.45, S * .38, S * .42, 0, 0, TAU); g.fill();
-  g.fillStyle = dark;
-  for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * S * .35, -S * 2.2); g.lineTo(sd * S * .85, -S * 2.95); g.lineTo(sd * S * .6, -S * 2.05); g.closePath(); g.fill(); }
-  g.shadowColor = elder ? '#fff3a0' : '#fff7c0'; g.shadowBlur = S * .6; g.fillStyle = elder ? '#fff3a0' : '#fffbe0';
-  for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * S * .3, -S * 1.92, S * .13, S * .08, sd * .3, 0, TAU); g.fill(); }
-  g.shadowBlur = 0;
+  // Body: round and soft, with a pale belly.
+  const bg = g.createRadialGradient(-S * .3, -S * .4, S * .1, 0, 0, S * 1.5); bg.addColorStop(0, light); bg.addColorStop(.6, col); bg.addColorStop(1, mid);
+  g.fillStyle = bg; g.beginPath(); g.ellipse(0, 0, S * 1.05, S * 1.35, 0, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.beginPath(); g.ellipse(0, S * .25, S * .55, S * .85, 0, 0, TAU); g.fill();
+  // Head, with little round horns and big kind eyes.
+  g.fillStyle = col; g.beginPath(); g.ellipse(0, -S * 1.85, S * .8, S * .62, 0, 0, TAU); g.fill();
+  g.beginPath(); g.ellipse(0, -S * 1.4, S * .42, S * .42, 0, 0, TAU); g.fill();
+  g.fillStyle = light;
+  for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * S * .5, -S * 2.4, S * .17, S * .28, sd * .4, 0, TAU); g.fill(); }
+  for (const sd of [-1, 1]) {
+    g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(sd * S * .3, -S * 1.92, S * .18, S * .2, 0, 0, TAU); g.fill();
+    g.fillStyle = '#1d1a2e'; g.beginPath(); g.arc(sd * S * .3, -S * 1.89, S * .1, 0, TAU); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(sd * S * .3 + S * .04, -S * 1.94, S * .035, 0, TAU); g.fill();
+  }
+  g.strokeStyle = dark; g.lineWidth = Math.max(1, S * .07); g.beginPath(); g.arc(0, -S * 1.68, S * .22, Math.PI * .2, Math.PI * .8); g.stroke();
   if (elder) {
     for (let i = 0; i < 9; i++) {
       const a = i / 9 * TAU + t * 1.3, fl = .6 + .4 * Math.sin(t * 9 + i * 2);
-      g.fillStyle = i % 2 ? 'rgba(190,120,255,.55)' : 'rgba(255,225,120,.6)';
-      const x = Math.cos(a) * S * 1.9, y = Math.sin(a) * S * 1.3;
-      g.beginPath(); g.moveTo(x - S * .2, y); g.quadraticCurveTo(x, y - S * .9 * fl, x + S * .2, y); g.closePath(); g.fill();
+      drawSparkle(g, Math.cos(a) * S * 1.9, Math.sin(a) * S * 1.3, S * .32 * fl, i % 2 ? 'rgba(214,200,255,.8)' : 'rgba(255,235,150,.9)');
     }
   }
   g.restore();
 }
 
+// The Moon Baron: a big pale moon moth, hovering in its own moonlight.
 function paintBaron(g, S, t) {
-  const col = '#9b59ff', dark = '#22103a', mid = '#552a86';
-  groundGlow(g, S, col, 5, .4);
-  g.fillStyle = 'rgba(70,30,110,.65)'; g.beginPath(); g.ellipse(0, 0, S * 3.3, S * 1.25, 0, 0, TAU); g.fill();
-  g.lineCap = 'round';
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI + .3, sw = Math.sin(t * 2 + i) * S * .6;
-    g.strokeStyle = mid; g.lineWidth = S * .38;
-    const x0 = Math.cos(a) * S * 2.6 * (i % 2 ? 1 : -1), y0 = Math.sin(a) * S * .6;
-    g.beginPath(); g.moveTo(x0 * .5, y0 * .5); g.quadraticCurveTo(x0 + sw, y0 - S * 1.6, x0 * 1.25 + sw, y0 - S * 2.2); g.stroke();
+  const flap = Math.sin(t * 3.2), hov = -S * (3 + Math.sin(t * 1.6) * .25);
+  groundGlow(g, S, MOON, 5, .4);
+  g.fillStyle = 'rgba(200,195,255,.16)'; g.beginPath(); g.ellipse(0, 0, S * 3.3, S * 1.25, 0, 0, TAU); g.fill();
+  const hg = g.createRadialGradient(0, hov - S * .5, 0, 0, hov - S * .5, S * 5.5); hg.addColorStop(0, 'rgba(235,232,255,.42)'); hg.addColorStop(1, 'rgba(235,232,255,0)');
+  g.fillStyle = hg; g.beginPath(); g.arc(0, hov - S * .5, S * 5.5, 0, TAU); g.fill();
+  g.save(); g.translate(0, hov);
+  const open = .78 + .22 * flap;
+  for (const sd of [-1, 1]) {
+    g.save(); g.scale(sd * open, 1);
+    const wg = g.createLinearGradient(0, 0, S * 4.2, -S * 1.5); wg.addColorStop(0, '#f6f3ff'); wg.addColorStop(1, '#bdb4f2');
+    g.fillStyle = wg; g.beginPath(); g.moveTo(S * .3, -S * .6); g.bezierCurveTo(S * 1.6, -S * 3.2, S * 4.4, -S * 2.6, S * 4.1, -S * .9); g.bezierCurveTo(S * 3.2, -S * .2, S * 1.6, -S * .1, S * .3, -S * .1); g.closePath(); g.fill();
+    g.fillStyle = '#ddd7ff'; g.beginPath(); g.moveTo(S * .3, -S * .05); g.bezierCurveTo(S * 2.4, S * .1, S * 3, S * 1.4, S * 2.2, S * 2.2); g.quadraticCurveTo(S * 1.8, S * 3.2, S * 1.4, S * 3.6); g.quadraticCurveTo(S * 1.1, S * 2.2, S * .3, S * .9); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,236,160,.9)'; g.beginPath(); g.arc(S * 2.6, -S * 1.45, S * .42, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(130,118,210,.8)'; g.beginPath(); g.arc(S * 2.6, -S * 1.45, S * .2, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(140,130,210,.45)'; g.lineWidth = Math.max(1, S * .08); g.beginPath(); g.moveTo(S * .35, -S * .35); g.quadraticCurveTo(S * 2, -S * 1.8, S * 3.9, -S * 1.0); g.stroke();
+    g.restore();
   }
-  const segs = [];
-  for (let i = 0; i <= 8; i++) { const f = i / 8; segs.push([Math.sin(f * 2.4 + t * .9) * S * .9 * (1 - f * .4), -f * S * 4.8, S * (1.6 - f * .65)]); }
-  for (const [x, y, r] of segs) {
-    const gr = g.createRadialGradient(x - r * .3, y - r * .4, r * .1, x, y, r); gr.addColorStop(0, '#8a55c8'); gr.addColorStop(.6, mid); gr.addColorStop(1, dark);
-    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-    g.fillStyle = '#c9a6ff'; g.beginPath(); g.moveTo(x + r * .6, y - r * .5); g.lineTo(x + r * 1.25, y - r * 1.0); g.lineTo(x + r * .85, y - r * .1); g.closePath(); g.fill();
+  // Fuzzy body and head.
+  const bg = g.createRadialGradient(-S * .2, -S * .2, S * .1, 0, S * .3, S * 1.6); bg.addColorStop(0, '#fffaf0'); bg.addColorStop(1, '#c8bfee');
+  g.fillStyle = bg; g.beginPath(); g.ellipse(0, S * .3, S * .55, S * 1.5, 0, 0, TAU); g.fill();
+  g.strokeStyle = 'rgba(150,140,200,.45)'; g.lineWidth = Math.max(1, S * .07);
+  for (let i = 0; i < 4; i++) { g.beginPath(); g.arc(0, S * (-.2 + i * .45), S * .45, .4, Math.PI - .4); g.stroke(); }
+  g.fillStyle = '#f3efff'; g.beginPath(); g.ellipse(0, -S * 1.25, S * .55, S * .48, 0, 0, TAU); g.fill();
+  g.strokeStyle = '#ebe4ff'; g.lineWidth = S * .12; g.lineCap = 'round';
+  for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * S * .2, -S * 1.6); g.quadraticCurveTo(sd * S * .8, -S * 2.8, sd * S * 1.4, -S * 2.9); g.stroke(); }
+  for (const sd of [-1, 1]) {
+    g.fillStyle = '#2b2550'; g.beginPath(); g.arc(sd * S * .22, -S * 1.28, S * .13, 0, TAU); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(sd * S * .22 + S * .04, -S * 1.32, S * .045, 0, TAU); g.fill();
   }
-  const [hx, hy] = segs[segs.length - 1];
-  g.save(); g.translate(hx, hy - S * .3); g.rotate(Math.sin(t * 1.2) * .12);
-  g.fillStyle = mid; g.beginPath(); g.ellipse(0, 0, S * 1.5, S * 1.05, 0, 0, TAU); g.fill();
-  g.strokeStyle = '#d7b8ff'; g.lineWidth = S * .22;
-  for (const sd of [-1, 1]) { g.beginPath(); g.moveTo(sd * S * .8, -S * .7); g.quadraticCurveTo(sd * S * 1.8, -S * 1.6, sd * S * 1.3, -S * 2.4); g.stroke(); }
-  const open = .35 + .25 * Math.sin(t * 3);
-  g.fillStyle = '#12051f'; g.beginPath(); g.ellipse(0, S * .35, S * .9, S * open, 0, 0, TAU); g.fill();
-  g.fillStyle = '#f2e8ff';
-  for (let i = -3; i <= 3; i++) { g.beginPath(); g.moveTo(i * S * .22 - S * .08, S * .35 - S * open * .8); g.lineTo(i * S * .22, S * .35 - S * open * .2); g.lineTo(i * S * .22 + S * .08, S * .35 - S * open * .8); g.fill(); }
-  g.shadowColor = '#e0b3ff'; g.shadowBlur = S * .8; g.fillStyle = '#f4dcff';
-  for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * S * .62, -S * .3, S * .2, S * .12, sd * .4, 0, TAU); g.fill(); }
-  g.shadowBlur = 0; g.restore();
+  g.restore();
+  // Moon dust drifting around it.
+  for (let i = 0; i < 6; i++) {
+    const a = t * .8 + i, x = Math.sin(a * 1.3 + i) * S * 3.5, y = hov + Math.cos(a + i * 2) * S * 2;
+    drawSparkle(g, x, y, S * .22 * (.6 + .4 * Math.sin(t * 4 + i)), 'rgba(255,250,220,.8)');
+  }
 }
 
+// The Stone Herald: a gentle, mossy golem.
 function paintHerald(g, S, t) {
-  const col = '#c48bff', bob = Math.sin(t * 3) * S * .15;
-  groundGlow(g, S, col, 3.6, .35);
-  g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(0, 0, S * 2.4, S * .8, 0, 0, TAU); g.fill();
-  g.strokeStyle = '#2b1842'; g.lineWidth = S * .28; g.lineCap = 'round';
-  for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) {
-    const st = Math.sin(t * 6 + i * 2 + sd) * S * .2;
-    g.beginPath(); g.moveTo(sd * S * .8, -S * (1 + i * .3)); g.lineTo(sd * S * (1.9 + i * .2), -S * (1.3 + i * .25) + st); g.lineTo(sd * S * (2.2 + i * .15), S * (.1 - i * .2)); g.stroke();
+  const bob = Math.sin(t * 2.4) * S * .1, sway = Math.sin(t * 1.7) * .05;
+  const stone = '#8d9188', dark = '#5e635c', moss = '#6fae5a', mossL = '#a6dc84';
+  groundGlow(g, S, HERALDC, 3.6, .3);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.ellipse(0, 0, S * 2.4, S * .8, 0, 0, TAU); g.fill();
+  g.fillStyle = dark; g.beginPath(); g.roundRect(-S * 1.2, -S * 1.2, S * .85, S * 1.2, S * .25); g.roundRect(S * .35, -S * 1.2, S * .85, S * 1.2, S * .25); g.fill();
+  g.save(); g.translate(0, bob); g.rotate(sway);
+  for (const sd of [-1, 1]) {
+    g.fillStyle = dark; g.beginPath(); g.ellipse(sd * S * 1.9, -S * 1.9 + Math.sin(t * 2 + sd) * S * .12, S * .6, S * 1.05, sd * .25, 0, TAU); g.fill();
+    g.fillStyle = stone; g.beginPath(); g.arc(sd * S * 2.05, -S * 1.0, S * .5, 0, TAU); g.fill();
+    g.fillStyle = moss; g.beginPath(); g.ellipse(sd * S * 1.85, -S * 2.75, S * .4, S * .18, 0, 0, TAU); g.fill();
   }
-  const by = -S * 1.4 + bob;
-  const gr = g.createRadialGradient(-S * .5, by - S * .5, S * .2, 0, by, S * 2.2); gr.addColorStop(0, '#6a43a0'); gr.addColorStop(.7, '#3b2457'); gr.addColorStop(1, '#1b0f2a');
-  g.fillStyle = gr; g.beginPath(); g.ellipse(0, by, S * 2.1, S * 1.35, 0, 0, TAU); g.fill();
-  g.strokeStyle = 'rgba(200,160,255,.35)'; g.lineWidth = Math.max(1, S * .08);
-  for (let i = 0; i < 3; i++) { g.beginPath(); g.ellipse(0, by, S * (2.1 - i * .45), S * (1.35 - i * .3), 0, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); }
-  g.save(); g.translate(0, by - S * .2); g.shadowColor = col; g.shadowBlur = S; drawEyeGlyph(g, S * 1.05, col); g.restore();
-  g.fillStyle = '#d9b8ff';
-  for (let i = -2; i <= 2; i++) { g.beginPath(); g.moveTo(i * S * .4 - S * .12, by - S * 1.2); g.lineTo(i * S * .4, by - S * (1.85 - Math.abs(i) * .2)); g.lineTo(i * S * .4 + S * .12, by - S * 1.2); g.fill(); }
+  const bg = g.createRadialGradient(-S * .5, -S * 2.8, S * .2, 0, -S * 2.1, S * 2.2); bg.addColorStop(0, '#a9ada1'); bg.addColorStop(.7, stone); bg.addColorStop(1, dark);
+  g.fillStyle = bg; g.beginPath(); g.roundRect(-S * 1.5, -S * 3.4, S * 3, S * 2.5, S * .8); g.fill();
+  // Moss on top, with a few flowers.
+  g.fillStyle = moss; g.beginPath(); g.ellipse(0, -S * 3.25, S * 1.4, S * .42, 0, 0, TAU); g.fill();
+  for (let i = -3; i <= 3; i++) { g.beginPath(); g.arc(i * S * .42, -S * 3.3 - (i % 2 ? S * .1 : 0), S * .3, 0, TAU); g.fill(); }
+  g.fillStyle = mossL; g.beginPath(); g.ellipse(-S * .9, -S * 1.6, S * .35, S * .22, 0, 0, TAU); g.ellipse(S * 1.0, -S * 2.2, S * .25, S * .16, 0, 0, TAU); g.fill();
+  g.fillStyle = '#ffe08a'; for (const fx of [-.7, .3, .9]) { g.beginPath(); g.arc(fx * S, -S * 3.55, S * .1, 0, TAU); g.fill(); }
+  // A kind face: warm eyes and a smile.
+  g.fillStyle = '#2a3326'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * S * .5, -S * 2.45, S * .26, 0, TAU); g.fill(); }
+  g.fillStyle = '#fff4b8'; for (const sd of [-1, 1]) { g.beginPath(); g.arc(sd * S * .5, -S * 2.45, S * .13, 0, TAU); g.fill(); }
+  g.strokeStyle = '#2a3326'; g.lineWidth = S * .1; g.lineCap = 'round'; g.beginPath(); g.arc(0, -S * 2.1, S * .4, Math.PI * .15, Math.PI * .85); g.stroke();
+  g.restore();
 }
 
+// The Glow Grubs: fireflies blinking over the glade.
 function paintGrubs(g, S, t, alive = 3) {
-  const col = '#8f6be0';
-  groundGlow(g, S, '#a78bfa', 3.4, .3);
+  groundGlow(g, S, GRUBC, 3.4, .3);
   [[-1.7, .5], [1.6, .3], [0, -.9]].slice(0, alive).forEach(([x, y], i) => {
-    const ph = t * 4 + i * 2;
-    g.save(); g.translate(x * S, y * S);
-    g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(0, 0, S * .9, S * .3, 0, 0, TAU); g.fill();
-    for (let k = 2; k >= 0; k--) {
-      const cx = (k - 1) * S * .45, cy = -S * .45 - Math.abs(Math.sin(ph + k)) * S * .15, r = S * (.42 - k * .05);
-      g.fillStyle = k ? shade(col, -.2) : col; g.beginPath(); g.arc(cx, cy, r, 0, TAU); g.fill();
-    }
-    g.fillStyle = '#f5e8ff'; g.beginPath(); g.arc(-S * .55, -S * .55, S * .08, 0, TAU); g.arc(-S * .35, -S * .58, S * .08, 0, TAU); g.fill();
+    const ph = t * 3 + i * 2, hov = -S * (1.1 + .35 * Math.sin(ph)), glow = .6 + .4 * Math.sin(t * 5 + i * 1.7);
+    g.save(); g.translate(x * S + Math.sin(ph * .7) * S * .3, y * S);
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.ellipse(0, 0, S * .5, S * .18, 0, 0, TAU); g.fill();
+    g.translate(0, hov);
+    const gr = g.createRadialGradient(0, S * .2, 0, 0, S * .2, S * 1.4); gr.addColorStop(0, `rgba(216,242,122,${.55 * glow})`); gr.addColorStop(1, 'rgba(216,242,122,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(0, S * .2, S * 1.4, 0, TAU); g.fill();
+    const fl = Math.abs(Math.sin(t * 18 + i));
+    g.fillStyle = 'rgba(235,245,255,.55)';
+    for (const sd of [-1, 1]) { g.beginPath(); g.ellipse(sd * S * .32, -S * .25, S * .38, S * .16 * (.4 + fl * .6), sd * -.5, 0, TAU); g.fill(); }
+    g.fillStyle = '#3d3a2e'; g.beginPath(); g.ellipse(0, -S * .1, S * .17, S * .3, 0, 0, TAU); g.fill();
+    g.fillStyle = `rgba(232,255,140,${.7 + .3 * glow})`; g.beginPath(); g.ellipse(0, S * .2, S * .22, S * .26, 0, 0, TAU); g.fill();
+    g.fillStyle = '#3d3a2e'; g.beginPath(); g.arc(0, -S * .42, S * .14, 0, TAU); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(-S * .05, -S * .45, S * .04, 0, TAU); g.arc(S * .05, -S * .45, S * .04, 0, TAU); g.fill();
     g.restore();
   });
 }
@@ -1635,7 +1688,7 @@ export class LolView extends ArenaViewBase {
     s.until = Math.max(s.until, o.dieAt + 1.4);
     if (o === s.mon) this.pending.push({ at: o.dieAt, fn: () => {
       this.addAct({ k: 'smite', x: s.x, y: s.y, life: .55 });
-      this.addAct({ k: 'num', x: s.x, y: s.y, text: o.stolen ? 'STOLEN!' : 'SMITE', col: o.stolen ? teamColor(this.state.meta, s.team) : '#ffd23f', big: true, life: 1.4, dx: 0 });
+      this.addAct({ k: 'num', x: s.x, y: s.y, text: o.stolen ? 'STOLEN!' : 'LURED!', col: o.stolen ? teamColor(this.state.meta, s.team) : '#ffd23f', big: true, life: 1.4, dx: 0 });
     } });
   }
 
@@ -1682,7 +1735,7 @@ export class LolView extends ArenaViewBase {
       if (s.frames.length > 200) s.frames.shift();
     }
     if (this.anim - s.t0 < .3) return;
-    const rate = s.label === 'TEAMFIGHT' || s.prio >= 4 ? 7 : s.kind === 'objective' ? 5 : s.kind === 'struct' ? 4 : 3.5;
+    const rate = s.label === 'BIG CLASH' || s.prio >= 4 ? 7 : s.kind === 'objective' ? 5 : s.kind === 'struct' ? 4 : 3.5;
     s.acc += dt * rate;
     while (s.acc >= 1) { s.acc -= .8 + Math.random() * .4; this.castAbility(s); }
     // Towers shoot back; big monsters slam.
@@ -1813,7 +1866,7 @@ export class LolView extends ArenaViewBase {
     }
   }
 
-  // The killing blow of a kill event, filmed: a fast strike killer → victim.
+  // The tag of a kill event, filmed: a quick bolt of light tagger → tagged.
   killingBlow(d) {
     const k = d.killer || {}, v = d.victim || {};
     if (!(k.side === 0 || k.side === 1) || !(v.side === 0 || v.side === 1)) return;
@@ -1823,7 +1876,8 @@ export class LolView extends ArenaViewBase {
     const team = teamColor(st.meta, k.side);
     this.addAct({ k: 'proj', style: 'orb', x0, y0, x1, y1, col: '#fff2c0', team, life: .18, big: true });
     this.addAct({ k: 'slash', x: x1, y: y1, col: '#ffffff', team, life: .55, ang: Math.random() * TAU, big: true });
-    this.addAct({ k: 'num', x: x1, y: y1, text: `${Math.round(450 + Math.random() * 500)}!`, col: '#ff4d4d', big: true, life: 1.1, dx: 0 });
+    this.addAct({ k: 'spark', x: x1, y: y1, col: SPARKC, life: .7 });
+    this.addAct({ k: 'num', x: x1, y: y1, text: 'TAGGED!', col: SPARKC, big: true, life: 1.1, dx: 0 });
   }
 
   towerShot(s) {
@@ -1850,7 +1904,7 @@ export class LolView extends ArenaViewBase {
     const n = f.debris ? 30 : f.big ? 20 : 10;
     for (let i = 0; i < n; i++) {
       const a = Math.random() * TAU, v = (f.big ? 10 : 6) * (.4 + Math.random());
-      this.particles.push({ x: f.x, y: f.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .5 + Math.random() * .8, c: f.debris && Math.random() < .5 ? '#8a7a66' : f.color });
+      this.particles.push({ x: f.x, y: f.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .5 + Math.random() * .8, c: f.debris && Math.random() < .5 ? SPARKC : f.color });
     }
   }
 
@@ -1878,7 +1932,7 @@ export class LolView extends ArenaViewBase {
   draw() {
     const g = this.ctx, W = this.W, H = this.H;
     const bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0b1120'); bg.addColorStop(1, '#04060b');
+    bg.addColorStop(0, '#15112a'); bg.addColorStop(1, '#06050d');
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     if (!this.state) { this.txt(T.pregame, W / 2, H / 2, 18 * Math.min(W / 1280, H / 720) + 6, 'rgba(255,255,255,.8)', 'center', 600); return; }
     if (this.scene) this.drawScene();
@@ -1926,6 +1980,7 @@ export class LolView extends ArenaViewBase {
     const da = clamp((this.anim - this.draftAnim.t0) / .45, 0, 1);
     // Header.
     this.txt(T.draft, W / 2, fs * 1.6, fs * 1.5, '#f2d98d', 'center', 900);
+    this.txt(T.credit, W / 2, H - fs * .7, fs * .6, 'rgba(255,255,255,.4)', 'center', 700);
     const step = st.draft.done ? 'ALL PICKS LOCKED' : act ? `${mapSide(st.meta, act.team) === 0 ? 'BLUE' : 'RED'} ${act.kind === 'ban' ? 'BANS' : 'PICKS'}${st.draft.step ? ' · ' + st.draft.step.toUpperCase() : ''}` : 'GET READY';
     g.font = this.font(fs * .8, 800); const sw = g.measureText(step).width + fs * 1.6;
     this.panel(W / 2 - sw / 2, fs * 2.6, sw, fs * 1.5, fs * .75, rgba(ac, .25), ac);
@@ -2031,14 +2086,14 @@ export class LolView extends ArenaViewBase {
     const c = document.createElement('canvas'); c.width = N; c.height = N;
     const g = c.getContext('2d'), m = this.state.map, P = v => v / 100 * N;
     const R = rng(42), L = m.lanes || defaultMap().lanes;
-    // Ground.
+    // Ground: the Glowvale at dusk (moss green under a violet sky).
     const bg = g.createLinearGradient(0, N, N, 0);
-    bg.addColorStop(0, '#1c3d27'); bg.addColorStop(.5, '#16331f'); bg.addColorStop(1, '#2a2a22');
+    bg.addColorStop(0, '#1d3a30'); bg.addColorStop(.5, '#1a2f30'); bg.addColorStop(1, '#2c2638');
     g.fillStyle = bg; g.fillRect(0, 0, N, N);
-    for (let i = 0; i < 420; i++) { g.fillStyle = `rgba(${R() < .5 ? '10,32,18' : '48,84,46'},${.18 + R() * .25})`; g.beginPath(); g.arc(R() * N, R() * N, N * (.008 + R() * .03), 0, TAU); g.fill(); }
+    for (let i = 0; i < 420; i++) { g.fillStyle = `rgba(${R() < .5 ? '14,26,30' : '58,86,60'},${.18 + R() * .25})`; g.beginPath(); g.arc(R() * N, R() * N, N * (.008 + R() * .03), 0, TAU); g.fill(); }
     // River.
     const poly = (pts, w, col) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); pts.forEach((p, i) => i ? g.lineTo(P(p[0]), P(p[1])) : g.moveTo(P(p[0]), P(p[1]))); g.stroke(); };
-    poly(m.river, N * .12, '#14394a'); poly(m.river, N * .09, '#1b5a72'); poly(m.river, N * .05, '#2a7894'); poly(m.river, N * .012, 'rgba(160,230,255,.35)');
+    poly(m.river, N * .12, '#1a3352'); poly(m.river, N * .09, '#24507a'); poly(m.river, N * .05, '#3a74a0'); poly(m.river, N * .012, 'rgba(200,225,255,.4)');
     for (let i = 0; i < 60; i++) { const t = R(), p = lanePoint(m.river, t); g.strokeStyle = 'rgba(200,240,255,.25)'; g.lineWidth = N * .002; g.beginPath(); g.moveTo(P(p[0] - 1 + R() * 2), P(p[1] + R() * 3)); g.lineTo(P(p[0] + 1 + R() * 2), P(p[1] + R() * 3)); g.stroke(); }
     // Jungle trees: canopy clusters away from lanes, river, bases and pits.
     const bases = [[12, 88], [88, 12]];
@@ -2048,25 +2103,25 @@ export class LolView extends ArenaViewBase {
     const trees = [];
     for (let i = 0; i < 2400 && trees.length < 1100; i++) { const x = R() * 100, y = R() * 100; if (x < 2 || y < 2 || x > 98 || y > 98 || blocked(x, y)) continue; trees.push([x, y, 1.1 + R() * 1.6]); }
     trees.sort((a, b) => a[1] - b[1]);
-    for (const [x, y, r] of trees) { g.fillStyle = 'rgba(3,12,6,.55)'; g.beginPath(); g.arc(P(x + .4), P(y + .5), P(r), 0, TAU); g.fill(); }
+    for (const [x, y, r] of trees) { g.fillStyle = 'rgba(6,8,18,.55)'; g.beginPath(); g.arc(P(x + .4), P(y + .5), P(r), 0, TAU); g.fill(); }
     for (const [x, y, r] of trees) {
       const gr = g.createRadialGradient(P(x - r * .3), P(y - r * .3), 0, P(x), P(y), P(r));
-      gr.addColorStop(0, '#3f7a3a'); gr.addColorStop(.7, '#1f4a24'); gr.addColorStop(1, '#123018');
+      gr.addColorStop(0, '#3f7656'); gr.addColorStop(.7, '#1f4636'); gr.addColorStop(1, '#13282a');
       g.fillStyle = gr; g.beginPath(); g.arc(P(x), P(y), P(r), 0, TAU); g.fill();
     }
     // Jungle camps (clearings).
     for (const [x, y] of [...JUNGLE, [50, 22], [22, 50], [78, 50], [50, 78]]) { g.fillStyle = 'rgba(110,100,70,.45)'; g.beginPath(); g.arc(P(x), P(y), P(2.4), 0, TAU); g.fill(); g.fillStyle = 'rgba(255,220,140,.35)'; g.beginPath(); g.arc(P(x), P(y), P(.6), 0, TAU); g.fill(); }
     // Lanes.
-    for (const k of ['top', 'mid', 'bot']) { poly(L[k], N * .06, '#3a3424'); poly(L[k], N * .046, '#7b6a47'); poly(L[k], N * .03, '#8f7c55'); }
+    for (const k of ['top', 'mid', 'bot']) { poly(L[k], N * .06, '#3b3128'); poly(L[k], N * .046, '#80684a'); poly(L[k], N * .03, '#9a805a'); }
     for (let i = 0; i < 500; i++) { const k = ['top', 'mid', 'bot'][i % 3], p = lanePoint(L[k], R()); g.fillStyle = R() < .5 ? 'rgba(60,50,32,.5)' : 'rgba(190,170,120,.35)'; g.fillRect(P(p[0] + (R() - .5) * 4), P(p[1] + (R() - .5) * 4), N * .003, N * .003); }
-    // Pits.
+    // The dragon nest and the moon glade.
     const pit = (p, col) => {
-      g.fillStyle = '#2c2a26'; g.beginPath(); g.arc(P(p.x), P(p.y), P(6.2), 0, TAU); g.fill();
-      const gr = g.createRadialGradient(P(p.x), P(p.y), 0, P(p.x), P(p.y), P(5.6)); gr.addColorStop(0, rgba(col, .55)); gr.addColorStop(1, 'rgba(30,26,22,1)');
+      g.fillStyle = '#2a2636'; g.beginPath(); g.arc(P(p.x), P(p.y), P(6.2), 0, TAU); g.fill();
+      const gr = g.createRadialGradient(P(p.x), P(p.y), 0, P(p.x), P(p.y), P(5.6)); gr.addColorStop(0, rgba(col, .55)); gr.addColorStop(1, 'rgba(32,28,44,1)');
       g.fillStyle = gr; g.beginPath(); g.arc(P(p.x), P(p.y), P(5.4), 0, TAU); g.fill();
       g.strokeStyle = 'rgba(160,150,130,.5)'; g.lineWidth = N * .004; g.beginPath(); g.arc(P(p.x), P(p.y), P(5.8), 0, TAU); g.stroke();
     };
-    pit(m.dragon, '#ff8a3d'); pit(m.baron, '#9b59ff');
+    pit(m.dragon, '#ffb46a'); pit(m.baron, MOON);
     // Bases.
     for (let side = 0; side < 2; side++) {
       const b = bases[side], col = SIDE_COLORS[side][0];
@@ -2080,8 +2135,21 @@ export class LolView extends ArenaViewBase {
       const fg = g.createRadialGradient(P(f[0]), P(f[1]), 0, P(f[0]), P(f[1]), P(4.5)); fg.addColorStop(0, rgba(SIDE_COLORS[side][1], .9)); fg.addColorStop(1, rgba(col, .1));
       g.fillStyle = fg; g.beginPath(); g.arc(P(f[0]), P(f[1]), P(4.5), 0, TAU); g.fill();
     }
-    // Edge vignette.
-    const vg = g.createRadialGradient(N / 2, N / 2, N * .45, N / 2, N / 2, N * .75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.45)');
+    // Fireflies over the woods and small lamps along the paths (baked in: no cost per frame).
+    for (let i = 0; i < 140; i++) {
+      const x = R() * 100, y = R() * 100, r = .5 + R() * .7;
+      const fg = g.createRadialGradient(P(x), P(y), 0, P(x), P(y), P(r * 1.6)); fg.addColorStop(0, 'rgba(236,250,150,.55)'); fg.addColorStop(1, 'rgba(236,250,150,0)');
+      g.fillStyle = fg; g.beginPath(); g.arc(P(x), P(y), P(r * 1.6), 0, TAU); g.fill();
+      g.fillStyle = 'rgba(250,255,200,.85)'; g.beginPath(); g.arc(P(x), P(y), Math.max(1, N * .0014), 0, TAU); g.fill();
+    }
+    for (const k of ['top', 'mid', 'bot']) for (let i = 1; i < 12; i++) {
+      const p = lanePoint(L[k], i / 12), lg = g.createRadialGradient(P(p[0]), P(p[1]), 0, P(p[0]), P(p[1]), P(2.6));
+      lg.addColorStop(0, 'rgba(255,200,120,.22)'); lg.addColorStop(1, 'rgba(255,200,120,0)'); g.fillStyle = lg; g.beginPath(); g.arc(P(p[0]), P(p[1]), P(2.6), 0, TAU); g.fill();
+    }
+    // Dusk: a violet sky tint from the top corner, then the edge vignette.
+    const dusk = g.createLinearGradient(N, 0, 0, N); dusk.addColorStop(0, 'rgba(120,80,170,.16)'); dusk.addColorStop(.6, 'rgba(255,170,110,.04)'); dusk.addColorStop(1, 'rgba(255,170,110,0)');
+    g.fillStyle = dusk; g.fillRect(0, 0, N, N);
+    const vg = g.createRadialGradient(N / 2, N / 2, N * .45, N / 2, N / 2, N * .75); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(8,4,24,.5)');
     g.fillStyle = vg; g.fillRect(0, 0, N, N);
     return c;
   }
@@ -2093,7 +2161,7 @@ export class LolView extends ArenaViewBase {
     if (!this.hiCache && !this.hiTimer && typeof setTimeout !== 'undefined') this.hiTimer = setTimeout(() => { this.hiCache = this.buildMapCache(2.4); }, 600);
     if (this.zoomed) {
       g.save(); g.beginPath(); g.roundRect(R.x, R.y, R.w, R.h, 8 * s); g.clip();
-      const bg = g.createLinearGradient(0, R.y, 0, R.y + R.h); bg.addColorStop(0, '#060a10'); bg.addColorStop(1, '#0b1612');
+      const bg = g.createLinearGradient(0, R.y, 0, R.y + R.h); bg.addColorStop(0, '#0b0818'); bg.addColorStop(1, '#0c1614');
       g.fillStyle = bg; g.fillRect(R.x, R.y, R.w, R.h);
       this.drawMapLayers(this.hiCache || this.mapCache);
       g.restore();
@@ -2126,9 +2194,9 @@ export class LolView extends ArenaViewBase {
     const L = this.P(0, 100), Tp = this.P(0, 0), Rt = this.P(100, 0), B = this.P(100, 100), dep = G.depth;
     // Table slab under the map (depth).
     g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 30 * s; g.shadowOffsetY = 12 * s;
-    g.fillStyle = '#0d1a14'; g.beginPath(); g.moveTo(L[0], L[1]); g.lineTo(B[0], B[1]); g.lineTo(Rt[0], Rt[1]); g.lineTo(Rt[0], Rt[1] + dep); g.lineTo(B[0], B[1] + dep); g.lineTo(L[0], L[1] + dep); g.closePath(); g.fill(); g.restore();
-    g.fillStyle = '#0a1510'; g.beginPath(); g.moveTo(L[0], L[1]); g.lineTo(B[0], B[1]); g.lineTo(B[0], B[1] + dep); g.lineTo(L[0], L[1] + dep); g.closePath(); g.fill();
-    g.fillStyle = '#142a1f'; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(Rt[0], Rt[1]); g.lineTo(Rt[0], Rt[1] + dep); g.lineTo(B[0], B[1] + dep); g.closePath(); g.fill();
+    g.fillStyle = '#141428'; g.beginPath(); g.moveTo(L[0], L[1]); g.lineTo(B[0], B[1]); g.lineTo(Rt[0], Rt[1]); g.lineTo(Rt[0], Rt[1] + dep); g.lineTo(B[0], B[1] + dep); g.lineTo(L[0], L[1] + dep); g.closePath(); g.fill(); g.restore();
+    g.fillStyle = '#100f22'; g.beginPath(); g.moveTo(L[0], L[1]); g.lineTo(B[0], B[1]); g.lineTo(B[0], B[1] + dep); g.lineTo(L[0], L[1] + dep); g.closePath(); g.fill();
+    g.fillStyle = '#1c1a34'; g.beginPath(); g.moveTo(B[0], B[1]); g.lineTo(Rt[0], Rt[1]); g.lineTo(Rt[0], Rt[1] + dep); g.lineTo(B[0], B[1] + dep); g.closePath(); g.fill();
     if (img && this.zoomed) this.drawMapImageCam(img);
     else if (img) {
       const N = img.width, m = 100 * G.k * Math.SQRT1_2 / N, n = m * SQ;
@@ -2172,17 +2240,20 @@ export class LolView extends ArenaViewBase {
     else if (m.kind === 'herald') paintHerald(g, S, t);
     else if (m.kind === 'grubs') paintGrubs(g, S, t, dk > 0 ? 0 : 3);
     else paintDrake(g, S, m.col, t, m.kind === 'elder');
-    // Death: a white burst.
-    if (dk > 0) { const gr = g.createRadialGradient(0, -S0 * 2, 0, 0, -S0 * 2, S0 * 6); gr.addColorStop(0, `rgba(255,255,255,${.8 * (1 - dk)})`); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, -S0 * 2, S0 * 6, 0, TAU); g.fill(); }
+    // Befriended: a warm burst of light and sparkles (it flies off with its new friends).
+    if (dk > 0) {
+      const gr = g.createRadialGradient(0, -S0 * 2, 0, 0, -S0 * 2, S0 * 6); gr.addColorStop(0, `rgba(255,246,200,${.8 * (1 - dk)})`); gr.addColorStop(1, 'rgba(255,246,200,0)'); g.fillStyle = gr; g.beginPath(); g.arc(0, -S0 * 2, S0 * 6, 0, TAU); g.fill();
+      for (let i = 0; i < 10; i++) { const an = i / 10 * TAU, d = S0 * (1.5 + 4 * dk); drawSparkle(g, Math.cos(an) * d, -S0 * 2 + Math.sin(an) * d * .7, S0 * .4 * (1 - dk * .5), i % 2 ? SPARKC : rgba(m.col, .9)); }
+    }
     g.restore();
     if (dk > 0) return;
-    // HP bar.
+    // HP bar (how long until it trusts the team).
     const hp = drainHp(m, now), lag = drainHp(m, now - .3);
     // A boss bar at the top of the view, like in the game.
     const R = this.mapR, bw = Math.min(R.w * .44, 380 * s), bh = 11 * s, bx = R.x + (R.w - bw) / 2, by = R.y + 72 * s, BX = bx + bw / 2;
     g.globalAlpha = clamp(this.camT * 1.6, 0, 1);
     this.otxt(m.name, bx, by - 9 * s, 12 * s, shade(m.col, .4), 'left', 900);
-    if (sh.label) this.otxt(sh.team != null ? `${this.names()[sh.team].toUpperCase()} ON IT` : '', bx + bw, by - 9 * s, 9 * s, teamColor(this.state.meta, sh.team), 'right', 800);
+    if (sh.label) this.otxt(sh.team != null ? `${this.names()[sh.team].toUpperCase()} BEFRIENDING` : '', bx + bw, by - 9 * s, 9 * s, teamColor(this.state.meta, sh.team), 'right', 800);
     this.panel(bx - 2 * s, by - 2 * s, bw + 4 * s, bh + 4 * s, 3 * s, 'rgba(5,5,10,.85)', rgba(m.col, .8));
     g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(bx, by, bw * lag, bh);
     const hg = g.createLinearGradient(0, by, 0, by + bh); hg.addColorStop(0, shade(m.col, .25)); hg.addColorStop(1, shade(m.col, -.35));
@@ -2241,8 +2312,8 @@ export class LolView extends ArenaViewBase {
             g.fillStyle = '#ffffff'; g.beginPath(); g.arc(X, Y - lift, 2.2 * s, 0, TAU); g.fill();
           } else if (a.style === 'hook') {
             const [X0, Y0] = this.P(a.x0, a.y0);
-            g.strokeStyle = '#c9ccd6'; g.lineWidth = 2.5 * s; g.setLineDash([5 * s, 3 * s]); g.beginPath(); g.moveTo(X0, Y0 - lift); g.lineTo(X, Y - lift); g.stroke(); g.setLineDash([]);
-            g.strokeStyle = '#eef0f6'; g.lineWidth = 3 * s; g.beginPath(); g.arc(X, Y - lift, uu * .55, -.5, Math.PI + .5); g.stroke();
+            g.strokeStyle = rgba(a.team, .85); g.lineWidth = 2.5 * s; g.setLineDash([5 * s, 3 * s]); g.beginPath(); g.moveTo(X0, Y0 - lift); g.lineTo(X, Y - lift); g.stroke(); g.setLineDash([]);
+            drawSparkle(g, X, Y - lift, uu * .7, SPARKC);
           } else {
             const r = uu * (a.big ? .9 : .65);
             for (let i = 4; i >= 1; i--) {
@@ -2261,6 +2332,7 @@ export class LolView extends ArenaViewBase {
           g.shadowColor = a.team; g.shadowBlur = 10 * s;
           g.strokeStyle = `rgba(255,255,255,${fade})`; g.lineWidth = (a.big ? 5 : 3.5) * s * fade + s; g.beginPath(); g.arc(0, 0, r, -1.1, 1.1); g.stroke();
           g.strokeStyle = rgba(a.team, fade); g.lineWidth = 2 * s; g.beginPath(); g.arc(0, 0, r * .8, -.9, .9); g.stroke();
+          g.shadowBlur = 0; g.globalAlpha = fade; drawSparkle(g, Math.cos(1.1) * r, Math.sin(1.1) * r, uu * .45, SPARKC); g.globalAlpha = 1;
           g.restore();
           break;
         }
@@ -2307,16 +2379,20 @@ export class LolView extends ArenaViewBase {
           break;
         }
         case 'smite': {
-          const [X, Y, sc] = this.PS(a.x, a.y), uu = this.mapG.k * sc, R0 = Math.max(this.mapR.y, Y - uu * 14);
-          g.save(); g.shadowColor = '#ffd23f'; g.shadowBlur = 20 * s; g.strokeStyle = `rgba(255,236,150,${fade})`; g.lineWidth = 5 * s * fade + s; g.lineJoin = 'round';
-          g.beginPath(); g.moveTo(X + uu * .5, R0);
-          for (let i = 1; i <= 6; i++) g.lineTo(X + (i % 2 ? -1 : 1) * uu * .8 * (1 - i / 6), lerp(R0, Y - uu * 2, i / 6));
-          g.stroke(); g.restore();
+          // The lure: a soft column of golden light calls the creature to the team.
+          const [X, Y, sc] = this.PS(a.x, a.y), uu = this.mapG.k * sc, R0 = Math.max(this.mapR.y, Y - uu * 14), bw = uu * 1.4 * (.6 + .4 * fade);
+          const cg = g.createLinearGradient(0, R0, 0, Y); cg.addColorStop(0, 'rgba(255,236,150,0)'); cg.addColorStop(1, `rgba(255,236,150,${.7 * fade})`);
+          g.fillStyle = cg; g.fillRect(X - bw / 2, R0, bw, Y - R0);
+          for (let i = 0; i < 5; i++) { const ph = (k * 1.6 + i / 5) % 1; g.globalAlpha = fade; drawSparkle(g, X + Math.sin(ph * TAU * 1.5 + i) * uu * 1.1, lerp(Y - uu * .5, R0 + uu * 2, ph), uu * .45, SPARKC); }
+          g.globalAlpha = 1;
           break;
         }
         case 'death': {
-          const [X, Y, sc] = this.PS(a.x, a.y), cr = this.mapG.k * sc * 1.55, line = this.state.line[a.t][a.r] || {};
-          g.globalAlpha = .85 * fade; drawPortrait(g, X, Y - cr * .6 - k * 30 * s, cr * (1 - .2 * k), champInfo(this.state.meta, line.champ), '#888', { dead: true }); g.globalAlpha = 1;
+          // Tagged out: the champion fades in a puff of sparkles and drifts home.
+          const [X, Y, sc] = this.PS(a.x, a.y), cr = this.mapG.k * sc * 1.55, line = this.state.line[a.t][a.r] || {}, py = Y - cr * .6 - k * 30 * s;
+          g.globalAlpha = .7 * fade; drawPortrait(g, X, py, cr * (1 - .2 * k), champInfo(this.state.meta, line.champ), '#c4cdf0', { dead: true });
+          for (let i = 0; i < 7; i++) { const an = i / 7 * TAU + a.t * 2 + a.r, d = cr * (.6 + 1.4 * easeOut(k)); g.globalAlpha = fade; drawSparkle(g, X + Math.cos(an) * d, py + Math.sin(an) * d * .8 - k * cr, cr * .28 * (1 - .5 * k), i % 2 ? SPARKC : '#dfe6ff'); }
+          g.globalAlpha = 1;
           break;
         }
         case 'num': {
@@ -2399,7 +2475,7 @@ export class LolView extends ArenaViewBase {
     for (const lane of ['top', 'mid', 'bot']) {
       const f = waveFront(st, lane), path = L[lane];
       for (let side = 0; side < 2; side++) {
-        const col = SIDE_COLORS[side][0], sup = st.inhibs[`${1 - side}-${lane}`] === false;
+        const col = SIDE_COLORS[side][0], light = SIDE_COLORS[side][1], sup = st.inhibs[`${1 - side}-${lane}`] === false;
         for (let w = 0; w < 3; w++) {
           const ph = ((this.anim * .09 + w / 3 + (lane === 'mid' ? .1 : lane === 'top' ? .2 : 0)) % 1);
           const sPos = side === 0 ? ph * f : 1 - ph * (1 - f);
@@ -2409,9 +2485,13 @@ export class LolView extends ArenaViewBase {
             const p = lanePoint(path, sPos + off);
             const jx = ph > .85 ? Math.sin(this.anim * 20 + i) * .5 : 0;
             const [X, Y] = this.P(p[0] + (i % 2 ? .8 : -.8) + jx, p[1] + (i % 2 ? -.8 : .8));
+            // A wisp: a small orb of light bobbing above the path, with a soft halo.
+            const r = u * (sup && i === 0 ? .9 : .5), bob = Y - u * (.35 + .2 * Math.sin(this.anim * 4 + i * 1.7 + w));
+            g.globalAlpha = fade * .35; g.fillStyle = light;
+            g.beginPath(); g.arc(X, bob, r * 1.9, 0, TAU); g.fill();
             g.globalAlpha = fade * .95; g.fillStyle = col;
-            g.beginPath(); g.arc(X, Y, u * (sup && i === 0 ? .9 : .5), 0, TAU); g.fill();
-            g.fillStyle = 'rgba(255,255,255,.5)'; g.beginPath(); g.arc(X - u * .12, Y - u * .15, u * .18, 0, TAU); g.fill();
+            g.beginPath(); g.arc(X, bob, r, 0, TAU); g.fill();
+            g.fillStyle = 'rgba(255,255,240,.8)'; g.beginPath(); g.arc(X, bob, r * .45, 0, TAU); g.fill();
           }
         }
       }
@@ -2447,42 +2527,57 @@ export class LolView extends ArenaViewBase {
     const bar = (x, by, w, hp, col) => {
       const bh = Math.max(3 * s, w * .1);
       g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - w / 2 - 1, by - 1, w + 2, bh + 2);
-      g.fillStyle = hp > .6 ? col : hp > .3 ? '#f0b13a' : '#ef5350'; g.fillRect(x - w / 2, by, w * hp, bh);
+      g.fillStyle = hp > .6 ? col : hp > .3 ? '#f0b13a' : '#ff9a52'; g.fillRect(x - w / 2, by, w * hp, bh);
     };
     for (const it of items) {
       const o = it.o, [x, y, sc] = it.p, u = this.mapG.k * sc, col = SIDE_COLORS[o.side][0], light = SIDE_COLORS[o.side][1];
       const hold = isHeld(it.kind, o), dhp = hold ? drainHp(so, this.anim) : 1;
+      // A glow halo (a radial gradient: cheaper than shadowBlur).
+      const halo = (hx, hy, r, c, al) => { if (!(al > .01)) return; const hg = g.createRadialGradient(hx, hy, 0, hx, hy, r); hg.addColorStop(0, rgba(c, al)); hg.addColorStop(1, rgba(c, 0)); g.fillStyle = hg; g.beginPath(); g.arc(hx, hy, r, 0, TAU); g.fill(); };
+      // A wisp of mist rising from a light that went out (no smoke, no rubble).
+      const mist = (mx, my, r) => { for (let i = 0; i < 2; i++) { const k = (this.now * .3 + i / 2 + o.x * .01) % 1; g.fillStyle = `rgba(200,206,235,${.18 * (1 - k)})`; g.beginPath(); g.arc(mx + Math.sin(i * 2 + this.now) * r * .3, my - r * k * 2.4, r * (.4 + k * .7), 0, TAU); g.fill(); } };
       if (it.kind === 'tower') {
+        // A lantern tower: its light follows its HP, and it goes dark (dimmed) when taken.
         const alive = hold || st.towers[`${o.side}-${o.lane}-${o.tier}`] !== false, a = u * 1.05;
+        const hp = alive ? (hold ? dhp : this.towerHp(o)) : 0, lit = alive ? .3 + .7 * hp : 0;
+        g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(x, y, a * 1.3, a * .6, 0, 0, TAU); g.fill();
+        g.fillStyle = '#5a5568'; g.beginPath(); g.ellipse(x, y - a * .1, a * .75, a * .32, 0, 0, TAU); g.fill();
+        g.fillStyle = alive ? '#3d3649' : '#34323d'; g.beginPath(); g.moveTo(x - a * .3, y - a * .1); g.lineTo(x - a * .18, y - a * 2.6); g.lineTo(x + a * .18, y - a * 2.6); g.lineTo(x + a * .3, y - a * .1); g.closePath(); g.fill();
+        const ly = y - a * 3.2; // lantern centre
+        if (alive) halo(x, ly, a * (1.8 + 1.4 * lit) * (.92 + .08 * Math.sin(this.now * 3 + o.x)), light, .45 * lit);
+        // Glass: warm flame inside the team's light.
+        const glass = g.createLinearGradient(x, ly - a * .55, x, ly + a * .55);
+        if (alive) { glass.addColorStop(0, rgba(light, .5 + .5 * lit)); glass.addColorStop(.55, rgba('#ffd27a', .35 + .65 * lit)); glass.addColorStop(1, rgba(col, .6 + .4 * lit)); }
+        else { glass.addColorStop(0, '#5b6070'); glass.addColorStop(1, '#3c404c'); }
+        g.fillStyle = glass; g.beginPath(); g.moveTo(x - a * .5, ly + a * .55); g.lineTo(x - a * .42, ly - a * .55); g.lineTo(x + a * .42, ly - a * .55); g.lineTo(x + a * .5, ly + a * .55); g.closePath(); g.fill();
+        g.strokeStyle = alive ? col : '#5d6070'; g.lineWidth = Math.max(1, a * .12); g.stroke();
+        g.beginPath(); g.moveTo(x, ly - a * .55); g.lineTo(x, ly + a * .55); g.stroke();
+        g.fillStyle = alive ? col : '#55586a'; g.beginPath(); g.moveTo(x - a * .62, ly - a * .55); g.lineTo(x + a * .62, ly - a * .55); g.lineTo(x, ly - a * 1.15); g.closePath(); g.fill();
+        g.fillRect(x - a * .55, ly + a * .55, a * 1.1, a * .16);
         if (alive) {
-          g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, a * 1.3, a * .6, 0, 0, TAU); g.fill();
-          const body = g.createLinearGradient(x - a, 0, x + a, 0); body.addColorStop(0, '#7b8190'); body.addColorStop(.5, '#a9afbd'); body.addColorStop(1, '#4f5462');
-          g.fillStyle = body; g.beginPath(); g.moveTo(x - a * .75, y); g.lineTo(x - a * .5, y - a * 2.6); g.lineTo(x + a * .5, y - a * 2.6); g.lineTo(x + a * .75, y); g.closePath(); g.fill();
-          g.fillStyle = col; g.fillRect(x - a * .75, y - a * 3.0, a * 1.5, a * .5);
-          const pulse = .7 + .3 * Math.sin(this.now * 3 + o.x);
-          g.shadowColor = light; g.shadowBlur = a * 2 * pulse; g.fillStyle = light; g.beginPath(); g.arc(x, y - a * 3.5, a * .45, 0, TAU); g.fill(); g.shadowBlur = 0;
-          const hp = hold ? dhp : this.towerHp(o);
-          const bw = a * 2.4, bh = Math.max(2 * s, a * .32), by = y - a * 4.5;
+          g.fillStyle = `rgba(255,248,215,${.4 + .6 * lit})`; g.beginPath(); g.ellipse(x, ly + a * .08, a * .14, a * .24 * (.9 + .1 * Math.sin(this.now * 9 + o.y)), 0, 0, TAU); g.fill();
+          const bw = a * 2.4, bh = Math.max(2 * s, a * .32), by = y - a * 4.8;
           g.fillStyle = 'rgba(0,0,0,.75)'; g.fillRect(x - bw / 2 - 1, by - 1, bw + 2, bh + 2);
-          g.fillStyle = hp > .6 ? col : hp > .4 ? '#f0b13a' : '#ef5350'; g.fillRect(x - bw / 2, by, bw * hp, bh);
-        } else {
-          g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(x, y, a * 1.6, a * .7, 0, 0, TAU); g.fill();
-          const R = rng(hash(`${o.side}${o.lane}${o.tier}`));
-          for (let i = 0; i < 6; i++) { g.fillStyle = i % 2 ? '#6d6a64' : '#4b4945'; g.beginPath(); const rx = x + (R() - .5) * a * 2, ry = y + (R() - .5) * a * .8 - a * .2; g.moveTo(rx, ry - a * .4); g.lineTo(rx + a * .4, ry); g.lineTo(rx, ry + a * .25); g.lineTo(rx - a * .35, ry); g.closePath(); g.fill(); }
-          g.fillStyle = rgba(col, .6); g.fillRect(x - a * .4, y - a * .3, a * .8, a * .2);
-        }
+          g.fillStyle = hp > .6 ? col : hp > .4 ? '#f0b13a' : '#ff9a52'; g.fillRect(x - bw / 2, by, bw * hp, bh);
+        } else mist(x, ly - a * .6, a * .7);
       } else if (it.kind === 'inhib') {
+        // A Seed Shrine: a glowing seed over a stone ring; dimmed, it rests dark until it glows again.
         const key = `${o.side}-${o.lane}`, up = hold || st.inhibs[key] !== false, a = u * 1.1;
         if (hold) bar(x, y - a * 3.3, a * 2.6, dhp, col);
-        g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, a * 1.3, a * .55, 0, 0, TAU); g.fill();
-        g.fillStyle = '#5d6170'; g.beginPath(); g.ellipse(x, y - a * .2, a * 1.1, a * .45, 0, 0, TAU); g.fill();
+        g.fillStyle = 'rgba(0,0,0,.4)'; g.beginPath(); g.ellipse(x, y, a * 1.3, a * .55, 0, 0, TAU); g.fill();
+        g.fillStyle = '#6a6478'; g.beginPath(); g.ellipse(x, y - a * .2, a * 1.1, a * .45, 0, 0, TAU); g.fill();
+        g.fillStyle = '#3a3548'; g.beginPath(); g.ellipse(x, y - a * .2, a * .72, a * .28, 0, 0, TAU); g.fill();
+        g.fillStyle = '#7f7890'; for (let i = 0; i < 5; i++) { const an = i / 5 * TAU + .3; g.beginPath(); g.ellipse(x + Math.cos(an) * a * .92, y - a * .25 + Math.sin(an) * a * .38, a * .14, a * .22, 0, 0, TAU); g.fill(); }
+        const seed = (cy, k) => { g.beginPath(); g.moveTo(x, cy - a * 1.0 * k); g.quadraticCurveTo(x + a * .72 * k, cy + a * .05 * k, x, cy + a * .6 * k); g.quadraticCurveTo(x - a * .72 * k, cy + a * .05 * k, x, cy - a * 1.0 * k); g.closePath(); g.fill(); };
         if (up) {
-          const hov = Math.sin(this.now * 2 + o.x) * a * .2;
-          g.shadowColor = light; g.shadowBlur = a * 2.5; g.fillStyle = col;
-          g.beginPath(); g.moveTo(x, y - a * 2.6 + hov); g.lineTo(x + a * .7, y - a * 1.5 + hov); g.lineTo(x, y - a * .5 + hov); g.lineTo(x - a * .7, y - a * 1.5 + hov); g.closePath(); g.fill(); g.shadowBlur = 0;
-          g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.moveTo(x, y - a * 2.4 + hov); g.lineTo(x + a * .25, y - a * 1.5 + hov); g.lineTo(x, y - a * 1.1 + hov); g.closePath(); g.fill();
+          const hov = Math.sin(this.now * 2 + o.x) * a * .2, cy = y - a * 1.5 + hov, glow = hold ? .4 + .6 * dhp : 1;
+          halo(x, cy, a * 2.4, light, .5 * glow);
+          const sg = g.createLinearGradient(x, cy - a, x, cy + a * .6); sg.addColorStop(0, light); sg.addColorStop(1, col);
+          g.fillStyle = sg; seed(cy, 1);
+          g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(x - a * .16, cy - a * .2, a * .12, a * .3, -.3, 0, TAU); g.fill();
+          g.fillStyle = '#8fe07a'; g.beginPath(); g.ellipse(x + a * .2, cy - a * 1.05, a * .26, a * .12, -.6, 0, TAU); g.fill();
         } else {
-          g.fillStyle = '#444852'; g.beginPath(); g.moveTo(x - a * .6, y - a * .3); g.lineTo(x - a * .2, y - a * 1.0); g.lineTo(x + a * .1, y - a * .4); g.lineTo(x + a * .5, y - a * .9); g.lineTo(x + a * .6, y - a * .2); g.closePath(); g.fill();
+          g.fillStyle = '#565a6a'; seed(y - a * .65, .7);
           const t0 = st.inhibDown[key];
           if (Number.isFinite(t0)) {
             const left = clamp(1 - (this.clock - t0) / 300, 0, 1);
@@ -2491,20 +2586,25 @@ export class LolView extends ArenaViewBase {
           }
         }
       } else {
-        const alive = hold || st.nexus[o.side], a = u * 1.6;
-        if (hold) bar(x, y - a * 3.8, a * 2.6, dhp, col);
-        g.fillStyle = 'rgba(0,0,0,.5)'; g.beginPath(); g.ellipse(x, y, a * 1.6, a * .7, 0, 0, TAU); g.fill();
-        g.fillStyle = '#4d5260'; g.beginPath(); g.ellipse(x, y - a * .2, a * 1.4, a * .6, 0, 0, TAU); g.fill();
+        // The Heart Lantern: the big lantern of each base; dimming it wins the game.
+        const alive = hold || st.nexus[o.side], a = u * 1.6, lit = alive ? (hold ? .3 + .7 * dhp : 1) : 0;
+        if (hold) bar(x, y - a * 4.2, a * 2.6, dhp, col);
+        g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.ellipse(x, y, a * 1.6, a * .7, 0, 0, TAU); g.fill();
+        g.fillStyle = '#4d4860'; g.beginPath(); g.ellipse(x, y - a * .2, a * 1.4, a * .6, 0, 0, TAU); g.fill();
+        const top = y - a * 3.1, bot = y - a * .45;
+        if (alive) halo(x, (top + bot) / 2, a * 3.2 * (.9 + .1 * Math.sin(this.now * 2 + o.side)), light, .5 * lit);
+        const gl = g.createLinearGradient(x, top, x, bot);
+        if (alive) { gl.addColorStop(0, rgba(light, .6 + .4 * lit)); gl.addColorStop(.5, rgba('#ffe09a', .4 + .6 * lit)); gl.addColorStop(1, rgba(col, .7 + .3 * lit)); }
+        else { gl.addColorStop(0, '#4f5464'); gl.addColorStop(1, '#30333e'); }
+        g.fillStyle = gl; g.beginPath(); g.roundRect(x - a * .72, top, a * 1.44, bot - top, a * .45); g.fill();
+        g.strokeStyle = alive ? '#f2d58a' : '#6a6c78'; g.lineWidth = Math.max(1.2, a * .1); g.stroke();
+        for (const fx of [-.36, 0, .36]) { g.beginPath(); g.moveTo(x + fx * a, top + a * .12); g.lineTo(x + fx * a, bot - a * .12); g.stroke(); }
+        g.fillStyle = alive ? '#f2d58a' : '#6a6c78'; g.beginPath(); g.ellipse(x, top, a * .85, a * .28, 0, Math.PI, TAU); g.fill();
+        g.beginPath(); g.arc(x, top - a * .45, a * .16, 0, TAU); g.fill();
         if (alive) {
-          const pulse = .6 + .4 * Math.sin(this.now * 2 + o.side);
-          g.shadowColor = light; g.shadowBlur = a * 3 * pulse;
-          const gr = g.createLinearGradient(x, y - a * 3, x, y); gr.addColorStop(0, light); gr.addColorStop(1, col);
-          g.fillStyle = gr; g.beginPath(); g.moveTo(x, y - a * 3.2); g.lineTo(x + a * .9, y - a * 1.6); g.lineTo(x + a * .5, y - a * .4); g.lineTo(x - a * .5, y - a * .4); g.lineTo(x - a * .9, y - a * 1.6); g.closePath(); g.fill(); g.shadowBlur = 0;
-          g.strokeStyle = rgba(light, .6); g.lineWidth = 1.5 * s; g.beginPath(); g.ellipse(x, y - a * 1.6, a * 1.5, a * .5, 0, this.now % TAU, this.now % TAU + Math.PI * 1.3); g.stroke();
-        } else {
-          g.fillStyle = '#2a2b30'; g.beginPath(); g.ellipse(x, y - a * .3, a * 1.1, a * .45, 0, 0, TAU); g.fill();
-          for (let i = 0; i < 3; i++) { const k = ((this.now * .4 + i / 3) % 1); g.fillStyle = `rgba(120,120,130,${.35 * (1 - k)})`; g.beginPath(); g.arc(x + Math.sin(i * 2 + this.now) * a * .3, y - a * (.6 + k * 3), a * (.4 + k * .8), 0, TAU); g.fill(); }
-        }
+          g.fillStyle = `rgba(255,250,225,${.5 + .5 * lit})`; g.beginPath(); g.ellipse(x, (top + bot) / 2 + a * .1, a * .26, a * .5 * (.92 + .08 * Math.sin(this.now * 7)), 0, 0, TAU); g.fill();
+          g.strokeStyle = rgba(light, .6 * lit); g.lineWidth = 1.5 * s; g.beginPath(); g.ellipse(x, y - a * 1.7, a * 1.5, a * .5, 0, this.now % TAU, this.now % TAU + Math.PI * 1.3); g.stroke();
+        } else mist(x, top - a * .2, a);
       }
     }
   }
@@ -2532,28 +2632,28 @@ export class LolView extends ArenaViewBase {
 
   drawPitBadges() {
     const st = this.state, m = st.map, o = st.obj, c = this.clock, names = this.names();
-    const taken = (rec, kind) => rec && c - rec.t < 70 ? { sub: `TAKEN BY ${names[rec.team].toUpperCase()}`, col: teamColor(st.meta, rec.team) } : null;
+    const taken = (rec, kind) => rec && c - rec.t < 70 ? { sub: `FRIENDS WITH ${names[rec.team].toUpperCase()}`, col: teamColor(st.meta, rec.team) } : null;
     // Dragon pit.
     {
       const soul = st.soul[0] || st.soul[1];
       const nTaken = st.dragons[0].length + st.dragons[1].length;
       const type = nTaken >= 3 ? (st.dragons[0].concat(st.dragons[1]).slice(-1)[0]) : null;
       let label, col, next, glyph = drawDrake;
-      if (soul) { label = 'ELDER DRAGON'; col = DRAGON_COLORS.elder; next = o.elderNext; }
-      else { label = type ? `${type.toUpperCase()} DRAKE` : 'DRAKE'; col = DRAGON_COLORS[type] || '#ff8a3d'; next = o.dragonNext; }
+      if (soul) { label = T.elder; col = DRAGON_COLORS.elder; next = o.elderNext; }
+      else { label = type ? T.drake(type) : 'SKY DRAGON'; col = DRAGON_COLORS[type] || '#ff8a3d'; next = o.dragonNext; }
       const up = Number.isFinite(next) && c >= next;
       const tk = taken(o.last.dragon);
-      const sub = tk ? tk.sub : up ? 'ALIVE' : Number.isFinite(next) ? `SPAWNS IN ${fmtClock(next - c)}` : '';
+      const sub = tk ? tk.sub : up ? 'AWAKE' : Number.isFinite(next) ? `WAKES IN ${fmtClock(next - c)}` : '';
       this.drawBadge(m.dragon.x, m.dragon.y, glyph, col, label, sub, tk ? tk.col : up ? col : null, up);
     }
     // Baron pit: grubs → herald → baron.
     {
-      let label, col = '#a35bff', glyph = drawBaronGlyph, up, sub, tk;
-      if (taken(o.last.grubs) && c < 840 + 70) { label = 'VOID GRUBS'; col = '#a78bfa'; glyph = drawGrubsGlyph; up = false; tk = taken(o.last.grubs); }
-      else if (c < 840 && !o.grubsTaken) { label = 'VOID GRUBS'; col = '#a78bfa'; glyph = drawGrubsGlyph; up = c >= 360; sub = up ? 'ALIVE' : `SPAWN IN ${fmtClock(360 - c)}`; tk = taken(o.last.grubs); }
-      else if (c < 1185 && !o.heraldTaken && c < o.baronNext) { label = 'RIFT HERALD'; col = '#c48bff'; glyph = drawEyeGlyph; up = c >= 840; sub = up ? 'ALIVE' : `SPAWNS IN ${fmtClock(840 - c)}`; tk = taken(o.last.herald); }
-      else if (taken(o.last.herald) && c < o.baronNext) { label = 'RIFT HERALD'; col = '#c48bff'; glyph = drawEyeGlyph; up = false; tk = taken(o.last.herald); }
-      else { label = 'BARON NASHOR'; up = c >= o.baronNext; sub = up ? 'ALIVE' : `SPAWNS IN ${fmtClock(o.baronNext - c)}`; tk = taken(o.last.baron); }
+      let label, col = MOON, glyph = drawBaronGlyph, up, sub, tk;
+      if (taken(o.last.grubs) && c < 840 + 70) { label = T.grubsBanner; col = GRUBC; glyph = drawGrubsGlyph; up = false; tk = taken(o.last.grubs); }
+      else if (c < 840 && !o.grubsTaken) { label = T.grubsBanner; col = GRUBC; glyph = drawGrubsGlyph; up = c >= 360; sub = up ? 'AWAKE' : `WAKE IN ${fmtClock(360 - c)}`; tk = taken(o.last.grubs); }
+      else if (c < 1185 && !o.heraldTaken && c < o.baronNext) { label = T.herald; col = HERALDC; glyph = drawEyeGlyph; up = c >= 840; sub = up ? 'AWAKE' : `WAKES IN ${fmtClock(840 - c)}`; tk = taken(o.last.herald); }
+      else if (taken(o.last.herald) && c < o.baronNext) { label = T.herald; col = HERALDC; glyph = drawEyeGlyph; up = false; tk = taken(o.last.herald); }
+      else { label = T.baron; up = c >= o.baronNext; sub = up ? 'AWAKE' : `WAKES IN ${fmtClock(o.baronNext - c)}`; tk = taken(o.last.baron); }
       this.drawBadge(m.baron.x, m.baron.y, glyph, col, label, tk ? tk.sub : sub, tk ? tk.col : up ? col : null, up && !tk);
     }
   }
@@ -2637,17 +2737,20 @@ export class LolView extends ArenaViewBase {
         g.strokeStyle = rgba(col, .85 * ct); g.lineWidth = 2.5 * s; g.beginPath(); g.ellipse(it.x, it.y + cr * .35, cr * 1.15, cr * .45, 0, 0, TAU); g.stroke();
       }
       if (it.dead) {
-        g.globalAlpha = .55; drawPortrait(g, x, y, cr * .85, info, col, { dead: true }); g.globalAlpha = 1;
+        // Tagged out: a translucent ghost at base, with a few sparkles, until it relights.
+        g.globalAlpha = .4; drawPortrait(g, x, y, cr * .85, info, col, { dead: true });
+        g.globalAlpha = .7; for (let i = 0; i < 3; i++) { const an = this.now * 1.5 + i * 2.1 + it.r; drawSparkle(g, x + Math.cos(an) * cr, y + Math.sin(an) * cr * .7, cr * .22, SPARKC); }
+        g.globalAlpha = 1;
         const left = Math.ceil(Math.max(0, st.dead[it.t][it.r] - this.clock));
-        if (left > 0) { this.panel(x - cr * .7, y - cr * .5, cr * 1.4, cr, cr * .3, 'rgba(0,0,0,.7)', null); this.txt(String(left), x, y, cr * .8, '#ff8080', 'center', 900); }
+        if (left > 0) { this.panel(x - cr * .7, y - cr * .5, cr * 1.4, cr, cr * .3, 'rgba(0,0,0,.7)', null); this.txt(String(left), x, y, cr * .8, '#cfe0ff', 'center', 900); }
         continue;
       }
-      if (st.buff[it.t].baron > this.clock) { g.strokeStyle = `rgba(170,100,255,${.6 + .3 * Math.sin(this.now * 5)})`; g.lineWidth = 2.5 * s; g.beginPath(); g.arc(x, y, cr * 1.3, 0, TAU); g.stroke(); }
+      if (st.buff[it.t].baron > this.clock) { g.strokeStyle = `rgba(214,208,255,${.6 + .3 * Math.sin(this.now * 5)})`; g.lineWidth = 2.5 * s; g.beginPath(); g.arc(x, y, cr * 1.3, 0, TAU); g.stroke(); }
       if (st.buff[it.t].elder > this.clock) { g.strokeStyle = 'rgba(245,225,122,.9)'; g.lineWidth = 2 * s; g.beginPath(); g.arc(x, y, cr * 1.5, 0, TAU); g.stroke(); }
       drawPortrait(g, x, y, cr, info, col, {});
       const hp = this.hp[it.t][it.r], bw = cr * 2.2, bh = Math.max(2.5 * s, cr * .26), by = y - cr * 1.55;
       g.fillStyle = 'rgba(0,0,0,.8)'; g.fillRect(x - bw / 2 - 1, by - 1, bw + 2, bh + 2);
-      g.fillStyle = hp > .5 ? (it.t === blueTeam(st.meta) ? '#4fa3ff' : '#ff5d6a') : hp > .25 ? '#f0b13a' : '#ef3b3b'; g.fillRect(x - bw / 2, by, bw * hp, bh);
+      g.fillStyle = hp > .5 ? (it.t === blueTeam(st.meta) ? '#4fa3ff' : '#ff5d6a') : hp > .25 ? '#f0b13a' : '#ff9a52'; g.fillRect(x - bw / 2, by, bw * hp, bh);
       g.fillStyle = 'rgba(0,0,0,.5)'; for (let i = 1; i < 4; i++) g.fillRect(x - bw / 2 + bw * i / 4, by, Math.max(1, s * .8), bh);
       // Up close, a name plate like in the game.
       if (ct > .35) {
@@ -2662,11 +2765,11 @@ export class LolView extends ArenaViewBase {
     const g = this.ctx, u = Math.min(this.u, this.mapG.k * 1.6), s = this.s;
     for (const k of this.skulls) {
       const a = clamp(Math.min(k.age * 4, (k.life - k.age) / .6), 0, 1), [x, y] = this.P(k.x, k.y);
-      g.globalAlpha = a; this.panel(x - u * 1.5, y - u * 4.6, u * 3, u * 3, u * 1.5, 'rgba(0,0,0,.65)', k.color); drawSkull(g, x, y - u * 3.05, u * 1.15, '#f2f2f2'); g.globalAlpha = 1;
+      g.globalAlpha = a; this.panel(x - u * 1.5, y - u * 4.6, u * 3, u * 3, u * 1.5, 'rgba(0,0,0,.65)', k.color); drawSparkle(g, x, y - u * 3.1, u * 1.15, SPARKC); g.globalAlpha = 1;
     }
     for (const c of this.clashes) {
       const k = c.age / c.life, [x, y] = this.P(c.x, c.y), r = u * (c.big ? 3.2 : 2.2) * (1 + .4 * easeOut(Math.min(1, k * 3)));
-      g.globalAlpha = 1 - k; g.shadowColor = '#fff2c0'; g.shadowBlur = 14 * s; drawSwords(g, x, y - u * 2, r, '#fff6d8'); g.shadowBlur = 0; g.globalAlpha = 1;
+      g.globalAlpha = 1 - k; g.shadowColor = '#fff2c0'; g.shadowBlur = 14 * s; drawClash(g, x, y - u * 2, r, '#fff6d8'); g.shadowBlur = 0; g.globalAlpha = 1;
     }
     for (const p of this.popups) {
       const k = p.age / p.life, [x, y] = this.P(p.x, p.y);
@@ -2691,7 +2794,7 @@ export class LolView extends ArenaViewBase {
       g.fillStyle = col; g.fillRect(k === 0 ? x : x + cw - 4 * s, y, 4 * s, ch);
       const al = k === 0 ? 'left' : 'right', tx = k === 0 ? x + 12 * s : x + cw - 12 * s;
       this.txt(this.fit(`${names[team].toUpperCase()} · ${T.plan}`, cw - 24 * s, 10 * s, 800), tx, y + 14 * s, 10 * s, col, al, 800);
-      this.txt(this.fit(plan ? planText(plan) : 'Loading into the Rift…', cw - 24 * s, 15 * s, 800), tx, y + 34 * s, 15 * s, '#fff', al, 800);
+      this.txt(this.fit(plan ? planText(plan) : 'Lighting up the Glowvale…', cw - 24 * s, 15 * s, 800), tx, y + 34 * s, 15 * s, '#fff', al, 800);
     }
     // Kill feed (bottom right).
     const fw = Math.min(215 * s, R.w * .28), rh = 24 * s;
@@ -2707,16 +2810,17 @@ export class LolView extends ArenaViewBase {
       drawPortrait(g, x + 8 * s + r, y + rh / 2, r, champInfo(st.meta, f.killer.champ), kc);
       const nw = (fw - 4 * r - 60 * s) / 2;
       this.txt(this.fit(f.killer.champ || '', nw, 10.5 * s, 800), x + 12 * s + r * 2, y + rh / 2, 11 * s, '#fff', 'left', 800);
-      drawSwords(g, x + fw / 2 + 6 * s, y + rh / 2, rh * .25, f.ace || f.multi >= 3 ? GOLDC : '#ddd');
+      if (f.ace || f.multi >= 3) { g.fillStyle = rgba(GOLDC, .25); g.beginPath(); g.arc(x + fw / 2 + 6 * s, y + rh / 2, rh * .36, 0, TAU); g.fill(); }
+      this.txt('✨', x + fw / 2 + 6 * s, y + rh / 2 + .5 * s, rh * .5, '#fff', 'center', 700);
       this.txt(this.fit(f.victim.champ || '', nw, 10.5 * s, 700), x + fw - 12 * s - r * 2, y + rh / 2, 10.5 * s, 'rgba(255,255,255,.75)', 'right', 700);
       drawPortrait(g, x + fw - 8 * s - r, y + rh / 2, r, champInfo(st.meta, f.victim.champ), vc, { dead: true });
       g.globalAlpha = 1;
     });
     // Upcoming objectives (bottom left).
     const o = st.obj, c = this.clock, rows = [];
-    if (st.soul[0] || st.soul[1]) rows.push(['ELDER', o.elderNext, DRAGON_COLORS.elder]); else rows.push(['DRAGON', o.dragonNext, '#ff8a3d']);
-    if (!o.heraldTaken && c < 1185 && c < o.baronNext) rows.push(['HERALD', 840, '#c48bff']);
-    rows.push(['BARON', o.baronNext, '#a35bff']);
+    if (st.soul[0] || st.soul[1]) rows.push(['ELDER', o.elderNext, DRAGON_COLORS.elder]); else rows.push(['SKY DRAGON', o.dragonNext, '#ff8a3d']);
+    if (!o.heraldTaken && c < 1185 && c < o.baronNext) rows.push(['HERALD', 840, HERALDC]);
+    rows.push(['MOON BARON', o.baronNext, MOON]);
     const ow = Math.min(150 * s, R.w * .2), oh = 20 * s;
     rows.forEach(([lab, t, col], i) => {
       const x = R.x + 4 * s, y = R.y + R.h - (rows.length - i) * (oh + 3 * s);
@@ -2786,7 +2890,7 @@ export class LolView extends ArenaViewBase {
       const dr = st.dragons[team];
       const dw = 14 * s * Math.max(4, dr.length) + 6 * s, dx0 = left ? sx - dw : sx;
       for (let i = 0; i < Math.max(4, dr.length); i++) drawDiamond(g, dx0 + 8 * s + i * 14 * s, cy, 6 * s, dr[i] ? (DRAGON_COLORS[dr[i]] || '#fff') : 'rgba(255,255,255,.25)', !!dr[i]);
-      if (st.soul[team]) this.txt('SOUL', dx0 + dw / 2, cy + 13 * s, 8 * s, DRAGON_COLORS[st.soul[team]] || '#fff', 'center', 900);
+      if (st.soul[team]) this.txt('BLESSING', dx0 + dw / 2, cy + 13 * s, 8 * s, DRAGON_COLORS[st.soul[team]] || '#fff', 'center', 900);
     }
   }
 
@@ -2821,17 +2925,17 @@ export class LolView extends ArenaViewBase {
     g.fillStyle = hg; g.beginPath(); g.roundRect(x, y, w, hh, [8 * s, 8 * s, 0, 0]); g.fill();
     this.txt(this.fit(names[team].toUpperCase(), w * .55, hh * .55, 900), x + 8 * s, y + hh / 2, hh * .55, '#fff', 'left', 900);
     const narrowCols = w < 260 * s;
-    this.txt(narrowCols ? 'K/D/A' : 'K / D / A      GOLD', x + w - 8 * s, y + hh / 2, hh * .42, 'rgba(255,255,255,.7)', 'right', 800);
+    this.txt(narrowCols ? 'T/O/A' : 'T / O / A      GOLD', x + w - 8 * s, y + hh / 2, hh * .42, 'rgba(255,255,255,.7)', 'right', 800);
     const rh = (h - hh - 4 * s) / 5;
     const cur = this.cur && this.cur.ev.kind === 'kill' ? this.cur.ev.data || {} : null;
     for (let r = 0; r < 5; r++) {
       const ry = y + hh + 2 * s + r * rh, line = st.line[team][r] || {}, alive = isAlive(st, team, r) || st.mode === 'victory';
       const hot = cur && ((cur.killer && cur.killer.side === team && cur.killer.slot === r) || (cur.victim && cur.victim.side === team && cur.victim.slot === r));
-      if (hot) { g.fillStyle = rgba(cur.killer.side === team && cur.killer.slot === r ? GOLDC : '#ff4040', .18); g.fillRect(x + 2 * s, ry, w - 4 * s, rh - 1 * s); }
+      if (hot) { g.fillStyle = rgba(cur.killer.side === team && cur.killer.slot === r ? GOLDC : '#9fb8ff', .18); g.fillRect(x + 2 * s, ry, w - 4 * s, rh - 1 * s); }
       else if (r % 2) { g.fillStyle = 'rgba(255,255,255,.03)'; g.fillRect(x + 2 * s, ry, w - 4 * s, rh - 1 * s); }
       const pr = rh * .38, px = x + 8 * s + pr, py = ry + rh / 2;
       drawPortrait(g, px, py, pr, champInfo(st.meta, line.champ), col, { dead: !alive });
-      if (!alive) { const left = Math.ceil(Math.max(0, st.dead[team][r] - this.clock)); this.txt(String(left), px, py, pr * 1.05, '#ff8080', 'center', 900); }
+      if (!alive) { const left = Math.ceil(Math.max(0, st.dead[team][r] - this.clock)); this.txt(String(left), px, py, pr * 1.05, '#cfe0ff', 'center', 900); }
       const nx = px + pr + 6 * s, fs = Math.min(13 * s, rh * .42);
       this.txt(T.roleShort[ROLES[r]], nx, py, fs * .7, rgba(col, 1), 'left', 900);
       this.txt(this.fit(line.champ || '—', w * (narrowCols ? .3 : .34), fs, 800), nx + 30 * s, py - fs * .3, fs, alive ? '#fff' : 'rgba(255,255,255,.45)', 'left', 800);
@@ -2849,7 +2953,7 @@ export class LolView extends ArenaViewBase {
     const g = this.ctx, s = this.s, st = this.state, order = this.order(), names = this.names();
     this.panel(x, y, w, h, 8 * s);
     this.txt(T.objectives, x + 8 * s, y + 11 * s, 10 * s, 'rgba(242,217,141,.9)', 'left', 900);
-    const cols = [['TOWERS', w * .30], ['DRAGONS', w * .55], ['HERALD', w * .74], ['BARON', w * .9]];
+    const cols = [['LANTERNS', w * .30], ['DRAGONS', w * .55], ['HERALD', w * .74], ['MOON', w * .9]];
     cols.forEach(([l, cx]) => this.txt(l, x + cx, y + 11 * s, 8 * s, 'rgba(255,255,255,.45)', 'center', 800));
     const rh = (h - 22 * s) / 2;
     for (let k = 0; k < 2; k++) {
@@ -2859,11 +2963,11 @@ export class LolView extends ArenaViewBase {
       drawTowerIcon(g, x + w * .30 - 10 * s, cy, 7 * s, '#d9dde6'); this.txt(`${st.towersK[team] || 0}`, x + w * .30 + 2 * s, cy, 14 * s, '#fff', 'left', 900);
       const dr = st.dragons[team];
       for (let i = 0; i < 4; i++) drawDiamond(g, x + w * .55 + (i - 1.5) * 15 * s, cy, 6.5 * s, dr[i] ? DRAGON_COLORS[dr[i]] || '#fff' : 'rgba(255,255,255,.3)', !!dr[i]);
-      if (st.soul[team]) this.txt('SOUL', x + w * .55, cy + 11 * s, 8 * s, DRAGON_COLORS[st.soul[team]] || '#fff', 'center', 900);
+      if (st.soul[team]) this.txt('BLESSING', x + w * .55, cy + 11 * s, 8 * s, DRAGON_COLORS[st.soul[team]] || '#fff', 'center', 900);
       if (st.elders[team]) this.txt(`+${st.elders[team]} ELDER`, x + w * .55 + 34 * s, cy - 10 * s, 7 * s, DRAGON_COLORS.elder, 'left', 900);
-      g.save(); g.translate(x + w * .74 - 8 * s, cy); drawEyeGlyph(g, 6 * s, st.heralds[team] ? '#c48bff' : 'rgba(255,255,255,.25)'); g.restore();
+      g.save(); g.translate(x + w * .74 - 8 * s, cy); drawEyeGlyph(g, 6 * s, st.heralds[team] ? HERALDC : 'rgba(255,255,255,.25)'); g.restore();
       this.txt(`${st.heralds[team]}${st.grubs[team] ? ` +${st.grubs[team]}g` : ''}`, x + w * .74 + 2 * s, cy, 12 * s, '#fff', 'left', 800);
-      g.save(); g.translate(x + w * .9 - 9 * s, cy); drawBaronGlyph(g, 6 * s, st.barons[team] ? '#b77bff' : 'rgba(255,255,255,.25)'); g.restore();
+      g.save(); g.translate(x + w * .9 - 9 * s, cy); drawBaronGlyph(g, 6 * s, st.barons[team] ? MOON : 'rgba(255,255,255,.25)'); g.restore();
       this.txt(`${st.barons[team] || 0}`, x + w * .9 + 2 * s, cy, 12 * s, '#fff', 'left', 800);
     }
   }
@@ -2903,7 +3007,7 @@ export class LolView extends ArenaViewBase {
       g.fillStyle = '#0a0d16'; g.beginPath(); g.arc(mx, my, 6 * s, 0, TAU); g.fill();
       if (m.kind === 'dragon') drawDiamond(g, mx, my, 4.5 * s, m.color);
       else if (m.kind === 'baron' || m.kind === 'herald') { g.save(); g.translate(mx, my); (m.kind === 'baron' ? drawBaronGlyph : drawEyeGlyph)(g, 4.5 * s, m.color); g.restore(); }
-      else if (m.kind === 'ace' || m.kind === 'kill') drawSkull(g, mx, my, 4.2 * s, m.color);
+      else if (m.kind === 'ace' || m.kind === 'kill') drawSparkle(g, mx, my, 4.4 * s, m.color);
       else { g.fillStyle = m.color; g.beginPath(); g.arc(mx, my, 3.5 * s, 0, TAU); g.fill(); }
     }
     if (title) {
@@ -2978,7 +3082,7 @@ export class LolView extends ArenaViewBase {
       this.panel(x0, y0, tw, rowH * 6.1, 10 * s);
       g.fillStyle = c; g.fillRect(x0, y0, tw, 3 * s);
       this.txt(this.fit(names[team].toUpperCase(), tw * .55, 14 * s, 900), x0 + 12 * s, y0 + rowH * .55, 14 * s, c, 'left', 900);
-      this.txt('K / D / A     GOLD', x0 + tw - 12 * s, y0 + rowH * .55, 10 * s, 'rgba(255,255,255,.5)', 'right', 800);
+      this.txt('T / O / A     GOLD', x0 + tw - 12 * s, y0 + rowH * .55, 10 * s, 'rgba(255,255,255,.5)', 'right', 800);
       (players[team] || []).forEach((p, i) => {
         const y = y0 + (i + 1.55) * rowH;
         const mvp = e.mvp && e.mvp.side === team && e.mvp.slot === i;
@@ -3308,7 +3412,7 @@ export class LolView extends ArenaViewBase {
         T2(this.fit(tm[p].name.toUpperCase(), 150, 20, 900), px, y + 34, 20, tm[p].col, al);
         T2(String(st.kills[team] || 0), px, y + 112, 76, '#fff', al);
         T2(fmtGold(st.gold[team]), px, y + 176, 22, LED_GOLD, al, 800);
-        T2(`${st.towersK[team] || 0} towers · ${st.dragons[team].length} drakes`, px, y + 206, 13, 'rgba(255,255,255,.7)', al, 700);
+        T2(`${st.towersK[team] || 0} lanterns · ${st.dragons[team].length} sky dragons`, px, y + 206, 13, 'rgba(255,255,255,.7)', al, 700);
       }
       this.panel(cx - 44, y + h - 26, 88, 22, 6, 'rgba(0,0,0,.55)', null);
       T2(fmtClock(this.clock), cx, y + h - 15, 16, '#fff');
@@ -3762,11 +3866,11 @@ export class LolView extends ArenaViewBase {
     const col = team >= 0 ? teamColor(st.meta, team) : LED_GOLD, tm = this.arenaTeams();
     const vs = `${tm[0].name} vs ${tm[1].name}`;
     if (sc.kind === 'trophy') return [`${nm.toUpperCase()} ARE THE CHAMPIONS`, 'The cup is lifted on stage', col];
-    if (sc.sub === 'finale') return [`${nm.toUpperCase()} WIN!`, 'The nexus falls and the arena erupts', col];
-    if (sc.sub === 'opening') return [sc.label || T.grandFinal, `Live from the arena · ${vs}`, LED_GOLD];
-    if (sc.sub === 'ready') return ['GAME ON', 'Draft locked in · welcome to Summoner\'s Rift', LED_GOLD];
+    if (sc.sub === 'finale') return [`${nm.toUpperCase()} WIN!`, 'The Heart Lantern dims and the arena erupts', col];
+    if (sc.sub === 'opening') return [sc.label || T.grandFinal, `${T.game} · live from the arena · ${vs}`, LED_GOLD];
+    if (sc.sub === 'ready') return ['GAME ON', 'Draft locked in · welcome to the Glowvale', LED_GOLD];
     if (sc.kind === 'casters') {
-      if (sc.sub === 'intro') return ['THE CASTERS', `Champion draft coming up · ${vs}`, LED_GOLD];
+      if (sc.sub === 'intro') return ['THE CASTERS', `${T.credit} · champion draft coming up · ${vs}`, LED_GOLD];
       const picks = [0, 1].map(p => st.draft.picks[tm[p].team].map(x => x.champ).join(', ')).filter(Boolean);
       return [sc.label || 'CASTERS', picks.length ? `First picks: ${picks.join('  |  ')}` : 'Breaking down the draft', LED_GOLD];
     }

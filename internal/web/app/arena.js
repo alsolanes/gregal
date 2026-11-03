@@ -23,7 +23,7 @@ const api = (path, opts) => window.api(path, opts).then(async r => { const j = a
 const lang = () => 'en';
 const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
 const RUBRIC = ['clarity', 'coverage', 'adaptivity', 'specificity', 'consistency'];
-const ICON = { nfl: '🏈', cs2: '💦', lol: '🐉' };
+const ICON = { nfl: '🏈', cs2: '💦', lol: '🏮' };
 // Només pantalla tàctil (cap punter fi): el CS2 en directe necessita teclat i ratolí.
 const touchOnly = () => { try { return !matchMedia('(any-pointer: fine)').matches && matchMedia('(any-pointer: coarse)').matches; } catch (e) { return false; } };
 const n0 = v => Math.round(+v || 0).toLocaleString('en');
