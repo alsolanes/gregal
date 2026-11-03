@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.49.0 - 2026-11-03 - Colles al xat de grup: construeixen i revisen de veritat
+
 - **El xat d'un grup existent fa feina de colla de veritat.** Quan en un grup
   demanes programar o construir alguna cosa, la colla s'engega sola: discuteixen
   el disseny, un construeix (escriu fitxers reals) i un altre revisa amb eines
