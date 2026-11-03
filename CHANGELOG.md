@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **L'Arena, més fàcil de començar i d'entendre.** Assistent **✨ Build my
+  strategy**: tres preguntes amb targetes per joc i un `.md` complet a punt per
+  jugar, amb les taules de contrajoc tretes del motor (l'estil només desempata
+  entre respostes igual de bones). Guia **What beats what** al costat de
+  l'editor, generada de les taules de cada motor: tria què fa el rival, mira les
+  respostes amb el perquè, afegeix la regla amb un clic o obre la taula sencera.
+  A la tele, «How it is played» ensenya els duels clau (NFL, CS2) i el cicle de
+  postures del LoL animats. Arreglat: la prèvia i l'anàlisi ja no es tallen a
+  mitja frase, la targeta del moment del prompt no tapa el marcador del visor,
+  la barra del reproductor no tapa el marcador de baix, i a la càmera de
+  jugador de l'NFL qui passa davant de l'objectiu es fa transparent.
+
 ## v1.42.0 - 2026-11-03 - Calendari, correu i resum del matí
 
 - **Google Calendar, Gmail i el resum del matí.** Cada compte connecta el seu

@@ -9,6 +9,8 @@ import { exportVideo, momentsByEvent, momentKeys, showMomentCard, sideColor, mom
 import { mountScrubber, fmtTime } from './arena-scrubber.js';
 import { buildTrack, filterTrack, activeEntry, captionOf, trackItemHTML, summaryHTML, playerCSS, callText } from './arena-player.js';
 import { has3D, mount3D } from './arena-3d.js';
+import { playbookHTML, tableHTML, playbookCSS, ruleFor, addRule } from './arena-playbook.js';
+import { QUESTIONS, DEFAULTS, buildMD, builderHTML, builderCSS } from './arena-builder.js';
 import { applyFix, undoFix, diffLines, diffHunks, diffCount, matchesByVersion, versionStats, lastPractice, topMistakes, coachScore } from './arena-learn.js';
 
 const $ = id => document.getElementById(id);
@@ -46,7 +48,7 @@ const arenaUI = {
 
   build(page) {
     page.dataset.ready = '1';
-    momentCSS(); playerCSS();
+    momentCSS(); playerCSS(); playbookCSS(); builderCSS();
     page.innerHTML = `<div class="ar">
       <header class="ar-head"><div><div class="page-kicker">${esc(T('ar.kicker'))}</div><h1 class="page-title">${esc(T('ar.title'))}</h1>
         <p class="page-copy">${esc(T('ar.lead2'))}</p></div>
@@ -67,6 +69,8 @@ const arenaUI = {
         <ol class="ar-steps" id="arSteps"><li>${esc(T('ar.step1'))}</li><li>${esc(T('ar.step2'))}</li><li>${esc(T('ar.step3'))}</li></ol>
         <div class="ar-play-grid">
           <div class="ar-editor">
+            <div class="ar-build" id="arBuildBar"><span class="ar-build-ic">✨</span><div><b>${esc(T('ar.build.title'))}</b><span class="ar-muted" id="arBuildHint">${esc(T('ar.build.hint'))}</span></div>
+              <button type="button" id="arBuild" class="primary">${esc(T('ar.build.go'))}</button></div>
             <textarea id="arMD" spellcheck="false" placeholder="${esc(T('ar.mdPlaceholder'))}"></textarea>
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
@@ -74,7 +78,8 @@ const arenaUI = {
           </div>
           <aside class="ar-tips">
             <section id="arLast" class="ar-last" hidden></section>
-            <h3>${esc(T('ar.decides'))}</h3><div id="arGuide" class="ar-guide"></div>
+            <h3>${esc(T('ar.pb.title'))}</h3><div id="arPlaybook" class="ar-playbook"></div>
+            <details><summary>${esc(T('ar.decides'))}</summary><div id="arGuide" class="ar-guide"></div></details>
             <details><summary>${esc(T('ar.tips'))}</summary><ol id="arLessons" class="ar-lessons"></ol></details>
           </aside>
         </div>
@@ -126,6 +131,9 @@ const arenaUI = {
       $('arReview').disabled = false;
     };
     $('arPlay').onclick = () => this.play('');
+    $('arBuild').onclick = () => this.openBuilder();
+    // La guia «què guanya a què»: secció, què fa el rival, afegir la regla, la taula sencera.
+    $('arPlaybook').onclick = e => this.playbookClick(e);
     // Un partit de demostració (gravat, amb comentaris), a la tele i a 2×.
     $('arDemo').onclick = () => this.openTV('demo-' + this.game, 2);
     // El CS2 en directe: la persona porta un jugador (arena-cs2-live.html).
@@ -238,6 +246,11 @@ const arenaUI = {
       <p class="ar-muted"><b>${esc(T('ar.sees'))}</b> ${esc(gd.sees)}</p>
       <div class="ar-ex"><b>${esc(T('ar.example'))}</b><pre>${esc(gd.example)}</pre></div>` : '';
     this.paintProgress(d);
+    this.paintPlaybook();
+    // L'assistent destaca mentre el .md és la plantilla (o no n'hi ha).
+    const custom = !!mine && !!g && mine.md.trim() !== g.starter.trim();
+    $('arBuildBar').classList.toggle('quiet', custom);
+    $('arBuildHint').textContent = T(custom ? 'ar.build.hintCustom' : 'ar.build.hint');
     $('arLessons').innerHTML = LESSONS[lang()].slice(0, 5).map(([h, p]) => `<li><b>${esc(h)}</b><span>${esc(p)}</span></li>`).join('');
     const bots = d.bots[this.game] || [];
     const board = d.leaderboard[this.game] || [];
@@ -260,6 +273,88 @@ const arenaUI = {
     };
     $('arComps').innerHTML = (d.competitions || []).map(c => `<li data-c="${esc(c.id)}"><b>${esc(c.title)}</b><small>${esc(T('ar.compStatus.' + c.status))} · ${esc((c.games || []).join(', '))}</small></li>`).join('') || `<li class="none">${esc(T('ar.noComps'))}</li>`;
     $('arComps').querySelectorAll('[data-c]').forEach(li => li.onclick = () => this.openComp(li.dataset.c));
+  },
+
+  // ---- la guia «què guanya a què» i l'assistent ----
+
+  playbook() { const g = this.data && this.data.games.find(x => x.id === this.game); return g && g.playbook; },
+  paintPlaybook() {
+    const pb = this.playbook(), box = $('arPlaybook');
+    this.pbState = this.pbState && this.pbState.game === this.game ? this.pbState : { game: this.game, sec: 0, their: 0 };
+    box.innerHTML = pb ? playbookHTML(pb, this.pbState) : '';
+    box.closest('.ar-tips').querySelector('h3').hidden = !pb;
+  },
+  playbookClick(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    const pb = this.playbook(), st = this.pbState; if (!pb || !st) return;
+    if (b.dataset.pbSec != null) { st.sec = +b.dataset.pbSec; st.their = 0; this.paintPlaybook(); }
+    else if (b.dataset.pbTheir != null) { st.their = +b.dataset.pbTheir; this.paintPlaybook(); }
+    else if (b.dataset.pbAdd != null) {
+      this.insertRule(ruleFor(pb.sections[st.sec], +b.dataset.pbAdd, st.their));
+      b.textContent = '✓ ' + T('ar.pb.addedBtn'); b.classList.add('done');
+    } else if (b.dataset.pbTable != null) this.showTable(pb.sections[+b.dataset.pbTable]);
+  },
+  // Posa la regla al .md (sota «Counters»), la selecciona i ho desa.
+  insertRule(rule) {
+    const md = $('arMD'), r = addRule(md.value, rule);
+    if (r.kind !== 'same') { md.value = r.md; md.dispatchEvent(new Event('input')); }
+    this.selectLines(r.line, 1);
+    md.classList.remove('ar-flash'); void md.offsetWidth; md.classList.add('ar-flash');
+    $('arStatus').textContent = T('ar.pb.' + r.kind);
+  },
+  showTable(sec) {
+    const dlg = document.createElement('dialog');
+    dlg.className = 'pb-dialog';
+    dlg.innerHTML = tableHTML(sec) + `<div class="ar-row" style="justify-content:flex-end;margin-top:12px"><button type="button" data-close>${esc(T('ar.close'))}</button></div>`;
+    dlg.onclick = e => {
+      if (e.target === dlg || e.target.closest('[data-close]')) { dlg.close(); return; }
+      const td = e.target.closest('[data-pb-cell]'); if (!td) return;
+      const [i, j] = td.dataset.pbCell.split(',').map(Number);
+      if (sec.grid[i][j] <= 0) { $('arStatus').textContent = T('ar.pb.notWinning'); return; }
+      this.insertRule(ruleFor(sec, i, j));
+      td.classList.add('picked'); td.textContent = '✓';
+    };
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg); dlg.showModal();
+  },
+
+  // ✨ L'assistent: tres preguntes amb targetes → un .md complet a l'editor.
+  openBuilder() {
+    const game = this.game, g = this.data && this.data.games.find(x => x.id === game);
+    if (!g || !QUESTIONS[game]) return;
+    let a = { ...DEFAULTS(game), ...((this.builderAns || {})[game] || {}) };
+    const dlg = document.createElement('dialog');
+    dlg.className = 'bd-dialog';
+    dlg.innerHTML = builderHTML(game, a, esc(g.title));
+    const form = dlg.querySelector('form');
+    const preview = () => { dlg.querySelector('#bdPreview').textContent = buildMD(game, a, g.playbook, form.elements.name.value); };
+    form.addEventListener('change', e => {
+      if (e.target.type !== 'radio') return;
+      a = { ...a, [e.target.name]: e.target.value };
+      form.querySelectorAll(`input[name="${e.target.name}"]`).forEach(r => r.closest('.bd-opt').classList.toggle('on', r.checked));
+      preview();
+    });
+    form.elements.name.addEventListener('input', preview);
+    dlg.querySelector('.bd-cancel').onclick = () => dlg.close();
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const md = $('arMD');
+      const custom = md.value.trim() && md.value.trim() !== g.starter.trim() && (this.built || {})[game] !== md.value.trim();
+      if (custom && !confirm(T('ar.build.replace'))) return;
+      this.builderAns = { ...(this.builderAns || {}), [game]: a };
+      md.value = buildMD(game, a, g.playbook, form.elements.name.value);
+      md.dispatchEvent(new Event('input'));
+      this.built = { ...(this.built || {}), [game]: md.value.trim() };
+      dlg.close();
+      md.scrollTop = 0;
+      md.classList.remove('ar-flash'); void md.offsetWidth; md.classList.add('ar-flash');
+      $('arStatus').textContent = T('ar.build.done');
+      $('arBuildBar').classList.add('quiet'); $('arBuildHint').textContent = T('ar.build.hintCustom');
+      $('arPlay').classList.remove('ar-nudge'); void $('arPlay').offsetWidth; $('arPlay').classList.add('ar-nudge');
+    });
+    dlg.addEventListener('close', () => dlg.remove());
+    document.body.append(dlg); preview(); dlg.showModal();
   },
 
   // Com evoluciones: cada partit acabat és una barra (verda si guanyes, vermella

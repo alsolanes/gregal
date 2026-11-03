@@ -34,6 +34,37 @@ func clipWords(t string, n int) string {
 	return strings.TrimRight(strings.Join(w[:n], " "), ",;:") + "…"
 }
 
+// clipSentences deixa un text en una línia i com a molt max lletres, tallat
+// al final d'una frase: a la tele, una frase a mitges («…») queda malament.
+// Un text que ja arriba tallat («…» al final) també torna a la darrera frase
+// sencera. Sense cap frase prou llarga, talla a la darrera paraula.
+func clipSentences(t string, max int) string {
+	t = strings.Join(strings.Fields(t), " ")
+	r := []rune(t)
+	cut := strings.HasSuffix(t, "…") || strings.HasSuffix(t, "...")
+	if len(r) <= max && !cut {
+		return t
+	}
+	if len(r) > max {
+		r = r[:max]
+	}
+	head := string(r)
+	end := -1
+	for _, p := range []string{". ", "! ", "? ", ".» ", ".\" "} {
+		if i := strings.LastIndex(head, p); i > end {
+			end = i + len(strings.TrimRight(p, " "))
+		}
+	}
+	if end > 0 && (cut || end >= len(head)*2/5) {
+		return head[:end]
+	}
+	head = strings.TrimSuffix(strings.TrimSuffix(head, "…"), "...")
+	if i := strings.LastIndex(head, " "); i > 0 {
+		head = head[:i]
+	}
+	return strings.TrimRight(head, ",;:—- ") + "…"
+}
+
 func arenaDecisionOf(m *arenaMatch, n, side int) *arenaDecision {
 	for i := range m.Decisions {
 		if d := &m.Decisions[i]; d.N == n && d.Side == side {

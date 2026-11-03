@@ -592,6 +592,21 @@ servidor de Gregal.
   l'informe d'un coach: notes de claredat, cobertura, adaptació, concreció i
   coherència, els moments on el `.md` ha fallat amb una regla reescrita, i
   lliçons.
+- **✨ Crea la meva estratègia.** Primer cop? A sobre de l'editor, **Build my
+  strategy** fa tres preguntes amb targetes (al futbol americà, per exemple: com
+  ataques, com defenses i què fas al 4t down), cadascuna amb què guanya i què
+  arrisca, i escriu un `.md` complet que ja llegeix el rival i castiga el que
+  repeteix. Les taules de contrajoc surten de les taules del motor: l'estil només
+  desempata entre respostes igual de bones, de manera que tota estratègia que fa
+  és sòlida. Després en pots canviar qualsevol línia; el `.md` d'abans queda a
+  les versions.
+- **Què guanya a què.** Al costat de l'editor, una guia feta amb les taules del
+  motor: tria què juga el rival i veus les teves respostes de la millor a la
+  pitjor (verd guanya, vermell perd; al Counter-Strike 2, el % de rondes
+  guanyades), cada opció explicada en llenguatge planer. **＋ Rule** afegeix
+  aquell contrajoc al teu `.md` a «Counters (from the playbook)» (o canvia la
+  regla que ja tenies per a aquella situació), i **See the whole table** ensenya
+  tots els duels alhora; clica una casella verda per afegir-la.
 - **El dia de la competició.** L'organitzador (un admin) crea una competició:
   fa una foto dels `.md` de tothom, fa grups per Elo i hi afegeix
   eliminatòries. Comença-la i obre la pàgina de retransmissió (pantalla

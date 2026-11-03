@@ -1755,11 +1755,16 @@ func (s *Server) arenaUser(r *http.Request) (name string, admin bool) {
 	return u.Name, u.Admin
 }
 
-func (s *Server) arenaGamesJSON() []map[string]string {
+func (s *Server) arenaGamesJSON() []map[string]any {
 	lang := s.fbLangCode()
-	var out []map[string]string
+	var out []map[string]any
 	for _, g := range arena.Games() {
-		out = append(out, map[string]string{"id": g.ID(), "title": g.Title(lang), "starter": g.Starter(), "rules": g.Rules()})
+		row := map[string]any{"id": g.ID(), "title": g.Title(lang), "starter": g.Starter(), "rules": g.Rules()}
+		// La guia «què guanya a què» de l'editor, de les taules del motor.
+		if pb, ok := g.(arena.Playbooker); ok {
+			row["playbook"] = pb.Playbook()
+		}
+		out = append(out, row)
 	}
 	return out
 }

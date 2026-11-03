@@ -44,6 +44,11 @@
   .caption { position:fixed; left:50%; bottom:156px; transform:translate(-50%, 20px); max-width:min(980px, calc(var(--vw) * 90)); padding:12px 20px 12px 16px; display:flex; gap:12px; align-items:flex-start;
     background:rgba(8,10,22,.92); border:1px solid var(--line); border-left:5px solid var(--accent); border-radius:12px; z-index:7; opacity:0; transition:opacity .35s, transform .35s; font-size:20px; }
   .caption.on { opacity:1; transform:translate(-50%, 0); }
+  /* La barra del reproductor (mode tele d'un partit) va per sobre del marcador
+     de baix, no a sobre; mentre es veu, el subtítol puja per no xocar-hi. */
+  #tv > .ar-scrub.sc-overlay.sc-big { bottom:166px; }
+  body:has(#tv > .ar-scrub.sc-overlay:not(.sc-gone)) .caption { bottom:262px; }
+  .caption { transition:opacity .35s, transform .35s, bottom .3s; }
   .caption b { color:var(--accent); white-space:nowrap; font-size:14px; letter-spacing:.08em; text-transform:uppercase; padding-top:4px; }
   /* Plafons de segment (presentació, prèvia, resultat…) */
   .panel { position:fixed; inset:76px calc(var(--vw) * 6) 150px calc(var(--vw) * 6); display:flex; flex-direction:column; justify-content:safe center; overflow:hidden; gap:22px; z-index:4; opacity:0; pointer-events:none; transition:opacity .45s; }
@@ -83,6 +88,26 @@
   .wipe::after { content:'GREGAL ARENA'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-weight:900; letter-spacing:.3em; font-size:48px; color:#fff; text-shadow:0 4px 20px rgba(0,0,0,.4); }
   @keyframes wipe { 0% { transform:translateX(-110%); } 45%, 55% { transform:translateX(0); } 100% { transform:translateX(110%); } }
   .hide { display:none !important; }
+  /* Què guanya a què, a «How it is played» (countersHTML). */
+  .cx-k { margin-top:6px; }
+  .cx-duels { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:14px; }
+  .cx-duel { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:10px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px; animation:cxIn .5s cubic-bezier(.2,.8,.2,1) both; animation-delay:calc(1.2s + var(--i) * .45s); }
+  .cx-duel small { grid-column:1 / -1; color:var(--muted); font-size:clamp(13px, calc(var(--vw) * 1), 17px); }
+  .cx-win, .cx-lose { font-weight:900; font-size:clamp(17px, calc(var(--vw) * 1.55), 26px); }
+  .cx-win { color:#5ee39a; } .cx-lose { color:#ff8a80; text-align:right; text-decoration:line-through; text-decoration-color:rgba(255,138,128,.55); text-decoration-thickness:3px; }
+  .cx-beats { color:#111; background:var(--accent); border-radius:999px; padding:3px 10px; font-weight:900; font-size:13px; text-transform:uppercase; letter-spacing:.08em; animation:cxPulse 1.6s ease-in-out infinite; animation-delay:calc(1.7s + var(--i) * .45s); }
+  .cx-cycle { display:grid; grid-template-columns:minmax(260px, 34vh) 1fr; gap:24px; align-items:center; }
+  .cx-cycle svg { width:100%; height:auto; overflow:visible; }
+  .cx-node circle { fill:#141b33; stroke:var(--accent); stroke-width:2.5; }
+  .cx-node text { fill:var(--ink); font-weight:800; font-size:15px; text-anchor:middle; }
+  .cx-node { transform-box:fill-box; transform-origin:center; animation:cxPop .45s cubic-bezier(.2,.9,.3,1.3) both; animation-delay:calc(1s + var(--i) * .12s); }
+  .cx-ar { stroke:#ffd400; stroke-width:2.5; stroke-dasharray:240; stroke-dashoffset:240; animation:cxDraw .7s ease-out forwards; animation-delay:calc(1.8s + var(--i) * .16s); }
+  .cx-ar.far { stroke-opacity:.55; }
+  @keyframes cxIn { from { opacity:0; transform:translateY(14px) scale(.97); } }
+  @keyframes cxPop { from { opacity:0; transform:scale(.4); } }
+  @keyframes cxDraw { to { stroke-dashoffset:0; } }
+  @keyframes cxPulse { 0%, 100% { transform:scale(1); } 50% { transform:scale(1.1); } }
+  @media (prefers-reduced-motion:reduce) { .cx-duel, .cx-node, .cx-beats { animation:none; } .cx-ar { animation:none; stroke-dashoffset:0; } }
   /* Resum del partit: els moments del prompt en línia de temps. */
   .sum { display:grid; grid-template-columns:minmax(0, 1.05fr) minmax(0, 1fr); gap:26px; align-items:start; }
   .sum .quote .txt { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
@@ -93,7 +118,8 @@
   .coach { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:17px; } .coach b { font-weight:800; }
   .sum .quote { font-size:clamp(15px, calc(var(--vw) * 1.25), 19px); padding:12px 16px; }
   .sum .rule { font-size:clamp(14px, calc(var(--vw) * 1.15), 17px); padding:8px 12px; }
-  #momentHost { position:fixed; left:0; right:0; top:66px; height:0; z-index:8; }
+  /* La targeta del moment, just per sota del marcador de dalt del visor (no a sobre). */
+  #momentHost { position:fixed; left:0; right:0; top:calc(66px + (var(--vh) * 100 - 216px) * .1); height:0; z-index:8; }
   /* Finestres petites: l'escenari es pinta a 1280×720 i s'escala sencer, com una tele. */
   body.fit { --vw:12.8px; --vh:7.2px; }
   body.fit #tv { position:fixed; left:0; top:0; width:1280px; height:720px; overflow:hidden; transform-origin:0 0; }
@@ -140,7 +166,7 @@
 // regla del .md que ho va decidir, classificació i el que ve, amb cortines
 // entre segments i un rètol de consells a baix.
 // #token=<clau> o #spectator=<clau de l'enllaç d'espectador>, &lang=ca|en.
-import { makeView, LESSONS, EXPLAIN } from './arena-views.js';
+import { makeView, LESSONS, EXPLAIN, COUNTERS } from './arena-views.js';
 import { exportVideo, momentsByEvent, showMomentCard } from './arena-export.js';
 import { mountScrubber } from './arena-scrubber.js';
 import { has3D, mount3D } from './arena-3d.js';
@@ -431,12 +457,31 @@ async function segOpening() {
   await hold(14000, caption(L.analyst, op ? op.text : `${comp.title}. ${L.how1[1]} ${L.how2[1]} ${L.how3[1]}`, 30, op && op.audio));
 }
 
+// Què guanya a què (arena-views.js COUNTERS): duels que entren un darrere
+// l'altre, o el pentàgon de postures del LoL amb les fletxes dibuixant-se.
+function countersHTML(game) {
+  const c = COUNTERS[game]; if (!c) return '';
+  if (c.duels) return `<div class="kicker cx-k">What beats what</div><div class="cx-duels">${c.duels.map(([, a, , b, why], i) => `
+    <div class="cx-duel" style="--i:${i}"><span class="cx-win">${esc(a)}</span><span class="cx-beats">beats</span><span class="cx-lose">${esc(b)}</span><small>${esc(why)}</small></div>`).join('')}</div>`;
+  const n = c.cycle.length, R = 120, cx = 170, cy = 150;
+  const pt = i => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + R * Math.cos(a), cy + R * Math.sin(a)]; };
+  const arrows = [];
+  c.cycle.forEach((_, i) => [1, 2].forEach(k => {
+    const [x1, y1] = pt(i), [x2, y2] = pt((i + k) % n), d = Math.hypot(x2 - x1, y2 - y1), ux = (x2 - x1) / d, uy = (y2 - y1) / d;
+    arrows.push(`<line class="cx-ar${k === 2 ? ' far' : ''}" style="--i:${i * 2 + k}" x1="${(x1 + ux * 40).toFixed(1)}" y1="${(y1 + uy * 40).toFixed(1)}" x2="${(x2 - ux * 44).toFixed(1)}" y2="${(y2 - uy * 44).toFixed(1)}" marker-end="url(#cxHead)"/>`);
+  }));
+  const nodes = c.cycle.map(([, label], i) => { const [x, y] = pt(i); return `<g class="cx-node" style="--i:${i}"><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="36"/><text x="${x.toFixed(1)}" y="${(y + 6).toFixed(1)}">${esc(label)}</text></g>`; }).join('');
+  return `<div class="cx-cycle"><svg viewBox="0 0 340 300" role="img" aria-label="Each stance beats the next two"><defs><marker id="cxHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#ffd400"/></marker></defs>${arrows.join('')}${nodes}</svg>
+    <div><div class="kicker cx-k">What beats what</div><p class="lead">Every stance beats the next two around the circle and loses to the other two. Read the stance they repeat, then pick one that beats it.</p></div></div>`;
+}
+
 async function segExplain(game) {
   const sp = script && script.explain && script.explain[game];
   const [title, ...lines] = sp ? [sp.title, ...sp.lines] : EXPLAIN[game][lang];
   segLabel(L.explain + ' · ' + (GAME[game] || game));
   await wipe(() => panel(`<div class="kicker">${esc(L.explain)}</div><h1 class="h1">${esc(title)}</h1>
     <div class="steps">${lines.map((t, i) => `<div class="step"><b>${i + 1}</b>${esc(t)}</div>`).join('')}</div>
+    ${countersHTML(game)}
     <div class="lead">📋 ${esc(L.callTip)}</div>`));
   await hold(15000, caption(L.analyst, lines.join(' '), 40, sp && sp.audio));
 }

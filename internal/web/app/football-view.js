@@ -1757,7 +1757,16 @@ export class FootballView extends ArenaViewBase {
     const near = ['player', 'pylon', 'rail'].includes(this.camMode) ? .8 : 2;
     if (a) {
       const items = a.tracks.map((tr, i) => { const pos = tr.pos(t); return { tr, i, pos, d: depth(pos.x, pos.y) }; });
-      for (const it of items) all.push({ d: it.d, i: it.i, draw: () => { if (it.d > near) this.drawPlayer(it.tr, it.pos, a, it.i, b); } });
+      // A les càmeres arran de gespa, qui passa just davant de l'objectiu es
+      // fa transparent (com a la tele): si no, un casc tapa mitja pantalla.
+      const fadeTo = near < 1 ? near + 2.4 : 0, g = this.ctx;
+      for (const it of items) all.push({ d: it.d, i: it.i, draw: () => {
+        if (it.d <= near) return;
+        const k = it.d < fadeTo ? clamp((it.d - near) / (fadeTo - near), 0, 1) : 1;
+        if (k < 1) { g.save(); g.globalAlpha *= .18 + .82 * k * k; }
+        this.drawPlayer(it.tr, it.pos, a, it.i, b);
+        if (k < 1) g.restore();
+      } });
       if (b) {
         let bd = s3 ? depth(b.x, b.y, b.z) : FIELD_W + 30 - b.y;
         // A la mà: just per sobre de qui la porta si es veu de costat; si no, per profunditat.

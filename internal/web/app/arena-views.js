@@ -94,3 +94,13 @@ export const GUIDE = {
     example: '- Draft: if they pick two early-game champions, ban their jungler and pick scaling carries.\n- Behind by 3k+ gold: farm safe lanes and pick off overextenders; never start baron.\n- Ahead with soul point: take dragon with stance engage.',
   },
 };
+
+// El «què guanya a què» de la tele (pantalla «How it is played»): tres duels
+// clau de la taula del motor (NFL, CS2) o el cicle de postures (LoL: cada
+// postura guanya les dues següents, en aquest ordre). Els comprova
+// internal/arena/playbook_test.go (TestExplainCounters) contra el motor.
+export const COUNTERS = {
+  nfl: { duels: [['screen', 'Screen', 'blitz', 'Blitz', 'Let the rush through, dump it to the back'], ['run_inside', 'Inside run', 'cover2', 'Cover 2', 'Two deep safeties leave the middle open'], ['pass_deep', 'Deep pass', 'man', 'Man', 'One-on-one, nobody over the top']] },
+  cs2: { duels: [['fake_a_go_b', 'Fake A, go B', 'stack_a', 'Stack A', 'They moved to A, B is almost empty'], ['rush_b', 'Rush B', 'aggressive_mid', 'Aggressive mid', 'Their players are in mid, not on the site'], ['aggressive_mid', 'Aggressive mid', 'default_mid', 'Default (mid)', 'CT picks win the mid fights early']] },
+  lol: { cycle: [['engage', 'Engage'], ['pick', 'Pick'], ['siege', 'Siege'], ['split', 'Split'], ['protect', 'Protect']] },
+};

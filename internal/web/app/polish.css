@@ -678,7 +678,7 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-steps li::before { content:counter(st); width:22px; height:22px; border-radius:50%; display:grid; place-items:center; background:var(--line); color:var(--ink); font-weight:700; font-size:12px; }
 .ar-steps li.on { color:var(--ink); border-color:var(--accent); font-weight:600; } .ar-steps li.on::before { background:var(--accent); color:#fff; }
 .ar-steps li.done::before { content:'✓'; background:color-mix(in srgb, var(--accent) 35%, var(--line)); }
-.ar-play-grid { display:grid; grid-template-columns:minmax(0,1fr) 280px; gap:14px; }
+.ar-play-grid { display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px; }
 .ar-editor { display:flex; flex-direction:column; gap:6px; min-width:0; }
 .ar .ar-editor textarea { min-height:240px; height:min(40vh, 360px); }
 .ar-tips { border-left:1px solid var(--line); padding-left:14px; display:flex; flex-direction:column; gap:8px; }
@@ -730,7 +730,24 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .ar-applied del, .ar-diff .d-del { display:block; text-decoration:none; background:color-mix(in srgb, #e5484d 14%, transparent); color:inherit; }
 .ar-applied ins, .ar-diff .d-add { display:block; text-decoration:none; background:color-mix(in srgb, #2fbf71 16%, transparent); color:inherit; }
 .ar-applied button { font-size:12px; padding:2px 10px; }
-.ar-last.ar-flash { animation:arFlash 1.4s ease-out; }
+.ar-last.ar-flash, .ar .ar-editor textarea.ar-flash { animation:arFlash 1.4s ease-out; }
+/* Arena: l'assistent i la guia «què guanya a què» (arena-builder.js, arena-playbook.js) */
+.ar-build { display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:12px; border:1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  background:linear-gradient(100deg, color-mix(in srgb, var(--accent) 14%, var(--surface)), color-mix(in srgb, #ff9f43 10%, var(--surface))); }
+.ar-build > div { display:flex; flex-direction:column; gap:1px; flex:1; min-width:0; font-size:13.5px; }
+.ar-build .ar-muted { font-size:12.5px; }
+.ar-build-ic { font-size:22px; animation:arTwinkle 2.6s ease-in-out infinite; }
+.ar-build button { white-space:nowrap; font-weight:700; }
+.ar-build.quiet { background:transparent; border-color:var(--line); padding:6px 10px; }
+.ar-build.quiet .ar-build-ic { animation:none; font-size:16px; }
+.ar-build.quiet b { font-size:13px; }
+.ar-build.quiet button { background:transparent; color:var(--accent); border:1px solid var(--accent); }
+@keyframes arTwinkle { 0%, 100% { transform:scale(1) rotate(0); } 50% { transform:scale(1.18) rotate(12deg); } }
+.ar button.ar-nudge { animation:arNudge 1.6s ease-out 2; }
+@keyframes arNudge { 0% { box-shadow:0 0 0 0 color-mix(in srgb, var(--accent) 60%, transparent); } 70% { box-shadow:0 0 0 14px transparent; } 100% { box-shadow:0 0 0 0 transparent; } }
+.ar-playbook { display:flex; flex-direction:column; }
+.pb-table td.picked { outline:2px solid var(--ink); }
+@media (prefers-reduced-motion:reduce) { .ar-build-ic, .ar button.ar-nudge, .ar-last.ar-flash, .ar .ar-editor textarea.ar-flash { animation:none; } }
 @keyframes arFlash { 0%, 30% { box-shadow:0 0 0 3px var(--accent); } 100% { box-shadow:0 0 0 0 transparent; } }
 .ar-hist > summary { cursor:pointer; font-size:13px; color:var(--muted); font-weight:600; }
 .ar-hist[open] > summary { color:var(--ink); margin-bottom:6px; }

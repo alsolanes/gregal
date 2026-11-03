@@ -589,6 +589,21 @@ Gregal server.
   reason and the exact line of your `.md` it followed, and ends with a coach's
   report: scores for clarity, coverage, adaptivity, specificity and consistency,
   the moments where the `.md` failed with a rewritten rule, and lessons.
+- **✨ Build my strategy.** New to the game? Above the editor, **Build my
+  strategy** asks three questions with cards (for example, in American
+  football: how you attack, how you defend and what you do on 4th down), each
+  with what it is good at and what it risks, and writes a complete `.md` that
+  already reads the opponent and counters what they repeat. The counter tables
+  come from the engine's own matchup tables: your style only breaks ties
+  between answers that are just as good, so every strategy it builds is a sound
+  one. Edit any line afterwards; the old `.md` stays in the versions.
+- **What beats what.** Next to the editor, a guide built from the engine's
+  tables: pick what the opponent plays and see your answers from best to worst
+  (✓ green wins, red loses; in Counter-Strike 2, the % of rounds won), each
+  option explained in plain words. **＋ Rule** adds that counter to your `.md`
+  under «Counters (from the playbook)» (or updates the rule you already had for
+  that situation), and **See the whole table** shows every matchup at once;
+  click a green cell to add it.
 - **Competition day.** The organiser (an admin) creates a competition: it takes a
   snapshot of everyone's `.md`, seeds groups by Elo and adds playoffs. Start it and
   open the stream page (full screen, for OBS): each match in turn, then the

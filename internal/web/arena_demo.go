@@ -64,6 +64,11 @@ func (s *Server) arenaDemoVoice(m *arenaMatch) {
 		}
 		return s.voiceLater(text, who, "en")
 	}
+	// Les gravacions antigues porten textos tallats a mitja frase.
+	m.Preview = clipSentences(m.Preview, 700)
+	if m.Analysis != nil {
+		m.Analysis.Text = clipSentences(m.Analysis.Text, 900)
+	}
 	m.PreviewAudio = say(m.Preview, "analyst")
 	for i := range m.Lines {
 		m.Lines[i].Audio = say(m.Lines[i].Text, "caster")

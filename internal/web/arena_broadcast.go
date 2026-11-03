@@ -89,7 +89,7 @@ func (s *Server) castPreview(ctx context.Context, game arena.Game, m *arenaMatch
 	if obj := firstJSONObject(raw); obj != "" {
 		_ = json.Unmarshal([]byte(obj), &out)
 	}
-	return oneLine(out.Text, 700)
+	return clipSentences(out.Text, 700)
 }
 
 // castLines: el narrador comenta un tram de jugades clau (una frase per jugada).
@@ -175,7 +175,7 @@ func (s *Server) castAnalysis(ctx context.Context, game arena.Game, m *arenaMatc
 		return arenaOnlyMoments(m)
 	}
 	a.Moments = arenaMergeMoments(m, a.Moments)
-	a.Headline, a.Text, a.Rule = oneLine(a.Headline, 120), oneLine(a.Text, 900), oneLine(a.Rule, 300)
+	a.Headline, a.Text, a.Rule = oneLine(a.Headline, 120), clipSentences(a.Text, 900), oneLine(a.Rule, 300)
 	if a.Side != 1 {
 		a.Side = 0
 	}
