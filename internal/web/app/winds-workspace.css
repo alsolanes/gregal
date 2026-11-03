@@ -244,3 +244,56 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-star{border:0;background:none;color:var(--muted);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px;border-radius:6px;flex:none}
 .vw-star:hover{color:var(--ink);background:var(--hover-alt)}
 .vw-star.on{color:#F5B544}
+
+/* ---- Inici net, a l'estil de Grok i dots (v1.45) ---- */
+.vw-content.vw-home { padding-top:clamp(40px,12vh,150px); padding-left:max(24px,calc((100% - 760px)/2)); padding-right:max(24px,calc((100% - 760px)/2)); }
+.vw-home > * { flex:none; }
+.vw-welcome { margin:0 auto 22px; }
+.vw-orb { position:relative; width:72px; height:72px; margin:0 auto 18px; display:grid; place-items:center; }
+.vw-orb::before { content:''; position:absolute; inset:-18px; border-radius:50%; background:radial-gradient(circle,color-mix(in srgb,var(--vw-accent) 38%,transparent),transparent 68%); filter:blur(6px); animation:vw-breathe 5s ease-in-out infinite; }
+.vw-orb .winds-face { position:relative; width:64px; height:64px; margin:0; }
+@keyframes vw-breathe { 0%,100% { transform:scale(.92); opacity:.7; } 50% { transform:scale(1.08); opacity:1; } }
+.vw-welcome h1 { font:600 clamp(34px,4.4vw,52px)/1.08 var(--sans, "Inter", "Segoe UI Variable Display", system-ui, sans-serif); letter-spacing:-.04em; margin:0 0 10px; }
+.vw-welcome > p:last-child { font-size:15px; }
+.vw-squads { display:flex; justify-content:center; gap:4px; margin:0 auto 18px; padding:4px; border-radius:999px; background:color-mix(in srgb,var(--surface) 70%,transparent); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; scrollbar-width:none; }
+.vw-squad-pill { border:0; background:transparent; color:var(--muted); font-size:13px!important; font-weight:550; padding:6px 14px; border-radius:999px; white-space:nowrap; }
+.vw-squad-pill:hover { color:var(--ink); }
+.vw-squad-pill[aria-selected="true"] { background:var(--ink); color:var(--bg); }
+.vw-home .vw-composer { border-radius:28px; padding:18px 20px 12px 22px; background:color-mix(in srgb,var(--surface) 92%,var(--vw-accent)); border-color:var(--line-hi); box-shadow:0 18px 50px -18px color-mix(in srgb,var(--ombra) 55%,transparent),0 0 0 1px color-mix(in srgb,var(--vw-accent) 6%,transparent); transition:border-color .2s, box-shadow .25s; }
+.vw-home .vw-composer:focus-within { box-shadow:0 22px 60px -18px color-mix(in srgb,var(--ombra) 60%,transparent),0 0 0 4px color-mix(in srgb,var(--vw-accent) 16%,transparent); }
+.vw-home .vw-composer textarea { font-size:16px; min-height:56px; }
+.vw-home .vw-composer-foot select { background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:5px 12px; color:var(--text); }
+.vw-home .vw-send { width:40px; height:40px; flex-basis:40px; }
+.vw-crew-strip { justify-content:center; gap:8px; margin:16px 0 0; }
+.vw-crew-chip { flex-direction:row!important; gap:8px!important; padding:5px 13px 5px 5px!important; border:1px solid var(--line)!important; border-radius:999px; background:color-mix(in srgb,var(--surface) 60%,transparent)!important; color:var(--text)!important; font-size:13px!important; }
+.vw-crew-chip:hover { border-color:var(--line-hi)!important; background:var(--surface)!important; }
+.vw-crew-chip .winds-face { width:26px!important; height:26px!important; }
+.vw-prompts { margin:12px 0 0; gap:8px; }
+.vw-prompt { border:0!important; background:transparent!important; color:var(--muted)!important; font-size:13px!important; padding:6px 10px!important; border-radius:9px!important; }
+.vw-prompt:hover { color:var(--ink)!important; background:var(--hover-alt)!important; }
+.vw-today { margin:48px 0 26px; }
+.vw-today:empty { display:none; }
+.vw-today-head { display:flex; align-items:baseline; justify-content:space-between; margin:0 2px 12px; }
+.vw-today-head h2 { margin:0; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--faint); }
+.vw-today-more { border:0; background:transparent; color:var(--muted); font-size:12.5px!important; }
+.vw-today-more:hover { color:var(--ink); }
+.vw-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
+.vw-card { display:flex; align-items:flex-start; gap:12px; text-align:left; padding:14px 15px; border-radius:18px; border:1px solid var(--line); background:var(--surface); color:var(--text); min-width:0; transition:border-color .15s, transform .15s, background .15s!important; }
+.vw-card:hover { border-color:var(--line-hi); transform:translateY(-1px); background:var(--surface-hi); }
+.vw-card-soft { background:color-mix(in srgb,var(--surface) 80%,var(--vw-accent)); }
+.vw-card-ic { flex:none; width:34px; height:34px; border-radius:11px; display:grid; place-items:center; background:var(--bg); font-size:16px; }
+.vw-card-ic .winds-face { width:30px; height:30px; }
+.vw-card-copy { display:flex; flex-direction:column; min-width:0; gap:1px; }
+.vw-card-copy small { color:var(--faint); font-size:11px; letter-spacing:.04em; }
+.vw-card-copy strong { font-weight:600; font-size:14px; line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
+.vw-card-copy span { color:var(--muted); font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-home .vw-demo { margin-top:34px; }
+/* Barra lateral: «Més» plegat. */
+.vw-more { display:flex; flex-direction:column; }
+.vw-more > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:0; }
+.vw-more > summary::-webkit-details-marker { display:none; }
+.vw-more-dots { display:inline-grid; place-items:center; width:16px; margin-right:9px; font-size:14px; line-height:1; color:var(--faint); }
+.vw-more[open] > summary { color:var(--ink); }
+.vw-more > .vw-nav-item:not(summary) { padding-left:18px; }
+@media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } .vw-crew-strip { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; scrollbar-width:none; } }
+@media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }

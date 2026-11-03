@@ -45,9 +45,13 @@
  }
  function renderNav(){
   nav.replaceChildren(btn(t('＋ Nova conversa','＋ New conversation'),newChat,'vw-new'));
-  for(const [id,a,b] of [['home','Inici','Home'],['pati','El pati','Playground'],['tasks','Feines','Work'],['crew','La colla','Crew'],['library','Biblioteca','Library'],['wiki','Wiki','Wiki']]){const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');nav.append(n);}
-  section(t('EQUIPS','SQUADS'));
-  for(const squad of state.squads){const n=btn(ca()?squad.ca:squad.en,()=>{state.squad=squad.id;newChat();},'vw-nav-item vw-squad');n.dataset.selected=String(state.squad===squad.id);nav.append(n);}
+  const navRow=([id,a,b])=>{const n=btn('',()=>route(id),'vw-nav-item vw-nav-icon');n.append(navIcon(id),el('span','',t(a,b)));n.setAttribute('aria-current',state.view===id?'page':'false');return n;};
+  for(const item of [['home','Inici','Home'],['tasks','Feines','Work'],['crew','La colla','Crew']])nav.append(navRow(item));
+  // La resta d'espais, plegats (s'obre sol si n'hi ha un d'obert).
+  const more=el('details','vw-more'),moreSum=el('summary','vw-nav-item vw-nav-icon');moreSum.append(el('span','vw-more-dots','⋯'),el('span','',t('Més','More')));more.append(moreSum);
+  for(const item of [['pati','El pati','Playground'],['library','Biblioteca','Library'],['wiki','Wiki','Wiki']])more.append(navRow(item));
+  more.open=['pati','library','wiki'].includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
+  more.addEventListener('toggle',()=>{try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}});nav.append(more);
   section(t('CONVERSES','CONVERSATIONS'),btn('+',newChat,'vw-small'));
   renderThreads(nav);
   if(!state.chats.some(c=>!c.workspace))nav.append(el('p','vw-nav-empty',t('Aquí comencen les bones idees.','Good ideas start here.')));
@@ -174,13 +178,36 @@
   }}finally{if(!result){try{await reader.cancel();}catch{}}reader.releaseLock();}
   if(!result)throw new Error(t('La connexió s’ha interromput abans d’acabar.','The connection ended before the response was complete.'));return result;
  }
+ // Inici, a l'estil de Grok i dots: salutació, compositor gran, la colla a un
+ // toc i «Avui»: el que hi ha en marxa i el que ve, en targetes.
  function home(){
-  content.classList.add('vw-home');const welcome=el('div','vw-welcome');welcome.append(face(crew()[0]),el('p','vw-eyebrow',squadName(state.squad)),el('h1','',t('Què fem avui?','What shall we do today?')),el('p','',t('Una idea, una pregunta o una feina. La colla t’hi acompanya.','An idea, a question or a task. Your crew is here to help.')));content.append(welcome);addComposer(!!state.active?.project);
-  const prompts=el('div','vw-prompts');for(const [a,b]of state.squad==='data'?[['Analitza aquestes dades','Analyze this data'],['Compara dos models','Compare two models'],['Explora una sèrie temporal','Explore a time series']]:state.squad==='software'?[['Crea una web','Create a website'],['Revisa aquest projecte','Review this project'],['Comprova la seguretat','Check security']]:[['Ajuda’m a triar','Help me choose'],['Recomana’m un llibre','Recommend a book'],['Organitzem la setmana','Let’s organize the week']])prompts.append(btn(t(a,b),()=>{input.value=t(a,b)+' ';input.focus();}));content.append(prompts);
-  const recent=state.chats.filter(c=>!c.workspace).slice(0,2);if(recent.length){content.append(el('h2','vw-subtitle',t('Repren el fil','Pick up where you left off')));for(const c of recent)content.append(btn(c.name+'  ↗',()=>openChat(c),'vw-recent'));}
+  content.classList.add('vw-home');
+  const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
+  const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(face(crew()[0]));
+  welcome.append(orb,el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. La colla s’encarrega de la resta.','Ask, delegate or plan. Your crew takes care of the rest.')));content.append(welcome);
+  if(state.squads.length>1){const squads=el('div','vw-squads');squads.setAttribute('role','tablist');squads.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;newChat();},'vw-squad-pill');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(s.id===state.squad));squads.append(b);}content.append(squads);}
+  addComposer(!!state.active?.project);
+  const strip=el('div','vw-crew-strip');crew().slice(0,6).forEach(w=>{const n=btn('',()=>talkTo(w),'vw-crew-chip');n.append(face(w),el('span','',w.name));n.title=roleName(w);strip.append(n);});if(crew().length)content.append(strip);
+  const prompts=el('div','vw-prompts');for(const [a,b]of state.squad==='data'?[['Analitza aquestes dades','Analyze this data'],['Compara dos models','Compare two models'],['Explora una sèrie temporal','Explore a time series']]:state.squad==='software'?[['Crea una web','Create a website'],['Revisa aquest projecte','Review this project'],['Comprova la seguretat','Check security']]:[['Ajuda’m a triar','Help me choose'],['Recomana’m un llibre','Recommend a book'],['Organitzem la setmana','Let’s organize the week']])prompts.append(btn(t(a,b),()=>{input.value=t(a,b)+' ';input.focus();},'vw-prompt'));content.append(prompts);
+  const feed=el('section','vw-today');feed.setAttribute('aria-label',t('Avui','Today'));content.append(feed);paintToday(feed).catch(()=>{});
   // The example explains the crew before first use; afterwards home stays focused on real threads.
   if(!state.chats.length&&!state.tasks.length)collaborationDemo();
-  const strip=el('div','vw-crew-strip');crew().slice(0,5).forEach(w=>{const n=btn('',()=>talkTo(w));n.append(face(w),el('span','',w.name));strip.append(n);});if(!crew().length)strip.append(el('span','',t('Els especialistes es preparen amb el primer missatge.','Your specialists are ready with your first message.')));content.append(strip);
+ }
+ // «Avui»: converses per reprendre, la feina, els recordatoris que vénen i el resum del matí.
+ async function paintToday(feed){
+  const cards=[];
+  const card=(icon,kicker,title,sub,action,cls='')=>{const c=btn('',action,'vw-card '+cls);const ic=el('span','vw-card-ic');if(typeof icon==='string')ic.textContent=icon;else ic.append(icon);const copy=el('span','vw-card-copy');copy.append(el('small','',kicker),el('strong','',title));if(sub)copy.append(el('span','',sub));c.append(ic,copy);return c;};
+  for(const c of state.chats.filter(c=>!c.workspace).slice(0,3)){const w=state.winds.find(w=>(c.members||[]).includes(w.id));cards.push(card(w?face(w):'💬',t('Repren','Pick up'),c.name,(c.members||[]).length>1?t('Amb la colla','With the crew'):w?.name||'',()=>openChat(c)));}
+  for(const task of state.tasks.slice(0,2))cards.push(card('◷',t('Feina','Work'),task.task||t('Feina','Work'),task.status||'',()=>{state.events=task.events||[];state.snapshot=null;route('task',{...task,name:task.task});}));
+  const target=content;
+  const [prog,conn]=await Promise.all([call('/api/winds/programats').catch(()=>({})),call('/api/connections').catch(()=>null)]);
+  if(content!==target||!feed.isConnected)return;
+  const when=at=>{try{return new Date(at).toLocaleString(ca()?'ca':'en',{weekday:'short',hour:'2-digit',minute:'2-digit'});}catch{return String(at);}};
+  for(const r of (prog.reminders||[]).slice(0,2))cards.push(card('⏰',t('Recordatori · ','Reminder · ')+when(r.at),r.text,r.wind_name||'',()=>root.setView?.('automatitzacions'),'vw-card-soft'));
+  const b=conn?.briefing;if(b)cards.push(card('☀',t('Resum del matí','Morning briefing'),b.enabled?t('Cada dia a les ','Every day at ')+b.time:t('Encara no està activat','Not turned on yet'),b.enabled?t('Calendari i correu, en dues línies','Calendar and email, in two lines'):t('Connecta el calendari i el correu','Connect your calendar and email'),()=>root.setView?.('automatitzacions'),'vw-card-soft'));
+  if(!cards.length)return;
+  const head=el('div','vw-today-head');head.append(el('h2','',t('Avui','Today')),btn(t('Automatitzacions →','Automations →'),()=>root.setView?.('automatitzacions'),'vw-today-more'));
+  const grid=el('div','vw-cards');grid.append(...cards);feed.replaceChildren(head,grid);
  }
  function collaborationDemo(){
   const examples={

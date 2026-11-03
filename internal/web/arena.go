@@ -1775,17 +1775,31 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 	me, admin := s.arenaUser(r)
 	if r.Method == http.MethodPost {
 		var req struct {
-			Action   string   `json:"action"`
-			Game     string   `json:"game"`
-			MD       string   `json:"md"`
-			Display  string   `json:"display"`
-			Opponent string   `json:"opponent"`
-			Games    []string `json:"games"`
-			At       int64    `json:"at"`       // version
-			Official int      `json:"official"` // slots
-			Practice int      `json:"practice"` // slots
+			Action   string         `json:"action"`
+			Game     string         `json:"game"`
+			MD       string         `json:"md"`
+			Display  string         `json:"display"`
+			Opponent string         `json:"opponent"`
+			Games    []string       `json:"games"`
+			At       int64          `json:"at"`       // version
+			Official int            `json:"official"` // slots
+			Practice int            `json:"practice"` // slots
+			Event    *arenaEventCfg `json:"event"`
 		}
 		if !decodeSmall(w, r, &req) {
+			return
+		}
+		if req.Action == "event" {
+			// El nom, el lema i la data de la competició a la web de Jocs.
+			if !admin {
+				http.Error(w, "admin only", http.StatusForbidden)
+				return
+			}
+			if req.Event == nil {
+				http.Error(w, "event required", http.StatusBadRequest)
+				return
+			}
+			writeJSON(w, s.saveArenaEvent(*req.Event))
 			return
 		}
 		if req.Action == "slots" {
@@ -1946,7 +1960,7 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": arenaProgressOf(sums, me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": arenaRecentOf(sums, me), "practice_left": arenaPracticePerDay - arenaPracticeTodayOf(sums, me),
-		"slots": s.arenaSlots()})
+		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums)})
 }
 
 // arenaHistory: les versions del .md (la més antiga primer i l'actual al

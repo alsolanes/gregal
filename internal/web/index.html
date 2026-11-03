@@ -1396,6 +1396,7 @@ body.sense-inspector #inspector { display:none; }
 
 </style>
 <link rel="stylesheet" href="/app/polish.css">
+<link rel="stylesheet" href="/app/jocs-site.css">
 <link rel="stylesheet" href="/app/shell-layout.css">
 <link rel="stylesheet" href="/app/plots.css">
 <link rel="stylesheet" href="/app/gitflow.css">
@@ -3188,7 +3189,11 @@ document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAl
 })();
 // El menú «Més» és de les eines de codi (coneixement, agents, GitHub, Retro…).
 if (PRODUCT !== 'codi') { const more = $('sideMore'); if (more) more.style.display = 'none'; }
-if (PRODUCT !== 'codi') setTimeout(() => setView(productHome()), 0);
+// Quan els mòduls (vents, Arena) ja hi són: s'executen abans de DOMContentLoaded.
+if (PRODUCT !== 'codi') {
+  const home = () => setView(productHome());
+  if (document.readyState === 'loading') addEventListener('DOMContentLoaded', home, { once: true }); else setTimeout(home, 0);
+}
 // novaConversa tanca la d'ara (que ja s'ha desat sola a cada torn) i buida
 // la pantalla. Hi arriben el botó i Ctrl+N.
 async function novaConversa() {
@@ -4422,6 +4427,7 @@ refresh();
 </script>
 <script type="module" src="/app/plots.js"></script>
 <script type="module" src="/app/vents-automations.js"></script>
+<script type="module" src="/app/jocs-site.js"></script>
 <script type="module" src="/app/gitflow.js"></script>
 <div id="retroMount"></div>
 <script type="module" src="/app/retro.js"></script>

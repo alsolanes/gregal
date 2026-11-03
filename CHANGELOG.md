@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## v1.45.0 - 2026-11-03 - Gregal Jocs, la web de la competició
+
+- **Gregal Jocs és ara la web de la competició.** `/jocs/` és una web sencera, fosca
+  i a pantalla completa: portada amb el nom de la competició, compte enrere o qui
+  juga ara en directe (o els campions), xifres, els tres jocs amb el teu rànquing,
+  el podi de cada joc i els últims partits. Té pàgines de Juga (l'editor i els
+  partits de sempre), Classificació, Torneig (grups i quadre, amb les estratègies
+  revelades), Partits i Com funciona. L'organitzador hi posa el nom, el lema, la
+  data i el lloc de la competició (es desa al servidor, no al codi) i hi té les
+  eines per crear-la, començar-la i retransmetre-la.
+- **Gregal Vents, més net.** L'inici és com el de Grok o dots: una salutació, els
+  equips en pastilles, un compositor gran i rodó, la colla a un toc i «Avui»
+  amb el que hi ha en marxa (converses per reprendre, feines, els propers
+  recordatoris i el resum del matí). A la barra lateral queden Inici, Feines i La
+  colla; el Pati, la Biblioteca i la Wiki són a «Més».
+- **Corregit:** en obrir Gregal Vents, la primera vista es carregava abans que el
+  mòdul dels vents i sortia un error a la consola.
+
 ## v1.44.0 - 2026-11-03 - Gregal Jocs i Automatitzacions
 
 - **Gregal Jocs, a part.** L'Arena (NFL, CS2, LoL) i la lliga de jocs ja no són dins
