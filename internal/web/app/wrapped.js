@@ -262,17 +262,14 @@ async function maybeCard() {
   let s;
   try { s = await fetchStats('week'); } catch (e) { return; }
   if (!fun.wrappedDue({ enabled: wrappedEnabled(), stats: s, dismissed: ls.get(KEY_DISMISSED, ''), now: new Date() })) return;
+  // Una sola línia discreta: «Aquesta setmana · 8 torns · 77 eines · ratxa de 4 dies  Mira-ho tot  ✕».
   const card = st.card || el('section', 'wrapped-card');
-  card.setAttribute('aria-labelledby', 'wrappedCardTitle');
-  const h = el('h2', 'wrapped-card-title', T('wrapped.cardTitle')); h.id = 'wrappedCardTitle';
-  const ul = el('ul', 'wrapped-card-list');
-  fun.wrappedHighlights(s, T).slice(0, 3).forEach(x => ul.appendChild(el('li', '', x)));
-  const acts = el('div', 'wrapped-card-acts');
-  acts.append(
-    button('primary', T('wrapped.seeAll'), '', () => openStats('week')),
-    button('ghost', T('wrapped.dismiss'), T('wrapped.dismissHelp'), () => { ls.set(KEY_DISMISSED, week); card.hidden = true; }),
-  );
-  card.replaceChildren(h, ul, acts);
+  card.setAttribute('aria-label', T('wrapped.cardTitle'));
+  const line = el('span', 'wrapped-card-line');
+  line.append(el('b', 'wrapped-card-title', T('wrapped.cardShort')), ...fun.wrappedHighlights(s, T).slice(0, 2).map(x => el('span', '', x)));
+  const see = button('wrapped-card-see', T('wrapped.seeAll'), '', () => openStats('week'));
+  const close = button('wrapped-card-close', '✕', T('wrapped.dismissHelp'), () => { ls.set(KEY_DISMISSED, week); card.hidden = true; });
+  card.replaceChildren(line, see, close);
   card.hidden = false;
   if (!st.card) {
     const ctx = document.getElementById('homeContext');

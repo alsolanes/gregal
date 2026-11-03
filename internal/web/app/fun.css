@@ -73,12 +73,20 @@
 .wrapped-stubborn code { font-family:var(--mono); background:var(--codi-fons); border:1px solid var(--codi-vora); border-radius:6px; padding:1px 6px; }
 
 /* --- Wrapped: targeta de la pàgina d'inici --- */
-.wrapped-card { margin:12px auto 0; max-width:var(--doc-w, 760px); padding:14px 16px; border:1px solid var(--line-hi); border-radius:14px;
-  background:linear-gradient(135deg, var(--accent-soft), var(--surface)); text-align:left; }
+/* Una sola línia discreta, no una targeta: el resum sencer és a «Mira-ho tot». */
+.wrapped-card { display:flex; align-items:center; gap:10px; margin:10px auto 0; max-width:var(--doc-w, 760px); width:max-content; padding:5px 6px 5px 14px;
+  border:1px solid var(--line); border-radius:999px; background:var(--surface); color:var(--muted); font-size:13px; }
 .wrapped-card[hidden] { display:none; }
-.wrapped-card-title { margin:0 0 6px; font-size:var(--t3); color:var(--ink); }
-.wrapped-card-list { margin:0 0 10px; padding-left:18px; color:var(--text); display:grid; gap:2px; }
-.wrapped-card-acts { display:flex; gap:8px; flex-wrap:wrap; }
+.wrapped-card-line { display:flex; align-items:center; gap:8px; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.wrapped-card-line > * { flex:none; }
+.wrapped-card-line > span:last-child { flex:0 1 auto; overflow:hidden; text-overflow:ellipsis; }
+.wrapped-card-line > span::before { content:'·'; margin-right:8px; color:var(--faint); }
+.wrapped-card-title { font-weight:600; color:var(--text); }
+.wrapped-card-see { border:0; background:transparent; color:var(--accent); font:inherit; font-weight:600; padding:3px 6px; border-radius:8px; cursor:pointer; white-space:nowrap; }
+.wrapped-card-see:hover { background:var(--accent-soft); }
+.wrapped-card-close { border:0; background:transparent; color:var(--faint); font-size:12px; width:24px; height:24px; border-radius:50%; cursor:pointer; }
+.wrapped-card-close:hover { color:var(--ink); background:var(--hover); }
+@media (max-width:640px) { .wrapped-card { width:auto; border-radius:14px; } }
 
 /* --- penell (internament «mascota») ---
    La fletxa gira sobre el pivot (32,20) del viewBox; l'angle és el rumb

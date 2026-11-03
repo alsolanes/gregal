@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.47.1 - 2026-11-03 - El resum de la setmana, en una línia
+
+- **El resum de la setmana, en una línia.** A l'inici del Codi, «La teva setmana
+  amb Gregal» ja no és una targeta gran: és una sola línia discreta sota el camp
+  («Aquesta setmana · 5 torns · 8 eines · Mira-ho tot ✕»). ✕ l'amaga fins a la
+  setmana que ve.
+
 ## v1.47.0 - 2026-11-03 - Lantern Legends i Gregal Jocs a part
 
 - **Dos instal·ladors: Gregal i Gregal Jocs.** L'instal·lador de Gregal porta el
