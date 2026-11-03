@@ -157,6 +157,8 @@ Els recordatoris («recorda'm d'aquí a 10 minuts…») els fa sonar el servidor
 el mòbil programa la seva comprovació just després de l'hora, de manera que la
 notificació arriba a temps encara que l'app estigui tancada.
 
+Cadascú pot connectar el seu Google Calendar i Gmail i rebre un resum cada matí: vegeu [calendari-correu.ca.md](calendari-correu.ca.md).
+
 Per sortir: menú → **Surt del compte**. Si l'administrador canvia la
 contrasenya o esborra el compte, l'app torna a la pantalla d'entrar i diu per
 què. Per canviar una contrasenya oblidada: `sudo gregalctl account-password NOM`

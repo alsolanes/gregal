@@ -458,6 +458,10 @@ func (s *Server) runBuildTool(ctx context.Context, workspace, name, argsJSON str
 		return s.runPublishTool(ctx, workspace, argsJSON)
 	case "tunnel":
 		return s.runTunnelTool(ctx, workspace, argsJSON)
+	case "calendar":
+		return s.runCalendarTool(ctx, argsJSON)
+	case "mail":
+		return s.runMailTool(argsJSON)
 	}
 	return "", fmt.Errorf("unknown tool %q", name)
 }

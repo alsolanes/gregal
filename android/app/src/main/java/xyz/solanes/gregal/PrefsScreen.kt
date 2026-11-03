@@ -127,6 +127,8 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     Spacer(Modifier.height(10.dp))
                     InviteCard(vm, idioma, conn.host + if (conn.host.startsWith("https://")) "" else ":" + conn.port)
                 }
+                Spacer(Modifier.height(10.dp))
+                ConnectionsCard(vm, idioma)
                 if (admin) {
                     Spacer(Modifier.height(10.dp))
                     ServerPowersCard(vm, idioma)
@@ -436,5 +438,84 @@ private fun PreferenceSwitchRowPlain(title: String, help: String, checked: Boole
             Text(help, color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
         }
         Switch(checked = checked, onCheckedChange = null, colors = SwitchDefaults.colors(checkedTrackColor = Sea, checkedThumbColor = OnSea))
+    }
+}
+
+/**
+ * Google Calendar (adreça secreta iCal), Gmail (contrasenya d'aplicació) i el
+ * resum del matí d'aquest compte. Els vents només llegeixen: mai no envien.
+ */
+@Composable
+private fun ConnectionsCard(vm: GregalViewModel, lang: String) {
+    val c by vm.connections.collectAsState()
+    val msg by vm.connectionsMsg.collectAsState()
+    val winds by vm.winds.collectAsState()
+    val uris = androidx.compose.ui.platform.LocalUriHandler.current
+    LaunchedEffect(Unit) { vm.loadConnections() }
+    val cs = c ?: return
+    var calName by remember { mutableStateOf("") }
+    var calUrl by remember { mutableStateOf("") }
+    var mailUser by remember(cs.mailUser) { mutableStateOf(cs.mailUser) }
+    var mailPass by remember { mutableStateOf("") }
+    var briefOn by remember(cs.briefingOn) { mutableStateOf(cs.briefingOn) }
+    var briefTime by remember(cs.briefingTime) { mutableStateOf(cs.briefingTime) }
+    var briefWind by remember(cs.briefingWind, winds) { mutableStateOf(cs.briefingWind.ifBlank { (winds.firstOrNull { it.specialty == "organisation" } ?: winds.firstOrNull())?.id.orEmpty() }) }
+    GCard(Modifier.fillMaxWidth()) {
+        Text(tr(lang, "app.conn.title"), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.conn.help"), color = Muted, fontSize = 12.5.sp, lineHeight = 17.sp)
+        Spacer(Modifier.height(12.dp))
+        Text("Google Calendar", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.conn.calHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+            modifier = Modifier.clickable { uris.openUri("https://calendar.google.com/calendar/r/settings") })
+        cs.calendars.forEach { (name, url) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("$name · $url", color = Ink, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_calendar", name), tr(lang, "app.conn.removed")) }) { Text(tr(lang, "app.conn.remove"), color = Sea) }
+            }
+        }
+        androidx.compose.material3.OutlinedTextField(calName, { calName = it }, label = { Text(tr(lang, "app.conn.calName")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        androidx.compose.material3.OutlinedTextField(calUrl, { calUrl = it.trim() }, label = { Text(tr(lang, "app.conn.calUrl")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        androidx.compose.material3.OutlinedButton(onClick = {
+            vm.saveConnections(org.json.JSONObject().put("add_calendar", org.json.JSONObject().put("name", calName).put("url", calUrl)), tr(lang, "app.conn.calAdded"))
+            calName = ""; calUrl = ""
+        }, enabled = calUrl.isNotBlank(), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.add")) }
+
+        Spacer(Modifier.height(12.dp))
+        Text("Gmail", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(tr(lang, "app.conn.mailHelp"), color = Muted, fontSize = 12.sp, lineHeight = 16.sp,
+            modifier = Modifier.clickable { uris.openUri("https://myaccount.google.com/apppasswords") })
+        androidx.compose.material3.OutlinedTextField(mailUser, { mailUser = it.trim() }, label = { Text(tr(lang, "app.conn.mailUser")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        androidx.compose.material3.OutlinedTextField(mailPass, { mailPass = it }, label = { Text(tr(lang, if (cs.mailConnected) "app.conn.mailPassSaved" else "app.conn.mailPass")) },
+            singleLine = true, visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.OutlinedButton(onClick = {
+                vm.saveConnections(org.json.JSONObject().put("mail", org.json.JSONObject().put("host", "imap.gmail.com").put("port", 993).put("user", mailUser).put("password", mailPass)), tr(lang, "app.conn.mailOk"))
+                mailPass = ""
+            }, enabled = mailUser.isNotBlank() && (mailPass.isNotBlank() || cs.mailConnected), shape = RoundedCornerShape(14.dp)) {
+                Text(tr(lang, if (cs.mailConnected) "app.conn.save" else "app.conn.connect"))
+            }
+            if (cs.mailConnected) TextButton(onClick = { vm.saveConnections(org.json.JSONObject().put("remove_mail", true), tr(lang, "app.conn.mailOff")) }) { Text(tr(lang, "app.conn.disconnect"), color = Sea) }
+        }
+
+        Spacer(Modifier.height(12.dp))
+        PreferenceSwitchRowPlain(tr(lang, "app.conn.brief"), tr(lang, "app.conn.briefHelp"), briefOn) { briefOn = it }
+        if (briefOn) {
+            androidx.compose.material3.OutlinedTextField(briefTime, { briefTime = it.trim() }, label = { Text(tr(lang, "app.conn.briefTime")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(tr(lang, "app.conn.briefWind"), color = Muted, fontSize = 12.5.sp)
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                winds.forEach { w ->
+                    androidx.compose.material3.FilterChip(selected = w.id == briefWind, onClick = { briefWind = w.id }, label = { Text(w.name) })
+                }
+            }
+        }
+        androidx.compose.material3.OutlinedButton(onClick = {
+            vm.saveConnections(org.json.JSONObject().put("briefing", org.json.JSONObject().put("enabled", briefOn).put("time", briefTime).put("wind", briefWind)),
+                tr(lang, if (briefOn) "app.conn.briefOk" else "app.conn.briefOff"))
+        }, enabled = !briefOn || (briefWind.isNotBlank() && Regex("^\\d{2}:\\d{2}$").matches(briefTime)), shape = RoundedCornerShape(14.dp)) { Text(tr(lang, "app.conn.save")) }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = { vm.testConnections() }) { Text(tr(lang, "app.conn.test"), color = Sea) }
+            if (msg.isNotBlank()) Text(msg, color = Muted, fontSize = 12.5.sp, modifier = Modifier.weight(1f))
+        }
     }
 }

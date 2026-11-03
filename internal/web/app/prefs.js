@@ -187,7 +187,7 @@ export const prefs = {
     // títol ja el posa el grup.
     const senseCap = html => String(html || '').replace(/^\s*<h3 class="pf-sec"[^>]*>[\s\S]*?<\/h3>/, '');
     const grups = [
-      ['general', '⚙', fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
+      ['general', '⚙', '<div id="prefsConn" hidden></div>' + fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
         fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
           [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']]))],
       ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + brands.section()],
@@ -265,6 +265,7 @@ export const prefs = {
     this.carregaSkills();
     this.carregaAccounts();
     this.carregaPowers();
+    this.carregaConnexions();
     const p = $('prefsProv');
     if (p) p.onclick = () => { this.tanca(); if (window.toggleProv) window.toggleProv(true); };
     const k = $('prefsKeys');
@@ -288,6 +289,92 @@ export const prefs = {
     });
     if (main) main.onscroll = () => this.marcaNav();
     this.filtra();
+  },
+
+  // Calendari (Google Calendar per l'adreça iCal) i correu (Gmail per IMAP amb
+  // contrasenya d'aplicació) de cada compte, i el resum del matí (connections.go).
+  async carregaConnexions(status = '') {
+    const box = $('prefsConn'); if (!box) return;
+    let data, winds = [];
+    try {
+      const r = await window.api('/api/connections'); if (!r.ok || !box.isConnected) return;
+      data = await r.json();
+      const rw = await window.api('/api/winds'); if (rw.ok) winds = (await rw.json()).winds || [];
+    } catch (_) { return; }
+    if (!box.isConnected) return;
+    const ca = idioma() === 'ca', text = (a, b) => ca ? a : b;
+    const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+    const input = (ph, type = 'text', val = '') => { const i = document.createElement('input'); i.type = type; i.placeholder = ph; i.value = val; i.setAttribute('aria-label', ph); i.autocomplete = 'off'; return i; };
+    const btn = (label, fn) => { const b = el('button', 'pf-open', label); b.type = 'button'; b.onclick = fn; return b; };
+    const msg = el('p', 'pf-skills-status'); msg.setAttribute('role', 'status');
+    const post = async (body, ok) => {
+      msg.textContent = text('Un moment…', 'One moment…');
+      try {
+        const r = await window.api('/api/connections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!r.ok) throw new Error((await r.text()).trim());
+        await this.carregaConnexions(ok);
+      } catch (err) { msg.textContent = '⚠ ' + err.message; }
+    };
+    const link = (href, label) => { const a = el('a', '', label); a.href = href; a.target = '_blank'; a.rel = 'noopener'; return a; };
+    box.hidden = false; box.replaceChildren();
+    box.append(el('h3', 'pf-sec', text('Calendari i correu', 'Calendar and email')));
+    box.append(el('p', 'pf-skills-help', text('Els teus vents poden mirar el teu Google Calendar i el teu Gmail (només llegir: mai no envien ni accepten res) i fer-te un resum cada matí. Cada compte té els seus.', 'Your winds can look at your Google Calendar and Gmail (read-only: they never send or accept anything) and give you a briefing every morning. Each account has its own.')));
+
+    // Calendaris
+    box.append(el('h4', '', 'Google Calendar'));
+    const calHelp = el('p', 'pf-skills-help');
+    calHelp.append(text('Al ', 'In '), link('https://calendar.google.com/calendar/r/settings', 'Google Calendar → ' + text('Configuració', 'Settings')), text(' → el teu calendari → «Integra el calendari» → copia l’«Adreça secreta en format iCal».', ' → your calendar → "Integrate calendar" → copy the "Secret address in iCal format".'));
+    box.append(calHelp);
+    const cals = el('ul', 'pf-tunnels');
+    for (const c of data.calendars || []) {
+      const li = el('li', '', c.name + ' · ' + c.url + ' ');
+      li.append(btn(text('Treu', 'Remove'), () => post({ remove_calendar: c.name }, text('Calendari tret.', 'Calendar removed.'))));
+      cals.append(li);
+    }
+    if ((data.calendars || []).length) box.append(cals);
+    const calName = input(text('Nom (p. ex. Personal)', 'Name (e.g. Personal)')), calURL = input('https://calendar.google.com/calendar/ical/…/basic.ics');
+    const calForm = el('div', 'pf-account-form'); calForm.append(calName, calURL, btn(text('Afegeix', 'Add'), () => post({ add_calendar: { name: calName.value, url: calURL.value } }, text('Calendari afegit.', 'Calendar added.'))));
+    box.append(calForm);
+
+    // Gmail
+    box.append(el('h4', '', 'Gmail'));
+    const mailHelp = el('p', 'pf-skills-help');
+    mailHelp.append(text('Fes servir una ', 'Use an '), link('https://myaccount.google.com/apppasswords', text('contrasenya d’aplicació', 'app password')), text(' (cal la verificació en dos passos), no la teva contrasenya de Google.', ' (needs 2-Step Verification), not your Google password.'));
+    box.append(mailHelp);
+    const m = data.mail || {};
+    const mailUser = input(text('el.teu@gmail.com', 'you@gmail.com'), 'email', m.user || '');
+    const mailPass = input(m.has_password ? text('•••• (desada; deixa-ho buit per conservar-la)', '•••• (saved; leave empty to keep it)') : text('Contrasenya d’aplicació (16 lletres)', 'App password (16 letters)'), 'password');
+    const mailForm = el('div', 'pf-account-form');
+    mailForm.append(mailUser, mailPass, btn(m.has_password ? text('Desa', 'Save') : text('Connecta', 'Connect'), () => post({ mail: { host: m.host || 'imap.gmail.com', port: m.port || 993, user: mailUser.value, password: mailPass.value } }, text('Gmail connectat.', 'Gmail connected.'))));
+    if (m.has_password) mailForm.append(btn(text('Desconnecta', 'Disconnect'), () => post({ remove_mail: true }, text('Gmail desconnectat.', 'Gmail disconnected.'))));
+    box.append(mailForm);
+
+    // Resum del matí
+    box.append(el('h4', '', text('Resum del matí', 'Morning briefing')));
+    const b = data.briefing || {};
+    const row = el('div', 'pf-account-form');
+    const on = document.createElement('input'); on.type = 'checkbox'; on.checked = !!b.enabled; on.setAttribute('aria-label', text('Resum del matí', 'Morning briefing'));
+    const time = input('08:00', 'time', b.time || '08:00');
+    const wsel = document.createElement('select'); wsel.setAttribute('aria-label', text('Qui el fa', 'Who gives it'));
+    for (const w of winds) { const o = el('option', '', w.name); o.value = w.id; if (w.id === b.wind) o.selected = true; wsel.append(o); }
+    if (!b.wind && winds.length) { const pref = winds.find(w => /organi/i.test(w.role || '')) || winds[0]; wsel.value = pref.id; }
+    row.append(on, el('span', '', text('Cada dia a les', 'Every day at')), time, el('span', '', text('el fa', 'by')), wsel,
+      btn(text('Desa', 'Save'), () => post({ briefing: { enabled: on.checked, time: time.value, wind: wsel.value } }, on.checked ? text('Resum programat.', 'Briefing scheduled.') : text('Resum desactivat.', 'Briefing off.'))));
+    box.append(row);
+    if (!winds.length) box.append(el('p', 'pf-skills-help', text('Primer crea un vent (o activa la colla del dia a dia).', 'Create a wind first (or start the everyday crew).')));
+
+    const test = btn(text('Prova la connexió', 'Test the connection'), async () => {
+      msg.textContent = text('Provant…', 'Testing…');
+      try {
+        const r = await window.api('/api/connections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'test' }) });
+        const j = await r.json(); const parts = [];
+        if (j.calendar) parts.push(text('Calendari: ', 'Calendar: ') + j.calendar.events_next_7_days + text(' esdeveniments els pròxims 7 dies', ' events in the next 7 days') + ((j.calendar.problems || []).length ? ' ⚠ ' + j.calendar.problems.join('; ') : ''));
+        if (j.mail) parts.push('Gmail: ' + (j.mail.error ? '⚠ ' + j.mail.error : j.mail.unread + text(' sense llegir', ' unread')));
+        msg.textContent = parts.join(' · ') || text('No hi ha res connectat.', 'Nothing connected.');
+      } catch (err) { msg.textContent = '⚠ ' + err.message; }
+    });
+    box.append(test, msg);
+    if (status) msg.textContent = status;
   },
 
   // Poders de servidor (server_powers.go): només l'administrador els veu.

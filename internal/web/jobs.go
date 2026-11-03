@@ -227,6 +227,11 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 		wind, ok := s.winds.ByID(job.Wind)
 		if !ok {
 			runErr = fmt.Errorf("the routine's wind is archived or unavailable")
+		} else if isBriefingJob(job.ID) {
+			// El resum del matí és un missatge del vent a la persona (la seva
+			// veu, memòria i connexions), no un butlletí amb titulars.
+			brief = s.briefingBrief(wind, job.Prompt)
+			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		} else {
 			brief += "\nWind: " + wind.Name + ". " + wind.Persona + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))

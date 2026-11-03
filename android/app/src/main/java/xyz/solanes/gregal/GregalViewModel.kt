@@ -691,6 +691,49 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Torna a la pantalla de connexió per triar un altre servidor. */
     fun switchServer() = disconnect()
 
+    private val _connections = MutableStateFlow<GregalApi.Connections?>(null)
+    /** Calendari, correu i resum del matí d'aquest compte (null mentre carrega). */
+    val connections: StateFlow<GregalApi.Connections?> = _connections
+    private val _connectionsMsg = MutableStateFlow("")
+    val connectionsMsg: StateFlow<String> = _connectionsMsg
+
+    fun loadConnections() {
+        val c = _conn.value
+        viewModelScope.launch {
+            _connections.value = try { withContext(Dispatchers.IO) { c.api().getConnections() } } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                null
+            }
+        }
+    }
+
+    /** Desa un canvi de connexions i torna a llegir l'estat; l'error es mostra a la targeta. */
+    fun saveConnections(body: org.json.JSONObject, okText: String) {
+        val c = _conn.value
+        _connectionsMsg.value = "…"
+        viewModelScope.launch {
+            _connectionsMsg.value = try {
+                withContext(Dispatchers.IO) { c.api().postConnections(body) }
+                _connections.value = withContext(Dispatchers.IO) { c.api().getConnections() }
+                okText
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                "⚠ " + e.message.orEmpty().substringAfter(": ").take(240)
+            }
+        }
+    }
+
+    fun testConnections() {
+        val c = _conn.value
+        _connectionsMsg.value = "…"
+        viewModelScope.launch {
+            _connectionsMsg.value = try { withContext(Dispatchers.IO) { c.api().testConnections() }.ifBlank { "—" } } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                "⚠ " + e.message.orEmpty().take(240)
+            }
+        }
+    }
+
     private val _serverPowers = MutableStateFlow<GregalApi.ServerPowers?>(null)
     /** Poders de servidor (només l'admin): null mentre no se sap o si no n'hi ha. */
     val serverPowers: StateFlow<GregalApi.ServerPowers?> = _serverPowers

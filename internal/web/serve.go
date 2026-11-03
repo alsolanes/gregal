@@ -3143,7 +3143,7 @@ func (s *Server) execToolCtx(ctx context.Context, c llm.ToolCall, workspace stri
 			return "ERROR: " + err.Error(), nil
 		}
 		return out, nil
-	case "app", "publish", "wind", "tunnel":
+	case "app", "publish", "wind", "tunnel", "calendar", "mail":
 		out, err := s.runServerTool(ctx, workspace, c.Function.Name, c.Function.Arguments)
 		if err != nil {
 			return "ERROR: " + err.Error(), nil

@@ -194,6 +194,36 @@ class GregalApi(val base: String, val token: String) {
         return o.optString("token")
     }
 
+    /** Calendari (Google Calendar per iCal), Gmail (IMAP) i resum del matí d'aquest compte. */
+    data class Connections(
+        val calendars: List<Pair<String, String>>, val mailUser: String, val mailConnected: Boolean,
+        val briefingOn: Boolean, val briefingTime: String, val briefingWind: String,
+    )
+
+    fun getConnections(): Connections {
+        val o = JSONObject(read(conn("/api/connections", "GET")))
+        val cals = o.optJSONArray("calendars") ?: JSONArray()
+        val m = o.optJSONObject("mail") ?: JSONObject()
+        val b = o.optJSONObject("briefing") ?: JSONObject()
+        return Connections(
+            (0 until cals.length()).map { i -> cals.getJSONObject(i).let { it.optString("name") to it.optString("url") } },
+            m.optString("user"), m.optBoolean("has_password"),
+            b.optBoolean("enabled"), b.optString("time").ifBlank { "08:00" }, b.optString("wind"),
+        )
+    }
+
+    /** Desa un canvi (add_calendar, remove_calendar, mail, remove_mail, briefing). */
+    fun postConnections(body: JSONObject) { post("/api/connections", body) }
+
+    /** Prova la connexió: text curt per mostrar. */
+    fun testConnections(): String {
+        val o = post("/api/connections", JSONObject().put("action", "test"))
+        val parts = mutableListOf<String>()
+        o.optJSONObject("calendar")?.let { parts += "📅 " + it.optInt("events_next_7_days") + " (7d)" }
+        o.optJSONObject("mail")?.let { parts += "✉ " + (if (it.has("error")) "⚠ " + it.optString("error") else it.optInt("unread").toString()) }
+        return parts.joinToString(" · ")
+    }
+
     /** Poders de servidor (admin): estat, eines de la màquina, túnels i notes. */
     data class ServerPowers(val enabled: Boolean, val tools: List<String>, val user: String, val notes: String, val tunnels: List<Pair<String, String>>)
 

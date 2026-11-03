@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v1.42.0 - 2026-11-03 - Calendari, correu i resum del matí
+
+- **Google Calendar, Gmail i el resum del matí.** Cada compte connecta el seu
+  calendari (l'«adreça secreta en format iCal» de Google Calendar, o qualsevol
+  calendari iCal) i el seu Gmail (IMAP amb contrasenya d'aplicació) a Preferències
+  → Calendari i correu, a la web, l'escriptori i el mòbil. Els vents tenen les eines
+  `calendar` (avui, demà, setmana, interval; repeticions, excepcions, cancel·lats i
+  solapaments) i `mail` (sense llegir, recents, cerca amb la sintaxi de Gmail i
+  llegir), sempre de només lectura: la bústia s'obre amb EXAMINE i res no es marca
+  com a llegit, i enviar, respondre o acceptar ho fa la persona. El contingut dels
+  correus va marcat com a no fiable. L'hora és la del calendari de la persona encara
+  que el servidor vagi en UTC. El **resum del matí** és una rutina diària: el vent que
+  triïs et diu a l'hora que vulguis què tens, quins correus demanen atenció i què
+  hi ha pendent, en un missatge curt amb la seva veu (notificació al mòbil). En
+  activar-lo no s'envia de seguida: el primer arriba a la propera hora triada.
+  Versió 1.56.0-vents (170).
+
 - Les colles ja no generen automàticament rondes addicionals de debat en cada resposta: es reserven per quan es demana discutir. A la discussió inicial cada vent parla per si mateix, sense atribuir-se les respostes dels altres. Si es repeteix una revisió idèntica sense escriptures, el treball s'atura com a incomplet; una revisió fallida no es marca com a èxit.
 - El format de codi amb accents greus es conserva als missatges. En enviar un missatge, els xats segueixen el final, també amb missatges llargs i teclat obert; si la persona puja a llegir, no se la força avall.
 
