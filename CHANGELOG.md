@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **El xat d'un grup existent fa feina de colla de veritat.** Quan en un grup
+  demanes programar o construir alguna cosa, la colla s'engega sola: discuteixen
+  el disseny, un construeix (escriu fitxers reals) i un altre revisa amb eines
+  pròpies; els missatges de cada vent arriben al fil mentre treballen, amb el
+  mòbil seguint el progrés en viu i botó d'aturar. Una pregunta o una negació
+  («no creeu res») no engegen res: van al xat de sempre.
+- **La revisora ja no publica el text del constructor.** El veredicte de la
+  revisió viatja separat del lliurament: al fil només hi surt el que la revisora
+  ha dit i comprovat de debò. Si el model de revisió no sap donar un veredicte
+  utilitzable, la feina es conserva però es diu clar que no està revisada —
+  mai no es presenta com a èxit.
+- **Progrés de fitxers de tota mena.** El seguiment de fitxers de la colla ja no
+  compta només HTML: qualsevol escriptura reeixida dins el projecte (Python,
+  Go, Kotlin…) s'hi registra.
+- **Cancel·lació i concurrents.** Aturar la feina des del mòbil cancel·la la
+  colla (canvis ja fets es conserven); dos missatges simultanis no engegen
+  dues colles ni perden l'historial; obrir el grup reprèn el seguiment de la
+  feina en marxa.
+
 ## v1.48.0 - 2026-11-03 - Veu als Vents, navegador de prompts i icona nova
 
 - **Gregal Vents 1.58.0 (Android): veu i xats nous.** Tots els xats tenen el camp

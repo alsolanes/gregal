@@ -295,6 +295,9 @@ func TestBotchedReviewKeepsTheWork(t *testing.T) {
 				if e.Type == "discussion" && e.Agent == "reviewer" {
 					msgs = append(msgs, e.Message)
 				}
+				if e.Type == "completed" && e.Agent == "reviewer" && e.ReviewInvalid {
+					msgs = append(msgs, e.Message)
+				}
 			})
 			if err != nil || got != tc.want || n != 2 {
 				t.Fatalf("got %q err=%v reviewer calls=%d", got, err, n)

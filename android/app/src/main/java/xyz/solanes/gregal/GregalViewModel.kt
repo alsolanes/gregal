@@ -498,6 +498,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             if (_rotllanaChat.value[bare].isNullOrEmpty()) _rotllanaChatLoading.value = _rotllanaChatLoading.value + bare
         }
         _ventsOpen.value = id
+        if (id.startsWith("rot:")) followCrew(bare)
         // Tocar una notificació ha d'obrir la conversa que l'ha provocada: si
         // només desàvem el vent, l'app es quedava a la pantalla on era i
         // semblava que no fes res.
@@ -558,6 +559,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         companionEpoch++
         expertPolling.values.toList().forEach { it.cancel() }
         expertPolling.clear()
+        crewPolling.values.toList().forEach { it.cancel() }
+        crewPolling.clear()
+        _crewStep.value = emptyMap()
         windHistoryRequests.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
@@ -1134,6 +1138,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     syncJobAlarms()
                     loadWinds()
                     loadRotllanes()
+                    _ventsOpen.value?.takeIf { it.startsWith("rot:") }?.let { followCrew(it.substringAfter(':')) }
                     hintMissingKey()
                     restoreLocalSession()
                     return@launch
@@ -3040,6 +3045,8 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 withContext(Dispatchers.IO) { source.api().deleteRotllana(id) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
+                crewPolling.remove(id)?.cancel()
+                _crewStep.value = _crewStep.value - id
                 _rotllanes.value = _rotllanes.value.filterNot { it.id == id }
                 ventsRecency.clear(source, "rot", id)
                 _rotllanaChat.value = _rotllanaChat.value - id
@@ -3157,7 +3164,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 turnError = turnFailed(source, epoch, rotllanaId, true, e)
             } finally {
                 aturats.remove(rotllanaId) // un «atura» que arriba tard no amaga el proper error
-                if (isCompanionOrigin(source, epoch)) { _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId) }
+                if (isCompanionOrigin(source, epoch)) {
+                    _rotllanaBusy.value = _rotllanaBusy.value - rotllanaId; endLive(rotllanaId)
+                    if (before.lastOrNull()?.kind == "question") followCrew(rotllanaId)
+                }
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), message, answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
@@ -3970,21 +3980,34 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** La colla treballa al servidor: refresca el fil mentre en parlen i fan la feina. */
+    private val crewPolling = mutableMapOf<String, Job>()
+
+    /** Follow only server-reported progress; retry transient failures without clearing it. */
     fun followCrew(id: String) {
+        if (id.isBlank() || crewPolling[id]?.isActive == true) return
         val source = _conn.value; val epoch = companionEpoch
-        viewModelScope.launch {
-            repeat(400) {
-                kotlinx.coroutines.delay(4000)
-                val status = try { withContext(Dispatchers.IO) { source.api().crewStatus(id) } } catch (_: Exception) { null }
-                if (!isCompanionOrigin(source, epoch)) return@launch
-                if (status != null) {
-                    _crewStep.value = if (status.first) _crewStep.value + (id to status.second) else _crewStep.value - id
-                    loadRotllanaChat(id)
-                    if (!status.first) return@launch
+        val job = viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            try {
+                while (true) {
+                    val status = try {
+                        withContext(Dispatchers.IO) { source.api().crewStatus(id) }
+                    } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                    if (!isCompanionOrigin(source, epoch)) return@launch
+                    if (status != null) {
+                        val step = status.second
+                        _crewStep.value = if (status.first && step in setOf("discussing", "waiting", "working"))
+                            _crewStep.value + (id to step) else _crewStep.value - id
+                        loadRotllanaChat(id)
+                        if (!status.first) return@launch
+                    }
+                    delay(4000)
                 }
+            } finally {
+                if (crewPolling[id] === kotlinx.coroutines.currentCoroutineContext()[Job]) crewPolling.remove(id)
             }
         }
+        crewPolling[id] = job
+        job.start()
     }
 
     fun activateSquad(id: String, lang: String, onDone: (Boolean) -> Unit = {}) {

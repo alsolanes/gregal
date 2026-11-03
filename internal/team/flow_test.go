@@ -72,6 +72,41 @@ func rejectedJSON(feedback, deliverable string) string {
 	return `{"approved": false, "feedback": ` + strconv.Quote(feedback) + `, "deliverable": ` + strconv.Quote(deliverable) + `}`
 }
 
+func TestFlowReviewCompletedSeparatesFeedbackFromDeliverable(t *testing.T) {
+	for _, tc := range []struct {
+		name, response, feedback, output string
+	}{
+		{"approved", `{"approved":true,"feedback":"Looks coherent","deliverable":"builder draft"}`, "Looks coherent", "builder draft"},
+		{"rejected", rejectedJSON("Fix the input", "builder draft"), "Fix the input", "builder draft\n\nOutstanding review feedback:\nFix the input"},
+		{"missing feedback", approvedJSON("builder draft"), "", "builder draft"},
+		// Una sola resposta del reviewer: l'intent de reintent falla igual i
+		// el notice del fallback és el feedback del completed.
+		{"invalid fallback", `{"approved":true}`, "review answer could not be used", "builder draft"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newScriptRunner(map[string][]string{"coordinator": {"plan"}, "researcher": {"research"}, "builder": {"builder draft"}, "reviewer": {tc.response}})
+			spec := DefaultFlow()
+			spec.MaxRounds = 0
+			answer, events, err := collectFlow("task", spec, r)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if answer != tc.output {
+				t.Fatalf("answer = %q, want %q", answer, tc.output)
+			}
+			for _, e := range events {
+				if e.Type == "completed" && e.Agent == "reviewer" {
+					if e.Output != tc.output || !strings.Contains(e.Message, tc.feedback) {
+						t.Fatalf("review event = %+v", e)
+					}
+					return
+				}
+			}
+			t.Fatal("missing completed review event")
+		})
+	}
+}
+
 func TestDefaultFlowIsValid(t *testing.T) {
 	if err := ValidateFlow(DefaultFlow()); err != nil {
 		t.Fatalf("default flow must validate: %v", err)
@@ -192,10 +227,17 @@ func TestFlowRevisionRoundsThenFinalizes(t *testing.T) {
 		t.Fatalf("final answer must carry outstanding feedback: %q", answer)
 	}
 	discussions := 0
+	var reviewFeedback []string
 	for _, e := range events {
+		if e.Type == "completed" && e.Agent == "reviewer" {
+			reviewFeedback = append(reviewFeedback, e.Message)
+		}
 		if e.Type == "discussion" && e.To == "builder" {
 			discussions++
 		}
+	}
+	if strings.Join(reviewFeedback, "|") != "fix it|fix it more|still off" {
+		t.Fatalf("review feedback events: %q", reviewFeedback)
 	}
 	if discussions != 2 {
 		t.Fatalf("discussions=%d, want 2", discussions)
@@ -270,4 +312,71 @@ func collectFlowWithCtx(ctx context.Context, task string, spec FlowSpec, r *scri
 		events = append(events, e)
 	})
 	return answer, events, err
+}
+
+// TestFlowInvalidReviewCarriesInvalidFlag (RED): a reviewer that never
+// produces a usable verdict must not look like a real approval. The flow
+// still returns the builder fallback so no work is lost, but the verdict
+// arrives flagged invalid.
+func TestFlowInvalidReviewCarriesInvalidFlag(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		answers   []string
+		wantValid bool
+	}{
+		{"garbage twice", []string{"garbage one", "garbage two"}, true},
+		{"malformed JSON twice", []string{`{"approved":true}`, `{"feedback":"x"}`}, false},
+		{"valid JSON", []string{approvedJSON("final draft")}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := newScriptRunner(map[string][]string{
+				"coordinator": {"plan"},
+				"researcher":  {"research"},
+				"builder":     {"builder draft"},
+				"reviewer":    tc.answers,
+			})
+			spec := DefaultFlow()
+			spec.MaxRounds = 0
+			answer, events, err := collectFlow("task", spec, r)
+			if err != nil {
+				t.Fatalf("flow run: %v", err)
+			}
+			var completedReview *Event
+			var discussionEvents []Event
+			for i, e := range events {
+				if e.Type == "completed" && e.Agent == "reviewer" {
+					completedReview = &events[i]
+				}
+				if e.Type == "discussion" && e.Agent == "reviewer" {
+					discussionEvents = append(discussionEvents, e)
+				}
+			}
+			if completedReview == nil {
+				t.Fatal("missing completed review event")
+			}
+			if tc.wantValid {
+				if completedReview.ReviewInvalid {
+					t.Fatalf("valid review must not carry the invalid flag: %+v", *completedReview)
+				}
+				if tc.name == "valid JSON" && completedReview.Output != "final draft" {
+					t.Fatalf("answer = %q, want %q", completedReview.Output, "final draft")
+				}
+				return
+			}
+			if !completedReview.ReviewInvalid {
+				t.Fatalf("invalid review must carry the invalid flag on the completed event: %+v", *completedReview)
+			}
+			if answer != "builder draft" {
+				t.Fatalf("builder fallback must be preserved, answer = %q", answer)
+			}
+			if !strings.Contains(completedReview.Message, "review answer could not be used") {
+				t.Fatalf("completed event must say the review could not be used: %+v", *completedReview)
+			}
+			for _, e := range discussionEvents {
+				if strings.Contains(e.Message, "review answer could not be used") {
+					t.Fatalf("invalid-review notice must move to the completed event, not stay a discussion: %+v", e)
+				}
+			}
+		})
+	}
 }

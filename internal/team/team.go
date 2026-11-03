@@ -23,6 +23,11 @@ type Event struct {
 	Path     string `json:"path,omitempty"`
 	Model    string `json:"model,omitempty"`
 	Message  string `json:"message,omitempty"`
+	// ReviewInvalid marks a completed review node whose verdict the model
+	// never produced in usable form: the deliverable is the builder's
+	// fallback, not a verified approval. Callers must not report the
+	// work as review-verified.
+	ReviewInvalid bool `json:"review_invalid,omitempty"`
 }
 
 type Runner func(context.Context, string, string) (string, error)
@@ -191,6 +196,9 @@ type parsedReview struct {
 	approved    bool
 	feedback    string
 	deliverable string
+	// invalid marks the invalid-verdict fallback: the deliverable is the
+	// builder's work, not a review-verified approval.
+	invalid bool
 }
 
 func runRole(ctx context.Context, runner Runner, emit func(Event), role, activity, instruction, prompt string) (string, error) {
@@ -248,7 +256,7 @@ func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt str
 	if final && !review.approved {
 		review.deliverable += "\n\nOutstanding review feedback:\n" + review.feedback
 	}
-	emit(Event{Type: "completed", Agent: "reviewer", Activity: "review", Output: review.deliverable})
+	emit(Event{Type: "completed", Agent: "reviewer", Activity: "review", Output: review.deliverable, Message: review.feedback, ReviewInvalid: review.invalid})
 	return review, nil
 }
 
@@ -261,6 +269,10 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 	if err != nil {
 		return nil, err
 	}
+	// The invalid-verdict fallback keeps the builder's work (approved with
+	// fallback deliverable), but must be distinguishable from a real
+	// approval so the crew never reports it as review-verified.
+	invalidFallback := false
 	review, err := parseReview(output)
 	if err != nil {
 		retry := instruction + "\n\nYour previous answer could not be used (" + err.Error() + "). Answer again with only that JSON object and all three fields."
@@ -278,9 +290,8 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 		if strings.TrimSpace(fallback) == "" {
 			return nil, err
 		}
-		emit(Event{Type: "discussion", Agent: agent, Activity: "review",
-			Message: "The review answer could not be used (" + err.Error() + "); keeping the builder's work."})
-		return &parsedReview{approved: true, deliverable: fallback}, nil
+		invalidFallback = true
+		return &parsedReview{approved: true, feedback: "The review answer could not be used (" + err.Error() + "); keeping the builder's work.", deliverable: fallback, invalid: invalidFallback}, nil
 	}
 	if review == nil {
 		// Plain-text reviewer responses remain supported for older providers.

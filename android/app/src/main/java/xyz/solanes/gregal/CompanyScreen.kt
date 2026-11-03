@@ -1297,8 +1297,6 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             val body = field.text
             val target = resolveMention(body, faces)
             follow.requestFollow(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
-            // La resposta reprèn la colla que esperava: se'n torna a seguir el progrés.
-            if (waitingAnswer) vm.followCrew(rot.id)
         }
         }
     }

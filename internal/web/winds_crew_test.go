@@ -3,13 +3,112 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"gregal/internal/companion"
+	"gregal/internal/config"
 	"gregal/internal/team"
 )
+
+func TestExistingRotllanaCodingTaskRunsCrew(t *testing.T) {
+	for _, stream := range []bool{false, true} {
+		t.Run(map[bool]string{false: "classic", true: "stream"}[stream], func(t *testing.T) {
+			s, id := rotllanaChatter(t, "ordinary chat")
+			oldDiscuss, oldWork, oldCoord := crewDiscussLoop, crewWork, crewCoordinator
+			t.Cleanup(func() { waitBackground(); crewDiscussLoop, crewWork, crewCoordinator = oldDiscuss, oldWork, oldCoord })
+			crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "Design", nil }
+			worked := make(chan struct{}, 1)
+			crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+				worked <- struct{}{}
+				return "built", nil
+			}
+			calls := 0
+			crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
+				calls++
+				if calls == 1 {
+					return `{"action":"work"}`, nil
+				}
+				return `{"action":"finish","conclusion":"built"}`, nil
+			}
+			handler := s.handleRotllanaChat
+			if stream {
+				handler = s.handleRotllanaChatStream
+			}
+			rec := postJSON(t, handler, `{"rotllana":"`+id+`","message":"Implementa una aplicació web de notes"}`)
+			if rec.Code != 200 {
+				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+			}
+			select {
+			case <-worked:
+			case <-time.After(3 * time.Second):
+				t.Fatal("existing rotllana did not execute crew work")
+			}
+		})
+	}
+}
+
+func TestCrewDiscussionCanBeCancelled(t *testing.T) {
+	s, id := rotllanaChatter(t, "ordinary chat")
+	rot, _ := s.rotllanaByID(id)
+	old := crewDiscussLoop
+	t.Cleanup(func() { waitBackground(); crewDiscussLoop = old })
+	started := make(chan struct{})
+	crewDiscussLoop = func(_ *Server, ctx context.Context, _ string) (string, error) {
+		close(started)
+		<-ctx.Done()
+		return "", ctx.Err()
+	}
+	job := &crewJob{}
+	done := make(chan struct{})
+	go func() { defer close(done); s.runCrew(rot, "build", false, job) }()
+	<-started
+	if !s.cancelWindTurn("rotllana", id) {
+		t.Error("discussion did not register wind cancellation")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("discussion did not stop")
+	}
+	if job.get() != "cancelled" {
+		t.Errorf("job step = %q, want cancelled", job.get())
+	}
+}
+
+func TestCrewLoopCanBeCancelledFromWindStop(t *testing.T) {
+	s, id := rotllanaChatter(t, "ordinary chat")
+	rot, _ := s.rotllanaByID(id)
+	oldWork, oldCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { waitBackground(); crewWork, crewCoordinator = oldWork, oldCoord })
+	started := make(chan struct{})
+	crewCoordinator = func(*Server, context.Context, string, string) (string, error) { return `{"action":"work"}`, nil }
+	crewWork = func(_ *Server, ctx context.Context, _ Rotllana, _ string, _ team.FlowSpec, _ bool) (string, error) {
+		close(started)
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(time.Second):
+			return "", errConst("test timeout")
+		}
+	}
+	job := &crewJob{}
+	done := make(chan struct{})
+	go func() { defer close(done); s.crewLoop(rot, &crewState{Task: "build", Started: time.Now()}, job) }()
+	<-started
+	if !s.cancelWindTurn("rotllana", id) {
+		t.Error("crew did not register wind cancellation")
+	}
+	<-done
+	if job.get() != "cancelled" {
+		t.Errorf("job step = %q, want cancelled", job.get())
+	}
+}
 
 func TestCrewProposalReusesFitAndCreatesDistinctNewWinds(t *testing.T) {
 	s, _ := companionTestServer(t)
@@ -141,6 +240,11 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 		kinds[m.Kind]++
 	}
 	joined := strings.Join(said, "\n")
+	for _, m := range s.crewHistory(out.Rotllana) {
+		if m.Kind == "debate" && strings.Contains(m.Content, "Web feta: index.html i style.css") {
+			t.Fatalf("coordinator repeated the deliverable: %s", m.Content)
+		}
+	}
 	for _, want := range []string{"Fes una web del sopar", "Gregal: Jo m'encarrego", "Ratxa: Jo m'encarrego", "Som-hi en paral·lel", "**Conclusió**", "Web feta amb el menú", "**Comprovat**", "index.html obre bé", "**Sense comprovar**"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("history misses %q:\n%s", want, joined)
@@ -238,6 +342,10 @@ func TestCrewAsksAndResumes(t *testing.T) {
 func TestCrewSanitiseDecision(t *testing.T) {
 	members := []companion.Wind{{ID: "a", Name: "A"}, {ID: "b", Name: "B"}}
 	st := &crewState{Task: "x"}
+	// Una conclusió sense cap volta no demostra que s'hagi fet la feina.
+	if d := crewSanitiseDecision(crewDecision{Action: "finish", Conclusion: "Fet"}, st, members); d.Action != "work" {
+		t.Fatalf("finish before work: %+v", d)
+	}
 	// Res de vàlid a la primera: construeix el primer membre.
 	if d := crewSanitiseDecision(crewDecision{Action: "dance"}, st, members); d.Action != "work" || d.Assignments[0].Wind != "a" {
 		t.Fatalf("fallback: %+v", d)
@@ -359,10 +467,69 @@ func TestCrewUnfinishedReviewCannotFinishSuccessfully(t *testing.T) {
 				t.Fatalf("unfinished review reported %q", job.get())
 			}
 			hist := s.crewHistory(rot)
+			var status string
+			for _, m := range hist {
+				if m.Kind == "debate" && (strings.Contains(m.Content, "review") || strings.Contains(m.Content, "Review")) {
+					status = m.Content
+				}
+			}
+			if status == "" || strings.Contains(status, "Draft saved.") || strings.Contains(status, "Done,") {
+				t.Fatalf("review status must not repeat draft or falsely claim done: %q", status)
+			}
 			if !strings.Contains(hist[len(hist)-1].Content, "not finished") {
 				t.Fatalf("result: %+v", hist[len(hist)-1])
 			}
 		})
+	}
+}
+
+// TestCrewWorkInvalidReviewIsNotSuccess: una revisora que mai no produeix
+// un veredicte utilitzable no pot fer que la colla acabi com a èxit: la
+// feina del constructor es conserva i es retorna errReviewIncomplete.
+func TestCrewWorkInvalidReviewIsNotSuccess(t *testing.T) {
+	s, _ := companionTestServer(t)
+	a, _ := s.winds.Save(companion.Wind{Name: "Constructor", Role: "Builder"})
+	b, _ := s.winds.Save(companion.Wind{Name: "Revisora", Role: "Reviewer"})
+	rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID, b.ID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: "http://127.0.0.1:1"}}
+	// Provider fake: builder escriu, revisora mai no dona JSON vàlid.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		var body struct {
+			Messages []struct {
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		sys := ""
+		if len(body.Messages) > 0 {
+			sys = body.Messages[0].Content
+		}
+		if strings.Contains(sys, "builder") {
+			fmt.Fprint(w, `{"choices":[{"message":{"content":"builder wrote main.py"},"finish_reason":"stop"}]}`)
+			return
+		}
+		// La revisora mai no dóna el JSON que toca: dos intents, cap serveix.
+		fmt.Fprint(w, `{"choices":[{"message":{"content":"{ \"approved\": true "},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	s.cfg.Providers = map[string]config.Provider{"p": {BaseURL: srv.URL}}
+	flow := team.FlowSpec{MaxRounds: 1, Nodes: []team.FlowNode{
+		{ID: "build-1", Wind: a.ID, Role: "builder", Mode: "task"},
+		{ID: "review", Wind: b.ID, Role: "reviewer", Mode: "review"},
+	}, Edges: []team.FlowEdge{{From: "build-1", To: "review", Kind: "data"}}, Output: "review"}
+	answer, err := crewWork(s, context.Background(), rot, "fes un programa", flow, true)
+	if err == nil {
+		t.Fatalf("invalid review must not be success: answer=%q", answer)
+	}
+	if !errors.Is(err, errReviewIncomplete) && err.Error() != "review incomplete" {
+		t.Fatalf("want errReviewIncomplete, got %v", err)
+	}
+	if !strings.Contains(answer, "builder wrote main.py") {
+		t.Fatalf("builder work must be preserved, got %q", answer)
 	}
 }
 

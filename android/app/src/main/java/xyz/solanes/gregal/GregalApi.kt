@@ -841,7 +841,8 @@ class GregalApi(val base: String, val token: String) {
     /** Pas de la feina d'una colla convocada: discussing, waiting, working, done, failed. */
     fun crewStatus(rotllanaId: String): Pair<Boolean, String> {
         val o = JSONObject(read(conn("/api/winds/crew/status?rotllana=" + java.net.URLEncoder.encode(rotllanaId, "UTF-8"), "GET")))
-        return o.optBoolean("running") to o.optString("step")
+        require(o.opt("running") is Boolean) { "Invalid crew status" }
+        return o.getBoolean("running") to o.optString("step")
     }
 
     /** Activa una colla: crea els especialistes que falten (idempotent). */

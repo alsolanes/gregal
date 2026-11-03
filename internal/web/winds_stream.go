@@ -320,9 +320,23 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
+	if wanted := strings.TrimSpace(req.Wind); wanted != "" {
+		if _, err := s.nextWindInHistory(rot, wanted, nil); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	// La colla d'aquest fil espera resposta: el missatge la reprèn.
-	if !req.Continue && msg != "" && s.crewTakeAnswer(rot, msg) {
+	if !req.Continue && msg != "" && s.crewMayResume() && s.crewTakeAnswer(rot, msg) {
 		sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
+		return
+	}
+	if crewChatBusy(rot.ID) {
+		http.Error(w, s.crewBusyMessage(), http.StatusConflict)
+		return
+	}
+	if !req.Continue && strings.TrimSpace(req.Wind) == "" && msg != "" && s.crewChatAllowed(msg) {
+		s.crewChat(w, r, rot, msg, true)
 		return
 	}
 	if msg == "" && !req.Continue {

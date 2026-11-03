@@ -550,7 +550,7 @@ func (s *Server) handleCrewStatus(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimSpace(r.URL.Query().Get("rotllana"))
 	if v, ok := crewJobs.Load(id); ok {
 		step := v.(*crewJob).get()
-		writeJSON(w, map[string]any{"running": step != "done" && step != "failed", "step": step})
+		writeJSON(w, map[string]any{"running": step != "done" && step != "failed" && step != "cancelled", "step": step})
 		return
 	}
 	writeJSON(w, map[string]any{"running": false, "step": crewStepDesat(s, id)})
@@ -633,8 +633,19 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 		lang = "ca"
 	}
 	var failure, built, motiu string
+	reviewInvalid := false
 	var paths []string
+	var pathsMu sync.Mutex
 	seenPath := map[string]bool{}
+	ctx2 = teamWithWriteProgress(ctx2, func(path string) {
+		noteCrewWrite(rot.ID, workspace, path)
+		pathsMu.Lock()
+		defer pathsMu.Unlock()
+		if !seenPath[path] {
+			seenPath[path] = true
+			paths = append(paths, filepath.Base(path))
+		}
+	})
 	answer := s.runTeamFlow(ctx2, teamFlowRun{
 		task: task, lang: lang, flow: &flow, withTools: true, winds: true, thread: rot.ID, workspace: workspace,
 		subagents: subagents, cfg: cfg, client: client, provider: provider, role: role, started: time.Now(),
@@ -649,16 +660,19 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 				motiu = e.Message
 			}
 		}
+		if e.Type == "completed" && e.ReviewInvalid {
+			// The reviewer never produced a usable verdict: the deliverable
+			// is the builder's fallback, not a review-verified approval.
+			reviewInvalid = true
+		}
+		if e.Type == "completed" && strings.TrimSpace(e.Output) != "" {
+			s.crewPublishNode(rot, flow, e)
+		}
 		if e.Type == "completed" && (e.Agent == "builder" || strings.HasPrefix(e.Agent, "build-")) && strings.TrimSpace(e.Output) != "" {
 			if built != "" {
 				built += "\n\n"
 			}
 			built += e.Output
-		}
-		if e.Type == "tool_result" && e.Path != "" && (e.Activity == "write" || e.Activity == "edit" || e.Activity == "patch") && !seenPath[e.Path] {
-			seenPath[e.Path] = true
-			paths = append(paths, filepath.Base(e.Path))
-			noteCrewWrite(rot.ID, workspace, e.Path)
 		}
 	})
 	files := ""
@@ -678,6 +692,10 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 			return "", errConst(motiu)
 		}
 		return "", errConst("failed")
+	}
+	if reviewInvalid {
+		// Honest reporting: the work exists but no review verified it.
+		return built + answer + files, errReviewIncomplete
 	}
 	return answer + files, nil
 }
@@ -718,9 +736,15 @@ func crewPotReprendre(err error, inici time.Time) bool {
 // runCrew: a design discussion round, then the build-and-review work, all
 // posted into the rotllana so phone and desktop follow the same thread.
 func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
-	inici := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), teamRunTimeout+15*time.Minute)
 	defer cancel()
+	ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
+	defer doneTurn()
+	s.runCrewContext(ctx, rot, task, ca, job)
+}
+
+func (s *Server) runCrewContext(ctx context.Context, rot Rotllana, task string, ca bool, job *crewJob) {
+	inici := time.Now()
 	members := s.rotMembersOf(rot)
 	if len(members) == 0 {
 		job.set("failed")
@@ -736,6 +760,9 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 		"Discussió de disseny abans de començar. Encàrrec: "+task+"\nDes de la teva especialitat, digues en 2-5 frases com ho faries. Respon concretament al que han dit els altres vents (acord o desacord amb motius) i aporta ara mateix el contingut concret de la teva part (dades, textos, decisions): tot passa en aquesta sessió i qui construeix ho farà tot just després, sense esperar res més. No prometis enviar res més tard. Si l'usuari ha dit alguna cosa, tingues-ho en compte primer.",
 		"Design discussion before starting. Task: "+task+"\nFrom your specialty, say in 2-5 sentences how you would do it. Respond concretely to what the other winds said (agree or disagree, with reasons) and contribute the actual content of your part now (data, texts, decisions): everything happens in this session and the builder will do the work right after, without waiting for anything else. Do not promise to send anything later. If the user said something, take it into account first.")
 	for _, wind := range members {
+		if ctx.Err() != nil {
+			break
+		}
 		_, brief := rotllanaChatBrief(s, rot, wind, s.crewHistory(rot), discuss)
 		brief += "\n\nCREW DISCUSSION OVERRIDE: Speak ONLY as yourself (" + wind.Name + "), not as the whole group. Do not prefix your name or write other members' replies."
 		text, err := crewDiscussLoop(s, ctx, brief)
@@ -755,7 +782,7 @@ func (s *Server) runCrew(rot Rotllana, task string, ca bool, job *crewJob) {
 	// Després de la discussió, la feina la porta el coordinador (winds_crew_coord.go).
 	st := &crewState{Task: task, Ca: ca, Started: inici}
 	saveCrewState(s, rot.ID, st)
-	s.crewLoop(rot, st, job)
+	s.crewLoopContext(ctx, rot, st, job)
 }
 
 // crewRejected tells a review that did not pass: the flow engine's outstanding

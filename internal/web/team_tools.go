@@ -101,6 +101,15 @@ func teamSubagents(spec *team.FlowSpec, workspace string) (map[string]*agent.Sub
 	return out, nil
 }
 
+type teamWriteProgressKey struct{}
+
+// teamWithWriteProgress installs a private observer for successful project writes.
+// Unlike preview events, this is never serialized to the client. Different
+// seats can report concurrently, so the observer must synchronize shared state.
+func teamWithWriteProgress(ctx context.Context, report func(string)) context.Context {
+	return context.WithValue(ctx, teamWriteProgressKey{}, report)
+}
+
 // runTeamSeat fa córrer un seient amb eines i torna el lliurament i el
 // model que ha respost.
 func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role config.Role, seat teamSeat, workspace, language, nodeID, prompt string, automaticReview bool, emit func(string, any)) (string, string, error) {
@@ -165,7 +174,7 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 		Dir: workspace, Role: "team", Tools: seat.Tools, System: system, Approve: approve,
 		OnEvent: func(e agent.Event) {
 			if e.Tipus == agent.EvCrida {
-				path := teamHTMLArtifactPath(workspace, e.Eina, e.EinaArgs)
+				path := teamWritePath(workspace, e.Eina, e.EinaArgs)
 				if path != "" {
 					toolPaths[e.ID] = path
 				}
@@ -176,11 +185,21 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 				if !e.Executada || e.Fallada {
 					path = ""
 				}
+				if path != "" {
+					if report, ok := ctx.Value(teamWriteProgressKey{}).(func(string)); ok && report != nil {
+						report(path)
+					}
+				}
+				previewPath := path
+				ext := strings.ToLower(filepath.Ext(path))
+				if ext != ".html" && ext != ".htm" {
+					previewPath = ""
+				}
 				message := strings.TrimSpace(e.Text)
 				if len([]rune(message)) > 240 {
 					message = string([]rune(message)[:240]) + "…"
 				}
-				emit("team", team.Event{Type: "tool_result", Agent: nodeID, Activity: e.Eina, Path: path, Message: message})
+				emit("team", team.Event{Type: "tool_result", Agent: nodeID, Activity: e.Eina, Path: previewPath, Message: message})
 			}
 		},
 	})
@@ -198,7 +217,7 @@ func teamReviewingMessage(language string) string {
 	return "Automatically reviewing this action…"
 }
 
-func teamHTMLArtifactPath(workspace, name, args string) string {
+func teamWritePath(workspace, name, args string) string {
 	if name != "write" && name != "edit" && name != "patch" {
 		return ""
 	}
@@ -208,10 +227,6 @@ func teamHTMLArtifactPath(workspace, name, args string) string {
 	if json.Unmarshal([]byte(args), &target) != nil || !agent.InsideProject(workspace, target.Path) {
 		return ""
 	}
-	ext := strings.ToLower(filepath.Ext(target.Path))
-	if ext != ".html" && ext != ".htm" {
-		return ""
-	}
 	if filepath.IsAbs(target.Path) {
 		rel, err := filepath.Rel(workspace, target.Path)
 		if err != nil {
@@ -219,7 +234,11 @@ func teamHTMLArtifactPath(workspace, name, args string) string {
 		}
 		target.Path = rel
 	}
-	return filepath.ToSlash(filepath.Clean(target.Path))
+	path := filepath.Clean(target.Path)
+	if !filepath.IsLocal(path) {
+		return ""
+	}
+	return filepath.ToSlash(path)
 }
 
 func teamReviewMessage(d agent.ReviewDecision, language string) string {

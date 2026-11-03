@@ -247,6 +247,10 @@ func crewSanitiseDecision(d crewDecision, st *crewState, members []companion.Win
 	if d.Action == "ask" && (st.Questions >= crewMaxQuestions || strings.TrimSpace(d.Question) == "") {
 		d.Action = ""
 	}
+	if d.Action == "finish" && st.Round == 0 && len(members) > 0 {
+		// A model conclusion is not a completed task without a work round.
+		d = crewDecision{Action: "work", Assignments: []crewAssignment{{Wind: members[0].ID, Part: st.Task}}}
+	}
 	if d.Action == "work" && st.Round >= crewMaxRounds {
 		d.Action = "finish"
 	}
@@ -376,8 +380,15 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 	ctx, cancel := context.WithTimeout(context.Background(), teamRunTimeout+15*time.Minute)
 	defer cancel()
+	ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
+	defer doneTurn()
+	s.crewLoopContext(ctx, rot, st, job)
+}
+
+func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewState, job *crewJob) {
 	members := s.rotMembersOf(rot)
 	if len(members) == 0 {
+		_ = takeCrewWrites(rot.ID)
 		job.set("failed")
 		return
 	}
@@ -387,6 +398,13 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 			return c
 		}
 		return e
+	}
+	finishWithFiles := func(msg string) string {
+		files := takeCrewWrites(rot.ID)
+		if len(files) > 0 {
+			msg += "\n\n**" + say("Fitxers", "Files") + "**\n- " + strings.Join(files, "\n- ")
+		}
+		return msg
 	}
 	instruction := func(w companion.Wind, review bool) string {
 		base := "You are " + w.Name + ". Specialty: " + w.Role + ". Character: " + w.Persona + "\n"
@@ -403,6 +421,9 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 		}
 		job.set("working")
 		d := s.crewDecide(ctx, rot, st, members)
+		if ctx.Err() != nil {
+			break
+		}
 		switch d.Action {
 		case "ask":
 			st.Questions++
@@ -430,7 +451,7 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 			}
 			return
 		case "giveup":
-			msg := say("No ho podem fer: ", "We can't do it: ") + firstNonEmpty(d.Say, d.Conclusion)
+			msg := finishWithFiles(say("No ho podem fer: ", "We can't do it: ") + firstNonEmpty(d.Say, d.Conclusion))
 			s.crewSayKind(rot, lead, "result", msg)
 			s.crewNotify(rot, lead, st.Task, msg)
 			_ = os.Remove(crewStatePath(s, rot.ID))
@@ -456,6 +477,9 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 		writesBefore := crewWriteEvents[rot.ID]
 		crewWritesMu.Unlock()
 		answer, err := crewWork(s, ctx, rot, work, flow, st.Ca)
+		if ctx.Err() != nil {
+			break
+		}
 		crewWritesMu.Lock()
 		wroteThisRound := crewWriteEvents[rot.ID] != writesBefore
 		crewWritesMu.Unlock()
@@ -475,14 +499,13 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 				return
 			}
 			previousAssignment, previousAnswer = assignment, strings.TrimSpace(answer)
-			verdict := say("Revisat: ", "Reviewed: ")
+			verdict := say("La volta de revisió ha acabat.", "The review round has ended.")
 			if err == errReviewIncomplete {
-				verdict = say("Fet, però la revisió no s'ha pogut completar: ", "Done, but the review could not be completed: ")
+				verdict = say("La revisió no s'ha pogut completar; la feina no està verificada.", "The review could not be completed; the work is not verified.")
 			} else if crewRejected(answer) {
-				verdict = say("La revisió hi veu coses obertes: ", "The review sees open issues: ")
+				verdict = say("La revisió hi veu coses obertes; la feina no està acabada.", "The review sees open issues; the work is not finished.")
 			}
-			text, _ := crewClosing(answer)
-			s.crewSayKind(rot, lead, "debate", verdict+oneLineKeepBreaks(text, 1200))
+			s.crewSayKind(rot, lead, "debate", verdict)
 			st.Log = append(st.Log, fmt.Sprintf("Round %d (%s): %s", st.Round, strings.Join(plan, "; "), oneLineKeepBreaks(answer, 2500)))
 		case crewPotReprendre(err, st.Started):
 			s.crewSayKind(rot, lead, "debate", say("S'ha encallat la volta; ho reprenem aprofitant el que ja hi ha fet.", "The round stalled; we resume from what is already done."))
@@ -493,7 +516,7 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 			if rot.Workspace != "" {
 				files = fitxersTocats(rot.Workspace, st.Started)
 			}
-			msg := crewFailureMessage(say, err, time.Since(st.Started), files)
+			msg := finishWithFiles(crewFailureMessage(say, err, time.Since(st.Started), files))
 			s.crewSayKind(rot, lead, "result", msg)
 			s.crewNotify(rot, lead, st.Task, msg)
 			_ = os.Remove(crewStatePath(s, rot.ID))
@@ -503,16 +526,26 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 		saveCrewState(s, rot.ID, st)
 	}
 	msg := say("S'ha acabat el temps de la colla; et deixo el que hi ha.", "The crew ran out of time; here is what exists.")
-	s.crewSayKind(rot, lead, "result", msg+"\n\n"+oneLineKeepBreaks(last, 3000))
+	step := "failed"
+	if ctx.Err() == context.Canceled {
+		msg = say("La feina s'ha aturat; els canvis ja fets es conserven.", "The work was stopped; changes already made are kept.")
+		step = "cancelled"
+	}
+	msg = finishWithFiles(msg + "\n\n" + oneLineKeepBreaks(last, 3000))
+	s.crewSayKind(rot, lead, "result", msg)
 	s.crewNotify(rot, lead, st.Task, msg)
 	_ = os.Remove(crewStatePath(s, rot.ID))
-	job.set("failed")
+	job.set(step)
 }
 
 // crewTakeAnswer: si la colla d'aquest fil espera resposta, el missatge de
 // l'usuari la reprèn (en lloc d'anar al xat de sempre). Torna true si l'ha
 // agafat; el missatge ja és al fil.
 func (s *Server) crewTakeAnswer(rot Rotllana, msg string) bool {
+	// Serialize the waiting-state check and reservation with crew starts and
+	// other answers, so only one request can resume the persisted job.
+	crewStartMu.Lock()
+	defer crewStartMu.Unlock()
 	st, ok := loadCrewState(s, rot.ID)
 	if !ok || !st.Waiting {
 		return false

@@ -52,6 +52,88 @@ class WindHistoryRevisionNewTest {
 
     private fun history(text: String) = """{"history":[{"from":"pet","text":"$text"}]}"""
 
+    @Test fun openingGroupDiscoversCrewWork() {
+        HistoryServer().use { server ->
+            val vm = vm(server)
+            val status = server.expect("GET /api/winds/crew/status?rotllana=same-id", """{"running":true,"step":"working"}""")
+            vm.openVentsChat("rot:same-id")
+            status.awaitRequest()
+            val history = server.expect("GET ${endpoint(true)}", history("progress"))
+            status.release.countDown()
+            val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+            while (history.requested.count > 0 && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5)
+            }
+            assertEquals("history request arrived", 0L, history.requested.count)
+            history.release.countDown()
+            while (texts(vm, true).isEmpty() && System.nanoTime() < deadline) {
+                shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5)
+            }
+            assertEquals("working", vm.crewStep.value["same-id"])
+            assertEquals(listOf("progress"), texts(vm, true))
+            vm.disconnect()
+            server.assertHealthy()
+        }
+    }
+
+    private fun awaitCondition(condition: () -> Boolean) {
+        val end = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!condition() && System.nanoTime() < end) {
+            shadowOf(Looper.getMainLooper()).idle(); Thread.sleep(5)
+        }
+        assertTrue("condition reached", condition())
+    }
+
+    @Test fun crewPollRetriesMalformedStatusAndStopsOnCompletion() {
+        HistoryServer().use { server ->
+            val vm = vm(server)
+            val first = server.expect("GET /api/winds/crew/status?rotllana=same-id", """{"running":true,"step":"working"}""")
+            vm.followCrew("same-id")
+            vm.followCrew("same-id") // Must not start a second request.
+            first.awaitRequest()
+            val progress = server.expect("GET ${endpoint(true)}", history("progress"))
+            first.release.countDown()
+            awaitCondition { progress.requested.count == 0L }
+            progress.release.countDown()
+            awaitCondition { texts(vm, true) == listOf("progress") }
+            val bad = server.expect("GET /api/winds/crew/status?rotllana=same-id", """{}""")
+            shadowOf(Looper.getMainLooper()).idleFor(4, TimeUnit.SECONDS)
+            awaitCondition { bad.requested.count == 0L }
+            bad.release.countDown()
+            // Processing the invalid status must not clear the last real step.
+            awaitCondition { vm.crewStep.value["same-id"] == "working" }
+            Thread.sleep(100); shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("working", vm.crewStep.value["same-id"])
+            val done = server.expect("GET /api/winds/crew/status?rotllana=same-id", """{"running":false,"step":"done"}""")
+            shadowOf(Looper.getMainLooper()).idleFor(4, TimeUnit.SECONDS)
+            awaitCondition { done.requested.count == 0L }
+            val final = server.expect("GET ${endpoint(true)}", history("complete"))
+            done.release.countDown()
+            awaitCondition { final.requested.count == 0L }
+            final.release.countDown()
+            awaitCondition { texts(vm, true) == listOf("complete") }
+            assertFalse(vm.crewStep.value.containsKey("same-id"))
+            shadowOf(Looper.getMainLooper()).idleFor(8, TimeUnit.SECONDS)
+            server.assertHealthy()
+            vm.disconnect()
+        }
+    }
+
+    @Test fun delayedCrewStatusCannotLeakAcrossConnections() {
+        HistoryServer().use { server ->
+            val vm = vm(server)
+            val status = server.expect("GET /api/winds/crew/status?rotllana=same-id", """{"running":true,"step":"working"}""")
+            vm.openVentsChat("rot:same-id")
+            status.awaitRequest()
+            vm.setConn(Conn("127.0.0.1", "1", "other", "bob"))
+            status.release.countDown()
+            Thread.sleep(100); shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(vm.crewStep.value.isEmpty())
+            assertTrue(vm.rotllanaChat.value.isEmpty())
+            server.assertHealthy()
+        }
+    }
+
     @Test fun delayedWindGetCannotOverwriteCompletedPost() = staleGetAfterPost(group = false)
     @Test fun delayedRotllanaGetCannotOverwriteCompletedPost() = staleGetAfterPost(group = true)
     @Test fun latestWindGetWinsWhenResponsesArriveInReverseOrder() = latestGetWins(group = false)

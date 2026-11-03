@@ -379,7 +379,7 @@ func RunFlow(ctx context.Context, task string, spec FlowSpec, runner Runner, emi
 				if verdict.approved {
 					outputs[id] = verdict.deliverable
 					done[id] = true
-					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: verdict.deliverable})
+					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: verdict.deliverable, Message: verdict.feedback, ReviewInvalid: verdict.invalid})
 					emitHandoffs(emitEvent, spec, byID, id)
 					continue
 				}
@@ -404,7 +404,7 @@ func RunFlow(ctx context.Context, task string, spec FlowSpec, runner Runner, emi
 						delete(done, stale)
 						delete(outputs, stale)
 					}
-					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: verdict.deliverable})
+					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: verdict.deliverable, Message: verdict.feedback, ReviewInvalid: verdict.invalid})
 					emitEvent(Event{Type: "discussion", Agent: id, To: edge.To, Activity: "revision", Message: verdict.feedback})
 				}
 				if !fired {
@@ -412,7 +412,7 @@ func RunFlow(ctx context.Context, task string, spec FlowSpec, runner Runner, emi
 					outputs[id] = deliverable
 					done[id] = true
 					delete(revPending, id)
-					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: deliverable})
+					emitEvent(Event{Type: "completed", Agent: id, Activity: activityFor(node.Role), Output: deliverable, Message: verdict.feedback, ReviewInvalid: verdict.invalid})
 					emitHandoffs(emitEvent, spec, byID, id)
 				}
 				continue
