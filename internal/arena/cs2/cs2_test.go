@@ -19,7 +19,7 @@ func play(seed int64, d [2]arena.Decide) (*Match, []arena.Event) {
 
 func TestRegistered(t *testing.T) {
 	g, ok := arena.Get("cs2")
-	if !ok || g.Title("ca") != "Counter-Strike 2" {
+	if !ok || g.Title("ca") != "Splash Strike" {
 		t.Fatal("cs2 not registered")
 	}
 	if len(g.Rules()) > 6000 || len(g.Rules()) < 500 {

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## v1.46.0 - 2026-11-03 - Splash Strike i esports sense confusions
+
+- **El Counter-Strike de l'Arena ara és Splash Strike**, una batalla d'aigua
+  inspirada en Counter-Strike 2: pistoles i rifles d'aigua, rajos blaus i bassals,
+  la Mega Balloon en lloc de la bomba i la taca de sabó en lloc del molotov; qui
+  cau queda xopat. Canvia a tot arreu (regles, plantilla, comentaris, 2D, primera
+  persona, 3D, mode en directe, web de Jocs, manuals i el partit de demostració).
+  Per dins és el mateix joc: les estratègies, els partits i el rànquing es
+  conserven.
+
+- **Corregit: el vent d'esports buscava e-sports.** En català l'ofici del Garbí és
+  «Esports», però els prompts dels vents són en anglès, on «esports» vol dir
+  videojocs competitius. Ara l'ofici s'aclareix a tots els prompts (xat, grups,
+  colles, Ventet i Racó) i els vents saben que en català «esports» és esport en
+  general: a les cerques posen l'esport, l'equip o la competició, mai la paraula
+  sola. Val també per als vents que ja tenies.
+
 ## v1.45.1 - 2026-11-03 - Gregal Vents: primer es pregunta
 
 - **Gregal Vents 1.57.0 (Android): primer es pregunta.** L'inici és com el dels grans

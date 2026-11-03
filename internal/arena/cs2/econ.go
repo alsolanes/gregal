@@ -46,17 +46,17 @@ type weapon struct {
 }
 
 var weapons = map[string]weapon{
-	"glock":  {"glock", "Glock-18", 0, 0.56, "pistol", 1, 300, 0.58},
-	"usp":    {"usp", "USP-S", 0, 0.58, "pistol", 2, 300, 0.62},
-	"p250":   {"p250", "P250", 300, 0.64, "pistol", 0, 300, 0.55},
-	"deagle": {"deagle", "Desert Eagle", 700, 0.72, "pistol", 0, 300, 0.6},
-	"mac10":  {"mac10", "MAC-10", 1050, 0.76, "smg", 1, 600, 0.36},
-	"mp9":    {"mp9", "MP9", 1250, 0.77, "smg", 2, 600, 0.36},
-	"galil":  {"galil", "Galil AR", 1800, 0.86, "rifle", 1, 300, 0.45},
-	"famas":  {"famas", "FAMAS", 2050, 0.86, "rifle", 2, 300, 0.45},
-	"ak47":   {"ak47", "AK-47", 2700, 1.0, "rifle", 1, 300, 0.52},
-	"m4a1s":  {"m4a1s", "M4A1-S", 2900, 0.98, "rifle", 2, 300, 0.48},
-	"awp":    {"awp", "AWP", 4750, 1.06, "awp", 0, 100, 0.08},
+	"glock":  {"glock", "Squirt-18", 0, 0.56, "pistol", 1, 300, 0.58},
+	"usp":    {"usp", "Squirt-S", 0, 0.58, "pistol", 2, 300, 0.62},
+	"p250":   {"p250", "Spritz 250", 300, 0.64, "pistol", 0, 300, 0.55},
+	"deagle": {"deagle", "Desert Geyser", 700, 0.72, "pistol", 0, 300, 0.6},
+	"mac10":  {"mac10", "Drizzle-10", 1050, 0.76, "smg", 1, 600, 0.36},
+	"mp9":    {"mp9", "Mist-9", 1250, 0.77, "smg", 2, 600, 0.36},
+	"galil":  {"galil", "Gale Soaker", 1800, 0.86, "rifle", 1, 300, 0.45},
+	"famas":  {"famas", "Fountain Soaker", 2050, 0.86, "rifle", 2, 300, 0.45},
+	"ak47":   {"ak47", "Hydro-47", 2700, 1.0, "rifle", 1, 300, 0.52},
+	"m4a1s":  {"m4a1s", "Hydro-M4", 2900, 0.98, "rifle", 2, 300, 0.48},
+	"awp":    {"awp", "AWP Aqua Jet", 4750, 1.06, "awp", 0, 100, 0.08},
 }
 
 func nadeCost(n string, side int) int {
@@ -424,12 +424,12 @@ func gearLine(p *Player, side int) string {
 	b = append(b, w.Name)
 	switch p.Armor {
 	case 1:
-		b = append(b, "kevlar")
+		b = append(b, "raincoat")
 	case 2:
-		b = append(b, "kevlar+helmet")
+		b = append(b, "raincoat+goggles")
 	}
 	if p.Kit {
-		b = append(b, "kit")
+		b = append(b, "drain kit")
 	}
 	return strings.Join(b, ", ")
 }

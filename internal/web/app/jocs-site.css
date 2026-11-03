@@ -126,7 +126,7 @@ body.jx-on { overflow: hidden; }
 .jx-game:hover .jx-game-art span { transform: scale(1.1) rotate(-6deg); }
 .jx-game-art::after { content: ''; position: absolute; inset: auto 0 0; height: 60px; background: linear-gradient(transparent, var(--jx-card)); }
 .jx-g-nfl .jx-game-art { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .12) 0 2px, transparent 2px 46px), radial-gradient(circle at 50% 120%, #1c8a4a, transparent 70%), linear-gradient(160deg, #0d6a38, #053a21); }
-.jx-g-cs2 .jx-game-art { background: radial-gradient(circle at 50% 50%, transparent 38px, rgba(255, 180, 70, .45) 39px, transparent 41px), linear-gradient(rgba(255, 180, 70, .35), rgba(255, 180, 70, .35)) center/2px 100% no-repeat, linear-gradient(90deg, rgba(255, 180, 70, .35), rgba(255, 180, 70, .35)) center/100% 2px no-repeat, radial-gradient(circle at 70% 25%, rgba(255, 140, 50, .45), transparent 55%), linear-gradient(160deg, #3a2614, #120b06); }
+.jx-g-cs2 .jx-game-art { background: radial-gradient(circle at 50% 55%, transparent 22px, rgba(120, 210, 255, .5) 23px, transparent 26px), radial-gradient(circle at 50% 55%, transparent 40px, rgba(120, 210, 255, .3) 41px, transparent 44px), radial-gradient(circle at 50% 55%, transparent 58px, rgba(120, 210, 255, .16) 59px, transparent 62px), radial-gradient(circle at 72% 25%, rgba(80, 190, 255, .5), transparent 55%), linear-gradient(160deg, #0f3550, #061420); }
 .jx-g-lol .jx-game-art { background: radial-gradient(circle at 30% 20%, rgba(110, 150, 255, .5), transparent 55%), radial-gradient(circle at 80% 90%, rgba(200, 90, 255, .35), transparent 50%), conic-gradient(from 30deg at 50% 50%, #171d4a, #0b0d26, #1b1240, #171d4a); }
 .jx-game-body { position: relative; padding: 4px 22px 22px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
 .jx-game-body h3 { font-family: var(--jx-display); font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -.01em; }
@@ -243,7 +243,7 @@ body.jx-on { overflow: hidden; }
 .jx-rule { display: flex; flex-direction: column; gap: 6px; padding: 22px; border-radius: 20px; border: 1px solid var(--jx-line); background: var(--jx-card); }
 .jx-rule-ic { width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; font-size: 30px; margin-bottom: 6px; }
 .jx-g-nfl .jx-rule-ic { background: linear-gradient(160deg, #0d6a38, #053a21); }
-.jx-g-cs2 .jx-rule-ic { background: linear-gradient(160deg, #6b4319, #241407); }
+.jx-g-cs2 .jx-rule-ic { background: linear-gradient(160deg, #1d6a94, #072235); }
 .jx-g-lol .jx-rule-ic { background: linear-gradient(160deg, #26307a, #0b0d26); }
 .jx-rule h3 { font-family: var(--jx-display); font-size: 20px; margin: 0 0 4px; }
 .jx-rule p { margin: 0; color: var(--jx-muted); }

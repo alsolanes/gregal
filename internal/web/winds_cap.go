@@ -388,7 +388,7 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 	}
 	var roster strings.Builder
 	for _, w := range winds {
-		roster.WriteString("- " + w.ID + " | " + w.Name + " | " + w.Role)
+		roster.WriteString("- " + w.ID + " | " + w.Name + " | " + companion.RolePrompt(w.Role))
 		if w.Specialty != "" {
 			roster.WriteString(" | specialty " + w.Specialty)
 		}

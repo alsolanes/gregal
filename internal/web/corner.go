@@ -369,7 +369,7 @@ type cornerReview struct {
 func cornerRoster(winds []companion.Wind) string {
 	var b strings.Builder
 	for _, w := range winds {
-		fmt.Fprintf(&b, "- %s | %s | %s", w.ID, w.Name, w.Role)
+		fmt.Fprintf(&b, "- %s | %s | %s", w.ID, w.Name, companion.RolePrompt(w.Role))
 		if w.Specialty != "" {
 			b.WriteString(" | specialty: " + oneLine(w.Specialty, 120))
 		}

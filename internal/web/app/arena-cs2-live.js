@@ -1,6 +1,7 @@
-// El Counter-Strike 2 en directe de l'Arena (arena-cs2-live.html): la
-// persona porta un jugador en primera persona (WASD, ratolí, dispara,
-// planta, desactiva, compra), els bots fan la resta (arena-cs2-live-sim.js)
+// Splash Strike en directe de l'Arena (arena-cs2-live.html; el joc cs2,
+// inspirat en Counter-Strike 2, amb pistoles d'aigua): la persona porta un
+// jugador en primera persona (WASD, ratolí, ruixa, planta el Megaglobus,
+// el desinfla, compra), els bots fan la resta (arena-cs2-live-sim.js)
 // i el model, al servidor, crida el pla de cada ronda des del .md de cada
 // equip (/api/arena/live). La vista reaprofita el dibuix de la càmera en
 // primera persona del visor (arena-cs2-view.js): parets, figures, fums,
@@ -23,7 +24,8 @@ const FOLLOW_NOTE = /(follow|stick|stay|cover|escort|protect|guard).{0,12}(me
 const POS = ['IGL', 'AWPer', 'Entry', 'Support', 'Lurker'];
 const DEFAULT_ROLE = ['rifler', 'awper', 'entry', 'support', 'lurker'];
 const ROLE_HELP = { entry: 'first in, takes duels', support: 'follows the entry, flashes, trades', lurker: 'plays apart, flanks late', awper: 'holds long angles', anchor: 'holds the site, rotates late', rifler: 'standard', follow: 'stays with you, covers you, trades your duels' };
-const REASON = { elim: 'Elimination', bomb: 'Bomb exploded', defuse: 'Bomb defused', time: 'Time ran out' };
+const REASON = { elim: 'Everyone soaked', bomb: 'The Mega Balloon burst', defuse: 'Mega Balloon drained', time: 'Time ran out' };
+const NADE_ICON = { smoke: '◌', flash: '✦', molotov: '🫧', he: '🎈' };
 
 async function call(body) {
   const r = await fetch('/api/arena/live', { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(body) });
@@ -45,7 +47,8 @@ async function lobby(game) {
   const others = ((d.leaderboard || {}).cs2 || []).filter(r => !r.bot && r.owner !== d.me);
   const next = (d.next || {}).cs2;
   const cfg = store.get('cfg', { slot: 2, format: 'short', skill: 'normal', sens: 2.2, roles: DEFAULT_ROLE.slice(), notes: ['', '', '', '', ''] });
-  card.innerHTML = `<h1>💣 Counter-Strike 2 · live</h1>
+  card.innerHTML = `<h1>💦 Splash Strike · live</h1>
+    <p class="muted" style="margin:0 0 8px">A water fight inspired by Counter-Strike 2: the Tide (T) attacks with the Mega Balloon, the Coast Team (CT) defends. Get splashed and you are soaked, out for the round.</p>
     <p class="sub">You play one player of your team with keyboard and mouse. Before every round the coach model reads your strategy .md${mine ? ` (<b>${esc(mine.display || '')}</b>)` : ' (the starter template, until you write one)'} and calls the buy and the plan; your four bots play it with the roles below. The opponent is a bot team led by the same model with its own .md. Not ranked.</p>
     <div class="row"><label>Opponent <select id="lbOpp">${bots.length ? '' : `<option value="">🤖 ${esc(next ? next.display : 'Bot Template')}</option>`}${bots.map(b => `<option value="${esc(b.owner)}"${next && next.owner === b.owner ? ' selected' : ''}>🤖 ${esc(b.display)} (${esc(b.level || '')})</option>`).join('')}${others.map(o => `<option value="${esc(o.owner)}">👤 ${esc(o.display)}</option>`).join('')}</select></label>
       <label>Format <select id="lbFormat"><option value="short">Short · MR6 (first to 7)</option><option value="full">Full · MR12 (first to 13)</option></select></label>
@@ -56,8 +59,8 @@ async function lobby(game) {
     <div class="slots" id="lbSlots"></div>
     <div class="row"><button type="button" id="lbCoach">✨ Ask the coach to set the roles</button><button type="button" id="lbFollow">🛡 All follow me</button><span id="lbCoachMsg" class="muted"></span></div>
     <h2>Controls</h2>
-    <div class="keys"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span><span><kbd>Mouse</kbd> look · <kbd>Left</kbd> shoot</span><span><kbd>Right</kbd> AWP scope</span><span><kbd>Shift</kbd> walk · <kbd>C</kbd> crouch</span>
-      <span><kbd>1</kbd> rifle <kbd>2</kbd> pistol <kbd>3</kbd> knife</span><span><kbd>4</kbd> grenades (again: next) · <kbd>G</kbd> throw</span><span><kbd>R</kbd> reload · <kbd>Q</kbd> last weapon</span><span><kbd>E</kbd> hold: plant / defuse</span>
+    <div class="keys"><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move</span><span><kbd>Mouse</kbd> look · <kbd>Left</kbd> squirt</span><span><kbd>Right</kbd> AWP Aqua Jet scope</span><span><kbd>Shift</kbd> walk · <kbd>C</kbd> crouch</span>
+      <span><kbd>1</kbd> soaker <kbd>2</kbd> water pistol <kbd>3</kbd> sponge</span><span><kbd>4</kbd> balloons &amp; gadgets (again: next) · <kbd>G</kbd> throw</span><span><kbd>R</kbd> refill · <kbd>Q</kbd> last blaster</span><span><kbd>E</kbd> hold: plant / drain the balloon</span>
       <span><kbd>B</kbd> buy menu</span><span><kbd>Tab</kbd> scoreboard</span><span><kbd>Esc</kbd> free the mouse</span><span><kbd>F</kbd> autopilot (a bot plays you)</span><span><kbd>V</kbd> team: follow me / play the plan</span></div>
     <div class="row" style="margin-top:16px"><button type="button" class="primary" id="lbStart">▶ Start the match</button><span id="lbMsg" class="muted"></span></div>`;
   $('lbFormat').value = cfg.format; $('lbSkill').value = cfg.skill; $('lbSens').value = cfg.sens;
@@ -156,7 +159,7 @@ class LiveGame {
     this.radar = null;
     // auto-buy on the pistol round: kevlar if there is nothing else to buy
     if (setup.round === 1 || me.money >= 3700 && !me.primary) this.autoBuy(true);
-    this.toast(`Round ${setup.round} · you are ${me.side === 'T' ? 'Terrorist' : 'Counter-Terrorist'} · press B to buy`, 4);
+    this.toast(`Round ${setup.round} · you are ${me.side === 'T' ? 'the Tide (attack)' : 'the Coast Team (defend)'} · press B to buy`, 4);
   }
 
   snapshot(p) { return { primary: p.primary, pistol: p.pistol, armor: p.armor > 0 ? (p.helmet ? 2 : 1) : 0, kit: p.kit, nades: p.nades.slice() }; }
@@ -248,13 +251,13 @@ class LiveGame {
     const W = (id, n) => list(id) ? `<button type="button" data-w="${id}" class="${me.primary === id || me.pistol === id ? 'own' : ''}">${n}. ${esc(WEAPONS[id].name)} <span>${money(WEAPONS[id].cost)}</span></button>` : '';
     let n = 0;
     const col = (title, ids) => `<div><h3>${title}</h3>${ids.filter(list).map(id => W(id, ++n)).join('')}</div>`;
-    const gear = [['kevlar', 'Kevlar', 650], ['helmet', 'Kevlar + helmet', me.armor > 0 && !me.helmet ? 350 : 1000]].concat(side === 'CT' ? [['kit', 'Defuse kit', 400]] : []);
+    const gear = [['kevlar', 'Raincoat', 650], ['helmet', 'Raincoat + goggles', me.armor > 0 && !me.helmet ? 350 : 1000]].concat(side === 'CT' ? [['kit', 'Drain kit', 400]] : []);
     $('buyCard').innerHTML = `<div class="row" style="justify-content:space-between"><h1>Buy</h1><span class="money">${money(me.money)}</span></div>
       <p class="muted">Click to buy (a new gun replaces the old one; what you bought this round is refunded when you swap it). B or Esc closes. Your coach called <b>${esc(prettyCall((side === 'T' ? this.setup.t : this.setup.ct).buy))}</b> for the team.</p>
-      <div class="buygrid">${col('Pistols', ['glock', 'usp', 'p250', 'deagle'])}${col('SMGs', ['mac10', 'mp9'])}${col('Rifles', ['galil', 'famas', 'ak47', 'm4a1s'])}${col('Sniper', ['awp'])}
+      <div class="buygrid">${col('Water pistols', ['glock', 'usp', 'p250', 'deagle'])}${col('Sprayers', ['mac10', 'mp9'])}${col('Soakers', ['galil', 'famas', 'ak47', 'm4a1s'])}${col('Aqua jet', ['awp'])}
         <div><h3>Gear</h3>${gear.map(([id, nm, c]) => `<button type="button" data-g="${id}">${nm} <span>${money(c)}</span></button>`).join('')}
-        <h3 style="margin-top:8px">Grenades</h3>${NADES.map(g => `<button type="button" data-n="${g}">${NADE_NAME[g]} <span>${money(nadeCost(g, side))}</span></button>`).join('')}</div></div>
-      <div class="row"><button type="button" id="bAuto">Auto-buy (rifle, armor, utility)</button><button type="button" id="bSell">Undo this round's buys</button><span class="muted">Carrying: ${esc([me.primary && WEAPONS[me.primary].name, WEAPONS[me.pistol].name, me.armor ? (me.helmet ? 'kevlar+helmet' : 'kevlar') : '', me.kit ? 'kit' : '', ...me.nades.map(x => NADE_NAME[x])].filter(Boolean).join(' · '))}</span></div>`;
+        <h3 style="margin-top:8px">Balloons &amp; gadgets</h3>${NADES.map(g => `<button type="button" data-n="${g}">${NADE_NAME[g]} <span>${money(nadeCost(g, side))}</span></button>`).join('')}</div></div>
+      <div class="row"><button type="button" id="bAuto">Auto-buy (soaker, raincoat, utility)</button><button type="button" id="bSell">Undo this round's buys</button><span class="muted">Carrying: ${esc([me.primary && WEAPONS[me.primary].name, WEAPONS[me.pistol].name, me.armor ? (me.helmet ? 'raincoat+goggles' : 'raincoat') : '', me.kit ? 'drain kit' : '', ...me.nades.map(x => NADE_NAME[x])].filter(Boolean).join(' · '))}</span></div>`;
     $('buyCard').querySelectorAll('[data-w]').forEach(b => b.onclick = () => this.buyWeapon(b.dataset.w));
     $('buyCard').querySelectorAll('[data-g]').forEach(b => b.onclick = () => this.buyGear(b.dataset.g));
     $('buyCard').querySelectorAll('[data-n]').forEach(b => b.onclick = () => this.buyNade(b.dataset.n));
@@ -287,7 +290,7 @@ class LiveGame {
   buyNade(n) {
     const me = this.R.human; if (!this.canBuy()) return;
     const c = me.nades.filter(x => x === n).length;
-    if (me.nades.length >= 4 || c >= (n === 'flash' ? 2 : 1)) { this.toast('No room for that grenade'); return; }
+    if (me.nades.length >= 4 || c >= (n === 'flash' ? 2 : 1)) { this.toast('No room for that one'); return; }
     if (this.pay(nadeCost(n, me.side), () => { const i = me.nades.lastIndexOf(n); if (i >= 0) me.nades.splice(i, 1); })) me.nades.push(n);
     this.afterBuy();
   }
@@ -305,8 +308,8 @@ class LiveGame {
   showBoard(on) {
     $('board').hidden = !on;
     if (!on || !this.meta) return;
-    const R = this.R, row = (p, ti) => { const s = this.stats[p.id] || {}, pl = R && R.byId[p.id]; return `<tr class="${p.id === this.humanId ? 'me' : ''} ${pl && !pl.alive ? 'dead' : ''}"><td>${esc(p.handle)}${p.id === this.humanId ? ' (you)' : ''}</td><td>${esc(pl ? pl.bot : '')}</td><td>${s.k || 0}</td><td>${s.d || 0}</td><td>${Math.round((s.dmg || 0) / Math.max(1, (this.setup ? this.setup.round - 1 : 0) + (R && R.over ? 1 : 0)))}</td><td>${pl ? (pl.alive ? pl.hp + ' HP' : '✕') : ''}</td><td>${pl && ti === this.team ? money(pl.money) : ''}</td></tr>`; };
-    $('boardCard').innerHTML = `<h1>${esc(this.names[0])} ${this.score[0]} – ${this.score[1]} ${esc(this.names[1])}</h1>` + this.meta.teams.map((t, ti) => `<h2 style="color:${t.color}">${esc(t.name)}</h2><table class="sb"><tr><th>Player</th><th>Role</th><th>K</th><th>D</th><th>ADR</th><th></th><th></th></tr>${t.players.map(p => row(p, ti)).join('')}</table>`).join('');
+    const R = this.R, row = (p, ti) => { const s = this.stats[p.id] || {}, pl = R && R.byId[p.id]; return `<tr class="${p.id === this.humanId ? 'me' : ''} ${pl && !pl.alive ? 'dead' : ''}"><td>${esc(p.handle)}${p.id === this.humanId ? ' (you)' : ''}</td><td>${esc(pl ? pl.bot : '')}</td><td>${s.k || 0}</td><td>${s.d || 0}</td><td>${Math.round((s.dmg || 0) / Math.max(1, (this.setup ? this.setup.round - 1 : 0) + (R && R.over ? 1 : 0)))}</td><td>${pl ? (pl.alive ? pl.hp + ' HP' : '💧 soaked') : ''}</td><td>${pl && ti === this.team ? money(pl.money) : ''}</td></tr>`; };
+    $('boardCard').innerHTML = `<h1>${esc(this.names[0])} ${this.score[0]} – ${this.score[1]} ${esc(this.names[1])}</h1>` + this.meta.teams.map((t, ti) => `<h2 style="color:${t.color}">${esc(t.name)}</h2><table class="sb"><tr><th>Player</th><th>Role</th><th title="splashes">SPL</th><th title="soaked">SOAK</th><th>ADR</th><th></th><th></th></tr>${t.players.map(p => row(p, ti)).join('')}</table>`).join('');
   }
 
   // ---- el bucle ----
@@ -368,7 +371,7 @@ class LiveGame {
     const rows = Object.entries(this.stats).sort((a, b) => b[1].k - a[1].k).slice(0, 10).map(([id, s]) => `<tr class="${id === this.humanId ? 'me' : ''}"><td>${esc(s.handle)}${id === this.humanId ? ' (you)' : ''}</td><td>${s.k}</td><td>${s.d}</td></tr>`).join('');
     $('msgCard').innerHTML = `<h1>${won ? '🏆 You win' : 'You lose'} ${f.score[0]} – ${f.score[1]}</h1>
       <p class="sub">${esc(this.names[0])} vs ${esc(this.names[1])}. The match is saved in the Arena as a live match (not ranked): replay it in the match viewer, with the tactical map and every player's POV.</p>
-      <table class="sb"><tr><th>Player</th><th>K</th><th>D</th></tr>${rows}</table>
+      <table class="sb"><tr><th>Player</th><th title="splashes">SPL</th><th title="soaked">SOAK</th></tr>${rows}</table>
       <div class="row" style="margin-top:14px"><button type="button" class="primary" id="fReplay">▶ Watch the replay</button><button type="button" id="fAgain">Play again</button><button type="button" id="fBack">Back to the Arena</button></div>`;
     $('msg').hidden = false;
     $('fReplay').onclick = () => parent.postMessage({ arenaOpen: this.id }, location.origin);
@@ -431,13 +434,13 @@ class LiveGame {
     }
     this.drawTracers(R, C, pl, muzzle);
     if (scoped) r.povScope(0, 0, W, H);
-    // fum on ets, flaix als ulls, l'explosió
+    // boira on ets, flaix d'escuma als ulls, l'esclat del Megaglobus
     let grey = 0;
     for (const s of R.smokes()) { const d = Math.hypot(s.x - pl.x, s.y - pl.y), rr = R.smokeR(s); if (d < rr) grey = Math.max(grey, clamp(1.2 - d / rr, 0, 1) * 0.92); }
     if (grey > 0) { g.fillStyle = `rgba(196,200,208,${grey})`; g.fillRect(0, 0, W, H); }
-    if (R.bomb.exploded && r.povBoomT) { const a = (performance.now() - r.povBoomT) / 1000, near = clamp(1 - Math.hypot(R.bomb.x - pl.x, R.bomb.y - pl.y) / 45, 0, 1); if (a < 1.6) { g.fillStyle = `rgba(255,170,90,${0.8 * near * (1 - a / 1.6)})`; g.fillRect(0, 0, W, H); } }
+    if (R.bomb.exploded && r.povBoomT) { const a = (performance.now() - r.povBoomT) / 1000, near = clamp(1 - Math.hypot(R.bomb.x - pl.x, R.bomb.y - pl.y) / 45, 0, 1); if (a < 1.6) { g.fillStyle = `rgba(70,165,245,${0.8 * near * (1 - a / 1.6)})`; g.fillRect(0, 0, W, H); } }
     if (pl.alive && R.t < pl.flashUntil) { const left = pl.flashUntil - R.t; g.fillStyle = `rgba(255,255,255,${clamp(left / 1.2, 0, 1) * clamp(0.55 + pl.flashK, 0, 0.98)})`; g.fillRect(0, 0, W, H); }
-    if (!pl.alive) { g.fillStyle = `rgba(120,0,0,${0.35 * clamp((R.t - pl.deathT) / 0.6, 0, 1)})`; g.fillRect(0, 0, W, H); }
+    if (!pl.alive) { g.fillStyle = `rgba(30,120,210,${0.38 * clamp((R.t - pl.deathT) / 0.6, 0, 1)})`; g.fillRect(0, 0, W, H); } // remullat
     if (pl.alive) this.drawCrosshair(R, pl, scoped);
   }
 
@@ -487,7 +490,13 @@ class LiveGame {
     if (mate && q.alive && pr.depth < 60) { g.save(); g.globalAlpha = 0.22; r.figure(x, foot, H, q, lat, walk, 0, 0, col, true); g.restore(); }
     let tip = null;
     if (r.clipRuns(Z, x - H * 0.7, x + H * 0.7, pr.depth)) {
-      g.save(); g.clip(); if (!q.alive && fall >= 1) g.globalAlpha = 0.85;
+      g.save(); g.clip();
+      if (!q.alive) {
+        // remullat: un bassal blau que creix sota el cos
+        const pk = clamp((R.t - q.deathT) / 0.8, 0, 1), pw = (0.35 + 0.75 * pk) * k;
+        g.fillStyle = `rgba(70,160,235,${0.55 * pk})`; g.beginPath(); g.ellipse(x, foot, pw, pw * 0.2, 0, 0, Math.PI * 2); g.fill();
+        if (fall >= 1) g.globalAlpha = 0.85;
+      }
       tip = r.figure(x, foot, H, q, lat, walk, fall, q.id.charCodeAt(1) % 2 ? -1 : 1, col, false);
       g.restore();
     }
@@ -510,9 +519,14 @@ class LiveGame {
       else { const pa = projectPoint(C, s.ax, s.ay, 1.38); if (!pa.behind) A = pa; }
       const B = projectPoint(C, s.bx, s.by, s.bz);
       if (!A || B.behind) continue;
-      g.strokeStyle = `rgba(255,220,140,${0.8 * a})`; g.lineWidth = 1.6 * d; g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
-      if (s.hit) { g.fillStyle = `rgba(200,30,30,${a})`; g.beginPath(); g.arc(B.x, B.y, Math.max(2 * d, 0.12 * C.focal / Math.max(1, B.depth)), 0, Math.PI * 2); g.fill(); }
-      else { g.fillStyle = `rgba(60,50,40,${a})`; g.fillRect(B.x - d, B.y - d, 2 * d, 2 * d); }
+      // raig d'aigua (una mica d'arc) i l'esquitxada on arriba
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - Math.min(30 * d, Math.hypot(B.x - A.x, B.y - A.y) * 0.06);
+      g.lineCap = 'round';
+      g.strokeStyle = `rgba(80,170,245,${0.3 * a})`; g.lineWidth = 5 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
+      g.strokeStyle = `rgba(190,232,255,${0.9 * a})`; g.lineWidth = 2 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
+      const rr = Math.max(2 * d, 0.12 * C.focal / Math.max(1, B.depth));
+      if (s.hit) { g.fillStyle = `rgba(90,185,250,${a})`; g.beginPath(); g.arc(B.x, B.y, rr * 1.2, 0, Math.PI * 2); g.fill(); g.fillStyle = `rgba(225,245,255,${a})`; for (let i = 0; i < 5; i++) { const an = i * 1.256 + s.t * 7; g.beginPath(); g.arc(B.x + Math.cos(an) * rr * 2, B.y + Math.sin(an) * rr * 1.6, rr * 0.35, 0, Math.PI * 2); g.fill(); } }
+      else { g.fillStyle = `rgba(150,210,250,${0.8 * a})`; g.beginPath(); g.ellipse(B.x, B.y, 3 * d, 1.5 * d, 0, 0, Math.PI * 2); g.fill(); }
     }
   }
 
@@ -520,21 +534,33 @@ class LiveGame {
     const r = this.r, g = r.ctx, W = r.W, H = r.H, S = Math.min(H, W * 0.75) / 235;
     const bob = Math.sin(this.cam.bob) * 6 * S * this.cam.spd;
     g.save(); g.translate(W * 0.74 + bob, H - 40 * S - kick * 30 * S); g.rotate(-0.5 - kick * 0.6); g.scale(S, S);
-    g.fillStyle = pl.side === 'T' ? '#7a6446' : '#33476a'; g.beginPath(); g.moveTo(-20, 30); g.lineTo(30, 30); g.lineTo(90, 160); g.lineTo(-30, 160); g.fill();
-    g.fillStyle = '#1d1e21'; g.fillRect(-10, -8, 22, 46);
-    g.fillStyle = '#c9ced6'; g.beginPath(); g.moveTo(-8, -8); g.lineTo(10, -8); g.lineTo(4, -90); g.lineTo(-6, -70); g.closePath(); g.fill();
-    g.fillStyle = '#e8ecf2'; g.fillRect(-2, -80, 3, 70);
+    // l'esponja: groga, amb la capa verda de fregar i porus
+    g.fillStyle = pl.side === 'T' ? '#e0663a' : '#2b6fd1'; g.beginPath(); g.moveTo(-20, 30); g.lineTo(30, 30); g.lineTo(90, 160); g.lineTo(-30, 160); g.fill();
+    g.fillStyle = '#ffd84a'; g.beginPath(); g.roundRect(-22, -70, 48, 74, 10); g.fill();
+    g.fillStyle = '#4fbf3a'; g.beginPath(); g.roundRect(-22, -70, 48, 16, [10, 10, 3, 3]); g.fill();
+    g.fillStyle = '#e0b52c'; for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(-12 + (i % 3) * 14 + (i > 2 && i < 6 ? 6 : 0), -40 + Math.floor(i / 3) * 14, 2.6, 0, Math.PI * 2); g.fill(); }
+    g.fillStyle = 'rgba(150,215,255,.85)'; g.beginPath(); g.arc(28, 8, 4, 0, Math.PI * 2); g.arc(20, 20, 3, 0, Math.PI * 2); g.fill();
+    g.fillStyle = pl.side === 'T' ? '#d9a47c' : '#c48f6a'; g.beginPath(); g.ellipse(2, 6, 20, 14, 0, 0, Math.PI * 2); g.fill();
     g.restore();
   }
 
   drawNade(pl) {
     const r = this.r, g = r.ctx, W = r.W, H = r.H, S = Math.min(H, W * 0.75) / 235, ns = this.nadeList(), n = ns[this.nadeSel % Math.max(1, ns.length)];
-    const col = { smoke: '#9aa3ad', flash: '#d8dde4', molotov: '#b8602e', he: '#5d7a3d' }[n] || '#888';
+    // boira: un pot gris; flaix d'escuma: un petard d'escuma blanc; bassal de sabó: una ampolla blava; globus d'aigua: un globus blau amb el nus
+    const col = { smoke: '#b9c1ca', flash: '#f4f6f8', molotov: '#8fd6ff', he: '#2f9bff' }[n] || '#888';
     g.save(); g.translate(W * 0.72, H - 30 * S); g.scale(S, S);
-    g.fillStyle = pl.side === 'T' ? '#7a6446' : '#33476a'; g.beginPath(); g.moveTo(-10, 20); g.lineTo(40, 20); g.lineTo(80, 140); g.lineTo(-30, 140); g.fill();
-    g.fillStyle = col; g.beginPath(); g.roundRect(-14, -46, 30, 52, 10); g.fill();
-    g.fillStyle = '#2a2c30'; g.fillRect(-8, -56, 18, 12);
-    g.fillStyle = '#3b3226'; g.beginPath(); g.ellipse(4, 4, 22, 16, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = pl.side === 'T' ? '#e0663a' : '#2b6fd1'; g.beginPath(); g.moveTo(-10, 20); g.lineTo(40, 20); g.lineTo(80, 140); g.lineTo(-30, 140); g.fill();
+    if (n === 'he') {
+      g.fillStyle = col; g.beginPath(); g.ellipse(1, -22, 22, 26, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(-8, -34, 6, 4, -0.6, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#155fb8'; g.beginPath(); g.moveTo(-5, 4); g.lineTo(7, 4); g.lineTo(1, 12); g.closePath(); g.fill();
+    } else {
+      g.fillStyle = col; g.beginPath(); g.roundRect(-14, -46, 30, 52, 12); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.5)'; g.fillRect(-9, -40, 5, 38);
+      g.fillStyle = n === 'molotov' ? '#ffffff' : n === 'flash' ? '#7ad13a' : '#8a939d'; g.beginPath(); g.roundRect(-8, -58, 18, 14, 4); g.fill();
+      if (n === 'molotov') { g.strokeStyle = 'rgba(255,255,255,.9)'; g.lineWidth = 1.5; g.beginPath(); g.arc(14, -64, 4, 0, Math.PI * 2); g.moveTo(26, -70); g.arc(22, -70, 4, 0, Math.PI * 2); g.stroke(); }
+    }
+    g.fillStyle = pl.side === 'T' ? '#d9a47c' : '#c48f6a'; g.beginPath(); g.ellipse(4, 4, 22, 16, 0, 0, Math.PI * 2); g.fill();
     g.restore();
   }
 
@@ -553,7 +579,7 @@ class LiveGame {
     const kh = this.hits.filter(h => performance.now() - h.at < 300).pop();
     if ((s && R.t - s.t < 0.15) || kh) {
       const a = kh ? 1 - (performance.now() - kh.at) / 300 : 1 - (R.t - s.t) / 0.15, r0 = 6 * u, r1 = 12 * u;
-      g.strokeStyle = (kh && kh.hs) || (s && s.hs) ? `rgba(255,70,60,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = 2.2 * u; g.beginPath();
+      g.strokeStyle = (kh && kh.hs) || (s && s.hs) ? `rgba(80,200,255,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = 2.2 * u; g.beginPath();
       for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(cx + dx * r0, cy + dy * r0); g.lineTo(cx + dx * r1, cy + dy * r1); }
       g.stroke();
     }
@@ -575,7 +601,7 @@ class LiveGame {
     const b = R.bomb;
     let clock;
     if (R.t < 0) clock = '0:' + String(Math.ceil(-R.t)).padStart(2, '0');
-    else if (b.planted && !b.defused && !b.exploded) clock = '💣';
+    else if (b.planted && !b.defused && !b.exploded) clock = '🎈';
     else clock = fmtClock(Math.max(0, ROUND_TIME - (R.over ? R.endT : R.t)));
     g.font = `900 ${16 * u}px ${FONT}`; g.fillStyle = b.planted && !R.over ? '#ff5a4e' : R.t < 0 ? '#ffd34d' : '#fff'; g.fillText(clock, W / 2, sy + 16 * u);
     g.font = `700 ${9.5 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.6)'; g.fillText(R.t < 0 ? `BUY · ROUND ${S.round}` : `ROUND ${S.round} · FIRST TO ${S.target}`, W / 2, sy + 33 * u);
@@ -589,7 +615,7 @@ class LiveGame {
     this.feed = this.feed.filter(f => now - f.at < 6000);
     this.feed.slice(-5).forEach((f, i) => {
       const k = R.byId[f.killer] || this.statsP(f.killer), v = R.byId[f.victim] || this.statsP(f.victim);
-      const txt = f.killer === f.victim ? `✕ ${v.handle}` : `${k.handle}  ▸ ${(WEAPONS[f.weapon] || {}).name || f.weapon}${f.hs ? ' ◎' : ''} ▸  ${v.handle}`;
+      const txt = f.killer === f.victim ? `💦 ${v.handle}` : `${k.handle}  💦 ${(WEAPONS[f.weapon] || {}).name || f.weapon}${f.hs ? ' · face splash' : ''}  ▸  ${v.handle}`;
       g.font = `700 ${12 * u}px ${FONT}`; const tw = g.measureText(txt).width + 20 * u, y = 62 * u + i * 26 * u;
       this.pill(W - tw - 12 * u, y, tw, 22 * u, f.killer === this.humanId ? 'rgba(160,30,30,.85)' : 'rgba(6,9,14,.75)');
       g.fillStyle = '#fff'; g.textAlign = 'right'; g.fillText(txt, W - 22 * u, y + 11 * u);
@@ -612,18 +638,18 @@ class LiveGame {
       const label = view.slot === 'nade' ? (NADE_NAME[this.nadeList()[this.nadeSel % Math.max(1, this.nadeList().length)]] || '') : am ? `${am[0]} / ${am[1]}` : '';
       g.fillText(view.reloadUntil ? 'RELOADING' : label, W - 24 * u, bot - 18 * u);
       g.font = `700 ${10 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.65)';
-      g.fillText((view.slot === 'nade' ? 'GRENADE' : w.name.toUpperCase()) + (view.nades.length ? '   ' + view.nades.map(n => ({ smoke: '◌', flash: '✦', molotov: '🔥', he: '●' })[n]).join(' ') : ''), W - 24 * u, bot - 46 * u);
+      g.fillText((view.slot === 'nade' ? 'GADGET' : w.name.toUpperCase()) + (view.nades.length ? '   ' + view.nades.map(n => NADE_ICON[n]).join(' ') : ''), W - 24 * u, bot - 46 * u);
     }
     if (view === me && me.alive) {
       g.textAlign = 'left'; g.font = `800 ${15 * u}px ${FONT}`; g.fillStyle = '#7fe39a'; g.fillText(money(me.money), 24 * u, bot - 50 * u);
       if (me.kit) { g.fillStyle = '#5aa9e6'; g.fillText('✂ kit', 110 * u, bot - 50 * u); }
-      if (R.bomb.carrier === me.id) { g.fillStyle = '#ffb347'; g.fillText('💣 you have the bomb', 110 * u, bot - 50 * u); }
+      if (R.bomb.carrier === me.id) { g.fillStyle = '#5fc0ff'; g.fillText('🎈 you have the Mega Balloon', 110 * u, bot - 50 * u); }
     }
     // mensajes del centro: plantar/desactivar, buy, autopilot
     let hint = '';
     if (me.alive && !R.over) {
-      if (R.bomb.carrier === me.id && R.inSite(me.x, me.y) && R.t >= 0) hint = 'Hold E to plant';
-      if (me.side === 'CT' && b.planted && !b.defused && Math.hypot(me.x - b.x, me.y - b.y) < 1.8) hint = `Hold E to defuse (${me.kit ? 5 : 10} s)`;
+      if (R.bomb.carrier === me.id && R.inSite(me.x, me.y) && R.t >= 0) hint = 'Hold E to plant the balloon';
+      if (me.side === 'CT' && b.planted && !b.defused && Math.hypot(me.x - b.x, me.y - b.y) < 1.8) hint = `Hold E to drain it (${me.kit ? 5 : 10} s)`;
       if (b.planting === me || b.defusing === me) {
         const prog = b.planting === me ? (R.t - b.plantStart) / PLANT_TIME : (R.t - b.defuseStart) / (me.kit ? KIT_TIME : BARE_TIME);
         this.pill(W / 2 - 120 * u, H * 0.62, 240 * u, 12 * u, 'rgba(6,9,14,.7)'); g.fillStyle = '#ffd34d'; g.fillRect(W / 2 - 118 * u, H * 0.62 + 2 * u, 236 * u * clamp(prog, 0, 1), 8 * u);
@@ -632,12 +658,12 @@ class LiveGame {
       if (R.t < 0 && !hint) hint = this.canBuy() ? 'Freeze time · B to buy · click to grab the mouse' : '';
       if (document.pointerLockElement !== this.cv && R.t >= 0 && $('buy').hidden && !hint && !this.autopilot) hint = 'Click to play';
     }
-    if (!me.alive && !R.over) hint = `You are dead · watching ${view === me ? '…' : view.handle} (Space: next)`;
+    if (!me.alive && !R.over) hint = `You are soaked · watching ${view === me ? '…' : view.handle} (Space: next)`;
     if (this.autopilot && me.alive) hint = (hint ? hint + ' · ' : '') + 'AUTOPILOT (F)';
     if (hint) { g.font = `800 ${14 * u}px ${FONT}`; const tw = g.measureText(hint).width + 26 * u; this.pill(W / 2 - tw / 2, H * 0.66, tw, 26 * u, 'rgba(6,9,14,.75)'); g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(hint, W / 2, H * 0.66 + 13 * u); }
     if (this.msg && now < this.msg.until) { g.font = `700 ${13 * u}px ${FONT}`; const tw = g.measureText(this.msg.text).width + 24 * u; this.pill(W / 2 - tw / 2, 62 * u, tw, 24 * u, 'rgba(255,211,77,.92)'); g.fillStyle = '#111'; g.textAlign = 'center'; g.fillText(this.msg.text, W / 2, 74 * u); }
     // la bomba plantada: el compte enrere
-    if (b.planted && !R.over) { const left = Math.max(0, b.plantT + BOMB_TIME - R.t); g.font = `900 ${13 * u}px ${FONT}`; g.fillStyle = left < 10 ? '#ff5a4e' : '#ffb347'; g.textAlign = 'center'; g.fillText(`BOMB PLANTED AT ${b.site} · ${left.toFixed(1)} s`, W / 2, sy + 58 * u); }
+    if (b.planted && !R.over) { const left = Math.max(0, b.plantT + BOMB_TIME - R.t); g.font = `900 ${13 * u}px ${FONT}`; g.fillStyle = left < 10 ? '#ff5a4e' : '#ffb347'; g.textAlign = 'center'; g.fillText(`MEGA BALLOON PLANTED AT ${b.site} · ${left.toFixed(1)} s`, W / 2, sy + 58 * u); }
     if (this.banner) this.drawBanner();
   }
 
@@ -650,7 +676,7 @@ class LiveGame {
     g.globalAlpha = a;
     g.fillStyle = won ? 'rgba(20,90,60,.88)' : 'rgba(110,25,25,.88)'; g.fillRect(0, y, W, h);
     g.fillStyle = '#fff'; g.textAlign = 'center'; g.font = `900 ${26 * u}px ${FONT}`;
-    g.fillText(`${bn.side === 'T' ? 'TERRORISTS' : 'COUNTER-TERRORISTS'} WIN · ${(this.names[bn.team] || '').toUpperCase()}`, W / 2, y + 28 * u, W - 40 * u);
+    g.fillText(`${bn.side === 'T' ? 'THE TIDE' : 'THE COAST TEAM'} WIN · ${(this.names[bn.team] || '').toUpperCase()}`, W / 2, y + 28 * u, W - 40 * u);
     g.font = `700 ${13 * u}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.85)';
     g.fillText(`${REASON[bn.reason] || bn.reason}${bn.score ? ` · ${bn.score[0]} – ${bn.score[1]}` : ''} · they played ${prettyCall(bn.opp)}`, W / 2, y + 58 * u, W - 40 * u);
     g.globalAlpha = 1;
@@ -677,13 +703,13 @@ class LiveGame {
       let px = p.x, py = p.y;
       if (!mate) { const s = seen[p.id]; const meSees = R.human.alive && R.sees(R.human, p); if (!p.alive || !(meSees || (s && R.t - s.t < 1.5))) continue; if (!meSees) { px = s.x; py = s.y; } }
       const X = x + px * sc, Y = y + py * sc;
-      if (!p.alive) { g.strokeStyle = r.teamColor(p.team); g.lineWidth = 1.2 * u; g.beginPath(); g.moveTo(X - 2.5 * u, Y - 2.5 * u); g.lineTo(X + 2.5 * u, Y + 2.5 * u); g.moveTo(X + 2.5 * u, Y - 2.5 * u); g.lineTo(X - 2.5 * u, Y + 2.5 * u); g.stroke(); continue; }
+      if (!p.alive) { g.fillStyle = 'rgba(70,165,245,.45)'; g.beginPath(); g.ellipse(X, Y, 3.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill(); g.strokeStyle = r.teamColor(p.team); g.lineWidth = 1.2 * u; g.beginPath(); g.moveTo(X - 2.5 * u, Y - 2.5 * u); g.lineTo(X + 2.5 * u, Y + 2.5 * u); g.moveTo(X + 2.5 * u, Y - 2.5 * u); g.lineTo(X - 2.5 * u, Y + 2.5 * u); g.stroke(); continue; }
       g.fillStyle = mate ? r.teamColor(p.team) : '#ff4b3e'; g.beginPath(); g.arc(X, Y, (p === view ? 4 : 3) * u, 0, Math.PI * 2); g.fill();
       if (p === view) { g.strokeStyle = '#fff'; g.lineWidth = 1.5 * u; g.stroke(); }
-      if (R.bomb.carrier === p.id && mate) { g.fillStyle = '#ffb347'; g.fillRect(X + 3 * u, Y - 6 * u, 4 * u, 4 * u); }
+      if (R.bomb.carrier === p.id && mate) { g.fillStyle = '#5fc0ff'; g.beginPath(); g.arc(X + 5 * u, Y - 4 * u, 2.4 * u, 0, Math.PI * 2); g.fill(); }
     }
     const b = R.bomb;
-    if ((b.planted || b.dropped && this.mine === 'T') && !b.exploded) { g.fillStyle = Math.sin(performance.now() / 150) > 0 ? '#ff4b3e' : '#ffb347'; g.beginPath(); g.arc(x + b.x * sc, y + b.y * sc, 3 * u, 0, Math.PI * 2); g.fill(); }
+    if ((b.planted || b.dropped && this.mine === 'T') && !b.exploded) { g.fillStyle = Math.sin(performance.now() / 150) > 0 ? '#5fc0ff' : '#155fb8'; g.beginPath(); g.arc(x + b.x * sc, y + b.y * sc, 3 * u, 0, Math.PI * 2); g.fill(); }
     g.restore();
   }
 

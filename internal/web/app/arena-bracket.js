@@ -28,7 +28,7 @@ const TX = {
   },
 };
 const tx = lang => TX[lang] || TX.en;
-export const GAME_TITLES = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
+export const GAME_TITLES = { nfl: 'NFL', cs2: 'Splash Strike', lol: 'League of Legends' };
 const ROUND_ORDER = ['Quarterfinal', 'Semifinal', 'Final'];
 
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);

@@ -691,8 +691,8 @@ func (l *Live) Finish(res LiveResult) ([]arena.Event, error) {
 			vv.p.D++
 			if !m.quiet {
 				vx, vy := vv.pos(t)
-				r.emit(t, "kill", r.tx.kill(vv.p.Handle, vv.p.Handle, "world", false), false, map[string]any{
-					"killer": vv.p.ID, "victim": vv.p.ID, "kteam": r.teamOf(vv), "vteam": r.teamOf(vv), "weapon": "world", "weaponName": "World", "hs": false,
+				r.emit(t, "kill", r.tx.kill(vv.p.Handle, vv.p.Handle, r.tx.pick("l'esclat", "the burst"), false), false, map[string]any{
+					"killer": vv.p.ID, "victim": vv.p.ID, "kteam": r.teamOf(vv), "vteam": r.teamOf(vv), "weapon": "world", "weaponName": "Burst", "hs": false,
 					"kx": round1(vx), "ky": round1(vy), "vx": round1(vx), "vy": round1(vy), "zone": zoneAt(vx, vy), "multi": 0,
 				})
 			}

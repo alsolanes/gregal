@@ -1,17 +1,18 @@
-// Counter-Strike 2 in first-person 3D (arena-3d.js adapter).
+// Splash Strike (inspired by Counter-Strike 2) in first-person 3D (arena-3d.js adapter).
 //
 // Everything comes from the 2D viewer (arena-cs2-view.js, Cs2View): the round
-// being played (view.R from buildRound), its play time view.p (or the kill-cam
+// being played (view.R from buildRound), its play time view.p (or the splash-cam
 // replay's game time), the score, the director's POV choice and the ticker.
 // This file only turns that state into a place: the stylised Mirage of the
 // tactical map and the raycast POV (the same zones, corridors, crates and plant
 // spots, through the same occupancy grid, buildGrid) as sandstone walls with
 // varied heights, painted floors, crates, arches and doors, site letters, sky
-// and sun; ten soldiers in their side's colours with their weapons, posed from
-// the tracks (walking, crouching, aiming, falling); tracers and muzzle flashes,
-// smoke clouds, molotov fire, flashbangs, the bomb (carried, planted, its
-// light, the explosion) and the first-person view: a gun in your hands, a
-// crosshair, the flash whiteout, the scope, health, money and the kill feed.
+// and sun; ten players in their side's colours with toy water blasters, posed
+// from the tracks (walking, crouching, aiming, soaked and sitting down); water
+// streams and spray puffs, fog clouds, soap slicks, foam flashes, water
+// balloons, the Mega Balloon (carried, planted, its light, the burst) and the
+// first-person view: a blaster in your hands, a crosshair, the foam whiteout,
+// the scope, health, money and the splash feed.
 //
 // Coordinates: the map is x right, y down (0..100 × 0..80), ~1 unit = 1 m. The
 // world is Y-up with the map's centre at the origin: mapToWorld(x, y, h) =
@@ -28,7 +29,7 @@ import { dampAngle, wrapAngle } from './arena-3d.js';
 export const SIDE_COLOR = { CT: '#5aa9e6', T: '#e8a33d' };
 const VEST = { CT: '#2f68a8', T: '#c27a2c' }, UNIFORM = { CT: '#3f4c5e', T: '#7f6c4b' };
 const SLEEVE = { CT: '#33476a', T: '#7a6446' }, GLOVE = { CT: '#1b222d', T: '#3b3226' };
-const WEAPON = { glock: 'Glock-18', usp: 'USP-S', p250: 'P250', deagle: 'Desert Eagle', mac10: 'MAC-10', mp9: 'MP9', galil: 'Galil AR', famas: 'FAMAS', ak47: 'AK-47', m4a1s: 'M4A1-S', awp: 'AWP' };
+const WEAPON = { glock: 'Squirt-18', usp: 'Squirt-S', p250: 'Spritz 250', deagle: 'Desert Geyser', mac10: 'Drizzle-10', mp9: 'Mist-9', galil: 'Gale Soaker', famas: 'Fountain Soaker', ak47: 'Hydro-47', m4a1s: 'Hydro-M4', awp: 'AWP Aqua Jet' };
 const TEX_M = 3.2; // metres covered by one tile of the wall texture
 const HAZE = '#e2d2b2';
 const SUN_ANG = -2.2; // the raycaster's sun (map angle)
@@ -289,7 +290,7 @@ export function timesOf(v) {
 
 const DEAD_KEEP = 2.5; // game seconds a fallen player can still be watched
 const aliveish = (R, id, gt, keep = 0) => { const q = R.players[id]; return !!q && gt < q.deathT + keep; };
-// Who can be watched: both teams in the match's order, alive (or just killed).
+// Who can be watched: both teams in the match's order, dry (or just soaked).
 export function rosterOf(R, meta, gt) {
   const out = [], seen = new Set();
   const order = [];
@@ -376,7 +377,7 @@ export function eyeOf(R, id, gt, G = null) {
   const tAim = Math.min(gt, q.deathT);
   const aim = povAim(R, id, tAim) + deathK * .25;
   let pitch = 0;
-  // Planting or defusing: looking down at the bomb.
+  // Planting or draining: looking down at the balloon.
   if ((R.plant && R.plant.id === id && gt >= R.plant.start - .4 && gt <= R.plant.t + .3) || (R.defuse && R.defuse.id === id && gt >= R.defuse.start - .5 && gt <= R.defuse.t + .3)) pitch = -.62;
   else {
     // A duel: at the chest (or the head) of whoever is being shot.
@@ -599,69 +600,99 @@ function instanced(THREE, geo, material, n) {
 }
 
 // ---------------------------------------------------------------------------
-// Weapons (third person and first person share the gun; +X is the barrel,
-// the origin at the trigger, units of the humanoid: ~metres)
+// Weapons: toy water blasters (third person and first person share the
+// blaster; +X is the nozzle, the origin at the trigger, units of the humanoid:
+// ~metres). Rounded bright plastic, a water tank on top, a nozzle at the tip.
 // ---------------------------------------------------------------------------
 const TIPS = { rifle: .8, m4a1s: .95, awp: 1.02, smg: .5, pistol: .17, usp: .27, deagle: .22 };
 export function tipOf(wid) {
   const cls = weaponClass(wid);
   return TIPS[wid] != null ? TIPS[wid] : TIPS[cls] || .8;
 }
+// [body, accent] per blaster.
+const ORANGE = '#ff8a1f', BLUE = '#2f8fe8', LIME = '#8fdc2a', YELLOW = '#ffd23a', SKY = '#29b6f6';
+const PLASTIC = {
+  glock: [ORANGE, BLUE], usp: [BLUE, YELLOW], p250: [LIME, ORANGE], deagle: [YELLOW, BLUE],
+  mac10: [LIME, BLUE], mp9: [BLUE, ORANGE], galil: [LIME, ORANGE], famas: [SKY, YELLOW],
+  ak47: [ORANGE, BLUE], m4a1s: [BLUE, LIME], awp: [LIME, ORANGE],
+};
+const WATER = '#8fe3ff', CAP = '#ffffff';
 function gunParts(kit, wid) {
   const { G, M } = kit, cls = weaponClass(wid), P = [];
-  const dark = '#24262b', metal = '#3b3e45', wood = wid === 'ak47' || wid === 'galil' ? '#7a4a24' : '#2e3036';
+  const [body, acc] = PLASTIC[wid] || [ORANGE, BLUE];
   const add = (g, c, m) => P.push({ g, c, m });
   const bar = (x0, x1, y, r, c) => add(G.cyl, c, M((x0 + x1) / 2, y, 0, r * 2, x1 - x0, r * 2, 0, 0, Math.PI / 2));
+  // A rounded capsule along X (ry tall, rz wide), with ball ends.
+  const pill = (x0, x1, y, ry, rz, c) => {
+    add(G.cyl, c, M((x0 + x1) / 2, y, 0, ry * 2, x1 - x0, rz * 2, 0, 0, Math.PI / 2));
+    add(G.sph, c, M(x0, y, 0, ry * 1.6, ry * 2, rz * 2));
+    add(G.sph, c, M(x1, y, 0, ry * 1.6, ry * 2, rz * 2));
+  };
+  const grip = (x, y, h, rz, c = acc) => add(G.sph, c, M(x, y, 0, .052, h, .04, 0, 0, rz));
   if (cls === 'pistol') {
     const L = wid === 'deagle' ? .22 : .17;
-    add(G.box, wid === 'deagle' ? '#8c8f95' : dark, M(L / 2 - .03, .035, 0, L, .045, .03));
-    add(G.box, dark, M(-.01, -.04, 0, .045, .1, .032, 0, 0, .28));
-    add(G.box, metal, M(.03, -.005, 0, .05, .02, .012));
-    if (wid === 'usp') bar(L - .03, .27, .035, .016, '#1a1b1f');
+    pill(-.02, L - .04, .035, .03, .022, body);
+    grip(-.01, -.04, .11, .28);
+    add(G.box, CAP, M(.03, -.005, 0, .05, .02, .012));
+    add(G.sph, WATER, M(.04, .078, 0, .075, .05, .036));
+    add(G.cyl, CAP, M(.04, .104, 0, .018, .012, .018));
+    bar(L - .05, L, .035, .013, acc);
+    if (wid === 'usp') bar(L - .03, .27, .035, .016, acc);
     return P;
   }
   if (cls === 'awp') {
-    add(G.box, '#3f5a3a', M(.05, .03, 0, .5, .085, .055));
-    add(G.box, '#3f5a3a', M(-.33, .0, 0, .3, .11, .05, 0, 0, -.06));
-    add(G.box, '#2b3d28', M(-.2, -.05, 0, .06, .1, .04, 0, 0, .3));
-    add(G.box, dark, M(.02, -.07, 0, .06, .1, .04, 0, 0, -.1));
-    bar(.3, 1.02, .045, .018, dark);
-    bar(-.08, .26, .125, .03, '#1c1d21');
-    add(G.cyl, '#101114', M(.27, .125, 0, .075, .04, .075, 0, 0, Math.PI / 2));
-    add(G.cyl, '#101114', M(-.09, .125, 0, .065, .04, .065, 0, 0, Math.PI / 2));
+    // The Aqua Jet: long body, a big tank where the scope was, a long nozzle.
+    pill(-.1, .35, .03, .055, .032, body);
+    pill(-.46, -.2, .0, .055, .028, acc);
+    add(G.box, body, M(-.15, .015, 0, .12, .06, .04));
+    grip(.02, -.07, .11, -.1);
+    add(G.box, CAP, M(-.06, -.03, 0, .05, .02, .012));
+    pill(-.12, .28, .14, .06, .06, WATER);
+    add(G.cyl, CAP, M(-.12, .14, 0, .124, .02, .124, 0, 0, Math.PI / 2));
+    add(G.cyl, CAP, M(.28, .14, 0, .124, .02, .124, 0, 0, Math.PI / 2));
+    add(G.cyl, CAP, M(.1, .205, 0, .036, .022, .036));
+    add(G.box, CAP, M(.3, .085, 0, .02, .07, .02));
+    pill(.4, .56, -.005, .03, .03, acc);
+    bar(.35, .96, .045, .02, CAP);
+    bar(.93, 1.02, .045, .028, acc);
     return P;
   }
   if (cls === 'smg') {
-    add(G.box, dark, M(.08, .03, 0, .34, .085, .05));
-    add(G.box, dark, M(-.17, .02, 0, .16, .05, .03));
-    add(G.box, dark, M(-.01, -.06, 0, .045, .1, .04, 0, 0, .25));
-    add(G.box, metal, M(.12, -.1, 0, .045, .16, .03));
-    bar(.25, .5, .045, .014, metal);
+    pill(-.06, .24, .03, .045, .028, body);
+    pill(-.25, -.1, .02, .025, .016, acc);
+    grip(-.01, -.06, .11, .25);
+    add(G.box, CAP, M(.03, -.02, 0, .05, .02, .012));
+    add(G.cyl, WATER, M(.08, .105, 0, .08, .09, .08));
+    add(G.cyl, CAP, M(.08, .155, 0, .03, .016, .03));
+    pill(.16, .27, -.02, .022, .022, acc);
+    bar(.24, .48, .04, .013, CAP);
+    add(G.sph, acc, M(.49, .04, 0, .036, .036, .036));
     return P;
   }
-  // Rifles.
+  // Soakers (rifles): a pump under the nozzle, a long tank on top.
   const L = wid === 'm4a1s' ? .95 : .8;
-  add(G.box, dark, M(.06, .035, 0, .44, .09, .052));
-  add(G.box, wood, M(.37, .035, 0, .24, .072, .058));
-  add(G.box, wood, M(-.31, .01, 0, .28, .095, .046, 0, 0, -.1));
-  add(G.box, dark, M(-.01, -.06, 0, .045, .11, .04, 0, 0, .27));
-  add(G.box, metal, M(.12, -.1, 0, .06, .15, .034, 0, 0, wid === 'ak47' || wid === 'galil' ? -.32 : -.1));
-  add(G.box, dark, M(.17, .095, 0, .05, .035, .012));
-  bar(.49, L, .045, wid === 'm4a1s' ? .024 : .015, wid === 'm4a1s' ? '#18191c' : metal);
-  if (wid === 'ak47') add(G.box, dark, M(.44, .1, 0, .02, .04, .012));
+  pill(-.05, .3, .035, .052, .03, body);
+  pill(-.42, -.18, .01, .045, .025, acc);
+  add(G.box, body, M(-.12, .02, 0, .1, .05, .04));
+  grip(-.01, -.06, .12, .27);
+  add(G.box, CAP, M(.03, -.025, 0, .05, .02, .012));
+  pill(-.04, .2, .125, .045, .045, WATER);
+  add(G.cyl, CAP, M(.08, .175, 0, .03, .02, .03));
+  add(G.box, CAP, M(.22, .09, 0, .02, .05, .02));
+  pill(.28, .44, -.005, .03, .03, acc);
+  bar(.3, L - .05, .045, wid === 'm4a1s' ? .02 : .017, CAP);
+  bar(L - .07, L, .045, .026, acc);
   return P;
 }
 
-// The C4: a brick of charges with the keypad and the screen.
-function c4Parts(kit) {
+// The Mega Balloon: a big round water balloon with its knot (the light sits on the knot).
+function balloonParts(kit) {
   const { G, M } = kit;
   return [
-    { g: G.box, c: '#4d5232', m: M(0, 0, 0, .32, .07, .2) },
-    { g: G.box, c: '#7b6a42', m: M(-.1, .005, 0, .07, .07, .21) },
-    { g: G.box, c: '#7b6a42', m: M(.1, .005, 0, .07, .07, .21) },
-    { g: G.box, c: '#151711', m: M(0, .045, 0, .14, .02, .12) },
-    { g: G.box, c: '#2a6e32', m: M(.025, .057, 0, .05, .006, .07) },
-    { g: G.box, c: '#3a3d33', m: M(-.035, .057, 0, .05, .006, .07) },
+    { g: G.sph, c: '#2f8fe8', m: M(0, .13, 0, .3, .27, .3) },
+    { g: G.sph, c: '#9fe0ff', m: M(-.07, .19, .07, .08, .06, .06) },
+    { g: G.sph, c: '#1f6fc0', m: M(0, .27, 0, .06, .045, .06) },
+    { g: G.cyl, c: '#1f6fc0', m: M(0, .3, 0, .03, .035, .03) },
   ];
 }
 
@@ -673,11 +704,11 @@ function segM(THREE, a, b, w, h) {
   return m;
 }
 
-// First-person models: the gun with gloved hands and sleeves running out of
-// the frame (or the C4 held low). In gun space (+X barrel, +Z right, +Y up).
+// First-person models: the blaster with gloved hands and sleeves running out
+// of the frame (or the Mega Balloon held low). In gun space (+X barrel, +Z right, +Y up).
 function viewParts(kit, THREE, wid, side, c4 = false) {
   const { G, M } = kit, sl = SLEEVE[side] || SLEEVE.CT, gl = GLOVE[side] || GLOVE.CT;
-  const P = c4 ? c4Parts(kit).map(p => ({ ...p, m: new THREE.Matrix4().makeTranslation(.12, -.02, 0).multiply(p.m) })) : gunParts(kit, wid);
+  const P = c4 ? balloonParts(kit).map(p => ({ ...p, m: new THREE.Matrix4().makeTranslation(.12, -.15, 0).multiply(p.m) })) : gunParts(kit, wid);
   const seg = (a, b, w, c) => P.push({ g: G.box, c, m: segM(THREE, a, b, w, w) });
   const hand = (x, y, z, c = gl) => P.push({ g: G.box, c, m: M(x, y, z, .1, .085, .085) });
   const pistol = !c4 && weaponClass(wid) === 'pistol';
@@ -712,8 +743,8 @@ function css() {
 .c3 > div { position:absolute; }
 .c3 .fx { inset:0; opacity:0; }
 .c3 .smk { background:rgb(196,200,208); }
-.c3 .boom { background:rgb(255,170,90); }
-.c3 .dead { background:radial-gradient(ellipse at center, rgba(120,0,0,.2), rgba(90,0,0,.6)); }
+.c3 .boom { background:rgb(150,215,255); }
+.c3 .dead { background:radial-gradient(ellipse at center, rgba(40,120,200,.18), rgba(20,80,160,.55)); }
 .c3 .wht { background:#fff; }
 .c3 .scope { inset:0; display:none; background:radial-gradient(circle at center, rgba(0,0,0,0) 0, rgba(0,0,0,0) calc(min(46vw, 46vh, 47%) - 2px), rgba(0,0,0,.65) calc(min(46vw, 46vh, 47%)), #000 calc(min(46vw, 46vh, 47%) + 2px)); }
 .c3 .scope::before, .c3 .scope::after { content:''; position:absolute; background:#000; }
@@ -728,10 +759,10 @@ function css() {
  -webkit-mask:radial-gradient(circle, transparent 7px, #000 7.5px); mask:radial-gradient(circle, transparent 7px, #000 7.5px); }
 .c3 .feed { right:8px; top:46px; display:flex; flex-direction:column; align-items:flex-end; gap:3px; }
 .c3 .feed div { background:rgba(6,9,14,.74); border-radius:4px; padding:3px 9px; font-weight:700; white-space:nowrap; display:flex; gap:7px; align-items:center; }
-.c3 .feed div.hl { background:rgba(120,20,20,.78); }
-.c3 .feed div.mine { box-shadow:inset 0 0 0 1.5px #e04b3a; }
+.c3 .feed div.hl { background:rgba(20,80,140,.78); }
+.c3 .feed div.mine { box-shadow:inset 0 0 0 1.5px #4fc3ff; }
 .c3 .feed small { font-weight:600; opacity:.85; font-size:11px; }
-.c3 .feed .hs { color:#ff5a4e; font-size:11px; }
+.c3 .feed .hs { color:#7fe0ff; font-size:11px; }
 .c3 .card { right:8px; bottom:8px; display:flex; gap:6px; align-items:stretch; }
 .c3 .card > span { background:rgba(6,9,14,.72); border-radius:8px; padding:4px 11px; display:flex; flex-direction:column; justify-content:center; }
 .c3 .card b { font-size:20px; font-weight:900; line-height:1.05; }
@@ -739,7 +770,7 @@ function css() {
 .c3 .card .who { border-left:4px solid var(--sc, #fff); min-width:96px; }
 .c3 .card .who b { font-size:14px; }
 .c3 .card .cash { color:#a8ffb0; font-weight:800; font-size:12px; }
-.c3 .card .low { color:#ff5a4e; }
+.c3 .card .low { color:#ffb14e; }
 .c3 .act { left:50%; top:30%; transform:translateX(-50%); width:min(320px, 70%); background:rgba(6,9,14,.75); border-radius:8px; padding:6px 10px 8px; display:none; }
 .c3 .act .t { display:flex; justify-content:space-between; font-weight:900; font-size:12px; margin-bottom:4px; }
 .c3 .act .bar { height:8px; background:rgba(255,255,255,.14); border-radius:4px; overflow:hidden; }
@@ -754,7 +785,7 @@ function makeHud(root) {
   const el = document.createElement('div'); el.className = 'c3';
   el.innerHTML = `<div class="fx smk"></div><div class="fx boom"></div><div class="fx dead"></div><div class="scope"></div>
 <div class="x"><i></i><i></i><i></i><i></i></div><div class="hit"></div><div class="feed"></div><div class="act"><div class="t"><span></span><span></span></div><div class="bar"><i></i></div></div>
-<div class="kb"></div><div class="card"><span class="who"><small></small><b></b><span class="cash"></span></span><span class="hp"><small>HP</small><b></b></span><span class="ar"><small>ARMOR</small><b></b></span><span class="am"><small></small><b></b></span></div><div class="fx wht"></div>`;
+<div class="kb"></div><div class="card"><span class="who"><small></small><b></b><span class="cash"></span></span><span class="hp"><small>HP</small><b></b></span><span class="ar"><small>RAINCOAT</small><b></b></span><span class="am"><small></small><b></b></span></div><div class="fx wht"></div>`;
   const before = root && root.querySelector('.a3-hud');
   if (root) root.insertBefore(el, before || null);
   const q = s => el.querySelector(s);
@@ -778,7 +809,7 @@ function makeHud(root) {
 // The adapter
 // ---------------------------------------------------------------------------
 export const adapter = {
-  label: 'Counter-Strike 2',
+  label: 'Splash Strike',
 
   build(ctx) {
     const { THREE, scene, kit, camera } = ctx, s = ctx.state, low = !!(ctx.quality && ctx.quality.low);
@@ -801,29 +832,32 @@ export const adapter = {
     ground.rotation.x = -Math.PI / 2; ground.position.y = -.03; scene.add(ground);
     // Effects (built now so their shaders compile with the scene).
     s.puffTex = kit.canvasTexture(128, 128, paintPuff, { aniso: 1 });
-    s.soft = billboards(THREE, 220, s.puffTex); s.soft.mesh.renderOrder = 2; scene.add(s.soft.mesh);
+    s.soft = billboards(THREE, 300, s.puffTex); s.soft.mesh.renderOrder = 2; scene.add(s.soft.mesh);
     s.glow = billboards(THREE, 160, s.glowTex, { additive: true }); s.glow.mesh.renderOrder = 3; scene.add(s.glow.mesh);
     const floorGlowGeo = new THREE.PlaneGeometry(1, 1); floorGlowGeo.rotateX(-Math.PI / 2);
     s.decal = instanced(THREE, floorGlowGeo, new THREE.MeshBasicMaterial({ map: s.glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 }), 12);
     scene.add(s.decal.mesh);
+    // Puddles (soaked players, soap slicks, the burst): soft blue discs, normally blended.
+    s.puddle = instanced(THREE, floorGlowGeo, new THREE.MeshBasicMaterial({ map: s.glowTex, transparent: true, opacity: .55, depthWrite: false, fog: true, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3 }), 20);
+    s.puddle.mesh.renderOrder = 1; scene.add(s.puddle.mesh);
     s.tracer = instanced(THREE, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }), 24);
     scene.add(s.tracer.mesh);
     s.nade = instanced(THREE, new THREE.SphereGeometry(.07, 8, 6), new THREE.MeshLambertMaterial(), 10);
     scene.add(s.nade.mesh);
     s.shadows = kit.blobShadows(16); scene.add(s.shadows.mesh);
-    // The bomb: on the ground (dropped, planted) and on the carrier's back.
+    // The Mega Balloon: on the ground (dropped, planted) and on the carrier's back.
     s.bomb = new THREE.Group();
-    s.bomb.add(new THREE.Mesh(kit.merge(c4Parts(kit)), kit.mats.vc));
-    s.led = new THREE.Mesh(new THREE.SphereGeometry(.022, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff3020 }));
-    s.led.position.set(.12, .06, .07); s.bomb.add(s.led);
+    s.bomb.add(new THREE.Mesh(kit.merge(balloonParts(kit)), kit.mats.vc));
+    s.led = new THREE.Mesh(new THREE.SphereGeometry(.022, 8, 6), new THREE.MeshBasicMaterial({ color: 0x7fe8ff }));
+    s.led.position.set(0, .325, 0); s.bomb.add(s.led);
     s.bomb.visible = false; scene.add(s.bomb);
-    s.bombBack = new THREE.Mesh(kit.merge(c4Parts(kit)), kit.mats.vc);
-    s.bombBack.rotation.set(0, Math.PI / 2, Math.PI / 2); s.bombBack.position.set(-.2, .32, 0); s.bombBack.visible = false;
+    s.bombBack = new THREE.Mesh(kit.merge(balloonParts(kit)), kit.mats.vc);
+    s.bombBack.rotation.set(0, Math.PI / 2, Math.PI / 2); s.bombBack.position.set(-.2, .32, 0); s.bombBack.scale.setScalar(.8); s.bombBack.visible = false;
     // The first-person view model: in front of the camera, drawn last over everything.
     scene.add(camera);
     s.vm = new THREE.Group(); camera.add(s.vm);
     s.vmModels = new Map();
-    s.vmFlash = new THREE.Sprite(new THREE.SpriteMaterial({ map: s.glowTex, color: 0xffd38a, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    s.vmFlash = new THREE.Sprite(new THREE.SpriteMaterial({ map: s.glowTex, color: 0xd8f2ff, transparent: true, depthTest: false, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
     s.vmFlash.renderOrder = 1001; s.vmFlash.visible = false; s.vmFlash.scale.set(.2, .2, 1); camera.add(s.vmFlash);
     s.vmMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 1, depthWrite: true, fog: false });
     // The HUD.
@@ -933,7 +967,7 @@ export const adapter = {
     s.meta = meta;
   },
 
-  // A soldier for player q (rebuilt when they change side).
+  // A player for q (rebuilt when they change side).
   model(ctx, q) {
     const s = ctx.state, { kit, THREE } = ctx;
     let m = s.models.get(q.id);
@@ -982,7 +1016,7 @@ export const adapter = {
     const T = timesOf(v);
     if (!T) { this.hideAll(ctx); return; }
     const { R, gt, p, rp } = T, size = s.size, G = s.G, tmp = s.tmp, speed = Math.max(1, v.speed || 1);
-    // A new round, a jump back or the kill cam: no smoothing.
+    // A new round, a jump back or the splash cam: no smoothing.
     if (R !== s.R || gt < s.gt - .05 || !!rp !== s.rp) { s.cut = true; s.yaw.clear(); s.boom = null; }
     s.R = R; s.gt = gt; s.p = p; s.rp = !!rp;
     const bomb = bombState(R, gt), shots = shotsAt(R, p);
@@ -1013,6 +1047,10 @@ export const adapter = {
         const k = clamp((gt - q.deathT) / .5, 0, 1), kill = R.kills.find(z => z.victim === q.id);
         const dx = kill ? kill.vx - kill.kx : Math.cos(yaw), dy = kill ? kill.vy - kill.ky : 1;
         fall = { k: easeOut(k) * 1.06, dir: [dx, dy] };
+        // Soaked: a puddle spreading under them (a little towards where they sit down).
+        const dl = Math.hypot(dx, dy) || 1, pk = clamp((gt - q.deathT) / 1.2, 0, 1), pr = .9 + 1.1 * easeOut(pk);
+        tmp.m4.compose(tmp.v.set(w[0] + dx / dl * .45, .03, w[2] + dy / dl * .45), tmp.q.identity(), tmp.s.set(pr, 1, pr));
+        s.puddle.add(tmp.m4, '#3a8fd6');
       }
       const mine = first && watch.id === q.id;
       const pitch = mine && s.eye ? s.eye.pitch : 0;
@@ -1033,7 +1071,7 @@ export const adapter = {
       h.root.updateMatrixWorld(true);
       tips.set(q.id, m.gun.localToWorld(tmp.v.set(tipOf(q.weapon), .045, 0)).toArray());
       m.name.visible = !dead && !mine;
-      m.gun.visible = !dead || gt - q.deathT < .25; // dropped as they fall
+      m.gun.visible = !dead || gt - q.deathT < .25; // dropped as they sit down
       if (!mine && sh < 15) s.shadows.set(sh++, w[0], w[2], dead ? .7 : .42, 1);
     });
     for (const [id, m] of s.models) if (!seen.has(id)) m.h.root.visible = false;
@@ -1046,7 +1084,7 @@ export const adapter = {
       const bob = s.eye.dead ? 0 : Math.sin(trackDist(q.track, gt) * 2.6 * 2) * .03 * clamp(speedAt(q, gt) / 4.5, 0, 1);
       s.eye.h += bob;
     }
-    // ---- the bomb ----
+    // ---- the Mega Balloon ----
     const carrierM = bomb.carrier && s.models.get(bomb.carrier);
     if (carrierM) { if (s.bombBack.parent !== carrierM.h.spine) carrierM.h.spine.add(s.bombBack); s.bombBack.visible = true; } else s.bombBack.visible = false;
     let bp = null;
@@ -1054,13 +1092,15 @@ export const adapter = {
     else if (bomb.planted) bp = { x: bomb.x, y: bomb.y };
     else if (bomb.planting && bomb.planting.prog > .15 && R.plant) bp = { x: R.plant.x, y: R.plant.y };
     s.bomb.visible = !!bp && !bomb.exploded;
-    if (bp) { const w = mapToWorld(bp.x, bp.y, .035, size); s.bomb.position.set(w[0], w[1], w[2]); s.bomb.rotation.y = .6; }
+    if (bp) { const w = mapToWorld(bp.x, bp.y, .01, size); s.bomb.position.set(w[0], w[1], w[2]); s.bomb.rotation.y = .6; }
+    s.bomb.scale.set(1, bomb.defused ? .55 : 1, 1); // drained: it sags
     if (bomb.planted && !bomb.exploded) {
       const rate = bomb.left < 10 ? 4 : bomb.left < 20 ? 2 : 1, on = bomb.defused || Math.sin(gt * Math.PI * 2 * rate) > 0;
-      s.led.material.color.set(bomb.defused ? '#3ddc84' : on ? '#ff3020' : '#4a120c');
-      if (on) { const w = s.bomb.localToWorld(tmp.v.copy(s.led.position)); s.glow.add(w.x, w.y, w.z, .35, .35, 0, bomb.defused ? .5 : .9, bomb.defused ? '#3ddc84' : '#ff3a22'); }
-    } else s.led.material.color.set('#4a120c');
-    // The explosion (real time from the moment it is seen: the round's clock stops at its end).
+      s.led.material.color.set(bomb.defused ? '#3ddc84' : on ? '#7fe8ff' : '#1a4a66');
+      if (on) { const w = s.bomb.localToWorld(tmp.v.copy(s.led.position)); s.glow.add(w.x, w.y, w.z, .35, .35, 0, bomb.defused ? .5 : .9, bomb.defused ? '#3ddc84' : '#6fe0ff'); }
+    } else s.led.material.color.set('#1a4a66');
+    // The burst (real time from the moment it is seen: the round's clock stops at its end):
+    // a flash of water, a wave rolling out over the floor, spray and falling drops, a big puddle.
     s.boomFx = 0; s.boomShake = 0;
     if (bomb.exploded) {
       if (!s.boom) s.boom = { t0: frame.clock, x: bomb.x, y: bomb.y };
@@ -1074,15 +1114,28 @@ export const adapter = {
         const k = clamp(a / 1.4, 0, 1), r = 2 + 15 * easeOut(k);
         for (let i = 0; i < 7; i++) {
           const an = i / 7 * Math.PI * 2 + 1, d = r * .35 * (i ? 1 : 0);
-          s.glow.add(w[0] + Math.cos(an) * d, 1 + r * .35 + (i % 3) * .5, w[2] + Math.sin(an) * d, r * 1.2, r * 1.2, an, (1 - k) * .9, i ? '#ff8a2a' : '#fff1c4');
+          s.glow.add(w[0] + Math.cos(an) * d, 1 + r * .3 + (i % 3) * .5, w[2] + Math.sin(an) * d, r * 1.1, r * 1.1, an, (1 - k) * .7, i ? '#5cc8ff' : '#e8fbff');
         }
+      }
+      if (a < 2.2) for (let i = 0; i < 14; i++) {
+        // The wave: a ring of water rolling out.
+        const an = i / 14 * Math.PI * 2 + hashN(i, 4) * .3, k = clamp(a / 2.2, 0, 1), d = 2 + 16 * easeOut(k);
+        s.soft.add(w[0] + Math.cos(an) * d, .5 + Math.sin(k * Math.PI) * .8, w[2] + Math.sin(an) * d, 3 + k * 2, 2 + k * 1.5, an, .8 * (1 - k), i & 1 ? '#7fcfff' : '#d6f2ff');
+      }
+      if (a < 2.6) for (let i = 0; i < 12; i++) {
+        // Drops thrown up and falling back.
+        const an = hashN(i, 9) * Math.PI * 2, sp = 4 + hashN(i, 3) * 6, up = 7 + hashN(i, 6) * 5, y = Math.max(0, up * a - 6 * a * a);
+        s.soft.add(w[0] + Math.cos(an) * sp * a, .3 + y, w[2] + Math.sin(an) * sp * a, .7, .7, an, .9 * (1 - a / 2.6), '#a8e0ff');
       }
       if (a < 5) for (let i = 0; i < 9; i++) {
         const an = i / 9 * Math.PI * 2, k = clamp(a / 5, 0, 1), d = 3 + 9 * easeOut(k) * (.5 + hashN(i, 5) * .5);
-        s.soft.add(w[0] + Math.cos(an) * d, 1.5 + k * 8 + hashN(i, 7) * 2, w[2] + Math.sin(an) * d, 6 + k * 8, 6 + k * 8, an, .7 * (1 - k), '#4a4038');
+        s.soft.add(w[0] + Math.cos(an) * d, 1 + k * 4 + hashN(i, 7) * 2, w[2] + Math.sin(an) * d, 6 + k * 8, 6 + k * 8, an, .5 * (1 - k), '#e2f4ff');
       }
+      const pr = 3 + 15 * easeOut(clamp(a / 1.5, 0, 1));
+      tmp.m4.compose(tmp.v.set(w[0], .03, w[2]), tmp.q.identity(), tmp.s.set(pr, 1, pr));
+      s.puddle.add(tmp.m4, '#3a8fd6');
     }
-    // ---- grenades: smokes, fire, flashes ----
+    // ---- utility: fog, soap slicks, foam flashes, water balloons ----
     const puffs = s.low ? 9 : 15;
     let nd = 0;
     for (const u of R.utils) {
@@ -1091,7 +1144,7 @@ export const adapter = {
       if (st.kind === 'flight') {
         const w = mapToWorld(st.x, st.y, 1.4 + st.h * 2.5, size);
         tmp.m4.makeTranslation(w[0], w[1], w[2]);
-        s.nade.add(tmp.m4, u.type === 'molotov' ? '#ff8a3d' : u.type === 'flash' ? '#e9e9e9' : u.type === 'he' ? '#5f7f40' : '#9aa3ad');
+        s.nade.add(tmp.m4, u.type === 'molotov' ? '#bfeaff' : u.type === 'flash' ? '#f4f4f4' : u.type === 'he' ? '#2f8fe8' : '#9aa3ad');
         nd++;
         continue;
       }
@@ -1105,23 +1158,33 @@ export const adapter = {
           s.soft.add(w[0] + Math.cos(an) * dd + wob, hz * (.55 + .45 * st.r / 4.8), w[2] + Math.sin(an) * dd, rr * 1.5, rr * 1.5, an + frame.clock * .06 * (i & 1 ? 1 : -1), st.a * .78, `rgb(${g},${g + 4},${g + 10})`);
         }
       } else if (st.kind === 'molotov') {
-        const R2 = rng(u.n * 13 + 1);
-        tmp.m4.compose(tmp.v.set(w[0], .04, w[2]), tmp.q.identity(), tmp.s.set(st.r * 3, 1, st.r * 3));
-        s.decal.add(tmp.m4, new THREE.Color('#ff7a2a').multiplyScalar(st.a));
+        // The soap slick: a pale blue sheen with suds and bubbles drifting up.
+        const R2 = rng(u.n * 13 + 1), sr = st.r * 3 * (.6 + .4 * st.a);
+        tmp.m4.compose(tmp.v.set(w[0], .03, w[2]), tmp.q.identity(), tmp.s.set(sr, 1, sr));
+        s.puddle.add(tmp.m4, '#cdeeff');
+        tmp.m4.compose(tmp.v.set(w[0], .04, w[2]), tmp.q.identity(), tmp.s.set(st.r * 2.4, 1, st.r * 2.4));
+        s.decal.add(tmp.m4, new THREE.Color('#9fdcff').multiplyScalar(st.a * .5));
         for (let i = 0; i < (s.low ? 10 : 18); i++) {
           const an = R2() * Math.PI * 2, dd = Math.sqrt(R2()) * st.r * .85, ph = R2() * 6.28;
-          const fl = .6 + .4 * Math.sin(frame.clock * (7 + i % 5) + ph), hh = (.55 + R2() * .7) * fl;
-          s.glow.add(w[0] + Math.cos(an) * dd, hh * .5, w[2] + Math.sin(an) * dd, .55 + R2() * .3, hh * 1.3, 0, st.a * (.55 + .3 * fl), i & 1 ? '#ff7a1e' : '#ffc04a');
+          const bob = .5 + .5 * Math.sin(frame.clock * (2 + i % 3) + ph), sz = .22 + R2() * .28;
+          s.soft.add(w[0] + Math.cos(an) * dd, .12 + bob * .12, w[2] + Math.sin(an) * dd, sz * 1.6, sz, 0, st.a * (.6 + .3 * bob), i & 1 ? '#ffffff' : '#d4f0ff');
         }
-        for (let i = 0; i < 3; i++) { const k = (frame.clock * .4 + i / 3) % 1; s.soft.add(w[0], 1.2 + k * 4, w[2], 2 + k * 3, 2 + k * 3, i, st.a * .35 * (1 - k), '#3a3430'); }
+        for (let i = 0; i < 5; i++) {
+          const k = (frame.clock * .35 + i / 5) % 1, an = i * 1.9 + u.n;
+          s.soft.add(w[0] + Math.cos(an) * st.r * .4, .2 + k * 1.8, w[2] + Math.sin(an) * st.r * .4, .18 + k * .1, .18 + k * .1, i, st.a * .7 * (1 - k), '#f2fbff');
+        }
       } else {
-        // Flash / HE burst.
-        s.glow.add(w[0], 1.3, w[2], st.r * 1.6, st.r * 1.6, 0, st.a, st.kind === 'he' ? '#ffa850' : '#ffffff');
-        if (st.kind === 'he') s.soft.add(w[0], 1.2, w[2], st.r * 1.2, st.r * 1.2, 1, st.a * .6, '#3c3530');
+        // Foam flash: a white pop and foam; water balloon: a small blue burst.
+        const he = st.kind === 'he';
+        s.glow.add(w[0], 1.3, w[2], st.r * 1.6, st.r * 1.6, 0, st.a * (he ? .7 : 1), he ? '#6fd0ff' : '#ffffff');
+        for (let i = 0; i < 6; i++) {
+          const an = i / 6 * Math.PI * 2 + u.n, d = st.r * .45 * (1.2 - st.a);
+          s.soft.add(w[0] + Math.cos(an) * d, 1 + (i & 1) * .4, w[2] + Math.sin(an) * d, st.r * .5, st.r * .5, an, st.a * .6, he ? '#9fdcff' : '#ffffff');
+        }
       }
     }
     s.nade.flush();
-    // ---- shots: tracers, muzzle flashes, blood ----
+    // ---- shots: water streams, spray puffs, splashes ----
     const eyeW = s.eye ? mapToWorld(s.eye.x, s.eye.y, s.eye.h, size) : null;
     for (const sht of shots) {
       const mineShot = first && sht.from === watch.id;
@@ -1143,19 +1206,32 @@ export const adapter = {
       const k = clamp(sht.age / .06, 0, 1), head = len * Math.min(1, k + .15), tail = Math.max(0, head - Math.min(4, len * .6));
       const mid = tmp.v.set(A[0] + d.x * (head + tail) / 2, A[1] + d.y * (head + tail) / 2, A[2] + d.z * (head + tail) / 2);
       tmp.q.setFromUnitVectors(tmp.x, d);
-      tmp.m4.compose(mid, tmp.q, tmp.s.set(head - tail, .014, .014));
-      const a = (1 - sht.age / .16) * .75;
-      s.tracer.add(tmp.m4, new THREE.Color(1, .78, .4).multiplyScalar(a));
-      if (sht.age < .07 && !mineShot) s.glow.add(A[0], A[1], A[2], .55, .55, sht.k.n, 1 - sht.age / .07, '#ffd27a');
+      tmp.m4.compose(mid, tmp.q, tmp.s.set(head - tail, .026, .026));
+      const a = (1 - sht.age / .16) * .6;
+      s.tracer.add(tmp.m4, new THREE.Color(.45, .78, 1).multiplyScalar(a));
+      // Droplets along the stream, sagging a little (a slight arc).
+      for (let j = 0; j < 3; j++) {
+        const t = tail + (head - tail) * (j + .5) / 3, sag = Math.sin((t / len) * Math.PI) * Math.min(.25, len * .02);
+        s.soft.add(A[0] + d.x * t, A[1] + d.y * t - sag, A[2] + d.z * t, .1, .1, 0, a * 1.2, '#cfeeff');
+      }
+      if (sht.age < .07 && !mineShot) {
+        s.glow.add(A[0], A[1], A[2], .45, .45, sht.k.n, (1 - sht.age / .07) * .8, '#dff4ff');
+        s.soft.add(A[0], A[1], A[2], .35, .35, sht.k.n, (1 - sht.age / .07) * .7, '#eaf8ff');
+      }
     }
     s.tracer.flush();
+    // Splashes: a burst of water off whoever gets soaked.
     for (const k of R.kills) {
       const age = gt - k.t;
-      if (age < 0 || age > .5) continue;
-      const w = mapToWorld(k.vx, k.vy, k.hs ? 1.55 : 1.2, size);
-      s.soft.add(w[0], w[1], w[2], .3 + age * 1.6, .3 + age * 1.6, k.n, .85 * (1 - age / .5), '#9c1010');
+      if (age < 0 || age > .6) continue;
+      const w = mapToWorld(k.vx, k.vy, k.hs ? 1.55 : 1.2, size), f = 1 - age / .6;
+      s.soft.add(w[0], w[1], w[2], .35 + age * 1.8, .35 + age * 1.8, k.n, .75 * f, '#bfe6ff');
+      for (let j = 0; j < 5; j++) {
+        const an = j / 5 * Math.PI * 2 + k.n, dd = age * 2.2;
+        s.soft.add(w[0] + Math.cos(an) * dd, w[1] + age * 1.5 - age * age * 6, w[2] + Math.sin(an) * dd, .16 + age * .4, .16 + age * .4, an, .85 * f, j & 1 ? '#8fd8ff' : '#e6f7ff');
+      }
     }
-    s.decal.flush();
+    s.decal.flush(); s.puddle.flush();
     s.soft.flush(cam); s.glow.flush(null);
     // ---- first person: the view model and the HUD ----
     this.viewUpdate(ctx, frame, R, gt, p, bomb, shots);
@@ -1204,13 +1280,13 @@ export const adapter = {
     if (!H) return;
     const first = watch.mode === 'first', q = watch.id && R.players[watch.id];
     const eye = first && q ? s.eye : null;
-    // The kill feed (team side colours, the watched player's kills ringed).
+    // The splash feed (team side colours, the watched player's splashes ringed).
     const feed = feedAt(R, p, 6, 5).map(k => {
       const kp = R.players[k.killer] || { handle: k.killer, side: '' }, vp = R.players[k.victim] || { handle: k.victim, side: '' };
       return `<div class="${k.hl ? 'hl' : ''}${q && (k.killer === q.id || k.victim === q.id) ? ' mine' : ''}"><b style="color:${SIDE_COLOR[kp.side] || '#fff'}">${esc(kp.handle)}</b><small>${esc(WEAPON[k.weapon] || k.weapon || '')}</small>${k.smoke ? '<small>☁</small>' : ''}${k.hs ? '<span class="hs">◎</span>' : ''}<b style="color:${SIDE_COLOR[vp.side] || '#fff'}">${esc(vp.handle)}</b></div>`;
     }).join('');
     H.html('feed', H.feed, feed);
-    // Screen effects for the eye: smoke you stand in, flashes, the explosion, death.
+    // Screen effects for the eye: fog you stand in, foam flashes, the burst, getting soaked.
     let white = 0, grey = 0, boom = 0;
     if (eye) {
       const yawMap = -eye.yaw;
@@ -1237,37 +1313,37 @@ export const adapter = {
     let hit = 0, hs = false;
     if (eye) for (const sh of shots) if (sh.from === q.id && sh.kill && sh.age < .16) { hit = 1 - sh.age / .16; hs = sh.hs; }
     H.op('hit', H.hit, hit);
-    H.style('hitc', H.hit, 'color', hs ? '#ff4a3c' : '#ffffff');
-    // Killed by…
+    H.style('hitc', H.hit, 'color', hs ? '#5cd2ff' : '#ffffff');
+    // Splashed by…
     let kb = '';
     if (eye && eye.dead && eye.deathK > .3) {
       const k = R.kills.find(z => z.victim === q.id);
-      if (k) { const kp = R.players[k.killer] || { handle: k.killer }; kb = `KILLED BY ${kp.handle} · ${WEAPON[k.weapon] || k.weapon}${k.hs ? ' · HEADSHOT' : ''}`; }
+      if (k) { const kp = R.players[k.killer] || { handle: k.killer }; kb = `SPLASHED BY ${kp.handle} · ${WEAPON[k.weapon] || k.weapon}${k.hs ? ' · FACE SPLASH' : ''}`; }
     }
     H.show('kb', H.kb, !!kb); H.text('kbT', H.kb, kb);
-    // Planting / defusing (whoever it is).
+    // Planting / draining the balloon (whoever it is).
     const act = bomb.planting ? { id: bomb.planting.id, prog: bomb.planting.prog, plant: true } : bomb.defusing ? { id: bomb.defusing.id, prog: bomb.defusing.prog, plant: false } : null;
     H.show('act', H.act, !!act);
     if (act) {
       const ap = R.players[act.id] || { handle: act.id };
       const total = act.plant ? R.plant.t - R.plant.start : R.defuse.t - R.defuse.start;
-      H.text('actL', H.actL, act.plant ? `PLANTING · ${ap.handle}` : `DEFUSING · ${ap.handle}${R.defuse && R.defuse.kit ? ' · KIT' : ''}`);
+      H.text('actL', H.actL, act.plant ? `PLANTING THE BALLOON · ${ap.handle}` : `DRAINING · ${ap.handle}${R.defuse && R.defuse.kit ? ' · DRAIN KIT' : ''}`);
       H.text('actR', H.actR, `${Math.max(0, total * (1 - act.prog)).toFixed(1)}s`);
       H.style('actB', H.actBar, 'width', (act.prog * 100).toFixed(1) + '%');
-      H.style('actC', H.actBar, 'background', act.plant ? '#ff4b3e' : '#4fc3ff');
-      H.style('actRC', H.actR, 'color', act.plant ? '#ff4b3e' : '#4fc3ff');
+      H.style('actC', H.actBar, 'background', act.plant ? '#ffa03a' : '#4fc3ff');
+      H.style('actRC', H.actR, 'color', act.plant ? '#ffa03a' : '#4fc3ff');
     }
-    // The player card: name, money, health, armour, ammo.
+    // The player card: name, money, health, raincoat, water left.
     H.show('card', H.card, !!(first && q), 'flex');
     if (first && q) {
       const st = hudStats(R, q.id, gt), c4 = !!(act && act.id === q.id);
       H.style('sc', H.who, '--sc', SIDE_COLOR[q.side] || '#fff');
       H.text('whoS', H.whoS, `${q.side}${q.role ? ' · ' + q.role.toUpperCase() : ''}`);
       H.text('whoB', H.whoB, q.handle);
-      H.text('cash', H.cash, money(st.money) + (bomb.carrier === q.id ? '  💣' : ''));
+      H.text('cash', H.cash, money(st.money) + (bomb.carrier === q.id ? '  🎈' : ''));
       H.text('hp', H.hp, String(st.hp)); H.cls('hpl', H.hp, 'low', st.hp < 30);
       H.text('ar', H.ar, st.armor ? '100' : '0');
-      H.text('amS', H.amS, c4 ? 'C4' : (WEAPON[q.weapon] || q.weapon || '').toUpperCase());
+      H.text('amS', H.amS, c4 ? 'MEGA BALLOON' : (WEAPON[q.weapon] || q.weapon || '').toUpperCase());
       H.text('am', H.am, c4 ? '—' : `${st.ammo} / ${st.reserve}`);
       H.cls('aml', H.am, 'low', !c4 && st.ammo <= 5 && q.weapon !== 'awp');
     }
@@ -1281,7 +1357,7 @@ export const adapter = {
     if (s.bombBack) s.bombBack.visible = false;
     if (s.vmModels) for (const m of s.vmModels.values()) m.visible = false;
     if (s.vmFlash) s.vmFlash.visible = false;
-    for (const k of ['soft', 'glow', 'tracer', 'nade', 'decal']) if (s[k]) s[k].flush(null);
+    for (const k of ['soft', 'glow', 'tracer', 'nade', 'decal', 'puddle']) if (s[k]) s[k].flush(null);
     s.eye = null; s.R = null;
     const H = s.hud;
     if (H) { H.html('feed', H.feed, ''); H.show('card', H.card, false); H.show('x', H.x, false); H.show('act', H.act, false); H.show('kb', H.kb, false); H.show('scope', H.scope, false); for (const k of ['smk', 'wht', 'boom', 'dead', 'hit']) H.op(k, H[k], 0); }
@@ -1309,7 +1385,7 @@ export const adapter = {
     const e = s.eye && ctx.watch && ctx.watch.id === id ? s.eye : eyeOf(R, id, s.gt, s.G);
     if (!e) return null;
     const pos = mapToWorld(e.x, e.y, e.h, s.size);
-    // The bomb going off nearby shakes the view.
+    // The balloon bursting nearby shakes the view.
     if (s.boom && s.boomShake > 0) { pos[0] += (Math.random() - .5) * s.boomShake; pos[1] += (Math.random() - .5) * s.boomShake * .5; pos[2] += (Math.random() - .5) * s.boomShake; }
     const cut = s.cut; s.cut = false;
     return { pos, yaw: e.yaw, pitch: e.pitch, fov: s.scoped ? 30 : 74, overlay: null, cut };
@@ -1340,17 +1416,17 @@ export const adapter = {
     if (final) clock = T.final;
     else if (R) {
       const b = bombState(R, t.gt), n = aliveAt(R, t.gt);
-      if (b.planted && !b.defused && !b.exploded) clock = '💣 ' + fmtClock(b.left);
+      if (b.planted && !b.defused && !b.exploded) clock = '🎈 ' + fmtClock(b.left);
       else if (v.phase === 'intro') clock = fmtClock(115);
       else if (b.planted) clock = '0:00';
       else clock = fmtClock(115 - t.gt);
       sub = `${T.round} ${R.num}${R.num > 2 * ((v.meta && v.meta.half) || 12) ? ' · OT' : ''} · ${n[0]}v${n[1]}`;
     } else sub = T.live;
     let tag = '';
-    if (t && t.rp) tag = 'REPLAY · KILL CAM';
+    if (t && t.rp) tag = 'REPLAY · SPLASH CAM';
     else if (v.view && v.view.mode === 'pov' && ctx.watch && ctx.watch.id === v.view.id && v.phase === 'play') {
       const why = v.view.why;
-      tag = why === 'kill' ? (v.view.k && v.view.k.first ? 'ENTRY' : 'DUEL') : why === 'plant' ? 'PLANT' : why === 'defuse' ? 'DEFUSE' : why === 'clutch' ? 'CLUTCH' : '';
+      tag = why === 'kill' ? (v.view.k && v.view.k.first ? 'ENTRY' : 'DUEL') : why === 'plant' ? 'PLANT' : why === 'defuse' ? 'DRAIN' : why === 'clutch' ? 'CLUTCH' : '';
     }
     let caption = '';
     if (v.phase === 'intro' && R) {

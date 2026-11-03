@@ -320,19 +320,19 @@ func (m *Match) Winner() int {
 
 // ---- prompts ----
 
-const buyHelp = `buy: eco = buy nothing and save; half = each player spends at most 45% of his money (max $2,100) on an SMG or P250, kevlar and a flash/smoke; force = spend everything on the best you can (AK/M4 if you can pay it plus kevlar, else Galil/FAMAS, else SMG, else Deagle/P250), then helmet, then your utility; full = rifles (the AWPer buys an AWP if "awp":true and he can pay it plus kevlar), helmets, kits (CT) and your utility; on a full buy rich players drop rifles to teammates who cannot afford one. In pistol rounds ($800) full and force both mean kevlar + pistol.`
+const buyHelp = `buy: eco = buy nothing and save; half = each player spends at most 45% of his money (max $2,100) on a sprayer or Spritz 250, a raincoat and a flash/smoke; force = spend everything on the best you can (Hydro-47/Hydro-M4 if you can pay it plus a raincoat, else Gale/Fountain Soaker, else a sprayer, else Desert Geyser/Spritz 250), then goggles, then your utility; full = soakers (the AWPer buys an AWP Aqua Jet if "awp":true and he can pay it plus a raincoat), goggles, drain kits (CT) and your utility; on a full buy rich players drop soakers to teammates who cannot afford one. In water-pistol rounds ($800) full and force both mean raincoat + water pistol.`
 
 const tSchema = `{"buy":"eco|half|force|full","strategy":"rush_a|rush_b|execute_a|execute_b|split_a|split_b|default_mid|fake_a_go_b|fake_b_go_a","utility":"none|smokes|flash_heavy|full","pace":"fast|default|slow","awp":true|false}
 ` + buyHelp + `
 strategy (see the round-win table in the rules): rush_x = all 5 run into site x at once (beats aggressive_mid and a stack on the other site; loses to a stack on x, to standard and to retakes, especially vs heavy CT utility); execute_x = take control, then hit x together with utility (beats retake_x and standard a little; loses to a stack on x and to aggressive_mid); split_x = hit x from two sides (beats standard; loses to a stack on x and to aggressive_mid); default_mid = spread, fight for mid, hit late the site with fewer CTs (beats stacks and retakes; loses to aggressive_mid); fake_x_go_y = utility at x, then hit y (beats standard and a stack on x; loses to a stack on y).
-utility: none ($0) | smokes (smoke + flash each, ~$500) | flash_heavy (2 flashes + smoke, ~$700) | full (smoke, 2 flashes, molotov, ~$1,100). More utility wins more executes, splits, fakes and post-plants; rushes only use the flashes.
+utility: none ($0) | smokes (smoke + flash each, ~$500) | flash_heavy (2 flashes + smoke, ~$700) | full (smoke, 2 flashes, molotov = soap slick, ~$1,100). More utility wins more executes, splits, fakes and post-plants; rushes only use the flashes.
 pace: fast (hit earlier: a little better vs aggressive_mid, a little worse vs the rest) | default (best in general) | slow (more mid duels: a little better for default_mid vs stacks, worse vs aggressive_mid). Rushes ignore pace.
-awp: true = on a full buy your AWPer buys an AWP if he can afford it (+3-7 points: best in long, unsmoked duels).`
+awp: true = on a full buy your AWPer buys an AWP Aqua Jet if he can afford it (+3-7 points: best in long, unsmoked duels).`
 
 const ctSchema = `{"buy":"eco|half|force|full","setup":"standard_2_1_2|stack_a|stack_b|aggressive_mid|retake_b|retake_a","utility":"save|normal|heavy","awp":true|false}
 ` + buyHelp + `
 setup (see the round-win table in the rules): standard_2_1_2 = 2 A, 1 window, 2 B, rotate on contact (safest: beats rushes, loses to fakes and splits); stack_a / stack_b = 4 on that site, 1 on the other (crushes any hit on the stacked site, loses to hits on the other site, fakes of the stacked site and default_mid); aggressive_mid = 3 push mid for early picks, 1 per site (beats default_mid, splits and executes; rushes walk into its empty sites); retake_a / retake_b = give that site up (1 hidden player), 3 hold the other site, then retake together after the plant (beats rushes and executes into the held site, and rushes into the given site; loses to executes and default_mid into the given site).
-utility: save (none, $0) | normal (flash + smoke each, ~$500) | heavy (molotov, smoke, flash, HE each, ~$1,300: takes 1-13 points from the T, most vs rushes and hits into a defended site).
+utility: save (none, $0) | normal (flash + smoke each, ~$500) | heavy (molotov = soap slick, smoke, flash, HE = water balloon each, ~$1,300: takes 1-13 points from the T, most vs rushes and hits into a defended site).
 awp: true = on a full buy your AWPer buys an AWP if he can afford it (+3-7 points: best in long, unsmoked holds).`
 
 func (m *Match) prompt(team int) arena.Prompt {
@@ -395,9 +395,9 @@ func (m *Match) situation(team int) string {
 	side := sideOf(m, team)
 	opp := 1 - team
 	r := m.nextRound()
-	me, them, sideName, oppName := "T (attack: plant the bomb at A or B)", "CT", "T", "CT"
+	me, them, sideName, oppName := "T (the Tide, attack: plant the Mega Balloon at A or B)", "CT", "T", "CT"
 	if side == sideCT {
-		me, them, sideName, oppName = "CT (defend A and B, defuse)", "T", "CT", "T"
+		me, them, sideName, oppName = "CT (the Coast Team, defend A and B, drain the balloon)", "T", "CT", "T"
 	}
 	pos, hl := m.halfPos(r)
 	fmt.Fprintf(&b, "Map: Mirage. Round %d (%s, round %d of %d of this half; first to %d wins). You are %s. Score: you %d - %d them.\n",
@@ -458,7 +458,7 @@ func (m *Match) situation(team int) string {
 	if est >= float64(teamFullCost(ops, 3-side))-400 {
 		can = "can probably full buy"
 	}
-	fmt.Fprintf(&b, "Enemy (%s) estimated money: %s-%s (%s); they kept %d rifle(s)/AWP; their next loss pays %s each (level %d/4).\n", them, money(lo), money(hi), can, okeep, money(lossBonus(m.lossLvl[opp])), m.lossLvl[opp])
+	fmt.Fprintf(&b, "Enemy (%s) estimated money: %s-%s (%s); they kept %d soaker(s)/AWP; their next loss pays %s each (level %d/4).\n", them, money(lo), money(hi), can, okeep, money(lossBonus(m.lossLvl[opp])), m.lossLvl[opp])
 	fmt.Fprintf(&b, "AWP: you %s; the enemy %s.\n",
 		map[bool]string{true: "kept an AWP", false: "have no AWP kept (a full buy with \"awp\":true buys one if the AWPer can afford it)"}[myAWP],
 		map[bool]string{true: "kept an AWP", false: "kept no AWP"}[theirAWP])
@@ -500,7 +500,7 @@ func (m *Match) ownLine(h roundRec, team int) string {
 	if h.Winner == team {
 		res = "we WON"
 	}
-	reason := map[string]string{"elim": "elimination", "bomb": "bomb exploded", "defuse": "defused", "time": "time ran out"}[h.Reason]
+	reason := map[string]string{"elim": "all splashed", "bomb": "balloon burst", "defuse": "balloon drained", "time": "time ran out"}[h.Reason]
 	if h.TTeam == team {
 		return fmt.Sprintf("R%d [we T] %s buy: %s, utility %s, pace %s vs their %s (%s buy) -> %s (%s)",
 			h.Round, h.TObs, h.T.Strategy, h.T.Utility, h.T.Pace, h.CT.Setup, h.CTObs, res, reason)
@@ -518,7 +518,7 @@ func (m *Match) histLine(h roundRec, team int) string {
 	if h.Winner == team {
 		res = "we won"
 	}
-	reason := map[string]string{"elim": "elimination", "bomb": "bomb exploded", "defuse": "defused", "time": "time ran out"}[h.Reason]
+	reason := map[string]string{"elim": "all splashed", "bomb": "balloon burst", "defuse": "balloon drained", "time": "time ran out"}[h.Reason]
 	if h.TTeam != team {
 		awp := ""
 		if h.TAWP {

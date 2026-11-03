@@ -3,8 +3,8 @@ package cs2
 import "gregal/internal/arena"
 
 var pbStrats = map[string]arena.PlayOption{
-	"rush_a":      {Label: "Rush A", Plain: "All five run into A fast. Crushes an empty site, dies to a stacked one."},
-	"rush_b":      {Label: "Rush B", Plain: "All five run into B fast. Crushes an empty site, dies to a stacked one."},
+	"rush_a":      {Label: "Rush A", Plain: "All five run into A fast. Floods an empty site, gets soaked by a stacked one."},
+	"rush_b":      {Label: "Rush B", Plain: "All five run into B fast. Floods an empty site, gets soaked by a stacked one."},
 	"execute_a":   {Label: "Execute A", Plain: "Smoke and flash A, then take it together. Beats a standard setup and a team that gives the site away to retake it."},
 	"execute_b":   {Label: "Execute B", Plain: "Smoke and flash B, then take it together. Beats a standard setup and a team that gives the site away to retake it."},
 	"split_a":     {Label: "Split A", Plain: "Hit A from two sides at once. Good against a standard setup."},
@@ -18,7 +18,7 @@ var pbSetups = map[string]arena.PlayOption{
 	"standard_2_1_2": {Label: "Standard 2-1-2", Plain: "Two on A, one mid, two on B. The safest setup: never loses badly, but fakes and splits beat it."},
 	"stack_a":        {Label: "Stack A", Plain: "Most CTs on A. Wins big if they hit A, loses big if they go B."},
 	"stack_b":        {Label: "Stack B", Plain: "Most CTs on B. Wins big if they hit B, loses big if they go A."},
-	"aggressive_mid": {Label: "Aggressive mid", Plain: "Push mid early for picks. Beats slow defaults and executes, but rushes run past it."},
+	"aggressive_mid": {Label: "Aggressive mid", Plain: "Push mid early for quick splashes. Beats slow defaults and executes, but rushes run past it."},
 	"retake_b":       {Label: "Retake B", Plain: "Give B away and win it back after the plant. Beats rushes."},
 	"retake_a":       {Label: "Retake A", Plain: "Give A away and win it back after the plant. Beats rushes."},
 }

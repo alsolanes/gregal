@@ -1,8 +1,8 @@
-// Visor d'un partit de Counter-Strike 2 de l'Arena (internal/arena/cs2): un
+// Visor d'un partit de Splash Strike (el joc cs2 de l'Arena, internal/arena/cs2, amb pistoles d'aigua): un
 // minimapa tàctic com el de les retransmissions (Mirage estilitzat, zones,
 // caixes, llocs A i B), jugadors amb el color de l'equip i la vora del bàndol,
-// cons de visió, traçadores, fums, flaixos i molotovs, la bomba amb el seu
-// rellotge, el marcador de dalt, el feed de morts, les plantilles de baix i
+// cons de visió, rajos d'aigua, boira, flaixos d'escuma i bassals de sabó, el Megaglobus amb el seu
+// rellotge, el marcador de dalt, el feed de remullats, les plantilles de baix i
 // els rètols de final de ronda, mitja part i final amb l'MVP.
 //
 // Les rondes arriben senceres (un punt de decisió = una ronda); cada ronda es
@@ -25,24 +25,24 @@ export const TEXT = {
   ca: {
     round: 'RONDA', half: 'MITJA PART', ot: 'PRÒRROGA', otSwitch: 'CANVI DE BANDA', final: 'FINAL', mvp: 'MVP', live: 'EN DIRECTE',
     waiting: 'Esperant la ronda següent…', pregame: 'Els equips preparen l\'estratègia…', stopped: 'Partit aturat', failed: 'El partit ha fallat',
-    wins: 'guanya la ronda', winsMatch: 'GUANYA EL PARTIT', pistol: 'RONDA DE PISTOLES',
-    reasons: { elim: 'Eliminació', bomb: 'La bomba ha explotat', defuse: 'Bomba desactivada', time: 'Temps esgotat' },
+    wins: 'guanya la ronda', winsMatch: 'GUANYA EL PARTIT', pistol: 'RONDA DE PISTOLES D’AIGUA',
+    reasons: { elim: 'Tots remullats', bomb: 'El Megaglobus ha esclatat', defuse: 'Megaglobus desinflat', time: 'Temps esgotat' },
     buy: { eco: 'ECO', half: 'MITJA COMPRA', force: 'COMPRA FORÇADA', full: 'COMPRA COMPLETA' },
-    tags: { pistol: 'pistoles', clutch: 'CLUTCH', ace: 'ACE!', '4k': '4 MORTS', eco_win: 'VICTÒRIA EN ECO', ninja: 'NINJA!', last_second: 'A L\'ÚLTIM SEGON' },
-    cols: ['M', 'Mo', 'DPR', '%CAP'], switchNote: 'Canvi de banda, cada jugador comença amb', kills: 'morts', planted: 'BOMBA PLANTADA', defusing: 'DESACTIVANT', planting: 'PLANTANT',
+    tags: { pistol: 'pistoles d’aigua', clutch: 'CLUTCH', ace: 'ACE!', '4k': '4 REMULLATS', eco_win: 'VICTÒRIA EN ECO', ninja: 'NINJA!', last_second: 'A L\'ÚLTIM SEGON' },
+    cols: ['REM', 'MULL', 'DPR', '%CARA'], switchNote: 'Canvi de banda, cada jugador comença amb', kills: 'remullats', planted: 'MEGAGLOBUS PLANTAT', defusing: 'DESINFLANT', planting: 'PLANTANT EL GLOBUS',
   },
   en: {
     round: 'ROUND', half: 'HALF-TIME', ot: 'OVERTIME', otSwitch: 'SIDE SWITCH', final: 'FINAL', mvp: 'MVP', live: 'LIVE',
     waiting: 'Waiting for the next round…', pregame: 'The teams are preparing their strategy…', stopped: 'Match stopped', failed: 'Match failed',
-    wins: 'win the round', winsMatch: 'WIN THE MATCH', pistol: 'PISTOL ROUND',
-    reasons: { elim: 'Elimination', bomb: 'Bomb exploded', defuse: 'Bomb defused', time: 'Time ran out' },
+    wins: 'win the round', winsMatch: 'WIN THE MATCH', pistol: 'WATER-PISTOL ROUND',
+    reasons: { elim: 'Everyone soaked', bomb: 'The Mega Balloon burst', defuse: 'Mega Balloon drained', time: 'Time ran out' },
     buy: { eco: 'ECO', half: 'HALF BUY', force: 'FORCE BUY', full: 'FULL BUY' },
-    tags: { pistol: 'pistol', clutch: 'CLUTCH', ace: 'ACE!', '4k': '4K', eco_win: 'ECO WIN', ninja: 'NINJA!', last_second: 'LAST SECOND' },
-    cols: ['K', 'D', 'ADR', 'HS%'], switchNote: 'Sides switch, every player starts with', kills: 'kills', planted: 'BOMB PLANTED', defusing: 'DEFUSING', planting: 'PLANTING',
+    tags: { pistol: 'water pistol', clutch: 'CLUTCH', ace: 'ACE!', '4k': '4 SPLASHES', eco_win: 'ECO WIN', ninja: 'NINJA!', last_second: 'LAST SECOND' },
+    cols: ['SPL', 'SOAK', 'ADR', 'FS%'], switchNote: 'Sides switch, every player starts with', kills: 'splashes', planted: 'MEGA BALLOON PLANTED', defusing: 'DRAINING', planting: 'PLANTING THE BALLOON',
   },
 };
 
-const WEAPON = { glock: 'Glock', usp: 'USP-S', p250: 'P250', deagle: 'Deagle', mac10: 'MAC-10', mp9: 'MP9', galil: 'Galil', famas: 'FAMAS', ak47: 'AK-47', m4a1s: 'M4A1-S', awp: 'AWP' };
+const WEAPON = { glock: 'Squirt-18', usp: 'Squirt-S', p250: 'Spritz 250', deagle: 'Desert Geyser', mac10: 'Drizzle-10', mp9: 'Mist-9', galil: 'Gale Soaker', famas: 'Fountain Soaker', ak47: 'Hydro-47', m4a1s: 'Hydro-M4', awp: 'AWP Aqua Jet', knife: 'Sponge', he: 'Water balloon', molotov: 'Soap slick', bomb: 'The burst' };
 
 // ---- ajudes pures (es proven sense DOM) ----
 
@@ -1187,13 +1187,16 @@ export class Cs2View extends ArenaViewBase {
     this.povScreenFx(R, G, C, gt, p, pos, bomb, x0, y0, w, h);
     if (!dead) this.povCrosshair(x0 + w / 2, y0 + h / 2, own, scoped);
     if (dead) {
-      g.fillStyle = `rgba(120,0,0,${0.35 * deathK})`; g.fillRect(x0, y0, w, h);
+      // Remullat: la pantalla s'omple d'aigua (blau) i regalims que cauen.
+      g.fillStyle = `rgba(30,120,210,${0.38 * deathK})`; g.fillRect(x0, y0, w, h);
+      g.fillStyle = `rgba(190,230,255,${0.35 * deathK})`;
+      for (let i = 0; i < 9; i++) { const dx = x0 + w * hash3(strHash(id), i, 5), dl = h * (0.08 + 0.3 * hash3(i, 7, 2)) * deathK; g.beginPath(); g.roundRect(dx, y0, 5 * u, dl, 2.5 * u); g.fill(); g.beginPath(); g.arc(dx + 2.5 * u, y0 + dl, 4 * u, 0, Math.PI * 2); g.fill(); }
       const k = R.kills.find(q => q.victim === id);
       if (k && deathK > 0.3) {
         const kp = R.players[k.killer] || { handle: k.killer };
         g.fillStyle = 'rgba(0,0,0,.6)'; g.fillRect(x0, y0 + h * 0.42, w, 34 * u);
         g.fillStyle = '#fff'; g.font = `800 ${15 * u}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-        g.fillText(`KILLED BY ${kp.handle} · ${WEAPON[k.weapon] || k.weapon}${k.hs ? ' · HEADSHOT' : ''}`, x0 + w / 2, y0 + h * 0.42 + 17 * u, w - 20 * u);
+        g.fillText(`💦 SPLASHED BY ${kp.handle} · ${WEAPON[k.weapon] || k.weapon}${k.hs ? ' · FACE SPLASH' : ''}`, x0 + w / 2, y0 + h * 0.42 + 17 * u, w - 20 * u);
       }
     }
     if (rp) {
@@ -1340,11 +1343,17 @@ export class Cs2View extends ArenaViewBase {
     let tip = null;
     if (this.clipRuns(Z, x - H * 0.7, x + H * 0.7, pr.depth)) {
       g.save(); g.clip();
+      if (it.dead) {
+        // Remullat: un bassal blau que creix sota el cos.
+        const pk = clamp((gt - q.deathT) / 0.8, 0, 1), pw = (0.35 + 0.75 * pk) * k;
+        g.fillStyle = `rgba(70,160,235,${0.55 * pk})`; g.beginPath(); g.ellipse(x + fallDir * 0.5 * k * fall, foot, pw, pw * 0.2, 0, 0, Math.PI * 2); g.fill();
+        g.fillStyle = `rgba(210,240,255,${0.5 * pk})`; g.beginPath(); g.ellipse(x + fallDir * 0.5 * k * fall - pw * 0.3, foot - pw * 0.04, pw * 0.3, pw * 0.05, 0, 0, Math.PI * 2); g.fill();
+      }
       if (it.dead && fall >= 1) g.globalAlpha = 0.85;
       tip = this.figure(x, foot, H, q, lat, walk, fall, fallDir, col, false);
       g.restore();
     }
-    // Muzzle flash, head-shot mist, name tag.
+    // Ruixada a la boca, esquitxada d'aigua en remullar, nom.
     for (const s of shots) if (s.from === q.id && s.age < 0.07 && tip) this.flashStar(tip.x, tip.y, Math.max(6 * u, 0.5 * k), s.k.n);
     if (it.dead) {
       const kk = R.kills.find(z => z.victim === q.id);
@@ -1352,8 +1361,11 @@ export class Cs2View extends ArenaViewBase {
       if (kk && age < 0.5) {
         const r = (0.25 + age) * k, a = 1 - age / 0.5;
         const mist = g.createRadialGradient(x, foot - (kk.hs ? 1.6 : 1.2) * k, 0, x, foot - (kk.hs ? 1.6 : 1.2) * k, r);
-        mist.addColorStop(0, `rgba(190,20,20,${0.8 * a})`); mist.addColorStop(1, 'rgba(120,0,0,0)');
+        mist.addColorStop(0, `rgba(235,250,255,${0.9 * a})`); mist.addColorStop(0.45, `rgba(90,180,245,${0.7 * a})`); mist.addColorStop(1, 'rgba(40,130,230,0)');
         g.fillStyle = mist; g.beginPath(); g.arc(x, foot - (kk.hs ? 1.6 : 1.2) * k, r, 0, Math.PI * 2); g.fill();
+        // gotes que surten disparades
+        g.fillStyle = `rgba(150,215,255,${a})`;
+        for (let i = 0; i < 6; i++) { const an = i * 1.05 + (kk.n || 0), dd = r * (0.8 + 0.5 * age * 2); g.beginPath(); g.arc(x + Math.cos(an) * dd, foot - (kk.hs ? 1.6 : 1.2) * k + Math.sin(an) * dd * 0.7, Math.max(1, 0.05 * k), 0, Math.PI * 2); g.fill(); }
       }
       return;
     }
@@ -1417,23 +1429,25 @@ export class Cs2View extends ArenaViewBase {
       g.fillRect(-0.16 * s + (side ? dir * 0.03 * s : 0), -1.665 * s, 0.32 * s, 0.035 * s); // brim / rim
       if (!T) { g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(-0.04 * s, -1.72 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
     }
-    // Gun: sideways when they face across the screen, foreshortened when aiming at us.
+    // Water blaster (toy plastic): sideways when they face across the screen, foreshortened when aiming at us.
     const L = 0.62 * s * lat, gy = -1.16 * s;
     let tip;
-    const gunCol = xray ? col : '#1a1a1c';
+    const gunCol = xray ? col : T ? '#ff8a1f' : '#2f8fff', tankCol = T ? '#7ad13a' : '#ffd23a';
     if (side) {
-      g.strokeStyle = gunCol; g.lineWidth = Math.max(1.5, 0.09 * s); g.beginPath(); g.moveTo(-0.08 * s * dir, gy); g.lineTo(L, gy - 0.03 * s); g.stroke();
+      g.strokeStyle = gunCol; g.lineWidth = Math.max(1.5, 0.11 * s); g.beginPath(); g.moveTo(-0.08 * s * dir, gy); g.lineTo(L, gy - 0.03 * s); g.stroke();
       if (!xray) {
-        g.lineWidth = Math.max(1.5, 0.13 * s); g.beginPath(); g.moveTo(-0.14 * s * dir, gy + 0.02 * s); g.lineTo(0.12 * s * dir, gy); g.stroke(); // receiver
-        g.fillStyle = gunCol; g.fillRect(dir > 0 ? 0.04 * s : -0.1 * s, gy, 0.06 * s, 0.14 * s); // magazine
+        g.lineWidth = Math.max(1.5, 0.17 * s); g.beginPath(); g.moveTo(-0.14 * s * dir, gy + 0.02 * s); g.lineTo(0.12 * s * dir, gy); g.stroke(); // chunky body
+        g.fillStyle = tankCol; g.beginPath(); g.arc(0, gy - 0.1 * s, 0.075 * s, 0, Math.PI * 2); g.fill(); // water tank on top
+        g.fillStyle = 'rgba(255,255,255,.55)'; g.beginPath(); g.arc(-0.02 * s, gy - 0.12 * s, 0.025 * s, 0, Math.PI * 2); g.fill();
+        g.fillStyle = gunCol; g.beginPath(); g.roundRect(dir > 0 ? 0.03 * s : -0.1 * s, gy, 0.07 * s, 0.13 * s, 0.03 * s); g.fill(); // grip
       }
       g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.1 * s);
       g.beginPath(); g.moveTo(-0.2 * dir * s, -1.38 * s); g.lineTo(0, gy + 0.05 * s); g.lineTo(L * 0.55, gy + 0.02 * s); g.stroke();
       if (!xray) { g.fillStyle = '#2a2420'; g.beginPath(); g.arc(L * 0.55, gy + 0.02 * s, 0.05 * s, 0, Math.PI * 2); g.arc(0, gy + 0.05 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
       tip = { x: L, y: gy - 0.03 * s };
     } else {
-      g.fillStyle = gunCol; g.beginPath(); g.arc(L * 0.3, gy, 0.08 * s, 0, Math.PI * 2); g.fill();
-      if (!xray) { g.fillStyle = '#000'; g.beginPath(); g.arc(L * 0.3, gy, 0.035 * s, 0, Math.PI * 2); g.fill(); }
+      g.fillStyle = gunCol; g.beginPath(); g.arc(L * 0.3, gy, 0.09 * s, 0, Math.PI * 2); g.fill();
+      if (!xray) { g.fillStyle = tankCol; g.beginPath(); g.arc(L * 0.3, gy - 0.12 * s, 0.07 * s, 0, Math.PI * 2); g.fill(); g.fillStyle = '#1c4f8a'; g.beginPath(); g.arc(L * 0.3, gy, 0.035 * s, 0, Math.PI * 2); g.fill(); }
       g.strokeStyle = xray ? col : cloth; g.lineWidth = Math.max(1.5, 0.11 * s);
       g.beginPath(); g.moveTo(-0.24 * s, -1.4 * s); g.lineTo(L * 0.3 - 0.06 * s, gy + 0.03 * s); g.moveTo(0.24 * s, -1.4 * s); g.lineTo(L * 0.3 + 0.06 * s, gy + 0.03 * s); g.stroke();
       if (!xray) { g.fillStyle = '#2a2420'; g.beginPath(); g.arc(L * 0.3 - 0.07 * s, gy + 0.04 * s, 0.05 * s, 0, Math.PI * 2); g.arc(L * 0.3 + 0.07 * s, gy + 0.04 * s, 0.05 * s, 0, Math.PI * 2); g.fill(); }
@@ -1446,7 +1460,7 @@ export class Cs2View extends ArenaViewBase {
   flashStar(x, y, r, seed) {
     const g = this.ctx, R2 = rng((seed || 1) * 31 + Math.floor(performance.now() / 40));
     const gl = g.createRadialGradient(x, y, 0, x, y, r * 1.6);
-    gl.addColorStop(0, 'rgba(255,255,230,1)'); gl.addColorStop(0.3, 'rgba(255,210,110,.85)'); gl.addColorStop(1, 'rgba(255,140,40,0)');
+    gl.addColorStop(0, 'rgba(255,255,255,1)'); gl.addColorStop(0.3, 'rgba(170,225,255,.85)'); gl.addColorStop(1, 'rgba(60,150,240,0)');
     g.fillStyle = gl; g.beginPath();
     const n = 7, a0 = R2() * Math.PI;
     for (let i = 0; i < n * 2; i++) { const a = a0 + i * Math.PI / n, rr = (i & 1 ? 0.35 : 1 + R2() * 0.6) * r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
@@ -1482,17 +1496,19 @@ export class Cs2View extends ArenaViewBase {
       const r = st.r * k, fy = C.horizon + C.eye * k;
       if (!this.clipRuns(Z, pr.x - r * 1.2, pr.x + r * 1.2, pr.depth - st.r)) return;
       g.save(); g.clip();
+      // Bassal de sabó: una taca blava relliscosa i bombolles que pugen i peten.
       const gl = g.createRadialGradient(pr.x, fy, 0, pr.x, fy, r * 1.3);
-      gl.addColorStop(0, `rgba(255,160,60,${0.55 * st.a})`); gl.addColorStop(1, 'rgba(255,80,20,0)');
+      gl.addColorStop(0, `rgba(200,235,255,${0.6 * st.a})`); gl.addColorStop(0.6, `rgba(120,200,245,${0.4 * st.a})`); gl.addColorStop(1, 'rgba(120,200,245,0)');
       g.fillStyle = gl; g.fillRect(pr.x - r * 1.3, fy - r * 1.3, r * 2.6, r * 2.6);
-      const R2 = rng(u0.n * 13 + Math.floor(performance.now() / 80));
+      const R2 = rng(u0.n * 13 + 1), tt = performance.now() / 1000;
       for (let i = 0; i < 16; i++) {
-        const fx = st.x + (R2() - 0.5) * st.r * 1.6, fz = st.y + (R2() - 0.5) * st.r * 1.6;
-        const fp = projectPoint(C, fx, fz, 0); if (fp.behind) continue;
-        const kk = C.focal / fp.depth, fh = (0.5 + R2() * 0.8) * kk, fw = (0.25 + R2() * 0.25) * kk;
-        const fg = g.createLinearGradient(0, fp.y, 0, fp.y - fh);
-        fg.addColorStop(0, `rgba(255,220,120,${0.9 * st.a})`); fg.addColorStop(0.5, `rgba(255,120,30,${0.75 * st.a})`); fg.addColorStop(1, 'rgba(200,40,10,0)');
-        g.fillStyle = fg; g.beginPath(); g.moveTo(fp.x - fw / 2, fp.y); g.quadraticCurveTo(fp.x - fw * 0.4, fp.y - fh * 0.6, fp.x, fp.y - fh); g.quadraticCurveTo(fp.x + fw * 0.4, fp.y - fh * 0.6, fp.x + fw / 2, fp.y); g.fill();
+        const fx = st.x + (R2() - 0.5) * st.r * 1.6, fz = st.y + (R2() - 0.5) * st.r * 1.6, ph = R2(), sz = 0.1 + R2() * 0.16;
+        const rise = (tt * (0.35 + ph * 0.4) + ph) % 1;
+        const fp = projectPoint(C, fx, fz, rise * 1.4); if (fp.behind) continue;
+        const kk = C.focal / fp.depth, br = sz * kk * (0.6 + rise * 0.6), ba = st.a * (1 - rise);
+        g.fillStyle = `rgba(225,245,255,${0.25 * ba})`; g.strokeStyle = `rgba(255,255,255,${0.85 * ba})`; g.lineWidth = Math.max(1, br * 0.12);
+        g.beginPath(); g.arc(fp.x, fp.y - br, br, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.fillStyle = `rgba(255,255,255,${0.9 * ba})`; g.beginPath(); g.arc(fp.x - br * 0.35, fp.y - br * 1.35, br * 0.22, 0, Math.PI * 2); g.fill();
       }
       g.restore();
       return;
@@ -1500,19 +1516,22 @@ export class Cs2View extends ArenaViewBase {
     if (st.kind === 'flight') {
       const fp = projectPoint(C, st.x, st.y, 1.4 + st.h * 2.5); if (fp.behind) return;
       const r = Math.max(2 * this.dpr, 0.12 * C.focal / fp.depth);
-      g.fillStyle = u0.type === 'molotov' ? '#ff8a3d' : u0.type === 'flash' ? '#f4f4f4' : u0.type === 'he' ? '#6d8f4a' : '#c9ced6';
+      g.fillStyle = u0.type === 'molotov' ? '#9fe0ff' : u0.type === 'flash' ? '#f4f4f4' : u0.type === 'he' ? '#3aa0ff' : '#c9ced6';
       g.beginPath(); g.arc(fp.x, fp.y, r, 0, Math.PI * 2); g.fill();
       return;
     }
-    // flash / HE burst
+    // foam flash / water-balloon burst
     const bp = projectPoint(C, st.x, st.y, 1.2); if (bp.behind) return;
     const r = st.r * 0.8 * C.focal / bp.depth;
     if (!this.clipRuns(Z, bp.x - r, bp.x + r, bp.depth - 2)) return;
     g.save(); g.clip();
-    const col = st.kind === 'he' ? '255,170,80' : '255,255,255';
+    const col = st.kind === 'he' ? '70,165,245' : '255,255,255';
     const gr = g.createRadialGradient(bp.x, bp.y, 0, bp.x, bp.y, r);
-    gr.addColorStop(0, `rgba(${col},${st.a})`); gr.addColorStop(1, `rgba(${col},0)`);
+    gr.addColorStop(0, `rgba(${st.kind === 'he' ? '230,248,255' : col},${st.a})`); gr.addColorStop(0.5, `rgba(${col},${0.7 * st.a})`); gr.addColorStop(1, `rgba(${col},0)`);
     g.fillStyle = gr; g.beginPath(); g.arc(bp.x, bp.y, r, 0, Math.PI * 2); g.fill();
+    // gotes (o flocs d'escuma) que surten del centre
+    g.fillStyle = st.kind === 'he' ? `rgba(150,215,255,${st.a})` : `rgba(255,255,255,${st.a})`;
+    for (let i = 0; i < 8; i++) { const an = i * 0.785 + (u0.n || 0), dd = r * (1.05 - 0.5 * st.a); g.beginPath(); g.arc(bp.x + Math.cos(an) * dd, bp.y + Math.sin(an) * dd, r * 0.07, 0, Math.PI * 2); g.fill(); }
     g.restore();
   }
 
@@ -1521,20 +1540,27 @@ export class Cs2View extends ArenaViewBase {
     const k = C.focal / pr.depth, y = C.horizon + C.eye * k, bw = 0.45 * k, bh = 0.2 * k;
     if (it.b.exploded) {
       const a = this.povBoomT ? (performance.now() - this.povBoomT) / 1000 : 0, kk = clamp(a / 1.4, 0, 1), r = (2 + 14 * easeOut(kk)) * k;
+      // El Megaglobus esclata: una gran onada d'aigua blava.
       const gr = g.createRadialGradient(pr.x, y - r * 0.4, 0, pr.x, y - r * 0.4, r);
-      gr.addColorStop(0, `rgba(255,245,200,${1 - kk})`); gr.addColorStop(0.35, `rgba(255,130,30,${0.85 * (1 - kk)})`); gr.addColorStop(1, 'rgba(90,20,0,0)');
+      gr.addColorStop(0, `rgba(235,250,255,${1 - kk})`); gr.addColorStop(0.35, `rgba(60,160,245,${0.85 * (1 - kk)})`); gr.addColorStop(1, 'rgba(10,60,140,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(pr.x, y - r * 0.4, r, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = `rgba(220,245,255,${0.8 * (1 - kk)})`; g.lineWidth = Math.max(2, 0.25 * k); g.beginPath(); g.ellipse(pr.x, y, r * 1.1, r * 0.22, 0, 0, Math.PI * 2); g.stroke();
       return;
     }
     if (!this.clipRuns(Z, pr.x - bw, pr.x + bw, pr.depth)) return;
     g.save(); g.clip();
-    g.fillStyle = '#4d5232'; g.fillRect(pr.x - bw / 2, y - bh, bw, bh);
-    g.fillStyle = '#23251a'; g.fillRect(pr.x - bw * 0.3, y - bh * 0.85, bw * 0.4, bh * 0.5);
+    // Megaglobus: un globus d'aigua rodó, blau, amb el nus a dalt.
+    const br = bw * 0.48, cy = y - br * 0.9;
+    const bg = g.createRadialGradient(pr.x - br * 0.35, cy - br * 0.35, br * 0.1, pr.x, cy, br);
+    bg.addColorStop(0, '#bfe8ff'); bg.addColorStop(0.5, '#2f9bff'); bg.addColorStop(1, '#155fb8');
+    g.fillStyle = 'rgba(40,120,210,.35)'; g.beginPath(); g.ellipse(pr.x, y, br * 1.1, br * 0.25, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = bg; g.beginPath(); g.ellipse(pr.x, cy, br, br * 0.92, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#155fb8'; g.beginPath(); g.moveTo(pr.x - br * 0.14, cy - br * 0.86); g.lineTo(pr.x + br * 0.14, cy - br * 0.86); g.lineTo(pr.x, cy - br * 1.12); g.closePath(); g.fill();
     if (it.planted && !it.b.defused) {
       const rate = it.b.left < 10 ? 4 : it.b.left < 20 ? 2 : 1, on = Math.sin(performance.now() / 1000 * Math.PI * 2 * rate) > 0;
-      const lx = pr.x + bw * 0.3, ly = y - bh * 0.7, lr = Math.max(2, 0.05 * k) * (on ? 1 : 0.6);
+      const lx = pr.x + br * 0.4, ly = cy - br * 0.3, lr = Math.max(2, 0.05 * k) * (on ? 1 : 0.6);
       const gl = g.createRadialGradient(lx, ly, 0, lx, ly, lr * 6);
-      gl.addColorStop(0, on ? 'rgba(255,60,40,.95)' : 'rgba(120,20,10,.6)'); gl.addColorStop(1, 'rgba(255,40,20,0)');
+      gl.addColorStop(0, on ? 'rgba(255,255,255,.95)' : 'rgba(170,220,255,.6)'); gl.addColorStop(1, 'rgba(120,200,255,0)');
       g.fillStyle = gl; g.beginPath(); g.arc(lx, ly, lr * 6, 0, Math.PI * 2); g.fill();
     }
     g.restore();
@@ -1560,33 +1586,37 @@ export class Cs2View extends ArenaViewBase {
         if (B.behind) continue;
       }
       if (!A) continue;
+      // Raig d'aigua: blau clar, amb una mica d'arc (cau) i gotes al final.
       const gr = g.createLinearGradient(A.x, A.y, B.x, B.y);
-      gr.addColorStop(0, `rgba(255,240,180,${0.1 * a})`); gr.addColorStop(0.5, `rgba(255,226,140,${0.85 * a})`); gr.addColorStop(1, `rgba(255,250,220,${a})`);
+      gr.addColorStop(0, `rgba(200,235,255,${0.35 * a})`); gr.addColorStop(0.5, `rgba(120,200,255,${0.85 * a})`); gr.addColorStop(1, `rgba(225,245,255,${a})`);
+      const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2 - Math.min(40 * d, Math.hypot(B.x - A.x, B.y - A.y) * 0.08);
       g.lineCap = 'round';
-      g.strokeStyle = `rgba(255,200,90,${0.25 * a})`; g.lineWidth = 6 * d; g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
-      g.strokeStyle = gr; g.lineWidth = 2 * d; g.beginPath(); g.moveTo(A.x, A.y); g.lineTo(B.x, B.y); g.stroke();
-      if (s.kill) { g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(B.x, B.y, 3 * d, 0, Math.PI * 2); g.fill(); }
+      g.strokeStyle = `rgba(80,170,245,${0.3 * a})`; g.lineWidth = 7 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
+      g.strokeStyle = gr; g.lineWidth = 2.6 * d; g.beginPath(); g.moveTo(A.x, A.y); g.quadraticCurveTo(mx, my, B.x, B.y); g.stroke();
+      g.fillStyle = `rgba(190,230,255,${0.9 * a})`;
+      for (let i = 1; i <= 3; i++) { const t = 1 - i * 0.07 - (1 - a) * 0.1, t1 = 1 - t; g.beginPath(); g.arc(t1 * t1 * A.x + 2 * t1 * t * mx + t * t * B.x + i * 2 * d, t1 * t1 * A.y + 2 * t1 * t * my + t * t * B.y + i * 3 * d, 1.6 * d, 0, Math.PI * 2); g.fill(); }
+      if (s.kill) { g.fillStyle = `rgba(235,250,255,${a})`; g.beginPath(); g.arc(B.x, B.y, 4 * d, 0, Math.PI * 2); g.fill(); }
     }
   }
 
-  // First-person weapon (or the C4 in hands while planting / defusing). Returns the muzzle point.
+  // First-person water blaster (or the Mega Balloon in hands while planting / draining). Returns the nozzle point.
   povWeapon(pl, cam, kick, own, planting, defusing, bomb, x0, y0, w, h) {
     const g = this.ctx, T = pl.side === 'T';
-    const sleeve = T ? '#7a6446' : '#33476a', glove = T ? '#3b3226' : '#1b222d';
+    const sleeve = T ? '#e0663a' : '#2b6fd1', glove = T ? '#d9a47c' : '#c48f6a'; // T-shirt sleeves and bare hands (a water fight)
     const S = Math.min(h, w * 0.75) / 235, bobX = Math.sin(cam.bob) * 7 * S * cam.spd, bobY = Math.abs(Math.cos(cam.bob)) * 6 * S * cam.spd;
     if (planting || defusing) {
       const prog = planting ? bomb.planting.prog : bomb.defusing.prog;
+      // El Megaglobus a les mans: s'infla mentre es planta, es desinfla mentre es buida.
       g.save(); g.translate(x0 + w / 2, y0 + h * 0.86); g.scale(S, S * (defusing ? 0.62 : 1));
-      g.fillStyle = '#4d5232'; g.beginPath(); g.roundRect(-58, -34, 116, 62, 6); g.fill();
-      g.fillStyle = '#2e3220'; g.fillRect(-58, -6, 116, 6);
-      for (let i = 0; i < 3; i++) { g.fillStyle = '#7b6a42'; g.fillRect(-52 + i * 36, -34, 22, 62); }
-      g.fillStyle = '#151711'; g.fillRect(-26, -26, 52, 40);
-      g.fillStyle = '#0b2410'; g.fillRect(-20, -22, 40, 12);
-      g.fillStyle = '#5dff7a'; g.font = `800 10px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillText(planting ? '7355608'.slice(0, Math.max(1, Math.ceil(prog * 7))) : '*******', 0, -16);
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) { g.fillStyle = '#3a3d33'; g.fillRect(-16 + c * 12, -4 + r * 6, 9, 4); }
+      const inf = planting ? 0.7 + 0.3 * prog : 1 - 0.35 * prog, br = 60 * inf;
+      const bg = g.createRadialGradient(-br * 0.35, -br * 0.6, br * 0.1, 0, -br * 0.25, br);
+      bg.addColorStop(0, '#d4f0ff'); bg.addColorStop(0.45, '#2f9bff'); bg.addColorStop(1, '#155fb8');
+      g.fillStyle = bg; g.beginPath(); g.ellipse(0, -br * 0.25, br, br * 0.9, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(-br * 0.4, -br * 0.62, br * 0.18, br * 0.1, -0.6, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#155fb8'; g.beginPath(); g.moveTo(-8, br * 0.62); g.lineTo(8, br * 0.62); g.lineTo(0, br * 0.62 + 14); g.closePath(); g.fill(); // el nus
       const on = Math.sin(performance.now() / 120) > 0;
-      g.fillStyle = on ? '#ff3b2e' : '#5a1510'; g.beginPath(); g.arc(44, -24, 4, 0, Math.PI * 2); g.fill();
+      g.fillStyle = on ? '#ffffff' : '#9fd6ff'; g.beginPath(); g.arc(br * 0.55, -br * 0.55, 4, 0, Math.PI * 2); g.fill();
+      if (defusing) { g.fillStyle = 'rgba(170,225,255,.8)'; for (let i = 0; i < 4; i++) { const dy = ((performance.now() / 300 + i * 0.25) % 1) * 30; g.beginPath(); g.arc(-4 + i * 3, br * 0.62 + 16 + dy, 3, 0, Math.PI * 2); g.fill(); } }
       g.restore();
       // hands
       g.save(); g.translate(x0 + w / 2, y0 + h); g.scale(S, S);
@@ -1596,7 +1626,7 @@ export class Cs2View extends ArenaViewBase {
       g.fillStyle = glove;
       g.beginPath(); g.ellipse(-60, -32, 15, 11, -0.5, 0, Math.PI * 2); g.fill();
       g.beginPath(); g.ellipse(60, -32, 15, 11, 0.5, 0, Math.PI * 2); g.fill();
-      if (defusing) { g.strokeStyle = '#c0392b'; g.lineWidth = 4; g.beginPath(); g.moveTo(52, -38); g.lineTo(28, -52); g.moveTo(56, -30); g.lineTo(30, -42); g.stroke(); }
+      if (defusing) { g.strokeStyle = '#7ad13a'; g.lineWidth = 4; g.beginPath(); g.moveTo(52, -38); g.lineTo(28, -52); g.moveTo(56, -30); g.lineTo(30, -42); g.stroke(); }
       g.restore();
       return null;
     }
@@ -1608,9 +1638,9 @@ export class Cs2View extends ArenaViewBase {
     const rot = pose.rot + kick * (cls === 'awp' ? 0.16 : 0.07);
     g.save(); g.translate(ax, ay); g.rotate(rot); g.scale(S * fx, S);
     const tip = pose.tip;
-    // The model is drawn in gun space (barrel towards -x, the muzzle at `tip`):
-    // shaded metal and polymer, the magazine, sights and rails, gloved hands
-    // gripping it and the sleeves running out of the frame.
+    // The model is drawn in gun space (nozzle towards -x, the nozzle at `tip`):
+    // a chunky toy water blaster in bright plastic with its water tank, gloved
+    // hands gripping it and the sleeves running out of the frame.
     if (pistol) drawPistolFP(g, wid, sleeve, glove);
     else drawLongGunFP(g, cls, wid, sleeve, glove);
     g.restore();
@@ -1643,14 +1673,14 @@ export class Cs2View extends ArenaViewBase {
     }
     if (own && own.kill && own.age < 0.16) {
       const a = 1 - own.age / 0.16, r0 = 6 * u, r1 = 13 * u;
-      g.strokeStyle = own.hs ? `rgba(255,70,60,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = 2.2 * u;
+      g.strokeStyle = own.hs ? `rgba(80,200,255,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = 2.2 * u;
       g.beginPath();
       for (const [dx, dy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { g.moveTo(cx + dx * r0, cy + dy * r0); g.lineTo(cx + dx * r1, cy + dy * r1); }
       g.stroke();
     }
   }
 
-  // Smoke you stand in, flashbangs that catch your eyes, the bomb going off.
+  // Fog you stand in, foam flashes that catch your eyes, the Mega Balloon bursting.
   povScreenFx(R, G, C, gt, p, pos, bomb, x0, y0, w, h) {
     const g = this.ctx;
     let white = 0, grey = 0;
@@ -1669,9 +1699,14 @@ export class Cs2View extends ArenaViewBase {
     if (grey > 0) { g.fillStyle = `rgba(196,200,208,${clamp(grey, 0, 0.92)})`; g.fillRect(x0, y0, w, h); }
     if (bomb.exploded && this.povBoomT) {
       const a = (performance.now() - this.povBoomT) / 1000, near = clamp(1 - Math.hypot(bomb.x - pos.x, bomb.y - pos.y) / 45, 0, 1);
-      if (a < 1.6) { g.fillStyle = `rgba(255,170,90,${0.8 * near * (1 - a / 1.6)})`; g.fillRect(x0, y0, w, h); }
+      if (a < 1.6) { g.fillStyle = `rgba(70,165,245,${0.8 * near * (1 - a / 1.6)})`; g.fillRect(x0, y0, w, h); }
     }
-    if (white > 0.02) { g.fillStyle = `rgba(255,255,255,${clamp(white * 1.1, 0, 0.97)})`; g.fillRect(x0, y0, w, h); }
+    if (white > 0.02) {
+      // Flaix d'escuma: blanc, amb bombolles d'escuma per la pantalla.
+      g.fillStyle = `rgba(255,255,255,${clamp(white * 1.1, 0, 0.97)})`; g.fillRect(x0, y0, w, h);
+      g.fillStyle = `rgba(215,235,250,${clamp(white, 0, 0.9)})`;
+      for (let i = 0; i < 10; i++) { const bx = x0 + w * hash3(i, 3, 11), by = y0 + h * hash3(i, 5, 13), br = Math.min(w, h) * (0.03 + 0.05 * hash3(i, 7, 17)); g.beginPath(); g.arc(bx, by, br, 0, Math.PI * 2); g.fill(); }
+    }
   }
 
   povHud(R, gt, p, id, pl, bomb, planting, defusing, rp, C, x0, y0, w, h) {
@@ -1684,14 +1719,14 @@ export class Cs2View extends ArenaViewBase {
     // Corner tag: POV / REPLAY
     const why = this.view.why, k = this.view.k;
     const n = aliveAt(R, gt);
-    const tagSub = rp ? 'KILL CAM' : why === 'kill' ? (k && k.first ? 'ENTRY' : 'DUEL') : why === 'clutch' ? `CLUTCH 1v${n[1 - pl.team]}` : why === 'plant' ? 'PLANT' : why === 'defuse' ? 'DEFUSE' : '';
+    const tagSub = rp ? 'SPLASH CAM' : why === 'kill' ? (k && k.first ? 'ENTRY' : 'DUEL') : why === 'clutch' ? `CLUTCH 1v${n[1 - pl.team]}` : why === 'plant' ? 'PLANT' : why === 'defuse' ? 'DRAIN' : '';
     g.font = `900 ${11.5 * u}px ${FONT}`;
     const label = rp ? 'REPLAY' : `POV: ${pl.handle}`;
     const lw = g.measureText(label).width;
     g.font = `800 ${9.5 * u}px ${FONT}`;
     const sw2 = tagSub ? g.measureText(tagSub).width + 14 * u : 0;
     const tw = lw + sw2 + 34 * u;
-    pill(x0 + 10 * u, top, tw, 24 * u, rp ? 'rgba(170,20,20,.9)' : 'rgba(6,9,14,.82)');
+    pill(x0 + 10 * u, top, tw, 24 * u, rp ? 'rgba(20,110,200,.9)' : 'rgba(6,9,14,.82)');
     const blink = Math.sin(performance.now() / 260) > -0.2;
     g.fillStyle = rp ? (blink ? '#fff' : 'rgba(255,255,255,.3)') : col; g.beginPath(); g.arc(x0 + 22 * u, top + 12 * u, 4.5 * u, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#fff'; g.font = `900 ${11.5 * u}px ${FONT}`; g.textAlign = 'left'; g.fillText(label, x0 + 32 * u, top + 12.5 * u);
@@ -1721,7 +1756,7 @@ export class Cs2View extends ArenaViewBase {
       g.fillStyle = 'rgba(255,255,255,.6)'; g.font = `700 ${12 * u}px ${FONT}`; g.textAlign = 'left';
       g.fillText(`/ ${st.reserve}`, bx + bw - 68 * u, bot - 15.5 * u);
       g.fillStyle = 'rgba(255,255,255,.75)'; g.font = `800 ${11 * u}px ${FONT}`; g.textAlign = 'right';
-      g.fillText(planting || defusing ? 'C4' : (WEAPON[pl.weapon] || pl.weapon || '').toUpperCase(), bx + bw - 16 * u, bot - 46 * u);
+      g.fillText(planting || defusing ? 'MEGA BALLOON' : (WEAPON[pl.weapon] || pl.weapon || '').toUpperCase(), bx + bw - 16 * u, bot - 46 * u);
     }
     // Player card (bottom left, above health: the weapon owns the bottom right)
     const cw = 176 * u, cx = bx + 10 * u, ch = 38 * u, cy = bot - 34 * u - 6 * u - ch;
@@ -1734,25 +1769,25 @@ export class Cs2View extends ArenaViewBase {
     const kills = R.kills.filter(q => q.killer === id && q.t <= gt).length;
     g.textAlign = 'right';
     g.fillStyle = 'rgba(150,255,150,.9)'; g.font = `800 ${10.5 * u}px ${FONT}`; g.fillText(money(st.money), cx + cw - 10 * u, cy + 12 * u);
-    if (kills) { g.fillStyle = '#ffd34d'; g.font = `900 ${14 * u}px ${FONT}`; g.fillText(`${kills}K`, cx + cw - 10 * u, cy + 27 * u); }
+    if (kills) { g.fillStyle = '#ffd34d'; g.font = `900 ${14 * u}px ${FONT}`; g.fillText(`${kills} 💦`, cx + cw - 10 * u, cy + 27 * u); }
     if (bomb.carrier === id) this.bombIcon(cx + cw - (kills ? 44 : 20) * u, cy + 26 * u, 6 * u, 1);
     // Plant / defuse progress
     const act = planting ? bomb.planting : defusing ? bomb.defusing : null;
     if (act) {
       const pw = Math.min(300 * u, bw * 0.6), px = bx + (bw - pw) / 2, by = y0 + h * 0.3;
-      const pc = planting ? '#ff4b3e' : '#4fc3ff';
+      const pc = planting ? '#2f9bff' : '#7ad13a';
       const total = planting ? (R.plant.t - R.plant.start) : (R.defuse.t - R.defuse.start);
       g.fillStyle = 'rgba(6,9,14,.75)'; g.beginPath(); g.roundRect(px - 10 * u, by - 22 * u, pw + 20 * u, 44 * u, 8 * u); g.fill();
       g.fillStyle = '#fff'; g.font = `900 ${12 * u}px ${FONT}`; g.textAlign = 'left';
-      g.fillText(planting ? 'PLANTING THE BOMB' : (R.defuse && R.defuse.kit ? 'DEFUSING · KIT' : 'DEFUSING · NO KIT'), px, by - 9 * u);
+      g.fillText(planting ? 'PLANTING THE MEGA BALLOON' : (R.defuse && R.defuse.kit ? 'DRAINING · KIT' : 'DRAINING · NO KIT'), px, by - 9 * u);
       g.textAlign = 'right'; g.fillStyle = pc; g.fillText(`${Math.max(0, total * (1 - act.prog)).toFixed(1)}s`, px + pw, by - 9 * u);
       g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(px, by + 3 * u, pw, 9 * u);
       g.fillStyle = pc; g.fillRect(px, by + 3 * u, pw * act.prog, 9 * u);
     }
-    // Kill-cam caption
+    // Splash-cam caption
     if (rp) {
       const kk = rp.k, kp = R.players[kk.killer] || { handle: kk.killer }, vp = R.players[kk.victim] || { handle: kk.victim };
-      const txt = `${kp.handle}  ▸  ${WEAPON[kk.weapon] || kk.weapon}${kk.hs ? '  ·  HEADSHOT' : ''}${kk.smoke ? '  ·  THROUGH SMOKE' : ''}  ▸  ${vp.handle}`;
+      const txt = `${kp.handle}  💦  ${WEAPON[kk.weapon] || kk.weapon}${kk.hs ? '  ·  FACE SPLASH' : ''}${kk.smoke ? '  ·  THROUGH THE FOG' : ''}  💦  ${vp.handle}`;
       g.font = `800 ${12 * u}px ${FONT}`; const tw2 = Math.min(g.measureText(txt).width + 30 * u, bw - 20 * u);
       g.fillStyle = 'rgba(6,9,14,.82)'; g.beginPath(); g.roundRect(bx + (bw - tw2) / 2, y0 + h * 0.06 + 40 * u, tw2, 26 * u, 13 * u); g.fill();
       g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(txt, bx + bw / 2, y0 + h * 0.06 + 53 * u, tw2 - 20 * u);
@@ -1795,12 +1830,12 @@ export class Cs2View extends ArenaViewBase {
     for (const q of Object.values(R.players)) {
       const alive = gt < q.deathT, qp = alive ? posAt(q.track, gt) : (q.death || posAt(q.track, gt));
       const px = x + qp.x * sc, py = y + qp.y * sc;
-      if (!alive) { g.strokeStyle = rgba(this.teamColor(q.team), 0.7); g.lineWidth = 1.2 * u; g.beginPath(); g.moveTo(px - 2.5 * u, py - 2.5 * u); g.lineTo(px + 2.5 * u, py + 2.5 * u); g.moveTo(px + 2.5 * u, py - 2.5 * u); g.lineTo(px - 2.5 * u, py + 2.5 * u); g.stroke(); continue; }
+      if (!alive) { g.fillStyle = 'rgba(70,165,245,.45)'; g.beginPath(); g.ellipse(px, py, 3.5 * u, 2.2 * u, 0, 0, Math.PI * 2); g.fill(); g.strokeStyle = rgba(this.teamColor(q.team), 0.7); g.lineWidth = 1.2 * u; g.beginPath(); g.moveTo(px - 2.5 * u, py - 2.5 * u); g.lineTo(px + 2.5 * u, py + 2.5 * u); g.moveTo(px + 2.5 * u, py - 2.5 * u); g.lineTo(px - 2.5 * u, py + 2.5 * u); g.stroke(); continue; }
       g.fillStyle = this.teamColor(q.team); g.beginPath(); g.arc(px, py, (q.id === id ? 4 : 3) * u, 0, Math.PI * 2); g.fill();
       if (q.id === id) { g.strokeStyle = '#fff'; g.lineWidth = 1.5 * u; g.stroke(); }
     }
     const b = bombState(R, gt);
-    if (b.planted && !b.exploded) { g.fillStyle = Math.sin(performance.now() / 150) > 0 ? '#ff4b3e' : '#7a1d16'; g.beginPath(); g.arc(x + b.x * sc, y + b.y * sc, 3 * u, 0, Math.PI * 2); g.fill(); }
+    if (b.planted && !b.exploded) { g.fillStyle = Math.sin(performance.now() / 150) > 0 ? '#5fc0ff' : '#155fb8'; g.beginPath(); g.arc(x + b.x * sc, y + b.y * sc, 3 * u, 0, Math.PI * 2); g.fill(); }
     g.restore();
   }
 
@@ -1918,7 +1953,7 @@ export class Cs2View extends ArenaViewBase {
       if (!st || !kinds.includes(st.kind)) continue;
       const x = this.sx(st.x), y = this.sy(st.y), r = st.r * s;
       if (st.kind === 'flight') {
-        const col = { smoke: '#d6dbe3', flash: '#ffffff', molotov: '#ff8a3d', he: '#9be36b' }[u.type] || '#fff';
+        const col = { smoke: '#d6dbe3', flash: '#ffffff', molotov: '#9fe0ff', he: '#3aa0ff' }[u.type] || '#fff';
         g.fillStyle = col; g.beginPath(); g.arc(x, y - st.h * 2.2 * s, Math.max(2 * this.dpr, 0.45 * s), 0, Math.PI * 2); g.fill();
         g.fillStyle = 'rgba(0,0,0,.35)'; g.beginPath(); g.arc(x, y, Math.max(1.5 * this.dpr, 0.35 * s), 0, Math.PI * 2); g.fill();
         continue;
@@ -1934,16 +1969,20 @@ export class Cs2View extends ArenaViewBase {
           g.fillStyle = gr; g.beginPath(); g.arc(cx, cy, rr, 0, Math.PI * 2); g.fill();
         }
       } else if (st.kind === 'molotov') {
+        // bassal de sabó: blau clar amb bombolles blanques que fan pampallugues
         const gr = g.createRadialGradient(x, y, 0, x, y, r);
-        gr.addColorStop(0, `rgba(255,190,80,${0.55 * st.a})`); gr.addColorStop(0.6, `rgba(255,90,30,${0.38 * st.a})`); gr.addColorStop(1, 'rgba(200,40,10,0)');
+        gr.addColorStop(0, `rgba(215,240,255,${0.6 * st.a})`); gr.addColorStop(0.6, `rgba(110,195,245,${0.42 * st.a})`); gr.addColorStop(1, 'rgba(90,170,235,0)');
         g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-        const R2 = rng(u.n * 13 + Math.floor(performance.now() / 90));
-        for (let i = 0; i < 9; i++) { const a = R2() * Math.PI * 2, dd = R2() * r * 0.8; g.fillStyle = `rgba(255,${150 + R2() * 90 | 0},60,${0.7 * st.a})`; g.beginPath(); g.arc(x + Math.cos(a) * dd, y + Math.sin(a) * dd, (0.25 + R2() * 0.35) * s, 0, Math.PI * 2); g.fill(); }
+        const R2 = rng(u.n * 13 + 1), tt = performance.now() / 600;
+        g.strokeStyle = `rgba(255,255,255,${0.8 * st.a})`; g.lineWidth = Math.max(1, 0.08 * s);
+        for (let i = 0; i < 9; i++) { const a = R2() * Math.PI * 2, dd = R2() * r * 0.8, ph = R2() * 6.28, br = (0.2 + 0.25 * (0.5 + 0.5 * Math.sin(tt + ph))) * s; g.fillStyle = `rgba(235,248,255,${0.35 * st.a})`; g.beginPath(); g.arc(x + Math.cos(a) * dd, y + Math.sin(a) * dd, br, 0, Math.PI * 2); g.fill(); g.stroke(); }
       } else {
-        const col = st.kind === 'he' ? '255,170,80' : '255,255,255';
+        const col = st.kind === 'he' ? '70,165,245' : '255,255,255';
         const gr = g.createRadialGradient(x, y, 0, x, y, r);
-        gr.addColorStop(0, `rgba(${col},${0.95 * st.a})`); gr.addColorStop(1, `rgba(${col},0)`);
+        gr.addColorStop(0, `rgba(${st.kind === 'he' ? '225,245,255' : col},${0.95 * st.a})`); gr.addColorStop(0.5, `rgba(${col},${0.6 * st.a})`); gr.addColorStop(1, `rgba(${col},0)`);
         g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
+        g.fillStyle = st.kind === 'he' ? `rgba(150,215,255,${st.a})` : `rgba(255,255,255,${st.a})`;
+        for (let i = 0; i < 6; i++) { const an = i * 1.047 + (u.n || 0), dd = r * (1.05 - 0.4 * st.a); g.beginPath(); g.arc(x + Math.cos(an) * dd, y + Math.sin(an) * dd, Math.max(1, r * 0.08), 0, Math.PI * 2); g.fill(); }
       }
     }
   }
@@ -1957,17 +1996,19 @@ export class Cs2View extends ArenaViewBase {
     if (b.exploded) {
       const age = (performance.now() - (this.explodeT || (this.explodeT = performance.now()))) / 1000;
       const k = clamp(age / 1.4, 0, 1), r = (3 + 16 * easeOut(k)) * s;
+      // el Megaglobus esclata: onada blava i un gran bassal
       const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, `rgba(255,240,180,${0.9 * (1 - k)})`); gr.addColorStop(0.4, `rgba(255,120,30,${0.7 * (1 - k)})`); gr.addColorStop(1, 'rgba(120,20,0,0)');
+      gr.addColorStop(0, `rgba(230,248,255,${0.9 * (1 - k)})`); gr.addColorStop(0.4, `rgba(60,160,245,${0.7 * (1 - k)})`); gr.addColorStop(1, 'rgba(10,60,140,0)');
       g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill();
-      g.fillStyle = 'rgba(20,10,5,.55)'; g.beginPath(); g.arc(x, y, 4 * s, 0, Math.PI * 2); g.fill();
+      g.strokeStyle = `rgba(220,245,255,${0.85 * (1 - k)})`; g.lineWidth = Math.max(1.5 * d, 0.5 * s); g.beginPath(); g.arc(x, y, r * 0.92, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = 'rgba(50,140,225,.5)'; g.beginPath(); g.arc(x, y, 4 * s, 0, Math.PI * 2); g.fill();
       return;
     }
     this.explodeT = 0;
     const frac = b.left / BOMB_TIME;
     const rate = b.left < 10 ? 4 : b.left < 20 ? 2 : 1;
     const blink = 0.5 + 0.5 * Math.sin(performance.now() / 1000 * Math.PI * 2 * rate);
-    const col = b.defused ? '#3ddc84' : '#ff4b3e';
+    const col = b.defused ? '#7ad13a' : '#2f9bff';
     g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 0.9 * s; g.beginPath(); g.arc(x, y, 3 * s, 0, Math.PI * 2); g.stroke();
     g.strokeStyle = col; g.lineWidth = 0.6 * s; g.beginPath(); g.arc(x, y, 3 * s, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (b.defused ? 1 : frac)); g.stroke();
     const glow = g.createRadialGradient(x, y, 0, x, y, 2.4 * s);
@@ -1979,9 +2020,11 @@ export class Cs2View extends ArenaViewBase {
   bombIcon(x, y, r, a) {
     const g = this.ctx;
     g.save(); g.globalAlpha = a;
-    g.fillStyle = '#c0392b'; g.strokeStyle = '#1b0c0a'; g.lineWidth = Math.max(1, r * 0.2);
-    g.beginPath(); g.roundRect(x - r, y - r * 0.7, 2 * r, 1.4 * r, r * 0.25); g.fill(); g.stroke();
-    g.fillStyle = '#ffd34d'; g.fillRect(x - r * 0.55, y - r * 0.25, r * 1.1, r * 0.5);
+    // Megaglobus: globus d'aigua blau amb el nus
+    g.fillStyle = '#2f9bff'; g.strokeStyle = '#0c2f5c'; g.lineWidth = Math.max(1, r * 0.2);
+    g.beginPath(); g.ellipse(x, y + r * 0.1, r * 0.95, r * 0.85, 0, 0, Math.PI * 2); g.fill(); g.stroke();
+    g.fillStyle = '#155fb8'; g.beginPath(); g.moveTo(x - r * 0.25, y - r * 0.72); g.lineTo(x + r * 0.25, y - r * 0.72); g.lineTo(x, y - r * 1.15); g.closePath(); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.75)'; g.beginPath(); g.arc(x - r * 0.35, y - r * 0.2, r * 0.22, 0, Math.PI * 2); g.fill();
     g.restore();
   }
 
@@ -1990,11 +2033,14 @@ export class Cs2View extends ArenaViewBase {
     const rad = Math.max(4.5 * d, 1.45 * s);
     const bomb = bombState(R, gt);
     const list = Object.values(R.players);
-    // Morts primer (a sota).
+    // Remullats primer (a sota): un bassal blau, l'esquitxada i la creu de l'equip.
     for (const pl of list) {
       if (gt < pl.deathT) continue;
       const p = pl.death || posAt(pl.track, pl.deathT), x = this.sx(p.x), y = this.sy(p.y), c = this.teamColor(pl.team);
       const age = gt - pl.deathT;
+      const pk = clamp(age / 0.6, 0, 1);
+      g.fillStyle = `rgba(60,150,235,${0.45 * pk})`; g.beginPath(); g.ellipse(x, y, rad * (0.8 + 0.7 * pk), rad * (0.6 + 0.5 * pk), 0.4, 0, Math.PI * 2); g.fill();
+      if (age < 0.4) { const a = 1 - age / 0.4; g.strokeStyle = `rgba(190,235,255,${a})`; g.lineWidth = Math.max(1.2 * d, 0.25 * s); g.beginPath(); g.arc(x, y, rad * (1 + 2 * age / 0.4), 0, Math.PI * 2); g.stroke(); }
       g.save(); g.globalAlpha = age < 0.4 ? 1 : 0.55; g.strokeStyle = c; g.lineWidth = Math.max(1.5 * d, 0.35 * s);
       const k = rad * 0.7;
       g.beginPath(); g.moveTo(x - k, y - k); g.lineTo(x + k, y + k); g.moveTo(x + k, y - k); g.lineTo(x - k, y + k); g.stroke();
@@ -2019,21 +2065,29 @@ export class Cs2View extends ArenaViewBase {
       // punta de mira
       g.strokeStyle = 'rgba(255,255,255,.85)'; g.lineWidth = Math.max(1.2 * d, 0.22 * s);
       g.beginPath(); g.moveTo(x + Math.cos(ang) * rad * 0.35, y + Math.sin(ang) * rad * 0.35); g.lineTo(x + Math.cos(ang) * rad * 1.35, y + Math.sin(ang) * rad * 1.35); g.stroke();
-      // trets
+      // ruixades
       for (const k of R.kills) {
         if (k.killer === pl.id && this.p - k._p >= 0 && this.p - k._p < 0.25) {
-          g.fillStyle = 'rgba(255,230,140,.9)'; g.beginPath(); g.arc(x + Math.cos(ang) * rad * 1.5, y + Math.sin(ang) * rad * 1.5, rad * 0.55, 0, Math.PI * 2); g.fill();
+          g.fillStyle = 'rgba(190,232,255,.9)'; g.beginPath(); g.arc(x + Math.cos(ang) * rad * 1.5, y + Math.sin(ang) * rad * 1.5, rad * 0.55, 0, Math.PI * 2); g.fill();
         }
       }
       if (bomb.carrier === pl.id) this.bombIcon(x + rad * 1.1, y + rad * 0.9, rad * 0.5, 1);
-      if (bomb.planting && bomb.planting.id === pl.id) this.progressRing(x, y, rad * 1.7, bomb.planting.prog, '#ff4b3e');
-      if (bomb.defusing && bomb.defusing.id === pl.id) this.progressRing(x, y, rad * 1.7, bomb.defusing.prog, '#4fc3ff');
+      if (bomb.planting && bomb.planting.id === pl.id) this.progressRing(x, y, rad * 1.7, bomb.planting.prog, '#2f9bff');
+      if (bomb.defusing && bomb.defusing.id === pl.id) this.progressRing(x, y, rad * 1.7, bomb.defusing.prog, '#7ad13a');
       // nom
       const fs = Math.max(9 * d, Math.min(1.7 * s, 13 * d));
       g.font = `700 ${fs}px ${FONT}`; g.textAlign = 'center'; g.textBaseline = 'bottom';
       g.lineWidth = 3 * d; g.strokeStyle = 'rgba(0,0,0,.8)'; g.strokeText(pl.handle, x, y - rad - 2 * d);
       g.fillStyle = '#fff'; g.fillText(pl.handle, x, y - rad - 2 * d);
     }
+  }
+
+  // Una gota d'aigua (punta a dalt), centrada a (x, y).
+  dropIcon(x, y, r, col) {
+    const g = this.ctx;
+    g.fillStyle = col; g.beginPath(); g.moveTo(x, y - r * 1.25); g.quadraticCurveTo(x + r * 0.95, y - r * 0.1, x + r * 0.7, y + r * 0.35);
+    g.arc(x, y + r * 0.3, r * 0.72, 0.1, Math.PI - 0.1); g.quadraticCurveTo(x - r * 0.95, y - r * 0.1, x, y - r * 1.25); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(x - r * 0.28, y + r * 0.15, r * 0.2, 0, Math.PI * 2); g.fill();
   }
 
   progressRing(x, y, r, k, col) {
@@ -2049,13 +2103,16 @@ export class Cs2View extends ArenaViewBase {
       if (age < 0 || age > 0.7) continue;
       const a = 1 - age / 0.7;
       const x0 = this.sx(k.kx), y0 = this.sy(k.ky), x1 = this.sx(k.vx), y1 = this.sy(k.vy);
+      // raig d'aigua i l'esquitxada on arriba
       const gr = g.createLinearGradient(x0, y0, x1, y1);
-      gr.addColorStop(0, `rgba(255,236,160,${0.15 * a})`); gr.addColorStop(1, `rgba(255,236,160,${0.95 * a})`);
-      g.strokeStyle = gr; g.lineWidth = Math.max(1.5 * d, (k.weapon === 'awp' ? 0.45 : 0.28) * s);
+      gr.addColorStop(0, `rgba(170,225,255,${0.2 * a})`); gr.addColorStop(1, `rgba(170,225,255,${0.95 * a})`);
+      g.strokeStyle = gr; g.lineWidth = Math.max(1.5 * d, (k.weapon === 'awp' ? 0.55 : 0.34) * s); g.lineCap = 'round';
       g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
       const hr = (1 + 2.5 * (1 - a)) * s;
-      g.strokeStyle = k.hs ? `rgba(255,70,60,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = Math.max(1.5 * d, 0.3 * s);
+      g.strokeStyle = k.hs ? `rgba(80,200,255,${a})` : `rgba(255,255,255,${a})`; g.lineWidth = Math.max(1.5 * d, 0.3 * s);
       g.beginPath(); g.arc(x1, y1, hr, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = `rgba(150,215,255,${a})`;
+      for (let i = 0; i < 5; i++) { const an = i * 1.256 + (k.n || 0); g.beginPath(); g.arc(x1 + Math.cos(an) * hr * 1.2, y1 + Math.sin(an) * hr * 1.2, Math.max(1, 0.25 * s), 0, Math.PI * 2); g.fill(); }
     }
   }
 
@@ -2072,19 +2129,21 @@ export class Cs2View extends ArenaViewBase {
       const w1 = g.measureText(kp.handle).width, w3 = g.measureText(vp.handle).width;
       g.font = `600 ${fs * 0.85}px ${FONT}`;
       const w2 = g.measureText(wname).width;
-      const extra = (k.hs ? 18 * u : 0) + (k.smoke ? 18 * u : 0);
+      const extra = 14 * u + (k.hs ? 18 * u : 0) + (k.smoke ? 18 * u : 0);
       const w = w1 + w2 + w3 + extra + 34 * u;
       const x = right - w;
       const age = this.p - k._p;
       g.save(); g.globalAlpha = clamp((6 - age) / 0.6, 0, 1);
-      g.fillStyle = k.hl ? 'rgba(120,20,20,.75)' : 'rgba(6,9,14,.72)'; g.beginPath(); g.roundRect(x, y, w, rh, 4 * u); g.fill();
+      g.fillStyle = k.hl ? 'rgba(20,90,170,.8)' : 'rgba(6,9,14,.72)'; g.beginPath(); g.roundRect(x, y, w, rh, 4 * u); g.fill();
       if (age < 0.5) { g.strokeStyle = `rgba(255,255,255,${0.6 * (1 - age / 0.5)})`; g.lineWidth = 1.5 * this.dpr; g.stroke(); }
       let cx = x + 8 * u; const cy = y + rh / 2;
       g.textBaseline = 'middle'; g.textAlign = 'left';
       g.font = `700 ${fs}px ${FONT}`; g.fillStyle = this.teamColor(k.kteam); g.fillText(kp.handle, cx, cy); cx += w1 + 8 * u;
       g.font = `600 ${fs * 0.85}px ${FONT}`; g.fillStyle = 'rgba(255,255,255,.85)'; g.fillText(wname, cx, cy); cx += w2 + 6 * u;
       if (k.smoke) { g.fillStyle = '#c9cfd8'; g.beginPath(); g.arc(cx + 5 * u, cy, 4.5 * u, 0, Math.PI * 2); g.arc(cx + 10 * u, cy - 1 * u, 4 * u, 0, Math.PI * 2); g.fill(); cx += 18 * u; }
-      if (k.hs) { g.strokeStyle = '#ff5a4e'; g.lineWidth = 1.6 * this.dpr; g.beginPath(); g.arc(cx + 6 * u, cy, 4.5 * u, 0, Math.PI * 2); g.moveTo(cx + 6 * u, cy - 7 * u); g.lineTo(cx + 6 * u, cy + 7 * u); g.moveTo(cx - 1 * u, cy); g.lineTo(cx + 13 * u, cy); g.stroke(); cx += 18 * u; }
+      // la gota (remullat) i, si és a la cara, una cara esquitxada
+      this.dropIcon(cx + 5 * u, cy, 5 * u, '#5fc0ff'); cx += 14 * u;
+      if (k.hs) { g.strokeStyle = '#8fd8ff'; g.lineWidth = 1.6 * this.dpr; g.beginPath(); g.arc(cx + 6 * u, cy, 5 * u, 0, Math.PI * 2); g.stroke(); this.dropIcon(cx + 6 * u, cy + 0.5 * u, 3 * u, '#8fd8ff'); cx += 18 * u; }
       g.font = `700 ${fs}px ${FONT}`; g.fillStyle = this.teamColor(k.vteam); g.fillText(vp.handle, cx + 2 * u, cy);
       g.restore();
       y += rh + 3 * u;
@@ -2203,7 +2262,7 @@ export class Cs2View extends ArenaViewBase {
           g.fillStyle = 'rgba(255,255,255,.45)'; g.font = `600 ${fs * 0.78}px ${FONT}`; g.fillText(mp.role || '', x0 + 14 * u, y + rowH * 0.72);
           if (pl) {
             g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.92)'; g.font = `700 ${fs * 0.88}px ${FONT}`;
-            g.fillText(alive ? (WEAPON[pl.weapon] || pl.weapon || '') : '✕', x0 + w - 14 * u, y + rowH * 0.33);
+            g.fillText(alive ? (WEAPON[pl.weapon] || pl.weapon || '') : '💧', x0 + w - 14 * u, y + rowH * 0.33);
             g.fillStyle = 'rgba(170,255,170,.8)'; g.font = `600 ${fs * 0.78}px ${FONT}`; g.fillText(money(pl.money), x0 + w - 14 * u, y + rowH * 0.72);
             if (kills) { g.fillStyle = '#ffd34d'; g.font = `800 ${fs * 0.85}px ${FONT}`; g.fillText('×' + kills, x0 + w - 74 * u, y + rowH * 0.72); }
             if (R.bomb === mp.id && !R.plant) this.bombIcon(x0 + w * 0.56, y + rowH * 0.33, 5 * u, alive ? 1 : 0.5);
@@ -2214,7 +2273,7 @@ export class Cs2View extends ArenaViewBase {
           if (this.narrow) {
             if (pl) {
               g.textAlign = 'right'; g.fillStyle = 'rgba(255,255,255,.9)'; g.font = `700 ${fs * 0.88}px ${FONT}`;
-              g.fillText(alive ? (WEAPON[pl.weapon] || pl.weapon || '') : '✕', x0 + w - 30 * u, y + rowH / 2);
+              g.fillText(alive ? (WEAPON[pl.weapon] || pl.weapon || '') : '💧', x0 + w - 30 * u, y + rowH / 2);
               if (kills) { g.fillStyle = '#ffd34d'; g.font = `800 ${fs * 0.9}px ${FONT}`; g.fillText('×' + kills, x0 + w - 8 * u, y + rowH / 2); }
             }
             g.globalAlpha = 1;
@@ -2256,7 +2315,7 @@ export class Cs2View extends ArenaViewBase {
         g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = `700 ${10 * u}px ${FONT}`;
         g.fillText(mp.handle, cx + 7 * u, y0 + ch * 0.38, cw - 14 * u);
         g.fillStyle = 'rgba(255,255,255,.6)'; g.font = `600 ${8 * u}px ${FONT}`;
-        g.fillText(alive ? (pl ? WEAPON[pl.weapon] || pl.weapon || '' : '') : '✕', cx + 7 * u, y0 + ch * 0.76, cw - 26 * u);
+        g.fillText(alive ? (pl ? WEAPON[pl.weapon] || pl.weapon || '' : '') : '💧', cx + 7 * u, y0 + ch * 0.76, cw - 26 * u);
         if (kills) { g.textAlign = 'right'; g.fillStyle = '#ffd34d'; g.font = `800 ${8.5 * u}px ${FONT}`; g.fillText('×' + kills, cx + cw - 6 * u, y0 + ch * 0.76); }
         if (pl && alive && bombState(R, gt).carrier === mp.id) this.bombIcon(cx + cw - 10 * u, y0 + ch * 0.36, 4 * u, 1);
       });
@@ -2377,7 +2436,7 @@ export class Cs2View extends ArenaViewBase {
       g.fillStyle = '#fff'; g.font = `900 ${18 * u}px ${FONT}`; g.fillText(mvp.handle, cx + 52 * u, y + 23 * u);
       g.textAlign = 'right'; g.font = `700 ${12 * u}px ${FONT}`;
       const hs = mvp.k ? Math.round(100 * mvp.hs / mvp.k) : 0;
-      g.fillText(`${mvp.k}-${mvp.d} · ADR ${mvp.adr} · HS ${hs}% · ${mvp.rating}`, cx + cw - 14 * u, y + 23 * u);
+      g.fillText(`${mvp.k}-${mvp.d} · ADR ${mvp.adr} · FACE ${hs}% · ${mvp.rating}`, cx + cw - 14 * u, y + 23 * u);
       y += 56 * u;
     }
     // Taula: els dos equips.
@@ -2447,82 +2506,86 @@ function fpHand(g, x, y, ang, sc, glove, fingersUp) {
   g.restore();
 }
 
+// Toy water blasters in bright plastic: [body, accent, tank]. The nozzle ends
+// exactly where gunTip() says (the shots leave from there).
+const BLASTER = {
+  glock: ['#ff8a1f', '#ffd23a', '#7ad13a'], usp: ['#2f8fff', '#ffd23a', '#7ad13a'], p250: ['#7ad13a', '#ff8a1f', '#2f8fff'], deagle: ['#ffb020', '#2f8fff', '#5fd0ff'],
+  mac10: ['#ff9a2e', '#2f8fff', '#5fd0ff'], mp9: ['#8bd43a', '#2f8fff', '#ffd23a'], galil: ['#7ad13a', '#ff8a1f', '#5fd0ff'], famas: ['#1fc0c8', '#ff8a1f', '#ffd23a'],
+  ak47: ['#ff7a1a', '#7ad13a', '#5fd0ff'], m4a1s: ['#2f7dff', '#ffd23a', '#7ad13a'], awp: ['#3a5cf0', '#ff8a1f', '#5fd0ff'],
+};
+// A see-through water tank: plastic shell, the water inside (lower part), a shine and the cap.
+function fpTank(g, x, y, w, h, col) {
+  fpRect(g, x, y, w, h, tone(col, '#ffffff', 0.35), h / 2);
+  fpRect(g, x + 3, y + h * 0.42, w - 6, h * 0.5, 'rgba(60,160,245,.75)', h * 0.25);
+  fpRect(g, x + 5, y + 3, w * 0.45, h * 0.18, 'rgba(255,255,255,.7)', h * 0.09);
+  fpRect(g, x + w * 0.42, y - 5, w * 0.16, 6, col, 2);
+  g.strokeStyle = tone(col, '#000000', 0.3); g.lineWidth = 1.6; g.beginPath(); g.roundRect(x, y, w, h, h / 2); g.stroke();
+}
+// The nozzle cap at the tip: a bright ring with the dark hole the water comes out of.
+function fpNozzle(g, tx, ty, col) {
+  fpRect(g, tx - 2, ty - 7, 14, 14, col, 5);
+  fpRect(g, tx - 2, ty - 7, 14, 3, tone(col, '#ffffff', 0.4), 2);
+  g.fillStyle = '#123a66'; g.beginPath(); g.ellipse(tx, ty, 2.2, 4, 0, 0, Math.PI * 2); g.fill();
+}
+
 function drawLongGunFP(g, cls, wid, sleeve, glove) {
-  const awp = cls === 'awp', smg = cls === 'smg', ak = wid === 'ak47';
-  const metal = '#2a2c30', metal2 = '#4a4e57', dark = '#16171a';
-  const body = awp ? '#3f5236' : ak ? metal : wid === 'galil' ? '#3b3a33' : '#25272b';
-  const wood = ak ? '#7a4520' : body, woodHi = tone(wood, '#ffffff', 0.18), woodLo = tone(wood, '#000000', 0.35);
+  const awp = cls === 'awp', smg = cls === 'smg';
+  const [body, acc, tank] = BLASTER[wid] || BLASTER.ak47;
+  const hi = tone(body, '#ffffff', 0.3), lo = tone(body, '#000000', 0.3), accLo = tone(acc, '#000000', 0.3);
   const hgL = smg ? -46 : -66;
-  const bL = awp ? -160 : smg ? -66 : wid === 'm4a1s' ? -112 : -118;
+  const tip = gunTip(wid);
   // Rear arm (trigger hand) under everything.
   fpSleeve(g, [[150, 70], [40, -4], [16, 22], [100, 110]], [[46, 0], [34, -6], [14, 20], [24, 26]], sleeve);
-  // Stock with a butt pad, highlight on top.
-  fpPoly(g, [[30, -10], [84, -4], [88, 22], [30, 8]], awp ? body : wood);
-  fpPoly(g, [[30, -10], [84, -4], [84, -1], [30, -6]], awp ? tone(body, '#ffffff', 0.15) : woodHi);
-  fpPoly(g, [[80, -5], [88, -4], [92, 23], [84, 22]], dark);
-  // Receiver: body, top highlight, bottom shadow, ejection port, bolt handle.
-  fpRect(g, -24, -14, 58, 20, body, 2);
-  fpRect(g, -24, -14, 58, 3, metal2);
-  fpRect(g, -24, 3, 58, 3, tone(body, '#000000', 0.4));
-  fpRect(g, 2, -9, 16, 5, dark, 1);
-  fpRect(g, 12, -10, 8, 3, '#8b8f97', 1);
-  // Magazine: the AK's curved banana, a straight box with ribs for the rest.
-  if (ak) {
-    g.fillStyle = '#8a4b1c'; g.beginPath(); g.moveTo(-10, 6); g.lineTo(8, 6); g.quadraticCurveTo(14, 26, 26, 46); g.lineTo(8, 52); g.quadraticCurveTo(-2, 30, -10, 6); g.fill();
-    g.strokeStyle = '#5e3210'; g.lineWidth = 2; g.beginPath(); g.moveTo(-4, 16); g.lineTo(10, 14); g.moveTo(0, 28); g.lineTo(14, 25); g.moveTo(5, 39); g.lineTo(19, 36); g.stroke();
-  } else if (awp) fpRect(g, -4, 6, 14, 20, '#1d1f1a', 2);
-  else {
-    fpPoly(g, [[-8, 6], [6, 6], [9, smg ? 40 : 44], [-5, smg ? 40 : 44]], '#1d1e21');
-    g.strokeStyle = '#34363b'; g.lineWidth = 1.5; g.beginPath(); for (let k = 0; k < 3; k++) { const yy = 14 + k * 9; g.moveTo(-6, yy); g.lineTo(7, yy); } g.stroke();
-  }
-  // Pistol grip and trigger guard.
-  fpPoly(g, [[22, 4], [32, 4], [36, 26], [26, 28]], dark);
-  g.strokeStyle = metal; g.lineWidth = 2.5; g.beginPath(); g.moveTo(10, 6); g.quadraticCurveTo(14, 16, 24, 10); g.stroke();
-  // Handguard: wood with grain (AK) or a polymer one with vent slots.
-  fpRect(g, hgL, -12, -hgL - 24, 15, wood, 2);
-  fpRect(g, hgL, -12, -hgL - 24, 3, woodHi);
-  fpRect(g, hgL, 0, -hgL - 24, 3, woodLo);
-  if (!ak && !awp) { g.fillStyle = dark; for (let x = hgL + 6; x < -30; x += 9) g.fillRect(x, -7, 5, 4); }
-  // Barrel with a highlight, front sight post and a muzzle device.
-  fpRect(g, bL, -9, hgL - bL, 6, metal);
-  fpRect(g, bL, -9, hgL - bL, 1.6, '#62666f');
-  fpRect(g, bL - 4, -11, 10, 10, dark, 2);
-  if (wid === 'm4a1s') { fpRect(g, -162, -12, 52, 12, '#17181a', 4); fpRect(g, -162, -12, 52, 2.5, '#2e3034'); }
-  if (!awp) {
-    fpRect(g, bL + 6, -18, 4, 9, metal); // front sight
-    if (!ak) { g.fillStyle = '#3a3d44'; for (let x = -22; x < 30; x += 6) g.fillRect(x, -17, 4, 3); } // top rail
-    fpRect(g, 14, -21, 10, 7, metal, 1); // rear sight
-  }
-  if (awp) {
-    fpRect(g, -44, -34, 66, 14, '#111214', 6);
-    fpRect(g, -44, -34, 66, 3, '#2c2f35', 2);
-    fpRect(g, -52, -37, 12, 20, '#26282c', 2); fpRect(g, 14, -36, 10, 18, '#26282c', 2);
-    fpRect(g, -53, -34, 3, 14, 'rgba(120,180,255,.5)');
-    fpRect(g, -10, -22, 8, 8, '#26282c'); fpRect(g, 4, -22, 8, 8, '#26282c'); // scope rings
-    fpRect(g, 20, -2, 10, 4, metal2);
-  }
-  // Trigger hand round the grip, then the support arm and hand under the handguard.
+  // Chunky rounded stock in the accent colour.
+  fpRect(g, 28, -12, 60, 30, acc, 12);
+  fpRect(g, 32, -10, 50, 5, tone(acc, '#ffffff', 0.35), 3);
+  fpRect(g, 80, -10, 10, 28, accLo, 5);
+  // Body: a fat plastic shell, a shine on top, a shadow underneath, a pressure gauge.
+  fpRect(g, -28, -18, 66, 28, body, 11);
+  fpRect(g, -22, -16, 54, 5, hi, 3);
+  fpRect(g, -26, 4, 62, 5, lo, 3);
+  g.fillStyle = '#ffffff'; g.beginPath(); g.arc(8, -3, 5.5, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#e23b3b'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(8, -3); g.lineTo(11, -6); g.stroke();
+  // The water tank on top (big on the AWP Aqua Jet, small on the sprayers).
+  if (awp) fpTank(g, -56, -46, 84, 28, tank);
+  else if (smg) fpTank(g, -22, -38, 40, 20, tank);
+  else fpTank(g, -30, -42, 58, 24, tank);
+  // Pistol grip and a round trigger guard.
+  fpPoly(g, [[20, 4], [34, 4], [38, 28], [24, 30]], lo);
+  g.strokeStyle = body; g.lineWidth = 3.5; g.beginPath(); g.moveTo(8, 8); g.quadraticCurveTo(12, 20, 24, 12); g.stroke();
+  // Pump handle under the nozzle tube, with grip ridges.
+  fpRect(g, hgL, -12, -hgL - 24, 18, acc, 8);
+  g.fillStyle = accLo; for (let x = hgL + 6; x < -30; x += 8) g.fillRect(x, -9, 3, 12);
+  // Nozzle tube to the tip, then the nozzle cap.
+  fpRect(g, tip[0] + 8, -11, hgL - tip[0], 10, hi, 5);
+  fpRect(g, tip[0] + 8, -11, hgL - tip[0], 2.5, 'rgba(255,255,255,.55)', 1.2);
+  fpNozzle(g, tip[0], tip[1], tank === '#ffd23a' ? '#ff8a1f' : '#ffd23a');
+  if (!awp) fpRect(g, 14, -24, 10, 7, acc, 3); // a little toy sight
+  else { fpRect(g, -10, -52, 10, 8, acc, 3); fpRect(g, 14, -52, 10, 8, acc, 3); }
+  // Trigger hand round the grip, then the support arm and hand on the pump.
   fpHand(g, 28, 14, 0.25, 0.95, glove, false);
   fpSleeve(g, [[hgL + 10, 6], [hgL + 34, 6], [hgL + 70, 120], [hgL - 30, 120]], [[hgL + 6, 8], [hgL + 36, 8], [hgL + 40, 20], [hgL + 2, 20]], sleeve);
   fpHand(g, hgL + 20, 2, -0.08, 0.95, glove, true);
 }
 
 function drawPistolFP(g, wid, sleeve, glove) {
-  const metal = wid === 'deagle' ? '#8d9096' : '#2a2c30', hi = tone(metal, '#ffffff', 0.25), lo = tone(metal, '#000000', 0.45);
+  const [body, acc, tank] = BLASTER[wid] || BLASTER.glock;
+  const hi = tone(body, '#ffffff', 0.3), lo = tone(body, '#000000', 0.3);
+  const tip = gunTip(wid), big = wid === 'deagle';
   fpSleeve(g, [[-14, 30], [18, 30], [70, 150], [-40, 150]], [[-16, 28], [20, 28], [24, 40], [-20, 40]], sleeve);
-  // Frame and textured grip.
-  fpPoly(g, [[-6, -2], [12, -2], [18, 36], [0, 36]], '#202124');
-  g.strokeStyle = '#2f3134'; g.lineWidth = 1.2; g.beginPath(); for (let k = 0; k < 5; k++) { g.moveTo(1 + k * 0.6, 8 + k * 5); g.lineTo(14 + k * 0.6, 8 + k * 5); } g.stroke();
-  g.strokeStyle = '#2a2b2e'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(-12, 10, -2, 8); g.stroke(); // trigger guard
-  // Slide: highlight, shadow, serrations, ejection port, sights.
-  fpRect(g, -58, -16, 76, 16, metal, 3);
-  fpRect(g, -58, -16, 76, 3, hi);
-  fpRect(g, -58, -3, 76, 3, lo);
-  g.fillStyle = lo; for (let x = 4; x < 16; x += 3) g.fillRect(x, -14, 1.5, 10);
-  fpRect(g, -24, -14, 12, 5, '#111214', 1);
-  fpRect(g, -56, -20, 4, 4, '#111'); fpRect(g, 10, -20, 6, 4, '#111');
-  fpRect(g, -60, -12, 4, 8, '#111');
-  if (wid === 'usp') { fpRect(g, -104, -14, 48, 12, '#18191b', 4); fpRect(g, -104, -14, 48, 2.5, '#2e3034'); }
+  // Rounded grip in the accent colour, with finger bumps.
+  fpPoly(g, [[-6, -2], [14, -2], [20, 36], [0, 36]], acc);
+  g.fillStyle = tone(acc, '#000000', 0.25); for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(1 + k * 1.5, 12 + k * 8, 3, 0, Math.PI * 2); g.fill(); }
+  g.strokeStyle = body; g.lineWidth = 3.5; g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(-12, 12, -2, 9); g.stroke(); // trigger guard
+  // Body: a fat rounded squirt-gun shell with a shine and a shadow.
+  fpRect(g, -56, big ? -20 : -17, 76, big ? 22 : 18, body, 9);
+  fpRect(g, -52, big ? -18 : -15, 66, 4, hi, 2);
+  fpRect(g, -54, -3, 72, 4, lo, 2);
+  // The little water bulb on top.
+  fpTank(g, -30, big ? -40 : -34, big ? 40 : 32, big ? 20 : 17, tank);
+  // Nozzle (the Squirt-S has a long one).
+  if (wid === 'usp') fpRect(g, tip[0] + 6, -13, 52, 10, hi, 5);
+  fpNozzle(g, tip[0], tip[1], acc === '#ffd23a' ? '#ff8a1f' : '#ffd23a');
   // Two hands: the shooting hand round the grip, the support thumb along the frame.
   fpHand(g, 6, 20, 0.15, 1, glove, false);
   fpHand(g, -6, 26, -0.2, 0.85, glove, true);
@@ -2644,7 +2707,7 @@ Object.assign(Cs2View.prototype, {
       const title = d.after === halfOf(this.meta) ? T.half : d.after === 2 * halfOf(this.meta) ? T.ot : T.otSwitch;
       this.lowerCard(yc, title, '#ffd34d', `${names[0]}   ${score[0] || 0} – ${score[1] || 0}   ${names[1]}`, d.money ? `${T.switchNote} ${money(d.money)}` : '', '#ffd34d');
     } else if (s.screen === 'welcome') {
-      this.lowerCard(yc, 'LIVE FROM THE ARENA', '#ff5a4e', `${names[0]}  vs  ${names[1]}`, `MAP: ${String((this.meta && this.meta.map) || 'Mirage').toUpperCase()}${R ? ` · ${T.round} ${R.num}` : ''}`, '#ff5a4e');
+      this.lowerCard(yc, 'LIVE FROM THE ARENA', '#ff5a4e', `${names[0]}  vs  ${names[1]}`, `SPLASH STRIKE (inspired by Counter-Strike 2) · MAP: ${String((this.meta && this.meta.map) || 'Mirage').toUpperCase()}${R ? ` · ${T.round} ${R.num}` : ''}`, '#ff5a4e');
     } else if (s.screen === 'champions') {
       const w = s.team === 1 ? 1 : 0;
       this.lowerCard(yc, 'CHAMPIONS', '#ffd34d', names[w], `${sc[0] || 0} – ${sc[1] || 0}`, this.teamColor(w));
@@ -3088,7 +3151,7 @@ Object.assign(Cs2View.prototype, {
     const c = team === 0 || team === 1 ? this.teamColor(team) : '#ffd34d';
     switch (mode) {
       case 'round': case 'pistol':
-        teamBars(); g.fillStyle = '#ffd34d'; g.font = F(800, 20); g.fillText(mode === 'pistol' ? 'PISTOL ROUND' : 'NEXT ROUND', BW / 2, 56);
+        teamBars(); g.fillStyle = '#ffd34d'; g.font = F(800, 20); g.fillText(mode === 'pistol' ? 'WATER-PISTOL ROUND' : 'NEXT ROUND', BW / 2, 56);
         g.fillStyle = '#fff'; g.font = F(900, 60); g.fillText(`ROUND ${rn}`, BW / 2, 112, 230); scoreRow(206, 56); break;
       case 'matchpoint':
         g.fillStyle = flash ? c : '#04060c'; g.fillRect(0, 0, BW, BH);

@@ -123,7 +123,7 @@ func (s *Server) crewPropose(ctx context.Context, task string, ca bool, winds []
 	}
 	var roster strings.Builder
 	for _, w := range winds {
-		fmt.Fprintf(&roster, "- id=%s · %s · %s", w.ID, w.Name, w.Role)
+		fmt.Fprintf(&roster, "- id=%s · %s · %s", w.ID, w.Name, companion.RolePrompt(w.Role))
 		if w.Specialty != "" {
 			fmt.Fprintf(&roster, " · specialty %s", w.Specialty)
 		}

@@ -16,7 +16,7 @@ func init() { arena.Register(Game{}) }
 type Game struct{}
 
 func (Game) ID() string               { return "cs2" }
-func (Game) Title(lang string) string { return "Counter-Strike 2" }
+func (Game) Title(lang string) string { return "Splash Strike" }
 func (Game) Rules() string            { return rulesText }
 func (Game) Starter() string          { return starterText }
 

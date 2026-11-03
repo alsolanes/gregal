@@ -35,41 +35,42 @@ func (x *texts) move(h, zone string) string {
 	return fmt.Sprintf(x.pick("%s cap a %s", "%s to %s"), h, zone)
 }
 
-var utilCa = map[string]string{"smoke": "fum", "flash": "flaix", "molotov": "molotov", "he": "granada"}
+var utilCa = map[string]string{"smoke": "boira", "flash": "flaix d'escuma", "molotov": "bassal de sabó", "he": "globus d'aigua"}
+var utilEn = map[string]string{"smoke": "fog cloud", "flash": "foam flash", "molotov": "soap slick", "he": "water balloon"}
 
 func (x *texts) util(h, kind, zone string) string {
 	if x.ca {
 		return fmt.Sprintf("%s llança %s a %s", h, utilCa[kind], zone)
 	}
-	return fmt.Sprintf("%s throws a %s at %s", h, kind, zone)
+	return fmt.Sprintf("%s throws a %s at %s", h, utilEn[kind], zone)
 }
 
 func (x *texts) kill(k, v, w string, hs bool) string {
-	s := fmt.Sprintf(x.pick("%s elimina %s (%s)", "%s killed %s (%s)"), k, v, w)
+	s := fmt.Sprintf(x.pick("%s remulla %s (%s)", "%s splashed %s (%s)"), k, v, w)
 	if hs {
-		s += x.pick(", al cap", ", headshot")
+		s += x.pick(", esquitxada a la cara", ", face splash")
 	}
 	return s
 }
 
 func (x *texts) plant(h, site string) string {
-	return fmt.Sprintf(x.pick("%s planta la bomba a %s", "%s plants the bomb at %s"), h, site)
+	return fmt.Sprintf(x.pick("%s planta el Megaglobus a %s", "%s plants the Mega Balloon at %s"), h, site)
 }
 
 func (x *texts) defuse(h string, ninja bool) string {
 	if ninja {
-		return fmt.Sprintf(x.pick("%s desactiva d'amagat! (ninja)", "%s ninja defuses!"), h)
+		return fmt.Sprintf(x.pick("%s el buida d'amagat! (ninja)", "%s ninja drains it!"), h)
 	}
-	return fmt.Sprintf(x.pick("%s desactiva la bomba", "%s defuses the bomb"), h)
+	return fmt.Sprintf(x.pick("%s buida el Megaglobus", "%s drains the Mega Balloon"), h)
 }
 
-func (x *texts) explode() string { return x.pick("La bomba explota", "The bomb explodes") }
+func (x *texts) explode() string { return x.pick("El Megaglobus esclata: tothom xop!", "The Mega Balloon bursts: everyone soaked!") }
 
-var reasonCa = map[string]string{"elim": "eliminació", "bomb": "bomba", "defuse": "desactivació", "time": "temps"}
-var reasonEn = map[string]string{"elim": "elimination", "bomb": "bomb", "defuse": "defuse", "time": "time"}
+var reasonCa = map[string]string{"elim": "tots remullats", "bomb": "esclat del globus", "defuse": "globus buidat", "time": "temps"}
+var reasonEn = map[string]string{"elim": "all splashed", "bomb": "balloon burst", "defuse": "balloon drained", "time": "time"}
 
-var tagCa = map[string]string{"pistol": "ronda de pistoles", "clutch": "clutch", "ace": "ACE", "4k": "4 morts", "eco_win": "victòria en eco", "ninja": "ninja", "last_second": "a l'últim segon"}
-var tagEn = map[string]string{"pistol": "pistol round", "clutch": "clutch", "ace": "ACE", "4k": "4K", "eco_win": "eco win", "ninja": "ninja defuse", "last_second": "last second"}
+var tagCa = map[string]string{"pistol": "ronda de pistoles d'aigua", "clutch": "clutch", "ace": "ACE", "4k": "4 remullats", "eco_win": "victòria en eco", "ninja": "ninja", "last_second": "a l'últim segon"}
+var tagEn = map[string]string{"pistol": "water-pistol round", "clutch": "clutch", "ace": "ACE", "4k": "4 splashes", "eco_win": "eco win", "ninja": "ninja drain", "last_second": "last second"}
 
 func (x *texts) roundEnd(team, reason string, tags []string, clutch int) string {
 	var t []string

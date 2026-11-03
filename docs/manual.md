@@ -570,13 +570,14 @@ on an anti-bot check.
 
 The Arena (sidebar → Arena; on the phone, the Arena row) is a weekly
 competition between strategy `.md` files, in three games: American football
-(NFL), Counter-Strike 2 and League of Legends. Each player is a user of this
+(NFL), Splash Strike (a friendly water fight inspired by Counter-Strike 2,
+with water blasters and water balloons instead of weapons) and League of Legends. Each player is a user of this
 Gregal server.
 
 - **How a match works.** Both teams are identical. At every decision point the
   same model reads your `.md` and the situation (score, resources, what the
   opponent has done so far) and decides: every play call in NFL, every round's
-  buy and plan in CS2, the draft and each phase's objective and stance in LoL.
+  buy and plan in Splash Strike, the draft and each phase's objective and stance in LoL.
   The games reward reading the opponent and managing resources, so clear,
   adaptive instructions win.
 - **During the week.** Pick a game: the editor already holds the template.
@@ -599,7 +600,7 @@ Gregal server.
   one. Edit any line afterwards; the old `.md` stays in the versions.
 - **What beats what.** Next to the editor, a guide built from the engine's
   tables: pick what the opponent plays and see your answers from best to worst
-  (✓ green wins, red loses; in Counter-Strike 2, the % of rounds won), each
+  (✓ green wins, red loses; in Splash Strike, the % of rounds won), each
   option explained in plain words. **＋ Rule** adds that counter to your `.md`
   under «Counters (from the playbook)» (or updates the rule you already had for
   that situation), and **See the whole table** shows every matchup at once;
@@ -661,8 +662,8 @@ Gregal server.
   its `.md`. Click a decision to see exactly what the model saw. A low share
   means the `.md` doesn't cover that situation: add a rule for it.
 - **Cameras.** Football alternates the sideline camera and a skycam behind the
-  offense, with replays; CS2 cuts to the player's view for duels, plants and
-  defuses; LoL zooms into fights and objectives.
+  offense, with replays; Splash Strike cuts to the player's view for duels,
+  balloon plants and drains; LoL zooms into fights and objectives.
 - **TV mode.** Open any match and press 📺 TV mode: the same broadcast for that
   one match, full screen, with each team's latest call and the rule of its
   `.md` under its name. Esc closes it.
@@ -694,44 +695,45 @@ Gregal server.
   towers and the game clock; a card shows the watched champion's role, K/D/A,
   gold and HP (or respawn timer), with the kill feed and the big banners (First
   Blood, ACE, Baron) as in 2D.
-- **👁 3D in Counter-Strike 2.** The same button puts you on a 3D Mirage built
+- **👁 3D in Splash Strike.** The same button puts you on a 3D Mirage built
   from the tactical map (the same areas, corridors, crates and A/B sites),
-  looking through a player's eyes with their gun in hand and a crosshair. On
-  its own it follows whoever the 2D POV would show (the player about to get a
-  kill, the planter, the defuser, otherwise the bomb carrier) and the killer
-  in the kill-cam replay; **Tab** / **E** / **Q** lock onto any of the ten.
-  You see tracers, smoke clouds (the view turns grey inside one), molotov
-  fire, flashbangs (the screen goes white if they catch your player), the bomb
-  on the carrier's back, planted with its blinking light and exploding, and a
-  progress bar while it is planted or defused. The HUD shows the score, round,
-  clock or bomb timer, the player's money, HP, armour and ammo, and the kill
-  feed.
-- **CS2 live: play it yourself.** In Counter-Strike 2, **🎮 Play it yourself
+  looking through a player's eyes with their water blaster in hand and a
+  crosshair. On its own it follows whoever the 2D POV would show (the player
+  about to splash someone, the planter, the drainer, otherwise the Mega
+  Balloon carrier) and the splasher in the replay; **Tab** / **E** / **Q**
+  lock onto any of the ten. You see water streams, fog clouds (the view turns
+  grey inside one), soap slicks, foam flashes (the screen goes white if they
+  catch your player), the Mega Balloon on the carrier's back, planted with its
+  blinking light and bursting into a wave, and a progress bar while it is
+  planted or drained. Soaked players sit out the round in a puddle. The HUD
+  shows the score, round, clock or balloon timer, the player's money, how dry
+  they still are, raincoat and water, and the splash feed.
+- **Splash Strike live: play it yourself.** In Splash Strike, **🎮 Play it yourself
   (live)** opens a first-person match where you control one player of your
   team with keyboard and mouse and the other nine are bots. The model still
   only coaches: before every round it reads each team's `.md` and calls the
   buy, the plan (strategy or CT setup, utility, pace) and, if it wants, a role
   for each bot that round; the bots then play it on their own (they move,
-  hold angles, trade, throw smokes and flashes, plant, rotate, retake and
-  defuse). Before the match pick the opponent (a bot or another player's
+  hold angles, trade, throw fog and foam flashes, plant the balloon, rotate,
+  retake and drain it). Before the match pick the opponent (a bot or another player's
   `.md`, which stays hidden), the format (short MR6, first to 7, or full MR12),
   the bots' skill (the same for both teams), the position you play and a role
   (entry, support, lurker, AWPer, anchor, rifler) plus an optional
   instruction for each bot, or **Ask the coach to set the roles** from your
   `.md`. **follow** makes a bot your escort: it walks behind you on your path,
   covers the angles you are not looking at, goes in right after you, trades
-  your duels (your killer first), throws its utility for you and rotates with
-  you; if you die it trades you and then plays the plan. **🛡 All follow me**
+  your duels (whoever splashed you first), throws its utility for you and rotates with
+  you; if you get soaked it trades you and then plays the plan. **🛡 All follow me**
   gives it to all four, an instruction such as "follow me", "stick with me",
   "cover me" or "segueix-me" picks it for that bot, and **V** in game switches
   the whole team between "follow me" and "play the plan" until the round ends.
-  In game: WASD move, mouse look, left click shoot, right click AWP
-  scope, Shift walk, C crouch, 1/2/3 rifle/pistol/knife, 4 grenades and G
-  throw, R reload, E hold to plant or defuse, B buy menu (freeze time and the
+  In game: WASD move, mouse look, left click squirt, right click AWP Aqua Jet
+  scope, Shift walk, C crouch, 1/2/3 soaker/water pistol/sponge, 4 balloons and
+  utility and G throw, R refill, E hold to plant or drain the balloon, B buy menu (freeze time and the
   first 20 seconds, in your spawn), Tab scoreboard, H the coach's card, F
   autopilot (a bot plays you), Esc frees the mouse. The card on the left shows
   the coach's call, its reason and what each bot is doing. Money, loss bonus,
-  kill rewards and halves follow the same rules as the simulated matches (the
+  splash rewards and halves follow the same rules as the simulated matches (the
   server applies them to what happened in your browser), and the match is
   saved with the others (kind *live*) so you can replay it in the player. Live
   matches are not ranked and don't use the daily practice games.

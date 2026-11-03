@@ -9,22 +9,23 @@ import (
 // matchupWin, la mateixa que calibra el motor.
 var rulesText = rulesHead + matchupTable() + rulesTail
 
-const rulesHead = `COUNTER-STRIKE 2 — ARENA RULES (map: Mirage)
-Two teams of 5 identical players; only the decisions differ.
+const rulesHead = `SPLASH STRIKE — ARENA RULES (a friendly water fight inspired by Counter-Strike 2; map: Mirage)
+Two teams of 5 identical players; only the decisions differ. Nobody gets hurt: players carry water blasters, and a player who gets splashed is soaked and sits out the rest of the round.
 FORMAT: MR12. First to 13 rounds wins. Sides swap after round 12. At 12-12, overtime: blocks of 6 rounds (first to 4 in the block), $10,000 each at every OT half, sides swap every 3 rounds. The starting side is random and both sides are equally strong over a match.
-SIDES: T attacks and must plant the bomb at site A or B (it explodes 40s after the plant). CT wins by killing all Ts, by the clock (1:55) running out before a plant, or by defusing (5s with a kit, 10s without).
-ECONOMY (per player): $800 at the start of each half. Win: $3,250 ($3,500 by bomb explosion / defuse). Loss bonus $1,400/1,900/2,400/2,900/3,400: one step up per loss, one step down per win (each half starts at $1,900). Losing Ts get +$800 each if they planted; Ts alive when time runs out get no loss money. Kill rewards: rifles and pistols $300, SMGs $600, AWP $100. Max $16,000. Survivors keep their weapons and armor; the dead lose everything.
-PRICES: AK-47 $2,700, M4A1-S $2,900, Galil $1,800, FAMAS $2,050, MAC-10 $1,050, MP9 $1,250, AWP $4,750, kevlar $650, kevlar+helmet $1,000, defuse kit $400, smoke $300, flash $200, molotov $400 (CT $500), HE $300. A full buy from nothing costs about $21,000 (T) / $23,000 (CT) for the team.
+SIDES: T (the Tide) attacks and must plant the Mega Balloon, a giant water balloon, at site A or B (it bursts 40s after the plant and soaks the site). CT (the Coast Team) wins by splashing all Ts, by the clock (1:55) running out before a plant, or by draining the balloon (5s with a drain kit, 10s without).
+ECONOMY (per player): $800 at the start of each half. Win: $3,250 ($3,500 by balloon burst / drain). Loss bonus $1,400/1,900/2,400/2,900/3,400: one step up per loss, one step down per win (each half starts at $1,900). Losing Ts get +$800 each if they planted; Ts still dry when time runs out get no loss money. Splash rewards: soakers and water pistols $300, sprayers $600, AWP $100. Max $16,000. Dry survivors keep their blasters and gear; soaked players lose everything.
+GEAR: water pistols (Squirt-18 for T, Squirt-S for CT, Spritz 250, Desert Geyser), sprayers (the SMGs: Drizzle-10, Mist-9), soakers (the rifles: Gale Soaker, Fountain Soaker, Hydro-47, Hydro-M4) and the AWP Aqua Jet (the long-range sniper blaster; the "awp" field). Armor is a raincoat, the helmet is a pair of goggles. Utility: smoke = fog cloud, flash = foam flash, molotov = soap slick (a slippery puddle), HE = water balloon.
+PRICES: Hydro-47 $2,700, Hydro-M4 $2,900, Gale Soaker $1,800, Fountain Soaker $2,050, Drizzle-10 $1,050, Mist-9 $1,250, AWP Aqua Jet $4,750, raincoat $650, raincoat+goggles $1,000, drain kit $400, smoke $300, flash $200, molotov $400 (CT $500), HE $300. A full buy from nothing costs about $21,000 (T) / $23,000 (CT) for the team.
 DECISIONS: one per round per side, taken by both teams at the same time before the round. Answer one JSON object following the schema. Missing or invalid fields fall back to defaults: buy "full" if affordable else "eco"; T "default_mid", utility "smokes", pace "default"; CT "standard_2_1_2", utility "normal"; "awp" true.
-HOW A ROUND IS DECIDED: the round is simulated as movements and duels. Each duel depends on weapons and armor, numbers, who holds the angle, utility, and on how the T plan matches the CT setup. Between equal buys the matchup is the biggest factor:
+HOW A ROUND IS DECIDED: the round is simulated as movements and water duels. Each duel depends on blasters and raincoats, numbers, who holds the angle, utility, and on how the T plan matches the CT setup. Between equal buys the matchup is the biggest factor:
 `
 
 const rulesTail = `How to read it: stack the site they hit; hit the site they do not stack (default_mid finds the weak site by itself). aggressive_mid wins early mid duels and beats default_mid, splits and executes, but a rush walks into its empty sites. retake_x gives site x away: executes and default_mid into x win, rushes into x lose to the retake, and the 3 CTs on the other site hold it. Fakes beat standard rotations and a stack on the faked site. A rush into a standard setup loses. standard_2_1_2 is the safest CT setup (it never loses badly) but fakes and splits beat it.
-EQUIPMENT (round win vs a full buy with the same plans, as T / as CT): eco under 2%; half (~$3,000 each) ~1% / ~4%; force with ~$2,500 each (Galil/FAMAS or SMG + armor) ~10% / ~20%; force with ~$3,400 each (T: AK + kevlar, no helmet or utility; CT: FAMAS + helmet) ~20% / ~30%; force when rich (rifles, helmets and utility but no AWP or kit) ~41% / ~47%; full ~47% / ~53%. Rifles beat SMGs beat pistols; no armor or no helmet makes you easier to kill. The AWP is the best gun in long, unsmoked duels (mid fights, CT holds) and a little better than a rifle up close: it adds ~3-7 points.
+EQUIPMENT (round win vs a full buy with the same plans, as T / as CT): eco under 2%; half (~$3,000 each) ~1% / ~4%; force with ~$2,500 each (Gale/Fountain Soaker or sprayer + raincoat) ~10% / ~20%; force with ~$3,400 each (T: Hydro-47 + raincoat, no goggles or utility; CT: Fountain Soaker + goggles) ~20% / ~30%; force when rich (soakers, goggles and utility but no AWP or drain kit) ~41% / ~47%; full ~47% / ~53%. Soakers beat sprayers beat water pistols; no raincoat or no goggles makes you easier to splash. The AWP Aqua Jet is the best blaster in long, unsmoked duels (mid fights, CT holds) and a little better than a soaker up close: it adds ~3-7 points.
 UTILITY: T utility none -> smokes adds ~5-9 points of round win (rushes ~1), smokes -> full ~2-5 more (executes, splits, fakes, default_mid and post-plants use it; rushes throw only flashes, so for them only the number of flashes counts). CT utility heavy instead of normal takes 1-13 points from the T (most against rushes and hits into a defended or stacked site, least against fakes and aggressive_mid fights); save instead of normal gives the T 2-9 points.
 PACE: fast hits earlier (+2-5 points vs aggressive_mid, up to 5 fewer vs the other setups); slow plays more mid duels (+3-4 for default_mid vs stacks, 1-5 fewer vs aggressive_mid); default is the best general choice. Rushes ignore pace.
-ECONOMY IN PRACTICE: a full buy beats a cheap force most of the time, and money compounds (winners keep their guns). Forcing every round loses to a team that saves when broke and full-buys after.
-THE SITUATION shows each round: score, round and half, your exact money and the full-buy cost, both loss bonuses, what you would have after an eco, kept weapons, who has an AWP, the enemy's estimated money, the opponent's last rounds on their current side, their tendencies, and how your own last calls on this side went. A team that repeats itself can be read and punished: adapt, and change when they adapt to you.`
+ECONOMY IN PRACTICE: a full buy beats a cheap force most of the time, and money compounds (dry winners keep their blasters). Forcing every round loses to a team that saves when broke and full-buys after.
+THE SITUATION shows each round: score, round and half, your exact money and the full-buy cost, both loss bonuses, what you would have after an eco, kept blasters, who has an AWP, the enemy's estimated money, the opponent's last rounds on their current side, their tendencies, and how your own last calls on this side went. A team that repeats itself can be read and punished: adapt, and change when they adapt to you.`
 
 // matchupTable: la taula de matchupWin en text.
 func matchupTable() string {
@@ -47,7 +48,7 @@ func matchupTable() string {
 
 const starterText = `# Strategy: "Read, then punish"
 
-A complete Counter-Strike 2 plan. The coach model reads this file and the round's Situation before every round, so it is written as numbered rules: **the first rule that matches wins**, every rule names the exact Situation line it reads and the exact JSON values to answer. Copy that style when you improve it: concrete conditions, exact values, one default for every case.
+A complete Splash Strike plan (the water-fight game inspired by Counter-Strike 2). The coach model reads this file and the round's Situation before every round, so it is written as numbered rules: **the first rule that matches wins**, every rule names the exact Situation line it reads and the exact JSON values to answer. Copy that style when you improve it: concrete conditions, exact values, one default for every case.
 
 ## 0. What to read in the Situation
 - "PISTOL ROUND" / "Overtime half start" / "Last round of the half".
@@ -59,7 +60,7 @@ A complete Counter-Strike 2 plan. The coach model reads this file and the round'
 1. Pistol round or overtime half start → "buy":"full".
 2. Full buy **affordable** → "buy":"full", "awp":true.
 3. Last round of the half → "buy":"force" (money resets anyway).
-4. Our money is at least **60%** of the full-buy cost → "buy":"force" (most players still get rifles).
+4. Our money is at least **60%** of the full-buy cost → "buy":"force" (most players still get soakers).
 5. Otherwise → "buy":"eco": saving now buys a full buy next round. Never "half".
 - "awp" is true only on full buys.
 

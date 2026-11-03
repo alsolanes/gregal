@@ -18,7 +18,7 @@
 // proven a arena-export.test.cjs.
 import { fmtTime } from './arena-scrubber.js';
 
-export const GAME = { nfl: 'NFL', cs2: 'Counter-Strike 2', lol: 'League of Legends' };
+export const GAME = { nfl: 'NFL', cs2: 'Splash Strike', lol: 'League of Legends' };
 export const SIDE_COLOR = ['#3e7bfa', '#e5484d'];
 const esc = v => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const sleep = ms => new Promise(r => setTimeout(r, ms));

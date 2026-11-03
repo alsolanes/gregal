@@ -1,4 +1,4 @@
-// La simulació del Counter-Strike 2 en directe (internal/arena/cs2/live.go):
+// La simulació de Splash Strike en directe (el joc cs2, internal/arena/cs2/live.go):
 // una ronda de veritat, pas a pas (60 per segon), al navegador. Una persona
 // porta un jugador amb teclat i ratolí; els altres nou són bots que segueixen
 // el pla que el model ha triat per al seu equip (on esperen, quin lloc
@@ -23,22 +23,22 @@ export const RUN = 4.8, WALK_K = 0.52, CROUCH_K = 0.36, RADIUS = 0.35, CROUCH_EY
 // Armes (valors de CS2 simplificats). rate: segons entre trets; spread: radians
 // quiet; move: el que s'hi afegeix corrent; hs: probabilitat de cap d'un bot.
 export const WEAPONS = {
-  knife: { name: 'Knife', cls: 'knife', cost: 0, side: 0, dmg: 40, ap: 0.85, rate: 0.5, mag: 0, res: 0, reload: 0, spread: 0, move: 0, speed: 1.06, reward: 1500, hs: 0 },
-  glock: { name: 'Glock-18', cls: 'pistol', cost: 0, side: 1, dmg: 30, ap: 0.47, rate: 0.15, mag: 20, res: 120, reload: 2.2, spread: 0.010, move: 0.035, speed: 1, reward: 300, hs: 0.32 },
-  usp: { name: 'USP-S', cls: 'pistol', cost: 0, side: 2, dmg: 35, ap: 0.505, rate: 0.17, mag: 12, res: 24, reload: 2.2, spread: 0.007, move: 0.03, speed: 1, reward: 300, hs: 0.36 },
-  p250: { name: 'P250', cls: 'pistol', cost: 300, side: 0, dmg: 38, ap: 0.64, rate: 0.15, mag: 13, res: 26, reload: 2.2, spread: 0.010, move: 0.035, speed: 1, reward: 300, hs: 0.34 },
-  deagle: { name: 'Desert Eagle', cls: 'pistol', cost: 700, side: 0, dmg: 63, ap: 0.93, rate: 0.25, mag: 7, res: 35, reload: 2.2, spread: 0.012, move: 0.06, speed: 0.98, reward: 300, hs: 0.38 },
-  mac10: { name: 'MAC-10', cls: 'smg', cost: 1050, side: 1, dmg: 29, ap: 0.575, rate: 0.075, mag: 30, res: 100, reload: 3.1, spread: 0.016, move: 0.03, speed: 0.96, reward: 600, hs: 0.22 },
-  mp9: { name: 'MP9', cls: 'smg', cost: 1250, side: 2, dmg: 26, ap: 0.6, rate: 0.07, mag: 30, res: 120, reload: 2.1, spread: 0.015, move: 0.028, speed: 0.96, reward: 600, hs: 0.22 },
-  galil: { name: 'Galil AR', cls: 'rifle', cost: 1800, side: 1, dmg: 30, ap: 0.775, rate: 0.09, mag: 35, res: 90, reload: 3.0, spread: 0.009, move: 0.06, speed: 0.9, reward: 300, hs: 0.28 },
-  famas: { name: 'FAMAS', cls: 'rifle', cost: 2050, side: 2, dmg: 30, ap: 0.7, rate: 0.09, mag: 25, res: 90, reload: 3.3, spread: 0.009, move: 0.06, speed: 0.9, reward: 300, hs: 0.28 },
-  ak47: { name: 'AK-47', cls: 'rifle', cost: 2700, side: 1, dmg: 36, ap: 0.775, rate: 0.1, mag: 30, res: 90, reload: 2.5, spread: 0.006, move: 0.07, speed: 0.86, reward: 300, hs: 0.32 },
-  m4a1s: { name: 'M4A1-S', cls: 'rifle', cost: 2900, side: 2, dmg: 38, ap: 0.7, rate: 0.1, mag: 20, res: 80, reload: 3.1, spread: 0.005, move: 0.065, speed: 0.89, reward: 300, hs: 0.3 },
-  awp: { name: 'AWP', cls: 'awp', cost: 4750, side: 0, dmg: 115, ap: 0.975, rate: 1.45, mag: 5, res: 30, reload: 3.7, spread: 0.07, scoped: 0.0012, move: 0.2, speed: 0.8, reward: 100, hs: 0.1 },
+  knife: { name: 'Sponge', cls: 'knife', cost: 0, side: 0, dmg: 40, ap: 0.85, rate: 0.5, mag: 0, res: 0, reload: 0, spread: 0, move: 0, speed: 1.06, reward: 1500, hs: 0 },
+  glock: { name: 'Squirt-18', cls: 'pistol', cost: 0, side: 1, dmg: 30, ap: 0.47, rate: 0.15, mag: 20, res: 120, reload: 2.2, spread: 0.010, move: 0.035, speed: 1, reward: 300, hs: 0.32 },
+  usp: { name: 'Squirt-S', cls: 'pistol', cost: 0, side: 2, dmg: 35, ap: 0.505, rate: 0.17, mag: 12, res: 24, reload: 2.2, spread: 0.007, move: 0.03, speed: 1, reward: 300, hs: 0.36 },
+  p250: { name: 'Spritz 250', cls: 'pistol', cost: 300, side: 0, dmg: 38, ap: 0.64, rate: 0.15, mag: 13, res: 26, reload: 2.2, spread: 0.010, move: 0.035, speed: 1, reward: 300, hs: 0.34 },
+  deagle: { name: 'Desert Geyser', cls: 'pistol', cost: 700, side: 0, dmg: 63, ap: 0.93, rate: 0.25, mag: 7, res: 35, reload: 2.2, spread: 0.012, move: 0.06, speed: 0.98, reward: 300, hs: 0.38 },
+  mac10: { name: 'Drizzle-10', cls: 'smg', cost: 1050, side: 1, dmg: 29, ap: 0.575, rate: 0.075, mag: 30, res: 100, reload: 3.1, spread: 0.016, move: 0.03, speed: 0.96, reward: 600, hs: 0.22 },
+  mp9: { name: 'Mist-9', cls: 'smg', cost: 1250, side: 2, dmg: 26, ap: 0.6, rate: 0.07, mag: 30, res: 120, reload: 2.1, spread: 0.015, move: 0.028, speed: 0.96, reward: 600, hs: 0.22 },
+  galil: { name: 'Gale Soaker', cls: 'rifle', cost: 1800, side: 1, dmg: 30, ap: 0.775, rate: 0.09, mag: 35, res: 90, reload: 3.0, spread: 0.009, move: 0.06, speed: 0.9, reward: 300, hs: 0.28 },
+  famas: { name: 'Fountain Soaker', cls: 'rifle', cost: 2050, side: 2, dmg: 30, ap: 0.7, rate: 0.09, mag: 25, res: 90, reload: 3.3, spread: 0.009, move: 0.06, speed: 0.9, reward: 300, hs: 0.28 },
+  ak47: { name: 'Hydro-47', cls: 'rifle', cost: 2700, side: 1, dmg: 36, ap: 0.775, rate: 0.1, mag: 30, res: 90, reload: 2.5, spread: 0.006, move: 0.07, speed: 0.86, reward: 300, hs: 0.32 },
+  m4a1s: { name: 'Hydro-M4', cls: 'rifle', cost: 2900, side: 2, dmg: 38, ap: 0.7, rate: 0.1, mag: 20, res: 80, reload: 3.1, spread: 0.005, move: 0.065, speed: 0.89, reward: 300, hs: 0.3 },
+  awp: { name: 'AWP Aqua Jet', cls: 'awp', cost: 4750, side: 0, dmg: 115, ap: 0.975, rate: 1.45, mag: 5, res: 30, reload: 3.7, spread: 0.07, scoped: 0.0012, move: 0.2, speed: 0.8, reward: 100, hs: 0.1 },
 };
 export const NADES = ['smoke', 'flash', 'molotov', 'he'];
 export function nadeCost(n, side) { return n === 'flash' ? 200 : n === 'molotov' ? (side === 'CT' ? 500 : 400) : n === 'smoke' || n === 'he' ? 300 : 0; }
-export const NADE_NAME = { smoke: 'Smoke', flash: 'Flashbang', molotov: 'Molotov', he: 'HE grenade' };
+export const NADE_NAME = { smoke: 'Fog bomb', flash: 'Foam popper', molotov: 'Soap slick', he: 'Water balloon' };
 
 // Bot skill (the same for both teams: only the plans and the human differ).
 export const SKILL = {
@@ -468,7 +468,7 @@ export class LiveRound {
     const b = this.bomb;
     Object.assign(b, { planted: true, plantT: this.t, x: p.x, y: p.y, site, planting: null, carrier: null });
     this.plant = { t: +this.t.toFixed(2), start: +b.plantStart.toFixed(2), id: p.id, x: +p.x.toFixed(2), y: +p.y.toFixed(2) };
-    this.feed.push({ t: this.t, kind: 'plant', text: `${p.handle} planted the bomb at ${site}` });
+    this.feed.push({ t: this.t, kind: 'plant', text: `${p.handle} planted the Mega Balloon at ${site}` });
     this.log('plant', { id: p.id, site });
     p.money += 300;
   }
@@ -477,7 +477,7 @@ export class LiveRound {
     const b = this.bomb;
     b.defused = true; b.defusing = null;
     this.defuse = { t: +this.t.toFixed(2), start: +b.defuseStart.toFixed(2), id: p.id };
-    this.feed.push({ t: this.t, kind: 'defuse', text: `${p.handle} defused the bomb` });
+    this.feed.push({ t: this.t, kind: 'defuse', text: `${p.handle} drained the Mega Balloon` });
     this.log('defuse', { id: p.id });
     this.end('CT', 'defuse');
   }
@@ -976,15 +976,15 @@ export class LiveRound {
 
   // Què fa cada bot (per al HUD de l'equip).
   doing(p) {
-    if (!p.alive) return 'dead';
+    if (!p.alive) return 'soaked';
     const ai = p.ai, b = this.bomb;
-    if (b.planting === p) return 'planting';
-    if (b.defusing === p) return 'defusing';
-    if (ai.target && this.t >= ai.reactAt) return 'fighting';
+    if (b.planting === p) return 'planting the balloon';
+    if (b.defusing === p) return 'draining';
+    if (ai.target && this.t >= ai.reactAt) return 'splashing';
     const z = ai.goal ? zoneAt(this.meta, ai.goal[0], ai.goal[1]) : this.zoneOf(p);
     const zn = z ? z.name : '';
-    if (ai.following) return this.human.alive ? (ai.target ? 'fighting' : 'covering you') : 'trading you';
-    if (ai.stage === 'pickup') return 'getting the bomb';
+    if (ai.following) return this.human.alive ? (ai.target ? 'splashing' : 'covering you') : 'trading you';
+    if (ai.stage === 'pickup') return 'getting the balloon';
     if (ai.stage === 'post') return p.side === 'T' ? 'post-plant' : (ai.path.length ? '→ ' : 'holding ') + zn;
     if (ai.stage === 'retake') return 'retaking ' + (b.site || '');
     if (ai.stage === 'rotate') return 'rotating → ' + zn;

@@ -457,7 +457,7 @@ func (s *Server) rotllanaRoster(rot Rotllana) string {
 	var b strings.Builder
 	for _, id := range rot.Members {
 		if w, ok := s.winds.ByID(id); ok {
-			b.WriteString("- " + w.Name + " (" + w.Role + ")\n")
+			b.WriteString("- " + w.Name + " (" + companion.RolePrompt(w.Role) + ")\n")
 		}
 	}
 	return strings.TrimSpace(b.String())

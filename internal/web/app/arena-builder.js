@@ -28,9 +28,9 @@ export const QUESTIONS = {
   ],
   cs2: [
     { id: 'eco', title: 'How do you handle money?', options: [
-      { id: 'disciplined', icon: '💰', title: 'Disciplined', text: 'Save until the whole team can buy rifles; force only when almost there.', pro: 'Strong full-buy rounds', con: 'Gives away some rounds' },
+      { id: 'disciplined', icon: '💰', title: 'Disciplined', text: 'Save until the whole team can buy soakers; force only when almost there.', pro: 'Strong full-buy rounds', con: 'Gives away some rounds' },
       { id: 'balanced', icon: '⚖️', title: 'Balanced', text: 'Force when you have 60% of a full buy, save otherwise.', pro: 'What the pros do', con: 'Needs exact money reading', rec: true },
-      { id: 'aggressive', icon: '🔫', title: 'Always fight', text: 'Force-buy with 40% of a full buy: every round is winnable.', pro: 'Steals rounds', con: 'Broke when it fails' },
+      { id: 'aggressive', icon: '💦', title: 'Always fight', text: 'Force-buy with 40% of a full buy: every round is winnable.', pro: 'Steals rounds', con: 'Broke when it fails' },
     ] },
     { id: 't', title: 'How do you attack as T?', options: [
       { id: 'fast', icon: '⚡', title: 'Fast and loud', text: 'Rush a site before they can rotate.', pro: 'Punishes empty sites and aggressive CTs', con: 'Walks into stacks' },
@@ -163,9 +163,9 @@ function cs2(a, pb) {
   const exOf = (sec, c) => { const ids = (sec ? sec.theirs.map(x => x.id) : []).filter(k => c[k] && c[k].length); return ids[1] || ids[0]; };
   const exT = exOf(t, tc), exCT = exOf(ct, cc);
   const id = {
-    disciplined: 'We play for full buys: we save together and hit with rifles and utility.',
+    disciplined: 'We play for full buys: we save together and hit with soakers and utility.',
     balanced: 'We buy with the team: full when we can, force when we are close, save otherwise.',
-    aggressive: 'We fight every round: if we can buy guns, we buy them.',
+    aggressive: 'We fight every round: if we can buy blasters, we buy them.',
   }[a.eco] + ' ' + { fast: 'As T we hit fast before they rotate.', methodical: 'As T we take sites with smokes and flashes, and change the plan when they read us.', tricky: 'As T we show one site and hit the other.' }[a.t] + ' ' + { solid: 'As CT we hold a standard setup until they show a pattern.', read: 'As CT we stack the site they keep hitting.', aggressive: 'As CT we fight for mid early.' }[a.ct];
   return [
     '## Identity', id + ' Above all, we read what the opponent repeats and punish it.', '',
@@ -177,7 +177,7 @@ function cs2(a, pb) {
     `**Then pick the counter.** Look at the opponent's CT setups in their last 3 rounds and take the one they used most (tie: the most recent). No CT rounds seen yet → "${tOpen}".`,
     '| Their setup | Our strategy |', '|---|---|', ...tRows, '',
     '**They adapted?** If our last two rounds as T both used the same strategy and both say "we LOST", counter only their most recent setup instead. If that also lost twice in a row → "default_mid".',
-    ...{ fast: ['- Speed is our weapon: if their last round showed 1 or fewer CTs on a site (the "(n A, n mid, n B)" numbers), rush that site instead of the table, "pace":"fast".'],
+    ...{ fast: ['- Speed is our secret: if their last round showed 1 or fewer CTs on a site (the "(n A, n mid, n B)" numbers), rush that site instead of the table, "pace":"fast".'],
       methodical: ['- On full buys: "utility":"full" and "pace":"default" always; never rush on a full buy unless they played aggressive_mid.'],
       tricky: ['- Never hit the same site 3 rounds in a row: if the table would make it 3, pick the fake toward the other site (fake_a_go_b goes B, fake_b_go_a goes A).'] }[a.t], '',
     '**Buy-dependent details.**', '- Full buy: "utility":"full". Force: "utility":"smokes".', '- Eco: ignore the table → rush the site that had fewer CTs in their last round (rush_a only if A had fewer, else rush_b), "utility":"none".', '- "pace":"fast" for rushes, "default" for everything else.', '',

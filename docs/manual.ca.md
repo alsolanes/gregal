@@ -572,13 +572,14 @@ mateix avís quan cau en una comprovació anti-robots.
 
 L'Arena (barra lateral → Arena; al mòbil, la fila Arena) és una competició
 setmanal entre fitxers `.md` d'estratègia, en tres jocs: futbol americà (NFL),
-Counter-Strike 2 i League of Legends. Cada jugador és un usuari d'aquest
+Splash Strike (una guerra d'aigua amistosa inspirada en Counter-Strike 2, amb
+pistoles i globus d'aigua en lloc d'armes) i League of Legends. Cada jugador és un usuari d'aquest
 servidor de Gregal.
 
 - **Com va un partit.** Els dos equips són idèntics. A cada punt de decisió el
   mateix model llegeix el teu `.md` i la situació (marcador, recursos, què ha
   fet el rival fins ara) i decideix: cada jugada a l'NFL, la compra i el pla de
-  cada ronda al CS2, el draft i l'objectiu i la postura de cada fase al LoL. Els
+  cada ronda al Splash Strike, el draft i l'objectiu i la postura de cada fase al LoL. Els
   jocs premien llegir el rival i gestionar els recursos: guanyen les
   instruccions clares i que s'adapten.
 - **Durant la setmana.** Tria un joc: l'editor ja té la plantilla. Canvia-la
@@ -602,7 +603,7 @@ servidor de Gregal.
   les versions.
 - **Què guanya a què.** Al costat de l'editor, una guia feta amb les taules del
   motor: tria què juga el rival i veus les teves respostes de la millor a la
-  pitjor (verd guanya, vermell perd; al Counter-Strike 2, el % de rondes
+  pitjor (verd guanya, vermell perd; al Splash Strike, el % de rondes
   guanyades), cada opció explicada en llenguatge planer. **＋ Rule** afegeix
   aquell contrajoc al teu `.md` a «Counters (from the playbook)» (o canvia la
   regla que ja tenies per a aquella situació), i **See the whole table** ensenya
@@ -667,8 +668,8 @@ servidor de Gregal.
   què va veure el model. Un percentatge baix vol dir que el `.md` no cobreix
   aquella situació: afegeix-hi una regla.
 - **Càmeres.** El futbol alterna la càmera de banda i una skycam darrere
-  l'atac, amb repeticions; el CS2 passa a la vista del jugador en els duels,
-  plantades i desactivacions; el LoL fa zoom a les baralles i objectius.
+  l'atac, amb repeticions; el Splash Strike passa a la vista del jugador en
+  els duels, quan es planta el globus i quan es buida; el LoL fa zoom a les baralles i objectius.
 - **Mode tele.** Obre qualsevol partit i prem 📺 TV mode: la mateixa
   retransmissió per a aquell partit, a pantalla completa, amb la darrera crida
   de cada equip i la regla del seu `.md` sota el nom. Esc la tanca.
@@ -701,41 +702,43 @@ servidor de Gregal.
   fitxa mostra el rol, el K/D/A, l'or i la vida (o el temps per reaparèixer)
   del campió que mires, amb les últimes morts i els rètols grans (First Blood,
   ACE, Baró) com al 2D.
-- **👁 3D al Counter-Strike 2.** El mateix botó et posa en un Mirage en 3D fet
+- **👁 3D al Splash Strike.** El mateix botó et posa en un Mirage en 3D fet
   amb el mapa tàctic (les mateixes zones, passadissos, caixes i llocs A/B),
-  mirant pels ulls d'un jugador amb la seva arma a les mans i el punt de mira.
-  Sola, la càmera segueix qui ensenyaria la POV 2D (qui està a punt de fer una
-  mort, qui planta, qui desactiva, si no qui porta la bomba) i qui mata a la
-  repetició; **Tab** / **E** / **Q** et fixen en qualsevol dels deu. Es veuen
-  les traçadores, els fums (dins d'un, la imatge es torna grisa), el foc dels
-  molotovs, els flaixos (la pantalla es torna blanca si enlluernen el teu
-  jugador), la bomba a l'esquena de qui la porta, plantada amb el llum que
-  parpelleja i quan esclata, i una barra mentre es planta o es desactiva. El
-  marcador mostra el resultat, la ronda, el rellotge o el temps de la bomba,
-  els diners, la vida, l'armilla i les bales del jugador, i les últimes morts.
-- **CS2 en directe: juga-ho tu.** Al Counter-Strike 2, **🎮 Play it yourself
+  mirant pels ulls d'un jugador amb la seva pistola d'aigua a les mans i el
+  punt de mira. Sola, la càmera segueix qui ensenyaria la POV 2D (qui està a
+  punt de remullar algú, qui planta, qui buida el globus, si no qui porta el
+  Megaglobus) i qui remulla a la repetició; **Tab** / **E** / **Q** et fixen en
+  qualsevol dels deu. Es veuen els rajos d'aigua, la boira (dins d'una, la
+  imatge es torna grisa), els bassals de sabó, els flaixos d'escuma (la
+  pantalla es torna blanca si enlluernen el teu jugador), el Megaglobus a
+  l'esquena de qui el porta, plantat amb el llum que parpelleja i quan esclata
+  en una onada, i una barra mentre es planta o es buida. Qui queda xop seu en un
+  bassal fins a la ronda següent. El marcador mostra el resultat, la ronda, el
+  rellotge o el temps del globus, els diners, com de sec està el jugador,
+  l'impermeable i l'aigua que li queda, i els últims remullats.
+- **Splash Strike en directe: juga-ho tu.** Al Splash Strike, **🎮 Play it yourself
   (live)** obre un partit en primera persona on portes un jugador del teu equip
   amb teclat i ratolí i els altres nou són bots. El model continua fent només
   d'entrenador: abans de cada ronda llegeix el `.md` de cada equip i tria la
   compra, el pla (estratègia o muntatge CT, utilitat, ritme) i, si vol, un rol
   per a cada bot aquella ronda; després els bots el juguen sols (es mouen,
-  aguanten angles, intercanvien, llancen fums i flaixos, planten, roten,
-  recuperen el lloc i desactiven). Abans del partit tries el rival (un bot o
+  aguanten angles, intercanvien, llancen boira i flaixos d'escuma, planten
+  el globus, roten, recuperen el lloc i el buiden). Abans del partit tries el rival (un bot o
   el `.md` d'un altre jugador, que no es veu), el format (curt MR6, a 7
   rondes, o complet MR12), el nivell dels bots (el mateix als dos equips), la
   posició que jugues i un rol (entry, support, lurker, AWPer, àncora, rifler)
   amb una instrucció opcional per a cada bot, o **Ask the coach to set the
   roles** perquè els triï a partir del teu `.md`. **follow** fa del bot la teva
   escorta: et segueix pel camí que fas, cobreix els angles que no mires, entra
-  just darrere teu, intercanvia els teus duels (primer qui t'ha matat), llança
-  la seva utilitat per a tu i rota amb tu; si mors, et venja i després juga el
+  just darrere teu, intercanvia els teus duels (primer qui t'ha remullat), llança
+  la seva utilitat per a tu i rota amb tu; si quedes xop, et venja i després juga el
   pla. **🛡 All follow me** el dona als quatre, una instrucció com «follow me»,
   «stick with me», «cover me» o «segueix-me» el tria per a aquell bot, i **V**
   en joc canvia tot l'equip entre «segueix-me» i «juga el pla» fins al final de
   la ronda. En joc: WASD per moure't, el
-  ratolí per mirar, clic esquerre dispara, clic dret la mira de l'AWP, Maj
-  camina, C t'ajup, 1/2/3 rifle/pistola/ganivet, 4 granades i G llança, R
-  recarrega, E (mantingut) planta o desactiva, B el menú de compra (en la
+  ratolí per mirar, clic esquerre dispara aigua, clic dret la mira de l'AWP Aqua Jet,
+  Maj camina, C t'ajup, 1/2/3 mànega/pistola d'aigua/esponja, 4 globus i
+  utilitat i G llança, R recarrega l'aigua, E (mantingut) planta o buida el globus, B el menú de compra (en la
   congelació i els primers 20 segons, al teu spawn), Tab el marcador, H la
   fitxa de l'entrenador, F el pilot automàtic (un bot juga per tu), Esc
   allibera el ratolí. La fitxa de l'esquerra mostra la crida de l'entrenador,

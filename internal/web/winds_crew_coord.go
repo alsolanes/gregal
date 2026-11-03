@@ -178,7 +178,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	}
 	var roster strings.Builder
 	for _, w := range members {
-		fmt.Fprintf(&roster, "- %s | %s | %s\n", w.ID, w.Name, w.Role)
+		fmt.Fprintf(&roster, "- %s | %s | %s\n", w.ID, w.Name, companion.RolePrompt(w.Role))
 	}
 	crewWritesMu.Lock()
 	files := append([]string(nil), crewWrites[rot.ID]...)
