@@ -112,7 +112,12 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     var feinesOpen by remember { mutableStateOf(false) }
     var cornerOpen by remember { mutableStateOf(false) }
     var gamesOpen by remember { mutableStateOf(false) }
-    var arenaOpen by remember { mutableStateOf(false) }
+    // Inici (preguntar primer) o Xats (la llista de converses).
+    var tab by rememberSaveable { mutableStateOf("home") }
+    val askText = rememberAskText()
+    val programats by vm.programats.collectAsState()
+    val connections by vm.connections.collectAsState()
+    val userName by vm.usuari.collectAsState()
     val windTasks by vm.windTasks.collectAsState()
     // Feines en marxa: es tornen a mirar cada 8 s (i cada minut si no n'hi ha
     // cap), així el progrés es reprèn en obrir l'app i l'avís arriba en acabar.
@@ -145,6 +150,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // Racó, Partits i Arena són plugins: només surten si el servidor els té encesos.
     val plugins by vm.plugins.collectAsState()
     LaunchedEffect(conn) { vm.loadPlugins() }
+    // «Avui» a l'inici: els recordatoris que vénen i el resum del matí.
+    val homeCards = tab == "home" && winds.isNotEmpty()
+    LaunchedEffect(conn, homeCards) { if (homeCards) { vm.loadProgramats(); vm.loadConnections() } }
     fun pluginOn(id: String) = plugins[id] != false
     // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
     // xat: així puja a dalt de la llista.
@@ -293,7 +301,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         // («Vents») hi cap sencer en lloc de quedar tallat.
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
-                                VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
+                                AskTabs(lang, tab, unread = newsCount.values.sum()) { tab = it }
                             }
                             IconButton(onClick = { exploreOpen = !exploreOpen }) {
                                 Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
@@ -302,10 +310,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                 Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
                             }
                         }
-                        if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"), pluginOn("arena"),
+                        if (tab == "chats") VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
+                        if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"),
                             onCorner = { cornerOpen = true; exploreOpen = false },
                             onGames = { gamesOpen = true; exploreOpen = false },
-                            onArena = { arenaOpen = true; exploreOpen = false },
                             onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false },
                             onProgramats = { programatsOpen = true; exploreOpen = false },
                             onWiki = { wikiOpen = true; exploreOpen = false },
@@ -314,9 +322,29 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
                     }
                 }
+            },
+            bottomBar = {
+                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy) {
+                    // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
+                    val text = askText.value.trim()
+                    if (text.isNotEmpty()) { vm.askCap(text); askText.value = ""; vm.openVentsChat("cap") }
+                }
             }) { pad ->
             LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
-                if (manage) {
+                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) {
+                    val homeRows = ventsInbox(winds, rotllanes, chats, rChats, "", summaries)
+                    item(key = "ask-hero") {
+                        val lead = winds.firstOrNull { it.id in news } ?: winds.firstOrNull { it.specialty == "organisation" } ?: winds.first()
+                        AskHero(lang, userName, lead, winds, busy, news) { w -> vm.openVentsChat("wind:" + w.id) }
+                    }
+                    item(key = "ask-suggest") { AskSuggestions(lang) { askText.value = it } }
+                    item(key = "ask-today") {
+                        TodaySection(lang, todayCards(lang, homeRows, news, windTasks.orEmpty().filter { it.running },
+                            programats?.reminders.orEmpty(), connections,
+                            onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
+                            onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }))
+                    }
+                } else if (manage) {
                     item { WindsModelRow(vm, lang) }
                     item { SquadsRow(vm, lang) }
                     item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
@@ -414,7 +442,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
     if (gamesOpen) GamesDialog(vm, lang) { gamesOpen = false }
-    if (arenaOpen) ArenaDialog(vm, lang) { arenaOpen = false }
     if (wikiOpen) WikiDialog(vm, lang) { wikiOpen = false }
     // Triar o crear una secció temàtica: des del botó de la capçalera dels
     // favorits (secció nova) o des del menú llarg d'una fila (afegir-hi).
@@ -862,7 +889,7 @@ internal fun ConversationRow(
     Row(
         Modifier.fillMaxWidth().heightIn(min = 68.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 20.dp, vertical = 9.dp),
+            .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -874,20 +901,6 @@ internal fun ConversationRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(title, fontSize = 15.sp, fontWeight = if (unread) FontWeight.Bold else FontWeight.SemiBold,
                     color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                if (onFavorite != null) IconButton(
-                    onClick = onFavorite,
-                    modifier = Modifier.size(40.dp).semantics {
-                        contentDescription = if (favorite) ventsCopy(lang, "removeFavorite") else ventsCopy(lang, "addFavorite")
-                        selected = favorite
-                    },
-                ) {
-                    Icon(
-                        if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                        // L'estrella apagada en gris quedava invisible: l'accent
-                        // ple marca el favorit i el contorn fosc el desmarcat.
-                        contentDescription = null, tint = if (favorite) Sea else Ink.copy(alpha = .55f),
-                        modifier = Modifier.size(19.dp))
-                }
                 if (receipt.isNotBlank()) Text(receipt, color = Muted, fontSize = 11.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -908,6 +921,22 @@ internal fun ConversationRow(
                     }
                 }
             }
+        }
+        // L'estrella, al marge dret: dins de la línia del nom l'estirava i
+        // separava massa el nom del text de sota.
+        if (onFavorite != null) IconButton(
+            onClick = onFavorite,
+            modifier = Modifier.size(36.dp).semantics {
+                contentDescription = if (favorite) ventsCopy(lang, "removeFavorite") else ventsCopy(lang, "addFavorite")
+                selected = favorite
+            },
+        ) {
+            Icon(
+                if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                // L'estrella apagada en gris quedava invisible: l'accent
+                // ple marca el favorit i el contorn fosc el desmarcat.
+                contentDescription = null, tint = if (favorite) Sea else Ink.copy(alpha = .55f),
+                modifier = Modifier.size(19.dp))
         }
     }
 }

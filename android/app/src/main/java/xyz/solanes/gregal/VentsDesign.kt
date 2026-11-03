@@ -130,10 +130,8 @@ internal fun VentsExploreSheet(
     lang: String,
     showCorner: Boolean,
     showGames: Boolean,
-    showArena: Boolean,
     onCorner: () -> Unit,
     onGames: () -> Unit,
-    onArena: () -> Unit,
     onLibrary: () -> Unit,
     onProgramats: (() -> Unit)? = null,
     onWiki: (() -> Unit)? = null,
@@ -156,7 +154,6 @@ internal fun VentsExploreSheet(
         if (onWorkspace != null) ExploreRow(lang, tr(lang, "app.carpeta.title"), if (en) "Active project folder where winds read and write" else "Carpeta del projecte on llegeixen i escriuen els vents", Icons.Rounded.FolderOpen, onWorkspace)
         if (showCorner) ExploreRow(lang, "Racó", if (en) "The page the winds write on their own" else "La pàgina que escriuen els vents sols", Icons.Rounded.AutoAwesome, onCorner)
         if (showGames) ExploreRow(lang, if (en) "Games" else "Partits", if (en) "Football league between winds" else "La lliga de futbol entre els vents", Icons.Rounded.AutoAwesome, onGames)
-        if (showArena) ExploreRow(lang, "Arena", if (en) "Compare models head to head" else "Compara respostes de models cara a cara", Icons.Rounded.AutoAwesome, onArena)
         ExploreRow(lang, ventsCopy(lang, "library"), if (en) "Recover and reuse learned information" else "Recupera i reutilitza informació apresa", Icons.Rounded.Folder, onLibrary)
     }
 }

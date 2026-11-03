@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.45.1 - 2026-11-03 - Gregal Vents: primer es pregunta
+
+- **Gregal Vents 1.57.0 (Android): primer es pregunta.** L'inici és com el dels grans
+  assistents: una salutació, la colla a un toc, suggeriments, «Avui» (missatges
+  nous, feina en marxa, converses per reprendre, els propers recordatoris i el
+  resum del matí) i un camp gran a baix. El que hi escrius va al Ventet, que
+  respon o ho passa a qui toca. Les converses són a la pestanya «Xats», amb files
+  més compactes.
+- **Gregal Vents ja no porta res de l'Arena:** l'Arena és només a Gregal Jocs.
+
 ## v1.45.0 - 2026-11-03 - Gregal Jocs, la web de la competició
 
 - **Gregal Jocs és ara la web de la competició.** `/jocs/` és una web sencera, fosca

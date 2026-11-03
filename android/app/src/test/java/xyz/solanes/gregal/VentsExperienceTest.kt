@@ -56,7 +56,8 @@ class VentsExperienceTest {
         } }
         val lang = vm.idioma.value
         ui.onNodeWithContentDescription(ventsCopy(lang, "explore")).performClick()
-        ui.onNodeWithText(ventsCopy(lang, "library")).performClick()
+        // L'acció de clic directa: l'avís d'error (sense servidor a la prova) pot tapar el final del menú.
+        ui.onNodeWithText(ventsCopy(lang, "library")).performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
         ui.onNodeWithText(tr(lang, "app.library.about")).assertExists()
     }
 
