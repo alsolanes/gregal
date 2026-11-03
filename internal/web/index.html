@@ -3173,8 +3173,12 @@ document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAl
 (() => {
   const foot = document.querySelector('.rail-footer');
   if (!foot) return;
+  // A l'escriptori cada instal·lador porta els seus: Gregal (Codi i Vents) no
+  // mostra Jocs, i Gregal Jocs no mostra els altres dos. Al navegador, tots.
+  const edition = window.gregalDesktop?.edition || '';
+  const offered = edition === 'gregal' ? ['codi', 'vents'] : edition === 'jocs' ? [] : ['codi', 'vents', 'jocs'];
   const others = [['codi', '/', '›_', 'product.openCodi', 'Gregal Codi'], ['vents', '/vents/', '◍', 'product.openVents', 'Gregal Vents'], ['jocs', '/jocs/', '🏆', 'product.openJocs', 'Gregal Jocs']]
-    .filter(([p]) => p !== PRODUCT);
+    .filter(([p]) => p !== PRODUCT && offered.includes(p));
   others.reverse().forEach(([p, href, icon, key, fallback]) => {
     const a = document.createElement('a');
     a.className = 'icon-btn product-switch';

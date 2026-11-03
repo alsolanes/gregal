@@ -42,7 +42,7 @@ function boot() {
       <div class="jx-top-r">
         <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener"><span class="jx-dot"></span><span id="jxWatchTx">Broadcast</span></a>
         <span class="jx-me" id="jxMe" hidden></span>
-        <details class="jx-apps"><summary aria-label="Other Gregal apps">⋯</summary><div><a href="/">Gregal Codi</a><a href="/vents/">Gregal Vents</a></div></details>
+        ${window.gregalDesktop?.edition === 'jocs' ? '' : `<details class="jx-apps"><summary aria-label="Other Gregal apps">⋯</summary><div><a href="/">Gregal Codi</a><a href="/vents/">Gregal Vents</a></div></details>`}
       </div>
     </header>
     <main class="jx-main" id="jxMain">

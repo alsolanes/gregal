@@ -4,11 +4,14 @@ const crypto = require('node:crypto');
 const { createRequire } = require('node:module');
 const yaml = createRequire(require.resolve('electron-updater'))('js-yaml');
 
-async function verifyRelease(directory, version = require('./package.json').version) {
+// edition: «gregal» (latest.yml, Gregal-Setup) o «jocs» (jocs.yml, Gregal-Jocs-Setup).
+async function verifyRelease(directory, version = require('./package.json').version, edition = 'gregal') {
   const output = path.resolve(directory);
-  const manifest = yaml.load(fs.readFileSync(path.join(output, 'latest.yml'), 'utf8'));
+  const jocs = edition === 'jocs';
+  const manifest = yaml.load(fs.readFileSync(path.join(output, jocs ? 'jocs.yml' : 'latest.yml'), 'utf8'));
   if (manifest?.version !== version) throw new Error('Update metadata version does not match the app');
-  const installer = `Gregal-Setup-${version}-x64.exe`;
+  const prefix = jocs ? 'Gregal-Jocs' : 'Gregal';
+  const installer = `${prefix}-Setup-${version}-x64.exe`;
   if (!Array.isArray(manifest.files) || !manifest.files.some(file => file.url === installer)) {
     throw new Error('Update metadata must reference the NSIS installer');
   }
@@ -28,13 +31,13 @@ async function verifyRelease(directory, version = require('./package.json').vers
     throw new Error('Legacy update checksum does not match the installer');
   }
   fs.accessSync(path.join(output, installer + '.blockmap'));
-  fs.accessSync(path.join(output, `Gregal-Portable-${version}-x64.exe`));
+  fs.accessSync(path.join(output, `${prefix}-Portable-${version}-x64.exe`));
   return { version, installer };
 }
 
 module.exports = { verifyRelease };
 if (require.main === module) {
-  verifyRelease(process.argv[2] || path.join(__dirname, 'dist')).then(result => {
+  verifyRelease(process.argv[2] || path.join(__dirname, 'dist'), undefined, process.argv.includes('--jocs') ? 'jocs' : 'gregal').then(result => {
     console.log(`Update metadata verified: ${result.installer}`);
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }

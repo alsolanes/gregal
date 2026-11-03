@@ -303,7 +303,7 @@ function wireIPC(getWin) {
         event.returnValue = trusted(event) ? { values: preferences, keys: preferenceKeys } : { values: {}, keys: [] };
     });
     ipcMain.on('gregal:connection', event => {
-        event.returnValue = trusted(event) ? { token: TOKEN } : { token: '' };
+        event.returnValue = trusted(event) ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION };
     });
     // La pàgina avisa que el webview de l'agent és a punt. Només s'accepta
     // un guest webview d'aquesta finestra i de la partició pròpia.
@@ -472,9 +472,13 @@ function wireIPC(getWin) {
 // Dos productes al mateix servidor: Gregal Codi (/) i Gregal Vents (/vents/).
 // La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
 // i el botó del peu (o el menú) passa d'un a l'altre.
-const wantsVents = argv => (argv || []).includes("--vents");
-const wantsJocs = argv => (argv || []).includes("--jocs");
-const pathFor = argv => wantsVents(argv) ? "/vents/" : wantsJocs(argv) ? "/jocs/" : "/";
+// Dues edicions, dos instal·ladors: «Gregal» (Codi i Vents) i «Gregal Jocs»
+// (només els jocs). L'edició la posa el build a package.json (gregalEdition);
+// sense, és Gregal. Gregal ja no obre els jocs, i Gregal Jocs només obre /jocs/.
+const EDITION = (() => { try { return require("./package.json").gregalEdition === "jocs" ? "jocs" : "gregal"; } catch (e) { return "gregal"; } })();
+const wantsVents = argv => EDITION === "gregal" && (argv || []).includes("--vents");
+const wantsJocs = argv => EDITION === "jocs";
+const pathFor = argv => EDITION === "jocs" ? "/jocs/" : wantsVents(argv) ? "/vents/" : "/";
 const startPath = () => pathFor(process.argv);
 
 async function createWindow() {
@@ -620,9 +624,10 @@ async function createWindow() {
                     accelerator: "CmdOrCtrl+E",
                     click: () => win.webContents.send("gregal:command", "files"),
                 },
-                { label: "Gregal Codi", click: () => win.loadURL(BASE + "/") },
-                { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/") },
-                { label: "Gregal Jocs", click: () => win.loadURL(BASE + "/jocs/") },
+                ...(EDITION === "jocs" ? [] : [
+                    { label: "Gregal Codi", click: () => win.loadURL(BASE + "/") },
+                    { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/") },
+                ]),
                 { type: "separator" },
                 { label: L.recarrega, accelerator: "CmdOrCtrl+R", click: () => win.reload() },
                 {
@@ -755,7 +760,7 @@ if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleIns
         if (win.isMinimized()) win.restore();
         win.show();
         win.focus();
-        if (wantsVents(argv) || wantsJocs(argv)) win.loadURL(BASE + pathFor(argv));
+        if (wantsVents(argv)) win.loadURL(BASE + pathFor(argv));
     });
 }
 

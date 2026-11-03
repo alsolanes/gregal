@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.47.0 - 2026-11-03 - Lantern Legends i Gregal Jocs a part
+
+- **Dos instal·ladors: Gregal i Gregal Jocs.** L'instal·lador de Gregal porta el
+  Codi i els Vents i ja no hi ha res dels jocs: ni drecera, ni menú, ni botó per
+  anar-hi (en actualitzar, es treu la drecera «Gregal Jocs» d'abans). Gregal Jocs
+  és una app a part, amb el seu instal·lador (`Gregal-Jocs-Setup`), la seva
+  finestra i les seves actualitzacions, i només obre la web de la competició.
+  Totes dues fan servir el mateix servidor.
+
 - **El League of Legends de l'Arena ara és Lantern Legends**, un joc fantàstic i
   amable inspirat en League of Legends: dos equips de guardians il·luminen la vall
   de Glowvale al capvespre. Ningú no surt ferit (els campions es toquen amb

@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     preferences: preferences.values,
     preferenceKeys: preferences.keys,
     apiToken: connection.token,
+    // «gregal» (Codi i Vents) o «jocs»: cada instal·lador només porta els seus productes.
+    edition: connection.edition || 'gregal',
     savePreference: (key, value) => ipcRenderer.send('gregal:preference-save', key, value),
     // La versió d'Electron queda exposada només mitjançant IPC de confiança.
     getUpdateStatus: () => ipcRenderer.invoke('gregal:update-status'),

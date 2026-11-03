@@ -43,6 +43,7 @@ test('offline screen defaults to English independently of operating system langu
 test('desktop credentials are delivered by the guarded bridge, never URL query parameters', () => {
   const main = fs.readFileSync(require('node:path').join(__dirname, 'main.js'), 'utf8');
   assert.equal(main.includes('encodeURIComponent(TOKEN)'), false);
-  assert.ok(main.includes("trusted(event) ? { token: TOKEN } : { token: '' }"));
+  // El token només per a la pàgina de confiança; l'edició no és secreta.
+  assert.ok(main.includes("trusted(event) ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION }"));
   assert.ok(main.includes("guest.setWindowOpenHandler(() => ({ action: 'deny' }))"));
 });
