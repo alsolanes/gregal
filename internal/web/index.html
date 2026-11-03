@@ -1992,6 +1992,16 @@ function paintPendingTitle() {
   if (document.title !== want) document.title = want;
 }
 let currentView = 'agent';
+// Dos productes sobre la mateixa web (serve.go): Gregal Codi a / i Gregal
+// Vents a /vents/. Cadascun ensenya només les seves vistes; demanar una vista
+// de l'altre porta a la portada pròpia (el xat o els vents).
+const PRODUCT = document.documentElement.dataset.product === 'vents' ? 'vents' : 'codi';
+const VENTS_VIEWS = ['vents', 'raco', 'partits', 'arena'];
+const CODI_VIEWS = ['agent', 'objectius', 'kanban', 'programat', 'mcp', 'activitat', 'github', 'office', 'team', 'canvis', 'fitxers', 'knowledge', 'terminal', 'navegador', 'grafs', 'workshop'];
+const productAllows = v => (PRODUCT === 'vents' ? VENTS_VIEWS : CODI_VIEWS).includes(v);
+const productHome = () => PRODUCT === 'vents' ? 'vents' : 'agent';
+window.gregalProduct = PRODUCT;
+if (PRODUCT === 'vents') currentView = 'vents';
 // Mantén la llista base estable per als clients antics; el mode autònom
 // s'afegeix al cicle de la UI sense trencar els integradors que llegeixen la
 // declaració inicial.
@@ -2027,7 +2037,8 @@ function setView(view) {
   const previousView = currentView;
   // Les vistes dels plugins apagats (app/plugins.js) no s'obren.
   if (window.gregalPlugins && !window.gregalPlugins.viewAllowed(view)) view = 'agent';
-  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : 'agent';
+  currentView = ['agent','objectius','vents','raco','partits','arena','kanban','programat','mcp','activitat','github','office','team','canvis','fitxers','knowledge','terminal','navegador','grafs','workshop'].includes(view) ? view : productHome();
+  if (!productAllows(currentView)) currentView = productHome();
   const dockTool = !!window.gregalShell?.isTool(currentView);
   const agent = currentView === 'agent' || dockTool;
   window.gregalShell?.sync(currentView);
@@ -3112,6 +3123,26 @@ $('keysModal').onclick = e => { if (e.target.id === 'keysModal') $('keysModal').
 $('sideClose').onclick = () => setSide(false);
 $('sideShade').onclick = () => setSide(false);
 document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => setView(button.dataset.view)));
+// Cada producte, el seu rail: el que és de l'altre no hi surt (display, no
+// hidden, perquè els plugins fan servir hidden per encendre i apagar-los).
+document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAllows(b.dataset.view)) b.style.display = 'none'; });
+// Un botó al peu del rail porta a l'altre producte (mateix servidor i sessió).
+(() => {
+  const foot = document.querySelector('.rail-footer');
+  if (!foot) return;
+  const a = document.createElement('a');
+  a.className = 'icon-btn product-switch';
+  a.id = 'productSwitch';
+  a.href = PRODUCT === 'vents' ? '/' : '/vents/';
+  a.textContent = PRODUCT === 'vents' ? '›_' : '◍';
+  const label = () => gregalT(PRODUCT === 'vents' ? 'product.openCodi' : 'product.openVents') || (PRODUCT === 'vents' ? 'Gregal Codi' : 'Gregal Vents');
+  a.title = label(); a.setAttribute('aria-label', label());
+  document.addEventListener('gregal:idioma', () => { a.title = label(); a.setAttribute('aria-label', label()); });
+  foot.prepend(a);
+})();
+// El menú «Més» és de les eines de codi (coneixement, agents, GitHub, Retro…).
+if (PRODUCT === 'vents') { const more = $('sideMore'); if (more) more.style.display = 'none'; }
+if (PRODUCT === 'vents') setTimeout(() => setView('vents'), 0);
 // novaConversa tanca la d'ara (que ja s'ha desat sola a cada torn) i buida
 // la pantalla. Hi arriben el botó i Ctrl+N.
 async function novaConversa() {

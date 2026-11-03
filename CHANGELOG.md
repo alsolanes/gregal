@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.43.0 - 2026-11-03 - Gregal Codi i Gregal Vents
+
+- **Gregal Codi i Gregal Vents, separats.** El mateix servidor serveix dues
+  interfícies: el Codi a `/` (xat de l'agent, projectes, fitxers, canvis, terminal,
+  objectius, MCP, GitHub, Office…) i Gregal Vents a `/vents/` (els vents, el Racó, els
+  jocs i l'Arena). Cadascuna només ensenya el que és seu i un botó al peu porta a
+  l'altra. Les converses dels vents ja no surten a la llista del Codi. A
+  l'escriptori hi ha la drecera «Gregal Vents» (`--vents`), una sola instància (obrir
+  la segona drecera porta la finestra oberta a Vents) i «Canvia entre Gregal Codi i
+  Gregal Vents» al menú.
+- **Els torns de l'agent ja no surten duplicats amb «sessió invàlida» als comptes.**
+  Amb comptes, la clau interna de la sessió fa 72 caràcters i els events sense
+  `?session=` la rebutjaven: la feina sortia dos cops, una marcada com a aturada, i
+  acabava amb «Agent · error: sessió invàlida». Ara es fa servir l'id curt.
+
 - **L'Arena, més fàcil de començar i d'entendre.** Assistent **✨ Build my
   strategy**: tres preguntes amb targetes per joc i un `.md` complet a punt per
   jugar, amb les taules de contrajoc tretes del motor (l'estil només desempata

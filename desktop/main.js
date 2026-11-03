@@ -425,7 +425,7 @@ function wireIPC(getWin) {
         lastBackendLogs = [];
         const ok = await ensureServer();
         if (ok && win) {
-            await win.loadURL(BASE + "/");
+            await win.loadURL(BASE + startPath());
             return { ok: true };
         }
         return { ok: false };
@@ -468,6 +468,12 @@ function wireIPC(getWin) {
     updateAction('gregal:update-install', () => updateController?.install() || null);
     updateAction('gregal:update-page', () => updateController?.openPage() || null);
 }
+
+// Dos productes al mateix servidor: Gregal Codi (/) i Gregal Vents (/vents/).
+// La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
+// i el botó del peu (o el menú) passa d'un a l'altre.
+const wantsVents = argv => (argv || []).includes("--vents");
+const startPath = () => wantsVents(process.argv) ? "/vents/" : "/";
 
 async function createWindow() {
     const state = loadState(app.getPath("userData"));
@@ -612,6 +618,13 @@ async function createWindow() {
                     accelerator: "CmdOrCtrl+E",
                     click: () => win.webContents.send("gregal:command", "files"),
                 },
+                {
+                    label: isEn ? "Switch Gregal Codi / Gregal Vents" : "Canvia entre Gregal Codi i Gregal Vents",
+                    click: () => {
+                        const enVents = (win.webContents.getURL() || "").includes("/vents");
+                        win.loadURL(BASE + (enVents ? "/" : "/vents/"));
+                    },
+                },
                 { type: "separator" },
                 { label: L.recarrega, accelerator: "CmdOrCtrl+R", click: () => win.reload() },
                 {
@@ -651,7 +664,7 @@ async function createWindow() {
     setupUpdater(win);
     if (await ensureServer()) {
         void refreshWordAddin();
-        await win.loadURL(BASE + "/");
+        await win.loadURL(BASE + startPath());
     } else {
         const tail = lastBackendLogs.map(l => String(l).trimEnd()).filter(Boolean).slice(-12).join("\n");
         if (tail || backendEarlyExit !== null) {
@@ -731,6 +744,21 @@ function prepareChromeExtension() {
         console.error('[gregal] extensió de Chrome: ' + e.message);
         return '';
     }
+}
+
+// Una sola instància: obrir «Gregal Vents» amb l'app ja oberta no ha
+// d'engegar un segon backend; porta la finestra que hi ha al producte demanat.
+if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleInstanceLock()) {
+    app.quit();
+} else {
+    app.on("second-instance", (_event, argv) => {
+        const win = mainWin;
+        if (!win || win.isDestroyed()) return;
+        if (win.isMinimized()) win.restore();
+        win.show();
+        win.focus();
+        if (wantsVents(argv)) win.loadURL(BASE + "/vents/");
+    });
 }
 
 app.whenReady().then(() => {

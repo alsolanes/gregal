@@ -1,7 +1,7 @@
 {
   "name": "gregal-desktop",
   "productName": "Gregal",
-  "version": "1.42.0",
+  "version": "1.43.0",
   "description": "Gregal desktop application with an integrated local backend.",
   "license": "MIT",
   "main": "main.js",
@@ -79,7 +79,8 @@
       "artifactName": "Gregal-Setup-${version}-${arch}.${ext}",
       "oneClick": false,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "include": "build/installer.nsh"
     },
     "portable": {
       "artifactName": "Gregal-Portable-${version}-${arch}.${ext}"

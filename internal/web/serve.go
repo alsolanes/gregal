@@ -442,16 +442,26 @@ func (h *Hub) mux() *http.ServeMux {
 	versioAssets := fmt.Sprintf("%x", md5.Sum(indexHTML))[:8]
 	html := reAsset.ReplaceAllString(string(indexHTML), "$1?fgv="+versioAssets+"")
 	html = reImportAbs.ReplaceAllString(html, "$1$2?fgv="+versioAssets+"")
+	// Gregal Vents (/vents/) és la mateixa web amb un altre producte: només
+	// els vents i el que en penja (Racó, jocs, Arena, automatitzacions). El
+	// codi queda a /, net com un agent de codi. Mateix backend i mateix login.
+	htmlVents := strings.Replace(html, `<html lang="ca">`, `<html lang="ca" data-product="vents">`, 1)
+	htmlVents = strings.Replace(htmlVents, `<title data-i18n="ui.title">Gregal - Coding Agent</title>`, `<title data-i18n="ui.titleVents">Gregal Vents</title>`, 1)
+	htmlVents = strings.Replace(htmlVents, `<meta name="viewport" content="width=device-width, initial-scale=1">`, `<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="manifest" href="/app/vents.webmanifest">`, 1)
 	handle("/", func(w http.ResponseWriter, r *http.Request) {
+		page, tag := html, versioAssets
+		if r.URL.Path == "/vents" || strings.HasPrefix(r.URL.Path, "/vents/") {
+			page, tag = htmlVents, versioAssets+"-vents"
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		etag := `"` + versioAssets + `"`
+		etag := `"` + tag + `"`
 		w.Header().Set("Cache-Control", "no-cache, s-maxage=0, must-revalidate, proxy-revalidate")
 		w.Header().Set("ETag", etag)
 		if r.Header.Get("If-None-Match") == etag {
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
-		w.Write([]byte(html))
+		w.Write([]byte(page))
 	})
 	// Mòduls de la UI (app/*.js). Sense token: són estàtics i no toquen
 	// dades; el que demana Bearer és /api/*.
@@ -1094,7 +1104,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	scope := strings.TrimSpace(r.URL.Query().Get("session"))
 	if scope == "" {
-		scope = s.id
+		// L'id curt (el que coneix el client), no la clau interna: la d'un
+		// compte porta el hash del nom davant (72 caràcters) i no passava
+		// sessIDRe, i keyFor l'hauria prefixat dos cops.
+		scope = s.wireID()
 	}
 	if scope != "" && !sessIDRe.MatchString(scope) {
 		http.Error(w, "sessió invàlida", http.StatusBadRequest)
@@ -1259,7 +1272,10 @@ func eventLimit(r *http.Request) (int, error) {
 func eventScope(s *Server, r *http.Request) (string, error) {
 	scope := strings.TrimSpace(r.URL.Query().Get("session"))
 	if scope == "" {
-		scope = s.id
+		// L'id curt (el que coneix el client), no la clau interna: la d'un
+		// compte porta el hash del nom davant (72 caràcters) i no passava
+		// sessIDRe, i keyFor l'hauria prefixat dos cops.
+		scope = s.wireID()
 	}
 	if scope != "" && !sessIDRe.MatchString(scope) {
 		return "", errors.New("sessió invàlida")
@@ -3856,6 +3872,11 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	out := []row{}
 	missing := map[string]bool{}
 	for _, in := range infos {
+		// Les converses dels vents (company-<vent>, rotllana-<grup>) són de
+		// Gregal Vents i es llegeixen per la seva API: no surten al Codi.
+		if strings.HasPrefix(in.Name, "company-") || strings.HasPrefix(in.Name, "rotllana-") {
+			continue
+		}
 		if ws := strings.TrimSpace(in.Workspace); ws != "" {
 			if _, seen := missing[ws]; !seen {
 				resolved, err := resolveWorkspace(ws)

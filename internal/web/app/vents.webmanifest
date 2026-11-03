@@ -1,0 +1,10 @@
+{
+  "name": "Gregal Vents",
+  "short_name": "Vents",
+  "start_url": "/vents/",
+  "scope": "/vents/",
+  "display": "standalone",
+  "background_color": "#13151B",
+  "theme_color": "#13151B",
+  "icons": [{ "src": "/app/icon.png", "sizes": "512x512", "type": "image/png" }]
+}
