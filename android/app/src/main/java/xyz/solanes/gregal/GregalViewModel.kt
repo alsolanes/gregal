@@ -697,6 +697,30 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _connectionsMsg = MutableStateFlow("")
     val connectionsMsg: StateFlow<String> = _connectionsMsg
 
+    /** El resum del matí d'avui, si ja ha sortit: va a dalt d'«Avui» a l'inici dels Vents. */
+    data class TodayBrief(val windId: String, val windName: String, val at: String, val text: String)
+    private val _todayBrief = MutableStateFlow<TodayBrief?>(null)
+    val todayBrief: StateFlow<TodayBrief?> = _todayBrief.asStateFlow()
+
+    fun loadTodayBrief() {
+        val c = _conn.value
+        viewModelScope.launch {
+            _todayBrief.value = try {
+                withContext(Dispatchers.IO) {
+                    val rut = c.api().getWindRutines().firstOrNull { it.id.startsWith("briefing-") && it.enabled } ?: return@withContext null
+                    val (started, text) = c.api().getWindRutinaLastOutput(rut.id) ?: return@withContext null
+                    val at = runCatching { java.time.OffsetDateTime.parse(started).atZoneSameInstant(java.time.ZoneId.systemDefault()) }.getOrNull()
+                        ?: return@withContext null
+                    if (at.toLocalDate() != java.time.LocalDate.now()) return@withContext null
+                    TodayBrief(rut.wind, rut.windName, "%02d:%02d".format(at.hour, at.minute), text)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                null
+            }
+        }
+    }
+
     fun loadConnections() {
         val c = _conn.value
         viewModelScope.launch {

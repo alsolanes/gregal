@@ -27,7 +27,7 @@ const net = require("net");
 const fs = require("fs");
 const path = require("path");
 const { startServer, appBackendEnv } = require("./server-manager");
-const { loadState, saveState } = require("./window-state");
+const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
 const { createUpdater } = require('./updater');
@@ -482,7 +482,13 @@ const pathFor = argv => EDITION === "jocs" ? "/jocs/" : wantsVents(argv) ? "/ven
 const startPath = () => pathFor(process.argv);
 
 async function createWindow() {
-    const state = loadState(app.getPath("userData"));
+    const saved = loadState(app.getPath("userData"));
+    // Dins la pantalla on era (o la principal), sencera i sense passar per sota de la barra de tasques.
+    const { screen } = require("electron");
+    const display = Number.isFinite(saved.x) && Number.isFinite(saved.y)
+        ? screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height })
+        : screen.getPrimaryDisplay();
+    const state = fitBounds(saved, display.workArea);
     const inici = temaInicial();
     const win = new BrowserWindow({
         width: state.width,

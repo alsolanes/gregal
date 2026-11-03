@@ -1118,6 +1118,18 @@ class GregalApi(val base: String, val token: String) {
     )
 
     /** Llista les rutines dels vents (daily/interval): el vent hi corre de veres. */
+    /** L'última execució correcta d'una rutina: (inici ISO, text que va dir), o null. */
+    fun getWindRutinaLastOutput(id: String): Pair<String, String>? {
+        val o = JSONObject(read(conn("/api/winds/rutines/runs?id=" + java.net.URLEncoder.encode(id, "UTF-8"), "GET")))
+        val arr = o.optJSONArray("runs") ?: return null
+        for (i in 0 until arr.length()) {
+            val x = arr.getJSONObject(i)
+            val out = x.optString("output").trim()
+            if (x.optString("status") == "ok" && out.isNotEmpty()) return x.optString("started_at") to out
+        }
+        return null
+    }
+
     fun getWindRutines(): List<WindRutina> {
         val o = JSONObject(read(conn("/api/winds/rutines", "GET")))
         val arr = o.optJSONArray("rutines") ?: JSONArray()

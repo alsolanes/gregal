@@ -44,3 +44,22 @@ class VentsAskHomeTest {
         assertEquals("Configura’l", cards.single().title)
     }
 }
+
+/** La veu: el que es llegeix en veu alta i el que es dicta. */
+class VentsVoiceTest {
+    @Test fun speakableTextDropsMarkupCodeTablesAndLinks() {
+        val md = "**Hola** Aleix!\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```js\nx()\n```\nMira [la web](https://x.com) o https://y.com ![foto](gregal-image:1)"
+        val t = speakableText(md)
+        assertEquals("Hola Aleix!\nMira la web o", t)
+    }
+
+    @Test fun dictationAppendsToWhatIsTyped() {
+        assertEquals("Recorda'm demà", appendDictated("", "Recorda'm demà"))
+        assertEquals("Compra pa i llet", appendDictated("Compra pa ", " i llet"))
+    }
+
+    @Test fun speechLocaleFollowsTheAppLanguage() {
+        assertEquals("ca-ES", speechLocale("ca").toLanguageTag())
+        assertEquals("en-US", speechLocale("en").toLanguageTag())
+    }
+}

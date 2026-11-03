@@ -178,6 +178,11 @@ La sortida de diagnòstic conserva el glif `≋`.
   `fons`. És la icona de l'escriptori, la web (favicon i `.brand-mark`), VS
   Code, el complement d'Office i el llançador d'Android (aquí sobre un fons
   `abisme`→`superficieAlta`). Allà on es pugui pintar una imatge, és aquesta.
+- **Icona d'app**: la mateixa marca sobre la rajola fosca del llançador
+  d'Android (radial `#262B3A`→`#0E1015` amb un filet d'`escumaClara`), perquè
+  contrasti a barres clares i fosques. És l'icona de Windows (`.ico` amb marcs
+  de 16 a 256 px, els petits ajustats al píxel), Linux, el favicon, el manifest,
+  l'extensió de Chrome i el complement d'Office. Tot surt de `desktop/icon.py`.
 - **Text: `≋`** on només hi ha text monoespaiat (TUI, Telegram, CLI, la
   sortida de VS Code), i la mascota de text del TUI `‹••›` (la mateixa ratxa
   amb ulls).

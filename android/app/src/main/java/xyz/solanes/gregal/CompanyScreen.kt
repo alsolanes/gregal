@@ -115,6 +115,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // Inici (preguntar primer) o Xats (la llista de converses).
     var tab by rememberSaveable { mutableStateOf("home") }
     val askText = rememberAskText()
+    // Una foto des de l'inici: es puja i la referència va al camp, com als xats.
+    val homePhoto = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) vm.attachImage(uri) { ref -> askText.value = (ref + " " + askText.value).trim() } }
     val programats by vm.programats.collectAsState()
     val connections by vm.connections.collectAsState()
     val userName by vm.usuari.collectAsState()
@@ -143,8 +147,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val news by vm.windNews.collectAsState()
     val newsCount by vm.windNewsCount.collectAsState()
     val conn by vm.conn.collectAsState()
-    // Veus proactives per obrir: es consulten en obrir els Vents i cada minut.
-    LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(60_000) } }
+    // Veus proactives per obrir: es consulten en obrir els Vents i, amb l'app
+    // oberta, cada 20 s (en segon pla, WindWatch cada 15 min). Un missatge nou
+    // d'un vent arriba gairebé al moment, com als grans assistents.
+    LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(20_000) } }
     // La mascota: en obrir els Vents (o canviar de lloc) diu què ha passat mentrestant.
     LaunchedEffect(conn) { vm.loadCap() }
     // Racó, Partits i Arena són plugins: només surten si el servidor els té encesos.
@@ -152,7 +158,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     LaunchedEffect(conn) { vm.loadPlugins() }
     // «Avui» a l'inici: els recordatoris que vénen i el resum del matí.
     val homeCards = tab == "home" && winds.isNotEmpty()
-    LaunchedEffect(conn, homeCards) { if (homeCards) { vm.loadProgramats(); vm.loadConnections() } }
+    LaunchedEffect(conn, homeCards) { if (homeCards) { vm.loadProgramats(); vm.loadConnections(); vm.loadTodayBrief() } }
+    val todayBrief by vm.todayBrief.collectAsState()
     fun pluginOn(id: String) = plugins[id] != false
     // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
     // xat: així puja a dalt de la llista.
@@ -324,7 +331,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 }
             },
             bottomBar = {
-                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy) {
+                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy, onPhoto = { homePhoto.launch("image/*") }) {
                     // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
                     val text = askText.value.trim()
                     if (text.isNotEmpty()) { vm.askCap(text); askText.value = ""; vm.openVentsChat("cap") }
@@ -342,7 +349,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         TodaySection(lang, todayCards(lang, homeRows, news, windTasks.orEmpty().filter { it.running },
                             programats?.reminders.orEmpty(), connections,
                             onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
-                            onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }))
+                            onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }),
+                            brief = todayBrief, briefWind = winds.firstOrNull { it.id == todayBrief?.windId },
+                            onBrief = { todayBrief?.windId?.takeIf { it.isNotBlank() }?.let { vm.openVentsChat("wind:$it") } })
                     }
                 } else if (manage) {
                     item { WindsModelRow(vm, lang) }
@@ -1675,11 +1684,11 @@ internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String =
                     }
                     // Hora de la bombolla: tot missatge durador en porta una;
                     // els antics (ts=0) i els que estan en directe, no.
-                    if (tsMillis > 0L && !m.streaming) {
-                        Text(receipt, fontSize = 10.sp,
-                            color = Tinta.copy(alpha = 0.55f),
-                            modifier = Modifier.padding(top = 2.dp),
-                        )
+                    // L'hora i l'altaveu per escoltar la resposta (com els grans assistents).
+                    if (!m.streaming) Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                        if (tsMillis > 0L) Text(receipt, fontSize = 10.sp, color = Tinta.copy(alpha = 0.55f))
+                        Spacer(Modifier.weight(1f, fill = false).widthIn(min = 8.dp))
+                        ReadAloudButton("msg:" + m.ts + ":" + m.text.hashCode(), m.text, lang, Tinta.copy(alpha = 0.6f))
                     }
                 }
             }

@@ -18,7 +18,9 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.AddPhotoAlternate
 import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -60,7 +62,9 @@ internal fun askCopy(lang: String, key: String): String {
         "sub" -> if (en) "Ask, delegate or plan. Your crew takes care of the rest." else "Pregunta, encarrega o planifica. La colla s’encarrega de la resta."
         "hint" -> if (en) "Ask anything" else "Pregunta el que vulguis"
         "send" -> if (en) "Send" else "Envia"
+        "photo" -> if (en) "Add a photo" else "Afegeix una foto"
         "today" -> if (en) "Today" else "Avui"
+        "briefAt" -> if (en) "Morning briefing · %s" else "Resum del matí · %s"
         "pickUp" -> if (en) "Pick up" else "Repren"
         "news" -> if (en) "New message" else "Missatge nou"
         "work" -> if (en) "Work in progress" else "Feina en marxa"
@@ -218,13 +222,37 @@ internal fun AskSuggestions(lang: String, onPick: (String) -> Unit) {
 }
 
 @Composable
-internal fun TodaySection(lang: String, cards: List<TodayCard>) {
-    if (cards.isEmpty()) return
+internal fun TodaySection(lang: String, cards: List<TodayCard>, brief: GregalViewModel.TodayBrief? = null, briefWind: Wind? = null, onBrief: () -> Unit = {}) {
+    if (cards.isEmpty() && brief == null) return
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 28.dp).testTag("ask-today"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(askCopy(lang, "today").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.9.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
-        cards.forEach { c -> TodayCardView(c) }
+        if (brief != null) TodayBriefView(lang, brief, briefWind, onBrief)
+        cards.filter { brief == null || it.key != "briefing" }.forEach { c -> TodayCardView(c) }
+    }
+}
+
+/** El resum del matí, escrit pel vent, a dalt de tot: com el «què tens avui» dels grans assistents. */
+@Composable
+private fun TodayBriefView(lang: String, b: GregalViewModel.TodayBrief, wind: Wind?, onClick: () -> Unit) {
+    val accent = wind?.let { Color(it.argb) } ?: Sea
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(accent.copy(alpha = .16f), SuperficieAlta.copy(alpha = .5f))))
+            .border(1.dp, accent.copy(alpha = .35f), RoundedCornerShape(22.dp))
+            .clickable(onClick = onClick).padding(16.dp).testTag("ask-brief"),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (wind != null) WindHalo(accent, wind.faceStyle, size = 26, mood = WindMood.HAPPY, online = false, showKit = false)
+            else Text("☀", fontSize = 18.sp)
+            Column {
+                Text(askCopy(lang, "briefAt").format(b.at), color = Muted, fontSize = 11.sp)
+                if (b.windName.isNotBlank()) Text(b.windName, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }
+        }
+        Text(speakableText(b.text), color = Ink, fontSize = 14.5.sp, lineHeight = 20.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -258,31 +286,52 @@ private fun Color.compositeOverSafe(bg: Color): Color = Color(
 
 /** El camp gran de l'inici, fix a baix: una pastilla amb el botó d'enviar rodó. */
 @Composable
-internal fun AskBar(lang: String, text: String, onText: (String) -> Unit, busy: Boolean, onSend: () -> Unit) {
+internal fun AskBar(lang: String, text: String, onText: (String) -> Unit, busy: Boolean,
+    /** Afegir una foto (puja i en posa la referència al camp). */
+    onPhoto: (() -> Unit)? = null,
+    onSend: () -> Unit) {
     val can = text.isNotBlank() && !busy
+    val dictate = rememberDictation(lang) { onText(appendDictated(text, it)) }
     Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Superficie, Superficie)))
         .navigationBarsPadding().imePadding().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp)) {
         Row(
             Modifier.fillMaxWidth().workingRing(busy, corner = 28.dp).clip(RoundedCornerShape(28.dp))
                 .background(SuperficieAlta).border(1.dp, Line, RoundedCornerShape(28.dp))
-                .padding(start = 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("ask-bar"),
+                .padding(start = if (onPhoto != null) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("ask-bar"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (onPhoto != null) Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onPhoto).semantics { contentDescription = askCopy(lang, "photo") },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Muted, modifier = Modifier.size(22.dp)) }
+            if (onPhoto != null) Spacer(Modifier.width(6.dp))
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
-                if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = 16.sp)
                 BasicTextField(
                     text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),
                     cursorBrush = SolidColor(Sea), maxLines = 5,
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
                     modifier = Modifier.fillMaxWidth().testTag("ask-input"),
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = 16.sp)
+                            inner()
+                        }
+                    },
                 )
             }
+            // Camp buit: el micròfon (dictar); amb text: enviar.
+            val mic = !busy && text.isBlank() && dictate != null
             Box(
-                Modifier.size(44.dp).clip(CircleShape).background(if (can) Ink else Ink.copy(alpha = .18f))
-                    .clickable(enabled = can, onClick = onSend).semantics { contentDescription = askCopy(lang, "send") },
+                Modifier.size(44.dp).clip(CircleShape).background(if (can) Ink else Ink.copy(alpha = if (mic) .08f else .18f))
+                    .clickable(enabled = can || mic, onClick = { if (mic) dictate?.invoke() else onSend() })
+                    .semantics { contentDescription = if (mic) voiceCopy(lang, "dictate") else askCopy(lang, "send") },
                 contentAlignment = Alignment.Center,
             ) {
-                if (busy) TypingDots(Superficie) else Icon(Icons.Rounded.ArrowUpward, null, tint = if (can) Superficie else Muted)
+                when {
+                    busy -> TypingDots(Superficie)
+                    mic -> Icon(Icons.Rounded.Mic, null, tint = Ink, modifier = Modifier.size(22.dp))
+                    else -> Icon(Icons.Rounded.ArrowUpward, null, tint = if (can) Superficie else Muted)
+                }
             }
         }
     }

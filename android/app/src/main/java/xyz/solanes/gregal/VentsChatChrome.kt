@@ -1,6 +1,8 @@
 package xyz.solanes.gregal
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -10,6 +12,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Image
@@ -28,6 +32,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -71,7 +78,7 @@ internal fun VentsChatHeader(
             IconButton(onClick = onProfile) { Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.profile"), tint = Ink) }
         }
     }
-    androidx.compose.material3.HorizontalDivider(color = Line.copy(alpha = .55f), thickness = 1.dp)
+    // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.
     }
 }
 
@@ -88,7 +95,7 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
 }
 
 /**
- * Shared text composer (estil Grok). Voice stays out; @mention routing stays
+ * Shared text composer (estil Grok), amb dictat pel micròfon; @mention routing stays
  * in the owning conversation. Quan es passen les accions d'eines ([onAttachDoc],
  * [onMode], [onPerm], [onWorkspace]), apareix el botó «+» amb funcionalitats i
  * una píndola compacta de mode/projecte perquè el vent tingui sempre els permisos
@@ -167,16 +174,25 @@ internal fun VentsComposer(
                 }
             }
         }
+        // Una sola pastilla, com l'inici: «+», el camp i un botó rodó que és
+        // el micròfon (camp buit), enviar (amb text) o aturar (vent treballant).
+        val dictate = rememberDictation(lang) { said ->
+            val t = appendDictated(field.text, said)
+            onChange(TextFieldValue(t, androidx.compose.ui.text.TextRange(t.length)))
+        }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 10.dp)
+                .workingRing(active = busy, corner = 28.dp, color = ringColor)
+                .clip(RoundedCornerShape(28.dp)).background(SuperficieAlta)
+                .border(1.dp, Line, RoundedCornerShape(28.dp))
+                .padding(start = if (hasTools) 4.dp else 18.dp, end = 5.dp, top = 5.dp, bottom = 5.dp),
+            verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             if (hasTools) {
                 Box {
                     IconButton(
                         onClick = { showPlus = true },
-                        modifier = Modifier.padding(bottom = 3.dp).size(42.dp).clip(CircleShape)
-                            .background(SuperficieAlta.copy(alpha = .55f)),
+                        modifier = Modifier.size(40.dp).clip(CircleShape),
                     ) {
                         Icon(Icons.Rounded.Add, tr(lang, "app.mode.more"), tint = Ink, modifier = Modifier.size(20.dp))
                     }
@@ -253,33 +269,36 @@ internal fun VentsComposer(
                     }
                 }
             }
-            OutlinedTextField(
-                value = field, onValueChange = onChange,
-                placeholder = { Text(hint, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                shape = RoundedCornerShape(26.dp), maxLines = 4,
-                modifier = Modifier.weight(1f).workingRing(active = busy, corner = 26.dp, color = ringColor)
-                    .padding(vertical = 1.dp),
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrect = true, keyboardType = KeyboardType.Text),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = LineHi, unfocusedBorderColor = Color.Transparent,
-                    focusedContainerColor = SuperficieAlta.copy(alpha = .45f), unfocusedContainerColor = SuperficieAlta.copy(alpha = .45f),
-                    cursorColor = Ink,
-                ),
-            )
-            // Mentre el vent treballa, el botó d'enviar es converteix en
-            // «atura»: un toc i el torn para de seguida (abans només es podia
-            // esperar el límit dur). Sense onStop, el botó és el de sempre.
-            if (busy && onStop != null) {
-                IconButton(onClick = onStop,
-                    modifier = Modifier.padding(bottom = 3.dp).size(48.dp).clip(CircleShape)
-                        .background(Sand.copy(alpha = 0.9f))) {
+            Box(Modifier.weight(1f).heightIn(min = 40.dp).padding(vertical = 10.dp), contentAlignment = Alignment.CenterStart) {
+                // La pista va dins del camp (decorationBox): així el camp i la pista són un sol node.
+                BasicTextField(
+                    value = field, onValueChange = onChange, maxLines = 5,
+                    textStyle = TextStyle(color = Ink, fontSize = 15.sp, lineHeight = 21.sp),
+                    cursorBrush = SolidColor(Ink),
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, autoCorrect = true, keyboardType = KeyboardType.Text),
+                    modifier = Modifier.fillMaxWidth().testTag("vents-composer-field"),
+                    decorationBox = { inner ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (field.text.isEmpty()) Text(hint, color = Muted, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            inner()
+                        }
+                    },
+                )
+            }
+            // Mentre el vent treballa, el botó es converteix en «atura»: un toc i
+            // el torn para de seguida. Amb el camp buit, el micròfon per dictar.
+            when {
+                busy && onStop != null -> IconButton(onClick = onStop,
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
                     Icon(Icons.Rounded.Stop, tr(lang, "app.vents.stop"), tint = Superficie, modifier = Modifier.size(20.dp))
                 }
-            } else {
-                IconButton(onClick = onSend, enabled = canSend,
-                    modifier = Modifier.padding(bottom = 3.dp).size(48.dp).clip(CircleShape)
-                        .background(if (canSend) Ink else SuperficieAlta)) {
-                    Icon(Icons.AutoMirrored.Rounded.Send, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
+                field.text.isBlank() && dictate != null -> IconButton(onClick = dictate,
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
+                    Icon(Icons.Rounded.Mic, voiceCopy(lang, "dictate"), tint = Ink, modifier = Modifier.size(21.dp))
+                }
+                else -> IconButton(onClick = onSend, enabled = canSend,
+                    modifier = Modifier.size(42.dp).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
+                    Icon(Icons.Rounded.ArrowUpward, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
                 }
             }
         }

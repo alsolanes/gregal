@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" href="/app/icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/app/favicon-32.png">
+<link rel="apple-touch-icon" href="/app/app-icon.png">
 <link rel="stylesheet" href="/app/team.css">
 <link rel="stylesheet" href="/app/brands.css">
 <title data-i18n="ui.title">Gregal - Coding Agent</title>
@@ -657,6 +658,38 @@ body.product-bare #conversationNav, body.product-bare .side-quick, body.product-
   font:12px var(--mono); margin-top:2px; }
 .msg.sys { width:auto; max-width:820px; color:var(--faint); font:11px var(--mono);
   text-align:center; }
+/* Navegador de prompts (app/prompt-nav.js): una ratlla per missatge teu.
+   Respost = ratlla plena; en curs = punts que avancen; ha fallat = guions
+   vermells; aturat = ratlla curta amb un tall; sense resposta = buida. La de la part que es mira és més llarga. */
+.pnav { position:absolute; z-index:6; width:20px; overflow-y:auto; scrollbar-width:none; padding:4px 0; }
+.pnav::-webkit-scrollbar { display:none; }
+.pnav-list { display:flex; flex-direction:column; align-items:stretch; }
+.pnav-item { display:flex; align-items:center; justify-content:flex-end; width:20px; height:var(--pnav-pitch,14px);
+  min-height:5px; padding:0 2px 0 0; margin:0; border:0; border-radius:3px; background:none; cursor:pointer; }
+.pnav-item:focus-visible { outline:2px solid var(--accent); outline-offset:-1px; }
+.pnav-line { display:block; width:9px; height:2px; border-radius:1px; background:var(--faint); opacity:.5;
+  transition:width .14s ease, opacity .14s ease; }
+.pnav-item:hover .pnav-line, .pnav-item:focus-visible .pnav-line { width:15px; opacity:1; }
+.pnav-item.on .pnav-line { width:16px; opacity:1; background:var(--ink); }
+.pnav-item[data-state="running"] .pnav-line { width:12px; opacity:1; background:repeating-linear-gradient(90deg,var(--accent-hi) 0 2px,transparent 2px 4px);
+  background-size:8px 2px; animation:pnavMarxa 0.9s linear infinite; }
+.pnav-item[data-state="failed"] .pnav-line { opacity:.9; background:repeating-linear-gradient(90deg,var(--red) 0 4px,transparent 4px 6px); }
+.pnav-item[data-state="stopped"] .pnav-line { opacity:.9; background:linear-gradient(90deg,var(--amber) 0 60%,transparent 60% 75%,var(--amber) 75%); }
+.pnav-item[data-state="empty"] .pnav-line { height:3px; background:transparent; box-shadow:inset 0 0 0 1px var(--faint); }
+.pnav-item.on:not([data-state="done"]):not([data-state="empty"]) .pnav-line { width:16px; }
+@keyframes pnavMarxa { from { background-position:0 0; } to { background-position:-8px 0; } }
+.pnav-tip { position:absolute; z-index:40; max-width:300px; padding:7px 10px; pointer-events:none;
+  background:var(--surface-hi); border:1px solid var(--line-hi); border-radius:8px; box-shadow:0 8px 24px var(--ombra);
+  color:var(--text); font-size:12.5px; line-height:1.45; }
+.pnav-tip-state { margin-bottom:2px; color:var(--faint); font:10.5px var(--mono); }
+.pnav-tip-state[data-state="running"] { color:var(--accent-hi); }
+.pnav-tip-state[data-state="failed"] { color:var(--red); }
+.pnav-tip-state[data-state="stopped"] { color:var(--amber); }
+.pnav-tip-text { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
+.msg.u.pnav-flash .msg-inner, .vw-user.pnav-flash { animation:pnavFlash 1.2s ease; }
+@keyframes pnavFlash { 0%,40% { box-shadow:0 0 0 2px var(--accent-soft-hi); } 100% { box-shadow:0 0 0 2px transparent; } }
+.vw-messages.pnav-on { padding-right:26px; }
+@media (max-width:760px) { .pnav, .pnav-tip { display:none !important; } .vw-messages.pnav-on { padding-right:3px; } }
 .body { min-width:0; color:var(--text); overflow-wrap:anywhere; }
 .body b { color:var(--ink); font-weight:590; }
 /* Markdown del model (app/md.js): ritme vertical curt, títols discrets. */
@@ -1995,6 +2028,7 @@ body.sense-inspector #inspector { display:none; }
 <script src="/app/md.js"></script>
 <script src="/app/shell-icons.js"></script>
 <script src="/app/tool-summary.js"></script>
+<script src="/app/prompt-nav.js"></script>
 <script src="/app/connectors.js"></script>
 <script src="/app/knowledge.js"></script>
 
@@ -2900,7 +2934,7 @@ function stopTurn() {
   // que vols és que tot seguit s'engegui el següent missatge de la cua.
   const encuats = cua.length;
   cua.length = 0;
-  sys(gregalT('ui.aturat') + (encuats ? gregalT(encuats > 1 ? 'ui.cua.tretMolts' : 'ui.cua.tretUn').replace('{n}', encuats) : ''));
+  sys(gregalT('ui.aturat') + (encuats ? gregalT(encuats > 1 ? 'ui.cua.tretMolts' : 'ui.cua.tretUn').replace('{n}', encuats) : '')).classList.add('stopped');
   activityItem('agent', gregalT('act.aturat'), gregalT('act.aturat.sub'), 'warn');
   setSending(false);
 }
@@ -3445,7 +3479,8 @@ function notify(title, body) {
 async function doChat() {
   if (sending) return; const text=input.value.trim(); if (!text) return;
   setSending(true); input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text));
-  const box=add('a','', '<span class="spin">' + escapeHTML(gregalT('ui.analyzing')) + '</span>'); let acc='', paintTimer=null, lastPaintAt=0;
+  // .answering / .failed: l'estat del torn per al navegador de prompts.
+  const box=add('a answering','', '<span class="spin">' + escapeHTML(gregalT('ui.analyzing')) + '</span>'); let acc='', paintTimer=null, lastPaintAt=0;
   activityItem('xat',gregalT('act.consulta'),text.slice(0,70),'warn');
   const paint=()=>{ if(paintTimer)return; paintTimer=setTimeout(()=>{paintTimer=null;box.querySelector('.body').innerHTML=md(acc);lastPaintAt=Date.now();if(nearBottom())main.scrollTop=main.scrollHeight;},Math.max(0,120-(Date.now()-lastPaintAt))); };
   try {
@@ -3454,10 +3489,10 @@ async function doChat() {
       else if(ev==='done'){if(paintTimer){clearTimeout(paintTimer);paintTimer=null;}acc=d.reply;box.querySelector('.body').innerHTML=md(d.reply);mdBo(d.reply,box);activityItem('xat',gregalT('act.resposta'),'', 'ok');}
       else if(ev==='verify_start')activityItem('revisor',gregalT('act.revisant.resp'),'', 'warn');
       else if(ev==='verify')verdict(d);
-      else if(ev==='error'){box.querySelector('.body').innerHTML='<span style="color:var(--red)">Error: '+escapeHTML(d.message)+'</span>';activityItem('error',gregalT('ui.chatFailed'),d.message,'bad');}
+      else if(ev==='error'){box.classList.add('failed');box.querySelector('.body').innerHTML='<span style="color:var(--red)">Error: '+escapeHTML(d.message)+'</span>';activityItem('error',gregalT('ui.chatFailed'),d.message,'bad');}
     });
-  } catch(e) { const msg=(e&&e.message)?e.message:String(e); box.querySelector('.body').textContent='Error: '+msg; activityItem('error',gregalT('act.connexio'),msg,'bad'); notify('Gregal · error', msg); }
-  finally { setSending(false); refresh(); input.focus(); }
+  } catch(e) { const msg=(e&&e.message)?e.message:String(e); box.classList.add('failed'); box.querySelector('.body').textContent='Error: '+msg; activityItem('error',gregalT('act.connexio'),msg,'bad'); notify('Gregal · error', msg); }
+  finally { box.classList.remove('answering'); setSending(false); refresh(); input.focus(); }
 }
 async function doParallel() {
   if (sending) return;
@@ -3778,7 +3813,7 @@ async function doAgent(task, resumed) {
    if(window.gregalPanels){window.gregalPanels.changes.load();window.gregalPanels.sessions.render(); if(window.gregalPanels.office) window.gregalPanels.office.refresh();}
    notify('Gregal', goalMode ? gregalT('goal.proposed') : gregalT('act.tasca.fet') + ' (' + stepLine() + ')');
  }
-      else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message);activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||gregalT('act.interromput'));}
+      else if(ev==='error'){turnPhase='idle';turnNote='';pintaTurnBar();updateInspector(state);if(legacySummaryActive){legacySummary?.render?.({status:'interrupted'});legacySummaryDone=true;}sys(gregalT('ui.agent.error') + d.message).classList.add('err');activityItem('error',gregalT('act.interromput'),d.message,'bad');notify('Gregal · error',d.message||gregalT('act.interromput'));}
     };
     onRunEvent.flushPending = () => {
       const events = deferredEvents.splice(0);
@@ -3819,7 +3854,7 @@ async function doAgent(task, resumed) {
       return;
     }
     const msg = (e && e.message) ? e.message : String(e);
-    sys(gregalT('ui.agent.error') + msg);
+    sys(gregalT('ui.agent.error') + msg).classList.add('err');
     if (legacySummaryActive) { legacySummary?.render?.({status:'interrupted'}); legacySummaryDone = true; }
     activityItem('error',gregalT('act.connexio'),msg,'bad');
     notify(gregalT('notify.connectionFailed'), msg);

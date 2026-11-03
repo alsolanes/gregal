@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Ventet, mascota de Gregal">
-<path fill="#8193FF" d="M810 100C950 360 900 640 640 795C470 900 240 915 70 880C300 870 490 795 565 705C460 765 340 800 225 810C490 665 535 575 225 510C510 425 770 340 810 100Z"/>
-<ellipse cx="675" cy="530" rx="29" ry="53" transform="rotate(18 675 530)" fill="#13151B"/>
-<ellipse cx="792" cy="518" rx="27" ry="51" transform="rotate(18 792 518)" fill="#13151B"/>
+<defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="800" y1="118" x2="95" y2="865"><stop offset="0" stop-color="#A3B0FF"/><stop offset=".55" stop-color="#8193FF"/><stop offset="1" stop-color="#6F7FF0"/></linearGradient></defs>
+<path fill="url(#g)" stroke="url(#g)" stroke-width="60" stroke-linejoin="round" d="M800 118C955 370 925 655 655 812C490 910 265 925 95 865C270 798 410 748 500 682C450 612 370 556 232 520C520 430 765 345 800 118Z"/>
+<ellipse cx="668" cy="548" rx="38" ry="64" transform="rotate(18 668 548)" fill="#13151B"/>
+<ellipse cx="800" cy="530" rx="36" ry="61" transform="rotate(18 800 530)" fill="#13151B"/>
 </svg>

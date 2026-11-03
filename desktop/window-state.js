@@ -28,6 +28,21 @@ function loadState(userDataDir) {
     }
 }
 
+// fitBounds: la finestra sencera dins l'àrea útil de la pantalla (sense la
+// barra de tasques). Una posició desada a -31 o una alçada més gran que la
+// pantalla deixaven un tros de finestra fora. Sense posició, centrada.
+function fitBounds(state, workArea) {
+    const wa = workArea;
+    const width = Math.min(state.width, wa.width);
+    const height = Math.min(state.height, wa.height);
+    const has = Number.isFinite(state.x) && Number.isFinite(state.y);
+    let x = has ? state.x : wa.x + Math.round((wa.width - width) / 2);
+    let y = has ? state.y : wa.y + Math.round((wa.height - height) / 2);
+    x = Math.min(Math.max(x, wa.x), wa.x + wa.width - width);
+    y = Math.min(Math.max(y, wa.y), wa.y + wa.height - height);
+    return { x, y, width, height };
+}
+
 function saveState(userDataDir, bounds) {
     try {
         fs.mkdirSync(userDataDir, { recursive: true });
@@ -38,4 +53,4 @@ function saveState(userDataDir, bounds) {
     }
 }
 
-module.exports = { loadState, saveState, statePath, DEFAULTS };
+module.exports = { loadState, saveState, statePath, fitBounds, DEFAULTS };

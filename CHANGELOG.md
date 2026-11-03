@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## v1.48.0 - 2026-11-03 - Veu als Vents, navegador de prompts i icona nova
+
+- **Gregal Vents 1.58.0 (Android): veu i xats nous.** Tots els xats tenen el camp
+  nou, una sola pastilla com l'inici amb «+», el text i un botó rodó que és el
+  micròfon (per dictar), enviar o aturar. Cada resposta té un altaveu per
+  escoltar-la. A dalt d'«Avui» surt el resum del matí que t'ha escrit el vent (si
+  ja ha sortit), i des de l'inici pots afegir una foto. Amb l'app oberta, els
+  missatges nous dels vents arriben en 20 s (abans, en un minut).
+- **Navegador de prompts.** Al xat del Codi i dels Vents, una línia curta per cada
+  missatge teu al costat de la conversa: passant-hi el ratolí es veu què havies
+  preguntat, un clic hi porta, i es marquen els respostos, el que està en marxa i
+  els que han fallat.
+- **Icona nova, més gruixuda.** El Ventet sobre una rajola fosca arrodonida, més
+  llegible a la barra de tasques de Windows i a totes les mides (escriptori, web,
+  extensió de Chrome i complement d'Office).
+- **Corregit: la finestra de l'escriptori sortia descentrada,** amb un tros fora de
+  la pantalla o sota la barra de tasques. Ara sempre s'obre sencera dins la pantalla
+  on era (i centrada la primera vegada).
+
 ## v1.47.1 - 2026-11-03 - El resum de la setmana, en una línia
 
 - **El resum de la setmana, en una línia.** A l'inici del Codi, «La teva setmana

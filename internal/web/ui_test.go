@@ -11,6 +11,8 @@ func TestIconaDeMarcaEsServeix(t *testing.T) {
 	for _, tc := range []struct{ path, mime string }{
 		{"/app/icon.png", "image/png"},
 		{"/app/ventet.svg", "image/svg+xml"},
+		{"/app/app-icon.png", "image/png"},
+		{"/app/favicon-32.png", "image/png"},
 	} {
 		w := httptest.NewRecorder()
 		s.Hub().mux().ServeHTTP(w, httptest.NewRequest("GET", tc.path, nil))
