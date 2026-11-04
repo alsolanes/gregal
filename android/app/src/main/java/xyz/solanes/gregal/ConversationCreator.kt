@@ -77,6 +77,7 @@ internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean,
             OutlinedTextField(name, { name = it }, singleLine = true,
                 label = { Text(tr(lang, "app.vents.chatName")) }, modifier = Modifier.fillMaxWidth())
             if (error) Text(tr(lang, "app.vents.saveError"), color = MaterialTheme.colorScheme.error)
+            if (group) GroupHelpCard(lang)
             Text(tr(lang, if (group) "app.vents.pickGroup" else "app.vents.pickChat"), color = Muted)
             if (winds.isEmpty()) Text(tr(lang, "app.vents.needWind"), color = Ink)
             winds.forEach { wind ->
@@ -86,6 +87,25 @@ internal fun ConversationPicker(lang: String, winds: List<Wind>, group: Boolean,
                         if (checked) members + wind.id else members - wind.id
                     } else if (checked) setOf(wind.id) else emptySet() })
             }
+        }
+    }
+}
+
+/** Targeta d'ajuda col·lapsable: com funciona el grup que estàs creant. */
+@Composable
+internal fun GroupHelpCard(lang: String) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    GCard(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().clickable { open = !open },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(lang, "app.vents.groupHelpTitle"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Text("▾", color = Muted, fontSize = 12.sp)
+        }
+        if (open) Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(tr(lang, "app.vents.groupHelpTalk"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.groupHelpBuild"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, "app.vents.groupHelpOne"), color = Muted, fontSize = 13.sp)
         }
     }
 }
