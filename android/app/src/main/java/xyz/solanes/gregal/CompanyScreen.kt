@@ -1663,9 +1663,13 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                                 .heightIn(min = 32.dp).clickable(onClick = onSpeakerClick) else Modifier))
                     }
                     // En directe el markdown parcial es trencaria: text pla net
-                    // (sense marques crues) fins al done.
+                    // (sense marques crues) fins al done. El cursor que
+                    // pampallugueja diu «ho està escrivint ara».
                     if (m.streaming) {
-                        Text(plain, fontSize = 15.sp, lineHeight = 22.sp, color = Tinta)
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(plain, fontSize = 15.sp, lineHeight = 22.sp, color = Tinta)
+                            TypingCursor(accent)
+                        }
                     } else { for (b in blocks) {
                         when (b) {
                             is Rich.Inline -> {

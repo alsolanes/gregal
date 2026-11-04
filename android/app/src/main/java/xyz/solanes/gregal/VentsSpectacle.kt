@@ -85,3 +85,22 @@ fun TypingDots(accent: Color = Sea) {
         }
     }
 }
+
+/**
+ * Cursor que pampallugueja al final del text en directe: l'efecte «està
+ * escrivint» dels xats de tota la vida. Estàtic (visible) sense animacions.
+ */
+@Composable
+fun TypingCursor(accent: Color = Sea) {
+    if (!windMotionEnabled()) {
+        Text("▍", color = accent, fontSize = 15.sp)
+        return
+    }
+    val t = rememberInfiniteTransition(label = "cursor")
+    val a by t.animateFloat(
+        initialValue = 0.15f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(650, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "blink"
+    )
+    Text("▍", color = accent.copy(alpha = 0.15f + 0.85f * a), fontSize = 15.sp)
+}

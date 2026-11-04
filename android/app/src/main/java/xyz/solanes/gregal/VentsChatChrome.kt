@@ -89,7 +89,13 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
         while (true) { value = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
     }.value
     Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 10.dp)) {
-        Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Vida visible durant tot el torn: els punts respiren mentre el
+            // vent treballa (l'estat de text sol no diu «hi ha alguna cosa
+            // passant»). Estàtics quan les animacions estan desactivades.
+            TypingDots(accent = Ink)
+            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        }
         Text(windProgressTiming(lang, live, now), color = Muted, fontSize = 11.sp)
     }
 }
