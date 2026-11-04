@@ -273,7 +273,7 @@
     const head = group(figure, '', kit ? { transform:'translate(4 3) scale(.9)' } : {});
     if (s[2] === 'n') shapes(head, [['path', { d:'M18 62C1 62 1 37 17 34C14 13 43 8 50 24C69 16 83 39 68 49C76 66 49 74 40 63Z', fill }]]);
     else shapes(head, [['circle', { cx:40, cy:40, r:33, fill }]]);
-    if (s[2] === 's') shapes(head, [['path', { d:'M41 14C67 14 72 56 50 64C28 74 12 51 19 33C25 19 47 19 53 31', fill:'none', stroke:'#FFFFFF', 'stroke-opacity':'.35', 'stroke-width':3 }]]);
+    if (s[2] === 's') shapes(head, [['path', { d:'M20 24C23 13 34 11 42 16C49 21 56 19 60 13', fill:'none', stroke:shade(fill, .28), 'stroke-opacity':'.5', 'stroke-width':2.8, 'stroke-linecap':'round' }]]);
     shapes(head, [
       ['ellipse', { cx:28, cy:21, rx:9, ry:5, fill:'#FFFFFF', opacity:'.3' }],
       ['ellipse', { cx:22, cy:45, rx:5, ry:3, fill:'#DC6784', opacity:'.16' }],
