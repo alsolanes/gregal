@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -146,7 +147,7 @@ func TestExecuteRemindPostsAndDisables(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := s.executeWindRemind(j)
+	run, err := s.executeWindRemind(context.Background(), j)
 	if err != nil {
 		t.Fatal(err)
 	}

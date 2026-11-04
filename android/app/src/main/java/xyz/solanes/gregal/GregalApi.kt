@@ -984,6 +984,39 @@ class GregalApi(val base: String, val token: String) {
         data class DoneWind(val reply: WindReply) : WindStreamEvent
         data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false) : WindStreamEvent
         data class Error(val message: String) : WindStreamEvent
+        /** Un vent espera una resposta (aprovació o pregunta). */
+        data class Ask(val ask: WindAsk) : WindStreamEvent
+        /** La petició ja no espera (contestada, caducada o torn aturat). */
+        data class AskResolved(val key: String) : WindStreamEvent
+    }
+
+    /** Una aprovació («approve») o una pregunta amb opcions («question») d'un vent. */
+    data class WindAsk(
+        val key: String, val type: String, val query: String = "",
+        val options: List<Pair<String, String>> = emptyList(),
+        val name: String = "", val kind: String = "", val what: String = "", val reason: String = "",
+    )
+
+    private fun parseWindAsk(o: JSONObject): WindAsk {
+        val opts = o.optJSONArray("options")
+        return WindAsk(
+            key = o.optString("key"), type = o.optString("type").ifBlank { "approve" }, query = o.optString("query"),
+            options = (0 until (opts?.length() ?: 0)).mapNotNull { i ->
+                opts?.optJSONObject(i)?.let { it.optString("label") to it.optString("description") }?.takeIf { it.first.isNotBlank() }
+            },
+            name = o.optString("name"), kind = o.optString("kind"), what = o.optString("what"), reason = o.optString("reason"),
+        )
+    }
+
+    /** GET /api/winds/pending: el que els vents esperen (si l'app s'havia tancat). */
+    fun getWindAsks(): List<WindAsk> {
+        val arr = get("/api/winds/pending").optJSONArray("pending") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let(::parseWindAsk)?.takeIf { it.key.isNotBlank() } }
+    }
+
+    /** POST /api/winds/answer: respon una aprovació (approve) o una pregunta (answer). */
+    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "") {
+        post("/api/winds/answer", JSONObject().put("key", key).put("approve", approve).put("answer", answer))
     }
 
     /**
@@ -1049,6 +1082,8 @@ class GregalApi(val base: String, val token: String) {
                 WindStreamEvent.DoneWind(windReplyOf(o))
             }
             "error" -> WindStreamEvent.Error(o.optString("error", "error"))
+            "approve_request", "question_request" -> parseWindAsk(o).takeIf { it.key.isNotBlank() }?.let { WindStreamEvent.Ask(it) }
+            "ask_resolved" -> WindStreamEvent.AskResolved(o.optString("key"))
             else -> null
         }
     }

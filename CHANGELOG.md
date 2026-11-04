@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## v1.53.0 - 2026-11-04 - Preguntes, aprovacions i recordatoris que fan feina
+
+- **Els recordatoris poden fer feina, no només avisar.** «Quan acabi el partit
+  avisa'm del resultat» abans només desava un text fix i a l'hora el vent el
+  repetia, sense cercar res. Ara l'eina `remind` accepta una `task`: a l'hora
+  el vent fa un torn complet (cerca web, eines), diu el resultat al xat i et
+  notifica. Si encara no es pot saber (el partit no ha acabat) respon
+  `NOT_YET` i ho torna a provar cada `retry_minutes` (fins a 8 cops); l'última
+  passada sempre contesta. «Programats» mostra la feina pendent.
+- **Els vents pregunten de debò, i les aprovacions bloquegen.** Abans un vent no
+  tenia cap lloc on esperar una resposta: una acció que demanava permís es
+  bloquejava en silenci («falta permís») i les seves preguntes no arribaven a
+  ningú. Ara el torn s'atura i et surt una targeta amb botons, al mòbil i a la web:
+  - **Aprovacions (bloqueig dur):** instal·lar programari (SDK, JDK, paquets
+    globals, `sdkmanager`, `apt`…), baixar paquets o binaris, esborrar fora del
+    projecte i tocar serveis del sistema no s'executen fins que toques «Permet».
+    La targeta diu què vol fer i l'ordre exacta. Si rebutges (o no contestes), el
+    vent ho sap i no ho torna a provar. Netejar el seu propi build, instal·lar
+    dependències del projecte o compilar no pregunta mai.
+  - **Preguntes amb opcions:** el vent pot fer servir l'eina `question` (1-4
+    opcions més text lliure) i el torn espera la teva tria.
+  - **Respostes ràpides:** un missatge del vent pot acabar amb botons («Publica-la»,
+    «Canvia el títol»…) que s'envien com a resposta.
+  - Si tanques l'app mentre espera, la petició et troba en tornar (`/api/winds/pending`).
+  - **Límit:** les tasques i colles en segon pla (mode autònom, que per decisió teva
+    no pregunta) continuen fora d'aquesta porta.
+
 ## v1.52.0 - 2026-11-04 - Webs i apps al mòbil, i APKs
 
 - **Els vents pregunten abans d'instal·lar.** Els vents no tenen cap finestra d'aprovació,

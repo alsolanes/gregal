@@ -79,7 +79,7 @@ func (s *Server) handleWindsProgramats(w http.ResponseWriter, r *http.Request) {
 				}
 				reminders = append(reminders, ReminderInfo{
 					ID: j.ID, Wind: id, WindName: nameOf(id),
-					At: *j.NextAt, Text: strings.TrimSpace(j.Prompt),
+					At: *j.NextAt, Text: firstNonEmpty(strings.TrimSpace(j.Task), strings.TrimSpace(j.Prompt)),
 				})
 			case j.Kind == "event" && strings.HasPrefix(j.ID, windJobPrefix):
 				id, ok := windJobID(j.ID)

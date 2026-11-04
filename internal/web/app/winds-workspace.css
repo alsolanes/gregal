@@ -297,3 +297,21 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-more > .vw-nav-item:not(summary) { padding-left:18px; }
 @media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } .vw-crew-strip { flex-wrap:nowrap; overflow-x:auto; justify-content:flex-start; scrollbar-width:none; } }
 @media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }
+
+/* ---- Preguntes, aprovacions i respostes ràpides dels vents ---- */
+.vw-asks { display:flex; flex-direction:column; gap:10px; margin:0 0 10px; }
+.vw-asks:empty { display:none; }
+.vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--vw-accent) 55%,var(--line)); border-radius:18px; background:color-mix(in srgb,var(--surface) 88%,var(--vw-accent)); }
+.vw-ask > strong { color:var(--ink); font-size:14.5px; font-weight:600; }
+.vw-ask-wait { color:var(--muted); font-size:11.5px; margin-top:-6px; }
+.vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:12.5px; padding:9px 11px; border-radius:11px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
+.vw-ask-actions { display:flex; gap:9px; }
+.vw-ask-actions button { flex:1; min-height:42px; border-radius:13px; font-weight:600; border:1px solid var(--line-hi); background:transparent; color:var(--ink); }
+.vw-ask-actions .vw-ask-allow { background:var(--vw-accent); border-color:transparent; color:var(--vw-ink); }
+.vw-ask-option { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:10px 14px; border-radius:13px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-weight:500; }
+.vw-ask-option:hover, .vw-ask-actions button:hover { border-color:var(--vw-accent); }
+.vw-ask-option small { color:var(--muted); font-weight:400; font-size:12px; }
+.vw-ask-free { padding:9px 12px; border-radius:13px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
+.vw-choices { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 46px; }
+.vw-choice { padding:8px 14px; border-radius:999px; border:1px solid color-mix(in srgb,var(--vw-accent) 60%,var(--line)); background:color-mix(in srgb,var(--vw-accent) 14%,transparent); color:var(--ink); font-size:13px; font-weight:500; }
+.vw-choice:hover { background:color-mix(in srgb,var(--vw-accent) 28%,transparent); }

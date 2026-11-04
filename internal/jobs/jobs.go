@@ -31,6 +31,14 @@ type Job struct {
 	// (p. ex. just després del partit que vigila). El l'actualitza quan
 	// corre; qui l'encén, l'app o un run manual, el dispara d'immediat.
 	NextAt *time.Time `json:"next_at,omitempty"`
+	// Task, en un recordatori, és una feina de debò: a l'hora el vent fa un
+	// torn complet (cerca, eines) i diu el resultat. Sense Task, només diu el
+	// text. Si encara no es pot fer (el partit no ha acabat), el vent respon
+	// NOT_YET i es reintenta cada RetryMin minuts fins a MaxTries.
+	Task     string `json:"task,omitempty"`
+	RetryMin int    `json:"retry_min,omitempty"`
+	MaxTries int    `json:"max_tries,omitempty"`
+	Tries    int    `json:"tries,omitempty"`
 }
 
 // Run és una execució (la sortida és markdown llest per renderitzar ric).

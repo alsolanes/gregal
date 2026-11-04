@@ -116,6 +116,10 @@ type Server struct {
 	tokenAt     time.Time
 	approvals   map[string]approvalReq
 	apSeq       int
+	// windAsks: aprovacions i preguntes dels vents que esperen resposta
+	// (winds_ask.go); apart de les del xat principal.
+	windAsks   map[string]*windAskReq
+	windAskSeq int
 	// questions pendents de resposta triable (eina question): clau → canal
 	// amb l'opció triada (label) o text lliure amb prefix "text:".
 	questions map[string]questionReq

@@ -170,6 +170,13 @@ l'instal·lis; per actualitzar una app que ja tens, manté el mateix
 `applicationId` i la mateixa clau de signatura. Si falta l'SDK, el vent t'ho diu i
 t'ofereix instal·lar-lo sense `sudo`.
 
+**Preguntes i aprovacions.** Els vents poden aturar-se i preguntar-te: al xat surt
+una targeta amb botons (mòbil i web). Instal·lar programari, baixar paquets o
+binaris, esborrar fora del projecte i tocar serveis del sistema **no s'executen
+fins que toques «Permet»**; si rebutges, el vent no ho torna a provar. També poden
+fer preguntes amb opcions i acabar un missatge amb botons de resposta ràpida. Les
+tasques i colles en segon pla (mode autònom) no passen per aquesta porta.
+
 **El teu perfil et segueix.** Les preferències de la interfície (tema, idioma,
 densitat, mida de la lletra…) es desen al teu compte del servidor: entrant des
 d'un altre dispositiu amb el mateix usuari, les recuperes. Cada compte té el seu

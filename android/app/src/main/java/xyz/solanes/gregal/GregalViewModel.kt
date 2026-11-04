@@ -701,6 +701,40 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _connectionsMsg = MutableStateFlow("")
     val connectionsMsg: StateFlow<String> = _connectionsMsg
 
+    /**
+     * Aprovacions i preguntes que els vents esperen (flux de la conversa +
+     * /api/winds/pending). El torn del vent està aturat fins que respons.
+     */
+    private val _windAsks = MutableStateFlow<List<GregalApi.WindAsk>>(emptyList())
+    val windAsks: StateFlow<List<GregalApi.WindAsk>> = _windAsks.asStateFlow()
+
+    internal fun handleWindAskEvent(e: GregalApi.WindStreamEvent) {
+        when (e) {
+            is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
+            is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
+            else -> {}
+        }
+    }
+
+    /** Tornar a trobar el que espera (en obrir un xat, o mentre un vent treballa). */
+    fun loadWindAsks() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try { _windAsks.value = withContext(Dispatchers.IO) { c.api().getWindAsks() } }
+            catch (e: Exception) { if (e is CancellationException) throw e }
+        }
+    }
+
+    /** Respon: aprovar o rebutjar, o triar una opció (o escriure-la). Desbloqueja el torn. */
+    fun answerWindAsk(key: String, approve: Boolean = false, answer: String = "") {
+        val c = _conn.value
+        _windAsks.value = _windAsks.value.filter { it.key != key }
+        viewModelScope.launch {
+            try { withContext(Dispatchers.IO) { c.api().answerWindAsk(key, approve, answer) } }
+            catch (e: Exception) { if (e is CancellationException) throw e; notify(e.message.orEmpty()) }
+        }
+    }
+
     /** «Webs i apps»: el que els vents han publicat, el que corre al servidor i els túnels. */
     private val _webs = MutableStateFlow(WebsState())
     internal val webs: StateFlow<WebsState> = _webs.asStateFlow()
@@ -3181,7 +3215,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(rotllanaId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(rotllanaId, buf, rotllana = true)
                                 }
-                                else -> {}
+                                else -> handleWindAskEvent(e)
                             }
                         }
                     }
@@ -4381,7 +4415,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(windId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(windId, buf)
                                 }
-                                else -> {}
+                                else -> handleWindAskEvent(e)
                             }
                         }
                     }
@@ -4466,7 +4500,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(windId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(windId, buf)
                                 }
-                                else -> {}
+                                else -> handleWindAskEvent(e)
                             }
                         }
                     }
@@ -4557,7 +4591,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(rotllanaId) { it.copy(writing = true, receivedText = true) }
                                     setStreamingBubble(rotllanaId, buf, rotllana = true)
                                 }
-                                else -> {}
+                                else -> handleWindAskEvent(e)
                             }
                         }
                     }

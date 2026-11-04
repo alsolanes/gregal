@@ -1056,6 +1056,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     }
                 }
             }
+            // Respostes ràpides que el vent proposa al final del seu missatge.
+            if (!isBusy) {
+                val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
+                if (quick.isNotEmpty()) item(key = "quick") {
+                    ChoiceChips(quick, accent) { pick -> follow.requestFollow(); vm.sendWindMessage(wind.id, pick) }
+                }
+            }
             // Peu "hi pensa" només si no hi ha bombolla de directe: la
             // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
             // dos avisos apilats.
@@ -1083,6 +1090,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
         }
         }
+        // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
+        WindAskCards(vm, lang, accent, isBusy)
         // Input píndola amb el color del vent + enviament amb resplendor.
         // El desplegable de mencions va just a sobre del camp.
         mention?.let { q ->
@@ -1254,6 +1263,13 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 if (msgs[idx].kind == "question" && idx == msgs.lastIndex) CrewQuestionCard(lang, rotAccent)
                 }
             }
+            // Respostes ràpides que l'últim vent proposa al final del seu missatge.
+            if (!busy.contains(rot.id)) {
+                val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming && it.kind != "question" }?.let { extractChoices(it.text) }.orEmpty()
+                if (quick.isNotEmpty()) item(key = "quick") {
+                    ChoiceChips(quick, rotAccent) { pick -> follow.requestFollow(); vm.sendRotllanaMessage(rot.id, pick, "") }
+                }
+            }
             // Peu "hi pensa" només si no hi ha bombolla de directe (mateix
             // motiu que al xat directe: evitar l'avís duplicat).
             if (busy.contains(rot.id) && live[rot.id] == null && msgs.lastOrNull()?.streaming != true) {
@@ -1280,6 +1296,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
         }
         }
+        // Aprovacions i preguntes dels vents del grup: el torn espera aquí la teva resposta.
+        WindAskCards(vm, lang, rotAccent, busy.contains(rot.id))
         mention?.let { q ->
             MentionSuggestions(lang, q, rotAccent) { w ->
                 val handle = "@" + w.name + " "
@@ -1512,12 +1530,14 @@ private fun BubbleIn(key: String, animate: Boolean = true, content: @Composable 
 }
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun WindBubble(m: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
+internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String = "ca", speaker: Wind? = null,
     speakerName: String = "", onSpeakerClick: (() -> Unit)? = null, indent: Dp = 0.dp,
     onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null, onTransfer: (() -> Unit)? = null,
     /** Avís opcional en copiar un enllaç (p. ex. «Enllaç copiat»). */
     onCopied: (() -> Unit)? = null) {
+    // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
+    val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
     if (m.kind == "error") {
         // Un torn interromput no és una resposta: avís tenyit amb l'acció a

@@ -24,13 +24,19 @@ const remindMaxText = 500
 
 const remindMaxAhead = 30 * 24 * time.Hour
 
+// remindMaxTries: cops que un recordatori amb feina es reintenta si el vent
+// diu NOT_YET (el partit encara no ha acabat).
+const remindMaxTries = 8
+
 var remindToolSpec = llm.ToolSpec{
 	Name:        "remind",
-	Description: "Programa un avís: el vent dirà el text a l'usuari quan arribi el moment, encara que l'app estigui tancada. Fes servir SEMPRE el teu id de vent (l'el dona la consigna). at és el moment: RFC3339 amb zona, o 21/10 09:00, o 09:00 (avui o demà), o +2h/+30m; sempre futur, màxim d'aquí a 30 dies. text és el missatge curt (màxim 500 caràcters). CRIDA L'EINA ABANS de dir a l'usuari que ho faràs: si la crida falla, digue-li què ha fallat en comptes de prometre res. Només per a avisos reals.",
+	Description: "Programa un avís: el vent dirà el text a l'usuari quan arribi el moment, encara que l'app estigui tancada. Fes servir SEMPRE el teu id de vent (l'el dona la consigna). at és el moment: RFC3339 amb zona, o 21/10 09:00, o 09:00 (avui o demà), o +2h/+30m; sempre futur, màxim d'aquí a 30 dies. text és el missatge curt (màxim 500 caràcters). CRIDA L'EINA ABANS de dir a l'usuari que ho faràs: si la crida falla, digue-li què ha fallat en comptes de prometre res. Només per a avisos reals. Si l'usuari vol que a aquella hora FACIS alguna cosa (p. ex. «quan acabi el partit avisa'm del resultat», «mira el preu i digue'm-ho»), posa a task què has de fer (p. ex. «Busca el resultat final del Barça-Madrid i digue'l»): a l'hora faràs un torn complet amb cerca web i diràs el resultat; text és llavors un resum curt de l'encàrrec. Si pot no estar llest a l'hora (un partit que dura), posa at una mica després del final previst i retry_minutes (p. ex. 15): es reintentarà fins a 8 cops.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"wind": map[string]any{"type": "string"},
 		"at":   map[string]any{"type": "string"},
 		"text": map[string]any{"type": "string"},
+		"task": map[string]any{"type": "string"},
+		"retry_minutes": map[string]any{"type": "integer"},
 	}, "required": []string{"wind", "at", "text"}},
 }
 
@@ -137,6 +143,12 @@ func parseRemindAt(raw string, now time.Time) (time.Time, error) {
 // saveWindReminder desa l'avís d'un vent: el vent existeix, el moment és
 // futur (màxim 30 dies) i el text és curt. Torna el job desat.
 func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
+	return saveWindReminderTask(s, windID, at, text, "", 0)
+}
+
+// saveWindReminderTask és saveWindReminder amb una feina opcional: a l'hora el
+// vent fa un torn de debò (task) en comptes de dir només el text.
+func saveWindReminderTask(s *Server, windID, at, text, task string, retryMin int) (jobs.Job, error) {
 	if s.winds == nil || s.jobs == nil {
 		return jobs.Job{}, fmt.Errorf("recordatoris no disponibles")
 	}
@@ -154,9 +166,24 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	if moment.Sub(time.Now()) > remindMaxAhead {
 		return jobs.Job{}, fmt.Errorf("màxim d'aquí a 30 dies")
 	}
+	task = strings.TrimSpace(task)
 	msg := strings.TrimSpace(text)
 	if msg == "" {
+		msg = task
+	}
+	if msg == "" {
 		return jobs.Job{}, fmt.Errorf("text buit")
+	}
+	if len([]rune(task)) > 1000 {
+		return jobs.Job{}, fmt.Errorf("feina massa llarga")
+	}
+	maxTries := 0
+	if task != "" {
+		maxTries = 1
+		if retryMin > 0 {
+			retryMin = min(max(retryMin, 5), 240)
+			maxTries = remindMaxTries
+		}
 	}
 	if len([]rune(msg)) > remindMaxText {
 		return jobs.Job{}, fmt.Errorf("text massa llarg")
@@ -170,6 +197,7 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 		// («llest, mira-ho al panell») i els vents no hi parlen.
 		Kind: "remind", Enabled: true, Notify: false, NextAt: &moment,
 		Wind: w.ID, WindOwner: owner,
+		Task: task, RetryMin: retryMin, MaxTries: maxTries,
 	})
 	if err != nil {
 		return jobs.Job{}, err
@@ -206,6 +234,8 @@ func (s *Server) registerRemindTool() {
 			Wind string `json:"wind"`
 			At   string `json:"at"`
 			Text string `json:"text"`
+			Task string `json:"task"`
+			Retry int `json:"retry_minutes"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("arguments il·legibles")
@@ -214,7 +244,7 @@ func (s *Server) registerRemindTool() {
 		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
 			target = cur
 		}
-		j, err := saveWindReminder(target, a.Wind, a.At, a.Text)
+		j, err := saveWindReminderTask(target, a.Wind, a.At, a.Text, a.Task, a.Retry)
 		if err != nil {
 			return "", err
 		}
@@ -240,7 +270,7 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 
 // executeWindRemind dispara un recordatori: el text entra al xat del vent,
 // la sortida (notificació) el porta i el job s'apaga (una sola execució).
-func (s *Server) executeWindRemind(job jobs.Job) (jobs.Run, error) {
+func (s *Server) executeWindRemind(ctx context.Context, job jobs.Job) (jobs.Run, error) {
 	end := time.Now()
 	fail := func(msg string) (jobs.Run, error) {
 		run := jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: end, FinishedAt: end, Status: "error", Error: msg}
@@ -265,6 +295,9 @@ func (s *Server) executeWindRemind(job jobs.Job) (jobs.Run, error) {
 	if text == "" {
 		return fail("recordatori sense text")
 	}
+	if strings.TrimSpace(job.Task) != "" {
+		return s.executeWindAction(ctx, job, w)
+	}
 	postWindMessage(s, w, "remind", text)
 	run := jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: end, FinishedAt: end, Status: "ok", Output: w.Name + ": " + text}
 	job.Enabled = false
@@ -286,6 +319,10 @@ func windRemindBrief(windID string) string {
 		" i text (el missatge curt que diràs). IMPORTANT: crida l'eina ABANS de" +
 		" dir a l'usuari que ho faràs; si falla, explica-li què ha fallat i no" +
 		" prometis res. L'avís entrarà al teu xat i notificarà" +
-		" l'usuari encara que l'app estigui tancada. Només avisos reals; no programis" +
+		" l'usuari encara que l'app estigui tancada." +
+		" Si l'usuari vol que a aquella hora FACIS alguna cosa (cercar un resultat, un preu, una notícia)," +
+		" posa-ho a task: a l'hora faràs un torn complet amb cerca web i diràs el resultat" +
+		" (amb retry_minutes si pot no estar llest). Mai no el facis creure que només és un avís de text." +
+		" Només avisos reals; no programis" +
 		" mai res sense motiu ni avisis del que ja has dit en aquest torn."
 }

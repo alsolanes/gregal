@@ -242,6 +242,8 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			case "phase":
 				tornTexte.fita()
 				emit("phase", map[string]string{"phase": streamPhase(text)})
+			default:
+				forwardWindAsk(emit, kind, text)
 			}
 		}, previous)
 	} else {
@@ -257,6 +259,8 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			case "phase":
 				tornTexte.fita()
 				emit("phase", map[string]string{"phase": streamPhase(text)})
+			default:
+				forwardWindAsk(emit, kind, text)
 			}
 		})
 	}
@@ -412,6 +416,8 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		case "phase":
 			tornTexte.fita()
 			emit("phase", map[string]string{"phase": streamPhase(text)})
+		default:
+			forwardWindAsk(emit, kind, text)
 		}
 	}
 	type veu struct {

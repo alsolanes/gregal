@@ -127,7 +127,7 @@ func TestTunnelQuickAndNamed(t *testing.T) {
 // telèfon (publish), i diuen què falta si l'SDK no hi és.
 func TestWindBriefExplainsAndroidBuildsAndDelivery(t *testing.T) {
 	with := androidBrief("/opt/android-sdk", true)
-	for _, want := range []string{"ANDROID APPS", "/opt/android-sdk", "./gradlew assembleDebug", "call publish", "same applicationId", "versionCode", "ask the user before installing", "explicit yes"} {
+	for _, want := range []string{"ANDROID APPS", "/opt/android-sdk", "./gradlew assembleDebug", "call publish", "same applicationId", "versionCode", "is asked to allow it", "Do not look for another way"} {
 		if !strings.Contains(with, want) {
 			t.Fatalf("falta %q: %s", want, with)
 		}
@@ -160,7 +160,7 @@ func TestServerBriefTellsWindsToAskBeforeInstalling(t *testing.T) {
 		t.Fatal(err)
 	}
 	brief := h.def.windServerBrief()
-	for _, want := range []string{"ASK FIRST", "explicit yes", "installing software", "deleting folders"} {
+	for _, want := range []string{"APPROVALS", "BLOCKED by the server", "taps Allow", "installing software", "do not look for a way around it", "question tool"} {
 		if !strings.Contains(brief, want) {
 			t.Fatalf("falta %q a la consigna", want)
 		}

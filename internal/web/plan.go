@@ -150,6 +150,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 		})
 	}
+	// Es pot preguntar a la persona? Un torn interactiu amb flux (xat o grup) la
+	// té al davant: les aprovacions i preguntes s'hi publiquen i el torn
+	// s'atura fins que respon (winds_ask.go). Sense flux (cor, plans, crides
+	// soltes) no hi ha ningú: es continua com sempre, sense fer l'acció.
+	canAsk := interactive && stream
 	var temps loopTemps
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
@@ -199,6 +204,14 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			activity("tool", tool)
 			defer activity("tool_done", tool) // returned, not necessarily succeeded
+			// Una pregunta del vent, amb opcions que la persona toca (o text lliure).
+			if name == "question" && canAsk {
+				q, opts, err := tools.ParseQuestion(argsJSON)
+				if err != nil {
+					return "", nil, err
+				}
+				return s.windQuestion(ctx, emit, q, opts), nil, nil
+			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
 			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" {
@@ -232,17 +245,39 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				pol = &cp
 			}
 			decision, reason := pol.Decide(scope.mode, name, argsJSON)
-			// agent.Loop treats ask as executable (headless semantics).
-			// These clients have no approval UI: never pass a pending ask
-			// through, and do not wait for an approval nobody can answer.
-			// Però la instrucció explícita del xat JA és l'aprovació per a
-			// la feina d'aquí (escriure i executar dins del projecte, sense
-			// res destructiu): si no, demanar codi al vent sempre acaba en
-			// «falta permís». Tot «deny» continua denegat.
+			// La instrucció explícita del xat JA és l'aprovació per a la feina
+			// d'aquí (escriure i executar dins del projecte, sense res
+			// destructiu): si no, demanar codi al vent sempre acaba en «falta
+			// permís». Tot «deny» continua denegat.
 			if decision == "ask" && interactive && pol.WindAutoAllow(name, argsJSON) {
-				return "allow", "ordre del xat del vent (" + reason + ")"
+				decision, reason = "allow", "ordre del xat del vent ("+reason+")"
+			}
+			// Porta dura: instal·lar programari, baixar paquets, esborrar fora del
+			// projecte o tocar serveis del sistema NO es fa sense el sí de la
+			// persona, encara que el classificador ho deixi passar (amb poders de
+			// servidor, per exemple). El torn s'atura fins que respon.
+			kind, what := "other", ""
+			if decision == "allow" && interactive && (name == "bash" || name == "bash_background") {
+				var a struct {
+					Command string `json:"command"`
+				}
+				if json.Unmarshal([]byte(argsJSON), &a) == nil {
+					if r, risky := tools.Risky(a.Command, scope.workspace, serviceHome()); risky {
+						decision, reason, kind, what = "ask", "needs your approval: "+r.Kind, r.Kind, r.What
+					}
+				}
 			}
 			if decision == "ask" {
+				if what == "" {
+					what = strings.TrimSpace(name + " " + windAskArgsHint(argsJSON))
+				}
+				if canAsk {
+					if ok, msg := s.windApprove(ctx, emit, name, kind, what, reason); ok {
+						return "allow", "approved by the user"
+					} else {
+						return "deny", msg
+					}
+				}
 				requiresApproval = true
 				skipped = append(skipped, reason)
 				return "deny", windNotRun + " (" + reason + ")"
