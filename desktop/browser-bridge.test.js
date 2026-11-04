@@ -257,3 +257,65 @@ test('session browser targets receive only their own commands and release indepe
   assert.ok(states.some(s=>s?.state==='show'&&s.session==='alpha'));
   assert.equal((await scoped('../other','/attach')).status,400);
 });
+
+test('handoff shows the request in the pane and waits for the user', async t => {
+  const { bridge, port, token } = await startedBridge(t);
+  const events = [];
+  // Ho mirem a través del pont de sessió: la finestra rep {state, id, message, session}.
+  const scoped = createBrowserBridge({ token: 'tok-9', notify: s => events.push(s) });
+  await scoped.start();
+  t.after(() => scoped.close());
+  scoped.setTarget(fakeGuest(), 'alpha');
+  const pending = request(scoped.port, { pathName: '/handoff', token: 'tok-9', body: { message: '  Inicia   sessió ', seconds: 60 }, headers: { 'X-Gregal-Session': 'alpha' } });
+  await new Promise(r => setTimeout(r, 50));
+  const asked = events.find(e => e.state === 'handoff');
+  assert.equal(asked.session, 'alpha');
+  assert.equal(asked.message, 'Inicia sessió');
+  assert.match(asked.id, /^[a-f0-9]{16}$/);
+  assert.equal(scoped.pendingHandoffs(), 1);
+  assert.equal(scoped.resolveHandoff('ffffffffffffffff', true), false, 'unknown ids do nothing');
+  assert.equal(scoped.resolveHandoff(asked.id, true), true);
+  const res = await pending;
+  assert.deepEqual(res.body, { ok: true, done: true, reason: 'done' });
+  assert.equal(events.at(-1).state, 'handoff-end');
+  assert.equal(scoped.pendingHandoffs(), 0);
+
+  // Sense panell no hi ha a qui passar-ho; sense missatge, tampoc.
+  assert.equal((await request(port, { pathName: '/handoff', token, body: { message: 'x' } })).status, 410);
+  bridge.setTarget(fakeGuest());
+  assert.equal((await request(port, { pathName: '/handoff', token, body: {} })).status, 400);
+});
+
+test('handoff is cancelled by the user, and closing the bridge frees it', async t => {
+  const events = [];
+  const { bridge, port, token } = await startedBridge(t, { notify: (state, extra) => events.push({ state, ...(extra || {}) }) });
+  bridge.setTarget(fakeGuest());
+  const first = request(port, { pathName: '/handoff', token, body: { message: 'Resol el CAPTCHA' } });
+  await new Promise(r => setTimeout(r, 50));
+  bridge.resolveHandoff(events.find(e => e.state === 'handoff').id, false);
+  assert.deepEqual((await first).body, { ok: true, done: false, reason: 'cancelled' });
+  const second = request(port, { pathName: '/handoff', token, body: { message: 'Tria el compte' } });
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(bridge.pendingHandoffs(), 1);
+  bridge.close();
+  assert.equal((await second).body.reason, 'cancelled');
+  assert.equal(bridge.pendingHandoffs(), 0);
+});
+
+test('handoff waits within sane bounds', () => {
+  const { handoffSeconds } = require('./browser-bridge');
+  assert.equal(handoffSeconds(undefined), 600);
+  assert.equal(handoffSeconds(2), 15);
+  assert.equal(handoffSeconds(90), 90);
+  assert.equal(handoffSeconds(1e9), 1800);
+});
+
+test('links that open windows navigate the pane; sized popups get a window', () => {
+  const { guestWindowOpen } = require('./browser-bridge');
+  const base = () => 'http://127.0.0.1:8097';
+  assert.equal(guestWindowOpen({ url: 'https://example.org/docs', features: '' }, base), 'same');
+  assert.equal(guestWindowOpen({ url: 'https://accounts.example.org/o/oauth2', features: 'width=500,height=600' }, base), 'popup');
+  for (const url of ['javascript:alert(1)', 'file:///etc/passwd', 'http://127.0.0.1:8097/api', 'https://u:p@example.org/']) {
+    assert.equal(guestWindowOpen({ url, features: 'width=1' }, base), 'deny', url);
+  }
+});

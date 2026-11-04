@@ -670,33 +670,67 @@ export const browser = {
     const desktop = !!window.gregalDesktop && view && typeof view.loadURL === 'function';
     if (!desktop && view) view.style.display = 'none';
     if (!desktop && frame) frame.style.display = 'block';
+    // Una adreça (amb o sense esquema, també localhost:3000) hi va; la resta
+    // es cerca. La mateixa regla que la barra del navegador de l'agent.
     const normalitza = raw => {
-      let v = String(raw || '').trim();
+      const v = String(raw || '').trim();
       if (!v) return '';
-      if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
-      try { const u = new URL(v); return /^https?:$/.test(u.protocol) ? u.href : ''; } catch (e) { return ''; }
+      if (/^https?:\/\//i.test(v)) {
+        try { const u = new URL(v); return /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.href : ''; } catch (e) { return ''; }
+      }
+      const local = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?(\/|$)/i.test(v);
+      if (!/\s/.test(v) && (local || /^[^\s/]+\.[a-z]{2,}(:\d+)?(\/.*)?$/i.test(v))) {
+        try { return new URL((local ? 'http://' : 'https://') + v).href; } catch (e) { /* cerca */ }
+      }
+      return 'https://duckduckgo.com/?q=' + encodeURIComponent(v);
+    };
+    let current = '', loading = false;
+    const icona = d => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+    const RELOAD = 'M20 11a8 8 0 1 0-2.3 5.7 M20 5v6h-6', STOP = 'M6 6l12 12 M18 6L6 18';
+    const estat = () => {
+      const reload = $('browserReload');
+      reload.innerHTML = icona(loading ? STOP : RELOAD);
+      reload.title = T(loading ? 'agentBrowser.stop' : 'browser.reload');
+      reload.setAttribute('aria-label', reload.title);
+      $('browserProgress')?.classList.toggle('loading', loading);
+      $('browserAddress')?.classList.toggle('secure', /^https:/i.test(current));
+      $('browserExternal').disabled = !current;
+      if (desktop) {
+        try { $('browserBack').disabled = !view.canGoBack(); $('browserForward').disabled = !view.canGoForward(); } catch (e) {}
+      }
     };
     const navigate = () => {
       const v = normalitza(url.value);
       if (!v) { G().sys(T('browser.invalidAddress')); return; }
       url.value = v;
+      current = v;
       $('browserEmpty').hidden = true;
-      if (desktop) view.loadURL(v); else frame.src = v;
+      if (desktop) view.loadURL(v).catch?.(() => {}); else frame.src = v;
+      estat();
     };
     go.onclick = navigate;
-    url.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); navigate(); } };
+    url.onkeydown = e => {
+      if (e.key === 'Enter') { e.preventDefault(); navigate(); url.blur(); }
+      if (e.key === 'Escape') { url.value = current; url.blur(); }
+    };
+    url.onfocus = () => url.select();
     $('browserBack').onclick = () => desktop ? view.goBack() : history.back();
     $('browserForward').onclick = () => desktop ? view.goForward() : history.forward();
-    $('browserReload').onclick = () => desktop ? view.reload() : (frame.src = frame.src);
+    $('browserReload').onclick = () => desktop ? (loading ? view.stop() : view.reload()) : (frame.src = frame.src);
+    $('browserExternal').onclick = () => { if (current) window.open(current, '_blank', 'noopener'); };
     $('browserAttach').onclick = () => {
-      const v = normalitza(url.value); if (!v) return;
+      const v = current || normalitza(url.value); if (!v) return;
       G().setComposer(T('browser.reviewPrompt') + v);
     };
     if (desktop) {
-      view.addEventListener('did-navigate', e => { url.value = e.url; });
-      view.addEventListener('did-navigate-in-page', e => { url.value = e.url; });
+      const setURL = e => { current = e.url === 'about:blank' ? '' : e.url; if (document.activeElement !== url) url.value = current; estat(); };
+      view.addEventListener('did-navigate', setURL);
+      view.addEventListener('did-navigate-in-page', setURL);
+      view.addEventListener('did-start-loading', () => { loading = true; estat(); });
+      view.addEventListener('did-stop-loading', () => { loading = false; estat(); });
       view.addEventListener('did-fail-load', e => { if (e.errorCode !== -3) G().sys(T('nav.browser') + ': ' + e.errorDescription); });
     }
+    estat();
   },
 };
 

@@ -45,5 +45,10 @@ test('desktop credentials are delivered by the guarded bridge, never URL query p
   assert.equal(main.includes('encodeURIComponent(TOKEN)'), false);
   // El token només per a la pàgina de confiança; l'edició no és secreta.
   assert.ok(main.includes("trusted(event) ? { token: TOKEN, edition: EDITION } : { token: '', edition: EDITION }"));
-  assert.ok(main.includes("guest.setWindowOpenHandler(() => ({ action: 'deny' }))"));
+  // Els webviews obren enllaços al mateix panell o en una finestra sense
+  // preload ni node (browser-bridge.js guestWindowOpen); la resta, denegat.
+  assert.ok(main.includes('const how = guestWindowOpen(details, () => BASE);'));
+  assert.ok(main.includes("if (how !== 'popup') return { action: 'deny' };"));
+  assert.ok(main.includes("webPreferences: { partition: AGENT_BROWSER_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false }"));
+  assert.ok(main.includes("child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))"));
 });

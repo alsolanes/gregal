@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
         return () => ipcRenderer.removeListener('gregal:agent-browser', listener);
     },
     agentBrowserReady: (id, session = '') => ipcRenderer.send('gregal:agent-browser-ready', Number(id), String(session)),
+    // Resposta de l'usuari al «passa-m'ho» de l'agent: true «Fet», false «Cancel·la».
+    agentBrowserHandoff: (id, done) => ipcRenderer.send('gregal:agent-browser-handoff', String(id).slice(0, 32), done === true),
     // Mascota flotant (mascot-window.js): la pàgina n'envia l'ànim i una
     // etiqueta traduïda; el procés principal valida i la reenvia.
     mascotWindow: true,

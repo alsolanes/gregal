@@ -896,6 +896,26 @@ el que ha canviat. `batch` fa fins a 15 passos en una crida. `console` i
 `alert`/`confirm`/`prompt` es responen sols (cancel·lar per defecte) i es diu;
 `dialog accept:true` accepta el següent.
 
+**Et passa el control.** Quan una cosa l'has de fer tu (iniciar sessió,
+escriure una contrasenya, una targeta o un codi d'un sol ús, resoldre un
+CAPTCHA, triar un compte, respondre una pantalla de consentiment) l'agent
+crida `handoff` amb una instrucció curta i t'espera (10 minuts per defecte,
+fins a 30). Al panell de l'app surt una franja ambre amb què cal fer i
+**Fet, continua** i **Cancel·la**; si el panell era minimitzat torna a la
+vista, i si la finestra és al fons reps un avís del sistema. En els modes
+`window` i `chrome` la mateixa franja surt a dalt de la pàgina. Quan prems
+Fet, l'agent llegeix la pàgina tal com l'has deixada i continua; Cancel·la
+o no respondre li diu que no insisteixi. En `headless` no es pot (ningú no
+el veu) i l'eina ho diu.
+
+**El panell.** El panell de l'agent és un navegador de debò: enrere,
+endavant, recarregar o aturar, barra d'adreces que també cerca, zoom i obrir
+al navegador del sistema. Minimitza'l i queda com una píndola a la cantonada
+mentre l'agent continua; amplia'l i ocupa tota la finestra (doble clic a la
+capçalera, Esc per tornar). Els enllaços que obren pestanya nova carreguen al
+mateix panell, i les finestres d'inici de sessió (OAuth) s'obren en una
+finestra petita amb les mateixes galetes.
+
 **Permisos.** Llegir amb el navegador propi del Gregal corre directament. La
 primera acció que canvia alguna cosa en un web nou (clicar, escriure, triar…)
 pregunta un cop; després el lloc queda permès durant la sessió (`localhost` mai

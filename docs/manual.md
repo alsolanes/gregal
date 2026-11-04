@@ -877,6 +877,24 @@ only what changed on the page. `batch` runs up to 15 steps in one call.
 the agent there. `alert`/`confirm`/`prompt` are answered automatically (cancel
 by default) and reported; `dialog accept:true` accepts the next one.
 
+**Handing over to you.** When only you should do something (sign in, type a
+password, card or one-time code, solve a CAPTCHA, pick an account, answer a
+consent screen) the agent calls `handoff` with a short instruction and waits
+(10 minutes by default, up to 30). In the app's pane an amber strip shows
+what to do with **Done, continue** and **Cancel**; if the pane was minimized
+it comes back, and if the window is in the background you get a system
+notification. In `window` and `chrome` modes the same strip appears at the
+top of the page itself. When you press Done the agent reads the page as you
+left it and carries on; Cancel or no answer tells it to stop insisting.
+`headless` cannot hand over (nobody sees it), so the tool says so.
+
+**The pane.** The agent's pane is a real browser: back, forward, reload or
+stop, an address bar that also searches, zoom, and open in the system
+browser. Minimize turns it into a pill in the corner while the agent keeps
+working; expand fills the whole window (double-click the header, Esc to go
+back). Links that open a new tab load in the same pane, and sign-in popups
+(OAuth) open in a small window with the same cookies.
+
 **Permissions.** Reading with Gregal's own browser runs directly. The first
 action that changes something on a new website (click, type, select…) asks
 once; after that the site is allowed for the session (`localhost` never asks).

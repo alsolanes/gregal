@@ -184,6 +184,9 @@ type pontFals struct {
 	noAuth   int
 	gone     bool
 	ordresOK []string
+	// handoff: el que ha demanat l'agent i el que respon «l'usuari».
+	handoff      map[string]any
+	handoffReply string
 }
 
 func newPontFals(t *testing.T, token string) *pontFals {
@@ -216,6 +219,17 @@ func newPontFals(t *testing.T, token string) *pontFals {
 			p.release++
 			p.mu.Unlock()
 			w.Write([]byte(`{"ok":true}`))
+		case "/handoff":
+			var req map[string]any
+			_ = json.NewDecoder(r.Body).Decode(&req)
+			p.mu.Lock()
+			p.handoff = req
+			reply := p.handoffReply
+			p.mu.Unlock()
+			if reply == "" {
+				reply = `{"ok":true,"done":true,"reason":"done"}`
+			}
+			w.Write([]byte(reply))
 		case "/cdp":
 			var req struct {
 				Method string         `json:"method"`

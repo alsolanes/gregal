@@ -16,8 +16,14 @@
 //   - el webview de destí l'ha de registrar la pàgina de confiança per IPC
 //     i main.js comprova que és un guest d'aquesta finestra i partició.
 //
-// Contracte (POST, JSON): /attach, /cdp {method, params}, /release.
-// Vegeu internal/tools/browser_app.go.
+// Contracte (POST, JSON): /attach, /cdp {method, params}, /release,
+// /handoff {message, seconds}. Vegeu internal/tools/browser_app.go.
+//
+// /handoff és el «passa-m'ho»: l'agent necessita que l'usuari faci una cosa
+// ell mateix al panell (iniciar sessió, escriure una contrasenya, resoldre
+// un CAPTCHA, triar un compte). El panell mostra el missatge amb «Fet» i
+// «Cancel·la» i la petició espera la resposta (o el temps màxim). Si el
+// backend talla la petició (aturada del torn), l'avís desapareix.
 const http = require('node:http');
 const crypto = require('node:crypto');
 
@@ -26,6 +32,14 @@ const crypto = require('node:crypto');
 // lectura antiga i les webs fetes amb JavaScript sortien buides.
 const ALLOWED_DOMAINS = new Set(['Page', 'Runtime', 'Input', 'DOM', 'Accessibility']);
 const MAX_BODY = 1024 * 1024;
+const HANDOFF_DEFAULT_S = 600, HANDOFF_MAX_S = 1800;
+
+// handoffSeconds: el temps que l'agent espera l'usuari, dins de marges.
+function handoffSeconds(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0) return HANDOFF_DEFAULT_S;
+  return Math.min(Math.max(Math.round(n), 15), HANDOFF_MAX_S);
+}
 const PROTOCOL_VERSION = '1.3';
 
 function isLoopbackAddress(address) {
@@ -56,11 +70,15 @@ function navigableURL(url, blockedOrigin) {
   } catch (e) { return false; }
 }
 
-// createBrowserBridge: notify(state) avisa la finestra ('show' mostra el
-// panell de l'agent, 'active' l'agent el fa servir, 'released' torna a
-// l'usuari); blockedOrigin() és l'origen del backend (no s'hi navega).
+// createBrowserBridge: notify(state, extra) avisa la finestra ('show'
+// mostra el panell de l'agent, 'active' l'agent el fa servir, 'released'
+// torna a l'usuari, 'handoff'/'handoff-end' amb {id, message} demana o
+// retira el «passa-m'ho»); blockedOrigin() és l'origen del backend.
 function createBrowserBridge(options = {}) {
   const notify = options.notify || (() => {});
+  // Els «passa-m'ho» pendents, compartits amb els ponts de cada sessió:
+  // la finestra respon per id sense saber de quina sessió és.
+  const handoffs = options.handoffs || new Map();
   const blockedOrigin = options.blockedOrigin || (() => '');
   const token = options.token || crypto.randomBytes(32).toString('hex');
   const attachTimeoutMs = options.attachTimeoutMs ?? 12000;
@@ -71,7 +89,7 @@ function createBrowserBridge(options = {}) {
   let waiters = [];
   const scoped = new Map();
   function forSession(id) {
-    if (!scoped.has(id)) scoped.set(id, createBrowserBridge({ ...options, notify: state => notify({state, session:id}) }));
+    if (!scoped.has(id)) scoped.set(id, createBrowserBridge({ ...options, handoffs, notify: (state, extra) => notify({ ...(extra || {}), state, session: id }) }));
     return scoped.get(id);
   }
 
@@ -186,6 +204,23 @@ function createBrowserBridge(options = {}) {
       notify('released');
       return send(res, 200, { ok: true });
     }
+    if (path === '/handoff') {
+      if (!alive()) return send(res, 410, { error: 'the app browser pane was closed' });
+      const message = String(body && body.message || '').replace(/\s+/g, ' ').trim().slice(0, 400);
+      if (!message) return send(res, 400, { error: 'handoff needs a message for the user' });
+      const id = crypto.randomBytes(8).toString('hex');
+      const reason = await new Promise(resolve => {
+        const finish = r => { if (!handoffs.has(id)) return; clearTimeout(timer); handoffs.delete(id); resolve(r); };
+        const timer = setTimeout(() => finish('timeout'), handoffSeconds(body && body.seconds) * 1000);
+        handoffs.set(id, finish);
+        // El backend ha tallat (torn aturat): ningú espera la resposta.
+        res.on('close', () => { if (!res.writableEnded) finish('aborted'); });
+        notify('handoff', { id, message });
+      });
+      notify('handoff-end', { id, reason });
+      if (reason === 'aborted') return;
+      return send(res, 200, { ok: true, done: reason === 'done', reason });
+    }
     if (path === '/cdp') {
       const method = body && body.method;
       const params = body && body.params && typeof body.params === 'object' ? body.params : {};
@@ -229,16 +264,42 @@ function createBrowserBridge(options = {}) {
     detach();
     target = null;
     for (const w of waiters.splice(0)) w(false);
+    if (!options.handoffs) for (const finish of [...handoffs.values()]) finish('cancelled');
     if (server) server.close();
     server = null;
   }
 
+  // resolveHandoff: la resposta de l'usuari (des de la finestra de confiança).
+  function resolveHandoff(id, done) {
+    const finish = handoffs.get(String(id));
+    if (!finish) return false;
+    finish(done ? 'done' : 'cancelled');
+    return true;
+  }
+
   return {
-    start, close, envValue, handle, dispatch, setTarget, clearTarget,
+    start, close, envValue, handle, dispatch, setTarget, clearTarget, resolveHandoff,
+    pendingHandoffs: () => handoffs.size,
     isAttached: () => attached,
     hasTarget: alive,
     get port() { return port; },
   };
+}
+
+// guestWindowOpen decideix què fa un enllaç que obre finestra dins d'un
+// webview del navegador (target=_blank, window.open): abans es denegava
+// sempre i els enllaços «semblaven trencats». Ara:
+//   - 'same'  un enllaç normal s'obre al mateix panell (navegar de debò);
+//   - 'popup' un window.open amb mides (inici de sessió OAuth, pagaments)
+//             obre una finestra petita amb la mateixa partició, perquè el
+//             flux que espera window.opener funcioni;
+//   - 'deny'  res que no sigui http(s) ni l'origen del mateix backend.
+function guestWindowOpen(details, blockedOrigin) {
+  const url = details && details.url;
+  if (!navigableURL(url, blockedOrigin)) return 'deny';
+  const features = String(details.features || '');
+  if (/(^|,)\s*(width|height|popup)\s*(=|,|$)/i.test(features)) return 'popup';
+  return 'same';
 }
 
 // validGuest diu si un webContents és el webview de l'agent d'aquesta
@@ -252,4 +313,4 @@ function validGuest(guest, hostWebContents, partitionSession) {
   return true;
 }
 
-module.exports = { createBrowserBridge, validGuest, isLoopbackAddress, allowedMethod, navigableURL, AGENT_BROWSER_PARTITION: 'persist:gregal-browser' };
+module.exports = { createBrowserBridge, validGuest, isLoopbackAddress, allowedMethod, navigableURL, handoffSeconds, guestWindowOpen, AGENT_BROWSER_PARTITION: 'persist:gregal-browser' };

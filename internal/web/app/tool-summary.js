@@ -114,7 +114,7 @@
       case 'dashboard_save': out.target = s('dashboard'); if (Array.isArray(o.plots)) out.meta = String(o.plots.length) + (o.plots.length === 1 ? ' chart' : ' charts'); break;
       case 'skill': out.target = s('nom') || s('name'); break;
       case 'preview': out.target = s('title') || s('kind'); break;
-      case 'browser': out.target = [s('action'), s('url') || s('target') || s('key')].filter(Boolean).join(' '); break;
+      case 'browser': out.target = [s('action'), s('url') || s('target') || s('key') || (s('action') === 'handoff' ? oneLine(s('text'), 120) : '')].filter(Boolean).join(' '); break;
       case 'todowrite': case 'todoread': break;
       default: {
         const m = /^mcp_([^_]+)_(.+)$/.exec(tool);

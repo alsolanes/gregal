@@ -31,7 +31,7 @@ const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
 const { createUpdater } = require('./updater');
-const { createBrowserBridge, validGuest, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
+const { createBrowserBridge, validGuest, guestWindowOpen, AGENT_BROWSER_PARTITION } = require('./browser-bridge');
 const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
 const chromeExtension = require('./chrome-extension');
 const wordAddin = require('./word-addin');
@@ -79,9 +79,13 @@ function mascotController() {
     return mascot;
 }
 
-function notifyAgentBrowser(state) {
+function notifyAgentBrowser(state, extra) {
     const win = mainWin;
-    if (win && !win.isDestroyed()) win.webContents.send('gregal:agent-browser', state);
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('gregal:agent-browser', extra ? { ...extra, state } : state);
+    // El «passa-m'ho» et necessita: si la finestra és amagada, s'avisa.
+    const name = state && typeof state === 'object' ? state.state : state;
+    if (name === 'handoff' && !win.isFocused()) win.flashFrame(true);
 }
 
 async function browserBridgeEnv() {
@@ -314,6 +318,11 @@ function wireIPC(getWin) {
         if (!validGuest(guest, getWin()?.webContents, session.fromPartition(AGENT_BROWSER_PARTITION))) return;
         browserBridge.setTarget(guest, scope);
     });
+    // L'usuari respon el «passa-m'ho» del panell: «Fet» o «Cancel·la».
+    ipcMain.on('gregal:agent-browser-handoff', (event, id, done) => {
+        if (!trusted(event) || !browserBridge || typeof id !== 'string' || !/^[a-f0-9]{16}$/.test(id)) return;
+        browserBridge.resolveHandoff(id, done === true);
+    });
     ipcMain.on('gregal:preference-save', (event, key, value) => {
         if (!trusted(event) || !allowed(key) || (value !== null && (typeof value !== 'string' || value.length > 4096))) return;
         if (value === null) delete preferences[key];
@@ -534,7 +543,21 @@ async function createWindow() {
         preferences.sandbox = true;
     });
     win.webContents.on('did-attach-webview', (_event, guest) => {
-        guest.setWindowOpenHandler(() => ({ action: 'deny' }));
+        // Enllaços que obren finestra: al mateix panell, o una finestra
+        // petita per als inicis de sessió amb popup (browser-bridge.js).
+        guest.setWindowOpenHandler(details => {
+            const how = guestWindowOpen(details, () => BASE);
+            if (how === 'same') { guest.loadURL(details.url).catch(() => {}); return { action: 'deny' }; }
+            if (how !== 'popup') return { action: 'deny' };
+            return { action: 'allow', overrideBrowserWindowOptions: {
+                parent: mainWin || undefined, width: 520, height: 700, autoHideMenuBar: true, backgroundColor: '#ffffff',
+                webPreferences: { partition: AGENT_BROWSER_PARTITION, sandbox: true, contextIsolation: true, nodeIntegration: false },
+            } };
+        });
+        guest.on('did-create-window', child => {
+            child.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+            child.webContents.on('will-navigate', (event, url) => { if (!externalURL(url)) event.preventDefault(); });
+        });
         guest.on('will-navigate', (event, url) => {
             if (!externalURL(url) && url !== 'about:blank') event.preventDefault();
         });

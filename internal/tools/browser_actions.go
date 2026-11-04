@@ -428,6 +428,8 @@ var browserReadActions = map[string]bool{
 	"screenshot": true, "back": true, "forward": true, "reload": true, "where": true, "url": true,
 	"close": true, "wait": true, "console": true, "network": true, "tabs": true, "tab_new": true,
 	"tab_select": true, "tab_close": true, "scroll": true, "hover": true,
+	// handoff no toca la pàgina: hi actua l'usuari mateix.
+	"handoff": true, "ask_user": true,
 }
 
 // BrowserActionSegura diu si una acció només mira (obre, llegeix, captura,
@@ -685,8 +687,10 @@ func browserDo(b *Browser, action string, a browserArgs, quiet bool) (string, []
 	case "tab_close":
 		msg, err := b.CloseTab(a.str("tab"))
 		return msg, nil, err
+	case "handoff", "ask_user":
+		return browserHandoff(b, a)
 	}
-	return "", nil, fmt.Errorf("browser: unknown action %q (open, read, text, click, type, select, hover, drag, upload, scroll, press, wait, screenshot, back, forward, reload, dialog, console, network, tabs, tab_new, tab_select, tab_close, eval, batch, close)", action)
+	return "", nil, fmt.Errorf("browser: unknown action %q (open, read, text, click, type, select, hover, drag, upload, scroll, press, wait, screenshot, back, forward, reload, dialog, console, network, tabs, tab_new, tab_select, tab_close, eval, handoff, batch, close)", action)
 }
 
 func clickCount(a browserArgs) int {
@@ -799,7 +803,7 @@ func (b *Browser) batch(a browserArgs) (string, []string, error) {
 			sa["_dir"] = dir
 		}
 		act := strings.ToLower(sa.str("action"))
-		if act == "batch" || act == "close" {
+		if act == "batch" || act == "close" || act == "handoff" || act == "ask_user" {
 			return "", nil, fmt.Errorf("browser: step %d: %s is not allowed inside a batch", i+1, act)
 		}
 		msg, im, err := browserDo(b, act, sa, true)

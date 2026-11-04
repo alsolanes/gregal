@@ -20,7 +20,9 @@ function fixture(desktop) {
       this.events = {};
       this.textContent = '';
       this.title = '';
-      this.classList = { toggle: (name, on) => { this[name] = on; } };
+      this.classes = new Set();
+      this.classList = { toggle: (name, on) => { if (on) this.classes.add(name); else this.classes.delete(name); }, add: n => this.classes.add(n), remove: n => this.classes.delete(n) };
+      this.value = '';
     }
     set id(value){if(elements.get(this._id)===this)elements.delete(this._id);this._id=value;if(value)elements.set(value,this);}
     get id(){return this._id;}
@@ -29,21 +31,25 @@ function fixture(desktop) {
       this._html = value;
       for (const [, id] of value.matchAll(/id="([^"]+)"/g)) elements.set(id, new Element('div', id));
       this.parts = {};
-      for (const cls of ['ab-state', 'ab-view']) this.parts['.' + cls] = new Element('div');
-      this.parts['header strong'] = new Element('strong');
-      this.parts.small = new Element('small');
     }
     get innerHTML() { return this._html || ''; }
-    querySelector(sel) { return this.parts[sel]; }
+    // Un fill estable per selector: n'hi ha prou per llegir-ne el text.
+    querySelector(sel) { this.parts = this.parts || {}; return this.parts[sel] || (this.parts[sel] = new Element('div')); }
     append(child) { this.children.push(child); if (child.id) elements.set(child.id, child); }
     setAttribute(k, v) { this.attributes[k] = String(v); }
     addEventListener(name, fn) { this.events[name] = fn; }
+    loadURL(u) { this.loaded = u; }
+    canGoBack() { return !!this.back; }
+    canGoForward() { return false; }
+    blur() {}
     getBoundingClientRect() { return { left: 0, right: 1400, width: 1400 }; }
     setZoomFactor(z) { this.zoom = z; }
   }
   const workbench = new Element('div', 'workbench');
   elements.set('workbench', workbench);
   const document = {
+    activeElement: null,
+    hasFocus: () => true,
     head: { append() {} },
     createElement: tag => new Element(tag),
     getElementById: id => elements.get(id) || null,
@@ -54,8 +60,10 @@ function fixture(desktop) {
   const store = new Map();
   const localStorage = { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
   const window = { gregalDesktop: desktop, gregalT: k => 'T:' + k, innerWidth: 1400, addEventListener() {} };
-  vm.runInNewContext(source, { window, document, console, localStorage });
-  return { elements, workbench, listeners, window, document, localStorage };
+  const opened = [];
+  window.open = (...a) => opened.push(a);
+  vm.runInNewContext(source, { window, document, console, localStorage, URL, encodeURIComponent });
+  return { elements, workbench, listeners, window, document, localStorage, opened };
 }
 
 test('agent browser stays out of the way outside the desktop app', () => {
@@ -80,14 +88,14 @@ test('agent browser pane opens on demand and registers its webview', () => {
   view.events['dom-ready']();
   view.events['dom-ready']();
   assert.deepEqual(ready, [42], 'the same guest is reported once');
-  assert.equal(pane.querySelector('.ab-state').textContent, 'T:agentBrowser.active');
+  assert.equal(pane.querySelector('.ab-state').querySelector('span').textContent, 'T:agentBrowser.active');
   view.events['did-navigate']({ url: 'http://localhost:3000/' });
-  assert.equal(elements.get('agentBrowserUrl').textContent, 'http://localhost:3000/');
+  assert.equal(elements.get('agentBrowserUrl').value, 'http://localhost:3000/');
   elements.get('agentBrowserClose').onclick();
   assert.equal(pane.hidden, true);
   push('released');
   assert.equal(pane.hidden, true, 'releasing does not force the pane open');
-  assert.equal(pane.querySelector('.ab-state').textContent, 'T:agentBrowser.released');
+  assert.equal(pane.querySelector('.ab-state').querySelector('span').textContent, 'T:agentBrowser.released');
   push('show');
   assert.equal(pane.hidden, false);
   assert.equal(workbench.children.length, 1, 'one pane only');
@@ -115,7 +123,7 @@ test('background browser navigation stays with its owning session', () => {
   alpha.events['did-navigate']({url:'http://localhost:3000/alpha'});
   push({state:'active',session:'beta'});
   assert.equal(elements.get('agentBrowserView'),alpha);
-  assert.equal(elements.get('agentBrowserUrl').textContent,'http://localhost:3000/alpha');
+  assert.equal(elements.get('agentBrowserUrl').value,'http://localhost:3000/alpha');
   listeners.get('gregal:session')({detail:{id:'beta'}});
   const beta=elements.get('agentBrowserView');beta.getWebContentsId=()=>42;beta.events['dom-ready']();
   assert.notEqual(alpha,beta);
@@ -124,7 +132,7 @@ test('background browser navigation stays with its owning session', () => {
   beta.events['did-navigate']({url:'http://localhost:4000/beta'});
   listeners.get('gregal:session')({detail:{id:'alpha'}});
   assert.equal(elements.get('agentBrowserView'),alpha);
-  assert.equal(elements.get('agentBrowserUrl').textContent,'http://localhost:3000/alpha');
+  assert.equal(elements.get('agentBrowserUrl').value,'http://localhost:3000/alpha');
 });
 
 test('the pane width stays between its minimum and what leaves room for the chat', () => {
@@ -139,4 +147,99 @@ test('the pane width stays between its minimum and what leaves room for the chat
   assert.equal(ctx.zoom(2, 1), 2);
   assert.equal(ctx.zoom(0.5, -1), 0.5);
   assert.equal(ctx.zoom(1.5, 0), 1);
+});
+
+function openPane() {
+  let push;
+  const answers = [], notes = [];
+  const desktop = { onAgentBrowser: cb => { push = cb; }, agentBrowserReady() {}, agentBrowserHandoff: (id, done) => answers.push([id, done]), notify: (t, b) => notes.push([t, b]) };
+  const fx = fixture(desktop);
+  push('active');
+  return { ...fx, push: v => push(v), answers, notes, pane: fx.elements.get('agentBrowser') };
+}
+const badgeText = pane => pane.querySelector('.ab-state').querySelector('span').textContent;
+
+test('handoff shows what the user must do and answers with Done or Cancel', () => {
+  const { push, pane, elements, answers, notes, document } = openPane();
+  const banner = elements.get('agentBrowserHandoff');
+  assert.equal(banner.hidden, true);
+  // Minimitzat: el «passa-m'ho» el torna a la vista.
+  elements.get('agentBrowserMin').onclick();
+  assert.equal(pane.classes.has('min'), true);
+  document.hasFocus = () => false;
+  push({ state: 'handoff', id: 'abcdef0123456789', message: 'Inicia sessió a GitHub' });
+  assert.equal(pane.classes.has('min'), false, 'a handoff restores a minimized pane');
+  assert.equal(banner.hidden, false);
+  assert.equal(elements.get('agentBrowserHandoffMsg').textContent, 'Inicia sessió a GitHub');
+  assert.equal(badgeText(pane), 'T:agentBrowser.handoff');
+  assert.equal(pane.classes.has('handoff'), true);
+  assert.deepEqual(notes, [['T:agentBrowser.handoffTitle', 'Inicia sessió a GitHub']], 'unfocused window gets a system notification');
+  elements.get('agentBrowserHandoffDone').onclick();
+  assert.deepEqual(answers, [['abcdef0123456789', true]]);
+  assert.equal(banner.hidden, true);
+  assert.equal(badgeText(pane), 'T:agentBrowser.active');
+  // Cancel·lar, i retirar-lo des del backend (temps esgotat, torn aturat).
+  push({ state: 'handoff', id: '1111111111111111', message: 'CAPTCHA' });
+  elements.get('agentBrowserHandoffCancel').onclick();
+  assert.deepEqual(answers.at(-1), ['1111111111111111', false]);
+  push({ state: 'handoff', id: '2222222222222222', message: 'Tria compte' });
+  push({ state: 'handoff-end', id: '9999999999999999' });
+  assert.equal(banner.hidden, false, 'another handoff ending leaves this one up');
+  push({ state: 'handoff-end', id: '2222222222222222', reason: 'timeout' });
+  assert.equal(banner.hidden, true);
+});
+
+test('the pane minimizes to a pill, expands to the whole window and restores', () => {
+  const { pane, elements } = openPane();
+  elements.get('agentBrowserMax').onclick();
+  assert.equal(pane.classes.has('max'), true);
+  assert.equal(elements.get('agentBrowserMax').title, 'T:agentBrowser.restore');
+  elements.get('agentBrowserMax').onclick();
+  assert.equal(pane.classes.has('max'), false);
+  elements.get('agentBrowserMin').onclick();
+  assert.equal(pane.classes.has('min'), true);
+  assert.equal(pane.hidden, false, 'minimized is still there (the agent keeps working)');
+  elements.get('agentBrowserRestore').onclick();
+  assert.equal(pane.classes.has('min'), false);
+  elements.get('agentBrowserMax').onclick();
+  elements.get('agentBrowserClose').onclick();
+  assert.equal(pane.hidden, true);
+  assert.equal(pane.classes.has('max'), false, 'closing forgets the size');
+});
+
+test('the address bar navigates for real and searches the rest', () => {
+  const { elements, opened } = openPane();
+  const url = elements.get('agentBrowserUrl'), view = elements.get('agentBrowserView');
+  url.value = 'localhost:3000/app';
+  url.events.keydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(view.loaded, 'http://localhost:3000/app');
+  url.value = 'com fer una truita';
+  url.events.keydown({ key: 'Enter', preventDefault() {} });
+  assert.equal(view.loaded, 'https://duckduckgo.com/?q=com%20fer%20una%20truita');
+  view.back = true;
+  view.events['did-navigate']({ url: 'https://example.org/' });
+  assert.equal(elements.get('agentBrowserBack').disabled, false);
+  assert.equal(elements.get('agentBrowserForward').disabled, true);
+  view.events['did-start-loading']();
+  assert.equal(elements.get('agentBrowserReload').title, 'T:agentBrowser.stop');
+  assert.equal(elements.get('agentBrowserProgress').classes.has('loading'), true);
+  view.events['did-stop-loading']();
+  assert.equal(elements.get('agentBrowserReload').title, 'T:agentBrowser.reload');
+  elements.get('agentBrowserExternal').onclick();
+  assert.equal(opened[0][0], 'https://example.org/');
+});
+
+test('addresses and states', () => {
+  const ctx = { window: {}, document: { getElementById: () => null }, URL, encodeURIComponent };
+  vm.runInNewContext(source + '\nthis.norm = normalizeAddress; this.state = agentBrowserState;', ctx);
+  assert.equal(ctx.norm('example.org'), 'https://example.org/');
+  assert.equal(ctx.norm('http://localhost:8080/x'), 'http://localhost:8080/x');
+  assert.equal(ctx.norm('127.0.0.1:5173'), 'http://127.0.0.1:5173/');
+  assert.equal(ctx.norm('gregal'), 'https://duckduckgo.com/?q=gregal');
+  assert.equal(ctx.norm('https://u:p@example.org'), '');
+  assert.equal(ctx.norm('   '), '');
+  assert.equal(ctx.state('handoff', 'active'), 'handoff');
+  assert.equal(ctx.state('handoff-end', 'handoff'), 'active');
+  assert.equal(ctx.state('handoff-end', 'released'), 'released');
+  assert.equal(ctx.state('show', 'released'), 'released');
 });

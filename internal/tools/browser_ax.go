@@ -802,7 +802,7 @@ const jsCredential = `function() {
 }`
 
 // ErrCredentialField diu per què l'agent no hi escriu.
-var ErrCredentialField = fmt.Errorf("browser: this is a password, card or one-time-code field: Gregal never types credentials. Ask the user to type it themselves, then continue")
+var ErrCredentialField = fmt.Errorf("browser: this is a password, card or one-time-code field: Gregal never types credentials. Use action handoff (text: what to do, e.g. \"Type your password and sign in\") so the user types it in the browser, then continue")
 
 // jsFocusClear enfoca el camp i en selecciona el contingut perquè el text
 // nou el substitueixi (així React i companyia veuen un input normal).

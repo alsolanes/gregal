@@ -870,8 +870,12 @@ func BrowserActionFor(ctx context.Context, scope, action string, args map[string
 	// fora; les accions sobre la pàgina queden limitades. El context del
 	// torn (cancel·lat amb /stop) també talla aquí. Un lot té més marge.
 	limit := BrowserActionTimeout
-	if action == "batch" {
+	switch action {
+	case "batch":
 		limit += time.Duration(len(batchSteps(args))) * 15 * time.Second
+	case "handoff", "ask_user":
+		// L'usuari treballa: el topall és el seu temps, no el d'una acció.
+		limit += handoffWait(a)
 	}
 	actx, cancel := context.WithTimeout(ctx, limit)
 	defer cancel()
