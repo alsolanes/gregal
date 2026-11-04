@@ -16,7 +16,7 @@ import (
 // relleu cap al coordinador amb el resum. Torna la conversa amb el resum
 // injectat a la tasca, o la mateixa si no n'hi ha, i si n'hi ha posat.
 func (s *Server) runScout(ctx context.Context, generation uint64, mode, task, workspace string, convo []llm.Message, maxSteps int, uso *llm.UsageMeter, provider string, emit func(string, any)) ([]llm.Message, bool) {
-	brief, ok := s.runScoutBrief(ctx, generation, mode, task, workspace, maxSteps, uso, provider, emit)
+	brief, ok := s.runScoutBrief(ctx, generation, mode, task, workspace, maxSteps, uso, provider, false, emit)
 	if !ok {
 		return convo, false
 	}
@@ -27,7 +27,7 @@ func (s *Server) runScout(ctx context.Context, generation uint64, mode, task, wo
 // la conversa. Així el mateix codi serveix per al camí bloquejant (les
 // preguntes de mode inspect, on el resum ÉS la resposta) i per al camí
 // paral·lel, que el lliura al torn en curs pel canal de steering.
-func (s *Server) runScoutBrief(ctx context.Context, generation uint64, mode, task, workspace string, maxSteps int, uso *llm.UsageMeter, provider string, emit func(string, any)) (string, bool) {
+func (s *Server) runScoutBrief(ctx context.Context, generation uint64, mode, task, workspace string, maxSteps int, uso *llm.UsageMeter, provider string, parallel bool, emit func(string, any)) (string, bool) {
 	if mode == agent.ModeInspect {
 		emit("status", map[string]string{"message": s.tr("Un subagent explorador busca la resposta al codi abans que el coordinador respongui…",
 			"An explorer subagent is searching the code for the answer before the coordinator replies…")})
@@ -40,7 +40,7 @@ func (s *Server) runScoutBrief(ctx context.Context, generation uint64, mode, tas
 	}
 	id := agent.NewDelegateID()
 	s.updateWorkshop(generation, "tools", 0, maxSteps, "scout", "")
-	lane, ho := s.beginLane(generation, 0, laneInfo{Role: roleResearcher, Kind: "scout", Tools: []string{"delegate"}}, id)
+	lane, ho := s.beginLane(generation, 0, laneInfo{Role: roleResearcher, Kind: "scout", Tools: []string{"delegate"}, Parallel: parallel}, id)
 	if ho != nil {
 		emit("handoff", handoffPayload(*ho))
 	}
@@ -61,7 +61,7 @@ func (s *Server) runScoutBrief(ctx context.Context, generation uint64, mode, tas
 		return "", false
 	}
 	if res.Brief == "" {
-		if back := s.handoff(generation, roleCoordinator, "report", 0); back != nil {
+		if back := s.handoffFrom(generation, roleResearcher, roleCoordinator, "report"); back != nil {
 			emit("handoff", handoffPayload(*back))
 		}
 		msg := ""
@@ -71,7 +71,7 @@ func (s *Server) runScoutBrief(ctx context.Context, generation uint64, mode, tas
 		emit("status", map[string]string{"message": s.tr("L'investigador no ha pogut acabar; el coordinador continua sense resum. ", "The researcher could not finish; the coordinator continues without a brief. ") + msg})
 		return "", false
 	}
-	if back := s.handoff(generation, roleCoordinator, "brief", 0); back != nil {
+	if back := s.handoffFrom(generation, roleResearcher, roleCoordinator, "brief"); back != nil {
 		emit("handoff", handoffPayload(*back))
 	}
 	return res.Brief, true
@@ -94,7 +94,7 @@ func (s *Server) scoutAlDarrere(ctx context.Context, mu *sync.Mutex, generation 
 		defer mu.Unlock()
 		emit(ev, v)
 	}
-	brief, ok := s.runScoutBrief(ctx, generation, mode, task, workspace, maxSteps, uso, provider, emitSegur)
+	brief, ok := s.runScoutBrief(ctx, generation, mode, task, workspace, maxSteps, uso, provider, true, emitSegur)
 	if !ok || brief == "" {
 		return
 	}

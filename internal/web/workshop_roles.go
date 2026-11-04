@@ -80,6 +80,9 @@ type laneInfo struct {
 	Role, Kind, Target, Command string
 	N                           int
 	Tools, Files                []string
+	// Parallel: el carril corre al costat del coordinador (el scout al
+	// darrere). Es desa el relleu d'anada, però el torn no canvia de mans.
+	Parallel bool
 }
 
 var testCommand = regexp.MustCompile(`(?i)(^|[\s;&|(])(go (test|vet|build)|pytest|py\.test|unittest|python3? -m (pytest|unittest)|npm (run )?(test|build|lint)|pnpm (test|build|lint)|yarn (test|build|lint)|jest|vitest|cargo (test|build|check|clippy)|dotnet (test|build)|make( |$)|tsc|eslint|ruff|mypy|flake8|mvn|gradle|ctest|node --test|lint|vet)`)
@@ -289,7 +292,9 @@ func (s *Server) beginLane(generation uint64, step int, info laneInfo, agentID s
 	if prev != role {
 		ho = s.addHandoffLocked(step, prev, role, handoffKind(role, info), info.N, lane.Target, info.Files, now)
 	}
-	a.Role = role
+	if !info.Parallel {
+		a.Role = role
+	}
 	a.Lanes = append(a.Lanes, lane)
 	if len(a.Lanes) > maxWorkshopLanes {
 		a.LanesTrimmed += len(a.Lanes) - maxWorkshopLanes
@@ -332,6 +337,25 @@ func (s *Server) handoff(generation uint64, to, kind string, n int) *workshopHan
 	}
 	h := s.addHandoffLocked(a.Step, from, to, kind, n, "", nil, time.Now().UTC())
 	a.Role = to
+	return h
+}
+
+// handoffFrom desa un relleu d'un rol que ha treballat en paral·lel (el scout):
+// el remitent és `from` encara que el torn l'hagi agafat un altre rol, i el
+// torn només passa a `to` si ningú no l'ha agafat mentrestant. Amb handoff()
+// el brief tardà sortia com a «builder>coordinator» i tornava el torn al
+// coordinador amb el constructor encara editant.
+func (s *Server) handoffFrom(generation uint64, from, to, kind string) *workshopHandoff {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if generation != s.workshopSeq || s.activity == nil || from == to {
+		return nil
+	}
+	a := s.activity
+	h := s.addHandoffLocked(a.Step, from, to, kind, 0, "", nil, time.Now().UTC())
+	if a.Role == "" || a.Role == from {
+		a.Role = to
+	}
 	return h
 }
 

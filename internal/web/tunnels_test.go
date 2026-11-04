@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,19 +13,11 @@ import (
 // el nom, cloudflared apuntava el CNAME a un altre túnel i l'amfitrió donava 404
 // encara que el connector fos viu.
 func TestCloudflaredRouteResolElNomAlIdentificador(t *testing.T) {
-	dir := t.TempDir()
-	args := filepath.Join(dir, "args.txt")
-	bin := filepath.Join(dir, "cloudflared")
-	script := "#!/bin/sh\n" +
-		"if [ \"$1\" = tunnel ] && [ \"$2\" = list ]; then\n" +
-		"  printf '[{\"id\":\"67cae018-df7a-4215-95e6-67431d3490ab\",\"name\":\"main\"}," +
-		"{\"id\":\"a7558e19-1e93-4a79-bc64-fc564c6ca527\",\"name\":\"vents\"}]'\n" +
-		"  exit 0\n" +
-		"fi\n" +
-		"printf '%s\\n' \"$*\" > " + args + "\n" +
-		"exit 0\n"
-	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
-		t.Fatalf("no s'ha pogut escriure el cloudflared fals: %v", err)
+	args := filepath.Join(t.TempDir(), "args.txt")
+	t.Setenv(fakeCloudflaredEnv, args)
+	bin, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
 	}
 	if _, err := cloudflaredRoute(bin, "vents", "prova.example.com"); err != nil {
 		t.Fatalf("la ruta hauria de funcionar amb el cloudflared fals: %v", err)
@@ -43,6 +36,28 @@ func TestCloudflaredRouteResolElNomAlIdentificador(t *testing.T) {
 	if !strings.Contains(line, "prova.example.com") {
 		t.Fatalf("l'amfitrió s'ha perdut: %q", line)
 	}
+}
+
+// fakeCloudflaredEnv fa que el binari de test faci de cloudflared (vegeu
+// TestMain): un script de shell no s'executa a Windows.
+const fakeCloudflaredEnv = "GREGAL_TEST_FAKE_CLOUDFLARED"
+
+// actAsFakeCloudflared respon `tunnel list` amb dos túnels i desa els arguments de
+// qualsevol altra ordre al fitxer de l'entorn. Torna false si no li toca.
+func actAsFakeCloudflared() bool {
+	argsFile := os.Getenv(fakeCloudflaredEnv)
+	if argsFile == "" {
+		return false
+	}
+	if len(os.Args) > 2 && os.Args[1] == "tunnel" && os.Args[2] == "list" {
+		fmt.Print(`[{"id":"67cae018-df7a-4215-95e6-67431d3490ab","name":"main"},` +
+			`{"id":"a7558e19-1e93-4a79-bc64-fc564c6ca527","name":"vents"}]`)
+		return true
+	}
+	if err := os.WriteFile(argsFile, []byte(strings.Join(os.Args[1:], " ")+"\n"), 0o644); err != nil {
+		os.Exit(1)
+	}
+	return true
 }
 
 func TestResolveTunnelIDDeixaEstarElsIdentificadors(t *testing.T) {

@@ -42,7 +42,10 @@ func TestRemindEnSessioMultiusuariUsaElsVentsDeLaSessio(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	root := remindTestServer(t)
 	root.registerRemindTool()
-	sess := *root
+	// Un Server a part (no una còpia de *root, que duplicaria el mutex) que
+	// comparteix la cua de feines, com fa clone().
+	sess := remindTestServer(t)
+	sess.jobs = root.jobs
 	sess.user = &User{Name: "aleix"}
 	sess.winds = companion.NewWindStore(t.TempDir())
 	w, err := sess.winds.Save(companion.Wind{Name: "Ponent", Color: "#EACF87"})

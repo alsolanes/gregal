@@ -24,6 +24,9 @@ import (
 // Al final comprova que el magatzem de jobs i workspaces.json de debò no
 // s'han tocat.
 func TestMain(m *testing.M) {
+	if actAsFakeCloudflared() {
+		return
+	}
 	llm.RetryBase, llm.RetryMax, llm.RetryJitter = 5*time.Millisecond, 20*time.Millisecond, time.Millisecond
 	dir, err := os.MkdirTemp("", "gregal-web-test-")
 	if err != nil {
