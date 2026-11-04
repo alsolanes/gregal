@@ -2,7 +2,7 @@
 // l'escriptori o el teu servidor) amb la pàgina com a context, i posa la
 // resposta a la pàgina o al porta-retalls. Fa servir la mateixa API que
 // l'app del mòbil: /api/winds i /api/winds/chat/stream amb la clau Bearer.
-import { baseUrl, connection, parseSSE, splitBlocks, buildMessage, isPdfUrl, bytesToBase64 } from './logic.js';
+import { baseUrl, connection, parseSSE, splitBlocks, buildMessage, isPdfUrl, bytesToBase64, renderMarkdown } from './logic.js';
 import { pageInfo, scriptFiles, insertText } from './page.js';
 
 const lang = (chrome.i18n.getUILanguage() || 'ca').startsWith('ca') ? 'ca' : 'en';
@@ -14,12 +14,12 @@ const T = {
     noDesktop: 'No trobo l\'app d\'escriptori. Obre Gregal i torna-ho a provar.',
     address: 'Adreça', port: 'Port', key: 'Clau', save: 'Connecta', saved: 'Connectat ✓', failed: 'No respon: %s',
     settings: 'Connexió', placeholder: 'Què vols fer amb aquesta pàgina?',
-    noWinds: 'Encara no tens cap vent: crea\'n un a l\'app.', empty: 'Pregunta el que vulguis: el vent veurà la pàgina que tens oberta.',
+    noWinds: 'Encara no tens cap vent: crea\'n un a l\'app.', hello: 'Hola!', helloSub: 'Què fem amb aquesta pàgina?', send: 'Envia',
     copy: 'Copia', insert: 'Insereix', replace: 'Substitueix el fitxer', copied: 'Copiat al porta-retalls',
     inserted: 'Fet ✓', pasteHint: 'No s\'ha pogut posar directament: és al porta-retalls, prem Ctrl+V on vulguis.',
     error: 'Error: %s', needKey: 'Configura la connexió amb Gregal.',
-    controlOn: '🤖 Deixa que Gregal faci servir aquest navegador', stop: 'Atura',
-    controlLive: 'Gregal pot fer servir aquest navegador · %s pestanyes al grup «Gregal»', controlWaiting: 'Esperant l\'app de Gregal…',
+    controlOn: 'Deixa que Gregal faci servir aquest navegador',
+    controlLive: 'Navegador · %s', controlWaiting: 'Esperant Gregal…',
     controlDenied: 'Aquesta extensió és d\'una versió anterior: recarrega-la a chrome://extensions (o torna-la a preparar des de Gregal) i torna-ho a provar.',
     controlHelp: 'Gregal treballarà en pestanyes del grup «Gregal», amb les teves sessions. Et preguntarà abans d\'actuar a cada web i abans d\'enviar, pagar o esborrar res.',
     q: {
@@ -37,12 +37,12 @@ const T = {
     noDesktop: 'Can\'t find the desktop app. Open Gregal and try again.',
     address: 'Address', port: 'Port', key: 'Key', save: 'Connect', saved: 'Connected ✓', failed: 'No answer: %s',
     settings: 'Connection', placeholder: 'What do you want to do with this page?',
-    noWinds: 'You have no winds yet: create one in the app.', empty: 'Ask anything: the wind will see the page you have open.',
+    noWinds: 'You have no winds yet: create one in the app.', hello: 'Hi!', helloSub: 'What shall we do with this page?', send: 'Send',
     copy: 'Copy', insert: 'Insert', replace: 'Replace the file', copied: 'Copied to the clipboard',
     inserted: 'Done ✓', pasteHint: 'Could not put it in directly: it is on the clipboard, press Ctrl+V where you want it.',
     error: 'Error: %s', needKey: 'Set up the connection to Gregal.',
-    controlOn: '🤖 Let Gregal use this browser', stop: 'Stop',
-    controlLive: 'Gregal can use this browser · %s tabs in the «Gregal» group', controlWaiting: 'Waiting for the Gregal app…',
+    controlOn: 'Let Gregal use this browser',
+    controlLive: 'Browser · %s', controlWaiting: 'Waiting for Gregal…',
     controlDenied: 'This is an older version of the extension: reload it on chrome://extensions (or prepare it again from Gregal) and try again.',
     controlHelp: 'Gregal will work in tabs of the «Gregal» group, with your logins. It asks before acting on each website and before sending, paying or deleting anything.',
     q: {
@@ -64,6 +64,11 @@ let busy = false;
 for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);
 $('input').placeholder = t('placeholder');
 $('settings-btn').title = t('settings');
+$('send').title = t('send');
+
+// La caixa creix amb el text, com als xats de sempre.
+const grow = () => { const i = $('input'); i.style.height = 'auto'; i.style.height = Math.min(i.scrollHeight, 160) + 'px'; };
+$('input').addEventListener('input', grow);
 
 function toast(text) {
   const el = $('toast');
@@ -97,12 +102,15 @@ function paintMode() {
   $('mode-server').classList.toggle('on', !desktop);
   $('desktop-help').hidden = !desktop;
   $('server-fields').hidden = desktop;
-  $('settings-btn').textContent = desktop ? '🖥️' : '🌐';
 }
 $('mode-desktop').onclick = () => { conf.mode = 'desktop'; paintMode(); $('status').textContent = ''; };
 $('mode-server').onclick = () => { conf.mode = 'server'; paintMode(); $('status').textContent = ''; };
 
-$('settings-btn').onclick = () => { $('settings').hidden = !$('settings').hidden; };
+const openSettings = (open) => { $('settings').hidden = !open; };
+$('settings-btn').onclick = () => openSettings(true);
+$('settings-close').onclick = () => openSettings(false);
+$('settings').onclick = (e) => { if (e.target === $('settings')) openSettings(false); };
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') openSettings(false); });
 $('save').onclick = async () => {
   if (conf.mode === 'server') {
     conf.addr = $('addr').value.trim();
@@ -120,7 +128,7 @@ $('save').onclick = async () => {
   try {
     await loadWinds();
     $('status').textContent = t('saved');
-    setTimeout(() => { $('settings').hidden = true; }, 700);
+    setTimeout(() => openSettings(false), 700);
   } catch (e) { $('status').textContent = conf.mode === 'server' ? t('failed', e.message) : t('noDesktop'); }
 };
 
@@ -131,10 +139,10 @@ async function loadWinds() {
   sel.innerHTML = '';
   for (const w of winds) {
     const o = document.createElement('option');
-    o.value = w.id; o.textContent = w.name + (w.role ? ' · ' + w.role : '');
+    o.value = w.id; o.textContent = w.name; o.title = w.role || '';
     sel.append(o);
   }
-  if (!winds.length) { log(t('noWinds'), 'empty'); return; }
+  if (!winds.length) { log(t('noWinds'), 'notice'); return; }
   sel.value = winds.some((w) => w.id === conf.wind) ? conf.wind : winds[0].id;
   conf.wind = sel.value;
 }
@@ -168,7 +176,7 @@ async function readPage() {
   let info;
   // On Chrome no deixa entrar (Web Store, chrome://): com a mínim el títol i l'adreça.
   try { info = await run(tab.id, pageInfo); } catch { info = { kind: 'web', title: tab.title, url: tab.url }; }
-  page = { ...info, tabId: tab.id, content: '' };
+  page = { ...info, tabId: tab.id, icon: tab.favIconUrl || '', content: '' };
   try {
     if (info.kind === 'docs') {
       const r = await fetch(`https://docs.google.com/document/d/${info.id}/export?format=txt`, { credentials: 'include' });
@@ -192,7 +200,7 @@ async function readPage() {
  *  el context és el seu text; la ruta deixa que el vent el llegeixi sencer. */
 async function readPdf(tab) {
   const name = decodeURIComponent(new URL(tab.url).pathname.split('/').pop() || 'document.pdf');
-  page = { kind: 'pdf', title: tab.title || name, url: tab.url, tabId: tab.id, content: '', path: '' };
+  page = { kind: 'pdf', title: tab.title || name, url: tab.url, tabId: tab.id, icon: '', content: '', path: '' };
   try {
     const r = await fetch(tab.url, { credentials: 'include' });
     if (!r.ok) return;
@@ -205,32 +213,48 @@ async function readPdf(tab) {
   } catch { /* sense context: el vent igualment pot respondre */ }
 }
 
+
+/** El xip de la pestanya dins la caixa d'escriure, i les idees de la salutació. */
 function paintContext() {
   const el = $('context');
   el.innerHTML = '';
-  if (!page) return;
-  const icon = { docs: '📄', sheets: '📊', script: '🧩', web: '🌐', pdf: '📕' }[page.kind] || '🌐';
-  const name = document.createElement('b');
-  name.textContent = `${icon} ${page.title || page.url}`;
-  el.append(name);
+  if (page) {
+    if (page.icon) {
+      const img = document.createElement('img'); img.src = page.icon; img.alt = '';
+      img.onerror = () => img.replaceWith(glyph());
+      el.append(img);
+    } else el.append(glyph());
+    const name = document.createElement('span');
+    name.textContent = page.title || page.url;
+    name.title = page.url;
+    el.append(name);
+  }
   const q = $('quick');
   q.innerHTML = '';
-  for (const s of T.q[page.kind] || T.q.web) {
+  for (const s of T.q[page ? page.kind : 'web'] || T.q.web) {
     const b = document.createElement('button');
     b.type = 'button'; b.textContent = s;
-    b.onclick = () => { if (s.endsWith('…')) { $('input').value = s.slice(0, -1); $('input').focus(); } else send(s); };
+    b.onclick = () => { if (s.endsWith('…')) { $('input').value = s.slice(0, -1); $('input').focus(); grow(); } else send(s); };
     q.append(b);
   }
 }
 
+function glyph() {
+  const g = document.createElement('span');
+  g.className = 'glyph';
+  g.textContent = { docs: '📄', sheets: '📊', script: '🧩', pdf: '📕' }[page && page.kind] || '🌐';
+  return g;
+}
+
 chrome.tabs.onActivated.addListener(() => readPage());
-chrome.tabs.onUpdated.addListener((id, ch, tab) => { if (tab.active && (ch.status === 'complete' || ch.title)) readPage(); });
+chrome.tabs.onUpdated.addListener((id, ch, tab) => { if (tab.active && (ch.status === 'complete' || ch.title || ch.favIconUrl)) readPage(); });
 
 // --- Xat ---
 function log(text, cls) {
   const el = document.createElement('div');
-  el.className = cls === 'empty' ? 'empty' : 'msg ' + cls;
+  el.className = cls === 'notice' ? 'notice' : 'msg ' + cls;
   el.textContent = text;
+  if (cls !== 'notice') $('hello').hidden = true;
   $('log').append(el);
   el.scrollIntoView({ block: 'end' });
   return el;
@@ -254,48 +278,54 @@ async function put(text, replaceAll) {
 function actions(text, isCode) {
   const row = document.createElement('div');
   row.className = 'actions';
-  const b1 = document.createElement('button'); b1.textContent = t('copy');
+  const b1 = document.createElement('button'); b1.type = 'button'; b1.textContent = t('copy');
   b1.onclick = async () => { await copy(text); toast(t('copied')); };
-  const b2 = document.createElement('button'); b2.textContent = t('insert');
+  const b2 = document.createElement('button'); b2.type = 'button'; b2.textContent = t('insert');
   b2.onclick = () => put(text, false);
   row.append(b1, b2);
   if (isCode && page && page.kind === 'script') {
-    const b3 = document.createElement('button'); b3.textContent = t('replace');
+    const b3 = document.createElement('button'); b3.type = 'button'; b3.textContent = t('replace');
     b3.onclick = () => put(text, true);
     row.append(b3);
   }
   return row;
 }
 
+/** La resposta amb format: markdown (renderMarkdown ho escapa tot) i blocs de codi amb Copia/Insereix. */
 function paintReply(el, text, final) {
   const body = el.querySelector('.body');
   body.innerHTML = '';
-  for (const b of splitBlocks(text)) {
+  const blocks = splitBlocks(text);
+  for (const b of blocks) {
     if (b.type === 'code') {
+      const box = document.createElement('div'); box.className = 'code';
       const pre = document.createElement('pre'); pre.textContent = b.text;
-      body.append(pre);
-      if (final) body.append(actions(b.text, true));
+      box.append(pre);
+      if (final) box.append(actions(b.text, true));
+      body.append(box);
     } else {
-      body.append(document.createTextNode(b.text.replace(/\*\*(.+?)\*\*/g, '$1')));
+      const div = document.createElement('div');
+      div.innerHTML = renderMarkdown(b.text);
+      body.append(...div.childNodes);
     }
   }
-  if (final && text.trim() && !splitBlocks(text).some((b) => b.type === 'code')) el.append(actions(text.trim(), false));
+  if (final && text.trim() && !blocks.some((b) => b.type === 'code')) el.append(actions(text.trim(), false));
 }
 
 async function send(text) {
   text = String(text || '').trim();
   if (!text || busy) return;
-  if (!conf.wind) { $('settings').hidden = false; toast(t('needKey')); return; }
+  if (!conf.wind) { openSettings(true); toast(t('needKey')); return; }
   busy = true; $('send').disabled = true;
   log(text, 'user');
-  $('input').value = '';
+  $('input').value = ''; grow();
   const el = log('', 'wind busy');
-  await readPage().catch(() => {});
-  const message = buildMessage(text, page, lang);
   el.innerHTML = '';
-  const who = document.createElement('div'); who.className = 'who'; who.textContent = $('wind').selectedOptions[0]?.textContent.split(' · ')[0] || '';
+  const who = document.createElement('div'); who.className = 'who'; who.textContent = $('wind').selectedOptions[0]?.textContent || '';
   const body = document.createElement('div'); body.className = 'body';
   el.append(who, body);
+  await readPage().catch(() => {});
+  const message = buildMessage(text, page, lang);
   let reply = '';
   try {
     const res = await api('/api/winds/chat/stream', { method: 'POST', body: JSON.stringify({ wind: conf.wind, message }) });
@@ -327,10 +357,9 @@ async function send(text) {
   }
 }
 
-// --- Deixar que Gregal faci servir aquest navegador ---
+// --- Deixar que Gregal faci servir aquest navegador (als ajustos) ---
 function paintControl(st, on) {
-  $('control-on').hidden = on;
-  $('control-on').title = t('controlHelp');
+  $('control').checked = on;
   $('control-live').hidden = !on;
   $('control-live').classList.toggle('waiting', !(st && st.connected));
   $('control-live').title = t('controlHelp');
@@ -343,18 +372,20 @@ async function refreshControl() {
   paintControl(st, !!control);
 }
 
-$('control-on').onclick = async () => {
+$('control').onchange = async () => {
+  if (!$('control').checked) {
+    paintControl(await chrome.runtime.sendMessage({ gregalStop: true }).catch(() => null), false);
+    return;
+  }
   // Chrome no deixa que «debugger» sigui opcional: es concedeix en instal·lar
   // l'extensió, i l'interruptor és qui decideix si Gregal el fa servir. Si
   // falta (una versió antiga carregada), cal recarregar l'extensió.
   const ok = await chrome.permissions.contains({ permissions: ['debugger'] }).catch(() => false);
-  if (!ok) { toast(t('controlDenied')); return; }
+  if (!ok) { $('control').checked = false; toast(t('controlDenied')); return; }
   await chrome.storage.local.set({ control: true });
   paintControl(await chrome.runtime.sendMessage({ gregalLink: true }).catch(() => null), true);
 };
-$('control-stop').onclick = async () => {
-  paintControl(await chrome.runtime.sendMessage({ gregalStop: true }).catch(() => null), false);
-};
+$('control-live').onclick = () => openSettings(true);
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg && msg.gregalControl) chrome.storage.local.get(['control']).then(({ control }) => paintControl(msg.gregalControl, !!control));
 });
@@ -363,11 +394,13 @@ $('form').onsubmit = (e) => { e.preventDefault(); send($('input').value); };
 $('input').onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send($('input').value); } };
 
 (async () => {
+  paintContext();
   await loadConf();
   refreshControl();
-  try { await loadWinds(); log(t('empty'), 'empty'); } catch {
-    $('settings').hidden = false;
+  try { await loadWinds(); } catch {
+    openSettings(true);
     $('status').textContent = conf.mode === 'server' ? t('needKey') : t('noDesktop');
   }
   readPage();
+  $('input').focus();
 })();

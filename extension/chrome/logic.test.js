@@ -56,3 +56,15 @@ test('PDF: es reconeix per la ruta i el missatge en duu la ruta a Gregal', () =>
   assert.match(msg, /fitxer a Gregal: \/tmp\/gregal-office-1-f\.pdf — pdf_read/);
   assert.match(msg, /Total 10 €/);
 });
+
+test('markdown del vent: segur i amb enllaços, llistes i taules', async () => {
+  const { renderMarkdown } = await import('./logic.js');
+  assert.equal(renderMarkdown('Hola **món**, mira [DeepSeek](https://deepseek.com/x) i `v4`.'),
+    '<p>Hola <b>món</b>, mira <a href="https://deepseek.com/x" target="_blank" rel="noopener">DeepSeek</a> i <code>v4</code>.</p>');
+  assert.equal(renderMarkdown('<img src=x onerror=alert(1)> [x](javascript:alert(1))'),
+    '<p>&lt;img src=x onerror=alert(1)&gt; [x](javascript:alert(1))</p>');
+  assert.equal(renderMarkdown('Punts:\n- un\n- dos\n\n1. a\n2. b'), '<p>Punts:</p><ul><li>un</li><li>dos</li></ul><ol><li>a</li><li>b</li></ol>');
+  assert.equal(renderMarkdown('## Resum\n| Model | HLE |\n|---|---|\n| Opus | 56 |'),
+    '<h3>Resum</h3><table><tr><th>Model</th><th>HLE</th></tr><tr><td>Opus</td><td>56</td></tr></table>');
+  assert.equal(renderMarkdown('a *b* 2*3*4'), '<p>a <i>b</i> 2*3*4</p>');
+});

@@ -112,3 +112,55 @@ export function buildMessage(text, ctx, lang) {
         : 'If you propose text to put on the page, put it in a ``` block so it can be inserted with one click.');
   return `${ask}\n\n${head}\n${content}${cut}\n[/${KIND[ctx.kind] || 'Web'}]\n(${hint})`;
 }
+
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+/** Negretes, cursives, `codi` i enllaços http(s) dins una línia ja escapada. */
+function inline(s) {
+  const codes = [];
+  s = s.replace(/`([^`]+)`/g, (_, c) => `\u0000${codes.push(c) - 1}\u0000`);
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\w)/g, '$1<i>$2</i>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => `<code>${codes[i]}</code>`);
+}
+
+/**
+ * Markdown del vent → HTML segur (tot s'escapa; només surten etiquetes
+ * nostres): paràgrafs, títols, llistes, taules i el de dins de línia.
+ * Els blocs ``` els separa splitBlocks abans.
+ */
+export function renderMarkdown(text) {
+  const lines = esc(String(text || '').trim()).split(/\r?\n/);
+  const out = [];
+  let para = [], list = null;
+  const flush = () => {
+    if (para.length) { out.push(`<p>${para.map(inline).join('<br>')}</p>`); para = []; }
+    if (list) { out.push(`<${list.tag}>${list.items.map((i) => `<li>${inline(i)}</li>`).join('')}</${list.tag}>`); list = null; }
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    let m;
+    if (!l.trim()) { flush(); continue; }
+    if ((m = l.match(/^\s*(#{1,6})\s+(.*)$/))) { flush(); out.push(`<h${m[1].length < 3 ? 3 : 4}>${inline(m[2])}</h${m[1].length < 3 ? 3 : 4}>`); continue; }
+    if (/^\s*\|.*\|\s*$/.test(l) && /^\s*\|[\s:|-]+\|\s*$/.test(lines[i + 1] || '')) {
+      flush();
+      const cells = (r) => r.trim().replace(/^\||\|$/g, '').split('|').map((c) => inline(c.trim()));
+      let html = `<table><tr>${cells(l).map((c) => `<th>${c}</th>`).join('')}</tr>`;
+      for (i += 2; i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i]); i++) html += `<tr>${cells(lines[i]).map((c) => `<td>${c}</td>`).join('')}</tr>`;
+      i--;
+      out.push(html + '</table>');
+      continue;
+    }
+    if ((m = l.match(/^\s*(?:([-*•])|(\d+)[.)])\s+(.*)$/))) {
+      const tag = m[1] ? 'ul' : 'ol';
+      if (para.length || (list && list.tag !== tag)) flush();
+      if (!list) list = { tag, items: [] };
+      list.items.push(m[3]);
+      continue;
+    }
+    if (list) flush();
+    para.push(l);
+  }
+  flush();
+  return out.join('');
+}

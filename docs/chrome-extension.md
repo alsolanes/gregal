@@ -22,7 +22,7 @@ folder and pin the Gregal icon.
 
 ## Connect
 
-At the top of the settings (⚙) there is a **🖥️ Desktop app · 🌐 Server**
+In the settings (the sliders icon at the top right) there is a **🖥️ Desktop app · 🌐 Server**
 switch, like on the phone:
 
 - **Desktop app** (the default): nothing to fill in. It connects to the Gregal
