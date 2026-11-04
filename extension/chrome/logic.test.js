@@ -28,6 +28,9 @@ test('blocs de codi per inserir', () => {
 
 test('el missatge porta el context tallat i la pista per inserir', () => {
   assert.equal(buildMessage('hola', null, 'ca'), 'hola');
+  // Sense text llegible, com a mínim quina pàgina és.
+  assert.equal(buildMessage('mira-ho', { kind: 'web', title: 'AI Models', url: 'https://artificialanalysis.ai/', content: '' }, 'ca'),
+    'mira-ho\n\n[Web: «AI Models» — https://artificialanalysis.ai/]');
   const m = buildMessage('Resumeix', { kind: 'sheets', title: 'Pressupost', url: 'https://docs.google.com/x', range: 'B2', content: 'a,b\n1,2' }, 'ca');
   assert.match(m, /^Resumeix\n\n\[Google Sheets: «Pressupost» — https:\/\/docs.google.com\/x — selecció B2\]\na,b\n1,2\n\[\/Google Sheets\]/);
   assert.match(m, /tabuladors/);

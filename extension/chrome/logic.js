@@ -84,12 +84,14 @@ export function bytesToBase64(bytes) {
 export const MAX_CONTEXT = 14000;
 
 /**
- * El missatge per al vent: el que demana l'usuari i, si vol, el context de la
+ * El missatge per al vent: el que demana l'usuari i el context de la
  * pàgina (tallat), amb la instrucció de posar el que s'ha d'inserir en blocs.
  */
 export function buildMessage(text, ctx, lang) {
   const ask = String(text || '').trim();
-  if (!ctx || !ctx.content) return ask;
+  if (!ctx || !(ctx.content || ctx.url)) return ask;
+  // Sense text llegible, el vent sap igualment quina pàgina és i la pot obrir.
+  if (!ctx.content) return `${ask}\n\n[${KIND[ctx.kind] || 'Web'}: «${ctx.title || ''}» — ${ctx.url}]`;
   let content = ctx.content;
   let cut = '';
   if (content.length > MAX_CONTEXT) {

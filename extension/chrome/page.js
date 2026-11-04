@@ -20,8 +20,8 @@ export function pageInfo() {
   const sel = String(window.getSelection ? window.getSelection() : '').trim();
   if (sel) info.selection = sel.slice(0, 20000);
   if (info.kind === 'web') {
-    const main = document.querySelector('main, article, [role=main]') || document.body;
-    info.text = (main.innerText || '').replace(/\n{3,}/g, '\n\n').slice(0, 20000);
+    // Tota la pàgina, com la veu l'usuari: un <main> sovint en deixa fora la meitat.
+    info.text = (document.body ? document.body.innerText || '' : '').replace(/\n{3,}/g, '\n\n').slice(0, 30000);
   }
   return info;
 }

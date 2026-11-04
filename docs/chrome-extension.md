@@ -30,7 +30,6 @@ switch, like on the phone:
   that port is free.
 - **Server:** the address, port and key it prints when it starts
   (`gregal --serve --addr 0.0.0.0`, or `https://your-domain` and no port).
-  Chrome asks once for permission to reach that address.
 
 Then pick the wind at the top: each one keeps its own memory and knowledge, so
 use the one whose trade fits (a data wind for Sheets, a writer for Docs).
@@ -43,10 +42,13 @@ use the one whose trade fits (a data wind for Sheets, a writer for Docs).
 | Google Sheets | The current tab as CSV and the selected range. |
 | Apps Script | The files open in the editor (or the visible lines if the editor is not reachable). |
 | A PDF (Chrome's viewer) | The PDF is uploaded to Gregal and its text is the context; the message carries its path so the wind can read the whole file, scanned pages included, with `pdf_read` (see [PDF](pdf.md)). |
-| Any other site | Your selection, or the main text of the page. |
+| Any other site | Your selection, or the text of the whole page. |
 
-Long documents are cut at 14,000 characters. Untick **Include the page** to
-ask without it. Reading uses your own Google session in that browser: the
+The page is read again when you send, so the wind sees it as it is at that
+moment. Pages Chrome keeps closed to extensions (the Web Store, `chrome://`)
+still go with their title and address. Long documents are cut at 14,000
+characters. The extension can read every site (like other AI side panels);
+it only reads the tab you have open, when you send. Reading uses your own Google session in that browser: the
 extension only asks Google for the document you have open.
 
 ## Putting the answer on the page

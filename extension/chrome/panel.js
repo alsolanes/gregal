@@ -13,11 +13,11 @@ const T = {
     desktopHelp: 'Es connecta sol a l\'app de Gregal oberta en aquest ordinador. No cal posar res.',
     noDesktop: 'No trobo l\'app d\'escriptori. Obre Gregal i torna-ho a provar.',
     address: 'Adreça', port: 'Port', key: 'Clau', save: 'Connecta', saved: 'Connectat ✓', failed: 'No respon: %s',
-    settings: 'Connexió', placeholder: 'Què vols fer amb aquesta pàgina?', include: 'Inclou la pàgina',
+    settings: 'Connexió', placeholder: 'Què vols fer amb aquesta pàgina?',
     noWinds: 'Encara no tens cap vent: crea\'n un a l\'app.', empty: 'Pregunta el que vulguis: el vent veurà la pàgina que tens oberta.',
     copy: 'Copia', insert: 'Insereix', replace: 'Substitueix el fitxer', copied: 'Copiat al porta-retalls',
     inserted: 'Fet ✓', pasteHint: 'No s\'ha pogut posar directament: és al porta-retalls, prem Ctrl+V on vulguis.',
-    reading: 'Llegint la pàgina…', unreadable: 'no s\'ha pogut llegir', error: 'Error: %s', needKey: 'Configura la connexió amb Gregal.',
+    error: 'Error: %s', needKey: 'Configura la connexió amb Gregal.',
     controlOn: '🤖 Deixa que Gregal faci servir aquest navegador', stop: 'Atura',
     controlLive: 'Gregal pot fer servir aquest navegador · %s pestanyes al grup «Gregal»', controlWaiting: 'Esperant l\'app de Gregal…',
     controlDenied: 'Aquesta extensió és d\'una versió anterior: recarrega-la a chrome://extensions (o torna-la a preparar des de Gregal) i torna-ho a provar.',
@@ -36,11 +36,11 @@ const T = {
     desktopHelp: 'Connects by itself to the Gregal app open on this computer. Nothing to fill in.',
     noDesktop: 'Can\'t find the desktop app. Open Gregal and try again.',
     address: 'Address', port: 'Port', key: 'Key', save: 'Connect', saved: 'Connected ✓', failed: 'No answer: %s',
-    settings: 'Connection', placeholder: 'What do you want to do with this page?', include: 'Include the page',
+    settings: 'Connection', placeholder: 'What do you want to do with this page?',
     noWinds: 'You have no winds yet: create one in the app.', empty: 'Ask anything: the wind will see the page you have open.',
     copy: 'Copy', insert: 'Insert', replace: 'Replace the file', copied: 'Copied to the clipboard',
     inserted: 'Done ✓', pasteHint: 'Could not put it in directly: it is on the clipboard, press Ctrl+V where you want it.',
-    reading: 'Reading the page…', unreadable: 'could not be read', error: 'Error: %s', needKey: 'Set up the connection to Gregal.',
+    error: 'Error: %s', needKey: 'Set up the connection to Gregal.',
     controlOn: '🤖 Let Gregal use this browser', stop: 'Stop',
     controlLive: 'Gregal can use this browser · %s tabs in the «Gregal» group', controlWaiting: 'Waiting for the Gregal app…',
     controlDenied: 'This is an older version of the extension: reload it on chrome://extensions (or prepare it again from Gregal) and try again.',
@@ -151,13 +151,22 @@ async function run(tabId, func, args = [], world = 'ISOLATED') {
   return r && r.result;
 }
 
-/** Llegeix la pestanya activa: Docs/Sheets amb l'exportació de Google, Apps Script de l'editor. */
+/**
+ * Llegeix la pestanya activa tal com és ara: Docs/Sheets amb l'exportació de
+ * Google, Apps Script de l'editor i qualsevol web pel seu text. Es crida en
+ * canviar de pestanya (per pintar-la) i abans d'enviar, perquè el vent vegi
+ * la pàgina d'aquell moment (també el que s'ha carregat després).
+ */
 async function readPage() {
   const tab = await activeTab();
-  page = null;
-  if (!tab || !/^https?:/.test(tab.url || '')) { paintContext(); return; }
-  if (isPdfUrl(tab.url)) { await readPdf(tab); paintContext(); return; }
+  if (!tab || !/^https?:/.test(tab.url || '')) { page = null; paintContext(); return; }
+  if (isPdfUrl(tab.url)) {
+    // Un PDF no canvia: es puja una sola vegada.
+    if (!(page && page.kind === 'pdf' && page.url === tab.url && page.content)) await readPdf(tab);
+    paintContext(); return;
+  }
   let info;
+  // On Chrome no deixa entrar (Web Store, chrome://): com a mínim el títol i l'adreça.
   try { info = await run(tab.id, pageInfo); } catch { info = { kind: 'web', title: tab.title, url: tab.url }; }
   page = { ...info, tabId: tab.id, content: '' };
   try {
@@ -204,14 +213,6 @@ function paintContext() {
   const name = document.createElement('b');
   name.textContent = `${icon} ${page.title || page.url}`;
   el.append(name);
-  if (!page.content) {
-    const s = document.createElement('span'); s.textContent = '· ' + t('unreadable'); el.append(s);
-  } else {
-    const lab = document.createElement('label');
-    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.id = 'include'; cb.checked = true;
-    lab.append(cb, document.createTextNode(t('include')));
-    el.append(lab);
-  }
   const q = $('quick');
   q.innerHTML = '';
   for (const s of T.q[page.kind] || T.q.web) {
@@ -288,9 +289,9 @@ async function send(text) {
   busy = true; $('send').disabled = true;
   log(text, 'user');
   $('input').value = '';
-  const include = $('include') ? $('include').checked : false;
-  const message = buildMessage(text, include ? page : null, lang);
   const el = log('', 'wind busy');
+  await readPage().catch(() => {});
+  const message = buildMessage(text, page, lang);
   el.innerHTML = '';
   const who = document.createElement('div'); who.className = 'who'; who.textContent = $('wind').selectedOptions[0]?.textContent.split(' · ')[0] || '';
   const body = document.createElement('div'); body.className = 'body';
