@@ -20,7 +20,7 @@ const windsModelScope = "vents"
 // config cau al rol base: el vent mai es queda mut per un model esborrat.
 // Cal cridar-lo amb s.mu agafat, com roleRef().
 func (s *Server) windRoleRef() (config.Provider, config.Role) {
-	p, r := s.roleRef()
+	p, r := s.roleRefBase(s.role) // els vents no segueixen el nivell de raonament de la feina
 	ov, ok := s.modelOverride[windsModelScope]
 	if !ok || s.unavailableModels[windsModelScope] == ov {
 		return p, r

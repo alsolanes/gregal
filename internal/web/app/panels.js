@@ -1054,7 +1054,7 @@ export const models = {
     const itemHTML = (m, i) =>
       '<div class="mp-item' + (i === this.idx ? ' on' : '') + (m.cur ? ' cur' : '') + '" data-i="' + i + '" role="option" aria-selected="' + (m.cur) + '">' +
         '<span class="mp-mark">' + (m.cur ? '✓' : '') + '</span>' +
-        '<span class="mp-id">' + esc(m.id) + '</span>' +
+        '<span class="mp-id" title="' + esc(m.id) + '">' + esc((this.data.names && this.data.names[m.id]) || (window.gregalModelName ? window.gregalModelName(m.id) : m.id)) + '</span>' +
       '</div>';
     const recent = this.filtered.filter(m => m.recent >= 0);
     if (recent.length) {

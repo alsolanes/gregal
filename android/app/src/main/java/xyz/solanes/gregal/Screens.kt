@@ -436,7 +436,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        st.model.ifEmpty { st.currentRole.ifEmpty { "Gregal" } },
+                                        st.modelName.ifEmpty { prettyModelName(st.model) }.ifEmpty { st.currentRole.ifEmpty { "Gregal" } },
                                         color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     )
@@ -1407,6 +1407,21 @@ fun ModelMenu(
             onSelect = { vm.setModel(it); onClose() },
             onSettings = { onClose(); vm.go(Screen.Prefs) })
         HorizontalDivider(color = Line)
+        if (st.thinkOptions.isNotEmpty()) {
+            Text(tr(lang, "app.think.title"), Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                color = Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            val shown = st.think.ifEmpty { "default" }
+            st.thinkOptions.forEach { level ->
+                DropdownMenuItem(
+                    text = { Column {
+                        Text(tr(lang, "app.think.$level"), fontSize = 14.sp)
+                        Text(tr(lang, "app.think.help.$level"), color = Muted, fontSize = 11.5.sp)
+                    } },
+                    trailingIcon = { if (shown == level) Icon(Icons.Rounded.Check, null, tint = Sea) },
+                    onClick = { vm.setThink(level); onClose() })
+            }
+            HorizontalDivider(color = Line)
+        }
         st.roles.forEach { role ->
             DropdownMenuItem(text = { Text(roleLabel(role, lang)) },
                 trailingIcon = { if (st.currentRole == role) Icon(Icons.Rounded.Check, null, tint = Sea) },

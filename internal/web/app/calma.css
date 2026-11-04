@@ -193,3 +193,16 @@ html body.shell-winds #side > .brand { display:flex; }
 #main .msg.a .body .codehead { height:28px; background:transparent; border-bottom:0; padding:0 12px; opacity:.75; }
 #main .msg.a .body .codeblock, #main .msg.a .body pre.codeblock { border-color:var(--line); border-radius:10px; background:var(--codi-fons); }
 #main .msg.a .body .codeblock pre { border-radius:0 0 10px 10px; padding-top:4px; }
+
+/* ---- Pastilla i menú del nivell de raonament ---- */
+.think-pill { margin-left:4px; }
+#thinkMenu { position:fixed; z-index:9999; width:272px; padding:6px; border:1px solid var(--line-hi); border-radius:14px;
+  background:var(--panel,var(--surface)); box-shadow:0 12px 40px rgba(0,0,0,.35); }
+#thinkMenu .think-head { padding:6px 10px 4px; color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; }
+#thinkMenu .think-item { display:grid; grid-template-columns:18px 1fr; column-gap:6px; width:100%; text-align:left; padding:8px 10px;
+  border:0; border-radius:9px; background:transparent; color:var(--text); font:inherit; cursor:pointer; }
+#thinkMenu .think-item:hover, #thinkMenu .think-item.on { background:var(--accent-soft); }
+#thinkMenu .think-mark { grid-row:1 / 3; color:var(--accent-hi); }
+#thinkMenu .think-name { font-weight:560; color:var(--ink); }
+#thinkMenu small { grid-column:2; color:var(--muted); font-size:11.5px; }
+#composer #thinkPill { order:21; }

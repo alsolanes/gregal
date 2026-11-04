@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## v1.53.5 - 2026-11-04 - Nom del model i nivell de raonament
+
+- **Nom llegible del model i nivell de raonament, com a OpenCode.** El model surt
+  com «DeepSeek V4.1 Flash» (nom del catàleg models.dev, amb un derivat de l'id si
+  no hi és) a la web i a Android; l'id complet queda al tooltip. Nou selector de
+  raonament (thinking): una píndola al costat del model a la web i una secció al
+  menú del model d'Android, amb Per defecte, Auto, Sense i els nivells que el
+  model declara al catàleg (p. ex. Baix, Alt, Màxim); si el model no raona,
+  s'amaga. Es desa per usuari (`POST /api/think`) i no afecta el revisor ni els
+  vents.
 ## v1.53.4 - 2026-11-04 - Cua de missatges a Android
 
 - **Android: cua de missatges amb l'agent treballant.** Escriure mentre l'agent

@@ -2598,6 +2598,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
     /** Canvia només a un model anunciat pel servidor i confirma l'estat final. */
+    /** Nivell de raonament (think): el servidor el desa per usuari. */
+    fun setThink(level: String) {
+        val cur = _state.value
+        _state.value = cur.copy(think = if (level == "default") "" else level)
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { _conn.value.api().post("/api/think", JSONObject().put("level", level)) }
+                _state.value = withContext(Dispatchers.IO) { _conn.value.api().getState() }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                _state.value = cur
+                notify(requestMessage(e))
+            }
+        }
+    }
+
     fun setModel(model: String) {
         viewModelScope.launch {
             try {

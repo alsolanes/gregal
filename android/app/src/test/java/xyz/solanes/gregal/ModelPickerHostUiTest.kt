@@ -60,10 +60,10 @@ class ModelPickerHostUiTest {
         ui.onNodeWithText("local-model").assertDoesNotExist()
         ui.onNodeWithText(tr("en", "app.menu.keyPlaceholder")).assertDoesNotExist()
         ui.onNodeWithTag("model-search").performTextInput("model-25")
-        ui.onNode(hasText("model-25") and !hasSetTextAction()).assertExists().performClick()
+        ui.onNode(hasText("Model 25") and !hasSetTextAction()).assertExists().performClick()
         assertEquals("alpha/model-25", selected)
         ui.onNodeWithTag("model-search").performTextReplacement("beta")
-        ui.onNodeWithText("other/model").performClick()
+        ui.onNodeWithText("Model").performClick()
         assertEquals("beta/other/model", selected)
     }
     @Test fun emptyConfigurationOffersSettingsNotKeyEntry() {
@@ -81,7 +81,7 @@ class ModelPickerHostUiTest {
                     mapOf("configured" to listOf("model")), ServerState(), {}, {})
             }
         } }
-        ui.onNodeWithText("model").assertExists()
+        ui.onNodeWithText("Model").assertExists()
     }
     @Test fun catalanDeviceShowsActualSettingsInCatalanWithSystemChoice() {
         val app = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.app.Application>()

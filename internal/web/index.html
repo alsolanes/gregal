@@ -2032,6 +2032,8 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/winds-crew.js"></script>
 <script defer src="/app/winds-pati-zones.js"></script>
 <script defer src="/app/winds-pati.js"></script>
+<script defer src="/app/model-name.js"></script>
+<script defer src="/app/think-level.js"></script>
 <script defer src="/app/winds-choices.js"></script>
 <script defer src="/app/winds-workspace.js"></script>
 <script type="module" src="/app/profile-sync.js"></script>
@@ -2981,7 +2983,7 @@ async function refresh(options = {}) {
   // títol de la benvinguda— es quedava en català per sempre.
   if (window.gregalLang) window.gregalLang(r.lang);
   const fullModel = r.provider + '/' + r.model;
-  $('model').textContent = r.model; $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + fullModel;
+  $('model').textContent = r.model_name || (window.gregalModelName && window.gregalModelName(r.model)) || r.model; $('modelPill').title = gregalT('ui.chooseModel') + ' · ' + fullModel;
   $('endpoint').textContent = fullModel;
   $('branch').textContent = r.branch || 'workspace';
   $('project').textContent = r.project || gregalT('ui.project'); $('project').title = r.cwd || '';
@@ -2990,7 +2992,7 @@ async function refresh(options = {}) {
   $('activeWorkspace').disabled = !!r.agent_busy;
   $('sideProject').textContent = r.project || gregalT('nav.project');
   $('statusDot').classList.toggle('busy', visualWorking(r));
-  $('hmode').textContent = r.mode; $('hrole').textContent = r.model || r.current_role;
+  $('hmode').textContent = r.mode; $('hrole').textContent = (window.gregalModelName && window.gregalModelName(r.model)) || r.model || r.current_role;
   agentMode = r.mode === 'code' || r.mode === 'autonomous' || r.mode === 'debug'; goalMode = r.mode === 'goal';
   paintMode(r.mode);
   $('send').innerHTML = sendLabel();

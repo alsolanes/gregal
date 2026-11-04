@@ -273,7 +273,14 @@ func (s *Server) roleRef() (config.Provider, config.Role) {
 	return s.roleRefFor(s.role)
 }
 
+// roleRefFor resol provider i rol amb el model i el nivell de raonament que
+// l'usuari ha triat a la UI.
 func (s *Server) roleRefFor(name string) (config.Provider, config.Role) {
+	p, r := s.roleRefBase(name)
+	return p, s.withThinkLevel(name, r)
+}
+
+func (s *Server) roleRefBase(name string) (config.Provider, config.Role) {
 	r := s.cfg.Roles[name]
 	if ov, ok := s.modelOverride[name]; ok && s.unavailableModels[name] != ov {
 		if p, m, ok := splitModel(ov); ok {
@@ -1004,8 +1011,12 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		// que no existia. context_window 0 = el rol no el declara.
 		// El resum de compactació és el primer missatge de convo: ja hi
 		// compta.
-		"used_tokens":    max(llm.EstimateTokens(s.convo), int(s.lastPrompt.Load())),
-		"context_window": agent.Window(s.cfg, role),
+		"think":           s.thinkLevel(),
+		"think_options":   thinkOptionsFor(role.Model),
+		"model_name":      modelDisplayName(role.Model),
+		"think_effective": role.Think,
+		"used_tokens":     max(llm.EstimateTokens(s.convo), int(s.lastPrompt.Load())),
+		"context_window":  agent.Window(s.cfg, role),
 		// Transcript curt perquè canviar de pestanya no perdi l'historial
 		// visible (abans switchTo buidava el fil i només deia "Sessió · id").
 		"transcript":         transcriptView(s.convo, transcriptLimit),
@@ -3783,6 +3794,7 @@ func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 		"selected_override": selected, "selected_available": selectedAvailable,
 		"fallback":       fallback,
 		"vents_selected": ventsSel,
+		"names":          modelNames(models),
 	})
 }
 

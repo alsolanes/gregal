@@ -59,7 +59,7 @@ fun ModelPickerContent(lang: String, providers: List<ProviderInfo>, models: Map<
                             color = Muted, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                     }
                     items(choices, key = { it.ref }) { choice ->
-                        DropdownMenuItem(text = { Text(choice.model, fontSize = 14.sp) },
+                        DropdownMenuItem(text = { Text(prettyModelName(choice.model), fontSize = 14.sp) },
                             trailingIcon = { if (state.provider == choice.provider && state.model == choice.model) Text("✓", color = Sea) },
                             onClick = { onSelect(choice.ref) })
                     }

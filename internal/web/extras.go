@@ -70,6 +70,7 @@ func (h *Hub) extraRoutes(handle func(string, http.HandlerFunc)) {
 	handle("/api/winds/rutines/runs", h.route((*Server).handleWindsRutinaRuns))
 	handle("/api/winds/meta", h.route((*Server).handleWindsMeta))
 	handle("/api/profile", h.route((*Server).handleProfile))
+	handle("/api/think", h.route((*Server).handleThink))
 	handle("/api/winds/pending", h.route((*Server).handleWindsPending))
 	handle("/api/winds/answer", h.route((*Server).handleWindsAnswer))
 	handle("/api/winds/memoria", h.route((*Server).handleWindMemoria))

@@ -166,6 +166,11 @@ data class ServerState(
     // conversa i diu la finestra del rol. contextWindow 0 = el rol no la
     // declara i el mesurador s'amaga, com a la web i al TUI.
     val usedTokens: Int = 0,
+    /** Nom llegible del model (del catàleg models.dev) i nivell de raonament. */
+    val modelName: String = "",
+    val think: String = "",
+    val thinkOptions: List<String> = emptyList(),
+    val thinkEffective: String = "",
     val contextWindow: Int = 0,
     /** Mode permissiu del servidor: va lligat a l'Autonomia total. */
     val permissive: Boolean = false,
