@@ -358,10 +358,30 @@ func splitRotllanaVoices(reply string, members []companion.Wind, speaking compan
 	}
 	speakerOf := func(line string) (companion.Wind, string, bool) {
 		trimmed := strings.TrimSpace(line)
-		if i := strings.Index(trimmed, ":"); i > 0 {
-			if w, ok := memberByPrefix(members, trimmed[:i]); ok {
-				return w, trimmed[i+1:], true
+		// El model pot escriure el prefix amb èmfasi («**Nom:**», «*Nom:*») o
+		// repetir el nom dins de la veu («Nom: **Nom:** text»): s'arrenca tot
+		// i el text queda net, sense el nom ni èmfasi penjat.
+		bare := trimmed
+		found := companion.Wind{}
+		for i := 0; i < 3; i++ {
+			for strings.HasPrefix(bare, "**") || strings.HasPrefix(bare, "*") {
+				bare = strings.TrimPrefix(bare, "**")
+				bare = strings.TrimPrefix(bare, "*")
 			}
+			bare = strings.TrimSpace(bare)
+			cut := strings.Index(bare, ":")
+			if cut <= 0 {
+				break
+			}
+			w, ok := memberByPrefix(members, bare[:cut])
+			if !ok {
+				break
+			}
+			found = w
+			bare = strings.TrimSpace(bare[cut+1:])
+		}
+		if found.ID != "" {
+			return found, bare, true
 		}
 		return companion.Wind{}, "", false
 	}

@@ -51,3 +51,26 @@ func TestRotllanaVoiceContentHasNoNamePrefix(t *testing.T) {
 		}
 	}
 }
+
+// El model pot escriure el prefix amb èmfasi («**Nom:**»): la veu es
+// reconeix igual i el text no es queda amb el nom ni amb èmfasi penjat.
+func TestRotllanaSplitVeusAmbEmfasi(t *testing.T) {
+	A := companion.Wind{ID: "mestral-qa", Name: "Mestral QA"}
+	B := companion.Wind{ID: "marinada-qa", Name: "Marinada QA"}
+	members := []companion.Wind{A, B}
+	vs := splitRotllanaVoices("**Mestral QA:** toc, toc.", members, A)
+	if len(vs) != 1 || vs[0].wind.ID != A.ID || vs[0].text != "toc, toc." {
+		t.Fatalf("èmfasi al prefix: %+v", vs)
+	}
+	// Un «**Nom:**» que el model escriu repetint el seu propi prefix es
+	// col·lapsa en una sola veu neta, sense el nom dins del text.
+	vs = splitRotllanaVoices("Marinada QA: **Marinada QA:** al gra", members, A)
+	if len(vs) != 1 || vs[0].wind.ID != B.ID || vs[0].text != "al gra" {
+		t.Fatalf("prefix amb nom dins: %+v", vs)
+	}
+	// «*Nom:*» amb un sol astèris també.
+	vs = splitRotllanaVoices("*Marinada QA:* curta", members, A)
+	if len(vs) != 1 || vs[0].text != "curta" {
+		t.Fatalf("èmfasi simple: %+v", vs)
+	}
+}
