@@ -385,6 +385,34 @@ func (s *Server) crewLoop(rot Rotllana, st *crewState, job *crewJob) {
 	s.crewLoopContext(ctx, rot, st, job)
 }
 
+// crewRoundVerdict converteix el final d'una volta en un missatge llegible:
+// si la revisió deixa coses obertes, les diu una per una (l'usuari ha de veure
+// QUÈ falta, no només que «ha acabat»); si tot va bé, diu que la colla hi
+// queda d'acord i què ha quedat validat.
+func crewRoundVerdict(say func(c, e string) string, verdict, answer string, rejected bool) string {
+	feedback := ""
+	if i := strings.Index(answer, "Outstanding review feedback:"); i >= 0 {
+		feedback = strings.TrimSpace(answer[i+len("Outstanding review feedback:"):])
+	} else if rejected {
+		// Veredicte JSON del revisor: els problemes oberts van al camp feedback.
+		if obj := firstJSONObject(answer); obj != "" {
+			var v struct {
+				Feedback string `json:"feedback"`
+			}
+			if json.Unmarshal([]byte(obj), &v) == nil {
+				feedback = strings.TrimSpace(v.Feedback)
+			}
+		}
+	}
+	if rejected && feedback != "" {
+		return verdict + "\n" + say("**Queda obert**", "**Still open**") + ":\n- " + oneLineKeepBreaks(feedback, 600)
+	}
+	if rejected {
+		return verdict + "\n" + say("La revisió hi veu coses obertes; la colla hi torna a la volta següent.", "The review sees open issues; the crew goes at it again next round.")
+	}
+	return verdict + " " + say("La colla hi queda d'acord; res més pendent de la revisió.", "The crew agrees; nothing else pending from the review.")
+}
+
 func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewState, job *crewJob) {
 	members := s.rotMembersOf(rot)
 	if len(members) == 0 {
@@ -502,9 +530,11 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			verdict := say("La volta de revisió ha acabat.", "The review round has ended.")
 			if err == errReviewIncomplete {
 				verdict = say("La revisió no s'ha pogut completar; la feina no està verificada.", "The review could not be completed; the work is not verified.")
-			} else if crewRejected(answer) {
-				verdict = say("La revisió hi veu coses obertes; la feina no està acabada.", "The review sees open issues; the work is not finished.")
 			}
+			// El final de volta diu què queda obert (o que hi estan d'acord):
+			// l'usuari ha de veure la conclusió de la revisió, no només que
+			// «ha acabat».
+			verdict = crewRoundVerdict(say, verdict, answer, crewRejected(answer) || err == errReviewIncomplete)
 			s.crewSayKind(rot, lead, "debate", verdict)
 			st.Log = append(st.Log, fmt.Sprintf("Round %d (%s): %s", st.Round, strings.Join(plan, "; "), oneLineKeepBreaks(answer, 2500)))
 		case crewPotReprendre(err, st.Started):
