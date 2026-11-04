@@ -19,11 +19,11 @@ func TestInferKitDelRol(t *testing.T) {
 		{"Compres i comparacions de preus", "shopping"},
 		{"Machine learning i models", "ml"},
 		{"Seguretat informàtica", "security"},
-		{"Sèries temporals", ""},           // cap keyword → cara neta
-		{"calma i benestar", ""},           // idem
-		{"Music and songs", "music"},       // anglès
-		{"Football news", "sports"},        // anglès
-		{"", ""},                           // rol buit
+		{"Sèries temporals", ""},     // cap keyword → cara neta
+		{"calma i benestar", ""},     // idem
+		{"Music and songs", "music"}, // anglès
+		{"Football news", "sports"},  // anglès
+		{"", ""},                     // rol buit
 	}
 	for _, c := range casos {
 		if got := inferKit(c.role); got != c.kit {

@@ -250,7 +250,9 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 			t.Fatalf("history misses %q:\n%s", want, joined)
 		}
 	}
-	if kinds["debate"] < 3 || kinds["result"] != 1 {
+	// Debat intern: les veus que discuteixen (2). El pla i el veredicte de
+	// volta són "round" (sempre visibles), el tancament "result".
+	if kinds["debate"] < 2 || kinds["result"] != 1 || kinds["round"] < 2 {
 		t.Fatalf("kinds = %v", kinds)
 	}
 }
@@ -469,7 +471,9 @@ func TestCrewUnfinishedReviewCannotFinishSuccessfully(t *testing.T) {
 			hist := s.crewHistory(rot)
 			var status string
 			for _, m := range hist {
-				if m.Kind == "debate" && (strings.Contains(m.Content, "review") || strings.Contains(m.Content, "Review")) {
+				// El veredicte de fi de volta viatja com a "round" (sempre
+				// visible a l'app, mai dins el desplegable del debat).
+				if m.Kind == "round" && (strings.Contains(m.Content, "review") || strings.Contains(m.Content, "Review") || strings.Contains(m.Content, "revisió") || strings.Contains(m.Content, "Queda obert")) {
 					status = m.Content
 				}
 			}

@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"time"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"gregal/internal/agent"
 	"gregal/internal/config"

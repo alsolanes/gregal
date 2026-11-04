@@ -139,14 +139,14 @@ func TestCornerWants(t *testing.T) {
 	recent := cornerState{LastSession: now.Add(-20 * time.Minute).Unix()}
 	old := cornerState{LastSession: now.Add(-5 * time.Hour).Unix()}
 	cases := []struct {
-		name      string
-		st        cornerState
-		winds     int
-		comments  int
-		talks     int
-		running   bool
-		rnd       float64
-		want      bool
+		name     string
+		st       cornerState
+		winds    int
+		comments int
+		talks    int
+		running  bool
+		rnd      float64
+		want     bool
 	}{
 		{"first time", cornerState{}, 2, 0, 0, false, 0.99, true},
 		{"one wind is not enough", cornerState{}, 1, 0, 0, false, 0, false},

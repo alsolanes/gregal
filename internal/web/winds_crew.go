@@ -462,6 +462,56 @@ func crewStepDesat(s *Server, rotID string) string {
 	return d.Step
 }
 
+// crewRecoverInterrupted es crida en arrencar: una colla que va quedar a mig
+// fer (el servidor es va reiniciar o el procés va morir) ha de dir-ho al fil
+// amb un missatge final net, no quedar en silenci amb el debat plegat i cap
+// conclusió. Les feines que esperen resposta de l'usuari es conserven.
+func (s *Server) crewRecoverInterrupted() {
+	dir := filepath.Join(s.sessDir(), "crew-jobs")
+	states, err := filepath.Glob(filepath.Join(dir, "*.state.json"))
+	if err != nil {
+		return
+	}
+	for _, p := range states {
+		rotID := strings.TrimSuffix(filepath.Base(p), ".state.json")
+		step := crewStepDesat(s, rotID)
+		if step != "interrupted" {
+			continue
+		}
+		st, ok := loadCrewState(s, rotID)
+		if !ok {
+			continue
+		}
+		rot, ok := s.rotllanaByID(rotID)
+		if !ok {
+			// El fil ja no existeix: l'estat orfe no serveix de res.
+			_ = os.Remove(p)
+			_ = os.Remove(crewJobPath(s, rotID))
+			continue
+		}
+		members := s.rotMembersOf(rot)
+		if len(members) == 0 {
+			_ = os.Remove(p)
+			continue
+		}
+		lead := members[0]
+		say := func(c, e string) string {
+			if st.Ca {
+				return c
+			}
+			return e
+		}
+		files := takeCrewWrites(rot.ID)
+		msg := say("La colla es va quedar a mig fer (el servidor s'ha reiniciat); el que ja estava fet es conserva.", "The crew was interrupted mid-run (the server restarted); work already done is kept.")
+		if len(files) > 0 {
+			msg += "\n\n**" + say("Fitxers", "Files") + "**\n- " + strings.Join(files, "\n- ")
+		}
+		s.crewSayKind(rot, lead, "result", msg)
+		_ = os.Remove(p)
+		_ = os.Remove(crewJobPath(s, rotID))
+	}
+}
+
 func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)

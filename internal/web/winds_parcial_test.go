@@ -13,11 +13,11 @@ import (
 func TestEsRespostaMecanica(t *testing.T) {
 	casos := map[string]bool{
 		"Resposta parcial: el torn s'ha aturat abans de la resposta final (DNS).": true,
-		"Partial answer: the turn stopped before the final answer.":              true,
-		"Resposta parcial: el torn s'ha aturat":                                  true,
-		"  Resposta parcial: el torn s'ha aturat  ":                              true,
-		"Que t'ho preparo amb calma?": false,
-		"": false,
+		"Partial answer: the turn stopped before the final answer.":               true,
+		"Resposta parcial: el torn s'ha aturat":                                   true,
+		"  Resposta parcial: el torn s'ha aturat  ":                               true,
+		"Que t'ho preparo amb calma?":                                             false,
+		"":                                                                        false,
 	}
 	for text, want := range casos {
 		if got := esRespostaMecanica(text); got != want {

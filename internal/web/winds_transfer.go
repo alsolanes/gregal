@@ -3,19 +3,19 @@ package web
 // Explicit conversation COPY. Only this allowlisted data DTO crosses instances;
 // no session metadata, workspace, tool calls, jobs or provider configuration.
 import (
- "crypto/sha256"
- "encoding/hex"
- "sync"
- "gregal/internal/skills"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"gregal/internal/skills"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"gregal/internal/companion"
 	"gregal/internal/llm"
@@ -304,14 +304,36 @@ func (s *Server) handleWindsTransfer(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, b)
 	case http.MethodPost:
-  var req struct {TransferID string `json:"transferId"`;Bundle transferBundle `json:"bundle"`}
-  if !decodeTransfer(w,r,&req){return}
-  if !transferIDPattern.MatchString(req.TransferID){http.Error(w,"invalid transferId",400);return}
-  if err:=req.Bundle.validate();err!=nil{code:=400;if errors.Is(err,errTransferLimit){code=413};http.Error(w,err.Error(),code);return}
-  result,err:=s.importTransfer(req.TransferID,req.Bundle)
-  if err!=nil{code:=503;if errors.Is(err,errTransferConflict){code=409};http.Error(w,err.Error(),code);return}
-  writeJSON(w,result)
- default:
+		var req struct {
+			TransferID string         `json:"transferId"`
+			Bundle     transferBundle `json:"bundle"`
+		}
+		if !decodeTransfer(w, r, &req) {
+			return
+		}
+		if !transferIDPattern.MatchString(req.TransferID) {
+			http.Error(w, "invalid transferId", 400)
+			return
+		}
+		if err := req.Bundle.validate(); err != nil {
+			code := 400
+			if errors.Is(err, errTransferLimit) {
+				code = 413
+			}
+			http.Error(w, err.Error(), code)
+			return
+		}
+		result, err := s.importTransfer(req.TransferID, req.Bundle)
+		if err != nil {
+			code := 503
+			if errors.Is(err, errTransferConflict) {
+				code = 409
+			}
+			http.Error(w, err.Error(), code)
+			return
+		}
+		writeJSON(w, result)
+	default:
 		w.Header().Set("Allow", "GET, POST")
 		http.Error(w, "GET or POST required", 405)
 	}
@@ -324,134 +346,253 @@ var errTransferConflict = errors.New("transferId conflicts with another bundle o
 var errTransferStorage = errors.New("transfer incomplete; retry the identical transferId and bundle to reconcile")
 
 type transferCounts struct {
- Winds int `json:"winds"`
- Messages int `json:"messages"`
- MemoryBytes int `json:"memoryBytes"`
- KnowledgeBytes int `json:"knowledgeBytes"`
- Skills int `json:"skills"`
+	Winds          int `json:"winds"`
+	Messages       int `json:"messages"`
+	MemoryBytes    int `json:"memoryBytes"`
+	KnowledgeBytes int `json:"knowledgeBytes"`
+	Skills         int `json:"skills"`
 }
 type transferResult struct {
- TransferID string `json:"transferId"`
- Kind string `json:"kind"`
- ID string `json:"id"`
- IDMap map[string]string `json:"idMap"`
- Counts transferCounts `json:"counts"`
- VerifyPath string `json:"verifyPath"`
- Replayed bool `json:"replayed"`
+	TransferID string            `json:"transferId"`
+	Kind       string            `json:"kind"`
+	ID         string            `json:"id"`
+	IDMap      map[string]string `json:"idMap"`
+	Counts     transferCounts    `json:"counts"`
+	VerifyPath string            `json:"verifyPath"`
+	Replayed   bool              `json:"replayed"`
 }
 type transferReceipt struct {
- Digest string `json:"digest"`
- Phase string `json:"phase"`
- Result transferResult `json:"result"`
+	Digest string         `json:"digest"`
+	Phase  string         `json:"phase"`
+	Result transferResult `json:"result"`
 }
 
-func transferDigest(b transferBundle) string {raw,_:=json.Marshal(b);sum:=sha256.Sum256(raw);return hex.EncodeToString(sum[:])}
+func transferDigest(b transferBundle) string {
+	raw, _ := json.Marshal(b)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
 
 // Receipts contain no conversation text. Persist the allocated identities BEFORE
 // writing anything else. Staging writes only to these unpublished, fresh IDs.
 // The ready phase is durable BEFORE publication, so a crash/retry never rewrites
 // a published profile/history or erases conversation progress on the destination.
-func (s *Server) importTransfer(id string,b transferBundle)(transferResult,error) {
- transferMu.Lock();defer transferMu.Unlock()
- windLibraryMu.Lock();defer windLibraryMu.Unlock()
- receiptPath:=filepath.Join(s.windStateDir(),"wind-transfers",id+".json")
- var receipt transferReceipt
- raw,err:=os.ReadFile(receiptPath)
- replay:=err==nil
- if err!=nil&&!os.IsNotExist(err){return transferResult{},errTransferStorage}
- if replay {
-  if len(raw)>64<<10||json.Unmarshal(raw,&receipt)!=nil {return transferResult{},errTransferStorage}
-  if receipt.Digest!=transferDigest(b){return transferResult{},errTransferConflict}
-  if receipt.Result.TransferID!=id||receipt.Result.Kind!=b.Kind||!transferValidID(receipt.Result.ID)||len(receipt.Result.IDMap)!=len(b.Winds)||(receipt.Phase!="staging"&&receipt.Phase!="ready"&&receipt.Phase!="complete") {return transferResult{},errTransferStorage}
-  for _,w:=range b.Winds{if !transferValidID(receipt.Result.IDMap[w.Profile.ID]){return transferResult{},errTransferStorage}}
- }else{
-  receipt=transferReceipt{Digest:transferDigest(b),Phase:"staging",Result:transferResult{TransferID:id,Kind:b.Kind,IDMap:map[string]string{}}}
-  for _,w:=range b.Winds {
-   fresh:="copy-w-"+windRecordID()
-   // Random IDs are independent of names, and even accidental catalogue/file
-   // collisions are refused rather than overwritten.
-   if _,ok:=s.winds.ByID(fresh);ok{return transferResult{},errTransferStorage}
-   for _,p:=range []string{filepath.Join(companion.MemoryDir(s.windStateDir()),fresh+".md"),filepath.Join(companion.BrainDir(s.windStateDir()),fresh+".md"),s.windSkillsDir(fresh),filepath.Join(s.sessDir(),"company-"+fresh+".json")} {if _,err:=os.Lstat(p);!os.IsNotExist(err){return transferResult{},errTransferStorage}}
-   receipt.Result.IDMap[w.Profile.ID]=fresh
-  }
-  receipt.Result.ID=receipt.Result.IDMap[b.ID]
-  if b.Kind=="rot" {
-   receipt.Result.ID="copy-r-"+windRecordID()
-   if _,ok:=s.rotllanaByID(receipt.Result.ID);ok{return transferResult{},errTransferStorage}
-   if _,err:=os.Lstat(filepath.Join(s.sessDir(),"rotllana-"+receipt.Result.ID+".json"));!os.IsNotExist(err){return transferResult{},errTransferStorage}
-  }
-  if b.Kind=="wind"{receipt.Result.VerifyPath="/api/winds/chat?wind="+receipt.Result.ID}else{receipt.Result.VerifyPath="/api/winds/rotllana?rotlla="+receipt.Result.ID}
-  if err:=writeWindJSON(receiptPath,receipt);err!=nil{return transferResult{},errTransferStorage}
- }
- result:=receipt.Result
- cloned:=make([]companion.Wind,0,len(b.Winds))
- for _,w:=range b.Winds{p:=w.Profile;p.ID=result.IDMap[p.ID];cloned=append(cloned,p)}
- messages:=make([]llm.Message,0,len(b.History))
- for _,m:=range b.History{messages=append(messages,llm.Message{Role:m.Role,Content:m.Text,Ts:m.Ts,SpeakerID:result.IDMap[m.SpeakerID],SpeakerName:m.SpeakerName,Kind:m.Kind})}
- if receipt.Phase=="staging" {
-  // A staging receipt must never refer to already-published resources.
-  for _,p:=range cloned{if _,ok:=s.winds.ByID(p.ID);ok{return result,errTransferStorage}}
-  for i,w:=range b.Winds {
-   target:=cloned[i]
-   if err:=companion.ReplaceWindMemory(s.windStateDir(),target.ID,w.Memory);err!=nil{return result,errTransferStorage}
-   if err:=companion.ReplaceWindBrain(s.windStateDir(),target.ID,w.Knowledge);err!=nil{return result,errTransferStorage}
-   for _,sk:=range w.Skills{if err:=s.saveWindSkill(target.ID,skills.Skill{Nom:sk.Name,Titol:sk.Title,Descripcio:sk.Description,Cos:sk.Body});err!=nil{return result,errTransferStorage}}
-  }
-  if b.Kind=="wind" {err=saveWindHistory(s,cloned[0],messages)}else{err=saveRotllanaHistory(s,result.ID,messages)}
-  if err!=nil{return result,errTransferStorage}
-  // Read durable staged data before allowing publication.
-  saved,e:=s.transferHistory(b.Kind,result.ID);if e!=nil||len(saved)!=len(messages){return result,errTransferStorage}
-  for i,m:=range saved{expected:=messages[i];if m.Role!=expected.Role||m.Content!=expected.Content||m.Ts!=expected.Ts||m.SpeakerID!=expected.SpeakerID||m.SpeakerName!=expected.SpeakerName||m.Kind!=expected.Kind{return result,errTransferStorage}}
-  for i,w:=range b.Winds{
-   wid:=cloned[i].ID
-   if companion.LoadWindMemory(s.windStateDir(),wid)!=w.Memory||s.windBrain(wid)!=w.Knowledge {return result,errTransferStorage}
-   savedSkills:=s.windSkills(wid);if len(savedSkills)!=len(w.Skills){return result,errTransferStorage}
-   byName:=map[string]skills.Skill{};for _,sk:=range savedSkills{byName[sk.Nom]=sk}
-   for _,sk:=range w.Skills {actual,ok:=byName[sk.Name];if !ok||actual.Titol!=sk.Title||actual.Descripcio!=sk.Description||strings.TrimSpace(actual.Cos)!=strings.TrimSpace(sk.Body){return result,errTransferStorage}}
-  }
-  receipt.Phase="ready"
-  if err:=writeWindJSON(receiptPath,receipt);err!=nil{return result,errTransferStorage}
- }
- if receipt.Phase=="ready" {
-  for _,p:=range cloned {
-   if _,ok:=s.winds.ByID(p.ID);ok{continue} // already published by this receipt; never overwrite
-   if err:=s.winds.Restore(p);err!=nil{return result,errTransferStorage}
-  }
-  if b.Kind=="rot" {
-   members:=make([]string,0,len(b.Group.Members));for _,id:=range b.Group.Members{members=append(members,result.IDMap[id])}
-   if err:=s.rotllanes.restoreTransferred(Rotllana{ID:result.ID,Name:b.Group.Name,Members:members});err!=nil{return result,errTransferStorage}
-  }
-  receipt.Phase="complete"
-  if err:=writeWindJSON(receiptPath,receipt);err!=nil{return result,errTransferStorage}
- }
- // Return counts from persisted destination data, not optimistic request totals.
- result.Counts=transferCounts{}
- for _,p:=range cloned {
-  if _,ok:=s.winds.ByID(p.ID);!ok{return result,errTransferConflict}
-  result.Counts.Winds++
-  result.Counts.MemoryBytes+=len(companion.LoadWindMemory(s.windStateDir(),p.ID))
-  result.Counts.KnowledgeBytes+=len(s.windBrain(p.ID))
-  result.Counts.Skills+=len(s.windSkills(p.ID))
- }
- if b.Kind=="rot" {if _,ok:=s.rotllanaByID(result.ID);!ok{return result,errTransferConflict}}
- prefix:="company-";if b.Kind=="rot"{prefix="rotllana-"}
- if _,err:=os.Stat(filepath.Join(s.sessDir(),prefix+result.ID+".json"));err!=nil{return result,errTransferConflict}
- saved,e:=s.transferHistory(b.Kind,result.ID);if e!=nil{return result,errTransferStorage}
- result.Counts.Messages=len(saved);result.Replayed=replay
- return result,nil
+func (s *Server) importTransfer(id string, b transferBundle) (transferResult, error) {
+	transferMu.Lock()
+	defer transferMu.Unlock()
+	windLibraryMu.Lock()
+	defer windLibraryMu.Unlock()
+	receiptPath := filepath.Join(s.windStateDir(), "wind-transfers", id+".json")
+	var receipt transferReceipt
+	raw, err := os.ReadFile(receiptPath)
+	replay := err == nil
+	if err != nil && !os.IsNotExist(err) {
+		return transferResult{}, errTransferStorage
+	}
+	if replay {
+		if len(raw) > 64<<10 || json.Unmarshal(raw, &receipt) != nil {
+			return transferResult{}, errTransferStorage
+		}
+		if receipt.Digest != transferDigest(b) {
+			return transferResult{}, errTransferConflict
+		}
+		if receipt.Result.TransferID != id || receipt.Result.Kind != b.Kind || !transferValidID(receipt.Result.ID) || len(receipt.Result.IDMap) != len(b.Winds) || (receipt.Phase != "staging" && receipt.Phase != "ready" && receipt.Phase != "complete") {
+			return transferResult{}, errTransferStorage
+		}
+		for _, w := range b.Winds {
+			if !transferValidID(receipt.Result.IDMap[w.Profile.ID]) {
+				return transferResult{}, errTransferStorage
+			}
+		}
+	} else {
+		receipt = transferReceipt{Digest: transferDigest(b), Phase: "staging", Result: transferResult{TransferID: id, Kind: b.Kind, IDMap: map[string]string{}}}
+		for _, w := range b.Winds {
+			fresh := "copy-w-" + windRecordID()
+			// Random IDs are independent of names, and even accidental catalogue/file
+			// collisions are refused rather than overwritten.
+			if _, ok := s.winds.ByID(fresh); ok {
+				return transferResult{}, errTransferStorage
+			}
+			for _, p := range []string{filepath.Join(companion.MemoryDir(s.windStateDir()), fresh+".md"), filepath.Join(companion.BrainDir(s.windStateDir()), fresh+".md"), s.windSkillsDir(fresh), filepath.Join(s.sessDir(), "company-"+fresh+".json")} {
+				if _, err := os.Lstat(p); !os.IsNotExist(err) {
+					return transferResult{}, errTransferStorage
+				}
+			}
+			receipt.Result.IDMap[w.Profile.ID] = fresh
+		}
+		receipt.Result.ID = receipt.Result.IDMap[b.ID]
+		if b.Kind == "rot" {
+			receipt.Result.ID = "copy-r-" + windRecordID()
+			if _, ok := s.rotllanaByID(receipt.Result.ID); ok {
+				return transferResult{}, errTransferStorage
+			}
+			if _, err := os.Lstat(filepath.Join(s.sessDir(), "rotllana-"+receipt.Result.ID+".json")); !os.IsNotExist(err) {
+				return transferResult{}, errTransferStorage
+			}
+		}
+		if b.Kind == "wind" {
+			receipt.Result.VerifyPath = "/api/winds/chat?wind=" + receipt.Result.ID
+		} else {
+			receipt.Result.VerifyPath = "/api/winds/rotllana?rotlla=" + receipt.Result.ID
+		}
+		if err := writeWindJSON(receiptPath, receipt); err != nil {
+			return transferResult{}, errTransferStorage
+		}
+	}
+	result := receipt.Result
+	cloned := make([]companion.Wind, 0, len(b.Winds))
+	for _, w := range b.Winds {
+		p := w.Profile
+		p.ID = result.IDMap[p.ID]
+		cloned = append(cloned, p)
+	}
+	messages := make([]llm.Message, 0, len(b.History))
+	for _, m := range b.History {
+		messages = append(messages, llm.Message{Role: m.Role, Content: m.Text, Ts: m.Ts, SpeakerID: result.IDMap[m.SpeakerID], SpeakerName: m.SpeakerName, Kind: m.Kind})
+	}
+	if receipt.Phase == "staging" {
+		// A staging receipt must never refer to already-published resources.
+		for _, p := range cloned {
+			if _, ok := s.winds.ByID(p.ID); ok {
+				return result, errTransferStorage
+			}
+		}
+		for i, w := range b.Winds {
+			target := cloned[i]
+			if err := companion.ReplaceWindMemory(s.windStateDir(), target.ID, w.Memory); err != nil {
+				return result, errTransferStorage
+			}
+			if err := companion.ReplaceWindBrain(s.windStateDir(), target.ID, w.Knowledge); err != nil {
+				return result, errTransferStorage
+			}
+			for _, sk := range w.Skills {
+				if err := s.saveWindSkill(target.ID, skills.Skill{Nom: sk.Name, Titol: sk.Title, Descripcio: sk.Description, Cos: sk.Body}); err != nil {
+					return result, errTransferStorage
+				}
+			}
+		}
+		if b.Kind == "wind" {
+			err = saveWindHistory(s, cloned[0], messages)
+		} else {
+			err = saveRotllanaHistory(s, result.ID, messages)
+		}
+		if err != nil {
+			return result, errTransferStorage
+		}
+		// Read durable staged data before allowing publication.
+		saved, e := s.transferHistory(b.Kind, result.ID)
+		if e != nil || len(saved) != len(messages) {
+			return result, errTransferStorage
+		}
+		for i, m := range saved {
+			expected := messages[i]
+			if m.Role != expected.Role || m.Content != expected.Content || m.Ts != expected.Ts || m.SpeakerID != expected.SpeakerID || m.SpeakerName != expected.SpeakerName || m.Kind != expected.Kind {
+				return result, errTransferStorage
+			}
+		}
+		for i, w := range b.Winds {
+			wid := cloned[i].ID
+			if companion.LoadWindMemory(s.windStateDir(), wid) != w.Memory || s.windBrain(wid) != w.Knowledge {
+				return result, errTransferStorage
+			}
+			savedSkills := s.windSkills(wid)
+			if len(savedSkills) != len(w.Skills) {
+				return result, errTransferStorage
+			}
+			byName := map[string]skills.Skill{}
+			for _, sk := range savedSkills {
+				byName[sk.Nom] = sk
+			}
+			for _, sk := range w.Skills {
+				actual, ok := byName[sk.Name]
+				if !ok || actual.Titol != sk.Title || actual.Descripcio != sk.Description || strings.TrimSpace(actual.Cos) != strings.TrimSpace(sk.Body) {
+					return result, errTransferStorage
+				}
+			}
+		}
+		receipt.Phase = "ready"
+		if err := writeWindJSON(receiptPath, receipt); err != nil {
+			return result, errTransferStorage
+		}
+	}
+	if receipt.Phase == "ready" {
+		for _, p := range cloned {
+			if _, ok := s.winds.ByID(p.ID); ok {
+				continue
+			} // already published by this receipt; never overwrite
+			if err := s.winds.Restore(p); err != nil {
+				return result, errTransferStorage
+			}
+		}
+		if b.Kind == "rot" {
+			members := make([]string, 0, len(b.Group.Members))
+			for _, id := range b.Group.Members {
+				members = append(members, result.IDMap[id])
+			}
+			if err := s.rotllanes.restoreTransferred(Rotllana{ID: result.ID, Name: b.Group.Name, Members: members}); err != nil {
+				return result, errTransferStorage
+			}
+		}
+		receipt.Phase = "complete"
+		if err := writeWindJSON(receiptPath, receipt); err != nil {
+			return result, errTransferStorage
+		}
+	}
+	// Return counts from persisted destination data, not optimistic request totals.
+	result.Counts = transferCounts{}
+	for _, p := range cloned {
+		if _, ok := s.winds.ByID(p.ID); !ok {
+			return result, errTransferConflict
+		}
+		result.Counts.Winds++
+		result.Counts.MemoryBytes += len(companion.LoadWindMemory(s.windStateDir(), p.ID))
+		result.Counts.KnowledgeBytes += len(s.windBrain(p.ID))
+		result.Counts.Skills += len(s.windSkills(p.ID))
+	}
+	if b.Kind == "rot" {
+		if _, ok := s.rotllanaByID(result.ID); !ok {
+			return result, errTransferConflict
+		}
+	}
+	prefix := "company-"
+	if b.Kind == "rot" {
+		prefix = "rotllana-"
+	}
+	if _, err := os.Stat(filepath.Join(s.sessDir(), prefix+result.ID+".json")); err != nil {
+		return result, errTransferConflict
+	}
+	saved, e := s.transferHistory(b.Kind, result.ID)
+	if e != nil {
+		return result, errTransferStorage
+	}
+	result.Counts.Messages = len(saved)
+	result.Replayed = replay
+	return result, nil
 }
 
 // Insert-only counterpart to RotllanaStore.Save, which intentionally rejects
 // new explicit IDs. It shares the store's mutex and existing atomic JSON writer;
 // only transfer-owned identities are inserted, never a namesake or workspace.
 func (rs *RotllanaStore) restoreTransferred(rot Rotllana) error {
- rs.mu.Lock();defer rs.mu.Unlock()
- raw,err:=os.ReadFile(rs.path());if err!=nil&&!os.IsNotExist(err){return err}
- var d rotllanesDisc
- if len(raw)>0{if err:=json.Unmarshal(raw,&d);err!=nil{return err}}
- for _,existing:=range d.Rotllanes{if existing.ID==rot.ID{return nil}}
- d.Rotllanes=append(d.Rotllanes,rot)
- return writeWindJSON(rs.path(),d)
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+	raw, err := os.ReadFile(rs.path())
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	var d rotllanesDisc
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &d); err != nil {
+			return err
+		}
+	}
+	for _, existing := range d.Rotllanes {
+		if existing.ID == rot.ID {
+			return nil
+		}
+	}
+	d.Rotllanes = append(d.Rotllanes, rot)
+	return writeWindJSON(rs.path(), d)
 }
 
 // Unlike decodeSmall, imports are larger but still bounded, strict, and one JSON

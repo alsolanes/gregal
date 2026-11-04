@@ -42,9 +42,9 @@ import (
 )
 
 const (
-	cornerMaxSessions = 4   // sessions de feina al dia
-	cornerMaxCalls    = 16  // crides al model de les sessions, al dia
-	cornerMaxTalks    = 60  // converses de visitants amb un vent, al dia
+	cornerMaxSessions = 4  // sessions de feina al dia
+	cornerMaxCalls    = 16 // crides al model de les sessions, al dia
+	cornerMaxTalks    = 60 // converses de visitants amb un vent, al dia
 	cornerMaxBytes    = 120 << 10
 	cornerTickEvery   = 10 * time.Minute
 	cornerMinGap      = 3 * time.Hour // sense res de nou, com a mínim entre sessions
@@ -352,12 +352,12 @@ func (s *Server) cornerCall(ctx context.Context, system, user string, maxTokens 
 }
 
 type cornerMeeting struct {
-	Action     string `json:"action"`
-	Why        string `json:"why"`
-	Builder    string `json:"builder"`
-	Reviewer   string `json:"reviewer"`
-	Plan       string `json:"plan"`
-	StartOver  bool   `json:"start_over"`
+	Action    string `json:"action"`
+	Why       string `json:"why"`
+	Builder   string `json:"builder"`
+	Reviewer  string `json:"reviewer"`
+	Plan      string `json:"plan"`
+	StartOver bool   `json:"start_over"`
 }
 
 type cornerReview struct {

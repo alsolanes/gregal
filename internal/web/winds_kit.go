@@ -31,8 +31,8 @@ func kitOf(w companion.Wind) string {
 // sobre el general — seguretat i música abans que tecnologia, perquè
 // "Seguretat informàtica" és seguretat, no tecnologia.
 var kitKeywords = []struct {
-	kit    string
-	words  []string
+	kit   string
+	words []string
 }{
 	{"security", []string{"seguretat", "security", "hack", "vulnerab", "privacitat", "privacy"}},
 	{"music", []string{"música", "musica", "music", "canç", "song", "disc", "concert", "banda", "guitarra"}},

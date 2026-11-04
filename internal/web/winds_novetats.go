@@ -22,8 +22,8 @@ import (
 // El registre viu a winds-novetats.json del dir de sessions (tallat a 100).
 
 const (
-	novetatsFile = "winds-novetats.json"
-	maxNovetats  = 100
+	novetatsFile   = "winds-novetats.json"
+	maxNovetats    = 100
 	maxNovetatsOut = 50
 )
 

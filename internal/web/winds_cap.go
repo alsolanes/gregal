@@ -31,7 +31,7 @@ import (
 // "rotllana" o "crew".
 
 const (
-	capFile       = "cap.json"
+	capFile = "cap.json"
 	// El Ventet és una conversa de veritat: el fil sencer, no les últimes 40.
 	capMaxHistory = 1000
 	capName       = "Ventet"

@@ -32,10 +32,10 @@ var remindToolSpec = llm.ToolSpec{
 	Name:        "remind",
 	Description: "Programa un avís: el vent dirà el text a l'usuari quan arribi el moment, encara que l'app estigui tancada. Fes servir SEMPRE el teu id de vent (l'el dona la consigna). at és el moment: RFC3339 amb zona, o 21/10 09:00, o 09:00 (avui o demà), o +2h/+30m; sempre futur, màxim d'aquí a 30 dies. text és el missatge curt (màxim 500 caràcters). CRIDA L'EINA ABANS de dir a l'usuari que ho faràs: si la crida falla, digue-li què ha fallat en comptes de prometre res. Només per a avisos reals. Si l'usuari vol que a aquella hora FACIS alguna cosa (p. ex. «quan acabi el partit avisa'm del resultat», «mira el preu i digue'm-ho»), posa a task què has de fer (p. ex. «Busca el resultat final del Barça-Madrid i digue'l»): a l'hora faràs un torn complet amb cerca web i diràs el resultat; text és llavors un resum curt de l'encàrrec. Si pot no estar llest a l'hora (un partit que dura), posa at una mica després del final previst i retry_minutes (p. ex. 15): es reintentarà fins a 8 cops.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
-		"wind": map[string]any{"type": "string"},
-		"at":   map[string]any{"type": "string"},
-		"text": map[string]any{"type": "string"},
-		"task": map[string]any{"type": "string"},
+		"wind":          map[string]any{"type": "string"},
+		"at":            map[string]any{"type": "string"},
+		"text":          map[string]any{"type": "string"},
+		"task":          map[string]any{"type": "string"},
 		"retry_minutes": map[string]any{"type": "integer"},
 	}, "required": []string{"wind", "at", "text"}},
 }
@@ -231,11 +231,11 @@ func (s *Server) withRemindServer(ctx context.Context) context.Context {
 func (s *Server) registerRemindTool() {
 	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
-			Wind string `json:"wind"`
-			At   string `json:"at"`
-			Text string `json:"text"`
-			Task string `json:"task"`
-			Retry int `json:"retry_minutes"`
+			Wind  string `json:"wind"`
+			At    string `json:"at"`
+			Text  string `json:"text"`
+			Task  string `json:"task"`
+			Retry int    `json:"retry_minutes"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("arguments il·legibles")

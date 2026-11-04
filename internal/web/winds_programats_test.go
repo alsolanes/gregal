@@ -55,15 +55,15 @@ func TestProgramatsMostraRecordatorisICors(t *testing.T) {
 			Text     string `json:"text"`
 		} `json:"reminders"`
 		Hearts []struct {
-			WindName string `json:"wind_name"`
+			WindName   string `json:"wind_name"`
 			LastStatus string `json:"last_status"`
 		} `json:"hearts"`
 		Stats []struct {
-			WindName string `json:"wind_name"`
-			Beats    int    `json:"beats"`
-			Spoke    int    `json:"spoke"`
-			Silent   int    `json:"silent"`
-			Reminders int `json:"reminders"`
+			WindName  string `json:"wind_name"`
+			Beats     int    `json:"beats"`
+			Spoke     int    `json:"spoke"`
+			Silent    int    `json:"silent"`
+			Reminders int    `json:"reminders"`
 		} `json:"stats"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
@@ -76,11 +76,11 @@ func TestProgramatsMostraRecordatorisICors(t *testing.T) {
 		t.Errorf("cors: %+v", got.Hearts)
 	}
 	var st *struct {
-		WindName string `json:"wind_name"`
-		Beats    int    `json:"beats"`
-		Spoke    int    `json:"spoke"`
-		Silent   int    `json:"silent"`
-		Reminders int `json:"reminders"`
+		WindName  string `json:"wind_name"`
+		Beats     int    `json:"beats"`
+		Spoke     int    `json:"spoke"`
+		Silent    int    `json:"silent"`
+		Reminders int    `json:"reminders"`
 	}
 	for i := range got.Stats {
 		if got.Stats[i].WindName == "Xaloc" {

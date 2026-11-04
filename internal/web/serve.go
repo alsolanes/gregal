@@ -400,6 +400,9 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 		s.Hub().startPlugins(ctx)
 		s.jobLoop(ctx)
 	}()
+	// Una colla que va quedar a mig fer en reiniciar-se el servidor ha de
+	// dir-ho al fil ara, no quedar en silenci.
+	s.crewRecoverInterrupted()
 	return done
 }
 

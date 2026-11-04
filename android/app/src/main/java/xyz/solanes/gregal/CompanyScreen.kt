@@ -1250,6 +1250,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 Column(Modifier.padding(top = gap)) {
                 if (msgs[idx].kind == "result") Text("✅ " + tr(lang, "app.crew.result"), color = Muted, fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
+                if (msgs[idx].kind == "round") Text("· " + tr(lang, "app.crew.round"), color = Muted, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
                 BubbleIn("rot#$idx", animate = idx >= liveFrom) {
                 WindBubble(resolved.message, if (resolved.message.from == "user") rotAccent else resolved.wind?.let { Color(it.argb) } ?: Sea,
                     lang = lang, speaker = if (firstOfRun) resolved.wind else null,

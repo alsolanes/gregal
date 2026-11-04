@@ -498,7 +498,9 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			plan = append(plan, names[a.Wind]+": "+oneLine(a.Part, 120))
 		}
 		note := firstNonEmpty(d.Say, say("Som-hi", "Let's go"))
-		s.crewSayKind(rot, lead, "debate", fmt.Sprintf("%s (%s %d)\n- %s", note, say("volta", "round"), st.Round, strings.Join(plan, "\n- ")))
+		// El pla de la volta (qui fa què) es veu sempre: és el compromís de
+		// la colla, no debat intern.
+		s.crewSayKind(rot, lead, "round", fmt.Sprintf("%s (%s %d)\n- %s", note, say("volta", "round"), st.Round, strings.Join(plan, "\n- ")))
 		flow := crewRoundFlow(d.Assignments, members, instruction, st.Ca)
 		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
 		crewWritesMu.Lock()
@@ -533,9 +535,10 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			}
 			// El final de volta diu què queda obert (o que hi estan d'acord):
 			// l'usuari ha de veure la conclusió de la revisió, no només que
-			// «ha acabat».
+			// «ha acabat». Kind "round": l'app el mostra sempre desplegat,
+			// mai dins el desplegable del debat.
 			verdict = crewRoundVerdict(say, verdict, answer, crewRejected(answer) || err == errReviewIncomplete)
-			s.crewSayKind(rot, lead, "debate", verdict)
+			s.crewSayKind(rot, lead, "round", verdict)
 			st.Log = append(st.Log, fmt.Sprintf("Round %d (%s): %s", st.Round, strings.Join(plan, "; "), oneLineKeepBreaks(answer, 2500)))
 		case crewPotReprendre(err, st.Started):
 			s.crewSayKind(rot, lead, "debate", say("S'ha encallat la volta; ho reprenem aprofitant el que ja hi ha fet.", "The round stalled; we resume from what is already done."))
