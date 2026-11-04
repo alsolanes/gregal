@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## v1.53.2 - 2026-11-04 - Respostes de l'agent més netes
+
+- **Respostes de l'agent més netes.** El codi en línia deixa de dur vora i caixeta
+  (ara és un ressalt suau), el text és una mica més gran i respira més, i la
+  capçalera dels blocs de codi és més lleugera.
 ## v1.53.1 - 2026-11-04 - Recordatoris amb feina, més polits al mòbil
 
 - **Recordatoris amb feina, més polits al mòbil.** El missatge d'un recordatori

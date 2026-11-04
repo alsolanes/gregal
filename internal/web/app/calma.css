@@ -177,3 +177,19 @@ html body.shell-winds #side > .brand { display:flex; }
   #composer #permBtn.obert::before { display:none; }
   #composer #permBtn.obert .perm-icon { display:inline-flex; }
 }
+
+/* ---- Respostes de l'agent més netes: menys soroll visual ----
+   Cada identificador en `code` duia vora i fons: una línia en tenia deu.
+   Ara és un ressalt suau sense vora, i el text respira una mica més. */
+#main .msg.a .body { font-size:15px; line-height:1.72; }
+#main .msg.a .body p code, #main .msg.a .body li code, #main .msg.a .body h1 code, #main .msg.a .body h2 code, #main .msg.a .body h3 code, #main .msg.a .body td code {
+  border:0; border-radius:6px; padding:.12em .42em; font-size:.84em;
+  background:color-mix(in srgb, var(--ink) 9%, transparent); color:var(--ink); }
+#main .msg.a .body h1, #main .msg.a .body h2, #main .msg.a .body h3 { margin:1.35em 0 .5em; letter-spacing:-.01em; }
+#main .msg.a .body h3 { font-size:1.06em; }
+#main .msg.a .body ul, #main .msg.a .body ol { margin:.35em 0 .9em; }
+#main .msg.a .body li { margin:.35em 0; }
+/* Bloc de codi: capçalera lleugera, sense línia de separació dura. */
+#main .msg.a .body .codehead { height:28px; background:transparent; border-bottom:0; padding:0 12px; opacity:.75; }
+#main .msg.a .body .codeblock, #main .msg.a .body pre.codeblock { border-color:var(--line); border-radius:10px; background:var(--codi-fons); }
+#main .msg.a .body .codeblock pre { border-radius:0 0 10px 10px; padding-top:4px; }
