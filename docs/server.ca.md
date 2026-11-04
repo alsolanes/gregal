@@ -159,6 +159,17 @@ notificació arriba a temps encara que l'app estigui tancada.
 
 Cadascú pot connectar el seu Google Calendar i Gmail i rebre un resum cada matí: vegeu [calendari-correu.ca.md](calendari-correu.ca.md).
 
+**Construir i publicar des del mòbil.** Els vents de l'administrador (amb els poders
+de servidor) cerquen a internet, llegeixen els PDF i documents que els adjuntes
+amb el «+» del camp, fan webs i les serveixen: publicades (`publish`), com a app
+al servidor (`app`) o a internet amb un túnel de Cloudflare (`tunnel`). Tot el que
+tens en marxa és a **Programar → Webs i apps**. També construeixen i milloren apps
+Android: si el servidor té el JDK i l'SDK d'Android (`ANDROID_HOME`), el vent
+compila amb `./gradlew assembleDebug`, i et passa l'enllaç a l'APK perquè
+l'instal·lis; per actualitzar una app que ja tens, manté el mateix
+`applicationId` i la mateixa clau de signatura. Si falta l'SDK, el vent t'ho diu i
+t'ofereix instal·lar-lo sense `sudo`.
+
 **El teu perfil et segueix.** Les preferències de la interfície (tema, idioma,
 densitat, mida de la lletra…) es desen al teu compte del servidor: entrant des
 d'un altre dispositiu amb el mateix usuari, les recuperes. Cada compte té el seu

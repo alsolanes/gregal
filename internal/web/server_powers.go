@@ -79,6 +79,7 @@ func serviceHome() string {
 type serverEnvInfo struct {
 	OS, User, Home string
 	Tools          map[string]bool
+	AndroidSDK     string
 }
 
 var (
@@ -87,7 +88,41 @@ var (
 	serverEnvLast serverEnvInfo
 )
 
-var serverEnvTools = []string{"cloudflared", "caddy", "nginx", "node", "npm", "python3", "git", "docker", "systemctl", "rsync"}
+var serverEnvTools = []string{"cloudflared", "caddy", "nginx", "node", "npm", "python3", "git", "docker", "systemctl", "rsync", "java", "gradle", "adb", "sdkmanager"}
+
+// androidSDK: on és el SDK d'Android d'aquesta màquina (per construir APK), o "".
+func androidSDK() string {
+	for _, v := range []string{"ANDROID_HOME", "ANDROID_SDK_ROOT"} {
+		if p := strings.TrimSpace(os.Getenv(v)); p != "" {
+			if st, err := os.Stat(p); err == nil && st.IsDir() {
+				return p
+			}
+		}
+	}
+	home, _ := os.UserHomeDir()
+	for _, p := range []string{filepath.Join(home, "Android", "Sdk"), filepath.Join(home, "Library", "Android", "sdk"), "/usr/lib/android-sdk", "/opt/android-sdk"} {
+		if st, err := os.Stat(filepath.Join(p, "platforms")); err == nil && st.IsDir() {
+			return p
+		}
+	}
+	return ""
+}
+
+// androidBrief: el que el vent ha de saber per crear, millorar i lliurar APK.
+func androidBrief(sdk string, haveJava bool) string {
+	state := "Android SDK: NOT FOUND on this machine"
+	if sdk != "" {
+		state = "Android SDK: " + sdk + " (set ANDROID_HOME to it when building)"
+	}
+	if !haveJava {
+		state += "; no JDK on the PATH"
+	}
+	return "\n- ANDROID APPS: you can create and improve Android apps (Kotlin, Compose or Java) and build their APK. " + state +
+		". Build with the project's ./gradlew assembleDebug (gradle if there is no wrapper), reading the real compiler errors and fixing them; run its unit tests when it has them. " +
+		"If the SDK or the JDK is missing, say exactly what is missing and offer to install it at user level (sdkmanager and a JDK in the home folder; no sudo). " +
+		"DELIVER the APK to the phone: copy it into a small folder together with an index.html that links to it and call publish on that folder: the link opens on the phone, downloads the APK and Android offers to install it (the user allows installing from that source once). Say the app name, version and size. " +
+		"To UPDATE an app the user already has installed, keep the same applicationId and the same signing key and raise versionCode, or Android refuses the update; never print or commit keystore passwords."
+}
 
 func serverEnv() serverEnvInfo {
 	serverEnvMu.Lock()
@@ -106,6 +141,7 @@ func serverEnv() serverEnvInfo {
 	if p, err := cloudflaredBin(); err == nil && p != "" {
 		info.Tools["cloudflared"] = true
 	}
+	info.AndroidSDK = androidSDK()
 	serverEnvLast, serverEnvAt = info, time.Now()
 	return info
 }
@@ -160,6 +196,7 @@ func (s *Server) windServerBrief() string {
 	fmt.Fprintf(&b, "\n- Public address of this Gregal: %s. Tunnels open: %s.", public, tunnelLine)
 	b.WriteString("\n- You may run any shell command (git, npm, pip, builds, curl/wget to the internet, ssh) and edit files anywhere the system lets you. Never: sudo (nobody can type its password), stopping or restarting Gregal, rm -rf /, piping a download into a shell, or touching ~/.ssh and Gregal's own config. If the system refuses a write (read-only file system, permission denied), say which folder and that the administrator can allow it with: sudo gregalctl site-allow <folder>.")
 	b.WriteString("\n- To put something online: a static site → publish; something that needs a server → app (stays running, restarts itself); on the internet with the user's domain or a quick link → tunnel (Cloudflare). Report the final URL.")
+	b.WriteString(androidBrief(env.AndroidSDK, env.Tools["java"]))
 	b.WriteString("\n- Before changing a live site, look at how it is served and copy it first when the change is big (cp -a site site.bak-$(date +%Y%m%d-%H%M)); afterwards check it responds (curl -I the URL) and say what you changed.")
 	fmt.Fprintf(&b, "\n- SERVER NOTES (%s): what the winds learned about this server (sites, their folders and domains, how each is deployed, tunnels). Read them first; when you learn something durable, add or correct one short line there with edit/write. Never store passwords or keys in them.\n%s", serverNotesFile(), notes)
 	return b.String()

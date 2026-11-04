@@ -122,3 +122,29 @@ func TestTunnelQuickAndNamed(t *testing.T) {
 		t.Fatalf("after stop: %v", l)
 	}
 }
+
+// Els vents de l'administrador saben construir APK i com lliurar-los al
+// telèfon (publish), i diuen què falta si l'SDK no hi és.
+func TestWindBriefExplainsAndroidBuildsAndDelivery(t *testing.T) {
+	with := androidBrief("/opt/android-sdk", true)
+	for _, want := range []string{"ANDROID APPS", "/opt/android-sdk", "./gradlew assembleDebug", "call publish", "same applicationId", "versionCode"} {
+		if !strings.Contains(with, want) {
+			t.Fatalf("falta %q: %s", want, with)
+		}
+	}
+	without := androidBrief("", false)
+	if !strings.Contains(without, "NOT FOUND") || !strings.Contains(without, "no JDK") {
+		t.Fatalf("ha de dir què falta: %s", without)
+	}
+	// El SDK es troba per ANDROID_HOME.
+	dir := t.TempDir()
+	t.Setenv("ANDROID_HOME", dir)
+	if androidSDK() != dir {
+		t.Fatal("ANDROID_HOME no detectat")
+	}
+	t.Setenv("ANDROID_HOME", filepath.Join(dir, "no-existeix"))
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	if got := androidSDK(); got == filepath.Join(dir, "no-existeix") {
+		t.Fatal("un camí que no existeix no és un SDK")
+	}
+}

@@ -18,7 +18,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.Icon
@@ -63,6 +67,9 @@ internal fun askCopy(lang: String, key: String): String {
         "hint" -> if (en) "Ask anything" else "Pregunta el que vulguis"
         "send" -> if (en) "Send" else "Envia"
         "photo" -> if (en) "Add a photo" else "Afegeix una foto"
+        "attach" -> if (en) "Attach" else "Adjunta"
+        "document" -> if (en) "Add a document" else "Afegeix un document"
+        "documentHelp" -> if (en) "PDF, Word, Excel… as context" else "PDF, Word, Excel… com a context"
         "today" -> if (en) "Today" else "Avui"
         "briefAt" -> if (en) "Morning briefing · %s" else "Resum del matí · %s"
         "pickUp" -> if (en) "Pick up" else "Repren"
@@ -92,9 +99,11 @@ internal fun askGreeting(lang: String, hour: Int, name: String): String {
 }
 
 internal fun askSuggestions(lang: String): List<String> = if (lang == "en") listOf(
-    "Plan my week", "What’s on my calendar today?", "Recommend a book", "Remind me tomorrow at 9 to call the doctor",
+    "Build me a page and publish it", "Search the web and summarise it", "Read this PDF and plan the work",
+    "Make me an Android app and send the APK", "What have I published?", "Plan my week",
 ) else listOf(
-    "Organitza’m la setmana", "Què tinc avui al calendari?", "Recomana’m un llibre", "Recorda’m demà a les 9 que truqui al metge",
+    "Fes-me una web i publica-la", "Cerca-ho a internet i resumeix-ho", "Llegeix aquest PDF i planifica la feina",
+    "Fes-me una app Android i passa’m l’APK", "Què tinc publicat?", "Organitza’m la setmana",
 )
 
 /** Una targeta d'«Avui». */
@@ -287,8 +296,9 @@ private fun Color.compositeOverSafe(bg: Color): Color = Color(
 /** El camp gran de l'inici, fix a baix: una pastilla amb el botó d'enviar rodó. */
 @Composable
 internal fun AskBar(lang: String, text: String, onText: (String) -> Unit, busy: Boolean,
-    /** Afegir una foto (puja i en posa la referència al camp). */
+    /** Afegir una foto o un document (PDF, Word, Excel…): es pugen i en queda la referència al camp. */
     onPhoto: (() -> Unit)? = null,
+    onDoc: (() -> Unit)? = null,
     onSend: () -> Unit) {
     val can = text.isNotBlank() && !busy
     val dictate = rememberDictation(lang) { onText(appendDictated(text, it)) }
@@ -300,11 +310,25 @@ internal fun AskBar(lang: String, text: String, onText: (String) -> Unit, busy: 
                 .padding(start = if (onPhoto != null) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("ask-bar"),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (onPhoto != null) Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onPhoto).semantics { contentDescription = askCopy(lang, "photo") },
-                contentAlignment = Alignment.Center,
-            ) { Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Muted, modifier = Modifier.size(22.dp)) }
-            if (onPhoto != null) Spacer(Modifier.width(6.dp))
+            if (onPhoto != null || onDoc != null) {
+                var menu by remember { mutableStateOf(false) }
+                Box {
+                    Box(
+                        Modifier.size(40.dp).clip(CircleShape).clickable { menu = true }.semantics { contentDescription = askCopy(lang, "attach") }.testTag("ask-attach"),
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(Icons.Rounded.Add, null, tint = Muted, modifier = Modifier.size(24.dp)) }
+                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        if (onPhoto != null) DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Sea) },
+                            text = { Text(askCopy(lang, "photo")) }, onClick = { menu = false; onPhoto() })
+                        if (onDoc != null) DropdownMenuItem(
+                            leadingIcon = { Icon(Icons.Rounded.Description, null, tint = Sea) },
+                            text = { Column { Text(askCopy(lang, "document")); Text(askCopy(lang, "documentHelp"), color = Muted, fontSize = 11.5.sp) } },
+                            onClick = { menu = false; onDoc() })
+                    }
+                }
+                Spacer(Modifier.width(6.dp))
+            }
             Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
                 BasicTextField(
                     text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),

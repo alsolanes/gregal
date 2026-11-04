@@ -39,9 +39,14 @@ import (
 const (
 	siteMaxBytes     = 20 << 20 // tota la web
 	siteMaxFileBytes = 10 << 20 // un sol fitxer
-	siteMaxFiles     = 1000
-	siteMaxPerOwner  = 100
-	siteMaxDays      = 365
+	// Els APK que un vent construeix (Android) són més grans que una web: cadascun fins
+	// a 150 MB, com a molt 3 per web, i no compten pel límit de la resta. Es serveixen
+	// com a descàrrega (siteServe), perquè el telèfon els instal·li des de l'enllaç.
+	siteMaxAPKBytes = 150 << 20
+	siteMaxAPKs     = 3
+	siteMaxFiles    = 1000
+	siteMaxPerOwner = 100
+	siteMaxDays     = 365
 )
 
 // siteCSP: la web pot fer el que faria a qualsevol hosting (scripts,
@@ -209,7 +214,7 @@ func (s *Server) siteFilesFromDir(dir string) ([]siteFile, error) {
 		return nil, errors.New("dir is not a folder")
 	}
 	var files []siteFile
-	total := 0
+	total, apks := 0, 0
 	err = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -227,15 +232,25 @@ func (s *Server) siteFilesFromDir(dir string) ([]siteFile, error) {
 		if err != nil {
 			return err
 		}
-		if info.Size() > siteMaxFileBytes {
+		isAPK := strings.EqualFold(filepath.Ext(d.Name()), ".apk")
+		if isAPK {
+			if info.Size() > siteMaxAPKBytes {
+				return fmt.Errorf("%s is larger than %d MB", d.Name(), siteMaxAPKBytes>>20)
+			}
+			if apks++; apks > siteMaxAPKs {
+				return fmt.Errorf("more than %d APK files", siteMaxAPKs)
+			}
+		} else if info.Size() > siteMaxFileBytes {
 			return fmt.Errorf("%s is larger than %d MB", d.Name(), siteMaxFileBytes>>20)
 		}
 		if len(files) >= siteMaxFiles {
 			return fmt.Errorf("more than %d files", siteMaxFiles)
 		}
-		total += int(info.Size())
-		if total > siteMaxBytes {
-			return fmt.Errorf("the site is larger than %d MB", siteMaxBytes>>20)
+		if !isAPK {
+			total += int(info.Size())
+			if total > siteMaxBytes {
+				return fmt.Errorf("the site is larger than %d MB", siteMaxBytes>>20)
+			}
 		}
 		data, err := os.ReadFile(p)
 		if err != nil {
@@ -348,6 +363,11 @@ func handleShareSitePage(w http.ResponseWriter, r *http.Request) {
 	if ct == "" {
 		ct = http.DetectContentType(raw)
 	}
+	// Un APK es descarrega (i el telèfon el ofereix per instal·lar), no s'obre.
+	apk := strings.EqualFold(path.Ext(clean), ".apk")
+	if apk {
+		ct = "application/vnd.android.package-archive"
+	}
 	if strings.HasPrefix(ct, "text/html") {
 		// Origen opac: sense el shim, un joc que desa el rècord a
 		// localStorage peta en carregar (apps.go).
@@ -355,6 +375,9 @@ func handleShareSitePage(w http.ResponseWriter, r *http.Request) {
 	}
 	h := w.Header()
 	h.Set("Content-Type", ct)
+	if apk {
+		h.Set("Content-Disposition", `attachment; filename="`+path.Base(clean)+`"`)
+	}
 	h.Set("Content-Security-Policy", siteCSP)
 	h.Set("X-Content-Type-Options", "nosniff")
 	h.Set("Referrer-Policy", "no-referrer")

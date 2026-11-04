@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## v1.52.0 - 2026-11-04 - Webs i apps al mòbil, i APKs
+
+- **Webs i apps al mòbil.** Una pantalla nova («Programar → Webs i apps», o a Eines)
+  amb tot el que els vents han construït i serveixen: les pàgines publicades, les
+  apps que corren al servidor (amb el seu estat) i els túnels de Cloudflare. Cada
+  una té l'enllaç per obrir-lo o copiar-lo, i es poden despublicar, reiniciar,
+  aturar o treure. Es refresca sola cada 10 segons.
+- **Els vents construeixen APK i te'ls passen.** El vent de l'administrador ja sap
+  si el servidor té l'SDK d'Android i el JDK, i com construir (./gradlew), millorar
+  una app que ja tens (mateix applicationId i clau, versionCode més alt) i lliurar
+  l'APK: la publicació ara admet fitxers `.apk` (fins a 150 MB, màxim 3 per web,
+  sense comptar al límit de 20 MB de la resta) i els serveix com a descàrrega, de
+  manera que l'enllaç s'obre al mòbil i Android ofereix instal·lar-lo.
+- **L'inici dels Vents, pensat per construir.** El «+» del camp d'escriptura
+  adjunta una foto o un document (PDF, Word, Excel…) perquè el vent el llegeixi com
+  a context, i les suggestions són les feines de debò: fer i publicar una web,
+  cercar i resumir, llegir un PDF, fer una app Android i enviar-ne l'APK.
+
+- **El navegador de l'agent, de debò.** El panell té barra d'adreces (que també
+  cerca), enrere/endavant, recarregar o aturar, barra de càrrega, candau HTTPS i
+  obrir al navegador del sistema; es minimitza a una píndola mentre l'agent
+  treballa o s'amplia a tota la finestra. Els enllaços que obren pestanya nova
+  ja no «fan res»: carreguen al mateix panell, i els inicis de sessió amb finestra
+  emergent (OAuth) funcionen. La pàgina Navegador hi guanya el mateix.
+- **«Et toca a tu».** Nova acció `handoff` de l'eina `browser`: quan cal una
+  contrasenya, un codi, un CAPTCHA o triar compte, l'agent t'ho demana en una
+  franja al panell (o a dalt de la pàgina en els modes `window` i `chrome`) i
+  espera que premis «Fet, continua». El Gregal continua sense escriure mai
+  credencials.
+
 ## v1.51.0 - 2026-11-04 - Programar des del mòbil
 
 - **Gregal Vents 1.60.0 (Android): programar des del mòbil, a mà.** El menú dels

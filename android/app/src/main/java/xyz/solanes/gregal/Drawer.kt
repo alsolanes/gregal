@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Toys
 import androidx.compose.material.icons.rounded.Add
@@ -112,6 +113,7 @@ fun GregalDrawerContent(
 
             DrawerSection(tr(lang, "app.nav.sectionTools"))
             DrawerRow(tr(lang, "app.carpeta.title"), screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen)
+            DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
             DrawerRow(tr(lang, "nav.office"), screen == Screen.Office, { nav(Screen.Office) }, Icons.Rounded.Description)
             DrawerRow(tr(lang, "app.retro.title"), screen == Screen.Retro, { close(); vm.openRetro() }, Icons.Rounded.Tag)
             // Al dispositiu no hi ha la CLI gh: GitHub només en remot.
@@ -166,6 +168,7 @@ private fun SimpleVentsDrawer(
                 screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen,
             )
             DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
+            DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Settings)
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)

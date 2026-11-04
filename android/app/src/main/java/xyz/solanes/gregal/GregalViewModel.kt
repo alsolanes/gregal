@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -700,6 +700,52 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val connections: StateFlow<GregalApi.Connections?> = _connections
     private val _connectionsMsg = MutableStateFlow("")
     val connectionsMsg: StateFlow<String> = _connectionsMsg
+
+    /** «Webs i apps»: el que els vents han publicat, el que corre al servidor i els túnels. */
+    private val _webs = MutableStateFlow(WebsState())
+    internal val webs: StateFlow<WebsState> = _webs.asStateFlow()
+
+    fun loadWebs() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val items = withContext(Dispatchers.IO) {
+                    val api = c.api()
+                    // Cada part per separat: els túnels són només de l'administrador (403 si no).
+                    val shares = runCatching { api.get("/api/shares") }.getOrNull()
+                    val apps = runCatching { api.get("/api/apps") }.getOrNull()
+                    val powers = runCatching { api.get("/api/server/powers") }.getOrNull()
+                    if (shares == null && apps == null && powers == null) throw java.io.IOException("no server")
+                    parseWebs(api.base, shares, apps, powers)
+                }
+                _webs.value = WebsState(items, loaded = true)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                _webs.value = _webs.value.copy(loaded = true, error = e.message.orEmpty())
+            }
+        }
+    }
+
+    /** unpublish (una web), restart/stop/remove (una app). */
+    internal fun webAction(item: WebItem, action: String) {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = c.api()
+                    when {
+                        item.kind == "site" && action == "unpublish" -> api.deleteShare(item.id)
+                        item.kind == "app" -> api.post("/api/apps", JSONObject().put("action", action).put("id", item.id))
+                        else -> Unit
+                    }
+                }
+                loadWebs()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(e.message.orEmpty())
+            }
+        }
+    }
 
     /** El resum del matí d'avui, si ja ha sortit: va a dalt d'«Avui» a l'inici dels Vents. */
     data class TodayBrief(val windId: String, val windName: String, val at: String, val text: String)

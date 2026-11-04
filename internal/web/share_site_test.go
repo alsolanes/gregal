@@ -157,3 +157,34 @@ func TestSiteMarkdownCaducitatILimits(t *testing.T) {
 	publishSite(t, h, `{"kind":"html","content":"  "}`, 400)
 	publishSite(t, h, `{"id":"`+strings.Repeat("a", 40)+`","kind":"html","content":"x"}`, 404)
 }
+
+// Un vent que construeix un APK el pot lliurar al telèfon: l'APK pot ser gran
+// (no compta pel límit de la resta), es serveix com a descàrrega, i la resta de
+// fitxers continuen limitats.
+func TestSiteAdmetAPKsGransComADescarrega(t *testing.T) {
+	s, h := exportTestServer(t)
+	ws := t.TempDir()
+	s.mu.Lock()
+	s.cwd = ws
+	s.mu.Unlock()
+	site := filepath.Join(ws, "app")
+	_ = os.MkdirAll(site, 0o755)
+	_ = os.WriteFile(filepath.Join(site, "index.html"), []byte("<a href=app.apk>Descarrega</a>"), 0o644)
+	// 12 MB: passa el límit d'un fitxer normal (10 MB) però és un APK.
+	_ = os.WriteFile(filepath.Join(site, "app.apk"), make([]byte, 12<<20), 0o644)
+	r := publishSite(t, h, `{"dir":"app","title":"App"}`, 200)
+	got := exportDo(h, "GET", r.Path+"app.apk", "")
+	if got.Code != 200 || got.Header().Get("Content-Type") != "application/vnd.android.package-archive" ||
+		!strings.Contains(got.Header().Get("Content-Disposition"), "attachment") || got.Body.Len() != 12<<20 {
+		t.Fatalf("apk: %d %q %q %d", got.Code, got.Header().Get("Content-Type"), got.Header().Get("Content-Disposition"), got.Body.Len())
+	}
+	// El mateix pes en un fitxer qualsevol, no.
+	_ = os.WriteFile(filepath.Join(site, "dades.bin"), make([]byte, 12<<20), 0o644)
+	publishSite(t, h, `{"dir":"app"}`, 400)
+	_ = os.Remove(filepath.Join(site, "dades.bin"))
+	// Més de 3 APK, no.
+	for _, n := range []string{"b.apk", "c.apk", "d.apk"} {
+		_ = os.WriteFile(filepath.Join(site, n), []byte("x"), 0o644)
+	}
+	publishSite(t, h, `{"dir":"app"}`, 400)
+}

@@ -119,6 +119,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val homePhoto = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetContent()
     ) { uri -> if (uri != null) vm.attachImage(uri) { ref -> askText.value = (ref + " " + askText.value).trim() } }
+    // Un document (PDF, Word, Excel…) com a context: es puja i el missatge en duu la ruta,
+    // com als xats dels vents; el vent el llegeix al servidor.
+    val homeDoc = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri -> if (uri != null) vm.attachDocument(uri) { path -> askText.value = appendDocMention(askText.value, path) } }
     val programats by vm.programats.collectAsState()
     val connections by vm.connections.collectAsState()
     val userName by vm.usuari.collectAsState()
@@ -331,7 +336,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 }
             },
             bottomBar = {
-                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy, onPhoto = { homePhoto.launch("image/*") }) {
+                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy, onPhoto = { homePhoto.launch("image/*") }, onDoc = { homeDoc.launch("*/*") }) {
                     // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
                     val text = askText.value.trim()
                     if (text.isNotEmpty()) { vm.askCap(text); askText.value = ""; vm.openVentsChat("cap") }
