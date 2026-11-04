@@ -90,6 +90,17 @@ func targetsResum(prim llm.Target, fb *llm.Target) (llm.Target, *llm.Target) {
 // text pla per a una crida al marge. Es queda amb la cua quan no hi cap:
 // el que acaba de passar és el que importa. El system no hi va.
 func TranscriptDigest(hist []llm.Message, maxChars int) string {
+	return transcriptDigest(hist, maxChars, false)
+}
+
+// TranscriptDigestSpeakers és TranscriptDigest amb el nom de qui parla:
+// a una rotllana, cada missatge d'assistant és una veu diferent i sense el
+// nom el model no sap qui ha dit què.
+func TranscriptDigestSpeakers(hist []llm.Message, maxChars int) string {
+	return transcriptDigest(hist, maxChars, true)
+}
+
+func transcriptDigest(hist []llm.Message, maxChars int, withSpeakers bool) string {
 	if maxChars <= 0 {
 		maxChars = 24000
 	}
@@ -102,7 +113,11 @@ func TranscriptDigest(hist []llm.Message, maxChars int) string {
 			parts = append(parts, "USER: "+retallaText(strings.TrimSpace(m.Content), 2000))
 		case "assistant":
 			if t := strings.TrimSpace(m.Content); t != "" {
-				parts = append(parts, "ASSISTANT: "+retallaText(t, 2000))
+				who := "ASSISTANT"
+				if withSpeakers && m.SpeakerName != "" {
+					who = "ASSISTANT " + m.SpeakerName
+				}
+				parts = append(parts, who+": "+retallaText(t, 2000))
 			}
 			for _, c := range m.ToolCalls {
 				parts = append(parts, "TOOL CALL "+c.Function.Name+" "+retallaText(strings.Join(strings.Fields(c.Function.Arguments), " "), 300))

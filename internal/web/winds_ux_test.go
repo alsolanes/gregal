@@ -335,7 +335,9 @@ func TestRotllanaHistorySpeakerIdentitySurvivesReloadAndRename(t *testing.T) {
 			t.Fatalf("history length: %+v", got)
 		}
 		last := got.History[2]
-		if last["from"] != "pet" || last["text"] != "Xaloc: resposta" || last["speaker_id"] != wind.ID || last["speaker_name"] != "Xaloc" {
+		// La identitat viatja per speaker_id/speaker_name; el text NO porta
+		// prefix de nom (la UI ja mostra qui parla).
+		if last["from"] != "pet" || last["text"] != "resposta" || last["speaker_id"] != wind.ID || last["speaker_name"] != "Xaloc" {
 			t.Fatalf("speaker identity: %+v", last)
 		}
 		if got.History[1]["from"] != "user" || got.History[1]["text"] != "hola" {

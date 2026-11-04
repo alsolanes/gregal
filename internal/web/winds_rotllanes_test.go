@@ -115,9 +115,10 @@ func TestRotllanaChatTurns(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"wind":"mestral"`) {
 		t.Errorf("hauria de parlar mestral primer: %s", rec.Body.String())
 	}
-	// La història queda "Mestral: endavant!".
-	if !strings.Contains(rec.Body.String(), "Mestral: endavant!") {
-		t.Errorf("historial sense el nom del vent: %s", rec.Body.String())
+	// La història porta la identitat per speaker_id/speaker_name; el text
+	// no porta prefix de nom (la UI ja mostra qui parla).
+	if !strings.Contains(rec.Body.String(), `"speaker_id":"mestral"`) || !strings.Contains(rec.Body.String(), `"text":"endavant!"`) {
+		t.Errorf("historial sense la identitat del vent: %s", rec.Body.String())
 	}
 
 	// Segon missatge: ara toca a Marinada (mestral ha parlat 1 cop).
@@ -143,7 +144,7 @@ func TestRotllanaChatTurns(t *testing.T) {
 	if body.Code != 200 {
 		t.Fatalf("get: %d", body.Code)
 	}
-	for _, want := range []string{"què hi ha de nou?", "Mestral: endavant!", "Marinada: doncs jo afegiria…"} {
+	for _, want := range []string{"què hi ha de nou?", `"speaker_name":"Mestral"`, `"text":"endavant!"`, `"speaker_name":"Marinada"`, `"text":"doncs jo afegiria…"`} {
 		if !strings.Contains(body.Body.String(), want) {
 			t.Errorf("historial sense %q: %s", want, body.Body.String())
 		}

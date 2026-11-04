@@ -144,11 +144,13 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 	onTreballa := windProjectesBrief(wsp)
 	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID) + s.windCardsBrief(speakingWind.ID) + s.windServerBrief() + s.windConnectionsBrief()
 	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per seguir el fil.
-	transcript := agent.TranscriptDigest(conversation, 10000)
+	// Amb el nom de qui parla: cada missatge d'assistant és una veu diferent.
+	transcript := agent.TranscriptDigestSpeakers(conversation, 10000)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." +
-		// La colla respon sencera quan la pregunta és per a tots: si només
-		// parla una veu, sembla que els altres no hi siguin.
-		"\n\nWHO ANSWERS: this is a group chat with humans and winds. If the human talks to the whole group (nobody named), the GROUP answers: write one short block per member who has something real to add, each block starting with exactly \"<member name>: \" (their name as listed above). 1-3 sentences per member, no filler, never repeat what another member just said, and leave out whoever has nothing to add — a member that adds nothing stays silent instead of agreeing. If the human names one member (@Name or the name in the text), only that member answers and you do not write the name prefix." + windRemindBrief(speakingWind.ID) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa
+		// La colla respon sencera quan la pregunta és per a tots, i les veus
+		// es responen entre elles: és una conversa de grup, no monòlegs en
+		// paral·lel del mateix autor.
+		"\n\nWHO ANSWERS: this is a group chat with humans and winds. If the human talks to the whole group (nobody named), the GROUP answers as a real conversation: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 sentences per member, short and plain: no link dumps, no more than one source link per member, and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers and you do not write the name prefix." + windRemindBrief(speakingWind.ID) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa
 	return system, brief
 }
 
@@ -507,11 +509,13 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		reply += s.windDocLinks(tVeu, reply)
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
 		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
 		}
 		for _, v := range voices {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
+			// La identitat viatja per SpeakerID/SpeakerName; el contingut no
+			// porta prefix de nom (la UI ja mostra qui parla).
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{v.wind, v.text})
 		}
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la

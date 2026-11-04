@@ -65,7 +65,8 @@ func TestRotllanaWebSearch(t *testing.T) {
 		t.Fatalf("vull 1 usuari + 1 resposta amb fonts, tinc %d: %s", len(out.History), rec.Body.String())
 	}
 	last := out.History[1]
-	if last["speaker_id"] != "mestral" || last["text"] != "Mestral: he buscat i l'he trobat. [example.com](https://example.com)" {
+	// La identitat viatja per speaker_id/speaker_name; el text no porta prefix.
+	if last["speaker_id"] != "mestral" || last["text"] != "he buscat i l'he trobat. [example.com](https://example.com)" {
 		t.Fatalf("resposta sense identitat del parlant: %+v", last)
 	}
 }

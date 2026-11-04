@@ -310,12 +310,15 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		// La primera veu del primer vent és la resposta del torn.
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
 		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: sp.Name + ": " + reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
 			continue
 		}
 		for _, v := range voices {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.wind.Name + ": " + v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
+			// La identitat viatja per SpeakerID/SpeakerName: el contingut NO
+			// porta el prefix «Nom: » (la UI ja mostra el nom i el doble
+			// prefix sortia com «Fredolic: Fredolic: …»).
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{v.wind, v.text})
 		}
 	}
@@ -440,7 +443,8 @@ func memberByPrefix(members []companion.Wind, name string) (companion.Wind, bool
 }
 
 // Keep from/text byte-compatible. New replies persist identity independently
-// of their display name; old chats resolve a unique name prefix when possible.
+// of their display name; old chats resolve a unique name prefix when possible
+// and the resolved prefix is stripped from the text so it does not show twice.
 func (s *Server) rotllanaHistoryJSON(messages []llm.Message) []map[string]any {
 	out := petHistoryJSON(messages)
 	winds, _ := s.winds.List()
@@ -459,6 +463,13 @@ func (s *Server) rotllanaHistoryJSON(messages []llm.Message) []map[string]any {
 			}
 		}
 		out[i]["speaker_id"], out[i]["speaker_name"] = id, name
+		// Un missatge antic amb el prefix resolt el mostra net: la identitat
+		// ja viatja per speaker_name i la UI no ha de duplicar el nom.
+		if name != "" && strings.HasPrefix(m.Content, name+": ") {
+			if text, _ := out[i]["text"].(string); strings.HasPrefix(text, name+": ") {
+				out[i]["text"] = strings.TrimPrefix(text, name+": ")
+			}
+		}
 		if m.Kind != "" {
 			out[i]["kind"] = m.Kind
 		}
