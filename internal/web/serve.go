@@ -320,6 +320,9 @@ func (h *Hub) Run(addr string) error {
 	}
 	go s.jobLoop(context.Background())
 	h.startPlugins(context.Background())
+	// Una colla que va quedar a mig fer en reiniciar-se el servidor ha de
+	// dir-ho al fil ara, no quedar en silenci amb el debat plegat.
+	s.crewRecoverInterrupted()
 	// Les apps gestionades que corrien tornen a arrencar (apps.go), i els
 	// túnels de Cloudflare que eren oberts (tunnels.go).
 	go appsMgr.autostart()

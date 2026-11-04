@@ -463,33 +463,50 @@ func crewStepDesat(s *Server, rotID string) string {
 }
 
 // crewRecoverInterrupted es crida en arrencar: una colla que va quedar a mig
-// fer (el servidor es va reiniciar o el procés va morir) ha de dir-ho al fil
+// fer (el servidor s'ha reiniciat o el procés va morir) ha de dir-ho al fil
 // amb un missatge final net, no quedar en silenci amb el debat plegat i cap
 // conclusió. Les feines que esperen resposta de l'usuari es conserven.
+// Recorre totes les sessions (la default i la de cada usuari), perquè les
+// rotllanes viuen a la carpeta de qui les va crear.
 func (s *Server) crewRecoverInterrupted() {
-	dir := filepath.Join(s.sessDir(), "crew-jobs")
-	states, err := filepath.Glob(filepath.Join(dir, "*.state.json"))
-	if err != nil {
+	s.crewRecoverInterruptedSession(s)
+	if s.users == nil || !s.users.Actiu() {
+		return
+	}
+	for _, name := range s.users.Noms() {
+		u := s.users.Usuari(name)
+		if u == nil || u.Tothom {
+			continue
+		}
+		sess := s.hub.SessionFor(u, "boot")
+		if sess != nil {
+			sess.crewRecoverInterruptedSession(sess)
+		}
+	}
+}
+
+func (s *Server) crewRecoverInterruptedSession(sess *Server) {
+	states, err := filepath.Glob(filepath.Join(sess.sessDir(), "crew-jobs", "*.state.json"))
+	if err != nil || len(states) == 0 {
 		return
 	}
 	for _, p := range states {
 		rotID := strings.TrimSuffix(filepath.Base(p), ".state.json")
-		step := crewStepDesat(s, rotID)
-		if step != "interrupted" {
+		if crewStepDesat(sess, rotID) != "interrupted" {
 			continue
 		}
-		st, ok := loadCrewState(s, rotID)
+		st, ok := loadCrewState(sess, rotID)
 		if !ok {
 			continue
 		}
-		rot, ok := s.rotllanaByID(rotID)
+		rot, ok := sess.rotllanaByID(rotID)
 		if !ok {
 			// El fil ja no existeix: l'estat orfe no serveix de res.
 			_ = os.Remove(p)
-			_ = os.Remove(crewJobPath(s, rotID))
+			_ = os.Remove(crewJobPath(sess, rotID))
 			continue
 		}
-		members := s.rotMembersOf(rot)
+		members := sess.rotMembersOf(rot)
 		if len(members) == 0 {
 			_ = os.Remove(p)
 			continue
@@ -506,9 +523,9 @@ func (s *Server) crewRecoverInterrupted() {
 		if len(files) > 0 {
 			msg += "\n\n**" + say("Fitxers", "Files") + "**\n- " + strings.Join(files, "\n- ")
 		}
-		s.crewSayKind(rot, lead, "result", msg)
+		sess.crewSayKind(rot, lead, "result", msg)
 		_ = os.Remove(p)
-		_ = os.Remove(crewJobPath(s, rotID))
+		_ = os.Remove(crewJobPath(sess, rotID))
 	}
 }
 
