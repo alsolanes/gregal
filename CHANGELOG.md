@@ -4,6 +4,13 @@
 
 ## v1.52.0 - 2026-11-04 - Webs i apps al mòbil, i APKs
 
+- **Els vents pregunten abans d'instal·lar.** Els vents no tenen cap finestra d'aprovació,
+  i amb els poders de servidor ordres com baixar l'SDK, descomprimir-lo o acceptar
+  llicències s'executaven sense preguntar. Ara la consigna els obliga a aturar-se i a
+  esperar el teu «sí» al xat abans de qualsevol cosa gran o difícil de desfer que
+  ningú no hagi demanat: instal·lar programari (SDK, JDK, paquets del sistema o
+  globals), baixar fitxers grans, esborrar carpetes o tocar res fora del projecte, o
+  canviar la configuració d'una web en marxa. Dir què, de quina mida i on.
 - **Webs i apps al mòbil.** Una pantalla nova («Programar → Webs i apps», o a Eines)
   amb tot el que els vents han construït i serveixen: les pàgines publicades, les
   apps que corren al servidor (amb el seu estat) i els túnels de Cloudflare. Cada

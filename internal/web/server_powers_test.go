@@ -127,7 +127,7 @@ func TestTunnelQuickAndNamed(t *testing.T) {
 // telèfon (publish), i diuen què falta si l'SDK no hi és.
 func TestWindBriefExplainsAndroidBuildsAndDelivery(t *testing.T) {
 	with := androidBrief("/opt/android-sdk", true)
-	for _, want := range []string{"ANDROID APPS", "/opt/android-sdk", "./gradlew assembleDebug", "call publish", "same applicationId", "versionCode"} {
+	for _, want := range []string{"ANDROID APPS", "/opt/android-sdk", "./gradlew assembleDebug", "call publish", "same applicationId", "versionCode", "ask the user before installing", "explicit yes"} {
 		if !strings.Contains(with, want) {
 			t.Fatalf("falta %q: %s", want, with)
 		}
@@ -146,5 +146,23 @@ func TestWindBriefExplainsAndroidBuildsAndDelivery(t *testing.T) {
 	t.Setenv("ANDROID_SDK_ROOT", "")
 	if got := androidSDK(); got == filepath.Join(dir, "no-existeix") {
 		t.Fatal("un camí que no existeix no és un SDK")
+	}
+}
+
+// Els vents no tenen cap finestra d'aprovació: el que s'instal·la ho decideix
+// la pregunta que el vent fa a la persona. Ho diu la consigna, i no pot dependre
+// només de l'SDK d'Android: serveix per a qualsevol instal·lació.
+func TestServerBriefTellsWindsToAskBeforeInstalling(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	t.Setenv("GREGAL_ACCOUNTS_DIR", filepath.Join(t.TempDir(), "accounts"))
+	h := testHubWithUsers(t)
+	if err := setServerPowers(true); err != nil {
+		t.Fatal(err)
+	}
+	brief := h.def.windServerBrief()
+	for _, want := range []string{"ASK FIRST", "explicit yes", "installing software", "deleting folders"} {
+		if !strings.Contains(brief, want) {
+			t.Fatalf("falta %q a la consigna", want)
+		}
 	}
 }
