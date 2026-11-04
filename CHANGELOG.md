@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.51.0 - 2026-11-04 - Programar des del mòbil
+
+- **Gregal Vents 1.60.0 (Android): programar des del mòbil, a mà.** El menú dels
+  Vents té ara una secció «Programar» amb el xat de programació, les converses, el
+  projecte (amb la branca) i les feines, sense haver d'activar res a Preferències.
+  Els objectius, els gràfics, Office i Retro continuen a Preferències → «Eines de
+  programació».
+
 ## v1.50.0 - 2026-11-04 - El perfil viatja amb el teu compte
 
 - **El teu perfil viatja amb el teu compte.** Les preferències (tema, idioma,

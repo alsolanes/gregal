@@ -73,7 +73,7 @@ fun GregalDrawerContent(
     close: () -> Unit,
 ) {
     val simple by vm.simpleVents.collectAsState()
-    if (simple) { SimpleVentsDrawer(vm, lang, screen, local, server, nav, close); return }
+    if (simple) { SimpleVentsDrawer(vm, lang, screen, local, server, project, branch, nav, close); return }
     CappedFontScale(1.5f) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -135,6 +135,7 @@ fun GregalDrawerContent(
 @Composable
 private fun SimpleVentsDrawer(
     vm: GregalViewModel, lang: String, screen: Screen, local: Boolean, server: String,
+    project: String, branch: String,
     nav: (Screen) -> Unit, close: () -> Unit,
 ) {
     val user by vm.usuari.collectAsState()
@@ -154,6 +155,17 @@ private fun SimpleVentsDrawer(
             DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
                 nav(Screen.Automatitzacions); vm.loadJobs(); vm.loadRutines(); vm.loadFlows(); vm.loadProgramats()
             }, Icons.Rounded.Schedule)
+            // Programar des del mòbil és a mà, no amagat: l'agent de codi, les seves
+            // converses, el projecte i les feines. (Objectius, gràfics, Office i Retro
+            // continuen a Preferències → Eines de programació.)
+            DrawerSection(tr(lang, "app.nav.sectionCode"))
+            DrawerRow(tr(lang, "app.nav.codeChat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.Code)
+            DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
+            DrawerRow(
+                project.ifEmpty { tr(lang, "app.nav.project") } + if (branch.isNotBlank()) " · $branch" else "",
+                screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen,
+            )
+            DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Settings)
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)
