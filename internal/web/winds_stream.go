@@ -135,7 +135,7 @@ func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg s
 	brief := windProjectesBrief(ws)
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// The previous-turn digest leaves room for the wind's own guidance (images, charts, building, lessons) inside the 20k brief.
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 12500) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief + windEstilBrief
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief + windEstilBrief
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
@@ -143,9 +143,11 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 	wsp, _ := s.ventWorkspace()
 	onTreballa := windProjectesBrief(wsp)
 	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID) + s.windCardsBrief(speakingWind.ID) + s.windServerBrief() + s.windConnectionsBrief()
-	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per seguir el fil.
-	// Amb el nom de qui parla: cada missatge d'assistant és una veu diferent.
-	transcript := agent.TranscriptDigestSpeakers(conversation, 10000)
+	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per
+	// seguir el fil. Amb el nom de qui parla: cada missatge d'assistant és una veu
+	// diferent. El pressupost baixa a 9.400 perquè els noms i la consigna de
+	// conversa han de continuar cabent al sostre de 20k del brief.
+	transcript := agent.TranscriptDigestSpeakers(conversation, 9400)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." +
 		// La colla respon sencera quan la pregunta és per a tots, i les veus
 		// es responen entre elles: és una conversa de grup, no monòlegs en

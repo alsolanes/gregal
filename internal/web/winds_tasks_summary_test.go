@@ -81,7 +81,9 @@ func TestWindsSummariesReadCommittedDuringOpenTurn(t *testing.T) {
 			}
 			committed := []llm.Message{
 				{Role: "user", Content: "Pregunta desada", Ts: 100},
-				{Role: "assistant", Content: "Tramuntana: Resposta desada", SpeakerID: wind.ID, SpeakerName: wind.Name, Ts: 101},
+				// La identitat viatja per SpeakerID/SpeakerName; el contingut no
+				// porta prefix de nom (com desa el codi de rotllana).
+				{Role: "assistant", Content: "Resposta desada", SpeakerID: wind.ID, SpeakerName: wind.Name, Ts: 101},
 			}
 			if err := saveWindHistory(s, wind, committed); err != nil {
 				t.Fatal(err)
@@ -109,7 +111,7 @@ func TestWindsSummariesReadCommittedDuringOpenTurn(t *testing.T) {
 			// mutable buffer before attempting its durable save.
 			*messages = append(append([]llm.Message(nil), committed...), llm.Message{Role: "assistant", Content: "NO DESAT", Ts: 999})
 			items := readWindsSummariesPromptly(t, s)
-			want := convoSummary{Key: key, From: "pet", Text: "Tramuntana: Resposta desada", Ts: 101, Count: 2}
+			want := convoSummary{Key: key, From: "pet", Text: "Resposta desada", Ts: 101, Count: 2}
 			if kind == "rot" {
 				want.Speaker = wind.Name
 			}
