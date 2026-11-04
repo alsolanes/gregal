@@ -15,6 +15,7 @@ import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
 import { plugins } from './plugins.js';
 import { voicePrefs } from './voice-prefs.js';
+import { profileSync } from './profile-sync.js';
 
 const $ = id => document.getElementById(id);
 const G = () => window.gregal;
@@ -189,7 +190,10 @@ export const prefs = {
     const grups = [
       ['general', '⚙', '<div id="prefsConn" hidden></div>' + fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
         fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
-          [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']]))],
+          [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
+        // El perfil de la persona (tema, idioma, densitat…) viatja amb el compte.
+        fila('prefs.sync', 'prefs.sync.help',
+          '<label class="pf-check"><input type="checkbox" id="prefsSync"' + (profileSync.enabled() ? ' checked' : '') + '><span></span></label>')],
       ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + brands.section()],
       ['agent', '◇', fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
@@ -260,6 +264,8 @@ export const prefs = {
     });
     const v = $('prefsVerify');
     if (v) v.onchange = () => this.posaVerify(v.checked);
+    const ps = $('prefsSync');
+    if (ps) ps.onchange = () => profileSync.setEnabled(ps.checked);
     const rv = $('prefsReviewer');
     if (rv) rv.onchange = () => this.posaRevisor(rv.checked);
     this.carregaSkills();

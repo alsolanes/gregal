@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.50.0 - 2026-11-04 - El perfil viatja amb el teu compte
+
+- **El teu perfil viatja amb el teu compte.** Les preferències (tema, idioma,
+  densitat, mida de la lletra, vista, mascota…) es desen al compte del servidor
+  i, entrant des d'un altre dispositiu amb el mateix usuari, es recuperen soles.
+  És per persona: cada compte té el seu perfil, tants com calgui, i ningú —ni un
+  administrador— pot llegir o canviar el d'un altre. Cada canvi porta la seva
+  hora, així dos dispositius que toquen coses diferents no es trepitgen i en una
+  mateixa preferència guanya l'últim canvi. Mai hi viatgen el token, les sessions
+  obertes ni res propi del dispositiu (amplades de finestra, esborranys). Es pot
+  apagar a cada dispositiu a Preferències → General → «Sincronitza les meves
+  preferències».
+
 ## v1.49.0 - 2026-11-03 - Colles al xat de grup: construeixen i revisen de veritat
 
 - **El xat d'un grup existent fa feina de colla de veritat.** Quan en un grup

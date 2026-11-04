@@ -159,6 +159,12 @@ notificació arriba a temps encara que l'app estigui tancada.
 
 Cadascú pot connectar el seu Google Calendar i Gmail i rebre un resum cada matí: vegeu [calendari-correu.ca.md](calendari-correu.ca.md).
 
+**El teu perfil et segueix.** Les preferències de la interfície (tema, idioma,
+densitat, mida de la lletra…) es desen al teu compte del servidor: entrant des
+d'un altre dispositiu amb el mateix usuari, les recuperes. Cada compte té el seu
+perfil i ningú no veu el d'un altre. Preferències → General → «Sincronitza les
+meves preferències» ho apaga en aquell dispositiu.
+
 Per sortir: menú → **Surt del compte**. Si l'administrador canvia la
 contrasenya o esborra el compte, l'app torna a la pantalla d'entrar i diu per
 què. Per canviar una contrasenya oblidada: `sudo gregalctl account-password NOM`
