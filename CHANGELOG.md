@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.53.3 - 2026-11-04 - El mesurador de context, de debò
+
+- **El mesurador de context deixa de quedar-se curt.** Només comptava els
+  missatges guardats de la conversa i no el que l'agent llegeix amb les eines ni
+  les instruccions del sistema: «explora tot el codi» marcava 2.366 tokens quan la
+  crida en duia desenes de milers. Ara segueix els tokens de l'última crida real
+  al model, també en viu durant el torn.
 ## v1.53.2 - 2026-11-04 - Respostes de l'agent més netes
 
 - **Respostes de l'agent més netes.** El codi en línia deixa de dur vora i caixeta

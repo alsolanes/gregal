@@ -23,6 +23,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gregal/internal/agent"
@@ -120,6 +121,9 @@ type Server struct {
 	// (winds_ask.go); apart de les del xat principal.
 	windAsks   map[string]*windAskReq
 	windAskSeq int
+	// lastPrompt: tokens de l'última crida al model (amb sistema, eines i el que
+	// han llegit); convo només guarda els missatges i la mesura quedava curta.
+	lastPrompt atomic.Int64
 	// questions pendents de resposta triable (eina question): clau → canal
 	// amb l'opció triada (label) o text lliure amb prefix "text:".
 	questions map[string]questionReq
@@ -1000,7 +1004,7 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		// que no existia. context_window 0 = el rol no el declara.
 		// El resum de compactació és el primer missatge de convo: ja hi
 		// compta.
-		"used_tokens":    llm.EstimateTokens(s.convo),
+		"used_tokens":    max(llm.EstimateTokens(s.convo), int(s.lastPrompt.Load())),
 		"context_window": agent.Window(s.cfg, role),
 		// Transcript curt perquè canviar de pestanya no perdi l'historial
 		// visible (abans switchTo buidava el fil i només deia "Sessió · id").
@@ -2485,6 +2489,7 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	// (tots de cop: la compactació ja reescriu el principi), i el system
 	// es refà amb el context del projecte d'ara.
 	s.convo = agent.CompactaConvo(s.convo, resum, 4)
+	s.lastPrompt.Store(0)
 	s.prefix.Reset()
 	if emet != nil {
 		emet("compact", map[string]int{"abans": abans, "despres": len(s.convo)})
@@ -4187,6 +4192,7 @@ func (s *Server) handleNew(w http.ResponseWriter, r *http.Request) {
 		saved = s.convoFile
 	}
 	s.convo = nil
+	s.lastPrompt.Store(0)
 	s.compacted = ""
 	s.prefix.Reset()
 	s.convoFile = ""

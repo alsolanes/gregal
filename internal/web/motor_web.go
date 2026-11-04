@@ -376,6 +376,9 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			if ev := velocitat.result(time.Now(), llm.EstimateTokens(pas.Hist)); ev != nil && err == nil {
 				ev["model"] = prim.Model
 				emit("speed", ev)
+				if p, ok := ev["prompt"].(int); ok && p > 0 {
+					s.lastPrompt.Store(int64(p))
+				}
 			}
 			// El text que acompanya crides d'eina és treball, no la resposta:
 			// la UI el plega i hi tanca la bombolla del pas.

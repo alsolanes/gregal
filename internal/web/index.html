@@ -2717,9 +2717,11 @@ function stopRunVisuals(session) {
 }
 // updateCtxGauge pinta el context ocupat com al TUI: barra + llindars 50/80%.
 // Sense context_window (rol que no el declara) no s'inventa res: s'amaga.
+let ctxGaugeWin = 0;
 function updateCtxGauge(r) {
   const g = $('ctxGauge'); if (!g) return;
   const win = +r.context_window || 0, used = +r.used_tokens || 0;
+  ctxGaugeWin = win;
   if (!win) { g.hidden = true; return; }
   const pct = Math.min(100, Math.round(used * 100 / win));
   g.hidden = false;
@@ -2746,6 +2748,8 @@ function speedAdd(d) {
   if (!turnSpeed) speedReset();
   const s = turnSpeed;
   s.calls++; s.last = d; s.est = s.est || !!d.estimated;
+  // Cada crida porta el que el model ha rebut de debò (amb el que han llegit les eines): el mesurador el segueix en viu.
+  if (d.prompt > 0 && ctxGaugeWin) updateCtxGauge({ context_window: ctxGaugeWin, used_tokens: d.prompt });
   if (d.pp > 0) { s.pTok += (d.prompt || 0) - (d.cached || 0); s.pSec += (d.ttft_ms || 0) / 1000; }
   if (d.tg > 0) { s.gTok += d.completion || 0; s.gSec += (d.gen_ms || 0) / 1000; }
   const readout = $('speedReadout');
