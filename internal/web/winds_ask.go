@@ -111,7 +111,7 @@ func (s *Server) windApprove(ctx context.Context, emit func(kind, text string), 
 	case !ok:
 		return false, "NOT RUN: the user did not answer in time. Do not retry it; say what you needed and ask again in your reply."
 	case !ans.Approve:
-		return false, "NOT RUN: the user declined this. Do not retry it and do not look for a way around it; carry on without it or explain what you could not do."
+		return false, "NOT RUN: the user tapped Decline on your request (the server did not block it on its own). Do not retry it and do not look for a way around it; carry on without it or say plainly that you did not do it because they declined."
 	}
 	return true, ""
 }

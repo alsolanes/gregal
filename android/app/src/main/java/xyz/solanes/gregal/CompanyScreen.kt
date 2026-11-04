@@ -996,6 +996,11 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     }
     val listState = rememberLazyListState()
     LaunchedEffect(wind.id) { vm.loadWindChat(wind.id) }
+    // Un recordatori o un cor que parla amb el xat obert: el missatge nou entra
+    // al moment (la consulta de novetats és cada 20 s), sense haver de sortir i tornar a entrar.
+    val openNews by vm.windNewsCount.collectAsState()
+    val openNewsTs = openNews[wind.id]
+    LaunchedEffect(openNewsTs) { if (openNewsTs != null) { vm.loadWindChat(wind.id); vm.markWindNewsSeen(wind.id) } }
     val follow = rememberChatFollow(listState, wind.id)
     var liveFrom by remember(wind.id) { mutableIntStateOf(Int.MAX_VALUE) }
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }

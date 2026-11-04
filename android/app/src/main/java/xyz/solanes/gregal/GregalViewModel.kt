@@ -719,6 +719,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Tornar a trobar el que espera (en obrir un xat, o mentre un vent treballa). */
     fun loadWindAsks() {
         val c = _conn.value
+        if (c.host.isBlank() && !c.local) return // sense servidor: res a preguntar
         viewModelScope.launch {
             try { _windAsks.value = withContext(Dispatchers.IO) { c.api().getWindAsks() } }
             catch (e: Exception) { if (e is CancellationException) throw e }

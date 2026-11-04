@@ -104,7 +104,7 @@ func TestWindApprovalBlocksUntilTheUserAnswers(t *testing.T) {
 	if !strings.Contains(raw, "event: ask_resolved") || !strings.Contains(raw, `"answered":true`) {
 		t.Fatalf("falta que el client sàpiga que s'ha resolt:\n%s", raw)
 	}
-	if !strings.Contains(raw, "the user declined") {
+	if !strings.Contains(raw, "tapped Decline") {
 		t.Fatalf("el vent ha de saber que s'ha rebutjat:\n%s", raw)
 	}
 	// Una segona resposta a la mateixa petició ja no val.

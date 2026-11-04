@@ -1010,7 +1010,7 @@ class GregalApi(val base: String, val token: String) {
 
     /** GET /api/winds/pending: el que els vents esperen (si l'app s'havia tancat). */
     fun getWindAsks(): List<WindAsk> {
-        val arr = get("/api/winds/pending").optJSONArray("pending") ?: return emptyList()
+        val arr = get("/api/winds/pending").optJSONArray("pending") ?: throw java.io.IOException("resposta sense pending (servidor antic?)")
         return (0 until arr.length()).mapNotNull { i -> arr.optJSONObject(i)?.let(::parseWindAsk)?.takeIf { it.key.isNotBlank() } }
     }
 

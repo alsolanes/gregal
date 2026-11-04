@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.53.1 - 2026-11-04 - Recordatoris amb feina, més polits al mòbil
+
+- **Recordatoris amb feina, més polits al mòbil.** El missatge d'un recordatori
+  apareix al xat obert sense haver de sortir-ne; en segon pla l'app fa una segona
+  passada dos minuts després de l'hora, així la notificació d'una feina amb cerca
+  web no espera 15 minuts. El resultat arriba en l'idioma en què has demanat la
+  feina. Si rebutges una aprovació, el vent ho sap i ho diu clar. Sense servidor
+  configurat l'app ja no consulta les aprovacions.
 ## v1.53.0 - 2026-11-04 - Preguntes, aprovacions i recordatoris que fan feina
 
 - **Els recordatoris poden fer feina, no només avisar.** «Quan acabi el partit

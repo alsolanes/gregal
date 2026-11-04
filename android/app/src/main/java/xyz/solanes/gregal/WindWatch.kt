@@ -81,6 +81,7 @@ object WindWatch {
     private const val KEY_DUE = "due"
     /** Marge després de l'hora de l'avís: el servidor el fa sonar i el desa. */
     const val DUE_GRACE_MS = 30_000L
+    const val ACTION_LAG_MS = 120_000L
 
     /** Avisos pendents (ms), els que encara no han passat. */
     fun dueTimes(ctx: Context, now: Long = System.currentTimeMillis()): List<Long> =
@@ -94,7 +95,10 @@ object WindWatch {
     fun expect(ctx: Context, times: List<Long>) {
         if (times.isEmpty()) return
         val now = System.currentTimeMillis()
-        val keep = (dueTimes(ctx, now) + times.filter { it + DUE_GRACE_MS > now }).distinct().takeLast(32)
+        // Un avís amb feina (cerca web) acaba uns segons després de l'hora: una segona
+        // passada 2 minuts després el recull sense esperar els 15 minuts.
+        val all = times.flatMap { listOf(it, it + ACTION_LAG_MS) }
+        val keep = (dueTimes(ctx, now) + all.filter { it + DUE_GRACE_MS > now }).distinct().takeLast(32)
         prefs(ctx).edit().putStringSet(KEY_DUE, keep.map { it.toString() }.toSet()).apply()
         schedule(ctx)
     }
