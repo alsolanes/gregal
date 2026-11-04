@@ -464,11 +464,28 @@ func (c *Client) post(ctx context.Context, baseURL, apiKey string, reqBody chatR
 	return resp, nil
 }
 
+// reqDumpDir és on van els dumps: la carpeta de dades de Gregal si n'hi ha, si no
+// la del perfil de l'usuari. Mai un camí relatiu (a Windows HOME és buit i els
+// dumps acabaven al directori on corria el procés).
+func reqDumpDir() string {
+	if d := os.Getenv("GREGAL_DATA_DIR"); d != "" {
+		return filepath.Join(d, "req-dumps")
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return ""
+	}
+	return filepath.Join(home, ".local", "share", "gregal", "req-dumps")
+}
+
 // dumpFailedRequest desa la petició i la resposta d'una crida fallida per
 // poder reproduir-la exactament. Cap clau ni capçalera: només el cos JSON.
 // Mida limitada (els històrics poden ser de MB) i neteja per edat.
 func dumpFailedRequest(baseURL string, reqBody []byte, resp *http.Response) {
-	dir := filepath.Join(os.Getenv("HOME"), ".local", "share", "gregal", "req-dumps")
+	dir := reqDumpDir()
+	if dir == "" {
+		return
+	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return
 	}

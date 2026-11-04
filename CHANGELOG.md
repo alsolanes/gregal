@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.53.4 - 2026-11-04 - Cua de missatges a Android
+
+- **Android: cua de missatges amb l'agent treballant.** Escriure mentre l'agent
+  treballa posa el missatge a la cua (visible sobre el compositor, amb «Ara» i ×);
+  tocar-lo o «Ara» el hi diu ja (steer), mantenir premut el botó d'enviar
+  interromp, i en acabar el torn el següent de la cua s'envia sol. «Stop» buida la
+  cua. També es corregeix que el botó d'enviar quedava desactivat durant un torn.
+- **Els dumps de peticions fallides ja no embruten el projecte.** Anaven a un camí
+  relatiu quan HOME és buit (Windows); ara a `GREGAL_DATA_DIR` o al perfil.
 ## v1.53.3 - 2026-11-04 - El mesurador de context, de debò
 
 - **El mesurador de context deixa de quedar-se curt.** Només comptava els

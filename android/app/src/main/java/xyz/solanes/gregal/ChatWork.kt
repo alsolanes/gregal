@@ -63,6 +63,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -486,4 +487,35 @@ fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, on
         },
         confirmButton = { androidx.compose.material3.TextButton(onClick = onClose) { Text(tr(lang, "btn.close")) } },
     )
+}
+
+/**
+ * Missatges escrits mentre l'agent treballa: esperen a la cua i surten sols en
+ * acabar el torn. Tocar-los (o «Ara») els hi diu ja, com a steer; × els treu.
+ */
+@Composable
+fun QueuedMessages(queue: List<String>, lang: String, canSteer: Boolean, onSteer: (Int) -> Unit, onRemove: (Int) -> Unit) {
+    if (queue.isEmpty()) return
+    Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp).testTag("queued-messages"),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        queue.forEachIndexed { i, text ->
+            Surface(shape = RoundedCornerShape(14.dp), color = PillDark, border = BorderStroke(1.dp, Line),
+                modifier = Modifier.fillMaxWidth().testTag("queued-item")) {
+                Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(tr(lang, "app.queue.tag"), color = Faint, fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                    Text(text, color = Ink, fontSize = 13.5.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f).clickable(enabled = canSteer) { onSteer(i) }.padding(vertical = 10.dp))
+                    if (canSteer) {
+                        Text(tr(lang, "app.queue.now"), color = OnSea, fontSize = 12.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 4.dp).clip(RoundedCornerShape(10.dp)).background(Sea)
+                                .clickable { onSteer(i) }.padding(horizontal = 10.dp, vertical = 5.dp)
+                                .semantics { contentDescription = tr(lang, "app.queue.nowHelp") }.testTag("queued-now"))
+                    }
+                    Text("×", color = Muted, fontSize = 18.sp,
+                        modifier = Modifier.clip(CircleShape).clickable { onRemove(i) }.padding(horizontal = 12.dp, vertical = 6.dp)
+                            .semantics { contentDescription = tr(lang, "app.queue.remove") }.testTag("queued-remove"))
+                }
+            }
+        }
+    }
 }

@@ -1542,7 +1542,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val next = afterTurn.joinToString("\n\n")
                 afterTurn.clear()
                 send(next)
-            }
+            } else if (_queue.value.isNotEmpty() && !stopRequested) {
+                val next = _queue.value.first()
+                _queue.value = _queue.value.drop(1)
+                send(next)
+            } else if (stopRequested) _queue.value = emptyList()
         }
     }
 
@@ -2422,7 +2426,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      *  Si l'agent ja treballa, el missatge li arriba ara (steer). */
     fun submit(text: String, interrupt: Boolean = false) {
         when {
-            _sending.value && workId != 0L -> steer(text, interrupt)
+            // Amb l'agent treballant, escriure posa el missatge a la cua (com a la web amb
+            // Alt+Enter); toca'l o prem «Ara» per dir-li ja (steer). Mantenir premut interromp.
+            _sending.value && interrupt && workId != 0L -> steer(text, true)
+            _sending.value -> enqueue(text)
             _state.value.mode == "plan" -> requestPlan(text)
             else -> send(text)
         }
@@ -2451,6 +2458,28 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (ok == false) afterTurn += t
         }
+    }
+
+    /** Cua de missatges escrits mentre l'agent treballa: surten sols en acabar el torn. */
+    private val _queue = MutableStateFlow<List<String>>(emptyList())
+    val queue: StateFlow<List<String>> = _queue
+
+    fun enqueue(text: String) {
+        val t = text.trim()
+        if (t.isEmpty()) return
+        _queue.value = _queue.value + t
+    }
+
+    fun removeQueued(index: Int) {
+        _queue.value = _queue.value.filterIndexed { i, _ -> i != index }
+    }
+
+    /** «Ara»: el missatge de la cua passa a ser un steer del torn en curs. */
+    fun steerQueued(index: Int) {
+        val t = _queue.value.getOrNull(index) ?: return
+        if (!_sending.value || workId == 0L) return // sense torn viu es queda a la cua
+        removeQueued(index)
+        steer(t, false)
     }
 
     /** Missatges que el torn ja no ha pogut llegir: s'envien en acabar. */

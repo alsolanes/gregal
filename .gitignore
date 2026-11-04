@@ -48,3 +48,6 @@ quaderna/
 .venv/
 *.egg-info/
 /.company-chat/
+
+# Dumps de peticions fallides (mai al repositori)
+**/.local/

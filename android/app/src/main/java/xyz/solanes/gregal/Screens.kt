@@ -576,6 +576,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                         }
                     }
                 }
+                val queued by vm.queue.collectAsState()
+                QueuedMessages(queued, lang, canSteer = sending, onSteer = { vm.steerQueued(it) }, onRemove = { vm.removeQueued(it) })
                 if (busy && input.isNotBlank()) {
                     Text(tr(lang, "app.steer.hint"), color = Faint, fontSize = 11.5.sp,
                         modifier = Modifier.padding(start = 26.dp, bottom = 2.dp))
@@ -647,7 +649,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
                             Spacer(Modifier.weight(1f))
                             SendStopButton(
-                                busy = busy, canSend = !sending && input.isNotBlank(), voice = voiceOk, lang = lang,
+                                busy = busy, canSend = input.isNotBlank(), voice = voiceOk, lang = lang,
                                 onSend = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     follow = true; vm.submit(consumeInput())
