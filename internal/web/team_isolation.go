@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -565,15 +564,19 @@ func containsDotDotComponent(p string) bool {
 }
 
 func (b crewToolBoundary) shell(ctx context.Context, name, command string) (string, []string, error) {
-	if runtime.GOOS != "linux" {
-		return "", nil, errors.New("crew shell isolation requires Linux bubblewrap")
+	if command == "" {
+		return "", nil, errors.New("empty shell command")
+	}
+	// Sense bubblewrap: a la còpia privada, sense aïllament (team_shell_copy.go).
+	if !crewShellConfined() {
+		if b.readOnly {
+			return "", nil, errors.New("read-only session denies the shell")
+		}
+		return b.shellInCopy(ctx, command)
 	}
 	bwrap, err := exec.LookPath("bwrap")
 	if err != nil {
 		return "", nil, errors.New("crew shell isolation unavailable: bwrap not found")
-	}
-	if command == "" {
-		return "", nil, errors.New("empty shell command")
 	}
 	bindMode := "--bind"
 	if b.readOnly {

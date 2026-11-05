@@ -484,3 +484,7 @@ func adrecaLocal(a string) bool {
 	}
 	return false
 }
+
+// DeniedCommand és ordreDenegada per a qui executa ordres fora de l'eina bash
+// (el shell de les colles sense bwrap): "" si es pot executar.
+func DeniedCommand(cmd string) string { return ordreDenegada(cmd) }

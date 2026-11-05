@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.54.1 - 2026-11-05 - Les colles executen ordres a Windows i macOS
+
+- **Les colles poden executar ordres a Windows i macOS.** El shell aïllat de les
+  colles necessita bubblewrap, que només hi ha a Linux: sense, els membres no
+  podien ni passar un test. Ara, on no hi ha bubblewrap, el shell corre a la
+  còpia privada del projecte de cada membre, sense aïllament del sistema, amb
+  aquests límits: les mateixes ordres prohibides que l'agent, res d'instal·lar,
+  baixar, esborrar fora ni tocar el sistema (a una colla ningú pot dir
+  «Permet»), cap clau ni token a l'entorn, i 2 minuts per ordre. El que s'hi
+  escrigui fora dels fitxers assignats no passa al projecte. A Linux amb
+  bubblewrap tot continua com abans.
+
 ## v1.54.0 - 2026-11-05 - Colles a Windows, estil de les respostes i fotos HEIC
 
 - **Les colles tornen a funcionar a Windows.** Desar l'estat de la colla feia
