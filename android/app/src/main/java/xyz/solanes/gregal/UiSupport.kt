@@ -241,3 +241,25 @@ fun CappedFontScale(max: Float, content: @androidx.compose.runtime.Composable ()
 
 /** Escala de lletra efectiva: la del sistema, com a molt `max`. */
 fun cappedFontScale(system: Float, max: Float): Float = if (system > max) max else system
+
+/**
+ * Foto HEIC/HEIF (iPhone, molts Android) a JPEG abans de pujar-la: els models
+ * no l'accepten i el servidor local del mòbil no la sap llegir. Android la
+ * descodifica de sèrie des de l'API 28; abans, o si falla, torna null i es
+ * puja tal qual (un servidor d'escriptori o Linux la convertirà).
+ */
+fun heicToJpegBase64(base64: String, maxSide: Int = 2560): String? {
+    return try {
+        val raw = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        if (raw.size < 12 || String(raw, 4, 4, Charsets.US_ASCII) != "ftyp") return null
+        if (String(raw, 8, 4, Charsets.US_ASCII) !in setOf("heic", "heix", "hevc", "hevx", "heim", "heis", "mif1", "msf1")) return null
+        val bmp = android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.size) ?: return null
+        val scale = minOf(1f, maxSide.toFloat() / maxOf(bmp.width, bmp.height))
+        val out = if (scale < 1f) android.graphics.Bitmap.createScaledBitmap(bmp, (bmp.width * scale).toInt().coerceAtLeast(1), (bmp.height * scale).toInt().coerceAtLeast(1), true) else bmp
+        val buf = java.io.ByteArrayOutputStream()
+        out.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, buf)
+        android.util.Base64.encodeToString(buf.toByteArray(), android.util.Base64.NO_WRAP)
+    } catch (_: Throwable) {
+        null
+    }
+}

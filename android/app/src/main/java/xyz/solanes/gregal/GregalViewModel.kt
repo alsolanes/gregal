@@ -1645,7 +1645,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             when (val r = readUriBase64(appContext, uri, 20L * 1024 * 1024)) {
                 is UriRead.Ok -> {
                     notify(appText("app.composer.imageUploading", name))
-                    val up = withContext(Dispatchers.IO) { _conn.value.api().officeUpload(name, r.base64) }
+                    // HEIC → JPEG al mòbil mateix (també val en mode local, sense servidor).
+                    val jpeg = withContext(Dispatchers.Default) { heicToJpegBase64(r.base64) }
+                    val data = jpeg ?: r.base64
+                    if (jpeg != null) name = name.substringBeforeLast('.') + ".jpg"
+                    val up = withContext(Dispatchers.IO) { _conn.value.api().officeUpload(name, data) }
                     if (up.error.isNotBlank() || up.path.isBlank() || up.id.isBlank()) {
                         notify(appText("app.composer.docError", up.error.ifBlank { name }))
                         return@launch
