@@ -230,7 +230,16 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		Decide: func(name, argsJSON string) (string, string) {
 			// Els vents poden programar avisos (remind, eina validada); la
 			// resta usa la política compartida i el mode del torn.
+			if agent.ReadOnlyMode(scope.mode) && (name == "bash" || name == "bash_background") {
+				return "deny", s.tr("mode de només lectura: no s'executa cap ordre de shell", "read-only mode: shell execution is disabled")
+			}
 			if name == "remind" {
+				if agent.ReadOnlyMode(scope.mode) {
+					return "deny", s.tr("mode de només lectura: no es poden programar avisos", "read-only mode: cannot schedule reminders")
+				}
+				if decision, reason := scope.policy.Decide(scope.mode, name, argsJSON); decision == "deny" {
+					return decision, reason
+				}
 				return "allow", "eina del vent"
 			}
 			pol := scope.policy

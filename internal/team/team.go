@@ -265,7 +265,9 @@ func reviewRole(ctx context.Context, runner Runner, emit func(Event), prompt str
 // tampoc, es queda amb fallback (la feina revisada) i ho avisa. Sense
 // fallback, l'error puja com abans.
 func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, fallback string, emit func(Event)) (*parsedReview, error) {
-	output, err := callRunner(ctx, runner, "reviewer", instruction, prompt)
+	node, _ := NodeFrom(ctx)
+	requireStructured := node.RequireStructuredReview
+	output, err := callRunner(ctx, runner, agent, instruction, prompt)
 	if err != nil {
 		return nil, err
 	}
@@ -274,9 +276,15 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 	// approval so the crew never reports it as review-verified.
 	invalidFallback := false
 	review, err := parseReview(output)
+	if err == nil && review == nil && !requireStructured {
+		review = &parsedReview{approved: true, deliverable: output}
+	}
+	if err == nil && review == nil {
+		err = errors.New("invalid structured reviewer response: JSON object required")
+	}
 	if err != nil {
 		retry := instruction + "\n\nYour previous answer could not be used (" + err.Error() + "). Answer again with only that JSON object and all three fields."
-		again, err2 := callRunner(ctx, runner, "reviewer", retry, prompt)
+		again, err2 := callRunner(ctx, runner, agent, retry, prompt)
 		if err2 != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return nil, ctxErr
@@ -287,6 +295,9 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 		}
 	}
 	if err != nil {
+		if requireStructured {
+			return nil, err
+		}
 		if strings.TrimSpace(fallback) == "" {
 			return nil, err
 		}
@@ -294,12 +305,14 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 		return &parsedReview{approved: true, feedback: "The review answer could not be used (" + err.Error() + "); keeping the builder's work.", deliverable: fallback, invalid: invalidFallback}, nil
 	}
 	if review == nil {
+		if requireStructured {
+			return nil, errors.New("invalid structured reviewer response: JSON object required")
+		}
 		// Plain-text reviewer responses remain supported for older providers.
 		review = &parsedReview{approved: true, deliverable: output}
 	}
 	return review, nil
 }
-
 func parseReview(output string) (*parsedReview, error) {
 	trimmed := strings.TrimSpace(output)
 	// Un bloc ```json … ``` és el mateix objecte embolcallat.

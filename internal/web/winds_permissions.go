@@ -22,6 +22,7 @@ type windTurnScope struct {
 func (s *Server) windLoopScope() windTurnScope {
 	s.mu.Lock()
 	ws, repo := s.ventWorkspaceLocked()
+	mode := s.mode
 	pol := agent.PolicyFromConfig(s.cfg, ws)
 	if s.policy != nil {
 		cp := *s.policy
@@ -42,7 +43,7 @@ func (s *Server) windLoopScope() windTurnScope {
 		pol = &cp
 	}
 	s.mu.Unlock()
-	return windTurnScope{mode: s.mode, workspace: ws, policy: pol}
+	return windTurnScope{mode: mode, workspace: ws, policy: pol}
 }
 
 func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
@@ -51,23 +52,15 @@ func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 
-// windTurnMode és el mode d'un torn que la persona ha demanat a un vent.
-//
-// El mode del servidor és el del xat principal: «Pregunta» (chat) vol dir que
-// l'agent principal no toca res, però un vent és un especialista a qui la
-// persona encarrega feina («fes-me un joc»): heretar-ne el només-lectura feia
-// que el vent no pogués ni crear la carpeta del projecte. Per això els torns
-// de vent treballen en mode code (escriure i executar dins del projecte, amb
-// WindAutoAllow) llevat que s'hagi triat «Planifica» (plan), que demana
-// explícitament no actuar. L'autònom tampoc no s'hereta: el seu «tot ask és
-// allow» no té lloc en un xat sense aprovacions.
+// windTurnMode keeps read-only server modes read-only for ordinary wind turns.
+// A request to a specialist does not grant permission to write when the
+// session itself is in question, plan, or inspect mode.
 func windTurnMode(mode string) string {
-	switch mode {
-	case agent.ModePlan:
-		return agent.ModePlan
-	case agent.ModeDebug:
-		return agent.ModeDebug
+	if agent.ReadOnlyMode(mode) || mode == agent.ModeDebug {
+		return mode
 	}
+	// Autonomous permission is not inherited by a wind turn without an
+	// interactive approval surface.
 	return agent.ModeCode
 }
 

@@ -53,6 +53,14 @@ const stopMaxDefecte = 3
 
 var lifecycleHooks atomic.Pointer[config.HooksCfg]
 
+type crewIsolationCtxKey struct{}
+
+// WithCrewIsolation disables arbitrary configured lifecycle hooks for this
+// run; hook commands execute outside the crew's namespace boundary.
+func WithCrewIsolation(ctx context.Context) context.Context {
+	return context.WithValue(ctx, crewIsolationCtxKey{}, true)
+}
+
 // SetLifecycleHooks desa els hooks del cicle de vida del config. Es crida
 // a cada punt d'arrencada, al costat de SetPostEditHook.
 func SetLifecycleHooks(h config.HooksCfg) {
@@ -145,6 +153,9 @@ func hookCasa(matcher, tool string) bool {
 // RunHooks executa les comandes de l'event en ordre i n'agrega el
 // resultat. Una denegació atura les comandes següents.
 func RunHooks(ctx context.Context, event string, in HookInput) HookResult {
+	if ctx != nil && ctx.Value(crewIsolationCtxKey{}) == true {
+		return HookResult{}
+	}
 	return runHookCmds(ctx, event, hooksDe(event), in)
 }
 
@@ -374,6 +385,13 @@ func ExecCtx(ctx context.Context, session, dir, name, argsJSON string) (out stri
 		out += "\n" + nota
 	}
 	return out, images, err
+}
+
+// ExecCrewTool executes a direct audited crew tool without running configured
+// lifecycle hooks. Hooks are arbitrary host commands and cannot inherit the
+// crew's OS boundary, so assigned crew runs must not execute them.
+func ExecCrewTool(ctx context.Context, dir, name, argsJSON string) (string, []string, error) {
+	return execCtxEina(ctx, "", dir, name, argsJSON)
 }
 
 // notaPostTool converteix el resultat d'un post_tool en la nota que

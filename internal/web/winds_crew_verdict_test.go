@@ -19,10 +19,10 @@ func TestCrewRoundEndPublishesOpenIssues(t *testing.T) {
 	if !strings.Contains(msg, "valida l'entrada negativa") {
 		t.Fatalf("el missatge no porta els problemes oberts de la revisió: %q", msg)
 	}
-	// Aprovada: el missatge ha de dir que estan d'acord, no només «ha acabat».
+	// Aprovada: el missatge ha de dir que la revisió ha aprovat, sense afirmar unanimitat.
 	answerOK := "builder wrote main.py"
 	msg = crewRoundVerdict(say, verdict, answerOK, false)
-	if !strings.Contains(msg, "d'acord") && !strings.Contains(msg, "agree") {
-		t.Fatalf("volta aprovada: no diu que la colla hi està d'acord: %q", msg)
+	if !strings.Contains(msg, "revisió ha aprovat") || strings.Contains(msg, "d'acord") || strings.Contains(msg, "agree") {
+		t.Fatalf("volta aprovada: cal atribuir el veredicte a la revisió sense afirmar unanimitat: %q", msg)
 	}
 }

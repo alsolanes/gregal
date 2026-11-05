@@ -62,7 +62,7 @@ func TestFeinaDeCollaInterrompudaDespresDeReiniciar(t *testing.T) {
 		t.Fatal(err)
 	}
 	// «Reinici»: la feina ja no és a la memòria.
-	crewJobs.Delete("rot-1")
+	crewJobs.Delete(crewRegistryKey(s, "rot-1"))
 	rec := httptest.NewRecorder()
 	s.handleCrewStatus(rec, httptest.NewRequest("GET", "/api/winds/crew/status?rotllana=rot-1", nil))
 	if body := rec.Body.String(); !strings.Contains(body, `"step":"interrupted"`) || !strings.Contains(body, `"running":false`) {

@@ -335,11 +335,21 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		}
 	}
 	// La colla d'aquest fil espera resposta: el missatge la reprèn.
-	if !req.Continue && msg != "" && s.crewMayResume() && s.crewTakeAnswer(rot, msg) {
-		sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
-		return
+	if !req.Continue && msg != "" {
+		switch s.crewTakeAnswer(rot, msg) {
+		case crewAnswerConsumed:
+			sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
+			return
+		case crewAnswerFailed:
+			errText := "could not resume the crew; the answer may not have been saved. Please retry."
+			if s.cfg.Lang() == "ca" {
+				errText = "No s'ha pogut reprendre la colla; potser la resposta no s'ha desat. Torna-ho a provar."
+			}
+			http.Error(w, errText, http.StatusInternalServerError)
+			return
+		}
 	}
-	if crewChatBusy(rot.ID) {
+	if crewChatBusyFor(s, rot.ID) {
 		http.Error(w, s.crewBusyMessage(), http.StatusConflict)
 		return
 	}

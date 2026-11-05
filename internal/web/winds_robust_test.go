@@ -24,11 +24,10 @@ import (
 
 // --- mode dels torns de vent ---
 
-// Un vent és un especialista a qui es demana feina: el «Pregunta» del xat
-// principal no el pot deixar sense escriure ni a la carpeta del projecte.
-func TestWindTurnModeNoHeretaPregunta(t *testing.T) {
+// Wind turns preserve read-only modes selected for the main session.
+func TestWindTurnModePreservesReadOnlyModes(t *testing.T) {
 	for in, want := range map[string]string{
-		agent.ModeChat: agent.ModeCode, agent.ModeInspect: agent.ModeCode, agent.ModeGoal: agent.ModeCode,
+		agent.ModeChat: agent.ModeChat, agent.ModeInspect: agent.ModeInspect, agent.ModeGoal: agent.ModeGoal,
 		agent.ModeAutonomous: agent.ModeCode, agent.ModeCode: agent.ModeCode,
 		agent.ModePlan: agent.ModePlan, agent.ModeDebug: agent.ModeDebug, "": agent.ModeCode,
 	} {
@@ -38,26 +37,26 @@ func TestWindTurnModeNoHeretaPregunta(t *testing.T) {
 	}
 }
 
-// El cas que la persona va trobar: servidor en mode Pregunta, «fes-me un
-// joc» al vent → abans, «mode xat: només lectura» i cap fitxer.
-func TestWindEscriuAmbServidorEnModePregunta(t *testing.T) {
-	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
-	s, _ := companionTestServer(t)
-	s.cwd = t.TempDir()
-	s.mode = agent.ModeChat
-	makeRotllanaTrio(t, s)
-	args, _ := json.Marshal(map[string]string{"path": "joc/index.html", "content": "<h1>joc</h1>"})
-	provider := windPermissionProvider(t, "write", string(args))
-	s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
-	rec := postJSON(t, s.handleWindChat, `{"wind":"tramuntana","message":"fes-me un joc"}`)
-	if rec.Code != 200 {
-		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
-	}
-	if _, err := os.Stat(filepath.Join(s.cwd, "joc", "index.html")); err != nil {
-		t.Fatalf("el vent no ha pogut escriure amb el servidor en Pregunta: %v; %s", err, rec.Body.String())
-	}
-	if strings.Contains(rec.Body.String(), "Not run") {
-		t.Fatalf("no hi havia res a aprovar: %s", rec.Body.String())
+// Read-only session modes remain read-only through an actual wind tool call.
+func TestWindReadOnlySessionCannotWriteThroughOrdinaryWindRoute(t *testing.T) {
+	for _, mode := range []string{agent.ModeChat, agent.ModePlan, agent.ModeInspect, agent.ModeGoal} {
+		t.Run(mode, func(t *testing.T) {
+			t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+			s, _ := companionTestServer(t)
+			s.cwd = t.TempDir()
+			s.mode = mode
+			makeRotllanaTrio(t, s)
+			args, _ := json.Marshal(map[string]string{"path": "joc/index.html", "content": "<h1>joc</h1>"})
+			provider := windPermissionProvider(t, "write", string(args))
+			s.cfg.Providers["p"] = config.Provider{BaseURL: provider.URL + "/v1"}
+			rec := postJSON(t, s.handleWindChat, `{"wind":"tramuntana","message":"fes-me un joc"}`)
+			if rec.Code != 200 {
+				t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+			}
+			if _, err := os.Stat(filepath.Join(s.cwd, "joc", "index.html")); !os.IsNotExist(err) {
+				t.Fatalf("read-only mode %q allowed a wind write (stat err %v); response=%s", mode, err, rec.Body.String())
+			}
+		})
 	}
 }
 

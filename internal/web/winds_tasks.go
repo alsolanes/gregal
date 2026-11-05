@@ -185,6 +185,7 @@ func (s *Server) windTaskSummaries(records []windTaskRecord) []windTaskSummary {
 // construir, i abans el mòbil no veia res durant aquells minuts. Només les
 // de les rotllanes d'aquest usuari.
 func (s *Server) crewTasksInDiscussion(known []windTaskSummary) []windTaskSummary {
+	prefix := filepath.Clean(s.sessDir()) + "\x00"
 	enMarxa := map[string]bool{}
 	for _, t := range known {
 		if t.Thread != "" && t.Status == "running" {
@@ -193,7 +194,11 @@ func (s *Server) crewTasksInDiscussion(known []windTaskSummary) []windTaskSummar
 	}
 	var out []windTaskSummary
 	crewJobs.Range(func(k, v any) bool {
-		id, _ := k.(string)
+		key, _ := k.(string)
+		if !strings.HasPrefix(key, prefix) {
+			return true
+		}
+		id := strings.TrimPrefix(key, prefix)
 		job, _ := v.(*crewJob)
 		if id == "" || job == nil || enMarxa[id] {
 			return true

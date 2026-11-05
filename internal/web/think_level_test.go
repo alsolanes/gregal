@@ -50,6 +50,22 @@ func TestModelsDevGivesNamesAndEfforts(t *testing.T) {
 	}
 }
 
+func TestModelsDevDuplicateProviderSelectionIsDeterministic(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		idx, err := parseModelsDev([]byte(modelsDevSample))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, ok := idx["deepseek-v4.1-flash"]
+		if !ok || got.Name != "DeepSeek V4.1 Flash" {
+			t.Fatalf("iteration %d selected duplicate provider record: %+v, found=%v", i, got, ok)
+		}
+		if strings.Join(got.Efforts, ",") != "low,high,max" {
+			t.Fatalf("iteration %d changed duplicate provider effort data: %+v", i, got.Efforts)
+		}
+	}
+}
+
 func TestThinkLevelOverridesTheRoleButNotTheReviewer(t *testing.T) {
 	s, _ := companionTestServer(t)
 	s.mu.Lock()

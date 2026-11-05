@@ -179,6 +179,10 @@ type RunOpts struct {
 	// Approve decideix les accions que demanen permís (nil = denegades,
 	// com sempre sense terminal). La web hi penja el seu approve_request.
 	Approve func(ctx context.Context, call llm.ToolCall, reason string) bool
+	// ToolExecutor overrides the normal dispatcher for a single run. It is
+	// used by crew workspaces to put the actual execution behind a per-run
+	// boundary; approvals alone do not constrain execution.
+	ToolExecutor func(ctx context.Context, name, argsJSON string) (string, []string, error)
 	// AutoReview activa el revisor automàtic (mode auto-review) encara que
 	// el config no digui permissions.mode: auto-review.
 	AutoReview bool
@@ -193,7 +197,13 @@ type RunOpts struct {
 // respon preguntes, però les accions amb permís arriben a l'usuari.
 const approvalNote = "\n\nNobody can answer questions during this run, but actions that need permission are sent to the user for approval. If one is denied, do not retry it: report it. Do only what the task asks and work only inside the working directory."
 
-// restrictPolicy denega les eines natives que no són a la llista.
+// restrictPolicy treu les eines natives que no són a la llista. Un seient
+// amb una llista tancada d'eines (una colla amb sandbox, un subagent) no
+// pot oferir-les: el model no les veu i el loop no les executa. El que NO
+// fa és marcar-les «deny» al mapa: bashPermissionOverride comparteix la
+// decisió entre bash i bash_background, i el «deny» injectat d'una eina
+// que el seient simplement no ofereix enverinava també l'altra (un seient
+// amb bash però sense bash_background quedava sense shell de veritat).
 func restrictPolicy(pol *Policy, allowed []string) *Policy {
 	if len(allowed) == 0 {
 		return pol
@@ -203,7 +213,7 @@ func restrictPolicy(pol *Policy, allowed []string) *Policy {
 	for k, v := range pol.Rules {
 		cp.Rules[k] = v
 	}
-	cp.Tools = make(map[string]string, len(pol.Tools)+len(tools.Noms()))
+	cp.Tools = make(map[string]string, len(pol.Tools))
 	for k, v := range pol.Tools {
 		cp.Tools[k] = v
 	}
@@ -213,7 +223,7 @@ func restrictPolicy(pol *Policy, allowed []string) *Policy {
 	}
 	for _, n := range tools.Noms() {
 		if !keep[n] {
-			cp.Tools[n] = "deny"
+			delete(cp.Tools, n)
 			delete(cp.Rules, n)
 		}
 	}
@@ -291,6 +301,9 @@ func RunNonInteractiveExIn(ctx context.Context, client *llm.Client, cfg *config.
 
 // RunNonInteractiveOpts és l'execució no interactiva amb totes les opcions.
 func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.Config, o RunOpts) (RunResult, error) {
+	if o.ToolExecutor != nil {
+		ctx = WithCrewIsolation(ctx)
+	}
 	task, mode, maxSteps, autoApprove, dir, onStep := o.Task, o.Mode, o.MaxSteps, o.AutoApprove, o.Dir, o.OnStep
 	if strings.TrimSpace(dir) == "" {
 		// Sense workspace explícit, el del procés: la política l'ha de
@@ -593,11 +606,18 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			outs := RunCalls(p.Calls, nil, func(_ int, c llm.ToolCall) Execucio {
 				tc := time.Now()
 				defer func() { durades.Store(c.ID, ms(tc)) }()
-				o, imgs, err := ExecCtx(ctx, "", dir, c.Function.Name, c.Function.Arguments)
-				if err != nil {
-					o = ErrorAmbSortida(err, o)
+				var toolOut string
+				var imgs []string
+				var err error
+				if o.ToolExecutor != nil {
+					toolOut, imgs, err = o.ToolExecutor(ctx, c.Function.Name, c.Function.Arguments)
+				} else {
+					toolOut, imgs, err = ExecCtx(ctx, "", dir, c.Function.Name, c.Function.Arguments)
 				}
-				return Execucio{Call: c, Sortida: o, Imatges: imgs}
+				if err != nil {
+					toolOut = ErrorAmbSortida(err, toolOut)
+				}
+				return Execucio{Call: c, Sortida: toolOut, Imatges: imgs}
 			})
 			tm.Tools += ms(t0)
 			// Torn mort mentre corrien les eines: resultats falsos

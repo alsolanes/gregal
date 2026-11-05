@@ -2,10 +2,10 @@ package web
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"gregal/internal/agent"
@@ -15,14 +15,16 @@ import (
 
 // Deliberately conservative: conversational questions and general requests must
 // not unexpectedly start an autonomous code-writing pipeline.
-var crewCodeAction = regexp.MustCompile(`(?i)(?:^|[^\pL])(implementa|implementar|implement|implementi|programa|programar|program|build|desenvolupa|desenvolupar|develop|crea|crear|create|creeu|afegeix|afegiu|añade|add|arregla|fix|modifica|modify|refactoritza|refactor|fes|feu|haz|haced|make)(?:$|[^\pL])`)
+var crewCodeAction = regexp.MustCompile(`(?i)(?:^|[^\pL])(implementa|implementar|implement|implementi|programa|programar|program|build|desenvolupa|desenvolupar|develop|crea|crear|creï|creïs|creïu|creeu|creis|create|afegeix|afegiu|añade|add|arregla|fix|modifica|modify|refactoritza|refactor|fes|feu|haz|haced|make)(?:$|[^\pL])`)
 var crewCodeObject = regexp.MustCompile(`(?i)(?:^|[^\pL])(codi|código|codigo|code|software|app|aplicaci[oó]|aplicación|aplicacion|application|programa|program|python|kotlin|golang|website|web|p[aà]gina|page|joc|juego|game|projecte|proyecto|project|fitxer|archivo|file|script|api|servidor|server|bug|error|test|prova|funci[oó]|función|funcion|function|component|bot|repo|repositori|repository)(?:$|[^\pL])`)
 var crewCodeNegation = regexp.MustCompile(`(?i)(?:^|[^\pL])(?:(?:no\s+(?:vull|volem|quiero|queremos)|(?:do\s+not|don't|dont)\s+ever)(?:$|[^\pL])|(?:no|not|never|don't|dont|evita|evitar)\s+(?:cre\pL*|crear|escri\pL*|escrib\pL*|write|writ\pL*|modifi\pL*|modify|modific\pL*|canvi\pL*|edit\pL*|implement\pL*|program\pL*|build|constru\pL*|gener\pL*|afegeix\pL*|afeg\pL*|añad\pL*|add|facis|feu|fes)(?:$|[^\pL]))`)
-var crewQuestion = regexp.MustCompile(`(?i)^(com|cómo|como|how|què|que|qué|what|why|per què|por qué|when|when|which|explain|explica|describe|descriu|planifica|plan)(?:$|[^\pL])`)
-var crewStartMu sync.Mutex
+var crewExplanation = regexp.MustCompile(`(?i)\b(?:explain|describe|what does|what do|what is the meaning|what does .* mean|què vol dir|que vol dir|com s'interpreta|how to implement|how would you implement)\b`)
+var crewQuotedCode = regexp.MustCompile("[\\\"“”‘’].*[\\\"“”‘’]")
+var crewEmbeddedNegation = regexp.MustCompile(`(?i)\b(?:not asking|not requesting|don't want|do not want|no estic demanant|no vull que)\b`)
+var crewQuestion = regexp.MustCompile(`(?i)^(?:(?:ara|ahora|now)\s+)?(com|cómo|como|how|què|que|qué|what|why|per què|por qué|when|which|explain|explica|describe|descriu|planifica|plan)(?:$|[^\pL])`)
 
-func crewChatBusy(id string) bool {
-	if v, ok := crewJobs.Load(id); ok {
+func crewChatBusyFor(s *Server, id string) bool {
+	if v, ok := crewJobs.Load(crewRegistryKey(s, id)); ok {
 		switch v.(*crewJob).get() {
 		case "discussing", "working", "waiting":
 			return true
@@ -44,7 +46,7 @@ func (s *Server) crewBusyMessage() string {
 func (s *Server) crewMayResume() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.mode != agent.ModePlan
+	return !agent.ReadOnlyMode(s.mode)
 }
 
 func (s *Server) crewChatAllowed(msg string) bool {
@@ -52,7 +54,7 @@ func (s *Server) crewChatAllowed(msg string) bool {
 	mode := s.mode
 	s.mu.Unlock()
 	m := strings.TrimLeft(strings.ToLower(strings.TrimSpace(msg)), "¿")
-	if mode == agent.ModePlan || strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || strings.HasPrefix(m, "can you explain") {
+	if agent.ReadOnlyMode(mode) || strings.HasPrefix(m, "?") || crewQuestion.MatchString(m) || crewCodeNegation.MatchString(m) || crewExplanation.MatchString(m) || (crewQuotedCode.MatchString(m) && crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)) || (crewEmbeddedNegation.MatchString(m) && crewCodeAction.MatchString(m)) {
 		return false
 	}
 	return crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)
@@ -61,13 +63,23 @@ func (s *Server) crewChatAllowed(msg string) bool {
 // startCrewChat persists the user message once before launching. A single
 // lock protects job reservation and the initial history append from duplicates.
 func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) {
-	crewStartMu.Lock()
-	defer crewStartMu.Unlock()
-	if v, ok := crewJobs.Load(rot.ID); ok {
+	if !s.crewMayResume() {
+		return nil, 0, errConst("crew unavailable in read-only mode")
+	}
+	reservation := crewReservationLock(s, rot.ID)
+	reservation.Lock()
+	defer reservation.Unlock()
+	key := crewRegistryKey(s, rot.ID)
+	if v, ok := crewJobs.Load(key); ok {
 		switch v.(*crewJob).get() {
 		case "discussing", "working", "waiting":
 			return nil, 0, errConst("crew already running")
 		}
+	}
+	if _, exists, stateErr := readCrewState(s, rot.ID); stateErr != nil {
+		return nil, 0, stateErr
+	} else if exists {
+		return nil, 0, errConst("crew state needs recovery")
 	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
@@ -82,8 +94,11 @@ func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) 
 		return nil, 0, err
 	}
 	job := &crewJob{path: crewJobPath(s, rot.ID)}
-	job.set("discussing")
-	crewJobs.Store(rot.ID, job)
+	clearCrewRun(s, rot.ID)
+	if err := job.set("discussing"); err != nil {
+		return nil, 0, err
+	}
+	crewJobs.Store(key, job)
 	ctx, cancel := context.WithTimeout(context.Background(), teamRunTimeout+15*time.Minute)
 	ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
 	goBackground(func() {
@@ -97,9 +112,9 @@ func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) 
 
 // Publish only a real completed node's text, attributed to its actual wind.
 // Review output is the deliverable; only Message contains reviewer feedback.
-func (s *Server) crewPublishNode(rot Rotllana, flow team.FlowSpec, e team.Event) {
+func (s *Server) crewPublishNode(rot Rotllana, flow team.FlowSpec, e team.Event) error {
 	if e.Type != "completed" {
-		return
+		return nil
 	}
 	for _, node := range flow.Nodes {
 		if node.ID != e.Agent || node.Wind == "" {
@@ -115,28 +130,51 @@ func (s *Server) crewPublishNode(rot Rotllana, flow team.FlowSpec, e team.Event)
 				// An invalid verdict is not the reviewer's words: do not publish
 				// it as a review message; crewWork reports the incomplete review.
 				if e.ReviewInvalid {
-					return
+					return nil
 				}
 				// Do not expose a structured verdict as a chat message.
 				if firstJSONObject(text) != "" {
-					return
+					return nil
 				}
 			}
 			if text == "" {
-				return
+				return nil
 			}
-			s.crewSayKind(rot, wind, "debate", oneLineKeepBreaks(text, 3000))
-			return
+			return s.crewSayKind(rot, wind, "debate", oneLineKeepBreaks(text, 3000))
 		}
 	}
+	return nil
 }
 
 // Serve actual saved crew messages, not synthesized speaker responses. The
 // history mutex is held only while taking snapshots, never during the run.
 func (s *Server) crewChat(w http.ResponseWriter, r *http.Request, rot Rotllana, msg string, stream bool) {
+	if !s.crewMayResume() {
+		errText := "Crew is unavailable in read-only mode."
+		if s.cfg.Lang() == "ca" {
+			errText = "La colla no està disponible en mode de només lectura."
+		}
+		http.Error(w, errText, http.StatusForbidden)
+		return
+	}
 	job, next, err := s.startCrewChat(rot, msg)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		log.Printf("crew chat start rotllana=%s: %s", rot.ID, redactError(err))
+		status, text := http.StatusInternalServerError, "Could not start the crew because its conversation could not be saved."
+		if s.cfg.Lang() == "ca" {
+			text = "No s'ha pogut iniciar la colla perquè no s'ha pogut desar la conversa."
+		}
+		if err.Error() == "crew already running" {
+			status, text = http.StatusConflict, s.crewBusyMessage()
+		}
+		if err.Error() == "crew state needs recovery" {
+			status = http.StatusConflict
+			text = "This crew has a pending recovery; restart the server to finish it first."
+			if s.cfg.Lang() == "ca" {
+				text = "Aquesta colla té una recuperació pendent; reinicia el servidor per acabar-la."
+			}
+		}
+		http.Error(w, text, status)
 		return
 	}
 	var emit func(string, any)

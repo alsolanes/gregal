@@ -55,8 +55,14 @@ type Run struct {
 	Error      string    `json:"error,omitempty"`
 }
 
-// DefaultDir retorna ~/.local/share/gregal/jobs.
+// DefaultDir retorna ~/.local/share/gregal/jobs. Respecta GREGAL_DATA_DIR
+// com la resta de dades del Gregal: sense això, les proves (i qualsevol
+// instància apuntada a un altre lloc) llegien i escrivien els jobs reals
+// de l'usuari, i un recordatori d'una sessió contaminava l'altra.
 func DefaultDir() string {
+	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
+		return filepath.Join(d, "jobs")
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return filepath.Join(".local", "share", "gregal", "jobs")

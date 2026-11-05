@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -192,6 +194,24 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 			stream(kind, value)
 		}
 	}
+	crewWorkspaces, prepErr := PrepareCrewAssignments(workspace, flow)
+	if prepErr != nil {
+		msg := teamBoundaryError(prepErr, run.lang)
+		emit("team", team.Event{Type: "failed", Message: msg})
+		s.finishWorkshop(generation, prepErr)
+		return ""
+	}
+	defer crewWorkspaces.Close()
+	if serverReadOnlyMode(s) {
+		for _, node := range flow.Nodes {
+			if node.CrewAssigned {
+				err := fmt.Errorf("read-only session cannot run assigned crew builders")
+				emit("team", team.Event{Type: "failed", Message: teamBoundaryError(err, run.lang)})
+				s.finishWorkshop(generation, err)
+				return ""
+			}
+		}
+	}
 
 	language := "English"
 	if run.lang == "ca" {
@@ -204,13 +224,53 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 		toca()
 		node, _ := team.NodeFrom(ctx)
 		if seat := seatFor(node, subagents[node.ID], withTools); seat.Agentic {
+			seatWorkspace := workspace
+			if crewWorkspaces.Enabled() {
+				privateWorkspace, ok, workspaceErr := crewWorkspaces.Workspace(node.ID)
+				if workspaceErr != nil {
+					return "", fmt.Errorf("%s", teamBoundaryError(workspaceErr, run.lang))
+				}
+				if !ok {
+					return "", fmt.Errorf("%s", teamBoundaryError(fmt.Errorf("no private workspace for node %q", node.ID), run.lang))
+				}
+				seatWorkspace = privateWorkspace
+				seat.CrewSandbox = true
+				seat.EnforceFiles = node.CrewAssigned
+				seat.AllowedFiles = append([]string(nil), node.Files...)
+			}
 			if node.Wind != "" {
 				wind, _ := s.winds.ByID(node.Wind)
 				seat.System += "\nYour identity: " + wind.Name + ". Specialty: " + wind.Role + ". Instructions: " + wind.Persona + "\n"
 				seat.System += s.windMemorySystem(node.Wind) + companion.WindBrainSystem(s.windBrain(node.Wind)) + s.windSkillsSystem(node.Wind)
 				ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(node.Wind))
 			}
-			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, workspace, language, name, task, run.winds, emit)
+			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, seatWorkspace, language, name, task, run.winds, emit)
+			if err == nil && node.CrewAssigned {
+				if serverReadOnlyMode(s) {
+					return "", errors.New("read-only session denied crew file integration")
+				}
+				policy := agent.PolicyFromConfig(cfg, run.workspace)
+				err = crewWorkspaces.Integrate(node.ID, func(rel string) bool {
+					args, _ := json.Marshal(map[string]string{"path": rel})
+					decision, _ := policy.Decide(agent.ModeCode, "write", string(args))
+					return decision == "deny" || serverReadOnlyMode(s)
+				}, func(rel, digest string) error {
+					if !run.winds {
+						return nil
+					}
+					return noteCrewWriteIntentDurable(s, run.thread, run.workspace, rel, digest)
+				}, func(rel string) error {
+					if run.winds {
+						if e := noteCrewWriteCommittedDurable(s, run.thread, run.workspace, rel); e != nil {
+							return e
+						}
+					}
+					if report, ok := ctx.Value(teamWriteProgressKey{}).(func(string) error); ok && report != nil {
+						return report(filepath.Join(run.workspace, filepath.FromSlash(rel)))
+					}
+					return nil
+				})
+			}
 			if err != nil {
 				log.Printf("team role %s error: %s", name, redactError(err))
 			}
@@ -274,6 +334,23 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 	s.finishWorkshop(generation, nil)
 	log.Printf("team run done after %s", time.Since(started).Round(time.Second))
 	return answer
+}
+
+func serverReadOnlyMode(s *Server) bool {
+	if s == nil {
+		return true
+	}
+	s.mu.Lock()
+	mode := s.mode
+	s.mu.Unlock()
+	return agent.ReadOnlyMode(mode)
+}
+
+func teamBoundaryError(err error, lang string) string {
+	if lang == "ca" || lang == "Catalan" {
+		return "No s'ha pogut executar la feina aïllada: " + err.Error() + " / Crew isolation failed: " + err.Error()
+	}
+	return "Crew isolation failed: " + err.Error()
 }
 
 // teamRunTimeout és el sostre absolut d'un run de pipeline. Abans eren 10

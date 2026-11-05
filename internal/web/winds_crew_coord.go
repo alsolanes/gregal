@@ -36,12 +36,25 @@ import (
 // El resultat els llista; abans es llistava tot el que havia canviat a la
 // carpeta (fitxers interns de Gregal inclosos).
 var (
-	crewWritesMu    sync.Mutex
-	crewWrites      = map[string][]string{}
-	crewWriteEvents = map[string]uint64{}
+	crewWritesMu         sync.Mutex
+	crewWrites           = map[string][]string{}
+	crewWriteEvents      = map[string]uint64{}
+	crewWriteErrors      sync.Map // scoped registry key -> error string from a failed durable write-list update
+	crewStateLocks       sync.Map // scoped registry key -> *sync.Mutex; never held across another run's disk I/O
+	crewReservationLocks sync.Map // scoped key -> *sync.Mutex; serializes start/answer reservations per thread
 )
 
-func noteCrewWrite(rotID, workspace, path string) {
+func crewReservationLock(s *Server, rotID string) *sync.Mutex {
+	v, _ := crewReservationLocks.LoadOrStore(crewRegistryKey(s, rotID), &sync.Mutex{})
+	return v.(*sync.Mutex)
+}
+
+func crewStateLock(s *Server, rotID string) *sync.Mutex {
+	v, _ := crewStateLocks.LoadOrStore(crewRegistryKey(s, rotID), &sync.Mutex{})
+	return v.(*sync.Mutex)
+}
+
+func noteCrewWrite(s *Server, rotID, workspace, path string) {
 	rel := path
 	if workspace != "" {
 		if r, err := filepath.Rel(workspace, path); err == nil && !strings.HasPrefix(r, "..") {
@@ -49,24 +62,239 @@ func noteCrewWrite(rotID, workspace, path string) {
 		}
 	}
 	rel = filepath.ToSlash(rel)
+	key := crewRegistryKey(s, rotID)
 	crewWritesMu.Lock()
 	defer crewWritesMu.Unlock()
-	crewWriteEvents[rotID]++
-	for _, p := range crewWrites[rotID] {
+	crewWriteEvents[key]++
+	for _, p := range crewWrites[key] {
 		if p == rel {
 			return
 		}
 	}
-	crewWrites[rotID] = append(crewWrites[rotID], rel)
+	crewWrites[key] = append(crewWrites[key], rel)
 }
 
-func takeCrewWrites(rotID string) []string {
+func crewWriteSnapshot(s *Server, rotID string) []string {
 	crewWritesMu.Lock()
 	defer crewWritesMu.Unlock()
-	out := crewWrites[rotID]
-	delete(crewWrites, rotID)
-	delete(crewWriteEvents, rotID)
-	return out
+	return append([]string(nil), crewWrites[crewRegistryKey(s, rotID)]...)
+}
+
+func clearCrewRun(s *Server, rotID string) {
+	key := crewRegistryKey(s, rotID)
+	crewWritesMu.Lock()
+	delete(crewWrites, key)
+	delete(crewWriteEvents, key)
+	crewWritesMu.Unlock()
+	crewWriteErrors.Delete(key)
+}
+
+func crewFilesForResult(s *Server, rotID string, st *crewState) []string {
+	files := crewWriteSnapshot(s, rotID)
+	if st == nil {
+		return files
+	}
+	seen := make(map[string]bool, len(files)+len(st.Files))
+	for _, p := range files {
+		seen[p] = true
+	}
+	for _, p := range st.Files {
+		if p != "" && !seen[p] {
+			files = append(files, p)
+			seen[p] = true
+		}
+	}
+	return files
+}
+
+// noteCrewWriteDurable records the actual successful edit both in the fast
+// in-memory registry and in the per-user crew state. A restart must not erase
+// the list the recovery message needs to report.
+func noteCrewWriteDurable(s *Server, rotID, workspace, path string) error {
+	rel, err := crewRelativePath(workspace, path)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := rejectRootSymlinks(root, filepath.FromSlash(rel)); err != nil {
+		return err
+	}
+	digest, exists, err := rootDigest(root, filepath.FromSlash(rel))
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("committed crew file %s is missing", rel)
+	}
+	return recordCrewWriteCommittedDurable(s, rotID, rel, digest)
+}
+
+func crewRelativePath(workspace, path string) (string, error) {
+	if filepath.IsAbs(path) {
+		if workspace == "" {
+			return "", fmt.Errorf("workspace missing for absolute crew path")
+		}
+		rel, err := filepath.Rel(workspace, path)
+		if err != nil || !filepath.IsLocal(rel) {
+			return "", fmt.Errorf("crew write path is outside its workspace")
+		}
+		path = rel
+	}
+	rel := filepath.Clean(path)
+	if rel == "." || !filepath.IsLocal(rel) {
+		return "", fmt.Errorf("invalid crew write path %q", path)
+	}
+	return filepath.ToSlash(rel), nil
+}
+
+func noteCrewWriteIntentDurable(s *Server, rotID, workspace, rel, digest string) error {
+	clean, err := crewRelativePath(workspace, rel)
+	if err != nil {
+		return err
+	}
+	if digest == "" {
+		return fmt.Errorf("crew write intent is missing a digest for %s", clean)
+	}
+	lock := crewStateLock(s, rotID)
+	lock.Lock()
+	defer lock.Unlock()
+	st, ok, err := readCrewState(s, rotID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("crew state missing while recording intent %s", clean)
+	}
+	if st.PendingWrites == nil {
+		st.PendingWrites = map[string]string{}
+	}
+	if st.CommittedWrites == nil {
+		st.CommittedWrites = map[string]string{}
+	}
+	st.PendingWrites[clean] = digest
+	return writeCrewStateFile(s, rotID, st)
+}
+
+func noteCrewWriteCommittedDurable(s *Server, rotID, workspace, rel string) error {
+	clean, err := crewRelativePath("", rel)
+	if err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := rejectRootSymlinks(root, filepath.FromSlash(clean)); err != nil {
+		return err
+	}
+	digest, exists, err := rootDigest(root, filepath.FromSlash(clean))
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("committed crew file %s is missing", clean)
+	}
+	return recordCrewWriteCommittedDurable(s, rotID, clean, digest)
+}
+
+func recordCrewWriteCommittedDurable(s *Server, rotID, clean, digest string) error {
+	lock := crewStateLock(s, rotID)
+	lock.Lock()
+	defer lock.Unlock()
+	st, ok, err := readCrewState(s, rotID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("crew state missing while recording %s", clean)
+	}
+	noteCrewWrite(s, rotID, "", clean)
+	for _, existing := range st.Files {
+		if existing == clean {
+			break
+		}
+	}
+	if !containsString(st.Files, clean) {
+		st.Files = append(st.Files, clean)
+	}
+	if st.PendingWrites != nil {
+		delete(st.PendingWrites, clean)
+	}
+	if st.CommittedWrites == nil {
+		st.CommittedWrites = map[string]string{}
+	}
+	st.CommittedWrites[clean] = digest
+	return writeCrewStateFile(s, rotID, st)
+}
+
+func containsString(xs []string, x string) bool {
+	for _, have := range xs {
+		if have == x {
+			return true
+		}
+	}
+	return false
+}
+
+func reconcileCrewWriteIntents(s *Server, rot Rotllana, st *crewState) error {
+	if st == nil || len(st.PendingWrites) == 0 {
+		return nil
+	}
+	lock := crewStateLock(s, rot.ID)
+	lock.Lock()
+	defer lock.Unlock()
+	current, ok, err := readCrewState(s, rot.ID)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("crew state missing while reconciling writes")
+	}
+	st = current
+	workspace := rot.Workspace
+	if workspace == "" {
+		s.mu.Lock()
+		workspace, _ = s.ventWorkspaceLocked()
+		s.mu.Unlock()
+	}
+	if workspace == "" {
+		return fmt.Errorf("workspace missing while reconciling crew writes")
+	}
+	if st.CommittedWrites == nil {
+		st.CommittedWrites = map[string]string{}
+	}
+	root, err := os.OpenRoot(workspace)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	for rel, expected := range st.PendingWrites {
+		clean, pathErr := crewRelativePath("", rel)
+		if pathErr != nil {
+			return pathErr
+		}
+		relPath := filepath.FromSlash(clean)
+		if err := rejectRootSymlinks(root, relPath); err != nil {
+			return err
+		}
+		actual, exists, readErr := rootDigest(root, relPath)
+		if readErr != nil && !os.IsNotExist(readErr) {
+			return readErr
+		}
+		if exists && actual == expected {
+			if !containsString(st.Files, rel) {
+				st.Files = append(st.Files, rel)
+			}
+			st.CommittedWrites[rel] = expected
+			noteCrewWrite(s, rot.ID, "", rel)
+		}
+	}
+	return writeCrewStateFile(s, rot.ID, st)
 }
 
 const (
@@ -77,56 +305,273 @@ const (
 // crewState és el que el coordinador necessita per reprendre la feina
 // després d'una pregunta (també si el servidor s'ha reiniciat).
 type crewState struct {
-	Task             string    `json:"task"`
-	Ca               bool      `json:"ca"`
-	Round            int       `json:"round"`
-	Questions        int       `json:"questions"`
-	Started          time.Time `json:"started"`
-	Waiting          bool      `json:"waiting"`
-	Log              []string  `json:"log"` // què ha passat a cada volta, per al coordinador
-	Last             string    `json:"last,omitempty"`
-	ReviewIncomplete bool      `json:"review_incomplete,omitempty"`
+	Task             string            `json:"task"`
+	Ca               bool              `json:"ca"`
+	Round            int               `json:"round"`
+	Questions        int               `json:"questions"`
+	Started          time.Time         `json:"started"`
+	RunID            string            `json:"run_id"`
+	Waiting          bool              `json:"waiting"`
+	PendingAnswer    string            `json:"pending_answer,omitempty"`
+	PendingResult    string            `json:"pending_result,omitempty"`
+	TerminalStep     string            `json:"terminal_step,omitempty"`
+	Log              []string          `json:"log"` // què ha passat a cada volta, per al coordinador
+	Last             string            `json:"last,omitempty"`
+	Files            []string          `json:"files,omitempty"`
+	PendingWrites    map[string]string `json:"pending_writes,omitempty"`
+	CommittedWrites  map[string]string `json:"committed_writes,omitempty"`
+	ReviewIncomplete bool              `json:"review_incomplete,omitempty"`
 }
 
 func crewStatePath(s *Server, rotID string) string {
 	return filepath.Join(s.sessDir(), "crew-jobs", filepath.Base(rotID)+".state.json")
 }
 
-func saveCrewState(s *Server, rotID string, st *crewState) {
+func saveCrewState(s *Server, rotID string, st *crewState) error {
+	lock := crewStateLock(s, rotID)
+	lock.Lock()
+	defer lock.Unlock()
+	return saveCrewStateUnlocked(s, rotID, st)
+}
+
+func saveCrewStateUnlocked(s *Server, rotID string, st *crewState) error {
+	// Files is provenance: every state save merges prior durable and observed
+	// paths so stale snapshots from another part of the run cannot erase it.
+	old, exists, readErr := readCrewState(s, rotID)
+	if readErr != nil {
+		return fmt.Errorf("read existing crew state: %w", readErr)
+	}
+	if exists && (old.RunID == st.RunID || old.RunID == "" || st.RunID == "") {
+		seen := map[string]bool{}
+		for _, p := range st.Files {
+			seen[p] = true
+		}
+		for _, p := range old.Files {
+			if p != "" && !seen[p] {
+				st.Files = append(st.Files, p)
+				seen[p] = true
+			}
+		}
+		// The disk snapshot is authoritative for WAL metadata. Coordinator state
+		// may be stale while an integration callback records a newer digest.
+		st.PendingWrites = cloneCrewDigestMap(old.PendingWrites)
+		st.CommittedWrites = cloneCrewDigestMap(old.CommittedWrites)
+	}
+	for _, p := range crewWriteSnapshot(s, rotID) {
+		found := false
+		for _, have := range st.Files {
+			if have == p {
+				found = true
+				break
+			}
+		}
+		if !found {
+			st.Files = append(st.Files, p)
+		}
+	}
+	return writeCrewStateFile(s, rotID, st)
+}
+
+func cloneCrewDigestMap(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(src))
+	for k, v := range src {
+		out[k] = v
+	}
+	return out
+}
+
+// writeCrewStateFile writes an already-current state snapshot. Callers that
+// mutate PendingWrites/CommittedWrites use this only while holding the run lock.
+func writeCrewStateFile(s *Server, rotID string, st *crewState) error {
 	raw, err := json.Marshal(st)
 	if err != nil {
-		return
+		return err
 	}
 	p := crewStatePath(s, rotID)
-	if os.MkdirAll(filepath.Dir(p), 0o700) == nil {
-		_ = os.WriteFile(p, raw, 0o600)
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return err
 	}
+	f, err := os.CreateTemp(filepath.Dir(p), ".crew-state-*.tmp")
+	if err != nil {
+		return err
+	}
+	tmp := f.Name()
+	defer os.Remove(tmp)
+	if err := f.Chmod(0o600); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err := f.Write(raw); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		return err
+	}
+	dir, err := os.Open(filepath.Dir(p))
+	if err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		dir.Close()
+		return err
+	}
+	return dir.Close()
 }
 
 func loadCrewState(s *Server, rotID string) (*crewState, bool) {
+	st, ok, _ := readCrewState(s, rotID)
+	return st, ok
+}
+
+func readCrewState(s *Server, rotID string) (*crewState, bool, error) {
 	raw, err := os.ReadFile(crewStatePath(s, rotID))
+	if os.IsNotExist(err) {
+		return nil, false, nil
+	}
 	if err != nil {
-		return nil, false
+		return nil, false, err
 	}
 	var st crewState
-	if json.Unmarshal(raw, &st) != nil || st.Task == "" {
-		return nil, false
+	if err := json.Unmarshal(raw, &st); err != nil {
+		return nil, true, fmt.Errorf("decode crew state: %w", err)
 	}
-	return &st, true
+	if st.Task == "" {
+		return nil, true, fmt.Errorf("crew state has empty task")
+	}
+	return &st, true, nil
 }
 
 // crewSayKind és crewSay amb el tipus de missatge del fil.
-func (s *Server) crewSayKind(rot Rotllana, wind companion.Wind, kind, text string) {
+func (s *Server) crewSayKind(rot Rotllana, wind companion.Wind, kind, text string) error {
+	return s.crewSayKindRun(rot, wind, kind, text, "")
+}
+
+func (s *Server) crewSayKindRun(rot Rotllana, wind companion.Wind, kind, text, runID string) error {
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return
+		return nil
 	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: wind.Name + ": " + text,
-		SpeakerID: wind.ID, SpeakerName: wind.Name, Ts: time.Now().Unix(), Kind: kind})
-	_ = saveRotllanaHistory(s, rot.ID, hist.messages)
-	hist.mu.Unlock()
+	defer hist.mu.Unlock()
+	next := append([]llm.Message(nil), hist.messages...)
+	if kind == "result" {
+		if runID != "" {
+			for _, existing := range next {
+				if existing.Role == "assistant" && existing.Kind == kind && existing.SpeakerID == wind.ID && existing.CrewRunID == runID {
+					hist.messages = next
+					return nil
+				}
+			}
+		} else if len(next) > 0 {
+			existing := next[len(next)-1]
+			if existing.Role == "assistant" && existing.Kind == kind && existing.SpeakerID == wind.ID && existing.Content == wind.Name+": "+text {
+				hist.messages = next
+				return nil
+			}
+		}
+	}
+
+	next = append(next, llm.Message{Role: "assistant", Content: wind.Name + ": " + text,
+		SpeakerID: wind.ID, SpeakerName: wind.Name, Ts: time.Now().Unix(), Kind: kind, CrewRunID: runID})
+	if err := saveRotllanaHistory(s, rot.ID, next); err != nil {
+		return err
+	}
+	hist.messages = next
+	return nil
+}
+
+func (s *Server) crewPublishResult(rot Rotllana, lead companion.Wind, msg string) bool {
+	if err := s.crewSayKindRun(rot, lead, "result", msg, ""); err != nil {
+		log.Printf("crew result persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return false
+	}
+	return true
+}
+
+// publishCrewStateResult checkpoints the terminal message before writing it.
+// A restart can safely retry because crewSayKind deduplicates exact results.
+func (s *Server) publishCrewStateResult(rot Rotllana, st *crewState, lead companion.Wind, step, msg string) error {
+	lock := crewStateLock(s, rot.ID)
+	lock.Lock()
+	defer lock.Unlock()
+	if latest, ok, err := readCrewState(s, rot.ID); err == nil && ok {
+		if st.PendingWrites == nil {
+			st.PendingWrites = map[string]string{}
+		}
+		for path, digest := range latest.PendingWrites {
+			if _, have := st.PendingWrites[path]; !have {
+				st.PendingWrites[path] = digest
+			}
+		}
+		if st.CommittedWrites == nil {
+			st.CommittedWrites = map[string]string{}
+		}
+		for path, digest := range latest.CommittedWrites {
+			if _, have := st.CommittedWrites[path]; !have {
+				st.CommittedWrites[path] = digest
+			}
+		}
+		for path, digest := range st.CommittedWrites {
+			if pending, have := st.PendingWrites[path]; have && pending == digest {
+				delete(st.PendingWrites, path)
+			}
+		}
+	}
+	st.PendingResult = msg
+	st.TerminalStep = step
+	if err := saveCrewStateUnlocked(s, rot.ID, st); err != nil {
+		return err
+	}
+	if err := s.crewSayKindRun(rot, lead, "result", msg, st.RunID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Server) finishCrewRun(rot Rotllana, st *crewState, lead companion.Wind, job *crewJob, step, msg string) error {
+	if err := s.publishCrewStateResult(rot, st, lead, step, msg); err != nil {
+		return err
+	}
+	s.crewNotify(rot, lead, st.Task, msg)
+	if err := job.set(step); err != nil {
+		job.fail(err)
+		return err
+	}
+	if err := removeCrewRunState(s, rot.ID); err != nil {
+		return err
+	}
+	return nil
+}
+
+func removeCrewRunState(s *Server, rotID string) error {
+	if err := os.Remove(crewStatePath(s, rotID)); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	dir, err := os.Open(filepath.Dir(crewStatePath(s, rotID)))
+	if err != nil {
+		return err
+	}
+	if err := dir.Sync(); err != nil {
+		dir.Close()
+		return err
+	}
+	if err := dir.Close(); err != nil {
+		return err
+	}
+	clearCrewRun(s, rotID)
+	return nil
 }
 
 // crewAssignment és una part de la feina d'una volta.
@@ -180,9 +625,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	for _, w := range members {
 		fmt.Fprintf(&roster, "- %s | %s | %s\n", w.ID, w.Name, companion.RolePrompt(w.Role))
 	}
-	crewWritesMu.Lock()
-	files := append([]string(nil), crewWrites[rot.ID]...)
-	crewWritesMu.Unlock()
+	files := crewWriteSnapshot(s, rot.ID)
 	system := "You coordinate a small crew of AI specialists (\"winds\") working on a task for the user. After the crew's design discussion and after every round of work you decide the single next step. Reply with JSON only, no prose, no code fences."
 	var b strings.Builder
 	b.WriteString("TASK:\n" + st.Task + "\n\nCREW:\n" + roster.String())
@@ -350,8 +793,8 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 		if len(a.Files) > 0 {
 			part += "\nFiles you own (create or edit only these; the others belong to other members): " + strings.Join(a.Files, ", ")
 		}
-		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: fmt.Sprintf("build-%d", i+1), Label: w.Name, Role: "builder", Mode: "task",
-			Instruction: instruction(w, false) + part, Wind: w.ID})
+		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: fmt.Sprintf("build-%d", i+1), Label: w.Name, Role: "builder", Mode: "task", CrewAssigned: true,
+			Instruction: instruction(w, false) + part, Wind: w.ID, Files: append([]string(nil), a.Files...)})
 	}
 	if len(members) > 1 {
 		// Revisa qui no construeix (si tothom construeix, el primer de la colla).
@@ -363,8 +806,9 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 			}
 		}
 		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: "review", Label: reviewer.Name, Role: "reviewer", Mode: "review",
-			Instruction: instruction(reviewer, true) + " In feedback, say what you actually checked (files opened, behaviour verified) and what you could not check.",
-			Wind:        reviewer.ID})
+			RequireStructuredReview: true,
+			Instruction:             instruction(reviewer, true) + " In feedback, say what you actually checked (files opened, behaviour verified) and what you could not check.",
+			Wind:                    reviewer.ID})
 		for i := range assign {
 			flow.Edges = append(flow.Edges, team.FlowEdge{From: fmt.Sprintf("build-%d", i+1), To: "review", Kind: "data"})
 		}
@@ -408,16 +852,15 @@ func crewRoundVerdict(say func(c, e string) string, verdict, answer string, reje
 		return verdict + "\n" + say("**Queda obert**", "**Still open**") + ":\n- " + oneLineKeepBreaks(feedback, 600)
 	}
 	if rejected {
-		return verdict + "\n" + say("La revisió hi veu coses obertes; la colla hi torna a la volta següent.", "The review sees open issues; the crew goes at it again next round.")
+		return verdict + "\n" + say("La revisió no s'ha completat o hi deixa punts oberts; la colla hi torna a la volta següent.", "The review is incomplete or leaves open issues; the crew goes at it again next round.")
 	}
-	return verdict + " " + say("La colla hi queda d'acord; res més pendent de la revisió.", "The crew agrees; nothing else pending from the review.")
+	return verdict + " " + say("La revisió ha aprovat aquesta volta; no és una votació de tota la colla.", "The review approved this round; this is not a vote by the whole crew.")
 }
 
 func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewState, job *crewJob) {
 	members := s.rotMembersOf(rot)
 	if len(members) == 0 {
-		_ = takeCrewWrites(rot.ID)
-		job.set("failed")
+		crewJobFailed(job)
 		return
 	}
 	lead := members[0]
@@ -428,7 +871,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		return e
 	}
 	finishWithFiles := func(msg string) string {
-		files := takeCrewWrites(rot.ID)
+		files := crewFilesForResult(s, rot.ID, st)
 		if len(files) > 0 {
 			msg += "\n\n**" + say("Fitxers", "Files") + "**\n- " + strings.Join(files, "\n- ")
 		}
@@ -447,7 +890,10 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		if ctx.Err() != nil {
 			break
 		}
-		job.set("working")
+		if err := job.set("working"); err != nil {
+			job.fail(err)
+			return
+		}
 		d := s.crewDecide(ctx, rot, st, members)
 		if ctx.Err() != nil {
 			break
@@ -456,11 +902,25 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		case "ask":
 			st.Questions++
 			st.Waiting = true
-			saveCrewState(s, rot.ID, st)
+			if err := saveCrewState(s, rot.ID, st); err != nil {
+				log.Printf("crew state persistence rotllana=%s: %s", rot.ID, redactError(err))
+				crewJobFailed(job)
+				return
+			}
 			q := d.Question
-			s.crewSayKind(rot, lead, "question", q)
+			if err := s.crewSayKind(rot, lead, "question", q); err != nil {
+				st.Waiting = false
+				if stateErr := saveCrewState(s, rot.ID, st); stateErr != nil {
+					log.Printf("crew question rollback persistence rotllana=%s: %s", rot.ID, redactError(stateErr))
+				}
+				log.Printf("crew question persistence rotllana=%s: %s", rot.ID, redactError(err))
+				crewJobFailed(job)
+				return
+			}
 			s.crewNotify(rot, lead, st.Task, say("La colla et pregunta: ", "The crew asks you: ")+q)
-			job.set("waiting")
+			if !crewJobStep(job, "waiting") {
+				return
+			}
 			return
 		case "finish":
 			// A coordinator or the round cap cannot turn a rejected review into success.
@@ -468,27 +928,31 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			if unfinished {
 				d.Conclusion = say("La feina no està acabada; la revisió és incompleta o hi queden problemes.\n\n", "The work is not finished; review is incomplete or issues remain.\n\n") + last
 			}
-			msg := crewResultText(d, takeCrewWrites(rot.ID), last, st.Ca)
-			s.crewSayKind(rot, lead, "result", msg)
-			s.crewNotify(rot, lead, st.Task, msg)
-			_ = os.Remove(crewStatePath(s, rot.ID))
+			msg := crewResultText(d, crewFilesForResult(s, rot.ID, st), last, st.Ca)
+			step := "done"
 			if unfinished {
-				job.set("failed")
-			} else {
-				job.set("done")
+				step = "failed"
+			}
+			if err := s.finishCrewRun(rot, st, lead, job, step, msg); err != nil {
+				log.Printf("crew result persistence rotllana=%s: %s", rot.ID, redactError(err))
+				return
 			}
 			return
 		case "giveup":
 			msg := finishWithFiles(say("No ho podem fer: ", "We can't do it: ") + firstNonEmpty(d.Say, d.Conclusion))
-			s.crewSayKind(rot, lead, "result", msg)
-			s.crewNotify(rot, lead, st.Task, msg)
-			_ = os.Remove(crewStatePath(s, rot.ID))
-			job.set("failed")
+			if err := s.finishCrewRun(rot, st, lead, job, "failed", msg); err != nil {
+				log.Printf("crew giveup persistence rotllana=%s: %s", rot.ID, redactError(err))
+				return
+			}
 			return
 		}
 		// work: una volta amb les parts en paral·lel i la revisió.
 		st.Round++
-		saveCrewState(s, rot.ID, st)
+		if err := saveCrewState(s, rot.ID, st); err != nil {
+			log.Printf("crew round state persistence rotllana=%s: %s", rot.ID, redactError(err))
+			crewJobFailed(job)
+			return
+		}
 		var plan []string
 		names := map[string]string{}
 		for _, w := range members {
@@ -500,63 +964,76 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		note := firstNonEmpty(d.Say, say("Som-hi", "Let's go"))
 		// El pla de la volta (qui fa què) es veu sempre: és el compromís de
 		// la colla, no debat intern.
-		s.crewSayKind(rot, lead, "round", fmt.Sprintf("%s (%s %d)\n- %s", note, say("volta", "round"), st.Round, strings.Join(plan, "\n- ")))
+		if err := s.crewSayKind(rot, lead, "round", fmt.Sprintf("%s (%s %d)\n- %s", note, say("volta", "round"), st.Round, strings.Join(plan, "\n- "))); err != nil {
+			log.Printf("crew round history persistence rotllana=%s: %s", rot.ID, redactError(err))
+			crewJobFailed(job)
+			return
+		}
 		flow := crewRoundFlow(d.Assignments, members, instruction, st.Ca)
 		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
+		writeKey := crewRegistryKey(s, rot.ID)
 		crewWritesMu.Lock()
-		writesBefore := crewWriteEvents[rot.ID]
+		writesBefore := crewWriteEvents[writeKey]
 		crewWritesMu.Unlock()
 		answer, err := crewWork(s, ctx, rot, work, flow, st.Ca)
 		if ctx.Err() != nil {
 			break
 		}
 		crewWritesMu.Lock()
-		wroteThisRound := crewWriteEvents[rot.ID] != writesBefore
+		wroteThisRound := crewWriteEvents[writeKey] != writesBefore
 		crewWritesMu.Unlock()
 		switch {
 		case err == nil || err == errReviewIncomplete:
 			last = answer
-			st.Last, st.ReviewIncomplete = answer, err == errReviewIncomplete
+			st.Last, st.ReviewIncomplete = answer, err == errReviewIncomplete || len(members) < 2
 			assignmentJSON, _ := json.Marshal(d.Assignments)
 			assignment := string(assignmentJSON)
 			if !wroteThisRound && crewRejected(answer) && assignment == previousAssignment && strings.TrimSpace(answer) == previousAnswer {
 				msg := say("La feina no està acabada: la mateixa revisió s'ha repetit sense progressar.\n\n", "The work is not finished: the same review repeated without progress.\n\n") + answer
-				msg = crewResultText(crewDecision{Conclusion: msg}, takeCrewWrites(rot.ID), "", st.Ca)
-				s.crewSayKind(rot, lead, "result", msg)
-				s.crewNotify(rot, lead, st.Task, msg)
-				_ = os.Remove(crewStatePath(s, rot.ID))
-				job.set("failed")
+				msg = crewResultText(crewDecision{Conclusion: msg}, crewFilesForResult(s, rot.ID, st), "", st.Ca)
+				if err := s.finishCrewRun(rot, st, lead, job, "failed", msg); err != nil {
+					log.Printf("crew stalled result persistence rotllana=%s: %s", rot.ID, redactError(err))
+					return
+				}
 				return
 			}
 			previousAssignment, previousAnswer = assignment, strings.TrimSpace(answer)
 			verdict := say("La volta de revisió ha acabat.", "The review round has ended.")
-			if err == errReviewIncomplete {
+			if err == errReviewIncomplete || st.ReviewIncomplete {
 				verdict = say("La revisió no s'ha pogut completar; la feina no està verificada.", "The review could not be completed; the work is not verified.")
 			}
 			// El final de volta diu què queda obert (o que hi estan d'acord):
 			// l'usuari ha de veure la conclusió de la revisió, no només que
 			// «ha acabat». Kind "round": l'app el mostra sempre desplegat,
 			// mai dins el desplegable del debat.
-			verdict = crewRoundVerdict(say, verdict, answer, crewRejected(answer) || err == errReviewIncomplete)
-			s.crewSayKind(rot, lead, "round", verdict)
+			verdict = crewRoundVerdict(say, verdict, answer, crewRejected(answer) || st.ReviewIncomplete)
+			if err := s.crewSayKind(rot, lead, "round", verdict); err != nil {
+				log.Printf("crew review history persistence rotllana=%s: %s", rot.ID, redactError(err))
+				crewJobFailed(job)
+				return
+			}
 			st.Log = append(st.Log, fmt.Sprintf("Round %d (%s): %s", st.Round, strings.Join(plan, "; "), oneLineKeepBreaks(answer, 2500)))
 		case crewPotReprendre(err, st.Started):
-			s.crewSayKind(rot, lead, "debate", say("S'ha encallat la volta; ho reprenem aprofitant el que ja hi ha fet.", "The round stalled; we resume from what is already done."))
+			if err := s.crewSayKind(rot, lead, "debate", say("S'ha encallat la volta; ho reprenem aprofitant el que ja hi ha fet.", "The round stalled; we resume from what is already done.")); err != nil {
+				log.Printf("crew retry history persistence rotllana=%s: %s", rot.ID, redactError(err))
+				crewJobFailed(job)
+				return
+			}
 			st.Log = append(st.Log, fmt.Sprintf("Round %d stalled (%v); files on disk are kept.", st.Round, err))
 		default:
 			log.Printf("crew work: %s", redactError(err))
-			var files []string
-			if rot.Workspace != "" {
-				files = fitxersTocats(rot.Workspace, st.Started)
+			msg := finishWithFiles(crewFailureMessage(say, err, time.Since(st.Started), nil))
+			if err := s.finishCrewRun(rot, st, lead, job, "failed", msg); err != nil {
+				log.Printf("crew failure result persistence rotllana=%s: %s", rot.ID, redactError(err))
+				return
 			}
-			msg := finishWithFiles(crewFailureMessage(say, err, time.Since(st.Started), files))
-			s.crewSayKind(rot, lead, "result", msg)
-			s.crewNotify(rot, lead, st.Task, msg)
-			_ = os.Remove(crewStatePath(s, rot.ID))
-			job.set("failed")
 			return
 		}
-		saveCrewState(s, rot.ID, st)
+		if err := saveCrewState(s, rot.ID, st); err != nil {
+			log.Printf("crew progress persistence rotllana=%s: %s", rot.ID, redactError(err))
+			crewJobFailed(job)
+			return
+		}
 	}
 	msg := say("S'ha acabat el temps de la colla; et deixo el que hi ha.", "The crew ran out of time; here is what exists.")
 	step := "failed"
@@ -565,41 +1042,91 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		step = "cancelled"
 	}
 	msg = finishWithFiles(msg + "\n\n" + oneLineKeepBreaks(last, 3000))
-	s.crewSayKind(rot, lead, "result", msg)
-	s.crewNotify(rot, lead, st.Task, msg)
-	_ = os.Remove(crewStatePath(s, rot.ID))
-	job.set(step)
+	if err := s.finishCrewRun(rot, st, lead, job, step, msg); err != nil {
+		log.Printf("crew terminal result persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return
+	}
 }
 
 // crewTakeAnswer: si la colla d'aquest fil espera resposta, el missatge de
 // l'usuari la reprèn (en lloc d'anar al xat de sempre). Torna true si l'ha
 // agafat; el missatge ja és al fil.
-func (s *Server) crewTakeAnswer(rot Rotllana, msg string) bool {
+type crewAnswerResult uint8
+
+const (
+	crewAnswerNotApplicable crewAnswerResult = iota
+	crewAnswerConsumed
+	crewAnswerFailed
+)
+
+func (s *Server) crewTakeAnswer(rot Rotllana, msg string) crewAnswerResult {
 	// Serialize the waiting-state check and reservation with crew starts and
 	// other answers, so only one request can resume the persisted job.
-	crewStartMu.Lock()
-	defer crewStartMu.Unlock()
-	st, ok := loadCrewState(s, rot.ID)
-	if !ok || !st.Waiting {
-		return false
+	reservation := crewReservationLock(s, rot.ID)
+	reservation.Lock()
+	defer reservation.Unlock()
+	if !s.crewMayResume() {
+		return crewAnswerNotApplicable
+	}
+	stateLock := crewStateLock(s, rot.ID)
+	stateLock.Lock()
+	defer stateLock.Unlock()
+	st, exists, stateErr := readCrewState(s, rot.ID)
+	if stateErr != nil {
+		log.Printf("crew resume state read rotllana=%s: %s", rot.ID, redactError(stateErr))
+		return crewAnswerFailed
+	}
+	if exists && st.PendingResult != "" {
+		return crewAnswerFailed
+	}
+	if !exists || (!st.Waiting && st.PendingAnswer == "") {
+		return crewAnswerNotApplicable
+	}
+	if st.PendingAnswer != "" && st.PendingAnswer != msg {
+		return crewAnswerFailed
 	}
 	job := &crewJob{path: crewJobPath(s, rot.ID)}
-	if v, loaded := crewJobs.LoadOrStore(rot.ID, job); loaded {
+	key := crewRegistryKey(s, rot.ID)
+	if v, loaded := crewJobs.LoadOrStore(key, job); loaded {
 		existing := v.(*crewJob)
-		if step := existing.get(); step != "waiting" && step != "" {
-			return false // ja hi ha feina en marxa
+		if st.PendingAnswer == "" {
+			if step := existing.get(); step != "waiting" && step != "" {
+				return crewAnswerNotApplicable // ja hi ha feina en marxa
+			}
 		}
 		job = existing
 	}
+	if st.PendingAnswer == "" {
+		st.PendingAnswer = msg
+		st.Waiting = false
+		st.Log = append(st.Log, "The user answered the crew's question: "+oneLineKeepBreaks(msg, 1500))
+	}
+	if err := saveCrewStateUnlocked(s, rot.ID, st); err != nil {
+		log.Printf("crew resume state persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return crewAnswerFailed
+	}
 	hist := rotllanaHistory(s, rot.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
-	_ = saveRotllanaHistory(s, rot.ID, hist.messages)
+	next := append([]llm.Message(nil), hist.messages...)
+	if len(next) == 0 || next[len(next)-1].Role != "user" || next[len(next)-1].Content != st.PendingAnswer {
+		next = append(next, llm.Message{Role: "user", Content: st.PendingAnswer, Ts: time.Now().Unix()})
+	}
+	if err := saveRotllanaHistory(s, rot.ID, next); err != nil {
+		hist.mu.Unlock()
+		log.Printf("crew resume history persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return crewAnswerFailed
+	}
+	hist.messages = next
 	hist.mu.Unlock()
-	st.Waiting = false
-	st.Log = append(st.Log, "The user answered the crew's question: "+oneLineKeepBreaks(msg, 1500))
-	saveCrewState(s, rot.ID, st)
-	job.set("working")
+	if err := job.set("working"); err != nil {
+		log.Printf("crew resume job persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return crewAnswerFailed
+	}
+	st.PendingAnswer = ""
+	if err := saveCrewStateUnlocked(s, rot.ID, st); err != nil {
+		log.Printf("crew resume completion persistence rotllana=%s: %s", rot.ID, redactError(err))
+		return crewAnswerFailed
+	}
 	goBackground(func() { s.crewLoop(rot, st, job) })
-	return true
+	return crewAnswerConsumed
 }

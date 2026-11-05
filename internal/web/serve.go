@@ -105,11 +105,8 @@ type Server struct {
 
 	agentBusy bool
 	// steer: missatges escrits mentre el torn treballa (steer.go).
-	steer    steerBox
-	activity *workshopActivity
-	// windTurns: torns de vent/colla en curs, per poder-los aturar
-	// (winds_cancel.go). La clau és el tipus i l'id.
-	windTurns   map[turnKey]*turnHandle
+	steer       steerBox
+	activity    *workshopActivity
 	workshopSeq uint64
 	active      *activeAgent
 	activeSeq   int

@@ -218,7 +218,7 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	if len(out.Rotllana.Members) != 2 || out.Rotllana.Members[0] != keeper.ID {
 		t.Fatalf("members = %v", out.Rotllana.Members)
 	}
-	waitCrew(t, out.Rotllana.ID, "done")
+	waitCrew(t, s, out.Rotllana.ID, "done")
 	// Dos constructors alhora (cada un amb els seus fitxers; index.html no es
 	// repeteix) i un revisor que ho mira tot.
 	if len(flow.Nodes) != 3 || flow.Output != "review" || flow.Nodes[0].Wind != keeper.ID || flow.Nodes[1].Wind != out.Created[0].ID {
@@ -257,11 +257,11 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	}
 }
 
-func waitCrew(t *testing.T, rotID, step string) {
+func waitCrew(t *testing.T, s *Server, rotID, step string) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		v, _ := crewJobs.Load(rotID)
+		v, _ := crewJobs.Load(crewRegistryKey(s, rotID))
 		if v != nil && v.(*crewJob).get() == step {
 			return
 		}
@@ -310,7 +310,7 @@ func TestCrewAsksAndResumes(t *testing.T) {
 		Rotllana Rotllana `json:"rotllana"`
 	}
 	json.Unmarshal(rec.Body.Bytes(), &out)
-	waitCrew(t, out.Rotllana.ID, "waiting")
+	waitCrew(t, s, out.Rotllana.ID, "waiting")
 	if worked != 0 {
 		t.Fatal("asking must stop the crew before any work")
 	}
@@ -326,14 +326,14 @@ func TestCrewAsksAndResumes(t *testing.T) {
 	}
 	// La resposta al fil reprèn la colla.
 	rot, _ := s.rotllanaByID(out.Rotllana.ID)
-	if !s.crewTakeAnswer(rot, "Sis") {
+	if s.crewTakeAnswer(rot, "Sis") != crewAnswerConsumed {
 		t.Fatal("the answer must be taken by the waiting crew")
 	}
-	waitCrew(t, out.Rotllana.ID, "done")
+	waitCrew(t, s, out.Rotllana.ID, "done")
 	if worked != 1 {
 		t.Fatalf("work rounds = %d", worked)
 	}
-	if s.crewTakeAnswer(rot, "una altra cosa") {
+	if s.crewTakeAnswer(rot, "una altra cosa") != crewAnswerNotApplicable {
 		t.Fatal("a finished crew does not take messages")
 	}
 	if _, ok := loadCrewState(s, out.Rotllana.ID); ok {
@@ -551,9 +551,9 @@ func TestCrewRepeatedReviewDoesNotStopWritingWork(t *testing.T) {
 	crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
 		return `{"action":"work","assignments":[{"wind":"` + a.ID + `","part":"fix the page"}]}`, nil
 	}
-	crewWork = func(_ *Server, _ context.Context, _ Rotllana, _ string, _ team.FlowSpec, _ bool) (string, error) {
+	crewWork = func(srv *Server, _ context.Context, _ Rotllana, _ string, _ team.FlowSpec, _ bool) (string, error) {
 		calls++
-		noteCrewWrite(rot.ID, "", "page.html")
+		noteCrewWrite(srv, rot.ID, "", "page.html")
 		return "Draft saved.\n\nOutstanding review feedback:\nmissing page", nil
 	}
 	job := &crewJob{}

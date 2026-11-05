@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -40,6 +41,8 @@ func TestCrewChatRoutingAndPlan(t *testing.T) {
 		{"¿Cómo puedo crear una aplicación?", false},
 		{"How can I build a web app?", false},
 		{"Implementa una aplicació web de notes", true},
+		{"Vull que creïs una web espectacular", true},
+		{"Ara explica com implementar una web", false},
 		{"Build a Python script", true},
 		{"Explica com implementar una aplicació web", false},
 		{"Com puc implementar una aplicació web?", false},
@@ -49,9 +52,24 @@ func TestCrewChatRoutingAndPlan(t *testing.T) {
 			t.Errorf("%q: got %v", tc.msg, got)
 		}
 	}
-	s.mode = "plan"
-	if s.crewChatAllowed("Implementa una aplicació web") || s.crewMayResume() {
-		t.Fatal("plan mode must not run or resume crew")
+	for _, mode := range []string{"plan", "chat", "inspect"} {
+		s.mode = mode
+		if s.crewChatAllowed("Implementa una aplicació web") || s.crewMayResume() {
+			t.Errorf("read-only mode %q must not start or resume crew", mode)
+		}
+	}
+}
+
+func TestCrewStartEndpointHonorsReadOnlyMode(t *testing.T) {
+	s, _ := rotllanaChatter(t, "chat")
+	for _, mode := range []string{"plan", "chat", "inspect"} {
+		s.mode = mode
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/api/winds/crew/start", strings.NewReader(`{"task":"build a web app","reuse":["wind"]}`))
+		s.handleCrewStart(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("mode %q: got HTTP %d, want 403", mode, rec.Code)
+		}
 	}
 }
 
@@ -129,7 +147,7 @@ func TestCrewChatStreamProgressCancelAndHistory(t *testing.T) {
 	if n != 1 {
 		t.Fatalf("user message persisted %d times", n)
 	}
-	v, _ := crewJobs.Load(id)
+	v, _ := crewJobs.Load(crewRegistryKey(s, id))
 	if v.(*crewJob).get() != "cancelled" {
 		t.Fatalf("step: %s", v.(*crewJob).get())
 	}

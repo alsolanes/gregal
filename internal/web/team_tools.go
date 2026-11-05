@@ -3,10 +3,12 @@ package web
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gregal/internal/agent"
 	"gregal/internal/config"
@@ -33,19 +35,23 @@ var teamCodeTools = []string{"read", "grep", "glob", "read_image", "write", "edi
 // teamSeat és com treballa un seient: sense eines (Tools == nil i !Agentic)
 // o amb el motor en un mode, amb una llista d'eines i un límit de passos.
 type teamSeat struct {
-	Agentic  bool
-	Mode     string
-	Tools    []string
-	MaxSteps int
-	System   string
-	Def      *agent.SubagentDef
+	Agentic      bool
+	Mode         string
+	Tools        []string
+	MaxSteps     int
+	System       string
+	Def          *agent.SubagentDef
+	AllowedFiles []string
+	EnforceFiles bool
+	CrewSandbox  bool
 }
 
 // seatFor decideix el seient d'un node. withTools és l'opció de la
 // petició; un node amb subagent definit sempre en fa servir les eines.
 func seatFor(node team.FlowNode, def *agent.SubagentDef, withTools bool) teamSeat {
 	if def != nil {
-		seat := teamSeat{Agentic: true, Mode: def.Mode, Tools: def.Tools, MaxSteps: def.MaxSteps, Def: def}
+		seat := teamSeat{Agentic: true, Mode: def.Mode, Tools: def.Tools, MaxSteps: def.MaxSteps, Def: def,
+			AllowedFiles: append([]string(nil), node.Files...), EnforceFiles: node.CrewAssigned, CrewSandbox: node.CrewAssigned}
 		if len(seat.Tools) == 0 {
 			seat.Tools = teamReadTools
 			if def.Mode == agent.ModeCode {
@@ -69,7 +75,7 @@ func seatFor(node team.FlowNode, def *agent.SubagentDef, withTools bool) teamSea
 		return teamSeat{Agentic: true, Mode: agent.ModeInspect, Tools: append(append([]string(nil), teamReadTools...), "bash"), MaxSteps: 12,
 			System: "TEAM ROLE reviewer: you can read files and run read-only checks (bash commands that only inspect, such as tests or linters that do not write). Base your verdict on what you verified."}
 	case "builder":
-		return teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: teamCodeTools, MaxSteps: 20,
+		return teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: teamCodeTools, MaxSteps: 20, AllowedFiles: append([]string(nil), node.Files...), EnforceFiles: node.CrewAssigned, CrewSandbox: node.CrewAssigned,
 			System: "TEAM ROLE builder: you can read and edit files in the project workspace. Project-local write/edit/patch operations are already authorized; use those file tools instead of shell redirection or scripts to create and change files. Use bash only when an actual build, test, or local run is needed; do not probe runtimes or start services just to inspect availability. Shell actions and writes outside the workspace may ask for approval. A denied action must not be retried."}
 	}
 	return teamSeat{}
@@ -106,7 +112,10 @@ type teamWriteProgressKey struct{}
 // teamWithWriteProgress installs a private observer for successful project writes.
 // Unlike preview events, this is never serialized to the client. Different
 // seats can report concurrently, so the observer must synchronize shared state.
-func teamWithWriteProgress(ctx context.Context, report func(string)) context.Context {
+func teamWithWriteProgress(ctx context.Context, report func(string) error) context.Context {
+	if report == nil {
+		return ctx
+	}
 	return context.WithValue(ctx, teamWriteProgressKey{}, report)
 }
 
@@ -140,7 +149,65 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 	if automaticReview {
 		system += "\n\nWinds autonomy: do not wait for a permission prompt. Safe project work is reviewed and approved automatically. If an action is refused, continue with a safer project-local approach or explain the remaining limitation."
 	}
+	if seat.CrewSandbox {
+		system += "\n\nThis seat runs in a private isolated project snapshot. Use only project-relative file paths. The shell starts in this private workspace; do not use absolute paths or cd to the original project. Assigned builder files are integrated automatically after a successful run."
+	}
+	readOnly := serverReadOnlyMode(s)
+	if readOnly {
+		seat.Mode = agent.ModeInspect
+		seat.Tools = append([]string(nil), teamReadTools...)
+	}
+	if seat.CrewSandbox {
+		if readOnly {
+			seat.Mode = agent.ModeInspect
+			seat.Tools = append([]string(nil), teamReadTools...)
+		} else if seat.EnforceFiles {
+			seat.Mode = agent.ModeCode
+			seat.Tools = []string{"read", "grep", "glob", "read_image", "write", "edit", "patch", "bash"}
+		} else {
+			seat.Mode = agent.ModeCode
+			seat.Tools = []string{"read", "grep", "glob", "read_image", "bash"}
+		}
+	}
+	var toolExecutor func(context.Context, string, string) (string, []string, error)
+	if seat.CrewSandbox {
+		ctx = agent.WithCrewIsolation(ctx)
+		boundary := crewToolBoundary{workspace: workspace, readOnly: serverReadOnlyMode(s) || !seat.EnforceFiles, allowed: append([]string(nil), seat.AllowedFiles...)}
+		policy := agent.PolicyFromConfig(cfg, workspace)
+		toolExecutor = func(runCtx context.Context, name, args string) (string, []string, error) {
+			if serverReadOnlyMode(s) && (name == "write" || name == "edit" || name == "patch") {
+				return "", nil, errors.New("read-only session denied this tool")
+			}
+			if decision, why := policy.Decide(agent.ModeCode, name, args); decision == "deny" {
+				return "", nil, fmt.Errorf("user permissions deny %s: %s", name, why)
+			}
+			out, imgs, err := boundary.execute(runCtx, name, args)
+			if err != nil {
+				return out, imgs, fmt.Errorf("%s", teamBoundaryError(err, language))
+			}
+			return out, imgs, nil
+		}
+	}
 	approve := func(ctx context.Context, call llm.ToolCall, reason string) bool {
+		policy := agent.PolicyFromConfig(cfg, workspace)
+		if decision, why := policy.Decide(seat.Mode, call.Function.Name, call.Function.Arguments); decision == "deny" {
+			emit("team", team.Event{Type: "review", Agent: nodeID, Activity: call.Function.Name,
+					Message: teamBoundaryError(fmt.Errorf("user permissions deny this action: %s", why), language)})
+			return false
+		}
+		if seat.EnforceFiles && isTeamOtherWrite(call.Function.Name) {
+			emit("team", team.Event{Type: "review", Agent: nodeID, Activity: call.Function.Name,
+					Message: teamBoundaryError(errors.New("use an assigned project-file write tool"), language)})
+			return false
+		}
+		if seat.EnforceFiles && isTeamFileWrite(call.Function.Name) {
+			path := teamWritePath(workspace, call.Function.Name, call.Function.Arguments)
+			if !teamFileAssignmentAllows(path, seat.AllowedFiles) {
+				emit("team", team.Event{Type: "review", Agent: nodeID, Activity: call.Function.Name,
+					Message: teamBoundaryError(errors.New("this file is not assigned to this builder"), language)})
+				return false
+			}
+		}
 		// Team builder file edits inside the selected workspace are part of
 		// the requested task. The default config asks before every write/edit;
 		// keep that prompt for ordinary chats, but do not block Winds on it.
@@ -169,9 +236,11 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 		return ok
 	}
 	toolPaths := map[string]string{}
+	var progressMu sync.Mutex
+	var progressErr error
 	res, err := agent.RunNonInteractiveOpts(ctx, s.client, &local, agent.RunOpts{
 		Task: prompt, Mode: seat.Mode, MaxSteps: seat.MaxSteps, HardStepLimit: true,
-		Dir: workspace, Role: "team", Tools: seat.Tools, System: system, Approve: approve,
+		Dir: workspace, Role: "team", Tools: seat.Tools, System: system, Approve: approve, ToolExecutor: toolExecutor,
 		OnEvent: func(e agent.Event) {
 			if e.Tipus == agent.EvCrida {
 				path := teamWritePath(workspace, e.Eina, e.EinaArgs)
@@ -185,12 +254,19 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 				if !e.Executada || e.Fallada {
 					path = ""
 				}
-				if path != "" {
-					if report, ok := ctx.Value(teamWriteProgressKey{}).(func(string)); ok && report != nil {
-						report(path)
+				if path != "" && !seat.CrewSandbox {
+					if report, ok := ctx.Value(teamWriteProgressKey{}).(func(string) error); ok && report != nil {
+						if e := report(path); e != nil {
+							progressMu.Lock()
+							progressErr = e
+							progressMu.Unlock()
+						}
 					}
 				}
 				previewPath := path
+				if seat.CrewSandbox {
+					previewPath = ""
+				}
 				ext := strings.ToLower(filepath.Ext(path))
 				if ext != ".html" && ext != ".htm" {
 					previewPath = ""
@@ -203,6 +279,12 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 			}
 		},
 	})
+	progressMu.Lock()
+	pe := progressErr
+	progressMu.Unlock()
+	if err == nil && pe != nil {
+		err = pe
+	}
 	model := r.Model
 	if res.FallbackModel != "" {
 		model = res.FallbackModel
@@ -239,6 +321,27 @@ func teamWritePath(workspace, name, args string) string {
 		return ""
 	}
 	return filepath.ToSlash(path)
+}
+
+func teamFileAssignmentAllows(path string, allowed []string) bool {
+	path = filepath.ToSlash(filepath.Clean(path))
+	if path == "" || path == "." || !filepath.IsLocal(filepath.FromSlash(path)) {
+		return false
+	}
+	for _, candidate := range allowed {
+		if filepath.ToSlash(filepath.Clean(candidate)) == path {
+			return true
+		}
+	}
+	return false
+}
+
+func isTeamOtherWrite(name string) bool {
+	return name == "office_edit" || name == "office_create" || name == "pdf_edit" || name == "pdf_create"
+}
+
+func isTeamFileWrite(name string) bool {
+	return name == "write" || name == "edit" || name == "patch"
 }
 
 func teamReviewMessage(d agent.ReviewDecision, language string) string {

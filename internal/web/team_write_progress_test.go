@@ -37,7 +37,7 @@ func TestTeamWriteProgressPrivateAndPreview(t *testing.T) {
 	s.permissive = true
 	role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
 	var progress, public []string
-	ctx := teamWithWriteProgress(context.Background(), func(path string) { progress = append(progress, path) })
+	ctx := teamWithWriteProgress(context.Background(), func(path string) error { progress = append(progress, path); return nil })
 	_, _, err := s.runTeamSeat(ctx, s.cfg, role, teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: []string{"write"}, MaxSteps: 8}, ws, "English", "builder", "write files", false, func(_ string, v any) {
 		if e, ok := v.(team.Event); ok && e.Type == "tool_result" && e.Path != "" {
 			public = append(public, e.Path)
@@ -63,10 +63,11 @@ func TestTeamWriteProgressConcurrentSeats(t *testing.T) {
 	ws := t.TempDir()
 	var mu sync.Mutex
 	var paths []string
-	ctx := teamWithWriteProgress(context.Background(), func(path string) {
+	ctx := teamWithWriteProgress(context.Background(), func(path string) error {
 		mu.Lock()
 		defer mu.Unlock()
 		paths = append(paths, path)
+		return nil
 	})
 	var wg sync.WaitGroup
 	for _, file := range []string{"a.go", "b.py"} {
@@ -157,7 +158,7 @@ func TestTeamWriteProgressResults(t *testing.T) {
 			s.permissive = true
 			role := config.Role{Provider: "p", Model: "m", MaxTokens: 4096, ContextWindow: 32768}
 			var paths []string
-			ctx := teamWithWriteProgress(context.Background(), func(path string) { paths = append(paths, path) })
+			ctx := teamWithWriteProgress(context.Background(), func(path string) error { paths = append(paths, path); return nil })
 			var public []string
 			_, _, err := s.runTeamSeat(ctx, s.cfg, role, teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: []string{tc.tool}, MaxSteps: 4}, ws, "English", "builder", "edit file", false, func(_ string, v any) {
 				if e, ok := v.(team.Event); ok && e.Path != "" {

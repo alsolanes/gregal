@@ -35,6 +35,9 @@ type Message struct {
 	// i progrés, que l'app plega), "question" (la colla espera resposta) i
 	// "result" (el resultat final). No s'envia mai al model.
 	Kind string `json:"kind,omitempty"`
+	// CrewRunID identifies an idempotent terminal result in durable crew history.
+	// It is stripped from provider requests with the other UI metadata.
+	CrewRunID string `json:"crew_run_id,omitempty"`
 	// Ts és el moment (segons Unix) en què el missatge ha entrat a la
 	// conversa: l'hora de la bombolla i el rellotge de la safata. Els
 	// missatges antics no el porten (0 = desconegut). Forma part de la
@@ -69,6 +72,7 @@ func marshalMessage(m Message, sanitize bool) ([]byte, error) {
 		w.SpeakerID, w.SpeakerName = "", ""
 		w.Ts = 0
 		w.Kind = ""
+		w.CrewRunID = ""
 		w.ToolCalls = safeToolCalls(m.ToolCalls)
 	} else {
 		// El raonament és d'aquesta cadena de crides: no es desa a les

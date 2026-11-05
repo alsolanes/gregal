@@ -25,4 +25,7 @@ func TestSpeakerMetadataPersistsWithoutProviderWireFields(t *testing.T) {
 	if strings.Contains(string(wire), "speaker_") {
 		t.Fatalf("UI metadata leaked to strict provider: %s", wire)
 	}
+	if strings.Contains(string(wire), "crew_run_id") {
+		t.Fatalf("crew run metadata leaked to provider: %s", wire)
+	}
 }

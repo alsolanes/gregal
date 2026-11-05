@@ -99,6 +99,9 @@ func truncateHook(s string) string {
 // La sintaxi va davant del hook a posta: si el fitxer ha quedat trencat,
 // això és el que el model ha de llegir primer.
 func apendixEdicio(ctx context.Context, path string) string {
+	if ctx != nil && ctx.Value(crewIsolationCtxKey{}) == true {
+		return ""
+	}
 	var parts []string
 	if d := Diagnostica(path); d != "" {
 		parts = append(parts, d)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 // Aturar un torn: igual que Esc a Claude Code o opencode.
@@ -18,7 +19,12 @@ import (
 // torn nou sobre el mateix vent substitueix l'anterior. Cancel·lar no esborra
 // res: el que ja s'ha fet queda fet i el torn acaba amb «aturat».
 
-type turnKey struct{ kind, id string }
+type turnKey struct{ scope, kind, id string }
+
+var windTurnRegistry = struct {
+	sync.Mutex
+	turns map[turnKey]*turnHandle
+}{turns: map[turnKey]*turnHandle{}}
 
 // turnHandle identifica un torn concret: tancar un torn vell no ha de
 // desregistrar el que l'ha substituït (es compara el punter).
@@ -27,24 +33,21 @@ type turnHandle struct{ cancel context.CancelFunc }
 // beginWindTurn registra el torn i en torna el context i el tancament.
 func (s *Server) beginWindTurn(kind, id string, parent context.Context) (context.Context, func()) {
 	ctx, cancel := context.WithCancel(parent)
-	key := turnKey{kind: kind, id: id}
+	key := turnKey{scope: s.sessDir(), kind: kind, id: id}
 	h := &turnHandle{cancel: cancel}
-	s.mu.Lock()
-	if s.windTurns == nil {
-		s.windTurns = map[turnKey]*turnHandle{}
-	}
-	prev := s.windTurns[key]
-	s.windTurns[key] = h
-	s.mu.Unlock()
+	windTurnRegistry.Lock()
+	prev := windTurnRegistry.turns[key]
+	windTurnRegistry.turns[key] = h
+	windTurnRegistry.Unlock()
 	if prev != nil && prev != h {
 		prev.cancel() // un torn nou sobre el mateix vent substitueix el vell
 	}
 	done := func() {
-		s.mu.Lock()
-		if s.windTurns[key] == h {
-			delete(s.windTurns, key)
+		windTurnRegistry.Lock()
+		if windTurnRegistry.turns[key] == h {
+			delete(windTurnRegistry.turns, key)
 		}
-		s.mu.Unlock()
+		windTurnRegistry.Unlock()
 		cancel()
 	}
 	return ctx, done
@@ -53,9 +56,9 @@ func (s *Server) beginWindTurn(kind, id string, parent context.Context) (context
 // cancelWindTurn atura el torn en curs d'un vent o rotllana. Torna fals si no
 // n'hi havia cap (l'operació és idempotent: la UI no ha de fallar).
 func (s *Server) cancelWindTurn(kind, id string) bool {
-	s.mu.Lock()
-	h := s.windTurns[turnKey{kind: kind, id: id}]
-	s.mu.Unlock()
+	windTurnRegistry.Lock()
+	h := windTurnRegistry.turns[turnKey{scope: s.sessDir(), kind: kind, id: id}]
+	windTurnRegistry.Unlock()
 	if h == nil {
 		return false
 	}

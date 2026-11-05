@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,7 +36,8 @@ var modelsDev struct {
 }
 
 // parseModelsDev redueix el JSON enorme (6 MB) a id → nom i raonament. Si un
-// id surt a diversos proveïdors es queda amb el primer que té nom.
+// id surt a diversos proveïdors es queda amb el primer en ordre lexicogràfic
+// de proveïdor i id, perquè l'ordre de les propietats JSON és arbitrari.
 func parseModelsDev(raw []byte) (map[string]modelInfo, error) {
 	var all map[string]struct {
 		Models map[string]struct {
@@ -52,8 +54,20 @@ func parseModelsDev(raw []byte) (map[string]modelInfo, error) {
 		return nil, err
 	}
 	idx := map[string]modelInfo{}
-	for _, p := range all {
-		for key, m := range p.Models {
+	providers := make([]string, 0, len(all))
+	for provider := range all {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	for _, provider := range providers {
+		p := all[provider]
+		modelIDs := make([]string, 0, len(p.Models))
+		for key := range p.Models {
+			modelIDs = append(modelIDs, key)
+		}
+		sort.Strings(modelIDs)
+		for _, key := range modelIDs {
+			m := p.Models[key]
 			id := strings.ToLower(strings.TrimSpace(m.ID))
 			if id == "" {
 				id = strings.ToLower(key)

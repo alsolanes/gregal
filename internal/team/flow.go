@@ -23,8 +23,14 @@ type FlowNode struct {
 	// el runner hi fa servir les seves eines, el seu model i el seu prompt.
 	// El paquet team no el valida (no sap on és el projecte): ho fa qui
 	// executa el flux.
-	Agent string `json:"agent,omitempty"`
-	Wind  string `json:"wind,omitempty"`
+	Agent string   `json:"agent,omitempty"`
+	Wind  string   `json:"wind,omitempty"`
+	Files []string `json:"files,omitempty"`
+	// CrewAssigned marks a builder whose filesystem ownership comes from a
+	// crew assignment. Generic team flows leave this false and keep their
+	// existing workspace semantics.
+	CrewAssigned            bool `json:"crew_assigned,omitempty"`
+	RequireStructuredReview bool `json:"require_structured_review,omitempty"`
 }
 
 // FlowEdge carries a deliverable (data) or asks for rework (revision).
