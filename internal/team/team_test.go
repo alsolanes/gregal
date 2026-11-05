@@ -205,7 +205,8 @@ func TestParseReviewRequiresStrictStructuredFields(t *testing.T) {
 		`{"approved":false,"approved":true,"feedback":"","deliverable":"draft"}`,
 		`{"approved":true,"deliverable":"draft"}`,
 		`{"approved":true,"feedback":"","deliverable":"draft"} {}`,
-		`{"approved":true,"feedback":"","deliverable":""}`,
+		// Un «deliverable» buit o absent ja no és un error: askReview hi posa
+		// la feina revisada (TestStructuredReviewAcceptsJSONAfterProse…).
 	} {
 		if _, err := parseReview(output); err == nil {
 			t.Errorf("parseReview(%q) unexpectedly succeeded", output)

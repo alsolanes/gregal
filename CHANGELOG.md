@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+## v1.54.2 - 2026-11-05 - Colles que acaben i diuen la veritat, botons que no es perden
+
+- **Una revisió mal formada ja no tomba la colla.** El revisor ha de contestar
+  amb un veredicte estructurat; si el model no ho feia bé (text pla, l'objecte
+  després d'una frase, o sense el camp del lliurable), tota la volta fallava
+  després de minuts de feina. Ara s'accepta l'objecte encara que vingui darrere
+  d'una frase, un lliurable absent és la feina revisada, i si el veredicte és
+  inservible la feina es queda marcada com a **no verificada** (mai com a
+  aprovada).
+- **L'informe final d'una colla és un resum.** Abans enganxava les notes
+  senceres de cada membre (més de 6.000 caràcters en una prova real); ara la
+  conclusió és curta i les notes completes queden als fitxers.
+- **Una colla fallada ja no bloqueja el fil.** Si en fallar havia deixat
+  l'estat al disc, el fil responia «reinicia el servidor» per sempre (i
+  reiniciar no ho arreglava). Ara aquest estat vell s'esborra en tornar-hi;
+  una colla que espera la teva resposta es continua respectant.
+- **Els botons de resposta ràpida es reparen sols.** En proves repetides, una
+  resposta de cada deu escrivia el bloc malament (la primera opció a la línia
+  de «```choices», o totes en una línia) i els botons es perdien. El servidor
+  ara el refà quan és segur fer-ho.
+- **Un membre de la colla que no crea (o esborra a la seva còpia) un fitxer
+  assignat ja no tomba la volta.** El fitxer simplement no s'integra i el
+  projecte queda com estava; la colla no esborra mai res del projecte.
+- **Dos vents nomenats: com a molt un enllaç cadascun**, com a la resta del grup.
+- **Proves d'estil repetides.** `scripts/style-eval.cjs --repeat N` passa cada
+  escenari N vegades amb vents nous i en treu un resum per escenari i per tipus
+  d'error: el que falla sovint i el que és soroll.
+
 ## v1.54.1 - 2026-11-05 - Les colles executen ordres a Windows i macOS
 
 - **Les colles poden executar ordres a Windows i macOS.** El shell aïllat de les

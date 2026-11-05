@@ -139,3 +139,38 @@ func TestCrewRoundFlowBuilderWithoutFilesIsNotIsolated(t *testing.T) {
 		t.Fatalf("aïllats: %v (només el que té fitxers)", got)
 	}
 }
+
+func TestCrewExcerptCutsAtAParagraph(t *testing.T) {
+	long := strings.Repeat("Una frase de les notes. ", 30) + "\n\n" + strings.Repeat("Detall llarg. ", 100)
+	got := crewExcerpt(long, crewReportMax)
+	if len([]rune(got)) > crewReportMax+2 || !strings.HasSuffix(got, " …") || strings.Contains(got, "Detall") {
+		t.Fatalf("excerpt (%d): %q", len([]rune(got)), got)
+	}
+	if crewExcerpt("curt", crewReportMax) != "curt" {
+		t.Fatal("un text curt no es toca")
+	}
+}
+
+// Una colla fallada que ha deixat l'estat al disc no bloqueja el fil.
+func TestStaleFailedCrewStateDoesNotBlockTheThread(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s, _ := companionTestServer(t)
+	id := makeRotllanaTrio(t, s)
+	rot, _ := s.rotllanaByID(id)
+	if err := saveCrewState(s, rot.ID, &crewState{Task: "x", Ca: true, Round: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&crewJob{path: crewJobPath(s, rot.ID)}).set("failed"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.startCrewChat(rot, "Feu una pàgina web amb un comptador"); err != nil && err.Error() == "crew state needs recovery" {
+		t.Fatal("un estat d'una colla fallada no pot bloquejar el fil")
+	}
+	// Una colla que espera la teva resposta, en canvi, sí que es respecta.
+	if err := saveCrewState(s, rot.ID, &crewState{Task: "x", Ca: true, Waiting: true}); err != nil {
+		t.Fatal(err)
+	}
+	if crewStateIsStale(s, rot.ID, &crewState{Waiting: true}) {
+		t.Fatal("una colla que espera resposta no és estat vell")
+	}
+}

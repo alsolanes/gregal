@@ -733,7 +733,7 @@ func crewResultText(d crewDecision, files []string, fallback string, ca bool) st
 	var b strings.Builder
 	conclusion := strings.TrimSpace(d.Conclusion)
 	if conclusion == "" {
-		conclusion = strings.TrimSpace(fallback)
+		conclusion = crewExcerpt(fallback, crewReportMax)
 	}
 	if conclusion == "" {
 		conclusion = say("Feina acabada.", "Work finished.")
@@ -913,7 +913,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			// A coordinator or the round cap cannot turn a rejected review into success.
 			unfinished := crewRejected(last) || st.ReviewIncomplete
 			if unfinished {
-				d.Conclusion = say("La feina no està acabada; la revisió és incompleta o hi queden problemes.\n\n", "The work is not finished; review is incomplete or issues remain.\n\n") + last
+				d.Conclusion = say("La feina no està acabada; la revisió és incompleta o hi queden problemes.\n\n", "The work is not finished; review is incomplete or issues remain.\n\n") + crewExcerpt(firstNonEmpty(d.Conclusion, last), crewReportMax)
 			}
 			msg := crewResultText(d, crewFilesForResult(s, rot.ID, st), last, st.Ca)
 			step := "done"
@@ -976,7 +976,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			assignmentJSON, _ := json.Marshal(d.Assignments)
 			assignment := string(assignmentJSON)
 			if !wroteThisRound && crewRejected(answer) && assignment == previousAssignment && strings.TrimSpace(answer) == previousAnswer {
-				msg := say("La feina no està acabada: la mateixa revisió s'ha repetit sense progressar.\n\n", "The work is not finished: the same review repeated without progress.\n\n") + answer
+				msg := say("La feina no està acabada: la mateixa revisió s'ha repetit sense progressar.\n\n", "The work is not finished: the same review repeated without progress.\n\n") + crewExcerpt(answer, crewReportMax)
 				msg = crewResultText(crewDecision{Conclusion: msg}, crewFilesForResult(s, rot.ID, st), "", st.Ca)
 				if err := s.finishCrewRun(rot, st, lead, job, "failed", msg); err != nil {
 					log.Printf("crew stalled result persistence rotllana=%s: %s", rot.ID, redactError(err))
@@ -1116,4 +1116,26 @@ func (s *Server) crewTakeAnswer(rot Rotllana, msg string) crewAnswerResult {
 	}
 	goBackground(func() { s.crewLoop(rot, st, job) })
 	return crewAnswerConsumed
+}
+
+// crewReportMax: l'informe final d'una colla és un resum, no les notes
+// enganxades de cada membre (en una prova real en sortien més de 6.000
+// caràcters). Les notes completes queden als fitxers i a la volta.
+const crewReportMax = 900
+
+// crewExcerpt talla un text llarg al final d'un paràgraf o d'una frase abans
+// de max caràcters i ho indica amb «…».
+func crewExcerpt(text string, max int) string {
+	t := strings.TrimSpace(text)
+	r := []rune(t)
+	if len(r) <= max {
+		return t
+	}
+	cut := string(r[:max])
+	if i := strings.LastIndex(cut, "\n\n"); i > len(cut)/3 {
+		cut = cut[:i]
+	} else if i := strings.LastIndexAny(cut, ".!?"); i > len(cut)/3 {
+		cut = cut[:i+1]
+	}
+	return strings.TrimSpace(cut) + " …"
 }

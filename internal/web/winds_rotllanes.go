@@ -772,7 +772,7 @@ func (s *Server) deleteRotllana(id string) error {
 // la seva pròpia crida i només per ell. Sense això, cada crida escrivia les
 // veus de tots els nomenats i el torn sortia duplicat (A, B, A, B).
 func rotllanaSoloBrief(sp companion.Wind) string {
-	return "\n\nTHIS TURN: the user named several members and they answer one by one. Now only YOU, " + sp.Name + ", answer — in your own voice, 1-4 sentences, without a name prefix and without writing any other member's lines. If another member already answered above, react to them (agree, add, correct) instead of repeating them."
+	return "\n\nTHIS TURN: the user named several members and they answer one by one. Now only YOU, " + sp.Name + ", answer — in your own voice, 1-4 short sentences, at most one source link, without a name prefix and without writing any other member's lines. If another member already answered above, react to them (agree, add, correct) instead of repeating them."
 }
 
 // ownVoiceOnly es queda només amb el que diu el vent que parla: el que el

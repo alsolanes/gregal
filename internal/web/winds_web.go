@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -304,8 +303,14 @@ func (s *Server) freshWindID(req companion.Wind) (string, bool) {
 
 // windHasResidue diu si un id de vent encara té historial o estat al disc.
 func (s *Server) windHasResidue(id string) bool {
-	if _, err := os.Stat(filepath.Join(s.sessDir(), "company-"+id+".json")); err == nil {
-		return true
+	// Un vent arxivat amb aquest id (la biblioteca el pot restaurar amb el seu
+	// historial): el nou no el pot trepitjar.
+	if items, err := s.archivedWinds(); err == nil {
+		for _, it := range items {
+			if it.Wind.ID == id {
+				return true
+			}
+		}
 	}
 	for _, sub := range []string{"wind-memory", "wind-knowledge", "wind-skills", "wind-documents", "wind-tasks"} {
 		matches, _ := filepath.Glob(filepath.Join(s.windStateDir(), sub, id+"*"))

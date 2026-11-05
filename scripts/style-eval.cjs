@@ -117,7 +117,7 @@ if (withCrew) add('colla-informe', async () => {
   const before = ((await api('/api/winds/rotllana?rotlla=' + encodeURIComponent(rot.id))).history || []).length;
   // La petició de colla pot quedar oberta mentre treballa (més que el límit de
   // capçaleres de fetch): no l'esperem, seguim el fil i l'estat.
-  api('/api/winds/rotllana', { rotllana: rot.id, message: "Feu una pàgina web senzilla amb un comptador de clics a la carpeta prova-comptador i proveu que funciona." }).catch(() => {});
+  api('/api/winds/rotllana', { rotllana: rot.id, message: 'Feu una pàgina web senzilla amb un comptador de clics a la carpeta prova-comptador-' + Date.now().toString(36) + ' i proveu que funciona.' }).catch(() => {});
   const t0 = Date.now();
   let report = '', step = '', started = false;
   while (Date.now() - t0 < 15 * 60_000) {
@@ -136,31 +136,56 @@ if (withCrew) add('colla-informe', async () => {
   return { reply: report, problems };
 });
 
+const repeat = Math.max(1, parseInt(args.includes('--repeat') ? args[args.indexOf('--repeat') + 1] : '1', 10) || 1);
+
 (async () => {
   const results = [];
-  try {
-    for (const w of WINDS) winds.push((await api('/api/winds', w)).wind);
-    rot = (await api('/api/winds/rotllanes', { name: 'Prova estil', members: winds.map(w => w.id) })).rotllana;
-    for (const sc of scenarios) {
-      const t0 = Date.now();
-      let out;
-      try { out = await sc.fn(); } catch (e) { out = { problems: ['error: ' + e.message] }; }
-      out.id = sc.id; out.ms = Date.now() - t0;
-      results.push(out);
-      const mark = out.problems.length ? '✖' : '✔';
-      console.log(mark + ' ' + sc.id + ' (' + Math.round(out.ms / 1000) + ' s)');
-      for (const p of out.problems) console.log('    - ' + p);
-      if (process.env.STYLE_VERBOSE) {
-        if (out.reply) console.log('    > ' + out.reply.replace(/\n/g, '\n      '));
-        for (const v of out.voices || []) console.log('    > [' + v.speaker + '] ' + v.text.replace(/\n/g, '\n      '));
+  for (let rep = 1; rep <= repeat; rep++) {
+    if (repeat > 1) console.log('\n— passada ' + rep + '/' + repeat + ' —');
+    winds = []; rot = null;
+    try {
+      // Vents i grup nous a cada passada: l'historial d'una no condiciona la següent.
+      for (const w of WINDS) winds.push((await api('/api/winds', w)).wind);
+      rot = (await api('/api/winds/rotllanes', { name: 'Prova estil', members: winds.map(w => w.id) })).rotllana;
+      for (const sc of scenarios) {
+        if (rep > 1 && sc.id === 'colla-informe') continue; // lenta: només a la primera
+        const t0 = Date.now();
+        let out;
+        try { out = await sc.fn(); } catch (e) { out = { problems: ['error: ' + e.message] }; }
+        out.id = sc.id; out.rep = rep; out.ms = Date.now() - t0;
+        results.push(out);
+        const mark = out.problems.length ? '✖' : '✔';
+        console.log(mark + ' ' + sc.id + ' (' + Math.round(out.ms / 1000) + ' s)');
+        for (const p of out.problems) console.log('    - ' + p);
+        if (process.env.STYLE_VERBOSE) {
+          if (out.reply) console.log('    > ' + out.reply.replace(/\n/g, '\n      '));
+          for (const v of out.voices || []) console.log('    > [' + v.speaker + '] ' + v.text.replace(/\n/g, '\n      '));
+        }
       }
+    } finally {
+      if (rot) await api('/api/winds/rotllanes', { id: rot.id }, 'DELETE').catch(() => {});
+      for (const w of winds) await api('/api/winds', { id: w.id }, 'DELETE').catch(() => {});
     }
-  } finally {
-    if (rot) await api('/api/winds/rotllanes', { id: rot.id }, 'DELETE').catch(() => {});
-    for (const w of winds) await api('/api/winds', { id: w.id }, 'DELETE').catch(() => {});
   }
   const bad = results.filter(r => r.problems.length).length;
-  console.log('\n' + (results.length - bad) + '/' + results.length + ' escenaris nets');
+  console.log('\n' + (results.length - bad) + '/' + results.length + ' respostes netes');
+  if (repeat > 1) {
+    // Per escenari i per tipus de problema: què falla sovint i què és soroll.
+    const by = new Map();
+    for (const r of results) {
+      const e = by.get(r.id) || { n: 0, ok: 0, kinds: new Map() };
+      e.n++; if (!r.problems.length) e.ok++;
+      for (const p of r.problems) {
+        const kind = p.replace(/^[^:]+: /, '').replace(/\d+/g, 'N');
+        e.kinds.set(kind, (e.kinds.get(kind) || 0) + 1);
+      }
+      by.set(r.id, e);
+    }
+    console.log('\nPer escenari:');
+    for (const [id, e] of by) {
+      console.log('  ' + id.padEnd(20) + ' ' + e.ok + '/' + e.n + [...e.kinds].map(([k, n]) => '  · ' + k + ' ×' + n).join(''));
+    }
+  }
   if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(results, null, 2));
   process.exitCode = bad ? 1 : 0;
 })();

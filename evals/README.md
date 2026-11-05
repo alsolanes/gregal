@@ -104,7 +104,7 @@ server with the real model, creates three temporary winds with very different
 personas and a temporary group, and deletes them at the end.
 
 ```bash
-GREGAL_URL=http://127.0.0.1:8240 GREGAL_TOKEN=... node scripts/style-eval.cjs [--crew] [--only grup] [--json out.json]
+GREGAL_URL=http://127.0.0.1:8240 GREGAL_TOKEN=... node scripts/style-eval.cjs [--crew] [--only grup] [--repeat 5] [--json out.json]
 ```
 
 Every reply goes through `scripts/style-rules.cjs` (unit-tested in

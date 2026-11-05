@@ -97,7 +97,11 @@ CONVERSATION MODE. You are chatting with your human. Rules:
 }
 
 // stripQuoteTrim neteja la resposta del model: cometes d'eco i espais.
-func stripQuoteTrim(s string) string {
+// stripQuoteTrim neteja una resposta d'un vent: treu les cometes que
+// l'envolten i repara el bloc de respostes ràpides (choices.go).
+func stripQuoteTrim(s string) string { return repairChoicesBlock(stripQuotes(s)) }
+
+func stripQuotes(s string) string {
 	s = strings.TrimSpace(s)
 	pairs := map[rune]rune{'"': '"', '«': '»', '\'': '\''}
 	for {

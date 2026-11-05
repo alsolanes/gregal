@@ -77,8 +77,16 @@ func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) 
 			return nil, 0, errConst("crew already running")
 		}
 	}
-	if _, exists, stateErr := readCrewState(s, rot.ID); stateErr != nil {
+	if st, exists, stateErr := readCrewState(s, rot.ID); stateErr != nil {
 		return nil, 0, stateErr
+	} else if exists && crewStateIsStale(s, rot.ID, st) {
+		// Una colla que ja ha acabat (fallada, feta o aturada) i no espera cap
+		// resposta però ha deixat l'estat al disc (un error en desar) no pot
+		// bloquejar el fil per sempre: reiniciar no ho arreglava, perquè la
+		// recuperació només reprèn colles interrompudes.
+		if err := removeCrewRunState(s, rot.ID); err != nil {
+			return nil, 0, err
+		}
 	} else if exists {
 		return nil, 0, errConst("crew state needs recovery")
 	}
@@ -230,4 +238,16 @@ func crewSpeaksCatalan(msg, cfgLang string) bool {
 		return l == "ca"
 	}
 	return cfgLang == "ca"
+}
+
+// crewStateIsStale: l'estat desat és d'una colla acabada que ningú no reprendrà.
+func crewStateIsStale(s *Server, rotID string, st *crewState) bool {
+	if st == nil || st.Waiting || strings.TrimSpace(st.PendingResult) != "" {
+		return false
+	}
+	switch crewStepDesat(s, rotID) {
+	case "failed", "done", "cancelled":
+		return true
+	}
+	return false
 }

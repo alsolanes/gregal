@@ -295,9 +295,9 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 		}
 	}
 	if err != nil {
-		if requireStructured {
-			return nil, err
-		}
+		// Revisió estricta (colles): una resposta inservible tampoc no és una
+		// aprovació, però no pot tombar tota la feina feta. Es queda la feina i
+		// es marca com a no verificada (invalid → la colla ho diu clar).
 		if strings.TrimSpace(fallback) == "" {
 			return nil, err
 		}
@@ -306,10 +306,20 @@ func askReview(ctx context.Context, runner Runner, agent, instruction, prompt, f
 	}
 	if review == nil {
 		if requireStructured {
-			return nil, errors.New("invalid structured reviewer response: JSON object required")
+			// Text pla dues vegades: no és una aprovació verificada.
+			if strings.TrimSpace(fallback) == "" {
+				return nil, errors.New("invalid structured reviewer response: JSON object required")
+			}
+			return &parsedReview{approved: true, feedback: "The reviewer did not give a structured verdict; keeping the builder's work unverified.\n\n" + strings.TrimSpace(output), deliverable: fallback, invalid: true}, nil
 		}
 		// Plain-text reviewer responses remain supported for older providers.
 		review = &parsedReview{approved: true, deliverable: output}
+	}
+	if review.deliverable == "" {
+		review.deliverable = strings.TrimSpace(fallback)
+		if review.deliverable == "" {
+			review.deliverable = strings.TrimSpace(output)
+		}
 	}
 	return review, nil
 }
@@ -326,8 +336,14 @@ func parseReview(output string) (*parsedReview, error) {
 		}
 	}
 	if !strings.HasPrefix(trimmed, "{") {
-		// Plain-text reviewer responses remain supported for older providers.
-		return nil, nil
+		// Molts models escriuen una frase i després l'objecte: es fa servir
+		// l'últim objecte JSON que porti «approved».
+		if obj := lastReviewObject(trimmed); obj != "" {
+			trimmed = obj
+		} else {
+			// Plain-text reviewer responses remain supported for older providers.
+			return nil, nil
+		}
 	}
 	if err := rejectDuplicateFields(trimmed); err != nil {
 		return nil, fmt.Errorf("invalid structured reviewer response: %w", err)
@@ -346,13 +362,15 @@ func parseReview(output string) (*parsedReview, error) {
 		}
 		return nil, fmt.Errorf("invalid structured reviewer response: %w", err)
 	}
-	if response.Approved == nil || response.Feedback == nil || response.Deliverable == nil {
-		return nil, errors.New("invalid structured reviewer response: all fields are required")
+	if response.Approved == nil || response.Feedback == nil {
+		return nil, errors.New("invalid structured reviewer response: approved and feedback are required")
 	}
 	feedback := strings.TrimSpace(*response.Feedback)
-	deliverable := strings.TrimSpace(*response.Deliverable)
-	if deliverable == "" {
-		return nil, errors.New("invalid structured reviewer response: empty deliverable")
+	// Sense «deliverable» (o buit) el lliurable és la feina revisada: qui
+	// crida hi posa el fallback. Abans, un camp oblidat tombava la colla.
+	deliverable := ""
+	if response.Deliverable != nil {
+		deliverable = strings.TrimSpace(*response.Deliverable)
 	}
 	if !*response.Approved && feedback == "" {
 		return nil, errors.New("invalid structured reviewer response: rejected review requires feedback")
@@ -438,4 +456,31 @@ func withDeliverables(task string, deliverables []roleDeliverable) string {
 		contextText.WriteString(deliverable.output)
 	}
 	return contextText.String()
+}
+
+// lastReviewObject troba l'últim objecte JSON equilibrat del text que porti
+// el camp «approved»; "" si no n'hi ha.
+func lastReviewObject(text string) string {
+	for end := strings.LastIndex(text, "}"); end >= 0; end = strings.LastIndex(text[:end], "}") {
+		depth := 0
+		for i := end; i >= 0; i-- {
+			switch text[i] {
+			case '}':
+				depth++
+			case '{':
+				depth--
+				if depth == 0 {
+					cand := text[i : end+1]
+					if strings.Contains(cand, "\"approved\"") && json.Valid([]byte(cand)) {
+						return cand
+					}
+					i = -1
+				}
+			}
+		}
+		if end == 0 {
+			break
+		}
+	}
+	return ""
 }

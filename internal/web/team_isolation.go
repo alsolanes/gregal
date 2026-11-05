@@ -286,6 +286,11 @@ func (w *CrewWorkspaces) Integrate(nodeID string, denied func(string) bool, befo
 		mode   os.FileMode
 	}
 	var changed []stagedFile
+	// Un fitxer assignat que el membre no ha creat (o que ha esborrat a la seva
+	// còpia) no s'integra: el projecte es queda com estava. Abans tombava tota
+	// la volta («was not created in the private workspace»). Esborrar del
+	// projecte original no ho fa mai una colla.
+	missing := map[string]bool{}
 	for i := range s.files {
 		f := &s.files[i]
 		if denied != nil && denied(f.path) {
@@ -306,7 +311,8 @@ func (w *CrewWorkspaces) Integrate(nodeID string, denied func(string) bool, befo
 		}
 		info, err := private.Lstat(f.path)
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("assigned file %s was not created in the private workspace", f.path)
+			missing[f.path] = true
+			continue
 		}
 		if err != nil {
 			return err
@@ -317,6 +323,9 @@ func (w *CrewWorkspaces) Integrate(nodeID string, denied func(string) bool, befo
 	}
 	for i := range s.files {
 		f := &s.files[i]
+		if missing[f.path] {
+			continue
+		}
 		stagedInfo, err := private.Stat(f.path)
 		if err != nil {
 			return err
