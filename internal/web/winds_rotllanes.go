@@ -261,6 +261,9 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	for i, sp := range speakers {
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		brief += windDocsBrief
+		if len(speakers) > 1 {
+			brief += rotllanaSoloBrief(sp)
+		}
 		vctx := s.windDocsCtx(ctx)
 		tVeu := time.Now()
 		var res exploracio
@@ -319,6 +322,9 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		// veu queda com un missatge propi amb la seva identitat, en ordre.
 		// La primera veu del primer vent és la resposta del torn.
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
+		if len(speakers) > 1 {
+			voices = ownVoiceOnly(voices, sp)
+		}
 		if len(voices) == 0 {
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})
@@ -367,33 +373,23 @@ func splitRotllanaVoices(reply string, members []companion.Wind, speaking compan
 		return []rotllanaVoice{{wind: speaking, text: reply}}
 	}
 	speakerOf := func(line string) (companion.Wind, string, bool) {
-		trimmed := strings.TrimSpace(line)
-		// El model pot escriure el prefix amb èmfasi («**Nom:**», «*Nom:*») o
-		// repetir el nom dins de la veu («Nom: **Nom:** text»): s'arrenca tot
-		// i el text queda net, sense el nom ni èmfasi penjat.
-		bare := trimmed
-		found := companion.Wind{}
+		// El model pot escriure el prefix amb èmfasi («**Nom:**», «**Nom**:»,
+		// «*Nom:*») o repetir el seu propi nom dins de la veu («Nom: **Nom:**
+		// text»): s'arrenca l'etiqueta i prou. L'èmfasi del text («**Pla** és…»)
+		// es queda, i un altre nom després de l'etiqueta («Anna: Bob, …») és
+		// algú a qui la veu parla, no qui parla.
+		w, rest, ok := rotllanaLabel(members, line)
+		if !ok {
+			return companion.Wind{}, "", false
+		}
 		for i := 0; i < 3; i++ {
-			for strings.HasPrefix(bare, "**") || strings.HasPrefix(bare, "*") {
-				bare = strings.TrimPrefix(bare, "**")
-				bare = strings.TrimPrefix(bare, "*")
-			}
-			bare = strings.TrimSpace(bare)
-			cut := strings.Index(bare, ":")
-			if cut <= 0 {
+			again, more, ok := rotllanaLabel(members, rest)
+			if !ok || again.ID != w.ID {
 				break
 			}
-			w, ok := memberByPrefix(members, bare[:cut])
-			if !ok {
-				break
-			}
-			found = w
-			bare = strings.TrimSpace(bare[cut+1:])
+			rest = more
 		}
-		if found.ID != "" {
-			return found, bare, true
-		}
-		return companion.Wind{}, "", false
+		return w, rest, true
 	}
 	var voices []rotllanaVoice
 	current := companion.Wind{}
@@ -770,4 +766,61 @@ func (s *Server) deleteRotllana(id string) error {
 		}
 	}
 	return nil
+}
+
+// rotllanaSoloBrief: quan l'usuari nomena diversos vents, cadascun respon amb
+// la seva pròpia crida i només per ell. Sense això, cada crida escrivia les
+// veus de tots els nomenats i el torn sortia duplicat (A, B, A, B).
+func rotllanaSoloBrief(sp companion.Wind) string {
+	return "\n\nTHIS TURN: the user named several members and they answer one by one. Now only YOU, " + sp.Name + ", answer — in your own voice, 1-4 sentences, without a name prefix and without writing any other member's lines. If another member already answered above, react to them (agree, add, correct) instead of repeating them."
+}
+
+// ownVoiceOnly es queda només amb el que diu el vent que parla: el que el
+// model hagi escrit en nom d'altres membres es descarta (com fa SillyTavern
+// tallant a l'etiqueta d'un altre personatge).
+func ownVoiceOnly(voices []rotllanaVoice, sp companion.Wind) []rotllanaVoice {
+	var parts []string
+	for _, v := range voices {
+		if v.wind.ID == sp.ID {
+			parts = append(parts, v.text)
+		}
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return []rotllanaVoice{{wind: sp, text: strings.Join(parts, "\n\n")}}
+}
+
+// rotllanaLabel llegeix una etiqueta «Nom:» al principi d'una línia, amb
+// l'èmfasi que l'envolta («**Nom:**», «**Nom**:», «__Nom:__», «*Nom:*»).
+// Torna el membre i el text que segueix, sense tocar-ne l'èmfasi propi.
+func rotllanaLabel(members []companion.Wind, line string) (companion.Wind, string, bool) {
+	t := strings.TrimSpace(line)
+	open := ""
+	for _, m := range []string{"**", "__", "*", "_"} {
+		if strings.HasPrefix(t, m) {
+			open, t = m, t[len(m):]
+			break
+		}
+	}
+	cut := strings.Index(t, ":")
+	if cut <= 0 {
+		return companion.Wind{}, "", false
+	}
+	name, rest := t[:cut], t[cut+1:]
+	if open != "" {
+		switch {
+		case strings.HasSuffix(name, open): // «**Nom**:»
+			name = strings.TrimSuffix(name, open)
+		case strings.HasPrefix(rest, open): // «**Nom:**»
+			rest = rest[len(open):]
+		default:
+			return companion.Wind{}, "", false
+		}
+	}
+	w, ok := memberByPrefix(members, strings.TrimSpace(name))
+	if !ok {
+		return companion.Wind{}, "", false
+	}
+	return w, strings.TrimSpace(rest), true
 }

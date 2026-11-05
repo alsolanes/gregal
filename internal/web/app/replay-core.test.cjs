@@ -113,6 +113,8 @@ test('fun helpers: week key, wrapped card, mascot mood, dictation, images', () =
   const files = [{ type: 'image/png', size: 10, name: 'a' }, { type: 'text/plain', size: 1, name: 'b' }, { type: 'image/jpeg', size: 9e6, name: 'big' }, { type: 'image/webp', size: 5, name: 'c' }];
   const imgs = fun.imageFiles(files);
   assert.deepEqual(imgs.map(f => f.name), ['a', 'big', 'c']);
+  // Fotos HEIC: pel tipus o, sense tipus (Windows), per l'extensió.
+  assert.deepEqual(fun.imageFiles([{ type: 'image/heic', name: 'x' }, { type: '', name: 'IMG_1.HEIC' }, { type: '', name: 'nota.txt' }]).map(f => f.name), ['x', 'IMG_1.HEIC']);
   assert.equal(fun.fmtTokens(1234), '1.2k');
   assert.equal(fun.fmtTokens(2500000), '2.5M');
 });

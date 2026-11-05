@@ -75,14 +75,17 @@ func parseModelsDev(raw []byte) (map[string]modelInfo, error) {
 			if strings.TrimSpace(m.Name) == "" {
 				continue
 			}
-			if _, dup := idx[id]; dup {
-				continue
-			}
 			info := modelInfo{Name: strings.TrimSpace(m.Name), Reasoning: m.Reasoning}
 			for _, o := range m.ReasoningOptions {
 				if o.Type == "effort" {
 					info.Efforts = append(info.Efforts, o.Values...)
 				}
+			}
+			// Un revenedor (302ai, aihubmix…) surt abans per ordre alfabètic
+			// però sovint no declara els nivells de raonament: guanya el
+			// primer que en declara, i si cap no en declara, el primer.
+			if prev, dup := idx[id]; dup && (len(prev.Efforts) > 0 || len(info.Efforts) == 0) {
+				continue
 			}
 			idx[id] = info
 		}

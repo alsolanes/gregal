@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"unicode"
 
@@ -25,6 +26,7 @@ func windsNamedIn(members []companion.Wind, msg string) []companion.Wind {
 		names[strings.ToLower(strings.TrimSpace(w.Name))]++
 	}
 	var found []companion.Wind
+	pos := map[string]int{}
 	for _, w := range members {
 		name := strings.ToLower(strings.TrimSpace(w.Name))
 		if name == "" || names[name] != 1 {
@@ -41,6 +43,7 @@ func windsNamedIn(members []companion.Wind, msg string) []companion.Wind {
 			}
 			if !unicode.IsLetter(before) && !unicode.IsLetter(after) {
 				found = append(found, w)
+				pos[w.ID] = i
 				break
 			}
 			next := strings.Index(low[end:], name)
@@ -50,6 +53,8 @@ func windsNamedIn(members []companion.Wind, msg string) []companion.Wind {
 			i = end + next
 		}
 	}
+	// En l'ordre en què l'usuari els nomena: «@Llevant i @Xaloc» → primer el Llevant.
+	sort.SliceStable(found, func(a, b int) bool { return pos[found[a].ID] < pos[found[b].ID] })
 	return found
 }
 

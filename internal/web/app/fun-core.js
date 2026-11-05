@@ -55,7 +55,8 @@
   // límits —3 imatges, 8 MB— els aplica el flux d'adjunts existent).
   const IMAGE = /^image\/(png|jpe?g|webp|gif)$/i;
   function imageFiles(list) {
-    return Array.from(list || []).filter(f => f && IMAGE.test(String(f.type || '')));
+    // HEIC/HEIF (fotos de mòbil): a Windows sovint arriben sense tipus, per això també pel nom.
+    return Array.from(list || []).filter(f => f && (IMAGE.test(String(f.type || '')) || /^image\/hei[cf]$/i.test(String(f.type || '')) || /\.hei[cf]$/i.test(String(f.name || ''))));
   }
   // Les frases del Wrapped (targeta i PNG). t(clau) tradueix; les xifres
   // que no es coneixen no surten (mai «0 $» inventat).

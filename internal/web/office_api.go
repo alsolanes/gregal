@@ -80,6 +80,27 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "json invàlid", http.StatusBadRequest)
 		return
 	}
+	raw, err := base64.StdEncoding.DecodeString(req.Data)
+	if err != nil {
+		http.Error(w, "base64 invàlid", http.StatusBadRequest)
+		return
+	}
+	if len(raw) > 25<<20 {
+		http.Error(w, "fitxer massa gran (25 MB)", http.StatusBadRequest)
+		return
+	}
+	// Foto HEIC/HEIF del mòbil (sovint amb nom .heic, o .jpg posat per l'app):
+	// es desa ja en JPEG, perquè la puguin llegir el model, el navegador i
+	// qualsevol web que el vent publiqui.
+	if tools.IsHEIF(raw) {
+		jpg, err := tools.HEIFToJPEG(raw)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		raw = jpg
+		req.Name = strings.TrimSuffix(req.Name, filepath.Ext(req.Name)) + ".jpg"
+	}
 	kind := tools.OfficeKind(req.Name)
 	if kind == "" && tools.IsPDF(req.Name) {
 		kind = "pdf"
@@ -88,16 +109,7 @@ func (s *Server) handleOfficeUpload(w http.ResponseWriter, r *http.Request) {
 		kind = "image"
 	}
 	if kind != "xlsx" && kind != "docx" && kind != "pptx" && kind != "pdf" && kind != "image" {
-		http.Error(w, "només .pdf, .docx, .xlsx, .pptx o una imatge (.png .jpg .jpeg .webp .gif)", http.StatusBadRequest)
-		return
-	}
-	raw, err := base64.StdEncoding.DecodeString(req.Data)
-	if err != nil {
-		http.Error(w, "base64 invàlid", http.StatusBadRequest)
-		return
-	}
-	if len(raw) > 25<<20 {
-		http.Error(w, "fitxer massa gran (25 MB)", http.StatusBadRequest)
+		http.Error(w, "només .pdf, .docx, .xlsx, .pptx o una imatge (.png .jpg .jpeg .webp .gif .heic)", http.StatusBadRequest)
 		return
 	}
 	var idb [8]byte

@@ -128,14 +128,14 @@ const windCodeBrief = "\n\nBUILDING (a website, a game, a program, a script): yo
 // windEstilBrief és com s'escriu la resposta: el que la persona llegeix al
 // mòbil. Sense això els vents tornaven taules de SHA, branques i comptes de
 // línies, que és informació de feina i no una resposta.
-const windEstilBrief = "\n\nHOW TO WRITE THE REPLY: 2-4 short lines of plain sentences, in the user's language: what you did, where it is, and what is left. No diff counters, no branch names or commit SHAs unless the user asked for them, no tables for a small thing, no jargon. If something could not be done, say it in one plain line — never claim it as done."
+const windEstilBrief = "\n\nHOW TO WRITE THE REPLY: a chat answer, not a document — plain sentences, no headings, no bullet lists unless the user asks for a list or you compare several things (then a small table). After doing work (files, commands, publishing): 2-4 short lines with what you did, where it is, and what is left. No diff counters, no branch names or commit SHAs unless the user asked for them, no tables for a small thing, no jargon. If something could not be done, say it in one plain line — never claim it as done."
 
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
 	ws, _ := s.ventWorkspace()
 	brief := windProjectesBrief(ws)
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
 	// The previous-turn digest leaves room for the wind's own guidance (images, charts, building, lessons) inside the 20k brief.
-	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief + windEstilBrief
+	return system + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer. If they want to SEE something, use web_images and embed it as ![title](image-url) on its own line." + windRemindBrief(wind.ID) + windDocsBrief + windCodeBrief + s.windLessonsBrief(wind.ID) + brief + windEstilBrief + companion.ReplyLanguageBrief(msg)
 }
 
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
@@ -152,7 +152,7 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 		// La colla respon sencera quan la pregunta és per a tots, i les veus
 		// es responen entre elles: és una conversa de grup, no monòlegs en
 		// paral·lel del mateix autor.
-		"\n\nWHO ANSWERS: this is a group chat with humans and winds. If the human talks to the whole group (nobody named), the GROUP answers as a real conversation: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 short sentences per member (never more than 4), no link dumps, at most one source link per member and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers, you do not write the name prefix, and the answer stays short (1-4 sentences)." + windRemindBrief(speakingWind.ID) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa
+		"\n\nWHO ANSWERS: this is a group chat with humans and winds. If the human talks to the whole group (nobody named), the GROUP answers as a real conversation: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 short sentences per member (never more than 4), no link dumps, at most one source link per member and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers, you do not write the name prefix, and the answer stays short (1-4 sentences)." + windRemindBrief(speakingWind.ID) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
 	return system, brief
 }
 
@@ -450,6 +450,9 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		emit("activity", windActivity{Phase: "preparing"})
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		brief += windDocsBrief
+		if len(speakers) > 1 {
+			brief += rotllanaSoloBrief(sp)
+		}
 		var res exploracio
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
@@ -520,6 +523,9 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		reply := stripQuoteTrim(out)
 		reply += s.windDocLinks(tVeu, reply)
 		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
+		if len(speakers) > 1 {
+			voices = ownVoiceOnly(voices, sp)
+		}
 		if len(voices) == 0 {
 			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
 			veus = append(veus, veu{sp, reply})

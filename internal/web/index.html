@@ -1969,7 +1969,7 @@ body.sense-inspector #inspector { display:none; }
             <button class="perm-btn" id="permBtn" aria-haspopup="true" aria-expanded="false" data-i18n-aria="ui.permissions" aria-label="Permissions"><span class="perm-icon" aria-hidden="true"></span><span id="permLabel">Manual</span></button>
             <span class="composer-meta" data-i18n="composer.hint">@file adds context · Shift+Enter for a new line</span>
             <span class="spacer"></span>
-            <input type="file" id="imgPick" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden>
+            <input type="file" id="imgPick" accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif,.heic,.heif" multiple hidden>
             <input type="file" id="docPick" accept=".pdf,.docx,.xlsx,.pptx,application/pdf" multiple hidden>
             <!-- Icones dibuixades, no emoji: l'emoji canvia de forma i de
                  color a cada sistema i desentonava amb la resta. -->
@@ -3568,7 +3568,21 @@ $('imgPick').onchange = () => {
     if (pendingImgs.length >= 3) { sys(gregalT('ui.img.max')); break; }
     if (f.size > 8 * 1024 * 1024) { sys(gregalT('ui.img.gran').replace('{n}', f.name)); continue; }
     const r = new FileReader();
-    r.onload = () => { pendingImgs.push(r.result); renderImgs(); };
+    // Les fotos HEIC (iPhone i molts Android) el navegador no les sap pintar:
+    // el servidor les passa a JPEG i així la previsualització funciona.
+    const heic = /hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+    r.onload = async () => {
+      let u = r.result;
+      if (heic) {
+        try {
+          const res = await api('/api/image/normalize', { method: 'POST', body: JSON.stringify({ image: u }) });
+          if (!res.ok) throw new Error(await res.text());
+          u = (await res.json()).image;
+        } catch (e) { sys(String(e.message || e)); return; }
+      }
+      if (pendingImgs.length >= 3) return;
+      pendingImgs.push(u); renderImgs();
+    };
     r.readAsDataURL(f);
   }
   $('imgPick').value = '';

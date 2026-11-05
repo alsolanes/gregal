@@ -53,7 +53,7 @@ private val OFFICE_EXTS = setOf("pdf", "docx", "xlsx", "pptx")
 /** El nom triat és un document Office o un PDF (puja per extensió). */
 /** Una foto del mòbil: viatja pel mateix camí que els documents. */
 fun isImageName(name: String): Boolean =
-    name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif")
+    name.substringAfterLast('.', "").lowercase() in setOf("png", "jpg", "jpeg", "webp", "gif", "heic", "heif")
 
 fun isOfficeName(name: String): Boolean =
     name.substringAfterLast('.', "").lowercase() in OFFICE_EXTS

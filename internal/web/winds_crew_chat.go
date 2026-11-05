@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"gregal/internal/companion"
 	"log"
 	"net/http"
 	"regexp"
@@ -104,7 +105,9 @@ func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) 
 	goBackground(func() {
 		defer cancel()
 		defer doneTurn()
-		ca := s.cfg.Lang() == "ca"
+		// La colla parla l'idioma del missatge, no el de la configuració: un
+		// encàrrec en català rebia l'informe en anglès.
+		ca := crewSpeaksCatalan(msg, s.cfg.Lang())
 		s.runCrewContext(ctx, rot, msg, ca, job)
 	})
 	return job, start + 1, nil
@@ -218,4 +221,13 @@ func (s *Server) crewChat(w http.ResponseWriter, r *http.Request, rot Rotllana, 
 		case <-ticker.C:
 		}
 	}
+}
+
+// crewSpeaksCatalan: l'idioma de l'encàrrec si es pot saber; si no, el de
+// la configuració.
+func crewSpeaksCatalan(msg, cfgLang string) bool {
+	if l := companion.DetectLang(msg); l != "" {
+		return l == "ca"
+	}
+	return cfgLang == "ca"
 }

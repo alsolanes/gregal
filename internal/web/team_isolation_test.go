@@ -60,7 +60,8 @@ func TestCrewAssignmentValidationAndIsolation(t *testing.T) {
 	if private == root {
 		t.Fatal("assigned builder received original project")
 	}
-	if st, err := os.Stat(filepath.Join(private, "src/run.sh")); err != nil || st.Mode().Perm()&0o111 == 0 {
+	// Windows no té bit d'execució: allà només es comprova que hi és.
+	if st, err := os.Stat(filepath.Join(private, "src/run.sh")); err != nil || (runtime.GOOS != "windows" && st.Mode().Perm()&0o111 == 0) {
 		t.Fatalf("script executable bit lost: mode=%v err=%v", st, err)
 	}
 	if runtime.GOOS == "linux" {
@@ -220,6 +221,10 @@ func TestCrewReviewerShellIsReadOnlyAndNetworkless(t *testing.T) {
 }
 
 func TestAssignedTeamFlowCannotWriteOriginalProject(t *testing.T) {
+	// El confinament del shell de les colles és bwrap (Linux).
+	if runtime.GOOS != "linux" {
+		t.Skip("el shell confinat de les colles només existeix a Linux (bwrap)")
+	}
 	root := t.TempDir()
 	owned := filepath.Join(root, "owned.txt")
 	hostFile := filepath.Join(root, "must-stay.txt")

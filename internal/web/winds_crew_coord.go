@@ -418,15 +418,7 @@ func writeCrewStateFile(s *Server, rotID string, st *crewState) error {
 	if err := os.Rename(tmp, p); err != nil {
 		return err
 	}
-	dir, err := os.Open(filepath.Dir(p))
-	if err != nil {
-		return err
-	}
-	if err := dir.Sync(); err != nil {
-		dir.Close()
-		return err
-	}
-	return dir.Close()
+	return syncDir(filepath.Dir(p))
 }
 
 func loadCrewState(s *Server, rotID string) (*crewState, bool) {
@@ -559,15 +551,7 @@ func removeCrewRunState(s *Server, rotID string) error {
 	if err := os.Remove(crewStatePath(s, rotID)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
-	dir, err := os.Open(filepath.Dir(crewStatePath(s, rotID)))
-	if err != nil {
-		return err
-	}
-	if err := dir.Sync(); err != nil {
-		dir.Close()
-		return err
-	}
-	if err := dir.Close(); err != nil {
+	if err := syncDir(filepath.Dir(crewStatePath(s, rotID))); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	clearCrewRun(s, rotID)
@@ -629,7 +613,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	system := "You coordinate a small crew of AI specialists (\"winds\") working on a task for the user. After the crew's design discussion and after every round of work you decide the single next step. Reply with JSON only, no prose, no code fences."
 	var b strings.Builder
 	b.WriteString("TASK:\n" + st.Task + "\n\nCREW:\n" + roster.String())
-	b.WriteString("\nTHREAD SO FAR (discussion, work notes and any user answers):\n" + agent.TranscriptDigest(s.crewHistory(rot), 9000))
+	b.WriteString("\nTHREAD SO FAR (discussion, work notes and any user answers):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 9000))
 	if len(st.Log) > 0 {
 		b.WriteString("\n\nROUNDS DONE:\n" + strings.Join(st.Log, "\n\n"))
 	}
@@ -786,6 +770,9 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 	}
 	flow := team.FlowSpec{Name: map[bool]string{true: "Feina de la colla", false: "Crew task"}[ca], MaxRounds: 1}
 	building := map[string]bool{}
+	// Un encàrrec sense fitxers (la reserva quan el coordinador falla, o un
+	// model que no en posa) no pot anar a un seient aïllat per fitxers: abans
+	// això tombava tota la volta («has no assigned files»). Treballa com abans.
 	for i, a := range assign {
 		w := byID[a.Wind]
 		building[w.ID] = true
@@ -793,7 +780,7 @@ func crewRoundFlow(assign []crewAssignment, members []companion.Wind, instructio
 		if len(a.Files) > 0 {
 			part += "\nFiles you own (create or edit only these; the others belong to other members): " + strings.Join(a.Files, ", ")
 		}
-		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: fmt.Sprintf("build-%d", i+1), Label: w.Name, Role: "builder", Mode: "task", CrewAssigned: true,
+		flow.Nodes = append(flow.Nodes, team.FlowNode{ID: fmt.Sprintf("build-%d", i+1), Label: w.Name, Role: "builder", Mode: "task", CrewAssigned: len(a.Files) > 0,
 			Instruction: instruction(w, false) + part, Wind: w.ID, Files: append([]string(nil), a.Files...)})
 	}
 	if len(members) > 1 {
@@ -970,7 +957,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			return
 		}
 		flow := crewRoundFlow(d.Assignments, members, instruction, st.Ca)
-		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigest(s.crewHistory(rot), 12000)
+		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 12000)
 		writeKey := crewRegistryKey(s, rot.ID)
 		crewWritesMu.Lock()
 		writesBefore := crewWriteEvents[writeKey]

@@ -474,15 +474,7 @@ func (j *crewJob) set(step string) (retErr error) {
 	if err := os.Rename(tmp, path); err != nil {
 		return err
 	}
-	dir, err := os.Open(filepath.Dir(path))
-	if err != nil {
-		return err
-	}
-	if err := dir.Sync(); err != nil {
-		dir.Close()
-		return err
-	}
-	if err := dir.Close(); err != nil {
+	if err := syncDir(filepath.Dir(path)); err != nil {
 		return err
 	}
 	// Publish the in-memory status only after the durable replacement succeeds.

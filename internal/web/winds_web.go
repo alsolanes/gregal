@@ -2,7 +2,10 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -97,7 +100,13 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 		if !decodeSmall(w, r, &req) {
 			return
 		}
-		saved, err := s.winds.Save(req)
+		var saved companion.Wind
+		var err error
+		if id, fresh := s.freshWindID(req); fresh {
+			saved, err = s.winds.SaveNew(req, id)
+		} else {
+			saved, err = s.winds.Save(req)
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -270,4 +279,42 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	s.startWindMemoryLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
 	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})
+}
+
+// freshWindID: un vent nou amb el nom d'un vent arxivat no pot heretar-ne
+// l'historial ni la memòria (abans, crear «Llevant» després d'arxivar-ne un
+// altre feia que el nou recordés converses que mai havia tingut). Si l'id que
+// li tocaria encara té rastre al disc, en tria un de lliure («llevant-2»).
+func (s *Server) freshWindID(req companion.Wind) (string, bool) {
+	if strings.TrimSpace(req.ID) != "" || strings.TrimSpace(req.Name) == "" {
+		return "", false
+	}
+	base := companion.Slug(req.Name)
+	if _, exists := s.winds.ByID(base); exists || !s.windHasResidue(base) {
+		return "", false
+	}
+	for n := 2; n < 1000; n++ {
+		id := fmt.Sprintf("%s-%d", base, n)
+		if _, exists := s.winds.ByID(id); !exists && !s.windHasResidue(id) {
+			return id, true
+		}
+	}
+	return "", false
+}
+
+// windHasResidue diu si un id de vent encara té historial o estat al disc.
+func (s *Server) windHasResidue(id string) bool {
+	if _, err := os.Stat(filepath.Join(s.sessDir(), "company-"+id+".json")); err == nil {
+		return true
+	}
+	for _, sub := range []string{"wind-memory", "wind-knowledge", "wind-skills", "wind-documents", "wind-tasks"} {
+		matches, _ := filepath.Glob(filepath.Join(s.windStateDir(), sub, id+"*"))
+		for _, m := range matches {
+			base := filepath.Base(m)
+			if base == id || strings.HasPrefix(base, id+".") {
+				return true
+			}
+		}
+	}
+	return false
 }

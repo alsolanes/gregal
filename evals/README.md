@@ -93,3 +93,32 @@ Rates are computed over sums, not as an average of per-run rates. A rate with a 
 ```
 
 Earlier versions wrote only the `runs` array. `baseline.json` keeps its format (task → verdict).
+
+## Style of the winds' replies (`scripts/style-eval.cjs`)
+
+The coding evals above measure whether a task gets done. The style eval measures
+how the winds *talk*: one wind's chat, a group (rotllana) speaking to everyone,
+one or two named members, English and Spanish messages in a Catalan
+conversation, and optionally a crew (colla) report. It talks to a running
+server with the real model, creates three temporary winds with very different
+personas and a temporary group, and deletes them at the end.
+
+```bash
+GREGAL_URL=http://127.0.0.1:8240 GREGAL_TOKEN=... node scripts/style-eval.cjs [--crew] [--only grup] [--json out.json]
+```
+
+Every reply goes through `scripts/style-rules.cjs` (unit-tested in
+`scripts/style-rules.test.cjs`). The rules come from real failures and from how
+other assistants guard against them (Claude and OpenAI formatting guidance,
+SillyTavern and AutoGen group chats, Codex final answers):
+
+- a wind never starts with its own name nor writes another member's lines;
+- no leaked internals (`NEXT:`, `(res)`, `NOT_YET`, tool markup, prompt text);
+- chat replies stay short (1–4 sentences), without headings or bullet walls;
+- at most one question, at most two emoji, no `*actions*`, no filler;
+- the reply and its quick-reply buttons are in the user's language;
+- in a group each member speaks once per turn and nobody repeats the advice;
+- a named member answers alone; two named members answer once each;
+- a crew report leads with the result and never claims tests it did not name.
+
+`STYLE_VERBOSE=1` prints every reply. Exit code 1 when any scenario breaks a rule.

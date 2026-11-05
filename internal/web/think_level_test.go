@@ -115,3 +115,17 @@ func withThink(r config.Role, level string) config.Role { r.Think = level; retur
 
 // Els tests no baixen mai el catàleg real.
 func init() { os.Setenv("GREGAL_NO_MODELS_DEV", "1") }
+
+// Un revenedor que surt primer per ordre alfabètic però sense nivells de
+// raonament no tapa el fabricant que sí que els declara.
+func TestModelsDevPrefersEntryWithEfforts(t *testing.T) {
+	raw := `{"302ai":{"models":{"m":{"id":"m","name":"Revenut","reasoning":true}}},
+	 "vendor":{"models":{"m":{"id":"m","name":"Model M","reasoning":true,"reasoning_options":[{"type":"effort","values":["low","high"]}]}}}}`
+	idx, err := parseModelsDev([]byte(raw))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := idx["m"]; got.Name != "Model M" || strings.Join(got.Efforts, ",") != "low,high" {
+		t.Fatalf("%+v", got)
+	}
+}

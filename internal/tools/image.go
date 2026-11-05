@@ -38,6 +38,14 @@ func DataURLForBytes(raw []byte, hint string) (string, error) {
 	if len(raw) > MaxImageBytes {
 		return "", fmt.Errorf("%s massa gran (%d bytes, màxim %d)", hint, len(raw), MaxImageBytes)
 	}
+	// HEIC/HEIF (fotos de mòbil): a JPEG, que és el que entenen els models.
+	if IsHEIF(raw) {
+		jpg, err := HEIFToJPEG(raw)
+		if err != nil {
+			return "", fmt.Errorf("%s: %w", hint, err)
+		}
+		raw = jpg
+	}
 	mime := http.DetectContentType(raw)
 	if len(mime) < 6 || mime[:6] != "image/" {
 		return "", fmt.Errorf("%s no és una imatge (%s)", hint, mime)
