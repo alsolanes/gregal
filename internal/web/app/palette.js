@@ -20,7 +20,7 @@
   css.rel = 'stylesheet'; css.href = '/app/palette.css';
   document.head.appendChild(css);
 
-  let root = null, input = null, list = null, items = [], sel = 0, abans = null;
+  let root = null, input = null, list = null, items = [], sel = 0, abans = null, fitxers = [];
 
   // Coincidència difusa: les lletres de la cerca, en ordre. Puntua més les
   // seguides i les que comencen paraula; -1 si no hi són totes.
@@ -99,15 +99,30 @@
     }));
   }
 
+  // Fitxers del projecte (la mateixa llista que l'autocompleció de @), com
+  // el Ctrl+P de Cursor: «store.py» o «store.py:42» l'obre a la línia.
+  function fitxersDe(linia) {
+    if (producte() !== 'codi') return [];
+    return fitxers.map(p => {
+      const i = p.lastIndexOf('/');
+      return { group: 'files', icon: 'fitxers', label: p.slice(i + 1), hint: i > 0 ? p.slice(0, i) : '', extra: p,
+        run: () => { const g = G(); g.setView && g.setView('agent'); if (g.openFileRef) g.openFileRef(p + (linia ? ':' + linia : '')); } };
+    });
+  }
+
   function filtra(q) {
     q = q.trim().toLowerCase();
+    const ln = q.match(/^(.+?):(\d+)$/);
+    const qf = ln ? ln[1] : q;
     // Sense cerca, primer el que hi ha més a mà (les converses recents);
     // amb cerca, les accions manen i després la resta.
     const conv = ['convs', converses(), q ? 8 : 5], acc = ['actions', accions(), 99], proj = ['projects', projectes(), 5];
-    const grups = q ? [acc, conv, proj] : [conv, acc, proj];
+    // Els fitxers només amb cerca: sense, serien centenars de files.
+    const fit = ['files', q ? fitxersDe(ln ? ln[2] : 0) : [], ln ? 12 : 6, qf];
+    const grups = ln ? [fit, acc, conv, proj] : q ? [acc, conv, fit, proj] : [conv, acc, proj];
     const out = [];
-    for (const [, llista, max] of grups) {
-      const fets = llista.map(x => ({ x, s: Math.max(puntua(x.label, q), puntua(x.hint, q) - 50, puntua(x.extra, q) - 80) }))
+    for (const [, llista, max, cerca = q] of grups) {
+      const fets = llista.map(x => ({ x, s: Math.max(puntua(x.label, cerca), puntua(x.hint, cerca) - 50, puntua(x.extra, cerca) - 80) }))
         .filter(o => o.s >= 0);
       if (q) fets.sort((a, b) => b.s - a.s);
       out.push(...fets.slice(0, max).map(o => o.x));
@@ -192,6 +207,8 @@
     // La llista de converses pot ser vella: es refà en segon pla i es repinta.
     const c = P().convs;
     if (c && c.load && producte() === 'codi') c.load().then(() => { if (obert()) pinta(); }).catch(() => {});
+    const f = P().files;
+    if (f && f.paths && producte() === 'codi') f.paths().then(l => { fitxers = Array.isArray(l) ? l : []; if (obert() && input.value.trim()) pinta(); }).catch(() => {});
     pinta();
     root.hidden = false;
     document.body.classList.add('pal-open');

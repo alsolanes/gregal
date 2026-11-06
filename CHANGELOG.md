@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.55.1 - 2026-11-06 - Paleta que troba fitxers i visor de codi amb números de línia
+
+- **La paleta Ctrl+K també troba fitxers.** Escriu part del nom d'un fitxer
+  del projecte i obre'l; amb `fitxer:línia` s'obre a aquella línia.
+- **Visor de codi més llegible.** Números de línia i les línies llargues ja no
+  es parteixen.
+
 ## v1.55.0 - 2026-11-06 - Vents més útils, mòbil de reserva i xats compartits
 
 - **L'agent de codi aguanta més feina.** El context es poda abans de

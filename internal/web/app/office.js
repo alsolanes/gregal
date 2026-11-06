@@ -243,7 +243,16 @@ export const office = {
     const d = this.doc; if (!d) return;
     const box = $('docText'), tgl = $('docVista');
     if (d.kind === 'text') {
-      box.textContent = d.text;
+      // El text va en un sol node (openFileRef hi selecciona les línies); els
+      // números de línia són un canal a part, al final, que no s'hi barreja.
+      const text = String(d.text || '').replace(/\r\n?/g, '\n');
+      box.textContent = text;
+      const n = text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
+      const g = document.createElement('span');
+      g.className = 'doc-gutter'; g.setAttribute('aria-hidden', 'true');
+      g.textContent = Array.from({ length: Math.max(1, n) }, (_, i) => i + 1).join('\n');
+      box.style.setProperty('--gutter', String(n).length + 'ch');
+      box.appendChild(g);
       return;
     }
     // Les pestanyes de fulls són cosa de l'xlsx en vista fidel; renderXlsx

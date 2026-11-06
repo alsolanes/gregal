@@ -333,8 +333,16 @@ func TestCrewAsksAndResumes(t *testing.T) {
 	if worked != 1 {
 		t.Fatalf("work rounds = %d", worked)
 	}
-	if s.crewTakeAnswer(rot, "una altra cosa") != crewAnswerNotApplicable {
-		t.Fatal("a finished crew does not take messages")
+	// «done» es publica just abans d'esborrar l'estat; mentre el resultat és
+	// pendent, els missatges es bloquegen a propòsit. S'espera que acabi.
+	for i := 0; i < 200; i++ {
+		if _, ok := loadCrewState(s, out.Rotllana.ID); !ok {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := s.crewTakeAnswer(rot, "una altra cosa"); got != crewAnswerNotApplicable {
+		t.Fatalf("a finished crew does not take messages: got %v", got)
 	}
 	if _, ok := loadCrewState(s, out.Rotllana.ID); ok {
 		t.Fatal("the state is removed when the crew finishes")
