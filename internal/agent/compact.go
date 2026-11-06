@@ -228,15 +228,15 @@ func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm
 		parts = parts[:len(parts)-1]
 		parts[len(parts)-1] += last
 	}
-	instr := instrResum(summarizeInstr, lang, "Conversation")
+	instr, capConvo := instrResum(summarizeInstr, lang, "Conversation")
 	if len(parts) == 1 {
-		return summarizeText(ctx, client, prim, fb, instr, parts[0])
+		return summarizeText(ctx, client, prim, fb, instr, capConvo+parts[0])
 	}
 	resums := make([]string, 0, len(parts))
 	nOK := 0
 	for i, p := range parts {
 		capçalera := fmt.Sprintf("(part %d of %d)\n", i+1, len(parts))
-		s, err := summarizeText(ctx, client, prim, fb, instr, capçalera+p)
+		s, err := summarizeText(ctx, client, prim, fb, instr, capConvo+capçalera+p)
 		if err != nil {
 			// Una part que falla no ha de fer perdre la resta: es marca i
 			// es continua; el resum combinat encara serveix.
@@ -250,7 +250,8 @@ func Summarize(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm
 		return "", fmt.Errorf("resum: cap bloc s'ha pogut resumir")
 	}
 	cos := capRunes(strings.Join(resums, "\n---\n"), 16000)
-	return summarizeText(ctx, client, prim, fb, instrResum(combineInstr, lang, "Partial summaries"), cos)
+	instrComb, capComb := instrResum(combineInstr, lang, "Partial summaries")
+	return summarizeText(ctx, client, prim, fb, instrComb, capComb+cos)
 }
 
 const (
@@ -259,7 +260,12 @@ const (
 	// de fusionar blocs, perquè una conversa enorme no faci 80 crides.
 	summarizeChunkRunes = 12000
 	summarizeMaxParts   = 6
-	summarizeMaxTokens  = 1024
+	// summarizeMaxTokens: amb 1.024 el traspàs d'una tasca llarga perdia
+	// fitxers, decisions i errors oberts; 4.096 dona marge per a tot.
+	summarizeMaxTokens = 4096
+	// convoMsgRunes és el tros de cada missatge que veu el resumidor (abans
+	// 2.000: una sortida de tests o un diff quedava sense l'error).
+	convoMsgRunes = 6000
 )
 
 // El resum és un traspàs (handoff, com el de Codex): l'escriu qui deixa la
@@ -275,16 +281,17 @@ const handoffSeccions = "Use exactly these sections, in this order, and leave ou
 	"OPEN ERRORS: errors or failing tests that are still open, with the exact message.\n" +
 	"Keep exact names, paths, commands and identifiers. No assessment and no questions."
 
-const summarizeInstr = "Write a handoff note for this working conversation with a coding agent: another instance of the agent will continue the work from your note alone, without rereading anything. Be DENSE and short (at most 40 lines).\n" +
+const summarizeInstr = "Write a handoff note for this working conversation with a coding agent: another instance of the agent will continue the work from your note alone, without rereading anything. Be DENSE (at most about 100 lines).\n" +
 	handoffSeccions + "\nReply ONLY with the note."
 
-const combineInstr = "Combine these partial handoff notes of the same working conversation into a single DENSE, short handoff note (at most 40 lines), without losing any decision, file, error or exact command; what a later part says is done is no longer pending.\n" +
+const combineInstr = "Combine these partial handoff notes of the same working conversation into a single DENSE handoff note (at most about 100 lines), without losing any decision, file, error or exact command; what a later part says is done is no longer pending.\n" +
 	handoffSeccions + "\nReply ONLY with the combined note."
 
-// instrResum tanca una consigna de resum amb la directiva d'idioma i la
-// capçalera del text que ve a continuació.
-func instrResum(base, lang, capçalera string) string {
-	return base + "\n" + config.LanguageDirective(lang) + "\n\n" + capçalera + ":\n"
+// instrResum tanca una consigna de resum amb la directiva d'idioma (va al
+// system) i torna a part la capçalera del text que ve a continuació (va al
+// missatge d'usuari, davant del text).
+func instrResum(base, lang, capçalera string) (system, cap string) {
+	return base + "\n" + config.LanguageDirective(lang), capçalera + ":\n"
 }
 
 // convoText renderitza la conversa a text pla amb capçalera de rol i les
@@ -300,8 +307,8 @@ func convoText(msgs []llm.Message) string {
 			}
 			text += "\n[tools: " + strings.Join(tcs, " · ") + "]"
 		}
-		if r := []rune(text); len(r) > 2000 {
-			text = string(r[:2000]) + "…(truncated)"
+		if r := []rune(text); len(r) > convoMsgRunes {
+			text = string(r[:convoMsgRunes]) + "…(truncated)"
 		}
 		b.WriteString("\n[" + m.Role + "]\n" + text + "\n")
 	}
@@ -333,14 +340,16 @@ func splitText(s string, size int) []string {
 	return out
 }
 
-// summarizeText fa una crida de resum amb un cos de prompt ja construït.
+// summarizeText fa una crida de resum: la consigna com a system i el text a
+// resumir com a missatge d'usuari (abans tot anava en un sol missatge
+// d'usuari i el model confonia les instruccions amb la conversa).
 func summarizeText(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.Target, instr, cos string) (string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 180*time.Second)
 	defer cancel()
 	// P12: si hi ha un rol petit, resumeix ell (i el principal, de reserva).
 	prim, fb = targetsResum(prim, fb)
 	out, _, err := client.ChatFO(cctx, prim, fb,
-		[]llm.Message{{Role: "user", Content: instr + cos}}, 0.3, summarizeMaxTokens, nil)
+		[]llm.Message{{Role: "system", Content: instr}, {Role: "user", Content: cos}}, 0.3, summarizeMaxTokens, nil)
 	if err != nil {
 		return "", fmt.Errorf("resum: %w", err)
 	}

@@ -459,7 +459,10 @@ func bashPermissionOverride(p *Policy) string {
 
 // For aplica overrides del config i després la base.
 func (p *Policy) For(name, argsJSON string) (string, string) {
-	if !tools.EsNativa(name) && !isMCP(name) {
+	// remind la registra el servidor (els vents): no és nativa ni MCP, però
+	// tampoc desconeguda. Abans, un torn amb la política de la sessió la
+	// denegava i el vent responia «no t'he pogut programar l'avís».
+	if !tools.EsNativa(name) && !isMCP(name) && name != "remind" {
 		return "deny", "eina desconeguda: " + name
 	}
 	if p != nil && name != "bash" && name != "bash_background" {
@@ -492,6 +495,9 @@ func (p *Policy) For(name, argsJSON string) (string, string) {
 		return "ask", "knowledge: confirm saving a note"
 	case "wind":
 		// El vent aplica les seves pròpies regles (WindAutoAllow).
+		return "allow", ""
+	case "remind":
+		// Només programa un missatge al xat de l'usuari (màxim 30 dies).
 		return "allow", ""
 	case "app":
 		if appActionReadOnly(argsJSON) {
@@ -623,59 +629,59 @@ func (p *Policy) decide(mode, name, argsJSON string) (string, string) {
 			if (name == "app" && appActionReadOnly(argsJSON)) || (name == "tunnel" && tunnelActionReadOnly(argsJSON)) {
 				return "allow", ""
 			}
-			return "deny", "mode consulta: no engega, no publica ni encarrega feina"
+			return "deny", "inspect mode: does not start, publish or delegate work"
 		case "write", "edit", "patch":
-			return "deny", "mode consulta: no modifica fitxers"
+			return "deny", "inspect mode: does not modify files"
 		case "bash_background", "office_open":
-			return "deny", "mode consulta: no engega processos ni programes"
+			return "deny", "inspect mode: does not start processes or programs"
 		case "browser":
 			if d, _ := p.For(name, argsJSON); d == "allow" || (d == "ask" && browserSafeRead(argsJSON)) {
 				return "allow", ""
 			}
-			return "deny", "mode consulta: el navegador només mira (open, read, screenshot)"
+			return "deny", "inspect mode: the browser only looks (open, read, screenshot)"
 		case "bash":
 			d, reason := p.For(name, argsJSON)
 			if d == "allow" {
 				return "allow", ""
 			}
-			return "deny", "mode consulta: comanda no és lectura segura (" + reason + ")"
+			return "deny", "inspect mode: the command is not a safe read (" + reason + ")"
 		default:
 			if isMCP(name) && !IsReadOnlyMCP(name) {
-				return "deny", "mode consulta: MCP desactivat"
+				return "deny", "inspect mode: MCP disabled"
 			}
 		}
 	}
 	if mode == ModeChat || mode == ModeGoal || mode == ModePlan {
-		què := "mode xat"
+		què := "chat mode"
 		switch mode {
 		case ModeGoal:
-			què = "mode objectiu"
+			què = "goal mode"
 		case ModePlan:
-			què = "mode pla"
+			què = "plan mode"
 		}
 		switch name {
 		case "app", "publish", "wind", "tunnel":
 			if (name == "app" && appActionReadOnly(argsJSON)) || (name == "tunnel" && tunnelActionReadOnly(argsJSON)) {
 				return "allow", ""
 			}
-			return "deny", què + ": només lectura (passa a Actua per engegar, publicar o encarregar feina)"
+			return "deny", què + ": read-only (switch to Act to start, publish or delegate work)"
 		case "write", "edit", "patch":
-			return "deny", què + ": només lectura (passa a /mode code per editar)"
+			return "deny", què + ": read-only (switch to /mode code to edit)"
 		case "bash_background", "office_open":
-			return "deny", què + ": només lectura (no engega processos ni programes)"
+			return "deny", què + ": read-only (does not start processes or programs)"
 		case "browser":
 			if d, _ := p.For(name, argsJSON); d == "allow" || (d == "ask" && browserSafeRead(argsJSON)) {
 				return "allow", ""
 			}
-			return "deny", què + ": el navegador només mira (open, read, screenshot)"
+			return "deny", què + ": the browser only looks (open, read, screenshot)"
 		case "bash":
 			if d, reason := p.For(name, argsJSON); d != "allow" {
-				return "deny", què + ": només lectura (" + reason + ")"
+				return "deny", què + ": read-only (" + reason + ")"
 			}
 			return "allow", ""
 		default:
 			if isMCP(name) && !IsReadOnlyMCP(name) {
-				return "deny", què + ": només lectura (MCP desactivat)"
+				return "deny", què + ": read-only (MCP disabled)"
 			}
 		}
 	}
@@ -1347,6 +1353,11 @@ type Loop struct {
 	// PromptFinalExploracio en la llengua Lang).
 	FinalPrompt string
 	Lang        string
+	// Finestra és el pressupost de prompt en tokens (PromptBudget). Amb > 0,
+	// abans de cada pas s'emmascaren les sortides d'eina velles quan
+	// l'estimació s'hi acosta (com fa el motor), en lloc d'esperar que el
+	// proveïdor rebutgi la petició. 0 = sense poda preventiva.
+	Finestra int
 
 	// Sortides de l'última Run/Continua.
 	// Parcial diu que la resposta és la síntesi forçada (pressupost o
@@ -1376,6 +1387,13 @@ func (l *Loop) Run(ctx context.Context, task string) (string, []llm.Message, err
 	return l.corre(ctx, []llm.Message{{Role: "user", Content: task}})
 }
 
+// RunMessages comença amb una conversa ja estructurada (system + torns
+// reals + missatge nou), com fan els xats: el model distingeix qui és,
+// què s'ha dit i què li demanen ara, en lloc d'un sol bloc d'usuari.
+func (l *Loop) RunMessages(ctx context.Context, msgs []llm.Message) (string, []llm.Message, error) {
+	return l.corre(ctx, append([]llm.Message(nil), msgs...))
+}
+
 // Continua reprèn una exploració anterior (l.Hist, o hist si se'n dona)
 // amb pressupost nou i la conversa intacta.
 func (l *Loop) Continua(ctx context.Context, hist []llm.Message) (string, []llm.Message, error) {
@@ -1384,6 +1402,21 @@ func (l *Loop) Continua(ctx context.Context, hist []llm.Message) (string, []llm.
 	}
 	h := append(append([]llm.Message(nil), hist...), llm.Message{Role: "user", Content: PromptContinuaExploracio})
 	return l.corre(ctx, h)
+}
+
+// podaPreventiva emmascara sortides d'eina velles quan l'historial s'acosta
+// a la finestra (NeedsCompact), abans d'enviar el pas. La tasca, el system i
+// les sortides més recents no es toquen (PruneToolOutputsUntil).
+func (l *Loop) podaPreventiva(hist []llm.Message) []llm.Message {
+	if l.Finestra <= 0 {
+		return hist
+	}
+	fits := func(h []llm.Message) bool { return !NeedsCompact(llm.EstimateTokens(h), l.Finestra) }
+	if fits(hist) {
+		return hist
+	}
+	podat, _ := PruneToolOutputsUntil(hist, fits)
+	return podat
 }
 
 func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Message, error) {
@@ -1396,6 +1429,7 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 	retallades := 0
 	for i := 0; i < max; i++ {
 		hist = AmbAvisPassos(hist, i+1, max)
+		hist = l.podaPreventiva(hist)
 		content, calls, err := l.Step(ctx, hist)
 		if err != nil {
 			// La conversa no hi cap: s'escurça i es reintenta el mateix pas
@@ -1432,7 +1466,7 @@ func (l *Loop) corre(ctx context.Context, hist []llm.Message) (string, []llm.Mes
 			repetida := doom.Note(DoomSig(c.Function.Name, c.Function.Arguments))
 			dec, reason := l.Decide(c.Function.Name, c.Function.Arguments)
 			if dec == "deny" {
-				fixos[i] = "EINA BLOQUEJADA: " + reason
+				fixos[i] = "TOOL BLOCKED: " + reason
 			} else if repetida {
 				fixos[i] = DoomGuide
 			}

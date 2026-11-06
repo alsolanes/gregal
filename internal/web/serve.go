@@ -1008,7 +1008,10 @@ func (s *Server) handleState(w http.ResponseWriter, r *http.Request) {
 		// per a Actua, ask|edits|full.
 		"ui_mode": agent.UIMode(s.mode),
 		"access":  agent.AccessOf(s.currentActMode(), s.cfg.Permissions.AskEdits()),
-		"sandbox": sandbox.Current(),
+		// Permisos per eina del config (permissions.tools): la UI avisa quan
+		// «Edicions automàtiques» no ho és perquè el config força edit: ask.
+		"tool_perms": s.cfg.Permissions.Tools,
+		"sandbox":    sandbox.Current(),
 		// Estimació del context ocupat, per al mesurador de la UI (J4). El TUI
 		// ho compta al client; la web no tenia res i pintava un percentatge
 		// que no existia. context_window 0 = el rol no el declara.
@@ -2444,15 +2447,18 @@ func (s *Server) sysPromptParts(mode, workspace string) (base, ctxProj string, b
 - Working directory: %q
 - Current project: %q
 - You have no implicit list of files, folders or other projects.
-- Work INSIDE the working directory (glob/read/grep with relative paths or
-  paths under it): do not go to Downloads, Documents, Desktop or other
-  folders unless the user explicitly asks.
 
 Do not invent project names, files, results or content. If you are asked
 what is in the project, check it first with the available tools
 (glob/read/grep) and cite what you checked. In chat mode, if you cannot
 inspect the disk, say explicitly that you cannot know instead of making it up.`, workspace, project)
-	plot := strings.TrimPrefix(plotPrompt, "\n\n")
+	// Les regles de gràfics (~2,3 KB) només van fixes al system del xat; a
+	// la resta de modes arriben amb la tasca quan parla de gràfics
+	// (plotNoteFor), perquè no inflin cada torn de codi.
+	plot := ""
+	if plotInSystem(mode) {
+		plot = strings.TrimPrefix(plotPrompt, "\n\n")
+	}
 	// Fets i memòria del projecte van abans de la directiva d'idioma, que
 	// ha de tancar el prompt (agent.AmbContext).
 	build = func(c string) string { return agent.AmbContext(prompt, plot, fets, c) }
@@ -2495,8 +2501,9 @@ func (s *Server) compactaSiCal(ctx context.Context, p config.Provider, role conf
 	abans := len(s.convo)
 	// El resum nou ja incorpora l'anterior. Substituir-lo manté el prompt
 	// acotat al llarg de centenars de tasques i en reprendre sessions.
-	if r := []rune(resum); len(r) > 12000 {
-		resum = "[oldest part of the summary truncated]\n" + string(r[len(r)-12000:])
+	// 16.000 runes: hi cap un resum sencer de summarizeMaxTokens (4.096).
+	if r := []rune(resum); len(r) > 16000 {
+		resum = "[oldest part of the summary truncated]\n" + string(r[len(r)-16000:])
 	}
 	s.compacted = resum
 	// Resum al davant com a missatge marcat i la cua sense mapes vells
@@ -2962,6 +2969,7 @@ func (s *Server) runTurn(runCtx context.Context, task string, imgs []string, req
 		content += "\n\n" + mapa
 	}
 	content = agent.AmbNovetats(content, novetats)
+	content += plotNoteFor(mode, task)
 	s.convo = append(s.convo, llm.Message{Role: "user", Content: content, Images: imgs})
 	// La tasca apareix a Converses de seguida, fins i tot si dura hores o
 	// l'usuari canvia de pestanya abans de la resposta final.
@@ -3230,6 +3238,27 @@ func (s *Server) esperaResposta() (<-chan time.Time, func(), int) {
 	return t.C, func() { t.Stop() }, int(d / time.Second)
 }
 
+// argsPerAprovar treu dels arguments que veu la persona a la targeta
+// d'aprovació els camps interns del model: «bet» és l'aposta de confiança
+// de bash (agent/bets.go), que es llegeix dels arguments originals i surt a
+// part com a event «bet»; a la targeta era soroll («bet: 95»). La signatura
+// i l'execució fan servir els arguments sencers.
+func argsPerAprovar(args string) string {
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(args), &m) != nil {
+		return args
+	}
+	if _, ok := m["bet"]; !ok {
+		return args
+	}
+	delete(m, "bet")
+	b, err := json.Marshal(m)
+	if err != nil {
+		return args
+	}
+	return string(b)
+}
+
 // waitApproval demana permís a la UI. Torna (permès, timeout): si l'usuari
 // no respon a temps es denega PERÒ s'emet approve_timeout perquè la UI ho
 // mostri ("no has respost", no "ho has denegat"). Aturar el torn també la
@@ -3246,7 +3275,7 @@ func (s *Server) waitApproval(ctx context.Context, emit func(string, any), id, n
 	// timeout_s és el nombre de segons (0 = sense límit); auto_approve_allowed
 	// és booleà perquè el client només aprovi automàticament quan el
 	// servidor ho autoritza.
-	req := map[string]any{"key": key, "call_id": id, "name": name, "args": args, "timeout_s": segons, "auto_approve_allowed": autoApproveAllowed}
+	req := map[string]any{"key": key, "call_id": id, "name": name, "args": argsPerAprovar(args), "timeout_s": segons, "auto_approve_allowed": autoApproveAllowed}
 	// reason/forced: per què es pregunta (navegador: «actuar a botiga.cat»,
 	// «acció irreversible») i si és una pregunta que no es pot recordar.
 	for _, e := range extra {

@@ -10,6 +10,7 @@
 import { office } from './office.js';
 import { convs } from './convs.js';
 import { prefs } from './prefs.js';
+import { collective } from './collective.js';
 import { attach } from './attach.js';
 import { aplica as aplicaIdioma, t as T, tEn, defineixPerDefecte, idioma } from './i18n.js';
 import { flows } from './flows.js';
@@ -290,13 +291,17 @@ export const sessions = {
     }
     const plus = document.createElement('button');
     plus.className = 'session-tab new';
-    plus.textContent = '＋';
+    // Icones del mateix joc que la barra lateral (shell-icons.js); si no hi
+    // és, el glif de sempre.
+    const icona = (nom, glif) => (window.gregalIcon && window.gregalIcon(nom)) || esc(glif);
+    plus.innerHTML = icona('plus', '＋');
     plus.title = T('sessions.newTitle');
+    plus.setAttribute('aria-label', T('sessions.newTitle'));
     plus.onclick = () => this.open();
     bar.appendChild(plus);
     const iso = document.createElement('button');
     iso.className = 'session-tab new worktree';
-    iso.textContent = '⎇＋';
+    iso.innerHTML = icona('branchPlus', '⎇＋');
     iso.title = T('sessions.newWorktree');
     iso.setAttribute('aria-label', T('sessions.newWorktree'));
     iso.onclick = () => this.openWorktree();
@@ -407,7 +412,10 @@ export const sessions = {
     const signature = [!!live.busy, live.msgs, live.conversation].join(':');
     const previous = this._observedLive.get(id);
     this._observedLive.set(id, signature);
-    if (this._syncing || this.isLoading(id) || window.gregalRunEventHandlers?.has(id)) return;
+    // isSending: aquesta mateixa pestanya fa la feina (p. ex. el Pla, que no
+    // té gestor de torn). Sense això cada sondeig la «recarregava» i afegia un
+    // «Aquesta sessió encara treballa…» nou: 12-26 línies per pla.
+    if (this._syncing || this.isLoading(id) || window.gregalRunEventHandlers?.has(id) || G().isSending?.()) return;
     if (!live.busy && (previous === undefined || previous === signature)) return;
     this._syncing = true;
     // Polling refreshes session data without navigating away from Winds,
@@ -1200,6 +1208,9 @@ export function boot() {
   // refresh() ens porta el valor i crida aquesta funcio.
   window.gregalLang = defineixPerDefecte;
   aplicaIdioma();
+  // Com es diuen els ajudants: la còpia local ja s'aplica; el servidor mana i,
+  // si encara no s'ha preguntat (en cap dispositiu), es pregunta.
+  setTimeout(() => collective.refresh(), 1500);
   composer.init();
   sessions.init();
   workshop.init();

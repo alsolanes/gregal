@@ -203,8 +203,9 @@ class VentsExperienceTest {
         ui.onNodeWithText(tr("ca", "app.vents.memory")).performClick()
         ui.onNodeWithText("Coneixement real del servidor").assertExists()
         ui.onNodeWithText("Memòria personal real").assertExists()
-        ui.onNodeWithText(tr("ca", "app.vents.plans")).performClick()
-        ui.onNodeWithText(tr("ca", "app.vents.noPlans")).assertExists()
+        // La pestanya Programat: el que farà sol i l'interruptor dels seguiments.
+        ui.onNodeWithText(tr("ca", "app.vents.scheduled")).performClick()
+        ui.onNodeWithText(tr("ca", "act.followups")).assertExists()
     }
 
     @Test fun groupBubbleLabelsItsActualSpeakerAndOpensTheirProfile() {

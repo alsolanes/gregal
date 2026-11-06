@@ -87,6 +87,10 @@ class Prefs(val ctx: Context) {
     val ventSingular: String get() = p.getString("ventSingular", "") ?: ""
     val ventPlural: String get() = p.getString("ventPlural", "") ?: ""
     fun desaNomsDelVent(sing: String, plur: String) = VentNom.desa(p, sing, plur)
+    /** Ja s'ha preguntat com es diuen els ajudants (el primer cop que obres l'app). */
+    var collectiveAsked: Boolean
+        get() = p.getBoolean("collectiveAsked", false)
+        set(v) { p.edit().putBoolean("collectiveAsked", v).apply() }
 
     fun save(host: String, port: String, token: String, usuari: String = "") {
         p.edit().putString("host", host.trim()).putString("port", port.trim())
@@ -251,6 +255,9 @@ class MainActivity : ComponentActivity() {
                 } else {
                     val drawer = rememberDrawerState(DrawerValue.Closed)
                     val scope = rememberCoroutineScope()
+                    // El primer cop: com vols dir als teus ajudants (vents, fullets…).
+                    val askCollective by vm.askCollective.collectAsState()
+                    if (askCollective) CollectivePickerDialog(vm, lang)
                     fun nav(s: Screen) {
                         scope.launch { drawer.close() }
                         vm.go(s)
@@ -294,6 +301,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Office -> OfficeScreen(vm, { scope.launch { drawer.open() } }) { nav(Screen.Chat) }
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Automatitzacions -> AutomatitzacionsScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Desat -> DesatScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Webs -> WebsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }

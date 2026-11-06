@@ -68,3 +68,21 @@ func TestSignedCategoryPlotTypes(t *testing.T) {
 		})
 	}
 }
+
+// Les regles de gràfics no inflen cada torn de codi: van al system del xat i,
+// a la resta de modes, amb la tasca només quan en parla.
+func TestPlotPromptOnlyWhenNeeded(t *testing.T) {
+	s := goalTestServer(t)
+	if sys := s.sysPromptAmb("chat", s.cwd); !strings.Contains(sys, "gregal-plot") {
+		t.Fatal("el xat ha de tenir les regles de gràfics al system")
+	}
+	if sys := s.sysPromptAmb("code", s.cwd); strings.Contains(sys, "gregal-plot") {
+		t.Fatal("el mode codi no ha de portar les regles de gràfics fixes")
+	}
+	if plotNoteFor("code", "arregla el test de login") != "" {
+		t.Fatal("una tasca sense gràfics no rep la nota")
+	}
+	if !strings.Contains(plotNoteFor("code", "Fes-me un gràfic de vendes"), "gregal-plot") || plotNoteFor("chat", "a chart") != "" {
+		t.Fatal("la nota arriba quan la tasca parla de gràfics, i mai al xat (ja la té)")
+	}
+}

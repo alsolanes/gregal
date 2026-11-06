@@ -20,7 +20,7 @@ func TestDecideModeObjectiuEsReadOnly(t *testing.T) {
 		if d != "deny" {
 			t.Fatalf("goal %s=%s, volia deny", n, d)
 		}
-		if !strings.Contains(reason, "objectiu") {
+		if !strings.Contains(reason, "goal") {
 			t.Fatalf("el motiu ha d'esmentar el mode objectiu: %q", reason)
 		}
 	}

@@ -69,13 +69,13 @@ func (s *Server) executeWindAction(ctx context.Context, job jobs.Job, w companio
 		if runErr != nil {
 			run.Error = runErr.Error()
 		}
-		postWindMessage(s, w, "remind", msg)
+		postWindMessageJob(s, w, "remind", job.ID, msg)
 		run.Output = w.Name + ": " + msg
 		_, _ = s.jobs.Save(job)
 		finish("error")
 		return run, runErr
 	}
-	postWindMessage(s, w, "remind", out)
+	postWindMessageJob(s, w, "remind", job.ID, out)
 	run.Output = w.Name + ": " + out
 	_, _ = s.jobs.Save(job)
 	finish("ok")

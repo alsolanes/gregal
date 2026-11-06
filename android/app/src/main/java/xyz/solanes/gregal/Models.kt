@@ -310,10 +310,15 @@ fun goalStatusLabel(status: String, lang: String = "ca"): String =
  *  parcial = el backend s'ha quedat sense pressupost: el client ofereix
  *  «continua» per reprendre la resposta pel mateix fil. */
 /** remindAt: moments exactes (ms) dels avisos programats en aquest torn. */
-data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false, val remindAt: List<Long> = emptyList())
+data class WindReply(val text: String, val reminds: List<String> = emptyList(), val parcial: Boolean = false, val remindAt: List<Long> = emptyList(), val actions: List<WindTurnAction> = emptyList())
+
+/** Prova d'una acció real del torn (l'eina remind cridada): avís o seguiment, amb l'id per desfer-lo. */
+data class WindTurnAction(val id: String, val kind: String, val atIso: String, val text: String)
 
 /** Veu proactiva d'un vent apuntada pel servidor (cor, recordatori). */
-data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String)
+data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String,
+    /** Id del recordatori que l'ha fet sonar (buit per a la resta de veus). */
+    val job: String = "")
 
 /** Job programat del servidor (butlletins desatesos). */
 /** Missatges programats i estadístiques dels vents. */

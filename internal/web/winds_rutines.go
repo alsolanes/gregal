@@ -189,7 +189,9 @@ func (s *Server) handleWindsRutinaDelete(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "id obligatori", 400)
 		return
 	}
-	if !s.windRoutineVisibleID(req.ID) {
+	// Només automatitzacions pròpies d'un vent: abans qualsevol job sense
+	// vent (els de l'administrador) es podia esborrar per aquí.
+	if _, ok := s.ownWindJob(req.ID); !ok {
 		http.Error(w, "unknown routine", 404)
 		return
 	}
@@ -212,9 +214,25 @@ func (s *Server) ownWindJob(id string) (jobs.Job, bool) {
 		return jobs.Job{}, false
 	}
 	for _, j := range list {
-		if j.ID == id && j.Wind != "" && s.canSeeWindRoutine(j) {
+		if j.ID != id {
+			continue
+		}
+		// El cor (wind-<id>) i els recordatoris antics no sempre porten Wind:
+		// en aquest cas l'id ha de ser d'un vent d'aquest compte.
+		if j.Wind != "" {
+			if !s.canSeeWindRoutine(j) {
+				return jobs.Job{}, false
+			}
 			return j, true
 		}
+		wid := automationWind(j)
+		if wid == "" || s.winds == nil {
+			return jobs.Job{}, false
+		}
+		if _, ok := s.winds.ByID(wid); !ok {
+			return jobs.Job{}, false
+		}
+		return j, true
 	}
 	return jobs.Job{}, false
 }
@@ -269,7 +287,7 @@ func (s *Server) handleWindsRutinaToggle(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	j.Enabled = req.Enabled
-	if req.Enabled {
+	if req.Enabled && !strings.HasPrefix(j.ID, remindJobPrefix) {
 		// En reprendre, no es dispara per les franges que s'han saltat.
 		now := time.Now()
 		j.LastAt = &now

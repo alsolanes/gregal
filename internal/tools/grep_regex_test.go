@@ -30,7 +30,7 @@ func TestGrepAcceptaRegexIEspais(t *testing.T) {
 			t.Errorf("Grep(%q) = %q, %v; volia %s", c.pattern, out, err, c.want)
 		}
 	}
-	if out, _ := Grep("Decide(mode int", dir, "", 50); out != "sense coincidències" {
+	if out, _ := Grep("Decide(mode int", dir, "", 50); out != "no matches" {
 		t.Errorf("un literal que no hi és no ha de casar: %q", out)
 	}
 }

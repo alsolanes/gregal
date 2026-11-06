@@ -323,7 +323,15 @@ function decorate() {
     header.insertBefore(b, find || null);
   }
   document.querySelectorAll('#main .work-group:not(.running) > summary').forEach(s => {
-    if (s.querySelector('[data-replay-open]')) return;
+    // Un sol Replay per torn, al resum de l'últim grup (com el #Retro).
+    const own = s.querySelector(':scope > [data-replay-open]');
+    let last = true;
+    for (let n = s.parentElement.nextElementSibling; n; n = n.nextElementSibling) {
+      if (n.matches('.msg.u')) break;
+      if (n.matches('.work-group')) { last = false; break; }
+    }
+    if (!last) { if (own) own.remove(); return; }
+    if (own) return;
     const b = replayButton('replay-open replay-group');
     b.addEventListener('click', e => {
       e.preventDefault(); e.stopPropagation();

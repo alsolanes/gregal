@@ -184,11 +184,11 @@ func TestReadFitxerGegantLimitat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read gegant: %v", err)
 	}
-	// El text va dins de MaxOutputChars; l'avís de fitxer gran hi va a sobre.
-	if len(out) > MaxOutputChars+200 {
+	// El text va dins de MaxReadChars; l'avís de fitxer gran hi va a sobre.
+	if len(out) > MaxReadChars+200 {
 		t.Fatalf("la lectura final ha de ser curta: %d bytes", len(out))
 	}
-	if !strings.Contains(out, "només els primers") {
+	if !strings.Contains(out, "only the first") {
 		t.Errorf("l'avís de fitxer gran ha de sortir: %q", out[:80])
 	}
 }
@@ -244,7 +244,7 @@ func TestGrep(t *testing.T) {
 	if err != nil || strings.Contains(out, "b.txt") {
 		t.Fatalf("include no filtra: %q %v", out, err)
 	}
-	if out, _ := Grep("ZZZ", dir, "", 50); out != "sense coincidències" {
+	if out, _ := Grep("ZZZ", dir, "", 50); out != "no matches" {
 		t.Fatalf("buit: %q", out)
 	}
 	if _, err := Grep("", dir, "", 50); err == nil {
@@ -268,7 +268,7 @@ func TestGlob(t *testing.T) {
 	if err != nil || !strings.Contains(rec, "a.go") || !strings.Contains(rec, "nested.go") || strings.Contains(rec, "b.txt") {
 		t.Fatalf("glob recursiu: %q %v", rec, err)
 	}
-	if out, _ := Glob("*.zzz", dir, 100); out != "sense coincidències" {
+	if out, _ := Glob("*.zzz", dir, 100); out != "no matches" {
 		t.Fatalf("buit: %q", out)
 	}
 }

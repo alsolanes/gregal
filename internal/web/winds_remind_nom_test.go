@@ -2,6 +2,7 @@ package web
 
 import (
 	"strings"
+	"time"
 	"testing"
 
 	"gregal/internal/agent"
@@ -61,5 +62,42 @@ func TestRemindEnSessioMultiusuariUsaElsVentsDeLaSessio(t *testing.T) {
 	list, _ := sess.jobs.List()
 	if len(list) == 0 || list[0].WindOwner != "aleix" || list[0].Wind != w.ID {
 		t.Fatalf("job mal associat a l'usuari: %+v", list)
+	}
+}
+
+// Seguiment des de l'eina en una sessió d'usuari, amb els tipus tal com els
+// envien els models de veritat (followup i retry_minutes com a text).
+func TestRemindFollowupViaToolLooseTypes(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	root := remindTestServer(t)
+	root.registerRemindTool()
+	sess := remindTestServer(t)
+	sess.jobs = root.jobs
+	sess.user = &User{Name: "aleix"}
+	sess.winds = companion.NewWindStore(t.TempDir())
+	w, err := sess.winds.Save(companion.Wind{Name: "Marinada", Color: "#EACF87"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := sess.withRemindServer(t.Context())
+	at := time.Now().Add(50 * time.Hour).Format(time.RFC3339)
+	for i, args := range []string{
+		`{"wind":"` + w.ID + `","at":"` + at + `","text":"Com ha anat l'entrevista?","followup":true}`,
+		`{"wind":"` + w.ID + `","at":"+120h","text":"I la segona?","followup":"true","retry_minutes":"15","task":"pregunta"}`,
+	} {
+		out, _, err := agent.ExecCtx(ctx, "test", t.TempDir(), "remind", args)
+		if err != nil || !strings.Contains(out, "seguiment") {
+			t.Fatalf("crida %d: out=%q err=%v", i, out, err)
+		}
+	}
+	list, _ := sess.jobs.List()
+	n := 0
+	for _, j := range list {
+		if j.Followup {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Fatalf("seguiments desats = %d (%+v)", n, list)
 	}
 }

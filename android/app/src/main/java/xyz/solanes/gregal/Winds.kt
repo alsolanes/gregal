@@ -24,6 +24,8 @@ data class Wind(
     val kit: String = "",
     /** Colla a què pertany ("daily", "data", "software"); buit si és un vent propi. */
     val squad: String = "",
+    /** "off": el vent no s'ofereix a fer seguiments pel seu compte. */
+    val followups: String = "on",
 ) {
     /** Color ARGB per a Compose. */
     val argb: Long get() = run {
@@ -41,7 +43,7 @@ data class Wind(
             val a = o.optJSONArray("winds") ?: JSONArray()
             return (0 until a.length()).mapNotNull { i ->
                 val w = a.optJSONObject(i) ?: return@mapNotNull null
-                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"), w.optString("specialty"), w.optString("kit"), w.optString("squad"))
+                Wind(w.optString("id"), w.optString("name"), w.optString("color"), w.optString("role"), w.optString("style").ifBlank { "pso" }, w.optString("persona"), w.optString("specialty"), w.optString("kit"), w.optString("squad"), w.optString("followups").ifBlank { "on" })
             }
         }
     }

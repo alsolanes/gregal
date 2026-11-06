@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Dns
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Toys
@@ -108,7 +109,7 @@ fun GregalDrawerContent(
             if (local || admin) DrawerRow(tr(lang, "nav.activity"), screen == Screen.Jobs, { nav(Screen.Jobs); vm.loadJobs(); vm.loadRuns() }, Icons.Rounded.Schedule)
             DrawerRow(tr(lang, "graphs.title"), screen == Screen.Flows, { nav(Screen.Flows); vm.loadFlows() }, Icons.Rounded.AccountTree)
             DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
-                nav(Screen.Automatitzacions); vm.loadJobs(); vm.loadRutines(); vm.loadFlows(); vm.loadProgramats()
+                nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
             }, Icons.Rounded.Schedule)
 
             DrawerSection(tr(lang, "app.nav.sectionTools"))
@@ -155,8 +156,9 @@ private fun SimpleVentsDrawer(
             DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
             DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
             DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
-                nav(Screen.Automatitzacions); vm.loadJobs(); vm.loadRutines(); vm.loadFlows(); vm.loadProgramats()
+                nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
             }, Icons.Rounded.Schedule)
+            DrawerRow(tr(lang, "nav.saved"), screen == Screen.Desat, { nav(Screen.Desat); vm.loadSaved("") }, Icons.Rounded.Folder)
             // Programar des del mòbil és a mà, no amagat: l'agent de codi, les seves
             // converses, el projecte i les feines. (Objectius, gràfics, Office i Retro
             // continuen a Preferències → Eines de programació.)

@@ -530,11 +530,18 @@
     title.setAttribute('id', 'windsDialogTitle');
     const gallery = node('div', 'winds-preset-gallery'); gallery.setAttribute('id', 'windsPresetGallery');
     gallery.setAttribute('role', 'group'); attribute(gallery, 'aria-label', tr('winds.chooseACharacterToGetStarted', 'Tria un personatge per començar'));
-    for (const preset of presets()) {
-      const choice = button('', () => windForm(null, $('windNewBtn'), presets().find(p => p.name === preset.name)), 'winds-preset');
-      choice.append(face(preset, true), node('strong', '', preset.name), node('span', 'winds-muted', preset.role));
+    // Els noms vénen del servidor, al gust de com es diuen els ajudants
+    // (fullets, minairons…); el rol i la persona són els de la plantilla.
+    const list = presets(), labels = [];
+    list.forEach((preset, i) => {
+      const choice = button('', () => windForm(null, $('windNewBtn'), list[i]), 'winds-preset');
+      const label = node('strong', '', preset.name); labels.push(label);
+      choice.append(face(preset, true), label, node('span', 'winds-muted', preset.role));
       gallery.append(choice);
-    }
+    });
+    window.gregalCollective?.names(list.length).then(names => {
+      names.slice(0, list.length).forEach((n, i) => { list[i] = { ...list[i], name: n }; labels[i].textContent = n; });
+    });
     const actions = node('div', 'winds-dialog-actions');
     actions.append(button(tr('winds.cancel', 'Cancel·la'), () => $('windsDialog').close()), button(tr('winds.createACustomWind', 'Crea un vent personalitzat'), () => windForm(), 'ghost winds-primary'));
     body.replaceChildren(title, node('p', 'winds-muted winds-gallery-intro', tr('winds.chooseAFriendlyFaceAndMakeItYours', 'Tria una cara amiga i fes-la teva: podràs canviar-ne el nom, el caràcter i tots els detalls.')), gallery, actions);

@@ -629,8 +629,10 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
-    fun getWinds(): List<Wind> =
-        Wind.parse(read(conn("/api/winds", "GET")))
+    fun getWinds(): List<Wind> = Wind.parse(getWindsRaw())
+
+    /** La resposta tal qual: el mòbil la desa com a còpia per quan el servidor no respongui. */
+    fun getWindsRaw(): String = read(conn("/api/winds", "GET"))
 
     fun saveWind(name: String, color: String, role: String, style: String = "pso", persona: String = "", id: String = "") {
         val payload = JSONObject(WindRequests.save(name, color, role, style, persona))
@@ -680,8 +682,9 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Importa un bundle amb un transferId propi: el servidor no clona mai dues vegades. */
-    fun importWindsTransfer(transferId: String, bundle: JSONObject): JSONObject =
-        post("/api/winds/transfer", JSONObject().put("transferId", transferId).put("bundle", bundle))
+    fun importWindsTransfer(transferId: String, bundle: JSONObject, into: String = ""): JSONObject =
+        post("/api/winds/transfer", JSONObject().put("transferId", transferId).put("bundle", bundle)
+            .apply { if (into.isNotBlank()) put("into", into) })
 
     /** Verifica la destinació abans de navegar-hi: l'endpoint el diu el mateix import. */
     fun getTransferVerify(verifyPath: String): JSONObject = get(verifyPath)
@@ -976,6 +979,7 @@ class GregalApi(val base: String, val token: String) {
                 name = j.optString("name"),
                 source = j.optString("source"),
                 text = text,
+                job = j.optString("job"),
             )
         }
     }
@@ -1098,10 +1102,16 @@ class GregalApi(val base: String, val token: String) {
             acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at")
         }.filter { it.isNotBlank() }
         val remindAt = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
-            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" }?.optString("at_iso")
+            acts?.optJSONObject(i)?.takeIf { it.optString("kind") == "remind" || it.optString("kind") == "followup" }?.optString("at_iso")
                 ?.let { runCatching { java.time.OffsetDateTime.parse(it).toInstant().toEpochMilli() }.getOrNull() }
         }
-        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false), remindAt)
+        val actions = (0 until (acts?.length() ?: 0)).mapNotNull { i ->
+            val a = acts?.optJSONObject(i) ?: return@mapNotNull null
+            val kind = a.optString("kind")
+            if (kind != "remind" && kind != "followup") return@mapNotNull null
+            WindTurnAction(a.optString("id"), kind, a.optString("at_iso"), a.optString("text"))
+        }
+        return WindReply(o.optString("reply"), reminds, o.optBoolean("parcial", false), remindAt, actions)
     }
 
     /** Marca l'última resposta del vent com a parcial (botó «continua»). */
@@ -1224,6 +1234,22 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Llegeix els favorits i les seccions (buits si no n'hi ha). */
+    /** Com es diuen els ajudants en aquest compte del servidor ({singular, plural}). */
+    data class Collective(val singular: String, val plural: String, val asked: Boolean)
+
+    fun getWindCollective(): Collective =
+        get("/api/winds/collective").let { Collective(it.optString("singular"), it.optString("plural"), it.optBoolean("asked")) }
+
+    fun setWindCollective(singular: String, plural: String) {
+        post("/api/winds/collective", JSONObject().put("singular", singular).put("plural", plural))
+    }
+
+    /** Noms per a ajudants nous, al gust del nom col·lectiu triat. */
+    fun getWindNames(n: Int, lang: String): List<String> {
+        val a = get("/api/winds/names?n=$n&lang=$lang").optJSONArray("names") ?: return emptyList()
+        return (0 until a.length()).map { a.optString(it) }.filter { it.isNotBlank() }
+    }
+
     fun getWindsMeta(): WindsMeta {
         val o = JSONObject(read(conn("/api/winds/meta", "GET")))
         val m = o.optJSONObject("meta") ?: JSONObject()

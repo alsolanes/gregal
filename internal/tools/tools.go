@@ -26,6 +26,10 @@ import (
 // Límits de seguretat per defecte.
 const (
 	MaxOutputChars = 8000
+	// MaxReadChars és el sostre d'una lectura amb read. Més ample que la
+	// resta de sortides: un fitxer de codi mitjà (500-800 línies) hi cap
+	// sencer i el model no l'ha de llegir a trossos de 8.000 caràcters.
+	MaxReadChars = 30000
 	// MaxCaptureBytes és el sostre de memòria que qualsevol eina pot
 	// dedicar a capturar sortida o llegir un fitxer abans de tallar.
 	// El truncat a MaxOutputChars era sempre al FINAL: una comanda que
@@ -60,7 +64,7 @@ func Read(path string, offset, limit int) (string, error) {
 	}
 	var nota string
 	if fi.Size() > MaxCaptureBytes {
-		nota = fmt.Sprintf("…(fitxer de %d bytes: només els primers %d)\n", fi.Size(), MaxCaptureBytes)
+		nota = fmt.Sprintf("…(file of %d bytes: only the first %d)\n", fi.Size(), MaxCaptureBytes)
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -88,7 +92,7 @@ type lectura struct {
 	ini, fi int
 }
 
-// llegeix numera les línies demanades fins a MaxOutputChars. Si no hi
+// llegeix numera les línies demanades fins a MaxReadChars. Si no hi
 // caben, talla per una línia sencera i diu amb quin offset continuar: abans
 // tallava a mitja línia amb un «(truncat)» que no deia per on seguir, i el
 // model tornava a llegir el fitxer sencer per trobar-ne el final.
@@ -98,7 +102,7 @@ func llegeix(path string, raw []byte, offset, limit int) (lectura, error) {
 		offset = 1
 	}
 	if offset > len(lines) {
-		return lectura{}, fmt.Errorf("%s: només té %d línies", path, len(lines))
+		return lectura{}, fmt.Errorf("%s: has only %d lines", path, len(lines))
 	}
 	end := len(lines)
 	if limit > 0 && offset-1+limit < end {
@@ -109,10 +113,10 @@ func llegeix(path string, raw []byte, offset, limit int) (lectura, error) {
 	for i := offset - 1; i < end; i++ {
 		l := fmt.Sprintf("%d|%s\n", i+1, lines[i])
 		if len(l) > MaxOutputChars {
-			l = tallaLinia(l[:MaxOutputChars], false) + "…(línia retallada)\n"
+			l = tallaLinia(l[:MaxOutputChars], false) + "…(line truncated)\n"
 		}
-		if b.Len()+len(l) > MaxOutputChars && i > offset-1 {
-			fmt.Fprintf(&b, "…(retallat: mostrades les línies %d–%d de %d; continua amb offset=%d)", offset, fi, len(lines), fi+1)
+		if b.Len()+len(l) > MaxReadChars && i > offset-1 {
+			fmt.Fprintf(&b, "…(truncated: showing lines %d–%d of %d; continue with offset=%d)", offset, fi, len(lines), fi+1)
 			return lectura{text: b.String(), ini: offset, fi: fi}, nil
 		}
 		b.WriteString(l)
@@ -197,7 +201,7 @@ func edita(path, old, new string, totes bool, seg *Seguiment) (string, error) {
 	// Un fitxer per damunt del sostre no és editable amb blocs: fallar
 	// net (el model ja sap que ha de fer servir bash) val més que OOM.
 	if fi, err := os.Stat(path); err == nil && fi.Size() > MaxCaptureBytes {
-		return "", fmt.Errorf("%s massa gran per a l'edició (%d bytes; sostre %d): fes servir bash per a fitxers així", path, fi.Size(), MaxCaptureBytes)
+		return "", fmt.Errorf("%s is too large to edit (%d bytes; limit %d): use bash for files like this", path, fi.Size(), MaxCaptureBytes)
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -208,10 +212,10 @@ func edita(path, old, new string, totes bool, seg *Seguiment) (string, error) {
 	// (el model l'ha anomenat d'una altra manera) o una creació mal
 	// adreçada. «Són iguals» feia que el model repetís la mateixa crida.
 	if old == "" {
-		return "", fmt.Errorf("old_string és buit: posa-hi el bloc exacte que vols substituir (per crear un fitxer o reescriure'l sencer, fes servir write)")
+		return "", fmt.Errorf("old_string is empty: put the exact block you want to replace (to create a file or rewrite it whole, use write)")
 	}
 	if old == new {
-		return "", fmt.Errorf("old_string i new_string són iguals: no hi ha res a canviar")
+		return "", fmt.Errorf("old_string and new_string are identical: there is nothing to change")
 	}
 	var nou, nivell string
 	if totes {
@@ -244,18 +248,18 @@ func notaNivell(nivell string) string {
 	if nivell == nivExacte {
 		return ""
 	}
-	return "\n(s'ha aplicat amb coincidència aproximada: nivell «" + nivell + "»; revisa el diff)"
+	return "\n(applied with an approximate match: level \"" + nivell + "\"; check the diff)"
 }
 
 // errEdicio explica per què no s'ha pogut aplicar old.
 func errEdicio(path, text, old string, err error) error {
 	var amb errAmbigu
 	if errors.As(err, &amb) {
-		return fmt.Errorf("%s a %s", amb.Error(), path)
+		return fmt.Errorf("%s in %s", amb.Error(), path)
 	}
 	if errors.Is(err, errNoTrobat) {
 		pla, oldPla := senseCR(text), senseCR(old)
-		return fmt.Errorf("bloc no trobat a %s: %s%s", path, perQueNoHiEs(pla, oldPla), fragmentSemblant(pla, oldPla))
+		return fmt.Errorf("block not found in %s: %s%s", path, perQueNoHiEs(pla, oldPla), fragmentSemblant(pla, oldPla))
 	}
 	return fmt.Errorf("%s: %w", path, err)
 }
@@ -269,7 +273,7 @@ func senseCR(s string) string { return strings.ReplaceAll(s, "\r\n", "\n") }
 func perQueNoHiEs(text, old string) string {
 	retalla := func(s string) string { return strings.Join(strings.Fields(s), " ") }
 	if strings.Contains(retalla(text), retalla(old)) {
-		return "el text hi és però amb uns altres espais o sagnat — torna a llegir el fitxer amb read i copia'l tal com surt"
+		return "the text is there but with different spacing or indentation — read the file again with read and copy it exactly as shown"
 	}
 	// Si alguna línia prou llarga del bloc sí que hi és, el que balla és el
 	// context del voltant; si no n'hi ha cap, el bloc no és d'aquest fitxer.
@@ -277,10 +281,10 @@ func perQueNoHiEs(text, old string) string {
 	// justament la que t'has inventat.
 	for _, l := range strings.Split(old, "\n") {
 		if l = strings.TrimSpace(l); len(l) >= 8 && strings.Contains(text, l) {
-			return "la línia " + strconv.Quote(escurça(l, 60)) + " hi és, però el bloc de context que l'envolta no — torna a llegir el fitxer amb read"
+			return "the line " + strconv.Quote(escurça(l, 60)) + " is there, but the surrounding context block is not — read the file again with read"
 		}
 	}
-	return "no hi ha res semblant en aquest fitxer — comprova que sigui el fitxer bo i llegeix-lo amb read abans d'editar"
+	return "nothing similar in this file — check it is the right file and read it with read before editing"
 }
 
 func escurça(s string, n int) string {
@@ -296,7 +300,7 @@ func escurça(s string, n int) string {
 // pesants. Topall de 50 coincidències.
 func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 	if strings.TrimSpace(pattern) == "" {
-		return "", fmt.Errorf("grep: pattern buit")
+		return "", fmt.Errorf("grep: empty pattern")
 	}
 	if dir == "" {
 		dir = "."
@@ -349,7 +353,7 @@ func Grep(pattern, dir, include string, maxMatches int) (string, error) {
 		return "", err
 	}
 	if len(out) == 0 {
-		return "sense coincidències", nil
+		return "no matches", nil
 	}
 	return strings.Join(out, "\n"), nil
 }
@@ -532,7 +536,7 @@ func CaminsRelatius(out, base string) string {
 // (p. ex. **/*.go, **/go.mod, internal/**/*.go), com esperen els agents.
 func Glob(pattern, dir string, max int) (string, error) {
 	if strings.TrimSpace(pattern) == "" {
-		return "", fmt.Errorf("glob: pattern buit")
+		return "", fmt.Errorf("glob: empty pattern")
 	}
 	if dir == "" {
 		dir = "."
@@ -582,7 +586,7 @@ func Glob(pattern, dir string, max int) (string, error) {
 		matches = matches[:max]
 	}
 	if len(matches) == 0 {
-		return "sense coincidències", nil
+		return "no matches", nil
 	}
 	return strings.Join(matches, "\n"), nil
 }
@@ -769,7 +773,7 @@ func ReplaceLines(content string, start, end int, repl []string) (string, error)
 		trailing = true
 	}
 	if start < 1 || end < start || end > len(lines) {
-		return "", fmt.Errorf("rang %d-%d fora de %d línies", start, end, len(lines))
+		return "", fmt.Errorf("range %d-%d is outside the %d lines", start, end, len(lines))
 	}
 	out := append(append([]string{}, lines[:start-1]...), repl...)
 	out = append(out, lines[end:]...)
@@ -1055,13 +1059,13 @@ func BashCtx(ctx context.Context, dir, cmd string, timeout time.Duration) (strin
 		text = "[" + plan.Warning + "]\n" + text
 	}
 	if ctx.Err() == context.Canceled {
-		return text, fmt.Errorf("aturada per l'usuari")
+		return text, fmt.Errorf("stopped by the user")
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		// «timeout (30s)» sol no diu què fer, i el que fa el model és
 		// tornar-hi igual i tornar-se a menjar els trenta segons. La
 		// sortida d'abans del tall també hi va: sovint ja diu prou.
-		return text, fmt.Errorf("timeout (%s): la comanda encara corria i s'ha tallat. No la repeteixis igual; si és llarga de mena (build, suite de tests, servidor) engega-la amb bash_background i llegeix-la amb bash_output", timeout)
+		return text, fmt.Errorf("timeout (%s): the command was still running and was cut off. Do not repeat it as is; if it is inherently long (build, test suite, server) start it with bash_background and read it with bash_output", timeout)
 	}
 	if err != nil {
 		return text, fmt.Errorf("exit: %v\n%s", err, text)

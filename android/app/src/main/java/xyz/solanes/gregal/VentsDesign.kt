@@ -134,6 +134,8 @@ internal fun VentsExploreSheet(
     onGames: () -> Unit,
     onLibrary: () -> Unit,
     onProgramats: (() -> Unit)? = null,
+    onActivity: (() -> Unit)? = null,
+    onSaved: (() -> Unit)? = null,
     onWiki: (() -> Unit)? = null,
     onFeines: (() -> Unit)? = null,
     onCrew: (() -> Unit)? = null,
@@ -147,6 +149,8 @@ internal fun VentsExploreSheet(
             Spacer(Modifier.weight(1f))
             Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 11.sp)
         }
+        if (onActivity != null) ExploreRow(lang, tr(lang, "act.title"), tr(lang, "explore.activity"), Icons.Rounded.Schedule, onActivity)
+        if (onSaved != null) ExploreRow(lang, tr(lang, "saved.title"), tr(lang, "explore.saved"), Icons.Rounded.Folder, onSaved)
         if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), if (en) "Summon specialists to discuss, build and review" else "Convoca especialistes que en parlin, ho facin i ho revisin", Icons.Rounded.Groups, onCrew)
         if (onFeines != null) ExploreRow(lang, tr(lang, "app.feines.title"), if (en) "Long tasks running on the server and their files" else "Tasques llargues en marxa i els fitxers resultants", Icons.Rounded.Construction, onFeines)
         if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), if (en) "Reminders, watches and routines" else "Recordatoris, cors en guàrdia i rutines", Icons.Rounded.Schedule, onProgramats)

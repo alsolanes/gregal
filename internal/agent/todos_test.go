@@ -79,7 +79,7 @@ func TestLoopManteOrdreAmbParallel(t *testing.T) {
 			sortides = append(sortides, m.Content)
 		}
 	}
-	if len(sortides) != 3 || sortides[0] != `read:{"path":"a"}` || sortides[1] != `read:{"path":"b"}` || !strings.HasPrefix(sortides[2], "EINA BLOQUEJADA") {
+	if len(sortides) != 3 || sortides[0] != `read:{"path":"a"}` || sortides[1] != `read:{"path":"b"}` || !strings.HasPrefix(sortides[2], "TOOL BLOCKED") {
 		t.Fatalf("historial: %v", sortides)
 	}
 }

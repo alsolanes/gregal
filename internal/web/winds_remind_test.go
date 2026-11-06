@@ -56,7 +56,7 @@ func TestParseRemindAtLenient(t *testing.T) {
 
 func TestRemindActionsSince(t *testing.T) {
 	t0 := time.Now()
-	recordRemindEvent("", "vent-prova", t0.Add(time.Hour), "Rega les plantes")
+	recordRemindEvent("", "remind-vent-prova-1", false, "vent-prova", t0.Add(time.Hour), "Rega les plantes")
 	got := remindActionsSince("", "vent-prova", t0)
 	if len(got) != 1 || got[0]["at"] == "" || got[0]["text"] != "Rega les plantes" {
 		t.Fatalf("accions = %v", got)
@@ -74,7 +74,7 @@ func TestRemindActionsSince(t *testing.T) {
 func TestRemindActionsAreScopedToTheAccount(t *testing.T) {
 	t0 := time.Now()
 	at := t0.Add(2 * time.Minute).Truncate(time.Second)
-	recordRemindEvent("marta", "xaloc-comu", at, "Apaga el foc")
+	recordRemindEvent("marta", "remind-xaloc-comu-1", false, "xaloc-comu", at, "Apaga el foc")
 	if len(remindActionsSince("aleix", "xaloc-comu", t0)) != 0 {
 		t.Fatal("un altre compte veu l'avís")
 	}

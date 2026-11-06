@@ -2,6 +2,127 @@
 
 ## Unreleased
 
+## v1.55.0 - 2026-11-06 - Vents més útils, mòbil de reserva i xats compartits
+
+- **L'agent de codi aguanta més feina.** El context es poda abans de
+  desbordar i, quan cal retallar, la tasca i les regles no es tallen mai. El
+  resum de la compactació passa de 1.024 a 4.096 tokens i conserva la tasca
+  sencera, i `read` torna fins a 30.000 caràcters (abans, 8.000). Les
+  instruccions de gràfics només hi van quan la feina en parla, i els missatges
+  que llegeix el model (eines, bloquejos, errors) són en anglès i sense
+  regles duplicades. Les lectures que s'obliden per fer lloc són només les de
+  la sessió del torn. La targeta d'aprovació ja no mostra l'aposta interna
+  («bet»).
+- **La finestra, més polida.** Paleta d'ordres amb Ctrl+K (converses,
+  accions i projectes), icones de veritat a la barra de dalt, la pastilla de
+  pensament en l'idioma de la interfície, la navegació de Vents sense entrades
+  repetides, menys etiquetes repetides a cada torn i la targeta del pla més
+  llegible. La pregunta de com es diuen els ajudants espera si hi ha una
+  aprovació o una pregunta pendent.
+- **El mode Pla de Codi, més sòlid.** Les regles van al missatge de sistema i
+  la tasca a part (abans, un sol bloc d'usuari). Quan la conversa no hi cap, la
+  tasca es conserva sencera fins a 4.000 caràcters i el retall ja no parteix
+  cap accent (abans es quedava en 600 bytes). El Pla només rep eines de lectura
+  i, si en prova una altra, un avís propi en lloc del dels vents, i el seu
+  pressupost de sortida ja no talla el pla a 1.024 tokens. «Executa el pla»
+  envia també la tasca original, perquè l'agent sàpiga per a què és cada pas.
+- **Tria com es diuen els teus ajudants, i els noms hi encaixen (Android).**
+  El primer cop que obres l'app et pregunta com vols dir als ajudants en
+  conjunt: vents, fullets, minairons, esperits o el nom que vulguis (pirates,
+  bruixes…). Amb «Ara no», t'avisa que ho pots canviar quan vulguis a
+  Preferències → «Com els vols dir». El nom es desa també al servidor, i els
+  noms que es proposen per a cada ajudant nou s'hi adapten: al creador, a les
+  colles que munta l'app i a les colles fetes (un minairó ja no es diu
+  Tramuntana). Per a un nom inventat, el model n'inventa una llista (mai
+  personatges coneguts) que queda desada. Fins i tot amb «vents», els noms
+  proposats són més originals que la rosa dels vents de sempre (Garbinada,
+  Terral, Embat…). La persona que es proposa per a cada ajudant també
+  encaixa amb el nom triat. Nous `GET/POST /api/winds/collective` i
+  `GET /api/winds/names`.
+- **També a la web.** La primera visita pregunta el mateix (si ja has respost
+  al mòbil, no), els textos dels ajudants fan servir el nom triat (la marca
+  «Gregal Vents» es queda), el creador de l'espai dels vents i el de la llista
+  proposen noms que hi encaixen, i a Preferències → Aparença → «Com es diuen
+  els ajudants» es pot canviar o tornar a «vents». El servidor recorda si ja
+  s'ha preguntat (`asked`), i el que es tria en un dispositiu el segueixen els
+  altres.
+- **Xats compartits amb altres persones del servidor.** Des del «+» dels Vents
+  (Android) o de la secció «Compartits» (web) crees un xat de grup amb altres
+  comptes del mateix servidor (per exemple, la Carla) i els teus vents que hi
+  vulguis. Cada persona rep una invitació —una finestra en obrir l'app i, a
+  Android, també una notificació— amb **Accepta** i **Rebutja**; només quan
+  l'accepta el xat li surt a la llista i hi pot llegir i escriure. Cada
+  bombolla diu qui l'ha escrita, i els vents saben que hi ha diverses persones
+  i les tracten pel nom. Qui hi és convidat no veu res més de qui l'ha creat:
+  en un xat compartit els vents no fan servir la teva memòria, els teus
+  fitxers ni els altres xats, i només poden buscar al web. Qualsevol pot
+  sortir-ne; qui l'ha creat l'esborra per a tothom. API: `/api/winds/shared`.
+- **Els vents responen millor.** Cada torn del xat directe arriba al model com
+  una conversa de debò: un missatge de sistema amb qui és el vent i com
+  respon, els torns anteriors com a torns reals i la teva pregunta al final.
+  Abans tot anava en un sol bloc de text, i quan la conversa no hi cabia el
+  retall s'enduia la persona i les regles. «Continua» també manté ara la
+  persona. Les respostes ja no estan limitades a «1-4 frases»: la llargada
+  s'adapta a la pregunta (un correu surt sencer, una recepta amb mides i
+  temps), la resposta va primer, sense farciment ni lloances a la pregunta, i
+  amb una recomanació clara quan demanes què fer. Menys tics: botons de
+  suggeriment, emojis i ofertes només quan aporten, res inventat sobre la teva
+  vida i cap promesa d'avisar sense haver programat l'avís.
+- **Amb servidor, el mòbil fa de reserva (Android).** El servidor és on viuen
+  els vents; si no respon, l'app ja no queda a la pantalla de connexió: s'obre
+  amb la còpia desada al mòbil (la llista de vents i els últims 60 missatges de
+  cada xat). El que escrius sense connexió queda a la cua amb «⏳ s'enviarà
+  quan torni la connexió» (i **Treu** per desfer-ho) i surt sol, en ordre,
+  quan el servidor torna: l'app el reprova sola i també quan la xarxa canvia.
+  Els recordatoris del servidor també els vigila el mòbil: si a l'hora el
+  servidor no respon, l'avís surt igualment del mòbil, i quan el servidor el
+  dispara més tard no sona dues vegades (les veus de recordatori de
+  `/api/winds/novetats` porten ara el camp `job`). La xapa de dalt passa a ser
+  un estat (servidor connectat, «Sense connexió · 2 per enviar») i canviar al
+  mòbil queda plegat dins el detall. Amb còpia, en obrir l'app els vents i el
+  xat surten de seguida i el servidor els posa al dia (abans: uns segons de
+  portada buida), i sense connexió ja no surt l'error «failed to connect …
+  after 15000ms». El mode «Al mòbil» continua a part, amb els seus vents i
+  converses: res se sincronitza sol, i una conversa del mòbil passa al
+  servidor només quan tries «Continua al servidor». Si el servidor ja té un
+  vent amb el mateix nom, ara s'ofereix d'**afegir-hi** la conversa (al final
+  del seu xat, sumant la memòria i les skills marcades sense esborrar res) en
+  lloc de crear-ne un segon; fer-ne una còpia a part continua sent possible.
+  Nou camp `into` a `POST /api/winds/transfer`.
+- **Els teus missatges es distingeixen d'una ullada (Android).** La bombolla
+  pròpia és plena amb el color de l'app; abans era grisa i es confonia amb les
+  dels vents.
+- **Un torn que falla diu per què (Android).** Si el proveïdor rebutja la clau
+  d'API, no té saldo o limita peticions, el xat ho diu amb aquestes paraules i
+  com arreglar-ho, en lloc de «Torn interromput… revisa la feina desada».
+- **Els vents fan seguiments pel seu compte.** Si els expliques una cosa teva
+  amb data (un examen, el metge, una entrevista, un concert), s'ofereixen a
+  tornar-hi després: programen el seguiment, t'ho diuen en mitja frase i al xat
+  surt una targeta amb **Desfés**. Amb mesura: un per torn, màxim tres de
+  pendents per vent i cap a menys de tres hores d'un altre. Cada vent té
+  l'interruptor «Seguiments pel seu compte» al perfil (web i Android).
+- **Els recordatoris demanats des del xat tornen a funcionar.** La política de
+  permisos de la sessió tractava l'eina `remind` com a desconeguda i la
+  denegava, i els vents responien «l'eina m'ha fallat». Les lliçons falses que
+  n'havien après («no invoquis remind», «fes-ho amb el calendari») ja no es
+  tenen en compte. L'eina accepta també `"true"` i `"15"` com a text.
+- **Automatitzacions, en una sola llista amb accions.** Recordatoris,
+  seguiments, vigilàncies i rutines de tots els vents, amb la cara del vent,
+  quan tocarà, comptadors (avui, aquesta setmana, en pausa), filtres i
+  **Fes-ho ara / Pausa / Reprèn / Treu**. Android ja no té dues llistes que es
+  trepitgen (ni recordatoris duplicats); la pestanya «Programat» del perfil hi
+  filtra per vent. Nou `GET /api/winds/automations`.
+- **Desat: tot el que els vents han fet per a tu.** Documents, webs
+  publicades, gràfics (es tornen a dibuixar), imatges, fitxes i les fonts que
+  han citat, amb l'autor i el dia, filtrables per tipus i per vent. Pantalla
+  pròpia (calaix i Explora a Android, «Desat» a l'espai dels vents a la web) i
+  pestanya al perfil de cada vent. Nou `GET /api/winds/saved`.
+- **Menús més clars.** El «+» d'Android ja només crea (xat, grup, vent,
+  colla); Automatitzacions i Desat encapçalen Explora.
+- **Seguretat:** `/api/winds/rutines/delete` només esborra automatitzacions
+  pròpies d'un vent; abans s'hi podia esborrar qualsevol feina sense vent
+  (també les de l'administrador).
+
 ## v1.54.2 - 2026-11-05 - Colles que acaben i diuen la veritat, botons que no es perden
 
 - **Una revisió mal formada ja no tomba la colla.** El revisor ha de contestar

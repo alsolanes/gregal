@@ -27,9 +27,9 @@ android {
         manifestPlaceholders["gregalAppLabel"] = if (project.hasProperty("gregal.plotsPreview")) "Gregal Vents" else "Gregal"
         minSdk = 26
         targetSdk = 34
-        versionCode = if (project.hasProperty("gregal.plotsPreview")) 184 else 46
+        versionCode = if (project.hasProperty("gregal.plotsPreview")) 185 else 47
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.63.2-vents" else "1.59.0"
+        versionName = if (project.hasProperty("gregal.plotsPreview")) "1.64.0-vents" else "1.60.0"
     }
 
     // L'APK surt amb el nom de l'app i la versió: «Gregal-Vents-<versió>-arm64-v8a.apk» no

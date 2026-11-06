@@ -91,6 +91,8 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 	// reals: el topall de cost autònom en depèn.
 	runCtx = llm.WithThink(runCtx, role.Think)
 	runCtx = agent.WithTurnMode(runCtx, mode)
+	// Compactar oblida només les lectures d'aquesta sessió, no les de totes.
+	runCtx = agent.WithSeguimentSessio(runCtx, s.id)
 	uso := &llm.UsageMeter{}
 	runCtx = llm.WithUsage(runCtx, uso)
 	// Bind children to this session's model/config, not the last Server

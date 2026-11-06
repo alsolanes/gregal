@@ -224,6 +224,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     }
     val crewUi by vm.crew.collectAsState()
     crewUi?.let { CrewSheet(vm, lang, it, winds) }
+    // Rotllanes compartides amb altres persones del servidor (SharedChats.kt).
+    SharedChatsSync(vm)
+    val sharedChats by SharedChatsStore.chats.collectAsState()
+    val sharedBusy by SharedChatsStore.busy.collectAsState()
+    var sharedCreate by remember { mutableStateOf(false) }
     if (creator.first) {
         WindCreatorScreen(vm, lang, creator.second)
     } else if (creation != null) {
@@ -245,6 +250,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             val rot = if (key.startsWith("rot:")) rotllanes.firstOrNull { it.id == id } else null
             when {
                 key == "cap" -> VentetConversation(vm, lang, winds) { vm.openVentsChat(null) }
+                key.startsWith("shared:") && sharedChats.any { it.id == id } ->
+                    SharedChatConversation(vm, lang, sharedChats.first { it.id == id }) { vm.openVentsChat(null) }
                 wind != null -> WindConversation(vm, lang, wind, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(wind.name, wind.id, null) }
                 rot != null -> RotllanaConversation(vm, lang, rot, winds, { vm.openVentsChat(null) }) { wikiFromChat = ChatTarget(rot.name, null, rot.id) }
                 else -> Column(Modifier.fillMaxSize().background(Superficie).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -282,12 +289,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                                 DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                                     DropdownMenuItem(text = { Text(tr(lang, "app.vents.newChat")) }, onClick = { menu = false; creation = "chat" })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.rotllanaNew")) }, onClick = { menu = false; creation = "group" })
+                                    DropdownMenuItem(text = { Text(tr(lang, "app.shared.new")) }, onClick = { menu = false; sharedCreate = true })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.company.windNew")) }, onClick = { menu = false; vm.showWindCreator(true) })
                                     DropdownMenuItem(text = { Text(tr(lang, "app.crew.title")) }, onClick = { menu = false; vm.openCrew() })
-                                    HorizontalDivider()
-                                    DropdownMenuItem(text = { Text(tr(lang, "app.programats.open")) }, onClick = { menu = false; programatsOpen = true })
-                                    DropdownMenuItem(text = { Text(tr(lang, "app.wiki.open")) }, onClick = { menu = false; wikiOpen = true })
-                                    DropdownMenuItem(text = { Text(tr(lang, "app.feines.title")) }, onClick = { menu = false; feinesOpen = true })
                                 }
                             }
                         },
@@ -327,7 +331,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             onCorner = { cornerOpen = true; exploreOpen = false },
                             onGames = { gamesOpen = true; exploreOpen = false },
                             onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false },
-                            onProgramats = { programatsOpen = true; exploreOpen = false },
+                            onActivity = { exploreOpen = false; vm.go(Screen.Automatitzacions) },
+                            onSaved = { exploreOpen = false; vm.go(Screen.Desat) },
                             onWiki = { wikiOpen = true; exploreOpen = false },
                             onFeines = { feinesOpen = true; exploreOpen = false },
                             onCrew = { vm.openCrew(); exploreOpen = false },
@@ -426,6 +431,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     // Les converses de veritat primer; els vents amb qui encara no
                     // has parlat, a sota amb el seu títol. Abans tot anava barrejat i
                     // una fila «Xaloc · Música» semblava una conversa buida.
+                    if (inboxFilter != "unread") sharedChatRows(
+                        sharedChats.filter { query.isBlank() || it.name.contains(query, ignoreCase = true) },
+                        sharedBusy, lang) { vm.openVentsChat("shared:$it") }
                     val firstIdle = rows.indexOfFirst { !it.hasMessages }
                     val idleKey = if (query.isBlank() && firstIdle > 0) rows[firstIdle].key else null
                     // Grups: favorits a dalt, després les seccions temàtiques, i la
@@ -452,6 +460,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
         }
     }
     if (libraryOpen) WindLibraryDialog(vm, lang) { libraryOpen = false }
+    if (sharedCreate) SharedChatCreator(vm, lang, winds, onClose = { sharedCreate = false }) { vm.openVentsChat("shared:$it") }
+    SharedInvitePopup(vm, lang) { vm.openVentsChat("shared:$it") }
     if (programatsOpen) ProgramatsDialog(vm, lang) { programatsOpen = false }
     if (feinesOpen) FeinesDialog(vm, lang, onOpenThread = { vm.openVentsChat("rot:$it") }) { feinesOpen = false }
     if (cornerOpen) CornerDialog(vm, lang) { cornerOpen = false }
@@ -962,6 +972,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     val loadingChat by vm.windChatLoading.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val live by vm.windLive.collectAsState()
+    val turnActionsAll by vm.turnActions.collectAsState()
     val msgs = chats[wind.id].orEmpty()
     val clipboard = LocalClipboardManager.current
     var field by rememberSaveable(wind.id, stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
@@ -1057,6 +1068,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                             onContinue = if (!isBusy) ({ follow.requestFollow(); vm.sendWindContinue(wind.id) }) else null,
                             onRetry = if (!isBusy) ({ follow.requestFollow(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
+                            onDiscard = if (msgs[idx].kind == "queued") ({ vm.discardQueued(wind.id, msgs[idx].ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                     }
                 }
@@ -1066,6 +1078,13 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
                 if (quick.isNotEmpty()) item(key = "quick") {
                     ChoiceChips(quick, accent) { pick -> follow.requestFollow(); vm.sendWindMessage(wind.id, pick) }
+                }
+            }
+            // Prova del que el vent ha programat de debò en aquest torn, amb «Desfés».
+            val turnActs = turnActionsAll[wind.id].orEmpty()
+            if (turnActs.isNotEmpty() && msgs.lastOrNull()?.from != "user") item(key = "turn-actions") {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (a in turnActs) TurnActionCard(lang, a, accent) { vm.undoTurnAction(wind.id, a) }
                 }
             }
             // Peu "hi pensa" només si no hi ha bombolla de directe: la
@@ -1542,7 +1561,9 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
     onCopy: (() -> Unit)? = null, onContinue: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null, onTransfer: (() -> Unit)? = null,
     /** Avís opcional en copiar un enllaç (p. ex. «Enllaç copiat»). */
-    onCopied: (() -> Unit)? = null) {
+    onCopied: (() -> Unit)? = null,
+    /** Missatge a la cua sense connexió: treu-lo abans que surti. */
+    onDiscard: (() -> Unit)? = null) {
     // El bloc ```choices són botons de resposta ràpida, no text de la bombolla.
     val m = remember(raw) { if (raw.from == "user") raw else raw.copy(text = withoutChoices(raw.text)) }
     val mine = m.from == "user"
@@ -1572,10 +1593,11 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
         return
     }
     val displayName = speakerName.ifBlank { speaker?.name.orEmpty() }
-    // Bombolla pròpia suau en tots dos temes: el blanc ple sobre fons fosc
-    // enlluernava i pesava més que les respostes.
-    val ownBackground = Ink.copy(alpha = 0.11f)
-    val ownText = Ink
+    // Bombolla pròpia plena amb l'accent de l'app: la grisa (Ink a l'11%) es
+    // confonia amb les dels vents, tenyides i fosques també. Ara el que
+    // escrius tu es veu d'una ullada, com a qualsevol missatgeria.
+    val ownBackground = Sea
+    val ownText = OnSea
     // L'hora arriba del backend en segons Unix; els missatges creats en aquesta
     // sessió (enviats per l'app) són en millis. Unificat a millis una sola volta.
     val tsMillis = remember(m.ts) { if (m.ts > 10_000_000_000L) m.ts else m.ts * 1000L }
@@ -1611,7 +1633,15 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             }
             // Rebut d'hora com el dots («Read 2:59 PM»): només als enviats
             // en aquesta sessió (l'historial antic no porta hora).
-            if (receipt.isNotEmpty()) {
+            if (m.kind == "queued") {
+                // Escrit sense connexió: surt sol quan el servidor torni.
+                Row(Modifier.padding(top = 2.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("⏳ " + tr(lang, "app.offline.pending"), fontSize = 11.sp, color = Sand)
+                    if (onDiscard != null) Text(tr(lang, "app.offline.discard"), fontSize = 11.sp, color = Ink.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onDiscard).testTag("discard-queued"))
+                }
+            } else if (receipt.isNotEmpty()) {
                 Text(receipt, fontSize = 11.sp, color = Ink.copy(alpha = 0.55f),
                     modifier = Modifier.padding(top = 2.dp, end = 4.dp))
             }
@@ -1944,7 +1974,7 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
         }
         val hint = when {
             switching || local is LocalState.Starting -> tr(lang, "app.where.switching")
-            onServer -> tr(lang, "app.where.serverHint")
+            onServer -> tr(lang, "app.where.phoneOther")
             reach == false && vm.hasSavedServer() -> tr(lang, "app.where.serverDown", serverName)
             else -> tr(lang, "app.where.phoneHint")
         }

@@ -1,8 +1,10 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"strings"
+	"time"
 
 	"gregal/internal/companion"
 )
@@ -91,6 +93,18 @@ func (s *Server) handleWindSquads(w http.ResponseWriter, r *http.Request) {
 	for _, old := range list {
 		used[strings.ToLower(old.Name)] = true
 	}
+	// Si els ajudants no es diuen «vents», els noms de la plantilla
+	// (Marinada, Tramuntana…) no hi encaixen: en prenen del col·lectiu triat.
+	var themed []string
+	if c := s.loadCollective(); !isWindCollective(c.Plural) {
+		lang := "en"
+		if req.Lang == "ca" {
+			lang = "ca"
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		themed = s.freshNames(s.collectiveNames(ctx, c, lang))
+		cancel()
+	}
 	added := []companion.Wind{}
 	for _, member := range template.Members {
 		found := false
@@ -108,7 +122,9 @@ func (s *Server) handleWindSquads(w http.ResponseWriter, r *http.Request) {
 			role = member.CA
 		}
 		name := member.Name
-		if used[strings.ToLower(name)] {
+		if len(themed) > 0 {
+			name = nextCrewName(used, themed...)
+		} else if used[strings.ToLower(name)] {
 			name = nextCrewName(used)
 		}
 		used[strings.ToLower(name)] = true

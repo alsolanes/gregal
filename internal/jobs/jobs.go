@@ -39,6 +39,10 @@ type Job struct {
 	RetryMin int    `json:"retry_min,omitempty"`
 	MaxTries int    `json:"max_tries,omitempty"`
 	Tries    int    `json:"tries,omitempty"`
+	// Followup marca un recordatori que el vent s'ha ofert a fer pel seu
+	// compte (seguiment d'una cosa que l'usuari va esmentar), no un que li
+	// van demanar: l'app el mostra com a «seguiment» i el deixa desfer.
+	Followup bool `json:"followup,omitempty"`
 }
 
 // Run és una execució (la sortida és markdown llest per renderitzar ric).

@@ -142,13 +142,16 @@
         flushPara();
         // Llista amb nivells per sagnat (2 espais per nivell, o el que hi hagi).
         const stack = []; // {ol: bool, indent: n}
-        const open = (ol, indent) => { out.push(ol ? "<ol>" : "<ul>"); stack.push({ ol, indent }); };
+        // Una llista numerada separada per línies en blanc («1.», buit, «2.»)
+        // arriba a trossos: start manté la numeració (abans tot eren «1.»).
+        const open = (ol, indent, n) => { out.push(ol ? (n > 1 ? '<ol start="' + n + '">' : "<ol>") : "<ul>"); stack.push({ ol, indent }); };
         const close = () => { const s = stack.pop(); out.push(s.ol ? "</ol>" : "</ul>"); };
         while (i < lines.length && (m = listItem(lines[i]))) {
           const indent = m[1].length, ol = /\d/.test(m[2]);
           while (stack.length && indent < stack[stack.length - 1].indent) close();
-          if (!stack.length || indent > stack[stack.length - 1].indent) open(ol, indent);
-          else if (stack[stack.length - 1].ol !== ol) { close(); open(ol, indent); }
+          const num = parseInt(m[2], 10);
+          if (!stack.length || indent > stack[stack.length - 1].indent) open(ol, indent, num);
+          else if (stack[stack.length - 1].ol !== ol) { close(); open(ol, indent, num); }
           let item = m[3];
           const task = /^\[( |x|X)\]\s+(.*)$/.exec(item);
           if (task) item = '<input type="checkbox" disabled' + (task[1] !== " " ? " checked" : "") + "> " + task[2];

@@ -171,9 +171,15 @@
   });
 
   // ---- memòria: «Ho recordo?» ----
-  let wasBusy = false, memPoll = 0;
-  function memChip(note) {
-    const el = card(T('extras.mem.title', 'Remember this?'), esc(note), 'mem');
+  let wasBusy = false, memPoll = 0, memQueue = [];
+  // D'una en una: dues o tres targetes apilades tapaven la conversa.
+  function nextMem() {
+    if (document.querySelector('.aside-mem') || !memQueue.length) return;
+    memChip(memQueue.shift(), memQueue.length);
+  }
+  function memChip(note, rest) {
+    const title = T('extras.mem.title', 'Remember this?') + (rest ? ' (+' + rest + ')' : '');
+    const el = card(title, esc(note), 'mem');
     const actions = el.querySelector('.aside-actions');
     const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'primary'; yes.textContent = T('extras.mem.accept', 'Remember');
     const no = document.createElement('button'); no.type = 'button'; no.className = 'ghost'; no.textContent = T('extras.mem.dismiss', 'Dismiss');
@@ -181,9 +187,10 @@
       yes.disabled = no.disabled = true;
       try {
         const r = await G().api('/api/memory/suggest', { method: 'POST', body: JSON.stringify({ action, note }) });
-        if (r.ok && action === 'accept') { actions.textContent = T('extras.mem.saved', 'Saved to .gregal/memory.md'); setTimeout(() => el.remove(), 2500); return; }
+        if (r.ok && action === 'accept') { actions.textContent = T('extras.mem.saved', 'Saved to .gregal/memory.md'); setTimeout(() => { el.remove(); nextMem(); }, 2500); return; }
       } catch (e) {}
       el.remove();
+      nextMem();
     };
     yes.onclick = () => act('accept');
     no.onclick = () => act('dismiss');
@@ -198,7 +205,8 @@
       const j = await r.json();
       if (j.state === 'ready' && Array.isArray(j.notes)) {
         document.querySelectorAll('.aside-mem').forEach(el => el.remove());
-        j.notes.forEach(memChip);
+        memQueue = j.notes.slice();
+        nextMem();
         return;
       }
       if (j.state === 'pending' && attempt < 8) memPoll = setTimeout(() => pollMemory(attempt + 1), 2500 * (attempt + 1));
@@ -263,8 +271,10 @@
     load();
   }
 
+  // A dalt a la dreta, sota la capçalera: a baix tapava el compositor
+  // (el camp és alt i la targeta queia just a sobre del botó d'enviar).
   const CSS = `
-#asideStack{position:fixed;right:16px;bottom:96px;z-index:60;display:flex;flex-direction:column;gap:8px;max-width:min(400px,calc(100vw - 32px));max-height:60vh;overflow:auto}
+#asideStack{position:fixed;right:16px;top:96px;z-index:60;display:flex;flex-direction:column;gap:8px;max-width:min(400px,calc(100vw - 32px));max-height:60vh;overflow:auto}
 #asideStack:empty{display:none}
 .aside-card{background:var(--panel);border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--accent,#8193FF);border-radius:8px;padding:8px 10px;box-shadow:0 6px 20px rgba(0,0,0,.18);font-size:13px}
 .aside-card header{display:flex;align-items:center;gap:8px;justify-content:space-between}

@@ -202,7 +202,7 @@ func TestMotorEinaBloquejadaEnModeXat(t *testing.T) {
 		t.Fatalf("hauria de pintar la crida i el resultat: %s", claus(evs))
 	}
 	darrer := tn.Hist[len(tn.Hist)-1]
-	if !strings.Contains(darrer.Content, "BLOQUEJADA") {
+	if !strings.Contains(darrer.Content, "TOOL BLOCKED") {
 		t.Fatalf("el model ha de saber que s'ha bloquejat: %q", darrer.Content)
 	}
 }

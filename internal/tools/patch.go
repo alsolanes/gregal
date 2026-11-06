@@ -54,11 +54,11 @@ func pedaça(path string, ops []PatchOp, seg *Seguiment) (string, error) {
 			// Inserir per número de línia en un fitxer que el model no té
 			// al dia és inserir a cegues.
 			if !alDia {
-				return "", fmt.Errorf("patch: edició %d: %s %s; after_line compta línies d'una versió que no és l'actual. Llegeix-lo amb read i torna-ho a provar", i+1, path, perque)
+				return "", fmt.Errorf("patch: edit %d: %s: %s; after_line counts lines of a version that is not the current one. Read it with read and try again", i+1, path, perque)
 			}
 			lines := strings.Split(cur, "\n")
 			if op.AfterLine > len(lines) {
-				return "", fmt.Errorf("patch: edició %d: línia %d fora de rang (%d línies)", i+1, op.AfterLine, len(lines))
+				return "", fmt.Errorf("patch: edit %d: line %d out of range (%d lines)", i+1, op.AfterLine, len(lines))
 			}
 			ins := strings.Split(op.New, "\n")
 			lines = append(lines[:op.AfterLine], append(ins, lines[op.AfterLine:]...)...)
@@ -66,15 +66,15 @@ func pedaça(path string, ops []PatchOp, seg *Seguiment) (string, error) {
 			continue
 		}
 		if strings.TrimSpace(op.Old) == "" {
-			return "", fmt.Errorf("patch: edició %d: old buit (fes servir after_line per inserir)", i+1)
+			return "", fmt.Errorf("patch: edit %d: empty old (use after_line to insert)", i+1)
 		}
 		nou, nivell, err := substitueix(cur, op.Old, op.New)
 		if err != nil {
-			return "", fmt.Errorf("patch: edició %d: %w", i+1, errEdicio(path, cur, op.Old, err))
+			return "", fmt.Errorf("patch: edit %d: %w", i+1, errEdicio(path, cur, op.Old, err))
 		}
 		if nivell != nivExacte {
 			if !alDia {
-				return "", fmt.Errorf("patch: edició %d: %w", i+1, errNoAlDia(path, perque, nivell))
+				return "", fmt.Errorf("patch: edit %d: %w", i+1, errNoAlDia(path, perque, nivell))
 			}
 			notes = append(notes, fmt.Sprintf("edició %d: «%s»", i+1, nivell))
 		}
@@ -93,7 +93,7 @@ func pedaça(path string, ops []PatchOp, seg *Seguiment) (string, error) {
 	}
 	var nota string
 	if len(notes) > 0 {
-		nota = "\n(s'ha aplicat amb coincidència aproximada — " + strings.Join(notes, ", ") + "; revisa el diff)"
+		nota = "\n(applied with an approximate match — " + strings.Join(notes, ", ") + "; check the diff)"
 	}
 	return nota + resumCanvi(orig, cur), nil
 }

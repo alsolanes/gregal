@@ -27,9 +27,13 @@ func TestSummarizeJerarquicNoDescartaElMig(t *testing.T) {
 			Messages []llm.Message `json:"messages"`
 		}
 		_ = json.Unmarshal(raw, &req)
+		// Consigna al system i text a resumir a l'usuari: es miren tots dos.
 		body := ""
-		if len(req.Messages) > 0 {
-			body = req.Messages[0].Content
+		for _, m := range req.Messages {
+			body += m.Content + "\n"
+		}
+		if len(req.Messages) != 2 || req.Messages[0].Role != "system" || req.Messages[1].Role != "user" {
+			body = "SENSE SYSTEM"
 		}
 		mu.Lock()
 		bodies = append(bodies, body)

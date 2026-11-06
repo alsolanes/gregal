@@ -1,0 +1,26 @@
+/* Paleta d'ordres (app/palette.js). Només tokens del tema: va bé en clar,
+   fosc i la resta de temes sense regles pròpies. */
+#palette { position:fixed; inset:0; z-index:1000; background:rgba(8,10,16,.38); display:flex; justify-content:center; align-items:flex-start; padding-top:min(14vh,120px); }
+#palette[hidden] { display:none; }
+:root[data-theme="light"] #palette { background:rgba(14,18,32,.18); }
+#palette .pal-box { width:min(640px,calc(100vw - 32px)); max-height:min(520px,70vh); display:flex; flex-direction:column; overflow:hidden;
+  background:var(--panel); color:var(--text); border:1px solid var(--line-hi); border-radius:14px; box-shadow:0 24px 64px var(--ombra), 0 2px 8px var(--ombra); }
+#palette .pal-search { display:flex; align-items:center; gap:10px; padding:0 16px; border-bottom:1px solid var(--line); }
+#palette .pal-search .pal-ico { color:var(--faint); }
+#palette #palInput { flex:1; min-width:0; height:52px; border:0; outline:0; background:transparent; color:var(--ink); font:inherit; font-size:var(--t4,16px); }
+#palette #palInput::placeholder { color:var(--faint); }
+#palList { list-style:none; margin:0; padding:6px; overflow-y:auto; flex:1; }
+#palList .pal-group { padding:10px 10px 4px; font-size:var(--t1,11.5px); font-weight:600; color:var(--faint); }
+#palList .pal-item { display:flex; align-items:center; gap:10px; min-height:36px; padding:0 10px; border-radius:8px; cursor:pointer; color:var(--text); font-size:var(--t3,14px); }
+#palList .pal-item.on { background:var(--accent-soft-hi, var(--hover-alt)); color:var(--ink); box-shadow:inset 2px 0 0 var(--accent); }
+#palList .pal-ico, #palette .pal-search .pal-ico { width:18px; height:18px; flex:none; display:grid; place-items:center; color:var(--muted); }
+#palList .pal-item.on .pal-ico { color:var(--accent-hi, var(--accent)); }
+#palList .pal-ico .ui-icon { width:16px; height:16px; }
+#palList .pal-label { flex:none; max-width:60%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#palList .pal-hint { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--faint); font-size:var(--t2,12.5px); text-align:right; }
+#palList .pal-kbd { flex:none; font:500 11.5px var(--mono); color:var(--muted); background:var(--surface); border:1px solid var(--line-hi); border-radius:5px; padding:1px 6px; }
+#palList .pal-item:not(:has(.pal-hint)) .pal-kbd { margin-left:auto; }
+#palList .pal-empty { padding:22px 12px; text-align:center; color:var(--muted); }
+#palette .pal-foot { padding:8px 14px; border-top:1px solid var(--line); font-size:var(--t1,11.5px); color:var(--faint); }
+@media (prefers-reduced-motion:no-preference) { #palette:not([hidden]) .pal-box { animation:palIn .12s ease-out; } }
+@keyframes palIn { from { opacity:0; transform:translateY(-6px) scale(.985); } to { opacity:1; transform:none; } }

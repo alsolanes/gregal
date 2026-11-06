@@ -22,6 +22,16 @@
     moreBtn:'M5 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2 M12 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2 M19 11a1 1 0 1 0 0 2 1 1 0 0 0 0-2',
     model:'M8 4h8v4h4v8h-4v4H8v-4H4V8h4z M9 9h6v6H9z',
     plus:'M12 5v14 M5 12h14',
+    // Capçalera de Codi i barra de pestanyes: abans eren glifs de text (±, ▤, ▣, ⎇＋).
+    diff:'M12 4v7 M8.5 7.5h7 M8.5 17h7 M5 3h14v18H5z',
+    files:'M3 7V5h7l2 2h9v13H3z',
+    preview:'M3 5h18v14H3z M3 9h18 M6 7h.01 M8.5 7h.01',
+    branchPlus:'M6 4v12 M6 16a2 2 0 1 0 0 4 2 2 0 0 0 0-4 M6 8a8 8 0 0 0 8 0 M14 8a2 2 0 1 0 0-4 2 2 0 0 0 0 4 M18 14v6 M15 17h6',
+    close:'M7 7l10 10 M17 7L7 17',
+    search:'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14 M20 20l-4-4',
+    sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8 M12 2v2 M12 20v2 M4.9 4.9l1.4 1.4 M17.7 17.7l1.4 1.4 M2 12h2 M20 12h2 M4.9 19.1l1.4-1.4 M17.7 6.3l1.4-1.4',
+    moon:'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
+    sliders:'M4 6h9 M17 6h3 M4 12h3 M11 12h9 M4 18h11 M19 18h1 M15 4v4 M9 10v4 M17 16v4',
   };
   const svg = name => '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + paths[name] + '"/></svg>';
   document.querySelectorAll('.side-view[data-view]').forEach(button => {
@@ -32,6 +42,15 @@
     const button = document.getElementById(id);
     if (button) button.innerHTML = svg(id);
   }
+  // Botons de la capçalera amb glif de text: el primer node de text es
+  // canvia per la icona i es conserven els fills (la xapa de canvis).
+  for (const [sel, icon] of [['#top [data-view="canvis"]', 'diff'], ['#top [data-view="fitxers"]', 'files'], ['#previewToggle', 'preview']]) {
+    const button = document.querySelector(sel);
+    const text = button && [...button.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+    if (text) { text.remove(); button.insertAdjacentHTML('afterbegin', svg(icon)); }
+  }
+  // Perquè altres mòduls (pestanyes, paleta) facin servir el mateix joc.
+  window.gregalIcon = name => (paths[name] ? svg(name) : '');
   for (const [id, icon] of [['newchat','plus'], ['newproject','fitxers']]) {
     const slot = document.querySelector('#' + id + ' > span:first-child');
     if (slot) slot.innerHTML = svg(icon);

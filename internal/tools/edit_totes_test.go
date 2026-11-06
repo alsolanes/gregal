@@ -34,7 +34,7 @@ func TestEditReplaceAll(t *testing.T) {
 func TestEditOldBuitDiuQueFalta(t *testing.T) {
 	p := fitxer(t, "a\n")
 	_, err := nouSeguiment().Edit(p, "", "b")
-	if err == nil || !strings.Contains(err.Error(), "old_string és buit") {
+	if err == nil || !strings.Contains(err.Error(), "old_string is empty") {
 		t.Fatalf("err=%v", err)
 	}
 }

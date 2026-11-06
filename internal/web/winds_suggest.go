@@ -21,10 +21,20 @@ import (
 // pot tocar el que vulgui abans de crear el vent.
 
 // windSuggestSystem compon el system de la proposta: dóna veu al vent.
-func windSuggestSystem(name, role string) string {
+func windSuggestSystem(name, role string, collective ...string) string {
 	var b strings.Builder
-	b.WriteString("You write the persona of a wind companion in an app called Gregal. ")
-	b.WriteString("The user gives you a wind name (winds of the Catalan compass rose: Tramuntana, Xaloc, Llevant, Gregal, Ponent, Mestral, Llebeig, Marinada…) and what it watches over. ")
+	plural := ""
+	if len(collective) > 0 {
+		plural = strings.TrimSpace(collective[0])
+	}
+	if isWindCollective(plural) {
+		b.WriteString("You write the persona of a wind companion in an app called Gregal. ")
+		b.WriteString("The user gives you a wind name (winds and breezes, e.g. Tramuntana, Xaloc, Garbinada, Terral, Ventolina…) and what it watches over. ")
+	} else {
+		// La persona ha triat com es diuen els seus ajudants: la veu hi encaixa.
+		b.WriteString("You write the persona of a helper companion in an app called Gregal. The user calls these helpers \"" + plural + "\": give it a personality that fits that idea. ")
+		b.WriteString("The user gives you its name and what it watches over. ")
+	}
 	b.WriteString("Reply ONLY with a compact JSON object, no prose, no markdown fences, with two keys:\n")
 	b.WriteString(`{"persona": "<3-5 sentences in Catalan: who this wind is, how it talks (warm, curt, playful or calm — pick a coherent voice), what it cares about>", "style": "<exactly 3 letters: eyes+mouth+shape>"}`)
 	b.WriteString("\nstyle letters: eyes p=punts, b=badalls, e=estrellats, m=mig tancats; mouth s=somriure, o=oberta, n=neutra, t=llengua; shape o=bola, n=núvol, s=espiral. ")
@@ -63,7 +73,7 @@ func (s *Server) handleWindSuggest(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	msgs := []llm.Message{
-		{Role: "system", Content: windSuggestSystem(name, role)},
+		{Role: "system", Content: windSuggestSystem(name, role, s.loadCollective().Plural)},
 		{Role: "user", Content: "Wind name: " + name + "\nWhat it watches: " + firstNonEmpty(role, "company de tot un poc")},
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

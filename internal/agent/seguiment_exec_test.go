@@ -31,14 +31,14 @@ func TestExecReadEditAmbSeguiment(t *testing.T) {
 	if out, _, err := ExecIn(sess, dir, "read", `{"path":"a.go"}`); err != nil || !strings.Contains(out, "4|\tg()") {
 		t.Fatalf("read: %v %q", err, out)
 	}
-	if out, _, _ := ExecIn(sess, dir, "read", `{"path":"a.go"}`); !strings.Contains(out, "sense canvis") {
+	if out, _, _ := ExecIn(sess, dir, "read", `{"path":"a.go"}`); !strings.Contains(out, "unchanged:") {
 		t.Fatalf("la relectura havia de dir sense canvis: %q", out)
 	}
 	out, _, err := ExecIn(sess, dir, "edit", `{"path":"a.go","old_string":"func F() {\n    g()\n}","new_string":"func F() {\n    h()\n}"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, "aproximada") || !strings.Contains(out, "+4|\th()") {
+	if !strings.Contains(out, "approximate") || !strings.Contains(out, "+4|\th()") {
 		t.Errorf("edit ha de dir el nivell i donar el diff: %q", out)
 	}
 	if raw, _ := os.ReadFile(p); !strings.Contains(string(raw), "\th()") {

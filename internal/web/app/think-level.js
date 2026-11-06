@@ -86,5 +86,8 @@
   }
 
   document.addEventListener('gregal:state', e => paint(e.detail || {}));
+  // L'estat pot arribar abans que i18n posi <html lang>: es repinta quan
+  // s'aplica (o es canvia) l'idioma, si no la pastilla es queda en català.
+  document.addEventListener('gregal:idioma', () => { if (last) paint(last); });
   if (typeof module === 'object' && module.exports) module.exports = { pillText: null };
 })();

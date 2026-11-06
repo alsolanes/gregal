@@ -293,7 +293,9 @@ func CompactHist(ctx context.Context, client *llm.Client, prim llm.Target, fb *l
 	b.WriteString(MarcaResum + "\n[Handoff note of the work done so far in this turn — continue from here without repeating finished work]\n")
 	b.WriteString(resum)
 	if t := tascaDe(capçalera); t != "" {
-		b.WriteString("\n\nOriginal user task:\n" + capRunes(SenseMapa(t), 1500))
+		// La tasca va sencera: retallada a 1.500 caràcters, una consigna
+		// llarga perdia els requisits del final just en compactar.
+		b.WriteString("\n\nOriginal user task:\n" + SenseMapa(t))
 	}
 	b.WriteString("\n" + MarcaResumFinal)
 	out := make([]llm.Message, 0, len(hist)-cut+2)
@@ -318,7 +320,8 @@ func TrimKeepSafe(hist []llm.Message, keep int) []llm.Message {
 	out := make([]llm.Message, 0, len(hist)-cut+inici+1)
 	out = append(out, hist[:inici]...)
 	if t := tascaDe(hist[inici:cut]); t != "" && !teUser(hist[cut:]) {
-		out = append(out, llm.Message{Role: "user", Content: "[Task in progress — earlier steps were trimmed to fit the context]\n" + capRunes(t, 1500)})
+		// Sencera, com a CompactHist: la tasca és el que no es pot perdre.
+		out = append(out, llm.Message{Role: "user", Content: "[Task in progress — earlier steps were trimmed to fit the context]\n" + t})
 	}
 	return append(out, hist[cut:]...)
 }
@@ -424,7 +427,7 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 		}
 		if h, err := CompactHist(ctx, client, prim, fb, res.Hist, KeepRecentOnCompact, lang); err == nil {
 			res.Hist, res.Summarized = h, true
-			tools.OblidaTotsSeguiments() // les lectures resumides ja no hi són
+			oblidaLectures(ctx) // les lectures resumides ja no hi són
 			if !fits(res.Hist) {
 				var n int
 				res.Hist, n = PruneToolOutputsUntil(res.Hist, fits)
@@ -440,7 +443,7 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 	if len(res.Hist) > KeepRecentOnCompact+1 && (res.Err != nil || client == nil) {
 		res.Hist = TrimKeepSafe(res.Hist, KeepRecentOnCompact)
 		res.Trimmed = true
-		tools.OblidaTotsSeguiments()
+		oblidaLectures(ctx)
 	}
 	if !fits(res.Hist) {
 		var n int
@@ -449,6 +452,29 @@ func MakeRoom(ctx context.Context, client *llm.Client, prim llm.Target, fb *llm.
 	}
 	res.After = est(res.Hist)
 	return res
+}
+
+type seguimentSessioKey struct{}
+
+// WithSeguimentSessio diu a la compactació de quina sessió són les lectures
+// que es resumeixen (la mateixa que rep ExecCtx). Sense, oblidar-les
+// esborrava el seguiment de TOTES les sessions del procés.
+func WithSeguimentSessio(ctx context.Context, sessio string) context.Context {
+	return context.WithValue(ctx, seguimentSessioKey{}, sessio)
+}
+
+// oblidaLectures esborra el seguiment de lectures de la sessió del torn: la
+// del context, la del subagent (que comparteix la del pare) o la del procés
+// ("" a ExecCtx, com fan el TUI, el Telegram i el headless).
+func oblidaLectures(ctx context.Context) {
+	sessio, _ := ctx.Value(seguimentSessioKey{}).(string)
+	if sessio == "" {
+		sessio = delegateScopeFromContext(ctx).session
+	}
+	if sessio == "" {
+		sessio = procSession
+	}
+	tools.OblidaSeguiment(sessio)
 }
 
 // CallPlan és la decisió prèvia sobre una crida d'eina d'un pas: resposta
@@ -472,7 +498,7 @@ func PlanCalls(pol *Policy, mode string, doom *DoomTracker, calls []llm.ToolCall
 		dec, reason := pol.Decide(mode, c.Function.Name, c.Function.Arguments)
 		switch dec {
 		case "deny":
-			out[i] = CallPlan{Fixed: "EINA BLOQUEJADA: " + reason, Reason: reason}
+			out[i] = CallPlan{Fixed: "TOOL BLOCKED: " + reason, Reason: reason}
 			continue
 		case "ask":
 			out[i] = CallPlan{Ask: true, Reason: reason}

@@ -67,7 +67,10 @@ export function createSummary(session = window.gregalSession || 'default') {
     const rows = [];
     if (files.length) {
       rows.push('<div class="run-summary-section">' + T('run.summary.files') + ' <span class="run-summary-pill">' + files.length + '</span></div>');
-      files.slice(0, 8).forEach(p => rows.push('<div class="run-summary-row run-summary-file">' + html(p) + '</div>'));
+      // Ruta relativa al projecte (la sencera al tooltip); clic: el seu diff
+      // a Canvis o, si no n'hi ha (fora de git), el fitxer a la subfinestra.
+      const rel = p => (G()?.relPath ? G().relPath(p) : p);
+      files.slice(0, 8).forEach(p => rows.push('<div class="run-summary-row"><button type="button" class="run-summary-file" data-path="' + html(p) + '" title="' + html(p) + '">' + html(rel(p)) + '</button></div>'));
     }
     if (checks.length) {
       rows.push('<div class="run-summary-section">' + T('run.summary.checks') + '</div>');
@@ -88,6 +91,9 @@ export function createSummary(session = window.gregalSession || 'default') {
     const actionBar = root?.querySelector?.('.run-summary-actions');
     const buttons = actionBar?.querySelectorAll?.('button');
     if (buttons && buttons[0]) buttons[0].onclick = () => G()?.setView?.('canvis');
+    root?.querySelectorAll?.('.run-summary-file').forEach(b => {
+      b.onclick = () => (G()?.openFileRef ? G().openFileRef(b.dataset.path, { diff: true }) : G()?.setView?.('canvis'));
+    });
     return card;
   }
   return { record, render };

@@ -132,6 +132,10 @@ func (s *Server) crewPropose(ctx context.Context, task string, ca bool, winds []
 		}
 		roster.WriteString("\n")
 	}
+	nameLang := "English"
+	if ca {
+		nameLang = "Catalan"
+	}
 	system := "You assemble a small crew of AI helpers (\"winds\") for a task. Reply with JSON only, no prose, no code fences."
 	prompt := "TASK:\n" + task + "\n\nEXISTING WINDS (they keep their own memory and knowledge):\n" + roster.String() +
 		"\nRules:\n- First list in `needs` the areas of expertise the task requires: the subject domain(s) (e.g. gardening, cooking, law, travel) and the delivery skill (e.g. web building, writing, data).\n" +
@@ -139,7 +143,7 @@ func (s *Server) crewPropose(ctx context.Context, task string, ca bool, winds []
 		"- If an existing wind already works in the same subject domain, even partly (e.g. a balcony gardener for a question about tomato pests), reuse it instead of creating a similar one: it remembers earlier work.\n" +
 		"- Create a new wind for every need that no existing wind specifically covers, especially subject domains (at most 3 new).\n" +
 		"- Pick 2 to 4 members in total; prefer the domain experts and one builder.\n" +
-		"- New winds: a short, playful, wind-inspired Catalan name not used above; a role of 2-5 words in " + lang + " that says exactly what it does; " +
+		"- New winds: " + s.collectiveNameRule(nameLang) + ", not used above; a role of 2-5 words in " + lang + " that says exactly what it does; " +
 		"a warm, slightly funny persona (2 sentences, in English) that states its expertise and how it works; kit = the closest of [" + strings.Join(crewKits, ", ") + "] or \"\".\n" +
 		"- Order members so the first one builds the deliverable and the second one reviews it.\n" +
 		"- plan: one sentence in " + lang + " on how they will split the work.\n\n" +
@@ -147,18 +151,18 @@ func (s *Server) crewPropose(ctx context.Context, task string, ca bool, winds []
 	var out crewProposal
 	if raw, err := crewPlanner(s, ctx, system, prompt); err == nil {
 		if obj := firstJSONObject(raw); obj != "" && json.Unmarshal([]byte(obj), &out) == nil {
-			return crewSanitise(out, winds, task, ca)
+			return crewSanitise(out, winds, task, ca, s.crewNamePool(ctx, ca)...)
 		}
 		log.Printf("crew propose: unparsable plan")
 	} else {
 		log.Printf("crew propose: %s", redactError(err))
 	}
-	return crewSanitise(crewFallback(task, winds, ca), winds, task, ca)
+	return crewSanitise(crewFallback(task, winds, ca), winds, task, ca, s.crewNamePool(ctx, ca)...)
 }
 
 // crewSanitise keeps only valid members, fills names, colours and faces so
 // every new wind looks different from the ones that already exist.
-func crewSanitise(p crewProposal, winds []companion.Wind, task string, ca bool) crewProposal {
+func crewSanitise(p crewProposal, winds []companion.Wind, task string, ca bool, pool ...string) crewProposal {
 	byID := map[string]companion.Wind{}
 	usedNames, usedColors := map[string]bool{}, map[string]bool{}
 	for _, w := range winds {
@@ -189,7 +193,7 @@ func crewSanitise(p crewProposal, winds []companion.Wind, task string, ca bool) 
 		}
 		name := cleanCrewName(c.Name)
 		if name == "" || usedNames[strings.ToLower(name)] {
-			name = nextCrewName(usedNames)
+			name = nextCrewName(usedNames, pool...)
 		}
 		usedNames[strings.ToLower(name)] = true
 		role := oneLine(c.Role, 60)
@@ -215,7 +219,7 @@ func crewSanitise(p crewProposal, winds []companion.Wind, task string, ca bool) 
 	}
 	if len(out.Reuse)+len(out.Create) == 0 {
 		// Never return an empty crew: a generalist always helps.
-		name := nextCrewName(usedNames)
+		name := nextCrewName(usedNames, pool...)
 		role := map[bool]string{true: "Mans a l'obra", false: "Hands-on helper"}[ca]
 		out.Create = append(out.Create, crewNew{Name: name, Role: role, Persona: "You are " + name + ", a cheerful all-rounder who turns requests into finished work.", Color: nextCrewColor(usedColors), Style: crewStyle(name)})
 	}
@@ -330,8 +334,11 @@ func cleanCrewName(name string) string {
 	return name
 }
 
-func nextCrewName(used map[string]bool) string {
-	for _, n := range crewNames {
+func nextCrewName(used map[string]bool, pool ...string) string {
+	if len(pool) == 0 {
+		pool = crewNames
+	}
+	for _, n := range pool {
 		if !used[strings.ToLower(n)] {
 			return n
 		}

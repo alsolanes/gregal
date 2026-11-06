@@ -34,6 +34,9 @@ type windNovetat struct {
 	Name   string `json:"name"`
 	Source string `json:"source"`
 	Text   string `json:"text"`
+	// Job: l'id del recordatori que l'ha fet sonar. L'app el fa servir per
+	// no avisar dues vegades si ja l'havia mostrat ella amb el servidor caigut.
+	Job string `json:"job,omitempty"`
 }
 
 var novetatsMu sync.Mutex
@@ -67,6 +70,11 @@ func saveNovetats(s *Server, list []windNovetat) {
 
 // recordNovetat apunta una veu proactiva. Best-effort: mai no falla el torn.
 func recordNovetat(s *Server, w companion.Wind, source, text string) {
+	recordNovetatJob(s, w, source, "", text)
+}
+
+// recordNovetatJob és recordNovetat amb l'id del job que l'ha provocat.
+func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
@@ -79,6 +87,7 @@ func recordNovetat(s *Server, w companion.Wind, source, text string) {
 		Name:   w.Name,
 		Source: source,
 		Text:   text,
+		Job:    job,
 	})
 	saveNovetats(s, list)
 }

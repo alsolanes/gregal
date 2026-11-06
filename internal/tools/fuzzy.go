@@ -48,11 +48,11 @@ type errAmbigu struct {
 }
 
 func (e errAmbigu) Error() string {
-	s := fmt.Sprintf("bloc ambigu (%d ocurrències", e.n)
+	s := fmt.Sprintf("ambiguous block (%d occurrences", e.n)
 	if e.nivell != nivExacte {
-		s += ", amb coincidència «" + e.nivell + "»"
+		s += ", with \"" + e.nivell + "\" matching"
 	}
-	return s + "): posa-hi més context perquè n'hi hagi una de sola"
+	return s + "): add more context so that there is only one"
 }
 
 // substitueix aplica old→new sobre text. text, old i new ja venen sense \r.
@@ -136,7 +136,7 @@ func senseNumeros(s string) (string, bool) {
 	return strings.Join(ls, "\n"), hi
 }
 
-var errNoTrobat = fmt.Errorf("bloc no trobat")
+var errNoTrobat = fmt.Errorf("block not found")
 
 // blocVell és old partit en línies, sense les línies en blanc dels extrems
 // (els models n'hi afegeixen o n'hi treuen sovint), amb el bloc nou a joc.
@@ -590,13 +590,13 @@ func fragmentSemblant(text, old string) string {
 	}
 	lines := strings.Split(text, "\n")
 	var b strings.Builder
-	fmt.Fprintf(&b, "\nEl fragment més semblant (%.0f%%) és a les línies %d–%d:\n", sim*100, ini+1, fi)
+	fmt.Fprintf(&b, "\nThe most similar fragment (%.0f%%) is at lines %d–%d:\n", sim*100, ini+1, fi)
 	const maxLinies = 30
 	for i := ini; i < fi && i < ini+maxLinies; i++ {
 		fmt.Fprintf(&b, "%d|%s\n", i+1, escurça(lines[i], 200))
 	}
 	if fi-ini > maxLinies {
-		fmt.Fprintf(&b, "…(%d línies més)\n", fi-ini-maxLinies)
+		fmt.Fprintf(&b, "…(%d more lines)\n", fi-ini-maxLinies)
 	}
 	return strings.TrimRight(b.String(), "\n")
 }

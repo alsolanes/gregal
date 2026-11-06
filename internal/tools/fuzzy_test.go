@@ -121,21 +121,21 @@ var corpusEdicions = []casEdicio{
 		fitxer:   "if a {\n\tx()\n}\nfunc g() {\n\t\tx()\n}\n",
 		old:      "  x()",
 		new:      "  y()",
-		errConte: "ambigu",
+		errConte: "ambiguous",
 	},
 	{
 		nom:      "línia inventada al mig: les àncores no la deixen passar",
 		fitxer:   "func F() {\n\ta()\n\tb()\n}\n",
 		old:      "func F() {\n\ta()\n\tlog.Fatal(\"x\")\n\tb()\n\tc()\n}",
 		new:      "x",
-		errConte: "fragment més semblant",
+		errConte: "most similar fragment",
 	},
 	{
 		nom:      "bloc inventat del tot",
 		fitxer:   "package a\n\nfunc F() {}\n",
 		old:      "type Servidor struct {\n\tport int\n}",
 		new:      "x",
-		errConte: "res semblant",
+		errConte: "nothing similar",
 	},
 }
 
@@ -166,7 +166,7 @@ func TestCorpusEdicionsFallides(t *testing.T) {
 			if string(raw) != c.vol {
 				t.Errorf("resultat:\n%q\nvolia:\n%q", raw, c.vol)
 			}
-			if !strings.Contains(nota, c.nivell) || !strings.Contains(nota, "aproximada") {
+			if !strings.Contains(nota, c.nivell) || !strings.Contains(nota, "approximate") {
 				t.Errorf("la nota havia de dir el nivell %q: %q", c.nivell, nota)
 			}
 		})
@@ -194,7 +194,7 @@ func TestErrorEnsenyaElFragmentMesSemblantAmbLiniesIPercentatge(t *testing.T) {
 	if err == nil {
 		t.Fatal("havia de fallar")
 	}
-	for _, s := range []string{"fragment més semblant", "%", "línies 3–", "3|func Calcula"} {
+	for _, s := range []string{"most similar fragment", "%", "lines 3–", "3|func Calcula"} {
 		if !strings.Contains(err.Error(), s) {
 			t.Errorf("l'error havia de contenir %q:\n%v", s, err)
 		}

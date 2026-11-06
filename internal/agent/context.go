@@ -26,7 +26,7 @@ import (
 const maxRetallades = 2
 
 // Retallat és el text que substitueix el contingut dels missatges antics.
-const Retallat = "…(retallat per encabir la conversa al context del model)"
+const Retallat = "…(truncated to fit the conversation in the model's context)"
 
 // EsErrorContext diu si un error vol dir que la petició no hi cap. Els
 // proveïdors ho diuen de maneres diferents; totes parlen de mida o de
@@ -47,10 +47,12 @@ func EsErrorContext(msg string) bool {
 }
 
 // RetallaContext escurça la conversa perquè hi càpiga: conserva els últims
-// keep missatges sencers, la primera consigna (retallada a maxLen) i el
-// darrer missatge; de la resta en buida el contingut però manté el rol i les
-// crides d'eina, perquè l'ordre i el parell tool_call → tool no es trenquin.
-// Pura: testejable.
+// keep missatges sencers i, dels anteriors, escurça només les sortides
+// d'eines i les respostes de l'assistent (a maxLen caràcters, o les buida del
+// tot amb maxLen <= 0). El system i els missatges d'usuari (la tasca!) no es
+// toquen mai. Manté el rol i les crides d'eina, perquè l'ordre i el parell
+// tool_call → tool no es trenquin. Talla en runes, mai a mig accent. Pura:
+// testejable.
 func RetallaContext(hist []llm.Message, keep, maxLen int) []llm.Message {
 	if len(hist) == 0 {
 		return hist
@@ -58,42 +60,37 @@ func RetallaContext(hist []llm.Message, keep, maxLen int) []llm.Message {
 	if keep < 2 {
 		keep = 2
 	}
-	if maxLen <= 0 {
-		maxLen = 600
-	}
 	out := make([]llm.Message, len(hist))
 	copy(out, hist)
-	// La primera consigna d'usuari és la tasca: no es pot perdre.
-	for i := range out {
-		if out[i].Role == "user" {
-			if t := strings.TrimSpace(out[i].Content); t != "" && len(t) > maxLen {
-				out[i].Content = t[:maxLen] + " […]"
-			}
-			break
-		}
-	}
 	limit := len(out) - keep
 	for i := 0; i < limit; i++ {
-		// La consigna inicial ja s'ha conservat a dalt.
-		if out[i].Role == "user" && i == 0 {
-			continue
-		}
 		if out[i].Role != "tool" && out[i].Role != "assistant" {
 			continue
 		}
-		if out[i].Content != "" && out[i].Content != Retallat {
+		c := out[i].Content
+		if c == "" || c == Retallat || strings.HasSuffix(c, "\n"+Retallat) {
+			continue
+		}
+		if maxLen <= 0 {
 			out[i].Content = Retallat
+			continue
+		}
+		// En runes: tallar bytes partia un accent i el proveïdor rebutjava l'UTF-8.
+		if r := []rune(c); len(r) > maxLen {
+			out[i].Content = string(r[:maxLen]) + "\n" + Retallat
 		}
 	}
 	return out
 }
 
 // contextRetallat aplica RetallaContext de manera progressiva: la primera
-// vegada conserva 12 missatges, la segona només 6 (les eines del darrer pas).
+// vegada conserva 12 missatges i escurça les sortides antigues a 400
+// caràcters; la segona en conserva 6 (les eines del darrer pas) i buida la
+// resta. La tasca no es retalla mai: amb el tall antic (600 bytes) es perdia
+// el que demanava la persona just quan la conversa era més llarga.
 func contextRetallat(hist []llm.Message, vegada int) []llm.Message {
-	keep := 12
 	if vegada >= 2 {
-		keep = 6
+		return RetallaContext(hist, 6, 0)
 	}
-	return RetallaContext(hist, keep, 600)
+	return RetallaContext(hist, 12, 400)
 }

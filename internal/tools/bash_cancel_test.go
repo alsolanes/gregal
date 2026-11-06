@@ -64,7 +64,7 @@ func TestBashCtxKillsDescendantOnCancelAndTimeout(t *testing.T) {
 				if res.err == nil {
 					t.Fatal("bash should report cancellation or timeout")
 				}
-				if tc.cancel && !strings.Contains(res.err.Error(), "aturada") {
+				if tc.cancel && !strings.Contains(res.err.Error(), "stopped by the user") {
 					t.Fatalf("cancellation error = %v", res.err)
 				}
 				if !tc.cancel && !strings.Contains(res.err.Error(), "timeout (") {

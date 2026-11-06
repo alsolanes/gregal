@@ -99,7 +99,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         }
                     }
                 }) {
-                listOf("character", "memory", "plans", "cards").forEachIndexed { index, key ->
+                listOf("character", "memory", "scheduled", "saved").forEachIndexed { index, key ->
                     Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key")) })
                 }
             }
@@ -151,7 +151,12 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         VentSkillsSection(vm, lang, wind)
                     }
-                    3 -> WindCardsSection(vm, lang, wind)
+                    3 -> {
+                        Text(tr(lang, "saved.help"), color = Muted, fontSize = 13.sp)
+                        WindSavedGallery(vm, lang, wind.id)
+                        HorizontalDivider(color = Muted.copy(alpha = .15f))
+                        WindCardsSection(vm, lang, wind)
+                    }
                     2 -> {
                         Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
                         Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {
@@ -159,18 +164,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         }
                         bgHealthRow(lang, vm)
                         heartbeatRow(lang, vm, wind)
-                        remindersRow(lang, vm, wind)
-                        val ownRoutines = routines.filter { it.wind == wind.id }
-                        if (ownRoutines.isEmpty()) Text(tr(lang, "app.vents.noPlans"), color = Tinta)
-                        ownRoutines.forEach { routine ->
-                            Surface(color = Color(wind.argb).copy(alpha = .08f), shape = MaterialTheme.shapes.medium) {
-                                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(routine.name.ifBlank { tr(lang, "app.rutines.title") }, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                                    Text(routine.prompt, color = Tinta, fontSize = 14.sp)
-                                    if (routine.nextDueAt.isNotBlank()) Text(tr(lang, "app.vents.nextPlan", routine.nextDueAt), color = Muted, fontSize = 12.sp)
-                                }
-                            }
-                        }
+                        followupsRow(lang, vm, wind)
+                        WindAutomationList(vm, lang, wind.id, showSummary = false)
                     }
                 }
             }
@@ -252,27 +247,6 @@ private fun heartbeatRow(lang: String, vm: GregalViewModel, wind: Wind) {
                 vm.ensureWindHeartbeat(wind, on) { pending = false }
             }
         }, enabled = !pending)
-    }
-}
-
-/** Avisos que el vent ha programat: text + quan + cancel·lar. */
-@Composable
-private fun remindersRow(lang: String, vm: GregalViewModel, wind: Wind) {
-    val jobs by vm.jobs.collectAsState()
-    val pending = jobs.filter { it.kind == "remind" && it.enabled && it.id.startsWith("remind-" + wind.id + "-") }
-    if (pending.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(tr(lang, "app.vents.reminders"), color = Ink, fontWeight = FontWeight.SemiBold)
-        pending.forEach { j ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(j.prompt, color = Tinta, fontSize = 14.sp)
-                    val whenDue = j.nextDue.ifBlank { j.nextDueAt }
-                    if (whenDue.isNotBlank()) Text(whenDue, color = Muted, fontSize = 12.sp)
-                }
-                TextButton(onClick = { vm.deleteJob(j.id) }) { Text(tr(lang, "app.company.windCancel")) }
-            }
-        }
     }
 }
 
@@ -459,4 +433,18 @@ private fun WindCardsSection(vm: GregalViewModel, lang: String, wind: Wind) {
     OutlinedTextField(title, { title = it }, label = { Text(if (ca) "Nom de la fitxa" else "Card title") }, modifier = Modifier.fillMaxWidth())
     OutlinedTextField(prompt, { prompt = it }, label = { Text(if (ca) "Què ha de cercar?" else "What should be researched?") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
     Button(enabled = !loading && title.isNotBlank() && prompt.isNotBlank(), onClick = { scope.launch { loading = true; error = ""; try { vm.windCardAction(wind.id, "create", title = title, prompt = prompt); title = ""; prompt = ""; load() } catch (e: Exception) { error = e.message.orEmpty() } finally { loading = false } } }) { Text(if (ca) "Crea la fitxa" else "Create card") }
+}
+
+/** Interruptor dels seguiments proactius: el vent s'ofereix a tornar-hi. */
+@Composable
+private fun followupsRow(lang: String, vm: GregalViewModel, wind: Wind) {
+    val winds by vm.winds.collectAsState()
+    val on = (winds.firstOrNull { it.id == wind.id } ?: wind).followups != "off"
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(tr(lang, "act.followups"), color = Ink, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, "act.followupsHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+        Switch(checked = on, onCheckedChange = { vm.setWindFollowups(wind, it) })
+    }
 }

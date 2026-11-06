@@ -49,7 +49,7 @@ func TestAgentModePerTornNomesRestringeix(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.handleAgent(rec, httptest.NewRequest(http.MethodPost, "/api/agent", strings.NewReader(`{"task":"resumeix això","mode":"chat"}`)))
 	body := rec.Body.String()
-	if !strings.Contains(body, "EINA BLOQUEJADA") && !strings.Contains(body, "blocked") {
+	if !strings.Contains(body, "TOOL BLOCKED") && !strings.Contains(body, "blocked") {
 		t.Fatalf("en mode consulta el write s'havia de bloquejar:\n%s", body)
 	}
 	if len(sistemes) == 0 || !strings.Contains(sistemes[0], "CHAT MODE") {

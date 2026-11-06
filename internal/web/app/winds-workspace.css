@@ -315,3 +315,15 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-choices { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 46px; }
 .vw-choice { padding:8px 14px; border-radius:999px; border:1px solid color-mix(in srgb,var(--vw-accent) 60%,var(--line)); background:color-mix(in srgb,var(--vw-accent) 14%,transparent); color:var(--ink); font-size:13px; font-weight:500; }
 .vw-choice:hover { background:color-mix(in srgb,var(--vw-accent) 28%,transparent); }
+
+/* Un sol sistema amb Codi (calma.css): la mateixa mida a tota la barra
+   lateral, el compositor amb el radi de #box, l'enviament de 36 px i la
+   salutació amb la serif de la portada de Codi. Cada producte conserva el
+   seu color d'accent (sàlvia a Vents, blau a Codi). */
+html body.shell-winds .vw-nav-item.vw-nav-icon, html body.shell-winds .vw-nav-item.vw-project { font-size:14px!important; padding:8px 12px; color:var(--text); }
+html body.shell-winds .vw-nav-item.vw-thread { font-size:13px!important; }
+html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+html body.shell-winds .vw-composer, html body.shell-winds .vw-home .vw-composer { border-radius:22px; }
+html body.shell-winds .vw-send { flex-basis:36px; width:36px; min-width:36px; height:36px; min-height:36px; }
+html body.shell-winds .vw-send svg { width:20px; height:20px; }
+html body.shell-winds .vw-welcome h1 { font:500 clamp(30px,3.2vw,40px)/1.2 Georgia,"Iowan Old Style",Cambria,"Times New Roman",serif; letter-spacing:-.01em; }

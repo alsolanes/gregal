@@ -99,6 +99,13 @@ func (s *Server) runReadOnlyLoopForRole(ctx context.Context, brief string, maxSt
 // són les clàssiques (comportament idèntic al d'abans).
 func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string, maxSteps int, p config.Provider, role config.Role, emit func(kind, text string), prev ...[]llm.Message) (exploracio, error) {
 	scope, interactive := ctx.Value(interactiveWindKey{}).(windTurnScope)
+	// El mode Pla fa servir aquest mateix bucle, però no és un xat de vent:
+	// només eines de lectura i els seus propis missatges.
+	planTurn := isPlanTurn(ctx)
+	specs, notRun := windSpecs(), windNotRun
+	if planTurn {
+		specs, notRun = planSpecs(), planNotRun
+	}
 	if !interactive {
 		scope = s.windLoopScope()
 		scope.mode = agent.ModeInspect
@@ -159,6 +166,8 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 	loop := &agent.Loop{
 		MaxSteps: maxSteps,
 		Lang:     s.cfg.Lang(),
+		// Poda preventiva de sortides velles abans de desbordar la finestra.
+		Finestra: agent.PromptBudget(agent.Window(s.cfg, role), role.MaxTokens),
 		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
 			cctx, cancel := context.WithTimeout(ctx, 900*time.Second)
 			defer cancel()
@@ -167,10 +176,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				cctx = modelContext(cctx)
 			}
 			if !stream {
-				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, windSpecs(), nil)
+				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specs, nil)
 				return content, calls, err
 			}
-			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, windSpecs(), func(tok string) { emit("token", tok) }, nil, nil)
+			content, calls, _, err := s.client.ChatStreamWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specs, func(tok string) { emit("token", tok) }, nil, nil)
 			if err == nil && len(calls) > 0 {
 				names := make([]string, 0, len(calls))
 				for _, c := range calls {
@@ -289,7 +298,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 				requiresApproval = true
 				skipped = append(skipped, reason)
-				return "deny", windNotRun + " (" + reason + ")"
+				return "deny", notRun + " (" + reason + ")"
 			}
 			return decision, reason
 		},
@@ -313,6 +322,8 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		switch {
 		case first && len(prev) > 0 && len(prev[0]) > 0:
 			out, _, err = loop.Continua(ctx, prev[0])
+		case first && len(windPromptOf(ctx)) > 0:
+			out, _, err = loop.RunMessages(ctx, windPromptOf(ctx))
 		case first:
 			out, _, err = loop.Run(ctx, brief)
 		default:
@@ -393,11 +404,21 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 	task := strings.TrimSpace(req.Task)
 	var res exploracio
 	var err error
+	// El pla és una feina de lectura llarga: el pressupost de sortida del
+	// rol (sovint 1.024 tokens) tallava el pla a mitges, com passava al torn
+	// de codi abans que el motor l'ampliés.
+	s.mu.Lock()
+	p, role := s.roleRef()
+	s.mu.Unlock()
+	role.MaxTokens = maxTokensPerTorn(agent.ModePlan, role, agent.Window(s.cfg, role))
+	ctx = withPlanTurn(ctx)
 	if req.Continue {
 		task = prevTask
-		res, err = s.runReadOnlyLoop(ctx, "", agent.PassosPla(s.cfg.Agent.MaxSteps), prevHist)
+		res, err = s.runReadOnlyLoopForRole(ctx, "", agent.PassosPla(s.cfg.Agent.MaxSteps), p, role, prevHist)
 	} else {
-		res, err = s.runReadOnlyLoop(ctx, s.planBrief(task), agent.PassosPla(s.cfg.Agent.MaxSteps))
+		// Regles al system i la tasca com a missatge d'usuari (abans, un sol bloc).
+		msgs := []llm.Message{{Role: "system", Content: agent.PlanSystemPrompt(s.cwd, s.cfg.Lang())}, {Role: "user", Content: task}}
+		res, err = s.runReadOnlyLoopForRole(withWindPrompt(ctx, msgs), s.planBrief(task), agent.PassosPla(s.cfg.Agent.MaxSteps), p, role)
 	}
 	s.mu.Lock()
 	s.planHist, s.planTask = res.hist, task
@@ -411,7 +432,9 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "exploració buida", 502)
 		return
 	}
-	out := map[string]any{"plan": plan}
+	// La tasca torna amb el pla: «Executa el pla» l'envia a l'agent junt amb
+	// el pla (abans només el pla, i l'agent no sabia què es volia aconseguir).
+	out := map[string]any{"plan": plan, "task": task}
 	if res.parcial {
 		// Parcial: el pressupost (o el model) s'ha acabat abans que el pla.
 		// La UI ho marca i ofereix continuar.
@@ -424,4 +447,26 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 		out["critic"] = c
 	}
 	writeJSON(w, out)
+}
+
+type planTurnKey struct{}
+
+func withPlanTurn(ctx context.Context) context.Context { return context.WithValue(ctx, planTurnKey{}, true) }
+
+func isPlanTurn(ctx context.Context) bool { v, _ := ctx.Value(planTurnKey{}).(bool); return v }
+
+// planNotRun és el que rep el model quan prova una eina que no és de lectura
+// durant el Pla (abans rebia el missatge dels vents, que parla de carpetes de
+// projecte i de l'eina app).
+const planNotRun = "NOT AVAILABLE IN PLAN MODE: exploring is read-only. Do not retry; use read, grep, glob or symbols, and put the change in the plan as a step instead."
+
+// planSpecs: només les eines de lectura (el Pla no pot escriure ni executar).
+func planSpecs() []llm.ToolSpec {
+	var out []llm.ToolSpec
+	for _, t := range agent.SpecsAll() {
+		if agent.IsReadOnlyTool(t.Name) {
+			out = append(out, t)
+		}
+	}
+	return out
 }

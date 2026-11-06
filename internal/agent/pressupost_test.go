@@ -208,6 +208,44 @@ func TestLoopSenseTancarPassosEncadenaRondes(t *testing.T) {
 	}
 }
 
+// Amb Finestra, el bucle emmascara les sortides velles ABANS d'enviar el pas
+// que desbordaria, sense esperar l'error del proveïdor.
+func TestLoopPodaAbansDeDesbordar(t *testing.T) {
+	var maxVist int
+	var tasca string
+	pas := 0
+	l := &Loop{
+		MaxSteps: 20,
+		Finestra: 8000,
+		Lang:     "ca",
+		Step: func(ctx context.Context, h []llm.Message) (string, []llm.ToolCall, error) {
+			pas++
+			tasca = h[0].Content
+			if n := llm.EstimateTokens(h); n > maxVist {
+				maxVist = n
+			}
+			if pas < 15 {
+				return "", []llm.ToolCall{mkCall(fmt.Sprintf("c%d", pas), "read", fmt.Sprintf(`{"path":"f%d.go"}`, pas))}, nil
+			}
+			return "fet", nil, nil
+		},
+		RunTool: func(ctx context.Context, n, a string) (string, []string, error) {
+			return strings.Repeat("y", 4000), nil, nil
+		},
+		Decide: allowAll,
+	}
+	final, _, err := l.Run(context.Background(), "revisa-ho tot")
+	if err != nil || final != "fet" {
+		t.Fatalf("final=%q err=%v", final, err)
+	}
+	if tasca != "revisa-ho tot" {
+		t.Fatalf("la tasca no es toca: %q", tasca)
+	}
+	if NeedsCompact(maxVist, 8000) {
+		t.Fatalf("s'ha enviat un pas de %d tokens estimats amb finestra 8000", maxVist)
+	}
+}
+
 // La conversa no hi cap: el bucle l'escurça i reintenta el mateix pas, sense
 // perdre la tasca ni trencar el parell tool_call → tool.
 func TestLoopRecuperaContextPle(t *testing.T) {
@@ -248,7 +286,7 @@ func TestLoopRecuperaContextPle(t *testing.T) {
 	// El reintent veu una conversa més curta i amb la tasca intacta.
 	teRetallat := false
 	for _, m := range vist {
-		if m.Content == Retallat {
+		if strings.HasSuffix(m.Content, Retallat) {
 			teRetallat = true
 		}
 	}
@@ -315,11 +353,14 @@ func TestRetallaContextManteEstructures(t *testing.T) {
 			t.Fatalf("s'han perdut crides d'eina a %d", i)
 		}
 	}
-	if !strings.HasPrefix(out[0].Content, "aaaa") || len(out[0].Content) > 700 {
-		t.Fatalf("la tasca s'ha de conservar escurçada: %d caràcters", len(out[0].Content))
+	if out[0].Content != h[0].Content {
+		t.Fatalf("la tasca no es retalla mai: %d caràcters", len(out[0].Content))
 	}
-	if out[2].Content != Retallat {
-		t.Fatalf("la sortida d'eina antiga s'hauria d'haver retallat: %q", out[2].Content[:30])
+	if out[2].Content != strings.Repeat("z", 600)+"\n"+Retallat {
+		t.Fatalf("la sortida d'eina antiga s'hauria d'haver escurçat: %q", out[2].Content[:30])
+	}
+	if buit := RetallaContext(h, 6, 0); buit[2].Content != Retallat || buit[0].Content != h[0].Content {
+		t.Fatal("amb maxLen 0 es buiden les sortides antigues, no la tasca")
 	}
 	if out[len(out)-1].Content != h[len(h)-1].Content {
 		t.Fatal("la cua ha de quedar sencera")

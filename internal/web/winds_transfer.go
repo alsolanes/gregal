@@ -307,6 +307,9 @@ func (s *Server) handleWindsTransfer(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			TransferID string         `json:"transferId"`
 			Bundle     transferBundle `json:"bundle"`
+			// Into: un vent que ja és al servidor (mateix nom): la conversa s'hi
+			// afegeix en lloc de crear-ne una còpia (winds_transfer_join.go).
+			Into string `json:"into,omitempty"`
 		}
 		if !decodeTransfer(w, r, &req) {
 			return
@@ -323,7 +326,13 @@ func (s *Server) handleWindsTransfer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), code)
 			return
 		}
-		result, err := s.importTransfer(req.TransferID, req.Bundle)
+		var result transferResult
+		var err error
+		if into := strings.TrimSpace(req.Into); into != "" {
+			result, err = s.joinTransfer(req.TransferID, into, req.Bundle)
+		} else {
+			result, err = s.importTransfer(req.TransferID, req.Bundle)
+		}
 		if err != nil {
 			code := 503
 			if errors.Is(err, errTransferConflict) {

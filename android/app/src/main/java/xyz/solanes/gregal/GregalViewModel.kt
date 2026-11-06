@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Desat, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -377,6 +377,74 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Desa com es diuen els vents (buit = els noms de sempre). */
     fun desaNomsDelVent(singular: String, plural: String) {
         prefsStore?.desaNomsDelVent(singular, plural)
+        prefsStore?.collectiveAsked = true
+        _askCollective.value = false
+        _suggestedNames.value = emptyList()
+        // El servidor també ho ha de saber: els noms que proposa (creador,
+        // colles) s'hi adapten.
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { c.api().setWindCollective(singular.trim(), plural.trim()) }
+                if (_conn.value == c) loadSuggestedNames()
+            } catch (e: Exception) { if (e is CancellationException) throw e }
+        }
+    }
+
+    private val _askCollective = MutableStateFlow(false)
+    /** Cal preguntar (un sol cop) com es diuen els ajudants. */
+    val askCollective: StateFlow<Boolean> = _askCollective.asStateFlow()
+
+    /** «Ara no»: no es torna a preguntar; es pot canviar a la configuració. */
+    fun skipCollective() {
+        prefsStore?.collectiveAsked = true
+        _askCollective.value = false
+        notify(appText("collective.later"))
+        // El servidor també ho recorda: la web no tornarà a preguntar.
+        val c = _conn.value
+        viewModelScope.launch {
+            try { withContext(Dispatchers.IO) { c.api().setWindCollective(VentNom.singular, VentNom.plural) } }
+            catch (e: Exception) { if (e is CancellationException) throw e }
+        }
+    }
+
+    /**
+     * En connectar: el nom triat al mòbil mana i el servidor l'aprèn; si al
+     * mòbil no n'hi ha i al servidor sí (un altre dispositiu), s'adopta.
+     * Si no n'hi ha enlloc i encara no s'ha preguntat, es pregunta.
+     */
+    private suspend fun syncCollective() {
+        val p = prefsStore ?: return
+        val c = _conn.value
+        try {
+            val server = withContext(Dispatchers.IO) { c.api().getWindCollective() }
+            when {
+                // El servidor ja ho sap (triat aquí, a la web o a un altre mòbil): mana ell.
+                server.asked -> {
+                    if (server.plural != VentNom.plural || server.singular != VentNom.singular) p.desaNomsDelVent(server.singular, server.plural)
+                    p.collectiveAsked = true
+                }
+                // Triat en aquest mòbil abans que el servidor ho sabés: l'hi diem.
+                VentNom.plural.isNotBlank() ->
+                    withContext(Dispatchers.IO) { c.api().setWindCollective(VentNom.singular, VentNom.plural) }
+            }
+        } catch (e: Exception) { if (e is CancellationException) throw e }
+        if (VentNom.plural.isNotBlank()) p.collectiveAsked = true
+        _askCollective.value = !p.collectiveAsked
+    }
+
+    private val _suggestedNames = MutableStateFlow<List<String>>(emptyList())
+    /** Noms proposats al creador, al gust del nom col·lectiu (buit = els de sempre). */
+    val suggestedNames: StateFlow<List<String>> = _suggestedNames.asStateFlow()
+
+    fun loadSuggestedNames() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val names = withContext(Dispatchers.IO) { c.api().getWindNames(WindSuggestions.all.size, _idioma.value) }
+                if (_conn.value == c) _suggestedNames.value = names
+            } catch (e: Exception) { if (e is CancellationException) throw e }
+        }
     }
 
     fun setTema(v: String) {
@@ -565,6 +633,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         windHistoryRequests.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
+        _offline.value = false
+        probeJob?.cancel()
+        probeJob = null
+        _outbox.value = emptyList()
+        _automations.value = emptyMap()
+        _saved.value = emptyMap()
+        _turnActions.value = emptyMap()
+        _suggestedNames.value = emptyList()
         _windChat.value = emptyMap()
         _windBusy.value = emptySet()
         _windLive.value = emptyMap()
@@ -866,7 +942,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+                companyError(e); onDone(false)
             }
         }
     }
@@ -938,9 +1014,21 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun checkServerReach() {
         val p = prefsOrNull ?: return
         if (!hasSavedServer()) { _serverReach.value = null; return }
-        if (!_conn.value.local && _connected.value) { _serverReach.value = true; return }
-        viewModelScope.launch { _serverReach.value = withContext(Dispatchers.IO) { pingServer(p.host, p.port, p.token) } }
+        if (!_conn.value.local && _connected.value && !_offline.value) { _serverReach.value = true; return }
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { pingServer(p.host, p.port, p.token) }
+            _serverReach.value = ok
+            if (ok && _offline.value) retryServerNow()
+        }
     }
+
+    /** El servidor contesta alguna cosa (encara que sigui un 401) en pocs segons. */
+    private fun serverAnswers(host: String, port: String): Boolean = try {
+        val c = java.net.URL(baseUrlOf(host, port) + "/api/health").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 4_000
+        c.readTimeout = 4_000
+        try { c.responseCode !in setOf(502, 503, 504) } finally { c.disconnect() }
+    } catch (_: Exception) { false }
 
     private fun pingServer(host: String, port: String, token: String): Boolean = try {
         val c = java.net.URL(baseUrlOf(host, port) + "/api/me").openConnection() as java.net.HttpURLConnection
@@ -1210,16 +1298,33 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun connect(retries: Int = 0, onOk: () -> Unit = {}) {
         viewModelScope.launch {
             var left = retries
+            // Amb còpia al mòbil, els vents surten de seguida (abans: la portada buida
+            // «comença amb una colla» uns segons) i el servidor els posa al dia.
+            _conn.value.takeIf { !it.local && _winds.value.isEmpty() }?.let { src ->
+                withContext(Dispatchers.IO) { offlineStore(src)?.windsRaw() }?.let { if (_conn.value == src && _winds.value.isEmpty()) showCachedWinds(it) }
+            }
             while (true) {
                 try {
                     if (_conn.value.local) ensureLocal()
+                    // Amb còpia al mòbil, un servidor que no contesta no fa esperar
+                    // tres temps d'espera seguits (45 s): una prova curta i, si res, la còpia.
+                    val src = _conn.value
+                    if (!src.local && offlineStore(src)?.windsRaw() != null &&
+                        !withContext(Dispatchers.IO) { serverAnswers(src.host, src.port) }) {
+                        enterOffline(src, onOk)
+                        return@launch
+                    }
                     connectOnce()
                     syncAgentLanguage()
                     onOk()
+                    syncCollective()
                     syncJobAlarms()
+                    _offline.value = false
+                    reloadOutbox()
                     loadWinds()
                     loadRotllanes()
                     _ventsOpen.value?.takeIf { it.startsWith("rot:") }?.let { followCrew(it.substringAfter(':')) }
+                    if (!_conn.value.local) { loadAutomations(""); flushOutbox() }
                     hintMissingKey()
                     restoreLocalSession()
                     return@launch
@@ -1232,6 +1337,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     notify(appText("app.local.failed", e.message.orEmpty()))
                     return@launch
                 } catch (e: Exception) {
+                    // Servidor que no respon però amb còpia al mòbil: s'obre amb
+                    // la còpia i es reprova sol (abans: pantalla de connexió).
+                    val src = _conn.value
+                    if (!src.local && isUnreachable(e) && offlineStore(src)?.windsRaw() != null) {
+                        enterOffline(src, onOk)
+                        return@launch
+                    }
                     val offline = (e.message ?: "").let { it.contains("failed to connect", true) || it.contains("timed out", true) || it.contains("refused", true) }
                     if (left-- > 0 && offline) {
                         notify(appText("app.work.reconnecting"))
@@ -2683,6 +2795,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val plan: StateFlow<String?> = _plan
     private val _planning = MutableStateFlow(false)
     val planning: StateFlow<Boolean> = _planning
+    // La tasca del pla: «Executa el pla» l'envia al davant perquè l'agent
+    // d'Actua sàpiga què li van demanar (com al web).
+    private var planTask = ""
 
     /** Demana un pla read-only (/api/plan): explora sense actuar. */
     fun requestPlan(task: String) {
@@ -2693,6 +2808,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         _planning.value = true
+        planTask = t
         viewModelScope.launch {
             try {
                 val p = withContext(Dispatchers.IO) {
@@ -2713,7 +2829,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val p = _plan.value ?: return
         _plan.value = null
         setMode("act")
-        send(p, forceAgent = true)
+        val task = planTask.also { planTask = "" }
+        val prompt = if (task.isBlank()) p else task + "\n\n" + appText("app.runPlanTask") + "\n" + p
+        send(prompt, forceAgent = true)
     }
 
     fun loadGoals() {
@@ -2735,7 +2853,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _company.value = loadingOf("company") { withContext(Dispatchers.IO) { _conn.value.api().getCompany() } }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2743,7 +2861,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyAccept(fact) }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2751,7 +2869,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyDismiss() }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2760,7 +2878,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 _company.value = withContext(Dispatchers.IO) { _conn.value.api().companyForget(term) }
                 notify(appText("app.company.forgotten"))
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2802,7 +2920,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _checkin.value = withContext(Dispatchers.IO) { _conn.value.api().companyCheckin() }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2827,7 +2945,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 go(Screen.Chat)
                 send(task, forceAgent = true)
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -2903,18 +3021,207 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private var windsRequest = 0L
 
+    // --- El servidor mana, el mòbil fa de reserva (VentsOffline.kt) ---
+
+    private val _offline = MutableStateFlow(false)
+    /** El servidor no respon: el que es veu és la còpia del mòbil. */
+    val offline: StateFlow<Boolean> = _offline.asStateFlow()
+    private val _offlineCopyAt = MutableStateFlow(0L)
+    /** Quan es va desar la còpia que es mostra (ms). */
+    val offlineCopyAt: StateFlow<Long> = _offlineCopyAt.asStateFlow()
+    private val _outbox = MutableStateFlow<List<OutboxItem>>(emptyList())
+    /** Missatges escrits sense connexió que esperen el servidor. */
+    val outbox: StateFlow<List<OutboxItem>> = _outbox.asStateFlow()
+    private var probeJob: Job? = null
+    private var netCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    private fun offlineStore(source: Conn = _conn.value): VentsOfflineStore? =
+        if (source.local || source.host.isBlank()) null else VentsOffline.store(appContext, NotificationOrigins.of(source).id)
+
+    private fun reloadOutbox(source: Conn = _conn.value) { _outbox.value = offlineStore(source)?.outbox().orEmpty() }
+
+    private fun showCachedWinds(raw: String) {
+        val list = try { Wind.parse(raw) } catch (_: Exception) { return }
+        _winds.value = list
+        _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
+    }
+
+    private fun cacheChat(source: Conn, windId: String) {
+        val store = offlineStore(source) ?: return
+        val msgs = _windChat.value[windId].orEmpty()
+        viewModelScope.launch(Dispatchers.IO) { store.saveChat(windId, msgs) }
+    }
+
+    /** Obrir l'app sense servidor però amb còpia: dins, amb la còpia, i reprovant sol. */
+    private fun enterOffline(source: Conn, onOk: () -> Unit) {
+        val store = offlineStore(source) ?: return
+        _connected.value = true
+        _signInReason.value = ""
+        clearNotice()
+        reloadOutbox(source)
+        store.windsRaw()?.let { showCachedWinds(it) }
+        goOffline(source)
+        onOk()
+        _ventsOpen.value?.takeIf { it.startsWith("wind:") }?.let { loadWindChat(it.substringAfter(':')) }
+    }
+
+    /**
+     * Error d'una crida als vents. Si és que el servidor no respon, no és un
+     * error per ensenyar (sortia «failed to connect … after 15000ms»): l'app
+     * passa a la còpia del mòbil i la xapa ja ho diu.
+     */
+    private fun companyError(e: Exception) {
+        val source = _conn.value
+        if (!source.local && (isUnreachable(e) || _offline.value)) { goOffline(source); return }
+        notify(appText("app.status.company", e.message.orEmpty()))
+    }
+
+    private fun goOffline(source: Conn) {
+        if (source.local || _conn.value != source) return
+        if (!_offline.value) {
+            _offline.value = true
+            _serverReach.value = false
+            _offlineCopyAt.value = offlineStore(source)?.savedAt() ?: 0L
+        }
+        startProbe(source)
+    }
+
+    /** Reprova el servidor: de seguida i després cada cop més espaiat (fins a 1 min). */
+    private fun startProbe(source: Conn) {
+        if (probeJob?.isActive == true) return
+        watchNetwork()
+        probeJob = viewModelScope.launch {
+            var wait = 8_000L
+            while (_offline.value && _conn.value == source) {
+                delay(wait)
+                val ok = withContext(Dispatchers.IO) { pingServer(source.host, source.port, source.token) }
+                if (ok && backOnline(source)) return@launch
+                wait = minOf(wait * 2, 60_000L)
+            }
+        }
+    }
+
+    /** «Torna-ho a provar» o la xarxa ha tornat: prova ara, sense esperar la propera passada. */
+    fun retryServerNow() {
+        val source = _conn.value
+        if (source.local || !_offline.value) return
+        probeJob?.cancel()
+        probeJob = viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { pingServer(source.host, source.port, source.token) }
+            if (ok && backOnline(source)) return@launch
+            probeJob = null
+            startProbe(source)
+        }
+    }
+
+    private fun watchNetwork() {
+        if (netCallback != null) return
+        val cm = appContext.getSystemService(android.net.ConnectivityManager::class.java) ?: return
+        val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                viewModelScope.launch { delay(1_500); retryServerNow() }
+            }
+        }
+        try { cm.registerDefaultNetworkCallback(cb); netCallback = cb } catch (_: Exception) {}
+    }
+
+    override fun onCleared() {
+        netCallback?.let { cb ->
+            try { appContext.getSystemService(android.net.ConnectivityManager::class.java)?.unregisterNetworkCallback(cb) } catch (_: Exception) {}
+        }
+        netCallback = null
+        super.onCleared()
+    }
+
+    /** El servidor torna: estat fresc, la llista, el xat obert i la cua surt. */
+    private suspend fun backOnline(source: Conn): Boolean {
+        if (_conn.value != source) return true
+        try { connectOnce() } catch (e: CancellationException) { throw e } catch (_: Exception) { return false }
+        _offline.value = false
+        _serverReach.value = true
+        syncAgentLanguage()
+        syncJobAlarms()
+        loadWinds()
+        loadRotllanes()
+        _ventsOpen.value?.takeIf { it.startsWith("wind:") }?.let { loadWindChat(it.substringAfter(':')) }
+        loadAutomations("")
+        reloadOutbox(source)
+        val waiting = _outbox.value.size
+        flushOutbox()
+        notify(if (waiting > 0) appText("app.offline.backSending", waiting) else appText("app.offline.back"))
+        return true
+    }
+
+    private fun enqueueOffline(source: Conn, windId: String, text: String, ts: Long) {
+        val store = offlineStore(source) ?: return
+        val items = OfflineLogic.enqueue(store.outbox(), OutboxItem(windId, text, ts))
+        store.saveOutbox(items)
+        _outbox.value = items
+        _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(_windChat.value[windId].orEmpty(), items, windId))
+    }
+
+    /** Treu un missatge de la cua abans que surti. */
+    fun discardQueued(windId: String, ts: Long) {
+        val store = offlineStore() ?: return
+        val items = store.outbox().filterNot { it.wind == windId && it.ts == ts }
+        store.saveOutbox(items)
+        _outbox.value = items
+        _windChat.value = _windChat.value + (windId to _windChat.value[windId].orEmpty().filterNot { it.kind == "queued" && it.ts == ts })
+    }
+
+    /** Envia el primer de la cua de cada vent lliure; en acabar cada torn, el següent. */
+    private fun flushOutbox() {
+        val source = _conn.value
+        if (source.local || _offline.value) return
+        val store = offlineStore(source) ?: return
+        for (item in OfflineLogic.nextToSend(store.outbox(), _windBusy.value)) {
+            val rest = store.outbox().filterNot { it.wind == item.wind && it.ts == item.ts }
+            store.saveOutbox(rest)
+            _outbox.value = rest
+            _windChat.value = _windChat.value + (item.wind to _windChat.value[item.wind].orEmpty().filterNot { it.kind == "queued" && it.ts == item.ts })
+            sendWindMessage(item.wind, item.text, item.ts)
+        }
+    }
+
+    /**
+     * Els recordatoris del servidor desat també els vigila el mòbil: si a
+     * l'hora el servidor no respon, l'avís surt igualment (WindWatch).
+     */
+    private fun mirrorReminders(source: Conn, fresh: List<MirroredReminder>, wind: String?) {
+        if (source.local) return
+        val store = offlineStore(source) ?: return
+        if (NotificationOrigins.remote(Prefs(appContext))?.id != NotificationOrigins.of(source).id) return
+        val merged = OfflineLogic.mergeReminders(store.reminders(), fresh, wind)
+        store.saveReminders(merged)
+        WindWatch.expect(appContext, merged.map { it.at })
+    }
+
+    private fun forgetMirrored(source: Conn, id: String) {
+        val store = offlineStore(source) ?: return
+        store.saveReminders(store.reminders().filterNot { it.id == id })
+    }
+
     fun loadWinds() {
         val source = _conn.value
         val epoch = companionEpoch
         val request = ++windsRequest
         viewModelScope.launch {
             try {
-                val list = withContext(Dispatchers.IO) { source.api().getWinds() }
+                val raw = withContext(Dispatchers.IO) { source.api().getWindsRaw() }
+                val list = Wind.parse(raw)
                 if (!isCompanionOrigin(source, epoch) || request != windsRequest) return@launch
                 _winds.value = list
                 _activeWind.value = list.firstOrNull { it.id == _activeWind.value?.id } ?: list.firstOrNull()
+                withContext(Dispatchers.IO) { offlineStore(source)?.saveWinds(raw) }
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (!source.local && isUnreachable(e)) {
+                    val cached = withContext(Dispatchers.IO) { offlineStore(source)?.windsRaw() }
+                    if (cached != null && _winds.value.isEmpty()) showCachedWinds(cached)
+                    goOffline(source)
+                    if (cached != null) return@launch
+                }
+                companyError(e)
             }
         }
     }
@@ -3085,7 +3392,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
-                    notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+                    companyError(e); onDone(false)
                 }
             }
         }
@@ -3106,7 +3413,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
-                    notify(appText("app.status.company", e.message.orEmpty())); onDone(false)
+                    companyError(e); onDone(false)
                 }
             }
         }
@@ -3131,7 +3438,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _rotllanes.value = list
                 list.forEach { loadRotllanaChat(it.id) }
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty()))
+                if (isCompanionOrigin(source, epoch)) companyError(e)
             }
         }
     }
@@ -3149,7 +3456,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone()
                 if (id.isNotBlank() && list.any { it.id == id }) { openVentsChat("rot:" + id); onOpened(id) }
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onError() }
             }
         }
     }
@@ -3164,7 +3471,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 _rotllanes.value = list
                 onDone(true)
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onDone(false) }
             }
         }
     }
@@ -3181,7 +3488,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 ventsRecency.clear(source, "rot", id)
                 _rotllanaChat.value = _rotllanaChat.value - id
                 if (_ventsOpen.value == "rot:$id") _ventsOpen.value = null
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -3198,7 +3505,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch) && request == rotllanaHistoryRequests[id] &&
                     !_rotllanaBusy.value.contains(id))
                     _rotllanaChat.value = _rotllanaChat.value + (id to ventsRecency.restore(source, "rot", id, msgs))
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
             finally { if (skeleton) _rotllanaChatLoading.value = _rotllanaChatLoading.value - id }
         }
     }
@@ -3318,6 +3625,107 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 // Mateixa regla que la wiki: cap spinner etern si falla.
                 _programatsError.value = e.message ?: "error"
                 if (_programats.value == null) _programats.value = WindsProgramats(emptyList(), emptyList(), emptyList())
+            }
+        }
+    }
+
+    /** Activitat dels vents (el que faran sols), per vent; "" = tots. */
+    private val _automations = MutableStateFlow<Map<String, WindAutomations>>(emptyMap())
+    val automations: StateFlow<Map<String, WindAutomations>> = _automations.asStateFlow()
+
+    fun loadAutomations(wind: String = "") {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getWindAutomations(wind) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _automations.value = _automations.value + (wind to got)
+                mirrorReminders(source, OfflineLogic.remindersOf(got.items), wind)
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (_automations.value[wind] == null) _automations.value = _automations.value + (wind to WindAutomations(emptyList(), WindAutomationCounts()))
+                notify(appText("act.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** Fes-ho ara / pausa / reprèn / esborra; després refresca la llista global i la del vent. */
+    fun automationAction(item: WindAutomation, action: String, wind: String = "") {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val ok = withContext(Dispatchers.IO) { source.api().windAutomationAction(item.id, action) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                notify(appText(if (ok) "act.done.$action" else "act.failed"))
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("act.failedWhy", e.message.orEmpty()))
+            }
+            for (w in setOf("", wind, item.wind)) if (w == "" || _automations.value.containsKey(w)) loadAutomations(w)
+            if (action == "delete" || action == "resume" || action == "pause") loadJobs()
+        }
+    }
+
+    /** Targetes de l'últim torn de cada vent: avisos i seguiments que ha programat de debò. */
+    private val _turnActions = MutableStateFlow<Map<String, List<WindTurnAction>>>(emptyMap())
+    val turnActions: StateFlow<Map<String, List<WindTurnAction>>> = _turnActions.asStateFlow()
+
+    private fun showTurnActions(windId: String, r: WindReply) {
+        _turnActions.value = _turnActions.value + (windId to r.actions)
+        val name = _winds.value.firstOrNull { it.id == windId }?.name.orEmpty()
+        mirrorReminders(_conn.value, r.actions.mapNotNull { a ->
+            JobSchedule.parseInstant(a.atIso)?.let { MirroredReminder(a.id, windId, name, it, a.text) }
+        }, null)
+        if (r.actions.isNotEmpty()) refreshAutomations()
+        else if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+    }
+
+    /** Desfà un avís o seguiment des de la seva targeta al xat. */
+    fun undoTurnAction(windId: String, a: WindTurnAction) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { runCatching { source.api().windAutomationAction(a.id, "delete") }.getOrDefault(false) }
+            if (!isCompanionOrigin(source, epoch)) return@launch
+            if (ok) {
+                _turnActions.value = _turnActions.value + (windId to _turnActions.value[windId].orEmpty().filter { it.id != a.id })
+                forgetMirrored(source, a.id)
+                notify(appText("act.done.delete"))
+                refreshAutomations()
+            } else notify(appText("act.failed"))
+        }
+    }
+
+    /** Torna a llegir les llistes d'activitat ja obertes (global i per vent). */
+    fun refreshAutomations() { for (w in _automations.value.keys) loadAutomations(w) }
+
+    /** El que han fet els vents (documents, webs, gràfics, imatges, fitxes, fonts). */
+    private val _saved = MutableStateFlow<Map<String, List<WindSaved>>>(emptyMap())
+    val saved: StateFlow<Map<String, List<WindSaved>>> = _saved.asStateFlow()
+
+    fun loadSaved(wind: String = "") {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getWindSaved(wind) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _saved.value = _saved.value + (wind to got)
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (_saved.value[wind] == null) _saved.value = _saved.value + (wind to emptyList())
+                notify(appText("saved.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    /** Seguiments proactius d'un vent: encès o apagat. */
+    fun setWindFollowups(wind: Wind, on: Boolean) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().setWindFollowups(wind, on) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _winds.value = _winds.value.map { if (it.id == wind.id) it.copy(followups = if (on) "on" else "off") else it }
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("act.failedWhy", e.message.orEmpty()))
             }
         }
     }
@@ -3616,7 +4024,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             val ok = withContext(Dispatchers.IO) { runCatching { source.api().createWindRutina(windId, kind, time, intervalH, prompt, name) }.getOrDefault(false) }
             if (isCompanionOrigin(source, epoch)) {
                 _rutinaBusy.value = false
-                if (ok) loadRutines() else notify(appText("app.rutines.createFail", ""))
+                if (ok) { loadRutines(); refreshAutomations() } else notify(appText("app.rutines.createFail", ""))
                 onDone(ok)
             }
         }
@@ -3801,9 +4209,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 _jobs.value = current
                 if (source.local) JobAlarms.sync(appContext, current)
-                onDone(true)
+                refreshAutomations(); onDone(true)
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onDone(false) }
             }
         }
     }
@@ -3816,7 +4224,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val (persona, style) = withContext(Dispatchers.IO) { source.api().suggestWind(name, role) }
                 if (isCompanionOrigin(source, epoch)) onDone(persona, style)
             } catch (e: Exception) {
-                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onError() }
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onError() }
             }
         }
     }
@@ -3958,7 +4366,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
                     _cap.value = _cap.value.copy(going = false)
-                    notify(appText("app.status.company", e.message.orEmpty()))
+                    companyError(e)
                 }
             }
         }
@@ -4019,7 +4427,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val st = withContext(Dispatchers.IO) { source.api().capRename(n) }
                 if (isCompanionOrigin(source, epoch)) _cap.value = _cap.value.copy(state = _cap.value.state.copy(name = st.name))
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -4150,7 +4558,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                if (isCompanionOrigin(source, epoch)) { notify(appText("app.status.company", e.message.orEmpty())); onDone(false) }
+                if (isCompanionOrigin(source, epoch)) { companyError(e); onDone(false) }
             }
         }
     }
@@ -4183,7 +4591,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 onDone(true)
             } catch (e: Exception) {
                 if (isCompanionOrigin(source, epoch)) {
-                    notify(appText("app.status.company", e.message.orEmpty()))
+                    companyError(e)
                     onDone(false)
                 }
             }
@@ -4229,7 +4637,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _windChat.value = _windChat.value + (id to emptyList())
                 ventsRecency.clear(source, "wind", id)
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -4245,7 +4653,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _winds.value = _winds.value.map { if (it.id == wind.id) it.copy(name = clean) else it }
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -4259,7 +4667,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { source.api().saveRotllana(clean, rot.members, id = rot.id) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _rotllanes.value = _rotllanes.value.map { if (it.id == rot.id) it.copy(name = clean) else it }
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -4274,7 +4682,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 ventsRecency.clear(source, "wind", id)
                 if (_ventsOpen.value == "wind:$id") _ventsOpen.value = null
                 loadWinds(); loadRotllanes()
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) companyError(e) }
         }
     }
 
@@ -4290,14 +4698,47 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val request = (windHistoryRequests[windId] ?: 0L) + 1
         windHistoryRequests[windId] = request
         val skeleton = _windChat.value[windId].isNullOrEmpty()
+        // Sense servidor no s'espera cap temps d'espera: la còpia, de seguida.
+        // Quan torni, backOnline() torna a llegir el xat obert.
+        if (!source.local && _offline.value) {
+            viewModelScope.launch {
+                val cached = withContext(Dispatchers.IO) { offlineStore(source)?.chat(windId) }
+                if (isCompanionOrigin(source, epoch) && _windChat.value[windId].isNullOrEmpty())
+                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(cached.orEmpty(), _outbox.value, windId))
+                _windChatLoading.value = _windChatLoading.value - windId
+            }
+            return
+        }
         if (skeleton) _windChatLoading.value = _windChatLoading.value + windId
         viewModelScope.launch {
+            // La còpia primer (sense esquelet), en paral·lel: la petició al servidor
+            // surt igual de seguida i, quan arriba, la substitueix.
+            if (skeleton && !source.local) launch {
+                val cached = withContext(Dispatchers.IO) { offlineStore(source)?.chat(windId) }
+                if (!cached.isNullOrEmpty() && isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
+                    _windChat.value[windId].isNullOrEmpty()) {
+                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(cached, _outbox.value, windId))
+                    _windChatLoading.value = _windChatLoading.value - windId
+                }
+            }
             try {
                 val history = withContext(Dispatchers.IO) { source.api().getWindChat(windId) }
                 if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
-                    !_windBusy.value.contains(windId))
-                    _windChat.value = _windChat.value + (windId to ventsRecency.restore(source, "wind", windId, history))
-            } catch (e: Exception) { if (isCompanionOrigin(source, epoch)) notify(appText("app.status.company", e.message.orEmpty())) }
+                    !_windBusy.value.contains(windId)) {
+                    _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
+                        ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
+                    cacheChat(source, windId)
+                }
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (!source.local && isUnreachable(e)) {
+                    // Sense servidor: la còpia del mòbil, amb el que espera a sortir al final.
+                    val cached = withContext(Dispatchers.IO) { offlineStore(source)?.chat(windId) }
+                    if (_windChat.value[windId].isNullOrEmpty() && !_windBusy.value.contains(windId))
+                        _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(cached.orEmpty(), _outbox.value, windId))
+                    goOffline(source)
+                } else companyError(e)
+            }
             finally { if (skeleton) _windChatLoading.value = _windChatLoading.value - windId }
         }
     }
@@ -4394,14 +4835,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val stopped = aturatAra(id)
         if (stopped) return ""
         if (isCompanionOrigin(source, epoch)) {
-            interruptedCompanion(id, rotllana)
-            notify(appText("app.status.company", e.message.orEmpty()))
+            interruptedCompanion(id, rotllana, turnFailureText(_idioma.value, e.message.orEmpty()))
+            companyError(e)
         }
         return e.message.orEmpty().ifBlank { "interrupted" }
     }
 
     /** Close transient UI honestly; never replay a possibly executed operation. */
-    private fun interruptedCompanion(id: String, rotllana: Boolean) {
+    private fun interruptedCompanion(id: String, rotllana: Boolean, reason: String = "") {
         val state = _windLive.value[id]
         val store = if (rotllana) _rotllanaChat else _windChat
         val history = store.value[id].orEmpty()
@@ -4409,9 +4850,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             if (state?.receivedText == true) history.dropLast(1) + history.last().copy(streaming = false)
             else history.dropLast(1)
         } else history
-        val explanation = if (_idioma.value == "en")
-            "Turn interrupted. It has not been submitted again. Check the saved work before retrying."
-        else "Torn interromput. No l'he repetit automàticament. Revisa la feina desada abans de tornar-ho a provar."
+        val explanation = reason.ifBlank {
+            if (_idioma.value == "en") "Turn interrupted. It has not been submitted again. Check the saved work before retrying."
+            else "Torn interromput. No l'he repetit automàticament. Revisa la feina desada abans de tornar-ho a provar."
+        }
         store.value = store.value + (id to (kept + PetMsg("system", explanation, kind = "error")))
     }
 
@@ -4425,10 +4867,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         else -> appText("app.vents.streamWorking")
     }
 
-    fun sendWindMessage(windId: String, text: String) {
+    fun sendWindMessage(windId: String, text: String) = sendWindMessage(windId, text, 0L)
+
+    private fun sendWindMessage(windId: String, text: String, queuedTs: Long) {
         val msg = text.trim()
         if (msg.isEmpty() || _windBusy.value.contains(windId)) return
         val source = _conn.value; val epoch = companionEpoch
+        // Sense servidor: a la cua, i surt sol quan torni (en l'ordre en què l'has escrit).
+        if (!source.local && _offline.value) {
+            enqueueOffline(source, windId, msg, if (queuedTs > 0) queuedTs else System.currentTimeMillis())
+            return
+        }
+        var reached = false
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
         _windBusy.value = _windBusy.value + windId
@@ -4448,6 +4898,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     var buf = ""
                     val r = withContext(Dispatchers.IO) {
                         source.api().windChatStream(windId, msg) { e ->
+                            reached = true
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
@@ -4478,7 +4929,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         answer = r.text
                         // Prova visible que el vent ha actuat de debò: només sona
                         // quan l'eina remind s'ha cridat (mai d'una promesa buida).
-                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        showTurnActions(windId, r)
                         if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 } catch (_: WindStreamUnavailable) {
@@ -4490,7 +4941,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                         partial = r.parcial
                         answered = r.text.isNotBlank()
                         answer = r.text
-                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        showTurnActions(windId, r)
                         if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 }
@@ -4499,10 +4950,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (isCompanionOrigin(source, epoch)) loadJobs()
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                turnError = turnFailed(source, epoch, windId, false, e)
+                if (!source.local && !reached && isUnreachable(e) && isCompanionOrigin(source, epoch)) {
+                    // No ha arribat mai al servidor: res a repetir, va a la cua.
+                    val cur = _windChat.value[windId].orEmpty().filterNot { it.streaming }
+                    val i = cur.indexOfLast { it.from == "user" && it.text == msg }
+                    _windChat.value = _windChat.value + (windId to (if (i >= 0) cur.take(i) + cur.drop(i + 1) else cur))
+                    goOffline(source)
+                    enqueueOffline(source, windId, msg, if (queuedTs > 0) queuedTs else System.currentTimeMillis())
+                } else turnError = turnFailed(source, epoch, windId, false, e)
             } finally {
                 aturats.remove(windId) // un «atura» que arriba tard no amaga el proper error
                 if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
+                if (answered && isCompanionOrigin(source, epoch)) cacheChat(source, windId)
+                if (isCompanionOrigin(source, epoch) && !_offline.value) flushOutbox()
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), msg, answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
@@ -4566,7 +5026,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
-                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        showTurnActions(windId, r)
                         if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 } catch (_: WindStreamUnavailable) {
@@ -4582,7 +5042,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             ventsRecency.completed(source, "wind", windId, merged, System.currentTimeMillis()))
                         partial = r.parcial
                         if (r.text.isNotBlank()) { answered = true; answer = r.text }
-                        if (r.reminds.isNotEmpty()) notify(appText("app.vents.remindSet", r.reminds.joinToString(", ")))
+                        showTurnActions(windId, r)
                         if (!source.local) WindWatch.expect(appContext, r.remindAt)
                     }
                 }
@@ -4712,7 +5172,23 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * Si res falla (export, import, verificació), no canvia ni de mode ni de
      * conversa: avisa i et quedes on eres.
      */
-    fun transferConversationToServer(kind: String, id: String, memory: Boolean, knowledge: Boolean, skills: Boolean) {
+    /**
+     * El vent del servidor que es diu igual que aquest del mòbil (sense
+     * distingir majúscules ni espais), per oferir d'afegir-hi la conversa en
+     * lloc de crear-ne un segon. Null si no n'hi ha o el servidor no respon.
+     */
+    suspend fun serverNamesake(kind: String, id: String): Wind? {
+        if (kind != "wind") return null
+        val name = _winds.value.firstOrNull { it.id == id }?.name?.trim()?.lowercase().orEmpty()
+        val prefs = prefsOrNull ?: return null
+        if (name.isEmpty() || !canTransferToServer()) return null
+        val dest = Conn(prefs.host, prefs.port, prefs.token, prefs.usuari)
+        return try {
+            withContext(Dispatchers.IO) { dest.api().getWinds() }.firstOrNull { it.name.trim().lowercase() == name }
+        } catch (e: Exception) { if (e is CancellationException) throw e; null }
+    }
+
+    fun transferConversationToServer(kind: String, id: String, memory: Boolean, knowledge: Boolean, skills: Boolean, into: String = "") {
         if (_transferBusy.value) return
         if (!canTransferToServer()) return
         if (workPreventsOriginSwitch()) { warnOriginBusy(); return }
@@ -4726,13 +5202,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 val bundle = withContext(Dispatchers.IO) {
                     source.api().exportWindsTransfer(kind, id, memory, knowledge, skills).toString()
                 }
-                val key = "$kind:$id"
+                val key = "$kind:$id:$into"
                 val transferId = transferAttempts[key]
                     ?.takeIf { it.second == bundle }?.first
                     ?: UUID.randomUUID().toString().replace("-", "")
                 if (transferAttempts[key]?.second != bundle) transferAttempts[key] = transferId to bundle
                 val result = withContext(Dispatchers.IO) {
-                    dest.api().importWindsTransfer(transferId, org.json.JSONObject(bundle))
+                    dest.api().importWindsTransfer(transferId, org.json.JSONObject(bundle), into)
                 }
                 val newId = result.optString("id")
                 val verifyPath = result.optString("verifyPath")
@@ -4744,7 +5220,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 connect(retries = 2) { go(Screen.Company) }
                 loadWinds(); loadRotllanes()
                 openVentsChat((if (kind == "rot") "rot:" else "wind:") + newId)
-                notify(appText("app.vents.transferDone"))
+                notify(if (into.isNotBlank()) appText("app.vents.transferJoined") else appText("app.vents.transferDone"))
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 notify(appText("app.vents.transferFailed", friendlyRunError(e.message.orEmpty()).ifBlank { e.message.orEmpty() }))
@@ -4764,7 +5240,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 _pets.value = withContext(Dispatchers.IO) { _conn.value.api().getPets() }
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -4784,7 +5260,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val history = withContext(Dispatchers.IO) { _conn.value.api().getPetChat(petId) }
                 _petChat.value = _petChat.value + (petId to history)
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 
@@ -4810,7 +5286,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 val c = withContext(Dispatchers.IO) { _conn.value.api().petCheckin(petId) }
                 _petCheckins.value = _petCheckins.value + (petId to c)
-            } catch (e: Exception) { notify(appText("app.status.company", e.message.orEmpty())) }
+            } catch (e: Exception) { companyError(e) }
         }
     }
 

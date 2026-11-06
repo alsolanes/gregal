@@ -19,7 +19,7 @@ func (t *Torn) browserGate(c llm.ToolCall, pl *CallPlan) {
 	d, reason, force := tools.BrowserGate(t.o.Sessio, args, t.autonom())
 	switch d {
 	case "deny":
-		pl.Fixed, pl.Reason = "EINA BLOQUEJADA: "+reason, reason
+		pl.Fixed, pl.Reason = "TOOL BLOCKED: "+reason, reason
 	case "ask":
 		pl.Ask, pl.Reason = true, reason
 		if force {

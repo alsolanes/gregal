@@ -102,7 +102,7 @@ func TestDeny(t *testing.T) {
 		t.Fatalf("final=%q err=%v", final, err)
 	}
 	for _, m := range hist {
-		if m.Role == "tool" && !strings.Contains(m.Content, "BLOQUEJADA") {
+		if m.Role == "tool" && !strings.Contains(m.Content, "TOOL BLOCKED") {
 			t.Fatalf("deny sense marca: %q", m.Content)
 		}
 	}

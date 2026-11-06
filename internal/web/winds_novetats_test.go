@@ -1,13 +1,16 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"testing"
+	"time"
 
 	"gregal/internal/companion"
+	"gregal/internal/jobs"
 )
 
 func getNovetats(t *testing.T, s *Server, desDe int64) []windNovetat {
@@ -63,5 +66,29 @@ func TestNovetatsTallen(t *testing.T) {
 	}
 	if n := len(loadNovetats(s)); n != maxNovetats {
 		t.Fatalf("registre = %d, calia %d", n, maxNovetats)
+	}
+}
+
+// TestNovetatRecordatoriPortaElJob: la veu d'un recordatori porta l'id del
+// job perquè l'app no avisi dos cops si ja l'havia mostrat sense connexió.
+// Les altres veus (cor) no en porten.
+func TestNovetatRecordatoriPortaElJob(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := remindTestServer(t)
+	at := time.Now().Add(-time.Minute).UTC()
+	j, err := s.jobs.Save(jobs.Job{
+		ID: "remind-xaloc-7", Name: "Recordatori Xaloc", Kind: "remind",
+		Prompt: "Truca al dentista", Enabled: true, Notify: true, NextAt: &at,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.executeWindRemind(context.Background(), j); err != nil {
+		t.Fatal(err)
+	}
+	recordNovetat(s, companion.Wind{ID: "xaloc", Name: "Xaloc"}, "heartbeat", "hola")
+	got := getNovetats(t, s, 0)
+	if len(got) != 2 || got[0].Job != "remind-xaloc-7" || got[1].Job != "" {
+		t.Fatalf("novetats = %+v", got)
 	}
 }

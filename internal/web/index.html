@@ -553,6 +553,29 @@ body.product-bare #conversationNav, body.product-bare .side-quick, body.product-
 .auto-section { margin-top:22px; padding:16px 18px; border:1px solid var(--line); border-radius:14px; background:var(--raised); }
 .auto-section h2 { font-size:var(--t3); font-weight:600; color:var(--ink); margin:0 0 6px; }
 .auto-help, .auto-empty { color:var(--muted); font-size:13px; line-height:1.5; margin:4px 0 8px; }
+.act-summary { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0 10px; }
+.act-count { padding:10px 12px; border:1px solid var(--line); border-radius:12px; background:var(--bg); }
+.act-count strong { display:block; font-size:20px; color:var(--ink); }
+.act-count span { color:var(--muted); font-size:12px; }
+.act-chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 8px; }
+.act-chip { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:999px; padding:4px 11px; font-size:12.5px; cursor:pointer; }
+.act-chip.on { background:var(--ink); color:var(--bg); border-color:var(--ink); }
+.act-row { align-items:flex-start; }
+.act-face { width:34px; height:34px; flex:0 0 34px; display:inline-flex; }
+.act-face svg, .act-face > * { width:34px; height:34px; }
+.act-detail summary { cursor:pointer; color:var(--muted); font-size:12px; margin-top:4px; }
+.act-detail p { margin:4px 0 0; font-size:13px; white-space:pre-wrap; }
+.saved-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:10px; margin-top:6px; }
+.saved-card { border:1px solid var(--line); border-radius:14px; padding:12px; background:var(--raised); display:flex; flex-direction:column; gap:8px; min-width:0; }
+.saved-head { display:flex; gap:8px; align-items:flex-start; min-width:0; }
+.saved-icon { font-size:18px; line-height:1.2; }
+.saved-title { font-weight:600; color:var(--ink); overflow-wrap:anywhere; text-decoration:none; }
+a.saved-title:hover { text-decoration:underline; }
+.saved-meta { color:var(--muted); font-size:12px; margin:0; }
+.saved-img { width:100%; max-height:220px; object-fit:cover; border-radius:10px; display:block; }
+.saved-chart { grid-column:1/-1; }
+.saved-card.saved-chart { grid-column:1/-1; }
+.vw-saved { margin-top:8px; }
 .auto-line { color:var(--ink); margin:4px 0; }
 .auto-status { min-height:1.2em; color:var(--muted); font-size:13px; }
 .auto-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; padding:10px 0; border-top:1px solid var(--line); }
@@ -660,6 +683,11 @@ body.product-bare #conversationNav, body.product-bare .side-quick, body.product-
 #main.on { display:flex; }
 .msg { width:min(820px,100%); margin:0 auto; font-size:var(--fs); line-height:1.65; }
 .msg.u { display:flex; justify-content:flex-end; }
+.msg.u .body.plegat { max-height:300px; overflow:hidden;
+  -webkit-mask-image:linear-gradient(#000 70%, transparent); mask-image:linear-gradient(#000 70%, transparent); }
+.plega-btn { margin-top:6px; padding:2px 8px; border:1px solid var(--line); border-radius:999px;
+  background:transparent; color:var(--muted); font-size:var(--t1); cursor:pointer; }
+.plega-btn:hover { color:var(--ink); border-color:var(--line-hi); }
 .msg.u .msg-inner { max-width:78%; padding:9px 12px; color:var(--ink);
   background:var(--surface); border:1px solid var(--line); border-radius:10px 10px 3px 10px;
   white-space:pre-wrap; }
@@ -781,6 +809,22 @@ body:not(.working) .spin { animation:none; }
 .msg-act:hover { color:var(--ink); border-color:var(--line); background:var(--hover); }
 .msg-act.fet { color:var(--green); }
 /* Preferències: un interruptor per a les tries de sí o no. */
+.collective-dialog { position:fixed; inset:0; margin:auto; height:fit-content; border:1px solid var(--line-hi); border-radius:18px; background:var(--panel); color:inherit; padding:0; max-width:440px; width:calc(100% - 32px); }
+.collective-form { display:flex; flex-direction:column; gap:10px; padding:22px; max-height:85vh; overflow:auto; }
+.collective-form h2 { margin:0; font-size:20px; }
+.collective-help { margin:0 0 4px; opacity:.75; font-size:13.5px; line-height:1.4; }
+.collective-opt { display:flex; align-items:center; gap:10px; padding:6px 4px; border-radius:10px; cursor:pointer; }
+.collective-opt:hover { background:var(--hover); }
+.collective-opt span { display:flex; flex-direction:column; }
+.collective-opt small { opacity:.65; }
+.collective-custom { display:grid; gap:8px; }
+.collective-custom label { display:flex; flex-direction:column; gap:4px; font-size:13px; }
+.collective-custom input, .collective-prefs input { padding:8px 10px; border-radius:10px; border:1px solid var(--line-hi); background:transparent; color:inherit; }
+.collective-actions { display:flex; justify-content:space-between; margin-top:6px; }
+.collective-error { color:var(--red); margin:0; font-size:13px; }
+.collective-prefs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.collective-prefs input { width:130px; }
+.collective-toast { position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--panel); border:1px solid var(--line-hi); padding:10px 16px; border-radius:12px; z-index:9999; max-width:90vw; }
 .pf-check { position:relative; flex:0 0 auto; width:40px; height:22px; cursor:pointer; }
 .pf-check input { position:absolute; inset:0; width:100%; height:100%; margin:0; opacity:0; cursor:pointer; }
 .pf-check span { position:absolute; inset:0; border:1px solid var(--line-hi); border-radius:99px;
@@ -808,7 +852,12 @@ body:not(.working) .spin { animation:none; }
 .approve .args .apath { color:var(--ink); font-weight:600; }
 .approve .args .del { color:var(--red); }
 .approve .args .add { color:var(--green); }
-.approve .row { display:flex; gap:7px; }
+.approve .row { display:flex; flex-wrap:wrap; align-items:center; gap:7px; }
+/* El compte enrere és discret: buit fins a l'últim minut (el temps és al tooltip). */
+.approve .row .count { margin-left:auto; font-size:var(--t1); }
+.approve .row .count.urgent, .qcount.urgent { color:var(--amber); }
+.approve .row .always-approve { border:1px solid var(--line-hi); color:var(--muted); background:transparent; }
+.approve .row .always-approve:hover { color:var(--ink); border-color:var(--accent); }
 .verdict { width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:6px; }
 .verdict.ok { border-left:3px solid var(--green); }
 .verdict.no { border-left:3px solid var(--red); }
@@ -964,7 +1013,9 @@ body:not(.working) .spin { animation:none; }
 .goal-head b { color:var(--accent-hi); font:11px var(--mono); letter-spacing:.06em; }
 .goal-head span { color:var(--faint); font:10px var(--mono); }
 .goal-partial { color:var(--amber); background:var(--amber-soft); border-radius:6px; padding:6px 8px; font:11px/1.45 var(--mono); margin:0 0 8px; }
-.goal .body { color:var(--text); font:var(--t2)/1.55 var(--mono); white-space:pre-wrap; }
+/* El pla és markdown com qualsevol resposta: mateixa lletra i sense pre-wrap
+   (amb pre-wrap els salts entre blocs del md es tornaven buits enormes). */
+.goal .body { color:var(--text); font:inherit; white-space:normal; }
 .goal-row { display:flex; align-items:center; gap:8px; margin-top:10px; }
 .goal-row button { border:1px solid var(--line-hi); background:var(--surface-hi); color:var(--text);
   border-radius:5px; padding:5px 10px; font-size:var(--t2); cursor:pointer; }
@@ -2036,6 +2087,7 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/think-level.js"></script>
 <script defer src="/app/winds-choices.js"></script>
 <script defer src="/app/winds-workspace.js"></script>
+<script defer src="/app/winds-shared.js"></script>
 <script type="module" src="/app/profile-sync.js"></script>
 <script type="module" src="/app/preview.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
@@ -2047,6 +2099,7 @@ body.sense-inspector #inspector { display:none; }
 <script src="/app/desktop-prefs.js"></script>
 <script src="/app/md.js"></script>
 <script src="/app/shell-icons.js"></script>
+<script defer src="/app/palette.js"></script>
 <script src="/app/tool-summary.js"></script>
 <script src="/app/prompt-nav.js"></script>
 <script src="/app/connectors.js"></script>
@@ -2442,8 +2495,22 @@ function add(cls, who, html) {
     acts(copiar + '<button class="msg-act" data-act="retry" data-i18n-title="btn.retry" data-i18n-aria="btn.retry" title="' + retryLabel + '" aria-label="' + retryLabel + '">' + ICONA.reintenta + '</button>') + '</div>';
   else d.innerHTML = '<div class="body">' + html + '</div>';
   (cls === 't' && workGroupBody() || main).appendChild(d);
+  if (cls === 'u') plegaLlarg(d);
   if (stick) requestAnimationFrame(() => { main.scrollTop = main.scrollHeight; });
   return d;
+}
+// Un missatge teu molt llarg (un pla aprovat, un log enganxat) es plega com a
+// Claude: se'n veu el començament i «Mostra'n més» el desplega.
+function plegaLlarg(d) {
+  const cos = d.querySelector('.body');
+  if (!cos || cos.scrollHeight <= 360) return;
+  cos.classList.add('plegat');
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'plega-btn';
+  const pinta = () => { const p = cos.classList.contains('plegat'); b.textContent = gregalT(p ? 'conv.showMore' : 'conv.less'); b.setAttribute('aria-expanded', String(!p)); };
+  b.onclick = () => { cos.classList.toggle('plegat'); pinta(); };
+  pinta();
+  cos.after(b);
 }
 function sys(t) { return add('sys', '', escapeHTML(t)); }
 
@@ -2520,7 +2587,15 @@ function endWorkGroup(o = {}) {
   const g = turnGroup;
   turnGroup = null;
   if (!g) return;
-  if (!g.querySelector('.wg-body').children.length) { g.remove(); return; }
+  const cos = g.querySelector('.wg-body');
+  if (!cos.children.length) { g.remove(); return; }
+  // Un grup que només embolica text (la frase d'entrada, sense cap eina ni
+  // targeta) no és feina: era una fila «Passos de feina» buida. Es desfà.
+  if (!o.failed && [...cos.children].every(c => c.matches('.msg.a') && !c.querySelector('.tool, .approve, .qcard'))) {
+    cos.querySelectorAll('.msg.a.working').forEach(c => c.classList.remove('working'));
+    g.replaceWith(...cos.children);
+    return;
+  }
   g.classList.remove('running');
   g.classList.toggle('failed', !!o.failed);
   g.open = !!o.failed;
@@ -2557,6 +2632,19 @@ main.addEventListener('click', e => {
   }
 });
 
+// Referències a fitxers clicables: es marquen quan canvia la conversa (la
+// bombolla viva es repinta sovint: un sol pas per frame) i s'obren per delegació.
+let frefFrame = 0;
+new MutationObserver(() => { if (!frefFrame) frefFrame = requestAnimationFrame(() => { frefFrame = 0; linkFileRefs(main); }); })
+  .observe(main, { childList: true, subtree: true });
+main.addEventListener('click', e => {
+  const c = e.target.closest('code.fref');
+  if (c && !getSelection().toString()) openFileRef(c.textContent);
+});
+main.addEventListener('keydown', e => {
+  const c = e.target.closest && e.target.closest('code.fref');
+  if (c && e.key === 'Enter') { e.preventDefault(); openFileRef(c.textContent); }
+});
 // Botó per tornar al final quan has pujat a llegir: el tenen totes dues
 // apps, i sense ell has de rodar fins baix a mà cada cop.
 function paintScrollDown() {
@@ -3056,8 +3144,14 @@ function paintPerm() {
   // color i no cal mirar la icona per saber que l'agent no demanarà res.
   const box = $('box');
   if (box) box.classList.toggle('perm-risc', obert && actua);
+  // «Edicions automàtiques» mentia si el config força edit: ask (cada edició
+  // preguntava igualment). Si /api/state ho exposa (tool_perms), es diu.
+  const tp = state && state.tool_perms;
+  const forcat = permMode === 'edits' && tp && ['edit', 'write', 'patch'].some(t => tp[t] === 'ask');
+  pb.classList.toggle('perm-forcat', !!forcat);
+  if (label && forcat) label.textContent += ' *';
   // El detall al hover, que és on el vas a buscar quan dubtes.
-  pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]);
+  pb.title = gregalT(p[1]) + ' - ' + gregalT(p[2]) + (forcat ? '\n' + gregalT('access.editForcedAsk') : '');
   pb.setAttribute('aria-label', gregalT('ui.permissions') + ': ' + nom);
 }
 document.addEventListener('gregal:idioma', () => {
@@ -3267,6 +3361,7 @@ async function novaConversa() {
   }
   await api('/api/new', {method:'POST', body:'{}'});
   main.innerHTML = ''; main.classList.remove('on'); hero.hidden = currentView !== 'agent'; hero.style.display = 'flex'; input.value = '';
+  $('toBottom').hidden = true; // sense conversa no hi ha final on anar (tapava la salutació)
   input.dispatchEvent(new Event('input'));
   $('activity').innerHTML = '<div class="activity-empty" data-i18n="inspector.activityHint">' + escapeHTML(gregalT('inspector.activityHint')) + '</div>';
   // La conversa que acabem de tancar ja té títol: refresquem la llista.
@@ -3789,7 +3884,7 @@ async function doAgent(task, resumed) {
         const offerAuto = autoAllowed && !d.forced && !offeredAuto && permMode !== 'full' && (text.length >= 300 || approvals >= 3);
         if (offerAuto) offeredAuto = true;
         const ok=await askApprove(d, offerAuto);
-        api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok}),headers:{'X-Gregal-Session':runSession}});
+        api('/api/approve',{method:'POST',body:JSON.stringify({key:d.key,approve:ok,remember:!!d.remember}),headers:{'X-Gregal-Session':runSession}});
         setActivity(ok ? 'tool:approved' : 'model', ok ? gregalT('act.now.tools').replace('{tools}', d.name || '') : gregalT('act.now.model'));
         turnPhase='working'; turnNote=''; pintaTurnBar(); updateInspector(state);
       } else if(ev==='question_request'){
@@ -3936,12 +4031,12 @@ async function doPlan(cont) {
     if (!r.ok) { box.querySelector('.body').textContent=gregalT('ui.planError')+await r.text(); activityItem('pla',gregalT('ui.planFailed'),String(r.status),'bad'); return; }
     const d = await r.json();
     box.remove();
-    planCard(d.plan, d.critic, d.partial ? d : null);
+    planCard(d.plan, d.critic, d.partial ? d : null, d.task || (cont ? '' : text));
     activityItem('pla',gregalT(d.partial ? 'ui.planPartialAct' : 'ui.planProposed'),'',d.partial ? 'warn' : 'ok');
   } catch(e) { box.querySelector('.body').textContent=gregalT('ui.planError')+e; activityItem('error',gregalT('act.connexio'),String(e),'bad'); }
   finally { clearInterval(planTick); setSending(false); refresh(); input.focus(); }
 }
-function planCard(plan, critic, partial) {
+function planCard(plan, critic, partial, task) {
   // Parcial: el pressupost de passos (o el model) s'ha acabat abans del pla.
   // Es diu clarament i es pot continuar amb la conversa intacta.
   const partialNote = partial
@@ -3967,7 +4062,11 @@ function planCard(plan, critic, partial) {
     if (uiMode(state.mode) !== 'act') await setMode('act');
     const auto = state.mode === 'autonomous';
     const concerns = window.gregalCaps ? window.gregalCaps.criticPrompt(critic, auto) : '';
-    await doAgent(gregalT('ui.runPlanPrompt') + '\n' + plan + concerns);
+    // La tasca original va amb el pla: sense, l'agent seguia passos sense saber per a què.
+    // Va primer perquè el títol de la conversa surt de la primera línia del
+    // primer missatge (session.TitleFrom): així es diu com la tasca, no «Executa aquest pla…».
+    const goal = task ? task.trim() + '\n\n' : '';
+    await doAgent(goal + gregalT(task ? 'ui.runPlanTask' : 'ui.runPlanPrompt') + '\n' + plan + concerns);
   };
   box.querySelector('[data-del]').onclick = () => {
     box.querySelector('.goal-row').textContent = gregalT('ui.planDiscarded');
@@ -4116,6 +4215,61 @@ async function loadGoals() {
 // approveArgsHTML fa llegibles els arguments d'una eina per aprovar: el JSON
 // en cru duia els \n i \t escapats i un edit no s'entenia. Per a edit/patch,
 // ruta i línies −/+; per a write, ruta i cos; la resta, clau i valor.
+// relPath escurça una ruta absoluta del projecte (state.cwd) a relativa; la
+// resta (fora del projecte, o ja relatives) es queden com venien.
+function relPath(p) {
+  p = String(p || '').replace(/\\/g, '/');
+  const cwd = String(state.cwd || '').replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!cwd) return p;
+  const igual = (a, b) => /^[a-z]:/i.test(cwd) ? a.toLowerCase() === b.toLowerCase() : a === b;
+  if (igual(p, cwd)) return '.';
+  if (p.length > cwd.length && p[cwd.length] === '/' && igual(p.slice(0, cwd.length), cwd)) return p.slice(cwd.length + 1);
+  return p;
+}
+// Referències a fitxers a les respostes (`inventory/store.py`,
+// `histcompact.go:237-249`): el `code` inline que sembla una ruta del
+// projecte es pot clicar i obre el fitxer a la subfinestra, a la línia.
+const FILE_REF = /^(?:[A-Za-z]:)?[\w.\-\/\\@]*[\w\-@]\.(?:go|py|js|mjs|cjs|ts|tsx|jsx|json|md|ya?ml|toml|html?|css|scss|kt|kts|java|rs|c|h|cc|cpp|hpp|cs|rb|php|sh|ps1|sql|txt|xml|gradle|swift|vue|svelte|mod|sum|cfg|ini|csv|tsv|lock|proto|dart|lua)(?::\d+(?:[-–]\d+)?)?$/;
+function linkFileRefs(root) {
+  root.querySelectorAll('.msg.a .body code:not(.fref)').forEach(c => {
+    if (c.closest('pre') || c.dataset.frefNo) return;
+    const t = c.textContent.trim();
+    const ruta = t.replace(/:\d+(?:[-–]\d+)?$/, '');
+    // Una ruta absoluta només si és dins del projecte (la resta no s'obre).
+    if (!FILE_REF.test(t) || (/^([A-Za-z]:)?[\/\\]/.test(ruta) && relPath(ruta) === ruta.replace(/\\/g, '/'))) { c.dataset.frefNo = '1'; return; }
+    c.classList.add('fref'); c.tabIndex = 0; c.setAttribute('role', 'link');
+    c.title = gregalT('ui.openFileRef');
+  });
+}
+async function openFileRef(ref, opts = {}) {
+  const m = String(ref || '').trim().match(/^(.*?)(?::(\d+)(?:[-–](\d+))?)?$/);
+  let p = relPath(m[1]); const line = +m[2] || 0, fins = +m[3] || line;
+  const P = window.gregalPanels;
+  // Des del resum del torn: el diff d'aquell fitxer a Canvis, si n'hi ha.
+  if (opts.diff && P?.changes?.load) {
+    try { await P.changes.load(); } catch (e) {}
+    const card = [...document.querySelectorAll('#changesBody .diff-file')].find(d => d.querySelector('.dfname')?.textContent === p);
+    if (card) { setView('canvis'); card.open = true; requestAnimationFrame(() => card.scrollIntoView({ block: 'start' })); return; }
+  }
+  // Una ruta sense carpeta (histcompact.go) es busca a l'arbre del projecte.
+  if (!p.includes('/') && P?.files?.paths) {
+    const hits = (await P.files.paths()).filter(x => x === p || x.endsWith('/' + p));
+    if (hits.length) p = hits.sort((a, b) => a.length - b.length)[0];
+  }
+  if (!P?.files?.view) return;
+  await P.files.view(p);
+  if (!line) return;
+  // A la línia: es selecciona el tram (es veu ressaltat) i s'hi fa scroll.
+  const box = $('docText'), tn = box && box.firstChild;
+  if (!tn || tn.nodeType !== 3) return;
+  const txt = tn.data, inici = n => { let o = 0; for (let i = 1; i < n && o >= 0; i++) o = txt.indexOf('\n', o) + 1 || -1; return o; };
+  const a = inici(line); if (a < 0) return;
+  let b = inici(fins + 1); if (b <= 0) b = txt.length;
+  const r = document.createRange(); r.setStart(tn, a); r.setEnd(tn, Math.max(a, b - 1));
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+  let sc = box; while (sc && sc !== document.body && !(sc.scrollHeight > sc.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+  if (sc && sc !== document.body) sc.scrollTop += r.getBoundingClientRect().top - sc.getBoundingClientRect().top - 60;
+}
 function approveArgsHTML(args) {
   const cru = String(args == null ? '' : args);
   let o;
@@ -4125,7 +4279,7 @@ function approveArgsHTML(args) {
   const linies = (s, signe, cls) => talla(s).split('\n').map(l => '<span class="' + cls + '">' + signe + escapeHTML(l) + '</span>').join('\n');
   const diff = (vell, nou) => linies(vell || '', '− ', 'del') + '\n' + linies(nou || '', '+ ', 'add');
   const parts = [];
-  if (typeof o.path === 'string') parts.push('<span class="apath">' + escapeHTML(o.path) + '</span>');
+  if (typeof o.path === 'string') parts.push('<span class="apath" title="' + escapeHTML(o.path) + '">' + escapeHTML(relPath(o.path)) + '</span>');
   const fet = new Set(['path']);
   if (typeof o.old_string === 'string' || typeof o.new_string === 'string') {
     parts.push(diff(o.old_string, o.new_string)); fet.add('old_string'); fet.add('new_string');
@@ -4134,7 +4288,9 @@ function approveArgsHTML(args) {
   } else if (typeof o.content === 'string') {
     parts.push(linies(o.content, '+ ', 'add')); fet.add('content');
   }
-  Object.keys(o).filter(k => !fet.has(k)).forEach(k => {
+  // Camps interns de l'agent (l'aposta de confiança «bet», claus _privades):
+  // no diuen res a qui ha de decidir si deixa fer l'eina.
+  Object.keys(o).filter(k => !fet.has(k) && k !== 'bet' && k[0] !== '_').forEach(k => {
     const v = o[k];
     parts.push('<span class="faint">' + escapeHTML(k) + ':</span> ' + escapeHTML(talla(typeof v === 'string' ? v : JSON.stringify(v))));
   });
@@ -4148,19 +4304,43 @@ function reviewRowHTML(d) {
   if (!rv || rv.decision !== 'ask') return '';
   return '<div class="review-row review-ask"><b>' + escapeHTML(gregalT('review.asked')) + ':</b> ' + escapeHTML(rv.reason || '') + '</div>';
 }
+// alwaysLabel diu què cobrirà «sempre»: el mateix abast que agent.Sig.
+function alwaysLabel(d) {
+  let o = null; try { o = JSON.parse(d.args || ''); } catch (e) {}
+  const p = o && typeof o.path === 'string' ? o.path.replace(/\\/g, '/') : '';
+  if (d.name === 'bash') return gregalT('approve.alwaysCmd');
+  if (['edit', 'write', 'read'].includes(d.name) && p) {
+    const dir = p.includes('/') ? p.slice(0, p.lastIndexOf('/')) : '.';
+    return gregalT('approve.alwaysDir').replace('{dir}', relPath(dir || '/') || '.');
+  }
+  return gregalT('approve.alwaysTool');
+}
 function askApprove(d, offerAuto = false) {
   return new Promise(res=>{
     const L = k => escapeHTML(gregalT(k));
-    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+(d.reason?'<p class="approve-why'+(d.forced?' forced':'')+'">'+escapeHTML(d.reason)+'</p>':'')+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="count faint"></div><div class="row"><button class="primary">'+L('approve.allow')+'</button>'+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger">'+L('approve.deny')+'</button></div></div>');
+    // «Sempre en aquesta sessió»: el servidor ja ho recorda (/api/approve
+    // remember, agent.Sig): per ordre de bash, per carpeta en edit/write/read.
+    // Les preguntes forçades (accions irreversibles) no es poden recordar.
+    const sempre = d.forced ? '' : '<button class="ghost always-approve" title="'+L('approve.alwaysHint')+'">'+escapeHTML(alwaysLabel(d))+'</button>';
+    const box=add('a','', '<div class="approve" role="dialog" aria-modal="true" aria-label="'+L('approve.dialog')+escapeHTML(d.name)+'"><b>'+L('approve.title')+escapeHTML(d.name)+'</b>'+reviewRowHTML(d)+(d.reason?'<p class="approve-why'+(d.forced?' forced':'')+'">'+escapeHTML(d.reason)+'</p>':'')+'<div class="args">'+approveArgsHTML(d.args)+'</div>'+(offerAuto?'<p>'+L('approve.longTask')+'</p>':'')+'<div class="row"><button class="primary" title="Enter">'+L('approve.allow')+'</button>'+sempre+(offerAuto?'<button class="primary auto-approve">'+L('approve.continue')+'</button>':'')+'<button class="danger" title="Esc">'+L('approve.deny')+'</button><span class="count faint"></span></div></div>');
     intoWorkGroup(box); if (turnGroup) turnGroup.open = true;
     const yes=box.querySelector('.row .primary'), no=box.querySelector('.row .danger'); let settled=false;
     const tick = compteEnrere(box.querySelector('.count'), d, gregalT('approve.timeout'), () => finish(false));
-    const finish=ok=>{if(settled)return;settled=true;clearInterval(tick);const verdict=gregalT(ok?'approve.allowed':'approve.denied');box.querySelector('.row').textContent=verdict;box.querySelector('.count')?.remove();box.querySelector('.approve')?.classList.add('resolved',ok?'is-allowed':'is-denied');activityItem('permís',d.name,verdict,ok?'ok':'bad');res(ok);};
+    const finish=(ok, recorda)=>{if(settled)return;settled=true;clearInterval(tick);d.remember=!!(ok&&recorda);const verdict=gregalT(d.remember?'approve.remembered':ok?'approve.allowed':'approve.denied');box.querySelector('.row').textContent=verdict;box.querySelector('.approve')?.classList.add('resolved',ok?'is-allowed':'is-denied');activityItem('permís',d.name,verdict,ok?'ok':'bad');res(ok);};
     yes.onclick=()=>finish(true); no.onclick=()=>finish(false);
+    const always=box.querySelector('.always-approve');
+    if(always) always.onclick=()=>finish(true, true);
     const auto=box.querySelector('.auto-approve');
     if(auto) auto.onclick=async()=>{ auto.disabled=true; const changed=await setPermMode('full', true); if(changed) finish(true); else auto.disabled=false; };
-    box.onkeydown=e=>{if(e.key==='Escape'){e.preventDefault();finish(false);}if(e.key==='Enter'&&document.activeElement===yes){e.preventDefault();finish(true);}};
-    requestAnimationFrame(()=>yes.focus());
+    // Teclat: Esc denega; Enter permet, tret que el focus sigui en un altre
+    // botó (llavors Enter fa el clic natiu d'aquell botó).
+    box.onkeydown=e=>{
+      if(settled) return;
+      if(e.key==='Escape'){e.preventDefault();e.stopPropagation();finish(false);return;}
+      const btn=document.activeElement&&document.activeElement.closest&&document.activeElement.closest('button');
+      if(e.key==='Enter'&&!e.shiftKey&&(!btn||btn===yes)){e.preventDefault();finish(true);}
+    };
+    requestAnimationFrame(()=>yes.focus({preventScroll:true}));
   });
 }
 // compteEnrere pinta el temps que queda per respondre. El límit el posa el
@@ -4171,11 +4351,19 @@ function compteEnrere(el, d, sufix, onFi) {
   let left = (d && d.timeout_s !== undefined && d.timeout_s !== '') ? parseInt(d.timeout_s, 10) : 120;
   if (!Number.isFinite(left)) left = 120;
   const fmt = s => s > 90 ? Math.floor(s / 60) + ' min ' + String(s % 60).padStart(2, '0') + ' s' : s + 's';
-  if (left <= 0) { if (el) el.textContent = gregalT('approve.noLimit'); return null; }
-  if (el) el.textContent = fmt(left) + ' → ' + sufix;
+  if (left <= 0) { if (el) el.title = gregalT('approve.noLimit'); return null; }
+  // Discret: amb mitja hora per davant, «29 min 57 s → denegat» només posava
+  // pressa. El temps va al tooltip i el text surt l'últim minut.
+  const pinta = () => {
+    if (!el) return;
+    const t = fmt(left) + ' → ' + sufix;
+    el.title = t; el.textContent = left <= 60 ? t : '';
+    el.classList.toggle('urgent', left <= 60);
+  };
+  pinta();
   const tick = setInterval(() => {
     left--;
-    if (el) el.textContent = fmt(left) + ' → ' + sufix;
+    pinta();
     if (left <= 0) { clearInterval(tick); onFi(); }
   }, 1000);
   return tick;
@@ -4484,8 +4672,9 @@ window.gregal = {
   api, refresh, marcaOffline, sys, activityItem, setView, setMode, nextMode, md, add, onSessionSwitch,
   saveSessionView, restoreSessionView, forgetSessionView,
   attachActiveRun: (active, restored, after, pending) => { if (window.gregalRuns?.attach) doAgent(active.task, { active, restored, after, pending }); },
-  toolCard, toolCardDone, beginWorkGroup, endWorkGroup, intoWorkGroup,
+  toolCard, toolCardDone, beginWorkGroup, endWorkGroup, intoWorkGroup, relPath, openFileRef,
   isBusy: () => sending || !!state.agent_busy,
+  isSending: () => sending,
   newChat: novaConversa,
   // Quina vista es mira ara: perquè els panells cars (diff, arbre) només
   // es carreguin si els estàs veient.

@@ -51,7 +51,7 @@ func lessonLines(body string) []string {
 	var out []string
 	for _, l := range strings.Split(body, "\n") {
 		l = strings.TrimSpace(l)
-		if strings.HasPrefix(l, "- ") && len(l) > 4 {
+		if strings.HasPrefix(l, "- ") && len(l) > 4 && !staleRemindLesson(l) {
 			out = append(out, l)
 		}
 	}
@@ -225,4 +225,22 @@ func (s *Server) windLessonsLearn(w companion.Wind, task, reply, trace string) {
 		}
 	}
 	_, _ = s.addWindLessons(w.ID, nous)
+}
+
+// staleRemindLesson: abans de la v1.55 la política de la sessió denegava
+// l'eina remind («eina desconeguda») i els vents en van aprendre que no
+// existia o que els avisos s'havien de fer amb el calendari (que només
+// llegeix). Aquelles lliçons ja són falses i els treien la capacitat d'avisar.
+func staleRemindLesson(line string) bool {
+	l := strings.ToLower(line)
+	mentions := strings.Contains(l, "remind") || strings.Contains(l, "recordatori") || strings.Contains(l, "reminder") || strings.Contains(l, "avís") || strings.Contains(l, "avisos")
+	if !mentions {
+		return false
+	}
+	for _, bad := range []string{"desconeguda", "unknown", "no invoquis", "don't call", "do not call", "no existeix", "doesn't exist", "does not exist", "no està disponible", "not available", "calendar"} {
+		if strings.Contains(l, bad) {
+			return true
+		}
+	}
+	return false
 }

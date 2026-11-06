@@ -139,7 +139,7 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(list))
 	for _, w := range list {
-		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style, "squad": w.Squad, "specialty": w.Specialty, "kit": kitOf(w)})
+		out = append(out, map[string]any{"id": w.ID, "name": w.Name, "color": w.Color, "role": w.Role, "style": w.Style, "squad": w.Squad, "specialty": w.Specialty, "kit": kitOf(w), "followups": followupsLabel(w)})
 	}
 	writeJSON(w, map[string]any{"winds": out})
 }
@@ -244,9 +244,9 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		p, role := s.windRoleRef()
 		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, previous)
+		res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, windContinueHistory(s, wind, previous))
 	} else {
-		res, err = windLoop(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatBrief(s, wind, previous, msg))
+		res, err = windLoop(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), windChatBrief(s, wind, previous, msg))
 	}
 	if err != nil {
 		if tornAturat(err) {
@@ -322,4 +322,13 @@ func (s *Server) windHasResidue(id string) bool {
 		}
 	}
 	return false
+}
+
+// followupsLabel és el valor que veu el client ("on"/"off"): una cadena, perquè
+// un client que torni a enviar el vent tal qual no trenqui el desat.
+func followupsLabel(w companion.Wind) string {
+	if w.FollowupsOn() {
+		return "on"
+	}
+	return "off"
 }

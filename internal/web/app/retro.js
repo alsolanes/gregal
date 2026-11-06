@@ -697,16 +697,35 @@ function mountNav() {
   side.appendChild(nav);
 }
 
+// Un sol #Retro per torn: al resum «Ha treballat…» de l'últim grup del torn.
+// Abans sortia a cada grup i a la targeta final (fins a tres cops per torn).
+function lastGroupOfTurn(g) {
+  for (let n = g.nextElementSibling; n; n = n.nextElementSibling) {
+    if (n.matches('.msg.u')) return true;
+    if (n.matches('.work-group')) return false;
+  }
+  return true;
+}
+function turnHasGroup(card) {
+  for (let n = card.closest('#main > *')?.previousElementSibling; n; n = n.previousElementSibling) {
+    if (n.matches('.msg.u')) return false;
+    if (n.matches('.work-group')) return true;
+  }
+  return false;
+}
+
 function decorate(root) {
   const scope = root && root.querySelectorAll ? root : document;
   scope.querySelectorAll('.work-group:not(.running) > summary').forEach(s => {
-    if (s.querySelector('[data-retro-open]')) return;
+    const own = s.querySelector(':scope > [data-retro-open]');
+    if (!lastGroupOfTurn(s.parentElement)) { if (own) own.remove(); return; }
+    if (own) return;
     const b = retroButton();
     s.appendChild(b);
     if (s.parentElement === [...document.querySelectorAll('#main .work-group')].pop()) stampLatest(b);
   });
   scope.querySelectorAll('.run-summary').forEach(card => {
-    if (card.querySelector('[data-retro-open]')) return;
+    if (card.querySelector('[data-retro-open]') || turnHasGroup(card)) return;
     let bar = card.querySelector('.run-summary-actions');
     if (!bar) { bar = el('div', 'run-summary-actions'); card.appendChild(bar); }
     const b = retroButton();

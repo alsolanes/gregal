@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/agent"
 	"gregal/internal/session"
 )
 
@@ -74,6 +75,32 @@ type plotBoard struct {
 var plotStoreMu sync.Mutex
 
 const plotPrompt = "\n\nThe Gregal web, desktop and Android chat support interactive inline plots. When a user asks to see a chart, render it in the app using a data-only fenced gregal-plot JSON block, not Python, JavaScript or HTML source code. Return source code only if the user explicitly requests code. The JSON shape is: {\"title\":\"Revenue\",\"type\":\"line\",\"labels\":[\"Jan\",\"Feb\"],\"series\":[{\"label\":\"EUR\",\"values\":[10,20]}]}. Types: line, bar, scatter, area, horizontal-bar, pie, doughnut, radar. Area uses a zero baseline and supports signed values; horizontal-bar supports signed, grouped series. Pie and doughnut require exactly one series with nonnegative finite values and at least one positive value. Radar requires 3–32 category labels and nonnegative finite values; all-zero series are allowed. For scatter, labels are numeric x coordinates written as strings. Each series must have one finite numeric value per label. Maximum 2000 labels and 20 series. Use actual inspected or user-provided data; clearly identify illustrative data. To chart tabular results (for example a query tool returning columns and rows), use the category or date column as labels (as strings, in the order returned) and one numeric column per series; omit rows with null values. Use one gregal-plot block per chart; several charts in one answer are fine. DASHBOARDS: this app has its own dashboards (the Plots & dashboard section). When the user asks for a dashboard, build it IN THE APP: query the data, then call dashboard_save with a clear dashboard name and one chart per insight (and show the charts inline too). Do not write an HTML/JS website for a dashboard unless the user explicitly asks for a standalone web page, file or site. If it is genuinely unclear which one they want (for example they mention publishing, sharing outside the app, or a deliverable file), ask with the question tool: 'In-app dashboard' vs 'Standalone web page'; in autonomous mode default to the in-app dashboard. Only say charts were saved after dashboard_save succeeded."
+
+// plotInSystem diu si les regles de gràfics van fixes al system: només al
+// xat (Pregunta), on demanar un gràfic o un dashboard és habitual. Als modes
+// de codi eren ~2,3 KB a cada torn que gairebé mai no calien.
+func plotInSystem(mode string) bool { return mode == agent.ModeChat }
+
+// plotWords són les paraules que fan que una tasca de codi rebi les regles
+// de gràfics (en minúscules; català, castellà i anglès).
+var plotWords = []string{"chart", "plot", "graph", "dashboard", "visualiz", "visualis", "histogram",
+	"gràfic", "grafic", "gráfic", "diagrama", "tauler", "visualitz", "estadístic", "estadistic"}
+
+// plotNoteFor torna les regles de gràfics per afegir a la tasca quan no van
+// al system i la tasca en parla; "" si no calen. El system queda igual i el
+// prefix en caché del model no es trenca.
+func plotNoteFor(mode, task string) string {
+	if plotInSystem(mode) {
+		return ""
+	}
+	t := strings.ToLower(task)
+	for _, w := range plotWords {
+		if strings.Contains(t, w) {
+			return plotPrompt
+		}
+	}
+	return ""
+}
 
 func validatePlot(p plotSpec) error {
 	if strings.TrimSpace(p.Title) == "" || len(p.Title) > 200 {

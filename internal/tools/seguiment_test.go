@@ -18,7 +18,7 @@ func TestEdicioAproximadaSenseLecturaEsRebutja(t *testing.T) {
 	s := nouSeguiment()
 	p := fitxer(t, goTabs)
 	_, err := s.Edit(p, "func F() {\n    g()\n}", "func F() {\n    h()\n}")
-	if err == nil || !strings.Contains(err.Error(), "no l'has llegit") || !strings.Contains(err.Error(), "read") {
+	if err == nil || !strings.Contains(err.Error(), "you have not read it") || !strings.Contains(err.Error(), "read") {
 		t.Fatalf("havia de demanar llegir-lo: %v", err)
 	}
 	if raw, _ := os.ReadFile(p); string(raw) != goTabs {
@@ -57,7 +57,7 @@ func TestFitxerCanviatPerUnAltreDespresDeLlegirEsRebutja(t *testing.T) {
 	}
 	os.WriteFile(p, []byte(goTabs+"\nfunc Z() {}\n"), 0o644) // l'usuari, un altre agent
 	_, err := s.Edit(p, "func F() {\n    g()\n}", "x")
-	if err == nil || !strings.Contains(err.Error(), "ha canviat") {
+	if err == nil || !strings.Contains(err.Error(), "has changed") {
 		t.Fatalf("havia de dir que ha canviat: %v", err)
 	}
 	_, err = s.Patch(p, []PatchOp{{AfterLine: 2, New: "// x"}})
@@ -85,18 +85,18 @@ func TestRelecturaSenseCanvis(t *testing.T) {
 	p := fitxerLlarg(t, 50)
 	s.NouPas()
 	primer, _ := s.Read(p, 0, 0)
-	if strings.Contains(primer, "sense canvis") {
+	if strings.Contains(primer, "unchanged:") {
 		t.Fatal("la primera lectura ha de ser sencera")
 	}
 	s.NouPas()
 	s.NouPas()
 	segon, _ := s.Read(p, 0, 0)
-	if !strings.Contains(segon, "sense canvis") || !strings.Contains(segon, "fa 2 crides") {
+	if !strings.Contains(segon, "unchanged:") || !strings.Contains(segon, "2 tool calls ago") {
 		t.Fatalf("la segona ha de dir sense canvis: %q", segon)
 	}
 	// Un subrang del que ja ha llegit, també.
 	s.NouPas()
-	if sub, _ := s.Read(p, 10, 5); !strings.Contains(sub, "sense canvis") && len(sub) >= minRelectura {
+	if sub, _ := s.Read(p, 10, 5); !strings.Contains(sub, "unchanged:") && len(sub) >= minRelectura {
 		t.Errorf("subrang: %q", sub)
 	}
 	// Hi torna just després del «sense canvis»: no la té, se li dona.
@@ -115,13 +115,13 @@ func TestRelecturaDespresDeCanviOLluny(t *testing.T) {
 	if _, err := s.Edit(p, "línia número 7 amb", "línia SET amb"); err != nil {
 		t.Fatal(err)
 	}
-	if r, _ := s.Read(p, 0, 0); strings.Contains(r, "sense canvis") || !strings.Contains(r, "línia SET") {
+	if r, _ := s.Read(p, 0, 0); strings.Contains(r, "unchanged:") || !strings.Contains(r, "línia SET") {
 		t.Fatalf("després d'editar s'ha de tornar a donar: %q", r)
 	}
 	for i := 0; i <= finestraRelectura; i++ {
 		s.NouPas()
 	}
-	if r, _ := s.Read(p, 0, 0); strings.Contains(r, "sense canvis") {
+	if r, _ := s.Read(p, 0, 0); strings.Contains(r, "unchanged:") {
 		t.Fatal("fora de la finestra la lectura pot haver estat podada: s'ha de donar sencera")
 	}
 }
@@ -132,10 +132,10 @@ func TestReadTallaPerLiniaIDiuOnSeguir(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(out) > MaxOutputChars+200 || !strings.Contains(out, "continua amb offset=") {
+	if len(out) > MaxReadChars+200 || !strings.Contains(out, "continue with offset=") {
 		t.Fatalf("len %d, final %q", len(out), out[len(out)-120:])
 	}
-	cos := out[:strings.LastIndex(out, "…(retallat")]
+	cos := out[:strings.LastIndex(out, "…(truncated")]
 	if !strings.HasSuffix(cos, " text\n") {
 		t.Errorf("ha de tallar per una línia sencera: %q", cos[len(cos)-60:])
 	}

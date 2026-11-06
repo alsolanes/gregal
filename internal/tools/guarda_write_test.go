@@ -18,7 +18,7 @@ func TestGuardaEscriptura(t *testing.T) {
 	}
 	vell := filepath.Join(dir, "vell.go")
 	os.WriteFile(vell, []byte("package a\n"), 0o644)
-	if err := s.GuardaEscriptura(vell); err == nil || !strings.Contains(err.Error(), "no l'has llegit") {
+	if err := s.GuardaEscriptura(vell); err == nil || !strings.Contains(err.Error(), "you have not read it") {
 		t.Fatalf("sense llegir: %v", err)
 	}
 	if _, err := s.Read(vell, 0, 0); err != nil {
@@ -29,7 +29,7 @@ func TestGuardaEscriptura(t *testing.T) {
 	}
 	// Algú el canvia després de la lectura.
 	os.WriteFile(vell, []byte("package a\n\nvar X = 1\n"), 0o644)
-	if err := s.GuardaEscriptura(vell); err == nil || !strings.Contains(err.Error(), "ha canviat") {
+	if err := s.GuardaEscriptura(vell); err == nil || !strings.Contains(err.Error(), "has changed") {
 		t.Fatalf("canviat: %v", err)
 	}
 	// El que el model ha escrit ell mateix (Coneix) es pot tornar a escriure.

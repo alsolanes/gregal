@@ -15,6 +15,7 @@ import { funPrefs } from './fun-prefs.js';
 import { brands } from './brands.js';
 import { plugins } from './plugins.js';
 import { voicePrefs } from './voice-prefs.js';
+import { collective } from './collective.js';
 import { profileSync } from './profile-sync.js';
 
 const $ = id => document.getElementById(id);
@@ -194,7 +195,7 @@ export const prefs = {
         // El perfil de la persona (tema, idioma, densitat…) viatja amb el compte.
         fila('prefs.sync', 'prefs.sync.help',
           '<label class="pf-check"><input type="checkbox" id="prefsSync"' + (profileSync.enabled() ? ' checked' : '') + '><span></span></label>')],
-      ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + brands.section()],
+      ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + collective.section() + brands.section()],
       ['agent', '◇', fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
         fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
@@ -278,6 +279,7 @@ export const prefs = {
     if (k) k.onclick = () => { this.tanca(); const m = $('keysModal'); if (m) m.classList.add('on'); };
     this.lligaPlugins();
     voicePrefs.bind(cos);
+    collective.bind(cos);
     desktopUpdates.bind(cos);
     chromeExt.bind(cos, () => this.repinta());
     wordAddin.bind(cos, () => this.repinta());

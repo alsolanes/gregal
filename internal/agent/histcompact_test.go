@@ -165,7 +165,7 @@ func TestPlanCallsOrdreIDoom(t *testing.T) {
 	}
 	// En mode consulta, write es bloqueja i no compta per al doom.
 	p3 := PlanCalls(pol, ModeInspect, nil, calls[1:2])
-	if !strings.HasPrefix(p3[0].Fixed, "EINA BLOQUEJADA") {
+	if !strings.HasPrefix(p3[0].Fixed, "TOOL BLOCKED") {
 		t.Fatalf("inspect: %+v", p3)
 	}
 }

@@ -34,6 +34,10 @@ import kotlinx.coroutines.launch
 
 /** Lògica pura del vigilant: quines veus són noves i què cal desar. */
 object WindWatchLogic {
+    /** Hores de passada a recordar: les properes primer (32 com a molt), mai les passades. */
+    fun keepDue(times: List<Long>, now: Long): List<Long> =
+        times.filter { it + WindWatch.DUE_GRACE_MS > now }.distinct().sorted().take(32)
+
     /**
      * Agrupa per vent les veus amb ts posterior a l'últim vist; torna
      * (perVent, nouTs): l'última veu de cada vent i el ts a desar.
@@ -98,7 +102,7 @@ object WindWatch {
         // Un avís amb feina (cerca web) acaba uns segons després de l'hora: una segona
         // passada 2 minuts després el recull sense esperar els 15 minuts.
         val all = times.flatMap { listOf(it, it + ACTION_LAG_MS) }
-        val keep = (dueTimes(ctx, now) + all.filter { it + DUE_GRACE_MS > now }).distinct().takeLast(32)
+        val keep = WindWatchLogic.keepDue(dueTimes(ctx, now) + all, now)
         prefs(ctx).edit().putStringSet(KEY_DUE, keep.map { it.toString() }.toSet()).apply()
         schedule(ctx)
     }
@@ -188,9 +192,24 @@ class WindWatchService : Service() {
             wake.acquire(60_000L)
             try {
                 val api = GregalApi(baseUrlOf(p.host, p.port), p.token)
+                // Invitacions a xats compartits: avisen una sola vegada (SharedChats.kt).
+                SharedInviteWatch.check(this, api, notify = !AppVisibility.foreground)
                 val desDe = WindWatch.lastTs(this)
-                val noves = try { api.windNovetats(desDe) } catch (_: Exception) { return }
-                val (perVent, nouTs) = WindWatchLogic.noves(noves, desDe)
+                val store = VentsOffline.savedServer(applicationContext)
+                val now = System.currentTimeMillis()
+                val noves = try { api.windNovetats(desDe) } catch (_: Exception) {
+                    // El servidor no respon: els recordatoris que ja toquen surten del mòbil.
+                    if (store != null) mirrorDue(store, p, now)
+                    return
+                }
+                val shown = store?.shown().orEmpty()
+                if (store != null) {
+                    store.saveReminders(OfflineLogic.pruneOnline(store.reminders(), now))
+                    store.saveShown(OfflineLogic.pruneShown(shown, now))
+                }
+                // El cursor avança amb totes; només avisen les que el mòbil encara no ha mostrat.
+                val nouTs = WindWatchLogic.noves(noves, desDe).second
+                val perVent = WindWatchLogic.noves(OfflineLogic.notYetShown(noves, shown), desDe).first
                 WindWatch.saveTs(this, nouTs)
                 // Primera passada en aquest servidor/compte: només marca on som.
                 // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
@@ -206,6 +225,20 @@ class WindWatchService : Service() {
         } finally {
             try { WindWatch.schedule(applicationContext, if (aviat) WindWatch.SOON_MS else WindWatch.INTERVAL_MS) } catch (_: Exception) {}
         }
+    }
+
+    /**
+     * Sense servidor a l'hora d'un recordatori: l'avís surt igualment, amb
+     * el text que el vent va desar. L'id queda apuntat perquè, quan el
+     * servidor torni i el dispari, no soni dues vegades.
+     */
+    private fun mirrorDue(store: VentsOfflineStore, p: Prefs, now: Long) {
+        val shown = store.shown()
+        val due = OfflineLogic.dueOffline(store.reminders(), shown, now)
+        if (due.isEmpty() || !WindNotifications.canNotify(this)) return
+        val source = NotificationOrigins.remote(p)?.id.orEmpty()
+        for (r in due) WindNotifications.veu(this, WindNovetat(r.at / 1000, r.wind, r.name, "remind", r.text, r.id), source)
+        store.saveShown(shown + due.associate { it.id to now })
     }
 
     /** Hi ha feina en marxa: la propera passada, en 3 minuts. */

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -30,13 +32,14 @@ const remindMaxTries = 8
 
 var remindToolSpec = llm.ToolSpec{
 	Name:        "remind",
-	Description: "Programa un avís: el vent dirà el text a l'usuari quan arribi el moment, encara que l'app estigui tancada. Fes servir SEMPRE el teu id de vent (l'el dona la consigna). at és el moment: RFC3339 amb zona, o 21/10 09:00, o 09:00 (avui o demà), o +2h/+30m; sempre futur, màxim d'aquí a 30 dies. text és el missatge curt (màxim 500 caràcters). CRIDA L'EINA ABANS de dir a l'usuari que ho faràs: si la crida falla, digue-li què ha fallat en comptes de prometre res. Només per a avisos reals. Si l'usuari vol que a aquella hora FACIS alguna cosa (p. ex. «quan acabi el partit avisa'm del resultat», «mira el preu i digue'm-ho»), posa a task què has de fer (p. ex. «Busca el resultat final del Barça-Madrid i digue'l»): a l'hora faràs un torn complet amb cerca web i diràs el resultat; text és llavors un resum curt de l'encàrrec. Si pot no estar llest a l'hora (un partit que dura), posa at una mica després del final previst i retry_minutes (p. ex. 15): es reintentarà fins a 8 cops.",
+	Description: "Programa un avís: el vent dirà el text a l'usuari quan arribi el moment, encara que l'app estigui tancada. Fes servir SEMPRE el teu id de vent (l'el dona la consigna). at és el moment: RFC3339 amb zona, o 21/10 09:00, o 09:00 (avui o demà), o +2h/+30m; sempre futur, màxim d'aquí a 30 dies. text és el missatge curt (màxim 500 caràcters). CRIDA L'EINA ABANS de dir a l'usuari que ho faràs: si la crida falla, digue-li què ha fallat en comptes de prometre res. Només per a avisos reals. Si l'usuari vol que a aquella hora FACIS alguna cosa (p. ex. «quan acabi el partit avisa'm del resultat», «mira el preu i digue'm-ho»), posa a task què has de fer (p. ex. «Busca el resultat final del Barça-Madrid i digue'l»): a l'hora faràs un torn complet amb cerca web i diràs el resultat; text és llavors un resum curt de l'encàrrec. Si pot no estar llest a l'hora (un partit que dura), posa at una mica després del final previst i retry_minutes (p. ex. 15): es reintentarà fins a 8 cops. followup=true quan és un seguiment que t'ofereixes a fer tu (ningú no te l'ha demanat): l'usuari el veu com a seguiment i el pot desfer.",
 	Parameters: map[string]any{"type": "object", "properties": map[string]any{
 		"wind":          map[string]any{"type": "string"},
 		"at":            map[string]any{"type": "string"},
 		"text":          map[string]any{"type": "string"},
 		"task":          map[string]any{"type": "string"},
 		"retry_minutes": map[string]any{"type": "integer"},
+		"followup":      map[string]any{"type": "boolean"},
 	}, "required": []string{"wind", "at", "text"}},
 }
 
@@ -64,21 +67,23 @@ func remindJobWind(jobID string) (string, bool) {
 
 // remindEvent és una crida real a l'eina: la prova que el vent ha actuat.
 type remindEvent struct {
-	owner  string // compte que l'ha demanat ("" en local): dos comptes poden tenir el mateix vent
-	wind   string
-	at     string // "02/01 15:04"
-	atTime time.Time
-	text   string
-	when   time.Time
+	owner    string // compte que l'ha demanat ("" en local): dos comptes poden tenir el mateix vent
+	id       string // job desat: l'app el fa servir per desfer-lo
+	followup bool
+	wind     string
+	at       string // "02/01 15:04"
+	atTime   time.Time
+	text     string
+	when     time.Time
 }
 
 var remindEventsMu sync.Mutex
 var remindEvents []remindEvent
 
-func recordRemindEvent(owner, windID string, at time.Time, text string) {
+func recordRemindEvent(owner, jobID string, followup bool, windID string, at time.Time, text string) {
 	remindEventsMu.Lock()
 	defer remindEventsMu.Unlock()
-	remindEvents = append(remindEvents, remindEvent{owner, windID, at.Format("02/01 15:04"), at, text, time.Now()})
+	remindEvents = append(remindEvents, remindEvent{owner, jobID, followup, windID, at.Format("02/01 15:04"), at, text, time.Now()})
 	// Anell curt: només cal el torn en curs.
 	if len(remindEvents) > 32 {
 		remindEvents = remindEvents[len(remindEvents)-32:]
@@ -95,7 +100,11 @@ func remindActionsSince(owner, windID string, t0 time.Time) []map[string]string 
 	var out []map[string]string
 	for _, e := range remindEvents {
 		if e.owner == owner && e.wind == windID && !e.when.Before(t0) {
-			out = append(out, map[string]string{"kind": "remind", "at": e.at, "at_iso": e.atTime.Format(time.RFC3339), "text": e.text})
+			kind := "remind"
+			if e.followup {
+				kind = "followup"
+			}
+			out = append(out, map[string]string{"kind": kind, "id": e.id, "at": e.at, "at_iso": e.atTime.Format(time.RFC3339), "text": e.text})
 		}
 	}
 	return out
@@ -146,9 +155,17 @@ func saveWindReminder(s *Server, windID, at, text string) (jobs.Job, error) {
 	return saveWindReminderTask(s, windID, at, text, "", 0)
 }
 
+// followupMaxPending és quants seguiments pendents pot tenir un vent alhora:
+// un assistent atent, no un que ho converteix tot en avisos.
+const followupMaxPending = 3
+
+func saveWindReminderTask(s *Server, windID, at, text, task string, retryMin int) (jobs.Job, error) {
+	return saveWindReminderFull(s, windID, at, text, task, retryMin, false)
+}
+
 // saveWindReminderTask és saveWindReminder amb una feina opcional: a l'hora el
 // vent fa un torn de debò (task) en comptes de dir només el text.
-func saveWindReminderTask(s *Server, windID, at, text, task string, retryMin int) (jobs.Job, error) {
+func saveWindReminderFull(s *Server, windID, at, text, task string, retryMin int, followup bool) (jobs.Job, error) {
 	if s.winds == nil || s.jobs == nil {
 		return jobs.Job{}, fmt.Errorf("recordatoris no disponibles")
 	}
@@ -189,7 +206,15 @@ func saveWindReminderTask(s *Server, windID, at, text, task string, retryMin int
 		return jobs.Job{}, fmt.Errorf("text massa llarg")
 	}
 	owner := s.remindOwner()
-	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().Unix())
+	if followup {
+		if !w.FollowupsOn() {
+			return jobs.Job{}, fmt.Errorf("l'usuari ha desactivat els seguiments d'aquest vent: no n'ofereixis")
+		}
+		if err := s.followupRoom(w.ID, moment); err != nil {
+			return jobs.Job{}, err
+		}
+	}
+	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().UnixNano()/int64(time.Millisecond))
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: "Recordatori " + w.Name, Prompt: msg,
 		// Notify:false — l'avís arriba per notificació local de l'app
@@ -197,12 +222,12 @@ func saveWindReminderTask(s *Server, windID, at, text, task string, retryMin int
 		// («llest, mira-ho al panell») i els vents no hi parlen.
 		Kind: "remind", Enabled: true, Notify: false, NextAt: &moment,
 		Wind: w.ID, WindOwner: owner,
-		Task: task, RetryMin: retryMin, MaxTries: maxTries,
+		Task: task, RetryMin: retryMin, MaxTries: maxTries, Followup: followup,
 	})
 	if err != nil {
 		return jobs.Job{}, err
 	}
-	recordRemindEvent(owner, w.ID, moment, msg)
+	recordRemindEvent(owner, j.ID, followup, w.ID, moment, msg)
 	return j, nil
 }
 
@@ -231,22 +256,29 @@ func (s *Server) withRemindServer(ctx context.Context) context.Context {
 func (s *Server) registerRemindTool() {
 	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
-			Wind  string `json:"wind"`
-			At    string `json:"at"`
-			Text  string `json:"text"`
-			Task  string `json:"task"`
-			Retry int    `json:"retry_minutes"`
+			Wind      string          `json:"wind"`
+			At        string          `json:"at"`
+			Text      string          `json:"text"`
+			Task      string          `json:"task"`
+			RetryRaw  json.RawMessage `json:"retry_minutes"`
+			FollowRaw json.RawMessage `json:"followup"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "", fmt.Errorf("arguments il·legibles")
 		}
+		// Els models sovint envien "true" o "15" com a text: s'accepta igual.
+		Retry, Followup := looseInt(a.RetryRaw), looseBool(a.FollowRaw)
 		target := s
 		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
 			target = cur
 		}
-		j, err := saveWindReminderTask(target, a.Wind, a.At, a.Text, a.Task, a.Retry)
+		j, err := saveWindReminderFull(target, a.Wind, a.At, a.Text, a.Task, Retry, Followup)
 		if err != nil {
+			log.Printf("remind wind=%s at=%q followup=%v: %v", a.Wind, a.At, Followup, err)
 			return "", err
+		}
+		if Followup {
+			return "Fet: seguiment programat per al " + j.NextAt.Format("02/01 15:04") + ". Digues-li en mitja frase que hi tornaràs (l'app li mostra el botó per desfer-ho).", nil
 		}
 		return "Fet: avisaré el " + j.NextAt.Format("02/01 15:04") + ".", nil
 	})
@@ -256,6 +288,11 @@ func (s *Server) registerRemindTool() {
 // l'hagués dit ell, es desa i n'aprèn. Ho comparteixen el cor i els
 // recordatoris.
 func postWindMessage(s *Server, w companion.Wind, source, text string) {
+	postWindMessageJob(s, w, source, "", text)
+}
+
+// postWindMessageJob és postWindMessage amb l'id del recordatori que parla.
+func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
 	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()})
@@ -265,7 +302,7 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 	goBackground(func() { s.windLearn(w, source, text) })
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.
-	recordNovetat(s, w, source, text)
+	recordNovetatJob(s, w, source, job, text)
 }
 
 // executeWindRemind dispara un recordatori: el text entra al xat del vent,
@@ -298,7 +335,7 @@ func (s *Server) executeWindRemind(ctx context.Context, job jobs.Job) (jobs.Run,
 	if strings.TrimSpace(job.Task) != "" {
 		return s.executeWindAction(ctx, job, w)
 	}
-	postWindMessage(s, w, "remind", text)
+	postWindMessageJob(s, w, "remind", job.ID, text)
 	run := jobs.Run{JobID: job.ID, JobName: job.Name, StartedAt: end, FinishedAt: end, Status: "ok", Output: w.Name + ": " + text}
 	job.Enabled = false
 	_, _ = s.jobs.Save(job)
@@ -325,4 +362,68 @@ func windRemindBrief(windID string) string {
 		" (amb retry_minutes si pot no estar llest). Mai no el facis creure que només és un avís de text." +
 		" Només avisos reals; no programis" +
 		" mai res sense motiu ni avisis del que ja has dit en aquest torn."
+}
+
+// followupRoom: un vent no s'omple de seguiments. Com a molt
+// followupMaxPending de pendents i cap altre a menys de tres hores del nou
+// (dos seguiments seguits del mateix tema són soroll, no ajuda).
+func (s *Server) followupRoom(windID string, at time.Time) error {
+	list, err := s.jobs.List()
+	if err != nil {
+		return err
+	}
+	owner := s.remindOwner()
+	pending := 0
+	for _, j := range list {
+		if !j.Followup || !j.Enabled || j.WindOwner != owner || j.NextAt == nil {
+			continue
+		}
+		if id, ok := remindJobWind(j.ID); !ok || id != windID {
+			continue
+		}
+		pending++
+		if d := j.NextAt.Sub(at); d < 3*time.Hour && d > -3*time.Hour {
+			return fmt.Errorf("ja tens un seguiment programat el %s: no en posis un altre tan a prop", j.NextAt.Format("02/01 15:04"))
+		}
+	}
+	if pending >= followupMaxPending {
+		return fmt.Errorf("ja tens %d seguiments pendents: no n'ofereixis més fins que passin", pending)
+	}
+	return nil
+}
+
+// windFollowupBrief és el punt de proactivitat: el vent fa de bon assistent i
+// s'ofereix a tornar-hi quan l'usuari esmenta una cosa seva amb data. Buit si
+// l'usuari ho ha apagat per a aquest vent.
+func windFollowupBrief(w companion.Wind) string {
+	if !w.FollowupsOn() {
+		return ""
+	}
+	return "\n\nSEGUIMENT PROACTIU (fes de bon assistent): si l'usuari esmenta una cosa SEVA amb data o moment que encara ha de passar" +
+		" (un examen, el metge, una entrevista, un viatge, una entrega, una reunió important, una cita), pots oferir-te a fer-ne el seguiment" +
+		" sense que t'ho demani: crida remind amb followup=true i at una mica després que hagi passat (o la vigília, si l'hi pots ajudar a preparar)." +
+		" text és la pregunta o l'avís curt que li faràs («Com ha anat l'entrevista?»); si aquell moment pots ajudar de debò, posa a task què faràs" +
+		" (p. ex. «Recorda-li els tres punts que vam preparar i pregunta-li com li ha anat»)." +
+		" Com a molt UN seguiment per torn, i mai per a coses trivials, per a coses que ja ha resolt, si ja n'hi ha un del mateix tema o si l'usuari no vol." +
+		" Després, en mitja frase, digues-li què faràs i quan (l'app li ensenya un botó per desfer-ho); no li preguntis permís abans."
+}
+
+// looseBool llegeix true, "true", "sí", 1… (els models no sempre respecten el tipus).
+func looseBool(raw json.RawMessage) bool {
+	v := strings.Trim(strings.ToLower(strings.TrimSpace(string(raw))), `"`)
+	switch v {
+	case "true", "1", "yes", "si", "sí":
+		return true
+	}
+	return false
+}
+
+// looseInt llegeix 15 o "15"; qualsevol altra cosa és 0.
+func looseInt(raw json.RawMessage) int {
+	v := strings.Trim(strings.TrimSpace(string(raw)), `"`)
+	n, err := strconv.Atoi(strings.TrimSuffix(v, ".0"))
+	if err != nil {
+		return 0
+	}
+	return n
 }

@@ -627,14 +627,16 @@ type TelegramCfg struct {
 
 // defaultSystem és la identitat del gregal quan el config no en defineix.
 // No diu on viu (TUI, web, Telegram, headless): el mateix text va a totes
-// les interfícies.
-const defaultSystem = `Ets el gregal, un agent de codi que treballa al projecte de l'usuari amb eines. Parles SEMPRE en català (informal i directe, sense palla). Respostes curtes: primer la solució, després l'explicació mínima. Quan faràs servir eines, avisa en una línia què faràs.`
+// les interfícies. Text per al model: en anglès com la resta del prompt (la
+// llengua de resposta la fixa la directiva del final). L'avís d'una línia
+// abans de fer servir eines viu a les regles de codi (agent.codeRules, 7a).
+const defaultSystem = `You are gregal, a coding agent that works in the user's project through tools. You ALWAYS speak Catalan (informal and direct, no filler). Short answers: the solution first, then the minimum explanation.`
 
 // defaultSystemEN és el mateix amb l'anglès com a llengua de resposta. Es
 // tria amb `lang: en`. No és una traducció automàtica del de dalt: el
 // prompt és el que decideix com respon el model i val més tenir-lo escrit
 // a mà en cada llengua que passar-lo per una plantilla.
-const defaultSystemEN = `You are gregal, a coding agent that works in the user's project through tools. You ALWAYS speak English (informal and direct, no filler). Short answers: the solution first, then the minimum explanation. When you are about to use tools, say in one line what you will do.`
+const defaultSystemEN = `You are gregal, a coding agent that works in the user's project through tools. You ALWAYS speak English (informal and direct, no filler). Short answers: the solution first, then the minimum explanation.`
 
 // LanguageDirective és l'última línia del system prompt a tots els camins
 // (TUI, web, headless, Telegram, subagents). La resta del prompt és en

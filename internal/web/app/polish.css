@@ -122,6 +122,15 @@
 .run-summary-pill.is-ok { border-color:var(--green); color:var(--green); background:var(--ok-soft); }
 .run-summary-pill.is-failed { border-color:var(--red); color:var(--red); background:var(--red-soft); }
 .run-summary-pill.is-muted { color:var(--muted); }
+/* Fitxer escrit: enllaç al seu diff (ruta relativa, la sencera al tooltip). */
+.run-summary-file { min-width:0; padding:0; border:0; background:none; color:var(--text);
+  font:var(--t2)/1.4 var(--mono); text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; cursor:pointer; }
+.run-summary-file:hover { color:var(--accent-hi); text-decoration:underline; }
+.run-summary-file:focus-visible { outline:2px solid var(--accent-hi); outline-offset:2px; border-radius:3px; }
+/* Referència a un fitxer dins d'una resposta (`ruta/fitxer.go:12`): s'obre en clicar. */
+.body code.fref { cursor:pointer; text-decoration:underline dotted color-mix(in srgb, var(--accent-hi) 55%, transparent); text-underline-offset:3px; }
+.body code.fref:hover { color:var(--accent-hi); border-color:var(--accent); }
+.body code.fref:focus-visible { outline:2px solid var(--accent-hi); outline-offset:1px; }
 .run-summary-actions { display:flex; flex-wrap:wrap; gap:7px; margin-top:12px; }
 .run-summary-action { min-height:32px; padding:5px 10px; border:1px solid var(--line-hi);
   border-radius:8px; color:var(--text); background:var(--surface-hi); cursor:pointer; }

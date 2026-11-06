@@ -38,7 +38,11 @@ internal data class WindDraft(val name: String, val color: String, val role: Str
 
 @Composable
 internal fun WindCreatorScreen(vm: GregalViewModel, lang: String, edit: Wind?) {
-    WindEditor(lang, edit,
+    // Noms al gust del nom col·lectiu triat (fullets, minairons…): els de la
+    // galeria i el que es posa sol en triar una plantilla.
+    val themed by vm.suggestedNames.collectAsState()
+    LaunchedEffect(Unit) { if (edit == null) vm.loadSuggestedNames() }
+    WindEditor(lang, edit, themed = themed,
         onBack = { vm.showWindCreator(false) },
         onSuggest = { name, role, error, done -> vm.suggestWind(name, role, error, done) },
         onSave = { draft, done -> vm.createWind(draft.name, draft.color, draft.role, draft.style, draft.persona, draft.id, done) })
@@ -53,6 +57,8 @@ internal fun WindEditor(
     onBack: () -> Unit,
     onSuggest: (String, String, () -> Unit, (String, String) -> Unit) -> Unit,
     onSave: (WindDraft, (Boolean) -> Unit) -> Unit,
+    /** Noms proposats al gust del col·lectiu (buit = els de la plantilla). */
+    themed: List<String> = emptyList(),
 ) {
     var name by rememberSaveable(edit?.id) { mutableStateOf(edit?.name.orEmpty()) }
     var color by rememberSaveable(edit?.id) { mutableStateOf(edit?.color ?: windEditorColors.first()) }
@@ -114,6 +120,7 @@ internal fun WindEditor(
                             role = tr(lang, "app.vents.tpl.${tpl.id}.role")
                             // A visual/template change must not erase a persona already written.
                             if (persona.isBlank()) persona = tr(lang, "app.vents.tpl.${tpl.id}.persona")
+                            if (name.isBlank()) themed.lastOrNull()?.let { name = it }
                             color = tpl.color; style = tpl.style
                             gallery = false
                         }) {
@@ -128,22 +135,25 @@ internal fun WindEditor(
                 }
             }
             // Two columns keep the gallery legible on small phones; no infinite horizontal guessing.
-            WindSuggestions.all.chunked(2).forEach { row ->
+            WindSuggestions.all.withIndex().chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    row.forEach { preset ->
-                        val selected = name == preset.name && color == preset.color && style == preset.style
+                    row.forEach { (i, preset) ->
+                        // El nom de la galeria ve del servidor (al gust del col·lectiu);
+                        // el rol i la persona són els de la plantilla.
+                        val shown = themed.getOrNull(i) ?: preset.name
+                        val selected = name == shown && color == preset.color && style == preset.style
                         Surface(shape = RoundedCornerShape(22.dp), color = Color(Wind("", "", preset.color, "").argb).copy(alpha = .10f),
                             modifier = Modifier.weight(1f).clip(RoundedCornerShape(22.dp))
                                 .then(if (selected) Modifier.border(2.dp, Sea, RoundedCornerShape(22.dp)) else Modifier)
                                 .clickable(enabled = !saving) {
-                                    name = preset.name; color = preset.color; style = preset.style
+                                    name = shown; color = preset.color; style = preset.style
                                     role = tr(lang, "app.vents.preset.${preset.name}.role")
                                     if (persona.isBlank()) persona = tr(lang, "app.vents.preset.${preset.name}.persona")
                                     gallery = false
                                 }) {
                             Column(Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 WindFace(size = 62, accent = Color(Wind("", "", preset.color, "").argb), style = windStyleOf(preset.style))
-                                Text(preset.name, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text(shown, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                                 Text(tr(lang, "app.vents.preset.${preset.name}.role"), color = Muted, fontSize = 12.sp)
                             }
                         }
@@ -166,14 +176,14 @@ internal fun WindEditor(
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         WindFace(size = 118, accent = Color(Wind("", "", color, "").argb), style = face, tappable = !saving)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(name.ifBlank { if (lang == "en") "Your wind" else "El teu vent" }, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                            Text(name.ifBlank { tr(lang, "app.company.yourWind") }, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                             Text(role.ifBlank { if (lang == "en") "A companion with a clear purpose" else "Un company amb un propòsit clar" }, color = Muted, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 3)
                         }
                     }
                 }
             }
             OutlinedTextField(name, { name = it }, enabled = controlsEnabled,
-                label = { Text(tr(lang, "app.company.windName")) }, singleLine = true,
+                label = { Text(if (themed.size >= 2) tr(lang, "app.company.windNameLike", themed[0], themed[1]) else tr(lang, "app.company.windName")) }, singleLine = true,
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
             OutlinedTextField(role, { role = it }, enabled = controlsEnabled,
                 label = { Text(tr(lang, "app.company.windRole")) }, maxLines = 2,

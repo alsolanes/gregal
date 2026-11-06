@@ -148,7 +148,7 @@ func (s *Seguiment) GuardaEscriptura(path string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if ok, perque := s.alDia(path, raw); !ok {
-		return fmt.Errorf("%s ja existeix i %s: write el reescriuria sencer sense saber què hi ha. Llegeix-lo amb read i torna-ho a provar, o canvia només el que cal amb edit o patch", path, perque)
+		return fmt.Errorf("%s already exists and %s: write would rewrite it whole without knowing what is in it. Read it with read and try again, or change only what is needed with edit or patch", path, perque)
 	}
 	return nil
 }
@@ -157,10 +157,10 @@ func (s *Seguiment) GuardaEscriptura(path string) error {
 func (s *Seguiment) alDia(path string, raw []byte) (bool, string) {
 	st := s.fitxers[clau(path)]
 	if st == nil {
-		return false, "no l'has llegit en aquesta conversa"
+		return false, "you have not read it in this conversation"
 	}
 	if st.hash != sha256.Sum256(raw) {
-		return false, "ha canviat des que el vas llegir"
+		return false, "it has changed since you read it"
 	}
 	return true, ""
 }
@@ -198,11 +198,11 @@ func (s *Seguiment) Read(path string, offset, limit int) (string, error) {
 			}
 			lr.avisat = true
 			fa := s.pas - lr.pas
-			quan := fmt.Sprintf("fa %d crides d'eina", fa)
+			quan := fmt.Sprintf("%d tool calls ago", fa)
 			if fa <= 0 {
-				quan = "en aquest mateix pas"
+				quan = "in this same step"
 			}
-			return fmt.Sprintf("sense canvis: les línies %d–%d de %s ja les has llegit %s i el fitxer no ha canviat; fes servir aquella lectura. Si ja no la tens al context, torna a cridar read igual i te la tornaré sencera.", l.ini, l.fi, path, quan), nil
+			return fmt.Sprintf("unchanged: you already read lines %d–%d of %s %s and the file has not changed; use that read. If it is no longer in your context, call read again with the same arguments and you will get it in full.", l.ini, l.fi, path, quan), nil
 		}
 	}
 	st.lectures = append(st.lectures, lecturaRang{ini: l.ini, fi: l.fi, pas: s.pas})
@@ -236,7 +236,7 @@ func (s *Seguiment) Patch(path string, ops []PatchOp) (string, error) {
 
 // errNoAlDia és el rebuig de P9.
 func errNoAlDia(path, perque, nivell string) error {
-	return fmt.Errorf("%s %s i old no hi és tal qual (només casaria amb coincidència aproximada, nivell «%s»): una edició aproximada sobre un fitxer que no tens al dia podria tocar un text que no has vist. Llegeix-lo amb read i torna-ho a provar", path, perque, nivell)
+	return fmt.Errorf("%s: %s, and old is not there verbatim (it would only match approximately, level \"%s\"): an approximate edit on a file you do not have up to date could touch text you have not seen. Read it with read and try again", path, perque, nivell)
 }
 
 // ---- Diff del canvi ----
@@ -280,7 +280,7 @@ func resumCanvi(abans, despres string) string {
 	}
 	if len(out) > maxLinies {
 		resta := len(out) - maxLinies
-		out = append(out[:maxLinies], fmt.Sprintf("…(%d línies més del diff)", resta))
+		out = append(out[:maxLinies], fmt.Sprintf("…(%d more diff lines)", resta))
 	}
 	return "\n```diff\n" + strings.Join(out, "\n") + "\n```"
 }
@@ -368,10 +368,10 @@ func retallaCapICua(s string, n int, desa func(string) string) string {
 	cap := tallaLinia(s[:int(float64(n)*partCap)], false)
 	cua := tallaLinia(s[len(s)-(n-len(cap)):], true)
 	omesos := s[len(cap) : len(s)-len(cua)]
-	marca := fmt.Sprintf("\n…[%d línies (%d caràcters) omeses del mig", strings.Count(omesos, "\n"), len(omesos))
+	marca := fmt.Sprintf("\n…[%d lines (%d characters) omitted from the middle", strings.Count(omesos, "\n"), len(omesos))
 	if desa != nil {
 		if p := desa(s); p != "" {
-			marca += fmt.Sprintf("; la sortida sencera és a %s — llegeix-ne el rang que et calgui amb read (offset/limit) o grep", p)
+			marca += fmt.Sprintf("; the full output is at %s — read the range you need with read (offset/limit) or grep", p)
 		}
 	}
 	return cap + marca + "]…\n" + cua
@@ -481,7 +481,7 @@ func (s *Seguiment) Reescriu(path, vell, nou string) (string, error) {
 		return "", err
 	}
 	if string(raw) != vell {
-		return "", fmt.Errorf("%s ha canviat mentre es calculava el canvi: torna-ho a provar", path)
+		return "", fmt.Errorf("%s changed while the edit was being computed: try again", path)
 	}
 	Active.SnapOp(path, "edit")
 	if err := os.WriteFile(path, []byte(nou), 0o644); err != nil {

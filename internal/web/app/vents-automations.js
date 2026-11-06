@@ -5,6 +5,7 @@
 // compte (/api/winds/…, /api/connections): la Marta hi veu les seves.
 
 import { idioma } from './i18n.js';
+import { renderAutomations } from './vents-activity.js';
 
 const $ = id => document.getElementById(id);
 const tx = (ca, en) => (idioma() === 'en' ? en : ca);
@@ -75,73 +76,13 @@ async function render(box) {
   card.append(cardBtns);
   box.append(card);
 
-  // Recordatoris
-  const rems = section(tx('Recordatoris', 'Reminders'), tx('Els que els vents han programat quan els ho has demanat.', 'The ones winds scheduled when you asked.'));
-  const remList = prog.reminders || [];
-  if (!remList.length) rems.append(empty(tx('Cap recordatori pendent. Prova: «recorda’m demà a les 9 que truqui al metge».', 'No pending reminders. Try: "remind me tomorrow at 9 to call the doctor".')));
-  for (const r of remList) {
-    const row = el('div', 'auto-row');
-    const main = el('div', 'auto-main');
-    main.append(el('strong', '', when(r.at)), el('span', 'auto-sub', (r.wind_name || r.wind) + ' · ' + r.text));
-    row.append(main, btn(tx('Esborra', 'Delete'), () => act(() => post('/api/winds/rutines/delete', { id: r.id }), tx('Recordatori esborrat.', 'Reminder deleted.')), 'auto-btn subtle'));
-    rems.append(row);
-  }
-  box.append(rems);
-
-  // Rutines
-  const rs = section(tx('Rutines', 'Routines'), tx('Feines que un vent fa cada dia o cada tantes hores: obre un torn de veritat i et parla només si cal.', 'Jobs a wind does every day or every few hours: it opens a real turn and only speaks when needed.'));
-  const list = rut.rutines || [];
-  if (!list.length) rs.append(empty(tx('Encara no n’hi ha cap. Crea’n una a sota.', 'None yet. Create one below.')));
-  for (const r of list) {
-    const row = el('div', 'auto-row' + (r.enabled ? '' : ' off'));
-    const main = el('div', 'auto-main');
-    const sched = r.kind === 'interval' ? tx('cada ' + r.interval_h + ' h', 'every ' + r.interval_h + ' h') : tx('cada dia', 'every day');
-    const next = r.enabled && r.next_due_at ? tx(' · proper: ', ' · next: ') + when(r.next_due_at) : (r.enabled ? '' : tx(' · en pausa', ' · paused'));
-    const last = r.last_status ? (r.last_status === 'ok' ? ' · ✓' : ' · ⚠ ' + r.last_status) : '';
-    main.append(el('strong', '', r.name || r.wind_name), el('span', 'auto-sub', (r.wind_name || r.wind) + ' · ' + sched + next + last));
-    const actions = el('div', 'auto-actions');
-    const hist = el('div', 'auto-history'); hist.hidden = true;
-    actions.append(
-      btn(tx('Executa ara', 'Run now'), () => act(() => post('/api/winds/rutines/run', { id: r.id }), tx('En marxa: el resultat sortirà al xat del vent.', 'Running: the result will show up in the wind’s chat.'))),
-      btn(r.enabled ? tx('Pausa', 'Pause') : tx('Reprèn', 'Resume'), () => act(() => post('/api/winds/rutines/toggle', { id: r.id, enabled: !r.enabled }), r.enabled ? tx('En pausa.', 'Paused.') : tx('Represa.', 'Resumed.')), 'auto-btn subtle'),
-      btn(tx('Historial', 'History'), async () => {
-        hist.hidden = !hist.hidden;
-        if (hist.hidden || hist.dataset.loaded) return;
-        hist.replaceChildren(el('p', 'auto-help', tx('Carregant…', 'Loading…')));
-        try {
-          const runs = (await getJSON('/api/winds/rutines/runs?id=' + encodeURIComponent(r.id))).runs || [];
-          hist.replaceChildren();
-          if (!runs.length) hist.append(empty(tx('Encara no ha corregut mai.', 'It has not run yet.')));
-          for (const run of runs) {
-            const item = el('details', 'auto-run');
-            const sum = el('summary', '', when(run.started_at) + ' · ' + (run.status === 'ok' ? '✓' : '⚠ ' + (run.error || run.status)));
-            item.append(sum, el('pre', '', (run.output || run.error || '').slice(0, 4000)));
-            hist.append(item);
-          }
-          hist.dataset.loaded = '1';
-        } catch (e) { hist.replaceChildren(el('p', 'auto-help', '⚠ ' + e.message)); }
-      }, 'auto-btn subtle'),
-      btn(tx('Esborra', 'Delete'), () => { if (confirm(tx('Esborrar aquesta rutina?', 'Delete this routine?'))) act(() => post('/api/winds/rutines/delete', { id: r.id }), tx('Rutina esborrada.', 'Routine deleted.')); }, 'auto-btn subtle'),
-    );
-    row.append(main, actions, hist);
-    rs.append(row);
-  }
-  box.append(rs);
-
-  // Vigilància (els cors dels vents)
-  const hearts = prog.hearts || [], stats = prog.stats || [];
-  const hs = section(tx('Què vigilen', 'What they watch'), tx('Cada vent amb tema mira de tant en tant si hi ha res que valgui la pena dir-te; si no, calla.', 'Each wind with a topic checks now and then for anything worth telling you; otherwise it stays quiet.'));
-  if (!hearts.length) hs.append(empty(tx('Cap vent vigila res ara mateix.', 'No wind is watching anything right now.')));
-  for (const h of hearts) {
-    const st = stats.find(x => x.wind === h.wind) || {};
-    const row = el('div', 'auto-row');
-    const main = el('div', 'auto-main');
-    const counts = st.beats ? tx(` · ${st.beats} mirades, ha parlat ${st.spoke}, ha callat ${st.silent}`, ` · ${st.beats} checks, spoke ${st.spoke}, quiet ${st.silent}`) : '';
-    main.append(el('strong', '', h.wind_name || h.wind), el('span', 'auto-sub', (h.next_at ? tx('proper cop: ', 'next: ') + when(h.next_at) : tx('sense hora', 'no time set')) + counts));
-    row.append(main);
-    hs.append(row);
-  }
-  box.append(hs);
+  // Tot el que faran sols, en una sola llista amb accions (com a Android).
+  const all = section(tx('Què faran', 'Coming up'), tx('Recordatoris, seguiments que s’han ofert a fer, el que vigilen i les rutines. Fes-ho ara, pausa-ho, mira’n l’historial o treu-ho.',
+    'Reminders, follow-ups they offered to do, what they watch and routines. Run it now, pause it, see its history or remove it.'));
+  const listBox = el('div', 'act-list');
+  all.append(listBox);
+  box.append(all);
+  await renderAutomations(listBox);
 
   // Nova rutina
   const ns = section(tx('Nova rutina', 'New routine'), tx('Descriu què ha de fer, com ho diries al xat: «cada matí mira si hi ha concerts nous a Barcelona i avisa’m només si n’hi ha».', 'Describe what to do, as you would in chat: "every morning check for new concerts in Barcelona and tell me only if there are any".'));

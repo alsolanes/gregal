@@ -23,27 +23,40 @@ import androidx.compose.ui.window.Dialog
 // Peces de la portada dels Vents: abans la llista quedava sota el selector
 // mòbil/servidor, la seva explicació, la tira de personatges i tres accessos.
 
-/** On treballen els vents, en petit a la capçalera: toca'l i surt el selector. */
+/**
+ * On treballen els vents, en petit a la capçalera. Amb servidor és un estat,
+ * no un selector: el nom del servidor i si respon; sense connexió, «còpia»
+ * i quants missatges esperen. Tocar-lo obre el detall (i, a part, el canvi).
+ */
 @Composable
 internal fun WhereChip(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
     val conn by vm.conn.collectAsState()
     val reach by vm.serverReach.collectAsState()
     val switching by vm.switchingWhere.collectAsState()
+    val offline by vm.offline.collectAsState()
+    val outbox by vm.outbox.collectAsState()
     val onServer = !conn.local
     LaunchedEffect(onServer) {
         while (true) { vm.checkServerReach(); kotlinx.coroutines.delay(60_000) }
     }
-    val label = if (onServer) vm.savedServerName().ifBlank { tr(lang, "app.where.server") } else tr(lang, "app.where.phoneShort")
+    val server = vm.savedServerName().ifBlank { tr(lang, "app.where.server") }
+    val label = when {
+        !onServer -> tr(lang, "app.where.phoneShort")
+        offline && outbox.isNotEmpty() -> tr(lang, "app.offline.chipQueued", outbox.size)
+        offline -> tr(lang, "app.offline.chip")
+        else -> server
+    }
     val dot = when {
         switching -> Sand
         !onServer -> Muted
+        offline -> Sand
         reach == true -> Color(0xFF6FCF97)
         reach == false -> Color(0xFFE57373)
         else -> Muted
     }
     Row(
         Modifier.padding(end = 2.dp).clip(RoundedCornerShape(16.dp)).background(SuperficieAlta.copy(alpha = .55f))
-            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 120.dp)
+            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 150.dp)
             .semantics { contentDescription = tr(lang, "app.where.title") + ": " + label }.testTag("where-chip"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -52,16 +65,57 @@ internal fun WhereChip(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
     }
 }
 
-/** El selector de sempre (mòbil o servidor, amb l'explicació), dins un diàleg. */
+/** Hora de la còpia en paraules curtes («avui 14:32»). */
+internal fun offlineCopyWhen(lang: String, ms: Long): String =
+    if (ms <= 0L) "" else automationWhen(lang, java.time.Instant.ofEpochMilli(ms).atZone(java.time.ZoneId.systemDefault()).toOffsetDateTime().toString())
+
+/** Estat del servidor: si respon, o que veus la còpia del mòbil i què espera a sortir. */
+@Composable
+internal fun WhereStatus(vm: GregalViewModel, lang: String) {
+    val offline by vm.offline.collectAsState()
+    val outbox by vm.outbox.collectAsState()
+    val copyAt by vm.offlineCopyAt.collectAsState()
+    val server = vm.savedServerName().ifBlank { tr(lang, "app.where.server") }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(9.dp).clip(CircleShape).background(if (offline) Sand else Color(0xFF6FCF97)))
+            Text(server, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(tr(lang, if (offline) "app.offline.state" else "app.offline.online"), color = Muted, fontSize = 13.sp)
+        }
+        if (offline) {
+            val whenText = offlineCopyWhen(lang, copyAt)
+            Text(if (whenText.isBlank()) tr(lang, "app.offline.copy") else tr(lang, "app.offline.copyAt", whenText),
+                color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+            if (outbox.isNotEmpty()) Text(tr(lang, "app.offline.queued", outbox.size), color = Ink, fontSize = 13.sp)
+            TextButton(onClick = { vm.retryServerNow() }, contentPadding = PaddingValues(horizontal = 0.dp)) {
+                Text(tr(lang, "app.offline.retry"), color = Sea, fontWeight = FontWeight.SemiBold)
+            }
+        } else {
+            Text(tr(lang, "app.where.serverHint"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+    }
+}
+
+/**
+ * El diàleg de la xapa. Amb servidor, primer l'estat; canviar al mòbil
+ * queda a sota, plegat: és rar i no s'hi ha de caure per error.
+ */
 @Composable
 internal fun WhereDialog(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
+    val conn by vm.conn.collectAsState()
+    var showSwitch by remember { mutableStateOf(conn.local) }
     Dialog(onDismissRequest = onClose) {
         Surface(shape = RoundedCornerShape(24.dp), color = Superficie) {
             Column(Modifier.padding(vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(tr(lang, "app.where.title"), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 22.dp))
-                WhereSwitch(vm, lang)
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.End) {
+                if (!conn.local) WhereStatus(vm, lang)
+                if (showSwitch) WhereSwitch(vm, lang)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    if (!showSwitch) TextButton(onClick = { showSwitch = true }) {
+                        Text(tr(lang, "app.where.change"), color = Muted, fontSize = 13.sp)
+                    } else Spacer(Modifier.width(1.dp))
                     TextButton(onClick = onClose) { Text(tr(lang, "app.cap.close"), color = Sea) }
                 }
             }

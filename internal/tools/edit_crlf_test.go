@@ -62,17 +62,17 @@ func TestElBlocNoTrobatDiuPerQue(t *testing.T) {
 	// Un sagnat diferent ja no és un error: la cascada (fuzzy.go) ho
 	// resol. El que encara falla és el text partit en unes altres línies.
 	err := Edit(p, "func F() int {\n\t\treturn\n1\n}", "x")
-	if err == nil || !strings.Contains(err.Error(), "espais o sagnat") {
+	if err == nil || !strings.Contains(err.Error(), "spacing or indentation") {
 		t.Errorf("amb el text partit en altres línies ho ha de dir: %v", err)
 	}
 
 	err = Edit(p, "func F() int {\n\t\treturn 1\n\tfmt.Println(\"res\")\n}", "x")
-	if err == nil || !strings.Contains(err.Error(), "hi és, però el bloc de context") {
+	if err == nil || !strings.Contains(err.Error(), "is there, but the surrounding context block") {
 		t.Errorf("amb una línia bona i context dolent ho ha de dir: %v", err)
 	}
 
 	err = Edit(p, "func Z() string {\n\treturn \"res de res\"\n}", "x")
-	if err == nil || !strings.Contains(err.Error(), "res semblant") {
+	if err == nil || !strings.Contains(err.Error(), "nothing similar") {
 		t.Errorf("amb un bloc que no hi és ho ha de dir: %v", err)
 	}
 }
@@ -81,7 +81,7 @@ func TestElBlocNoTrobatDiuPerQue(t *testing.T) {
 func TestElBlocAmbiguDiuComResoldreHo(t *testing.T) {
 	p := fitxer(t, "a := 1\nb := 2\na := 1\n")
 	err := Edit(p, "a := 1", "a := 3")
-	if err == nil || !strings.Contains(err.Error(), "més context") {
+	if err == nil || !strings.Contains(err.Error(), "more context") {
 		t.Errorf("%v", err)
 	}
 }
@@ -111,7 +111,7 @@ func TestPatchFuncionaEnFitxersAmbFinalsDeLiniaDeWindows(t *testing.T) {
 func TestElPatchNoTrobatDiuPerQue(t *testing.T) {
 	p := fitxer(t, "package a\n\nvar x = 1\n")
 	err := Patch(p, []PatchOp{{Old: "var    x    =    1", New: "var x = 2"}})
-	if err == nil || !strings.Contains(err.Error(), "espais o sagnat") {
+	if err == nil || !strings.Contains(err.Error(), "spacing or indentation") {
 		t.Errorf("%v", err)
 	}
 }

@@ -199,7 +199,7 @@ func TestSemblaFracas(t *testing.T) {
 		"Traceback (most recent call last):\n  File \"x.py\"\nAssertionError: 1 != 2",
 		"Ran 2 tests\nFAILED (failures=1)",
 		"go: command not found",
-		"ERROR: bloc no trobat a calc.py",
+		"ERROR: block not found in calc.py",
 	}
 	for _, s := range si {
 		if !SemblaFracas(s) {

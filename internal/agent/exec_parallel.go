@@ -31,6 +31,9 @@ var readOnlyParallel = map[string]bool{
 	"knowledge_search": true,
 }
 
+// IsReadOnlyTool diu si una eina només llegeix (la llista d'eines del mode Pla).
+func IsReadOnlyTool(name string) bool { return readOnlyParallel[name] }
+
 // allReadOnlyCalls diu si TOTES les crides del bloc són read-only (i n'hi ha
 // alguna). Només aleshores el bloc pot executar-se en paral·lel.
 func allReadOnlyCalls(calls []llm.ToolCall) bool {

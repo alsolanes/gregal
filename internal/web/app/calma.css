@@ -12,7 +12,7 @@
   --bg:#12141C; --sidebar:#0D0F16; --panel:#0D0F16;
   --surface:#1A1D29; --surface-hi:#232738; --line:rgba(170,182,255,.09);
   --line-hi:rgba(170,182,255,.18); --ink:#F2F4FF; --text:#DCE0F0;
-  --muted:#A0A7C0; --faint:#7A819B; --accent:#8193FF; --accent-hi:#A3B0FF;
+  --muted:#A0A7C0; --faint:#878EA8; --accent:#8193FF; --accent-hi:#A3B0FF;
   --accent-soft:rgba(129,147,255,.12); --accent-soft-hi:rgba(129,147,255,.22);
   --hover:rgba(170,182,255,.06); --hover-alt:rgba(170,182,255,.10);
   --composer:#1A1D29; --on-accent:#0D0F16;
@@ -22,7 +22,7 @@
   --bg:#1B1A19; --sidebar:#151413; --panel:#151413;
   --surface:#252322; --surface-hi:#2F2C2A; --line:rgba(255,240,225,.07);
   --line-hi:rgba(255,240,225,.14); --ink:#F2EFE9; --text:#DCD7D0;
-  --muted:#A29D94; --faint:#7A756D; --accent:#E8A96B; --accent-hi:#F2BE88;
+  --muted:#A29D94; --faint:#948F87; --accent:#E8A96B; --accent-hi:#F2BE88;
   --green:#8FCB8A; --amber:#E8B75A; --red:#EE8E80; --onada:#7FC8B8; --lila:#C9A8E8;
   --lila-fons:#2E2638; --hover:rgba(255,240,225,.05); --hover-alt:rgba(255,240,225,.08);
   --raised:rgba(255,255,255,.02); --edge:rgba(255,240,225,.12);
@@ -33,6 +33,9 @@
   --composer:#252322; --on-accent:#1B1A19;
 }
 :root[data-theme="light"] { --composer:#FFFFFF; --on-accent:#FFFFFF; }
+/* --faint és text (dates, capçaleres): ≥ 4.5:1 sobre --bg, --sidebar i --surface
+   en els tres temes (abans el fosc feia 4.35 sobre --surface i Calma 3.8). */
+:root[data-theme="light"] { --faint:#59627A; }
 
 /* ---------- Barra lateral: una sola columna ---------- */
 #side { width:272px; min-width:272px; }
@@ -113,6 +116,16 @@ html body.shell-winds #side > .brand { display:flex; }
 #sessionTabs.single .session-tab:not(.new) { display:none; }
 #sessionTabs.single { height:34px; min-height:34px; justify-content:flex-end; }
 #sessionTabs .session-tab.new { color:var(--faint); padding:6px 9px; }
+/* Les pestanyes són sessions de Codi: a Vents (i Jocs) no hi pinten res. A
+   l'escriptori la franja es queda buida perquè fa de barra de títol
+   (s'arrossega i hi van els botons de la finestra). */
+html[data-product="vents"] body:not(.desktop) #sessionTabs, html[data-product="jocs"] body:not(.desktop) #sessionTabs { display:none; }
+html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionTabs > * { display:none; }
+/* ＋ i ⎇＋ amb icona SVG: una diana de 28 px, centrada a la franja. */
+#sessionTabs .session-tab.new { width:28px; height:28px; padding:0; margin:0 0 3px; display:inline-grid; place-items:center; border-radius:7px; align-self:center; }
+#sessionTabs .session-tab.new .ui-icon { width:16px; height:16px; }
+#sessionTabs .session-tab.new:hover { color:var(--ink); background:var(--surface); }
+#sessionTabs .session-tab.new:focus-visible, #top .top-meta .icon-btn:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 #moreMenu .calma-moved { display:flex; align-items:center; gap:6px; width:100%; }
 #moreMenu .calma-ico { display:inline-flex; width:16px; justify-content:center; }
 #moreMenu .calma-ico .ui-icon { width:15px; height:15px; }

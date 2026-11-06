@@ -123,31 +123,33 @@ internal fun agrupaAutomatitzacions(
     )
 }
 
-/** Totes les automatitzacions juntes: el que el servidor i el mòbil fan sols,
- *  sense haver d'anar {vent} per {vent}. */
+/** Activitat: el que els {vents} faran sols, amb accions a mà (fes-ho ara,
+ *  pausa, treu), i a sota la resta de feines programades del servidor i els
+ *  fluxos, només si n'hi ha. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val lang by vm.idioma.collectAsState()
     val jobs by vm.jobs.collectAsState()
-    val rutinesState by vm.rutines.collectAsState()
     val fluxos by vm.flows.collectAsState()
-    val programats by vm.programats.collectAsState()
+    val activitat by vm.automations.collectAsState()
+    val delsVents = activitat[""]?.items.orEmpty().map { it.id }.toSet()
 
     fun carrega() {
+        vm.loadAutomations("")
         vm.loadJobs()
-        vm.loadRutines()
         vm.loadFlows()
-        vm.loadProgramats()
     }
     LaunchedEffect(Unit) { carrega() }
 
-    val grups = agrupaAutomatitzacions(lang, jobs, rutinesState.orEmpty(), fluxos, programats?.reminders.orEmpty())
-    val total = grups.sumOf { it.items.size }
+    // Els recordatoris i plans dels vents ja surten a dalt: aquí només la
+    // feina programada que no és de cap vent i els fluxos.
+    val altres = agrupaAutomatitzacions(lang, jobs.filter { it.kind != "remind" && !it.id.startsWith("wind-") && it.id !in delsVents }, emptyList(), fluxos, emptyList())
+        .filter { it.clau != "recordatoris" && it.clau != "plans" && it.items.isNotEmpty() }
 
-    Scaffold(containerColor = Superficie, topBar = {
+    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
         TopAppBar(
-            title = { Text(tr(lang, "auto.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+            title = { Text(tr(lang, "act.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
             navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
             actions = { IconButton(onClick = { carrega() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
@@ -156,24 +158,15 @@ internal fun AutomatitzacionsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item(key = "ajuda") {
-                Text(tr(lang, "auto.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
+                Text(tr(lang, "act.help"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
             }
-            if (total == 0) {
-                item(key = "buit") {
-                    Surface(color = Ink.copy(alpha = 0.04f), shape = MaterialTheme.shapes.medium) {
-                        Text(tr(lang, "auto.empty"), color = Tinta, modifier = Modifier.padding(16.dp), fontSize = 14.sp)
-                    }
-                }
-            }
-            for (grup in grups) {
+            item(key = "vents") { WindAutomationList(vm, lang) }
+            for (grup in altres) {
                 item(key = "cap-" + grup.clau) {
-                    Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(grup.titol, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Text(grup.items.size.toString(), color = Muted, fontSize = 13.sp)
                     }
-                }
-                if (grup.items.isEmpty()) {
-                    item(key = "buit-" + grup.clau) { Text(tr(lang, "auto.none"), color = Muted, fontSize = 13.sp) }
                 }
                 itemsIndexedCompat(grup) { index, a -> AutomatitzacioRow(lang, a, grup.clau + index) }
             }

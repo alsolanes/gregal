@@ -88,7 +88,7 @@ func TestGoalDenegaEscriptura(t *testing.T) {
 		t.Fatal("en goal no es pot escriure cap fitxer")
 	}
 	ultim := mm.histAgent()[len(mm.histAgent())-1]
-	if ultim.Role != "tool" || !strings.Contains(ultim.Content, "EINA BLOQUEJADA") {
+	if ultim.Role != "tool" || !strings.Contains(ultim.Content, "TOOL BLOCKED") {
 		t.Fatalf("cal denegació a l'historial: %+v", ultim)
 	}
 }
