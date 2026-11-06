@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.Dns
 import androidx.compose.material.icons.rounded.Folder
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.AccountTree
 import androidx.compose.material.icons.rounded.Toys
@@ -96,6 +97,7 @@ fun GregalDrawerContent(
             DrawerSection(tr(lang, "app.nav.sectionWinds"))
             DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
             DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
+            DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
 
             DrawerSection(tr(lang, "app.nav.sectionAgent"))
             DrawerRow(tr(lang, "app.nav.chat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.ChatBubbleOutline)
@@ -158,6 +160,7 @@ private fun SimpleVentsDrawer(
             DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
                 nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
             }, Icons.Rounded.Schedule)
+            DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
             DrawerRow(tr(lang, "nav.saved"), screen == Screen.Desat, { nav(Screen.Desat); vm.loadSaved("") }, Icons.Rounded.Folder)
             // Programar des del mòbil és a mà, no amagat: l'agent de codi, les seves
             // converses, el projecte i les feines. (Objectius, gràfics, Office i Retro

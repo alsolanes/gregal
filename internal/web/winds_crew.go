@@ -832,7 +832,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 		s.flowRunning = false
 		s.mu.Unlock()
 	}()
-	if rot.Workspace != "" && rot.Workspace != workspace {
+	// Una colla creada quan la carpeta era la de l'usuari ara treballa a la de
+	// projectes: no és un canvi de projecte.
+	if rot.Workspace != "" && rot.Workspace != workspace && !esCarpetaMassaAmpla(rot.Workspace) {
 		return "", errConst("project changed")
 	}
 	if _, ok := cfg.Providers[role.Provider]; !ok {
@@ -1007,8 +1009,8 @@ func (s *Server) runCrewContext(ctx context.Context, rot Rotllana, task string, 
 		return
 	}
 	discuss := say(
-		"Discussió de disseny abans de començar. Encàrrec: "+task+"\nDes de la teva especialitat, digues en 2-5 frases com ho faries. Respon concretament al que han dit els altres vents (acord o desacord amb motius) i aporta ara mateix el contingut concret de la teva part (dades, textos, decisions): tot passa en aquesta sessió i qui construeix ho farà tot just després, sense esperar res més. No prometis enviar res més tard. Si l'usuari ha dit alguna cosa, tingues-ho en compte primer.",
-		"Design discussion before starting. Task: "+task+"\nFrom your specialty, say in 2-5 sentences how you would do it. Respond concretely to what the other winds said (agree or disagree, with reasons) and contribute the actual content of your part now (data, texts, decisions): everything happens in this session and the builder will do the work right after, without waiting for anything else. Do not promise to send anything later. If the user said something, take it into account first.")
+		"Discussió de disseny abans de començar. Encàrrec: "+task+"\nDes de la teva especialitat, digues en 1-3 frases la decisió clau de la teva part (sense explicar com ho «faràs»). Respon concretament al que han dit els altres vents (acord o desacord amb motius) i aporta ara mateix el contingut concret de la teva part (dades, textos, decisions): tot passa en aquesta sessió i qui construeix ho farà tot just després, sense esperar res més. No prometis enviar res més tard. Si l'usuari ha dit alguna cosa, tingues-ho en compte primer.",
+		"Design discussion before starting. Task: "+task+"\nFrom your specialty, say in 1-3 sentences the key decision for your part (no narrating how you «will» do it). Respond concretely to what the other winds said (agree or disagree, with reasons) and contribute the actual content of your part now (data, texts, decisions): everything happens in this session and the builder will do the work right after, without waiting for anything else. Do not promise to send anything later. If the user said something, take it into account first.")
 	for _, wind := range members {
 		if ctx.Err() != nil {
 			break

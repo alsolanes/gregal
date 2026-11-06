@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- **Les colles van fins al final i ho ensenyen.** Quan respons la pregunta
+  d'una colla, el xat mostra en directe com treballa fins a la conclusió
+  (abans semblava aturada i no en veies res fins al missatge següent). Fan
+  fins a 6 voltes de feina en lloc de 3, pregunten com a molt una cosa i mai
+  el que ja els has dit que busquin, i una web o un joc no es dona per acabat
+  fins que està fet i provat. En acabar, el servidor la publica i l'enllaç
+  surt a la conclusió (abans provaven Netlify o Cloudflare sense comptes).
+- **Preguntes amb botons.** La pregunta d'una colla porta 2-4 respostes que
+  es toquen (web i Android), i en un grup, quan demanes que es faci alguna
+  cosa, en contesta un de sol: o comença, o fa una pregunta amb opcions, en
+  lloc de sis membres explicant què «farien».
+- **Una carpeta massa ampla no és un projecte.** Si la carpeta de treball és
+  la de l'usuari o l'arrel del disc, els vents i les colles treballen a la de
+  projectes (abans una colla en copiava tot el perfil per a cada membre). La
+  carpeta va a sota del quadre d'escriure, més petita.
+- **Notes: un quadern compartit amb els vents.** Nova secció Notes a Vents
+  (web i Android): notes en markdown amb quadern, #etiquetes, [[enllaços]]
+  entre notes i qui les enllaça, cerca sense accents, fixades i tasques que
+  es marquen amb un clic. Apunta ràpid amb Enter, sense obrir res, o comença
+  una reunió amb la plantilla (data, notes, decisions i tasques). Una tasca
+  amb data (`- [ ] envia el pressupost @2026-11-12`) surt a l'agenda
+  (vençudes, avui, aquesta setmana), on també es pot marcar. Els vents hi
+  tenen l'eina `notes`: llegeixen, cerquen, consulten l'agenda, creen notes i
+  hi afegeixen coses quan els ho demanes, i s'ofereixen a recordar-te les
+  tasques amb data. «Només per a mi» amaga una nota als vents i «Bloquejada»
+  la deixa llegir però no canviar. Cada nota és un fitxer `.md` amb capçalera
+  a l'estat de l'usuari; esborrar-la la porta a `notes/.trash`.
+
 ## v1.55.1 - 2026-11-06 - Paleta que troba fitxers i visor de codi amb números de línia
 
 - **La paleta Ctrl+K també troba fitxers.** Escriu part del nom d'un fitxer

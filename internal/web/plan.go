@@ -223,7 +223,7 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			}
 			defer func(t0 time.Time) { temps.addEina(time.Since(t0)) }(time.Now())
 			// Apps, publicar: les fa el servidor web, no el paquet agent.
-			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" {
+			if name == "app" || name == "publish" || name == "tunnel" || name == "calendar" || name == "mail" || name == "notes" {
 				out, err := s.runBuildTool(ctx, scope.workspace, name, argsJSON)
 				return out, nil, err
 			}

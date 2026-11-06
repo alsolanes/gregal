@@ -188,6 +188,14 @@ func (s *Server) crewChat(w http.ResponseWriter, r *http.Request, rot Rotllana, 
 		http.Error(w, text, status)
 		return
 	}
+	s.followCrewJob(w, r, rot, job, next, stream)
+}
+
+// followCrewJob acompanya una colla en marxa fins que acaba, s'atura o torna a
+// preguntar: emet cada missatge nou i, al final, l'historial. També ho fa quan
+// una resposta reprèn una colla que esperava (abans aquell flux es tancava de
+// seguida i la colla treballava sense que l'app en veiés res).
+func (s *Server) followCrewJob(w http.ResponseWriter, r *http.Request, rot Rotllana, job *crewJob, next int, stream bool) {
 	var emit func(string, any)
 	if stream {
 		var stop func()

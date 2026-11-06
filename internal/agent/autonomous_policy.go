@@ -380,3 +380,16 @@ var scriptEnLinia = regexp.MustCompile(`(?i)\b(node|nodejs|deno|bun|python3?|py|
 func treuDades(cmd string) string {
 	return scriptEnLinia.ReplaceAllString(treuHeredocs(cmd), "$1$2 $3 ''")
 }
+
+// NotesActionReadOnly diu si una crida a l'eina notes només llegeix.
+func NotesActionReadOnly(argsJSON string) bool {
+	var a struct {
+		Action string `json:"action"`
+	}
+	_ = json.Unmarshal([]byte(argsJSON), &a)
+	switch strings.ToLower(strings.TrimSpace(a.Action)) {
+	case "", "list", "search", "read", "agenda":
+		return true
+	}
+	return false
+}

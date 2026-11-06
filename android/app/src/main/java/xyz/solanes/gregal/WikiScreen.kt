@@ -153,7 +153,7 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
 
 /** El cos d'una pàgina amb el mateix renderer del xat: enllaços, taules, ```chart, imatges. */
 @Composable
-internal fun MdPageBody(src: String, lang: String) {
+internal fun MdPageBody(src: String, lang: String, onLink: ((String) -> Unit)? = null) {
     val uri = LocalUriHandler.current
     val dark = LocalPal.current == DarkPal
     val accent = Sea
@@ -169,7 +169,7 @@ internal fun MdPageBody(src: String, lang: String) {
                         rich,
                         style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp, color = Tinta),
                         onClick = { off ->
-                            rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { uri.openUri(it.item) }
+                            rich.getStringAnnotations("URL", off, off).firstOrNull()?.let { if (onLink != null) onLink(it.item) else uri.openUri(it.item) }
                         },
                     )
                 }

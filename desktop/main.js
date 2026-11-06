@@ -1,6 +1,7 @@
 // Finestra nativa del Gregal. En local gestiona el backend automàticament;
 // GREGAL_URL continua permetent connectar-se a un servidor extern.
-const { app, BrowserWindow, Menu, Notification, dialog, ipcMain, nativeTheme, screen, shell, session, webContents: electronWebContents } = require("electron");
+const { app, BrowserWindow, Menu, Notification, dialog, globalShortcut, ipcMain, nativeTheme, screen, shell, session, webContents: electronWebContents } = require("electron");
+const { QUICK_NOTE_ACCELERATOR, showQuickNote, registerQuickNote } = require("./quick-note");
 
 // TITLEBAR_H ha de casar amb l'alçada de #sessionTabs a index.html: és
 // aquella fila la que fa de barra de títol.
@@ -598,6 +599,7 @@ async function createWindow() {
         obre: isEn ? "Open Project…" : "Obre projecte…",
         sessio: isEn ? "New Session" : "Sessió nova",
         canvis: isEn ? "Changes" : "Canvis",
+        nota: isEn ? "Quick Note" : "Nota ràpida",
         fitxers: isEn ? "Files" : "Fitxers",
         recarrega: isEn ? "Reload" : "Recarrega",
         eines: isEn ? "Developer Tools" : "Eines de desenvolupament",
@@ -654,6 +656,8 @@ async function createWindow() {
                     click: () => win.webContents.send("gregal:command", "files"),
                 },
                 ...(EDITION === "jocs" ? [] : [
+                    // La drecera és global (registerQuickNote): aquí només es mostra.
+                    { label: L.nota, accelerator: QUICK_NOTE_ACCELERATOR, registerAccelerator: false, click: () => showQuickNote(win) },
                     { label: "Gregal Codi", click: () => win.loadURL(BASE + "/") },
                     { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/") },
                 ]),
@@ -793,10 +797,14 @@ if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleIns
     });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     if (fs.existsSync(path.join(app.getPath('userData'), 'chrome-extension', 'manifest.json'))) prepareChromeExtension();
-    return createWindow();
+    const created = await createWindow();
+    // Nota ràpida des de qualsevol app (Ctrl+Alt+N), menys a l'edició Jocs.
+    if (EDITION !== "jocs") registerQuickNote(globalShortcut, () => BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.webContents.getURL().startsWith(BASE)) || BrowserWindow.getAllWindows()[0]);
+    return created;
 });
+app.on("will-quit", () => globalShortcut.unregisterAll());
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });

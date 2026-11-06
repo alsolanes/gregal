@@ -245,7 +245,7 @@ const NoUIQuestionReply = PreguntaSenseUI
 // que actuen demanen permís).
 var einesInteractives = map[string]bool{"question": true, "preview": true, "dashboard_save": true, "office_open": true, "browser": true,
 	// Les executa el servidor web (apps, webs publicades, vents): sense ell no hi són.
-	"app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true}
+	"app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true, "notes": true}
 
 // SpecsNoInteractiu és SpecsAll sense les eines que necessiten una persona.
 func SpecsNoInteractiu() []llm.ToolSpec {

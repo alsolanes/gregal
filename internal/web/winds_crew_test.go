@@ -295,7 +295,7 @@ func TestCrewAsksAndResumes(t *testing.T) {
 		calls++
 		switch calls {
 		case 1:
-			return `{"action":"ask","question":"Per a quantes persones és el sopar?"}`, nil
+			return `{"action":"ask","question":"Per a quantes persones és el sopar?","options":["Dues","Quatre","Sis o més"]}`, nil
 		case 2:
 			if !strings.Contains(prompt, "The user answered the crew's question: Sis") {
 				t.Errorf("the answer must reach the coordinator: %s", prompt)
@@ -321,7 +321,7 @@ func TestCrewAsksAndResumes(t *testing.T) {
 		t.Fatalf("after a restart it still waits, got %q", got)
 	}
 	hist := s.crewHistory(out.Rotllana)
-	if last := hist[len(hist)-1]; last.Kind != "question" || !strings.Contains(last.Content, "quantes persones") {
+	if last := hist[len(hist)-1]; last.Kind != "question" || !strings.Contains(last.Content, "quantes persones") || !strings.Contains(last.Content, "```choices") || !strings.Contains(last.Content, "Sis o més") {
 		t.Fatalf("question: %+v", last)
 	}
 	// La resposta al fil reprèn la colla.
@@ -336,7 +336,9 @@ func TestCrewAsksAndResumes(t *testing.T) {
 	// «done» es publica just abans d'esborrar l'estat; mentre el resultat és
 	// pendent, els missatges es bloquegen a propòsit. S'espera que acabi.
 	for i := 0; i < 200; i++ {
-		if _, ok := loadCrewState(s, out.Rotllana.ID); !ok {
+		// A Windows, un fitxer que s'esborra pot donar error un instant: només
+		// «no existeix i sense error» vol dir que la colla ha acabat del tot.
+		if _, exists, err := readCrewState(s, out.Rotllana.ID); !exists && err == nil {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)

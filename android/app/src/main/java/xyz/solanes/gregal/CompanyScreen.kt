@@ -1291,7 +1291,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             }
             // Respostes ràpides que l'últim vent proposa al final del seu missatge.
             if (!busy.contains(rot.id)) {
-                val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming && it.kind != "question" }?.let { extractChoices(it.text) }.orEmpty()
+                val quick = msgs.lastOrNull()?.takeIf { it.from != "user" && !it.streaming }?.let { extractChoices(it.text) }.orEmpty()
                 if (quick.isNotEmpty()) item(key = "quick") {
                     ChoiceChips(quick, rotAccent) { pick -> follow.requestFollow(); vm.sendRotllanaMessage(rot.id, pick, "") }
                 }

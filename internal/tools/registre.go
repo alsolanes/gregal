@@ -24,7 +24,7 @@ func Noms() []string {
 		"write", "edit", "patch",
 		"bash", "bash_background", "bash_output", "bash_kill",
 		"web_search", "web_fetch", "browser",
-		"office_read", "office_render", "office_open", "office_edit", "office_create", "pdf_read", "pdf_edit", "pdf_create", "preview", "dashboard_save", "app", "publish", "tunnel", "calendar", "mail",
+		"office_read", "office_render", "office_open", "office_edit", "office_create", "pdf_read", "pdf_edit", "pdf_create", "preview", "dashboard_save", "app", "publish", "tunnel", "calendar", "mail", "notes",
 		"gh_issue", "gh_pr", "git_commit", "gh_pr_create",
 		// Enviar un fitxer al xat: només publica el que ja hi ha al disc.
 		"send_file",

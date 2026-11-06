@@ -186,6 +186,10 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	if !req.Continue && msg != "" {
 		switch s.crewTakeAnswer(rot, msg) {
 		case crewAnswerConsumed:
+			if v, ok := crewJobs.Load(crewRegistryKey(s, rot.ID)); ok {
+				s.followCrewJob(w, r, rot, v.(*crewJob), len(s.crewHistory(rot)), false)
+				return
+			}
 			writeJSON(w, map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
 			return
 		case crewAnswerFailed:

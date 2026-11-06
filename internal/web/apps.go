@@ -462,6 +462,8 @@ func (s *Server) runBuildTool(ctx context.Context, workspace, name, argsJSON str
 		return s.runCalendarTool(ctx, argsJSON)
 	case "mail":
 		return s.runMailTool(argsJSON)
+	case "notes":
+		return s.runNotesTool(argsJSON)
 	}
 	return "", fmt.Errorf("unknown tool %q", name)
 }

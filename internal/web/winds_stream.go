@@ -166,7 +166,7 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 		// La colla respon sencera quan la pregunta és per a tots, i les veus
 		// es responen entre elles: és una conversa de grup, no monòlegs en
 		// paral·lel del mateix autor.
-		"\n\nWHO ANSWERS: this is a group chat with humans and winds. If the human talks to the whole group (nobody named), the GROUP answers as a real conversation: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 short sentences per member (never more than 4), no link dumps, at most one source link per member and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers, you do not write the name prefix, and the answer stays short (1-4 sentences)." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
+		"\n\nWHO ANSWERS: this is a group chat with humans and winds. FIRST decide what the human wants.\n(a) The human asks for something to be MADE (a site, a game, a plan, a document, code) and nobody is named: only YOU answer, alone and in your own voice — no other member's lines and no name prefix. Never describe what anyone «will» build or how they «would» structure it — either start the work now with your tools, or ask. If a decision that really changes the result is missing: one short line saying what you understood, then ONE question, and end with a choices block of 2-4 short concrete answers (the app shows them as buttons):\n```choices\nFirst option\nSecond option\n```\nFor every other open detail pick a sensible default and mention it in half a sentence; never ask several questions at once. If nothing important is missing, skip the question and start.\n(b) Anything else (a question, an opinion, a chat) and nobody is named: the GROUP answers as a real conversation, at most 3 members: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 short sentences per member (never more than 4), no link dumps, at most one source link per member and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers, you do not write the name prefix, and the answer stays short (1-4 sentences)." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
 	return system, brief
 }
 
@@ -352,6 +352,11 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	if !req.Continue && msg != "" {
 		switch s.crewTakeAnswer(rot, msg) {
 		case crewAnswerConsumed:
+			// La colla es reprèn: se'n segueix la feina en directe com quan comença.
+			if v, ok := crewJobs.Load(crewRegistryKey(s, rot.ID)); ok {
+				s.followCrewJob(w, r, rot, v.(*crewJob), len(s.crewHistory(rot)), true)
+				return
+			}
 			sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
 			return
 		case crewAnswerFailed:

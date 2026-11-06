@@ -62,6 +62,27 @@ func esRepoGregal(dir string) bool {
 	return false
 }
 
+// esCarpetaMassaAmpla: la carpeta d'usuari, la que les conté o l'arrel d'un
+// disc no són un projecte. Una colla hi feia una còpia privada sencera per a
+// cada membre (desenes de GB, minuts sense resposta) i els fitxers nous
+// quedaven escampats per l'usuari.
+func esCarpetaMassaAmpla(dir string) bool {
+	if dir == "" {
+		return false
+	}
+	clean := filepath.Clean(dir)
+	if filepath.Dir(clean) == clean { // arrel del disc
+		return true
+	}
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		h := filepath.Clean(home)
+		if strings.EqualFold(clean, h) || strings.EqualFold(clean, filepath.Dir(h)) {
+			return true
+		}
+	}
+	return false
+}
+
 // ventWorkspace és la carpeta on treballa un vent en aquesta sessió: la que
 // hagi triat la persona i, si no n'ha triat cap (o sigui, la sessió apunta al
 // repo del Gregal), la carpeta de projectes.
@@ -74,7 +95,7 @@ func (s *Server) ventWorkspace() (string, string) {
 // ventWorkspaceLocked és el mateix amb el pany ja pres.
 func (s *Server) ventWorkspaceLocked() (ws, repo string) {
 	cwd := s.cwd
-	if cwd == "" || esRepoGregal(cwd) {
+	if cwd == "" || esRepoGregal(cwd) || esCarpetaMassaAmpla(cwd) {
 		if p := asseguraProjectes(); p != "" {
 			return p, cwd
 		}

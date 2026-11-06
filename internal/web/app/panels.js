@@ -1269,6 +1269,12 @@ export function boot() {
       else if (name === 'new-session') sessions.open();
       else if (name === 'changes') { G().setView('canvis'); changes.load(); }
       else if (name === 'files') { G().setView('fitxers'); files.load(); }
+      // Ctrl+Alt+N (global): una nota ràpida. A Vents s'obre al moment; des
+      // de Codi, la pàgina de Vents ja amb la captura a punt.
+      else if (name === 'quick-note') {
+        if (window.gregalWindsNotes && document.body.classList.contains('shell-winds')) window.gregalWindsNotes(true);
+        else location.href = '/vents/#notes-capture';
+      }
     });
   }
   models.init();

@@ -28,7 +28,7 @@ const val CompanyJobId = "company-checkin-daily"
 const val COMPANY_CHECKIN_PROMPT = "Fes una revisió proactiva i de només lectura del projecte actiu. Consulta els objectius oberts, l’estat documentat dels serveis i les darreres proves o canvis que puguis verificar. No inventis observacions: inclou el fitxer, prova, estat o font que sosté cada afirmació, i acaba amb un únic pas següent recomanat. No modifiquis fitxers, no reiniciïs ni despleguis serveis. Si cal actuar, proposa-ho i espera aprovació explícita. Respon en català, breu i útil."
 
 /** Pantalles de l'app. */
-enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Desat, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
+enum class Screen { Pairing, Chat, Sessions, Goals, Jobs, Office, Flows, Automatitzacions, Desat, Notes, Prefs, Retro, Company, Work, Ventet, Carpeta, Preview, Webs }
 
 /**
  * On parla l'app. `local` és el servidor d'aquest mateix dispositiu (el
@@ -639,6 +639,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _outbox.value = emptyList()
         _automations.value = emptyMap()
         _saved.value = emptyMap()
+        _notes.value = null
+        _openNote.value = null
+        notesQuery = NotesQuery()
         _turnActions.value = emptyMap()
         _suggestedNames.value = emptyList()
         _windChat.value = emptyMap()
@@ -3713,6 +3716,147 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (_saved.value[wind] == null) _saved.value = _saved.value + (wind to emptyList())
                 notify(appText("saved.loadError", e.message.orEmpty()))
             }
+        }
+    }
+
+    // ---- Notes (Notes.kt): el quadern de l'usuari, compartit amb els vents ----
+    private val _notes = MutableStateFlow<NotesPage?>(null)
+    val notes: StateFlow<NotesPage?> = _notes.asStateFlow()
+    private val _openNote = MutableStateFlow<NoteDetail?>(null)
+    val openNote: StateFlow<NoteDetail?> = _openNote.asStateFlow()
+    var notesQuery = NotesQuery()
+        private set
+
+    /** La llista amb aquests filtres (per defecte, els últims). */
+    fun loadNotes(query: NotesQuery = notesQuery) {
+        notesQuery = query
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getNotes(query) }
+                if (!isCompanionOrigin(source, epoch) || query != notesQuery) return@launch
+                _notes.value = got
+            } catch (e: Exception) {
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                if (_notes.value == null) _notes.value = NotesPage(emptyList(), emptyList(), emptyList(), 0)
+                notify(appText("notes.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun openNote(id: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getNote(id) }
+                if (isCompanionOrigin(source, epoch)) _openNote.value = got
+            } catch (e: Exception) {
+                if (isCompanionOrigin(source, epoch)) notify(appText("notes.loadError", e.message.orEmpty()))
+            }
+        }
+    }
+
+    fun closeNote() { _openNote.value = null; loadNotes() }
+
+    /** [[Títol]]: obre la nota amb aquest títol o, si no n'hi ha, en proposa una de nova. */
+    fun openNoteByTitle(title: String, onMissing: (String) -> Unit) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val hit = withContext(Dispatchers.IO) { source.api().getNotes(NotesQuery(q = title)) }
+                    .notes.firstOrNull { foldNote(it.title) == foldNote(title) }
+                if (hit != null) openNote(hit.id) else onMissing(title)
+            } catch (e: Exception) { notify(appText("notes.loadError", e.message.orEmpty())) }
+        }
+    }
+
+    /** Desa; onDone(false) si la nota ha canviat mentre s'editava. */
+    fun saveNote(input: NoteInput, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { source.api().saveNote(input) }
+                if (saved == null) { onDone(false); return@launch }
+                onDone(true)
+                notify(appText("notes.saved"))
+                openNote(saved.id)
+                loadNotes()
+            } catch (e: Exception) {
+                notify(appText("notes.saveError", e.message.orEmpty()))
+                onDone(true)
+            }
+        }
+    }
+
+    fun toggleNoteTask(n: Note, index: Int) {
+        val body = toggleNoteTask(n.body, index)
+        _openNote.value = _openNote.value?.let { d -> if (d.note.id == n.id) d.copy(note = d.note.copy(body = body)) else d }
+        saveNote(NoteInput(n.id, n.title, body, n.notebook, n.tags, n.private, n.locked, n.updated, n.noRemind)) { ok ->
+            if (!ok) { notify(appText("notes.changed")); openNote(n.id) }
+        }
+    }
+
+    /** Text que arriba de fora (Comparteix, drecera): Notes l'obre a l'editor. */
+    private val _noteCapture = MutableStateFlow<String?>(null)
+    val noteCapture: StateFlow<String?> = _noteCapture.asStateFlow()
+
+    fun startNoteCapture(text: String) {
+        _noteCapture.value = text
+        go(Screen.Notes)
+    }
+
+    fun takeNoteCapture(): String? = _noteCapture.value.also { _noteCapture.value = null }
+
+    /** Captura ràpida: una nota sense obrir l'editor (la primera línia fa de títol). */
+    fun quickNote(text: String) {
+        val source = _conn.value
+        val q = notesQuery
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    source.api().saveNote(NoteInput("", "", text, q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, ""))
+                }
+                notify(appText("notes.noted"))
+                loadNotes()
+            } catch (e: Exception) { notify(appText("notes.saveError", e.message.orEmpty())) }
+        }
+    }
+
+    /** Marca feta una tasca de l'agenda dins de la seva nota. */
+    fun tickAgenda(item: AgendaItem) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                val ok = withContext(Dispatchers.IO) {
+                    val n = source.api().getNote(item.noteId).note
+                    source.api().saveNote(NoteInput(n.id, n.title, toggleNoteTask(n.body, item.index), n.notebook, n.tags, n.private, n.locked, n.updated, n.noRemind)) != null
+                }
+                notify(appText(if (ok) "notes.done" else "notes.changed"))
+                loadNotes()
+            } catch (e: Exception) { notify(appText("notes.saveError", e.message.orEmpty())) }
+        }
+    }
+
+    fun pinNote(n: Note, pinned: Boolean) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().pinNote(n.id, pinned) }
+                _openNote.value = _openNote.value?.let { d -> if (d.note.id == n.id) d.copy(note = d.note.copy(pinned = pinned)) else d }
+                loadNotes()
+            } catch (e: Exception) { notify(appText("notes.saveError", e.message.orEmpty())) }
+        }
+    }
+
+    fun deleteNote(id: String) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().deleteNote(id) }
+                _openNote.value = null
+                notify(appText("notes.deleted"))
+                loadNotes()
+            } catch (e: Exception) { notify(appText("notes.saveError", e.message.orEmpty())) }
         }
     }
 

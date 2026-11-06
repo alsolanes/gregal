@@ -66,6 +66,9 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-send svg { display:block; width:22px; height:22px; pointer-events:none; }
 .vw-send[data-busy="true"] { background:var(--surface-hi); color:var(--text); border-color:var(--line-hi); }
 .vw-send:hover { filter:brightness(1.08); }
+.vw-folder-under { margin:6px 18px 0; font-size:10.5px; opacity:.8; }
+.vw-folder-under .vw-folder { width:13px; height:13px; }
+.vw-folder-under span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-folder-hint,.vw-project-path { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--faint); overflow-wrap:anywhere; margin-top:10px; }
 .vw-prompts { display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin:19px 0 36px; }
 .vw-demo { width:100%; margin:0 auto 30px; padding:20px 22px 17px; border:1px solid var(--line); border-radius:17px; background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 94%,var(--vw-accent)),var(--surface)); box-shadow:0 12px 32px color-mix(in srgb,var(--ombra) 14%,transparent); }

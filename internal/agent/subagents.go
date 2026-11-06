@@ -52,7 +52,7 @@ var subagentNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,39}$`)
 // les fa servir, encara que la capçalera les demani. todowrite NO hi és: el
 // runner del delegate l'intercepta i cada invocació té el seu checklist
 // (vegeu buildDelegateRunner), sense tocar mai el del pare.
-var subagentBannedTools = map[string]bool{"delegate": true, "question": true, "preview": true, "dashboard_save": true, "app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true}
+var subagentBannedTools = map[string]bool{"delegate": true, "question": true, "preview": true, "dashboard_save": true, "app": true, "publish": true, "wind": true, "tunnel": true, "calendar": true, "mail": true, "notes": true}
 
 // DirsSubagents són els directoris de definicions, de menys a més
 // específic: primer les de la persona, després les del projecte (que manen).

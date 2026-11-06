@@ -201,7 +201,8 @@ class MainActivity : ComponentActivity() {
         // l'activitat es recrea però l'estat (connexió, xat) segueix viu.
         // Notificació d'un job tocada: s'obre aquella execució (abans de
         // connectar, perquè la primera pantalla ja sigui la d'activitat).
-        if (savedInstanceState == null) openRunFrom(intent)
+        if (savedInstanceState == null) { openRunFrom(intent); captureFrom(intent) }
+        publishQuickNoteShortcut(this, vm.idioma.value)
         if (!vm.startupDone) {
             vm.startupDone = true
             vm.attachPrefs(prefs)
@@ -302,6 +303,7 @@ class MainActivity : ComponentActivity() {
                                     Screen.Flows -> FlowsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Automatitzacions -> AutomatitzacionsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Desat -> DesatScreen(vm) { scope.launch { drawer.open() } }
+                                    Screen.Notes -> NotesScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Webs -> WebsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Prefs -> PrefsScreen(vm) { scope.launch { drawer.open() } }
                                     Screen.Carpeta -> CarpetaScreen(vm) { scope.launch { drawer.open() } }
@@ -329,6 +331,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         openRunFrom(intent)
+        captureFrom(intent)
+    }
+
+    /** Text compartit des d'una altra app, o la drecera «Nota ràpida»: a Notes. */
+    private fun captureFrom(intent: Intent?) {
+        val text = noteCaptureText(intent?.action, intent?.getStringExtra(Intent.EXTRA_SUBJECT), intent?.getStringExtra(Intent.EXTRA_TEXT)) ?: return
+        vm.startNoteCapture(text)
     }
 
     private fun openRunFrom(intent: Intent?) {
