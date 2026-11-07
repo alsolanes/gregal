@@ -78,7 +78,7 @@ internal fun WhereStatus(vm: GregalViewModel, lang: String) {
     val server = vm.savedServerName().ifBlank { tr(lang, "app.where.server") }
     Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(9.dp).clip(CircleShape).background(if (offline) Sand else Color(0xFF6FCF97)))
+            Box(Modifier.size(9.dp).clip(CircleShape).background(if (offline) Sand else Green))
             Text(server, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(tr(lang, if (offline) "app.offline.state" else "app.offline.online"), color = Muted, fontSize = 13.sp)
         }

@@ -21,10 +21,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.Construction
+import androidx.compose.material.icons.rounded.EditNote
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.SportsSoccer
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -63,28 +66,23 @@ internal fun VentsInboxFilters(lang: String, selected: String, unread: Int = 0, 
         listOf("all", "unread", "groups").forEach { key ->
             val active = selected == key
             // Quants missatges esperen, al mateix filtre: si no n'hi ha cap, la
-            // pastilla queda com sempre.
+            // pastilla queda com sempre. FilterChip M3 com la resta de filtres.
             val badge = if (key == "unread") unreadBadge(unread) else ""
-            Surface(
-                shape = RoundedCornerShape(999.dp),
-                color = if (active) Ink else SuperficieAlta.copy(alpha = .58f),
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).clickable { onSelected(key) }
-                    .semantics { this.selected = active; contentDescription = ventsCopy(lang, key) },
-            ) {
-                Row(
-                    Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Text(ventsCopy(lang, key), color = if (active) Superficie else Muted, fontSize = 12.sp)
-                    if (badge.isNotEmpty()) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
-                        Text(
-                            badge, color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                        )
+            FilterChip(
+                selected = active,
+                onClick = { onSelected(key) },
+                label = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(ventsCopy(lang, key), fontSize = 12.sp)
+                        if (badge.isNotEmpty()) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
+                            Text(
+                                badge, color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
+                            )
+                        }
                     }
-                }
-            }
+                },
+            )
         }
     }
 }
@@ -147,7 +145,7 @@ internal fun VentsExploreSheet(
             Icon(Icons.Rounded.AutoAwesome, null, tint = Sea, modifier = Modifier.size(18.dp))
             Text(ventsCopy(lang, "explore"), color = Ink, fontSize = 16.sp, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
-            Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 11.sp)
+            Text(ventsCopy(lang, "exploreHelp"), color = Muted, fontSize = 12.sp)
         }
         if (onActivity != null) ExploreRow(lang, tr(lang, "act.title"), tr(lang, "explore.activity"), Icons.Rounded.Schedule, onActivity)
         if (onSaved != null) ExploreRow(lang, tr(lang, "saved.title"), tr(lang, "explore.saved"), Icons.Rounded.Folder, onSaved)
@@ -156,8 +154,8 @@ internal fun VentsExploreSheet(
         if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), if (en) "Reminders, watches and routines" else "Recordatoris, cors en guàrdia i rutines", Icons.Rounded.Schedule, onProgramats)
         if (onWiki != null) ExploreRow(lang, tr(lang, "app.wiki.open"), if (en) "Distilled pages from your conversations" else "Pàgines resumides de les teves converses", Icons.Rounded.AutoStories, onWiki)
         if (onWorkspace != null) ExploreRow(lang, tr(lang, "app.carpeta.title"), if (en) "Active project folder where winds read and write" else "Carpeta del projecte on llegeixen i escriuen els vents", Icons.Rounded.FolderOpen, onWorkspace)
-        if (showCorner) ExploreRow(lang, "Racó", if (en) "The page the winds write on their own" else "La pàgina que escriuen els vents sols", Icons.Rounded.AutoAwesome, onCorner)
-        if (showGames) ExploreRow(lang, if (en) "Games" else "Partits", if (en) "Football league between winds" else "La lliga de futbol entre els vents", Icons.Rounded.AutoAwesome, onGames)
+        if (showCorner) ExploreRow(lang, "Racó", if (en) "The page the winds write on their own" else "La pàgina que escriuen els vents sols", Icons.Rounded.EditNote, onCorner)
+        if (showGames) ExploreRow(lang, if (en) "Games" else "Partits", if (en) "Football league between winds" else "La lliga de futbol entre els vents", Icons.Rounded.SportsSoccer, onGames)
         ExploreRow(lang, ventsCopy(lang, "library"), if (en) "Recover and reuse learned information" else "Recupera i reutilitza informació apresa", Icons.Rounded.Folder, onLibrary)
     }
 }
@@ -187,7 +185,7 @@ private fun ExploreRow(@Suppress("UNUSED_PARAMETER") lang: String, title: String
         Icon(icon, null, tint = Sea, modifier = Modifier.size(18.dp))
         Column(Modifier.padding(start = 10.dp)) {
             Text(title, color = Ink, fontSize = 14.sp)
-            Text(subtitle, color = Muted, fontSize = 11.sp)
+            Text(subtitle, color = Muted, fontSize = 12.sp)
         }
     }
 }

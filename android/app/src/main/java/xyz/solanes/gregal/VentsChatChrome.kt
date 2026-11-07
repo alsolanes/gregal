@@ -61,7 +61,7 @@ internal fun VentsChatHeader(
             WindHalo(accent, style, size = 34, mood = mood, stacked = faces.drop(1), online = false, showKit = faces.size <= 1)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(title, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (onWiki != null) IconButton(onClick = onWiki) { Icon(Icons.Rounded.AutoStories, tr(lang, "app.wiki.summarize"), tint = Ink) }
@@ -74,8 +74,6 @@ internal fun VentsChatHeader(
                     DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }
-        } else {
-            IconButton(onClick = onProfile) { Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.profile"), tint = Ink) }
         }
     }
     // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.
@@ -96,7 +94,7 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
             TypingDots(accent = Ink)
             Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         }
-        Text(windProgressTiming(lang, live, now), color = Muted, fontSize = 11.sp)
+        Text(windProgressTiming(lang, live, now), color = Muted, fontSize = 12.sp)
     }
 }
 
@@ -151,9 +149,9 @@ internal fun VentsComposer(
                         color = (if (isAct) ringColor else SuperficieAlta).copy(alpha = if (isAct) 0.16f else 0.55f),
                     ) {
                         Text(
-                            (if (isAct) "⚡ " else "💬 ") + modeLabel,
+                            modeLabel,
                             color = if (isAct) Ink else Muted,
-                            fontSize = 11.5.sp,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         )
@@ -173,7 +171,7 @@ internal fun VentsComposer(
                             Icon(Icons.Rounded.FolderOpen, null, tint = Muted, modifier = Modifier.size(13.dp))
                             Text(
                                 st.project + if (st.branch.isNotBlank()) " · " + st.branch else "",
-                                color = Muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -209,7 +207,7 @@ internal fun VentsComposer(
                                 text = {
                                     Column {
                                         Text(tr(lang, "app.composer.attachDoc"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.composer.attachDocHelp"), color = Muted, fontSize = 11.5.sp, maxLines = 2)
+                                        Text(tr(lang, "app.composer.attachDocHelp"), color = Muted, fontSize = 12.sp, maxLines = 2)
                                     }
                                 },
                                 onClick = { showPlus = false; onAttachDoc() },
@@ -221,7 +219,7 @@ internal fun VentsComposer(
                                 text = {
                                     Column {
                                         Text(tr(lang, "app.composer.attachImage"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.composer.attachImageHelp"), color = Muted, fontSize = 11.5.sp, maxLines = 2)
+                                        Text(tr(lang, "app.composer.attachImageHelp"), color = Muted, fontSize = 12.sp, maxLines = 2)
                                     }
                                 },
                                 onClick = { showPlus = false; onAttachImage() },
@@ -234,7 +232,7 @@ internal fun VentsComposer(
                                     Column {
                                         Text(tr(lang, "app.carpeta.title"), color = Ink, fontSize = 14.sp)
                                         if (st != null && st.project.isNotBlank()) {
-                                            Text(st.project + if (st.branch.isNotBlank()) " · " + st.branch else "", color = Muted, fontSize = 11.5.sp)
+                                            Text(st.project + if (st.branch.isNotBlank()) " · " + st.branch else "", color = Muted, fontSize = 12.sp)
                                         }
                                     }
                                 },
@@ -247,7 +245,7 @@ internal fun VentsComposer(
                                 text = {
                                     Column {
                                         Text(tr(lang, "app.preview.open"), color = Ink, fontSize = 14.sp)
-                                        Text(tr(lang, "app.preview.webs"), color = Muted, fontSize = 11.5.sp, maxLines = 1)
+                                        Text(tr(lang, "app.preview.webs"), color = Muted, fontSize = 12.sp, maxLines = 1)
                                     }
                                 },
                                 onClick = { showPlus = false; onPreview() },
@@ -291,19 +289,19 @@ internal fun VentsComposer(
                     },
                 )
             }
-            // Mentre el vent treballa, el botó es converteix en «atura»: un toc i
-            // el torn para de seguida. Amb el camp buit, el micròfon per dictar.
+            // Mentre el vent treballa: amb text, enviar (el missatge entra
+            // com a steer, sense aturar el torn); sense text, «atura».
             when {
-                busy && onStop != null -> IconButton(onClick = onStop,
-                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
+                busy && onStop != null && field.text.isBlank() -> IconButton(onClick = onStop,
+                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(Sand.copy(alpha = 0.9f))) {
                     Icon(Icons.Rounded.Stop, tr(lang, "app.vents.stop"), tint = Superficie, modifier = Modifier.size(20.dp))
                 }
                 field.text.isBlank() && dictate != null -> IconButton(onClick = dictate,
-                    modifier = Modifier.size(42.dp).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
+                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(Ink.copy(alpha = .08f))) {
                     Icon(Icons.Rounded.Mic, voiceCopy(lang, "dictate"), tint = Ink, modifier = Modifier.size(21.dp))
                 }
                 else -> IconButton(onClick = onSend, enabled = canSend,
-                    modifier = Modifier.size(42.dp).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
+                    modifier = Modifier.minimumInteractiveComponentSize().size(42.dp).clip(CircleShape).background(if (canSend) Ink else Ink.copy(alpha = .12f))) {
                     Icon(Icons.Rounded.ArrowUpward, tr(lang, "app.vents.send"), tint = if (canSend) Superficie else Muted, modifier = Modifier.size(20.dp))
                 }
             }

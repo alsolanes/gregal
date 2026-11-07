@@ -7,6 +7,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Pause
@@ -170,11 +172,13 @@ private fun FilterChips(options: List<Pair<String, String>>, selected: String, o
 
 @Composable
 private fun KindBadge(lang: String, kind: String) {
+    // Colors del tema (cap hex literal fora de paleta): la insígnia respira
+    // amb els cinc temes en comptes de trencar-los.
     val color = when (kind) {
-        "followup" -> Color(0xFF7FB3D5)
-        "watch" -> Color(0xFFA3C586)
-        "routine" -> Color(0xFFC1B4DE)
-        else -> Color(0xFFEFA68F)
+        "followup" -> Sea
+        "watch" -> Algua
+        "routine" -> Lila
+        else -> Sand
     }
     Surface(color = color.copy(alpha = 0.18f), shape = RoundedCornerShape(50)) {
         Text(tr(lang, "act.kind.$kind"), color = color, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
@@ -196,6 +200,8 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onActi
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(a.title, color = if (a.enabled) Ink else Muted, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                         maxLines = if (open) 6 else 2, overflow = TextOverflow.Ellipsis)
+                    if (!open && a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Muted, fontSize = 12.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         KindBadge(lang, a.kind)
                         val whenText = if (!a.enabled) tr(lang, "act.paused") else automationWhen(lang, a.nextAt)
@@ -203,18 +209,20 @@ fun WindAutomationRow(lang: String, a: WindAutomation, showWind: Boolean, onActi
                             .joinToString(" · "), color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
+                Icon(if (open) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown, tr(lang, "app.vents.more"),
+                    tint = Muted, modifier = Modifier.size(22.dp))
             }
             if (open) {
                 if (a.detail.isNotBlank() && a.detail != a.title) Text(a.detail, color = Tinta, fontSize = 13.sp, lineHeight = 18.sp)
-                if (a.lastStatus == "error") Text(tr(lang, "act.lastError"), color = Color(0xFFE57373), fontSize = 12.sp)
+                if (a.lastStatus == "error") Text(tr(lang, "act.lastError"), color = Red, fontSize = 12.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (a.enabled) AssistChip(onClick = { onAction(a, "run") }, label = { Text(tr(lang, "act.runNow")) },
-                        leadingIcon = { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(16.dp)) })
+                        leadingIcon = { Icon(Icons.Rounded.PlayArrow, null, Modifier.size(18.dp)) })
                     if (a.canPause) AssistChip(onClick = { onAction(a, if (a.enabled) "pause" else "resume") },
                         label = { Text(tr(lang, if (a.enabled) "act.pause" else "act.resume")) },
-                        leadingIcon = { Icon(if (a.enabled) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, Modifier.size(16.dp)) })
+                        leadingIcon = { Icon(if (a.enabled) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, Modifier.size(18.dp)) })
                     AssistChip(onClick = { confirmDelete = true }, label = { Text(tr(lang, if (a.kind == "followup") "act.undo" else "act.delete")) },
-                        leadingIcon = { Icon(Icons.Rounded.Delete, null, Modifier.size(16.dp)) })
+                        leadingIcon = { Icon(Icons.Rounded.Delete, null, Modifier.size(18.dp)) })
                 }
             }
         }

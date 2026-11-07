@@ -259,11 +259,13 @@ private fun FaceOptions(lang: String, label: String, options: List<String>, sele
         Text(tr(lang, label), color = Muted, fontSize = 13.sp)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
-                Column(Modifier.clip(RoundedCornerShape(14.dp)).background(if (option == selected) Sea.copy(alpha = .12f) else Color.Transparent)
+                Column(Modifier.clip(RoundedCornerShape(14.dp))
+                    .background(if (option == selected) Sea.copy(alpha = .16f) else Color.Transparent)
+                    .border(if (option == selected) 1.dp else 0.dp, Sea.copy(alpha = .45f), RoundedCornerShape(14.dp))
                     .selectable(selected = option == selected, enabled = enabled, role = Role.RadioButton, onClick = { pick(option) })
                     .padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     WindFace(size = 42, accent = Color(Wind("", "", color, "").argb), style = face(option))
-                    Text(tr(lang, optionLabel(option)), fontSize = 11.sp, color = Ink)
+                    Text(tr(lang, optionLabel(option)), fontSize = 12.sp, color = Ink)
                 }
             }
         }

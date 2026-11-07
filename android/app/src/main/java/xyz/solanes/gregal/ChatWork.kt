@@ -502,7 +502,7 @@ fun QueuedMessages(queue: List<String>, lang: String, canSteer: Boolean, onSteer
             Surface(shape = RoundedCornerShape(14.dp), color = PillDark, border = BorderStroke(1.dp, Line),
                 modifier = Modifier.fillMaxWidth().testTag("queued-item")) {
                 Row(Modifier.padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr(lang, "app.queue.tag"), color = Faint, fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
+                    Text(tr(lang, "app.queue.tag"), color = Faint, fontSize = 12.sp, modifier = Modifier.padding(end = 8.dp))
                     Text(text, color = Ink, fontSize = 13.5.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f).clickable(enabled = canSteer) { onSteer(i) }.padding(vertical = 10.dp))
                     if (canSteer) {
@@ -512,7 +512,7 @@ fun QueuedMessages(queue: List<String>, lang: String, canSteer: Boolean, onSteer
                                 .semantics { contentDescription = tr(lang, "app.queue.nowHelp") }.testTag("queued-now"))
                     }
                     Text("×", color = Muted, fontSize = 18.sp,
-                        modifier = Modifier.clip(CircleShape).clickable { onRemove(i) }.padding(horizontal = 12.dp, vertical = 6.dp)
+                        modifier = Modifier.clip(CircleShape).clickable { onRemove(i) }.padding(horizontal = 12.dp, vertical = 12.dp)
                             .semantics { contentDescription = tr(lang, "app.queue.remove") }.testTag("queued-remove"))
                 }
             }
