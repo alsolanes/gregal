@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.SportsSoccer
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -141,19 +142,19 @@ internal fun VentsExploreSheet(
         }
         if (onActivity != null) ExploreRow(lang, tr(lang, "act.title"), tr(lang, "explore.activity"), Icons.Rounded.Schedule, onActivity)
         if (onSaved != null) ExploreRow(lang, tr(lang, "saved.title"), tr(lang, "explore.saved"), Icons.Rounded.Folder, onSaved)
-        if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), if (en) "Summon specialists to discuss, build and review" else "Convoca especialistes que en parlin, ho facin i ho revisin", Icons.Rounded.Groups, onCrew)
-        if (onFeines != null) ExploreRow(lang, tr(lang, "app.feines.title"), if (en) "Long tasks running on the server and their files" else "Tasques llargues en marxa i els fitxers resultants", Icons.Rounded.Construction, onFeines)
-        if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), if (en) "Reminders, watches and routines" else "Recordatoris, cors en guàrdia i rutines", Icons.Rounded.Schedule, onProgramats)
-        if (onWiki != null) ExploreRow(lang, tr(lang, "app.wiki.open"), if (en) "Distilled pages from your conversations" else "Pàgines resumides de les teves converses", Icons.Rounded.AutoStories, onWiki)
-        if (onWorkspace != null) ExploreRow(lang, tr(lang, "app.carpeta.title"), if (en) "Active project folder where winds read and write" else "Carpeta del projecte on llegeixen i escriuen els vents", Icons.Rounded.FolderOpen, onWorkspace)
-        if (showCorner) ExploreRow(lang, "Racó", if (en) "The page the winds write on their own" else "La pàgina que escriuen els vents sols", Icons.Rounded.EditNote, onCorner)
-        if (showGames) ExploreRow(lang, if (en) "Games" else "Partits", if (en) "Football league between winds" else "La lliga de futbol entre els vents", Icons.Rounded.SportsSoccer, onGames)
-        ExploreRow(lang, ventsCopy(lang, "library"), if (en) "Recover and reuse learned information" else "Recupera i reutilitza informació apresa", Icons.Rounded.Folder, onLibrary)
+        if (onCrew != null) ExploreRow(lang, tr(lang, "app.crew.title"), ventsCopy(lang, "explore.crew"), Icons.Rounded.Groups, onCrew)
+        if (onFeines != null) ExploreRow(lang, tr(lang, "app.feines.title"), ventsCopy(lang, "explore.feines"), Icons.Rounded.Construction, onFeines)
+        if (onProgramats != null) ExploreRow(lang, tr(lang, "app.programats.open"), ventsCopy(lang, "explore.programats"), Icons.Rounded.Schedule, onProgramats)
+        if (onWiki != null) ExploreRow(lang, tr(lang, "app.wiki.open"), ventsCopy(lang, "explore.wiki"), Icons.Rounded.AutoStories, onWiki)
+        if (onWorkspace != null) ExploreRow(lang, tr(lang, "app.carpeta.title"), ventsCopy(lang, "explore.workspace"), Icons.Rounded.FolderOpen, onWorkspace)
+        if (showCorner) ExploreRow(lang, ventsCopy(lang, "raco"), ventsCopy(lang, "explore.raco"), Icons.Rounded.EditNote, onCorner)
+        if (showGames) ExploreRow(lang, ventsCopy(lang, "games"), ventsCopy(lang, "explore.games"), Icons.Rounded.SportsSoccer, onGames)
+        ExploreRow(lang, ventsCopy(lang, "library"), ventsCopy(lang, "explore.library"), Icons.Rounded.Folder, onLibrary)
     }
 }
 
 @Composable
-internal fun EmptyInboxFilter(lang: String, filter: String) {
+internal fun EmptyInboxFilter(lang: String, filter: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 44.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(ventsCopy(lang, filter), color = Ink, fontSize = 18.sp)
         Text(
@@ -164,6 +165,10 @@ internal fun EmptyInboxFilter(lang: String, filter: String) {
             },
             color = Muted, fontSize = 14.sp,
         )
+        // Un filtre buit no és un carreró: sempre hi ha una sortida visible.
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction) { Text(actionLabel, color = Sea) }
+        }
     }
 }
 

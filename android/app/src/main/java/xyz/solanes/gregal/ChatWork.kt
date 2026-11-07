@@ -44,6 +44,7 @@ import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Checklist
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Mic
@@ -72,6 +73,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -130,7 +133,7 @@ private fun SweepLine(colors: List<Color>) {
  * («Ha treballat 32s · 5 eines») que es desplega en una línia de temps.
  */
 @Composable
-fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String, onRetro: (() -> Unit)? = null) {
+fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang: String, onRetro: (() -> Unit)? = null, onRetry: (() -> Unit)? = null) {
     val running = work.running
     var open by remember { mutableStateOf(false) }
     // Un torn que falla s'obre sol: el que interessa és veure on.
@@ -155,7 +158,7 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
             if (running) SweepLine(listOf(Sea, Onada, Lila))
             Row(
                 Modifier.fillMaxWidth()
-                    .clickable(role = Role.Button) { open = !open }
+                    .clickable(enabled = work.steps.isNotEmpty(), role = Role.Button) { open = !open }
                     .padding(horizontal = 14.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -215,6 +218,18 @@ fun WorkGroupCard(work: WorkGroup, activity: Activity?, statusLine: String, lang
                             Text("#", color = Sea, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                             Spacer(Modifier.width(3.dp))
                             Text(tr(lang, "app.retro.open"), color = Sea, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
+                        }
+                    }
+                }
+                if (work.failed && !running && onRetry != null) {
+                    Surface(
+                        shape = RoundedCornerShape(50), color = Red.copy(alpha = 0.12f),
+                        modifier = Modifier.padding(end = 4.dp).clip(RoundedCornerShape(50)).clickable(onClick = onRetry),
+                    ) {
+                        Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Refresh, null, tint = Red, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(3.dp))
+                            Text(tr(lang, "app.chat.retry"), color = Red, fontWeight = FontWeight.SemiBold, fontSize = 12.5.sp)
                         }
                     }
                 }
@@ -278,7 +293,7 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
                     overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 if (s.meta.isNotBlank()) {
                     Spacer(Modifier.width(6.dp))
-                    Text(s.meta, color = Faint, fontSize = 11.sp, maxLines = 1)
+                    Text(s.meta, color = Faint, fontSize = 12.sp, maxLines = 1)
                 }
             }
             if (s.target.isNotBlank()) {
@@ -290,7 +305,7 @@ private fun StepRow(s: WorkStep, last: Boolean, lang: String) {
                 Surface(shape = RoundedCornerShape(8.dp), color = CodeDark,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                     Text(
-                        s.detail.take(2500), color = Tinta, fontSize = 11.5.sp, lineHeight = 16.sp,
+                        s.detail.take(2500), color = Tinta, fontSize = 12.sp, lineHeight = 16.sp,
                         fontFamily = FontFamily.Monospace, maxLines = 24, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.heightIn(max = 360.dp).horizontalScroll(rememberScrollState()).padding(10.dp),
                     )
@@ -327,7 +342,7 @@ fun LiveAnswer(text: String, lang: String) {
 /** Selector Pregunta | Planifica | Actua amb la píndola que llisca (com la web i el TUI). */
 @Composable
 fun ModeToggle(uiMode: String, enabled: Boolean, lang: String, onChange: (String) -> Unit) {
-    Surface(shape = RoundedCornerShape(50), color = CodeDark, modifier = Modifier.height(34.dp)) {
+    Surface(shape = RoundedCornerShape(50), color = CodeDark, modifier = Modifier.height(44.dp)) {
         Row(Modifier.padding(3.dp), verticalAlignment = Alignment.CenterVertically) {
             listOf("chat" to "app.mode.ask", "plan" to "app.mode.plan", "act" to "app.mode.act").forEach { (v, key) ->
                 val label = tr(lang, key)
@@ -337,6 +352,7 @@ fun ModeToggle(uiMode: String, enabled: Boolean, lang: String, onChange: (String
                 Box(
                     Modifier.fillMaxHeight().clip(RoundedCornerShape(50)).background(bg)
                         .clickable(enabled = enabled, role = Role.Tab) { if (!sel) onChange(v) }
+                        .semantics { selected = sel }
                         .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -360,7 +376,7 @@ fun ComposerChip(text: String, color: Color, icon: (@Composable () -> Unit)?, on
             Text(text, color = color, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, modifier = Modifier.padding(vertical = 7.dp))
             if (onClose != null) {
-                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
                     Icon(Icons.Rounded.Close, null, tint = color, modifier = Modifier.size(15.dp))
                 }
             }
@@ -380,13 +396,17 @@ fun PermIcon(open: Boolean, color: Color) =
 @Composable
 fun SendStopButton(busy: Boolean, canSend: Boolean, voice: Boolean, lang: String,
                    onSend: () -> Unit, onStop: () -> Unit, onVoice: () -> Unit, onInterrupt: (() -> Unit)? = null) {
+    // Camp buit i veu disponible -> micròfon: el botó fa el que mostra.
+    // Sense veu, manté Send (apagat) perquè no hi ha res més a tocar.
     val mode = when { busy && !canSend -> 2; canSend -> 1; voice -> 0; else -> 1 }
     Box(
         Modifier.size(48.dp).clip(CircleShape).combinedClickable(
             onClick = { when (mode) { 2 -> onStop(); 1 -> if (canSend) onSend(); else -> onVoice() } },
             // Mentre treballa: mantenir premut interromp i li diu ara.
             onLongClick = if (busy && canSend && onInterrupt != null) onInterrupt else null,
-        ).semantics { contentDescription = tr(lang, if (mode == 2) "app.chat.stop" else "app.chat.send") },
+        ).semantics {
+            contentDescription = tr(lang, when (mode) { 2 -> "app.chat.stop"; 0 -> "app.chat.dictate"; else -> "app.chat.send" })
+        },
         contentAlignment = Alignment.Center,
     ) {
         AnimatedContent(targetState = mode, transitionSpec = {
@@ -427,7 +447,7 @@ fun ComposerPlusMenu(
                 text = {
                     Column {
                         Text(label, color = if (enabled) Ink else Faint, fontSize = 14.sp)
-                        if (help.isNotEmpty()) Text(help, color = Faint, fontSize = 11.5.sp, maxLines = 2)
+                        if (help.isNotEmpty()) Text(help, color = Faint, fontSize = 12.sp, maxLines = 2)
                     }
                 },
                 trailingIcon = if (checked) ({ Icon(Icons.Rounded.Check, null, tint = Sea) }) else null,
@@ -439,7 +459,7 @@ fun ComposerPlusMenu(
         item(tr(lang, "app.composer.compare"), enabled = canUseInput, onClick = onCompare)
         androidx.compose.material3.HorizontalDivider(color = Line)
         Text(tr(lang, "app.mode.more"), Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-            color = Muted, fontSize = 11.5.sp, fontWeight = FontWeight.Bold)
+            color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         item(tr(lang, "app.mode.goal"), tr(lang, "app.mode.goalHelp"), checked = st.mode == "goal") { onMode("goal") }
         item(tr(lang, "app.mode.debug"), tr(lang, "app.mode.debugHelp"), checked = st.mode == "debug") { onMode("debug") }
         if (st.mode in setOf("goal", "debug")) item(tr(lang, "app.mode.exit")) { onMode("act") }

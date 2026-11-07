@@ -5328,6 +5328,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      * «Torna-ho a provar» de la targeta d'error: reenvia l'últim text de
      * l'usuari pel send actual (mateix fil, sense escriure res de nou).
      */
+    fun retryLastMainTurn() {
+        val last = _msgs.value.lastOrNull { it.role == "user" && it.text.isNotBlank() }?.text.orEmpty()
+        if (last.isNotBlank()) submit(last)
+    }
+
     fun retryLastWindTurn(windId: String) {
         val last = _windChat.value[windId]?.lastOrNull { it.from == "user" }?.text.orEmpty()
         if (last.isNotBlank()) sendWindMessage(windId, last)

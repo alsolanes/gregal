@@ -420,8 +420,8 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         }
                     }
                     if (rows.isEmpty()) item {
-                        if (query.isBlank() && inboxFilter == "unread") EmptyInboxFilter(lang, "unread")
-                        else if (query.isBlank() && inboxFilter == "groups") EmptyInboxFilter(lang, "groups")
+                        if (query.isBlank() && inboxFilter == "unread") EmptyInboxFilter(lang, "unread", ventsCopy(lang, "all")) { inboxFilter = "all" }
+                        else if (query.isBlank() && inboxFilter == "groups") EmptyInboxFilter(lang, "groups", tr(lang, "app.shared.new")) { sharedCreate = true }
                         // Compte nou, sense cap vent: la benvinguda amb la colla del dia a dia.
                         else if (query.isBlank() && winds.isEmpty()) VentsWelcome(vm, lang)
                         else if (query.isBlank()) VentsEmpty(lang, true)

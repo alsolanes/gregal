@@ -744,6 +744,7 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                         m.work, if (m.work.running) activity else null,
                                         if (m.work.running) statusLine else "", lang,
                                         onRetro = if (m.work.runId > 0) ({ vm.openRetro(m.work.runId) }) else null,
+                                        onRetry = if (!m.work.running && m.work.failed) ({ vm.retryLastMainTurn() }) else null,
                                     )
                                     m.kind == "activity" -> {
                                         // Avisos sense torn (cua, comparació…): una targeta per tram.
