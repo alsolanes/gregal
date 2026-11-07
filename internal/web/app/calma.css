@@ -179,6 +179,17 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
 #composer #permBtn.obert .perm-icon { display:none; }
 #composer #permBtn.obert::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--amber); }
 
+/* ---------- Compositor compacte amb el navegador de l'agent obert ----------
+   El panell s'annexiona a #workbench: quan hi és (i no és la píndola min),
+   el xat perd ~46% d'amplada. Sobren opcions a la vista: el commutador de
+   modes s'aprima, el permís queda en icona i la pastilla de model s'encurta.
+   El botó d'enviar/atura (■) mai es mou ni es deforma: mida fixa al final. */
+#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer .mode-primary button { padding:0 7px; }
+#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #permBtn #permLabel { display:none; }
+#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #permBtn { padding:0 8px; }
+#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #modelPill { max-width:120px; }
+#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #send { flex:none; width:36px; height:36px; }
+
 /* ---------- Mòbil ---------- */
 @media(max-width:760px) {
   #side, #side.compact { left:0; width:280px; min-width:280px; }
