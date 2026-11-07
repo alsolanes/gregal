@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -81,7 +83,12 @@ fun TypingDots(accent: Color = Sea) {
                     tween(900, delayMillis = i * 180, easing = FastOutSlowInEasing), RepeatMode.Reverse
                 ), label = "dot$i"
             )
-            Box(Modifier.size(7.dp).background(accent.copy(alpha = 0.35f + 0.65f * a), CircleShape))
+            // L'alfa es llegeix a la fase de dibuixat (drawWithCache): l'animació
+            // no recomposa el Row ni la resta de la fila 60 cops per segon.
+            Box(Modifier.size(7.dp).drawWithCache {
+                val color = accent.copy(alpha = 0.35f + 0.65f * a)
+                onDrawBehind { drawCircle(color) }
+            })
         }
     }
 }
@@ -102,5 +109,7 @@ fun TypingCursor(accent: Color = Sea) {
         animationSpec = infiniteRepeatable(tween(650, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "blink"
     )
-    Text("▍", color = accent.copy(alpha = 0.15f + 0.85f * a), fontSize = 15.sp)
+    // Fase de dibuixat: el parpelleig no recomposa la bombolla del missatge.
+    Text("▍", color = accent, fontSize = 15.sp,
+        modifier = Modifier.graphicsLayer { alpha = 0.15f + 0.85f * a })
 }
