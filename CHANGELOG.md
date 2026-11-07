@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- **Vents més lleugers i mai bloquejats.** L'historial de cada vent i
+  rotllana té un sostre (100 missatges) en lloc de créixer sense límit, la
+  llista de converses no espera mai una resposta del model (abans un GET
+  podia quedar penjat fins a 15 minuts) i dues instàncies del servidor
+  (web + escriptori) ja no es trepitgen els canvis als vents. Les preguntes
+  curtes a un vent van al model barat i la feina pesada al fort, com als
+  torns d'agent, amb l'estalvi que comporta.
+- **UI dels vents més neta i accessible.** Botons amb diana completa de
+  48dp, colors sempre del tema (res d'hexadges fora de paleta), textos
+  petits a 12sp per al contrast, icones úniques a Explora, la fila
+  d'automatització assenyala que s'obre i els filtres de la bústia usen el
+  mateix component Material que la resta de l'app. Els punts d'escriptura
+  i el cursor animen a la fase de dibuixat: l'animació no recomposa la
+  conversa sencera.
 - **Les colles van fins al final i ho ensenyen.** Quan respons la pregunta
   d'una colla, el xat mostra en directe com treballa fins a la conclusió
   (abans semblava aturada i no en veies res fins al missatge següent). Fan
