@@ -99,6 +99,10 @@ func TestReliabilityModelStepHonorsConfiguredTimeout(t *testing.T) {
 	bot, _, _ := testBot(t, tg, model, nil)
 	modelWait := make(chan time.Duration, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasSuffix(r.URL.Path, "/chat/completions") {
+			http.NotFound(w, r)
+			return
+		}
 		io.Copy(io.Discard, r.Body)
 		start := time.Now()
 		select {
@@ -106,7 +110,10 @@ func TestReliabilityModelStepHonorsConfiguredTimeout(t *testing.T) {
 			fmt.Fprintf(w, `{"choices":[{"message":%s,"finish_reason":"stop"}]}`, replyText("too late"))
 		case <-r.Context().Done():
 		}
-		modelWait <- time.Since(start)
+		select {
+		case modelWait <- time.Since(start):
+		default:
+		}
 	}))
 	defer server.Close()
 	bot.cfg.Providers["t"] = config.Provider{BaseURL: server.URL}
