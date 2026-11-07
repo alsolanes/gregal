@@ -37,7 +37,26 @@ const (
 	windTurnsMaxMsgs  = 24
 	windTurnsMaxChars = 14000
 	windTurnMaxChars  = 3000
+	// windStoreMaxMsgs és el sostre de l'historial PERSISTIT (disc + memòria):
+	// el prompt de cada torn només llegeix els recents (windChatTurns), però
+	// sense poda el fitxer creixia sense límit. Prou marge per al prompt (24)
+	// més cua per no perdre el fil proper.
+	windStoreMaxMsgs = 100
 )
+
+// podaHistorialVent retalla l'historial desat al sostre: conserva els N més
+// recents i, si el més antic conservat és d'assistent, el descarta (comença
+// sempre per usuari, com exigeixen alguns proveïdors).
+func podaHistorialVent(history []llm.Message) []llm.Message {
+	if len(history) <= windStoreMaxMsgs {
+		return history
+	}
+	out := append([]llm.Message(nil), history[len(history)-windStoreMaxMsgs:]...)
+	for len(out) > 0 && out[0].Role != "user" {
+		out = out[1:]
+	}
+	return out
+}
 
 // windChatTurns converteix l'historial desat en torns reals: només usuari i
 // assistent amb text, els més recents dins del pressupost, cada missatge

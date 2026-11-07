@@ -267,7 +267,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 		llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
 		llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 	if err := saveWindHistory(s, wind, history); err == nil {
-		hist.messages = history
+		hist.messages = podaHistorialVent(history)
 	}
 	s.startWindLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)

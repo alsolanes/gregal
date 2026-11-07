@@ -298,7 +298,7 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
-	hist.messages = append(hist.messages, llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()})
+	hist.messages = podaHistorialVent(append(hist.messages, llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()}))
 	history := append([]llm.Message(nil), hist.messages...)
 	hist.mu.Unlock()
 	_ = saveWindHistory(s, w, history)

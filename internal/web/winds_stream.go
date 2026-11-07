@@ -14,6 +14,7 @@ import (
 	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/llm"
+	"gregal/internal/session"
 )
 
 // Streaming dels vents: el mateix torn que el xat clàssic, però amb
@@ -204,9 +205,15 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	defer stopStream()
 	emit("activity", windActivity{Phase: "waiting"})
 	hist := windHistory(s, wind.ID)
-	hist.mu.Lock()
-	defer hist.mu.Unlock()
-	previous := append([]llm.Message(nil), hist.messages...)
+	// torn serialitza les escriptures d'aquest vent; mu queda lliure per
+	// als GET (RLock), que mai no esperen el model.
+	hist.torn.Lock()
+	defer hist.torn.Unlock()
+	hist.mu.RLock()
+	base := append([]llm.Message(nil), hist.messages...)
+	gotGen := hist.gen
+	hist.mu.RUnlock()
+	previous := base
 	if len(previous) > 40 {
 		previous = previous[len(previous)-40:]
 	}
@@ -218,18 +225,23 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(withLinkBase(ctx, r)))
+	ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID)))
 
 	// «Aprèn a fer jocs web»: un estudi amb pràctica (winds_expert.go), no
 	// un torn de xat.
 	if tema, ok := learnRequest(msg); ok && !req.Continue {
 		reply := s.startLearnFromChat(wind, tema)
-		history := append(append([]llm.Message(nil), hist.messages...),
+		history := append(append([]llm.Message(nil), base...),
 			llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
 			llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-		if err := saveWindHistory(s, wind, history); err == nil {
-			hist.messages = history
+		hist.mu.Lock()
+		if hist.gen == gotGen {
+			if err := saveWindHistory(s, wind, history); err == nil {
+				hist.messages = podaHistorialVent(history)
+				hist.gen++
+			}
 		}
+		hist.mu.Unlock()
 		emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": false, "history": petHistoryJSON(history), "learning": tema})
 		return
 	}
@@ -300,7 +312,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
 	reply += s.windDocLinks(turnStart, reply)
-	history := append([]llm.Message(nil), hist.messages...)
+	history := append([]llm.Message(nil), base...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
@@ -310,11 +322,20 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-	if err := saveWindHistory(s, wind, history); err != nil {
-		emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
-		return
+	// Commit amb generació: el desat i la publicació són atòmics.
+	hist.mu.Lock()
+	if hist.gen == gotGen {
+		if err := saveWindHistory(s, wind, history); err != nil {
+			hist.mu.Unlock()
+			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+			return
+		}
+		hist.messages = podaHistorialVent(history)
+		hist.gen++
+	} else if saved, err := session.Load(s.sessDir(), "company-"+wind.ID); err == nil {
+		hist.messages = append([]llm.Message(nil), saved.Convo...)
 	}
-	hist.messages = history
+	hist.mu.Unlock()
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
@@ -390,9 +411,26 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	defer stopStream()
 	emit("activity", windActivity{Phase: "waiting"})
 	hist := rotllanaHistory(s, rot.ID)
-	hist.mu.Lock()
-	defer hist.mu.Unlock()
-	isContinue := req.Continue && len(hist.messages) > 0
+	// torn serialitza les escriptures del fil; mu queda lliure per als GET.
+	hist.torn.Lock()
+	defer hist.torn.Unlock()
+	hist.mu.RLock()
+	base := append([]llm.Message(nil), hist.messages...)
+	gotGen := hist.gen
+	hist.mu.RUnlock()
+	commitRotllana := func(next []llm.Message) []llm.Message {
+		next = podaHistorialVent(next)
+		hist.mu.Lock()
+		if hist.gen == gotGen {
+			hist.messages = next
+			hist.gen++
+			gotGen = hist.gen
+		}
+		out := append([]llm.Message(nil), hist.messages...)
+		hist.mu.Unlock()
+		return out
+	}
+	isContinue := req.Continue && len(base) > 0
 	if msg == "" && !isContinue {
 		emit("error", map[string]string{"error": "missatge buit"})
 		return
@@ -401,18 +439,18 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	// Tria local: membres nomenats (màxim dos) o participació equilibrada;
 	// «continua» conserva l’última veu, sense una crida extra al model.
 	tRoute := time.Now()
-	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, hist.messages, isContinue)
+	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, base, isContinue)
 	routeDur := time.Since(tRoute)
 	var tempsVeus []string
 	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
-		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
+		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), base)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		speakers = []companion.Wind{speakingWind}
 	}
-	conversation := append([]llm.Message(nil), hist.messages...)
+	conversation := append([]llm.Message(nil), base...)
 	if !isContinue {
 		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
@@ -424,7 +462,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 			return
 		}
-		hist.messages = conversation
+		commitRotllana(conversation)
 		emit("done", map[string]any{
 			"reply":   map[string]string{"wind": "", "text": ""},
 			"silenci": true,
@@ -476,7 +514,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		var err error
 		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
 		ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
-		ctx = s.windDocsCtx(s.interactiveWindCtx(withLinkBase(ctx, r)))
+		ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID)))
 		tVeu := time.Now()
 		s.mu.Lock()
 		_, logRole := s.windRoleRef()
@@ -561,7 +599,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 			return
 		}
-		hist.messages = conversation
+		conversation = commitRotllana(conversation)
 		tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(tVeu).Seconds(), res.temps))
 		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 	}
@@ -577,12 +615,12 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		doneDebate()
 		cancelDebate()
 		if stopped {
-			hist.messages = conversation
+			conversation = commitRotllana(conversation)
 			emit("error", map[string]any{"error": "aturat", "cancelat": true})
 			return
 		}
 		if len(noves) > 0 {
-			hist.messages = conversation
+			commitRotllana(conversation)
 			tempsVeus = append(tempsVeus, fmt.Sprintf("debat %d veus %.1fs", len(noves), time.Since(tDebat).Seconds()))
 		}
 	}

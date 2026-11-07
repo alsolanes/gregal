@@ -464,14 +464,14 @@ func (s *Server) crewSayKindRun(rot Rotllana, wind companion.Wind, kind, text, r
 		if runID != "" {
 			for _, existing := range next {
 				if existing.Role == "assistant" && existing.Kind == kind && existing.SpeakerID == wind.ID && existing.CrewRunID == runID {
-					hist.messages = next
+					hist.messages = podaHistorialVent(next)
 					return nil
 				}
 			}
 		} else if len(next) > 0 {
 			existing := next[len(next)-1]
 			if existing.Role == "assistant" && existing.Kind == kind && existing.SpeakerID == wind.ID && existing.Content == wind.Name+": "+text {
-				hist.messages = next
+				hist.messages = podaHistorialVent(next)
 				return nil
 			}
 		}
@@ -482,7 +482,7 @@ func (s *Server) crewSayKindRun(rot Rotllana, wind companion.Wind, kind, text, r
 	if err := saveRotllanaHistory(s, rot.ID, next); err != nil {
 		return err
 	}
-	hist.messages = next
+	hist.messages = podaHistorialVent(next)
 	return nil
 }
 
@@ -1115,7 +1115,7 @@ func (s *Server) crewTakeAnswer(rot Rotllana, msg string) crewAnswerResult {
 		log.Printf("crew resume history persistence rotllana=%s: %s", rot.ID, redactError(err))
 		return crewAnswerFailed
 	}
-	hist.messages = next
+	hist.messages = podaHistorialVent(next)
 	hist.mu.Unlock()
 	if err := job.set("working"); err != nil {
 		log.Printf("crew resume job persistence rotllana=%s: %s", rot.ID, redactError(err))

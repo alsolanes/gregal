@@ -624,11 +624,18 @@ func (s *Server) crewRecoverInterruptedSession(sess *Server) {
 		}
 		if pendingResult != "" {
 			missing := []string{}
-			for _, file := range st.Files { if !strings.Contains(pendingResult, file) { missing = append(missing, file) } }
+			for _, file := range st.Files {
+				if !strings.Contains(pendingResult, file) {
+					missing = append(missing, file)
+				}
+			}
 			if len(missing) > 0 {
 				pendingResult += "\n\n**" + say("Fitxers", "Files") + "**\n- " + strings.Join(missing, "\n- ")
 				st.PendingResult = pendingResult
-				if err := saveCrewState(sess, rotID, st); err != nil { log.Printf("crew recovery result checkpoint rotllana=%s: %s", rotID, redactError(err)); continue }
+				if err := saveCrewState(sess, rotID, st); err != nil {
+					log.Printf("crew recovery result checkpoint rotllana=%s: %s", rotID, redactError(err))
+					continue
+				}
 			}
 			if err := sess.crewSayKindRun(rot, lead, "result", pendingResult, st.RunID); err != nil {
 				log.Printf("crew recovery result persistence rotllana=%s: %s", rotID, redactError(err))
@@ -754,7 +761,7 @@ func (s *Server) handleCrewStart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "could not save the crew conversation", http.StatusInternalServerError)
 		return
 	}
-	hist.messages = next
+	hist.messages = podaHistorialVent(next)
 	hist.mu.Unlock()
 	job := &crewJob{path: crewJobPath(s, rot.ID)}
 	if err := job.set("discussing"); err != nil {
@@ -874,6 +881,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 	answer := s.runTeamFlow(ctx2, teamFlowRun{
 		task: task, lang: lang, flow: &flow, withTools: true, winds: true, thread: rot.ID, workspace: workspace,
 		subagents: subagents, cfg: cfg, client: client, provider: provider, role: role, started: time.Now(),
+		// Steer: missatges escrits mentre la colla treballa (bústia del torn
+		// "rotllana" que crewLoop ha obert amb beginWindTurn).
+		steer: func() []string { return windSteerDrain(turnKey{scope: s.sessDir(), kind: "rotllana", id: rot.ID}) },
 	}, func(kind string, value any) {
 		e, ok := value.(team.Event)
 		if !ok {
@@ -893,7 +903,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 		if e.Type == "completed" && strings.TrimSpace(e.Output) != "" {
 			if err := s.crewPublishNode(rot, flow, e); err != nil {
 				publishErrMu.Lock()
-				if publishErr == nil { publishErr = err }
+				if publishErr == nil {
+					publishErr = err
+				}
 				publishErrMu.Unlock()
 				cancel()
 			}
@@ -908,7 +920,9 @@ var crewWork = func(s *Server, ctx context.Context, rot Rotllana, task string, f
 	publishErrMu.Lock()
 	persistErr := publishErr
 	publishErrMu.Unlock()
-	if persistErr != nil { return "", fmt.Errorf("could not persist crew progress history: %w", persistErr) }
+	if persistErr != nil {
+		return "", fmt.Errorf("could not persist crew progress history: %w", persistErr)
+	}
 	if v, ok := crewWriteErrors.Load(crewRegistryKey(s, rot.ID)); ok {
 		return "", fmt.Errorf("could not persist crew write list: %s", v)
 	}

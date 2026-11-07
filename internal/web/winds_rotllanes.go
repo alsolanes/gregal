@@ -38,9 +38,12 @@ type Rotllana struct {
 
 // rotllanaEntry és la història en memòria + persistència, com windHistoryEntry.
 type rotllanaEntry struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	loadOnce sync.Once
 	messages []llm.Message // Role user/assistant; les del vent porten el nom al from
+	gen      uint64        // torns publicats: commit només si cap altre ha publicat entremig
+	// torn serialitza els torns d'escriptura (com a windHistoryEntry).
+	torn sync.Mutex
 }
 
 var rotllanaHistories sync.Map // conversationHistoryKey -> *rotllanaEntry
@@ -85,7 +88,7 @@ func saveRotllanaHistory(s *Server, id string, history []llm.Message) error {
 		Name:  "rotllana-" + id,
 		Title: "Rotllana — " + id,
 		Role:  "chat",
-		Convo: append([]llm.Message(nil), history...),
+		Convo: append([]llm.Message(nil), podaHistorialVent(history)...),
 	})
 	return err
 }
@@ -151,9 +154,9 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		hist := rotllanaHistory(s, rot.ID)
-		hist.mu.Lock()
+		hist.mu.RLock()
 		messages := append([]llm.Message(nil), hist.messages...)
-		hist.mu.Unlock()
+		hist.mu.RUnlock()
 		writeJSON(w, map[string]any{"rotllana": rot.ID, "history": s.rotllanaHistoryJSON(messages)})
 		return
 	}
@@ -210,20 +213,37 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	hist := rotllanaHistory(s, rot.ID)
-	hist.mu.Lock()
-	defer hist.mu.Unlock() // choose the speaker and commit under the same turn lock
+	// torn serialitza les escriptures del fil; mu queda lliure per als GET.
+	hist.torn.Lock()
+	defer hist.torn.Unlock()
+	hist.mu.RLock()
+	base := append([]llm.Message(nil), hist.messages...)
+	gotGen := hist.gen
+	hist.mu.RUnlock()
+	commitRotllanaClassic := func(next []llm.Message) []llm.Message {
+		next = podaHistorialVent(next)
+		hist.mu.Lock()
+		if hist.gen == gotGen {
+			hist.messages = next
+			hist.gen++
+			gotGen = hist.gen
+		}
+		out := append([]llm.Message(nil), hist.messages...)
+		hist.mu.Unlock()
+		return out
+	}
 	// «Continua» reprèn l'última resposta: sense historial o sense qui
 	// parla no té què reprendre; si no, cal text nou.
-	isContinue := req.Continue && len(hist.messages) > 0
+	isContinue := req.Continue && len(base) > 0
 	if msg == "" && !isContinue {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
 	// Tria local: membres nomenats (màxim dos) o participació equilibrada;
 	// «continua» conserva l’última veu, sense una crida extra al model.
-	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, hist.messages, isContinue)
+	speakers := s.rotllanaTurnSpeakers(context.Background(), rot, strings.TrimSpace(req.Wind), msg, base, isContinue)
 	if len(speakers) == 0 && (strings.TrimSpace(req.Wind) != "" || isContinue) {
-		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), hist.messages)
+		speakingWind, err := s.nextWindInHistory(rot, strings.TrimSpace(req.Wind), base)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -231,14 +251,14 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		speakers = []companion.Wind{speakingWind}
 	}
 
-	conversation := append([]llm.Message(nil), hist.messages...)
+	conversation := append([]llm.Message(nil), base...)
 	if !isContinue {
 		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	ctx = s.interactiveWindCtx(ctx)
+	ctx = s.withWindSteerKey(s.interactiveWindCtx(ctx), "rotllana", rot.ID)
 
 	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
 	if len(speakers) == 0 {
@@ -246,7 +266,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 			return
 		}
-		hist.messages = conversation
+		conversation = commitRotllanaClassic(conversation)
 		writeJSON(w, map[string]any{
 			"reply":   map[string]string{"wind": "", "text": ""},
 			"silenci": true,
@@ -346,7 +366,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 		return
 	}
-	hist.messages = conversation
+	conversation = commitRotllanaClassic(conversation)
 	// Cada veu recorda l'usuari (gustos, fets duradors), en segon pla.
 	if strings.TrimSpace(msg) != "" {
 		for _, v := range veus {

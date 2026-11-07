@@ -29,10 +29,18 @@ import (
 
 // windHistoryEntry conserva l'historial en memòria i el desa al magatzem
 // durador després de cada resposta (mateix patró que les mascotes).
+// gen compta els torns publicats: el commit d'un torn només desa si cap
+// altre torn ha publicat entremig (evita que un torn lent trepitgi un de
+// nou sense bloquejar el GET durant la crida al model).
 type windHistoryEntry struct {
-	mu       sync.Mutex
+	mu       sync.RWMutex
 	loadOnce sync.Once
 	messages []llm.Message
+	gen      uint64
+	// torn serialitza els torns d'escriptura d'un mateix vent: un segon
+	// POST espera el primer (TestConversationHistorySerializesWholeTurn),
+	// però mu queda lliure i els GET (RLock) mai no esperen el model.
+	torn sync.Mutex
 }
 
 var windHistories sync.Map // conversationHistoryKey -> *windHistoryEntry
@@ -53,7 +61,7 @@ func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
 		Name:  "company-" + w.ID,
 		Title: "Company — " + w.Name,
 		Role:  "chat",
-		Convo: append([]llm.Message(nil), history...),
+		Convo: append([]llm.Message(nil), podaHistorialVent(history)...),
 	})
 	return err
 }
@@ -166,9 +174,9 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		hist := windHistory(s, wind.ID)
-		hist.mu.Lock()
+		hist.mu.RLock()
 		messages := append([]llm.Message(nil), hist.messages...)
-		hist.mu.Unlock()
+		hist.mu.RUnlock()
 		writeJSON(w, map[string]any{"wind": wind.ID, "history": petHistoryJSON(messages)})
 		return
 	}
@@ -215,9 +223,15 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	}
 	msg := strings.TrimSpace(req.Message)
 	hist := windHistory(s, wind.ID)
-	hist.mu.Lock()
-	defer hist.mu.Unlock() // serialize context, model call, persistence and publication
-	previous := append([]llm.Message(nil), hist.messages...)
+	// torn serialitza les escriptures d'aquest vent (un segon POST espera
+	// el primer); mu queda lliure i els GET mai no esperen el model.
+	hist.torn.Lock()
+	defer hist.torn.Unlock()
+	hist.mu.RLock()
+	base := append([]llm.Message(nil), hist.messages...)
+	gotGen := hist.gen
+	hist.mu.RUnlock()
+	previous := base
 	if len(previous) > 40 {
 		previous = previous[len(previous)-40:]
 	}
@@ -234,7 +248,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// Intentional user turns inherit this session's mode and project policy.
 	// Background callers of the same loop remain read-only.
 	turnStart := time.Now()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(withLinkBase(ctx, r)))
+	ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID)))
 	isContinue := req.Continue && len(previous) > 0
 	var res exploracio
 	var err error
@@ -263,16 +277,25 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
 	reply += s.windDocLinks(turnStart, reply)
-	history := append([]llm.Message(nil), hist.messages...)
+	history := append([]llm.Message(nil), base...)
 	if !isContinue {
 		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-	if err := saveWindHistory(s, wind, history); err != nil {
-		http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
-		return
+	// Commit amb generació: el desat i la publicació són atòmics.
+	hist.mu.Lock()
+	if hist.gen == gotGen {
+		if err := saveWindHistory(s, wind, history); err != nil {
+			hist.mu.Unlock()
+			http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
+			return
+		}
+		hist.messages = podaHistorialVent(history)
+		hist.gen++
+	} else if saved, err := session.Load(s.sessDir(), "company-"+wind.ID); err == nil {
+		hist.messages = append([]llm.Message(nil), saved.Convo...)
 	}
-	hist.messages = history // failed model/save calls never publish a partial turn
+	hist.mu.Unlock() // failed model/save calls never publish a partial turn
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)

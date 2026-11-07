@@ -96,7 +96,7 @@ func (s *Server) startCrewChat(rot Rotllana, msg string) (*crewJob, int, error) 
 	messages := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	err := saveRotllanaHistory(s, rot.ID, messages)
 	if err == nil {
-		hist.messages = messages
+		hist.messages = podaHistorialVent(messages)
 	}
 	hist.mu.Unlock()
 	if err != nil {

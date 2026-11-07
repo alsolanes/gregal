@@ -95,3 +95,36 @@ func TestWindStreamSendsStructuredTurns(t *testing.T) {
 		t.Fatalf("system:\n%s", msgs[0].Content)
 	}
 }
+
+// La poda no fa res sota el sostre; per sobre, conserva els recents i
+// comença per usuari (alguns proveïdors ho exigeixen).
+func TestPodaHistorialVentSostre(t *testing.T) {
+	mk := func(n int) []llm.Message {
+		out := make([]llm.Message, 0, n)
+		for i := 0; i < n; i++ {
+			role := "user"
+			if i%2 == 1 {
+				role = "assistant"
+			}
+			out = append(out, llm.Message{Role: role, Content: "m"})
+		}
+		return out
+	}
+	petit := mk(50)
+	if got := podaHistorialVent(petit); len(got) != 50 {
+		t.Fatalf("sota el sostre no es toca: %d", len(got))
+	}
+	gran := mk(250)
+	got := podaHistorialVent(gran)
+	if len(got) == 0 || len(got) > windStoreMaxMsgs {
+		t.Fatalf("per sobre del sostre cal podar: %d", len(got))
+	}
+	if got[0].Role != "user" {
+		t.Fatalf("ha de començar per usuari: %s", got[0].Role)
+	}
+	for i, m := range gran[len(gran)-len(got):] {
+		if got[i].Content != m.Content || got[i].Role != m.Role {
+			t.Fatalf("es conserven els més recents (pos %d)", i)
+		}
+	}
+}

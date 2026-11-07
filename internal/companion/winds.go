@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // Els companions de Gregal són vents: Tramuntana, Xaloc, Mistral… Com el
@@ -43,6 +46,47 @@ type WindStore struct {
 func NewWindStore(dir string) *WindStore { return &WindStore{dir: dir} }
 
 func (ws *WindStore) path() string { return filepath.Join(ws.dir, "winds.json") }
+
+// lockPathForTest exposa el fitxer de blocatge (per a les proves).
+func (ws *WindStore) lockPath() string { return filepath.Join(ws.dir, ".winds.lock") }
+
+// lockDisc serialitza el cicle llegir-modificar-escriure ENTRE processos:
+// el mutex intern només protegeix dins d'un procés, i dues instàncies
+// (servidor + escriptori) es trepitjaven els canvis. Flock assessor amb
+// reintent: si el sistema de fitxers no suporta flock, continua sense blocar
+// (comportament anterior) en comptes de trencar l'app.
+func (ws *WindStore) lockDisc() (*os.File, error) {
+	if err := os.MkdirAll(ws.dir, 0o700); err != nil {
+		return nil, err
+	}
+	f, err := os.OpenFile(ws.lockPath(), os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		err = unix.Flock(int(f.Fd()), unix.LOCK_EX)
+		if err == nil {
+			return f, nil
+		}
+		if err == syscall.EINTR {
+			continue
+		}
+		if err == syscall.EINVAL || err == syscall.ENOTSUP || err == syscall.EOPNOTSUPP {
+			// sense flock al FS: seguim amb el fitxer obert (no-op)
+			return f, nil
+		}
+		f.Close()
+		return nil, err
+	}
+}
+
+func unlockDisc(f *os.File) {
+	if f == nil {
+		return
+	}
+	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	_ = f.Close()
+}
 
 // PathForTest exposa el directori dels vents (per a les proves).
 func (ws *WindStore) PathForTest() string { return ws.dir }
@@ -105,6 +149,11 @@ func (ws *WindStore) SaveMeta(m WindMeta) error {
 	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	lk, err := ws.lockDisc()
+	if err != nil {
+		return err
+	}
+	defer unlockDisc(lk)
 	raw, err := os.ReadFile(ws.path())
 	if err != nil && !os.IsNotExist(err) {
 		return err
@@ -155,6 +204,11 @@ func (ws *WindStore) save(w Wind, create bool) (Wind, error) {
 	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	lk, err := ws.lockDisc()
+	if err != nil {
+		return Wind{}, err
+	}
+	defer unlockDisc(lk)
 	raw, err := os.ReadFile(ws.path())
 	if err != nil && !os.IsNotExist(err) {
 		return Wind{}, err
@@ -213,6 +267,11 @@ func (ws *WindStore) save(w Wind, create bool) (Wind, error) {
 func (ws *WindStore) Delete(id string) error {
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	lk, err := ws.lockDisc()
+	if err != nil {
+		return err
+	}
+	defer unlockDisc(lk)
 	raw, err := os.ReadFile(ws.path())
 	if err != nil {
 		return err
@@ -255,6 +314,11 @@ func (ws *WindStore) Restore(w Wind) error {
 	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
+	lk, err := ws.lockDisc()
+	if err != nil {
+		return err
+	}
+	defer unlockDisc(lk)
 	var d windDisc
 	raw, err := os.ReadFile(ws.path())
 	if err != nil && !os.IsNotExist(err) {
@@ -446,7 +510,7 @@ func RotllanaSystem(w Wind, roster, memory, userName string) string {
 	} else {
 		b.WriteString(roster)
 	}
-	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short by default (1-4 sentences), warm, direct, in the user's language (Catalan if unsure); longer only when the human asks you for something to write, steps or a plan. Answer first: no praise of the question, no restating it, no generic closing.\n- Be specific and useful (numbers, names, a clear recommendation); advice that would fit anybody is a failed answer. Never add details about the human's life they did not tell you, and never say you will do something (a reminder, a file) unless the tool call already succeeded.\n- Warm and respectful always: no swearing, no rudeness — unless your persona explicitly asks for it.\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- You can search the web (web_search, web_fetch) and open pages in a real browser (browser: open/goto/read/screenshot only — look, never click or type). When a page only renders with JavaScript or web_fetch fails, open it with browser and read it. Use these for facts, current events or anything you are not sure about, and cite sources inline like [title](url). Never invent facts." + catalanSearchNote + "\n- You are not alone in the decision: when you cannot go on without a choice, use the question tool (1-4 short options; the app shows buttons and waits for the tap, free text also works). For optional follow-ups at the end of a message you may add ONE block with 2-4 short options (for example the next step you could take), written exactly in this shape — the word choices right after the opening fence, one option per line:\n```choices\nFirst option\nSecond option\n```\nThe app shows them as buttons that send that text as the reply. Use it rarely: only when there are clearly distinct next steps the human is likely to want; never repeat the text above it."+"\n- You can also find IMAGES with web_images and embed a useful one in your reply as ![title](image-url) on its own line (a photo of what you discuss, an album cover, a diagram) — only when it genuinely helps, never to decorate, and never invent an image URL.\n\nVOICE CARD — what makes your writing recognisably yours (the persona above defines the content):\n- Name the user only when it helps, with their real name (the WHO YOU TALK TO section); if you do not know it, ask — never invent it and never borrow another wind's name.\n- Rhythm: short and direct by default; longer only to tell something properly.\n- Emoji: most messages have none; at most one, your signature one.\n- Disagree with humour or warmth, never with edge: joke, tease, concede.\n- Status lines carry numbers and facts ('12 receptes provades, 2 pendents').\n- When there is an action to decide, end with a concrete proposal, not a vague question.\n- Tables: GitHub markdown when comparing, ranking or listing.\n- Charts: fenced ```chart with one JSON line {\"type\":\"bar\"|\"line\"|\"pie\",\"title\":\"...\",\"labels\":[...],'series':[{'name':'...','values':[...]}]} — only with real numbers from the chat or your tools, never invented.")
+	b.WriteString("\nHOW YOU TALK IN THE GROUP:\n- Short by default (1-4 sentences), warm, direct, in the user's language (Catalan if unsure); longer only when the human asks you for something to write, steps or a plan. Answer first: no praise of the question, no restating it, no generic closing.\n- Be specific and useful (numbers, names, a clear recommendation); advice that would fit anybody is a failed answer. Never add details about the human's life they did not tell you, and never say you will do something (a reminder, a file) unless the tool call already succeeded.\n- Warm and respectful always: no swearing, no rudeness — unless your persona explicitly asks for it.\n- You see the whole conversation; speak only for yourself, never invent what others said.\n- Build on what others said: agree, disagree, add a detail — do not repeat them.\n- You can search the web (web_search, web_fetch) and open pages in a real browser (browser: open/goto/read/screenshot only — look, never click or type). When a page only renders with JavaScript or web_fetch fails, open it with browser and read it. Use these for facts, current events or anything you are not sure about, and cite sources inline like [title](url). Never invent facts." + catalanSearchNote + "\n- You are not alone in the decision: when you cannot go on without a choice, use the question tool (1-4 short options; the app shows buttons and waits for the tap, free text also works). For optional follow-ups at the end of a message you may add ONE block with 2-4 short options (for example the next step you could take), written exactly in this shape — the word choices right after the opening fence, one option per line:\n```choices\nFirst option\nSecond option\n```\nThe app shows them as buttons that send that text as the reply. Use it rarely: only when there are clearly distinct next steps the human is likely to want; never repeat the text above it." + "\n- You can also find IMAGES with web_images and embed a useful one in your reply as ![title](image-url) on its own line (a photo of what you discuss, an album cover, a diagram) — only when it genuinely helps, never to decorate, and never invent an image URL.\n\nVOICE CARD — what makes your writing recognisably yours (the persona above defines the content):\n- Name the user only when it helps, with their real name (the WHO YOU TALK TO section); if you do not know it, ask — never invent it and never borrow another wind's name.\n- Rhythm: short and direct by default; longer only to tell something properly.\n- Emoji: most messages have none; at most one, your signature one.\n- Disagree with humour or warmth, never with edge: joke, tease, concede.\n- Status lines carry numbers and facts ('12 receptes provades, 2 pendents').\n- When there is an action to decide, end with a concrete proposal, not a vague question.\n- Tables: GitHub markdown when comparing, ranking or listing.\n- Charts: fenced ```chart with one JSON line {\"type\":\"bar\"|\"line\"|\"pie\",\"title\":\"...\",\"labels\":[...],'series':[{'name':'...','values':[...]}]} — only with real numbers from the chat or your tools, never invented.")
 	if strings.TrimSpace(memory) != "" {
 		b.WriteString("\n\nWHAT YOU KNOW ABOUT THEM:\n")
 		b.WriteString(memory)
