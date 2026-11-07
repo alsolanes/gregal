@@ -137,6 +137,45 @@ func resolveTunnelID(ctx context.Context, bin, tunnel string) string {
 
 func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
+// namedTunnelConfig escriu la configuració del túnel amb nom. Les credencials
+// de l'entorn només s'hi escriuen si són del mateix túnel: les credencials
+// d'un túnel només valen per al seu propi ID i barrejar-les fa que cloudflared
+// no autentiqui mai (amb un missatge d'error que enganya).
+func namedTunnelConfig(tunnel string, ingress []tunnelRecord) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "tunnel: %s\n", tunnel)
+	if creds := strings.TrimSpace(os.Getenv("GREGAL_CF_CREDENTIALS")); creds != "" {
+		// Només si les credencials es poden llegir i són d'aquest túnel;
+		// si no, cloudflared farà servir el certificat d'origen (cert.pem).
+		if c, err := loadTunnelCredsID(creds); err == nil && c != "" && c == tunnel {
+			fmt.Fprintf(&b, "credentials-file: %s\n", creds)
+		}
+	}
+	b.WriteString("ingress:\n")
+	for _, r := range ingress {
+		fmt.Fprintf(&b, "  - hostname: %s\n    service: %s\n", r.Hostname, r.Target)
+	}
+	b.WriteString("  - service: http_status:404\n")
+	return b.String()
+}
+
+// loadTunnelCredsID llegeix el TunnelID del fitxer de credencials d'un túnel
+// (el fitxer que genera `cloudflared tunnel create`). Això permet comprovar
+// que les credencials de l'entorn són realment del túnel que s'engegarà.
+func loadTunnelCredsID(path string) (string, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	var c struct {
+		TunnelID string `json:"TunnelID"`
+	}
+	if err := json.Unmarshal(raw, &c); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(c.TunnelID), nil
+}
+
 // boot carrega tunnels.json (un sol cop).
 func (m *tunnelManager) boot() {
 	m.once.Do(func() {
@@ -239,20 +278,11 @@ func (m *tunnelManager) relaunchNamedLocked(bin string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	tunnel = resolveTunnelID(ctx, bin, tunnel)
 	cancel()
-	var b strings.Builder
-	fmt.Fprintf(&b, "tunnel: %s\n", tunnel)
-	if creds := strings.TrimSpace(os.Getenv("GREGAL_CF_CREDENTIALS")); creds != "" {
-		fmt.Fprintf(&b, "credentials-file: %s\n", creds)
-	}
-	b.WriteString("ingress:\n")
-	for _, r := range ingress {
-		fmt.Fprintf(&b, "  - hostname: %s\n    service: %s\n", r.Hostname, r.Target)
-	}
-	b.WriteString("  - service: http_status:404\n")
+	cfg := namedTunnelConfig(tunnel, ingress)
 	if err := os.MkdirAll(filepath.Dir(tunnelConfigFile()), 0o700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(tunnelConfigFile(), []byte(b.String()), 0o600); err != nil {
+	if err := os.WriteFile(tunnelConfigFile(), []byte(cfg), 0o600); err != nil {
 		return err
 	}
 	if run == nil {
