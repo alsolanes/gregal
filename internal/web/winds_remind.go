@@ -214,7 +214,10 @@ func saveWindReminderFull(s *Server, windID, at, text, task string, retryMin int
 			return jobs.Job{}, err
 		}
 	}
-	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().UnixNano()/int64(time.Millisecond))
+	// ID amb nanosegons: dos remind desats en el mateix mil·lisegon (tests,
+	// o dos vents a la vegada) col·lisionaven i Store.Save substituïa el
+	// primer en comptes d'afegir el segon — l'usuari perdia un avís.
+	id := fmt.Sprintf("%s%s-%d", remindJobPrefix, w.ID, time.Now().UnixNano())
 	j, err := s.jobs.Save(jobs.Job{
 		ID: id, Name: "Recordatori " + w.Name, Prompt: msg,
 		// Notify:false — l'avís arriba per notificació local de l'app
