@@ -97,21 +97,28 @@ func TestReliabilityModelStepHonorsConfiguredTimeout(t *testing.T) {
 	tg := newFakeTG(t)
 	model := newFakeLLM(t, replyText("unused"))
 	bot, _, _ := testBot(t, tg, model, nil)
+	modelWait := make(chan time.Duration, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.Copy(io.Discard, r.Body)
+		start := time.Now()
 		select {
 		case <-time.After(2 * time.Second):
 			fmt.Fprintf(w, `{"choices":[{"message":%s,"finish_reason":"stop"}]}`, replyText("too late"))
 		case <-r.Context().Done():
 		}
+		modelWait <- time.Since(start)
 	}))
 	defer server.Close()
 	bot.cfg.Providers["t"] = config.Provider{BaseURL: server.URL}
 	bot.cfg.Agent.ModelTimeoutS = 1
-	start := time.Now()
 	bot.turn(context.Background(), 1234567, bot.state(1234567), "Comprova el servidor")
-	if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
-		t.Fatalf("configured 1-second deadline ignored: %s", elapsed)
+	select {
+	case elapsed := <-modelWait:
+		if elapsed > 1500*time.Millisecond {
+			t.Fatalf("configured 1-second model deadline ignored: %s", elapsed)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the model request never finished")
 	}
 	if _, ok := tg.find("⚠️"); !ok {
 		t.Fatal("timeout was not reported")
