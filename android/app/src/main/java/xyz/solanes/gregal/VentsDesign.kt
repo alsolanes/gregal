@@ -45,17 +45,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-internal fun ventsCopy(lang: String, key: String): String = when (key) {
-    "all" -> if (lang == "en") "All" else "Tot"
-    "unread" -> if (lang == "en") "Unread" else "No llegits"
-    "groups" -> if (lang == "en") "Groups" else "Grups"
-    "explore" -> if (lang == "en") "Explore" else "Explora"
-    "exploreHelp" -> if (lang == "en") "Quiet tools, gathered in one place" else "Eines tranquil·les, en un sol lloc"
-    "library" -> if (lang == "en") "Wind library" else "Biblioteca de vents"
-    "addFavorite" -> if (lang == "en") "Add to favorites" else "Afegeix als favorits"
-    "removeFavorite" -> if (lang == "en") "Remove from favorites" else "Treu dels favorits"
-    else -> key
-}
+// ventsCopy resol el text per clau a AppStrings: si una clau faltés, el
+// fallback és la clau catalana existent, mai el nom de la clau pintat.
+internal fun ventsCopy(lang: String, key: String): String = tr(lang, "vnts.$key")
 
 @Composable
 internal fun VentsInboxFilters(lang: String, selected: String, unread: Int = 0, onSelected: (String) -> Unit) {
@@ -76,7 +68,7 @@ internal fun VentsInboxFilters(lang: String, selected: String, unread: Int = 0, 
                         Text(ventsCopy(lang, key), fontSize = 12.sp)
                         if (badge.isNotEmpty()) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
                             Text(
-                                badge, color = OnSea, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                badge, color = OnSea, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
                             )
                         }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -40,7 +41,7 @@ internal fun ProgramatsButton(lang: String, onClick: () -> Unit) {
             Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Text(tr(lang, "app.programats.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("›", color = Muted, fontSize = 18.sp)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }
     }
 }

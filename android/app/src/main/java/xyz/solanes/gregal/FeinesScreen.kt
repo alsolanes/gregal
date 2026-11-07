@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Construction
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -78,7 +79,7 @@ internal fun FeinesButton(lang: String, running: Int, onClick: () -> Unit) {
                 Text(tr(lang, "app.feines.running", running), color = Sea, fontSize = 13.sp)
                 Spacer(Modifier.width(8.dp))
             }
-            Text("›", color = Muted, fontSize = 18.sp)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }
     }
 }

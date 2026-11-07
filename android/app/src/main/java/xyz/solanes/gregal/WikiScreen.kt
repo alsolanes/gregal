@@ -12,6 +12,7 @@ import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoStories
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +46,7 @@ internal fun WikiButton(lang: String, onClick: () -> Unit) {
             Icon(Icons.Rounded.AutoStories, null, tint = Sea, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(10.dp))
             Text(tr(lang, "app.wiki.open"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-            Text("›", color = Muted, fontSize = 18.sp)
+            Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
         }
     }
 }

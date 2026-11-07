@@ -5,6 +5,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,7 +14,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -153,12 +157,19 @@ internal fun VentetRow(lang: String, ui: GregalViewModel.CapUi, summary: ConvoSu
 @Composable
 internal fun RunningWorkLine(lang: String, running: Int, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 10.dp).testTag("running-work"),
+        Modifier.fillMaxWidth().clickable(
+            onClick = onClick,
+            onClickLabel = tr(lang, "app.vents.openWork"),
+        ).padding(horizontal = 20.dp, vertical = 10.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = tr(lang, "app.feines.runningLine", running)
+            }.testTag("running-work"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         CircularProgressIndicator(Modifier.size(16.dp), color = Sea, strokeWidth = 2.dp)
         Text(tr(lang, "app.feines.runningLine", running), color = Ink, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        Text("›", color = Muted, fontSize = 18.sp)
+        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
     }
 }
 
@@ -166,7 +177,14 @@ internal fun RunningWorkLine(lang: String, running: Int, onClick: () -> Unit) {
 @Composable
 internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onProfile).padding(horizontal = 16.dp, vertical = 10.dp).testTag("dir-${w.id}"),
+        Modifier.fillMaxWidth().clickable(
+            onClick = onProfile,
+            onClickLabel = tr(lang, "app.vents.openProfile"),
+        ).padding(horizontal = 16.dp, vertical = 10.dp)
+            .semantics {
+                role = Role.Button
+                contentDescription = "${w.name}: ${w.role}"
+            }.testTag("dir-${w.id}"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         WindHalo(Color(w.argb), w.faceStyle, size = 44, online = false, showKit = true)
@@ -174,7 +192,11 @@ internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: 
             Text(w.name, color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (w.role.isNotBlank()) Text(w.role, color = Muted, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
-        OutlinedButton(onClick = onTalk, contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)) {
+        OutlinedButton(
+            onClick = onTalk,
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+            modifier = Modifier.semantics { contentDescription = tr(lang, "app.vents.talkToNamed", w.name) },
+        ) {
             Text(tr(lang, "app.vents.talk"), color = Ink, fontSize = 14.sp)
         }
     }
