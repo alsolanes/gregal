@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoStories
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -111,21 +113,33 @@ internal fun WikiDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Unit
     // Lector d'una pàgina: markdown complet amb el renderer del xat.
     open?.let { p ->
         var full by remember(p.nom) { mutableStateOf<GregalApi.WikiPage?>(null) }
-        LaunchedEffect(p.nom) {
+        var err by remember(p.nom) { mutableStateOf(false) }
+        var retry by remember(p.nom) { mutableStateOf(0) }
+        LaunchedEffect(p.nom, retry) {
             // el cos no ve a la llista: el carrega sol
+            err = false
             val source = vm.lecturaDePagina(p.nom)
-            full = source
+            if (source == null) err = true else full = source
         }
         Dialog(onDismissRequest = { open = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
                 Column(Modifier.fillMaxWidth().fillMaxHeight(0.85f).padding(top = 16.dp)) {
                     Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text((full?.titol ?: p.titol).ifBlank { p.nom }, color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { confirmDelete = p }) { Text("🗑", color = Muted, fontSize = 16.sp) }
-                        IconButton(onClick = { open = null }) { Text("✕", color = Muted, fontSize = 16.sp) }
+                        IconButton(onClick = { confirmDelete = p }) { Icon(Icons.Rounded.Delete, contentDescription = tr(lang, "app.wiki.delete"), tint = Muted, modifier = Modifier.size(18.dp)) }
+                        IconButton(onClick = { open = null }) { Icon(Icons.Rounded.Close, contentDescription = tr(lang, "app.cap.close"), tint = Muted, modifier = Modifier.size(18.dp)) }
                     }
                     val shown = full?.cos
-                    if (shown == null) {
+                    if (err) {
+                        // La lectura ha fallat: es diu com i es pot tornar a provar,
+                        // en lloc d'un spinner que no acaba mai.
+                        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text(tr(lang, "app.wiki.loadFail"), color = MaterialTheme.colorScheme.error, fontSize = 14.sp)
+                            OutlinedButton(onClick = { retry++ }, modifier = Modifier.padding(top = 10.dp)) {
+                                Text(tr(lang, "app.chat.retry"))
+                            }
+                        }
+                    } else if (shown == null) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = Sea) }
                     } else {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp)) {

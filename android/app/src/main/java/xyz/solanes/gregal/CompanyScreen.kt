@@ -32,6 +32,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Menu
@@ -625,7 +627,8 @@ private fun SquadsRow(vm: GregalViewModel, lang: String) {
                     Text(tr(lang, "app.vents.squads"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
                     Text(tr(lang, "app.vents.squadsHelp"), fontSize = 13.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Text(if (expanded) "▾" else "▸", color = Muted)
+                Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
             }
             if (expanded) {
                 squads.forEach { s ->
@@ -636,7 +639,7 @@ private fun SquadsRow(vm: GregalViewModel, lang: String) {
                             .background(Superficie.copy(alpha = 0.7f))
                             .clickable(enabled = !done && activating == null) {
                                 activating = s.id
-                                vm.activateSquad(s.id, lang)
+                                vm.activateSquad(s.id, lang) { activating = null }
                             }
                             .padding(horizontal = 10.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -981,7 +984,9 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     // Mencions @Nom: el desplegable segueix el cursor; en enviar,
     // si hi ha @UnAltre, la feina es deriva al seu xat (handoff).
     val mention = activeMention(field.text, field.selection.start, winds)
-    val canSend = field.text.isNotBlank() && !busy.contains(wind.id)
+    // Mentrestant el vent treballa, enviar = steer: el missatge entra al
+    // context del torn sense aturar-lo (el ViewModel ho decideix).
+    val canSend = field.text.isNotBlank()
     var profile by remember(wind.id) { mutableStateOf(false) }
     var askTransfer by remember(wind.id) { mutableStateOf(false) }
     var showPerm by remember(wind.id) { mutableStateOf(false) }
@@ -1026,7 +1031,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onBack = onBack, onProfile = { profile = true },
             onWiki = onWiki,
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
-        if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it) }
+        if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) }) }
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
@@ -1194,7 +1199,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
     val faces = rot.members.mapNotNull { mid -> winds.firstOrNull { it.id == mid } }
     // Mencions @Nom: etiquetar un membre dirigeix el torn (només respon ell).
     val mention = activeMention(field.text, field.selection.start, faces)
-    val canSend = field.text.isNotBlank() && !busy.contains(rot.id)
+    // Mentrestant la rotllana treballa, enviar = steer (el ViewModel decideix).
+    val canSend = field.text.isNotBlank()
     LaunchedEffect(rot.id) { vm.loadRotllanaChat(rot.id) }
     val follow = rememberChatFollow(listState, rot.id)
     var liveFrom by remember(rot.id) { mutableIntStateOf(Int.MAX_VALUE) }
@@ -1222,7 +1228,7 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             onBack = onBack, onProfile = { groupProfile = true },
             onWiki = onWiki,
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
-        if (rotBusy) live[rot.id]?.let { VentsWorkProgress(lang, it) }
+        if (rotBusy) live[rot.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelRotllanaTurn(rot.id) }) }
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()

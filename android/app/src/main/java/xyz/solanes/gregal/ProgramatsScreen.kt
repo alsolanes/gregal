@@ -7,7 +7,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,6 +77,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
     val programats by vm.programats.collectAsState()
     val rutines by vm.rutines.collectAsState()
     var showNovaRutina by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { vm.loadProgramats(); vm.loadRutines() }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.background) {
@@ -81,8 +85,8 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                 // Capçalera: títol i tanca.
                 Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(tr(lang, "app.programats.title"), color = Ink, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { showNovaRutina = true }) { Text("＋", color = Sea, fontSize = 22.sp) }
-                    IconButton(onClick = onDismiss) { Text("✕", color = Muted, fontSize = 16.sp) }
+                    IconButton(onClick = { showNovaRutina = true }) { Icon(Icons.Rounded.Add, contentDescription = tr(lang, "app.rutines.new"), tint = Sea, modifier = Modifier.size(22.dp)) }
+                    IconButton(onClick = onDismiss) { Icon(Icons.Rounded.Close, contentDescription = tr(lang, "app.cap.close"), tint = Muted, modifier = Modifier.size(18.dp)) }
                 }
                 val p = programats
                 val perr by vm.programatsError.collectAsState()
@@ -111,7 +115,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                             items(p.reminders.sortedBy { it.at }, key = { it.id }) { r ->
                                 ProgramatRow(
                                     title = r.windName + " · " + programatHora(r.at, lang = lang),
-                                    body = r.text,
+                                    body = r.text, lang = lang,
                                 )
                             }
                         }
@@ -120,7 +124,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                             items(p.hearts.sortedBy { it.nextAt }, key = { "h-" + it.wind }) { h ->
                                 ProgramatRow(
                                     title = h.windName,
-                                    body = programatProperaMirada(h.nextAt, lang),
+                                    body = programatProperaMirada(h.nextAt, lang), lang = lang,
                                 )
                             }
                         }
@@ -132,8 +136,8 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                                 else tr(lang, "app.rutines.each", (if (ru.intervalH >= 1) ru.intervalH.toInt().toString() else ru.intervalH.toString()))
                                 ProgramatRow(
                                     title = ru.windName + " · " + quan,
-                                    body = ru.prompt,
-                                    onDelete = { vm.deleteRutina(ru.id) },
+                                    body = ru.prompt, lang = lang,
+                                    onDelete = { confirmDelete = ru.id },
                                 )
                             }
                         }
@@ -143,7 +147,7 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
                                 val ratio = if (st.beats > 0) st.spoke * 100 / st.beats else 0
                                 ProgramatRow(
                                     title = st.windName,
-                                    body = tr(lang, "app.programats.statLine", st.beats.toString(), st.spoke.toString(), st.silent.toString(), ratio.toString()),
+                                    body = tr(lang, "app.programats.statLine", st.beats.toString(), st.spoke.toString(), st.silent.toString(), ratio.toString()), lang = lang,
                                 )
                             }
                         }
@@ -153,6 +157,19 @@ internal fun ProgramatsDialog(vm: GregalViewModel, lang: String, onDismiss: () -
         }
     }
     if (showNovaRutina) NovaRutinaDialog(vm, lang, onDismiss = { showNovaRutina = false })
+    // Esborrar una rutina demana confirmació: és permanent i d'un sol toc.
+    confirmDelete?.let { id ->
+        AlertDialog(onDismissRequest = { confirmDelete = null },
+            title = { Text(tr(lang, "app.rutines.deleteConfirmTitle")) },
+            text = { Text(tr(lang, "app.rutines.deleteConfirmBody")) },
+            confirmButton = {
+                TextButton(onClick = { vm.deleteRutina(id); confirmDelete = null }) {
+                    Text(tr(lang, "app.rutines.delete"), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text(tr(lang, "app.vents.chatCancel")) } },
+        )
+    }
 }
 
 /** Diàleg «Nova rutina»: tria vent, quan corre i què vigila. La rutina obre
@@ -216,7 +233,7 @@ private fun SectionTitle(text: String) {
 }
 
 @Composable
-private fun ProgramatRow(title: String, body: String, onDelete: (() -> Unit)? = null) {
+private fun ProgramatRow(title: String, body: String, lang: String = "ca", onDelete: (() -> Unit)? = null) {
     Surface(shape = MaterialTheme.shapes.medium, color = SuperficieAlta.copy(alpha = .45f)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Schedule, null, tint = Sea, modifier = Modifier.size(18.dp))
@@ -228,7 +245,7 @@ private fun ProgramatRow(title: String, body: String, onDelete: (() -> Unit)? = 
             // Esborrar és per a les rutines pròpies; recordatoris i cors no es
             // toquen des d'aquí (el cor el governa el mateix vent).
             if (onDelete != null) {
-                IconButton(onClick = onDelete) { Text("🗑", color = Muted, fontSize = 15.sp) }
+                IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, contentDescription = tr(lang, "app.rutines.delete"), tint = Muted, modifier = Modifier.size(18.dp)) }
             }
         }
     }

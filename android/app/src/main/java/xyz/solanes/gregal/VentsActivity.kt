@@ -54,7 +54,7 @@ data class WindAutomation(
 
 data class WindAutomationCounts(val total: Int = 0, val today: Int = 0, val week: Int = 0, val paused: Int = 0)
 
-data class WindAutomations(val items: List<WindAutomation>, val counts: WindAutomationCounts)
+data class WindAutomations(val items: List<WindAutomation>, val counts: WindAutomationCounts, val error: String? = null)
 
 /** Una cosa que un vent ha fet: document, web, gràfic, imatge, fitxa o font. */
 data class WindSaved(
@@ -263,6 +263,16 @@ fun WindAutomationList(vm: GregalViewModel, lang: String, wind: String = "", sho
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         if (got == null) {
             LinearProgressIndicator(Modifier.fillMaxWidth())
+            return@Column
+        }
+        if (got.error != null) {
+            // Ha fallat la càrrega: no és el mateix que «no hi ha res programat».
+            Surface(color = MaterialTheme.colorScheme.errorContainer, shape = MaterialTheme.shapes.medium) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text(tr(lang, "act.loadError"), color = MaterialTheme.colorScheme.onErrorContainer, fontSize = 14.sp)
+                    TextButton(onClick = { vm.loadAutomations(wind) }) { Text(tr(lang, "app.chat.retry")) }
+                }
+            }
             return@Column
         }
         if (got.items.isEmpty()) {

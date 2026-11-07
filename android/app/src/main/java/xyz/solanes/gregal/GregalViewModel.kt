@@ -3521,7 +3521,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         // Com al xat 1:1: sense salts ni espais de més (un Enter de més deixava
         // la bombolla amb una línia buida).
         val message = rawMessage.trim()
-        if (message.isEmpty() || _rotllanaBusy.value.contains(rotllanaId)) return
+        if (message.isEmpty()) return
+        // El torn treballa: el missatge hi entra com a steer (sense aturar
+        // res); si el servidor ja no té el torn viu, com a missatge nou.
+        if (_rotllanaBusy.value.contains(rotllanaId)) {
+            steerRotllana(rotllanaId, message)
+            return
+        }
         val source = _conn.value; val epoch = companionEpoch
         rotllanaHistoryRequests[rotllanaId] = (rotllanaHistoryRequests[rotllanaId] ?: 0L) + 1
         val before = _rotllanaChat.value[rotllanaId].orEmpty()
@@ -3646,7 +3652,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 mirrorReminders(source, OfflineLogic.remindersOf(got.items), wind)
             } catch (e: Exception) {
                 if (!isCompanionOrigin(source, epoch)) return@launch
-                if (_automations.value[wind] == null) _automations.value = _automations.value + (wind to WindAutomations(emptyList(), WindAutomationCounts()))
+                _automations.value = _automations.value + (wind to WindAutomations(emptyList(), WindAutomationCounts(), e.message ?: "error"))
                 notify(appText("act.loadError", e.message.orEmpty()))
             }
         }
@@ -4970,6 +4976,41 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // Steer: missatge lliurat al torn que treballa (POST /api/winds/steer).
+    // La bombolla surt al xat com a missatge d'usuari normal; si el torn
+    // ja s'ha acabat al servidor (409), es reenvia com a missatge nou.
+    private fun steerWind(windId: String, msg: String, queuedTs: Long = 0L) {
+        val source = _conn.value
+        _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = if (queuedTs > 0) queuedTs else System.currentTimeMillis())))
+        viewModelScope.launch {
+            val delivered = withContext(Dispatchers.IO) {
+                runCatching { GregalApi(baseUrlOf(source.host, source.port), source.token).steerTurn(windId = windId, text = msg) }.getOrDefault(false)
+            }
+            if (!isCompanionOrigin(source, companionEpoch)) return@launch
+            if (delivered) notify(appText("app.vents.steerSent"))
+            else {
+                notify(appText("app.vents.steerFailed"))
+                sendWindMessage(windId, msg, queuedTs)
+            }
+        }
+    }
+
+    private fun steerRotllana(rotllanaId: String, msg: String) {
+        val source = _conn.value
+        _rotllanaChat.value = _rotllanaChat.value + (rotllanaId to (_rotllanaChat.value[rotllanaId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
+        viewModelScope.launch {
+            val delivered = withContext(Dispatchers.IO) {
+                runCatching { GregalApi(baseUrlOf(source.host, source.port), source.token).steerTurn(rotllanaId = rotllanaId, text = msg) }.getOrDefault(false)
+            }
+            if (!isCompanionOrigin(source, companionEpoch)) return@launch
+            if (delivered) notify(appText("app.vents.steerSent"))
+            else {
+                notify(appText("app.vents.steerFailed"))
+                sendRotllanaMessage(rotllanaId, msg)
+            }
+        }
+    }
+
     /**
      * Tanca un torn que ha acabat amb error i torna l'error per a la
      * notificació. Si l'ha aturat la persona no és cap error: ni targeta de
@@ -5015,7 +5056,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun sendWindMessage(windId: String, text: String, queuedTs: Long) {
         val msg = text.trim()
-        if (msg.isEmpty() || _windBusy.value.contains(windId)) return
+        if (msg.isEmpty()) return
+        // El torn treballa: el missatge hi entra com a steer (sense aturar
+        // res); si el servidor ja no té el torn viu, com a missatge nou.
+        if (_windBusy.value.contains(windId)) {
+            steerWind(windId, msg, queuedTs)
+            return
+        }
         val source = _conn.value; val epoch = companionEpoch
         // Sense servidor: a la cua, i surt sol quan torni (en l'ordre en què l'has escrit).
         if (!source.local && _offline.value) {
