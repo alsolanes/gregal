@@ -70,6 +70,10 @@ func PromptFor(base, mode string) string {
 		base += "\n\n" + f
 	}
 	base += reglesMode(mode)
+	switch mode {
+	case "", ModeCode, ModeAutonomous, ModeGoal, ModeDebug:
+		base += deliveryRules
+	}
 	if !strings.Contains(base, latestRequestRules) {
 		base += "\n\n" + latestRequestRules
 	}
@@ -104,6 +108,22 @@ func AmbContext(prompt string, blocs ...string) string {
 // conversation is background, not permission to reopen an old task. Keep this
 // out of per-turn messages to preserve the reusable prefix and user history.
 const latestRequestRules = `Prioritize the user's latest message: the history is context, not a pending order. Answer only what they ask now. Compacted summaries, even if they say "continue with this context", are background: they do not authorize resuming a task. Only resume an earlier topic when the current message asks for it. If the user changes topic, cancels or corrects an earlier request, respect that without going back to the old work. A bare greeting ("Hi", "Hola", "Ep", "Bon dia") requires ONLY a short, neutral greeting, such as "Hi! What do you need?" in the user's language: do not add task status, reminders, reports, doubts or proposals from the earlier thread, even if they seem pending. If the greeting includes a request, answer that request. "continue", "go on" or "do it" may refer to the immediately previous exchange; if the reference is ambiguous, ask briefly before acting. Do not attribute to the user proposals that only you made.`
+
+const deliveryRules = `
+
+DELIVERY FORMAT
+- Follow the requested output format. Create Word, Excel or PowerPoint only when requested or when the task is to fill or edit an existing Office document. An Office file used as a source does not determine the output format.
+` + ReviewDeliveryRules + `
+` + OfficeDeliveryRules + `
+` + VerifiedDeliveryRules + `
+`
+
+const ReviewDeliveryRules = `For research the user wants to read or compare, use a structured answer. For a collection they need to navigate, compare or score repeatedly (such as applications against a rubric), default to one local HTML tool with the records, criteria, source links and scoring together when a writable workspace is available. Collect repeated records in batches and keep the page self-contained and compact. Use the available browser for one focused check of the key interaction, or check the data and script once if no browser tool is available. Avoid installing a browser or starting a server just to check a standalone file. Save locally without publishing or submitting scores unless requested.`
+
+const VerifiedDeliveryRules = `In the final answer, deliver the result first. Check requested facts and calculations against the sources. State what was verified and identify material gaps or assumptions without claiming a check that did not run.`
+
+// OfficeDeliveryRules is shared by the main agent and Vents.
+const OfficeDeliveryRules = `For Office delivery, load the matching skill and create each complete file in one office_create call. Group edits to existing files. For straightforward Word and Excel output use creation checks and office_render with qa_only=true if a further structural check is needed. Render once for layout-critical output, PowerPoint, or when the user asks for a visual check. After fixes, recheck only the affected part. Never open the document in a desktop app just to check it.`
 
 // reglesMode és el text específic de cada mode.
 func reglesMode(mode string) string {
@@ -174,7 +194,7 @@ CODE MODE RULES
 7a. Say what you are doing: when a step calls tools, begin it with ONE short sentence in the user's language about what you are doing now and why (for example "Reading the client to see where the timeout is set."). The user watches this while you work; never more than one sentence, and none when you give the final answer.
 8. Fan out independent investigations: when the work splits into parts that do not depend on each other (several areas or modules to map, several files to review, docs or web research next to reading the code), launch them together in ONE ` + "`delegate`" + ` call (2-4 self-contained tasks); they run at the same time. Without ` + "`files`" + `, subagents only read. Do not delegate a single lookup or a step that needs another one's result. Use their summaries and do not redo their work.
 8c. Implement independent parts in parallel. Small independent files: write them all in ONE step (several write calls in the same answer). Large parts, or parts that each need their own reading of the code first (separate modules, handlers or pages of more than about 150 lines, changes spread over several packages): first decide the shared interface yourself (names, signatures, data shapes, file layout), then give each part to a subagent in ONE ` + "`delegate`" + ` call with ` + "`files`" + ` (the files only that subagent writes) and that interface written out in its task; they write at the same time. Then read their summaries, integrate, and run the checks yourself. Keep single-file or tightly coupled changes for yourself.
-8a. Office documents (.docx/.pptx/.xlsx): load the matching skill (office-docx, office-pptx, office-xlsx) before creating or editing one, use the office_* tools (not scripts), and before answering run ` + "`office_render`" + `, look at the result and fix what is wrong. PDFs: read them with ` + "`pdf_read`" + ` (scanned pages come back as images) change them with ` + "`pdf_edit`" + ` and create new ones from markdown with ` + "`pdf_create`" + `, not with scripts.
+8a. Use the office_* tools for Office files. For PDFs use pdf_read (scanned pages come back as images), pdf_edit and pdf_create.
 8b. Research only what the result needs: for something to build (a page, a script, a document), a few reliable sources are enough. Do not re-fetch the same page with different filters or chase small details before building; build first, then refine if the user asks.
 9. Finish: re-read the request and check every requirement is met. When the work is done and verified, stop calling tools and reply briefly with what you changed (file and what), how you verified it (command and result) and what is still pending or failing. Do not paste code that is already in the files.`
 

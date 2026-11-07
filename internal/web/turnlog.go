@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"gregal/internal/config"
+	"gregal/internal/llm"
 	"gregal/internal/session"
 )
 
@@ -30,6 +32,10 @@ type turnRecord struct {
 	ToolsMs      int64  `json:"tools_ms,omitempty"`
 	Prompt       int    `json:"prompt_tokens,omitempty"`
 	Completion   int    `json:"completion_tokens,omitempty"`
+	Cached       int    `json:"cached_prompt_tokens,omitempty"`
+	ModelCalls   int    `json:"model_calls,omitempty"`
+	UsageCalls   int    `json:"usage_calls,omitempty"`
+	UsageSource  string `json:"usage_source,omitempty"`
 	Outcome      string `json:"outcome"` // ok, partial, stopped, error
 	Error        string `json:"error,omitempty"`
 }
@@ -50,14 +56,26 @@ type turnLog struct {
 	steps      int
 	prompt     int
 	completion int
+	meter      *llm.UsageMeter
 }
 
 func startTurnLog(kind, id string, role config.Role) *turnLog {
+	t := &turnLog{rec: turnRecord{Kind: kind, ID: id}, start: time.Now()}
+	t.setRole(role)
+	return t
+}
+
+func (t *turnLog) setRole(role config.Role) {
 	model := role.Model
 	if role.Provider != "" && model != "" {
 		model = role.Provider + "/" + model
 	}
-	return &turnLog{rec: turnRecord{Kind: kind, ID: id, Model: model}, start: time.Now()}
+	t.rec.Model = model
+}
+
+func (t *turnLog) withUsage(ctx context.Context) context.Context {
+	t.meter = &llm.UsageMeter{}
+	return llm.WithUsage(ctx, t.meter)
 }
 
 // token apunta el primer tros de resposta del torn.
@@ -120,6 +138,22 @@ func (t *turnLog) finish(err error, stopped, partial bool, tt *tempsTorn) {
 	if tt != nil {
 		rec.Steps = tt.passos
 		rec.ModelMs, rec.ToolsMs = tt.model.Milliseconds(), tt.eines.Milliseconds()
+	}
+	if t.meter != nil {
+		u, calls, measured := t.meter.Total()
+		rec.ModelCalls, rec.UsageCalls = calls, measured
+		switch {
+		case measured > 0:
+			rec.Prompt, rec.Cached, rec.Completion = u.PromptTokens, u.PromptTokensDetails.CachedTokens, u.CompletionTokens
+			rec.UsageSource = "api"
+			if measured < calls {
+				rec.UsageSource = "mixed"
+			}
+		case rec.Prompt > 0 || rec.Completion > 0:
+			rec.UsageSource = "estimate"
+		case calls > 0:
+			rec.UsageSource = "unreported"
+		}
 	}
 	switch {
 	case stopped:

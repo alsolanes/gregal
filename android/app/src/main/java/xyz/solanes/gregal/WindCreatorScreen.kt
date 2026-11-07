@@ -184,7 +184,7 @@ internal fun WindEditor(
             }
             OutlinedTextField(name, { name = it }, enabled = controlsEnabled,
                 label = { Text(if (themed.size >= 2) tr(lang, "app.company.windNameLike", themed[0], themed[1]) else tr(lang, "app.company.windName")) }, singleLine = true,
-                shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())
+                shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth().testTag("wind-editor-name"))
             OutlinedTextField(role, { role = it }, enabled = controlsEnabled,
                 label = { Text(tr(lang, "app.company.windRole")) }, maxLines = 2,
                 shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth())

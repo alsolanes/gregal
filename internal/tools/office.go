@@ -21,12 +21,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
-	"regexp"
 	"image"
 	"image/draw"
 	"image/jpeg"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -287,9 +287,7 @@ func OfficeCreateOpts(o CreateOpts) (string, error) {
 	if len(notes) > 0 {
 		msg += "\n" + strings.Join(notes, "\n")
 	}
-	if officerender.Available() != "" {
-		msg += "\nRevisa'l visualment amb office_render abans de donar-lo per acabat."
-	}
+	msg += "\nRevisa el resultat després del lot de canvis. office_render amb qa_only=true comprova l'estructura sense obrir Office."
 	return msg, nil
 }
 
@@ -443,12 +441,11 @@ func createXlsx(o CreateOpts) ([]string, error) {
 	if sp.Theme == "" {
 		sp.Theme = o.Theme
 	}
-	warns, err := xlsxdoc.Create(o.Path, o.Template, sp)
+	warns, rep, err := xlsxdoc.Create(o.Path, o.Template, sp)
 	if err != nil {
 		return nil, err
 	}
-	rep, err := xlsxdoc.Recalc(o.Path)
-	if err == nil && rep.Formulas > 0 {
+	if rep.Formulas > 0 {
 		warns = append(warns, "fórmules: "+rep.String())
 	}
 	return warns, nil
@@ -488,7 +485,7 @@ func saveValidated(pk *ooxml.Package, orig []byte, path string) error {
 	if iss := ooxml.NewIssues(check, base); len(iss) > 0 {
 		return fmt.Errorf("el resultat no seria un document vàlid; no s'ha desat:\n  %s", strings.Join(limitList(iss, 10), "\n  "))
 	}
-	return pk.Save(path)
+	return ooxml.SaveBytes(path, data)
 }
 
 func replaceVarsPptx(p *ooxml.Pptx, vars map[string]string) int {
@@ -513,16 +510,16 @@ func replaceVarsPptx(p *ooxml.Pptx, vars map[string]string) int {
 
 // EditOpts configura office_edit.
 type EditOpts struct {
-	Path, Op                         string
-	Sheet, Cell, Value               string
-	Find, Replace                    string
-	Regex, IgnoreCase, Track, All    bool
-	Content, Anchor, Position        string
-	Text, Author                     string
-	Slide, To                        int // 1-based
-	Layout, Spec                     string
-	Shapes, Cells, Vars              map[string]string
-	BaseDir                          string
+	Path, Op                      string
+	Sheet, Cell, Value            string
+	Find, Replace                 string
+	Regex, IgnoreCase, Track, All bool
+	Content, Anchor, Position     string
+	Text, Author                  string
+	Slide, To                     int // 1-based
+	Layout, Spec                  string
+	Shapes, Cells, Vars           map[string]string
+	BaseDir                       string
 }
 
 // OfficeEdit aplica una operació. Torna un resum per al model.
@@ -835,8 +832,9 @@ func OfficeAppend(path, content string) (string, error) {
 
 // RenderOpts configura office_render.
 type RenderOpts struct {
-	Path  string
-	Pages string // "1,3-5" (buit = les primeres 12 en graella)
+	Path   string
+	Pages  string // "1,3-5" (buit = les primeres 12 en graella)
+	QAOnly bool
 }
 
 // OfficeRender converteix el document en imatges i fa QA. Torna text
@@ -849,31 +847,52 @@ func OfficeRender(ctx context.Context, o RenderOpts) (string, []string, error) {
 	}
 	var qa []string
 	// QA estructural (sempre, amb o sense motor de render).
-	if raw, err := os.ReadFile(o.Path); err == nil && kind != "xlsx" {
-		if pk, err := ooxml.OpenBytes(raw); err == nil {
-			for _, s := range ooxml.Validate(pk) {
-				qa = append(qa, "estructura: "+s)
+	if kind != "xlsx" {
+		raw, err := os.ReadFile(o.Path)
+		if err != nil {
+			return "", nil, err
+		}
+		pk, err := ooxml.OpenBytes(raw)
+		if err != nil {
+			return "", nil, err
+		}
+		for _, s := range ooxml.Validate(pk) {
+			qa = append(qa, "estructura: "+s)
+		}
+		if kind == "pptx" {
+			p, err := ooxml.OpenPptx(pk)
+			if err != nil {
+				return "", nil, err
 			}
-			if kind == "pptx" {
-				if p, err := ooxml.OpenPptx(pk); err == nil {
-					qa = append(qa, ooxml.QAPptx(p)...)
-				}
-			} else if txt, err := ooxml.ReadDocx(pk, 0); err == nil {
-				if left := ooxml.LeftoverText(txt); len(left) > 0 {
-					qa = append(qa, "text de mostra: "+strings.Join(left, ", "))
-				}
-				if strings.Contains(txt, "{{") {
-					qa = append(qa, "queden marcadors {{…}} sense omplir")
-				}
+			qa = append(qa, ooxml.QAPptx(p)...)
+		} else {
+			txt, err := ooxml.ReadDocx(pk, 0)
+			if err != nil {
+				return "", nil, err
+			}
+			if left := ooxml.LeftoverText(txt); len(left) > 0 {
+				qa = append(qa, "text de mostra: "+strings.Join(left, ", "))
+			}
+			if strings.Contains(txt, "{{") {
+				qa = append(qa, "queden marcadors {{…}} sense omplir")
 			}
 		}
 	}
 	if kind == "xlsx" {
-		if rep, err := xlsxdoc.Recalc(o.Path); err == nil && rep.Formulas > 0 {
+		rep, err := xlsxdoc.Recalc(o.Path)
+		if err != nil {
+			return "", nil, err
+		}
+		if rep.Formulas > 0 {
 			qa = append(qa, "fórmules: "+rep.String())
 		}
 	}
 	var b strings.Builder
+	if o.QAOnly {
+		b.WriteString("Comprovació estructural sense renderització visual.\n")
+		writeQA(&b, qa)
+		return b.String(), nil, nil
+	}
 	if officerender.Available() == "" {
 		b.WriteString("Sense comprovació visual: " + officerender.ErrNoEngine.Error() + "\n")
 		writeQA(&b, qa)

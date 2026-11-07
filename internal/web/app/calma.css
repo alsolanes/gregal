@@ -4,18 +4,20 @@
      (shell-layout.js hi mou #navRail) i les etiquetes ja no es tallen.
    - Capçalera i pestanyes discretes: només el xip del projecte i les eines.
    - Inici: salutació, compositor gran i el que pots continuar en targetes.
-   Paletes: el fosc per defecte segueix el blau del logo (#8193FF); «Calma»
-   és la variant càlida (grafit i ambre) a Preferències → Tema. */
+   Paletes: el fosc combina grafit i el blau del logo; «Calma» és la
+   variant càlida (grafit i ambre) a Preferències → Tema. */
 
 /* ---------- Paletes ---------- */
 :root, :root[data-theme="dark"] {
-  --bg:#12141C; --sidebar:#0D0F16; --panel:#0D0F16;
-  --surface:#1A1D29; --surface-hi:#232738; --line:rgba(170,182,255,.09);
-  --line-hi:rgba(170,182,255,.18); --ink:#F2F4FF; --text:#DCE0F0;
-  --muted:#A0A7C0; --faint:#878EA8; --accent:#8193FF; --accent-hi:#A3B0FF;
+  --bg:#191919; --sidebar:#1E1E1E; --panel:#1E1E1E;
+  --surface:#282828; --surface-hi:#323232; --line:rgba(255,255,255,.09);
+  --line-hi:rgba(255,255,255,.16); --ink:#F2F2F2; --text:#E2E2E2;
+  --muted:#B2B2B2; --faint:#999999; --accent:#8193FF; --accent-hi:#A3B0FF;
   --accent-soft:rgba(129,147,255,.12); --accent-soft-hi:rgba(129,147,255,.22);
-  --hover:rgba(170,182,255,.06); --hover-alt:rgba(170,182,255,.10);
-  --composer:#1A1D29; --on-accent:#0D0F16;
+  --hover:rgba(255,255,255,.06); --hover-alt:rgba(255,255,255,.10);
+  --codi-fons:#212121; --codi-vora:var(--line-hi);
+  --composer:#2D2D2D; --on-accent:#191919;
+  --chat-link:#8DCC91; --chat-send:#86C98B;
 }
 :root[data-theme="calma"] {
   color-scheme:dark;
@@ -49,7 +51,7 @@ body.desktop.mac #side .brand { padding-left:82px; }
 #side .brand .calma-sp { flex:1; }
 #side .brand #sideCompact { width:28px; height:28px; color:var(--faint); }
 #side .side-quick { margin:2px 10px 8px; }
-#side .side-quick-btn { min-height:38px; padding:0 12px; border:1px solid var(--line-hi); border-radius:10px; background:transparent; color:var(--ink); font-weight:500; font-size:14px; gap:10px; }
+#side .side-quick-btn { min-height:38px; padding:0 12px; border:1px solid transparent; border-radius:9px; background:transparent; color:var(--ink); font-weight:500; font-size:14px; gap:10px; }
 #side .side-quick-btn:hover { background:var(--surface); border-color:var(--line-hi); }
 #side .side-quick-btn.primary { background:transparent; color:var(--ink); box-shadow:none; }
 
@@ -90,7 +92,7 @@ body.desktop.mac #side .brand { padding-left:82px; }
 #projectList .project-conversations { padding:2px 0 6px 18px; }
 #side .conv { padding:7px 12px; border-radius:8px; font-size:13.5px; color:var(--text); }
 #side .conv:hover { background:var(--surface); }
-#side .conv.active, #side .conv.current { background:var(--surface); color:var(--ink); }
+#side .conv.active, #side .conv.current { background:var(--surface-hi); color:var(--ink); }
 #side .conv-more { font-size:12.5px; color:var(--faint); padding:6px 12px; }
 #side .conv-t { display:block; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #side .conv-t::first-letter { text-transform:uppercase; }
@@ -132,7 +134,7 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
 .session-tab { border-radius:8px; border:0; padding:6px 12px; font-size:12.5px; }
 .session-tab.active { background:var(--surface); border:0; box-shadow:none; font-weight:500; }
 .session-tab.active .dot { box-shadow:none; }
-#top { height:48px; min-height:48px; padding:0 16px; background:var(--bg); border-bottom:0; }
+#top { height:48px; min-height:48px; padding:0 16px; background:var(--bg); border-bottom:1px solid var(--line); }
 #top .breadcrumb .sep, #top #branch, #top #activeWorkspace, #top .spacer .tide { display:none; }
 #top .folder-chip { border:0; background:transparent; }
 #top .folder-chip:hover { background:var(--surface); }
@@ -160,20 +162,21 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
 #heroMore .hero-card b { font-weight:400; font-size:13.5px; }
 
 /* ---------- Compositor ---------- */
-#box { background:var(--composer, var(--surface)); border:1px solid var(--line-hi); border-radius:22px; padding:16px 16px 12px 20px;
-  box-shadow:0 10px 40px var(--ombra); }
-#box:focus-within { border-color:var(--line-hi); box-shadow:0 10px 40px var(--ombra), 0 0 0 3px var(--accent-soft); }
-#box.perm-risc, #box.perm-risc:focus-within { border-color:var(--line-hi); box-shadow:0 10px 40px var(--ombra); }
+#box { background:var(--composer, var(--surface)); border:1px solid var(--line); border-radius:22px; padding:16px 16px 12px 20px;
+  box-shadow:0 4px 14px color-mix(in srgb,var(--ombra) 55%,transparent); }
+#box:focus-within { border-color:var(--line-hi); box-shadow:0 0 0 2px var(--accent-soft); }
+#box.perm-risc { border-color:var(--line-hi); }
 #box textarea#in { font-size:15.5px; }
 #composer .composer-row { gap:6px; }
 #composer #modelPill { order:20; }
 #composer .composer-row > .spacer { order:10; }
 #composer #attach, #composer .icon-btn { order:21; }
-#composer #send { order:30; width:36px; height:36px; background:var(--accent); color:var(--on-accent); }
-#composer .mode-switch { border:1px solid var(--line-hi); border-radius:999px; padding:2px; background:transparent; }
-#composer .mode-primary button { border-radius:999px; height:26px; padding:0 11px; }
-#composer .mode-primary button[aria-checked="true"] { background:var(--surface-hi); color:var(--ink); }
-#composer .mode-primary button[aria-checked="true"] b { font-weight:500; }
+#composer #send { order:30; width:36px; height:36px; background:var(--chat-send,var(--accent)); color:var(--on-accent); }
+#composer .mode-switch { border:0; padding:0; background:transparent; }
+#composer #modePicker { min-height:30px; padding:3px 6px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:500 12px var(--sans,system-ui); cursor:pointer; }
+#composer #modePicker:hover { background:var(--hover); color:var(--ink); }
+#composer #modePicker:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+#composer #modePicker option { background:var(--surface); color:var(--text); }
 #composer #permBtn { border:0; background:transparent; border-radius:999px; color:var(--muted); }
 #composer #permBtn.obert { border:0; background:transparent; color:var(--amber); }
 #composer #permBtn.obert .perm-icon { display:none; }
@@ -184,11 +187,12 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
    el xat perd ~46% d'amplada. Sobren opcions a la vista: el commutador de
    modes s'aprima, el permís queda en icona i la pastilla de model s'encurta.
    El botó d'enviar/atura (■) mai es mou ni es deforma: mida fixa al final. */
-#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer .mode-primary button { padding:0 7px; }
-#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #permBtn #permLabel { display:none; }
-#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #permBtn { padding:0 8px; }
-#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #modelPill { max-width:120px; }
-#workbench:has(> #agentBrowser:not([hidden]):not(.min)) #composer #send { flex:none; width:36px; height:36px; }
+@media(min-width:1001px) {
+  #workbench:has(> #agentBrowser:not([hidden]):not(.min):not(.max)) #composer #permBtn #permLabel { display:none; }
+  #workbench:has(> #agentBrowser:not([hidden]):not(.min):not(.max)) #composer #permBtn { padding:0 8px; }
+  #workbench:has(> #agentBrowser:not([hidden]):not(.min):not(.max)) #composer #modelPill { max-width:120px; }
+  #workbench:has(> #agentBrowser:not([hidden]):not(.min):not(.max)) #composer #send { flex:none; }
+}
 
 /* ---------- Mòbil ---------- */
 @media(max-width:760px) {
@@ -206,6 +210,23 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
    Cada identificador en `code` duia vora i fons: una línia en tenia deu.
    Ara és un ressalt suau sense vora, i el text respira una mica més. */
 #main .msg.a .body { font-size:15px; line-height:1.72; }
+#conversationPane { --lectura:820px; }
+#main .msg.a .body a { color:var(--chat-link,var(--accent-hi)); border-bottom:0; font-weight:550; text-underline-offset:3px; }
+#main .msg.a .body a:hover { text-decoration:underline; }
+.md-table-scroll { max-width:100%; overflow-x:auto; margin:1em 0 1.25em; }
+.body .md-table-scroll > table.md { display:table; width:100%; margin:0; }
+#main .body table.md th, #main .body table.md td { padding:10px 12px; border:0; border-bottom:1px solid var(--line); background:transparent; }
+#main .body table.md th { border-bottom-color:var(--line-hi); }
+#main .body table.md tbody tr:last-child td { border-bottom:0; }
+.body table.md .md-right { text-align:right; font-variant-numeric:tabular-nums; }
+.body table.md .md-center { text-align:center; }
+
+#inspector {
+  height:auto; max-height:calc(100% - 24px); align-self:flex-start; margin:12px 12px 0 0;
+  background:var(--surface); border:1px solid var(--line); border-radius:16px;
+}
+#inspector .inspector-head, #inspector .inspect-title { font:600 12px/1.4 var(--sans,system-ui); letter-spacing:0; text-transform:none; }
+#inspector .inspect-section:last-child { border-bottom:0; }
 #main .msg.a .body p code, #main .msg.a .body li code, #main .msg.a .body h1 code, #main .msg.a .body h2 code, #main .msg.a .body h3 code, #main .msg.a .body td code {
   border:0; border-radius:6px; padding:.12em .42em; font-size:.84em;
   background:color-mix(in srgb, var(--ink) 9%, transparent); color:var(--ink); }

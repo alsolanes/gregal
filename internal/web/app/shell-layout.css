@@ -60,8 +60,6 @@ body.has-tool-dock #inspector { display:none; }
 @media(max-width:600px) {
   #composer .composer-row { display:grid; grid-template-columns:minmax(0,1fr) auto auto auto; gap:6px; align-items:center; }
   #composer .mode-switch, #composer .mode-chip { grid-column:1 / -1; }
-  #composer .mode-primary { width:100%; }
-  #composer .mode-primary button { flex:1; }
   #composer .composer-row > .spacer, #composer .composer-meta { display:none; }
   #composer #permBtn { grid-column:2; }
   #composer #attach { grid-column:3; }
@@ -115,12 +113,6 @@ body.has-tool-dock #inspector { display:none; }
 /* Mode i permisos sempre a la vista: el commutador compacte al costat del
    model i el permís amb el seu nom, no una icona que calia endevinar. */
 #composer .mode-switch { display:flex; flex:none; padding:2px; gap:1px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
-#composer .mode-primary { display:flex; gap:1px; }
-#composer .mode-primary button { flex:none; min-width:0; height:25px; padding:0 9px; border-radius:6px; font-size:12px; }
-#composer .mode-primary button b { font-weight:500; }
-#composer .mode-primary button { transition:none; }
-#composer .mode-primary button[aria-checked="false"] { background:transparent; color:var(--muted); }
-#composer .mode-primary button[aria-checked="false"]:hover { color:var(--ink); background:var(--hover); }
 #composer #permBtn { width:auto; height:29px; min-height:29px; padding:0 9px; gap:5px; justify-content:center; flex:none; border-radius:7px; font-size:12px; white-space:nowrap; }
 #permLabel { position:static; width:auto; height:auto; margin:0; overflow:visible; clip-path:none; }
 #composer #permBtn.obert { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
@@ -133,8 +125,6 @@ body.has-tool-dock #inspector { display:none; }
   #composer .mode-chip { display:none; }
   #composer .composer-row { flex-wrap:wrap; row-gap:8px; }
   #composer .mode-switch { order:-1; flex:1 0 100%; }
-  #composer .mode-primary { flex:1; }
-  #composer .mode-primary button { flex:1; justify-content:center; }
   #permLabel { display:none; }
   #composer #permBtn { width:29px; padding:0; }
 }

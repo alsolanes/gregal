@@ -123,7 +123,7 @@ const windCodeBrief = "\n\nBUILDING (a website, a game, a program, a script): yo
 	"\n1. PROJECT: create <projects folder>/<slug>/ and keep every file there, never in the Gregal repo root." +
 	"\n2. BUILD with read/grep/glob/write/edit/patch, and run commands with bash inside the project (python, node, npm install, pip install, go build: all fine there). curl only against 127.0.0.1/localhost to test your own app; to read a web page use web_fetch; browser libraries from a CDN <script src> or installed inside the project." +
 	"\n3. TEST before saying it works: a syntax check (node --check, python -m py_compile), run it, curl it." +
-	"\n4. DELIVER: a static site or browser game → call publish {dir, title} and give the link it returns. Something that needs a server (an API, data saved on the server, a multiplayer game) → call app {action:start, name, dir, command}; it must listen on 127.0.0.1 at $PORT and use RELATIVE URLs (fetch('api/x'), not '/api/x'); test it and give the link. Never start servers with bash, nohup or a trailing &." +
+	"\n4. DELIVER: keep private review or scoring tools local unless the user requests publication. For a site or game meant to be public call publish {dir, title} and give its link. Something that needs a server (an API, data saved on the server, a multiplayer game) → call app {action:start, name, dir, command}; it must listen on 127.0.0.1 at $PORT and use RELATIVE URLs (fetch('api/x'), not '/api/x'); test it and give the link. Never start servers with bash, nohup or a trailing &." +
 	"\n5. Browser code: wrap localStorage in try/catch (published pages run sandboxed)." +
 	"\n6. REPORT at the end (here you may use up to 8 lines): what you built, the folder, the link, and how you checked it. If something could not be done, say exactly what and why."
 
@@ -147,7 +147,11 @@ func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
 // windChatBrief és el mateix torn en un sol text (encàrrecs, fitxes i el
 // registre dels tests); el xat directe envia windChatMessages.
 func windChatBrief(s *Server, wind companion.Wind, previous []llm.Message, msg string) string {
-	return windChatSystemPrompt(s, wind, msg) + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg
+	return windBriefFromSystem(windChatSystemPrompt(s, wind, msg), previous, msg)
+}
+
+func windBriefFromSystem(system string, previous []llm.Message, msg string) string {
+	return system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg
 }
 
 // windChatMessages és el torn de xat directe com a conversa de debò.
@@ -257,6 +261,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	_, logRole := s.windRoleRef()
 	s.mu.Unlock()
 	tl := startTurnLog("wind", wind.ID, logRole)
+	ctx = tl.withUsage(ctx)
 	var res exploracio
 	var err error
 	if isContinue {
@@ -279,13 +284,15 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			}
 		}, windContinueHistory(s, wind, previous))
 	} else {
-		brief := windChatBrief(s, wind, previous, msg)
+		system := windChatSystemPrompt(s, wind, msg)
+		brief := windBriefFromSystem(system, previous, msg)
 		var routed *routedRole
 		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
 			log.Printf("vents router %s: %s", wind.ID, routeWhy)
 			routed = &routedRole{p: p, role: role}
+			tl.setRole(role)
 		}
-		res, err = windLoopStream(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), brief, func(kind, text string) {
+		res, err = windLoopStream(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessages(system, previous, msg)), brief, func(kind, text string) {
 			switch kind {
 			case "activity":
 				emitWindActivity(emit, text)
@@ -527,6 +534,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		_, logRole := s.windRoleRef()
 		s.mu.Unlock()
 		veuLog = startTurnLog("rotllana", rot.ID+":"+sp.ID, logRole)
+		ctx = veuLog.withUsage(ctx)
 		if isContinue && si == 0 {
 			s.mu.Lock()
 			p, role := s.windRoleRef()

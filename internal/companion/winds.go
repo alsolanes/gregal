@@ -8,9 +8,6 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"syscall"
-
-	"golang.org/x/sys/unix"
 )
 
 // Els companions de Gregal són vents: Tramuntana, Xaloc, Mistral… Com el
@@ -52,8 +49,8 @@ func (ws *WindStore) lockPath() string { return filepath.Join(ws.dir, ".winds.lo
 
 // lockDisc serialitza el cicle llegir-modificar-escriure ENTRE processos:
 // el mutex intern només protegeix dins d'un procés, i dues instàncies
-// (servidor + escriptori) es trepitjaven els canvis. Flock assessor amb
-// reintent: si el sistema de fitxers no suporta flock, continua sense blocar
+// (servidor + escriptori) es trepitjaven els canvis. Si el sistema de
+// fitxers no suporta blocatges, continua sense blocar
 // (comportament anterior) en comptes de trencar l'app.
 func (ws *WindStore) lockDisc() (*os.File, error) {
 	if err := os.MkdirAll(ws.dir, 0o700); err != nil {
@@ -63,28 +60,18 @@ func (ws *WindStore) lockDisc() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	for {
-		err = unix.Flock(int(f.Fd()), unix.LOCK_EX)
-		if err == nil {
-			return f, nil
-		}
-		if err == syscall.EINTR {
-			continue
-		}
-		if err == syscall.EINVAL || err == syscall.ENOTSUP || err == syscall.EOPNOTSUPP {
-			// sense flock al FS: seguim amb el fitxer obert (no-op)
-			return f, nil
-		}
+	if err := lockWindFile(f); err != nil {
 		f.Close()
 		return nil, err
 	}
+	return f, nil
 }
 
 func unlockDisc(f *os.File) {
 	if f == nil {
 		return
 	}
-	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	unlockWindFile(f)
 	_ = f.Close()
 }
 

@@ -145,7 +145,7 @@ class VentsExperienceTest {
             MaterialTheme(colorScheme = LightPal.scheme()) { VentsHome(vm, "ca", {}) {} }
         } }
         ui.onAllNodesWithTag("wind-editor-preview").assertCountEquals(1)
-        ui.onAllNodesWithText(tr("ca", "app.company.windName")).assertCountEquals(1)
+        ui.onAllNodesWithTag("wind-editor-name").assertCountEquals(1)
         ui.onNodeWithText(tr("ca", "app.vents.galleryTitle")).assertDoesNotExist()
         ui.onNodeWithText(tr("ca", "app.vents.conversations")).assertDoesNotExist()
     }

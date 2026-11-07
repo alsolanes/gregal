@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -50,6 +51,7 @@ type SheetSpec struct {
 	Conditional   []CondSpec        `json:"conditional"`
 	Charts        []ChartSpec       `json:"charts"`
 	Comments      map[string]string `json:"comments"`
+	Hyperlinks    map[string]string `json:"hyperlinks"` // cel·la → URL HTTP(S)
 	Validation    []ValidSpec       `json:"validation"`
 }
 
@@ -140,13 +142,13 @@ func paletteFor(theme string) palette {
 
 // Create crea un llibre nou des de l'especificació. Si template no és
 // buit, parteix d'aquesta plantilla (.xltx/.xlsx).
-func Create(path, template string, sp Spec) ([]string, error) {
+func Create(path, template string, sp Spec) ([]string, RecalcReport, error) {
 	var f *excelize.File
 	var err error
 	if template != "" {
 		f, err = excelize.OpenFile(template)
 		if err != nil {
-			return nil, fmt.Errorf("plantilla: %v", err)
+			return nil, RecalcReport{}, fmt.Errorf("plantilla: %v", err)
 		}
 	} else {
 		f = excelize.NewFile()
@@ -168,13 +170,13 @@ func Create(path, template string, sp Spec) ([]string, error) {
 			f.SetSheetName("Sheet1", name)
 		} else if idx, _ := f.GetSheetIndex(name); idx < 0 {
 			if _, err := f.NewSheet(name); err != nil {
-				return nil, err
+				return nil, RecalcReport{}, err
 			}
 		}
 		first = false
 		w, err := fillSheet(f, name, sh, pal)
 		if err != nil {
-			return nil, fmt.Errorf("full %s: %w", name, err)
+			return nil, RecalcReport{}, fmt.Errorf("full %s: %w", name, err)
 		}
 		fitPage(f, name)
 		warns = append(warns, w...)
@@ -184,10 +186,11 @@ func Create(path, template string, sp Spec) ([]string, error) {
 	}
 	f.SetCalcProps(&excelize.CalcPropsOptions{FullCalcOnLoad: boolPtr(true)})
 	f.SetDocProps(&excelize.DocProperties{Creator: "Gregal"})
+	report := recalc(f)
 	if err := f.SaveAs(path); err != nil {
-		return nil, err
+		return nil, RecalcReport{}, err
 	}
-	return warns, nil
+	return warns, report, nil
 }
 
 func boolPtr(b bool) *bool { return &b }
@@ -264,6 +267,7 @@ func fillSheet(f *excelize.File, name string, sh SheetSpec, pal palette) ([]stri
 		switch role {
 		case "input":
 			s.Font = &excelize.Font{Color: pal.input}
+			s.Fill = excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"EAF2FF"}}
 		case "formula":
 			s.Font = &excelize.Font{Color: "000000"}
 		case "link":
@@ -322,6 +326,17 @@ func fillSheet(f *excelize.File, name string, sh SheetSpec, pal palette) ([]stri
 	}
 	for _, cell := range sortedKeys(sh.Comments) {
 		f.AddComment(name, excelize.Comment{Cell: cell, Author: "Gregal", Paragraph: []excelize.RichTextRun{{Text: sh.Comments[cell]}}})
+	}
+	for _, cell := range sortedKeys(sh.Hyperlinks) {
+		target := sh.Hyperlinks[cell]
+		u, err := url.Parse(target)
+		if err != nil || u.Hostname() == "" || (u.Scheme != "http" && u.Scheme != "https") {
+			warns = append(warns, "enllaç "+cell+": cal una URL HTTP(S)")
+			continue
+		}
+		if err := f.SetCellHyperLink(name, cell, target, "External"); err != nil {
+			warns = append(warns, fmt.Sprintf("enllaç %s: %v", cell, err))
+		}
 	}
 	for i, ch := range sh.Charts {
 		if err := addChart(f, name, ch, i, start, ncol, nrow, c0, r0, pal.chart); err != nil {
@@ -437,6 +452,9 @@ func mergeStyle(f *excelize.File, sheet, rng string, add *excelize.Style) error 
 					}
 					if add.Font.Color != "" {
 						fn.Color = add.Font.Color
+						fn.ColorTheme = nil
+						fn.ColorIndexed = 0
+						fn.ColorTint = 0
 					}
 					combined.Font = &fn
 				}
@@ -793,12 +811,16 @@ var errKinds = []string{"#DIV/0!", "#REF!", "#VALUE!", "#NAME?", "#N/A", "#NUM!"
 
 // Recalc avalua totes les fórmules i en recull els errors.
 func Recalc(path string) (RecalcReport, error) {
-	rep := RecalcReport{Errors: map[string][]string{}}
 	f, err := Open(path)
 	if err != nil {
-		return rep, err
+		return RecalcReport{Errors: map[string][]string{}}, err
 	}
 	defer f.Close()
+	return recalc(f), nil
+}
+
+func recalc(f *excelize.File) RecalcReport {
+	rep := RecalcReport{Errors: map[string][]string{}}
 	for _, sh := range f.GetSheetList() {
 		rows, err := f.GetRows(sh, excelize.Options{RawCellValue: true})
 		if err != nil {
@@ -847,7 +869,7 @@ func Recalc(path string) (RecalcReport, error) {
 			}
 		}
 	}
-	return rep, nil
+	return rep
 }
 
 // String resumeix l'informe.
