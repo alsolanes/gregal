@@ -54,7 +54,9 @@ class VentsChatChromeTest {
             }
         }
         ui.onNodeWithText("Xaloc").assertIsDisplayed()
-        ui.onNodeWithContentDescription(tr("ca", "app.vents.profile")).performClick()
+        // El perfil s'obre clicant la fila del títol (sense «…», que només
+        // surt amb onTransfer).
+        ui.onNodeWithText("Xaloc").performClick()
         ui.onNodeWithContentDescription(tr("ca", "app.vents.back")).performClick()
         ui.runOnIdle { assertTrue(profile); assertTrue(back) }
     }
@@ -80,7 +82,7 @@ class VentsChatChromeTest {
                 }
             }
         }
-        ui.onNodeWithText("⚡ Actua").assertIsDisplayed().performClick()
+        ui.onNodeWithText(tr("ca", "app.mode.act")).assertIsDisplayed().performClick()
         ui.runOnIdle { assertEquals("chat", pickedMode) }
         ui.onNodeWithText("gregal-live · main").assertIsDisplayed().performClick()
         ui.runOnIdle { assertTrue(openedWs) }
@@ -164,15 +166,17 @@ class VentsChatChromeTest {
         ui.setContent {
             CompositionLocalProvider(LocalPal provides DarkPal, LocalWindMotion provides false) {
                 MaterialTheme(colorScheme = DarkPal.scheme()) {
-                    var field by remember { mutableStateOf(TextFieldValue("text")) }
+                    var field by remember { mutableStateOf(TextFieldValue("text") ) }
                     VentsComposer("ca", field, { field = it }, "Escriu…", true,
                         busy = true, accent = Color(0xFFEFA68F), onStop = { stopped = true }) { sent = true }
                 }
             }
         }
-        ui.onNodeWithContentDescription(tr("ca", "app.vents.stop")).assertIsDisplayed().performClick()
-        ui.runOnIdle { assertTrue("un toc mentre treballa ha d'aturar, no enviar", stopped && !sent) }
-        ui.onAllNodesWithContentDescription(tr("ca", "app.vents.send")).assertCountEquals(0)
+        // Amb text mentre el vent treballa, el botó envia (steer): el
+        // missatge entra al context del torn sense aturar-lo.
+        ui.onNodeWithContentDescription(tr("ca", "app.vents.send")).assertIsDisplayed().performClick()
+        ui.runOnIdle { assertTrue("amb esborrany el toc envia el steer, no atura", sent && !stopped) }
+        ui.onAllNodesWithContentDescription(tr("ca", "app.vents.stop")).assertCountEquals(0)
     }
 
     @Test fun withoutABusyTurnTheButtonSends() {
