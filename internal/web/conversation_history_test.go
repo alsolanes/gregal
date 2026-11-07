@@ -79,7 +79,7 @@ func historyFixture(t *testing.T, route historyRoute, shared bool) (a, b, other 
 func historySeam(t *testing.T, call func(string) (string, error)) {
 	t.Helper()
 	oldWind, oldPet := windLoop, petChatter
-	windLoop = func(_ *Server, _ context.Context, brief string) (exploracio, error) {
+	windLoop = func(_ *Server, _ context.Context, brief string, _ ...*routedRole) (exploracio, error) {
 		text, err := call(brief)
 		return exploracio{text: text}, err
 	}

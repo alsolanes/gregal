@@ -34,7 +34,7 @@ func TestWindCardsPersistAndKeepLastSuccessfulUpdate(t *testing.T) {
 	}
 	old := windLoopStream
 	defer func() { windLoopStream = old }()
-	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string)) (exploracio, error) {
+	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: "UPDATE_OK\nPrimers [font](https://example.com)"}, nil
 	}
 	body := `{"wind":"esports","action":"refresh","id":"` + card.ID + `"}`
@@ -42,13 +42,13 @@ func TestWindCardsPersistAndKeepLastSuccessfulUpdate(t *testing.T) {
 	if result.Code != 200 {
 		t.Fatal(result.Body.String())
 	}
-	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string)) (exploracio, error) {
+	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
 		return exploracio{}, errors.New("offline")
 	}
 	if result = call(a, "POST", body); result.Code != 502 {
 		t.Fatalf("expected failure: %d", result.Code)
 	}
-	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string)) (exploracio, error) {
+	windLoopStream = func(_ *Server, _ context.Context, _ string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: "partial", parcial: true}, nil
 	}
 	if result = call(a, "POST", body); result.Code != 502 {

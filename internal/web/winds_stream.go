@@ -73,10 +73,11 @@ func windSSE(w http.ResponseWriter, ctx context.Context, interval time.Duration)
 }
 
 // windLoopStream és la via de cerca amb emissió; els tests la substitueixen.
-var windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
-	s.mu.Lock()
+var windLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string), routed ...*routedRole) (exploracio, error) {
 	p, role := s.windRoleRef()
-	s.mu.Unlock()
+	if len(routed) > 0 && routed[0] != nil {
+		p, role = routed[0].p, routed[0].role
+	}
 	return s.runReadOnlyLoopForRoleStream(ctx, brief, windTurnSteps, p, role, emit)
 }
 
@@ -94,10 +95,11 @@ var rotllanaTurnTimeout = 3 * time.Minute
 var rotllanaFallbackTimeout = 90 * time.Second
 
 // rotllanaVoiceLoopStream és la via de cerca en grup amb emissió.
-var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
-	s.mu.Lock()
+var rotllanaVoiceLoopStream = func(s *Server, ctx context.Context, brief string, emit func(kind, text string), routed ...*routedRole) (exploracio, error) {
 	p, role := s.windRoleRef()
-	s.mu.Unlock()
+	if len(routed) > 0 && routed[0] != nil {
+		p, role = routed[0].p, routed[0].role
+	}
 	return s.runReadOnlyLoopForRoleStream(ctx, brief, 6, p, role, emit)
 }
 
@@ -278,6 +280,11 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		}, windContinueHistory(s, wind, previous))
 	} else {
 		brief := windChatBrief(s, wind, previous, msg)
+		var routed *routedRole
+		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
+			log.Printf("vents router %s: %s", wind.ID, routeWhy)
+			routed = &routedRole{p: p, role: role}
+		}
 		res, err = windLoopStream(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), brief, func(kind, text string) {
 			switch kind {
 			case "activity":
@@ -292,7 +299,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			default:
 				forwardWindAsk(emit, kind, text)
 			}
-		})
+		}, routed)
 	}
 	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
 	if err != nil {

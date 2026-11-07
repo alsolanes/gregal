@@ -45,7 +45,7 @@ func answerWindAsk(t *testing.T, s *Server, body string) *httptest.ResponseRecor
 func runAskStream(t *testing.T, s *Server, loop func(ctx context.Context, emit func(kind, text string)) string) func() string {
 	t.Helper()
 	old := windLoopStream
-	windLoopStream = func(s *Server, ctx context.Context, _ string, emit func(kind, text string)) (exploracio, error) {
+	windLoopStream = func(s *Server, ctx context.Context, _ string, emit func(kind, text string), _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: loop(ctx, emit)}, nil
 	}
 	t.Cleanup(func() { waitBackground(); windLoopStream = old })

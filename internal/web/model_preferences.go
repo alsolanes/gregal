@@ -19,6 +19,28 @@ const windsModelScope = "vents"
 // un (POST /api/model amb scope "vents"). Un override que ja no existeix al
 // config cau al rol base: el vent mai es queda mut per un model esborrat.
 // Cal cridar-lo amb s.mu agafat, com roleRef().
+// windRouteRole és windRoleRef + el router per tasca: una pregunta curta del
+// vent baixa al rol chat (barat) i una feina pesada puja al rol fort, com ja
+// passa als torns d'agent. L'override d'usuari dels vents mana sempre; el
+// router només actua quan no n'hi ha (o està esborrat).
+func (s *Server) windRouteRole(task string) (config.Provider, config.Role, string) {
+	p, r := s.windRoleRef()
+	if _, ok := s.modelOverride[windsModelScope]; ok {
+		return p, r, ""
+	}
+	s.mu.Lock()
+	rol, motiu := s.cfg.Route(task, false, s.role)
+	s.mu.Unlock()
+	if rol == s.role {
+		return p, r, ""
+	}
+	if _, ok := s.cfg.Roles[rol]; !ok {
+		return p, r, ""
+	}
+	rp, rr := s.roleRefBase(rol)
+	return rp, rr, motiu
+}
+
 func (s *Server) windRoleRef() (config.Provider, config.Role) {
 	p, r := s.roleRefBase(s.role) // els vents no segueixen el nivell de raonament de la feina
 	ov, ok := s.modelOverride[windsModelScope]

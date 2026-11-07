@@ -15,7 +15,7 @@ func TestWindChatParcial(t *testing.T) {
 		t.Fatalf("save: %d", rec.Code)
 	}
 	saved := windLoop
-	windLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+	windLoop = func(_ *Server, _ context.Context, _ string, _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: "primera meitat…", parcial: true}, nil
 	}
 	t.Cleanup(func() { waitBackground(); windLoop = saved })

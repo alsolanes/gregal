@@ -23,7 +23,7 @@ func rotllanaStreamFixture(t *testing.T, loop func(n int32, ctx context.Context,
 	id := makeRotllanaTrio(t, s)
 	var calls int32
 	savedLoop, savedChatter := rotllanaVoiceLoopStream, petChatter
-	rotllanaVoiceLoopStream = func(_ *Server, ctx context.Context, _ string, emit func(kind, text string)) (exploracio, error) {
+	rotllanaVoiceLoopStream = func(_ *Server, ctx context.Context, _ string, emit func(kind, text string), _ ...*routedRole) (exploracio, error) {
 		return loop(atomic.AddInt32(&calls, 1), ctx, emit)
 	}
 	petChatter = func(ctx context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, _ []llm.Message) (string, error) {

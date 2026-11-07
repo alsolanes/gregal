@@ -108,7 +108,7 @@ func TestCompanionPromptsUseAuthenticatedMemory(t *testing.T) {
 		close(learned)
 		return "", nil
 	}
-	windLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) {
+	windLoop = func(_ *Server, _ context.Context, b string, _ ...*routedRole) (exploracio, error) {
 		check("wind", b)
 		return exploracio{text: "ok"}, nil
 	}
@@ -388,7 +388,7 @@ func TestWindChatSendsBoundedPreviousTurns(t *testing.T) {
 	windHistories.Delete(s) // force the real persisted-history path
 	var brief string
 	prev := windLoop
-	windLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) {
+	windLoop = func(_ *Server, _ context.Context, b string, _ ...*routedRole) (exploracio, error) {
 		brief = b
 		return exploracio{text: "Joana"}, nil
 	}

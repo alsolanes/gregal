@@ -18,7 +18,7 @@ func TestRotllanaTwoMentionsEachSpeaksOnce(t *testing.T) {
 	id := makeRotllanaTrio(t, s)
 	var briefs []string
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) {
+	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string, _ ...*routedRole) (exploracio, error) {
 		briefs = append(briefs, b)
 		// El model fa el mateix que hem vist en real: escriu les dues veus.
 		return exploracio{text: "Llevant: Menja un plàtan abans.\nXaloc: I posa't música animada."}, nil

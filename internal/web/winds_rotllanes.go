@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -136,10 +137,11 @@ func (s *Server) handleRotllanes(w http.ResponseWriter, r *http.Request) {
 // tests la substitueixen. Per defecte, el loop d'inspecció amb eines web
 // (web_search, web_fetch), igual que el xat directe amb un vent, amb el
 // model per defecte dels vents (windRoleRef).
-var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
-	s.mu.Lock()
+var rotllanaVoiceLoop = func(s *Server, ctx context.Context, brief string, routed ...*routedRole) (exploracio, error) {
 	p, role := s.windRoleRef()
-	s.mu.Unlock()
+	if len(routed) > 0 && routed[0] != nil {
+		p, role = routed[0].p, routed[0].role
+	}
 	return s.runReadOnlyLoopForRole(ctx, brief, 6, p, role)
 }
 
@@ -303,7 +305,12 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 				parcial = res.parcial
 			}
 		} else {
-			res, err = rotllanaVoiceLoop(s, agent.WithSkillsDirs(vctx, s.windSkillsDir(sp.ID)), brief)
+			var routed *routedRole
+			if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
+				log.Printf("vents router %s (rotllana %s): %s", sp.ID, rot.ID, routeWhy)
+				routed = &routedRole{p: p, role: role}
+			}
+			res, err = rotllanaVoiceLoop(s, agent.WithSkillsDirs(vctx, s.windSkillsDir(sp.ID)), brief, routed)
 			if err == nil {
 				parcial = res.parcial || parcial
 			}

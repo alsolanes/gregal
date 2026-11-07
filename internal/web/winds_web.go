@@ -3,16 +3,17 @@ package web
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
-	"gregal/internal/companion"
-
 	"gregal/internal/agent"
+	"gregal/internal/companion"
 	"gregal/internal/goal"
+	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
@@ -157,11 +158,19 @@ func (s *Server) handleWinds(w http.ResponseWriter, r *http.Request) {
 // model per defecte dels vents (windRoleRef). Torna l'exploració sencera:
 // el text i si ha quedat parcial (pressupost exhaurit) perquè el client
 // pugui oferir «continua».
-var windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
-	s.mu.Lock()
+var windLoop = func(s *Server, ctx context.Context, brief string, routed ...*routedRole) (exploracio, error) {
 	p, role := s.windRoleRef()
-	s.mu.Unlock()
+	if len(routed) > 0 && routed[0] != nil {
+		p, role = routed[0].p, routed[0].role
+	}
 	return s.runReadOnlyLoopForRole(ctx, brief, windTurnSteps, p, role)
+}
+
+// routedRole és el resultat del router per a un torn de vent: qui l'ha calculat
+// ja n'ha fet log; el loop només necessita el proveïdor i el rol finals.
+type routedRole struct {
+	p    config.Provider
+	role config.Role
 }
 
 // handleWindChat és el xat amb un vent: persona + context de projecte.
@@ -260,7 +269,12 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, windContinueHistory(s, wind, previous))
 	} else {
-		res, err = windLoop(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), windChatBrief(s, wind, previous, msg))
+		var routed *routedRole
+		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
+			log.Printf("vents router %s: %s", wind.ID, routeWhy)
+			routed = &routedRole{p: p, role: role}
+		}
+		res, err = windLoop(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), windChatBrief(s, wind, previous, msg), routed)
 	}
 	if err != nil {
 		if tornAturat(err) {

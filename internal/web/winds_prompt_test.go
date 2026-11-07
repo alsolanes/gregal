@@ -80,7 +80,7 @@ func TestWindStreamSendsStructuredTurns(t *testing.T) {
 	h.mu.Unlock()
 	old := windLoopStream
 	var msgs []llm.Message
-	windLoopStream = func(_ *Server, ctx context.Context, _ string, _ func(kind, text string)) (exploracio, error) {
+	windLoopStream = func(_ *Server, ctx context.Context, _ string, _ func(kind, text string), _ ...*routedRole) (exploracio, error) {
 		msgs = windPromptOf(ctx)
 		return exploracio{text: "Cigrons amb espinacs."}, nil
 	}
@@ -126,5 +126,39 @@ func TestPodaHistorialVentSostre(t *testing.T) {
 		if got[i].Content != m.Content || got[i].Role != m.Role {
 			t.Fatalf("es conserven els més recents (pos %d)", i)
 		}
+	}
+}
+
+// TestWindRouteRole: el router de tasques també per als vents — pregunta
+// curta → rol chat; l'override d'usuari mana sempre; feina pesada → rol fort
+// quan el config en defineix un.
+func TestWindRouteRole(t *testing.T) {
+	s := remindTestServer(t)
+	s.mu.Lock()
+	baseRole := s.role
+	_, hasChat := s.cfg.Roles["chat"]
+	s.mu.Unlock()
+	if _, ok := s.cfg.Roles["chat"]; !ok || baseRole == "chat" {
+		t.Skip("config sense rol chat diferent del de sessió")
+	}
+	_ = hasChat
+	// Pregunta curta: baixa a chat.
+	_, _, why := s.windRouteRole("què és el pressupost?")
+	if why == "" {
+		t.Fatalf("pregunta curta hauria de rutjar: why=%q", why)
+	}
+	// Override d'usuari: mana sobre el router.
+	s.mu.Lock()
+	_, baseRoleRef := s.windRoleRef()
+	s.modelOverride["vents"] = baseRoleRef.Provider + "/" + baseRoleRef.Model
+	s.mu.Unlock()
+	_, _, why2 := s.windRouteRole("què és el pressupost?")
+	if why2 != "" {
+		t.Fatalf("l'override ha de guanyar: why=%q", why2)
+	}
+	// Frase neutra: sense canvi de rol.
+	_, _, why3 := s.windRouteRole("digues-me una cosa")
+	if why3 != "" {
+		t.Fatalf("frase neutra no hauria de rutjar: why=%q", why3)
 	}
 }

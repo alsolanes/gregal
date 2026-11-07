@@ -17,7 +17,7 @@ func TestPetHistoryPortaHora(t *testing.T) {
 	s := remindTestServer(t)
 	w, _ := s.winds.ByID("xaloc")
 	saved := windLoop
-	windLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+	windLoop = func(_ *Server, _ context.Context, _ string, _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: "bon dia"}, nil
 	}
 	t.Cleanup(func() { waitBackground(); windLoop = saved })

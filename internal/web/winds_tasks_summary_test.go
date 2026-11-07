@@ -175,7 +175,7 @@ func TestWindsSummariesDuringStream(t *testing.T) {
 			var releaseOnce sync.Once
 			finish := func() { releaseOnce.Do(func() { close(release) }) }
 			savedWind, savedRot := windLoopStream, rotllanaVoiceLoopStream
-			loop := func(_ *Server, _ context.Context, _ string, _ func(string, string)) (exploracio, error) {
+			loop := func(_ *Server, _ context.Context, _ string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
 				close(started)
 				<-release
 				return exploracio{text: "Resposta nova"}, nil

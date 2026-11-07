@@ -254,7 +254,7 @@ func TestRouterExplicitExpertKeepsKnowledge(t *testing.T) {
 	postConeixement(t, s, `{"wind":"llevant","nom":"Arrossos","descripcio":"Arrossos i paelles.","cos":"L'arròs bomba necessita..."}`)
 	var briefs []string
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string) (exploracio, error) {
+	rotllanaVoiceLoop = func(_ *Server, _ context.Context, b string, _ ...*routedRole) (exploracio, error) {
 		briefs = append(briefs, b)
 		return exploracio{text: "l'arròs, 18 minuts"}, nil
 	}
@@ -283,7 +283,7 @@ func TestRouterDefaultParticipates(t *testing.T) {
 	id := makeRotllanaTrio(t, s)
 	called := false
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string, _ ...*routedRole) (exploracio, error) {
 		called = true
 		return exploracio{text: "jo parlo igualment"}, nil
 	}
@@ -314,7 +314,7 @@ func TestRouterDefaultChoosesOne(t *testing.T) {
 	id := makeRotllanaTrio(t, s)
 	count := 0
 	saved := rotllanaVoiceLoop
-	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string) (exploracio, error) {
+	rotllanaVoiceLoop = func(_ *Server, _ context.Context, _ string, _ ...*routedRole) (exploracio, error) {
 		count++
 		return exploracio{text: "resposta clàssica"}, nil
 	}

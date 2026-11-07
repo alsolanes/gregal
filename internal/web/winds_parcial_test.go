@@ -55,7 +55,7 @@ func TestWindChatStreamTornAturatFraseCurta(t *testing.T) {
 	hist0.mu.Lock()
 	hist0.messages = nil
 	hist0.mu.Unlock()
-	windLoopStream = func(s2 *Server, ctx context.Context, brief string, emit func(kind, text string)) (exploracio, error) {
+	windLoopStream = func(s2 *Server, ctx context.Context, brief string, emit func(kind, text string), _ ...*routedRole) (exploracio, error) {
 		return exploracio{
 			text:    "Resposta parcial: el torn s'ha aturat abans de la resposta final (no s'ha pogut arribar al prove\u00efdor de models (DNS); comprova la connexió a internet).",
 			parcial: true,

@@ -254,7 +254,7 @@ func TestWindToolAskTriaIDesa(t *testing.T) {
 	postJSON(t, s.handleWinds, `{"name":"Garbí","color":"#AA3377","role":"Webs i jocs per al navegador"}`)
 	old := windLoopStream
 	var brief string
-	windLoopStream = func(_ *Server, ctx context.Context, b string, _ func(kind, text string)) (exploracio, error) {
+	windLoopStream = func(_ *Server, ctx context.Context, b string, _ func(kind, text string), _ ...*routedRole) (exploracio, error) {
 		brief = b
 		if scope, ok := ctx.Value(interactiveWindKey{}).(windTurnScope); !ok || scope.mode != agent.ModeCode {
 			t.Errorf("l'encàrrec ha de ser un torn de feina: %+v", scope)

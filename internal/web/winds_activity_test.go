@@ -178,7 +178,7 @@ func TestWindStreamAnnouncesWaitingBeforeConversationLock(t *testing.T) {
 			s, _ := companionTestServer(t)
 			id := makeRotllanaTrio(t, s)
 			oldWind, oldGroup := windLoopStream, rotllanaVoiceLoopStream
-			loop := func(_ *Server, _ context.Context, _ string, _ func(string, string)) (exploracio, error) {
+			loop := func(_ *Server, _ context.Context, _ string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
 				return exploracio{text: "Resposta"}, nil
 			}
 			windLoopStream, rotllanaVoiceLoopStream = loop, loop
