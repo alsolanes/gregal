@@ -46,6 +46,20 @@ func (s *Server) windLoopScope() windTurnScope {
 	return windTurnScope{mode: mode, workspace: ws, policy: pol}
 }
 
+// interactiveWindCtx és el context dels torns interactius dels vents (xat
+// 1:1, rotllanes): porta l'abast del torn. steerKey hi afegeix la clau de
+// la bústia de missatges escrits mentre el torn treballa (winds_steer.go).
+type windSteerKey struct{}
+
+func (s *Server) withWindSteerKey(ctx context.Context, kind, id string) context.Context {
+	return context.WithValue(ctx, windSteerKey{}, turnKey{scope: s.sessDir(), kind: kind, id: id})
+}
+
+func windSteerKeyOf(ctx context.Context) (turnKey, bool) {
+	k, ok := ctx.Value(windSteerKey{}).(turnKey)
+	return k, ok
+}
+
 func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
 	scope := s.windLoopScope()
 	scope.mode = windTurnMode(scope.mode)

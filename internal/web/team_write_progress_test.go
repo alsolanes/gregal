@@ -42,7 +42,7 @@ func TestTeamWriteProgressPrivateAndPreview(t *testing.T) {
 		if e, ok := v.(team.Event); ok && e.Type == "tool_result" && e.Path != "" {
 			public = append(public, e.Path)
 		}
-	})
+	}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestTeamWriteProgressConcurrentSeats(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, _, err := s.runTeamSeat(ctx, s.cfg, role, teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: []string{"write"}, MaxSteps: 4}, ws, "English", "builder", "write", false, func(string, any) {})
+			_, _, err := s.runTeamSeat(ctx, s.cfg, role, teamSeat{Agentic: true, Mode: agent.ModeCode, Tools: []string{"write"}, MaxSteps: 4}, ws, "English", "builder", "write", false, func(string, any) {}, nil)
 			if err != nil {
 				t.Error(err)
 			}
@@ -164,7 +164,7 @@ func TestTeamWriteProgressResults(t *testing.T) {
 				if e, ok := v.(team.Event); ok && e.Path != "" {
 					public = append(public, e.Path)
 				}
-			})
+			}, nil)
 			if err != nil {
 				t.Fatal(err)
 			}

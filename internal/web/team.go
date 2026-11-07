@@ -151,6 +151,10 @@ type teamFlowRun struct {
 	provider                      config.Provider
 	role                          config.Role
 	started                       time.Time
+	// steer, si no és nil, és la bústia de missatges escrits mentre la
+	// colla treballa (winds_steer.go): cada seient la buida a cada volta
+	// i els missatges entren com a interjecció de l'usuari.
+	steer func() []string
 }
 
 // runTeamFlow runs a pipeline and emits its events, ending with done,
@@ -244,7 +248,7 @@ func (s *Server) runTeamFlow(ctx context.Context, run teamFlowRun, emit func(str
 				seat.System += s.windMemorySystem(node.Wind) + companion.WindBrainSystem(s.windBrain(node.Wind)) + s.windSkillsSystem(node.Wind)
 				ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(node.Wind))
 			}
-			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, seatWorkspace, language, name, task, run.winds, emit)
+			out, model, err := s.runTeamSeat(ctx, cfg, role, seat, seatWorkspace, language, name, task, run.winds, emit, run.steer)
 			if err == nil && node.CrewAssigned {
 				if serverReadOnlyMode(s) {
 					return "", errors.New("read-only session denied crew file integration")

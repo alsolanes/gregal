@@ -285,7 +285,7 @@ func TestWindBrainGrowsWithWhatItLearns(t *testing.T) {
 
 	// El loop de cerca torna una resposta amb fets.
 	savedLoop := windLoop
-	windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
+	windLoop = func(s *Server, ctx context.Context, brief string, _ ...*routedRole) (exploracio, error) {
 		return exploracio{text: "El MacBook Air M4 té 53,8 Wh de bateria [apple.com]."}, nil
 	}
 	t.Cleanup(func() { waitBackground(); windLoop = savedLoop })
@@ -318,7 +318,7 @@ func TestWindBrainGrowsWithWhatItLearns(t *testing.T) {
 
 	// El següent torn porta el fet al brief: el vent ja ho sap.
 	var gotBrief2 string
-	windLoop = func(s *Server, ctx context.Context, brief string) (exploracio, error) {
+	windLoop = func(s *Server, ctx context.Context, brief string, _ ...*routedRole) (exploracio, error) {
 		gotBrief2 = brief
 		return exploracio{text: "ja t'ho havia dit!"}, nil
 	}

@@ -175,6 +175,12 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 			if stream {
 				cctx = modelContext(cctx)
 			}
+			// Steer: missatges escrits mentre el torn treballa. Es buiden
+			// aquí —punt segur: cap eina del lot pendent— i entren com a
+			// guia d'usuari al pas següent (winds_steer.go).
+			if k, ok := windSteerKeyOf(ctx); ok {
+				h = injectaSteer(k, h)
+			}
 			if !stream {
 				content, calls, _, err := s.client.ChatWithToolsFO(cctx, s.cfg.PrimTarget(p, role), s.cfg.FallbackTarget(role), h, role.Temperature, role.MaxTokens, specs, nil)
 				return content, calls, err

@@ -1151,6 +1151,20 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds/cancel", "POST", body.toString()))
     }
 
+    // Steer: missatge lliurat al torn que treballa (200) o rebutjat (409,
+    // no hi ha torn viu: el client l'ha d'enviar com a missatge nou).
+    fun steerTurn(windId: String = "", rotllanaId: String = "", text: String): Boolean {
+        val body = JSONObject().put("text", text)
+        if (windId.isNotEmpty()) body.put("kind", "wind").put("id", windId)
+        if (rotllanaId.isNotEmpty()) body.put("kind", "rotllana").put("id", rotllanaId)
+        return try {
+            read(conn("/api/winds/steer", "POST", body.toString()))
+            true
+        } catch (e: ApiException) {
+            if (e.message?.startsWith("HTTP 409") == true) false else throw e
+        }
+    }
+
     fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {
         val o = JSONObject(read(conn("/api/winds/chat?wind=$windId", "GET")))
         val a = o.optJSONArray("history") ?: JSONArray()

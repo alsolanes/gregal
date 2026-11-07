@@ -168,6 +168,11 @@ type RunOpts struct {
 	// directori del procés.
 	Dir    string
 	OnStep func(step int, tools []string)
+	// Steer, si no és nil, es crida a cada volta del bucle abans del pas
+	// següent: els missatges que torni entren a l'historial com una guia
+	// d'interjecció de l'usuari (Torn.Interjeccio). És com el client escriu
+	// mentre un torn d'equip treballa (winds_steer.go al servidor web).
+	Steer func() []string
 	// Role fixa el rol del config (sense router). Buit = code/chat pel mode.
 	Role string
 	// Tools limita les eines natives que veu i pot fer servir el model
@@ -538,6 +543,13 @@ func RunNonInteractiveOpts(ctx context.Context, client *llm.Client, cfg *config.
 			hist = torn.Hist
 			finish()
 			return res, err
+		}
+		// Steer: missatges de l'usuari escrits mentre el torn treballa.
+		// Al punt segur (cap eina del lot pendent) entren com a guia.
+		if o.Steer != nil {
+			for _, m := range o.Steer() {
+				torn.Interjeccio(m)
+			}
 		}
 		t0 := time.Now()
 		p := torn.Seguent()

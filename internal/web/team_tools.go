@@ -121,7 +121,7 @@ func teamWithWriteProgress(ctx context.Context, report func(string) error) conte
 
 // runTeamSeat fa córrer un seient amb eines i torna el lliurament i el
 // model que ha respost.
-func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role config.Role, seat teamSeat, workspace, language, nodeID, prompt string, automaticReview bool, emit func(string, any)) (string, string, error) {
+func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role config.Role, seat teamSeat, workspace, language, nodeID, prompt string, automaticReview bool, emit func(string, any), steer func() []string) (string, string, error) {
 	r := role
 	if seat.Def != nil {
 		dr, err := agent.SubagentRole(cfg, role, seat.Def)
@@ -241,6 +241,7 @@ func (s *Server) runTeamSeat(ctx context.Context, cfg *config.Config, role confi
 	res, err := agent.RunNonInteractiveOpts(ctx, s.client, &local, agent.RunOpts{
 		Task: prompt, Mode: seat.Mode, MaxSteps: seat.MaxSteps, HardStepLimit: true,
 		Dir: workspace, Role: "team", Tools: seat.Tools, System: system, Approve: approve, ToolExecutor: toolExecutor,
+		Steer: steer,
 		OnEvent: func(e agent.Event) {
 			if e.Tipus == agent.EvCrida {
 				path := teamWritePath(workspace, e.Eina, e.EinaArgs)

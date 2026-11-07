@@ -42,6 +42,9 @@ func (s *Server) beginWindTurn(kind, id string, parent context.Context) (context
 	if prev != nil && prev != h {
 		prev.cancel() // un torn nou sobre el mateix vent substitueix el vell
 	}
+	// Steer: la bústia de missatges escrits mentre aquest torn treballa
+	// (winds_steer.go). Viu exactament el mateix temps que el torn.
+	endSteer := windSteerBegin(key)
 	done := func() {
 		windTurnRegistry.Lock()
 		if windTurnRegistry.turns[key] == h {
@@ -49,6 +52,7 @@ func (s *Server) beginWindTurn(kind, id string, parent context.Context) (context
 		}
 		windTurnRegistry.Unlock()
 		cancel()
+		endSteer()
 	}
 	return ctx, done
 }
