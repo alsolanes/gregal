@@ -2,6 +2,7 @@ package tools
 
 import (
 	"archive/zip"
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,23 @@ import (
 
 	"gregal/internal/xlsxdoc"
 )
+
+func TestOfficeQAOnly(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"report.docx", "scores.xlsx"} {
+		path := filepath.Join(dir, name)
+		if _, err := OfficeCreate(path, "", "Criteri | Nota\nImpacte | 4"); err != nil {
+			t.Fatal(err)
+		}
+		out, images, err := OfficeRender(context.Background(), RenderOpts{Path: path, QAOnly: true})
+		if err != nil || len(images) != 0 || !strings.Contains(out, "sense renderització visual") {
+			t.Fatalf("%s: %s, %d images, %v", name, out, len(images), err)
+		}
+	}
+	if _, _, err := OfficeRender(context.Background(), RenderOpts{Path: filepath.Join(dir, "missing.xlsx"), QAOnly: true}); err == nil {
+		t.Fatal("missing file passed structural QA")
+	}
+}
 
 func writeZip(t *testing.T, path string, parts map[string]string) {
 	t.Helper()
@@ -58,7 +76,7 @@ func testXlsx(t *testing.T) string {
 		{Name: "Dades", Header: &h, Rows: [][]any{{"Nom", "Anna"}, {42.0, "=SUM(A2:A2)"}}},
 		{Name: "Buit"},
 	}}
-	if _, err := xlsxdoc.Create(p, "", sp); err != nil {
+	if _, _, err := xlsxdoc.Create(p, "", sp); err != nil {
 		t.Fatal(err)
 	}
 	return p

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"gregal/internal/config"
+	"gregal/internal/llm"
 )
 
 func readTurnLog(t *testing.T) []turnRecord {
@@ -88,5 +89,22 @@ func TestTurnLogRotates(t *testing.T) {
 	}
 	if _, err := os.Stat(turnLogPath() + ".1"); err != nil {
 		t.Fatal("old log not kept as turns.jsonl.1")
+	}
+}
+
+func TestTurnLogSeparatesProviderUsageFromEstimates(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	tl := startTurnLog("wind", "x", config.Role{})
+	meter := llm.UsageFrom(tl.withUsage(context.Background()))
+	u := llm.Usage{PromptTokens: 1200, CompletionTokens: 80}
+	u.PromptTokensDetails.CachedTokens = 1000
+	meter.Add(u)
+	meter.Add(llm.Usage{})
+	tl.emitter(func(string, any) {})("speed", map[string]any{"prompt": 5000, "completion": 400})
+	tl.finish(nil, false, false, &tempsTorn{passos: 2})
+	got := readTurnLog(t)[0]
+	if got.UsageSource != "mixed" || got.ModelCalls != 2 || got.UsageCalls != 1 ||
+		got.Prompt != 1200 || got.Cached != 1000 || got.Completion != 80 {
+		t.Fatalf("usage: %+v", got)
 	}
 }

@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## v1.57.0 - 2026-11-07 - Navegador amb pestanyes i Office més silenciós
+
+- **Navegador amb pestanyes.** El navegador integrat té pestanyes manuals per
+  conversa, una pestanya reservada a l'agent i una entrada animada discreta.
+  Si l'agent demana intervenció, la seva pestanya torna al davant.
+- **Xat més net.** Tema de grafit, taules més llegibles i un selector compacte
+  per a Pregunta, Planifica i Actua.
+- **Lliuraments més directes.** Per navegar i puntuar candidatures es prioritza
+  una sola web local. Word, Excel i PowerPoint es creen quan cal el format.
+  L'Excel pot crear enllaços i distingir les entrades en una sola passada.
+  Word i Excel senzills es poden validar sense obrir el motor visual.
+- **Mètriques compartides amb els Vents.** El registre distingeix tokens reals,
+  tokens de memòria cau i crides sense mètriques del proveïdor. Els Vents
+  preparen el context una sola vegada i comparteixen les pautes d'Office,
+  revisió de candidatures i verificació de resultats.
+- **Android i Vents.** El backend actualitzat s'inclou als APKs. El xat
+  d'Android també agrupa els modes en un selector.
+- **Windows.** El bloqueig de fitxers dels Vents funciona amb el mecanisme
+  natiu de Windows.
+
 ## v1.56.0 - 2026-11-07 - Parla amb els vents mentre treballen
 
 - **Parla amb els vents mentre treballen (steer).** Un vent, una rotllana o

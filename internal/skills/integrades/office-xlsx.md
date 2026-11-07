@@ -7,8 +7,8 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
 
 1. **Formulas, not hard-coded results.** Any number derived from other cells
    must be a formula (`"=B2*(1+$B$7)"`). Only inputs are typed values.
-2. **Zero formula errors.** After every change run `office_edit op=recalc`
-   (or look at the QA of `office_render`) and fix every `#DIV/0!`, `#REF!`,
+2. **Zero formula errors.** Check the formula report from `office_create` or
+   the QA of the final `office_render` and fix every `#DIV/0!`, `#REF!`,
    `#VALUE!`, `#NAME?`, `#N/A`.
 3. **Assumptions in their own labelled cells**, referenced with absolute
    references (`$B$7`), never typed inside formulas.
@@ -29,8 +29,9 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
 ```
 
 - First row is styled as a header and frozen automatically; column widths
-  fit the content (or give `widths`).
-- **Colour roles** (financial convention): `input` blue text, `formula`
+  fit the content. Override them only when needed with an array of widths in
+  column order, for example `"widths":[24,14,14]`.
+- **Colour roles** (financial convention): `input` blue text and light blue fill so blank inputs are visible, `formula`
   black, `link` green (from another sheet), `key` yellow fill (key
   assumption), `total` bold with top border, `note` grey italic.
 - **Number formats**: currency `#,##0 €` / `$#,##0`, thousands `#,##0`,
@@ -38,6 +39,8 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
   `dd/mm/yyyy`. Never leave long decimals unformatted.
 - `table: true` for filterable data tables, `conditional` for data bars /
   colour scales / highlight rules, `validation` for drop-down lists.
+- For clickable web sources, put the display text in `rows` and use
+  `"hyperlinks":{"D2":"https://example.com/source"}` in the same sheet spec.
 - Charts: `col`, `bar`, `line`, `pie`, `doughnut`, `area`, `scatter`. Without
   `series`, the first column is used as categories and the rest as series.
 - Several sheets: inputs/assumptions, calculations, summary. Link with
@@ -46,7 +49,7 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
 ## Editing
 
 - Read first (`office_read`): it shows formulas and their values.
-- `set_cell` / `set_cells` / `set_range` keep existing styles; text starting
+- Group edits with `set_cells` / `set_range`. They keep existing styles; text starting
   with `=` becomes a formula, `12%` becomes 0.12 with a % format, `1.234,5`
   is read as a number.
 - `format` applies number formats, roles, widths, conditional formats or
@@ -56,6 +59,8 @@ description: Correct Excel workbooks: formulas not values, zero errors, formats,
 
 ## Before delivering
 
-`office_edit op=recalc` → 0 errors, then `office_render`: check that nothing
-shows `####` (column too narrow), headers are readable, numbers have formats
-and charts show the right series.
+Run `office_render qa_only=true` after the last batch of edits when a formula
+check is still needed. Its QA includes formula
+recalculation, so use `office_edit op=recalc` separately only if you need an
+earlier formula check. Render visually when the layout matters and check for
+`####` (column too narrow), readable headers, number formats and the right chart series.

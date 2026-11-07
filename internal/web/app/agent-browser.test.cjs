@@ -36,6 +36,7 @@ function fixture(desktop) {
     // Un fill estable per selector: n'hi ha prou per llegir-ne el text.
     querySelector(sel) { this.parts = this.parts || {}; return this.parts[sel] || (this.parts[sel] = new Element('div')); }
     append(child) { this.children.push(child); if (child.id) elements.set(child.id, child); }
+    replaceChildren(...children) { this.children = children; }
     setAttribute(k, v) { this.attributes[k] = String(v); }
     addEventListener(name, fn) { this.events[name] = fn; }
     loadURL(u) { this.loaded = u; }
@@ -99,6 +100,38 @@ test('agent browser pane opens on demand and registers its webview', () => {
   push('show');
   assert.equal(pane.hidden, false);
   assert.equal(workbench.children.length, 1, 'one pane only');
+});
+
+test('manual tabs retain navigation without changing the agent target or handoff', () => {
+  let push;
+  const ready = [];
+  const { elements, workbench } = fixture({
+    onAgentBrowser: cb => { push = cb; },
+    agentBrowserReady: (id, scope) => ready.push([id, scope]),
+  });
+  push({ state: 'show', session: 'default' });
+  const pane = workbench.children[0];
+  const agent = elements.get('agentBrowserView');
+  agent.getWebContentsId = () => 11;
+  agent.events['dom-ready']();
+  agent.events['did-navigate']({ url: 'https://example.test/agent' });
+  elements.get('agentBrowserNewTab').onclick();
+  const manual = pane.querySelector('.ab-view').children[1];
+  manual.getWebContentsId = () => 22;
+  manual.events['dom-ready']();
+  manual.events['did-navigate']({ url: 'https://example.test/manual' });
+  assert.deepEqual(ready, [[11, 'default']]);
+  assert.equal(agent.hidden, true);
+  assert.equal(elements.get('agentBrowserUrl').value, 'https://example.test/manual');
+  push({ state: 'handoff', session: 'default', id: '1' });
+  assert.equal(agent.hidden, false);
+  assert.equal(manual.hidden, true);
+  const tabs = elements.get('agentBrowserTabs');
+  tabs.children[1].children[0].onclick();
+  assert.equal(elements.get('agentBrowserUrl').value, 'https://example.test/manual');
+  tabs.children[1].children[1].onclick();
+  assert.equal(tabs.children.length, 1);
+  assert.equal(agent.hidden, false);
 });
 
 test('tool cards only render screenshot data URLs', () => {

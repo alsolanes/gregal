@@ -23,7 +23,7 @@ func TestIndexHasUsableVisualShell(t *testing.T) {
 		`aria-label="Send message"`,
 		`data-i18n-aria="ui.send"`,
 		`aria-live="polite"`,
-		`data-shortcut="Tab"`,
+		`id="modePicker"`,
 		`role="dialog"`,
 		`aria-modal="true"`,
 		`requestAnimationFrame`,

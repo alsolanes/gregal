@@ -93,8 +93,6 @@
 #in { min-height:42px; padding:0; }
 .composer-row { margin-top:12px; gap:9px; }
 .mode-switch { padding:3px; background:var(--bg); border-color:var(--line); border-radius:14px; }
-.mode-switch button { padding:5px 11px; }
-.mode-primary button { border-radius:8px; }
 .perm-btn { width:auto; min-height:32px; border-radius:9px; }
 #send { display:grid; place-items:center; width:36px; height:36px; color:var(--bg); }
 #hint { margin-top:10px; font-size:var(--t1); opacity:.7; }
@@ -153,7 +151,6 @@
   #composer { padding:8px 12px 14px; }
   #box { padding:14px 14px 10px; border-radius:16px; }
   .composer-row { gap:6px; }
-  .mode-switch button { padding:5px 9px; }
   #hero { padding:20px 20px 0; }
   #conversationPane:has(#main:not(.on)) #hero { flex:1; min-height:0; overflow:auto; }
   #conversationPane:has(#hero:not([hidden])) #composer { padding:8px 12px 14px; }
@@ -175,15 +172,9 @@
   #top .spacer { display:none; }
   .composer-row { flex-wrap:wrap; }
   .mode-switch { flex-basis:100%; display:flex; max-width:100%; }
-  .mode-primary { flex:1; }
-  .mode-primary button { flex:1; min-width:0; }
 }
 .composer-row { display:flex; flex-wrap:nowrap; gap:8px; }
 .composer-row .mode-switch { flex:0 1 410px; box-sizing:border-box; min-width:0; border-radius:99px; padding:3px; gap:3px; }
-.composer-row .mode-primary { flex:2; min-width:0; gap:3px; }
-.composer-row .mode-primary button { flex:1; align-items:center; justify-content:center; height:36px; padding:4px 12px; border-radius:99px; text-align:center; }
-.composer-row .mode-primary button b { font-weight:500; }
-.composer-row .mode-primary button span { display:none; }
 .composer-row .mode-advanced { flex:1; min-width:0; }
 .composer-row .mode-advanced summary { max-width:none; height:36px; box-sizing:border-box; display:flex; align-items:center; justify-content:center; padding:4px 8px; }
 .composer-row .mode-advanced-menu { left:auto; right:0; }
@@ -265,7 +256,11 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 
 /* Browser page: same header as the rest, toolbar and shell as one unit. */
 .browser-page { padding:38px clamp(20px,5vw,64px) 24px; }
-.browser-toolbar { padding:6px; border-radius:12px; background:var(--surface); }
+.browser-toolbar { padding:5px; border-radius:12px; background:var(--bg); }
+.browser-address { min-width:0; border-color:var(--line); border-radius:8px; background:var(--surface); }
+.browser-url { font:13px var(--sans,system-ui); text-overflow:ellipsis; }
+.browser-url:focus { text-overflow:clip; }
+.browser-nav:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 .browser-shell { border-radius:12px; }
 
 /* Sidebar entry injected by plots.js: same look as the other views. */
@@ -336,8 +331,6 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 
 /* Composer: a compact segmented control sized to its labels. */
 .composer-row .mode-switch { flex:0 1 auto; padding:3px; gap:2px; }
-.composer-row .mode-primary { flex:0 0 auto; }
-.composer-row .mode-primary button { flex:0 0 auto; min-width:74px; height:30px; padding:0 14px; }
 .composer-row .mode-advanced { flex:0 0 auto; }
 .composer-row .mode-advanced summary { height:30px; padding:0 12px; border-radius:99px; color:var(--muted); }
 .composer-row .mode-advanced summary:hover { color:var(--ink); background:var(--hover); }
@@ -350,8 +343,6 @@ button.danger:not(:disabled):hover { background:var(--red-soft); }
 .speed-readout { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; cursor:help; }
 @media (max-width:600px) {
   .composer-row .mode-switch { flex:1 0 100%; }
-  .composer-row .mode-primary { flex:2; }
-  .composer-row .mode-primary button { flex:1; min-width:0; }
   .composer-row .mode-advanced { flex:1; }
 }
 
@@ -508,8 +499,6 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 
 /* Composer v3: Ask | Act, a "Plan first" switch and the permission lock.
    Special modes (goal, autonomous, debug) show as a chip you can leave. */
-.composer-row .mode-primary button { min-width:64px; }
-.composer-row .mode-primary button b { font-weight:600; }
 .plan-toggle { display:inline-flex; align-items:center; gap:7px; height:32px; padding:0 12px 0 8px; border:1px solid var(--line-hi);
   border-radius:99px; background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); cursor:pointer;
   transition:border-color .15s ease, background .15s ease, color .15s ease; }

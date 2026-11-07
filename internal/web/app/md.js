@@ -87,12 +87,17 @@
   }
 
   function table(rows) {
-    const cells = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => inline(c.trim()));
-    const head = cells(rows[0]);
-    const body = rows.slice(2).map(cells);
-    let h = '<table class="md"><thead><tr>' + head.map((c) => "<th>" + c + "</th>").join("") + "</tr></thead>";
-    if (body.length) h += "<tbody>" + body.map((r) => "<tr>" + r.map((c) => "<td>" + c + "</td>").join("") + "</tr>").join("") + "</tbody>";
-    return h + "</table>";
+    const cells = (r) => r.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+    const alignment = cells(rows[1]).map((rule) => {
+      if (!rule.endsWith(":")) return "";
+      return rule.startsWith(":") ? ' class="md-center"' : ' class="md-right"';
+    });
+    const row = (r, tag) => "<tr>" + cells(r).map((c, i) =>
+      "<" + tag + (alignment[i] || "") + ">" + inline(c) + "</" + tag + ">"
+    ).join("") + "</tr>";
+    const body = rows.slice(2).map((r) => row(r, "td")).join("");
+    return '<div class="md-table-scroll"><table class="md"><thead>' + row(rows[0], "th") +
+      "</thead><tbody>" + body + "</tbody></table></div>";
   }
 
   const isTableSep = (l) => /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?\s*$/.test(l);

@@ -51,6 +51,7 @@ description: Word documents with real styles, templates, tracked changes and com
 
 ## Before delivering
 
-`office_render` and look at every page: headings orphaned at the bottom of a
-page, tables wider than the page, images too big, empty pages, leftover
-markers. Fix and render again.
+For straightforward drafts use `office_render qa_only=true` after grouping edits.
+For layout-critical drafts, render and check for
+orphaned headings, wide tables, oversized images, empty pages and leftover
+markers. Fix material issues together and recheck the affected pages.

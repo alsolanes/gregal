@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"gregal/internal/agent"
 	"gregal/internal/tools"
 )
 
@@ -52,10 +53,10 @@ func (s *Server) windDocsCtx(ctx context.Context) context.Context {
 	return withWindDocs(ctx, dir)
 }
 
-// windDocTool són les eines que escriuen documents.
+// windDocTool són les eines limitades a la carpeta de documents i adjunts.
 func windDocTool(name string) bool {
 	switch name {
-	case "pdf_create", "pdf_edit", "office_create", "office_edit":
+	case "pdf_create", "pdf_edit", "office_create", "office_edit", "office_render":
 		return true
 	}
 	return false
@@ -123,7 +124,8 @@ func windDocDecide(dir, name, argsJSON string) (string, string) {
 }
 
 // windDocsBrief és la consigna dels documents per al prompt del vent.
-const windDocsBrief = "\n\nDOCUMENTS: when the user asks for a document (a PDF, a report, a letter, a CV, a Word, Excel or PowerPoint file), create it yourself: pdf_create (a PDF from markdown) or office_create (.docx/.xlsx/.pptx), and change it with pdf_edit or office_edit. Use a plain file name such as informe-vendes.pdf: it is saved in your documents folder and the app adds a download link to your reply by itself, so never write paths or links to it. Documents the user attached (an @path in the message) can be read with pdf_read or office_read and edited in place. Never say you cannot create files."
+const windDocsBrief = "\n\n" + agent.ReviewDeliveryRules + " " + agent.VerifiedDeliveryRules +
+	"\nDOCUMENTS: create PDF, Word, Excel or PowerPoint when the user requests that format or asks to fill or edit an existing document. Use pdf_create, pdf_edit or the office tools. Use a plain file name: it is saved in your documents folder and the app adds a download link to your reply. Read attached documents with pdf_read or office_read. " + agent.OfficeDeliveryRules
 
 // windDocLinks són els enllaços de baixada dels documents creats o
 // editats des de since: els de la carpeta del vent i els adjunts editats.

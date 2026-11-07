@@ -50,6 +50,8 @@ import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -74,7 +76,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -339,25 +340,28 @@ fun LiveAnswer(text: String, lang: String) {
 
 // --- Composer: Pregunta/Planifica/Actua, modes avançats i permisos ---
 
-/** Selector Pregunta | Planifica | Actua amb la píndola que llisca (com la web i el TUI). */
+/** Selector compacte amb el mode actiu sempre visible. */
 @Composable
 fun ModeToggle(uiMode: String, enabled: Boolean, lang: String, onChange: (String) -> Unit) {
-    Surface(shape = RoundedCornerShape(50), color = CodeDark, modifier = Modifier.height(44.dp)) {
-        Row(Modifier.padding(3.dp), verticalAlignment = Alignment.CenterVertically) {
-            listOf("chat" to "app.mode.ask", "plan" to "app.mode.plan", "act" to "app.mode.act").forEach { (v, key) ->
-                val label = tr(lang, key)
-                val sel = v == uiMode
-                val bg by androidx.compose.animation.animateColorAsState(if (sel) Sea else Color.Transparent, tween(180), label = "bg")
-                val fg by androidx.compose.animation.animateColorAsState(if (sel) OnSea else Muted, tween(180), label = "fg")
-                Box(
-                    Modifier.fillMaxHeight().clip(RoundedCornerShape(50)).background(bg)
-                        .clickable(enabled = enabled, role = Role.Tab) { if (!sel) onChange(v) }
-                        .semantics { selected = sel }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(label, color = fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
-                }
+    val modes = listOf("chat" to "app.mode.ask", "plan" to "app.mode.plan", "act" to "app.mode.act")
+    val active = modes.firstOrNull { it.first == uiMode } ?: modes.last()
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier.height(44.dp).clip(RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled, role = Role.Button) { expanded = true }.padding(horizontal = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(tr(lang, active.second), color = Tinta, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = Muted, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
+            modes.forEach { (value, key) ->
+                DropdownMenuItem(
+                    text = { Text(tr(lang, key)) },
+                    trailingIcon = { if (value == uiMode) Icon(Icons.Rounded.Check, null) },
+                    onClick = { expanded = false; if (value != uiMode) onChange(value) },
+                )
             }
         }
     }

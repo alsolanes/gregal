@@ -885,14 +885,6 @@ body:not(.working) .spin { animation:none; }
    d'una ullada des de qualsevol punt de la pantalla. */
 .mode-switch { display:flex; align-items:center; gap:6px; flex:none; padding:2px;
   border:1px solid var(--line); border-radius:8px; background:var(--raised); }
-.mode-switch button { padding:4px 10px; border:0; border-radius:6px; background:transparent;
-  color:var(--muted); font-size:var(--t1); line-height:1.5; cursor:pointer; }
-.mode-switch button:hover { color:var(--ink); }
-.mode-switch button[aria-checked="true"] { color:var(--bg); font-weight:600; }
-.mode-primary { display:flex; align-items:center; gap:2px; }
-.mode-primary button { display:flex; flex-direction:column; align-items:flex-start; min-width:0; padding:5px 10px; text-align:left; }
-.mode-primary button span { font-size:10px; line-height:1.25; font-weight:400; color:var(--faint); }
-.mode-primary button[aria-checked="true"] span { color:color-mix(in srgb, var(--bg) 76%, transparent); }
 .mode-advanced { position:relative; flex:none; }
 .mode-advanced summary { cursor:pointer; list-style:none; white-space:nowrap; max-width:155px; overflow:hidden; text-overflow:ellipsis; padding:5px 8px; border-radius:6px;
   color:var(--muted); font-size:var(--t1); }
@@ -1485,7 +1477,6 @@ h1, h2, h3, h4 { font-family:var(--font-heading, inherit); }
 .composer-row { margin-top:9px; }
 .composer-meta { display:none; }
 .mode-switch { border-radius:99px; }
-.mode-switch button { font-size:var(--t2); padding:4px 12px; border-radius:99px; transition:all .14s ease; }
 #send { width:34px; height:34px; transition:transform .14s ease, background .14s ease; }
 #send:not(:disabled):hover { transform:scale(1.06); }
 #hint { font-family:inherit; font-size:var(--t1); margin-top:10px; opacity:.85; }
@@ -2010,11 +2001,11 @@ body.sense-inspector #inspector { display:none; }
             <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox"><b id="model">…</b> <span class="mp-caret">▾</span></button>
             <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
             <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
-              <div class="mode-primary" role="radiogroup" data-i18n-aria="ui.workMode" aria-label="Work mode" data-shortcut="Tab">
-                <button id="modeChat" data-mode="chat" role="radio" aria-checked="false" data-i18n-title="mode.askHelp" title="Answers and reads the project; changes nothing"><b data-i18n="mode.ask">Ask</b></button>
-                <button id="modePlan" data-mode="plan" role="radio" aria-checked="false" data-i18n-title="mode.planHelp" title="Investigates and proposes a plan; changes nothing until you approve it"><b data-i18n="mode.plan">Plan</b></button>
-                <button id="modeCode" data-mode="act" role="radio" aria-checked="true" data-i18n-title="mode.actHelp" title="Makes changes, runs commands and verifies"><b data-i18n="mode.act">Act</b></button>
-              </div>
+              <select id="modePicker" data-i18n-aria="ui.workMode" aria-label="Work mode">
+                <option id="modeChat" value="chat" data-i18n="mode.ask">Ask</option>
+                <option id="modePlan" value="plan" data-i18n="mode.plan">Plan</option>
+                <option id="modeCode" value="act" data-i18n="mode.act" selected>Act</option>
+              </select>
             </div>
             <!-- Tres modes, com ChatGPT i Claude: Pregunta, Planifica i
                  Actua. L'autonomia total és un permís d'Actua (botó del
@@ -3184,11 +3175,10 @@ document.addEventListener('gregal:idioma', () => {
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el
 // pintaven tres.
 function paintMode(mode) {
-  // Pregunta, Planifica i Actua tenen botó; Objectiu (dins de Planifica) i
-  // Depuració (dins d'Actua) hi afegeixen una etiqueta per sortir-ne.
-  document.querySelectorAll('.mode-switch button').forEach(b => {
-    b.setAttribute('aria-checked', String(b.dataset.mode === uiMode(mode)));
-  });
+  const picker = $('modePicker');
+  const value = uiMode(mode);
+  picker.value = value;
+  picker.title = gregalT(value === 'chat' ? 'mode.askHelp' : value === 'plan' ? 'mode.planHelp' : 'mode.actHelp');
   const chip = $('modeChip');
   if (chip) {
     const special = mode === 'goal' || mode === 'debug';
@@ -3277,9 +3267,9 @@ async function setMode(next) {
   const detall = ['code', 'chat', 'goal', 'autonomous', 'debug', 'plan'].includes(ara) ? gregalT('mode.detail.' + ara) : '';
   activityItem('mode', modeBadge(ara) || ara, detall, 'ok');
 }
-document.querySelectorAll('.mode-switch button').forEach(b => {
-  b.onclick = () => { if (b.getAttribute('aria-checked') !== 'true') setMode(b.dataset.mode); };
-});
+$('modePicker').onchange = async e => {
+  if (await setMode(e.target.value) === false) paintMode(state.mode);
+};
 $('modeChipExit').onclick = () => setMode('act');
 document.querySelectorAll('[data-special-mode]').forEach(b => { b.onclick = () => setMode(b.dataset.specialMode); });
 $('parallelBtn').onclick = () => doParallel();

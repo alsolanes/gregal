@@ -222,6 +222,11 @@ func (pk *Package) Save(p string) error {
 	if err != nil {
 		return err
 	}
+	return SaveBytes(p, data)
+}
+
+// SaveBytes desa un paquet ja serialitzat, sense tornar-lo a comprimir.
+func SaveBytes(p string, data []byte) error {
 	tmp := p + ".gregal-tmp"
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
 		return err
@@ -456,14 +461,14 @@ func (pk *Package) MainPart() string {
 // ---------- plantilles ----------
 
 var templateTypes = map[string]string{
-	"application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml":   "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
-	"application/vnd.ms-word.template.macroEnabledTemplate.main+xml":                     "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
-	"application/vnd.openxmlformats-officedocument.presentationml.template.main+xml":     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-	"application/vnd.ms-powerpoint.template.macroEnabled.main+xml":                       "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
-	"application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml":      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
-	"application/vnd.ms-excel.template.macroEnabled.main+xml":                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
-	"application/vnd.ms-word.document.macroEnabled.main+xml":                             "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
-	"application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml":                   "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml": "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+	"application/vnd.ms-word.template.macroEnabledTemplate.main+xml":                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+	"application/vnd.openxmlformats-officedocument.presentationml.template.main+xml":   "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+	"application/vnd.ms-powerpoint.template.macroEnabled.main+xml":                     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+	"application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml":    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+	"application/vnd.ms-excel.template.macroEnabled.main+xml":                          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml",
+	"application/vnd.ms-word.document.macroEnabled.main+xml":                           "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+	"application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml":                 "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
 }
 
 // IsTemplate diu si el part principal és de plantilla (.dotx/.potx/.xltx).

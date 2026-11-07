@@ -13,7 +13,7 @@ test('Tab cycles Ask, Plan and Act and returns from an unknown mode to Ask', () 
   assert.equal(next('goal'), 'chat');
 });
 
-test('Ask/Plan/Act radios and the special-mode chip follow the session mode', () => {
+test('the mode picker and special-mode chip follow the session mode', () => {
   const source = fs.readFileSync(__dirname + '/index.html', 'utf8');
   const start = source.indexOf('function paintMode(mode)');
   const end = source.indexOf('// El menú de permisos', start);
@@ -23,20 +23,17 @@ test('Ask/Plan/Act radios and the special-mode chip follow the session mode', ()
   assert.ok(uiStart >= 0);
   const chip = {hidden:true, dataset:{}};
   const label = {textContent:''};
-  const radios = ['chat','plan','act'].map(mode => ({
-    dataset:{mode}, setAttribute(key,value) { this[key] = value; },
-  }));
-  const context = {document:{querySelectorAll:() => radios},
-    $:id => ({modeChip:chip, modeChipLabel:label})[id], gregalT:key => key};
+  const picker = {value:''};
+  const context = {
+    $:id => ({modePicker:picker, modeChip:chip, modeChipLabel:label})[id], gregalT:key => key};
   vm.createContext(context);
   vm.runInContext(source.slice(uiStart, uiEnd) + '\n' + source.slice(start,end) + '\nthis.uiMode = uiMode;', context);
   const want = {code:'act', autonomous:'act', debug:'act', chat:'chat', inspect:'chat', plan:'plan', goal:'plan'};
-  for (const [mode, radio] of Object.entries(want)) {
+  for (const [mode, value] of Object.entries(want)) {
     context.paintMode(mode);
     const special = ['goal','debug'].includes(mode);
     assert.equal(chip.hidden, !special, mode);
-    const checked = radios.filter(r => r['aria-checked'] === 'true');
-    assert.deepEqual(checked.map(r => r.dataset.mode), [radio], mode);
+    assert.equal(picker.value, value, mode);
   }
 });
 

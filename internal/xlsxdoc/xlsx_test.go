@@ -3,6 +3,7 @@ package xlsxdoc
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -26,6 +27,7 @@ const modelSpec = `{
   "number_formats": {"B2:D4": "#,##0 €", "B5:D5": "0.0%", "B7": "0.0%"},
   "roles": {"B2:B3": "input", "B7": "key", "A4:D4": "total"},
   "comments": {"B7": "Hipòtesi: creixement anual de vendes."},
+  "hyperlinks": {"A2": "https://example.test/source"},
   "charts": [{"type": "col", "title": "Vendes i costos", "categories": "Model!$B$1:$D$1", "series": [{"name": "Model!$A$2", "values": "Model!$B$2:$D$2"}, {"name": "Model!$A$3", "values": "Model!$B$3:$D$3"}]}]
  }]
 }`
@@ -41,7 +43,7 @@ func TestCreateModelAndRecalc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	warns, err := Create(path, "", sp)
+	warns, created, err := Create(path, "", sp)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,6 +53,9 @@ func TestCreateModelAndRecalc(t *testing.T) {
 	rep, err := Recalc(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(created, rep) {
+		t.Fatalf("recompte en crear: %+v; recompte del fitxer: %+v", created, rep)
 	}
 	if rep.Formulas != 11 {
 		t.Errorf("fórmules: %d", rep.Formulas)
@@ -67,9 +72,14 @@ func TestCreateModelAndRecalc(t *testing.T) {
 	}
 	f, _ := excelize.OpenFile(path)
 	defer f.Close()
+	linked, target, err := f.GetCellHyperLink("Model", "A2")
+	if err != nil || !linked || target != "https://example.test/source" {
+		t.Fatalf("enllaç A2: %t, %q, %v", linked, target, err)
+	}
 	st, _ := f.GetCellStyle("Model", "B2")
 	s, _ := f.GetStyle(st)
-	if s.Font == nil || !strings.EqualFold(s.Font.Color, "0000FF") || s.CustomNumFmt == nil {
+	if s.Font == nil || !strings.EqualFold(s.Font.Color, "0000FF") || s.Font.ColorTheme != nil ||
+		s.CustomNumFmt == nil || len(s.Fill.Color) == 0 || !strings.EqualFold(s.Fill.Color[0], "EAF2FF") {
 		t.Errorf("B2 hauria de ser entrada blava amb format: %+v", s)
 	}
 }

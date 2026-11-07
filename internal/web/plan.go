@@ -111,6 +111,10 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 		scope.mode = agent.ModeInspect
 	}
 	ctx = s.withRemindServer(agent.WithTurnMode(ctx, scope.mode))
+	ctx = llm.WithThink(ctx, role.Think)
+	if !agent.ReadOnlyMode(scope.mode) {
+		ctx = llm.WithRecoverTruncation(ctx)
+	}
 	var requiresApproval bool // Decide is serial, before any tools run.
 	var skipped []string
 	stream := emit != nil
@@ -457,7 +461,9 @@ func (s *Server) handlePlan(w http.ResponseWriter, r *http.Request) {
 
 type planTurnKey struct{}
 
-func withPlanTurn(ctx context.Context) context.Context { return context.WithValue(ctx, planTurnKey{}, true) }
+func withPlanTurn(ctx context.Context) context.Context {
+	return context.WithValue(ctx, planTurnKey{}, true)
+}
 
 func isPlanTurn(ctx context.Context) bool { v, _ := ctx.Value(planTurnKey{}).(bool); return v }
 

@@ -142,9 +142,9 @@ func Specs() []llm.ToolSpec {
 				"path":   str,
 				"detail": map[string]any{"type": "string", "enum": []string{"text", "layout", "full"}},
 			}, "required": []string{"path"}}},
-		{Name: "office_render", Description: "Render an office document to images (LibreOffice or Microsoft Office) and run automatic QA (overflowing text, overlaps, shapes off the slide, leftover placeholder text, formula errors, broken structure). Returns a numbered thumbnail grid; pass pages=\"3\" or \"2,5\" to see pages/slides at full size. ALWAYS render after creating or editing a document and fix what you see before delivering it.",
+		{Name: "office_render", Description: "Check an Office document. Set qa_only=true for fast structure and formula checks without launching Office. Otherwise render the final version to images for visual QA. Pass pages=\"3\" or \"2,5\" to inspect specific pages at full size.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
-				"path": str, "pages": str,
+				"path": str, "pages": str, "qa_only": map[string]any{"type": "boolean"},
 			}, "required": []string{"path"}}},
 		{Name: "office_open", Description: "Open a document with the system's associated program (Word/Excel/PowerPoint). It does not block: it returns immediately. While the document is open it cannot be written with office_edit (file locked): ask the user to close it to keep editing.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
@@ -166,7 +166,7 @@ func Specs() []llm.ToolSpec {
 		{Name: "office_edit", Description: "Edit an existing office file, keeping its formatting (journaled: /rewind undoes it; an edit that would corrupt the file is refused). " +
 			"docx ops: replace (find, replace; regex, ignore_case; also headers/footers/notes), insert (anchor = text of a paragraph, position before|after|start|end, content in markdown: becomes real styles, lists, tables), append (content), delete (anchor, all), comment (anchor, text), fill_vars (vars {{name}}), accept_changes. Add track=true to replace/insert/delete for tracked changes (author). " +
 			"pptx ops: replace, add_slide (spec = one slide JSON or content markdown; layout; to = position), duplicate_slide (slide, to), delete_slide (slide), move_slide (slide, to), fill (slide, shapes {\"title\":\"…\",\"body\":\"- point\",\"body2\":…, or shape name / id=N}), notes (slide, text), fill_vars. " +
-			"xlsx ops: set_cell (sheet, cell, value; \"=…\" is a formula), set_cells (cells {\"B2\":\"10\",\"C2\":\"=B2*2\"}), set_range (cell = top-left, content: one row per line, cells separated by |), format (spec JSON: number_formats, roles input|formula|link|key|total|header, widths, freeze, conditional, charts, merge, comments), recalc (lists formula errors). Slides are 1-based.",
+			"xlsx ops: set_cell (sheet, cell, value; \"=…\" is a formula), set_cells (cells {\"B2\":\"10\",\"C2\":\"=B2*2\"}), set_range (cell = top-left, content: one row per line, cells separated by |), format (spec JSON: number_formats, roles input|formula|link|key|total|header, widths, freeze, conditional, charts, merge, comments, hyperlinks), recalc (lists formula errors). Slides are 1-based.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str,
 				"op": map[string]any{"type": "string", "enum": []string{"replace", "insert", "append", "delete", "comment", "fill_vars", "accept_changes",
@@ -190,7 +190,7 @@ func Specs() []llm.ToolSpec {
 		{Name: "office_create", Description: "Create a new, professionally formatted office document. Fails if the file exists unless overwrite=true (use it to regenerate your own draft, never to replace a user file). Load the skill office-docx / office-pptx / office-xlsx first for the rules. " +
 			"docx: content in markdown (headings, lists, numbered lists, tables, quotes, code, links, images ![alt](path), [TOC], \\pagebreak) becomes real Word styles; title/subtitle make a cover; template = a .dotx/.docx whose styles, header, footer and page setup are kept ({{name}} markers are filled from vars, {{content}} marks where content goes). " +
 			"pptx: spec JSON {\"theme\":…,\"slides\":[{\"layout\":\"title|section|content|two_columns|comparison|big_number|image|title_only|blank|closing\",\"title\",\"subtitle\",\"bullets\":[…],\"body\",\"left\",\"right\",\"left_title\",\"right_title\",\"number\",\"caption\",\"image\",\"table\":[[…]],\"chart\":{\"type\":\"column|bar|line|pie|doughnut\",\"categories\":[…],\"series\":[{\"name\",\"values\":[…]}]},\"notes\"}]} or content markdown (one # per slide); template = .potx/.pptx (its layouts are reused; its sample slides are removed unless keep_template_slides). " +
-			"xlsx: spec JSON {\"sheets\":[{\"name\",\"rows\":[[…]] (\"=…\" = formula),\"number_formats\":{\"B2:D9\":\"#,##0 €\"},\"roles\":{\"B2:B5\":\"input\"},\"widths\",\"freeze\",\"table\",\"conditional\",\"charts\",\"comments\",\"validation\"}]} or content rows separated by |. " +
+			"xlsx: spec JSON {\"sheets\":[{\"name\",\"rows\":[[…]] (\"=…\" = formula),\"number_formats\":{\"B2:D9\":\"#,##0 €\"},\"roles\":{\"B2:B5\":\"input\"},\"widths\":[24,14,14],\"freeze\":\"B2\",\"table\":true,\"conditional\",\"charts\",\"comments\",\"hyperlinks\":{\"A2\":\"https://example.com/source\"},\"validation\":[{\"range\":\"B2:B5\",\"min\":0,\"max\":5}]}]} or content rows separated by |. Put the link label in rows and its URL in hyperlinks. Omit widths to auto-fit. Creation reports formula QA. " +
 			"theme: leave it empty unless the user asks for a look: empty uses the user's active branding (their colours, fonts and logo) or the default; otherwise default, modern, nature, elegant, mono (optionally \"default:primary=1F4E79,accent=F18F01,font=Arial\").",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"path": str, "title": str, "subtitle": str, "content": str, "template": str, "theme": str, "author": str,
@@ -826,13 +826,14 @@ func execCtxEina(ctx context.Context, session, dir, name, argsJSON string) (out 
 		return "llegit " + oa.Path + "\n" + oout, nil, nil
 	case "office_render":
 		var orr struct {
-			Path  string `json:"path"`
-			Pages string `json:"pages"`
+			Path   string `json:"path"`
+			Pages  string `json:"pages"`
+			QAOnly bool   `json:"qa_only"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &orr); err != nil {
 			return "", nil, err
 		}
-		out, imgs, err := tools.OfficeRender(ctx, tools.RenderOpts{Path: orr.Path, Pages: orr.Pages})
+		out, imgs, err := tools.OfficeRender(ctx, tools.RenderOpts{Path: orr.Path, Pages: orr.Pages, QAOnly: orr.QAOnly})
 		if err != nil {
 			return "", nil, err
 		}

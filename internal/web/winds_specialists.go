@@ -252,7 +252,7 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 	_, logRole := s.windRoleRef()
 	s.mu.Unlock()
 	tl := startTurnLog("wind-task", wind.ID, logRole)
-	res, err := windLoopStream(s, agentSkills(ctx, s, wind.ID), windChatBrief(s, wind, previous, msg), nil)
+	res, err := windLoopStream(s, agentSkills(tl.withUsage(ctx), s, wind.ID), windChatBrief(s, wind, previous, msg), nil)
 	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
 	if err != nil {
 		return "", "", errors.New(redactError(err))
