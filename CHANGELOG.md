@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v1.56.0 - 2026-11-07 - Parla amb els vents mentre treballen
+
+- **Parla amb els vents mentre treballen (steer).** Un vent, una rotllana o
+  una colla en marxa ja no s'han d'aturar per escoltar-te: el que escrius al
+  xat mentre treballen entra al context del torn en curs al punt segur
+  (entre passos del model) i l'agent l'usa de seguida. Si el torn s'acaba
+  just abans d'enviar, el missatge no es perd: es reenvia com a missatge
+  nou. A l'app Android el camp d'escriure no es bloqueja mentre treballen:
+  escrius i envies, i el botó d'aturar segueix al seu lloc.
+- **La web del Gregal no cau en reiniciar.** El gestor de túnels escrivia la
+  config del túnel amb credencials d'un altre túnel (una combinació que no
+  pot autenticar mai) i el domini queia en silenci. Ara les credencials
+  només s'hi escriuen si són realment del túnel que s'engega. El túnel del
+  servidor passa a un servei propi que sobreviu a reinicios, i hi ha un
+  domini alternatiu (`gregal.selsol.top`) per quan l'ISP bloqueja el
+  principal.
+- **Compositor compacte amb el navegador de l'agent obert.** El panell treu
+  ~46% d'amplada al xat i la fila quedava atapeïda, amb el botó d'atura
+  mogut. Amb el panell obert els modes s'aprimen, el permís queda en icona
+  i el botó d'enviar/atura es queda fixat al final, sempre a la mateixa
+  mida.
 - **Vents més lleugers i mai bloquejats.** L'historial de cada vent i
   rotllana té un sostre (100 missatges) en lloc de créixer sense límit, la
   llista de converses no espera mai una resposta del model (abans un GET
