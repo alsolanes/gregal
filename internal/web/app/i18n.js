@@ -28,6 +28,10 @@ const CA = {
   'product.openVents': 'Obre Gregal Vents',
   'product.openCodi': 'Obre Gregal Codi',
   'product.openJocs': 'Obre Gregal Jocs',
+  'product.codi': 'Codi',
+  'product.vents': 'Vents',
+  'product.jocs': 'Jocs',
+  'product.switch': 'Canvia de producte',
   'nav.automations': 'Automatitzacions',
   // Paleta d'ordres (app/palette.js, Ctrl/Cmd+K).
   'pal.dialog': 'Paleta d\'ordres',
@@ -2062,6 +2066,10 @@ const EN = {
   'product.openVents': 'Open Gregal Vents',
   'product.openCodi': 'Open Gregal Codi',
   'product.openJocs': 'Open Gregal Jocs',
+  'product.codi': 'Code',
+  'product.vents': 'Winds',
+  'product.jocs': 'Games',
+  'product.switch': 'Switch product',
   'nav.automations': 'Automations',
   // Command palette (app/palette.js, Ctrl/Cmd+K).
   'pal.dialog': 'Command palette',

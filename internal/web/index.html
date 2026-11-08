@@ -3318,8 +3318,8 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
 // Cada producte, el seu rail: el que és de l'altre no hi surt (display, no
 // hidden, perquè els plugins fan servir hidden per encendre i apagar-los).
 document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAllows(b.dataset.view)) b.style.display = 'none'; });
-// Al peu del rail, un botó per a cadascun dels altres dos productes (mateix
-// servidor i sessió).
+// Al peu del rail, un desplegable únic per triar el producte (mateix servidor
+// i sessió): l'opció marcada és l'actual i les altres hi porten.
 (() => {
   const foot = document.querySelector('.rail-footer');
   if (!foot) return;
@@ -3327,19 +3327,28 @@ document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAl
   // mostra Jocs, i Gregal Jocs no mostra els altres dos. Al navegador, tots.
   const edition = window.gregalDesktop?.edition || '';
   const offered = edition === 'gregal' ? ['codi', 'vents'] : edition === 'jocs' ? [] : ['codi', 'vents', 'jocs'];
-  const others = [['codi', '/', '›_', 'product.openCodi', 'Gregal Codi'], ['vents', '/vents/', '◍', 'product.openVents', 'Gregal Vents'], ['jocs', '/jocs/', '🏆', 'product.openJocs', 'Gregal Jocs']]
-    .filter(([p]) => p !== PRODUCT && offered.includes(p));
-  others.reverse().forEach(([p, href, icon, key, fallback]) => {
-    const a = document.createElement('a');
-    a.className = 'icon-btn product-switch';
-    a.id = 'productSwitch-' + p;
-    a.href = href;
-    a.textContent = icon;
-    const label = () => gregalT(key) || fallback;
-    a.title = label(); a.setAttribute('aria-label', label());
-    document.addEventListener('gregal:idioma', () => { a.title = label(); a.setAttribute('aria-label', label()); });
-    foot.prepend(a);
-  });
+  const all = [['codi', '/', 'product.codi', 'Gregal Codi'], ['vents', '/vents/', 'product.vents', 'Gregal Vents'], ['jocs', '/jocs/', 'product.jocs', 'Gregal Jocs']]
+    .filter(([p]) => offered.includes(p));
+  if (all.length < 2) return;
+  const sel = document.createElement('select');
+  sel.className = 'product-switch';
+  sel.id = 'productSwitch';
+  const label = () => gregalT('product.switch') || 'Gregal';
+  sel.title = label(); sel.setAttribute('aria-label', label());
+  const options = () => {
+    sel.textContent = '';
+    all.forEach(([p, href, key, fallback]) => {
+      const o = document.createElement('option');
+      o.value = p === PRODUCT ? '' : href;
+      o.textContent = gregalT(key) || fallback;
+      if (p === PRODUCT) o.selected = true;
+      sel.append(o);
+    });
+  };
+  options();
+  sel.onchange = () => { if (sel.value) location.href = sel.value; };
+  document.addEventListener('gregal:idioma', () => { sel.title = label(); sel.setAttribute('aria-label', label()); options(); sel.value = ''; });
+  foot.prepend(sel);
 })();
 // El menú «Més» és de les eines de codi (coneixement, agents, GitHub, Retro…).
 if (PRODUCT !== 'codi') { const more = $('sideMore'); if (more) more.style.display = 'none'; }

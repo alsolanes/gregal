@@ -67,7 +67,7 @@
  }
  function render(){
   if(!mounted)return;renderNav();page.replaceChildren();messages=null;input=null;composer=null;
-  const top=el('header','vw-top');const menu=btn('☰',()=>setDrawer(!document.body.classList.contains('vw-drawer')),'vw-mobile-menu');menu.setAttribute('aria-label',t('Obre la navegació','Open navigation'));menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),el('span','',state.active?.name||squadName(state.squad)));
+  const top=el('header','vw-top');const menu=btn('☰',()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-label',t('Obre la navegació','Open navigation'));menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),el('span','',state.active?.name||squadName(state.squad)));
   if(state.view==='chat'&&state.active?.id)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   top.append(btn(t('La colla','Crew'),()=>route('crew'),'vw-top-action'));page.append(top);
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');page.append(status);

@@ -481,7 +481,7 @@ function wireIPC(getWin) {
 
 // Dos productes al mateix servidor: Gregal Codi (/) i Gregal Vents (/vents/).
 // La drecera «Gregal Vents» obre l'app amb --vents; la finestra és la mateixa
-// i el botó del peu (o el menú) passa d'un a l'altre.
+// i el desplegable del peu passa d'un producte a l'altre.
 // Dues edicions, dos instal·ladors: «Gregal» (Codi i Vents) i «Gregal Jocs»
 // (només els jocs). L'edició la posa el build a package.json (gregalEdition);
 // sense, és Gregal. Gregal ja no obre els jocs, i Gregal Jocs només obre /jocs/.

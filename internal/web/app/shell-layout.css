@@ -13,6 +13,9 @@
 .rail-more-menu { position:absolute; left:calc(100% + 10px); top:0; width:232px; max-height:calc(100dvh - 160px); overflow:auto; padding:7px; margin:0; border:1px solid var(--line-hi); border-radius:13px; background:var(--surface); box-shadow:0 16px 36px var(--ombra); }
 #navRail .rail-more-menu .nav-item { display:flex; width:100%; margin:0; padding:10px; font-size:12px; text-align:left; }
 .rail-footer { display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:auto; }
+select.product-switch { width:54px; height:30px; padding:0 2px; border:0; border-radius:8px; background:transparent; color:var(--muted); font:inherit; font-size:11px; cursor:pointer; }
+select.product-switch:hover { background:var(--hover); color:var(--ink); }
+select.product-switch:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 #side { width:248px; min-width:248px; transition:margin .16s ease,width .16s ease; }
 #side .brand { height:48px; min-height:48px; font-size:12px; }
 #side.compact { width:0; min-width:0; overflow:hidden; border:0; visibility:hidden; }

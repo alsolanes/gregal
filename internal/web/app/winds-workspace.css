@@ -195,7 +195,8 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-review { border-top:1px solid var(--line); margin-top:4px; }
 .vw-review > summary { cursor:pointer; padding:12px 0; color:var(--muted); font-size:12px; }
 .vw-review > .vw-result-text { padding-top:4px; }
-.vw-mobile-nav,.vw-mobile-menu { display:none; }
+.vw-mobile-nav { display:none; }
+.vw-mobile-menu { display:block; border:0; color:var(--muted); background:transparent; padding:4px; cursor:pointer; }
 @media(min-width:1500px) { .vw-content { padding-left:max(40px,calc((100% - 900px)/2)); padding-right:max(40px,calc((100% - 900px)/2)); } }
 @media(max-width:1000px) { body.shell-winds #side { width:210px; min-width:210px; } .vw-content { padding-left:28px; padding-right:28px; } .vw-actions { max-width:140px; } }
 @media(max-width:760px) {
