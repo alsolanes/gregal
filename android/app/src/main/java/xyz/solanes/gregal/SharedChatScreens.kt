@@ -188,6 +188,11 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
     var info by remember(chat.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val accent = chat.winds.firstOrNull()?.let { Color(it.argb) } ?: Sea
+    // El fil es rellegeix cada pocs segons: seguir-lo només si HI ÉS, al final.
+    // Abans un LaunchedEffect(size) hi tornava sempre i et saltava a baix
+    // mentre pujaves a rellegir.
+    val follow = rememberChatFollow(listState, chat.id)
+    val keys = remember(msgs) { chatRowKeys(msgs) { m -> "s${m.ts}|${m.speakerId}|${m.author}" } }
     // Les altres persones escriuen des dels seus mòbils: el fil es torna a llegir sovint,
     // però només mentre es mira (en segon pla no té sentit llegir-lo).
     LifecyclePoll(chat.id) {
@@ -204,13 +209,14 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
             accent, chat.winds.firstOrNull()?.faceStyle ?: WindStyle(),
             if (busy) WindMood.THINKING else WindMood.IDLE, chat.winds,
             onBack = onBack, onProfile = { info = true })
-        LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState,
+        Box(Modifier.weight(1f)) {
+        LazyColumn(Modifier.fillMaxSize(), state = listState,
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
             if (msgs.isEmpty()) item {
                 Text(tr(lang, "app.shared.empty", chat.humans.filter { it != SharedChatsStore.me.value }.joinToString(", ")), color = Muted, fontSize = 14.sp,
                     modifier = Modifier.fillMaxWidth().padding(24.dp))
             }
-            items(msgs.size, key = { it }) { idx ->
+            items(msgs.size, key = { idx -> keys[idx] }) { idx ->
                 val m = msgs[idx]
                 val wind = chat.winds.firstOrNull { it.id == m.speakerId }
                 val prev = msgs.getOrNull(idx - 1)
@@ -227,6 +233,10 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
                     Text("  " + tr(lang, "app.company.groupThinking"), fontSize = 12.sp, color = accent)
                 }
             }
+        }
+        if (msgs.isNotEmpty() && !follow.following) LatestPill(lang) {
+            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
+        }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(field, { field = it }, modifier = Modifier.weight(1f), maxLines = 5,

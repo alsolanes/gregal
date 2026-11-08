@@ -1230,12 +1230,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                 item(key = "typing") { WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING) }
             }
         }
-        if (awayFromLatest) {
-            Surface(
-                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
-                shape = RoundedCornerShape(999.dp), color = Ink,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
-            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        if (awayFromLatest) LatestPill(lang) {
+            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes del vent: el torn espera aquí la teva resposta.
@@ -1505,12 +1501,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
                 }
             }
         }
-        if (awayFromLatest) {
-            Surface(
-                onClick = { follow.requestFollow(); scope.launch { listState.scrollToLatest() } },
-                shape = RoundedCornerShape(999.dp), color = Ink,
-                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp),
-            ) { Text(if (lang == "en") "Latest ↓" else "Últims ↓", color = Superficie, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)) }
+        if (awayFromLatest) LatestPill(lang) {
+            follow.requestFollow(); scope.launch { listState.scrollToLatest() }
         }
         }
         // Aprovacions i preguntes dels vents del grup: el torn espera aquí la teva resposta.
@@ -2359,4 +2351,39 @@ internal suspend fun LazyListState.scrollToLatest(animate: Boolean = false) {
     val last = layoutInfo.totalItemsCount - 1
     if (last < 0) return
     if (animate) animateScrollToItem(last, Int.MAX_VALUE) else scrollToItem(last, Int.MAX_VALUE)
+}
+
+/** Píndola que apareix quan has pujat a llegir: un toc i tornes a l'últim missatge. */
+@Composable
+internal fun BoxScope.LatestPill(lang: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(999.dp), color = Ink,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 18.dp, bottom = 14.dp)) {
+        Text(tr(lang, "app.vents.latest"), color = Superficie, fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp))
+    }
+}
+
+/**
+ * Claus per fila de xat. La posició no val: quan el fil es torna a omplir
+ * (o n'arriba un de més antic) totes les bombolles canvien de lloc, la llista
+ * sencera es recompon i l'scroll salta a una altra banda. Amb una clau
+ * d'identitat, el que ja es veia es queda on era.
+ *
+ * `idOf` ha de ser estable en el temps (una marca del servidor, no el text:
+ * un missatge en directe canvia a cada fragment). Si dues files coincideixen
+ * —mateix segon, mateix parlant— es desenmpalen amb un contador.
+ */
+internal fun <T> chatRowKeys(items: List<T>, idOf: (T) -> String): List<String> {
+    val used = HashSet<String>(items.size)
+    val seen = HashMap<String, Int>(items.size)
+    return items.map { item ->
+        val base = idOf(item)
+        var n = seen.merge(base, 1) { a, b -> a + b } ?: 1
+        var key = if (n == 1) base else "$base#$n"
+        // Un identificador que ja porta el sufix no pot xocar amb el d'una altra fila.
+        while (!used.add(key)) {
+            n++; seen[base] = n; key = "$base#$n"
+        }
+        key
+    }
 }

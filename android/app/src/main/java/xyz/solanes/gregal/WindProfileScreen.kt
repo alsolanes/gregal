@@ -173,10 +173,7 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             item(key = "content") {
             Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (error != null) {
-                    Text(error, color = MaterialTheme.colorScheme.error)
-                    OutlinedButton(onClick = onRetry) { Text(tr(lang, "app.vents.retry")) }
-                }
+                if (error != null) ErrorBoard(tr(lang, "app.ui.errorTitle"), error, lang, onRetry)
                 when (tabs.getOrNull(tab)) {
                     "memory" -> if (profile != null) {
                         Text(tr(lang, "app.vents.topicMemory"), color = Ink, fontWeight = FontWeight.SemiBold)

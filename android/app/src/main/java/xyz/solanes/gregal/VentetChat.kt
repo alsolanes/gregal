@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
  * La conversa amb el Ventet: el mateix xat que els vents (capçalera, fil i
@@ -47,6 +48,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         if (t.isNotBlank() && field.text.isBlank()) field = TextFieldValue(t, TextRange(t.length))
     }
     val follow = rememberChatFollow(listState, "ventet")
+    val scope = rememberCoroutineScope()
     val mood = when {
         ui.busy || ui.going -> WindMood.THINKING
         ui.pending != null -> WindMood.HAPPY
@@ -100,7 +102,10 @@ internal fun VentetThread(
                 hint = tr(lang, "app.cap.hello"),
             )
         }
-        items(history.size, key = { it }) { i ->
+        // Claus d'identitat (ts|qui), no la posició: quan el servidor torna a
+        // omplir el fil la llista no es recompon sencera ni salta l'scroll.
+        val keys = remember(history) { chatRowKeys(history) { m -> if (m.ts > 0) "t${m.ts}|${m.from}" else "u|${m.from}" } }
+        items(history.size, key = { i -> keys[i] }) { i ->
             val m = history[i]
             val gap = if (i > 0 && history[i - 1].from != m.from) 16.dp else 4.dp
             Column(Modifier.padding(top = gap)) {
@@ -141,16 +146,6 @@ internal fun VentetThread(
 }
 
 /** No s'ha pogut carregar el Ventet: es diu i es pot tornar a provar. */
-@Composable
-private fun CapLoadError(lang: String, onRetry: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(32.dp).testTag("cap-load-error"),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(tr(lang, "app.cap.loadError"), color = Ink, fontSize = 15.sp, textAlign = TextAlign.Center)
-        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = Sea, contentColor = OnSea)) {
-            Text(tr(lang, "app.cap.retry"))
-        }
-    }
-}
 
 /** Una proposta ja resolta (o deixada): qui la feia, en petit. */
 @Composable

@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -234,6 +235,37 @@ fun EmptyState(
         if (actionLabel != null && onAction != null) {
             Spacer(Modifier.height(22.dp))
             PrimaryPill(actionLabel, onAction)
+        }
+    }
+}
+
+/**
+ * Error de càrrega amb sortida: què ha fallat, el detall i un sol botó per
+ * tornar-hi. La mateixa estructura que EmptyState: una pantalla que no ha
+ * pogut carregar no s'ha de confondre amb una de buida.
+ */
+@Composable
+fun ErrorBoard(
+    title: String,
+    body: String = "",
+    lang: String = "ca",
+    onRetry: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        EmptyArt(Icons.Rounded.ErrorOutline, tint = Red)
+        Spacer(Modifier.height(20.dp))
+        Text(title, color = Ink, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        if (body.isNotBlank() && body != title) {
+            Spacer(Modifier.height(8.dp))
+            Text(body, color = Muted, fontSize = 14.sp, lineHeight = 20.sp, textAlign = TextAlign.Center)
+        }
+        if (onRetry != null) {
+            Spacer(Modifier.height(22.dp))
+            PrimaryPill(tr(lang, "app.ui.retry"), onRetry)
         }
     }
 }
