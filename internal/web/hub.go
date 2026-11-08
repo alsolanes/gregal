@@ -240,6 +240,10 @@ func (h *Hub) clone(id string) *Server {
 		questions:         map[string]questionReq{},
 		remembers:         agent.NewRemember(),
 		policy:            agent.PolicyFromConfig(cfg, d.cwd),
+		// windActiveSession és compartit: la sessió oberta d'un vent és
+		// una sola per tot el servidor (winds_sessions.go), igual que el
+		// magatzem de vents.
+		windActiveSession: d.windActiveSession,
 	}
 }
 

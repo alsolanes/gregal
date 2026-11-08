@@ -2994,6 +2994,12 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windChatLoading = MutableStateFlow<Set<String>>(emptySet())
     val windChatLoading: StateFlow<Set<String>> = _windChatLoading
 
+    /** Sessions (fils) de cada vent: llista + la que és oberta. */
+    private val _windSessions = MutableStateFlow<Map<String, List<WindSessionInfo>>>(emptyMap())
+    val windSessions: StateFlow<Map<String, List<WindSessionInfo>>> = _windSessions
+    private val _windSessionsLoading = MutableStateFlow<Set<String>>(emptySet())
+    val windSessionsLoading: StateFlow<Set<String>> = _windSessionsLoading
+
     private val _windBusy = MutableStateFlow<Set<String>>(emptySet())
     val windBusy: StateFlow<Set<String>> = _windBusy
 
@@ -4868,6 +4874,65 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     val windCreator: StateFlow<Pair<Boolean, Wind?>> = _windCreator
     fun showWindCreator(show: Boolean, wind: Wind? = null) { _windCreator.value = show to wind }
 
+    // --- sessions d'un vent: fils separats d'un mateix vent ---
+
+    fun loadWindSessions(windId: String) {
+        val source = _conn.value
+        _windSessionsLoading.value = _windSessionsLoading.value + windId
+        viewModelScope.launch {
+            try {
+                val list = withContext(Dispatchers.IO) { source.api().windSessions(windId) }
+                _windSessions.value = _windSessions.value + (windId to list)
+            } catch (_: Exception) {
+            } finally {
+                _windSessionsLoading.value = _windSessionsLoading.value - windId
+            }
+        }
+    }
+
+    /** Nova sessió del vent: el fil comença de zero; l'anterior queda desada. */
+    fun newWindSession(windId: String) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().windSessionNew(windId) }
+                // El fil obert passa a ser el nou (buit): fora la còpia vella
+                // i l'esquelet, com en obrir una conversa per primer cop.
+                _windChat.value = _windChat.value + (windId to emptyList())
+                loadWindSessions(windId)
+            } catch (e: Exception) { notify(appText("app.status.sessionNew", e.message.orEmpty())) }
+        }
+    }
+
+    /** Obre una sessió del vent: passa a ser l'activa i el fil es repinta. */
+    fun openWindSession(windId: String, name: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        _windChatLoading.value = _windChatLoading.value + windId
+        viewModelScope.launch {
+            try {
+                val history = withContext(Dispatchers.IO) { source.api().windSessionOpen(windId, name) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _windChat.value = _windChat.value + (windId to history)
+                loadWindSessions(windId)
+            } catch (e: Exception) {
+                notify(appText("app.status.sessionResume", e.message.orEmpty()))
+            } finally {
+                _windChatLoading.value = _windChatLoading.value - windId
+            }
+        }
+    }
+
+    /** Esborra una sessió del vent (no l'activa). */
+    fun deleteWindSession(windId: String, name: String) {
+        val source = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) { source.api().windSessionDelete(windId, name) }
+                loadWindSessions(windId)
+            } catch (e: Exception) { notify(appText("app.status.sessionResume", e.message.orEmpty())) }
+        }
+    }
+
     fun loadWindChat(windId: String) {
         val source = _conn.value; val epoch = companionEpoch
         if (_windBusy.value.contains(windId)) { _windChatLoading.value = _windChatLoading.value - windId; return }
@@ -5627,12 +5692,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openRunShown() { _openRun.value = null }
 
     /** Després de connectar: la pantalla de la notificació tocada o, per
-     *  defecte, els vents — són la cara de l'app, no un calaix. */
+     *  defecte, el xat general — obrir i començar a xerrar; els vents
+     *  són una pestanya del calaix (i la seva portada segueix a un toc). */
     private fun landing(): Screen {
         val screen = when {
             _openRun.value != null -> Screen.Jobs
-            _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: Screen.Company
-            else -> Screen.Company
+            _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: Screen.Chat
+            else -> Screen.Chat
         }
         _openScreen.value = null
         return screen

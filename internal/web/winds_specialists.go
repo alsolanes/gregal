@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -183,6 +184,63 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 			b.WriteByte('\n')
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
+	case "all":
+		// Consulta col·lectiva: pregunta a tots els vents (o als que
+		// pertoquin, si la tasca encaixa amb algun ofici) i torna cada
+		// resposta perquè l'agent sintetitzi. Els vents no es veuen entre
+		// ells: cada un contesta amb la seva perspectiva i el seu ofici.
+		task := strings.TrimSpace(a.Task)
+		if task == "" {
+			return "", errors.New("task is required")
+		}
+		ws := mustWinds(s)
+		if len(ws) == 0 {
+			return "The user has no winds yet.", nil
+		}
+		// Si la tasca encaixa amb algú, preguntem als que pertoquen (els
+		// que tenen ofici o coneixements); si no, a tots.
+		cards := s.windSpecialists(task)
+		var targets []companion.Wind
+		for _, c := range cards {
+			if c.Score > 0 {
+				if w, ok := s.winds.ByID(c.ID); ok {
+					targets = append(targets, w)
+				}
+			}
+		}
+		if len(targets) == 0 {
+			targets = ws
+		}
+		type answer struct {
+			wind companion.Wind
+			text string
+			err  error
+		}
+		results := make([]answer, len(targets))
+		var wg sync.WaitGroup
+		for i, w := range targets {
+			wg.Add(1)
+			go func(i int, w companion.Wind) {
+				defer wg.Done()
+				// No reutilitzem l'historial del vent: és una consulta
+				// puntual de l'agent, no un encàrrec que ha de quedar al
+				// fil del vent.
+				text, _, err := s.windAskOnce(ctx, w, task)
+				results[i] = answer{wind: w, text: text, err: err}
+			}(i, w)
+		}
+		wg.Wait()
+		var b strings.Builder
+		b.WriteString("Answers from the winds:\n")
+		for _, r := range results {
+			b.WriteString("\n=== " + r.wind.Name + " (" + r.wind.ID + ") ===\n")
+			if r.err != nil {
+				fmt.Fprintf(&b, "ERROR: %v\n", r.err)
+				continue
+			}
+			b.WriteString(r.text + "\n")
+		}
+		return strings.TrimRight(b.String(), "\n"), nil
 	case "ask":
 		task := strings.TrimSpace(a.Task)
 		if task == "" {
@@ -217,12 +275,48 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		}
 		return out, nil
 	}
-	return "", fmt.Errorf("unknown action %q (list, ask)", a.Action)
+	return "", fmt.Errorf("unknown action %q (list, ask, all)", a.Action)
 }
 
 func mustWinds(s *Server) []companion.Wind {
 	w, _ := s.winds.List()
 	return w
+}
+
+// windAskOnce pregunta a un vent sense tocar la seva conversa: la consulta
+// de l'agent (acció all) és puntual i no ha de deixar rastre al fil del
+// vent ni consumir-ne l'historial. Cada vent contesta només amb el seu
+// ofici i la seva memòria de coneixements.
+func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task string) (string, string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
+	defer cancel()
+	stop := context.AfterFunc(parent, cancel) // aturar el torn de dalt atura el vent
+	defer stop()
+	if b := linkBaseOf(parent); b != "" {
+		ctx = context.WithValue(ctx, linkBaseKey{}, b)
+	}
+	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
+	defer doneTurn()
+	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
+	msg := "[Question from the main agent] " + task
+	start := time.Now()
+	s.mu.Lock()
+	_, logRole := s.windRoleRef()
+	s.mu.Unlock()
+	tl := startTurnLog("wind-ask", wind.ID, logRole)
+	res, err := windLoopStream(s, agentSkills(tl.withUsage(ctx), s, wind.ID), windChatBrief(s, wind, nil, msg), nil)
+	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
+	if err != nil {
+		return "", "", errors.New(redactError(err))
+	}
+	log.Printf("vents consulta %s: %.1fs (%s)", wind.ID, time.Since(start).Seconds(), res.temps)
+	reply := stripQuoteTrim(res.text)
+	if res.parcial && esRespostaMecanica(reply) {
+		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
+	}
+	reply += s.windDocLinks(start, reply)
+	ws, _ := s.ventWorkspace()
+	return reply, ws, nil
 }
 
 // windDelegate fa fer una feina a un vent (com si la persona li ho hagués

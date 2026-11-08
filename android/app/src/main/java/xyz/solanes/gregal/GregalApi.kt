@@ -889,6 +889,37 @@ class GregalApi(val base: String, val token: String) {
         return windReplyOf(o)
     }
 
+    /** Sessions d'un vent: fils separats d'un mateix vent (com /api/sessions del xat general). */
+    fun windSessions(windId: String): List<WindSessionInfo> {
+        val o = JSONObject(read(conn("/api/winds/sessions?wind=" + java.net.URLEncoder.encode(windId, "UTF-8"), "GET")))
+        val arr = o.optJSONArray("sessions") ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { i ->
+            val s = arr.optJSONObject(i) ?: return@mapNotNull null
+            WindSessionInfo(s.optString("name"), s.optString("title"), s.optInt("msgs"), s.optString("when"), s.optBoolean("current"))
+        }
+    }
+
+    /** Crea una sessió nova del vent i l'activa (el fil del vent comença de zero). */
+    fun windSessionNew(windId: String): String {
+        val o = post("/api/winds/sessions", JSONObject().put("wind", windId))
+        return o.optString("name")
+    }
+
+    /** Obre una sessió concreta del vent: passa a ser l'activa i en torna l'historial. */
+    fun windSessionOpen(windId: String, name: String): List<GregalViewModel.PetMsg> {
+        val o = post("/api/winds/session/open", JSONObject().put("wind", windId).put("name", name))
+        val a = o.optJSONArray("history") ?: JSONArray()
+        return (0 until a.length()).mapNotNull { i ->
+            val item = a.optJSONObject(i) ?: return@mapNotNull null
+            GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
+        }
+    }
+
+    /** Esborra una sessió del vent (no l'activa). */
+    fun windSessionDelete(windId: String, name: String) {
+        read(conn("/api/winds/sessions", "DELETE", JSONObject().put("wind", windId).put("name", name).toString()))
+    }
+
     /** Feines dels vents (resum: estat, qui, fitxers i resultat). */
     /** La mascota: nom, cara, fil i el resum del que ha passat des de l'última visita. */
     fun cap(lang: String): CapState =

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material.icons.rounded.Stop
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,6 +50,8 @@ internal fun VentsChatHeader(
     lang: String, title: String, subtitle: String, accent: Color, style: WindStyle,
     mood: WindMood, faces: List<Wind> = emptyList(), onBack: () -> Unit, onProfile: () -> Unit,
     onWiki: (() -> Unit)? = null,
+    /** Sessions (fils) d'aquest vent: «…» → llista de converses. */
+    onSessions: (() -> Unit)? = null,
     /** Quan hi ha on continuar (mòbil + servidor desat), el «…» obre menú en comptes d'anar directe al perfil. */
     onTransfer: (() -> Unit)? = null,
 ) {
@@ -65,6 +68,7 @@ internal fun VentsChatHeader(
             }
         }
         if (onWiki != null) IconButton(onClick = onWiki) { Icon(Icons.Rounded.AutoStories, tr(lang, "app.wiki.summarize"), tint = Ink) }
+        if (onSessions != null) IconButton(onClick = onSessions) { Icon(Icons.Rounded.Forum, tr(lang, "app.wind.sessions"), tint = Ink) }
         if (onTransfer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
@@ -74,6 +78,8 @@ internal fun VentsChatHeader(
                     DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }
+        } else if (onSessions == null) {
+            // sense transferència ni sessions, el perfil és l'únic destí
         }
     }
     // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.

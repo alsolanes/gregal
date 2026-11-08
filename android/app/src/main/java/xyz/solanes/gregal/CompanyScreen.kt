@@ -36,6 +36,8 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Warning
@@ -991,6 +993,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     var profile by remember(wind.id) { mutableStateOf(false) }
     var askTransfer by remember(wind.id) { mutableStateOf(false) }
     var showPerm by remember(wind.id) { mutableStateOf(false) }
+    var sessionsOpen by remember(wind.id) { mutableStateOf(false) }
     val st by vm.state.collectAsState()
     val pickDocs = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.GetMultipleContents()
@@ -1031,6 +1034,7 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
             onWiki = onWiki,
+            onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
         if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) }) }
         // Missatges
@@ -1160,6 +1164,69 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     if (profile) WindProfileDialog(vm, lang, wind) { profile = false }
     if (askTransfer) TransferConfirmDialog(vm, lang, "wind", wind.id) { askTransfer = false }
     if (showPerm) PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false }, onClose = { showPerm = false })
+    if (sessionsOpen) WindSessionsSheet(vm, lang, wind) { sessionsOpen = false }
+}
+
+/**
+ * Sessions d'un vent: els seus fils de conversa. La marcada és l'oberta;
+ * tocar-ne un altre el fa actiu i el fil es repinta amb el seu historial.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun WindSessionsSheet(vm: GregalViewModel, lang: String, wind: Wind, onClose: () -> Unit) {
+    val sessions by vm.windSessions.collectAsState()
+    val loading by vm.windSessionsLoading.collectAsState()
+    val list = sessions[wind.id].orEmpty()
+    val isLoading = wind.id in loading
+    val accent = Color(wind.argb)
+    ModalBottomSheet(onDismissRequest = onClose, containerColor = Superficie) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                WindHalo(accent, wind.faceStyle, size = 30, mood = WindMood.IDLE)
+                Column(Modifier.weight(1f)) {
+                    Text(wind.name, color = Ink, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text(tr(lang, "app.wind.sessions"), color = Muted, fontSize = 12.sp)
+                }
+                TextButton(onClick = { vm.newWindSession(wind.id); onClose() }, contentPadding = PaddingValues(horizontal = 12.dp)) {
+                    Icon(Icons.Rounded.Add, null, tint = accent, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(tr(lang, "nav.new"), color = accent, fontSize = 13.sp)
+                }
+            }
+            if (isLoading && list.isEmpty()) {
+                Text(tr(lang, "app.sess.loading"), color = Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
+            } else if (list.isEmpty()) {
+                Text(tr(lang, "app.wind.sessionsEmpty"), color = Faint, fontSize = 13.sp, modifier = Modifier.padding(vertical = 12.dp))
+            } else {
+                list.forEach { s ->
+                    var confirmDelete by remember(s.name) { mutableStateOf(false) }
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                            .background(if (s.current) accent.copy(alpha = 0.12f) else SuperficieAlta)
+                            .clickable { vm.openWindSession(wind.id, s.name); onClose() }
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(s.title.ifBlank { wind.name }, color = Ink, fontSize = 14.sp, fontWeight = if (s.current) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(if (s.msgs > 0) tr(lang, "app.wind.sessionMsgs", s.msgs) + " · " + s.whenText else s.whenText, color = Muted, fontSize = 11.sp)
+                        }
+                        if (s.current) {
+                            Text(tr(lang, "app.wind.sessionCurrent"), color = accent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        } else if (confirmDelete) {
+                            TextButton(onClick = { vm.deleteWindSession(wind.id, s.name) }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                Text(tr(lang, "app.sess.delete"), color = Red, fontSize = 12.sp)
+                            }
+                        } else {
+                            IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(30.dp)) {
+                                Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Muted, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /** El xat d'una rotllana a pantalla completa. */

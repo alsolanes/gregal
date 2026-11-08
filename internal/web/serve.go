@@ -96,6 +96,10 @@ type Server struct {
 	budgetWarned  bool
 	mode          string
 	modelOverride map[string]string // rol → "provider/model"
+	// windActiveSession és la sessió oberta de cada vent (winds_sessions.go):
+	// company-<vent> (la històrica) o company-<vent>-s<unix>. Els vents
+	// poden tenir més d'un fil i el xat sempre va a l'activa.
+	windActiveSession map[string]string
 	// unavailableModels registra les seleccions que handleModels ha comprovat
 	// que ja no anuncia el provider. La preferència es conserva però el runtime
 	// usa el model base del rol fins que torni a estar disponible.
@@ -221,6 +225,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 		goalDir:           goalDirFor(cfgPath),
 		winds:             companion.NewWindStore(goalDirFor(cfgPath)),
 		rotllanes:         NewRotllanaStore(goalDirFor(cfgPath)),
+		windActiveSession: map[string]string{},
 		client:            cl,
 		policy:            agent.PolicyFromConfig(cfg, cwd),
 		remembers:         agent.NewRemember(),

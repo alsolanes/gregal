@@ -50,7 +50,7 @@ func windHistory(s *Server, windID string) *windHistoryEntry {
 	h, _ := windHistories.LoadOrStore(historyKey(s, "wind", windID), &windHistoryEntry{})
 	entry := h.(*windHistoryEntry)
 	entry.loadOnce.Do(func() {
-		if saved, err := session.Load(s.sessDir(), "company-"+windID); err == nil {
+		if saved, err := session.Load(s.sessDir(), s.windSessionName(windID)); err == nil {
 			entry.messages = append([]llm.Message(nil), saved.Convo...)
 		}
 	})
@@ -59,7 +59,7 @@ func windHistory(s *Server, windID string) *windHistoryEntry {
 
 func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
 	_, err := session.SaveSession(s.sessDir(), session.Session{
-		Name:  "company-" + w.ID,
+		Name:  s.windSessionName(w.ID),
 		Title: "Company — " + w.Name,
 		Role:  "chat",
 		Convo: append([]llm.Message(nil), podaHistorialVent(history)...),
@@ -71,10 +71,25 @@ func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
 // El vent i el seu perfil es queden: només marxa el xat.
 func (s *Server) clearWindHistory(windID string) error {
 	windHistories.Delete(historyKey(s, "wind", windID))
+	// Si hi ha una sessió activa diferent de la històrica, buidar neteja la
+	// conversa que es veu — i desactiva la marca perquè no apunti a un fitxer
+	// que ja no és l'activa.
+	s.mu.Lock()
+	active := s.windActiveSession[windID]
+	if active != "" && active != "company-"+windID {
+		delete(s.windActiveSession, windID)
+	}
+	s.mu.Unlock()
 	if err := session.Delete(s.sessDir(), "company-"+windID); err != nil {
 		// Sense historial previ no hi ha res a netejar: no és error.
 		if !strings.Contains(err.Error(), "no trobada") {
 			return err
+		}
+	}
+	if active != "" && active != "company-"+windID {
+		if err := session.Delete(s.sessDir(), active); err == nil || strings.Contains(err.Error(), "no trobada") {
+			// la sessió esborrada era l'activa: la conversa torna a la històrica
+			return nil
 		}
 	}
 	return nil

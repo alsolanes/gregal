@@ -314,3 +314,12 @@ data class CrewProposal(val plan: String, val reuse: List<CrewReuse>, val create
         }
     }
 }
+
+/** Una sessió (fil) d'un vent: títol, missatges i marca de temps, com les converses del xat general. */
+data class WindSessionInfo(
+    val name: String,
+    val title: String,
+    val msgs: Int,
+    val whenText: String,
+    val current: Boolean,
+)
