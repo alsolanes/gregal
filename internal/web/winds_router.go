@@ -19,6 +19,87 @@ func windNamedIn(members []companion.Wind, msg string) (companion.Wind, bool) {
 	return companion.Wind{}, false
 }
 
+// wantsAllVoices detecta l'adreça col·lectiva: l'usuari vol que responguin
+// tots els membres, no un de sol. «Cadascú», «tots», «tothom», «un de
+// cada»… Es mira el missatge en minúscules i sense accents; paraules
+// dins d'altres no compten (límits de paraula).
+func wantsAllVoices(msg string) bool {
+	low := strings.ToLower(msg)
+	// sense accents ni puntuació: «cadascú,» i «todos.» han de coincidir
+	// igual que «cadascu» i «todos».
+	var sb strings.Builder
+	for _, r := range low {
+		switch r {
+		case 'á', 'à':
+			sb.WriteRune('a')
+		case 'é', 'è':
+			sb.WriteRune('e')
+		case 'í', 'ì':
+			sb.WriteRune('i')
+		case 'ó', 'ò':
+			sb.WriteRune('o')
+		case 'ú', 'ù', 'ü':
+			sb.WriteRune('u')
+		case ',', ';', '.', ':', '!', '?', '(', ')', '"', '\'', '«', '»', '…':
+			sb.WriteRune(' ')
+		default:
+			sb.WriteRune(r)
+		}
+	}
+	low = sb.String()
+	marks := []string{
+		"cadascu", "cada un", "cada vent", "cada uno",
+		"un de cada", "one of each", "each one", "each of you",
+		"tots vosaltres", "tot el grup",
+		"tota la colla", "tots junts", "todo el grupo", "all of you",
+		"everyone", "everybody",
+	}
+	// «tots» darrere d'un verb de parlar és adreça inequívoca:
+	// «que en parlin tots», «responguin tots», «contesteu tots»…
+	speakingVerbs := []string{"parlin", "parleu", "responguin", "respongueu", "contestin", "contesteu", "diguen", "digueu", "expliquin", "expliqueu", "opinin", "opineu", "digues", "decidid", "decidiu"}
+	fields := strings.Fields(low)
+	for i := 0; i+1 < len(fields); i++ {
+		if fields[i+1] == "tots" {
+			for _, v := range speakingVerbs {
+				if fields[i] == v {
+					return true
+				}
+			}
+		}
+	}
+	has := func(needle string) bool {
+		nf := strings.Fields(needle)
+		if len(nf) == 0 {
+			return false
+		}
+		for i := range fields {
+			if i+len(nf) > len(fields) {
+				break
+			}
+			match := true
+			for j, n := range nf {
+				if fields[i+j] != n {
+					match = false
+					break
+				}
+			}
+			if match {
+				return true
+			}
+		}
+		return false
+	}
+	for _, m := range marks {
+		if has(m) {
+			return true
+		}
+	}
+	return false
+}
+
+// windsNamedIn finds members whose name appears in the message (whole word,
+// case- and accent-insensitive). Ambiguous names (two members sharing a
+// name) are skipped: better the fair rule than a wrong attribution.
 func windsNamedIn(members []companion.Wind, msg string) []companion.Wind {
 	low := strings.ToLower(msg)
 	names := map[string]int{}
@@ -82,6 +163,12 @@ func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted
 			named = named[:2]
 		}
 		return named
+	}
+	// Adreça col·lectiva: «M'expliqueu cadascú…», «que en parlin tots»,
+	// «un de cada»… Quan l'usuari demana que responguin tots, tots
+	// responen; la resta de missatges segueixen amb la regla justa d'un.
+	if wantsAllVoices(msg) {
+		return members
 	}
 	return classicRotllanaSpeaker(members, tail)
 }
