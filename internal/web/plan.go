@@ -268,6 +268,17 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 				return "allow", "eina del vent"
 			}
+			// remind_edit toca els recordatoris existents de l'usuari:
+			// mateix tractament que remind (res en mode lectura).
+			if name == "remind_edit" {
+				if agent.ReadOnlyMode(scope.mode) {
+					return "deny", s.tr("mode de només lectura: no es poden editar els avisos", "read-only mode: cannot edit reminders")
+				}
+				if decision, reason := scope.policy.Decide(scope.mode, name, argsJSON); decision == "deny" {
+					return decision, reason
+				}
+				return "allow", "eina del vent"
+			}
 			pol := scope.policy
 			// Keep the existing documents scope, but interactive turns must
 			// also respect the selected mode/access and explicit policy rules.

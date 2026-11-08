@@ -233,3 +233,77 @@ func TestRemindListEmptyIsNotAnError(t *testing.T) {
 		t.Fatalf("expected 0, got %d", len(items))
 	}
 }
+
+// TestRemindEditCancelReschedulePauseResume: el vent pot treure,
+// ajornar, pausar i reactivar els recordatoris de l'usuari.
+func TestRemindEditCancelReschedulePauseResume(t *testing.T) {
+	s := remindTestServer(t)
+	at := time.Now().Add(3 * time.Hour).Format(time.RFC3339)
+	j, err := saveWindReminder(s, "xaloc", at, "Rega les plantes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// reschedule: nova hora vàlida
+	msg, err := s.remindEdit(j.ID, "reschedule", "+2h")
+	if err != nil {
+		t.Fatalf("reschedule: %v", err)
+	}
+	if !strings.Contains(msg, "Reprogramat") {
+		t.Fatalf("msg = %q", msg)
+	}
+	items, _ := s.remindListItems("")
+	if len(items) != 1 || items[0]["estat"] != "actiu" {
+		t.Fatalf("després de reschedule: %v", items)
+	}
+	// pause: desactivat sense esborrar
+	if _, err := s.remindEdit(j.ID, "pause", ""); err != nil {
+		t.Fatalf("pause: %v", err)
+	}
+	items, _ = s.remindListItems("")
+	if len(items) != 1 || items[0]["estat"] != "pausat" {
+		t.Fatalf("després de pause: %v", items)
+	}
+	// resume: torna a estar actiu
+	if _, err := s.remindEdit(j.ID, "resume", ""); err != nil {
+		t.Fatalf("resume: %v", err)
+	}
+	items, _ = s.remindListItems("")
+	if len(items) != 1 || items[0]["estat"] != "actiu" {
+		t.Fatalf("després de resume: %v", items)
+	}
+	// cancel: esborrat, la llista queda buida
+	if _, err := s.remindEdit(j.ID, "cancel", ""); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	items, _ = s.remindListItems("")
+	if len(items) != 0 {
+		t.Fatalf("després de cancel: %v", items)
+	}
+	// id inexistent: error clar, no panic
+	if _, err := s.remindEdit("remind-xaloc-inexistent", "cancel", ""); err == nil {
+		t.Fatal("id inexistent havia de fallar")
+	}
+	// reschedule amb hora passada: rebutjat
+	j2, err := saveWindReminder(s, "xaloc", at, "Tanca les finestres")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.remindEdit(j2.ID, "reschedule", "2020-01-01T00:00:00Z"); err == nil {
+		t.Fatal("hora passada havia de fallar")
+	}
+}
+
+// TestRemindEditIsScopedToTheAccount: un recordatori d'un altre compte
+// no és editable (windRoutineVisibleID fa el mateix filtre que el panell).
+func TestRemindEditIsScopedToTheAccount(t *testing.T) {
+	s := remindTestServer(t)
+	at := time.Now().Add(2 * time.Hour).Format(time.RFC3339)
+	j, err := saveWindReminder(s, "xaloc", at, "Vigila el foc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := remindTestServer(t)
+	if _, err := other.remindEdit(j.ID, "cancel", ""); err == nil {
+		t.Fatal("un altre servidor no pot esborrar el recordatori")
+	}
+}

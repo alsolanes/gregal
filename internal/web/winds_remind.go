@@ -303,6 +303,87 @@ func (s *Server) remindListItems(windID string) ([]map[string]string, error) {
 	return out, nil
 }
 
+// remindEditToolSpec: el costat d'escriptura dels recordatoris. El vent
+// podia programar i llistar avisos però no tocar els existents: quan
+// l'usuari deia «treu-me el recordatori repetit» el vent no podia.
+// Tres operacions: cancel (esborra), reschedule (nova hora), pause/resume.
+var remindEditToolSpec = llm.ToolSpec{
+	Name: "remind_edit",
+	Description: "Edita o elimina un recordatori o automatització ja existent de l'usuari. Fes-la servir quan l'usuari vulgui treure, ajornar, pausar o reprendre un pendent: primer llista els ids amb remind_list i després aplica l'operació sobre l'id exacte. Operacions: «cancel» (l'esborra definitivament), «reschedule» (li posa una hora nova, mateix text), «pause» (el desactiva sense esborrar-lo) i «resume» (el reactiva). Sempre confirma a l'usuari què has tocat i com queda.",
+	Parameters: map[string]any{"type": "object", "properties": map[string]any{
+		"id":      map[string]any{"type": "string", "description": "id del recordatori (el dóna remind_list)"},
+		"op":      map[string]any{"type": "string", "enum": []string{"cancel", "reschedule", "pause", "resume"}, "description": "operació"},
+		"at":      map[string]any{"type": "string", "description": "només amb reschedule: la nova hora (RFC3339, «2006-01-02 15:04», «+2h»…)"},
+	}, "required": []string{"id", "op"}},
+}
+
+// remindEdit aplica l'operació sobre un job visible per aquesta sessió.
+// La propietat és la mateixa que el panell: windRoutineVisibleID.
+func (s *Server) remindEdit(id, op, at string) (string, error) {
+	if s.jobs == nil {
+		return "", fmt.Errorf("no hi ha jobs")
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return "", fmt.Errorf("id buit")
+	}
+	if !s.windRoutineVisibleID(id) {
+		return "", fmt.Errorf("no hi ha cap recordatori amb id %s", id)
+	}
+	all, err := s.jobs.List()
+	if err != nil {
+		return "", err
+	}
+	var job *jobs.Job
+	for i := range all {
+		if all[i].ID == id {
+			job = &all[i]
+			break
+		}
+	}
+	if job == nil {
+		return "", fmt.Errorf("no hi ha cap recordatori amb id %s", id)
+	}
+	switch strings.TrimSpace(op) {
+	case "cancel":
+		if err := s.jobs.Delete(id); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Esborrat: «%s» ja no sonarà.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
+	case "reschedule":
+		moment, err := parseRemindAt(strings.TrimSpace(at), time.Now())
+		if err != nil {
+			return "", fmt.Errorf("hora no vàlida: %v", err)
+		}
+		if moment.Before(time.Now()) {
+			return "", fmt.Errorf("l'hora nova (%s) ja és passada", moment.Format("02/01 15:04"))
+		}
+		if moment.After(time.Now().Add(remindMaxAhead)) {
+			return "", fmt.Errorf("més enllà de %d dies", int(remindMaxAhead.Hours()/24))
+		}
+		job.NextAt = &moment
+		job.Enabled = true
+		if _, err := s.jobs.Save(*job); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Reprogramat: «%s» sonarà %s.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name)), moment.Format("02/01 15:04")), nil
+	case "pause":
+		job.Enabled = false
+		if _, err := s.jobs.Save(*job); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Pausat: «%s» no sonarà fins que el reprènguis.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
+	case "resume":
+		job.Enabled = true
+		if _, err := s.jobs.Save(*job); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("Reactivat: «%s» torna a estar actiu.", strings.TrimSpace(firstNonEmpty(job.Prompt, job.Name))), nil
+	default:
+		return "", fmt.Errorf("operació desconeguda: %s (usa cancel, reschedule, pause o resume)", op)
+	}
+}
+
 // remindOwner és el compte d'aquesta sessió ("" en local o per a tothom).
 func (s *Server) remindOwner() string {
 	if s.user != nil && !s.user.Tothom {
@@ -356,6 +437,19 @@ func (s *Server) registerRemindTool() {
 			}
 		}
 		return sb.String(), nil
+	})
+	agent.RegisterExtraCtx(remindEditToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
+		var a struct {
+			ID string `json:"id"`
+			Op string `json:"op"`
+			At string `json:"at"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		target := s
+		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
+			target = cur
+		}
+		return target.remindEdit(a.ID, a.Op, a.At)
 	})
 	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
