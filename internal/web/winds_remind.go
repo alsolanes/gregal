@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -234,6 +235,74 @@ func saveWindReminderFull(s *Server, windID, at, text, task string, retryMin int
 	return j, nil
 }
 
+// remindListToolSpec: l'altre costat de remind. El vent pot programar avisos
+// però no podia veure els que ja hi ha: quan l'usuari pregunta «quins
+// recordatoris tinc?» responia que no tenia cap eina. Llista els pendents
+// del compte (tots els vents de l'usuari), amb moment, text i estat.
+var remindListToolSpec = llm.ToolSpec{
+	Name: "remind_list",
+	Description: "Llista els recordatoris i automatitzacions pendents de l'usuari: els que qualsevol vent ha programat (avisos, seguiments, feines amb hora) i les rutines actives. Fes-la servir SEMPRE que l'usuari pregunti quins recordatoris té, si tens res pendent, o què li has de recordar; no responguis mai «no ho sé» — crida l'eina. Retorna una llista amb el moment, el text i l'estat de cada pendent. Si en vols esborrar o ajornar un, digues-ho a l'usuari amb l'id: encara no hi ha eina per fer-ho.",
+	Parameters: map[string]any{"type": "object", "properties": map[string]any{
+		"wind": map[string]any{"type": "string", "description": "opcional: llista només els d'aquest vent (id)"},
+	}, "required": []string{}},
+}
+
+// remindListItems llegeix els jobs i en fa la llista llegible per al model.
+// Reutilitza automationOf (la mateixa font que el panell d'automatitzacions)
+// filtrant per compte: només els recordatoris dels vents de l'usuari.
+func (s *Server) remindListItems(windID string) ([]map[string]string, error) {
+	if s.winds == nil || s.jobs == nil {
+		return nil, fmt.Errorf("no hi ha jobs")
+	}
+	list, err := s.winds.List()
+	if err != nil {
+		return nil, err
+	}
+	byID := map[string]companion.Wind{}
+	for _, wd := range list {
+		if windID == "" || wd.ID == windID {
+			byID[wd.ID] = wd
+		}
+	}
+	all, err := s.jobs.List()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	out := []map[string]string{}
+	for _, j := range all {
+		it, ok := s.automationOf(j, byID, windID == "", now)
+		if !ok {
+			continue
+		}
+		// Només pendents del compte: el filtre d'owner el fa automationOf
+		// via canSeeWindRoutine/WindOwner — mateixa font que el panell.
+		row := map[string]string{
+			"id": it.ID, "vent": it.WindName, "kind": it.Kind,
+			"titol": it.Title,
+		}
+		if it.NextAt != nil {
+			row["moment"] = it.NextAt.Format("02/01 15:04")
+		}
+		if !it.Enabled {
+			row["estat"] = "pausat"
+		} else {
+			row["estat"] = "actiu"
+		}
+		if it.Detail != "" {
+			row["detall"] = it.Detail
+		}
+		out = append(out, row)
+	}
+	if len(out) == 0 {
+		return out, nil
+	}
+	sort.Slice(out, func(a, b int) bool {
+		return out[a]["moment"] < out[b]["moment"]
+	})
+	return out, nil
+}
+
 // remindOwner és el compte d'aquesta sessió ("" en local o per a tothom).
 func (s *Server) remindOwner() string {
 	if s.user != nil && !s.user.Tothom {
@@ -257,6 +326,37 @@ func (s *Server) withRemindServer(ctx context.Context) context.Context {
 
 // registerRemindTool exposa l'eina remind al loop (la criden els vents).
 func (s *Server) registerRemindTool() {
+	agent.RegisterExtraCtx(remindListToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
+		var a struct {
+			Wind string `json:"wind"`
+		}
+		_ = json.Unmarshal([]byte(argsJSON), &a)
+		target := s
+		if cur, ok := ctx.Value(remindServerKey{}).(*Server); ok && cur != nil {
+			target = cur
+		}
+		items, err := target.remindListItems(strings.TrimSpace(a.Wind))
+		if err != nil {
+			return "", err
+		}
+		if len(items) == 0 {
+			return "Cap recordatori ni automatització pendent.", nil
+		}
+		var sb strings.Builder
+		for i, it := range items {
+			if i > 0 {
+				sb.WriteString("\n")
+			}
+			fmt.Fprintf(&sb, "- %s · %s · %s", it["moment"], it["vent"], it["titol"])
+			if it["detall"] != "" {
+				fmt.Fprintf(&sb, " · %s", it["detall"])
+			}
+			if it["estat"] != "actiu" {
+				fmt.Fprintf(&sb, " · [%s]", it["estat"])
+			}
+		}
+		return sb.String(), nil
+	})
 	agent.RegisterExtraCtx(remindToolSpec, func(ctx context.Context, argsJSON string) (string, error) {
 		var a struct {
 			Wind      string          `json:"wind"`

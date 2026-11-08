@@ -171,3 +171,65 @@ func TestExecuteRemindPostsAndDisables(t *testing.T) {
 		t.Fatal("el recordatori s'hauria d'haver apagat després de disparar")
 	}
 }
+
+// TestRemindListReturnsPendingReminders: l'eina recorda els pendents.
+// El vent ha de poder respondre «quins recordatoris tinc?» — abans no
+// tenia cap eina de consulta i deia que no podia.
+func TestRemindListReturnsPendingReminders(t *testing.T) {
+	s := remindTestServer(t)
+	at := time.Now().Add(3 * time.Hour)
+	if _, err := saveWindReminder(s, "xaloc", at.Format(time.RFC3339), "Rega les plantes"); err != nil {
+		t.Fatal(err)
+	}
+	items, err := s.remindListItems("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 pending reminder, got %d", len(items))
+	}
+	if items[0]["titol"] != "Rega les plantes" {
+		t.Fatalf("titol = %q", items[0]["titol"])
+	}
+	if items[0]["vent"] != "Xaloc" {
+		t.Fatalf("vent = %q", items[0]["vent"])
+	}
+	if items[0]["estat"] != "actiu" {
+		t.Fatalf("estat = %q", items[0]["estat"])
+	}
+	// Filtre per vent: només els seus.
+	if items, err := s.remindListItems("xaloc"); err != nil || len(items) != 1 {
+		t.Fatalf("per xaloc: %v %d", err, len(items))
+	}
+	if items, err := s.remindListItems("mestral"); err != nil || len(items) != 0 {
+		t.Fatalf("per mestral: %v %d", err, len(items))
+	}
+	// Un recordatori ja sonat i apagat és història: no surt a la llista.
+	j, err := s.jobs.List()
+	if err != nil || len(j) != 1 {
+		t.Fatal(err)
+	}
+	gone := j[0]
+	gone.Enabled = false
+	la := time.Now()
+	gone.LastAt = &la
+	if _, err := s.jobs.Save(gone); err != nil {
+		t.Fatal(err)
+	}
+	if items, err := s.remindListItems(""); err != nil || len(items) != 0 {
+		t.Fatalf("sonat encara surt: %v %d", err, len(items))
+	}
+}
+
+// TestRemindListEmptyIsNotAnError: sense recordatoris, llista buida amb
+// missatge clar (el model no ha de dir «no tinc l'eina»).
+func TestRemindListEmptyIsNotAnError(t *testing.T) {
+	s := remindTestServer(t)
+	items, err := s.remindListItems("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("expected 0, got %d", len(items))
+	}
+}

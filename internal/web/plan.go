@@ -261,6 +261,13 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 				return "allow", "eina del vent"
 			}
+			// remind_list només llegeix: cap problema ni en mode lectura.
+			if name == "remind_list" {
+				if decision, reason := scope.policy.Decide(scope.mode, name, argsJSON); decision == "deny" {
+					return decision, reason
+				}
+				return "allow", "eina del vent"
+			}
 			pol := scope.policy
 			// Keep the existing documents scope, but interactive turns must
 			// also respect the selected mode/access and explicit policy rules.
