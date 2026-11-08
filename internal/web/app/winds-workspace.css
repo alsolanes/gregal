@@ -114,6 +114,13 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-status { flex:none; font-size:12px; color:var(--muted); padding:0 24px; overflow-wrap:anywhere; max-height:70px; overflow:auto; }
 .vw-status:empty { display:none; }
 .vw-status[role="alert"] { color:var(--red); padding:10px 24px; }
+.vw-session-list { display:grid; gap:6px; max-height:45dvh; overflow:auto; }
+.vw-session-list:empty { display:none; }
+.vw-session-list .vw-session-row { width:100%; text-align:start; justify-content:flex-start; overflow-wrap:anywhere; }
+.vw-session-row[aria-current="true"] { background:var(--accent-soft); color:var(--ink); }
+.vw-thread-empty { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:24px 12px; }
+.vw-thread-empty h1 { font-size:clamp(22px,3vw,34px); margin:0; }
+.vw-thread-empty p { color:var(--muted); margin:6px 0 0; }
 .vw-error { color:var(--red); font-size:12px; overflow-wrap:anywhere; }
 .vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:27px; border-radius:20px; width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:0 24px 80px var(--ombra); font-size:13px; }
 .vw-dialog::backdrop { background:rgba(0,0,0,.5); backdrop-filter:blur(5px); }

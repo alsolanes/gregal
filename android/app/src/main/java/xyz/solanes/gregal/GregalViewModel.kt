@@ -618,6 +618,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private var companionEpoch = 0L
     // Per conversation: each GET supersedes older GETs; sending invalidates them
     // before optimistic history is published, even if they arrive after busy clears.
+    private val selectedWindThreads = mutableMapOf<String, String>()
     private val windHistoryRequests = mutableMapOf<String, Long>()
     private val rotllanaHistoryRequests = mutableMapOf<String, Long>()
     private fun isCompanionOrigin(source: Conn, epoch: Long) =
@@ -631,6 +632,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         crewPolling.clear()
         _crewStep.value = emptyMap()
         windHistoryRequests.clear()
+        selectedWindThreads.clear()
         rotllanaHistoryRequests.clear()
         _winds.value = emptyList()
         _offline.value = false
@@ -817,6 +819,9 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         when (e) {
             is GregalApi.WindStreamEvent.Ask -> _windAsks.value = _windAsks.value.filter { it.key != e.ask.key } + e.ask
             is GregalApi.WindStreamEvent.AskResolved -> _windAsks.value = _windAsks.value.filter { it.key != e.key }
+            is GregalApi.WindStreamEvent.DoneRotllana -> if (e.failed.isNotEmpty()) {
+                notify(appText("wind.turn.incomplete", e.failed.joinToString(", ")))
+            }
             else -> {}
         }
     }
@@ -4813,9 +4818,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     /** Buida el xat amb un vent (DELETE /api/winds/chat): el vent es queda. */
     fun clearWindChat(id: String) {
         val source = _conn.value; val epoch = companionEpoch
+        val thread = selectedWindThreads[id].orEmpty()
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { source.api().clearWindChat(id) }
+                withContext(Dispatchers.IO) { source.api().clearWindChat(id, thread) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
                 _windChat.value = _windChat.value + (id to emptyList())
                 ventsRecency.clear(source, "wind", id)
@@ -4892,10 +4898,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Nova sessió del vent: el fil comença de zero; l'anterior queda desada. */
     fun newWindSession(windId: String) {
-        val source = _conn.value
+        if (windId in _windBusy.value) return
+        val source = _conn.value; val epoch = companionEpoch
+        windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         viewModelScope.launch {
             try {
-                withContext(Dispatchers.IO) { source.api().windSessionNew(windId) }
+                val name = withContext(Dispatchers.IO) { source.api().windSessionNew(windId) }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                selectedWindThreads[windId] = name
+                ventsRecency.clear(source, "wind", windId)
                 // El fil obert passa a ser el nou (buit): fora la còpia vella
                 // i l'esquelet, com en obrir una conversa per primer cop.
                 _windChat.value = _windChat.value + (windId to emptyList())
@@ -4906,13 +4917,18 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Obre una sessió del vent: passa a ser l'activa i el fil es repinta. */
     fun openWindSession(windId: String, name: String) {
+        if (windId in _windBusy.value) return
         val source = _conn.value; val epoch = companionEpoch
+        windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windChatLoading.value = _windChatLoading.value + windId
         viewModelScope.launch {
             try {
                 val history = withContext(Dispatchers.IO) { source.api().windSessionOpen(windId, name) }
                 if (!isCompanionOrigin(source, epoch)) return@launch
+                selectedWindThreads[windId] = name
+                ventsRecency.clear(source, "wind", windId)
                 _windChat.value = _windChat.value + (windId to history)
+                cacheChat(source, windId)
                 loadWindSessions(windId)
             } catch (e: Exception) {
                 notify(appText("app.status.sessionResume", e.message.orEmpty()))
@@ -4963,9 +4979,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             try {
-                val history = withContext(Dispatchers.IO) { source.api().getWindChat(windId) }
+                val selected = selectedWindThreads[windId].orEmpty()
+                val (thread, history) = withContext(Dispatchers.IO) { source.api().getWindThread(windId, selected) }
                 if (isCompanionOrigin(source, epoch) && request == windHistoryRequests[windId] &&
                     !_windBusy.value.contains(windId)) {
+                    if (thread.isNotEmpty()) selectedWindThreads[windId] = thread
                     _windChat.value = _windChat.value + (windId to OfflineLogic.withQueued(
                         ventsRecency.restore(source, "wind", windId, history), _outbox.value, windId))
                     cacheChat(source, windId)
@@ -5161,6 +5179,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         var reached = false
+        val thread = selectedWindThreads[windId].orEmpty()
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windChat.value = _windChat.value + (windId to (_windChat.value[windId].orEmpty() + PetMsg("user", msg, ts = System.currentTimeMillis())))
         _windBusy.value = _windBusy.value + windId
@@ -5179,7 +5198,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     // servidor no té /stream (o cau), clàssic de reserva.
                     var buf = ""
                     val r = withContext(Dispatchers.IO) {
-                        source.api().windChatStream(windId, msg) { e ->
+                        source.api().windChatStream(windId, msg, session = thread) { e ->
                             reached = true
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
@@ -5216,7 +5235,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
-                    val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg) }
+                    val r = withContext(Dispatchers.IO) { source.api().windChat(windId, msg, session = thread) }
                     if (isCompanionOrigin(source, epoch)) {
                         _windChat.value = _windChat.value + (windId to ventsRecency.completed(source, "wind", windId,
                             _windChat.value[windId].orEmpty() + PetMsg("pet", r.text, parcial = r.parcial, ts = System.currentTimeMillis()), System.currentTimeMillis()))
@@ -5259,6 +5278,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun sendWindContinue(windId: String) {
         if (_windBusy.value.contains(windId)) return
         val source = _conn.value; val epoch = companionEpoch
+        val thread = selectedWindThreads[windId].orEmpty()
         windHistoryRequests[windId] = (windHistoryRequests[windId] ?: 0L) + 1
         _windBusy.value = _windBusy.value + windId
         live(windId) { WindLive() }
@@ -5274,7 +5294,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     var buf = ""
                     val r = withContext(Dispatchers.IO) {
-                        source.api().windChatStream(windId, "", cont = true) { e ->
+                        source.api().windChatStream(windId, "", cont = true, session = thread) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
@@ -5313,7 +5333,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 } catch (_: WindStreamUnavailable) {
                     dropStreamingBubble(windId)
-                    val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true) }
+                    val r = withContext(Dispatchers.IO) { source.api().windChat(windId, "", cont = true, session = thread) }
                     if (isCompanionOrigin(source, epoch)) {
                         val cur = _windChat.value[windId].orEmpty()
                         val idx = cur.indexOfLast { it.from == "pet" && !it.streaming }

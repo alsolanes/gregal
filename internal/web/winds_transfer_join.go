@@ -70,7 +70,7 @@ func (s *Server) joinTransfer(id, into string, b transferBundle) (transferResult
 	if !transferAlreadyAppended(merged, incoming) {
 		merged = append(append([]llm.Message(nil), merged...), incoming...)
 	}
-	err := saveWindHistory(s, target, merged)
+	err := saveWindHistoryTo(s, target, hist.name, merged)
 	if err == nil {
 		hist.messages = merged
 	}

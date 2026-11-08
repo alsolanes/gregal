@@ -666,8 +666,9 @@ class GregalApi(val base: String, val token: String) {
     }
 
     /** Buida el xat amb un vent (DELETE /api/winds/chat): el vent es queda. */
-    fun clearWindChat(windId: String) {
-        read(conn("/api/winds/chat", "DELETE", JSONObject().put("wind", windId).toString()))
+    fun clearWindChat(windId: String, session: String = "") {
+        val body = JSONObject().put("wind", windId)
+        read(conn(windThreadPath("/api/winds/chat", session), "DELETE", body.toString()))
     }
 
     /**
@@ -884,8 +885,8 @@ class GregalApi(val base: String, val token: String) {
         read(conn("/api/winds", "DELETE", JSONObject().put("id", id).toString()))
     }
 
-    fun windChat(windId: String, message: String, cont: Boolean = false): WindReply {
-        val o = post("/api/winds/chat", JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message)))
+    fun windChat(windId: String, message: String, cont: Boolean = false, session: String = ""): WindReply {
+        val o = post(windThreadPath("/api/winds/chat", session), windChatPayload(windId, message, cont))
         return windReplyOf(o)
     }
 
@@ -1021,7 +1022,7 @@ class GregalApi(val base: String, val token: String) {
         data class Activity(val phase: String, val tool: String = "", val step: Int = 0) : WindStreamEvent
         data class Token(val token: String) : WindStreamEvent
         data class DoneWind(val reply: WindReply) : WindStreamEvent
-        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false) : WindStreamEvent
+        data class DoneRotllana(val wind: String, val text: String, val history: List<GregalViewModel.PetMsg>, val parcial: Boolean = false, val silenci: Boolean = false, val failed: List<String> = emptyList()) : WindStreamEvent
         data class Error(val message: String) : WindStreamEvent
         /** Un vent espera una resposta (aprovació o pregunta). */
         data class Ask(val ask: WindAsk) : WindStreamEvent
@@ -1116,7 +1117,8 @@ class GregalApi(val base: String, val token: String) {
                 }
                 val parcial = o.optBoolean("parcial", false)
                 WindStreamEvent.DoneRotllana(reply.optString("wind"), reply.optString("text"),
-                    if (parcial) markParcial(hist) else hist, parcial, o.optBoolean("silenci", false))
+                    if (parcial) markParcial(hist) else hist, parcial, o.optBoolean("silenci", false),
+                    o.optJSONArray("failed")?.let { failed -> List(failed.length()) { failed.optString(it) } }.orEmpty())
             } else {
                 WindStreamEvent.DoneWind(windReplyOf(o))
             }
@@ -1157,9 +1159,19 @@ class GregalApi(val base: String, val token: String) {
      * servidor no té /stream (antic) o cau abans del done, llança i el
      * cridant cau al clàssic.
      */
-    fun windChatStream(windId: String, message: String, cont: Boolean = false, onEvent: (WindStreamEvent) -> Unit): WindReply {
+    private fun windChatPayload(windId: String, message: String, cont: Boolean): JSONObject =
+        JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message))
+
+    // Older servers ignore this query parameter, but reject unknown JSON fields.
+    private fun windThreadPath(path: String, session: String): String {
+        if (session.isEmpty()) return path
+        val separator = if ('?' in path) '&' else '?'
+        return path + separator + "session=" + java.net.URLEncoder.encode(session, "UTF-8")
+    }
+
+    fun windChatStream(windId: String, message: String, cont: Boolean = false, session: String = "", onEvent: (WindStreamEvent) -> Unit): WindReply {
         var done: WindReply? = null
-        streamPost("/api/winds/chat/stream", JSONObject(if (cont) WindRequests.chatContinue(windId) else WindRequests.chat(windId, message))) { e ->
+        streamPost(windThreadPath("/api/winds/chat/stream", session), windChatPayload(windId, message, cont)) { e ->
             if (e is WindStreamEvent.DoneWind) done = e.reply else onEvent(e)
         }
         return done ?: throw ApiException("stream tancat sense done")
@@ -1168,7 +1180,8 @@ class GregalApi(val base: String, val token: String) {
     fun rotllanaChatStream(rotllanaId: String, message: String, wind: String = "", cont: Boolean = false, onEvent: (WindStreamEvent) -> Unit): Triple<String, String, List<GregalViewModel.PetMsg>> {
         var done: WindStreamEvent.DoneRotllana? = null
         streamPost("/api/winds/rotllana/stream", JSONObject(if (cont) RotllanaRequests.chatContinue(rotllanaId, wind) else RotllanaRequests.chat(rotllanaId, message, wind))) { e ->
-            if (e is WindStreamEvent.DoneRotllana) done = e else onEvent(e)
+            if (e is WindStreamEvent.DoneRotllana) done = e
+            onEvent(e)
         }
         val d = done ?: throw ApiException("stream tancat sense done")
         return Triple(d.wind, d.text, d.history)
@@ -1196,13 +1209,16 @@ class GregalApi(val base: String, val token: String) {
         }
     }
 
-    fun getWindChat(windId: String): List<GregalViewModel.PetMsg> {
-        val o = JSONObject(read(conn("/api/winds/chat?wind=$windId", "GET")))
+    fun getWindChat(windId: String): List<GregalViewModel.PetMsg> = getWindThread(windId).second
+
+    fun getWindThread(windId: String, session: String = ""): Pair<String, List<GregalViewModel.PetMsg>> {
+        val o = JSONObject(read(conn(windThreadPath("/api/winds/chat?wind=$windId", session), "GET")))
         val a = o.optJSONArray("history") ?: JSONArray()
-        return (0 until a.length()).mapNotNull { i ->
+        val history = (0 until a.length()).mapNotNull { i ->
             val item = a.optJSONObject(i) ?: return@mapNotNull null
             GregalViewModel.PetMsg(item.optString("from"), item.optString("text"), item.optString("speaker_id"), item.optString("speaker_name"), ts = msgMillis(item.optLong("ts", 0L)), kind = item.optString("kind"))
         }
+        return o.optString("session") to history
     }
 
     /** Rutina d'un vent: feina programada que corre el vent de veres (LLM + eines). */

@@ -52,7 +52,7 @@ func TestRotllanaStreamDebateIsCancellableAndOrdinaryTurnsStop(t *testing.T) {
 		t.Fatalf("unexpected debate: %s", raw)
 	}
 	done := make(chan string, 1)
-	go func() { done <- postRotllanaStream(s, id, "discutiu entre vosaltres") }()
+	go func() { done <- postRotllanaStreamMessage(s, id, "Debateu quina opció és millor") }()
 	select {
 	case <-started:
 	case <-time.After(5 * time.Second):
@@ -76,8 +76,41 @@ func TestRotllanaStreamDebateIsCancellableAndOrdinaryTurnsStop(t *testing.T) {
 	}
 }
 
+func TestRotllanaDebateReviewsOneProposalAndSynthesizes(t *testing.T) {
+	var turns, summaries int
+	s, id := rotllanaStreamFixture(t, func(_ int32, _ context.Context, _ func(string, string)) (exploracio, error) {
+		return exploracio{}, nil
+	}, nil)
+	rotllanaVoiceLoopStream = func(_ *Server, ctx context.Context, brief string, _ func(string, string), _ ...*routedRole) (exploracio, error) {
+		turns++
+		if turns == 1 {
+			return exploracio{text: "Proposta quars-193"}, nil
+		}
+		scope, _ := ctx.Value(interactiveWindKey{}).(windTurnScope)
+		if !strings.Contains(brief, "Proposta quars-193") || scope.mode != "inspect" {
+			t.Fatal("the reviewer needs the proposal and a read-only scope")
+		}
+		return exploracio{text: "Risc: falta una prova de càrrega."}, nil
+	}
+	petChatter = func(_ context.Context, _ *llm.Client, _ *config.Config, _ config.Provider, _ config.Role, messages []llm.Message) (string, error) {
+		summaries++
+		if !strings.Contains(messages[1].Content, "falta una prova de càrrega") {
+			t.Fatal("the synthesis needs the actual reviewer feedback")
+		}
+		return "Decisió: feu primer la prova de càrrega.", nil
+	}
+	raw := postRotllanaStreamMessage(s, id, "Debateu quina opció és millor")
+	if turns != 2 || summaries != 1 || !strings.Contains(raw, "Decisió: feu primer") || !strings.Contains(raw, "event: done") {
+		t.Fatalf("turns=%d summaries=%d response=%s", turns, summaries, raw)
+	}
+}
+
 func postRotllanaStream(s *Server, id, message string) string {
-	req := httptest.NewRequest("POST", "/api/winds/rotllana/stream", strings.NewReader(`{"rotllana":"`+id+`","message":"@Tramuntana @Xaloc `+message+`"}`))
+	return postRotllanaStreamMessage(s, id, "@Tramuntana @Xaloc "+message)
+}
+
+func postRotllanaStreamMessage(s *Server, id, message string) string {
+	req := httptest.NewRequest("POST", "/api/winds/rotllana/stream", strings.NewReader(`{"rotllana":"`+id+`","message":"`+message+`"}`))
 	rec := httptest.NewRecorder()
 	s.handleRotllanaChatStream(rec, req)
 	return rec.Body.String()

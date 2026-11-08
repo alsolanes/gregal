@@ -108,6 +108,10 @@ func coincidencies(task []string, text string) []string {
 // (amb task buida, tots amb puntuació 0, en l'ordre de la llista).
 func (s *Server) windSpecialists(task string) []specialistCard {
 	winds, _ := s.winds.List()
+	return s.rankWindSpecialists(winds, task)
+}
+
+func (s *Server) rankWindSpecialists(winds []companion.Wind, task string) []specialistCard {
 	words := paraulesDe(task)
 	taskKit := inferKit(task)
 	out := make([]specialistCard, 0, len(winds))
@@ -185,10 +189,7 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		}
 		return strings.TrimRight(b.String(), "\n"), nil
 	case "all":
-		// Consulta col·lectiva: pregunta a tots els vents (o als que
-		// pertoquin, si la tasca encaixa amb algun ofici) i torna cada
-		// resposta perquè l'agent sintetitzi. Els vents no es veuen entre
-		// ells: cada un contesta amb la seva perspectiva i el seu ofici.
+		// Independent perspectives for an explicitly requested consultation.
 		task := strings.TrimSpace(a.Task)
 		if task == "" {
 			return "", errors.New("task is required")
@@ -197,35 +198,26 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		if len(ws) == 0 {
 			return "The user has no winds yet.", nil
 		}
-		// Si la tasca encaixa amb algú, preguntem als que pertoquen (els
-		// que tenen ofici o coneixements); si no, a tots.
-		cards := s.windSpecialists(task)
-		var targets []companion.Wind
-		for _, c := range cards {
-			if c.Score > 0 {
-				if w, ok := s.winds.ByID(c.ID); ok {
-					targets = append(targets, w)
-				}
-			}
-		}
-		if len(targets) == 0 {
-			targets = ws
-		}
 		type answer struct {
 			wind companion.Wind
 			text string
 			err  error
 		}
-		results := make([]answer, len(targets))
+		results := make([]answer, len(ws))
 		var wg sync.WaitGroup
-		for i, w := range targets {
+		slots := make(chan struct{}, 3)
+		for i, w := range ws {
 			wg.Add(1)
 			go func(i int, w companion.Wind) {
 				defer wg.Done()
-				// No reutilitzem l'historial del vent: és una consulta
-				// puntual de l'agent, no un encàrrec que ha de quedar al
-				// fil del vent.
-				text, _, err := s.windAskOnce(ctx, w, task)
+				select {
+				case slots <- struct{}{}:
+					defer func() { <-slots }()
+				case <-ctx.Done():
+					results[i] = answer{wind: w, err: ctx.Err()}
+					return
+				}
+				text, _, err := s.windAskOnce(ctx, w, task+"\n\nGive one useful observation from your specialty. If your specialty adds nothing, reply with exactly -.")
 				results[i] = answer{wind: w, text: text, err: err}
 			}(i, w)
 		}
@@ -233,6 +225,9 @@ func (s *Server) runWindTool(ctx context.Context, argsJSON string) (string, erro
 		var b strings.Builder
 		b.WriteString("Answers from the winds:\n")
 		for _, r := range results {
+			if r.err == nil && (r.text == "" || r.text == "-") {
+				continue
+			}
 			b.WriteString("\n=== " + r.wind.Name + " (" + r.wind.ID + ") ===\n")
 			if r.err != nil {
 				fmt.Fprintf(&b, "ERROR: %v\n", r.err)
@@ -288,16 +283,13 @@ func mustWinds(s *Server) []companion.Wind {
 // vent ni consumir-ne l'historial. Cada vent contesta només amb el seu
 // ofici i la seva memòria de coneixements.
 func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task string) (string, string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
+	ctx, cancel := context.WithTimeout(parent, windTurnTimeout)
 	defer cancel()
-	stop := context.AfterFunc(parent, cancel) // aturar el torn de dalt atura el vent
-	defer stop()
-	if b := linkBaseOf(parent); b != "" {
-		ctx = context.WithValue(ctx, linkBaseKey{}, b)
+	if err := ctx.Err(); err != nil {
+		return "", "", err
 	}
-	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
-	defer doneTurn()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(ctx))
+	// An inherited interactive scope must not let a consultation mutate files.
+	ctx = s.readOnlyWindCtx(ctx)
 	msg := "[Question from the main agent] " + task
 	start := time.Now()
 	s.mu.Lock()
@@ -314,7 +306,6 @@ func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task s
 	if res.parcial && esRespostaMecanica(reply) {
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
-	reply += s.windDocLinks(start, reply)
 	ws, _ := s.ventWorkspace()
 	return reply, ws, nil
 }
@@ -324,9 +315,21 @@ func (s *Server) windAskOnce(parent context.Context, wind companion.Wind, task s
 // queden a la conversa del vent, així la persona ho pot seguir des del mòbil.
 func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task string) (string, string, error) {
 	hist := windHistory(s, wind.ID)
-	hist.mu.Lock()
-	defer hist.mu.Unlock()
-	previous := append([]llm.Message(nil), hist.messages...)
+	turn := windDirectTurn(s, wind.ID)
+	turn.Lock()
+	defer turn.Unlock()
+	if err := parent.Err(); err != nil {
+		return "", "", err
+	}
+	hist.mu.RLock()
+	if hist.deleted && hist.name != "company-"+wind.ID {
+		hist.mu.RUnlock()
+		return "", "", errors.New("session no longer exists")
+	}
+	history := append([]llm.Message(nil), hist.messages...)
+	gen := hist.gen
+	hist.mu.RUnlock()
+	previous := history
 	if len(previous) > 40 {
 		previous = previous[len(previous)-40:]
 	}
@@ -357,12 +360,19 @@ func (s *Server) windDelegate(parent context.Context, wind companion.Wind, task 
 		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
 	}
 	reply += s.windDocLinks(start, reply)
-	history := append(append([]llm.Message(nil), hist.messages...),
+	history = append(history,
 		llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
 		llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-	if err := saveWindHistory(s, wind, history); err == nil {
+	hist.mu.Lock()
+	if hist.gen == gen {
+		if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
+			hist.mu.Unlock()
+			return "", "", err
+		}
 		hist.messages = podaHistorialVent(history)
+		hist.gen++
 	}
+	hist.mu.Unlock()
 	s.startWindLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
 	ws, _ := s.ventWorkspace()

@@ -492,10 +492,11 @@ func postWindMessage(s *Server, w companion.Wind, source, text string) {
 func postWindMessageJob(s *Server, w companion.Wind, source, job, text string) {
 	hist := windHistory(s, w.ID)
 	hist.mu.Lock()
-	hist.messages = podaHistorialVent(append(hist.messages, llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()}))
-	history := append([]llm.Message(nil), hist.messages...)
+	history := append(append([]llm.Message(nil), hist.messages...), llm.Message{Role: "assistant", Content: text, Ts: time.Now().Unix()})
+	if err := saveWindHistoryTo(s, w, hist.name, history); err == nil {
+		hist.messages = podaHistorialVent(history)
+	}
 	hist.mu.Unlock()
-	_ = saveWindHistory(s, w, history)
 	goBackground(func() { s.windLearn(w, source, text) })
 	// Registre per a l'app (notificació local): el missatge és proactiu,
 	// l'usuari pot tenir l'app en segon pla. Best-effort, mai no bloqueja.

@@ -12,8 +12,8 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/companion"
-	"gregal/internal/goal"
 	"gregal/internal/config"
+	"gregal/internal/goal"
 	"gregal/internal/llm"
 	"gregal/internal/session"
 )
@@ -34,23 +34,34 @@ import (
 // altre torn ha publicat entremig (evita que un torn lent trepitgi un de
 // nou sense bloquejar el GET durant la crida al model).
 type windHistoryEntry struct {
+	deleted  bool
+	name     string
 	mu       sync.RWMutex
 	loadOnce sync.Once
 	messages []llm.Message
 	gen      uint64
-	// torn serialitza els torns d'escriptura d'un mateix vent: un segon
-	// POST espera el primer (TestConversationHistorySerializesWholeTurn),
-	// però mu queda lliure i els GET (RLock) mai no esperen el model.
-	torn sync.Mutex
 }
 
 var windHistories sync.Map // conversationHistoryKey -> *windHistoryEntry
 
+// Direct turns still share one cancellation and steering target per wind.
+// Serializing them across threads prevents one client cancelling the other.
+var windDirectTurns sync.Map
+
+func windDirectTurn(s *Server, id string) *sync.Mutex {
+	turn, _ := windDirectTurns.LoadOrStore(historyKey(s, "wind", id), &sync.Mutex{})
+	return turn.(*sync.Mutex)
+}
+
 func windHistory(s *Server, windID string) *windHistoryEntry {
-	h, _ := windHistories.LoadOrStore(historyKey(s, "wind", windID), &windHistoryEntry{})
+	return windHistoryFor(s, s.windSessionName(windID))
+}
+
+func windHistoryFor(s *Server, name string) *windHistoryEntry {
+	h, _ := windHistories.LoadOrStore(historyKey(s, "wind", name), &windHistoryEntry{name: name})
 	entry := h.(*windHistoryEntry)
 	entry.loadOnce.Do(func() {
-		if saved, err := session.Load(s.sessDir(), s.windSessionName(windID)); err == nil {
+		if saved, err := session.Load(s.sessDir(), name); err == nil {
 			entry.messages = append([]llm.Message(nil), saved.Convo...)
 		}
 	})
@@ -58,9 +69,22 @@ func windHistory(s *Server, windID string) *windHistoryEntry {
 }
 
 func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
+	return saveWindHistoryTo(s, w, s.windSessionName(w.ID), history)
+}
+
+func saveWindHistoryTo(s *Server, w companion.Wind, name string, history []llm.Message) error {
+	title := "Company — " + w.Name
+	if name != "company-"+w.ID {
+		for _, msg := range history {
+			if msg.Role == "user" && msg.Content != "" {
+				title = oneLine(msg.Content, 70)
+				break
+			}
+		}
+	}
 	_, err := session.SaveSession(s.sessDir(), session.Session{
-		Name:  s.windSessionName(w.ID),
-		Title: "Company — " + w.Name,
+		Name:  name,
+		Title: title,
 		Role:  "chat",
 		Convo: append([]llm.Message(nil), podaHistorialVent(history)...),
 	})
@@ -69,29 +93,17 @@ func saveWindHistory(s *Server, w companion.Wind, history []llm.Message) error {
 
 // clearWindHistory buida la conversa amb un vent (disc + memòria).
 // El vent i el seu perfil es queden: només marxa el xat.
-func (s *Server) clearWindHistory(windID string) error {
-	windHistories.Delete(historyKey(s, "wind", windID))
-	// Si hi ha una sessió activa diferent de la històrica, buidar neteja la
-	// conversa que es veu — i desactiva la marca perquè no apunti a un fitxer
-	// que ja no és l'activa.
-	s.mu.Lock()
-	active := s.windActiveSession[windID]
-	if active != "" && active != "company-"+windID {
-		delete(s.windActiveSession, windID)
+func (s *Server) clearWindHistory(wind companion.Wind, hist *windHistoryEntry) error {
+	hist.mu.Lock()
+	defer hist.mu.Unlock()
+	if hist.deleted && hist.name != "company-"+wind.ID {
+		return fmt.Errorf("session no longer exists")
 	}
-	s.mu.Unlock()
-	if err := session.Delete(s.sessDir(), "company-"+windID); err != nil {
-		// Sense historial previ no hi ha res a netejar: no és error.
-		if !strings.Contains(err.Error(), "no trobada") {
-			return err
-		}
+	if err := saveWindHistoryTo(s, wind, hist.name, nil); err != nil {
+		return err
 	}
-	if active != "" && active != "company-"+windID {
-		if err := session.Delete(s.sessDir(), active); err == nil || strings.Contains(err.Error(), "no trobada") {
-			// la sessió esborrada era l'activa: la conversa torna a la històrica
-			return nil
-		}
-	}
+	hist.messages = nil
+	hist.gen++
 	return nil
 }
 
@@ -197,18 +209,22 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unknown wind", http.StatusBadRequest)
 			return
 		}
-		hist := windHistory(s, wind.ID)
+		hist, ok := s.requestedWindHistory(w, wind.ID, r.URL.Query().Get("session"))
+		if !ok {
+			return
+		}
 		hist.mu.RLock()
 		messages := append([]llm.Message(nil), hist.messages...)
 		hist.mu.RUnlock()
-		writeJSON(w, map[string]any{"wind": wind.ID, "history": petHistoryJSON(messages)})
+		writeJSON(w, map[string]any{"wind": wind.ID, "session": hist.name, "history": petHistoryJSON(messages)})
 		return
 	}
 	// DELETE buida la conversa amb el vent (el vent es queda).
 	if r.Method == http.MethodDelete {
 		var req struct {
-			ID   string `json:"id"`
-			Wind string `json:"wind"`
+			ID      string `json:"id"`
+			Wind    string `json:"wind"`
+			Session string `json:"session"`
 		}
 		if !decodeSmall(w, r, &req) {
 			return
@@ -217,11 +233,16 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		if id == "" {
 			id = strings.TrimSpace(req.ID)
 		}
-		if _, ok := s.winds.ByID(id); !ok {
+		wind, ok := s.winds.ByID(id)
+		if !ok {
 			http.Error(w, "unknown wind", http.StatusBadRequest)
 			return
 		}
-		if err := s.clearWindHistory(id); err != nil {
+		hist, ok := s.requestedWindHistory(w, id, firstNonEmpty(req.Session, r.URL.Query().Get("session")))
+		if !ok {
+			return
+		}
+		if err := s.clearWindHistory(wind, hist); err != nil {
 			http.Error(w, err.Error(), 500)
 			return
 		}
@@ -234,6 +255,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Wind     string `json:"wind"`
+		Session  string `json:"session"`
 		Message  string `json:"message"`
 		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
@@ -246,12 +268,21 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	msg := strings.TrimSpace(req.Message)
-	hist := windHistory(s, wind.ID)
+	hist, ok := s.requestedWindHistory(w, wind.ID, firstNonEmpty(req.Session, r.URL.Query().Get("session")))
+	if !ok {
+		return
+	}
 	// torn serialitza les escriptures d'aquest vent (un segon POST espera
 	// el primer); mu queda lliure i els GET mai no esperen el model.
-	hist.torn.Lock()
-	defer hist.torn.Unlock()
+	turn := windDirectTurn(s, wind.ID)
+	turn.Lock()
+	defer turn.Unlock()
 	hist.mu.RLock()
+	if hist.deleted && hist.name != "company-"+wind.ID {
+		hist.mu.RUnlock()
+		http.Error(w, "no such session", http.StatusNotFound)
+		return
+	}
 	base := append([]llm.Message(nil), hist.messages...)
 	gotGen := hist.gen
 	hist.mu.RUnlock()
@@ -314,15 +345,15 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 	// Commit amb generació: el desat i la publicació són atòmics.
 	hist.mu.Lock()
 	if hist.gen == gotGen {
-		if err := saveWindHistory(s, wind, history); err != nil {
+		if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
 			hist.mu.Unlock()
 			http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
 			return
 		}
 		hist.messages = podaHistorialVent(history)
 		hist.gen++
-	} else if saved, err := session.Load(s.sessDir(), "company-"+wind.ID); err == nil {
-		hist.messages = append([]llm.Message(nil), saved.Convo...)
+	} else {
+		history = append([]llm.Message(nil), hist.messages...)
 	}
 	hist.mu.Unlock() // failed model/save calls never publish a partial turn
 	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.

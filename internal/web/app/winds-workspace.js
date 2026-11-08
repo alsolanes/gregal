@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatController=null, pendingFrame=0, demoTimer=0, demoRun=0;
+ let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatTurn=null, pendingFrame=0, demoTimer=0, demoRun=0;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
  async function call(url,method='GET',body){const r=await root.api(url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});if(!r.ok)throw new Error(await r.text());return r.json();}
@@ -18,9 +18,14 @@
  function heading(title,copy){const h=el('div','vw-heading');h.append(el('h1','',title));if(copy)h.append(el('p','',copy));content.append(h);}
  function section(title,action){const h=el('div','vw-section-label');h.append(el('span','',title));if(action)h.append(action);nav.append(h);}
  function route(view,active=null){if(state.preparing&&!state.busy)return;clearTimeout(demoTimer);demoRun++;state.chatEpoch=(state.chatEpoch||0)+1;state.draft=input?.value??state.draft;state.view=view;state.active=active;state.history=[];if(view!=='task'&&root.gregalPreview?.getState().open)$('previewClose')?.click();render();}
+ const draftKey='gregal_vents_draft';
+ function saveDraft(){
+  try{sessionStorage.setItem(draftKey,JSON.stringify({draft:input?.value??state.draft,chat:state.view==='chat'?state.active?.id:null,wind:state.active?.legacyWind?state.active.wind:null}));}catch{}
+ }
  function newChat(){route('home');state.draft='';if(input){input.value='';input.focus();}}
  function mount(){
   if(mounted)return;mounted=true;
+  window.addEventListener('pagehide',saveDraft);
   page=el('div','wind-workspace');page.id='windWorkspace';$('ventsPage').append(page);
   nav=el('nav','vw-nav');nav.setAttribute('aria-label',t('Espai dels vents','Winds workspace'));$('windContextNav').append(nav);
   $('windsListCard').hidden=true;
@@ -68,9 +73,10 @@
  function render(){
   if(!mounted)return;renderNav();page.replaceChildren();messages=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=btn('☰',()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-label',t('Obre la navegació','Open navigation'));menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),el('span','',state.active?.name||squadName(state.squad)));
+  if(state.view==='chat'&&state.active?.legacyWind)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
   if(state.view==='chat'&&state.active?.id)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
   top.append(btn(t('La colla','Crew'),()=>route('crew'),'vw-top-action'));page.append(top);
-  content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');page.append(status);
+  content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   const bottom=el('nav','vw-mobile-nav');for(const [id,a,b]of [['home','Inici','Home'],['tasks','Feines','Work'],['notes','Notes','Notes'],['saved','Desat','Saved'],['crew','Colla','Crew'],['library','Biblioteca','Library'],['wiki','Wiki','Wiki']]){const n=btn(t(a,b),()=>route(id));n.dataset.selected=String(state.view===id);bottom.append(n);}page.append(bottom);
  }
@@ -79,6 +85,7 @@
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();composer.requestSubmit();}});
   const foot=el('div','vw-composer-foot'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
   select.append(new Option(squadName(state.squad),'auto'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
+  if(state.view==='chat')select.hidden=true;
   select.onchange=()=>{state.recipient=select.value;};state.recipient=select.value;
   const model=el('button','vw-model');model.type='button';paintModel(model);
   // stopPropagation: el clic que l'obre no ha d'arribar al «clic fora» que el tanca.
@@ -149,7 +156,11 @@
   const shape=document.createElementNS(svg.namespaceURI,state.busy?'rect':'path');
   if(state.busy){for(const [key,value]of Object.entries({x:6,y:6,width:12,height:12,rx:2,fill:'currentColor'}))shape.setAttribute(key,value);}
   else{shape.setAttribute('d','M12 19V5m-6 6 6-6 6 6');shape.setAttribute('fill','none');shape.setAttribute('stroke','currentColor');shape.setAttribute('stroke-width','1.8');shape.setAttribute('stroke-linecap','round');shape.setAttribute('stroke-linejoin','round');}
-  svg.append(shape);button.append(svg);button.onclick=state.busy?()=>{if(chatController)chatController.abort();else root.gregalWindRunner?.stop();}:null;
+  svg.append(shape);button.append(svg);button.onclick=state.busy?()=>{
+   if(!chatTurn){root.gregalWindRunner?.stop();return;}
+   chatTurn.stopping=true;
+   stopChat(chatTurn).catch(fail);
+  }:null;
  }
  function paintPending(){
   if(!messages||state.view!=='chat')return;const pending=state.pending;
@@ -165,12 +176,24 @@
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
  function schedulePending(){if(pendingFrame)return;pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;paintPending();});}
- async function streamChat(destination,text,controller,progress={}){
-  const response=await root.api(destination.legacyWind?'/api/winds/chat/stream':'/api/winds/rotllana/stream',{method:'POST',signal:controller.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify(destination.legacyWind?{wind:destination.id,message:text}:{rotllana:destination.id,message:text})});
+ async function stopChat(turn){
+  if(!turn.started||turn.cancelSent||chatTurn!==turn)return;
+  turn.cancelSent=true;
+  const destination=turn.destination;
+  try{await call('/api/winds/cancel','POST',destination.legacyWind?{wind:destination.wind}:{rotllana:destination.id});}
+  catch(error){turn.cancelSent=false;throw error;}
+ }
+ async function streamChat(destination,text,turn,progress={}){
+  turn.destination=destination;
+  if(turn.stopping)return {cancelat:true};
+  const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text}:{rotllana:destination.id,message:text};
+  const response=await root.api(destination.legacyWind?'/api/winds/chat/stream':'/api/winds/rotllana/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!response.ok||!response.body)throw new Error(t('No s’ha pogut iniciar la resposta.','Could not start the response.'));
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',result=null;
   try{while(true){const chunk=await reader.read();if(chunk.done)break;buffer+=decoder.decode(chunk.value,{stream:true}).replace(/\r\n/g,'\n');let end;
    while((end=buffer.indexOf('\n\n'))>=0){const frame=buffer.slice(0,end);buffer=buffer.slice(end+2);const lines=frame.split('\n'),kind=lines.find(l=>l.startsWith('event:'))?.slice(6).trim(),raw=lines.filter(l=>l.startsWith('data:')).map(l=>l.slice(5).trimStart()).join('\n');if(!raw)continue;const data=JSON.parse(raw);
+    if(kind==='phase'||(kind==='activity'&&data.phase==='learning')){turn.started=true;if(turn.stopping)stopChat(turn).catch(fail);}
+    if(kind==='error'&&data.cancelat){result=data;continue;}
     if(kind==='error')throw new Error(root.gregalFriendlyRunError(data.error)||t('La resposta s’ha interromput.','The response was interrupted.'));
     if(kind==='done'){result=data;continue;}
     // Un vent espera una resposta (aprovació o pregunta): el torn està aturat fins que contestes.
@@ -248,7 +271,41 @@
   const show=()=>{if(run!==demoRun||!card.isConnected)return;const turn=turns[index],row=el('article','vw-demo-turn'+(turn.summary?' vw-demo-summary':''));if(turn.person)row.append(face(turn.person));else row.append(el('span','vw-demo-mark','✧'));const copy=el('div');copy.append(el('strong','',turn.person?.name||turn.role),el('span','vw-demo-role',turn.person?turn.role:t('Conclusió compartida','Shared takeaway')),el('p','',turn.text));row.append(copy);thread.append(row);index++;if(index<turns.length)demoTimer=setTimeout(show,1900);else card.classList.remove('is-playing');};show();
  }
  async function activate(id){await call('/api/winds/squads','POST',{id,lang:ca()?'ca':'en'});state.winds=(await call('/api/winds')).winds;renderNav();}
- async function talkTo(w){root.gregalWinds.seen?.(w.id);const saved=await call('/api/winds/chat?wind='+encodeURIComponent(w.id));if(saved.history?.length){state.active={id:w.id,wind:w.id,name:w.name,members:[w.id],legacyWind:true};state.history=saved.history;state.view='chat';state.draft='';render();return;}state.squad=w.squad||state.squad;state.active={wind:w.id,name:w.name};state.view='home';state.draft='';render();const option=[...content.querySelector('select').options].find(o=>o.value===w.id);if(option){content.querySelector('select').value=w.id;state.recipient=w.id;}input.focus();}
+ async function talkTo(w,session=''){
+  const ticket=state.chatEpoch=(state.chatEpoch||0)+1;
+  root.gregalWinds.seen?.(w.id);
+  const query=new URLSearchParams({wind:w.id});
+  if(session)query.set('session',session);
+  const data=await call('/api/winds/chat?'+query);
+  if(ticket!==state.chatEpoch)return;
+  showWindThread(w,data.session||session||'company-'+w.id,data.history||[]);
+ }
+ function showWindThread(w,session,history){
+  state.active={id:session,wind:w.id,name:w.name,members:[w.id],legacyWind:true};
+  state.history=history;
+  state.view='chat';
+  state.draft='';
+  render();
+ }
+ async function windThreads(){
+  if(state.busy)return;
+  const wind=state.winds.find(w=>w.id===state.active?.wind);
+  if(!wind)return;
+  const data=await call('/api/winds/sessions?wind='+encodeURIComponent(wind.id));
+  const d=dialog(t('Fils de ','Threads with ')+wind.name);
+  const rows=el('div','vw-session-list');
+  for(const thread of data.sessions||[]){
+   const label=(thread.title||wind.name)+(thread.when?' · '+thread.when:'');
+   const row=btn(label,async()=>{await talkTo(wind,thread.name);d.close();},'vw-button vw-session-row');
+   if(thread.name===state.active?.id)row.setAttribute('aria-current','true');
+   rows.append(row);
+  }
+  d.append(rows,btn(t('Nou fil','New thread'),async()=>{
+   const thread=await call('/api/winds/sessions','POST',{wind:wind.id});
+   showWindThread(wind,thread.name,[]);
+   d.close();
+  },'vw-primary'));
+ }
  function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));
   const tabs=el('div','vw-tabs');for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;render();});b.dataset.selected=String(s.id===state.squad);tabs.append(b);}content.append(tabs);
   const roster=crew();if(!roster.length){const empty=el('div','vw-empty');empty.append(face(),el('h2','',t('La teva colla, a punt.','Your crew, ready to help.')),el('p','',t('Activa l’equip amb un sol clic. Les especialitats ja venen preparades.','Activate this squad in one click. Specialties are already defined.')),btn(t('Prepara aquest equip','Prepare this squad'),async()=>{await activate(state.squad);render();},'vw-primary'));content.append(empty);}
@@ -350,7 +407,7 @@ async function openWikiPage(p){
 async function summarizeToWiki(){
   const chat=state.active;if(!chat?.id)return;
   status.removeAttribute('role');status.textContent=t('Resumint la conversa per a la wiki…','Summarizing the conversation for the wiki…');
-  const data=await call('/api/winds/wiki/summary','POST',chat.legacyWind?{wind:chat.wind||chat.id}:{rotllana:chat.id});
+  const data=await call('/api/winds/wiki/summary','POST',chat.legacyWind?{wind:chat.wind,session:chat.id}:{rotllana:chat.id});
   status.textContent=(data.updated?t('Pàgina actualitzada: ','Page updated: '):t('Pàgina creada: ','Page created: '))+(data.page?.titol||'');
   await openWikiPage(data.page);
 }
@@ -373,6 +430,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  // Una colla convocada treballa al servidor: el fil s'actualitza sol mentre parlen i fan la feina.
  function followCrew(chat){root.gregalCrew?.follow(chat.id,async st=>{if(state.view!=='chat'||state.active?.id!==chat.id)return false;const steps={discussing:t('La colla en parla…','The crew is discussing…'),waiting:t('La colla espera torn…','The crew is waiting…'),working:t('La colla hi treballa…','The crew is working…')};status.textContent=st.running?steps[st.step]||'':st.step==='interrupted'?t('La feina es va aturar: el servidor es va reiniciar. Torna-la a demanar si cal.','The work stopped: the server restarted. Ask for it again if needed.'):'';const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(state.active?.id!==chat.id)return false;if((data.history||[]).length!==state.history.length){state.history=data.history||[];paintHistory();}});}
  function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages');content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked){const card=btn(task.task+' · '+statusName(task.status)+' ↗',()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});},'vw-recent');messages.append(card);}content.append(el('div','vw-asks'));paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
+ function emptyWindThread(){
+  const wind=state.winds.find(w=>w.id===state.active?.wind);
+  if(!wind)return;
+  const card=el('div','vw-thread-empty');
+  const orb=el('div','vw-orb');
+  orb.append(root.gregalWinds.face(wind,true));
+  card.append(orb,el('h1','',wind.name),el('p','',roleName(wind)||t('Conversa directa','Direct conversation')));
+  messages.append(card);
+ }
  const choicesStrip=text=>root.gregalChoices?root.gregalChoices.strip(text):text;
  const askTitle=kind=>({install:t('Vol instal·lar programari','Wants to install software'),download:t('Vol baixar un paquet o un fitxer','Wants to download a package or file'),delete:t('Vol esborrar fora del projecte','Wants to delete outside the project'),system:t('Vol canviar un servei del sistema','Wants to change a system service')}[kind]||t('Et demana permís','Asks for your permission'));
  async function answerAsk(a,body){state.asks=state.asks.filter(x=>x.key!==a.key);paintAsks();try{await call('/api/winds/answer','POST',{key:a.key,...body});}catch(e){fail(e);}}
@@ -397,6 +463,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  function paintHistory(){messages.replaceChildren();for(const item of state.history){const user=item.from==='user';const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);row.append(copy);messages.append(row);}
   // Respostes ràpides que el vent proposa al final del seu missatge.
   const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
+  if(!last&&state.active?.legacyWind)emptyWindThread();
   paintPending();messages.scrollTop=messages.scrollHeight;}
  const isWork=task=>/\b(crea|crear|create|build|make|fes|fer|fix|arregla|implement|modifica|edita|desenvolupa|programa|executa|run|revisa|review|analitza|analy[sz]e)\b/i.test(task.normalize('NFD').replace(/[\u0300-\u036f]/g,''));
  async function submit(){if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
@@ -406,11 +473,15 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    if(/\b(web|website|codi|code|app|bug|html|seguretat|security)\b/i.test(text))state.squad='software';
    else if(/\b(dades|data|regress|machine learning|series|temporal|csv)\b/i.test(text))state.squad='data';
   }
-  if(!crew().length&&state.recipient==='auto')await activate(state.squad);
-  const members=state.recipient&&state.recipient!=='auto'?state.winds.filter(w=>w.id===state.recipient):crew();if(!members.length)throw new Error(t('Tria un vent de la colla.','Choose a wind from the crew.'));
+  if(state.view==='home'&&state.recipient!=='auto'&&!state.active?.project){
+   const wind=state.winds.find(w=>w.id===state.recipient);
+   if(wind)await talkTo(wind);
+  }
+  if(state.view!=='chat'&&!crew().length&&state.recipient==='auto')await activate(state.squad);
+  const members=state.view==='chat'?state.winds.filter(w=>state.active.members.includes(w.id)):state.recipient&&state.recipient!=='auto'?state.winds.filter(w=>w.id===state.recipient):crew();if(!members.length)throw new Error(t('Tria un vent de la colla.','Choose a wind from the crew.'));
   // Cap vent no hi encaixa: proposa convocar una colla (vents existents + especialistes nous).
   if(isWork(text)&&state.recipient==='auto'&&state.view!=='chat'&&root.gregalCrew&&!(state.crewTried||=new Set()).has(text)){state.crewTried.add(text);status.textContent=t('Mirant qui ho pot fer…','Checking who can do it…');const crewChat=await root.gregalCrew.offer(text,state.winds,members.map(w=>w.id));status.textContent='';if(crewChat){input.value='';state.draft='';state.chats.unshift(crewChat);state.winds=(await call('/api/winds')).winds||state.winds;state.preparing=false;await openChat(crewChat);return;}}
-  if(isWork(text)){
+  if(isWork(text)&&!state.active?.legacyWind){
    const selected=root.gregalWindDesk.resolveTask(members,text,{owner:state.recipient==='auto'?null:state.recipient});const flow=root.gregalWindDesk.flowFor(selected.owner,selected.reviewer,selected.kind);
    const workspace=state.active?.workspace||state.active?.path;if(workspace)await switchFolder(workspace);
    let conversation=state.view==='chat'&&!state.active?.legacyWind?state.active:state.active?.conversation;
@@ -422,13 +493,39 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    try{await root.gregalWindRunner.start(text,flow,true,{thread:conversation.id});}finally{state.busy=false;state.tasks=(await call('/api/winds/tasks')).tasks||[];if(state.view==='task'){paintWork();const work=$('vwWork'),card=work?.querySelector('.vw-deliverable');if(card)work.scrollTop+=card.getBoundingClientRect().top-work.getBoundingClientRect().top-8;const send=composer?.querySelector('.vw-send');if(send)paintSend(send);}}return;
   }
   const epoch=state.chatEpoch||0,workspace=state.active?.project?state.active.path:'';let sentTo=state.view==='chat'?state.active:null;
-  state.busy=true;const controller=new AbortController(),progress={};chatController=controller;try{
-   if(!sentTo){const data=await call('/api/winds/rotllanes','POST',{name:text.slice(0,75),members:members.map(w=>w.id),workspace});sentTo=data.rotllana;state.chats.unshift(sentTo);if(epoch===(state.chatEpoch||0)){state.active=sentTo;state.history=[];}}
+  state.busy=true;
+  state.notice=null;
+  const turn={},progress={};
+  chatTurn=turn;
+  const current=()=>state.view==='chat'&&state.active?.id===sentTo?.id;
+  const restore=()=>{
+   if(!current())return;
+   if(progress.history){state.history=progress.history;state.draft='';}
+   else{state.draft=text;state.history=state.history.filter(m=>!m.optimistic);}
+  };
+  try{
+   if(!sentTo){
+    const data=await call('/api/winds/rotllanes','POST',{name:text.slice(0,75),members:members.map(w=>w.id),workspace});
+    sentTo=data.rotllana;state.chats.unshift(sentTo);
+    if(epoch===(state.chatEpoch||0)){state.active=sentTo;state.history=[];}
+   }
    if(sentTo.workspace)await switchFolder(sentTo.workspace);
-   state.pending={thread:sentTo.id,wind:sentTo.legacyWind?sentTo.id:sentTo.members?.length===1?sentTo.members[0]:null,phase:'thinking',text:''};
-   if(epoch===(state.chatEpoch||0)){state.history.push({from:'user',text,optimistic:true});state.draft='';state.view='chat';render();}
-   const data=await streamChat(sentTo,text,controller,progress);state.pending=null;if(state.view==='chat'&&state.active?.id===sentTo.id){state.history=data.history||state.history;paintHistory();status.textContent=data.failed?.length?t('No han pogut respondre: ','Could not answer: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):''):'';}
-  }catch(error){if(state.active?.id===sentTo?.id){if(progress.history){state.history=progress.history;state.draft='';}else{state.draft=text;state.history=state.history.filter(m=>!m.optimistic);}}if(!controller.signal.aborted)throw error;}finally{if(chatController===controller)chatController=null;state.pending=null;state.busy=false;if(state.view==='chat')render();}
+   state.pending={thread:sentTo.id,wind:sentTo.legacyWind?sentTo.wind:sentTo.members?.length===1?sentTo.members[0]:null,phase:'thinking',text:''};
+   if(epoch===(state.chatEpoch||0)){
+    state.history.push({from:'user',text,optimistic:true});state.draft='';state.view='chat';render();
+   }
+   const data=await streamChat(sentTo,text,turn,progress);
+   if(data.cancelat){restore();state.notice={thread:sentTo.id,text:t('Torn aturat','Turn stopped')};}
+   else if(current()){
+    state.history=data.history||state.history;
+    if(data.failed?.length)state.notice={thread:sentTo.id,text:t('No han pogut completar el torn: ','Could not complete the turn: ')+data.failed.join(', ')+(data.failed_reason?' · '+root.gregalFriendlyRunError(data.failed_reason):'')};
+   }
+  }catch(error){restore();throw error;}
+  finally{
+   if(chatTurn===turn)chatTurn=null;
+   state.pending=null;state.busy=false;
+   if(state.view==='chat')render();
+  }
  }
  const statusName=value=>({started:t('En marxa','Running'),working:t('En marxa','Running'),done:t('Enllestit','Complete'),completed:t('Enllestit','Complete'),failed:t('Cal revisar-ho','Needs attention'),cancelled:t('Aturat','Stopped'),waiting:t('En espera','Waiting')})[value]||value;
  function taskView(){content.classList.add('vw-thread-view');const title=state.active?.name||state.snapshot?.task||'';heading(title);if(state.active?.conversation)content.append(btn(t('← Torna a la conversa','← Back to conversation'),()=>openChat(state.active.conversation),'vw-back'));const work=el('div','vw-work');work.id='vwWork';content.append(work);paintWork();addComposer(true);input.placeholder=t('Una altra cosa que vulguis fer…','Something else you’d like to do…');}
@@ -465,7 +562,17 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   default:return [who,activityName(event.activity||event.type)];
  }}
  function activityName(value){return ({read:t('Llegint fitxers','Reading files'),write:t('Escrivint fitxers','Writing files'),edit:t('Editant fitxers','Editing files'),patch:t('Editant fitxers','Editing files'),glob:t('Buscant fitxers','Finding files'),grep:t('Cercant al codi','Searching the code'),lsp:t('Analitzant el codi','Analysing the code'),bash:t('Comprovant el projecte','Checking the project'),bash_background:t('Comprovant el projecte','Checking the project'),bash_output:t('Comprovant el projecte','Checking the project'),bash_kill:t('Aturant una comprovació','Stopping a check'),browser:t('Fent servir el navegador','Using the browser'),preview:t('Previsualitzant','Previewing'),read_image:t('Mirant una imatge','Viewing an image'),web_search:t('Cercant fonts','Searching sources'),web_fetch:t('Llegint fonts','Reading sources'),skill:t('Consultant un coneixement','Consulting knowledge'),knowledge_search:t('Consultant un coneixement','Consulting knowledge'),knowledge_note:t('Desant una nota','Saving a note'),notes:t('Fent servir les notes','Using the notes'),todowrite:t('Organitzant els passos','Organising the steps'),todoread:t('Organitzant els passos','Organising the steps'),office_create:t('Treballant en un document','Working on a document'),office_edit:t('Treballant en un document','Working on a document'),office_read:t('Llegint un document','Reading a document'),office_open:t('Obrint un document','Opening a document'),office_render:t('Previsualitzant un document','Previewing a document'),git_commit:t('Desant els canvis a git','Committing changes'),delegate:t('Delegant una part','Delegating a part'),question:t('Preparant una pregunta','Preparing a question'),draft:t('Preparant el lliurable','Preparing the deliverable'),analyze:t('Analitzant','Analysing'),plan:t('Planificant','Planning'),revision:t('Corregint','Revising'),reviewing:t('Revisant una acció','Reviewing an action'),review:t('Revisant el resultat','Reviewing the result'),tool_result:t('Comprovació acabada','Check complete'),working:t('Treballant','Working'),done:t('Enllestit','Complete'),completed:t('Pas completat','Step complete'),started:t('Començant','Starting')})[value]||(/^[\w.:-]+$/.test(value||'')?t('Fent servir una eina','Using a tool'):value);}
- async function load(){mount();root.gregalWinds.watchNews?.();const version=++loadVersion;try{const [winds,squads,chats,tasks,meta]=await Promise.all([call('/api/winds'),call('/api/winds/squads'),call('/api/winds/rotllanes'),call('/api/winds/tasks'),call('/api/winds/meta')]);if(version!==loadVersion)return;state.winds=winds.winds||[];state.squads=squads.squads||[];state.chats=chats.rotllanes||[];state.tasks=tasks.tasks||[];state.meta=meta.meta||{};await refreshProjects();render();openFromHash();}catch(e){render();fail(e);}}
+ async function load(){mount();root.gregalWinds.watchNews?.();const version=++loadVersion;try{const [winds,squads,chats,tasks,meta]=await Promise.all([call('/api/winds'),call('/api/winds/squads'),call('/api/winds/rotllanes'),call('/api/winds/tasks'),call('/api/winds/meta')]);if(version!==loadVersion)return;state.winds=winds.winds||[];state.squads=squads.squads||[];state.chats=chats.rotllanes||[];state.tasks=tasks.tasks||[];state.meta=meta.meta||{};await refreshProjects();
+  if(!state.restoredDraft&&!location.hash){
+   state.restoredDraft=true;
+   let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey));}catch{}
+   if(saved){
+    const wind=state.winds.find(w=>w.id===saved.wind),chat=state.chats.find(c=>c.id===saved.chat);
+    try{if(wind)await talkTo(wind,saved.chat);else if(chat)await openChat(chat);}catch{}
+    state.draft=typeof saved.draft==='string'?saved.draft:'';
+   }
+  }
+  render();openFromHash();}catch(e){render();fail(e);}}
  // #notes obre les notes; #notes-capture, amb la captura ràpida a punt (drecera Ctrl+Alt+N de l'escriptori).
  function openFromHash(){const h=location.hash;if(!h.startsWith('#notes'))return;history.replaceState(null,'',location.pathname+location.search);openNotes(h==='#notes-capture');}
  function openNotes(capture){if(state.view!=='notes')route('notes');if(capture)setTimeout(()=>root.gregalNotes?.focusCapture?.(),0);}

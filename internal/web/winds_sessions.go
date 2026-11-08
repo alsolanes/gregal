@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"gregal/internal/llm"
@@ -30,6 +31,8 @@ type WindSessionInfo struct {
 	Current bool   `json:"current,omitempty"`
 }
 
+var windSessionsMu sync.Mutex // protects the active-session map shared by server views
+
 var windSessionSuffix = regexp.MustCompile(`^-s\d+$`)
 
 // isWindSessionOf diu si name és una sessió (o la històrica) del vent.
@@ -41,13 +44,37 @@ func isWindSessionOf(wind, name string) bool {
 // windSessionName és la sessió activa del vent: la marcada al registre o,
 // per defecte, la conversa històrica.
 func (s *Server) windSessionName(windID string) string {
-	s.mu.Lock()
-	active := s.windActiveSession[windID]
-	s.mu.Unlock()
+	key := s.windSessionKey(windID)
+	windSessionsMu.Lock()
+	active := s.windActiveSession[key]
+	windSessionsMu.Unlock()
 	if active != "" {
 		return active
 	}
 	return "company-" + windID
+}
+
+func (s *Server) windSessionKey(windID string) string {
+	return s.sessDir() + "|" + windID
+}
+
+// requestedWindHistory pins a request to the selected thread. Older clients
+// without a session still use the server's active thread at request start.
+func (s *Server) requestedWindHistory(w http.ResponseWriter, wind, name string) (*windHistoryEntry, bool) {
+	if name == "" {
+		return windHistory(s, wind), true
+	}
+	if !isWindSessionOf(wind, name) {
+		http.Error(w, "not a session of this wind", http.StatusBadRequest)
+		return nil, false
+	}
+	if name != "company-"+wind {
+		if _, err := session.Load(s.sessDir(), name); err != nil {
+			http.Error(w, "no such session", http.StatusNotFound)
+			return nil, false
+		}
+	}
+	return windHistoryFor(s, name), true
 }
 
 // windSessionList torna les sessions del vent: l'activa primer, la resta
@@ -118,7 +145,7 @@ func (s *Server) handleWindSessions(w http.ResponseWriter, r *http.Request) {
 		// Nova sessió: nom amb marca de temps, activada al registre i
 		// desada buida al disc perquè surti a la llista des del primer
 		// moment. La conversa històrica queda i es pot reobrir.
-		name := fmt.Sprintf("company-%s-s%d", wind, time.Now().Unix())
+		name := fmt.Sprintf("company-%s-s%d", wind, time.Now().UnixNano())
 		wd, _ := s.winds.ByID(wind)
 		title := "Company — " + wind
 		if wd.ID != "" {
@@ -128,12 +155,10 @@ func (s *Server) handleWindSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		s.mu.Lock()
-		s.windActiveSession[wind] = name
-		s.mu.Unlock()
-		// La còpia en memòria és de l'altra sessió: fora, perquè el primer
-		// GET de la nova no carregui res (comença de zero).
-		windHistories.Delete(historyKey(s, "wind", wind))
+		key := s.windSessionKey(wind)
+		windSessionsMu.Lock()
+		s.windActiveSession[key] = name
+		windSessionsMu.Unlock()
 		writeJSON(w, map[string]any{"wind": wind, "name": name, "sessions": s.windSessionList(wind)})
 	case http.MethodDelete:
 		name := strings.TrimSpace(req.Name)
@@ -145,11 +170,31 @@ func (s *Server) handleWindSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "not a session of this wind", http.StatusBadRequest)
 			return
 		}
-		if s.windSessionName(wind) == name {
+		key := s.windSessionKey(wind)
+		hist := windHistoryFor(s, name)
+		turn := windDirectTurn(s, wind)
+		if !turn.TryLock() {
+			http.Error(w, "session has a running turn", http.StatusConflict)
+			return
+		}
+		defer turn.Unlock()
+		windSessionsMu.Lock()
+		active := s.windActiveSession[key]
+		if active == name || (active == "" && name == "company-"+wind) {
+			windSessionsMu.Unlock()
 			http.Error(w, "cannot delete the active session", http.StatusConflict)
 			return
 		}
-		if err := session.Delete(s.sessDir(), name); err != nil {
+		hist.mu.Lock()
+		err := session.Delete(s.sessDir(), name)
+		if err == nil {
+			hist.messages = nil
+			hist.gen++
+			hist.deleted = true
+		}
+		hist.mu.Unlock()
+		windSessionsMu.Unlock()
+		if err != nil {
 			http.Error(w, err.Error(), 404)
 			return
 		}
@@ -183,20 +228,19 @@ func (s *Server) handleWindSessionOpen(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not a session of this wind", http.StatusBadRequest)
 		return
 	}
+	key := s.windSessionKey(wind)
+	hist := windHistoryFor(s, name)
+	windSessionsMu.Lock()
+	hist.mu.RLock()
 	if _, err := session.Load(s.sessDir(), name); err != nil {
+		hist.mu.RUnlock()
+		windSessionsMu.Unlock()
 		http.Error(w, "no such session", http.StatusNotFound)
 		return
 	}
-	s.mu.Lock()
-	s.windActiveSession[wind] = name
-	s.mu.Unlock()
-	// La còpia en memòria és de l'altra sessió: fora, perquè el proper GET
-	// carregui la que ara és activa.
-	windHistories.Delete(historyKey(s, "wind", wind))
-	// L'historial de la sessió oberta, per pintar-lo sense una segona crida.
-	hist := windHistory(s, wind)
-	hist.mu.RLock()
 	messages := append([]llm.Message(nil), hist.messages...)
 	hist.mu.RUnlock()
+	s.windActiveSession[key] = name
+	windSessionsMu.Unlock()
 	writeJSON(w, map[string]any{"wind": wind, "name": name, "history": petHistoryJSON(messages), "sessions": s.windSessionList(wind)})
 }

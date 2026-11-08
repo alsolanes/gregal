@@ -315,6 +315,7 @@ func (s *Server) handleWikiSummary(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Wind     string `json:"wind"`
+		Session  string `json:"session"`
 		Rotllana string `json:"rotllana"`
 		Titol    string `json:"titol"`
 	}
@@ -329,10 +330,17 @@ func (s *Server) handleWikiSummary(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unknown wind", http.StatusBadRequest)
 			return
 		}
-		if saved, err := session.Load(s.sessDir(), "company-"+wind.ID); err == nil {
+		who, font = wind.Name, "wind:"+wind.ID
+		hist, ok := s.requestedWindHistory(w, wind.ID, req.Session)
+		if !ok {
+			return
+		}
+		if saved, err := session.Load(s.sessDir(), hist.name); err == nil {
 			messages = saved.Convo
 		}
-		who, font = wind.Name, "wind:"+wind.ID
+		if hist.name != "company-"+wind.ID {
+			font = "wind-session:" + hist.name
+		}
 	} else if id := strings.TrimSpace(req.Rotllana); id != "" {
 		rot, ok := s.rotllanaByID(id)
 		if !ok {

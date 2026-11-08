@@ -125,11 +125,12 @@ func TestWindSessionsIsolation(t *testing.T) {
 	if len(hist.messages) != 1 || hist.messages[0].Content != "conversa vella" {
 		t.Fatalf("històrica carregada: %+v", hist.messages)
 	}
-	// Nova sessió: la memòria s'invalida i la carregada és la nova (buida).
-	s.mu.Lock()
-	s.windActiveSession[wind.ID] = "company-" + wind.ID + "-s1000"
-	s.mu.Unlock()
-	windHistories.Delete(historyKey(s, "wind", wind.ID))
+	// La sessió nova comença buida sense invalidar el fil original.
+	created := postJSON(t, s.handleWindSessions, `{"wind":"`+wind.ID+`"}`)
+	if created.Code != http.StatusOK {
+		t.Fatal(created.Body.String())
+	}
+	name := s.windSessionName(wind.ID)
 	hist2 := windHistory(s, wind.ID)
 	if len(hist2.messages) != 0 {
 		t.Fatalf("sessió nova ha de començar buida, got %d missatges", len(hist2.messages))
@@ -146,8 +147,25 @@ func TestWindSessionsIsolation(t *testing.T) {
 		if row.Name == "company-"+wind.ID && row.Msgs != 1 {
 			t.Fatalf("la històrica ha de tenir 1 missatge, got %d", row.Msgs)
 		}
-		if row.Name == "company-"+wind.ID+"-s1000" && row.Msgs != 1 {
+		if row.Name == name && row.Msgs != 1 {
 			t.Fatalf("la nova ha de tenir 1 missatge, got %d", row.Msgs)
 		}
+	}
+	// A browser can still be showing the original thread while Android has
+	// switched the default. Clearing the browser's thread must use its ID.
+	req := httptest.NewRequest(http.MethodDelete, "/api/winds/chat", strings.NewReader(
+		`{"wind":"`+wind.ID+`","session":"company-`+wind.ID+`"}`))
+	rec := httptest.NewRecorder()
+	s.handleWindChat(rec, req)
+	if rec.Code != http.StatusOK || len(hist.messages) != 0 {
+		t.Fatalf("clear original: %d %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/winds/chat?wind="+wind.ID+"&session="+name, nil)
+	rec = httptest.NewRecorder()
+	// Simulate a fresh cache for this read.
+	windHistories.Delete(historyKey(s, "wind", name))
+	s.handleWindChat(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "conversa nova") {
+		t.Fatalf("other thread was lost: %d %s", rec.Code, rec.Body.String())
 	}
 }

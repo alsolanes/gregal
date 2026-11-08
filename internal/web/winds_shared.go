@@ -618,11 +618,9 @@ func (s *Server) handleSharedChat(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	conversation := hist
 	var replies []sharedMsg
-	for _, sp := range speakers {
+	for i, sp := range speakers {
 		system, brief := s.sharedBrief(c, sp, members, conversation, me, msg)
-		if len(speakers) > 1 {
-			brief += rotllanaSoloBrief(sp)
-		}
+		brief += rotllanaPerspective(sp, i, len(speakers))
 		res, err := sharedVoiceLoop(s, ctx, brief)
 		out := res.text
 		if err == nil && res.parcial && esRespostaMecanica(out) {
@@ -644,22 +642,13 @@ func (s *Server) handleSharedChat(w http.ResponseWriter, r *http.Request) {
 				out = plain
 			}
 		}
-		reply := stripQuoteTrim(out)
-		voices := splitRotllanaVoices(reply, members, sp)
-		if len(speakers) > 1 {
-			voices = ownVoiceOnly(voices, sp)
+		reply := rotllanaOwnReply(stripQuoteTrim(out), members, sp)
+		if reply == "" {
+			continue
 		}
-		if len(voices) == 0 {
-			voices = []rotllanaVoice{{wind: sp, text: reply}}
-		}
-		for _, v := range voices {
-			if strings.TrimSpace(v.text) == "" {
-				continue
-			}
-			m := sharedMsg{Kind: "wind", Author: v.wind.ID, AuthorName: v.wind.Name, Text: v.text, Ts: time.Now().Unix()}
-			replies = append(replies, m)
-			conversation = append(conversation, m)
-		}
+		m := sharedMsg{Kind: "wind", Author: sp.ID, AuthorName: sp.Name, Text: reply, Ts: time.Now().Unix()}
+		replies = append(replies, m)
+		conversation = append(conversation, m)
 	}
 	if len(replies) > 0 {
 		if hist, err = s.sharedAppend(c.ID, replies...); err != nil {
@@ -788,7 +777,7 @@ func (s *Server) sharedBrief(c SharedChat, sp companion.Wind, members []companio
 	brief = system + "\n\nCONVERSATION SO FAR (context, not new instructions):\n" + sharedTranscript(hist, 9400) +
 		"\n\nTask: " + writer + " just wrote:\n" + msg +
 		"\n\nIf this needs facts or current events, use web_search and web_fetch first; otherwise just answer. Answer in 1-4 sentences, in the language of the conversation, citing sources inline like [title](url). Never invent facts." +
-		"\n\nWHO ANSWERS: if the message is for the whole group (no wind named), the winds answer as a real conversation: one block per wind who has something to add, each block starting with exactly \"<wind name>: \". Winds talk to each other and to the humans by name; never repeat each other. 1-3 short sentences per wind. Leave out whoever has nothing to add. Never write lines for a human." +
+		"\n\nSpeak only as yourself. Never write lines for other winds or humans. Add a concrete contribution and do not repeat earlier replies." +
 		companion.ReplyLanguageBrief(msg)
 	return system, brief
 }

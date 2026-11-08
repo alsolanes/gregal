@@ -255,9 +255,21 @@
     }
     return svg;
   }
+  let faceSerial = 0;
+  function luminance(hex) {
+    const linear = i => {
+      const value = parseInt(hex.slice(i, i + 2), 16) / 255;
+      return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+    };
+    return .2126 * linear(1) + .7152 * linear(3) + .0722 * linear(5);
+  }
   function face(w, large, mood) {
     w = w || {};
     const s = style(w.style), kitKey = w.kit || w.specialty, kit = kits[kitKey], fill = color(w.color);
+    const darkInk = '#202127';
+    // Pick the same higher-contrast ink as Android's WindFace.
+    const background = luminance(fill) + .05;
+    const ink = background / (luminance(darkInk) + .05) >= 1.05 / background ? darkInk : '#FFFFFF';
     const svg = doc.createElementNS(SVG, 'svg'), key = w.id || w.name || 'crew';
     svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large ? ' winds-face-large' : ''));
     svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
@@ -268,11 +280,25 @@
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
     faceKeys.set(svg, key);
     if (large) shapes(svg, [['ellipse', { cx:40, cy:kit ? 76 : 74, rx:23, ry:3, fill, opacity:'.15' }]]);
+    const bodyID = 'wf-body-' + (++faceSerial);
+    const defs = doc.createElementNS(SVG, 'defs');
+    const gradient = doc.createElementNS(SVG, 'radialGradient');
+    defs.append(gradient);
+    svg.append(defs);
+    gradient.setAttribute('id', bodyID);
+    gradient.setAttribute('cx', '32%');
+    gradient.setAttribute('cy', '25%');
+    shapes(gradient, [
+      ['stop', { offset:0, 'stop-color':fill }],
+      ['stop', { offset:.6, 'stop-color':fill }],
+      ['stop', { offset:1, 'stop-color':shade(fill, .18) }]
+    ]);
+    const bodyFill = 'url(#' + bodyID + ')';
     const figure = group(svg, 'wf-figure');
     shapes(figure, [['ellipse', { class:'wf-foot wf-foot-l', cx:30, cy:71, rx:6.5, ry:3.6, fill:shade(fill, .2) }], ['ellipse', { class:'wf-foot wf-foot-r', cx:50, cy:71, rx:6.5, ry:3.6, fill:shade(fill, .2) }]]);
     const head = group(figure, '', kit ? { transform:'translate(4 3) scale(.9)' } : {});
-    if (s[2] === 'n') shapes(head, [['path', { d:'M18 62C1 62 1 37 17 34C14 13 43 8 50 24C69 16 83 39 68 49C76 66 49 74 40 63Z', fill }]]);
-    else shapes(head, [['circle', { cx:40, cy:40, r:33, fill }]]);
+    if (s[2] === 'n') shapes(head, [['path', { d:'M18 62C1 62 1 37 17 34C14 13 43 8 50 24C69 16 83 39 68 49C76 66 49 74 40 63Z', fill:bodyFill }]]);
+    else shapes(head, [['circle', { cx:40, cy:40, r:33, fill:bodyFill }]]);
     if (s[2] === 's') shapes(head, [['path', { d:'M20 24C23 13 34 11 42 16C49 21 56 19 60 13', fill:'none', stroke:shade(fill, .28), 'stroke-opacity':'.5', 'stroke-width':2.8, 'stroke-linecap':'round' }]]);
     shapes(head, [
       ['ellipse', { cx:28, cy:21, rx:9, ry:5, fill:'#FFFFFF', opacity:'.3' }],
@@ -280,17 +306,17 @@
       ['ellipse', { cx:58, cy:45, rx:5, ry:3, fill:'#DC6784', opacity:'.16' }]]);
     const eyes = group(group(head, 'wf-gaze'), 'wf-eyes');
     for (const x of [29, 51]) {
-      if (s[0] === 'm') shapes(eyes, [['path', { d:`M${x-4} 36q4 5 8 0`, fill:'none', stroke:INK, 'stroke-width':3, 'stroke-linecap':'round' }]]);
-      else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} 29l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z`, fill:INK }]]);
-      else shapes(eyes, [['ellipse', { cx:x, cy:36, rx:s[0] === 'b' ? 4 : 2.5, ry:s[0] === 'b' ? 6 : 3.5, fill:INK }]]);
+      if (s[0] === 'm') shapes(eyes, [['path', { d:`M${x-4} 36q4 5 8 0`, fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
+      else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} 29l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z`, fill:ink }]]);
+      else shapes(eyes, [['ellipse', { cx:x, cy:36, rx:s[0] === 'b' ? 4 : 2.5, ry:s[0] === 'b' ? 6 : 3.5, fill:ink }]]);
     }
     // Content, closed eyes replace the chosen ones only while a step is done.
-    shapes(group(head, 'wf-joy', { display:'none' }), [['path', { d:'M25 37q4-6 8 0M47 37q4-6 8 0', fill:'none', stroke:INK, 'stroke-width':3, 'stroke-linecap':'round' }]]);
+    shapes(group(head, 'wf-joy', { display:'none' }), [['path', { d:'M25 37q4-6 8 0M47 37q4-6 8 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
     const mouth = group(head, 'wf-mouth');
-    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:51, rx:5, ry:6, fill:INK }]]);
-    else shapes(mouth, [['path', { d:s[1] === 'n' ? 'M35 50h10' : 'M32 47q8 12 16 0', fill:'none', stroke:INK, 'stroke-width':3, 'stroke-linecap':'round' }]]);
+    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:51, rx:5, ry:6, fill:ink }]]);
+    else shapes(mouth, [['path', { d:s[1] === 'n' ? 'M35 50h10' : 'M32 47q8 12 16 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
     if (s[1] === 't') shapes(mouth, [['path', { d:'M39 52q0 10 6 6l1-7', fill:'#DC6784' }]]);
-    shapes(group(head, 'wf-worry', { display:'none' }), [['path', { d:'M33 51q3.5-3 7 0t7 0', fill:'none', stroke:INK, 'stroke-width':3, 'stroke-linecap':'round' }]]);
+    shapes(group(head, 'wf-worry', { display:'none' }), [['path', { d:'M33 51q3.5-3 7 0t7 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
     if (kit?.head) shapes(head, kit.head);
     if (kit?.prop) {
       const prop = shapes(group(figure, 'wf-prop'), kit.prop);

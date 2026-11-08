@@ -190,7 +190,7 @@ func TestSavedCollectsFromChats(t *testing.T) {
 	if err := mkdirWrite(dir, "Informe.pdf"); err != nil {
 		t.Fatal(err)
 	}
-	windHistories.Delete(historyKey(s, "wind", "xaloc"))
+	windHistories.Delete(historyKey(s, "wind", s.windSessionName("xaloc")))
 	items, err := s.collectSaved("")
 	if err != nil {
 		t.Fatal(err)

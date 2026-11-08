@@ -629,7 +629,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	}
 	fmt.Fprintf(&b, "\n\nWork rounds used: %d of %d. Questions asked: %d of %d.\n", st.Round, crewMaxRounds, st.Questions, crewMaxQuestions)
 	b.WriteString("Choose ONE action:\n" +
-		"- \"work\": the next round. assignments = 1-4 members working AT THE SAME TIME, each with a concrete part and the files only that member writes (relative paths; never the same file twice). Give everyone the shared decisions inside their part (names, formats, interfaces). After the round one member reviews everything.\n" +
+		"- \"work\": the next round. assignments = 1-4 members working AT THE SAME TIME, each with a concrete part and the files only that member writes (relative paths; never the same file twice). Give everyone the shared decisions inside their part (names, formats, interfaces). If the crew has more than one member, leave one unassigned to review the result independently.\n" +
 		"- \"ask\": when the result depends on facts only the user knows (how many people, dates, budget, names, their own data, who it is for) and the discussion had to invent or guess them, or when two incompatible choices both fit. Ask before the first round rather than build on invented facts. question = ONE short, concrete question in " + lang + " about the single missing decision that changes the result most; for every other missing detail the crew picks a sensible default (put them in assumed). options = 2-4 short concrete answers to that question (at most 40 characters each, in " + lang + ") that the user can tap as buttons; include a \"you decide\" or \"use placeholders\" style answer when it fits. Never ask what the crew can decide, look up or reasonably choose itself (style, structure, wording), and never ask about anything the user already told the crew to look up or to decide: do it in the next round.\n" +
 		"- \"finish\": the deliverable exists and the last review left nothing important open, or the remaining issues are minor. A website, app or game is finished only when it is built and checked (it loads and its main interaction works); until then choose \"work\" with the next concrete step. Members cannot publish themselves and need no hosting accounts or deploy files (no Netlify, Vercel, GitHub Pages): for a static site set publish = {\"dir\": the project folder with index.html, relative to the working folder, \"title\": a short title} and the server publishes it and adds the link to the conclusion. conclusion = 3-6 sentences in " + lang + " for the user: what was done and the key decisions. checked = what the review actually verified (only things the review says it checked). unchecked = what nobody verified or is still open.\n" +
 		"- \"giveup\": only if it truly cannot be done; say = why, in " + lang + ".\n" +
@@ -707,6 +707,17 @@ func crewSanitiseDecision(d crewDecision, st *crewState, members []companion.Win
 				fs = append(fs, f)
 			}
 			ok = append(ok, crewAssignment{Wind: w.ID, Part: oneLineKeepBreaks(a.Part, 1500), Files: fs})
+		}
+		if len(ok) > 1 && len(ok) == len(members) {
+			// Keep all work even if the coordinator assigned the reviewer a part.
+			last := ok[len(ok)-1]
+			ok[0].Part += "\n\nAlso complete this part: " + last.Part
+			if len(ok[0].Files) == 0 || len(last.Files) == 0 {
+				ok[0].Files = nil
+			} else {
+				ok[0].Files = append(ok[0].Files, last.Files...)
+			}
+			ok = ok[:len(ok)-1]
 		}
 		d.Assignments = ok
 		if len(ok) == 0 {

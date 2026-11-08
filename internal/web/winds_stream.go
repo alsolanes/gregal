@@ -14,7 +14,6 @@ import (
 	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/llm"
-	"gregal/internal/session"
 )
 
 // Streaming dels vents: el mateix torn que el xat clàssic, però amb
@@ -170,10 +169,7 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 	// conversa han de continuar cabent al sostre de 20k del brief.
 	transcript := agent.TranscriptDigestSpeakers(conversation, 9400)
 	brief = system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + transcript + "\n\nTask: the user asks:\n" + msg + "\n\nIf this needs facts, current events, prices, or anything you don't know for sure, use web_search and web_fetch first (to read any URL use web_fetch, never curl: shell downloads are blocked); if the page needs JavaScript or fetch fails, open it with the browser tool (open/goto/read/screenshot only — look, never click or type) and read it there. Then answer in 1-4 sentences, in the user's language, citing the source URLs inline like [title](url). If you already know the answer for certain, just answer — no search needed. Never invent facts. When a picture genuinely helps, find it with web_images and embed it as ![title](image-url) on its own line; never invent an image URL." +
-		// La colla respon sencera quan la pregunta és per a tots, i les veus
-		// es responen entre elles: és una conversa de grup, no monòlegs en
-		// paral·lel del mateix autor.
-		"\n\nWHO ANSWERS: this is a group chat with humans and winds. FIRST decide what the human wants.\n(a) The human asks for something to be MADE (a site, a game, a plan, a document, code) and nobody is named: only YOU answer, alone and in your own voice — no other member's lines and no name prefix. Never describe what anyone «will» build or how they «would» structure it — either start the work now with your tools, or ask. If a decision that really changes the result is missing: one short line saying what you understood, then ONE question, and end with a choices block of 2-4 short concrete answers (the app shows them as buttons):\n```choices\nFirst option\nSecond option\n```\nFor every other open detail pick a sensible default and mention it in half a sentence; never ask several questions at once. If nothing important is missing, skip the question and start.\n(b) Anything else (a question, an opinion, a chat) and nobody is named: the GROUP answers as a real conversation, at most 3 members: write one block per member who has something to add, each block starting with exactly \"<member name>: \" (their name as listed above). The members TALK TO EACH OTHER — a member may agree with, correct, build on or ask another member by name instead of repeating the same advice. Never have two members give the same advice or the same list; if a member already said it, the next one adds something new or stays silent. 1-3 short sentences per member (never more than 4), no link dumps, at most one source link per member and only when a source is genuinely needed. Leave out whoever has nothing to add. If the human names one member (@Name or the name in the text), only that member answers, you do not write the name prefix, and the answer stays short (1-4 sentences)." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
+		"\n\nSpeak only as yourself. For a requested deliverable, start working if you have what you need. If one missing choice would materially change it, ask that one question with concrete options." + windRemindBrief(speakingWind.ID) + windFollowupBrief(speakingWind) + windCodeBrief + s.windLessonsBrief(speakingWind.ID) + onTreballa + companion.ReplyLanguageBrief(msg)
 	return system, brief
 }
 
@@ -191,6 +187,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		Wind     string `json:"wind"`
+		Session  string `json:"session"`
 		Message  string `json:"message"`
 		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
 	}
@@ -207,15 +204,24 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
+	hist, ok := s.requestedWindHistory(w, wind.ID, firstNonEmpty(req.Session, r.URL.Query().Get("session")))
+	if !ok {
+		return
+	}
 	emit, stopStream := windSSE(w, r.Context(), 15*time.Second)
 	defer stopStream()
 	emit("activity", windActivity{Phase: "waiting"})
-	hist := windHistory(s, wind.ID)
 	// torn serialitza les escriptures d'aquest vent; mu queda lliure per
 	// als GET (RLock), que mai no esperen el model.
-	hist.torn.Lock()
-	defer hist.torn.Unlock()
+	turn := windDirectTurn(s, wind.ID)
+	turn.Lock()
+	defer turn.Unlock()
 	hist.mu.RLock()
+	if hist.deleted && hist.name != "company-"+wind.ID {
+		hist.mu.RUnlock()
+		emit("error", map[string]string{"error": "no such session"})
+		return
+	}
 	base := append([]llm.Message(nil), hist.messages...)
 	gotGen := hist.gen
 	hist.mu.RUnlock()
@@ -242,7 +248,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
 		hist.mu.Lock()
 		if hist.gen == gotGen {
-			if err := saveWindHistory(s, wind, history); err == nil {
+			if err := saveWindHistoryTo(s, wind, hist.name, history); err == nil {
 				hist.messages = podaHistorialVent(history)
 				hist.gen++
 			}
@@ -339,15 +345,15 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	// Commit amb generació: el desat i la publicació són atòmics.
 	hist.mu.Lock()
 	if hist.gen == gotGen {
-		if err := saveWindHistory(s, wind, history); err != nil {
+		if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
 			hist.mu.Unlock()
 			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
 			return
 		}
 		hist.messages = podaHistorialVent(history)
 		hist.gen++
-	} else if saved, err := session.Load(s.sessDir(), "company-"+wind.ID); err == nil {
-		hist.messages = append([]llm.Message(nil), saved.Convo...)
+	} else {
+		history = append([]llm.Message(nil), hist.messages...)
 	}
 	hist.mu.Unlock()
 	s.startWindLearn(wind, msg, reply)
@@ -510,10 +516,16 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		text string
 	}
 	var veus []veu
+	members := s.rotMembersOf(rot)
+	turnCtx, doneTurn := s.beginWindTurn("rotllana", rot.ID, context.Background())
+	defer doneTurn()
 	var failed []string
 	var lastErr error
 	parcial := false
 	for si, sp := range speakers {
+		if turnCtx.Err() != nil {
+			break
+		}
 		// Cada veu té la seva narració: el text de l'anterior ja s'ha desat.
 		tornTexte = &tornText{}
 		// Nova veu, bombolla nova: l'app tanca l'anterior en veure-ho.
@@ -521,14 +533,18 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		emit("activity", windActivity{Phase: "preparing"})
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		brief += windDocsBrief
-		if len(speakers) > 1 {
-			brief += rotllanaSoloBrief(sp)
-		}
+		perspective := rotllanaPerspective(sp, si, len(speakers))
+		brief += perspective
+		system += perspective
 		var res exploracio
 		var err error
-		ctx, cancel := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
-		ctx, doneTurn := s.beginWindTurn("rotllana", rot.ID, ctx)
-		ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID)))
+		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+		ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID))
+		if si > 0 {
+			ctx = s.readOnlyWindCtx(ctx)
+		} else {
+			ctx = s.windDocsCtx(ctx)
+		}
 		tVeu := time.Now()
 		s.mu.Lock()
 		_, logRole := s.windRoleRef()
@@ -550,7 +566,6 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			}
 		}
 		cancel()
-		doneTurn()
 		veuLog.finish(err, tornAturat(err), res.parcial, &res.temps)
 		out := ambNarracions(tornTexte.narracions(res.text), res.text)
 		// Un torn que mor a mitges no és una resposta del vent: cau al
@@ -580,7 +595,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			if len(msgs) > 41 {
 				msgs = append(msgs[:1], msgs[len(msgs)-40:]...)
 			}
-			fctx, fcancel := context.WithTimeout(context.Background(), rotllanaFallbackTimeout)
+			fctx, fcancel := context.WithTimeout(turnCtx, rotllanaFallbackTimeout)
 			emit("activity", windActivity{Phase: "fallback"})
 			plain, perr := petChatter(fctx, client, cfg, p, role, msgs)
 			fcancel()
@@ -592,22 +607,13 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			}
 			out = plain
 		}
-		reply := stripQuoteTrim(out)
+		reply := rotllanaOwnReply(stripQuoteTrim(out), members, sp)
+		if reply == "" {
+			continue
+		}
 		reply += s.windDocLinks(tVeu, reply)
-		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
-		if len(speakers) > 1 {
-			voices = ownVoiceOnly(voices, sp)
-		}
-		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
-			veus = append(veus, veu{sp, reply})
-		}
-		for _, v := range voices {
-			// La identitat viatja per SpeakerID/SpeakerName; el contingut no
-			// porta prefix de nom (la UI ja mostra qui parla).
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
-			veus = append(veus, veu{v.wind, v.text})
-		}
+		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
+		veus = append(veus, veu{sp, reply})
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
 		// primera vegada): si una veu posterior falla, aquesta no es perd.
 		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
@@ -618,35 +624,38 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(tVeu).Seconds(), res.temps))
 		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
 	}
-	// Discussió entre ells: si hi ha hagut més d'una veu i el torn ha anat sencer,
-	// la colla continua fins a entendre's o fins que tothom calla.
+	var summaryReply string
 	if len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
-		var noves []llm.Message
-		tDebat := time.Now()
-		debateCtx, cancelDebate := context.WithTimeout(context.Background(), rotllanaTurnTimeout)
-		debateCtx, doneDebate := s.beginWindTurn("rotllana", rot.ID, debateCtx)
-		conversation, noves = s.rotllanaDebat(debateCtx, rot, s.rotMembersOf(rot), conversation, msg, emit)
-		stopped := tornAturat(debateCtx.Err())
-		doneDebate()
-		cancelDebate()
-		if stopped {
-			conversation = commitRotllana(conversation)
-			emit("error", map[string]any{"error": "aturat", "cancelat": true})
-			return
+		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
+		emit("phase", map[string]string{"phase": "speaker:" + speakingWind.ID})
+		emit("activity", windActivity{Phase: "thinking"})
+		if summary, err := s.rotllanaSummary(ctx, rot, speakingWind, conversation, msg); err != nil {
+			lastErr = err
+			failed = append(failed, speakingWind.Name)
+		} else if summary != "" {
+			final := append(conversation, llm.Message{Role: "assistant", Content: summary, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name, Ts: time.Now().Unix()})
+			if err := saveRotllanaHistory(s, rot.ID, final); err != nil {
+				lastErr = err
+				failed = append(failed, speakingWind.Name)
+			} else {
+				conversation = commitRotllana(final)
+				summaryReply = summary
+			}
 		}
-		if len(noves) > 0 {
-			commitRotllana(conversation)
-			tempsVeus = append(tempsVeus, fmt.Sprintf("debat %d veus %.1fs", len(noves), time.Since(tDebat).Seconds()))
-		}
+		cancel()
+	}
+	if turnCtx.Err() != nil {
+		emit("error", map[string]any{"error": "aturat", "cancelat": true})
+		return
 	}
 	log.Printf("vents rotllana %s: tria %.1fs · %s", rot.ID, routeDur.Seconds(), strings.Join(tempsVeus, " · "))
 	if len(veus) == 0 {
-		// Ningú no ha pogut respondre: no es desa res i el client conserva l'esborrany.
-		if tornAturat(lastErr) {
-			emit("error", map[string]any{"error": "aturat", "cancelat": true})
-			return
+		// Preserve the draft on failure. A deliberate silence is not an error.
+		if lastErr != nil {
+			emit("error", map[string]string{"error": redactError(lastErr)})
+		} else {
+			emit("done", map[string]any{"reply": map[string]string{}, "silenci": true, "history": s.rotllanaHistoryJSON(base)})
 		}
-		emit("error", map[string]string{"error": redactError(lastErr)})
 		return
 	}
 	if strings.TrimSpace(msg) != "" {
@@ -655,7 +664,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		}
 	}
 	emit("done", map[string]any{
-		"reply":         map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
+		"reply":         map[string]string{"wind": veus[0].wind.ID, "text": firstNonEmpty(summaryReply, veus[0].text)},
 		"parcial":       parcial,
 		"history":       s.rotllanaHistoryJSON(conversation),
 		"actions":       remindActionsSince(s.remindOwner(), speakingWind.ID, turnStart),

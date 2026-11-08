@@ -287,10 +287,15 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 	for i, sp := range speakers {
 		system, brief := rotllanaChatBrief(s, rot, sp, conversation, msg)
 		brief += windDocsBrief
-		if len(speakers) > 1 {
-			brief += rotllanaSoloBrief(sp)
+		perspective := rotllanaPerspective(sp, i, len(speakers))
+		brief += perspective
+		system += perspective
+		vctx := ctx
+		if i > 0 {
+			vctx = s.readOnlyWindCtx(vctx)
+		} else {
+			vctx = s.windDocsCtx(vctx)
 		}
-		vctx := s.windDocsCtx(ctx)
 		tVeu := time.Now()
 		var res exploracio
 		var err error
@@ -347,26 +352,23 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 			}
 			out = plain
 		}
-		reply := stripQuoteTrim(out)
-		reply += s.windDocLinks(tVeu, reply)
-		// La resposta pot ser multi-veu ("Mestral: …\nMarinada: …"): cada
-		// veu queda com un missatge propi amb la seva identitat, en ordre.
-		// La primera veu del primer vent és la resposta del torn.
-		voices := splitRotllanaVoices(reply, s.rotMembersOf(rot), sp)
-		if len(speakers) > 1 {
-			voices = ownVoiceOnly(voices, sp)
-		}
-		if len(voices) == 0 {
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
-			veus = append(veus, veu{sp, reply})
+		reply := rotllanaOwnReply(stripQuoteTrim(out), s.rotMembersOf(rot), sp)
+		if reply == "" {
 			continue
 		}
-		for _, v := range voices {
-			// La identitat viatja per SpeakerID/SpeakerName: el contingut NO
-			// porta el prefix «Nom: » (la UI ja mostra el nom i el doble
-			// prefix sortia com «Fredolic: Fredolic: …»).
-			conversation = append(conversation, llm.Message{Role: "assistant", Content: v.text, SpeakerID: v.wind.ID, SpeakerName: v.wind.Name, Ts: time.Now().Unix()})
-			veus = append(veus, veu{v.wind, v.text})
+		reply += s.windDocLinks(tVeu, reply)
+		conversation = append(conversation, llm.Message{Role: "assistant", Content: reply, SpeakerID: sp.ID, SpeakerName: sp.Name, Ts: time.Now().Unix()})
+		veus = append(veus, veu{sp, reply})
+	}
+	if len(veus) == 0 {
+		writeJSON(w, map[string]any{"reply": map[string]string{}, "silenci": true, "history": s.rotllanaHistoryJSON(base)})
+		return
+	}
+	answer := veus[0].text
+	if len(veus) >= 2 && !parcial && !isContinue && rotllanaVolDebat(msg) {
+		if summary, err := s.rotllanaSummary(ctx, rot, speakingWind, conversation, msg); err == nil && summary != "" {
+			conversation = append(conversation, llm.Message{Role: "assistant", Content: summary, SpeakerID: speakingWind.ID, SpeakerName: speakingWind.Name, Ts: time.Now().Unix()})
+			answer = summary
 		}
 	}
 	if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
@@ -381,7 +383,7 @@ func (s *Server) handleRotllanaChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, map[string]any{
-		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": veus[0].text},
+		"reply":   map[string]string{"wind": veus[0].wind.ID, "text": answer},
 		"parcial": parcial,
 		"history": s.rotllanaHistoryJSON(conversation),
 		"actions": remindActionsSince(s.remindOwner(), speakingWind.ID, turnStart),
@@ -799,11 +801,30 @@ func (s *Server) deleteRotllana(id string) error {
 	return nil
 }
 
-// rotllanaSoloBrief: quan l'usuari nomena diversos vents, cadascun respon amb
-// la seva pròpia crida i només per ell. Sense això, cada crida escrivia les
-// veus de tots els nomenats i el torn sortia duplicat (A, B, A, B).
-func rotllanaSoloBrief(sp companion.Wind) string {
-	return "\n\nTHIS TURN: the user named several members and they answer one by one. Now only YOU, " + sp.Name + ", answer — in your own voice, 1-4 short sentences, at most one source link, without a name prefix and without writing any other member's lines. If another member already answered above, react to them (agree, add, correct) instead of repeating them."
+func rotllanaPerspective(sp companion.Wind, index, count int) string {
+	if count < 2 {
+		return ""
+	}
+	voice := "\n\nNow only YOU, " + sp.Name + ", speak. "
+	if index == 0 {
+		return voice + "Give the group a concrete proposal from your own specialty. Include the key assumption or trade-off."
+	}
+	return voice + "Read the preceding proposals. Add one concrete risk, correction, missing fact, or alternative that changes the outcome. Reply with exactly - if you have nothing to add. Speak only for yourself."
+}
+
+// rotllanaOwnReply enforces the identity assigned to a model call. A name
+// written by the model is never sufficient to create a second speaker.
+func rotllanaOwnReply(reply string, members []companion.Wind, speaking companion.Wind) string {
+	voices := ownVoiceOnly(splitRotllanaVoices(reply, members, speaking), speaking)
+	if len(voices) == 0 {
+		return ""
+	}
+	text := strings.TrimSpace(voices[0].text)
+	switch text {
+	case "-", "—", "–", ".":
+		return ""
+	}
+	return text
 }
 
 // ownVoiceOnly es queda només amb el que diu el vent que parla: el que el

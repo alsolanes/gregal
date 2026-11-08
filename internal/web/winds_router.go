@@ -141,7 +141,8 @@ func windsNamedIn(members []companion.Wind, msg string) []companion.Wind {
 
 // routeRotllanaSpeakers is deliberately local: choosing a speaker must not
 // consume a model slot or wait for a separate inference before the actual reply.
-// An explicit member wins; otherwise preserve the classic participation rule.
+// An explicit member wins. Otherwise prefer the relevant trade, using recent
+// participation to break ties.
 func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted, msg string, tail []llm.Message) []companion.Wind {
 	if ctx.Err() != nil {
 		return nil
@@ -170,7 +171,45 @@ func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted
 	if wantsAllVoices(msg) {
 		return members
 	}
-	return classicRotllanaSpeaker(members, tail)
+	if len(members) == 1 {
+		return members
+	}
+	cards := s.rankWindSpecialists(members, msg)
+	best := rotllanaSpecialist(members, cards, tail)
+	if !rotllanaVolDebat(msg) {
+		return []companion.Wind{best}
+	}
+	others := make([]companion.Wind, 0, len(members)-1)
+	for _, w := range members {
+		if w.ID != best.ID {
+			others = append(others, w)
+		}
+	}
+	return []companion.Wind{best, rotllanaSpecialist(others, cards, tail)}
+}
+
+func rotllanaSpecialist(members []companion.Wind, cards []specialistCard, tail []llm.Message) companion.Wind {
+	if len(members) == 1 {
+		return members[0]
+	}
+	var matches []companion.Wind
+	var best float64
+	for _, card := range cards {
+		if card.Score == 0 || card.Score < best {
+			break
+		}
+		for _, w := range members {
+			if card.ID == w.ID {
+				best = card.Score
+				matches = append(matches, w)
+				break
+			}
+		}
+	}
+	if len(matches) > 0 {
+		members = matches
+	}
+	return classicRotllanaSpeaker(members, tail)[0]
 }
 
 // rotllanaTurnSpeakers keeps continuation on the last actual voice, rather

@@ -219,15 +219,15 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 		t.Fatalf("members = %v", out.Rotllana.Members)
 	}
 	waitCrew(t, s, out.Rotllana.ID, "done")
-	// Dos constructors alhora (cada un amb els seus fitxers; index.html no es
-	// repeteix) i un revisor que ho mira tot.
-	if len(flow.Nodes) != 3 || flow.Output != "review" || flow.Nodes[0].Wind != keeper.ID || flow.Nodes[1].Wind != out.Created[0].ID {
+	// Amb dos vents, el constructor assumeix les dues parts i l'altre revisa.
+	if len(flow.Nodes) != 2 || flow.Output != "review" || flow.Nodes[0].Wind != keeper.ID ||
+		flow.Nodes[1].Wind != out.Created[0].ID || flow.Nodes[1].Role != "reviewer" {
 		t.Fatalf("flow = %+v", flow)
 	}
-	if !strings.Contains(flow.Nodes[1].Instruction, "style.css") || strings.Contains(flow.Nodes[1].Instruction, "style.css, index.html") {
-		t.Fatalf("each file belongs to one member: %s", flow.Nodes[1].Instruction)
+	if strings.Join(flow.Nodes[0].Files, ", ") != "index.html, style.css" || !strings.Contains(flow.Nodes[0].Instruction, "els estils") {
+		t.Fatalf("the builder must keep both parts and their files: %+v", flow.Nodes[0])
 	}
-	if len(flow.Edges) != 2 || flow.Edges[0].To != "review" {
+	if len(flow.Edges) != 1 || flow.Edges[0].To != "review" {
 		t.Fatalf("edges = %+v", flow.Edges)
 	}
 	if !strings.Contains(workTask, "Jo m'encarrego de l'estructura") {
@@ -366,8 +366,13 @@ func TestCrewSanitiseDecision(t *testing.T) {
 	d := crewSanitiseDecision(crewDecision{Action: "work", Assignments: []crewAssignment{
 		{Wind: "zz", Part: "p"}, {Wind: "a", Files: []string{"x.go", "../fora.go"}}, {Wind: "b", Files: []string{"x.go", "y.go"}},
 	}}, st, members)
-	if len(d.Assignments) != 2 || len(d.Assignments[0].Files) != 1 || d.Assignments[1].Files[0] != "y.go" {
+	if len(d.Assignments) != 1 || len(d.Assignments[0].Files) != 2 ||
+		d.Assignments[0].Files[0] != "x.go" || d.Assignments[0].Files[1] != "y.go" {
 		t.Fatalf("assignments: %+v", d.Assignments)
+	}
+	flow := crewRoundFlow(d.Assignments, members, func(companion.Wind, bool) string { return "" }, false)
+	if len(flow.Nodes) != 2 || flow.Nodes[1].Wind != "b" || flow.Nodes[1].Role != "reviewer" {
+		t.Fatalf("reserve an independent reviewer: %+v", flow.Nodes)
 	}
 	// Dades inventades abans de la primera volta: es pregunta, encara que el model digui «work».
 	fresh := &crewState{Task: "x", Ca: true}

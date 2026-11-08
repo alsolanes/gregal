@@ -35,80 +35,19 @@ func rotllanaChatter(t *testing.T, reply string) (*Server, string) {
 	return s, group.Rotllana.ID
 }
 
-// TestRotllanaSplitsMultiVoiceReply: quan el model fa parlar més d'un vent al
-// mateix torn ("Mestral: …\nMarinada: …"), cada veu queda com un missatge
-// propi amb la seva identitat — mai enganxades dins d'un sol missatge.
-func TestRotllanaSplitsMultiVoiceReply(t *testing.T) {
-	s, id := rotllanaChatter(t, "Mestral: endavant!\nMarinada: jo hi sumo una idea.")
+func TestRotllanaOneCallCannotSpeakForAnotherWind(t *testing.T) {
+	s, id := rotllanaChatter(t, "Mestral: Mira: https://example.com\nNota: bon dia\nMarinada: veu inventada")
 	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"comencem?"}`)
 	if rec.Code != 200 {
 		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
 	}
-	var out struct {
-		History []histMsg `json:"history"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
-	}
-	if len(out.History) != 3 {
-		t.Fatalf("vull 1 missatge d'usuari + 1 per veu, tinc %d: %s", len(out.History), rec.Body.String())
-	}
-	first, second := out.History[1], out.History[2]
-	if first["speaker_id"] != "mestral" || second["speaker_id"] != "marinada" {
-		t.Fatalf("veus sense identitat pròpia: %+v %+v", first, second)
-	}
-	if !strings.Contains(first["text"], "endavant!") || !strings.Contains(second["text"], "jo hi sumo una idea.") {
-		t.Fatalf("text de les veus mal partit: %+v %+v", first, second)
-	}
-	if strings.Contains(first["text"], "Marinada") {
-		t.Fatalf("la veu de mestral encara porta text de marinada: %+v", first)
-	}
-
-	// Durador: cada veu desada com a missatge propi amb la seva identitat.
 	disk, err := session.Load(s.sessDir(), "rotllana-"+id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(disk.Convo) != 3 || disk.Convo[1].SpeakerID != "mestral" || disk.Convo[2].SpeakerID != "marinada" {
-		t.Fatalf("el durador no té les veus separades: %+v", disk.Convo)
-	}
-
-	// Rotació: cada veu compta pel seu vent. Després del primer torn, tots dos
-	// han parlat un cop → el proper torn automàtic torna al primer membre.
-	petChatter = func(ctx context.Context, client *llm.Client, cfg *config.Config, p config.Provider, role config.Role, msgs []llm.Message) (string, error) {
-		return "jo altre cop", nil
-	}
-	rec = postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"seguim"}`)
-	if rec.Code != 200 {
-		t.Fatalf("chat2: %d %s", rec.Code, rec.Body.String())
-	}
-	if !strings.Contains(rec.Body.String(), `"wind":"mestral"`) {
-		t.Errorf("cada veu ha de comptar al torn; hauria de parlar mestral: %s", rec.Body.String())
-	}
-}
-
-// TestRotllanaSplitsPreambleAndColons: les línies sense prefix van amb el
-// vent que parlava el torn; els dos punts normals i les URLs no parteixen res.
-func TestRotllanaSplitsPreambleAndColons(t *testing.T) {
-	s, id := rotllanaChatter(t, "Endavant tots! Mira: https://example.com\nMarinada: i jo hi sumo.\nNota: bon dia")
-	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"comencem?"}`)
-	if rec.Code != 200 {
-		t.Fatalf("chat: %d %s", rec.Code, rec.Body.String())
-	}
-	var out struct {
-		History []histMsg `json:"history"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
-		t.Fatal(err)
-	}
-	if len(out.History) != 3 {
-		t.Fatalf("el prefix fals «Nota:» no ha de crear veu: %s", rec.Body.String())
-	}
-	if out.History[1]["speaker_id"] != "mestral" || !strings.Contains(out.History[1]["text"], "https://example.com") {
-		t.Fatalf("el preàmbul pertany a mestral (vent del torn): %+v", out.History[1])
-	}
-	if out.History[2]["speaker_id"] != "marinada" || !strings.Contains(out.History[2]["text"], "Nota: bon dia") {
-		t.Fatalf("els dos punts normals i les línies continuades pertanyen a marinada: %+v", out.History[2])
+	if len(disk.Convo) != 2 || disk.Convo[1].SpeakerID != "mestral" ||
+		disk.Convo[1].Content != "Mira: https://example.com\nNota: bon dia" {
+		t.Fatalf("one call must produce only the assigned speaker: %+v", disk.Convo)
 	}
 }
 

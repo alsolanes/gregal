@@ -420,7 +420,7 @@ func serverToolSpecs() []llm.ToolSpec {
 				"hostname": str,
 				"tunnel":   str,
 			}, "required": []string{"action"}}},
-		{Name: "wind", Description: "Summon the user's winds (AI helpers, each with its own trade, playbook and memory). list shows who is good at what. ask hands a task to one wind (wind = its id or name, or omit it to pick the best specialist) and returns its answer, the folder it worked in and any links. all consults EVERY wind whose trade is relevant to the question (or every wind, if none clearly matches) and returns each one's answer, so you can synthesize a single reply for the user: use it when the question is broad or the user asks what your experts think. Give the full context in task: the winds do not see this conversation. Available through the Gregal web server, not the CLI.",
+		{Name: "wind", Description: "Summon the user's winds (AI helpers, each with its own trade, playbook and memory). list shows who is good at what. ask hands a task to one wind (wind = its id or name, or omit it to pick the best specialist) and returns its answer, the folder it worked in and any links. Use ask for one relevant specialist on a concrete task. all gathers independent, read-only perspectives from the winds and is reserved for an explicit request to hear the whole group. Synthesize the useful differences for the user. Give the full context in task: the winds do not see this conversation. Available through the Gregal web server, not the CLI.",
 			Parameters: map[string]any{"type": "object", "properties": map[string]any{
 				"action": map[string]any{"type": "string", "enum": []string{"list", "ask", "all"}},
 				"wind":   str,

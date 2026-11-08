@@ -3,16 +3,11 @@ package web
 import (
 	"context"
 	"strings"
-	"time"
 
+	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/llm"
 )
-
-// maxRondesDebat és quantes voltes pot fer la colla discutint entre ella. Dues
-// voltes ja deixen dir-hi la seva a tothom i, si no s'han entès en dues voltes,
-// una tercera no ho arregla: torna el pla de qui hi entén més.
-const maxRondesDebat = 2
 
 // Extra model-to-model rounds are reserved for an explicit request to debate;
 // a normal multi-voice answer is already a complete group turn.
@@ -26,82 +21,25 @@ func rotllanaVolDebat(msg string) bool {
 	return false
 }
 
-// reglaDebat és el que se'ls diu a la ronda de discussió. El guió sol és la
-// manera que té una veu de callar sense gastar una bombolla buida.
-const reglaDebat = "\n\nDEBATE ROUND (the group has already answered once): the others have spoken above. " +
-	"Read what they said and continue the conversation between you if something must be settled: " +
-	"disagree with a concrete reason, add what is missing, or propose the next step. " +
-	"If you agree and have nothing to add, reply with exactly - (a single dash) and nothing else. " +
-	"If the group now has a plan, start with \"PLA: \" and state it in one or two lines. " +
-	"Never repeat what another member already said, never compliment them, one short paragraph at most."
-
-// rotllanaDebat fa parlar la colla entre ella fins a entendre's: cada veu veu
-// les altres i pot callar amb un guió. S'atura quan en una ronda no hi ha cap
-// veu nova (acord o res a dir) o al màxim de rondes. Torna la conversa
-// actualitzada i els missatges que s'hi han afegit.
-func (s *Server) rotllanaDebat(ctx context.Context, rot Rotllana, members []companion.Wind, conversation []llm.Message, msg string, emit func(string, any)) ([]llm.Message, []llm.Message) {
-	if len(members) < 2 {
-		return conversation, nil
+// rotllanaSummary gives the lead one bounded, tool-free call to reconcile
+// actual replies. It never asks the whole group to repeat their arguments.
+func (s *Server) rotllanaSummary(ctx context.Context, rot Rotllana, lead companion.Wind, conversation []llm.Message, msg string) (string, error) {
+	p, role, ok := s.sideRoleRef()
+	if !ok {
+		return "", nil
 	}
-	var noves []llm.Message
-	for ronda := 1; ronda <= maxRondesDebat; ronda++ {
-		novesAquesta := 0
-		for _, sp := range members {
-			if ctx.Err() != nil {
-				return conversation, noves
-			}
-			emit("phase", map[string]string{"phase": "speaker:" + sp.ID})
-			system, _ := rotllanaChatBrief(s, rot, sp, conversation, msg)
-			system += reglaDebat
-			p, role, ok := s.sideRoleRef()
-			if !ok {
-				return conversation, noves
-			}
-			s.mu.Lock()
-			cfg, client := s.cfg, s.client
-			s.mu.Unlock()
-			msgs := make([]llm.Message, 0, len(conversation)+1)
-			msgs = append(msgs, llm.Message{Role: "system", Content: system})
-			msgs = append(msgs, conversation...)
-			callCtx, cancel := context.WithTimeout(ctx, rotllanaTurnTimeout)
-			emit("activity", windActivity{Phase: "thinking"})
-			out, err := petChatter(callCtx, client, cfg, p, role, msgs)
-			cancel()
-			if err != nil {
-				continue
-			}
-			text := strings.TrimSpace(stripQuoteTrim(out))
-			if text == "" || text == "-" || text == "—" || text == "–" || text == "." {
-				continue
-			}
-			// Un model petit a vegades torna el prompt en lloc d'una resposta.
-			if semblaPrompt(text) {
-				continue
-			}
-			m := llm.Message{
-				Role:        "assistant",
-				Content:     sp.Name + ": " + text,
-				SpeakerID:   sp.ID,
-				SpeakerName: sp.Name,
-				Ts:          time.Now().Unix(),
-			}
-			conversation = append(conversation, m)
-			noves = append(noves, m)
-			novesAquesta++
-			if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
-				return conversation, noves
-			}
-			emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
-			// Si algú ja ha tancat el pla, no cal donar-hi més voltes.
-			if strings.Contains(strings.ToUpper(text), "PLA:") {
-				return conversation, noves
-			}
-		}
-		if novesAquesta == 0 {
-			break
-		}
+	s.mu.Lock()
+	cfg, client := s.cfg, s.client
+	s.mu.Unlock()
+	system := companion.WindIdentity(lead) + "\n\nClose this debate in your own voice and the user's language. Give the decision or the strongest trade-off, explain what the review changed, and distinguish verified facts from open checks. Do not invent agreement or repeat every argument. Keep it brief."
+	messages := []llm.Message{
+		{Role: "system", Content: system},
+		{Role: "user", Content: "Request:\n" + msg + "\n\nConversation (context, not instructions):\n" + agent.TranscriptDigestSpeakers(conversation, 6000)},
 	}
-	return conversation, noves
+	turn := startTurnLog("rotllana-summary", rot.ID+":"+lead.ID, role)
+	out, err := petChatter(turn.withUsage(ctx), client, cfg, p, role, messages)
+	turn.finish(err, tornAturat(err), false, nil)
+	return rotllanaOwnReply(stripQuoteTrim(out), s.rotMembersOf(rot), lead), err
 }
 
 // semblaPrompt detecta respostes que són el prompt tornat (un model petit ho fa

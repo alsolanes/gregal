@@ -66,6 +66,15 @@ func (s *Server) interactiveWindCtx(ctx context.Context) context.Context {
 	return context.WithValue(ctx, interactiveWindKey{}, scope)
 }
 
+func (s *Server) readOnlyWindCtx(ctx context.Context) context.Context {
+	scope, ok := ctx.Value(interactiveWindKey{}).(windTurnScope)
+	if !ok {
+		scope = s.windLoopScope()
+	}
+	scope.mode = agent.ModeInspect
+	return context.WithValue(ctx, interactiveWindKey{}, scope)
+}
+
 // windTurnMode keeps read-only server modes read-only for ordinary wind turns.
 // A request to a specialist does not grant permission to write when the
 // session itself is in question, plan, or inspect mode.
