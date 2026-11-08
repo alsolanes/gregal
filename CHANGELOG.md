@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v1.58.0 - 2026-11-08 - Un desplegable per triar Codi o Vents
+
+- **Un sol selector de producte.** Al peu de la barra lateral, els dos botons
+  d'icones (un per Codi i un per Vents) es converteixen en un únic desplegable:
+  l'opció marcada és el producte on ets i l'altra t'hi porta directe. A
+  l'escriptori, Gregal ofereix Codi i Vents al mateix desplegable; al
+  navegador també hi surt Jocs.
+- **Els vents cuiden els recordatoris.** Un vent pot consultar els
+  recordatoris de l'usuari, editar-los i eliminar-los (remind_list i
+  remind_edit).
+- **Rotllanes col·lectives.** L'adreça col·lectiva fa parlar tots els
+  membres de la rotllana.
+- **Rellotges quiets.** Els rellotges dels vents no avancen quan no toca i
+  el sondeig és conscient del cicle de vida.
+- **La barra lateral dels Vents sempre es pot tornar a obrir.** El botó ☰ de
+  la capçalera de Vents, que abans només sortia al mòbil, ara també hi és a
+  l'escriptori: amaga la barra i la torna a obrir (abans, un cop amagada a
+  l'escriptori no hi havia cap botó per recuperar-la).
+- **Xat general a l'inici.** Els vents comencen amb el xat general, amb
+  consulta col·lectiva i sessions per vent.
+
 ## v1.57.0 - 2026-11-07 - Navegador amb pestanyes i Office més silenciós
 
 - **Navegador amb pestanyes.** El navegador integrat té pestanyes manuals per
