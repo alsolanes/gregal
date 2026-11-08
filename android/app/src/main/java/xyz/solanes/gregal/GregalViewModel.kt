@@ -713,6 +713,32 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (!_conn.value.local && _windTasks.value.orEmpty().any { it.running }) {
             WindWatch.schedule(appContext, WindWatch.SOON_MS)
         }
+        // Els sondeigs d'estat (agent lliure, expert, colla) viuen al
+        // viewModelScope i sobrevivien al segon pla: amb l'app tancada la
+        // ràdio seguia picant cada 2-3 s. Aquí s'aturen; en tornar, la
+        // primera passada de cada pantalla els reactiva.
+        pauseBackgroundPolling()
+    }
+
+    /** Atura els sondeigs que només tenen sentit amb l'app a primer pla. */
+    private fun pauseBackgroundPolling() {
+        waiter?.cancel(); waiter = null
+        expertPolling.values.toList().forEach { it.cancel() }
+        expertPolling.clear()
+        crewPolling.values.toList().forEach { it.cancel() }
+        crewPolling.clear()
+    }
+
+    /**
+     * En tornar a primer pla després d'haver aturat els sondeigs: una
+     * passada immediata de feines i veus noves (els sondeigs de pantalla
+     * ja es reactiven sols amb LifecyclePoll).
+     */
+    fun onForegrounded() {
+        if (_connected.value && !_conn.value.local) {
+            loadWindTasks()
+            refreshWindNews()
+        }
     }
 
     /** Switching views must not kill an in-flight phone turn or its embedded server. */

@@ -1,5 +1,15 @@
 package xyz.solanes.gregal
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -9,6 +19,45 @@ import org.json.JSONObject
  * El catàleg ve del backend (GET /api/winds); aquí hi ha el parseig
  * (testejat per WindModeTest) i els noms de vents suggerits per al creador.
  */
+
+/**
+ * Sondeig conscient del cicle de vida: `poll` corre només mentre la
+ * pantalla és visible (STARTED). Abans cada pantalla tenia el seu
+ * `LaunchedEffect { while(true) { …; delay(N) } }` que mai no s'aturava:
+ * amb l'app en segon pla la ràdio seguia picant el servidor cada pocs
+ * segons. Aquí el bucle es cancel·la en sortir de primer pla i es reprèn
+ * (amb una passada immediata) en tornar-hi.
+ */
+@Composable
+internal fun LifecyclePoll(vararg keys: Any?, poll: suspend () -> Unit) {
+    val owner = LocalLifecycleOwner.current
+    LaunchedEffect(owner, *keys) {
+        owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            poll()
+        }
+    }
+}
+
+/**
+ * Rellotge quiet: `now` només avança mentre `active` és cert. Un
+ * `while(true) delay(1000)` que no acaba mai mantenia la UI recomposant
+ * cada segon encara que res no es mogués (CapHero de nit, progrés d'un
+ * torn aturat…). Aquí el tic-tac viu només mentre cal mesurar temps;
+ * en repòs l'hora es congela i la composició queda quieta.
+ */
+@Composable
+internal fun quietNow(active: Boolean): Long {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    if (active) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                now = System.currentTimeMillis()
+            }
+        }
+    }
+    return now
+}
 
 /** Un vent del catàleg: id, nom, color (#RRGGBB), rol de la UI i cara. */
 data class Wind(

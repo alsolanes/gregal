@@ -83,9 +83,10 @@ internal fun VentsChatHeader(
 /** One quiet, persistent status row. Timers measure observation, not completion. */
 @Composable
 internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier = Modifier, onStop: (() -> Unit)? = null) {
-    val now = androidx.compose.runtime.produceState(System.currentTimeMillis(), live.startedAt) {
-        while (true) { value = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) }
-    }.value
+    // El temps del torn només avança mentre el torn viu: sense això el
+    // tic-tac seguia corrent per sempre encara que cap torn estigués en
+    // marxa (i amb l'app en segon pla, perquè produceState no s'atura).
+    val now = quietNow(live.startedAt > 0)
     Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Vida visible durant tot el torn: els punts respiren mentre el

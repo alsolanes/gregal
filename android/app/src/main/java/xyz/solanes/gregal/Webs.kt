@@ -147,7 +147,8 @@ fun WebsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val st by vm.webs.collectAsState()
     val ctx = LocalContext.current
     // Es refresca en entrar i cada 10 s mentre es mira: una app que arrenca o peta es nota.
-    LaunchedEffect(Unit) { while (true) { vm.loadWebs(); delay(10_000) } }
+    // En segon pla no pica: només mentre la pantalla és visible.
+    LifecyclePoll(Unit) { while (true) { vm.loadWebs(); delay(10_000) } }
     Scaffold(containerColor = Superficie, topBar = {
         TopAppBar(
             title = { Text(webCopy(lang, "title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink) },

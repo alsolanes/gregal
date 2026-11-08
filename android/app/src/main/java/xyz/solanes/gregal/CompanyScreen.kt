@@ -132,8 +132,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val windTasks by vm.windTasks.collectAsState()
     // Feines en marxa: es tornen a mirar cada 8 s (i cada minut si no n'hi ha
     // cap), així el progrés es reprèn en obrir l'app i l'avís arriba en acabar.
+    // Només amb la pantalla visible: en segon pla ja vigila WindWatch.
     val anyRunning = windTasks.orEmpty().any { it.running }
-    LaunchedEffect(anyRunning) {
+    LifecyclePoll(anyRunning) {
         while (true) {
             vm.loadWindTasks()
             kotlinx.coroutines.delay(if (anyRunning) 8_000 else 60_000)
@@ -157,7 +158,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // Veus proactives per obrir: es consulten en obrir els Vents i, amb l'app
     // oberta, cada 20 s (en segon pla, WindWatch cada 15 min). Un missatge nou
     // d'un vent arriba gairebé al moment, com als grans assistents.
-    LaunchedEffect(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(20_000) } }
+    LifecyclePoll(conn) { while (true) { vm.refreshWindNews(); kotlinx.coroutines.delay(20_000) } }
     // La mascota: en obrir els Vents (o canviar de lloc) diu què ha passat mentrestant.
     LaunchedEffect(conn) { vm.loadCap() }
     // Racó, Partits i Arena són plugins: només surten si el servidor els té encesos.
@@ -1934,7 +1935,8 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
     val local by vm.localState.collectAsState()
     val onServer = !conn.local
     val canLocal = remember { vm.localAvailable() }
-    LaunchedEffect(onServer) {
+    // La provabilitat del servidor es mira només mentre es veu l'interruptor.
+    LifecyclePoll(onServer) {
         while (true) {
             vm.checkServerReach()
             kotlinx.coroutines.delay(60_000)

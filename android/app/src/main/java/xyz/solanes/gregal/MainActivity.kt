@@ -352,6 +352,10 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         AppVisibility.foreground = true
         vm.refreshSystemLanguage()
+        // En tornar de segon pla, l'estat pot haver canviat mentrestant:
+        // una passada immediata recupera feines i notícies sense esperar
+        // el primer tic de cap sondeig.
+        vm.onForegrounded()
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {

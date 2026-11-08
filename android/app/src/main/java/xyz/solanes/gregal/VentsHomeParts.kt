@@ -40,9 +40,8 @@ internal fun WhereChip(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
     val offline by vm.offline.collectAsState()
     val outbox by vm.outbox.collectAsState()
     val onServer = !conn.local
-    LaunchedEffect(onServer) {
-        while (true) { vm.checkServerReach(); kotlinx.coroutines.delay(60_000) }
-    }
+    // La provabilitat del servidor només es mira mentre es veu la portada.
+    LifecyclePoll(onServer) { while (true) { vm.checkServerReach(); kotlinx.coroutines.delay(60_000) } }
     val server = vm.savedServerName().ifBlank { tr(lang, "app.where.server") }
     val label = when {
         !onServer -> tr(lang, "app.where.phoneShort")

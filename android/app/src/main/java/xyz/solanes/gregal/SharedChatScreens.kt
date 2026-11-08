@@ -51,8 +51,8 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun SharedChatsSync(vm: GregalViewModel) {
     val conn by vm.conn.collectAsState()
-    LaunchedEffect(conn) {
-        if (conn.host.isBlank()) return@LaunchedEffect
+    LifecyclePoll(conn) {
+        if (conn.host.isBlank()) return@LifecyclePoll
         while (true) {
             SharedChatsStore.refresh(conn.api())
             delay(20_000)
@@ -188,8 +188,9 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
     var info by remember(chat.id) { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val accent = chat.winds.firstOrNull()?.let { Color(it.argb) } ?: Sea
-    // Les altres persones escriuen des dels seus mòbils: el fil es torna a llegir sovint.
-    LaunchedEffect(chat.id) {
+    // Les altres persones escriuen des dels seus mòbils: el fil es torna a llegir sovint,
+    // però només mentre es mira (en segon pla no té sentit llegir-lo).
+    LifecyclePoll(chat.id) {
         while (true) {
             try { SharedChatsStore.load(vm.conn.value.api(), chat.id) } catch (_: Exception) {}
             delay(if (chat.id in SharedChatsStore.busy.value) 2_000 else 4_000)

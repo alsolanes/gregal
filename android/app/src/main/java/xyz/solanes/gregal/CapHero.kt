@@ -25,6 +25,8 @@ import androidx.compose.material.icons.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -63,8 +65,25 @@ fun VentetProfile(vm: GregalViewModel, lang: String, onClose: () -> Unit) {
         val now = System.nanoTime()
         repeat(n) { i -> bursts += CapBurst(now + i, emoji, (i - n / 2) * 14f + (-6..6).random(), i * 70L) }
     }
-    val now by produceState(System.currentTimeMillis()) { while (true) { delay(1000); value = System.currentTimeMillis() } }
-    val hour = remember(now / 600_000) { java.time.LocalTime.now().hour }
+    // Rellotge quiet: avança només mentre una cara diu alguna cosa (o
+    // puja de nivell), que és l'únic que viu en segons. Saber si és de
+    // nit no necessita un tic per segon: hora congelada a l'obrir i
+    // refrescada en tornar de segon pla.
+    var minuteTick by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e ->
+            if (e == Lifecycle.Event.ON_RESUME) minuteTick = System.currentTimeMillis()
+        }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+    val hour = remember(minuteTick / 600_000) { java.time.LocalTime.now().hour }
+    // La vida en segons (frase, ànims, pujada de nivell) només existeix
+    // mentre dura: quietNow apaga el tic-tac quan no hi ha res per mesurar.
+    val saysSomething = ui.say.isNotBlank() && System.currentTimeMillis() - ui.sayAt < 6_000
+    val levelUpLive = ui.levelUpAt > 0 && System.currentTimeMillis() - ui.levelUpAt < 5_000
+    val now = quietNow(saysSomething || levelUpLive)
     val asleep = (pet.tired || hour >= 23 || hour < 7) && now - ui.sayAt > 6_000
     LaunchedEffect(ui.levelUpAt) { if (ui.levelUpAt > 0 && now - ui.levelUpAt < 5_000) burst("🎉", 9) }
     val mood = if (now - ui.sayAt < 4_000) WindMood.HAPPY else WindMood.IDLE

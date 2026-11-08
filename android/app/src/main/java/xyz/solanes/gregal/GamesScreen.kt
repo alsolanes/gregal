@@ -90,7 +90,8 @@ internal fun GamesDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Uni
     suspend fun refresh() {
         try { st = withContext(Dispatchers.IO) { parseFootball(conn.api().get("/api/football")) }; err = null } catch (e: Exception) { err = e.message }
     }
-    LaunchedEffect(conn) { while (true) { refresh(); delay(15_000) } }
+    // La taula es refresca mentre es mira; en segon pla no pica el servidor.
+    LifecyclePoll(conn) { while (true) { refresh(); delay(15_000) } }
 
     watching?.let { id -> GameViewer(conn, lang, id) { watching = null }; return }
 
