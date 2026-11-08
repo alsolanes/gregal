@@ -145,6 +145,30 @@ func TestRotllanaStreamKeepsFinishedVoiceWhenLaterVoiceFails(t *testing.T) {
 	}
 }
 
+func TestRotllanaJSONKeepsFinishedVoiceWhenLaterVoiceFails(t *testing.T) {
+	s, id := rotllanaStreamFixture(t, nil, func(context.Context) (string, error) {
+		return "", context.DeadlineExceeded
+	})
+	saved := rotllanaVoiceLoop
+	t.Cleanup(func() { waitBackground(); rotllanaVoiceLoop = saved })
+	calls := 0
+	rotllanaVoiceLoop = func(*Server, context.Context, string, ...*routedRole) (exploracio, error) {
+		calls++
+		if calls == 1 {
+			return exploracio{text: "Primer pla per a la cuina"}, nil
+		}
+		return exploracio{}, context.DeadlineExceeded
+	}
+	rec := postJSON(t, s.handleRotllanaChat, `{"rotllana":"`+id+`","message":"@Tramuntana @Xaloc, fem un pressupost"}`)
+	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"failed":["Xaloc"]`) {
+		t.Fatalf("JSON partial success: %d %s", rec.Code, rec.Body.String())
+	}
+	disk, err := session.Load(s.sessDir(), "rotllana-"+id)
+	if err != nil || len(disk.Convo) != 2 || disk.Convo[1].Content != "Primer pla per a la cuina" {
+		t.Fatalf("the finished voice must be durable: %+v, %v", disk.Convo, err)
+	}
+}
+
 // TestRotllanaStreamGivesEachVoiceItsOwnDeadline: el termini és per veu. Una
 // cerca que l'esgota cau al xat pla amb temps propi, i la veu següent comença
 // amb un termini nou.

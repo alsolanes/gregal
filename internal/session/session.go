@@ -196,12 +196,20 @@ func Save(dir, name, role string, convo []llm.Message) (string, error) {
 
 // List retorna sessions ordenades (recents primer).
 func List(dir string) ([]Info, error) {
+	return ListMatching(dir, nil)
+}
+
+// ListMatching filters session names before reading their conversation files.
+func ListMatching(dir string, match func(string) bool) ([]Info, error) {
 	files, err := filepath.Glob(filepath.Join(dir, "*.json"))
 	if err != nil {
 		return nil, err
 	}
 	var out []Info
 	for _, f := range files {
+		if match != nil && !match(strings.TrimSuffix(filepath.Base(f), ".json")) {
+			continue
+		}
 		raw, err := os.ReadFile(f)
 		if err != nil {
 			continue

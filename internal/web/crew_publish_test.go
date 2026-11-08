@@ -25,10 +25,12 @@ func TestCrewFinishPublishesTheSite(t *testing.T) {
 	}
 	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització"})
 	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Webs"})
-	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
-	t.Cleanup(func() { waitBackground(); crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord })
-	crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "D'acord.", nil }
-	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) { return "Fet i revisat: approve", nil }
+	savedWork, savedCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { waitBackground(); crewWork, crewCoordinator = savedWork, savedCoord })
+
+	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
+		return "Fet i revisat: approve", nil
+	}
 	calls := 0
 	crewCoordinator = func(_ *Server, _ context.Context, _, prompt string) (string, error) {
 		calls++

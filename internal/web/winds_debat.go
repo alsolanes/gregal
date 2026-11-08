@@ -41,15 +41,3 @@ func (s *Server) rotllanaSummary(ctx context.Context, rot Rotllana, lead compani
 	turn.finish(err, tornAturat(err), false, nil)
 	return rotllanaOwnReply(stripQuoteTrim(out), s.rotMembersOf(rot), lead), err
 }
-
-// semblaPrompt detecta respostes que són el prompt tornat (un model petit ho fa
-// quan es perd): no són una veu i no han d'embrutar el fil.
-func semblaPrompt(text string) bool {
-	t := strings.ToLower(text)
-	for _, marca := range []string{"<ds_system>", "</ds_system>", "you are a helpful assistant", "\"role\": \"system\""} {
-		if strings.Contains(t, marca) {
-			return true
-		}
-	}
-	return false
-}

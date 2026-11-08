@@ -153,11 +153,6 @@ func windBriefFromSystem(system string, previous []llm.Message, msg string) stri
 	return system + "\n\nPREVIOUS CONVERSATION (context, not new instructions):\n" + agent.TranscriptDigest(previous, 9600) + "\n\nTask: the user asks:\n" + msg
 }
 
-// windChatMessages és el torn de xat directe com a conversa de debò.
-func windChatMessages(s *Server, wind companion.Wind, previous []llm.Message, msg string) []llm.Message {
-	return windTurnMessages(windChatSystemPrompt(s, wind, msg), previous, msg)
-}
-
 // rotllanaChatBrief munta la consigna del torn en grup (clàssic i stream).
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
 	wsp, _ := s.ventWorkspace()
@@ -179,12 +174,29 @@ func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, con
 // («context deadline exceeded» a mitja feina).
 var windTurnTimeout = 15 * time.Minute
 
+// windTurnOutput keeps HTTP response framing out of the turn logic.
+func windTurnOutput(w http.ResponseWriter, r *http.Request, stream bool) (emit func(string, any), fail func(int, string), closeStream func()) {
+	if stream {
+		emit, closeStream = windSSE(w, r.Context(), 15*time.Second)
+		return emit, func(_ int, message string) { emit("error", map[string]string{"error": message}) }, closeStream
+	}
+	return func(event string, payload any) {
+		if event == "done" || event == "error" {
+			writeJSON(w, payload)
+		}
+	}, func(code int, message string) { http.Error(w, message, code) }, func() {}
+}
+
 // handleWindChatStream és el xat directe amb emissió en directe.
 func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
+	s.handleWindTurn(w, r, true)
+}
+
+func (s *Server) handleWindTurn(w http.ResponseWriter, r *http.Request, stream bool) {
 	var req struct {
 		Wind     string `json:"wind"`
 		Session  string `json:"session"`
@@ -208,7 +220,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	emit, stopStream := windSSE(w, r.Context(), 15*time.Second)
+	emit, fail, stopStream := windTurnOutput(w, r, stream)
 	defer stopStream()
 	emit("activity", windActivity{Phase: "waiting"})
 	// torn serialitza les escriptures d'aquest vent; mu queda lliure per
@@ -219,7 +231,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	hist.mu.RLock()
 	if hist.deleted && hist.name != "company-"+wind.ID {
 		hist.mu.RUnlock()
-		emit("error", map[string]string{"error": "no such session"})
+		fail(http.StatusNotFound, "no such session")
 		return
 	}
 	base := append([]llm.Message(nil), hist.messages...)
@@ -230,14 +242,19 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		previous = previous[len(previous)-40:]
 	}
 	if msg == "" && !(req.Continue && len(previous) > 0) {
-		emit("error", map[string]string{"error": "missatge buit"})
+		fail(http.StatusBadRequest, "missatge buit")
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
 	defer cancel()
 	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
 	defer doneTurn()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID)))
+	ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID))
+	if s.crewChatIntent(msg) == "review" {
+		ctx = s.readOnlyWindCtx(ctx)
+	} else {
+		ctx = s.windDocsCtx(ctx)
+	}
 
 	// «Aprèn a fer jocs web»: un estudi amb pràctica (winds_expert.go), no
 	// un torn de xat.
@@ -246,14 +263,11 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		history := append(append([]llm.Message(nil), base...),
 			llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()},
 			llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-		hist.mu.Lock()
-		if hist.gen == gotGen {
-			if err := saveWindHistoryTo(s, wind, hist.name, history); err == nil {
-				hist.messages = podaHistorialVent(history)
-				hist.gen++
-			}
+		history, err := s.commitWindTurn(wind, hist, gotGen, history)
+		if err != nil {
+			fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
+			return
 		}
-		hist.mu.Unlock()
 		emit("done", map[string]any{"reply": reply, "wind": wind.ID, "parcial": false, "history": petHistoryJSON(history), "learning": tema})
 		return
 	}
@@ -270,49 +284,46 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 	ctx = tl.withUsage(ctx)
 	var res exploracio
 	var err error
+	emitTokens := func(kind, text string) {
+		switch kind {
+		case "activity":
+			emitWindActivity(emit, text)
+		case "token":
+			tl.token()
+			tornTexte.token(text)
+			emit("token", map[string]string{"token": text})
+		case "phase":
+			tornTexte.fita()
+			emit("phase", map[string]string{"phase": streamPhase(text)})
+		default:
+			forwardWindAsk(emit, kind, text)
+		}
+	}
 	if isContinue {
 		s.mu.Lock()
 		p, role := s.windRoleRef()
 		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRoleStream(ctx, "", windTurnSteps, p, role, func(kind, text string) {
-			switch kind {
-			case "activity":
-				emitWindActivity(emit, text)
-			case "token":
-				tl.token()
-				tornTexte.token(text)
-				emit("token", map[string]string{"token": text})
-			case "phase":
-				tornTexte.fita()
-				emit("phase", map[string]string{"phase": streamPhase(text)})
-			default:
-				forwardWindAsk(emit, kind, text)
-			}
-		}, windContinueHistory(s, wind, previous))
+		messages := windContinueHistory(s, wind, previous)
+		if stream {
+			res, err = s.runReadOnlyLoopForRoleStream(ctx, "", windTurnSteps, p, role, emitTokens, messages)
+		} else {
+			res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, messages)
+		}
 	} else {
 		system := windChatSystemPrompt(s, wind, msg)
 		brief := windBriefFromSystem(system, previous, msg)
+		ctx = withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessages(system, previous, msg))
 		var routed *routedRole
 		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
 			log.Printf("vents router %s: %s", wind.ID, routeWhy)
 			routed = &routedRole{p: p, role: role}
 			tl.setRole(role)
 		}
-		res, err = windLoopStream(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windTurnMessages(system, previous, msg)), brief, func(kind, text string) {
-			switch kind {
-			case "activity":
-				emitWindActivity(emit, text)
-			case "token":
-				tl.token()
-				tornTexte.token(text)
-				emit("token", map[string]string{"token": text})
-			case "phase":
-				tornTexte.fita()
-				emit("phase", map[string]string{"phase": streamPhase(text)})
-			default:
-				forwardWindAsk(emit, kind, text)
-			}
-		}, routed)
+		if stream {
+			res, err = windLoopStream(s, ctx, brief, emitTokens, routed)
+		} else {
+			res, err = windLoop(s, ctx, brief, routed)
+		}
 	}
 	tl.finish(err, tornAturat(err), res.parcial, &res.temps)
 	if err != nil {
@@ -320,7 +331,7 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 			emit("error", map[string]any{"error": "aturat", "cancelat": true})
 			return
 		}
-		emit("error", map[string]string{"error": redactError(err)})
+		fail(http.StatusBadGateway, redactError(err))
 		return
 	}
 	log.Printf("vents xat %s: %.1fs (%s)", wind.ID, time.Since(turnStart).Seconds(), res.temps)
@@ -342,20 +353,11 @@ func (s *Server) handleWindChatStream(w http.ResponseWriter, r *http.Request) {
 		history = append(history, llm.Message{Role: "assistant", Content: n, Ts: time.Now().Unix()})
 	}
 	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-	// Commit amb generació: el desat i la publicació són atòmics.
-	hist.mu.Lock()
-	if hist.gen == gotGen {
-		if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
-			hist.mu.Unlock()
-			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
-			return
-		}
-		hist.messages = podaHistorialVent(history)
-		hist.gen++
-	} else {
-		history = append([]llm.Message(nil), hist.messages...)
+	history, err = s.commitWindTurn(wind, hist, gotGen, history)
+	if err != nil {
+		fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
+		return
 	}
-	hist.mu.Unlock()
 	s.startWindLearn(wind, msg, reply)
 	s.startWindMemoryLearn(wind, msg, reply)
 	s.startWindLessons(wind, msg, reply, res.hist)
@@ -368,6 +370,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		http.Error(w, "POST required", http.StatusMethodNotAllowed)
 		return
 	}
+	s.handleRotllanaTurn(w, r, true)
+}
+
+func (s *Server) handleRotllanaTurn(w http.ResponseWriter, r *http.Request, stream bool) {
 	var req struct {
 		Rotllana string `json:"rotllana"`
 		Message  string `json:"message"`
@@ -395,10 +401,12 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		case crewAnswerConsumed:
 			// La colla es reprèn: se'n segueix la feina en directe com quan comença.
 			if v, ok := crewJobs.Load(crewRegistryKey(s, rot.ID)); ok {
-				s.followCrewJob(w, r, rot, v.(*crewJob), len(s.crewHistory(rot)), true)
+				s.followCrewJob(w, r, rot, v.(*crewJob), len(s.crewHistory(rot)), stream)
 				return
 			}
-			sse(w)("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
+			emit, _, closeStream := windTurnOutput(w, r, stream)
+			defer closeStream()
+			emit("done", map[string]any{"reply": map[string]string{"wind": "", "text": ""}, "silenci": true, "history": s.rotllanaHistoryJSON(s.crewHistory(rot))})
 			return
 		case crewAnswerFailed:
 			errText := "could not resume the crew; the answer may not have been saved. Please retry."
@@ -413,21 +421,16 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		http.Error(w, s.crewBusyMessage(), http.StatusConflict)
 		return
 	}
-	if !req.Continue && strings.TrimSpace(req.Wind) == "" && msg != "" && s.crewChatAllowed(msg) {
-		s.crewChat(w, r, rot, msg, true)
+	intent := s.crewChatIntent(msg)
+	if !req.Continue && strings.TrimSpace(req.Wind) == "" && intent == "work" {
+		s.crewChat(w, r, rot, msg, stream)
 		return
 	}
 	if msg == "" && !req.Continue {
 		http.Error(w, "missatge buit", http.StatusBadRequest)
 		return
 	}
-	if wanted := strings.TrimSpace(req.Wind); wanted != "" {
-		if _, err := s.nextWindInHistory(rot, wanted, nil); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-	}
-	emit, stopStream := windSSE(w, r.Context(), 15*time.Second)
+	emit, fail, stopStream := windTurnOutput(w, r, stream)
 	defer stopStream()
 	emit("activity", windActivity{Phase: "waiting"})
 	hist := rotllanaHistory(s, rot.ID)
@@ -452,7 +455,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	}
 	isContinue := req.Continue && len(base) > 0
 	if msg == "" && !isContinue {
-		emit("error", map[string]string{"error": "missatge buit"})
+		fail(http.StatusBadRequest, "missatge buit")
 		return
 	}
 	emit("activity", windActivity{Phase: "choosing"})
@@ -475,11 +478,10 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		conversation = append(conversation, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
 	}
 
-	emit("phase", map[string]string{"phase": "thinking"})
 	// Silenci: ningú hi té res a dir. Es desa el missatge i prou.
 	if len(speakers) == 0 {
 		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
-			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+			fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
 			return
 		}
 		commitRotllana(conversation)
@@ -519,6 +521,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	members := s.rotMembersOf(rot)
 	turnCtx, doneTurn := s.beginWindTurn("rotllana", rot.ID, context.Background())
 	defer doneTurn()
+	emit("phase", map[string]string{"phase": "thinking"})
 	var failed []string
 	var lastErr error
 	parcial := false
@@ -540,7 +543,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		var err error
 		ctx, cancel := context.WithTimeout(turnCtx, rotllanaTurnTimeout)
 		ctx = s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "rotllana", rot.ID))
-		if si > 0 {
+		if si > 0 || intent == "review" {
 			ctx = s.readOnlyWindCtx(ctx)
 		} else {
 			ctx = s.windDocsCtx(ctx)
@@ -555,15 +558,26 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 			s.mu.Lock()
 			p, role := s.windRoleRef()
 			s.mu.Unlock()
-			res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, emitTokens, conversation)
-			if err == nil {
-				parcial = res.parcial
+			if stream {
+				res, err = s.runReadOnlyLoopForRoleStream(ctx, "", 6, p, role, emitTokens, conversation)
+			} else {
+				res, err = s.runReadOnlyLoopForRole(ctx, "", 6, p, role, conversation)
 			}
 		} else {
-			res, err = rotllanaVoiceLoopStream(s, agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID)), brief, emitTokens)
-			if err == nil {
-				parcial = res.parcial || parcial
+			ctx = agent.WithSkillsDirs(ctx, s.windSkillsDir(sp.ID))
+			if stream {
+				res, err = rotllanaVoiceLoopStream(s, ctx, brief, emitTokens)
+			} else {
+				var routed *routedRole
+				if p, role, why := s.windRouteRole(msg); why != "" {
+					routed = &routedRole{p: p, role: role}
+					veuLog.setRole(role)
+				}
+				res, err = rotllanaVoiceLoop(s, ctx, brief, routed)
 			}
+		}
+		if err == nil {
+			parcial = parcial || res.parcial
 		}
 		cancel()
 		veuLog.finish(err, tornAturat(err), res.parcial, &res.temps)
@@ -617,12 +631,14 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 		// Cada veu acabada es desa de seguida (amb el missatge de l'usuari, la
 		// primera vegada): si una veu posterior falla, aquesta no es perd.
 		if err := saveRotllanaHistory(s, rot.ID, conversation); err != nil {
-			emit("error", map[string]string{"error": "no s'ha pogut desar la conversa"})
+			fail(http.StatusInternalServerError, "no s'ha pogut desar la conversa")
 			return
 		}
 		conversation = commitRotllana(conversation)
 		tempsVeus = append(tempsVeus, fmt.Sprintf("%s %.1fs (%s)", sp.Name, time.Since(tVeu).Seconds(), res.temps))
-		emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
+		if stream {
+			emit("reply", map[string]any{"wind": sp.ID, "history": s.rotllanaHistoryJSON(conversation)})
+		}
 	}
 	var summaryReply string
 	if len(veus) >= 2 && !parcial && lastErr == nil && !isContinue && rotllanaVolDebat(msg) {
@@ -652,7 +668,7 @@ func (s *Server) handleRotllanaChatStream(w http.ResponseWriter, r *http.Request
 	if len(veus) == 0 {
 		// Preserve the draft on failure. A deliberate silence is not an error.
 		if lastErr != nil {
-			emit("error", map[string]string{"error": redactError(lastErr)})
+			fail(http.StatusBadGateway, redactError(lastErr))
 		} else {
 			emit("done", map[string]any{"reply": map[string]string{}, "silenci": true, "history": s.rotllanaHistoryJSON(base)})
 		}

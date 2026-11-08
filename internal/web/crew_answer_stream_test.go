@@ -18,12 +18,12 @@ func TestCrewAnswerStreamFollowsTheWork(t *testing.T) {
 	s, _ := companionTestServer(t)
 	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització"})
 	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Disseny"})
-	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
+	savedWork, savedCoord := crewWork, crewCoordinator
 	t.Cleanup(func() {
 		waitBackground()
-		crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord
+		crewWork, crewCoordinator = savedWork, savedCoord
 	})
-	crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "D'acord.", nil }
+
 	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
 		return "Fet", nil
 	}

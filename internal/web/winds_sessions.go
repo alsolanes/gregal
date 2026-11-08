@@ -80,7 +80,7 @@ func (s *Server) requestedWindHistory(w http.ResponseWriter, wind, name string) 
 // windSessionList torna les sessions del vent: l'activa primer, la resta
 // per data (la més recent a dalt).
 func (s *Server) windSessionList(windID string) []WindSessionInfo {
-	infos, _ := session.List(s.sessDir())
+	infos, _ := session.ListMatching(s.sessDir(), func(name string) bool { return isWindSessionOf(windID, name) })
 	active := s.windSessionName(windID)
 	out := []WindSessionInfo{}
 	for _, in := range infos {

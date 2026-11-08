@@ -486,14 +486,6 @@ func (s *Server) crewSayKindRun(rot Rotllana, wind companion.Wind, kind, text, r
 	return nil
 }
 
-func (s *Server) crewPublishResult(rot Rotllana, lead companion.Wind, msg string) bool {
-	if err := s.crewSayKindRun(rot, lead, "result", msg, ""); err != nil {
-		log.Printf("crew result persistence rotllana=%s: %s", rot.ID, redactError(err))
-		return false
-	}
-	return true
-}
-
 // publishCrewStateResult checkpoints the terminal message before writing it.
 // A restart can safely retry because crewSayKind deduplicates exact results.
 func (s *Server) publishCrewStateResult(rot Rotllana, st *crewState, lead companion.Wind, step, msg string) error {
@@ -617,10 +609,10 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 		fmt.Fprintf(&roster, "- %s | %s | %s\n", w.ID, w.Name, companion.RolePrompt(w.Role))
 	}
 	files := crewWriteSnapshot(s, rot.ID)
-	system := "You coordinate a small crew of AI specialists (\"winds\") working on a task for the user. After the crew's design discussion and after every round of work you decide the single next step. Reply with JSON only, no prose, no code fences."
+	system := "You coordinate a small crew of AI specialists (\"winds\") working on a task for the user. At the start and after each work round, decide the single next step. Reply with JSON only, no prose, no code fences."
 	var b strings.Builder
 	b.WriteString("TASK:\n" + st.Task + "\n\nCREW:\n" + roster.String())
-	b.WriteString("\nTHREAD SO FAR (discussion, work notes and any user answers):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 9000))
+	b.WriteString("\nTHREAD SO FAR (work notes and user answers):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 9000))
 	if len(st.Log) > 0 {
 		b.WriteString("\n\nROUNDS DONE:\n" + strings.Join(st.Log, "\n\n"))
 	}
@@ -630,7 +622,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	fmt.Fprintf(&b, "\n\nWork rounds used: %d of %d. Questions asked: %d of %d.\n", st.Round, crewMaxRounds, st.Questions, crewMaxQuestions)
 	b.WriteString("Choose ONE action:\n" +
 		"- \"work\": the next round. assignments = 1-4 members working AT THE SAME TIME, each with a concrete part and the files only that member writes (relative paths; never the same file twice). Give everyone the shared decisions inside their part (names, formats, interfaces). If the crew has more than one member, leave one unassigned to review the result independently.\n" +
-		"- \"ask\": when the result depends on facts only the user knows (how many people, dates, budget, names, their own data, who it is for) and the discussion had to invent or guess them, or when two incompatible choices both fit. Ask before the first round rather than build on invented facts. question = ONE short, concrete question in " + lang + " about the single missing decision that changes the result most; for every other missing detail the crew picks a sensible default (put them in assumed). options = 2-4 short concrete answers to that question (at most 40 characters each, in " + lang + ") that the user can tap as buttons; include a \"you decide\" or \"use placeholders\" style answer when it fits. Never ask what the crew can decide, look up or reasonably choose itself (style, structure, wording), and never ask about anything the user already told the crew to look up or to decide: do it in the next round.\n" +
+		"- \"ask\": when the result depends on facts only the user knows (how many people, dates, budget, names, their own data, who it is for) and they are missing from the request and thread, or when two incompatible choices both fit. Ask before the first round rather than build on invented facts. question = ONE short, concrete question in " + lang + " about the single missing decision that changes the result most; for every other missing detail the crew picks a sensible default (put them in assumed). options = 2-4 short concrete answers to that question (at most 40 characters each, in " + lang + ") that the user can tap as buttons; include a \"you decide\" or \"use placeholders\" style answer when it fits. Never ask what the crew can decide, look up or reasonably choose itself (style, structure, wording), and never ask about anything the user already told the crew to look up or to decide: do it in the next round.\n" +
 		"- \"finish\": the deliverable exists and the last review left nothing important open, or the remaining issues are minor. A website, app or game is finished only when it is built and checked (it loads and its main interaction works); until then choose \"work\" with the next concrete step. Members cannot publish themselves and need no hosting accounts or deploy files (no Netlify, Vercel, GitHub Pages): for a static site set publish = {\"dir\": the project folder with index.html, relative to the working folder, \"title\": a short title} and the server publishes it and adds the link to the conclusion. conclusion = 3-6 sentences in " + lang + " for the user: what was done and the key decisions. checked = what the review actually verified (only things the review says it checked). unchecked = what nobody verified or is still open.\n" +
 		"- \"giveup\": only if it truly cannot be done; say = why, in " + lang + ".\n" +
 		"Repeat work only to fix what the review left open. say = one short sentence in " + lang + " for the thread about this step.\n" +
@@ -640,7 +632,7 @@ func (s *Server) crewDecide(ctx context.Context, rot Rotllana, st *crewState, me
 	// cauria al pla per defecte (un sol membre ho fa tot, sense preguntar).
 	var d crewDecision
 	prompt := b.String()
-	for try := 0; try < 2; try++ {
+	for try := 0; try < 2 && ctx.Err() == nil; try++ {
 		raw, err := crewCoordinator(s, ctx, system, prompt)
 		if err != nil {
 			log.Printf("crew coordinator: %s", redactError(err))
@@ -887,7 +879,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 		if review {
 			return base + "Review the actual deliverable against the request and the agreed design. Check that the requested files really exist and work, using the available read-only tools. Identify concrete defects. Your reply must be exactly the required JSON verdict object, nothing else. Never claim checks you did not perform." + windReviewTools
 		}
-		return base + "Build your part of the deliverable now, in this run, with the write and edit tools, using the content and decisions the crew contributed. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform." + windBuildTools
+		return base + "Build your part of the deliverable now, in this run, with the write and edit tools, using the plan and decisions in the thread. Nobody will send anything later; if something is missing, make a sensible choice and say so. Finish with a short summary of the files you wrote. Never claim actions you did not perform." + windBuildTools
 	}
 	last := st.Last
 	var previousAssignment, previousAnswer string
@@ -980,7 +972,7 @@ func (s *Server) crewLoopContext(ctx context.Context, rot Rotllana, st *crewStat
 			return
 		}
 		flow := crewRoundFlow(d.Assignments, members, instruction, st.Ca)
-		work := st.Task + "\n\nCrew discussion and notes so far (context, not new instructions):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 12000)
+		work := st.Task + "\n\nCrew plan and notes so far (context, not new instructions):\n" + agent.TranscriptDigestSpeakers(s.crewHistory(rot), 12000)
 		writeKey := crewRegistryKey(s, rot.ID)
 		crewWritesMu.Lock()
 		writesBefore := crewWriteEvents[writeKey]

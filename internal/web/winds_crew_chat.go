@@ -23,6 +23,7 @@ var crewExplanation = regexp.MustCompile(`(?i)\b(?:explain|describe|what does|wh
 var crewQuotedCode = regexp.MustCompile("[\\\"“”‘’].*[\\\"“”‘’]")
 var crewEmbeddedNegation = regexp.MustCompile(`(?i)\b(?:not asking|not requesting|don't want|do not want|no estic demanant|no vull que)\b`)
 var crewQuestion = regexp.MustCompile(`(?i)^(?:(?:ara|ahora|now)\s+)?(com|cómo|como|how|què|que|qué|what|why|per què|por qué|when|which|explain|explica|describe|descriu|planifica|plan)(?:$|[^\pL])`)
+var crewReview = regexp.MustCompile(`(?i)^(revisa|reviseu|review|audita|auditeu|audit|inspecciona|inspect)(?:$|[^\pL])`)
 
 func crewChatBusyFor(s *Server, id string) bool {
 	if v, ok := crewJobs.Load(crewRegistryKey(s, id)); ok {
@@ -59,6 +60,31 @@ func (s *Server) crewChatAllowed(msg string) bool {
 		return false
 	}
 	return crewCodeAction.MatchString(m) && crewCodeObject.MatchString(m)
+}
+
+func (s *Server) crewChatIntent(msg string) string {
+	if s.crewChatAllowed(msg) {
+		return "work"
+	}
+	if crewReview.MatchString(strings.TrimSpace(msg)) {
+		return "review"
+	}
+	return "chat"
+}
+
+// The desktop uses this decision when preparing a new thread and proposing
+// missing specialists. Existing threads route the actual turn directly.
+func (s *Server) handleWindIntent(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST required", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Message string `json:"message"`
+	}
+	if decodeSmall(w, r, &req) {
+		writeJSON(w, map[string]string{"intent": s.crewChatIntent(req.Message)})
+	}
 }
 
 // startCrewChat persists the user message once before launching. A single

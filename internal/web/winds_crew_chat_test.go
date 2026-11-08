@@ -52,6 +52,16 @@ func TestCrewChatRoutingAndPlan(t *testing.T) {
 			t.Errorf("%q: got %v", tc.msg, got)
 		}
 	}
+	for _, tc := range []struct{ message, want string }{
+		{"Revisa aquest projecte", "review"},
+		{"Implementa una aplicació web", "work"},
+		{"No modifiquis el codi", "chat"},
+	} {
+		rec := postJSON(t, s.handleWindIntent, `{"message":"`+tc.message+`"}`)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"intent":"`+tc.want+`"`) {
+			t.Fatalf("intent %q: %d %s", tc.message, rec.Code, rec.Body.String())
+		}
+	}
 	for _, mode := range []string{"plan", "chat", "inspect"} {
 		s.mode = mode
 		if s.crewChatAllowed("Implementa una aplicació web") || s.crewMayResume() {
@@ -94,10 +104,10 @@ func TestCrewNodePublishesOnlyRealWinds(t *testing.T) {
 
 func TestCrewChatStreamProgressCancelAndHistory(t *testing.T) {
 	s, id := rotllanaChatter(t, "ordinary chat")
-	oldDiscuss, oldWork, oldCoord := crewDiscussLoop, crewWork, crewCoordinator
-	t.Cleanup(func() { waitBackground(); crewDiscussLoop, crewWork, crewCoordinator = oldDiscuss, oldWork, oldCoord })
+	oldWork, oldCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { waitBackground(); crewWork, crewCoordinator = oldWork, oldCoord })
 	started := make(chan struct{})
-	crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "Real design", nil }
+
 	crewCoordinator = func(*Server, context.Context, string, string) (string, error) { return `{"action":"work"}`, nil }
 	crewWork = func(_ *Server, ctx context.Context, _ Rotllana, _ string, _ team.FlowSpec, _ bool) (string, error) {
 		close(started)
@@ -133,7 +143,7 @@ func TestCrewChatStreamProgressCancelAndHistory(t *testing.T) {
 		t.Fatal("stream did not finish after cancel")
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, "event: phase") || !strings.Contains(body, "speaker:") || !strings.Contains(body, "event: token") || !strings.Contains(body, "Real design") || !strings.Contains(body, "event: done") {
+	if !strings.Contains(body, "event: phase") || !strings.Contains(body, "speaker:") || !strings.Contains(body, "event: token") || !strings.Contains(body, "round 1") || !strings.Contains(body, "event: done") {
 		t.Fatalf("missing actual stream progress: %s", body)
 	}
 	rot, _ := s.rotllanaByID(id)

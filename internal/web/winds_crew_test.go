@@ -20,9 +20,9 @@ func TestExistingRotllanaCodingTaskRunsCrew(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		t.Run(map[bool]string{false: "classic", true: "stream"}[stream], func(t *testing.T) {
 			s, id := rotllanaChatter(t, "ordinary chat")
-			oldDiscuss, oldWork, oldCoord := crewDiscussLoop, crewWork, crewCoordinator
-			t.Cleanup(func() { waitBackground(); crewDiscussLoop, crewWork, crewCoordinator = oldDiscuss, oldWork, oldCoord })
-			crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "Design", nil }
+			oldWork, oldCoord := crewWork, crewCoordinator
+			t.Cleanup(func() { waitBackground(); crewWork, crewCoordinator = oldWork, oldCoord })
+
 			worked := make(chan struct{}, 1)
 			crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
 				worked <- struct{}{}
@@ -53,13 +53,13 @@ func TestExistingRotllanaCodingTaskRunsCrew(t *testing.T) {
 	}
 }
 
-func TestCrewDiscussionCanBeCancelled(t *testing.T) {
+func TestCrewPlanningCanBeCancelled(t *testing.T) {
 	s, id := rotllanaChatter(t, "ordinary chat")
 	rot, _ := s.rotllanaByID(id)
-	old := crewDiscussLoop
-	t.Cleanup(func() { waitBackground(); crewDiscussLoop = old })
+	old := crewCoordinator
+	t.Cleanup(func() { waitBackground(); crewCoordinator = old })
 	started := make(chan struct{})
-	crewDiscussLoop = func(_ *Server, ctx context.Context, _ string) (string, error) {
+	crewCoordinator = func(_ *Server, ctx context.Context, _, _ string) (string, error) {
 		close(started)
 		<-ctx.Done()
 		return "", ctx.Err()
@@ -67,14 +67,18 @@ func TestCrewDiscussionCanBeCancelled(t *testing.T) {
 	job := &crewJob{}
 	done := make(chan struct{})
 	go func() { defer close(done); s.runCrew(rot, "build", false, job) }()
-	<-started
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("planning did not start")
+	}
 	if !s.cancelWindTurn("rotllana", id) {
-		t.Error("discussion did not register wind cancellation")
+		t.Error("planning did not register wind cancellation")
 	}
 	select {
 	case <-done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("discussion did not stop")
+		t.Fatal("planning did not stop")
 	}
 	if job.get() != "cancelled" {
 		t.Errorf("job step = %q, want cancelled", job.get())
@@ -153,17 +157,11 @@ func TestCrewProposalFallsBackWithoutModel(t *testing.T) {
 	}
 }
 
-func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
+func TestCrewStartCreatesWindsPlansAndWorks(t *testing.T) {
 	s, _ := companionTestServer(t)
 	keeper, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització", Color: "#C1B4DE"})
-	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
-	t.Cleanup(func() { crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord })
-	crewDiscussLoop = func(_ *Server, _ context.Context, brief string) (string, error) {
-		if !strings.Contains(brief, "Discussió de disseny") {
-			t.Errorf("brief misses the discussion prompt")
-		}
-		return "Jo m'encarrego de l'estructura.", nil
-	}
+	savedWork, savedCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { crewWork, crewCoordinator = savedWork, savedCoord })
 	var flow team.FlowSpec
 	var workTask string
 	crewWork = func(_ *Server, _ context.Context, _ Rotllana, task string, f team.FlowSpec, _ bool) (string, error) {
@@ -176,8 +174,8 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	crewCoordinator = func(_ *Server, _ context.Context, _, prompt string) (string, error) {
 		calls++
 		if calls == 1 {
-			if !strings.Contains(prompt, "Fes una web del sopar") || !strings.Contains(prompt, "Jo m'encarrego") {
-				t.Errorf("the coordinator must see the task and the discussion: %s", prompt)
+			if !strings.Contains(prompt, "Fes una web del sopar") || !strings.Contains(prompt, "Ratxa") {
+				t.Errorf("the coordinator must see the task and roster: %s", prompt)
 			}
 			return `{"action":"work","say":"Som-hi en paral·lel","assignments":[{"wind":"` + keeper.ID + `","part":"l'estructura","files":["index.html"]},{"wind":"` + ratxaID + `","part":"els estils","files":["style.css","index.html"]}]}`, nil
 		}
@@ -230,8 +228,8 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 	if len(flow.Edges) != 1 || flow.Edges[0].To != "review" {
 		t.Fatalf("edges = %+v", flow.Edges)
 	}
-	if !strings.Contains(workTask, "Jo m'encarrego de l'estructura") {
-		t.Fatal("the work must carry the agreed design")
+	if !strings.Contains(workTask, "Som-hi en paral·lel") {
+		t.Fatal("the work must carry the published plan")
 	}
 	kinds := map[string]int{}
 	var said []string
@@ -245,14 +243,13 @@ func TestCrewStartCreatesWindsDiscussesAndWorks(t *testing.T) {
 			t.Fatalf("coordinator repeated the deliverable: %s", m.Content)
 		}
 	}
-	for _, want := range []string{"Fes una web del sopar", "Gregal: Jo m'encarrego", "Ratxa: Jo m'encarrego", "Som-hi en paral·lel", "**Conclusió**", "Web feta amb el menú", "**Comprovat**", "index.html obre bé", "**Sense comprovar**"} {
+	for _, want := range []string{"Fes una web del sopar", "Som-hi en paral·lel", "**Conclusió**", "Web feta amb el menú", "**Comprovat**", "index.html obre bé", "**Sense comprovar**"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("history misses %q:\n%s", want, joined)
 		}
 	}
-	// Debat intern: les veus que discuteixen (2). El pla i el veredicte de
-	// volta són "round" (sempre visibles), el tancament "result".
-	if kinds["debate"] < 2 || kinds["result"] != 1 || kinds["round"] < 2 {
+	// The coordinator's plan and the review are visible without a preliminary debate.
+	if kinds["result"] != 1 || kinds["round"] < 2 {
 		t.Fatalf("kinds = %v", kinds)
 	}
 }
@@ -282,9 +279,9 @@ func TestCrewAsksAndResumes(t *testing.T) {
 	s, _ := companionTestServer(t)
 	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Organització"})
 	b, _ := s.winds.Save(companion.Wind{Name: "Ratxa", Role: "Disseny"})
-	savedDiscuss, savedWork, savedCoord := crewDiscussLoop, crewWork, crewCoordinator
-	t.Cleanup(func() { crewDiscussLoop, crewWork, crewCoordinator = savedDiscuss, savedWork, savedCoord })
-	crewDiscussLoop = func(*Server, context.Context, string) (string, error) { return "D'acord.", nil }
+	savedWork, savedCoord := crewWork, crewCoordinator
+	t.Cleanup(func() { crewWork, crewCoordinator = savedWork, savedCoord })
+
 	worked := 0
 	crewWork = func(*Server, context.Context, Rotllana, string, team.FlowSpec, bool) (string, error) {
 		worked++
@@ -406,32 +403,6 @@ func TestRotllanaDebateRequiresExplicitRequest(t *testing.T) {
 	} {
 		if got := rotllanaVolDebat(tc.msg); got != tc.want {
 			t.Errorf("%q: got %v", tc.msg, got)
-		}
-	}
-}
-
-func TestCrewDiscussionUsesOneVoiceWithoutDuplicatedName(t *testing.T) {
-	s, _ := companionTestServer(t)
-	a, _ := s.winds.Save(companion.Wind{Name: "Gregal", Role: "Builder"})
-	rot, err := s.saveRotllana(Rotllana{Name: "test", Members: []string{a.ID}})
-	if err != nil {
-		t.Fatal(err)
-	}
-	oldDiscuss, oldCoord := crewDiscussLoop, crewCoordinator
-	t.Cleanup(func() { crewDiscussLoop, crewCoordinator = oldDiscuss, oldCoord })
-	crewDiscussLoop = func(_ *Server, _ context.Context, brief string) (string, error) {
-		if !strings.Contains(brief, "ONLY as yourself") {
-			t.Error("discussion must request a single voice")
-		}
-		return "Gregal: The structure is ready.", nil
-	}
-	crewCoordinator = func(*Server, context.Context, string, string) (string, error) {
-		return `{"action":"giveup","say":"blocked"}`, nil
-	}
-	s.runCrew(rot, "task", false, &crewJob{})
-	for _, m := range s.crewHistory(rot) {
-		if m.Kind == "debate" && strings.Contains(m.Content, "Gregal: Gregal:") {
-			t.Fatalf("duplicate speaker: %q", m.Content)
 		}
 	}
 }
@@ -640,19 +611,5 @@ func TestCrewReusesTheWindThatAlreadyKnowsTheTrade(t *testing.T) {
 	}
 	if len(p.Create) != 1 || p.Create[0].Name != "Lupa" {
 		t.Fatalf("a generic word must not merge winds: %+v", p.Create)
-	}
-}
-
-func TestCrewClosingReadsTheVerdict(t *testing.T) {
-	text, changes := crewClosing("```json\n{\"verdict\": \"changes_requested\", \"resum\": \"Falta la cinquena fitxa.\"}\n```\n\nFitxers: formatges.html")
-	if !changes || text != "Falta la cinquena fitxa.\n\nFitxers: formatges.html" {
-		t.Fatalf("got %q %v", text, changes)
-	}
-	text, changes = crewClosing("{\"verdict\": \"canvis_menors\", \"resum\": \"Compleix la petició.\"}")
-	if changes || text != "Compleix la petició." {
-		t.Fatalf("minor changes are a pass: %q %v", text, changes)
-	}
-	if text, changes := crewClosing("He escrit lisboa.md amb l'itinerari."); changes || text != "He escrit lisboa.md amb l'itinerari." {
-		t.Fatalf("plain text: %q %v", text, changes)
 	}
 }

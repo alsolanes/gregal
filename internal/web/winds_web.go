@@ -3,14 +3,11 @@ package web
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
-	"gregal/internal/agent"
 	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/goal"
@@ -89,6 +86,21 @@ func saveWindHistoryTo(s *Server, w companion.Wind, name string, history []llm.M
 		Convo: append([]llm.Message(nil), podaHistorialVent(history)...),
 	})
 	return err
+}
+
+// commitWindTurn publishes only to the session and generation the turn read.
+func (s *Server) commitWindTurn(wind companion.Wind, hist *windHistoryEntry, gen uint64, history []llm.Message) ([]llm.Message, error) {
+	hist.mu.Lock()
+	defer hist.mu.Unlock()
+	if hist.gen != gen {
+		return append([]llm.Message(nil), hist.messages...), nil
+	}
+	if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
+		return nil, err
+	}
+	hist.messages = podaHistorialVent(history)
+	hist.gen++
+	return history, nil
 }
 
 // clearWindHistory buida la conversa amb un vent (disc + memòria).
@@ -253,114 +265,7 @@ func (s *Server) handleWindChat(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "GET, POST or DELETE required", http.StatusMethodNotAllowed)
 		return
 	}
-	var req struct {
-		Wind     string `json:"wind"`
-		Session  string `json:"session"`
-		Message  string `json:"message"`
-		Continue bool   `json:"continue"` // reprèn l'última resposta parcial
-	}
-	if !decodeSmall(w, r, &req) {
-		return
-	}
-	wind, ok := s.winds.ByID(strings.TrimSpace(req.Wind))
-	if !ok {
-		http.Error(w, "unknown wind", http.StatusBadRequest)
-		return
-	}
-	msg := strings.TrimSpace(req.Message)
-	hist, ok := s.requestedWindHistory(w, wind.ID, firstNonEmpty(req.Session, r.URL.Query().Get("session")))
-	if !ok {
-		return
-	}
-	// torn serialitza les escriptures d'aquest vent (un segon POST espera
-	// el primer); mu queda lliure i els GET mai no esperen el model.
-	turn := windDirectTurn(s, wind.ID)
-	turn.Lock()
-	defer turn.Unlock()
-	hist.mu.RLock()
-	if hist.deleted && hist.name != "company-"+wind.ID {
-		hist.mu.RUnlock()
-		http.Error(w, "no such session", http.StatusNotFound)
-		return
-	}
-	base := append([]llm.Message(nil), hist.messages...)
-	gotGen := hist.gen
-	hist.mu.RUnlock()
-	previous := base
-	if len(previous) > 40 {
-		previous = previous[len(previous)-40:]
-	}
-	// «Continua» sense historial o sense text nou no té què reprendre.
-	if msg == "" && !(req.Continue && len(previous) > 0) {
-		http.Error(w, "missatge buit", http.StatusBadRequest)
-		return
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), windTurnTimeout)
-	defer cancel()
-	ctx, doneTurn := s.beginWindTurn("wind", wind.ID, ctx)
-	defer doneTurn()
-
-	// Intentional user turns inherit this session's mode and project policy.
-	// Background callers of the same loop remain read-only.
-	turnStart := time.Now()
-	ctx = s.windDocsCtx(s.interactiveWindCtx(s.withWindSteerKey(withLinkBase(ctx, r), "wind", wind.ID)))
-	isContinue := req.Continue && len(previous) > 0
-	var res exploracio
-	var err error
-	if isContinue {
-		// Reprèn: sense nou missatge d'usuari, el loop afegeix el
-		// PromptContinuaExploracio sobre l'historial (amb la parcial).
-		s.mu.Lock()
-		p, role := s.windRoleRef()
-		s.mu.Unlock()
-		res, err = s.runReadOnlyLoopForRole(ctx, "", windTurnSteps, p, role, windContinueHistory(s, wind, previous))
-	} else {
-		var routed *routedRole
-		if p, role, routeWhy := s.windRouteRole(msg); routeWhy != "" {
-			log.Printf("vents router %s: %s", wind.ID, routeWhy)
-			routed = &routedRole{p: p, role: role}
-		}
-		res, err = windLoop(s, withWindPrompt(agent.WithSkillsDirs(ctx, s.windSkillsDir(wind.ID)), windChatMessages(s, wind, previous, msg)), windChatBrief(s, wind, previous, msg), routed)
-	}
-	if err != nil {
-		if tornAturat(err) {
-			writeJSON(w, map[string]any{"error": "aturat", "cancelat": true})
-			return
-		}
-		http.Error(w, redactError(err), http.StatusBadGateway)
-		return
-	}
-	reply := stripQuoteTrim(res.text)
-	// Un torn mort a mitges no és una resposta del vent (vegeu el mateix
-	// criteri a winds_stream.go): mai el resum mecànic a la bombolla.
-	if res.parcial && esRespostaMecanica(reply) {
-		reply = fraseTornAturat(res.motiu, s.cfg.Lang())
-	}
-	reply += s.windDocLinks(turnStart, reply)
-	history := append([]llm.Message(nil), base...)
-	if !isContinue {
-		history = append(history, llm.Message{Role: "user", Content: msg, Ts: time.Now().Unix()})
-	}
-	history = append(history, llm.Message{Role: "assistant", Content: reply, Ts: time.Now().Unix()})
-	// Commit amb generació: el desat i la publicació són atòmics.
-	hist.mu.Lock()
-	if hist.gen == gotGen {
-		if err := saveWindHistoryTo(s, wind, hist.name, history); err != nil {
-			hist.mu.Unlock()
-			http.Error(w, "no s'ha pogut desar la conversa", http.StatusInternalServerError)
-			return
-		}
-		hist.messages = podaHistorialVent(history)
-		hist.gen++
-	} else {
-		history = append([]llm.Message(nil), hist.messages...)
-	}
-	hist.mu.Unlock() // failed model/save calls never publish a partial turn
-	// Aprèn: els fets duradors de la resposta (amb les fonts) van al cervell.
-	s.startWindLearn(wind, msg, reply)
-	s.startWindMemoryLearn(wind, msg, reply)
-	s.startWindLessons(wind, msg, reply, res.hist)
-	writeJSON(w, map[string]any{"reply": reply, "wind": wind.ID, "parcial": res.parcial, "history": petHistoryJSON(history), "actions": remindActionsSince(s.remindOwner(), wind.ID, turnStart)})
+	s.handleWindTurn(w, r, false)
 }
 
 // freshWindID: un vent nou amb el nom d'un vent arxivat no pot heretar-ne
