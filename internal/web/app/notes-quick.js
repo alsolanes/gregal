@@ -12,8 +12,16 @@
   const ca = () => (document.documentElement.lang || 'ca') !== 'en';
   const t = (c, e) => (ca() ? c : e);
   const LAST = 'gregal_qn_last';
-  const icon = (name, fallback) => root.gregalIcon?.(name) || fallback || '';
-  const NOTE_SVG = '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5"/></svg>';
+  // Les icones són les de l'app (shell-icons.js); el traç de reserva és pel
+  // cas que aquest fitxer es carregui sol.
+  const sv = d => '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + d + '"/></svg>';
+  const RESERVA = {
+    note: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5', plus: 'M12 5v14 M5 12h14', close: 'M7 7l10 10 M17 7L7 17',
+    star: 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z', trash: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6',
+    task: 'M4 5h6v6H4z M5.5 8l1.5 1.5L9.5 6 M13 8h7 M4 15h6v6H4z M13 18h7', enter: 'M20 5v7a3 3 0 0 1-3 3H6 M10 11l-4 4 4 4',
+    sparkles: 'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
+  };
+  const icon = name => root.gregalIcon?.(name) || (RESERVA[name] ? sv(RESERVA[name]) : '');
 
   const S = {
     open: false, list: [], projects: [], noteProjects: [], filter: '', q: '',
@@ -46,11 +54,23 @@
   }
   const base = p => String(p || '').split(/[\\/]/).filter(Boolean).pop() || p;
   const day = iso => root.gregalNotes?.dayText?.(iso, ca() ? 'ca' : 'en') || '';
-  function say(text, bad) {
+  // say deixa un missatge al peu (i, si cal, un botó per resoldre-ho). Es
+  // desa a S.msg perquè el repintat de la nota no se l'endugui.
+  function say(text, bad, action) {
+    S.msg = text ? { text, bad: !!bad, action } : null;
+    paintStatus();
+  }
+  function paintStatus() {
     const s = $('qnStatus');
     if (!s) return;
-    s.textContent = text || '';
-    s.classList.toggle('bad', !!bad);
+    const m = S.msg;
+    s.textContent = m ? m.text : '';
+    s.classList.toggle('bad', !!(m && m.bad));
+    if (m && m.action) {
+      const [label, fn] = m.action;
+      const b = btn('qn-link', label, () => { S.msg = null; fn(); });
+      s.append(' ', b);
+    }
   }
 
   // ------------------------------------------------------------ dades
@@ -74,7 +94,7 @@
   async function openNote(id) {
     await flush();
     const d = await call('/api/notes?id=' + encodeURIComponent(id));
-    S.note = d.note; S.dirty = false; S.proposal = null;
+    S.note = d.note; S.dirty = false; S.proposal = null; S.msg = null;
     S.mode = (S.note.body || '').trim() ? 'read' : 'edit';
     try { localStorage.setItem(LAST, id); } catch {}
     paintList(); paintNote();
@@ -87,7 +107,7 @@
     // Esborrany local: el servidor no desa notes buides, així que es crea
     // amb la primera lletra.
     S.note = { id: '', title: '', body: '', project, pinned: false, updated: '' };
-    S.dirty = false; S.proposal = null; S.mode = 'edit';
+    S.dirty = false; S.proposal = null; S.msg = null; S.mode = 'edit';
     paintList(); paintNote();
     setTimeout(() => $('qnTitle')?.focus(), 0);
   }
@@ -137,6 +157,42 @@
 
   // ------------------------------------------------------------ pintar
 
+  // Tecles mentre el full és obert. En captura i a la finestra: l'Esc que
+  // tanca el full no ha d'arribar a l'index (amb un torn en marxa
+  // l'aturaria), ni el Ctrl+E (a Codi obre Fitxers darrere el full).
+  function keys(e) {
+    if (!S.open) return;
+    const sheet = document.querySelector('#qnPanel .qn-sheet');
+    if (!sheet) return;
+    // Un altre diàleg per damunt (paleta, primer inici): és seu.
+    if (document.querySelector('#palette:not([hidden]), dialog[open]')) return;
+    const mod = e.ctrlKey || e.metaKey;
+    const k = (e.key || '').toLowerCase();
+    if (e.key === 'Escape') {
+      e.preventDefault(); e.stopPropagation();
+      const ai = document.querySelector('#qnMain .qn-ai[open]');
+      if (ai) { ai.open = false; ai.querySelector('summary')?.focus(); return; }
+      if (S.proposal != null) { S.proposal = null; paintNote(); return; }
+      close();
+      return;
+    }
+    if (e.key === 'Tab') {
+      const f = [...sheet.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+        .filter(x => x.offsetParent !== null);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      return;
+    }
+    if (!mod || e.altKey) return;
+    if (k === 'e') { e.preventDefault(); e.stopPropagation(); setMode(S.mode === 'edit' ? 'read' : 'edit'); }
+    else if (k === 's') { e.preventDefault(); e.stopPropagation(); flush(); }
+    // Les dreceres de Codi (conversa nova, pestanya, vistes) no passen per sota del full.
+    // Ctrl+F, en canvi, cerca a les notes.
+    else if (k.length === 1 && 'ndgtf'.includes(k)) { e.preventDefault(); e.stopPropagation(); if (k === 'f') $('qnSearch')?.focus(); }
+  }
+
   function shell() {
     let box = $('qnPanel');
     if (box) return box;
@@ -148,13 +204,15 @@
     sheet.setAttribute('role', 'dialog');
     sheet.setAttribute('aria-modal', 'true');
     sheet.setAttribute('aria-label', t('Notes', 'Notes'));
+    sheet.tabIndex = -1;
     const side = el('aside', 'qn-side');
     const head = el('div', 'qn-side-head');
-    head.append(el('b', '', t('Notes', 'Notes')), btn('qn-new', t('Nota nova', 'New note'), () => newNote().catch(e => say(e.message, true)), icon('plus', '+')));
+    head.append(el('b', '', t('Notes', 'Notes')), btn('qn-new', t('Nota nova (Ctrl+Alt+N)', 'New note (Ctrl+Alt+N)'), () => newNote().catch(e => say(e.message, true)), icon('plus')));
     const search = el('input', 'qn-search');
     search.id = 'qnSearch';
     search.type = 'search';
     search.placeholder = t('Cerca a les notes…', 'Search notes…');
+    search.setAttribute('aria-label', t('Cerca a les notes', 'Search notes'));
     let st = 0;
     search.oninput = () => { clearTimeout(st); st = setTimeout(() => { S.q = search.value.trim(); loadList().catch(() => {}); }, 180); };
     const filter = el('select', 'qn-filter');
@@ -169,10 +227,11 @@
     sheet.append(side, main);
     box.append(sheet);
     document.body.append(box);
-    box.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { e.preventDefault(); if (S.proposal) { S.proposal = null; paintNote(); } else close(); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') { e.preventDefault(); setMode(S.mode === 'edit' ? 'read' : 'edit'); }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); flush(); }
+    window.addEventListener('keydown', keys, true);
+    // El menú d'IA es tanca en clicar fora, com qualsevol menú.
+    box.addEventListener('mousedown', e => {
+      const ai = box.querySelector('.qn-ai[open]');
+      if (ai && !ai.contains(e.target)) ai.open = false;
     });
     return box;
   }
@@ -200,20 +259,32 @@
     if (filter && document.activeElement !== filter) projectOptions(filter, S.filter, true);
     list.textContent = '';
     if (!S.list.length) {
-      list.append(el('p', 'qn-empty', S.q ? t('Cap nota no hi coincideix.', 'No matching notes.') : t('Encara no hi ha notes aquí.', 'No notes here yet.')));
+      const empty = el('div', 'qn-empty');
+      if (S.q) empty.append(el('p', '', t('Cap nota no hi coincideix.', 'No matching notes.')));
+      else if (S.filter) empty.append(el('p', '', t('Aquest projecte encara no té notes.', 'This project has no notes yet.')));
+      else empty.append(el('p', '', t('Encara no tens cap nota.', 'You have no notes yet.')),
+        el('small', '', t('Ctrl+Alt+N n’obre una de nova des de qualsevol lloc de Gregal.', 'Ctrl+Alt+N opens a new one from anywhere in Gregal.')));
+      list.append(empty);
       return;
     }
     for (const n of S.list) {
       const item = btn('qn-item' + (S.note && S.note.id === n.id ? ' on' : ''), '', () => openNote(n.id).catch(e => say(e.message, true)));
       item.removeAttribute('aria-label');
+      if (S.note && S.note.id === n.id) item.setAttribute('aria-current', 'true');
       const top = el('span', 'qn-item-top');
       top.append(el('b', '', n.title || t('Sense títol', 'Untitled')));
-      if (n.pinned) top.append(el('span', 'qn-pin', '★'));
+      if (n.pinned) { const pin = el('span', 'qn-pin'); pin.innerHTML = icon('star'); pin.title = t('Fixada', 'Pinned'); top.append(pin); }
       item.append(top);
       const meta = el('span', 'qn-item-meta');
       meta.append(el('span', '', day(n.updated)));
       if (n.project) meta.append(el('span', 'qn-proj', base(n.project)));
-      if (n.tasks_open) meta.append(el('span', '', '☐ ' + n.tasks_open));
+      if (n.tasks_open) {
+        const tk = el('span', 'qn-tasks');
+        tk.innerHTML = icon('task');
+        tk.append(String(n.tasks_open));
+        tk.title = t(n.tasks_open + ' tasques per fer', n.tasks_open + ' open tasks');
+        meta.append(tk);
+      }
       item.append(meta);
       if (n.excerpt) item.append(el('span', 'qn-item-ex', n.excerpt));
       list.append(item);
@@ -266,14 +337,14 @@
     if (!main) return;
     main.textContent = '';
     const top = el('div', 'qn-top');
-    const close_ = btn('qn-icon', t('Tanca (Esc)', 'Close (Esc)'), close, icon('close', '×'));
+    const close_ = btn('qn-icon', t('Tanca (Esc)', 'Close (Esc)'), close, icon('close'));
     if (!S.note) {
       top.append(el('span', 'qn-spacer'), close_);
       const empty = el('div', 'qn-blank');
       empty.append(el('p', '', t('Tria una nota o comença\'n una de nova.', 'Pick a note or start a new one.')),
         btn('qn-primary', t('Nota nova', 'New note'), () => newNote().catch(e => say(e.message, true))));
       main.append(top, empty, el('p', 'qn-status'));
-      main.lastChild.id = 'qnStatus';
+      main.lastChild.id = 'qnStatus'; main.lastChild.setAttribute('role', 'status'); paintStatus();
       return;
     }
     const n = S.note;
@@ -282,16 +353,22 @@
     projectOptions(proj, n.project || '', false);
     proj.onchange = () => { n.project = proj.value; touch(); };
     const mode = el('div', 'qn-seg');
+    mode.setAttribute('role', 'group');
+    mode.setAttribute('aria-label', t('Mode', 'Mode'));
     for (const [m, label] of [['read', t('Llegeix', 'Read')], ['edit', t('Edita', 'Edit')]]) {
       const b = btn(S.mode === m ? 'on' : '', '', () => setMode(m));
       b.textContent = label;
       b.title = label + ' (Ctrl+E)';
+      b.setAttribute('aria-pressed', String(S.mode === m));
       mode.append(b);
     }
     const ai = el('details', 'qn-ai');
     const sum = el('summary', 'qn-ai-btn');
-    sum.innerHTML = icon('sparkles', '✦') + '<span>' + t('IA', 'AI') + '</span>';
+    sum.innerHTML = icon('sparkles') + '<span>' + t('IA', 'AI') + '</span>';
+    sum.title = t('Accions d’IA sobre aquesta nota', 'AI actions on this note');
     ai.append(sum);
+    // En obrir el menú, el focus va a la primera acció (i Esc el tanca).
+    ai.addEventListener('toggle', () => { if (ai.open) setTimeout(() => menu.querySelector('button')?.focus(), 0); });
     const menu = el('div', 'qn-ai-menu');
     for (const [a, label, help] of [
       ['tidy', t('Neteja', 'Clean up'), t('Ortografia, format i línies repetides', 'Spelling, formatting and duplicates')],
@@ -307,7 +384,7 @@
     const inp = el('input');
     inp.placeholder = t('Demana-li el que vulguis…', 'Ask for anything…');
     inp.setAttribute('aria-label', t('Instrucció per a la IA', 'Instruction for the AI'));
-    const go = btn('qn-ai-go', t('Fes-ho', 'Go'), null, '↵');
+    const go = btn('qn-ai-go', t('Fes-ho', 'Go'), null, icon('enter'));
     go.type = 'submit';
     ask.append(inp, go);
     ask.onsubmit = e => { e.preventDefault(); if (!inp.value.trim()) return; ai.open = false; runAI('custom', inp.value.trim()); inp.value = ''; };
@@ -316,7 +393,7 @@
     const pin = btn('qn-icon' + (n.pinned ? ' on' : ''), n.pinned ? t('Desfixa', 'Unpin') : t('Fixa a dalt', 'Pin'), async () => {
       const out = await call('/api/notes', { action: 'pin', id: n.id, pinned: !n.pinned }).catch(e => { say(e.message, true); return null; });
       if (out) { n.pinned = out.pinned; n.updated = out.updated; await loadList(); paintNote(); }
-    }, '★');
+    }, icon('star'));
     const del = btn('qn-icon', t('Esborra la nota', 'Delete note'), async () => {
       if (!confirm(t('Vols esborrar aquesta nota?', 'Delete this note?'))) return;
       clearTimeout(S.timer); S.dirty = false;
@@ -324,7 +401,8 @@
       S.note = null;
       await loadList();
       if (S.list[0]) await openNote(S.list[0].id); else paintNote();
-    }, '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6"/></svg>');
+    }, icon('trash'));
+    pin.setAttribute('aria-pressed', String(!!n.pinned));
     if (!n.id) { pin.disabled = true; del.disabled = true; }
     top.append(proj, el('span', 'qn-spacer'), mode, ai, pin, del, close_);
 
@@ -393,22 +471,33 @@
     const foot = el('div', 'qn-foot');
     const st = el('p', 'qn-status');
     st.id = 'qnStatus';
+    st.setAttribute('role', 'status');
     foot.append(st, el('span', 'qn-meta', n.updated ? t('Editada ', 'Edited ') + day(n.updated) : ''));
     main.append(top, title, body, foot);
+    // El missatge sobreviu al repintat (abans l'error de la IA desapareixia
+    // en el mateix instant que sortia).
+    if (S.msg) paintStatus();
   }
+
+  // Sense model: el mateix diàleg que el primer inici, des d'aquí mateix.
+  const modelMissing = e => (e.status === 400 && /model/i.test(e.message)) || /api key|clau d.api|\b401\b|unauthori[sz]ed/i.test(e.message);
 
   async function runAI(action, instruction) {
     const n = S.note;
     if (!n || S.busy) return;
     if (!(n.body || '').trim() && action !== 'custom') { say(t('Escriu alguna cosa primer.', 'Write something first.'), true); return; }
     S.busy = true;
+    S.msg = null;
     paintNote();
     try {
       const out = await call('/api/notes/ai', { action, instruction: instruction || '', title: n.title || '', body: n.body || '' });
       S.proposal = out.changed ? out.body : null;
       if (!out.changed) say(t('La IA no hi veu res a canviar.', 'Nothing to change.'));
     } catch (e) {
-      say(e.status === 400 && /model/.test(e.message) ? t('Configura un model a Preferències per fer servir la IA.', 'Set up a model in Preferences to use AI.') : e.message, true);
+      if (modelMissing(e) && root.gregalOnboarding) {
+        say(e.status === 400 ? t('Per fer servir la IA cal un model connectat.', 'AI needs a connected model.') : e.message, true,
+          [t('Connecta un model', 'Connect a model'), async () => { await close(); root.gregalOnboarding.open(); }]);
+      } else say(e.message, true);
     } finally {
       S.busy = false;
       paintNote();
@@ -428,17 +517,25 @@
     await loadProjects();
     await loadList().catch(e => say(e.message, true));
     if (opts.new) return newNote();
-    if (S.note) { paintNote(); return; }
-    let last = '';
-    try { last = localStorage.getItem(LAST) || ''; } catch {}
-    const target = S.list.find(n => n.id === last) || S.list[0];
-    if (target) await openNote(target.id);
-    else await newNote();
+    if (S.note) paintNote();
+    else {
+      let last = '';
+      try { last = localStorage.getItem(LAST) || ''; } catch {}
+      const target = S.list.find(n => n.id === last) || S.list[0];
+      if (target) await openNote(target.id);
+      else return newNote();
+    }
+    // El focus entra al full (abans es quedava a la pàgina de sota, i ni
+    // l'Esc ni el Ctrl+E hi arribaven).
+    const sheet = box.querySelector('.qn-sheet');
+    if (sheet && !sheet.contains(document.activeElement)) (S.mode === 'edit' ? $('qnBody') : sheet)?.focus();
   }
   async function close() {
     await flush();
     const box = $('qnPanel');
     if (box) box.hidden = true;
+    const ai = box && box.querySelector('.qn-ai[open]');
+    if (ai) ai.open = false;
     S.open = false;
     document.body.classList.remove('qn-on');
     if (S.returnFocus?.isConnected) S.returnFocus.focus();
@@ -448,7 +545,7 @@
   // ------------------------------------------------------------ botons
 
   function makeButton(cls) {
-    const b = btn('icon-btn qn-launch ' + (cls || ''), t('Notes (Ctrl+Alt+N)', 'Notes (Ctrl+Alt+N)'), toggle, NOTE_SVG);
+    const b = btn('icon-btn qn-launch ' + (cls || ''), t('Notes (Ctrl+Alt+N)', 'Notes (Ctrl+Alt+N)'), toggle, icon('note'));
     return b;
   }
   function placeButtons() {
