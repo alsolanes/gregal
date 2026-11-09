@@ -232,7 +232,7 @@ private fun CapBar(icon: String, value: Int, accent: Color, label: String, modif
         Text(icon, fontSize = 11.sp)
         Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(3.dp)).background(SuperficieAlta)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(value.coerceIn(0, 100) / 100f).clip(RoundedCornerShape(3.dp))
-                .background(if (value < 30) Color(0xFFE57373) else accent))
+                .background(if (value < 30) Red else accent))
         }
     }
 }

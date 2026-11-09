@@ -185,7 +185,7 @@ private fun SimpleVentsDrawer(
 @Composable
 private fun DrawerSection(label: String) {
     Text(
-        label.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
+        label.uppercase(), style = GregalType.overline, color = Faint,
         modifier = Modifier.padding(start = 14.dp, top = 20.dp, bottom = 6.dp),
     )
 }

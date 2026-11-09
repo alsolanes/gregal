@@ -131,7 +131,7 @@ fun ProviderSetup(
     GlassCard(modifier.fillMaxWidth(), hi = true) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(tr(lang, if (change) "app.setup.changeTitle" else "app.setup.title"), color = Ink, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-            Text(tr(lang, if (change) "app.prefs.modelHelp" else "app.setup.help"), color = Muted, fontSize = 13.sp)
+            Text(tr(lang, if (change) "app.prefs.modelHelp" else "app.setup.help"), color = Muted, style = GregalType.bodySmall)
             Box {
                 TextButton(onClick = { expanded = true }) {
                     Text(choices.firstOrNull { it.name == chosen }?.label ?: tr(lang, "app.setup.addProvider"))
@@ -145,7 +145,7 @@ fun ProviderSetup(
             }
             val sel = choices.firstOrNull { it.name == chosen }
             val where = sel?.let { keyDomain(it.note) }.orEmpty()
-            if (where.isNotEmpty()) Text(tr(lang, "app.setup.where", where), color = Faint, fontSize = 12.sp)
+            if (where.isNotEmpty()) Text(tr(lang, "app.setup.where", where), color = Faint, style = GregalType.caption)
             ProviderKeyField(lang, key) { key = it.trim() }
             Button(
                 onClick = { vm.connectProvider(chosen, key) { key = ""; onDone() } },
@@ -157,7 +157,7 @@ fun ProviderSetup(
                 Text(tr(lang, "app.menu.test"))
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Sea, trackColor = Line)
-            if (msg.isNotBlank() && !busy) Text(msg, color = Muted, fontSize = 12.sp)
+            if (msg.isNotBlank() && !busy) Text(msg, color = Muted, style = GregalType.caption)
 
             // El catàleg no ho cobreix tot: servidors propis, un altre
             // OpenAI-compatible, un endpoint de feina. El servidor accepta
@@ -205,7 +205,7 @@ fun ProviderSetup(
             // Mateixa distinció que feia l'antic diàleg de clau del menú de
             // model: en remot la clau viu a la memòria del servidor fins que
             // es reiniciï; prometre que "es desa al dispositiu" seria fals.
-            Text(tr(lang, if (conn.local) "app.setup.stored" else "app.menu.keyMemory"), color = Faint, fontSize = 11.sp)
+            Text(tr(lang, if (conn.local) "app.setup.stored" else "app.menu.keyMemory"), color = Faint, style = GregalType.caption)
         }
     }
 }

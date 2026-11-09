@@ -92,11 +92,11 @@ fun GregalTopBar(
         title = {
             Column {
                 Text(
-                    title, fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Ink, letterSpacing = (-0.3).sp,
+                    title, style = GregalType.title, color = Ink,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.semantics { heading() },
                 )
                 if (!subtitle.isNullOrBlank()) {
-                    Text(subtitle, fontSize = 12.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(subtitle, style = GregalType.caption, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         },
@@ -113,7 +113,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier, action: (@Composab
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
+            text.uppercase(), style = GregalType.overline, color = Faint,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
         action?.invoke()

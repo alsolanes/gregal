@@ -132,10 +132,11 @@ internal fun FeinesDialog(vm: GregalViewModel, lang: String, onOpenThread: (Stri
 private fun FeinaRow(lang: String, t: WindTask, onFile: (String) -> Unit, onThread: () -> Unit) {
     val (label, color) = when (t.status) {
         "running" -> tr(lang, "app.feines.st.running") to Sea
-        "done" -> tr(lang, "app.feines.st.done") to Color(0xFF6FCF97)
+        // Verd i vermell de la paleta: els fixos d'abans no es llegien sobre el tema clar.
+        "done" -> tr(lang, "app.feines.st.done") to Green
         "interrupted" -> tr(lang, "app.feines.st.interrupted") to Sand
         "cancelled" -> tr(lang, "app.feines.st.cancelled") to Muted
-        else -> tr(lang, "app.feines.st.failed") to Color(0xFFE57373)
+        else -> tr(lang, "app.feines.st.failed") to Red
     }
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {

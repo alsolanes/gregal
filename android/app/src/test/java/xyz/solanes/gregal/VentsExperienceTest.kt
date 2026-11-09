@@ -24,30 +24,25 @@ class VentsExperienceTest {
     @get:Rule val ui = createComposeRule()
     private fun vm() = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
 
-    @Test fun homePortraitDescribesRealActivityAndRespectsReducedMotion() {
-        val lead = Wind("gregal", "Gregal", "#C1B4DE", "organització")
-        val reading = mutableStateOf(true)
-        val finished = mutableStateOf(false)
+    @Test fun cleanOpeningIsGreetingAndComposerAndSendsWithoutMotion() {
+        val text = mutableStateOf("")
+        var sent = ""
         ui.setContent {
             CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
                 MaterialTheme(colorScheme = LightPal.scheme()) {
-                    AskHero(
-                        "ca", "", lead, listOf(lead),
-                        busy = if (reading.value) setOf(lead.id) else emptySet(),
-                        news = emptySet(),
-                        activeMood = WindMood.READING,
-                        finished = finished.value,
-                    ) {}
+                    VentsOpening("ca", "Aleix", text.value, { text.value = it }, busy = false,
+                        onPhoto = null, onDoc = null, onSend = { sent = it })
                 }
             }
         }
-        val portrait = ui.onNodeWithTag("ask-portrait")
-        portrait.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "està llegint…"))
-            .assertHasNoClickAction()
-        ui.runOnIdle { reading.value = false; finished.value = true }
-        portrait.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Resposta enllestida"))
-        ui.runOnIdle { finished.value = false }
-        portrait.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+        // La portada és la salutació i el camp: ni la cara, ni la colla, ni suggeriments.
+        ui.onNodeWithTag("opening-greeting").assertExists()
+        ui.onNodeWithTag("ask-input").assertExists()
+        ui.onNodeWithTag("ask-crew").assertDoesNotExist()
+        ui.onNodeWithTag("ask-portrait").assertDoesNotExist()
+        ui.onNodeWithTag("ask-input").performTextInput("Organitza'm la setmana")
+        ui.onNodeWithTag("ask-send").performClick()
+        ui.runOnIdle { org.junit.Assert.assertEquals("Organitza'm la setmana", sent) }
     }
 
     @Test fun companionScreenActuallyDisplaysRequestErrors() {
@@ -102,8 +97,8 @@ class VentsExperienceTest {
         val converses = ui.onAllNodesWithText(tr("ca", "app.vents.conversations"), ignoreCase = true).fetchSemanticsNodes().isNotEmpty()
         // Sense cap vent (compte nou) surt la benvinguda amb la colla del dia a dia.
         val benvinguda = ui.onAllNodesWithText(tr("ca", "app.vents.welcomeOwn")).fetchSemanticsNodes().isNotEmpty()
-        // Amb vents (p. ex. un Gregal servint al 8097), l'inici és el de «pregunta primer».
-        val pregunta = ui.onAllNodesWithText(askCopy("ca", "sub")).fetchSemanticsNodes().isNotEmpty()
+        // Amb vents (p. ex. un Gregal servint al 8097), l'inici és la portada neta: salutació i compositor.
+        val pregunta = ui.onAllNodesWithTag("vents-opening").fetchSemanticsNodes().isNotEmpty()
         org.junit.Assert.assertTrue("la portada no ensenya ni les converses, ni el buit, ni la benvinguda, ni l'inici de preguntar", buit || converses || benvinguda || pregunta)
         ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()

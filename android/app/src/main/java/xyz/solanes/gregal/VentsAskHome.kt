@@ -1,11 +1,12 @@
 package xyz.solanes.gregal
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -14,11 +15,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AddPhotoAlternate
+import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material.icons.rounded.ArrowUpward
-import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -27,29 +28,41 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 /**
- * L'inici dels Vents a l'estil dels grans assistents (Grok, ChatGPT, dots):
- * primer es pregunta. Una salutació, la colla a un toc, «Avui» amb el que hi
- * ha en marxa i el que ve, i el camp d'escriptura gran a baix. El que
- * s'escriu aquí va al Ventet, que respon o ho passa a qui toca (un vent o
- * una colla). Les converses són a la pestanya «Xats».
+ * L'inici dels Vents, net com el de l'escriptori: la salutació gran, una
+ * lluïssor suau al darrere i el compositor just a sota. El que és nou o en
+ * marxa surt a sota, discret. El que s'escriu aquí va al Ventet, que respon o
+ * ho passa a qui toca (un vent o una colla). Les converses són a «Xats».
  */
 
 internal fun askCopy(lang: String, key: String): String {
@@ -91,14 +104,6 @@ internal fun askGreeting(lang: String, hour: Int, name: String): String {
     val first = name.trim().split(Regex("\\s+")).firstOrNull().orEmpty()
     return if (first.isBlank()) "$base." else "$base, ${first.replaceFirstChar { it.uppercase() }}."
 }
-
-internal fun askSuggestions(lang: String): List<String> = if (lang == "en") listOf(
-    "Build me a page and publish it", "Search the web and summarise it", "Read this PDF and plan the work",
-    "Make me an Android app and send the APK", "What have I published?", "Plan my week",
-) else listOf(
-    "Fes-me una web i publica-la", "Cerca-ho a internet i resumeix-ho", "Llegeix aquest PDF i planifica la feina",
-    "Fes-me una app Android i passa’m l’APK", "Què tinc publicat?", "Organitza’m la setmana",
-)
 
 /** Una targeta d'«Avui». */
 internal data class TodayCard(
@@ -146,16 +151,17 @@ internal fun todayCards(
 @Composable
 internal fun AskTabs(lang: String, tab: String, unread: Int, onTab: (String) -> Unit) {
     Row(
-        Modifier.padding(start = 16.dp, top = 4.dp, bottom = 6.dp).clip(RoundedCornerShape(999.dp))
-            .background(SuperficieAlta.copy(alpha = .55f)).padding(3.dp),
+        Modifier.padding(start = 16.dp, top = 4.dp, bottom = 6.dp).clip(GregalShape.pill)
+            .background(SuperficieAlta.copy(alpha = .55f)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         listOf("home", "chats").forEach { key ->
             val on = tab == key
+            // Cada pestanya fa 40 dp i la càpsula 48: abans eren 34 dp, justos per al dit.
             Row(
-                Modifier.clip(RoundedCornerShape(999.dp)).background(if (on) Ink else Color.Transparent)
+                Modifier.heightIn(min = 40.dp).clip(GregalShape.pill).background(if (on) Ink else Color.Transparent)
                     .clickable { onTab(key) }.semantics { selected = on; contentDescription = askCopy(lang, key) }
-                    .padding(horizontal = 16.dp, vertical = 7.dp).testTag("ask-tab-$key"),
+                    .padding(horizontal = 18.dp).testTag("ask-tab-$key"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(askCopy(lang, key), color = if (on) Superficie else Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
@@ -168,87 +174,217 @@ internal fun AskTabs(lang: String, tab: String, unread: Int, onTab: (String) -> 
     }
 }
 
-/** La part de dalt de l'inici: la cara que respira, la salutació i la colla. */
+/**
+ * La lluïssor de la portada, com a l'escriptori: dos degradats radials (l'accent
+ * al 14% al centre i el lila al 8% una mica a la dreta) que s'esvaeixen. Es
+ * calcula un cop per mida i es pinta estàtica: cap cost per fotograma.
+ * [centerY] és on cau el centre, en fracció de l'alçada.
+ */
+internal fun Modifier.openingHalo(accent: Color, lila: Color, centerY: Float = .42f): Modifier = drawWithCache {
+    val w = size.width
+    val h = size.height
+    val c1 = Offset(w * .5f, h * centerY)
+    val rx1 = w * .80f
+    val ry1 = minOf(h * .36f, w * .66f)
+    val halo = Brush.radialGradient(0f to accent.copy(alpha = .14f), .75f to Color.Transparent, center = c1, radius = rx1)
+    val c2 = Offset(w * .62f, c1.y + ry1 * .22f)
+    val rx2 = w * .52f
+    val ry2 = ry1 * .72f
+    val lilaHalo = Brush.radialGradient(0f to lila.copy(alpha = .08f), .72f to Color.Transparent, center = c2, radius = rx2)
+    onDrawBehind {
+        // El·lipses: un cercle aixafat al voltant del seu centre.
+        scale(1f, ry1 / rx1, pivot = c1) { drawCircle(halo, radius = rx1, center = c1) }
+        scale(1f, ry2 / rx2, pivot = c2) { drawCircle(lilaHalo, radius = rx2, center = c2) }
+    }
+}
+
+/** La salutació gran de la portada, amb el degradat de l'escriptori (accent → lila → aqua en fosc; tinta en clar). */
 @Composable
-internal fun AskHero(
+internal fun OpeningGreeting(text: String, modifier: Modifier = Modifier) {
+    val p = LocalPal.current
+    val brush = remember(p) {
+        if (p.dark) Brush.horizontalGradient(listOf(p.seaClara, p.lila, p.onada))
+        else Brush.horizontalGradient(listOf(p.ink, p.ink, p.seaClara))
+    }
+    Text(
+        text, style = GregalType.hero.copy(brush = brush), textAlign = TextAlign.Center,
+        modifier = modifier.padding(horizontal = 28.dp).testTag("opening-greeting"),
+    )
+}
+
+/**
+ * L'anell d'enfocament dels compositors (el `--ring` de l'escriptori): una vora
+ * de 3 dp de l'accent, per fora de la pastilla, només mentre s'escriu.
+ */
+internal fun Modifier.focusRing(focused: Boolean, color: Color, corner: Dp = 28.dp): Modifier =
+    if (!focused) this else drawBehind {
+        val grow = 3.dp.toPx()
+        drawRoundRect(
+            color = color.copy(alpha = .22f),
+            topLeft = Offset(-grow / 2f, -grow / 2f),
+            size = Size(size.width + grow, size.height + grow),
+            cornerRadius = CornerRadius(corner.toPx() + grow / 2f),
+            style = Stroke(width = grow),
+        )
+    }
+
+/**
+ * El compositor que baixa de la portada al seu lloc quan comença la conversa
+ * (FLIP: on era → on és). La portada hi apunta [from] (la vora de baix del
+ * compositor, en coordenades d'arrel) i el compositor de baix, en aparèixer,
+ * surt d'allà i hi llisca.
+ */
+internal class ComposerFlip {
+    var from: Float? = null
+    var offset by mutableFloatStateOf(0f)
+}
+
+internal fun Modifier.landing(flip: ComposerFlip, scope: kotlinx.coroutines.CoroutineScope, enabled: Boolean): Modifier =
+    onGloballyPositioned { c ->
+        val start = flip.from ?: return@onGloballyPositioned
+        flip.from = null
+        val d = start - c.boundsInRoot().bottom
+        if (!enabled || d >= 0f) return@onGloballyPositioned
+        flip.offset = d
+        scope.launch {
+            androidx.compose.animation.core.animate(d, 0f, animationSpec = tween(320, easing = FastOutSlowInEasing)) { v, _ -> flip.offset = v }
+        }
+    }.graphicsLayer { translationY = flip.offset }
+
+/**
+ * La portada neta dels Vents: la salutació gran amb la lluïssor al darrere i el
+ * compositor just a sota. Res més no hi competeix: el que és nou o en marxa
+ * ([below]) surt a sota, discret, i s'amaga mentre escrius. En enviar, el
+ * compositor baixa al seu lloc (a baix) i llavors s'obre la conversa.
+ */
+@Composable
+internal fun VentsOpening(
     lang: String,
     name: String,
-    lead: Wind,
-    winds: List<Wind>,
-    busy: Set<String>,
-    news: Set<String>,
-    activeMood: WindMood?,
-    finished: Boolean,
-    onTalk: (Wind) -> Unit,
+    text: String,
+    onText: (String) -> Unit,
+    busy: Boolean,
+    onPhoto: (() -> Unit)?,
+    onDoc: (() -> Unit)?,
+    onSend: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    below: @Composable ColumnScope.() -> Unit = {},
 ) {
-    val accent = Color(lead.argb)
-    val mood = when {
-        lead.id in busy -> activeMood ?: WindMood.THINKING
-        finished -> WindMood.DONE
-        lead.id in news -> WindMood.NEWS
-        else -> WindMood.IDLE
-    }
-    val status = if (mood == WindMood.DONE) {
-        if (lang == "en") "Reply ready" else "Resposta enllestida"
-    } else windStateLabel(lang, mood, lead.id in busy)
-    Column(Modifier.fillMaxWidth().padding(top = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(124.dp).drawWithCache {
-                val halo = Brush.radialGradient(
-                    0f to accent.copy(alpha = .24f),
-                    .52f to accent.copy(alpha = .12f),
-                    1f to Color.Transparent,
-                )
-                onDrawBehind { drawCircle(halo) }
-            },
-            contentAlignment = Alignment.Center,
-        ) {
-            key(lead.id) {
-                WindFace(
-                    size = 96, mood = mood, accent = accent, style = lead.faceStyle, tappable = true,
-                    modifier = Modifier.testTag("ask-portrait").semantics {
-                        contentDescription = lead.name
-                        if (status != null) stateDescription = status
-                    },
-                )
-            }
+    val p = LocalPal.current
+    val motion = LocalWindMotion.current
+    val scope = rememberCoroutineScope()
+    var focused by remember { mutableStateOf(false) }
+    // 0: sota la salutació; 1: a baix de tot, on viu el compositor de la conversa.
+    val drop = remember { Animatable(0f) }
+    // On acaba l'àrea visible (sobre el teclat) i on acaba el compositor: la
+    // distància es calcula en dibuixar, així no depèn de l'ordre dels callbacks.
+    var composerBottom by remember { mutableFloatStateOf(0f) }
+    var areaBottom by remember { mutableFloatStateOf(0f) }
+    val gap = with(LocalDensity.current) { 10.dp.toPx() }
+    fun send() {
+        val t = text.trim()
+        if (t.isEmpty() || busy || drop.isRunning) return
+        scope.launch {
+            if (motion) drop.animateTo(1f, tween(280, easing = FastOutSlowInEasing))
+            onSend(t)
         }
-        Text(askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
-            color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 34.sp,
-            modifier = Modifier.padding(horizontal = 24.dp))
-        Text(askCopy(lang, "sub"), color = Muted, fontSize = 14.sp, textAlign = TextAlign.Center, lineHeight = 19.sp,
-            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp))
-        if (winds.isNotEmpty()) LazyRow(
-            Modifier.fillMaxWidth().padding(top = 10.dp).testTag("ask-crew"),
-            contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+    }
+    Box(modifier.fillMaxSize().openingHalo(p.sea, p.lila).testTag("vents-opening")) {
+        Column(
+            Modifier.fillMaxSize().imePadding().onGloballyPositioned { areaBottom = it.boundsInRoot().bottom },
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            items(winds, key = { it.id }) { w ->
-                val mood = when { w.id in busy -> WindMood.THINKING; w.id in news -> WindMood.NEWS; else -> WindMood.IDLE }
-                Row(
-                    Modifier.clip(CircleShape).background(SuperficieAlta.copy(alpha = .65f))
-                        .border(1.dp, Color(w.argb).copy(alpha = if (mood == WindMood.NEWS) .65f else .22f), CircleShape)
-                        .clickable { onTalk(w) }.semantics { contentDescription = w.name }
-                        .padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    WindHalo(Color(w.argb), w.faceStyle, size = 30, mood = mood, online = false, showKit = false)
-                    Text(w.name, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1)
-                }
-            }
+            // Una mica per damunt del centre, com a l'escriptori.
+            Spacer(Modifier.weight(0.8f))
+            OpeningGreeting(
+                askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
+                Modifier.graphicsLayer { alpha = 1f - drop.value },
+            )
+            Spacer(Modifier.height(28.dp))
+            AskComposer(
+                lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
+                onFocus = { focused = it },
+                modifier = Modifier.padding(horizontal = 16.dp)
+                    .onGloballyPositioned { composerBottom = it.boundsInRoot().bottom }
+                    .graphicsLayer { translationY = drop.value * (areaBottom - gap - composerBottom).coerceAtLeast(0f) },
+            )
+            Spacer(Modifier.weight(1.2f))
+            // Escrivint, la portada és la salutació i el camp; prou.
+            if (!focused && text.isBlank() && drop.value == 0f) below()
         }
     }
 }
 
+/** El compositor de l'inici: una pastilla gran amb el botó d'enviar rodó, l'ombra suau i l'anell en escriure. */
 @Composable
-internal fun AskSuggestions(lang: String, onPick: (String) -> Unit) {
-    LazyRow(
-        Modifier.fillMaxWidth().padding(top = 14.dp),
-        contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+internal fun AskComposer(lang: String, text: String, onText: (String) -> Unit, busy: Boolean,
+    /** Afegir una foto o un document (PDF, Word, Excel…): es pugen i en queda la referència al camp. */
+    onPhoto: (() -> Unit)? = null,
+    onDoc: (() -> Unit)? = null,
+    onFocus: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier,
+    onSend: () -> Unit) {
+    val can = text.isNotBlank() && !busy
+    val dictate = rememberDictation(lang) { onText(appendDictated(text, it)) }
+    var focused by remember { mutableStateOf(false) }
+    val shape = GregalShape.xl
+    Row(
+        modifier.fillMaxWidth().workingRing(busy, corner = 28.dp)
+            .focusRing(focused, Sea)
+            .shadow(if (focused) 10.dp else 4.dp, shape, clip = false)
+            .clip(shape)
+            .background(SuperficieAlta).border(1.dp, if (focused) Sea.copy(alpha = .55f) else LineHi, shape)
+            .padding(start = if (onPhoto != null) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("ask-bar"),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(askSuggestions(lang)) { s ->
-            Text(s, color = Muted, fontSize = 13.sp, maxLines = 1,
-                modifier = Modifier.clip(RoundedCornerShape(12.dp)).border(1.dp, Line, RoundedCornerShape(12.dp))
-                    .clickable { onPick(s) }.padding(horizontal = 12.dp, vertical = 8.dp))
+        if (onPhoto != null || onDoc != null) {
+            var menu by remember { mutableStateOf(false) }
+            Box {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).clickable { menu = true }.semantics { contentDescription = askCopy(lang, "attach") }.testTag("ask-attach"),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Rounded.Add, null, tint = Muted, modifier = Modifier.size(24.dp)) }
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                    if (onPhoto != null) DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Sea) },
+                        text = { Text(askCopy(lang, "photo")) }, onClick = { menu = false; onPhoto() })
+                    if (onDoc != null) DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Rounded.Description, null, tint = Sea) },
+                        text = { Column { Text(askCopy(lang, "document")); Text(askCopy(lang, "documentHelp"), color = Muted, style = GregalType.caption) } },
+                        onClick = { menu = false; onDoc() })
+                }
+            }
+            Spacer(Modifier.width(4.dp))
+        }
+        Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
+            BasicTextField(
+                text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),
+                cursorBrush = SolidColor(Sea), maxLines = 5,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+                modifier = Modifier.fillMaxWidth().testTag("ask-input")
+                    .onFocusChanged { focused = it.isFocused; onFocus(it.isFocused) },
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        inner()
+                    }
+                },
+            )
+        }
+        // Camp buit: el micròfon (dictar); amb text: enviar.
+        val mic = !busy && text.isBlank() && dictate != null
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(if (can) Ink else Ink.copy(alpha = if (mic) .08f else .18f))
+                .clickable(enabled = can || mic, onClick = { if (mic) dictate?.invoke() else onSend() })
+                .semantics { contentDescription = if (mic) voiceCopy(lang, "dictate") else askCopy(lang, "send") }
+                .testTag("ask-send"),
+            contentAlignment = Alignment.Center,
+        ) {
+            when {
+                busy -> TypingDots(Superficie)
+                mic -> Icon(Icons.Rounded.Mic, null, tint = Ink, modifier = Modifier.size(22.dp))
+                else -> Icon(Icons.Rounded.ArrowUpward, null, tint = if (can) Superficie else Muted)
+            }
         }
     }
 }
@@ -258,8 +394,8 @@ internal fun TodaySection(lang: String, cards: List<TodayCard>, brief: GregalVie
     if (cards.isEmpty() && brief == null) return
     Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 28.dp).testTag("ask-today"),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(askCopy(lang, "today").uppercase(), color = Muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.9.sp, modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
+        Text(askCopy(lang, "today").uppercase(), color = Muted, style = GregalType.overline,
+            modifier = Modifier.padding(start = 4.dp, bottom = 2.dp))
         if (brief != null) TodayBriefView(lang, brief, briefWind, onBrief)
         cards.filter { brief == null || it.key != "briefing" }.forEach { c -> TodayCardView(c) }
     }
@@ -315,74 +451,6 @@ private fun Color.compositeOverSafe(bg: Color): Color = Color(
     red = red * alpha + bg.red * (1 - alpha), green = green * alpha + bg.green * (1 - alpha),
     blue = blue * alpha + bg.blue * (1 - alpha), alpha = maxOf(alpha, bg.alpha),
 )
-
-/** El camp gran de l'inici, fix a baix: una pastilla amb el botó d'enviar rodó. */
-@Composable
-internal fun AskBar(lang: String, text: String, onText: (String) -> Unit, busy: Boolean,
-    /** Afegir una foto o un document (PDF, Word, Excel…): es pugen i en queda la referència al camp. */
-    onPhoto: (() -> Unit)? = null,
-    onDoc: (() -> Unit)? = null,
-    onSend: () -> Unit) {
-    val can = text.isNotBlank() && !busy
-    val dictate = rememberDictation(lang) { onText(appendDictated(text, it)) }
-    Box(Modifier.fillMaxWidth().background(Brush.verticalGradient(listOf(Color.Transparent, Superficie, Superficie)))
-        .navigationBarsPadding().imePadding().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp)) {
-        Row(
-            Modifier.fillMaxWidth().workingRing(busy, corner = 28.dp).clip(RoundedCornerShape(28.dp))
-                .background(SuperficieAlta).border(1.dp, Line, RoundedCornerShape(28.dp))
-                .padding(start = if (onPhoto != null) 6.dp else 20.dp, end = 6.dp, top = 6.dp, bottom = 6.dp).testTag("ask-bar"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (onPhoto != null || onDoc != null) {
-                var menu by remember { mutableStateOf(false) }
-                Box {
-                    Box(
-                        Modifier.size(40.dp).clip(CircleShape).clickable { menu = true }.semantics { contentDescription = askCopy(lang, "attach") }.testTag("ask-attach"),
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(Icons.Rounded.Add, null, tint = Muted, modifier = Modifier.size(24.dp)) }
-                    DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        if (onPhoto != null) DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Rounded.AddPhotoAlternate, null, tint = Sea) },
-                            text = { Text(askCopy(lang, "photo")) }, onClick = { menu = false; onPhoto() })
-                        if (onDoc != null) DropdownMenuItem(
-                            leadingIcon = { Icon(Icons.Rounded.Description, null, tint = Sea) },
-                            text = { Column { Text(askCopy(lang, "document")); Text(askCopy(lang, "documentHelp"), color = Muted, fontSize = 11.5.sp) } },
-                            onClick = { menu = false; onDoc() })
-                    }
-                }
-                Spacer(Modifier.width(6.dp))
-            }
-            Box(Modifier.weight(1f).padding(vertical = 10.dp)) {
-                BasicTextField(
-                    text, onText, textStyle = TextStyle(color = Ink, fontSize = 16.sp, lineHeight = 22.sp),
-                    cursorBrush = SolidColor(Sea), maxLines = 5,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                    modifier = Modifier.fillMaxWidth().testTag("ask-input"),
-                    decorationBox = { inner ->
-                        Box(contentAlignment = Alignment.CenterStart) {
-                            if (text.isEmpty()) Text(askCopy(lang, "hint"), color = Muted, fontSize = 16.sp)
-                            inner()
-                        }
-                    },
-                )
-            }
-            // Camp buit: el micròfon (dictar); amb text: enviar.
-            val mic = !busy && text.isBlank() && dictate != null
-            Box(
-                Modifier.size(44.dp).clip(CircleShape).background(if (can) Ink else Ink.copy(alpha = if (mic) .08f else .18f))
-                    .clickable(enabled = can || mic, onClick = { if (mic) dictate?.invoke() else onSend() })
-                    .semantics { contentDescription = if (mic) voiceCopy(lang, "dictate") else askCopy(lang, "send") },
-                contentAlignment = Alignment.Center,
-            ) {
-                when {
-                    busy -> TypingDots(Superficie)
-                    mic -> Icon(Icons.Rounded.Mic, null, tint = Ink, modifier = Modifier.size(22.dp))
-                    else -> Icon(Icons.Rounded.ArrowUpward, null, tint = if (can) Superficie else Muted)
-                }
-            }
-        }
-    }
-}
 
 /** L'estat del camp de l'inici, perquè sobrevisqui a girar la pantalla. */
 @Composable

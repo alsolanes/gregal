@@ -1,11 +1,19 @@
 package xyz.solanes.gregal
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /** Paleta Gregal. Els noms en anglès es queden (els call sites no canvien),
  *  però els valors són els de `docs/identitat.md` ("Paleta" / "Paleta clara").
@@ -99,18 +107,99 @@ val LightPal = GregalPalette(
 
 val LocalPal = compositionLocalOf { DarkPal }
 
-/** Schemes Material derivats de la paleta (per als components M3). */
-fun GregalPalette.scheme() = if (dark) darkColorScheme(
-    primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
-    tertiary = lila, outline = Color(0xFF626B80), outlineVariant = algua, // outline = boxIdle (3:1)
-    background = deepTop, surface = surface, surfaceVariant = surfaceHi,
-    onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
-) else lightColorScheme(
-    primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
-    tertiary = lila, outline = Color(0xFF7E879B), outlineVariant = algua, // outline = boxIdle (3:1)
-    background = deepTop, surface = surface, surfaceVariant = surfaceHi,
-    onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
+/** Schemes Material derivats de la paleta (per als components M3).
+ *
+ *  Els contenidors (menús, diàlegs, xips seleccionats, fulls) també surten de
+ *  la paleta: sense això Material posava els seus grisos liles de referència
+ *  i un menú o un xip «Tots» destacaven com d'una altra app. */
+fun GregalPalette.scheme(): ColorScheme {
+    val low = lerp(deepTop, surface, 0.5f)
+    val high = lerp(surface, surfaceHi, 0.5f)
+    val secondaryBox = lerp(surface, sea, if (dark) 0.22f else 0.14f)
+    val primaryBox = lerp(surface, sea, if (dark) 0.28f else 0.18f)
+    val errorBox = lerp(surface, red, if (dark) 0.20f else 0.12f)
+    return if (dark) darkColorScheme(
+        primary = sea, onPrimary = onSea, secondary = onada, onSecondary = deepTop,
+        tertiary = lila, outline = Color(0xFF626B80), outlineVariant = algua, // outline = boxIdle (3:1)
+        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
+        onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
+        primaryContainer = primaryBox, onPrimaryContainer = ink,
+        secondaryContainer = secondaryBox, onSecondaryContainer = ink,
+        tertiaryContainer = lilaFons, onTertiaryContainer = ink,
+        errorContainer = errorBox, onErrorContainer = ink,
+        surfaceTint = sea, inverseSurface = ink, inverseOnSurface = deepTop, inversePrimary = seaClara,
+        surfaceDim = deepBottom, surfaceBright = surfaceHi,
+        surfaceContainerLowest = deepBottom, surfaceContainerLow = low, surfaceContainer = surface,
+        surfaceContainerHigh = high, surfaceContainerHighest = surfaceHi,
+    ) else lightColorScheme(
+        primary = sea, onPrimary = onSea, secondary = onada, onSecondary = Color.White,
+        tertiary = lila, outline = Color(0xFF7E879B), outlineVariant = algua, // outline = boxIdle (3:1)
+        background = deepTop, surface = surface, surfaceVariant = surfaceHi,
+        onBackground = ink, onSurface = ink, onSurfaceVariant = muted, error = red,
+        primaryContainer = primaryBox, onPrimaryContainer = ink,
+        secondaryContainer = secondaryBox, onSecondaryContainer = ink,
+        tertiaryContainer = lilaFons, onTertiaryContainer = ink,
+        errorContainer = errorBox, onErrorContainer = ink,
+        surfaceTint = sea, inverseSurface = ink, inverseOnSurface = surface, inversePrimary = seaClara,
+        surfaceDim = deepBottom, surfaceBright = surface,
+        surfaceContainerLowest = surface, surfaceContainerLow = surface, surfaceContainer = surface,
+        surfaceContainerHigh = high, surfaceContainerHighest = surfaceHi,
+    )
+}
+
+// ─── Escala tipogràfica i de formes ───────────────────────────────────
+// Pocs graons amb nom en lloc de mides soltes a cada pantalla. Cada estil
+// porta la seva interlínia: un Text amb només `fontSize = 13.sp` heretava
+// els 24 sp de bodyLarge i els paràgrafs petits quedaven esbarriats.
+
+/** Estils de text de Gregal, de més gran a més petit. */
+object GregalType {
+    /** La salutació de la portada (inici dels Vents i xat buit). */
+    val hero = TextStyle(fontSize = 34.sp, lineHeight = 40.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.9).sp)
+    /** Títols de pantalla i de full. */
+    val title = TextStyle(fontSize = 20.sp, lineHeight = 26.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp)
+    /** El títol d'una targeta o d'una fila destacada. */
+    val heading = TextStyle(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold)
+    /** Text de lectura: missatges i descripcions. */
+    val body = TextStyle(fontSize = 15.sp, lineHeight = 21.sp)
+    /** La segona línia d'una fila, ajudes sota un camp. */
+    val bodySmall = TextStyle(fontSize = 13.sp, lineHeight = 18.sp)
+    /** Hores, peus i etiquetes petites. */
+    val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
+    /** Capçaleres de secció en majúscules. */
+    val overline = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+}
+
+/** Radis de cantonada: cinc graons i la pastilla. */
+object GregalShape {
+    /** Codi, miniatures i etiquetes petites. */
+    val xs = RoundedCornerShape(8.dp)
+    /** Botons, camps i xips. */
+    val sm = RoundedCornerShape(12.dp)
+    /** Files i targetes (el més comú). */
+    val md = RoundedCornerShape(14.dp)
+    /** Targetes grans, fulls i diàlegs propis. */
+    val lg = RoundedCornerShape(20.dp)
+    /** El compositor i les bombolles. */
+    val xl = RoundedCornerShape(28.dp)
+    val pill = RoundedCornerShape(50)
+}
+
+/** Les formes de Material alineades amb [GregalShape]. */
+fun gregalShapes() = Shapes(
+    extraSmall = GregalShape.xs, small = GregalShape.sm, medium = GregalShape.md,
+    large = GregalShape.lg, extraLarge = GregalShape.xl,
 )
+
+/** El punt d'estat d'un servidor: respon (verd), no respon (vermell), canviant (sorra) o sense saber-ho. */
+@Composable
+@ReadOnlyComposable
+fun reachDot(reach: Boolean?, switching: Boolean = false): Color = when {
+    switching -> Sand
+    reach == true -> Green
+    reach == false -> Red
+    else -> Muted
+}
 
 // ─── Temes ────────────────────────────────────────────────────────────
 // Un tema és un parell de paletes (clara i fosca); el mode (sistema/clar/fosc)
@@ -161,30 +250,32 @@ val NitClar = paleta(
     onAccent = Color(0xFFFFFFFF),
 )
 
-/** Calma: verd salvi i molt aire. Pensat per llegir, no per lluir. */
+/** Calma: la variant càlida de l'escriptori (grafit càlid i ambre), la
+ *  mateixa que `:root[data-theme="calma"]` de `calma.css`. Abans aquí era un
+ *  verd salvi i el mateix nom volia dir dues coses segons on miraves. */
 val CalmaClar = paleta(
     dark = false,
-    accent = Color(0xFF1F6F5C), accentSoft = Color(0xFF17594A),
-    aqua = Color(0xFF0F766E), sand = Color(0xFFA16207),
-    bg = Color(0xFFF6F8F6), abyss = Color(0xFFEDF1EE),
-    surface = Color(0xFFFFFFFF), surfaceHi = Color(0xFFE6EDE8),
-    ink = Color(0xFF111C17), text = Color(0xFF1D2A24),
-    muted = Color(0xFF55635C), faint = Color(0xFF6B7A72),
-    green = Color(0xFF146C43), red = Color(0xFFB4232E),
-    lila = Color(0xFF6D5BD0), lilaFons = Color(0xFFEAE7FA),
+    accent = Color(0xFFA2581C), accentSoft = Color(0xFF8A4A17),
+    aqua = Color(0xFF0F766E), sand = Color(0xFF92620A),
+    bg = Color(0xFFFAF8F5), abyss = Color(0xFFF2EEE9),
+    surface = Color(0xFFFFFFFF), surfaceHi = Color(0xFFEEE9E3),
+    ink = Color(0xFF1C1916), text = Color(0xFF2A2622),
+    muted = Color(0xFF645D55), faint = Color(0xFF77706A),
+    green = Color(0xFF2E7A3A), red = Color(0xFFB4232E),
+    lila = Color(0xFF7A4BC0), lilaFons = Color(0xFFF1EAF7),
     onAccent = Color(0xFFFFFFFF),
 )
 val CalmaFosc = paleta(
     dark = true,
-    accent = Color(0xFF4FD1A5), accentSoft = Color(0xFF7FE3C1),
-    aqua = Color(0xFF5CE1D6), sand = Color(0xFFF5C451),
-    bg = Color(0xFF0C1210), abyss = Color(0xFF080D0B),
-    surface = Color(0xFF141B18), surfaceHi = Color(0xFF1D2521),
-    ink = Color(0xFFEAF1EC), text = Color(0xFFDCE6E0),
-    muted = Color(0xFF9BA9A1), faint = Color(0xFF7E8C85),
-    green = Color(0xFF6EDB95), red = Color(0xFFFF8A85),
-    lila = Color(0xFFC4B5FD), lilaFons = Color(0xFF202A3A),
-    onAccent = Color(0xFF08120E),
+    accent = Color(0xFFE8A96B), accentSoft = Color(0xFFF2BE88),
+    aqua = Color(0xFF7FC8B8), sand = Color(0xFFE8B75A),
+    bg = Color(0xFF1B1A19), abyss = Color(0xFF151413),
+    surface = Color(0xFF252322), surfaceHi = Color(0xFF2F2C2A),
+    ink = Color(0xFFF2EFE9), text = Color(0xFFDCD7D0),
+    muted = Color(0xFFA29D94), faint = Color(0xFF948F87),
+    green = Color(0xFF8FCB8A), red = Color(0xFFEE8E80),
+    lila = Color(0xFFC9A8E8), lilaFons = Color(0xFF2E2638),
+    onAccent = Color(0xFF1B1A19),
 )
 
 /** Paper: cru càlid i terracota. Res de blaus. */

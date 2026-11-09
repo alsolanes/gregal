@@ -242,7 +242,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             CompositionLocalProvider(LocalPal provides pal, LocalWindMotion provides vm.expressiveMotion.collectAsState().value, androidx.compose.ui.platform.LocalUriHandler provides uris) {
-            MaterialTheme(colorScheme = scheme, typography = gregalTypography()) {
+            MaterialTheme(colorScheme = scheme, typography = gregalTypography(), shapes = gregalShapes()) {
                 val screen by vm.screen.collectAsState()
                 val connected by vm.connected.collectAsState()
                 val conn by vm.conn.collectAsState()
@@ -319,8 +319,9 @@ class MainActivity : ComponentActivity() {
                 // El vent actiu acompanya per totes les pantalles EXCEPTE als
                 // mateixos vents i al xat de feina: allà ja hi ets, i el FAB
                 // es barrejaria amb els botons de crear conversa o taparia
-                // el botó d'enviar del composer.
-                if (screen != Screen.Company && screen != Screen.Chat && screen != Screen.Ventet && screen != Screen.Carpeta) {
+                // el botó d'enviar del composer. Tampoc a Preferències ni a
+                // l'emparellament: són formularis i la cara tapava text i camps.
+                if (connected && screen !in setOf(Screen.Company, Screen.Chat, Screen.Ventet, Screen.Carpeta, Screen.Prefs, Screen.Pairing)) {
                     WindFab(vm) { vm.go(Screen.Company) }
                 }
                 }

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -175,14 +176,14 @@ internal fun EmptyInboxFilter(lang: String, filter: String, actionLabel: String?
 @Composable
 private fun ExploreRow(@Suppress("UNUSED_PARAMETER") lang: String, title: String, subtitle: String, icon: ImageVector, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onClick)
-            .background(SuperficieAlta.copy(alpha = .42f)).padding(horizontal = 12.dp, vertical = 11.dp),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(GregalShape.md).clickable(onClick = onClick)
+            .background(SuperficieAlta.copy(alpha = .42f)).padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = Sea, modifier = Modifier.size(18.dp))
-        Column(Modifier.padding(start = 10.dp)) {
-            Text(title, color = Ink, fontSize = 14.sp)
-            Text(subtitle, color = Muted, fontSize = 12.sp)
+        Icon(icon, null, tint = Sea, modifier = Modifier.size(20.dp))
+        Column(Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(title, color = Ink, style = GregalType.body, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = Muted, style = GregalType.caption)
         }
     }
 }
