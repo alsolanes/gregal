@@ -207,41 +207,35 @@ test('cap clau del diccionari es queda sense fer servir', async () => {
 });
 
 // La finestra de l'escriptori pinta el fons i els botons natius abans que
-// la pàgina carregui, i aquests colors viuen a desktop/main.js. Si es
-// desenganxen dels tokens, torna a passar el que va passar: botons foscos
-// sobre una barra clara. Aquí es lliguen a la mateixa paleta.
+// la pàgina carregui (loading.html i la barra de títol). Sense colors desats,
+// fa servir FALLBACK de desktop/startup.js. Si es desenganxen dels tokens que
+// la pàgina pinta de debò, torna a passar el que va passar: botons foscos
+// sobre una barra clara. El fosc efectiu és el de calma.css (sobreescriu el
+// generat); el clar, el bloc light d'index.html.
 test("els colors d'arrencada de l'escriptori surten dels tokens", () => {
-  const main = fs.readFileSync(path.join(__dirname, "..", "..", "desktop", "main.js"), "utf8");
-  const m = /const TEMA = \{([\s\S]*?)\};/.exec(main);
-  assert.ok(m, "desktop/main.js ha de tenir la taula TEMA");
-  // Regex literal, no new RegExp: amb el constructor els escapats es
-  // perden pel camí i la comprovació passa a no comprovar res.
+  const startup = fs.readFileSync(path.join(__dirname, "..", "..", "desktop", "startup.js"), "utf8");
+  const m = /const FALLBACK = \{([\s\S]*?)\};/.exec(startup);
+  assert.ok(m, "desktop/startup.js ha de tenir la taula FALLBACK");
   const files = {};
-  for (const [, nom, bg, barra, glif] of m[1].matchAll(
-    /(fosc|clar):\s*\{\s*bg:\s*"(#[0-9A-Fa-f]{6})",\s*barra:\s*"(#[0-9A-Fa-f]{6})",\s*glif:\s*"(#[0-9A-Fa-f]{6})"\s*\}/g)) {
-    files[nom] = { bg: bg.toUpperCase(), barra: barra.toUpperCase(), glif: glif.toUpperCase() };
+  for (const [, nom, bg, bar, ink] of m[1].matchAll(
+    /(dark|light):\s*\{\s*bg:\s*'(#[0-9A-Fa-f]{6})',\s*bar:\s*'(#[0-9A-Fa-f]{6})',\s*ink:\s*'(#[0-9A-Fa-f]{6})'/g)) {
+    files[nom] = { bg: bg.toUpperCase(), bar: bar.toUpperCase(), ink: ink.toUpperCase() };
   }
-  const llegeix = linia => {
-    assert.ok(files[linia], `falta la fila ${linia} a TEMA`);
-    return files[linia];
-  };
   const tok = bloc => {
     const out = {};
     for (const [, k, v] of bloc.matchAll(/(--[a-z-]+)\s*:\s*([^;]+);/g)) out[k] = v.trim().toUpperCase();
     return out;
   };
-  const fosc = tok(/:root\s*\{([^}]*)\}/.exec(html)[1]);
+  const calma = fs.readFileSync(path.join(__dirname, "app", "calma.css"), "utf8");
+  const fosc = tok(/:root, :root\[data-theme="dark"\]\s*\{([^}]*)\}/.exec(calma)[1]);
   const clar = tok(/:root\[data-theme="light"\]\s*\{([^}]*)\}/.exec(html)[1]);
-
-  const f = llegeix("fosc");
-  assert.equal(f.bg, fosc["--bg"], "fons fosc");
-  assert.equal(f.barra, fosc["--sidebar"], "barra fosca");
-  assert.equal(f.glif, fosc["--ink"], "glifs foscos");
-
-  const c = llegeix("clar");
-  assert.equal(c.bg, clar["--bg"], "fons clar");
-  assert.equal(c.barra, clar["--sidebar"], "barra clara");
-  assert.equal(c.glif, clar["--ink"], "glifs clars");
+  for (const [nom, t] of [["dark", fosc], ["light", clar]]) {
+    const f = files[nom];
+    assert.ok(f, `falta la fila ${nom} a FALLBACK`);
+    assert.equal(f.bg, t["--bg"], `fons ${nom}`);
+    assert.equal(f.bar, t["--sidebar"], `barra ${nom}`);
+    assert.equal(f.ink, t["--ink"], `glifs ${nom}`);
+  }
 });
 
 // Contrast de la paleta, mesurat i clavat aquí perquè no pugui empitjorar
