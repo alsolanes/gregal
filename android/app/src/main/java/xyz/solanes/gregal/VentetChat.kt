@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,10 +35,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<Wind>, onBack: () -> Unit) {
     val ui by vm.cap.collectAsState()
-    val rotllanes by vm.rotllanes.collectAsState()
     val st = ui.state
     val accent = Color(st.argb)
-    val history = st.history
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) { mutableStateOf(TextFieldValue("")) }
     var profile by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
@@ -59,54 +58,7 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
             VentsChatHeader(lang, st.name,
                 if (ui.busy) tr(lang, "app.cap.thinking") else tr(lang, "app.cap.role"),
                 accent, st.faceStyle, mood, onBack = onBack, onProfile = { profile = true })
-            LazyColumn(Modifier.weight(1f).fillMaxWidth(), state = listState,
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
-                if (history.isEmpty()) item {
-                    if (ui.loadError) CapLoadError(lang) { vm.loadCap() }
-                    else ChatEmptyState(
-                        face = { WindHalo(accent, st.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true) },
-                        title = st.name,
-                        hint = tr(lang, "app.cap.hello"),
-                    )
-                }
-                items(history.size, key = { it }) { i ->
-                    val m = history[i]
-                    val gap = if (i > 0 && history[i - 1].from != m.from) 16.dp else 4.dp
-                    Column(Modifier.padding(top = gap)) {
-                        when {
-                            m.action == "link" -> CapLinkCard(lang, m, accent, winds, rotllanes) { vm.openVentsChat(m.link) }
-                            else -> {
-                                WindBubble(GregalViewModel.PetMsg(if (m.from == "user") "user" else "pet", m.text, ts = m.ts), accent, lang = lang)
-                                if (m.delegates) {
-                                    val pending = ui.pending
-                                    if (i == history.lastIndex && pending != null) {
-                                        Surface(color = accent.copy(alpha = .10f), shape = RoundedCornerShape(18.dp),
-                                            modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
-                                            Box(Modifier.padding(12.dp)) { CapDecisionRow(vm, lang, pending, winds, ui.course, ui.going) }
-                                        }
-                                    } else CapDecisionDone(lang, m, winds)
-                                }
-                            }
-                        }
-                    }
-                }
-                // Mentrestant: el que ha passat des de l'última visita, al final del fil.
-                if (st.briefCount > 0 && st.brief.isNotBlank()) item { CapNote(st.brief) }
-                if (ui.busy || ui.going) item {
-                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically) {
-                        TypingDots(accent)
-                        Text("  " + tr(lang, if (ui.going) "app.cap.going" else "app.cap.thinking"), fontSize = 13.sp, color = Muted)
-                    }
-                }
-                if (ui.error && !ui.busy) item {
-                    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cap-send-error"),
-                        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(tr(lang, "app.cap.error"), color = Red, fontSize = 14.sp, textAlign = TextAlign.Center)
-                        TextButton(onClick = { follow.requestFollow(); field = TextFieldValue(""); vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
-                    }
-                }
-            }
+            VentetThread(vm, lang, winds, listState, accent, Modifier.weight(1f), showEmpty = true)
             VentsComposer(lang, field, { field = it }, tr(lang, "app.cap.hint", st.name),
                 canSend = field.text.isNotBlank() && !ui.busy,
                 busy = ui.busy || ui.going, accent = accent) {
@@ -115,6 +67,77 @@ internal fun VentetConversation(vm: GregalViewModel, lang: String, winds: List<W
         }
     }
     if (profile) VentetProfile(vm, lang) { profile = false }
+}
+
+/**
+ * El fil del Ventet: els missatges, les propostes de delegació, el resum del
+ * que ha passat i l'error si no ha arribat. El fan servir les dues pantalles
+ * que el mostren —la conversa sencera i la portada amb la lluïssor— perquè
+ * sigui exactament el mateix xat i no dues coses que s'assemblen.
+ */
+@Composable
+internal fun VentetThread(
+    vm: GregalViewModel,
+    lang: String,
+    winds: List<Wind>,
+    listState: LazyListState,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    /** A la portada el fil només surt quan hi ha conversa: allà l'estat buit és la salutació. */
+    showEmpty: Boolean = true,
+) {
+    val ui by vm.cap.collectAsState()
+    val rotllanes by vm.rotllanes.collectAsState()
+    val st = ui.state
+    val history = st.history
+    LazyColumn(modifier.fillMaxWidth(), state = listState,
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
+        if (history.isEmpty() && showEmpty) item {
+            if (ui.loadError) CapLoadError(lang) { vm.loadCap() }
+            else ChatEmptyState(
+                face = { WindHalo(accent, st.faceStyle, size = 88, mood = WindMood.HAPPY, tappable = true) },
+                title = st.name,
+                hint = tr(lang, "app.cap.hello"),
+            )
+        }
+        items(history.size, key = { it }) { i ->
+            val m = history[i]
+            val gap = if (i > 0 && history[i - 1].from != m.from) 16.dp else 4.dp
+            Column(Modifier.padding(top = gap)) {
+                when {
+                    m.action == "link" -> CapLinkCard(lang, m, accent, winds, rotllanes) { vm.openVentsChat(m.link) }
+                    else -> {
+                        WindBubble(GregalViewModel.PetMsg(if (m.from == "user") "user" else "pet", m.text, ts = m.ts), accent, lang = lang)
+                        if (m.delegates) {
+                            val pending = ui.pending
+                            if (i == history.lastIndex && pending != null) {
+                                Surface(color = accent.copy(alpha = .10f), shape = RoundedCornerShape(18.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                                    Box(Modifier.padding(12.dp)) { CapDecisionRow(vm, lang, pending, winds, ui.course, ui.going) }
+                                }
+                            } else CapDecisionDone(lang, m, winds)
+                        }
+                    }
+                }
+            }
+        }
+        // Mentrestant: el que ha passat des de l'última visita, al final del fil.
+        if (st.briefCount > 0 && st.brief.isNotBlank()) item { CapNote(st.brief) }
+        if (ui.busy || ui.going) item {
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically) {
+                TypingDots(accent)
+                Text("  " + tr(lang, if (ui.going) "app.cap.going" else "app.cap.thinking"), fontSize = 13.sp, color = Muted)
+            }
+        }
+        if (ui.error && !ui.busy) item {
+            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cap-send-error"),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(tr(lang, "app.cap.error"), color = Red, fontSize = 14.sp, textAlign = TextAlign.Center)
+                TextButton(onClick = { vm.capRetry() }) { Text(tr(lang, "app.cap.retry"), color = Sea) }
+            }
+        }
+    }
 }
 
 /** No s'ha pogut carregar el Ventet: es diu i es pot tornar a provar. */

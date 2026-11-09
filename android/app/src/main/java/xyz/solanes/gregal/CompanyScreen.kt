@@ -350,17 +350,31 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                 ventsInbox(winds, rotllanes, chats, rChats, inboxQuery, summaries)
             }
             if (home) {
-                // La portada neta: salutació, lluïssor i el compositor al mig. A sota,
-                // només el que demana atenció (avisos nous, feina en marxa i el resum
-                // del matí si ja s'ha escrit); les converses per reprendre són a «Xats».
+                // La portada: salutació, lluïssor i el compositor al mig. Quan hi ha
+                // conversa, aquesta mateixa pantalla passa a ser el xat —amb la
+                // lluïssor al darrere i el camp a baix— en lloc de saltar a una altra.
+                val capSt = capUi.state
+                val chatting = capSt.history.isNotEmpty() || capUi.busy
+                val homeList = rememberLazyListState()
+                val homeFollow = rememberChatFollow(homeList, "ventet-home")
+                // El missatge que no ha arribat torna al camp, també aquí.
+                LaunchedEffect(capUi.failedText) {
+                    val t = capUi.failedText
+                    if (t.isNotBlank() && askText.value.isBlank()) askText.value = t
+                }
                 VentsOpening(
                     lang, userName, askText.value, { askText.value = it }, capUi.busy,
                     onPhoto = { homePhoto.launch("image/*") }, onDoc = { homeDoc.launch("*/*") },
                     onSend = { text ->
-                        // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
-                        vm.askCap(text); askText.value = ""; vm.openVentsChat("cap")
+                        // Al Ventet: respon ell o ho passa a qui toca, i el xat es
+                        // queda aquí mateix; res de canviar de finestra.
+                        homeFollow.requestFollow(); vm.askCap(text); askText.value = ""
                     },
                     modifier = Modifier.fillMaxSize().padding(pad),
+                    chat = if (chatting) ({ VentetThread(vm, lang, winds, homeList, Color(capSt.argb), showEmpty = false) }) else null,
+                    chatHeader = if (chatting) ({
+                        HomeThreadHeader(lang, capSt.name, Color(capSt.argb), capSt.faceStyle, capUi.busy || capUi.going)
+                    }) else null,
                 ) {
                     val newsRows = inbox.filter { it.key.startsWith("wind:") && it.key.substringAfter(':') in news }
                     TodaySection(lang, todayCards(lang, newsRows, news, windTasks.orEmpty().filter { it.running },

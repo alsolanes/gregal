@@ -270,3 +270,37 @@ func TestResumsDeConverses(t *testing.T) {
 		t.Fatalf("ventet: %+v", c)
 	}
 }
+
+// TestCapPromptSelfFirst: el Ventet respon ell mateix. El prompt no pot
+// empènyer-lo a delegar per sistema (abans ho feia: «prefer specialists over
+// answering yourself» i la rotllana era «the usual choice for any real
+// question»), i quan la decisió és seva la resposta és la seva.
+func TestCapPromptSelfFirst(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	s := goalTestServer(t)
+	if _, err := s.winds.Save(companion.Wind{Name: "Marinada", Role: "compres i receptes"}); err != nil {
+		t.Fatal(err)
+	}
+	var prompt string
+	old := capDeciderActual()
+	t.Cleanup(func() { setCapDecider(old) })
+	setCapDecider(func(_ *Server, _ context.Context, msgs []llm.Message) (string, error) {
+		for _, m := range msgs {
+			prompt += m.Content + "\n"
+		}
+		return `{"action":"self","reply":"Sóc aquí."}`, nil
+	})
+
+	out := capPost(t, s, `{"message":"què és una rotllana?","lang":"ca"}`)
+	if out["action"] != "self" || out["reply"] != "Sóc aquí." {
+		t.Fatalf("resposta pròpia: %v", out)
+	}
+	if !strings.Contains(prompt, "Answer yourself by default") {
+		t.Errorf("el prompt no diu que respongui ell primer:\n%s", prompt)
+	}
+	for _, vella := range []string{"Prefer specialists over answering yourself", "the usual choice for any real question"} {
+		if strings.Contains(prompt, vella) {
+			t.Errorf("el prompt encara empeny a delegar (%q):\n%s", vella, prompt)
+		}
+	}
+}
