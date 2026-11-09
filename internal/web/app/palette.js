@@ -14,6 +14,8 @@
   const producte = () => window.gregalProduct || 'codi';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const icona = nom => (window.gregalIcon && window.gregalIcon(nom)) || '';
+  // Textos nous de la paleta (sense passar per i18n.js).
+  const L = (ca, en) => ((document.documentElement.lang || 'ca').startsWith('en') ? en : ca);
 
   // El CSS va a part; s'enganxa aquí perquè l'index només necessiti una línia.
   const css = document.createElement('link');
@@ -45,10 +47,12 @@
     const tema = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     if (producte() === 'codi') {
       a.push({ label: T('pal.newSession'), icon: 'plus', key: kbd('N'), run: () => g.newChat && g.newChat() });
-      const mode = (g.state && g.state.mode) || '';
+      // ui_mode és el que mostra el selector (act/plan/chat); mode pot ser
+      // «code» o «autonomous» i no coincidia mai amb cap opció.
+      const mode = (g.state && (g.state.ui_mode || g.state.mode)) || '';
       for (const [m, k] of [['chat', 'mode.ask'], ['plan', 'mode.plan'], ['act', 'mode.act']]) {
-        const actual = mode === m || (m === 'act' && mode === 'code');
-        a.push({ label: T('pal.mode').replace('{mode}', T(k)), icon: 'agent', hint: actual ? '✓' : '', run: () => { if (!actual && g.setMode) { g.setView && g.setView('agent'); g.setMode(m); } } });
+        const actual = mode === m || (m === 'act' && mode === 'code') || (m === 'chat' && mode === 'ask');
+        a.push({ label: T('pal.mode').replace('{mode}', T(k)), icon: actual ? 'check' : 'agent', hint: actual ? L('actual', 'current') : '', run: () => { if (!actual && g.setMode) { g.setView && g.setView('agent'); g.setMode(m); } } });
       }
       a.push({ label: T('pal.model'), icon: 'model', run: () => { g.setView && g.setView('agent'); const b = $('modelPill'); if (b) b.click(); } });
       a.push({ label: T('pal.scheduled'), icon: 'programat', run: () => g.setView && g.setView('programat') });
@@ -59,8 +63,19 @@
       a.push({ label: T('nav.automations'), icon: 'automatitzacions', run: () => g.setView && g.setView('automatitzacions') });
       a.push({ label: T('product.openCodi'), icon: 'agent', run: () => { location.href = '/'; } });
     }
+    // Notes a mà (notes-quick.js): obrir-les o començar-ne una.
+    const qn = window.gregalQuickNotes;
+    if (qn) {
+      a.push({ label: L('Nota nova', 'New note'), icon: 'note', key: kbd(mac ? '⌥N' : 'Alt+N'), run: () => qn.newNote() });
+      a.push({ label: L('Obre les notes', 'Open notes'), icon: 'note', run: () => qn.open() });
+    }
+    // Sense model que respongui (primer inici), connectar-ne un és el primer.
+    const ob = window.gregalOnboarding;
+    if (ob && ob.info && ob.info.needs) a.unshift({ label: L('Connecta un model', 'Connect a model'), icon: 'key', hint: L('cal per començar', 'needed to start'), run: () => ob.open() });
+    a.push({ label: L('Models i connexions', 'Models & connections'), icon: 'model', run: () => { if (window.toggleProv) window.toggleProv(true); else if (ob) ob.open(); } });
     a.push({ label: T('pal.theme'), icon: tema === 'light' ? 'sun' : 'moon', run: () => posaTema(tema) });
     a.push({ label: T('pal.settings'), icon: 'sliders', key: kbd(','), run: () => { const p = P().prefs; if (p && p.obre) p.obre(); else { const b = $('prefsBtn'); if (b) b.click(); } } });
+    a.push({ label: L('Dreceres de teclat', 'Keyboard shortcuts'), icon: 'keyboard', run: () => { const p = P().prefs; if (p && p.obreDreceres) p.obreDreceres(); else { const m = $('keysModal'); if (m) m.classList.add('on'); } } });
     a.push({ label: T('pal.sidebar'), icon: 'menu', run: () => { const b = $('menu'); if (b) b.click(); } });
     return a.map(x => ({ ...x, group: 'actions' }));
   }

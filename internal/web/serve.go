@@ -1892,7 +1892,7 @@ func (s *Server) handleChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err != nil {
-		emit("error", map[string]string{"message": err.Error()})
+		emit("error", map[string]string{"message": s.keylessHint(p, role.Provider, err.Error())})
 		return
 	}
 	s.mu.Lock()

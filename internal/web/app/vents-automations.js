@@ -26,7 +26,7 @@ const when = iso => {
 };
 
 async function openPrefs() {
-  try { const m = await import('./prefs.js'); m.prefs.obre(); } catch (_) { /* sense preferències, res */ }
+  try { const m = await import('./prefs.js'); m.prefs.obre('calendar'); } catch (_) { /* sense preferències, res */ }
 }
 
 function section(title, help) {

@@ -40,6 +40,27 @@
     speaker:'M11 5L6 9H3v6h3l5 4z M15.5 8.5a5 5 0 0 1 0 7 M18.5 5.5a9 9 0 0 1 0 13',
     sparkles:'M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
     plug:'M9 3v5 M15 3v5 M7 8h10v3a5 5 0 0 1-10 0z M12 16v5',
+    // Superfícies comunes (Preferències, notes, paleta, primer inici):
+    // abans hi havia ★ ☐ ↵ ⚠ ⬇ ▶ ⓘ 🔊 i emojis als plugins.
+    note:'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h5',
+    star:'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z',
+    trash:'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6',
+    task:'M4 5h6v6H4z M5.5 8l1.5 1.5L9.5 6 M13 8h7 M4 15h6v6H4z M13 18h7',
+    check:'M5 12.5l4.5 4.5L19 7.5',
+    enter:'M20 5v7a3 3 0 0 1-3 3H6 M10 11l-4 4 4 4',
+    keyboard:'M3 6h18v12H3z M7 10h.01 M11 10h.01 M15 10h.01 M7 14h10',
+    key:'M7.5 11a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7 M10 12l9-9 M15 7l3 3 M17.5 4.5l2.5 2.5',
+    mail:'M3 6h18v12H3z M3 7l9 6 9-6',
+    calendar:'M4 6h16v15H4z M4 10h16 M8 3v5 M16 3v5',
+    trophy:'M8 4h8v5a4 4 0 0 1-8 0z M8 6H5a3 3 0 0 0 3 4 M16 6h3a3 3 0 0 1-3 4 M12 13v4 M8 20h8 M10 17h4v3h-4z',
+    ball:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 7l4 3-1.5 4.5h-5L8 10z M12 3v4 M16 10l4.5-1.5 M14.5 14.5l2.5 4 M9.5 14.5l-2.5 4 M8 10L3.5 8.5',
+    info:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 11v6 M12 7.5h.01',
+    alert:'M12 4l9 16H3z M12 10v4 M12 17h.01',
+    download:'M12 4v11 M7 10l5 5 5-5 M5 20h14',
+    play:'M8 5l11 7-11 7z',
+    server:'M4 4h16v6H4z M4 14h16v6H4z M8 7h.01 M8 17h.01',
+    users:'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7 M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6 M16 4.5a3.5 3.5 0 0 1 0 6.5 M18 14c2 .7 3 2.8 3 6',
+    external:'M14 4h6v6 M20 4l-9 9 M18 14v6H4V6h6',
   };
   const svg = name => '<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + paths[name] + '"/></svg>';
   document.querySelectorAll('.side-view[data-view]').forEach(button => {

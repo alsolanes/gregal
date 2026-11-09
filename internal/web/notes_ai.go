@@ -71,6 +71,11 @@ func (s *Server) handleNotesAI(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "empty") || strings.Contains(err.Error(), "say what") {
 			msg = err.Error()
 		}
+		// Sense clau (primer inici) o amb una clau rebutjada: la nota ho diu
+		// i ofereix connectar un model, en lloc d'un «no ha pogut» sense més.
+		if hint := s.keylessHint(p, role.Provider, err.Error()); hint != err.Error() {
+			msg = hint
+		}
 		http.Error(w, msg, http.StatusBadGateway)
 		return
 	}
