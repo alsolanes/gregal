@@ -88,10 +88,15 @@ export function registerEditorFeatures(
         requests.clear();
     }));
 
+    // Only the code action passes a document and a diagnostic. Without them
+    // (a keybinding or an old palette entry) there is nothing to fix: opening
+    // `undefined` used to create an untitled file and then throw.
+    const diagnosticCommand = (intent: "fix" | "explain") => (uri?: vscode.Uri, diagnostic?: vscode.Diagnostic) => {
+        if (!uri || typeof uri !== "object" || !diagnostic?.range) return;
+        return vscode.workspace.openTextDocument(uri).then(document => onDiagnostic(document, diagnostic, intent));
+    };
     context.subscriptions.push(
-        vscode.commands.registerCommand("gregal.fixDiagnostic", (uri: vscode.Uri, diagnostic: vscode.Diagnostic) =>
-            vscode.workspace.openTextDocument(uri).then(document => onDiagnostic(document, diagnostic, "fix"))),
-        vscode.commands.registerCommand("gregal.explainDiagnostic", (uri: vscode.Uri, diagnostic: vscode.Diagnostic) =>
-            vscode.workspace.openTextDocument(uri).then(document => onDiagnostic(document, diagnostic, "explain"))),
+        vscode.commands.registerCommand("gregal.fixDiagnostic", diagnosticCommand("fix")),
+        vscode.commands.registerCommand("gregal.explainDiagnostic", diagnosticCommand("explain")),
     );
 }

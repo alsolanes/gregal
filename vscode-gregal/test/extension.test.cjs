@@ -209,6 +209,33 @@ test('diagnostic quick fixes offer targeted fix and explain actions', async () =
     } finally { await editor.dispose(); }
 });
 
+test('diagnostic commands without a diagnostic do nothing instead of opening an untitled file', async () => {
+    const editor = host('http://127.0.0.1:1');
+    let opened = 0;
+    const open = editor.vscode.workspace.openTextDocument;
+    editor.vscode.workspace.openTextDocument = async (...args) => { opened++; return open(...args); };
+    try {
+        assert.equal(await editor.commands.get('gregal.fixDiagnostic')(), undefined);
+        assert.equal(await editor.commands.get('gregal.explainDiagnostic')(editor.vscode.Uri.file('/workspace/sample/a.ts')), undefined);
+        assert.equal(opened, 0);
+        const manifest = require('../package.json');
+        const hidden = manifest.contributes.menus.commandPalette.filter(item => item.when === 'false').map(item => item.command);
+        assert.deepEqual(hidden.sort(), ['gregal.explainDiagnostic', 'gregal.fixDiagnostic']);
+    } finally { await editor.dispose(); }
+});
+
+test('GitHub queries reuse one output channel', async () => {
+    const editor = host('http://127.0.0.1:1');
+    const names = [];
+    editor.vscode.window.createOutputChannel = name => { names.push(name); return { clear() {}, show() {}, append() {}, appendLine() {}, dispose() {} }; };
+    editor.vscode.window.showInputBox = async () => '';
+    try {
+        await editor.commands.get('gregal.github')();
+        await editor.commands.get('gregal.github')();
+        assert.deepEqual(names, ['Gregal GitHub']);
+    } finally { await editor.dispose(); }
+});
+
 test('untrusted workspace does not send tasks to a backend', async () => {
     const editor = host('http://127.0.0.1:1');
     try {

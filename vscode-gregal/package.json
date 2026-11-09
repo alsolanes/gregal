@@ -148,6 +148,20 @@
       ]
     },
     "menus": {
+      "commandPalette": [
+        {
+          "command": "gregal.fixDiagnostic",
+          "when": "false"
+        },
+        {
+          "command": "gregal.explainDiagnostic",
+          "when": "false"
+        },
+        {
+          "command": "gregal.cancel",
+          "when": "gregal.busy"
+        }
+      ],
       "editor/context": [
         {
           "command": "gregal.acceptSelectedHunk",

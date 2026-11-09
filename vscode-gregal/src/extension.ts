@@ -48,6 +48,14 @@ async function rewindCmd(): Promise<void> {
     }
 }
 
+// One output channel for every GitHub query: creating it on each run left a
+// new "Gregal GitHub" entry in the Output list every time.
+let githubOutput: vscode.OutputChannel | undefined;
+function githubChannel(): vscode.OutputChannel {
+    if (!githubOutput) githubOutput = vscode.window.createOutputChannel("Gregal GitHub");
+    return githubOutput;
+}
+
 async function githubCmd(): Promise<void> {
     const kind = await vscode.window.showQuickPick(
         [{ label: vscode.l10n.t("Issue"), tool: "gh_issue" }, { label: vscode.l10n.t("Pull request"), tool: "gh_pr" }],
@@ -64,10 +72,10 @@ async function githubCmd(): Promise<void> {
         void vscode.window.showErrorMessage(vscode.l10n.t("Gregal: the number must be an integer."));
         return;
     }
-    const repo = await vscode.window.showInputBox({ prompt: vscode.l10n.t("owner/repo (leave empty for the current repository)"), placeHolder: "solanes/gregal" });
+    const repo = await vscode.window.showInputBox({ prompt: vscode.l10n.t("owner/repo (leave empty for the current repository)"), placeHolder: "alsolanes/gregal" });
     const query = selected.action === "list" ? await vscode.window.showInputBox({ prompt: vscode.l10n.t("Optional search"), placeHolder: "is:open" }) : "";
     const { base, token, session } = await connectionConfig();
-    const out = vscode.window.createOutputChannel("Gregal GitHub");
+    const out = githubChannel();
     out.clear(); out.appendLine(`≋ ${kind.label} · ${selected.label}`); out.show(true);
     try {
         const data = await apiPost(base, token, "/api/github", {
@@ -85,6 +93,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
     ctx.subscriptions.push(
         vscode.commands.registerCommand("gregal.rewind", () => withIdleConversation(rewindCmd)),
         vscode.commands.registerCommand("gregal.github", githubCmd),
+        { dispose: () => { githubOutput?.dispose(); githubOutput = undefined; } },
         vscode.commands.registerCommand("gregal.acceptSelectedHunk", () => selectedRangeCommand("git.stageSelectedRanges")),
         vscode.commands.registerCommand("gregal.rejectSelectedHunk", async () => {
             const answer = await vscode.window.showWarningMessage(
