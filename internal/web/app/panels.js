@@ -274,9 +274,9 @@ export const sessions = {
         ? '<span class="session-state needs-input">' + esc(T('sessions.needsInputLabel')) + '</span>'
         : s.busy ? '<span class="session-state working">' + esc(T('sessions.workingLabel')) + '</span>' : '';
       tab.innerHTML = '<span class="dot"></span><span class="nm">' + esc(name) + '</span>' + wt +
-        status + (s.id === 'default' ? '' : '<span class="x" title="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '" aria-label="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '">×</span>');
+        status + (s.id === 'default' ? '' : '<span class="x" title="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '" aria-label="' + esc(s.busy ? T('sessions.closeBusy') : T('btn.close')) + '">' + ((window.gregalIcon && window.gregalIcon('close')) || '×') + '</span>');
       tab.onclick = e => {
-        if (e.target.classList.contains('x')) { this.close(s.id); return; }
+        if (e.target.closest && e.target.closest('.x')) { this.close(s.id); return; }
         this.switchTo(s.id);
       };
       bar.appendChild(tab);
@@ -298,14 +298,27 @@ export const sessions = {
     plus.title = T('sessions.newTitle');
     plus.setAttribute('aria-label', T('sessions.newTitle'));
     plus.onclick = () => this.open();
-    bar.appendChild(plus);
     const iso = document.createElement('button');
     iso.className = 'session-tab new worktree';
     iso.innerHTML = icona('branchPlus', '⎇＋');
     iso.title = T('sessions.newWorktree');
     iso.setAttribute('aria-label', T('sessions.newWorktree'));
     iso.onclick = () => this.openWorktree();
-    bar.appendChild(iso);
+    // Al navegador, amb una sola sessió la franja quedava buida (una fila
+    // sencera per a ＋ i ⎇＋): els dos botons van a la capçalera, al costat
+    // del xip del projecte, i la franja no es pinta (refine.css). A
+    // l'escriptori sense marc la franja és la barra de títol i s'hi queden.
+    const solo = list.length <= 1 && !document.body.classList.contains('desktop');
+    document.querySelectorAll('#topSessionNew').forEach(el => el.remove());
+    const crumb = document.querySelector('#top .project-heading');
+    if (solo && crumb) {
+      const box = document.createElement('span');
+      box.id = 'topSessionNew';
+      plus.className = 'icon-btn top-session-new';
+      iso.className = 'icon-btn top-session-new worktree';
+      box.append(plus, iso);
+      crumb.appendChild(box);
+    } else bar.append(plus, iso);
   },
   // Sessió aïllada: worktree nou (branca gregal/<nom>) i una pestanya que hi
   // treballa. El repo principal no es toca fins a «Porta al repo principal».
@@ -494,7 +507,13 @@ export const changes = {
       sum.textContent = d.files.length
         ? d.files.length + ' ' + T('changes.fileCount') + ' · +' + d.added + ' −' + d.removed + (d.branch ? ' · ' + d.branch : '')
         : T('changes.noChanges');
+      // Sense canvis, el missatge buit de sota ja ho diu: no cal dir-ho dues vegades.
+      sum.hidden = !d.files.length;
     }
+    // Fer commit sense res a desar, o una PR sense branca, no porta enlloc.
+    const commit = $('changesCommit'), pr = $('changesPR');
+    if (commit) commit.hidden = !d.files.length;
+    if (pr) pr.hidden = !d.branch;
     if (!d.files.length) {
       box.innerHTML = '<div class="activity-empty">' + esc(T('changes.empty')) + '</div>';
       return;
@@ -909,7 +928,7 @@ export const models = {
           '<span>' + T('models.taskModel') + '</span>' +
         '</div>' +
         '<div class="mp-search-wrap">' +
-          '<span class="mp-search-icon">🔍</span>' +
+          '<span class="mp-search-icon" aria-hidden="true">' + ((window.gregalIcon && window.gregalIcon('search')) || '') + '</span>' +
           '<input class="mp-search" placeholder="' + T('models.filterPlaceholder') + '" aria-label="' + T('models.filterLabel') + '" autocomplete="off">' +
         '</div>' +
         '<div class="mp-list" role="listbox"></div>' +
@@ -1231,7 +1250,6 @@ export function boot() {
     if (!side || mobile.matches) return;
     const compact = !side.classList.contains('compact');
     side.classList.toggle('compact', compact);
-    sideCompactBtn.textContent = compact ? '›' : '‹';
     sideCompactBtn.dataset.i18nTitle = compact ? 'ui.sidebarExpand' : 'ui.sidebarCompact';
     sideCompactBtn.title = T(sideCompactBtn.dataset.i18nTitle);
     sideCompactBtn.setAttribute('aria-pressed', compact ? 'true' : 'false');
@@ -1249,7 +1267,6 @@ export function boot() {
     if (search) search.hidden = hidden;
     if (list) list.hidden = hidden;
     convToggle.setAttribute('aria-expanded', hidden ? 'false' : 'true');
-    convToggle.textContent = hidden ? '⌄' : '⌃';
   };
   // El nom del projecte a la capçalera és dins del xip de la carpeta
   // (app/folder.js), que ja obre el selector.
