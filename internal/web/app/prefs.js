@@ -189,14 +189,14 @@ export const prefs = {
     // títol ja el posa el grup.
     const senseCap = html => String(html || '').replace(/^\s*<h3 class="pf-sec"[^>]*>[\s\S]*?<\/h3>/, '');
     const grups = [
-      ['general', '⚙', '<div id="prefsConn" hidden></div>' + fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
+      ['general', 'gear', '<div id="prefsConn" hidden></div>' + fila('prefs.lang', 'prefs.lang.help', seg('idioma', idioma(), IDIOMES.map(([v, nom]) => [v, nom]))) +
         fila('prefs.detail', 'prefs.detail.help', seg('vista', vista,
           [['summary', 'prefs.detail.summary'], ['normal', 'prefs.density.normal'], ['verbose', 'prefs.detail.verbose']])) +
         // El perfil de la persona (tema, idioma, densitat…) viatja amb el compte.
         fila('prefs.sync', 'prefs.sync.help',
           '<label class="pf-check"><input type="checkbox" id="prefsSync"' + (profileSync.enabled() ? ' checked' : '') + '><span></span></label>')],
-      ['appearance', '◐', this.select('tema') + this.segment('densitat') + this.segment('mida') + collective.section() + brands.section()],
-      ['agent', '◇', fila('prefs.providers.row', 'prefs.providers.help',
+      ['appearance', 'palette', this.select('tema') + this.segment('densitat') + this.segment('mida') + collective.section() + brands.section()],
+      ['agent', 'model', fila('prefs.providers.row', 'prefs.providers.help',
         '<button class="pf-open" id="prefsProv">' + T('btn.open') + '</button>') +
         fila('prefs.perms', 'prefs.perms.help', seg('perm', perm,
           [['ask', 'perm.ask'], ['edits', 'perm.edits'], ['full', 'perm.full']])) +
@@ -211,16 +211,16 @@ export const prefs = {
         '<h3 class="pf-sec">' + T('prefs.skills') + '</h3>' +
         '<p class="pf-skills-help">' + T('prefs.skills.help') + '</p>' +
         '<div id="prefsSkills"><div class="pf-skills-status">' + T('prefs.skills.loading') + '</div></div>'],
-      ['plugins', '✚', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>'],
-      ['voice', '🔊', voicePrefs.section()],
-      ['extras', '✧', senseCap(funPrefs.section())],
-      ['integrations', '⇄', chromeExt.section() + wordAddin.section() + shares.section()],
-      ['advanced', '⋯', '<div id="prefsPowers" hidden></div><div id="prefsAccounts" hidden></div>' + fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
+      ['plugins', 'puzzle', '<div id="prefsPlugins">' + this.pluginsHTML() + '</div>'],
+      ['voice', 'speaker', voicePrefs.section()],
+      ['extras', 'sparkles', senseCap(funPrefs.section())],
+      ['integrations', 'plug', chromeExt.section() + wordAddin.section() + shares.section()],
+      ['advanced', 'sliders', '<div id="prefsPowers" hidden></div><div id="prefsAccounts" hidden></div>' + fila('prefs.shortcuts', 'prefs.shortcuts.help', '<button class="pf-open" id="prefsKeys">' + T('btn.open') + '</button>') +
         desktopUpdates.section()],
     ];
     cos.innerHTML =
       '<nav class="pf-nav" aria-label="' + T('prefs.title') + '">' +
-      grups.map(([id, icona]) => '<button type="button" data-g="' + id + '"><span class="pf-nav-ic" aria-hidden="true">' + icona + '</span>' + T('prefs.group.' + id) + '</button>').join('') +
+      grups.map(([id, icona]) => '<button type="button" data-g="' + id + '"><span class="pf-nav-ic" aria-hidden="true">' + (window.gregalIcon?.(icona) || '') + '</span>' + T('prefs.group.' + id) + '</button>').join('') +
       '</nav><div class="pf-main" id="prefsMain">' +
       grups.map(([id, , dins]) => '<section class="pf-group" id="prefsG-' + id + '" data-g="' + id + '">' +
         '<header class="pf-ghead"><h3 class="pf-gtitle">' + T('prefs.group.' + id) + '</h3>' +

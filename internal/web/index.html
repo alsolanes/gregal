@@ -1552,6 +1552,7 @@ body.sense-inspector #inspector { display:none; }
 <link rel="stylesheet" href="/app/winds-notes.css">
 <link rel="stylesheet" href="/app/winds-pati.css">
 <!-- Acabats comuns a Codi i Vents: l'última capa. -->
+<link rel="stylesheet" href="/app/notes-quick.css">
 <link rel="stylesheet" href="/app/refine.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
@@ -2132,6 +2133,7 @@ body.sense-inspector #inspector { display:none; }
 <script defer src="/app/winds-workspace.js"></script>
 <script defer src="/app/winds-shared.js"></script>
 <script defer src="/app/winds-notes.js"></script>
+<script defer src="/app/notes-quick.js"></script>
 <script type="module" src="/app/profile-sync.js"></script>
 <script type="module" src="/app/preview.js"></script>
 <script type="module" src="/app/agent-browser.js"></script>
@@ -2276,7 +2278,7 @@ function setView(view) {
   if (currentView === 'partits') window.gregalGames?.load();
   if (currentView === 'arena') window.gregalArena?.load();
   if (currentView === 'kanban') window.gregalKanban?.load();
-  if (currentView === 'vents') loadWindsPage();
+  if (currentView === 'vents') window.loadWindsPage?.();
   if (currentView === 'mcp') loadMcpPage();
   if (currentView === 'knowledge' && window.gregalKnowledge) window.gregalKnowledge.load();
   document.querySelectorAll('[data-view]').forEach(b => {
@@ -3243,7 +3245,7 @@ document.addEventListener('gregal:idioma', () => {
   if ($('permMenu') && !$('permMenu').hidden) togglePermMenu(true);
   if (currentView === 'programat') loadJobsPage();
   if (currentView === 'automatitzacions') window.gregalAutomations?.load();
-  if (currentView === 'vents') loadWindsPage();
+  if (currentView === 'vents') window.loadWindsPage?.();
   if (currentView === 'mcp') loadMcpPage();
 });
 // paintMode marca el mode actiu al commutador. Un sol lloc: abans el

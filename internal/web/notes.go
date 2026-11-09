@@ -29,7 +29,7 @@ import (
 // explícites o #hashtags del text; [[Títol]] enllaça una altra nota i la
 // nota enllaçada en veu la referència inversa.
 //
-//	GET  /api/notes[?q=&tag=&notebook=] → {notes:[…], tags:[…], notebooks:[…]}
+//	GET  /api/notes[?q=&tag=&notebook=&project=] → {notes:[…], tags:[…], notebooks:[…], projects:[…]}
 //	GET  /api/notes?id=<id>             → {note:{…}, backlinks:[{id,title}]}
 //	POST /api/notes {action:"save"|"pin"|"delete", …}
 //
@@ -41,6 +41,7 @@ const (
 	notesMaxTitle    = 200
 	notesMaxBody     = 200 << 10
 	notesMaxNotebook = 80
+	notesMaxProject  = 1024
 	notesMaxTags     = 20
 	notesMaxTag      = 40
 	notesMaxCount    = 5000
@@ -48,10 +49,13 @@ const (
 
 // Note és una nota sencera (o només el resum, sense Body, a les llistes).
 type Note struct {
-	ID         string   `json:"id"`
-	Title      string   `json:"title"`
-	Body       string   `json:"body,omitempty"`
-	Notebook   string   `json:"notebook,omitempty"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Body     string `json:"body,omitempty"`
+	Notebook string `json:"notebook,omitempty"`
+	// Project és la carpeta d'un projecte de Gregal a què l'usuari associa
+	// la nota (la mateixa ruta que /api/workspaces). Buit = cap.
+	Project    string   `json:"project,omitempty"`
 	Tags       []string `json:"tags"`     // explícites
 	Hashtags   []string `json:"hashtags"` // #del text (només lectura)
 	Pinned     bool     `json:"pinned"`
@@ -72,6 +76,7 @@ type Note struct {
 type noteHead struct {
 	Title    string   `yaml:"title"`
 	Notebook string   `yaml:"notebook,omitempty"`
+	Project  string   `yaml:"project,omitempty"`
 	Tags     []string `yaml:"tags,omitempty"`
 	Pinned   bool     `yaml:"pinned,omitempty"`
 	Private  bool     `yaml:"private,omitempty"`
@@ -132,7 +137,7 @@ func parseNote(id string, raw []byte) (Note, error) {
 		}
 	}
 	n := Note{
-		ID: id, Title: head.Title, Body: strings.TrimPrefix(body, "\n"), Notebook: head.Notebook,
+		ID: id, Title: head.Title, Body: strings.TrimPrefix(body, "\n"), Notebook: head.Notebook, Project: head.Project,
 		Tags: head.Tags, Pinned: head.Pinned, Private: head.Private, Locked: head.Locked, NoRemind: head.NoRemind,
 		Created: head.Created, Updated: head.Updated, By: head.By, EditedBy: head.EditedBy,
 	}
@@ -145,7 +150,7 @@ func parseNote(id string, raw []byte) (Note, error) {
 // formatNote és el fitxer tal com es desa.
 func formatNote(n Note) ([]byte, error) {
 	head, err := yaml.Marshal(noteHead{
-		Title: n.Title, Notebook: n.Notebook, Tags: n.Tags, Pinned: n.Pinned, Private: n.Private,
+		Title: n.Title, Notebook: n.Notebook, Project: n.Project, Tags: n.Tags, Pinned: n.Pinned, Private: n.Private,
 		Locked: n.Locked, NoRemind: n.NoRemind, Created: n.Created, Updated: n.Updated, By: n.By, EditedBy: n.EditedBy,
 	})
 	if err != nil {
@@ -368,6 +373,7 @@ type noteInput struct {
 	Title    *string   `json:"title"`
 	Body     *string   `json:"body"`
 	Notebook *string   `json:"notebook"`
+	Project  *string   `json:"project"`
 	Tags     *[]string `json:"tags"`
 	Pinned   *bool     `json:"pinned"`
 	Private  *bool     `json:"private"`
@@ -426,6 +432,9 @@ func (s *Server) saveNoteOnly(in noteInput, by string) (Note, error) {
 	if in.Notebook != nil {
 		n.Notebook = clipRunes(strings.Join(strings.Fields(*in.Notebook), " "), notesMaxNotebook)
 	}
+	if in.Project != nil {
+		n.Project = clipRunes(strings.TrimSpace(*in.Project), notesMaxProject)
+	}
 	if in.Tags != nil {
 		n.Tags = cleanTags(*in.Tags)
 	}
@@ -450,7 +459,7 @@ func (s *Server) saveNoteOnly(in noteInput, by string) (Note, error) {
 		return Note{}, errors.New("empty note")
 	}
 	// Fixar, amagar o bloquejar no és editar: no canvia l'ordre ni l'autor.
-	if creating || in.Title != nil || in.Body != nil || in.Notebook != nil || in.Tags != nil {
+	if creating || in.Title != nil || in.Body != nil || in.Notebook != nil || in.Project != nil || in.Tags != nil {
 		n.EditedBy = by
 		n.Updated = noteNow()
 	}
@@ -697,12 +706,23 @@ func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		found := searchNotes(all, q.Get("q"), q.Get("tag"), q.Get("notebook"))
+		// project=<ruta> filtra pel projecte; project=- vol les que no en tenen.
+		if p, ok := q["project"]; ok && len(p) > 0 {
+			want := strings.TrimSpace(p[0])
+			kept := make([]Note, 0, len(found))
+			for _, n := range found {
+				if (want == "-" && n.Project == "") || (want != "-" && n.Project == want) {
+					kept = append(kept, n)
+				}
+			}
+			found = kept
+		}
 		list := make([]Note, len(found))
 		for i, n := range found {
 			list[i] = noteSummary(n)
 		}
 		tags, notebooks := noteCounts(all)
-		writeJSON(w, map[string]any{"notes": list, "tags": tags, "notebooks": notebooks, "total": len(all), "agenda": s.withRemindAt(noteAgenda(all, 60))})
+		writeJSON(w, map[string]any{"notes": list, "tags": tags, "notebooks": notebooks, "projects": noteProjects(all), "total": len(all), "agenda": s.withRemindAt(noteAgenda(all, 60))})
 	case http.MethodPost:
 		var req struct {
 			Action string `json:"action"`
@@ -750,6 +770,22 @@ func (s *Server) handleNotes(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// noteProjects compta les notes de cada projecte associat.
+func noteProjects(all []Note) []noteCount {
+	counts := map[string]int{}
+	for _, n := range all {
+		if n.Project != "" {
+			counts[n.Project]++
+		}
+	}
+	out := make([]noteCount, 0, len(counts))
+	for name, c := range counts {
+		out = append(out, noteCount{Name: name, Count: c})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }
 
 func notesStatus(err error) int {

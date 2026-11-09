@@ -24,7 +24,6 @@ export const funPrefs = {
     return '<h3 class="pf-sec">' + esc(T('fun.prefs')) + '</h3>' +
       row('fun.mascot', 'fun.mascot.help', check('prefsFunMascot', get(KEYS.mascot, '0') === '1')) +
       (hasDesktopMascot() ? row('fun.desktopMascot', 'fun.desktopMascot.help', check('prefsDesktopMascot', get(KEYS.desktopMascot, '0') === '1')) : '') +
-      row('fun.wrapped', 'fun.wrapped.help', check('prefsFunWrapped', get(KEYS.wrapped, '1') !== '0')) +
       row('fun.voice', 'fun.voice.help', check('prefsFunVoice', get(KEYS.voice, '1') !== '0')) +
       row('kanban.pref', 'kanban.pref.help', check('prefsKanban', get(KEYS.kanban, '0') === '1')) +
       row('retro.persona', 'retro.persona.help',
@@ -41,7 +40,6 @@ export const funPrefs = {
     };
     wire('prefsFunMascot', KEYS.mascot);
     wire('prefsDesktopMascot', KEYS.desktopMascot);
-    wire('prefsFunWrapped', KEYS.wrapped);
     wire('prefsFunVoice', KEYS.voice);
     wire('prefsKanban', KEYS.kanban);
     const p = root.querySelector('#prefsRetroPersona');

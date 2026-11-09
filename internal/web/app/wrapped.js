@@ -14,7 +14,6 @@ const T = (key, vars) => {
   return s;
 };
 const KEY_ON = 'gregal_fun_wrapped';
-const KEY_DISMISSED = 'gregal_wrapped_dismissed';
 const KINDS = ['read', 'search', 'edit', 'shell', 'web', 'delegate', 'mcp', 'other'];
 
 const ls = {
@@ -246,38 +245,8 @@ function downloadPNG() {
   }, 'image/png');
 }
 
-// --- targeta a la pàgina d'inici ---
-
-function heroVisible() {
-  const hero = document.getElementById('hero');
-  return !!hero && !hero.hidden && hero.style.display !== 'none';
-}
-
-async function maybeCard() {
-  const hero = document.getElementById('hero');
-  if (!hero || !heroVisible() || !G() || !G().api) return;
-  const week = fun.weekKey(new Date());
-  if (!wrappedEnabled() || ls.get(KEY_DISMISSED, '') === week) { if (st.card) st.card.hidden = true; return; }
-  if (st.card && st.cardWeek === week) { st.card.hidden = false; return; }
-  let s;
-  try { s = await fetchStats('week'); } catch (e) { return; }
-  if (!fun.wrappedDue({ enabled: wrappedEnabled(), stats: s, dismissed: ls.get(KEY_DISMISSED, ''), now: new Date() })) return;
-  // Una sola línia discreta: «Aquesta setmana · 8 torns · 77 eines · ratxa de 4 dies  Mira-ho tot  ✕».
-  const card = st.card || el('section', 'wrapped-card');
-  card.setAttribute('aria-label', T('wrapped.cardTitle'));
-  const line = el('span', 'wrapped-card-line');
-  line.append(el('b', 'wrapped-card-title', T('wrapped.cardShort')), ...fun.wrappedHighlights(s, T).slice(0, 2).map(x => el('span', '', x)));
-  const see = button('wrapped-card-see', T('wrapped.seeAll'), '', () => openStats('week'));
-  const close = button('wrapped-card-close', '✕', T('wrapped.dismissHelp'), () => { ls.set(KEY_DISMISSED, week); card.hidden = true; });
-  card.replaceChildren(line, see, close);
-  card.hidden = false;
-  if (!st.card) {
-    const ctx = document.getElementById('homeContext');
-    if (ctx && ctx.parentNode) ctx.parentNode.insertBefore(card, ctx); else hero.appendChild(card);
-    st.card = card;
-  }
-  st.cardWeek = week;
-}
+// El resum de la setmana ja no surt a la pàgina d'inici (feia nosa en un
+// lloc tan visible): s'obre des de «Més» → Estadístiques.
 
 function navItem() {
   const more = document.querySelector('#sideMore .rail-more-menu') || document.getElementById('sideMore');
@@ -295,18 +264,10 @@ function navItem() {
 
 export function boot() {
   navItem();
-  const hero = document.getElementById('hero');
-  if (hero) new MutationObserver(() => { if (heroVisible()) maybeCard(); }).observe(hero, { attributes: true, attributeFilter: ['style', 'hidden'] });
-  document.addEventListener('gregal:fun-prefs', () => { st.cardWeek = ''; maybeCard(); });
   document.addEventListener('gregal:idioma', () => {
     const l = document.querySelector('.stats-nav-label'); if (l) l.textContent = T('wrapped.nav');
-    st.cardWeek = '';
-    maybeCard();
     if (st.dialog) { const open = st.dialog.open; st.dialog.remove(); st.dialog = null; if (open) openStats(); }
   });
-  // L'API és a punt una mica després que el mòdul: un reintent curt.
-  const first = () => (G() && G().api ? maybeCard() : setTimeout(first, 300));
-  first();
 }
 
 window.gregalWrapped = { open: openStats };

@@ -1,8 +1,8 @@
 // Nota ràpida des de qualsevol lloc: Ctrl+Alt+N (Cmd+Alt+N al Mac) porta la
-// finestra de Gregal al davant i obre Vents › Notes amb el cursor a la
-// captura ràpida. Escrius, Enter, i tornes al que feies: més ràpid que obrir
+// finestra de Gregal al davant i obre el full de notes amb una nota nova,
+// sigui a Codi o a Vents. Escrius, Esc, i tornes al que feies: més ràpid que obrir
 // el Bloc de notes, i no es perd. La pàgina fa la resta (panels.js →
-// gregalWindsNotes / winds-notes.js focusCapture).
+// gregalQuickNotes / notes-quick.js).
 
 const QUICK_NOTE_ACCELERATOR = "CommandOrControl+Alt+N";
 
