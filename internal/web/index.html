@@ -3,6 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// Arrencada neta (també en passar de Codi a Vents): el tema, la densitat i
+// la mida es posen abans del primer pintat. Abans els aplicava un mòdul que
+// arriba tard i la pàgina sortia un instant amb els colors per defecte.
+// «booting» apaga les transicions fins que la pàgina ja és a punt, perquè
+// la barra lateral no s'animi mentre es munta.
+(() => {
+  const r = document.documentElement;
+  r.classList.add('booting');
+  let t = '';
+  try {
+    const b = JSON.parse(localStorage.getItem('gregal_brand_cache') || 'null');
+    t = (b && b.theme) || localStorage.getItem('gregal_tema') || '';
+    for (const [k, a] of [['gregal_densitat', 'data-density'], ['gregal_mida', 'data-size']]) {
+      const v = localStorage.getItem(k);
+      if (v && v !== 'normal') r.setAttribute(a, v);
+    }
+  } catch (e) {}
+  if (!t || t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  r.setAttribute('data-theme', t);
+  addEventListener('load', () => requestAnimationFrame(() => requestAnimationFrame(() => r.classList.remove('booting'))));
+})();
+</script>
+<!-- No pintis res fins que tot el document és llegit: la barra lateral es
+     munta amb JS i, pintada a mitges, es veia saltar. -->
+<link rel="expect" href="#gregal-parsed" blocking="render">
 <link rel="icon" type="image/png" sizes="32x32" href="/app/favicon-32.png">
 <link rel="apple-touch-icon" href="/app/app-icon.png">
 <link rel="stylesheet" href="/app/team.css">
@@ -1190,6 +1216,17 @@ body.view-normal .msg.t .out:not(details[open] .out) { display:none; }
 #keysModal td { padding:4px 6px; border-bottom:1px solid var(--line); }
 #keysModal td:first-child { white-space:nowrap; color:var(--accent-hi); font-family:var(--mono); }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+/* Canvi de producte (Codi ⇄ Vents): la pàgina vella es queda quieta fins que
+   la nova és a punt i passen d'una a l'altra amb un fos curt, sense pantalla
+   a mitges. Mentre arrenca (html.booting) res no s'anima. */
+@view-transition { navigation:auto; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration:.14s; animation-timing-function:ease-out; }
+@media (prefers-reduced-motion:reduce) { @view-transition { navigation:none; } }
+html.booting *, html.booting *::before, html.booting *::after { transition:none!important; }
+/* En una arrencada en fred el primer pintat pot arribar abans que
+   shell-layout.js munti la barra: millor que aparegui ja feta que no
+   veure-la recol·locar-se. */
+html.booting:not(.shell-ready) #side, html.booting:not(.shell-ready) #navRail { visibility:hidden; }
 ::-webkit-scrollbar { width:9px; height:9px; }
 ::-webkit-scrollbar-track { background:transparent; }
 ::-webkit-scrollbar-thumb { background:var(--surface-hi); border:2px solid transparent; background-clip:padding-box; border-radius:8px; }
@@ -1507,6 +1544,11 @@ body.sense-inspector #inspector { display:none; }
 <link rel="stylesheet" href="/app/folder.css">
 <link rel="stylesheet" href="/app/calma.css">
 <link rel="stylesheet" href="/app/settings.css">
+<!-- Abans eren al final del body i s'aplicaven tard (salt en obrir Vents). -->
+<link rel="stylesheet" href="/app/winds.css">
+<link rel="stylesheet" href="/app/winds-workspace.css">
+<link rel="stylesheet" href="/app/winds-notes.css">
+<link rel="stylesheet" href="/app/winds-pati.css">
 </head>
 <body data-professional-shell="gregal-code-agent">
 <nav id="navRail" aria-label="Main navigation" data-i18n-aria="shell.navigation">
@@ -1655,7 +1697,6 @@ body.sense-inspector #inspector { display:none; }
         </div>
       </section>
       <section class="workspace-page" id="ventsPage" hidden>
-        <link rel="stylesheet" href="/app/winds.css">
         <script defer src="/app/wind-i18n.js"></script>
         <script defer src="/app/wind-desk.js"></script>
         <script defer src="/app/winds.js"></script>
@@ -2078,9 +2119,6 @@ body.sense-inspector #inspector { display:none; }
   </div>
 </div>
 <script defer src="/app/shell-layout.js"></script>
-<link rel="stylesheet" href="/app/winds-workspace.css">
-<link rel="stylesheet" href="/app/winds-notes.css">
-<link rel="stylesheet" href="/app/winds-pati.css">
 <script defer src="/app/winds-crew.js"></script>
 <script defer src="/app/winds-pati-zones.js"></script>
 <script defer src="/app/winds-pati.js"></script>
@@ -4751,5 +4789,6 @@ refresh();
 <script src="/app/extras.js"></script>
 <script type="module" src="/app/fun.js"></script>
 <script src="/app/caps.js"></script>
+<div id="gregal-parsed" hidden></div>
 </body>
 </html>

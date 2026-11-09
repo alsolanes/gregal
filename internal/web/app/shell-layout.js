@@ -75,4 +75,6 @@
     }
   });
   root.gregal.setView(root.gregal.viewActual());
+  // La barra ja té el logo, el rail i les eines al seu lloc: es pot mostrar.
+  document.documentElement.classList.add('shell-ready');
 })(window);
