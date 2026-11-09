@@ -170,6 +170,10 @@
 :root[data-size="petita"] { --fs:13px; }
 :root[data-size="gran"]   { --fs:16px; }
 * { box-sizing:border-box; margin:0; padding:0; }
+/* El reset treia el margin:auto amb què el navegador centra els <dialog>:
+   els modals sense regla pròpia (Arena, col·lectiu…) quedaven a la cantonada. */
+dialog { margin:auto; }
+dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, transparent); }
 /* The app shell stays anchored; only its inner panels may scroll. Unlike
    hidden, clip also prevents scrollIntoView/focus from scrolling the root. */
 html, body { width:100%; height:100%; overflow:clip; }
