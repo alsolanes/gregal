@@ -91,6 +91,9 @@
   };
   const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
   const btn = (label, action, cls = 'vw-button') => { const n = el('button', cls, label); n.type = 'button'; n.onclick = () => Promise.resolve().then(action).catch(fail); return n; };
+  // Les icones de traç de Vents (winds-workspace.js); sense elles, només el text.
+  const ic = name => (root.gregalWindIcon ? root.gregalWindIcon(name) : document.createTextNode(''));
+  const ibtn = (name, label, action, cls) => { const n = btn('', action, cls); n.append(ic(name), el('span', '', label)); return n; };
   async function call(url, method = 'GET', body) {
     const r = await root.api(url, { method, ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }) });
     const text = await r.text();
@@ -98,6 +101,9 @@
     if (!r.ok) { const e = new Error((data && data.error) || text.trim() || ('HTTP ' + r.status)); e.status = r.status; e.data = data; throw e; }
     return data;
   }
+
+  // Marca petita (fixada, privada, bloquejada, amb avís): icona amb nom per al lector de pantalla.
+  const flag = (name, label) => { const f = el('span', 'notes-flag'); f.append(ic(name)); f.title = label; f.setAttribute('role', 'img'); f.setAttribute('aria-label', label); return f; };
 
   const S = { q: '', tag: '', notebook: '', pinned: false, list: null, open: null, backlinks: [], editing: false, draft: null, box: null, opts: {}, epoch: 0, timer: 0 };
   let status = null;
@@ -145,8 +151,8 @@
     const row = el('div', 'notes-chips');
     const chip = (label, on, fn) => { const c = btn(label, fn, 'act-chip' + (on ? ' on' : '')); c.setAttribute('aria-pressed', String(on)); row.append(c); };
     chip(t('Totes', 'All'), !S.tag && !S.notebook && !S.pinned, () => { S.tag = ''; S.notebook = ''; S.pinned = false; loadList(); });
-    if ((d.notes || []).some(n => n.pinned) || S.pinned) chip('📌 ' + t('Fixades', 'Pinned'), S.pinned, () => { S.pinned = !S.pinned; paintList(); });
-    for (const nb of (d.notebooks || []).slice(0, 12)) chip('📓 ' + nb.name, S.notebook === nb.name, () => { S.notebook = S.notebook === nb.name ? '' : nb.name; loadList(); });
+    if ((d.notes || []).some(n => n.pinned) || S.pinned) { chip(t('Fixades', 'Pinned'), S.pinned, () => { S.pinned = !S.pinned; paintList(); }); row.lastChild.prepend(ic('pin')); }
+    for (const nb of (d.notebooks || []).slice(0, 12)) { chip(nb.name, S.notebook === nb.name, () => { S.notebook = S.notebook === nb.name ? '' : nb.name; loadList(); }); row.lastChild.prepend(ic('notebook')); }
     for (const tg of (d.tags || []).slice(0, 16)) chip('#' + tg.name, fold(S.tag) === fold(tg.name), () => { S.tag = fold(S.tag) === fold(tg.name) ? '' : tg.name; loadList(); });
     if (row.children.length > 1) parent.append(row);
   }
@@ -154,8 +160,8 @@
   function noteMeta(n) {
     const lang = ca() ? 'ca' : 'en';
     const bits = [];
-    if (n.notebook) bits.push('📓 ' + n.notebook);
-    if (n.tasks_total) bits.push('☑ ' + (n.tasks_total - n.tasks_open) + '/' + n.tasks_total);
+    if (n.notebook) bits.push(n.notebook);
+    if (n.tasks_total) bits.push((n.tasks_total - n.tasks_open) + '/' + n.tasks_total + ' ' + t('tasques', 'tasks'));
     bits.push(dayText(n.updated, lang));
     if (n.edited_by) bits.push(t('per ', 'by ') + n.edited_by);
     return bits.filter(Boolean).join(' · ');
@@ -178,7 +184,7 @@
         empty.append(el('strong', '', t('Encara no tens cap nota', 'No notes yet')),
           el('p', '', t('Escriu idees, llistes o el que vulguis recordar. Els {vents} les poden llegir i, si els ho demanes, apuntar-hi coses: «apunta-ho a la nota de la compra».',
             'Write down ideas, lists or anything you want to remember. Your {vents} can read them and, when you ask, add to them: “put it on my shopping list note”.')),
-          btn(t('＋ Primera nota', '＋ First note'), () => newNote(), 'vw-primary'));
+          ibtn('plus', t('Primera nota', 'First note'), () => newNote(), 'vw-primary'));
       } else empty.append(el('p', 'vw-muted', t('Cap nota no hi coincideix.', 'No notes match.')));
       list.append(empty);
       return;
@@ -188,10 +194,12 @@
       row.type = 'button';
       row.setAttribute('aria-current', String(S.open?.id === n.id));
       const title = el('strong', '', n.title || t('Sense títol', 'Untitled'));
-      if (n.pinned) title.prepend(el('span', 'notes-flag', '📌 '));
-      if (n.private) title.append(el('span', 'notes-flag', ' 🙈'));
-      if (n.locked) title.append(el('span', 'notes-flag', ' 🔒'));
-      row.append(title);
+      const head = el('span', 'notes-row-head');
+      if (n.pinned) head.append(flag('pin', t('Fixada', 'Pinned')));
+      head.append(title);
+      if (n.private) head.append(flag('eyeOff', t('Només per a tu', 'Only you')));
+      if (n.locked) head.append(flag('lock', t('Bloquejada', 'Locked')));
+      row.append(head);
       const text = n.snippet || n.excerpt;
       if (text) row.append(el('span', 'notes-excerpt', text));
       const tags = [...(n.tags || []), ...(n.hashtags || [])];
@@ -220,7 +228,9 @@
         cb.onchange = () => tickAgenda(it).catch(fail);
         const txt = btn('', () => openNote(it.note_id), 'notes-agenda-text');
         const when = k === 'today' ? '' : dayText(it.due + 'T12:00:00', ca() ? 'ca' : 'en');
-        txt.append(el('span', '', it.text || it.note_title), el('small', '', [when, it.time, it.note_title].filter(Boolean).join(' · ') + (it.remind_at ? ' · 🔔' : '')));
+        const sub = el('small', '', [when, it.time, it.note_title].filter(Boolean).join(' · '));
+        if (it.remind_at) { const bell = flag('bell', t('Amb avís', 'With a reminder')); sub.append(bell); }
+        txt.append(el('span', '', it.text || it.note_title), sub);
         row.append(cb, txt);
         box.append(row);
       }
@@ -241,7 +251,6 @@
   function dashboard(main) {
     const d = el('div', 'notes-dash');
     const g = agendaGroups(S.list?.agenda);
-    d.append(el('h2', 'notes-title', t('El teu quadern', 'Your notebook')));
     const stats = el('div', 'notes-stats');
     const stat = (n, label) => { const c = el('div', 'notes-stat'); c.append(el('strong', '', String(n)), el('span', '', label)); stats.append(c); };
     stat(S.list?.total ?? 0, t('notes', 'notes'));
@@ -250,16 +259,15 @@
     stat(g.week.length, t('aquesta setmana', 'this week'));
     d.append(stats);
     const acts = el('div', 'notes-actions notes-dash-actions');
-    acts.append(btn(t('＋ Nota', '＋ Note'), () => newNote(), 'vw-primary'),
-      btn('🗓 ' + t('Reunió', 'Meeting'), () => newNote('', meetingTemplate(ca() ? 'ca' : 'en'))));
+    acts.append(ibtn('calendar', t('Reunió', 'Meeting'), () => newNote('', meetingTemplate(ca() ? 'ca' : 'en')), 'vw-button'));
     if (S.opts.ask) {
       acts.append(
-        btn('✦ ' + t('Organitza amb un {vent}', 'Organise with a {vent}'), () => S.opts.ask(t(
+        ibtn('sparkles', t('Organitza amb un {vent}', 'Organise with a {vent}'), () => S.opts.ask(t(
           'Mira les meves notes (eina notes) i ajuda’m a organitzar-les: proposa quaderns i etiquetes, junta les repetides, treu les tasques de les notes de reunions amb data (@AAAA-MM-DD) i digue’m què tinc pendent aquesta setmana. Abans de canviar res, ensenya’m el pla.',
-          'Look at my notes (notes tool) and help me organise them: suggest notebooks and tags, merge duplicates, pull dated action items (@YYYY-MM-DD) out of meeting notes and tell me what is due this week. Show me the plan before changing anything.'))),
-        btn('☀ ' + t('Què tinc avui?', 'What’s on today?'), () => S.opts.ask(t(
+          'Look at my notes (notes tool) and help me organise them: suggest notebooks and tags, merge duplicates, pull dated action items (@YYYY-MM-DD) out of meeting notes and tell me what is due this week. Show me the plan before changing anything.')), 'vw-button'),
+        ibtn('sun', t('Què tinc avui?', 'What’s on today?'), () => S.opts.ask(t(
           'Mira la meva agenda de notes (eina notes, acció agenda) i fes-me un resum curt del que tinc vençut, per avui i aquesta setmana. Ofereix-te a recordar-me les tasques amb hora.',
-          'Check my notes agenda (notes tool, agenda action) and give me a short summary of what is overdue, due today and this week. Offer to remind me of the tasks that have a time.'))));
+          'Check my notes agenda (notes tool, agenda action) and give me a short summary of what is overdue, due today and this week. Offer to remind me of the tasks that have a time.')), 'vw-button'));
     }
     d.append(acts);
     d.append(el('p', 'notes-tip', t('Consell: escriu «- [ ] envia el pressupost @2026-11-12 10:00» i la tasca sortirà a l’agenda; un {vent} t’avisarà a aquella hora (a les 9:00 si no en té).',
@@ -278,7 +286,7 @@
       return;
     }
     const bar = el('div', 'notes-bar');
-    bar.append(btn('‹ ' + t('Notes', 'Notes'), closeNote, 'vw-button notes-back'));
+    bar.append(ibtn('back', t('Notes', 'Notes'), closeNote, 'vw-button notes-back'));
     const actions = el('div', 'notes-actions');
     actions.append(
       btn(t('Edita', 'Edit'), () => { S.draft = { ...n, tags: [...(n.tags || [])] }; S.editing = true; paintNote(); }, 'vw-primary'),
@@ -296,8 +304,8 @@
     const meta = el('p', 'notes-meta');
     const bits = [noteMeta(n)];
     if (n.by && n.by !== n.edited_by) bits.push(t('creada per ', 'created by ') + n.by);
-    if (n.private) bits.push('🙈 ' + t('només per a tu: els {vents} no la veuen', 'only you: the {vents} can’t see it'));
-    if (n.locked) bits.push('🔒 ' + t('els {vents} no la poden canviar', 'the {vents} can’t change it'));
+    if (n.private) bits.push(t('només per a tu: els {vents} no la veuen', 'only you: the {vents} can’t see it'));
+    if (n.locked) bits.push(t('els {vents} no la poden canviar', 'the {vents} can’t change it'));
     meta.textContent = bits.join(' · ');
     main.append(meta);
     const tags = [...new Set([...(n.tags || []), ...(n.hashtags || [])])];
@@ -333,7 +341,7 @@
   function paintEditor(main) {
     const d = S.draft;
     const bar = el('div', 'notes-bar');
-    bar.append(btn('‹ ' + t('Cancel·la', 'Cancel'), () => { S.editing = false; if (!S.open) closeNote(); else paintNote(); }, 'vw-button notes-back'));
+    bar.append(ibtn('back', t('Cancel·la', 'Cancel'), () => { S.editing = false; if (!S.open) closeNote(); else paintNote(); }, 'vw-button notes-back notes-cancel'));
     const form = el('div', 'notes-editor');
     const title = el('input', 'notes-edit-title'); title.value = d.title || ''; title.placeholder = t('Títol', 'Title'); title.setAttribute('aria-label', t('Títol', 'Title'));
     const body = el('textarea', 'notes-edit-body'); body.value = d.body || ''; body.placeholder = t('Escriu en markdown… #etiqueta, [[Una altra nota]], - [ ] tasca', 'Write in markdown… #tag, [[Another note]], - [ ] task');
@@ -397,7 +405,7 @@
     const search = el('input', 'vw-search'); search.type = 'search'; search.value = S.q;
     search.placeholder = t('Cerca a les notes', 'Search notes'); search.setAttribute('aria-label', search.placeholder);
     search.oninput = () => { S.q = search.value; clearTimeout(S.timer); S.timer = setTimeout(() => loadList().catch(fail), 200); };
-    top.append(search, btn(t('＋ Nota', '＋ Note'), () => newNote(), 'vw-primary'));
+    top.append(search, ibtn('plus', t('Nota', 'Note'), () => newNote(), 'vw-primary notes-new'));
     filters.append(top);
     // Captura ràpida: escrius i Enter, sense obrir res. La primera línia fa de títol.
     const quick = el('input', 'vw-search notes-quick');

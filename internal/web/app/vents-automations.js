@@ -50,11 +50,11 @@ async function render(box) {
   const windName = id => (windList.find(w => w.id === id) || {}).name || id;
   const status = el('p', 'auto-status'); status.setAttribute('role', 'status');
   const refresh = async msg => { await render(box); const s = box.querySelector('.auto-status'); if (s && msg) s.textContent = msg; };
-  const act = async (fn, okMsg) => { status.textContent = tx('Un moment…', 'One moment…'); try { await fn(); await refresh(okMsg); } catch (e) { status.textContent = '⚠ ' + (e.message || e); } };
+  const act = async (fn, okMsg) => { status.textContent = tx('Un moment…', 'One moment…'); status.setAttribute('role', 'status'); try { await fn(); await refresh(okMsg); } catch (e) { status.textContent = tx('No s’ha pogut fer: ', 'Couldn’t do it: ') + (e.message || e); status.setAttribute('role', 'alert'); } };
   box.replaceChildren();
 
   const head = el('div', 'auto-head');
-  head.append(el('div', 'page-kicker', 'Gregal Vents'), el('h1', 'page-title', tx('Automatitzacions', 'Automations')),
+  head.append(el('h1', 'page-title', tx('Automatitzacions', 'Automations')),
     el('p', 'page-copy', tx('Tot el que els teus vents fan sols: el resum del matí, els recordatoris, les rutines i el que vigilen. Pots provar-ho ara, pausar-ho o veure què han fet.',
       'Everything your winds do on their own: the morning briefing, reminders, routines and what they keep an eye on. Run it now, pause it or see what they did.')));
   box.append(head, status);
@@ -66,8 +66,8 @@ async function render(box) {
     ? tx('Cada dia a les ' + b.time + ', de ' + windName(b.wind) + '.', 'Every day at ' + b.time + ', by ' + windName(b.wind) + '.')
     : tx('Desactivat.', 'Off.');
   const cals = (conn && conn.calendars) || [], mail = (conn && conn.mail) || {};
-  const sources = [cals.length ? '📅 ' + cals.map(c => c.name).join(', ') : tx('📅 Sense calendari', '📅 No calendar'),
-    mail.has_password ? '✉ ' + mail.user : tx('✉ Sense correu', '✉ No email')].join(' · ');
+  const sources = [cals.length ? tx('Calendari: ', 'Calendar: ') + cals.map(c => c.name).join(', ') : tx('Sense calendari', 'No calendar'),
+    mail.has_password ? tx('Correu: ', 'Email: ') + mail.user : tx('Sense correu', 'No email')].join(' · ');
   card.append(el('p', 'auto-line', line), el('p', 'auto-help', sources));
   const cardBtns = el('div', 'auto-actions');
   cardBtns.append(btn(tx('Configura', 'Set up'), openPrefs));
@@ -109,6 +109,6 @@ window.gregalAutomations = {
   async load() {
     const box = $('automatitzacionsInner');
     if (!box) return;
-    try { await render(box); } catch (e) { box.replaceChildren(el('p', 'auto-help', '⚠ ' + (e.message || e))); }
+    try { await render(box); } catch (e) { const p = el('p', 'auto-help', tx('No s’han pogut carregar les automatitzacions: ', 'Could not load the automations: ') + (e.message || e)); p.setAttribute('role', 'alert'); box.replaceChildren(p); }
   },
 };
