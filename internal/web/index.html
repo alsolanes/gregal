@@ -12,15 +12,21 @@
 (() => {
   const r = document.documentElement;
   r.classList.add('booting');
+  // A l'escriptori el localStorage és per origen: si el port del servidor
+  // canvia, arrenca buit i es pintava el tema del sistema fins que arribava
+  // desktop-prefs.js. Les preferències desades ja hi són (preload, síncron).
+  const desa = (window.gregalDesktop && window.gregalDesktop.preferences) || {};
+  const llegeix = k => { let v = null; try { v = localStorage.getItem(k); } catch (e) {} return v != null ? v : (typeof desa[k] === 'string' ? desa[k] : null); };
   let t = '';
   try {
     const b = JSON.parse(localStorage.getItem('gregal_brand_cache') || 'null');
-    t = (b && b.theme) || localStorage.getItem('gregal_tema') || '';
-    for (const [k, a] of [['gregal_densitat', 'data-density'], ['gregal_mida', 'data-size']]) {
-      const v = localStorage.getItem(k);
-      if (v && v !== 'normal') r.setAttribute(a, v);
-    }
+    t = (b && b.theme) || '';
   } catch (e) {}
+  t = t || llegeix('gregal_tema') || '';
+  for (const [k, a] of [['gregal_densitat', 'data-density'], ['gregal_mida', 'data-size']]) {
+    const v = llegeix(k);
+    if (v && v !== 'normal') r.setAttribute(a, v);
+  }
   if (!t || t === 'sistema') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   r.setAttribute('data-theme', t);
   addEventListener('load', () => requestAnimationFrame(() => requestAnimationFrame(() => r.classList.remove('booting'))));
@@ -164,6 +170,10 @@
 :root[data-size="petita"] { --fs:13px; }
 :root[data-size="gran"]   { --fs:16px; }
 * { box-sizing:border-box; margin:0; padding:0; }
+/* El reset treia el margin:auto amb què el navegador centra els <dialog>:
+   els modals sense regla pròpia (Arena, col·lectiu…) quedaven a la cantonada. */
+dialog { margin:auto; }
+dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, transparent); }
 /* The app shell stays anchored; only its inner panels may scroll. Unlike
    hidden, clip also prevents scrollIntoView/focus from scrolling the root. */
 html, body { width:100%; height:100%; overflow:clip; }
@@ -348,6 +358,7 @@ body.desktop #sessionTabs button, body.desktop #sessionTabs .session-tab { -webk
 .breadcrumb { min-width:0; display:flex; align-items:center; gap:7px; overflow:hidden; /* la branca no pot trepitjar les pestanyes */ }
 #statusDot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
 #statusDot.busy { background:var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+#statusDot.sense-clau:not(.busy) { background:transparent; box-shadow:inset 0 0 0 1.5px var(--amber); }
 #project { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--ink); font-weight:510; }
 .sep { color:var(--faint); }
@@ -633,11 +644,13 @@ a.saved-title:hover { text-decoration:underline; }
 @media (max-width:700px) { .auto-form { grid-template-columns:1fr; } }
 .page-card { min-height:120px; padding:16px; background:linear-gradient(145deg,var(--raised),var(--raised));
   border:1px solid var(--line); border-radius:11px; }
+/* Camps de les pàgines: valors per defecte amb l'especificitat d'un element
+   (:where), perquè el compositor de Vents o qualsevol component els guanyi. */
 .page-card input, .page-card select,
-.workspace-page input:not([type=checkbox]), .workspace-page select, .workspace-page textarea {
+:where(.workspace-page) :is(input, select, textarea):where(:not([type=checkbox])) {
   min-height:33px; padding:6px 8px; color:var(--text); background:var(--surface);
   border:1px solid var(--line-hi); border-radius:6px; font:13px var(--mono); }
-.workspace-page input:focus, .workspace-page select:focus, .workspace-page textarea:focus { outline:none; border-color:var(--accent); }
+:where(.workspace-page) :is(input, select, textarea):focus { outline:none; border-color:var(--accent); }
 .workspace-page input::placeholder { color:var(--faint); }
 .page-card h2 { color:var(--ink); font-size:var(--t3); font-weight:560; margin-bottom:12px; }
 #goalsPage .goal-item { padding:9px 0; }
@@ -761,7 +774,7 @@ a.saved-title:hover { text-decoration:underline; }
 .pnav-tip-text { display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; overflow-wrap:anywhere; }
 .msg.u.pnav-flash .msg-inner, .vw-user.pnav-flash { animation:pnavFlash 1.2s ease; }
 @keyframes pnavFlash { 0%,40% { box-shadow:0 0 0 2px var(--accent-soft-hi); } 100% { box-shadow:0 0 0 2px transparent; } }
-.vw-messages.pnav-on { padding-right:26px; }
+.vw-messages.pnav-on { padding-right:36px; }
 @media (max-width:760px) { .pnav, .pnav-tip { display:none !important; } .vw-messages.pnav-on { padding-right:3px; } }
 .body { min-width:0; color:var(--text); overflow-wrap:anywhere; }
 .body b { color:var(--ink); font-weight:590; }
@@ -1566,20 +1579,20 @@ body.sense-inspector #inspector { display:none; }
 <button class="nav-item side-view" data-view="office"><span class="nav-icon">❏</span><span>Office</span></button>
 <button class="nav-item side-view" data-view="grafs"><span class="nav-icon">⌘</span><span data-i18n="nav.graphs">Graphs</span></button>
 <button class="nav-item side-view" data-view="mcp"><span class="nav-icon">@</span><span data-i18n="ui.connectors">Connectors / MCP</span></button></div></details>
-  <div class="rail-footer"><button class="icon-btn" id="sideCompact" data-i18n-aria="ui.sidebarSize" aria-label="Compact or expand the sidebar" data-i18n-title="ui.sidebarCompact" title="Compact sidebar">‹</button>
-      <button class="icon-btn" id="keysBtn" data-i18n-title="ui.shortcuts" title="Keyboard shortcuts" data-i18n-aria="ui.shortcuts" aria-label="Keyboard shortcuts">?</button>
-      <button class="icon-btn" id="prefsBtn" data-i18n-title="prefs.title" title="Preferences" data-i18n-aria="prefs.title" aria-label="Preferences">⚙</button>
+  <div class="rail-footer"><button class="icon-btn" id="sideCompact" data-i18n-aria="ui.sidebarSize" aria-label="Compact or expand the sidebar" data-i18n-title="ui.sidebarCompact" title="Compact sidebar" aria-pressed="false"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button class="icon-btn" id="keysBtn" data-i18n-title="ui.shortcuts" title="Keyboard shortcuts" data-i18n-aria="ui.shortcuts" aria-label="Keyboard shortcuts"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18v10H3z M7 10.5h.01 M10.5 10.5h.01 M14 10.5h.01 M17.5 10.5h.01 M8 14h8"/></svg></button>
+      <button class="icon-btn" id="prefsBtn" data-i18n-title="prefs.title" title="Preferences" data-i18n-aria="prefs.title" aria-label="Preferences"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
     </div>
 </nav>
 <aside id="side">
-  <div class="brand"><span class="brand-name" data-i18n="shell.yourSpace">Your space</span><button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar">×</button></div>
+  <div class="brand"><span class="brand-name" data-i18n="shell.yourSpace">Your space</span><button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10 M17 7L7 17"/></svg></button></div>
   <div id="productSwitch" class="product-switch" role="tablist" data-i18n-aria="product.switch" aria-label="Switch product" hidden></div>
   <div class="side-quick"><button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">New conversation</span></button></div>
   <div class="side-scroll">
     <div id="conversationNav"><button class="shell-project" id="shellProject"><span aria-hidden="true">▰</span><span id="sideProject" data-i18n="nav.project">Current project</span><span aria-hidden="true">⌄</span></button>
-<div class="sidebar-section-head"><span data-i18n="shell.projects">Projects</span><button id="newproject" class="icon-btn" data-i18n-title="ui.newProjectHelp" data-i18n-aria="ui.newProjectHelp" aria-label="Open a project folder">＋</button></div>
+<div class="sidebar-section-head"><span data-i18n="shell.projects">Projects</span><button id="newproject" class="icon-btn" data-i18n-title="ui.newProjectHelp" data-i18n-aria="ui.newProjectHelp" aria-label="Open a project folder"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14 M5 12h14"/></svg></button></div>
 <div id="projectList"></div>
-<div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true">⌃</button></div>
+<div class="conv-head"><span data-i18n="nav.convs">Conversations</span><button id="convToggle" data-i18n-title="ui.toggleConversations" title="Toggle conversations" aria-expanded="true"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button></div>
   <div class="conv-search"><input id="convSearch" data-i18n-ph="nav.search" placeholder="Search…" data-i18n-aria="ui.searchConversations" aria-label="Search conversations" autocomplete="off"></div>
   <div id="convs"></div>
 </div><div id="windContextNav" hidden></div>
@@ -1644,13 +1657,13 @@ body.sense-inspector #inspector { display:none; }
       <div id="moreWrap">
         <button class="icon-btn" id="moreBtn" data-i18n-title="ui.moreActions" title="More actions" data-i18n-aria="ui.moreActions" aria-label="More actions" aria-haspopup="menu" aria-expanded="false">⋯</button>
         <div id="moreMenu" role="menu" hidden>
-          <button class="ghost" data-special-mode="goal">◆ <span data-i18n="menu.goalMode">Goal mode</span></button>
-          <button class="ghost" data-special-mode="debug">⌕ <span data-i18n="menu.debugMode">Debug mode</span></button>
-          <button class="ghost" id="bestofBtn" data-i18n-title="menu.bestofTitle" title="Run the task several ways in separate git worktrees, verify and compare them, then apply the best">⑂ <span data-i18n="menu.bestof">Try N ways</span></button>
-          <button class="ghost" id="parallelBtn" data-i18n-title="menu.compareTitle" title="Ask several models in parallel (enter a question first)">⇄ <span data-i18n="menu.compare">Compare</span></button>
-          <button class="ghost" id="rewindBtn" data-i18n-title="menu.rewindTitle" title="Undo file changes made by the agent in this session">↩ <span data-i18n="menu.rewind">Undo</span></button>
-          <button class="ghost" id="viewBtn" data-i18n-title="menu.transcriptTitle" title="Transcript view: Normal · Verbose · Summary">👁 Normal</button>
-          <button class="ghost" id="exportBtn" data-i18n-title="menu.exportTitle" title="Export this conversation (Markdown or HTML) or create a read-only share link" aria-haspopup="menu">⤓ <span data-i18n="menu.export">Export</span></button>
+          <button class="ghost" data-special-mode="goal"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 M12 7a5 5 0 1 0 5 5 M12 12l8-8 M16 4h4v4"/></svg></span> <span data-i18n="menu.goalMode">Goal mode</span></button>
+          <button class="ghost" data-special-mode="debug"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 10h6v6a3 3 0 0 1-6 0z M10 7a2 2 0 0 1 4 0v3h-4z M5 13h4 M15 13h4 M6 8l3 2 M18 8l-3 2 M6 19l3-2 M18 19l-3-2"/></svg></span> <span data-i18n="menu.debugMode">Debug mode</span></button>
+          <button class="ghost" id="bestofBtn" data-i18n-title="menu.bestofTitle" title="Run the task several ways in separate git worktrees, verify and compare them, then apply the best"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18 M18 3v5a6 6 0 0 1-6 6H6"/></svg></span> <span data-i18n="menu.bestof">Try N ways</span></button>
+          <button class="ghost" id="parallelBtn" data-i18n-title="menu.compareTitle" title="Ask several models in parallel (enter a question first)"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h15 M15 4l4 4-4 4 M20 16H5 M9 12l-4 4 4 4"/></svg></span> <span data-i18n="menu.compare">Compare</span></button>
+          <button class="ghost" id="rewindBtn" data-i18n-title="menu.rewindTitle" title="Undo file changes made by the agent in this session"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span> <span data-i18n="menu.rewind">Undo</span></button>
+          <button class="ghost" id="viewBtn" data-i18n-title="menu.transcriptTitle" title="Transcript view: Normal · Verbose · Summary"></button>
+          <button class="ghost" id="exportBtn" data-i18n-title="menu.exportTitle" title="Export this conversation (Markdown or HTML) or create a read-only share link" aria-haspopup="menu"><span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11 M7 10l5 5 5-5 M5 20h14"/></svg></span> <span data-i18n="menu.export">Export</span></button>
         </div>
       </div>
     </div>
@@ -2089,15 +2102,15 @@ body.sense-inspector #inspector { display:none; }
     </section>
     <aside id="inspector" data-i18n-aria="inspector.label" aria-label="Session inspector">
       <div class="inspector-head"><span data-i18n="inspector.title">Inspector</span><div class="inspector-tabs" role="tablist" data-i18n-aria="inspector.quickViews" aria-label="Quick views">
-        <button type="button" data-inspector="agent" class="active" data-i18n-title="inspector.context" title="Session context">⌂</button>
-        <button type="button" data-inspector="fitxers" data-i18n-title="nav.files" title="Files">▤</button>
-        <button type="button" data-inspector="canvis" data-i18n-title="inspector.git" title="Git and changes">⑂</button>
-        <button type="button" data-inspector="navegador" data-i18n-title="nav.browser" title="Browser">◎</button>
+        <button type="button" data-inspector="agent" class="active" data-i18n-title="inspector.context" title="Session context" aria-label="Session context" data-i18n-aria="inspector.context"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7 M6 9.5V20h12V9.5"/></svg></button>
+        <button type="button" data-inspector="fitxers" data-i18n-title="nav.files" title="Files" aria-label="Files" data-i18n-aria="nav.files"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5h7l2 2h9v13H3z"/></svg></button>
+        <button type="button" data-inspector="canvis" data-i18n-title="inspector.git" title="Git and changes" aria-label="Git and changes" data-i18n-aria="inspector.git"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3v18 M18 3v5a6 6 0 0 1-6 6H6"/></svg></button>
+        <button type="button" data-inspector="navegador" data-i18n-title="nav.browser" title="Browser" aria-label="Browser" data-i18n-aria="nav.browser"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18 M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18 M12 3c5 5 5 13 0 18-5-5-5-13 0-18"/></svg></button>
       </div></div>
       <section class="inspect-section">
         <div class="inspect-title" data-i18n="inspector.session">Session</div>
         <dl>
-          <div class="fact"><dt data-i18n="inspector.workspace">Workspace</dt><dd id="workspacePath">…</dd></div>
+          <div class="fact"><dt data-i18n="inspector.folder">Folder</dt><dd id="workspacePath">…</dd></div>
           <div class="fact"><dt data-i18n="inspector.branch">Branch</dt><dd id="branchSide">—</dd></div>
           <div class="fact"><dt data-i18n="inspector.model">Model</dt><dd id="modelSide">…</dd></div>
           <div class="fact"><dt data-i18n="inspector.reviewer">Reviewer</dt><dd id="reviewerState">…</dd></div>
@@ -2117,7 +2130,7 @@ body.sense-inspector #inspector { display:none; }
       </section>
     </aside>
     <aside id="toolDock" hidden aria-label="Project tools" data-i18n-aria="shell.projectTools">
-      <header class="tool-dock-head"><strong id="toolDockTitle"></strong><button type="button" class="icon-btn" id="toolDockClose" aria-label="Close panel" data-i18n-aria="shell.closePanel">×</button></header>
+      <header class="tool-dock-head"><strong id="toolDockTitle"></strong><button type="button" class="icon-btn" id="toolDockClose" aria-label="Close panel" data-i18n-aria="shell.closePanel"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 7l10 10 M17 7L7 17"/></svg></button></header>
       <nav class="tool-dock-tabs" aria-label="Project tools" data-i18n-aria="shell.projectTools"><button data-view="fitxers" data-i18n="nav.files">Files</button><button data-view="canvis" data-i18n="nav.changes">Changes</button><button data-view="terminal" data-i18n="nav.terminal">Terminal</button><button data-view="navegador" data-i18n="nav.browser">Browser</button></nav>
       <div id="toolDockBody"></div>
     </aside>
@@ -2378,7 +2391,7 @@ function setSideCompact(compact) {
   side.classList.toggle('compact', compact);
   const b = $('sideCompact');
   if (b) {
-    b.textContent = compact ? '›' : '‹';
+    // La fletxa (SVG) gira amb aria-pressed (refine.css): no s'hi escriu cap glif.
     b.dataset.i18nTitle = compact ? 'ui.sidebarExpand' : 'ui.sidebarCompact';
     b.title = gregalT(b.dataset.i18nTitle);
     b.setAttribute('aria-pressed', compact ? 'true' : 'false');
@@ -2494,35 +2507,43 @@ main.addEventListener('click', e => {
   e.target.textContent = gregalT('md.copied');
   setTimeout(() => e.target.textContent = gregalT('md.copy'), 1300);
 });
-function showMain() { hero.hidden = true; hero.style.display = 'none'; main.classList.add('on'); }
-// Inici → conversa: en començar a escriure, el compositor baixa fins al lloc
-// de sempre. Es mesura on era i on va (FLIP) i el salt es desfà amb un
+// Inici → conversa: mentre escrius, la portada (salutació, lluïssor) i el
+// compositor es queden quiets; és en enviar quan el compositor baixa fins al
+// lloc de sempre i hi surt el primer missatge. Qualsevol cosa que es pinti a
+// la conversa (add, beginWorkGroup) deixa la portada, també un torn que no
+// has escrit tu (una conversa que obres, un torn que es reprèn en carregar),
+// però només s'anima si acabes d'enviar (marcaSortida): obrir una conversa
+// ha d'ensenyar-la al seu lloc, no fer lliscar el camp cada vegada.
+function showMain(anima) {
+  const fes = () => { hero.hidden = true; hero.style.display = 'none'; main.classList.add('on'); };
+  const enviant = sortidaCompositor && Date.now() - sortidaCompositor.t < 1500;
+  if (anima && enviant && !hero.hidden && hero.style.display !== 'none') animaSaltCompositor(fes);
+  else fes();
+}
+// Es mesura on era el compositor i on va (FLIP) i el salt es desfà amb un
 // transform que s'esvaeix, així el camp no parpelleja ni perd el focus.
-// Buidar-lo sense haver enviat res fa el camí invers.
+// L'origen es pren en prémer Enviar (marcaSortida): entre la tecla i el
+// primer missatge, buidar el camp i encendre la barra del torn ja mouen el
+// bloc centrat de la portada, i el compositor saltava amunt abans de baixar.
+let sortidaCompositor = null;
+function marcaSortida() {
+  sortidaCompositor = !hero.hidden && hero.style.display !== 'none'
+    ? { top: $('composer').getBoundingClientRect().top, t: Date.now() } : null;
+}
 function animaSaltCompositor(canvi) {
   const comp = $('composer');
-  // Un canvi ràpid (escriure i esborrar) no ha de mesurar sobre una animació
-  // a mig fer: es cancel·la i es parteix de la posició de debò.
+  // Un canvi ràpid no ha de mesurar sobre una animació a mig fer: es
+  // cancel·la i es parteix de la posició de debò.
   comp.getAnimations().forEach(a => a.cancel());
-  const abans = comp.getBoundingClientRect().top;
+  const sortida = sortidaCompositor && Date.now() - sortidaCompositor.t < 1500 ? sortidaCompositor.top : null;
+  sortidaCompositor = null;
+  const abans = sortida ?? comp.getBoundingClientRect().top;
   canvi();
   const salt = abans - comp.getBoundingClientRect().top;
   if (!salt || !comp.animate) return;
   if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   comp.animate([{ transform: 'translateY(' + salt + 'px)' }, { transform: 'none' }],
     { duration: 340, easing: 'cubic-bezier(.22,.61,.36,1)' });
-}
-function iniciAConversa() {
-  if (!hero || hero.hidden) return;
-  animaSaltCompositor(showMain);
-}
-function conversaAInici() {
-  if (!hero || !hero.hidden) return;
-  animaSaltCompositor(() => {
-    main.classList.remove('on');
-    hero.style.display = '';
-    hero.hidden = currentView !== 'agent';
-  });
 }
 function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 140; }
 // Icones dels missatges. Dibuixades, no emoji: l'emoji canvia de forma i
@@ -2556,7 +2577,7 @@ function inspectorObert() {
 
 function add(cls, who, html) {
   const stick = !main.classList.contains('on') || nearBottom();
-  showMain();
+  showMain(true);
   const d = document.createElement('div'); d.className = 'msg ' + cls;
   // Accions al passar-hi per sobre, com a ChatGPT i Claude: copiar sempre,
   // i tornar-ho a demanar a la resposta (reenvia el que vas escriure tu).
@@ -2599,7 +2620,7 @@ let turnGroup = null;
 function workGroupBody() { return turnGroup && turnGroup.isConnected ? turnGroup.querySelector('.wg-body') : null; }
 function beginWorkGroup() {
   if (turnGroup) endWorkGroup({});
-  showMain();
+  showMain(true);
   const g = document.createElement('details');
   g.className = 'msg work-group running';
   g.open = true;
@@ -2623,8 +2644,8 @@ function paintWorkGroup(g, o) {
     : gregalT('work.steps');
   g.querySelector('.wg-label').textContent = label;
   const meta = g.querySelector('.wg-meta');
-  meta.textContent = [tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '',
-    o.speed ? '⚡ ' + o.speed : ''].filter(Boolean).join(' · ');
+  // La velocitat (PP/TG) ja surt al peu del compositor: aquí només en passar-hi.
+  meta.textContent = tools ? (tools === 1 ? gregalT('ui.toolsCountOne') : gregalT('ui.toolsCount').replace('{n}', tools)) : '';
   meta.title = o.speed ? gregalT('ui.speed.average').replace('{v}', o.speed).replace('{n}', o.calls || 0) + '\n' + gregalT('ui.speed.help') : '';
 }
 document.addEventListener('gregal:idioma', () => {
@@ -2641,10 +2662,10 @@ function setActivity(key, text, since) {
   turnActivity = { key, text, since: since || Date.now(), progress: turnActivity ? turnActivity.progress : false };
   paintActivity();
 }
-function activityLine() {
+function activityLine(senseTemps) {
   if (!turnActivity) return '';
   const ms = Math.max(0, Date.now() - turnActivity.since);
-  let line = turnActivity.text + (ms >= 5000 ? ' · ' + durada(ms) : '');
+  let line = turnActivity.text + (ms >= 5000 && !senseTemps ? ' · ' + durada(ms) : '');
   // Només amb «progress» del servidor sabem del cert que no arriba res.
   if (turnActivity.key === 'model' && turnActivity.progress && ms >= 90000) line += ' — ' + gregalT('act.now.stalled');
   return line;
@@ -2842,7 +2863,9 @@ function updateInspector(r) {
   window.gregalCwd = r.cwd || '';
   $('branchSide').textContent = r.branch || '—';
   $('modelSide').textContent = r.provider + '/' + r.model;
-  $('reviewerState').textContent = r.verify || 'off';
+  // El valor del config (off, both…) no és per llegir-lo: cada mode té el seu nom.
+  const revKey = 'inspector.reviewer.' + (r.verify || 'off'), revNom = gregalT(revKey);
+  $('reviewerState').textContent = revNom && revNom !== revKey ? revNom : (r.verify || 'off');
   const active = visualWorking(r);
   const completed = !active && turnPhase === 'completed' && Date.now() < turnCompletedUntil;
   const waiting = active && turnPhase === 'waiting';
@@ -2944,7 +2967,9 @@ function pintaTurnBar() {
   const phaseLabel = visiblePhase === 'waiting' ? gregalT('estat.esperant') : visiblePhase === 'completed' ? gregalT('estat.completat') : visiblePhase === 'reconnecting' ? gregalT('estat.reconnectant') : gregalT('ui.turn.treballant');
   // typeof: els tests carreguen aquesta funció sola, sense la resta.
   const live = typeof turnActivity !== 'undefined' && turnActivity;
-  const nowText = turnT0 && live ? activityLine() : turnNote;
+  // Si el pas va començar amb el torn, el seu temps és el del torn: dir-lo
+  // dues vegades («treballant · 9s · Preparant una eina · 9s») és soroll.
+  const nowText = turnT0 && live ? activityLine(Math.abs(turnActivity.since - turnT0) < 1500) : turnNote;
   const activeAction = nowText ? ' · <span class="turn-note" title="' + escapeHTML(nowText) + '">' + escapeHTML(nowText) + '</span>' : '';
   if (typeof paintActivity === 'function') paintActivity();
   const lastSpeed = turnT0 && typeof turnSpeed !== 'undefined' && turnSpeed && typeof speedText === 'function' && turnSpeed.last;
@@ -3125,6 +3150,36 @@ function stopTurn() {
   activityItem('agent', gregalT('act.aturat'), gregalT('act.aturat.sub'), 'warn');
   setSending(false);
 }
+// Punt del peu de la barra: verd només si el model pot respondre. Un
+// proveïdor remot sense clau (instal·lació nova) es veu com un anell ambre
+// amb el motiu al títol; és la regla de keylessHint al servidor.
+let clauProveidor = { nom: '', t: 0, sense: false };
+function urlLocal(url) {
+  try {
+    const h = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (h === 'localhost' || h === '::1' || h.startsWith('127.') || h.endsWith('.local') || h.endsWith('.localhost') ||
+        h === 'host.docker.internal' || h.startsWith('10.') || h.startsWith('192.168.')) return true;
+    const m = h.match(/^172\.(\d+)\./);
+    return !!(m && +m[1] >= 16 && +m[1] <= 31);
+  } catch (e) { return false; }
+}
+async function pintaClau(nom) {
+  const dot = $('statusDot');
+  if (!dot || !nom) return;
+  if (nom !== clauProveidor.nom || Date.now() - clauProveidor.t > 30000) {
+    const abans = clauProveidor.nom === nom && clauProveidor.sense;
+    clauProveidor = { nom, t: Date.now(), sense: abans };
+    try {
+      const d = await api('/api/providers').then(x => x.ok ? x.json() : null);
+      const p = d && (d.providers || []).find(x => x.name === nom);
+      clauProveidor.sense = !!(p && p.url && !urlLocal(p.url) && !p.has_api_key);
+    } catch (e) {}
+  }
+  dot.classList.toggle('sense-clau', clauProveidor.sense);
+  const motiu = clauProveidor.sense ? gregalT('ui.noKey').replace('{p}', nom) : '';
+  dot.title = motiu;
+  if (motiu) dot.setAttribute('aria-label', motiu); else dot.removeAttribute('aria-label');
+}
 let stateRefreshVersion = 0;
 async function refresh(options = {}) {
   const version = ++stateRefreshVersion;
@@ -3155,6 +3210,7 @@ async function refresh(options = {}) {
   $('activeWorkspace').disabled = !!r.agent_busy;
   $('sideProject').textContent = r.project || gregalT('nav.project');
   $('statusDot').classList.toggle('busy', visualWorking(r));
+  pintaClau(r.provider);
   $('hmode').textContent = r.mode; $('hrole').textContent = (window.gregalModelName && window.gregalModelName(r.model)) || r.model || r.current_role;
   agentMode = r.mode === 'code' || r.mode === 'autonomous' || r.mode === 'debug'; goalMode = r.mode === 'goal';
   paintMode(r.mode);
@@ -3326,6 +3382,7 @@ async function setPermMode(next, confirmed = false) {
 // («Primer el pla» era un interruptor a part; ara és el mode.)
 try { localStorage.removeItem('gregal_plan_first'); } catch (e) {}
 function sendByMode() {
+  marcaSortida();
   if (state.mode === 'plan') return doPlan();
   if (!(agentMode || goalMode)) return doChat();
   return doAgent();
@@ -3373,7 +3430,9 @@ let viewMode = 'normal';
 try { viewMode = localStorage.getItem('gregal_view') || 'normal'; } catch (e) {}
 function paintView() {
   const labels = {normal:'menu.transcript', verbose:'prefs.detail.verbose', summary:'prefs.detail.summary'};
-  $('viewBtn').textContent = '👁 ' + (gregalT(labels[viewMode] || labels.normal) || 'Normal');
+  // Ull dibuixat (no emoji) i «Vista: …»: només «Normal» no deia de què.
+  $('viewBtn').innerHTML = '<span class="calma-ico"><svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6"/></svg></span> <span>' +
+    escapeHTML(gregalT('menu.view') + ': ' + (gregalT(labels[viewMode] || labels.normal) || 'Normal')) + '</span>';
   document.body.classList.remove('view-normal', 'view-verbose', 'view-summary');
   document.body.classList.add('view-' + viewMode);
 }
@@ -4106,7 +4165,8 @@ async function doAgent(task, resumed) {
 // --- pla ---
 async function doPlan(cont) {
   if (sending) return;
-  const text = cont ? '' : input.value.trim(); if (!cont && !text) { sys(gregalT('ui.pla.buit')); return; }
+  // Un Enter amb el camp buit a la portada no se n'ha d'anar per dir-te que escriguis.
+  const text = cont ? '' : input.value.trim(); if (!cont && !text) { if (hero.hidden) sys(gregalT('ui.pla.buit')); input.focus(); return; }
   setSending(true);
   if (!cont) { input.value=''; input.dispatchEvent(new Event('input')); input.style.height='auto'; add('u','',md(text)); }
   const box=add('a','', '<span class="spin">' + escapeHTML(gregalT('ui.exploring')) + '</span>');
@@ -4221,7 +4281,7 @@ async function loadGoals() {
   const boxes = [box, $('goalsPage')].filter(Boolean);
   boxes.forEach(target => target.innerHTML = '');
   if (!list.length) {
-    boxes.forEach(target => target.innerHTML = '<div class="goal-empty">' + escapeHTML(gregalT('objectius.buit')) + '</div>');
+    boxes.forEach(target => target.innerHTML = '<div class="goal-empty">' + escapeHTML(gregalT('objectius.buitMenu')) + '</div>');
     selectGoalDetail(null);
     return;
   }
@@ -4629,14 +4689,22 @@ input.addEventListener('keydown',e=>{
     }
     sendByMode();
   }
-  if(e.key==='Escape'&&sending){e.preventDefault();stopTurn();}
+  if(e.key==='Escape'&&sending&&!capaOberta()){e.preventDefault();stopTurn();}
 });
-input.addEventListener('input',e=>{if(e.isTrusted)histIdx=-1;input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';$('send').innerHTML=sendLabel();
-  // Escriure a l'inici fa baixar el compositor fins al lloc de la conversa;
-  // esborrar-ho tot i no haver enviat res el torna a pujar.
-  if (!hero.hidden) { if (input.value.trim()) iniciAConversa(); }
-  else if (!input.value.trim() && !sending && !main.childElementCount && currentView === 'agent') conversaAInici();
-});
+// Escriure o esborrar no mou res: la portada només se'n va en enviar (showMain).
+input.addEventListener('input',e=>{if(e.isTrusted)histIdx=-1;input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';$('send').innerHTML=sendLabel();});
+// Hi ha una capa per sobre (diàleg, full de notes, paleta, menú)? Llavors
+// l'Esc és seu. I el torn només l'atura l'Esc fet des del xat.
+function capaOberta() {
+  return !!document.querySelector('#prefsModal.on, #keysModal.on, #qnPanel:not([hidden]), #palette:not([hidden]), dialog[open], ' +
+    '#moreMenu:not([hidden]), #mpick:not([hidden]), #thinkMenu:not([hidden]), .perm-menu:not([hidden]), .folder-menu, #suggest:not([hidden])');
+}
+// D'on ve la tecla (e.target, no activeElement: el cercador de converses
+// es desenfoca amb el seu Esc abans que arribi aquí).
+function focusAlXat(el) {
+  const a = el && el.nodeType === 1 ? el : document.activeElement;
+  return !a || a === document.body || a === document.documentElement || !!a.closest('#conversationPane');
+}
 document.addEventListener('keydown',e=>{
   const cmd = e.ctrlKey || e.metaKey;
   // Dreceres de les dues apps de referència. Es miren abans de res perquè
@@ -4645,8 +4713,10 @@ document.addEventListener('keydown',e=>{
   if (cmd && e.key.toLowerCase() === 'n') { e.preventDefault(); novaConversa(); return; }
   if (cmd && e.key.toLowerCase() === 'f') { e.preventDefault(); const c = $('convSearch'); if (c) { setSide(true); c.focus(); c.select(); } return; }
   if (e.key === 'Escape') {
-    // Escape atura el torn des d'on sigui, no només amb el cursor al camp.
-    if (sending) { e.preventDefault(); stopTurn(); return; }
+    // Escape atura el torn amb el focus a la conversa o al compositor, però
+    // si hi ha una finestra o un menú obert l'Esc és per tancar-lo: abans,
+    // tancar les Preferències o les notes també aturava la feina.
+    if (sending && !capaOberta() && focusAlXat(e.target)) { e.preventDefault(); stopTurn(); return; }
     $('prov').style.display='none'; if(mobile.matches)setSide(false);
   }
 });

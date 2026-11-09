@@ -110,17 +110,20 @@
     function place() {
       const visible = scroller.offsetParent !== null && scroller.clientHeight > 0;
       const wide = scroller.clientWidth >= (opts.minWidth || 640);
-      const show = visible && wide && prompts.length >= 2;
+      // Amb dos prompts es veuen tots dos a la pantalla: la barra només
+      // ajuda (i només ocupa la vora) quan la conversa ja és llarga.
+      const show = visible && wide && prompts.length >= 3;
       rail.hidden = !show;
       // Perquè la conversa li pugui fer lloc (Vents no té marge a la dreta).
       if (scroller.classList.contains('pnav-on') !== show) scroller.classList.toggle('pnav-on', show);
       if (!show) { hideTip(); return; }
       const h = host.getBoundingClientRect(), s = scroller.getBoundingClientRect();
-      const height = Math.max(40, scroller.clientHeight - 24), step = pitch(prompts.length, height - 12);
+      const height = Math.max(40, scroller.clientHeight - 24), step = pitch(prompts.length, height - 12, 5, 10);
       // Centrada a l'alçada de la conversa; si no hi cap, de dalt a baix i fa scroll.
       const used = Math.min(height, prompts.length * step + 8);
       rail.style.top = (s.top - h.top + 12 + (height - used) / 2) + 'px';
-      rail.style.left = (s.left - h.left + scroller.clientWidth - 22) + 'px';
+      // Un pèl separada de la vora (i de la barra de desplaçament).
+      rail.style.left = (s.left - h.left + scroller.clientWidth - 28) + 'px';
       rail.style.maxHeight = height + 'px';
       list.style.setProperty('--pnav-pitch', step + 'px');
     }

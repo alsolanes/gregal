@@ -4534,6 +4534,18 @@ Object.assign(CA, { 'winds.routineSaved':'La rutina ja està preparada.', 'winds
 Object.assign(EN, { 'winds.routineSaved':'Your routine is ready.', 'winds.routineSaveFailed':'Could not save the routine: {error}' });
 Object.assign(CA, { 'shell.chat':'Xat', 'shell.navigation':'Navegació principal', 'shell.yourSpace':'El teu espai', 'shell.projectTools':'Eines del projecte', 'shell.closePanel':'Tanca el panell' });
 Object.assign(EN, { 'shell.chat':'Chat', 'shell.navigation':'Main navigation', 'shell.yourSpace':'Your space', 'shell.projectTools':'Project tools', 'shell.closePanel':'Close panel' });
+// Codi: l'inspector diu «Carpeta» (com el xip de la capçalera) i el revisor
+// amb paraules; el menú ⋯ diu de què és la vista.
+Object.assign(CA, { 'inspector.folder':'Carpeta', 'menu.view':'Vista',
+  'inspector.reviewer.off':'Apagat', 'inspector.reviewer.manual':'Manual', 'inspector.reviewer.auto':'Automàtic',
+  'inspector.reviewer.both':'Automàtic i manual', 'inspector.reviewer.strict':'Estricte',
+  'objectius.buitMenu':'Cap objectiu encara. Tria «Mode objectiu» al menú de la capçalera (o escriu /objectiu) i explica què vols aconseguir.',
+  'ui.noKey':'Sense clau d’API per a «{p}»: el model no pot respondre. Connecta’l a Preferències → Models i agent.' });
+Object.assign(EN, { 'inspector.folder':'Folder', 'menu.view':'View',
+  'inspector.reviewer.off':'Off', 'inspector.reviewer.manual':'Manual', 'inspector.reviewer.auto':'Automatic',
+  'inspector.reviewer.both':'Automatic and manual', 'inspector.reviewer.strict':'Strict',
+  'objectius.buitMenu':'No goals yet. Pick “Goal mode” in the header menu (or type /goal) and say what you want to achieve.',
+  'ui.noKey':'No API key for “{p}”: the model cannot answer. Connect it in Preferences → Models & agent.' });
 // Mode Kanban (experimental, app/kanban.js).
 Object.assign(CA, {
   'kanban.nav': 'Kanban', 'kanban.kicker': 'Experimental', 'kanban.title': 'Kanban',

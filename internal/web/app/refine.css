@@ -115,12 +115,10 @@ body.shell-winds .vw-composer:focus-within {
   color:var(--accent-hi); text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--accent) 45%, transparent);
   text-underline-offset:3px;
 }
-:root[data-theme="light"] :is(#prefsModal .pf-gbody a, .pf-skills-help a),
-:root[data-theme="gpt"] :is(#prefsModal .pf-gbody a, .pf-skills-help a),
-:root[data-theme="claude"] :is(#prefsModal .pf-gbody a, .pf-skills-help a),
-:root[data-theme="mistral"] :is(#prefsModal .pf-gbody a, .pf-skills-help a),
-:root[data-theme="gemini"] :is(#prefsModal .pf-gbody a, .pf-skills-help a) { color:var(--accent); }
-:is(#prefsModal, .vw-composer, #box) :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color:var(--accent); }
+:root:is([data-theme="light"], [data-theme="gpt"], [data-theme="claude"], [data-theme="mistral"], [data-theme="gemini"]) #prefsModal .pf-gbody a,
+:root:is([data-theme="light"], [data-theme="gpt"], [data-theme="claude"], [data-theme="mistral"], [data-theme="gemini"]) .pf-skills-help a { color:var(--accent); }
+:is(#prefsModal, #box) :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color:var(--accent); }
+:where(.vw-composer) :is(input[type="checkbox"], input[type="radio"], input[type="range"]) { accent-color:var(--accent); }
 #prefsModal select, .pf-account-form select {
   min-height:36px; padding:0 30px 0 10px; border:1px solid var(--line); border-radius:var(--r-sm);
   background:var(--surface); color:var(--text); font:inherit;
@@ -171,11 +169,13 @@ body.shell-winds .vw-home {
 body.shell-winds .vw-welcome h1 {
   background-image:linear-gradient(100deg, var(--ink) 0%, var(--vw-accent) 55%, var(--onada) 100%);
 }
-:root[data-theme="light"] :is(#hero h1, .vw-welcome h1),
-:root[data-theme="gpt"] :is(#hero h1, .vw-welcome h1),
-:root[data-theme="claude"] :is(#hero h1, .vw-welcome h1),
-:root[data-theme="mistral"] :is(#hero h1, .vw-welcome h1),
-:root[data-theme="gemini"] :is(#hero h1, .vw-welcome h1) {
+/* Només la portada de Codi: dins d'un :is() amb #hero, la salutació de Vents
+   prenia l'especificitat d'un id i guanyava el seu degradat sàlvia. */
+:root[data-theme="light"] #hero h1,
+:root[data-theme="gpt"] #hero h1,
+:root[data-theme="claude"] #hero h1,
+:root[data-theme="mistral"] #hero h1,
+:root[data-theme="gemini"] #hero h1 {
   background-image:linear-gradient(100deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--lila)) 55%, color-mix(in srgb, var(--accent) 40%, var(--onada)) 100%);
 }
 .vw-welcome > p:last-child { font-size:15px; }
@@ -237,3 +237,144 @@ html body.shell-winds .vw-welcome h1 {
 :root[data-theme="gemini"] body.shell-winds .vw-welcome h1 {
   background-image:linear-gradient(100deg, var(--ink) 0%, var(--vw-ink) 60%, color-mix(in srgb, var(--vw-ink) 70%, var(--onada)) 100%);
 }
+
+/* =====================================================================
+   Tercera passada (Codi): un sol joc d'icones, una sola fletxa i cap
+   element repetit. Els glifs de text (‹ ⌃ ▾ ★ ⤓ × ⋯) feien cada botó d'una
+   família diferent; aquí són traços del mateix gruix que shell-icons.js.
+   ===================================================================== */
+:root {
+  --ico-star:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8z'/%3E%3C/svg%3E");
+  --ico-star-on:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3.6l2.5 5.2 5.7.8-4.1 4 1 5.6-5.1-2.7-5.1 2.7 1-5.6-4.1-4 5.7-.8z'/%3E%3C/svg%3E");
+  --ico-down:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 4v11 M7 10l5 5 5-5 M5 20h14'/%3E%3C/svg%3E");
+  --ico-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7l10 10 M17 7L7 17'/%3E%3C/svg%3E");
+  --ico-plus:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14 M5 12h14'/%3E%3C/svg%3E");
+  --ico-dots:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Ccircle cx='5' cy='12' r='1.6'/%3E%3Ccircle cx='12' cy='12' r='1.6'/%3E%3Ccircle cx='19' cy='12' r='1.6'/%3E%3C/svg%3E");
+}
+
+/* ---------- Peu del compositor: mateixa mida, mateix radi, mateixa fletxa ---------- */
+#composer :is(#modelPill, #thinkPill, #permBtn, #modePicker) { font-size:12px; font-weight:500; border-radius:var(--r-sm); min-height:30px; }
+#composer :is(#modelPill, #thinkPill) { color:var(--muted); padding:4px 8px; }
+#composer :is(#modelPill, #thinkPill) b { font-size:12px; font-weight:500; color:var(--text); }
+#composer :is(#modelPill, #thinkPill):hover { background:var(--hover); color:var(--ink); }
+#composer :is(#modelPill, #thinkPill):hover b { color:var(--ink); }
+#composer .think-pill { margin-left:0; display:inline-flex; align-items:center; white-space:nowrap; flex:none; }
+#composer .mp-caret {
+  display:inline-block; flex:none; width:5px; height:5px; margin:0 1px 3px 7px; font-size:0;
+  border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint);
+}
+/* El selector de mode: la fletxa del sistema quedava lluny del text. */
+#composer .mode-switch { position:relative; }
+#composer #modePicker { -webkit-appearance:none; appearance:none; padding:3px 24px 3px 9px; field-sizing:content; }
+#composer .mode-switch::after {
+  content:''; position:absolute; right:11px; top:50%; width:5px; height:5px; margin-top:-4px; pointer-events:none;
+  border:solid var(--faint); border-width:0 1.5px 1.5px 0; transform:rotate(45deg);
+}
+/* Al mòbil el mode té fila pròpia: el selector l'omple i la fletxa hi va al final. */
+@media (max-width:600px) {
+  #composer #modePicker { width:100%; field-sizing:fixed; }
+  /* Si el peu salta de línia, enviar es queda a la dreta, on el busca el polze. */
+  #composer #send { margin-left:auto; }
+  /* La lluïssor, al voltant de la salutació (al mòbil va a baix), no al buit de dalt. */
+  #conversationPane:has(#hero:not([hidden])) {
+    background:
+      radial-gradient(60vw 34vh at 50% 74%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%),
+      radial-gradient(40vw 24vh at 62% 80%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 72%);
+  }
+}
+
+/* ---------- Grup de feina: sense franja buida mentre arrenca ---------- */
+#main .work-group > .wg-body:empty { display:none; }
+#main .work-group[open]:has(> .wg-body:empty) > summary { border-bottom:0; border-radius:12px; }
+#main .work-group > summary::before {
+  content:''; width:5px; height:5px; margin:0 3px 0 1px; border:solid currentColor; border-width:0 1.5px 1.5px 0;
+  transform:rotate(-45deg); color:var(--faint);
+}
+#main .work-group[open] > summary::before { transform:rotate(45deg) translate(-1px,-1px); }
+
+/* ---------- Capçalera ---------- */
+#top .folder-chip-caret { position:relative; width:24px; padding:0; font-size:0; }
+#top .folder-chip-caret::before {
+  content:''; position:absolute; left:50%; top:50%; width:5px; height:5px; margin:-4px 0 0 -3px;
+  border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg);
+}
+/* ＋ i ⎇＋ al costat del projecte quan només hi ha una sessió (panels.js). */
+body:not(.desktop) #sessionTabs.single:not(:has(.session-error)) { display:none; }
+#toolDockClose { display:inline-grid; }
+#toolDockClose, #sideClose { place-items:center; padding:0; }
+:is(#toolDockClose, #sideClose) .ui-icon { width:16px; height:16px; }
+#topSessionNew { display:inline-flex; align-items:center; gap:2px; margin-left:2px; }
+#topSessionNew .icon-btn { width:28px; height:28px; display:inline-grid; place-items:center; padding:0; border:0; border-radius:var(--r-sm);
+  background:transparent; color:var(--faint); cursor:pointer; }
+#topSessionNew .icon-btn:hover { background:var(--surface); color:var(--ink); }
+#topSessionNew .ui-icon { width:16px; height:16px; }
+#sessionTabs .session-tab .x { display:inline-grid; place-items:center; width:18px; height:18px; padding:0; border-radius:5px; }
+#sessionTabs .session-tab .x .ui-icon { width:12px; height:12px; pointer-events:none; }
+@media (max-width:600px) { #topSessionNew .worktree { display:none; } }
+#moreMenu > .ghost { display:flex; align-items:center; gap:8px; width:100%; }
+#moreMenu .calma-ico { color:var(--muted); }
+
+/* ---------- Barra lateral ---------- */
+#side :is(#sideCompact, .calma-tools .icon-btn) { display:inline-grid; place-items:center; padding:0; }
+#side #sideCompact .ui-icon { width:16px; height:16px; transition:transform .15s var(--ease-out); }
+#side #sideCompact[aria-pressed="true"] .ui-icon { transform:rotate(180deg); }
+#side .calma-tools .ui-icon { width:17px; height:17px; }
+#side #convToggle { display:inline-grid; place-items:center; width:24px; height:24px; padding:0; border:0; border-radius:6px;
+  background:transparent; color:var(--faint); cursor:pointer; }
+#side #convToggle:hover { background:var(--hover); color:var(--ink); }
+#side #convToggle .ui-icon { width:14px; height:14px; transition:transform .15s var(--ease-out); }
+#side #convToggle[aria-expanded="false"] .ui-icon { transform:rotate(180deg); }
+/* Obrir un projecte és l'acció de la secció: el ＋ sempre a la vista. */
+#side #newproject { opacity:1; display:inline-grid; place-items:center; padding:0; color:var(--faint); }
+#side #newproject:hover { color:var(--ink); background:var(--hover); }
+#side #newproject .ui-icon { width:15px; height:15px; }
+#side .rail-more > summary::before { content:''; height:18px; background:currentColor; -webkit-mask:var(--ico-dots) center/18px no-repeat; mask:var(--ico-dots) center/18px no-repeat; }
+/* Accions de cada conversa: icones dibuixades, i només en passar-hi. La
+   conversa oberta ja es distingeix pel fons; una estrella de color fixa
+   semblava fixada sense ser-ho. */
+#side .conv :is(.conv-pin, .conv-exp, .conv-x) {
+  display:inline-grid; place-items:center; flex:none; width:0; height:22px; padding:0; border:0; border-radius:6px; overflow:hidden;
+  font-size:0; color:var(--faint); background:transparent; opacity:0;
+}
+/* Amagades no ocupen lloc: el títol fa servir tota la fila fins que hi passes. */
+#side .conv:is(:hover, :focus-within) :is(.conv-pin, .conv-exp, .conv-x), #side .conv .conv-pin.pinned { width:22px; }
+#side .conv :is(.conv-pin, .conv-exp, .conv-x)::before { content:''; width:14px; height:14px; background:currentColor; -webkit-mask:var(--ico) center/14px no-repeat; mask:var(--ico) center/14px no-repeat; }
+#side .conv .conv-pin { --ico:var(--ico-star); }
+#side .conv .conv-pin.pinned { --ico:var(--ico-star-on); color:var(--accent); opacity:1; }
+#side .conv .conv-exp { --ico:var(--ico-down); }
+#side .conv .conv-x { --ico:var(--ico-x); }
+#side .conv:is(:hover, :focus-within) :is(.conv-pin, .conv-exp, .conv-x) { opacity:1; }
+#side .conv :is(.conv-pin, .conv-exp):hover { color:var(--ink); background:var(--hover-alt); }
+#side .conv .conv-x:hover { color:var(--red); background:var(--red-soft); }
+#projectList .project-new { font-size:0; display:inline-grid; place-items:center; }
+#projectList .project-new::before { content:''; width:14px; height:14px; background:currentColor; -webkit-mask:var(--ico-plus) center/14px no-repeat; mask:var(--ico-plus) center/14px no-repeat; }
+/* Cercant converses, «Obre una carpeta amb + per començar» no venia a tomb. */
+#side:has(#convSearch:not(:placeholder-shown)) #projectList > .conv-empty,
+#side:has(#convSearch:not(:placeholder-shown)) .sidebar-section-head:has(+ #projectList > .conv-empty) { display:none; }
+
+/* ---------- Eines del projecte: la pestanya ja diu on ets ---------- */
+#toolDock { position:relative; }
+#toolDock .tool-dock-head { position:absolute; top:7px; right:10px; min-height:0; padding:0; border:0; z-index:1; }
+#toolDock #toolDockTitle { display:none; }
+#toolDock .tool-dock-tabs { min-height:50px; align-items:center; padding:8px 52px 8px 12px; }
+#toolDock .tool-dock-tabs button { font-size:12.5px; padding:6px 10px; }
+#toolDock .page-head h1, #toolDock .page-title { display:none; }
+#toolDock .page-head { align-items:center; }
+#toolDock .page-head > .page-copy { flex:1 1 220px; margin:0; }
+#toolDock #terminalPage .page-head { display:none; }
+#toolDock #procCmd { font-family:var(--mono); }
+
+/* ---------- Inspector: pestanyes amb icona del joc ---------- */
+#inspector .inspector-tabs button { display:inline-grid; place-items:center; }
+#inspector .inspector-tabs .ui-icon { width:15px; height:15px; }
+
+/* ---------- Selector de models i ordres: lletra de la interfície ----------
+   Els noms dels models i les explicacions de les ordres són text per
+   llegir; la lletra de terminal queda per al que s'escriu tal qual (l'ordre). */
+.mp-search-icon { display:inline-grid; place-items:center; }
+.mp-search-icon .ui-icon { width:14px; height:14px; }
+#mpick :is(.mp-search, .mp-item, .mp-prov, .mp-foot) { font-family:inherit; }
+#mpick .mp-item { font-size:13px; }
+#mpick .mp-prov { font-size:10.5px; letter-spacing:.06em; }
+#suggest .sg-item { font-family:inherit; align-items:baseline; }
+#suggest .sg-item b { font-family:var(--mono); font-size:.95em; }
