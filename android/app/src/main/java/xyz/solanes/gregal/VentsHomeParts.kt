@@ -50,16 +50,14 @@ internal fun WhereChip(vm: GregalViewModel, lang: String, onClick: () -> Unit) {
         else -> server
     }
     val dot = when {
-        switching -> Sand
-        !onServer -> Muted
-        offline -> Sand
-        reach == true -> Color(0xFF6FCF97)
-        reach == false -> Color(0xFFE57373)
-        else -> Muted
+        !onServer && !switching -> Muted
+        offline && !switching -> Sand
+        else -> reachDot(reach, switching)
     }
+    // 40 dp d'alt (abans 32): és un control, no una etiqueta.
     Row(
-        Modifier.padding(end = 2.dp).clip(RoundedCornerShape(16.dp)).background(SuperficieAlta.copy(alpha = .55f))
-            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp).widthIn(max = 150.dp)
+        Modifier.padding(end = 2.dp).heightIn(min = 40.dp).clip(GregalShape.pill).background(SuperficieAlta.copy(alpha = .55f))
+            .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 6.dp).widthIn(max = 150.dp)
             .semantics { contentDescription = tr(lang, "app.where.title") + ": " + label }.testTag("where-chip"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {

@@ -270,7 +270,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             topBar = {
                 Column {
                     TopAppBar(
-                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                        title = { Text(tr(lang, if (manage) "app.vents.myWinds" else "app.vents.title"), style = GregalType.title, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                         navigationIcon = {
                             IconButton(onClick = { if (manage) manage = false else openDrawer() }) {
                                 Icon(if (manage) Icons.Rounded.ArrowBack else Icons.Rounded.Menu,
@@ -343,55 +343,36 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     }
                 }
             },
-            bottomBar = {
-                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) AskBar(lang, askText.value, { askText.value = it }, capUi.busy, onPhoto = { homePhoto.launch("image/*") }, onDoc = { homeDoc.launch("*/*") }) {
-                    // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
-                    val text = askText.value.trim()
-                    if (text.isNotEmpty()) { vm.askCap(text); askText.value = ""; vm.openVentsChat("cap") }
-                }
-            }) { pad ->
+            ) { pad ->
             val home = !manage && !searching && tab == "home" && winds.isNotEmpty()
             val inboxQuery = if (home) "" else query
             val inbox = if (manage) emptyList() else remember(winds, rotllanes, chats, rChats, inboxQuery, summaries) {
                 ventsInbox(winds, rotllanes, chats, rChats, inboxQuery, summaries)
             }
-            LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
-                if (home) {
-                    item(key = "ask-hero") {
-                        val lastReply by vm.lastWindReply.collectAsState()
-                        val remaining = remember(lastReply) {
-                            val elapsed = System.currentTimeMillis() - (lastReply?.second ?: 0L)
-                            if (elapsed in 0 until 20_000L) 20_000L - elapsed else 0L
-                        }
-                        var recentReply by remember(lastReply) {
-                            mutableStateOf(lastReply?.first?.takeIf { remaining > 0 })
-                        }
-                        LaunchedEffect(lastReply) {
-                            if (remaining > 0) {
-                                kotlinx.coroutines.delay(remaining)
-                                recentReply = null
-                            }
-                        }
-                        val lead = winds.firstOrNull { it.id in busy } ?: winds.firstOrNull { it.id in news }
-                            ?: winds.firstOrNull { it.id == recentReply }
-                            ?: winds.firstOrNull { it.specialty == "organisation" } ?: winds.first()
-                        val activeMood by remember(live, lead.id) {
-                            derivedStateOf(structuralEqualityPolicy()) { live.value[lead.id]?.mood }
-                        }
-                        AskHero(lang, userName, lead, winds, busy, news, activeMood, recentReply == lead.id) { w ->
-                            vm.openVentsChat("wind:" + w.id)
-                        }
-                    }
-                    item(key = "ask-suggest") { AskSuggestions(lang) { askText.value = it } }
-                    item(key = "ask-today") {
-                        TodaySection(lang, todayCards(lang, inbox, news, windTasks.orEmpty().filter { it.running },
-                            programats?.reminders.orEmpty(), connections,
-                            onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
-                            onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }),
-                            brief = todayBrief, briefWind = winds.firstOrNull { it.id == todayBrief?.windId },
-                            onBrief = { todayBrief?.windId?.takeIf { it.isNotBlank() }?.let { vm.openVentsChat("wind:$it") } })
-                    }
-                } else if (manage) {
+            if (home) {
+                // La portada neta: salutació, lluïssor i el compositor al mig. A sota,
+                // només el que demana atenció (avisos nous, feina en marxa i el resum
+                // del matí si ja s'ha escrit); les converses per reprendre són a «Xats».
+                VentsOpening(
+                    lang, userName, askText.value, { askText.value = it }, capUi.busy,
+                    onPhoto = { homePhoto.launch("image/*") }, onDoc = { homeDoc.launch("*/*") },
+                    onSend = { text ->
+                        // Al Ventet: respon ell o ho passa a qui toca; s'obre la conversa per veure-ho.
+                        vm.askCap(text); askText.value = ""; vm.openVentsChat("cap")
+                    },
+                    modifier = Modifier.fillMaxSize().padding(pad),
+                ) {
+                    val newsRows = inbox.filter { it.key.startsWith("wind:") && it.key.substringAfter(':') in news }
+                    TodaySection(lang, todayCards(lang, newsRows, news, windTasks.orEmpty().filter { it.running },
+                        emptyList(), null,
+                        onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
+                        onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }).take(3),
+                        brief = todayBrief, briefWind = winds.firstOrNull { it.id == todayBrief?.windId },
+                        onBrief = { todayBrief?.windId?.takeIf { it.isNotBlank() }?.let { vm.openVentsChat("wind:$it") } })
+                    Spacer(Modifier.height(16.dp))
+                }
+            } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
+                if (manage) {
                     item { WindsModelRow(vm, lang) }
                     item { SquadsRow(vm, lang) }
                     item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
@@ -414,8 +395,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     @Composable
                     fun InboxRow(entry: VentsInboxRow, showSectionHeader: String?) {
                         if (showSectionHeader != null) {
-                            Text(showSectionHeader.uppercase(), color = Muted, fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+                            Text(showSectionHeader.uppercase(), color = Muted, style = GregalType.overline,
                                 modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
                         }
                         val id = entry.key.substringAfter(':')
@@ -626,9 +606,11 @@ private fun VentsEmpty(lang: String, conversations: Boolean) {
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Trio de cares flotants: el buit també somriu.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Box(Modifier.offset(x = 12.dp)) { WindHalo(Color(0xFF8FB7FF), windStyleOf("esn"), size = 52) }
-            Box(Modifier.offset(y = (-10).dp)) { WindHalo(Color(0xFFF3BD8B), windStyleOf("bsn"), size = 72) }
-            Box(Modifier.offset(x = (-12).dp)) { WindHalo(Color(0xFF9BE3C3), windStyleOf("pso"), size = 52) }
+            // Els colors del tema (accent, sorra i aqua): els pastels fixos
+            // d'abans quedaven esvaïts damunt del tema clar.
+            Box(Modifier.offset(x = 12.dp)) { WindHalo(Sea, windStyleOf("esn"), size = 52) }
+            Box(Modifier.offset(y = (-10).dp)) { WindHalo(Sand, windStyleOf("bsn"), size = 72) }
+            Box(Modifier.offset(x = (-12).dp)) { WindHalo(Onada, windStyleOf("pso"), size = 52) }
         }
         Text(tr(lang, if (conversations) "app.vents.emptyTitle" else "app.company.windEmptyTitle"), color = Ink,
             fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
@@ -655,10 +637,11 @@ private fun SquadsRow(vm: GregalViewModel, lang: String) {
     ) {
         Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                TintedIcon(Icons.Rounded.Groups, Sea)
+                // Icona de 44 dp (la de 64 dels estats buits feia la targeta el doble d'alta).
+                TintedIcon(Icons.Rounded.Groups, Sea, box = 44.dp, glyph = 22.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(tr(lang, "app.vents.squads"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Text(tr(lang, "app.vents.squadsHelp"), fontSize = 13.sp, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(tr(lang, "app.vents.squads"), style = GregalType.heading, color = Ink)
+                    Text(tr(lang, "app.vents.squadsHelp"), style = GregalType.bodySmall, color = Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
                     contentDescription = null, tint = Muted, modifier = Modifier.size(20.dp))
@@ -725,12 +708,12 @@ private fun WindsModelRow(vm: GregalViewModel, lang: String) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            TintedIcon(Icons.Rounded.AutoAwesome, Sea)
+            TintedIcon(Icons.Rounded.AutoAwesome, Sea, box = 44.dp, glyph = 22.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(tr(lang, "app.vents.defaultModel"), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text(tr(lang, "app.vents.defaultModel"), style = GregalType.heading, color = Ink)
                 Text(
                     windsModel.ifBlank { tr(lang, "app.vents.defaultModelSameAsWork") },
-                    fontSize = 13.sp, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    style = GregalType.bodySmall, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -904,10 +887,9 @@ internal fun InboxHeader(title: String, count: Int, favorite: Boolean = false, l
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 12.dp, top = 18.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title.uppercase(), color = Muted, fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+        Text(title.uppercase(), color = Muted, style = GregalType.overline,
             modifier = Modifier.weight(1f))
-        if (favorite) IconButton(onClick = onAddSection, modifier = Modifier.size(28.dp)) {
+        if (favorite) IconButton(onClick = onAddSection) {
             Icon(Icons.Rounded.Folder, tr(lang, "app.vents.newSection"), tint = Muted, modifier = Modifier.size(16.dp))
         }
     }
@@ -916,8 +898,7 @@ internal fun InboxHeader(title: String, count: Int, favorite: Boolean = false, l
 /** «Comença un xat»: el tall entre converses i vents sense parlar. */
 @Composable
 internal fun InboxDivider(lang: String) {
-    Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp,
+    Text(tr(lang, "app.vents.startChat").uppercase(), color = Muted, style = GregalType.overline,
         modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 4.dp))
 }
 
@@ -989,7 +970,8 @@ internal fun ConversationRow(
         // separava massa el nom del text de sota.
         if (onFavorite != null) IconButton(
             onClick = onFavorite,
-            modifier = Modifier.size(36.dp).semantics {
+            // 48 dp (abans 36): la fila ja en fa 68, no creix, i l'estrella es toca a la primera.
+            modifier = Modifier.semantics {
                 contentDescription = if (favorite) ventsCopy(lang, "removeFavorite") else ventsCopy(lang, "addFavorite")
                 selected = favorite
             },
@@ -1255,7 +1237,7 @@ internal fun WindSessionsSheet(vm: GregalViewModel, lang: String, wind: Wind, on
                                 Text(tr(lang, "app.sess.delete"), color = Red, fontSize = 12.sp)
                             }
                         } else {
-                            IconButton(onClick = { confirmDelete = true }, modifier = Modifier.size(30.dp)) {
+                            IconButton(onClick = { confirmDelete = true }) {
                                 Icon(Icons.Rounded.Delete, tr(lang, "app.sess.delete"), tint = Muted, modifier = Modifier.size(16.dp))
                             }
                         }
@@ -1749,8 +1731,10 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 Row(Modifier.padding(top = 2.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("⏳ " + tr(lang, "app.offline.pending"), fontSize = 11.sp, color = Sand)
-                    if (onDiscard != null) Text(tr(lang, "app.offline.discard"), fontSize = 11.sp, color = Ink.copy(alpha = 0.7f),
-                        fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onDiscard).testTag("discard-queued"))
+                    // Un toc de debò (abans era la mida de la lletra, uns 16 dp).
+                    if (onDiscard != null) Text(tr(lang, "app.offline.discard"), fontSize = 12.sp, color = Ink.copy(alpha = 0.7f),
+                        fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(GregalShape.xs).clickable(onClick = onDiscard)
+                            .padding(horizontal = 10.dp, vertical = 12.dp).testTag("discard-queued"))
                 }
             } else if (receipt.isNotEmpty()) {
                 Text(receipt, fontSize = 11.sp, color = Ink.copy(alpha = 0.55f),
@@ -1773,8 +1757,10 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             // vel suau), més viva en tema fosc. Dots/Grok: cada persona
             // respira el seu propi color.
             val dark = LocalPal.current.dark
-            val tinted = if (dark) accent.copy(alpha = .30f).compositeOver(Superficie)
-                else accent.copy(alpha = .14f).compositeOver(Superficie)
+            // Al 30% els vents càlids (taronja, groc) feien bombolles marrons i
+            // feixugues; al 15% el color hi és però el text mana.
+            val tinted = if (dark) accent.copy(alpha = .15f).compositeOver(Superficie)
+                else accent.copy(alpha = .12f).compositeOver(Superficie)
             // Una taula, un gràfic, codi o una imatge necessiten l'amplada de
             // la pantalla: a 300 dp una taula de cinc columnes no hi cabia.
             val rich = remember(m.text) { m.text.contains("\n|") || m.text.contains("```") || m.text.contains("![") }
@@ -2069,12 +2055,7 @@ internal fun WhereSwitch(vm: GregalViewModel, lang: String) {
                     fontWeight = if (!onServer) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
             }
             Option(onServer, true, { vm.switchWhere(true) }) {
-                val dot = when {
-                    switching -> Sand
-                    reach == true -> Color(0xFF6FCF97)
-                    reach == false -> Color(0xFFE57373)
-                    else -> Muted
-                }
+                val dot = reachDot(reach, switching)
                 Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
                 Spacer(Modifier.width(7.dp))
                 Text(if (vm.hasSavedServer()) serverName else tr(lang, "app.where.addServer"),

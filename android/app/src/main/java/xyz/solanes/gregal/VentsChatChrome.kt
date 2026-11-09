@@ -99,14 +99,16 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
             // vent treballa (l'estat de text sol no diu «hi ha alguna cosa
             // passant»). Estàtics quan les animacions estan desactivades.
             TypingDots(accent = Ink)
-            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            // Interlínia de la caption: amb només fontSize heretava els 24 sp de
+            // bodyLarge i la franja ocupava el doble del que diu.
+            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, style = GregalType.caption, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             // Aturar és sempre possible mentre el torn corre, encara que el
             // composer tingui un esborrany (allà el botó d'enviar fa steer).
             if (onStop != null) TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
                 Text(tr(lang, "app.vents.stop"), color = Muted, fontSize = 12.sp)
             }
         }
-        Text(windProgressTiming(lang, live, now), color = Muted, fontSize = 12.sp)
+        Text(windProgressTiming(lang, live, now), color = Muted, style = GregalType.caption, modifier = Modifier.padding(start = 37.dp)) // sota l'etiqueta, no sota els punts
     }
 }
 

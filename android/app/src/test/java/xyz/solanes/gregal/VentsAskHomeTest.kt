@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** L'inici «pregunta primer»: salutació, suggeriments i les targetes d'«Avui». */
+/** L'inici «pregunta primer»: la salutació i les targetes d'«Avui». */
 class VentsAskHomeTest {
     private val marinada = Wind("w-1", "Marinada", "#EFC69A", "calma")
     private val ponent = Wind("w-2", "Ponent", "#E8D58A", "calma")
@@ -14,11 +14,6 @@ class VentsAskHomeTest {
         assertEquals("Good evening.", askGreeting("en", 21, ""))
         assertEquals("Bona tarda, Marta.", askGreeting("ca", 15, "Marta"))
         assertEquals("Good night.", askGreeting("en", 3, "  "))
-    }
-
-    @Test fun suggestionsExistInBothLanguages() {
-        assertEquals(askSuggestions("ca").size, askSuggestions("en").size)
-        assertTrue(askSuggestions("en").all { it.isNotBlank() })
     }
 
     @Test fun todayPutsNewsFirstThenWorkThenConversations() {

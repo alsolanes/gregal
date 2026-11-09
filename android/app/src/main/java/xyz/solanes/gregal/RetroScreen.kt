@@ -369,7 +369,7 @@ private fun RetroMessageRow(
                         }
                     }
                     if (!m.id.startsWith("local-")) Box {
-                        IconButton(onClick = { picker = true }, modifier = Modifier.size(30.dp)) {
+                        IconButton(onClick = { picker = true }) {
                             Icon(Icons.Rounded.AddReaction, tr(lang, "app.retro.react"), tint = Faint, modifier = Modifier.size(17.dp))
                         }
                         DropdownMenu(expanded = picker, onDismissRequest = { picker = false }) {

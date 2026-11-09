@@ -282,7 +282,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             Text(t("app.update.install", r.latestVersion), color = Sea, fontSize = 15.sp)
                             if (r.changelog.isNotEmpty()) {
                                 Spacer(Modifier.height(4.dp))
-                                Text(r.changelog, color = Tinta, fontSize = 13.sp)
+                                Text(r.changelog, color = Tinta, style = GregalType.bodySmall)
                             }
                             Spacer(Modifier.height(8.dp))
                             if (prog >= 0) {
@@ -320,7 +320,7 @@ fun PrefsScreen(vm: GregalViewModel, onMenu: () -> Unit) {
 @Composable
 private fun PrefsSection(text: String) {
     Text(
-        text.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.4.sp, color = Faint,
+        text.uppercase(), style = GregalType.overline, color = Faint,
         modifier = Modifier.padding(start = 4.dp, top = 22.dp, bottom = 8.dp),
     )
 }
