@@ -537,8 +537,11 @@ func (s *Server) conduirTorn(runCtx context.Context, task, mode, roleName string
 			pinta(senseAvisosCheckpoint(torn.RepCheckpoint(nota, veredicte), veredicte))
 
 		case agent.OrdreError:
-			emit("error", map[string]string{"message": pas.Text})
-			return "", histAmbSys(), errors.New(pas.Text)
+			// El mateix text a l'esdeveniment i a l'error del torn: la web
+			// els compara per no repetir-lo (runs.js).
+			msg := s.keylessHint(p, role.Provider, pas.Text)
+			emit("error", map[string]string{"message": msg})
+			return "", histAmbSys(), errors.New(msg)
 
 		default: // OrdreAcaba (o OrdreRes, que un conductor síncron no espera)
 			reply := strings.TrimSpace(torn.Resposta())
