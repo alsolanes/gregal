@@ -36,7 +36,9 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
 // màquina; si algú els construeix en un altre entorn (contenidor, una altra
 // HOME, un altre ordinador) la signatura és una altra. Aquest guard ho atura
 // abans de penjar res a la release.
-const EXPECTED_CERT_SHA256 = 'e78e76cc2a4d001c26f8fc9001fa4069c90fad8cc69312abd3dd2b588ef5c194';
+// És la clau amb què s'han publicat totes les versions que hi ha a GitHub
+// (Vents 1.66–1.68, Android 1.62): CN=Android Debug d'aquest ordinador.
+const EXPECTED_CERT_SHA256 = '1d8afee44182e2190c99405052374aca9666b0170b29cad57f56a229e8fa6c6b';
 
 // apksigner viu a <sdk>/build-tools/<versió>/: es busca el primer que hi hagi.
 function apksignerPath() {
@@ -51,7 +53,9 @@ function apksignerPath() {
     let versions = [];
     try { versions = fs.readdirSync(path.join(base, 'build-tools')).sort().reverse(); } catch { continue; }
     for (const v of versions) {
-      for (const exe of ['apksigner', 'apksigner.bat']) {
+      // A Windows, «apksigner» sense extensió és l'script de shell i no
+      // s'executa: cal el .bat.
+      for (const exe of process.platform === 'win32' ? ['apksigner.bat'] : ['apksigner', 'apksigner.bat']) {
         const p = path.join(base, 'build-tools', v, exe);
         if (fs.existsSync(p)) return p;
       }
@@ -64,7 +68,11 @@ function apkCertSha256(apk) {
   const signer = apksignerPath();
   if (!signer) return null;
   try {
-    const out = execFileSync(signer, ['verify', '--print-certs', apk], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    // Un .bat només s'executa a través del shell (i llavors cal posar
+    // cometes a les rutes).
+    const bat = /\.bat$/i.test(signer);
+    const q = a => (bat ? '"' + a + '"' : a);
+    const out = execFileSync(q(signer), ['verify', '--print-certs', q(apk)], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], shell: bat });
     const m = /SHA-256 digest:\s*([0-9a-f]{64})/i.exec(out);
     return m ? m[1].toLowerCase() : null;
   } catch { return null; }
