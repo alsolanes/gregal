@@ -3,11 +3,28 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX } = require("./server-manager");
+const { binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, stopServer, BACKEND_LOG_MAX } = require("./server-manager");
 
 test('managed server uses loopback and preserves explicit config paths', () => {
   assert.deepEqual(serverArgs({ port: 8097, config: 'C:/Example Project/config.yaml', dir: 'C:/Example Project' }),
-    ['--serve', '--addr', '127.0.0.1', '--port', '8097', '--dir', 'C:/Example Project', '--config', 'C:/Example Project/config.yaml']);
+    ['--serve', '--lifeline', '--addr', '127.0.0.1', '--port', '8097', '--dir', 'C:/Example Project', '--config', 'C:/Example Project/config.yaml']);
+});
+
+test("stopServer tanca la línia de vida i espera; si el backend no surt, el mata", async () => {
+  const { spawn } = require("node:child_process");
+  // Com el backend amb --lifeline: surt quan l'stdin arriba al final.
+  const polite = spawn(process.execPath, ["-e", "process.stdin.resume(); process.stdin.on('end', () => process.exit(0));"], { stdio: ["pipe", "ignore", "ignore"] });
+  const started = Date.now();
+  assert.equal(await stopServer(polite, 5000), true);
+  assert.ok(Date.now() - started < 4000);
+  assert.equal(polite.exitCode, 0);
+  // Un que no en fa cas: al límit, kill.
+  const stubborn = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000);"], { stdio: ["pipe", "ignore", "ignore"] });
+  assert.equal(await stopServer(stubborn, 300), false);
+  await new Promise(resolve => stubborn.exitCode !== null || stubborn.signalCode !== null ? resolve() : stubborn.once("exit", resolve));
+  // Ja mort o inexistent: res a fer.
+  assert.equal(await stopServer(stubborn), true);
+  assert.equal(await stopServer(null), true);
 });
 
 test("prioritza el backend empaquetat i el backend de desenvolupament", () => {

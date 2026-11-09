@@ -12,7 +12,7 @@ const https = require("https");
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
-const { startServer, appBackendEnv } = require("./server-manager");
+const { startServer, stopServer, appBackendEnv } = require("./server-manager");
 const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -877,11 +877,7 @@ function setupUpdater(win) {
             if (!MANAGED || !backend || backend.killed) return;
             const child = backend;
             backendStopping = true;
-            await new Promise(resolve => {
-                const timer = setTimeout(() => { child.kill(); resolve(); }, 2500);
-                child.once('exit', () => { clearTimeout(timer); resolve(); });
-                child.kill('SIGTERM');
-            });
+            await stopServer(child, 2500);
             if (backend === child) backend = null;
         },
     });
@@ -978,10 +974,22 @@ app.on("will-quit", () => globalShortcut.unregisterAll());
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });
-app.on("before-quit", () => {
+// Sortir: el backend s'atura net (tanca la línia de vida i espera, com a
+// molt 1,5 s) abans que l'app acabi; les finestres s'amaguen de seguida
+// perquè sortir no faci esperar ningú.
+let backendStopped = false;
+app.on("before-quit", event => {
     backendStopping = true;
     browserBridge?.close();
-    if (backend && !backend.killed) backend.kill("SIGTERM");
+    const child = backend;
+    if (backendStopped || !child || child.exitCode !== null || child.signalCode !== null) return;
+    event.preventDefault();
+    backendStopped = true;
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.hide();
+    stopServer(child, 1500).finally(() => {
+        if (backend === child) backend = null;
+        app.quit();
+    });
 });
 app.on("activate", () => {
     if (gotLock && !mainWin) void createWindow();

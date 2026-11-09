@@ -12,8 +12,12 @@ function binaryCandidates({ resourcesPath, appDir, platform = process.platform }
   ].filter(Boolean);
 }
 
+// --lifeline: el backend surt net quan se li tanca l'stdin. L'app el tanca
+// per aturar-lo (a Windows, kill és un TerminateProcess que no deixa
+// esborrar service.json ni tancar els torns) i, si l'app peta, el sistema
+// el tanca igualment i el backend no queda orfe amb el port i el lock.
 function serverArgs(options) {
-  const args = ["--serve", "--addr", "127.0.0.1", "--port", String(options.port)];
+  const args = ["--serve", "--lifeline", "--addr", "127.0.0.1", "--port", String(options.port)];
   if (options.token) args.push("--token", options.token);
   if (options.dir) args.push("--dir", options.dir);
   if (options.config) args.push("--config", options.config);
@@ -96,10 +100,13 @@ function startServer(options) {
     if (binary.includes(path.sep) && !fs.existsSync(binary)) continue;
     try {
       const child = spawn(binary, args, {
-        stdio: ["ignore", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe"],
         windowsHide: true,
         env: backendEnv(options),
       });
+      // La línia de vida: no s'hi escriu res. Si el backend ja és mort,
+      // tancar-la dona EPIPE, que no ha de tombar l'app.
+      child.stdin.on("error", () => {});
       const logs = [];
       const log = openBackendLog(logFile);
       const push = line => {
@@ -127,4 +134,30 @@ function startServer(options) {
   throw lastError || new Error("Gregal executable not found");
 }
 
-module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+// stopServer atura el backend net: tanca la línia de vida i espera que surti;
+// si en timeoutMs no ho ha fet, el mata. Torna true si ha sortit sol.
+function stopServer(child, timeoutMs = 1500) {
+  return new Promise(resolve => {
+    if (!child || child.exitCode !== null || child.signalCode !== null) return resolve(true);
+    let done = false;
+    const finish = graceful => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve(graceful);
+    };
+    const timer = setTimeout(() => {
+      try { child.kill(); } catch (e) { /* ja no hi és */ }
+      finish(false);
+    }, timeoutMs);
+    child.once("exit", () => finish(true));
+    try {
+      if (child.stdin && !child.stdin.destroyed) child.stdin.end();
+      else child.kill();
+    } catch (e) {
+      try { child.kill(); } catch (_) {}
+    }
+  });
+}
+
+module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
