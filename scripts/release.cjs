@@ -28,6 +28,47 @@ const lib = require('./release-lib.cjs');
 
 const root = path.resolve(__dirname, '..');
 const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
+
+// La signatura dels APK no pot canviar mai entre versions: Android rebutja
+// instal·lar una actualització signada amb una altra clau
+// (INSTALL_FAILED_UPDATE_INCOMPATIBLE) i qui ja té l'app es queda sense poder
+// actualitzar-se. Els APK es signen amb el keystore de depuració d'aquesta
+// màquina; si algú els construeix en un altre entorn (contenidor, una altra
+// HOME, un altre ordinador) la signatura és una altra. Aquest guard ho atura
+// abans de penjar res a la release.
+const EXPECTED_CERT_SHA256 = 'e78e76cc2a4d001c26f8fc9001fa4069c90fad8cc69312abd3dd2b588ef5c194';
+
+// apksigner viu a <sdk>/build-tools/<versió>/: es busca el primer que hi hagi.
+function apksignerPath() {
+  const bases = [];
+  for (const env of [process.env.ANDROID_HOME, process.env.ANDROID_SDK_ROOT]) if (env) bases.push(env);
+  try {
+    const m = /^\s*sdk\.dir=(.+)$/m.exec(read(path.join('android', 'local.properties')));
+    if (m) bases.push(m[1].trim());
+  } catch { /* sense local.properties: es proven els llocs de sempre */ }
+  bases.push(path.join(require('node:os').homedir(), 'Android'), path.join(require('node:os').homedir(), 'android-sdk'));
+  for (const base of bases) {
+    let versions = [];
+    try { versions = fs.readdirSync(path.join(base, 'build-tools')).sort().reverse(); } catch { continue; }
+    for (const v of versions) {
+      for (const exe of ['apksigner', 'apksigner.bat']) {
+        const p = path.join(base, 'build-tools', v, exe);
+        if (fs.existsSync(p)) return p;
+      }
+    }
+  }
+  return null;
+}
+
+function apkCertSha256(apk) {
+  const signer = apksignerPath();
+  if (!signer) return null;
+  try {
+    const out = execFileSync(signer, ['verify', '--print-certs', apk], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const m = /SHA-256 digest:\s*([0-9a-f]{64})/i.exec(out);
+    return m ? m[1].toLowerCase() : null;
+  } catch { return null; }
+}
 const write = (rel, text) => fs.writeFileSync(path.join(root, rel), text);
 
 function loadAll() {
@@ -77,10 +118,10 @@ if (cmd === 'check') {
   // Ruta absoluta: cmd no sempre busca a la carpeta actual.
   const gradle = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
   console.log(`building Android ${a.name} (${a.code})…`);
-  execFileSync(gradle, ['testDebugUnitTest', 'assembleRelease', '-q', ...(vents ? ['-Pgregal.plotsPreview'] : [])], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
+  execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q', ...(vents ? ['-Pgregal.plotsPreview'] : [])], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
   const dir = path.join(root, 'output', 'release-' + value);
   fs.mkdirSync(dir, { recursive: true });
-  const built = path.join(android, 'app/build/outputs/apk/release');
+  const built = path.join(android, 'app/build/outputs/apk/debug');
   const apks = lib.ANDROID_APKS.map(({ abi }) => {
     const from = lib.androidApkFrom(a.name, abi, vents);
     const name = (vents ? lib.ventsApkName : lib.androidApkName)(a.name, abi);
@@ -89,6 +130,12 @@ if (cmd === 'check') {
     const buf = fs.readFileSync(file);
     const sha256 = crypto.createHash('sha256').update(buf).digest('hex');
     console.log(`  ${name}  ${(buf.length / 1048576).toFixed(1)} MiB`);
+    const cert = apkCertSha256(file);
+    if (cert !== EXPECTED_CERT_SHA256) {
+      fail(`${name} està signat amb una altra clau (${cert || 'no s\'ha pogut llegir la signatura'}).\n` +
+        `  Android rebutjaria l\'actualització a qui ja té l\'app instal·lada (INSTALL_FAILED_UPDATE_INCOMPATIBLE).\n` +
+        `  Construeix els APK en aquesta màquina, amb el keystore ~/.android/debug.keystore (el de sempre).`);
+    }
     return { abi, name, file, sha256, sizeBytes: buf.length };
   });
   const repo = execFileSync('gh', ['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], { cwd: root, encoding: 'utf8' }).trim();
@@ -104,6 +151,12 @@ if (cmd === 'check') {
   fs.writeFileSync(manifestFile, JSON.stringify(manifest, null, 2) + '\n');
   execFileSync('gh', ['release', 'upload', 'v' + value, ...apks.map(x => x.file), manifestFile, '--clobber'], { cwd: root, stdio: 'inherit' });
   console.log(`attached ${apks.length} APKs and ${manifestName} to v${value}`);
+} else if (cmd === 'cert') {
+  const apk = process.argv[3];
+  if (!apk) fail('usage: release.cjs cert <apk>');
+  const c = apkCertSha256(apk);
+  if (!c) fail('no s\'ha pogut llegir la signatura de ' + apk);
+  console.log(c + (c === EXPECTED_CERT_SHA256 ? '  (la clau de sempre)' : '  (NO és la clau de sempre: aquest APK no es pot publicar)'));
 } else {
-  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z [--vents]');
+  fail('usage: release.cjs check | bump X.Y.Z --title "..." [--android A.B.C] | notes X.Y.Z | title X.Y.Z | apk X.Y.Z [--vents] | cert <apk>');
 }
