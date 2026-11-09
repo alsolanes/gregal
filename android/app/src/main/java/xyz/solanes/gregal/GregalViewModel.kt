@@ -649,6 +649,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         _windChat.value = emptyMap()
         _windBusy.value = emptySet()
         _windLive.value = emptyMap()
+        _lastWindReply.value = null
         _windNews.value = emptySet()
         _rotllanes.value = emptyList()
         _rotllanaChat.value = emptyMap()
@@ -3019,6 +3020,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     }
     private fun endLive(id: String) { _windLive.value = _windLive.value - id }
 
+    private val _lastWindReply = MutableStateFlow<Pair<String, Long>?>(null)
+    internal val lastWindReply = _lastWindReply.asStateFlow()
+
+    private fun endWindReply(id: String, complete: Boolean) {
+        if (complete) _lastWindReply.value = id to System.currentTimeMillis()
+        _windBusy.value = _windBusy.value - id
+        endLive(id)
+    }
+
     /** Vents amb una veu proactiva que encara no has obert (cor, recordatoris). */
     private val _windNews = MutableStateFlow<Set<String>>(emptySet())
     val windNews: StateFlow<Set<String>> = _windNews
@@ -3583,7 +3593,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 try {
                     // Directe primer; el done porta l'historial amb veus.
-                    var buf = ""
+                    val buf = WindStreamText()
                     var streamSpeaker = ""
                     val (_, replyText, hist) = withContext(Dispatchers.IO) {
                         source.api().rotllanaChatStream(rotllanaId, message, wind) { e ->
@@ -3596,16 +3606,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                         val answering = streamSpeaker.isNotEmpty() && streamSpeaker != sp
                                         live(rotllanaId) { it.copy(phase = "thinking", writing = false, receivedText = false, tool = "", voices = if (answering) it.voices + 1 else it.voices) }
                                         // Nova veu: la bombolla anterior queda com a missatge.
-                                        commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
-                                        buf = ""
+                                        commitRotllanaStreamBubble(rotllanaId, buf.take(), streamSpeaker)
                                         streamSpeaker = sp
                                         val who = _winds.value.firstOrNull { it.id == sp }?.name.orEmpty()
                                         live(rotllanaId) { it.copy(speaker = who) }
                                         // The shared status row identifies the speaker; do not add a fake reply bubble.
                                     } else {
                                         // Una eina pel mig no esborra el que ja s'ha llegit.
-                                        commitRotllanaStreamBubble(rotllanaId, buf, streamSpeaker)
-                                        buf = ""
+                                        commitRotllanaStreamBubble(rotllanaId, buf.take(), streamSpeaker)
                                         live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                         dropStreamingBubble(rotllanaId, rotllana = true)
                                     }
@@ -3614,9 +3622,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(rotllanaId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
-                                    buf += e.token
-                                    live(rotllanaId) { it.copy(writing = true, receivedText = true) }
-                                    setStreamingBubble(rotllanaId, buf, rotllana = true)
+                                    buf.append(e.token)?.let { text ->
+                                        live(rotllanaId) { it.copy(writing = true, receivedText = true) }
+                                        setStreamingBubble(rotllanaId, text, rotllana = true)
+                                    }
                                 }
                                 else -> handleWindAskEvent(e)
                             }
@@ -5008,14 +5017,13 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun setStreamingBubble(windId: String, text: String, rotllana: Boolean = false) {
         val bubble = PetMsg("pet", text, streaming = true)
-        if (rotllana) {
-            val cur = _rotllanaChat.value[windId].orEmpty()
-            _rotllanaChat.value = _rotllanaChat.value + (windId to
-                if (cur.lastOrNull()?.streaming == true) cur.dropLast(1) + bubble else cur + bubble)
-        } else {
-            val cur = _windChat.value[windId].orEmpty()
-            _windChat.value = _windChat.value + (windId to
-                if (cur.lastOrNull()?.streaming == true) cur.dropLast(1) + bubble else cur + bubble)
+        val histories = if (rotllana) _rotllanaChat else _windChat
+        histories.update { current ->
+            val cur = current[windId].orEmpty()
+            val next = if (cur.lastOrNull()?.streaming == true) {
+                cur.toMutableList().apply { this[lastIndex] = bubble }
+            } else cur + bubble
+            current + (windId to next)
         }
     }
 
@@ -5196,7 +5204,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 try {
                     // Directe primer: el text creix a la bombolla; si el
                     // servidor no té /stream (o cau), clàssic de reserva.
-                    var buf = ""
+                    val buf = WindStreamText()
                     val r = withContext(Dispatchers.IO) {
                         source.api().windChatStream(windId, msg, session = thread) { e ->
                             reached = true
@@ -5204,8 +5212,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     // Una eina pel mig no esborra el que ja s'ha llegit.
-                                    commitWindStreamBubble(windId, buf)
-                                    buf = ""
+                                    commitWindStreamBubble(windId, buf.take())
                                     live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(windId)
                                 }
@@ -5213,9 +5220,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
-                                    buf += e.token
-                                    live(windId) { it.copy(writing = true, receivedText = true) }
-                                    setStreamingBubble(windId, buf)
+                                    buf.append(e.token)?.let { text ->
+                                        live(windId) { it.copy(writing = true, receivedText = true) }
+                                        setStreamingBubble(windId, text)
+                                    }
                                 }
                                 else -> handleWindAskEvent(e)
                             }
@@ -5261,7 +5269,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 } else turnError = turnFailed(source, epoch, windId, false, e)
             } finally {
                 aturats.remove(windId) // un «atura» que arriba tard no amaga el proper error
-                if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
+                if (isCompanionOrigin(source, epoch)) endWindReply(windId, answered && !partial && turnError.isEmpty())
                 if (answered && isCompanionOrigin(source, epoch)) cacheChat(source, windId)
                 if (isCompanionOrigin(source, epoch) && !_offline.value) flushOutbox()
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), msg, answer,
@@ -5292,15 +5300,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
-                    var buf = ""
+                    val buf = WindStreamText()
                     val r = withContext(Dispatchers.IO) {
                         source.api().windChatStream(windId, "", cont = true, session = thread) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@windChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     // Una eina pel mig no esborra el que ja s'ha llegit.
-                                    commitWindStreamBubble(windId, buf)
-                                    buf = ""
+                                    commitWindStreamBubble(windId, buf.take())
                                     live(windId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(windId)
                                 }
@@ -5308,9 +5315,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(windId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
-                                    buf += e.token
-                                    live(windId) { it.copy(writing = true, receivedText = true) }
-                                    setStreamingBubble(windId, buf)
+                                    buf.append(e.token)?.let { text ->
+                                        live(windId) { it.copy(writing = true, receivedText = true) }
+                                        setStreamingBubble(windId, text)
+                                    }
                                 }
                                 else -> handleWindAskEvent(e)
                             }
@@ -5354,7 +5362,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 turnError = turnFailed(source, epoch, windId, false, e)
             } finally {
                 aturats.remove(windId) // un «atura» que arriba tard no amaga el proper error
-                if (isCompanionOrigin(source, epoch)) { _windBusy.value = _windBusy.value - windId; endLive(windId) }
+                if (isCompanionOrigin(source, epoch)) endWindReply(windId, answered && !partial && turnError.isEmpty())
                 GregalNotifications.workFinished(appContext, answered && isCompanionOrigin(source, epoch), "", answer,
                     target, displayName, partial, if (isCompanionOrigin(source, epoch)) turnError else "")
             }
@@ -5383,15 +5391,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
             GregalNotifications.workStarted(appContext, target, displayName)
             try {
                 try {
-                    var buf = ""
+                    val buf = WindStreamText()
                     val (_, replyText, hist) = withContext(Dispatchers.IO) {
                         source.api().rotllanaChatStream(rotllanaId, "", wind, cont = true) { e ->
                             if (!isCompanionOrigin(source, epoch)) return@rotllanaChatStream
                             when (e) {
                                 is GregalApi.WindStreamEvent.Phase -> {
                                     // Una eina pel mig no esborra el que ja s'ha llegit.
-                                    commitRotllanaStreamBubble(rotllanaId, buf, wind)
-                                    buf = ""
+                                    commitRotllanaStreamBubble(rotllanaId, buf.take(), wind)
                                     live(rotllanaId) { it.copy(phase = e.phase, writing = false, receivedText = false, tool = "") }
                                     dropStreamingBubble(rotllanaId, rotllana = true)
                                 }
@@ -5399,9 +5406,10 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                                     live(rotllanaId) { it.copy(phase = e.phase, tool = e.tool, step = e.step, writing = false) }
                                 }
                                 is GregalApi.WindStreamEvent.Token -> {
-                                    buf += e.token
-                                    live(rotllanaId) { it.copy(writing = true, receivedText = true) }
-                                    setStreamingBubble(rotllanaId, buf, rotllana = true)
+                                    buf.append(e.token)?.let { text ->
+                                        live(rotllanaId) { it.copy(writing = true, receivedText = true) }
+                                        setStreamingBubble(rotllanaId, text, rotllana = true)
+                                    }
                                 }
                                 else -> handleWindAskEvent(e)
                             }

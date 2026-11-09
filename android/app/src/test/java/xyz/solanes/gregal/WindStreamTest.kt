@@ -12,6 +12,21 @@ import org.robolectric.RobolectricTestRunner
 class WindStreamTest {
     private val api = GregalApi("http://127.0.0.1:9", "")
 
+    @Test fun rapidTokensUpdateTheBubbleInBatchesAndKeepTheFullText() {
+        var clock = 0L
+        val text = WindStreamText { clock }
+        val visible = buildList {
+            repeat(500) {
+                text.append("a")?.let { add(it) }
+                clock += 1_000_000L
+            }
+        }
+        assertEquals(7, visible.size)
+        assertEquals("a", visible.first())
+        assertEquals("a".repeat(500), text.take())
+        assertEquals("New voice", text.append("New voice"))
+    }
+
     @Test
     fun parsePhaseTokenDoneWind() {
         val ph = api.parseWindStreamEvent("phase", """{"phase":"searching"}""")

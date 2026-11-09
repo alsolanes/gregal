@@ -196,7 +196,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
             delay(if (chat.id in SharedChatsStore.busy.value) 2_000 else 4_000)
         }
     }
-    LaunchedEffect(msgs.size) { if (msgs.isNotEmpty()) listState.animateScrollToItem(msgs.size) }
+    val follow = rememberChatFollow(listState, chat.id)
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(Superficie).imePadding()) {
         VentsChatHeader(lang, chat.name,
@@ -233,6 +233,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
                 placeholder = { Text(tr(lang, "app.shared.hint"), fontSize = 14.sp) }, shape = RoundedCornerShape(22.dp))
             IconButton(enabled = field.isNotBlank() && !busy, onClick = {
                 val text = field.trim(); field = ""
+                follow.requestFollow()
                 scope.launch {
                     try { SharedChatsStore.send(vm.conn.value.api(), chat.id, text) }
                     catch (e: Exception) { vm.notify(tr(lang, "app.shared.error", e.message.orEmpty().take(120))) }

@@ -74,6 +74,24 @@ class MascotMinimalTest {
         return true
     }
 
+    @Test fun compactAvatarKeepsItsStatusWithoutAnimating() {
+        ui.mainClock.autoAdvance = false
+        ui.setContent {
+            Row(Modifier.background(Color.White)) {
+                Box(Modifier.testTag("compact-idle")) { WindFace(size = 48, accent = accent) }
+                Box(Modifier.testTag("compact-reading")) {
+                    WindFace(size = 48, mood = WindMood.READING, accent = accent)
+                }
+            }
+        }
+        ui.mainClock.advanceTimeByFrame()
+        val idle = image("compact-idle")
+        val reading = image("compact-reading")
+        assertFalse("The work badge is visible in a compact avatar", alike(idle, reading))
+        ui.mainClock.advanceTimeBy(1600)
+        assertTrue("An avatar in a list stays still while work continues", identical(reading, image("compact-reading")))
+    }
+
     @Test fun stackedAvatarCountsOnlyMembersNotAlreadyDrawn() {
         val members = listOf(Wind("a", "Xaloc", "#29BCA3", "música"), Wind("b", "Gregal", "#4F5BE8", "idees"))
         ui.setContent {

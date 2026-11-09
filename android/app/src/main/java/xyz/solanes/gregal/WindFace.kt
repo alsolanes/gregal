@@ -3,7 +3,8 @@ package xyz.solanes.gregal
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -18,7 +19,6 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
@@ -50,7 +50,7 @@ internal fun contrastWith(a: Color, b: Color): Double {
 enum class WindMood { IDLE, THINKING, HAPPY, TALKING, SEARCHING, READING, WRITING, WORKING, DISCUSSING, DONE, FAILED, NEWS }
 
 private val windActivityMoods = mapOf(
-    "read" to WindMood.READING, "ls" to WindMood.READING, "list" to WindMood.READING, "web_fetch" to WindMood.READING,
+    "read" to WindMood.READING, "read_file" to WindMood.READING, "ls" to WindMood.READING, "list" to WindMood.READING, "web_fetch" to WindMood.READING,
     "office_read" to WindMood.READING, "image" to WindMood.READING, "review" to WindMood.READING, "reviewing" to WindMood.READING,
     "glob" to WindMood.SEARCHING, "grep" to WindMood.SEARCHING, "find" to WindMood.SEARCHING, "search" to WindMood.SEARCHING,
     "web_search" to WindMood.SEARCHING, "web" to WindMood.SEARCHING, "browser" to WindMood.SEARCHING,
@@ -125,102 +125,109 @@ fun WindFace(
     tappable: Boolean = false,
     /** Llista de vents: l'eina de l'ofici també en avatars petits, per triar sabent l'especialització. */
     showKit: Boolean = false,
+    modifier: Modifier = Modifier,
 ) {
-    val motion = windMotionEnabled()
-    // Petó en prémer: la cara s'aixafa, torna amb molla i somriu amb els ulls.
+    val compact = size < 64
+    val motion = (!compact || tappable) && windMotionEnabled()
+    // La forma reacciona quan el dit toca la cara i torna amb molla en deixar-la.
+    val touch = if (tappable && motion) remember { MutableInteractionSource() } else null
+    val pressScale = if (touch != null) {
+        val pressed by touch.collectIsPressedAsState()
+        animateFloatAsState(
+            targetValue = if (pressed) .91f else 1f,
+            animationSpec = if (pressed) tween(75) else spring(dampingRatio = Spring.DampingRatioMediumBouncy),
+            label = "wind-press",
+        )
+    } else null
     var punch by remember { mutableIntStateOf(0) }
-    val punchScale = remember { Animatable(1f) }
-    val cheer = remember { Animatable(0f) }
-    LaunchedEffect(punch) {
-        if (punch > 0 && motion) {
+    val cheer = if (touch != null) remember { Animatable(0f) } else null
+    if (cheer != null) LaunchedEffect(punch) {
+        if (punch > 0) {
             cheer.snapTo(1f)
-            punchScale.animateTo(0.84f, spring(stiffness = Spring.StiffnessMedium))
-            punchScale.animateTo(1f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow))
             cheer.animateTo(0f, tween(500))
         }
     }
     // Un sol rellotge de 12 s mou tota la cara (els bucles el divideixen, com
     // al web). Cada vent hi té el seu desfasament: una graella de mascotes no
     // respira, parpelleja ni salta a l'uníson.
-    val loop: Float = if (motion) {
-        val value by rememberInfiniteTransition(label = "wind-loop").animateFloat(
+    val loop = if (motion) {
+        rememberInfiniteTransition(label = "wind-loop").animateFloat(
             initialValue = 0f, targetValue = 12f,
             animationSpec = infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "loop")
-        value
-    } else 0f
+    } else null
     val seed = remember(accent, style) { ((accent.hashCode() * 31 + style.hashCode()) and 0xffff) / 65535f * 12f }
-    val t = if (motion) (loop + seed) % 12f else 0f
-    fun wave(period: Float) = sin(2f * PI.toFloat() * (t % period) / period)
-    fun phase(period: Float) = t % period / period
-    // No ambient bouncing, even on the happy creator/profile preview.
-    val tilt = if (mood == WindMood.THINKING) wave(6f) else 0f
-    // Boca que s'obre i tanca en parlar (unes 2,5 síl·labes per segon).
-    val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
-    // A hint of delight only while happy or talking.
-    val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(2f) + 1f) / 2f else 0f
-    // Parpelleig curt cada 6 s; contents, de tant en tant fan els ulls feliços.
-    val blinking = motion && phase(6f) in .955f..0.975f
-    val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
-    // Enllestit: un sol salt i la insígnia que apareix, cada cop que hi arriba.
-    val doneHop = remember { Animatable(1f) }
-    LaunchedEffect(mood, motion) {
-        if (mood == WindMood.DONE && motion) { doneHop.snapTo(0f); doneHop.animateTo(1f, tween(800)) } else doneHop.snapTo(1f)
-    }
-    // En repòs sura una mica (amunt i avall en 4 s): un vent, no un adhesiu.
+    fun time() = loop?.let { (it.value + seed) % 12f } ?: 0f
+    fun wave(time: Float, period: Float) = sin(2f * PI.toFloat() * (time % period) / period)
+    val doneHop = if (motion && mood == WindMood.DONE) {
+        val hop = remember { Animatable(0f) }
+        LaunchedEffect(hop) { hop.animateTo(1f, tween(800)) }
+        hop
+    } else null
     val calm = mood == WindMood.IDLE || mood == WindMood.HAPPY || mood == WindMood.NEWS
-    val lift = when (mood) {
-        WindMood.DONE -> -sin(PI.toFloat() * doneHop.value) * 7f
-        else -> if (calm && motion) wave(4f) * 1.6f else 0f
-    } / 80f
-    val moodTilt = if (mood == WindMood.DISCUSSING) wave(3f) * 4f else 0f
-    // On mira: cap a la insígnia, escombrant, llegint línies o la feina.
-    val look: Pair<Float, Float> = when (mood) {
-        WindMood.THINKING, WindMood.NEWS -> .8f to -.9f
-        WindMood.SEARCHING -> wave(2.4f) to 0f
-        WindMood.READING -> {
-            val f = phase(3f)
-            ((f % .5f / .4f).coerceAtMost(1f) * 2f - 1f) to (if (f < .5f) .3f else .9f)
-        }
-        WindMood.WRITING -> 0f to 1f
-        WindMood.DISCUSSING -> wave(3f) to 0f
-        // En repòs, de tant en tant una mirada a cada costat (cada 12 s, desfasat per vent).
-        WindMood.IDLE, WindMood.HAPPY -> when (phase(12f)) {
-            in .30f..0.40f -> -.7f to .1f
-            in .62f..0.70f -> .7f to .1f
-            else -> 0f to 0f
-        }
-        else -> 0f to 0f
-    }
-    // Repòs: respira, sura, parpelleja i de tant en tant mira a un costat.
-    val breath = wave(4f)
     // The stored specialty stays intact; small avatars show only their identity…
     // unless the caller opts in (the crew strip): picking a wind by its trade tool.
     val kit = if (size >= 80 || showKit) windKits[style.kit] else null
     // Paral·laxi de volum només a les cares grans (perfil, creador, xat buit):
     // a les llistes petites seria soroll i sensor per a res.
-    val lean = rememberWindLean(motion && size >= 64)
-    Box(Modifier.graphicsLayer {
+    val lean = rememberWindLean(motion && !compact)
+    val ink = remember(accent) {
+        val dark = Color(0xFF202127)
+        if (contrastWith(accent, dark) >= contrastWith(accent, Color.White)) dark else Color.White
+    }
+    val bodyPaint = remember(style.shape, accent) { WindBodyPaint(style.shape, accent) }
+    val motionLayer = if (motion) Modifier.graphicsLayer {
+        val t = time()
+        val breath = wave(t, 4f)
+        val lift = doneHop?.let { -sin(PI.toFloat() * it.value) * 7f }
+            ?: if (calm) breath * 1.6f else 0f
+        val scale = pressScale?.value ?: 1f
         transformOrigin = TransformOrigin(0.5f, 1f)
-        translationY = lift * size.dp.toPx()
-        // Respiració que es veu (±1,5 % d'alçada), com el pit que s'infla.
-        scaleX = punchScale.value * (1f - breath * 0.008f)
-        scaleY = punchScale.value * (1f + breath * 0.015f)
-        rotationZ = tilt * 5f + moodTilt
-    }.then(if (tappable) Modifier.clickable { punch++ } else Modifier)) {
-    Canvas(Modifier.size(size.dp)) {
+        translationY = lift / 80f * size.dp.toPx()
+        scaleX = (1f + (1f - scale) * .5f) * (1f - breath * 0.008f)
+        scaleY = scale * (1f + breath * 0.015f)
+        rotationZ = when (mood) {
+            WindMood.THINKING -> wave(t, 6f) * 5f
+            WindMood.DISCUSSING -> wave(t, 3f) * 4f
+            else -> 0f
+        }
+    } else Modifier
+    val tap = if (touch != null) Modifier.clickable(interactionSource = touch, indication = null) { punch++ } else Modifier
+    Canvas(modifier.then(tap).then(motionLayer).size(size.dp)) {
+        val t = time()
+        fun phase(period: Float) = t % period / period
+        val talkOpen = motion && mood == WindMood.TALKING && phase(.4f) < .5f
+        val twinkle = if (motion && (mood == WindMood.HAPPY || mood == WindMood.TALKING)) (wave(t, 2f) + 1f) / 2f else 0f
+        val blinking = motion && phase(6f) in .955f..0.975f
+        val squint = motion && mood == WindMood.HAPPY && phase(6f) in .30f..0.44f
+        val look = when (mood) {
+            WindMood.THINKING, WindMood.NEWS -> Offset(.8f, -.9f)
+            WindMood.SEARCHING -> Offset(wave(t, 2.4f), 0f)
+            WindMood.READING -> {
+                val f = phase(3f)
+                Offset((f % .5f / .4f).coerceAtMost(1f) * 2f - 1f, if (f < .5f) .3f else .9f)
+            }
+            WindMood.WRITING -> Offset(0f, 1f)
+            WindMood.DISCUSSING -> Offset(wave(t, 3f), 0f)
+            WindMood.IDLE, WindMood.HAPPY -> when (phase(12f)) {
+                in .30f..0.40f -> Offset(-.7f, .1f)
+                in .62f..0.70f -> Offset(.7f, .1f)
+                else -> Offset.Zero
+            }
+            else -> Offset.Zero
+        }
         val w = this.size.width
         val h = this.size.height
         val cx = w / 2f
         // Keep the same silhouette/face placement with or without a specialty.
         val cy = h / 2f
         val r = min(w, h) * 0.37f
-        val ink = if (contrastWith(accent, Color(0xFF202127)) >= contrastWith(accent, Color.White)) Color(0xFF202127) else Color.White
         val unit = min(w, h) / 80f
+        val mouthStroke = r * if (compact) .065f else .045f
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
-        val tx = lean.value.x
-        val ty = lean.value.y
-        drawWindBody(style.shape, accent, cx, cy, r, tx, ty)
+        val (tx, ty) = lean.value
+        val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(style.shape, accent, tx, ty)
+        drawWindBody(style.shape, paint, cx, cy, r)
         // A single small tool on large profiles, never a costume over the eyes.
         // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
         // coordenades de la cara sencera, cenyint a les seves vores. El 'prop'
@@ -248,10 +255,10 @@ fun WindFace(
         // Els trets viuen a la cara de l'esfera: amb la inclinació es desplacen una mica.
         val fx = cx + tx * r * .09f
         val fy = cy + ty * r * .07f
-        val eyeY = fy - r * 0.05f + look.second * r * 0.07f
+        val eyeY = fy - r * 0.05f + look.y * r * 0.07f
         val eyeDx = r * 0.29f
         val eyeW = r * 0.135f
-        val gazeShift = look.first * r * 0.07f
+        val gazeShift = look.x * r * 0.07f
 
         // Soft cheeks stay subtle on every wind colour, including small avatars.
         for (side in listOf(-1f, 1f)) {
@@ -260,7 +267,7 @@ fun WindFace(
         }
 
         // Two bold eye marks; no pupils or reflections: the volume lives in the body.
-        if (mood == WindMood.DONE || blinking || squint || cheer.value > .15f) {
+        if (mood == WindMood.DONE || blinking || squint || (cheer?.value ?: 0f) > .15f) {
             for (side in listOf(-1f, 1f)) {
                 drawArc(ink, 190f, 160f, false,
                     Offset(fx + side * eyeDx - eyeW, eyeY - eyeW * .55f),
@@ -309,7 +316,7 @@ fun WindFace(
                 useCenter = false,
                 topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
                 size = Size(r * 0.60f, r * 0.55f),
-                style = Stroke(width = r * 0.045f, cap = StrokeCap.Round),
+                style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
             )
             WindMouth.OPEN -> {
                 // Boca oberta: llavor fosca amb una mica de llengua.
@@ -328,7 +335,7 @@ fun WindFace(
                 color = ink,
                 start = Offset(fx - r * 0.16f, fy + r * 0.28f),
                 end = Offset(fx + r * 0.16f, fy + r * 0.28f),
-                strokeWidth = r * 0.045f,
+                strokeWidth = mouthStroke,
                 cap = StrokeCap.Round,
             )
             WindMouth.TONGUE -> {
@@ -339,7 +346,7 @@ fun WindFace(
                     useCenter = false,
                     topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
                     size = Size(r * 0.60f, r * 0.55f),
-                    style = Stroke(width = r * 0.045f, cap = StrokeCap.Round),
+                    style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
                 )
                 drawOval(
                     color = Color(0xFFE86A6A),
@@ -372,8 +379,7 @@ fun WindFace(
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop.value) }
-    }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f) }
     }
 }
 

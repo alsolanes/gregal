@@ -101,7 +101,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
@@ -122,8 +121,6 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -355,7 +352,6 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     var ghNumber by remember { mutableStateOf("") }
     var ghQuery by remember { mutableStateOf("") }
     var ghRepo by remember { mutableStateOf("") }
-    var follow by remember { mutableStateOf(true) }
     val queued by vm.queued.collectAsState()
     val plan by vm.plan.collectAsState()
     val planning by vm.planning.collectAsState()
@@ -393,30 +389,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         } catch (_: Exception) { false }
     }
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
     var composerFocused by remember { mutableStateOf(false) }
     val busy = sending || st.agentBusy
 
-    //Segueix el final només si l'usuari ja era a baix: pujar a rellegir
-    // no ha de ser interromput per cada lot de streaming.
-    // Deixa de seguir el final només quan la persona arrossega cap amunt; hi
-    // torna quan arriba a baix. (Abans el primer layout ja l'apagava.)
-    LaunchedEffect(listState) {
-        listState.interactionSource.interactions.collect { i ->
-            if (i is androidx.compose.foundation.interaction.DragInteraction.Start) follow = false
-        }
-    }
-    LaunchedEffect(listState) {
-        // Si el contingut creix (targeta que s'obre, text en viu), es queda a baix.
-        snapshotFlow { listState.canScrollForward }.collect { more ->
-            if (!more) follow = true
-            else if (follow && !listState.isScrollInProgress) {
-                val n = listState.layoutInfo.totalItemsCount
-                if (n > 0) listState.scrollToItem(n - 1)
-            }
-        }
-    }
+    val follow = rememberChatFollow(listState, "code")
     LaunchedEffect(notice) { if (notice.isNotEmpty()) { snack.showSnackbar(notice); vm.clearNotice() } }
     LaunchedEffect(showModelMenu) { if (showModelMenu) vm.loadModels() }
 
@@ -652,11 +629,11 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                 busy = busy, canSend = input.isNotBlank(), voice = voiceOk, lang = lang,
                                 onSend = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    follow = true; vm.submit(consumeInput())
+                                    follow.requestFollow(); vm.submit(consumeInput())
                                 },
                                 onInterrupt = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    follow = true; vm.submit(consumeInput(), interrupt = true)
+                                    follow.requestFollow(); vm.submit(consumeInput(), interrupt = true)
                                 },
                                 onStop = {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -716,12 +693,6 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         } else {
             Box(Modifier.fillMaxSize().padding(pad)) {
                 val rows = remember(msgs, lang) { chatRows(msgs, lang) }
-                // L'última fila («end») és a rows.size (+1 si hi ha text en viu):
-                // es pot demanar abans del primer layout, a diferència de layoutInfo.
-                val endIndex = rows.size + if (live.isNotEmpty()) 1 else 0
-                LaunchedEffect(endIndex, live.length / 80, msgs.lastOrNull()?.work?.steps?.size) {
-                    if (follow) listState.scrollToItem(endIndex)
-                }
                 // A la tauleta les línies de tota l'amplada no es llegien: com a
                 // l'escriptori, una columna centrada d'amplada de lectura.
                 LazyColumn(
@@ -761,12 +732,9 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                     if (live.isNotEmpty()) item(key = "live", contentType = "live") { LiveAnswer(live, lang) }
                     item(key = "end", contentType = "end") { Spacer(Modifier.height(8.dp)) }
                 }
-                if (!follow && msgs.isNotEmpty()) {
+                if (!follow.following && msgs.isNotEmpty()) {
                     Surface(
-                        onClick = {
-                            follow = true
-                            scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) }
-                        },
+                        onClick = follow::requestFollow,
                         shape = CircleShape, color = Superficie, shadowElevation = 4.dp,
                         border = BorderStroke(1.dp, Line),
                         modifier = Modifier.align(Alignment.BottomCenter).padding(10.dp).size(44.dp),

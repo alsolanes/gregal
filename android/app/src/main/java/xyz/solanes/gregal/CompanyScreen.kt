@@ -2,6 +2,8 @@ package xyz.solanes.gregal
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -142,9 +144,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
             kotlinx.coroutines.delay(if (anyRunning) 8_000 else 60_000)
         }
     }
-    // El fil d'una feina en marxa rep missatges de la colla: es torna a llegir
-    // perquè la conversa pugi a dalt amb l'hora bona.
-    LaunchedEffect(windTasks) { vm.loadSummaries() }
     val winds by vm.winds.collectAsState()
     val rotllanes by vm.rotllanes.collectAsState()
     val chats by vm.windChat.collectAsState()
@@ -153,7 +152,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val capHome by vm.capHome.collectAsState()
     val busy by vm.windBusy.collectAsState()
     val rBusy by vm.rotllanaBusy.collectAsState()
-    val live by vm.windLive.collectAsState()
+    val live = vm.windLive.collectAsState()
     val news by vm.windNews.collectAsState()
     val newsCount by vm.windNewsCount.collectAsState()
     val conn by vm.conn.collectAsState()
@@ -171,9 +170,6 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     LaunchedEffect(conn, homeCards) { if (homeCards) { vm.loadProgramats(); vm.loadConnections(); vm.loadTodayBrief() } }
     val todayBrief by vm.todayBrief.collectAsState()
     fun pluginOn(id: String) = plugins[id] != false
-    // Quan un vent parla sol (recordatori, rutina) es torna a llegir el seu
-    // xat: així puja a dalt de la llista.
-    LaunchedEffect(news) { vm.loadSummaries() }
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
     // diàleg del sistema el permís queda denegat i no sona mai res.
@@ -212,7 +208,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // La portada en té prou amb l'últim missatge de cada conversa (cada fil es
     // carrega en obrir-lo); en tornar d'una conversa es refresca. Per cercar
     // dins dels missatges, sí que calen tots els fils.
-    LaunchedEffect(conn, open, winds.size, rotllanes.size) { if (open == null) vm.loadSummaries() }
+    LaunchedEffect(conn, open, winds.size, rotllanes.size, windTasks, news) {
+        if (open == null) vm.loadSummaries()
+    }
     LaunchedEffect(searching) {
         if (searching) { winds.forEach { vm.loadWindChat(it.id) }; rotllanes.forEach { vm.loadRotllanaChat(it.id) } }
     }
@@ -239,13 +237,13 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     } else if (creation != null) {
         ConversationCreator(vm, lang, winds, group = creation == "group") { creation = null }
     } else if (open != null) {
-        // L'entrada al xat llisca i apareix; abans la pantalla canviava de cop i
-        // el toc no s'assemblava a res. El canvi entre dos xats també hi passa.
+        val motion = LocalWindMotion.current
         AnimatedContent(
             targetState = open,
             transitionSpec = {
-                (fadeIn(tween(160)) + slideInHorizontally(tween(230)) { it / 10 })
-                    .togetherWith(fadeOut(tween(110)))
+                if (motion) (fadeIn(tween(100), initialAlpha = .85f) + slideInHorizontally(tween(130)) { it / 24 })
+                    .togetherWith(fadeOut(tween(75)))
+                else EnterTransition.None togetherWith ExitTransition.None
             },
             label = "conversa",
         ) { target ->
@@ -352,16 +350,41 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     if (text.isNotEmpty()) { vm.askCap(text); askText.value = ""; vm.openVentsChat("cap") }
                 }
             }) { pad ->
+            val home = !manage && !searching && tab == "home" && winds.isNotEmpty()
+            val inboxQuery = if (home) "" else query
+            val inbox = if (manage) emptyList() else remember(winds, rotllanes, chats, rChats, inboxQuery, summaries) {
+                ventsInbox(winds, rotllanes, chats, rChats, inboxQuery, summaries)
+            }
             LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
-                if (!manage && !searching && tab == "home" && winds.isNotEmpty()) {
-                    val homeRows = ventsInbox(winds, rotllanes, chats, rChats, "", summaries)
+                if (home) {
                     item(key = "ask-hero") {
-                        val lead = winds.firstOrNull { it.id in news } ?: winds.firstOrNull { it.specialty == "organisation" } ?: winds.first()
-                        AskHero(lang, userName, lead, winds, busy, news) { w -> vm.openVentsChat("wind:" + w.id) }
+                        val lastReply by vm.lastWindReply.collectAsState()
+                        val remaining = remember(lastReply) {
+                            val elapsed = System.currentTimeMillis() - (lastReply?.second ?: 0L)
+                            if (elapsed in 0 until 20_000L) 20_000L - elapsed else 0L
+                        }
+                        var recentReply by remember(lastReply) {
+                            mutableStateOf(lastReply?.first?.takeIf { remaining > 0 })
+                        }
+                        LaunchedEffect(lastReply) {
+                            if (remaining > 0) {
+                                kotlinx.coroutines.delay(remaining)
+                                recentReply = null
+                            }
+                        }
+                        val lead = winds.firstOrNull { it.id in busy } ?: winds.firstOrNull { it.id in news }
+                            ?: winds.firstOrNull { it.id == recentReply }
+                            ?: winds.firstOrNull { it.specialty == "organisation" } ?: winds.first()
+                        val activeMood by remember(live, lead.id) {
+                            derivedStateOf(structuralEqualityPolicy()) { live.value[lead.id]?.mood }
+                        }
+                        AskHero(lang, userName, lead, winds, busy, news, activeMood, recentReply == lead.id) { w ->
+                            vm.openVentsChat("wind:" + w.id)
+                        }
                     }
                     item(key = "ask-suggest") { AskSuggestions(lang) { askText.value = it } }
                     item(key = "ask-today") {
-                        TodaySection(lang, todayCards(lang, homeRows, news, windTasks.orEmpty().filter { it.running },
+                        TodaySection(lang, todayCards(lang, inbox, news, windTasks.orEmpty().filter { it.running },
                             programats?.reminders.orEmpty(), connections,
                             onOpen = { vm.openVentsChat(it) }, onWork = { feinesOpen = true },
                             onReminders = { vm.go(Screen.Automatitzacions) }, onBriefing = { vm.go(Screen.Automatitzacions) }),
@@ -400,9 +423,16 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         val thinking = if (group) id in rBusy else id in busy
                         val unread = !group && id in news
                         val face = entry.members.firstOrNull()
+                        val mood = if (thinking) {
+                            // Only this row observes its mood, not the timestamps and progress of every turn.
+                            val activeMood by remember(live, id) {
+                                derivedStateOf(structuralEqualityPolicy()) { live.value[id]?.mood }
+                            }
+                            activeMood
+                        } else if (unread) WindMood.NEWS else null
                         ConversationRow(entry.title, entry.preview, face?.let { Color(it.argb) } ?: Sea,
                             face?.faceStyle ?: WindStyle(), faces = if (group) entry.members else emptyList(),
-                            busy = thinking, mood = if (thinking) live[id]?.mood else if (unread) WindMood.NEWS else null,
+                            busy = thinking, mood = mood,
                             unreadCount = if (unread) (newsCount[id] ?: 1) else 0,
                             timestamp = entry.timestamp,
                             favorite = entry.key in wmeta.favorites,
@@ -414,8 +444,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             }, lang = lang)
                     }
 
-                    val allRows = ventsInbox(winds, rotllanes, chats, rChats, query, summaries)
-                    val rows = allRows.filter { row ->
+                    val rows = inbox.filter { row ->
                         when (inboxFilter) {
                             "unread" -> row.key.startsWith("wind:") && row.key.substringAfter(':') in news
                             "groups" -> row.key.startsWith("rot:")
@@ -502,6 +531,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
 /** L'estat d'un vent en paraules (mai només amb la insígnia); null si està en repòs. */
 internal fun windStateLabel(lang: String, mood: WindMood, busy: Boolean): String? = when (mood) {
     WindMood.SEARCHING -> tr(lang, "app.vents.gridSearching")
+    WindMood.READING -> if (lang == "en") "reading…" else "està llegint…"
     WindMood.WRITING -> tr(lang, "app.vents.gridWriting")
     WindMood.WORKING -> tr(lang, "app.vents.gridWorking")
     WindMood.DISCUSSING -> tr(lang, "app.vents.gridDiscussing")
@@ -916,16 +946,19 @@ internal fun ConversationRow(
     val receipt = remember(timestamp, lang) {
         if (timestamp > 0L) inboxWhen(timestamp, lang) else ""
     }
+    val stacked = remember(faces) { faces.drop(1) }
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 68.dp)
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp).heightIn(min = 68.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (unread) Sea.copy(alpha = .07f) else Color.Transparent)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         // Un vent sol porta l'eina del seu ofici també a la llista: és com es
         // distingeixen els especialistes d'un cop d'ull, no només pel color.
-        WindHalo(accent, style, size = 44, stacked = faces.drop(1), online = false,
+        WindHalo(accent, style, size = 44, stacked = stacked, online = false,
             mood = mood ?: if (busy) WindMood.THINKING else WindMood.IDLE, showKit = faces.size <= 1)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1757,8 +1790,6 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 // refà ni un.
                 val link = remember(accent, dark) { readableLink(accent, dark) }
                 val codeBg = CodeDark
-                val blocks = remember(m.text) { richBlocks(m.text) }
-                val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
                 Column(
                     Modifier.padding(horizontal = 14.dp)
                         .padding(vertical = 10.dp),
@@ -1772,11 +1803,12 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                     // (sense marques crues) fins al done. El cursor que
                     // pampallugueja diu «ho està escrivint ara».
                     if (m.streaming) {
+                        val plain = remember(m.text) { stripMdInline(m.text).ifBlank { "…" } }
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(plain, fontSize = 15.sp, lineHeight = 22.sp, color = Tinta)
                             TypingCursor(accent)
                         }
-                    } else { for (b in blocks) {
+                    } else { for (b in remember(m.text) { richBlocks(m.text) }) {
                         when (b) {
                             is Rich.Inline -> {
                                 val rich = remember(b, link, codeBg) { renderSegs(b.segs, codeBg, link = link) }
@@ -2163,6 +2195,15 @@ internal class ChatFollowState {
     fun stopDragging() { dragging = false }
 }
 
+private data class LatestChatLayout(
+    val atEnd: Boolean,
+    val count: Int = 0,
+    val viewportEnd: Int = 0,
+    val lastIndex: Int = -1,
+    val lastOffset: Int = 0,
+    val lastSize: Int = 0,
+)
+
 @Composable
 internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState {
     val follow = remember(list, key) { ChatFollowState() }
@@ -2180,15 +2221,22 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
     }
     LaunchedEffect(list, follow) {
         snapshotFlow {
-            val info = list.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()
-            listOf(info.totalItemsCount, info.viewportEndOffset, last?.index ?: -1,
-                last?.offset ?: 0, last?.size ?: 0, if (follow.following) 1 else 0,
-                if (list.isScrollInProgress || follow.dragging) 1 else 0)
-        }.conflate().collect {
-            if (!follow.dragging && !list.isScrollInProgress && !list.canScrollForward) follow.requestFollow()
-            if (follow.following && !follow.dragging && !list.isScrollInProgress && list.canScrollForward) {
-                // User drag may cancel the scroll mutation; keep the observer alive.
+            when {
+                follow.dragging || list.isScrollInProgress -> null
+                !list.canScrollForward -> LatestChatLayout(atEnd = true)
+                !follow.following -> null
+                else -> {
+                    val info = list.layoutInfo
+                    val last = info.visibleItemsInfo.lastOrNull()
+                    LatestChatLayout(false, info.totalItemsCount, info.viewportEndOffset,
+                        last?.index ?: -1, last?.offset ?: 0, last?.size ?: 0)
+                }
+            }
+        }.conflate().collect { layout ->
+            if (layout == null || follow.dragging || list.isScrollInProgress) return@collect
+            if (!list.canScrollForward) follow.requestFollow()
+            else if (follow.following) {
+                // A drag can cancel the scroll mutation without ending the observer.
                 kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
             }
         }

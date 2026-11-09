@@ -1,11 +1,5 @@
 package xyz.solanes.gregal
 
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -33,8 +27,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -42,6 +35,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -176,19 +170,48 @@ internal fun AskTabs(lang: String, tab: String, unread: Int, onTab: (String) -> 
 
 /** La part de dalt de l'inici: la cara que respira, la salutació i la colla. */
 @Composable
-internal fun AskHero(lang: String, name: String, lead: Wind?, winds: List<Wind>, busy: Set<String>, news: Set<String>, onTalk: (Wind) -> Unit) {
-    val glow = rememberInfiniteTransition(label = "inici")
-    val breathe by glow.animateFloat(0.55f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "respira")
-    val accent = lead?.let { Color(it.argb) } ?: Sea
-    Column(Modifier.fillMaxWidth().padding(top = 36.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+internal fun AskHero(
+    lang: String,
+    name: String,
+    lead: Wind,
+    winds: List<Wind>,
+    busy: Set<String>,
+    news: Set<String>,
+    activeMood: WindMood?,
+    finished: Boolean,
+    onTalk: (Wind) -> Unit,
+) {
+    val accent = Color(lead.argb)
+    val mood = when {
+        lead.id in busy -> activeMood ?: WindMood.THINKING
+        finished -> WindMood.DONE
+        lead.id in news -> WindMood.NEWS
+        else -> WindMood.IDLE
+    }
+    val status = if (mood == WindMood.DONE) {
+        if (lang == "en") "Reply ready" else "Resposta enllestida"
+    } else windStateLabel(lang, mood, lead.id in busy)
+    Column(Modifier.fillMaxWidth().padding(top = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(112.dp).drawBehind {
-                drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .38f * breathe), Color.Transparent),
-                    center = Offset(size.width / 2, size.height / 2), radius = size.minDimension / 2))
+            Modifier.size(124.dp).drawWithCache {
+                val halo = Brush.radialGradient(
+                    0f to accent.copy(alpha = .24f),
+                    .52f to accent.copy(alpha = .12f),
+                    1f to Color.Transparent,
+                )
+                onDrawBehind { drawCircle(halo) }
             },
             contentAlignment = Alignment.Center,
         ) {
-            if (lead != null) WindHalo(accent, lead.faceStyle, size = 68, mood = WindMood.HAPPY, online = false, showKit = true)
+            key(lead.id) {
+                WindFace(
+                    size = 96, mood = mood, accent = accent, style = lead.faceStyle, tappable = true,
+                    modifier = Modifier.testTag("ask-portrait").semantics {
+                        contentDescription = lead.name
+                        if (status != null) stateDescription = status
+                    },
+                )
+            }
         }
         Text(askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
             color = Ink, fontSize = 30.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 34.sp,
@@ -202,8 +225,8 @@ internal fun AskHero(lang: String, name: String, lead: Wind?, winds: List<Wind>,
             items(winds, key = { it.id }) { w ->
                 val mood = when { w.id in busy -> WindMood.THINKING; w.id in news -> WindMood.NEWS; else -> WindMood.IDLE }
                 Row(
-                    Modifier.clip(RoundedCornerShape(999.dp)).background(SuperficieAlta.copy(alpha = .5f))
-                        .border(1.dp, Color(w.argb).copy(alpha = if (w.id in news) .7f else .18f), RoundedCornerShape(999.dp))
+                    Modifier.clip(CircleShape).background(SuperficieAlta.copy(alpha = .65f))
+                        .border(1.dp, Color(w.argb).copy(alpha = if (mood == WindMood.NEWS) .65f else .22f), CircleShape)
                         .clickable { onTalk(w) }.semantics { contentDescription = w.name }
                         .padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),

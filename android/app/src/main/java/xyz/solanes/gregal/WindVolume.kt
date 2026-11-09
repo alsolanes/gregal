@@ -62,39 +62,50 @@ private val rimReach = mapOf(WindShape.BALL to 1.32f, WindShape.CLOUD to 1.62f, 
 internal fun windLight(accent: Color) = lerp(accent, Color.White, .30f)
 internal fun windDeep(accent: Color) = lerp(accent, Color(0xFF1B1530), .30f)
 
-/** Cos del vent amb volum; `tx`/`ty` són la inclinació (−1..1). */
-internal fun DrawScope.drawWindBody(shape: WindShape, accent: Color, cx: Float, cy: Float, r: Float, tx: Float, ty: Float) {
-    val body = windBodies.getValue(shape)
-    // La llum és del món: quan els trets van cap a un costat, la llum hi va en contra.
+private val spiralFringe by lazy {
+    Path().apply {
+        moveTo(-.60f, -.48f)
+        cubicTo(-.50f, -.82f, -.16f, -.88f, .08f, -.72f)
+        cubicTo(.30f, -.57f, .50f, -.62f, .62f, -.82f)
+    }
+}
+
+/** Els pinzells es reutilitzen mentre la inclinació i el color siguin els mateixos. */
+internal class WindBodyPaint(shape: WindShape, accent: Color, tx: Float = 0f, ty: Float = 0f) {
+    val deep = windDeep(accent)
+    val foot = Offset(-tx * .08f, 1.13f)
     val light = Offset(-.38f - tx * .18f, -.50f - ty * .14f)
+    val shadow = Brush.radialGradient(
+        0f to Color.Black.copy(alpha = .22f), 1f to Color.Transparent, center = foot, radius = .8f,
+    )
+    val volume = Brush.radialGradient(
+        0f to windLight(accent), .45f to accent, 1f to deep, center = light, radius = 1.9f,
+    )
+    val rim = Brush.radialGradient(
+        0f to Color.Transparent, .80f to Color.Transparent,
+        1f to lerp(accent, Color.White, .65f).copy(alpha = .40f),
+        center = Offset(-.22f - tx * .10f, -.26f - ty * .10f), radius = rimReach.getValue(shape),
+    )
+    val shine = Brush.radialGradient(
+        0f to Color.White.copy(alpha = .28f), 1f to Color.Transparent, center = light, radius = .5f,
+    )
+}
+
+internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float) {
+    val body = windBodies.getValue(shape)
     withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
-        // Ombra de contacte: el vent sura just damunt d'un terra.
-        val foot = Offset(-tx * .08f, 1.13f)
-        withTransform({ scale(1f, .2f, foot) }) {
-            drawCircle(Brush.radialGradient(0f to Color.Black.copy(alpha = .22f), 1f to Color.Transparent, center = foot, radius = .8f),
-                radius = .8f, center = foot)
+        withTransform({ scale(1f, .2f, paint.foot) }) {
+            drawCircle(paint.shadow, radius = .8f, center = paint.foot)
         }
-        // Little feet anchor the character without changing the saved style.
-        drawOval(windDeep(accent), topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
-        drawOval(windDeep(accent), topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
-        drawPath(body, Brush.radialGradient(0f to windLight(accent), .45f to accent, 1f to windDeep(accent), center = light, radius = 1.9f))
+        drawOval(paint.deep, topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
+        drawOval(paint.deep, topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
+        drawPath(body, paint.volume)
         if (shape == WindShape.SPIRAL) {
-            val fringe = Path().apply {
-                moveTo(-.60f, -.48f)
-                cubicTo(-.50f, -.82f, -.16f, -.88f, .08f, -.72f)
-                cubicTo(.30f, -.57f, .50f, -.62f, .62f, -.82f)
-            }
-            drawPath(fringe, windDeep(accent).copy(alpha = .45f), style = Stroke(.08f, cap = StrokeCap.Round))
+            drawPath(spiralFringe, paint.deep.copy(alpha = .45f), style = Stroke(.08f, cap = StrokeCap.Round))
         }
         clipPath(body) {
-            // Vora de llum reflectida, a baix a la dreta: dona el gir de la forma.
-            drawRect(Brush.radialGradient(0f to Color.Transparent, .80f to Color.Transparent,
-                1f to lerp(accent, Color.White, .65f).copy(alpha = .40f),
-                center = Offset(-.22f - tx * .10f, -.26f - ty * .10f), radius = rimReach.getValue(shape)),
-                topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
-            // Reflex setinat, gran i difús: volum, no plàstic brillant.
-            drawCircle(Brush.radialGradient(0f to Color.White.copy(alpha = .28f), 1f to Color.Transparent, center = light, radius = .5f),
-                radius = .5f, center = light)
+            drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
+            drawCircle(paint.shine, radius = .5f, center = paint.light)
         }
     }
 }
@@ -144,10 +155,11 @@ private val still: State<Offset> = mutableStateOf(Offset.Zero)
 /** La inclinació per a una cara; quieta si no cal (petita, moviment reduït, estalvi). */
 @Composable
 internal fun rememberWindLean(enabled: Boolean): State<Offset> {
+    if (!enabled) return still
     val context = LocalContext.current.applicationContext
     val owner = LocalLifecycleOwner.current
     val saver = remember { context.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true }
-    val on = enabled && !saver
+    val on = !saver
     DisposableEffect(on, owner) {
         var held = false
         fun hold(want: Boolean) {

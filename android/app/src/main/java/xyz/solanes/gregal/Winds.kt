@@ -108,7 +108,9 @@ data class WindLive(
     val startedAt: Long = System.currentTimeMillis(), val lastEventAt: Long = startedAt,
     val tool: String = "", val step: Int = 0, val receivedText: Boolean = false, val speaker: String = "",
 ) {
-    val mood: WindMood get() = windMoodOf(phase = phase, writing = writing, voices = voices)
+    val mood: WindMood get() = if (phase == "tool" && tool.isNotBlank()) {
+        windMoodOf(state = "working", activity = tool, writing = writing, voices = voices)
+    } else windMoodOf(phase = phase, writing = writing, voices = voices)
 }
 
 /** Only report server-observed stages; no fabricated percentages or queue position. */

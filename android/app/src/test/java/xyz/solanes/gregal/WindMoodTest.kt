@@ -18,6 +18,9 @@ class WindMoodTest {
         assertEquals(WindMood.DISCUSSING, WindLive(writing = true, voices = 3).mood)
         assertEquals(WindMood.WRITING, WindLive(writing = true).mood)
         assertEquals(WindMood.THINKING, WindLive().mood)
+        assertEquals(WindMood.READING, WindLive(phase = "tool", tool = "read_file").mood)
+        assertEquals(WindMood.WRITING, WindLive(phase = "tool", tool = "read_file", writing = true).mood)
+        assertEquals(WindMood.THINKING, WindLive(phase = "tool_done", tool = "read_file").mood)
     }
 
     @Test fun `passos en marxa segons l'activitat`() {

@@ -12,18 +12,20 @@ internal data class VentsInboxRow(
 )
 
 private val MARKS = Regex("\\p{M}+")
+private val TABLE_RULE = Regex("^\\s*\\|?\\s*:?-{2,}")
+private val WHITESPACE = Regex("\\s+")
 
 /**
  * Text de la vista prèvia d'una conversa: sense markdown, i les taules com a
  * text pla (abans sortia «| Botiga | Què |» tal qual).
  */
 internal fun inboxPreview(text: String): String = stripMdInline(
-    text.lines().filterNot { Regex("^\\s*\\|?\\s*:?-{2,}").containsMatchIn(it) }
+    text.lineSequence().filterNot { TABLE_RULE.containsMatchIn(it) }
         .joinToString(" ") { line ->
             if (!line.contains('|')) line
             else line.trim().trim('|').split('|').map { it.trim() }.filter { it.isNotEmpty() }.joinToString(" · ")
         }
-).replace(Regex("\\s+"), " ").trim()
+).replace(WHITESPACE, " ").trim()
 
 internal fun ventsInbox(
     winds: List<Wind>, groups: List<Rotllana>,
@@ -36,7 +38,7 @@ internal fun ventsInbox(
     fun searchable(text: String): String = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
         .replace(MARKS, "").lowercase(java.util.Locale.ROOT)
     val needle = searchable(query.trim())
-    val rows = mutableListOf<Pair<VentsInboxRow, Boolean>>()
+    val rows = mutableListOf<VentsInboxRow>()
     fun add(key: String, title: String, fallback: String, members: List<Wind>, messages: List<GregalViewModel.PetMsg>) {
         val identityMatches = needle.isEmpty() || searchable(title + " " + fallback + " " + members.joinToString(" ") { it.name + " " + it.role }).contains(needle)
         val match = if (needle.isEmpty()) null else messages.lastOrNull { searchable(it.text).contains(needle) }
@@ -51,15 +53,18 @@ internal fun ventsInbox(
         }
         val has = messages.isNotEmpty() || sum != null
         rows += VentsInboxRow(key, title, inboxPreview(preview), members,
-            maxOf(chatTs, sum?.ts ?: 0L), has) to has
+            maxOf(chatTs, sum?.ts ?: 0L), has)
     }
     winds.forEach { w -> add("wind:${w.id}", w.name, w.role, listOf(w), chats[w.id].orEmpty()) }
-    groups.forEach { g ->
-        val members = g.members.mapNotNull { id -> winds.firstOrNull { it.id == id } }
-        add("rot:${g.id}", g.name, members.joinToString(", ") { it.name }, members, groupChats[g.id].orEmpty())
+    if (groups.isNotEmpty()) {
+        val windsById = winds.asReversed().associateBy { it.id }
+        groups.forEach { g ->
+            val members = g.members.mapNotNull(windsById::get)
+            add("rot:${g.id}", g.name, members.joinToString(", ") { it.name }, members, groupChats[g.id].orEmpty())
+        }
     }
-    return rows.sortedWith(compareByDescending<Pair<VentsInboxRow, Boolean>> { it.first.timestamp }
-        .thenByDescending { it.second }).map { it.first }
+    rows.sortWith(compareByDescending<VentsInboxRow> { it.timestamp }.thenByDescending { it.hasMessages })
+    return rows
 }
 
 /**

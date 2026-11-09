@@ -3,6 +3,8 @@ package xyz.solanes.gregal
 import android.app.Application
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
@@ -21,6 +23,32 @@ import org.robolectric.annotation.LooperMode
 class VentsExperienceTest {
     @get:Rule val ui = createComposeRule()
     private fun vm() = GregalViewModel(ApplicationProvider.getApplicationContext<Application>())
+
+    @Test fun homePortraitDescribesRealActivityAndRespectsReducedMotion() {
+        val lead = Wind("gregal", "Gregal", "#C1B4DE", "organització")
+        val reading = mutableStateOf(true)
+        val finished = mutableStateOf(false)
+        ui.setContent {
+            CompositionLocalProvider(LocalPal provides LightPal, LocalWindMotion provides false) {
+                MaterialTheme(colorScheme = LightPal.scheme()) {
+                    AskHero(
+                        "ca", "", lead, listOf(lead),
+                        busy = if (reading.value) setOf(lead.id) else emptySet(),
+                        news = emptySet(),
+                        activeMood = WindMood.READING,
+                        finished = finished.value,
+                    ) {}
+                }
+            }
+        }
+        val portrait = ui.onNodeWithTag("ask-portrait")
+        portrait.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "està llegint…"))
+            .assertHasNoClickAction()
+        ui.runOnIdle { reading.value = false; finished.value = true }
+        portrait.assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, "Resposta enllestida"))
+        ui.runOnIdle { finished.value = false }
+        portrait.assert(SemanticsMatcher.keyNotDefined(SemanticsProperties.StateDescription))
+    }
 
     @Test fun companionScreenActuallyDisplaysRequestErrors() {
         val vm = vm()
