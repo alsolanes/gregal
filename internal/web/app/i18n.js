@@ -4539,11 +4539,13 @@ Object.assign(EN, { 'shell.chat':'Chat', 'shell.navigation':'Main navigation', '
 Object.assign(CA, { 'inspector.folder':'Carpeta', 'menu.view':'Vista',
   'inspector.reviewer.off':'Apagat', 'inspector.reviewer.manual':'Manual', 'inspector.reviewer.auto':'Automàtic',
   'inspector.reviewer.both':'Automàtic i manual', 'inspector.reviewer.strict':'Estricte',
-  'objectius.buitMenu':'Cap objectiu encara. Tria «Mode objectiu» al menú de la capçalera (o escriu /objectiu) i explica què vols aconseguir.' });
+  'objectius.buitMenu':'Cap objectiu encara. Tria «Mode objectiu» al menú de la capçalera (o escriu /objectiu) i explica què vols aconseguir.',
+  'ui.noKey':'Sense clau d’API per a «{p}»: el model no pot respondre. Connecta’l a Preferències → Models i agent.' });
 Object.assign(EN, { 'inspector.folder':'Folder', 'menu.view':'View',
   'inspector.reviewer.off':'Off', 'inspector.reviewer.manual':'Manual', 'inspector.reviewer.auto':'Automatic',
   'inspector.reviewer.both':'Automatic and manual', 'inspector.reviewer.strict':'Strict',
-  'objectius.buitMenu':'No goals yet. Pick “Goal mode” in the header menu (or type /goal) and say what you want to achieve.' });
+  'objectius.buitMenu':'No goals yet. Pick “Goal mode” in the header menu (or type /goal) and say what you want to achieve.',
+  'ui.noKey':'No API key for “{p}”: the model cannot answer. Connect it in Preferences → Models & agent.' });
 // Mode Kanban (experimental, app/kanban.js).
 Object.assign(CA, {
   'kanban.nav': 'Kanban', 'kanban.kicker': 'Experimental', 'kanban.title': 'Kanban',

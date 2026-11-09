@@ -358,6 +358,7 @@ body.desktop #sessionTabs button, body.desktop #sessionTabs .session-tab { -webk
 .breadcrumb { min-width:0; display:flex; align-items:center; gap:7px; overflow:hidden; /* la branca no pot trepitjar les pestanyes */ }
 #statusDot { width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; }
 #statusDot.busy { background:var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+#statusDot.sense-clau:not(.busy) { background:transparent; box-shadow:inset 0 0 0 1.5px var(--amber); }
 #project { max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
   color:var(--ink); font-weight:510; }
 .sep { color:var(--faint); }
@@ -3149,6 +3150,36 @@ function stopTurn() {
   activityItem('agent', gregalT('act.aturat'), gregalT('act.aturat.sub'), 'warn');
   setSending(false);
 }
+// Punt del peu de la barra: verd només si el model pot respondre. Un
+// proveïdor remot sense clau (instal·lació nova) es veu com un anell ambre
+// amb el motiu al títol; és la regla de keylessHint al servidor.
+let clauProveidor = { nom: '', t: 0, sense: false };
+function urlLocal(url) {
+  try {
+    const h = new URL(url).hostname.toLowerCase().replace(/^\[|\]$/g, '');
+    if (h === 'localhost' || h === '::1' || h.startsWith('127.') || h.endsWith('.local') || h.endsWith('.localhost') ||
+        h === 'host.docker.internal' || h.startsWith('10.') || h.startsWith('192.168.')) return true;
+    const m = h.match(/^172\.(\d+)\./);
+    return !!(m && +m[1] >= 16 && +m[1] <= 31);
+  } catch (e) { return false; }
+}
+async function pintaClau(nom) {
+  const dot = $('statusDot');
+  if (!dot || !nom) return;
+  if (nom !== clauProveidor.nom || Date.now() - clauProveidor.t > 30000) {
+    const abans = clauProveidor.nom === nom && clauProveidor.sense;
+    clauProveidor = { nom, t: Date.now(), sense: abans };
+    try {
+      const d = await api('/api/providers').then(x => x.ok ? x.json() : null);
+      const p = d && (d.providers || []).find(x => x.name === nom);
+      clauProveidor.sense = !!(p && p.url && !urlLocal(p.url) && !p.has_api_key);
+    } catch (e) {}
+  }
+  dot.classList.toggle('sense-clau', clauProveidor.sense);
+  const motiu = clauProveidor.sense ? gregalT('ui.noKey').replace('{p}', nom) : '';
+  dot.title = motiu;
+  if (motiu) dot.setAttribute('aria-label', motiu); else dot.removeAttribute('aria-label');
+}
 let stateRefreshVersion = 0;
 async function refresh(options = {}) {
   const version = ++stateRefreshVersion;
@@ -3179,6 +3210,7 @@ async function refresh(options = {}) {
   $('activeWorkspace').disabled = !!r.agent_busy;
   $('sideProject').textContent = r.project || gregalT('nav.project');
   $('statusDot').classList.toggle('busy', visualWorking(r));
+  pintaClau(r.provider);
   $('hmode').textContent = r.mode; $('hrole').textContent = (window.gregalModelName && window.gregalModelName(r.model)) || r.model || r.current_role;
   agentMode = r.mode === 'code' || r.mode === 'autonomous' || r.mode === 'debug'; goalMode = r.mode === 'goal';
   paintMode(r.mode);
@@ -4657,10 +4689,22 @@ input.addEventListener('keydown',e=>{
     }
     sendByMode();
   }
-  if(e.key==='Escape'&&sending){e.preventDefault();stopTurn();}
+  if(e.key==='Escape'&&sending&&!capaOberta()){e.preventDefault();stopTurn();}
 });
 // Escriure o esborrar no mou res: la portada només se'n va en enviar (showMain).
 input.addEventListener('input',e=>{if(e.isTrusted)histIdx=-1;input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';$('send').innerHTML=sendLabel();});
+// Hi ha una capa per sobre (diàleg, full de notes, paleta, menú)? Llavors
+// l'Esc és seu. I el torn només l'atura l'Esc fet des del xat.
+function capaOberta() {
+  return !!document.querySelector('#prefsModal.on, #keysModal.on, #qnPanel:not([hidden]), #palette:not([hidden]), dialog[open], ' +
+    '#moreMenu:not([hidden]), #mpick:not([hidden]), #thinkMenu:not([hidden]), .perm-menu:not([hidden]), .folder-menu, #suggest:not([hidden])');
+}
+// D'on ve la tecla (e.target, no activeElement: el cercador de converses
+// es desenfoca amb el seu Esc abans que arribi aquí).
+function focusAlXat(el) {
+  const a = el && el.nodeType === 1 ? el : document.activeElement;
+  return !a || a === document.body || a === document.documentElement || !!a.closest('#conversationPane');
+}
 document.addEventListener('keydown',e=>{
   const cmd = e.ctrlKey || e.metaKey;
   // Dreceres de les dues apps de referència. Es miren abans de res perquè
@@ -4669,8 +4713,10 @@ document.addEventListener('keydown',e=>{
   if (cmd && e.key.toLowerCase() === 'n') { e.preventDefault(); novaConversa(); return; }
   if (cmd && e.key.toLowerCase() === 'f') { e.preventDefault(); const c = $('convSearch'); if (c) { setSide(true); c.focus(); c.select(); } return; }
   if (e.key === 'Escape') {
-    // Escape atura el torn des d'on sigui, no només amb el cursor al camp.
-    if (sending) { e.preventDefault(); stopTurn(); return; }
+    // Escape atura el torn amb el focus a la conversa o al compositor, però
+    // si hi ha una finestra o un menú obert l'Esc és per tancar-lo: abans,
+    // tancar les Preferències o les notes també aturava la feina.
+    if (sending && !capaOberta() && focusAlXat(e.target)) { e.preventDefault(); stopTurn(); return; }
     $('prov').style.display='none'; if(mobile.matches)setSide(false);
   }
 });
