@@ -61,6 +61,12 @@ const games = {
     $('fbPlay').textContent = T(running ? 'fb.stop' : 'fb.play');
     $('fbPlay').classList.toggle('danger', !!running);
     $('fbStatus').textContent = d.error || T('fb.today').replace('{n}', d.today || 0).replace('{max}', d.max_per_day || 3);
+    // Sense lliga (calen dos vents) el botó no pot fer res, i sense cap partit
+    // jugat tampoc hi ha res a mirar: ni camp buit ni llista buida.
+    const noLeague = !!d.error && !(d.teams || []).length;
+    $('fbPlay').disabled = noLeague && !running;
+    const empty = noLeague && !(d.games || []).length, page = $('partitsPage');
+    for (const sel of ['.fb-stage', '.fb-below']) { const el = page && page.querySelector(sel); if (el) el.style.display = empty ? 'none' : ''; }
     $('fbTeams').innerHTML = (d.teams || []).map(t => `<div class="fb-team" style="--c:${esc(t.color)};--c2:${esc(t.color2)}"><b>${esc(t.name)}</b><span>${esc(t.record)}</span>
       <small>${esc(T('fb.stars'))}: ${esc((t.players || []).filter(p => p.wind).map(p => p.name + ' (' + p.pos + ')').join(', '))}</small></div>`).join('<div class="fb-vs">vs</div>');
     $('fbGames').innerHTML = (d.games || []).map(g => `<li data-id="${esc(g.id)}" class="${g.id === this.current ? 'cur' : ''}"><b>${esc(g.teams[0].abbr)} ${g.score[0]} - ${g.score[1]} ${esc(g.teams[1].abbr)}</b>

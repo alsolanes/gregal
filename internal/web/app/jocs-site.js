@@ -25,11 +25,17 @@ const GAMES = {
   lol: { short: 'Lantern', icon: '🏮', tag: 'Draft to Heart Lantern', decide: 'A friendly fantasy game inspired by League of Legends: the draft, then objective and stance phase by phase.', read: 'Trade objectives, time your clashes, scale or snowball.' },
 };
 
+// La lliga dels vents (futbol americà, football.js) és el quart joc: no es
+// juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Leaderboard'], ['cup', 'Tournament'], ['matches', 'Matches'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Leaderboard'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'Winds league'], ['how', 'How it works'],
 ];
 
-const S = { d: null, route: 'home', arg: '', rankGame: 'nfl', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null };
+const S = { d: null, route: 'home', arg: '', rankGame: 'nfl', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null, loadedAt: 0 };
+
+// Les icones de la closca (shell-icons.js), si hi són; si no, el glif de text.
+const icon = (name, fallback = '') => window.gregalIcon?.(name) || fallback;
+const jocsApp = () => window.gregalDesktop?.edition === 'jocs';
 
 function boot() {
   document.body.classList.add('jx-on');
@@ -38,32 +44,63 @@ function boot() {
   root.innerHTML = `
     <header class="jx-top">
       <a class="jx-brand" href="#/" aria-label="Home">${markSVG()}<span><b id="jxName">Gregal Prompt Cup</b><small>Gregal Jocs</small></span></a>
-      <nav class="jx-nav" id="jxNav">${ROUTES.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
+      <nav class="jx-nav" id="jxNav" aria-label="Gregal Jocs">${ROUTES.map(([id, label]) => `<a href="#/${id === 'home' ? '' : id}" data-r="${id}">${label}</a>`).join('')}</nav>
       <div class="jx-top-r">
-        <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener"><span class="jx-dot"></span><span id="jxWatchTx">Broadcast</span></a>
+        <a class="jx-watch" id="jxWatch" target="_blank" rel="noopener" title="Open the broadcast in a new window" aria-label="Broadcast"><span class="jx-dot"></span><span class="jx-watch-ic" aria-hidden="true">${icon('preview')}</span><span id="jxWatchTx">Broadcast</span></a>
+        <button type="button" class="jx-icon-btn" data-prefs title="Settings (Ctrl+,)" aria-label="Settings">${icon('gear', '⚙')}</button>
         <span class="jx-me" id="jxMe" hidden></span>
-        ${window.gregalDesktop?.edition === 'jocs' ? '' : `<details class="jx-apps"><summary aria-label="Other Gregal apps">⋯</summary><div><a href="/">Gregal Codi</a><a href="/vents/">Gregal Vents</a></div></details>`}
+        ${jocsApp() ? '' : `<details class="jx-apps"><summary class="jx-icon-btn" aria-label="Other Gregal apps" title="Other Gregal apps">${icon('moreBtn', '⋯')}</summary><div><a href="/">Gregal Codi</a><a href="/vents/">Gregal Vents</a></div></details>`}
       </div>
     </header>
     <main class="jx-main" id="jxMain">
-      <section class="jx-route" data-route="home" id="jxHome"></section>
+      <section class="jx-route" data-route="home" id="jxHome"><div class="jx-wrap"><p class="jx-loading" role="status">Loading…</p></div></section>
       <section class="jx-route" data-route="play"><div class="jx-wrap"><div class="jx-play-head" id="jxPlayHead"></div><div id="jxPlayMount"></div></div></section>
       <section class="jx-route" data-route="ranking" id="jxRanking"></section>
       <section class="jx-route" data-route="cup"><div class="jx-wrap"><div id="jxCup"></div><div id="jxOrganizer" class="jx-organizer" hidden></div></div></section>
       <section class="jx-route" data-route="matches" id="jxMatches"></section>
+      <section class="jx-route" data-route="league"><div class="jx-wrap"><div id="jxLeagueHead"></div><div id="jxLeagueEmpty" hidden></div><div id="jxLeagueMount"></div></div></section>
       <section class="jx-route" data-route="how" id="jxHow"></section>
     </main>
     <footer class="jx-foot"><div class="jx-wrap"><span>Same model for everyone. Only the prompt changes.</span><span>Gregal Jocs</span></div></footer>`;
   document.body.append(root);
   root.addEventListener('click', onClick);
   addEventListener('hashchange', route);
+  // En una pestanya amagada no es consulta res; en tornar, si fa estona, es refresca.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - S.loadedAt > 30000) load(); });
+  // La lliga és un plugin («games»): si està apagat, fora del menú.
+  document.addEventListener('gregal:plugins', syncPlugins);
+  syncPlugins();
   $('jxWatch').href = streamURL();
   route();
   load();
 }
 
+function syncPlugins() {
+  const ok = leagueAllowed();
+  const a = document.querySelector('#jxNav [data-r="league"]');
+  if (a) a.hidden = !ok;
+  if (!ok && S.route === 'league') location.hash = '#/';
+  if (S.d && S.route === 'home') paintHome();
+}
+
 const $ = id => document.getElementById(id);
 const streamURL = () => '/app/arena-stream.html#lang=en' + (token() ? '&token=' + encodeURIComponent(token()) : '');
+
+// Les preferències de Gregal (prefs.js) s'obren per sobre de la web de Jocs:
+// és on es tria el model i el proveïdor.
+function openPrefs(group) {
+  const p = window.gregalPanels?.prefs;
+  if (p?.obre) p.obre(group);
+  else document.getElementById('prefsBtn')?.click();
+}
+
+// Sense model no es pot jugar cap partit: es diu abans de clicar, i les demos
+// continuen funcionant.
+function modelNote() {
+  if (!S.d || S.d.model !== '') return '';
+  return `<div class="jx-note" role="status"><div><b>No model set up yet</b><span>Every match needs one: the same model plays both teams. Set it up in Settings; the demo matches work without it.</span></div>
+    <button type="button" class="jx-btn" data-prefs="agent">Set up a model</button></div>`;
+}
 
 function markSVG() {
   return `<svg class="jx-mark" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="jxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5cf2c8"/><stop offset="1" stop-color="#ff7a66"/></linearGradient></defs>
@@ -72,11 +109,20 @@ function markSVG() {
 }
 
 async function load() {
+  clearTimeout(S.timer);
+  // Pestanya amagada: res de consultes fins que torni (visibilitychange).
+  if (document.hidden && S.d) return;
   try { S.d = await api('/api/arena'); }
-  catch (e) { $('jxHome').innerHTML = `<div class="jx-wrap"><p class="jx-err">${esc(e.message)}</p></div>`; return; }
+  catch (e) {
+    // Sense dades no hi ha portada: el perquè i un botó per tornar-ho a provar.
+    if (!S.d) $('jxHome').innerHTML = `<div class="jx-wrap"><div class="jx-empty jx-err-box" role="alert"><b>Gregal Jocs could not load the competition.</b><span>${esc(e.message)}</span><button type="button" class="jx-btn" data-retry>Try again</button></div></div>`;
+    S.timer = setTimeout(load, 20000);
+    return;
+  }
+  S.loadedAt = Date.now();
   const d = S.d;
   $('jxName').textContent = d.event?.name || 'Gregal Prompt Cup';
-  document.title = (d.event?.name || 'Gregal Prompt Cup') + ' · Gregal Jocs';
+  setTitle();
   const me = $('jxMe'); me.hidden = false; me.textContent = (d.display || d.me || '').slice(0, 2).toUpperCase(); me.title = 'Playing as ' + (d.display || d.me);
   // El rànquing obre pel primer joc que ja té classificació.
   if (!(d.leaderboard[S.rankGame] || []).length) S.rankGame = (d.games.find(g => (d.leaderboard[g.id] || []).length) || d.games[0] || {}).id || 'nfl';
@@ -95,15 +141,29 @@ function route() {
   const [r, arg] = h.split('/');
   S.route = ROUTES.some(x => x[0] === r) ? r : 'home';
   S.arg = decodeURIComponent(arg || '');
-  document.querySelectorAll('#jxNav [data-r]').forEach(a => a.classList.toggle('on', a.dataset.r === S.route));
+  document.querySelectorAll('#jxNav [data-r]').forEach(a => {
+    const on = a.dataset.r === S.route;
+    a.classList.toggle('on', on);
+    if (on) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
+  });
   document.querySelectorAll('#jxSite .jx-route').forEach(s => { s.hidden = s.dataset.route !== S.route; });
-  // L'Arena només treballa (i consulta) quan es veu.
-  const page = $('arenaPage');
+  // L'Arena i la lliga només treballen (i consulten) quan es veuen: amagades,
+  // els visors s'aturen sols (IntersectionObserver a arena-view-base.js).
+  const page = $('arenaPage'), league = $('partitsPage');
   if (S.route === 'play') mountArena();
   else if (page) page.hidden = true;
+  if (S.route === 'league') mountLeague();
+  else if (league) league.hidden = true;
   if (S.route === 'cup') mountOrganizer();
   $('jxSite').scrollTop = 0;
+  setTitle();
   if (S.d) paint();
+}
+
+// El títol de la finestra diu on ets: «Leaderboard · Gregal Prompt Cup · Gregal Jocs».
+function setTitle() {
+  const label = S.route === 'home' ? '' : (ROUTES.find(x => x[0] === S.route) || [])[1] + ' · ';
+  document.title = label + (S.d?.event?.name || 'Gregal Prompt Cup') + ' · Gregal Jocs';
 }
 
 function paint() {
@@ -113,7 +173,38 @@ function paint() {
   if (S.route === 'ranking') paintRanking();
   if (S.route === 'cup') paintCup();
   if (S.route === 'matches') paintMatches();
+  if (S.route === 'league') paintLeagueHead();
   if (S.route === 'how') paintHow();
+}
+
+// ---- La lliga dels vents: la pàgina de football.js, encastada ----
+
+async function mountLeague() {
+  const page = $('partitsPage'), mount = $('jxLeagueMount');
+  paintLeagueHead();
+  if (!page || !mount) return;
+  if (page.parentElement !== mount) mount.append(page);
+  page.hidden = false;
+  const fb = window.gregalGames;
+  if (!fb) return;
+  await fb.load();
+  if (S.route !== 'league') return;
+  // Calen dos vents (un entrenador per equip): sense, en lloc d'un camp buit,
+  // què cal fer i on.
+  const d = fb.data || {}, none = !!d.error && !(d.teams || []).length && !(d.games || []).length;
+  page.hidden = none;
+  const empty = $('jxLeagueEmpty');
+  empty.hidden = !none;
+  if (none) {
+    empty.innerHTML = `<div class="jx-empty jx-league-empty"><div class="jx-league-ic" aria-hidden="true">🏈</div><b>The league needs two winds</b>
+      <span>Each franchise is coached by one of your Gregal Vents winds, so the league starts once you have at least two.</span>
+      ${jocsApp() ? '' : '<a class="jx-btn" href="/vents/">Open Gregal Vents</a>'}</div>`;
+  }
+}
+
+function paintLeagueHead() {
+  $('jxLeagueHead').innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">American football</div><h1 class="jx-h1">Winds league</h1>
+    <p class="jx-muted">Two franchises coached by your winds. Before every quarter each coach plans with the model, the engine plays it out and a third wind calls the action.</p></div></div>`;
 }
 
 // ---- Juga: l'Arena de sempre, encastada ----
@@ -134,7 +225,9 @@ function paintPlayHead() {
   const rank = rankOf(g, d.me);
   $('jxPlayHead').innerHTML = `<div class="jx-kicker">Your lab</div><h1 class="jx-h1">Write the playbook. <span class="jx-grad">Let the model play it.</span></h1>
     <div class="jx-chips">${rank ? `<span class="jx-chip">#${rank.pos} in ${esc(GAMES[g]?.short || g)} · ${rank.elo} Elo</span>` : `<span class="jx-chip">Unranked in ${esc(GAMES[g]?.short || g)} yet</span>`}
-    ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}</div>`;
+    ${typeof d.practice_left === 'number' && !d.admin ? `<span class="jx-chip">${Math.max(0, d.practice_left)} practice matches left today</span>` : ''}
+    ${d.model ? `<button type="button" class="jx-chip jx-chip-btn" data-prefs="agent" title="The model that plays every match. Change it in Settings.">Model · ${esc(d.model.split('/').pop())}</button>` : ''}</div>
+    ${modelNote()}`;
 }
 
 // L'organitzador (admin): crear, començar i aturar competicions, i la
@@ -196,7 +289,10 @@ function heroStatus() {
     return `<div class="jx-status"><div class="jx-status-k">🏆 Reigning champions · ${esc(last.title)}</div><ul class="jx-champs">${champs}</ul>
       <a class="jx-btn ghost" href="#/cup/${esc(last.id)}">See the bracket →</a></div>`;
   }
-  return `<div class="jx-status"><div class="jx-status-k">Season open</div><p class="jx-muted">No tournament yet. Write your strategy and climb the practice ladder against the bots.</p></div>`;
+  // Temporada sense torneig: el primer que cal és veure com és un partit (la
+  // demo, gravada, no gasta cap crida) i escriure l'estratègia.
+  return `<div class="jx-status"><div class="jx-status-k">Season open</div><p class="jx-muted">No tournament yet. Write your strategy and climb the practice ladder against the bots. New here? Watch a recorded match first.</p>
+    <div class="jx-demo-row">${d.games.map(g => `<button type="button" class="jx-btn ghost" data-demo="${esc(g.id)}"><span aria-hidden="true">${GAMES[g.id]?.icon || '🎮'}</span> ${esc(GAMES[g.id]?.short || g.id)} demo</button>`).join('')}</div></div>`;
 }
 
 function countdown(at) {
@@ -205,7 +301,8 @@ function countdown(at) {
   const cell = (v, l) => `<span><b>${String(v).padStart(2, '0')}</b><small>${l}</small></span>`;
   return cell(dd, 'days') + cell(hh, 'hrs') + cell(mm, 'min') + cell(s, 'sec');
 }
-setInterval(() => { const el = $('jxCount'); if (el) el.innerHTML = countdown(+el.dataset.at); }, 1000);
+// El compte enrere només corre mentre es veu (portada, pestanya visible).
+setInterval(() => { const el = $('jxCount'); if (el && !document.hidden && el.getClientRects().length) el.innerHTML = countdown(+el.dataset.at); }, 1000);
 
 function displayOf(game, owner) {
   const r = ((S.d.leaderboard || {})[game] || []).find(x => x.owner === owner);
@@ -241,25 +338,32 @@ function paintHome() {
           <h1 class="jx-title">${esc(ev.name || 'Gregal Prompt Cup')}</h1>
           <p class="jx-lead">${esc(ev.tagline || '')}</p>
           <div class="jx-cta"><a class="jx-btn hot big" href="#/play">Write your strategy</a><a class="jx-btn ghost big" href="#/how">How it works</a></div>
+          ${modelNote()}
         </div>
         <div class="jx-hero-r">${heroStatus()}</div>
       </div>
     </div>
     <div class="jx-wrap">
-      <div class="jx-stats">
-        <div><b>${n0(Math.max(t.players || 0, humans.size))}</b><span>players</span></div>
-        <div><b>${n0(t.matches)}</b><span>matches played</span></div>
-        <div><b>${n0(t.official)}</b><span>official matches</span></div>
-        <div><b>${n0(t.decisions)}</b><span>calls made by the model</span></div>
-      </div>
+      ${statsHTML(Math.max(t.players || 0, humans.size), t)}
       <div class="jx-sec-head"><div><div class="jx-kicker">Three games · one model</div><h2 class="jx-h2">Pick your arena</h2></div></div>
       <div class="jx-games">${cards}</div>
+      ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>Winds league</b><small>American football with your Gregal winds as coaches. Watch the games live, quarter by quarter.</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
       ${podiums ? `<div class="jx-sec-head"><div><div class="jx-kicker">Elo ranking</div><h2 class="jx-h2">Top of the table</h2></div><a class="jx-more" href="#/ranking">Full leaderboard →</a></div><div class="jx-podiums">${podiums}</div>` : ''}
       ${recent.length ? `<div class="jx-sec-head"><div><div class="jx-kicker">Results</div><h2 class="jx-h2">Latest matches</h2></div><a class="jx-more" href="#/matches">All matches →</a></div><div class="jx-results">${recent.map(matchCard).join('')}</div>` : ''}
       <div class="jx-sec-head"><div><div class="jx-kicker">The format</div><h2 class="jx-h2">Three steps to the trophy</h2></div></div>
       ${stepsHTML()}
     </div>`;
 }
+
+// Les xifres de la competició, només quan ja n'hi ha: una fila de zeros el
+// primer dia no diu res. Cada xifra a zero (p. ex. sense oficials) fora.
+function statsHTML(players, t) {
+  if (!t.matches) return '';
+  const cells = [[players, 'players'], [t.matches, 'matches played'], [t.official, 'official matches'], [t.decisions, 'calls made by the model']].filter(([v]) => +v > 0);
+  return `<div class="jx-stats" style="--n:${cells.length}">${cells.map(([v, l]) => `<div><b>${n0(v)}</b><span>${l}</span></div>`).join('')}</div>`;
+}
+
+const leagueAllowed = () => !window.gregalPlugins || window.gregalPlugins.viewAllowed('partits');
 
 function stepsHTML() {
   return `<ol class="jx-how">
@@ -320,7 +424,7 @@ async function paintCup() {
     ${c.champion && Object.keys(c.champion).length ? `<small class="jx-champ">🏆 ${Object.entries(c.champion).map(([g, o]) => esc(displayOf(g, o))).join(', ')}</small>` : ''}</a>`).join('');
   $('jxCup').innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">Tournament</div><h1 class="jx-h1">Groups &amp; bracket</h1>
       <p class="jx-muted">Groups seeded by Elo, then best-of-three playoffs. Strategies are frozen when the tournament is created and revealed when it ends.</p></div>
-      <a class="jx-btn hot" href="${esc(streamURL())}" target="_blank" rel="noopener">📺 Open the broadcast</a></div>
+      <a class="jx-btn hot" href="${esc(streamURL())}" target="_blank" rel="noopener">${icon('preview', '📺')} Open the broadcast</a></div>
     ${comps.length ? `<div class="jx-cup"><nav class="jx-comps">${list}</nav><div class="jx-cup-main" id="jxCupMain"><div class="jx-muted">Loading…</div></div></div>`
       : `<div class="jx-empty">No tournament yet. ${d.admin ? 'Create one below.' : 'The organizer will announce it soon.'}</div>`}`;
   mountOrganizer();
@@ -372,9 +476,13 @@ function paintHow() {
 // ---- Clics ----
 
 function onClick(e) {
-  const t = e.target.closest('[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],#jxRankBots');
+  // A l'Arena encastada, canviar de joc canvia també la capçalera (rànquing d'aquell joc).
+  if (e.target.closest('#arGames [data-g]')) { setTimeout(() => { if (S.d && S.route === 'play') paintPlayHead(); }, 0); return; }
+  const t = e.target.closest('[data-match],[data-rank],[data-mf],[data-cupgame],[data-entry],[data-demo],[data-prefs],[data-retry],#jxRankBots');
   if (!t) return;
   if (t.id === 'jxRankBots') { S.rankBots = t.checked; paintRanking(); return; }
+  if (t.hasAttribute('data-prefs')) { openPrefs(t.dataset.prefs); return; }
+  if (t.hasAttribute('data-retry')) { $('jxHome').innerHTML = '<div class="jx-wrap"><p class="jx-loading" role="status">Loading…</p></div>'; load(); return; }
   if (t.dataset.match) { openMatch(t.dataset.match); return; }
   if (t.dataset.rank) { S.rankGame = t.dataset.rank; paintRanking(); return; }
   if (t.dataset.mf) { S.matchGame = t.dataset.mf; paintMatches(); return; }

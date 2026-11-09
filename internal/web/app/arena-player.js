@@ -101,7 +101,7 @@ export function summaryHTML(m, { T = k => k, sideColor = () => '', momentIndex =
     <div class="win">${w ? '🏆 ' + esc(T('ar.vp.wins').replace('{name}', w)) : esc(T('ar.vp.draw'))}</div>
     <div class="acts"><button type="button" data-end="again" class="primary">${esc(T('ar.vp.again'))}</button><button type="button" data-end="download">${esc(T('ar.vp.download'))}</button><button type="button" data-end="close">${esc(T('ar.vp.close'))}</button></div>
     <div class="cols"><div>
-      ${an.headline ? `<div class="quote"><small>${esc(T('ar.vp.analysis'))}</small><b>${esc(an.headline)}</b> ${esc(an.text || '')}</div>` : ''}
+      ${an.headline ? `<div class="quote"><small>${esc(T('ar.vp.analysis'))}</small><p><b>${esc(an.headline)}</b> ${esc(an.text || '')}</p></div>` : ''}
       ${an.rule ? `<div class="k2">${esc(T('ar.vp.keyRule'))} · ${esc(names[an.side === 1 ? 1 : 0])}</div><div class="rule">«${esc(an.rule)}»</div>` : ''}
       <div class="coach">${[0, 1].map(s => `<span><b style="color:${esc(sideColor(s))}">${esc(names[s])}</b> ${esc(T('ar.vp.coach'))} ${esc(coach(s))} · ${esc(T('ar.vp.followed'))} ${Math.round((fol[s] || 0) * 100)}%</span>`).join('')}</div>
     </div><div><div class="k2">★ ${esc(T('ar.vp.moments'))}</div><ol class="mos">${mos.map(mo => {
@@ -120,7 +120,7 @@ export function playerCSS() {
 .ar-player .ar-stage { position:relative; }
 .ar-cc { position:absolute; left:50%; bottom:12px; transform:translate(-50%, 8px); max-width:86%; background:rgba(0,0,0,.78); color:#fff; padding:6px 14px; border-radius:8px; font:600 15px/1.35 "Segoe UI", system-ui, sans-serif; text-align:center; opacity:0; transition:opacity .3s, transform .3s; pointer-events:none; z-index:6; }
 .ar-cc.on { opacity:1; transform:translate(-50%, 0); }
-.ar-end { position:absolute; inset:0; z-index:7; background:rgba(5,7,15,.88); color:#f3f5fb; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:14px; font:14px/1.4 "Segoe UI", system-ui, sans-serif; }
+.ar-end { position:absolute; inset:0; z-index:7; background:rgba(5,7,15,.94); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); color:#f3f5fb; overflow:auto; display:flex; align-items:flex-start; justify-content:center; padding:14px; font:14px/1.4 "Segoe UI", system-ui, sans-serif; }
 .ar-end[hidden] { display:none; }
 .ar-end-box { margin:auto 0; width:min(100%, 880px); display:flex; flex-direction:column; gap:8px; }
 .ar-end .k, .ar-end .k2 { color:#ffd400; font-weight:800; letter-spacing:.14em; text-transform:uppercase; font-size:12px; }
@@ -128,8 +128,11 @@ export function playerCSS() {
 .ar-end .win { font-weight:800; color:#ffd400; }
 .ar-end .cols { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:16px; align-items:start; }
 .ar-player .ar-stage { container-type:inline-size; }
-@container (max-width:620px) { .ar-end .cols { grid-template-columns:minmax(0,1fr); } .ar-end .quote { -webkit-line-clamp:3; } }
-.ar-end .quote { background:rgba(255,212,0,.08); border-left:4px solid #ffd400; border-radius:8px; padding:8px 12px; margin-bottom:8px; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }
+@container (max-width:620px) { .ar-end .cols { grid-template-columns:minmax(0,1fr); } .ar-end .quote p { -webkit-line-clamp:3; } }
+.ar-end .quote { background:rgba(255,212,0,.08); border-left:4px solid #ffd400; border-radius:8px; padding:8px 12px; margin-bottom:8px; }
+/* El retall de línies va al paràgraf, no a la caixa: amb el padding de la caixa
+   la setena línia sortia mig tallada sota l'última i trepitjava el títol següent. */
+.ar-end .quote p { margin:0; display:-webkit-box; -webkit-line-clamp:6; -webkit-box-orient:vertical; overflow:hidden; }
 .ar-end .quote small { display:block; color:#ffd400; font-weight:800; letter-spacing:.1em; text-transform:uppercase; font-size:11px; }
 .ar-end .rule { font-family:ui-monospace, Consolas, monospace; background:rgba(255,255,255,.07); border-radius:8px; padding:6px 10px; margin:4px 0 8px; font-size:13px; }
 .ar-end .coach { display:flex; flex-direction:column; gap:3px; font-size:13px; }
@@ -170,6 +173,17 @@ export function playerCSS() {
 .ar-scrub button.dl.wait { background:rgba(255,255,255,.07); color:#9aa4bd; border-color:rgba(255,255,255,.14); cursor:help; }
 .ar-scrub button.cc.on { background:#f3f5fb; color:#111; }
 .ar-scrub button.fp3d.on { background:#ffd400; color:#111; border-color:#ffd400; }
-.ar-scrub button.fp3d.soon { opacity:.6; cursor:help; }`;
+.ar-scrub button.fp3d.soon { opacity:.6; cursor:help; }
+.ar-dialog { position:fixed; inset:0; margin:auto; height:fit-content; width:min(760px, 92vw); max-width:92vw; max-height:86vh; padding:0; overflow:hidden; box-shadow:0 30px 90px rgba(0,0,0,.45); }
+.ar-dialog[open] { display:flex; flex-direction:column; }
+.ar-dialog::backdrop { background:rgba(10,14,30,.55); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+.ar-dialog > header { display:flex; align-items:center; gap:12px; padding:14px 14px 12px 20px; border-bottom:1px solid var(--line, rgba(127,127,127,.25)); }
+.ar-dialog > header h3 { margin:0; flex:1; min-width:0; font-size:16px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ar-dialog > pre { margin:0; padding:14px 20px; flex:1; min-height:0; max-height:none; overflow:auto; white-space:pre-wrap; word-break:break-word; font:12.5px/1.55 var(--mono, ui-monospace, Consolas, monospace); }
+.ar-dialog > footer { display:flex; justify-content:flex-end; padding:10px 14px 12px; border-top:1px solid var(--line, rgba(127,127,127,.25)); }
+.ar-dialog button { font:inherit; font-size:14px; border:1px solid var(--line-hi, rgba(127,127,127,.35)); border-radius:var(--r-sm, 8px); background:transparent; color:inherit; padding:6px 14px; cursor:pointer; }
+.ar-dialog button:hover { border-color:var(--accent, #ffd400); }
+.ar-dialog .ar-dlg-x { border-color:transparent; padding:4px 9px; opacity:.75; }
+#arMatchStatus.ar-fail { order:3; flex-basis:100%; color:#ff8a7a; font-size:13px; }`;
   document.head.append(st);
 }

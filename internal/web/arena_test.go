@@ -348,6 +348,37 @@ func TestArenaOneClickPractice(t *testing.T) {
 	}
 }
 
+// Sense model que respongui (sense clau, proveïdor caigut) el partit no es
+// juga sencer amb decisions per defecte: s'atura als primers torns i diu per
+// què. I la web sap quin model jugarà abans de clicar.
+func TestArenaDeadModelFailsFast(t *testing.T) {
+	s := cornerTestServer(t)
+	arenaStub(t)
+	rec := httptest.NewRecorder()
+	s.handleArena(rec, httptest.NewRequest(http.MethodGet, "/api/arena", nil))
+	var st map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &st)
+	if _, ok := st["model"].(string); !ok {
+		t.Fatalf("l'estat ha de dir el model: %v", st["model"])
+	}
+	// .md únics: res de la memòria de decisions d'altres partits.
+	nonce := fmt.Sprint(time.Now().UnixNano())
+	s.saveEntry(arenaEntry{Owner: "bob", Display: "Bob", Game: "nfl", MD: "# Dead model " + nonce + "\nRun on first down."})
+	arenaModel = func(*Server, context.Context, string, string, int) (string, error) {
+		return "", fmt.Errorf("HTTP 401: no API key")
+	}
+	rec = postJSON(t, s.handleArena, `{"action":"practice","game":"nfl","opponent":"bob","md":"# Mine `+nonce+`\nPass on first down."}`)
+	var started struct{ ID string }
+	json.Unmarshal(rec.Body.Bytes(), &started)
+	m := waitMatch(t, s, started.ID)
+	if m.Status != "failed" || !strings.Contains(m.Error, "not answering") || !strings.Contains(m.Error, "no API key") {
+		t.Fatalf("partit sense model: %s %q", m.Status, m.Error)
+	}
+	if n := len(m.Decisions); n > 4 {
+		t.Fatalf("s'havia d'aturar als primers torns, no després de %d decisions", n)
+	}
+}
+
 // Un partit oficial on una banda no ha pogut decidir (més del 10% per
 // defecte) no compta per a l'Elo i es torna a jugar, amb un límit.
 func TestArenaFallbacksDoNotCount(t *testing.T) {

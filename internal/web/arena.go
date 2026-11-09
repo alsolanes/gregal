@@ -717,6 +717,10 @@ type arenaDecStats struct {
 	Calls, Retries          int
 	Prompt, Completion, Hit int
 	Memo                    bool
+	// Errs: crides que el proveïdor no ha contestat (Err, l'última). Si són
+	// totes, el model no hi és (sense clau, proveïdor caigut).
+	Errs int
+	Err  string
 }
 
 // arenaDecide demana la decisió d'una banda.
@@ -759,6 +763,8 @@ func (s *Server) arenaDecideStats(ctx context.Context, g arena.Game, md string, 
 		st.Calls++
 		raw, err := arenaModel(s, cctx, system, ask, maxTok)
 		if err != nil {
+			st.Errs++
+			st.Err = err.Error()
 			if ctx.Err() != nil {
 				return arena.Answer{}, true, st
 			}
@@ -987,6 +993,11 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 	defer closeCast() // un partit aturat a mig fer també allibera el narrador
 	memo := m.Kind == "practice"
 	steps := 0
+	// answered: algun cop el model ha contestat. Si dos torns seguits no n'han
+	// tingut cap resposta (cap clau, proveïdor caigut), el partit seria una hora
+	// de jugades per defecte: s'atura amb el perquè. Un torn tret de la memòria
+	// (memo) no diu res del model i no compta.
+	answered, dead := false, 0
 	for {
 		if ctx.Err() != nil {
 			s.arenaFinish(run, "stopped", "")
@@ -1016,6 +1027,30 @@ func (s *Server) arenaPlay(ctx context.Context, run *arenaRun, game arena.Game) 
 			}(side)
 		}
 		wg.Wait()
+		if !answered {
+			calls, errs, why := 0, 0, ""
+			for side := 0; side < 2; side++ {
+				if strings.TrimSpace(p[side].Schema) == "" {
+					continue
+				}
+				calls += cost[side].Calls
+				errs += cost[side].Errs
+				if why == "" {
+					why = cost[side].Err
+				}
+			}
+			switch {
+			case calls == 0: // tot de la memòria
+			case errs < calls:
+				answered = true
+			default:
+				dead++
+			}
+			if dead >= 2 && ctx.Err() == nil {
+				s.arenaFinish(run, "failed", gameTr("El model no respon: revisa'l a Preferències (proveïdor i clau). ", "The model is not answering: check it in Settings (provider and key). ")+oneLine(why, 160))
+				return
+			}
+		}
 		events := match.Apply([2]json.RawMessage{ans[0].Decision, ans[1].Decision})
 		var raw, sits []byte
 		run.mu.Lock()
@@ -1958,9 +1993,11 @@ func (s *Server) handleArena(w http.ResponseWriter, r *http.Request) {
 			next[g.ID()] = map[string]any{"owner": b.Owner, "display": b.Display, "level": b.Level}
 		}
 	}
+	// model: el que jugarà els partits («provider/model»); buit, no n'hi ha cap
+	// de configurat i la web ho diu abans de deixar jugar.
 	writeJSON(w, map[string]any{"me": me, "display": s.arenaDisplay(me, "", nil), "progress": arenaProgressOf(sums, me), "admin": admin, "games": s.arenaGamesJSON(), "mine": mine, "bots": bots, "next": next, "seeding": arenaSeedingNow(),
 		"leaderboard": board, "competitions": s.arenaComps(), "matches": arenaRecentOf(sums, me), "practice_left": arenaPracticePerDay - arenaPracticeTodayOf(sums, me),
-		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums)})
+		"slots": s.arenaSlots(), "event": s.arenaEvent(), "totals": arenaTotals(sums), "model": s.arenaModelRef()})
 }
 
 // arenaHistory: les versions del .md (la més antiga primer i l'actual al
