@@ -126,7 +126,6 @@
 .mascot-btn[data-mood="error"] .v-shaft, .mascot-btn[data-mood="error"] .v-curl { stroke:var(--red); }
 .mascot-btn[data-mood="error"] .v-stand { opacity:.75; }
 @media (prefers-reduced-motion: no-preference) {
-  .mascot-btn[data-mood="idle"] .v-arrow { animation:v-sway 7s ease-in-out infinite; }
   .mascot-btn[data-mood="working"] .v-arrow { animation:v-gust 5.2s infinite; }
   .mascot-btn[data-mood="working"] .v-streaks path { animation:v-drift 1.7s linear infinite; }
   .mascot-btn[data-mood="working"] .v-streaks path:nth-child(2) { animation-delay:-.6s; animation-duration:2.1s; }
@@ -136,14 +135,10 @@
   .mascot-btn[data-mood="done"] .v-arrow { animation:v-settle 1.6s both; }
   .mascot-btn[data-mood="done"] .v-ring { animation:v-ring 1.2s ease-out 1s both; }
   .mascot-btn[data-mood="done"] .v-spark { animation:v-spark 1.4s ease-out 1s both; }
-  .mascot-btn[data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out infinite; }
+  .mascot-btn[data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out 2; }
 }
-/* Repòs: al NE, amb un balanceig curt de tant en tant. */
-@keyframes v-sway {
-  0%, 30%, 64%, 100% { transform:rotate(45deg); }
-  40% { transform:rotate(49deg); }
-  52% { transform:rotate(41.5deg); }
-}
+/* Repòs: quiet al NE, sense cap moviment. Només es mou mentre treballa o espera
+   (i un cop, en acabar o en fallar), com la finestra del penell a l'escriptori. */
 /* Ràfegues: girs irregulars amb una volta sencera; 405° = 45°, i el bucle no salta. */
 @keyframes v-gust {
   0% { transform:rotate(45deg); animation-timing-function:cubic-bezier(.3, 0, .2, 1); }
@@ -174,7 +169,7 @@
 }
 @keyframes v-ring { 0% { transform:scale(.4); opacity:.95; } 100% { transform:scale(2.1); opacity:0; } }
 @keyframes v-spark { 0% { opacity:0; } 25% { opacity:1; } 100% { opacity:0; } }
-/* Error: encallat a un angle estrany, amb una tremolor rovellada. */
+/* Error: encallat a un angle estrany; dues tremolors rovellades i es queda quiet. */
 @keyframes v-wobble {
   0%, 100% { transform:rotate(236deg); }
   12% { transform:rotate(240deg); }
