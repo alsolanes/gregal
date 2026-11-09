@@ -3853,11 +3853,37 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun toggleNoteTask(n: Note, index: Int) {
-        val body = toggleNoteTask(n.body, index)
+    fun toggleNoteTask(n: Note, index: Int) = setNoteBody(n, toggleNoteTask(n.body, index))
+
+    /**
+     * Canvia el cos d'una nota oberta i el desa pel camí de sempre, amb la
+     * versió que es veia com a base: si ha canviat mentre tant, es torna a
+     * obrir la nova (el projecte i la resta no es toquen).
+     */
+    fun setNoteBody(n: Note, body: String) {
         _openNote.value = _openNote.value?.let { d -> if (d.note.id == n.id) d.copy(note = d.note.copy(body = body)) else d }
         saveNote(NoteInput(n.id, n.title, body, n.notebook, n.tags, n.private, n.locked, n.updated, n.noRemind)) { ok ->
             if (!ok) { notify(appText("notes.changed")); openNote(n.id) }
+        }
+    }
+
+    /**
+     * Demana a la IA una versió nova de la nota (/api/notes/ai): onDone amb
+     * la proposta, o null si no hi ha res a canviar o ha fallat (ja avisat).
+     * No desa res.
+     */
+    fun noteAI(action: String, instruction: String, title: String, body: String, onDone: (String?) -> Unit) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val proposal = try {
+                val r = withContext(Dispatchers.IO) { source.api().noteAI(action, instruction, title, body) }
+                if (!r.changed || r.body.isBlank()) { notify(appText("notes.ai.same")); null } else r.body
+            } catch (e: Exception) {
+                val msg = e.message.orEmpty()
+                notify(if (noteAINeedsModel(msg)) appText("notes.ai.noModel") else appText("notes.ai.error", msg))
+                null
+            }
+            onDone(if (isCompanionOrigin(source, epoch)) proposal else null)
         }
     }
 
@@ -3879,7 +3905,7 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             try {
                 withContext(Dispatchers.IO) {
-                    source.api().saveNote(NoteInput("", "", text, q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, ""))
+                    source.api().saveNote(NoteInput("", "", text, q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, "", project = q.newProject))
                 }
                 notify(appText("notes.noted"))
                 loadNotes()
