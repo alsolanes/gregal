@@ -61,6 +61,8 @@ let requestedPath = null;
 let ipcWired = false;
 // Últims colors desats a startup-theme.json, per no reescriure'l igual.
 let lastThemeSaved = '';
+// Es resol quan la finestra principal ja és a la pantalla (createWindow).
+let windowShown = Promise.resolve();
 // Per què es mostra error.html: 'start' (no ha arrencat), 'stopped' (s'ha
 // aturat amb l'app oberta) o 'remote' (GREGAL_URL no respon).
 let failureReason = 'start';
@@ -249,6 +251,11 @@ async function ensureServer() {
     if (!MANAGED) return false;
     try {
         const backendLog = backendLogPath();
+        // spawn és síncron i, la primera vegada que s'executa un gregal.exe
+        // nou (acabat d'instal·lar o d'actualitzar), l'antivirus l'escaneja
+        // amb el fil principal aturat: 3-4 s sense poder ni pintar
+        // loading.html. Primer la finestra (com a molt 1 s d'espera).
+        await Promise.race([windowShown, new Promise(resolve => setTimeout(resolve, 1000))]);
         backendStopping = false;
         const started = startServer({
             resourcesPath: process.resourcesPath,
@@ -684,10 +691,14 @@ async function createWindow() {
     // Primer pintat de loading.html: la finestra surt ja del color del tema.
     // Si per alguna raó no arriba (GPU encallada), es mostra igualment.
     let revealed = false;
+    let markShown = () => {};
+    windowShown = new Promise(resolve => { markShown = resolve; });
     const reveal = () => {
         if (revealed || win.isDestroyed()) return;
         revealed = true;
         clearTimeout(revealTimer);
+        // Després del show: el backend ja pot arrencar (ensureServer).
+        setImmediate(markShown);
         try {
             win.setContentBounds(state);
             const b = win.getBounds(), c = win.getContentBounds();
