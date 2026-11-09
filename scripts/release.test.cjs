@@ -78,3 +78,13 @@ test('Gregal Vents reads its own version line and names its APKs', () => {
   assert.equal(lib.ventsApkName('1.35.0-vents', null), 'Gregal-Vents-1.35.0.apk');
   assert.equal(lib.ventsApkName('1.35.0-vents', 'arm64-v8a'), 'Gregal-Vents-1.35.0-arm64-v8a.apk');
 });
+
+// Els APK que es publiquen són els de release (R8, perfils de referència), no
+// els de debug: una versió del script va tornar a assembleDebug sense voler
+// i la 1.69.0 va sortir el doble de gran i lenta.
+test('apk publishes the release build, not debug', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, 'release.cjs'), 'utf8');
+  assert.match(src, /'assembleRelease'/);
+  assert.match(src, /apk\/release'/);
+  assert.doesNotMatch(src, /'assembleDebug'/);
+});
