@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.60.0 - 2026-11-09 - Codi i Vents en dues pestanyes
+
+- **Codi i Vents, dues pestanyes.** El desplegable del peu de la barra
+  lateral desapareix: a dalt de «Nova conversa» hi ha dues pestanyes —Codi i
+  Vents— amb el mateix aspecte que la resta de controls segmentats de l'app,
+  i la que és activa queda marcada. Les fletxes del teclat mouen el focus
+  entre les dues; Jocs, que és una app a part, ja no hi surt.
+
 ## v1.59.0 - 2026-11-09 - Un inici net i la memòria que decideix sola
 
 - **Inici net.** La pàgina inicial ja no té el botó «Ves al final» (ja hi ets)

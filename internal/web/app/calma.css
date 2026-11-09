@@ -110,7 +110,6 @@ body.desktop.mac #side .brand { padding-left:82px; }
 #side .side-foot { display:flex; align-items:center; gap:4px; padding:8px 10px; border-top:1px solid var(--line); }
 #side .side-foot .endpoint-row { flex:1; min-width:0; font-size:11px; color:var(--faint); }
 #side .side-foot .calma-tools { display:flex; gap:2px; min-width:0; align-items:center; }
-#side .side-foot .calma-tools select.product-switch { min-width:0; }
 #side .side-foot .calma-tools .icon-btn { width:30px; height:30px; color:var(--muted); }
 
 /* Vents: la mateixa barra (winds-workspace.css, que es carrega després,

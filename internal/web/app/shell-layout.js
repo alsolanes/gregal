@@ -24,7 +24,6 @@
     if(quick) quick.after(rail);
     if(foot) {
       const tools=document.createElement('div'); tools.className='calma-tools';
-      for(const a of document.querySelectorAll('.product-switch')) tools.append(a);
       for(const id of ['keysBtn','prefsBtn']) if($(id)) tools.append($(id));
       foot.append(tools);
     }

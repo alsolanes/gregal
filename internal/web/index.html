@@ -1526,6 +1526,7 @@ body.sense-inspector #inspector { display:none; }
 </nav>
 <aside id="side">
   <div class="brand"><span class="brand-name" data-i18n="shell.yourSpace">Your space</span><button class="icon-btn side-close" id="sideClose" data-i18n-aria="ui.closeSidebar" aria-label="Close sidebar">×</button></div>
+  <div id="productSwitch" class="product-switch" role="tablist" data-i18n-aria="product.switch" aria-label="Switch product" hidden></div>
   <div class="side-quick"><button id="newchat" class="side-quick-btn primary"><span>＋</span> <span data-i18n="nav.new">New conversation</span></button></div>
   <div class="side-scroll">
     <div id="conversationNav"><button class="shell-project" id="shellProject"><span aria-hidden="true">▰</span><span id="sideProject" data-i18n="nav.project">Current project</span><span aria-hidden="true">⌄</span></button>
@@ -3349,37 +3350,41 @@ document.querySelectorAll('[data-view]').forEach(button => button.addEventListen
 // Cada producte, el seu rail: el que és de l'altre no hi surt (display, no
 // hidden, perquè els plugins fan servir hidden per encendre i apagar-los).
 document.querySelectorAll('.side-view[data-view]').forEach(b => { if (!productAllows(b.dataset.view)) b.style.display = 'none'; });
-// Al peu del rail, un desplegable únic per triar el producte (mateix servidor
-// i sessió): l'opció marcada és l'actual i les altres hi porten.
+// Damunt de «Nova sessió», dues pestanyes —Codi i Vents— per canviar de
+// producte al mateix servidor. Jocs és una altra app i no hi surt.
 (() => {
-  const foot = document.querySelector('.rail-footer');
-  if (!foot) return;
-  // A l'escriptori cada instal·lador porta els seus: Gregal (Codi i Vents) no
-  // mostra Jocs, i Gregal Jocs no mostra els altres dos. Al navegador, tots.
-  const edition = window.gregalDesktop?.edition || '';
-  const offered = edition === 'gregal' ? ['codi', 'vents'] : edition === 'jocs' ? [] : ['codi', 'vents', 'jocs'];
-  const all = [['codi', '/', 'product.codi', 'Gregal Codi'], ['vents', '/vents/', 'product.vents', 'Gregal Vents'], ['jocs', '/jocs/', 'product.jocs', 'Gregal Jocs']]
-    .filter(([p]) => offered.includes(p));
-  if (all.length < 2) return;
-  const sel = document.createElement('select');
-  sel.className = 'product-switch';
-  sel.id = 'productSwitch';
+  const box = $('productSwitch');
+  if (!box) return;
+  // L'instal·lador de Jocs no mostra cap pestanya: és una app a part.
+  if (window.gregalDesktop?.edition === 'jocs') return;
+  const all = [['codi', '/', 'product.codi', 'Codi'], ['vents', '/vents/', 'product.vents', 'Vents']];
+  box.hidden = false;
   const label = () => gregalT('product.switch') || 'Gregal';
-  sel.title = label(); sel.setAttribute('aria-label', label());
-  const options = () => {
-    sel.textContent = '';
+  const tabs = () => {
+    box.textContent = '';
+    box.title = label(); box.setAttribute('aria-label', label());
     all.forEach(([p, href, key, fallback]) => {
-      const o = document.createElement('option');
-      o.value = p === PRODUCT ? '' : href;
-      o.textContent = gregalT(key) || fallback;
-      if (p === PRODUCT) o.selected = true;
-      sel.append(o);
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.setAttribute('role', 'tab');
+      t.setAttribute('aria-selected', String(p === PRODUCT));
+      t.tabIndex = p === PRODUCT ? 0 : -1;
+      t.textContent = gregalT(key) || fallback;
+      if (p === PRODUCT) t.classList.add('active'); else t.onclick = () => { location.href = href; };
+      box.append(t);
     });
   };
-  options();
-  sel.onchange = () => { if (sel.value) location.href = sel.value; };
-  document.addEventListener('gregal:idioma', () => { sel.title = label(); sel.setAttribute('aria-label', label()); options(); sel.value = ''; });
-  foot.prepend(sel);
+  tabs();
+  // Les fletxes mouen el focus entre les dues pestanyes, com un tablist.
+  box.addEventListener('keydown', e => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    const items = [...box.querySelectorAll('[role="tab"]')];
+    const i = items.indexOf(document.activeElement);
+    if (i < 0) return;
+    e.preventDefault();
+    items[(i + (e.key === 'ArrowRight' ? 1 : items.length - 1)) % items.length].focus();
+  });
+  document.addEventListener('gregal:idioma', tabs);
 })();
 // El menú «Més» és de les eines de codi (coneixement, agents, GitHub, Retro…).
 if (PRODUCT !== 'codi') { const more = $('sideMore'); if (more) more.style.display = 'none'; }

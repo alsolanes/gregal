@@ -13,9 +13,14 @@
 .rail-more-menu { position:absolute; left:calc(100% + 10px); top:0; width:232px; max-height:calc(100dvh - 160px); overflow:auto; padding:7px; margin:0; border:1px solid var(--line-hi); border-radius:13px; background:var(--surface); box-shadow:0 16px 36px var(--ombra); }
 #navRail .rail-more-menu .nav-item { display:flex; width:100%; margin:0; padding:10px; font-size:12px; text-align:left; }
 .rail-footer { display:flex; flex-direction:column; gap:8px; align-items:center; margin-top:auto; }
-select.product-switch { max-width:100%; height:32px; padding:0 8px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); font:inherit; font-size:12px; cursor:pointer; transition:background-color .15s,border-color .15s; }
-select.product-switch:hover { background:var(--hover); border-color:var(--line-hi); }
-select.product-switch:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+/* Codi · Vents · Jocs: dues o tres pestanyes damunt de «Nova sessió», amb
+   el mateix tractament que la resta de controls segmentats de l'app. */
+#side .product-switch { display:flex; gap:2px; margin:2px 10px 8px; padding:3px; border:1px solid var(--line); border-radius:10px; background:var(--bg); }
+#side .product-switch[hidden] { display:none; }
+#side .product-switch button { flex:1; min-width:0; min-height:30px; padding:0 8px; border:0; border-radius:7px; background:transparent; color:var(--muted); font:inherit; font-size:12.5px; font-weight:500; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; transition:background-color .15s,color .15s; }
+#side .product-switch button:hover { background:var(--hover); color:var(--ink); }
+#side .product-switch button[aria-selected="true"] { background:var(--surface); color:var(--ink); }
+#side .product-switch button:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 #side { width:248px; min-width:248px; transition:margin .16s ease,width .16s ease; }
 #side .brand { height:48px; min-height:48px; font-size:12px; }
 #side.compact { width:0; min-width:0; overflow:hidden; border:0; visibility:hidden; }
