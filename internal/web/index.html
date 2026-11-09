@@ -685,7 +685,7 @@ a.saved-title:hover { text-decoration:underline; }
 
 /* Conversa */
 #main { flex:1; min-height:0; display:none; overflow-y:auto; padding:var(--pad) var(--pad) calc(var(--pad) + 8px);
-  flex-direction:column; gap:var(--gap); scroll-behavior:smooth; }
+  flex-direction:column; gap:var(--gap); }
 #main.on { display:flex; }
 .msg { width:min(820px,100%); margin:0 auto; font-size:var(--fs); line-height:1.65; }
 .msg.u { display:flex; justify-content:flex-end; }
@@ -845,6 +845,8 @@ body:not(.working) .spin { animation:none; }
   padding:5px 12px; border:1px solid var(--line-hi); border-radius:99px; background:var(--surface);
   color:var(--text); font-size:var(--t2); cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,.35); }
 #toBottom:hover { color:var(--ink); border-color:var(--accent); }
+/* A l'inici no hi ha conversa i, per tant, no hi ha cap final on anar. */
+#conversationPane:has(#hero:not([hidden])) #toBottom { display:none; }
 #composer { position:relative; }
 .tool[open] summary::before { content:'⌄'; }
 .tool .out { max-height:240px; overflow:auto; margin-top:7px; padding-top:7px;
@@ -2448,6 +2450,35 @@ main.addEventListener('click', e => {
   setTimeout(() => e.target.textContent = gregalT('md.copy'), 1300);
 });
 function showMain() { hero.hidden = true; hero.style.display = 'none'; main.classList.add('on'); }
+// Inici → conversa: en començar a escriure, el compositor baixa fins al lloc
+// de sempre. Es mesura on era i on va (FLIP) i el salt es desfà amb un
+// transform que s'esvaeix, així el camp no parpelleja ni perd el focus.
+// Buidar-lo sense haver enviat res fa el camí invers.
+function animaSaltCompositor(canvi) {
+  const comp = $('composer');
+  // Un canvi ràpid (escriure i esborrar) no ha de mesurar sobre una animació
+  // a mig fer: es cancel·la i es parteix de la posició de debò.
+  comp.getAnimations().forEach(a => a.cancel());
+  const abans = comp.getBoundingClientRect().top;
+  canvi();
+  const salt = abans - comp.getBoundingClientRect().top;
+  if (!salt || !comp.animate) return;
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  comp.animate([{ transform: 'translateY(' + salt + 'px)' }, { transform: 'none' }],
+    { duration: 340, easing: 'cubic-bezier(.22,.61,.36,1)' });
+}
+function iniciAConversa() {
+  if (!hero || hero.hidden) return;
+  animaSaltCompositor(showMain);
+}
+function conversaAInici() {
+  if (!hero || !hero.hidden) return;
+  animaSaltCompositor(() => {
+    main.classList.remove('on');
+    hero.style.display = '';
+    hero.hidden = currentView !== 'agent';
+  });
+}
 function nearBottom() { return main.scrollHeight - main.scrollTop - main.clientHeight < 140; }
 // Icones dels missatges. Dibuixades, no emoji: l'emoji canvia de forma i
 // de color a cada sistema, i un botó d'acció ha de ser el mateix a tot
@@ -2648,7 +2679,7 @@ main.addEventListener('keydown', e => {
 // apps, i sense ell has de rodar fins baix a mà cada cop.
 function paintScrollDown() {
   const b = $('toBottom');
-  if (b) b.hidden = nearBottom();
+  if (b) b.hidden = nearBottom() || !hero.hidden;
 }
 main.addEventListener('scroll', paintScrollDown);
 // scrollTo explícit: assignar scrollTop amb scroll-behavior:smooth no
@@ -2906,8 +2937,8 @@ function steerRow(text, interrupt) {
   const row = document.createElement('div');
   row.className = 'msg u steer' + (interrupt ? ' steer-interrupt' : '');
   row.dataset.steer = text;
-  row.innerHTML = '<div class="body"><div class="steer-head"><span class="steer-tag">' + escapeHTML(gregalT(interrupt ? 'steer.tagInterrupt' : 'steer.tag')) +
-    '</span><span class="steer-state">' + escapeHTML(gregalT('steer.pending')) + '</span></div>' + md(text) + '</div>';
+  row.innerHTML = '<div class="msg-inner"><div class="steer-head"><span class="steer-tag">' + escapeHTML(gregalT(interrupt ? 'steer.tagInterrupt' : 'steer.tag')) +
+    '</span><span class="steer-state">' + escapeHTML(gregalT('steer.pending')) + '</span></div><div class="body">' + md(text) + '</div></div>';
   const body = turnGroup && turnGroup.isConnected ? turnGroup.querySelector('.wg-body') : null;
   (body || main).appendChild(row);
   if (turnGroup && turnGroup.isConnected) turnGroup.open = true;
@@ -4551,7 +4582,12 @@ input.addEventListener('keydown',e=>{
   }
   if(e.key==='Escape'&&sending){e.preventDefault();stopTurn();}
 });
-input.addEventListener('input',e=>{if(e.isTrusted)histIdx=-1;input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';$('send').innerHTML=sendLabel();});
+input.addEventListener('input',e=>{if(e.isTrusted)histIdx=-1;input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';$('send').innerHTML=sendLabel();
+  // Escriure a l'inici fa baixar el compositor fins al lloc de la conversa;
+  // esborrar-ho tot i no haver enviat res el torna a pujar.
+  if (!hero.hidden) { if (input.value.trim()) iniciAConversa(); }
+  else if (!input.value.trim() && !sending && !main.childElementCount && currentView === 'agent') conversaAInici();
+});
 document.addEventListener('keydown',e=>{
   const cmd = e.ctrlKey || e.metaKey;
   // Dreceres de les dues apps de referència. Es miren abans de res perquè

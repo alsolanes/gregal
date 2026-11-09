@@ -63,6 +63,11 @@ body.desktop.mac #side .brand { padding-left:82px; }
   padding:8px 12px; border-radius:8px; font-size:14px; color:var(--text); background:transparent; text-align:left; }
 #side #navRail .nav-item:hover { background:var(--surface); color:var(--ink); }
 #side #navRail .nav-item.active { background:var(--surface); color:var(--ink); box-shadow:none; }
+#side #navRail .nav-item:active:not(:disabled),
+#side :is(.side-quick-btn,.session-tab,.vw-nav-item,.vw-new):active:not(:disabled),
+#top button:active:not(:disabled) {
+  background:var(--hover-alt); color:var(--ink); transition:none;
+}
 #side #navRail .nav-item .nav-icon { width:18px; height:auto; font-size:15px; color:var(--muted); }
 #side #navRail .nav-item.active .nav-icon { color:var(--accent); }
 #side #navRail .nav-item > span:last-child { max-width:none; }

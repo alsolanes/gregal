@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"gregal/internal/config"
 	"gregal/internal/llm"
 )
 
@@ -37,6 +38,28 @@ func TestShouldSuggestMemory(t *testing.T) {
 		if ok {
 			t.Errorf("%s must not suggest", name)
 		}
+	}
+}
+
+func TestRememberNotesWritesAndSkipsDuplicates(t *testing.T) {
+	cwd := t.TempDir()
+	if err := config.Note(cwd, "Run go test ./... before committing"); err != nil {
+		t.Fatal(err)
+	}
+	saved := RememberNotes(cwd, []string{
+		"run go test ./... before committing.", // ja hi era
+		"Use gofmt on changed files only",
+		"use gofmt on changed files only", // repetida dins la mateixa tanda
+	})
+	if len(saved) != 1 || saved[0] != "Use gofmt on changed files only" {
+		t.Fatalf("saved=%q", saved)
+	}
+	if notes := config.Notes(cwd, ""); len(notes) != 2 {
+		t.Fatalf("notes=%q", notes)
+	}
+	// Sense projecte no s'escriu res enlloc.
+	if got := RememberNotes("", []string{"something"}); len(got) != 0 {
+		t.Fatalf("empty cwd saved=%q", got)
 	}
 }
 

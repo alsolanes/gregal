@@ -1294,6 +1294,28 @@ Without `auto_approve`, actions that need approval are denied, exactly as in
 `gregal -p`; `autonomous` mode cannot be combined with `auto_approve`. The
 protocol uses stdout; progress goes to stderr.
 
+### Using Claude models from Gregal (`mcp claude`)
+
+If your only access to Claude is a subscription (Pro/Max/Team/Enterprise, no
+API key), `gregal mcp claude` lets Gregal call Claude through the `claude` CLI
+you are already logged into. It is not a provider of the engine: it is an MCP
+tool, `claude_ask`, that the agent calls for specific cases (a second opinion, a
+review, a hard sub-task). Register it in `config.yaml`:
+
+```yaml
+mcp:
+  claude: {command: gregal, args: [mcp, claude, --model, sonnet]}
+```
+
+`claude_ask` takes `prompt` and optionally `system`, `model`, `effort`,
+`session`/`keep_session` (continue a conversation; by default nothing is
+stored) and `access`: `none` (default, no tools and no user settings), `read`
+(Read/Grep/Glob in the workspace) or `edit` (also Edit/Write; never a shell).
+Flags: `--bin` (or `GREGAL_CLAUDE_BIN`) for the executable, `--workspace`,
+`--model`, `--timeout`. The child runs with `--strict-mcp-config`, so it cannot
+call back into other MCP servers. Check that your organisation's policy allows
+using the subscription this way.
+
 ## Demo database
 
 Gregal ships a tiny, deterministic demo database so you can try MCP tools,
@@ -1400,8 +1422,9 @@ web, when you come back to a session with activity you have not seen, a
 ### Project memory
 
 After a code turn that applied edits, Gregal may propose up to two durable
-project notes ("Remember this?" card in the web; `/keep [n|all|none]` in the
-terminal). Only accepted notes are written to `.gregal/memory.md`.
+project notes and writes them to `.gregal/memory.md` itself (nothing to
+approve: the web leaves a short notice with "Undo" and the terminal says how
+many it saved).
 Preferences > Project memory lists the notes and "Tidy notes" proposes a
 consolidated list (merged duplicates, stale notes dropped) and shows the diff
 before writing. From the command line: `gregal memory tidy [--dry-run]

@@ -3,7 +3,7 @@
  'use strict';
  const $=id=>document.getElementById(id), ca=()=>document.documentElement.lang==='ca', t=(a,b)=>{const v=ca()?a:b;return window.gregalCollective?window.gregalCollective.apply(v):v;};
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
- let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatTurn=null, pendingFrame=0, demoTimer=0, demoRun=0;
+ let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, demoTimer=0, demoRun=0;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
  async function call(url,method='GET',body){const r=await root.api(url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});if(!r.ok)throw new Error(await r.text());return r.json();}
@@ -71,7 +71,9 @@
   }
  }
  function render(){
-  if(!mounted)return;renderNav();page.replaceChildren();messages=null;input=null;composer=null;
+  if(!mounted)return;
+  const savedScroll=state.view==='chat'&&messages&&messages.dataset.thread===state.active?.id&&!nearChatEnd(messages)?messages.scrollTop:null;
+  renderNav();page.replaceChildren();messages=null;input=null;composer=null;
   const top=el('header','vw-top');const menu=btn('☰',()=>{if(matchMedia('(max-width:760px)').matches){setDrawer(!document.body.classList.contains('vw-drawer'));return;}const side=$('side');const reopen=side.classList.contains('closed')||side.classList.contains('compact');if(reopen&&root.setSideCompact)root.setSideCompact(false);if(root.setSide)root.setSide(reopen);},'vw-mobile-menu');menu.setAttribute('aria-label',t('Obre la navegació','Open navigation'));menu.setAttribute('aria-expanded',String(document.body.classList.contains('vw-drawer')));top.append(menu,el('span','',t('Vents','Winds')),el('span','vw-separator','/'),el('span','',state.active?.name||squadName(state.squad)));
   if(state.view==='chat'&&state.active?.legacyWind)top.append(btn(t('Fils','Threads'),windThreads,'vw-top-action'));
   if(state.view==='chat'&&state.active?.id)top.append(btn(t('Desa a la wiki','Save to wiki'),summarizeToWiki,'vw-top-action'));
@@ -79,6 +81,8 @@
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   const bottom=el('nav','vw-mobile-nav');for(const [id,a,b]of [['home','Inici','Home'],['tasks','Feines','Work'],['notes','Notes','Notes'],['saved','Desat','Saved'],['crew','Colla','Crew'],['library','Biblioteca','Library'],['wiki','Wiki','Wiki']]){const n=btn(t(a,b),()=>route(id));n.dataset.selected=String(state.view===id);bottom.append(n);}page.append(bottom);
+  root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
+  if(messages)messages.scrollTop=savedScroll??messages.scrollHeight;
  }
  function addComposer(workspace=false){
   composer=el('form','vw-composer');input=el('textarea');input.rows=2;input.value=state.draft;input.placeholder=t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);input.oninput=()=>{state.draft=input.value;};
@@ -162,9 +166,10 @@
    stopChat(chatTurn).catch(fail);
   }:null;
  }
+ const nearChatEnd=box=>box.scrollHeight-box.clientHeight-box.scrollTop<64;
  function paintPending(){
   if(!messages||state.view!=='chat')return;const pending=state.pending;
-  const old=messages.querySelector('.vw-pending');const follow=!old||messages.scrollHeight-messages.clientHeight-messages.scrollTop<64;old?.remove();
+  const old=messages.querySelector('.vw-pending');const follow=nearChatEnd(messages);old?.remove();
   if(!pending||pending.thread!==state.active?.id)return;
   const wind=state.winds.find(w=>w.id===pending.wind),row=el('article','vw-message vw-pending'),copy=el('div','vw-pending-copy');row.append(face(wind,pending));
   copy.append(el('strong','',wind?.name||t('La colla','Your crew')));
@@ -175,7 +180,10 @@
   if(pending.text){const body=el('div','vw-message-text vw-stream-text'),shown=choicesStrip(withoutSpeaker(pending.text,wind?.name)).replace(/```(?:chart|gregal-plot)\n[\s\S]*?```/g,'\n_'+t('Preparant un gràfic…','Preparing a chart…')+'_\n');if(root.gregalMD)body.innerHTML=root.gregalMD.render(shown);else body.textContent=shown;copy.append(body);}
   row.append(copy);messages.append(row);if(follow)messages.scrollTop=messages.scrollHeight;
  }
- function schedulePending(){if(pendingFrame)return;pendingFrame=requestAnimationFrame(()=>{pendingFrame=0;paintPending();});}
+ function schedulePending(){
+  if(pendingTimer)return;
+  pendingTimer=setTimeout(()=>{pendingTimer=0;paintPending();},80);
+ }
  async function stopChat(turn){
   if(!turn.started||turn.cancelSent||chatTurn!==turn)return;
   turn.cancelSent=true;
@@ -429,7 +437,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  async function openChat(chat){if(state.preparing&&!state.busy)return;const ticket=state.chatEpoch=(state.chatEpoch||0)+1;const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(ticket!==state.chatEpoch)return;state.active=chat;state.history=data.history||[];state.squad=state.winds.find(w=>chat.members.includes(w.id))?.squad||state.squad;state.view='chat';state.draft='';render();followCrew(chat);}
  // Una colla convocada treballa al servidor: el fil s'actualitza sol mentre parlen i fan la feina.
  function followCrew(chat){root.gregalCrew?.follow(chat.id,async st=>{if(state.view!=='chat'||state.active?.id!==chat.id)return false;const steps={discussing:t('La colla prepara el pla…','The crew is planning…'),waiting:t('La colla espera torn…','The crew is waiting…'),working:t('La colla hi treballa…','The crew is working…')};status.textContent=st.running?steps[st.step]||'':st.step==='interrupted'?t('La feina es va aturar: el servidor es va reiniciar. Torna-la a demanar si cal.','The work stopped: the server restarted. Ask for it again if needed.'):'';const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(state.active?.id!==chat.id)return false;if((data.history||[]).length!==state.history.length){state.history=data.history||[];paintHistory();}});}
- function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages');content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked){const card=btn(task.task+' · '+statusName(task.status)+' ↗',()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});},'vw-recent');messages.append(card);}content.append(el('div','vw-asks'));paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
+ function chatView(){content.classList.add('vw-thread-view');messages=el('div','vw-messages');messages.dataset.thread=state.active.id;content.append(messages);paintHistory();const linked=state.tasks.filter(task=>task.thread===state.active.id);for(const task of linked){const card=btn(task.task+' · '+statusName(task.status)+' ↗',()=>{state.events=task.events||[];route('task',{...task,name:task.task,conversation:state.active});},'vw-recent');messages.append(card);}content.append(el('div','vw-asks'));paintAsks();loadAsks();addComposer(!!state.active?.workspace);}
  function emptyWindThread(){
   const wind=state.winds.find(w=>w.id===state.active?.wind);
   if(!wind)return;
@@ -460,11 +468,11 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
    box.append(card);
   }
  }
- function paintHistory(){messages.replaceChildren();for(const item of state.history){const user=item.from==='user';const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);row.append(copy);messages.append(row);}
+ function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();for(const item of state.history){const user=item.from==='user';const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);row.append(copy);messages.append(row);}
   // Respostes ràpides que el vent proposa al final del seu missatge.
   const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
   if(!last&&state.active?.legacyWind)emptyWindThread();
-  paintPending();messages.scrollTop=messages.scrollHeight;}
+  paintPending();messages.scrollTop=follow?messages.scrollHeight:top;}
  async function submit(){if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
  async function submitRequest(){
   const text=input.value.trim();if(!text||state.busy)return;state.draft=text;

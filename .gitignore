@@ -51,3 +51,7 @@ quaderna/
 
 # Dumps de peticions fallides (mai al repositori)
 **/.local/
+
+# Artefactes locals d'aquesta màquina (config de l'agent i builds d'escriptori)
+.claude/
+desktop/output/

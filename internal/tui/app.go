@@ -361,9 +361,6 @@ type Model struct {
 	// queued són missatges escrits mentre l'agent treballa: s'envien en
 	// acabar el torn (estil Claude) en comptes de perdre's.
 	queued []string
-	// memNotes són les notes del projecte proposades en acabar l'últim torn
-	// de codi (pendents de /keep).
-	memNotes []string
 	// lastPrompt és l'últim text enviat (per /retry quan el model torna
 	// buit o l'usuari vol reintentar sense reescriure).
 	lastPrompt string
@@ -661,7 +658,6 @@ func ordres() []cmdHint {
 		{"agents", T("cmd.agents")},
 		{"btw", T("cmd.btw")},
 		{"recap", T("cmd.recap")},
-		{"keep", T("cmd.keep")},
 		{"bash", T("cmd.bash")},
 		{"cancel", T("cmd.cancel")},
 		{"clear", T("cmd.clear")},
@@ -3263,8 +3259,6 @@ func (m Model) runCommand(text string) (tea.Model, tea.Cmd) {
 		return m.btwCmd(strings.TrimPrefix(text, "/btw"))
 	case "/recap":
 		return m.recapCmd(strings.TrimPrefix(text, "/recap"))
-	case "/keep":
-		return m.keepCmd(strings.TrimPrefix(text, "/keep"))
 	case "/remember":
 		if err := config.Remember(strings.TrimSpace(strings.TrimPrefix(text, "/remember"))); err != nil {
 			m.push(systemLine("⚠ " + err.Error()))

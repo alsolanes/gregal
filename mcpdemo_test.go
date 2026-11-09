@@ -18,6 +18,14 @@ func TestMain(m *testing.M) {
 		runMCPDemo()
 		os.Exit(0)
 	}
+	if os.Getenv("GREGAL_TEST_MCP_CLAUDE") == "1" {
+		runMCPClaude(nil)
+		os.Exit(0)
+	}
+	if os.Getenv("GREGAL_TEST_FAKE_CLAUDE") == "1" {
+		fakeClaude()
+		os.Exit(0)
+	}
 	os.Exit(m.Run())
 }
 

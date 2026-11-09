@@ -1302,6 +1302,28 @@ Sense `auto_approve`, les accions que demanen aprovació es deneguen, igual que
 a `gregal -p`; el mode `autonomous` no es pot combinar amb `auto_approve`. El
 protocol fa servir stdout; l'avenç va a stderr.
 
+### Fer servir models de Claude des de Gregal (`mcp claude`)
+
+Si només tens accés a Claude per subscripció (Pro/Max/Team/Enterprise, sense
+clau d'API), `gregal mcp claude` deixa que Gregal cridi Claude a través del CLI
+`claude` on ja has iniciat sessió. No és un proveïdor del motor: és una eina
+MCP, `claude_ask`, que l'agent crida per a casos concrets (una segona opinió,
+una revisió, una subtasca difícil). Es registra al `config.yaml`:
+
+```yaml
+mcp:
+  claude: {command: gregal, args: [mcp, claude, --model, sonnet]}
+```
+
+`claude_ask` accepta `prompt` i, opcionalment, `system`, `model`, `effort`,
+`session`/`keep_session` (continuar una conversa; per defecte no es desa res) i
+`access`: `none` (per defecte, sense eines ni configuració d'usuari), `read`
+(Read/Grep/Glob al workspace) o `edit` (també Edit/Write; mai una shell).
+Opcions: `--bin` (o `GREGAL_CLAUDE_BIN`) per a l'executable, `--workspace`,
+`--model`, `--timeout`. El fill corre amb `--strict-mcp-config`, així que no pot
+cridar altres servidors MCP. Comprova que la política de l'empresa permet fer
+servir la subscripció d'aquesta manera.
+
 ## Base de dades de demo
 
 Gregal porta una base de dades de demostració minúscula i determinista per
@@ -1409,10 +1431,10 @@ que no has vist, un botó «Resumeix» explica què ha passat mentre no hi eres.
 
 ### Memòria del projecte
 
-Després d'un torn de codi que ha aplicat edicions, Gregal pot proposar fins a
-dues notes duradores del projecte (targeta «Ho recordo?» a la web; `/keep
-[n|all|none]` al terminal). Només les acceptades s'escriuen a
-`.gregal/memory.md`. Preferències > Memòria del projecte llista les notes i
+Després d'un torn de codi que ha aplicat edicions, Gregal decideix ell mateix
+fins a dues notes duradores del projecte i les escriu a `.gregal/memory.md`
+(no cal aprovar res: a la web en queda un avís efímer amb «Desfés» i al
+terminal diu quantes n'ha desat). Preferències > Memòria del projecte llista les notes i
 «Endreça les notes» proposa una llista consolidada (duplicats fusionats,
 notes velles fora) i n'ensenya el diff abans d'escriure. Des de la línia
 d'ordres: `gregal memory tidy [--dry-run] [--yes] [--dir ruta]` ensenya el

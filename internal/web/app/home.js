@@ -11,23 +11,9 @@
     return fallback;
   };
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const norm = p => String(p || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
   const count = (n, one, many) => (n === 1 ? T(one, '') : T(many, '').replace('{n}', n));
 
   let diff = null, goals = [], lastDiffAt = 0, lastGoalsAt = 0;
-
-  function relTime(iso) {
-    const t = Date.parse(iso || '');
-    if (!t) return '';
-    const s = Math.round((t - Date.now()) / 1000);
-    const lang = document.documentElement.lang || 'en';
-    const rtf = new Intl.RelativeTimeFormat(lang, { numeric: 'auto' });
-    const a = Math.abs(s);
-    if (a < 60) return rtf.format(Math.round(s), 'second');
-    if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
-    if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
-    return rtf.format(Math.round(s / 86400), 'day');
-  }
 
   async function loadDiff() {
     try {
@@ -81,10 +67,6 @@
     greet();
     const box = $('homeContext');
     if (!box || !heroVisible()) return;
-    const st = (G() && G().state) || {};
-    const cwd = norm(st.cwd);
-    const project = (st.cwd || '').split(/[\\/]/).filter(Boolean).pop() || '';
-
     const pills = [];
     const files = diff && Array.isArray(diff.files) ? diff.files.length : 0;
     if (files) {
@@ -98,23 +80,12 @@
     if (goals.length) pills.push('<button type="button" class="home-pill" data-go="objectius"><span class="home-pill-dot goals"></span>' +
       esc(count(goals.length, 'home.goalsOne', 'home.goals')) + '</button>');
 
-    const convs = ((P() && P().convs && P().convs.items) || [])
-      .filter(c => !c.current && cwd && norm(c.workspace) === cwd)
-      .sort((a, b) => String(b.at || '').localeCompare(String(a.at || '')))
-      .slice(0, 3);
-
+    // Res de «Continua a…» ni converses recents a l'inici: la pàgina queda
+    // neta i només hi ha els comptadors d'allò que està obert ara mateix.
     let html = '';
     if (pills.length) html += '<div class="home-pills">' + pills.join('') + '</div>';
-    if (convs.length) {
-      html += '<div class="home-recent"><div class="home-recent-head">' + esc(T('home.continue', 'Continue in {project}').replace('{project}', project)) + '</div>' +
-        convs.map(c => '<button type="button" class="home-recent-row" data-conv="' + esc(c.name) + '"><span class="home-recent-t">' + esc(c.title || c.name) +
-          '</span><span class="home-recent-w">' + esc(relTime(c.at) || c.when || '') + '</span></button>').join('') + '</div>';
-    }
     box.innerHTML = html;
     box.hidden = !html;
-    // Suggeriments genèrics: només si encara no hi ha res a continuar.
-    // Els punts de partida sempre hi són (tres, discrets); abans només sortien
-    // en un projecte sense historial.
     const chips = $('chips');
     if (chips) chips.hidden = false;
   }
@@ -132,9 +103,7 @@
     const box = $('homeContext');
     if (box) box.addEventListener('click', e => {
       const go = e.target.closest('[data-go]');
-      if (go) { G().setView(go.dataset.go); return; }
-      const conv = e.target.closest('[data-conv]');
-      if (conv && P() && P().convs) P().convs.obre(conv.dataset.conv);
+      if (go) G().setView(go.dataset.go);
     });
     const hero = $('hero');
     if (hero) new MutationObserver(() => { syncMore(); if (heroVisible()) refresh(true); }).observe(hero, { attributes: true, attributeFilter: ['style', 'hidden'] });

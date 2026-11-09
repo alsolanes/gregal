@@ -190,7 +190,7 @@ func TestRecapTurnsAndValidation(t *testing.T) {
 	}
 }
 
-func TestMemorySuggestionNeverWritesWithoutAccept(t *testing.T) {
+func TestMemorySuggestionWritesByItselfAndCanUndo(t *testing.T) {
 	s := goalTestServer(t)
 	s.cwd = t.TempDir()
 	old := memorySuggester
@@ -205,31 +205,26 @@ func TestMemorySuggestionNeverWritesWithoutAccept(t *testing.T) {
 		w := httptest.NewRecorder()
 		s.handleMemorySuggest(w, httptest.NewRequest("GET", "/", nil))
 		json.Unmarshal(w.Body.Bytes(), &got)
-		if got.State == "ready" {
+		if got.State == "saved" {
 			break
 		}
 		<-timeAfter()
 	}
-	if got.State != "ready" || len(got.Notes) != 2 {
+	if got.State != "saved" || len(got.Notes) != 2 || got.Notes[0] != "Run go vet before tests" {
 		t.Fatalf("suggestion=%+v", got)
 	}
-	if _, err := os.Stat(config.ProjectMemoryPath(s.cwd)); err == nil {
-		t.Fatal("a suggestion must never write by itself")
+	// El model decideix i les notes ja són al fitxer sense cap POST.
+	if notes := config.Notes(s.cwd, ""); len(notes) != 2 {
+		t.Fatalf("notes must be written by the model's decision: %q", notes)
 	}
-	if w := postJSON(t, s.handleMemorySuggest, `{"action":"accept","note":"invented"}`); w.Code != 404 {
-		t.Fatalf("only suggested notes can be accepted: %d", w.Code)
+	// «Desfés» esborra exactament les notes d'aquesta decisió.
+	if w := postJSON(t, s.handleMemorySuggest, `{"action":"undo"}`); w.Code != 200 {
+		t.Fatalf("undo: %d %s", w.Code, w.Body.String())
 	}
-	if w := postJSON(t, s.handleMemorySuggest, `{"action":"accept","note":"Run go vet before tests"}`); w.Code != 200 {
-		t.Fatalf("accept: %d %s", w.Code, w.Body.String())
+	if notes := config.Notes(s.cwd, ""); len(notes) != 0 {
+		t.Fatalf("undo left notes=%q", notes)
 	}
-	if w := postJSON(t, s.handleMemorySuggest, `{"action":"dismiss","note":"Keep i18n keys identical"}`); w.Code != 200 {
-		t.Fatalf("dismiss: %d", w.Code)
-	}
-	notes := config.Notes(s.cwd, "")
-	if len(notes) != 1 || !strings.Contains(notes[0], "Run go vet before tests") {
-		t.Fatalf("notes=%q", notes)
-	}
-	// Un torn sense edicions no proposa res.
+	// Un torn sense edicions no escriu res ni deixa estat.
 	memSuggestions.Delete(s)
 	s.queueMemorySuggestion("code", s.cwd, 4, false, nil)
 	if _, ok := memSuggestions.Load(s); ok {

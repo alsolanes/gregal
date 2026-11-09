@@ -360,8 +360,8 @@ func (s *Server) handleRecap(w http.ResponseWriter, r *http.Request) {
 
 // ---- memòria automàtica ----
 
-// memSuggestion és la proposta de notes de l'últim torn de codi d'una
-// sessió. state: pending (el model hi pensa), ready (hi ha notes), none.
+// memSuggestion és el resultat de l'últim torn de codi d'una sessió.
+// state: pending (el model hi pensa), saved (hi ha notes desades), none.
 type memSuggestion struct {
 	State     string    `json:"state"`
 	Notes     []string  `json:"notes"`
@@ -394,21 +394,23 @@ func (s *Server) queueMemorySuggestion(mode, workspace string, execs int, cutSho
 		if err != nil {
 			log.Printf("memory suggestion error: %s", redactError(err))
 		}
-		state := "ready"
-		if len(notes) == 0 {
-			state, notes = "none", []string{}
+		saved := agent.RememberNotes(workspace, notes)
+		state := "none"
+		if len(saved) > 0 {
+			state = "saved"
 		}
 		// Un torn més nou ja n'ha encuat una altra: aquesta és vella.
 		if cur, ok := memSuggestions.Load(s); ok && cur.(memSuggestion).At.After(started) {
 			return
 		}
-		memSuggestions.Store(s, memSuggestion{State: state, Notes: notes, Workspace: workspace, At: started})
+		memSuggestions.Store(s, memSuggestion{State: state, Notes: saved, Workspace: workspace, At: started})
 	}()
 }
 
-// handleMemorySuggest: GET torna la proposta; POST {action, note} accepta
-// (escriu a .gregal/memory.md) o descarta una nota de la proposta. Res no
-// s'escriu sense aquest POST.
+// handleMemorySuggest: GET torna l'última decisió del model (les notes que ja
+// s'han desat); POST {action:"undo"} esborra les notes d'aquella decisió.
+// accept/dismiss es mantenen per als clients vells que encara ensenyen la
+// targeta: accept sobre una nota ja desada no duplica res.
 func (s *Server) handleMemorySuggest(w http.ResponseWriter, r *http.Request) {
 	cur := memSuggestion{State: "none", Notes: []string{}}
 	if v, ok := memSuggestions.Load(s); ok {
@@ -429,8 +431,16 @@ func (s *Server) handleMemorySuggest(w http.ResponseWriter, r *http.Request) {
 	if !decodeSmall(w, r, &req) {
 		return
 	}
-	if req.Action != "accept" && req.Action != "dismiss" {
-		http.Error(w, "action must be accept or dismiss", http.StatusBadRequest)
+	if req.Action != "accept" && req.Action != "dismiss" && req.Action != "undo" {
+		http.Error(w, "action must be accept, dismiss or undo", http.StatusBadRequest)
+		return
+	}
+	if req.Action == "undo" {
+		for _, n := range cur.Notes {
+			_, _ = config.ForgetNote(cur.Workspace, n)
+		}
+		memSuggestions.Store(s, memSuggestion{State: "none", Notes: []string{}, At: cur.At})
+		writeJSON(w, map[string]any{"ok": true, "forgotten": len(cur.Notes)})
 		return
 	}
 	note := strings.TrimSpace(req.Note)

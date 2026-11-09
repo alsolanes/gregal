@@ -1,30 +1,22 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	"gregal/internal/config"
 )
 
-// Les notes proposades arriben com a asideMsg i només /keep les escriu.
-func TestKeepWritesOnlyProposedNotes(t *testing.T) {
+// Les notes que el model decideix ja són al fitxer; el TUI només ho diu.
+func TestAsideReportsNotesSavedByTheModel(t *testing.T) {
 	m := planTestModel(t)
 	m.cwd = t.TempDir()
 	mod, _ := m.Update(asideMsg{notes: []string{"Run go vet first", "Keep CA/EN keys identical"}})
 	m = mod.(Model)
-	if len(config.Notes(m.cwd, "")) != 0 {
-		t.Fatal("a proposal must not write by itself")
-	}
-	mod, _ = m.runCommand("/keep 2")
-	m = mod.(Model)
-	notes := config.Notes(m.cwd, "")
-	if len(notes) != 1 || !strings.Contains(notes[0], "Keep CA/EN keys identical") || m.memNotes != nil {
-		t.Fatalf("notes=%q pending=%v", notes, m.memNotes)
-	}
-	mod, _ = m.runCommand("/keep")
-	if !strings.Contains(strings.Join(mod.(Model).lines, "\n"), T("mem.capProposta")) {
-		t.Fatal("/keep without a proposal says so")
+	want := fmt.Sprintf(T("mem.desades"), 2, config.ProjectMemoryPath(m.cwd))
+	if !strings.Contains(strings.Join(m.lines, "\n"), want) {
+		t.Fatalf("lines=%q", strings.Join(m.lines, "\n"))
 	}
 }
 

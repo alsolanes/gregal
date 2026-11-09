@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## v1.59.0 - 2026-11-09 - Un inici net i la memòria que decideix sola
+
+- **Inici net.** La pàgina inicial ja no té el botó «Ves al final» (ja hi ets)
+  ni la llista «Continua a…» amb les converses recents: només queden els
+  comptadors d'allò que està obert i els tres punts de partida. En començar a
+  escriure, la salutació i les targetes desapareixen i el camp de text baixa
+  animat fins al lloc de la conversa; si esborres el que has escrit sense
+  enviar, torna a pujar.
+- **Els missatges escrits mentre el torn treballa.** Ja no semblen avisos amb
+  vora discontínua: tenen la mateixa forma que un missatge teu, amb «Mentre
+  treballava» i l'estat (esperant, llegit, interromput, fallit) a la capçalera.
+- **Claude des de Gregal (`gregal mcp claude`).** Qui només té Claude per
+  subscripció el pot registrar com a servidor MCP i l'agent el crida amb
+  `claude_ask` per a una segona opinió, una revisió o una subtasca difícil,
+  amb accés `none`, `read` o `edit`.
+- **Els Vents no perden el fil.** En repintar un xat, la llista es queda on
+  eres si havies pujat a llegir, i la navegació de prompts deixa de recalcular
+  posicions a cada desplaçament.
+- **La memòria del projecte es fa sola.** En acabar un torn de codi que ha
+  aplicat edicions, el model decideix quines notes duradores val la pena
+  recordar i les escriu directament a `.gregal/memory.md`: ja no surt la
+  targeta «Ho recordo?». A la web només queda un avís efímer amb «Desfés»;
+  al terminal, una línia amb quantes notes ha desat. `/keep` desapareix
+  (les notes ja hi són); `GET /api/memory/suggest` torna `state:"saved"` i
+  `POST {action:"undo"}` esborra les notes d'aquella decisió.
+
 ## v1.58.0 - 2026-11-08 - Un desplegable per triar Codi o Vents
 
 - **Un sol selector de producte.** Al peu de la barra lateral, els dos botons
