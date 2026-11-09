@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## v1.65.0 - 2026-11-09 - Tot més polit
+
+- **Tot més polit, a tots els productes.** Una revisió sencera de la interfície
+  de Codi, Vents, Jocs, Android i l'aplicació d'escriptori: un sol joc
+  d'icones, menys duplicats i soroll, diàlegs centrats, text llegible sobre
+  l'accent i una barra inferior de Vents per al mòbil molt més clara.
+- **El compositor no es mou mentre escrius.** A l'inici de Codi, el camp
+  baixa al seu lloc quan envies el missatge, no quan comences a escriure.
+- **Primer inici sense sorpreses.** Si encara no hi ha cap model connectat,
+  Gregal t'ajuda a triar proveïdor i a provar la clau, en lloc de respondre
+  amb un error. El punt d'estat avisa quan falta la clau.
+- **Preferències endreçades.** Set grups, el calendari i el correu a
+  Integracions, controls iguals arreu i dreceres de teclat al dia.
+- **L'escriptori obre al moment.** La finestra surt en mig segon amb els
+  colors del teu tema, la pàgina d'error explica què passa i deixa tornar-ho
+  a provar, i en tancar l'app el servidor s'atura net.
+- **Jocs.** La lliga dels vents ja té lloc a la web de Jocs, i sense clau
+  d'API una partida s'atura i diu per què.
+- **Gregal Vents per a Android (1.69.0).** Una portada neta amb la salutació
+  i el compositor, tipografia i formes coherents, el tema Calma com a
+  l'escriptori, botons més fàcils de tocar i notes amb projecte i IA.
+
 ## v1.64.0 - 2026-11-09 - Notes a mà
 
 - **Notes a mà des de qualsevol lloc.** Un botó a la capçalera (a Codi i a
