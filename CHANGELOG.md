@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## v1.62.0 - 2026-11-09 - Actualitzacions d'un clic
+
+- **Actualitzacions d'un clic.** La versió nova es baixa sola en segon pla i,
+  quan és a punt, a la barra lateral apareix un únic botó «Actualitza a la
+  …». En prémer-lo, s'instal·la en silenci —sense assistent ni preguntes— i
+  Gregal es torna a obrir sol. Si tanques l'app abans, s'instal·la en sortir.
+
 ## v1.61.0 - 2026-11-09 - Més ràpid i sense salts
 
 - **Canviar de Codi a Vents ja no salta.** La pàgina surt directament amb el
