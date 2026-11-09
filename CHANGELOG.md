@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.63.0 - 2026-11-09 - Un aspecte més polit
+
+- **Un aspecte més polit.** El tema fosc torna al grafit blavós de Gregal (el
+  mateix que a Android) en lloc del gris pla, amb superfícies amb més
+  profunditat. Cada tema té un sol color d'accent: el botó d'enviar i els
+  enllaços ja no són verd menta. Codi i Vents comparteixen el mateix
+  compositor, el mateix botó «Nova…» i la mateixa barra lateral, i les
+  Preferències tenen enllaços, desplegables i files ben alineats.
+- **En català des del primer instant.** En canviar entre Codi i Vents la
+  pàgina ja no surt un moment en anglès.
+
 ## v1.62.0 - 2026-11-09 - Actualitzacions d'un clic
 
 - **Actualitzacions d'un clic.** La versió nova es baixa sola en segon pla i,
