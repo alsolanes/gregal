@@ -492,7 +492,7 @@ private fun AgendaCard(vm: GregalViewModel, lang: String, items: List<AgendaItem
             for (k in listOf("overdue", "today", "week", "later")) {
                 val list = groups[k].orEmpty()
                 if (list.isEmpty() || shown >= 10) continue
-                Text(tr(lang, "notes.agenda.$k"), color = if (k == "overdue") Color(0xFFE57373) else Faint,
+                Text(tr(lang, "notes.agenda.$k"), color = if (k == "overdue") Red else Faint,
                     fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp))
                 for (item in list.take(10 - shown)) {
                     shown++
