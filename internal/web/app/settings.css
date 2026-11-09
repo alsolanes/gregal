@@ -1,45 +1,137 @@
 /* Preferències (app/prefs.js): grups amb índex a l'esquerra, cerca a dalt
-   i el contingut que es desplaça sol. Fa servir els tokens de sempre. */
-#prefsModal .card { display:flex; flex-direction:column; width:min(900px,95vw); height:min(720px,88vh);
-  max-height:none; overflow:hidden; }
-#prefsModal .pf-head { position:static; flex:none; gap:12px; }
+   i el contingut que es desplaça sol. Fa servir els tokens de sempre
+   (--r-sm/md, --ring, --lift de refine.css) i un sol joc de controls:
+   segments, interruptors, desplegables, camps i botons. */
+#prefsModal { background:color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,.5)); backdrop-filter:blur(2px); }
+#prefsModal .card { display:flex; flex-direction:column; width:min(920px,95vw); height:min(740px,90vh);
+  max-height:none; overflow:hidden; border-radius:var(--r-md, 12px); box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); }
+#prefsModal .pf-head { position:static; flex:none; gap:12px; padding:12px 14px 12px 20px; }
 #prefsModal .pf-head h2 { flex:none; }
-.pf-search { flex:1; min-width:0; max-width:340px; margin-left:auto; padding:6px 10px 6px 30px;
-  border:1px solid var(--line-hi); border-radius:8px; color:var(--ink); font:inherit; font-size:var(--t2);
-  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 10px 50%; }
-.pf-search:focus { outline:2px solid var(--accent); outline-offset:1px; }
-#prefsBody { flex:1; min-height:0; display:grid; grid-template-columns:190px minmax(0,1fr); padding:0; }
+#prefsModal #prefsClose { flex:none; width:32px; height:32px; display:grid; place-items:center; border-radius:var(--r-sm, 8px); color:var(--muted); font-size:18px; }
+#prefsModal #prefsClose:hover { background:var(--hover); color:var(--ink); }
+#prefsModal #prefsClose .ui-icon { width:17px; height:17px; }
+.pf-search { flex:1; min-width:0; max-width:340px; min-height:34px; margin-left:auto; padding:0 10px 0 32px;
+  border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px); color:var(--ink); font:inherit; font-size:var(--t2);
+  background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px 50%; }
+#prefsModal .pf-search:focus { outline:none; border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow:var(--ring); }
+#prefsBody { flex:1; min-height:0; display:grid; grid-template-columns:200px minmax(0,1fr); padding:0; }
 
 /* Índex dels grups */
 .pf-nav { display:flex; flex-direction:column; gap:2px; padding:12px 8px; overflow:auto;
   border-right:1px solid var(--line); background:var(--bg); }
-.pf-nav button { display:flex; align-items:center; gap:9px; width:100%; padding:7px 10px; border:0; border-radius:7px;
+.pf-nav button { display:flex; align-items:center; gap:9px; width:100%; min-height:34px; padding:0 10px; border:0; border-radius:var(--r-sm, 8px);
   background:transparent; color:var(--muted); font:inherit; font-size:var(--t2); text-align:left; cursor:pointer; }
 .pf-nav button:hover { color:var(--ink); background:var(--hover); }
-.pf-nav button.on { color:var(--ink); background:var(--surface-hi); box-shadow:inset 2px 0 0 var(--accent); }
+.pf-nav button.on { color:var(--ink); background:var(--surface-hi); }
 .pf-nav-ic { flex:none; width:16px; color:var(--accent-hi); text-align:center; }
 
 /* Contingut */
-.pf-main { min-width:0; overflow:auto; padding:4px 22px 28px; scroll-behavior:auto; }
-.pf-group { padding:18px 0 6px; border-bottom:1px solid var(--line); }
+.pf-main { min-width:0; overflow:auto; padding:4px 24px 32px; scroll-behavior:auto; }
+.pf-group { padding:20px 0 8px; border-bottom:1px solid var(--line); }
 .pf-group:last-of-type { border-bottom:0; }
 .pf-ghead { margin-bottom:4px; }
 .pf-gtitle { margin:0; color:var(--ink); font-size:var(--t4); font-weight:600; letter-spacing:0; text-transform:none; }
 .pf-gdesc { margin:3px 0 6px; color:var(--muted); font-size:var(--t2); line-height:1.45; }
 /* Dins d'un grup, l'h3 de les seccions dels mòduls és un subtítol. */
-.pf-gbody .pf-sec { margin:16px 0 2px; color:var(--accent-hi); font-size:var(--t1); }
+.pf-gbody .pf-sec { margin:20px 0 2px; color:var(--accent-hi); font-size:var(--t1); }
 .pf-gbody > .pf-row:last-child { border-bottom:0; }
+.pf-gbody h4 { margin:14px 0 4px; color:var(--ink); font-size:var(--t3); font-weight:600; }
 .pf-noresults { margin:32px 0; color:var(--muted); text-align:center; }
+.pf-sub[hidden], .pf-conn[hidden] { display:none; }
+.pf-row { min-height:52px; }
+.pf-row:focus-within { position:relative; }
+/* Una fila amb llista o formulari: l'etiqueta ocupa tota l'amplada. */
+.pf-row.pf-row-stack { align-items:flex-start; }
+.pf-lab .pf-warn { color:var(--amber); }
+.pf-lab strong { color:var(--ink); font-weight:600; }
 
-/* Plugins */
-.pf-plugin-ic { flex:none; display:flex; align-items:center; justify-content:center; width:36px; height:36px;
-  border:1px solid var(--line-hi); border-radius:9px; background:var(--bg); font-size:18px; line-height:1; }
-.pf-plugin:not(.on) .pf-plugin-ic { filter:grayscale(1); opacity:.6; }
-.pf-plugin:not(.on) .pf-lab b { color:var(--muted); }
+/* ---------- Controls: un sol aspecte ---------- */
+.pf-btns { flex:none; display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; max-width:60%; }
+#prefsModal .pf-open { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:0 12px;
+  border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px); background:var(--surface); color:var(--text); font:inherit; font-size:var(--t2);
+  white-space:nowrap; cursor:pointer; transition:border-color .12s, background-color .12s, color .12s; }
+#prefsModal .pf-open:hover:not(:disabled) { color:var(--ink); border-color:color-mix(in srgb, var(--accent) 55%, var(--line-hi)); background:var(--hover); }
+#prefsModal .pf-open .ui-icon { width:15px; height:15px; }
+#prefsModal .pf-open.pf-primary { border-color:transparent; background:var(--accent); color:var(--on-accent, var(--bg)); font-weight:600; }
+#prefsModal .pf-open.pf-primary:hover:not(:disabled) { background:var(--accent); color:var(--on-accent, var(--bg)); filter:brightness(1.08); }
+#prefsModal .pf-open.pf-icon { width:32px; padding:0; color:var(--muted); }
+#prefsModal .pf-open.pf-danger:hover:not(:disabled) { color:var(--red); border-color:color-mix(in srgb, var(--red) 55%, var(--line-hi)); background:var(--red-soft); }
 .pf-open:disabled { opacity:.45; cursor:default; }
-.pf-open:disabled:hover { color:var(--text); border-color:var(--line-hi); }
 .pf-check input:disabled { cursor:default; }
 .pf-check:has(input:disabled) { opacity:.55; cursor:default; }
+/* Camps de text i desplegables: mateixa alçada, vora i focus que la cerca. */
+#prefsModal .pf-gbody :is(input[type=text], input[type=email], input[type=password], input[type=url], input[type=time], input[type=number], input[type=search], input:not([type])),
+#prefsModal .pf-gbody select, #prefsModal .pf-input {
+  min-height:34px; padding:0 10px; border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px);
+  background-color:var(--bg); color:var(--ink); font:inherit; font-size:var(--t2); }
+#prefsModal .pf-gbody select { padding-right:28px; }
+#prefsModal .pf-gbody :is(input, select, textarea):focus { outline:none; border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow:var(--ring); }
+#prefsModal .pf-gbody ::placeholder { color:var(--faint); opacity:1; }
+#prefsModal .pf-select { min-width:180px; max-width:45%; }
+#prefsModal .pf-btns .pf-select { min-width:0; max-width:200px; }
+.pf-input-time { width:auto; min-width:0; flex:none; }
+.pf-input-short { flex:0 1 190px !important; }
+
+/* Com es diuen els ajudants (collective.js): els camps sota l'explicació,
+   no esprement-la en una columna de quatre paraules. */
+#prefsCollective { flex-wrap:wrap; }
+#prefsCollective > .pf-lab { flex-basis:100%; }
+#prefsCollective .collective-prefs { flex:1 1 100%; display:flex; flex-wrap:wrap; gap:8px; }
+#prefsModal #prefsCollective .collective-prefs input { flex:1 1 160px; width:auto; }
+
+/* Formularis d'una línia (calendari, Gmail, comptes) */
+.pf-inline { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:10px 0 2px; }
+.pf-inline input { flex:1 1 200px; min-width:0; }
+.pf-inline input[readonly] { color:var(--muted); }
+.pf-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:10px 0 4px; }
+.pf-actions .pf-skills-status { flex:1; min-width:180px; margin:0; }
+.pf-skills-status code { padding:1px 6px; border-radius:5px; background:var(--hover-alt); color:var(--ink); font:600 var(--t2) var(--mono); }
+
+/* Llistes (calendaris, túnels, comptes) */
+.pf-list { display:flex; flex-direction:column; gap:6px; margin:10px 0 0; padding:0; list-style:none; }
+.pf-list li { display:flex; align-items:center; gap:10px; padding:8px 8px 8px 10px; border:1px solid var(--line); border-radius:var(--r-sm, 8px); background:var(--bg); }
+.pf-list-ic { flex:none; display:grid; place-items:center; width:28px; height:28px; border-radius:7px; background:var(--accent-soft); color:var(--accent-hi); }
+.pf-list-ic .ui-icon { width:15px; height:15px; }
+.pf-list-main { flex:1; min-width:0; display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 8px; }
+.pf-list-main b { display:inline; font-size:var(--t2); }
+.pf-list-main small { flex-basis:100%; min-width:0; color:var(--muted); font-size:var(--t1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pf-list-main small.pf-badge { flex-basis:auto; padding:0 7px; border-radius:var(--r-pill, 999px); background:var(--accent-soft); color:var(--accent-hi); }
+.pf-list-btns { flex:none; display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
+
+/* Plugins */
+.pf-plugin-ic { flex:none; display:grid; place-items:center; width:36px; height:36px;
+  border:1px solid var(--line-hi); border-radius:9px; background:var(--bg); color:var(--accent-hi); }
+.pf-plugin-ic .ui-icon { width:19px; height:19px; }
+.pf-plugin:not(.on) .pf-plugin-ic { color:var(--faint); opacity:.7; }
+.pf-plugin:not(.on) .pf-lab b { color:var(--muted); }
+
+/* Veus dels narradors */
+.pf-voice .pf-voice-btns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.pf-voice.on .pf-lab > span { color:var(--green); }
+.pf-voice-list, .pf-voice-note { display:block; margin-top:3px; color:var(--muted); font-size:var(--t1); line-height:1.45; }
+.pf-voice-list strong { color:var(--ink); font-weight:600; }
+.pf-voice-list a { color:inherit; text-decoration:underline dotted; }
+.pf-voice-list i, .pf-voice-note i { font-style:normal; }
+.pf-voice-dl { display:inline-grid; place-items:center; margin-left:3px; vertical-align:-2px; color:var(--faint); }
+.pf-voice-dl .ui-icon, .pf-voice-note .ui-icon { width:13px; height:13px; }
+.pf-voice-note { display:flex; gap:6px; align-items:flex-start; }
+.pf-voice-note .ui-icon { flex:none; margin-top:2px; }
+
+/* Poders de servidor */
+.pf-notes { width:100%; box-sizing:border-box; min-height:120px; margin:8px 0 0; padding:10px; border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px);
+  color:var(--ink); background:var(--bg); font:13px/1.45 var(--mono); resize:vertical; }
+/* Formulari antic d'altres mòduls que encara el facin servir. */
+.pf-account-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0 22px; }
+.pf-account-form input { min-width:180px; flex:1 1 180px; }
+
+/* Dreceres de teclat (la taula la pinta prefs.js) */
+#keysModal { background:color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,.5)); }
+#keysModal .card { width:min(520px,94vw); border-radius:var(--r-md, 12px); }
+#keysModal .keys-table th { padding:14px 0 4px; color:var(--accent-hi); font-size:var(--t1); font-weight:600; letter-spacing:.06em; text-align:left; text-transform:uppercase; }
+#keysModal .keys-table tr.keys-sec:first-child th { padding-top:4px; }
+#keysModal .keys-table td:first-child { width:120px; }
+#keysModal kbd { display:inline-block; min-width:22px; padding:2px 7px; border:1px solid var(--line-hi); border-bottom-width:2px; border-radius:6px;
+  background:var(--bg); color:var(--ink); font:600 var(--t1)/1.4 var(--mono); text-align:center; white-space:nowrap; }
 
 @media (max-width:700px) {
   #prefsModal .card { width:100vw; height:100dvh; border-radius:0; }
@@ -50,15 +142,11 @@
   .pf-nav button { width:auto; flex:none; white-space:nowrap; }
   .pf-nav button.on { box-shadow:inset 0 -2px 0 var(--accent); }
   .pf-main { padding:0 14px 24px; }
+  /* Els controls baixen sota l'etiqueta en lloc d'esprémer-la. */
+  .pf-row { flex-wrap:wrap; }
+  .pf-row:not(:has(> .pf-check)) > .pf-lab { flex-basis:100%; }
+  .pf-plugin > .pf-lab { flex-basis:calc(100% - 50px) !important; }
+  .pf-btns { max-width:none; justify-content:flex-start; }
+  #prefsModal .pf-select { max-width:100%; }
+  .pf-list li { flex-wrap:wrap; }
 }
-
-/* Veus dels narradors */
-.pf-voice .pf-voice-btns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
-.pf-voice.on .pf-lab span { color:#2fbf71; }
-
-.pf-power-row { display:flex; align-items:center; gap:10px; margin:8px 0; font-weight:600; }
-.pf-notes { width:100%; box-sizing:border-box; min-height:140px; padding:10px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:var(--surface); font:13px/1.45 ui-monospace, monospace; margin:6px 0 8px; }
-.pf-tunnels { margin:4px 0 10px; padding-left:18px; }
-.pf-account-form { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin:12px 0 22px; }
-.pf-account-form input { min-width:180px; flex:1 1 180px; padding:9px 10px; border:1px solid var(--line); border-radius:8px; color:var(--text); background:var(--surface); font:inherit; }
-.pf-account-form p { flex-basis:100%; color:var(--red); margin:0; }

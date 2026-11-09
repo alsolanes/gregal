@@ -165,9 +165,12 @@ function ensureDialog() {
     b.dataset.range = r; b.setAttribute('role', 'radio');
     range.appendChild(b);
   }
+  // La creu del joc d'icones de l'app (abans, el glif «✕»).
+  const close = button('wrapped-icon', window.gregalIcon?.('close') ? '' : '✕', T('wrapped.close'), () => d.close());
+  if (window.gregalIcon?.('close')) { close.innerHTML = window.gregalIcon('close'); close.style.cssText = 'display:inline-grid;place-items:center'; }
   head.append(title, range,
     button('wrapped-png', T('wrapped.png'), T('wrapped.pngHelp'), () => downloadPNG()),
-    button('wrapped-icon', '✕', T('wrapped.close'), () => d.close()));
+    close);
   d.append(head, el('div', 'wrapped-body'));
   (document.getElementById('retroMount') || document.body).appendChild(d);
   st.dialog = d;

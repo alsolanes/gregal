@@ -16,22 +16,27 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 
 export function retroPersonaPref() { return get(PERSONA_KEY, ''); }
 
+// Les files que no són «diversió» viuen en un altre grup de Preferències: el
+// dictat per veu és una manera d'escriure (General) i el kanban, una funció
+// experimental (Avançat). Totes es lliguen igual, des de bind().
+const row = (title, help, inner) => '<div class="pf-row"><div class="pf-lab"><b>' + esc(T(title)) + '</b><span>' + esc(T(help)) + '</span></div>' + inner + '</div>';
+const check = (id, on, label) => '<label class="pf-check"><input type="checkbox" aria-label="' + esc(T(label)) + '" id="' + id + '"' + (on ? ' checked' : '') + '><span></span></label>';
+
 export const funPrefs = {
   section() {
-    const row = (title, help, inner) => '<div class="pf-row"><div class="pf-lab"><b>' + esc(T(title)) + '</b><span>' + esc(T(help)) + '</span></div>' + inner + '</div>';
-    const check = (id, on) => '<label class="pf-check"><input type="checkbox" id="' + id + '"' + (on ? ' checked' : '') + '><span></span></label>';
     const persona = retroPersonaPref();
-    return '<h3 class="pf-sec">' + esc(T('fun.prefs')) + '</h3>' +
-      row('fun.mascot', 'fun.mascot.help', check('prefsFunMascot', get(KEYS.mascot, '0') === '1')) +
-      (hasDesktopMascot() ? row('fun.desktopMascot', 'fun.desktopMascot.help', check('prefsDesktopMascot', get(KEYS.desktopMascot, '0') === '1')) : '') +
-      row('fun.voice', 'fun.voice.help', check('prefsFunVoice', get(KEYS.voice, '1') !== '0')) +
-      row('kanban.pref', 'kanban.pref.help', check('prefsKanban', get(KEYS.kanban, '0') === '1')) +
+    return row('fun.mascot', 'fun.mascot.help', check('prefsFunMascot', get(KEYS.mascot, '0') === '1', 'fun.mascot')) +
+      (hasDesktopMascot() ? row('fun.desktopMascot', 'fun.desktopMascot.help', check('prefsDesktopMascot', get(KEYS.desktopMascot, '0') === '1', 'fun.desktopMascot')) : '') +
       row('retro.persona', 'retro.persona.help',
         '<select class="pf-select" id="prefsRetroPersona" aria-label="' + esc(T('retro.persona')) + '">' +
         '<option value=""' + (persona ? '' : ' selected') + '>' + esc(T('retro.persona.config')) + '</option>' +
         PERSONAS.map(([v, k]) => '<option value="' + v + '"' + (v === persona ? ' selected' : '') + '>' + esc(T(k)) + '</option>').join('') +
         '</select>');
   },
+  // General: el micròfon del camp de text.
+  dictationRow() { return row('fun.voice', 'fun.voice.help', check('prefsFunVoice', get(KEYS.voice, '1') !== '0', 'fun.voice')); },
+  // Avançat: el tauler de terminals.
+  kanbanRow() { return row('kanban.pref', 'kanban.pref.help', check('prefsKanban', get(KEYS.kanban, '0') === '1', 'kanban.pref')); },
   bind(root) {
     const changed = () => document.dispatchEvent(new CustomEvent('gregal:fun-prefs'));
     const wire = (id, key) => {

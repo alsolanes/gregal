@@ -8,6 +8,7 @@ const T = (k, alt) => (window.gregalT ? window.gregalT(k) : '') || alt || k;
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const api = (p, o) => (G().api ? G().api(p, o) : fetch(p, o));
 const LANGS = [['en', 'English'], ['ca', 'Català']];
+const icon = n => (window.gregalIcon && window.gregalIcon(n)) || '';
 
 export const voicePrefs = {
   st: null, err: '', timer: 0,
@@ -35,25 +36,25 @@ export const voicePrefs = {
       const ready = !!(v.ready || {})[l], voices = (v.voices || {})[l] || [];
       // Unes veus d'abans (p. ex. Ryan, retirada per la llicència): en falta alguna de les noves.
       const partial = !ready && eng === 'piper' && voices.some(x => x.installed);
-      const state = ready ? '✓ ' + T('prefs.voice.ready') : eng === 'piper' ? (v.platform ? (partial ? T('prefs.voice.partial') : T('prefs.voice.missing')) : T('prefs.voice.noPlatform')) : eng === 'off' ? T('prefs.voice.offState') : T('prefs.voice.server');
+      const state = ready ? T('prefs.voice.ready') : eng === 'piper' ? (v.platform ? (partial ? T('prefs.voice.partial') : T('prefs.voice.missing')) : T('prefs.voice.noPlatform')) : eng === 'off' ? T('prefs.voice.offState') : T('prefs.voice.server');
       const size = (v.sizes || {})[l] || '';
       const btn = eng === 'piper' && v.platform
         ? '<button class="pf-open" data-voice-install="' + l + '"' + (busy ? ' disabled' : '') + '>' + esc(ready ? T('prefs.voice.reinstall') : T(partial ? 'prefs.voice.update' : 'prefs.voice.install').replace('{size}', size)) + '</button>' : '';
-      const test = ready ? '<button class="pf-open" data-voice-test="caster" data-lang="' + l + '">▶ ' + esc(T('prefs.voice.caster')) + '</button>' +
-        '<button class="pf-open" data-voice-test="analyst" data-lang="' + l + '">▶ ' + esc(T('prefs.voice.analyst')) + '</button>' : '';
+      const test = ready ? '<button class="pf-open" data-voice-test="caster" data-lang="' + l + '">' + icon('play') + esc(T('prefs.voice.caster')) + '</button>' +
+        '<button class="pf-open" data-voice-test="analyst" data-lang="' + l + '">' + icon('play') + esc(T('prefs.voice.analyst')) + '</button>' : '';
       // Qui parla i amb quina llicència (la del MODEL_CARD de la veu).
       // (Sense <span> ni <b>: als .pf-lab són blocs, i en verd quan la llengua hi és.)
-      const sub = 'display:block;margin-top:3px;font-size:12px;color:var(--muted);line-height:1.4';
-      const who = eng === 'piper' && voices.length ? '<small class="pf-voice-list" style="' + sub + '">' + voices.map(x =>
-        esc(T(x.who === 'analyst' ? 'prefs.voice.analyst' : 'prefs.voice.caster')) + ': <strong style="color:var(--ink);font-weight:600">' + esc(x.label || x.name) + '</strong> · ' +
-        (x.card ? '<a href="' + esc(x.card) + '" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline dotted" title="' + esc(T('prefs.voice.card')) + '">' + esc(x.license || '?') + '</a>' : esc(x.license || '?')) +
-        (x.installed ? '' : ' ⬇')).join(' · ') + '</small>' : '';
-      const note = eng === 'piper' && voices.some(x => /SA/.test(x.license || '')) ? '<small class="pf-voice-note" style="' + sub + '">ⓘ ' + esc(T('prefs.voice.shareAlike')) + '</small>' : '';
+      // Una veu que encara no és al disc porta la icona de baixar.
+      const who = eng === 'piper' && voices.length ? '<small class="pf-voice-list">' + voices.map(x =>
+        esc(T(x.who === 'analyst' ? 'prefs.voice.analyst' : 'prefs.voice.caster')) + ': <strong>' + esc(x.label || x.name) + '</strong> · ' +
+        (x.card ? '<a href="' + esc(x.card) + '" target="_blank" rel="noopener" title="' + esc(T('prefs.voice.card')) + '">' + esc(x.license || '?') + '</a>' : esc(x.license || '?')) +
+        (x.installed ? '' : '<i class="pf-voice-dl" title="' + esc(T('prefs.voice.missing')) + '">' + icon('download') + '</i>')).join(' · ') + '</small>' : '';
+      const note = eng === 'piper' && voices.some(x => /SA/.test(x.license || '')) ? '<small class="pf-voice-note">' + icon('info') + '<i>' + esc(T('prefs.voice.shareAlike')) + '</i></small>' : '';
       return '<div class="pf-row pf-voice' + (ready ? ' on' : '') + '"><div class="pf-lab"><b>' + esc(name) + (l === 'en' ? ' · ' + esc(T('prefs.voice.games')) : '') +
         '</b><span>' + esc(state) + '</span>' + who + note + '</div><div class="pf-voice-btns">' + test + btn + '</div></div>';
     }).join('');
-    const prog = busy ? '<div class="pf-skills-status">⬇ ' + esc(T('prefs.voice.installing').replace('{step}', inst.step || '…').replace('{pct}', pct)) + '</div>'
-      : inst.state === 'error' ? '<div class="pf-skills-status error">⚠ ' + esc(inst.error || '') + '</div>' : '';
+    const prog = busy ? '<div class="pf-skills-status">' + esc(T('prefs.voice.installing').replace('{step}', inst.step || '…').replace('{pct}', pct)) + '</div>'
+      : inst.state === 'error' ? '<div class="pf-skills-status error">' + esc(inst.error || '') + '</div>' : '';
     return '<p class="pf-skills-help">' + esc(T('prefs.voice.help')) + '</p>' + engine + rows + prog +
       '<div class="pf-skills-status" id="prefsVoiceMsg" hidden></div>';
   },
@@ -64,7 +65,7 @@ export const voicePrefs = {
     await this.load();
     if (!box.isConnected) return;
     const paint = () => { box.innerHTML = this.html(); wire(); };
-    const msg = t => { const m = box.querySelector('#prefsVoiceMsg'); if (m) { m.hidden = !t; m.textContent = t || ''; } };
+    const msg = (t, bad) => { const m = box.querySelector('#prefsVoiceMsg'); if (m) { m.hidden = !t; m.textContent = t || ''; m.classList.toggle('error', !!bad); } };
     const poll = () => {
       clearTimeout(this.timer);
       if (this.st && this.st.install && this.st.install.state === 'installing') {
@@ -76,7 +77,7 @@ export const voicePrefs = {
     const wire = () => {
       box.querySelectorAll('[data-voice-install]').forEach(b => b.onclick = async () => {
         b.disabled = true;
-        try { await post({ action: 'install', lang: b.dataset.voiceInstall }); } catch (e) { msg('⚠ ' + e.message); }
+        try { await post({ action: 'install', lang: b.dataset.voiceInstall }); } catch (e) { msg(e.message, true); }
         await this.load(); paint(); poll();
       });
       box.querySelectorAll('[data-voice-test]').forEach(b => b.onclick = async () => {
@@ -87,13 +88,13 @@ export const voicePrefs = {
           if (!a.ok) throw new Error(a.status);
           const el = new Audio(URL.createObjectURL(await a.blob()));
           await el.play();
-          msg('🔊 ' + T('prefs.voice.playing'));
-        } catch (e) { msg('⚠ ' + T('prefs.voice.testFail') + ' ' + (e.message || e)); }
+          msg(T('prefs.voice.playing'));
+        } catch (e) { msg(T('prefs.voice.testFail') + ' ' + (e.message || e), true); }
         b.disabled = false;
       });
       box.querySelectorAll('[data-voice-engine] button').forEach(b => b.onclick = async () => {
         const c = Object.assign({}, (this.st && this.st.config) || {}, { engine: b.dataset.v });
-        try { await post({ action: 'config', config: c }); } catch (e) { msg('⚠ ' + e.message); }
+        try { await post({ action: 'config', config: c }); } catch (e) { msg(e.message, true); }
         await this.load(); paint();
       });
     };
