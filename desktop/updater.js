@@ -33,12 +33,19 @@ function createUpdater({ app, platform = process.platform, env = process.env, re
   } else {
     try {
       autoUpdater = (loadAutoUpdater || (() => require('electron-updater').autoUpdater))();
+      // Com a OpenCode: la versió nova es baixa sola en segon pla i, quan és a
+      // punt, l'app només mostra un botó. Si es tanca abans, s'instal·la en
+      // sortir (en silenci).
       autoUpdater.autoDownload = false;
-      autoUpdater.autoInstallOnAppQuit = false;
+      autoUpdater.autoInstallOnAppQuit = true;
       autoUpdater.allowPrerelease = false;
       autoUpdater.allowDowngrade = false;
       autoUpdater.on('checking-for-update', () => publish({ state: 'checking', version: '', progress: null, reason: '' }));
-      autoUpdater.on('update-available', info => publish({ state: 'available', version: info?.version || '', progress: 0, reason: '' }));
+      autoUpdater.on('update-available', info => {
+        publish({ state: 'available', version: info?.version || '', progress: 0, reason: '' });
+        // La baixada comença sola: l'usuari només ha de prémer «Reinicia».
+        queueMicrotask(() => { void controller.download(); });
+      });
       autoUpdater.on('update-not-available', () => publish({ state: 'up-to-date', version: '', progress: null, reason: '' }));
       autoUpdater.on('download-progress', progress => publish({ state: 'downloading', version: status.version, progress: Math.max(0, Math.min(100, Number(progress?.percent) || 0)), reason: '' }));
       autoUpdater.on('update-downloaded', info => publish({ state: 'ready', version: info?.version || status.version, progress: 100, reason: '' }));
@@ -49,7 +56,7 @@ function createUpdater({ app, platform = process.platform, env = process.env, re
     }
   }
 
-  return {
+  const controller = {
     getStatus: () => ({ ...status }),
     onStatus(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     async check() {
@@ -84,7 +91,8 @@ function createUpdater({ app, platform = process.platform, env = process.env, re
       installPromise = (async () => {
         try {
           await stopBackend();
-          autoUpdater.quitAndInstall(false, true);
+          // Silenciós i torna a obrir l'app: res d'assistent de l'instal·lador.
+          autoUpdater.quitAndInstall(true, true);
         } catch (error) { installationRequested = false; publish({ state: 'error', reason: error?.message || 'Could not install update.' }); }
         return { ...status };
       })().finally(() => { installPromise = null; });
@@ -92,6 +100,7 @@ function createUpdater({ app, platform = process.platform, env = process.env, re
     },
     async openPage() { if (pageOpener) await pageOpener(RELEASE_PAGE); return { ...status }; },
   };
+  return controller;
 }
 
 module.exports = { createUpdater, RELEASE_PAGE };

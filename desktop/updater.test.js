@@ -22,11 +22,11 @@ function fixture() {
   return { controller, updater, calls, root };
 }
 
-test('installer updater keeps main-process snapshot and requires explicit actions', async t => {
+test('installer updater downloads on its own and installs silently on one click', async t => {
   const f = fixture(); t.after(() => fs.rmSync(f.root, { recursive: true, force: true }));
   assert.deepEqual(f.controller.getStatus(), { state: 'idle', currentVersion: '1.7.2', version: '', progress: null, mode: 'automatic', reason: '' });
   assert.equal(f.updater.autoDownload, false);
-  assert.equal(f.updater.autoInstallOnAppQuit, false);
+  assert.equal(f.updater.autoInstallOnAppQuit, true);
   assert.equal(f.updater.allowPrerelease, false);
   assert.equal(f.updater.allowDowngrade, false);
   assert.equal(f.calls.check, 0);
@@ -42,7 +42,8 @@ test('installer updater keeps main-process snapshot and requires explicit action
   assert.equal(f.calls.check, 1);
   f.updater.checkResolve();
   await Promise.all([a, b]);
-  assert.equal(f.controller.getStatus().state, 'available');
+  // The download starts by itself once an update is found.
+  assert.equal(f.calls.download, 1);
   const d1 = f.controller.download();
   const d2 = f.controller.download();
   assert.equal(f.calls.download, 1);
@@ -60,7 +61,7 @@ test('installer updater keeps main-process snapshot and requires explicit action
   await Promise.all([installing, f.controller.install()]);
   assert.equal(f.calls.stopped, 1);
   assert.equal(f.calls.install, 1);
-  assert.deepEqual(f.calls.installArgs, [false, true]);
+  assert.deepEqual(f.calls.installArgs, [true, true]);
   assert.equal((await f.controller.check()).state, 'installing');
   await f.controller.install();
   assert.equal(f.calls.install, 1);

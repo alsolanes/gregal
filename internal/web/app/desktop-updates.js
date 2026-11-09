@@ -63,7 +63,9 @@ export const desktopUpdates = {
   updateBadge() {
     const button = document.getElementById('prefsBtn');
     if (!button) return;
-    const pending = this.status.state === 'available' || this.status.state === 'ready';
+    // Només es diu res quan la versió nova ja és baixada: un sol botó que
+    // instal·la i reinicia (la baixada passa sola, en segon pla).
+    const pending = this.status.state === 'ready' || this.status.state === 'installing';
     button.classList.toggle('has-update', pending);
     const label = pending ? translate('prefs.update.notice') : translate('prefs.title');
     button.title = label;
@@ -71,11 +73,15 @@ export const desktopUpdates = {
     const notice = document.getElementById('desktopUpdateNotice');
     const text = document.getElementById('desktopUpdateNoticeText');
     if (notice && text) {
-      notice.hidden = !['available', 'downloading', 'ready'].includes(this.status.state);
-      text.textContent = this.message();
-      notice.title = this.message();
-      notice.setAttribute('aria-label', this.message());
-      notice.onclick = () => button.click();
+      const installing = this.status.state === 'installing';
+      notice.hidden = !pending;
+      const label = installing ? translate('prefs.update.installing')
+        : format('prefs.update.restart', { version: this.status.version || '—' });
+      text.textContent = label;
+      notice.title = label;
+      notice.setAttribute('aria-label', label);
+      notice.disabled = installing;
+      notice.onclick = () => this.run('install');
     }
   },
 
@@ -146,7 +152,6 @@ export const desktopUpdates = {
   async run(action) {
     const method = { check: 'checkForUpdates', download: 'downloadUpdate', open: 'openUpdatePage' }[action];
     if (action === 'install') {
-      if (!window.confirm?.(translate('prefs.update.confirm'))) return;
       await this.call('installUpdate');
       return;
     }

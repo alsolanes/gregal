@@ -8,6 +8,7 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
   const labels = {
     en: {
       'prefs.title': 'Preferences', 'prefs.update.notice': 'An update is available',
+      'prefs.update.restart': 'Update to {version}', 'prefs.update.installing': 'Installing the update…',
       'prefs.update.version': 'Gregal version', 'prefs.update.idle': 'Check whether a newer version is available.',
       'prefs.update.check': 'Check for updates', 'prefs.update.checking': 'Checking for updates…',
       'prefs.update.available': 'Version {version} is available.', 'prefs.update.download': 'Download update',
@@ -53,17 +54,21 @@ function load({ bridge = null, confirmed = true, language = 'en' } = {}) {
   return { updates: sandbox.__updates, button, notice, noticeText, sandbox };
 }
 
-test('sidebar notice follows update lifecycle and opens preferences without installing', () => {
+test('sidebar shows one button only once the update is downloaded, and it installs directly', async () => {
+  let installs = 0;
+  const bridge = { installUpdate: async () => { installs++; } };
   const { updates, button, notice, noticeText } = load();
+  updates.bridge = bridge;
   updates.setStatus({ state: 'available', version: '1.14.0' });
-  assert.equal(notice.hidden, false);
-  assert.match(noticeText.textContent, /1\.14\.0/);
-  notice.onclick();
-  assert.equal(button.clicked, true);
+  assert.equal(notice.hidden, true, 'nothing to click while it downloads by itself');
   updates.setStatus({ state: 'downloading' });
-  assert.equal(notice.hidden, false);
+  assert.equal(notice.hidden, true);
   updates.setStatus({ state: 'ready' });
-  assert.match(noticeText.textContent, /ready to install/);
+  assert.equal(notice.hidden, false);
+  assert.match(noticeText.textContent, /Update to 1\.14\.0/);
+  await notice.onclick();
+  assert.equal(installs, 1, 'one click installs, with no dialog');
+  assert.notEqual(button.clicked, true, 'does not open preferences');
   updates.setStatus({ state: 'up-to-date' });
   assert.equal(notice.hidden, true);
 });
@@ -95,17 +100,12 @@ test('available updates offer download for installed builds and official release
   assert.doesNotMatch(portable.content(), /data-update-action="download"/);
 });
 
-test('install requires an explicit restart confirmation', async () => {
+test('install restarts straight away, with no confirmation dialog', async () => {
   let installs = 0;
   const bridge = { installUpdate: async () => { installs++; } };
-  const declined = load({ bridge, confirmed: false }).updates;
-  declined.bridge = bridge;
-  await declined.run('install');
-  assert.equal(installs, 0);
-
-  const accepted = load({ bridge, confirmed: true }).updates;
-  accepted.bridge = bridge;
-  await accepted.run('install');
+  const updates = load({ bridge, confirmed: false }).updates;
+  updates.bridge = bridge;
+  await updates.run('install');
   assert.equal(installs, 1);
 });
 
