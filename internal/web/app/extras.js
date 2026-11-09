@@ -1,10 +1,11 @@
 // Extres del xat: preguntes al marge (/btw), resums de sessió (/recap i el
 // botó «Resumeix» quan tornes a una sessió amb novetats) i memòria
-// automàtica («Ho recordo?» en acabar un torn de codi, i la secció de
-// memòria a Preferències amb el diff abans d'escriure).
+// automàtica (les notes que Gregal decideix desar en acabar un torn de codi,
+// amb un avís efímer i «Desfés», i la secció de memòria a Preferències amb el
+// diff abans d'aplicar una consolidació).
 //
 // Res d'això toca el torn en marxa ni l'historial: /btw i /recap són
-// crides al marge, i la memòria només s'escriu quan l'usuari ho accepta.
+// crides al marge, i les notes les escriu el servidor sol.
 // El mòdul s'enganxa a la pàgina per fora (escolta el composer en fase de
 // captura i observa el panell de preferències) per no engreixar index.html.
 (function () {
@@ -170,32 +171,33 @@
     hiddenAt = 0;
   });
 
-  // ---- memòria: «Ho recordo?» ----
-  let wasBusy = false, memPoll = 0, memQueue = [];
-  // D'una en una: dues o tres targetes apilades tapaven la conversa.
-  function nextMem() {
-    if (document.querySelector('.aside-mem') || !memQueue.length) return;
-    memChip(memQueue.shift(), memQueue.length);
-  }
-  function memChip(note, rest) {
-    const title = T('extras.mem.title', 'Remember this?') + (rest ? ' (+' + rest + ')' : '');
-    const el = card(title, esc(note), 'mem');
-    const actions = el.querySelector('.aside-actions');
-    const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'primary'; yes.textContent = T('extras.mem.accept', 'Remember');
-    const no = document.createElement('button'); no.type = 'button'; no.className = 'ghost'; no.textContent = T('extras.mem.dismiss', 'Dismiss');
-    const act = async action => {
-      yes.disabled = no.disabled = true;
-      try {
-        const r = await G().api('/api/memory/suggest', { method: 'POST', body: JSON.stringify({ action, note }) });
-        if (r.ok && action === 'accept') { actions.textContent = T('extras.mem.saved', 'Saved to .gregal/memory.md'); setTimeout(() => { el.remove(); nextMem(); }, 2500); return; }
-      } catch (e) {}
-      el.remove();
-      nextMem();
+  // ---- memòria: notes que Gregal decideix i desa sol ----
+  // El servidor escriu les notes duradores de cada torn de codi a
+  // .gregal/memory.md. Aquí no hi ha cap targeta que demani permís: només
+  // un avís efímer amb «Desfés» per si la nota no hi ha de ser.
+  let wasBusy = false, memPoll = 0, memSeenAt = '';
+  function memChip(notes, at) {
+    document.querySelectorAll('.mem-chip').forEach(el => el.remove());
+    const first = notes[0].length > 90 ? notes[0].slice(0, 90) + '…' : notes[0];
+    const chip = document.createElement('div');
+    chip.className = 'mem-chip';
+    chip.dataset.at = at || '';
+    const label = document.createElement('span');
+    label.textContent = T('extras.mem.savedAuto', 'Ho recordo') + ' · ' + first + (notes.length > 1 ? ' (+' + (notes.length - 1) + ')' : '');
+    const undo = document.createElement('button');
+    undo.type = 'button'; undo.className = 'ghost'; undo.textContent = T('extras.mem.undo', 'Desfés');
+    undo.onclick = async () => {
+      undo.disabled = true;
+      try { await G().api('/api/memory/suggest', { method: 'POST', body: JSON.stringify({ action: 'undo' }) }); } catch (e) {}
+      chip.remove();
     };
-    yes.onclick = () => act('accept');
-    no.onclick = () => act('dismiss');
-    el.querySelector('.aside-x').onclick = () => act('dismiss');
-    actions.append(yes, no);
+    const x = document.createElement('button');
+    x.type = 'button'; x.className = 'ghost'; x.textContent = '×';
+    x.setAttribute('aria-label', T('extras.close', 'Tanca'));
+    x.onclick = () => chip.remove();
+    chip.append(label, undo, x);
+    stack().appendChild(chip);
+    setTimeout(() => chip.remove(), 12000);
   }
   async function pollMemory(attempt) {
     clearTimeout(memPoll);
@@ -203,10 +205,13 @@
       const r = await G().api('/api/memory/suggest');
       if (!r.ok) return;
       const j = await r.json();
-      if (j.state === 'ready' && Array.isArray(j.notes)) {
-        document.querySelectorAll('.aside-mem').forEach(el => el.remove());
-        memQueue = j.notes.slice();
-        nextMem();
+      if (j.state === 'saved' && Array.isArray(j.notes) && j.notes.length) {
+        // Només el desat d'aquest torn: ni el de fa estona ni el mateix dues vegades.
+        const at = String(j.at || '');
+        if (at && at !== memSeenAt && Date.now() - Date.parse(at) < 30 * 60 * 1000) {
+          memSeenAt = at;
+          memChip(j.notes, at);
+        }
         return;
       }
       if (j.state === 'pending' && attempt < 8) memPoll = setTimeout(() => pollMemory(attempt + 1), 2500 * (attempt + 1));
@@ -284,6 +289,9 @@
 .aside-actions{display:flex;gap:6px;margin-top:6px}
 .aside-actions:empty{display:none}
 .aside-mem{border-left-color:var(--amber,#c98a2b)}
+.mem-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-left:3px solid var(--amber,#c98a2b);border-radius:8px;background:var(--panel);font-size:12px}
+.mem-chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mem-chip button{padding:0 4px;font-size:12px}
 .aside-bad{color:var(--red,#c0392b)}
 .recap-chip{display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid var(--line,rgba(127,127,127,.25));border-radius:999px;background:var(--panel);font-size:12px;margin:6px auto;width:max-content;max-width:100%}
 .mem-section .mem-notes{list-style:none;padding:0;margin:6px 0;font-size:12px;max-height:180px;overflow:auto}

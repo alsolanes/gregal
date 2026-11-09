@@ -135,12 +135,14 @@ saved conversation to summarize instead. Response
 
 After a successful code/autonomous turn with at least three tool executions
 and one applied edit, the server asks the chat role in the background for at
-most two durable project notes. Nothing is written automatically.
+most two durable project notes and writes the ones it returns to
+`.gregal/memory.md` (with the usual date prefix); the model decides, nobody
+approves.
 `GET /api/memory/suggest` returns `{state,notes,at}` (`state` = `pending`,
-`ready` or `none`). `POST /api/memory/suggest` `{action:"accept"|"dismiss",
-note?}` accepts a suggested note (appended to `.gregal/memory.md` with the
-usual date prefix) or dismisses it; `dismiss` without `note` clears all. A note
-that is not in the current suggestion is a 404.
+`saved` or `none`; `notes` are the ones already written). `POST
+/api/memory/suggest` `{action:"undo"}` removes the notes of that decision.
+`accept` and `dismiss` remain for older clients: `accept` appends a note
+without duplicating it and `dismiss` clears the state.
 
 `GET /api/memory/tidy` returns the current notes `{notes,hash,path}`.
 `POST /api/memory/tidy` asks the chat role for a consolidated list (merge

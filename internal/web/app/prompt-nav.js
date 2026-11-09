@@ -36,9 +36,13 @@
     if (!tops || !tops.length) return -1;
     if (atBottom) return tops.length - 1;
     const line = viewTop + Math.min(80, Math.max(0, viewHeight || 0) / 4);
-    let k = 0;
-    for (let i = 0; i < tops.length; i++) { if (tops[i] <= line) k = i; else break; }
-    return k;
+    let first = 0, end = tops.length;
+    while (first < end) {
+      const mid = (first + end) >>> 1;
+      if (tops[mid] <= line) first = mid + 1;
+      else end = mid;
+    }
+    return Math.max(0, first - 1);
   }
 
   // Distància entre ratlles: àmplia amb pocs prompts, comprimida amb molts
@@ -85,7 +89,12 @@
     tip.hidden = true;
     host.append(rail, tip);
 
-    let prompts = [], states = [], active = -1, focusIdx = -1, frame = 0, signature = '';
+    let prompts = [], states = [], active = -1, focusIdx = -1, frame = 0, scrollFrame = 0, signature = '';
+    let geometry = null, observed = new Set();
+    const sizes = root.ResizeObserver ? new ResizeObserver(() => {
+      geometry = null;
+      scheduleScroll();
+    }) : null;
 
     function collect() {
       const els = [], marks = [];
@@ -120,8 +129,15 @@
       frame = 0;
       const got = collect();
       const sig = got.states.join(',') + '|' + got.els.length;
+      const changed = prompts.length !== got.els.length || got.els.some((el, i) => el !== prompts[i]);
       prompts = got.els; states = got.states;
-      if (sig !== signature || list.children.length !== prompts.length) {
+      if (sizes) {
+        const next = new Set(scroller.children);
+        for (const child of observed) if (!next.has(child)) sizes.unobserve(child);
+        for (const child of next) if (!observed.has(child)) sizes.observe(child);
+        observed = next;
+      }
+      if (changed || sig !== signature) {
         signature = sig;
         list.setAttribute('aria-label', T('pnav.label', 'Your prompts'));
         rail.setAttribute('aria-label', T('pnav.label', 'Your prompts'));
@@ -141,26 +157,47 @@
         });
         list.replaceChildren(frag);
         if (focusIdx >= prompts.length) focusIdx = -1;
+        if (focusIdx >= 0) list.children[focusIdx].tabIndex = 0;
       }
       place();
+      geometry = null;
       updateActive();
+    }
+    function scheduleScroll() {
+      if (!scrollFrame) scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = 0;
+        if (!frame) updateActive();
+      });
     }
     function schedule() { if (!frame) frame = requestAnimationFrame(rebuild); }
 
     function updateActive() {
       if (rail.hidden || !prompts.length) return;
-      const base = scroller.getBoundingClientRect().top - scroller.scrollTop;
-      const tops = prompts.map(el => el.getBoundingClientRect().top - base);
-      const atBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4;
-      const k = activeIndex(tops, scroller.scrollTop, scroller.clientHeight, atBottom);
-      if (k === active && list.children[k]?.classList.contains('on')) return;
+      const scrollTop = scroller.scrollTop;
+      if (!geometry) {
+        const base = scroller.getBoundingClientRect().top - scrollTop;
+        geometry = {
+          tops: prompts.map(el => el.getBoundingClientRect().top - base),
+          height: scroller.clientHeight,
+          end: scroller.scrollHeight,
+        };
+      }
+      const { tops, height, end } = geometry;
+      const k = activeIndex(tops, scrollTop, height, end - scrollTop - height < 4);
+      const next = list.children[k];
+      if (k === active && next?.classList.contains('on')) return;
+      const previous = list.children[active];
+      if (previous && previous !== next) {
+        previous.classList.remove('on');
+        previous.removeAttribute('aria-current');
+        previous.tabIndex = previous === list.children[focusIdx] ? 0 : -1;
+      }
       active = k;
-      [...list.children].forEach((b, i) => {
-        b.classList.toggle('on', i === k);
-        if (i === k) b.setAttribute('aria-current', 'location'); else b.removeAttribute('aria-current');
-        // Un sol element a l'ordre del tabulador (roving tabindex).
-        b.tabIndex = i === (focusIdx >= 0 ? focusIdx : k) ? 0 : -1;
-      });
+      if (next) {
+        next.classList.add('on');
+        next.setAttribute('aria-current', 'location');
+        next.tabIndex = focusIdx < 0 || focusIdx === k ? 0 : -1;
+      }
       // Amb molts prompts la barra fa scroll: el que és a la vista, a dins.
       const b = list.children[k];
       if (b && rail.scrollHeight > rail.clientHeight) {
@@ -193,7 +230,7 @@
       const el = prompts[i];
       if (!el) return;
       const top = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 16;
-      scroller.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+      scroller.scrollTo({ top: Math.max(0, top), behavior: root.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
       el.classList.remove('pnav-flash'); void el.offsetWidth; el.classList.add('pnav-flash');
       setTimeout(() => el.classList.remove('pnav-flash'), 1300);
     }
@@ -209,8 +246,16 @@
     list.addEventListener('click', e => { const b = e.target.closest('.pnav-item'); if (b) go(+b.dataset.i); });
     list.addEventListener('mouseover', e => { const b = e.target.closest('.pnav-item'); if (b) showTip(b); });
     rail.addEventListener('mouseleave', () => { if (!rail.contains(document.activeElement)) hideTip(); });
-    list.addEventListener('focusin', e => { const b = e.target.closest('.pnav-item'); if (b) { focusIdx = +b.dataset.i; showTip(b); } });
-    rail.addEventListener('focusout', e => { if (!rail.contains(e.relatedTarget)) { focusIdx = -1; hideTip(); } });
+    list.addEventListener('focusin', e => {
+      const b = e.target.closest('.pnav-item');
+      if (!b) return;
+      const prior = list.children[focusIdx < 0 ? active : focusIdx];
+      if (prior && prior !== b) prior.tabIndex = -1;
+      b.tabIndex = 0;
+      focusIdx = +b.dataset.i;
+      showTip(b);
+    });
+    rail.addEventListener('focusout', e => { if (!rail.contains(e.relatedTarget)) { if (list.children[focusIdx]) list.children[focusIdx].tabIndex = -1; focusIdx = -1; if (list.children[active]) list.children[active].tabIndex = 0; hideTip(); } });
     list.addEventListener('keydown', e => {
       const b = e.target.closest('.pnav-item'); if (!b) return;
       const i = +b.dataset.i, n = list.children.length;
@@ -221,22 +266,39 @@
       go(Math.max(0, Math.min(n - 1, to)));
     });
 
-    scroller.addEventListener('scroll', () => requestAnimationFrame(updateActive), { passive: true });
-    // Dos observadors: els fills directes (prompts i torns) i els canvis de
-    // classe (un torn que acaba). Sense subtree al childList, el text que
-    // arriba token a token no fa recalcular res.
-    new MutationObserver(schedule).observe(scroller, { childList: true });
-    new MutationObserver(schedule).observe(scroller, { subtree: true, attributes: true, attributeFilter: ['class'] });
-    if (root.ResizeObserver) new ResizeObserver(schedule).observe(scroller);
+    scroller.addEventListener('scroll', scheduleScroll, { passive: true });
+    const children = new MutationObserver(schedule);
+    children.observe(scroller, { childList: true });
+    const classes = new MutationObserver(records => {
+      if (records.some(record => record.target.parentElement === scroller)) schedule();
+    });
+    classes.observe(scroller, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    const viewport = root.ResizeObserver ? new ResizeObserver(schedule) : null;
+    viewport?.observe(scroller);
     root.addEventListener('resize', schedule);
-    document.addEventListener('gregal:idioma', () => { signature = ''; schedule(); });
+    const onLanguage = () => { signature = ''; schedule(); };
+    document.addEventListener('gregal:idioma', onLanguage);
     schedule();
-    const api = { refresh: schedule, rail };
+    const api = { refresh: schedule, rail, dispose() {
+      cancelAnimationFrame(frame);
+      cancelAnimationFrame(scrollFrame);
+      children.disconnect();
+      classes.disconnect();
+      viewport?.disconnect();
+      sizes?.disconnect();
+      scroller.removeEventListener('scroll', scheduleScroll);
+      root.removeEventListener('resize', schedule);
+      document.removeEventListener('gregal:idioma', onLanguage);
+      scroller.classList.remove('pnav-on');
+      rail.remove();
+      tip.remove();
+      delete scroller.__promptNav;
+    } };
     scroller.__promptNav = api;
     return api;
   }
 
-  root.gregalPromptNav = { ...core, attach };
+  root.gregalPromptNav = { ...core, attach, attachVents };
 
   // Codi: #main, amb els prompts (.msg.u) i els grups de feina de cada torn.
   function attachCodi() {
@@ -257,32 +319,27 @@
       busy: () => !!(root.gregal && root.gregal.isBusy && root.gregal.isBusy()),
     });
   }
-  // Vents: cada conversa pinta un .vw-messages nou; s'hi enganxa quan apareix.
-  function attachVents() {
-    document.querySelectorAll('.vw-messages').forEach(m => {
-      const host = m.parentElement;
-      if (!host || m.__promptNav) return;
-      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
-      attach({
-        scroller: m, host, minWidth: 560,
-        mark: el => {
-          const c = el.classList;
-          if (!c || !c.contains('vw-message')) return null;
-          if (c.contains('vw-user')) return 'u';
-          return c.contains('vw-pending') ? 'run' : 'answer';
-        },
-        text: el => (el.querySelector('.vw-message-text') || el).textContent,
-      });
+  let vents;
+  function attachVents(scroller) {
+    if (scroller === vents) return;
+    vents?.__promptNav?.dispose();
+    vents = scroller;
+    const host = scroller?.parentElement;
+    if (!host) return;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    attach({
+      scroller, host, minWidth: 560,
+      mark: el => {
+        const c = el.classList;
+        if (!c || !c.contains('vw-message')) return null;
+        if (c.contains('vw-user')) return 'u';
+        return c.contains('vw-pending') ? 'run' : 'answer';
+      },
+      text: el => (el.querySelector('.vw-message-text') || el).textContent,
     });
   }
   function boot() {
-    attachCodi();
-    attachVents();
-    let pending = 0;
-    new MutationObserver(() => {
-      if (pending) return;
-      pending = requestAnimationFrame(() => { pending = 0; if (document.querySelector('.vw-messages')) attachVents(); });
-    }).observe(document.body, { childList: true, subtree: true });
+    if (document.documentElement.dataset.product !== 'vents') attachCodi();
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
 })(typeof window !== 'undefined' ? window : globalThis);

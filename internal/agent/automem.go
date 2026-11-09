@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"errors"
+	"log"
 	"regexp"
 	"strings"
 	"time"
@@ -12,12 +13,12 @@ import (
 )
 
 // Memòria automàtica amb higiene. En acabar un torn de codi que ha fet
-// feina de debò, el model pot proposar fins a dues notes duradores del
-// projecte (convencions apreses, comandes que funcionen, paranys). Mai no
-// s'escriuen soles: el client les ensenya («Remember this?») i només les
-// que l'usuari accepta van a .gregal/memory.md amb config.Note. La
-// consolidació (TidyMemory) proposa una llista nova sencera i el client
-// n'ensenya el diff abans d'escriure-la.
+// feina de debò, el model decideix fins a dues notes duradores del projecte
+// (convencions apreses, comandes que funcionen, paranys) i s'escriuen
+// directament a .gregal/memory.md amb config.Note: la decisió és del model i
+// no cal que l'usuari aprovi res. El client només n'informa i ofereix
+// desfer-ho. La consolidació (TidyMemory) encara proposa una llista nova
+// sencera i el client n'ensenya el diff abans d'escriure-la.
 
 // MaxMemorySuggestions topa les notes proposades per torn.
 const MaxMemorySuggestions = 2
@@ -127,6 +128,28 @@ func FilterMemorySuggestions(notes, existing []string) []string {
 		}
 	}
 	return out
+}
+
+// RememberNotes desa les notes que el model ha decidit que valen la pena.
+// Torna les que s'han escrit de debò: els duplicats (incloent-hi els que han
+// entrat des d'una altra sessió mentre el model hi pensava) es descarten en
+// silenci.
+func RememberNotes(cwd string, notes []string) []string {
+	if strings.TrimSpace(cwd) == "" {
+		return nil
+	}
+	var saved []string
+	for _, n := range FilterMemorySuggestions(notes, config.Notes(cwd, "")) {
+		err := config.Note(cwd, n)
+		switch {
+		case err == nil:
+			saved = append(saved, n)
+		case config.IsDuplicateNote(err):
+		case err != nil:
+			log.Printf("memory note not saved: %s", err)
+		}
+	}
+	return saved
 }
 
 // TidyMemory proposa la llista consolidada de notes. No escriu res.

@@ -349,7 +349,12 @@ test('hostile names, persona, face codes and colors cannot add markup, attribute
   for (const svg of f.dom.querySelectorAll('svg')) {
     assert.equal(svg.querySelectorAll('[onload]').length,0);
     assert.equal(svg.querySelectorAll('image').length,0);
-    assert.ok(!svg.querySelectorAll('[fill]').some(n=>String(n.getAttribute('fill')).includes('url(')));
+    // Les cares fan servir gradients locals (`url(#wf-body-N)`); el que no pot
+    // passar és una referència remota o de fitxer.
+    assert.ok(!svg.querySelectorAll('[fill]').some(n=>{
+      const fill=String(n.getAttribute('fill'));
+      return fill.includes('url(') && !/url\(\s*['"]?#/.test(fill);
+    }),'fills only reference local gradients');
   }
   const source=fs.readFileSync(path.join(__dirname,'app/winds.js'),'utf8');
   assert.ok(!/\b(?:prompt|alert|fetch)\s*\(|innerHTML\s*=|insertAdjacentHTML/.test(source));
