@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## v1.61.0 - 2026-11-09 - Més ràpid i sense salts
+
+- **Canviar de Codi a Vents ja no salta.** La pàgina surt directament amb el
+  tema triat (abans es veien un instant els colors per defecte), la barra
+  lateral apareix ja muntada i sense animar-se, i el pas d'una pestanya a
+  l'altra és un fos curt amb la pàgina vella quieta fins que la nova és a punt.
+- **Gregal Vents per a Android, més ràpid (1.68.0).** L'APK es publica
+  optimitzat (abans sortia la build de depuració) i ocupa la meitat. El xat
+  dels vents ja no redibuixa totes les bombolles a cada paraula que arriba,
+  les animacions no recalculen la pantalla a cada fotograma, l'arrencada fa
+  les peticions en paral·lel i en segon pla l'app deixa de consultar el
+  servidor.
+
 ## v1.60.0 - 2026-11-09 - Codi i Vents en dues pestanyes
 
 - **Codi i Vents, dues pestanyes.** El desplegable del peu de la barra
