@@ -1,18 +1,29 @@
 /* Gregal Jocs: la web de la competició de prompts (jocs-site.js). Tot va
    sota .jx, i només hi és a /jocs/ (body.jx-on). */
 
+/* Jocs és fosc en tots dos temes, com una pantalla de joc. La paleta també
+   va als diàlegs que l'Arena obre directament al body (l'assistent
+   d'estratègia, el .md d'un rival, la tele): abans, amb el tema clar, sortien
+   blancs i amb l'accent de Codi damunt d'una pàgina fosca. Les preferències
+   (z-index 61, per sobre) continuen amb el tema de Gregal. */
 body.jx-on { overflow: hidden; }
-.jx {
+.jx, body.jx-on > dialog, body.jx-on > .ar-tv {
+  color-scheme: dark;
   --jx-bg: #050e13; --jx-bg2: #08161c; --jx-panel: #0c1d24; --jx-panel2: #11293222; --jx-card: #0f232b;
   --jx-line: rgba(130, 225, 210, .13); --jx-line-hi: rgba(130, 225, 210, .28);
-  --jx-ink: #eefaf7; --jx-muted: #8eaeab; --jx-faint: #5d7c7a;
+  --jx-ink: #eefaf7; --jx-muted: #93b3b0; --jx-faint: #6f8f8c;
   --jx-mint: #4ff0c2; --jx-mint-d: #1fbf95; --jx-coral: #ff6f5e; --jx-gold: #ffc94d; --jx-live: #ff4d5e;
   --jx-display: "Inter Tight", "Segoe UI Variable Display", "SF Pro Display", system-ui, sans-serif;
   /* L'Arena encastada (arena.js) fa servir les variables de l'app: aquí, les de la web. */
   --bg: var(--jx-bg2); --panel: var(--jx-card); --surface: var(--jx-card); --surface-hi: #143039; --raised: var(--jx-card);
   --line: var(--jx-line); --line-hi: var(--jx-line-hi); --ink: var(--jx-ink); --text: var(--jx-ink); --muted: var(--jx-muted); --faint: var(--jx-faint);
   --accent: var(--jx-mint); --accent-hi: #7ff7d6; --accent-soft: rgba(79, 240, 194, .12); --accent-soft-hi: rgba(79, 240, 194, .2); --hover: rgba(255, 255, 255, .05);
-  --on-accent: #032019;
+  --on-accent: #032019; --code-bg: rgba(0, 0, 0, .3);
+  /* Els tokens de refine.css, resolts amb l'accent de Jocs (a :root porten el de Codi). */
+  --ring: 0 0 0 3px rgba(79, 240, 194, .38);
+  --lift: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 32px -14px rgba(0, 0, 0, .7), 0 2px 6px -2px rgba(0, 0, 0, .3);
+}
+.jx {
   position: fixed; inset: 0; z-index: 60; overflow-y: auto; overflow-x: hidden;
   background: radial-gradient(1200px 600px at 85% -10%, rgba(79, 240, 194, .09), transparent 60%), radial-gradient(900px 500px at -10% 20%, rgba(255, 111, 94, .07), transparent 60%), var(--jx-bg);
   color: var(--jx-ink); font-size: 15px; line-height: 1.5; scroll-behavior: smooth;
@@ -30,22 +41,25 @@ body.jx-on { overflow: hidden; }
 .jx-brand b { font-family: var(--jx-display); font-weight: 800; font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
 .jx-brand small { color: var(--jx-muted); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 .jx-nav { display: flex; gap: 2px; flex: 1; overflow-x: auto; scrollbar-width: none; }
-.jx-nav a { padding: 8px 13px; border-radius: 10px; text-decoration: none; color: var(--jx-muted); font-weight: 600; font-size: 14px; white-space: nowrap; transition: color .15s, background .15s; }
+.jx-nav a { padding: 8px 13px; border-radius: var(--r-md, 12px); text-decoration: none; color: var(--jx-muted); font-weight: 600; font-size: 14px; white-space: nowrap; transition: color .15s, background .15s; }
 .jx-nav a:hover { color: var(--jx-ink); background: rgba(255, 255, 255, .04); }
 .jx-nav a.on { color: var(--jx-ink); background: rgba(79, 240, 194, .1); box-shadow: inset 0 -2px 0 var(--jx-mint); }
 .jx-top-r { display: flex; align-items: center; gap: 10px; }
 .jx-watch { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--jx-line-hi); text-decoration: none; font-weight: 700; font-size: 13px; white-space: nowrap; }
 .jx-watch .jx-dot { background: var(--jx-muted); }
+.jx-watch-ic { display: none; place-items: center; }
+.jx-watch-ic .ui-icon { width: 18px; height: 18px; }
 .jx-watch.live { border-color: var(--jx-live); background: rgba(255, 77, 94, .12); }
 .jx-watch.live .jx-dot { background: var(--jx-live); animation: jx-pulse 1.4s infinite; }
 .jx-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--jx-live); flex: none; }
 @keyframes jx-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 77, 94, .7); } 70% { box-shadow: 0 0 0 9px rgba(255, 77, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 77, 94, 0); } }
 .jx-me { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12px; background: linear-gradient(135deg, var(--jx-mint), #2a9fd6); color: #032019; }
 .jx-apps { position: relative; }
-.jx-apps summary { list-style: none; cursor: pointer; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--jx-muted); font-size: 18px; }
+.jx-icon-btn { list-style: none; cursor: pointer; width: 34px; height: 34px; display: grid; place-items: center; border-radius: var(--r-md, 12px); border: 0; background: none; color: var(--jx-muted); font: inherit; font-size: 18px; padding: 0; }
+.jx-icon-btn .ui-icon { width: 19px; height: 19px; }
 .jx-apps summary::-webkit-details-marker { display: none; }
-.jx-apps summary:hover { background: rgba(255, 255, 255, .05); color: var(--jx-ink); }
-.jx-apps > div { position: absolute; right: 0; top: 42px; display: flex; flex-direction: column; min-width: 170px; padding: 6px; border-radius: 12px; background: var(--jx-panel); border: 1px solid var(--jx-line-hi); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
+.jx-icon-btn:hover, .jx-apps[open] summary { background: rgba(255, 255, 255, .06); color: var(--jx-ink); }
+.jx-apps > div { position: absolute; right: 0; top: 42px; display: flex; flex-direction: column; min-width: 170px; padding: 6px; border-radius: var(--r-md, 12px); background: var(--jx-panel); border: 1px solid var(--jx-line-hi); box-shadow: 0 18px 40px rgba(0, 0, 0, .45); }
 .jx-apps > div a { padding: 8px 10px; border-radius: 8px; text-decoration: none; font-size: 14px; }
 .jx-apps > div a:hover { background: rgba(255, 255, 255, .06); }
 
@@ -55,25 +69,27 @@ body.jx-on { overflow: hidden; }
 .jx-h2 { font-family: var(--jx-display); font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -.02em; font-weight: 800; margin: 4px 0 0; }
 .jx-h3 { font-family: var(--jx-display); font-size: 19px; font-weight: 750; margin: 26px 0 12px; }
 .jx-grad { background: linear-gradient(90deg, var(--jx-mint), #7cc8ff 55%, var(--jx-coral)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.jx-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 16px; border-radius: 11px; border: 1px solid var(--jx-line-hi); background: rgba(255, 255, 255, .04); color: var(--jx-ink); font: inherit; font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; transition: transform .12s, background .15s, border-color .15s, box-shadow .2s; }
+.jx-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 9px 16px; border-radius: var(--r-md, 12px); border: 1px solid var(--jx-line-hi); background: rgba(255, 255, 255, .04); color: var(--jx-ink); font: inherit; font-weight: 700; font-size: 14px; text-decoration: none; cursor: pointer; transition: transform .12s, background .15s, border-color .15s, box-shadow .2s; }
 .jx-btn:hover { border-color: var(--jx-mint); background: rgba(79, 240, 194, .08); transform: translateY(-1px); }
 .jx-btn.hot { background: linear-gradient(135deg, var(--jx-mint), #33d1e0); color: #032019; border-color: transparent; box-shadow: 0 10px 30px -10px rgba(79, 240, 194, .7); }
 .jx-btn.hot:hover { box-shadow: 0 14px 36px -10px rgba(79, 240, 194, .9); }
 .jx-btn.ghost { background: transparent; }
-.jx-btn.big { padding: 13px 22px; font-size: 16px; border-radius: 13px; }
-.jx-more { color: var(--jx-mint); text-decoration: none; font-weight: 700; font-size: 14px; }
-.jx-more:hover { text-decoration: underline; }
+.jx-btn.big { padding: 13px 22px; font-size: 16px; }
+.jx-btn .ui-icon { width: 17px; height: 17px; }
+/* .jx a { color: inherit } guanyava a .jx-more i els enllaços «→» sortien blancs. */
+.jx .jx-more { color: var(--jx-mint); text-decoration: none; font-weight: 700; font-size: 14px; white-space: nowrap; }
+.jx .jx-more:hover { text-decoration: underline; text-underline-offset: 3px; }
 .jx-chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.jx-chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--jx-line-hi); color: var(--jx-muted); font-size: 13px; font-weight: 600; }
-.jx-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: rgba(255, 255, 255, .08); color: var(--jx-muted); }
+.jx-chip { padding: 5px 12px; border-radius: var(--r-pill, 999px); border: 1px solid var(--jx-line-hi); color: var(--jx-muted); font-size: 13px; font-weight: 600; }
+.jx-pill { display: inline-block; padding: 2px 9px; border-radius: var(--r-pill, 999px); font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; background: rgba(255, 255, 255, .08); color: var(--jx-muted); }
 .jx-pill.live { background: var(--jx-live); color: #fff; animation: jx-pulse 1.4s infinite; }
 .jx-pill.soon { background: rgba(255, 201, 77, .16); color: var(--jx-gold); }
 .jx-av { width: 42px; height: 42px; border-radius: 50%; display: inline-grid; place-items: center; flex: none; font-weight: 800; font-size: 14px; color: #032019; background: linear-gradient(135deg, var(--jx-mint), #7cc8ff); }
 .jx-av.sm { width: 28px; height: 28px; font-size: 11px; margin-right: 10px; vertical-align: middle; }
-.jx-empty { padding: 48px 24px; text-align: center; border: 1px dashed var(--jx-line-hi); border-radius: 18px; color: var(--jx-muted); }
+.jx-empty { padding: 48px 24px; text-align: center; border: 1px dashed var(--jx-line-hi); border-radius: var(--r-lg, 22px); color: var(--jx-muted); }
 .jx-empty a { color: var(--jx-mint); }
-.jx-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, .04); border: 1px solid var(--jx-line); flex-wrap: wrap; }
-.jx-tabs button { border: 0; background: none; color: var(--jx-muted); font: inherit; font-weight: 700; font-size: 14px; padding: 7px 14px; border-radius: 9px; cursor: pointer; }
+.jx-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: var(--r-md, 12px); background: rgba(255, 255, 255, .04); border: 1px solid var(--jx-line); flex-wrap: wrap; }
+.jx-tabs button { border: 0; background: none; color: var(--jx-muted); font: inherit; font-weight: 700; font-size: 14px; padding: 7px 14px; border-radius: var(--r-sm, 8px); cursor: pointer; }
 .jx-tabs button:hover { color: var(--jx-ink); }
 .jx-tabs button.on { background: var(--jx-ink); color: #06131a; }
 .jx-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 18px 0; }
@@ -81,6 +97,8 @@ body.jx-on { overflow: hidden; }
 .jx-toggle input { accent-color: var(--jx-mint); width: 16px; height: 16px; }
 .jx-page-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 18px; padding: 48px 0 8px; }
 .jx-page-head p { max-width: 680px; margin: 0; }
+/* El contingut que ve just després de la capçalera (passos, buits, quadre) no hi queda enganxat. */
+.jx-page-head + :is(.jx-how, .jx-empty, .jx-cup, .jx-note) { margin-top: 22px; }
 .jx-sec-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin: 64px 0 20px; }
 
 /* ---- portada ---- */
@@ -112,7 +130,7 @@ body.jx-on { overflow: hidden; }
 .jx-champs li span { font-size: 22px; }
 .jx-champs li b { font-family: var(--jx-display); font-size: 18px; color: var(--jx-gold); }
 .jx-champs li small { color: var(--jx-muted); font-weight: 700; }
-.jx-stats { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: -1px; border: 1px solid var(--jx-line); border-top: 0; border-radius: 0 0 20px 20px; background: rgba(255, 255, 255, .02); }
+.jx-stats { display: grid; grid-template-columns: repeat(var(--n, 4), 1fr); margin-top: -1px; border: 1px solid var(--jx-line); border-top: 0; border-radius: 0 0 20px 20px; background: rgba(255, 255, 255, .02); }
 .jx-stats div { padding: 22px 24px; display: flex; flex-direction: column; border-left: 1px solid var(--jx-line); }
 .jx-stats div:first-child { border-left: 0; }
 .jx-stats b { font-family: var(--jx-display); font-size: 34px; font-weight: 900; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
@@ -179,12 +197,14 @@ body.jx-on { overflow: hidden; }
 .jx-table td:first-child { border-left: 1px solid var(--jx-line); border-radius: 14px 0 0 14px; width: 54px; text-align: center; font-weight: 800; color: var(--jx-muted); }
 .jx-table td:last-child { border-right: 1px solid var(--jx-line); border-radius: 0 14px 14px 0; width: 170px; }
 .jx-table .r { text-align: right; font-variant-numeric: tabular-nums; }
-.jx-table td.pos { font-size: 18px; }
+.jx-table td.pos { font-size: 22px; line-height: 1; }
 .jx-table td.elo { position: relative; width: 160px; }
 .jx-table td.elo b { position: relative; z-index: 1; font-family: var(--jx-display); font-size: 18px; }
 .jx-table td.elo i { position: absolute; right: 14px; bottom: 6px; max-width: calc(100% - 28px); height: 3px; border-radius: 2px; background: linear-gradient(90deg, transparent, var(--jx-mint)); }
-.jx-table tr.top1 td { background: linear-gradient(90deg, rgba(255, 201, 77, .12), var(--jx-card) 60%); border-color: rgba(255, 201, 77, .3); }
-.jx-table tr.me td { border-color: var(--jx-mint); box-shadow: inset 0 0 0 1px rgba(79, 240, 194, .1); }
+/* El primer i «tu»: un sol to per fila. Abans el degradat es repetia a cada
+   cel·la (franges) i l'ombra interior de cada cel·la feia línies verticals. */
+.jx-table tr.top1 td { background: color-mix(in srgb, var(--jx-gold) 7%, var(--jx-card)); border-color: rgba(255, 201, 77, .3); }
+.jx-table tr.me td { background: color-mix(in srgb, var(--jx-mint) 7%, var(--jx-card)); border-color: rgba(79, 240, 194, .55); }
 .jx-bot, .jx-you { font-size: 10px; font-weight: 800; letter-spacing: .1em; padding: 1px 6px; border-radius: 6px; background: rgba(255, 255, 255, .08); color: var(--jx-muted); margin-left: 6px; }
 .jx-you { background: rgba(79, 240, 194, .18); color: var(--jx-mint); }
 .jx-wr { display: inline-block; width: 90px; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, .08); overflow: hidden; vertical-align: middle; margin-right: 8px; }
@@ -219,9 +239,12 @@ body.jx-on { overflow: hidden; }
 .jx-organizer p { margin: 6px 0 16px; }
 .jx-event { display: grid; grid-template-columns: 1.2fr 2fr 1fr 1fr auto; gap: 10px; align-items: end; margin-bottom: 18px; }
 .jx-event label { display: flex; flex-direction: column; gap: 4px; color: var(--jx-muted); font-size: 12px; font-weight: 700; }
-.jx-event input { padding: 9px 11px; border-radius: 10px; border: 1px solid var(--jx-line-hi); background: rgba(0, 0, 0, .3); color: var(--jx-ink); font: inherit; color-scheme: dark; }
+.jx-event input { padding: 9px 11px; border-radius: var(--r-sm, 8px); border: 1px solid var(--jx-line-hi); background: rgba(0, 0, 0, .3); color: var(--jx-ink); font: inherit; font-size: 14px; font-weight: 400; color-scheme: dark; }
 .jx-event #jxEventSaved { grid-column: 1 / -1; font-size: 13px; }
-.jx-org-fold { border: 1px solid var(--jx-line) !important; border-radius: 16px; padding: 14px 18px; background: var(--jx-card); }
+.jx-org-fold { border: 1px solid var(--jx-line) !important; border-radius: var(--r-lg, 22px); padding: 14px 18px; background: var(--jx-card); font-size: 14px; }
+/* La web ja té «Open the broadcast» a dalt: el mateix enllaç aquí sobrava. */
+.jx-org-fold .ar-row:has(> #arStreamLink) { display: none; }
+.jx-org-fold label { display: inline-flex; align-items: center; gap: 6px; }
 .jx-org-fold summary { cursor: pointer; font-weight: 700; }
 .jx-org-fold h3 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--jx-muted); }
 .jx-org-fold .ar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 10px 0; }
@@ -270,13 +293,91 @@ body.jx-on { overflow: hidden; }
 #jxPlayMount .ar-games button.on { border-color: var(--jx-mint); box-shadow: 0 0 0 1px var(--jx-mint), 0 16px 40px -20px rgba(79, 240, 194, .6); }
 #jxPlayMount textarea#arMD { background: #04100f; border-color: var(--jx-line-hi); }
 #jxPlayMount button.primary, #jxPlayMount .ar-big { background: linear-gradient(135deg, var(--jx-mint), #33d1e0); color: #032019; border-color: transparent; }
+/* L'editor i la guia, a la mateixa alçada: la guia («què guanya a què», l'últim
+   partit) fa scroll per dins i l'editor omple la columna. Abans la guia feia
+   el doble que l'editor i deixava un forat buit a l'esquerra, amb el botó de
+   jugar molt avall. */
+@media (min-width: 1101px) {
+  #jxPlayMount .ar-play-grid { align-items: stretch; grid-template-columns: minmax(0, 1fr) 360px; }
+  #jxPlayMount .ar-tips { max-height: min(780px, calc(100vh - 150px)); overflow: auto; overscroll-behavior: contain; padding-right: 8px; scrollbar-gutter: stable; }
+  #jxPlayMount .ar .ar-editor textarea { flex: 1 1 auto; height: auto; min-height: 420px; }
+}
+/* Contrast sobre la menta: text fosc, mai blanc (era 1.5:1). */
+#jxPlayMount :is(.ar-filter button.on, .ar-ctl button.on, .ar-steps li.on::before) { color: var(--on-accent); }
+#jxPlayMount .ar-tabs button.on { background: rgba(79, 240, 194, .1); color: var(--jx-ink); border-color: transparent; border-bottom-color: var(--jx-mint); }
+#jxPlayMount .ar-tabs button { border-radius: 0; }
+
+/* ---- la lliga dels vents: la pàgina de football.js, encastada ---- */
+#jxLeagueMount #partitsPage { display: block; padding: 0; background: none; overflow: visible; position: static; height: auto; margin-top: 18px; }
+#jxLeagueMount #partitsPage[hidden] { display: none; }
+#jxLeagueMount .fb { padding: 0; }
+/* El títol i l'explicació ja són a la capçalera de la web; queden el comptador i el botó. */
+#jxLeagueMount .fb-head > div:first-child { display: none; }
+#jxLeagueMount .fb-head { justify-content: flex-end; }
+#jxLeagueMount .fb-stage { border-radius: var(--r-lg, 22px); border-color: var(--jx-line); }
+#jxLeagueMount .fb-actions button.primary { background: linear-gradient(135deg, var(--jx-mint), #33d1e0); color: var(--on-accent); border-color: transparent; font-weight: 700; padding: 9px 18px; border-radius: var(--r-md, 12px); }
+/* «Atura el partit» no és l'acció principal: vermell discret, no la menta. */
+#jxLeagueMount .fb-actions button.danger { background: rgba(255, 77, 94, .12); color: #ffb3ba; border: 1px solid rgba(255, 77, 94, .5); }
+#jxLeagueMount .fb-actions button:disabled { opacity: .5; cursor: default; }
+#jxLeagueMount .fb-games li { border-radius: var(--r-md, 12px); background: var(--jx-card); }
+#jxLeagueMount .fb-games li.cur { border-color: var(--jx-mint); }
+#jxLeagueMount .fb-recap { border-color: var(--jx-mint); border-radius: var(--r-md, 12px); background: rgba(79, 240, 194, .05); }
+.jx-league-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 22px; }
+.jx-league-empty b { color: var(--jx-ink); font-family: var(--jx-display); font-size: 20px; }
+.jx-league-empty span { max-width: 560px; }
+.jx-league-ic { font-size: 40px; line-height: 1; }
+.jx-league-strip { display: flex; align-items: center; gap: 16px; margin-top: 18px; padding: 16px 22px; border-radius: var(--r-lg, 22px); border: 1px solid var(--jx-line); background: linear-gradient(110deg, rgba(13, 106, 56, .25), var(--jx-card) 55%); text-decoration: none; transition: border-color .15s, transform .15s; }
+.jx-league-strip:hover { border-color: var(--jx-line-hi); transform: translateY(-1px); }
+.jx-league-strip .jx-league-ic { font-size: 30px; }
+.jx-league-strip > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.jx-league-strip b { font-family: var(--jx-display); font-size: 18px; }
+.jx-league-strip small { color: var(--jx-muted); font-size: 14px; }
+
+/* ---- avisos, càrrega i focus ---- */
+.jx-note { display: flex; align-items: center; gap: 16px; margin-top: 22px; padding: 14px 18px; border-radius: var(--r-md, 12px); border: 1px solid rgba(255, 201, 77, .4); background: rgba(255, 201, 77, .07); max-width: 640px; }
+.jx-note > div { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--jx-muted); }
+.jx-note b { color: var(--jx-gold); font-size: 15px; }
+.jx-note .jx-btn { flex: none; }
+.jx-play-head .jx-note { max-width: none; }
+.jx-chip-btn { background: none; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.jx-chip-btn:hover { color: var(--jx-ink); border-color: var(--jx-mint); }
+.jx-loading { padding: 80px 0; text-align: center; color: var(--jx-muted); }
+.jx-err-box { display: flex; flex-direction: column; align-items: center; gap: 8px; margin-top: 48px; }
+.jx-err-box b { color: var(--jx-ink); font-size: 17px; }
+.jx-demo-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.jx-demo-row .jx-btn { padding: 7px 12px; font-size: 13px; }
+.jx :is(a, button, summary, input, select, textarea):focus-visible, body.jx-on > dialog :is(a, button, input, textarea):focus-visible { outline: none; box-shadow: var(--ring); }
+.jx .jx-nav a:focus-visible { box-shadow: var(--ring); }
+
+/* ---- diàlegs de l'Arena oberts sobre la web ---- */
+body.jx-on > dialog { background: var(--jx-panel); color: var(--jx-ink); border-color: var(--jx-line-hi); }
+body.jx-on > dialog::backdrop { background: rgba(2, 8, 12, .7); backdrop-filter: blur(4px); }
+body.jx-on > .bd-dialog .bd-opt.on { background: rgba(79, 240, 194, .08); }
+body.jx-on > .bd-dialog :is(.bd-n, footer button.primary) { color: var(--on-accent); }
 
 /* ---- peu ---- */
 .jx-foot { margin-top: 90px; padding: 26px 0 34px; border-top: 1px solid var(--jx-line); color: var(--jx-faint); font-size: 13px; }
 .jx-foot .jx-wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 
 /* ---- pantalles petites ---- */
+/* Set seccions al menú: a 1280 i a 1024 hi han de cabre sense amagar-ne cap
+   darrere d'un scroll invisible. */
+@media (max-width: 1320px) {
+  .jx-top { gap: 14px; padding: 12px 18px; }
+  .jx-brand small { display: none; }
+  .jx-brand b { max-width: 170px; }
+  .jx-nav a { padding: 8px 10px; }
+}
+@media (max-width: 1140px) {
+  .jx-brand > span { display: none; }
+  .jx-nav a { padding: 8px 9px; font-size: 13.5px; }
+  .jx-watch { padding: 6px 10px; }
+  .jx-watch #jxWatchTx { display: none; }
+  .jx-watch:not(.live):has(.jx-watch-ic:not(:empty)) .jx-dot { display: none; }
+  .jx-watch .jx-watch-ic:not(:empty) { display: inline-grid; }
+}
 @media (max-width: 1020px) {
+  .jx-league-strip small { display: none; }
   .jx-hero-in { grid-template-columns: 1fr; padding: 56px 0 48px; gap: 32px; }
   .jx-games, .jx-how, .jx-rules { grid-template-columns: 1fr; }
   .jx-cup { grid-template-columns: 1fr; }

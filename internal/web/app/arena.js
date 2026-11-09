@@ -222,8 +222,12 @@ const arenaUI = {
     const limited = !d.admin && typeof d.practice_left === 'number';
     const left = limited ? Math.max(0, d.practice_left) : Infinity;
     $('arPlay').textContent = T('ar.playVs').replace('{name}', next ? next.display : 'Bot');
-    $('arPlay').disabled = left <= 0;
-    $('arPlayHint').textContent = [seeding ? T('ar.seedingNow') : '', next ? T('ar.level.' + next.level) : '',
+    // Sense model (d.model buit) un partit seria tot jugades per defecte: no
+    // s'engega, i es diu per què. La demo, gravada, sí que funciona.
+    const noModel = d.model === '';
+    $('arPlay').disabled = left <= 0 || noModel;
+    const noModelTx = T('models.noModelConfigured');
+    $('arPlayHint').textContent = [noModel ? noModelTx.charAt(0).toUpperCase() + noModelTx.slice(1) : '', seeding ? T('ar.seedingNow') : '', next ? T('ar.level.' + next.level) : '',
       limited ? (left > 0 ? T('ar.practiceLeft').replace('{n}', left) : T('ar.practiceNone')) : ''].filter(Boolean).join(' · ');
     // El CS2 en directe es juga amb teclat i ratolí: a una pantalla només tàctil, apagat i amb el perquè.
     const touch = touchOnly();
@@ -604,11 +608,17 @@ const arenaUI = {
     await this.load();
   },
 
+  // El .md d'un rival (o el que va veure el model en una decisió). Es tanca amb
+  // el botó, la creu, Esc o clicant fora; tancat, fora del DOM (abans, amb Esc
+  // s'hi quedava amagat).
   showMD(title, md) {
     const dlg = document.createElement('dialog');
     dlg.className = 'ar-dialog';
-    dlg.innerHTML = `<h3>${esc(title)}</h3><pre>${esc(md)}</pre><button type="button">${esc(T('ar.close'))}</button>`;
-    dlg.querySelector('button').onclick = () => { dlg.close(); dlg.remove(); };
+    dlg.innerHTML = `<header><h3>${esc(title)}</h3><button type="button" class="ar-dlg-x" aria-label="${esc(T('ar.close'))}">✕</button></header><pre>${esc(md)}</pre>` +
+      `<footer><button type="button">${esc(T('ar.close'))}</button></footer>`;
+    dlg.querySelectorAll('button').forEach(b => { b.onclick = () => dlg.close(); });
+    dlg.addEventListener('click', e => { if (e.target === dlg) dlg.close(); });
+    dlg.addEventListener('close', () => dlg.remove());
     document.body.append(dlg); dlg.showModal();
   },
 
@@ -834,7 +844,10 @@ const arenaUI = {
     // A la cua: quants partits hi ha davant (1 = el següent).
     if (m.status === 'pregame' && m.queue > 0) st = T('ar.queue').replace('{n}', m.queue);
     else if ((m.status === 'live' || m.status === 'pregame') && Date.now() - this.lastEvAt > 4000) st += ' · ' + T('ar.thinking');
+    // Un partit que no s'ha pogut jugar diu per què (p. ex. el model no respon).
+    if (m.status === 'failed' && m.error) st = T('ar.status.failed') + ' · ' + m.error;
     $('arMatchStatus').textContent = st;
+    $('arMatchStatus').classList.toggle('ar-fail', m.status === 'failed');
   },
 
   // El que ha costat el partit: crides al model · tokens (quants de la memòria cau) · temps.
@@ -862,6 +875,7 @@ const arenaUI = {
     this.match.md = m.md || this.match.md;
     if (m.analysis) this.match.analysis = m.analysis;
     if (m.stats) this.match.stats = m.stats;
+    this.match.error = m.error || '';
     this.moments = momentsByEvent(this.match);
     // Les frases del narrador arriben una mica després de les jugades.
     if (!this.lines) this.lines = new Map();
