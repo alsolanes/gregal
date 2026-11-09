@@ -1,0 +1,72 @@
+/* Primer inici (app/onboarding.js): connectar un model. Diàleg natiu (focus
+   tancat a dins i Esc de sèrie) amb els tokens del tema. */
+/* Centrat a mà: algun reset global posa margin:0 als elements. */
+dialog.ob { position:fixed; inset:0; margin:auto; height:fit-content;
+  width:min(580px, calc(100vw - 32px)); max-height:calc(100dvh - 32px); padding:0; border:1px solid var(--line-hi);
+  border-radius:var(--r-lg, 18px); background:var(--surface); color:var(--text); box-shadow:var(--lift), 0 30px 80px -20px var(--ombra); overflow:auto; }
+dialog.ob::backdrop { background:color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter:blur(3px); }
+.ob-card { display:flex; flex-direction:column; gap:16px; margin:0; padding:24px 24px 20px; }
+.ob-head { display:flex; gap:14px; align-items:flex-start; }
+.ob-mark { flex:none; display:grid; place-items:center; width:40px; height:40px; border-radius:var(--r-md, 12px);
+  background:var(--accent-soft); color:var(--accent-hi); }
+.ob-mark .ui-icon { width:22px; height:22px; }
+.ob h2 { margin:0 0 4px; color:var(--ink); font-size:19px; font-weight:650; letter-spacing:-.01em; line-height:1.3; }
+.ob-head p, .ob-done p, .ob-local p { margin:0; color:var(--muted); font-size:var(--t2, 13px); line-height:1.5; }
+
+.ob-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; margin:0; padding:0; border:0; }
+.ob-grid legend { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+.ob-opt { position:relative; display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line);
+  border-radius:var(--r-md, 12px); background:var(--bg); cursor:pointer; transition:border-color .12s, background-color .12s; }
+.ob-opt:hover { border-color:var(--line-hi); }
+.ob-opt:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 65%, var(--line)); background:var(--accent-soft); }
+.ob-opt:has(input:disabled) { cursor:default; opacity:.7; }
+.ob-opt input { flex:none; margin:3px 0 0; accent-color:var(--accent); }
+.ob-opt span { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.ob-opt b { color:var(--ink); font-size:var(--t3, 14px); font-weight:600; }
+.ob-opt small { color:var(--muted); font-size:var(--t1, 12px); line-height:1.35; }
+
+.ob-key { display:flex; flex-direction:column; gap:6px; }
+.ob-key[hidden], .ob-local[hidden] { display:none; }
+.ob-key label { color:var(--ink); font-size:var(--t2, 13px); font-weight:600; }
+.ob-key-row { display:flex; align-items:center; gap:12px; }
+.ob-key-row input { flex:1; min-width:0; min-height:38px; padding:0 12px; border:1px solid var(--line-hi); border-radius:var(--r-sm, 8px);
+  background:var(--bg); color:var(--ink); font:inherit; font-size:var(--t2, 13px); }
+.ob-key-row input:focus { outline:none; border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow:var(--ring); }
+.ob-key-row a { flex:none; display:inline-flex; align-items:center; gap:4px; color:var(--accent-hi); font-size:var(--t2, 13px); text-decoration:none; }
+.ob-key-row a:hover { text-decoration:underline; text-underline-offset:3px; }
+.ob-key-row a[hidden] { display:none; }
+.ob-key-row a .ui-icon { width:13px; height:13px; }
+
+.ob-status { min-height:1.4em; margin:-4px 0 0; color:var(--muted); font-size:var(--t2, 13px); line-height:1.45; }
+.ob-status.bad { color:var(--red); }
+.ob-foot { display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:8px; }
+/* Tria d'idioma, a l'esquerra del peu (com els segments de Preferències). */
+.ob-lang { display:flex; margin-right:auto; padding:2px; border-radius:var(--r-sm, 8px); background:var(--hover); }
+.ob-lang button { min-height:28px; padding:0 10px; border:0; border-radius:6px; background:transparent; color:var(--muted); font:inherit; font-size:var(--t1, 12px); cursor:pointer; }
+.ob-lang button:hover { color:var(--ink); }
+.ob-lang button.on { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
+.ob-primary, .ob-ghost { min-height:36px; padding:0 16px; border-radius:var(--r-sm, 8px); font:inherit; font-size:var(--t2, 13px); font-weight:600; cursor:pointer; }
+.ob-primary { border:1px solid transparent; background:var(--accent); color:var(--on-accent, var(--bg)); }
+.ob-primary:hover:not(:disabled) { filter:brightness(1.08); }
+.ob-primary:disabled { opacity:.6; cursor:progress; }
+.ob-ghost { border:1px solid var(--line-hi); background:transparent; color:var(--text); }
+.ob-ghost:hover { background:var(--hover); color:var(--ink); }
+
+.ob-done { align-items:center; text-align:center; padding:32px 28px 24px; }
+.ob-done .ob-foot { justify-content:center; }
+.ob-ok { display:grid; place-items:center; width:48px; height:48px; border-radius:50%; background:var(--ok-soft); color:var(--green); }
+.ob-ok .ui-icon { width:26px; height:26px; stroke-width:2.2; }
+
+@media (max-width:520px) {
+  .ob-card { padding:20px 16px 16px; }
+  /* Dues columnes sense la descripció: així el botó de connectar no queda fora. */
+  .ob-grid { gap:6px; }
+  .ob-opt { padding:9px 10px; align-items:center; }
+  .ob-opt small { display:none; }
+  .ob-card { gap:14px; }
+  .ob-key-row { flex-wrap:wrap; }
+}
+@media (prefers-reduced-motion:no-preference) {
+  dialog.ob[open] { animation:obIn .16s cubic-bezier(.2,.8,.2,1); }
+  @keyframes obIn { from { opacity:0; transform:translateY(8px) scale(.99); } to { opacity:1; transform:none; } }
+}
