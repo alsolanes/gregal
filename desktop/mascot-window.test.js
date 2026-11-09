@@ -338,6 +338,12 @@ test('mascot page is local-only with a strict CSP and ships in the package', () 
   for (const id of ['mascotCollapse', 'mascotSnap', 'mascotHide']) assert.match(html, new RegExp('<button type="button" class="m-ctl" id="' + id + '"'), id);
   assert.match(css, /\.mascot-stage:hover \.mascot-ctrls/);
   assert.match(css, /\[data-collapsed="1"\] \.mascot-btn \{[^}]*width:32px/);
+  // Finestra transparent i sempre a sobre: en repòs no es mou, i només
+  // «treballant» i «esperant» tenen animacions que no s'acaben.
+  assert.doesNotMatch(css, /\[data-mood="idle"\][^{]*\{[^}]*animation/);
+  for (const rule of css.match(/[^{}]+\{[^{}]*animation:[^{}]*infinite[^{}]*\}/g) || []) {
+    assert.match(rule.trim(), /^\[data-mood="(working|waiting)"\]/, rule.trim());
+  }
   const pre = fs.readFileSync(path.join(__dirname, 'mascot-preload.js'), 'utf8');
   for (const ch of ['gregal:mascot-drag', 'gregal:mascot-collapse', 'gregal:mascot-snap', 'gregal:mascot-hide']) assert.match(pre, new RegExp("'" + ch + "'"), ch);
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8'));

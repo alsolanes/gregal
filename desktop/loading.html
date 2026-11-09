@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Gregal</title>
+<!-- Pantalla d'arrencada (main.js → startup.js): surt de seguida, mentre el
+     backend local arrenca, amb els colors que l'app va pintar l'última
+     vegada (paràmetres bg, bar, ink, accent i scheme). Cap recurs extern i
+     res que depengui del backend. -->
+<script>
+  (() => {
+    const q = new URLSearchParams(location.search);
+    const hex = v => /^#[0-9a-fA-F]{6}$/.test(v || '') ? v : '';
+    const r = document.documentElement;
+    const light = q.get('scheme') === 'light';
+    r.dataset.scheme = light ? 'light' : 'dark';
+    for (const [k, v] of [['bg', light ? '#F6F7FA' : '#14161B'], ['bar', light ? '#EEF0F5' : '#101217'], ['ink', light ? '#0E1220' : '#F2F4F8'], ['accent', light ? '#4F5BE8' : '#8193FF']]) {
+      r.style.setProperty('--' + k, hex(q.get(k)) || v);
+    }
+    r.lang = q.get('lang') === 'ca' ? 'ca' : 'en';
+    const name = (q.get('name') || 'Gregal').slice(0, 40);
+    document.title = name;
+  })();
+</script>
+<style>
+  :root { --bg:#14161B; --bar:#101217; --ink:#F2F4F8; --accent:#8193FF; color-scheme:dark; }
+  :root[data-scheme="light"] { color-scheme:light; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden; cursor:default; user-select:none; }
+  body { font:14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  /* La franja de dalt fa de barra de títol (els botons els pinta el sistema
+     al damunt, del color de --bar): sense ella no es podria moure la finestra. */
+  .bar { position:fixed; inset:0 0 auto 0; height:38px; background:var(--bar); -webkit-app-region:drag; }
+  main { height:100%; display:grid; place-items:center; }
+  .stack { display:grid; justify-items:center; gap:18px; transform:translateY(-12px); }
+  .mark { width:56px; height:56px; }
+  .mark .gust { fill:var(--accent); }
+  .mark .eye { fill:var(--bg); }
+  .track { width:72px; height:2px; border-radius:2px; overflow:hidden; background:color-mix(in srgb, var(--ink) 10%, transparent); }
+  .track i { display:block; width:40%; height:100%; border-radius:2px; background:var(--accent); opacity:.85; }
+  .msg { position:relative; width:340px; min-height:1.45em; margin:0; font-size:13px; text-align:center;
+    color:color-mix(in srgb, var(--ink) 62%, var(--bg)); }
+  /* Una arrencada normal dura menys d'un segon: el text només surt si triga,
+     i passa a l'avís de «triga més» si el backend no respon en 7 s. */
+  .msg span { opacity:0; }
+  .msg .slow { position:absolute; inset:0; }
+  @media (prefers-reduced-motion: no-preference) {
+    .mark { animation:breathe 2.4s ease-in-out infinite; }
+    .track i { animation:slide 1.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+    .msg .first { animation:show .3s ease-out .9s forwards, hide .3s ease-in 7s forwards; }
+    .msg .slow { animation:show .3s ease-out 7.2s forwards; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .track i { width:100%; opacity:.35; }
+    .msg .first { animation:show 0s 1s forwards, hide 0s 7s forwards; }
+    .msg .slow { animation:show 0s 7s forwards; }
+  }
+  @keyframes breathe { 0%, 100% { opacity:1; transform:scale(1); } 50% { opacity:.72; transform:scale(.96); } }
+  @keyframes slide { 0% { transform:translateX(-100%); } 100% { transform:translateX(250%); } }
+  @keyframes show { to { opacity:1; } }
+  @keyframes hide { to { opacity:0; } }
+</style>
+</head>
+<body>
+<div class="bar" aria-hidden="true"></div>
+<main role="status" aria-live="polite">
+  <div class="stack">
+    <svg class="mark" viewBox="0 0 1024 1024" aria-hidden="true" focusable="false">
+      <path class="gust" d="M810 100C950 360 900 640 640 795C470 900 240 915 70 880C300 870 490 795 565 705C460 765 340 800 225 810C490 665 535 575 225 510C510 425 770 340 810 100Z"/>
+      <ellipse cx="675" cy="530" rx="29" ry="53" transform="rotate(18 675 530)" class="eye"/>
+      <ellipse cx="792" cy="518" rx="27" ry="51" transform="rotate(18 792 518)" class="eye"/>
+    </svg>
+    <div class="track" aria-hidden="true"><i></i></div>
+    <p class="msg"><span class="first" id="first">Starting Gregal…</span><span class="slow" id="slow">The local server is taking a little longer than usual…</span></p>
+  </div>
+</main>
+<script>
+  (() => {
+    const q = new URLSearchParams(location.search);
+    const name = (q.get('name') || 'Gregal').slice(0, 40);
+    const ca = q.get('lang') === 'ca';
+    document.getElementById('first').textContent = (ca ? 'Obrint ' : 'Starting ') + name + '…';
+    document.getElementById('slow').textContent = ca ? 'El servidor local triga una mica més del normal…' : 'The local server is taking a little longer than usual…';
+  })();
+</script>
+</body>
+</html>

@@ -48,6 +48,8 @@
       "preferences.js",
       "navigation.js",
       "updater.js",
+      "startup.js",
+      "loading.html",
       "error.html",
       "build/icon512.png"
     ],

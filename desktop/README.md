@@ -60,10 +60,11 @@ or release readiness.
 ## Updates
 
 Install the Windows app with `Gregal-Setup-<version>-x64.exe` for updates
-inside the app. Open **Preferences → App updates** to check, download a new
-version, and restart to install it. Checking also runs at launch. Downloads
-and installation require an explicit action; closing the app does not
-silently install an update. Save your work before restarting.
+inside the app. Once the window is up, the app checks for a new version and,
+if there is one, downloads it in the background. **Preferences → App updates**
+then offers **Restart**: one click closes the app, installs the update
+silently and opens the new version. If you close the app instead, the
+downloaded update installs silently on exit. Save your work before restarting.
 
 The portable app offers **Open downloads** instead. Close it and replace the
 portable executable with the new version from the official release page.
@@ -79,7 +80,9 @@ an external server is managed independently.
 Backend log: the app appends the managed backend's output to
 `gregal-backend.log` in its data folder (`%APPDATA%/Gregal` on Windows,
 rotated to `.old` past 2 MB). When a run stops unexpectedly, that file —
-not the UI — holds the real provider error (credentials redacted).
+not the UI — holds the real provider error (credentials redacted). If the
+backend does not start, or stops while the app is open, the window shows why
+(exit code and the last log lines) with **Try again** and **Show log file**.
 
 
 ## Web views and sessions

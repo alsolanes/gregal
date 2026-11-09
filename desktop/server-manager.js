@@ -33,11 +33,32 @@ function rotateBackendLog(file) {
   } catch (e) { /* primera arrencada o sense permís: mai trenca l'inici */ }
 }
 
-function appendBackendLog(file, line) {
-  if (!file) return;
+// openBackendLog obre el fitxer de log del backend una sola vegada, en mode
+// afegir. Abans cada línia era un appendFileSync al fil principal d'Electron
+// (obrir, escriure i tancar el fitxer a cada tros de sortida): amb un backend
+// xerraire, la finestra se'n ressentia. Un error del disc (ple, sense
+// permís) només fa que es perdin línies: mai tomba l'app ni el backend.
+function openBackendLog(file) {
+  if (!file) return { write() {}, close(cb) { if (cb) cb(); } };
+  let stream = null;
   try {
-    fs.appendFileSync(file, String(line).trimEnd() + "\n");
-  } catch (e) { /* disc ple o sense permís: el backend continua igual */ }
+    stream = fs.createWriteStream(file, { flags: "a" });
+    stream.on("error", () => { stream = null; });
+  } catch (e) {
+    stream = null;
+  }
+  return {
+    write(line) {
+      if (!stream) return;
+      try { stream.write(String(line).trimEnd() + "\n"); } catch (e) { /* tancat o sense disc */ }
+    },
+    close(cb) {
+      const s = stream;
+      stream = null;
+      if (!s) { if (cb) cb(); return; }
+      s.end(() => { if (cb) cb(); });
+    },
+  };
 }
 
 // backendEnv és l'entorn del backend: el de l'app més el que hi afegeix
@@ -80,18 +101,23 @@ function startServer(options) {
         env: backendEnv(options),
       });
       const logs = [];
+      const log = openBackendLog(logFile);
       const push = line => {
         logs.push(String(line));
         if (logs.length > 50) logs.splice(0, logs.length - 50);
-        appendBackendLog(logFile, line);
+        log.write(line);
         options.onLog?.(String(line));
       };
       child.stdout.on("data", push);
       child.stderr.on("data", push);
       child.on("error", err => {
         push("backend spawn error: " + err.message);
+        log.close();
         options.onExit?.(-1, logs);
       });
+      // 'close' (no 'exit'): arriba quan stdout i stderr ja s'han buidat, i
+      // així les últimes línies també van al fitxer.
+      child.on("close", () => log.close());
       child.on("exit", code => options.onExit?.(code, logs));
       return { child, binary, logs };
     } catch (error) {
@@ -101,4 +127,4 @@ function startServer(options) {
   throw lastError || new Error("Gregal executable not found");
 }
 
-module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, appendBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };

@@ -1,6 +1,6 @@
 /* Penell flotant: mateix dibuix, angles i animacions que el de la barra
-   lateral (internal/web/app/fun.css; els angles els comprova
-   mascot-window.test.js). Fons transparent; tot el penell s'arrossega
+   lateral (internal/web/app/fun.css), menys el balanceig de repòs: aquí en
+   repòs no es mou (vegeu més avall). Fons transparent; tot el penell s'arrossega
    (pointer events a mascot-view.js) i el disc del mig és el botó. Colors de docs/identitat.md
    segons el tema del sistema. Amb «reduir moviment» queda quiet i només
    canvia el color. */
@@ -60,8 +60,11 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 [data-mood="error"] .v-head, [data-mood="error"] .v-tail { fill:var(--red); }
 [data-mood="error"] .v-shaft, [data-mood="error"] .v-curl { stroke:var(--red); }
 [data-mood="error"] .v-stand { opacity:.75; }
+/* Només es mou quan hi ha feina (treballant) o et cal (esperant). En repòs
+   queda quiet al NE: és una finestra transparent i sempre a sobre, i un
+   balanceig infinit la feia repintar tota l'estona sense dir res. «Fet» i
+   «error» són d'un sol cop i després reposen. */
 @media (prefers-reduced-motion: no-preference) {
-  [data-mood="idle"] .v-arrow { animation:v-sway 7s ease-in-out infinite; }
   [data-mood="working"] .v-arrow { animation:v-gust 5.2s infinite; }
   [data-mood="working"] .v-streaks path { animation:v-drift 1.7s linear infinite; }
   [data-mood="working"] .v-streaks path:nth-child(2) { animation-delay:-.6s; animation-duration:2.1s; }
@@ -71,13 +74,7 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
   [data-mood="done"] .v-arrow { animation:v-settle 1.6s both; }
   [data-mood="done"] .v-ring { animation:v-ring 1.2s ease-out 1s both; }
   [data-mood="done"] .v-spark { animation:v-spark 1.4s ease-out 1s both; }
-  [data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out infinite; }
-}
-/* Repòs: al NE, amb un balanceig curt de tant en tant. */
-@keyframes v-sway {
-  0%, 30%, 64%, 100% { transform:rotate(45deg); }
-  40% { transform:rotate(49deg); }
-  52% { transform:rotate(41.5deg); }
+  [data-mood="error"] .v-arrow { animation:v-wobble 3.2s ease-in-out 2; }
 }
 /* Ràfegues: girs irregulars amb una volta sencera; 405° = 45°, i el bucle no salta. */
 @keyframes v-gust {
@@ -109,7 +106,8 @@ html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; back
 }
 @keyframes v-ring { 0% { transform:scale(.4); opacity:.95; } 100% { transform:scale(2.1); opacity:0; } }
 @keyframes v-spark { 0% { opacity:0; } 25% { opacity:1; } 100% { opacity:0; } }
-/* Error: encallat a un angle estrany, amb una tremolor rovellada. */
+/* Error: encallat a un angle estrany, amb una tremolor rovellada (dues
+   vegades i s'hi queda). */
 @keyframes v-wobble {
   0%, 100% { transform:rotate(236deg); }
   12% { transform:rotate(240deg); }
