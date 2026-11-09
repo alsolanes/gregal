@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v1.64.0 - 2026-11-09 - Notes a mà
+
+- **Notes a mà des de qualsevol lloc.** Un botó a la capçalera (a Codi i a
+  Vents) o Ctrl+Alt+N obren un full amb la nota i, al costat, totes les
+  altres, amb cerca. Cada nota es pot associar a un projecte i filtrar per
+  projecte. S'escriu en markdown amb una barra de format i es llegeix ben
+  formatada, amb les tasques que es marquen amb un clic.
+- **IA a les notes.** Neteja, organitza, resumeix o extreu les tasques d'una
+  nota, o demana-li el que vulguis: veus la proposta i decideixes si
+  l'aplices.
+- **Una portada més neta.** Fora els suggeriments sota el compositor i la
+  targeta del resum setmanal (ara a Més → Estadístiques). La salutació, la
+  portada i el compositor tenen un aspecte nou, i les icones de Preferències
+  són totes del mateix estil.
+
 ## v1.63.0 - 2026-11-09 - Un aspecte més polit
 
 - **Un aspecte més polit.** El tema fosc torna al grafit blavós de Gregal (el
