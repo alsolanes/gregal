@@ -1,6 +1,7 @@
 package xyz.solanes.gregal
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -91,10 +92,57 @@ class NotesTest {
         assertTrue(json.getBoolean("no_remind"))
     }
 
+    @Test fun projectRoundTrip() {
+        val page = NotesJson.page("""{"notes":[{"id":"a","title":"T","project":"/home/al/gregal"}],"projects":[{"name":"/home/al/gregal","count":3}],"total":5}""")
+        assertEquals("/home/al/gregal", page.notes.single().project)
+        assertEquals(listOf(NoteCount("/home/al/gregal", 3)), page.projects)
+        assertTrue(noteMeta("ca", page.notes.single()).startsWith("📁 gregal"))
+        // Sense project (null) no s'envia: desar una tasca no treu la nota del projecte.
+        val keep = NotesJson.input(NoteInput("a", "T", "x", "", emptyList(), false, false, ""))
+        assertFalse(keep.has("project"))
+        assertEquals("", NotesJson.input(NoteInput("a", "T", "x", "", emptyList(), false, false, "", project = "")).getString("project"))
+        assertEquals("/p", NotesJson.input(NoteInput("a", "T", "x", "", emptyList(), false, false, "", project = "/p")).getString("project"))
+        // Una nota nova hereta el projecte del filtre, però no «sense projecte».
+        assertEquals("/p", NotesQuery(project = "/p").newProject)
+        assertNull(NotesQuery(project = "-").newProject)
+        assertNull(NotesQuery().newProject)
+    }
+
+    @Test fun projectChoicesMergeWorkspacesAndNotes() {
+        val ws = listOf(
+            WorkspaceInfo("/home/al/gregal", "Gregal"),
+            WorkspaceInfo("/home/al/vell", "Vell", missing = true),
+            WorkspaceInfo("C:\\dev\\web", ""),
+        )
+        val counts = listOf(NoteCount("/home/al/vell", 2), NoteCount("/home/al/gregal", 1), NoteCount("/srv/altre/", 1))
+        assertEquals(
+            listOf("/home/al/gregal" to "Gregal", "C:\\dev\\web" to "web", "/home/al/vell" to "Vell", "/srv/altre/" to "altre", "/x/y" to "y"),
+            noteProjectChoices(ws, counts, "/x/y"),
+        )
+        assertTrue(noteProjectChoices(emptyList(), emptyList(), "-").isEmpty())
+    }
+
+    @Test fun aiRequestAndResult() {
+        val req = NotesJson.aiRequest("custom", "fes-ne una llista", "Compra", "pa, llet")
+        assertEquals("custom", req.getString("action"))
+        assertEquals("fes-ne una llista", req.getString("instruction"))
+        assertEquals("Compra", req.getString("title"))
+        assertEquals("pa, llet", req.getString("body"))
+        assertEquals(NoteAIResult("- [ ] pa\n- [ ] llet", true), NotesJson.aiResult(org.json.JSONObject("""{"body":"- [ ] pa\n- [ ] llet","changed":true}""")))
+        assertFalse(NotesJson.aiResult(org.json.JSONObject("""{"body":"x"}""")).changed)
+        assertTrue(noteAINeedsModel("HTTP 400: configure an active model first"))
+        assertFalse(noteAINeedsModel("HTTP 502: the model could not edit the note"))
+        assertFalse(noteAINeedsModel("HTTP 400: unknown action"))
+    }
+
     @Test fun stringsExistInBothLanguages() {
-        for (k in listOf("nav.notes", "notes.help", "notes.private", "notes.locked", "notes.conflict", "notes.askPrompt")) {
+        val aiKeys = NOTE_AI_ACTIONS.flatMap { listOf("notes.ai.$it", "notes.ai.$it.help") }
+        for (k in listOf("nav.notes", "notes.help", "notes.private", "notes.locked", "notes.conflict", "notes.askPrompt",
+            "notes.project.all", "notes.project.none", "notes.fieldProject", "notes.ai", "notes.ai.custom", "notes.ai.proposal",
+            "notes.ai.apply", "notes.ai.discard", "notes.ai.noModel", "notes.ai.error") + aiKeys) {
             assertTrue(k, STR_APP_CA.containsKey(k) && STR_APP_EN.containsKey(k))
         }
+        assertEquals("La IA no ha pogut editar la nota: x", tr("ca", "notes.ai.error", "x"))
         assertEquals("Llegeix la meva nota «Compra» i ", tr("ca", "notes.askPrompt", "Compra"))
     }
 }
