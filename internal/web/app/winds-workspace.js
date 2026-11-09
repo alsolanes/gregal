@@ -59,12 +59,12 @@
   for(const item of [['pati','El pati','Playground'],['library','Biblioteca','Library'],['wiki','Wiki','Wiki']])more.append(navRow(item));
   more.open=['pati','library','wiki'].includes(state.view)||(()=>{try{return localStorage.getItem('gregal_vw_more')==='1';}catch{return false;}})();
   more.addEventListener('toggle',()=>{try{localStorage.setItem('gregal_vw_more',more.open?'1':'0');}catch{}});nav.append(more);
-  section(t('CONVERSES','CONVERSATIONS'),btn('+',newChat,'vw-small'));
+  section(t('Converses','Conversations'),btn('+',newChat,'vw-small'));
   renderThreads(nav);
   if(!state.chats.some(c=>!c.workspace))nav.append(el('p','vw-nav-empty',t('Aquí comencen les bones idees.','Good ideas start here.')));
   // Xats compartits amb altres persones del servidor (winds-shared.js).
   root.gregalShared?.nav(nav,{open:c=>route('shared',c),active:state.view==='shared'?state.active:null,rerender:()=>{if(mounted){if(state.view==='shared'&&state.active&&!root.gregalShared.chats().some(c=>c.id===state.active.id))route('home');else renderNav();}}});
-  section(t('PROJECTES','PROJECTS'),btn('+',chooseFolder,'vw-small'));
+  section(t('Projectes','Projects'),btn('+',chooseFolder,'vw-small'));
   for(const project of state.projects.slice(0,12)){
    const n=btn('',()=>openProject(project),'vw-nav-item vw-project');n.append(folder(),el('span','',project.name));n.title=project.path;n.dataset.selected=String((state.active?.path||state.active?.workspace)===project.path);nav.append(n);
    if((state.active?.path||state.active?.workspace)===project.path){for(const chat of state.chats.filter(c=>c.workspace===project.path).slice(0,8))nav.append(btn(chat.name,()=>openChat(chat),'vw-nav-item vw-thread vw-nested'));}

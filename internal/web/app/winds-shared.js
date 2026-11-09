@@ -63,7 +63,7 @@
   function nav(navEl, ctx) {
     state.ctx = ctx;
     if (pendingOpen) { const c = state.chats.find(c => c.id === pendingOpen); if (c) { pendingOpen = ''; setTimeout(() => ctx.open(c), 0); } }
-    const head = el('div', 'vw-section-label'); head.append(el('span', '', t('COMPARTITS', 'SHARED')));
+    const head = el('div', 'vw-section-label'); head.append(el('span', '', t('Compartits', 'Shared')));
     if (!state.off) head.append(btn('+', creator, 'vw-small'));
     if (state.off) return;
     navEl.append(head);

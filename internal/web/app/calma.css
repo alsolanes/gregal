@@ -9,16 +9,21 @@
 
 /* ---------- Paletes ---------- */
 :root, :root[data-theme="dark"] {
-  --bg:#191919; --sidebar:#1E1E1E; --panel:#1E1E1E;
-  --surface:#282828; --surface-hi:#323232; --line:rgba(255,255,255,.09);
-  --line-hi:rgba(255,255,255,.16); --ink:#F2F2F2; --text:#E2E2E2;
-  --muted:#B2B2B2; --faint:#999999; --accent:#8193FF; --accent-hi:#A3B0FF;
+  /* Fosc de la marca (grafit blavós, el mateix que tema.go i Android), no
+     el gris neutre d'abans: més profunditat i un sol accent. */
+  --bg:#14161B; --sidebar:#101217; --panel:#101217;
+  --surface:#1C1F26; --surface-hi:#252932; --line:rgba(200,210,235,.08);
+  --line-hi:rgba(200,210,235,.15); --ink:#F2F4F8; --text:#DFE3EA;
+  --muted:#A4ABB8; --faint:#8C93A1; --accent:#8193FF; --accent-hi:#A3B0FF;
   --accent-soft:rgba(129,147,255,.12); --accent-soft-hi:rgba(129,147,255,.22);
-  --hover:rgba(255,255,255,.06); --hover-alt:rgba(255,255,255,.10);
-  --codi-fons:#212121; --codi-vora:var(--line-hi);
-  --composer:#2D2D2D; --on-accent:#191919;
-  --chat-link:#8DCC91; --chat-send:#86C98B;
+  --hover:rgba(255,255,255,.05); --hover-alt:rgba(255,255,255,.08);
+  --codi-fons:#101217; --codi-vora:var(--line-hi);
+  /* El text sobre l'accent és el fons del tema: fosc en temes foscos,
+     blanc en els clars. Enllaços i «envia» segueixen l'accent de cada tema
+     (abans eren verd menta a tots, també sobre blanc). */
+  --on-accent:var(--bg);
 }
+:root[data-theme="dark"] { --composer:#1C1F26; }
 :root[data-theme="calma"] {
   color-scheme:dark;
   --bg:#1B1A19; --sidebar:#151413; --panel:#151413;
