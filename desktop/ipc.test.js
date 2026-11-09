@@ -21,7 +21,7 @@ test('native IPC and credentials reject foreign pages and subframes', async () =
     process: { env: { GREGAL_TOKEN: 'bridge-test-token' }, platform: process.platform },
     __dirname, URL, console, setTimeout, clearTimeout,
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testWire = wireIPC; this.testSetUpdater = value => { updateController = value; };', context);
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, 'main.js'), 'utf8') + '\nthis.testWire = wireIPC; this.testSetUpdater = value => { updateController = value; }; this.testSetFailure = (logs, code) => { lastBackendLogs = logs; backendEarlyExit = code; };', context);
   const frame = { url: 'http://127.0.0.1:8097/' };
   const webContents = { mainFrame: frame };
   context.testWire(() => ({ webContents }));
@@ -67,4 +67,17 @@ test('native IPC and credentials reject foreign pages and subframes', async () =
     assert.equal(await handlers.get(channel)(trusted), null);
   }
   assert.deepEqual(updateCalls, []);
+  // Els detalls de per què no arrenca només per a error.html (o l'app), mai
+  // per a una pàgina de fora; i amb les línies del log tallades.
+  assert.equal(await handlers.get('gregal:startup-error')(trusted), null);
+  assert.equal(await handlers.get('gregal:open-backend-log')(trusted), false);
+  frame.url = require('node:url').pathToFileURL(path.join(__dirname, 'error.html')).href + '?lang=ca&reason=start';
+  context.testSetFailure(['x'.repeat(1000) + '\nsegona línia', ''], 3);
+  const info = await handlers.get('gregal:startup-error')(trusted);
+  assert.equal(info.code, 3);
+  assert.deepEqual(info.logs.map(l => l.length), [400, 'segona línia'.length]);
+  assert.equal(info.server, '');
+  // Un altre fitxer local no és error.html.
+  frame.url = require('node:url').pathToFileURL(path.join(__dirname, 'loading.html')).href;
+  assert.equal(await handlers.get('gregal:startup-error')(trusted), null);
 });

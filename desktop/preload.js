@@ -31,6 +31,10 @@ contextBridge.exposeInMainWorld("gregalDesktop", {
     notify: (title, body) => ipcRenderer.invoke("gregal:notify", { title, body }),
     // Reintent d'arrencada del backend des de la pantalla d'error
     retryBackend: () => ipcRenderer.invoke("gregal:retry-backend"),
+    // Per què no ha arrencat (codi de sortida, port, últimes línies del log)
+    // i ensenyar el fitxer de log: només per a la pantalla d'error.
+    startupError: () => ipcRenderer.invoke("gregal:startup-error"),
+    openBackendLog: () => ipcRenderer.invoke("gregal:open-backend-log"),
     // Els botons de finestra els pinta el sistema i no saben res del CSS:
     // amb el color escrit a mà, en tema clar sortia un requadre fosc a
     // dalt a la dreta. La pàgina li passa els colors del tema actiu.

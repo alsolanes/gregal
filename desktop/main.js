@@ -7,27 +7,12 @@ const { QUICK_NOTE_ACCELERATOR, showQuickNote, registerQuickNote } = require("./
 // aquella fila la que fa de barra de títol.
 const TITLEBAR_H = 38;
 
-// Colors d'arrencada, abans que la pàgina hagi carregat i pugui dir el
-// tema que té desat. Surten de docs/identitat.md i es tria pel tema del
-// sistema, que és el que el gregal segueix si no tries res: néixer sempre
-// fosc feia un flaix negre a qui va en clar.
-const TEMA = {
-    fosc: { bg: "#13151B", barra: "#0E1015", glif: "#F3F5FA" },
-    clar: { bg: "#F6F7FA", barra: "#EEF0F5", glif: "#0E1220" },
-};
-function temaInicial() {
-    try {
-        return nativeTheme.shouldUseDarkColors ? TEMA.fosc : TEMA.clar;
-    } catch (e) {
-        return TEMA.fosc;
-    }
-}
 const http = require("http");
 const https = require("https");
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
-const { startServer, appBackendEnv } = require("./server-manager");
+const { startServer, stopServer, appBackendEnv } = require("./server-manager");
 const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -36,6 +21,7 @@ const { createBrowserBridge, validGuest, guestWindowOpen, AGENT_BROWSER_PARTITIO
 const { createMascotWindow, PREF_KEY: MASCOT_PREF } = require('./mascot-window');
 const chromeExtension = require('./chrome-extension');
 const wordAddin = require('./word-addin');
+const { loadStartupTheme, saveStartupTheme, themeKey, pageQuery, waitFor } = require('./startup');
 
 let BASE = (process.env.GREGAL_URL || "http://127.0.0.1:8097").replace(/\/$/, "");
 const baseError = backendURLError(BASE);
@@ -59,6 +45,27 @@ let browserBridge = null;
 let mainWin = null;
 // Mascota flotant (mascot-window.js): només amb la preferència activada.
 let mascot = null;
+// Preferències de la UI desades a userData (preferences.js). El tema i
+// l'idioma fan falta abans que hi hagi cap pàgina carregada.
+let preferences = null;
+function prefsNow() {
+    if (!preferences) preferences = loadPreferences(app.getPath('userData'));
+    return preferences;
+}
+// Aturada volguda del backend (sortir de l'app o instal·lar una versió nova):
+// llavors que s'aturi no és cap error que calgui ensenyar.
+let backendStopping = false;
+// Producte que ha demanat una segona instància («Gregal Vents») mentre l'app
+// encara arrencava: es carrega aquest en lloc del de la línia d'ordres.
+let requestedPath = null;
+let ipcWired = false;
+// Últims colors desats a startup-theme.json, per no reescriure'l igual.
+let lastThemeSaved = '';
+// Es resol quan la finestra principal ja és a la pantalla (createWindow).
+let windowShown = Promise.resolve();
+// Per què es mostra error.html: 'start' (no ha arrencat), 'stopped' (s'ha
+// aturat amb l'app oberta) o 'remote' (GREGAL_URL no respon).
+let failureReason = 'start';
 
 function focusMain() {
     const win = mainWin;
@@ -134,7 +141,13 @@ function freePort(preferred = 0) {
     });
 }
 
+// Idioma dels menús i de les pàgines locals: el que hagis triat a
+// Preferències (el mateix que fa servir la pàgina) i, si no, el del config.
 function idiomaApp() {
+    try {
+        const triat = prefsNow().gregal_idioma;
+        if (triat === 'ca' || triat === 'en') return triat;
+    } catch (e) {}
     try {
         const home = app.getPath("home");
         const cfgPath = process.env.GREGAL_CONFIG || path.join(home, ".config", "gregal", "config.yaml");
@@ -184,18 +197,15 @@ function ping() {
     });
 }
 
-async function waitForServer(timeoutMs = 20000, backendLogs) {
-    const limit = Date.now() + timeoutMs;
-    let n = 0;
-    while (Date.now() < limit) {
-        if (await ping()) return true;
-        // Mort prematura del backend: no té sentit esperar els 20s amb un
-        // missatge genèric. S'atura de seguida i es mostren els logs.
-        if (backendLogs && backendLogs.earlyExit) return false;
-        if (++n % 10 === 0) console.log("[gregal] esperant el backend… (" + Math.round((Date.now() - (limit - timeoutMs)) / 1000) + "s)");
-        await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    return false;
+// Espera /api/health: cada 50 ms els dos primers segons i després cada 200
+// (startup.js). Si el backend mor abans de respondre, no té sentit esperar
+// els 20 s amb un missatge genèric: s'atura de seguida i es mostren els logs.
+function waitForServer(timeoutMs = 20000) {
+    return waitFor(ping, {
+        timeoutMs,
+        gaveUp: () => backendEarlyExit !== null,
+        onSlow: ms => console.log("[gregal] esperant el backend… (" + Math.round(ms / 1000) + "s)"),
+    });
 }
 
 let lastBackendLogs = [];
@@ -240,10 +250,13 @@ async function ensureServer() {
     }
     if (!MANAGED) return false;
     try {
-        let backendLog = null;
-        try {
-            backendLog = path.join(app.getPath("userData"), "gregal-backend.log");
-        } catch (e) { /* sense userData no hi ha fitxer, però l'app arrenca */ }
+        const backendLog = backendLogPath();
+        // spawn és síncron i, la primera vegada que s'executa un gregal.exe
+        // nou (acabat d'instal·lar o d'actualitzar), l'antivirus l'escaneja
+        // amb el fil principal aturat: 3-4 s sense poder ni pintar
+        // loading.html. Primer la finestra (com a molt 1 s d'espera).
+        await Promise.race([windowShown, new Promise(resolve => setTimeout(resolve, 1000))]);
+        backendStopping = false;
         const started = startServer({
             resourcesPath: process.resourcesPath,
             appDir: __dirname,
@@ -260,14 +273,22 @@ async function ensureServer() {
                 lastBackendLogs = (logs || []).slice(-20);
             },
         });
-        backend = started.child;
+        const child = started.child;
+        backend = child;
         lastBackendLogs = started.logs || [];
-        backend.on("error", error => console.error("[gregal] " + error.message));
-        backend.on("exit", code => {
+        child.on("error", error => console.error("[gregal] " + error.message));
+        child.on("exit", code => {
             console.log("[gregal] backend aturat (" + code + ")");
+            if (backend !== child) return;
             backend = null;
+            // Mort amb l'app oberta: la pàgina ja no pot fer res. Millor la
+            // pantalla d'error, que diu què ha passat i el torna a engegar.
+            const win = mainWin;
+            if (!backendStopping && win && !win.isDestroyed() && sameOrigin(win.webContents.getURL(), BASE)) {
+                void showStartupError(win, 'stopped');
+            }
         });
-        const ok = await waitForServer(20000, { get earlyExit() { return backendEarlyExit !== null; } });
+        const ok = await waitForServer(20000);
         if (!ok) {
             const tail = lastBackendLogs.map(l => String(l).trimEnd()).filter(Boolean).slice(-12).join("\n");
             console.error("[gregal] backend no respona a " + BASE + (tail ? "\n" + tail : ""));
@@ -278,6 +299,51 @@ async function ensureServer() {
         lastBackendLogs = [String(error.message)];
         return false;
     }
+}
+
+function backendLogPath() {
+    try {
+        return path.join(app.getPath("userData"), "gregal-backend.log");
+    } catch (e) {
+        return null; // sense userData no hi ha fitxer, però l'app arrenca
+    }
+}
+
+// Colors per a la finestra i les pàgines locals abans que l'app pinti: els
+// que va pintar l'última vegada amb el mateix tema (startup.js).
+function systemDark() {
+    try { return nativeTheme.shouldUseDarkColors; } catch (e) { return true; }
+}
+function temaInicial() {
+    return loadStartupTheme(app.getPath("userData"), { tema: prefsNow().gregal_tema, systemDark: systemDark() });
+}
+
+// La pàgina ha pintat la barra amb els colors del seu tema: es desen (amb el
+// fons i l'accent) perquè la pròxima arrencada surti ja d'aquest color.
+async function rememberTheme(win, bar, ink) {
+    try {
+        const [bg, accent] = await win.webContents.executeJavaScript(
+            "(() => { const s = getComputedStyle(document.documentElement); return [s.getPropertyValue('--bg').trim(), s.getPropertyValue('--accent').trim()]; })()");
+        const key = themeKey(prefsNow().gregal_tema, systemDark());
+        const sig = JSON.stringify([key, bg, bar, ink, accent]);
+        if (sig === lastThemeSaved) return;
+        if (saveStartupTheme(app.getPath("userData"), key, { bg, bar, ink, accent })) lastThemeSaved = sig;
+    } catch (e) { /* pàgina tancada o sense colors: la pròxima vegada, els de la marca */ }
+}
+
+const pageOptions = extra => ({ query: { ...pageQuery(temaInicial(), idiomaApp(), PRODUCT), ...extra } });
+
+// Pantalla d'arrencada: es veu de seguida, del color del tema, mentre el
+// backend arrenca. El que arriba després (l'app o error.html) la substitueix.
+function showLoading(win) {
+    return win.loadFile(path.join(__dirname, "loading.html"), pageOptions()).catch(() => {});
+}
+
+// error.html amb el motiu; els detalls (codi, logs) els demana per IPC.
+function showStartupError(win, reason) {
+    if (!win || win.isDestroyed()) return Promise.resolve();
+    failureReason = reason;
+    return win.loadFile(path.join(__dirname, "error.html"), pageOptions({ reason })).catch(() => {});
 }
 
 // Directori de treball d'una sessió segons el backend: només una carpeta
@@ -300,9 +366,14 @@ async function workspaceOf(sessionId) {
 }
 
 // --- IPC: el que la pàgina pot demanar a l'escriptori (via preload) ---
-function wireIPC(getWin) {
+// Un sol cop per procés i sempre contra la finestra viva: a macOS, tancar la
+// finestra i tornar-la a obrir (activate) registrava els handlers dues
+// vegades i ipcMain.handle hi petava.
+function wireIPC(getWin = () => mainWin) {
+    if (ipcWired) return;
+    ipcWired = true;
     const prefDir = app.getPath('userData');
-    let preferences = loadPreferences(prefDir);
+    const preferences = prefsNow();
     const trusted = event => event.sender === getWin()?.webContents && event.senderFrame === getWin()?.webContents.mainFrame && trustedPage(event.senderFrame.url, BASE, path.join(__dirname, 'error.html'));
     ipcMain.on('gregal:preferences', event => {
         event.returnValue = trusted(event) ? { values: preferences, keys: preferenceKeys } : { values: {}, keys: [] };
@@ -434,11 +505,34 @@ function wireIPC(getWin) {
         backendEarlyExit = null;
         lastBackendLogs = [];
         const ok = await ensureServer();
-        if (ok && win) {
-            await win.loadURL(BASE + startPath());
+        if (ok && win && !win.isDestroyed()) {
+            void refreshWordAddin();
+            win.loadURL(BASE + appPath()).catch(() => {});
             return { ok: true };
         }
         return { ok: false };
+    });
+    // Per què no arrenca, per a error.html: el codi de sortida, el port i les
+    // últimes línies del log (cada una tallada; res d'enviar el fitxer sencer).
+    ipcMain.handle("gregal:startup-error", event => {
+        if (!trusted(event)) return null;
+        const logs = lastBackendLogs.flatMap(l => String(l).split(/\r?\n/)).map(l => l.trimEnd().slice(0, 400)).filter(Boolean).slice(-30);
+        const logFile = backendLogPath();
+        return {
+            reason: failureReason,
+            code: Number.isInteger(backendEarlyExit) ? backendEarlyExit : null,
+            port: MANAGED ? PORT : null,
+            server: MANAGED ? '' : BASE,
+            logs,
+            logFile: !!(MANAGED && logFile && fs.existsSync(logFile)),
+        };
+    });
+    ipcMain.handle("gregal:open-backend-log", event => {
+        if (!trusted(event)) return false;
+        const logFile = backendLogPath();
+        if (!logFile || !fs.existsSync(logFile)) return false;
+        shell.showItemInFolder(logFile);
+        return true;
     });
     // Els botons de finestra els pinta el sistema, no el CSS: sense això
     // el color es quedava al fosc escrit a mà i en tema clar sortia un
@@ -453,6 +547,7 @@ function wireIPC(getWin) {
         if (!colorOK(color) || !colorOK(symbolColor)) return false;
         try {
             win.setTitleBarOverlay({ color, symbolColor, height: TITLEBAR_H });
+            void rememberTheme(win, color, symbolColor);
             return true;
         } catch (e) {
             // A macOS no hi ha overlay (hi ha els semàfors): no és cap error.
@@ -486,41 +581,53 @@ function wireIPC(getWin) {
 // (només els jocs). L'edició la posa el build a package.json (gregalEdition);
 // sense, és Gregal. Gregal ja no obre els jocs, i Gregal Jocs només obre /jocs/.
 const EDITION = (() => { try { return require("./package.json").gregalEdition === "jocs" ? "jocs" : "gregal"; } catch (e) { return "gregal"; } })();
+const PRODUCT = EDITION === "jocs" ? "Gregal Jocs" : "Gregal";
 const wantsVents = argv => EDITION === "gregal" && (argv || []).includes("--vents");
-const wantsJocs = argv => EDITION === "jocs";
 const pathFor = argv => EDITION === "jocs" ? "/jocs/" : wantsVents(argv) ? "/vents/" : "/";
 const startPath = () => pathFor(process.argv);
+const appPath = () => requestedPath || startPath();
+
+// La finestra principal no pot ser més gran que la pantalla on surt: en un
+// portàtil de 1366×768 al 125 % l'àrea útil fa menys de 600 d'alt.
+const MIN_SIZE = { width: 900, height: 600 };
+function minSizeFor(workArea) {
+    return { width: Math.min(MIN_SIZE.width, workArea.width), height: Math.min(MIN_SIZE.height, workArea.height) };
+}
 
 async function createWindow() {
     const saved = loadState(app.getPath("userData"));
     // Dins la pantalla on era (o la principal), sencera i sense passar per sota de la barra de tasques.
-    const { screen } = require("electron");
     const display = Number.isFinite(saved.x) && Number.isFinite(saved.y)
         ? screen.getDisplayMatching({ x: saved.x, y: saved.y, width: saved.width, height: saved.height })
         : screen.getPrimaryDisplay();
     const state = fitBounds(saved, display.workArea);
+    const min = minSizeFor(display.workArea);
     const inici = temaInicial();
     const win = new BrowserWindow({
         width: state.width,
         height: state.height,
         x: state.x,
         y: state.y,
-        minWidth: 900,
-        minHeight: 600,
-        backgroundColor: inici.bg, // fons (docs/identitat.md)
-        title: "Gregal",
-        icon: __dirname + "/build/icon512.png",
+        minWidth: min.width,
+        minHeight: min.height,
+        // Fons, barra i botons del sistema amb els colors que l'app va
+        // pintar l'última vegada amb aquest tema (startup.js): ni flaix blanc
+        // ni un fosc d'arrencada per a qui va en clar.
+        backgroundColor: inici.bg,
+        title: PRODUCT,
+        icon: path.join(__dirname, "build", "icon512.png"),
         autoHideMenuBar: true,
+        // Es mostra quan loading.html ha pintat (ready-to-show), que és
+        // qüestió de mil·lisegons: no cal esperar el backend.
         show: false,
         // Barra superior pròpia: la capçalera de la pàgina fa de barra de
         // títol (arrossegable) i els botons minimitza/maximitza/tanca els
         // dibuixa el sistema amb els nostres colors, dins la mateixa franja.
         // Abans hi havia la barra de Windows a sobre, d'un altre color.
         titleBarStyle: "hidden",
-        // Valors inicials pel tema del SISTEMA, que és el que es veu mentre
-        // la pàgina encara no ha carregat. Quan carrega, ella els corregeix
-        // amb gregal:titlebar segons el tema que tinguis desat.
-        titleBarOverlay: { color: inici.barra, symbolColor: inici.glif, height: TITLEBAR_H },
+        // Quan l'app carrega, ella els corregeix amb gregal:titlebar segons
+        // el tema que tinguis desat (i es tornen a desar per a la pròxima).
+        titleBarOverlay: { color: inici.bar, symbolColor: inici.ink, height: TITLEBAR_H },
         webPreferences: {
             preload: path.join(__dirname, "preload.js"),
             contextIsolation: true,
@@ -531,7 +638,7 @@ async function createWindow() {
     });
     mainWin = win;
     win.once('closed', () => { if (mainWin === win) mainWin = null; browserBridge?.clearTarget(); mascot?.close(); });
-    wireIPC(() => win);
+    wireIPC();
     win.webContents.on('will-attach-webview', (event, preferences, params) => {
         if (params.src && !externalURL(params.src) && params.src !== 'about:blank') {
             event.preventDefault();
@@ -563,19 +670,53 @@ async function createWindow() {
             if (!externalURL(url) && url !== 'about:blank') event.preventDefault();
         });
     });
+    // Mida i posició normals, i si era maximitzada: una finestra que tancaves
+    // maximitzada tornava a sortir petita. Es desa la mida del contingut
+    // (getNormalBounds menys el marc): a Windows, amb la barra amagada, la
+    // finestra que surt del constructor és uns píxels més ampla del que es
+    // demana i es feia 4 px més gran a cada arrencada; setContentBounds és
+    // exacte.
     let saveTimer = null;
+    let frame = { width: 0, height: 0 };
+    const snapshot = () => {
+        const n = win.getNormalBounds();
+        return { x: n.x, y: n.y, width: n.width - frame.width, height: n.height - frame.height, maximized: win.isMaximized() };
+    };
     const remember = () => {
         clearTimeout(saveTimer);
-        saveTimer = setTimeout(() => saveState(app.getPath("userData"), win.getNormalBounds()), 400);
+        saveTimer = setTimeout(() => { if (!win.isDestroyed()) saveState(app.getPath("userData"), snapshot()); }, 400);
     };
-    win.on("resize", remember);
-    win.on("move", remember);
-    win.on("close", () => saveState(app.getPath("userData"), win.getNormalBounds()));
-    // Evita el flaix blanc mentre el backend local arrenca.
-    win.once("ready-to-show", () => {
+    for (const ev of ["resize", "move", "maximize", "unmaximize"]) win.on(ev, remember);
+    win.on("close", () => { clearTimeout(saveTimer); saveState(app.getPath("userData"), snapshot()); });
+    // Primer pintat de loading.html: la finestra surt ja del color del tema.
+    // Si per alguna raó no arriba (GPU encallada), es mostra igualment.
+    let revealed = false;
+    let markShown = () => {};
+    windowShown = new Promise(resolve => { markShown = resolve; });
+    const reveal = () => {
+        if (revealed || win.isDestroyed()) return;
+        revealed = true;
+        clearTimeout(revealTimer);
+        // Després del show: el backend ja pot arrencar (ensureServer).
+        setImmediate(markShown);
+        try {
+            win.setContentBounds(state);
+            const b = win.getBounds(), c = win.getContentBounds();
+            frame = { width: Math.max(0, b.width - c.width), height: Math.max(0, b.height - c.height) };
+        } catch (e) { /* sense marc conegut: es desa getNormalBounds tal qual */ }
+        if (saved.maximized) win.maximize();
         win.show();
         // Mascota flotant: apagada si no s'ha activat mai a Preferències.
-        if (loadPreferences(app.getPath('userData'))[MASCOT_PREF] === '1') mascotController().setEnabled(true);
+        if (prefsNow()[MASCOT_PREF] === '1') mascotController().setEnabled(true);
+    };
+    const revealTimer = setTimeout(reveal, 3000);
+    win.once("ready-to-show", reveal);
+    // L'app no carrega (el backend ha caigut entre el health i la càrrega,
+    // o un Ctrl+R amb el backend aturat): error.html, no la pàgina d'error
+    // de Chromium. -3 és una navegació avortada per una altra.
+    win.webContents.on("did-fail-load", (_e, code, _desc, url, isMainFrame) => {
+        if (!isMainFrame || code === -3 || !sameOrigin(url, BASE)) return;
+        void showStartupError(win, MANAGED ? (backend ? 'start' : 'stopped') : 'remote');
     });
     // Els enllaços externs, al navegador de debò.
     win.webContents.setWindowOpenHandler(({ url }) => {
@@ -603,11 +744,8 @@ async function createWindow() {
         fitxers: isEn ? "Files" : "Fitxers",
         recarrega: isEn ? "Reload" : "Recarrega",
         eines: isEn ? "Developer Tools" : "Eines de desenvolupament",
+        quant: isEn ? "About " + PRODUCT : "Quant a " + PRODUCT,
         surt: isEn ? "Quit" : "Surt",
-        errTitol: isEn ? "Could not start local backend" : "No s'ha pogut iniciar el backend local",
-        errDetail: isEn ? "Port: " : "Port: ",
-        errProv: isEn ? " · try GREGAL_URL to connect to an existing server." : " · prova GREGAL_URL per connectar a un servidor existent.",
-        errBoto: isEn ? "OK" : "D'acord",
     };
     win.webContents.on("context-menu", (_ev, p) => {
         const items = [];
@@ -633,35 +771,36 @@ async function createWindow() {
             ],
         },
         {
-            label: "Gregal",
+            label: PRODUCT,
             submenu: [
-                {
-                    label: L.obre,
-                    accelerator: "CmdOrCtrl+O",
-                    click: () => win.webContents.send("gregal:command", "open-project"),
-                },
-                {
-                    label: L.sessio,
-                    accelerator: "CmdOrCtrl+T",
-                    click: () => win.webContents.send("gregal:command", "new-session"),
-                },
-                {
-                    label: L.canvis,
-                    accelerator: "CmdOrCtrl+D",
-                    click: () => win.webContents.send("gregal:command", "changes"),
-                },
-                {
-                    label: L.fitxers,
-                    accelerator: "CmdOrCtrl+E",
-                    click: () => win.webContents.send("gregal:command", "files"),
-                },
+                // Les ordres de Codi i Vents no diuen res a l'edició Jocs.
                 ...(EDITION === "jocs" ? [] : [
+                    {
+                        label: L.obre,
+                        accelerator: "CmdOrCtrl+O",
+                        click: () => win.webContents.send("gregal:command", "open-project"),
+                    },
+                    {
+                        label: L.sessio,
+                        accelerator: "CmdOrCtrl+T",
+                        click: () => win.webContents.send("gregal:command", "new-session"),
+                    },
+                    {
+                        label: L.canvis,
+                        accelerator: "CmdOrCtrl+D",
+                        click: () => win.webContents.send("gregal:command", "changes"),
+                    },
+                    {
+                        label: L.fitxers,
+                        accelerator: "CmdOrCtrl+E",
+                        click: () => win.webContents.send("gregal:command", "files"),
+                    },
                     // La drecera és global (registerQuickNote): aquí només es mostra.
                     { label: L.nota, accelerator: QUICK_NOTE_ACCELERATOR, registerAccelerator: false, click: () => showQuickNote(win) },
-                    { label: "Gregal Codi", click: () => win.loadURL(BASE + "/") },
-                    { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/") },
+                    { label: "Gregal Codi", click: () => win.loadURL(BASE + "/").catch(() => {}) },
+                    { label: "Gregal Vents", click: () => win.loadURL(BASE + "/vents/").catch(() => {}) },
+                    { type: "separator" },
                 ]),
-                { type: "separator" },
                 { label: L.recarrega, accelerator: "CmdOrCtrl+R", click: () => win.reload() },
                 {
                     label: L.eines,
@@ -669,6 +808,7 @@ async function createWindow() {
                     click: () => win.webContents.toggleDevTools(),
                 },
                 { type: "separator" },
+                { label: L.quant, click: () => app.showAboutPanel() },
                 { label: L.surt, accelerator: "CmdOrCtrl+Q", click: () => app.quit() },
             ],
         },
@@ -679,7 +819,10 @@ async function createWindow() {
     // (listener ABANS de carregar: si no, l'event ja ha passat).
     if (process.env.GREGAL_CAPTURE) {
         const out = process.env.GREGAL_CAPTURE;
+        const loadingURL = require("url").pathToFileURL(path.join(__dirname, "loading.html")).href;
         win.webContents.on("did-finish-load", () => {
+            // La pantalla d'arrencada no és el que es vol capturar.
+            if (win.webContents.getURL().split("?")[0] === loadingURL) return;
             setTimeout(async () => {
                 try {
                     const img = await win.capturePage();
@@ -698,21 +841,29 @@ async function createWindow() {
         }, 90000);
     }
     setupUpdater(win);
+    // La finestra surt de seguida amb loading.html; el backend arrenca
+    // mentrestant i, quan respon, l'app la substitueix sense flaix (Chromium
+    // manté la pàgina anterior fins que la nova pinta).
+    void showLoading(win);
     if (await ensureServer()) {
+        if (win.isDestroyed()) return;
         void refreshWordAddin();
-        await win.loadURL(BASE + startPath());
+        await win.loadURL(BASE + appPath()).catch(() => {});
     } else {
-        const tail = lastBackendLogs.map(l => String(l).trimEnd()).filter(Boolean).slice(-12).join("\n");
-        if (tail || backendEarlyExit !== null) {
-            dialog.showMessageBoxSync(win, {
-                type: "error",
-                message: L.errTitol + (backendEarlyExit !== null ? (isEn ? " (exited with code " : " (ha sortit amb codi ") + backendEarlyExit + ")" : ""),
-                detail: (tail || (isEn ? "No logs" : "sense logs")) + "\n\n" + L.errDetail + PORT + L.errProv,
-                buttons: [L.errBoto],
-            });
-        }
-        await win.loadFile(__dirname + "/error.html", { query: { lang: idiomaApp() } });
+        // Res de diàleg modal a sobre: error.html ja diu què ha passat,
+        // ensenya els logs i té el botó per tornar-ho a provar.
+        await showStartupError(win, MANAGED ? 'start' : 'remote');
     }
+    startUpdateCheck();
+}
+
+// La comprovació d'actualitzacions surt quan l'app (o error.html) ja és a
+// la pantalla: no competeix amb l'arrencada, i una versió nova pot ser
+// justament el que arregla un backend que no arrenca.
+function startUpdateCheck() {
+    if (updateCheckStarted || !updateController) return;
+    updateCheckStarted = true;
+    void updateController.check();
 }
 
 // Auto-update: si electron-updater hi és (builds de release), mira si hi
@@ -725,11 +876,8 @@ function setupUpdater(win) {
         stopBackend: async () => {
             if (!MANAGED || !backend || backend.killed) return;
             const child = backend;
-            await new Promise(resolve => {
-                const timer = setTimeout(() => { child.kill(); resolve(); }, 2500);
-                child.once('exit', () => { clearTimeout(timer); resolve(); });
-                child.kill('SIGTERM');
-            });
+            backendStopping = true;
+            await stopServer(child, 2500);
             if (backend === child) backend = null;
         },
     });
@@ -737,11 +885,6 @@ function setupUpdater(win) {
         if (!win.isDestroyed()) win.webContents.send('gregal:update', status);
     });
     win.once('closed', unsubscribe);
-    win.webContents.once('did-finish-load', () => {
-        if (updateCheckStarted) return;
-        updateCheckStarted = true;
-        void updateController.check();
-    });
 }
 
 // Complement de Word: el manifest viu a userData/word-addin i el registre
@@ -784,34 +927,70 @@ function prepareChromeExtension() {
 
 // Una sola instància: obrir «Gregal Vents» amb l'app ja oberta no ha
 // d'engegar un segon backend; porta la finestra que hi ha al producte demanat.
-if (typeof app.requestSingleInstanceLock === "function" && !app.requestSingleInstanceLock()) {
+// La segona instància no ha de fer res més: abans el whenReady de sota
+// corria igualment i creava una finestra (i un backend) mentre sortia.
+const gotLock = typeof app.requestSingleInstanceLock !== "function" || app.requestSingleInstanceLock();
+if (!gotLock) {
     app.quit();
 } else {
     app.on("second-instance", (_event, argv) => {
         const win = mainWin;
-        if (!win || win.isDestroyed()) return;
+        if (!win || win.isDestroyed()) {
+            if (app.isReady()) void createWindow();
+            return;
+        }
         if (win.isMinimized()) win.restore();
-        win.show();
-        win.focus();
-        if (wantsVents(argv)) win.loadURL(BASE + pathFor(argv));
+        // Si encara no s'ha mostrat, ja ho farà reveal (amb la mida bona).
+        if (win.isVisible()) {
+            win.show();
+            win.focus();
+        }
+        if (!wantsVents(argv)) return;
+        // Encara arrencant (loading.html): es carregarà Vents quan toqui.
+        if (sameOrigin(win.webContents.getURL(), BASE)) win.loadURL(BASE + pathFor(argv)).catch(() => {});
+        else requestedPath = pathFor(argv);
     });
 }
 
 app.whenReady().then(async () => {
-    if (fs.existsSync(path.join(app.getPath('userData'), 'chrome-extension', 'manifest.json'))) prepareChromeExtension();
-    const created = await createWindow();
+    if (!gotLock) return;
+    app.setAboutPanelOptions({
+        applicationName: PRODUCT,
+        applicationVersion: app.getVersion(),
+        website: "https://github.com/alsolanes/gregal",
+        iconPath: path.join(__dirname, "build", "icon512.png"),
+    });
+    const created = createWindow();
     // Nota ràpida des de qualsevol app (Ctrl+Alt+N), menys a l'edició Jocs.
-    if (EDITION !== "jocs") registerQuickNote(globalShortcut, () => BrowserWindow.getAllWindows().find(w => !w.isDestroyed() && w.webContents.getURL().startsWith(BASE)) || BrowserWindow.getAllWindows()[0]);
-    return created;
+    // Sempre la finestra principal: abans, mentre arrencava, podia caure a
+    // la finestreta de la mascota.
+    if (EDITION !== "jocs") registerQuickNote(globalShortcut, () => mainWin);
+    await created;
+    // L'extensió de Chrome ja preparada es refresca quan l'app ja és a la
+    // pantalla: copiar fitxers no ha de retardar la finestra.
+    if (fs.existsSync(path.join(app.getPath('userData'), 'chrome-extension', 'manifest.json'))) prepareChromeExtension();
 });
 app.on("will-quit", () => globalShortcut.unregisterAll());
 app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
 });
-app.on("before-quit", () => {
+// Sortir: el backend s'atura net (tanca la línia de vida i espera, com a
+// molt 1,5 s) abans que l'app acabi; les finestres s'amaguen de seguida
+// perquè sortir no faci esperar ningú.
+let backendStopped = false;
+app.on("before-quit", event => {
+    backendStopping = true;
     browserBridge?.close();
-    if (backend && !backend.killed) backend.kill("SIGTERM");
+    const child = backend;
+    if (backendStopped || !child || child.exitCode !== null || child.signalCode !== null) return;
+    event.preventDefault();
+    backendStopped = true;
+    for (const w of BrowserWindow.getAllWindows()) if (!w.isDestroyed()) w.hide();
+    stopServer(child, 1500).finally(() => {
+        if (backend === child) backend = null;
+        app.quit();
+    });
 });
 app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    if (gotLock && !mainWin) void createWindow();
 });

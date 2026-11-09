@@ -19,6 +19,14 @@ test("desa i recupera mida i posició", () => {
     assert.deepStrictEqual(loadState(dir), { width: 1000, height: 700, x: 12, y: 34 });
 });
 
+test("recorda si era maximitzada, amb la mida normal per quan es desmaximitzi", () => {
+    const dir = tmp();
+    assert.ok(saveState(dir, { width: 1000.4, height: 700, x: 12, y: 34, maximized: true, extra: "res" }));
+    assert.deepStrictEqual(loadState(dir), { width: 1000, height: 700, x: 12, y: 34, maximized: true });
+    saveState(dir, { width: 1000, height: 700, x: 12, y: 34, maximized: false });
+    assert.strictEqual("maximized" in loadState(dir), false);
+});
+
 test("un fitxer corromput no tomba l'app", () => {
     const dir = tmp();
     fs.writeFileSync(path.join(dir, "window-state.json"), "{{{no json");
