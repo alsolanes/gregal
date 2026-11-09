@@ -114,7 +114,7 @@ internal fun CornerDialog(vm: GregalViewModel, lang: String, onDismiss: () -> Un
         try { withContext(Dispatchers.IO) { conn.api().post("/api/corner", payload) } } catch (e: Exception) { err = e.message }
         delay(500); refresh()
     }
-    LaunchedEffect(conn, reload) {
+    LifecyclePoll(conn, reload) {
         while (true) {
             refresh()
             delay(if (st?.running == true) 6_000 else 30_000)

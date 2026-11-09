@@ -1076,15 +1076,17 @@ fun PulseDot() {
 }
 
 @Composable
-fun AssistantResponse(text: String, lang: String = "ca") {
+fun AssistantResponse(text: String, lang: String = "ca", streaming: Boolean = false) {
     val codeBg = CodeDark
     val sea = Sea
-    val blocks = remember(text) { richBlocks(text) }
+    val blocks = remember(text) { if (streaming) richBlocksLive(text) else richBlocks(text) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)) {
         blocks.forEach { b ->
             when (b) {
                 is Rich.Inline -> {
-                    val rich = remember(b, text) { renderSegs(b.segs, codeBg, link = sea) }
+                    // Clau: el bloc (igualtat per contingut). Amb el text sencer a la
+                    // clau, cada fragment del streaming refeia tots els paràgrafs.
+                    val rich = remember(b) { renderSegs(b.segs, codeBg, link = sea) }
                     BodyText(rich)
                 }
                 is Rich.Code -> CodeBlock(b.lang, b.code, lang)

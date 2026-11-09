@@ -205,15 +205,19 @@ object LocalServer {
         pump(p)
         watch(p, lang)
         // Espera que respongui; si el procés mor abans, error amb el log.
-        val deadline = System.currentTimeMillis() + 30_000
+        // Sondeig ràpid al principi (el backend sol respondre en menys d'un
+        // segon) i més espaiat després: abans, 200 ms fixos sumaven ~100 ms
+        // de mitjana a cada arrencada.
+        val start = System.currentTimeMillis()
+        val deadline = start + 30_000
         while (System.currentTimeMillis() < deadline) {
             if (!p.isAlive) break
-            if (healthy(port, token)) {
+            if (healthy(port, token, quick = true)) {
                 val ok = LocalState.Running(port, token)
                 _state.value = ok
                 return@withContext ok
             }
-            delay(200)
+            delay(if (System.currentTimeMillis() - start < 2_000) 50 else 250)
         }
         val msg = if (p.isAlive) "backend did not answer in 30 s" else "backend exited (code ${p.exitValue()})"
         if (p.isAlive) p.destroyForcibly()
@@ -234,8 +238,25 @@ object LocalServer {
         ServerSocket(0, 1, InetAddress.getByName("127.0.0.1")).use { return it.localPort }
     }
 
-    private fun healthy(port: Int, token: String): Boolean = try {
-        GregalApi("http://127.0.0.1:$port", token).health().status == "ok"
+    private fun healthy(port: Int, token: String, quick: Boolean = false): Boolean =
+        if (quick) quickHealthy(port, token) else try {
+            GregalApi("http://127.0.0.1:$port", token).health().status == "ok"
+        } catch (_: Exception) { false }
+
+    /**
+     * Prova d'arrencada amb temps d'espera curts. GregalApi espera fins a 15 s
+     * per connectar i 240 s per llegir: un backend que accepta la connexió però
+     * encara no contesta allargava l'espera molt més enllà dels 30 s.
+     */
+    private fun quickHealthy(port: Int, token: String): Boolean = try {
+        val c = java.net.URL("http://127.0.0.1:$port/api/health").openConnection() as java.net.HttpURLConnection
+        c.connectTimeout = 500
+        c.readTimeout = 1_500
+        if (token.isNotBlank()) c.setRequestProperty("Authorization", "Bearer $token")
+        try {
+            c.responseCode == 200 &&
+                org.json.JSONObject(c.inputStream.bufferedReader().readText()).optString("status") == "ok"
+        } finally { c.disconnect() }
     } catch (_: Exception) { false }
 
     /** Llegeix stdout+stderr al buffer circular (si no, el pipe s'omple i el backend es bloqueja). */

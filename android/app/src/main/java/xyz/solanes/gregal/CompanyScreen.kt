@@ -1098,20 +1098,24 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
                     )
                 }
             }
-            items(msgs.size, key = { idx -> idx }) { idx ->
+            items(msgs.size, key = { idx -> idx }, contentType = { idx -> msgs[idx].from }) { idx ->
+                // Les lambdes capturen el missatge, no la llista: cada fragment del
+                // streaming crea una llista nova i, si la capturessin, totes les
+                // bombolles visibles es tornarien a compondre, no només l'última.
+                val m = msgs[idx]
                 // Aire segons bàndol: juntes les del mateix, separades en canviar.
-                val gap = if (idx > 0 && msgs[idx].from != msgs[idx - 1].from) 16.dp else 4.dp
+                val gap = if (idx > 0 && m.from != msgs[idx - 1].from) 16.dp else 4.dp
                 Column(Modifier.padding(top = gap)) {
                     BubbleIn("dm#$idx", animate = idx >= liveFrom) {
-                        WindBubble(msgs[idx], accent, lang = lang,
+                        WindBubble(m, accent, lang = lang,
                             onCopy = {
-                                clipboard.setText(AnnotatedString(stripMdInline(msgs[idx].text)))
+                                clipboard.setText(AnnotatedString(stripMdInline(m.text)))
                                 scope.launch { vm.notify(tr(lang, "app.vents.copied")) }
                             },
                             onContinue = if (!isBusy) ({ follow.requestFollow(); vm.sendWindContinue(wind.id) }) else null,
                             onRetry = if (!isBusy) ({ follow.requestFollow(); vm.retryLastWindTurn(wind.id) }) else null,
                             onTransfer = if (vm.canTransferToServer() && !isBusy) ({ askTransfer = true }) else null,
-                            onDiscard = if (msgs[idx].kind == "queued") ({ vm.discardQueued(wind.id, msgs[idx].ts) }) else null,
+                            onDiscard = if (m.kind == "queued") ({ vm.discardQueued(wind.id, m.ts) }) else null,
                             onCopied = { scope.launch { vm.notify(tr(lang, "app.vents.linkCopied")) } })
                     }
                 }

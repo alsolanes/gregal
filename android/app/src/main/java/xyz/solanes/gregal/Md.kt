@@ -422,5 +422,13 @@ fun richBlocks(src: String): List<Rich> = synchronized(mdBlocksCache) {
     mdBlocksCache[src] ?: groupRich(splitMd(src)).also { mdBlocksCache[src] = it }
 }
 
+/**
+ * El mateix, sense passar per la memòria cau: per al text que encara s'escriu.
+ * Cada prefix del streaming hi entrava com a entrada pròpia i una resposta
+ * llarga n'expulsava tots els missatges acabats (i en tornar amunt calia
+ * tornar-los a analitzar, que és just el sotrac que la memòria evita).
+ */
+fun richBlocksLive(src: String): List<Rich> = groupRich(splitMd(src))
+
 /** Quantes entrades hi ha a la cau (només tests). */
 internal fun richBlocksCached(): Int = synchronized(mdBlocksCache) { mdBlocksCache.size }

@@ -185,9 +185,17 @@ internal fun CapCreature(st: CapState, mood: WindMood, asleep: Boolean, bursts: 
             }
         }
         if (asleep) {
-            Text("z", fontSize = (11 + 6 * zz).sp, color = Muted, fontWeight = FontWeight.Bold,
-                modifier = Modifier.align(Alignment.TopEnd).offset(x = (4 * zz).dp, y = (-14 * zz).dp)
-                    .graphicsLayer { alpha = 1f - zz })
+            // Mida i posició a la capa gràfica: canviar fontSize/offset a cada
+            // fotograma recomponia (i tornava a mesurar) el cap mentre dorm.
+            Text("z", fontSize = 11.sp, color = Muted, fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.TopEnd)
+                    .graphicsLayer {
+                        val k = 1f + 6f / 11f * zz
+                        scaleX = k; scaleY = k
+                        translationX = 4.dp.toPx() * zz
+                        translationY = -14.dp.toPx() * zz
+                        alpha = 1f - zz
+                    })
         }
         bursts.toList().forEach { b ->
             key(b.id) {

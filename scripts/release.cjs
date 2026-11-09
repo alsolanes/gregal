@@ -77,10 +77,10 @@ if (cmd === 'check') {
   // Ruta absoluta: cmd no sempre busca a la carpeta actual.
   const gradle = path.join(android, process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
   console.log(`building Android ${a.name} (${a.code})…`);
-  execFileSync(gradle, ['testDebugUnitTest', 'assembleDebug', '-q', ...(vents ? ['-Pgregal.plotsPreview'] : [])], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
+  execFileSync(gradle, ['testDebugUnitTest', 'assembleRelease', '-q', ...(vents ? ['-Pgregal.plotsPreview'] : [])], { cwd: android, stdio: 'inherit', shell: process.platform === 'win32' });
   const dir = path.join(root, 'output', 'release-' + value);
   fs.mkdirSync(dir, { recursive: true });
-  const built = path.join(android, 'app/build/outputs/apk/debug');
+  const built = path.join(android, 'app/build/outputs/apk/release');
   const apks = lib.ANDROID_APKS.map(({ abi }) => {
     const from = lib.androidApkFrom(a.name, abi, vents);
     const name = (vents ? lib.ventsApkName : lib.androidApkName)(a.name, abi);

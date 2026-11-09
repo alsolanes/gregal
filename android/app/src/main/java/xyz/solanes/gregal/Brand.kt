@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,18 +53,21 @@ fun GregalMark(size: Dp, modifier: Modifier = Modifier, alive: Boolean = false) 
     val top = SeaClara
     val mid = Sea
     val eye = DeepTop
-    var float = 0f
-    var blink = 1f
+    // Els valors animats es llegeixen dins el Canvas (fase de dibuix): llegits
+    // a la composició, la marca es recomponia a cada fotograma.
+    var float: State<Float>? = null
+    var blink: State<Float>? = null
     if (alive) {
         val t = rememberInfiniteTransition(label = "marca")
-        val f by t.animateFloat(-1f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sura")
-        val b by t.animateFloat(1f, 1f, infiniteRepeatable(keyframes {
+        float = t.animateFloat(-1f, 1f, infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "sura")
+        blink = t.animateFloat(1f, 1f, infiniteRepeatable(keyframes {
             durationMillis = 4200
             1f at 3800; 0.1f at 3900; 1f at 4000
         }), label = "parpella")
-        float = f; blink = b
     }
     Canvas(modifier.size(size)) {
+        val float = float?.value ?: 0f
+        val blink = blink?.value ?: 1f
         val s = this.size.minDimension / 1024f
         translate(top = float * this.size.height * 0.025f) {
             scale(s, s, pivot = Offset.Zero) {

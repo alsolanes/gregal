@@ -1,4 +1,5 @@
 import java.io.File
+import java.util.concurrent.ConcurrentLinkedQueue
 
 plugins {
     id("com.android.application")
@@ -13,10 +14,18 @@ plugins {
 // un servidor remot).
 val repoRoot: File = rootDir.parentFile
 val backendOut = layout.buildDirectory.dir("gregal-backend/jniLibs")
-val backendAbis = linkedMapOf(
+val allBackendAbis = linkedMapOf(
     "arm64-v8a" to ("arm64" to "aarch64-linux-android"),
     "x86_64" to ("amd64" to "x86_64-linux-android"),
 )
+// -Pgregal.abi=arm64-v8a (o x86_64 per a l'emulador): per provar, compila el
+// backend i l'APK només d'aquella arquitectura, sense l'universal. Els
+// releases no el passen i surten totes.
+val onlyAbi = (findProperty("gregal.abi") as String?)?.takeIf { it.isNotBlank() }
+val backendAbis = if (onlyAbi == null) allBackendAbis
+    else LinkedHashMap(allBackendAbis.filterKeys { it == onlyAbi }).also {
+        require(it.isNotEmpty()) { "gregal.abi ha de ser un de: ${allBackendAbis.keys}" }
+    }
 
 android {
     namespace = "xyz.solanes.gregal"
@@ -54,7 +63,7 @@ android {
             isEnable = true
             reset()
             include(*backendAbis.keys.toTypedArray())
-            isUniversalApk = true
+            isUniversalApk = onlyAbi == null
         }
     }
     packaging {
@@ -67,8 +76,15 @@ android {
         debug {
             if (project.hasProperty("gregal.scrollTest")) applicationIdSuffix = ".scrolltest"
         }
+        // La build que es publica. Abans sortia l'APK de debug: una app
+        // «debuggable» corre Compose sense R8 ni els perfils de referència de
+        // les llibreries (ART no la precompila), i al mòbil es notava lenta.
+        // Signa amb la mateixa clau que les de debug perquè l'OTA s'instal·li
+        // damunt de les versions que ja hi ha als mòbils.
         release {
-            isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -86,6 +102,12 @@ android {
     }
     kotlinOptions {
         jvmTarget = "17"
+        // Strong skipping: els composables amb paràmetres inestables (llistes,
+        // lambdes que capturen el vm) se salten si no han canviat, en lloc de
+        // recompondre's cada vegada que es recompon el pare.
+        freeCompilerArgs += listOf(
+            "-P", "plugin:androidx.compose.compiler.plugins.kotlin:experimentalStrongSkipping=true",
+        )
     }
     buildFeatures {
         compose = true
@@ -116,12 +138,19 @@ val buildGregalBackend by tasks.registering {
         include("*.go", "go.mod", "go.sum", "internal/**", "harness/**")
         exclude("**/*_test.go", "**/testdata/**")
     })
+    // Si canvia la llista d'arquitectures (-Pgregal.abi), cal tornar-la a fer.
+    inputs.property("abis", backendAbis.keys.toList())
     outputs.dir(backendOut)
     doLast {
+        // Fora les arquitectures que aquesta build no porta (d'una build anterior).
+        backendOut.get().asFile.listFiles()?.filter { it.name !in backendAbis.keys }?.forEach { it.deleteRecursively() }
         val win = System.getProperty("os.name").lowercase().contains("win")
         val ndkBin = ndkHostBin()
         if (ndkBin == null) logger.warn("gregal: no Android NDK found, building the backend without cgo (fallback DNS resolver)")
-        for ((abi, target) in backendAbis) {
+        // Les arquitectures es compilen alhora (abans, una darrere l'altra).
+        val failures = ConcurrentLinkedQueue<String>()
+        val threads = backendAbis.map { (abi, target) -> Thread {
+          try {
             val (goArch, triple) = target
             val out = backendOut.get().dir(abi).file("libgregal.so").asFile
             out.parentFile.mkdirs()
@@ -141,9 +170,13 @@ val buildGregalBackend by tasks.registering {
             }
             val proc = pb.start()
             val log = proc.inputStream.bufferedReader().readText()
-            if (proc.waitFor() != 0) throw GradleException("go build for $abi failed:\n$log")
-            logger.lifecycle("gregal: backend $abi -> ${out.length() / 1024 / 1024} MB")
-        }
+            if (proc.waitFor() != 0) failures.add("go build for $abi failed:\n$log")
+            else logger.lifecycle("gregal: backend $abi -> ${out.length() / 1024 / 1024} MB")
+          } catch (e: Exception) { failures.add("go build for $abi failed: ${e.message}") }
+        } }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+        if (failures.isNotEmpty()) throw GradleException(failures.joinToString("\n"))
     }
 }
 

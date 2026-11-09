@@ -81,7 +81,8 @@ internal fun withoutChoices(text: String): String {
 internal fun WindAskCards(vm: GregalViewModel, lang: String, accent: Color, busy: Boolean) {
     val asks by vm.windAsks.collectAsState()
     // En obrir el xat i mentre un vent treballa: potser n'hi ha una d'abans.
-    LaunchedEffect(busy) {
+    // Només amb l'app a la vista: en segon pla el servidor ja avisa amb la notificació.
+    LifecyclePoll(busy) {
         vm.loadWindAsks()
         while (busy) { delay(4_000); vm.loadWindAsks() }
     }

@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Job
@@ -1352,10 +1353,11 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     connectOnce()
                     syncAgentLanguage()
                     onOk()
-                    syncCollective()
-                    syncJobAlarms()
+                    // No bloquegen la portada: els vents es carreguen ja.
+                    launch { syncCollective() }
+                    launch { syncJobAlarms() }
                     _offline.value = false
-                    reloadOutbox()
+                    withContext(Dispatchers.IO) { reloadOutbox() }
                     loadWinds()
                     loadRotllanes()
                     _ventsOpen.value?.takeIf { it.startsWith("rot:") }?.let { followCrew(it.substringAfter(':')) }
@@ -1405,15 +1407,19 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         val api = _conn.value.api()
         // Health és només descoberta: un servidor antic pot no tenir
         // l'endpoint i això no ha d'impedir connectar per la via v1.
-        val health = withContext(Dispatchers.IO) {
-            try { api.health() } catch (_: Exception) { null }
+        // Les tres peticions són independents: en paral·lel, l'arrencada
+        // espera la més lenta en lloc de la suma de les tres.
+        val (health, admin, st) = coroutineScope {
+            val health = async(Dispatchers.IO) { try { api.health() } catch (_: Exception) { null } }
+            // Qui ets en aquest servidor: un compte que no és admin no pot veure
+            // els jobs ni GitHub, i l'app no els ha de demanar (sortia un error).
+            // Un servidor antic sense /api/me és d'un sol usuari: admin.
+            val admin = async(Dispatchers.IO) { try { api.me().admin } catch (_: Exception) { true } }
+            val st = async(Dispatchers.IO) { api.getState() }
+            Triple(health.await(), admin.await(), st.await())
         }
         _v2Runs.value = health?.supportsV2Interactive() == true
-        // Qui ets en aquest servidor: un compte que no és admin no pot veure
-        // els jobs ni GitHub, i l'app no els ha de demanar (sortia un error).
-        // Un servidor antic sense /api/me és d'un sol usuari: admin.
-        _isAdmin.value = withContext(Dispatchers.IO) { try { api.me().admin } catch (_: Exception) { true } }
-        val st = withContext(Dispatchers.IO) { api.getState() }
+        _isAdmin.value = admin
         _state.value = st
         // Obrir l'app ha de mostrar la conversa on eres, no un xat buit.
         if (_msgs.value.isEmpty() && st.transcript.isNotEmpty()) _msgs.value = st.transcript
@@ -3013,8 +3019,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     private val _windLive = MutableStateFlow<Map<String, WindLive>>(emptyMap())
     val windLive: StateFlow<Map<String, WindLive>> = _windLive
     private fun live(id: String, change: (WindLive) -> WindLive) {
-        val next = change(_windLive.value[id] ?: WindLive()).copy(lastEventAt = System.currentTimeMillis())
-        if (_windLive.value[id] != next) _windLive.value = _windLive.value + (id to next)
+        // Cada token del streaming passa per aquí. Si només canviava l'hora de
+        // l'últim esdeveniment, publicar-ho feia recompondre tot el xat a cada
+        // fragment: l'hora només serveix per a «sense novetats des de fa N s»,
+        // i n'hi ha prou de refrescar-la un cop per segon.
+        val now = System.currentTimeMillis()
+        val cur = _windLive.value[id]
+        val next = change(cur ?: WindLive()).copy(lastEventAt = now)
+        val same = cur != null && cur == next.copy(lastEventAt = cur.lastEventAt)
+        if (!same || now - cur!!.lastEventAt >= 1_000) _windLive.value = _windLive.value + (id to next)
         val target = if (id in _rotllanaBusy.value) "rot:$id" else "wind:$id"
         GregalNotifications.workUpdated(appContext, target, windProgressLabel(_idioma.value, next))
     }

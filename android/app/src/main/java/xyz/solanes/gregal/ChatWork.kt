@@ -19,6 +19,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -330,11 +331,14 @@ private fun PulsingDot(color: Color) {
 @Composable
 fun LiveAnswer(text: String, lang: String) {
     Column(Modifier.fillMaxWidth()) {
-        AssistantResponse(text, lang)
+        AssistantResponse(text, lang, streaming = true)
         val t = rememberInfiniteTransition(label = "cursor")
-        val a by t.animateFloat(1f, 0.15f, infiniteRepeatable(tween(520), RepeatMode.Reverse), label = "a")
+        val a = t.animateFloat(1f, 0.15f, infiniteRepeatable(tween(520), RepeatMode.Reverse), label = "a")
+        // L'alfa es llegeix a la capa de dibuix: llegida a la composició,
+        // el cursor recompondria la resposta sencera 60 cops per segon.
         Box(Modifier.padding(start = 8.dp, bottom = 6.dp).size(9.dp, 16.dp)
-            .background(Sea.copy(alpha = a), RoundedCornerShape(2.dp)))
+            .graphicsLayer { alpha = a.value }
+            .background(Sea, RoundedCornerShape(2.dp)))
     }
 }
 
