@@ -49,6 +49,18 @@ that builds assets lives in `.github/workflows/release.yml`.
    `Build.SUPPORTED_ABIS` listed there. All APKs share the `versionCode`
    and the signing key, so any of them installs over any other.
 
+   That key is the debug keystore of the machine that runs the command
+   (`~/.android/debug.keystore`), and it must stay the same forever: Android
+   refuses to install an update signed with a different key
+   (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), so an APK built anywhere else
+   breaks updates for everyone who already has the app — including the
+   in-app one-click updater. `release.cjs apk` checks each APK's certificate
+   before uploading and stops if it is not the usual one (the fingerprint
+   lives in `EXPECTED_CERT_SHA256`); `node scripts/release.cjs cert <apk>`
+   prints which key an APK carries. Keep a copy of the keystore outside the
+   machine: if it is regenerated, every installed app has to be uninstalled
+   once before it can be replaced.
+
    **Gregal Vents** (the `-Pgregal.plotsPreview` build) has its own version
    line, the first branch of the `if` in `build.gradle.kts`; bump it by hand.
    `node scripts/release.cjs apk 1.9.1 --vents` builds it and attaches
