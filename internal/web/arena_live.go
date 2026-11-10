@@ -1,6 +1,6 @@
 package web
 
-// El Counter-Strike 2 en directe (internal/arena/cs2/live.go): la persona juga
+// El Counter-Strike 2 en directe (jocs/arena/cs2/live.go): la persona juga
 // un jugador del seu equip amb teclat i ratolí a arena-cs2-live.html, els
 // altres nou són bots que el navegador mou, i el model només fa el que fa a
 // tots els partits: abans de cada ronda llegeix el .md de cada equip i tria
@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"gregal/internal/arena"
-	"gregal/internal/arena/cs2"
+	"gregal/jocs/arena"
+	"gregal/jocs/arena/cs2"
 )
 
 type arenaLiveRun struct {

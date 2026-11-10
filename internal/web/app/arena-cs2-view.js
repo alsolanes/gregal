@@ -1,4 +1,4 @@
-// Visor d'un partit de Splash Strike (el joc cs2 de l'Arena, internal/arena/cs2, amb pistoles d'aigua): un
+// Visor d'un partit de Splash Strike (el joc cs2 de l'Arena, jocs/arena/cs2, amb pistoles d'aigua): un
 // minimapa tàctic com el de les retransmissions (Mirage estilitzat, zones,
 // caixes, llocs A i B), jugadors amb el color de l'equip i la vora del bàndol,
 // cons de visió, rajos d'aigua, boira, flaixos d'escuma i bassals de sabó, el Megaglobus amb el seu

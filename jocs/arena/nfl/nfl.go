@@ -8,8 +8,8 @@ package nfl
 import (
 	"encoding/json"
 
-	"gregal/internal/arena"
-	"gregal/internal/football"
+	"gregal/jocs/arena"
+	"gregal/jocs/football"
 )
 
 func init() { arena.Register(Game{}) }

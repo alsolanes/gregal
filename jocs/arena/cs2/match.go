@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 // Match és un partit en marxa.

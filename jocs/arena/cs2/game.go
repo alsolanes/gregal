@@ -7,7 +7,7 @@ package cs2
 import (
 	"math/rand"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 func init() { arena.Register(Game{}) }

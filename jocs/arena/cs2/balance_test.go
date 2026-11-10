@@ -8,7 +8,7 @@ import (
 	"sync"
 	"testing"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 // Proves d'equilibri: simulacions amb llavor i polítiques escrites a mà

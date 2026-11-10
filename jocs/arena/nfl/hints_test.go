@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gregal/internal/football"
+	"gregal/jocs/football"
 )
 
 // Les ajudes del format (contra què guanya i perd cada crida) es poden

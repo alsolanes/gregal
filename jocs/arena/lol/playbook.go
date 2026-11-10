@@ -1,6 +1,6 @@
 package lol
 
-import "gregal/internal/arena"
+import "gregal/jocs/arena"
 
 var pbStances = map[string]arena.PlayOption{
 	"engage":  {Label: "Engage", Plain: "Force big 5v5 clashes. Needs tanks and engage champions; catches sieges and picks."},

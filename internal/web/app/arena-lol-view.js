@@ -1,4 +1,4 @@
-// Lantern Legends viewer for the Arena (internal/arena/lol; a friendly fantasy
+// Lantern Legends viewer for the Arena (jocs/arena/lol; a friendly fantasy
 // game; credit in TEXT.en.credit), drawn like an esports broadcast: a punchy
 // draft, then an isometric Glowvale at dusk with champion tokens, wisp waves,
 // clashes of light, lantern towers, sky dragons and each team's plan, a

@@ -10,7 +10,7 @@ import (
 	"math/rand"
 	"strings"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 // Game és el joc "lol".

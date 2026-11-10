@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"gregal/internal/arena"
-	_ "gregal/internal/arena/cs2"
-	_ "gregal/internal/arena/lol"
-	_ "gregal/internal/arena/nfl"
+	"gregal/jocs/arena"
+	_ "gregal/jocs/arena/cs2"
+	_ "gregal/jocs/arena/lol"
+	_ "gregal/jocs/arena/nfl"
 )
 
 // Cada joc té una guia sencera: la graella quadra amb les opcions, cada opció
@@ -82,7 +82,7 @@ func TestGrade(t *testing.T) {
 // guanyador guanya clarament (+2) al rival, i al LoL cada postura guanya les
 // dues següents del cicle.
 func TestExplainCounters(t *testing.T) {
-	raw, err := os.ReadFile("../web/app/arena-views.js")
+	raw, err := os.ReadFile("../../internal/web/app/arena-views.js")
 	if err != nil {
 		t.Fatal(err)
 	}

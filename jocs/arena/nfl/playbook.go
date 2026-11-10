@@ -1,8 +1,8 @@
 package nfl
 
 import (
-	"gregal/internal/arena"
-	"gregal/internal/football"
+	"gregal/jocs/arena"
+	"gregal/jocs/football"
 )
 
 // Les jugades amb contrajoc (les de la taula Matchup), en l'ordre de la taula.

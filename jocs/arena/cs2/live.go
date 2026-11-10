@@ -21,7 +21,7 @@ import (
 	"sort"
 	"strings"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 // Rols dels bots: com juguen la ronda dins del pla de l'equip.

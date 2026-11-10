@@ -1,6 +1,6 @@
 package web
 
-// L'Arena: competició de prompts (internal/arena). Cada jugador (un usuari
+// L'Arena: competició de prompts (jocs/arena). Cada jugador (un usuari
 // d'aquest servidor) escriu un .md d'estratègia per joc; els dos equips d'un
 // partit són idèntics i el mateix model decideix per tots dos llegint cada
 // .md. Durant la setmana es fan partits de prova contra bots (estratègies que
@@ -28,10 +28,10 @@ import (
 	"sync"
 	"time"
 
-	"gregal/internal/arena"
-	_ "gregal/internal/arena/cs2"
-	_ "gregal/internal/arena/lol"
-	_ "gregal/internal/arena/nfl"
+	"gregal/jocs/arena"
+	_ "gregal/jocs/arena/cs2"
+	_ "gregal/jocs/arena/lol"
+	_ "gregal/jocs/arena/nfl"
 	"gregal/internal/llm"
 )
 

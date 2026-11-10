@@ -1,4 +1,4 @@
-// La simulació de Splash Strike en directe (el joc cs2, internal/arena/cs2/live.go):
+// La simulació de Splash Strike en directe (el joc cs2, jocs/arena/cs2/live.go):
 // una ronda de veritat, pas a pas (60 per segon), al navegador. Una persona
 // porta un jugador amb teclat i ratolí; els altres nou són bots que segueixen
 // el pla que el model ha triat per al seu equip (on esperen, quin lloc

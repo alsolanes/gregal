@@ -1,4 +1,4 @@
-// Visor d'un partit de futbol americà entre els vents (internal/football):
+// Visor d'un partit de futbol americà entre els vents (jocs/football):
 // càmera de televisió des de la banda (perspectiva), camp amb franges, línies,
 // números i zones de marca amb els colors de cada equip, jugadors amb el seu
 // color, dorsal i casc, la pilota amb l'altura dels xuts i les passades, el

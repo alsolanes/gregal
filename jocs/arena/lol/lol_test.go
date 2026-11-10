@@ -11,7 +11,7 @@ import (
 	"sync"
 	"testing"
 
-	"gregal/internal/arena"
+	"gregal/jocs/arena"
 )
 
 // play juga un partit sencer amb dues polítiques. Les polítiques de prova

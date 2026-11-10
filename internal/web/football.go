@@ -1,6 +1,6 @@
 package web
 
-// Partits de futbol americà entre els vents (internal/football). La lliga té
+// Partits de futbol americà entre els vents (jocs/football). La lliga té
 // dues franquícies fetes amb els vents de l'usuari i completades amb
 // jugadors d'equip (no surten a la llista de vents). Un partit es juga quart
 // a quart: abans de cada quart els dos entrenadors (vents) decideixen el pla
@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"gregal/internal/companion"
-	"gregal/internal/football"
+	"gregal/jocs/football"
 )
 
 const footballMaxGamesPerDay = 3

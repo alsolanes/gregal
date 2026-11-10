@@ -1,6 +1,6 @@
 package cs2
 
-import "gregal/internal/arena"
+import "gregal/jocs/arena"
 
 var pbStrats = map[string]arena.PlayOption{
 	"rush_a":      {Label: "Rush A", Plain: "All five run into A fast. Floods an empty site, gets soaked by a stacked one."},

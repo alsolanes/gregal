@@ -10,10 +10,10 @@ import (
 
 // Eines de calibratge (no s'executen per defecte).
 //
-//	CS2_CAL=1 go test -run TestTuneCalibrate -v ./internal/arena/cs2/
+//	CS2_CAL=1 go test -run TestTuneCalibrate -v ./jocs/arena/cs2/
 //	  recalibra planEdge perquè el motor doni la taula matchupWin de les
 //	  regles i n'imprimeix el codi per enganxar-lo a round.go.
-//	CS2_TUNE=1 go test -run TestTuneReport -v ./internal/arena/cs2/
+//	CS2_TUNE=1 go test -run TestTuneReport -v ./jocs/arena/cs2/
 //	  imprimeix les xifres d'equip, utilitat i ritme que citen les regles.
 
 func logit(p float64) float64 {

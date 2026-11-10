@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gregal/internal/arena/cs2"
+	"gregal/jocs/arena/cs2"
 )
 
 // El CS2 en directe: començar, demanar el pla de cada ronda (el model), tornar
