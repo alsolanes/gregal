@@ -11,11 +11,28 @@ function backendName(edition, platform = process.platform) {
   return platform === "win32" ? base + ".exe" : base;
 }
 
-// Cada edició té la seva identitat de servei dins del mateix perfil (el Go
-// ho fa amb service.SetProduct): Gregal, service.json i el port 8097 (el que
-// busca l'extensió de Chrome); Gregal Jocs, service-jocs.json i el 8197. Així
-// les dues apps corren alhora sobre les mateixes dades i cadascuna troba
-// el seu servidor.
+// Cada edició té el seu perfil (el Go ho fa amb internal/profile): Gregal a
+// ~/.config/gregal i ~/.local/share/gregal; Gregal Jocs a
+// ~/.config/gregal-jocs i ~/.local/share/gregal-jocs. No comparteixen ni
+// config, ni claus, ni comptes, ni dades.
+function profileDirName(edition) {
+  return edition === "jocs" ? "gregal-jocs" : "gregal";
+}
+
+// profileDirs: on viuen el config i les dades d'una edició (GREGAL_DATA_DIR
+// mana, com al backend).
+function profileDirs(edition, home, env = process.env) {
+  const name = profileDirName(edition);
+  return {
+    config: path.join(home, ".config", name),
+    data: env.GREGAL_DATA_DIR || path.join(home, ".local", "share", name),
+  };
+}
+
+// I dins del seu perfil, la seva identitat de servei (service.SetProduct):
+// Gregal, service.json i el port 8097 (el que busca l'extensió de Chrome);
+// Gregal Jocs, service-jocs.json i el 8197. Les dues apps corren alhora i
+// cadascuna troba el seu servidor.
 function serviceFileName(edition) {
   return edition === "jocs" ? "service-jocs.json" : "service.json";
 }
@@ -183,4 +200,4 @@ function stopServer(child, timeoutMs = 1500) {
   });
 }
 
-module.exports = { backendName, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+module.exports = { backendName, profileDirName, profileDirs, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };

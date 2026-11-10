@@ -3,6 +3,9 @@
 ; (installer-jocs.nsh). Aquí es treu la drecera «Gregal Jocs» que posaven les
 ; versions 1.44-1.46 (Gregal.exe --jocs), però només si l'app Gregal Jocs no hi
 ; és: llavors la drecera amb aquest nom és seva.
+; La desinstal·lació no esborra cap dada: ni el perfil de Gregal
+; (~/.config/gregal, ~/.local/share/gregal) ni el de Gregal Jocs
+; (~/.config/gregal-jocs, ~/.local/share/gregal-jocs).
 !macro customInstall
   CreateShortCut "$SMPROGRAMS\Gregal Vents.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--vents" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
   CreateShortCut "$DESKTOP\Gregal Vents.lnk" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" "--vents" "$INSTDIR\${APP_EXECUTABLE_FILENAME}" 0
