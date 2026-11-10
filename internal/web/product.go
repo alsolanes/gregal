@@ -54,6 +54,10 @@ type Product struct {
 	// producte accepta (es crida amb el servidor default). Les peticions
 	// que passen per aquí no porten usuari i IsGuest hi diu true. Opcional.
 	Guest func(s *Server, r *http.Request) bool
+	// Routes són rutes del producte que no són de cap plugin: hi són
+	// sempre, amb la mateixa autenticació que la resta (handle registra al
+	// mux; Hub.Global lliga a la sessió de qui pregunta). Opcional.
+	Routes func(h *Hub, handle func(string, http.HandlerFunc))
 }
 
 var (

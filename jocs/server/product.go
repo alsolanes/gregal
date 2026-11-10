@@ -28,7 +28,12 @@ func Product() *web.Product {
 		},
 		Assets:  jocsweb.Assets,
 		Plugins: []*web.Plugin{gamesPlugin(), arenaPlugin()},
-		Guest:   func(s *web.Server, r *http.Request) bool { return New(s).arenaSpectatorOK(r) },
+		// «Fes servir el mateix model que Gregal» (model_import.go): no és
+		// cap plugin, hi és sempre.
+		Routes: func(h *web.Hub, handle func(string, http.HandlerFunc)) {
+			handle("/api/jocs/model-import", global(h, (*Server).handleModelImport))
+		},
+		Guest: func(s *web.Server, r *http.Request) bool { return New(s).arenaSpectatorOK(r) },
 	}
 }
 

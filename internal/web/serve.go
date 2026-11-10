@@ -589,6 +589,12 @@ func (h *Hub) mux() *http.ServeMux {
 	// seves rutes (plugin_*.go) i /api/plugins les encén o apaga.
 	handle("/api/plugins", h.handlePlugins)
 	h.pluginRoutes(handle)
+	// Rutes pròpies dels productes registrats (product.go), sempre enceses.
+	for _, p := range products() {
+		if p.Routes != nil {
+			p.Routes(h, handle)
+		}
+	}
 	handle("/api/active", h.route((*Server).handleActive))
 	handle("/api/v2/events", h.route((*Server).handleEvents))
 	// Stream durable d'events v2: reprodueix el que falta i queda escoltant.

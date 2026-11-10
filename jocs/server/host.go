@@ -24,6 +24,10 @@ type Host interface {
 	StateDir() string
 	// UserStateDir és l'estat personal de l'usuari (la seva lliga).
 	UserStateDir() string
+	// ModelReady diu si el model actiu pot respondre (model_import.go).
+	ModelReady() bool
+	// AdoptModel copia un model al config de Gregal Jocs (model_import.go).
+	AdoptModel(m config.ImportedModel) error
 }
 
 var _ Host = (*web.Server)(nil)
