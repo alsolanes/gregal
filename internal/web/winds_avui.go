@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"gregal/internal/companion"
@@ -92,7 +91,8 @@ type avuiSettingsReq struct {
 	Tune      *string `json:"tune"`
 }
 
-var avuiMu sync.Mutex
+// avuiMu protegeix avui.json també entre processos (crosslock.go).
+var avuiMu = &crossLock{name: ".avui.lock"}
 
 func avuiPath(s *Server) string         { return filepath.Join(s.sessDir(), avuiFile) }
 func avuiSettingsPath(s *Server) string { return filepath.Join(s.sessDir(), avuiSettingsFile) }
@@ -126,7 +126,8 @@ func saveAvui(s *Server, list []avuiCard) error {
 		return err
 	}
 	_ = os.MkdirAll(filepath.Dir(avuiPath(s)), 0o700)
-	return os.WriteFile(avuiPath(s), raw, 0o600)
+	// Temporal + rename: l'altre servidor del perfil mai no llegeix mig fitxer.
+	return writeFileAtomic(avuiPath(s), raw)
 }
 
 func (s *Server) avuiSettings() avuiSettings {
@@ -321,9 +322,9 @@ func (s *Server) avuiFromBrief(w companion.Wind, job string, items [][3]string, 
 func (s *Server) avuiBriefExtras(windID string) string {
 	var b strings.Builder
 	b.WriteString("\n\nAFTER the message, add the items for the user's Today tray in a fenced block, one per line, 3 to 7 lines, most important first:\n```avui\nnow :: <what needs them today, as an action> :: <one short line why>\nfyi :: <good to know> :: <why>\nahead :: <coming up in the next days> :: <the next step>\n```\nUse only facts from your tools, memory or reminders. Never put the block's content in the message itself.")
-	avuiMu.Lock()
+	avuiMu.ReadLock()
 	list := loadAvui(s)
-	avuiMu.Unlock()
+	avuiMu.ReadUnlock()
 	var open []string
 	cut := time.Now().Add(-14 * 24 * time.Hour).Unix()
 	for _, c := range list {
@@ -347,9 +348,9 @@ func (s *Server) avuiBriefExtras(windID string) string {
 // avuiFeedbackBrief: el que la persona ha marcat com a útil o no, perquè el
 // vent ho tingui en compte la propera vegada que parli sol.
 func (s *Server) avuiFeedbackBrief(windID string) string {
-	avuiMu.Lock()
+	avuiMu.ReadLock()
 	list := loadAvui(s)
-	avuiMu.Unlock()
+	avuiMu.ReadUnlock()
 	var good, bad []string
 	for i := len(list) - 1; i >= 0 && len(good)+len(bad) < 16; i-- {
 		c := list[i]
@@ -382,9 +383,9 @@ func startOfToday(s *Server) time.Time {
 func (s *Server) avuiView() map[string]any {
 	now := time.Now()
 	today := startOfToday(s)
-	avuiMu.Lock()
+	avuiMu.ReadLock()
 	list := loadAvui(s)
-	avuiMu.Unlock()
+	avuiMu.ReadUnlock()
 	sections := map[string][]avuiCard{avuiNow: {}, avuiFYI: {}, avuiAhead: {}}
 	done := []avuiCard{}
 	held := 0

@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"gregal/internal/companion"
@@ -44,7 +43,8 @@ type windNovetat struct {
 	Quiet bool   `json:"quiet,omitempty"`
 }
 
-var novetatsMu sync.Mutex
+// novetatsMu protegeix les veus proactives també entre processos (crosslock.go).
+var novetatsMu = &crossLock{name: ".novetats.lock"}
 
 func novetatsPath(s *Server) string { return filepath.Join(s.sessDir(), novetatsFile) }
 
@@ -70,7 +70,8 @@ func saveNovetats(s *Server, list []windNovetat) {
 	}
 	// El dir pot no existir (tests, primera veu): best-effort igualment.
 	_ = os.MkdirAll(filepath.Dir(novetatsPath(s)), 0o700)
-	_ = os.WriteFile(novetatsPath(s), raw, 0o600)
+	// Temporal + rename: l'altre servidor del perfil mai no llegeix mig fitxer.
+	_ = writeFileAtomic(novetatsPath(s), raw)
 }
 
 // recordNovetat apunta una veu proactiva. Best-effort: mai no falla el torn.

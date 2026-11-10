@@ -136,7 +136,14 @@ func writeFileAtomic(path string, b []byte) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(f.Name(), path)
+	// A Windows el rename falla mentre un altre procés (l'altre servidor del
+	// perfil) té el destí obert per llegir-lo: és qüestió de mil·lisegons.
+	err = os.Rename(f.Name(), path)
+	for i := 0; err != nil && i < 10; i++ {
+		time.Sleep(15 * time.Millisecond)
+		err = os.Rename(f.Name(), path)
+	}
+	return err
 }
 
 func (s *Server) sharedHistoryPath(id string) string {

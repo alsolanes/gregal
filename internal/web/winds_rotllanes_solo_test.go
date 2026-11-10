@@ -154,6 +154,9 @@ func TestCrewExcerptCutsAtAParagraph(t *testing.T) {
 // Una colla fallada que ha deixat l'estat al disc no bloqueja el fil.
 func TestStaleFailedCrewStateDoesNotBlockTheThread(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	// La colla engegada de sota acaba en segon pla (i hi apunta la veu
+	// «ha fallat»): s'espera abans d'esborrar el directori temporal.
+	t.Cleanup(waitBackground)
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
 	rot, _ := s.rotllanaByID(id)

@@ -155,13 +155,13 @@ func (s *Server) capBriefSince(since int64, ca bool) capBrief {
 		}
 	}
 	if since > 0 {
-		novetatsMu.Lock()
+		novetatsMu.ReadLock()
 		for _, n := range loadNovetats(s) {
 			if n.Ts > since && !strings.HasPrefix(n.Source, "feina:") {
 				b.News++
 			}
 		}
-		novetatsMu.Unlock()
+		novetatsMu.ReadUnlock()
 	}
 	b.Text = capBriefText(b, ca)
 	return b
