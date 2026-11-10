@@ -1,10 +1,8 @@
-/* The Winds workspace shares the app palette, with quiet sage accents. */
+/* The Winds workspace shares the app palette and the app accent: one family with Codi. */
 /* Els tokens valen per a tot Gregal Vents (data-product), també al Racó i a Automatitzacions,
-   on el body no porta .shell-winds. */
-body.shell-winds, :root[data-product="vents"] body { --vw-accent:#B9CCAD; --vw-ink:#233827; --vw-accent-text:var(--vw-accent); }
-:root[data-theme="light"] body.shell-winds, :root[data-theme="light"][data-product="vents"] body { --vw-accent:#D5E2CD; --vw-ink:#304735; }
-/* Sobre fons clar la sàlvia no es llegeix: text, anells i vores actives passen al verd fosc. */
-:root:is([data-theme="light"],[data-theme="gpt"],[data-theme="claude"],[data-theme="mistral"],[data-theme="gemini"]) :is(body.shell-winds, [data-product="vents"] > body) { --vw-accent-text:#3D5E44; }
+   on el body no porta .shell-winds. Són àlies de l'accent del tema (docs/identitat.md: un sol
+   accent): Vents segueix el tema triat, igual que Codi i que l'app d'Android. */
+body.shell-winds, :root[data-product="vents"] body { --vw-accent:var(--accent); --vw-ink:var(--on-accent, var(--bg)); --vw-accent-text:var(--accent); }
 body.shell-winds #ventsPage { overflow:hidden; min-height:0; padding:0; }
 body.shell-winds #top { display:none; }
 body.shell-winds #ventsPage > .winds-page,body.shell-winds #windsListCard { display:none!important; }
@@ -17,18 +15,19 @@ body.shell-winds .side-scroll { overflow:auto; }
 .wind-workspace button,.vw-nav button,.vw-dialog button { font:inherit; cursor:pointer; transition:background .15s,color .15s; }
 .wind-workspace [hidden],.vw-dialog [hidden] { display:none!important; }
 .wind-workspace :is(button,summary,a):focus-visible,.vw-nav :is(button,summary):focus-visible,.vw-dialog :is(button,summary):focus-visible,.vw-model-pop button:focus-visible { outline:2px solid var(--vw-accent-text); outline-offset:2px; }
-.vw-nav { display:flex; flex-direction:column; gap:3px; padding:22px 12px 24px; }
-.vw-new { text-align:left; background:var(--surface); border:1px solid var(--line); color:var(--ink); border-radius:11px; padding:10px 12px; margin-bottom:23px; font-weight:550!important; }
-.vw-nav-item { min-width:0; text-align:left; padding:8px 10px; background:transparent; border:0; border-radius:8px; color:var(--muted); font-size:12px!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.vw-nav-item:hover,.vw-nav-item[aria-current="page"],.vw-nav-item[data-selected="true"] { background:var(--hover-alt); color:var(--ink); }
+.vw-nav { display:flex; flex-direction:column; gap:1px; padding:22px 10px 24px; }
+.vw-new { text-align:left; background:transparent; border:1px solid var(--line); color:var(--ink); border-radius:10px; padding:0 12px; min-height:40px; margin-bottom:6px; font-weight:550!important; }
+.vw-nav-item { min-width:0; text-align:left; padding:8px 12px; background:transparent; border:0; border-radius:8px; color:var(--muted); font-size:12px!important; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-nav-item:hover { background:var(--surface); color:var(--ink); }
+.vw-nav-item[aria-current="page"],.vw-nav-item[data-selected="true"] { background:var(--accent-soft); color:var(--ink); }
 .vw-section-label { display:flex; justify-content:space-between; align-items:center; padding:22px 10px 7px; font-size:10px; letter-spacing:.09em; color:var(--faint); font-weight:600; }
 .vw-small { display:grid; place-items:center; width:28px; height:28px; padding:0; background:transparent; color:var(--muted); border:0; border-radius:var(--r-sm,8px); }
 .vw-small:hover { background:var(--hover-alt); color:var(--ink); }
 .vw-small .vw-ic { width:16px; height:16px; }
-.vw-nav-empty { font-size:11px; color:var(--faint); padding:0 10px; }
-.vw-project { display:flex; align-items:center; gap:9px; }
+.vw-nav-empty { font-size:12px; color:var(--faint); padding:2px 12px; }
+.vw-project { display:flex; align-items:center; gap:12px; }
 .vw-project span { overflow:hidden; text-overflow:ellipsis; }
-.vw-folder { width:17px; height:17px; flex:none; }
+.vw-folder { width:17px; height:17px; margin-inline:.5px; flex:none; }
 .vw-nested { margin-left:18px; font-size:11px!important; }
 .vw-top { display:flex; align-items:center; flex:none; gap:13px; min-height:56px; padding:0 30px; border-bottom:1px solid var(--line); color:var(--muted); font-size:12px; }
 .vw-separator { color:var(--faint); }
@@ -45,39 +44,49 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-eyebrow { color:var(--muted); font-size:11px; letter-spacing:.1em; margin:5px 0 12px!important; }
 .vw-welcome h1 { color:var(--ink); font:400 clamp(32px,3.6vw,48px)/1.15 Georgia,serif; margin:12px 0 17px; letter-spacing:-.035em; }
 .vw-welcome > p:last-child { color:var(--muted); font-size:14px; margin:0; }
-.vw-composer { flex:none; background:var(--surface); border:1px solid var(--line-hi); border-radius:19px; padding:17px 18px 12px; box-shadow:0 10px 28px color-mix(in srgb,var(--ombra) 20%,transparent); }
-.vw-composer:focus-within { border-color:color-mix(in srgb,var(--vw-accent) 60%,var(--line)); }
-.vw-composer textarea { display:block; width:100%; resize:none; background:transparent; border:0; color:var(--text); outline:0; font:inherit; line-height:1.65; min-height:66px; max-height:180px; padding:0; }
+/* El compositor és el #box de Codi: mateix farcit, radi, vora, fons i anell de focus (la regla
+   compartida «#box, .vw-composer» és a refine.css). */
+.vw-composer { flex:none; background:var(--composer, var(--surface)); border:1px solid var(--line-hi); border-radius:28px; padding:12px 14px 9px; }
+.vw-composer textarea { display:block; width:100%; resize:none; background:transparent; border:0; color:var(--ink); outline:0; font:inherit; font-size:15.5px; line-height:1.6; min-height:30px; max-height:180px; padding:0; field-sizing:content; }
+.vw-composer textarea::placeholder { color:var(--faint); }
 .vw-composer textarea:focus,.vw-composer textarea:focus-visible { outline:none!important; border:0!important; box-shadow:none!important; }
-.vw-composer-foot { display:flex; align-items:center; gap:12px; margin-top:14px; min-width:0; }
-.vw-composer-foot select { background:transparent; border:0; color:var(--muted); font:inherit; font-size:12px; min-width:0; max-width:42%; min-height:34px; padding:3px 0; }
+.vw-composer-foot { display:flex; align-items:center; gap:6px; margin-top:8px; min-width:0; min-height:40px; }
+/* «Amb qui parles» i el model: les pastilles planes del peu del compositor de Codi (#modePicker i
+   #modelPill a refine.css). La fletxa del desplegable és la compartida (--ico-chev, refine.css). */
+.vw-select { position:relative; display:inline-flex; min-width:0; max-width:42%; }
+.vw-composer-foot select { -webkit-appearance:none; appearance:none; field-sizing:content; min-width:0; max-width:100%; min-height:30px; padding:3px 24px 3px 9px; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; text-overflow:ellipsis; cursor:pointer; }
+.vw-composer-foot select:hover { background:var(--hover); color:var(--ink); }
 .vw-composer-foot select option { background:var(--surface); color:var(--text); }
-.vw-model { display:inline-flex; align-items:center; gap:6px; font-size:12px!important; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:999px; min-width:0; max-width:40%; min-height:34px; white-space:nowrap; padding:5px 10px; cursor:pointer; }
-.vw-model:hover,.vw-model:focus-visible { color:var(--text); border-color:var(--line-hi); background:var(--surface-hi); }
+button.vw-model { display:inline-flex; align-items:center; margin-left:auto; font-size:12px; font-weight:500; line-height:1.3; color:var(--text); background:transparent; border:0; border-radius:var(--r-sm,8px); min-width:0; max-width:40%; min-height:30px; white-space:nowrap; padding:4px 8px; cursor:pointer; }
+.vw-model + .vw-send { margin-left:0; }
+button.vw-model:hover,button.vw-model:focus-visible { color:var(--ink); background:var(--hover); }
 .vw-model-name { overflow:hidden; text-overflow:ellipsis; min-width:0; }
-.vw-model-chev { flex:none; width:14px; height:14px; }
+.vw-model-chev { display:inline-block; flex:none; width:5px; height:5px; margin:0 1px 3px 7px; border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint); }
 .vw-model-pop { position:fixed; z-index:60; display:flex; flex-direction:column; gap:8px; padding:12px; background:var(--surface); border:1px solid var(--line-hi); border-radius:14px; box-shadow:0 14px 36px color-mix(in srgb,var(--ombra) 35%,transparent); }
 .vw-model-head { margin:0; font-size:12px; color:var(--muted); }
-.vw-model-filter { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:9px; color:var(--text); font:inherit; font-size:13px; padding:7px 10px; }
+.vw-model-filter { width:100%; background:var(--bg); border:1px solid var(--line); border-radius:8px; color:var(--text); font:inherit; font-size:13px; padding:7px 10px; }
 .vw-model-list { overflow:auto; min-height:0; display:flex; flex-direction:column; }
 .vw-model-prov { margin:8px 4px 4px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
 .vw-model-row { display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; background:transparent; border:0; border-radius:8px; color:var(--text); font:inherit; font-size:13px; padding:7px 9px; cursor:pointer; }
 .vw-model-row span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-model-row small { flex:none; font-size:10.5px; color:var(--faint); }
 .vw-model-row:hover,.vw-model-row:focus-visible { background:var(--surface-hi); }
-.vw-model-row[aria-selected="true"] { background:color-mix(in srgb,var(--vw-accent) 18%,transparent); }
-.vw-model-row[aria-selected="true"] span::before { content:'✓ '; color:var(--vw-accent); }
+.vw-model-row[aria-selected="true"] { background:var(--accent-soft); }
+.vw-model-row[aria-selected="true"] span::before { content:'✓ '; color:var(--accent-hi); }
 .vw-model-empty { margin:6px 4px; font-size:12px; color:var(--faint); }
-.vw-send { display:grid; place-items:center; flex:0 0 38px; margin-left:auto; width:38px; min-width:38px; height:38px; min-height:38px; padding:0; border-radius:50%; border:1px solid transparent; background:var(--vw-accent); color:var(--vw-ink); line-height:0; align-self:center; }
-.vw-send svg { display:block; width:22px; height:22px; pointer-events:none; }
-.vw-send[data-busy="true"] { background:var(--surface-hi); color:var(--text); border-color:var(--line-hi); }
-.vw-send:hover { filter:brightness(1.08); }
+/* Enviar: el #send de Codi (40 px, accent del tema, fletxa de 17 px, hover amb --accent-hi). */
+.vw-send { display:grid; place-items:center; flex:0 0 40px; margin-left:auto; width:40px; min-width:40px; height:40px; min-height:40px; padding:0; border-radius:50%; border:0; background:var(--accent); color:var(--on-accent, var(--bg)); line-height:0; align-self:center; }
+.vw-send svg { display:block; width:17px; height:17px; pointer-events:none; }
+.vw-send:hover { background:var(--accent-hi); }
+.vw-send:not(:disabled):hover { transform:scale(1.06); }
+.vw-send:disabled { opacity:.65; cursor:default; }
+.vw-send[data-busy="true"] { background:var(--surface-hi); color:var(--text); box-shadow:inset 0 0 0 1px var(--line-hi); }
 .vw-folder-under { margin:6px 18px 0; font-size:10.5px; opacity:.8; }
 .vw-folder-under .vw-folder { width:13px; height:13px; }
 .vw-folder-under span { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .vw-folder-hint,.vw-project-path { display:flex; align-items:center; gap:7px; font-size:11px; color:var(--faint); overflow-wrap:anywhere; margin-top:10px; }
 .vw-prompts { display:flex; flex-wrap:wrap; gap:9px; justify-content:center; margin:19px 0 36px; }
-.vw-demo { width:100%; margin:0 auto 30px; padding:20px 22px 17px; border:1px solid var(--line); border-radius:17px; background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 94%,var(--vw-accent)),var(--surface)); box-shadow:0 12px 32px color-mix(in srgb,var(--ombra) 14%,transparent); }
+.vw-demo { width:100%; margin:0 auto 30px; padding:20px 22px 17px; border:1px solid var(--line); border-radius:17px; background:var(--surface); box-shadow:var(--lift, 0 12px 32px color-mix(in srgb,var(--ombra) 14%,transparent)); }
 .vw-demo-head { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .vw-demo-kicker { color:var(--faint); font-size:9px; letter-spacing:.12em; margin:0 0 4px; }
 .vw-demo-head h2 { color:var(--ink); font-size:17px; font-weight:550; line-height:1.35; margin:0; }
@@ -92,28 +101,31 @@ body.shell-winds .side-scroll { overflow:auto; }
 .vw-demo-turn strong { display:inline; color:var(--ink); font-size:11px; font-weight:600; }
 .vw-demo-role { display:inline; margin-left:7px; color:var(--faint); font-size:10px; }
 .vw-demo-turn p { color:var(--muted); font-size:11px; line-height:1.5; margin:2px 0 0; }
-.vw-demo-summary { border:1px solid color-mix(in srgb,var(--vw-accent) 32%,var(--line)); background:color-mix(in srgb,var(--vw-accent) 10%,var(--surface)); }
+.vw-demo-summary { border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line)); background:var(--accent-soft); }
 .vw-demo-mark { display:grid; place-items:center; width:27px; height:27px; border-radius:50%; color:var(--vw-ink); background:var(--vw-accent); }
 .vw-demo-mark .vw-ic { width:15px; height:15px; }
 .vw-demo.is-playing .vw-demo-thread::after { content:''; width:20px; height:3px; margin:2px 0 0 49px; border-radius:4px; background:var(--vw-accent); animation:vw-demo-pulse 1.2s ease-in-out infinite alternate; }
 @keyframes vw-demo-arrive { from { opacity:0; transform:translateY(7px); } to { opacity:1; transform:translateY(0); } }
 @keyframes vw-demo-pulse { from { opacity:.35; transform:scaleX(.65); transform-origin:left; } to { opacity:.8; transform:scaleX(1); transform-origin:left; } }
-.vw-button { border:1px solid var(--line); border-radius:9px; padding:7px 13px; background:transparent; color:var(--text); font-size:12px!important; }
-.vw-button:hover { background:var(--hover-alt); }
-.wind-workspace :is(.vw-button,.vw-top-action,.vw-crew-chip,.vw-prompt,.vw-send):active:not(:disabled) {
+/* Botons: el principal i el secundari de Codi (button.primary i .raco-actions button a polish.css).
+   «button.» davant: la regla «.wind-workspace button { font:inherit }» de dalt pesa més que una classe sola. */
+button.vw-button { min-height:36px; border:1px solid var(--line-hi); border-radius:8px; padding:6px 12px; background:transparent; color:var(--text); font-size:14px!important; font-weight:400; line-height:1.4; }
+button.vw-button:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+.wind-workspace :is(.vw-button,.vw-top-action,.vw-crew-chip,.vw-prompt,.vw-choice):active:not(:disabled) {
   box-shadow:inset 0 0 0 2px var(--line-hi); transition:none;
 }
-.vw-primary { background:var(--vw-accent,#B9CCAD); color:var(--vw-ink,#233827); border:0; border-radius:9px; padding:10px 16px; font-size:12px!important; }
+:is(button,a).vw-primary { min-height:36px; background:var(--accent); color:var(--on-accent, var(--bg)); border:1px solid transparent; border-radius:8px; padding:6px 14px; font-size:14px!important; font-weight:600; line-height:1.4; }
+:is(button,a).vw-primary:not(:disabled):hover { background:var(--accent-hi); }
+:is(button,a).vw-primary:disabled { opacity:.5; cursor:default; }
 .vw-subtitle { color:var(--muted); font-size:12px; font-weight:500; margin:26px 0 12px; }
 .vw-recent { text-align:left; border:0; border-bottom:1px solid var(--line); padding:15px 2px; color:var(--text); background:transparent; font-size:13px!important; width:100%; }
-.vw-crew-strip { display:flex; justify-content:center; flex-wrap:wrap; gap:24px; margin-top:42px; font-size:11px; color:var(--faint); }
-.vw-crew-strip button { display:flex; flex-direction:column; align-items:center; gap:5px; padding:0; background:transparent; color:var(--muted); border:0; font-size:11px!important; }
-.vw-crew-strip .winds-face { width:39px; height:39px; }
-.vw-tabs { display:flex; flex-wrap:wrap; gap:5px; margin:20px 0 24px; border-bottom:1px solid var(--line); padding-bottom:10px; }
-.vw-tabs button { background:transparent; border:0; border-radius:7px; color:var(--muted); padding:7px 12px; font-size:12px!important; }
-.vw-tabs button[data-selected="true"] { background:var(--hover-alt); color:var(--ink); }
+.vw-crew-strip { display:flex; justify-content:center; flex-wrap:wrap; gap:8px; margin:16px 0 0; }
+.vw-tabs { display:flex; gap:2px; width:max-content; max-width:100%; margin:20px 0 24px; padding:3px; border-radius:var(--r-md,12px); background:var(--hover); overflow-x:auto; scrollbar-width:none; }
+.vw-tabs button { min-height:30px; background:transparent; border:0; border-radius:7px; color:var(--muted); padding:0 14px; font-size:13px!important; font-weight:500; line-height:1.3; white-space:nowrap; }
+.vw-tabs button:hover { background:transparent; color:var(--ink); }
+.vw-tabs button[data-selected="true"] { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
 .vw-member { display:flex; align-items:center; gap:15px; padding:20px 0; border-bottom:1px solid var(--line); }
-.vw-member > .winds-face { width:48px; height:48px; flex:none; }
+.vw-member > .winds-face { width:58px; height:58px; flex:none; }
 .vw-member > div,.vw-member > strong { flex:1; min-width:0; }
 .vw-member h2,.vw-library-item h2 { font-size:15px; color:var(--ink); margin:0 0 3px; font-weight:550; }
 .vw-member p { margin:0; color:var(--muted); font-size:12px; }
@@ -134,19 +146,24 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-thread-empty h1 { font-size:clamp(22px,3vw,34px); margin:0; }
 .vw-thread-empty p { color:var(--muted); margin:6px 0 0; }
 .vw-error { color:var(--red); font-size:12px; overflow-wrap:anywhere; }
-.vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:27px; border-radius:20px; width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:0 24px 80px var(--ombra); font-size:13px; }
-.vw-dialog::backdrop { background:rgba(0,0,0,.5); backdrop-filter:blur(5px); }
-.vw-dialog > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-.vw-dialog h2 { font-weight:600; font-size:22px; line-height:1.3; font-family:inherit; letter-spacing:-.02em; color:var(--ink); margin:0; overflow-wrap:anywhere; }
-.vw-close { display:grid; place-items:center; flex:none; width:34px; height:34px; padding:0; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); }
-.vw-close:hover { background:var(--hover-alt); color:var(--ink); }
+/* Diàlegs: la finestra de les modals de Codi (#prefsModal): radi, capçalera, botó de tancar i teló. */
+.vw-dialog { margin:auto; border:1px solid var(--line-hi); background:var(--surface); color:var(--text); padding:20px; border-radius:var(--r-md,12px); width:min(600px,calc(100vw - 32px)); max-height:85dvh; overflow:auto; box-shadow:var(--lift), 0 30px 80px -24px var(--ombra); font-size:13px; }
+.vw-dialog::backdrop { background:color-mix(in srgb, var(--bg) 55%, rgba(0,0,0,.5)); backdrop-filter:blur(2px); }
+.vw-dialog > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:-8px -6px 12px 0; }
+.vw-dialog h2 { font-weight:590; font-size:16px; line-height:1.3; font-family:inherit; letter-spacing:0; color:var(--ink); margin:0; overflow-wrap:anywhere; }
+.vw-close { display:grid; place-items:center; flex:none; width:32px; height:32px; padding:0; border:0; border-radius:var(--r-sm,8px); background:transparent; color:var(--muted); }
+.vw-close:hover { background:var(--hover); color:var(--ink); }
 .vw-close .vw-ic { width:18px; height:18px; }
 .vw-dialog > .winds-face { width:55px; height:55px; }
 .vw-field { display:flex; flex-direction:column; gap:7px; color:var(--muted); margin:17px 0; font-size:12px; }
-.vw-field input,.vw-field textarea,.vw-dialog select,.vw-search { padding:11px; border:1px solid var(--line-hi); border-radius:9px; background:var(--bg); color:var(--text); font:inherit; width:100%; }
+.vw-field input,.vw-field textarea,.vw-dialog select,.vw-search { padding:7px 10px; border:1px solid var(--line-hi); border-radius:8px; background:var(--bg); color:var(--text); font:inherit; font-size:14px; line-height:1.45; width:100%; }
+/* Els camps dels diàlegs tenen la mateixa lletra que els de les pàgines (14 px); l'etiqueta queda petita. */
+:is(.vw-field,.vw-dialog) :is(input:not([type=checkbox],[type=radio],[type=color],[type=file]),textarea,select):focus, input.vw-search:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
+/* Desplegables: sense la fletxa del sistema, amb la del joc d'icones (--ico-chev, refine.css). */
+.vw-dialog select:not([multiple]) { -webkit-appearance:none; appearance:none; padding-right:30px; background-image:var(--ico-chev); background-repeat:no-repeat; background-position:right 10px center; background-size:14px; cursor:pointer; }
 .vw-wind-suggestions { display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:7px; margin:16px 0; }
 .vw-wind-suggestion { display:flex; flex-direction:column; gap:3px; text-align:left; padding:10px 11px; border:1px solid var(--line); border-radius:11px; background:var(--bg); color:var(--text); }
-.vw-wind-suggestion:hover { border-color:var(--vw-accent); background:var(--hover-alt); }
+.vw-wind-suggestion:hover { border-color:var(--line-hi); background:var(--hover-alt); }
 .vw-wind-suggestion span { color:var(--muted); font-size:11px; }
 .vw-wind-preview { display:flex; justify-content:center; padding:8px; }
 .vw-wind-preview .winds-face { width:96px; height:96px; }
@@ -165,7 +182,7 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-actions { display:flex; flex-wrap:wrap; gap:6px; max-width:200px; justify-content:flex-end; }
 .vw-library-text { white-space:pre-wrap; overflow-wrap:anywhere; font:13px/1.7 inherit; background:var(--bg); padding:12px; border-radius:8px; }
 .vw-check { display:flex; align-items:center; gap:9px; padding:9px 0; }
-.vw-search { margin:0 0 14px; max-width:360px; font-size:13px; }
+.vw-search { margin:0 0 14px; max-width:360px; font-size:14px; }
 .vw-task-row { display:flex; flex-direction:column; text-align:left; gap:6px; background:transparent; color:var(--text); border:0; border-bottom:1px solid var(--line); padding:20px 0; width:100%; }
 .vw-task-row strong { font-size:14px; font-weight:500; }
 .vw-task-row small { font-size:11px; color:var(--faint); overflow-wrap:anywhere; }
@@ -174,17 +191,33 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-thread-view { display:flex; flex-direction:column; overflow:hidden; padding-top:28px; padding-bottom:25px; }
 .vw-thread-view .vw-heading { flex:none; margin-bottom:18px; }
 .vw-thread-view .vw-heading h1 { font-family:inherit; font-size:17px; font-weight:500; line-height:1.5; }
-.vw-thread-view .vw-composer { padding:14px 16px 12px; border-radius:20px; }
-.vw-thread-view .vw-composer textarea { min-height:46px; }
-.vw-thread-view .vw-composer-foot { margin-top:8px; }
 .vw-messages,.vw-work { flex:1; min-height:0; overflow:auto; overscroll-behavior:contain; scrollbar-width:thin; scrollbar-color:var(--line-hi) transparent; padding:0 3px 24px; }
 .vw-message { display:flex; align-items:flex-start; gap:13px; padding:20px 0; }
 .vw-message > .winds-face { width:38px; height:38px; flex:none; }
+/* Capçalera d'un xat compartit: qui hi és a l'esquerra, «Surt del xat» a la dreta en una sola línia. */
+.vw-shared-info { display:flex; align-items:center; justify-content:space-between; gap:12px; flex:none; margin:0 0 12px; min-width:0; }
+.vw-shared-info > .vw-muted { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+.vw-shared-info > button.vw-small { width:auto; height:auto; min-height:30px; padding:0 10px; white-space:nowrap; font-size:12.5px; border:1px solid var(--line); }
+.vw-shared-info > button.vw-small:hover { border-color:var(--line-hi); }
+/* El diàleg d'un xat compartit: persones i vents com a targetes que es marquen. */
+.vw-shared-pick { border:0; padding:0; margin:16px 0 4px; min-width:0; display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; }
+.vw-shared-pick > legend { padding:0; margin:0 0 8px; color:var(--muted); font-size:12px; font-weight:500; }
+.vw-shared-pick > .vw-muted { grid-column:1/-1; margin:0; }
+label.vw-pick-card { display:flex; align-items:center; gap:10px; padding:8px 12px 8px 10px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); color:var(--text); font-size:14px; cursor:pointer; transition:border-color .15s, background-color .15s; }
+label.vw-pick-card:hover { border-color:var(--line-hi); }
+label.vw-pick-card:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 65%, var(--line)); background:var(--accent-soft); color:var(--ink); }
+label.vw-pick-card:has(input:focus-visible) { box-shadow:var(--ring); }
+label.vw-pick-card input { margin:0; flex:none; accent-color:var(--accent); }
+label.vw-pick-card > :is(.winds-face,.vw-shared-person) { width:26px; height:26px; flex:none; font-size:12px; }
+label.vw-pick-card > span:last-child { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.vw-shared-person { display:grid; place-items:center; width:38px; height:38px; flex:none; border-radius:50%; background:var(--hover-alt); color:var(--ink); font-size:14px; font-weight:600; }
 .vw-message > div { max-width:calc(100% - 51px); min-width:0; }
 .vw-message strong { font-size:12px; color:var(--ink); font-weight:550; }
-.vw-message-text { font-size:14px; line-height:1.8; white-space:pre-wrap; overflow-wrap:anywhere; }
+.vw-message-text { font-size:15px; line-height:1.72; white-space:pre-wrap; overflow-wrap:anywhere; }
 .vw-user { justify-content:flex-end; }
-.vw-user > div { background:var(--surface); padding:13px 18px; border-radius:16px 16px 3px 16px; max-width:85%; }
+/* La bombolla de qui escriu: la de Codi (superfície, vora fina, radi de 17 px, 14 px de lletra). */
+.vw-user > div { background:var(--surface); border:1px solid var(--line); padding:9px 14px; border-radius:17px; max-width:72%; }
+.vw-user .vw-message-text { font-size:14px; line-height:1.6; color:var(--ink); }
 .vw-user strong { display:none; }
 /* La resposta en curs ocupa el mateix lloc que la que la substituirà: res no salta en acabar. */
 .vw-pending { padding-top:14px; padding-bottom:24px; }
@@ -200,7 +233,7 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-live-agent .winds-face { width:32px; height:32px; }
 .vw-live-agent span { margin-left:auto; color:var(--muted); }
 .vw-progress { color:var(--muted); font-size:12px; }
-.vw-result-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:13px; line-height:1.8; padding:20px 0; }
+.vw-result-text { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.72; padding:20px 0; }
 .vw-message-text,.vw-result-text { white-space:normal; }
 .vw-message-text pre,.vw-result-text pre { overflow:auto; white-space:pre; max-width:100%; padding:14px; border-radius:9px; background:var(--panel); font-size:12px; }
 .vw-message-text p,.vw-result-text p { margin:8px 0; }
@@ -217,6 +250,12 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-review > summary { cursor:pointer; padding:12px 0; color:var(--muted); font-size:12px; }
 .vw-review > .vw-result-text { padding-top:4px; }
 .vw-mobile-nav { display:none; }
+/* La barra de Vents a les pàgines del Racó i d'Automatitzacions (només al telèfon, només a Vents). */
+@media(max-width:760px) {
+ :root[data-product="vents"] .workspace-page > .vw-page-nav { position:fixed; left:0; right:0; bottom:0; z-index:30; }
+ :root[data-product="vents"] .workspace-page:has(> .vw-page-nav) { padding-bottom:calc(84px + env(safe-area-inset-bottom,0px)); }
+}
+:root:not([data-product="vents"]) .vw-page-nav { display:none!important; }
 .vw-mobile-menu { display:grid; place-items:center; width:32px; height:32px; margin-left:-8px; border:0; border-radius:var(--r-sm,8px); color:var(--muted); background:transparent; padding:0; cursor:pointer; }
 .vw-mobile-menu:hover { background:var(--hover-alt); color:var(--ink); }
 .vw-mobile-menu .vw-ic { width:18px; height:18px; }
@@ -225,18 +264,17 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 @media(max-width:760px) {
  .vw-top { padding:0 18px; gap:9px; min-height:50px; } .vw-top > span:last-of-type { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-content { padding:26px 20px; } .vw-home { padding-top:40px; } .vw-welcome h1 { font-size:36px; }
- .vw-prompts { gap:7px; margin-bottom:22px; } .vw-prompts button { font-size:11px!important; padding:7px 10px; }
+ .vw-prompts { gap:7px; }
  .vw-demo { padding:15px 13px 12px; border-radius:14px; margin-bottom:22px; } .vw-demo-head { align-items:flex-start; } .vw-demo-head h2 { font-size:15px; } .vw-demo-replay { font-size:10px!important; padding:6px 8px; } .vw-demo-turn { grid-template-columns:24px minmax(0,1fr); gap:7px; padding:8px; } .vw-demo-turn > .winds-face,.vw-demo-mark { width:24px; height:24px; }
- .vw-crew-strip { gap:20px; margin-top:28px; } .vw-composer { padding:14px; border-radius:16px; }
- .vw-composer-foot { gap:7px; } .vw-composer-foot select { max-width:45%; } .vw-model { max-width:34%; }
- .vw-member { gap:10px; } .vw-member > .winds-face { width:40px; height:40px; } .vw-member button { padding:7px 9px; }
+ .vw-select { max-width:46%; } button.vw-model { max-width:42%; } .vw-user > div { max-width:86%; }
+ .vw-member { gap:10px; } .vw-member > .winds-face { width:48px; height:48px; } .vw-member button { padding:7px 9px; }
  .vw-member p { font-size:11px; } .vw-member h2 { font-size:14px; }
  .vw-mobile-nav { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); flex:none; gap:2px; border-top:1px solid var(--line); background:var(--panel); padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px)); }
  .vw-mobile-nav button { display:flex; flex-direction:column; align-items:center; gap:3px; min-height:48px; min-width:0; border:0; background:transparent; color:var(--muted); font-size:11px!important; line-height:1.2; padding:6px 2px; border-radius:var(--r-md,12px); }
  .vw-mobile-nav button > span { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
  .vw-mobile-nav .vw-nav-svg { width:20px; height:20px; }
- .vw-mobile-nav button[data-selected="true"] { color:var(--ink); background:color-mix(in srgb,var(--vw-accent) 14%,transparent); }
- .vw-mobile-nav button[data-selected="true"] .vw-nav-svg { color:var(--vw-accent-text); }
+ .vw-mobile-nav button[data-selected="true"] { color:var(--ink); background:var(--accent-soft); }
+ .vw-mobile-nav button[data-selected="true"] .vw-nav-svg { color:var(--accent-hi); }
  .vw-library-item { flex-wrap:wrap; gap:10px; } .vw-actions { max-width:none; width:100%; justify-content:flex-start; padding-left:53px; }
  .vw-thread-view { padding-top:18px; padding-bottom:12px; } .vw-heading h1 { font-size:24px; }
  body.shell-winds #side.vw-open { display:flex; visibility:visible; margin-left:0; width:230px; min-width:230px; }
@@ -257,18 +295,19 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-wiki-lede { font-size:15px; color:var(--text); margin:0 0 6px; }
 .vw-wiki-dialog .plot-card { margin:16px 0; }
 /* Navegació amb icones de traç i feines amb qui, quan, on i què. */
-.vw-nav-icon { display:flex; align-items:center; gap:9px; }
-.vw-nav-svg { width:16px; height:16px; flex:none; }
+.vw-nav-icon { display:flex; align-items:center; gap:12px; }
+.vw-nav-svg { width:17px; height:17px; margin-inline:.5px; flex:none; }
+.vw-nav-item :is(.vw-nav-svg,.vw-folder) { color:var(--muted); }
 .vw-task-row { gap:4px; padding:14px 2px; }
 .vw-task-head { display:flex; align-items:center; gap:10px; min-width:0; }
 .vw-task-head strong { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .vw-task-faces { display:flex; flex:none; }
 .vw-task-faces .winds-face { width:26px; height:26px; margin-right:-6px; }
 .vw-task-faces:empty { display:none; }
-.vw-task-state { flex:none; font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+.vw-task-state { flex:none; font-size:11px; font-weight:500; line-height:1.5; padding:2px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
 .vw-task-state.is-done { color:var(--green, #6fbf73); border-color:color-mix(in srgb,var(--green, #6fbf73) 40%,transparent); }
 .vw-task-state.is-stopped { color:var(--amber, #d9a441); border-color:color-mix(in srgb,var(--amber, #d9a441) 40%,transparent); }
-.vw-task-state.is-running { color:var(--accent); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
+.vw-task-state.is-running { color:var(--accent-hi); border-color:color-mix(in srgb,var(--accent) 40%,transparent); }
 .vw-task-row small { padding-left:0; }
 
 /* Estrella de preferit a les converses de la barra lateral. */
@@ -289,28 +328,28 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-content.vw-home { padding-top:clamp(40px,12vh,150px); padding-left:max(24px,calc((100% - 760px)/2)); padding-right:max(24px,calc((100% - 760px)/2)); }
 .vw-home > * { flex:none; }
 .vw-welcome { margin:0 auto 22px; }
-.vw-orb { position:relative; width:72px; height:72px; margin:0 auto 18px; display:grid; place-items:center; }
+.vw-orb { position:relative; width:96px; height:96px; margin:0 auto 14px; display:grid; place-items:center; }
 .vw-orb::before { content:''; position:absolute; inset:-18px; border-radius:50%; background:radial-gradient(circle,color-mix(in srgb,var(--vw-accent) 38%,transparent),transparent 68%); filter:blur(6px); animation:vw-breathe 5s ease-in-out infinite; }
-.vw-orb .winds-face { position:relative; width:64px; height:64px; margin:0; }
+.vw-orb .winds-face { position:relative; width:92px; height:92px; margin:0; }
 @keyframes vw-breathe { 0%,100% { transform:scale(.92); opacity:.7; } 50% { transform:scale(1.08); opacity:1; } }
 .vw-welcome h1 { font:600 clamp(34px,4.4vw,52px)/1.08 var(--sans, "Inter", "Segoe UI Variable Display", system-ui, sans-serif); letter-spacing:-.04em; margin:0 0 10px; }
 .vw-welcome > p:last-child { font-size:15px; }
-.vw-squads { display:flex; justify-content:center; gap:4px; margin:0 auto 18px; padding:4px; border-radius:999px; background:color-mix(in srgb,var(--surface) 70%,transparent); border:1px solid var(--line); width:max-content; max-width:100%; overflow-x:auto; scrollbar-width:none; }
-.vw-squad-pill { border:0; background:transparent; color:var(--muted); font-size:13px!important; font-weight:550; padding:6px 14px; border-radius:999px; white-space:nowrap; }
-.vw-squad-pill:hover { color:var(--ink); }
-.vw-squad-pill[aria-selected="true"] { background:var(--ink); color:var(--bg); }
-.vw-home .vw-composer { border-radius:28px; padding:18px 20px 12px 22px; background:color-mix(in srgb,var(--surface) 92%,var(--vw-accent)); border-color:var(--line-hi); box-shadow:0 18px 50px -18px color-mix(in srgb,var(--ombra) 55%,transparent),0 0 0 1px color-mix(in srgb,var(--vw-accent) 6%,transparent); transition:border-color .2s, box-shadow .25s; }
-.vw-home .vw-composer:focus-within { box-shadow:0 22px 60px -18px color-mix(in srgb,var(--ombra) 60%,transparent),0 0 0 4px color-mix(in srgb,var(--vw-accent) 16%,transparent); }
-.vw-home .vw-composer textarea { font-size:16px; min-height:56px; }
-.vw-home .vw-composer-foot select { background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:5px 12px; color:var(--text); }
-.vw-home .vw-send { width:40px; height:40px; flex-basis:40px; }
-.vw-crew-strip { justify-content:center; gap:8px; margin:16px 0 0; }
-.vw-crew-chip { flex-direction:row!important; gap:8px!important; padding:5px 13px 5px 5px!important; border:1px solid var(--line)!important; border-radius:999px; background:color-mix(in srgb,var(--surface) 60%,transparent)!important; color:var(--text)!important; font-size:13px!important; }
-.vw-crew-chip:hover { border-color:var(--line-hi)!important; background:var(--surface)!important; }
-.vw-crew-chip .winds-face { width:26px!important; height:26px!important; }
+/* Colles: el control segmentat del canvi Codi · Vents i dels segments de preferències. */
+.vw-squads { display:flex; justify-content:center; gap:2px; margin:0 auto 18px; padding:3px; border-radius:var(--r-md,12px); background:var(--hover); border:1px solid transparent; width:max-content; max-width:100%; overflow-x:auto; scrollbar-width:none; }
+button.vw-squad-pill { min-height:30px; border:0; background:transparent; color:var(--muted); font-size:13px!important; font-weight:500; line-height:1.3; padding:0 14px; border-radius:7px; white-space:nowrap; }
+button.vw-squad-pill:hover { color:var(--ink); }
+button.vw-squad-pill[aria-selected="true"] { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
+/* A l'inici el camp respira una mica més, com el de la portada de Codi. */
+.vw-home .vw-composer textarea { min-height:36px; }
+/* Una sola pastilla per a la colla, els suggeriments i les respostes ràpides: vora fina, radi
+   complet i 13 px. L'estat d'una feina (.vw-task-state) és la mateixa forma en petit. */
+button.vw-crew-chip,button.vw-prompt,button.vw-choice { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:4px 13px; border:1px solid var(--line); border-radius:999px; background:transparent; color:var(--text); font-size:13px; font-weight:500; line-height:1.3; white-space:nowrap; }
+button:is(.vw-crew-chip,.vw-prompt,.vw-choice):hover { border-color:var(--line-hi); background:var(--hover); color:var(--ink); }
+button.vw-crew-chip { padding:2px 13px 2px 3px; }
+.vw-crew-chip .winds-face { width:26px; height:26px; flex:none; }
+button.vw-prompt { color:var(--muted); }
+button.vw-choice { white-space:normal; text-align:left; }
 .vw-prompts { margin:12px 0 0; gap:8px; }
-.vw-prompt { border:0!important; background:transparent!important; color:var(--muted)!important; font-size:13px!important; padding:6px 10px!important; border-radius:9px!important; }
-.vw-prompt:hover { color:var(--ink)!important; background:var(--hover-alt)!important; }
 .vw-today { margin:48px 0 26px; }
 .vw-today:empty { display:none; }
 .vw-today-head { display:flex; align-items:baseline; justify-content:space-between; margin:0 2px 12px; }
@@ -321,7 +360,6 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:10px; }
 .vw-card { display:flex; align-items:flex-start; gap:12px; text-align:left; padding:14px 15px; border-radius:18px; border:1px solid var(--line); background:var(--surface); color:var(--text); min-width:0; transition:border-color .15s, transform .15s, background .15s!important; }
 .vw-card:hover { border-color:var(--line-hi); transform:translateY(-1px); background:var(--surface-hi); }
-.vw-card-soft { background:color-mix(in srgb,var(--surface) 80%,var(--vw-accent)); }
 .vw-card-ic { flex:none; width:34px; height:34px; border-radius:11px; display:grid; place-items:center; background:var(--bg); color:var(--muted); }
 .vw-card-ic > .vw-ic { width:18px; height:18px; }
 .vw-card-ic .winds-face { width:30px; height:30px; }
@@ -337,45 +375,42 @@ p.vw-empty { max-width:560px; margin-inline:auto; line-height:1.6; }
 .vw-more > summary::-webkit-details-marker { display:none; }
 .vw-more[open] > summary { color:var(--ink); }
 /* Dins de <details> els botons no s'estiren sols: l'actiu ha d'ocupar tota la fila com la resta. */
-.vw-more > .vw-nav-item:not(summary) { width:100%; padding-left:18px; }
+.vw-more > .vw-nav-item:not(summary) { width:100%; padding-left:20px; }
 @media(max-width:760px) { .vw-home { padding-top:28px; } .vw-cards { grid-template-columns:1fr; } .vw-crew-strip { flex-wrap:nowrap; overflow-x:auto; justify-content:safe center; scrollbar-width:none; } }
 @media(prefers-reduced-motion:reduce) { .vw-orb::before { animation:none; } }
 
 /* ---- Preguntes, aprovacions i respostes ràpides dels vents ---- */
 .vw-asks { display:flex; flex-direction:column; gap:10px; margin:0 0 10px; }
 .vw-asks:empty { display:none; }
-.vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--vw-accent) 55%,var(--line)); border-radius:18px; background:color-mix(in srgb,var(--surface) 88%,var(--vw-accent)); }
+.vw-ask { display:flex; flex-direction:column; gap:9px; padding:14px 16px; border:1px solid color-mix(in srgb,var(--accent) 45%,var(--line-hi)); border-radius:var(--r-md,12px); background:var(--surface); box-shadow:var(--lift); }
 .vw-ask > strong { color:var(--ink); font-size:14.5px; font-weight:600; }
 .vw-ask-wait { color:var(--muted); font-size:11.5px; margin-top:-6px; }
-.vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:12.5px; padding:9px 11px; border-radius:11px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
-.vw-ask-actions { display:flex; gap:9px; }
-.vw-ask-actions button { flex:1; min-height:42px; border-radius:13px; font-weight:600; border:1px solid var(--line-hi); background:transparent; color:var(--ink); }
-.vw-ask-actions .vw-ask-allow { background:var(--vw-accent); border-color:transparent; color:var(--vw-ink); }
-.vw-ask-option { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:10px 14px; border-radius:13px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font-weight:500; }
-.vw-ask-option:hover, .vw-ask-actions button:hover { border-color:var(--vw-accent); }
+.vw-ask code { display:block; white-space:pre-wrap; word-break:break-all; font-size:12.5px; padding:9px 11px; border-radius:8px; background:var(--bg); color:var(--ink); max-height:6.5em; overflow:auto; }
+.vw-ask-actions { display:flex; gap:8px; }
+.vw-ask-actions button { flex:1; min-height:36px; border-radius:8px; font-size:14px; font-weight:400; border:1px solid var(--line-hi); background:transparent; color:var(--text); }
+.vw-ask-actions button:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+.vw-ask-actions .vw-ask-allow { background:var(--accent); border-color:transparent; color:var(--on-accent, var(--bg)); font-weight:600; }
+.vw-ask-actions .vw-ask-allow:hover { background:var(--accent-hi); border-color:transparent; color:var(--on-accent, var(--bg)); }
+.vw-ask-option { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:10px 12px; border-radius:var(--r-md,12px); border:1px solid var(--line); background:var(--bg); color:var(--ink); font-weight:500; }
+.vw-ask-option:hover { border-color:var(--line-hi); background:var(--surface-hi); }
 .vw-ask-option small { color:var(--muted); font-weight:400; font-size:12px; }
-.vw-ask-free { padding:9px 12px; border-radius:13px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit; }
+.vw-ask-free { padding:9px 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; }
+input.vw-ask-free:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
 .vw-choices { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 2px 46px; }
-.vw-choice { padding:8px 14px; border-radius:999px; border:1px solid color-mix(in srgb,var(--vw-accent) 60%,var(--line)); background:color-mix(in srgb,var(--vw-accent) 14%,transparent); color:var(--ink); font-size:13px; font-weight:500; }
-.vw-choice:hover { background:color-mix(in srgb,var(--vw-accent) 28%,transparent); }
 
-/* Un sol sistema amb Codi (calma.css): la mateixa mida a tota la barra
-   lateral, el compositor amb el radi de #box, l'enviament de 36 px i la
-   salutació amb la serif de la portada de Codi. Cada producte conserva el
-   seu color d'accent (sàlvia a Vents, blau a Codi). */
+/* Un sol sistema amb Codi: la barra lateral amb les mides de #navRail (calma.css); el compositor,
+   l'enviament, els botons i les pastilles surten de les mateixes mides que Codi (refine.css,
+   polish.css), i tots dos productes tenen un sol accent: el del tema. */
 html body.shell-winds .vw-nav-item.vw-nav-icon, html body.shell-winds .vw-nav-item.vw-project { font-size:14px!important; padding:8px 12px; color:var(--text); }
 html body.shell-winds .vw-nav-item.vw-thread { font-size:13px!important; }
-html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send:focus-visible { outline:2px solid var(--vw-accent-text); outline-offset:1px; }
-html body.shell-winds .vw-composer, html body.shell-winds .vw-home .vw-composer { border-radius:22px; }
-html body.shell-winds .vw-send { flex-basis:36px; width:36px; min-width:36px; height:36px; min-height:36px; }
-html body.shell-winds .vw-send svg { width:20px; height:20px; }
-html body.shell-winds .vw-welcome h1 { font:500 clamp(30px,3.2vw,40px)/1.2 Georgia,"Iowan Old Style",Cambria,"Times New Roman",serif; letter-spacing:-.01em; }
+html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
 
 /* ---- Passada de qualitat: un sol joc d'icones, files que s'escurcen bé,
    diàlegs amb l'acció a la vista i el mateix ritme de títols que Codi ---- */
 .vw-ic { display:inline-grid; place-items:center; flex:none; width:16px; height:16px; line-height:0; }
 .vw-ic > svg { display:block; width:100%; height:100%; }
-.vw-new { display:flex; align-items:center; gap:8px; }
+.vw-new { display:flex; align-items:center; gap:10px; }
+.vw-new .vw-ic { width:18px; height:18px; }
 .vw-add { display:inline-flex; align-items:center; gap:7px; margin-top:16px; }
 .vw-add .vw-ic, .vw-back .vw-ic, .vw-recent .vw-ic, .vw-deliverable .vw-ic { width:15px; height:15px; }
 .vw-back { display:inline-flex; align-items:center; gap:6px; }
@@ -393,51 +428,68 @@ html body.shell-winds .vw-welcome h1 { font:500 clamp(30px,3.2vw,40px)/1.2 Georg
 .vw-message-text > :first-child { margin-top:0; }
 .vw-message-text > :last-child { margin-bottom:0; }
 .vw-message:not(.vw-user) > div { max-width:min(calc(100% - 51px), 760px); }
-.vw-user > div { padding:10px 16px; }
 .vw-choices { margin-left:51px; }
 
 /* Diàlegs: perfil amb cara, rol i fitxes en una fila; crear un vent amb l'acció sempre a la vista. */
 .vw-profile-head { display:flex; align-items:center; gap:14px; margin:2px 0 16px; }
-.vw-profile-head > .winds-face { width:52px; height:52px; }
+.vw-profile-head > .winds-face { width:64px; height:64px; }
 .vw-profile-head > p { flex:1; min-width:0; margin:0; font-size:13px; }
-.vw-dialog-foot { position:sticky; bottom:-27px; z-index:1; display:flex; justify-content:flex-end; gap:8px; margin:22px -27px -27px; padding:14px 27px; background:var(--surface); border-top:1px solid var(--line); }
+.vw-dialog-foot { position:sticky; bottom:-20px; z-index:1; display:flex; justify-content:flex-end; gap:8px; margin:20px -20px -20px; padding:12px 20px; background:var(--surface); border-top:1px solid var(--line); }
 .vw-dialog .vw-tabs { margin:8px 0 16px; }
 
 /* Títols de pàgina com els de Codi (.page-title); la portada conserva la seva salutació. */
 .vw-thread-view .vw-heading h1 { font-size:17px; font-weight:550; letter-spacing:-.01em; }
 
-/* La salutació en temes clars: refine.css l'hi posa l'accent de Codi (un :is() amb #hero
-   guanya la regla de Vents); aquí torna al verd de Vents. */
-:root:is([data-theme="light"],[data-theme="gpt"],[data-theme="claude"],[data-theme="mistral"],[data-theme="gemini"]) #windWorkspace .vw-welcome h1 {
-  background-image:linear-gradient(100deg, var(--ink) 0%, var(--vw-ink) 60%, color-mix(in srgb, var(--vw-ink) 70%, var(--onada, var(--vw-ink))) 100%);
-}
-
-/* Racó i Automatitzacions, dins de Vents: el mateix accent sàlvia, no el de Codi. */
-:root[data-product="vents"] :is(#racoPage, #automatitzacionsPage) .page-kicker { color:var(--vw-accent-text); }
-:root[data-product="vents"] :is(#racoPage, #automatitzacionsPage) :is(.raco-actions button.primary, .auto-btn.primary) { background:var(--vw-accent); border-color:transparent; color:var(--vw-ink); font-weight:550; }
-:root[data-product="vents"] :is(#racoPage, #automatitzacionsPage) :is(.raco-actions button.primary:hover:not(:disabled), .auto-btn.primary:hover) { filter:brightness(1.06); border-color:transparent; }
-:root[data-product="vents"] #automatitzacionsPage .auto-btn:hover { border-color:var(--line-hi); }
-:root[data-product="vents"] #racoPage .raco-versions li.cur { border-color:color-mix(in srgb, var(--vw-accent-text) 60%, var(--line)); }
-:root[data-product="vents"] :is(#racoPage, #automatitzacionsPage) :is(button, select, input, textarea):focus-visible { outline:2px solid var(--vw-accent-text); outline-offset:2px; }
-/* La barra de Vents (Vents · Racó · Automatitzacions): l'actiu amb sàlvia a totes tres pàgines,
-   no només a la de Vents (refine.css ho lliga a .shell-winds). */
-:root[data-product="vents"] body #side #navRail .nav-item.active { background:color-mix(in srgb, var(--vw-accent) 14%, transparent); color:var(--ink); }
-:root[data-product="vents"] body #side #navRail .nav-item.active .nav-icon { color:var(--vw-accent-text); }
+/* Racó i Automatitzacions, dins de Vents: els botons, l'etiqueta i l'actiu de la barra són els
+   de Codi (polish.css, refine.css); aquí no hi ha res a sobreescriure. */
 
 @media(max-width:760px) {
  .vw-message:not(.vw-user) > div { max-width:calc(100% - 46px); }
- .vw-message > .winds-face { width:32px; height:32px; }
+ .vw-message > :is(.winds-face,.vw-shared-person) { width:32px; height:32px; }
  .vw-choices { margin-left:45px; }
- .vw-squad-pill { padding:6px 11px; font-size:12.5px!important; }
- .vw-dialog { padding:20px; }
- .vw-dialog-foot { bottom:-20px; margin:20px -20px -20px; padding:12px 20px; }
+ button.vw-squad-pill, .vw-tabs button { padding:0 11px; font-size:12.5px!important; }
+}
+/* Al telèfon la resposta d'un vent fa servir tota l'amplada, com la de Codi: la cara i el nom en
+   fan la capçalera i el text (i les taules) no perden la columna de la cara. */
+@media(max-width:600px) {
+ .vw-message:not(.vw-user) { display:block; position:relative; }
+ .vw-message:not(.vw-user) > :is(.winds-face,.vw-shared-person) { position:absolute; left:0; top:14px; width:26px; height:26px; font-size:12px; }
+ .vw-message:not(.vw-user) > div { max-width:100%; }
+ .vw-message:not(.vw-user) > div > strong { min-height:26px; padding-left:35px; line-height:26px; margin-bottom:6px; }
+ .vw-choices { margin-left:0; }
 }
 
-/* Focus: el mateix anell de Codi (refine.css), amb el color de Vents a tot el producte. */
-:root[data-product="vents"] :is(button,a,select,input,textarea,summary,[tabindex]):focus-visible { outline-color:var(--vw-accent-text); }
-:root[data-product="vents"] .workspace-page :is(input,select,textarea):focus { border-color:color-mix(in srgb, var(--vw-accent-text) 70%, var(--line)); }
+/* Focus: el mateix anell de Codi (refine.css), amb l'accent del tema. */
 .vw-model-filter:focus-visible { outline-offset:0; }
-:root[data-product="vents"] :is(#ventsPage, .vw-dialog, #automatitzacionsPage) input:is([type="checkbox"],[type="radio"]) { accent-color:var(--vw-accent-text); }
+:root[data-product="vents"] :is(#ventsPage, .vw-dialog, #automatitzacionsPage) input:is([type="checkbox"],[type="radio"]) { accent-color:var(--accent); }
 @media(min-width:1500px) { .vw-status { padding-left:max(40px,calc((100% - 900px)/2)); padding-right:max(40px,calc((100% - 900px)/2)); } }
 @media(max-width:1000px) { .vw-status { padding-left:28px; padding-right:28px; } }
 @media(max-width:760px) { .vw-status { padding-left:20px; padding-right:20px; } }
+
+/* ---- El primer diàleg («com voleu que us digui?»): l'aspecte de la benvinguda (onboarding.css,
+   que només es carrega quan s'obre): targetes de ràdio, botó principal de veritat i el mateix teló.
+   Les regles base són a index.html; aquest full es carrega després i les afina. ---- */
+.collective-dialog { border:1px solid var(--line-hi); border-radius:var(--r-lg,22px); background:var(--surface); color:var(--text); max-width:460px; box-shadow:var(--lift), 0 30px 80px -20px var(--ombra); }
+.collective-dialog::backdrop { background:color-mix(in srgb, var(--bg) 60%, transparent); backdrop-filter:blur(3px); }
+.collective-form { gap:8px; padding:24px 24px 20px; }
+.collective-form h2 { font-size:19px; font-weight:650; line-height:1.3; letter-spacing:-.01em; color:var(--ink); }
+.collective-help { margin:0 0 8px; opacity:1; color:var(--muted); font-size:13.5px; line-height:1.5; }
+.collective-opt { align-items:flex-start; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); transition:border-color .15s, background-color .15s; }
+.collective-opt:hover { background:var(--bg); border-color:var(--line-hi); }
+.collective-opt:has(input:checked) { border-color:color-mix(in srgb, var(--accent) 65%, var(--line)); background:var(--accent-soft); }
+.collective-opt:has(input:focus-visible) { box-shadow:var(--ring); }
+.collective-opt input { -webkit-appearance:none; appearance:none; flex:none; width:16px; height:16px; margin:2px 0 0; border:1.5px solid var(--faint); border-radius:50%; background:transparent; cursor:pointer; transition:border-color .15s; }
+.collective-opt input:checked { border-color:var(--accent); background:radial-gradient(circle, var(--accent) 0 3.5px, transparent 4px); }
+.collective-opt input:focus-visible { outline:none; box-shadow:none; }
+.collective-opt b { font-size:14px; font-weight:600; color:var(--ink); }
+.collective-opt small { opacity:1; color:var(--muted); font-size:12px; }
+.collective-custom { gap:10px; margin-top:4px; }
+.collective-custom label { color:var(--muted); font-size:12.5px; }
+.collective-custom input { min-height:38px; padding:0 12px; border-radius:8px; border:1px solid var(--line-hi); background:var(--bg); color:var(--ink); font:inherit; font-size:14px; }
+.collective-custom input:focus { border-color:color-mix(in srgb, var(--accent) 60%, var(--line)); box-shadow:var(--ring); outline:none; }
+.collective-actions { justify-content:flex-end; gap:8px; margin-top:10px; }
+.collective-actions button { min-height:36px; padding:0 14px; border-radius:8px; font:inherit; font-size:14px; font-weight:400; cursor:pointer; }
+.collective-actions #collectiveLater { border:1px solid var(--line-hi); background:transparent; color:var(--text); }
+.collective-actions #collectiveLater:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+.collective-actions #collectiveOk { border:1px solid transparent; background:var(--accent); color:var(--on-accent, var(--bg)); font-weight:600; }
+.collective-actions #collectiveOk:hover { background:var(--accent-hi); }

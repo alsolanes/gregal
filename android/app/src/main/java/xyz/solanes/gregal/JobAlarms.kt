@@ -411,7 +411,7 @@ object JobNotifications {
             .setSmallIcon(R.drawable.ic_stat_gregal)
             .setContentTitle("Gregal")
             .build()
-        val n = Notification.Builder(ctx, CHANNEL_ID)
+        val builder = Notification.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_gregal)
             .setContentTitle(title)
             .setContentText(body.lineSequence().firstOrNull().orEmpty())
@@ -420,7 +420,10 @@ object JobNotifications {
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
             .setPublicVersion(public)
-            .build()
+        // L'avís porta el glif i el color del que és: el resum del matí, el temps, un recordatori…
+        NotifLook.apply(ctx, builder, NotifLook.of(if (job.kind == "remind") "remind" else "job", job.name, run.output,
+            failed = !ok, hour = java.time.LocalTime.now().hour))
+        val n = builder.build()
         try {
             ctx.getSystemService(NotificationManager::class.java).notify(NotificationNavigation.identity(source, target).hashCode(), n)
         } catch (_: Exception) {

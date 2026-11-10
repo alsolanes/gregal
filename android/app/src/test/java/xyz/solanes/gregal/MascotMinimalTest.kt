@@ -129,6 +129,15 @@ class MascotMinimalTest {
                             WindHalo(Color(0xFF4F5BE8), WindStyle(shape = WindShape.CLOUD), size = 64,
                                 stacked = listOf(Wind("x", "Xaloc", "#29BCA3", "música")))
                         }
+                        androidx.compose.material3.Text("La colla · eina i barret", color = palette.ink)
+                        val crew = listOf("music" to 0xFFF2B8A2, "review" to 0xFFD7B8E6, "ux" to 0xFFF2B8A2, "delivery" to 0xFFE8D3A3,
+                            "books" to 0xFFEACF87, "frontend" to 0xFFA8D8EA, "sports" to 0xFF9ED3C5, "testing" to 0xFFCFE3A6)
+                        crew.chunked(4).forEach { row -> Row {
+                            row.forEach { (kit, tint) ->
+                                val shape = if (kit == "frontend") WindShape.SPIRAL else if (kit == "testing") WindShape.CLOUD else WindShape.BALL
+                                WindFace(size = 88, accent = Color(tint), style = WindStyle(shape = shape, kit = kit))
+                            }
+                        } }
                         androidx.compose.material3.Text("48 combinacions preservades", color = palette.ink)
                         styles.chunked(8).forEach { row -> Row {
                             row.forEach { style -> WindFace(size = 40, accent = Color(0xFF4F5BE8), style = style) }
@@ -240,7 +249,7 @@ class MascotMinimalTest {
         assertFalse("The specialist still has a discreet tool on the large profile", alike(plain, specialist))
     }
 
-    @Test fun spiralIsABallWithAFringeThatStillReadsAsDifferentFromAPlainBall() {
+    @Test fun spiralCurlsAboveTheBallInsteadOfWearingAFringe() {
         ui.setContent {
             CompositionLocalProvider(LocalWindMotion provides false) {
                 Row(Modifier.background(Color.Black)) {
@@ -252,13 +261,16 @@ class MascotMinimalTest {
         }
         val ball = image("BALL")
         val spiral = image("SPIRAL")
-        var different = 0
-        for (y in 0 until ball.height) for (x in 0 until ball.width) {
-            if (ball.getPixel(x, y) != spiral.getPixel(x, y)) different++
+        // La ratxa és la bola amb un rínxol a dalt: el que la distingeix és el
+        // contorn. Per sobre del cap, la bola no hi té res i l'espiral sí.
+        val above = (ball.height * .12f).toInt()
+        fun lit(frame: Bitmap) = (0 until above).sumOf { y -> (0 until frame.width).count { x -> frame.getPixel(x, y) != android.graphics.Color.BLACK } }
+        assertEquals("A plain ball stays below its own top", 0, lit(ball))
+        assertTrue("The curl must change the silhouette, not sit inside it", lit(spiral) > ball.width * ball.height * .004f)
+        // La cara no es toca: de la meitat cap avall, bola i espiral són el mateix dibuix.
+        for (y in ball.height / 2 until ball.height) for (x in 0 until ball.width) {
+            assertTrue("The curl leaves the face alone", samePixel(ball.getPixel(x, y), spiral.getPixel(x, y)))
         }
-        // La silueta de l'espiral és la de la bola (és intencionat); el que la
-        // distingeix és el serrell interior, així que es compara píxel a píxel.
-        assertTrue("The fringe must still identify the espiral against a plain ball", different > ball.width * ball.height * .01f)
     }
 
     @Test fun idleWrapperDoesNotInventPresenceOrPaintAHalo() {
@@ -298,7 +310,7 @@ class MascotMinimalTest {
                 if (face.getPixel(x, y) == expectedInk) eyePixels++
             }
         }
-        assertTrue("Two bold, unadorned eyes must survive at avatar size", eyePixels > face.width * face.height * .018f)
+        assertTrue("Two bold eyes must survive at avatar size", eyePixels > face.width * face.height * .018f)
     }
 
     @Test fun softContactShadowSitsUnderTheBodyOnly() {

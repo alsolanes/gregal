@@ -303,8 +303,12 @@ object WindNotifications {
             .setContentIntent(NotificationNavigation.pending(ctx, source, target))
             .setAutoCancel(true)
             .setVisibility(Notification.VISIBILITY_PRIVATE)
+        // Glif, color i insígnia segons el que diu el vent (resum del matí, recordatori, temps…).
+        val kind = NotifLook.apply(ctx, builder, NotifLook.of(n.source, "", n.text, hour = java.time.LocalTime.now().hour))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            val vent = Person.Builder().setName(nom).build()
+            val vent = Person.Builder().setName(nom)
+                .apply { NotifLook.badge(ctx, kind)?.let { setIcon(android.graphics.drawable.Icon.createWithBitmap(it)) } }
+                .build()
             builder.style = Notification.MessagingStyle(vent)
                 .addMessage(cos, System.currentTimeMillis(), vent)
         }

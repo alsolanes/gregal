@@ -223,13 +223,26 @@ html[data-product="vents"] #sessionTabs > *, html[data-product="jocs"] #sessionT
 #conversationPane { --lectura:820px; }
 #main .msg.a .body a { color:var(--chat-link,var(--accent-hi)); border-bottom:0; font-weight:550; text-underline-offset:3px; }
 #main .msg.a .body a:hover { text-decoration:underline; }
+/* Taules del markdown (md.js): les mateixes a Codi (.body) i als missatges de Vents. */
 .md-table-scroll { max-width:100%; overflow-x:auto; margin:1em 0 1.25em; }
-.body .md-table-scroll > table.md { display:table; width:100%; margin:0; }
-#main .body table.md th, #main .body table.md td { padding:10px 12px; border:0; border-bottom:1px solid var(--line); background:transparent; }
-#main .body table.md th { border-bottom-color:var(--line-hi); }
-#main .body table.md tbody tr:last-child td { border-bottom:0; }
-.body table.md .md-right { text-align:right; font-variant-numeric:tabular-nums; }
-.body table.md .md-center { text-align:center; }
+.body .md-table-scroll > table.md, :is(.vw-message-text,.vw-result-text) .md-table-scroll > table.md { display:table; width:100%; margin:0; }
+/* A Vents la base de la taula no ve de «.body table» (index.html): es posa aquí. Les paraules no
+   es trenquen pel mig («Pàgi/nes»): una taula ampla es desplaça dins de .md-table-scroll. */
+:is(.vw-message-text,.vw-result-text) table.md { border-collapse:collapse; font-size:.95em; overflow-wrap:break-word; }
+:is(.vw-message-text,.vw-result-text) table.md :is(th,td) { text-align:left; vertical-align:top; }
+:is(.vw-message-text,.vw-result-text) table.md th { color:var(--ink); font-weight:590; }
+#main .body table.md th, #main .body table.md td, :is(.vw-message-text,.vw-result-text) table.md :is(th,td) { padding:10px 12px; border:0; border-bottom:1px solid var(--line); background:transparent; }
+#main .body table.md th, :is(.vw-message-text,.vw-result-text) table.md th { border-bottom-color:var(--line-hi); }
+#main .body table.md tbody tr:last-child td, :is(.vw-message-text,.vw-result-text) table.md tbody tr:last-child td { border-bottom:0; }
+:is(.body,.vw-message-text,.vw-result-text) table.md .md-right { text-align:right; font-variant-numeric:tabular-nums; }
+:is(.body,.vw-message-text,.vw-result-text) table.md .md-center { text-align:center; }
+/* Al mòbil una taula de quatre columnes o més no s'esprem fins a una paraula per línia: manté una
+   amplada llegible i es desplaça dins de .md-table-scroll. */
+@media(max-width:760px) {
+  :is(.body,.vw-message-text,.vw-result-text) .md-table-scroll > table.md:has(th:nth-child(4)) { min-width:34em; }
+  :is(.body,.vw-message-text,.vw-result-text) .md-table-scroll > table.md:has(th:nth-child(6)) { min-width:46em; }
+  #main .body table.md :is(th,td), :is(.vw-message-text,.vw-result-text) table.md :is(th,td) { padding:8px 10px; }
+}
 
 #inspector {
   height:auto; max-height:calc(100% - 24px); align-self:flex-start; margin:12px 12px 0 0;

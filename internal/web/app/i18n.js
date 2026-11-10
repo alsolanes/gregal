@@ -4108,7 +4108,7 @@ Object.assign(CA, {
   "winds.createAWind": "Crea un vent",
   "winds.aFaceAndVoiceOfTheirOwn": "Una cara i una veu pròpies",
   "winds.newConversation": "Nova conversa",
-  "winds.withOneWindOrAGroup": "Amb un vent o amb una rotllana",
+  "winds.withOneWindOrAGroup": "Amb un vent o amb uns quants",
   "winds.windsWorkspace": "Espai de treball dels vents",
   "winds.aTaskToMoveThingsForward": "Un encàrrec per avançar",
   "winds.whatWouldYouLikeUsToDo": "Què t’agradaria que féssim?",
@@ -4281,11 +4281,11 @@ Object.assign(CA, {
   "winds.spiral": "Espiral",
   "winds.aNewConversation": "Una conversa nova",
   "winds.createConversation": "Crea la conversa",
-  "winds.chooseANameAndAtLeastTwoWinds": "Tria un nom i almenys dos vents per a la rotllana.",
+  "winds.chooseANameAndAtLeastTwoWinds": "Tria un nom i almenys dos vents per a la conversa en grup.",
   "winds.chooseANameAndAtLeastOneWind": "Tria un nom i almenys un vent per conversar.",
   "winds.conversationName": "Nom de la conversa",
-  "winds.aGroupMustKeepAtLeastTwoWinds": "Una rotllana ha de conservar almenys dos vents.",
-  "winds.chooseOneWindForAPrivateChatOr": "Un sol vent per parlar a soles; més d’un per fer una rotllana.",
+  "winds.aGroupMustKeepAtLeastTwoWinds": "Una conversa en grup ha de conservar almenys dos vents.",
+  "winds.chooseOneWindForAPrivateChatOr": "Un sol vent per parlar a soles; més d’un per parlar-hi en grup.",
   "winds.whoWillJoin": "Qui hi serà?",
   "winds.youDoNotHaveAnyWindsYetCancel": "Encara no tens cap vent. Cancel·la i crea’n un des de «Nou».",
   "winds.researchAndContent": "cerques i continguts",
@@ -4310,7 +4310,7 @@ Object.assign(CA, {
   "winds.routinePrompt": "Prepara aquest resum amb la veu de {name}. {persona}\n\n",
   "winds.newWindIsReady": "El nou vent ja és aquí. Tria’l per començar a parlar.",
   "winds.chatWithName": "Conversa amb {name}",
-  "winds.groupCount": "Rotllana · {count} vents",
+  "winds.groupCount": "En grup · {count} vents",
   "winds.namedConversation": "Conversa · {name}"
 });
 Object.assign(EN, {

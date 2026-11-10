@@ -23,8 +23,6 @@ import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.withTransform
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -51,32 +49,44 @@ private val windBodies: Map<WindShape, Path> by lazy {
         .fold(Path().apply { addRoundRect(RoundRect(-1.19f, -.30f, 1.19f, .97f, CornerRadius(.58f))) }) { acc, p ->
             Path.combine(PathOperation.Union, acc, p)
         }
-    // A closed silhouette keeps the fringe clear of the eyes at every size.
+    // The gust is the ball with a curl on top (windCurl): the face keeps its room.
     mapOf(WindShape.BALL to circle(0f, 0f, 1f), WindShape.CLOUD to cloud, WindShape.SPIRAL to circle(0f, 0f, 1f))
 }
 
 /** Fins on arriba cada silueta des del centre de la vora de llum: la vora en cenyeix el contorn. */
-private val rimReach = mapOf(WindShape.BALL to 1.32f, WindShape.CLOUD to 1.62f, WindShape.SPIRAL to 1.50f)
+private val rimReach = mapOf(WindShape.BALL to 1.32f, WindShape.CLOUD to 1.62f, WindShape.SPIRAL to 1.32f)
 
 /** Tons del volum, derivats del color del vent (sense blancs ni negres purs). */
 internal fun windLight(accent: Color) = lerp(accent, Color.White, .30f)
 internal fun windDeep(accent: Color) = lerp(accent, Color(0xFF1B1530), .30f)
 
-private val spiralFringe by lazy {
+/**
+ * El rínxol de la ratxa damunt de la bola: canvia el contorn, mai la cara.
+ * El mateix camí que `wf-curl` a winds.js, en radis de la bola.
+ */
+private val windCurl by lazy {
     Path().apply {
-        moveTo(-.60f, -.48f)
-        cubicTo(-.50f, -.82f, -.16f, -.88f, .08f, -.72f)
-        cubicTo(.30f, -.57f, .50f, -.62f, .62f, -.82f)
+        moveTo(-.418f, -.864f)
+        cubicTo(-.227f, -.939f, -.094f, -1.055f, -.018f, -1.167f)
+        cubicTo(.036f, -1.261f, .170f, -1.306f, .267f, -1.239f)
+        cubicTo(.364f, -1.164f, .333f, -1.027f, .212f, -1.018f)
+        cubicTo(.152f, -1.015f, .121f, -1.064f, .152f, -1.109f)
+        cubicTo(.085f, -1.073f, .097f, -.958f, .209f, -.912f)
+        lineTo(.418f, -.861f)
+        close()
     }
 }
+private val curlRoot = Offset(-.085f, -.86f)
 
 /** Els pinzells es reutilitzen mentre la inclinació i el color siguin els mateixos. */
 internal class WindBodyPaint(shape: WindShape, accent: Color, tx: Float = 0f, ty: Float = 0f) {
     val deep = windDeep(accent)
     val foot = Offset(-tx * .08f, 1.13f)
     val light = Offset(-.38f - tx * .18f, -.50f - ty * .14f)
+    // L'ombra de contacte porta el to del vent: a terra clar es veu de color, no grisa.
+    private val ground = lerp(accent, Color(0xFF0B0C14), .72f)
     val shadow = Brush.radialGradient(
-        0f to Color.Black.copy(alpha = .22f), 1f to Color.Transparent, center = foot, radius = .8f,
+        0f to ground.copy(alpha = .5f), 1f to ground.copy(alpha = 0f), center = foot, radius = .8f,
     )
     val volume = Brush.radialGradient(
         0f to windLight(accent), .45f to accent, 1f to deep, center = light, radius = 1.9f,
@@ -91,7 +101,7 @@ internal class WindBodyPaint(shape: WindShape, accent: Color, tx: Float = 0f, ty
     )
 }
 
-internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float) {
+internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: Float, cy: Float, r: Float, sway: Float = 0f) {
     val body = windBodies.getValue(shape)
     withTransform({ translate(cx, cy); scale(r, r, Offset.Zero) }) {
         withTransform({ scale(1f, .2f, paint.foot) }) {
@@ -99,10 +109,9 @@ internal fun DrawScope.drawWindBody(shape: WindShape, paint: WindBodyPaint, cx: 
         }
         drawOval(paint.deep, topLeft = Offset(-.66f, .78f), size = Size(.43f, .22f))
         drawOval(paint.deep, topLeft = Offset(.23f, .78f), size = Size(.43f, .22f))
+        // El rínxol es gronxa una mica amb l'aire (sway, en graus) des de l'arrel.
+        if (shape == WindShape.SPIRAL) withTransform({ rotate(sway, curlRoot) }) { drawPath(windCurl, paint.volume) }
         drawPath(body, paint.volume)
-        if (shape == WindShape.SPIRAL) {
-            drawPath(spiralFringe, paint.deep.copy(alpha = .45f), style = Stroke(.08f, cap = StrokeCap.Round))
-        }
         clipPath(body) {
             drawRect(paint.rim, topLeft = Offset(-1.6f, -1.6f), size = Size(3.2f, 3.2f))
             drawCircle(paint.shine, radius = .5f, center = paint.light)

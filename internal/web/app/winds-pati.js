@@ -226,7 +226,7 @@
       const node = el('button', 'pati-wind');
       node.type = 'button';
       const shadow = el('span', 'pati-shadow');
-      const svg = root.gregalWinds.face(w, false);
+      const svg = root.gregalWinds.face(w, 'figure');
       const fx = el('span', 'pati-fx');
       const bubble = el('span', 'pati-bubble');
       bubble.hidden = true;

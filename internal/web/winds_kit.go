@@ -38,7 +38,7 @@ var kitKeywords = []struct {
 	{"music", []string{"música", "musica", "music", "canç", "song", "disc", "concert", "banda", "guitarra"}},
 	{"sports", []string{"esport", "sport", "futbol", "fútbol", "football", "basket", "bàsquet", "pilota", "lliga", "barça", "barca", "goal", "partit"}},
 	{"books", []string{"llibre", "llibres", "book", "novel", "lectura", "reading", "literatura", "poesia"}},
-	{"shopping", []string{"compress", "compra", "shopping", "botiga", "preu", "price"}},
+	{"shopping", []string{"compress", "compra", "shopping", "botiga", "preu", "price", "euros", "€", "barat", "oferta", "descompte", "rebaix", "compara"}},
 	{"organisation", []string{"organitza", "organiza", "organi", "agenda", "calendar", "planific"}},
 	{"research", []string{"recerca", "research", "ciència", "ciencia", "science", "experiment", "lab", "provet", "descobr", "discover", "investig"}},
 	{"frontend", []string{"codi", "code", "programa", "program", "desenvolup", "develop", "app", "web", "frontend"}},

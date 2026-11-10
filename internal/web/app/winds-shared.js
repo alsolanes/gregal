@@ -44,7 +44,9 @@
     d.append(el('p', 'vw-error'));
     let answered = false;
     const answer = async accept => {
-      await call('/api/winds/shared/answer', 'POST', { id: inv.id, accept }); answered = true; d.close();
+      await call('/api/winds/shared/answer', 'POST', { id: inv.id, accept }); answered = true;
+      // Fora de la llista abans de tancar: en tancar es mira si n'hi ha més, i aquesta ja no hi és.
+      state.invites = state.invites.filter(i => i.id !== inv.id); d.close();
       await refresh(); if (accept) openWhenReady(inv.id);
     };
     const row = el('div', 'vw-dialog-actions'); row.append(btn(t('Rebutja', 'Decline'), () => answer(false)), btn(t('Accepta', 'Accept'), () => answer(true), 'vw-primary')); d.append(row);
@@ -64,7 +66,7 @@
     state.ctx = ctx;
     if (pendingOpen) { const c = state.chats.find(c => c.id === pendingOpen); if (c) { pendingOpen = ''; setTimeout(() => ctx.open(c), 0); } }
     const head = el('div', 'vw-section-label'); head.append(el('span', '', t('Compartits', 'Shared')));
-    if (!state.off) head.append(btn('+', creator, 'vw-small'));
+    if (!state.off) { const add = btn('', creator, 'vw-small'); add.title = t('Nou xat compartit', 'New shared chat'); add.setAttribute('aria-label', add.title); add.append(root.gregalWindIcon ? root.gregalWindIcon('plus') : document.createTextNode('+')); head.append(add); }
     if (state.off) return;
     navEl.append(head);
     for (const c of state.chats) {
@@ -80,13 +82,14 @@
     const wrap = el('label', 'vw-field', t('Nom del xat', 'Chat name')), name = el('input'); wrap.append(name); d.append(wrap);
     const checks = (title, items) => {
       const box = el('fieldset', 'vw-shared-pick'); box.append(el('legend', '', title)); const out = [];
-      for (const [value, label] of items) { const l = el('label', 'vw-check'), c = el('input'); c.type = 'checkbox'; c.value = value; out.push(c); l.append(c, el('span', '', label)); box.append(l); }
+      // Cada opció és una targeta: la persona amb la seva inicial, el vent amb la seva cara.
+      for (const [value, label, look] of items) { const l = el('label', 'vw-check vw-pick-card'), c = el('input'); c.type = 'checkbox'; c.value = value; out.push(c); l.append(c, look || el('span', 'vw-shared-person', label.slice(0, 1).toUpperCase()), el('span', '', label)); box.append(l); }
       if (!items.length) box.append(el('p', 'vw-muted', t('No n’hi ha cap.', 'None available.')));
       d.append(box); return out;
     };
     const [people, winds] = await Promise.all([call('/api/winds/shared/people').then(x => x.people || []), call('/api/winds').then(x => x.winds || [])]);
     const pc = checks(t('Persones', 'People'), people.map(p => [p, p]));
-    const wc = checks(t('Vents que hi parlen', 'Winds who talk in it'), winds.map(w => [w.id, w.name]));
+    const wc = checks(t('Vents que hi parlen', 'Winds who talk in it'), winds.map(w => [w.id, w.name, root.gregalWinds?.face(w)]));
     d.append(el('p', 'vw-error'));
     d.append(btn(t('Convida', 'Invite'), async () => {
       const body = { name: name.value.trim(), people: pc.filter(c => c.checked).map(c => c.value), winds: wc.filter(c => c.checked).map(c => c.value) };
@@ -110,7 +113,11 @@
     const messages = el('div', 'vw-messages'), form = el('form', 'vw-composer'), input = el('textarea');
     input.rows = 2; input.placeholder = t('Escriu al grup…', 'Write to the group…'); input.setAttribute('aria-label', input.placeholder);
     input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); } });
-    const foot = el('div', 'vw-composer-foot'), send = el('button', 'vw-send', t('Envia', 'Send')); send.type = 'submit'; foot.append(send); form.append(input, foot);
+    const foot = el('div', 'vw-composer-foot'), send = el('button', 'vw-send'); send.type = 'submit'; send.title = t('Envia', 'Send'); send.setAttribute('aria-label', send.title);
+    const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg'), stem = document.createElementNS(arrow.namespaceURI, 'path');
+    arrow.setAttribute('viewBox', '0 0 24 24'); arrow.setAttribute('aria-hidden', 'true');
+    for (const [key, value] of Object.entries({ d: 'M12 19V5M5 12l7-7 7 7', fill: 'none', stroke: 'currentColor', 'stroke-width': '2', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })) stem.setAttribute(key, value);
+    arrow.append(stem); send.append(arrow); foot.append(send); form.append(input, foot);
     content.append(info, messages, form);
     const paint = () => {
       const atEnd = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 40;

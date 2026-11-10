@@ -1727,7 +1727,7 @@ body.sense-inspector #inspector { display:none; }
               <button class="ghost winds-primary" type="button" id="windNewBtn" aria-expanded="false" aria-controls="windsNewMenu" data-i18n="winds.new">＋ Nou</button>
               <div id="windsNewMenu" class="winds-new-menu" hidden>
                 <button type="button" id="windsCreateWind"><span data-i18n="winds.createAWind">Crea un vent</span><span data-i18n="winds.aFaceAndVoiceOfTheirOwn">Una cara i una veu pròpies</span></button>
-                <button type="button" id="windsCreateChat"><span data-i18n="winds.newConversation">Nova conversa</span><span data-i18n="winds.withOneWindOrAGroup">Amb un vent o amb una rotllana</span></button>
+                <button type="button" id="windsCreateChat"><span data-i18n="winds.newConversation">Nova conversa</span><span data-i18n="winds.withOneWindOrAGroup">Amb un vent o amb uns quants</span></button>
               </div>
             </div>
           </header>
@@ -3575,8 +3575,13 @@ try {
 // token, o null si l'usuari tanca el diàleg. Com el prompt antic, només
 // surt quan una petició rep 401: si ja tens sessió, mai el veus.
 let loginPendent = null;
-async function demanaCredencials() {
-  if (loginPendent) return loginPendent;
+// Dues peticions amb 401 alhora: el guard es pren abans del primer await; si no,
+// sortien dues portes i, en entrar, una es quedava oberta a sobre de l'app.
+function demanaCredencials() {
+  if (!loginPendent) loginPendent = obreCredencials();
+  return loginPendent;
+}
+async function obreCredencials() {
   // panels.js (defer) defineix window.gregalT a l'arrencada; si el 401 ha
   // arribat abans, espera que hi sigui perquè el diàleg no surti amb claus
   // sense traduir.
@@ -3600,7 +3605,7 @@ async function demanaCredencials() {
     const L = (document.documentElement.lang || 'ca').toLowerCase().startsWith('en') ? EN : CA;
     return L[curt] || CA[curt] || k;
   };
-  loginPendent = new Promise(resolve => {
+  const porta = new Promise(resolve => {
     const back = document.createElement('div');
     back.id = 'gregalLogin';
     back.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9999';
@@ -3634,7 +3639,7 @@ async function demanaCredencials() {
     f_user = card.querySelector('input[name=user]');
     if (f_user && !f_user.value) f_user.focus();
   });
-  return loginPendent;
+  return porta;
 }
 
 // Fora de línia: quan el backend no respon (mort, reiniciant-se, port

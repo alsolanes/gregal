@@ -5,10 +5,13 @@
  const state={asks:[],winds:[],squads:[],chats:[],tasks:[],projects:[],workspace:'',view:'home',squad:'daily',active:null,history:[],busy:false,draft:'',snapshot:null,events:[],library:[],filter:'all',meta:null};
  let mounted=false, page, nav, content, messages, composer, input, status, loadVersion=0, chatTurn=null, pendingTimer=0, demoTimer=0, demoRun=0;
  const el=(tag,cls,text)=>{const n=document.createElement(tag);if(cls)n.className=cls;if(text!==undefined)n.textContent=text;return n;};
+ const accent=()=>{const v=getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();return /^#[0-9a-f]{6}$/i.test(v)?v:'#8193FF';};
  const btn=(label,action,cls='vw-button')=>{const n=el('button',cls,label);n.type='button';n.onclick=()=>Promise.resolve().then(action).catch(fail);return n;};
  async function call(url,method='GET',body){const r=await root.api(url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});if(!r.ok)throw new Error(await r.text());return r.json();}
  function fail(error){let target=document.querySelector('.vw-dialog[open] .vw-error');const modal=document.querySelector('.vw-dialog[open]');if(modal&&!target){target=el('p','vw-error');modal.append(target);}target=target||status;if(target){target.textContent=t('No s’ha pogut completar: ','Could not complete: ')+error.message;target.setAttribute('role','alert');}}
- const face=(w,work)=>root.gregalWinds.face(w||{name:work?.name,color:'#BFCCA8',style:'psn'},false,work&&root.gregalWinds.moodOf(work));
+ const face=(w,work)=>root.gregalWinds.face(w||{name:work?.name,color:accent(),style:'psn'},false,work&&root.gregalWinds.moodOf(work));
+ // On es presenta un vent, la figura sencera amb l'eina del seu ofici; `ground` hi posa el terra.
+ const figure=(w,ground)=>root.gregalWinds.face(w||{color:accent(),style:'psn'},ground?true:'figure');
  const folder=()=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('class','vw-folder');svg.setAttribute('aria-hidden','true');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d','M3 6a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v10H3Z');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.6');svg.append(p);return svg;};
  // Icones: el joc de traç de shell-icons.js (window.gregalIcon), igual que a Codi;
  // les que aquell joc no té van aquí amb el mateix traç i graella. Res de glifs de text.
@@ -22,6 +25,7 @@
  const linkRow=(label,action)=>{const b=btn('',action,'vw-recent');b.append(el('span','',label),icon('open'));return b;};
  const squadName=id=>{const s=state.squads.find(s=>s.id===id);return s?(ca()?s.ca:s.en):t('La teva colla','Your crew');};
  const crew=()=>state.winds.filter(w=>w.squad===state.squad);
+ const MOBILE_NAV=[['home','Inici','Home'],['tasks','Feines','Work'],['notes','Notes','Notes'],['saved','Desat','Saved'],['crew','Colla','Crew']];
  // Group replies are stored as "Name: text" for the model's context; the face and name already say who speaks.
  const withoutSpeaker=(text,name)=>{let out=String(text||'');const prefix=String(name||'').trim().toLowerCase()+':';if(prefix.length<2)return out;while(out.slice(0,prefix.length).toLowerCase()===prefix)out=out.slice(prefix.length).trimStart();return out;};
  const roleName=w=>{const specialist=state.squads.find(s=>s.id===w.squad)?.members?.find(m=>m.key===w.specialty);return specialist?(ca()?specialist.ca:specialist.en):w.role||'';};
@@ -99,23 +103,24 @@
   content=el('div','vw-content');page.append(content);status=el('div','vw-status');status.setAttribute('role','status');status.textContent=state.notice?.thread===state.active?.id?state.notice?.text||'':'';page.append(status);
   if(state.view==='home')home();else if(state.view==='crew')team();else if(state.view==='library')library();else if(state.view==='project')projectView();else if(state.view==='tasks')tasks();else if(state.view==='chat')chatView();else if(state.view==='task')taskView();else if(state.view==='wiki')wikiView();else if(state.view==='pati')patiView();else if(state.view==='saved')savedView();else if(state.view==='notes')notesView();else if(state.view==='shared')root.gregalShared?.view(content,{chat:state.active,back:()=>route('home')});
   // Al mòbil, cinc destinacions amb icona; El pati, la biblioteca i la wiki són al menú, dins de «Més».
-  const bottom=el('nav','vw-mobile-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [id,a,b]of [['home','Inici','Home'],['tasks','Feines','Work'],['notes','Notes','Notes'],['saved','Desat','Saved'],['crew','Colla','Crew']]){const n=btn('',()=>route(id));n.append(navIcon(id),el('span','',t(a,b)));n.dataset.selected=String(state.view===id);if(state.view===id)n.setAttribute('aria-current','page');bottom.append(n);}page.append(bottom);
+  const bottom=el('nav','vw-mobile-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [id,a,b]of MOBILE_NAV){const n=btn('',()=>route(id));n.append(navIcon(id),el('span','',t(a,b)));n.dataset.selected=String(state.view===id);if(state.view===id)n.setAttribute('aria-current','page');bottom.append(n);}page.append(bottom);
   root.gregalPromptNav?.attachVents(page.querySelector('.vw-messages'));
+  pageNavs();
   if(messages)messages.scrollTop=savedScroll??messages.scrollHeight;
  }
  function addComposer(workspace=false){
   composer=el('form','vw-composer');input=el('textarea');input.rows=2;input.value=state.draft;input.placeholder=t('Què tens al cap?','What’s on your mind?');input.setAttribute('aria-label',input.placeholder);input.oninput=()=>{state.draft=input.value;};
   input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();composer.requestSubmit();}});
-  const foot=el('div','vw-composer-foot'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
-  select.append(new Option(t('Tota la colla','The whole crew'),'auto'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
-  if(state.view==='chat')select.hidden=true;
+  const foot=el('div','vw-composer-foot'),pick=el('span','vw-select'),select=el('select');select.setAttribute('aria-label',t('Amb qui parles','Who you are talking to'));
+  select.append(new Option(t('Automàtic','Automatic'),'auto'),new Option(t('Tota la colla','The whole crew'),'crew'));for(const w of state.winds)select.append(new Option(w.name+(roleName(w)?' · '+roleName(w):''),w.id));select.value=state.active?.wind||'auto';
+  if(state.view==='chat')pick.hidden=true;
   select.onchange=()=>{state.recipient=select.value;};state.recipient=select.value;
   const model=el('button','vw-model');model.type='button';paintModel(model);
   // stopPropagation: el clic que l'obre no ha d'arribar al «clic fora» que el tanca.
   model.onclick=e=>{e.stopPropagation();openModelPicker(model).catch(fail);};
   loadModels().then(()=>paintModel(model)).catch(()=>{});
   const send=el('button','vw-send');paintSend(send);
-  foot.append(select,model,send);composer.append(input,foot);
+  pick.append(select);foot.append(pick,model,send);composer.append(input,foot);
   composer.onsubmit=e=>{e.preventDefault();submit().catch(fail);};content.append(composer);
   // La carpeta va fora del quadre d'escriure, a sota i més petita: dins ocupava
   // una línia sencera i semblava un camp més del missatge.
@@ -134,8 +139,7 @@
  const modelActual=()=>models.current||models.work||root.gregal?.state?.model||'';
  function paintModel(button){
   const full=modelActual(),id=full?full.split('/').slice(1).join('/')||full:'',name=id?id.replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim():t('Model','Model');
-  const chev=document.createElementNS('http://www.w3.org/2000/svg','svg');chev.setAttribute('viewBox','0 0 24 24');chev.setAttribute('class','vw-model-chev');chev.setAttribute('aria-hidden','true');
-  const path=document.createElementNS(chev.namespaceURI,'path');path.setAttribute('d','m6 9 6 6 6-6');path.setAttribute('fill','none');path.setAttribute('stroke','currentColor');path.setAttribute('stroke-width','2');path.setAttribute('stroke-linecap','round');chev.append(path);
+  const chev=el('span','vw-model-chev');chev.setAttribute('aria-hidden','true');
   button.replaceChildren(el('span','vw-model-name',name),chev);
   button.title=t('Model dels vents: ','Winds model: ')+(full||'—')+(models.current?'':t(' (el de la feina)',' (same as work)'));
   button.setAttribute('aria-label',button.title);button.setAttribute('aria-haspopup','dialog');button.setAttribute('aria-expanded',String(!!document.querySelector('.vw-model-pop')));
@@ -178,7 +182,7 @@
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('aria-hidden','true');
   const shape=document.createElementNS(svg.namespaceURI,state.busy?'rect':'path');
   if(state.busy){for(const [key,value]of Object.entries({x:6,y:6,width:12,height:12,rx:2,fill:'currentColor'}))shape.setAttribute(key,value);}
-  else{shape.setAttribute('d','M12 19V5m-6 6 6-6 6 6');shape.setAttribute('fill','none');shape.setAttribute('stroke','currentColor');shape.setAttribute('stroke-width','1.8');shape.setAttribute('stroke-linecap','round');shape.setAttribute('stroke-linejoin','round');}
+  else{shape.setAttribute('d','M12 19V5M5 12l7-7 7 7');shape.setAttribute('fill','none');shape.setAttribute('stroke','currentColor');shape.setAttribute('stroke-width','2');shape.setAttribute('stroke-linecap','round');shape.setAttribute('stroke-linejoin','round');}
   svg.append(shape);button.append(svg);button.onclick=state.busy?()=>{
    if(!chatTurn){root.gregalWindRunner?.stop();return;}
    chatTurn.stopping=true;
@@ -213,7 +217,8 @@
  async function streamChat(destination,text,turn,progress={}){
   turn.destination=destination;
   if(turn.stopping)return {cancelat:true};
-  const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text}:{rotllana:destination.id,message:text};
+  // Una proposta («choices») la continua qui l'ha feta, també en una conversa en grup.
+  const payload=destination.legacyWind?{wind:destination.wind,session:destination.id,message:text}:{rotllana:destination.id,message:text,...(state.replyTo?{wind:state.replyTo}:{})};state.replyTo=null;
   const response=await root.api(destination.legacyWind?'/api/winds/chat/stream':'/api/winds/rotllana/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(!response.ok||!response.body)throw new Error(t('No s’ha pogut iniciar la resposta.','Could not start the response.'));
   const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',result=null;
@@ -242,7 +247,7 @@
  function home(){
   content.classList.add('vw-home');
   const hour=new Date().getHours(),greet=hour<6?t('Bona nit','Good night'):hour<13?t('Bon dia','Good morning'):hour<20?t('Bona tarda','Good afternoon'):t('Bon vespre','Good evening');
-  const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(face(crew()[0]));
+  const welcome=el('div','vw-welcome'),orb=el('div','vw-orb');orb.append(figure(crew()[0],true));
   welcome.append(orb,el('h1','',greet+'.'),el('p','',t('Pregunta, encarrega o planifica. La colla s’encarrega de la resta.','Ask, delegate or plan. Your crew takes care of the rest.')));content.append(welcome);
   if(state.squads.length>1){const squads=el('div','vw-squads');squads.setAttribute('role','tablist');squads.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;newChat();},'vw-squad-pill');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(s.id===state.squad));squads.append(b);}content.append(squads);}
   addComposer(!!state.active?.project);
@@ -299,6 +304,12 @@
   const show=()=>{if(run!==demoRun||!card.isConnected)return;const turn=turns[index],row=el('article','vw-demo-turn'+(turn.summary?' vw-demo-summary':''));if(turn.person)row.append(face(turn.person));else{const mark=el('span','vw-demo-mark');mark.append(icon('sparkles'));row.append(mark);}const copy=el('div');copy.append(el('strong','',turn.person?.name||turn.role),el('span','vw-demo-role',turn.person?turn.role:t('Conclusió compartida','Shared takeaway')),el('p','',turn.text));row.append(copy);thread.append(row);index++;if(index<turns.length)demoTimer=setTimeout(show,1900);else card.classList.remove('is-playing');};show();
  }
  async function activate(id){await call('/api/winds/squads','POST',{id,lang:ca()?'ca':'en'});state.winds=(await call('/api/winds')).winds;renderNav();}
+ async function bestWind(text){
+  const pool=crew().length?crew():state.winds;if(!pool.length)return null;
+  let cards=[];try{cards=(await call('/api/winds/specialists?task='+encodeURIComponent(text.slice(0,600)))).specialists||[];}catch{}
+  const inPool=c=>pool.find(w=>w.id===c.id);
+  return inPool(cards.find(c=>c.score>0&&inPool(c))||{})||inPool(cards.find(c=>c.kit==='organisation'&&inPool(c))||{})||pool.find(w=>w.specialty==='organisation')||pool[0];
+ }
  async function talkTo(w,session=''){
   const ticket=state.chatEpoch=(state.chatEpoch||0)+1;
   root.gregalWinds.seen?.(w.id);
@@ -337,8 +348,8 @@
  function team(){heading(t('Tothom té alguna cosa a aportar.','Everyone brings something.'),t('Especialistes amb memòria pròpia i coneixement que pots conservar.','Specialists with their own memory and knowledge you can keep.'));
   const tabs=el('div','vw-tabs');tabs.setAttribute('aria-label',t('Equips','Squads'));for(const s of state.squads){const b=btn(ca()?s.ca:s.en,()=>{state.squad=s.id;render();});b.dataset.selected=String(s.id===state.squad);b.setAttribute('aria-pressed',String(s.id===state.squad));tabs.append(b);}content.append(tabs);
   const roster=crew();if(!roster.length){const empty=el('div','vw-empty');empty.append(face(),el('h2','',t('La teva colla, a punt.','Your crew, ready to help.')),el('p','',t('Activa l’equip amb un sol clic. Les especialitats ja venen preparades.','Activate this squad in one click. Specialties are already defined.')),btn(t('Prepara aquest equip','Prepare this squad'),async()=>{await activate(state.squad);render();},'vw-primary'));content.append(empty);}
-  for(const w of roster){const row=el('article','vw-member');const copy=el('div');copy.append(el('h2','',w.name),el('p','',roleName(w)));row.append(face(w),copy,btn(t('Parla','Talk'),()=>talkTo(w)),btn(t('Perfil','Profile'),()=>profile(w)));content.append(row);}
-  const personal=state.winds.filter(w=>!w.squad);if(personal.length){content.append(el('h2','vw-subtitle',t('Els teus vents','Your winds')));for(const w of personal){const row=el('article','vw-member'),copy=el('div');copy.append(el('h2','',w.name));if(roleName(w))copy.append(el('p','',roleName(w)));row.append(face(w),copy,btn(t('Parla','Talk'),()=>talkTo(w)),btn(t('Perfil','Profile'),()=>profile(w)));content.append(row);}}
+  for(const w of roster){const row=el('article','vw-member');const copy=el('div');copy.append(el('h2','',w.name),el('p','',roleName(w)));row.append(figure(w),copy,btn(t('Parla','Talk'),()=>talkTo(w)),btn(t('Perfil','Profile'),()=>profile(w)));content.append(row);}
+  const personal=state.winds.filter(w=>!w.squad);if(personal.length){content.append(el('h2','vw-subtitle',t('Els teus vents','Your winds')));for(const w of personal){const row=el('article','vw-member'),copy=el('div');copy.append(el('h2','',w.name));if(roleName(w))copy.append(el('p','',roleName(w)));row.append(figure(w),copy,btn(t('Parla','Talk'),()=>talkTo(w)),btn(t('Perfil','Profile'),()=>profile(w)));content.append(row);}}
   content.append(iconBtn('plus',t('Crea un vent propi','Create your own wind'),createWind,'vw-button vw-add'));
  }
  function dialog(title){const d=el('dialog','vw-dialog');d.setAttribute('aria-label',title);const head=el('header');head.append(el('h2','',title),iconOnly('close',t('Tanca','Close'),()=>d.close(),'vw-close'));d.append(head);document.body.append(d);d.addEventListener('close',()=>d.remove());d.showModal();return d;}
@@ -380,7 +391,7 @@
   const foot=el('div','vw-dialog-foot');foot.append(btn(t('Cancel·la','Cancel'),()=>d.close(),'vw-button'),btn(t('Crea el vent','Create wind'),async()=>{if(!name.value.trim()){name.focus();return;}await call('/api/winds','POST',{name:name.value.trim(),role:role.value.trim(),persona:persona.value.trim(),color:tint.value,style:eyes.value+mouth.value+shape.value});d.close();await load();route('crew');},'vw-primary'));d.append(foot);
  }
  async function profile(w){
-  const data=await call('/api/winds/profile?wind='+encodeURIComponent(w.id));const d=dialog(w.name);const who=el('div','vw-profile-head'),whoCopy=el('p','vw-muted',roleName(w)||t('Vent propi','Your own wind'));who.append(face(w),whoCopy,btn(t('Fitxes consultables','Reference cards'),()=>windCards(w)));d.append(who);const tabs=el('div','vw-tabs'),body=el('div');d.append(tabs,body);
+  const data=await call('/api/winds/profile?wind='+encodeURIComponent(w.id));const d=dialog(w.name);const who=el('div','vw-profile-head'),whoCopy=el('p','vw-muted',roleName(w)||t('Vent propi','Your own wind'));who.append(figure(w),whoCopy,btn(t('Fitxes consultables','Reference cards'),()=>windCards(w)));d.append(who);const tabs=el('div','vw-tabs'),body=el('div');d.append(tabs,body);
   const draw=kind=>{body.replaceChildren();for(const b of tabs.children){b.dataset.selected=String(b.dataset.kind===kind);b.setAttribute('aria-pressed',String(b.dataset.kind===kind));}if(kind==='scheduled'||kind==='saved'){const box=el('div','act-list');if(kind==='scheduled'){const lab=el('label','vw-check'),cb=el('input');cb.type='checkbox';cb.checked=w.followups!=='off';cb.onchange=async()=>{await call('/api/winds','POST',{id:w.id,name:w.name,color:w.color,role:w.role,style:w.style,followups:cb.checked?'on':'off'});w.followups=cb.checked?'on':'off';notice.textContent=t('Desat','Saved');};lab.append(cb,el('span','',t('Seguiments pel seu compte: si li expliques una cosa teva amb data, s’ofereix a tornar-hi després.','Follow-ups on its own: if you mention something of yours with a date, it offers to check back afterwards.')));body.append(lab);}body.append(box);const A=root.gregalVentsActivity;if(A)(kind==='saved'?A.renderSaved(box,{wind:w.id,onCard:()=>windCards(w)}):A.renderAutomations(box,{wind:w.id}));return;}const memory=kind==='memory';body.append(el('p','vw-muted',memory?t('Preferències, decisions i coses sobre tu que aquest vent recorda.','Preferences, decisions and things about you this wind remembers.'):t('Fets, documents i procediments que pot utilitzar per ajudar-te.','Facts, documents and procedures it can use to help you.')));const area=field(body,memory?t('Memòria','Memory'):t('Coneixement','Knowledge'),memory?data.memory:data.knowledge,true);area.maxLength=memory?8000:24576;body.append(btn(t('Desa els canvis','Save changes'),async()=>{await call(memory?'/api/winds/memoria':'/api/winds/memory',memory?'PUT':'POST',memory?{wind:w.id,memoria:area.value}:{wind:w.id,text:area.value});if(memory)data.memory=area.value;else data.knowledge=area.value;notice.textContent=t('Desat','Saved');},'vw-primary'));
    if(!memory){for(const skill of data.skills||[]){const detail=el('details','vw-document');detail.append(el('summary','',skill.Titol||skill.Nom),el('p','',skill.Cos));body.append(detail);}body.append(iconBtn('plus',t('Afegeix un document o procediment','Add a document or procedure'),()=>knowledgeDocument(w),'vw-button vw-add'));}
   };for(const [id,a,b]of [['memory','Memòria','Memory'],['knowledge','Coneixement','Knowledge'],['scheduled','Programat','Scheduled'],['saved','Desat','Saved']]){const n=btn(t(a,b),()=>draw(id));n.dataset.kind=id;tabs.append(n);}tabs.setAttribute('aria-label',t('Seccions del perfil','Profile sections'));const notice=el('p','vw-status');notice.setAttribute('role','status');d.append(notice);draw('memory');
@@ -453,6 +464,8 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  // Notes: el quadern de l'usuari (winds-notes.js); «Pregunta a un vent» obre el xat amb el text a punt.
  function notesView(){if(!root.gregalNotes){content.append(el('p','vw-muted',t('Carregant…','Loading…')));return;}root.gregalNotes.view(content,{ask:text=>{route('home');if(input){input.value=text;input.focus();input.setSelectionRange(text.length,text.length);}}});}
  function savedView(){heading(t('Desat','Saved'),t('Tot el que els vents han fet per a tu: documents, webs, gràfics, imatges i fitxes, amb qui ho va fer i quan.','Everything the winds made for you: documents, websites, charts, images and cards, with who made it and when.'));const box=el('div','vw-saved');content.append(box);if(root.gregalVentsActivity)root.gregalVentsActivity.renderSaved(box,{onCard:it=>{const w=state.winds.find(x=>x.id===it.wind);if(w)windCards(w);}});else box.append(el('p','vw-muted',t('Carregant…','Loading…')));}
+ // Racó i Automatitzacions també són de Vents: al telèfon porten la mateixa barra de baix, que torna a Vents.
+ function pageNavs(){for(const id of ['racoPage','automatitzacionsPage']){const page=document.getElementById(id);if(!page)continue;page.querySelector(':scope > .vw-page-nav')?.remove();const bottom=el('nav','vw-mobile-nav vw-page-nav');bottom.setAttribute('aria-label',t('Seccions dels vents','Winds sections'));for(const [view,a,b]of MOBILE_NAV){const n=btn('',()=>{root.gregal?.setView?.('vents');route(view);});n.append(navIcon(view),el('span','',t(a,b)));bottom.append(n);}page.append(bottom);}}
  function navIcon(id){const paths={home:'M3 7.5 8 3.5l5 4V13H3Z M6.5 13V9.5h3V13',pati:'M8 2.6a3.1 3.1 0 0 1 3.1 3.1c0 1.8-1.4 3.2-3.1 3.2S4.9 7.5 4.9 5.7A3.1 3.1 0 0 1 8 2.6Z M8 8.9V13.4 M5.2 13.4h5.6 M11.6 11.6a1.3 1.3 0 1 0 0 .01',tasks:'M8 2.75a5.25 5.25 0 1 0 0 10.5 5.25 5.25 0 0 0 0-10.5Z M8 5v3.2l2.2 1.3',crew:'M5.5 7.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z M10.8 7.2a1.7 1.7 0 1 0 0-3.4 M2.5 13c.4-2.2 1.6-3.4 3-3.4s2.6 1.2 3 3.4 M10 9.7c1.4.1 2.6 1.2 3 3.3',library:'M3 3.5h3v9H3Z M7 3.5h3v9H7Z M11 4.2l2.4-.6 1.9 8.4-2.4.6Z',wiki:'M4 2.75h5.5L12 5.25v8H4Z M9.5 2.75v2.5H12 M6 8h4 M6 10.5h4',saved:'M4 2.75h8v10.5L8 10.5 4 13.25Z',notes:'M4.5 2.75h7v10.5h-7Z M6.5 5.5h3 M6.5 8h3 M6.5 10.5h2 M3.2 4.5h1.3 M3.2 7h1.3 M3.2 9.5h1.3',more:'M3.4 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M7.2 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0 M11 8a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0'};const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 16 16');svg.setAttribute('aria-hidden','true');svg.setAttribute('class','vw-nav-svg');const p=document.createElementNS(svg.namespaceURI,'path');p.setAttribute('d',paths[id]||'');p.setAttribute('fill','none');p.setAttribute('stroke','currentColor');p.setAttribute('stroke-width','1.3');p.setAttribute('stroke-linecap','round');p.setAttribute('stroke-linejoin','round');svg.append(p);return svg;}
  async function openChat(chat){if(state.preparing&&!state.busy)return;const ticket=state.chatEpoch=(state.chatEpoch||0)+1;const data=await call('/api/winds/rotllana?rotlla='+encodeURIComponent(chat.id));if(ticket!==state.chatEpoch)return;state.active=chat;state.history=data.history||[];state.squad=state.winds.find(w=>chat.members.includes(w.id))?.squad||state.squad;state.view='chat';state.draft='';render();followCrew(chat);}
  // Una colla convocada treballa al servidor: el fil s'actualitza sol mentre parlen i fan la feina.
@@ -463,7 +476,7 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
   if(!wind)return;
   const card=el('div','vw-thread-empty');
   const orb=el('div','vw-orb');
-  orb.append(root.gregalWinds.face(wind,true));
+  orb.append(figure(wind,true));
   card.append(orb,el('h1','',wind.name),el('p','',roleName(wind)||t('Conversa directa','Direct conversation')));
   messages.append(card);
  }
@@ -490,28 +503,35 @@ async function showRoutines(container){container.replaceChildren(el('h2','vw-sub
  }
  function paintHistory(){const top=messages.scrollTop,follow=nearChatEnd(messages);messages.replaceChildren();for(const item of state.history){const user=item.from==='user';const w=state.winds.find(w=>w.id===item.speaker_id||w.id===item.from||w.name===item.from)||(state.active?.legacyWind?state.winds.find(w=>w.id===state.active.wind):null);const row=el('article',user?'vw-message vw-user':'vw-message');if(!user)row.append(face(w));const copy=el('div'),body=el('div','vw-message-text'),text=user?item.text:choicesStrip(withoutSpeaker(item.text,w?.name||item.speaker_name));if(root.gregalMD)body.innerHTML=root.gregalMD.render(text);else body.textContent=text;copy.append(el('strong','',user?t('Tu','You'):w?.name||item.speaker_name||t('La colla','Your crew')),body);row.append(copy);messages.append(row);}
   // Respostes ràpides que el vent proposa al final del seu missatge.
-  const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
+  const last=state.history[state.history.length-1];if(last&&last.from!=='user'&&!state.busy){const opts=root.gregalChoices?root.gregalChoices.extract(last.text):[];if(opts.length){const row=el('div','vw-choices');for(const o of opts)row.append(btn(o,()=>{if(!input)return;state.replyTo=last.speaker_id||null;input.value=o;composer.requestSubmit();},'vw-choice'));messages.append(row);}}
   if(!last&&state.active?.legacyWind)emptyWindThread();
   paintPending();messages.scrollTop=follow?messages.scrollHeight:top;}
  async function submit(){if(state.preparing)return;state.preparing=true;try{await submitRequest();}finally{state.preparing=false;}}
  async function submitRequest(){
   const text=input.value.trim();if(!text||state.busy)return;state.draft=text;
-  const prepareWork=state.view!=='chat'&&!state.active?.legacyWind&&(state.recipient==='auto'||state.active?.project);
+  const anyone=state.recipient==='auto'||state.recipient==='crew';
+  const prepareWork=state.view!=='chat'&&!state.active?.legacyWind&&(anyone||state.active?.project);
   const work=prepareWork&&(await call('/api/winds/intent','POST',{message:text})).intent==='work';
-  if(state.view==='home'&&state.recipient==='auto'&&state.squad==='daily'&&work){
+  if(state.view==='home'&&anyone&&state.squad==='daily'&&work){
    if(/\b(web|website|codi|code|app|bug|html|seguretat|security)\b/i.test(text))state.squad='software';
    else if(/\b(dades|data|regress|machine learning|series|temporal|csv)\b/i.test(text))state.squad='data';
   }
-  if(state.view==='home'&&state.recipient!=='auto'&&!state.active?.project){
+  if(state.view==='home'&&!anyone&&!state.active?.project){
    const wind=state.winds.find(w=>w.id===state.recipient);
    if(wind)await talkTo(wind);
   }
-  if(state.view!=='chat'&&!crew().length&&state.recipient==='auto')await activate(state.squad);
-  const members=state.view==='chat'?state.winds.filter(w=>state.active.members.includes(w.id)):state.recipient&&state.recipient!=='auto'?state.winds.filter(w=>w.id===state.recipient):crew();if(!members.length)throw new Error(t('Tria un vent de la colla.','Choose a wind from the crew.'));
+  if(state.view!=='chat'&&!crew().length&&anyone)await activate(state.squad);
+  // Automàtic: una conversa nova amb un sol vent, el que millor encaixa amb el que demanes. La
+  // conversa en grup només hi és quan la tries («Tota la colla») o hi convides vents.
+  if(state.view==='home'&&state.recipient==='auto'&&!work&&!state.active?.project){
+   const wind=await bestWind(text);
+   if(wind){const thread=await call('/api/winds/sessions','POST',{wind:wind.id});showWindThread(wind,thread.name,[]);}
+  }
+  const members=state.view==='chat'?state.winds.filter(w=>state.active.members.includes(w.id)):state.recipient&&!anyone?state.winds.filter(w=>w.id===state.recipient):crew();if(!members.length)throw new Error(t('Tria un vent de la colla.','Choose a wind from the crew.'));
   // Cap vent no hi encaixa: proposa convocar una colla (vents existents + especialistes nous).
-  if(work&&state.recipient==='auto'&&root.gregalCrew&&!(state.crewTried||=new Set()).has(text)){state.crewTried.add(text);status.textContent=t('Mirant qui ho pot fer…','Checking who can do it…');const crewChat=await root.gregalCrew.offer(text,state.winds,members.map(w=>w.id));status.textContent='';if(crewChat){input.value='';state.draft='';state.chats.unshift(crewChat);state.winds=(await call('/api/winds')).winds||state.winds;state.preparing=false;await openChat(crewChat);return;}}
+  if(work&&anyone&&root.gregalCrew&&!(state.crewTried||=new Set()).has(text)){state.crewTried.add(text);status.textContent=t('Mirant qui ho pot fer…','Checking who can do it…');const crewChat=await root.gregalCrew.offer(text,state.winds,members.map(w=>w.id));status.textContent='';if(crewChat){input.value='';state.draft='';state.chats.unshift(crewChat);state.winds=(await call('/api/winds')).winds||state.winds;state.preparing=false;await openChat(crewChat);return;}}
   if(work){
-   const selected=root.gregalWindDesk.resolveTask(members,text,{owner:state.recipient==='auto'?null:state.recipient});const flow=root.gregalWindDesk.flowFor(selected.owner,selected.reviewer,selected.kind);
+   const selected=root.gregalWindDesk.resolveTask(members,text,{owner:anyone?null:state.recipient});const flow=root.gregalWindDesk.flowFor(selected.owner,selected.reviewer,selected.kind);
    const workspace=state.active?.workspace||state.active?.path;if(workspace)await switchFolder(workspace);
    let conversation=state.view==='chat'&&!state.active?.legacyWind?state.active:state.active?.conversation;
    if(!conversation){const data=await call('/api/winds/rotllanes','POST',{name:text.slice(0,75),members:members.map(w=>w.id),workspace:state.active?.project?state.active.path:''});conversation=data.rotllana;state.chats.unshift(conversation);}

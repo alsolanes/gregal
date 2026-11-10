@@ -3,7 +3,7 @@
 .notes-wrap { display:grid; grid-template-columns:minmax(240px,330px) minmax(0,1fr); gap:28px; align-items:start; }
 .notes-side { position:sticky; top:12px; display:flex; flex-direction:column; gap:12px; max-height:calc(100vh - 120px); min-height:0; }
 .notes-top { display:flex; gap:8px; align-items:center; }
-.notes-top .vw-search { flex:1; min-width:0; }
+.notes-top .vw-search { flex:1; min-width:0; margin:0; }
 .notes-top .vw-primary { white-space:nowrap; }
 .notes-new { display:inline-flex; align-items:center; gap:6px; }
 .notes-chips .act-chip { display:inline-flex; align-items:center; gap:5px; }
@@ -31,8 +31,8 @@
 .notes-bar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
 .notes-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-left:auto; }
 /* Esborra: un botó discret com els altres (no l'enllaç d'arxivar del perfil), vermell només en passar-hi. */
-.notes-actions .vw-archive { margin:0; padding:7px 13px; border:1px solid transparent; border-radius:9px; color:var(--muted); font-size:12px!important; }
-.notes-actions .vw-archive:hover { color:var(--red); background:var(--hover-alt); }
+.notes-actions .vw-archive { margin:0; border-color:transparent; color:var(--muted); }
+.notes-actions .vw-archive:hover { border-color:transparent; color:var(--red); background:var(--hover-alt); }
 .notes-back { display:none; align-items:center; gap:6px; }
 .notes-cancel { display:inline-flex; }
 .notes-title { color:var(--ink); font-weight:600; font-size:clamp(20px,2vw,26px); line-height:1.25; font-family:inherit; letter-spacing:-.02em; margin:8px 0 6px; overflow-wrap:anywhere; }

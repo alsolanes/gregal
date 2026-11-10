@@ -13,7 +13,7 @@ import (
 )
 
 // No routing request may compete with the actual reply on a busy provider.
-func TestRotllanaSelectionIsLocalAndFair(t *testing.T) {
+func TestRotllanaSelectionIsLocalAndKeepsTheThread(t *testing.T) {
 	s, _ := companionTestServer(t)
 	id := makeRotllanaTrio(t, s)
 	rot, _ := s.rotllanaByID(id)
@@ -33,8 +33,9 @@ func TestRotllanaSelectionIsLocalAndFair(t *testing.T) {
 	if requests.Load() != 0 {
 		t.Fatalf("speaker selection called provider %d times", requests.Load())
 	}
-	if len(got) != 1 || got[0].ID != "xaloc" {
-		t.Fatalf("expected least-recently represented wind, got %+v", got)
+	// Un missatge sense ofici ni nom el continua qui portava el fil.
+	if len(got) != 1 || got[0].ID != "tramuntana" {
+		t.Fatalf("expected the wind that was talking, got %+v", got)
 	}
 }
 
@@ -44,11 +45,11 @@ func TestRotllanaLocalSelectionSemantics(t *testing.T) {
 	rot, _ := s.rotllanaByID(id)
 	tail := []llm.Message{{Role: "assistant", Content: "Tramuntana: old reply"}}
 	for _, tc := range []struct{ name, wanted, msg, want string }{
-		{"default fairness with legacy identity", "", "hola", "xaloc"},
+		{"thread continuity with legacy identity", "", "hola", "tramuntana"},
 		{"explicit member wins over mention", "llevant", "@Xaloc hola", "llevant"},
 		{"unknown explicit member is not silently replaced", "absent", "hola", ""},
 		{"accent insensitive case", "", "@XALOC hola", "xaloc"},
-		{"word boundaries", "", "Tramuntanada", "xaloc"},
+		{"word boundaries", "", "Xaloca", "tramuntana"},
 		{"two named members", "", "@Tramuntana @Llevant", "tramuntana,llevant"},
 		{"two voice cap", "", "Tramuntana Xaloc Llevant", "tramuntana,xaloc"},
 	} {
@@ -71,14 +72,15 @@ func TestRotllanaLocalSelectionSemantics(t *testing.T) {
 	if got := s.routeRotllanaSpeakers(ctx, rot, "", "hola", nil); len(got) != 0 {
 		t.Fatal("cancelled selector chose a speaker")
 	}
+	// Una conversa no salta de vent en vent: qui l'ha començada la continua.
 	var participation []llm.Message
-	seen := map[string]bool{}
+	first := ""
 	for range 3 {
 		got := s.routeRotllanaSpeakers(context.Background(), rot, "", "hola", participation)
-		if len(got) != 1 || seen[got[0].ID] {
-			t.Fatalf("unbalanced participation: %+v", got)
+		if len(got) != 1 || (first != "" && got[0].ID != first) {
+			t.Fatalf("the thread jumped to another wind: %+v", got)
 		}
-		seen[got[0].ID] = true
+		first = got[0].ID
 		participation = append(participation, llm.Message{Role: "user"}, llm.Message{Role: "assistant", SpeakerID: got[0].ID})
 	}
 }

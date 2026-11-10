@@ -44,11 +44,11 @@
       ['path', { d:'M57 54v-3a6 6 0 0 1 12 0v3', fill:'none', ...ln(2.4) }],
       ['path', { d:'M52 54H74L72 75H54Z', fill:'#E97A86', ...ln() }],
       ['path', { d:'M53.5 60H72.5', stroke:'#FFF1EC', 'stroke-width':2.4, opacity:'.85' }]] },
-    books: { hands:[[17,67],[63,67]], prop:[
-      ['path', { d:'M17 61Q28 56 40 61Q52 56 63 61V75Q52 71 40 76Q28 71 17 75Z', fill:'#5E86D6', ...ln() }],
-      ['path', { d:'M20 60Q30 56 40 60V73Q30 69 20 72Z', fill:'#FFF8EE', ...ln(1.6) }],
-      ['path', { d:'M60 60Q50 56 40 60V73Q50 69 60 72Z', fill:'#FFF8EE', ...ln(1.6) }],
-      ['path', { d:'M24 63q6-2 12 0M24 67q6-2 12 0M44 63q6-2 12 0M44 67q6-2 12 0', fill:'none', stroke:'#A79FBC', 'stroke-width':1.3, 'stroke-linecap':'round' }]] },
+    books: { hands:[[17,69.5],[63,69.5]], prop:[
+      ['path', { d:'M17 63.5Q28 58.5 40 63.5Q52 58.5 63 63.5V77.5Q52 73.5 40 78.5Q28 73.5 17 77.5Z', fill:'#5E86D6', ...ln() }],
+      ['path', { d:'M20 62.5Q30 58.5 40 62.5V75.5Q30 71.5 20 74.5Z', fill:'#FFF8EE', ...ln(1.6) }],
+      ['path', { d:'M60 62.5Q50 58.5 40 62.5V75.5Q50 71.5 60 74.5Z', fill:'#FFF8EE', ...ln(1.6) }],
+      ['path', { d:'M24 65.5q6-2 12 0M24 69.5q6-2 12 0M44 65.5q6-2 12 0M44 69.5q6-2 12 0', fill:'none', stroke:'#A79FBC', 'stroke-width':1.3, 'stroke-linecap':'round' }]] },
     sports: { hands:[[53,64]], head:[
       ['path', { d:'M11.5 24Q40 11 68.5 24L70 31Q40 19 10 31Z', fill:'#E5484D', ...ln(2) }]], prop:[
       ['circle', { cx:63, cy:62, r:11, fill:'#FFFFFF', ...ln() }],
@@ -93,9 +93,9 @@
       ['path', { d:'M56 56h11M56 60h11M56 64h6', stroke:'#8EE3B0', 'stroke-width':2, 'stroke-linecap':'round' } ],
       ['path', { d:'M61.5 73v4M56 73v4M67 73v4', stroke:'#A79FBC', 'stroke-width':1.8, 'stroke-linecap':'round' } ] ] },
     review: { hands:[[52,63]], head:[
-      ['circle', { cx:29, cy:36, r:8.5, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
-      ['circle', { cx:51, cy:36, r:8.5, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
-      ['path', { d:'M37.5 35q2.5-2 5 0M20.5 34.5l-6-2M59.5 34.5l6-2', fill:'none', ...ln(2) }]], prop:[
+      ['rect', { x:22.6, y:27.8, width:15.6, height:21.2, rx:7.4, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
+      ['rect', { x:41.8, y:27.8, width:15.6, height:21.2, rx:7.4, fill:'#FFFFFF', 'fill-opacity':'.25', ...ln(2.2) }],
+      ['path', { d:'M38.2 36.6q1.8-1.8 3.6 0M22.6 35.6l-7.6-2.6M57.4 35.6l7.6-2.6', fill:'none', ...ln(2) }]], prop:[
       ['circle', { cx:63, cy:61, r:11, fill:'#F2C14E', ...ln() }],
       ['path', { d:'M63 61V50A11 11 0 0 1 73.5 64.5Z', fill:'#5E86D6', ...ln(1.6) }],
       ['path', { d:'M63 61L73.5 64.5A11 11 0 0 1 59 71.3Z', fill:'#E97A86', ...ln(1.6) }]] },
@@ -106,9 +106,9 @@
       ['circle', { cx:57.5, cy:58, r:2.4, fill:'#E5484D' }], ['circle', { cx:63.5, cy:55, r:2.4, fill:'#5E86D6' }],
       ['circle', { cx:69, cy:58.5, r:2.2, fill:'#F2C14E' }], ['circle', { cx:57.5, cy:65, r:2.2, fill:'#2F9E6A' }]] },
     frontend: { prop:[
-      ['rect', { x:21, y:53, width:38, height:19, rx:3, fill:'#3A3F5C', ...ln() }],
-      ['path', { d:'M33 58.5l-4 4 4 4M47 58.5l4 4-4 4M42 57.5l-4 10', fill:'none', stroke:'#8EE3B0', 'stroke-width':2.2, 'stroke-linecap':'round', 'stroke-linejoin':'round' }],
-      ['path', { d:'M14 72H66L63 77H17Z', fill:'#C3C9D9', ...ln() }]] },
+      ['rect', { x:21, y:57, width:38, height:16.5, rx:3, fill:'#3A3F5C', ...ln() }],
+      ['path', { d:'M33 61l-4 4 4 4M47 61l4 4-4 4M42 60.2l-4 9.6', fill:'none', stroke:'#8EE3B0', 'stroke-width':2.2, 'stroke-linecap':'round', 'stroke-linejoin':'round' }],
+      ['path', { d:'M14 73.5H66L63 78H17Z', fill:'#C3C9D9', ...ln() }]] },
     backend: { hands:[[51,63]], prop:[
       ['path', { d:'M51 52V70A11 4 0 0 0 73 70V52', fill:'#7C8CE0', ...ln() }],
       ['path', { d:'M51 58.5A11 4 0 0 0 73 58.5M51 64.5A11 4 0 0 0 73 64.5', fill:'none', ...ln(1.6) }],
@@ -151,17 +151,27 @@
     if (step === 'working' || step === 'started') return activityMoods[activity] || 'working';
     return 'idle';
   }
-  // Darker tone of the same colour for paws and feet.
-  function shade(hex, amount) {
-    const n = parseInt(hex.slice(1), 16);
-    return '#' + [n >> 16, n >> 8 & 255, n & 255].map(c => Math.round(c * (1 - amount)).toString(16).padStart(2, '0')).join('');
+  // Tones of a wind's own colour, the same mixes as Android's WindVolume.kt:
+  // light and deep model the volume, and the ink of its tools is a dark tone of
+  // its own hue instead of one navy for everybody.
+  function mix(hex, other, amount) {
+    const a = parseInt(hex.slice(1), 16), b = parseInt(other.slice(1), 16);
+    return '#' + [16, 8, 0].map(shift => Math.round((a >> shift & 255) * (1 - amount) + (b >> shift & 255) * amount).toString(16).padStart(2, '0')).join('');
   }
   function svgNode(tag, attrs) {
     const el = doc.createElementNS(SVG, tag);
     for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
     return el;
   }
-  function shapes(parent, list) { for (const [tag, attrs] of list) parent.append(svgNode(tag, attrs)); return parent; }
+  // INK in the authored tables stands for the ink of the wind that wears them.
+  function shapes(parent, list, ink) {
+    for (const [tag, attrs] of list) {
+      const el = svgNode(tag, attrs);
+      if (ink) for (const name of ['fill', 'stroke']) if (attrs[name] === INK) el.setAttribute(name, ink);
+      parent.append(el);
+    }
+    return parent;
+  }
   function group(parent, cls, attrs = {}) { const g = svgNode('g', cls ? { class:cls, ...attrs } : attrs); parent.append(g); return g; }
   // Small state marks in the top-right corner; each is drawn only for its mood.
   const badges = {
@@ -231,7 +241,7 @@
     seen[id] = Math.max(news.get(id) || 0, Math.floor(Date.now() / 1000), seen[id] || 0);
     news.delete(id); saveSeen(seen); refreshNews();
   }
-  const moodSince = new Map(), faceKeys = new WeakMap();
+  const moodSince = new Map(), faceKeys = new WeakMap(), faceTones = new WeakMap();
   const clock = () => (root.performance?.now?.() ?? Date.now()) / 1000;
   function setMood(svg, mood, key = faceKeys.get(svg)) {
     mood = moods.includes(mood) ? mood : 'idle';
@@ -250,8 +260,8 @@
     svg.style.setProperty('--wf-since', mood === 'idle' ? '0s' : (moodSince.get(key).at - now).toFixed(2) + 's');
     svg.querySelector('.wf-badge')?.remove();
     if (badges[mood]) {
-      const badge = shapes(group(svg, 'wf-badge'), badges[mood]), tool = badge.querySelector('.wf-tool, .wf-pop');
-      if (tool) shapes(tool, tools[mood]);
+      const tone = faceTones.get(svg), badge = shapes(group(svg, 'wf-badge'), badges[mood], tone), tool = badge.querySelector('.wf-tool, .wf-pop');
+      if (tool) shapes(tool, tools[mood], tone);
     }
     return svg;
   }
@@ -263,64 +273,95 @@
     };
     return .2126 * linear(1) + .7152 * linear(3) + .0722 * linear(5);
   }
+  // Silhouettes in face coordinates (the ball is r 33 around 40,40; the cloud is
+  // Android's, r 30). Its parts share one user-space gradient, so they read as
+  // a single shape.
+  const bodies = {
+    o: [['circle', { cx:40, cy:40, r:33 }]],
+    n: [['rect', { x:4.3, y:31, width:71.4, height:38.1, rx:17.4 }], ['circle', { cx:21.7, cy:38.5, r:20.1 }], ['circle', { cx:42.4, cy:34.3, r:25.8 }], ['circle', { cx:59.8, cy:41.2, r:18 }]],
+  };
+  // `large` picks the level of detail: false is a clean face for lists and chat
+  // rows; true is the whole figure on its own ground, with the tool of its
+  // trade; 'figure' is that figure without ground, for scenes that draw theirs.
   function face(w, large, mood) {
     w = w || {};
     const s = style(w.style), kitKey = w.kit || w.specialty, kit = kits[kitKey], fill = color(w.color);
+    const full = !!large, worn = full ? kit : null, cloud = s[2] === 'n', curl = s[2] === 's', R = cloud ? 30 : 33;
     const darkInk = '#202127';
     // Pick the same higher-contrast ink as Android's WindFace.
     const background = luminance(fill) + .05;
     const ink = background / (luminance(darkInk) + .05) >= 1.05 / background ? darkInk : '#FFFFFF';
+    const light = mix(fill, '#FFFFFF', .3), deep = mix(fill, '#1B1530', .3), tone = mix(fill, '#1B1530', .8);
     const svg = doc.createElementNS(SVG, 'svg'), key = w.id || w.name || 'crew';
-    svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large ? ' winds-face-large' : ''));
+    svg.setAttribute('viewBox', '0 0 80 80'); svg.setAttribute('class', 'winds-face' + (large === true ? ' winds-face-large' : ''));
     svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false');
     if (kit) svg.setAttribute('data-kit', kitKey);
     if (w.id) svg.setAttribute('data-wind', w.id);
     if ((!mood || mood === 'idle') && news.has(w.id)) mood = 'news';
     let seed = 0; for (const c of String(key)) seed = (seed * 31 + c.charCodeAt(0)) % 997;
     svg.style.setProperty('--wf-phase', (-((clock() + seed / 83) % 12)).toFixed(2) + 's');
-    faceKeys.set(svg, key);
-    if (large) shapes(svg, [['ellipse', { cx:40, cy:kit ? 76 : 74, rx:23, ry:3, fill, opacity:'.15' }]]);
-    const bodyID = 'wf-body-' + (++faceSerial);
-    const defs = doc.createElementNS(SVG, 'defs');
-    const gradient = doc.createElementNS(SVG, 'radialGradient');
-    defs.append(gradient);
+    faceKeys.set(svg, key); faceTones.set(svg, tone);
+    // Volume: soft light from the top left, the wind's own deep tone below, a rim
+    // of bounced light at the far edge and a satin sheen. No outline, no glare.
+    const id = 'wf' + (++faceSerial), defs = svgNode('defs', {}), num = value => +value.toFixed(2);
+    const paint = (suffix, attrs, stops) => {
+      const gradient = svgNode('radialGradient', { id:id + suffix, ...attrs });
+      shapes(gradient, stops.map(([offset, tint, opacity]) => ['stop', { offset, 'stop-color':tint, 'stop-opacity':opacity ?? 1 }]));
+      defs.append(gradient);
+      return 'url(#' + id + suffix + ')';
+    };
+    const space = { gradientUnits:'userSpaceOnUse' }, lx = num(40 - .38 * R), ly = num(40 - .5 * R);
+    const volume = paint('v', { ...space, cx:lx, cy:ly, r:num(1.9 * R) }, [[0, light], [.45, fill], [1, deep]]);
+    const glow = mix(fill, '#FFFFFF', .65);
+    const rim = paint('r', { ...space, cx:num(40 - .22 * R), cy:num(40 - .26 * R), r:num((cloud ? 1.62 : 1.32) * R) }, [[.8, glow, 0], [1, glow, .36]]);
+    const sheen = paint('s', { ...space, cx:lx, cy:ly, r:num(.5 * R) }, [[0, '#FFFFFF', .28], [1, '#FFFFFF', 0]]);
+    const blush = paint('b', {}, [[0, '#E4577A', .5], [1, '#E4577A', 0]]);
+    defs.append(shapes(svgNode('clipPath', { id:id + 'c' }), bodies[cloud ? 'n' : 'o']));
     svg.append(defs);
-    gradient.setAttribute('id', bodyID);
-    gradient.setAttribute('cx', '32%');
-    gradient.setAttribute('cy', '25%');
-    shapes(gradient, [
-      ['stop', { offset:0, 'stop-color':fill }],
-      ['stop', { offset:.6, 'stop-color':fill }],
-      ['stop', { offset:1, 'stop-color':shade(fill, .18) }]
-    ]);
-    const bodyFill = 'url(#' + bodyID + ')';
+    if (large === true) {
+      const ground = mix(fill, '#0B0C14', .72);
+      shapes(svg, [['ellipse', { class:'wf-ground', cx:40, cy:72.4, rx:23, ry:4.4, fill:paint('g', {}, [[0, ground, .5], [1, ground, 0]]) }]]);
+    }
     const figure = group(svg, 'wf-figure');
-    shapes(figure, [['ellipse', { class:'wf-foot wf-foot-l', cx:30, cy:71, rx:6.5, ry:3.6, fill:shade(fill, .2) }], ['ellipse', { class:'wf-foot wf-foot-r', cx:50, cy:71, rx:6.5, ry:3.6, fill:shade(fill, .2) }]]);
-    const head = group(figure, '', kit ? { transform:'translate(4 3) scale(.9)' } : {});
-    if (s[2] === 'n') shapes(head, [['path', { d:'M18 62C1 62 1 37 17 34C14 13 43 8 50 24C69 16 83 39 68 49C76 66 49 74 40 63Z', fill:bodyFill }]]);
-    else shapes(head, [['circle', { cx:40, cy:40, r:33, fill:bodyFill }]]);
-    if (s[2] === 's') shapes(head, [['path', { d:'M20 24C23 13 34 11 42 16C49 21 56 19 60 13', fill:'none', stroke:shade(fill, .28), 'stroke-opacity':'.5', 'stroke-width':2.8, 'stroke-linecap':'round' }]]);
+    // The whole figure is drawn a little smaller: room for hats, tools and marks.
+    // A small face only makes room for its own curl.
+    const head = group(figure, '', full ? { transform:'translate(4 3) scale(.9)' } : curl ? { transform:'translate(2 3.6) scale(.95)' } : {});
+    const footY = cloud ? 69.8 : 69.4;
+    shapes(head, [['ellipse', { class:'wf-foot wf-foot-l', cx:25.3, cy:footY, rx:7.1, ry:3.7, fill:deep }], ['ellipse', { class:'wf-foot wf-foot-r', cx:54.7, cy:footY, rx:7.1, ry:3.7, fill:deep }]]);
+    // The curl of a gust on top: it changes the outline, never the face.
+    if (curl) shapes(head, [['path', { class:'wf-curl', d:'M26.2 11.5C32.5 9 36.9 5.2 39.4 1.5C41.2-1.6 45.6-3.1 48.8-.9C52 1.6 51 6.1 47 6.4C45 6.5 44 4.9 45 3.4C42.8 4.6 43.2 8.4 46.9 9.9L53.8 11.6Z', fill:volume }]]);
+    shapes(group(head, '', { fill:volume }), bodies[cloud ? 'n' : 'o']);
+    shapes(group(head, '', { 'clip-path':'url(#' + id + 'c)' }), [
+      ['rect', { x:-4, y:-4, width:88, height:88, fill:rim }],
+      ['circle', { cx:lx, cy:ly, r:num(.5 * R), fill:sheen }]]);
     shapes(head, [
-      ['ellipse', { cx:28, cy:21, rx:9, ry:5, fill:'#FFFFFF', opacity:'.3' }],
-      ['ellipse', { cx:22, cy:45, rx:5, ry:3, fill:'#DC6784', opacity:'.16' }],
-      ['ellipse', { cx:58, cy:45, rx:5, ry:3, fill:'#DC6784', opacity:'.16' }]]);
-    const eyes = group(group(head, 'wf-gaze'), 'wf-eyes');
-    for (const x of [29, 51]) {
-      if (s[0] === 'm') shapes(eyes, [['path', { d:`M${x-4} 36q4 5 8 0`, fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
-      else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} 29l2 5 5 2-5 2-2 5-2-5-5-2 5-2Z`, fill:ink }]]);
-      else shapes(eyes, [['ellipse', { cx:x, cy:36, rx:s[0] === 'b' ? 4 : 2.5, ry:s[0] === 'b' ? 6 : 3.5, fill:ink }]]);
+      ['ellipse', { cx:20.6, cy:48.8, rx:7, ry:4.6, fill:blush }],
+      ['ellipse', { cx:59.4, cy:48.8, rx:7, ry:4.6, fill:blush }]]);
+    // Two bold marks for eyes, as on Android; the figure also gets a catchlight.
+    const eyes = group(group(head, 'wf-gaze'), 'wf-eyes'), ey = 38.4;
+    for (const x of [30.4, 49.6]) {
+      if (s[0] === 'm') shapes(eyes, [['path', { d:`M${x - 5} ${ey - 1}q5 5.6 10 0`, fill:'none', stroke:ink, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
+      else if (s[0] === 'e') shapes(eyes, [['path', { d:`M${x} ${num(ey - 7.4)}l2.2 5.2 5.2 2.2-5.2 2.2-2.2 5.2-2.2-5.2-5.2-2.2 5.2-2.2Z`, fill:ink, stroke:ink, 'stroke-width':1.2, 'stroke-linejoin':'round' }]]);
+      else {
+        const half = s[0] === 'b' ? 5.4 : 4.2;
+        shapes(eyes, [['rect', { x:num(x - half), y:num(ey - 7.8), width:half * 2, height:15.6, rx:half, fill:ink }]]);
+        if (full) shapes(eyes, [['circle', { cx:num(x + half * .3), cy:num(ey - 4.1), r:num(half * .36), fill:ink === darkInk ? '#FFFFFF' : fill, opacity:'.5' }]]);
+      }
     }
     // Content, closed eyes replace the chosen ones only while a step is done.
-    shapes(group(head, 'wf-joy', { display:'none' }), [['path', { d:'M25 37q4-6 8 0M47 37q4-6 8 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
-    const mouth = group(head, 'wf-mouth');
-    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:51, rx:5, ry:6, fill:ink }]]);
-    else shapes(mouth, [['path', { d:s[1] === 'n' ? 'M35 50h10' : 'M32 47q8 12 16 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
-    if (s[1] === 't') shapes(mouth, [['path', { d:'M39 52q0 10 6 6l1-7', fill:'#DC6784' }]]);
-    shapes(group(head, 'wf-worry', { display:'none' }), [['path', { d:'M33 51q3.5-3 7 0t7 0', fill:'none', stroke:ink, 'stroke-width':3, 'stroke-linecap':'round' }]]);
-    if (kit?.head) shapes(head, kit.head);
-    if (kit?.prop) {
-      const prop = shapes(group(figure, 'wf-prop'), kit.prop);
-      for (const [cx, cy] of kit.hands || []) shapes(prop, [['ellipse', { cx, cy, rx:4.6, ry:4, fill, stroke:shade(fill, .35), 'stroke-width':1.4 }]]);
+    shapes(group(head, 'wf-joy', { display:'none' }), [['path', { d:'M25.4 40.2q5-7 10 0M44.6 40.2q5-7 10 0', fill:'none', stroke:ink, 'stroke-width':3.2, 'stroke-linecap':'round' }]]);
+    // Thin features vanish in a 30 px avatar: the small face draws them bolder.
+    const mouth = group(head, 'wf-mouth'), line = { fill:'none', stroke:ink, 'stroke-width':full ? 2.5 : 3.1, 'stroke-linecap':'round' };
+    if (s[1] === 'o') shapes(mouth, [['ellipse', { cx:40, cy:54.6, rx:4.8, ry:5.2, fill:ink }], ['ellipse', { cx:40, cy:57.4, rx:3.1, ry:2.2, fill:'#E8667E' }]]);
+    else {
+      if (s[1] === 't') shapes(mouth, [['path', { d:'M38.6 56.8q-.4 6.6 3.4 6.6t3.6-7.4Z', fill:'#E8667E' }]]);
+      shapes(mouth, [['path', { d:s[1] === 'n' ? 'M34.6 54h10.8' : 'M31.8 52.8q8.2 10 16.4 0', ...line }]]);
+    }
+    shapes(group(head, 'wf-worry', { display:'none' }), [['path', { d:'M32.5 55.4q3.75-3.4 7.5 0t7.5 0', ...line }]]);
+    if (worn?.head) shapes(head, worn.head, tone);
+    if (worn?.prop) {
+      const prop = shapes(group(figure, 'wf-prop'), worn.prop, tone);
+      for (const [cx, cy] of worn.hands || []) shapes(prop, [['ellipse', { cx, cy, rx:4.6, ry:4, fill, stroke:mix(fill, '#1B1530', .45), 'stroke-width':1.4 }]]);
     }
     return setMood(svg, mood, key);
   }
@@ -341,7 +382,7 @@
     for (const w of state.winds) list.append(row(w.name, w.role || tr('winds.chatWithName', 'Conversa amb {name}', {name:w.name}), [w], () => openChat({ kind:'wind', id:w.id, name:w.name, members:[w.id] }), state.active?.kind === 'wind' && state.active.id === w.id));
     if (!state.winds.length) list.append(node('p', 'winds-empty', tr("winds.youDoNotHaveAnyWindsYetCreate", "La colla es prepara amb el teu primer encàrrec.")));
     const chats = $('windsConversations'); chats.replaceChildren();
-    for (const c of state.conversations) chats.append(row(c.name, c.members.length > 1 ? tr('winds.groupCount', 'Rotllana · {count} vents', {count:c.members.length}) : tr('winds.namedConversation', 'Conversa · {name}', {name:roster(c.members)[0]?.name || tr("winds.oneWind", "Un vent")}), roster(c.members), () => openChat({ ...c, kind:'rotllana' }), state.active?.kind === 'rotllana' && state.active.id === c.id));
+    for (const c of state.conversations) chats.append(row(c.name, c.members.length > 1 ? tr('winds.groupCount', 'En grup · {count} vents', {count:c.members.length}) : tr('winds.namedConversation', 'Conversa · {name}', {name:roster(c.members)[0]?.name || tr("winds.oneWind", "Un vent")}), roster(c.members), () => openChat({ ...c, kind:'rotllana' }), state.active?.kind === 'rotllana' && state.active.id === c.id));
     if (!state.conversations.length) chats.append(node('p', 'winds-empty', tr("winds.newConversationsWillAppearHere", "Les noves converses apareixeran aquí.")));
     if (state.active) drawChatHeading();
   }
@@ -630,7 +671,7 @@
     let name; const checks = [];
     const form = dialogForm(editing ? tr('winds.editTheGroupAndItsMembers','Edita el grup i els membres') : tr('winds.aNewConversation','Una conversa nova'), 'windsChatFormDialog', editing ? tr('winds.saveChanges','Desa els canvis') : tr('winds.createConversation','Crea la conversa'), async feedback => {
       const members = checks.filter(c => c.checked).map(c => c.value);
-      if (!name.value.trim() || members.length < minimum) { paint(feedback, minimum === 2 ? tr('winds.chooseANameAndAtLeastTwoWinds','Tria un nom i almenys dos vents per a la rotllana.') : tr('winds.chooseANameAndAtLeastOneWind','Tria un nom i almenys un vent per conversar.')); return; }
+      if (!name.value.trim() || members.length < minimum) { paint(feedback, minimum === 2 ? tr('winds.chooseANameAndAtLeastTwoWinds','Tria un nom i almenys dos vents per a la conversa en grup.') : tr('winds.chooseANameAndAtLeastOneWind','Tria un nom i almenys un vent per conversar.')); return; }
       const payload = {name:name.value.trim(), members};
       if (editing) payload.id = conversation.id;
       const saved = await call('/api/winds/rotllanes', 'POST', payload);
@@ -650,7 +691,7 @@
       $('windsDialog').close();
     }, focusBack);
     name = field(form.fields, 'windsConversationName', tr('winds.conversationName','Nom de la conversa'), 'input', conversation?.name || '', 'text'); name.required = true;
-    form.fields.append(node('p', 'winds-muted', minimum === 2 ? tr('winds.aGroupMustKeepAtLeastTwoWinds','Una rotllana ha de conservar almenys dos vents.') : tr('winds.chooseOneWindForAPrivateChatOr','Un sol vent per parlar a soles; més d’un per fer una rotllana.')));
+    form.fields.append(node('p', 'winds-muted', minimum === 2 ? tr('winds.aGroupMustKeepAtLeastTwoWinds','Una conversa en grup ha de conservar almenys dos vents.') : tr('winds.chooseOneWindForAPrivateChatOr','Un sol vent per parlar a soles; més d’un per parlar-hi en grup.')));
     const group = node('fieldset', 'winds-picker'); group.append(node('legend', '', tr('winds.whoWillJoin','Qui hi serà?')));
     for (const w of state.winds) {
       const label = node('label', 'winds-member-choice'); const check = node('input'); check.setAttribute('type', 'checkbox'); check.setAttribute('name', 'members'); check.value = w.id;

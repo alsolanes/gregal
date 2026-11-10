@@ -103,7 +103,7 @@ class VentsExperienceTest {
         ui.onNodeWithContentDescription(tr("ca", "app.vents.directory")).assertExists()
         ui.onNodeWithContentDescription("Crea").performClick()
         ui.onNodeWithText("Nou xat").assertExists()
-        ui.onNodeWithText("Nova rotllana").assertExists()
+        ui.onNodeWithText("Nova conversa en grup").assertExists()
         ui.onNodeWithText("Nou vent").assertExists()
     }
 

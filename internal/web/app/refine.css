@@ -36,37 +36,29 @@
 }
 /* El mode amb risc (permisos oberts) conserva el seu halo ambre. */
 #box.perm-risc:not(:focus-within) { box-shadow:var(--lift), 0 0 0 1px var(--amber-soft); }
-body.shell-winds .vw-composer:focus-within {
-  border-color:color-mix(in srgb, var(--vw-accent) 60%, var(--line-hi));
-  box-shadow:var(--lift), 0 0 0 3px color-mix(in srgb, var(--vw-accent) 22%, transparent);
-}
 #composer #send, .vw-send {
   transition:transform .14s var(--ease-out), filter .14s, background-color .14s;
 }
 #composer #send:not(:disabled):active, .vw-send:not(:disabled):active { transform:scale(.94); }
 
 /* Pastilles del peu del compositor: mateixa alçada i forma. */
-#box .meta-pill, #box .perm-btn, #box .mode-switch select, .vw-composer-foot select, .vw-composer-foot .vw-model {
+#box .meta-pill, #box .perm-btn, #box .mode-switch select {
   border-radius:var(--r-pill);
 }
 #box .meta-pill:hover, #box .perm-btn:hover { background:var(--hover-alt); }
-.vw-composer-foot select { background:var(--hover); border:1px solid var(--line); padding:3px 10px; color:var(--text); }
-.vw-composer-foot select:hover { border-color:var(--line-hi); }
 
 /* Suggeriments sota el compositor */
 .hero-card { border-radius:var(--r-pill); transition:background-color .15s, border-color .15s, transform .15s var(--ease-out); }
 .hero-card:hover { transform:translateY(-1px); }
-.vw-prompt { border-radius:var(--r-pill); }
-.vw-prompt:hover { background:var(--hover); color:var(--ink); }
 
 /* ---------- Barra lateral ---------- */
 #side { border-right:1px solid var(--line); }
 /* «Nova sessió» i «Nova conversa»: el mateix botó als dos productes. */
 #side .side-quick-btn, #side .vw-new {
-  display:flex; align-items:center; gap:10px; min-height:40px; margin-bottom:6px;
-  padding:0 12px; border:1px solid var(--line); border-radius:var(--r-md);
-  background:var(--surface); color:var(--ink); font-size:14px; font-weight:550!important;
-  box-shadow:0 1px 0 rgba(255,255,255,.03) inset;
+  display:flex; align-items:center; justify-content:flex-start; gap:10px; min-height:40px; margin-bottom:6px;
+  padding:0 12px; border:1px solid var(--line); border-radius:10px;
+  background:transparent; color:var(--ink); font-size:14px; font-weight:550!important;
+  box-shadow:none;
   transition:background-color .15s, border-color .15s;
 }
 #side .side-quick-btn:hover, #side .vw-new:hover { background:var(--surface-hi); border-color:var(--line-hi); }
@@ -82,14 +74,7 @@ body.shell-winds .vw-composer:focus-within {
 #side :is(.sidebar-section-head, .conv-head, .vw-section-label) {
   font-size:12px; font-weight:600; letter-spacing:0; text-transform:none; color:var(--faint);
 }
-#side .vw-section-label { padding:20px 10px 6px; }
-/* Inici de Vents: el compositor no es tenyeix de verd; el verd sàlvia queda
-   per a l'accent (enviar, focus), com a Codi el blau. */
-.vw-home .vw-composer {
-  background:var(--composer, var(--surface)); border-radius:var(--r-lg);
-  box-shadow:var(--lift);
-}
-.vw-home .vw-composer-foot select { background:var(--hover); }
+#side .vw-section-label { padding:20px 4px 6px 6px; }
 .vw-today-head h2 { font-size:12.5px; letter-spacing:0; text-transform:none; }
 #side .conv-grup { font-size:11.5px; font-weight:600; color:var(--faint); }
 #convSearch { border-radius:var(--r-sm); background:var(--hover); border-color:transparent; }
@@ -122,6 +107,11 @@ body.shell-winds .vw-composer:focus-within {
 #prefsModal select, .pf-account-form select {
   min-height:36px; padding:0 30px 0 10px; border:1px solid var(--line); border-radius:var(--r-sm);
   background:var(--surface); color:var(--text); font:inherit;
+}
+/* Desplegables: la fletxa del joc d'icones (--ico-chev) en lloc de la del sistema, a tot arreu. */
+:is(#prefsModal, .workspace-page, .pf-account-form) select:not([multiple]):not([size]) {
+  -webkit-appearance:none; appearance:none; background-image:var(--ico-chev); background-repeat:no-repeat;
+  background-position:right 9px center; background-size:14px; padding-right:30px;
 }
 .pf-account-form input { border-radius:var(--r-sm); }
 .pf-account-form input:focus { border-color:color-mix(in srgb, var(--accent) 55%, var(--line)); box-shadow:var(--ring); outline:none; }
@@ -157,8 +147,8 @@ body.shell-winds .vw-composer:focus-within {
 }
 body.shell-winds .vw-home {
   background:
-    radial-gradient(42% 30% at 50% 22%, color-mix(in srgb, var(--vw-accent) 14%, transparent), transparent 72%),
-    radial-gradient(28% 24% at 62% 30%, color-mix(in srgb, var(--onada) 8%, transparent), transparent 70%);
+    radial-gradient(42% 30% at 50% 22%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 72%),
+    radial-gradient(28% 24% at 62% 30%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 70%);
 }
 #hero h1, .vw-welcome h1 {
   font-family:inherit; font-weight:620; letter-spacing:-.04em;
@@ -166,11 +156,14 @@ body.shell-winds .vw-home {
   background:linear-gradient(100deg, var(--accent-hi) 0%, var(--lila) 45%, var(--onada) 100%);
   -webkit-background-clip:text; background-clip:text; color:transparent;
 }
+/* La salutació de Vents va de la tinta a l'accent del tema, a tots els temes; l'amplada ajustada
+   al text fa que el degradat el recorri sencer. */
 body.shell-winds .vw-welcome h1 {
-  background-image:linear-gradient(100deg, var(--ink) 0%, var(--vw-accent) 55%, var(--onada) 100%);
+  width:fit-content; max-width:100%; margin-inline:auto;
+  background-image:linear-gradient(100deg, var(--ink) 10%, var(--accent-hi) 95%);
 }
 /* Només la portada de Codi: dins d'un :is() amb #hero, la salutació de Vents
-   prenia l'especificitat d'un id i guanyava el seu degradat sàlvia. */
+   prenia l'especificitat d'un id i guanyava el seu degradat. */
 :root[data-theme="light"] #hero h1,
 :root[data-theme="gpt"] #hero h1,
 :root[data-theme="claude"] #hero h1,
@@ -195,12 +188,7 @@ body.shell-winds .vw-welcome h1 {
 #side :is(.rail-item.nav-item.active, .vw-nav-item[aria-current="page"], .vw-nav-item[data-selected="true"]) {
   background:var(--accent-soft); color:var(--ink);
 }
-#side :is(.rail-item.nav-item.active, .vw-nav-item[aria-current="page"]) :is(.nav-icon, svg) { color:var(--accent-hi); }
-body.shell-winds #side :is(.vw-nav-item[aria-current="page"], .vw-nav-item[data-selected="true"]) {
-  background:color-mix(in srgb, var(--vw-accent) 14%, transparent);
-}
-body.shell-winds #side .vw-nav-item[aria-current="page"] svg { color:var(--vw-accent); }
-#side .side-quick-btn, #side .vw-new { border-radius:var(--r-pill); justify-content:flex-start; }
+#side :is(.rail-item.nav-item.active, .vw-nav-item[aria-current="page"], .vw-nav-item[data-selected="true"]) :is(.nav-icon, svg) { color:var(--accent-hi); }
 
 /* ---------- Preferències: icones del mateix joc ---------- */
 .pf-nav-ic { display:inline-grid; place-items:center; width:18px; height:18px; color:var(--muted); }
@@ -211,15 +199,6 @@ body.shell-winds #side .vw-nav-item[aria-current="page"] svg { color:var(--vw-ac
    al davant; aquestes han de guanyar-les. */
 html body #side #navRail .nav-item.active { background:var(--accent-soft); color:var(--ink); font-weight:550; }
 html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
-html body.shell-winds #side #navRail .nav-item.active { background:color-mix(in srgb, var(--vw-accent) 14%, transparent); }
-html body.shell-winds #side #navRail .nav-item.active .nav-icon { color:var(--vw-accent); }
-html body.shell-winds #side .vw-nav-item[aria-current="page"] {
-  background:color-mix(in srgb, var(--vw-accent) 14%, transparent); color:var(--ink); font-weight:550;
-}
-html body.shell-winds #side .vw-nav-item[aria-current="page"] svg { color:var(--vw-accent); }
-html body.shell-winds .vw-welcome h1 {
-  font-family:inherit; font-weight:620; font-size:clamp(34px,3.6vw,48px); line-height:1.1; letter-spacing:-.04em;
-}
 
 /* La lluïssor de la portada de Codi: va a tota la columna (salutació i
    compositor alhora), i el peu del compositor deixa de tapar-la. */
@@ -230,13 +209,6 @@ html body.shell-winds .vw-welcome h1 {
     radial-gradient(26% 22% at 60% 52%, color-mix(in srgb, var(--lila) 8%, transparent), transparent 72%);
 }
 #conversationPane:has(#hero:not([hidden])) #composer { background:transparent; }
-:root[data-theme="light"] body.shell-winds .vw-welcome h1,
-:root[data-theme="gpt"] body.shell-winds .vw-welcome h1,
-:root[data-theme="claude"] body.shell-winds .vw-welcome h1,
-:root[data-theme="mistral"] body.shell-winds .vw-welcome h1,
-:root[data-theme="gemini"] body.shell-winds .vw-welcome h1 {
-  background-image:linear-gradient(100deg, var(--ink) 0%, var(--vw-ink) 60%, color-mix(in srgb, var(--vw-ink) 70%, var(--onada)) 100%);
-}
 
 /* =====================================================================
    Tercera passada (Codi): un sol joc d'icones, una sola fletxa i cap
@@ -250,6 +222,7 @@ html body.shell-winds .vw-welcome h1 {
   --ico-x:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 7l10 10 M17 7L7 17'/%3E%3C/svg%3E");
   --ico-plus:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14 M5 12h14'/%3E%3C/svg%3E");
   --ico-dots:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='black'%3E%3Ccircle cx='5' cy='12' r='1.6'/%3E%3Ccircle cx='12' cy='12' r='1.6'/%3E%3Ccircle cx='19' cy='12' r='1.6'/%3E%3C/svg%3E");
+  --ico-chev:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C93A1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
 }
 
 /* ---------- Peu del compositor: mateixa mida, mateix radi, mateixa fletxa ---------- */

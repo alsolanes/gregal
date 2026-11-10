@@ -26,7 +26,7 @@ function runtime({ desktop, search = '', statuses = [200], storageBlocked = fals
   // La pantalla d'entrada (demanaCredencials) necessita una pàgina; aquí la
   // substitueix un doble que compta les vegades que es demana i torna un token.
   context.demanaCredencials = async () => { calls.prompts++; return 'replacement-token'; };
-  const code = setup.replace(/async function demanaCredencials\(\) \{[\s\S]*?\r?\n\}\r?\n/, '');
+  const code = setup.replace(/(?:async )?function demanaCredencials\(\) \{[\s\S]*?\r?\n\}\r?\n(?:async function obreCredencials\(\) \{[\s\S]*?\r?\n\}\r?\n)?/, '');
   vm.runInNewContext(code + api + '\nthis.request = api;', context);
   return { context, calls };
 }

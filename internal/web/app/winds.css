@@ -279,6 +279,9 @@
 .winds-face .wf-figure, .winds-face .wf-gaze, .winds-face .wf-eyes, .winds-face .wf-prop, .winds-face .wf-badge, .winds-face .wf-tool, .winds-face .wf-pop, .winds-face .wf-dot, .winds-face .wf-line, .winds-face .wf-say, .winds-face .wf-foot { transform-box:fill-box; transform-origin:50% 50%; }
 .winds-face .wf-figure { transform-origin:50% 100%; animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite; }
 .winds-face .wf-eyes { animation:wf-blink 6s linear var(--wf-phase,0s) infinite; }
+/* The curl sways like the gust it is; the tool sits a touch in front of the body. */
+.winds-face .wf-curl { transform-box:fill-box; transform-origin:40% 100%; animation:wf-sway 6s ease-in-out var(--wf-phase,0s) infinite; }
+.winds-face .wf-prop { filter:drop-shadow(0 1px .8px rgb(20 16 40 / .22)); }
 .winds-face[data-mood=done] .wf-eyes { display:none; }
 .winds-face[data-mood=done] .wf-joy { display:inline; }
 .winds-face[data-mood=failed] .wf-mouth { display:none; }
@@ -312,6 +315,7 @@
 .winds-face[data-mood=done] .wf-figure { animation:wf-breathe 4s ease-in-out var(--wf-phase,0s) infinite, wf-hop .8s ease-out var(--wf-since,0s) 1; }
 .winds-face[data-mood=done] .wf-pop { animation:wf-pop .5s cubic-bezier(.3,1.6,.5,1) var(--wf-since,0s) 1 backwards; }
 @keyframes wf-breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(.99,1.025); } }
+@keyframes wf-sway { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(6deg); } }
 @keyframes wf-blink { 0%,95%,100% { transform:scaleY(1); } 96.5% { transform:scaleY(.1); } 98% { transform:scaleY(1); } }
 @keyframes wf-ponder { 0%,100% { transform:rotate(-3deg); } 50% { transform:rotate(3deg); } }
 @keyframes wf-dot { 0%,60%,100% { opacity:.3; } 30% { opacity:1; } }

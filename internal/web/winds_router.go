@@ -176,6 +176,13 @@ func (s *Server) routeRotllanaSpeakers(ctx context.Context, rot Rotllana, wanted
 	}
 	cards := s.rankWindSpecialists(members, msg)
 	best := rotllanaSpecialist(members, cards, tail)
+	// Qui porta el fil el continua: «sí, compara'ls» o una proposta seva no
+	// és cap ofici, i passar-ho al vent que menys ha parlat feia que un altre
+	// respongués que allò no era seu. Només canvia de veu si un altre membre
+	// hi encaixa clarament millor.
+	if last, ok := lastRotllanaSpeaker(members, tail); ok && specialistScore(cards, best.ID) <= specialistScore(cards, last.ID) {
+		best = last
+	}
 	if !rotllanaVolDebat(msg) {
 		return []companion.Wind{best}
 	}
@@ -216,31 +223,44 @@ func rotllanaSpecialist(members []companion.Wind, cards []specialistCard, tail [
 // than asking the next least-represented wind to finish somebody else's reply.
 func (s *Server) rotllanaTurnSpeakers(ctx context.Context, rot Rotllana, wanted, msg string, tail []llm.Message, continuing bool) []companion.Wind {
 	if continuing && wanted == "" {
-		members := s.rotMembersOf(rot)
-		for i := len(tail) - 1; i >= 0; i-- {
-			m := tail[i]
-			if m.Role != "assistant" {
-				continue
-			}
-			for _, w := range members {
-				if m.SpeakerID == w.ID {
-					wanted = w.ID
-					break
-				}
-			}
-			if wanted == "" && m.SpeakerID == "" {
-				if prefix, _, ok := strings.Cut(m.Content, ":"); ok {
-					if w, ok := memberByPrefix(members, prefix); ok {
-						wanted = w.ID
-					}
-				}
-			}
-			if wanted != "" {
-				break
-			}
+		if w, ok := lastRotllanaSpeaker(s.rotMembersOf(rot), tail); ok {
+			wanted = w.ID
 		}
 	}
 	return s.routeRotllanaSpeakers(ctx, rot, wanted, msg, tail)
+}
+
+// lastRotllanaSpeaker és el membre que ha parlat l'últim al fil (també en
+// historials vells sense SpeakerID, pel prefix «Nom:»).
+func lastRotllanaSpeaker(members []companion.Wind, tail []llm.Message) (companion.Wind, bool) {
+	for i := len(tail) - 1; i >= 0; i-- {
+		m := tail[i]
+		if m.Role != "assistant" {
+			continue
+		}
+		for _, w := range members {
+			if m.SpeakerID == w.ID {
+				return w, true
+			}
+		}
+		if m.SpeakerID == "" {
+			if prefix, _, ok := strings.Cut(m.Content, ":"); ok {
+				if w, ok := memberByPrefix(members, prefix); ok {
+					return w, true
+				}
+			}
+		}
+	}
+	return companion.Wind{}, false
+}
+
+func specialistScore(cards []specialistCard, id string) float64 {
+	for _, c := range cards {
+		if c.ID == id {
+			return c.Score
+		}
+	}
+	return 0
 }
 
 // classicRotllanaSpeaker balances participation in the last six messages.

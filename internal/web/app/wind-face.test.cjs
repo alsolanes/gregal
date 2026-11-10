@@ -28,16 +28,43 @@ const squadKeys = [...fs.readFileSync(path.join(__dirname, '..', 'winds_squads.g
 
 test('every squad specialist is a mascot with a trade tool; personal winds keep the plain face', () => {
   const { winds } = load();
-  const own = winds.face({ id:'mine', name:'Tramuntana', color:'#A8CDE2', style:'pso' });
+  const own = winds.face({ id:'mine', name:'Tramuntana', color:'#A8CDE2', style:'pso' }, true);
   assert.equal(squadKeys.length, 16);
   for (const specialty of squadKeys) {
-    const svg = winds.face({ id:specialty, specialty, color:'#A8CDE2', style:'pso' });
+    const svg = winds.face({ id:specialty, specialty, color:'#A8CDE2', style:'pso' }, true);
     assert.equal(svg.getAttribute('data-kit'), specialty);
     assert.ok(parts(svg) >= parts(own) + 3, specialty + ' wears or carries the tool of its trade');
   }
   assert.equal(own.getAttribute('data-kit'), null);
   assert.equal(groups(own).includes('wf-prop'), false);
   assert.equal(own.getAttribute('data-mood'), 'idle');
+});
+
+test('the tool is for the whole figure: a small face stays a clean face', () => {
+  const { winds } = load();
+  const w = { id:'front', specialty:'frontend', color:'#A8D8EA', style:'pso' };
+  const plain = parts(winds.face({ id:'mine', color:'#A8D8EA', style:'pso' }));
+  for (const specialty of squadKeys) {
+    const small = winds.face({ id:specialty, specialty, color:'#A8D8EA', style:'pso' });
+    assert.equal(small.getAttribute('data-kit'), specialty);
+    assert.equal(parts(small), plain, specialty + ' is told apart by colour and face at list size');
+  }
+  const hero = winds.face(w, true), scene = winds.face(w, 'figure');
+  assert.ok(groups(hero).includes('wf-prop') && groups(scene).includes('wf-prop'));
+  assert.ok(groups(hero).includes('wf-ground'));
+  // A scene draws its own ground and sizes the figure itself.
+  assert.equal(groups(scene).includes('wf-ground'), false);
+  assert.equal(scene.getAttribute('class'), 'winds-face');
+  assert.equal(hero.getAttribute('class'), 'winds-face winds-face-large');
+});
+
+test('the gust shape curls on top instead of wearing a fringe', () => {
+  const { winds } = load();
+  for (const large of [false, true]) {
+    assert.ok(groups(winds.face({ id:'a', color:'#A8D8EA', style:'bss' }, large)).includes('wf-curl'));
+    assert.equal(groups(winds.face({ id:'b', color:'#A8D8EA', style:'bso' }, large)).includes('wf-curl'), false);
+    assert.equal(groups(winds.face({ id:'c', color:'#A8D8EA', style:'bsn' }, large)).includes('wf-curl'), false);
+  }
 });
 
 test('Android draws the same specialties as the web', () => {

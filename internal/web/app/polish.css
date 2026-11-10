@@ -557,6 +557,8 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .raco-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .raco-actions button { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:6px 12px; cursor:pointer; }
 .raco-actions button.primary { background:var(--accent); border-color:var(--accent); color:var(--on-accent); }
+.raco-actions button:not(.primary):not(.danger):not(:disabled):hover, .raco-comment button:hover { border-color:var(--accent); background:var(--surface-hi); }
+.raco-actions button.primary:not(:disabled):hover { background:var(--accent-hi); border-color:var(--accent-hi); }
 .raco-actions button:disabled { opacity:.5; cursor:default; }
 .raco-status { color:var(--muted); font-size:13px; }
 .raco-actions button.danger { background:#c0392b; border-color:#c0392b; color:#fff; }
@@ -569,9 +571,15 @@ body .workshop-bay { container-type:inline-size; container-name:bay; }
 .raco-preview button { border:0; border-radius:6px; padding:3px 9px; cursor:pointer; }
 .raco-side { display:flex; flex-direction:column; gap:8px; min-width:0; }
 .raco-side h3 { margin:8px 0 0; font-size:13px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
-.raco-comment { display:flex; gap:6px; }
+.raco-comment { display:flex; gap:6px; align-items:flex-end; }
 .raco-comment textarea { flex:1; resize:vertical; border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:7px 9px; font:inherit; }
-.raco-comment button { border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:0 12px; cursor:pointer; }
+.raco-comment button { min-height:36px; border:1px solid var(--line-hi); border-radius:8px; background:var(--surface); color:var(--ink); padding:0 12px; cursor:pointer; }
+/* Automatitzacions (els estils base són a index.html): els mateixos botons i camps que la resta de pàgines. */
+.auto-btn { min-height:36px; padding:6px 12px; border:1px solid var(--line-hi); border-radius:8px; background:transparent; color:var(--text); font-size:14px; line-height:1.4; }
+.auto-btn:hover { border-color:var(--accent); background:var(--surface-hi); color:var(--ink); }
+.auto-btn.primary { padding:6px 14px; border-color:transparent; background:var(--accent); color:var(--on-accent, var(--bg)); font-weight:600; }
+.auto-btn.primary:hover { border-color:transparent; background:var(--accent-hi); color:var(--on-accent, var(--bg)); }
+.auto-form :is(select,input,textarea) { padding:7px 10px; border-color:var(--line-hi); background-color:var(--surface); line-height:1.5; }
 .raco-journal, .raco-versions { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:360px; overflow:auto; }
 .raco-journal li { display:flex; gap:8px; font-size:13px; line-height:1.4; }
 .raco-journal li .ic { width:18px; flex:0 0 18px; text-align:center; }

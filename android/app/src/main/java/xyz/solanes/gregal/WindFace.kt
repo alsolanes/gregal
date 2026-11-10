@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
@@ -174,6 +176,9 @@ fun WindFace(
         val dark = Color(0xFF202127)
         if (contrastWith(accent, dark) >= contrastWith(accent, Color.White)) dark else Color.White
     }
+    // Eines i insígnies es dibuixen amb la tinta del mateix vent, no amb un lila fix.
+    val tone = remember(accent) { lerp(accent, Color(0xFF1B1530), .8f) }
+    val handEdge = remember(accent) { lerp(accent, Color(0xFF1B1530), .45f) }
     val bodyPaint = remember(style.shape, accent) { WindBodyPaint(style.shape, accent) }
     val motionLayer = if (motion) Modifier.graphicsLayer {
         val t = time()
@@ -222,20 +227,22 @@ fun WindFace(
         val cy = h / 2f
         val r = min(w, h) * 0.37f
         val unit = min(w, h) / 80f
-        val mouthStroke = r * if (compact) .065f else .045f
+        // Thin features vanish in a list avatar: the small face draws them bolder.
+        val mouthStroke = r * if (compact) .09f else .074f
 
         // Inclinació del mòbil (−1..1), llegida aquí perquè només redibuixi.
         val (tx, ty) = lean.value
         val paint = if (tx == 0f && ty == 0f) bodyPaint else WindBodyPaint(style.shape, accent, tx, ty)
-        drawWindBody(style.shape, paint, cx, cy, r)
+        drawWindBody(style.shape, paint, cx, cy, r, if (motion) .5f + wave(t, 6f) * 5.5f else 0f)
         // A single small tool on large profiles, never a costume over the eyes.
         // El 'head' del kit (auriculars, gorres...) es dibuixa com al web: en
-        // coordenades de la cara sencera, cenyint a les seves vores. El 'prop'
-        // es porta davant, petit i a la dreta.
+        // coordenades d'una cara de radi 33, i aquest cos és aquella cara a .9;
+        // així cenyeix les seves vores i les ulleres emmarquen els ulls. El
+        // 'prop' es porta davant, petit i a la dreta.
         fun accessories() {
             if (kit == null) return
             if (kit.head.isNotEmpty()) {
-                withTransform({ scale(unit, unit, Offset.Zero) }) { drawKit(kit.head) }
+                withTransform({ scale(unit, unit, Offset.Zero); translate(4f, 4f); scale(.9f, .9f, Offset.Zero) }) { drawKit(kit.head, tone) }
             }
             if (kit.prop.isNotEmpty() || kit.head.isEmpty()) {
                 val shapes = kit.prop.ifEmpty { kit.head }
@@ -244,9 +251,10 @@ fun WindFace(
                     translate(20f, 20f)
                     scale(.75f, .75f, Offset.Zero)
                 }) {
-                    drawKit(shapes)
+                    drawKit(shapes, tone)
                     for (hand in kit.hands) {
                         drawOval(accent, Offset(hand.x - 4.6f, hand.y - 4f), Size(9.2f, 8f))
+                        drawOval(handEdge, Offset(hand.x - 4.6f, hand.y - 4f), Size(9.2f, 8f), style = Stroke(1.4f))
                     }
                 }
             }
@@ -260,13 +268,14 @@ fun WindFace(
         val eyeW = r * 0.135f
         val gazeShift = look.x * r * 0.07f
 
-        // Soft cheeks stay subtle on every wind colour, including small avatars.
+        // Soft cheeks: a blush that melts into the body on every wind colour.
         for (side in listOf(-1f, 1f)) {
-            drawOval(Color(0xFFD86F7D).copy(alpha = .22f),
-                Offset(fx + side * r * .56f - r * .15f, fy + r * .16f), Size(r * .30f, r * .16f))
+            withTransform({ translate(fx + side * r * .588f, fy + r * .267f); scale(r * .212f, r * .139f, Offset.Zero) }) {
+                drawCircle(windBlush, 1f, Offset.Zero)
+            }
         }
 
-        // Two bold eye marks; no pupils or reflections: the volume lives in the body.
+        // Two bold eye marks; the whole figure also gets a catchlight, as on the web.
         if (mood == WindMood.DONE || blinking || squint || (cheer?.value ?: 0f) > .15f) {
             for (side in listOf(-1f, 1f)) {
                 drawArc(ink, 190f, 160f, false,
@@ -278,10 +287,13 @@ fun WindFace(
             val ex = fx + side * eyeDx + gazeShift
             when (style.eyes) {
                 WindEyes.DOTS, WindEyes.WIDE -> {
-                    val wide = if (style.eyes == WindEyes.WIDE) 1.3f else 1f
-                    drawRoundRect(ink, Offset(ex - eyeW * wide, eyeY - r * .27f),
-                        Size(eyeW * 2f * wide, r * .54f),
-                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(eyeW * wide))
+                    val half = eyeW * if (style.eyes == WindEyes.WIDE) 1.3f else 1f
+                    drawRoundRect(ink, Offset(ex - half, eyeY - r * .27f),
+                        Size(half * 2f, r * .54f),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(half))
+                    // Only where there is room for it: never in a list avatar.
+                    if (!compact) drawCircle(if (ink == Color.White) accent else Color.White, half * .36f,
+                        Offset(ex + half * .3f, eyeY - r * .143f), alpha = .5f)
                 }
                 WindEyes.STARRY -> {
                     val rad = r * .23f
@@ -298,8 +310,10 @@ fun WindFace(
                     }
                     drawPath(star, ink)
                 }
-                WindEyes.SLEEPY -> drawLine(ink, Offset(ex - eyeW, eyeY),
-                    Offset(ex + eyeW, eyeY), r * .09f, StrokeCap.Round)
+                // Closed and content, not a flat dash: the lower arc of a small ellipse.
+                WindEyes.SLEEPY -> drawArc(ink, 20f, 140f, false,
+                    Offset(ex - r * .16f, eyeY - r * .16f), Size(r * .32f, r * .22f),
+                    style = Stroke(r * .097f, cap = StrokeCap.Round))
             }
         }
 
@@ -314,44 +328,45 @@ fun WindFace(
                 startAngle = 20f,
                 sweepAngle = 140f,
                 useCenter = false,
-                topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
-                size = Size(r * 0.60f, r * 0.55f),
+                topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
+                size = Size(r * 0.54f, r * 0.52f),
                 style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
             )
             WindMouth.OPEN -> {
                 // Boca oberta: llavor fosca amb una mica de llengua.
                 drawOval(
                     color = ink,
-                    topLeft = Offset(fx - r * 0.14f, fy + r * 0.16f),
-                    size = Size(r * 0.28f, r * 0.26f),
+                    topLeft = Offset(fx - r * 0.145f, fy + r * 0.285f),
+                    size = Size(r * 0.29f, r * 0.315f),
                 )
                 drawOval(
-                    color = Color(0xFFE86A6A),
-                    topLeft = Offset(fx - r * 0.10f, fy + r * 0.28f),
-                    size = Size(r * 0.20f, r * 0.14f),
+                    color = WindTongue,
+                    topLeft = Offset(fx - r * 0.094f, fy + r * 0.46f),
+                    size = Size(r * 0.188f, r * 0.134f),
                 )
             }
             WindMouth.NEUTRAL -> drawLine(
                 color = ink,
-                start = Offset(fx - r * 0.16f, fy + r * 0.28f),
-                end = Offset(fx + r * 0.16f, fy + r * 0.28f),
+                start = Offset(fx - r * 0.164f, fy + r * 0.424f),
+                end = Offset(fx + r * 0.164f, fy + r * 0.424f),
                 strokeWidth = mouthStroke,
                 cap = StrokeCap.Round,
             )
             WindMouth.TONGUE -> {
+                // La llengua penja del somriure, que es dibuixa a sobre.
+                drawOval(
+                    color = WindTongue,
+                    topLeft = Offset(fx - r * 0.042f, fy + r * 0.46f),
+                    size = Size(r * 0.212f, r * 0.25f),
+                )
                 drawArc(
                     color = ink,
                     startAngle = 20f,
                     sweepAngle = 140f,
                     useCenter = false,
-                    topLeft = Offset(fx - r * 0.30f, fy + r * 0.10f),
-                    size = Size(r * 0.60f, r * 0.55f),
+                    topLeft = Offset(fx - r * 0.27f, fy + r * 0.02f),
+                    size = Size(r * 0.54f, r * 0.52f),
                     style = Stroke(width = mouthStroke, cap = StrokeCap.Round),
-                )
-                drawOval(
-                    color = Color(0xFFE86A6A),
-                    topLeft = Offset(fx - r * 0.08f, fy + r * 0.30f),
-                    size = Size(r * 0.16f, r * 0.22f),
                 )
             }
         }
@@ -359,13 +374,13 @@ fun WindFace(
         if (talkOpen) {
             drawOval(
                 color = ink,
-                topLeft = Offset(fx - r * 0.11f, fy + r * 0.16f),
-                size = Size(r * 0.22f, r * 0.20f),
+                topLeft = Offset(fx - r * 0.12f, fy + r * 0.30f),
+                size = Size(r * 0.24f, r * 0.24f),
             )
             drawOval(
-                color = Color(0xFFE86A6A),
-                topLeft = Offset(fx - r * 0.07f, fy + r * 0.26f),
-                size = Size(r * 0.14f, r * 0.10f),
+                color = WindTongue,
+                topLeft = Offset(fx - r * 0.075f, fy + r * 0.43f),
+                size = Size(r * 0.15f, r * 0.10f),
             )
         }
         accessories()
@@ -379,7 +394,7 @@ fun WindFace(
             sparkle(cx + r * 1.05f, cy - r * 0.75f, r * 0.13f, twinkle)
             sparkle(cx - r * 1.10f, cy - r * 0.45f, r * 0.10f, 1f - twinkle)
         }
-        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f) }
+        withTransform({ scale(unit, unit, Offset.Zero) }) { drawBadge(mood, t, motion, doneHop?.value ?: 1f, tone) }
     }
 }
 
@@ -387,7 +402,12 @@ fun WindFace(
 // Les mateixes formes que `kits` a internal/web/app/winds.js, amb la mateixa
 // sintaxi de camins SVG i el mateix viewBox de 80×80. `head` va en coordenades
 // de la cara (s'escala amb ella); `prop` es porta davant, amb `hands` a sobre.
+// KitInk marca «la tinta»: en dibuixar es canvia pel to fosc del mateix vent.
 private const val KitInk = 0xFF262040
+private val WindTongue = Color(0xFFE8667E)
+private val windBlush = Brush.radialGradient(
+    0f to Color(0xFFE4577A).copy(alpha = .5f), 1f to Color(0xFFE4577A).copy(alpha = 0f), center = Offset.Zero, radius = 1f,
+)
 
 internal class KitShape(val d: String, val fill: Long? = null, val stroke: Long? = null, val width: Float = 0f, val fillAlpha: Float = 1f)
 internal class MascotKit(val head: List<KitShape> = emptyList(), val prop: List<KitShape> = emptyList(), val hands: List<Offset> = emptyList())
@@ -405,11 +425,11 @@ internal val windKits: Map<String, MascotKit> = mapOf(
         line("M57 54v-3a6 6 0 0 1 12 0v3", 2.4f),
         solid("M52 54H74L72 75H54Z", 0xFFE97A86),
         line("M53.5 60H72.5", 2.4f, 0xD9FFF1EC))),
-    "books" to MascotKit(hands = listOf(Offset(17f, 67f), Offset(63f, 67f)), prop = listOf(
-        solid("M17 61Q28 56 40 61Q52 56 63 61V75Q52 71 40 76Q28 71 17 75Z", 0xFF5E86D6),
-        solid("M20 60Q30 56 40 60V73Q30 69 20 72Z", 0xFFFFF8EE, 1.6f),
-        solid("M60 60Q50 56 40 60V73Q50 69 60 72Z", 0xFFFFF8EE, 1.6f),
-        line("M24 63q6-2 12 0M24 67q6-2 12 0M44 63q6-2 12 0M44 67q6-2 12 0", 1.3f, 0xFFA79FBC))),
+    "books" to MascotKit(hands = listOf(Offset(17f, 69.5f), Offset(63f, 69.5f)), prop = listOf(
+        solid("M17 63.5Q28 58.5 40 63.5Q52 58.5 63 63.5V77.5Q52 73.5 40 78.5Q28 73.5 17 77.5Z", 0xFF5E86D6),
+        solid("M20 62.5Q30 58.5 40 62.5V75.5Q30 71.5 20 74.5Z", 0xFFFFF8EE, 1.6f),
+        solid("M60 62.5Q50 58.5 40 62.5V75.5Q50 71.5 60 74.5Z", 0xFFFFF8EE, 1.6f),
+        line("M24 65.5q6-2 12 0M24 69.5q6-2 12 0M44 65.5q6-2 12 0M44 69.5q6-2 12 0", 1.3f, 0xFFA79FBC))),
     "sports" to MascotKit(hands = listOf(Offset(53f, 64f)),
         head = listOf(solid("M11.5 24Q40 11 68.5 24L70 31Q40 19 10 31Z", 0xFFE5484D, 2f)),
         prop = listOf(
@@ -456,9 +476,10 @@ internal val windKits: Map<String, MascotKit> = mapOf(
         line("M61.5 73v4M56 73v4M67 73v4", 1.8f, 0xFFA79FBC))),
     "review" to MascotKit(hands = listOf(Offset(52f, 63f)),
         head = listOf(
-            KitShape(circle(29f, 36f, 8.5f), 0xFFFFFFFF, KitInk, 2.2f, .25f),
-            KitShape(circle(51f, 36f, 8.5f), 0xFFFFFFFF, KitInk, 2.2f, .25f),
-            line("M37.5 35q2.5-2 5 0M20.5 34.5l-6-2M59.5 34.5l6-2", 2f)),
+            // Tall lenses: they frame the bold eyes instead of cutting them.
+            KitShape(rect(22.6f, 27.8f, 15.6f, 21.2f, 7.4f), 0xFFFFFFFF, KitInk, 2.2f, .25f),
+            KitShape(rect(41.8f, 27.8f, 15.6f, 21.2f, 7.4f), 0xFFFFFFFF, KitInk, 2.2f, .25f),
+            line("M38.2 36.6q1.8-1.8 3.6 0M22.6 35.6l-7.6-2.6M57.4 35.6l7.6-2.6", 2f)),
         prop = listOf(
             solid(circle(63f, 61f, 11f), 0xFFF2C14E),
             solid("M63 61V50A11 11 0 0 1 73.5 64.5Z", 0xFF5E86D6, 1.6f),
@@ -470,9 +491,9 @@ internal val windKits: Map<String, MascotKit> = mapOf(
             flat(circle(57.5f, 58f, 2.4f), 0xFFE5484D), flat(circle(63.5f, 55f, 2.4f), 0xFF5E86D6),
             flat(circle(69f, 58.5f, 2.2f), 0xFFF2C14E), flat(circle(57.5f, 65f, 2.2f), 0xFF2F9E6A))),
     "frontend" to MascotKit(prop = listOf(
-        solid(rect(21f, 53f, 38f, 19f, 3f), 0xFF3A3F5C),
-        line("M33 58.5l-4 4 4 4M47 58.5l4 4-4 4M42 57.5l-4 10", 2.2f, 0xFF8EE3B0),
-        solid("M14 72H66L63 77H17Z", 0xFFC3C9D9))),
+        solid(rect(21f, 57f, 38f, 16.5f, 3f), 0xFF3A3F5C),
+        line("M33 61l-4 4 4 4M47 61l4 4-4 4M42 60.2l-4 9.6", 2.2f, 0xFF8EE3B0),
+        solid("M14 73.5H66L63 78H17Z", 0xFFC3C9D9))),
     "backend" to MascotKit(hands = listOf(Offset(51f, 63f)), prop = listOf(
         solid("M51 52V70A11 4 0 0 0 73 70V52", 0xFF7C8CE0),
         line("M51 58.5A11 4 0 0 0 73 58.5M51 64.5A11 4 0 0 0 73 64.5", 1.6f),
@@ -500,11 +521,12 @@ internal val windKits: Map<String, MascotKit> = mapOf(
 
 private val kitPaths = HashMap<String, Path>()
 
-private fun DrawScope.drawKit(shapes: List<KitShape>) {
+private fun DrawScope.drawKit(shapes: List<KitShape>, tone: Color) {
+    fun tint(color: Long) = if (color == KitInk) tone else Color(color)
     for (shape in shapes) {
         val path = kitPaths.getOrPut(shape.d) { PathParser().parsePathString(shape.d).toPath() }
-        shape.fill?.let { drawPath(path, Color(it), alpha = shape.fillAlpha) }
-        shape.stroke?.let { drawPath(path, Color(it), style = Stroke(shape.width, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
+        shape.fill?.let { drawPath(path, tint(it), alpha = shape.fillAlpha) }
+        shape.stroke?.let { drawPath(path, tint(it), style = Stroke(shape.width, cap = StrokeCap.Round, join = StrokeJoin.Round)) }
     }
 }
 
@@ -541,14 +563,15 @@ private val sayDots = listOf(line("M58 14h.01M61.5 14h.01M65 14h.01", 2.2f))
 private val newsStar = listOf(solid("M66.5 4.5l1.7 4 4 1.7-4 1.7-1.7 4-1.7-4-4-1.7 4-1.7Z", 0xFFF2B53A, 1.3f))
 
 /** Insígnia de l'estat a dalt a la dreta (espai de 80×80). Quieta sense moviment. */
-private fun DrawScope.drawBadge(mood: WindMood, loop: Float, motion: Boolean, done: Float) {
+private fun DrawScope.drawBadge(mood: WindMood, loop: Float, motion: Boolean, done: Float, tone: Color) {
     fun wave(period: Float) = sin(2f * PI.toFloat() * (loop % period) / period)
+    fun drawKit(shapes: List<KitShape>) = drawKit(shapes, tone)
     badgeShapes[mood]?.let { drawKit(it) }
     when (mood) {
         WindMood.THINKING -> for (i in 0 until 3) {
             val f = ((loop - i * .2f) % 1.5f + 1.5f) % 1.5f / 1.5f
             val alpha = if (!motion) .85f else if (f < .3f) .3f + f / .3f * .7f else if (f < .6f) 1f - (f - .3f) / .3f * .7f else .3f
-            drawCircle(Color(KitInk), 1.9f, Offset(62f + i * 5f, 12f), alpha = alpha)
+            drawCircle(tone, 1.9f, Offset(62f + i * 5f, 12f), alpha = alpha)
         }
         WindMood.SEARCHING -> {
             val f = loop % 2.4f / 2.4f * 4f

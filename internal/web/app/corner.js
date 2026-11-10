@@ -107,7 +107,9 @@ const corner = {
     $('racoMeet').classList.toggle('danger', !!st.running);
     $('racoMeet').disabled = false;
     $('racoPause').textContent = T(st.paused ? 'corner.resume' : 'corner.pause');
+    // Un sol botó principal: apagat, el que els deixa treballar; encès, el que els crida.
     $('racoPause').classList.toggle('primary', !!st.paused && !st.running);
+    $('racoMeet').classList.toggle('primary', !st.paused && !st.running);
     const bb = st.budget || {};
     $('racoSpend').textContent = T('corner.spend').replace('{c}', bb.calls || 0).replace('{mc}', bb.max_calls || 0);
     $('racoJournal').innerHTML = (st.journal || []).slice(0, 30).map(e => {
