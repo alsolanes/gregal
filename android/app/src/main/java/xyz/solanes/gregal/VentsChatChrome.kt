@@ -67,19 +67,25 @@ internal fun VentsChatHeader(
                 if (subtitle.isNotBlank()) Text(subtitle, color = Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        if (onWiki != null) IconButton(onClick = onWiki) { Icon(Icons.Rounded.AutoStories, tr(lang, "app.wiki.summarize"), tint = Ink) }
-        if (onSessions != null) IconButton(onClick = onSessions) { Icon(Icons.Rounded.Forum, tr(lang, "app.wind.sessions"), tint = Ink) }
-        if (onTransfer != null) {
+        // Una sola acció a la dreta, amb noms: dues icones soles (llibre,
+        // bombolles) no deien què feien. El perfil també és a la cara.
+        if (onWiki != null || onSessions != null || onTransfer != null) {
             var more by remember { mutableStateOf(false) }
             Box {
-                IconButton(onClick = { more = true }) { Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.profile"), tint = Ink) }
+                IconButton(onClick = { more = true }, modifier = Modifier.testTag("chat-more")) {
+                    Icon(Icons.Rounded.MoreHoriz, tr(lang, "app.vents.more"), tint = Ink)
+                }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
                     DropdownMenuItem(text = { Text(tr(lang, "app.vents.profile")) }, onClick = { more = false; onProfile() })
-                    DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
+                    if (onSessions != null) DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Rounded.Forum, null) },
+                        text = { Text(tr(lang, "app.wind.sessions")) }, onClick = { more = false; onSessions() })
+                    if (onWiki != null) DropdownMenuItem(
+                        leadingIcon = { Icon(Icons.Rounded.AutoStories, null) },
+                        text = { Text(tr(lang, "app.wiki.summarize")) }, onClick = { more = false; onWiki() })
+                    if (onTransfer != null) DropdownMenuItem(text = { Text(tr(lang, "app.vents.transferToServer")) }, onClick = { more = false; onTransfer() })
                 }
             }
-        } else if (onSessions == null) {
-            // sense transferència ni sessions, el perfil és l'únic destí
         }
     }
     // Sense línia de separació: la capçalera i el fil respiren junts, com l'inici.
@@ -93,22 +99,26 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
     // tic-tac seguia corrent per sempre encara que cap torn estigués en
     // marxa (i amb l'app en segon pla, perquè produceState no s'atura).
     val now = quietNow(live.startedAt > 0)
-    Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 10.dp)) {
+    // Sense rellotge ni «Pas 3»: la franja només surt quan el vent fa una feina
+    // que es pot dir (cerca, llegeix, una eina) o quan fa estona que no arriba res.
+    // Esperar el model ho diuen la cara de la capçalera i el fil.
+    val work = windVisibleWork(lang, live)
+    val stall = windStallNote(lang, live, now)
+    if (work == null && stall == null) return
+    Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Vida visible durant tot el torn: els punts respiren mentre el
-            // vent treballa (l'estat de text sol no diu «hi ha alguna cosa
-            // passant»). Estàtics quan les animacions estan desactivades.
+            // Estàtics quan les animacions estan desactivades.
             TypingDots(accent = Ink)
             // Interlínia de la caption: amb només fontSize heretava els 24 sp de
             // bodyLarge i la franja ocupava el doble del que diu.
-            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + windProgressLabel(lang, live), color = Ink, style = GregalType.caption, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + listOfNotNull(work, stall).joinToString(" · "),
+                color = Ink, style = GregalType.caption, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             // Aturar és sempre possible mentre el torn corre, encara que el
             // composer tingui un esborrany (allà el botó d'enviar fa steer).
             if (onStop != null) TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)) {
                 Text(tr(lang, "app.vents.stop"), color = Muted, fontSize = 12.sp)
             }
         }
-        Text(windProgressTiming(lang, live, now), color = Muted, style = GregalType.caption, modifier = Modifier.padding(start = 37.dp)) // sota l'etiqueta, no sota els punts
     }
 }
 
@@ -137,19 +147,22 @@ internal fun VentsComposer(
     onStop: (() -> Unit)? = null,
     /** Obre la previsualització de la carpeta (la web que el vent ha fet). */
     onPreview: (() -> Unit)? = null,
+    /** La píndola de mode (Actua/Planifica/Pregunta) sobre el camp. Amb Vents
+     *  net no surt: el mode continua al «+», sense un xip que no s'entén. */
+    showModePill: Boolean = true,
     onSend: () -> Unit,
 ) {
     val hasTools = onAttachDoc != null || onAttachImage != null || onMode != null || onPerm != null || onWorkspace != null || onPreview != null
     var showPlus by remember { mutableStateOf(false) }
     val ringColor = if (accent != Color.Unspecified) accent else Sea
     Column(Modifier.fillMaxWidth().background(Superficie)) {
-        if (st != null && (onMode != null || onWorkspace != null)) {
+        if (st != null && ((onMode != null && showModePill) || (onWorkspace != null && st.project.isNotBlank()))) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (onMode != null) {
+                if (onMode != null && showModePill) {
                     val uiMode = uiModeOf(st.mode)
                     val isAct = uiMode == "act"
                     val modeLabel = tr(lang, when (uiMode) {

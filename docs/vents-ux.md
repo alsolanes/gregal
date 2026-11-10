@@ -31,6 +31,19 @@ L'edició explícita de coneixements substitueix tot el text del vent (màxim 24
 
 ## Verificació reproduïble
 
+## Pass Android: al nivell de les apps de companys
+
+Referents: Claude Duet, els companys de Grok i OpenAI dot. Criteri: el vent és el protagonista i la maquinària no es veu.
+
+- **Portada:** les cares dels teus vents a dalt (un toc hi parla; «Tots» obre el directori), la salutació al mig i el camp a baix, on arriba el polze. Amb Vents net, la capçalera només porta el menú, el títol, les pestanyes i el `+`. La píndola de servidor i les icones d'Explora i del directori desapareixen (la connexió la diu el calaix), i la cerca només surt a «Xats».
+- **Calaix (Vents net):** Vents, Els meus vents, Explora i Notes. Programats, Desats, Wiki, Biblioteca i Feines viuen a Explora. L'entrada «Ventet» desapareix, perquè el Ventet és la mateixa portada. Les eines de codi queden plegades a «Codi».
+- **Fitxa del vent:** primer el que sap de tu (memòria), després programats, desats i calaix, amb quatre pestanyes com a molt. El prompt, el nivell, les xifres i les fonts de l'ofici queden plegats a «Instruccions i ofici».
+- **Espera:** cap rellotge ni «Pas N». La franja de dalt només surt si el vent fa una feina que es pot dir (cerca, llegeix, una eina) o si fa 20 s que no arriba res. Mentrestant, al fil el vent «escriu» amb la seva cara i els punts. Aturar és al camp de text.
+- **Lectura:** en acabar el torn, una resposta que no cap a la pantalla es mostra des del seu inici, i surt «Últims ↓».
+- **Respostes sense caixa:** el que escrius tu va en bombolla. El que respon el vent és text net sobre el fons, a tota l'amplada. El color del vent és a la cara, als enllaços i als xips de resposta.
+- **Xat net:** amb Vents net no surt la píndola de mode («Actua»), que continua al `+`. A la capçalera hi ha un sol «⋯» amb noms (Perfil, Converses, Resumeix a la wiki) en lloc de dues icones soles.
+- **Explora** és un full que puja des de baix, no una llista dins de la capçalera.
+
 ## Pass Android 1.44
 
 - La portada és conversa-primer: el Ventet es pot fixar a l’inici des de Preferències, però per defecte no desplaça els fils. La gestió de Vents continua al directori i la creació passa per una sola acció `+`.

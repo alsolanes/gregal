@@ -272,6 +272,8 @@ internal fun VentsOpening(
     /** El fil de la conversa: quan n'hi ha, la portada passa a ser el xat, amb la mateixa lluïssor. */
     chat: (@Composable () -> Unit)? = null,
     chatHeader: (@Composable () -> Unit)? = null,
+    /** A dalt de la portada: les cares dels teus vents. */
+    top: @Composable () -> Unit = {},
     below: @Composable ColumnScope.() -> Unit = {},
 ) {
     val p = LocalPal.current
@@ -299,6 +301,8 @@ internal fun VentsOpening(
             // Conversa a la portada: la lluïssor queda al darrere, el fil al mig
             // i el camp a baix, sense canviar de pantalla.
             Column(Modifier.fillMaxSize().imePadding().testTag("vents-home-chat")) {
+                // Les cares continuen a dalt amb conversa; escrivint, deixen lloc al fil.
+                if (!focused) top()
                 chatHeader?.invoke()
                 Box(Modifier.weight(1f).fillMaxWidth()) { chat() }
                 AskComposer(
@@ -312,23 +316,24 @@ internal fun VentsOpening(
                 Modifier.fillMaxSize().imePadding().onGloballyPositioned { areaBottom = it.boundsInRoot().bottom },
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // Una mica per damunt del centre, com a l'escriptori.
-                Spacer(Modifier.weight(0.8f))
+                // Les cares a dalt, la salutació al mig i el camp a baix, on hi
+                // arriba el polze (com a les apps de companys). Escrivint, les
+                // cares i el que hi ha a sota s'aparten.
+                if (!focused && text.isBlank()) top()
+                Spacer(Modifier.weight(1f))
                 OpeningGreeting(
                     askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
                     Modifier.graphicsLayer { alpha = 1f - drop.value },
                 )
-                Spacer(Modifier.height(28.dp))
+                if (!focused && text.isBlank() && drop.value == 0f) below()
+                Spacer(Modifier.weight(1f))
                 AskComposer(
                     lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
                     onFocus = { focused = it },
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp)
                         .onGloballyPositioned { composerBottom = it.boundsInRoot().bottom }
                         .graphicsLayer { translationY = drop.value * (areaBottom - gap - composerBottom).coerceAtLeast(0f) },
                 )
-                Spacer(Modifier.weight(1.2f))
-                // Escrivint, la portada és la salutació i el camp; prou.
-                if (!focused && text.isBlank() && drop.value == 0f) below()
             }
         }
     }

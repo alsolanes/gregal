@@ -141,6 +141,28 @@ internal fun windProgressLabel(lang: String, live: WindLive): String {
     }
 }
 
+/**
+ * El que val la pena dir a la persona mentre el vent treballa: cercar, llegir
+ * fonts, programar un avís o fer servir una eina. Esperar el model, preparar el
+ * torn o rebre la resposta no ho són: ja ho diuen la cara i «X hi pensa…».
+ * null: no cal cap franja.
+ */
+internal fun windVisibleWork(lang: String, live: WindLive): String? {
+    if (live.writing) return null
+    if (live.phase == "tool") return windProgressLabel(lang, live)
+    return when (live.phase) {
+        "searching", "browsing", "scheduling", "retry" -> windProgressLabel(lang, live)
+        else -> null
+    }
+}
+
+/** Només si fa estona que no arriba res: «Sense novetats des de fa 25 s». */
+internal fun windStallNote(lang: String, live: WindLive, now: Long): String? {
+    if (live.lastEventAt <= 0) return null
+    val silent = (now - live.lastEventAt).coerceAtLeast(0) / 1000
+    return if (silent >= 20) (if (lang == "en") "No new activity for ${silent}s" else "Sense novetats des de fa ${silent}s") else null
+}
+
 internal fun windProgressTiming(lang: String, live: WindLive, now: Long): String {
     val elapsed = ((now - live.startedAt).coerceAtLeast(0) / 1000)
     val silent = ((now - live.lastEventAt).coerceAtLeast(0) / 1000)

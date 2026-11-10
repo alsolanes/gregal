@@ -228,6 +228,23 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     var whereOpen by remember { mutableStateOf(false) }
     var moreMenu by remember { mutableStateOf(false) }
     var exploreOpen by remember { mutableStateOf(false) }
+    // Vents net: la capçalera només porta el menú, el títol i el «+»; el
+    // directori i Explora s'obren des del calaix (o des de les cares de la portada).
+    val simple by vm.simpleVents.collectAsState()
+    val panel by vm.ventsPanel.collectAsState()
+    var panelShown by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(panel) {
+        when (panel) {
+            "directory" -> { exploreOpen = false; searching = false; manage = true }
+            "explore" -> { manage = false; searching = false; exploreOpen = true }
+        }
+        panelShown = panel
+    }
+    // En tancar-lo (enrere, triar una eina…), el calaix torna a marcar «Vents».
+    LaunchedEffect(manage, exploreOpen, panelShown) {
+        if (panelShown != null && !manage && !exploreOpen) { panelShown = null; vm.openVentsPanel(null) }
+    }
+    androidx.activity.compose.BackHandler(enabled = exploreOpen && !manage && open == null && !creator.first) { exploreOpen = false }
     var libraryOpen by remember { mutableStateOf(false) }
     var inboxFilter by rememberSaveable { mutableStateOf("all") }
     androidx.activity.compose.BackHandler(enabled = manage && open == null && !creator.first) { manage = false }
@@ -287,8 +304,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             }
                         },
                         actions = {
-                            if (!manage) {
-                                WhereChip(vm, lang) { whereOpen = true }
+                            // On estàs connectat ja ho diu el calaix; la cerca, a «Xats».
+                            if (!manage && !simple) WhereChip(vm, lang) { whereOpen = true }
+                            if (!manage && (!simple || searching || tab == "chats")) {
                                 IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                                     Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search,
                                         tr(lang, if (searching) "app.vents.closeSearch" else "app.vents.search"), tint = Ink)
@@ -331,24 +349,32 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                             Box(Modifier.weight(1f)) {
                                 AskTabs(lang, tab, unread = newsCount.values.sum(), today = avui?.now?.count { it.state == "open" } ?: 0) { tab = it }
                             }
-                            IconButton(onClick = { exploreOpen = !exploreOpen }) {
-                                Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
-                            }
-                            IconButton(onClick = { manage = true }, modifier = Modifier.padding(end = 6.dp)) {
-                                Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
+                            if (!simple) {
+                                IconButton(onClick = { exploreOpen = !exploreOpen }) {
+                                    Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
+                                }
+                                IconButton(onClick = { manage = true }, modifier = Modifier.padding(end = 6.dp)) {
+                                    Icon(Icons.Rounded.Groups, tr(lang, "app.vents.directory"), tint = Ink)
+                                }
                             }
                         }
                         if (tab == "chats") VentsInboxFilters(lang, inboxFilter, unread = newsCount.values.sum()) { inboxFilter = it }
-                        if (exploreOpen) VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"),
-                            onCorner = { cornerOpen = true; exploreOpen = false },
-                            onGames = { gamesOpen = true; exploreOpen = false },
-                            onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false },
-                            onActivity = { exploreOpen = false; vm.go(Screen.Automatitzacions) },
-                            onSaved = { exploreOpen = false; vm.go(Screen.Desat) },
-                            onWiki = { wikiOpen = true; exploreOpen = false },
-                            onFeines = { feinesOpen = true; exploreOpen = false },
-                            onCrew = { vm.openCrew(); exploreOpen = false },
-                            onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
+                        // Explora puja des de baix, a sobre de la portada: abans
+                        // s'obria enmig de la capçalera i empenyia tot cap avall.
+                        if (exploreOpen) ModalBottomSheet(onDismissRequest = { exploreOpen = false }, containerColor = Superficie) {
+                            Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 16.dp).testTag("explore-sheet")) {
+                                VentsExploreSheet(lang, pluginOn("corner"), pluginOn("games"),
+                                    onCorner = { cornerOpen = true; exploreOpen = false },
+                                    onGames = { gamesOpen = true; exploreOpen = false },
+                                    onLibrary = { libraryOpen = true; openLibrary(); exploreOpen = false },
+                                    onActivity = { exploreOpen = false; vm.go(Screen.Automatitzacions) },
+                                    onSaved = { exploreOpen = false; vm.go(Screen.Desat) },
+                                    onWiki = { wikiOpen = true; exploreOpen = false },
+                                    onFeines = { feinesOpen = true; exploreOpen = false },
+                                    onCrew = { vm.openCrew(); exploreOpen = false },
+                                    onWorkspace = if (vm.simpleVents.value) null else ({ exploreOpen = false; vm.go(Screen.Carpeta) }))
+                            }
+                        }
                     }
                 }
             },
@@ -384,6 +410,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     chatHeader = if (chatting) ({
                         HomeThreadHeader(lang, capSt.name, Color(capSt.argb), capSt.faceStyle, capUi.busy || capUi.going)
                     }) else null,
+                    top = { HomeFacesRow(lang, winds, news, busy, onTalk = { vm.openVentsChat("wind:" + it.id) }, onAll = { manage = true }) },
                 ) {
                     val newsRows = inbox.filter { it.key.startsWith("wind:") && it.key.substringAfter(':') in news }
                     TodaySection(lang, todayCards(lang, newsRows, news, windTasks.orEmpty().filter { it.running },
@@ -1115,6 +1142,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     LaunchedEffect(wind.id, msgs.size) { if (msgs.isNotEmpty() && liveFrom == Int.MAX_VALUE) liveFrom = msgs.size }
 
     val isBusy = busy.contains(wind.id)
+    // Al fil, cada missatge és l'element del seu índex (l'estat buit només surt sense missatges).
+    ReadReplyFromStart(listState, follow, isBusy, msgs.indexOfLast { it.from != "user" })
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
         VentsChatHeader(lang, wind.name,
@@ -1193,20 +1222,12 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             // Peu "hi pensa" només si no hi ha bombolla de directe: la
             // bombolla ja mostra la fase (Cercant/Pensant…); si no, surten
             // dos avisos apilats.
-            if (busy.contains(wind.id) && live[wind.id] == null && msgs.lastOrNull()?.streaming != true) {
-                item {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TypingDots(accent)
-                        Text(
-                            "  " + tr(lang, "app.company.windThinking", wind.name),
-                            fontSize = 12.sp, color = accent,
-                        )
-                    }
-                }
+            // Mentre la franja de dalt calla (només parla de feina visible), el
+            // vent «escriu» al fil: la seva cara petita i els punts, com un missatge.
+            val liveNow = live[wind.id]
+            if (busy.contains(wind.id) && msgs.lastOrNull()?.streaming != true &&
+                (liveNow == null || windVisibleWork(lang, liveNow) == null)) {
+                item(key = "typing") { WindTypingBubble(lang, wind, accent, liveNow?.mood ?: WindMood.THINKING) }
             }
         }
         if (awayFromLatest) {
@@ -1238,7 +1259,8 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(wind.id)) ({ vm.cancelWindTurn(wind.id) }) else null,
-            onPreview = { vm.openPreview() }) {
+            onPreview = { vm.openPreview() },
+            showModePill = !vm.simpleVents.value) {
             val body = field.text
             val target = resolveMention(body, winds)
             if (target != null && target.id != wind.id) {
@@ -1511,7 +1533,8 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             onPerm = { showPerm = true },
             onWorkspace = if (vm.simpleVents.value) null else ({ vm.go(Screen.Carpeta) }),
             onStop = if (busy.contains(rot.id)) ({ vm.cancelRotllanaTurn(rot.id) }) else null,
-            onPreview = { vm.openPreview() }) {
+            onPreview = { vm.openPreview() },
+            showModePill = !vm.simpleVents.value) {
             val body = field.text
             val target = resolveMention(body, faces)
             follow.requestFollow(); vm.sendRotllanaMessage(rot.id, body, target?.id.orEmpty()); field = TextFieldValue("")
@@ -1829,23 +1852,18 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
             bottomStart = 20.dp, bottomEnd = 20.dp,
         )
         Box {
-            // Bombolla tenyida amb el color del vent: clara en tema clar (un
-            // vel suau), més viva en tema fosc. Dots/Grok: cada persona
-            // respira el seu propi color.
             val dark = LocalPal.current.dark
-            // Al 30% els vents càlids (taronja, groc) feien bombolles marrons i
-            // feixugues; al 15% el color hi és però el text mana.
-            val tinted = if (dark) accent.copy(alpha = .15f).compositeOver(Superficie)
-                else accent.copy(alpha = .12f).compositeOver(Superficie)
-            // Una taula, un gràfic, codi o una imatge necessiten l'amplada de
-            // la pantalla: a 300 dp una taula de cinc columnes no hi cabia.
-            val rich = remember(m.text) { m.text.contains("\n|") || m.text.contains("```") || m.text.contains("![") }
+            // El vent escriu sobre el fons, sense caixa: com els grans
+            // assistents, el que és teu va en bombolla i el que respon és
+            // text net a tota l'amplada. Les caixes tenyides feien les
+            // respostes llargues (taules, receptes) feixugues i marrons amb els
+            // vents càlids. El color del vent és a la seva cara i als enllaços.
             Surface(
                 shape = bubbleShape,
-                color = tinted,
+                color = Color.Transparent,
                 shadowElevation = 0.dp,
                 // Prémer llarg copia la resposta en text pla (sense marques).
-                modifier = Modifier.widthIn(max = if (rich) 600.dp else 300.dp).combinedClickable(
+                modifier = Modifier.fillMaxWidth().widthIn(max = 640.dp).combinedClickable(
                     onClick = {}, onLongClick = { onCopy?.invoke() },
                 ),
             ) {
@@ -1857,8 +1875,8 @@ internal fun WindBubble(raw: GregalViewModel.PetMsg, accent: Color, lang: String
                 val link = remember(accent, dark) { readableLink(accent, dark) }
                 val codeBg = CodeDark
                 Column(
-                    Modifier.padding(horizontal = 14.dp)
-                        .padding(vertical = 10.dp),
+                    Modifier.padding(horizontal = 6.dp)
+                        .padding(vertical = 6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (displayName.isNotBlank()) {
                         Text(displayName, color = link, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
@@ -2252,6 +2270,8 @@ internal class ChatFollowState {
     var dragging by mutableStateOf(false)
         private set
     fun requestFollow() { following = true }
+    /** Deixa de seguir el final sense que hi hagi cap dit: per llegir una resposta des del principi. */
+    fun pause() { following = false }
     fun startReading() { dragging = true; following = false }
     fun stopDragging() { dragging = false }
 }
@@ -2303,6 +2323,35 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
         }
     }
     return follow
+}
+
+/**
+ * En acabar un torn, una resposta que no cap a la pantalla es llegeix des del
+ * principi: es posa el seu inici a dalt i es deixa de seguir el final (surt
+ * «Últims ↓»). Sense això, la vista quedava a la cua i es començava a llegir
+ * pel final. Mentre arriba en directe, es continua seguint el final.
+ * [replyIndex]: l'element de la llista on és l'última resposta del vent.
+ */
+@Composable
+internal fun ReadReplyFromStart(list: LazyListState, follow: ChatFollowState, busy: Boolean, replyIndex: Int) {
+    var wasBusy by remember(list) { mutableStateOf(busy) }
+    // La resposta pot arribar just després que el torn acabi: es llegeix l'índex d'ara.
+    val reply by rememberUpdatedState(replyIndex)
+    LaunchedEffect(busy) {
+        val finished = wasBusy && !busy
+        wasBusy = busy
+        if (!finished) return@LaunchedEffect
+        // Que la resposta definitiva ja sigui al layout abans de mesurar-la.
+        kotlinx.coroutines.delay(120)
+        val index = reply
+        if (index < 0) return@LaunchedEffect
+        val info = list.layoutInfo
+        val viewport = info.viewportEndOffset - info.viewportStartOffset
+        val item = info.visibleItemsInfo.firstOrNull { it.index == index }
+        if (item != null && item.size <= viewport * 3 / 4) return@LaunchedEffect
+        follow.pause()
+        list.animateScrollToItem(index)
+    }
 }
 
 /** A tall last bubble must be aligned at its bottom, not its top. */

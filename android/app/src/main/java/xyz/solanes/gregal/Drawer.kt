@@ -37,6 +37,13 @@ import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Tag
+import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.Groups
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -133,9 +140,10 @@ fun GregalDrawerContent(
 }
 
 /**
- * Vents net: només el que és dels vents. Les eines de programació (agent,
- * objectius, gràfics, Office, Retro…) tornen amb «Eines de programació» a
- * Preferències; programats, wiki i feines són al «+» de la portada.
+ * Vents net: quatre llocs, com les apps de companys. Els vents (la portada),
+ * el directori dels teus vents, Explora (programats, desats, wiki, biblioteca,
+ * feines…) i les notes. El Ventet és la mateixa portada. Programar des del
+ * mòbil continua a mà, plegat a «Codi» perquè no competeixi amb els vents.
  */
 @Composable
 private fun SimpleVentsDrawer(
@@ -144,6 +152,9 @@ private fun SimpleVentsDrawer(
     nav: (Screen) -> Unit, close: () -> Unit,
 ) {
     val user by vm.usuari.collectAsState()
+    val panel by vm.ventsPanel.collectAsState()
+    val codeScreens = setOf(Screen.Chat, Screen.Sessions, Screen.Carpeta, Screen.Work, Screen.Webs)
+    var codeOpen by rememberSaveable { mutableStateOf(false) }
     CappedFontScale(1.5f) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 6.dp)) {
@@ -155,25 +166,28 @@ private fun SimpleVentsDrawer(
                 }
             }
             Spacer(Modifier.height(18.dp))
-            DrawerRow(tr(lang, "nav.company"), screen == Screen.Company, { nav(Screen.Company) }) { DrawerWindIcon(vm) }
-            DrawerRow(tr(lang, "app.nav.ventet"), screen == Screen.Ventet, { nav(Screen.Ventet) }, Icons.Rounded.Toys)
-            DrawerRow(tr(lang, "nav.automations"), screen == Screen.Automatitzacions, {
-                nav(Screen.Automatitzacions); vm.loadAutomations(""); vm.loadJobs(); vm.loadFlows()
-            }, Icons.Rounded.Schedule)
+            val home = screen == Screen.Company || screen == Screen.Ventet
+            DrawerRow(tr(lang, "nav.company"), home && panel == null, { vm.openVentsPanel(null); nav(Screen.Company) }) { DrawerWindIcon(vm) }
+            DrawerRow(tr(lang, "app.vents.myWinds"), home && panel == "directory", { close(); vm.openVentsPanel("directory") }, Icons.Rounded.Groups)
+            DrawerRow(ventsCopy(lang, "explore"), home && panel == "explore", { close(); vm.openVentsPanel("explore") }, Icons.Rounded.AutoAwesome)
             DrawerRow(tr(lang, "nav.notes"), screen == Screen.Notes, { nav(Screen.Notes); vm.loadNotes() }, Icons.Rounded.EditNote)
-            DrawerRow(tr(lang, "nav.saved"), screen == Screen.Desat, { nav(Screen.Desat); vm.loadSaved("") }, Icons.Rounded.Folder)
-            // Programar des del mòbil és a mà, no amagat: l'agent de codi, les seves
-            // converses, el projecte i les feines. (Objectius, gràfics, Office i Retro
+            // Programar des del mòbil: l'agent de codi, les seves converses, el
+            // projecte i les feines, plegats. (Objectius, gràfics, Office i Retro
             // continuen a Preferències → Eines de programació.)
-            DrawerSection(tr(lang, "app.nav.sectionCode"))
-            DrawerRow(tr(lang, "app.nav.codeChat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.Code)
-            DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
-            DrawerRow(
-                project.ifEmpty { tr(lang, "app.nav.project") } + if (branch.isNotBlank()) " · $branch" else "",
-                screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen,
-            )
-            DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
-            DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
+            val showCode = codeOpen || screen in codeScreens
+            DrawerRow(tr(lang, "app.nav.sectionCode"), false, { codeOpen = !showCode }, muted = true) {
+                Icon(if (showCode) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, modifier = Modifier.size(22.dp))
+            }
+            if (showCode) Column(Modifier.padding(start = 12.dp)) {
+                DrawerRow(tr(lang, "app.nav.codeChat"), screen == Screen.Chat, { nav(Screen.Chat) }, Icons.Rounded.Code)
+                DrawerRow(tr(lang, "nav.convs"), screen == Screen.Sessions, { nav(Screen.Sessions); vm.loadSessions() }, Icons.Rounded.Forum)
+                DrawerRow(
+                    project.ifEmpty { tr(lang, "app.nav.project") } + if (branch.isNotBlank()) " · $branch" else "",
+                    screen == Screen.Carpeta, { nav(Screen.Carpeta) }, Icons.Rounded.FolderOpen,
+                )
+                DrawerRow(tr(lang, "app.work.title"), screen == Screen.Work, { nav(Screen.Work) }, Icons.Rounded.Construction)
+                DrawerRow(webCopy(lang, "title"), screen == Screen.Webs, { nav(Screen.Webs); vm.loadWebs() }, Icons.Rounded.Language)
+            }
             HorizontalDivider(Modifier.padding(vertical = 12.dp, horizontal = 8.dp), color = Line)
             DrawerRow(tr(lang, "prefs.title"), screen == Screen.Prefs, { nav(Screen.Prefs) }, Icons.Rounded.Settings)
             DrawerRow(tr(lang, "app.server.switch"), false, { close(); vm.switchServer() }, Icons.Rounded.Dns, muted = true)

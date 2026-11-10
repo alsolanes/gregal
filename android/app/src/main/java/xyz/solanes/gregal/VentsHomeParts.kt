@@ -7,6 +7,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Groups
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -196,5 +197,76 @@ internal fun DirectoryRow(lang: String, w: Wind, onProfile: () -> Unit, onTalk: 
         ) {
             Text(tr(lang, "app.vents.talk"), color = Ink, fontSize = 14.sp)
         }
+    }
+}
+
+/**
+ * Els teus vents, a dalt de la portada: com les apps de companys, la cara és
+ * el que reconeixes. Un toc obre la conversa amb aquell vent; qui té novetats
+ * ho diu amb la cara i el nom destacat. «Tots» porta al directori.
+ */
+@Composable
+internal fun HomeFacesRow(
+    lang: String, winds: List<Wind>, news: Set<String>, busy: Set<String>,
+    onTalk: (Wind) -> Unit, onAll: () -> Unit,
+) {
+    if (winds.isEmpty()) return
+    androidx.compose.foundation.lazy.LazyRow(
+        Modifier.fillMaxWidth().padding(top = 6.dp).testTag("home-faces"),
+        contentPadding = PaddingValues(horizontal = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        items(winds.size, key = { winds[it].id }) { i ->
+            val w = winds[i]
+            val fresh = w.id in news
+            Column(
+                Modifier.width(72.dp).clip(RoundedCornerShape(18.dp)).clickable { onTalk(w) }
+                    .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = w.name }
+                    .padding(vertical = 6.dp).testTag("home-face-${w.id}"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                WindHalo(Color(w.argb), w.faceStyle, size = 46,
+                    mood = when { w.id in busy -> WindMood.THINKING; fresh -> WindMood.NEWS; else -> WindMood.IDLE },
+                    online = false)
+                Text(w.name, color = if (fresh) Ink else Muted, fontSize = 12.sp,
+                    fontWeight = if (fresh) FontWeight.SemiBold else FontWeight.Medium,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        item(key = "all") {
+            Column(
+                Modifier.width(72.dp).clip(RoundedCornerShape(18.dp)).clickable(onClick = onAll)
+                    .semantics(mergeDescendants = true) { role = Role.Button }
+                    .padding(vertical = 6.dp).testTag("home-faces-all"),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Box(Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(46.dp).clip(CircleShape).background(SuperficieAlta), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Rounded.Groups, null, tint = Ink, modifier = Modifier.size(22.dp))
+                    }
+                }
+                Text(tr(lang, "app.vents.homeAll"), color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** El vent escriu: la seva cara petita i els punts, a l'esquerra com un missatge seu. */
+@Composable
+internal fun WindTypingBubble(lang: String, wind: Wind, accent: Color, mood: WindMood) {
+    Row(
+        Modifier.padding(top = 12.dp, bottom = 4.dp)
+            .semantics(mergeDescendants = true) { contentDescription = tr(lang, "app.company.windThinking", wind.name) }
+            .testTag("wind-typing"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        WindFace(size = 30, mood = mood, accent = accent, style = wind.faceStyle)
+        Box(
+            Modifier.clip(RoundedCornerShape(18.dp)).background(accent.copy(alpha = .16f))
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) { TypingDots(accent) }
     }
 }

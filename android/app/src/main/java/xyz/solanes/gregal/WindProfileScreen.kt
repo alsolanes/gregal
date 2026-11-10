@@ -12,6 +12,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.testTag
@@ -53,6 +55,9 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     messages: List<GregalViewModel.PetMsg>, routines: List<GregalApi.WindRutina>, onDismiss: () -> Unit, onRetry: () -> Unit, onEdit: () -> Unit,
     onSaveKnowledge: (String, (Boolean) -> Unit) -> Unit, onChat: () -> Unit = {}) {
     var tab by remember(wind.id) { mutableStateOf(0) }
+    // Les instruccions (el prompt) i les xifres de l'ofici no són el personatge:
+    // queden plegades a «Instruccions i ofici», no a la cara de la fitxa.
+    var behind by remember(wind.id) { mutableStateOf(false) }
     var editing by remember(wind.id) { mutableStateOf(false) }
     var draft by remember(wind.id) { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
@@ -67,7 +72,9 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     val weather = vm.weather.collectAsState().value[wind.id]?.takeIf { isWeather && it.now != null }
     LaunchedEffect(wind.id) { vm.loadCalaix(wind.id) }
     LaunchedEffect(wind.id, isWeather) { if (isWeather) vm.loadWeather(wind.id) }
-    val tabs = listOf("character", "memory", "scheduled", "saved") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
+    // Primer el que sap de tu; el caràcter és a «Instruccions i ofici». Amb
+    // quatre pestanyes com a molt, caben totes sense lliscar ni tallar-se.
+    val tabs = listOf("memory", "scheduled", "saved") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
@@ -107,7 +114,32 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
             // L'ofici, just sota la capçalera, com a l'escriptori (tradePanel).
             profile?.trade?.let { trade ->
                 item(key = "trade") {
-                    Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) { WindTradePanel(vm, lang, wind, trade) }
+                    Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) { WindTradePanel(vm, lang, wind, trade, showStats = false) }
+                }
+            }
+            item(key = "behind") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 8.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable { behind = !behind }
+                            .heightIn(min = 48.dp).padding(horizontal = 4.dp).testTag("profile-behind"),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(tr(lang, "app.vents.behindScenes"), color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            Text(tr(lang, "app.vents.behindScenesHelp"), color = Muted, fontSize = 12.5.sp)
+                        }
+                        Icon(if (behind) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, null, tint = Muted)
+                    }
+                    if (behind) Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        profile?.trade?.let { trade -> TradeStats(lang, trade, accent) }
+                        Text(tr(lang, "app.vents.personality"), color = Ink, fontWeight = FontWeight.SemiBold)
+                        Surface(shape = RoundedCornerShape(16.dp), color = accent.copy(alpha = 0.08f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))) {
+                            SelectionContainer { Text(wind.persona.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Tinta, lineHeight = 23.sp,
+                                modifier = Modifier.padding(14.dp)) }
+                        }
+                        OutlinedButton(onClick = onEdit, enabled = profile != null && !busy) { Text(tr(lang, "app.company.windEdit")) }
+                    }
                 }
             }
             stickyHeader(key = "tabs") {
@@ -145,17 +177,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     Text(error, color = MaterialTheme.colorScheme.error)
                     OutlinedButton(onClick = onRetry) { Text(tr(lang, "app.vents.retry")) }
                 }
-                when (tab) {
-                    0 -> {
-                        Text(tr(lang, "app.vents.personality"), color = Ink, fontWeight = FontWeight.SemiBold)
-                        Surface(shape = RoundedCornerShape(16.dp), color = accent.copy(alpha = 0.08f),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.35f))) {
-                            SelectionContainer { Text(wind.persona.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Tinta, lineHeight = 23.sp,
-                                modifier = Modifier.padding(14.dp)) }
-                        }
-                        OutlinedButton(onClick = onEdit, enabled = profile != null && !busy) { Text(tr(lang, "app.company.windEdit")) }
-                    }
-                    1 -> if (profile != null) {
+                when (tabs.getOrNull(tab)) {
+                    "memory" -> if (profile != null) {
                         Text(tr(lang, "app.vents.topicMemory"), color = Ink, fontWeight = FontWeight.SemiBold)
                         Text(tr(lang, "app.vents.topicMemoryHelp"), color = Muted, fontSize = 13.sp)
                         if (editing) {
@@ -185,16 +208,16 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         VentSkillsSection(vm, lang, wind)
                     }
-                    3 -> {
+                    "saved" -> {
                         Text(tr(lang, "saved.help"), color = Muted, fontSize = 13.sp)
                         WindSavedGallery(vm, lang, wind.id)
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         WindCardsSection(vm, lang, wind)
                     }
-                    4 -> CalaixSection(lang, wind.name, shelves.orEmpty(), accent,
+                    "calaix" -> CalaixSection(lang, wind.name, shelves.orEmpty(), accent,
                         onAction = { shelf, action, key, item -> vm.calaixAction(wind.id, shelf, action, key, item) },
                         onSearchPlaces = { q -> vm.searchWeatherPlaces(q) })
-                    2 -> {
+                    "scheduled" -> {
                         Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
                         Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {
                             Text(if (lang == "en") "Create routine" else "Crea una rutina")
@@ -495,30 +518,19 @@ private fun followupsRow(lang: String, vm: GregalViewModel, wind: Wind) {
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun WindTradePanel(vm: GregalViewModel?, lang: String, wind: Wind, trade: WindTrade,
-    onActivate: ((WindTradeWatch, (Boolean) -> Unit) -> Unit)? = null, onExpert: (() -> Unit)? = null) {
+    onActivate: ((WindTradeWatch, (Boolean) -> Unit) -> Unit)? = null, onExpert: (() -> Unit)? = null,
+    /** Nivell, xifres i fonts. La fitxa del vent les mostra plegades a «Instruccions i ofici». */
+    showStats: Boolean = true) {
     val accent = Color(wind.argb)
     val expert = vm?.windExpert?.collectAsState()?.value?.get(wind.id)
     Surface(shape = GregalShape.lg, color = accent.copy(alpha = 0.07f),
         border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
         modifier = Modifier.fillMaxWidth().testTag("wind-trade")) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(trade.name(lang), color = Ink, style = GregalType.heading, modifier = Modifier.weight(1f, fill = false))
-                Text(tr(lang, "app.trade.level", trade.level), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Box(Modifier.weight(1f).height(4.dp).clip(GregalShape.pill).background(accent.copy(alpha = .16f))) {
-                    Box(Modifier.fillMaxWidth(trade.level.coerceIn(1, 10) / 10f).fillMaxHeight().clip(GregalShape.pill).background(accent))
-                }
-            }
-            Text(tr(lang, "app.trade.studied", trade.knowledge, trade.lessons), color = Muted, style = GregalType.bodySmall)
-            if (trade.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(tr(lang, "app.trade.sources"), color = Muted, style = GregalType.caption, modifier = Modifier.align(Alignment.CenterVertically))
-                trade.sources.forEach { src ->
-                    Text(src, color = Ink, fontSize = 12.sp, modifier = Modifier.clip(GregalShape.pill)
-                        .background(Superficie.copy(alpha = .7f)).padding(horizontal = 10.dp, vertical = 4.dp))
-                }
-            }
+            if (showStats) TradeStats(lang, trade, accent)
+            else Text(trade.name(lang), color = Ink, style = GregalType.heading)
             if (trade.watches.isNotEmpty()) {
-                Text(tr(lang, "app.trade.watches"), color = Muted, style = GregalType.overline, modifier = Modifier.padding(top = 4.dp))
+                Text(tr(lang, "app.trade.watches"), color = Muted, style = GregalType.overline, modifier = Modifier.padding(top = if (showStats) 4.dp else 0.dp))
                 trade.watches.forEach { w -> TradeWatchRow(vm, lang, wind, w, accent, onActivate) }
             }
             when {
@@ -531,6 +543,29 @@ internal fun WindTradePanel(vm: GregalViewModel?, lang: String, wind: Wind, trad
                     modifier = Modifier.clip(GregalShape.sm).clickable {
                         if (onExpert != null) onExpert() else vm?.startWindExpert(wind.id, trade.name(lang).ifBlank { wind.role })
                     }.padding(vertical = 4.dp).testTag("wind-trade-expert"))
+            }
+        }
+    }
+}
+
+/** El nom de l'ofici amb el nivell, el que ha estudiat i les seves fonts. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun TradeStats(lang: String, trade: WindTrade, accent: Color) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(trade.name(lang), color = Ink, style = GregalType.heading, modifier = Modifier.weight(1f, fill = false))
+            Text(tr(lang, "app.trade.level", trade.level), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            Box(Modifier.weight(1f).height(4.dp).clip(GregalShape.pill).background(accent.copy(alpha = .16f))) {
+                Box(Modifier.fillMaxWidth(trade.level.coerceIn(1, 10) / 10f).fillMaxHeight().clip(GregalShape.pill).background(accent))
+            }
+        }
+        Text(tr(lang, "app.trade.studied", trade.knowledge, trade.lessons), color = Muted, style = GregalType.bodySmall)
+        if (trade.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(tr(lang, "app.trade.sources"), color = Muted, style = GregalType.caption, modifier = Modifier.align(Alignment.CenterVertically))
+            trade.sources.forEach { src ->
+                Text(src, color = Ink, fontSize = 12.sp, modifier = Modifier.clip(GregalShape.pill)
+                    .background(Superficie.copy(alpha = .7f)).padding(horizontal = 10.dp, vertical = 4.dp))
             }
         }
     }

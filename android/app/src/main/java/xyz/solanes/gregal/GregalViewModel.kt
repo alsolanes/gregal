@@ -461,6 +461,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         if (::prefsStore.isInitialized) prefsStore.simpleVents = v
     }
 
+    private val _ventsPanel = MutableStateFlow<String?>(null)
+    /** Un panell de la portada dels Vents que s'ha demanat des de fora (el calaix):
+     *  "directory" (els teus vents) o "explore". La portada l'obre i el buida. */
+    val ventsPanel: StateFlow<String?> = _ventsPanel
+    fun openVentsPanel(panel: String?) {
+        _ventsPanel.value = panel
+        if (panel != null) go(Screen.Company)
+    }
+
     fun setExpressiveMotion(v: Boolean) {
         _expressiveMotion.value = v
         if (::prefsStore.isInitialized) prefsStore.expressiveMotion = v
@@ -5929,13 +5938,14 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
     fun openRunShown() { _openRun.value = null }
 
     /** Després de connectar: la pantalla de la notificació tocada o, per
-     *  defecte, el xat general — obrir i començar a xerrar; els vents
-     *  són una pestanya del calaix (i la seva portada segueix a un toc). */
+     *  defecte, on es comença a xerrar. Amb Vents net (sense les eines de
+     *  programació) és la portada dels vents; amb elles, el xat general. */
     private fun landing(): Screen {
+        val home = if (_simpleVents.value) Screen.Company else Screen.Chat
         val screen = when {
             _openRun.value != null -> Screen.Jobs
-            _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: Screen.Chat
-            else -> Screen.Chat
+            _openScreen.value != null -> pantallaDeNotificacio(_openScreen.value!!) ?: home
+            else -> home
         }
         _openScreen.value = null
         return screen
