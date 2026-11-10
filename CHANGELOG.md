@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## v1.70.0 - 2026-11-10 - Els vents, al centre
+
+- **Gregal Vents per a Android (1.73.0): els vents, al centre.** La portada
+  porta les cares dels teus vents a dalt (un toc hi parla), la salutació al
+  mig i el camp a baix, on arriba el polze. La capçalera es queda amb el
+  menú, el títol i el `+`, i l'app s'obre a la portada dels vents, no al xat
+  de codi.
+- **Un calaix de quatre.** Vents, Els meus vents, Explora i Notes. Els
+  programats, els desats, la wiki i la biblioteca són a Explora, que ara
+  puja des de baix. Les eines de codi queden plegades a «Codi».
+- **La fitxa del vent parla del vent.** Primer el que sap de tu; les
+  instruccions, el nivell i les fonts de l'ofici queden plegats a
+  «Instruccions i ofici». Quatre pestanyes com a molt, totes visibles.
+- **Esperar sense maquinària.** Ni rellotge ni «Pas 3»: el vent escriu al
+  fil amb la seva cara, i la franja de dalt només surt quan cerca, llegeix
+  fonts o fa servir una eina. Una resposta llarga es llegeix des del
+  principi, amb «Últims ↓» per anar al final.
+- **Respostes sense caixa.** El que respon el vent és text net a tota
+  l'amplada; el que escrius tu va en bombolla. La capçalera del xat té un
+  sol «⋯» amb noms, i la píndola de mode passa al `+`.
+
 ## v1.69.0 - 2026-11-10 - Equips d'agents
 
 - **Equips d'agents per posició a Gregal Jocs.** A l'Arena, cada estratègia pot
