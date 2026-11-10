@@ -175,7 +175,10 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val avuiError by vm.avuiError.collectAsState()
     val weatherMap by vm.weather.collectAsState()
     LaunchedEffect(conn, news, tab) { vm.loadAvui() }
-    fun pluginOn(id: String) = plugins[id] != false
+    // Amb la llista ja llegida, un plugin que el servidor no té no hi és: els
+    // Partits i l'Arena només viuen al servidor de Gregal Jocs (gregal-jocs).
+    // Mentre no se sap (llista buida), tot es mostra com abans.
+    fun pluginOn(id: String) = if (plugins.isEmpty()) true else plugins[id] == true
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
     // diàleg del sistema el permís queda denegat i no sona mai res.
