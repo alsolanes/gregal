@@ -4887,8 +4887,16 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                     if (!isCompanionOrigin(source, epoch)) return@launch
                     if (status != null) {
                         val step = status.second
-                        _crewStep.value = if (status.first && step in setOf("discussing", "waiting", "working"))
-                            _crewStep.value + (id to step) else _crewStep.value - id
+                        // Mentre la colla treballa el pas no s'esborra: si el
+                        // servidor en diu un sense text propi (o encara no en
+                        // diu cap) es queda l'últim conegut. Esborrar-lo feia
+                        // caure la capçalera a «hi pensa» i tornar al pas, un
+                        // flaix cada pols.
+                        _crewStep.value = when {
+                            !status.first -> _crewStep.value - id
+                            step in setOf("discussing", "waiting", "working") -> _crewStep.value + (id to step)
+                            else -> _crewStep.value
+                        }
                         loadRotllanaChat(id)
                         if (!status.first) return@launch
                     }

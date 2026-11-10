@@ -200,7 +200,7 @@ internal fun SharedChatConversation(vm: GregalViewModel, lang: String, chat: Sha
     androidx.activity.compose.BackHandler(onBack = onBack)
     Column(Modifier.fillMaxSize().background(Superficie).imePadding()) {
         VentsChatHeader(lang, chat.name,
-            if (busy) tr(lang, "app.company.groupThinking") else (chat.humans + chat.winds.map { it.name }).joinToString(", "),
+            if (rememberSettledBusy(busy)) tr(lang, "app.company.groupThinking") else (chat.humans + chat.winds.map { it.name }).joinToString(", "),
             accent, chat.winds.firstOrNull()?.faceStyle ?: WindStyle(),
             if (busy) WindMood.THINKING else WindMood.IDLE, chat.winds,
             onBack = onBack, onProfile = { info = true })

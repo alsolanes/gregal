@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,6 +93,25 @@ internal fun VentsChatHeader(
     }
 }
 
+/**
+ * «Hi pensa» només surt si la feina fa estona que dura.
+ *
+ * L'estat de feina arriba a polsos i entre un senyal i el següent pot anar i
+ * tornar en un parell de fotogrames: si la capçalera canvia de text a cada
+ * pols, el rètol parpelleja (es veia com un flaix de «hi pensa» de
+ * microsegons). Amb això, encendre's té un marge i apagar-se és immediat.
+ */
+@Composable
+internal fun rememberSettledBusy(busy: Boolean, settleMs: Long = 700L): Boolean {
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(busy) {
+        if (!busy) { settled = false; return@LaunchedEffect }
+        kotlinx.coroutines.delay(settleMs)
+        settled = true
+    }
+    return busy && settled
+}
+
 /** One quiet, persistent status row. Timers measure observation, not completion. */
 @Composable
 internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier = Modifier, onStop: (() -> Unit)? = null) {
@@ -104,14 +124,21 @@ internal fun VentsWorkProgress(lang: String, live: WindLive, modifier: Modifier 
     // Esperar el model ho diuen la cara de la capçalera i el fil.
     val work = windVisibleWork(lang, live)
     val stall = windStallNote(lang, live, now)
-    if (work == null && stall == null) return
+    val line = listOfNotNull(work, stall).joinToString(" · ")
+    // El text de la franja va i ve a cada passa (una cerca, una eina, una
+    // espera del model). Si la franja apareix i desapareix amb cada canvi,
+    // parpelleja: mentre el torn viu es queda l'última línia que s'ha pogut
+    // dir, i només marxa quan el torn s'acaba (o al començar el vinent).
+    var lastLine by remember(live.startedAt) { mutableStateOf("") }
+    LaunchedEffect(line) { if (line.isNotBlank()) lastLine = line }
+    if (line.isBlank() && lastLine.isBlank()) return
     Column(modifier.fillMaxWidth().background(SuperficieAlta.copy(alpha = .35f)).padding(horizontal = 18.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // Estàtics quan les animacions estan desactivades.
             TypingDots(accent = Ink)
             // Interlínia de la caption: amb només fontSize heretava els 24 sp de
             // bodyLarge i la franja ocupava el doble del que diu.
-            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + listOfNotNull(work, stall).joinToString(" · "),
+            Text((if (live.speaker.isNotBlank()) live.speaker + " · " else "") + line.ifBlank { lastLine },
                 color = Ink, style = GregalType.caption, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
             // Aturar és sempre possible mentre el torn corre, encara que el
             // composer tingui un esborrany (allà el botó d'enviar fa steer).

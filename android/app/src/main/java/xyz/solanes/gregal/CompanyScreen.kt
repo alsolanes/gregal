@@ -1147,8 +1147,10 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
     ReadReplyFromStart(listState, follow, isBusy, msgs.indexOfLast { it.from != "user" })
     Box(Modifier.fillMaxSize().background(Superficie)) {
         Column(Modifier.fillMaxSize()) {
+        // «Hi pensa» només si la feina dura de debò (vegeu rememberSettledBusy).
+        val busySettled = rememberSettledBusy(isBusy)
         VentsChatHeader(lang, wind.name,
-            if (isBusy) tr(lang, "app.company.windThinking", wind.name) else wind.role,
+            if (busySettled) tr(lang, "app.company.windThinking", wind.name) else wind.role,
             accent, wind.faceStyle,
             if (isBusy) live[wind.id]?.mood ?: WindMood.THINKING else WindMood.IDLE,
             onBack = onBack, onProfile = { profile = true },
@@ -1402,12 +1404,20 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
         Column(Modifier.fillMaxSize()) {
         val crewSteps by vm.crewStep.collectAsState()
         val crewStep = crewSteps[rot.id]
+        // El pas de la colla arriba a polsos; quan el servidor deixa de dir-ne
+        // un i el torn encara no ha plegat, la capçalera queia a «la colla hi
+        // pensa» i tornava al pas: un flaix de mig segon. Es guarda l'últim
+        // pas mentre la rotllana treballa.
+        var lastStep by remember(rot.id) { mutableStateOf<String?>(null) }
+        LaunchedEffect(crewStep) { if (crewStep != null) lastStep = crewStep }
+        val rotSettled = rememberSettledBusy(rotBusy)
         VentsChatHeader(lang, rot.name,
             when {
                 crewStep != null -> tr(lang, "app.crew.step.$crewStep")
+                rotSettled && lastStep != null -> tr(lang, "app.crew.step.$lastStep")
                 // El títol de la rotllana és la primera pregunta: «Recomana'm… hi
                 // pensa» no deia res. Qui pensa és la colla.
-                rotBusy -> tr(lang, "app.company.groupThinking")
+                rotSettled -> tr(lang, "app.company.groupThinking")
                 else -> faces.joinToString(", ") { it.name }
             },
             rotAccent, faces.firstOrNull()?.faceStyle ?: WindStyle(),
