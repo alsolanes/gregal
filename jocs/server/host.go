@@ -4,27 +4,30 @@ import (
 	"context"
 	"net/http"
 
-	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 	"gregal/internal/web"
 )
 
-// Host és el que els jocs fan servir del servidor de Gregal d'un usuari.
-// *web.Server el compleix (internal/web/product_host.go); els tests en
-// poden posar un de propi.
+// Host és el que els jocs fan servir del servidor d'un usuari (el de
+// Gregal Jocs, amb el seu propi perfil). *web.Server el compleix
+// (internal/web/product_host.go); els tests en poden posar un de propi. No
+// hi ha res dels vents: la lliga té els seus equips (teams.go).
 type Host interface {
 	// ChatModel és el model de la conversa: l'Arena hi juga.
 	ChatModel() (*config.Config, *llm.Client, config.Provider, config.Role)
-	// WindModel crida el model dels vents: la lliga hi narra.
+	// WindModel crida el model de les crides curtes (el rol dels vents del
+	// config de Gregal Jocs): la lliga hi narra.
 	WindModel(ctx context.Context, system, user string, maxTokens int) (string, error)
 	Tr(ca, en string) string
 	// StateDir és l'estat compartit (l'Arena és de tot el servidor).
 	StateDir() string
-	// WindStateDir és l'estat dels vents de l'usuari (la seva lliga).
-	WindStateDir() string
-	Winds() *companion.WindStore
-	RecordWindNews(w companion.Wind, source, text string)
+	// UserStateDir és l'estat personal de l'usuari (la seva lliga).
+	UserStateDir() string
+	// ModelReady diu si el model actiu pot respondre (model_import.go).
+	ModelReady() bool
+	// AdoptModel copia un model al config de Gregal Jocs (model_import.go).
+	AdoptModel(m config.ImportedModel) error
 }
 
 var _ Host = (*web.Server)(nil)
@@ -48,6 +51,3 @@ func global(h *web.Hub, fn func(*Server, http.ResponseWriter, *http.Request)) ht
 
 // tr tria el text en català o en anglès segons el config.
 func (s *Server) tr(ca, en string) string { return s.host.Tr(ca, en) }
-
-// windStateDir és on viu l'estat dels vents de l'usuari.
-func (s *Server) windStateDir() string { return s.host.WindStateDir() }

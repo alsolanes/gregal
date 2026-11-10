@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/profile"
 	"gregal/internal/tools"
 )
 
@@ -33,11 +34,7 @@ type workspaceEntry struct {
 var wsMu sync.Mutex
 
 func workspacesPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "workspaces.json"
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "workspaces.json")
+	return filepath.Join(profile.DefaultDataDirFor(profile.Product()), "workspaces.json")
 }
 
 func loadWorkspaces() []workspaceEntry {

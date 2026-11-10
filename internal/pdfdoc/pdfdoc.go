@@ -36,6 +36,8 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/font"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
+
+	"gregal/internal/profile"
 )
 
 func init() {
@@ -66,7 +68,7 @@ func fontsFormulari() error {
 				fontsErr = err
 				return
 			}
-			root = filepath.Join(cache, "gregal")
+			root = filepath.Join(cache, profile.DirName())
 		}
 		if fontsErr = model.EnsureDefaultConfigAt(filepath.Join(root, "pdf"), false); fontsErr != nil {
 			return

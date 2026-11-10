@@ -25,6 +25,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // Opcions és el que necessita una actualització.
@@ -159,8 +161,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 		res.VersioDespres = strings.TrimSpace(string(out))
 	}
 	// El config de debò: si el binari nou no l'accepta, no s'instal·la.
-	casa, _ := os.UserHomeDir()
-	cfg := filepath.Join(casa, ".config", "gregal", "config.yaml")
+	cfg := filepath.Join(profile.ConfigDir(), "config.yaml")
 	if _, err := os.Stat(cfg); err == nil {
 		if out, err := exec.CommandContext(ctx, tmp, "--check-config", "--config", cfg).CombinedOutput(); err != nil {
 			return res, fmt.Errorf("el binari nou no accepta el config actual (%v): %s", err, strings.TrimSpace(string(out)))

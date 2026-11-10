@@ -18,6 +18,8 @@ const L = (ca, en) => (idioma() === 'en' ? en : ca);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const icon = n => (window.gregalIcon && window.gregalIcon(n)) || '';
 const LATER = 'gregal_ob_later';
+// El nom de l'app (Gregal Jocs té el seu perfil i el seu model).
+const app = () => (window.gregalProduct === 'jocs' ? 'Gregal Jocs' : 'Gregal');
 
 // Els que surten al diàleg, en aquest ordre. La resta (Together, Cerebras,
 // OpenAI Responses, endpoints propis) viuen a «Models i connexions».
@@ -86,6 +88,16 @@ export const onboarding = {
       const c = cat.find(x => x.name === name);
       const ok = !!p && (p.has_api_key || local(p.url));
       this.info = { needs: !ok, admin, provider: name, model: st.model_name || st.model || '', label: (c && c.label) || name, catalog: cat, providers: provs };
+      // Gregal Jocs té el seu perfil i arrenca sense model: si el de Gregal
+      // en té un, s'ofereix una vegada copiar-lo (jocs/server/model_import.go).
+      this.info.gregal = null;
+      if (!ok && admin && window.gregalProduct === 'jocs') {
+        try {
+          const ri = await api('/api/jocs/model-import');
+          const m = ri.ok ? await ri.json() : null;
+          if (m && m.offer) this.info.gregal = { provider: m.provider, model: m.model, label: m.label || m.provider };
+        } catch (e) {}
+      }
       return this.info;
     } catch (e) { return (this.info = null); }
   },
@@ -128,17 +140,22 @@ export const onboarding = {
       IDIOMES.map(([v, nom]) => '<button type="button" data-lang="' + v + '" aria-pressed="' + (v === idioma()) + '"' + (v === idioma() ? ' class="on"' : '') + '>' + esc(nom) + '</button>').join('') + '</div>';
     // Des de Preferències, amb un model que ja respon, és un canvi de proveïdor.
     const canvi = !!(this.info && !this.info.needs);
+    const gregal = !canvi && info.gregal;
     const titol = canvi ? L('Canvia de proveïdor', 'Switch provider') : L('Comencem: connecta un model', 'Let’s start: connect a model');
     const entrada = canvi
       ? L('Tria el proveïdor i enganxa-hi la clau d’API. Tots els rols passaran a fer servir el seu model per defecte; després ho pots afinar a «Models i connexions».',
         'Pick the provider and paste its API key. Every role will switch to its default model; you can fine-tune it later in “Models & connections”.')
-      : L('Gregal necessita un model d’IA per respondre. Tria un proveïdor i enganxa-hi la teva clau d’API; només s’envia a aquest proveïdor.',
-        'Gregal needs an AI model to answer. Pick a provider and paste your API key; it is only sent to that provider.');
+      : L(app() + ' necessita un model d’IA per respondre. Tria un proveïdor i enganxa-hi la teva clau d’API; només s’envia a aquest proveïdor.',
+        app() + ' needs an AI model to answer. Pick a provider and paste your API key; it is only sent to that provider.');
     d.innerHTML =
       '<form class="ob-card" method="dialog" novalidate>' +
       '<header class="ob-head"><span class="ob-mark" aria-hidden="true">' + icon(canvi ? 'model' : 'sparkles') + '</span>' +
       '<div><h2 id="obTitle">' + esc(titol) + '</h2>' +
       '<p>' + esc(entrada) + '</p></div></header>' +
+      (gregal ? '<div class="ob-gregal"><p>' + esc(L('Gregal ja té un model connectat: ', 'Gregal already has a model connected: ')) + '<b>' + esc(gregal.model) + '</b> · ' + esc(gregal.label) + '</p>' +
+        '<button type="button" class="ob-primary" id="obGregal">' + esc(L('Fes servir el mateix model que Gregal', 'Use the same model as Gregal')) + '</button>' +
+        '<small>' + esc(L('Se’n copien el proveïdor, el model i la clau a Gregal Jocs una sola vegada; Gregal no canvia. O tria’n un altre a sota.',
+          'The provider, model and key are copied into Gregal Jocs once; Gregal is not changed. Or pick another one below.')) + '</small></div>' : '') +
       '<fieldset class="ob-grid"><legend>' + esc(L('Proveïdor', 'Provider')) + '</legend>' +
       opcions.map(o => '<label class="ob-opt"><input type="radio" name="obProv" value="' + esc(o.id) + '"' + (o === triat ? ' checked' : '') + '>' +
         '<span><b>' + esc(o.label) + '</b><small>' + esc(o.desc) + '</small></span></label>').join('') +
@@ -191,7 +208,31 @@ export const onboarding = {
       };
     });
 
-    const later = () => { try { sessionStorage.setItem(LATER, '1'); } catch (e) {} d.close(); };
+    // L'oferta del model de Gregal surt una sola vegada: «Ara no» la
+    // descarta (el servidor ho apunta).
+    const later = () => {
+      try { sessionStorage.setItem(LATER, '1'); } catch (e) {}
+      if (gregal) api('/api/jocs/model-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'dismiss' }) }).catch(() => {});
+      d.close();
+    };
+    if (gregal) $('#obGregal').onclick = async () => {
+      const b = $('#obGregal');
+      b.disabled = true; go.disabled = true;
+      say(L('Copiant el model de Gregal…', 'Copying Gregal’s model…'));
+      try {
+        const r = await api('/api/jocs/model-import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import' }) });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+        try { sessionStorage.removeItem(LATER); } catch (e2) {}
+        if (G().refresh) await G().refresh();
+        document.dispatchEvent(new CustomEvent('gregal:model-ready', { detail: { provider: j.provider, model: j.model } }));
+        await this.status();
+        this.fet({ id: j.provider, label: gregal.label, model: j.model });
+      } catch (err) {
+        say(err.message || L('No s’ha pogut copiar.', 'Could not copy it.'), true);
+        b.disabled = false; go.disabled = false;
+      }
+    };
     $('#obLater').onclick = later;
     d.oncancel = e => { e.preventDefault(); later(); };
     d.onclose = () => { if (this.tornaFocus && this.tornaFocus.isConnected) this.tornaFocus.focus(); };
@@ -253,8 +294,8 @@ export const onboarding = {
     d.innerHTML = '<div class="ob-card ob-done">' +
       '<span class="ob-ok" aria-hidden="true">' + icon('check') + '</span>' +
       '<h2 id="obTitle">' + esc(L('Tot a punt', 'All set')) + '</h2>' +
-      '<p>' + esc(L('Gregal farà servir ' + model + ' de ' + o.label + '. Ho pots canviar quan vulguis a Preferències → Models i agent.',
-        'Gregal will use ' + model + ' from ' + o.label + '. You can change it any time in Preferences → Models & agent.')) + '</p>' +
+      '<p>' + esc(L(app() + ' farà servir ' + model + ' de ' + o.label + '. Ho pots canviar quan vulguis a Preferències → Models i agent.',
+        app() + ' will use ' + model + ' from ' + o.label + '. You can change it any time in Preferences → Models & agent.')) + '</p>' +
       '<footer class="ob-foot"><button type="button" class="ob-primary" id="obStart">' + esc(L('Comença', 'Start')) + '</button></footer></div>';
     const start = d.querySelector('#obStart');
     start.onclick = () => {

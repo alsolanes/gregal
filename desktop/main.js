@@ -12,7 +12,7 @@ const https = require("https");
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
-const { startServer, stopServer, appBackendEnv, serviceFileName, defaultPort } = require("./server-manager");
+const { startServer, stopServer, appBackendEnv, profileDirs, serviceFileName, defaultPort } = require("./server-manager");
 const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -112,9 +112,10 @@ async function browserBridgeEnv() {
     }
 }
 
+// El descriptor del servidor d'aquesta edició, a la carpeta de dades del seu
+// perfil (Gregal Jocs: ~/.local/share/gregal-jocs).
 function serviceDescriptorPath() {
-    const dir = process.env.GREGAL_DATA_DIR || path.join(app.getPath("home"), ".local", "share", "gregal");
-    return path.join(dir, serviceFileName(EDITION));
+    return path.join(profileDirs(EDITION, app.getPath("home")).data, serviceFileName(EDITION));
 }
 
 function readServiceDescriptor() {
@@ -150,7 +151,7 @@ function idiomaApp() {
     } catch (e) {}
     try {
         const home = app.getPath("home");
-        const cfgPath = process.env.GREGAL_CONFIG || path.join(home, ".config", "gregal", "config.yaml");
+        const cfgPath = process.env.GREGAL_CONFIG || path.join(profileDirs(EDITION, home).config, "config.yaml");
         const fs = require("fs");
         if (fs.existsSync(cfgPath)) {
             const raw = fs.readFileSync(cfgPath, "utf8");

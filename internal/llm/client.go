@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // Message és un missatge de chat (system, user, assistant, tool).
@@ -479,7 +481,7 @@ func reqDumpDir() string {
 	if err != nil || home == "" {
 		return ""
 	}
-	return filepath.Join(home, ".local", "share", "gregal", "req-dumps")
+	return filepath.Join(profile.DefaultDataDirFor(profile.Product()), "req-dumps")
 }
 
 // dumpFailedRequest desa la petició i la resposta d'una crida fallida per

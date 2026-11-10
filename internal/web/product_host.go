@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"gregal/internal/companion"
 	"gregal/internal/config"
 	"gregal/internal/llm"
 )
@@ -62,13 +61,7 @@ func (s *Server) Tr(ca, en string) string { return s.tr(ca, en) }
 // config): hi viu el que és de tots els usuaris.
 func (s *Server) StateDir() string { return goalDirFor(s.cfgPath) }
 
-// WindStateDir és el directori d'estat dels vents de l'usuari.
-func (s *Server) WindStateDir() string { return s.windStateDir() }
-
-// Winds és el magatzem de vents de l'usuari.
-func (s *Server) Winds() *companion.WindStore { return s.winds }
-
-// RecordWindNews apunta una veu proactiva d'un vent (la safata «Avui»).
-func (s *Server) RecordWindNews(w companion.Wind, source, text string) {
-	recordNovetat(s, w, source, text)
-}
+// UserStateDir és el directori d'estat personal de l'usuari (el mateix
+// que fan servir els vents: al costat del config, o el de l'usuari amb
+// comptes).
+func (s *Server) UserStateDir() string { return s.windStateDir() }

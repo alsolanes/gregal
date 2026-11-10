@@ -17,12 +17,14 @@ import (
 // model at the same time.
 var modelDefaultsMu sync.Mutex
 
-func modelDefaultsPath(user string) string {
+func modelDefaultsPath(user string) string { return modelDefaultsPathIn(baseDataDir(), user) }
+
+func modelDefaultsPathIn(dataDir, user string) string {
 	// Hash the identity rather than slugifying it: distinct usernames such as
 	// "ana maria" and "ana-maria" must never share model preferences.
 	identity := strings.TrimSpace(user)
 	sum := sha256.Sum256([]byte(identity))
-	return filepath.Join(baseDataDir(), "model-preferences", hex.EncodeToString(sum[:])+".json")
+	return filepath.Join(dataDir, "model-preferences", hex.EncodeToString(sum[:])+".json")
 }
 
 // LoadModelDefaults returns the most recently selected model for each role
@@ -31,6 +33,13 @@ func LoadModelDefaults(user string) (map[string]string, error) {
 	modelDefaultsMu.Lock()
 	defer modelDefaultsMu.Unlock()
 	return readModelDefaults(modelDefaultsPath(user))
+}
+
+// LoadModelDefaultsIn llegeix (només lectura) els models triats per un
+// usuari a la carpeta de dades d'un altre perfil (la de Gregal, des de
+// Gregal Jocs, per importar-ne el model).
+func LoadModelDefaultsIn(dataDir, user string) (map[string]string, error) {
+	return readModelDefaults(modelDefaultsPathIn(dataDir, user))
 }
 
 // SaveModelDefault updates one role's default model for a user, preserving

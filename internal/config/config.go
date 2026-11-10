@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 	"gregal/internal/llm"
+	"gregal/internal/profile"
 	"gregal/internal/sandbox"
 	"gregal/internal/skills"
 	"gregal/internal/tema"
@@ -930,11 +931,7 @@ mode: code
 
 // DefaultPath retorna ~/.config/gregal/config.yaml.
 func DefaultPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "config.yaml"
-	}
-	return filepath.Join(home, ".config", "gregal", "config.yaml")
+	return filepath.Join(profile.ConfigDir(), "config.yaml")
 }
 
 // DefaultYAML retorna la plantilla de configuració per defecte.

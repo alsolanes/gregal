@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gregal/internal/profile"
 )
 
 // On treballen els vents quan fan projectes.
@@ -22,7 +24,7 @@ func projectesDir() string {
 		if err != nil {
 			return ""
 		}
-		dir = filepath.Join(home, "gregal", "projectes")
+		dir = filepath.Join(home, profile.DirName(), "projectes")
 	}
 	if abs, err := filepath.Abs(dir); err == nil {
 		dir = abs

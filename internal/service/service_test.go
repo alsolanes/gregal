@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 func TestPublishReadAndRemoveNoEsborraUnaInstanciaNova(t *testing.T) {
@@ -115,5 +117,27 @@ func TestProductesDiferentsConviuen(t *testing.T) {
 	SetProduct("jocs")
 	if d, err := Read(); err != nil || d.Instance != "inst-jocs" {
 		t.Fatalf("Gregal Jocs ha de trobar el seu servidor: %+v %v", d, err)
+	}
+}
+
+// Sense GREGAL_DATA_DIR, el lock i el descriptor de Gregal Jocs van a la
+// carpeta de dades del seu perfil (~/.local/share/gregal-jocs), no a la de
+// Gregal.
+func TestGregalJocsTeLaSevaCarpetaDeDades(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("GREGAL_DATA_DIR", "")
+	defer profile.SetProduct(profile.Product())
+	profile.SetProduct("jocs")
+	defer SetProduct("")
+	SetProduct("jocs")
+	want := filepath.Join(home, ".local", "share", "gregal-jocs")
+	if DataDir() != want || Path() != filepath.Join(want, "service-jocs.json") {
+		t.Fatalf("Jocs: %s %s", DataDir(), Path())
+	}
+	profile.SetProduct("")
+	if DataDir() != filepath.Join(home, ".local", "share", "gregal") {
+		t.Fatalf("Gregal: %s", DataDir())
 	}
 }

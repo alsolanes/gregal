@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-
-	"gregal/internal/companion"
 )
 
 // Petites eines que els jocs feien servir d'internal/web. Són prou curtes
@@ -70,15 +68,6 @@ func splitModel(ov string) (string, string, bool) {
 		return ov[:i], ov[i+1:], true
 	}
 	return "", "", false
-}
-
-func windByID(winds []companion.Wind, id string) companion.Wind {
-	for _, w := range winds {
-		if w.ID == id {
-			return w
-		}
-	}
-	return companion.Wind{ID: id, Name: id}
 }
 
 // bgWork compta la feina de fons dels jocs: els tests l'esperen abans de

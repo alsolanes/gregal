@@ -43,21 +43,13 @@ func companionTestServer(t testing.TB) (*Server, string) {
 	return New(ws), home
 }
 
-// cornerTestServer té dos vents, Xaloc i Mestral (entrenadors de la lliga),
-// creats per la ruta de debò.
+// cornerTestServer és el servidor dels jocs amb les dades en un directori
+// temporal. No té cap vent: els jocs no en fan servir (la lliga té els seus
+// membres, teams.go).
 func cornerTestServer(t *testing.T) *Server {
 	t.Helper()
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	s, _ := companionTestServer(t)
-	h := s.host.(*web.Server).Handler()
-	for _, body := range []string{`{"name":"Xaloc","color":"#FF9F00","role":"jocs"}`, `{"name":"Mestral","color":"#3E7BFA","role":"disseny"}`} {
-		req := httptest.NewRequest(http.MethodPost, "/api/winds", strings.NewReader(body))
-		rec := httptest.NewRecorder()
-		h.ServeHTTP(rec, req)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("vent de prova: %d %s", rec.Code, rec.Body.String())
-		}
-	}
 	return s
 }
 

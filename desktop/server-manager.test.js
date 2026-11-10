@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { backendName, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, stopServer, BACKEND_LOG_MAX } = require("./server-manager");
+const { backendName, profileDirs, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, stopServer, BACKEND_LOG_MAX } = require("./server-manager");
 
 test('managed server uses loopback and preserves explicit config paths', () => {
   assert.deepEqual(serverArgs({ port: 8097, config: 'C:/Example Project/config.yaml', dir: 'C:/Example Project' }),
@@ -108,4 +108,11 @@ test("cada edició té el seu descriptor i el seu port: les dues apps corren alh
   assert.equal(serviceFileName("jocs"), "service-jocs.json");
   assert.equal(defaultPort("gregal"), 8097);
   assert.equal(defaultPort("jocs"), 8197);
+});
+
+test("cada edició té el seu perfil: Gregal Jocs no comparteix res amb Gregal", () => {
+  const home = path.join("H", "u");
+  assert.deepEqual(profileDirs("gregal", home, {}), { config: path.join(home, ".config", "gregal"), data: path.join(home, ".local", "share", "gregal") });
+  assert.deepEqual(profileDirs("jocs", home, {}), { config: path.join(home, ".config", "gregal-jocs"), data: path.join(home, ".local", "share", "gregal-jocs") });
+  assert.equal(profileDirs("jocs", home, { GREGAL_DATA_DIR: "X" }).data, "X");
 });

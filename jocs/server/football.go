@@ -1,12 +1,13 @@
 package server
 
-// Partits de futbol americà entre els vents (jocs/football). La lliga té
-// dues franquícies fetes amb els vents de l'usuari i completades amb
-// jugadors d'equip (no surten a la llista de vents). Un partit es juga quart
-// a quart: abans de cada quart els dos entrenadors (vents) decideixen el pla
-// amb el model, el motor juga el quart i un comentarista (un altre vent)
-// comenta les jugades clau. El client el mira «en directe comprimit»: va
-// demanant les jugades noves i les anima al seu ritme.
+// Partits de futbol americà de la lliga (jocs/football). La lliga té dues
+// franquícies fetes amb els membres de la lliga (teams.go: el perfil de
+// Gregal Jocs, mai els vents de Gregal) i completades amb jugadors d'equip.
+// Un partit es juga quart a quart: abans de cada quart els dos entrenadors
+// (membres) decideixen el pla amb el model, el motor juga el quart i un
+// comentarista (un altre membre) comenta les jugades clau. El client el mira
+// «en directe comprimit»: va demanant les jugades noves i les anima al seu
+// ritme.
 //
 // Pressupost: 3 partits al dia; ~15-25 crides al model per partit.
 
@@ -24,7 +25,6 @@ import (
 	"sync"
 	"time"
 
-	"gregal/internal/companion"
 	"gregal/jocs/football"
 )
 
@@ -77,16 +77,12 @@ var (
 	fbRuns = map[string]*fbRun{} // partits en marxa, per id
 )
 
-func (s *Server) fbDir() string { return filepath.Join(s.windStateDir(), "football") }
+// fbDir és la carpeta de la lliga de l'usuari (al seu estat, dins del
+// perfil de Gregal Jocs).
+func (s *Server) fbDir() string { return filepath.Join(s.host.UserStateDir(), "football") }
 
-func (s *Server) fbWinds() []football.Wind {
-	ws, _ := s.host.Winds().List()
-	out := make([]football.Wind, 0, len(ws))
-	for _, w := range ws {
-		out = append(out, football.Wind{ID: w.ID, Name: w.Name, Role: w.Role, Specialty: w.Specialty, Color: w.Color, Style: w.Style})
-	}
-	return out
-}
+// teams és on es guarden els membres i la lliga (teams.go).
+func (s *Server) teams() TeamStore { return newFileTeamStore(s.fbDir()) }
 
 // Els jocs (la lliga dels vents i l'Arena) van sempre en anglès: textos del
 // motor, narradors, informes i visors, sigui quina sigui la llengua de l'app.
@@ -100,28 +96,28 @@ func gameLang() string { return "English" }
 func gameTr(_, en string) string { return en }
 
 func (s *Server) fbLoadLeague() *football.League {
-	var lg football.League
-	raw, err := os.ReadFile(filepath.Join(s.fbDir(), "league.json"))
-	if err != nil || json.Unmarshal(raw, &lg) != nil {
-		return nil
-	}
-	return &lg
+	lg, _ := s.teams().League()
+	return lg
 }
 
 func (s *Server) fbSaveLeague(lg *football.League) {
-	_ = os.MkdirAll(s.fbDir(), 0o700)
-	raw, _ := json.MarshalIndent(lg, "", " ")
-	_ = os.WriteFile(filepath.Join(s.fbDir(), "league.json"), raw, 0o600)
+	if err := s.teams().SaveLeague(lg); err != nil {
+		log.Printf("football: no s'ha pogut desar la lliga: %v", err)
+	}
 }
 
-// fbLeague torna la lliga, i la crea si encara no n'hi ha (calen 2 vents).
+// fbLeague torna la lliga, i la crea si encara no n'hi ha (amb els membres
+// de la lliga; calen dos entrenadors).
 func (s *Server) fbLeague() (*football.League, error) {
-	winds := s.fbWinds()
-	if len(winds) < 2 {
-		return nil, errConst(s.tr("Calen com a mínim dos vents: un entrenador per equip.", "At least two winds are needed: one coach per team."))
+	members, err := s.teams().Members()
+	if err != nil {
+		return nil, err
+	}
+	if len(members) < 2 {
+		return nil, errConst(s.tr("Calen com a mínim dos membres a la lliga: un entrenador per equip.", "The league needs at least two members: one coach per team."))
 	}
 	lg := s.fbLoadLeague()
-	fresh := football.Ensure(lg, winds, s.fbLangCode(), time.Now().UnixNano()%100000)
+	fresh := football.Ensure(lg, leagueStars(members), s.fbLangCode(), time.Now().UnixNano()%100000)
 	if fresh != lg {
 		s.fbSaveLeague(fresh)
 	}
@@ -203,9 +199,9 @@ func (s *Server) fbRoster(t *football.Team) string {
 }
 
 // fbCoachPlan: l'entrenador decideix el pla del quart.
-func (s *Server) fbCoachPlan(ctx context.Context, coach companion.Wind, mine, theirs *football.Team, g *football.Game, team int, quarter int) football.Plan {
+func (s *Server) fbCoachPlan(ctx context.Context, coach Member, mine, theirs *football.Team, g *football.Game, team int, quarter int) football.Plan {
 	lang := gameLang()
-	system := companion.WindIdentity(coach) + coach.Persona + "\n\nYOU ARE THE HEAD COACH of " + mine.Name + " in an American football (NFL rules) game against " + theirs.Name + ". Reply with JSON only, no prose, no code fences."
+	system := coach.identity() + "\n\nYOU ARE THE HEAD COACH of " + mine.Name + " in an American football (NFL rules) game against " + theirs.Name + ". Reply with JSON only, no prose, no code fences."
 	var sit string
 	if quarter == 1 {
 		sit = "It is the opening kickoff."
@@ -230,7 +226,7 @@ func (s *Server) fbCoachPlan(ctx context.Context, coach companion.Wind, mine, th
 }
 
 // fbCommentary: el comentarista diu una frase per a cada jugada clau del quart.
-func (s *Server) fbCommentary(ctx context.Context, caster companion.Wind, m *fbMatch, plays []football.Play) map[int]string {
+func (s *Server) fbCommentary(ctx context.Context, caster Member, m *fbMatch, plays []football.Play) map[int]string {
 	hl := football.Highlights(plays)
 	if len(hl) == 0 {
 		return nil
@@ -242,7 +238,7 @@ func (s *Server) fbCommentary(ctx context.Context, caster companion.Wind, m *fbM
 	for _, p := range hl {
 		fmt.Fprintf(&b, "%d | Q%d %d:%02d | %s %d - %s %d | %s\n", p.N, p.Quarter, p.Clock/60, p.Clock%60, m.Teams[0].Abbr, p.Score[0], m.Teams[1].Abbr, p.Score[1], p.Text)
 	}
-	system := companion.WindIdentity(caster) + caster.Persona + "\n\nYOU ARE THE TV PLAY-BY-PLAY COMMENTATOR of an American football game between " + m.Teams[0].Name + " and " + m.Teams[1].Name + ". Reply with JSON only."
+	system := caster.identity() + "\n\nYOU ARE THE TV PLAY-BY-PLAY COMMENTATOR of an American football game between " + m.Teams[0].Name + " and " + m.Teams[1].Name + ". Reply with JSON only."
 	user := "Key plays of this stretch (n | time | score after | what happened):\n" + b.String() +
 		"\nWrite one exciting broadcast line for each play, in " + gameLang() + ", in your own voice, max 25 words, no hashtags. Never invent stats or names.\n" +
 		`JSON: {"lines":[{"n":12,"text":"…"}]}`
@@ -267,7 +263,7 @@ func (s *Server) fbCommentary(ctx context.Context, caster companion.Wind, m *fbM
 }
 
 // fbRecap: crònica final i el millor jugador.
-func (s *Server) fbRecap(ctx context.Context, caster companion.Wind, m *fbMatch, g *football.Game) (string, string) {
+func (s *Server) fbRecap(ctx context.Context, caster Member, m *fbMatch, g *football.Game) (string, string) {
 	var b strings.Builder
 	for t := 0; t < 2; t++ {
 		l := g.BoxLeaders(t)
@@ -280,7 +276,7 @@ func (s *Server) fbRecap(ctx context.Context, caster companion.Wind, m *fbMatch,
 				fbName(m, pid), m.Teams[t].Abbr, st.PassComp, st.PassAtt, st.PassYds, st.PassTD, st.Ints, st.RushAtt, st.RushYds, st.RushTD, st.Rec, st.RecYds, st.RecTD, st.Tackles, st.Sacks, st.DefInt)
 		}
 	}
-	system := companion.WindIdentity(caster) + caster.Persona + "\n\nYOU ARE THE COMMENTATOR. Write the final recap of the game. Reply with JSON only."
+	system := caster.identity() + "\n\nYOU ARE THE COMMENTATOR. Write the final recap of the game. Reply with JSON only."
 	user := fmt.Sprintf("Final: %s %d - %s %d.\nStandout players:\n%s\nKey plays:\n", m.Teams[0].Name, g.Score[0], m.Teams[1].Name, g.Score[1], b.String())
 	for _, p := range football.Highlights(g.Plays) {
 		user += fmt.Sprintf("Q%d %s\n", p.Quarter, p.Text)
@@ -368,12 +364,12 @@ func (s *Server) fbPlay(ctx context.Context, run *fbRun, lg *football.League) {
 		delete(fbRuns, run.m.ID)
 		fbMu.Unlock()
 	}()
-	winds, _ := s.host.Winds().List()
-	coach := [2]companion.Wind{windByID(winds, lg.Teams[0].Coach), windByID(winds, lg.Teams[1].Coach)}
+	members, _ := s.teams().Members()
+	coach := [2]Member{memberByID(members, lg.Teams[0].Coach), memberByID(members, lg.Teams[1].Coach)}
 	caster := coach[0]
-	for _, w := range winds {
-		if w.ID != coach[0].ID && w.ID != coach[1].ID {
-			caster = w
+	for _, m := range members {
+		if m.ID != coach[0].ID && m.ID != coach[1].ID {
+			caster = m
 			break
 		}
 	}
@@ -447,13 +443,6 @@ func (s *Server) fbPlay(ctx context.Context, run *fbRun, lg *football.League) {
 	run.m.Teams[0].Record, run.m.Teams[1].Record = fbTeamOf(lg.Teams[0]).Record, fbTeamOf(lg.Teams[1]).Record
 	run.mu.Unlock()
 	s.fbEnd(run, "final", "")
-	win := 0
-	if g.Score[1] > g.Score[0] {
-		win = 1
-	}
-	text := s.tr(fmt.Sprintf("Final: %s %d - %s %d.", lg.Teams[0].Name, g.Score[0], lg.Teams[1].Name, g.Score[1]),
-		fmt.Sprintf("Final: %s %d - %s %d.", lg.Teams[0].Name, g.Score[0], lg.Teams[1].Name, g.Score[1]))
-	s.host.RecordWindNews(coach[win], "football", text)
 	log.Printf("football: %s %d - %d", run.m.ID, g.Score[0], g.Score[1])
 }
 
@@ -485,7 +474,10 @@ func (s *Server) handleFootball(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, map[string]string{"id": id})
 			return
 		case "reset":
-			_ = os.Remove(filepath.Join(s.fbDir(), "league.json"))
+			if err := s.teams().ResetLeague(); err != nil {
+				writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+				return
+			}
 		default:
 			http.Error(w, "unknown action", http.StatusBadRequest)
 			return

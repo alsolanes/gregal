@@ -45,6 +45,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // BrowserTimeout és el màxim per acció (navegar, avaluar).
@@ -136,8 +138,7 @@ func browserProfileDir() string {
 	if v := strings.TrimSpace(os.Getenv("GREGAL_BROWSER_PROFILE")); v != "" {
 		return v
 	}
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "gregal", "browser")
+	return filepath.Join(profile.ConfigDir(), "browser")
 }
 
 func freePort() (int, error) {

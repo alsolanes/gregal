@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gregal/internal/profile"
 )
 
 // Cmd és una ordre carregada.
@@ -21,11 +23,7 @@ type Cmd struct {
 
 // PersonalDir és el directori d'ordres personals.
 func PersonalDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "gregal", "commands")
+	return filepath.Join(profile.ConfigDir(), "commands")
 }
 
 // ProjectDir és el directori d'ordres del projecte.

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 var (
@@ -24,11 +26,7 @@ func UserMemoryPath() string {
 	if p := strings.TrimSpace(os.Getenv("GREGAL_MEMORY")); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "memory.md"
-	}
-	return filepath.Join(home, ".config", "gregal", "memory.md")
+	return filepath.Join(profile.ConfigDir(), "memory.md")
 }
 
 // LoadUserMemory llegeix la memòria ("" si no n'hi ha). Retalla a 2000

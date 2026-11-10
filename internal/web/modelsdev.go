@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // El catàleg models.dev (el que fa servir OpenCode) dona, per cada model, el
@@ -101,7 +103,7 @@ func modelsDevCachePath() string {
 	if err != nil || dir == "" {
 		return ""
 	}
-	return filepath.Join(dir, "gregal", "models-dev.json")
+	return filepath.Join(dir, profile.DirName(), "models-dev.json")
 }
 
 // modelInfoFor busca un model pel seu id (amb o sense prefix de proveïdor).

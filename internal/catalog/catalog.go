@@ -31,6 +31,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // SourceURL és d'on es baixa el catàleg.
@@ -94,14 +96,7 @@ func defaultPath(dataDir string) string {
 		return ""
 	}
 	if dataDir == "" {
-		dataDir = strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR"))
-	}
-	if dataDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return ""
-		}
-		dataDir = filepath.Join(home, ".local", "share", "gregal")
+		dataDir = profile.DataDir()
 	}
 	return filepath.Join(dataDir, "models-catalog.json")
 }

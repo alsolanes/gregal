@@ -9,12 +9,12 @@ import (
 )
 
 // crossLock és un candau que val dins del procés i ENTRE processos del
-// mateix perfil. Gregal i Gregal Jocs poden córrer alhora sobre les mateixes
-// dades (service.SetProduct), i alguns fitxers els escriuen tots dos: la
-// safata «Avui» i les veus proactives dels vents (la lliga hi apunta el
-// resultat de cada partit amb RecordWindNews). Amb només el mutex del
-// procés, un llegir-modificar-escriure de l'un podia esborrar el que l'altre
-// acabava d'afegir. Es fa servir com un sync.Mutex (Lock/Unlock); el
+// mateix perfil. Gregal i Gregal Jocs ja tenen cadascun el seu perfil
+// (internal/profile), però dos processos poden compartir carpeta de dades
+// (GREGAL_DATA_DIR, o un `gregal` de terminal al costat de l'app) i
+// escriure la safata «Avui» i les veus proactives dels vents alhora. Amb
+// només el mutex del procés, un llegir-modificar-escriure de l'un podia
+// esborrar el que l'altre acabava d'afegir. Es fa servir com un sync.Mutex (Lock/Unlock); el
 // blocatge de fitxer és un per perfil (<dades>/<name>), prou curt per no
 // notar-se.
 type crossLock struct {

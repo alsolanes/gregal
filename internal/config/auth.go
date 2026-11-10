@@ -7,6 +7,8 @@ import (
 	"sync"
 
 	"gopkg.in/yaml.v3"
+
+	"gregal/internal/profile"
 )
 
 // Magatzem de claus d'API, separat del config.
@@ -27,11 +29,7 @@ func AuthPath() string {
 	if p := strings.TrimSpace(os.Getenv("GREGAL_AUTH")); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "auth.yaml"
-	}
-	return filepath.Join(home, ".config", "gregal", "auth.yaml")
+	return filepath.Join(profile.ConfigDir(), "auth.yaml")
 }
 
 type authFile struct {

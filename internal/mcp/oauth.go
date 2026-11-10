@@ -16,6 +16,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // OAuth 2.1 per a servidors MCP remots (spec MCP 2025-06-18,
@@ -33,14 +35,7 @@ const OAuthCallbackPath = "/api/mcp/oauth/callback"
 // DataDir és on Gregal desa les dades (GREGAL_DATA_DIR o
 // ~/.local/share/gregal, com les converses).
 func DataDir() string {
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return d
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal")
-	}
-	return filepath.Join(home, ".local", "share", "gregal")
+	return profile.DataDir()
 }
 
 // tokenRecord és el que es desa d'un servidor autoritzat.

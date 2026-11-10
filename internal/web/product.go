@@ -54,6 +54,10 @@ type Product struct {
 	// producte accepta (es crida amb el servidor default). Les peticions
 	// que passen per aquí no porten usuari i IsGuest hi diu true. Opcional.
 	Guest func(s *Server, r *http.Request) bool
+	// Routes són rutes del producte que no són de cap plugin: hi són
+	// sempre, amb la mateixa autenticació que la resta (handle registra al
+	// mux; Hub.Global lliga a la sessió de qui pregunta). Opcional.
+	Routes func(h *Hub, handle func(string, http.HandlerFunc))
 }
 
 var (
@@ -82,15 +86,15 @@ func RegisterProduct(p *Product) {
 }
 
 // noGregalBackground: aquest procés és el servidor d'un producte (Gregal
-// Jocs) que pot córrer al costat del de Gregal sobre el mateix perfil.
+// Jocs), no el de Gregal.
 var noGregalBackground atomic.Bool
 
 // SetGregalBackground diu si aquest servidor fa la feina de fons de Gregal:
 // les programacions (jobs i rutines dels vents), el bucle del Racó, la
 // represa de les colles, les apps gestionades i els túnels. El binari de
-// Gregal Jocs ho apaga (cli.Build.Product): corre al costat del de Gregal,
-// sobre les mateixes dades, i amb dos programadors cada rutina sortiria dues
-// vegades. Els plugins dels productes sí que arrenquen la seva.
+// Gregal Jocs ho apaga (cli.Build.Product): és l'app dels jocs, amb el seu
+// perfil, i no fa la feina de Gregal. Els plugins dels productes sí que
+// arrenquen la seva.
 func SetGregalBackground(on bool) { noGregalBackground.Store(!on) }
 
 func gregalBackground() bool { return !noGregalBackground.Load() }
