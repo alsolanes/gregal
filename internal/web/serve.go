@@ -321,18 +321,27 @@ func (h *Hub) Run(addr string) error {
 	if err := validateListenAuth(addr, s.Token != "" || (s.users != nil && s.users.Actiu())); err != nil {
 		return err
 	}
-	go s.jobLoop(context.Background())
+	// La feina de fons de Gregal només la fa el servidor de Gregal (vegeu
+	// SetGregalBackground); els plugins dels productes arrenquen igualment.
+	bg := gregalBackground()
+	if bg {
+		go s.jobLoop(context.Background())
+	}
 	h.startPlugins(context.Background())
-	// Una colla que va quedar a mig fer en reiniciar-se el servidor ha de
-	// dir-ho al fil ara, no quedar en silenci amb el debat plegat.
-	s.crewRecoverInterrupted()
-	// Les apps gestionades que corrien tornen a arrencar (apps.go), i els
-	// túnels de Cloudflare que eren oberts (tunnels.go).
-	go appsMgr.autostart()
+	if bg {
+		// Una colla que va quedar a mig fer en reiniciar-se el servidor ha
+		// de dir-ho al fil ara, no quedar en silenci amb el debat plegat.
+		s.crewRecoverInterrupted()
+		// Les apps gestionades que corrien tornen a arrencar (apps.go).
+		go appsMgr.autostart()
+	}
 	if _, p, err := net.SplitHostPort(addr); err == nil {
 		gregalListenPort, _ = strconv.Atoi(p)
 	}
-	go tunnelsMgr.autostart()
+	if bg {
+		// I els túnels de Cloudflare que eren oberts (tunnels.go).
+		go tunnelsMgr.autostart()
+	}
 	return newHTTPServer(addr, h.Handler()).ListenAndServe()
 }
 
@@ -404,11 +413,17 @@ func (s *Server) StartBackground(ctx context.Context) <-chan struct{} {
 	go func() {
 		defer close(done)
 		s.Hub().startPlugins(ctx)
-		s.jobLoop(ctx)
+		if gregalBackground() {
+			s.jobLoop(ctx)
+		} else {
+			<-ctx.Done()
+		}
 	}()
 	// Una colla que va quedar a mig fer en reiniciar-se el servidor ha de
 	// dir-ho al fil ara, no quedar en silenci.
-	s.crewRecoverInterrupted()
+	if gregalBackground() {
+		s.crewRecoverInterrupted()
+	}
 	return done
 }
 

@@ -11,6 +11,19 @@ function backendName(edition, platform = process.platform) {
   return platform === "win32" ? base + ".exe" : base;
 }
 
+// Cada edició té la seva identitat de servei dins del mateix perfil (el Go
+// ho fa amb service.SetProduct): Gregal, service.json i el port 8097 (el que
+// busca l'extensió de Chrome); Gregal Jocs, service-jocs.json i el 8197. Així
+// les dues apps corren alhora sobre les mateixes dades i cadascuna troba
+// el seu servidor.
+function serviceFileName(edition) {
+  return edition === "jocs" ? "service-jocs.json" : "service.json";
+}
+
+function defaultPort(edition) {
+  return edition === "jocs" ? 8197 : 8097;
+}
+
 function binaryCandidates({ resourcesPath, appDir, platform = process.platform, edition = "gregal" }) {
   const exe = backendName(edition, platform);
   const devDir = edition === "jocs" ? "backend-jocs" : "backend";
@@ -170,4 +183,4 @@ function stopServer(child, timeoutMs = 1500) {
   });
 }
 
-module.exports = { backendName, binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+module.exports = { backendName, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };

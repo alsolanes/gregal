@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Gregal Jocs, un binari a part.** Els jocs (l'Arena i la lliga dels vents)
+  viuen a `jocs/` i surten del binari de Gregal, que queda més lleuger (uns
+  6 MB menys): sense els jocs, `/jocs/` diu que són l'app Gregal Jocs i on es
+  baixa. Gregal Jocs porta el seu backend, `gregal-jocs`: el mateix servidor
+  amb els jocs.
+- **Gregal i Gregal Jocs alhora.** Cada app té el seu servidor amb la seva
+  identitat (`service.json` i el port 8097 per a Gregal; `service-jocs.json`
+  i el 8197 per a Gregal Jocs) sobre les mateixes dades: els vents, el config
+  i els comptes són els mateixos. Les programacions, el Racó, les apps i els
+  túnels només els fa córrer el servidor de Gregal, i la safata «Avui» i les
+  veus dels vents ja no perden res quan tots dos hi escriuen alhora.
+
 ## v1.67.0 - 2026-11-10 - El calaix dels vents
 
 - **El calaix de cada vent.** Cada vent guarda el que tornaràs a preguntar

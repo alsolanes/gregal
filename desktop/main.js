@@ -12,7 +12,7 @@ const https = require("https");
 const net = require("net");
 const fs = require("fs");
 const path = require("path");
-const { startServer, stopServer, appBackendEnv } = require("./server-manager");
+const { startServer, stopServer, appBackendEnv, serviceFileName, defaultPort } = require("./server-manager");
 const { loadState, saveState, fitBounds } = require("./window-state");
 const { allowed, loadPreferences, savePreferences, keys: preferenceKeys } = require("./preferences");
 const { sameOrigin, externalURL, backendURLError, localServiceURL, trustedPage } = require('./navigation');
@@ -114,7 +114,7 @@ async function browserBridgeEnv() {
 
 function serviceDescriptorPath() {
     const dir = process.env.GREGAL_DATA_DIR || path.join(app.getPath("home"), ".local", "share", "gregal");
-    return path.join(dir, "service.json");
+    return path.join(dir, serviceFileName(EDITION));
 }
 
 function readServiceDescriptor() {
@@ -230,9 +230,9 @@ async function ensureServer() {
         }
         if (!descriptorCandidate) {
             try {
-                // 8097 si és lliure: així l'extensió de Chrome troba l'app
-                // sense configurar res (extension/chrome).
-                PORT = await freePort(8097);
+                // 8097 si és lliure: així l'extensió de Chrome troba Gregal
+                // sense configurar res (extension/chrome). Gregal Jocs, el 8197.
+                PORT = await freePort(defaultPort(EDITION));
             } catch (error) {
                 console.error("[gregal] no s'ha pogut trobar un port lliure: " + error.message);
                 return false;

@@ -45,6 +45,9 @@ type Plugin struct {
 	// el context de Start: per a la feina que no penja d'aquell context.
 	// Opcional.
 	Stop func(s *Server)
+	// product és l'ID del producte que l'ha registrat (RegisterProduct); buit
+	// per als de Gregal.
+	product string
 }
 
 var (
@@ -191,6 +194,11 @@ func (h *Hub) pluginsLocked() []*Plugin {
 
 func (h *Hub) startPluginLocked(p *Plugin) {
 	if p.Start == nil || h.plug.base == nil || h.plug.base.Err() != nil {
+		return
+	}
+	// Al servidor d'un producte (Gregal Jocs), els plugins de Gregal (el
+	// Racó) no fan feina de fons: ja la fa el servidor de Gregal.
+	if p.product == "" && !gregalBackground() {
 		return
 	}
 	if h.plug.cancel == nil {

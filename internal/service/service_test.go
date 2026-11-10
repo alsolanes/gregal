@@ -67,3 +67,53 @@ func TestAcquireRecuperaLockOrfe(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Gregal i Gregal Jocs corren alhora sobre el mateix perfil: cada producte
+// té el seu lock i el seu descriptor, i dins d'un mateix producte el segon
+// continua bloquejat.
+func TestProductesDiferentsConviuen(t *testing.T) {
+	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
+	gregal, err := AcquireFor("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gregal.Release()
+	jocs, err := AcquireFor("jocs")
+	if err != nil {
+		t.Fatalf("Gregal Jocs ha de poder arrencar amb Gregal en marxa: %v", err)
+	}
+	defer jocs.Release()
+	if _, err := AcquireFor("jocs"); err == nil {
+		t.Fatal("un segon Gregal Jocs hauria de quedar bloquejat")
+	}
+	if _, err := AcquireFor(""); err == nil {
+		t.Fatal("un segon Gregal hauria de quedar bloquejat")
+	}
+	if _, err := os.Stat(filepath.Join(DataDir(), LockName)); err != nil {
+		t.Fatalf("Gregal manté service.lock: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(DataDir(), "service-jocs.lock")); err != nil {
+		t.Fatalf("Gregal Jocs fa servir service-jocs.lock: %v", err)
+	}
+	if PathFor("") != filepath.Join(DataDir(), DescriptorName) || PathFor("jocs") != filepath.Join(DataDir(), "service-jocs.json") {
+		t.Fatalf("descriptors: %s %s", PathFor(""), PathFor("jocs"))
+	}
+
+	// Cada procés publica i llegeix el del seu producte.
+	defer SetProduct("")
+	SetProduct("jocs")
+	if _, err := Publish(Descriptor{Protocol: Protocol, Instance: "inst-jocs", Address: "http://127.0.0.1:8197"}); err != nil {
+		t.Fatal(err)
+	}
+	SetProduct("")
+	if _, err := Publish(Descriptor{Protocol: Protocol, Instance: "inst-gregal", Address: "http://127.0.0.1:8097"}); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := Read(); err != nil || d.Instance != "inst-gregal" {
+		t.Fatalf("Gregal ha de trobar el seu servidor: %+v %v", d, err)
+	}
+	SetProduct("jocs")
+	if d, err := Read(); err != nil || d.Instance != "inst-jocs" {
+		t.Fatalf("Gregal Jocs ha de trobar el seu servidor: %+v %v", d, err)
+	}
+}

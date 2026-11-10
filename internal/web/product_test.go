@@ -1,11 +1,14 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
+	"time"
 )
 
 // registerTestProduct registra un producte de proves i el treu (amb els seus
@@ -108,4 +111,27 @@ func TestProductExtensionPoint(t *testing.T) {
 	if w := do("GET", "/api/no-existeix", map[string]string{"Authorization": "Bearer secret"}); w.Code != 404 || !strings.Contains(w.Body.String(), "not found") {
 		t.Fatalf("una /api/ desconeguda ha de ser 404: %d", w.Code)
 	}
+}
+
+// Al servidor d'un producte (Gregal Jocs al costat de Gregal), la feina de
+// fons de Gregal no arrenca; la dels plugins del producte, sí.
+func TestSenseFeinaDeFonsDeGregal(t *testing.T) {
+	SetGregalBackground(false)
+	t.Cleanup(func() { SetGregalBackground(true) })
+	var coreStarts, coreRunning, prodStarts, prodRunning int32
+	core := fakePlugin(&coreStarts, &coreRunning)
+	prod := fakePlugin(&prodStarts, &prodRunning)
+	prod.ID, prod.product = "fakeprod", "demo"
+	h := pluginServer(t).Hub()
+	h.plug.list = []*Plugin{core, prod}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	h.startPlugins(ctx)
+	pluginWaitCount(t, &prodRunning, 1)
+	time.Sleep(50 * time.Millisecond)
+	if atomic.LoadInt32(&coreStarts) != 0 {
+		t.Fatal("el plugin de Gregal no ha d'arrencar al servidor d'un producte")
+	}
+	cancel()
+	pluginWaitCount(t, &prodRunning, 0)
 }

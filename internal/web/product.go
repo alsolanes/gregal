@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 // Productes de fora del paquet: Gregal Jocs (jocs/server) no viu a
@@ -75,9 +76,24 @@ func RegisterProduct(p *Product) {
 	}
 	productMu.Unlock()
 	for _, pl := range p.Plugins {
+		pl.product = p.ID
 		registerPlugin(pl)
 	}
 }
+
+// noGregalBackground: aquest procés és el servidor d'un producte (Gregal
+// Jocs) que pot córrer al costat del de Gregal sobre el mateix perfil.
+var noGregalBackground atomic.Bool
+
+// SetGregalBackground diu si aquest servidor fa la feina de fons de Gregal:
+// les programacions (jobs i rutines dels vents), el bucle del Racó, la
+// represa de les colles, les apps gestionades i els túnels. El binari de
+// Gregal Jocs ho apaga (cli.Build.Product): corre al costat del de Gregal,
+// sobre les mateixes dades, i amb dos programadors cada rutina sortiria dues
+// vegades. Els plugins dels productes sí que arrenquen la seva.
+func SetGregalBackground(on bool) { noGregalBackground.Store(!on) }
+
+func gregalBackground() bool { return !noGregalBackground.Load() }
 
 // RegisterPlugin afegeix un plugin solt al registre (des d'un init()). Els
 // productes ja hi registren els seus amb RegisterProduct.

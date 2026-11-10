@@ -88,7 +88,11 @@ of the Gregal binary. There are two Go binaries, same CLI and same server:
   `go list -deps . | grep jocs` must print nothing.
 - **Gregal Jocs** — `go build ./jocs/cmd/gregal-jocs`. The same server plus
   the games (`jocs/server` registers them with `web.RegisterProduct`);
-  `--open` opens `/jocs/`.
+  `--open` opens `/jocs/`. It has its own service identity on the same
+  profile (`service-jocs.lock`/`service-jocs.json`, default port 8197), so
+  it runs next to Gregal (`service.lock`/`service.json`, 8097) on the same
+  data; it does not run Gregal's background work (scheduled jobs, Corner,
+  apps, tunnels).
 
 The desktop app is packaged twice from `desktop/`, each edition with its own
 backend:

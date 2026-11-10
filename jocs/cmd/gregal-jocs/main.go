@@ -19,5 +19,13 @@ var version = "v1.67.0"
 var repoDir string
 
 func main() {
-	cli.Main(cli.Build{Version: version, RepoDir: repoDir, Package: "./jocs/cmd/gregal-jocs", OpenPath: "/jocs/"})
+	cli.Main(cli.Build{
+		Version: version, RepoDir: repoDir,
+		Package:  "./jocs/cmd/gregal-jocs",
+		OpenPath: "/jocs/",
+		// La seva identitat de servei (service-jocs.json) i el seu port: corre
+		// al costat del servidor de Gregal sobre el mateix perfil.
+		Product:     "jocs",
+		DefaultPort: "8197",
+	})
 }

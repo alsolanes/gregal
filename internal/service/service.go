@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+// DescriptorName i LockName són els de Gregal; els altres productes hi
+// afegeixen el seu nom (service-jocs.json, vegeu SetProduct).
 const (
 	Protocol       = "gregal.v1"
 	DescriptorName = "service.json"
@@ -46,7 +48,33 @@ func DataDir() string {
 	return filepath.Join(home, ".local", "share", "gregal")
 }
 
-func Path() string { return filepath.Join(DataDir(), DescriptorName) }
+// Cada producte té la seva identitat de servei dins del mateix perfil:
+// Gregal fa servir service.lock i service.json (els noms de sempre) i Gregal
+// Jocs, service-jocs.lock i service-jocs.json. Així els dos servidors poden
+// córrer alhora sobre les mateixes dades (config, vents, comptes), i qui
+// busca «el servidor que corre» troba el del seu producte.
+var product string
+
+// SetProduct tria la identitat de servei d'aquest procés ("" = Gregal,
+// "jocs" = Gregal Jocs). S'ha de cridar en arrencar, abans d'Acquire,
+// Publish o Read.
+func SetProduct(p string) { product = strings.TrimSpace(p) }
+
+// Product és la identitat de servei d'aquest procés ("" = Gregal).
+func Product() string { return product }
+
+func fileFor(p, base, ext string) string {
+	if p == "" {
+		return base + ext
+	}
+	return base + "-" + p + ext
+}
+
+// Path és el descriptor del producte d'aquest procés.
+func Path() string { return PathFor(product) }
+
+// PathFor és el descriptor del producte p ("" = Gregal: service.json).
+func PathFor(p string) string { return filepath.Join(DataDir(), fileFor(p, "service", ".json")) }
 
 type Lease struct {
 	file *os.File
@@ -54,15 +82,20 @@ type Lease struct {
 	pid  int
 }
 
-// Acquire impedeix dues arrencades locals sobre el mateix perfil. El lock es
-// manté fins a Release; una futura ordre de recuperació podrà netejar locks
-// orfes després de validar el PID i l'estat del descriptor.
-func Acquire() (*Lease, error) {
+// Acquire impedeix dues arrencades locals del mateix producte sobre el
+// mateix perfil (vegeu AcquireFor).
+func Acquire() (*Lease, error) { return AcquireFor(product) }
+
+// AcquireFor impedeix dues arrencades locals del producte p sobre el mateix
+// perfil; productes diferents (Gregal i Gregal Jocs) poden conviure. El lock
+// es manté fins a Release; una futura ordre de recuperació podrà netejar
+// locks orfes després de validar el PID i l'estat del descriptor.
+func AcquireFor(p string) (*Lease, error) {
 	dir := DataDir()
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
 	}
-	path := filepath.Join(dir, LockName)
+	path := filepath.Join(dir, fileFor(p, "service", ".lock"))
 	for attempt := 0; attempt < 2; attempt++ {
 		f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err == nil {

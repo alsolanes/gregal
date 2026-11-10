@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { backendName, binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, stopServer, BACKEND_LOG_MAX } = require("./server-manager");
+const { backendName, serviceFileName, defaultPort, binaryCandidates, serverArgs, backendEnv, openBackendLog, rotateBackendLog, stopServer, BACKEND_LOG_MAX } = require("./server-manager");
 
 test('managed server uses loopback and preserves explicit config paths', () => {
   assert.deepEqual(serverArgs({ port: 8097, config: 'C:/Example Project/config.yaml', dir: 'C:/Example Project' }),
@@ -101,4 +101,11 @@ test('app backend saves typed API keys to the key store unless the env says othe
   assert.equal(env.GREGAL_APP_BROWSER, 'x');
   assert.equal(appBackendEnv({}, { GREGAL_PERSIST_KEYS: '0' }).GREGAL_PERSIST_KEYS, undefined);
   assert.equal(appBackendEnv(undefined, {}).GREGAL_PERSIST_KEYS, '1');
+});
+
+test("cada edició té el seu descriptor i el seu port: les dues apps corren alhora", () => {
+  assert.equal(serviceFileName("gregal"), "service.json");
+  assert.equal(serviceFileName("jocs"), "service-jocs.json");
+  assert.equal(defaultPort("gregal"), 8097);
+  assert.equal(defaultPort("jocs"), 8197);
 });

@@ -54,13 +54,22 @@ type Build struct {
 	// OpenPath és la pàgina que obre --open ("/" si és buit; Gregal Jocs
 	// obre /jocs/).
 	OpenPath string
+	// Product és la identitat de servei ("" = Gregal; "jocs" = Gregal
+	// Jocs): el seu propi lock i descriptor dins del mateix perfil
+	// (service.SetProduct), perquè tots dos servidors puguin córrer alhora.
+	// Un producte no executa la feina de fons de Gregal (programacions,
+	// Racó, apps, túnels): aquella és del servidor de Gregal.
+	Product string
+	// DefaultPort és el --port per defecte ("8097" si és buit).
+	DefaultPort string
 }
 
 var (
-	version  = "dev"
-	repoDir  string
-	buildPkg = "."
-	openPath = "/"
+	version     = "dev"
+	repoDir     string
+	buildPkg    = "."
+	openPath    = "/"
+	defaultPort = "8097"
 )
 
 // Main és el main de Gregal: subordres, TUI, -p, --serve… Acaba el procés
@@ -75,6 +84,13 @@ func Main(b Build) {
 	}
 	if b.OpenPath != "" {
 		openPath = b.OpenPath
+	}
+	if b.DefaultPort != "" {
+		defaultPort = b.DefaultPort
+	}
+	if b.Product != "" {
+		service.SetProduct(b.Product)
+		web.SetGregalBackground(false)
 	}
 	// Procés auxiliar del sandbox Landlock (internal/sandbox): aplica les
 	// regles i fa exec de l'ordre. Va primer de tot i no carrega res més.
@@ -126,7 +142,7 @@ func Main(b Build) {
 	goalMinutes := flag.Int("goal-minutes", 0, "with --goal: time limit in minutes (default 60)")
 	goalCost := flag.Float64("goal-cost", 0, "with --goal: stop when the estimated cost reaches this many USD (0 = no limit)")
 	serveFlag := flag.Bool("serve", false, "start the local web interface (chat and agent)")
-	portFlag := flag.String("port", "8097", "with --serve: listen port")
+	portFlag := flag.String("port", defaultPort, "with --serve: listen port")
 	addrFlag := flag.String("addr", "", "with --serve: listen address (default 127.0.0.1; authentication required outside loopback)")
 	tokenFlag := flag.String("token", "", "with --serve: API token (default $GREGAL_API_TOKEN)")
 	openFlag := flag.Bool("open", false, "with --serve: open the browser")
