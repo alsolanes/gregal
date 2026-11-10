@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- **Gregal Jocs, del tot a part.** Gregal Jocs té el seu perfil:
+  `~/.config/gregal-jocs` (config, claus, memòria) i
+  `~/.local/share/gregal-jocs` (converses, comptes, contrasenyes, tokens,
+  el seu servidor). Ja no comparteix res amb Gregal, que es queda on era
+  (no cal migrar res). `GREGAL_DATA_DIR`, `GREGAL_AUTH`, `GREGAL_MEMORY` i
+  `--config` continuen manant.
+- **«Fes servir el mateix model que Gregal».** La primera vegada que obres
+  Gregal Jocs sense cap model connectat, si Gregal en té un, te l'ofereix:
+  se'n copien el proveïdor, el model i la clau una sola vegada (Gregal no
+  canvia i no queda cap enllaç). També hi pots connectar un altre proveïdor,
+  com a Gregal.
+- **La lliga dels vents, amb equips propis.** La lliga de Gregal Jocs ja no
+  agafa els vents de Gregal ni escriu a la seva safata «Avui»: té els seus
+  membres (dos entrenadors i un comentarista per començar) desats al perfil
+  de Gregal Jocs.
+- **Desinstal·lar no esborra dades.** Ni l'instal·lador de Gregal ni el de
+  Gregal Jocs toquen el perfil de cap de les dues apps.
+
 ## v1.68.0 - 2026-11-10 - Gregal Jocs, a part
 
 - **Gregal Jocs, un binari a part.** Els jocs (l'Arena i la lliga dels vents)

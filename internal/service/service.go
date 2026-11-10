@@ -38,16 +38,18 @@ type Descriptor struct {
 	StartedAt time.Time `json:"started_at"`
 }
 
-// DataDir comparteix la política de perfil amb sessions i la resta d'estat.
+// DataDir és la carpeta de dades del perfil d'aquest procés
+// (internal/profile): la de Gregal o la de Gregal Jocs.
 func DataDir() string {
 	return profile.DataDir()
 }
 
-// Cada producte té la seva identitat de servei dins del mateix perfil:
-// Gregal fa servir service.lock i service.json (els noms de sempre) i Gregal
-// Jocs, service-jocs.lock i service-jocs.json. Així els dos servidors poden
-// córrer alhora sobre les mateixes dades (config, vents, comptes), i qui
-// busca «el servidor que corre» troba el del seu producte.
+// Cada producte té la seva identitat de servei: Gregal fa servir
+// service.lock i service.json (els noms de sempre) i Gregal Jocs,
+// service-jocs.lock i service-jocs.json. Cada un ja viu al seu perfil
+// (internal/profile), però els noms continuen sent diferents perquè, amb
+// GREGAL_DATA_DIR, dos productes poden compartir carpeta i han de poder
+// córrer alhora; qui busca «el servidor que corre» troba el del seu producte.
 var product string
 
 // SetProduct tria la identitat de servei d'aquest procés ("" = Gregal,

@@ -88,11 +88,26 @@ of the Gregal binary. There are two Go binaries, same CLI and same server:
   `go list -deps . | grep jocs` must print nothing.
 - **Gregal Jocs** — `go build ./jocs/cmd/gregal-jocs`. The same server plus
   the games (`jocs/server` registers them with `web.RegisterProduct`);
-  `--open` opens `/jocs/`. It has its own service identity on the same
-  profile (`service-jocs.lock`/`service-jocs.json`, default port 8197), so
-  it runs next to Gregal (`service.lock`/`service.json`, 8097) on the same
-  data; it does not run Gregal's background work (scheduled jobs, Corner,
-  apps, tunnels).
+  `--open` opens `/jocs/`. It is a separate app with its own profile
+  (`internal/profile`, chosen by `cli.Build.Product`) and shares nothing
+  with Gregal:
+
+  | | Gregal | Gregal Jocs |
+  |---|---|---|
+  | config, `auth.yaml` keys, memory, commands, user state | `~/.config/gregal` | `~/.config/gregal-jocs` |
+  | data: sessions, accounts, passwords, tokens, jobs, service files | `~/.local/share/gregal` | `~/.local/share/gregal-jocs` |
+  | service lock / descriptor, default port | `service.lock` / `service.json`, 8097 | `service-jocs.lock` / `service-jocs.json`, 8197 |
+  | OS config / cache subfolders (`os.UserConfigDir`, `os.UserCacheDir`) | `gregal` | `gregal-jocs` |
+
+  `GREGAL_DATA_DIR`, `GREGAL_AUTH`, `GREGAL_MEMORY` and `--config` still
+  override either product. Gregal's paths are unchanged (no migration). Both
+  run at the same time; Gregal Jocs does not run Gregal's background work
+  (scheduled jobs, Corner, apps, tunnels). Its league keeps its own members
+  and teams (`jocs/server/teams.go`) and never reads Gregal's winds or writes
+  «Avui» / wind news. On first run with no working model, the Jocs page
+  offers once to copy Gregal's provider, model and key
+  (`/api/jocs/model-import`; Gregal's files are only read). Uninstalling
+  either desktop app deletes no profile data.
 
 The desktop app is packaged twice from `desktop/`, each edition with its own
 backend:

@@ -86,15 +86,15 @@ func RegisterProduct(p *Product) {
 }
 
 // noGregalBackground: aquest procés és el servidor d'un producte (Gregal
-// Jocs) que pot córrer al costat del de Gregal sobre el mateix perfil.
+// Jocs), no el de Gregal.
 var noGregalBackground atomic.Bool
 
 // SetGregalBackground diu si aquest servidor fa la feina de fons de Gregal:
 // les programacions (jobs i rutines dels vents), el bucle del Racó, la
 // represa de les colles, les apps gestionades i els túnels. El binari de
-// Gregal Jocs ho apaga (cli.Build.Product): corre al costat del de Gregal,
-// sobre les mateixes dades, i amb dos programadors cada rutina sortiria dues
-// vegades. Els plugins dels productes sí que arrenquen la seva.
+// Gregal Jocs ho apaga (cli.Build.Product): és l'app dels jocs, amb el seu
+// perfil, i no fa la feina de Gregal. Els plugins dels productes sí que
+// arrenquen la seva.
 func SetGregalBackground(on bool) { noGregalBackground.Store(!on) }
 
 func gregalBackground() bool { return !noGregalBackground.Load() }
