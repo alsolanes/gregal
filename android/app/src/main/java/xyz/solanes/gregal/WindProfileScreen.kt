@@ -61,6 +61,13 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
     var createRoutine by remember { mutableStateOf(false) }
     val accent = Color(wind.argb)
     val buttonContent = if (contrastWith(accent, Ink) >= 4.5) Ink else Superficie
+    // El calaix (prestatges que omple el vent) i, per al vent del temps, la previsió.
+    val shelves = vm.calaix.collectAsState().value[wind.id]
+    val isWeather = profile?.trade?.kit == "weather" || wind.kit == "weather" || wind.specialty == "weather"
+    val weather = vm.weather.collectAsState().value[wind.id]?.takeIf { isWeather && it.now != null }
+    LaunchedEffect(wind.id) { vm.loadCalaix(wind.id) }
+    LaunchedEffect(wind.id, isWeather) { if (isWeather) vm.loadWeather(wind.id) }
+    val tabs = listOf("character", "memory", "scheduled", "saved") + if (profile?.trade != null || !shelves.isNullOrEmpty()) listOf("calaix") else emptyList()
     Scaffold(containerColor = Superficie, modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding(),
         bottomBar = {
             Surface(color = Superficie) {
@@ -93,6 +100,10 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
             }
             }
+            // El temps, a dalt de tot, si és el vent del temps i té un lloc principal.
+            if (weather != null) item(key = "weather") {
+                Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) { WeatherCard(lang, weather, accent) }
+            }
             // L'ofici, just sota la capçalera, com a l'escriptori (tradePanel).
             profile?.trade?.let { trade ->
                 item(key = "trade") {
@@ -100,6 +111,20 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 }
             }
             stickyHeader(key = "tabs") {
+            // Amb calaix, cinc pestanyes: es poden fer lliscar.
+            if (tabs.size > 4) ScrollableTabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink, edgePadding = 8.dp,
+                indicator = { positions ->
+                    positions.getOrNull(tab)?.let { pos ->
+                        with(TabRowDefaults) {
+                            SecondaryIndicator(Modifier.tabIndicatorOffset(pos), height = 3.dp, color = accent)
+                        }
+                    }
+                }) {
+                tabs.forEachIndexed { index, key ->
+                    Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key"), maxLines = 1) },
+                        modifier = Modifier.testTag("profile-tab-$key"))
+                }
+            } else
             TabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink,
                 indicator = { positions ->
                     positions.getOrNull(tab)?.let { pos ->
@@ -108,8 +133,8 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         }
                     }
                 }) {
-                listOf("character", "memory", "scheduled", "saved").forEachIndexed { index, key ->
-                    Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key")) })
+                tabs.forEachIndexed { index, key ->
+                    Tab(selected = tab == index, onClick = { tab = index }, text = { Text(tr(lang, "app.vents.$key"), maxLines = 1) })
                 }
             }
             }
@@ -166,6 +191,9 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                         HorizontalDivider(color = Muted.copy(alpha = .15f))
                         WindCardsSection(vm, lang, wind)
                     }
+                    4 -> CalaixSection(lang, wind.name, shelves.orEmpty(), accent,
+                        onAction = { shelf, action, key, item -> vm.calaixAction(wind.id, shelf, action, key, item) },
+                        onSearchPlaces = { q -> vm.searchWeatherPlaces(q) })
                     2 -> {
                         Text(tr(lang, "app.vents.plansHelp"), color = Muted, fontSize = 13.sp)
                         Button(onClick = { createRoutine = true }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Ink, contentColor = Superficie)) {

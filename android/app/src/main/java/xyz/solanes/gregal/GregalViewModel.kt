@@ -4893,6 +4893,66 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         job.start()
     }
 
+    // --- El calaix i el temps de cada vent (WindCalaix.kt) ---
+    private val _calaix = MutableStateFlow<Map<String, List<CalaixShelf>>>(emptyMap())
+    val calaix: StateFlow<Map<String, List<CalaixShelf>>> = _calaix.asStateFlow()
+    private val _weather = MutableStateFlow<Map<String, WeatherForecast>>(emptyMap())
+    val weather: StateFlow<Map<String, WeatherForecast>> = _weather.asStateFlow()
+
+    fun loadCalaix(windId: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getCalaix(windId) }
+                if (isCompanionOrigin(source, epoch)) _calaix.update { it + (windId to got) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
+        }
+    }
+
+    /** remove / clear / primary / add. Afegir un lloc el fa principal i torna a llegir el temps. */
+    fun calaixAction(windId: String, shelf: String, action: String, key: String? = null, item: Map<String, Any?>? = null) {
+        val source = _conn.value; val epoch = companionEpoch
+        // Treure una fila es veu al moment.
+        if (action == "remove" && key != null) _calaix.update { m ->
+            m + (windId to m[windId].orEmpty().map { sh -> if (sh.name == shelf) sh.copy(items = sh.items.filterNot { CalaixJson.rowKey(it) == key }) else sh })
+        }
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) {
+                    val api = source.api()
+                    var d = api.calaixAction(windId, shelf, action, key, item)
+                    if (action == "add" && item?.get("primary") == true) d = api.calaixAction(windId, shelf, "primary", key, null)
+                    d
+                }
+                if (!isCompanionOrigin(source, epoch)) return@launch
+                _calaix.update { it + (windId to got) }
+                if (got.any { it.kind == "places" }) loadWeather(windId)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (isCompanionOrigin(source, epoch)) { companyError(e); loadCalaix(windId) }
+            }
+        }
+    }
+
+    fun loadWeather(windId: String) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            try {
+                val got = withContext(Dispatchers.IO) { source.api().getWeather(windId) }
+                if (isCompanionOrigin(source, epoch)) _weather.update { if (got.place == null) it - windId else it + (windId to got) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+            }
+        }
+    }
+
+    suspend fun searchWeatherPlaces(q: String): List<WeatherPlace> {
+        val source = _conn.value
+        return withContext(Dispatchers.IO) { source.api().searchWeatherPlaces(q) }
+    }
+
     fun activateSquad(id: String, lang: String, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {

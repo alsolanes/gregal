@@ -45,6 +45,7 @@ var tradeKits = map[string]tradeKit{
 		Sites:  []string{"receptes.cat", "3cat.cat/cuina", "directoalpaladar.com", "recetasderechupete.com", "seriouseats.com"},
 		Format: "A recipe card: title; servings; prep / cook / total time; difficulty; ingredients with metric quantities (g, ml) scaled to the servings; numbered steps with times and temperatures; substitutions and allergens; how to keep it; one chef's tip. Seasonal produce from Catalonia when it fits.",
 		Watches: []tradeWatch{
+			{"Revisa el receptari un cop al mes", "Review the recipe book monthly", "Only on the 1st of the month (any other day reply (res)): read your receptari shelf with calaix get and check every recipe for mistakes: quantities that do not add up for the servings, missing steps, wrong times or temperatures, allergens. Fix them with calaix add (set reviewed to today) and tell me in two lines what you fixed; if all is fine, reply (res).", "Only on the 1st of the month (any other day reply (res)): review every recipe in your receptari for mistakes, fix them with calaix add (reviewed = today) and tell me what you fixed; if all is fine, reply (res).", "10:00", false, 0},
 			{"Menú de la setmana cada diumenge", "Weekly menu every Sunday", "Only on Sundays (any other day reply (res)): propose a weekly dinner menu for me with a shopping list grouped by aisle, using seasonal produce in Catalonia.", "Only on Sundays (any other day reply (res)): propose a weekly dinner menu with a shopping list grouped by aisle, using seasonal produce.", "10:00", true, 0},
 			{"Producte de temporada cada mes", "Seasonal produce each month", "Only on the 1st of the month (any other day reply (res)): what is in season in Catalonia this month and two simple recipes to use it.", "Only on the 1st of the month (any other day reply (res)): what is in season this month and two simple recipes to use it.", "09:30", false, 0},
 		}},
@@ -56,6 +57,7 @@ var tradeKits = map[string]tradeKit{
 		Sites:  []string{"fcbarcelona.cat", "3cat.cat/esport3", "sport.es", "mundodeportivo.com", "acb.com", "futbolenlatele.com (where to watch)"},
 		Format: "A match card: Home – Away, competition and matchday; kickoff in Madrid time; venue; where to watch (TV / streaming); recent form (last 5) and table position; injuries and suspensions. For results: score, scorers and the key moment.",
 		Watches: []tradeWatch{
+			{"Classificació al dia cada dilluns", "Standings refreshed every Monday", "Only on Mondays (any other day reply (res)): fetch the current standings of the leagues of my teams (TheSportsDB lookuptable) and save them in your classificacio shelf with calaix put (rows: position, team, played, points, form). Reply (res) unless something notable changed for my teams.", "Only on Mondays (any other day reply (res)): refresh the standings of my teams' leagues into your classificacio shelf with calaix put. Reply (res) unless something notable changed.", "08:30", true, 0},
 			{"Avisa'm abans dels partits del Barça", "Heads-up before Barça matches", "Check TheSportsDB for FC Barcelona's next match. Only if it starts within the next 3 hours, tell me the kickoff (Madrid time), the rival, where to watch it and the likely line-up; otherwise reply (res).", "Check TheSportsDB for FC Barcelona's next match. Only if it starts within the next 3 hours, tell me the kickoff (Madrid time), the rival, where to watch it and the likely line-up; otherwise reply (res).", "12:00", false, 3},
 			{"Resultats del cap de setmana els dilluns", "Weekend results on Mondays", "Only on Mondays (any other day reply (res)): results and standings of my teams this weekend (Barça football, basketball and women's team).", "Only on Mondays (any other day reply (res)): results and standings of my teams this weekend.", "09:00", true, 0},
 		}},
@@ -68,6 +70,7 @@ var tradeKits = map[string]tradeKit{
 		Sites:  []string{"enderrock.cat", "3cat.cat/catmusica", "mondosonoro.com", "songkick.com", "ticketmaster.es", "primaverasound.com"},
 		Format: "Artist; the release (title, date, LP/EP/single, label); three key tracks; where to listen; concerts nearby (date, venue, city, price range, ticket link, sold out or not).",
 		Watches: []tradeWatch{
+			{"Calendari de discos al dia", "Keep the release calendar up to date", "For every artist in your artistes shelf, look for announced or upcoming releases (MusicBrainz release-group with future dates, Deezer, news). Add new ones to your llancaments shelf with calaix add (date YYYY-MM-DD, artist, title, type, link). Only if you added something, tell me what; otherwise reply (res).", "For every artist you follow for me, look for upcoming releases and add them to your llancaments shelf with calaix add. Only if you added something, tell me; otherwise reply (res).", "11:30", false, 0},
 			{"Discos nous dels meus artistes", "New releases from my artists", "Check Deezer and MusicBrainz for new releases this week from the artists I like (see memory). Only if there is one, tell me; otherwise reply (res).", "Check for new releases this week from the artists I like (see memory). Only if there is one, tell me; otherwise reply (res).", "11:00", false, 0},
 			{"Concerts a prop meu", "Concerts near me", "Look for newly announced concerts near me by artists I like. Only if there is something new, tell me with the date and when tickets go on sale; otherwise reply (res).", "Look for newly announced concerts near me by artists I like. Only if there is something new, tell me; otherwise reply (res).", "18:00", false, 0},
 		}},
@@ -80,6 +83,7 @@ var tradeKits = map[string]tradeKit{
 		Sites:  []string{"escriptors.cat", "biblioteques.cat", "laie.es", "casadellibro.com", "goodreads.com"},
 		Format: "Title, author, year, pages, genre, original language and translations; a two-line pitch without spoilers; why it suits this person; three similar books; where to get it (library, bookshop, ebook).",
 		Watches: []tradeWatch{
+			{"Calendari de llibres al dia", "Keep the book calendar up to date", "For every author in your autors shelf, look for announced or upcoming books (publishers, Open Library, news). Add new ones to your llancaments shelf with calaix add (date YYYY-MM-DD, author, title, publisher, link). Only if you added something, tell me what; otherwise reply (res).", "For every author you follow for me, look for upcoming books and add them to your llancaments shelf with calaix add. Only if you added something, tell me; otherwise reply (res).", "11:00", false, 0},
 			{"Llibres nous dels meus autors", "New books from my authors", "Only if one of the authors I like (see memory) has a new book out or announced, tell me; otherwise reply (res).", "Only if one of the authors I like (see memory) has a new book out or announced, tell me; otherwise reply (res).", "10:30", false, 0},
 		}},
 	"shopping": {CA: "Compres", EN: "Shopping",
@@ -204,7 +208,9 @@ func (s *Server) tradeProfile(w companion.Wind) map[string]any {
 	}
 	watches := []map[string]any{}
 	for _, wt := range k.Watches {
-		watches = append(watches, map[string]any{"label_ca": wt.CA, "label_en": wt.EN, "prompt_ca": wt.PromptCA, "prompt_en": wt.PromptEN, "time": wt.Time, "weekly": wt.Weekly, "interval_h": wt.IntervalH})
+		watches = append(watches, map[string]any{"label_ca": wt.CA, "label_en": wt.EN, "prompt_ca": wt.PromptCA, "prompt_en": wt.PromptEN, "time": wt.Time, "weekly": wt.Weekly, "interval_h": wt.IntervalH,
+			// Les que només parlen el dia 1 es miren cada dia però són mensuals.
+			"monthly": strings.Contains(wt.PromptEN, "1st of the month")})
 	}
 	skills := s.windSkills(w.ID)
 	lessons := 0

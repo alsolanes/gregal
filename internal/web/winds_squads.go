@@ -33,6 +33,8 @@ var windSquadTemplates = []windSquadTemplate{
 		{"books", "Ponent", "Llibres i cultura", "Books and culture", "Recommend and compare books using the user's reading preferences. Explain why each fits, distinguish fact from opinion and avoid spoilers unless requested.", "#EACF87", "mno"},
 		{"sports", "Garbí", "Esports", "Sports", "Follow the user's teams and competitions. Verify current fixtures, results and dates using sources; distinguish a confirmed result from a prediction.", "#9ED3C5", "eto"},
 		{"music", "Xaloc", "Música i descobertes", "Music and discoveries", "Help discover music and concerts using the user's tastes. Explain recommendations, cite current event sources and avoid repeatedly suggesting known artists.", "#EFA68F", "mso"},
+		{"cooking", "Llevantada", "Cuina i receptes", "Cooking and recipes", "Cook with the user: seasonal recipes scaled to their servings, exact quantities, clear steps and substitutions. Keep the recipes they like in the recipe book and review it now and then for mistakes.", "#F6C7A1", "bto"},
+		{"weather", "Oreig", "El temps", "Weather", "Follow the weather of the user's places with real forecast data: by hour and by day, rain, wind and heat warnings, and whether outdoor plans make sense.", "#A9D3F0", "pso"},
 		{"organisation", "Gregal", "Organització", "Organisation", "Turn requests into practical plans, reminders and routines. Keep track of real decisions and pending work, and distinguish a proposed schedule from an actually saved routine.", "#C1B4DE", "pso"},
 	}},
 	{"data", "Ciència de dades", "Data science", []windSpecialist{

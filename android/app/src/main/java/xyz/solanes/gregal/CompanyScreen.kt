@@ -173,6 +173,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     // (per a la insígnia de la pestanya), en arribar veus noves i en entrar-hi.
     val avui by vm.avui.collectAsState()
     val avuiError by vm.avuiError.collectAsState()
+    val weatherMap by vm.weather.collectAsState()
     LaunchedEffect(conn, news, tab) { vm.loadAvui() }
     fun pluginOn(id: String) = plugins[id] != false
     val ventJobs by vm.jobs.collectAsState()
@@ -391,6 +392,9 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     Spacer(Modifier.height(16.dp))
                 }
             } else if (!manage && !searching && tab == "today") {
+                val ww = remember(winds) { weatherWind(winds) }
+                val forecast = ww?.let { weatherMap[it.id] }?.takeIf { it.now != null }
+                LaunchedEffect(conn, ww?.id) { ww?.let { vm.loadWeather(it.id) } }
                 AvuiTray(
                     lang, avui, winds, avuiError,
                     onAct = { id, action -> vm.avuiAct(id, action) },
@@ -398,10 +402,14 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                     onSettings = { s, tune -> vm.saveAvuiSettings(s, tune) },
                     onRetry = { vm.loadAvui() },
                     modifier = Modifier.padding(pad),
+                    weather = if (ww != null && forecast != null) ({
+                        WeatherCard(lang, forecast, Color(ww.argb), compact = true) { vm.openVentsChat("wind:" + ww.id) }
+                    }) else null,
                 )
             } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {
                     item { WindsModelRow(vm, lang) }
+                    item { NewCrewMembersCard(vm, lang) }
                     item { SquadsRow(vm, lang) }
                     item { Text(tr(lang, "app.vents.manageHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) }
                     if (winds.isEmpty()) item { VentsEmpty(lang, false) }
@@ -644,6 +652,41 @@ private fun VentsEmpty(lang: String, conversations: Boolean) {
             fontSize = 21.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
         Text(tr(lang, if (conversations) "app.vents.emptyBody" else "app.company.windEmptyBody"), color = Muted,
             fontSize = 14.sp, textAlign = TextAlign.Center)
+    }
+}
+
+/**
+ * La colla que ja tens ha crescut (p. ex. la de cada dia amb Llevantada i
+ * Oreig): una targeta petita amb les cares i «Afegeix-los». Els que ja tenien
+ * la colla no els reben sols.
+ */
+@Composable
+private fun NewCrewMembersCard(vm: GregalViewModel, lang: String) {
+    val squads by vm.squads.collectAsState()
+    val winds by vm.winds.collectAsState()
+    var adding by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { vm.loadSquads() }
+    val (squad, missing) = remember(squads, winds) { missingSquadMembers(squads, winds) } ?: return
+    val names = missing.map { m -> m.name + " (" + (if (lang == "ca") m.ca else m.en).lowercase() + ")" }
+    val joined = if (names.size == 1) names[0] else names.dropLast(1).joinToString(", ") + tr(lang, "app.crew.newAnd") + names.last()
+    Surface(shape = RoundedCornerShape(20.dp), color = Sea.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, Sea.copy(alpha = 0.30f)),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp).testTag("crew-new")) {
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy((-10).dp)) {
+                missing.take(3).forEach { m ->
+                    WindHalo(accent = Color(windArgb(m.color)), style = windStyleOf(m.style).copy(kit = m.key), size = 34, mood = WindMood.HAPPY, showKit = false)
+                }
+            }
+            Text(tr(lang, "app.crew.newMembers", joined), color = Ink, style = GregalType.bodySmall, modifier = Modifier.weight(1f))
+            androidx.compose.material3.TextButton(onClick = {
+                adding = true
+                vm.activateSquad(squad.id, lang) { adding = false; vm.loadSquads() }
+            }, enabled = !adding) {
+                if (adding) TypingDots(Sea) else Text(tr(lang, "app.crew.addThem"), color = Sea, fontWeight = FontWeight.SemiBold)
+            }
+        }
     }
 }
 

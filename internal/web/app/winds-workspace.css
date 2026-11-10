@@ -617,3 +617,77 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 :is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]), :is(.vw-message-text, .vw-result-text, .vw-avui-body) a { color:var(--chat-link, var(--accent-hi)); font-weight:550; text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--accent-hi) 40%, transparent); text-underline-offset:3px; }
 :is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]):visited, :is(.vw-message-text, .vw-result-text, .vw-avui-body) a:visited { color:var(--chat-link, var(--accent-hi)); }
 :is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]):hover, :is(.vw-message-text, .vw-result-text, .vw-avui-body) a:hover { text-decoration-color:currentColor; }
+
+/* ---- El calaix del vent: prestatges amb la vista de cada mena ---- */
+.vw-shelf { margin:14px 0 18px; }
+.vw-shelf-head { display:flex; align-items:baseline; gap:10px; margin:0 0 8px; }
+.vw-shelf-head h3 { margin:0; color:var(--ink); font-size:14px; font-weight:650; }
+.vw-shelf-head small { color:var(--faint); font-size:12px; }
+.vw-shelf-head .vw-avui-chip { margin-left:auto; }
+.vw-shelf-empty { margin:0; padding:12px 14px; border:1px dashed var(--line-hi); border-radius:var(--r-md,12px); color:var(--muted); font-size:13px; }
+.vw-shelf-month { margin:12px 2px 6px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-release { display:flex; align-items:center; gap:12px; padding:8px 0; border-top:1px solid var(--line); }
+.vw-release.is-past { opacity:.5; }
+.vw-release-day { display:grid; place-items:center; flex:none; width:44px; height:44px; border-radius:12px; background:var(--accent-soft); color:var(--ink); line-height:1; }
+.vw-release-day b { font-size:17px; font-weight:700; }
+.vw-release-day small { font-size:10px; color:var(--muted); text-transform:uppercase; }
+.vw-release-copy { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.vw-release-copy strong { color:var(--ink); font-size:14px; font-weight:600; }
+.vw-release-copy small { color:var(--muted); font-size:12.5px; }
+.vw-release-link { color:var(--accent-hi); font-size:12.5px; }
+.vw-row-x { width:26px!important; height:26px!important; color:var(--faint)!important; opacity:.6; }
+.vw-row-x:hover { opacity:1; color:var(--ink)!important; }
+.vw-row-x .vw-ic { width:13px; height:13px; }
+.vw-recipe { margin:0 0 8px; border:1px solid var(--line); border-radius:var(--r-md,12px); background:var(--bg); }
+.vw-recipe > summary { display:flex; align-items:baseline; gap:10px; padding:11px 14px; cursor:pointer; list-style:none; }
+.vw-recipe > summary::-webkit-details-marker { display:none; }
+.vw-recipe > summary strong { color:var(--ink); font-size:14.5px; font-weight:600; }
+.vw-recipe > summary small { color:var(--muted); font-size:12.5px; }
+.vw-recipe[open] > summary { border-bottom:1px solid var(--line); }
+.vw-recipe-body { position:relative; padding:4px 16px 12px; color:var(--text); font-size:13.5px; line-height:1.6; }
+.vw-recipe-body h4 { margin:12px 0 4px; color:var(--faint); font-size:10.5px; font-weight:650; letter-spacing:.11em; text-transform:uppercase; }
+.vw-recipe-body ul, .vw-recipe-body ol { margin:0; padding-left:20px; }
+.vw-recipe-tip { margin:10px 0 0; padding:8px 12px; border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 8px 8px 0; }
+.vw-recipe-body > .vw-row-x { position:absolute; top:6px; right:8px; }
+.vw-place { display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line); color:var(--ink); font-size:14px; }
+.vw-place > span { flex:1; }
+.vw-place-main { padding:1px 8px; border-radius:99px; background:var(--accent-soft); color:var(--accent-hi); font-size:11.5px; font-weight:600; }
+.vw-shelf-chips { display:flex; flex-wrap:wrap; gap:6px; }
+.vw-shelf-chips .vw-trade-source { display:inline-flex; align-items:center; gap:2px; padding-right:2px; }
+.vw-shelf-table { margin:0; }
+.vw-newcomers { display:flex; align-items:center; gap:12px; margin:0 0 18px; padding:12px 14px; border:1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius:var(--r-md,12px); background:var(--accent-soft); }
+.vw-newcomers > span:nth-child(2) { flex:1; min-width:0; color:var(--text); font-size:13.5px; }
+.vw-newcomers strong { color:var(--ink); }
+.vw-place-results { display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+.vw-place-result { display:flex; align-items:baseline; gap:10px; padding:9px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); text-align:left; }
+.vw-place-result:hover { border-color:var(--accent); }
+.vw-place-result small { color:var(--muted); }
+
+/* ---- El temps: targeta amb el gràfic de les properes hores i els dies ---- */
+.vw-wx { --wx-warm:#FFB15C; --wx-rain:#6FB2F2; margin:0 0 16px; padding:16px 18px 12px; border-radius:18px; border:1px solid var(--line); background:linear-gradient(160deg, color-mix(in srgb, #6FB2F2 14%, var(--surface)), var(--surface) 60%); }
+:root[data-theme="light"] .vw-wx { --wx-warm:#F08A24; --wx-rain:#3E8EDC; }
+.vw-wx-top { display:flex; align-items:center; justify-content:space-between; gap:14px; }
+.vw-wx-now { display:flex; align-items:center; gap:12px; }
+.vw-wx-temp { display:flex; flex-direction:column; line-height:1.05; }
+.vw-wx-temp b { color:var(--ink); font-size:40px; font-weight:650; letter-spacing:-.03em; }
+.vw-wx-temp span { color:var(--muted); font-size:13px; }
+.vw-wx-place { display:flex; flex-direction:column; align-items:flex-end; gap:3px; text-align:right; min-width:0; }
+.vw-wx-placebtn { padding:0; border:0; background:transparent; color:var(--ink); font:inherit; cursor:pointer; }
+.vw-wx-placebtn strong { font-size:15px; font-weight:650; border-bottom:1px dashed var(--line-hi); }
+.vw-wx-place small { color:var(--muted); font-size:12px; }
+.vw-wx-by { display:inline-flex; align-items:center; gap:6px; }
+.vw-wx-by .winds-face { width:18px; height:18px; }
+.vw-wx-chartbox { margin:8px -4px 4px; }
+.vw-wx-chart { display:block; width:100%; height:auto; overflow:visible; }
+.vw-wx-hour { fill:var(--faint); font-size:12px; }
+.vw-wx-tlabel { fill:var(--ink); font-size:13px; font-weight:650; }
+.vw-wx-rainlabel { fill:var(--wx-rain); font-size:11px; font-weight:600; }
+.vw-wx-days { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; margin-top:6px; padding-top:10px; border-top:1px solid var(--line); }
+.vw-wx-day { display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--muted); }
+.vw-wx-day small { text-transform:capitalize; color:var(--faint); }
+.vw-wx-day b { color:var(--ink); font-size:13.5px; }
+.vw-wx-min { color:var(--faint); }
+.vw-wx-p { color:var(--wx-rain); font-size:11px; font-weight:600; }
+.vw-wx.is-compact { padding:12px 14px 8px; }
+.vw-wx.is-compact .vw-wx-temp b { font-size:32px; }
+@media(max-width:600px) { .vw-wx-days { grid-template-columns:repeat(7, minmax(38px,1fr)); overflow-x:auto; } .vw-wx-temp b { font-size:32px; } }

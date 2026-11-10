@@ -139,7 +139,7 @@ const windEstilBrief = "\n\nAFTER DOING WORK (files, commands, publishing): 2-5 
 func windChatSystemPrompt(s *Server, wind companion.Wind, msg string) string {
 	ws, _ := s.ventWorkspace()
 	system := companion.WindChatSystem(wind, s.personalMemory(), s.projectName(), s.windGoalTitles(), s.lastSessionDigest(), s.windUserName())
-	return system + windTradeBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
+	return system + windTradeBrief(wind) + s.windCalaixBrief(wind) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windSkillsSystem(wind.ID) + s.windCardsBrief(wind.ID) + s.windServerBrief() + s.windConnectionsBrief() +
 		windDocsBrief + windCodeBrief + windEstilBrief + windRemindBrief(wind.ID) + windFollowupBrief(wind) + s.windLessonsBrief(wind.ID) + windProjectesBrief(ws) + companion.ReplyLanguageBrief(msg)
 }
 
@@ -157,7 +157,7 @@ func windBriefFromSystem(system string, previous []llm.Message, msg string) stri
 func rotllanaChatBrief(s *Server, rot Rotllana, speakingWind companion.Wind, conversation []llm.Message, msg string) (system, brief string) {
 	wsp, _ := s.ventWorkspace()
 	onTreballa := windProjectesBrief(wsp)
-	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + windTradeBrief(speakingWind) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID) + s.windCardsBrief(speakingWind.ID) + s.windServerBrief() + s.windConnectionsBrief()
+	system = companion.RotllanaSystem(speakingWind, s.rotllanaRoster(rot), s.personalMemory(), s.windUserName()) + windTradeBrief(speakingWind) + s.windCalaixBrief(speakingWind) + companion.WindBrainSystem(s.windBrain(speakingWind.ID)) + s.windMemorySystem(speakingWind.ID) + s.windSkillsSystem(speakingWind.ID) + s.windCardsBrief(speakingWind.ID) + s.windServerBrief() + s.windConnectionsBrief()
 	// Cada pas de cada veu torna a enviar la conversa: 10k caràcters recents basten per
 	// seguir el fil. Amb el nom de qui parla: cada missatge d'assistant és una veu
 	// diferent. El pressupost baixa a 9.400 perquè els noms i la consigna de

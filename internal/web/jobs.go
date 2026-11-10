@@ -233,7 +233,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 			brief = s.briefingBrief(wind, job.Prompt)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		} else {
-			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
+			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windCalaixBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		}
 	}

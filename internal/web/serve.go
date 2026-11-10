@@ -245,6 +245,7 @@ func New(cfg *config.Config, cfgPath string) *Server {
 	}
 	s.modelOverride = s.defaultModelOverrides()
 	s.registerRemindTool()
+	s.registerCalaixTool()
 	// Enviar fitxers al xat: l'eina viu a les eines i el servidor web és qui sap
 	// on publicar-los (enllaç amb clau pròpia, sense sessió).
 	tools.PublicarFitxer = s.publicaFitxer

@@ -29,7 +29,8 @@ const squadKeys = [...fs.readFileSync(path.join(__dirname, '..', 'winds_squads.g
 test('every squad specialist is a mascot with a trade tool; personal winds keep the plain face', () => {
   const { winds } = load();
   const own = winds.face({ id:'mine', name:'Tramuntana', color:'#A8CDE2', style:'pso' }, true);
-  assert.equal(squadKeys.length, 16);
+  // 16 especialistes més el cuiner i el del temps de la colla «Dia a dia».
+  assert.equal(squadKeys.length, 18);
   for (const specialty of squadKeys) {
     const svg = winds.face({ id:specialty, specialty, color:'#A8CDE2', style:'pso' }, true);
     assert.equal(svg.getAttribute('data-kit'), specialty);

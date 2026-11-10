@@ -129,6 +129,8 @@ internal fun AvuiTray(
     onSettings: (AvuiSettings, String?) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    /** El temps del vent del temps (si en tens un amb lloc principal), sota la data. */
+    weather: (@Composable () -> Unit)? = null,
 ) {
     val p = LocalPal.current
     Column(
@@ -153,6 +155,7 @@ internal fun AvuiTray(
             Icon(Icons.Rounded.Bedtime, null, tint = Muted, modifier = Modifier.size(14.dp))
             Text(tr(lang, "app.avui.held", view.held), color = Muted, style = GregalType.caption)
         }
+        if (weather != null) Box(Modifier.padding(top = 14.dp)) { weather() }
         val open = view.openCount
         listOf("now" to view.now, "fyi" to view.fyi, "ahead" to view.ahead).forEach { (key, cards) ->
             AvuiSection(lang, key, cards, winds, onAct, onRun)

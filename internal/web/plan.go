@@ -261,6 +261,11 @@ func (s *Server) runReadOnlyLoopForRoleStream(ctx context.Context, brief string,
 				}
 				return "allow", "eina del vent"
 			}
+			// El calaix del vent: només escriu a les dades del mateix vent (cap fitxer
+			// de la persona), així que també el poden fer servir les vigilàncies.
+			if name == "calaix" {
+				return "allow", "eina del vent"
+			}
 			// remind_list només llegeix: cap problema ni en mode lectura.
 			if name == "remind_list" {
 				if decision, reason := scope.policy.Decide(scope.mode, name, argsJSON); decision == "deny" {
