@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.68.0 - 2026-11-10 - Gregal Jocs, a part
+
 - **Gregal Jocs, un binari a part.** Els jocs (l'Arena i la lliga dels vents)
   viuen a `jocs/` i surten del binari de Gregal, que queda més lleuger (uns
   6 MB menys): sense els jocs, `/jocs/` diu que són l'app Gregal Jocs i on es
@@ -13,6 +15,8 @@
   i els comptes són els mateixos. Les programacions, el Racó, les apps i els
   túnels només els fa córrer el servidor de Gregal, i la safata «Avui» i les
   veus dels vents ja no perden res quan tots dos hi escriuen alhora.
+- **Gregal Vents per a Android (1.72.0).** Els plugins que el servidor no té
+  ja no surten (els jocs, en un servidor de Gregal sense jocs).
 
 ## v1.67.0 - 2026-11-10 - El calaix dels vents
 
