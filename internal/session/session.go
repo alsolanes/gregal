@@ -12,6 +12,7 @@ import (
 
 	"gregal/internal/identity"
 	"gregal/internal/llm"
+	"gregal/internal/profile"
 )
 
 // Session és una conversa desada.
@@ -111,14 +112,7 @@ func baseDataDir() string {
 	// GREGAL_DATA_DIR permet apuntar-ho tot (converses, tokens,
 	// contrasenyes) a un altre lloc: és el que fan les proves per no
 	// embrutar les converses de debò, i serveix per tenir dues instàncies.
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return d
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal")
-	}
-	return filepath.Join(home, ".local", "share", "gregal")
+	return profile.DataDir()
 }
 
 func slugify(name string) string {

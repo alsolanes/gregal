@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gregal/internal/profile"
 )
 
 // fitxersPrefix són els enllaços de fitxers enviats al xat. La clau del camí és
@@ -27,7 +29,7 @@ func (s *Server) fitxersDir() string {
 			base = filepath.Join(home, ".config")
 		}
 	}
-	return filepath.Join(base, "gregal", "fitxers")
+	return filepath.Join(base, profile.DirName(), "fitxers")
 }
 
 // publicaFitxer copia un fitxer del disc a la carpeta d'enllaços públics i en

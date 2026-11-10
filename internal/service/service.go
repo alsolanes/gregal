@@ -14,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // DescriptorName i LockName són els de Gregal; els altres productes hi
@@ -38,14 +40,7 @@ type Descriptor struct {
 
 // DataDir comparteix la política de perfil amb sessions i la resta d'estat.
 func DataDir() string {
-	if dir := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); dir != "" {
-		return dir
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal")
-	}
-	return filepath.Join(home, ".local", "share", "gregal")
+	return profile.DataDir()
 }
 
 // Cada producte té la seva identitat de servei dins del mateix perfil:

@@ -30,6 +30,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // Abasts d'una col·lecció.
@@ -103,14 +105,7 @@ var mu sync.Mutex
 // DataDir és l'arrel de dades de Gregal (GREGAL_DATA_DIR o
 // ~/.local/share/gregal), la mateixa que fan servir les sessions.
 func DataDir() string {
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return d
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal")
-	}
-	return filepath.Join(home, ".local", "share", "gregal")
+	return profile.DataDir()
 }
 
 // ScopeDir és el directori on viuen les col·leccions d'un abast.

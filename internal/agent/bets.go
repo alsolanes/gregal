@@ -27,6 +27,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/profile"
 )
 
 // betParam és el paràmetre opcional «bet» de l'eina bash.
@@ -137,14 +138,7 @@ func BetsPath() string {
 	if BetsPathOverride != "" {
 		return BetsPathOverride
 	}
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return filepath.Join(d, "bets.jsonl")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "bets.jsonl")
+	return filepath.Join(profile.DataDir(), "bets.jsonl")
 }
 
 // RegistraAposta afegeix una aposta al registre (best-effort).

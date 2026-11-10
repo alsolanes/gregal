@@ -8,6 +8,7 @@ import (
 
 	"gregal/internal/goal"
 	"gregal/internal/identity"
+	"gregal/internal/profile"
 )
 
 // goalDirFor retorna on es desen els objectius (al costat del config).
@@ -18,7 +19,7 @@ func goalDirFor(cfgPath string) string {
 		}
 	}
 	if base, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(base, "gregal")
+		return filepath.Join(base, profile.DirName())
 	}
 	return "."
 }

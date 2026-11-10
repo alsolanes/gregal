@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // Job és una tasca programada (v1: diària, per interval o manual).
@@ -64,14 +66,7 @@ type Run struct {
 // instància apuntada a un altre lloc) llegien i escrivien els jobs reals
 // de l'usuari, i un recordatori d'una sessió contaminava l'altra.
 func DefaultDir() string {
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return filepath.Join(d, "jobs")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal", "jobs")
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "jobs")
+	return filepath.Join(profile.DataDir(), "jobs")
 }
 
 // Store guarda jobs + runs en disc (JSON).

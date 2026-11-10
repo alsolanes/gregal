@@ -791,7 +791,7 @@ func ReplaceLines(content string, start, end int, repl []string) (string, error)
 var caminsCritics = []string{
 	"/mnt/backups", "/mnt/backups2", "/srv/storage",
 	"/etc", "/boot", "/usr", "/bin", "/sbin", "/lib", "/var/lib",
-	"~/.ssh", "~/.gnupg", "~/.config/gregal", "~/.hermes",
+	"~/.ssh", "~/.gnupg", "~/.config/gregal", "~/.config/gregal-jocs", "~/.hermes",
 }
 
 // verbsEscriptura són els verbs que poden fer mal si apunten a un camí

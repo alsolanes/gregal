@@ -11,6 +11,7 @@ import (
 
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/profile"
 )
 
 // Verdict és el resultat d'una revisió.
@@ -84,11 +85,7 @@ func verifyLogPath() string {
 	if p := os.Getenv("GREGAL_VERIFY_LOG"); p != "" {
 		return p
 	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "gregal", "verify-log.jsonl")
+	return filepath.Join(profile.ConfigDir(), "verify-log.jsonl")
 }
 
 // logVerdict registra el veredicte (best-effort: mai no fa fallar la revisió).

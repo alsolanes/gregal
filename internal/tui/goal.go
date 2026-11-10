@@ -11,6 +11,7 @@ import (
 
 	"gregal/internal/agent"
 	"gregal/internal/goal"
+	"gregal/internal/profile"
 )
 
 // modeObjectiu és l'etiqueta curta del mode goal a la UI.
@@ -24,7 +25,7 @@ func (m Model) goalDir() string {
 		}
 	}
 	if base, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(base, "gregal")
+		return filepath.Join(base, profile.DirName())
 	}
 	return "."
 }

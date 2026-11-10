@@ -50,7 +50,7 @@ func runMCP(args []string) {
 		os.Exit(2)
 	}
 	fs := flag.NewFlagSet("mcp serve", flag.ContinueOnError)
-	cfgPath := fs.String("config", "", "configuration path (default ~/.config/gregal/config.yaml)")
+	cfgPath := fs.String("config", "", "configuration path (default ~/.config/gregal/config.yaml; Gregal Jocs: ~/.config/gregal-jocs/config.yaml)")
 	workspace := fs.String("workspace", "", "default workspace for gregal_run (default: current directory)")
 	if err := fs.Parse(args[1:]); err != nil {
 		os.Exit(2)

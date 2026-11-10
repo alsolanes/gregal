@@ -17,7 +17,7 @@ import (
 // només escriu al config si la persona ho confirma (o amb --yes).
 func runMCPImport(args []string) {
 	fs := flag.NewFlagSet("mcp import", flag.ContinueOnError)
-	cfgPath := fs.String("config", "", "configuration path (default ~/.config/gregal/config.yaml)")
+	cfgPath := fs.String("config", "", "configuration path (default ~/.config/gregal/config.yaml; Gregal Jocs: ~/.config/gregal-jocs/config.yaml)")
 	from := fs.String("from", "all", "where to read from: claude, codex, opencode (comma separated) or all")
 	only := fs.String("only", "", "import only these server names (comma separated)")
 	yes := fs.Bool("yes", false, "write without asking")

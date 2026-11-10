@@ -23,8 +23,9 @@ func main() {
 		Version: version, RepoDir: repoDir,
 		Package:  "./jocs/cmd/gregal-jocs",
 		OpenPath: "/jocs/",
-		// La seva identitat de servei (service-jocs.json) i el seu port: corre
-		// al costat del servidor de Gregal sobre el mateix perfil.
+		// El seu perfil (~/.config/gregal-jocs, ~/.local/share/gregal-jocs),
+		// la seva identitat de servei (service-jocs.json) i el seu port: una
+		// app a part que pot córrer al costat de Gregal sense compartir res.
 		Product:     "jocs",
 		DefaultPort: "8197",
 	})

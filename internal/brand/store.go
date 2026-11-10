@@ -10,19 +10,13 @@ import (
 	"sync"
 
 	"gregal/internal/ooxml"
+	"gregal/internal/profile"
 	"gregal/internal/tema"
 )
 
 // Dir és on viuen els paquets instal·lats: <dades>/brands.
 func Dir() string {
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return filepath.Join(d, "brands")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(".local", "share", "gregal", "brands")
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "brands")
+	return filepath.Join(profile.DataDir(), "brands")
 }
 
 var mu sync.Mutex

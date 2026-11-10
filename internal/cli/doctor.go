@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"gregal/internal/agent"
 	"gregal/internal/config"
 	"gregal/internal/llm"
+	"gregal/internal/profile"
 	"gregal/internal/sandbox"
 	"gregal/internal/tools"
 )
@@ -37,8 +37,7 @@ func doctor(cfg *config.Config, path string) int {
 		ok(text("doctor.config_valid"), text("doctor.roles_consistent"))
 	}
 
-	home, _ := os.UserHomeDir()
-	mem := filepath.Join(home, ".config", "gregal")
+	mem := profile.ConfigDir()
 	if fi, err := os.Stat(mem); err != nil || !fi.IsDir() {
 		no(text("doctor.directory"), mem+": "+text("doctor.directory_missing"))
 	} else if runtime.GOOS != "windows" && fi.Mode().Perm()&0o077 != 0 {

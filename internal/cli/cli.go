@@ -25,6 +25,7 @@ import (
 	"gregal/internal/llm"
 	"gregal/internal/lsp"
 	"gregal/internal/mcp"
+	"gregal/internal/profile"
 	"gregal/internal/sandbox"
 	"gregal/internal/selfupdate"
 	"gregal/internal/service"
@@ -54,11 +55,11 @@ type Build struct {
 	// OpenPath és la pàgina que obre --open ("/" si és buit; Gregal Jocs
 	// obre /jocs/).
 	OpenPath string
-	// Product és la identitat de servei ("" = Gregal; "jocs" = Gregal
-	// Jocs): el seu propi lock i descriptor dins del mateix perfil
-	// (service.SetProduct), perquè tots dos servidors puguin córrer alhora.
-	// Un producte no executa la feina de fons de Gregal (programacions,
-	// Racó, apps, túnels): aquella és del servidor de Gregal.
+	// Product és el producte ("" = Gregal; "jocs" = Gregal Jocs): tria el
+	// seu perfil (profile.SetProduct: ~/.config/gregal-jocs i
+	// ~/.local/share/gregal-jocs, sense res compartit amb Gregal) i la seva
+	// identitat de servei (service.SetProduct). Un producte no executa la
+	// feina de fons de Gregal (programacions, Racó, apps, túnels).
 	Product string
 	// DefaultPort és el --port per defecte ("8097" si és buit).
 	DefaultPort string
@@ -89,6 +90,7 @@ func Main(b Build) {
 		defaultPort = b.DefaultPort
 	}
 	if b.Product != "" {
+		profile.SetProduct(b.Product)
 		service.SetProduct(b.Product)
 		web.SetGregalBackground(false)
 	}
@@ -129,7 +131,7 @@ func Main(b Build) {
 	verFlag := flag.Bool("version", false, "show version and exit")
 	checkFlag := flag.Bool("check-config", false, "validate configuration and exit")
 	doctorFlag := flag.Bool("doctor", false, "check local configuration, providers and workspace health")
-	cfgPath := flag.String("config", "", "configuration path (default ~/.config/gregal/config.yaml)")
+	cfgPath := flag.String("config", "", "configuration path (default ~/.config/gregal/config.yaml; Gregal Jocs: ~/.config/gregal-jocs/config.yaml)")
 	promptFlag := flag.String("p", "", "noninteractive mode: execute a task and exit")
 	outputFlag := flag.String("output", "text", "output format for -p: text|json|stream-json (one JSON line per step, tool call and result, then the result)")
 	approveFlag := flag.Bool("auto-approve", false, "with -p: approve ask-policy tools without prompting (not with --mode autonomous)")
@@ -458,11 +460,7 @@ func runTelegram(cfg *config.Config, cfgPath, dir string) {
 
 // telegramLogPath retorna ~/.local/share/gregal/telegram.log.
 func telegramLogPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "telegram.log"
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "telegram.log")
+	return filepath.Join(profile.DefaultDataDirFor(profile.Product()), "telegram.log")
 }
 
 // telegramLog obre el registre del bot (0600); si no pot, escriu a stderr.

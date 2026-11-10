@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"gregal/internal/profile"
 )
 
 // Memòria dels sondejos de finestra entre processos. Cada `gregal -p` era
@@ -43,14 +45,7 @@ func windowsPath() string {
 	if testing.Testing() {
 		return ""
 	}
-	if d := strings.TrimSpace(os.Getenv("GREGAL_DATA_DIR")); d != "" {
-		return filepath.Join(d, "windows.json")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "share", "gregal", "windows.json")
+	return filepath.Join(profile.DataDir(), "windows.json")
 }
 
 func llegeixWindowDisk(path string) windowDisk {
