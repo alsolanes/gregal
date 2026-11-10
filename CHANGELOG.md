@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.69.0 - 2026-11-10 - Equips d'agents
+
 - **Equips d'agents per posició a Gregal Jocs.** A l'Arena, cada estratègia pot
   ser un equip: l'entrenador, els coordinadors i el quarterback a NFL; l'IGL,
   l'AWPer, el support, l'entry i el lurker a CS2; el coach i cada línia a LoL.
