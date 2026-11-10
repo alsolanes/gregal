@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v1.67.0 - 2026-11-10 - El calaix dels vents
+
+- **El calaix de cada vent.** Cada vent guarda el que tornaràs a preguntar
+  per respondre a l'instant: la classificació dels teus equips, el calendari
+  de discos i de llibres dels que segueixes, el receptari del cuiner. Ho
+  manté al dia ell mateix i ho veus al seu perfil, cada cosa amb la seva
+  vista.
+- **El temps amb gràfic propi.** Tries on el vols seguir i el vent del temps
+  et mostra les properes 24 hores (temperatura i pluja) i els 7 dies, també
+  a dalt d'Avui.
+- **Dos vents nous a la colla.** Un cuiner, que et fa el receptari i el
+  revisa cada mes per trobar errors, i un vent del temps. Si ja tens la
+  colla, «Nous a la colla» els afegeix amb un toc.
+- **Gregal Vents per a Android (1.71.0).** El calaix al perfil, la targeta del
+  temps amb el gràfic i els vents nous.
+
 ## v1.66.0 - 2026-11-10 - Avui i vents especialistes
 
 - **Avui: els vents et diuen el que toca, i s'acaba.** Tot el que un vent
