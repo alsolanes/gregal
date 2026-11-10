@@ -2261,25 +2261,34 @@ internal class ChatFollowState {
         private set
     var dragging by mutableStateOf(false)
         private set
-    fun requestFollow() { following = true }
+    /**
+     * Si la persona vol el final. No és el mateix que [following]: en obrir un
+     * fil es «segueix» perquè el fil encara cap a la pantalla, però ningú no ha
+     * demanat que el portin a la cua quan creixi.
+     */
+    var wantsEnd by mutableStateOf(false)
+        private set
+    fun requestFollow() { following = true; wantsEnd = true }
     /** Deixa de seguir el final sense que hi hagi cap dit: per llegir una resposta des del principi. */
-    fun pause() { following = false }
-    fun startReading() { dragging = true; following = false }
+    fun pause() { following = false; wantsEnd = false }
+    fun startReading() { dragging = true; following = false; wantsEnd = false }
     fun stopDragging() { dragging = false }
 }
 
-private data class LatestChatLayout(
-    val atEnd: Boolean,
-    val count: Int = 0,
-    val viewportEnd: Int = 0,
-    val lastIndex: Int = -1,
-    val lastOffset: Int = 0,
-    val lastSize: Int = 0,
-)
+/**
+ * El fil s'allarga més que la pantalla per primer cop: fins ara no hi havia res
+ * a fer scroll i el que s'estava llegint era el final. Si la persona no ha
+ * demanat el final (no ha enviat res ni ha baixat a mà), no se la hi porta: es
+ * queda on és i surt «Últims ↓». Sense això, el primer creixement del fil
+ * arrencava la vista de cop —el «es torna a pintar» que es veia a la conversa.
+ */
+internal fun shouldFollowOnGrowth(wasScrollable: Boolean, scrollable: Boolean, wantsEnd: Boolean): Boolean =
+    !(!wasScrollable && scrollable && !wantsEnd)
 
 @Composable
 internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState {
     val follow = remember(list, key) { ChatFollowState() }
+    var wasScrollable by remember(list, key) { mutableStateOf(list.canScrollForward) }
     LaunchedEffect(list, follow) {
         list.interactionSource.interactions.collect { interaction ->
             when (interaction) {
@@ -2307,15 +2316,30 @@ internal fun rememberChatFollow(list: LazyListState, key: Any): ChatFollowState 
             }
         }.conflate().collect { layout ->
             if (layout == null || follow.dragging || list.isScrollInProgress) return@collect
+            val scrollable = list.canScrollForward
             if (!list.canScrollForward) follow.requestFollow()
             else if (follow.following) {
-                // A drag can cancel the scroll mutation without ending the observer.
-                kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+                if (!shouldFollowOnGrowth(wasScrollable, scrollable, follow.wantsEnd)) follow.pause()
+                else {
+                    // A drag can cancel the scroll mutation without ending the observer.
+                    kotlinx.coroutines.coroutineScope { launch { list.scrollToLatest() }.join() }
+                }
             }
+            wasScrollable = scrollable
         }
     }
     return follow
 }
+
+private data class LatestChatLayout(
+    val atEnd: Boolean,
+    val count: Int = 0,
+    val viewportEnd: Int = 0,
+    val lastIndex: Int = -1,
+    val lastOffset: Int = 0,
+    val lastSize: Int = 0,
+)
+
 
 /**
  * En acabar un torn, una resposta que no cap a la pantalla es llegeix des del
