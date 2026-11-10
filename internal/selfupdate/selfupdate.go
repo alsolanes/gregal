@@ -34,8 +34,11 @@ type Opcions struct {
 	Branca        string // branca a seguir (per defecte main)
 	NomesComprova bool
 	Forca         bool // recompila encara que estigui al dia
-	Sortida       func(string)
-	Error         func(string)
+	// Paquet és el que es compila, relatiu al repositori: "." (Gregal, per
+	// defecte) o "./jocs/cmd/gregal-jocs" (Gregal Jocs).
+	Paquet  string
+	Sortida func(string)
+	Error   func(string)
 }
 
 // Resultat explica què ha passat.
@@ -57,6 +60,9 @@ const (
 func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if o.Sortida == nil {
 		o.Sortida = func(string) {}
+	}
+	if o.Paquet == "" {
+		o.Paquet = "."
 	}
 	if o.Error == nil {
 		o.Error = o.Sortida
@@ -140,7 +146,7 @@ func Executa(ctx context.Context, o Opcions) (*Resultat, error) {
 	if err != nil {
 		return res, err
 	}
-	tmp, err := buildABaix(repo, desti)
+	tmp, err := buildABaix(repo, desti, o.Paquet)
 	if err != nil {
 		return res, err
 	}
@@ -217,7 +223,7 @@ func DedueixRepo(desde string) string {
 // buildABaix compila en un fitxer temporal del mateix disc que el destí (el
 // rename entre discs no és atòmic, i una actualització a mitges trencaria el
 // binari).
-func buildABaix(repo, desti string) (string, error) {
+func buildABaix(repo, desti, paquet string) (string, error) {
 	if err := os.MkdirAll(filepath.Dir(desti), 0o755); err != nil {
 		return "", err
 	}
@@ -228,7 +234,7 @@ func buildABaix(repo, desti string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), tempsMaxBuild)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, goBinari(), "build", "-o", tmp,
-		"-ldflags", "-X main.repoDir="+repo, ".")
+		"-ldflags", "-X main.repoDir="+repo, paquet)
 	cmd.Dir = repo
 	cmd.Env = append(os.Environ(), "GOFLAGS=")
 	out, err := cmd.CombinedOutput()

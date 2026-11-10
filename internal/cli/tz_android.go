@@ -1,6 +1,6 @@
 //go:build android
 
-package main
+package cli
 
 import (
 	"os"

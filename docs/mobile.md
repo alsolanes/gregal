@@ -88,7 +88,7 @@ server is found changes.
   extracts it to disk.
 - With an Android NDK in the SDK, the backend is built with cgo and uses
   the system resolver (Private DNS, VPN). Without one it builds with
-  `CGO_ENABLED=0`, and `dns_android.go` sends DNS to the servers in
+  `CGO_ENABLED=0`, and `internal/cli/dns_android.go` sends DNS to the servers in
   `GREGAL_DNS`, or 1.1.1.1 and 8.8.8.8.
 - ABIs: `arm64-v8a` (phones) and `x86_64` (emulators). AGP ABI splits
   build one APK per ABI, so a phone downloads only its own backend:

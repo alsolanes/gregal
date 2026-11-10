@@ -1,4 +1,4 @@
-package main
+package cli
 
 // gregal config — el camí oficial i fàcil per posar claus api.
 //

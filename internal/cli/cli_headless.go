@@ -1,4 +1,4 @@
-package main
+package cli
 
 // Missatges del mode -p (runHeadless). Van a part de cliMessages perquè
 // afegir-los a la taula principal la realineava sencera.

@@ -1,4 +1,4 @@
-package main
+package cli
 
 // Missatge d'arrencada del servidor: què cal escriure a l'app del mòbil
 // (adreça, port i clau) i res més. Posar Gregal en marxa per al mòbil ha de

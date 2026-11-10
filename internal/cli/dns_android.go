@@ -1,6 +1,6 @@
 //go:build android && !cgo
 
-package main
+package cli
 
 import (
 	"context"
