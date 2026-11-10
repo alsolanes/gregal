@@ -2,11 +2,21 @@ const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
 
-function binaryCandidates({ resourcesPath, appDir, platform = process.platform }) {
-  const exe = platform === "win32" ? "gregal.exe" : "gregal";
+// backendName és el binari de cada edició: Gregal porta gregal(.exe), sense
+// els jocs; Gregal Jocs porta gregal-jocs(.exe) (jocs/cmd/gregal-jocs), el
+// mateix servidor amb els jocs. build-backend.js els deixa a backend/ i a
+// backend-jocs/; l'empaquetat de cada edició el posa a resources/backend/.
+function backendName(edition, platform = process.platform) {
+  const base = edition === "jocs" ? "gregal-jocs" : "gregal";
+  return platform === "win32" ? base + ".exe" : base;
+}
+
+function binaryCandidates({ resourcesPath, appDir, platform = process.platform, edition = "gregal" }) {
+  const exe = backendName(edition, platform);
+  const devDir = edition === "jocs" ? "backend-jocs" : "backend";
   return [
     resourcesPath && path.join(resourcesPath, "backend", exe),
-    path.join(appDir, "backend", exe),
+    path.join(appDir, devDir, exe),
     path.resolve(appDir, "..", exe),
     exe,
   ].filter(Boolean);
@@ -160,4 +170,4 @@ function stopServer(child, timeoutMs = 1500) {
   });
 }
 
-module.exports = { binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };
+module.exports = { backendName, binaryCandidates, serverArgs, backendEnv, appBackendEnv, startServer, stopServer, openBackendLog, rotateBackendLog, BACKEND_LOG_MAX };

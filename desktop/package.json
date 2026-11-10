@@ -13,7 +13,7 @@
     "dist": "node build-backend.js && electron-builder",
     "dist-linux": "node build-backend.js linux && electron-builder --linux AppImage",
     "dist-win": "node build-backend.js windows && electron-builder --win nsis portable --publish never",
-    "dist-win-jocs": "node build-backend.js windows && electron-builder --config electron-builder-jocs.js --win nsis portable --publish never"
+    "dist-win-jocs": "node build-backend.js windows --jocs && electron-builder --config electron-builder-jocs.js --win nsis portable --publish never"
   },
   "devDependencies": {
     "electron": "^44.5.1",

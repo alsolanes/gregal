@@ -181,6 +181,9 @@ function ping() {
                 try {
                     const health = JSON.parse(body);
                     if (health.status !== "ok" || health.protocol !== "gregal.v1" || !health.instance_id) return resolve(false);
+                    // Gregal Jocs només s'enganxa a un servidor amb els jocs
+                    // (gregal-jocs): el de Gregal ja no els porta.
+                    if (EDITION === "jocs" && !(Array.isArray(health.products) && health.products.includes("jocs"))) return resolve(false);
                     if (expectedInstanceID && health.instance_id !== expectedInstanceID) return resolve(false);
                     if (!expectedInstanceID) expectedInstanceID = health.instance_id;
                     resolve(true);
@@ -261,6 +264,7 @@ async function ensureServer() {
             resourcesPath: process.resourcesPath,
             appDir: __dirname,
             platform: process.platform,
+            edition: EDITION,
             port: PORT,
             token: TOKEN,
             config: process.env.GREGAL_CONFIG,

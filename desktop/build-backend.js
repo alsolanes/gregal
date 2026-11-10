@@ -11,13 +11,22 @@ const { spawnSync } = require("child_process");
 // GREGAL_TARGET=windows|linux|darwin; per defecte, la màquina on corre. Va
 // per argument perquè els scripts d'npm passen per cmd.exe a Windows i la
 // sintaxi VAR=x ordre no hi funciona.
+//
+// Edició: amb --jocs (node build-backend.js windows --jocs) compila Gregal
+// Jocs, el mateix servidor amb els jocs (./jocs/cmd/gregal-jocs), a
+// backend-jocs/gregal-jocs(.exe); electron-builder-jocs.js l'empaqueta a
+// resources/backend/. Sense, Gregal (.) a backend/gregal(.exe), sense jocs.
 const desktopDir = __dirname;
 const projectDir = path.resolve(desktopDir, "..");
-const outDir = path.join(desktopDir, "backend");
+const args = process.argv.slice(2);
+const jocs = args.includes("--jocs");
+const { backendName } = require("./server-manager");
+const outDir = path.join(desktopDir, jocs ? "backend-jocs" : "backend");
+const goPackage = jocs ? "./jocs/cmd/gregal-jocs" : ".";
 
 const hostOS = { win32: "windows", linux: "linux", darwin: "darwin" }[process.platform] || process.platform;
-const targetOS = process.argv[2] || process.env.GREGAL_TARGET || hostOS;
-const exe = targetOS === "windows" ? "gregal.exe" : "gregal";
+const targetOS = args.find(a => !a.startsWith("--")) || process.env.GREGAL_TARGET || hostOS;
+const exe = backendName(jocs ? "jocs" : "gregal", targetOS === "windows" ? "win32" : targetOS);
 
 // A Windows no es pot esborrar un executable que està corrent, i el que
 // sortia era un EPERM cru amb la ruta escapada quatre vegades, sense dir
@@ -30,8 +39,8 @@ try {
   console.error(
     "\nbackend: no es pot esborrar " + outDir + ": hi ha un gregal corrent que en té agafat l'executable.\n" +
     "  Tanca l'app d'escriptori (o atura el backend) i torna-hi. Per veure qui és:\n" +
-    "    Windows:  Get-Process gregal | Select-Object Id,Path\n" +
-    "    Linux:    pgrep -a gregal\n");
+    "    Windows:  Get-Process " + exe.replace(/\.exe$/, "") + " | Select-Object Id,Path\n" +
+    "    Linux:    pgrep -a " + exe.replace(/\.exe$/, "") + "\n");
   process.exit(1);
 }
 fs.mkdirSync(outDir, { recursive: true });
@@ -53,7 +62,7 @@ function findGo() {
 const goBin = findGo();
 
 const desktopVersion = require('./package.json').version;
-const result = spawnSync(goBin, ["build", "-trimpath", "-buildvcs=false", "-ldflags", "-X main.version=v" + desktopVersion, "-o", path.join(outDir, exe), "."], {
+const result = spawnSync(goBin, ["build", "-trimpath", "-buildvcs=false", "-ldflags", "-X main.version=v" + desktopVersion, "-o", path.join(outDir, exe), goPackage], {
   cwd: projectDir,
   stdio: "inherit",
   env: { ...process.env, GOOS: targetOS, GOARCH: process.env.GOARCH || "amd64", CGO_ENABLED: "0" },
