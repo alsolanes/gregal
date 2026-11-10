@@ -13,7 +13,8 @@ that builds assets lives in `.github/workflows/release.yml`.
    node scripts/release.cjs bump 1.9.1 --title "Short release title" [--android 0.9.9]
    ```
 
-   This sets the version in `main.go`, `desktop/package.json` and its lock
+   This sets the version in `main.go`, `jocs/cmd/gregal-jocs/main.go`,
+   `desktop/package.json` and its lock
    file, turns `## Unreleased` into `## v1.9.1 - <date> - <title>` (a fresh
    empty `## Unreleased` stays on top) and, with `--android`, bumps the
    Android `versionName` and `versionCode`. Open a PR; the Quality workflow
@@ -25,8 +26,9 @@ that builds assets lives in `.github/workflows/release.yml`.
    ```
 
    The Release workflow checks that the tag, the versions and the changelog
-   agree, builds the Windows installer, portable app and update metadata, the
-   CLI/backend for Linux, macOS and Windows (amd64 and arm64), and the VS Code
+   agree, builds the Windows installer, portable app and update metadata of
+   Gregal and of Gregal Jocs (see below), the CLI/backend of both for Linux,
+   macOS and Windows (amd64 and arm64), and the VS Code
    extension package (`gregal-X.Y.Z.vsix`) with
    `build.sh`, writes one `SHA256SUMS.txt`, and creates a **draft** release
    titled and described from the changelog section.
@@ -76,6 +78,41 @@ that builds assets lives in `.github/workflows/release.yml`.
 5. **Review the draft on GitHub and publish it.** The desktop app's
    automatic updates only see published releases.
 
+## Two binaries: Gregal and Gregal Jocs
+
+The games (the Arena and the winds' league) live in `jocs/` and are not part
+of the Gregal binary. There are two Go binaries, same CLI and same server:
+
+- **Gregal** — `go build .` (root `main.go`). No games: `/api/arena*` and
+  `/api/football*` are 404 and `/jocs/` says the games are a separate app.
+  `go list -deps . | grep jocs` must print nothing.
+- **Gregal Jocs** — `go build ./jocs/cmd/gregal-jocs`. The same server plus
+  the games (`jocs/server` registers them with `web.RegisterProduct`);
+  `--open` opens `/jocs/`.
+
+The desktop app is packaged twice from `desktop/`, each edition with its own
+backend:
+
+```
+cd desktop
+# Gregal (backend/gregal.exe, latest.yml)
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist-win -- --config.directories.output=../output/release-X.Y.Z-win
+node verify-release.js ../output/release-X.Y.Z-win
+# Gregal Jocs (backend-jocs/gregal-jocs.exe, jocs.yml update channel)
+CSC_IDENTITY_AUTO_DISCOVERY=false npm run dist-win-jocs -- --config.directories.output=../output/release-X.Y.Z-jocs
+node verify-release.js ../output/release-X.Y.Z-jocs --jocs
+```
+
+`npm run dist-win-jocs` is `node build-backend.js windows --jocs` followed by
+`electron-builder --config electron-builder-jocs.js --win nsis portable
+--publish never`; calling `npx electron-builder --config
+electron-builder-jocs.js …` directly needs `node build-backend.js windows
+--jocs` first (the build stops if `backend-jocs/gregal-jocs.exe` is
+missing). `verify-release.js` also checks that each edition packaged its own
+backend (`gregal.exe` or `gregal-jocs.exe`, never the other one). Upload
+`Gregal-Jocs-Setup-*.exe`, its blockmap, `Gregal-Jocs-Portable-*.exe` and
+`jocs.yml` to the same release as Gregal's.
+
 ## Assets
 
 | File | What it is |
@@ -83,7 +120,10 @@ that builds assets lives in `.github/workflows/release.yml`.
 | `Gregal-Setup-X.Y.Z-x64.exe` | Windows installer with automatic updates (`latest.yml` + `.blockmap`) |
 | `Gregal-Portable-X.Y.Z-x64.exe` | Portable Windows app |
 | `Gregal-VSCode-Setup-x64.exe` | Standalone Windows installer for the VS Code extension and backend |
-| `gregal-<os>-<arch>[.exe]` | Standalone backend/CLI (linux, darwin, windows × amd64, arm64) |
+| `Gregal-Jocs-Setup-X.Y.Z-x64.exe` | Gregal Jocs (the games) Windows installer with automatic updates (`jocs.yml` + `.blockmap`) |
+| `Gregal-Jocs-Portable-X.Y.Z-x64.exe` | Portable Gregal Jocs |
+| `gregal-<os>-<arch>[.exe]` | Standalone backend/CLI (linux, darwin, windows × amd64, arm64), without the games |
+| `gregal-jocs-<os>-<arch>[.exe]` | The same backend/CLI with the games (Gregal Jocs) |
 | `gregal-X.Y.Z.vsix` | VS Code extension; install from Extensions → **…** → **Install from VSIX…** |
 | `Gregal-Android-A.B.C-arm64-v8a.apk` | Android app for phones (about 27 MB), attached by step 4 |
 | `Gregal-Android-A.B.C-x86_64.apk` | Android app for x86_64 emulators |
@@ -95,8 +135,9 @@ Windows packages are unsigned.
 
 ## Version lines
 
-- **Gregal** (CLI, server, desktop): `main.go` and `desktop/package.json` —
-  always equal, checked in CI.
+- **Gregal** (CLI, server, desktop) and **Gregal Jocs**: `main.go`,
+  `jocs/cmd/gregal-jocs/main.go` and `desktop/package.json` — always equal,
+  checked by `node scripts/release.cjs check`.
 - **Android**: its own `versionName` in `android/app/build.gradle.kts`,
   bumped with `--android` when the app changes.
 - **VS Code extension**: its own version in `vscode-gregal/package.json`.
@@ -108,5 +149,7 @@ All gitignored:
 - `dist/` — output of `./build.sh` (same names as the release assets). It
   is wiped and rebuilt on every run.
 - `desktop/dist/` — local Electron builds (`npm run dist-win`).
+- `desktop/backend/`, `desktop/backend-jocs/` — the backends `build-backend.js`
+  compiles for each edition (`gregal.exe`, `gregal-jocs.exe`).
 - `output/` — scratch space, e.g. `output/release-X.Y.Z/` for the APKs
   and manifest attached in step 4. Nothing here is part of a release by itself.

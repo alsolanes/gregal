@@ -15,6 +15,7 @@ test('the repository release metadata is consistent', () => {
 
 const fixture = () => ({
   main: 'package main\n\nvar version = "v1.2.3"\n',
+  jocs: 'package main\n\nvar version = "v1.2.3"\n',
   desktop: '{\n  "name": "gregal-desktop",\n  "version": "1.2.3"\n}\n',
   lock: JSON.stringify({ name: 'gregal-desktop', version: '1.2.3', lockfileVersion: 3, packages: { '': { version: '1.2.3' }, 'node_modules/x': { version: '1.2.3' } } }, null, 2) + '\n',
   changelog: '# Changelog\n\n## Unreleased\n\n- New thing.\n\n## v1.2.3 - 2026-01-01 - Old\n\n- Old thing.\n',
@@ -25,6 +26,7 @@ const fixture = () => ({
 test('bump updates every version and opens a fresh Unreleased section', () => {
   const out = lib.bump(fixture(), { version: '1.3.0', title: 'Nice', date: '2026-10-14', android: '0.9.9' });
   assert.equal(lib.mainVersion(out.main), '1.3.0');
+  assert.equal(lib.mainVersion(out.jocs), '1.3.0', 'Gregal Jocs follows Gregal');
   assert.equal(lib.packageVersion(out.desktop), '1.3.0');
   assert.deepEqual(lib.lockVersions(out.lock), ['1.3.0', '1.3.0']);
   assert.equal(JSON.parse(out.lock).packages['node_modules/x'].version, '1.2.3', 'dependencies keep their own versions');
@@ -48,6 +50,9 @@ test('consistency check names the file that drifted', () => {
   const f = fixture();
   f.desktop = f.desktop.replace('1.2.3', '1.2.4');
   assert.match(lib.checkConsistency(f).join('\n'), /desktop\/package\.json is 1\.2\.4/);
+  const g = fixture();
+  g.jocs = g.jocs.replace('1.2.3', '1.2.2');
+  assert.match(lib.checkConsistency(g).join('\n'), /gregal-jocs\/main\.go is 1\.2\.2/);
 });
 
 test('release notes come from the changelog section', () => {

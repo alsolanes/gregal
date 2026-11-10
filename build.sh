@@ -1,8 +1,10 @@
 #!/bin/sh
 # build.sh — binaris de la CLI/backend per a totes les plataformes + checksums.
 # Ús: ./build.sh [versió]   (defecte: tag git)
-# Surt a dist/gregal-<os>-<arch>[.exe] i dist/SHA256SUMS, amb els mateixos
-# noms que els fitxers de la release de GitHub: és el que fa servir la CI
+# Surt a dist/gregal-<os>-<arch>[.exe] (Gregal, sense jocs),
+# dist/gregal-jocs-<os>-<arch>[.exe] (Gregal Jocs: el mateix servidor amb
+# els jocs, ./jocs/cmd/gregal-jocs) i dist/SHA256SUMS, amb els mateixos noms
+# que els fitxers de la release de GitHub: és el que fa servir la CI
 # (.github/workflows/release.yml) i el que pots córrer en local.
 set -eu
 cd "$(dirname "$0")"
@@ -19,10 +21,13 @@ mkdir -p dist
 build() {
 	ext=""
 	[ "$1" = "windows" ] && ext=".exe"
-	out="dist/gregal-$1-$2$ext"
 	# -trimpath i -buildvcs=false eviten que la ruta local o la metadata
 	# accidental del checkout facin variar el binari d'una mateixa font.
+	out="dist/gregal-$1-$2$ext"
 	CGO_ENABLED=0 GOOS=$1 GOARCH=$2 "$GO" build -trimpath -buildvcs=false -ldflags "-X main.version=$VER" -o "$out" .
+	echo "built $out ($VER)"
+	out="dist/gregal-jocs-$1-$2$ext"
+	CGO_ENABLED=0 GOOS=$1 GOARCH=$2 "$GO" build -trimpath -buildvcs=false -ldflags "-X main.version=$VER" -o "$out" ./jocs/cmd/gregal-jocs
 	echo "built $out ($VER)"
 }
 

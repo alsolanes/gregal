@@ -7,8 +7,11 @@ const SEMVER = /^\d+\.\d+\.\d+$/;
 
 // Every file that carries the product version. The VS Code extension and the
 // Android app have their own version lines on purpose (see docs/release.md).
+// The Gregal Jocs binary (jocs/cmd/gregal-jocs) carries the same version as
+// Gregal: both come out of every release.
 const FILES = {
   main: 'main.go',
+  jocs: 'jocs/cmd/gregal-jocs/main.go',
   desktop: 'desktop/package.json',
   lock: 'desktop/package-lock.json',
   changelog: 'CHANGELOG.md',
@@ -73,6 +76,8 @@ function checkConsistency(files) {
   if (!SEMVER.test(v)) problems.push(`${FILES.main}: no "var version = \\"vX.Y.Z\\"" line`);
   const d = packageVersion(files.desktop);
   if (d !== v) problems.push(`${FILES.desktop} is ${d || '?'} but ${FILES.main} is ${v || '?'}`);
+  const j = mainVersion(files.jocs || '');
+  if (j !== v) problems.push(`${FILES.jocs} is ${j || '?'} but ${FILES.main} is ${v || '?'}`);
   const [l1, l2] = lockVersions(files.lock);
   if (l1 !== v || l2 !== v) problems.push(`${FILES.lock} is ${l1 || '?'}/${l2 || '?'} but ${FILES.main} is ${v || '?'}`);
   if (!changelogSection(files.changelog, 'Unreleased')) problems.push(`${FILES.changelog}: missing "## Unreleased" section`);
@@ -93,6 +98,7 @@ function bump(files, { version, title, date, android }) {
   if (!title || !title.trim()) throw new Error('a short release title is required (--title "...")');
   const out = { ...files };
   out.main = files.main.replace(/var version = "v\d+\.\d+\.\d+"/, `var version = "v${version}"`);
+  out.jocs = (files.jocs || '').replace(/var version = "v\d+\.\d+\.\d+"/, `var version = "v${version}"`);
   const desk = JSON.parse(files.desktop);
   out.desktop = files.desktop.replace(`"version": "${desk.version}"`, `"version": "${version}"`);
   // Only the two root entries of the lock file are ours; dependencies keep theirs.
@@ -127,6 +133,7 @@ function releaseNotes(changelog, version) {
     // binaris de la CLI i l'APK normal, que des de la v1.13.1 no hi són.
     `- **Gregal-Setup-${version}-x64.exe**: Windows installer with automatic updates.`,
     `- **Gregal-Portable-${version}-x64.exe**: portable Windows app (no automatic updates).`,
+    `- **Gregal-Jocs-Setup-${version}-x64.exe** and **Gregal-Jocs-Portable-${version}-x64.exe**: Gregal Jocs, the games (the Arena and the winds' league), a separate app with its own updates.`,
     '- **gregal-vents-version.json**: update manifest for the Gregal Vents Android app (its APKs are attached to the release that introduced them).',
     '- **SHA256SUMS.txt**: checksums of the Windows packages. Installer updates use the included latest.yml and blockmap.',
     '',

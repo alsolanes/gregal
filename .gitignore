@@ -4,6 +4,7 @@ android/.gradle
 config.yaml
 dist/
 /gregal
+/gregal-jocs
 local.properties
 vscode-gregal/node_modules/
 vscode-gregal/dist/
@@ -11,6 +12,7 @@ vscode-gregal/*.vsix
 desktop/node_modules/
 desktop/dist/
 desktop/backend/
+desktop/backend-jocs/
 evals/results/
 runner/node_modules/
 runner/dist/
