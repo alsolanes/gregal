@@ -3,6 +3,7 @@ package server
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gregal/jocs/football"
@@ -53,5 +54,26 @@ func TestFileTeamStore(t *testing.T) {
 	}
 	if got := (Member{Name: "Aire", Role: "coach", Persona: "Calm."}).identity(); got != "You are Aire (coach). Calm." {
 		t.Fatalf("identity: %q", got)
+	}
+}
+
+// El cos tècnic: cada posició decideix els seus comandaments del pla, i el
+// model ho llegeix amb les instruccions desades (o l'exemple, si no n'hi ha).
+func TestStaffBriefAndSave(t *testing.T) {
+	brief := staffBrief(map[string]string{"qb": "Throw to the tight end on third down."})
+	for _, want := range []string{"Quarterback (decides focus): Throw to the tight end on third down.", "Defensive coordinator (decides blitz)", "Head coach (decides aggression, tempo)"} {
+		if !strings.Contains(brief, want) {
+			t.Fatalf("brief sense %q:\n%s", want, brief)
+		}
+	}
+	st := newFileTeamStore(t.TempDir())
+	ms, _ := st.Members()
+	ms[0].Staff = map[string]string{"dc": "Blitz every third down."}
+	if err := st.SaveMembers(ms); err != nil {
+		t.Fatal(err)
+	}
+	back, _ := st.Members()
+	if back[0].Staff["dc"] != "Blitz every third down." {
+		t.Fatalf("el cos tècnic s'ha de desar: %+v", back[0])
 	}
 }

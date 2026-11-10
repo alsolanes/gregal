@@ -32,6 +32,7 @@ const games = {
         <p class="page-copy">${esc(T('fb.lead'))}</p></div>
         <div class="fb-actions"><span id="fbStatus" class="fb-status" role="status"></span><button type="button" id="fbPlay" class="primary"></button></div></header>
       <div id="fbTeams" class="fb-teams"></div>
+      <div id="fbStaff" class="fb-staff"></div>
       <div class="fb-stage"><canvas id="fbCanvas"></canvas></div>
       <div class="fb-below"><div id="fbNotes" class="fb-notes"></div><div><h3>${esc(T('fb.games'))}</h3><ol id="fbGames" class="fb-games"></ol></div></div>
     </div>`;
@@ -72,6 +73,30 @@ const games = {
     $('fbGames').innerHTML = (d.games || []).map(g => `<li data-id="${esc(g.id)}" class="${g.id === this.current ? 'cur' : ''}"><b>${esc(g.teams[0].abbr)} ${g.score[0]} - ${g.score[1]} ${esc(g.teams[1].abbr)}</b>
       <small>${esc(T('fb.status.' + g.status))} · ${esc(new Date(g.started * 1000).toLocaleString())}</small></li>`).join('') || `<li class="none">${esc(T('fb.none'))}</li>`;
     $('fbGames').querySelectorAll('[data-id]').forEach(li => li.onclick = () => this.open(li.dataset.id));
+    this.paintStaff();
+  },
+
+  // El cos tècnic de cada equip: una instrucció per posició (cap entrenador,
+  // coordinadors i quarterback). Cada posició decideix els seus comandaments del pla.
+  paintStaff() {
+    const d = this.data || {}, box = $('fbStaff');
+    if (!box) return;
+    const ps = d.positions || [], teams = d.teams || [];
+    if (!ps.length || teams.length < 2) { box.innerHTML = ''; return; }
+    if (box.contains(document.activeElement)) return; // no esborris el que s'està escrivint
+    box.innerHTML = teams.map((t, i) => `<details class="fb-staff-team" style="--c:${esc(t.color)}"><summary><b>${esc(t.name)}</b> · coaching staff</summary>
+      ${ps.map(p => `<label class="fb-staff-pos"><span><b>${esc(p.Name)}</b> <small>decides ${esc(p.Dials)}</small></span>
+        <textarea data-team="${i}" data-pos="${esc(p.ID)}" rows="2" placeholder="${esc(p.Starter)}">${esc(((d.staff || [])[i] || {})[p.ID] || '')}</textarea></label>`).join('')}
+      <div class="fb-staff-foot"><span class="fb-status" data-saved="${i}"></span><button type="button" class="jx-btn" data-save="${i}">Save staff</button></div></details>`).join('');
+    box.querySelectorAll('[data-save]').forEach(b => b.onclick = async () => {
+      const team = +b.dataset.save, staff = {};
+      box.querySelectorAll(`textarea[data-team="${team}"]`).forEach(ta => { staff[ta.dataset.pos] = ta.value; });
+      const out = box.querySelector(`[data-saved="${team}"]`);
+      b.disabled = true;
+      try { this.data = await api('/api/football', { method: 'POST', body: JSON.stringify({ action: 'staff', team, staff }) }); out.textContent = 'Saved: the next quarter follows it.'; }
+      catch (e) { out.textContent = e.message; }
+      b.disabled = false;
+    });
   },
 
   open(id) {

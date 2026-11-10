@@ -201,7 +201,7 @@ func (s *Server) fbRoster(t *football.Team) string {
 // fbCoachPlan: l'entrenador decideix el pla del quart.
 func (s *Server) fbCoachPlan(ctx context.Context, coach Member, mine, theirs *football.Team, g *football.Game, team int, quarter int) football.Plan {
 	lang := gameLang()
-	system := coach.identity() + "\n\nYOU ARE THE HEAD COACH of " + mine.Name + " in an American football (NFL rules) game against " + theirs.Name + ". Reply with JSON only, no prose, no code fences."
+	system := coach.identity() + "\n\nYOU LEAD THE STAFF of " + mine.Name + " in an American football (NFL rules) game against " + theirs.Name + ". Reply with JSON only, no prose, no code fences.\n\n" + staffBrief(coach.Staff)
 	var sit string
 	if quarter == 1 {
 		sit = "It is the opening kickoff."
@@ -459,7 +459,9 @@ func (s *Server) fbEnd(run *fbRun, status, why string) {
 func (s *Server) handleFootball(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
 		var req struct {
-			Action string `json:"action"`
+			Action string            `json:"action"`
+			Team   int               `json:"team"`
+			Staff  map[string]string `json:"staff"`
 		}
 		if !decodeSmall(w, r, &req) {
 			return
@@ -473,6 +475,12 @@ func (s *Server) handleFootball(w http.ResponseWriter, r *http.Request) {
 			}
 			writeJSON(w, map[string]string{"id": id})
 			return
+		case "staff":
+			// Les instruccions del cos tècnic d'un equip: {team: 0|1, staff: {posició: text}}.
+			if err := s.fbSetStaff(req.Team, req.Staff); err != nil {
+				writeJSONStatus(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
 		case "reset":
 			if err := s.teams().ResetLeague(); err != nil {
 				writeJSONStatus(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -489,8 +497,47 @@ func (s *Server) handleFootball(w http.ResponseWriter, r *http.Request) {
 		out["error"] = err.Error()
 	} else {
 		out["teams"] = []fbTeamView{fbTeamOf(lg.Teams[0]), fbTeamOf(lg.Teams[1])}
+		// El cos tècnic de cada equip i les posicions que es poden editar.
+		members, _ := s.teams().Members()
+		staff := [2]map[string]string{}
+		for t := 0; t < 2; t++ {
+			staff[t] = memberByID(members, lg.Teams[t].Coach).Staff
+		}
+		out["staff"] = staff
+		out["positions"] = nflStaff
 	}
 	writeJSON(w, out)
+}
+
+// fbSetStaff desa les instruccions del cos tècnic de l'equip team.
+func (s *Server) fbSetStaff(team int, staff map[string]string) error {
+	if team != 0 && team != 1 {
+		return errConst("team must be 0 or 1")
+	}
+	lg, err := s.fbLeague()
+	if err != nil {
+		return err
+	}
+	members, err := s.teams().Members()
+	if err != nil {
+		return err
+	}
+	clean := map[string]string{}
+	for _, p := range nflStaff {
+		if v := strings.TrimSpace(staff[p.ID]); v != "" {
+			if r := []rune(v); len(r) > 1500 {
+				v = string(r[:1500])
+			}
+			clean[p.ID] = v
+		}
+	}
+	for i := range members {
+		if members[i].ID == lg.Teams[team].Coach {
+			members[i].Staff = clean
+			return s.teams().SaveMembers(members)
+		}
+	}
+	return errConst("this team has no coach")
 }
 
 // handleFootballMatch: GET ?id=&after=N (jugades noves); POST ?id= {action: stop}.

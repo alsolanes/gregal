@@ -23,7 +23,7 @@ func TestFootballMatchPlaysToTheEnd(t *testing.T) {
 	footballModel = func(_ *Server, _ context.Context, system, user string, _ int) (string, error) {
 		atomic.AddInt32(&calls, 1)
 		switch {
-		case strings.Contains(system, "HEAD COACH"):
+		case strings.Contains(system, "LEAD THE STAFF"):
 			return `{"pass_rate":0.6,"deep_shots":0.2,"aggression":0.5,"blitz":0.3,"tempo":0.2,"focus":"","note":"Anem a per ells!"}`, nil
 		case strings.Contains(system, "PLAY-BY-PLAY"):
 			var lines []string

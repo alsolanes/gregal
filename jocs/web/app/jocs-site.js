@@ -28,7 +28,7 @@ const GAMES = {
 // La lliga dels vents (futbol americà, football.js) és el quart joc: no es
 // juga amb un .md sinó amb els vents de Gregal Vents com a entrenadors.
 const ROUTES = [
-  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Leaderboard'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'Winds league'], ['how', 'How it works'],
+  ['home', 'Home'], ['play', 'Play'], ['ranking', 'Leaderboard'], ['cup', 'Tournament'], ['matches', 'Matches'], ['league', 'League'], ['how', 'How it works'],
 ];
 
 const S = { d: null, route: 'home', arg: '', rankGame: 'nfl', rankBots: true, matchGame: 'all', comp: null, compGame: '', timer: 0, liveComp: null, loadedAt: 0 };
@@ -196,15 +196,14 @@ async function mountLeague() {
   const empty = $('jxLeagueEmpty');
   empty.hidden = !none;
   if (none) {
-    empty.innerHTML = `<div class="jx-empty jx-league-empty"><div class="jx-league-ic" aria-hidden="true">🏈</div><b>The league needs two winds</b>
-      <span>Each franchise is coached by one of your Gregal Vents winds, so the league starts once you have at least two.</span>
-      ${jocsApp() ? '' : '<a class="jx-btn" href="/vents/">Open Gregal Vents</a>'}</div>`;
+    empty.innerHTML = `<div class="jx-empty jx-league-empty"><div class="jx-league-ic" aria-hidden="true">🏈</div><b>The league is not ready yet</b>
+      <span>${esc(d.error || 'Try again in a moment.')}</span></div>`;
   }
 }
 
 function paintLeagueHead() {
-  $('jxLeagueHead').innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">American football</div><h1 class="jx-h1">Winds league</h1>
-    <p class="jx-muted">Two franchises coached by your winds. Before every quarter each coach plans with the model, the engine plays it out and a third wind calls the action.</p></div></div>`;
+  $('jxLeagueHead').innerHTML = `<div class="jx-page-head"><div><div class="jx-kicker">American football</div><h1 class="jx-h1">League</h1>
+    <p class="jx-muted">Two franchises, each with a staff of agents: head coach, offensive and defensive coordinators and the quarterback, every one with its own instructions. Before every quarter the staff plans with the model, the engine plays it out and a caster calls the action.</p></div></div>`;
 }
 
 // ---- Juga: l'Arena de sempre, encastada ----
@@ -347,7 +346,7 @@ function paintHome() {
       ${statsHTML(Math.max(t.players || 0, humans.size), t)}
       <div class="jx-sec-head"><div><div class="jx-kicker">Three games · one model</div><h2 class="jx-h2">Pick your arena</h2></div></div>
       <div class="jx-games">${cards}</div>
-      ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>Winds league</b><small>American football with your Gregal winds as coaches. Watch the games live, quarter by quarter.</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
+      ${leagueAllowed() ? `<a class="jx-league-strip" href="#/league"><span class="jx-league-ic" aria-hidden="true">🏈</span><span><b>League</b><small>American football with your own staff of agents</small></span><span class="jx-more" aria-hidden="true">Open →</span></a>` : ''}
       ${podiums ? `<div class="jx-sec-head"><div><div class="jx-kicker">Elo ranking</div><h2 class="jx-h2">Top of the table</h2></div><a class="jx-more" href="#/ranking">Full leaderboard →</a></div><div class="jx-podiums">${podiums}</div>` : ''}
       ${recent.length ? `<div class="jx-sec-head"><div><div class="jx-kicker">Results</div><h2 class="jx-h2">Latest matches</h2></div><a class="jx-more" href="#/matches">All matches →</a></div><div class="jx-results">${recent.map(matchCard).join('')}</div>` : ''}
       <div class="jx-sec-head"><div><div class="jx-kicker">The format</div><h2 class="jx-h2">Three steps to the trophy</h2></div></div>

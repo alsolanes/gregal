@@ -40,6 +40,35 @@ type Member struct {
 	Color     string `json:"color,omitempty"`     // #RRGGBB
 	Style     string `json:"style,omitempty"`     // cara (ulls, boca, forma)
 	Persona   string `json:"persona,omitempty"`   // com parla als prompts
+	// Staff: les instruccions de cada posició de l'equip que entrena (id de
+	// posició → text). Les llegeix el pla de cada quart (fbCoachPlan).
+	Staff map[string]string `json:"staff,omitempty"`
+}
+
+// staffPosition és una posició del cos tècnic i els comandaments del pla que decideix.
+type staffPosition struct{ ID, Name, Dials, Starter string }
+
+// nflStaff: el cos tècnic d'un equip de la lliga. Són les mateixes posicions
+// de NFL que l'Arena (arena-positions.js); a la lliga decideixen el pla del quart.
+var nflStaff = []staffPosition{
+	{"head_coach", "Head coach", "aggression, tempo", "Go for it on 4th & short past midfield. Speed up when trailing late."},
+	{"oc", "Offensive coordinator", "pass_rate, deep_shots", "Balanced: pass a bit more on early downs, take deep shots when the safeties creep up."},
+	{"qb", "Quarterback", "focus", "Feature the best receiver; go to the tight end in the red zone."},
+	{"dc", "Defensive coordinator", "blitz", "Blitz on obvious passing downs, stay in coverage otherwise."},
+}
+
+// staffBrief és el que llegeix el model: qui decideix cada comandament.
+func staffBrief(staff map[string]string) string {
+	var b strings.Builder
+	b.WriteString("YOUR STAFF: each agent decides its own dials of the plan, following its instructions.\n")
+	for _, p := range nflStaff {
+		ins := strings.TrimSpace(staff[p.ID])
+		if ins == "" {
+			ins = p.Starter
+		}
+		b.WriteString("- " + p.Name + " (decides " + p.Dials + "): " + ins + "\n")
+	}
+	return b.String()
 }
 
 // TeamStore guarda els membres i la lliga d'un usuari.
@@ -52,6 +81,8 @@ type TeamStore interface {
 	SaveLeague(*football.League) error
 	// ResetLeague esborra la lliga (no els membres): la propera es refà.
 	ResetLeague() error
+	// SaveMembers desa els membres (el cos tècnic de cada equip, p. ex.).
+	SaveMembers([]Member) error
 }
 
 // fileTeamStore és el TeamStore de fitxers JSON en una carpeta.
@@ -83,6 +114,10 @@ func (st *fileTeamStore) Members() ([]Member, error) {
 		return nil, err
 	}
 	return ms, nil
+}
+
+func (st *fileTeamStore) SaveMembers(ms []Member) error {
+	return writeJSONFile(filepath.Join(st.dir, "members.json"), membersFile{Version: 1, Members: ms})
 }
 
 func (st *fileTeamStore) League() (*football.League, error) {

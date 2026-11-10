@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Equips d'agents per posició a Gregal Jocs.** A l'Arena, cada estratègia pot
+  ser un equip: l'entrenador, els coordinadors i el quarterback a NFL; l'IGL,
+  l'AWPer, el support, l'entry i el lurker a CS2; el coach i cada línia a LoL.
+  Cada posició té les seves instruccions i decideix la seva part de la jugada,
+  i al registre es veu qui ha decidit cada cosa. La lliga deixa de ser «dels
+  vents»: cada franquícia té el seu cos tècnic amb instruccions per posició.
+
 - **Gregal Jocs, del tot a part.** Gregal Jocs té el seu perfil:
   `~/.config/gregal-jocs` (config, claus, memòria) i
   `~/.local/share/gregal-jocs` (converses, comptes, contrasenyes, tokens,
