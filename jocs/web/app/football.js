@@ -1,4 +1,4 @@
-// Partits de futbol americà entre els vents (football.go + football-view.js):
+// Partits de futbol americà de la lliga (football.go + football-view.js):
 // les dues franquícies, el botó per jugar-ne un, la llista de partits i el
 // visor en directe (pausa, velocitat, salta al final), amb les notes dels
 // entrenadors i, al final, la crònica i el millor jugador.
@@ -61,7 +61,7 @@ const games = {
     $('fbPlay').textContent = T(running ? 'fb.stop' : 'fb.play');
     $('fbPlay').classList.toggle('danger', !!running);
     $('fbStatus').textContent = d.error || T('fb.today').replace('{n}', d.today || 0).replace('{max}', d.max_per_day || 3);
-    // Sense lliga (calen dos vents) el botó no pot fer res, i sense cap partit
+    // Sense lliga (calen dos membres) el botó no pot fer res, i sense cap partit
     // jugat tampoc hi ha res a mirar: ni camp buit ni llista buida.
     const noLeague = !!d.error && !(d.teams || []).length;
     $('fbPlay').disabled = noLeague && !running;

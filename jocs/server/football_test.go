@@ -5,10 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"gregal/internal/web"
 )
 
 func TestFootballMatchPlaysToTheEnd(t *testing.T) {
@@ -78,14 +82,32 @@ func TestFootballMatchPlaysToTheEnd(t *testing.T) {
 	if len(tail.Plays) != len(m.Plays)-10 || tail.Plays[0].N != 11 || tail.Teams[0].Players != nil {
 		t.Fatalf("after=10: %d jugades", len(tail.Plays))
 	}
-	// La lliga apunta el resultat; els jugadors d'equip no són vents.
+	// La lliga apunta el resultat; els equips són dels membres per defecte
+	// de la lliga (cap vent), i res no va als vents ni a «Avui».
 	lg := s.fbLoadLeague()
 	if lg.Games != 1 || lg.Teams[0].Wins+lg.Teams[0].Losses+lg.Teams[0].Ties != 1 {
 		t.Fatalf("lliga: %+v", lg)
 	}
-	if ws, _ := s.host.Winds().List(); len(ws) != 2 {
-		t.Fatalf("els jugadors d'equip no han d'aparèixer com a vents: %d", len(ws))
+	members, err := s.teams().Members()
+	if err != nil || len(members) != len(defaultMembers()) {
+		t.Fatalf("membres per defecte: %v %v", members, err)
 	}
+	if c := memberByID(members, lg.Teams[0].Coach); c.Persona == "" {
+		t.Fatalf("l'entrenador ha de ser un membre de la lliga: %q", lg.Teams[0].Coach)
+	}
+	if _, err := os.Stat(filepath.Join(s.fbDir(), "members.json")); err != nil {
+		t.Fatalf("members.json: %v", err)
+	}
+	if w := get(t, s.host.(*web.Server).Handler(), "/api/winds"); strings.Contains(w.Body.String(), `"id"`) {
+		t.Fatalf("la lliga no ha de crear vents: %s", w.Body.String())
+	}
+	data := os.Getenv("GREGAL_DATA_DIR")
+	_ = filepath.WalkDir(data, func(p string, d os.DirEntry, err error) error {
+		if err == nil && (d.Name() == "winds-novetats.json" || d.Name() == "winds-avui.json") {
+			t.Errorf("la lliga no ha d'escriure %s", p)
+		}
+		return nil
+	})
 	// Tres partits al dia.
 	postJSON(t, s.handleFootball, `{"action":"play"}`)
 	waitBackground()

@@ -32,14 +32,15 @@ func Product() *web.Product {
 	}
 }
 
-// gamesPlugin: els partits de futbol americà entre els vents (football.go).
-// No té bucle de fons: un partit només es juga quan algú el demana.
+// gamesPlugin: els partits de futbol americà de la lliga (football.go, amb
+// els equips de teams.go). No té bucle de fons: un partit només es juga
+// quan algú el demana.
 func gamesPlugin() *web.Plugin {
 	return &web.Plugin{
 		ID: "games", Order: 20, DefaultOn: true, Icon: "🏈", View: "partits",
 		Name: "Games", NameCA: "Partits",
-		Description:   "The winds' American football league: teams made of your winds, games played and narrated by the model.",
-		DescriptionCA: "La lliga de futbol americà dels vents: equips fets amb els teus vents, partits jugats i narrats pel model.",
+		Description:   "The winds' American football league: teams led by the league's members, games played and narrated by the model.",
+		DescriptionCA: "La lliga de futbol americà dels vents: equips dirigits pels membres de la lliga, partits jugats i narrats pel model.",
 		Routes: func(h *web.Hub, handle func(string, http.HandlerFunc)) {
 			handle("/api/football", global(h, (*Server).handleFootball))
 			handle("/api/football/match", global(h, (*Server).handleFootballMatch))
