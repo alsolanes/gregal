@@ -83,6 +83,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
@@ -1154,13 +1155,20 @@ internal fun WindConversation(vm: GregalViewModel, lang: String, wind: Wind, onB
             onWiki = onWiki,
             onSessions = { sessionsOpen = true; vm.loadWindSessions(wind.id) },
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
-        if (isBusy) live[wind.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) }) }
         // Missatges
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
         val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
+        // La franja de feina va SOBREPOSADA al fil, no a sobre seu: si ocupa
+        // lloc, cada cop que apareix i desapareix (a cada passa del vent)
+        // empeny tota la conversa amunt i avall — el flaix que es veu mentre
+        // el vent respon.
+        if (isBusy) live[wind.id]?.let {
+            VentsWorkProgress(lang, it, onStop = { vm.cancelWindTurn(wind.id) },
+                modifier = Modifier.align(Alignment.TopCenter).zIndex(1f))
+        }
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
@@ -1407,12 +1415,19 @@ private fun RotllanaConversation(vm: GregalViewModel, lang: String, rot: Rotllan
             onBack = onBack, onProfile = { groupProfile = true },
             onWiki = onWiki,
             onTransfer = if (vm.canTransferToServer()) ({ askTransfer = true }) else null)
-        if (rotBusy) live[rot.id]?.let { VentsWorkProgress(lang, it, onStop = { vm.cancelRotllanaTurn(rot.id) }) }
         // Quan el viewport s'encongeix de cop (s'obre el teclat) i érem al
         // final, segueix-lo: el teclat no ha de tapar l'últim missatge.
         val scope = rememberCoroutineScope()
         val awayFromLatest = msgs.isNotEmpty() && !follow.following
         Box(Modifier.weight(1f)) {
+        // La franja de feina va SOBREPOSADA al fil, no a sobre seu: si ocupa
+        // lloc, cada cop que apareix i desapareix (a cada passa del vent)
+        // empeny tota la conversa amunt i avall — el flaix que es veu mentre
+        // el vent respon.
+        if (rotBusy) live[rot.id]?.let {
+            VentsWorkProgress(lang, it, onStop = { vm.cancelRotllanaTurn(rot.id) },
+                modifier = Modifier.align(Alignment.TopCenter).zIndex(1f))
+        }
         LazyColumn(
             Modifier.fillMaxSize(),
             state = listState,
