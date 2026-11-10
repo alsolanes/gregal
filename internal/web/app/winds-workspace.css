@@ -611,3 +611,9 @@ html body.shell-winds .vw-nav-item:focus-visible, html body.shell-winds .vw-send
 .vw-trade-watch > button.is-on { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); background:var(--accent-soft); color:var(--ink); }
 .vw-trade > .vw-avui-tune { margin-top:8px; padding-left:0; }
 .vw-expert-status { min-height:1.4em; margin:8px 0 0; color:var(--accent-hi); font-size:13px; }
+
+/* Els enllaços de Vents (missatges, Avui, notes, diàlegs): l'accent clar del tema, com a Codi.
+   Sense regla, el navegador hi posava el blau per defecte, il·legible en fosc. */
+:is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]), :is(.vw-message-text, .vw-result-text, .vw-avui-body) a { color:var(--chat-link, var(--accent-hi)); font-weight:550; text-decoration:underline; text-decoration-color:color-mix(in srgb, var(--accent-hi) 40%, transparent); text-underline-offset:3px; }
+:is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]):visited, :is(.vw-message-text, .vw-result-text, .vw-avui-body) a:visited { color:var(--chat-link, var(--accent-hi)); }
+:is(.wind-workspace, .vw-dialog, .notes-wrap) a:not([class]):hover, :is(.vw-message-text, .vw-result-text, .vw-avui-body) a:hover { text-decoration-color:currentColor; }

@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+## v1.66.0 - 2026-11-10 - Avui i vents especialistes
+
+- **Avui: els vents et diuen el que toca, i s'acaba.** Tot el que un vent
+  diu pel seu compte (el resum del matí, el que troba vigilant, un
+  recordatori, una feina acabada) és una targeta amb una decisió: Fet, Més
+  tard, Ara no o una acció que obre la conversa. El resum arriba en tres
+  seccions, el que deixes obert torna l'endemà, «Útil» i «No m'interessa»
+  ensenyen el vent, i en hores tranquil·les el mòbil no sona.
+- **Vents especialistes de debò.** Cada ofici té les seves fonts de dades i
+  el seu format: el cuiner fa fitxes de recepta, l'esportiu fitxes de partit
+  amb on veure'l, el del temps fa servir Open-Meteo. El perfil ensenya el
+  nivell, les fonts i les vigilàncies que t'ofereix, que s'activen amb un
+  toc, i «Fes-lo més expert» també arriba a la web. Sis oficis nous amb la
+  seva eina a l'avatar: cuina, el temps, viatges, salut, finances i cinema.
+- **Una conversa, un vent.** Per defecte la porta el vent que hi encaixa més;
+  la conversa en grup és una tria. En grup, qui parla continua el fil, les
+  propostes les respon qui les ha fet i tries a qui parles tocant-ne la cara.
+- **Avatars nous i Vents amb l'aspecte de Codi.** Cares amb volum, figures
+  senceres amb l'eina del seu ofici i un sol accent a tots els productes.
+- **Codi amb un sol mode.** «Planifica primer» és un interruptor i «Només
+  lectura» un permís més del cadenat.
+- **Notes àgils.** Obrir les notes et deixa davant d'un full en blanc que es
+  desa sol, amb les altres notes al costat.
+- **Enllaços llegibles a Vents.** En fosc sortien en el blau del navegador;
+  ara fan servir l'accent clar del tema, com a Codi.
+- **Gregal Vents per a Android (1.70.0).** La pestanya Avui amb els botons Fet
+  i Més tard a les notificacions, avisos amb icona segons el que són, el
+  perfil d'ofici, notes àgils i el compositor de Codi amb un sol mode.
+
 ## v1.65.0 - 2026-11-09 - Tot més polit
 
 - **Tot més polit, a tots els productes.** Una revisió sencera de la interfície
