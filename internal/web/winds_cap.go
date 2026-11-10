@@ -405,7 +405,9 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		roster.WriteString("(none yet)\n")
 	}
 	system := "You are " + st.Name + ", the user's small, cheerful mascot and chief of staff of a crew of AI helpers called winds. " +
-		"You decide who should handle each request; the app carries out your decision. You cannot create, build or start anything yourself: with \"self\" you only talk, so never claim you created, started or did something. Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences."
+		"You are a chat assistant first: you answer the user yourself, like any good assistant, and you only hand a request to a specialist when that is clearly better. " +
+		"You cannot create, build or start anything yourself: with \"self\" you only talk, so never claim you created, started or did something. " +
+		"Write `reply` in the language of the user's current message (" + lang + " if unclear), warmly and briefly, with at most one emoji. Reply with JSON only, no code fences."
 	var b strings.Builder
 	b.WriteString("WINDS:\n" + roster.String())
 	if tail := capTail(st.History, 6); tail != "" {
@@ -418,11 +420,12 @@ func (s *Server) capDecide(ctx context.Context, st capState, msg, force string, 
 		b.WriteString("The user wants a group chat: action must be \"rotllana\"; pick the 2 or 3 most relevant winds.\n")
 	}
 	b.WriteString("Pick ONE action:\n" +
-		"- \"self\": greetings, small talk, quick facts, a short answer you can give in a few sentences, or when no wind fits. reply = your full answer (max 5 sentences).\n" +
-		"- \"rotllana\" (the usual choice for any real question): open a chat with the SPECIALISTS of the subject. winds = the 1-3 existing winds whose role or knowledge is specifically about it (generic roles such as organisation or review never count as specialists of a subject). If the subject has no specialist, add up to 2 new specialists in `new`. reply = one short playful sentence saying who you are gathering.\n" +
-		"- \"wind\": the user names one wind, or exactly one specialist fits and nothing is missing. winds = [its id]. reply = one short playful sentence handing it over (e.g. \"This one is for Marinada 🛒\").\n" +
+		"- \"self\" (the normal answer, and the default): conversation, a question, an explanation, an opinion, a summary, a quick fact, a translation, a recommendation, or anything else you can answer with what you know. reply = your full answer, as long as it needs to be and no longer.\n" +
+		"- \"wind\": the user names one wind, or the request is that wind's own work —its files, its project, its expertise— and a reply from you would not do. winds = [its id]. reply = one short playful sentence handing it over (e.g. \"This one is for Marinada 🛒\").\n" +
+		"- \"rotllana\": the user asks for several opinions or for a group, or the question truly needs 2-3 specialists at once. winds = the 2-3 existing winds whose role or knowledge is specifically about it (generic roles such as organisation or review never count as specialists of a subject). If the subject has no specialist, add up to 2 new specialists in `new`. reply = one short playful sentence saying who you are gathering.\n" +
 		"- \"crew\": long work that produces something: a website, an app, a report, an analysis of data, a plan with many parts. task = the request rewritten as a clear brief. reply = one short sentence saying this needs a crew working on the server.\n" +
-		"Never invent wind ids. Prefer specialists over answering yourself whenever the subject has any depth.\n" +
+		"Answer yourself by default: the user is talking to you and wants your answer, not a hand-off. Hand over only when the request needs a specialist's own workspace, tools or depth — never for something you can just reply.\n" +
+		"Never invent wind ids.\n" +
 		"New specialists: a short, playful, wind-inspired Catalan name not used above; a role of 2-5 words in " + lang + " saying exactly what it masters; a warm persona (2 sentences, in English) stating its expertise; kit = the closest of [" + strings.Join(crewKits, ", ") + "] or \"\".\n" +
 		`JSON: {"action":"…","winds":["id"],"new":[{"name":"…","role":"…","persona":"…","kit":"…"}],"task":"…","reply":"…"}`)
 	raw, err := capDeciderActual()(s, ctx, []llm.Message{{Role: "system", Content: system}, {Role: "user", Content: b.String()}})

@@ -269,6 +269,9 @@ internal fun VentsOpening(
     onDoc: (() -> Unit)?,
     onSend: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** El fil de la conversa: quan n'hi ha, la portada passa a ser el xat, amb la mateixa lluïssor. */
+    chat: (@Composable () -> Unit)? = null,
+    chatHeader: (@Composable () -> Unit)? = null,
     below: @Composable ColumnScope.() -> Unit = {},
 ) {
     val p = LocalPal.current
@@ -286,32 +289,66 @@ internal fun VentsOpening(
         val t = text.trim()
         if (t.isEmpty() || busy || drop.isRunning) return
         scope.launch {
-            if (motion) drop.animateTo(1f, tween(280, easing = FastOutSlowInEasing))
+            // Amb conversa ja no hi ha res a baixar: el camp ja és al seu lloc.
+            if (motion && chat == null) drop.animateTo(1f, tween(280, easing = FastOutSlowInEasing))
             onSend(t)
         }
     }
     Box(modifier.fillMaxSize().openingHalo(p.sea, p.lila).testTag("vents-opening")) {
-        Column(
-            Modifier.fillMaxSize().imePadding().onGloballyPositioned { areaBottom = it.boundsInRoot().bottom },
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            // Una mica per damunt del centre, com a l'escriptori.
-            Spacer(Modifier.weight(0.8f))
-            OpeningGreeting(
-                askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
-                Modifier.graphicsLayer { alpha = 1f - drop.value },
-            )
-            Spacer(Modifier.height(28.dp))
-            AskComposer(
-                lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
-                onFocus = { focused = it },
-                modifier = Modifier.padding(horizontal = 16.dp)
-                    .onGloballyPositioned { composerBottom = it.boundsInRoot().bottom }
-                    .graphicsLayer { translationY = drop.value * (areaBottom - gap - composerBottom).coerceAtLeast(0f) },
-            )
-            Spacer(Modifier.weight(1.2f))
-            // Escrivint, la portada és la salutació i el camp; prou.
-            if (!focused && text.isBlank() && drop.value == 0f) below()
+        if (chat != null) {
+            // Conversa a la portada: la lluïssor queda al darrere, el fil al mig
+            // i el camp a baix, sense canviar de pantalla.
+            Column(Modifier.fillMaxSize().imePadding().testTag("vents-home-chat")) {
+                chatHeader?.invoke()
+                Box(Modifier.weight(1f).fillMaxWidth()) { chat() }
+                AskComposer(
+                    lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
+                    onFocus = { focused = it },
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp, top = 4.dp),
+                )
+            }
+        } else {
+            Column(
+                Modifier.fillMaxSize().imePadding().onGloballyPositioned { areaBottom = it.boundsInRoot().bottom },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                // Una mica per damunt del centre, com a l'escriptori.
+                Spacer(Modifier.weight(0.8f))
+                OpeningGreeting(
+                    askGreeting(lang, java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY), name),
+                    Modifier.graphicsLayer { alpha = 1f - drop.value },
+                )
+                Spacer(Modifier.height(28.dp))
+                AskComposer(
+                    lang, text, onText, busy, onPhoto = onPhoto, onDoc = onDoc, onSend = ::send,
+                    onFocus = { focused = it },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                        .onGloballyPositioned { composerBottom = it.boundsInRoot().bottom }
+                        .graphicsLayer { translationY = drop.value * (areaBottom - gap - composerBottom).coerceAtLeast(0f) },
+                )
+                Spacer(Modifier.weight(1.2f))
+                // Escrivint, la portada és la salutació i el camp; prou.
+                if (!focused && text.isBlank() && drop.value == 0f) below()
+            }
+        }
+    }
+}
+
+/**
+ * La capçalera del xat a la portada: la cara petita del Ventet, el nom i què
+ * està fent. Discreta, perquè la lluïssor i el fil ja diuen on ets.
+ */
+@Composable
+internal fun HomeThreadHeader(lang: String, name: String, accent: Color, style: WindStyle, working: Boolean) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        WindHalo(accent, style, size = 30, mood = if (working) WindMood.THINKING else WindMood.IDLE, online = false)
+        Column {
+            Text(name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(tr(lang, if (working) "app.cap.thinking" else "app.cap.role"), color = Muted, fontSize = 12.sp)
         }
     }
 }
