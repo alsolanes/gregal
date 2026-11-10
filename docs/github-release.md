@@ -49,7 +49,7 @@ The `Windows Release` workflow runs when a matching `v<desktop-version>` tag
 is pushed. It tests the source, builds the installer and portable, and creates
 a **draft** release with `latest.yml`, blockmap, standalone backend and
 `SHA256SUMS.txt`. The job uses GitHub's ephemeral token, never a bundled token.
-Version values in `main.go`, `desktop/package.json` and its lockfile must agree.
+Version values in `main.go`, `jocs/cmd/gregal-jocs/main.go`, `desktop/package.json` and its lockfile must agree.
 
 Review and test the draft installer, then publish the release from GitHub.
 Drafts are invisible to the updater. Keep the installer and update metadata
@@ -76,7 +76,7 @@ macOS, Linux, Android and VS Code release/update publishing remain separate.
 ```sh
 go test ./...
 go vet ./...
-node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
+node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs jocs/web/app/*.test.cjs desktop/*.test.js
 node --test scripts/audit-public.test.cjs
 node scripts/verify-vendor.cjs
 python -m pip install -e ./python

@@ -1,4 +1,4 @@
-package web
+package server
 
 // La retransmissió de l'Arena com a programa de tele: dos narradors (el
 // model). L'analista fa la prèvia de cada partit (dos estils de .md cara a
@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gregal/internal/web"
 	"gregal/jocs/arena"
 )
 
@@ -227,10 +228,9 @@ func (s *Server) arenaSpectatorKey(reset bool) string {
 	return st.Spectator
 }
 
-type ctxKeySpectator struct{}
-
 // arenaSpectatorOK diu si la petició és d'un espectador vàlid: només GET de
-// la retransmissió i dels partits, amb la clau de l'enllaç.
+// la retransmissió i dels partits, amb la clau de l'enllaç. És el
+// Product.Guest de Gregal Jocs: el servidor la deixa passar sense token.
 func (s *Server) arenaSpectatorOK(r *http.Request) bool {
 	if r.Method != http.MethodGet || (r.URL.Path != "/api/arena/stream" && r.URL.Path != "/api/arena/match" && r.URL.Path != "/api/arena/voice") {
 		return false
@@ -243,10 +243,8 @@ func (s *Server) arenaSpectatorOK(r *http.Request) bool {
 	return want != "" && !subtleCompare(want, key)
 }
 
-func isSpectator(r *http.Request) bool {
-	v, _ := r.Context().Value(ctxKeySpectator{}).(bool)
-	return v
-}
+// isSpectator diu si la petició ha entrat com a espectador (arenaSpectatorOK).
+func isSpectator(r *http.Request) bool { return web.IsGuest(r) }
 
 // ---- guió de la retransmissió (amb veu) ----
 

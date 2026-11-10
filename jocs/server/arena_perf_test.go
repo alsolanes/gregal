@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"context"
@@ -120,7 +120,7 @@ func TestArenaStateFastWithManyMatches(t *testing.T) {
 
 func BenchmarkArenaState200(b *testing.B) {
 	b.Setenv("GREGAL_DATA_DIR", b.TempDir())
-	s, _ := companionTestServer(&testing.T{})
+	s, _ := companionTestServer(b)
 	arenaFakeMatches(b, s, 200)
 	arenaGET(s)
 	b.ResetTimer()

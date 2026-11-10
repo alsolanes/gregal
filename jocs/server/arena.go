@@ -1,4 +1,4 @@
-package web
+package server
 
 // L'Arena: competició de prompts (jocs/arena). Cada jugador (un usuari
 // d'aquest servidor) escriu un .md d'estratègia per joc; els dos equips d'un
@@ -28,11 +28,12 @@ import (
 	"sync"
 	"time"
 
+	"gregal/internal/llm"
+	"gregal/internal/web"
 	"gregal/jocs/arena"
 	_ "gregal/jocs/arena/cs2"
 	_ "gregal/jocs/arena/lol"
 	_ "gregal/jocs/arena/nfl"
-	"gregal/internal/llm"
 )
 
 const (
@@ -42,7 +43,7 @@ const (
 
 // ---- emmagatzematge ----
 
-func (s *Server) arenaDir() string { return filepath.Join(goalDirFor(s.cfgPath), "arena") }
+func (s *Server) arenaDir() string { return filepath.Join(s.host.StateDir(), "arena") }
 
 var arenaMu sync.Mutex // fitxers de l'Arena (entrades, rànquing, competicions)
 
@@ -641,12 +642,9 @@ func (s *Server) arenaLoadMatch(id string) *arenaMatch {
 // arenaModel és la crida al model per decidir (els tests la substitueixen).
 // Temperatura baixa: el mateix .md ha de donar la mateixa decisió.
 var arenaModel = func(s *Server, ctx context.Context, system, user string, maxTokens int) (string, error) {
-	s.mu.Lock()
-	cfg, client := s.cfg, s.client
 	// El model de la conversa, no el dels vents: l'Arena en fa moltes crides
 	// seguides i ha de ser el ràpid i fiable que la persona ja fa servir.
-	p, role := s.roleRef()
-	s.mu.Unlock()
+	cfg, client, p, role := s.host.ChatModel()
 	if client == nil || cfg == nil {
 		return "", errConst("no model configured")
 	}
@@ -677,12 +675,10 @@ type arenaPinKey struct{}
 
 // arenaModelRef és el model que la conversa fa servir ara, «provider/model».
 func (s *Server) arenaModelRef() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.cfg == nil {
+	cfg, _, _, r := s.host.ChatModel()
+	if cfg == nil {
 		return ""
 	}
-	_, r := s.roleRef()
 	if r.Provider == "" || r.Model == "" {
 		return ""
 	}
@@ -1780,7 +1776,7 @@ func (s *Server) arenaUser(r *http.Request) (name string, admin bool) {
 	if isSpectator(r) {
 		return "", false
 	}
-	u := userFrom(r)
+	u := web.UserFrom(r)
 	if u == nil {
 		return "local", true
 	}
@@ -2097,10 +2093,7 @@ func arenaSeedingNow() []string {
 // arenaAutoSeed escriu els bots d'un joc la primera vegada que algú entra a
 // l'Arena (un cop per joc i per arrencada): ningú ha de prémer cap botó.
 func (s *Server) arenaAutoSeed() {
-	s.mu.Lock()
-	ready := s.client != nil && s.cfg != nil
-	s.mu.Unlock()
-	if !ready {
+	if cfg, client, _, _ := s.host.ChatModel(); client == nil || cfg == nil {
 		return
 	}
 	for _, g := range arena.Games() {

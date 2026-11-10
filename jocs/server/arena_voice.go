@@ -1,4 +1,4 @@
-package web
+package server
 
 // La veu dels narradors de l'Arena, gratuïta i al propi ordinador.
 //

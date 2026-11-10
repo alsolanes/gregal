@@ -176,7 +176,7 @@ test('LoL 3D: champions stand where the 2D action cam draws them, live and in re
 
 test('LoL 3D: a real match (the demo) headless: entities, automatic choice, camera framing synced', async () => {
   const L = await load('arena-3d-lol.js'), { LolView } = await load('arena-lol-view.js');
-  const demo = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'arena_demo', 'lol.json'), 'utf8'));
+  const demo = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'server', 'arena_demo', 'lol.json'), 'utf8'));
   global.window = { devicePixelRatio: 1, addEventListener() {}, removeEventListener() {}, matchMedia: () => ({ matches: false }) };
   global.document = { hidden: false, addEventListener() {}, removeEventListener() {} };
   global.requestAnimationFrame = () => 1; global.cancelAnimationFrame = () => {};

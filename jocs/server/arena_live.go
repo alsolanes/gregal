@@ -1,4 +1,4 @@
-package web
+package server
 
 // El Counter-Strike 2 en directe (jocs/arena/cs2/live.go): la persona juga
 // un jugador del seu equip amb teclat i ratolí a arena-cs2-live.html, els

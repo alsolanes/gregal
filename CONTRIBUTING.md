@@ -10,7 +10,7 @@ python -m unittest discover -s python/tests
 node --test scripts/audit-public.test.cjs
 go test ./...
 go vet ./...
-node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js
+node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs jocs/web/app/*.test.cjs desktop/*.test.js
 ```
 
 Android and VS Code changes also need their platform builds and relevant tests. Keep changes focused, include regression coverage for behavior changes, and describe the checks you ran in the pull request.

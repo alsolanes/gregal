@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestLiveFixture escriu internal/web/testdata/cs2-live-fixture.json: el meta
+// TestLiveFixture escriu jocs/web/testdata/cs2-live-fixture.json: el meta
 // i rondes preparades com les que rep el navegador, per a les proves de la
 // simulació (arena-cs2-live.test.cjs) i per calibrar els bots. Només amb
 // CS2_LIVE_FIXTURE=<fitxer>.

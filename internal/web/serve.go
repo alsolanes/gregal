@@ -463,25 +463,50 @@ func (h *Hub) mux() *http.ServeMux {
 	// JS/CSS tenen URL nova a cada desplegament i ni el navegador ni la
 	// vora de Cloudflare poden servir una còpia antiga sota un binari nou
 	// (ens ha passat: un login vell pintant claus sense traduir).
+	// Amb productes registrats (product.go), el que hi posen també compta.
 	versioAssets := fmt.Sprintf("%x", md5.Sum(indexHTML))[:8]
-	html := reAsset.ReplaceAllString(string(indexHTML), "$1?fgv="+versioAssets+"")
-	html = reImportAbs.ReplaceAllString(html, "$1$2?fgv="+versioAssets+"")
+	if len(products()) > 0 {
+		versioAssets = fmt.Sprintf("%x", md5.Sum([]byte(string(indexHTML)+productsDigest())))[:8]
+	}
+	versiona := func(page string) string {
+		page = reAsset.ReplaceAllString(page, "$1?fgv="+versioAssets+"")
+		return reImportAbs.ReplaceAllString(page, "$1$2?fgv="+versioAssets+"")
+	}
+	html := versiona(fillProductSlots(string(indexHTML), nil))
 	// Gregal Vents (/vents/) és la mateixa web amb un altre producte: només
-	// els vents i el que en penja (Racó, jocs, Arena, automatitzacions). El
-	// codi queda a /, net com un agent de codi. Mateix backend i mateix login.
+	// els vents i el que en penja (Racó, automatitzacions). El codi queda a
+	// /, net com un agent de codi. Mateix backend i mateix login.
 	htmlVents := strings.Replace(html, `<html lang="ca">`, `<html lang="ca" data-product="vents">`, 1)
 	htmlVents = strings.Replace(htmlVents, `<title data-i18n="ui.title">Gregal - Coding Agent</title>`, `<title data-i18n="ui.titleVents">Gregal Vents</title>`, 1)
 	htmlVents = strings.Replace(htmlVents, `<meta name="viewport" content="width=device-width, initial-scale=1">`, `<meta name="viewport" content="width=device-width, initial-scale=1"><link rel="manifest" href="/app/vents.webmanifest">`, 1)
-	// Gregal Jocs (/jocs/): l'Arena i la lliga, a part del codi i dels vents.
-	htmlJocs := strings.Replace(html, `<html lang="ca">`, `<html lang="ca" data-product="jocs">`, 1)
-	htmlJocs = strings.Replace(htmlJocs, `<title data-i18n="ui.title">Gregal - Coding Agent</title>`, `<title data-i18n="ui.titleJocs">Gregal Jocs</title>`, 1)
+	// Els productes de fora (Gregal Jocs a /jocs/, product.go): la mateixa
+	// web amb el seu data-product i el seu HTML. Sense Gregal Jocs, /jocs/
+	// diu que els jocs són una app a part.
+	type pagina struct{ path, html, tag string }
+	var pagines []pagina
+	for _, p := range products() {
+		if p.Path != "" {
+			pagines = append(pagines, pagina{p.Path, versiona(productPage(string(indexHTML), p)), versioAssets + "-" + p.ID})
+		}
+	}
+	if productAt("/jocs") == nil {
+		pagines = append(pagines, pagina{"/jocs", jocsApart, versioAssets + "-jocs-apart"})
+	}
 	handle("/", func(w http.ResponseWriter, r *http.Request) {
+		// Una /api/ que no existeix (p. ex. /api/arena en un Gregal sense
+		// els jocs) és un 404 en JSON, no la pàgina.
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			writeJSONStatus(w, http.StatusNotFound, map[string]string{"error": "not found"})
+			return
+		}
 		page, tag := html, versioAssets
-		switch {
-		case r.URL.Path == "/vents" || strings.HasPrefix(r.URL.Path, "/vents/"):
+		if r.URL.Path == "/vents" || strings.HasPrefix(r.URL.Path, "/vents/") {
 			page, tag = htmlVents, versioAssets+"-vents"
-		case r.URL.Path == "/jocs" || strings.HasPrefix(r.URL.Path, "/jocs/"):
-			page, tag = htmlJocs, versioAssets+"-jocs"
+		}
+		for _, pg := range pagines {
+			if r.URL.Path == pg.path || strings.HasPrefix(r.URL.Path, pg.path+"/") {
+				page, tag = pg.html, pg.tag
+			}
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		etag := `"` + tag + `"`
@@ -503,8 +528,12 @@ func (h *Hub) mux() *http.ServeMux {
 		}
 		raw, err := assets.ReadFile(name)
 		if err != nil {
-			http.NotFound(w, r)
-			return
+			// Els fitxers dels productes de fora (product.go), a les
+			// mateixes URL.
+			if raw, err = productAsset(name); err != nil {
+				http.NotFound(w, r)
+				return
+			}
 		}
 		// Com la pàgina principal: els mòduls canvien amb cada desplegament
 		// i el navegador ha de revalidar, no confiar en una còpia antiga.
@@ -756,9 +785,10 @@ func (s *Server) requireUser(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// Espectador de l'Arena: només la retransmissió, amb la clau de l'enllaç.
-		if s.arenaSpectatorOK(r) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeySpectator{}, true)))
+		// Convidats d'un producte (l'espectador de l'Arena a Gregal Jocs):
+		// només el que el producte deixa veure, amb la clau de l'enllaç.
+		if productGuest(s, r) {
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), ctxKeyGuest{}, true)))
 			return
 		}
 		got := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
@@ -1068,10 +1098,17 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	id := s.instanceID
 	s.mu.Unlock()
+	// products: els productes de fora registrats en aquest binari (["jocs"]
+	// a Gregal Jocs). L'app Gregal Jocs no s'enganxa a un servidor sense.
+	prods := []string{}
+	for _, p := range products() {
+		prods = append(prods, p.ID)
+	}
 	writeJSON(w, map[string]any{
 		"status":      "ok",
 		"protocol":    APIProtocol,
 		"instance_id": id,
+		"products":    prods,
 		"capabilities": map[string]bool{
 			"sessions":           true,
 			"runs":               true,

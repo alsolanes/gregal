@@ -78,11 +78,11 @@ func TestGrade(t *testing.T) {
 }
 
 // Els duels i el cicle que la tele ensenya a «How it is played»
-// (internal/web/app/arena-views.js, COUNTERS) són certs al motor: cada
+// (jocs/web/app/arena-views.js, COUNTERS) són certs al motor: cada
 // guanyador guanya clarament (+2) al rival, i al LoL cada postura guanya les
 // dues següents del cicle.
 func TestExplainCounters(t *testing.T) {
-	raw, err := os.ReadFile("../../internal/web/app/arena-views.js")
+	raw, err := os.ReadFile("../web/app/arena-views.js")
 	if err != nil {
 		t.Fatal(err)
 	}

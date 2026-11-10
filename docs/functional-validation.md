@@ -171,7 +171,7 @@ No private prompts, credentials or session transcripts belong in this report.
 ```powershell
 go test ./...
 go vet ./...
-node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
+node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs jocs/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
 npm --prefix vscode-gregal test
 npm --prefix vscode-gregal run compile
 $env:PYTHONPATH = "$PWD/python"

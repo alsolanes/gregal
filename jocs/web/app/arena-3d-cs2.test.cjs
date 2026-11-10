@@ -10,7 +10,7 @@ const { pathToFileURL } = require('node:url');
 const load = f => import(pathToFileURL(path.join(__dirname, f)).href);
 const near = (a, b, eps = 1e-6, msg) => assert.ok(Math.abs(a - b) <= eps, `${msg || ''} ${a} vs ${b}`);
 const nearV = (a, b, eps = 1e-6, msg) => a.forEach((v, i) => near(v, b[i], eps, msg));
-const demo = () => JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'arena_demo', 'cs2.json'), 'utf8'));
+const demo = () => JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'server', 'arena_demo', 'cs2.json'), 'utf8'));
 
 test('CS2 3D: registered with the shared view and a complete adapter', async () => {
   const A = await load('arena-3d.js');

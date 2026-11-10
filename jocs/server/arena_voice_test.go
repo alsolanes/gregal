@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"archive/zip"
@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"gregal/internal/web"
 	"time"
 )
 
@@ -99,12 +101,13 @@ func TestArenaVoiceHTTPEngineCachesAndServes(t *testing.T) {
 		t.Fatalf("la frase havia de sortir de la memòria cau: %d crides", calls)
 	}
 	// Es serveix, també a un espectador amb l'enllaç.
-	s.Token = "secret"
+	ws := s.host.(*web.Server)
+	ws.SetToken("secret")
 	spect := s.arenaSpectatorKey(false)
 	req := httptest.NewRequest("GET", "/api/arena/voice?k="+key, nil)
 	req.Header.Set("X-Arena-Spectator", spect)
 	rec := httptest.NewRecorder()
-	s.Hub().Handler().ServeHTTP(rec, req)
+	ws.Hub().Handler().ServeHTTP(rec, req)
 	if rec.Code != 200 || rec.Header().Get("Content-Type") != "audio/mpeg" || !bytes.HasPrefix(rec.Body.Bytes(), []byte("ID3")) {
 		t.Fatalf("servir l'àudio: %d %s", rec.Code, rec.Header().Get("Content-Type"))
 	}

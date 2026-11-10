@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"gregal/internal/web"
 	"gregal/jocs/arena"
 )
 
@@ -243,8 +244,9 @@ func TestArenaGroupsAndBracket(t *testing.T) {
 
 func TestArenaSpectatorLinkOnlyWatches(t *testing.T) {
 	s := cornerTestServer(t)
-	s.Token = "secret"
-	h := s.Hub().Handler()
+	ws := s.host.(*web.Server)
+	ws.SetToken("secret")
+	h := ws.Hub().Handler()
 	key := s.arenaSpectatorKey(false)
 	do := func(method, path, spect string) int {
 		req := httptest.NewRequest(method, path, strings.NewReader("{}"))

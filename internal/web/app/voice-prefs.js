@@ -1,7 +1,8 @@
 // Preferències → Veus dels narradors: quines llengües hi ha instal·lades,
 // baixar-ne una, provar-les i triar el motor. Abans només es podia des d'un
 // plec de l'Arena, i no es veia per què la tele no parlava.
-// Fa servir /api/arena/voice (el plugin Arena): sense el plugin, ho diu.
+// Fa servir /api/arena/voice (el plugin Arena, només a Gregal Jocs): sense el
+// plugin, ho diu; si el servidor no té els jocs, la secció no surt.
 
 const G = () => window.gregal || {};
 const T = (k, alt) => (window.gregalT ? window.gregalT(k) : '') || alt || k;
@@ -64,7 +65,15 @@ export const voicePrefs = {
     if (!box) return;
     await this.load();
     if (!box.isConnected) return;
-    const paint = () => { box.innerHTML = this.html(); wire(); };
+    // Sense els jocs al servidor (Gregal; són a l'app Gregal Jocs), les veus
+    // dels narradors no hi tenen res a fer: la secció no surt.
+    const plugins = window.gregalPlugins;
+    if (!this.st && plugins && plugins.loaded() && !plugins.list().some(p => p.id === 'arena')) {
+      const sec = box.closest('#prefsVoiceSec');
+      if (sec) sec.hidden = true;
+      return;
+    }
+    const paint =() => { box.innerHTML = this.html(); wire(); };
     const msg = (t, bad) => { const m = box.querySelector('#prefsVoiceMsg'); if (m) { m.hidden = !t; m.textContent = t || ''; m.classList.toggle('error', !!bad); } };
     const poll = () => {
       clearTimeout(this.timer);

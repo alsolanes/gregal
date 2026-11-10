@@ -1,4 +1,4 @@
-package web
+package server
 
 import (
 	"context"
@@ -83,7 +83,7 @@ func TestFootballMatchPlaysToTheEnd(t *testing.T) {
 	if lg.Games != 1 || lg.Teams[0].Wins+lg.Teams[0].Losses+lg.Teams[0].Ties != 1 {
 		t.Fatalf("lliga: %+v", lg)
 	}
-	if ws, _ := s.winds.List(); len(ws) != 2 {
+	if ws, _ := s.host.Winds().List(); len(ws) != 2 {
 		t.Fatalf("els jugadors d'equip no han d'aparèixer com a vents: %d", len(ws))
 	}
 	// Tres partits al dia.

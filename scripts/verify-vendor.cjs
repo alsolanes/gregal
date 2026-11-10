@@ -6,18 +6,21 @@ const vm = require('node:vm');
 
 const root = path.resolve(__dirname, '..');
 const vendor = path.join(root, 'internal', 'web', 'app', 'vendor');
+// Les llibreries que només fan servir els jocs (three.js, mp4-muxer) viuen
+// amb Gregal Jocs.
+const jocsVendor = path.join(root, 'jocs', 'web', 'app', 'vendor');
 const artifacts = [
   ['chart.umd.min.js', 'F52399835588EADA7BC2A9F720298D5F12FEA63C01D6A59C34BEEC89CCAA670F'],
   ['docx-preview.min.js', '52AB66FA16C5D02EE11CAF495287BD8E684DE1CE318101ECFC627220B637EC5B'],
   ['jszip.min.js', '0D8C303D7AC0C36B9903431481AA85AD0D1234A81182F6E96B7B687F385DAE1F'],
   ['PptxViewJS.min.js', 'F44EA1CACCB5FE82DD1531B52A110F85E05C2622CD1F896C70E156C73D38FC36'],
   ['xlsx.mini.min.js', '0CB353F830D7288385492C83D277B058DDEAC664CA51CF1393AA1FD3E2B70939'],
-  ['mp4-muxer.esm.min.js', '9635E0A6CDB08BE2CC8F6156B7DF70C1B9F405D4E6968B013A59369C69ECFA7D'],
-  ['three.module.min.js', 'EA0B317604D082B1393CB2BBE5C6E5F97884A3B66EAA55CF55D89104F8779A2A'],
+  ['mp4-muxer.esm.min.js', '9635E0A6CDB08BE2CC8F6156B7DF70C1B9F405D4E6968B013A59369C69ECFA7D', jocsVendor],
+  ['three.module.min.js', 'EA0B317604D082B1393CB2BBE5C6E5F97884A3B66EAA55CF55D89104F8779A2A', jocsVendor],
 ];
 
-for (const [name, expected] of artifacts) {
-  const file = path.join(vendor, name);
+for (const [name, expected, dir = vendor] of artifacts) {
+  const file = path.join(dir, name);
   const source = fs.readFileSync(file);
   const actual = crypto.createHash('sha256').update(source).digest('hex').toUpperCase();
   assert.equal(actual, expected, `${name} differs from the reviewed upstream artifact`);
@@ -53,7 +56,7 @@ const rows = XLSX.utils.sheet_to_json(parsed.Sheets.Scores, {
 assert.deepEqual(JSON.parse(JSON.stringify(rows)), [['name', 'score'], ['Ada', 42]]);
 
 // three.js: one self-contained ES module (no imports left after bundling) of revision 187.
-const three = fs.readFileSync(path.join(vendor, 'three.module.min.js'), 'utf8');
+const three = fs.readFileSync(path.join(jocsVendor, 'three.module.min.js'), 'utf8');
 assert.ok(!/from\s*["']\.\/three\./.test(three), 'three.module.min.js must not import other files');
 assert.ok(three.includes('="187"'), 'three.module.min.js is not revision 187');
 for (const name of ['WebGLRenderer', 'InstancedMesh', 'PerspectiveCamera', 'CanvasTexture']) {

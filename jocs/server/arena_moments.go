@@ -1,4 +1,4 @@
-package web
+package server
 
 // Els «prompt moments» d'un partit: les jugades on una regla del .md d'un
 // equip va pesar de debò. L'anàlisi del final (castAnalysis) en demana fins a

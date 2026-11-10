@@ -71,13 +71,28 @@ func TestEventsWithoutSessionWorkForAccounts(t *testing.T) {
 	}
 }
 
-func TestJocsIsItsOwnProduct(t *testing.T) {
+// Gregal Jocs és una altra app (jocs/cmd/gregal-jocs): sense els jocs
+// registrats, /jocs/ ho diu i enllaça on es baixa, i les pàgines de Gregal
+// no demanen cap fitxer dels jocs.
+func TestJocsIsASeparateApp(t *testing.T) {
 	t.Setenv("GREGAL_DATA_DIR", t.TempDir())
 	h := testHubWithUsers(t)
-	w := httptest.NewRecorder()
-	h.def.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/jocs/", nil))
-	if !strings.Contains(w.Body.String(), `<html lang="ca" data-product="jocs">`) || !strings.Contains(w.Body.String(), "Gregal Jocs</title>") {
-		t.Fatal("/jocs/ must be Gregal Jocs")
+	get := func(path string) string {
+		w := httptest.NewRecorder()
+		h.def.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+		return w.Body.String()
+	}
+	jocs := get("/jocs/")
+	if strings.Contains(jocs, `data-product="jocs"`) || !strings.Contains(jocs, "Gregal Jocs") || !strings.Contains(jocs, JocsReleasesURL) {
+		t.Fatalf("/jocs/ must say the games are a separate app: %.300s", jocs)
+	}
+	for _, path := range []string{"/", "/vents/"} {
+		page := get(path)
+		for _, bad := range []string{"jocs-site", "/app/arena", "/app/football", "<!--product:"} {
+			if strings.Contains(page, bad) {
+				t.Errorf("%s still has %q", path, bad)
+			}
+		}
 	}
 }
 

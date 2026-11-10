@@ -33,7 +33,7 @@ jobs:
         run: go test -race ./...
       - run: npm ci
         working-directory: desktop
-      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
+      - run: node --experimental-vm-modules --test internal/web/*.test.js internal/web/app/*.test.cjs jocs/web/app/*.test.cjs desktop/*.test.js scripts/*.test.cjs
   vscode:
     runs-on: ubuntu-latest
     defaults:

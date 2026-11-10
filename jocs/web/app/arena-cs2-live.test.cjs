@@ -1,5 +1,5 @@
 // Proves de la simulació del CS2 en directe (arena-cs2-live-sim.js).
-// Les rondes surten de internal/web/testdata/cs2-live-fixture.json, que
+// Les rondes surten de jocs/web/testdata/cs2-live-fixture.json, que
 // escriu el motor (CS2_LIVE_FIXTURE=… go test ./jocs/arena/cs2 -run LiveFixture).
 const test = require('node:test');
 const assert = require('node:assert/strict');

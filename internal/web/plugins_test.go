@@ -60,7 +60,9 @@ func pluginReq(h http.Handler, method, path, body string) *httptest.ResponseReco
 	return w
 }
 
-func TestPluginsRegistreTeElsTres(t *testing.T) {
+// Gregal només registra el Racó; l'Arena i els Partits són de Gregal Jocs
+// (jocs/server, que en comprova els seus).
+func TestPluginsRegistreElRaco(t *testing.T) {
 	ids := map[string]bool{}
 	for _, p := range registeredPlugins() {
 		ids[p.ID] = true
@@ -68,7 +70,7 @@ func TestPluginsRegistreTeElsTres(t *testing.T) {
 			t.Errorf("plugin %s incomplet", p.ID)
 		}
 	}
-	for _, id := range []string{"arena", "games", "corner"} {
+	for _, id := range []string{"corner"} {
 		if !ids[id] {
 			t.Errorf("falta el plugin %s al registre", id)
 		}
@@ -168,19 +170,40 @@ func TestAPIPluginsLlistaIAdmin(t *testing.T) {
 	}
 }
 
-// Els plugins de debò: apagar l'Arena treu les seves rutes.
-func TestPluginArenaApagadaRutes404(t *testing.T) {
+// Els plugins de debò: apagar el Racó treu les seves rutes. (L'Arena i els
+// Partits són de Gregal Jocs: el seu test és a jocs/server.)
+func TestPluginRacoApagatRutes404(t *testing.T) {
 	h := pluginServer(t).Hub()
 	mux := h.mux()
-	if err := h.SetPluginEnabled("arena", false); err != nil {
+	if err := h.SetPluginEnabled("corner", false); err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range []string{"/api/arena", "/api/arena/stream", "/api/arena/match?id=x"} {
+	for _, p := range []string{"/api/corner", "/api/corner/page", "/api/corner/ask"} {
 		if w := pluginReq(mux, "GET", p, ""); w.Code != 404 || !strings.Contains(w.Body.String(), "plugin disabled") {
 			t.Errorf("%s: %d %s", p, w.Code, w.Body.String())
 		}
 	}
-	if !h.PluginEnabled("games") || !h.PluginEnabled("corner") {
-		t.Fatal("apagar l'Arena no ha de tocar els altres")
+}
+
+// Gregal sense els jocs: ni les rutes ni els plugins de l'Arena i la lliga.
+func TestGregalSenseJocs(t *testing.T) {
+	for _, p := range registeredPlugins() {
+		if p.ID == "arena" || p.ID == "games" {
+			t.Fatalf("el plugin %s és de Gregal Jocs: internal/web no l'ha de registrar", p.ID)
+		}
+	}
+	mux := pluginServer(t).Hub().mux()
+	for _, p := range []string{"/api/arena", "/api/football"} {
+		if w := pluginReq(mux, "GET", p, ""); w.Code != 404 {
+			t.Errorf("%s ha de ser 404 sense els jocs: %d", p, w.Code)
+		}
+	}
+	if w := pluginReq(mux, "GET", "/api/health", ""); !strings.Contains(w.Body.String(), `"products":[]`) {
+		t.Errorf("/api/health ha de dir que no hi ha cap producte: %s", w.Body.String())
+	}
+	for _, f := range []string{"app/arena.js", "app/jocs-site.js", "app/football.js", "app/vendor/three.module.min.js"} {
+		if _, err := assets.ReadFile(f); err == nil {
+			t.Errorf("%s és de Gregal Jocs i no ha d'anar dins de Gregal", f)
+		}
 	}
 }

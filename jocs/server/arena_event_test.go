@@ -1,12 +1,13 @@
-package web
+package server
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"gregal/internal/web"
 )
 
 // La web de Gregal Jocs: el nom de la competició el posa l'organitzador
@@ -45,7 +46,7 @@ func TestArenaEventIsSetByTheOrganizer(t *testing.T) {
 
 	// Un jugador que no és admin no el pot canviar.
 	req := httptest.NewRequest(http.MethodPost, "/api/arena", strings.NewReader(`{"action":"event","event":{"name":"Mine"}}`))
-	req = req.WithContext(context.WithValue(req.Context(), ctxKeyUser{}, &User{Name: "marta"}))
+	req = web.WithUser(req, &web.User{Name: "marta"})
 	out := httptest.NewRecorder()
 	s.handleArena(out, req)
 	if out.Code != http.StatusForbidden {

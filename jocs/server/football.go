@@ -1,4 +1,4 @@
-package web
+package server
 
 // Partits de futbol americà entre els vents (jocs/football). La lliga té
 // dues franquícies fetes amb els vents de l'usuari i completades amb
@@ -80,7 +80,7 @@ var (
 func (s *Server) fbDir() string { return filepath.Join(s.windStateDir(), "football") }
 
 func (s *Server) fbWinds() []football.Wind {
-	ws, _ := s.winds.List()
+	ws, _ := s.host.Winds().List()
 	out := make([]football.Wind, 0, len(ws))
 	for _, w := range ws {
 		out = append(out, football.Wind{ID: w.ID, Name: w.Name, Role: w.Role, Specialty: w.Specialty, Color: w.Color, Style: w.Style})
@@ -188,7 +188,7 @@ func (s *Server) fbList() []fbMatch {
 
 // footballModel és la crida al model (els tests la substitueixen).
 var footballModel = func(s *Server, ctx context.Context, system, user string, maxTokens int) (string, error) {
-	return cornerModel(s, ctx, system, user, maxTokens)
+	return s.host.WindModel(ctx, system, user, maxTokens)
 }
 
 func (s *Server) fbRoster(t *football.Team) string {
@@ -368,7 +368,7 @@ func (s *Server) fbPlay(ctx context.Context, run *fbRun, lg *football.League) {
 		delete(fbRuns, run.m.ID)
 		fbMu.Unlock()
 	}()
-	winds, _ := s.winds.List()
+	winds, _ := s.host.Winds().List()
 	coach := [2]companion.Wind{windByID(winds, lg.Teams[0].Coach), windByID(winds, lg.Teams[1].Coach)}
 	caster := coach[0]
 	for _, w := range winds {
@@ -453,7 +453,7 @@ func (s *Server) fbPlay(ctx context.Context, run *fbRun, lg *football.League) {
 	}
 	text := s.tr(fmt.Sprintf("Final: %s %d - %s %d.", lg.Teams[0].Name, g.Score[0], lg.Teams[1].Name, g.Score[1]),
 		fmt.Sprintf("Final: %s %d - %s %d.", lg.Teams[0].Name, g.Score[0], lg.Teams[1].Name, g.Score[1]))
-	recordNovetat(s, coach[win], "football", text)
+	s.host.RecordWindNews(coach[win], "football", text)
 	log.Printf("football: %s %d - %d", run.m.ID, g.Score[0], g.Score[1])
 }
 
