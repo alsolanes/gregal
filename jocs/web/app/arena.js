@@ -12,6 +12,9 @@ import { has3D, mount3D } from './arena-3d.js';
 import { playbookHTML, tableHTML, playbookCSS, ruleFor, addRule } from './arena-playbook.js';
 import { QUESTIONS, DEFAULTS, buildMD, builderHTML, builderCSS } from './arena-builder.js';
 import { applyFix, undoFix, diffLines, diffHunks, diffCount, matchesByVersion, versionStats, lastPractice, topMistakes, coachScore } from './arena-learn.js';
+// Equips d'agents per posició: s'hi posa a globalThis.gregalArenaPositions.
+import './arena-positions.js';
+const POS = globalThis.gregalArenaPositions;
 
 const $ = id => document.getElementById(id);
 // Els jocs van sempre en anglès.
@@ -71,6 +74,8 @@ const arenaUI = {
           <div class="ar-editor">
             <div class="ar-build" id="arBuildBar"><span class="ar-build-ic">✨</span><div><b>${esc(T('ar.build.title'))}</b><span class="ar-muted" id="arBuildHint">${esc(T('ar.build.hint'))}</span></div>
               <button type="button" id="arBuild" class="primary">${esc(T('ar.build.go'))}</button></div>
+            <div id="arTeam" class="ar-team"></div>
+            <textarea id="arPos" class="ar-pos" spellcheck="false" hidden></textarea>
             <textarea id="arMD" spellcheck="false" placeholder="${esc(T('ar.mdPlaceholder'))}"></textarea>
             <div class="ar-row"><span id="arSaved" class="ar-muted"></span><span id="arCount" class="ar-muted"></span>
               <button type="button" id="arStarter" class="ar-link">${esc(T('ar.resetStarter'))}</button></div>
@@ -115,6 +120,8 @@ const arenaUI = {
     </div>`;
     const md = $('arMD');
     md.addEventListener('input', () => {
+      // Una plantilla, l'assistent o una correcció han canviat el .md: les pestanyes ho mostren.
+      if (!this.composing) this.paintTeam();
       $('arCount').textContent = md.value.length + ' / 12000';
       $('arSaved').textContent = '';
       clearTimeout(this.saveTimer); this.saveTimer = setTimeout(() => this.save(), 1500);
@@ -204,6 +211,43 @@ const arenaUI = {
     } catch (e) { $('arSaved').textContent = e.message; }
   },
 
+  // L'equip: una pestanya per posició damunt del .md. Cada pestanya edita la
+  // secció d'aquella posició; «Full .md» mostra el text sencer, que és el que es desa.
+  paintTeam() {
+    const box = $('arTeam'), md = $('arMD'), pos = $('arPos');
+    if (!box || !md || !pos || !POS) return;
+    const ps = POS.positions(this.game);
+    if (!ps.length) { box.hidden = true; pos.hidden = true; md.hidden = false; return; }
+    box.hidden = false;
+    if (!POS.isTeam(md.value)) {
+      this.posTab = 'all';
+      box.innerHTML = `<div class="ar-team-solo"><div><b>Play as a team of agents</b><span class="ar-muted">One set of instructions per position: ${ps.map(p => esc(p.name)).join(' · ')}. Each one decides its own part of every call.</span></div><button type="button" id="arMakeTeam">Make it a team</button></div>`;
+      $('arMakeTeam').onclick = () => { md.value = POS.fromSolo(this.game, md.value); this.posTab = ps[0].id; md.dispatchEvent(new Event('input')); };
+      pos.hidden = true; md.hidden = false;
+      return;
+    }
+    const tabs = [['head', 'Team plan'], ...ps.map(p => [p.id, p.name]), ['all', 'Full .md']];
+    if (!tabs.some(t => t[0] === this.posTab)) this.posTab = 'head';
+    const p = ps.find(x => x.id === this.posTab);
+    const role = p ? `<p class="ar-team-role"><b>${esc(p.name)}</b> — ${esc(p.blurb)} <span class="ar-muted">${p.decides ? 'Decides ' + p.decides.map(f => '<code>' + esc(f) + '</code>').join(', ') + (p.also ? ' ' + esc(p.also).replace(/`([^`]+)`/g, '<code>$1</code>') : '') : 'Advises the in-game leader'}.</span></p>`
+      : this.posTab === 'head' ? '<p class="ar-team-role ar-muted">The team\'s name and what every position keeps in mind.</p>' : '<p class="ar-team-role ar-muted">The whole strategy as the model reads it.</p>';
+    box.innerHTML = '<div class="ar-team-tabs" role="tablist">' + tabs.map(([id, n]) => `<button type="button" role="tab" data-pos="${id}" aria-selected="${id === this.posTab}" class="${id === this.posTab ? 'on' : ''}">${esc(n)}</button>`).join('') + '</div>' + role;
+    box.querySelectorAll('[data-pos]').forEach(b => b.onclick = () => { this.posTab = b.dataset.pos; this.paintTeam(); (this.posTab === 'all' ? md : pos).focus(); });
+    if (this.posTab === 'all') { pos.hidden = true; md.hidden = false; return; }
+    const t = POS.parse(md.value);
+    if (document.activeElement !== pos) pos.value = this.posTab === 'head' ? t.head : (t.sections[this.posTab] || '');
+    pos.placeholder = p ? '- ' + (p.starter || 'Instructions for this position').split('\n')[0] : '# Your team\'s name';
+    pos.hidden = false; md.hidden = true;
+    pos.oninput = () => {
+      const cur = POS.parse(md.value);
+      if (this.posTab === 'head') cur.head = pos.value; else cur.sections[this.posTab] = pos.value;
+      this.composing = true;
+      md.value = POS.compose(this.game, cur.head, cur.sections);
+      md.dispatchEvent(new Event('input'));
+      this.composing = false;
+    };
+  },
+
   paint() {
     const d = this.data, g = d.games.find(x => x.id === this.game);
     const seeding = (d.seeding || []).includes(this.game);
@@ -216,6 +260,7 @@ const arenaUI = {
       $('arCount').textContent = $('arMD').value.length + ' / 12000';
       $('arSaved').textContent = mine ? T('ar.autosaved') : T('ar.isStarter');
     }
+    this.paintTeam();
     if (document.activeElement !== $('arDisplay')) $('arDisplay').value = mine && mine.display && mine.display !== 'local' ? mine.display : (d.display || d.me);
     const next = (d.next || {})[this.game];
     // Les partides de prova que queden: no hi és si no compta (l'administrador no en té límit).
@@ -924,7 +969,7 @@ const arenaUI = {
     const badge = d => d.fallback ? `<em class="bad">⚠ ${esc(T('ar.fallback'))}</em>` : d.rule_found ? `<em class="ok">✓ ${esc(T('ar.ruleFound'))}</em>` : `<em class="warn">⚠ ${esc(T('ar.improvised'))}</em>`;
     const starred = momentKeys(this.match);
     list.insertAdjacentHTML('beforeend', decs.slice(-400).map(d => `<div class="ar-dec side${d.side}${starred.has(d.n + ':' + d.side) ? ' ar-star' : ''}" data-n="${d.n}" data-side="${d.side}" title="${esc(T('ar.seeSituation'))}"><b><span class="ar-st" title="Prompt moment: this .md line mattered">★ </span>${esc(names[d.side])}</b> <small>${esc(d.short)}</small>
-      <code>${esc(callText(d, { short: false }))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? `<q>${esc(d.rule)}</q>` : ''}${badge(d)}</div>`).join(''));
+      <code>${esc(callText(d, { short: false }))}</code>${d.why ? `<span>${esc(d.why)}</span>` : ''}${d.rule ? (() => { const by = POS ? POS.byline(this.game, d.rule) : { position: null, text: d.rule }; return (by.position ? `<span class="ar-by">${esc(by.position.name)}</span>` : '') + `<q>${esc(by.text)}</q>`; })() : ''}${badge(d)}</div>`).join(''));
     while (list.childElementCount > 400) list.firstElementChild.remove();
   },
   paintDecHead() {

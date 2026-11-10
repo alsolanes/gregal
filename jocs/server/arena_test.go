@@ -434,10 +434,13 @@ func TestArenaRuleInMD(t *testing.T) {
 	for rule, want := range map[string]bool{
 		"If they run more than 55% of plays: call goal_line on 1st down.": true,
 		"if they run more than 55% of plays call goal_line":               true,
-		"3rd & 7+: pass_medium":      true,
-		"Always blitz on third down": false,
-		"":                           false,
-		"ok":                         false,
+		"3rd & 7+: pass_medium": true,
+		// Un equip d'agents cita la regla amb la posició davant.
+		"[Defensive coordinator] If they run more than 55% of plays: call goal_line on 1st down.": true,
+		"[Quarterback] Always blitz on third down":                                                false,
+		"Always blitz on third down":                                                              false,
+		"":                                                                                        false,
+		"ok":                                                                                      false,
 	} {
 		if got := ruleInMD(rule, md); got != want {
 			t.Errorf("ruleInMD(%q) = %v", rule, got)

@@ -319,8 +319,12 @@ func ruleNorm(t string) string {
 // ruleInMD: la regla citada surt al .md, literal o gairebé (el model de
 // vegades retalla o canvia un signe): o és un tros del .md, o el 80% de les
 // seves paraules són a una mateixa línia.
+// rolePrefix: en un equip d'agents la regla comença amb la posició que ha
+// decidit («[AWPer] Take the AWP…»); la posició no és part de la cita.
+var rolePrefix = regexp.MustCompile(`^\s*\[[^\]]{1,40}\]\s*`)
+
 func ruleInMD(rule, md string) bool {
-	r := ruleNorm(rule)
+	r := ruleNorm(rolePrefix.ReplaceAllString(rule, ""))
 	if len(r) < 6 {
 		return false
 	}

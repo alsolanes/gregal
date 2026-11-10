@@ -399,3 +399,18 @@ body.jx-on > .bd-dialog :is(.bd-n, footer button.primary) { color: var(--on-acce
   .jx-count b { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) { .jx *, .jx *::before, .jx *::after { animation: none !important; transition: none !important; } }
+
+/* Equips d'agents per posició (arena-positions.js): una pestanya per posició
+   damunt de l'editor i, al registre, qui ha decidit cada cosa. */
+.ar-team { margin: 0 0 8px; }
+.ar-team-solo { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px dashed var(--line-hi); border-radius: 12px; }
+.ar-team-solo > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ar-team-solo b { color: var(--ink); font-size: 14px; }
+.ar-team-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 12px; background: var(--hover); overflow-x: auto; scrollbar-width: none; }
+.ar-team-tabs button { flex: none; min-height: 30px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; }
+.ar-team-tabs button:hover { color: var(--ink); }
+.ar-team-tabs button.on { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 0 0 1px var(--line-hi); }
+.ar-team-role { margin: 8px 2px 6px; font-size: 13px; line-height: 1.5; color: var(--text); }
+.ar-team-role code { font-size: 12px; }
+.ar-pos { width: 100%; min-height: 260px; resize: vertical; font: 13px/1.6 var(--mono, ui-monospace, monospace); }
+.ar-by { display: inline-block; margin-right: 6px; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-hi); font-size: 11.5px; font-weight: 600; }
