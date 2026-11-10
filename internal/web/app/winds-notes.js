@@ -341,7 +341,8 @@
   function paintEditor(main) {
     const d = S.draft;
     const bar = el('div', 'notes-bar');
-    bar.append(ibtn('back', t('Cancel·la', 'Cancel'), () => { S.editing = false; if (!S.open) closeNote(); else paintNote(); }, 'vw-button notes-back notes-cancel'));
+    // Es desa sol: tancar no perd res, per això el botó diu «Tanca» i no «Cancel·la».
+    bar.append(ibtn('back', t('Tanca', 'Close'), async () => { await S.flushNotes?.(); S.editing = false; if (!S.open) closeNote(); else paintNote(); }, 'vw-button notes-back notes-cancel'));
     const form = el('div', 'notes-editor');
     const title = el('input', 'notes-edit-title'); title.value = d.title || ''; title.placeholder = t('Títol', 'Title'); title.setAttribute('aria-label', t('Títol', 'Title'));
     const body = el('textarea', 'notes-edit-body'); body.value = d.body || ''; body.placeholder = t('Escriu en markdown… #etiqueta, [[Una altra nota]], - [ ] tasca', 'Write in markdown… #tag, [[Another note]], - [ ] task');
@@ -356,10 +357,25 @@
     const [privL, priv] = check(t('Només per a mi: els {vents} no la veuen', 'Only me: the {vents} can’t see it'), d.private);
     const [lockL, lock] = check(t('Bloquejada: els {vents} la poden llegir però no canviar', 'Locked: the {vents} can read it but not change it'), d.locked);
     const [remL, rem] = check(t('Avisa’m de les tasques amb data (a l’hora, o a les 9:00)', 'Remind me of dated tasks (at their time, or at 9:00)'), !d.no_remind);
-    const doSave = force => save({
+    const payload = force => ({
       id: S.open?.id || '', title: title.value, body: body.value, notebook: nb.value, tags: parseTags(tg.value),
       private: priv.checked, locked: lock.checked, no_remind: !rem.checked, base: force ? '' : (S.open?.updated || ''),
     });
+    const doSave = force => save(payload(force));
+    // Es desa sol mentre escrius (sense sortir de l'editor): les notes han de ser àgils.
+    let pending = null;
+    const autosave = () => {
+      clearTimeout(S.autoTimer);
+      S.autoTimer = setTimeout(() => {
+        S.autoTimer = 0;
+        if (!title.value.trim() && !body.value.trim()) return;
+        pending = (pending || Promise.resolve()).then(() => save(payload(false), true, true)).catch(fail);
+      }, 900);
+    };
+    // Tancar desa el que encara no s'ha desat.
+    S.flushNotes = async () => { const due = !!S.autoTimer; clearTimeout(S.autoTimer); S.autoTimer = 0; if (due && (title.value.trim() || body.value.trim())) await save(payload(false), true, true).catch(fail); await pending; };
+    for (const n of [title, body, nb, tg]) n.addEventListener('input', autosave);
+    for (const n of [priv, lock, rem]) n.addEventListener('change', autosave);
     const actions = el('div', 'notes-actions');
     actions.append(btn(t('Desa', 'Save'), () => doSave(false), 'vw-primary'));
     bar.append(actions);
@@ -369,7 +385,7 @@
     main.append(bar, form);
   }
 
-  async function save(payload, quiet) {
+  async function save(payload, quiet, keepEditing) {
     let n;
     try { n = await call('/api/notes', 'POST', { action: 'save', ...payload }); }
     catch (e) {
@@ -382,6 +398,11 @@
         return;
       }
       return S.forceSave?.();
+    }
+    if (keepEditing) {
+      // Desat automàtic: la nota segueix oberta a l'editor, només s'actualitza la llista.
+      S.open = n; say(t('Desat', 'Saved')); loadList().catch(() => {});
+      return;
     }
     S.open = n; S.editing = false;
     if (!quiet) say(t('Desat', 'Saved'));
@@ -429,6 +450,8 @@
     paintList(); paintNote();
     loadList().catch(fail);
     if (opts.open) openNote(opts.open).catch(fail);
+    // Entrar a Notes és per apuntar: un full en blanc a punt, amb les altres notes al costat.
+    else if (!S.open && !S.editing) newNote();
   }
 
   /** Posa el cursor a la captura ràpida (drecera Ctrl+Alt+N de l'escriptori). */

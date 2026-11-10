@@ -918,6 +918,65 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // --- «Avui»: la safata dels vents (VentsAvui.kt) ---
+    private val _avui = MutableStateFlow<AvuiView?>(null)
+    val avui: StateFlow<AvuiView?> = _avui.asStateFlow()
+    private val _avuiError = MutableStateFlow(false)
+    val avuiError: StateFlow<Boolean> = _avuiError.asStateFlow()
+
+    fun loadAvui() {
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                val v = withContext(Dispatchers.IO) { c.api().avui() }
+                if (_conn.value == c) { _avui.value = v; _avuiError.value = false }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c) _avuiError.value = true
+            }
+        }
+    }
+
+    /**
+     * Una decisió sobre una targeta. La targeta canvia d'estat al moment (la
+     * safata l'anima fora) i, si el servidor no ho accepta, torna on era.
+     */
+    fun avuiAct(id: String, action: String) {
+        val c = _conn.value
+        val before = _avui.value ?: return
+        _avui.value = AvuiLogic.apply(before, id, action)
+        viewModelScope.launch {
+            val ok = try { withContext(Dispatchers.IO) { c.api().avuiAction(id, action) } } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                false
+            }
+            if (!ok && _conn.value == c) _avui.value = AvuiLogic.revert(_avui.value ?: before, before, id)
+        }
+    }
+
+    /** Una acció de la targeta: obre la conversa amb el vent i li diu el que demana. */
+    fun avuiRun(card: AvuiCard, action: AvuiAction) {
+        if (card.wind.isBlank()) return
+        openVentsChat("wind:" + card.wind)
+        if (action.prompt.isNotBlank()) sendWindMessage(card.wind, action.prompt)
+    }
+
+    /** Desa hores tranquil·les, mode tranquil i (si no és null) el que ha de tenir en compte el resum de demà. */
+    fun saveAvuiSettings(next: AvuiSettings, tune: String? = null) {
+        val c = _conn.value
+        val before = _avui.value
+        if (before != null) _avui.value = before.copy(settings = next.copy(tune = tune ?: before.settings.tune))
+        viewModelScope.launch {
+            try {
+                val saved = withContext(Dispatchers.IO) { c.api().saveAvuiSettings(next, tune) }
+                if (_conn.value == c) _avui.value?.let { _avui.value = it.copy(settings = saved) }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                if (_conn.value == c && before != null) _avui.value?.let { _avui.value = it.copy(settings = before.settings) }
+            }
+        }
+    }
+
     fun loadConnections() {
         val c = _conn.value
         viewModelScope.launch {
@@ -2572,6 +2631,32 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         simplePost("/api/access", JSONObject().put("access", access))
     }
 
+    /**
+     * El menú de permisos de Codi (com la web): «Només lectura» passa a mode
+     * chat; un altre permís des de només lectura passa primer a act i després
+     * desa el permís, en ordre.
+     */
+    fun pickPermission(pick: String) {
+        val steps = permSteps(_state.value.mode, pick)
+        if (steps.none { it.first == "access" }) { setMode("chat"); return }
+        val cur = _state.value
+        val mode = if (pick == "full") "autonomous" else if (cur.mode == "debug") "debug" else "code"
+        _state.value = cur.copy(access = pick, mode = mode, permissive = pick == "full")
+        val c = _conn.value
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val api = c.api()
+                    steps.forEach { (k, v) -> api.post(if (k == "mode") "/api/mode" else "/api/access", JSONObject().put(k, v)) }
+                }
+                refresh()
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                notify(appText("app.status.error", e.message.orEmpty()))
+            }
+        }
+    }
+
     /** Revisor de permisos (Preferències): no toca el permís d'Actua. */
     fun setReviewer(on: Boolean) {
         val cur = _state.value
@@ -3440,6 +3525,22 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
         return result
     }
 
+    /** Activa una vigilància de l'ofici: una rutina del vent (POST /api/winds/rutina), com a l'escriptori. */
+    fun activateTradeWatch(windId: String, watch: WindTradeWatch, lang: String, onDone: (Boolean) -> Unit = {}) {
+        val source = _conn.value; val epoch = companionEpoch
+        viewModelScope.launch {
+            val ok = try {
+                withContext(Dispatchers.IO) { source.api().post("/api/winds/rutina", watch.rutina(windId, lang)).has("job") }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                false
+            }
+            if (!isCompanionOrigin(source, epoch)) return@launch
+            if (ok) loadRutines()
+            onDone(ok)
+        }
+    }
+
     fun updateWindKnowledge(id: String, text: String, onDone: (Boolean) -> Unit = {}) {
         val source = _conn.value; val epoch = companionEpoch
         viewModelScope.launch {
@@ -3833,6 +3934,15 @@ class GregalViewModel(app: Application) : AndroidViewModel(app) {
                 if (hit != null) openNote(hit.id) else onMissing(title)
             } catch (e: Exception) { notify(appText("notes.loadError", e.message.orEmpty())) }
         }
+    }
+
+    /**
+     * Desa sense avisos ni obrir res (la nota àgil es desa sola mentre
+     * s'escriu). null = la nota ha canviat a fora (409); llança si falla.
+     */
+    suspend fun saveNoteQuiet(input: NoteInput): Note? {
+        val source = _conn.value
+        return withContext(Dispatchers.IO) { source.api().saveNote(input) }
     }
 
     /** Desa; onDone(false) si la nota ha canviat mentre s'editava. */

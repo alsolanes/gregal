@@ -14,6 +14,9 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -89,6 +92,12 @@ internal fun WindProfileContent(vm: GregalViewModel, lang: String, wind: Wind, p
                 Text(wind.role.ifBlank { tr(lang, "app.vents.noPersonality") }, color = Muted, fontSize = 14.sp,
                     lineHeight = 19.sp, textAlign = TextAlign.Center)
             }
+            }
+            // L'ofici, just sota la capçalera, com a l'escriptori (tradePanel).
+            profile?.trade?.let { trade ->
+                item(key = "trade") {
+                    Box(Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp)) { WindTradePanel(vm, lang, wind, trade) }
+                }
             }
             stickyHeader(key = "tabs") {
             TabRow(selectedTabIndex = tab, containerColor = Superficie, contentColor = Ink,
@@ -446,5 +455,81 @@ private fun followupsRow(lang: String, vm: GregalViewModel, wind: Wind) {
             Text(tr(lang, "act.followupsHelp"), color = Muted, fontSize = 13.sp, lineHeight = 18.sp)
         }
         Switch(checked = on, onCheckedChange = { vm.setWindFollowups(wind, it) })
+    }
+}
+
+/**
+ * L'ofici del vent: nom i nivell (amb una barra fina), el que ha estudiat i
+ * après, les seves fonts, el que pot vigilar per tu (cada vigilància
+ * s'activa com una rutina) i «Fes-lo més expert», que engega l'estudi de
+ * sempre (vm.startWindExpert) i en mostra el progrés aquí mateix.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+internal fun WindTradePanel(vm: GregalViewModel?, lang: String, wind: Wind, trade: WindTrade,
+    onActivate: ((WindTradeWatch, (Boolean) -> Unit) -> Unit)? = null, onExpert: (() -> Unit)? = null) {
+    val accent = Color(wind.argb)
+    val expert = vm?.windExpert?.collectAsState()?.value?.get(wind.id)
+    Surface(shape = GregalShape.lg, color = accent.copy(alpha = 0.07f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.30f)),
+        modifier = Modifier.fillMaxWidth().testTag("wind-trade")) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(trade.name(lang), color = Ink, style = GregalType.heading, modifier = Modifier.weight(1f, fill = false))
+                Text(tr(lang, "app.trade.level", trade.level), color = accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Box(Modifier.weight(1f).height(4.dp).clip(GregalShape.pill).background(accent.copy(alpha = .16f))) {
+                    Box(Modifier.fillMaxWidth(trade.level.coerceIn(1, 10) / 10f).fillMaxHeight().clip(GregalShape.pill).background(accent))
+                }
+            }
+            Text(tr(lang, "app.trade.studied", trade.knowledge, trade.lessons), color = Muted, style = GregalType.bodySmall)
+            if (trade.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(tr(lang, "app.trade.sources"), color = Muted, style = GregalType.caption, modifier = Modifier.align(Alignment.CenterVertically))
+                trade.sources.forEach { src ->
+                    Text(src, color = Ink, fontSize = 12.sp, modifier = Modifier.clip(GregalShape.pill)
+                        .background(Superficie.copy(alpha = .7f)).padding(horizontal = 10.dp, vertical = 4.dp))
+                }
+            }
+            if (trade.watches.isNotEmpty()) {
+                Text(tr(lang, "app.trade.watches"), color = Muted, style = GregalType.overline, modifier = Modifier.padding(top = 4.dp))
+                trade.watches.forEach { w -> TradeWatchRow(vm, lang, wind, w, accent, onActivate) }
+            }
+            when {
+                expert != null && expert.actiu -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(tr(lang, "app.vents.expertStudying"), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    LinearProgressIndicator(progress = { expert.progres }, modifier = Modifier.fillMaxWidth(),
+                        color = accent, trackColor = accent.copy(alpha = 0.15f))
+                }
+                else -> Text(tr(lang, "app.trade.moreExpert"), color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(GregalShape.sm).clickable {
+                        if (onExpert != null) onExpert() else vm?.startWindExpert(wind.id, trade.name(lang).ifBlank { wind.role })
+                    }.padding(vertical = 4.dp).testTag("wind-trade-expert"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun TradeWatchRow(vm: GregalViewModel?, lang: String, wind: Wind, w: WindTradeWatch, accent: Color,
+    onActivate: ((WindTradeWatch, (Boolean) -> Unit) -> Unit)?) {
+    // null: sense tocar; true: activada; false: ha fallat (es pot tornar a provar).
+    var state by remember(wind.id, w) { mutableStateOf<Boolean?>(null) }
+    var busy by remember(wind.id, w) { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f)) {
+            Text(w.label(lang), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Text(if (state == false) tr(lang, "app.trade.failed") else w.schedule(lang),
+                color = if (state == false) Red else Muted, style = GregalType.caption)
+        }
+        val on = state == true
+        Text(tr(lang, if (on) "app.trade.on" else "app.trade.activate"),
+            color = if (on) accent else Superficie, fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.clip(GregalShape.pill)
+                .background(if (on) accent.copy(alpha = .14f) else Ink)
+                .clickable(enabled = !on && !busy) {
+                    busy = true
+                    val done: (Boolean) -> Unit = { ok -> busy = false; state = ok }
+                    if (onActivate != null) onActivate(w, done) else vm?.activateTradeWatch(wind.id, w, lang, done) ?: done(false)
+                }
+                .padding(horizontal = 14.dp, vertical = 7.dp))
     }
 }

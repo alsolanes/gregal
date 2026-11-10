@@ -233,7 +233,7 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 			brief = s.briefingBrief(wind, job.Prompt)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		} else {
-			brief += "\nWind: " + wind.Name + ". " + wind.Persona + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
+			brief += "\nWind: " + wind.Name + ". " + wind.Persona + windTradeBrief(wind) + s.windMemorySystem(wind.ID) + companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windSkillsSystem(wind.ID)
 			jobCtx = agent.WithSkillsDirs(jobCtx, s.windSkillsDir(wind.ID))
 		}
 	}
@@ -262,9 +262,22 @@ func (s *Server) executeJob(ctx context.Context, job jobs.Job, queued runs.Run) 
 	// La feina d'un vent li pertany al seu xat: si ha produït text, hi
 	// entra com si hagués parlat ell i queda apuntada com a novetat per
 	//què el mòbil pugui avisar encara que l'app sigui tancada.
+	// Una vigilància que no ha trobat res respon «(res)»: silenci, cap missatge.
+	if strings.TrimSpace(out) == "(res)" {
+		out = ""
+		run.Output = ""
+	}
 	if job.Wind != "" && run.Status == "ok" && strings.TrimSpace(out) != "" {
 		if w, ok := s.winds.ByID(job.Wind); ok {
-			postWindMessage(s, w, "job", strings.TrimSpace(out))
+			text := strings.TrimSpace(out)
+			// El resum del matí porta al final les targetes de la safata «Avui»:
+			// van a la safata, i al xat només hi entra el missatge.
+			if isBriefingJob(job.ID) {
+				items, clean := parseAvuiBlock(text)
+				s.avuiFromBrief(w, job.ID, items, clean)
+				text = clean
+			}
+			postWindMessageJob(s, w, "job", job.ID, text)
 		}
 	}
 	return run, runErr

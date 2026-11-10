@@ -13,6 +13,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.List
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -360,6 +366,44 @@ fun noteDay(lang: String, iso: String): String = runCatching {
     savedDay(lang, java.time.OffsetDateTime.parse(iso).toEpochSecond())
 }.getOrDefault("")
 
+/**
+ * La nota àgil es desa sola mentre s'escriu (com a l'escriptori): cada desada
+ * espera la d'abans (així el primer caràcter crea la nota una sola vegada i
+ * les següents la reescriuen amb el seu id i la seva base), no desa una nota
+ * buida (el servidor tampoc no ho fa) ni el que ja està desat.
+ */
+class NoteDraftSaver(start: NoteInput, private val save: suspend (NoteInput) -> Note?) {
+    private val mutex = kotlinx.coroutines.sync.Mutex()
+    @Volatile var id: String = start.id; private set
+    @Volatile private var base: String = start.base
+    @Volatile private var last: Pair<String, String> = start.title to start.body
+    private val template = start
+    /** La nota ha canviat a fora: no es trepitja; cal obrir-la de nou. */
+    @Volatile var conflict = false; private set
+
+    /** Torna la nota desada, o null si no calia desar (buida, igual o en conflicte). Llança si el servidor falla. */
+    suspend fun flush(title: String, body: String): Note? {
+        mutex.lock()
+        try {
+            if (conflict) return null
+            if (title.isBlank() && body.isBlank()) return null
+            if (title to body == last) return null
+            val input = template.copy(id = id, title = title, body = body, base = base,
+                // El projecte només s'envia en crear-la; després no el toca.
+                project = if (id.isBlank()) template.project else null)
+            val saved = save(input)
+            if (saved == null) { conflict = true; return null }
+            id = saved.id; base = saved.updated; last = title to body
+            return saved
+        } finally {
+            mutex.unlock()
+        }
+    }
+}
+
+/** Retard de la desada automàtica després de l'última tecla (com l'escriptori). */
+const val NOTE_AUTOSAVE_MS = 900L
+
 // ---------------------------------------------------------------- pantalla
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -369,7 +413,17 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     val page by vm.notes.collectAsState()
     val open by vm.openNote.collectAsState()
     var editing by remember { mutableStateOf<NoteInput?>(null) }
+    // Obrir Notes és començar a escriure: una nota en blanc amb el cursor al
+    // cos, que es desa sola. La llista (cerca, agenda, filtres) és a un toc.
+    var showList by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf(blankDraft(vm.notesQuery)) }
+    var draftKey by remember { mutableIntStateOf(0) }
+    fun newDraft(start: NoteInput = blankDraft(vm.notesQuery)) { draft = start; draftKey++; showList = false }
     val capture by vm.noteCapture.collectAsState()
+    // En obrir una nota o l'editor, l'esborrany ja s'ha desat: en tornar, una de nova en blanc.
+    LaunchedEffect(open != null || editing != null) {
+        if (open != null || editing != null) { draft = blankDraft(vm.notesQuery); draftKey++ }
+    }
     LaunchedEffect(Unit) {
         if (page == null) vm.loadNotes()
         // Els noms dels projectes (filtre i selector) surten de /api/workspaces.
@@ -378,11 +432,10 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     // Comparteix / drecera: l'editor ja amb el text (o buit, a punt d'escriure).
     LaunchedEffect(capture) {
         val text = vm.takeNoteCapture() ?: return@LaunchedEffect
-        val q = vm.notesQuery
-        editing = NoteInput("", "", text, q.notebook, emptyList(), false, false, "", project = q.newProject)
+        newDraft(blankDraft(vm.notesQuery).copy(body = text))
     }
-    BackHandler(enabled = editing != null || open != null) {
-        if (editing != null) editing = null else vm.closeNote()
+    BackHandler(enabled = editing != null || open != null || showList) {
+        if (editing != null) editing = null else if (open != null) vm.closeNote() else showList = false
     }
     val current = editing
     when {
@@ -390,16 +443,165 @@ internal fun NotesScreen(vm: GregalViewModel, onMenu: () -> Unit) {
         open != null -> NoteView(vm, lang, open!!, onEdit = { n ->
             editing = NoteInput(n.id, n.title, n.body, n.notebook, n.tags, n.private, n.locked, n.updated, n.noRemind, n.project)
         }, onNew = { title -> editing = NoteInput("", title, "", "", emptyList(), false, false, "") })
-        else -> NotesList(vm, lang, page, onMenu, onNew = {
-            val q = vm.notesQuery
-            editing = NoteInput("", "", "", q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, "", project = q.newProject)
-        }, onMeeting = { editing = meetingTemplate(lang) })
+        showList -> NotesList(vm, lang, page, onMenu, onNew = { newDraft() }, onMeeting = { editing = meetingTemplate(lang) },
+            onBack = { showList = false })
+        else -> key(draftKey) {
+            AgileNote(vm, lang, draft, page, onMenu,
+                onList = { showList = true },
+                onNew = { newDraft() },
+                onDetails = { editing = it })
+        }
+    }
+}
+
+/** La nota en blanc amb què s'obre Notes: hereta el quadern, l'etiqueta i el projecte del filtre. */
+fun blankDraft(q: NotesQuery): NoteInput =
+    NoteInput("", "", "", q.notebook, listOfNotNull(q.tag.ifBlank { null }), false, false, "", project = q.newProject)
+
+/**
+ * La nota àgil: títol i cos sense marcs, el cursor al cos, i es desa sola
+ * ~900 ms després de l'última tecla (i en sortir). Les altres notes, a la
+ * llista (en pantalles amples, al costat; al mòbil, les últimes a sota).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun AgileNote(vm: GregalViewModel, lang: String, start: NoteInput, page: NotesPage?, onMenu: () -> Unit,
+    onList: () -> Unit, onNew: () -> Unit, onDetails: (NoteInput) -> Unit,
+    save: suspend (NoteInput) -> Note? = { vm.saveNoteQuiet(it) }) {
+    var title by remember { mutableStateOf(start.title) }
+    var body by remember { mutableStateOf(start.body) }
+    // "": res a dir; "saving"; "saved"; "error".
+    var status by remember { mutableStateOf("") }
+    val saver = remember { NoteDraftSaver(start.copy(title = "", body = ""), save) }
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val scope = vm.viewModelScope
+    suspend fun flushNow() {
+        val created = saver.id.isBlank()
+        try {
+            status = "saving"
+            val saved = saver.flush(title, body)
+            status = if (saver.conflict) "error" else if (saved != null || saver.id.isNotBlank()) "saved" else ""
+            if (saver.conflict) vm.notify(tr(lang, "notes.changed"))
+            if (saved != null && created) vm.loadNotes()
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            status = "error"
+        }
+    }
+    // El cursor al cos: el Scaffold el compon en mesurar, així que s'espera un fotograma si cal.
+    LaunchedEffect(Unit) {
+        repeat(10) {
+            if (runCatching { focus.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
+    }
+    LaunchedEffect(title, body) {
+        if (title.isBlank() && body.isBlank()) return@LaunchedEffect
+        kotlinx.coroutines.delay(NOTE_AUTOSAVE_MS)
+        flushNow()
+    }
+    // En sortir (enrere, una altra pantalla, nota nova), el que quedi pendent es desa igualment.
+    val latest = rememberUpdatedState(title to body)
+    DisposableEffect(Unit) {
+        onDispose {
+            val (t, b) = latest.value
+            scope.launch {
+                try { if (saver.flush(t, b) != null) vm.loadNotes() } catch (_: Exception) {}
+            }
+        }
+    }
+    Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
+        TopAppBar(
+            title = { Text(tr(lang, "notes.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
+            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
+            actions = {
+                IconButton(onClick = onList, modifier = Modifier.testTag("notes-list")) {
+                    Icon(Icons.AutoMirrored.Rounded.List, tr(lang, "notes.others"))
+                }
+                IconButton(onClick = onNew, enabled = title.isNotBlank() || body.isNotBlank()) {
+                    Icon(Icons.Rounded.Add, tr(lang, "notes.new"))
+                }
+                // Quadern, etiquetes, projecte, privada, IA…: l'editor de sempre, sobre la mateixa nota.
+                IconButton(onClick = {
+                    scope.launch {
+                        flushNow()
+                        val id = saver.id
+                        if (id.isNotBlank()) vm.openNote(id)
+                        else onDetails(start.copy(title = title, body = body))
+                    }
+                }) { Icon(Icons.Rounded.Tune, tr(lang, "notes.details")) }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
+        )
+    }) { pad ->
+        BoxWithConstraints(Modifier.fillMaxSize().padding(pad)) {
+            val wide = maxWidth >= 720.dp
+            val others = page?.notes.orEmpty().filter { it.id != saver.id }
+            Row(Modifier.fillMaxSize()) {
+                if (wide) {
+                    // Pantalla ampla: les altres notes al costat, com la barra lateral de l'escriptori.
+                    LazyColumn(Modifier.width(300.dp).fillMaxHeight(), contentPadding = PaddingValues(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        item { Text(tr(lang, "notes.others").uppercase(), color = Muted, style = GregalType.overline,
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)) }
+                        items(others, key = { it.id }) { n -> NoteRow(lang, n) { vm.openNote(n.id) } }
+                    }
+                    VerticalDivider(color = Line)
+                }
+                Column(Modifier.weight(1f).fillMaxHeight().imePadding().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 20.dp, vertical = 8.dp).testTag("agile-note"),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.foundation.text.BasicTextField(title, { title = it }, Modifier.fillMaxWidth().testTag("agile-title"),
+                        singleLine = true, textStyle = LocalTextStyle.current.copy(color = Ink, fontSize = 24.sp, fontFamily = FontFamily.Serif, lineHeight = 30.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Sea),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Next),
+                        keyboardActions = KeyboardActions(onNext = { runCatching { focus.requestFocus() } }),
+                        decorationBox = { inner ->
+                            Box {
+                                if (title.isEmpty()) Text(tr(lang, "notes.fieldTitle"), color = Faint, fontSize = 24.sp, fontFamily = FontFamily.Serif)
+                                inner()
+                            }
+                        })
+                    Text(when (status) {
+                        "saving" -> tr(lang, "notes.draftSaving")
+                        "saved" -> tr(lang, "notes.saved")
+                        "error" -> tr(lang, "notes.draftError")
+                        else -> tr(lang, "notes.draftHelp")
+                    }, color = if (status == "error") Red else Faint, style = GregalType.caption, modifier = Modifier.testTag("agile-status"))
+                    androidx.compose.foundation.text.BasicTextField(body, { body = it },
+                        Modifier.fillMaxWidth().heightIn(min = 320.dp).focusRequester(focus).testTag("agile-body"),
+                        textStyle = LocalTextStyle.current.copy(color = Tinta, fontSize = 16.sp, lineHeight = 24.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(Sea),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        decorationBox = { inner ->
+                            Box {
+                                if (body.isEmpty()) Text(tr(lang, "notes.bodyHint"), color = Faint, fontSize = 16.sp)
+                                inner()
+                            }
+                        })
+                    if (!wide) {
+                        // Al mòbil, les últimes notes a sota, i la llista sencera a un toc.
+                        val recent = others.take(3)
+                        if (recent.isNotEmpty()) {
+                            HorizontalDivider(color = Line, modifier = Modifier.padding(top = 12.dp))
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text(tr(lang, "notes.others").uppercase(), color = Muted, style = GregalType.overline, modifier = Modifier.weight(1f))
+                                TextButton(onClick = onList) { Text(tr(lang, "notes.all")) }
+                            }
+                            recent.forEach { n -> NoteRow(lang, n) { vm.openNote(n.id) } }
+                        }
+                    }
+                    Spacer(Modifier.height(40.dp))
+                }
+            }
+        }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMenu: () -> Unit, onNew: () -> Unit, onMeeting: () -> Unit) {
+private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMenu: () -> Unit, onNew: () -> Unit, onMeeting: () -> Unit,
+    onBack: (() -> Unit)? = null) {
     var quick by remember { mutableStateOf("") }
     var query by remember { mutableStateOf(vm.notesQuery.q) }
     var pinnedOnly by remember { mutableStateOf(false) }
@@ -412,7 +614,10 @@ private fun NotesList(vm: GregalViewModel, lang: String, page: NotesPage?, onMen
     Scaffold(containerColor = Superficie, snackbarHost = { NoticeHost(vm) }, topBar = {
         TopAppBar(
             title = { Text(tr(lang, "notes.title"), fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-            navigationIcon = { IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) } },
+            navigationIcon = {
+                if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, tr(lang, "notes.back")) }
+                else IconButton(onClick = onMenu) { Icon(Icons.Rounded.Menu, tr(lang, "app.nav.menu")) }
+            },
             actions = { IconButton(onClick = { vm.loadNotes() }) { Icon(Icons.Rounded.Refresh, tr(lang, "auto.refresh")) } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Superficie),
         )

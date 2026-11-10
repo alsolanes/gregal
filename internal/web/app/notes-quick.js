@@ -109,7 +109,8 @@
     S.note = { id: '', title: '', body: '', project, pinned: false, updated: '' };
     S.dirty = false; S.proposal = null; S.msg = null; S.mode = 'edit';
     paintList(); paintNote();
-    setTimeout(() => $('qnTitle')?.focus(), 0);
+    // El cursor al text: s'hi escriu de seguida; el títol surt de la primera línia si no n'hi poses.
+    setTimeout(() => ($('qnBody') || $('qnTitle'))?.focus(), 0);
   }
 
   // Desa el que hi ha a l'editor (amb la versió de base per detectar
@@ -516,15 +517,11 @@
     }
     await loadProjects();
     await loadList().catch(e => say(e.message, true));
-    if (opts.new) return newNote();
-    if (S.note) paintNote();
-    else {
-      let last = '';
-      try { last = localStorage.getItem(LAST) || ''; } catch {}
-      const target = S.list.find(n => n.id === last) || S.list[0];
-      if (target) await openNote(target.id);
-      else return newNote();
-    }
+    // Obrir les notes és per apuntar: un full en blanc a punt, i la resta de notes a la llista.
+    // Un esborrany amb text que encara no s'ha desat es conserva; una nota llegida abans, no.
+    const draft = S.note && !S.note.id && ((S.note.title || '').trim() || (S.note.body || '').trim());
+    if (opts.new || !draft) return newNote();
+    paintNote();
     // El focus entra al full (abans es quedava a la pàgina de sota, i ni
     // l'Esc ni el Ctrl+E hi arribaven).
     const sheet = box.querySelector('.qn-sheet');

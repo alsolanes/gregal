@@ -130,6 +130,55 @@
       ['path', { d:'M55 73L66 62', stroke:INK, 'stroke-width':8, 'stroke-linecap':'round' }],
       ['path', { d:'M55 73L66 62', stroke:'#A7AFC2', 'stroke-width':4.4, 'stroke-linecap':'round' }],
       ['path', { d:'M71 50.5a7.5 7.5 0 1 0 5 7.5l-4.5 1.2-2.6-2.6 1-4.6Z', fill:'#A7AFC2', ...ln() }]] },
+    cooking: { hands:[[52,67]], head:[
+      ['path', { d:'M18 21C10 16 13 6 22 7C24 1 34-1 40 3C46-1 56 1 58 7C67 6 70 16 62 21Q40 12 18 21Z', fill:'#FFFFFF', ...ln() }],
+      ['path', { d:'M16 20Q40 9 64 20V27Q40 16 16 27Z', fill:'#FFFFFF', ...ln() }],
+      ['path', { d:'M28 15.5v6M40 13v6M52 15.5v6', fill:'none', stroke:'#C3C9D9', 'stroke-width':1.6, 'stroke-linecap':'round' }]], prop:[
+      ['path', { d:'M59 61.5L51 67.5', stroke:'#8A5A3B', 'stroke-width':4.4, 'stroke-linecap':'round' }],
+      ['circle', { cx:66, cy:56, r:9.5, fill:'#3A3F5C', ...ln() }],
+      ['path', { d:'M60.5 55.5c0-4 4-6 7-4.5 3-.5 5.5 2.5 4 5.5 1 3-2.5 5-5 4-3 1.5-6.5-1-6-5Z', fill:'#FFFFFF' }],
+      ['circle', { cx:66.5, cy:56, r:2.7, fill:'#F5B731' }]] },
+    weather: { hands:[[65,60]], prop:[
+      ['path', { d:'M65 45V66a3 3 0 0 1-6 0', fill:'none', ...ln(2.6) }],
+      ['path', { d:'M65 33v-2.5', fill:'none', ...ln(2.4) }],
+      ['path', { d:'M52.5 45A12.5 12 0 0 1 77.5 45Q74.4 42.5 71.25 45Q68.1 42.5 65 45Q61.9 42.5 58.75 45Q55.6 42.5 52.5 45Z', fill:'#5E86D6', ...ln() }],
+      ['path', { d:'M65 33Q59.5 37 58.75 45M65 33Q70.5 37 71.25 45', fill:'none', ...ln(1.6) }]] },
+    travel: { hands:[[51,62]], prop:[
+      ['path', { d:'M57.5 52v-3a3 3 0 0 1 3-3h3a3 3 0 0 1 3 3v3', fill:'none', ...ln(2.4) }],
+      ['rect', { x:50, y:52, width:24, height:20, rx:3.5, fill:'#F0A04B', ...ln() }],
+      ['path', { d:'M56 53v18M68 53v18', stroke:'#A8612E', 'stroke-width':2.4 }],
+      ['circle', { cx:62, cy:62, r:3, fill:'#FFF8EE' }]] },
+    fitness: { hands:[[63,64]], head:[
+      ['path', { d:'M11 24Q40 11 69 24L70 30.5Q40 18 10 30.5Z', fill:'#2FB58A', ...ln(2) }],
+      ['path', { d:'M10.6 27.3Q40 14.6 69.4 27.3', fill:'none', stroke:'#FFFFFF', 'stroke-width':1.8, 'stroke-linecap':'round' }],
+      ['path', { d:'M11 26.5L3.5 24L4.5 30.5ZM11 28.5L5.5 34L9.5 35.5Z', fill:'#2FB58A', ...ln(2) }]], prop:[
+      ['path', { d:'M53 64H73', fill:'none', ...ln(3) }],
+      ['rect', { x:49, y:56, width:5, height:16, rx:2, fill:'#E5484D', ...ln() }],
+      ['rect', { x:72, y:56, width:5, height:16, rx:2, fill:'#E5484D', ...ln() }],
+      ['rect', { x:54, y:58.5, width:3.5, height:11, rx:1.5, fill:'#F28C6B', ...ln(1.6) }],
+      ['rect', { x:68.5, y:58.5, width:3.5, height:11, rx:1.5, fill:'#F28C6B', ...ln(1.6) }]] },
+    finance: { hands:[[51,67]], prop:[
+      ['rect', { x:54, y:67, width:4.5, height:7, rx:1.5, fill:'#F4A3B5', ...ln(2) }],
+      ['rect', { x:64.5, y:67, width:4.5, height:7, rx:1.5, fill:'#F4A3B5', ...ln(2) }],
+      ['path', { d:'M63.5 56L66 49.5L71 56Z', fill:'#F4A3B5', ...ln(2) }],
+      ['ellipse', { cx:61, cy:62.5, rx:11.5, ry:9, fill:'#F4A3B5', ...ln() }],
+      ['ellipse', { cx:72.5, cy:63, rx:3, ry:3.6, fill:'#F7C3CF', ...ln(2) }],
+      ['path', { d:'M71.6 62h.01M73.4 64h.01M67 59.5h.01', stroke:INK, 'stroke-width':2.2, 'stroke-linecap':'round' }],
+      ['path', { d:'M56.5 54.5h6', fill:'none', ...ln(2) }],
+      ['circle', { cx:59.5, cy:48, r:4, fill:'#F5C042', ...ln(2) }]] },
+    movies: { hands:[[51,66]], head:[
+      ['rect', { x:21, y:29, width:18, height:16, rx:3.5, fill:'#E5484D', 'fill-opacity':'.45' }],
+      ['rect', { x:41, y:29, width:18, height:16, rx:3.5, fill:'#3FB6D9', 'fill-opacity':'.45' }],
+      ['path', { d:'M24.5 29h11a3.5 3.5 0 0 1 3.5 3.5v9a3.5 3.5 0 0 1-3.5 3.5h-11a3.5 3.5 0 0 1-3.5-3.5v-9a3.5 3.5 0 0 1 3.5-3.5ZM44.5 29h11a3.5 3.5 0 0 1 3.5 3.5v9a3.5 3.5 0 0 1-3.5 3.5h-11a3.5 3.5 0 0 1-3.5-3.5v-9a3.5 3.5 0 0 1 3.5-3.5ZM39 35h2M21 34l-7-2.5M59 34l7-2.5', fill:'none', ...ln(5.2) }],
+      ['path', { d:'M24.5 29h11a3.5 3.5 0 0 1 3.5 3.5v9a3.5 3.5 0 0 1-3.5 3.5h-11a3.5 3.5 0 0 1-3.5-3.5v-9a3.5 3.5 0 0 1 3.5-3.5ZM44.5 29h11a3.5 3.5 0 0 1 3.5 3.5v9a3.5 3.5 0 0 1-3.5 3.5h-11a3.5 3.5 0 0 1-3.5-3.5v-9a3.5 3.5 0 0 1 3.5-3.5ZM39 35h2M21 34l-7-2.5M59 34l7-2.5', fill:'none', stroke:'#FFFFFF', 'stroke-width':2.4, 'stroke-linecap':'round', 'stroke-linejoin':'round' }]], prop:[
+      ['rect', { x:50, y:56, width:24, height:16, rx:2.5, fill:'#3A3F5C' }],
+      ['path', { d:'M50 56h24v5H50Z', fill:'#FFFFFF' }],
+      ['path', { d:'M54 56h4l-3 5h-4ZM62 56h4l-3 5h-4ZM70 56h4l-3 5h-4Z', fill:INK }],
+      ['path', { d:'M54 65.5h8M54 68.5h12', fill:'none', stroke:'#A79FBC', 'stroke-width':1.6, 'stroke-linecap':'round' }],
+      ['rect', { x:50, y:56, width:24, height:16, rx:2.5, fill:'none', ...ln() }],
+      ['path', { d:'M50 55L73.2 48.8L71.9 44L48.7 50.2Z', fill:'#FFFFFF' }],
+      ['path', { d:'M54.8 53.7L57.7 52.9L59.3 47.4L56.4 48.1ZM60.6 52.2L63.5 51.4L65.1 45.8L62.2 46.6ZM66.4 50.6L69.3 49.8L70.9 44.3L68 45Z', fill:INK }],
+      ['path', { d:'M50 55L73.2 48.8L71.9 44L48.7 50.2Z', fill:'none', ...ln() }]] },
   };
   // Moods mirror observed work only: the chat's pending phase or a live step's
   // state and activity. Anything unknown stays idle.

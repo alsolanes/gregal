@@ -35,6 +35,14 @@ var kitKeywords = []struct {
 	words []string
 }{
 	{"security", []string{"seguretat", "security", "hack", "vulnerab", "privacitat", "privacy"}},
+	// Els oficis de la vida de cada dia, abans dels generals: «Salut i esport»
+	// és forma física, no futbol; «Cuina» no és «compres».
+	{"cooking", []string{"cuina", "cuiner", "recept", "gastronom", "cooking", "cook", "recipe", "chef"}},
+	{"weather", []string{"el temps", "meteo", "weather", "clima", "pluja"}},
+	{"travel", []string{"viatge", "viatja", "travel", "turisme", "tourism", "trip"}},
+	{"fitness", []string{"fitness", "gimnàs", "gimnas", "entrenament", "forma física", "salut", "health", "running", "ioga", "yoga"}},
+	{"finance", []string{"finances", "finance", "estalvi", "budget", "diners", "money", "pressupost familiar"}},
+	{"movies", []string{"cinema", "pel·lícul", "pelicul", "sèries de tv", "tv series", "movie", "film", "televisió"}},
 	{"music", []string{"música", "musica", "music", "canç", "song", "disc", "concert", "banda", "guitarra"}},
 	{"sports", []string{"esport", "sport", "futbol", "fútbol", "football", "basket", "bàsquet", "pilota", "lliga", "barça", "barca", "goal", "partit"}},
 	{"books", []string{"llibre", "llibres", "book", "novel", "lectura", "reading", "literatura", "poesia"}},

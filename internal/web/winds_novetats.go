@@ -37,6 +37,11 @@ type windNovetat struct {
 	// Job: l'id del recordatori que l'ha fet sonar. L'app el fa servir per
 	// no avisar dues vegades si ja l'havia mostrat ella amb el servidor caigut.
 	Job string `json:"job,omitempty"`
+	// Card: la targeta de la safata «Avui» que en va sortir (l'app hi posa
+	// els botons Fet / Ara no). Quiet: arriba en hores tranquil·les o amb el
+	// nivell «calm»: queda a la safata però el mòbil no sona.
+	Card  string `json:"card,omitempty"`
+	Quiet bool   `json:"quiet,omitempty"`
 }
 
 var novetatsMu sync.Mutex
@@ -79,6 +84,8 @@ func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
 	if text == "" {
 		return
 	}
+	// Cada veu és també una targeta de la safata «Avui» (winds_avui.go).
+	card, ring := s.avuiFromVoice(w, source, job, text)
 	novetatsMu.Lock()
 	defer novetatsMu.Unlock()
 	list := append(loadNovetats(s), windNovetat{
@@ -88,6 +95,8 @@ func recordNovetatJob(s *Server, w companion.Wind, source, job, text string) {
 		Source: source,
 		Text:   text,
 		Job:    job,
+		Card:   card,
+		Quiet:  !ring,
 	})
 	saveNovetats(s, list)
 }

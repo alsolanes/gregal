@@ -131,11 +131,13 @@ class MascotMinimalTest {
                         }
                         androidx.compose.material3.Text("La colla · eina i barret", color = palette.ink)
                         val crew = listOf("music" to 0xFFF2B8A2, "review" to 0xFFD7B8E6, "ux" to 0xFFF2B8A2, "delivery" to 0xFFE8D3A3,
-                            "books" to 0xFFEACF87, "frontend" to 0xFFA8D8EA, "sports" to 0xFF9ED3C5, "testing" to 0xFFCFE3A6)
+                            "books" to 0xFFEACF87, "frontend" to 0xFFA8D8EA, "sports" to 0xFF9ED3C5, "testing" to 0xFFCFE3A6,
+                            "cooking" to 0xFFE8667E, "weather" to 0xFF29BCA3, "travel" to 0xFFF2B8A2, "fitness" to 0xFFD7B8E6,
+                            "finance" to 0xFFA8CDE2, "movies" to 0xFF9ED3C5)
                         crew.chunked(4).forEach { row -> Row {
                             row.forEach { (kit, tint) ->
                                 val shape = if (kit == "frontend") WindShape.SPIRAL else if (kit == "testing") WindShape.CLOUD else WindShape.BALL
-                                WindFace(size = 88, accent = Color(tint), style = WindStyle(shape = shape, kit = kit))
+                                WindFace(size = 72, accent = Color(tint), style = WindStyle(shape = shape, kit = kit), showKit = true)
                             }
                         } }
                         androidx.compose.material3.Text("48 combinacions preservades", color = palette.ink)

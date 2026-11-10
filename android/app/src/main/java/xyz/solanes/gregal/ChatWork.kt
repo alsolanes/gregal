@@ -344,30 +344,24 @@ fun LiveAnswer(text: String, lang: String) {
 
 // --- Composer: Pregunta/Planifica/Actua, modes avançats i permisos ---
 
-/** Selector compacte amb el mode actiu sempre visible. */
+/**
+ * «Planifica primer» (com els agents actuals i la web): un sol mode, i una
+ * pastilla que, encesa, fa que proposi un pla i no toqui res fins que
+ * l'aprovis. S'amaga a només lectura.
+ */
 @Composable
-fun ModeToggle(uiMode: String, enabled: Boolean, lang: String, onChange: (String) -> Unit) {
-    val modes = listOf("chat" to "app.mode.ask", "plan" to "app.mode.plan", "act" to "app.mode.act")
-    val active = modes.firstOrNull { it.first == uiMode } ?: modes.last()
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier.height(44.dp).clip(RoundedCornerShape(12.dp))
-                .clickable(enabled = enabled, role = Role.Button) { expanded = true }.padding(horizontal = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(tr(lang, active.second), color = Tinta, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            Icon(Icons.Rounded.KeyboardArrowDown, null, tint = Muted, modifier = Modifier.size(16.dp))
-        }
-        DropdownMenu(expanded = expanded && enabled, onDismissRequest = { expanded = false }) {
-            modes.forEach { (value, key) ->
-                DropdownMenuItem(
-                    text = { Text(tr(lang, key)) },
-                    trailingIcon = { if (value == uiMode) Icon(Icons.Rounded.Check, null) },
-                    onClick = { expanded = false; if (value != uiMode) onChange(value) },
-                )
-            }
-        }
+fun PlanFirstToggle(on: Boolean, enabled: Boolean, lang: String, onToggle: () -> Unit) {
+    Row(
+        Modifier.height(36.dp).clip(RoundedCornerShape(50))
+            .background(if (on) Sea.copy(alpha = 0.14f) else Color.Transparent)
+            .clickable(enabled = enabled, role = Role.Switch, onClick = onToggle)
+            .semantics { contentDescription = tr(lang, "app.mode.planFirst") + " · " + tr(lang, "app.mode.planFirstHelp") }
+            .padding(horizontal = 11.dp).testTag("plan-first"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Icon(Icons.Rounded.Checklist, null, tint = if (on) Sea else Muted, modifier = Modifier.size(16.dp))
+        Text(tr(lang, "app.mode.planFirst"), color = if (on) Sea else Tinta, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -472,24 +466,26 @@ fun ComposerPlusMenu(
         item(tr(lang, "app.mode.debug"), tr(lang, "app.mode.debugHelp"), checked = st.mode == "debug") { onMode("debug") }
         if (st.mode in setOf("goal", "debug")) item(tr(lang, "app.mode.exit")) { onMode("act") }
         androidx.compose.material3.HorizontalDivider(color = Line)
-        item(tr(lang, "app.perm.title") + " · " + tr(lang, "app.perm." + st.access), onClick = onPerm)
+        item(tr(lang, "app.perm.title") + " · " + tr(lang, "app.perm." + permSelected(st.mode, st.access)), onClick = onPerm)
     }
 }
 
 /** Permís d'Actua (com la web i el TUI): demana, edicions o autonomia total. */
 @Composable
-fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, onClose: () -> Unit) {
-    val cur = st.access
+fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, onClose: () -> Unit,
+    /** Codi: «Només lectura» és el primer permís (el mode chat). Als vents no hi és. */
+    readOnly: Boolean = false) {
+    val cur = if (readOnly) permSelected(st.mode, st.access) else st.access
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onClose,
         title = { Text(tr(lang, "app.perm.title")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // A Pregunta i Planifica no es canvia res: triar-ne un passa a Actua.
-                if (uiModeOf(st.mode) != "act") {
+                // Al pla no es canvia res fins que l'aproves: triar-ne un passa a Actua.
+                if (uiModeOf(st.mode) == "plan" || (!readOnly && uiModeOf(st.mode) != "act")) {
                     Text(tr(lang, "app.perm.appliesInAct"), color = Muted, fontSize = 12.sp)
                 }
-                ACCESSES.forEach { id ->
+                (if (readOnly) PERM_CHOICES else ACCESSES).forEach { id ->
                     val l = "app.perm.$id"
                     val h = "app.perm.${id}Help"
                     val sel = id == cur
@@ -498,7 +494,7 @@ fun PermissionDialog(st: ServerState, lang: String, onPick: (String) -> Unit, on
                         color = if (sel) Sea.copy(alpha = 0.12f) else CodeDark,
                         border = BorderStroke(1.dp, if (sel) Sea.copy(alpha = 0.5f) else Color.Transparent),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-                            .clickable(role = Role.RadioButton) { onPick(id) },
+                            .clickable(role = Role.RadioButton) { onPick(id) }.testTag("perm-$id"),
                     ) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             PermIcon(id == "full", if (id == "full") Sand else if (sel) Sea else Muted)

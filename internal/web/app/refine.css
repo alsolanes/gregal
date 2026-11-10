@@ -236,6 +236,14 @@ html body #side #navRail .nav-item.active .nav-icon { color:var(--accent-hi); }
   display:inline-block; flex:none; width:5px; height:5px; margin:0 1px 3px 7px; font-size:0;
   border:solid currentColor; border-width:0 1.5px 1.5px 0; transform:rotate(45deg); color:var(--faint);
 }
+/* «Planifica primer»: un interruptor a la mateixa mida que les altres pastilles; encès, amb l'accent. */
+#composer .plan-first { display:inline-flex; align-items:center; gap:6px; min-height:30px; padding:4px 9px; border:1px solid transparent; border-radius:var(--r-sm); background:transparent; color:var(--muted); font:inherit; font-size:12px; font-weight:500; white-space:nowrap; cursor:pointer; }
+#composer .plan-first:hover { background:var(--hover); color:var(--ink); }
+#composer .plan-first[aria-pressed="true"] { border-color:color-mix(in srgb, var(--accent) 50%, var(--line)); background:var(--accent-soft); color:var(--ink); }
+#composer .plan-first[aria-pressed="true"] svg { color:var(--accent-hi); }
+#composer .plan-first[hidden] { display:none; }
+/* Només lectura: el cadenat ho diu amb el color de l'accent, no cal cap selector de mode. */
+#composer #permBtn.lectura { color:var(--accent-hi); }
 /* El selector de mode: la fletxa del sistema quedava lluny del text. */
 #composer .mode-switch { position:relative; }
 #composer #modePicker { -webkit-appearance:none; appearance:none; padding:3px 24px 3px 9px; field-sizing:content; }

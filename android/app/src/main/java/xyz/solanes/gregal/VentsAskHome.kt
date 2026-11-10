@@ -147,26 +147,27 @@ internal fun todayCards(
     return out
 }
 
-/** Inici | Xats: dues pastilles a la capçalera. */
+/** Inici | Avui | Xats: tres pastilles a la capçalera. [today]: targetes d'«Avui» per decidir. */
 @Composable
-internal fun AskTabs(lang: String, tab: String, unread: Int, onTab: (String) -> Unit) {
+internal fun AskTabs(lang: String, tab: String, unread: Int, today: Int = 0, onTab: (String) -> Unit) {
     Row(
         Modifier.padding(start = 16.dp, top = 4.dp, bottom = 6.dp).clip(GregalShape.pill)
             .background(SuperficieAlta.copy(alpha = .55f)).padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        listOf("home", "chats").forEach { key ->
+        listOf("home", "today", "chats").forEach { key ->
             val on = tab == key
             // Cada pestanya fa 40 dp i la càpsula 48: abans eren 34 dp, justos per al dit.
             Row(
                 Modifier.heightIn(min = 40.dp).clip(GregalShape.pill).background(if (on) Ink else Color.Transparent)
                     .clickable { onTab(key) }.semantics { selected = on; contentDescription = askCopy(lang, key) }
-                    .padding(horizontal = 18.dp).testTag("ask-tab-$key"),
+                    .padding(horizontal = 15.dp).testTag("ask-tab-$key"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(askCopy(lang, key), color = if (on) Superficie else Muted, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                if (key == "chats" && unread > 0) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
-                    Text(unreadBadge(unread), color = OnSea, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                val badge = when (key) { "chats" -> unread; "today" -> today; else -> 0 }
+                if (badge > 0) Surface(shape = RoundedCornerShape(999.dp), color = Sea) {
+                    Text(unreadBadge(badge), color = OnSea, fontSize = 10.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                 }
             }

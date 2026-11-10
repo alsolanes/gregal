@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.FolderOpen
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Person
@@ -489,7 +490,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                 val modeChips: @Composable () -> Unit = {
                     val special = st.mode in setOf("goal", "debug")
                     val full = st.access == "full" && uiModeOf(st.mode) == "act"
-                    if (special || full || st.autoReview) {
+                    val readOnly = uiModeOf(st.mode) == "chat"
+                    if (special || full || st.autoReview || readOnly) {
                         Row(
                             Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 2.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -501,7 +503,14 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                                     onClose = { vm.setMode("act") },
                                 )
                             }
-                            if (full) {
+                            if (readOnly) {
+                                // Només lectura: es veu i es pot deixar d'un toc (torna a Actua).
+                                ComposerChip(
+                                    tr(lang, "app.perm.readonly"), Sea,
+                                    { PermIcon(false, Sea) }, onClick = { showPerm = true },
+                                    onClose = { vm.setMode("act") },
+                                )
+                            } else if (full) {
                                 ComposerChip(
                                     tr(lang, "app.perm.full"), Sand,
                                     { PermIcon(true, Sand) }, onClick = { showPerm = true }, onClose = null,
@@ -581,13 +590,26 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
                             }
                             Spacer(Modifier.width(2.dp))
                             CappedFontScale(1.3f) {
-                                ModeToggle(
-                                    uiMode = uiModeOf(st.mode), enabled = !sending, lang = lang,
-                                    onChange = { m ->
-                                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                        vm.setMode(m)
-                                    },
-                                )
+                                // Un sol mode, com els agents actuals: «Planifica primer» i el
+                                // cadenat dels permisos (que inclou «Només lectura»).
+                                val readOnly = uiModeOf(st.mode) == "chat"
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = { showPerm = true }, enabled = !sending, modifier = Modifier.size(44.dp).testTag("perm-button")) {
+                                        Icon(
+                                            if (st.access == "full" && !readOnly) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                                            tr(lang, "app.perm.title") + ": " + tr(lang, "app.perm." + permSelected(st.mode, st.access)),
+                                            tint = if (readOnly) Sea else if (st.access == "full") Sand else Muted,
+                                            modifier = Modifier.size(19.dp),
+                                        )
+                                    }
+                                    if (!readOnly) PlanFirstToggle(
+                                        on = uiModeOf(st.mode) == "plan", enabled = !sending, lang = lang,
+                                        onToggle = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                            vm.setMode(planFirstTarget(st.mode))
+                                        },
+                                    )
+                                }
                             }
                             Spacer(Modifier.weight(1f))
                             SendStopButton(
@@ -906,8 +928,8 @@ fun ChatScreen(vm: GregalViewModel, onMenu: () -> Unit) {
     }
 
     if (showPerm) {
-        PermissionDialog(st, lang, onPick = { vm.setAccess(it); showPerm = false },
-            onClose = { showPerm = false })
+        PermissionDialog(st, lang, onPick = { vm.pickPermission(it); showPerm = false },
+            onClose = { showPerm = false }, readOnly = true)
     }
 
     if (showRewind) {

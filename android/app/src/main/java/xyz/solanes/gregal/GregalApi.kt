@@ -999,21 +999,23 @@ class GregalApi(val base: String, val token: String) {
 
     /** Veus proactives posteriors a desDe (unix). Lleuger: el vigilant ho
      *  crida en segon pla sense descarregar historials. */
-    fun windNovetats(desDe: Long): List<WindNovetat> {
-        val o = JSONObject(read(conn("/api/winds/novetats?des_de=$desDe", "GET")))
-        val a = o.optJSONArray("novetats") ?: JSONArray()
-        return (0 until a.length()).mapNotNull {
-            val j = a.optJSONObject(it) ?: return@mapNotNull null
-            val text = j.optString("text")
-            if (text.isBlank()) null else WindNovetat(
-                ts = j.optLong("ts"),
-                wind = j.optString("wind"),
-                name = j.optString("name"),
-                source = j.optString("source"),
-                text = text,
-                job = j.optString("job"),
-            )
-        }
+    fun windNovetats(desDe: Long): List<WindNovetat> =
+        AvuiJson.novetats(read(conn("/api/winds/novetats?des_de=$desDe", "GET")))
+
+    /** La safata «Avui» (GET /api/winds/avui). */
+    fun avui(): AvuiView = AvuiJson.view(read(conn("/api/winds/avui", "GET")))
+
+    /** Una decisió sobre una targeta: done | later | dismiss | useful | notuseful | save | reopen. */
+    fun avuiAction(id: String, action: String): Boolean =
+        post("/api/winds/avui", JSONObject().put("id", id).put("action", action)).optBoolean("ok", false)
+
+    fun avuiSettings(): AvuiSettings = AvuiJson.settings(get("/api/winds/avui/settings"))
+
+    /** Desa la configuració; [tune] null = no el toquis. */
+    fun saveAvuiSettings(s: AvuiSettings, tune: String? = null): AvuiSettings {
+        val body = JSONObject().put("quiet_from", s.quietFrom).put("quiet_to", s.quietTo).put("level", s.level)
+        if (tune != null) body.put("tune", tune)
+        return AvuiJson.settings(post("/api/winds/avui/settings", body))
     }
 
     /** Resposta d'un torn amb streaming (SSE per POST). */
@@ -1592,4 +1594,69 @@ internal fun parseDirs(o: JSONObject): DirsInfo {
         hidden = o.optInt("hidden"),
         truncated = o.optBoolean("truncat") || o.optBoolean("truncated"),
     )
+}
+
+/** Lectura pura de les respostes de la safata «Avui» i de les novetats (es prova sense xarxa). */
+object AvuiJson {
+    fun novetats(raw: String): List<WindNovetat> {
+        val a = JSONObject(raw).optJSONArray("novetats") ?: JSONArray()
+        return (0 until a.length()).mapNotNull {
+            val j = a.optJSONObject(it) ?: return@mapNotNull null
+            val text = j.optString("text")
+            if (text.isBlank()) null else WindNovetat(
+                ts = j.optLong("ts"),
+                wind = j.optString("wind"),
+                name = j.optString("name"),
+                source = j.optString("source"),
+                text = text,
+                job = j.optString("job"),
+                card = j.optString("card"),
+                quiet = j.optBoolean("quiet", false),
+            )
+        }
+    }
+
+    fun card(j: JSONObject): AvuiCard {
+        val acts = j.optJSONArray("actions") ?: JSONArray()
+        return AvuiCard(
+            id = j.optString("id"), wind = j.optString("wind"), windName = j.optString("wind_name"),
+            source = j.optString("source"), section = j.optString("section").ifBlank { "fyi" },
+            title = j.optString("title"), why = j.optString("why"), body = j.optString("body"),
+            actions = (0 until acts.length()).mapNotNull { i ->
+                val a = acts.optJSONObject(i) ?: return@mapNotNull null
+                val label = a.optString("label")
+                if (label.isBlank()) null else AvuiAction(label, a.optString("prompt"))
+            },
+            state = j.optString("state").ifBlank { "open" }, feedback = j.optString("feedback"),
+            saved = j.optBoolean("saved", false), held = j.optBoolean("held", false),
+            created = j.optLong("created"), days = j.optInt("days", 0),
+        )
+    }
+
+    private fun cards(o: JSONObject, key: String): List<AvuiCard> {
+        val a = o.optJSONArray(key) ?: return emptyList()
+        return (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let(::card) }.filter { it.id.isNotBlank() }
+    }
+
+    fun settings(o: JSONObject?): AvuiSettings {
+        if (o == null) return AvuiSettings()
+        return AvuiSettings(
+            quietFrom = o.optString("quiet_from").ifBlank { "22:00" },
+            quietTo = o.optString("quiet_to").ifBlank { "08:00" },
+            level = if (o.optString("level") == "calm") "calm" else "normal",
+            tune = o.optString("tune"),
+        )
+    }
+
+    fun view(raw: String): AvuiView {
+        val o = JSONObject(raw)
+        return AvuiView(
+            date = o.optString("date"),
+            now = cards(o, "now"), fyi = cards(o, "fyi"), ahead = cards(o, "ahead"), done = cards(o, "done"),
+            held = o.optInt("held", 0), settings = settings(o.optJSONObject("settings")),
+        )
+    }
+
+    /** «HH:MM» vàlid (00:00–23:59). */
+    fun validTime(s: String): Boolean = Regex("""([01]\d|2[0-3]):[0-5]\d""").matches(s.trim())
 }

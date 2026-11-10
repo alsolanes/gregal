@@ -169,6 +169,11 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
     val homeCards = tab == "home" && winds.isNotEmpty()
     LaunchedEffect(conn, homeCards) { if (homeCards) { vm.loadProgramats(); vm.loadConnections(); vm.loadTodayBrief() } }
     val todayBrief by vm.todayBrief.collectAsState()
+    // «Avui»: la safata dels vents (VentsAvui.kt). Es llegeix en obrir els Vents
+    // (per a la insígnia de la pestanya), en arribar veus noves i en entrar-hi.
+    val avui by vm.avui.collectAsState()
+    val avuiError by vm.avuiError.collectAsState()
+    LaunchedEffect(conn, news, tab) { vm.loadAvui() }
     fun pluginOn(id: String) = plugins[id] != false
     val ventJobs by vm.jobs.collectAsState()
     // Les notificacions es demanen soles quan hi ha avisos (13+): sense el
@@ -320,7 +325,7 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         // («Vents») hi cap sencer en lloc de quedar tallat.
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) {
-                                AskTabs(lang, tab, unread = newsCount.values.sum()) { tab = it }
+                                AskTabs(lang, tab, unread = newsCount.values.sum(), today = avui?.now?.count { it.state == "open" } ?: 0) { tab = it }
                             }
                             IconButton(onClick = { exploreOpen = !exploreOpen }) {
                                 Icon(Icons.Rounded.AutoAwesome, ventsCopy(lang, "explore"), tint = if (exploreOpen) Sea else Ink)
@@ -371,6 +376,15 @@ fun VentsHome(vm: GregalViewModel, lang: String, openDrawer: () -> Unit, openLib
                         onBrief = { todayBrief?.windId?.takeIf { it.isNotBlank() }?.let { vm.openVentsChat("wind:$it") } })
                     Spacer(Modifier.height(16.dp))
                 }
+            } else if (!manage && !searching && tab == "today") {
+                AvuiTray(
+                    lang, avui, winds, avuiError,
+                    onAct = { id, action -> vm.avuiAct(id, action) },
+                    onRun = { card, action -> vm.avuiRun(card, action) },
+                    onSettings = { s, tune -> vm.saveAvuiSettings(s, tune) },
+                    onRetry = { vm.loadAvui() },
+                    modifier = Modifier.padding(pad),
+                )
             } else LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(bottom = 24.dp)) {
                 if (manage) {
                     item { WindsModelRow(vm, lang) }

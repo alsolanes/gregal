@@ -530,13 +530,25 @@ func parseBingRSS(body []byte) ([]SearchHit, error) {
 	return out, nil
 }
 
+// apiUA: les API obertes que demanen identificar-se (MusicBrainz ho exigeix i
+// bloqueja els navegadors anònims) reben el nom de l'app en lloc del navegador.
+const apiUA = "Gregal/1.0 (+https://github.com/alsolanes/gregal)"
+
+func uaFor(host string) string {
+	switch strings.TrimPrefix(strings.ToLower(host), "www.") {
+	case "musicbrainz.org", "api.open-meteo.com", "geocoding-api.open-meteo.com", "openlibrary.org", "photon.komoot.io", "wger.de":
+		return apiUA
+	}
+	return webUA
+}
+
 // webGet fa un GET amb capçaleres de navegador i cos limitat.
 func webGet(ctx context.Context, target, accept string, limit int64) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", target, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", webUA)
+	req.Header.Set("User-Agent", uaFor(req.URL.Host))
 	req.Header.Set("Accept", accept+";q=0.9,*/*;q=0.5")
 	req.Header.Set("Accept-Language", "ca,es;q=0.8,en;q=0.7")
 	resp, err := http.DefaultClient.Do(req)

@@ -115,12 +115,13 @@ func TestComposerModeAndPermissionVisible(t *testing.T) {
 	}
 	row := html[strings.Index(html, `<div class="composer-row">`):]
 	row = row[:strings.Index(row, `id="attach"`)]
-	for _, want := range []string{`class="mode-switch"`, `id="modeCode"`, `id="permLabel"`} {
+	// Un sol mode: «Planifica primer» és a la vista; el selector antic queda amagat per a /mode.
+	for _, want := range []string{`id="planFirst"`, `class="mode-switch" hidden`, `id="modeCode"`, `id="permLabel"`} {
 		if !strings.Contains(row, want) {
 			t.Errorf("composer row lacks %s", want)
 		}
 	}
-	if !strings.Contains(html, `label.textContent = gregalT(p[1] + 'Short')`) || !strings.Contains(html, `classList.toggle('perm-risc'`) {
+	if !strings.Contains(html, `label.textContent = gregalT(lectura ? 'perm.readonlyShort' : p[1] + 'Short')`) || !strings.Contains(html, `classList.toggle('perm-risc'`) {
 		t.Error("paintPerm no longer shows the short permission label or marks the risky composer")
 	}
 	css, err := os.ReadFile("app/shell-layout.css")

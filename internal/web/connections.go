@@ -474,6 +474,7 @@ func (s *Server) briefingBrief(wind companion.Wind, prompt string) string {
 		companion.WindBrainSystem(s.windBrain(wind.ID)) + s.windMemorySystem(wind.ID) + s.windConnectionsBrief() +
 		"\n\nTask:\n" + prompt +
 		"\n\nIt is now " + time.Now().In(loc).Format("Monday 2 January 2006, 15:04") + " for the user (" + loc.String() + ")." +
-		"\nFORMAT: a chat message from you to the user, like a friend who checked their day: no headings, no bold section titles, no 'Summary:' or 'Key points', no tables, at most 6 short lines, times in the user's local time. Reply with the message only." +
+		"\nFORMAT: a chat message from you to the user, like a friend who checked their day: no headings, no bold section titles, no 'Summary:' or 'Key points', no tables, at most 6 short lines, times in the user's local time." +
+		s.avuiBriefExtras(wind.ID) +
 		"\n\n" + config.LanguageDirective(s.cfg.Lang())
 }

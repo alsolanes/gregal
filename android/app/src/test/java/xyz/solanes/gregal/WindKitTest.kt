@@ -21,6 +21,16 @@ class WindKitTest {
         assertEquals("", inferKit(""))
     }
 
+    @Test fun elsOficisNousTenenEinaIBarret() {
+        // Mateixa geometria que `kits` a winds.js: cada ofici nou porta eina, i alguns barret.
+        for (kit in listOf("cooking", "weather", "travel", "fitness", "finance", "movies")) {
+            val mascot = windKits[kit]
+            assertNotNull(kit, mascot)
+            assertTrue("$kit porta l'eina de l'ofici", mascot!!.prop.isNotEmpty())
+        }
+        for (kit in listOf("cooking", "fitness", "movies")) assertTrue("$kit porta barret o ulleres", windKits.getValue(kit).head.isNotEmpty())
+    }
+
     @Test fun faceStylePrioritzaKitDelServidor() {
         // Kit explícit del servidor mana; després specialty; al final la inferència del rol.
         val delServidor = Wind("a", "X", "#111111", "música", kit = "tech")

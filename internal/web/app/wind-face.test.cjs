@@ -58,6 +58,22 @@ test('the tool is for the whole figure: a small face stays a clean face', () => 
   assert.equal(hero.getAttribute('class'), 'winds-face winds-face-large');
 });
 
+test('the new trade kits dress the whole figure with their hat or tool', () => {
+  const { winds } = load();
+  const own = parts(winds.face({ id:'mine', color:'#A8CDE2', style:'pso' }, 'figure'));
+  const worn = { cooking:['head', 'prop'], weather:['prop'], travel:['prop'], fitness:['head', 'prop'], finance:['prop'], movies:['head', 'prop'] };
+  for (const [kit, pieces] of Object.entries(worn)) {
+    const svg = winds.face({ id:kit, kit, color:'#A8CDE2', style:'pso' }, 'figure');
+    assert.equal(svg.getAttribute('data-kit'), kit);
+    assert.ok(groups(svg).includes('wf-prop'), kit + ' holds the tool of its trade');
+    assert.ok(parts(svg) >= own + 4, kit + ' draws more than a plain figure');
+    if (pieces.includes('head')) assert.ok(parts(svg) > own + svg.all().find(n => n.attrs.class === 'wf-prop').all().length + 1, kit + ' also wears something on its head');
+    const small = winds.face({ id:kit, kit, color:'#A8CDE2', style:'pso' });
+    assert.equal(small.getAttribute('data-kit'), kit);
+    assert.equal(groups(small).includes('wf-prop'), false, kit + ' stays a clean face at list size');
+  }
+});
+
 test('the gust shape curls on top instead of wearing a fringe', () => {
   const { winds } = load();
   for (const large of [false, true]) {

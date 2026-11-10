@@ -318,7 +318,65 @@ data class WindTurnAction(val id: String, val kind: String, val atIso: String, v
 /** Veu proactiva d'un vent apuntada pel servidor (cor, recordatori). */
 data class WindNovetat(val ts: Long, val wind: String, val name: String, val source: String, val text: String,
     /** Id del recordatori que l'ha fet sonar (buit per a la resta de veus). */
-    val job: String = "")
+    val job: String = "",
+    /** Id de la targeta de la safata «Avui» que en va sortir (l'avís hi posa Fet / Més tard). */
+    val card: String = "",
+    /** Va arribar en hores tranquil·les o en mode tranquil: no fa sonar el mòbil, espera a la safata. */
+    val quiet: Boolean = false)
+
+/** Una decisió d'una targeta d'«Avui»: obre la conversa amb el vent i li diu [prompt]. */
+data class AvuiAction(val label: String, val prompt: String)
+
+/**
+ * Una targeta de la safata «Avui»: tot el que un vent diu pel seu compte
+ * (resum del matí, vigilància, recordatori, feina acabada) amb una decisió.
+ * [state]: open | done | dismissed (i «later» localment, mentre s'amaga).
+ */
+data class AvuiCard(
+    val id: String,
+    val wind: String,
+    val windName: String,
+    val source: String,
+    /** now | fyi | ahead */
+    val section: String,
+    val title: String,
+    val why: String = "",
+    val body: String = "",
+    val actions: List<AvuiAction> = emptyList(),
+    val state: String = "open",
+    /** useful | notuseful | buit */
+    val feedback: String = "",
+    val saved: Boolean = false,
+    val held: Boolean = false,
+    val created: Long = 0L,
+    /** Dies que fa que és oberta (0: d'avui). */
+    val days: Int = 0,
+)
+
+data class AvuiSettings(
+    val quietFrom: String = "22:00",
+    val quietTo: String = "08:00",
+    /** calm | normal */
+    val level: String = "normal",
+    val tune: String = "",
+) {
+    val calm: Boolean get() = level == "calm"
+}
+
+/** El que surt avui a la safata: tres seccions, el que ja s'ha fet i quantes veus han esperat en silenci. */
+data class AvuiView(
+    val date: String,
+    val now: List<AvuiCard>,
+    val fyi: List<AvuiCard>,
+    val ahead: List<AvuiCard>,
+    val done: List<AvuiCard>,
+    val held: Int,
+    val settings: AvuiSettings,
+) {
+    val all: List<AvuiCard> get() = now + fyi + ahead
+    /** Les que encara demanen alguna cosa (la insígnia de la pestanya). */
+    val openCount: Int get() = all.count { it.state == "open" }
+}
 
 /** Job programat del servidor (butlletins desatesos). */
 /** Missatges programats i estadístiques dels vents. */
@@ -657,6 +715,29 @@ fun uiModeOf(mode: String): String = when (mode) {
 
 /** Els tres permisos d'Actua, en l'ordre del menú. */
 val ACCESSES = listOf("ask", "edits", "full")
+
+/** «Només lectura»: el primer permís del menú, el més prudent (mode chat). */
+const val READ_ONLY = "readonly"
+
+/** El menú de permisos del compositor de Codi: només lectura i els tres d'Actua. */
+val PERM_CHOICES = listOf(READ_ONLY) + ACCESSES
+
+/** El permís que el menú marca: només lectura si el mode és de lectura; si no, el d'Actua. */
+fun permSelected(mode: String, access: String): String = if (uiModeOf(mode) == "chat") READ_ONLY else access
+
+/**
+ * El que cal enviar en triar un permís, en ordre (com la web): només lectura
+ * → mode chat; qualsevol altre des de només lectura → primer mode act i
+ * després el permís; si no, només el permís.
+ */
+fun permSteps(mode: String, pick: String): List<Pair<String, String>> = when {
+    pick == READ_ONLY -> listOf("mode" to "chat")
+    uiModeOf(mode) == "chat" -> listOf("mode" to "act", "access" to pick)
+    else -> listOf("access" to pick)
+}
+
+/** «Planifica primer»: encès → plan; apagat → act. */
+fun planFirstTarget(mode: String): String = if (uiModeOf(mode) == "plan") "act" else "plan"
 
 
 // --- Carpeta de treball (on treballen els vents) ---

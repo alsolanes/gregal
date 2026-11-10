@@ -16,6 +16,8 @@ func (s *Server) writeWindProfile(w http.ResponseWriter, wind companion.Wind) {
 		"personal_memory": s.personalMemory(),
 		"memory":          companion.LoadWindMemory(s.windStateDir(), wind.ID),
 		"skills":          s.windSkills(wind.ID),
+		// L'ofici: fonts, nivell i vigilàncies que el vent ofereix (winds_trade.go).
+		"trade": s.tradeProfile(wind),
 	})
 }
 

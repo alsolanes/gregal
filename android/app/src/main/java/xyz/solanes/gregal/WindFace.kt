@@ -420,6 +420,8 @@ private fun circle(cx: Float, cy: Float, r: Float) = oval(cx, cy, r, r)
 private fun rect(x: Float, y: Float, w: Float, h: Float, rx: Float) =
     "M${x + rx} ${y}h${w - 2 * rx}a$rx $rx 0 0 1 $rx ${rx}v${h - 2 * rx}a$rx $rx 0 0 1 ${-rx} ${rx}h${-(w - 2 * rx)}a$rx $rx 0 0 1 ${-rx} ${-rx}v${-(h - 2 * rx)}a$rx $rx 0 0 1 $rx ${-rx}Z"
 
+private val movieFrame = rect(21f, 29f, 18f, 16f, 3.5f) + rect(41f, 29f, 18f, 16f, 3.5f) + "M39 35h2M21 34l-7-2.5M59 34l7-2.5"
+
 internal val windKits: Map<String, MascotKit> = mapOf(
     "shopping" to MascotKit(hands = listOf(Offset(53f, 59f)), prop = listOf(
         line("M57 54v-3a6 6 0 0 1 12 0v3", 2.4f),
@@ -517,6 +519,62 @@ internal val windKits: Map<String, MascotKit> = mapOf(
             line("M55 73L66 62", 8f),
             line("M55 73L66 62", 4.4f, 0xFFA7AFC2),
             solid("M71 50.5a7.5 7.5 0 1 0 5 7.5l-4.5 1.2-2.6-2.6 1-4.6Z", 0xFFA7AFC2))),
+    "cooking" to MascotKit(hands = listOf(Offset(52f, 67f)),
+        head = listOf(
+            solid("M18 21C10 16 13 6 22 7C24 1 34-1 40 3C46-1 56 1 58 7C67 6 70 16 62 21Q40 12 18 21Z", 0xFFFFFFFF),
+            solid("M16 20Q40 9 64 20V27Q40 16 16 27Z", 0xFFFFFFFF),
+            line("M28 15.5v6M40 13v6M52 15.5v6", 1.6f, 0xFFC3C9D9)),
+        prop = listOf(
+            line("M59 61.5L51 67.5", 4.4f, 0xFF8A5A3B),
+            solid(circle(66f, 56f, 9.5f), 0xFF3A3F5C),
+            flat("M60.5 55.5c0-4 4-6 7-4.5 3-.5 5.5 2.5 4 5.5 1 3-2.5 5-5 4-3 1.5-6.5-1-6-5Z", 0xFFFFFFFF),
+            flat(circle(66.5f, 56f, 2.7f), 0xFFF5B731))),
+    "weather" to MascotKit(hands = listOf(Offset(65f, 60f)), prop = listOf(
+        line("M65 45V66a3 3 0 0 1-6 0", 2.6f),
+        line("M65 33v-2.5", 2.4f),
+        solid("M52.5 45A12.5 12 0 0 1 77.5 45Q74.4 42.5 71.25 45Q68.1 42.5 65 45Q61.9 42.5 58.75 45Q55.6 42.5 52.5 45Z", 0xFF5E86D6),
+        line("M65 33Q59.5 37 58.75 45M65 33Q70.5 37 71.25 45", 1.6f))),
+    "travel" to MascotKit(hands = listOf(Offset(51f, 62f)), prop = listOf(
+        line("M57.5 52v-3a3 3 0 0 1 3-3h3a3 3 0 0 1 3 3v3", 2.4f),
+        solid(rect(50f, 52f, 24f, 20f, 3.5f), 0xFFF0A04B),
+        line("M56 53v18M68 53v18", 2.4f, 0xFFA8612E),
+        flat(circle(62f, 62f, 3f), 0xFFFFF8EE))),
+    "fitness" to MascotKit(hands = listOf(Offset(63f, 64f)),
+        head = listOf(
+            solid("M11 24Q40 11 69 24L70 30.5Q40 18 10 30.5Z", 0xFF2FB58A, 2f),
+            line("M10.6 27.3Q40 14.6 69.4 27.3", 1.8f, 0xFFFFFFFF),
+            solid("M11 26.5L3.5 24L4.5 30.5ZM11 28.5L5.5 34L9.5 35.5Z", 0xFF2FB58A, 2f)),
+        prop = listOf(
+            line("M53 64H73", 3f),
+            solid(rect(49f, 56f, 5f, 16f, 2f), 0xFFE5484D),
+            solid(rect(72f, 56f, 5f, 16f, 2f), 0xFFE5484D),
+            solid(rect(54f, 58.5f, 3.5f, 11f, 1.5f), 0xFFF28C6B, 1.6f),
+            solid(rect(68.5f, 58.5f, 3.5f, 11f, 1.5f), 0xFFF28C6B, 1.6f))),
+    "finance" to MascotKit(hands = listOf(Offset(51f, 67f)), prop = listOf(
+        solid(rect(54f, 67f, 4.5f, 7f, 1.5f), 0xFFF4A3B5, 2f),
+        solid(rect(64.5f, 67f, 4.5f, 7f, 1.5f), 0xFFF4A3B5, 2f),
+        solid("M63.5 56L66 49.5L71 56Z", 0xFFF4A3B5, 2f),
+        solid(oval(61f, 62.5f, 11.5f, 9f), 0xFFF4A3B5),
+        solid(oval(72.5f, 63f, 3f, 3.6f), 0xFFF7C3CF, 2f),
+        line("M71.6 62h.01M73.4 64h.01M67 59.5h.01", 2.2f),
+        line("M56.5 54.5h6", 2f),
+        solid(circle(59.5f, 48f, 4f), 0xFFF5C042, 2f))),
+    "movies" to MascotKit(hands = listOf(Offset(51f, 66f)),
+        head = listOf(
+            // 3D glasses: tinted lenses over the eyes, a white card frame around them.
+            KitShape(rect(21f, 29f, 18f, 16f, 3.5f), 0xFFE5484D, fillAlpha = .45f),
+            KitShape(rect(41f, 29f, 18f, 16f, 3.5f), 0xFF3FB6D9, fillAlpha = .45f),
+            line(movieFrame, 5.2f),
+            line(movieFrame, 2.4f, 0xFFFFFFFF)),
+        prop = listOf(
+            flat(rect(50f, 56f, 24f, 16f, 2.5f), 0xFF3A3F5C),
+            flat("M50 56h24v5H50Z", 0xFFFFFFFF),
+            flat("M54 56h4l-3 5h-4ZM62 56h4l-3 5h-4ZM70 56h4l-3 5h-4Z", KitInk),
+            line("M54 65.5h8M54 68.5h12", 1.6f, 0xFFA79FBC),
+            line(rect(50f, 56f, 24f, 16f, 2.5f)),
+            flat("M50 55L73.2 48.8L71.9 44L48.7 50.2Z", 0xFFFFFFFF),
+            flat("M54.8 53.7L57.7 52.9L59.3 47.4L56.4 48.1ZM60.6 52.2L63.5 51.4L65.1 45.8L62.2 46.6ZM66.4 50.6L69.3 49.8L70.9 44.3L68 45Z", KitInk),
+            line("M50 55L73.2 48.8L71.9 44L48.7 50.2Z"))),
 )
 
 private val kitPaths = HashMap<String, Path>()

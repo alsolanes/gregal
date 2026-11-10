@@ -52,6 +52,12 @@ object WindWatchLogic {
         }
         return perVent to ts
     }
+
+    /**
+     * Les que fan sonar el mòbil: les tranquil·les (hores tranquil·les o mode
+     * tranquil) esperen a la safata «Avui». El cursor avança igualment amb totes.
+     */
+    fun toRing(novetats: List<WindNovetat>): List<WindNovetat> = novetats.filterNot { it.quiet }
 }
 
 object WindWatch {
@@ -209,7 +215,7 @@ class WindWatchService : Service() {
                 }
                 // El cursor avança amb totes; només avisen les que el mòbil encara no ha mostrat.
                 val nouTs = WindWatchLogic.noves(noves, desDe).second
-                val perVent = WindWatchLogic.noves(OfflineLogic.notYetShown(noves, shown), desDe).first
+                val perVent = WindWatchLogic.noves(WindWatchLogic.toRing(OfflineLogic.notYetShown(noves, shown)), desDe).first
                 WindWatch.saveTs(this, nouTs)
                 // Primera passada en aquest servidor/compte: només marca on som.
                 // Avisar de tot el que ja hi havia seria una ràfega de notificacions velles.
@@ -317,8 +323,16 @@ object WindNotifications {
             .setContentTitle("Gregal")
             .build()
         builder.setPublicVersion(publica)
+        val notifId = NotificationNavigation.identity(source, target).hashCode()
+        // Una targeta d'«Avui»: es pot decidir des de l'avís mateix (Fet / Més tard).
+        if (n.card.isNotBlank()) {
+            builder.addAction(Notification.Action.Builder(null, text(ctx, "app.avui.done"),
+                AvuiActionReceiver.pending(ctx, source, n.card, "done", notifId)).build())
+            builder.addAction(Notification.Action.Builder(null, text(ctx, "app.avui.later"),
+                AvuiActionReceiver.pending(ctx, source, n.card, "later", notifId)).build())
+        }
         try {
-            ctx.getSystemService(NotificationManager::class.java).notify(NotificationNavigation.identity(source, target).hashCode(), builder.build())
+            ctx.getSystemService(NotificationManager::class.java).notify(notifId, builder.build())
         } catch (_: Exception) {
         }
     }
@@ -338,4 +352,50 @@ object WindNotifications {
         },
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+}
+
+/**
+ * Els botons Fet / Més tard d'un avís amb targeta: diuen la decisió al
+ * mateix servidor (i compte) que el va fer sonar, sense obrir l'app, i
+ * treuen l'avís. Si falla, la targeta continua oberta a la safata.
+ */
+class AvuiActionReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action != ACTION) return
+        val card = intent.getStringExtra(EXTRA_CARD).orEmpty()
+        val action = intent.getStringExtra(EXTRA_ACTION).orEmpty()
+        val origin = intent.getStringExtra(EXTRA_ORIGIN).orEmpty()
+        val notifId = intent.getIntExtra(EXTRA_NOTIF, 0)
+        val app = context.applicationContext
+        if (card.isBlank() || action !in setOf("done", "later")) return
+        val pending = goAsync()
+        Thread {
+            try {
+                val conn = NotificationOrigins.resolve(Prefs(app), origin)
+                if (conn != null) conn.api().avuiAction(card, action)
+            } catch (_: Throwable) {
+                // Sense servidor: la targeta queda oberta a «Avui»; res no peta.
+            } finally {
+                try { app.getSystemService(NotificationManager::class.java).cancel(notifId) } catch (_: Exception) {}
+                try { pending.finish() } catch (_: Exception) {}
+            }
+        }.start()
+    }
+
+    companion object {
+        const val ACTION = "xyz.solanes.gregal.AVUI_ACTION"
+        const val EXTRA_CARD = "xyz.solanes.gregal.AVUI_CARD"
+        const val EXTRA_ACTION = "xyz.solanes.gregal.AVUI_DO"
+        const val EXTRA_ORIGIN = "xyz.solanes.gregal.AVUI_ORIGIN"
+        const val EXTRA_NOTIF = "xyz.solanes.gregal.AVUI_NOTIF"
+
+        fun pending(ctx: Context, origin: String, card: String, action: String, notifId: Int): PendingIntent =
+            PendingIntent.getBroadcast(
+                ctx, ("avui:$card:$action").hashCode(),
+                Intent(ctx, AvuiActionReceiver::class.java).setAction(ACTION)
+                    .putExtra(EXTRA_CARD, card).putExtra(EXTRA_ACTION, action)
+                    .putExtra(EXTRA_ORIGIN, origin).putExtra(EXTRA_NOTIF, notifId),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+    }
 }

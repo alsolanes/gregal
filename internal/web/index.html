@@ -2062,7 +2062,12 @@ body.sense-inspector #inspector { display:none; }
           <div class="composer-row">
             <button class="meta-pill" id="modelPill" type="button" data-i18n-title="ui.chooseModel" title="Choose model" data-i18n-aria="ui.chooseModel" aria-label="Choose model" aria-haspopup="listbox"><b id="model">…</b> <span class="mp-caret">▾</span></button>
             <span id="modeChip" class="mode-chip" hidden><span id="modeChipLabel"></span><button type="button" id="modeChipExit" data-i18n-aria="mode.exitSpecial" aria-label="Back to Act" data-i18n-title="mode.exitSpecial" title="Back to Act">×</button></span>
-            <div class="mode-switch" data-i18n-title="ui.workMode" title="Work mode">
+            <!-- Un sol mode, com els agents d'ara: respon quan preguntes i actua quan encarregues.
+                 «Planifica primer» és un interruptor per revisar el pla abans que toqui res;
+                 «Només lectura» és un permís (el cadenat). El selector queda amagat per a
+                 /mode i els integradors. -->
+            <button type="button" id="planFirst" class="plan-first" aria-pressed="false" data-i18n-title="mode.planFirstHelp" title="Proposes a plan and touches nothing until you approve it"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg><span data-i18n="mode.planFirst">Plan first</span></button>
+            <div class="mode-switch" hidden data-i18n-title="ui.workMode" title="Work mode">
               <select id="modePicker" data-i18n-aria="ui.workMode" aria-label="Work mode">
                 <option id="modeChat" value="chat" data-i18n="mode.ask">Ask</option>
                 <option id="modePlan" value="plan" data-i18n="mode.plan">Plan</option>
@@ -3264,13 +3269,15 @@ function paintPerm() {
   const obert = permMode === 'full';
   const icon = pb.querySelector('.perm-icon');
   if (icon) icon.innerHTML = obert ? ICONA_PANY.obert : ICONA_PANY.tancat;
-  const nom = gregalT(p[1]);
+  const lectura = !!state && uiMode(state.mode) === 'chat';
+  const nom = gregalT(lectura ? 'perm.readonly' : p[1]);
   const label = $('permLabel');
-  if (label) label.textContent = gregalT(p[1] + 'Short');
+  if (label) label.textContent = gregalT(lectura ? 'perm.readonlyShort' : p[1] + 'Short');
   pb.classList.toggle('obert', obert);
-  // A Pregunta i Planifica no es canvia res: el permís és per a Actua.
+  // Al pla no es toca res fins que l'aproves: el permís compta després.
   const actua = !state || uiMode(state.mode) === 'act';
-  pb.classList.toggle('inactiu', !actua);
+  pb.classList.toggle('inactiu', uiMode(state?.mode) === 'plan');
+  pb.classList.toggle('lectura', lectura);
   // Sense preguntes i a Actua, tot el compositor ho diu: la vora canvia de
   // color i no cal mirar la icona per saber que l'agent no demanarà res.
   const box = $('box');
@@ -3311,6 +3318,8 @@ function paintMode(mode) {
   const value = uiMode(mode);
   picker.value = value;
   picker.title = gregalT(value === 'chat' ? 'mode.askHelp' : value === 'plan' ? 'mode.planHelp' : 'mode.actHelp');
+  const planFirst = $('planFirst');
+  if (planFirst) { planFirst.setAttribute('aria-pressed', String(value === 'plan')); planFirst.hidden = value === 'chat'; }
   const chip = $('modeChip');
   if (chip) {
     const special = mode === 'goal' || mode === 'debug';
@@ -3341,17 +3350,19 @@ function togglePermMenu(obre) {
     $('permBtn').setAttribute('aria-expanded', 'false');
     return;
   }
-  // A Pregunta i Planifica el menú ho diu primer: triar un permís passa a
-  // Actua, que és on compta.
-  const fora = uiMode(state.mode) !== 'act';
-  menu.innerHTML = (fora ? '<div class="perm-autonomous"><span>' + escapeHTML(gregalT('perm.appliesInAct')) + '</span></div>' : '') +
-    PERMS.map(([v, nom, ajuda]) =>
-    '<button role="menuitemradio" aria-checked="' + (v === permMode) + '" class="' + (v === permMode ? 'on' : '') +
-    '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>').join('') +
+  // «Només lectura» és un permís més: el primer de la llista, el més prudent.
+  const lectura = uiMode(state.mode) === 'chat';
+  const item = (v, nom, ajuda, on) => '<button role="menuitemradio" aria-checked="' + on + '" class="' + (on ? 'on' : '') +
+    '" data-p="' + v + '"><b>' + gregalT(nom) + '</b><span>' + gregalT(ajuda) + '</span></button>';
+  menu.innerHTML = item('readonly', 'perm.readonly', 'perm.readonlyHelp', lectura) +
+    PERMS.map(([v, nom, ajuda]) => item(v, nom, ajuda, !lectura && v === permMode)).join('') +
     '<div class="perm-sandbox faint" title="' + escapeHTML((state.sandbox && (state.sandbox.warning || state.sandbox.guarantee)) || '') + '">' +
     escapeHTML(sandboxText(state.sandbox)) + '</div>';
-  menu.querySelectorAll('[data-p]').forEach(b => b.onclick = () => {
+  menu.querySelectorAll('[data-p]').forEach(b => b.onclick = async () => {
     togglePermMenu(false);
+    if (b.dataset.p === 'readonly') { await setMode('chat'); paintPerm(); return; }
+    // Sortir de només lectura torna al mode de sempre (o al pla, si hi era).
+    if (uiMode(state.mode) === 'chat') await setMode('act');
     setPermMode(b.dataset.p);
   });
   menu.hidden = false;
@@ -3404,6 +3415,7 @@ $('modePicker').onchange = async e => {
   if (await setMode(e.target.value) === false) paintMode(state.mode);
 };
 $('modeChipExit').onclick = () => setMode('act');
+$('planFirst').onclick = () => setMode(uiMode(state.mode) === 'plan' ? 'act' : 'plan');
 document.querySelectorAll('[data-special-mode]').forEach(b => { b.onclick = () => setMode(b.dataset.specialMode); });
 $('parallelBtn').onclick = () => doParallel();
 $('rewindBtn').onclick = async () => {

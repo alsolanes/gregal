@@ -98,7 +98,10 @@ func (s *Server) executeWindHeartbeat(ctx context.Context, job jobs.Job, queued 
 	start := time.Now()
 	brief := windHeartbeatSystem(w, s.personalMemory(), s.windUserName()) + windRemindBrief(w.ID)
 	brief += companion.WindBrainSystem(s.windBrain(w.ID))
+	brief += windTradeBrief(w)
 	brief += "\n\nTopic to watch: " + w.Role
+	// El que la persona ha marcat com a útil o no a la safata «Avui».
+	brief += s.avuiFeedbackBrief(w.ID)
 	brief += "\n\n" + config.LanguageDirective(s.cfg.Lang())
 	res, runErr := windHeartbeatLoop(s, ctx, brief)
 	out := strings.TrimSpace(res.text)

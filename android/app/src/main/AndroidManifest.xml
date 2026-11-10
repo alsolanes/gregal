@@ -51,6 +51,9 @@
             android:name=".WindWatchReceiver"
             android:exported="false" />
         <receiver
+            android:name=".AvuiActionReceiver"
+            android:exported="false" />
+        <receiver
             android:name=".WindWatchBootReceiver"
             android:exported="true">
             <intent-filter>

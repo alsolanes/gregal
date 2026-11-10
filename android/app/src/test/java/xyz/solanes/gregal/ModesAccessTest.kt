@@ -34,4 +34,21 @@ class ModesAccessTest {
         assertEquals("Autonomia total", tr("ca", "app.perm.full"))
         assertEquals("Full autonomy", tr("en", "app.perm.full"))
     }
+
+    @Test
+    fun nomesLecturaEsElPrimerPermisIPlanificaPrimerCommuta() {
+        assertEquals(listOf("readonly", "ask", "edits", "full"), PERM_CHOICES)
+        assertEquals("readonly", permSelected("chat", "edits"))
+        assertEquals("edits", permSelected("code", "edits"))
+        assertEquals(listOf("mode" to "chat"), permSteps("code", "readonly"))
+        // Des de només lectura: primer torna a Actua i després el permís, en ordre.
+        assertEquals(listOf("mode" to "act", "access" to "full"), permSteps("chat", "full"))
+        assertEquals(listOf("access" to "ask"), permSteps("plan", "ask"))
+        assertEquals("plan", planFirstTarget("code"))
+        assertEquals("act", planFirstTarget("plan"))
+        for (lang in listOf("ca", "en")) for (key in listOf("app.perm.readonly", "app.perm.readonlyHelp", "app.mode.planFirst", "app.mode.planFirstHelp"))
+            assertNotEquals(key, tr(lang, key))
+        assertEquals("Només lectura", tr("ca", "app.perm.readonly"))
+        assertEquals("Plan first", tr("en", "app.mode.planFirst"))
+    }
 }
