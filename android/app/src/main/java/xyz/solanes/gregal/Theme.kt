@@ -168,6 +168,10 @@ object GregalType {
     val caption = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
     /** Capçaleres de secció en majúscules. */
     val overline = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+    /** El cos dels missatges del fil (bombolles de l'assistent i teves). */
+    val chatBody = TextStyle(fontSize = 16.sp, lineHeight = 23.sp)
+    /** Hores, rebuts i separadors del fil. */
+    val chatMeta = TextStyle(fontSize = 12.sp, lineHeight = 16.sp)
 }
 
 /** Radis de cantonada: cinc graons i la pastilla. */
@@ -180,9 +184,43 @@ object GregalShape {
     val md = RoundedCornerShape(14.dp)
     /** Targetes grans, fulls i diàlegs propis. */
     val lg = RoundedCornerShape(20.dp)
-    /** El compositor i les bombolles. */
+    /** El compositor. */
     val xl = RoundedCornerShape(28.dp)
     val pill = RoundedCornerShape(50)
+    /** Radi de les bombolles del fil. */
+    val bubbleRadius = 22.dp
+    /** La cantonada de la cua: només a l'última bombolla d'una ratxa. */
+    val bubbleTailRadius = 6.dp
+    /** Bombolla sense cua (dins d'una ratxa). */
+    val bubble = RoundedCornerShape(bubbleRadius)
+    /** Bombolla amb cua a baix: a l'esquerra (assistent) o a la dreta (tu). */
+    fun bubbleTail(mine: Boolean) = if (mine)
+        RoundedCornerShape(bubbleRadius, bubbleRadius, bubbleTailRadius, bubbleRadius)
+    else RoundedCornerShape(bubbleRadius, bubbleRadius, bubbleRadius, bubbleTailRadius)
+    /** Targetes de resultat i botons de proposta del fil. */
+    val card = RoundedCornerShape(15.dp)
+}
+
+/** Mides fixes del fil: controls circulars i amples màxims de bombolla. */
+object GregalChat {
+    /** Botons circulars de la capçalera (menú, ordinador): target tàctil sencer. */
+    val control = 44.dp
+    /** L'avatar centrat de la capçalera. */
+    val headerAvatar = 44
+    /** Botó d'enviar del compositor. */
+    val send = 40.dp
+    /** La franja «2 feines en marxa» sobre el compositor. */
+    val workStrip = 32.dp
+    /** Separació dins una ratxa i entre parlants. */
+    val gapInRun = 3.dp
+    val gapBetween = 14.dp
+    /** Ample màxim de la bombolla de l'assistent: 84 % de la pantalla, fins a 520 dp. */
+    const val assistantWidth = 0.84f
+    val assistantMax = 520.dp
+    /** Ample màxim de la teva bombolla: 78 %. */
+    const val userWidth = 0.78f
+    val bubblePadH = 14.dp
+    val bubblePadV = 10.dp
 }
 
 /** Les formes de Material alineades amb [GregalShape]. */
