@@ -30,11 +30,9 @@ package tools
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -79,6 +77,13 @@ type Browser struct {
 	tabID string
 	// lastURL: on era la pàgina l'última vegada que es va mirar (permís de lloc).
 	lastURL string
+	// oc: el Chrome del propietari on aquesta sessió té la seua pestanya
+	// (browser_ordinador.go). nil = transport propi (app, extensió, attach).
+	oc *ownerChrome
+	// attachOwner: amb el Chrome supervisat (GREGAL_BROWSER_CDP), la
+	// sessió hi ha obert una pestanya pròpia que es tanca en acabar.
+	attachOwner string
+	attachTab   bool
 }
 
 var (
@@ -204,6 +209,9 @@ func openBrowser(want string, scopes ...string) (*Browser, error) {
 		attach = strings.TrimSpace(os.Getenv("GREGAL_BROWSER_CDP"))
 	}
 	if attach != "" {
+		if len(scopes) > 0 && scopes[0] != "" {
+			return attachCDPScoped(attach, scopes[0])
+		}
 		return attachCDP(attach)
 	}
 	note := ""
@@ -262,48 +270,41 @@ func attachCDP(attach string) (*Browser, error) {
 // el substitueixin (cap test engega un navegador de debò).
 var launchChrome = func(headless bool) (*Browser, error) { return launchChromeScoped(headless) }
 
+// launchChromeScoped obre el navegador de la sessió al Chrome del seu
+// propietari (usuari o màquina local), amb el perfil persistent d'aquest i
+// una pestanya pròpia. Abans hi havia un perfil per sessió i cada feina nova
+// demanava un login nou (browser_ordinador.go).
 func launchChromeScoped(headless bool, scopes ...string) (*Browser, error) {
-	b := &Browser{refs: map[int]string{}, mode: BrowserModeWindow}
-	exe := BrowserExecutable()
-	if exe == "" {
-		return nil, fmt.Errorf("browser: no trobo Chrome ni Edge (defineix GREGAL_BROWSER amb la ruta de l'executable)")
+	scope := ""
+	if len(scopes) > 0 {
+		scope = scopes[0]
 	}
-	port, err := freePort()
+	return launchOwnerBrowser(headless, scope)
+}
+
+// attachCDPScoped és attachCDP per a una sessió: una pestanya pròpia al
+// Chrome supervisat, mai la d'una altra feina, i només per al propietari.
+func attachCDPScoped(attach, scope string) (*Browser, error) {
+	if err := attachAllowed(scope); err != nil {
+		return nil, err
+	}
+	b := &Browser{refs: map[int]string{}, mode: "attach"}
+	_, portS, err := net.SplitHostPort(attach)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("browser: GREGAL_BROWSER_CDP ha de ser host:port: %v", err)
 	}
-	b.port = port
-	profile := browserProfileDir()
-	if len(scopes) > 0 && scopes[0] != "" {
-		digest := sha256.Sum256([]byte(scopes[0]))
-		profile = filepath.Join(profile, "sessions", fmt.Sprintf("%x", digest[:16]))
-	}
-	args := []string{
-		fmt.Sprintf("--remote-debugging-port=%d", port),
-		"--user-data-dir=" + profile,
-		"--no-first-run", "--no-default-browser-check", "--disable-sync",
-		"--disable-background-networking", "--disable-features=Translate,MediaRouter",
-		"--window-size=1280,900", "--remote-allow-origins=*",
-	}
-	if headless {
-		args = append(args, "--headless=new")
-		b.mode = BrowserModeHeadless
-	}
-	args = append(args, "about:blank")
-	b.cmd = exec.Command(exe, args...)
-	b.cmd.Stdout, b.cmd.Stderr = io.Discard, io.Discard
-	if err := b.cmd.Start(); err != nil {
-		return nil, fmt.Errorf("browser: no s'ha pogut engegar %s: %v", filepath.Base(exe), err)
-	}
-	b.launched = true
+	fmt.Sscanf(portS, "%d", &b.port)
 	if err := b.esperaCDP(); err != nil {
+		return nil, err
+	}
+	if err := b.connectaWS(""); err != nil {
 		b.closeIntern()
 		return nil, err
 	}
-	if err := b.connectaPagina(); err != nil {
-		b.closeIntern()
-		return nil, err
-	}
+	b.attachOwner, b.attachTab = BrowserOwnerKey(scope), true
+	ownerChromeMu.Lock()
+	ordinadorAttachUsers[b.attachOwner]++
+	ownerChromeMu.Unlock()
 	return b, nil
 }
 
@@ -508,6 +509,21 @@ func (b *Browser) Close() {
 func (b *Browser) closeIntern() {
 	if b.t != nil {
 		b.t.Close()
+	}
+	if b.oc != nil {
+		oc := b.oc
+		b.oc = nil
+		releaseOwnerChrome(oc, b.tabID)
+		return
+	}
+	if b.attachTab {
+		b.attachTab = false
+		closeCDPTab(b.port, b.tabID)
+		ownerChromeMu.Lock()
+		if ordinadorAttachUsers[b.attachOwner]--; ordinadorAttachUsers[b.attachOwner] <= 0 {
+			delete(ordinadorAttachUsers, b.attachOwner)
+		}
+		ownerChromeMu.Unlock()
 	}
 	if b.launched && b.cmd != nil && b.cmd.Process != nil {
 		_ = b.cmd.Process.Kill()
