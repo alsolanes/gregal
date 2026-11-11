@@ -178,4 +178,20 @@ class NotifContinuityTest {
         val got = AvuiJson.novetat("""{"novetat":{"ts":5,"wind":"xaloc","name":"Xaloc","source":"remind","text":"hola","id":"n-1","owner":"aleix","read":true,"message_id":"m-1"}}""")!!
         assertEquals("n-1", got.id); assertEquals("aleix", got.owner); assertTrue(got.read); assertEquals("m-1", got.messageId)
     }
+
+    // ---- portabilitat: sense FCM tot funciona i es diu clar ----
+
+    @Test fun `sense FCM enlloc diu push no configurat`() {
+        assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(appHasFcm = false, serverMode = "polling"))
+        assertEquals(PushState.NOT_CONFIGURED, PushStatusLogic.state(false, ""))
+        assertTrue(PushStatusLogic.text("ca", PushState.NOT_CONFIGURED).startsWith("Push no configurat"))
+        assertTrue(PushStatusLogic.text("en", PushState.NOT_CONFIGURED).startsWith("Push not configured"))
+    }
+
+    @Test fun `push actiu nomes amb app i servidor configurats`() {
+        assertEquals(PushState.ACTIVE, PushStatusLogic.state(true, "fcm"))
+        assertEquals(PushState.SERVER_ONLY, PushStatusLogic.state(false, "fcm"))
+        assertEquals(PushState.APP_ONLY, PushStatusLogic.state(true, "polling"))
+        for (s in PushState.values()) for (l in listOf("ca", "en")) assertTrue(PushStatusLogic.text(l, s).isNotBlank())
+    }
 }

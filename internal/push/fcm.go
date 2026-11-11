@@ -87,6 +87,16 @@ func FromEnv() (Sender, error) {
 	return envSender, envErr
 }
 
+// Status diu si el push és configurat i, si ho és però no es pot fer
+// servir (fitxer il·legible, clau dolenta), l'error. Per a «gregal doctor».
+func Status() (configured bool, err error) {
+	if strings.TrimSpace(os.Getenv(EnvCredentials)) == "" {
+		return false, nil
+	}
+	s, err := FromEnv()
+	return s != nil, err
+}
+
 // NewFCM crea el Sender a partir del JSON del compte de servei.
 func NewFCM(credentials []byte) (*FCM, error) {
 	var acct serviceAccount

@@ -1,6 +1,9 @@
 package xyz.solanes.gregal
 
 import android.content.Context
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import org.json.JSONObject
 
 /*
@@ -102,4 +105,46 @@ object VentsPush {
         if (fresh.isEmpty() || !WindNotifications.canNotify(app)) return
         WindNotifications.veu(app, fresh.first(), origin)
     }
+}
+
+/** Estat del push per a Preferències: què arriba i com, sense configuració amagada. */
+enum class PushState { ACTIVE, NOT_CONFIGURED, APP_ONLY, SERVER_ONLY, UNKNOWN }
+
+object PushStatusLogic {
+    /** [serverMode]: "fcm" | "polling" | "" (servidor antic o sense resposta). */
+    fun state(appHasFcm: Boolean, serverMode: String): PushState = when {
+        serverMode.isBlank() -> if (appHasFcm) PushState.UNKNOWN else PushState.NOT_CONFIGURED
+        serverMode == "fcm" && appHasFcm -> PushState.ACTIVE
+        serverMode == "fcm" -> PushState.SERVER_ONLY
+        appHasFcm -> PushState.APP_ONLY
+        else -> PushState.NOT_CONFIGURED
+    }
+
+    fun text(lang: String, s: PushState): String {
+        val en = lang == "en"
+        return when (s) {
+            PushState.ACTIVE -> if (en) "Push active (FCM): notifications arrive with the app closed" else "Push actiu (FCM): els avisos arriben amb l'app tancada"
+            PushState.NOT_CONFIGURED -> if (en) "Push not configured: foreground connection and periodic checks" else "Push no configurat: connexió de primer pla i comprovació periòdica"
+            PushState.SERVER_ONLY -> if (en) "Push not configured in this app build: periodic checks" else "Push no configurat en aquesta app: comprovació periòdica"
+            PushState.APP_ONLY -> if (en) "Push not configured on the server (GREGAL_FCM_CREDENTIALS): periodic checks" else "Push no configurat al servidor (GREGAL_FCM_CREDENTIALS): comprovació periòdica"
+            PushState.UNKNOWN -> if (en) "Push status unknown: periodic checks" else "Estat del push desconegut: comprovació periòdica"
+        }
+    }
+
+    fun title(lang: String): String = if (lang == "en") "Background notifications" else "Avisos en segon pla"
+}
+
+/** Fila de Preferències amb l'estat del push del servidor actual. */
+@androidx.compose.runtime.Composable
+internal fun PushStatusRow(conn: Conn, lang: String) {
+    var mode by androidx.compose.runtime.remember(conn) { androidx.compose.runtime.mutableStateOf("") }
+    androidx.compose.runtime.LaunchedEffect(conn) {
+        mode = if (conn.local) "polling" else kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try { conn.api().get("/api/v2/push").optString("mode") } catch (_: Throwable) { "" }
+        }
+    }
+    SettingsRow(
+        androidx.compose.material.icons.Icons.Rounded.Notifications, PushStatusLogic.title(lang),
+        PushStatusLogic.text(lang, PushStatusLogic.state(VentsPush.transport != null, mode)),
+    )
 }

@@ -29,14 +29,36 @@ val backendAbis = if (onlyAbi == null) allBackendAbis
         require(it.isNotEmpty()) { "gregal.abi ha de ser un de: ${allBackendAbis.keys}" }
     }
 
-// Push FCM (B7): només amb la configuració de Firebase del client fora del
-// repositori (~/.gradle/gradle.properties o -P): gregal.fcm.projectId,
-// gregal.fcm.appId, gregal.fcm.apiKey i gregal.fcm.senderId. Sense totes
-// quatre, l'APK és la de sempre (sense Firebase) i els avisos de fons van pel
-// sondeig de WindWatch. El servidor necessita, a part, GREGAL_FCM_CREDENTIALS.
-val fcmConfig = listOf("projectId", "appId", "apiKey", "senderId")
-    .associateWith { (findProperty("gregal.fcm.$it") as String?)?.trim().orEmpty() }
-val fcmOn = fcmConfig.values.all { it.isNotEmpty() }
+// Push FCM (B7), opcional i per a forks: una sola propietat de Gradle,
+// gregal.fcm.config = camí al google-services.json del teu projecte de
+// Firebase (a ~/.gradle/gradle.properties o -P; mai al repositori). Sense
+// ella, l'APK és la de sempre (sense Firebase): avisos per la connexió de
+// primer pla i la comprovació periòdica (WindWatch). El servidor necessita,
+// a part, GREGAL_FCM_CREDENTIALS. Cap projecte, paquet ni clau nostres aquí.
+val fcmConfig: Map<String, String> = run {
+    val path = (findProperty("gregal.fcm.config") as String?)?.trim().orEmpty()
+    if (path.isEmpty()) return@run emptyMap()
+    val file = File(path)
+    require(file.isFile) { "gregal.fcm.config: no existeix $path" }
+    @Suppress("UNCHECKED_CAST")
+    val json = groovy.json.JsonSlurper().parse(file) as Map<String, Any?>
+    val info = json["project_info"] as? Map<String, Any?> ?: emptyMap()
+    @Suppress("UNCHECKED_CAST")
+    val clients = (json["client"] as? List<Map<String, Any?>>).orEmpty()
+    // El client de l'ID de paquet d'aquesta build; si no n'hi ha, el primer.
+    fun pkg(c: Map<String, Any?>) = ((c["client_info"] as? Map<*, *>)?.get("android_client_info") as? Map<*, *>)?.get("package_name")
+    val wanted = if (project.hasProperty("gregal.plotsPreview")) "xyz.solanes.gregal.vents" else "xyz.solanes.gregal"
+    val client = clients.firstOrNull { pkg(it) == wanted } ?: clients.firstOrNull() ?: emptyMap()
+    val appId = (client["client_info"] as? Map<*, *>)?.get("mobilesdk_app_id")?.toString().orEmpty()
+    val apiKey = ((client["api_key"] as? List<*>)?.firstOrNull() as? Map<*, *>)?.get("current_key")?.toString().orEmpty()
+    mapOf(
+        "projectId" to info["project_id"]?.toString().orEmpty(),
+        "appId" to appId,
+        "apiKey" to apiKey,
+        "senderId" to info["project_number"]?.toString().orEmpty(),
+    ).also { m -> require(m.values.all { it.isNotEmpty() }) { "gregal.fcm.config: al fitxer hi falten camps de Firebase" } }
+}
+val fcmOn = fcmConfig.isNotEmpty()
 
 android {
     namespace = "xyz.solanes.gregal"
