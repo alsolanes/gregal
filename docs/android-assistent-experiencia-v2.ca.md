@@ -126,7 +126,12 @@ Què s'elimina o s'amaga al recorregut principal: `CapNote` com a resum, l'estat
 
 ### Primera arquitectura que implementarem
 
-Un **worker Linux persistent i dedicat per usuari**, inicialment una VM preparada manualment per al pilot. Hi viuen el backend/runner Gregal existent, navegador amb perfil persistent, escriptori gràfic lleuger i carpeta de treball. Android actua com a client. El worker continua quan es tanca l'app; si s'atura el host, queda aturat i el producte ho reflecteix.
+**Revisat l'11/11:** dues peces separades, no una.
+
+- **Amfitrió (sempre encès, lleuger):** el servidor Gregal amb els comptes, les converses, l'estat durable (decisions, encàrrecs, connexions), els esdeveniments, els avisos, el gateway i la **publicació de webs**. És el que veu Android i és l'únic que ha d'estar sempre disponible.
+- **Ordinador (un per persona, s'encén quan cal):** una VM Linux amb el runner, navegador amb perfil persistent, escriptori lleuger i carpeta de treball. Es pot aturar o hibernar quan no s'usa. L'amfitrió l'encén quan una feina el necessita (wake on demand), i l'atura passat un temps d'inactivitat configurable.
+
+Quan l'ordinador està aturat, la conversa, els resultats ja lliurats, les decisions pendents i les webs publicades continuen funcionant. Només esperen les feines que necessiten navegador o terminal; passen a `waiting_computer` i el fil ho diu. El pilot són dos comptes, la Carla i l'Aleix, cadascun amb el seu ordinador.
 
 La primera entrega no necessita un servei de provisioning multi-cloud. Tampoc es pot presentar com a «ordinador personal» una pestanya headless sense fitxers, persistència, visibilitat ni recuperació.
 
@@ -159,6 +164,26 @@ Primer, navegador + terminal + fitxers al mateix ordinador visible; no prometre 
 L'ordinador propi de l'usuari és una connexió addicional i explícita, no el valor per defecte. El backend local Android es manté per casos locals, amb capacitats declarades; no es diu que és un ordinador remot sempre encès.
 
 Abans d'escala: cost per usuari, hibernació, recursos, backups, actualitzacions del worker, eliminació de dades i supervisió. El pilot ja necessita límits de temps/disc i credencials protegides, però no un control plane distribuït construït des de zero.
+
+### Publicar webs pròpies (requisit del pilot)
+
+Ús principal: la Carla i l'Aleix, cadascú des del seu compte, creen webs i les publiquen en subdominis de `selsol.top` (per exemple `aliments.selsol.top`), o només a la xarxa local. Han de poder-les verificar, publicar i obrir encara que el seu ordinador estigui aturat.
+
+**Principi:** l'ordinador construeix i previsualitza; l'amfitrió serveix. Publicar **copia** una versió a l'amfitrió (com ja fa `publish`/`share_site.go`, que desa els fitxers i no serveix la carpeta d'origen). Res del que es publica depèn que la VM estigui encesa.
+
+| Peça | Decisió |
+|---|---|
+| Domini | Un sol registre DNS comodí `*.selsol.top` cap al túnel Cloudflare de l'amfitrió, i una regla d'ingress comodí cap a Gregal. Gregal tria la web per la capçalera `Host`. Una web nova no toca DNS ni Cloudflare |
+| Noms | Registre `nom → owner, visibilitat, tipus, versió actual`. El primer compte que reclama un nom el té; l'altre no el pot sobreescriure. Noms reservats: `www`, `gregal`, `api`, `lan`, `preview`. Validació de format DNS (a-z, 0-9, guió) |
+| Visibilitat | `public` (per Internet via túnel), `lan` (només a la xarxa local) o `private` (cal sessió del propietari). Es canvia sense tornar a publicar |
+| Xarxa local | L'amfitrió serveix les webs `lan` només a peticions d'adreces privades i mai pel túnel. Nom: `aliments.lan.selsol.top`, amb un registre comodí `*.lan.selsol.top` cap a l'IP local de l'amfitrió (sense proxy de Cloudflare). Alternativa si el router bloqueja DNS amb IPs privades: `http://<ip-amfitrió>/w/aliments/` |
+| Estàtiques | Versions immutables a l'amfitrió. Publicar = pujar versió i apuntar-hi el nom. «Desfés» torna a la versió anterior a l'instant. Es conserven les 10 últimes |
+| Dinàmiques | Corren al gestor d'apps de l'amfitrió (`apps.go`), no a la VM, amb límits de memòria i CPU per app i el mateix enrutament per `Host`. Si una app necessita massa recursos per a l'amfitrió, es diu clarament; no es publica servida des de la VM |
+| Verificar | Abans de publicar, previsualització privada a `aliments.preview.selsol.top` (cal sessió del propietari) o dins l'app. Després de publicar, l'amfitrió comprova l'URL real (HTTP 200, `index.html`, enllaços interns) i el resultat entra al fil com a rebut: «Publicat a aliments.selsol.top · versió 4 · comprovat». Si falla, no es canvia la versió activa |
+| Permisos | Publicar és una capacitat per compte: «pot publicar a `*.selsol.top`». No requereix els «poders de servidor» d'administrador que avui exigeix l'eina `tunnel`. Publicar en `public` per primer cop un nom nou és una decisió que es confirma al fil; les actualitzacions del mateix nom, no |
+| Accés des del mòbil | Una llista «Webs» amb nom, visibilitat, versió, estat de l'última comprovació i obrir, compartir o desfer |
+
+Què es reutilitza: `publish` i `share_site.go` (còpia i versions), `apps.go` (apps dinàmiques), `tunnels.go` (túnel amb nom i ingress). Què falta: enrutament per `Host`, registre de noms amb owner, visibilitat `lan`/`private`, versions amb desfer, comprovació posterior i ingress comodí. Va al paquet **B11 — Publicació**, que depèn només de l'amfitrió i no espera B2 ni B3.
 
 ## 6. Connectar apps: dos camins, una experiència
 
@@ -257,7 +282,7 @@ Reutilitzar IDs de sessió/run/job i magatzem durable d'esdeveniments on siguin 
 | Missatge | id, conversationId, source, relatedRunId, resultRefs, createdAt | Una publicació canònica, moltes vistes del mateix resultat |
 | Esdeveniment | cursor, owner, kind, targetId, revision | Replay ordenat, deduplicació i lectura consistent |
 
-Estats d'encàrrec: `queued → running → waiting_user / waiting_connection → running → completed / failed / cancelled`. El heartbeat d'una responsabilitat no és un encàrrec visible nou si no hi ha canvi útil.
+Estats d'encàrrec: `queued → running → waiting_user / waiting_connection / waiting_computer → running → completed / failed / cancelled`. El heartbeat d'una responsabilitat no és un encàrrec visible nou si no hi ha canvi útil.
 
 Cancel·lació: el mòbil sol·licita al backend, el backend atura eines/runner i confirma l'estat final. Pèrdua de connexió, pausa, tancar visor i cancel·lar feina són accions diferents.
 

@@ -19,7 +19,7 @@ Aquest document és la base dels paquets B1–B9. Fa tres coses: diu què ja exi
 
 Els estats vàlids de cada concepte nou són a `internal/web/assistant_contract.go` i són els mateixos que ha d'usar Android:
 
-- **Encàrrec:** `queued · running · waiting_user · waiting_connection · completed · failed · cancelled`.
+- **Encàrrec:** `queued · running · waiting_user · waiting_connection · waiting_computer · completed · failed · cancelled`.
 - **Decisió:** `pending · approved · rejected · expired · superseded`.
 - **Connexió:** `available · connecting · connected · needs_session · error · disconnected`.
 - **Ordinador:** salut `starting · running · stopped · unreachable`; control `agent · user · none`.

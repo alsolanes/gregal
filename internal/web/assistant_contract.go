@@ -9,7 +9,7 @@ package web
 
 // Estats d'un encàrrec. waiting_* alliberen recursos: no hi ha cap goroutine
 // esperant; la represa la fa el runner quan arriba la resposta o la connexió.
-var encarrecStates = []string{"queued", "running", "waiting_user", "waiting_connection", "completed", "failed", "cancelled"}
+var encarrecStates = []string{"queued", "running", "waiting_user", "waiting_connection", "waiting_computer", "completed", "failed", "cancelled"}
 
 // Estats d'una decisió pendent. L'aprovació és d'una revisió concreta de
 // l'efecte proposat: si l'efecte canvia, es demana de nou.
