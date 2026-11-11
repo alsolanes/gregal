@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## v1.72.0 - 2026-11-11 - Gregal fa la feina ell mateix
+
+- **Gregal fa la feina ell mateix.** L'assistent principal ja no només reparteix:
+  cerca, programa recordatoris, vigila webs i calendaris, treballa amb fitxers i
+  amb el seu ordinador al mateix fil, sense «Endavant». Quan un especialista hi
+  sap més, el consulta en segon pla i et diu qui l'ha ajudat. Només demana
+  permís per actuar fora (enviar, comprar, publicar, esborrar). Hereta el nom,
+  la cara i la conversa del Ventet.
+- **La portada és el fil de Gregal, al mòbil (Vents 1.75.0) i a l'escriptori.**
+  A dalt, només la seva cara flotant, amb el menú i l'ordinador; en obrir,
+  una lluïssor floreix al voltant de la cara i es queda suau.
+
 ## v1.71.2 - 2026-11-11 - La portada és el fil de Gregal
 
 - **Gregal Vents per a Android (1.74.2): la portada és el fil de Gregal.** A dalt

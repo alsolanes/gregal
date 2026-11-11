@@ -6,7 +6,7 @@ package main
 import "gregal/internal/cli"
 
 // version es fixa en compilar: go build -ldflags "-X main.version=vX.Y.Z".
-var version = "v1.71.2"
+var version = "v1.72.0"
 
 // repoDir l'omple la compilacio (-ldflags "-X main.repoDir=..."): aixi el
 // binari recorda d'on va sortir i `gregal update` el sap trobar encara que
